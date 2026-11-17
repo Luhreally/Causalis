@@ -341,11 +341,19 @@ function rise(
 }
 
 /** A group's hold ends: told, and its record let go. */
-function ended(f: Facts, g: CrimeGroup, how: GroupEnd, factors: Factor[], into?: CrimeGroup): Ref {
+function ended(
+  f: Facts,
+  g: CrimeGroup,
+  how: GroupEnd,
+  factors: Factor[],
+  into?: CrimeGroup,
+  type: string = UNDERWORLD_EVENTS.ended.type,
+  more: Record<string, unknown> = {},
+): Ref {
   const { v, year } = f,
     event = tell(
       f,
-      UNDERWORLD_EVENTS.ended.type,
+      type,
       g.home,
       {
         group: g.name,
@@ -354,6 +362,7 @@ function ended(f: Facts, g: CrimeGroup, how: GroupEnd, factors: Factor[], into?:
         how,
         since: g.since,
         ...(into ? { into: into.name } : {}),
+        ...more,
       },
       [{ ref: g.event, role: "enabler", weight: 1 }],
       factors,
@@ -834,7 +843,16 @@ function stepRealm(
     const own = v.groups.filter((g) => kindOfGroup(g) === kind),
       top = Math.max(0, ...own.map((g) => g.share)) / 1000,
       line = kind === "protection" ? UNDER.riseProtect : UNDER.riseRent,
-      perGroup = rent / Math.max(1, own.length + 1);
+      perGroup = rent / Math.max(1, own.length + 1),
+      // (Room for another: the men the road's groups hold fall well short of what its rent would keep, or lands with towns lie
+      // outside every one of them. A rent no one can hold all of draws rivals to it.)
+      held = own.reduce((s, g) => s + g.members, 0),
+      keepAll = rent / (r.wage * UNDER.keep),
+      taken = new Set(own.flatMap((g) => g.lands)),
+      open = [...p.members].filter(
+        (c) => !taken.has(c) && ctx.settlements.inProvince(c).some((s) => s.market),
+      ).length,
+      room = held < 0.6 * keepAll || open >= 2;
     if (
       pull >= line &&
       idle.supply > 0.05 &&
@@ -842,15 +860,14 @@ function stepRealm(
       v.groups.length < UNDER.most &&
       // (A rent that keeps a crew at all, and, for a second or third, no group already holding it.)
       perGroup >= r.wage * UNDER.keep * UNDER.crew &&
-      (own.length === 0 || (top < 0.6 && f.u(40 + KIND(kind)) < 0.5))
+      (own.length === 0 || (top < 0.85 && room && f.u(40 + KIND(kind)) < 0.5))
     ) {
-      const home =
-        kind === "cartel"
-          ? ([...r.edge].sort((a, b) => landWeight(ctx, b) - landWeight(ctx, a) || a - b)[0] ??
-            p.seat)
-          : ([...p.members].sort((a, b) => landWeight(ctx, b) - landWeight(ctx, a) || a - b)[
-              own.length
-            ] ?? p.seat);
+      // (Its home: the weightiest land none of its road holds; a cartel's on the border where it can.)
+      const free = (cs: Iterable<number>) =>
+          [...cs]
+            .filter((c) => !taken.has(c))
+            .sort((a, b) => landWeight(ctx, b) - landWeight(ctx, a) || a - b)[0],
+        home = (kind === "cartel" ? free(r.edge) : undefined) ?? free(p.members) ?? p.seat;
       rise(
         f,
         kind,
@@ -999,7 +1016,9 @@ function stepRealm(
     });
   v.badgePull = per(bp);
   let badge = v.groups.find((g) => kindOfGroup(g) === "badge");
-  if (!badge && bp >= 0.2 && crackdown >= 0.25 && v.groups.length < UNDER.most) {
+  // (A crew found out leaves its realm watching its enforcers for a while: none rises again until its scandal has faded.)
+  const watched = !!v.scandal && year - v.scandal.year < UNDER.scandalYears;
+  if (!badge && !watched && bp >= 0.2 && crackdown >= 0.25 && v.groups.length < UNDER.most) {
     badge =
       rise(f, "badge", p.seat, 0, [
         factor("a crackdown given licence", crackdown, crackdown),
@@ -1223,7 +1242,7 @@ function stepRealm(
   treasuryPays(world, p.ref, cost * span - seized);
 
   // 9. A badge crew found out: purged and reformed, or kept by impunity.
-  if (badge) {
+  if (badge && badge.since < year) {
     const chance = exposedWithin(
       {
         word: r.word,
@@ -1234,22 +1253,23 @@ function stepRealm(
       span,
     );
     if (f.u(200) < chance) {
-      const ev = ended(f, badge, "exposed", [
-        factor("word that moves freely", r.word, r.word),
-        factor("courts that stand apart", r.byCourts, r.byCourts),
-        factor(
-          "a rival house to use it",
-          housesRead(world, p.ref)?.rival ?? 0,
-          housesRead(world, p.ref)?.rival ?? 0,
-        ),
-        factor("the killing it left", v.badge, (v.badge / r.people) * 2000),
-      ]);
-      tell(
+      const ev = ended(
         f,
+        badge,
+        "exposed",
+        [
+          factor("word that moves freely", r.word, r.word),
+          factor("courts that stand apart", r.byCourts, r.byCourts),
+          factor(
+            "a rival house to use it",
+            housesRead(world, p.ref)?.rival ?? 0,
+            housesRead(world, p.ref)?.rival ?? 0,
+          ),
+          factor("the killing it left", v.badge, (v.badge / r.people) * 2000),
+        ],
+        undefined,
         UNDERWORLD_EVENTS.exposed.type,
-        p.seat,
-        { group: badge.name, gids: [badge.id], squad: badge.squad ?? 0, killed: v.badge },
-        [{ ref: ev, role: "trigger", weight: 1 }],
+        { squad: badge.squad ?? 0, killed: v.badge },
       );
       v.scandal = { year, event: ev };
       v.badge = 0;
