@@ -21,6 +21,7 @@
 // ground holds, and the tools its people know. Pure tables and arithmetic: sim/lore/materials.ts keeps what each land knows.
 import { dmath } from "../kernel/index.ts";
 import { findSubstance, molarMass } from "./matter.ts";
+import { boundAtom } from "./laws.ts";
 
 // —— Atoms ————————————————————————————————————————————————————————————————————————————————————————————————————
 
@@ -107,6 +108,19 @@ export const ATOMS: Readonly<Record<string, Atom>> = {
 
 /** An atom by its symbol (null: one no table's stuff is made of). */
 export const atomOf = (symbol: string): Atom | null => ATOMS[symbol] ?? null;
+
+const BOUND = new Map<number, Readonly<Record<string, Atom>>>();
+/** The atoms of a universe whose binding is so many times ours (rules/laws.ts boundAtom): ours at 1. */
+export function boundAtoms(binding: number): Readonly<Record<string, Atom>> {
+  if (binding === 1) return ATOMS;
+  let t = BOUND.get(binding);
+  if (!t) {
+    if (BOUND.size >= 8) BOUND.clear();
+    t = Object.fromEntries(Object.entries(ATOMS).map(([k, a]) => [k, boundAtom(a, binding)]));
+    BOUND.set(binding, t);
+  }
+  return t;
+}
 
 /** The share of a sphere-packed solid its atoms fill, by how they pack. */
 export const PACKING: Readonly<Record<Lattice, number>> = {
@@ -307,9 +321,11 @@ export function metalFigures(
   formula: Readonly<Record<string, number>>,
   worked: Worked = "annealed",
   kelvin = 288,
-  how: { readonly flaw?: number; readonly edgeCarbon?: number } = {},
+  how: { readonly flaw?: number; readonly edgeCarbon?: number; readonly binding?: number } = {},
 ): MetalFigures | null {
-  const L = MATERIAL_LAWS;
+  const L = MATERIAL_LAWS,
+    // (Its universe's atoms: a Creator's binding scales how fast they hold and how hot they melt, rules/laws.ts.)
+    AT = boundAtoms(how.binding ?? 1);
   // A forged iron edge takes up its hearth's carbon (charcoal's), where it held less.
   let f: Readonly<Record<string, number>> = formula;
   const isIron = metalMake(formula)?.host === "Fe";
@@ -319,12 +335,12 @@ export function metalFigures(
   }
   const m = metalMake(f);
   if (!m) return null;
-  const host = ATOMS[m.host]!,
+  const host = AT[m.host]!,
     lattice = host.lattice,
     hostE = stiffnessOf(host),
     // (Each atom set in the host's sites takes the room its size takes in the host's packing.)
     room = (a: Atom) => ball(a.r) / PACKING[lattice],
-    siteRoom = m.sites.reduce((s, [e, x]) => s + x * room(ATOMS[e]!), 0),
+    siteRoom = m.sites.reduce((s, [e, x]) => s + x * room(AT[e]!), 0),
     sitesOfAll = 1 - m.gaps.reduce((s, [, x]) => s + x, 0),
     massSite =
       m.sites.reduce((s, [e, x]) => s + x * findMass(e), 0) +
@@ -332,8 +348,8 @@ export function metalFigures(
     density = (massSite * AMU) / siteRoom,
     carbonWt = carbonWtOf(f),
     // Its melt: its sites' by their shares, lowered by what sits in its gaps (iron's liquidus falls 91 K a % of carbon).
-    meltK = m.sites.reduce((s, [e, x]) => s + x * ATOMS[e]!.meltK, 0) - 91 * carbonWt,
-    E = m.sites.reduce((s, [e, x]) => s + x * stiffnessOf(ATOMS[e]!), 0),
+    meltK = m.sites.reduce((s, [e, x]) => s + x * AT[e]!.meltK, 0) - 91 * carbonWt,
+    E = m.sites.reduce((s, [e, x]) => s + x * stiffnessOf(AT[e]!), 0),
     homologous = Math.min(0.98, kelvin / Math.max(1, meltK)),
     // Pure: from its stiffness, harder to slip in its packing, softer near its melt.
     pure = L.pure * E * 1000 * L.lattice[lattice] * sq(1 - homologous);
@@ -342,7 +358,7 @@ export function metalFigures(
     solutes = 0;
   for (const [e, c] of m.sites) {
     if (e === m.host) continue;
-    const a = ATOMS[e]!,
+    const a = AT[e]!,
       delta = (a.r - host.r) / host.r,
       eta = Math.abs(stiffnessOf(a) - hostE) / hostE,
       eps = eta / (1 + eta / 2) + 3 * Math.abs(delta);
@@ -412,7 +428,7 @@ export function metalFigures(
   let foreign = 0;
   for (const [e, c] of m.sites) {
     if (e === m.host) continue;
-    const a = ATOMS[e]!,
+    const a = AT[e]!,
       dv = Math.abs(a.free - host.free);
     foreign += (L.linde * dv * dv + (a.d !== null ? L.lindeD : 0)) * c * (1 - c);
   }
@@ -420,7 +436,7 @@ export function metalFigures(
     conductivity = 100 / (phonon + foreign + gapScatter);
   // A magnet: a late 3d host (Slater–Pauling: 10.6 less the electrons past argon, a site's average).
   const late3d = m.host === "Fe" || m.host === "Ni" || m.host === "Co",
-    outer = m.sites.reduce((s, [e, x]) => s + x * (ATOMS[e]!.z - 18), 0),
+    outer = m.sites.reduce((s, [e, x]) => s + x * (AT[e]!.z - 18), 0),
     moment = late3d ? Math.max(0, Math.min(2.6, 10.6 - outer)) : 0;
   return {
     density: Math.round(density),
@@ -478,6 +494,8 @@ export type MetalRecipe = {
   readonly kelvin?: number;
   readonly flaw?: number;
   readonly edgeCarbon?: number;
+  /** Its universe's binding (rules/laws.ts): 1, ours, unless said. */
+  readonly binding?: number;
 };
 
 /** A metal stuff's figures, by its recipe. */
@@ -487,6 +505,7 @@ export function recipeFigures(r: MetalRecipe): MetalFigures {
   const f = metalFigures(formula, r.worked, r.kelvin ?? 288, {
     ...(r.flaw !== undefined ? { flaw: r.flaw } : {}),
     ...(r.edgeCarbon !== undefined ? { edgeCarbon: r.edgeCarbon } : {}),
+    ...(r.binding !== undefined ? { binding: r.binding } : {}),
   });
   if (!f) throw new Error(`no metal in ${r.subst}`);
   return f;
@@ -594,15 +613,17 @@ const valenceOf = (e: string) => VALENCE[e] ?? null;
 export const GAP_LAW = { diamond: 5.47, bond: 1.54, power: 3.79, ionic: 2.8 } as const;
 
 /** A diamond-like crystal's band gap (eV), from its bond's length and its two atoms' pull; null for any other stuff. */
-export function bandGapOf(formula: Readonly<Record<string, number>>): number | null {
+export function bandGapOf(formula: Readonly<Record<string, number>>, binding = 1): number | null {
   const pair = tetrahedral(formula);
   if (!pair) return null;
   const a = ATOMS[pair[0]]!,
     b = ATOMS[pair[1]]!,
     bond = (a.cov + b.cov) / 100,
     chi = a.chi - b.chi;
+  // (A Creator's binding widens every gap as it deepens every bond.)
   const g =
-    GAP_LAW.diamond * dmath.pow(GAP_LAW.bond / bond, GAP_LAW.power) + GAP_LAW.ionic * chi * chi;
+    binding *
+    (GAP_LAW.diamond * dmath.pow(GAP_LAW.bond / bond, GAP_LAW.power) + GAP_LAW.ionic * chi * chi);
   return Math.round(100 * g) / 100;
 }
 
@@ -1045,4 +1066,301 @@ export function treatedRecipe(role: string, made: (w: string) => boolean): Metal
     return null;
   }
   return null;
+}
+
+// —— Smelting heats from the oxides' own free energies (Ellingham) ——————————————————————————————
+
+/**
+ * Each metal's last oxide to give up its oxygen, as its line on Ellingham's chart: ΔG° = ΔH − TΔS for so much metal
+ * taking one mole of O₂ (kJ, and kJ a kelvin). Thermochemistry, the same on every world of our laws.
+ */
+export const OXIDE_LINES: Readonly<
+  Record<string, { readonly oxide: string; readonly dH: number; readonly dS: number }>
+> = {
+  Cu: { oxide: "Cu₂O", dH: -338, dS: -0.144 },
+  Sn: { oxide: "SnO₂", dH: -581, dS: -0.204 },
+  Fe: { oxide: "FeO", dH: -528, dS: -0.13 },
+  Zn: { oxide: "ZnO", dH: -701, dS: -0.201 },
+  Ni: { oxide: "NiO", dH: -479, dS: -0.172 },
+  As: { oxide: "As₂O₃", dH: -438, dS: -0.18 },
+  Pb: { oxide: "PbO", dH: -438, dS: -0.2 },
+  Si: { oxide: "SiO₂", dH: -911, dS: -0.182 },
+  Ti: { oxide: "TiO₂", dH: -944, dS: -0.185 },
+  Al: { oxide: "Al₂O₃", dH: -1117, dS: -0.209 },
+  Mg: { oxide: "MgO", dH: -1203, dS: -0.217 },
+  Cr: { oxide: "Cr₂O₃", dH: -753, dS: -0.17 },
+  W: { oxide: "WO₃", dH: -561, dS: -0.18 },
+};
+
+/** What takes an oxide's oxygen, as its own line for one mole of O₂: carbon burning to CO (charcoal, coke), hydrogen to steam. */
+export const REDUCERS = {
+  // (2C + O₂ → 2CO: the one line that falls as it heats, so carbon in the end takes nearly every oxide's oxygen.)
+  carbon: { dH: -221, dS: 0.179, words: "charcoal or coke" },
+  hydrogen: { dH: -484, dS: -0.089, words: "hydrogen" },
+} as const;
+export type Reducer = keyof typeof REDUCERS;
+
+/** The free energy a smelt must have to spare to go at a useful pace (kJ a mole of O₂, est). */
+export const SMELT_SPARE = 20;
+/** Where a slag of iron oxide and silica runs (the FeO–SiO₂ eutectic, °C): what a bloom or a matte is freed from. */
+export const SLAG_C = 1177;
+
+/** Where a reducer takes a metal's oxygen (°C; 0 where it does at any heat, null where it never does). */
+export function reductionC(metal: string, by: Reducer): number | null {
+  const ox = OXIDE_LINES[metal];
+  if (!ox) return null;
+  const r = REDUCERS[by],
+    // (ΔG = (Hr − Hox + spare) − T (Sr − Sox) ≤ 0.)
+    h = r.dH - ox.dH + SMELT_SPARE,
+    s = r.dS - ox.dS;
+  if (h <= 0) return s >= 0 ? 0 : Math.max(0, Math.round(h / s - 273.15));
+  if (s <= 0) return null;
+  return Math.max(0, Math.round(h / s - 273.15));
+}
+
+/** A smelt as the heat reads it: its metal, its ore, whether the ore's sulphur takes its own oxygen, whether a slag must run. */
+export type SmeltRead = {
+  readonly metal: string;
+  readonly ore: string;
+  readonly self: boolean;
+  readonly slag: boolean;
+};
+
+type Reacting = {
+  readonly inputs: readonly (readonly [string, number])[];
+  readonly outputs: readonly (readonly [string, number])[];
+};
+
+/** What a reaction smelts, where it frees a pure metal from a compound of it (not a sulphate's, not an alloy's). */
+export function smeltOf(r: Reacting): SmeltRead | null {
+  const out = r.outputs
+    .map(([id]) => findSubstance(id))
+    .find(
+      (s) => s && Object.keys(s.formula).length === 1 && ATOMS[Object.keys(s.formula)[0]!]?.metal,
+    );
+  if (!out) return null;
+  const metal = Object.keys(out.formula)[0]!,
+    ore = r.inputs
+      .map(([id]) => findSubstance(id))
+      .find((s) => s && s.formula[metal] !== undefined && Object.keys(s.formula).length > 1);
+  if (!ore) return null;
+  const f = ore.formula,
+    sulphate = (f.S ?? 0) > 0 && (f.O ?? 0) >= 4 * (f.S ?? 0);
+  if (sulphate || metalMake(f)) return null;
+  return {
+    metal,
+    ore: ore.id,
+    self: (f.S ?? 0) > 0 && r.inputs.some(([id]) => id === "oxygen"),
+    slag: (metal !== "Fe" && (f.Fe ?? 0) > 0) || (f.Si ?? 0) > 0,
+  };
+}
+
+/**
+ * The heat a smelt wants (°C), from its oxide's free energy against its reducer's and from what must run: the heat where
+ * the reducer takes the metal's oxygen with some to spare (a sulphide roasted burns its own sulphur, and wants none); the
+ * heat where the metal is gathered (run out as a liquid where it melts below the slag, freed as a bloom from a running
+ * slag where it melts above it); and a slag must run wherever the ore carries iron or silica to be rid of. A Creator's
+ * binding (rules/laws.ts) moves every heat with it, in kelvin. Null for what is not a smelt, or a smelt nothing it has
+ * reduces.
+ */
+export function smeltHeat(
+  r: Reacting,
+  reducers: readonly Reducer[] = ["carbon"],
+  binding = 1,
+): number | null {
+  const s = smeltOf(r);
+  if (!s || !OXIDE_LINES[s.metal]) return null;
+  let reduce: number | null = s.self ? 0 : null;
+  if (!s.self)
+    for (const by of reducers) {
+      const t = reductionC(s.metal, by);
+      if (t !== null && (reduce === null || t < reduce)) reduce = t;
+    }
+  if (reduce === null) return null;
+  const meltC = ATOMS[s.metal]!.meltK - 273.15,
+    heat = Math.max(reduce, Math.min(meltC, SLAG_C), s.slag ? SLAG_C : 0);
+  return Math.round((heat + 273.15) * binding - 273.15);
+}
+
+// —— Furnace linings ————————————————————————————————————————————————————————————————————————————
+
+/**
+ * What a furnace may be walled with, from what a world's rock holds: each the substances it is dug as, the refractory it
+ * fires to and that refractory's melt (°C): graphite and carbide on a carbon world, magnesia from what holds magnesium,
+ * alumina from corundum, mullite from clay, silica brick from quartz.
+ */
+export const LININGS: readonly {
+  readonly from: readonly string[];
+  readonly name: string;
+  readonly meltC: number;
+}[] = [
+  { from: ["graphite"], name: "graphite", meltC: 3650 },
+  { from: ["moissanite"], name: "carbide brick", meltC: 2730 },
+  { from: ["dolomite", "olivine", "magnesite"], name: "magnesia brick", meltC: 2852 },
+  { from: ["corundum"], name: "alumina brick", meltC: 2072 },
+  { from: ["kaolinite", "clay"], name: "fireclay", meltC: MULLITE_MELT_C },
+  { from: ["quartz"], name: "silica brick", meltC: 1713 },
+];
+/** The bare stone a furnace is walled with where its rock gives no refractory (a basalt melts near 1,200 °C). */
+export const BARE_LINING = { name: "bare stone", meltC: 1200 } as const;
+/** A lining serves to this share of its melt, in kelvin, before it slumps (est: a firebrick softens some 5% below it). */
+export const LINING_SERVES = 0.95;
+
+/**
+ * The hottest a lined furnace holds (°C): the best lining its world's rock gives, to the share of its melt it serves. A
+ * blown fire, a bloomery and a blast furnace are held to it; an arc's heat is in its arc, against cooled walls.
+ */
+export function liningOf(
+  holds: (subst: string) => boolean,
+  binding = 1,
+): { readonly name: string; readonly meltC: number; readonly holdsC: number } {
+  let best: { readonly name: string; readonly meltC: number } = BARE_LINING;
+  for (const l of LININGS) if (l.meltC > best.meltC && l.from.some(holds)) best = l;
+  const meltC = Math.round((best.meltC + 273.15) * binding - 273.15);
+  return {
+    name: best.name,
+    meltC,
+    holdsC: Math.round(LINING_SERVES * (meltC + 273.15) - 273.15),
+  };
+}
+
+// —— Stones' edges ——————————————————————————————————————————————————————————————————————————————
+
+/**
+ * How a stone breaks, coarsely: as glass; as flint, the finest and purest of the silica that grows in grains too small to
+ * see; as chert, the same with clay and carbon in it; as one crystal along its own planes; conchoidally though a crystal (a
+ * carbide's, a diamond's); felted, its fibres matted (jade's); or along its grains.
+ */
+export type Fracture =
+  "glassy" | "flinty" | "cherty" | "crystal" | "conchoidal" | "felted" | "grainy";
+
+/**
+ * What each fracture does to an edge: its sharpness against the hardness (a glass's edge is a molecule wide, a grainy one a
+ * grain wide: est) and its toughness (MPa √m: glass 0.75; flint 1.6 and chert 1.7; quartz across its crystal 1.1, a hard
+ * crystal's flaking edge 1.15; jade's felted fibres 8; a rock whose cracks turn at each grain 3.1).
+ */
+export const FRACTURES: Readonly<
+  Record<Fracture, { readonly sharp: number; readonly k1c: number }>
+> = {
+  glassy: { sharp: 1.37, k1c: 0.75 },
+  flinty: { sharp: 0.89, k1c: 1.6 },
+  cherty: { sharp: 0.8, k1c: 1.7 },
+  crystal: { sharp: 0.5, k1c: 1.1 },
+  conchoidal: { sharp: 0.64, k1c: 1.15 },
+  felted: { sharp: 0.58, k1c: 8 },
+  grainy: { sharp: 0.55, k1c: 3.1 },
+};
+
+/** How each stone of the tables breaks, by its name (what it is, not where it is from). */
+export const STONE_FRACTURE: Readonly<Record<string, Fracture>> = {
+  obsidian: "glassy",
+  tachylite: "glassy",
+  flint: "flinty",
+  novaculite: "flinty",
+  chert: "cherty",
+  lydite: "cherty",
+  quartz: "crystal",
+  corundum: "crystal",
+  moissanite: "conchoidal",
+  diamond: "conchoidal",
+  nephrite: "felted",
+  basalt: "grainy",
+  tholeiite: "grainy",
+  picrite: "grainy",
+  quartzite: "grainy",
+  greywacke: "grainy",
+  fieldstone: "grainy",
+};
+
+/**
+ * A stone's scratch hardness where it is a rock and not one substance: a fine igneous rock's feldspar and pyroxene (6), and
+ * whatever cobble a field turns up, softer stone among the hard (est: 5).
+ */
+export const ROCK_MOHS = 6,
+  COBBLE_MOHS = 5;
+/** The toughness an edge's scale runs over (MPa √m): from under a glass's to a grainy rock's and past. */
+const EDGE_K_LEAST = 0.5,
+  EDGE_K_SPAN = 7.6;
+
+/**
+ * A stone's edge, coarsely: its keenness from its hardness (its substance's Mohs against quartz's 7, to the 1.3th power) by
+ * its fracture's sharpness; its toughness from its fracture's, on a log scale. No texture is read.
+ */
+export function stoneEdge(
+  name: string,
+  subst: string | null,
+): { readonly keen: number; readonly tough: number } {
+  const f = FRACTURES[STONE_FRACTURE[name] ?? (subst ? "crystal" : "grainy")],
+    mohs =
+      (subst ? findSubstance(subst)?.hardness : null) ??
+      (name === "fieldstone" ? COBBLE_MOHS : ROCK_MOHS),
+    keen = clamp01(f.sharp * dmath.pow(mohs / 7, 1.3)),
+    tough = clamp01(dmath.log(f.k1c / EDGE_K_LEAST) / dmath.log(EDGE_K_SPAN));
+  return { keen: Math.round(100 * keen) / 100, tough: Math.round(100 * tough) / 100 };
+}
+
+// —— Frames that fly and climb ——————————————————————————————————————————————————————————————————
+
+/** A stuff a frame is made of: its stiffness (GPa), strength (MPa) and weight (kg/m³). */
+export type FrameStuff = {
+  readonly id: string;
+  readonly e: number;
+  readonly strength: number;
+  readonly density: number;
+};
+
+/** Glass drawn to a fibre, its flaws no wider than a tenth of a micrometre: Griffith's strength K/√(πa) (MPa). */
+export const fibreStrength = (k1c: number, flawM = 1e-7): number =>
+  k1c / dmath.sqrt(Math.PI * flawM);
+
+/**
+ * The frame stuffs a land may build in: steel (its figures, read), the light alloy of aluminium and magnesium hammered,
+ * and glass fibre half in resin (glass 72 GPa, K 0.75; resin 3 GPa, 60 MPa: est).
+ */
+export function frameStuffs(binding = 1): Readonly<Record<string, FrameStuff>> {
+  const steel = metalFigures({ Fe: 0.9551, C: 0.0449 }, "annealed", 288, { binding })!,
+    alloy = metalFigures({ Al: 0.95, Mg: 0.05 }, "hammered", 288, { binding })!,
+    fibre = fibreStrength(0.75) * binding;
+  return {
+    steel: { id: "steel", e: steel.stiffness, strength: steel.strength, density: steel.density },
+    "light-alloy": {
+      id: "light-alloy",
+      e: alloy.stiffness,
+      strength: alloy.strength,
+      density: alloy.density,
+    },
+    "glass-fibre": {
+      id: "glass-fibre",
+      e: 0.5 * 72 * binding + 0.5 * 3,
+      strength: 0.5 * fibre + 0.5 * 60,
+      density: 1850,
+    },
+  };
+}
+
+/** A thin wall that must not buckle (a tank, a skin): its stiffness to the third over its weight (Ashby's panel index). */
+export const panelIndex = (f: FrameStuff): number => dmath.pow(f.e, 1 / 3) / (f.density / 1000);
+/** A spar that must not break: its strength to the two thirds over its weight (Ashby's beam index). */
+export const beamIndex = (f: FrameStuff): number =>
+  dmath.pow(f.strength, 2 / 3) / (f.density / 1000);
+
+/** What of a rocket stage is its engines and fittings whatever its walls (est), and a steel stage's whole dry share. */
+export const STAGE_FITTINGS = 0.04,
+  STEEL_STAGE_DRY = 0.13;
+
+/** A stage's dry share walled in a stuff: its fittings, and its walls as much lighter than steel's as its panel index is higher. */
+export function stageDry(stuff: string, binding = 1): number {
+  const t = frameStuffs(binding),
+    f = t[stuff] ?? t.steel!,
+    walls = (STEEL_STAGE_DRY - STAGE_FITTINGS) * (panelIndex(t.steel!) / panelIndex(f));
+  return Math.round(1000 * (STAGE_FITTINGS + walls)) / 1000;
+}
+
+/** A flying machine's frame share in a stuff, against the steel-tube frame its figures are reckoned for; never below a fifth. */
+export function flyerFrame(share: number, stuff: string | null): number {
+  if (!stuff) return share;
+  const t = frameStuffs(),
+    f = t[stuff];
+  if (!f) return share;
+  return Math.max(0.2, Math.min(share, share * (beamIndex(t.steel!) / beamIndex(f))));
 }

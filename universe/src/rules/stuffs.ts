@@ -9,7 +9,7 @@
 // from its head's hardness and brittleness and its maker's skill. Pure data and arithmetic, read by
 // the host's chain (host/chain.ts), never by the simulation.
 import { dmath } from "../kernel/index.ts";
-import { metalEdge } from "./materials.ts";
+import { metalEdge, stoneEdge } from "./materials.ts";
 
 export type Rgb = readonly [number, number, number];
 
@@ -35,64 +35,56 @@ export const STONES: Readonly<Record<string, Stone>> = {
   limestone: {
     name: "flint",
     from: "nodules weathered out of the chalk",
-    keen: 0.88,
-    tough: 0.55,
+    ...stoneEdge("flint", "flint"),
     colour: [0.36, 0.33, 0.3],
     subst: "flint",
   },
   shale: {
     name: "chert",
     from: "black beds among the shale",
-    keen: 0.8,
-    tough: 0.6,
+    ...stoneEdge("chert", "chert"),
     colour: [0.2, 0.2, 0.23],
     subst: "chert",
   },
   "coal-measures": {
     name: "chert",
     from: "bands in the coal country's shale",
-    keen: 0.8,
-    tough: 0.6,
+    ...stoneEdge("chert", "chert"),
     colour: [0.22, 0.21, 0.22],
     subst: "chert",
   },
   andesite: {
     name: "obsidian",
     from: "the black glass of old lava flows",
-    keen: 1,
-    tough: 0.2,
+    ...stoneEdge("obsidian", "obsidian"),
     colour: [0.06, 0.06, 0.09],
     subst: "obsidian",
   },
   basalt: {
     name: "basalt",
     from: "the fine dark lava, flaked coarse and ground to an edge",
-    keen: 0.45,
-    tough: 0.9,
+    ...stoneEdge("basalt", null),
     colour: [0.2, 0.2, 0.22],
     subst: null,
   },
   sandstone: {
     name: "quartzite",
     from: "cobbles washed out of the hard sandstone",
-    keen: 0.55,
-    tough: 0.85,
+    ...stoneEdge("quartzite", "quartz"),
     colour: [0.82, 0.78, 0.7],
     subst: "quartz",
   },
   granite: {
     name: "quartz",
     from: "the white veins of the granite",
-    keen: 0.5,
-    tough: 0.4,
+    ...stoneEdge("quartz", "quartz"),
     colour: [0.9, 0.9, 0.88],
     subst: "quartz",
   },
   gneiss: {
     name: "quartzite",
     from: "hard beds in the old worn hills",
-    keen: 0.55,
-    tough: 0.85,
+    ...stoneEdge("quartzite", "quartz"),
     colour: [0.78, 0.76, 0.72],
     subst: "quartz",
   },

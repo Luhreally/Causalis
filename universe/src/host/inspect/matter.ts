@@ -8,7 +8,7 @@
 // in a land: what it is made of there, and how it is made there — or why it is not. Pure reads.
 // A world of another chemistry (Phase 54) has its own substances, reactions and elements, and a
 // "This world" tab of what it is made of: its air, crust, rocks, ores, metals and furnaces.
-import { materialTab } from "./making.ts";
+import { materialTab, smeltBlocks } from "./making.ts";
 import { firePrincipleStats } from "./fire.ts";
 import {
   AIR_OFFSET,
@@ -60,6 +60,8 @@ import {
   reactionKg,
   reactionsOn,
   reductionHeat,
+  smeltHeat,
+  type Reaction,
   roleWord,
   RECIPES,
   stonesFor,
@@ -591,7 +593,10 @@ export function reactionPage(world: World, ref: string): PageModel {
       type: "facts",
       title: "What it takes",
       rows: [
-        stat("Heat", r.heat !== null ? `${count(r.heat)} °C` : "none beyond its own"),
+        stat(
+          "Heat",
+          heatWanted(r) !== null ? `${count(heatWanted(r)!)} °C` : "none beyond its own",
+        ),
         ...(r.fuel ? [stat("Burning", [link(substanceOf(r.fuel).name, substRef(r.fuel))])] : []),
         stat(
           "Taught by",
@@ -604,6 +609,7 @@ export function reactionPage(world: World, ref: string): PageModel {
       ],
     },
   ];
+  blocks.push(...smeltBlocks(r));
   if (teacher) blocks.push(knowersBlock(world, teacher.id, "The lands that know it"));
   return {
     ref,
@@ -614,7 +620,7 @@ export function reactionPage(world: World, ref: string): PageModel {
     color: made.colour,
     place: null,
     stats: [
-      stat("Heat", r.heat !== null ? `${count(r.heat)} °C` : "—"),
+      stat("Heat", heatWanted(r) !== null ? `${count(heatWanted(r)!)} °C` : "—"),
       stat("Makes", [link(made.name, substRef(made.id))]),
       ...(teacher ? [stat("Lands that know it", count(knowers(world, teacher.id).length))] : []),
     ],
@@ -623,6 +629,9 @@ export function reactionPage(world: World, ref: string): PageModel {
     year: yearNow(world),
   };
 }
+
+/** A reaction's heat: a smelt's from its oxide's free energy (rules/materials.ts), the rest their own. */
+const heatWanted = (r: Reaction): number | null => smeltHeat(r) ?? r.heat;
 
 /** What drives a principle's finding, in words. */
 function driverWords(p: Principle, burns: boolean): string[] {
