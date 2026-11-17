@@ -1456,6 +1456,9 @@ function writeLands(
       if (kindOfGroup(g) === "cartel") for (const c of g.lands) badgeTowns.add(c);
   let extorted = 0,
     trade = 0;
+  // (A group's men and its killing lie in its lands as their people do: none in an empty land, nor half of it in a hamlet.)
+  const peopleOf = (c: number) => ctx.provinces.get(c)?.total() ?? 0,
+    spread = new Map(v.groups.map((g) => [g, g.lands.reduce((s, c) => s + peopleOf(c), 0)]));
   for (const c of p.members) {
     const prov = ctx.provinces.get(c),
       n = prov?.total() ?? 0;
@@ -1470,8 +1473,9 @@ function writeLands(
     const police = 0.004 * n * r.capacity * (1 + 3 * bites) + 1;
     for (const g of v.groups) {
       if (!g.lands.includes(c)) continue;
-      const w = g.members / g.lands.length;
-      killed += g.violence / g.lands.length;
+      const part = n / Math.max(1, spread.get(g) ?? n),
+        w = g.members * part;
+      killed += g.violence * part;
       if (w > bestW) {
         bestW = w;
         best = g;
