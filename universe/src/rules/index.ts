@@ -1706,3 +1706,8 @@ export * from "./volcanoes.ts";
 export * from "./floods.ts";
 export * from "./nutrition.ts";
 export * from "./succession.ts";
+export * from "./starweather.ts";
+export * from "./impacts.ts";
+export * from "./galactic.ts";
+export * from "./crossing.ts";
+export * from "./beyond.ts";

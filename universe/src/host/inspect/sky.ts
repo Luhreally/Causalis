@@ -3,6 +3,7 @@
 import { warmthBlocks } from "./warmth.ts";
 import { motionBlocks, seasonBlocks, starLifeBlocks } from "./motion.ts";
 import { worldFiresBlocks } from "./nature.ts";
+import { frontierBlocks, homeHazardBlocks, starWeatherBlocks } from "./frontier.ts";
 import { CLADES, makingWords, makingsOf } from "../../rules/index.ts";
 import {
   folkOf,
@@ -123,6 +124,8 @@ export function starPageModel(world: World, ref: string): PageModel {
           name: "Its life",
           blocks: starLifeBlocks(world, g.star, g.star.lifetimeGyr),
         },
+        // (The dangers of its sky: its storms, the great stones, the galaxy's fire. The Frontier lane.)
+        { id: "hazards", name: "Its dangers", blocks: homeHazardBlocks(world) },
       ],
       followable: false,
       year,
@@ -243,6 +246,15 @@ export function starPageModel(world: World, ref: string): PageModel {
                 world,
                 { ref, mass: s.mass, ageGyr: f.ageGyr },
                 10 * dmath.pow(s.mass, -2.5),
+              ),
+            },
+            // (Its weather, at its innermost world with halls from home if any: the Frontier lane.)
+            {
+              id: "weather",
+              name: "Its weather",
+              blocks: starWeatherBlocks(
+                { mass: s.mass, ageGyr: f.ageGyr },
+                ships.length ? (worlds[ships[0]![1].planet]?.a ?? null) : null,
               ),
             },
           ]),
@@ -436,6 +448,8 @@ export function bodyPage(world: World, ref: string): PageModel {
               name: "In motion",
               blocks: [...seasonBlocks(world), ...motionBlocks(world), ...worldFiresBlocks(world)],
             },
+            // (What its peoples make of its sky and of themselves past our ages: the Frontier lane.)
+            { id: "beyond", name: "Past our ages", blocks: frontierBlocks(world) },
           ]
         : []),
       // What lives on it (Phase 18 M132): a few of the home star's worlds hold cells.

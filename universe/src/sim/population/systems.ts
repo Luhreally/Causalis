@@ -116,6 +116,8 @@ import {
 import { homePlanet } from "../planet/store.ts";
 import { lightSteps, starSitesOf } from "../space/stars.ts";
 import { lateOf, remakeKey } from "../space/late-store.ts";
+import { frontierFields, frontierRain, frontierSky } from "../frontier/hooks.ts";
+import { writtenCut } from "../frontier/written.ts";
 import { siteRegion } from "../space/ground.ts";
 import { starHazard } from "../acts/great.ts";
 import { homeSky, shiftNow, starEnded } from "../planet/motion.ts";
@@ -201,7 +203,8 @@ export function hallsShare(ctx: PopulationContext, cell: number): number {
   // A ship's land: its share aboard while it sails, on the world it came to after.
   if (site.body < 0) {
     const s = starSitesOf(ctx.world)?.get(cell);
-    return s ? (s.arrived ? s.there * remade : s.aboard) : 0;
+    // (Bodies written for the world they came to bear a share of what their halls keep out: frontier/written.ts.)
+    return s ? (s.arrived ? s.there * remade * (1 - writtenCut(ctx.world, cell)) : s.aboard) : 0;
   }
   const key = `${homePlanet(ctx.world).surfaceKey}:${cell}`;
   let share = HALLS.get(key);
@@ -216,7 +219,7 @@ export function hallsShare(ctx: PopulationContext, cell: number): number {
       ).upkeep;
     HALLS.set(key, (share = Math.min(0.9, need / (need + 6))));
   }
-  return share * remade;
+  return share * remade * (1 - writtenCut(ctx.world, cell));
 }
 
 /** Lands of another body are farmed under roofs: as its world is remade, its fields come to lie open. */
@@ -545,6 +548,8 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
         cropsGive(world, p.cell) *
         veilYield(ctx, p.cell) *
         floodYield(world, p.cell) *
+        // (And a great stone's dust, a burst's light: frontier/hooks.ts, exactly 1 under a clear sky.)
+        frontierFields(world, p.cell) *
         (p.cell >= offworldFrom ? openFields(ctx, p.cell) : 1),
       flocks = 1 + lore.effect(p.cell, "herdYield"),
       // (What war has driven off of its herds and a beast at large takes: Z1. Exactly 0 where neither has.)
@@ -726,7 +731,11 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
     p.vitalShort += 1000 - p.fed;
     p.vitalFed2 += p.fed * p.fed;
     p.vitalPressure += Math.round(
-      1000 * (1 + 2.5 * ((1000 - p.fed) / 1000)) * sickness * underStar(ctx, p.cell),
+      1000 *
+        (1 + 2.5 * ((1000 - p.fed) / 1000)) *
+        sickness *
+        underStar(ctx, p.cell) *
+        frontierSky(ctx, p.cell),
     );
     const held = !!act || !!handOf(world).over(p.cell);
     if (!held && !yearEnd && !(quarterEnd && p.vitalShort > 0)) continue;
@@ -965,7 +974,11 @@ export function weatherYear(ctx: PopulationContext, t: SimTime): void {
       g = gaussian(world.rng.real(RAIN, key, t, 0), world.rng.real(RAIN, key, t, 1)),
       // The warming moves a land's rain (drier or wetter), and the year's weather about it.
       // (And the soot of a great fire, W5: exactly 1 under a clear sky.)
-      moved = rainShift(ctx, p.cell) * darkRain(world) * longRain(ctx, p.cell, yearOfMoment(t)),
+      moved =
+        rainShift(ctx, p.cell) *
+        darkRain(world) *
+        frontierRain(world) *
+        longRain(ctx, p.cell, yearOfMoment(t)),
       natural = dmath.clamp(moved * (1 + 0.22 * g), 0.35, 1.6),
       rain = act ? natural * actFactor(act.sign > 0, ACT_STRENGTH.rain, act.strength) : natural;
     p.rain = Math.round(rain * 1000);

@@ -83,6 +83,7 @@ import { installRoles } from "../court/roles.ts";
 import { installGodHand } from "../order/godhand.ts";
 import { installHealth, installHealthActs } from "../health/health.ts";
 import { installSummon } from "../space/summon.ts";
+import { installFrontier } from "../frontier/install.ts";
 import { installCredit, installCreditActs } from "../credit/credit.ts";
 import { installFinance } from "../finance/finance.ts";
 import { installStrife, installStrifeActs } from "../strife/strife.ts";
@@ -481,6 +482,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installFloods(world, () => populationContext(world));
   installSpace(world, () => populationContext(world));
   installSummon(world, () => populationContext(world));
+  installFrontier(world, () => populationContext(world));
 
   const g = homePlanet(world).generated;
   if (!g.life.people) {
