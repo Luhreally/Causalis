@@ -42,6 +42,7 @@ import { capacityOf, orderOf } from "../order/order.ts";
 import { holdsOf } from "../order/holds.ts";
 import { diplomacyOf } from "../diplomacy/diplomacy.ts";
 import { warsOf } from "../war/war.ts";
+import { organisedOf } from "../order/underworld-kept.ts";
 import {
   BAR,
   BAR_STORE,
@@ -339,7 +340,8 @@ export function prohibitionYear(ctx: PopulationContext, t: SimTime): void {
       worth = r.demand * r.price,
       taken = worth * excise * (1 - barred) * (1 - smuggledOf(world, p.ref)),
       profit = (RISK * barred) / (1 + RISK * barred) + excise,
-      organised = cartel(barred, profit * 2, cap, o?.corruption ?? 0),
+      // (Where its underworld is reckoned, its cartels' own organisation: sim/order/underworld.ts. Else as it was weighed alone.)
+      organised = organisedOf(world, p.ref) ?? cartel(barred, profit * 2, cap, o?.corruption ?? 0),
       place = ctx.provinces.get(p.seat)?.ref ?? null;
     let told = was?.[BAR.told] ?? 0;
     const tell = (type: string, data: Record<string, unknown>, subjects: Ref[] = [p.ref]) =>

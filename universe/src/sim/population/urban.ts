@@ -8,6 +8,7 @@ import type { MarketStore } from "../economy/market.ts";
 import { readsTownDraw, type PopulationContext } from "./systems.ts";
 import type { Province } from "./model.ts";
 import { URBAN_ROW, URBAN_STORE, cultureRows } from "../culture/rows.ts";
+import { gangDeterOf } from "../order/underworld-kept.ts";
 
 /** A land weighs what its town draws once in so many years, each land in its own year. */
 export const URBAN_EVERY = 5;
@@ -58,7 +59,9 @@ export function urbanYear(ctx: PopulationContext, t: SimTime): void {
       continue;
     }
     const w = wagesOfLand(world, p),
-      target = townDraw(w.town, w.field, town.population),
+      // (Fewer come to a town whose quarters are fought over: sim/order/underworld.ts. Exactly as before where none is kept.)
+      drawn = townDraw(w.town, w.field, town.population),
+      target = drawn > 1 ? 1 + (drawn - 1) * (1 - gangDeterOf(world, p.cell)) : drawn,
       row = rows.get(p.cell),
       // (A land is weighed in its own year of every URBAN_EVERY, and comes those years' way at once; first weighed, its
       // town holds its trades alone and begins to draw.)

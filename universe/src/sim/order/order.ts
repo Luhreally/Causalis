@@ -59,6 +59,7 @@ import { heldOf, holdOf, weighHolds, type Taught } from "./holds.ts";
 import { WantsStore } from "./wants.ts";
 import { ElectionStore, electionsYear } from "./elections.ts";
 import { housesRead, installHouses } from "./houses.ts";
+import { underworldSkim } from "./underworld-kept.ts";
 import { CREDIT, creditOf, debtBurden } from "../credit/credit.ts";
 import { seizedFactor } from "../strife/strife.ts";
 import { fortunePull } from "../acts/fortune.ts";
@@ -1643,7 +1644,9 @@ export function orderYear(ctx: PopulationContext, t: SimTime): void {
         0.004 * o.laws[LAW_OF.justice]! +
         // (Round H, sim/order/houses.ts: a small coalition out of many is loyal, and can be skimmed the more without the seat
         // being lost; kin in office skim; a grifter bought in takes its cut.)
-        houseSkim(world, p.ref),
+        houseSkim(world, p.ref) +
+        // (The underworld, sim/order/underworld.ts: the officers and judges its groups buy. Exactly 0 where none is kept.)
+        underworldSkim(world, p.ref),
     );
     const seatMarket = markets.get(p.seat);
     if (seatMarket) {
