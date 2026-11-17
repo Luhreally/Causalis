@@ -81,6 +81,8 @@ import {
   streetPull,
   successorsOf,
   turfWar,
+  huntedFor,
+  newcomersOf,
   violentIdle,
   youngBand,
   type GroupEnd,
@@ -591,7 +593,7 @@ function streetTowns(ctx: PopulationContext, p: Polity, r: Read): Town[] {
     const ways = culture.get(c),
       faith = belief.of(c).faith ?? "none",
       urban = urbanOf(world, c),
-      newcomers = urban ? dmath.clamp((urban.draw - 1) / (urban.draw + 1), 0, 1) : 0,
+      newcomers = urban ? newcomersOf(urban.draw, urban.target) : 0,
       kin = (folk?.get(c)?.[FOLK_ROW.kin] ?? 1000) / 1000,
       otherFaith = r.people > 0 ? 1 - (faiths.get(faith) ?? 0) / r.people : 0,
       apart = dmath.clamp(newcomers * otherFaith + 0.5 * (1 - kin), 0, 1),
@@ -1195,7 +1197,7 @@ function stepRealm(
     const fight = turfWar(
         own.map((g) => g.share),
         collusion,
-        bites,
+        huntedFor(bites, r.capacity * (COURTS[r.justice] ?? COURTS[0]) * (1 - r.corruption)),
       ),
       open = v.wars.find((w) => w.ended === null && w.kind === KIND(kind));
     // (A war tires: fought for years with neither winning, its groups fight less by half every UNDER.warHalf years, until it
@@ -1206,7 +1208,10 @@ function stepRealm(
         : last
           ? 1 - dmath.pow(0.5, (year - last.ended!) / UNDER.paxHalf)
           : 1,
-      warNow = fight.war * tired;
+      warNow = fight.war * tired,
+      // (Short of a war its groups feud: a road kills as a war does only once it is fought for. Before, a strain that never came
+      // to a war killed as one for good, and was most of the killing of a world at 1,500: 87% of its roads' war dead.)
+      level = open || warNow >= UNDER.warAt ? warNow : UNDER.feud * warNow;
     // (A war's dead are its fighters': each group loses men as its rivals are many (the lesser the greater part of itself), and
     // of its purse as of its men. So a war wears both down, the weaker faster, until one holds the road or neither can fight on:
     // before, no loss came off its men and a war between two alike never ended.)
@@ -1215,7 +1220,7 @@ function stepRealm(
       const calm = v.truce?.gid === g.id ? 1 - ESCALATE.calms : 1,
         rivals = Math.min(allMen - g.members, g.members * UNDER.warMost),
         peace = killingsOf(g.members, 0) * calm,
-        war = (killingsOf(rivals, warNow) - killingsOf(rivals, 0)) * calm,
+        war = (killingsOf(rivals, level) - killingsOf(rivals, 0)) * calm,
         dead = Math.min(g.members, Math.round((war / (1 + UNDER.bystanders)) * span));
       g.violence = Math.round(peace + war);
       killings += g.violence;
@@ -1642,8 +1647,8 @@ function stepOps(f: Facts, r: Read, span: number, killedNow: number, collusion: 
     const odds = fightOdds(o.soldiers, best, g.members, held(g)),
       taken = g.members * (1 - dmath.pow(1 - odds.taken, span)),
       lost = o.soldiers * (1 - dmath.pow(1 - odds.lost, span)),
-      by = taken * 0.6 * ESCALATE.bystanders,
-      dead = taken * 0.6 + lost + by;
+      by = taken * ESCALATE.killed * ESCALATE.bystanders,
+      dead = taken * ESCALATE.killed + lost + by;
     g.members = Math.max(0, Math.round(g.members - taken));
     o.taken += taken;
     o.fallen += lost;

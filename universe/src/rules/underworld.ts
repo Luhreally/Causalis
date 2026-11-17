@@ -116,6 +116,12 @@ export const UNDER = {
   paxHalf: 25,
   warAt: 0.3,
   warEnds: 0.12,
+  /**
+   * Of what a road's war would kill at the same strain, the share its feuds kill while it is not at war: quarrels over a rent are
+   * settled or bought off until one side breaks the peace (est: Mexico's killings tied to its cartels, some one to two thousand a
+   * year under the old pacts against fifteen thousand and more once the roads were fought for).
+   */
+  feud: 0.15,
   /** A group falls from the named below this share of its road's rent. */
   least: 0.05,
   /** The most of a boss's chance of being taken a year at a full crackdown (est: Mexico's kingpin strategy took some two dozen of 37 named in six years). */
@@ -134,6 +140,8 @@ export const UNDER = {
   /** How far a crackdown that bites makes a road's groups keep their quarrels below the killing that draws it (est: Cosa Nostra's
    * "submersion" after the maxi-trial: Palermo's killings fell some tenfold while its rackets went on). */
   lowered: 0.8,
+  /** How far a seat's reach alone, with no crackdown, has a road's groups answer for their killing as a crackdown would. */
+  answered: 0.5,
   /** How far protection gains a trade's deals kept where courts are absent, and what extortion takes of a holding's safety. */
   enforces: 0.25,
   extorts: 0.6,
@@ -292,6 +300,28 @@ export function turfWar(
     ),
     herfindahl: h,
   };
+}
+
+/**
+ * How far a road's groups are hunted for their killing (0 … 1): by a crackdown as it bites, and, short of one, by a seat whose
+ * hand and courts reach its towns (a killing answered is bad business: where the law reaches, quarrels are settled or bought off,
+ * and it is where no one answers for the dead that roads are fought over in the open). Half as far as a crackdown would.
+ */
+export function huntedFor(bites: number, reach: number): number {
+  const b = clamp01(bites);
+  return b + (1 - b) * UNDER.answered * clamp01(reach);
+}
+
+/**
+ * A town's newcomers (0 … 1), of those it holds beyond its trades and their kin (`draw` times them, rules/urban.ts): those still
+ * coming, as far as it draws more than it holds; a town come to what it draws holds their children, who are its own, and only
+ * the fifth of them that any town's comings and goings are.
+ */
+export function newcomersOf(draw: number, target: number): number {
+  if (!(draw > 1)) return 0;
+  const beyond = (draw - 1) / (draw + 1),
+    coming = clamp01(0.2 + 4 * Math.max(0, target / draw - 1));
+  return clamp01(beyond * coming);
 }
 
 /** The men a road's groups lose a year, and the others they kill, for their men and how hard they fight. */
@@ -618,6 +648,11 @@ export const ESCALATE = {
   /** Of a group's men the share an operation's soldiers could take a year at full odds, and of the soldiers the share they lose. */
   takes: 0.25,
   loses: 0.03,
+  /**
+   * Of a group's men an operation takes, the share killed in the fighting; the rest are seized alive (est: Mexico 2007–2012, some
+   * three to four thousand gunmen killed by the state's forces a year against well over twenty thousand arrested).
+   */
+  killed: 0.15,
   /** Others killed for each of the group's men killed in the fighting; of its lands' people, the share driven from their homes a year at full. */
   bystanders: 0.5,
   displaced: 0.01,
