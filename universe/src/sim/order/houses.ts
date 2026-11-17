@@ -566,7 +566,9 @@ function stepRealm(
     imported = trade > 0 ? dmath.clamp((duty?.[DUTY.imports] ?? 0) / trade, 0, 1) : 0,
     licence = writing && trade > 0 ? licensed(favours, cap) : 0,
     farm = tariffs > 0 ? farmedOut(favours, measured) : 0,
-    rent = licence * trade * licenceRent(imported),
+    // (A licence's rent is on what its holders sell: no more than its people spend of what they earn, nor than its markets trade,
+    // which count a good each time it moves.)
+    rent = licence * Math.min(trade, earned) * licenceRent(imported),
     margin = farm * tariffs * HOUSES.farmMargin,
     nepotism = kinInOffice({
       favours,
