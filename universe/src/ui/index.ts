@@ -57,6 +57,7 @@ export { Strikes } from "./strikes.ts";
 export { StarWars } from "./starwars.ts";
 export { HomePin, LeaderChip, drawLeaderCard, drawWealthCompare } from "./leaders.ts";
 export { PeopleBar, barPins } from "./people-bar.ts";
+export { yearsWorld } from "./years-search.ts";
 export { setWrittenHold } from "./written.ts";
 export { Alerts, LogButton } from "./alerts.ts";
 export { CornerRail } from "./corner-rail.ts";

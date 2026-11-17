@@ -3,6 +3,29 @@
 // See README.md and docs/architecture/universe-architecture.md §30.
 export { ALL_LINES, ALL_WORTH, ANNAL_ALL, ANNAL_KINDS, KIND_LINES, KIND_WORTH } from "./annals.ts";
 export type { AnnalLine, AnnalYear, AnnalsIndex, RunTold } from "./annals.ts";
+export {
+  ANNAL_KEYS,
+  ANNAL_RANKS,
+  askAnything,
+  filterText,
+  fold,
+  holds,
+  holdsWhole,
+  joinAsks,
+  keyOfRef,
+  marksIn,
+  parseAsk,
+  termOf,
+} from "./annals-search.ts";
+export type {
+  AnnalFilter,
+  AnnalFound,
+  AnnalKey,
+  AnnalName,
+  AnnalsAsk,
+  AnnalsFound,
+  AnnalsSearchArgs,
+} from "./annals-search.ts";
 export type {
   BarAsk,
   BarPerson,

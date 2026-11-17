@@ -40,6 +40,7 @@ import { EnergyStore } from "../economy/energy.ts";
 import { installMoney } from "../money/money.ts";
 import { installCommerce } from "../trade/trade.ts";
 import { installSociety } from "../society/society.ts";
+import { installUnderworld } from "../order/underworld.ts";
 import { installEconomy } from "../economy/systems.ts";
 import { installActs } from "../acts/acts.ts";
 import { installGreatActs } from "../acts/great.ts";
@@ -450,6 +451,8 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installMoney(world, () => populationContext(world));
   installCommerce(world, () => populationContext(world));
   installSociety(world, () => populationContext(world));
+  // (The underworld: protection, smuggling, the street and the badge, sim/order/underworld.ts.)
+  installUnderworld(world, () => populationContext(world));
   installStrife(world, () => populationContext(world));
   installCourts(world, () => populationContext(world));
   installCities(world, () => populationContext(world));

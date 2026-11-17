@@ -71,6 +71,7 @@ import { seatPage, withKin } from "./kin.ts";
 import { rulerPage, withLeaderPage } from "./leaders.ts";
 import { courtPage } from "./court.ts";
 import { dynastyPage, linePage, withFamilyLink } from "./family.ts";
+import { crimeGroupPage, federationPage } from "./mobs.ts";
 import { withFollow } from "../follow.ts";
 import { songPage, stonePage } from "./memory.ts";
 import { casePage, selfLawBlocks } from "./justice.ts";
@@ -187,6 +188,9 @@ function build(
   // A family: a realm's great house, a town's line (asked 2026-11-16).
   if (ref.startsWith("dyn:")) return dynastyPage(world, ref);
   if (ref.startsWith("line:")) return linePage(world, ref);
+  // A crime group, a federation of street gangs (the underworld).
+  if (ref.startsWith("mob:")) return crimeGroupPage(world, ref);
+  if (ref.startsWith("gfed:")) return federationPage(world, ref);
   const code = ref.slice(0, ref.indexOf(":")),
     t = tab ?? undefined;
   switch (code) {

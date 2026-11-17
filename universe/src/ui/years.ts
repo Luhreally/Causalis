@@ -15,6 +15,7 @@ import {
 import { YEAR } from "../kernel/index.ts";
 import type { ToolContext } from "./tools.ts";
 import { drawWritten } from "./written.ts";
+import { drawYearsSearch } from "./years-search.ts";
 import { el } from "./why.ts";
 
 /** How many years a piece holds, about how tall a year is at first, and how far from the eye a piece is drawn. */
@@ -58,6 +59,8 @@ export function drawYears(into: HTMLElement, ctx: ToolContext): void {
     onward = el("button", "years-onward"),
     written = el("div", "years-written"),
     list = el("div", "years-list"),
+    found = el("div", "years-found"),
+    find = el("div", "years-find-head"),
     words = new Map<number, AnnalYear>();
   input.type = "number";
   input.inputMode = "numeric";
@@ -68,7 +71,9 @@ export function drawYears(into: HTMLElement, ctx: ToolContext): void {
   goRow.append(input, go, order);
   // (What stays over the years as they go under it is the filter and what it says: a phone has little room to give.)
   bar.append(chips, says, onward);
-  box.append(bar, goRow, written, list);
+  found.hidden = true;
+  // (The search's field leads the way to a year, its filters and what it offers under it: no taller than before.)
+  box.append(bar, goRow, find, written, list, found);
   into.append(box);
   // (The whole of it written out as a file a person can keep: B1.)
   drawWritten(written, ctx.client);
@@ -187,6 +192,7 @@ export function drawYears(into: HTMLElement, ctx: ToolContext): void {
   };
 
   const tell = (extra = "") => {
+    if (search.on()) return;
     const n = index?.years.length ?? 0;
     says.textContent = extra
       ? extra
@@ -212,15 +218,22 @@ export function drawYears(into: HTMLElement, ctx: ToolContext): void {
     b.setAttribute("aria-label", title);
     b.setAttribute("aria-pressed", String(i === kind));
     b.onclick = () => {
-      kind = i;
-      for (const x of chips.children) {
-        x.classList.toggle("on", x === b);
-        x.setAttribute("aria-pressed", String(x === b));
+      pick(i);
+      if (search.on()) search.again();
+      else {
+        lay();
+        toTop();
       }
-      lay();
-      toTop();
     };
     return b;
+  };
+  /** The kind the chips show as chosen. */
+  const pick = (i: number) => {
+    kind = i;
+    [...chips.children].forEach((x, j) => {
+      x.classList.toggle("on", j - 1 === i);
+      x.setAttribute("aria-pressed", String(j - 1 === i));
+    });
   };
   chips.append(
     chipOf(-1, "📜\nAll", "What a person would stop to read"),
@@ -230,7 +243,10 @@ export function drawYears(into: HTMLElement, ctx: ToolContext): void {
   /** The bar at the top of the window, with the way to a year under it and then the years. */
   const toTop = () => {
     const root = scroller();
-    root.scrollTop += box.getBoundingClientRect().top - root.getBoundingClientRect().top;
+    // (To where the bar sticks: inside the window's padding, or the way to a year would lie under it.)
+    const pad =
+      root === document.documentElement ? 0 : parseFloat(getComputedStyle(root).paddingTop) || 0;
+    root.scrollTop += box.getBoundingClientRect().top - root.getBoundingClientRect().top - pad;
   };
 
   /** To a year, or the nearest with something told. */
@@ -270,10 +286,37 @@ export function drawYears(into: HTMLElement, ctx: ToolContext): void {
   order.onclick = () => {
     newest = !newest;
     sayOrder();
-    lay();
-    toTop();
+    if (search.on()) search.again();
+    else {
+      lay();
+      toTop();
+    }
   };
   sayOrder();
+
+  // The search (2026-11-16): while it is on, what it finds stands in place of the scroll, and the way to a year,
+  // which the search says in its own words (1200-1500), steps aside.
+  const search = drawYearsSearch({
+    ctx,
+    row: goRow,
+    head: find,
+    found,
+    kind: () => kind,
+    setKind: pick,
+    newest: () => newest,
+    changed: (on) => {
+      found.hidden = !on;
+      list.hidden = on;
+      input.hidden = on;
+      go.hidden = on;
+      if (!on) tell();
+    },
+    say: (words) => {
+      says.textContent = words;
+    },
+    toTop,
+    restore: wanted === null,
+  });
 
   let first = true;
   /** Read which years there are (and any since), and lay them out. */
@@ -296,7 +339,10 @@ export function drawYears(into: HTMLElement, ctx: ToolContext): void {
     }
   };
   // The world goes on while this is read: it reads on only when asked to.
-  onward.onclick = () => void readIndex();
+  onward.onclick = () => {
+    void readIndex();
+    search.again(true);
+  };
   const stop = ctx.client.onStatus((s) => {
     if (!index) return;
     if (!box.isConnected) {
@@ -313,4 +359,6 @@ export function drawYears(into: HTMLElement, ctx: ToolContext): void {
   });
   tell();
   void readIndex();
+  // (The world's last search, had again; not when the tab was opened to read a year.)
+  if (wanted === null) search.again();
 }

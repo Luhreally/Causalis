@@ -15,6 +15,7 @@ import {
 } from "../society/kept.ts";
 import { workBySex } from "../society/work.ts";
 import { rooflessColdOf } from "../society/kept.ts";
+import { youngKilledOf } from "../order/underworld-kept.ts";
 import {
   CountDeltas,
   MONTH,
@@ -125,6 +126,7 @@ import {
   childCost,
   coatOf,
   childrenKept,
+  youngBand,
 } from "../../rules/index.ts";
 import { homePlanet } from "../planet/store.ts";
 import { lightSteps, starSitesOf } from "../space/stars.ts";
@@ -807,11 +809,18 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
       dying: number[] = [],
       // (And what its diet goes short of: its young die the more, rules/nutrition.ts. Exactly 1 where it goes short of nothing.)
       want = dietDeaths(world, p.cell),
+      // (And its young killed by the underworld: sim/order/underworld.ts. Exactly 1 where none is kept.)
+      killed = youngKilledOf(world, p.cell),
       dyingIn = (b: number) =>
         (dying[b] ??= deathWithin(
           riskUnder(
             life.mortality[b]!,
-            mortality * (b < 2 ? want.young : want.grown) * (old && b >= old.band ? old.press : 1),
+            mortality *
+              (b < 2 ? want.young : want.grown) *
+              (old && b >= old.band ? old.press : 1) *
+              (killed > 0 && youngBand(life, b)
+                ? 1 + killed / Math.max(1e-4, life.mortality[b]!)
+                : 1),
           ),
           months,
         )),
