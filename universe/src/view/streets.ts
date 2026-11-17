@@ -84,6 +84,8 @@ export class Streets {
   readonly reach: number;
   /** Where its ways out stand: beyond it, open ground (past a great city's sprawl). */
   readonly edge: number;
+  /** Its walls' ring (metres from its square's middle), and whether they stand or were pulled down to a ring street; null: none. */
+  readonly walls: { readonly r: number; readonly standing: boolean } | null;
   private readonly plan: TownPlan;
   private readonly lake: Solid | null;
   private readonly sprawl: { r0: number; r1: number } | null;
@@ -109,7 +111,14 @@ export class Streets {
   constructor(plan: TownPlan, lake: Solid | null) {
     this.plan = plan;
     this.lake = lake;
-    const lots = townLots(plan.family, plan.seed, plan.axis, plan.lots, plan.water),
+    const lots = townLots(
+        plan.family,
+        plan.seed,
+        plan.axis,
+        plan.lots,
+        plan.water,
+        plan.site ?? null,
+      ),
       held = blocksHeld(plan, lotStates(plan)),
       walls = wallRing(plan, lots, held);
     let reach = SQUARE;
@@ -166,6 +175,7 @@ export class Streets {
       }
     }
     this.reach = reach;
+    this.walls = walls ? { r: walls.r, standing: walls.lengths.length > 0 } : null;
     this.sprawl = sprawlOf(plan, lots);
     this.edge = Math.max(reach, this.sprawl ? this.sprawl.r1 : 0) + 8;
     this.solids.forEach((s, i) => {

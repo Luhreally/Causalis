@@ -53,7 +53,14 @@ const fabric: TownPlan = {
   year: 40,
 };
 
-const lots = townLots(fabric.family, fabric.seed, fabric.axis, fabric.lots, fabric.water);
+const lots = townLots(
+  fabric.family,
+  fabric.seed,
+  fabric.axis,
+  fabric.lots,
+  fabric.water,
+  fabric.site ?? null,
+);
 const plan: VillagePlan = {
   ref: "town:0:9",
   name: "Kilnby",

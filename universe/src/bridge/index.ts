@@ -181,6 +181,8 @@ export {
   footprint,
   lotStates,
   progress,
+  lotsKey,
+  measuredBlocks,
   townBlocks,
   townLots,
   townReach,
@@ -210,6 +212,19 @@ export {
   type TownWater,
   type WallLength,
 } from "./town.ts";
+export {
+  HEART_BLOCKS,
+  QUARTER,
+  QUARTERS,
+  grownBlocks,
+  quarterBearings,
+  quarterOf,
+  shopsBelow,
+  streetWords,
+  type GrownBlocks,
+  type TownRoad,
+  type TownSite,
+} from "./sites.ts";
 export type { DwellingRoom, DwellingStuff, DwellingThing, HomeInside, HomeMoney } from "./home.ts";
 export type { Garrison, HostKinds, StrikeEntry, WarRaid, WarSide, WarsMap } from "./wars.ts";
 export { HEART_REACH, heartTown } from "./wars.ts";

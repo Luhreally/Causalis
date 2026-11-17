@@ -22,7 +22,15 @@ import {
 } from "./battleday.ts";
 import { armLook } from "./arms.ts";
 import type { VehicleNow } from "./battle.ts";
-import { clearOf, keepOut, route, villageGround, type Ground, type Solid } from "./ground.ts";
+import {
+  approachWay,
+  clearOf,
+  keepOut,
+  route,
+  villageGround,
+  type Ground,
+  type Solid,
+} from "./ground.ts";
 import {
   drawnSquad,
   hostOrder,
@@ -437,6 +445,65 @@ const hashText = (text: string) => {
   for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619) >>> 0;
   return h;
 };
+/**
+ * The way a war's hosts come to a town (asked 2026-11-16: "are you gonna fix wars between nations too"): its attackers by
+ * the road in from their side, to its gate there (VillagePlan.ways); a town of the attackers' own sends its men out by the
+ * road toward the defenders'.
+ */
+export function warWay(
+  plan: VillagePlan,
+  war: { readonly sides: readonly [Side, Side]; readonly hosts?: readonly TownHost[] },
+): number {
+  // (Fought for here (come to it, besieging it, fought before it or in it): the attackers come in from their side, from
+  // their own lands about it where they have taken it. Else its own men march out toward the foe, its own realm's ways passed by.)
+  return war.hosts?.some((h) => HERE.has(h.doing))
+    ? approachWay(plan, [war.sides[0].ref])
+    : approachWay(plan, [war.sides[1].ref, war.sides[0].ref], true);
+}
+/** What a host is at where the war is fought for at the town itself. */
+const HERE: ReadonlySet<TownDoing> = new Set<TownDoing>([
+  "coming",
+  "drawn",
+  "engaged",
+  "guard",
+  "holding",
+  "fleeing",
+  "entering",
+  "besieging",
+  "assaulting",
+  "besieged",
+]);
+
+/** Of a ring about a town at `r`, the arc on dry ground (radians: from where, how far round), its water cut out: camps lie on the open approaches. */
+function openArc(ground: Ground, r: number, start: number): { from: number; span: number } {
+  const l = ground.lake,
+    whole = { from: start, span: 2 * Math.PI };
+  if (!l) return whole;
+  const d = Math.hypot(l.x, l.z),
+    far = l.r + 10;
+  if (d < 1e-6 || r < 1e-6 || Math.abs(r - d) >= far) return whole;
+  const c = (r * r + d * d - far * far) / (2 * r * d);
+  if (c >= 1 || c <= -1) return whole;
+  const h = Math.acos(c);
+  return { from: Math.atan2(l.z, l.x) + h, span: 2 * Math.PI - 2 * h };
+}
+
+/** The way `a` turned off the town's water at `r`, as little as it must be (a gun, a squad's leader). */
+function offWater(ground: Ground, a: number, r: number): number {
+  const l = ground.lake;
+  if (!l) return a;
+  for (let k = 0; k < 40; k++) {
+    const t = a + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 0.08;
+    if (Math.hypot(Math.cos(t) * r - l.x, Math.sin(t) * r - l.z) > l.r + 10) return t;
+  }
+  return a;
+}
+
+/** Its walls' ring as the storm meets it (its walls, or the ring street where they were pulled down), else its homes' edge. */
+function wallsAt(ground: Ground): number {
+  return ground.town?.walls?.r ?? ground.homesReach;
+}
+
 /** The yaw that faces a soldier along (dx, dz). */
 const facing = (dx: number, dz: number) => Math.atan2(dx, dz);
 
@@ -568,7 +635,7 @@ function makeSpread(
   order: readonly [HostOrder, HostOrder],
 ): Spread {
   const ground = villageGround(plan),
-    way = Math.atan2(plan.road.z, plan.road.x),
+    way = warWay(plan, war),
     ux = Math.cos(way),
     uz = Math.sin(way),
     reach = ground.homesReach,
@@ -610,8 +677,10 @@ function makeSpread(
       ),
     ] as const,
     camp = reach + CAMP_OUT,
-    wallOut = reach + 1.6,
-    wallIn = Math.max(4, reach - 2),
+    wallOut = wallsAt(ground) + 1.6,
+    wallIn = Math.max(4, wallsAt(ground) - 2),
+    // (The defenders hold its gate on the attackers' road, and the high ground its seat's hall and granary stand on.)
+    up = plan.town?.site?.up,
     shelling = shellsWalls(war.sides[0].host?.arm),
     drawn0 = drawnSquad(order[0].squad),
     drawn1 = drawnSquad(order[1].squad),
@@ -620,17 +689,33 @@ function makeSpread(
     // Each squad's leader's place: the besiegers on three sides of it, standing off; a closed ring where they
     // raise ladders still, their squads a little out of true.
     leader0 = Array.from({ length: squads0 }, (_, j): Flat => {
-      const a = shelling
-          ? way + ((j + 0.5) / squads0 - 0.5) * 1.55 * Math.PI + (unit(j, key + 31) - 0.5) * 0.18
-          : way + ((j + 0.5) / squads0) * 2 * Math.PI + (unit(key, 5) - 0.5) * 0.3,
-        r = shelling
+      const r = shelling
           ? reach + Math.max(CAMP_OUT, order[0].standOff * 0.7) * (0.85 + 0.3 * unit(j, key + 37))
-          : camp - 6 + (unit(j, key + 41) - 0.5) * 16;
+          : camp - 6 + (unit(j, key + 41) - 0.5) * 16,
+        arc = openArc(ground, r, way + (unit(key, 5) - 0.5) * 0.3),
+        a = shelling
+          ? offWater(
+              ground,
+              way + ((j + 0.5) / squads0 - 0.5) * 1.55 * Math.PI + (unit(j, key + 31) - 0.5) * 0.18,
+              r,
+            )
+          : arc.from + ((j + 0.5) / squads0) * arc.span;
       return { x: Math.cos(a) * r, z: Math.sin(a) * r };
     }),
     leader1 = Array.from({ length: squads1 }, (_, j): Flat => {
-      const a = way + ((j + 0.5) / squads1) * 2 * Math.PI + (unit(j, key + 43) - 0.5) * 0.3,
-        r = wallIn * (0.5 + 0.5 * unit(j, key + 47));
+      const hold = up === undefined ? -1 : j % 3,
+        a =
+          hold === 0
+            ? way + (unit(j, key + 43) - 0.5) * 0.4
+            : hold === 1
+              ? up! + (unit(j, key + 43) - 0.5) * 0.9
+              : way + ((j + 0.5) / squads1) * 2 * Math.PI + (unit(j, key + 43) - 0.5) * 0.3,
+        r =
+          hold === 0
+            ? wallIn * (0.85 + 0.1 * unit(j, key + 47))
+            : hold === 1
+              ? wallIn * (0.2 + 0.35 * unit(j, key + 47))
+              : wallIn * (0.5 + 0.5 * unit(j, key + 47));
       return { x: Math.cos(a) * r, z: Math.sin(a) * r };
     }),
     // (Each one about their squad's leader, as they stand in their order.)
@@ -665,10 +750,14 @@ function makeSpread(
     storm = (j: number) => {
       const kept = ways[j];
       if (kept) return kept;
+      // (Past the ladders one squad in two makes by the streets for the high ground its defenders hold last.)
       const l = leader0[j]!,
         d = Math.max(1e-6, Math.hypot(l.x, l.z)),
         r = shelling ? reach * (0.25 + 0.3 * unit(j, key + 53)) : wallOut,
-        to = { x: (l.x / d) * r, z: (l.z / d) * r },
+        high = shelling && up !== undefined && j % 2 === 1,
+        to = high
+          ? { x: Math.cos(up!) * wallIn * 0.35, z: Math.sin(up!) * wallIn * 0.35 }
+          : { x: (l.x / d) * r, z: (l.z / d) * r },
         walk = route(ground, l, to, 1.2);
       return (ways[j] = pathOf(walk.length > 1 ? walk : [l, to]));
     },
@@ -683,7 +772,10 @@ function makeSpread(
     ),
     battery = shelling
       ? Array.from({ length: BATTERY }, (_, g) => {
-          const p = at(reach + BATTERY_OUT + (g % 2) * 7, (g - (BATTERY - 1) / 2) * BATTERY_APART);
+          const q = at(reach + BATTERY_OUT + (g % 2) * 7, (g - (BATTERY - 1) / 2) * BATTERY_APART),
+            r = Math.hypot(q.x, q.z),
+            a = offWater(ground, Math.atan2(q.z, q.x), r),
+            p = { x: Math.cos(a) * r, z: Math.sin(a) * r };
           return { x: p.x, z: p.z, yaw: facing(-ux, -uz) };
         })
       : [],
@@ -752,7 +844,7 @@ export function townWarScene(
   placed = false,
 ): TownWarScene {
   const ground = villageGround(plan),
-    way = Math.atan2(plan.road.z, plan.road.x),
+    way = warWay(plan, war),
     ux = Math.cos(way),
     uz = Math.sin(way),
     reach = ground.homesReach,
@@ -764,7 +856,8 @@ export function townWarScene(
     }),
     muster = drillGround(plan),
     road = at(reach + ROAD_OUT, 0),
-    gate = at(reach + 12, 0),
+    // (Its gate on the attackers' road: in its walls where they stand, else at its edge.)
+    gate = at(ground.town?.walls?.standing ? ground.town.walls.r + 4 : reach + 12, 0),
     // (The defenders rallying to the land come in across the open ground, the road the attackers'.)
     aside = (unit(key, 3) < 0.5 ? -1 : 1) * (reach + ROAD_OUT),
     soldiers: Soldier[] = [],
@@ -825,15 +918,16 @@ export function townWarScene(
     meetOf = (i: number, side: number) =>
       side === 0 ? lineAt(i, 0, front + 1.6, 2.6) : lineAt(i, 1, front - 1.6, -2.6);
   /** About its walls: each soldier's turn about the town (the defenders' paired with the besiegers'). */
-  const ringAngle = (i: number) =>
-      way + ((i + 0.5) / each) * 2 * Math.PI + (unit(key, 5) - 0.5) * 0.3,
+  // (Round its dry ground only: none camped in its water.)
+  const ringStart = way + (unit(key, 5) - 0.5) * 0.3,
     ringAt = (i: number, r: number): Flat => {
-      const a = ringAngle(i);
+      const arc = openArc(ground, r, ringStart),
+        a = arc.from + ((i + 0.5) / each) * arc.span;
       return { x: Math.cos(a) * r, z: Math.sin(a) * r };
     },
     camp = reach + CAMP_OUT,
-    wallOut = reach + 1.6,
-    wallIn = Math.max(4, reach - 2);
+    wallOut = wallsAt(ground) + 1.6,
+    wallIn = Math.max(4, wallsAt(ground) - 2);
   /** A block of four files on the muster ground, facing the road. */
   const blockAt = (i: number, middle: Flat): Flat => {
     const col = (i % 4) - 1.5,
@@ -1339,8 +1433,9 @@ export function townWarScene(
     (war.siege || war.hosts.some((h) => h.doing === "besieging" || h.doing === "assaulting"))
   )
     for (let j = 0; j < TENTS; j++) {
-      const a = way + ((j + 0.25) / TENTS) * 2 * Math.PI + (unit(key, 5) - 0.5) * 0.3,
-        r = camp + 4 + unit(j, key) * 6;
+      const r = camp + 4 + unit(j, key) * 6,
+        arc = openArc(ground, r, ringStart),
+        a = arc.from + ((j + 0.25) / TENTS) * arc.span;
       tents.push({ x: Math.cos(a) * r, z: Math.sin(a) * r, yaw: a });
     }
   // The night before a battle before it: the hosts' fires behind their lines across the road.

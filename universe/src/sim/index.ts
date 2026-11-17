@@ -691,6 +691,7 @@ export {
   TOWN_FAMILIES,
   TownBuilder,
   CIVIC_EVERY,
+  DRY_MOST,
   RUIN_YEARS,
   SETTLED,
   TownStore,
@@ -725,6 +726,7 @@ export {
   installLocalActs,
   nextPrinciple,
 } from "./acts/local.ts";
+export { floodGround, floodWary, quarterOf, townSeed } from "./town/sites.ts";
 export {
   ASK_EVENTS,
   ASK_FIRSTS,

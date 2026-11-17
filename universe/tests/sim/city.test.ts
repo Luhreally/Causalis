@@ -129,6 +129,7 @@ test("the microscope over a city shows its quarters, its homes in its housing bl
         plan.town.axis,
         plan.town.lots,
         plan.town.water,
+        plan.town.site ?? null,
       ),
       states = lotStates(plan.town);
     for (const h of plan.homes) {

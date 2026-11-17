@@ -1,7 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { VillagePlan, WarsMap } from "../../src/bridge/index.ts";
-import { townWarNow, townWarScene, villageGround, type TownWar } from "../../src/view/index.ts";
+import {
+  townWarNow,
+  townWarScene,
+  villageGround,
+  warWay,
+  type TownWar,
+} from "../../src/view/index.ts";
 import { OCC } from "../../src/rules/index.ts";
 
 // Lands as spots of the globe's grid: the attacker's seat and its muster, the land it fought for
@@ -363,4 +369,57 @@ test("at the peace the men come home by the road to every town of their seat's l
   assert.match(home.words, /come home from the war/);
   assert.ok(drawn(home, 0).host.length > 0);
   assert.equal(townWarNow(map, 301.6, place), null);
+});
+
+test("a realm's host comes by its own road in, to its gate there; a siege's camp keeps off the town's water (asked 2026-11-16)", () => {
+  // (The Reds come from the west, the Blues' realm lies north; the town's water to the east.)
+  const sited: VillagePlan = {
+      ...town,
+      water: { x: 150, z: 0 },
+      ways: [
+        { realm: "pol:0:9", bearing: -Math.PI / 2 },
+        { realm: "pol:0:1", bearing: Math.PI },
+      ],
+    },
+    scene = (tw: TownWar) => townWarScene(sited, tw, EACH),
+    host = (tw: TownWar, side: 0 | 1) =>
+      scene(tw)
+        .soldiers.slice(side * 2 * EACH, side * 2 * EACH + EACH)
+        .filter((q) => q.size > 0.5);
+  assert.equal(warWay(sited, { sides: [war().attacker, war().defender] }), Math.PI);
+  assert.equal(
+    warWay(town, { sides: [war().attacker, war().defender] }),
+    Math.atan2(town.road.z, town.road.x),
+    "no way in: by its road",
+  );
+  // A town the attackers have taken is come into from their own lands about it; its own men march out toward a foe
+  // beyond, never by its own realm's way.
+  const taken: VillagePlan = { ...town, ways: [{ realm: "pol:0:1", bearing: Math.PI, own: true }] },
+    sides = [war().attacker, war().defender] as const,
+    hostDoing = (doing: TownWar["hosts"][number]["doing"]) => [
+      { side: 0 as const, doing, k: 1, gathered: 1, words: "" },
+    ];
+  assert.equal(warWay(taken, { sides, hosts: hostDoing("assaulting") }), Math.PI);
+  assert.equal(
+    warWay(taken, { sides, hosts: hostDoing("mustering") }),
+    Math.atan2(town.road.z, town.road.x),
+  );
+  // Drawn up before the town: the attackers out along the west road, past the defenders.
+  const facing = townWarNow(mapOf(war()), 300.86, { spot: N, heart: true })!,
+    A = mean(host(facing, 0)),
+    D = mean(host(facing, 1));
+  assert.ok(
+    A.x < D.x - 40 && Math.abs(A.z) < 30,
+    `the attackers at ${A.x.toFixed(0)},${A.z.toFixed(0)}`,
+  );
+  // A siege: none of its camp, its tents or its besiegers on the water.
+  const summer = townWarNow(mapOf(war({ siege: SD, next: SD })), 300.5, { spot: SD, heart: true })!,
+    lake = villageGround(sited).lake!,
+    s = scene(summer);
+  for (const p of [...s.tents, ...host(summer, 0)])
+    assert.ok(
+      Math.hypot(p.x - lake.x, p.z - lake.z) > lake.r,
+      `at ${p.x.toFixed(0)},${p.z.toFixed(0)} in the water`,
+    );
+  assert.equal(s.tents.length, 12);
 });

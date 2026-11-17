@@ -445,6 +445,31 @@ export function roadOutside(
 }
 
 /**
+ * A road's line as it meets a town's main street (asked 2026-11-16: the land's map and the town's own view of it agree): it
+ * leaves the town's edge on the bearing its street runs out by (TownSite's road), and bends onto its way over the land past
+ * twice the town's reach. `atEnd`: the town is at the line's end, not its start.
+ */
+export function roadIntoTown(
+  line: readonly { x: number; z: number }[],
+  town: { x: number; z: number; r: number },
+  bearing: number,
+  atEnd = false,
+): { x: number; z: number }[] {
+  const way = atEnd ? [...line].reverse() : [...line],
+    far = 2 * town.r;
+  let k = 0;
+  while (k < way.length - 1 && Math.hypot(way[k]!.x - town.x, way[k]!.z - town.z) < far) k++;
+  const c = Math.cos(bearing),
+    s = Math.sin(bearing),
+    out = [
+      { x: town.x + c * town.r * 0.97, z: town.z + s * town.r * 0.97 },
+      { x: town.x + c * town.r * 1.4, z: town.z + s * town.r * 1.4 },
+      ...way.slice(k),
+    ];
+  return atEnd ? out.reverse() : out;
+}
+
+/**
  * Whether something `r` about a point lies on any of these lines (region units), read by where the lines go: a land
  * built over asks it of thousands of blocks.
  */

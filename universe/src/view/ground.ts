@@ -435,3 +435,20 @@ export function route(ground: Ground, a: Point, b: Point, reach: number): Point[
   }
   return way;
 }
+
+/**
+ * The way a host of a realm comes in to a town, and its own host marches out to that realm (radians, the town's frame): the
+ * first of `foes` its plan has a way in for (its road in from that side, at its gate: VillagePlan.ways; `foreign`: not its own
+ * realm's), else its road.
+ */
+export function approachWay(
+  plan: VillagePlan,
+  foes: readonly (string | null | undefined)[] = [],
+  foreign = false,
+): number {
+  for (const f of foes) {
+    const w = f ? plan.ways?.find((x) => x.realm === f && !(foreign && x.own)) : undefined;
+    if (w) return w.bearing;
+  }
+  return Math.atan2(plan.road.z, plan.road.x);
+}

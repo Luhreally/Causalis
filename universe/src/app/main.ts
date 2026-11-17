@@ -218,6 +218,7 @@ import {
   keepOut,
   orbitOf,
   villageGround,
+  wetAt,
   type FreeRules,
   type FreeState,
   battleFront,
@@ -3417,6 +3418,11 @@ async function runPlanetPage(): Promise<void> {
       landWars(warsNow, parent, meta.size, meta.tileKm, grid),
       (x, z) => region.heightAt(x, z),
       (x, z) => region.seaAt(x, z),
+      // (A siege's camp keeps off the lakes too.)
+      (x, z) => {
+        const g = region.landGround;
+        return g ? wetAt(g, x, z) : region.seaAt(x, z);
+      },
     );
     // Each of the world's own wars where its year has its hosts (not a war watched unfolding).
     const g = region.landGround;
@@ -3432,7 +3438,17 @@ async function runPlanetPage(): Promise<void> {
           .filter((t) => t.population > 0)
           .flatMap((t) => {
             const at = region.land.townAt(t.ref);
-            return at ? [{ ...at, name: t.name, population: t.population, ref: t.ref }] : [];
+            return at
+              ? [
+                  {
+                    ...at,
+                    name: t.name,
+                    population: t.population,
+                    ref: t.ref,
+                    ...(t.ways ? { ways: t.ways } : {}),
+                  },
+                ]
+              : [];
           }),
       ),
       spots = landSpots(parent, meta.size, meta.tileKm, grid);
@@ -6652,7 +6668,7 @@ async function runPlanetPage(): Promise<void> {
       names = rollNames(field, drawn, roll),
       // (Each named man struck where history struck him: his fate, and so his name, the same.)
       blows = members ? newBlows(field, toldBlows(names, members)) : drawn,
-      frame = fieldFrame(town, field);
+      frame = fieldFrame(town, field, [info.attacker.ref, info.defender.ref]);
     village.placeBattle({
       field,
       frame,
@@ -6695,7 +6711,7 @@ async function runPlanetPage(): Promise<void> {
       const detail = stage.quality.detail,
         most = placedMost(detail),
         field = newBattle(near, most, true),
-        frame = fieldFrame(plan, field);
+        frame = fieldFrame(plan, field, [near.attacker.ref, near.defender.ref]);
       village.placeBattle({
         field,
         frame,
@@ -7027,6 +7043,8 @@ async function runPlanetPage(): Promise<void> {
       event: P.info.event,
       turn: P.turn,
       title: P.info.title,
+      // (Where its field lies before the town, metres from its square: on the attackers' road in.)
+      at: { x: P.frame.x, z: P.frame.z },
       stage: battleStage(seen, P.turn),
       s: battleSecond(seen, P.turn),
       per: P.field.per,
