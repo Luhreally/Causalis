@@ -571,7 +571,10 @@ export {
   chemistryOf,
   classesOf,
   kindBulk,
+  HARDENER_ELEMENTS,
+  ORE_FLOOR,
   hardenerOf,
+  hardenerWorth,
   isSolarClassed,
   type AirClass,
   type Bulk,
@@ -636,6 +639,8 @@ export {
   principleNameOn,
   reactionsOn,
   reductionHeat,
+  LINING_SHARE,
+  liningOn,
   roleWord,
   worldOre,
   type Alloy,
@@ -1078,6 +1083,7 @@ export {
   flyerOn,
   givesWkg,
   hitShare,
+  FRAME_SHARE,
   liftingEngine,
   loadShare,
   lotsPerDrop,
@@ -1706,6 +1712,7 @@ export * from "./arming.ts";
 export * from "./houses.ts";
 export * from "./kinforms.ts";
 export * from "./academy.ts";
+export * from "./materials.ts";
 export * from "./crops.ts";
 export * from "./volcanoes.ts";
 export * from "./floods.ts";

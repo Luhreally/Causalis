@@ -105,6 +105,8 @@ export type Recipe = {
     readonly fuelless?: boolean;
     /** Only where the land's own rivers, wind, hot ground or atom carry the current its works ask (gen/carriers.ts). */
     readonly carried?: boolean;
+    /** Only where the land makes a stuff (rules/materials.ts MATERIAL_WAYS). */
+    readonly way?: string;
   };
   /** Only near rivers and lakes (clay), or anywhere. */
   readonly clay?: boolean;
@@ -234,6 +236,14 @@ export const RECIPES: readonly Recipe[] = [
     inputs: [[G.tools, 2]],
     output: [G.machines, 3],
     needs: { knowledge: "electricity", carried: true },
+  },
+  // (Cloth spun of a made polymer, where a land makes them: chains of carbon from its oil, rules/materials.ts. Appended.)
+  {
+    id: "polymer-cloth",
+    name: "clothing spun of made polymers from oil",
+    inputs: [[G.oil, 1]],
+    output: [G.clothing, 6],
+    needs: { way: "made-polymer" },
   },
 ];
 

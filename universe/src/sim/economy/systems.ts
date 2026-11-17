@@ -71,6 +71,7 @@ import {
   principleNameOn,
   roleWord,
   dealsMoved,
+  wayById,
   type LifeHistory,
   type Recipe,
   type ToolMetal,
@@ -92,6 +93,7 @@ import { oreLaid } from "./ore.ts";
 import { digOre } from "./worked.ts";
 import { energyYear, machinesWanted } from "./energy.ts";
 import { kmBetween, seaRange, seaReach } from "./sea.ts";
+import { compassReach, materialsOf } from "../lore/materials.ts";
 import { politiesOf } from "../polity/polity.ts";
 import { cartelsNow, craftsKept, machinesAtWork } from "../trade/kept.ts";
 import { fieldedOf, warsOf, type War } from "../war/war.ts";
@@ -157,6 +159,9 @@ export function whyNot(ctx: PopulationContext, cell: number, m: Market, r: Recip
   const know = r.needs?.knowledge;
   if (know === "metalworking" && !m.metalworking) return "they do not know how to smelt copper";
   if (r.needs?.fuelless && ctx.affords.fire) return "its works burn fuel";
+  // (A recipe of a made stuff asks the land to make it: sim/lore/materials.ts.)
+  if (r.needs?.way && !materialsOf(ctx.world)?.made(cell, r.needs.way))
+    return `they do not make ${wayById(r.needs.way)?.name ?? r.needs.way}`;
   if (
     r.needs?.carried &&
     landCarries(ctx.generated, cell, !!loreOf(ctx.world).get(cell, "electronics")) <
@@ -652,7 +657,8 @@ function edges(ctx: PopulationContext): Edge[] {
     if (!p.total() || !lore.effect(p.cell, "ships")) continue;
     // Each land's own ships: the pair is joined if either's reach the other.
     const a = p.cell,
-      range = seaRange(lore, a);
+      // (Half again where a lodestone's needle finds north out of sight of land: sim/lore/materials.ts.)
+      range = seaRange(lore, a) * compassReach(ctx.world, a);
     let taken = 0;
     for (const [b, steps] of seaReach(g, a)) {
       if (taken >= SEA_PARTNERS || steps > range) break;

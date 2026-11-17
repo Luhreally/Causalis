@@ -6,6 +6,8 @@
 // rusts — and what hardens its copper. Earth is the Sun's own case: its tables, exactly (SOLAR).
 import { dmath } from "../kernel/index.ts";
 import { carbonRatio, type NovelKind } from "./kinds.ts";
+import { UCC_TRACE, crustMultiplier } from "./crust.ts";
+import { metalFigures } from "./materials.ts";
 
 export type CarbonClass = "oxide" | "carbon-rich";
 export type MetalsClass = "poor" | "solar" | "rich";
@@ -99,11 +101,55 @@ export function bulkOf(i: ChemistryInputs): Bulk {
   return { feH, cO, mgSi, o2 };
 }
 
-/** What hardens copper on a world: nickel where its crust is poor in silica, arsenic where poor in metals, else tin. */
+/** The hardeners a people may alloy copper with, each by its element, in the order a tie goes. */
+export const HARDENER_ELEMENTS: readonly (readonly [Hardener, string])[] = [
+  ["tin", "Sn"],
+  ["arsenic", "As"],
+  ["nickel", "Ni"],
+];
+/**
+ * What of an element its crust holds that never gathers into an ore to dig (ppm, est: 55, a little above Earth's crust's
+ * 47): nickel the common silicates take up into their own crystals, gathering only where a crust holds more, in rock poor
+ * in silica weathered to garnierite; tin and arsenic leave the silicates for veins and placers.
+ */
+export const ORE_FLOOR: Readonly<Record<string, number>> = { Sn: 0, As: 0, Ni: 55 };
+
+const HARDENING = new Map<string, Readonly<Record<Hardener, number>>>();
+/**
+ * Each hardener's worth on a crust of these classes: what it adds to hammered copper's strength at five atoms in a hundred
+ * (MPa, Labusch's law over the atoms' sizes and stiffnesses: rules/materials.ts) times what of it the crust holds above
+ * what never gathers into ore (ppm, Earth's upper crust moved by the crust's classes: rules/crust.ts).
+ */
+export function hardenerWorth(
+  silica: SilicaClass,
+  metals: MetalsClass,
+): Readonly<Record<Hardener, number>> {
+  const key = `${silica}/${metals}`;
+  let w = HARDENING.get(key);
+  if (!w) {
+    const chem = { solar: false, silica, metals, carbon: "oxide" } as Chemistry,
+      copper = metalFigures({ Cu: 1 }, "hammered", 288)!.strength,
+      out = {} as Record<Hardener, number>;
+    for (const [h, e] of HARDENER_ELEMENTS) {
+      const gain = metalFigures({ Cu: 0.95, [e]: 0.05 }, "hammered", 288)!.strength - copper,
+        ppm = (UCC_TRACE[e] ?? 0) * crustMultiplier(chem, e);
+      out[h] = Math.round(gain * Math.max(0, ppm - (ORE_FLOOR[e] ?? 0)));
+    }
+    w = out;
+    HARDENING.set(key, w);
+  }
+  return w;
+}
+
+/**
+ * What hardens copper on a world: the hardener worth most on its crust (hardenerWorth). On Earth's crust tin (its gain the
+ * greatest, its share small); where the crust is poor in metals, arsenic, the commoner; where poor in silica, nickel.
+ */
 export function hardenerOf(silica: SilicaClass, metals: MetalsClass): Hardener {
-  if (silica === "low") return "nickel";
-  if (metals === "poor") return "arsenic";
-  return "tin";
+  const w = hardenerWorth(silica, metals);
+  let best: Hardener = HARDENER_ELEMENTS[0]![0];
+  for (const [h] of HARDENER_ELEMENTS) if (w[h] > w[best]) best = h;
+  return best;
 }
 
 /** A bulk's classes (each the first that holds). */

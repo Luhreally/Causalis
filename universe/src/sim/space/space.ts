@@ -41,6 +41,7 @@ import {
 import { homePlanet } from "../planet/store.ts";
 import { politiesOf, type Polity } from "../polity/polity.ts";
 import { knows, loreOf } from "../lore/lore.ts";
+import { madeFrames } from "../lore/materials.ts";
 import { warsOf } from "../war/war.ts";
 import { cultureOf, driftedWays, landShift } from "../culture/culture.ts";
 import { languagesOf } from "../culture/languages.ts";
@@ -172,7 +173,11 @@ export function spendMachines(ctx: PopulationContext, p: Polity, cost: number): 
 /** The launcher a realm's seat can build for its world's speed to orbit, if any. */
 export function launcherOfRealm(ctx: PopulationContext, p: Polity): Launcher | null {
   const home = homePlanet(ctx.world).generated.system.bodies[0]!;
-  return launcherFor((id) => knows(ctx, p.seat, id), toOrbit(home).total);
+  return launcherFor(
+    (id) => knows(ctx, p.seat, id),
+    toOrbit(home).total,
+    madeFrames(ctx.world, p.seat),
+  );
 }
 
 /** The factors of a first flight: the pull it overcame, the engine, the reasons, the realm's works. */

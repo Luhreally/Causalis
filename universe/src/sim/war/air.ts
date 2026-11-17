@@ -37,6 +37,7 @@ import { fuelFor, woundWorksFor } from "../design/design.ts";
 import { deathsIn, spill } from "../acts/disasters.ts";
 import type { Market, MarketStore } from "../economy/market.ts";
 import { loreOf } from "../lore/lore.ts";
+import { flyerFrameOf } from "../lore/materials.ts";
 import type { Polity } from "../polity/polity.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { burnTown, townsOf } from "../town/fabric.ts";
@@ -70,7 +71,8 @@ export function fleetOf(ctx: PopulationContext, p: Polity, fielded: () => number
   const charge = meansOfWorld(ctx.generated).worksCharge;
   return {
     flyers,
-    flyer: flyerOn(engine, world),
+    // (Framed in the light alloy or glass fibre its seat makes, it carries more: sim/lore/materials.ts.)
+    flyer: flyerOn(engine, world, flyerFrameOf(ctx.world, p.seat)),
     mj: lore.get(p.seat, "dropped-loads") && charge ? charge.mj : 0,
     miss: missOf(!!lore.get(p.seat, "guidance")),
   };

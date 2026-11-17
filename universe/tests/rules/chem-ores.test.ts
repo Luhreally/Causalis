@@ -147,27 +147,27 @@ test("the Sun's own minerals, grades and processes are null: as Earth's", () => 
   assert.equal(arsenicalFallback(SOLAR), false);
 });
 
-test("the novel lies' heats: each ore's smelt wants the heat the spec gives it", () => {
+test("the novel lies' heats: a smelt's from its oxide against charcoal and what must run, the rest the spec's", () => {
   const reduced = chemOf("oxide", "solar", "solar", "thin"),
     arsenic = chemOf("oxide", "poor", "solar", "solar"),
     nickel = chemOf("oxide", "solar", "low", "solar"),
     carbon = chemOf("carbon-rich", "solar", "solar", "solar");
   assert.equal(reductionHeat(oreAt(reduced, "copper", "surface")), 1085); // native copper
-  assert.equal(reductionHeat(oreAt(reduced, "copper", "deposit")), 1150); // chalcocite
-  assert.equal(reductionHeat(oreAt(nickel, "tin", "deposit")), 1250); // garnierite
+  assert.equal(reductionHeat(oreAt(reduced, "copper", "deposit")), 1085); // chalcocite: its sulphur takes its oxygen; copper runs at its melt
+  assert.equal(reductionHeat(oreAt(nickel, "tin", "deposit")), 1177); // garnierite: nickel freed from a running slag
   assert.equal(reductionHeat(oreAt(arsenic, "tin", "deposit")), 700); // arsenopyrite
-  assert.equal(reductionHeat(ARSENICAL_ORE), 1100); // tennantite
-  assert.equal(reductionHeat(oreAt(reduced, "iron", "bog")), 1150); // siderite
+  assert.equal(reductionHeat(ARSENICAL_ORE), 1085); // tennantite
+  assert.equal(reductionHeat(oreAt(reduced, "iron", "bog")), 1177); // siderite: a bloom from a running slag
   assert.equal(reductionHeat(oreAt(reduced, "iron", "telluric")), 1000); // native iron
   assert.equal(reductionHeat(oreAt(carbon, "iron", "deposit")), 1250); // carbide
 });
 
-test("the Earth heats: malachite 1100, chalcopyrite 1200, cassiterite 1000, hematite 1200, limonite 1150", () => {
-  assert.equal(reductionHeat(EARTH("copper", "surface")), 1100); // malachite
-  assert.equal(reductionHeat(EARTH("copper", "deposit")), 1200); // chalcopyrite
-  assert.equal(reductionHeat(EARTH("tin", "deposit")), 1000); // cassiterite
-  assert.equal(reductionHeat(EARTH("iron", "deposit")), 1200); // hematite
-  assert.equal(reductionHeat(EARTH("iron", "bog")), 1150); // limonite
+test("the Earth heats from Ellingham's lines: malachite 1085, chalcopyrite 1177, cassiterite 719, hematite and limonite 1177", () => {
+  assert.equal(reductionHeat(EARTH("copper", "surface")), 1085); // malachite: charcoal takes its oxygen at 151 °C; it runs at copper's melt
+  assert.equal(reductionHeat(EARTH("copper", "deposit")), 1177); // chalcopyrite: its iron must run off as slag
+  assert.equal(reductionHeat(EARTH("tin", "deposit")), 719); // cassiterite: where charcoal takes tin's oxygen
+  assert.equal(reductionHeat(EARTH("iron", "deposit")), 1177); // hematite
+  assert.equal(reductionHeat(EARTH("iron", "bog")), 1177); // limonite
 });
 
 test("heatOf on thin air: 690, 1090, 1140, 1390; rich air adds 60 to the Sun's own heat", () => {

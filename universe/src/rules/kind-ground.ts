@@ -9,7 +9,7 @@
 import type { Rock } from "./matter.ts";
 import type { NovelKind } from "./kinds.ts";
 import type { Edge, Ore, Rgb, Stone } from "./stuffs.ts";
-import { metalEdge } from "./materials.ts";
+import { metalEdge, stoneEdge } from "./materials.ts";
 
 /** A rock's form on a kind of world: what it is called, its parts, its words and its colour. */
 export type KindForm = Pick<Rock, "name" | "parts" | "words" | "colour">;
@@ -515,8 +515,7 @@ export const KIND_STONES: Readonly<Record<NovelKind, Readonly<Record<string, Sto
     limestone: {
       name: "fieldstone",
       from: "whatever hard cobble the fields turn up, since the gypsum beds give no flint",
-      keen: 0.35,
-      tough: 0.8,
+      ...stoneEdge("fieldstone", null),
       colour: [0.55, 0.53, 0.5],
       subst: null,
     },

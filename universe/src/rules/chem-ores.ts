@@ -14,7 +14,8 @@ import {
 import { KIND_METALS, KIND_ORES, KIND_REACTION_IDS } from "./kind-ground.ts";
 import { chemistryKey, type AirClass, type Chemistry } from "./chemistry.ts";
 import { principle } from "./principles.ts";
-import { metalEdge } from "./materials.ts";
+import { liningOf, metalEdge, smeltHeat } from "./materials.ts";
+import { worldRocks } from "./chem-ground.ts";
 
 /** A furnace: the heat it reaches (°C), and the process that brings it (null: a fire needs none). */
 export type Furnace = {
@@ -324,9 +325,32 @@ export function worldOre(chem: Chemistry, kind: string, lie: string): Ore | unde
   return oresOn(chem)[kind]?.[lie as OreLie];
 }
 
-/** The heat an ore's smelt wants (°C), from its reaction (0 if the reaction is not known). */
+/**
+ * The heat an ore's smelt wants (°C): where a smelt frees a metal from its ore, from the oxide's free energy against
+ * charcoal's and from what must run (rules/materials.ts smeltHeat); a reaction that is no such smelt (a roast, a forging)
+ * at its own heat; 0 if the reaction is not known.
+ */
 export function reductionHeat(ore: Ore): number {
-  return findReaction(ore.smelt)?.heat ?? 0;
+  const r = findReaction(ore.smelt);
+  if (!r) return 0;
+  return smeltHeat(r) ?? r.heat ?? 0;
+}
+
+/** What of a rock a lining's stuff must be to be dug for it (est: a quarter). */
+export const LINING_SHARE = 0.25;
+const LINED = new Map<string, ReturnType<typeof liningOf>>();
+/** The best lining a world's rocks give its furnaces, and the heat it holds (rules/materials.ts liningOf). */
+export function liningOn(chem: Chemistry): ReturnType<typeof liningOf> {
+  const key = chemistryKey(chem);
+  let l = LINED.get(key);
+  if (!l) {
+    const held = new Set<string>();
+    for (const rock of worldRocks(chem))
+      for (const [subst, share] of rock.parts) if (share >= LINING_SHARE) held.add(subst);
+    l = liningOf((s) => held.has(s));
+    LINED.set(key, l);
+  }
+  return l;
 }
 
 /**
@@ -351,7 +375,10 @@ export function furnaceOf(
 export function heatOf(chem: Chemistry, known: (p: string) => boolean, bringing?: string): number {
   const offset = AIR_OFFSET[chem.air],
     driven = offset < 0 && (bringing === DRIVEN_BLAST || known(DRIVEN_BLAST));
-  return furnaceOf(chem, known, bringing).heat + (driven ? 0 : offset);
+  const furnace = furnaceOf(chem, known, bringing),
+    heat = furnace.heat + (driven ? 0 : offset);
+  // (A fire walled in its world's own rock holds no more heat than its lining stands; an arc's is in its arc.)
+  return furnace.id === "arc" ? heat : Math.min(heat, liningOn(chem).holdsC);
 }
 
 /** Whether a furnace of this heat works an ore: it reaches the ore's smelt. */
@@ -360,8 +387,8 @@ export function canWork(heat: number, ore: Ore): boolean {
 }
 
 /**
- * Whether a nickel world's copper is hardened with arsenic instead: its garnierite wants 1250 °C,
- * past a kiln on thin or solar air. The Sun's own is never so.
+ * Whether a nickel world's copper is hardened with arsenic instead: its garnierite wants a running
+ * slag's heat (1,177 °C, reductionHeat), past a kiln on thin air. The Sun's own is never so.
  */
 export function arsenicalFallback(chem: Chemistry): boolean {
   return !chem.solar && chem.hardener === "nickel";

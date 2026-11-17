@@ -42,7 +42,7 @@ export const hitShare = (radiusM: number, miss: number): number =>
 /** The worst fliers' worth of Earth's numbers: what a machine that carries a load asks to the kilogram (W, est: 66 for the Handley Page O/400 of 1917, 108 for the Gotha G.IV). */
 export const EARTH_ASK = 80;
 /** What a machine's frame takes of its weight, and its fuel (est: Earth's first bombers). */
-const FRAME_SHARE = 0.45,
+export const FRAME_SHARE = 0.45,
   FUEL_SHARE = 0.15;
 /** What it must have left to carry anyone at all: one aboard, in a machine of Earth's first size. */
 const LEAST_LOAD = 0.02;
@@ -84,8 +84,8 @@ export const askWkg = (w: Sky): number => EARTH_ASK * flightPower(w);
 /** What an engine gives to its weight here: it breathes its air, so under Earth's weight it gives the less, and over it no more. */
 export const givesWkg = (e: CarriedEngine, w: Sky): number => e.wkg * Math.min(1, airWeight(w));
 /** What of a machine's weight is left to carry, once its frame, fuel and the engine that lifts it are paid for. */
-export const loadShare = (e: CarriedEngine, w: Sky): number =>
-  1 - FRAME_SHARE - FUEL_SHARE - askWkg(w) / givesWkg(e, w);
+export const loadShare = (e: CarriedEngine, w: Sky, frame = FRAME_SHARE): number =>
+  1 - frame - FUEL_SHARE - askWkg(w) / givesWkg(e, w);
 /** Whether a machine can be driven here at all: fire, and ground to rise from. */
 export const canBurn = (w: Pick<MeansWorld, "freeOxygen" | "bodyFire" | "medium">): boolean =>
   w.freeOxygen && w.bodyFire && w.medium !== "water";
@@ -130,8 +130,8 @@ export type Flyer = {
   readonly givesWkg: number;
 };
 
-/** The machine an engine makes on this world. */
-export function flyerOn(e: CarriedEngine, w: Sky): Flyer {
+/** The machine an engine makes on this world (`frame`: its frame's share of its weight, lighter in a lighter stuff: rules/materials.ts flyerFrame). */
+export function flyerOn(e: CarriedEngine, w: Sky, frame = FRAME_SHARE): Flyer {
   const fly = flightPower(w),
     kg = Math.max(LEAST_KG, Math.min(MOST_KG, EARTH_KG / (fly * fly))),
     air = airWeight(w),
@@ -141,7 +141,7 @@ export function flyerOn(e: CarriedEngine, w: Sky): Flyer {
   return {
     engine: e,
     kg,
-    loadKg: Math.max(0, loadShare(e, w) * kg),
+    loadKg: Math.max(0, loadShare(e, w, frame) * kg),
     speed,
     wingM2,
     spanM,

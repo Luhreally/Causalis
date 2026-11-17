@@ -1529,6 +1529,28 @@ export { ACADEMY_EVERY, academyOf, academyYear, learnedOf, patronsOf } from "./l
 export { ACADEMY_STORE } from "./culture/rows.ts";
 export { claimYearsFor, kinFactsOf } from "./war/ties.ts";
 export {
+  MATERIALS_EVENTS,
+  MATERIALS_EVERY,
+  MaterialsStore,
+  crystalNeed,
+  kitGain,
+  kitWear,
+  makingHeat,
+  materialsOf,
+  waysAt,
+  type Making,
+} from "./lore/materials.ts";
+export {
+  COMPASS_REACH,
+  CONCRETE_SHARE,
+  REBUILD_YEARS,
+  compassReach,
+  concreteBuilt,
+  flyerFrameOf,
+  frameStuffOf,
+  madeFrames,
+} from "./lore/materials.ts";
+export {
   BEDS,
   CROP_EVENTS,
   CROP_STEP,

@@ -6,6 +6,7 @@
 import { STONES, type Stone } from "./stuffs.ts";
 import type { Chemistry } from "./chemistry.ts";
 import { KIND_STONES } from "./kind-ground.ts";
+import { stoneEdge } from "./materials.ts";
 
 /**
  * Where a crust has no flint (no biogenic silica, so no chalk nodules to weather out): the hard cobble
@@ -14,8 +15,7 @@ import { KIND_STONES } from "./kind-ground.ts";
 export const FIELDSTONE: Stone = {
   name: "fieldstone",
   from: "whatever hard cobble the fields turn up, ground to an edge",
-  keen: 0.35,
-  tough: 0.8,
+  ...stoneEdge("fieldstone", null),
   colour: [0.55, 0.53, 0.5],
   subst: null,
 };
@@ -29,40 +29,35 @@ export const SILICA_HIGH_STONES: Readonly<Record<string, Stone>> = {
   shale: {
     name: "novaculite",
     from: "white beds of the silica-rich shale",
-    keen: 0.9,
-    tough: 0.5,
+    ...stoneEdge("novaculite", "chert"),
     colour: [0.86, 0.85, 0.8],
     subst: "chert",
   },
   basalt: {
     name: "tholeiite",
     from: "the dark olivine-free lava, flaked coarse and ground to an edge",
-    keen: 0.45,
-    tough: 0.9,
+    ...stoneEdge("tholeiite", null),
     colour: [0.24, 0.24, 0.26],
     subst: null,
   },
   andesite: {
     name: "obsidian",
     from: "the black glass of dacite flows",
-    keen: 1,
-    tough: 0.2,
+    ...stoneEdge("obsidian", "obsidian"),
     colour: [0.06, 0.06, 0.09],
     subst: "obsidian",
   },
   granite: {
     name: "quartz",
     from: "the white veins of the leucogranite",
-    keen: 0.5,
-    tough: 0.4,
+    ...stoneEdge("quartz", "quartz"),
     colour: [0.9, 0.9, 0.88],
     subst: "quartz",
   },
   sandstone: {
     name: "quartzite",
     from: "cobbles of the clean quartz sandstone",
-    keen: 0.55,
-    tough: 0.85,
+    ...stoneEdge("quartzite", "quartz"),
     colour: [0.86, 0.83, 0.76],
     subst: "quartz",
   },
@@ -77,32 +72,28 @@ export const SILICA_LOW_STONES: Readonly<Record<string, Stone>> = {
   andesite: {
     name: "tachylite",
     from: "the black glass of its low-silica lavas",
-    keen: 0.9,
-    tough: 0.25,
+    ...stoneEdge("tachylite", "tachylite"),
     colour: [0.08, 0.07, 0.07],
     subst: "tachylite",
   },
   gneiss: {
     name: "nephrite",
     from: "green jade where the old hills' serpentine was altered",
-    keen: 0.5,
-    tough: 1,
+    ...stoneEdge("nephrite", "nephrite"),
     colour: [0.36, 0.52, 0.38],
     subst: "nephrite",
   },
   granite: {
     name: "corundum",
     from: "grey corundum of the quartz-poor tonalite, ground to an edge",
-    keen: 0.7,
-    tough: 0.6,
+    ...stoneEdge("corundum", "corundum"),
     colour: [0.48, 0.47, 0.5],
     subst: "corundum",
   },
   sandstone: {
     name: "greywacke",
     from: "hard grey cobbles of the gritty sandstone",
-    keen: 0.5,
-    tough: 0.8,
+    ...stoneEdge("greywacke", null),
     colour: [0.42, 0.43, 0.42],
     subst: null,
   },
@@ -110,8 +101,7 @@ export const SILICA_LOW_STONES: Readonly<Record<string, Stone>> = {
   basalt: {
     name: "picrite",
     from: "the green-black olivine lava, flaked coarse and ground to an edge",
-    keen: 0.45,
-    tough: 0.9,
+    ...stoneEdge("picrite", "olivine"),
     colour: [0.2, 0.24, 0.2],
     subst: "olivine",
   },
@@ -125,16 +115,14 @@ export const REDUCED_STONES: Readonly<Record<string, Stone>> = {
   shale: {
     name: "lydite",
     from: "black chert beds of the unrusted shale",
-    keen: 0.8,
-    tough: 0.6,
+    ...stoneEdge("lydite", "chert"),
     colour: [0.1, 0.1, 0.11],
     subst: "chert",
   },
   "coal-measures": {
     name: "lydite",
     from: "black chert bands in the coal country's shale",
-    keen: 0.8,
-    tough: 0.6,
+    ...stoneEdge("lydite", "chert"),
     colour: [0.1, 0.1, 0.11],
     subst: "chert",
   },
@@ -145,16 +133,14 @@ export const CARBON_STONES: Readonly<Record<string, Stone>> = {
   basalt: {
     name: "moissanite",
     from: "green-black carbide grains of the lava, ground to an edge",
-    keen: 0.92,
-    tough: 0.35,
+    ...stoneEdge("moissanite", "moissanite"),
     colour: [0.18, 0.3, 0.26],
     subst: "moissanite",
   },
   "coal-measures": {
     name: "lydite",
     from: "black chert bands of the graphite schist",
-    keen: 0.8,
-    tough: 0.6,
+    ...stoneEdge("lydite", "chert"),
     colour: [0.1, 0.1, 0.11],
     subst: "chert",
   },
