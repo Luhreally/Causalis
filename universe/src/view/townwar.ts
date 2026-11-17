@@ -750,10 +750,14 @@ function makeSpread(
     storm = (j: number) => {
       const kept = ways[j];
       if (kept) return kept;
+      // (Past the ladders one squad in two makes by the streets for the high ground its defenders hold last.)
       const l = leader0[j]!,
         d = Math.max(1e-6, Math.hypot(l.x, l.z)),
         r = shelling ? reach * (0.25 + 0.3 * unit(j, key + 53)) : wallOut,
-        to = { x: (l.x / d) * r, z: (l.z / d) * r },
+        high = shelling && up !== undefined && j % 2 === 1,
+        to = high
+          ? { x: Math.cos(up!) * wallIn * 0.35, z: Math.sin(up!) * wallIn * 0.35 }
+          : { x: (l.x / d) * r, z: (l.z / d) * r },
         walk = route(ground, l, to, 1.2);
       return (ways[j] = pathOf(walk.length > 1 ? walk : [l, to]));
     },
