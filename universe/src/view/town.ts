@@ -33,6 +33,7 @@ import {
   footprint,
   lotStates,
   progress,
+  lotsKey,
   townLots,
   townReach,
   wallRing,
@@ -209,10 +210,11 @@ export type TownScene = {
 export function townScene(plan: TownPlan, t: number, previous?: TownLots): TownScene {
   const lots =
       previous &&
+      previous.key === lotsKey(plan) &&
       previous.x.length >= plan.lots &&
       previous.blocks.x.length >= Math.ceil(plan.lots / BLOCK_LOTS)
         ? previous
-        : townLots(plan.family, plan.seed, plan.axis, plan.lots, plan.water),
+        : townLots(plan.family, plan.seed, plan.axis, plan.lots, plan.water, plan.site ?? null),
     states = lotStates(plan),
     held = blocksHeld(plan, states),
     looks = plan.designs.map((d: TownDesign) => {

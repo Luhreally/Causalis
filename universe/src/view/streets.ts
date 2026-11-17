@@ -109,7 +109,14 @@ export class Streets {
   constructor(plan: TownPlan, lake: Solid | null) {
     this.plan = plan;
     this.lake = lake;
-    const lots = townLots(plan.family, plan.seed, plan.axis, plan.lots, plan.water),
+    const lots = townLots(
+        plan.family,
+        plan.seed,
+        plan.axis,
+        plan.lots,
+        plan.water,
+        plan.site ?? null,
+      ),
       held = blocksHeld(plan, lotStates(plan)),
       walls = wallRing(plan, lots, held);
     let reach = SQUARE;

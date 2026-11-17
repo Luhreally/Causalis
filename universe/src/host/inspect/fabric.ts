@@ -106,7 +106,14 @@ function wallsStanding(world: World, town: Ref, f: Fabric): boolean {
   const site = townSite(world, town),
     plan = site ? townPlan(world, town, site.axis, f.next, site.water) : null;
   if (!plan) return !!f.walls;
-  const lots = townLots(plan.family, plan.seed, plan.axis, plan.lots, plan.water),
+  const lots = townLots(
+      plan.family,
+      plan.seed,
+      plan.axis,
+      plan.lots,
+      plan.water,
+      plan.site ?? null,
+    ),
     ring = wallRing(plan, lots, blocksHeld(plan, lotStates(plan)));
   return !!ring && ring.lengths.length > 0;
 }

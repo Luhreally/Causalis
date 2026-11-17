@@ -696,7 +696,14 @@ export class VillageScene {
         30,
         Math.min(300, reach * M),
         townReach(
-          townLots(plan.town.family, plan.town.seed, plan.town.axis, plan.town.whole, null),
+          townLots(
+            plan.town.family,
+            plan.town.seed,
+            plan.town.axis,
+            plan.town.whole,
+            null,
+            plan.town.site ?? null,
+          ),
         ) *
           M *
           1.12,

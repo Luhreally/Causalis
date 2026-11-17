@@ -304,6 +304,50 @@ export const CIVIC_INDEX: ReadonlyMap<CivicKind, number> = new Map(
   CIVICS.map((c, i) => [c.kind, i]),
 );
 
+/**
+ * Where each building goes in its town (asked 2026-11-16), by what it needs of the ground, as bid-rent and the cost of
+ * carrying have it (Alonso, von Thünen; Weber): `heart`, about the square, where the rent is highest and those it serves
+ * walk to it; `homes`, among the homes, past the square; `water`, toward the water its wheel or its ships need; `lee`, in
+ * the lee of the town, where its smoke blows away from the homes; `high`, on the high, dry ground near the square; `road`,
+ * toward the town's way in, the railway's or its busiest road's; `works`, kept out among the works where the land has
+ * written law to zone it, else among the homes; `edge`, at the edge as it stands. A seat's halls stand high (seatSite).
+ */
+export type CivicSite = "heart" | "homes" | "water" | "lee" | "high" | "road" | "works" | "edge";
+export const CIVIC_SITE: Readonly<Record<CivicKind, CivicSite>> = {
+  shrine: "heart",
+  granary: "high",
+  kiln: "lee",
+  smithy: "lee",
+  market: "heart",
+  mill: "water",
+  temple: "heart",
+  hall: "heart",
+  school: "homes",
+  workshop: "works",
+  docks: "water",
+  academy: "heart",
+  baths: "heart",
+  observatory: "high",
+  hospital: "homes",
+  factory: "lee",
+  station: "road",
+  power: "lee",
+  offices: "heart",
+  fusion: "lee",
+  minds: "heart",
+  vats: "works",
+  well: "heart",
+};
+/** What a land must know to keep its works out of its homes: written law, by which ground is zoned. */
+export const ZONING_NEEDS = "law-codes";
+
+/** Where a building goes in a realm's seat: its halls of law and learning on the high ground by the square. */
+export function seatSite(kind: CivicKind): CivicSite {
+  return kind === "hall" || kind === "academy" || kind === "offices" || kind === "minds"
+    ? "high"
+    : CIVIC_SITE[kind];
+}
+
 /** A civic building's definition by kind. */
 export function civic(kind: CivicKind): CivicDef {
   return CIVICS[CIVIC_INDEX.get(kind)!]!;

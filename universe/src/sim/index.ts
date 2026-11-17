@@ -690,6 +690,7 @@ export {
   TOWN_FAMILIES,
   TownBuilder,
   CIVIC_EVERY,
+  DRY_MOST,
   RUIN_YEARS,
   SETTLED,
   TownStore,
@@ -717,6 +718,7 @@ export {
   Runs,
   plainCivic,
 } from "./town/fabric.ts";
+export { floodGround, floodWary, quarterOf, townSeed } from "./town/sites.ts";
 export { BLESSING, LOCAL_ACT_EVENTS, agentName, installLocalActs } from "./acts/local.ts";
 export {
   ASK_EVENTS,

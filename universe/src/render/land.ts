@@ -29,6 +29,7 @@ import {
   onLines,
   roadLine,
   roadLook,
+  roadIntoTown,
   roadOutside,
   roadTiles,
   tileMiddle,
@@ -615,11 +616,19 @@ export class LandLayer {
         (line = roadLine(g, roadTiles(g, road.from, road.to, !!this.plan!.undersea))),
       );
     if (line.length < 2) return null;
+    // (Into each town along its main street, the bearing its own streets were laid by: the town's view shows the same.)
+    let met: { x: number; z: number }[] = line;
+    [road.a, road.b].forEach((ref, end) => {
+      const d = ref ? this.towns.get(ref) : undefined,
+        far = end === 0 ? road.to : road.from,
+        way = d?.scene.plan.site?.roads.find((r) => r.to === far);
+      if (d && way) met = roadIntoTown(met, { x: d.x, z: d.z, r: d.reach }, way.bearing, end === 1);
+    });
     const ends = [road.a, road.b].flatMap((ref) => {
         const d = ref ? this.towns.get(ref) : undefined;
         return d ? [{ x: d.x, z: d.z, r: d.reach * 0.92 }] : [];
       }),
-      out = roadOutside(line, ends);
+      out = roadOutside(met, ends);
     return out.length < 2 ? null : out;
   }
 

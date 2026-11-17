@@ -515,7 +515,14 @@ export function folkTownPlan(
     population = stage === "ruins" ? 0 : folkPlacePeople(f, stage),
     count = Math.max(4, Math.min(160, Math.ceil(population / 5)));
   if (town) {
-    const lots = townLots(town.family, town.seed, town.axis, town.lots, town.water),
+    const lots = townLots(
+        town.family,
+        town.seed,
+        town.axis,
+        town.lots,
+        town.water,
+        town.site ?? null,
+      ),
       states = lotStates(town);
     for (let p = 0; p < town.lots && homes.length < count; p++)
       if (

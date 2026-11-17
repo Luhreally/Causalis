@@ -42,15 +42,12 @@ import { landEra, townSite } from "./village.ts";
 import { colonyLook } from "./colony.ts";
 import { landPast } from "./past.ts";
 import { getAbout, readRoad } from "./roads.ts";
+import { RAIL_TOWN, busy, goodsBetween, roadEnds, type RoadEnd } from "./sites.ts";
 
 /** Lots a land draws of each of its towns at the least (a village's every lot). */
 const LEAST_LOTS = 240;
 /** Of the lots left to a land, the most its greatest town drawn next is given (the rest its sprawl). */
 const SHARE = 0.6;
-/** The fewest a town holds for a railway to be laid to it. */
-const RAIL_TOWN = 800;
-/** The most carts on a road at once, and ships on a lane. */
-const MOST_TRAFFIC = 8;
 /** People to a band; the most camps a land draws; how far a band's camps go from its range's
  * middle, and how far apart ranges and villages keep (tiles of the land's map). */
 const BAND_PEOPLE = 30;
@@ -59,11 +56,6 @@ export const CAMP_RANGE = 3;
 /** The stretches of a land too poor for villages its camps are spread over (tiles a side). */
 const CAMP_STEP = 8;
 const APART = 6;
-
-/** How busy a way is by the goods that went down it last year: one, and more for more. */
-function busy(goods: number): number {
-  return Math.max(1, Math.min(MOST_TRAFFIC, Math.round(Math.log2(1 + goods / 20))));
-}
 
 /** A number that changes when a town's plan does (its runs, buildings, walls, designs, paving). */
 function planKey(plan: TownPlan | null): number {
@@ -98,7 +90,18 @@ export function landPlan(world: World, cell: number, budget = 8000): LandPlan {
       !covered &&
       !offworldSite(populationContext(world).generated, cell) &&
       populationContext(world).medium !== "water",
-    plans = new Map<string, TownPlan | null>();
+    plans = new Map<string, TownPlan | null>(),
+    // (Its roads, reckoned once: each town's streets meet them, as its map draws them.)
+    ends = roadEnds(
+      world,
+      cell,
+      settled.map((s) => ({
+        ref: s.ref,
+        tile: s.tile,
+        founded: s.founded,
+        population: s.population,
+      })),
+    );
   let left = Math.max(0, budget);
   for (const s of [...settled].sort(
     (a, b) => b.population - a.population || (a.ref < b.ref ? -1 : 1),
@@ -111,6 +114,8 @@ export function landPlan(world: World, cell: number, budget = 8000): LandPlan {
             site.axis,
             Math.max(LEAST_LOTS, Math.floor(left * SHARE)),
             site.water,
+            undefined,
+            ends,
           )
         : null;
     plans.set(s.ref, plan);
@@ -140,7 +145,7 @@ export function landPlan(world: World, cell: number, budget = 8000): LandPlan {
     era,
     towns,
     about: getAbout(world, cell, era),
-    roads: landRoads(world, cell, towns),
+    roads: landRoads(world, cell, towns, ends),
     lanes: landLanes(world, cell, towns),
     camps: covered ? [] : landCamps(world, cell, towns),
     ...(covered ? { covered: true as const } : {}),
@@ -285,131 +290,55 @@ export function landCamps(
   });
 }
 
-/** A land's roads: between its towns, each to the nearest founded before it; and out of it by road. */
-function landRoads(world: World, cell: number, towns: readonly LandTown[]): LandRoad[] {
+/** A land's roads: between its towns, each to the nearest founded before it; and out of it by road (host/sites.ts roadEnds). */
+function landRoads(
+  world: World,
+  cell: number,
+  towns: readonly LandTown[],
+  ends: readonly RoadEnd[],
+): LandRoad[] {
   const ctx = populationContext(world),
     lore = loreOf(world),
     paved = lore.get(cell, "roads")?.year ?? null,
     railed = lore.get(cell, "railways")?.year ?? null,
-    r = regionOf(ctx, cell),
-    size = r.size,
-    d2 = (a: number, b: number) =>
-      ((a % size) - (b % size)) ** 2 + (Math.floor(a / size) - Math.floor(b / size)) ** 2,
+    size = regionOf(ctx, cell).size,
+    byRef = new Map(towns.map((t) => [t.ref, t])),
     /** A town's quake these two years past, by which its roads are cut. */
-    shaken = (a: LandTown, b: LandTown | null) => {
+    shaken = (a: LandTown | undefined, b: LandTown | null | undefined) => {
       for (const t of [a, b]) {
         const q = t?.plan?.struck?.findLast((x) => x.kind === "quake");
         if (q) return { year: Math.floor(q.at / YEAR), ref: q.event };
       }
       return null;
-    },
-    road = (
-      from: LandTown,
-      to: number,
-      b: LandTown | null,
-      toward: string | null,
-      since: number,
-      traffic: number,
-      known = true,
-    ): LandRoad => {
-      const bare = {
-        from: from.tile,
-        to,
-        a: from.ref,
-        b: b?.ref ?? null,
-        toward,
-        since,
-        paved: paved === null ? null : Math.max(paved, since),
-        rails:
-          railed !== null && from.population >= RAIL_TOWN && (!b || b.population >= RAIL_TOWN)
-            ? Math.max(railed, since)
-            : null,
-        traffic,
-      };
-      return {
-        ...bare,
-        ...readRoad(world, cell, bare, size, PROVINCE_TILE_KM, known, shaken(from, b)),
-      };
-    },
-    out: LandRoad[] = [];
-  const founded = [...towns].sort((a, b) => a.founded - b.founded || (a.ref < b.ref ? -1 : 1));
-  for (let k = 1; k < founded.length; k++) {
-    const t = founded[k]!;
-    let near = founded[0]!;
-    for (let q = 1; q < k; q++)
-      if (d2(founded[q]!.tile, t.tile) < d2(near.tile, t.tile)) near = founded[q]!;
-    // (Busy as the two towns are great together: a village's track a cart or two, a road between
-    // cities many.)
-    if (near.tile !== t.tile)
-      out.push(
-        road(
-          near,
-          t.tile,
-          t,
-          null,
-          t.founded,
-          Math.max(
-            1,
-            Math.min(MOST_TRAFFIC, Math.round(Math.sqrt(near.population * t.population) / 250)),
-          ),
-        ),
-      );
-  }
-  // Out of the land: toward each land its goods have gone to by road, at the spot of its middle
-  // (else wherever it is in sight), from the town nearest that way.
-  const g = ctx.generated,
-    markets = marketsOf(world);
-  if (!isProvinceWorld(g) || !towns.length) return out;
-  for (let k = g.grid.offsets[cell]!; k < g.grid.offsets[cell + 1]!; k++) {
-    const nb = g.grid.neighbours[k]!,
-      route = markets.route(cell, nb);
-    if (!route || markets.bySea(cell, nb)) continue;
-    let si = 0,
-      sj = 0,
-      n = 0;
-    const middle = g.centre[nb]!;
-    for (let t = 0; t < size * size; t++)
-      if (r.parent[t] === middle) {
-        si += t % size;
-        sj += Math.floor(t / size);
-        n++;
-      }
-    if (!n)
-      for (let t = 0; t < size * size; t++)
-        if (g.provinceOf[r.parent[t]!] === nb) {
-          si += t % size;
-          sj += Math.floor(t / size);
-          n++;
-        }
-    if (!n) continue;
-    const end = Math.round(sj / n) * size + Math.round(si / n);
-    let from = towns[0]!;
-    for (const t of towns) if (d2(t.tile, end) < d2(from.tile, end)) from = t;
-    const great = ctx.settlements
-        .seenIn(nb)
-        .sort((a, b) => b.population - a.population || (a.ref < b.ref ? -1 : 1))[0],
-      opened = world.events.get(route);
-    out.push(
-      road(
-        from,
-        end,
-        null,
-        great?.name ?? null,
-        opened ? yearOfMoment(opened.t) : yearOfMoment(world.now),
-        busy(goodsBetween(world, cell, nb)),
-        !!opened,
+    };
+  return ends.map((e) => {
+    const bare = {
+      from: e.from.tile,
+      to: e.to,
+      a: e.from.ref,
+      b: e.b?.ref ?? null,
+      toward: e.toward?.name ?? null,
+      since: e.since,
+      paved: paved === null ? null : Math.max(paved, e.since),
+      rails:
+        railed !== null && e.from.population >= RAIL_TOWN && (!e.b || e.b.population >= RAIL_TOWN)
+          ? Math.max(railed, e.since)
+          : null,
+      traffic: e.traffic,
+    };
+    return {
+      ...bare,
+      ...readRoad(
+        world,
+        cell,
+        bare,
+        size,
+        PROVINCE_TILE_KM,
+        e.known,
+        shaken(byRef.get(e.from.ref), e.b ? byRef.get(e.b.ref) : null),
       ),
-    );
-  }
-  return out;
-}
-
-/** The goods that went between two lands last year, either way. */
-function goodsBetween(world: World, a: number, b: number): number {
-  let n = 0;
-  for (const f of marketsOf(world).flows)
-    if ((f.from === a && f.to === b) || (f.from === b && f.to === a)) n += f.count;
-  return n;
+    };
+  });
 }
 
 /**

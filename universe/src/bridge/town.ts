@@ -11,6 +11,7 @@ import type { ColonyLook } from "./colony.ts";
 import { MONTH, YEAR, mix } from "../kernel/index.ts";
 import type { GenesisPlan, MeadowPlan } from "./genesis.ts";
 import type { GetAbout } from "./village.ts";
+import { grownBlocks, type TownSite } from "./sites.ts";
 
 /** A lot: so many metres along its street, so many deep. */
 export const LOT_W = 9;
@@ -133,7 +134,10 @@ export type TownDesign = {
 };
 
 export type TownPlan = {
+  /** How its streets were laid before they were grown from its ground (a colony's halls, a plan read of no land). */
   readonly family: TownFamily;
+  /** Its ground and its ways in, by which its streets are grown (absent: laid by `family`, as of old). */
+  readonly site?: TownSite;
   /** For the plan's own turns and wanderings. */
   readonly seed: number;
   /** The heading of its streets (a grid's runs along its road). */
@@ -230,6 +234,63 @@ export type TownBlocks = {
 };
 
 /**
+ * A town's blocks grown along its streets (bridge/sites.ts), kept for the towns last asked of: the land's map and the town's
+ * own view ask the same town's again and again, at different counts (the first so many are the same at any count).
+ */
+const GROWN = new Map<string, TownBlocks & { readonly straight: Uint8Array }>();
+function grownOf(
+  seed: number,
+  site: TownSite,
+  count: number,
+  water: TownWater | null,
+  axis: number,
+): TownBlocks {
+  const key = layoutKey("", seed, axis, water, site);
+  let kept = GROWN.get(key);
+  if (!kept || kept.x.length < count) {
+    // (Grown a little past what is asked: a town asked of again is asked of a little larger.)
+    kept = grownBlocks(
+      seed,
+      site,
+      Math.max(count, Math.ceil((kept?.x.length ?? 0) * 1.25)),
+      water,
+      axis,
+    );
+    GROWN.delete(key);
+    GROWN.set(key, kept);
+    if (GROWN.size > 96) GROWN.delete(GROWN.keys().next().value!);
+  }
+  return kept.x.length === count
+    ? kept
+    : ({
+        x: kept.x.subarray(0, count),
+        z: kept.z.subarray(0, count),
+        yaw: kept.yaw.subarray(0, count),
+        straight: kept.straight.subarray(0, count),
+      } as TownBlocks);
+}
+
+/** What a town's lots are laid by: the same for two plans whose lots stand in the same places. */
+function layoutKey(
+  family: string,
+  seed: number,
+  axis: number,
+  water: TownWater | null,
+  site: TownSite | null,
+): string {
+  return `${site ? "" : family}|${seed}|${axis}|${water ? `${water.x},${water.z},${water.r}` : ""}|${site ? JSON.stringify(site) : ""}`;
+}
+/** What a plan's lots are laid by (TownLots.key): a scene may keep the lots it had while this is the same. */
+export function lotsKey(plan: TownPlan): string {
+  return layoutKey(plan.family, plan.seed, plan.axis, plan.water, plan.site ?? null);
+}
+
+/** Which of a town's blocks were measured out straight before they were built (null: laid by its family, as of old). */
+export function measuredBlocks(blocks: TownBlocks): Uint8Array | null {
+  return (blocks as { straight?: Uint8Array }).straight ?? null;
+}
+
+/**
  * The first `count` blocks of a town's plan (each the same whatever the count: a block never
  * moves), none laid in its water: the town grows round it, a shore kept along it.
  */
@@ -239,7 +300,9 @@ export function townBlocks(
   axis: number,
   count: number,
   water: TownWater | null = null,
+  site: TownSite | null = null,
 ): TownBlocks {
+  if (site) return grownOf(seed, site, count, water, axis);
   const x = new Float32Array(count),
     z = new Float32Array(count),
     yaw = new Float32Array(count),
@@ -309,6 +372,8 @@ export function townBlocks(
 
 /** Where a town's lots stand (metres from its square's middle) and how each is turned. */
 export type TownLots = {
+  /** What they are laid by (see lotsKey). */
+  readonly key: string;
   readonly x: Float32Array;
   readonly z: Float32Array;
   readonly yaw: Float32Array;
@@ -325,8 +390,9 @@ export function townLots(
   axis: number,
   count: number,
   water: TownWater | null = null,
+  site: TownSite | null = null,
 ): TownLots {
-  const blocks = townBlocks(family, seed, axis, Math.ceil(count / BLOCK_LOTS), water),
+  const blocks = townBlocks(family, seed, axis, Math.ceil(count / BLOCK_LOTS), water, site),
     x = new Float32Array(count),
     z = new Float32Array(count),
     yaw = new Float32Array(count);
@@ -343,7 +409,7 @@ export function townLots(
     // (The back row faces the other street.)
     yaw[p] = j < 4 ? t : t + Math.PI;
   }
-  return { x, z, yaw, blocks };
+  return { key: layoutKey(family, seed, axis, water, site), x, z, yaw, blocks };
 }
 
 /**
@@ -720,7 +786,10 @@ export function wallRing(
     else standing.push({ k, x, z, yaw: Math.atan2(-Math.cos(a), -Math.sin(a)) });
   }
   if (over * 3 > dry) return { r, n, lengths: [] };
-  // A gate each way the road runs out: at the length standing nearest it.
+  // (Grown out past them to three times what they rang, its streets grown about their line: they are pulled down, a ring street
+  // where they stood. Asked 2026-11-16: "walls leave rings".)
+  if (plan.site && plan.whole >= 3 * w.reach) return { r, n, lengths: [] };
+  // A gate each way a road runs in (its own bearing), else each way its street runs: at the length standing nearest it.
   const gateNear = (at: number) => {
     let best = -1,
       off = 4;
@@ -734,7 +803,13 @@ export function wallRing(
     }
     return best;
   };
-  const gates = new Set([gateNear(gate), gateNear((gate + n / 2) % n)]);
+  const at = (a: number) =>
+      (((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) / ((2 * Math.PI) / n),
+    gates = new Set(
+      plan.site?.roads.length
+        ? plan.site.roads.map((x) => gateNear(at(x.bearing)))
+        : [gateNear(gate), gateNear((gate + n / 2) % n)],
+    );
   return {
     r,
     n,
