@@ -30,6 +30,9 @@ export class MapModes {
   private readonly act = el("button", "legend-action");
   private readonly picks = el("div", "legend-picks");
   private current: Lens;
+  /** The choice a mode's legend is drawn for (the underworld lens's ramp is its way's own), and the words of each. */
+  private chosen = "";
+  private choiceWords = new Map<string, string>();
   /** Its world's kind (Phase 56): the warmth legend's degrees its liquid's, told in true ones. */
   private world = "rocky";
   private built = false;
@@ -98,6 +101,8 @@ export class MapModes {
     chosen: string,
     pick: (id: string) => void,
   ): void {
+    this.chosen = chosen;
+    this.choiceWords = new Map((options ?? []).map(([id, , words]) => [id, words]));
     this.picks.replaceChildren(
       ...(options ?? []).map(([id, icon, words]) => {
         const b = el("button", `speed${id === chosen ? " on" : ""}`, icon);
@@ -106,6 +111,12 @@ export class MapModes {
         b.dataset.choice = id;
         b.onclick = () => {
           for (const x of this.picks.children) x.classList.toggle("on", x === b);
+          // (A legend drawn for its choice is drawn again for the new one: the underworld lens.)
+          if (this.current === "underworld" && id !== this.chosen) {
+            this.chosen = id;
+            this.drawLegend();
+          }
+          this.chosen = id;
           pick(id);
         };
         return b;
@@ -148,8 +159,14 @@ export class MapModes {
   }
 
   private drawLegend(): void {
-    const l = lensLegend(this.current, this.world, this.look),
-      title = el("div", "legend-title", LENS_NAMES[this.current]);
+    const l = lensLegend(this.current, this.world, this.look, this.chosen),
+      // (A lens of several ways names the one shown: "Underworld: Crime".)
+      way = this.current === "underworld" ? this.choiceWords.get(this.chosen) : undefined,
+      title = el(
+        "div",
+        "legend-title",
+        way ? `${LENS_NAMES[this.current]}: ${way}` : LENS_NAMES[this.current],
+      );
     const parts: HTMLElement[] = [title];
     if (l.kind === "ramp") {
       const bar = el("div", "legend-ramp");

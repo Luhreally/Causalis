@@ -202,6 +202,7 @@ import { armBorne } from "./inspect/arm.ts";
 import { landTitle } from "./inspect/names.ts";
 import { campaignOf, warsOfAge } from "./campaign.ts";
 import { landReadings } from "./lenses.ts";
+import { UNDERWORLD_QUERIES } from "./inspect/underworld.ts";
 import { genesisOf } from "./genesis.ts";
 import { TRAIT_LOOK } from "./inspect/folk.ts";
 import { actsMap, landSky, paletteLand } from "./acts.ts";
@@ -1222,6 +1223,8 @@ function planetUniverse(name: string, prior: Prior): Universe {
       "town.offers": (world, args) => townOffers(world, (args as { ref: string }).ref),
       "town.asked": (world, args) => askedKey(world, (args as { ref: string }).ref),
       "woods.map": (world) => woodsMap(world),
+      // (Every land's crime, for the underworld lens's crime view: asked only while it is shown.)
+      ...UNDERWORLD_QUERIES,
       // (How far the god's warming has turned the world's ground: the globe draws its biomes by it.)
       "climate.warmth": (world, args) =>
         warmthMap(world, (args as { have?: number } | undefined)?.have),

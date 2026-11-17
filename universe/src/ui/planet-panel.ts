@@ -223,6 +223,10 @@ export type PeopleEntry = {
   fouled: number;
   /** How unequally their income is shared: their Gini (0 … 1; -1 none kept): Round B. */
   inequality: number;
+  /** What goes on under the law: smuggling, cartels, addiction, crime, the roofless (each -1 where nothing is kept). */
+  underworld: readonly number[];
+  /** How many goods their realm holds the trade of in a cartel among realms (0: none). */
+  tradeCartel: number;
 };
 
 /** A people's ways and speech (the host's waysOf). */

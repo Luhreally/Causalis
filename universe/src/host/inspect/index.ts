@@ -348,7 +348,14 @@ export function tipOf(world: World, ref: string, lens?: string, names?: NamesArg
             ? lensReading(world, land, kind as DeepLens, way)
             : null;
   if (reading)
-    return { ref, icon: p.icon, title: p.title, line: reading.line, stats: reading.stats };
+    return {
+      ref,
+      icon: p.icon,
+      title: p.title,
+      line: reading.line,
+      stats: reading.stats,
+      ...("go" in reading && reading.go ? { go: reading.go.ref, goWords: reading.go.words } : {}),
+    };
   return {
     ref,
     icon: p.icon,
