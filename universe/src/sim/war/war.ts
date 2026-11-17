@@ -1089,6 +1089,9 @@ function raids(
     if (done.homes <= 0 && done.dead <= 0) continue;
     const event = world.events.emit({
       type: WAR_EVENTS.strike.type,
+      // (One raid among a war's many goes with the ordinary years unless something cites it; one that killed a thousand is the
+      // chronicle's. Kept whole they were 24,000 of first light's events at 1,500, its largest kind by what they weigh.)
+      importance: done.dead >= 1000 ? 4 : 3,
       subjects: [target.ref, w.ref, by.ref, foe.ref],
       place: ctx.provinces.get(target.cell)!.ref,
       causes: [{ ref: w.event, role: "trigger", weight: 1 }],
@@ -1168,6 +1171,9 @@ function thrown(
     if (done.homes <= 0 && done.dead <= 0) continue;
     const event = world.events.emit({
       type: WAR_EVENTS.strike.type,
+      // (One raid among a war's many goes with the ordinary years unless something cites it; one that killed a thousand is the
+      // chronicle's. Kept whole they were 24,000 of first light's events at 1,500, its largest kind by what they weigh.)
+      importance: done.dead >= 1000 ? 4 : 3,
       subjects: [target.ref, w.ref, by.ref, foe.ref],
       place: ctx.provinces.get(target.cell)!.ref,
       causes: [{ ref: w.event, role: "trigger", weight: 1 }],

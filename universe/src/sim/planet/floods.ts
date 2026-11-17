@@ -71,6 +71,26 @@ export class FloodStore implements StateStore {
   tally: FloodTally = { floods: 0, dead: 0 };
   /** This year's drowned fields: [cell, the moment they are sown again, thousandths of the harvest taken]. */
   drowned: [number, number, number][] = [];
+  /** (The drowned by their land, read off the list as it stands: not state. Asked for every land every month.) */
+  private drownedBy: {
+    of: [number, number, number][];
+    n: number;
+    by: Map<number, [number, number][]>;
+  } | null = null;
+  /** A land's drowned fields now: [the moment they are sown again, thousandths taken]. */
+  drownedIn(cell: number): readonly [number, number][] | undefined {
+    let k = this.drownedBy;
+    if (!k || k.of !== this.drowned || k.n !== this.drowned.length) {
+      const by = new Map<number, [number, number][]>();
+      for (const [c, until, loss] of this.drowned) {
+        const l = by.get(c);
+        if (l) l.push([until, loss]);
+        else by.set(c, [[until, loss]]);
+      }
+      this.drownedBy = k = { of: this.drowned, n: this.drowned.length, by };
+    }
+    return k.by.get(cell);
+  }
 
   dormant(): boolean {
     return !this.tally.floods && !this.drowned.length;
@@ -106,7 +126,8 @@ export function floodYield(world: World, cell: number): number {
   if (!store || !store.drowned.length) return 1;
   const now = world.now;
   let k = 1;
-  for (const [c, until, loss] of store.drowned) if (c === cell && now < until) k *= 1 - loss / 1000;
+  const mine = store.drownedIn(cell);
+  if (mine) for (const [until, loss] of mine) if (now < until) k *= 1 - loss / 1000;
   return k;
 }
 

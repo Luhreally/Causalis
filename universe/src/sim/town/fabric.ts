@@ -1525,20 +1525,23 @@ export class TownBuilder {
   }
 
   /** Homes let fall from the edge, a few a year, where the town has long had far more than it needs. */
-  shrink(f: Fabric, people: number): void {
+  shrink(f: Fabric, people: number, years = 1): void {
     const housing = housingOf(f);
     if (housing === 0 || housing <= people / 0.6) {
       f.lean = 0;
       return;
     }
-    if (++f.lean < 3) return;
+    if ((f.lean += years) < 3) return;
     // (Gone over from the highest lot a home stands on: a town long lean has let its last lots
     // fall already, and would go over them every year.)
     const from = Math.max(0, f.next - 512),
       high = highestHome(f, from, f.next);
     if (high < 0) return;
     let excess = housing - Math.ceil(people / 0.8),
-      count = Math.max(1, Math.ceil(homesOf(f) * 0.05)),
+      count = Math.max(
+        1,
+        Math.ceil(homesOf(f) * (years === 1 ? 0.05 : 1 - dmath.pow(0.95, years))),
+      ),
       top = -1;
     const levels = scratchLevels(f, from, high + 1),
       under = scratchMask(f, from, high + 1),
@@ -2143,6 +2146,9 @@ function knower(ctx: PopulationContext, cell: number): (id: string) => boolean {
  * CIVIC_EVERY (each town in its own, and in its first), its other buildings weighed and its
  * walls.
  */
+/** A town's spare homes are let fall once in this many years, in its turn. */
+const SHRINK_EVERY = 3;
+
 export function townYear(ctx: PopulationContext, t: SimTime): void {
   const { world } = ctx,
     store = townsOf(world),
@@ -2213,7 +2219,10 @@ export function townYear(ctx: PopulationContext, t: SimTime): void {
         designSince(ctx, cell),
         dry && f.next < DRY_MOST,
       );
-    } else builder.shrink(f, people);
+    }
+    // (A town with homes to spare lets them fall in its turn, once in SHRINK_EVERY years and as many years' worth at once: its
+    // empty homes are gone over lot by lot, and most towns of an old world have some.)
+    else if ((year + f.phase) % SHRINK_EVERY === 0) builder.shrink(f, people, SHRINK_EVERY);
     if (
       weighs &&
       !f.walls &&
