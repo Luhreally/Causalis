@@ -896,12 +896,28 @@ function dryStretch(seed: number, p: number): number {
   while (!floodGround(seed, b)) b++;
   return b * 8;
 }
+/**
+ * (Of each town wary of floods, how many of its first open runs hold only flood ground, as last found: its open runs and the
+ * last of those, by which it is known to hold. Every change to its open runs but a building's lots taken makes them anew;
+ * one taken out or parted moves the last off its place. A cache, never history.)
+ */
+const FLOODED = new WeakMap<
+  Fabric,
+  { open: [number, number][]; last: [number, number]; n: number }
+>();
 /** Of a town wary of floods, its first open run with a lot a home may take (-1: none). */
 function homeOpen(f: Fabric, seed: number, from = 0): number {
+  const kept = FLOODED.get(f);
+  if (kept && kept.open === f.open && f.open[kept.n - 1] === kept.last)
+    from = Math.max(from, kept.n);
   for (let i = from; i < f.open.length; i++) {
     const [a, b] = f.open[i]!;
-    if (dryStart(seed, a) < b) return i;
+    if (dryStart(seed, a) < b) {
+      if (i > 0) FLOODED.set(f, { open: f.open, last: f.open[i - 1]!, n: i });
+      return i;
+    }
   }
+  if (f.open.length) FLOODED.set(f, { open: f.open, last: f.open.at(-1)!, n: f.open.length });
   return -1;
 }
 /** Past so many lots a great town embanks its water and builds over the ground toward it again. */
