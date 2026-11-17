@@ -177,6 +177,26 @@ const TITLES: Readonly<Record<string, string>> = {
   "town.forsaken": "A town forsaken",
 };
 
+/** What a kind of event is called, under what heading, with what icon: for a search by kind. */
+export function eventKind(type: string): {
+  readonly title: string;
+  readonly heading: string;
+  readonly icon: string;
+} {
+  const cut = type.indexOf("."),
+    domain = cut < 0 ? type : type.slice(0, cut),
+    what = cut < 0 ? "" : type.slice(cut + 1),
+    [heading, icon] = HEADINGS[domain] ?? [sentence(domain || "Event"), "📜"];
+  return {
+    title: TITLES[type] ?? `${heading}${what ? `: ${what.replace(/[-.]/g, " ")}` : ""}`,
+    heading,
+    icon,
+  };
+}
+
+/** Every kind of event given a title of its own. */
+export const TITLED_TYPES: readonly string[] = Object.keys(TITLES);
+
 /** Where a thing an event names is to be seen (its place, most often a land). */
 export function placeOfRef(world: World, ref: string | null): Place | null {
   if (!ref || !isRef(ref)) return null;

@@ -156,6 +156,7 @@ import {
   type Counted,
 } from "./inspect/index.ts";
 import { annalsIndex, annalsRead, runTold } from "./inspect/annals.ts";
+import { ANNALS_SEARCH_QUERIES } from "./inspect/annals-search.ts";
 import { askedKey, townOffers } from "./inspect/asks.ts";
 import { MAP_QUERIES } from "./map.ts";
 import { POSSESS_QUERIES } from "./possess.ts";
@@ -1690,6 +1691,8 @@ function planetUniverse(name: string, prior: Prior): Universe {
       // The years as a scroll, and what a run of them came to, from one reading (A1).
       "annals.index": (world) => annalsIndex(world),
       "annals.read": (world, args) => annalsRead(world, (args as { years: number[] }).years),
+      // The whole log searched, a page at a time, and the world's names as a person types (2026-11-16).
+      ...ANNALS_SEARCH_QUERIES,
       "annals.run": (world, args) => {
         const a = args as { from: number; to: number };
         return runTold(world, a.from, a.to);

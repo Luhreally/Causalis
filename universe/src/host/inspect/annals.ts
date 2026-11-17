@@ -272,6 +272,9 @@ const RULES: Readonly<Record<string, readonly [number, number]>> = {
   "late.covered": [STARS, 6],
 };
 
+/** Every kind of event the annals weigh by name: for a search by kind. */
+export const ANNAL_TYPES: readonly string[] = Object.keys(RULES);
+
 /** What a kind of event not named above makes, by its domain: a new kind of history is told at once. */
 const DOMAINS: Readonly<Record<string, number>> = {
   wild: SORROWS,
@@ -302,7 +305,7 @@ const DOMAINS: Readonly<Record<string, number>> = {
   trade: STARS,
 };
 
-function ruleOf(e: HistoryEvent): readonly [number, number] {
+export function ruleOf(e: HistoryEvent): readonly [number, number] {
   // (What the world did by itself goes in by how great it was: N1.)
   if ((e.data as { natural?: boolean } | null)?.natural) return [SORROWS, e.importance - 1];
   return (
