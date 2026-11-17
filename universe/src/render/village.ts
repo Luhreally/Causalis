@@ -310,6 +310,8 @@ export class VillageScene {
   private townWar: TownWar | null = null;
   /** The soldiers about the town told from outside (Phase 67: a raid played again), not by its war's year. */
   warSceneOverride: (() => TownWarScene | null) | null = null;
+  /** Those of the town lying fallen in a fight of the underworld watched (2026-11-17; null: none). */
+  streetDowned: ReadonlySet<number> | null = null;
   /** A film's own fires over the town, in place of what struck it (Phase 67): null to leave it to the town. */
   blazeOverride: (() => BlazeNow | null) | null = null;
   private warScene: TownWarScene | null = null;
@@ -1922,11 +1924,11 @@ export class VillageScene {
       m.x = w.x;
       m.z = w.z;
       m.yaw = w.yaw;
-      m.activity = ACTIVITY.gathering;
+      m.activity = w.walking ? ACTIVITY.walking : ACTIVITY.gathering;
       m.task = null;
       m.hidden = false;
       m.carry = null;
-      m.why = "Come out to watch the battle before the town";
+      m.why = w.why ?? "Come out to watch the battle before the town";
     }
     // Through the evening the next day is laid out, a few at a time (as many a frame as see it
     // laid by midnight at the speed the day goes), so its turn comes without a stall.
@@ -2156,7 +2158,7 @@ export class VillageScene {
       gear: this.gearNow,
       clock,
       dt,
-      downed: this.posed?.downed ?? null,
+      downed: this.posed?.downed ?? this.streetDowned,
       kept: unposed ? redrawn(unposed, drawn) : null,
       people: this.people,
       hair: this.hair,

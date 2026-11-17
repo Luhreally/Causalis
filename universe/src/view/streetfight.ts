@@ -18,6 +18,7 @@ import {
 } from "../bridge/index.ts";
 import { hashText, unitOf } from "./draws.ts";
 import { route, villageGround } from "./ground.ts";
+import type { VehicleNow } from "./battle.ts";
 import type { Watcher } from "./placed.ts";
 import type { TownWarScene } from "./townwar.ts";
 import type { Soldier } from "./war.ts";
@@ -54,6 +55,10 @@ const GOES = 4,
 const PACE = 2.6,
   LONGEST = 14;
 /** The most places a scene's clashes are spread over, and the most of the side's slots it draws (a share). */
+/** The share of the day it is seen at: dusk, the sun not yet down. */
+export const DUSK = 0.752;
+/** The most of a side at a year's preying on a road or a coast: a few, at one place. */
+const RAID_MOST = 9;
 const MOST_SPOTS = 8,
   DRAWN = 0.8;
 
@@ -96,7 +101,12 @@ export type StreetScript = {
   /** When the last of it is over, and when the scene ends. */
   readonly quiet: number;
   readonly end: number;
+  /** Those of neither side who fall (history's, at the figures' scale): where, and when. */
+  readonly bystanders: readonly (Point & { readonly at: number; readonly from: number })[];
+  /** Which sides came in armoured carriers (its means say so). */
+  readonly carriers: readonly [boolean, boolean];
 };
+type Core = Omit<StreetScript, "bystanders" | "carriers">;
 
 /** The figures of each side and their fallen, history's numbers at one scale, as many a side as `cap` at the most. */
 export function scaled(
@@ -147,7 +157,11 @@ export function fightSpots(plan: VillagePlan, quarter: number): FightSpot[] {
       if (!c || !lots) return undefined;
       const at = { x: lots.x[c.at]!, z: lots.z[c.at]! },
         near = nearest(at);
-      return near && Math.hypot(near.x - at.x, near.z - at.z) < 60 ? near : at;
+      if (near && Math.hypot(near.x - at.x, near.z - at.z) < 60) return near;
+      // (No crossing by it: the street before it, out of its own block.)
+      const out = { x: at.x, z: at.z };
+      ground.town?.keepOut(out, 3);
+      return out;
     };
   // (The edge between their quarters: the crossings nearest the line between, the nearer the middle the sooner.)
   for (const p of [...cross]
@@ -200,22 +214,65 @@ function lengthOf(path: readonly Point[]): number {
  * at the most (what the town draws a side as). Drawn by the event's ref, so it plays the same every time.
  */
 export function streetScript(f: StreetFight, plan: VillagePlan, slots: number): StreetScript {
+  const core = coreScript(f, plan, slots),
+    key = hashText(f.event),
+    cap = Math.max(2, Math.floor(slots * DRAWN)),
+    k = Math.min(1, cap / Math.max(1, ...f.sides.map((x) => Math.max(2, x.men + x.fallen)))),
+    n =
+      f.others > 0 && core.clashes.length ? Math.max(1, Math.min(6, Math.round(f.others * k))) : 0,
+    bystanders = [...Array(n).keys()].map((j) => {
+      const c = core.clashes[j % core.clashes.length]!,
+        a = unitOf(key, 2000 + j, 0) * 2 * Math.PI,
+        r = 3.6 + unitOf(key, 2100 + j, 0) * 1.6;
+      return {
+        x: c.spot.x + Math.sin(a) * r,
+        z: c.spot.z + Math.cos(a) * r,
+        from: c.from - 1,
+        at: c.from + 2 + unitOf(key, 2200 + j, 0) * Math.max(1, c.to - c.from - 3),
+      };
+    });
+  return {
+    ...core,
+    bystanders,
+    carriers: [f.sides[0].carriers === true, f.sides[1].carriers === true],
+  };
+}
+
+function coreScript(f: StreetFight, plan: VillagePlan, slots: number): Core {
   const key = hashText(f.event),
     u = (i: number, n = 0) => unitOf(key, i, n),
     ground = villageGround(plan),
     quarter = u(1) * 2 * Math.PI,
     nx = Math.cos(quarter),
     nz = Math.sin(quarter),
-    spots = fightSpots(plan, quarter),
+    all = fightSpots(plan, quarter),
+    // (A raid: where goods come in — the road, the docks — and nowhere else.)
+    way = Math.atan2(plan.road.z, plan.road.x),
+    comeIn = all.filter((x) => x.why === "gate" || x.why === "docks" || x.why === "station"),
+    spots: readonly FightSpot[] =
+      f.kind !== "raid"
+        ? all
+        : comeIn.length
+          ? comeIn
+          : [
+              {
+                x: Math.cos(way) * (ground.homesReach + 4),
+                z: Math.sin(way) * (ground.homesReach + 4),
+                why: "gate",
+              },
+            ],
     cross = ground.town
       ? ground.town.crossings(REACH, 28, 9)
       : plan.homes.slice(0, 28).map((h) => ({ x: h.x * 0.82, z: h.z * 0.82 })),
-    { drawn, falls } = scaled(f, Math.max(2, Math.floor(slots * DRAWN))),
+    { drawn, falls } = scaled(
+      f,
+      f.kind === "raid" ? RAID_MOST : Math.max(2, Math.floor(slots * DRAWN)),
+    ),
     figures: StreetFigure[] = [],
     clashes: StreetClash[] = [],
     posts: (Point & { yaw: number; at: number })[] = [],
-    // (At dusk or as night falls: its windows lit and its people going in, while its streets and who is in them can still be made out.)
-    hour = f.kind === "army" ? 0.78 : u(2) < 0.5 ? 0.785 : 0.8;
+    // (At dusk: the sun low and warm, its windows lit, its streets and who is in them plain to see.)
+    hour = DUSK;
   if (!spots.length) {
     return { kind: f.kind, hour, figures, clashes, posts, drawn, falls, quiet: 0, end: AFTER };
   }
@@ -310,7 +367,7 @@ function armyScript(
   u: (i: number, n?: number) => number,
   nx: number,
   nz: number,
-): StreetScript {
+): Core {
   const ground = villageGround(plan),
     gate = spots.find((s) => s.why === "gate" || s.why === "docks" || s.why === "station") ?? {
       x: Math.cos(Math.atan2(plan.road.z, plan.road.x)) * (ground.homesReach + 4),
@@ -527,16 +584,19 @@ export function streetAt(script: StreetScript, slots: number, s: number): TownWa
   return {
     soldiers,
     tents: held.map((p) => ({
-      x: p.x - Math.cos(p.yaw) * 3.2,
-      z: p.z + Math.sin(p.yaw) * 3.2,
+      x: p.x + Math.sin(p.yaw) * 7 - Math.cos(p.yaw) * 3.2,
+      z: p.z + Math.cos(p.yaw) * 7 + Math.sin(p.yaw) * 3.2,
       yaw: p.yaw,
     })),
     fires: [],
-    // (A brazier at each post held, by night.)
-    camp:
-      script.hour >= 0.75
-        ? held.map((p) => ({ x: p.x + Math.cos(p.yaw) * 2.4, z: p.z - Math.sin(p.yaw) * 2.4 }))
-        : [],
+    // (A brazier at each post held; a fire lit at each place a clash is seen at, from before it to the end.)
+    camp: [
+      ...held.map((p) => ({ x: p.x + Math.cos(p.yaw) * 2.4, z: p.z - Math.sin(p.yaw) * 2.4 })),
+      ...script.clashes
+        .filter((c) => c.from - 6 <= s)
+        .map((c) => ({ x: c.spot.x + 2.6, z: c.spot.z - 2.6 })),
+    ],
+    cars: carsAt(script, s),
     middles: sum.map((m) =>
       m.n ? { x: m.x / m.n, z: m.z / m.n } : null,
     ) as unknown as TownWarScene["middles"],
@@ -623,4 +683,172 @@ export function openYaw(plan: VillagePlan, at: Point, far: number): number {
     }
   }
   return best;
+}
+
+/** The armoured carriers a side came in (its means say so): one stood behind its men at each of its first two places, while they are there. */
+function carsAt(script: StreetScript, s: number): VehicleNow[] {
+  const out: VehicleNow[] = [];
+  for (const side of [0, 1] as const) {
+    if (!script.carriers[side]) continue;
+    const seen: Point[] = [];
+    for (const g of script.figures) {
+      if (g.side !== side || seen.length >= 2) continue;
+      if (seen.some((q) => Math.hypot(q.x - g.face.x, q.z - g.face.z) < 4)) continue;
+      seen.push(g.face);
+      const until = g.leaves !== null ? g.leaves + GOES : script.end;
+      if (s < g.from - 1 || s > until) continue;
+      const end = g.path[g.path.length - 1]!,
+        dx = end.x - g.face.x,
+        dz = end.z - g.face.z,
+        d = Math.hypot(dx, dz) || 1;
+      out.push({
+        id: side * 2 + seen.length - 1,
+        side,
+        x: end.x + (dx / d) * 6,
+        y: 0,
+        z: end.z + (dz / d) * 6,
+        yaw: Math.atan2(-dx, -dz),
+        turret: 0,
+        recoil: 0,
+        knocked: 0,
+        burning: 0,
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * Where the eye stands to look at a place (degrees: it stands off toward sin, cos of its yaw, `pitch` down), `far` metres off:
+ * the lowest it can stand with no block or wall under its line to the place — each of sixteen ways tried at each height, higher
+ * until one is clear. (`clear`: whether one was; straight down over it where none is.)
+ */
+export function streetView(
+  plan: VillagePlan,
+  at: Point,
+  far: number,
+): { yaw: number; pitch: number; clear: boolean } {
+  const town = villageGround(plan).town;
+  if (!town) return { yaw: 30, pitch: -34, clear: true };
+  for (const pitch of [-34, -46, -58, -70, -80]) {
+    const run = far * Math.cos((pitch * Math.PI) / 180);
+    for (let k = 0; k < 16; k++) {
+      const yaw = (k / 16) * 360,
+        r = (yaw * Math.PI) / 180;
+      if (town.clear(at, { x: at.x + Math.sin(r) * run, z: at.z + Math.cos(r) * run }, 1.6))
+        return { yaw, pitch, clear: true };
+    }
+  }
+  return { yaw: 0, pitch: -88, clear: false };
+}
+
+/** Those of the town in a scene: who is caught between and falls, who come as its watch after, who gather to the fallen. */
+export type StreetCast = {
+  readonly caught: readonly {
+    readonly index: number;
+    readonly x: number;
+    readonly z: number;
+    readonly from: number;
+    readonly at: number;
+  }[];
+  readonly watch: readonly {
+    readonly index: number;
+    readonly path: readonly Point[];
+    readonly from: number;
+    readonly arrive: number;
+  }[];
+  readonly crowd: readonly Watcher[];
+  readonly crowdFrom: number;
+};
+
+/** A scene's cast of the town's own people (grown, there that day), drawn once: the nearest homes' to each place. */
+export function streetCast(plan: VillagePlan, script: StreetScript, t: number): StreetCast {
+  const last = script.clashes[script.clashes.length - 1];
+  if (!last) return { caught: [], watch: [], crowd: [], crowdFrom: Infinity };
+  const used = new Set<number>(),
+    can = plan.people
+      .map((p, i) => ({ p, i }))
+      .filter(
+        ({ p }) =>
+          !p.child &&
+          (p.gone === undefined || p.gone > t) &&
+          !(p.away ?? []).some((a) => a.from <= t && t < a.until) &&
+          !(p.wounds ?? []).some((w) => {
+            const st = woundStage(w, t);
+            return st === "away" || st === "abed";
+          }),
+      )
+      .map(({ i }) => i),
+    near = (at: Point, n: number): number[] => {
+      const got = can
+        .filter((i) => !used.has(i))
+        .map((i) => {
+          const h = plan.homes[plan.people[i]!.home];
+          return { i, d: h ? Math.hypot(h.x - at.x, h.z - at.z) : Infinity };
+        })
+        .sort((a, b) => a.d - b.d || a.i - b.i)
+        .slice(0, n)
+        .map((x) => x.i);
+      for (const i of got) used.add(i);
+      return got;
+    },
+    caught = script.bystanders.flatMap((b) => near(b, 1).map((index) => ({ index, ...b }))),
+    ground = villageGround(plan),
+    // (The watch after a fight of gangs: four of the town, from its square to where the last of it was. Soldiers are their own.)
+    way = script.kind === "army" ? [] : route(ground, { x: 0, z: 0 }, last.spot, REACH),
+    watch = (way.length ? near({ x: 0, z: 0 }, 4) : []).map((index, j) => {
+      const a = (j / 4) * 2 * Math.PI,
+        place = { x: last.spot.x + Math.sin(a) * 2.6, z: last.spot.z + Math.cos(a) * 2.6 };
+      return {
+        index,
+        path: [...way.slice(0, -1), place],
+        from: script.quiet + 1 + j * 0.3,
+        arrive: script.quiet + 7 + j * 0.3,
+      };
+    }),
+    crowd = near(last.spot, 12).map((index, j, all) => {
+      const a = (j / Math.max(1, all.length)) * 2 * Math.PI + index * 0.37,
+        r = 5.5 + (j % 3) * 1.1,
+        x = last.spot.x + Math.sin(a) * r,
+        z = last.spot.z + Math.cos(a) * r;
+      return {
+        index,
+        x,
+        z,
+        yaw: Math.atan2(last.spot.x - x, last.spot.z - z),
+        why: "Come out to the fallen",
+      };
+    });
+  return { caught, watch, crowd, crowdFrom: script.quiet + 5 };
+}
+
+/** The cast at a second: where each stands (as the town's watchers are placed), and who of them lies fallen. */
+export function castAt(cast: StreetCast, s: number): { folk: Watcher[]; downed: Set<number> } {
+  const folk: Watcher[] = [],
+    downed = new Set<number>();
+  for (const c of cast.caught) {
+    if (s < c.from) continue;
+    folk.push({
+      index: c.index,
+      x: c.x,
+      z: c.z,
+      yaw: 0,
+      why: s >= c.at ? "Caught between, and killed" : "Caught between",
+    });
+    if (s >= c.at) downed.add(c.index);
+  }
+  for (const w of cast.watch) {
+    if (s < w.from) continue;
+    const p = along(w.path, (s - w.from) / (w.arrive - w.from));
+    folk.push({
+      index: w.index,
+      x: p.x,
+      z: p.z,
+      yaw: p.yaw,
+      why: "Of the watch, come after it",
+      ...(s < w.arrive ? { walking: true } : {}),
+    });
+  }
+  if (s >= cast.crowdFrom) folk.push(...cast.crowd);
+  return { folk, downed };
 }

@@ -9460,7 +9460,7 @@ async function runPlanetPage(): Promise<void> {
       seen = raidPlaying
         ? raidPlaying.t
         : streetFilm?.holds
-          ? Math.floor(t / DAY) * DAY + streetFilm.hour * DAY
+          ? streetFilm.seen(t)
           : fleetFilm?.townHeld
             ? Math.floor(t / DAY) * DAY + fleetFilm.hour * DAY
             : landfallFilm?.townHeld

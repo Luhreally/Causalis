@@ -165,6 +165,9 @@ export type Watcher = {
   readonly x: number;
   readonly z: number;
   readonly yaw: number;
+  /** What they are there for, where it is not the battle (2026-11-17); and whether they are walking there still. */
+  readonly why?: string;
+  readonly walking?: boolean;
 };
 
 /**

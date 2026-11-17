@@ -567,11 +567,16 @@ export function landUnderworld(world: World, cell: number): LandUnderworld | nul
         ? {
             ref: orgRef(brig.r.ref, brig.g.event),
             name: cap(orgWords(brig.g.name, kindName(brig.g))),
+            watch: streetFightOf(world, orgRef(brig.r.ref, brig.g.event)) !== null,
           }
         : null,
     pirates:
       pir && (orgRow?.seaPrey ?? 0) > 0
-        ? { ref: orgRef(pir.r.ref, pir.g.event), name: cap(orgWords(pir.g.name, kindName(pir.g))) }
+        ? {
+            ref: orgRef(pir.r.ref, pir.g.event),
+            name: cap(orgWords(pir.g.name, kindName(pir.g))),
+            watch: streetFightOf(world, orgRef(pir.r.ref, pir.g.event)) !== null,
+          }
         : null,
   };
 }
