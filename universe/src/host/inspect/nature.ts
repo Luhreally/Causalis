@@ -5,6 +5,7 @@ import type { World } from "../../kernel/index.ts";
 import { FOODS, G, GOODS, STUNTING, VOLCANO } from "../../rules/index.ts";
 import {
   cropReading,
+  exchangeReading,
   dietReading,
   eruptionsAYear,
   eruptionsOn,
@@ -45,6 +46,32 @@ export function cropBlock(world: World, cell: number): Block | null {
   ];
   if (r.from !== cell) rows.splice(1, 0, stat("First bred in", [landLink(world, r.from, true)]));
   if (r.came) rows.push(stat("Came here", [link("from a land it meets", r.came)], { why: r.came }));
+  // (Weeds, pests and herd beasts carried on contact: ecology/exchange.ts.)
+  const x = exchangeReading(world, ctx, cell);
+  if (x?.beast)
+    rows.push(
+      stat("Its herds", [
+        link(x.beast.name, x.beast.ref),
+        x.beastFrom === cell ? ", tamed here" : ", first kept in ",
+        ...(x.beastFrom === cell ? [] : [landLink(world, x.beastFrom, true)]),
+        x.gives !== 1 ? `: they give ${pc(x.gives)} of what the beast it first kept would` : "",
+      ]),
+    );
+  if (x?.came)
+    rows.push(stat("The beast came", [link("from a land it meets", x.came)], { why: x.came }));
+  if (x && (x.pests >= 0.005 || x.struck))
+    rows.push(
+      stat(
+        "Weeds and pests carried in",
+        [
+          x.pests >= 0.005
+            ? `they take ${pc(x.pests)} of its fields, less each year as it learns to keep them down`
+            : "they came, and are kept down now",
+          ...(x.struck ? [" (", link("they came", x.struck), ")"] : []),
+        ],
+        x.struck ? { why: x.struck } : undefined,
+      ),
+    );
   return { type: "facts", title: "Its crop", rows };
 }
 

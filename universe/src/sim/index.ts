@@ -1419,6 +1419,16 @@ export {
   type CropLand,
 } from "./ecology/crops.ts";
 export {
+  EXCHANGE_EVENTS,
+  ExchangeStore,
+  exchangeOf,
+  exchangeReading,
+  exchangeYear,
+  herdGives,
+  pestsLeft,
+  type ExchangeLand,
+} from "./ecology/exchange.ts";
+export {
   DIET_EVENTS,
   DietStore,
   dietDeaths,

@@ -68,6 +68,7 @@ import { lodePush } from "../economy/worked.ts";
 import { herdLoss, pensLeft } from "../ecology/herds.ts";
 import { partnersOf } from "../ecology/lineage.ts";
 import { cropsGive } from "../ecology/crops.ts";
+import { herdGives, pestsLeft } from "../ecology/exchange.ts";
 import { veilYield } from "../planet/fires.ts";
 import { floodYield } from "../planet/floods.ts";
 import { dietDeaths } from "./diet.ts";
@@ -361,6 +362,8 @@ export function farmingShare(ctx: PopulationContext, p: Province): number {
       // (Its crop, as tame and as fitted to it as it is; the world's veil, and its own ash and flood: exactly 1 on a land
       // sowing its own, tamed, under a clear sky, its river in its banks.)
       cropsGive(ctx.world, p.cell) *
+      // (Less what weeds and pests carried in take: exactly 1 where none came.)
+      pestsLeft(ctx.world, p.cell) *
       veilYield(ctx, p.cell) *
       floodYield(ctx.world, p.cell) *
       alive.soil,
@@ -538,10 +541,12 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
         // (Its crop, as tame and as fitted to it as it is; the world's veil, and its own ash and flood: exactly 1 on a land
         // sowing its own, tamed, under a clear sky, its river in its banks.)
         cropsGive(world, p.cell) *
+        pestsLeft(world, p.cell) *
         veilYield(ctx, p.cell) *
         floodYield(world, p.cell) *
         (p.cell >= offworldFrom ? openFields(ctx, p.cell) : 1),
-      flocks = 1 + lore.effect(p.cell, "herdYield"),
+      // (And its herd beast against the one it first kept: exactly 1 until it takes up another: ecology/exchange.ts.)
+      flocks = (1 + lore.effect(p.cell, "herdYield")) * herdGives(world, p.cell),
       // (What war has driven off of its herds and a beast at large takes: Z1. Exactly 0 where neither has.)
       flocksLost = herdLoss(world, p.cell, t),
       // (What lives off its flocks and its wild, and what its seed carriers give: ecology/lineage.ts. Exactly 1 where none stand.)
