@@ -6,9 +6,38 @@
 // The cluster is the few thousand stars within some fifty light-years of home: the part of
 // the galaxy that can be lived in. Home is star 0 of sector 0, as it has always been.
 import { defineStream, dmath, makeRef, type Ref, type Rng } from "../kernel/index.ts";
+import { STAR_LIFE, starLifetime } from "../rules/index.ts";
 import { STAR } from "./kinds.ts";
 
 const GALAXY = defineStream("gen.galaxy");
+/** The young clusters' own draws (the sweep, Nature lane): no draw of the field's stars moves. */
+const NURSERY = defineStream("gen.galaxy.nursery");
+
+/**
+ * Where stars are being born now (the sweep, Nature lane). The galaxy's field stars were born over its twelve billion years
+ * (their ages drawn evenly over them, as before), and a star of eight Suns lives some fifty million: so every heavy field star
+ * is long dead. Heavy stars shine only where star-forming is recent: in young clusters, born together out of one cloud in the
+ * arms' crests and scattered within a hundred million years (Lada & Lada 2003: most stars are born in such clusters). Some
+ * half a percent of the disk's stars are younger than that (est: the Milky Way's present star-forming, some two Suns a year,
+ * against its stars, some fifty billion Suns: 0.1 Gyr × 2 / 50 ≈ 0.4%); a sector at an arm's crest holds a cluster this often,
+ * one between arms none.
+ */
+export const NURSERIES = {
+  /** A sector's chance of holding a young cluster, at an arm's crest (its mean over the disk some three eighths of this). */
+  chance: 0.0012,
+  /** Its members, on the mean (the field's own stars of the sector besides). */
+  stars: 40,
+  /** Its age, billions of years: from a cluster just out of its cloud to one scattering. */
+  youngest: 0.002,
+  oldest: 0.1,
+  /** Its members' births spread about its age, as a share of it. */
+  spread: 0.1,
+  /** Under this age (billions of years) a star's worlds are still forming, molten, under the rain of what is left over. */
+  forming: 0.1,
+} as const;
+
+/** The most stars a sector holds (a star's key in its sector is below 64: gen/system.ts foreignPlanets). */
+const SECTOR_MOST = 63;
 
 /** The side of a sector, light-years. */
 export const SECTOR_LY = 10;
@@ -26,6 +55,8 @@ export type Galaxy = {
   /** Where home lies: its distance from the centre (ly) and angle round it (radians). */
   readonly homeRadius: number;
   readonly homeAngle: number;
+  /** How much of its hydrogen a star of its universe burns against ours (rules/laws.ts; absent: ours). */
+  readonly burn?: number;
 };
 
 export type GalaxyStar = {
@@ -47,10 +78,12 @@ export type GalaxyStar = {
   readonly remnant: boolean;
 };
 
-export function makeGalaxy(rng: Rng): Galaxy {
+export function makeGalaxy(rng: Rng, burn = 1): Galaxy {
   const u = (n: number) => rng.real(GALAXY, 0, 0, 0, n);
   const radius = 40_000 + 30_000 * u(0);
   return {
+    // (Its universe's stars' burning, where not ours: rules/laws.ts.)
+    ...(burn !== 1 ? { burn } : {}),
     radius,
     scale: radius * (0.18 + 0.06 * u(1)),
     arms: 2 + Math.floor(3 * u(2)),
@@ -66,16 +99,24 @@ export function sectorId(i: number, j: number, k: number): number {
   return zig(i) + zig(j) * 1024 + zig(k) * 1024 * 1024;
 }
 
+/** Where a place (ly from home) lies against the arms: 1 at an arm's crest, −1 midway between two. */
+export function armAt(g: Galaxy, x: number, y: number): number {
+  const hx = g.homeRadius * dmath.cos(g.homeAngle) + x,
+    hy = g.homeRadius * dmath.sin(g.homeAngle) + y,
+    r = Math.sqrt(hx * hx + hy * hy),
+    theta = dmath.atan2(hy, hx);
+  // The arms: a logarithmic spiral, stars a quarter denser along it.
+  return dmath.cos(
+    g.arms * (theta - dmath.log(Math.max(1, r)) / dmath.tan((g.pitch * Math.PI) / 180)),
+  );
+}
+
 /** Stars a cubic light-year at a place (ly from home): the disk thins upward and outward. */
 export function densityAt(g: Galaxy, x: number, y: number, z: number): number {
   const hx = g.homeRadius * dmath.cos(g.homeAngle) + x,
     hy = g.homeRadius * dmath.sin(g.homeAngle) + y,
     r = Math.sqrt(hx * hx + hy * hy),
-    theta = dmath.atan2(hy, hx),
-    // The arms: a logarithmic spiral, stars a quarter denser along it.
-    arm = dmath.cos(
-      g.arms * (theta - dmath.log(Math.max(1, r)) / dmath.tan((g.pitch * Math.PI) / 180)),
-    ),
+    arm = armAt(g, x, y),
     disk =
       dmath.exp(-(r - g.homeRadius) / g.scale) * dmath.exp(-Math.abs(z) / 1000) * (1 + 0.25 * arm);
   return (
@@ -152,30 +193,66 @@ export function sectorStars(rng: Rng, g: Galaxy, i: number, j: number, k: number
       x = i * SECTOR_LY - SECTOR_LY / 2 + SECTOR_LY * u(0),
       y = j * SECTOR_LY - SECTOR_LY / 2 + SECTOR_LY * u(1),
       z = k * SECTOR_LY - SECTOR_LY / 2 + SECTOR_LY * u(2),
-      mass = imfMass(u(3)),
-      lifetime = 10 * dmath.pow(mass, -2.5),
-      age = 0.2 + 12 * u(4),
-      remnant = age > lifetime,
-      luminosity = remnant ? 0.001 : mass < 0.43 ? 0.23 * dmath.pow(mass, 2.3) : dmath.pow(mass, 4),
-      radius = remnant ? 0.012 : dmath.pow(mass, 0.8),
-      temperature = remnant ? 8000 : 5778 * dmath.pow(luminosity / (radius * radius), 0.25);
-    out.push({
-      ref: makeRef(STAR, id, s),
-      sector: id,
-      k: s,
-      x,
-      y,
-      z,
-      distance: Math.sqrt(x * x + y * y + z * z),
-      mass,
-      luminosity,
-      temperature,
-      spectral: remnant ? "white dwarf" : spectralOf(temperature),
-      ageGyr: age,
-      remnant,
-    });
+      mass = imfMass(u(3));
+    out.push(starOf(g, id, s, x, y, z, mass, 0.2 + 12 * u(4)));
+  }
+  // A young cluster, where the sector holds one (never home's own: home's neighbours are as they were).
+  if (id === 0) return out;
+  const crest = (1 + armAt(g, cx, cy)) / 2,
+    v = (m: number) => rng.real(NURSERY, id, 0, 0, m);
+  if (v(0) >= NURSERIES.chance * crest * crest) return out;
+  const age = NURSERIES.youngest + (NURSERIES.oldest - NURSERIES.youngest) * v(1),
+    members = Math.min(
+      SECTOR_MOST - out.length - first,
+      poisson(NURSERIES.stars, (m) => rng.real(NURSERY, id, 1, 0, m)),
+    );
+  for (let s = out.length + first, last = s + members; s < last; s++) {
+    const u = (m: number) => rng.real(NURSERY, id, 2, s, m),
+      x = i * SECTOR_LY - SECTOR_LY / 2 + SECTOR_LY * u(0),
+      y = j * SECTOR_LY - SECTOR_LY / 2 + SECTOR_LY * u(1),
+      z = k * SECTOR_LY - SECTOR_LY / 2 + SECTOR_LY * u(2);
+    out.push(
+      starOf(g, id, s, x, y, z, imfMass(u(3)), age * (1 + NURSERIES.spread * (2 * u(4) - 1))),
+    );
   }
   return out;
+}
+
+/** A star by its mass and age: shining, or what is left of it past its life (a white dwarf, or past eight Suns a neutron star). */
+function starOf(
+  g: Galaxy,
+  id: number,
+  s: number,
+  x: number,
+  y: number,
+  z: number,
+  mass: number,
+  age: number,
+): GalaxyStar {
+  const lifetime = starLifetime(mass, g.burn),
+    remnant = age > lifetime,
+    luminosity = remnant ? 0.001 : mass < 0.43 ? 0.23 * dmath.pow(mass, 2.3) : dmath.pow(mass, 4),
+    radius = remnant ? 0.012 : dmath.pow(mass, 0.8),
+    temperature = remnant ? 8000 : 5778 * dmath.pow(luminosity / (radius * radius), 0.25);
+  return {
+    ref: makeRef(STAR, id, s),
+    sector: id,
+    k: s,
+    x,
+    y,
+    z,
+    distance: Math.sqrt(x * x + y * y + z * z),
+    mass,
+    luminosity,
+    temperature,
+    spectral: remnant
+      ? mass >= STAR_LIFE.supernova
+        ? "neutron star"
+        : "white dwarf"
+      : spectralOf(temperature),
+    ageGyr: age,
+    remnant,
+  };
 }
 
 /** The cluster: every star within `radius` light-years of home but home itself, nearest first. */

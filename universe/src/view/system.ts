@@ -156,7 +156,7 @@ export function bodyFacts(b: SystemPlanBody, star: SystemPlan["star"]): string[]
 export function routeWords(plan: SystemPlan, index: number, starMass: number): string | null {
   const b = plan.bodies[index]!;
   if (index === 0 || b.kind === "giant" || b.kind === "ice giant") return null;
-  const r = routeTo(plan.bodies, index, starMass),
+  const r = routeTo(plan.bodies, index, starMass, plan.gravityLaw),
     days = r.days >= 730 ? `${(r.days / 365.25).toFixed(1)} years` : `${Math.round(r.days)} days`;
   return `from the home world's orbit to its ground: ${r.speed.toFixed(1)} km/s (${r.depart.toFixed(1)} to leave, ${r.arrive.toFixed(1)} to arrive, ${r.land.toFixed(1)} to land), ${days} on the way${r.window ? `; the way opens every ${Math.round(r.window)} days` : ""}`;
 }

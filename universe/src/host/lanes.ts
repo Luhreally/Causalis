@@ -136,7 +136,9 @@ export function jumpPlan(world: World): JumpPlan | null {
 }
 
 const starWordsOf = (s: GalaxyStar) =>
-  s.spectral === "white dwarf" ? "a white dwarf" : starWords(s).toLowerCase();
+  s.spectral === "white dwarf" || s.spectral === "neutron star"
+    ? `a ${s.spectral}`
+    : starWords(s).toLowerCase();
 
 /** The law's own page: what it says here, who found it, what it costs and what it has done. */
 export function lawPage(world: World): PageModel {

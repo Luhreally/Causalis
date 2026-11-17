@@ -75,7 +75,10 @@ export function clusterWords(plan: ClusterPlan): string[] {
     `${plan.stars.length.toLocaleString("en")} stars within ${plan.radius} light-years`,
     [...kinds.entries()]
       .sort((a, b) => b[1] - a[1])
-      .map(([k, n]) => `${n} ${k === "white dwarf" ? "white dwarfs" : `${k[0]} stars`}`)
+      .map(
+        ([k, n]) =>
+          `${n} ${k === "white dwarf" || k === "neutron star" ? `${k}s` : `${k[0]} stars`}`,
+      )
       .join(", "),
     `${worlds.toLocaleString("en")} worlds about them, ${seas} with seas`,
   ];

@@ -24,6 +24,7 @@ import {
   folkOf,
   folkStage,
   homePlanet,
+  worldLaws,
 } from "../sim/index.ts";
 import { civilizationOn, lifeOfWorld } from "./elsewhere.ts";
 import { farReachOf } from "./far.ts";
@@ -31,7 +32,7 @@ import type { ClusterStar, GalaxyPlan, StarPage, SystemPlan, WorldGlobe } from "
 
 /** The galaxy's shape: enough to draw it. */
 export function galaxyPlan(world: World): GalaxyPlan {
-  const g = makeGalaxy(new Rng(world.seed));
+  const g = makeGalaxy(new Rng(world.seed), worldLaws(world)?.burn);
   return {
     radius: g.radius,
     scale: g.scale,
@@ -61,7 +62,9 @@ export function starByRef(world: World, ref: string): GalaxyStar {
       ? ([Number(parts[1]), Number(parts[2]), Number(parts[3])] as const)
       : cubeOf(Number(parts[1])),
     k = Number(far ? parts[4] : parts[2]),
-    star = sectorStars(rng, makeGalaxy(rng), i, j, l).find((s) => s.k === k);
+    star = sectorStars(rng, makeGalaxy(rng, worldLaws(world)?.burn), i, j, l).find(
+      (s) => s.k === k,
+    );
   if (!star) throw new Error(`no star ${ref}`);
   return far ? { ...star, ref: ref as GalaxyStar["ref"] } : star;
 }
@@ -92,7 +95,7 @@ export function starFacts(s: GalaxyStar, rng: Rng): ClusterStar {
  */
 export function starsNear(world: World, x: number, y: number, most = 12): ClusterStar[] {
   const rng = new Rng(world.seed),
-    g = makeGalaxy(rng),
+    g = makeGalaxy(rng, worldLaws(world)?.burn),
     ci = Math.round(x / SECTOR_LY),
     cj = Math.round(y / SECTOR_LY),
     found: GalaxyStar[] = [];

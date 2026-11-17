@@ -514,6 +514,7 @@ export {
   makingAct,
   makingWords,
   makingsOf,
+  lawsOf,
   type MakingSubject,
   type Makings,
 } from "./making.ts";
@@ -1692,3 +1693,4 @@ export * from "./volcanoes.ts";
 export * from "./floods.ts";
 export * from "./nutrition.ts";
 export * from "./succession.ts";
+export * from "./laws.ts";

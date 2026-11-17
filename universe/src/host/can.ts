@@ -300,7 +300,7 @@ function flightOf(g: ProvinceWorld, seed: Seed, known: ReadonlySet<string>) {
     const b = bodies[site.body]!;
     if (!habitability(b, body, home).livable) continue;
     livable++;
-    if (delivered(knows, speed, routeTo(list, site.body, g.star.mass).speed)) {
+    if (delivered(knows, speed, routeTo(list, site.body, g.star.mass, g.laws?.gravity).speed)) {
       carried++;
       nearest ??= b.designation;
       const cannot = cannotRemake(b);
@@ -314,10 +314,14 @@ function flightOf(g: ProvinceWorld, seed: Seed, known: ReadonlySet<string>) {
     longest = longestCrossing(knows);
   let target: { star: GalaxyStar; years: number } | null = null;
   if (drive)
-    for (const star of clusterStars(rng, makeGalaxy(rng), skyOf(seed.text)?.radius)) {
+    for (const star of clusterStars(rng, makeGalaxy(rng, g.laws?.burn), skyOf(seed.text)?.radius)) {
       const years = crossingYears(star.distance, drive);
       if (years > longest) break;
-      if (foreignPlanets(new Rng(seed), star).some((p) => habitability(p, body, home).livable)) {
+      if (
+        foreignPlanets(new Rng(seed), star, g.laws?.gravity).some(
+          (p) => habitability(p, body, home).livable,
+        )
+      ) {
         target = { star, years };
         break;
       }

@@ -3,7 +3,7 @@
 import { warmthBlocks } from "./warmth.ts";
 import { motionBlocks, seasonBlocks, starLifeBlocks } from "./motion.ts";
 import { worldFiresBlocks } from "./nature.ts";
-import { CLADES, makingWords, makingsOf } from "../../rules/index.ts";
+import { CLADES, makingWords, makingsOf, starLifetime } from "../../rules/index.ts";
 import {
   folkOf,
   civilizationsNear,
@@ -13,6 +13,7 @@ import {
   populationContext,
   starSitesOf,
   starWarsOf,
+  worldLaws,
 } from "../../sim/index.ts";
 import { LIFE_WORDS, offworldSite, cellRef, starAgeGyr } from "../../gen/index.ts";
 import { Rng, dmath, hashString, type Ref, type World } from "../../kernel/index.ts";
@@ -242,7 +243,7 @@ export function starPageModel(world: World, ref: string): PageModel {
               blocks: starLifeBlocks(
                 world,
                 { ref, mass: s.mass, ageGyr: f.ageGyr },
-                10 * dmath.pow(s.mass, -2.5),
+                starLifetime(s.mass, worldLaws(world)?.burn),
               ),
             },
           ]),

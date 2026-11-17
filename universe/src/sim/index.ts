@@ -20,6 +20,7 @@ export {
 export {
   HomePlanet,
   homePlanet,
+  worldLaws,
   makePlanetWorld,
   type PlanetWorldOptions,
 } from "./planet/store.ts";

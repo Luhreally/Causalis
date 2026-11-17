@@ -8,9 +8,18 @@
 // others are drawn on a stream of their own, so the home world is untouched by them.
 // Positions at any time are analytic (Kepler's equation), never integrated.
 import { defineStream, dmath, type Ref, type Rng } from "../kernel/index.ts";
-import { AU_KM, KINDS, orbitXY, type Prior, type Range } from "../rules/index.ts";
+import {
+  AU_KM,
+  KINDS,
+  orbitXY,
+  bodyPull,
+  yearUnder,
+  type Prior,
+  type Range,
+} from "../rules/index.ts";
 import type { Planet, Star } from "./bodies.ts";
 import { moonRef, planetRef } from "./kinds.ts";
+import { NURSERIES } from "./galaxy.ts";
 
 const SYSTEM = defineStream("gen.system");
 
@@ -109,12 +118,14 @@ export function surface(
   mass: number,
   radius: number,
   volatiles: number,
+  /** Its universe's gravity against ours (rules/laws.ts). */
+  G = 1,
 ): Pick<SystemBody, "temperature" | "pressure" | "air" | "water" | "radiation" | "because"> {
   const because: string[] = [],
     albedo = kind === "giant" || kind === "ice giant" ? 0.4 : 0.25,
     flux = star.luminosity / (au * au),
     equilibrium = 278.6 * dmath.pow(flux, 0.25) * dmath.pow(1 - albedo, 0.25),
-    escape = 11.19 * Math.sqrt(mass / radius);
+    escape = bodyPull(mass, radius, G).escape;
   if (kind === "giant" || kind === "ice giant") {
     because.push(
       `${kind === "giant" ? "a giant of gas" : "a giant of ice"}: no ground under its air`,
@@ -134,7 +145,7 @@ export function surface(
     holds = escape >= 6 * thermal,
     // An air is the weight of its column: the volatiles a body gave off, gathered over a
     // surface its gravity sets, pressed down by that gravity — the square of its pull.
-    gravity = mass / (radius * radius),
+    gravity = bodyPull(mass, radius, G).g,
     made = volatiles * volatiles * 90 * gravity * gravity,
     pressure = holds ? made : Math.min(made, 0.0005 * volatiles);
   because.push(
@@ -189,6 +200,7 @@ type Drawn = {
  */
 export function makeSystem(rng: Rng, prior: Prior, star: Star, home: Planet): StarSystem {
   const sp = prior.system,
+    G = prior.laws?.gravity ?? 1,
     frostLine = 2.7 * Math.sqrt(star.luminosity),
     others: Drawn[] = [];
   if (sp.template) {
@@ -277,7 +289,7 @@ export function makeSystem(rng: Rng, prior: Prior, star: Star, home: Planet): St
         mass: home.mass,
         radius: home.radius,
         gravity: home.gravity,
-        escape: 11.19 * Math.sqrt(home.mass / home.radius),
+        escape: bodyPull(home.mass, home.radius, G).escape,
         temperature: home.meanTemperature,
         // (A kind's own air, and where its water lies: Phase 56.)
         pressure: home.kind ? KINDS[home.kind].body.pressure : 1,
@@ -297,7 +309,7 @@ export function makeSystem(rng: Rng, prior: Prior, star: Star, home: Planet): St
   others.forEach((p, k) => {
     const n = k + 1,
       radius = radiusOf(p.kind, p.mass),
-      s = surface(star, p.kind, p.a, p.mass, radius, p.volatiles),
+      s = surface(star, p.kind, p.a, p.mass, radius, p.volatiles, G),
       subject = 100 + n;
     planets.push({
       moons: p.moons,
@@ -312,12 +324,12 @@ export function makeSystem(rng: Rng, prior: Prior, star: Star, home: Planet): St
           e: draw(rng, [0, p.kind === "rocky" ? 0.2 : 0.08], subject, 0),
           periapsis: draw(rng, [0, dmath.TAU], subject, 1),
           phase: draw(rng, [0, dmath.TAU], subject, 2),
-          periodDays: 365.25 * Math.sqrt((p.a * p.a * p.a) / star.mass),
+          periodDays: 365.25 * Math.sqrt((p.a * p.a * p.a) / star.mass) * yearUnder(G),
         },
         mass: p.mass,
         radius,
-        gravity: p.mass / (radius * radius),
-        escape: 11.19 * Math.sqrt(p.mass / radius),
+        gravity: bodyPull(p.mass, radius, G).g,
+        escape: bodyPull(p.mass, radius, G).escape,
         temperature: s.temperature,
         pressure: s.pressure,
         air: s.air,
@@ -353,7 +365,7 @@ export function makeSystem(rng: Rng, prior: Prior, star: Star, home: Planet): St
           parent.orbit.a > frostLine
             ? dmath.pow(draw(rng, [0, 1], subject, 1), 3)
             : draw(rng, [0, 0.1], subject, 1),
-        s = surface(star, "moon", parent.orbit.a, mass, radius, volatiles);
+        s = surface(star, "moon", parent.orbit.a, mass, radius, volatiles, G);
       if (j > 0) a *= draw(rng, [1.5, 2.2], subject, 2);
       bodies.push({
         ref: moonRef(parent.index, j),
@@ -367,12 +379,12 @@ export function makeSystem(rng: Rng, prior: Prior, star: Star, home: Planet): St
           periapsis: draw(rng, [0, dmath.TAU], subject, 4),
           phase: draw(rng, [0, dmath.TAU], subject, 5),
           // Kepler's third law about the planet (the home world's great moon: about a month).
-          periodDays: 27.32 * Math.sqrt(dmath.pow(a / 384.4, 3) / parent.mass),
+          periodDays: 27.32 * Math.sqrt(dmath.pow(a / 384.4, 3) / parent.mass) * yearUnder(G),
         },
         mass,
         radius,
-        gravity: mass / (radius * radius),
-        escape: 11.19 * Math.sqrt(mass / radius),
+        gravity: bodyPull(mass, radius, G).g,
+        escape: bodyPull(mass, radius, G).escape,
         temperature: s.temperature,
         pressure: s.pressure,
         air: s.air,
@@ -464,9 +476,14 @@ export function foreignPlanets(
     readonly k: number;
     readonly luminosity: number;
     readonly remnant: boolean;
+    /** Its age, billions of years (absent: grown). */
+    readonly ageGyr?: number;
   },
+  /** Its universe's gravity against ours (rules/laws.ts: the world's own laws hold for every star of its sky). */
+  G = 1,
 ): ForeignPlanet[] {
-  if (star.remnant) return [];
+  // (A star of a young cluster: its worlds still forming, molten under the rain of what is left over: gen/galaxy.ts NURSERIES.)
+  if (star.remnant || (star.ageGyr ?? 1) < NURSERIES.forming) return [];
   const key = star.sector * 64 + star.k,
     u = (subject: number, n: number) => rng.real(STARS, subject, key, 0, n),
     frost = 2.7 * Math.sqrt(star.luminosity),
@@ -486,15 +503,15 @@ export function foreignPlanets(
             : 8 + 22 * u(i + 1, 1),
       radius = radiusOf(kind, mass),
       volatiles = dmath.pow(u(i + 1, 2), 3),
-      g = surface(star, kind, a, mass, radius, volatiles);
+      g = surface(star, kind, a, mass, radius, volatiles, G);
     out.push({
       index: i,
       a,
       kind,
       mass,
       radius,
-      gravity: mass / (radius * radius),
-      escape: 11.19 * Math.sqrt(mass / radius),
+      gravity: bodyPull(mass, radius, G).g,
+      escape: bodyPull(mass, radius, G).escape,
       temperature: g.temperature,
       pressure: g.pressure,
       air: g.air,

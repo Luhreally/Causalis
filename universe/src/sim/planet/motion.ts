@@ -21,6 +21,7 @@ import {
   type StateStore,
   type World,
 } from "../../kernel/index.ts";
+import { worldLaws } from "./store.ts";
 import {
   BIOME,
   cellRef,
@@ -46,6 +47,7 @@ import {
   seaFromIce,
   sheetHeight,
   starLifeOf,
+  starLifetime,
   swellOf,
   DOSE_DEATHS,
   type Magnetosphere,
@@ -755,7 +757,7 @@ function starEnds(world: World, store: MotionStore, year: number): void {
   const told = new Set(store.ends.map((e) => e.star as string));
   for (const star of clusterOf(world)) {
     if (star.remnant || told.has(star.ref)) continue;
-    const life = 10 * dmath.pow(star.mass, -2.5),
+    const life = starLifetime(star.mass, worldLaws(world)?.burn),
       left = (life - star.ageGyr) * 1e9;
     if (left > year) continue;
     const how = star.mass >= STAR_LIFE.supernova ? "supernova" : "white dwarf",

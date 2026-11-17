@@ -39,6 +39,8 @@ export type SystemPlan = {
   };
   readonly frostLine: number;
   readonly bodies: readonly SystemPlanBody[];
+  /** Its universe's gravity against ours, where it is not ours (rules/laws.ts). */
+  readonly gravityLaw?: number;
 };
 
 /** Who has reached the sky, and the colonies set down on the system's bodies (Phase 5 M54). */

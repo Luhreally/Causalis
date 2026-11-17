@@ -331,6 +331,7 @@ export function provinceWorld(fine: HomeWorld, frequency = PROVINCE_FREQUENCY): 
     ground: fine.ground,
     // (What a world of another star entered was made from: rules/far.ts.)
     ...(fine.far ? { far: fine.far } : {}),
+    ...(fine.laws ? { laws: fine.laws } : {}),
     fine,
     provinceOf,
     centre,

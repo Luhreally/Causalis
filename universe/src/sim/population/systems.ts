@@ -253,7 +253,8 @@ export function spaceSteps(ctx: PopulationContext, a: number, b: number): number
       radius: x.radius,
       pressure: x.pressure,
     })),
-    days = (site: typeof sa) => (site ? routeTo(list, site.body, g.star.mass).days : 0),
+    days = (site: typeof sa) =>
+      site ? routeTo(list, site.body, g.star.mass, g.laws?.gravity).days : 0,
     far = Math.max(days(sa), days(sb)),
     steps = 1 + Math.round(dmath.log2(1 + far / 30));
   CROSSINGS.set(key, steps);

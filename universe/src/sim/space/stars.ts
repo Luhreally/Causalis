@@ -11,6 +11,7 @@ import {
   type StateStore,
   type World,
 } from "../../kernel/index.ts";
+import { worldLaws } from "../planet/store.ts";
 import { clusterStars, makeGalaxy, type GalaxyStar } from "../../gen/index.ts";
 import { skyOf } from "../../rules/index.ts";
 
@@ -23,7 +24,14 @@ export function clusterOf(world: World): GalaxyStar[] {
     if (CLUSTERS.size > 8) CLUSTERS.clear();
     const rng = new Rng(world.seed);
     // (As far out as the seed's sky reaches: the usual 50 light-years, or its making's.)
-    CLUSTERS.set(key, (stars = clusterStars(rng, makeGalaxy(rng), skyOf(world.seed.text)?.radius)));
+    CLUSTERS.set(
+      key,
+      (stars = clusterStars(
+        rng,
+        makeGalaxy(rng, worldLaws(world)?.burn),
+        skyOf(world.seed.text)?.radius,
+      )),
+    );
   }
   return stars;
 }

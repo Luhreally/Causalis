@@ -420,7 +420,7 @@ export function colonyVoyage(world: World, cell: number): ColonyVoyage | null {
       radius: b.radius,
       pressure: b.pressure,
     })),
-    route = routeTo(list, site.body, g.star.mass);
+    route = routeTo(list, site.body, g.star.mass, g.laws?.gravity);
   return {
     kind: "system",
     star: null,
