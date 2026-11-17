@@ -28,6 +28,7 @@ import {
 import {
   CIVICS,
   CIVIC_INDEX,
+  CIVIC_SITE,
   HOLDS,
   HOME_LEVELS,
   LEVEL,
@@ -35,9 +36,12 @@ import {
   heartCan,
   heartLevel,
   needsMet,
+  seatSite,
   wallYears,
+  ZONING_NEEDS,
   type CivicDef,
   type CivicKind,
+  type CivicSite,
 } from "../../rules/index.ts";
 import { Civics, NO_FALL, Runs, type Change, type Civic } from "./packed.ts";
 import type { PopulationContext } from "../population/systems.ts";
@@ -50,6 +54,15 @@ import { cultureOf } from "../culture/culture.ts";
 import { designsOf } from "../design/design.ts";
 import { politiesOf } from "../polity/polity.ts";
 import { warsOf } from "../war/war.ts";
+import {
+  HEART_BLOCKS,
+  QUARTER,
+  QUARTERS,
+  floodGround,
+  floodWary,
+  quarterOf,
+  townSeed,
+} from "./sites.ts";
 
 export const TOWN_EVENTS = {
   walled: defineEventType("town.walled", 3),
@@ -236,6 +249,8 @@ export class TownStore implements StateStore {
   readonly whole = new Set<Fabric>();
   /** (Towns with lots in ash, for the year's walk over them: what their runs tell, read again on loading.) */
   readonly ashen = new Set<Fabric>();
+  /** (Of towns wary of floods, their open runs that hold only flood ground: a cache, never saved. homeOpen) */
+  readonly flooded = new Map<Ref, Flooded>();
   /** Every change folded in as it is made, for the checkpoints: two lanes of the kernel's absorber. */
   private a = 0x2545f491 | 0;
   private b = 0x6a09e667 | 0;
@@ -312,6 +327,7 @@ export class TownStore implements StateStore {
     this.ruins.clear();
     this.whole.clear();
     this.ashen.clear();
+    this.flooded.clear();
     [this.a, this.b] = s.digest;
     for (const saved of s.fabrics ?? fromColumns(s.towns!)) {
       const f = unpack(saved);
@@ -872,6 +888,44 @@ export function sameLevel(
 /** Where a building of `lots` lots may stand: at a lot its size divides (so a block's half is a half). */
 const aligned = (p: number, lots: number) => Math.ceil(p / lots) * lots;
 
+/** The first lot from p a home may take in a town wary of floods: past the ground toward its water. */
+function dryStart(seed: number, p: number): number {
+  while (floodGround(seed, Math.floor(p / 8))) p = (Math.floor(p / 8) + 1) * 8;
+  return p;
+}
+/** Where the stretch from p a home may take ends, in a town wary of floods: at the next block toward its water. */
+function dryStretch(seed: number, p: number): number {
+  let b = Math.floor(p / 8) + 1;
+  while (!floodGround(seed, b)) b++;
+  return b * 8;
+}
+/**
+ * (Of a town wary of floods, how many of its first open runs hold only flood ground, as last found: its open runs and the
+ * last of those, by which it is known to hold. Every change to its open runs but a building's lots taken makes them anew;
+ * one taken out or parted moves the last off its place. A cache, never history.)
+ */
+export interface Flooded {
+  open: [number, number][];
+  last: [number, number];
+  n: number;
+}
+/** Of a town wary of floods, its first open run with a lot a home may take (-1: none). */
+function homeOpen(f: Fabric, seed: number, from: number, kept: Map<Ref, Flooded>): number {
+  const was = kept.get(f.town);
+  if (was && was.open === f.open && f.open[was.n - 1] === was.last) from = Math.max(from, was.n);
+  for (let i = from; i < f.open.length; i++) {
+    const [a, b] = f.open[i]!;
+    if (dryStart(seed, a) < b) {
+      if (i > 0) kept.set(f.town, { open: f.open, last: f.open[i - 1]!, n: i });
+      return i;
+    }
+  }
+  if (f.open.length) kept.set(f.town, { open: f.open, last: f.open.at(-1)!, n: f.open.length });
+  return -1;
+}
+/** Past so many lots a great town embanks its water and builds over the ground toward it again. */
+export const DRY_MOST = 20_000;
+
 /** Run b joined into run a, the one before it: its lots and its years. */
 function merge(R: Runs, a: number, b: number): void {
   R.w(a, 2, R.v(b, 2));
@@ -1327,7 +1381,15 @@ export class TownBuilder {
    * square outward, each rebuilt to its ring's level where it stands lower, then new homes on
    * its open lots and at its edge, each at its ring's level.
    */
-  grow(f: Fabric, people: number, top: number, edge: number, design: number): void {
+  grow(
+    f: Fabric,
+    people: number,
+    top: number,
+    edge: number,
+    design: number,
+    /** Wary of floods: no new home toward its water past its heart (sim/town/sites.ts). */
+    dry = false,
+  ): void {
     let room = people - housingOf(f),
       // People's worth of homes a year's hands raise.
       hands = Math.max(30, Math.round(people / 4));
@@ -1392,12 +1454,30 @@ export class TownBuilder {
     let run = -1,
       level = -1,
       at = -1;
+    const seed = dry ? townSeed(f.town) : 0;
+    // (Of a town wary of floods, the open runs before this one hold only flood ground: taking lots makes none of them any other.)
+    let past = 0;
     while (room > 0 && hands > 0) {
+      const usable = dry ? homeOpen(f, seed, past, this.store.flooded) : f.open.length ? 0 : -1;
+      if (usable >= 0) past = usable;
+      // (A town wary of floods leaves the ground toward its water open at its edge: for its mills and docks. Past every
+      // open run, it is the last of them.)
+      if (dry && usable < 0)
+        while (floodGround(seed, Math.floor(f.next / 8))) {
+          const from = f.next,
+            last = f.open.at(-1);
+          f.next = (Math.floor(from / 8) + 1) * 8;
+          if (last && last[1] === from) last[1] = f.next;
+          else f.open.push([from, f.next]);
+        }
       // (Past its open lots and its lots of last year, every new home is of its edge's level: all
       // of them at once, a great town raising thousands of lots in a year: Phase 66.)
-      if (!f.open.length && f.next >= n && (run < 0 || (f.next === at + 1 && level === edge))) {
-        const homes = Math.ceil(Math.min(room, hands) / HOLDS[edge]!),
-          from = f.next;
+      if (usable < 0 && f.next >= n && (run < 0 || (f.next === at + 1 && level === edge))) {
+        const from = f.next,
+          homes = Math.min(
+            Math.ceil(Math.min(room, hands) / HOLDS[edge]!),
+            dry ? dryStretch(seed, from) - from : Infinity,
+          );
         if (run < 0) {
           run = from;
           level = edge;
@@ -1407,20 +1487,26 @@ export class TownBuilder {
         f.homes[edge]! += homes;
         room -= homes * HOLDS[edge]!;
         hands -= homes * HOLDS[edge]!;
-        break;
+        if (!dry) break;
+        continue;
       }
       // (An open run's lots of one level taken together, as many as the year's hands and its room take, as the
       // lowest open lot one at a time would take them: a great town raises tens of thousands of homes a year.)
-      const open = f.open[0],
-        p = open ? open[0] : f.next,
+      const open = usable >= 0 ? f.open[usable]! : undefined,
+        p = open ? (dry ? dryStart(seed, open[0]) : open[0]) : f.next,
+        stop = open ? (dry ? Math.min(open[1], dryStretch(seed, p)) : open[1]) : 0,
         to = lotLevel(p, n, top, edge),
         hold = HOLDS[to]!,
         k = Math.min(
-          open ? sameLevel(p, open[1], n, top, edge, to) - p : 1,
+          open ? sameLevel(p, stop, n, top, edge, to) - p : 1,
           Math.ceil(Math.min(room, hands) / hold),
         );
       if (open) {
-        if ((open[0] += k) >= open[1]) f.open.shift();
+        // (Taken from its first open lot, or, wary of floods, from past the ground toward its water within it.)
+        if (p > open[0]) {
+          if (p + k < open[1]) f.open.splice(usable + 1, 0, [p + k, open[1]]);
+          open[1] = p;
+        } else if ((open[0] += k) >= open[1]) f.open.splice(usable, 1);
       } else f.next += k;
       if (run >= 0 && (p !== at + 1 || to !== level)) {
         this.change(f, CHANGE.built, run, at + 1, level, design);
@@ -1811,7 +1897,7 @@ export class TownBuilder {
         : undefined;
       if (old) this.fall(f, old, FOLD.replaced);
       const lots = CIVIC_LOTS[def.kind],
-        at = this.siteFor(f, lots, def.place);
+        at = this.siteBy(f, lots, this.wants(def.kind, s, k), false);
       this.clearFor(f, at, lots);
       f.civics.add(i, at, lots, this.year, this.year + def.years);
       this.store.fold(f.town, FOLD.begun, i, at, this.year);
@@ -1840,8 +1926,60 @@ export class TownBuilder {
     return (met[i] ??= needsMet(def, k));
   }
 
-  /** Where a building of `lots` lots goes: about the square (the innermost lots no other building has), or at the edge. */
-  siteFor(f: Fabric, lots: number, place: "core" | "edge"): number {
+  /**
+   * Where a building of a kind would go in a town (rules/buildings.ts CIVIC_SITE): a seat's halls on its high ground; its
+   * works kept out in its lee where its land has written law to zone them, else among its homes.
+   */
+  wants(kind: CivicKind, s: Settlement, k: (id: string) => boolean): CivicSite {
+    const seat = politiesOf(this.ctx.world).of(s.cell)?.town === s.ref,
+      want = seat ? seatSite(kind) : CIVIC_SITE[kind];
+    return want === "works" ? (k(ZONING_NEEDS) ? "lee" : "homes") : want;
+  }
+
+  /**
+   * Where a building of `lots` lots goes, by what it wants of the ground (see CIVIC_SITE): the first lots no other building
+   * stands on from the square outward — of its quarter, where it wants one (the high ground near the square) — or, for one
+   * that wants the water, the lee or the way in, the first open lots of that quarter, else the first block of it at the edge
+   * (to the end of the next round of the town's growth at most: the lots passed over lie open for its homes). `heart`: whatever it wants,
+   * near the square (a great town asked for it).
+   */
+  siteBy(f: Fabric, lots: number, want: CivicSite, heart: boolean): number {
+    const q =
+      want === "water"
+        ? QUARTER.water
+        : want === "lee"
+          ? QUARTER.lee
+          : want === "high"
+            ? QUARTER.high
+            : want === "road"
+              ? QUARTER.road
+              : -1;
+    if (want === "heart" || want === "homes" || want === "high" || heart)
+      return this.siteFor(f, lots, "core", q, want === "homes" ? HEART_BLOCKS * 8 : 0);
+    if (q < 0) return this.siteFor(f, lots, "edge");
+    const seed = townSeed(f.town),
+      ofQuarter = (p: number) => quarterOf(seed, Math.floor(p / 8)) === q;
+    // (Open ground of its quarter first: what fell or was passed over, the nearest the square. A few dozen runs at most.)
+    const open = f.open;
+    for (let i = 0; i < Math.min(open.length, 32); i++) {
+      const [a, b] = open[i]!;
+      for (let p = aligned(a, lots); p + lots <= b && p - a < 64; p += lots)
+        if (ofQuarter(p) && Math.floor(p / 8) === Math.floor((p + lots - 1) / 8)) return p;
+    }
+    const e = aligned(f.next, lots);
+    for (let b = Math.floor(e / 8); b < (Math.floor(e / 8 / QUARTERS) + 2) * QUARTERS; b++) {
+      if (quarterOf(seed, b) !== q) continue;
+      const p = Math.max(e, b * 8);
+      if (p + lots <= (b + 1) * 8) return p;
+    }
+    return e;
+  }
+
+  /**
+   * Where a building of `lots` lots goes: about the square (the innermost lots no other building has, from lot `from`; of
+   * quarter `q` where one is asked), or at the edge.
+   */
+  siteFor(f: Fabric, lots: number, place: "core" | "edge", q = -1, from = 0): number {
     if (place === "core") {
       // (By the spans its standing buildings take, not lot by lot: a great town has tens of millions of lots,
       // and this is asked each year of whichever towns are building. Phase 66.)
@@ -1858,10 +1996,24 @@ export class TownBuilder {
           .sort((a, b) => a[0] - b[0]);
       let i = 0,
         reach = -1;
-      for (let p = 0; p < f.next; p += lots) {
+      const seed = q >= 0 ? townSeed(f.town) : 0;
+      for (let p = aligned(from, lots); p < f.next; p += lots) {
+        // (Of its quarter only, a block at a time: the rest of the block passed over.)
+        if (q >= 0 && quarterOf(seed, Math.floor(p / 8)) !== q) {
+          p = (Math.floor(p / 8) + 1) * 8 - lots;
+          continue;
+        }
         const end = Math.min(p + lots, f.next);
         while (i < spans.length && spans[i]![0] < end) reach = Math.max(reach, spans[i++]![1]);
         if (reach <= p) return p;
+      }
+      // (None of its quarter open yet: the next block of it at the edge.)
+      if (q >= 0) {
+        const e = aligned(f.next, lots);
+        for (let b = Math.floor(e / 8); b < (Math.floor(e / 8 / QUARTERS) + 2) * QUARTERS; b++) {
+          const p = Math.max(e, b * 8);
+          if (quarterOf(seed, b) === q && p + lots <= (b + 1) * 8) return p;
+        }
       }
     }
     return aligned(f.next, lots);
@@ -1879,7 +2031,7 @@ export class TownBuilder {
     if (old) this.fall(f, old, FOLD.replaced);
     // (At a great town's edge it would rise past what anyone can be shown: there, by its heart.)
     const lots = CIVIC_LOTS[kind],
-      at = this.siteFor(f, lots, f.next > ASKED_EDGE_LOTS ? "core" : def.place);
+      at = this.siteBy(f, lots, CIVIC_SITE[kind], f.next > ASKED_EDGE_LOTS);
     this.clearFor(f, at, lots);
     f.civics.add(CIVIC_INDEX.get(kind)!, at, lots, this.year, this.year + def.years);
     this.store.fold(f.town, FOLD.begun, CIVIC_INDEX.get(kind)!, at, this.year);
@@ -2009,6 +2161,8 @@ export function townYear(ctx: PopulationContext, t: SimTime): void {
       if (b.year === year - 1 && b.won && fallen >= 100)
         sacked.set(b.land, (sacked.get(b.land) ?? 0) + fallen);
     }
+  /** Each land's towns' wariness of floods, asked once a year. */
+  const wary = new Map<number, boolean>();
   const knowers = new Map<number, (id: string) => boolean>(),
     knowerOf = (cell: number) => {
       const k = knower(ctx, cell);
@@ -2047,7 +2201,16 @@ export function townYear(ctx: PopulationContext, t: SimTime): void {
     if (people > housingOf(f)) {
       const top = topLevel(k, people, city);
       f.lean = 0;
-      builder.grow(f, people, top, edgeLevel(top, city), designSince(ctx, cell));
+      let dry = wary.get(cell);
+      if (dry === undefined) wary.set(cell, (dry = floodWary(world, cell, year)));
+      builder.grow(
+        f,
+        people,
+        top,
+        edgeLevel(top, city),
+        designSince(ctx, cell),
+        dry && f.next < DRY_MOST,
+      );
     } else builder.shrink(f, people);
     if (
       weighs &&

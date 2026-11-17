@@ -123,7 +123,7 @@ function planRead(plan: VillagePlan): PlanRead {
   if (hit) return hit;
   const t = plan.town,
     states = t ? lotStates(t) : null,
-    lots = t ? townLots(t.family, t.seed, t.axis, t.lots, t.water) : null,
+    lots = t ? townLots(t.family, t.seed, t.axis, t.lots, t.water, t.site ?? null) : null,
     homeOn = new Map<number, number>(),
     lotOf = new Map<number, number>(),
     folkIn = new Map<number, number[]>();

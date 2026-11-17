@@ -292,7 +292,11 @@ function whyNot(ref: string): string {
 export function withFollow(world: World, page: PageModel): PageModel {
   const person = page.kind === "person" || page.kind === "agent",
     family = page.kind === "family";
-  if (!person && !family) return page;
+  // (A group, a federation, an operation: kept on the bar as it stands, though history follows no one of it.)
+  if (!person && !family)
+    return /^(mob|gfed|uop|org|ofed):/.test(page.ref)
+      ? { ...page, pin: { ref: page.ref, name: page.title } }
+      : page;
   const can = canWatch(world, page.ref as Ref),
     // (A ruler followed whose seat has passed: this page is of the one there now, who is not followed.)
     had = page.ref.startsWith("rule:") ? observer(world).watches.get(page.ref) : undefined,

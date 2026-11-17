@@ -41,7 +41,8 @@ import {
   type Polity,
 } from "../../sim/index.ts";
 import { groupWords, orgWords } from "../../causal/index.ts";
-import { hueColor, realmHue } from "../colors.ts";
+import { holderColor } from "../colors.ts";
+import { isFightEvent, lastFights, streetFightOf, watchFightTool } from "./streetfight.ts";
 import { fedRef, groupRef, opRef } from "../underworld.ts";
 import { orgRef } from "../groups.ts";
 import { AIM_WORDS } from "./groups.ts";
@@ -64,14 +65,12 @@ const pc = (x: number) =>
 /** The most of a land's towns told one by one (the rest counted); the most events walked back, and told. */
 export const TOWNS_TOLD = 12;
 const EVENTS_WALKED = 4000,
-  EVENTS_TOLD = 8;
+  EVENTS_TOLD = 8,
+  /** The fights of those told shown each with its button. */
+  FIGHTS_SHOWN = 3;
 
 /** The events of the underworld and the groups, and of what feeds them. */
 const UNDER_EVENTS = /^(underworld|groups)\.|^money\.(cartel|smuggling|stronger|made-forms)$/;
-
-/** A crime group or a general group as the land view colours it: its own hue, strong enough to read over the ground. */
-export const holderColor = (ref: string): [number, number, number] =>
-  hueColor(realmHue(ref), 0.5, 0.42);
 
 /** Every realm's crime groups holding any part of a land (a badge crew works its realm's towns, so any land of its realm). */
 function crimeGroupsIn(world: World, cell: number): { r: Polity; g: CrimeGroup }[] {
@@ -453,7 +452,8 @@ export function landUnderworldBlocks(world: World, cell: number): Block[] {
       ...towns.map((t) => t.ref as string),
     ]),
     all = world.events.all(),
-    passed: Item[] = [];
+    passed: Item[] = [],
+    fights: string[] = [];
   for (
     let i = all.length - 1, n = 0;
     i >= 0 && n < EVENTS_WALKED && passed.length < EVENTS_TOLD;
@@ -464,6 +464,7 @@ export function landUnderworldBlocks(world: World, cell: number): Block[] {
     if (!(e.place && refs.has(e.place)) && !e.subjects.some((s) => refs.has(s))) continue;
     const y = yearAt(e.t);
     passed.push(item([`Year ${y}: `, link(claimOf(world, e.id), e.id)], e.id, y));
+    if (isFightEvent(e) && fights.length < FIGHTS_SHOWN) fights.push(e.id);
   }
   if (passed.length)
     blocks.push({
@@ -474,6 +475,14 @@ export function landUnderworldBlocks(world: World, cell: number): Block[] {
         item([link("Every year, in the Years", "world:chronicle#years")], "world:chronicle#years"),
       ],
     });
+  // (Its fights, the latest few, each played in the streets of its town: 2026-11-16.)
+  for (const ref of fights) {
+    const f = streetFightOf(world, ref);
+    if (f)
+      blocks.push(
+        watchFightTool(ref, `▶ Watch ${f.title.replace(/^The /, "the ")}, year ${f.year}`),
+      );
+  }
 
   // (Nothing kept but its towns' courts: one honest line.)
   const told =
@@ -550,6 +559,7 @@ export function landUnderworld(world: World, cell: number): LandUnderworld | nul
     badgeRef: badge && (gangs?.badge ?? 0) > 0 ? groupRef(badge.r.ref, badge.g.event) : null,
     soldiers: living ? soldiersIn(world, living.ref, cell) : 0,
     soldiersRef: op && living ? opRef(living.ref, op.event) : null,
+    ...lastFights(world, populationContext(world).provinces.get(cell)!.ref),
     prey: orgRow?.prey ?? 0,
     seaPrey: orgRow?.seaPrey ?? 0,
     brigands:

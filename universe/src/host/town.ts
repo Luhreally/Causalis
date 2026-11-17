@@ -31,6 +31,7 @@ import {
 } from "../bridge/index.ts";
 import { kindOf } from "./kinds.ts";
 import { homePlanet, lessonUse } from "../sim/index.ts";
+import { townSiteOf, type RoadEnd } from "./sites.ts";
 
 /** How a people pass over their ground, where it isn't on foot (R1): as their law and homes read them. */
 function waysOf(world: World): { ways?: "swim" | "tunnel" } {
@@ -177,9 +178,14 @@ export function townPlan(
   water: TownWater | null = null,
   /** Its fabric, if it is read of another than the one that stands now (a colony as it stood: Phase 64). */
   fabric?: Fabric,
+  /** Its land's roads, where they are reckoned already (host/sites.ts roadEnds). */
+  ends?: readonly RoadEnd[],
 ): TownPlan | null {
   const f = fabric ?? townsOf(world).get(ref);
   if (!f) return null;
+  // (Its streets grown from its ground and its roads in: a colony's halls, and a town read of another's fabric, as of old.)
+  const site = fabric || colonyTownCell(ref) !== null ? null : townSiteOf(world, ref, f, ends);
+  if (site?.roads.length) axis = site.roads[0]!.bearing;
   const lots = Math.min(f.next, most);
   const ctx = populationContext(world),
     s = ctx.settlements.get(ref),
@@ -225,6 +231,7 @@ export function townPlan(
     };
   return {
     family: f.family,
+    ...(site ? { site } : {}),
     seed: hashString(`town ${ref}`),
     axis,
     lots,

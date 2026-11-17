@@ -165,6 +165,8 @@ export class PageWindow {
   /** A realm among the stars coming apart, watched (Phase 72). */
   onNationFall: ((ref: string) => void) | null = null;
   onRaid: ((event: string) => void) | null = null;
+  /** A fight of the underworld played again in its town (2026-11-16). */
+  onFight: ((event: string) => void) | null = null;
   /** Down among a band of a land's camp (Phase 29 M160). */
   onNear: ((cell: number, camp: number) => void) | null = null;
   /** Down to a people on its own world; their first meeting (Phase 69). */
@@ -186,6 +188,8 @@ export class PageWindow {
   onTouched: ((agent: string) => void) | null = null;
   /** One under the hand possessed (Phase 60): why they cannot be (null: taken). */
   onPossess: ((agent: number) => Promise<string | null>) | null = null;
+  /** One under the hand lived as, in their town (Lives L3). */
+  onLive: ((agent: number, town: string) => Promise<string | null>) | null = null;
   /** To a key figure's home (Lives L1). */
   onLeaderHome: ((leader: Leader) => void) | null = null;
   onLeaderRule: ((leader: Leader) => void) | null = null;
@@ -1200,6 +1204,7 @@ export class PageWindow {
           ...(this.onStarFight ? { starFight: this.onStarFight } : {}),
           ...(this.onNationFall ? { nationFall: this.onNationFall } : {}),
           ...(this.onRaid ? { raid: this.onRaid } : {}),
+          ...(this.onFight ? { fight: this.onFight } : {}),
           ...(this.onNear ? { near: this.onNear } : {}),
           ...(this.onFolk ? { folk: this.onFolk } : {}),
           ...(this.onEnter ? { enter: this.onEnter } : {}),
@@ -1212,6 +1217,7 @@ export class PageWindow {
           ...(this.onWars ? { wars: this.onWars } : {}),
           ...(this.onTouched ? { touched: this.onTouched } : {}),
           ...(this.onPossess ? { possess: this.onPossess } : {}),
+          ...(this.onLive ? { live: this.onLive } : {}),
           ...(this.onLeaderHome ? { leaderHome: this.onLeaderHome } : {}),
           ...(this.onLeaderRule ? { leaderRule: this.onLeaderRule } : {}),
           ...(this.onHomeLook ? { homeLook: this.onHomeLook } : {}),

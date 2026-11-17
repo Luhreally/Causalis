@@ -62,7 +62,14 @@ const fire = fabricOf([{ kind: "fire", at: AT, lot: 120, homes: 40, event: "evnt
   quake = fabricOf([{ kind: "quake", at: AT, lot: -1, homes: 40, event: "evnt:0:2" }]);
 
 function planOf(fabric: TownPlan): VillagePlan {
-  const lots = townLots(fabric.family, fabric.seed, fabric.axis, fabric.lots, fabric.water);
+  const lots = townLots(
+    fabric.family,
+    fabric.seed,
+    fabric.axis,
+    fabric.lots,
+    fabric.water,
+    fabric.site ?? null,
+  );
   return {
     ref: "town:0:9",
     name: "Ashby",

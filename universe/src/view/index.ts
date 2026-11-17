@@ -95,6 +95,7 @@ export {
   turfTiles,
   underworldMarks,
   underworldMarkPage,
+  underworldMarkWatch,
 } from "./region.ts";
 export {
   ACTIVITY,
@@ -343,6 +344,7 @@ export {
   roadLine,
   roadLook,
   roadNow,
+  roadIntoTown,
   roadOutside,
   worksShare,
   onLines,
@@ -639,6 +641,7 @@ export {
   townDoingIcon,
   townWarNow,
   townWarScene,
+  warWay,
   type TownDoing,
   type TownHost,
   type TownPlace,
@@ -847,6 +850,7 @@ export {
   dryAt,
   keepOut,
   route,
+  approachWay,
   villageGround,
   type Ground,
   type Solid,
@@ -1270,3 +1274,20 @@ export {
   type HeardKind,
   type Voicing,
 } from "./heard.ts";
+export {
+  SPOT_WORDS,
+  crowdAbout,
+  fallenBy,
+  fightSpots,
+  figureAt,
+  openYaw,
+  scaled,
+  streetAt,
+  streetEye,
+  streetScript,
+  type FightSpot,
+  type SpotWhy,
+  type StreetClash,
+  type StreetFigure,
+  type StreetScript,
+} from "./streetfight.ts";

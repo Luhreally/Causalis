@@ -1057,6 +1057,9 @@ export type LandUnderworld = {
   /** The realm's soldiers sent against its groups here, and the page of the greatest operation (null: none under way). */
   readonly soldiers: number;
   readonly soldiersRef: string | null;
+  /** The latest fights of the underworld told in it (their events; null: none), played from its marks: the killing, the soldiers'. */
+  readonly watchKill: string | null;
+  readonly watchArmy: string | null;
   readonly pirates: { readonly ref: string; readonly name: string } | null;
 };
 

@@ -360,7 +360,10 @@ export class VillagePanel {
     name: string,
     role: string | null,
     today: string | null,
-    touch?: Touchable & { readonly done: (agent: string) => void },
+    touch?: Touchable & {
+      readonly done: (agent: string) => void;
+      readonly live?: (agent: number, town: string) => Promise<string | null>;
+    },
     page?: string,
     // (Their wounds as they are now, a line each: Phase 55 M226.)
     wounds?: readonly string[],
@@ -368,7 +371,7 @@ export class VillagePanel {
     this.view++;
     // (Inspired or blessed where they are met, Phase 54: the hand laid on the town from them.)
     const acts = el("div", "touch");
-    if (touch) void touchActs(acts, this.client, touch, touch.done);
+    if (touch) void touchActs(acts, this.client, touch, touch.done, touch.live);
     this.storesOpen = false;
     this.folkOpen = true;
     this.inspector.hidden = false;
@@ -390,13 +393,14 @@ export class VillagePanel {
       ...(wounds ?? []).map((w) => el("div", "fact folk-wound", w)),
       this.folkKin,
       ...their,
+      // (The god's acts on them before their day's long list: asked 2026-11-16, they were below it and went unseen.)
+      acts,
       this.folkMore,
       el(
         "p",
         "muted",
         "One of the town's many, drawn for its crowd and named in its tongue: history keeps them by their line — the wars they went to, their wounds, their fall — though not their days. They live its day as its own people do.",
       ),
-      acts,
     );
     this.whyBox.replaceChildren();
   }
@@ -434,6 +438,7 @@ export class VillagePanel {
       this.folkKin,
       page,
       ...(arm ? [arm] : []),
+      this.actsOf(m.page),
       el(
         "p",
         "muted",
@@ -441,6 +446,33 @@ export class VillagePanel {
       ),
     );
     this.whyBox.replaceChildren();
+  }
+
+  /**
+   * The god's acts on one a battle's card shows (asked 2026-11-16: every person card offers them): on their page where they are
+   * one the hand reaches (a line's holder, a ruler, one of a court, one under the hand); else why not, said on the button.
+   */
+  private actsOf(page: string | null): HTMLElement {
+    const reached = page !== null && /^(folk:town:|rule:|court:|agent:|boss:)/.test(page),
+      b = el("button", reached ? "line" : "line off", "✨ Your acts on them ›"),
+      why = el("p", "note");
+    why.hidden = true;
+    const words =
+      page === null
+        ? "One of a host the battle's roll does not name: the god's acts reach the named, and the living of a town where the hand rests."
+        : "One of a levy named by the battle's roll: history keeps no more of them than the roll, so the god's acts do not reach them. They reach the living of a town where the hand rests.";
+    if (reached) b.onclick = () => this.onPage(page);
+    else {
+      b.setAttribute("aria-disabled", "true");
+      b.title = words;
+      b.onclick = () => {
+        why.hidden = false;
+        why.textContent = words;
+      };
+    }
+    const box = el("div", "man-acts");
+    box.append(b, why);
+    return box;
   }
 
   /** Under the card of one of the town's many, more of them as the scene shows it (their day, Phase 45 M207). */
@@ -519,6 +551,7 @@ export class VillagePanel {
       ...facts.map((f) => el("div", "fact", f)),
       this.folkKin,
       ...their,
+      this.actsOf(page),
       el("p", "muted", note),
     );
     this.whyBox.replaceChildren();

@@ -430,6 +430,8 @@ async function walk(world: World, f: Forged, name: string): Promise<void> {
     k<boolean>(`globalThis.causalis.barPins.has(${JSON.stringify(heir.ref)})`),
   );
   await closePage();
+  // (Kept in a tab of their own, apart from those followed and those of the place: asked 2026-11-16.)
+  await k(`globalThis.causalis.peopleBar.setTab("pinned")`);
   await until(
     "the pinned chip",
     async () => (await barSeen()).chips.some((c) => c.h > 0 && c.words.startsWith("📌")),
@@ -440,6 +442,8 @@ async function walk(world: World, f: Forged, name: string): Promise<void> {
   await until("the pin gone", () =>
     k<boolean>(`!globalThis.causalis.barPins.has(${JSON.stringify(heir.ref)})`),
   );
+  await k(`globalThis.causalis.peopleBar.setTab("here")`);
+  await page.waitForTimeout(slow(600));
   // (Another world's pins: keyed by world. One forged under another world's name does not appear here.)
   const other = await k<number>(`(() => {
     localStorage.setItem("causalis.bar.pins:alien:some other world", JSON.stringify([{ ref: "rule:pol:0:1", name: "From Elsewhere" }]));
@@ -451,6 +455,7 @@ async function walk(world: World, f: Forged, name: string): Promise<void> {
   const rulerRef = (await barSeen()).chips.find((c) => c.ref.startsWith("rule:"))?.ref;
   if (rulerRef) {
     await k(`globalThis.causalis.barPins.toggle(${JSON.stringify(rulerRef)}, "Someone Before")`);
+    await k(`globalThis.causalis.peopleBar.setTab("pinned")`);
     await until(
       "one who left the seat",
       async () => (await barSeen()).chips.some((c) => /Someone Before/.test(c.words)),
@@ -464,6 +469,7 @@ async function walk(world: World, f: Forged, name: string): Promise<void> {
     await until("how it passed", async () => ((await pageNow()) ?? "").startsWith("ev:"));
     await closePage();
     await k(`globalThis.causalis.barPins.off(${JSON.stringify(rulerRef)})`);
+    await k(`globalThis.causalis.peopleBar.setTab("here")`);
     await page.waitForTimeout(slow(1000));
   }
 

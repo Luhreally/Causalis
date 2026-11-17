@@ -11,6 +11,7 @@ import { wildBlocks } from "./wild.ts";
 import { warmthBlocks } from "./warmth.ts";
 import { greatActsOf } from "../../sim/index.ts";
 import { landPlace } from "./land.ts";
+import { isFightEvent, streetFightOf, watchFightTool } from "./streetfight.ts";
 import { battlePage } from "./realm.ts";
 
 /** What an event's type is in a heading's words, and its icon. */
@@ -344,6 +345,8 @@ export function eventPage(world: World, ref: string): PageModel {
         great: (e.data as { great?: boolean }).great === true,
       },
     });
+  // (A fight of the underworld: played again in the streets of its town, 2026-11-16.)
+  if (isFightEvent(e) && streetFightOf(world, ref)) blocks.splice(2, 0, watchFightTool(ref));
   // (A fight among the stars: played again. Phase 67.)
   if (type === "starwar.battle" || type === "peoples.raid")
     blocks.splice(2, 0, {

@@ -51,6 +51,7 @@ import {
   wildsOf,
   lodesOf,
   fireOf,
+  townsOf,
 } from "../sim/index.ts";
 import { landWords, meetHousehold, observer, settleAll, type WarFate } from "../causal/index.ts";
 import { personThings } from "./inspect/things.ts";
@@ -84,6 +85,7 @@ import {
   type Wonder,
 } from "../bridge/index.ts";
 import { strikesOn, townPlan } from "./town.ts";
+import { realmWays, townSiteOf } from "./sites.ts";
 import { realmColor } from "./colors.ts";
 import { hostKinds } from "./arms.ts";
 import { visitorsAt } from "./peoples.ts";
@@ -312,7 +314,11 @@ export function villagePlan(
     fieldWay = best[0]?.angle ?? 0,
     // (A village's road leaves between the fields and the poorer ground; a city's runs
     // through it along its axis, both ways. The flocks and the works keep off it.)
-    roadWay = city ? city.axis : fieldWay + Math.PI * 0.75,
+    // (Where its streets were grown from its roads in, the busiest of them: as the land's map draws it. host/sites.ts)
+    fabricOf = townsOf(world).get(ref),
+    siteOf = fabricOf ? townSiteOf(world, ref, fabricOf) : null,
+    mainRoad = siteOf?.roads[0]?.bearing,
+    roadWay = mainRoad ?? (city ? city.axis : fieldWay + Math.PI * 0.75),
     apart = (a: number, b: number) =>
       Math.abs(((((a - b) % (2 * Math.PI)) + 3 * Math.PI) % (2 * Math.PI)) - Math.PI),
     offRoad = (a: number) =>
@@ -335,8 +341,16 @@ export function villagePlan(
       waterWay === null
         ? null
         : { x: WATER_OUT * Math.cos(waterWay), z: WATER_OUT * Math.sin(waterWay), r: LAKE_R },
-    town = townPlan(world, ref, city ? city.axis : roadWay, families * families * 80, lake),
-    lots = town ? townLots(town.family, town.seed, town.axis, town.lots, town.water) : null;
+    town = townPlan(
+      world,
+      ref,
+      mainRoad ?? (city ? city.axis : roadWay),
+      families * families * 80,
+      lake,
+    ),
+    lots = town
+      ? townLots(town.family, town.seed, town.axis, town.lots, town.water, town.site ?? null)
+      : null;
   if (town && lots) {
     const states = lotStates(town);
     for (let p = 0; p < town.lots && homes.length < count; p++)
@@ -867,7 +881,14 @@ export function villagePlan(
       building = growing && !city && k < 400,
       next =
         building && fabric && town
-          ? townLots(town.family, town.seed, town.axis, town.whole + 1, town.water)
+          ? townLots(
+              town.family,
+              town.seed,
+              town.axis,
+              town.whole + 1,
+              town.water,
+              town.site ?? null,
+            )
           : null,
       site = building
         ? next && town
@@ -898,11 +919,13 @@ export function villagePlan(
       battle = {
         // (Each in its host's kinds: its arms, its guard — Phase 13 M114.)
         attacker: {
+          ref: w.attacker,
           name: realmName(a),
           color: realmColor(w.attacker),
           host: hostKinds(world, w.attacker),
         },
         defender: {
+          ref: w.defender,
           name: realmName(d),
           color: realmColor(w.defender),
           host: hostKinds(world, w.defender),
@@ -1284,10 +1307,13 @@ export function villagePlan(
       life: lifeNow(village.cell, village.population, visitors),
       body: peopleBody(world),
       visitors,
-      // A city's road runs along its axis; a village's out toward the far fields.
-      road: city
-        ? { x: 1100 * Math.cos(city.axis), z: 1100 * Math.sin(city.axis) }
-        : { x: 1100 * Math.cos(roadWay), z: 1100 * Math.sin(roadWay) },
+      // A city's road runs along its axis; a village's out toward the far fields; either's, where its streets were grown
+      // from its roads in, along the busiest of them (as its works keep off it).
+      road: { x: 1100 * Math.cos(roadWay), z: 1100 * Math.sin(roadWay) },
+      ...(() => {
+        const ways = realmWays(world, ref, siteOf);
+        return ways.length ? { ways } : {};
+      })(),
       districts: city
         ? { blocks: BLOCKS, blockM: BLOCK_M, uses: city.uses, paved: !!city.paved }
         : null,

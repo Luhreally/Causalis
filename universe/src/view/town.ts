@@ -33,6 +33,8 @@ import {
   footprint,
   lotStates,
   progress,
+  lotsKey,
+  shopsBelow,
   townLots,
   townReach,
   wallRing,
@@ -209,10 +211,11 @@ export type TownScene = {
 export function townScene(plan: TownPlan, t: number, previous?: TownLots): TownScene {
   const lots =
       previous &&
+      previous.key === lotsKey(plan) &&
       previous.x.length >= plan.lots &&
       previous.blocks.x.length >= Math.ceil(plan.lots / BLOCK_LOTS)
         ? previous
-        : townLots(plan.family, plan.seed, plan.axis, plan.lots, plan.water),
+        : townLots(plan.family, plan.seed, plan.axis, plan.lots, plan.water, plan.site ?? null),
     states = lotStates(plan),
     held = blocksHeld(plan, states),
     looks = plan.designs.map((d: TownDesign) => {
@@ -1661,6 +1664,8 @@ export function townHomes(
           rising(out, now, level, x, z, yaw, (t - w.at) / states.takes[p]!);
         else {
           home(out, now, level, x, z, yaw);
+          // (Shops on the ground floor of a tall home near the square: asked 2026-11-16.)
+          if (shopsBelow(p, scene.plan.whole, level)) shopfront(out, level, x, z, yaw, p);
           // (Framed against the shaking, as many as its people have learned to frame: the lessons.)
           const braced = scene.plan.braced ?? 0;
           if (braced > 0 && (Math.imul(p + 1, 0x9e3779b1) >>> 0) / 4294967296 < braced)
@@ -1692,6 +1697,29 @@ export function townHomes(
         else ruin(out, look, x, z, yaw, years, what === LOT.razed);
     }
   }
+}
+
+/** Awnings over a shop's windows, by the shop (a few colours, each its own). */
+const AWNINGS: readonly Rgb[] = [
+  [0.72, 0.22, 0.2],
+  [0.2, 0.46, 0.3],
+  [0.82, 0.62, 0.2],
+  [0.24, 0.36, 0.62],
+];
+/** A shop on a tall home's ground floor: its lit window along its street front, an awning over it. */
+function shopfront(
+  out: TownParts,
+  level: number,
+  x: number,
+  z: number,
+  yaw: number,
+  p: number,
+): void {
+  const L = LEVELS[level]!,
+    [sx, sz] = at(x, z, yaw, 0, -L.d / 2 - 0.05),
+    [ax, az] = at(x, z, yaw, 0, -L.d / 2 - 0.7);
+  out.lamp(sx, 1.4, sz, L.w * 0.8, 1.8, 0.12, yaw);
+  out.put("box", AWNINGS[p % AWNINGS.length]!, ax, 3.1, az, L.w * 0.86, 0.22, 1.4, yaw);
 }
 
 /** A home framed against the ground's shaking: its corner posts and a belt rail about its walls, in its roof's timber. */

@@ -9,6 +9,8 @@
 //     they take and die of it (rules/intox.ts INTOX_HOLD), what its treasury takes of it, what comes from abroad and from whom, what
 //     crosses unseen and who carries it (the contraband and the underworld), the food its spice keeps, the grievance its feasts ease.
 // Read once a year a world (the stores turn yearly), the same for every page of that year.
+import { yearOfMoment } from "../../kernel/index.ts";
+import { visionsSource } from "../../sim/index.ts";
 import type { World } from "../../kernel/index.ts";
 import type { Block, Line, Row, Span, Stat } from "../../bridge/index.ts";
 import {
@@ -792,4 +794,77 @@ export function mostTakenStat(
   return stat(label, xs.map((x) => cap(x.name)).join(", "), {
     parts: xs.map((x) => part(cap(x.name), `${x.amount}; ${x.law}; ${x.means}`)),
   });
+}
+
+// —— Where what brings visions comes from ————————————————————————————————————————————————————————————————
+
+const yearOf = (world: World) => yearOfMoment(world.now);
+
+/** Where a land's own visions come from, with no crop (null: none is found there): what, never how. */
+export function visionsFromWords(world: World, cell: number): string | null {
+  const f = visionsSource(populationContext(world), cell, yearOf(world));
+  if (!f || f.reach <= 0) return null;
+  const from: string[] = [];
+  if (f.woods > 0.02) from.push("found in its damp woods");
+  if (f.dung > 0.02) from.push("on the dung where its herds graze");
+  if (f.blight > 0.02)
+    from.push(
+      `a blight on its grain in this wet age, which also poisons ${(f.poison * 1e5).toFixed(1)} in 100,000 of those who eat it a year`,
+    );
+  return from.length ? `${from.join("; ")}: gathered, not grown, and known before any craft` : null;
+}
+
+/** Of some lands, how many find it where (woods, dung, blight), and the share of their people who keep it at rites. */
+export function visionsFrom(
+  world: World,
+  cells: Iterable<number>,
+): { woods: number; dung: number; blight: number; lands: number; rites: number } {
+  const ctx = populationContext(world),
+    intox = moneyStore(world, INTOX_STORE),
+    year = yearOf(world),
+    out = { woods: 0, dung: 0, blight: 0, lands: 0, rites: 0 };
+  let people = 0,
+    rites = 0;
+  for (const c of cells) {
+    const n = ctx.provinces.get(c)?.total() ?? 0;
+    if (n <= 0) continue;
+    const f = visionsSource(ctx, c, year);
+    if (f && f.reach > 0) {
+      out.lands++;
+      if (f.woods > 0.02) out.woods++;
+      if (f.dung > 0.02) out.dung++;
+      if (f.blight > 0.02) out.blight++;
+    }
+    people += n;
+    rites += n * ((intox?.at(c, INTOX.rites) ?? 0) / 1000);
+  }
+  out.rites = people > 0 ? rites / people : 0;
+  return out;
+}
+
+/** "in the damp woods of 40 lands, on the dung of herds in 120, a grain blight in 3 this wet age". */
+export function visionsFromLine(v: ReturnType<typeof visionsFrom>): string {
+  if (!v.lands)
+    return "Nothing that lives on this world's dead growth brings visions to its people where they live: no damp woods, no grazed and rained-on ground.";
+  const parts = [
+    v.woods ? `in the damp woods of ${count(v.woods)}` : "",
+    v.dung ? `on the dung of grazing herds in ${count(v.dung)}` : "",
+    v.blight ? `as a blight on grain in ${count(v.blight)} this wet age (it poisons, too)` : "",
+  ].filter(Boolean);
+  return `Not a crop: gathered in ${count(v.lands)} ${v.lands === 1 ? "land" : "lands"}, ${parts.join(", ")}; found by gatherers before any craft, and kept for rites.`;
+}
+
+/** A realm's line on where its visions come from and who keeps them at rites (null: none found, none taken). */
+export function visionsStat(world: World, r: Polity): Stat | null {
+  const v = visionsFrom(world, r.members);
+  if (!v.lands && v.rites <= 0) return null;
+  return stat(
+    "What brings visions",
+    v.rites > 0
+      ? `its rites draw on it: ${pct(v.rites)} of what they could`
+      : "found, and not taken",
+    {
+      parts: [part("where it comes from", visionsFromLine(v))],
+    },
+  );
 }

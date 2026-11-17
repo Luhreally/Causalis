@@ -112,6 +112,9 @@ function seatOf(f: Figure): number {
   return f.kit.ride === "horse" ? 0.72 : f.kit.ride === "chariot" ? 0.42 : 0;
 }
 
+/** How far from a tent the ground is read for water (the land's units: about half a tile). */
+const WET = 1.2;
+
 export class RegionWars {
   readonly root = new pc.Entity("region-wars");
   private readonly stage: Stage;
@@ -121,6 +124,7 @@ export class RegionWars {
   private colorKey = "";
   private height: (x: number, z: number) => number = () => 0;
   private sea: (x: number, z: number) => boolean = () => false;
+  private wetHere: (x: number, z: number) => boolean = () => false;
   private sides: InstancedBatch[] = [];
   private flags: InstancedBatch[] = [];
   private tents: InstancedBatch[] = [];
@@ -249,14 +253,16 @@ export class RegionWars {
     this.heads.recolor(c ?? SKIN);
   }
 
-  /** The wars in the land now shown, the height of its ground at a point, and whether it is sea. */
+  /** The wars in the land now shown, the height of its ground at a point, whether it is sea, and whether sea or a lake. */
   set(
     land: LandWars | null,
     height: (x: number, z: number) => number,
     sea: (x: number, z: number) => boolean = () => false,
+    wet: (x: number, z: number) => boolean = sea,
   ): void {
     this.land = land;
     this.height = height;
+    this.wetHere = wet;
     this.sea = sea;
     const colors = land?.colors ?? [],
       key = JSON.stringify(colors);
@@ -442,18 +448,25 @@ export class RegionWars {
     for (const c of camps) {
       const r = c.r,
         many = Math.max(10, Math.round(r * 3));
+      // (On the open approaches only: none pitched on the water about it, as the town's own siege keeps off it; the
+      // water's edge as drawn lies between tiles, so near it is wet too.)
+      const wet = (x: number, z: number) =>
+        this.wetHere(x, z) ||
+        this.wetHere(x + WET, z) ||
+        this.wetHere(x - WET, z) ||
+        this.wetHere(x, z + WET) ||
+        this.wetHere(x, z - WET);
       for (let i = 0; i < many; i++) {
-        const a = (i * Math.PI * 2) / many;
-        tents.push({
-          at: { x: c.at.x + Math.cos(a) * r, z: c.at.z + Math.sin(a) * r },
-          side: c.side,
-          yaw: a,
-        });
+        const a = (i * Math.PI * 2) / many,
+          at = { x: c.at.x + Math.cos(a) * r, z: c.at.z + Math.sin(a) * r };
+        if (!wet(at.x, at.z)) tents.push({ at, side: c.side, yaw: a });
       }
       const ring = Math.max(28, Math.round(r * 8));
       for (let i = 0; i < ring; i++) {
-        const a = (i * Math.PI * 2) / ring;
-        stakes.push({ x: c.at.x + Math.cos(a) * (r + 1.2), z: c.at.z + Math.sin(a) * (r + 1.2) });
+        const a = (i * Math.PI * 2) / ring,
+          x = c.at.x + Math.cos(a) * (r + 1.2),
+          z = c.at.z + Math.sin(a) * (r + 1.2);
+        if (!wet(x, z)) stakes.push({ x, z });
       }
       for (let i = 0; i < 3; i++) {
         const a = (i * Math.PI * 2) / 3 + 0.5;

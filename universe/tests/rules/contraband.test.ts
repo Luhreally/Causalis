@@ -14,6 +14,7 @@ import {
   intoxWant,
   kindCost,
   prohibits,
+  fungalVisions,
   smuggled,
   wareDensity,
   wareName,
@@ -111,4 +112,30 @@ test("a ban's constituency: the harm's kin, masters, temple and healers for it a
   assert.ok(silenced.level < harmed.level, "the harmed unheard weigh less");
   assert.ok(dear.level < harmed.level, "a ban dear to keep lapses");
   assert.ok(harmed.parts.some(([name]) => /kin/.test(name)));
+});
+
+test("what brings visions needs no crop: damp woods, grazed and rained-on ground, a blight on grain in a wet age that also poisons", () => {
+  const dry = fungalVisions({ woods: 0.5, wet: 0, wetYear: 1, herds: true, grain: 0.5 }),
+    woods = fungalVisions({ woods: 0.5, wet: 0.9, wetYear: 1, herds: false, grain: 0 }),
+    herds = fungalVisions({ woods: 0, wet: 0.6, wetYear: 1, herds: true, grain: 0 }),
+    usual = fungalVisions({ woods: 0, wet: 0.8, wetYear: 1, herds: false, grain: 0.6 }),
+    wetAge = fungalVisions({ woods: 0, wet: 0.8, wetYear: 1.5, herds: false, grain: 0.6 });
+  assert.equal(dry.reach, 0);
+  assert.ok(woods.reach > 0.4 && herds.reach > 0.2);
+  assert.equal(usual.blight, 0);
+  assert.ok(wetAge.blight > 0.25 && wetAge.poison > 0 && wetAge.poison < 5e-4);
+  // Its rites in another faith than the seat's weigh for a ban; in the seat's own, against.
+  const sides = {
+    temple: 0.2,
+    rites: 0,
+    court: 0,
+    lost: 0,
+    force: 0.5,
+    voice: 0.2,
+    word: 0.2,
+    traders: 0,
+    excise: 0,
+    users: 0.05,
+  };
+  assert.ok(prohibits({ ...sides, strange: 1 }).level > prohibits({ ...sides, rites: 1 }).level);
 });

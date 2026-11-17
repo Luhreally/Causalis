@@ -179,6 +179,7 @@ import {
   turfTiles,
   underworldMarks as underworldMarkList,
   underworldMarkPage,
+  underworldMarkWatch,
   gangsOverCells,
   colonyHour,
   landingToShow,
@@ -217,6 +218,7 @@ import {
   keepOut,
   orbitOf,
   villageGround,
+  wetAt,
   type FreeRules,
   type FreeState,
   battleFront,
@@ -388,6 +390,7 @@ import { installContactFilm, type ContactFilm } from "./contact-film.ts";
 import { installLandfallFilm, type LandfallFilm } from "./landfall-film.ts";
 import { VisitorsLayer } from "../render/index.ts";
 import { installFleetFilm, type FleetFilm } from "./fleet-film.ts";
+import { installStreetFilm, type StreetFilm } from "./street-fight.ts";
 import { installNationFilm, type FilmMark, type NationFilm } from "./nation-film.ts";
 import { installFarFilm, type FarFilm } from "./far-film.ts";
 import { installJumpFilm, type JumpFilm } from "./jump-film.ts";
@@ -1039,6 +1042,7 @@ type Exposed = {
   /** A people's own world seen whole, from anywhere (where its people can be gone down to, and their world played). */
   toFolkWorld?: (star: string, index: number) => Promise<void>;
   fleetFilm?: FleetFilm;
+  streetFilm?: StreetFilm;
   /** What is heard (Sound, first slice): its state and its measures, for a gate. */
   sound?: typeof sound;
   /** Realms among the stars (Phase 72): a realm's coming apart watched, the stars drawn held. */
@@ -1106,6 +1110,8 @@ type Exposed = {
     | null;
   /** Open the town's stores card (the look tools). */
   showStores?: () => void;
+  /** One of the town drawn looked at, by their index (null: no one): their card (the gates). */
+  selectPerson?: (index: number | null) => void;
   /** Where on the screen one of those drawn in the town stands now. */
   personOnScreen?: (index: number) => { x: number; y: number } | null;
   /** The marks of war drawn on the globe now (for the look tools). */
@@ -3414,6 +3420,11 @@ async function runPlanetPage(): Promise<void> {
       landWars(warsNow, parent, meta.size, meta.tileKm, grid),
       (x, z) => region.heightAt(x, z),
       (x, z) => region.seaAt(x, z),
+      // (A siege's camp keeps off the lakes too.)
+      (x, z) => {
+        const g = region.landGround;
+        return g ? wetAt(g, x, z) : region.seaAt(x, z);
+      },
     );
     // Each of the world's own wars where its year has its hosts (not a war watched unfolding).
     const g = region.landGround;
@@ -3429,7 +3440,17 @@ async function runPlanetPage(): Promise<void> {
           .filter((t) => t.population > 0)
           .flatMap((t) => {
             const at = region.land.townAt(t.ref);
-            return at ? [{ ...at, name: t.name, population: t.population, ref: t.ref }] : [];
+            return at
+              ? [
+                  {
+                    ...at,
+                    name: t.name,
+                    population: t.population,
+                    ref: t.ref,
+                    ...(t.ways ? { ways: t.ways } : {}),
+                  },
+                ]
+              : [];
           }),
       ),
       spots = landSpots(parent, meta.size, meta.tileKm, grid);
@@ -3675,7 +3696,9 @@ async function runPlanetPage(): Promise<void> {
     const mark = labels.keyAt(x, y);
     if (mark?.startsWith("uw:")) {
       region.mark(null);
-      void pageWindow.open(underworldMarkPage(mark));
+      const fight = underworldMarkWatch(mark);
+      if (fight) void streetFilm?.play(fight);
+      else void pageWindow.open(underworldMarkPage(mark));
       return;
     }
     const war = regionWars.pick(x, y),
@@ -4881,6 +4904,8 @@ async function runPlanetPage(): Promise<void> {
   let colonyFilm: ColonyFilm | null = null;
   /** A fight among the stars watched (Phase 67). */
   let fleetFilm: FleetFilm | null = null;
+  /** A fight of the underworld watched in its town (2026-11-16). */
+  let streetFilm: StreetFilm | null = null;
   let directorNation: ((event: string) => Promise<void>) | null = null;
   let directorJump: (() => Promise<boolean>) | null = null;
   let directorFar: ((event: string) => Promise<boolean>) | null = null;
@@ -6491,7 +6516,7 @@ async function runPlanetPage(): Promise<void> {
   // the siege, the storm — drawn as its land plays it, and told on a line under its bar.
   stage.onUpdate(() => {
     // (A raid being played again holds the town's war: Phase 67. So does a landing, Phase 70.)
-    if (fleetFilm?.townHeld || landfallFilm?.townHeld) return;
+    if (fleetFilm?.townHeld || landfallFilm?.townHeld || streetFilm?.holds) return;
     // (The look tools hold a war made up, to see how a host stands: W1.)
     if (heldTownWar) {
       townWar = scale === "village" ? heldTownWar : null;
@@ -6645,7 +6670,7 @@ async function runPlanetPage(): Promise<void> {
       names = rollNames(field, drawn, roll),
       // (Each named man struck where history struck him: his fate, and so his name, the same.)
       blows = members ? newBlows(field, toldBlows(names, members)) : drawn,
-      frame = fieldFrame(town, field);
+      frame = fieldFrame(town, field, [info.attacker.ref, info.defender.ref]);
     village.placeBattle({
       field,
       frame,
@@ -6688,7 +6713,7 @@ async function runPlanetPage(): Promise<void> {
       const detail = stage.quality.detail,
         most = placedMost(detail),
         field = newBattle(near, most, true),
-        frame = fieldFrame(plan, field);
+        frame = fieldFrame(plan, field, [near.attacker.ref, near.defender.ref]);
       village.placeBattle({
         field,
         frame,
@@ -7020,6 +7045,8 @@ async function runPlanetPage(): Promise<void> {
       event: P.info.event,
       turn: P.turn,
       title: P.info.title,
+      // (Where its field lies before the town, metres from its square: on the attackers' road in.)
+      at: { x: P.frame.x, z: P.frame.z },
       stage: battleStage(seen, P.turn),
       s: battleSecond(seen, P.turn),
       per: P.field.per,
@@ -7409,6 +7436,7 @@ async function runPlanetPage(): Promise<void> {
               occupation: p.occupation,
               ...(p.sex !== undefined ? { sex: p.sex } : {}),
               done: (agent) => void touched(agent),
+              live: (agent, town) => liveAs(agent, town),
             },
         // (The healer's page is their seat's: Phase 55 M229; a maker's, theirs: wave 5.)
         p.healer
@@ -7445,6 +7473,15 @@ async function runPlanetPage(): Promise<void> {
     else void pageWindow.open(agent);
   };
   pageWindow.onTouched = (agent) => void touched(agent);
+  // One of a town's people lived as (Lives L3), from their card or their page (asked 2026-11-16): their town gone down into, or
+  // drawn again with them under the hand, then their life taken up.
+  const liveAs = async (agent: number, town: string): Promise<string | null> => {
+    pageWindow.close();
+    if (scale === "village" && plan?.ref === town) await loadPlan(town);
+    else await goTo({ scale: "village", town });
+    return lifeFlow.liveAgent(agent);
+  };
+  pageWindow.onLive = liveAs;
   // One of a town's people possessed (Phase 60; asked for 2026-10-27: "add in functionality to
   // possess anything like worldbox/worldfall mod ... make sure it works right in mobile"): the god's
   // hand made flesh, walked and set to work by hand, from the palette or a person's card.
@@ -9422,13 +9459,15 @@ async function runPlanetPage(): Promise<void> {
       // work and its sky by day, not a day's round flashing by in every frame.
       seen = raidPlaying
         ? raidPlaying.t
-        : fleetFilm?.townHeld
-          ? Math.floor(t / DAY) * DAY + fleetFilm.hour * DAY
-          : landfallFilm?.townHeld
-            ? Math.floor(t / DAY) * DAY + landfallFilm.hour * DAY
-            : time.lapse || ruling()
-              ? Math.floor(t / DAY) * DAY + 10 * 3600
-              : t;
+        : streetFilm?.holds
+          ? Math.floor(t / DAY) * DAY + streetFilm.hour * DAY
+          : fleetFilm?.townHeld
+            ? Math.floor(t / DAY) * DAY + fleetFilm.hour * DAY
+            : landfallFilm?.townHeld
+              ? Math.floor(t / DAY) * DAY + landfallFilm.hour * DAY
+              : time.lapse || ruling()
+                ? Math.floor(t / DAY) * DAY + 10 * 3600
+                : t;
     stage.daylight(
       plan.colony
         ? colonyHour(plan.colony, time.lapse ? 0 : seen - colonyFrom)
@@ -9448,11 +9487,13 @@ async function runPlanetPage(): Promise<void> {
         landfallFilm?.townHeld ||
         (scale === "village" && raidOver(plan?.town, seen))
         ? { from: seen - 3600, to: seen + 3600, all: true }
-        : kept && seen >= kept.from && seen < kept.to
-          ? { ...kept, all: true }
-          : sky
-            ? downpourAt(sky, seen, time.pace)
-            : null,
+        : streetFilm?.indoors
+          ? { from: seen - 3600, to: seen + 3600 }
+          : kept && seen >= kept.from && seen < kept.to
+            ? { ...kept, all: true }
+            : sky
+              ? downpourAt(sky, seen, time.pace)
+              : null,
       !time.lapse,
     );
     // The town's stores and its work today (Phase 39 M198), as they are told.
@@ -9590,6 +9631,7 @@ async function runPlanetPage(): Promise<void> {
     return s ? { ...s, heaps: village.heapsNow(), card: villagePanel.cardShown() } : null;
   };
   exposed.showStores = () => villagePanel.showStores();
+  exposed.selectPerson = (i: number | null) => selectPerson(i);
   exposed.personOnScreen = (i: number) =>
     scale === "village" && plan ? village.personOnScreen(i) : null;
   exposed.bubblesNow = () => (scale === "village" ? village.bubbles() : []);
@@ -10899,6 +10941,29 @@ async function runPlanetPage(): Promise<void> {
     hush: () => colonies.hush(),
   });
   exposed.fleetFilm = fleetFilm;
+  streetFilm = installStreetFilm({
+    stage,
+    hud,
+    client,
+    time,
+    rig,
+    village,
+    toTown: (cell, town) =>
+      fadeOver(() =>
+        ready("the village", async () => {
+          pageWindow.close();
+          if (scale === "village" && plan?.ref === town) return;
+          leaveScale();
+          regionCell = cell;
+          await toVillage(town);
+        }),
+      ),
+    plan: () => (scale === "village" ? plan : null),
+    openPage: (ref) => void pageWindow.open(ref),
+    now: () => now(),
+  });
+  exposed.streetFilm = streetFilm;
+  pageWindow.onFight = (event) => void streetFilm?.play(event);
   const nationFilm = installNationFilm({
     stage,
     hud,
@@ -11601,7 +11666,9 @@ async function runPlanetPage(): Promise<void> {
       inTown && !film && !raidPlaying && !time.lapse && plan ? squareNow(plan, now(), false) : null;
     heard.market = square?.icon === "🛒";
     heard.feast = !!square && square.icon !== "🛒";
+    heard.strife = inTown && !!streetFilm?.holds;
     heard.war =
+      !heard.strife &&
       inTown &&
       (filmHolds || !!townWar || !!raidOver(plan?.town, raidPlaying ? raidPlaying.t : now()));
     heard.under =

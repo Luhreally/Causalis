@@ -84,6 +84,8 @@ export class Streets {
   readonly reach: number;
   /** Where its ways out stand: beyond it, open ground (past a great city's sprawl). */
   readonly edge: number;
+  /** Its walls' ring (metres from its square's middle), and whether they stand or were pulled down to a ring street; null: none. */
+  readonly walls: { readonly r: number; readonly standing: boolean } | null;
   private readonly plan: TownPlan;
   private readonly lake: Solid | null;
   private readonly sprawl: { r0: number; r1: number } | null;
@@ -109,7 +111,14 @@ export class Streets {
   constructor(plan: TownPlan, lake: Solid | null) {
     this.plan = plan;
     this.lake = lake;
-    const lots = townLots(plan.family, plan.seed, plan.axis, plan.lots, plan.water),
+    const lots = townLots(
+        plan.family,
+        plan.seed,
+        plan.axis,
+        plan.lots,
+        plan.water,
+        plan.site ?? null,
+      ),
       held = blocksHeld(plan, lotStates(plan)),
       walls = wallRing(plan, lots, held);
     let reach = SQUARE;
@@ -166,6 +175,7 @@ export class Streets {
       }
     }
     this.reach = reach;
+    this.walls = walls ? { r: walls.r, standing: walls.lengths.length > 0 } : null;
     this.sprawl = sprawlOf(plan, lots);
     this.edge = Math.max(reach, this.sprawl ? this.sprawl.r1 : 0) + 8;
     this.solids.forEach((s, i) => {
@@ -285,6 +295,32 @@ export class Streets {
       if (on(p) && on(q)) return false;
     }
     return true;
+  }
+
+  /**
+   * The town's busiest crossings, as its streets are laid now: of the ways within its edge (not its ways out), those that see the
+   * most others — where streets meet in the open — the most first, nearer the square where they tie, `apart` metres apart at the
+   * least, `most` of them. (Read off the same ways its walkers go by, so a town laid out anew has its own.)
+   */
+  crossings(reach: number, most: number, apart: number): Point[] {
+    const w = this.waysFor(reach),
+      n = w.x.length,
+      outs = new Set(w.outs),
+      can: { i: number; joins: number; d: number }[] = [];
+    for (let i = 0; i < n; i++) {
+      const d = Math.hypot(w.x[i]!, w.z[i]!);
+      if (outs.has(i) || d > this.reach) continue;
+      can.push({ i, joins: w.first[i + 1]! - w.first[i]!, d });
+    }
+    can.sort((a, b) => b.joins - a.joins || a.d - b.d || a.i - b.i);
+    const out: Point[] = [];
+    for (const c of can) {
+      if (out.length >= most) break;
+      const p = { x: w.x[c.i]!, z: w.z[c.i]! };
+      if (out.some((q) => Math.hypot(q.x - p.x, q.z - p.z) < apart)) continue;
+      out.push(p);
+    }
+    return out;
   }
 
   /** A way from a to b by the streets, as the points to pass (`reach` kept off every wall). */
