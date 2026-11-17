@@ -68,7 +68,8 @@ type KeyShape = {
 const SHAPES = new Map<string, KeyShape[]>();
 /** How many shapes to know under one first key, and how many first keys (past those, objects used as maps). */
 const SHAPES_PER_KEY = 32,
-  FIRST_KEYS = 4096;
+  FIRST_KEYS = 4096,
+  SHAPE_KEYS_MOST = 48;
 
 function spelt(text: string): Int32Array {
   const n = (text.length + 1) >> 1,
@@ -96,7 +97,9 @@ function shapeOf(came: string[]): KeyShape {
   }
   const sorted = [...came].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)),
     shape: KeyShape = { came, sorted, words: sorted.map(spelt) };
-  if (known.length < SHAPES_PER_KEY) known.push(shape);
+  // (An object of many keys is one used as a map, its keys its own: never asked for twice, and its spelling is all it would keep.
+  // Kept, such shapes were 22 MB of a world at 1,500.)
+  if (known.length < SHAPES_PER_KEY && came.length <= SHAPE_KEYS_MOST) known.push(shape);
   return shape;
 }
 
