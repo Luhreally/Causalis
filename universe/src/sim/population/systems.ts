@@ -83,7 +83,7 @@ import { partnersOf } from "../ecology/lineage.ts";
 import { cropsGive } from "../ecology/crops.ts";
 import { herdGives, pestsLeft } from "../ecology/exchange.ts";
 import { veilYield } from "../planet/fires.ts";
-import { floodYield } from "../planet/floods.ts";
+import { floodBehind, floodYield } from "../planet/floods.ts";
 import { dietDeaths } from "./diet.ts";
 import {
   GONE_KEPT,
@@ -693,6 +693,9 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
         dry = recentDrought && t - recentDrought.t < 2 * YEAR;
       if (dry) causes.push({ ref: recentDrought.id, role: "trigger", weight: 0.6 });
       if (act && act.sign < 0) causes.push({ ref: act.event, role: "agent", weight: 0.8 });
+      // (Its river risen over its fields this year: sim/planet/floods.ts.)
+      const flooded = floodBehind(world, p.cell);
+      if (flooded) causes.push({ ref: flooded, role: "trigger", weight: 0.5 });
       if (parched && thirst < 1000) causes.push({ ref: parched.event, role: "agent", weight: 0.8 });
       // What else pressed the land: its soil worn, its game thinned, its rain moved by the warming.
       const stocks = ecologyOf(world).get(p.cell),
@@ -704,6 +707,8 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
       // Without a dry year, they had grown to more than their land gives: the fields that
       // let them grow so many, and the land itself.
       if (!dry && p.cultivation) causes.push({ ref: p.cultivation, role: "enabler", weight: 0.3 });
+      // (No more than history takes: the land itself last, the lightest of the rest let go.)
+      causes.splice(5);
       causes.push({ ref: p.ref, role: "constraint", weight: dry ? 0.4 : 0.5 });
       p.lastFamine = world.events.emit({
         type: POPULATION_EVENTS.famine.type,
