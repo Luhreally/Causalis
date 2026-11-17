@@ -110,8 +110,27 @@ export function swayOf(
   return raw;
 }
 
-/** A realm's interest groups now: their sway and their demands, each resting on its source. */
-export function interestsOf(ctx: PopulationContext, p: Polity, t: SimTime): Interest[] {
+/**
+ * A realm's interest groups now: their sway and their demands, each resting on its source. Weighed once a moment for a realm as it
+ * stands (its lands and its wars): a dozen of a year's systems ask it of every realm, and weighed afresh for each it was a
+ * twentieth of a year at 1,500. Kept by the realms' own store, never past the moment, and let go on loading.
+ */
+export function interestsOf(ctx: PopulationContext, p: Polity, t: SimTime): readonly Interest[] {
+  const realms = politiesOf(ctx.world),
+    wars = ctx.world.hasStore("war.wars")
+      ? ctx.world.store<WarStore>("war.wars").fighting(p.ref).length
+      : 0;
+  let memo = realms.weighed;
+  if (!memo || memo.t !== t) realms.weighed = memo = { t, by: new Map() };
+  const had = memo.by.get(p.ref);
+  if (had && had.lands === p.members.length && had.wars === wars && had.seat === p.seat)
+    return had.interests as readonly Interest[];
+  const interests = interestsNow(ctx, p, t);
+  memo.by.set(p.ref, { lands: p.members.length, wars, seat: p.seat, interests });
+  return interests;
+}
+
+function interestsNow(ctx: PopulationContext, p: Polity, t: SimTime): Interest[] {
   const { world, generated: g } = ctx,
     realms = politiesOf(world),
     markets = world.store<MarketStore>("economy.markets"),

@@ -222,7 +222,7 @@ export function cohesionOf(b: OrgBinding): number {
 
 /** What organising costs a member a year (working years) in a group of `n`: more as it grows, less as more binds it. */
 export function organisingCost(n: number, cohesion: number): number {
-  return (ORG.cost * dmath.pow(Math.max(1, n) / ORG.small, 0.5)) / Math.max(1, cohesion);
+  return (ORG.cost * dmath.sqrt(Math.max(1, n) / ORG.small)) / Math.max(1, cohesion);
 }
 
 /**

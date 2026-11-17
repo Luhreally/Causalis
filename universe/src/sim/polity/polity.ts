@@ -125,6 +125,11 @@ export class PolityStore implements StateStore {
   /** Saved packed by column (kernel/pack.ts). */
   readonly packed = true;
   private list: Polity[] = [];
+  /** (Each realm's interests as weighed this moment: sim/polity/interests.ts. Not state; let go on loading.) */
+  weighed: {
+    t: number;
+    by: Map<string, { lands: number; wars: number; seat: number; interests: readonly unknown[] }>;
+  } | null = null;
   /** The same realms by ref. */
   private readonly byRef = new Map<string, Polity>();
   private readonly member = new Map<number, Ref>();
@@ -232,6 +237,7 @@ export class PolityStore implements StateStore {
   }
 
   load(state: unknown): void {
+    this.weighed = null;
     const s = state as {
       polities: Polity[];
       grievance: [number, Discontent][];
