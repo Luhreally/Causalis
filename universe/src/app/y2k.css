@@ -1036,6 +1036,39 @@ body.paging .panel:not(.page-panel) .inspector {
 .page-actions .follow.on {
   color: #032b24;
 }
+/* Pin to the people bar, on a page: lit while kept there. One that cannot be followed is greyed, and says why at a press. */
+.page-actions .pin {
+  margin: 0;
+  min-height: 30px;
+  padding: 2px 10px;
+  color: #0b1636;
+}
+.page-actions .pin.on {
+  color: #032b24;
+  border-color: #0b7a62;
+  background: linear-gradient(180deg, #d9fff5 0%, #6ff0cf 46%, #29cfa6 54%, #8bf5dc 100%);
+}
+.page-actions .follow.cannot {
+  opacity: 0.55;
+}
+.page-action-note {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin: -4px 0 8px;
+}
+/* (A phone: Go to, follow, pin and keep in view on one line beside the portrait.) */
+@media (max-width: 640px) {
+  .page-actions {
+    gap: 4px;
+  }
+  .page-actions .go-to,
+  .page-actions .follow,
+  .page-actions .pin,
+  .page-actions .scene-act {
+    padding: 2px 7px;
+    font-size: 0.8rem;
+  }
+}
 .page-body .facts .fact,
 .page-body .fact {
   grid-template-columns: minmax(5.5rem, 36%) minmax(0, 1fr) auto;

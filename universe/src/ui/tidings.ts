@@ -99,31 +99,61 @@ export class Tidings {
     );
   }
 
-  /** A button that follows `ref`, or stops following it: "Follow this land". */
-  follow(ref: string, what: string): HTMLButtonElement {
+  /**
+   * A button that follows `ref`, or stops following it: "Follow this land". Short (a person's, a family's page, whose row
+   * has more beside it on a phone): "👁 Follow", what it follows said in its title. `passed`: the one its ref was followed for
+   * has gone from what it names (a ruler's seat passed on): not lit, and a press follows the one there now in their stead.
+   */
+  follow(ref: string, what: string, short = false, passed?: string): HTMLButtonElement {
+    let stale = !!passed;
     const b = el("button", "follow"),
       say = () => {
-        const on = this.followed.has(ref);
-        b.textContent = on ? `Following ${what} ✓` : `Follow ${what}`;
+        const on = this.followed.has(ref) && !stale;
+        b.textContent = short
+          ? on
+            ? "👁 Following"
+            : "👁 Follow"
+          : on
+            ? `Following ${what} ✓`
+            : `Follow ${what}`;
         b.classList.toggle("on", on);
         b.setAttribute("aria-pressed", String(on));
+        if (short) b.setAttribute("aria-label", on ? `Stop following ${what}` : `Follow ${what}`);
       };
-    b.title = "Be told when something that matters happens. Following changes nothing.";
+    b.title = passed
+      ? `You follow ${passed}, who held this seat before: press to follow the one who holds it now instead.`
+      : short
+        ? `Follow ${what}: be told when something that matters happens, and keep them in the list of what you follow. Following changes nothing.`
+        : "Be told when something that matters happens. Following changes nothing.";
     b.onclick = async () => {
       b.disabled = true;
       try {
         this.set(
           await this.client.query<Followed[]>({
             type: "observe.watch",
-            args: { ref, on: !this.followed.has(ref) },
+            args: { ref, on: stale || !this.followed.has(ref) },
           }),
         );
+        stale = false;
       } finally {
         b.disabled = false;
       }
     };
     this.toggles.add({ b, say });
     say();
+    return b;
+  }
+
+  /**
+   * The follow button of one who cannot be followed: there all the same, saying why in its title, and at a press (a phone
+   * shows no title) through `tell`.
+   */
+  cannotFollow(why: string, tell: (words: string) => void): HTMLButtonElement {
+    const b = el("button", "follow cannot", "👁 Follow");
+    b.title = why;
+    b.setAttribute("aria-disabled", "true");
+    b.setAttribute("aria-label", `Cannot follow: ${why}`);
+    b.onclick = () => tell(why);
     return b;
   }
 

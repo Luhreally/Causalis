@@ -10315,7 +10315,11 @@ async function runPlanetPage(): Promise<void> {
       } else barAt = { cell: null, town: null };
       return barAt;
     },
-    () => [...followedRefs].filter((r) => /^(rule|court|prsn|agent|folk:town):/.test(r)),
+    // (Everyone a page is about who is followed: a ruler, one of a court, of a town's many, a maker, the levy, a far people's one.)
+    () =>
+      [...followedRefs].filter((r) =>
+        /^(rule|court|prsn|agent|folk:town|seat|heal|lv|folkone):/.test(r),
+      ),
   );
   peopleBar.onOpen = (ref) => void pageWindow.open(ref);
   takeUp.push(() => peopleBar.fresh());

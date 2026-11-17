@@ -41,7 +41,36 @@ export type Watch = {
    * no one once the hand is lifted, but are remembered so.
    */
   readonly name?: string;
+  /**
+   * The record it was taken up on, where what its ref names can pass to another (a ruler's coming to rule: the seat's ref
+   * tells whoever holds it now, the one followed is the one who held it then).
+   */
+  readonly of?: string;
 };
+
+/**
+ * A kind of thing followed that another module tells (the host's: a ruler, one of a court, one of a town's many, a maker at
+ * their seat; a family). Each says what it is called, which events are its news and what befell it that no event tells.
+ * Pure reads, as the rest: following one changes nothing.
+ */
+export type WatchKind = {
+  readonly test: (ref: string) => boolean;
+  /** What it is called now; null: history keeps nothing of it to follow. `w`: the watch, as it was taken up. */
+  readonly label: (world: World, ref: Ref, w?: Watch) => string | null;
+  /** The record it is followed by, kept with the watch (null: none). */
+  readonly record?: (world: World, ref: Ref) => string | null;
+  /** Which events are its news, for a watch read from moment `from` on. */
+  readonly news: (world: World, w: Watch, from: number) => (e: HistoryEvent) => boolean;
+  /** What befell it in the whole years [from, to] that no event tells: one gone from their line, a family's new head. */
+  readonly lives?: (world: World, w: Watch, name: string, from: number, to: number) => Tiding[];
+};
+
+const KINDS: WatchKind[] = [];
+/** Tell the watches of a kind of thing (once, as its module is read). */
+export function defineWatchKind(kind: WatchKind): void {
+  KINDS.push(kind);
+}
+const kindOf = (ref: string): WatchKind | undefined => KINDS.find((k) => k.test(ref));
 
 export type Tiding = {
   /** What was being followed, and its name. */
@@ -95,7 +124,9 @@ function handPerson(world: World, ref: string) {
 }
 
 /** What a followed thing is called: "the land of Kirath", "the Kingdom of Asha", "Dena Vorath". */
-export function label(world: World, ref: Ref): string | null {
+export function label(world: World, ref: Ref, w?: Watch): string | null {
+  const told = kindOf(ref);
+  if (told) return told.label(world, ref, w);
   const kind = kindCodeOf(ref);
   if (kind === SURFACE_CELL.code) {
     const cell = parseRef(ref).b,
@@ -126,8 +157,10 @@ export function watches(world: World): (Watch & { label: string })[] {
     .map((w) => ({
       ...w,
       label:
-        label(world, w.ref) ??
-        (w.name ? `${w.name} (your hand lifted)` : "something gone from the world"),
+        label(world, w.ref, w) ??
+        (w.name
+          ? `${w.name} (${kindOf(w.ref) ? "history tells no more of them" : "your hand lifted"})`
+          : "something gone from the world"),
     }));
 }
 
@@ -135,14 +168,26 @@ export function watches(world: World): (Watch & { label: string })[] {
 export function setWatch(world: World, ref: Ref, on: boolean): boolean {
   const ledger = observer(world);
   if (!on) return ledger.watches.delete(ref);
-  if (ledger.watches.has(ref) || !canWatch(world, ref)) return false;
-  const name = ref.startsWith("agent:") ? label(world, ref) : null;
-  ledger.watches.set(ref, { ref, since: world.now, seen: world.now, ...(name ? { name } : {}) });
+  const told = kindOf(ref),
+    had = ledger.watches.get(ref);
+  // (Followed already — unless what its ref names has passed to another since: then it is the one there now who is followed.)
+  if (had && !(told?.record && had.of && told.record(world, ref) !== had.of)) return false;
+  if (!canWatch(world, ref)) return false;
+  // (Remembered by the name it had, and the record it was taken up on, where it can pass from what its ref names.)
+  const name = told || ref.startsWith("agent:") ? label(world, ref) : null,
+    of = told?.record?.(world, ref) ?? null;
+  ledger.watches.set(ref, {
+    ref,
+    since: world.now,
+    seen: world.now,
+    ...(name ? { name } : {}),
+    ...(of ? { of } : {}),
+  });
   return true;
 }
 
 /** The first event after moment `t` (events are kept in the order they happened). */
-function firstAfter(events: World["events"], t: number): number {
+export function firstAfter(events: World["events"], t: number): number {
   let lo = 0,
     hi = events.count;
   while (lo < hi) {
@@ -180,6 +225,11 @@ export function tidings(world: World): Tiding[] {
     out: Tiding[] = [];
   for (const w of ledger.allWatches()) {
     if (w.seen >= world.now) continue;
+    const kind = kindOf(w.ref);
+    if (kind) {
+      out.push(...kindTidings(world, kind, w, told));
+      continue;
+    }
     const name = label(world, w.ref);
     if (name === null) {
       w.seen = world.now;
@@ -217,6 +267,49 @@ export function tidings(world: World): Tiding[] {
     }
     w.seen = world.now;
   }
+  return out;
+}
+
+/** An event told of what is followed. */
+const toldOf = (world: World, watch: Ref, name: string, e: HistoryEvent): Tiding => ({
+  watch,
+  label: name,
+  ref: e.id,
+  year: yearOfMoment(e.t),
+  claim: why(world, e.id).claim,
+  type: e.type,
+  importance: e.importance,
+});
+
+/**
+ * A kind another module tells (a ruler, one of a court, a family): its news since last told — the weightiest few — and what
+ * befell it in the whole years since that no event tells; then all of it marked told. What two things followed share is told
+ * once. Its name is read only when there is something to tell (a host's person's is read off their record).
+ */
+function kindTidings(world: World, kind: WatchKind, w: Watch, told: Set<string>): Tiding[] {
+  const events = world.events,
+    news = kind.news(world, w, w.seen),
+    hits: HistoryEvent[] = [];
+  for (let i = firstAfter(events, w.seen); i < events.count; i++) {
+    const e = events.at(i);
+    if (!told.has(e.id) && news(e)) hits.push(e);
+  }
+  // (Years told through: the year before `seen`'s, as a life's are; one under way is told once it is over.)
+  const from = Math.floor(w.seen / YEAR),
+    to = Math.floor(world.now / YEAR) - 1;
+  w.seen = world.now;
+  if (!hits.length && (!kind.lives || to < from)) return [];
+  const name = label(world, w.ref, w) ?? w.name;
+  if (name === null || name === undefined) return [];
+  const out: Tiding[] = [];
+  for (const e of hits
+    .sort((a, b) => b.importance - a.importance || b.t - a.t)
+    .slice(0, MOST)
+    .sort((a, b) => a.t - b.t)) {
+    told.add(e.id);
+    out.push(toldOf(world, w.ref, name, e));
+  }
+  if (kind.lives && to >= from) out.push(...kind.lives(world, w, name, from, to).slice(-MOST));
   return out;
 }
 
@@ -372,8 +465,20 @@ export function newsLog(world: World, most = LOG_MOST): Tiding[] {
     hits: { watch: Ref; label: string; e: HistoryEvent }[] = [],
     lives: Tiding[] = [];
   for (const w of observer(world).allWatches()) {
-    const name = label(world, w.ref);
+    const kind = kindOf(w.ref),
+      name = label(world, w.ref, w) ?? (kind ? (w.name ?? null) : null);
     if (name === null) continue;
+    if (kind) {
+      const news = kind.news(world, w, w.since);
+      for (let i = firstAfter(events, w.since); i < events.count; i++) {
+        const e = events.at(i);
+        if (told.has(e.id) || !news(e)) continue;
+        told.add(e.id);
+        hits.push({ watch: w.ref, label: name, e });
+      }
+      if (kind.lives) lives.push(...kind.lives(world, w, name, Math.floor(w.since / YEAR), now));
+      continue;
+    }
     if (kindCodeOf(w.ref) === PERSON.code) {
       lives.push(...personNews(world, w.ref, name, Math.floor(w.since / YEAR), now));
       continue;

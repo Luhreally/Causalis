@@ -69,6 +69,8 @@ export { priceWords } from "./economy.ts";
 export { ROUTE_WORDS, SOURCE_WORDS, VIA_WORDS, oneIn, sparedWords, strangersOf } from "./health.ts";
 export {
   canWatch,
+  defineWatchKind,
+  firstAfter,
   label,
   newsLog,
   setWatch,
@@ -77,6 +79,7 @@ export {
   watches,
   type Tiding,
   type Watch,
+  type WatchKind,
 } from "./watch.ts";
 export {
   edges,

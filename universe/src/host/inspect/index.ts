@@ -70,6 +70,8 @@ import { levyManPage, townsfolkPage } from "./townsfolk.ts";
 import { seatPage, withKin } from "./kin.ts";
 import { rulerPage, withLeaderPage } from "./leaders.ts";
 import { courtPage } from "./court.ts";
+import { dynastyPage, linePage, withFamilyLink } from "./family.ts";
+import { withFollow } from "../follow.ts";
 import { songPage, stonePage } from "./memory.ts";
 import { casePage, selfLawBlocks } from "./justice.ts";
 import { namedPage, type NamesArg } from "../names.ts";
@@ -182,6 +184,9 @@ function build(
   if (ref.startsWith("rule:")) return rulerPage(world, ref);
   // One of a realm's court (Lives L5).
   if (ref.startsWith("court:")) return courtPage(world, ref);
+  // A family: a realm's great house, a town's line (asked 2026-11-16).
+  if (ref.startsWith("dyn:")) return dynastyPage(world, ref);
+  if (ref.startsWith("line:")) return linePage(world, ref);
   const code = ref.slice(0, ref.indexOf(":")),
     t = tab ?? undefined;
   switch (code) {
@@ -277,6 +282,8 @@ export function pageOf(
     page = withConcepts(tidy(page));
     // (How they are now, and the way on and off the people bar: B1.)
     if (!brief) page = withBarBlock(world, base, page);
+    // (Their house or line, and the way to follow them and keep them on the bar, whoever they are: asked 2026-11-16.)
+    if (!brief) page = withFollow(world, withFamilyLink(world, base, page));
     // (What its tabs and banner are drawn of: asked 2026-11-13.)
     if (!brief && !only) page = withArt(world, page);
   } catch {

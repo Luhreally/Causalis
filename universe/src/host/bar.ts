@@ -19,6 +19,8 @@ import { pageOf } from "./inspect/index.ts";
 import { goneOf, readingsOf, warOfRealm } from "./inspect/barread.ts";
 import { bare, claimOf } from "./inspect/words.ts";
 import type { QueryHandler } from "./host.ts";
+import { isFamilyRef } from "./family.ts";
+import { familyOnBar } from "./follow.ts";
 
 /** How many of a town's lines are looked through for an elder, and how many years back a seat taken is still news. */
 const ELDER_LINES = 96,
@@ -216,6 +218,32 @@ function leftSeat(world: World, want: Want, name: string): BarPerson {
   };
 }
 
+/**
+ * A family kept on the bar (asked 2026-11-16): its head, by the family's name, read afresh each time, so when the head dies or
+ * the seat passes it is the new one who stands there. A family no one history names heads is kept by its name alone.
+ */
+function familyChip(world: World, ref: string, name: string): BarPerson | null {
+  const f = familyOnBar(world, ref),
+    called = f?.name ?? name,
+    Called = called[0]!.toUpperCase() + called.slice(1),
+    head = f?.head
+      ? personOf(world, { ref: f.head.ref, kind: "pin", why: `Heads ${called}` }, true, null)
+      : null;
+  if (head) return { ...head, key: `${ref}|${head.name}` };
+  const who = f ? "No one history names heads it now" : "History tells no more of it";
+  return {
+    key: `${ref}|${called}`,
+    ref,
+    name: Called,
+    kind: "pin",
+    why: `You keep this family: ${who.toLowerCase()}`,
+    pinned: true,
+    gone: !f,
+    portrait: null,
+    readings: goneReadings(`${who}.`),
+  };
+}
+
 /** The bar at a place: those kept, those followed, and those the place puts there. Nobody yet: no one on it. */
 export function barOf(world: World, ask: BarAsk): BarRead {
   const year = yearOfMoment(world.now),
@@ -226,6 +254,14 @@ export function barOf(world: World, ask: BarAsk): BarRead {
   for (const pin of ask.pins) {
     if (seen.has(pin.ref)) continue;
     seen.add(pin.ref);
+    if (isFamilyRef(pin.ref)) {
+      const p = familyChip(world, pin.ref, pin.name);
+      if (p) {
+        seen.add(p.ref);
+        people.push(p);
+      }
+      continue;
+    }
     const w = byRef.get(pin.ref),
       p = personOf(
         world,
