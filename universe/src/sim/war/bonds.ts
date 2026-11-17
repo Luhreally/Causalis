@@ -443,8 +443,17 @@ export function warCosts(
     // (And of what it makes, what it turns to arms for its wars beyond what it keeps at peace: sim/war/arming.ts, 0 where it
     // turns none. What it keeps armed against a rival at peace is no cost of this war: counted, it ended wars in a year or two
     // that had run four and more, before any siege could take a land.)
-    hostA = Math.max(WAR_YEAR_LEAST, armyOf(ctx, a).people / pa) + warFootingOf(ctx.world, a.ref),
-    hostB = Math.max(WAR_YEAR_LEAST, armyOf(ctx, b).people / pb) + warFootingOf(ctx.world, b.ref),
+    // (And of its host, what this war asks: no more than TERMS.sends times the foe's whole host. A great realm does not keep all
+    // its men from their work for a year to take one small land; counted so, a year before a small town's walls cost it six times
+    // what the town was worth to it, and it went home the year it laid its siege: 104 of 132 sieges in first light's 7th century.)
+    armyA = armyOf(ctx, a).people,
+    armyB = armyOf(ctx, b).people,
+    hostA =
+      Math.max(WAR_YEAR_LEAST, Math.min(armyA, TERMS.sends * armyB) / pa) +
+      warFootingOf(ctx.world, a.ref),
+    hostB =
+      Math.max(WAR_YEAR_LEAST, Math.min(armyB, TERMS.sends * armyA) / pb) +
+      warFootingOf(ctx.world, b.ref),
     // (Those its strikes killed weigh as those who fell: W2.)
     struck = warsOf(ctx.world).tallyOfStrikes(w.ref),
     costs: [number, number] = [
