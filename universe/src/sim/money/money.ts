@@ -110,6 +110,7 @@ import { reckonContraband } from "./contraband.ts";
 import { machineIncome, plannedOf, townRentOf } from "../trade/kept.ts";
 import { provisionCostOf } from "../society/kept.ts";
 import { shelterCostOf } from "../society/kept.ts";
+import { whisperIn } from "../acts/person.ts";
 
 export const MONEY_EVENTS = {
   /** What serves a realm as money changed: coin first struck, notes first issued, the lenders' claims passing as money. */
@@ -736,8 +737,13 @@ export function dutyYear(ctx: PopulationContext, t: SimTime): void {
       seen = loreOf(world).get(p.seat, "currency") ? 1 : 0.4,
       years = duties.get(p.ref) ? LAWS_EVERY : 1,
       was = at(duties, p.ref) ?? new Array<number>(15).fill(0),
+      // (A god's whisper to its ruler: the tariff it wants doubled, or halved. Exactly as wanted where none.)
+      whispered = whisperIn(world, `rule:${p.ref}`, p.ruler.event, year, "tariff"),
+      wanted = whispered
+        ? Math.min(1, want.rate * (whispered.aim === "tariff:raise" ? 2 : 0.5))
+        : want.rate,
       rate =
-        was[DUTY.rate]! / 1000 + stepped(0.25, years) * (want.rate * seen - was[DUTY.rate]! / 1000);
+        was[DUTY.rate]! / 1000 + stepped(0.25, years) * (wanted * seen - was[DUTY.rate]! / 1000);
     // Sanctions: of each realm it fears, what it would shut of its trade with them, against what that trade is worth to its own.
     const sanctions: [number, number][] = [];
     for (const f of finance?.of(p.ref)?.fears ?? []) {

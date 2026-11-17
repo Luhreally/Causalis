@@ -56,6 +56,7 @@ import {
 } from "../underworld.ts";
 import { claimOf, count, item, link, many, part, share, stat, yearAt, yearNow } from "./words.ts";
 import { landLink, landTitle, realmLink } from "./names.ts";
+import { bossLink } from "./boss.ts";
 
 const th = (n: number) => share(n / 1000),
   grain = (n: number) => `${grainSum(Math.max(0, Math.round(n)))} grain's worth`,
@@ -391,7 +392,10 @@ export function crimeGroupPage(world: World, ref: string): PageModel {
     facts.push(
       stat(
         "Boss",
-        `${rec.boss.name}, born year ${rec.boss.born}, boss since year ${rec.boss.since}`,
+        [
+          bossLink(r.ref, g.event, rec.boss.name),
+          `, born year ${rec.boss.born}, boss since year ${rec.boss.since}`,
+        ],
         {
           parts: [part("its bosses so far", count(rec.bosses))],
         },
@@ -485,7 +489,9 @@ export function crimeGroupPage(world: World, ref: string): PageModel {
     color: realmColor(r.ref),
     place: rec?.lands[0] !== undefined ? { scale: "region", cell: rec.lands[0] } : null,
     stats: [
-      ...(rec ? [stat("Boss", rec.boss.name), stat("Men", count(rec.members))] : []),
+      ...(rec
+        ? [stat("Boss", [bossLink(r.ref, g.event, rec.boss.name)]), stat("Men", count(rec.members))]
+        : []),
       stat("Since", `year ${since}`),
     ],
     tabs: [{ id: "overview", name: "Overview", blocks }],

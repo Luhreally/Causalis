@@ -37,6 +37,23 @@ export type DeathNote = {
   readonly how: "draw" | "blow" | "struck";
 };
 
+/**
+ * How the head of a group went (an underworld boss, a group's leader): their group's head ref and name, the year and their age, how
+ * (dead of their years by its draw; taken by the realm; struck down by the god), the chance of their years and the whole chance the
+ * draw stood against, the draw, the event that told it. A boss dead of his years is not told in history: this is the one record.
+ */
+export type HeadNote = {
+  readonly ref: string;
+  readonly name: string;
+  readonly year: number;
+  readonly age: number;
+  readonly how: "years" | "taken" | "struck";
+  readonly years?: number;
+  readonly chance?: number;
+  readonly draw?: number;
+  readonly event?: Ref;
+};
+
 /** The most of the deaths the notes keep (as the hand's gone: the eldest let go first). */
 const NOTES_MOST = 4000;
 
@@ -45,6 +62,25 @@ export class DeathNotes implements StateStore {
   readonly observational = true;
   readonly outsideRules = true;
   private list: DeathNote[] = [];
+  private heads: HeadNote[] = [];
+
+  /** A group's head gone, kept as the draw stood. */
+  addHead(n: HeadNote): void {
+    this.heads.push(n);
+    if (this.heads.length > NOTES_MOST) this.heads.splice(0, this.heads.length - NOTES_MOST);
+  }
+  /** Every head of a group gone that the notes keep, the eldest first. */
+  headsOf(ref: string): HeadNote[] {
+    return this.heads.filter((n) => n.ref === ref);
+  }
+  /** How a group's head went, by their group's head ref and their name (undefined: no note kept). */
+  head(ref: string, name: string): HeadNote | undefined {
+    for (let i = this.heads.length - 1; i >= 0; i--) {
+      const n = this.heads[i]!;
+      if (n.ref === ref && n.name === name) return n;
+    }
+    return undefined;
+  }
 
   add(n: DeathNote): void {
     this.list.push(n);
@@ -66,10 +102,14 @@ export class DeathNotes implements StateStore {
     h.int(0);
   }
   save(): unknown {
-    return this.list.length ? { list: this.list } : {};
+    return this.list.length || this.heads.length
+      ? { list: this.list, ...(this.heads.length ? { heads: this.heads } : {}) }
+      : {};
   }
   load(state: unknown): void {
-    this.list = [...((state as { list?: DeathNote[] } | null)?.list ?? [])];
+    const s = state as { list?: DeathNote[]; heads?: HeadNote[] } | null;
+    this.list = [...(s?.list ?? [])];
+    this.heads = [...(s?.heads ?? [])];
   }
 }
 

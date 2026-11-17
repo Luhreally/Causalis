@@ -44,6 +44,7 @@ import { disarmRealm, footingOf } from "./arming.ts";
 import { capacityOf, orderOf } from "../order/order.ts";
 import { supplyOf } from "./ground.ts";
 import { OCCUPYING } from "./occupation.ts";
+import { whisperIn, type PersonAct } from "../acts/person.ts";
 
 export const BOND_EVENTS = {
   /** A term run out by the clock, or ended by a fall. */
@@ -232,7 +233,9 @@ export function chooseAim(
   press: number,
   ratio: number,
   front: readonly number[],
-): { aim: WarAim; prize: number; source: Ref | null } {
+  /** The year, for a god's whisper to its ruler (none: none read). */
+  year?: number,
+): { aim: WarAim; prize: number; source: Ref | null; whispered?: PersonAct } {
   const { world } = ctx,
     first = front[0]!,
     faiths = beliefOf(world),
@@ -293,8 +296,18 @@ export function chooseAim(
       source: null,
     });
   options.push({ worth: landWorth(first), aim: { aim: "land" }, prize: first, source: null });
+  // (A god's whisper to its ruler: the aim whispered, where it is one they could go for, weighs twice. None where none holds.)
+  const goal =
+      year === undefined ? null : whisperIn(world, `rule:${a.ref}`, a.ruler.event, year, "goal"),
+    want = goal?.aim?.slice(5);
+  if (goal) for (const o of options) if (o.aim.aim === want) o.worth = 2 * Math.max(o.worth, 0.01);
   const best = options.reduce((x, y) => (y.worth > x.worth ? y : x));
-  return { aim: best.aim, prize: best.prize, source: best.source };
+  return {
+    aim: best.aim,
+    prize: best.prize,
+    source: best.source,
+    ...(goal && best.aim.aim === want ? { whispered: goal } : {}),
+  };
 }
 
 /** Whether a war's host goes for its prize by name while it can be reached (else for the fullest land). */
@@ -460,7 +473,14 @@ export function reckonPeace(
   aim: AimKind | undefined,
   got: boolean,
   year: number,
-): { deal: Deal; terms: PeaceTerms; payer: Polity | null; other: Polity | null; grain: number } {
+): {
+  deal: Deal;
+  terms: PeaceTerms;
+  payer: Polity | null;
+  other: Polity | null;
+  grain: number;
+  whispered?: PersonAct;
+} {
   const { world } = ctx,
     won = w.battles.filter((x) => x.won).length,
     edge = 2 * won - w.battles.length,
@@ -483,8 +503,21 @@ export function reckonPeace(
       // (Its reckoning's chance, and what each side could hold the other to at its reach: the peace is a bargain, rules/terms.ts.)
       chance: warReckoning({ won, fought: w.battles.length, ratio, ...costs }).chance,
       ...peaceReach(ctx, a, b),
-    });
-  return termsOfDeal(ctx, deal, a, b, lands, aim, year);
+    }),
+    // (A god's whisper to either's ruler to make a gentle peace: it comes to a truce, what was taken kept. None where none holds.)
+    gentle =
+      whisperIn(world, `rule:${a.ref}`, a.ruler.event, year, "terms") ??
+      whisperIn(world, `rule:${b.ref}`, b.ruler.event, year, "terms");
+  const made = termsOfDeal(
+    ctx,
+    gentle ? { ...deal, bond: "truce", years: TERMS.truceYears } : deal,
+    a,
+    b,
+    lands,
+    aim,
+    year,
+  );
+  return gentle ? { ...made, whispered: gentle } : made;
 }
 
 /** A deal in terms: what it comes to in grain and years, a tribute that cannot be paid falling back on what it can. */

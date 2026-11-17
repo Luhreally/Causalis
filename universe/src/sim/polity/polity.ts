@@ -743,94 +743,7 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
           age,
         })
       : null;
-    // Rule by birth passes to kin. At a death a realm's farthest lands may break away
-    // together — the likelier the farther they lie from the seat and the more aggrieved
-    // they are (rule by birth, fought over by kin, breaks more often).
-    const ways = culture.get(p.seat)!,
-      old = p.ruler,
-      // (Its lands here: a world of another star goes by the rule of the stars.)
-      near = p.members.filter((c) => !heldAmongStars(world, c)),
-      steps = near.length > 3 ? reach(ctx, p) : null,
-      far = steps ? Math.max(...near.map((c) => steps.get(c) ?? 0)) : 0,
-      edge = steps ? near.filter((c) => (steps.get(c) ?? far) >= Math.max(1, far)) : [],
-      unrest = edge.length
-        ? edge.reduce((s, c) => s + store.discontent(c).level, 0) / edge.length
-        : 0,
-      crisis =
-        !!steps &&
-        world.rng.real(RULE, p.seat, t, 21) <
-          (p.succession === 0 ? 0.08 : 0.03) + 0.25 * unrest + 0.02 * Math.max(0, far - 2),
-      // (Whoever the court names takes the seat, unless a claim made at this hour carries it: Lives L5.)
-      next = courtFollows(ctx, p, t);
-    const event = world.events.emit({
-      type: POLITY_EVENTS.succession.type,
-      subjects: [p.ref],
-      place: ctx.provinces.get(p.seat)!.ref,
-      // Rule passes within the realm (its founding is why there is a throne to pass): each
-      // succession stands on the realm, not on the one before, so a long line of ordinary
-      // reigns is not kept whole for ever.
-      causes: [
-        { ref: p.event, role: "enabler", weight: 1 },
-        ...(struck ? [{ ref: struck, role: "trigger" as const, weight: 1 }] : []),
-      ],
-      data: {
-        name: realmName(p),
-        old: old.name,
-        age,
-        ...(next ? { to: next.name, how: next.how, fig: next.fig } : {}),
-      },
-    });
-    p.ruler = next
-      ? { name: next.name, sex: next.sex, born: next.born, since: year, event }
-      : crown(
-          world,
-          ways,
-          p.seat,
-          t,
-          event,
-          p.succession === 0 ? old.name.split(" ").slice(1).join(" ") : null,
-          ctx.life.adulthood,
-        );
-    // (A house with no one left: someone of a marriage may come forward, and the realm may pass with them: D1.)
-    const claim = claimAtDeath(ctx, p, old, event, next !== null, t);
-    if (claim?.ruler) p.ruler = { ...claim.ruler, since: year, event };
-    if (p.ended !== null) continue;
-    if (crisis && edge.length && edge.length < near.length) {
-      // The lands farthest from the seat break away together, and their grievance is why; the one who wanted the seat leads them.
-      const aggrieved = [...edge].sort(
-          (x, y) => store.discontent(y).level - store.discontent(x).level || x - y,
-        )[0]!,
-        grievance = store.discontent(aggrieved).cause,
-        claimant = courtClaimant(world, p, next?.fig);
-      const split = world.events.emit({
-        type: POLITY_EVENTS.split.type,
-        subjects: [p.ref],
-        place: ctx.provinces.get(p.seat)!.ref,
-        causes: [
-          { ref: event, role: "trigger", weight: 0.6 },
-          ...(grievance ? [{ ref: grievance, role: "pressure" as const, weight: 0.4 }] : []),
-        ],
-        data: {
-          name: realmName(p),
-          lands: edge.length,
-          ...(claimant ? { by: claimant.name, fig: claimant.fig } : {}),
-        },
-      });
-      for (const c of edge) store.leave(p, c);
-      // Where a market town lies among them, they raise their own realm there under a
-      // rival claimant; else each goes its own way.
-      const town = edge
-        .flatMap((c) => ctx.settlements.inProvince(c).filter((s) => s.market))
-        .sort((x, y) => y.population - x.population || (x.ref < y.ref ? -1 : 1))[0];
-      const raised = town ? raiseRealm(ctx, town, edge, split, t, p.ref) : null;
-      if (raised && claimant)
-        raised.ruler = {
-          ...raised.ruler,
-          name: claimant.name,
-          sex: claimant.sex,
-          born: claimant.born,
-        };
-    }
+    rulerDies(ctx, p, t, struck);
   }
 
   // 6. Institutions reform when who holds which powers has moved from them (rules/holds.ts; not a general's rule, which
@@ -880,6 +793,106 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
   }
   // The realms that have ended will not change again: fold them into the digest.
   store.seal();
+}
+
+/**
+ * A ruler dead: rule passes by the realm's rule, and sometimes breaks it (polityYear's step 5, and the god striking one down at the
+ * moment of the act: sim/acts/person.ts). `struck`: the god's event their death stands on.
+ */
+export function rulerDies(ctx: PopulationContext, p: Polity, t: SimTime, struck: Ref | null): void {
+  const { world } = ctx,
+    store = politiesOf(world),
+    culture = cultureOf(world),
+    year = yearOfMoment(t),
+    age = year - p.ruler.born;
+  // Rule by birth passes to kin. At a death a realm's farthest lands may break away
+  // together — the likelier the farther they lie from the seat and the more aggrieved
+  // they are (rule by birth, fought over by kin, breaks more often).
+  const ways = culture.get(p.seat)!,
+    old = p.ruler,
+    // (Its lands here: a world of another star goes by the rule of the stars.)
+    near = p.members.filter((c) => !heldAmongStars(world, c)),
+    steps = near.length > 3 ? reach(ctx, p) : null,
+    far = steps ? Math.max(...near.map((c) => steps.get(c) ?? 0)) : 0,
+    edge = steps ? near.filter((c) => (steps.get(c) ?? far) >= Math.max(1, far)) : [],
+    unrest = edge.length
+      ? edge.reduce((s, c) => s + store.discontent(c).level, 0) / edge.length
+      : 0,
+    crisis =
+      !!steps &&
+      world.rng.real(RULE, p.seat, t, 21) <
+        (p.succession === 0 ? 0.08 : 0.03) + 0.25 * unrest + 0.02 * Math.max(0, far - 2),
+    // (Whoever the court names takes the seat, unless a claim made at this hour carries it: Lives L5.)
+    next = courtFollows(ctx, p, t);
+  const event = world.events.emit({
+    type: POLITY_EVENTS.succession.type,
+    subjects: [p.ref],
+    place: ctx.provinces.get(p.seat)!.ref,
+    // Rule passes within the realm (its founding is why there is a throne to pass): each
+    // succession stands on the realm, not on the one before, so a long line of ordinary
+    // reigns is not kept whole for ever.
+    causes: [
+      { ref: p.event, role: "enabler", weight: 1 },
+      ...(struck ? [{ ref: struck, role: "trigger" as const, weight: 1 }] : []),
+    ],
+    data: {
+      name: realmName(p),
+      old: old.name,
+      age,
+      ...(next ? { to: next.name, how: next.how, fig: next.fig } : {}),
+    },
+  });
+  p.ruler = next
+    ? { name: next.name, sex: next.sex, born: next.born, since: year, event }
+    : crown(
+        world,
+        ways,
+        p.seat,
+        t,
+        event,
+        p.succession === 0 ? old.name.split(" ").slice(1).join(" ") : null,
+        ctx.life.adulthood,
+      );
+  // (A house with no one left: someone of a marriage may come forward, and the realm may pass with them: D1.)
+  const claim = claimAtDeath(ctx, p, old, event, next !== null, t);
+  if (claim?.ruler) p.ruler = { ...claim.ruler, since: year, event };
+  if (p.ended !== null) return;
+  if (crisis && edge.length && edge.length < near.length) {
+    // The lands farthest from the seat break away together, and their grievance is why; the one who wanted the seat leads them.
+    const aggrieved = [...edge].sort(
+        (x, y) => store.discontent(y).level - store.discontent(x).level || x - y,
+      )[0]!,
+      grievance = store.discontent(aggrieved).cause,
+      claimant = courtClaimant(world, p, next?.fig);
+    const split = world.events.emit({
+      type: POLITY_EVENTS.split.type,
+      subjects: [p.ref],
+      place: ctx.provinces.get(p.seat)!.ref,
+      causes: [
+        { ref: event, role: "trigger", weight: 0.6 },
+        ...(grievance ? [{ ref: grievance, role: "pressure" as const, weight: 0.4 }] : []),
+      ],
+      data: {
+        name: realmName(p),
+        lands: edge.length,
+        ...(claimant ? { by: claimant.name, fig: claimant.fig } : {}),
+      },
+    });
+    for (const c of edge) store.leave(p, c);
+    // Where a market town lies among them, they raise their own realm there under a
+    // rival claimant; else each goes its own way.
+    const town = edge
+      .flatMap((c) => ctx.settlements.inProvince(c).filter((s) => s.market))
+      .sort((x, y) => y.population - x.population || (x.ref < y.ref ? -1 : 1))[0];
+    const raised = town ? raiseRealm(ctx, town, edge, split, t, p.ref) : null;
+    if (raised && claimant)
+      raised.ruler = {
+        ...raised.ruler,
+        name: claimant.name,
+        sex: claimant.sex,
+        born: claimant.born,
+      };
+  }
 }
 
 /**

@@ -505,7 +505,7 @@ function letGo(world: World, c: PopulationContext, w: Window, cause: Ref, t: num
     notable(d.agent, event);
     if (byGod) notable(p.agent, event);
     if (d.dead) {
-      die(c, w, victim, year);
+      handAgentDies(c, w, victim, year);
       // (How they died, for their page: by this blow. A reading beside the world, sim/hand/deaths.ts.)
       blowDeath(world, {
         village: w.village,
@@ -577,7 +577,7 @@ function letGo(world: World, c: PopulationContext, w: Window, cause: Ref, t: num
  * remembered among the hand's gone, as one dead of their years is (sim/population/systems.ts
  * vitalMonth).
  */
-function die(c: PopulationContext, w: Window, a: Agent, year: number): void {
+export function handAgentDies(c: PopulationContext, w: Window, a: Agent, year: number): void {
   const band = bandOfAge(year - a.birthYear, c.life);
   c.provinces.get(w.cell)!.counts.add(row(a.sex, band), a.occupation, -1);
   c.history.addDeaths(w.cell, year, band, 1);

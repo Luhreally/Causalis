@@ -22,11 +22,18 @@ import {
 } from "../../kernel/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { politiesOf, realmName } from "../polity/polity.ts";
-import { courtOf } from "../court/court.ts";
-import { handOf } from "../hand/hand.ts";
+import { courtFigureDies, courtOf } from "../court/court.ts";
+import { rulerDies } from "../polity/polity.ts";
+import { bandOfAge, handOf } from "../hand/hand.ts";
+import { handAgentDies } from "../hand/possess.ts";
+import { underworldOf, type CrimeGroup } from "../order/underworld-kept.ts";
+import { orgsOf, type Org } from "../order/groups-kept.ts";
+import { housesOf } from "../order/houses.ts";
+import { ORG, ORG_AIMS, UNDER } from "../../rules/index.ts";
+
 import { loreOf } from "../lore/lore.ts";
 import { agentName, nextPrinciple } from "./local.ts";
-import { DeathNotes } from "../hand/deaths.ts";
+import { DeathNotes, deathNotesOf } from "../hand/deaths.ts";
 
 export const PERSON_ACT_EVENTS = {
   /** An act of the god on one person. */
@@ -74,7 +81,7 @@ export type PersonAct = {
   readonly command: Ref;
   readonly event: Ref;
   /** A whisper's aim. */
-  readonly aim?: "war" | "peace";
+  readonly aim?: string;
   /** The event it was spent by (protection, a smiting, a whisper to war). */
   used?: Ref;
 };
@@ -156,10 +163,55 @@ export function whisperOn(
   ruler: Ref,
   year: number,
 ): { by: number; act: PersonAct | null } {
-  const a = actOn(world, `rule:${realm}`, ruler, year, "whisper");
+  const a = whisperIn(world, `rule:${realm}`, ruler, year, "war");
   if (!a) return { by: 1, act: null };
   return { by: a.aim === "peace" ? WHISPER_PEACE : WHISPER_WAR, act: a };
 }
+
+/** Which of a person's choices a whisper is to: its family ("war": to war or to peace; "law", "tariff", "bar", "wed", "aim"). */
+export const whisperFamily = (aim: string): string =>
+  aim === "war" || aim === "peace" ? "war" : (aim.split(":")[0] ?? aim);
+
+/** The whisper of a family that holds on one now, unspent (null: none). */
+export function whisperIn(
+  world: World,
+  ref: string,
+  of: string | null,
+  year: number,
+  family: string,
+): PersonAct | null {
+  const store = personActsOf(world);
+  if (!store || store.dormant()) return null;
+  return (
+    store
+      .on(ref, of, year)
+      .find(
+        (a) => a.kind === "whisper" && a.aim !== undefined && whisperFamily(a.aim) === family,
+      ) ?? null
+  );
+}
+
+/**
+ * What the god's blessings and curses lay on one's fortunes this year (asked 2026-11-16: "bless and curse reach more than death"):
+ * a blessing doubles what goes their way (their host in battle, a child to their line, their group's strength), a curse halves it.
+ * Exactly 1 where none holds. What goes against them (death, plots and coups, being taken) is hazardBy's, the other way.
+ */
+export function luckBy(world: World, ref: string, of: string | null, year: number): number {
+  const store = personActsOf(world);
+  if (!store || store.dormant()) return 1;
+  let by = 1;
+  for (const a of store.on(ref, of, year))
+    if (a.kind === "bless") by /= BLESS_BY;
+    else if (a.kind === "curse") by /= CURSE_BY;
+  return by;
+}
+
+/** The fortunes of a realm's ruler now, in battle (luckBy on `rule:<realm>`): exactly 1 where none holds. */
+export const rulerLuck = (world: World, realm: Ref, ruler: Ref, year: number): number =>
+  luckBy(world, `rule:${realm}`, ruler, year);
+/** What the god lays on plots and coups against a realm's ruler now (hazardBy): exactly 1 where none holds. */
+export const rulerHazard = (world: World, realm: Ref, ruler: Ref, year: number): number =>
+  hazardBy(world, `rule:${realm}`, ruler, year);
 
 /** An act spent: by the event that spent it. */
 export function spend(a: PersonAct, event: Ref): void {
@@ -167,23 +219,93 @@ export function spend(a: PersonAct, event: Ref): void {
 }
 
 /** The kinds of person the god acts on. */
-export type PersonKind = "ruler" | "court" | "agent" | "holder";
+export type PersonKind = "ruler" | "court" | "agent" | "holder" | "boss" | "house";
 
 export function personKind(ref: string): PersonKind | null {
   if (ref.startsWith("rule:pol:")) return "ruler";
   if (/^court:pol:\d+:\d+:\d+$/.test(ref)) return "court";
   if (/^agent:\d+$/.test(ref)) return "agent";
   if (ref.startsWith("folk:town:")) return "holder";
+  if (/^boss:pol:\d+:\d+:ev:\d+:\d+$/.test(ref)) return "boss";
+  if (/^dyn:pol:\d+:\d+:ev:\d+:\d+$/.test(ref)) return "house";
   return null;
 }
 
-/** Which acts reach each kind of person, and why the rest do not. */
+/** A boss's or a group leader's ref, by their group's realm and the event it rose by: whoever heads it now. */
+export const bossRef = (realm: string, event: string): string => `boss:${realm}:${event}`;
+function parseBoss(ref: string): { realm: Ref; event: Ref } | null {
+  const m = /^boss:(pol:\d+:\d+):(ev:\d+:\d+)$/.exec(ref);
+  return m ? { realm: m[1] as Ref, event: m[2] as Ref } : null;
+}
+
+/** A group's head by their ref: an underworld group's boss, or a group's leader (null: no group so). */
+export function groupOfBoss(
+  world: World,
+  ref: string,
+):
+  | { readonly kind: "under"; readonly g: CrimeGroup; readonly realm: Ref }
+  | { readonly kind: "org"; readonly g: Org; readonly realm: Ref }
+  | null {
+  const at = parseBoss(ref);
+  if (!at) return null;
+  const crime = underworldOf(world)
+    ?.of(at.realm)
+    ?.groups.find((g) => g.event === at.event);
+  if (crime) return { kind: "under", g: crime, realm: at.realm };
+  const org = orgsOf(world)
+    ?.of(at.realm)
+    ?.orgs.find((g) => g.event === at.event);
+  return org ? { kind: "org", g: org, realm: at.realm } : null;
+}
+
+/**
+ * Which acts reach each kind of person, and why the rest do not. One of a court has no protection: no death by violence is drawn
+ * for them (a move found puts them out of the court, a purge ends a house's hold, and neither draws a death).
+ */
 export const ACTS_FOR: Readonly<Record<PersonKind, readonly PersonActKind[]>> = {
   ruler: ["bless", "curse", "protect", "smite", "inspire", "whisper"],
   court: ["bless", "curse", "smite", "inspire"],
   agent: ["bless", "curse", "protect", "heal", "smite", "inspire"],
   holder: ["inspire"],
+  boss: ["bless", "curse", "protect", "smite", "whisper"],
+  house: ["whisper"],
 };
+
+/** The whispers each kind of person can be given (a group leader's: toward each aim but its first; a boss's: none of choice). */
+export function whispersFor(world: World, kind: PersonKind, ref: string): string[] {
+  if (kind === "ruler")
+    return [
+      "war",
+      "peace",
+      "goal:land",
+      "goal:tribute",
+      "goal:back",
+      "terms:truce",
+      "law:reform",
+      "law:hold",
+      "tariff:raise",
+      "tariff:lower",
+      "bar:ban",
+      "bar:lift",
+    ];
+  if (kind === "house") {
+    // (A house that holds the seat weds into none: its heirs are the realm's.)
+    const m = /^dyn:(pol:\d+:\d+):(ev:\d+:\d+)$/.exec(ref),
+      h = m
+        ? housesOf(world)
+            ?.of(m[1] as Ref)
+            ?.houses.find((x) => x.event === m[2])
+        : undefined;
+    return h && !h.crown ? ["wed", "wed:alone"] : [];
+  }
+  if (kind === "boss") {
+    const at = groupOfBoss(world, ref);
+    if (at?.kind !== "org") return [];
+    const first = ORG_AIMS[at.g.aim];
+    return ORG_AIMS.filter((x) => x !== first).map((x) => `aim:${x}`);
+  }
+  return [];
+}
 
 /** One the god can act on, as history holds them now: their name, which of them, and their land (null: none such). */
 export function personNow(
@@ -237,6 +359,26 @@ export function personNow(
       s = m ? c.settlements.get(m[1] as Ref) : undefined;
     return s ? { kind, name: s.name, of: null, cell: s.cell, subject: s.ref } : null;
   }
+  if (kind === "boss") {
+    // (Whoever heads the group now: an act is laid on them by name, and does not pass to the next.)
+    const at = groupOfBoss(world, ref),
+      r = at ? politiesOf(world).get(at.realm) : undefined;
+    if (!at || !r || r.ended !== null) return null;
+    const head = at.kind === "under" ? at.g.boss : at.g.leader;
+    return { kind, name: head.name, of: head.name, cell: at.g.home, subject: r.ref };
+  }
+  if (kind === "house") {
+    const m = /^dyn:(pol:\d+:\d+):(ev:\d+:\d+)$/.exec(ref),
+      r = m ? politiesOf(world).get(m[1] as Ref) : undefined,
+      h = m
+        ? housesOf(world)
+            ?.of(m[1] as Ref)
+            ?.houses.find((x) => x.event === m[2])
+        : undefined;
+    return r && r.ended === null && h
+      ? { kind, name: `the house of ${h.name}`, of: null, cell: h.seat, subject: r.ref }
+      : null;
+  }
   return null;
 }
 
@@ -244,7 +386,7 @@ export function personNow(
 export type PersonActArgs = {
   ref: string;
   kind: PersonActKind;
-  aim?: "war" | "peace";
+  aim?: string;
   name?: string;
 };
 
@@ -260,8 +402,15 @@ export function personActProblem(c: PopulationContext, args: unknown): string | 
   const kind = a.kind as PersonActKind;
   if (!ACTS_FOR[who.kind].includes(kind)) return `that act does not reach ${whoWords(who.kind)}`;
   const year = yearOfMoment(c.world.now);
-  if (kind === "whisper" && a.aim !== "war" && a.aim !== "peace")
-    return "a whisper is to war or to peace";
+  if (kind === "whisper") {
+    const aims = whispersFor(c.world, who.kind, ref);
+    if (typeof a.aim !== "string" || !aims.includes(a.aim))
+      return aims.length
+        ? `a whisper is one of ${aims.join(", ")}`
+        : "they make no choice a whisper reaches";
+    if (whisperIn(c.world, ref, who.of, year, whisperFamily(a.aim)))
+      return "a whisper on that choice holds on them already";
+  }
   if (kind === "heal") {
     const w = handOf(c.world).resting,
       ag = w?.agents.find((x) => x.id === Number(ref.slice(6)));
@@ -269,19 +418,25 @@ export function personActProblem(c: PopulationContext, args: unknown): string | 
   }
   if (kind === "inspire" && !nextPrinciple(c, who.cell))
     return "their land has nothing it could come to know next";
-  if (["protect", "smite", "whisper"].includes(kind) && actOn(c.world, ref, who.of, year, kind))
+  if (["protect", "smite"].includes(kind) && actOn(c.world, ref, who.of, year, kind))
     return "that holds on them already";
   return null;
 }
 
+/** Whether a smiting ends them at once (else at their group's next reckoning: a boss's, a group leader's). */
+export const smitesAtOnce = (kind: PersonKind): boolean => kind !== "boss";
+/** How often a group is reckoned, the most a smiting on its head waits (rules: UNDER.every, ORG.every). */
+const GROUP_EVERY = Math.max(UNDER.every, ORG.every);
+
 const whoWords = (k: PersonKind) =>
-  k === "ruler"
-    ? "a ruler"
-    : k === "court"
-      ? "one of a court"
-      : k === "agent"
-        ? "one under your hand"
-        : "one of a town's many: lay your hand on their town and every act reaches them";
+  ({
+    ruler: "a ruler",
+    court: "one of a court",
+    agent: "one under your hand",
+    holder: "one of a town's many: lay your hand on their town and every act reaches them",
+    boss: "the head of a group",
+    house: "a house",
+  })[k];
 
 /** Teach a peopled world the god's acts on one person. */
 export function installPersonActs(world: World, ctx: () => PopulationContext): void {
@@ -304,7 +459,7 @@ export function installPersonActs(world: World, ctx: () => PopulationContext): v
             : kind === "bless" || kind === "curse" || kind === "whisper"
               ? year + ACT_YEARS
               : kind === "smite"
-                ? year + 2
+                ? year + (smitesAtOnce(who.kind) ? 2 : GROUP_EVERY + 1)
                 : year + 1,
         name = a.name && who.kind === "holder" ? a.name : who.name,
         place = c.provinces.get(who.cell)?.ref ?? null,
@@ -358,6 +513,32 @@ export function installPersonActs(world: World, ctx: () => PopulationContext): v
         act.used = found;
       }
       store.add(act);
+      // A smiting ends them at the act's moment, by their own death's path: the seat passes, the court names its next, the
+      // hand lets them go. (A group's head is struck at its next reckoning: its successor is its reckoning's to name.)
+      if (kind === "smite" && smitesAtOnce(who.kind)) {
+        const struck = struckBy(world, act, who.subject, place, {
+          ...(r ? { realm: realmName(r) } : {}),
+          ...(who.fig !== undefined ? { fig: who.fig } : {}),
+          now: 1,
+        });
+        if (who.kind === "ruler") rulerDies(c, r!, t, struck);
+        else if (who.kind === "court") courtFigureDies(c, r!, who.fig!, t, struck);
+        else if (who.kind === "agent") {
+          const w = handOf(world).resting!,
+            ag = w.agents.find((x) => x.id === Number(a.ref.slice(6)))!;
+          handAgentDies(c, w, ag, year);
+          deathNotesOf(world)?.add({
+            village: w.village,
+            id: ag.id,
+            t,
+            year,
+            age: year - ag.birthYear,
+            band: bandOfAge(year - ag.birthYear, c.life),
+            event: struck,
+            how: "struck",
+          });
+        }
+      }
     },
   });
   // At each year's turn, what has lifted is let go: told where it held for years, kept a while as done.

@@ -1628,6 +1628,13 @@ p.pick-tag {
   text-align: left;
   color: var(--act);
 }
+/* The whispers, behind one button: a row of their own, shown when it is pressed. */
+.god-acts .god-whispers[hidden] {
+  display: none;
+}
+.god-acts .god-whispers {
+  margin-top: 6px;
+}
 @media (max-width: 640px) {
   .god-acts .tool,
   .god-acts .god-held {

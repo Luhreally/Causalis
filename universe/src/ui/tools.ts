@@ -1039,7 +1039,21 @@ const GOD_ACT: Readonly<Record<string, readonly [string, string]>> = {
     "🕊️ Whisper: peace",
     "for ten years their realm chooses no war of its own (wars on it, and wars it is called to, are not theirs to choose).",
   ],
+  "whisper:goal:land": ["🗺️ Whisper: a war for land", ""],
+  "whisper:goal:tribute": ["💰 Whisper: a war for tribute", ""],
+  "whisper:goal:back": ["↩️ Whisper: a war for what was lost", ""],
+  "whisper:terms:truce": ["🤝 Whisper: a gentle peace", ""],
+  "whisper:law:reform": ["📜 Whisper: reform a law", ""],
+  "whisper:law:hold": ["🏛️ Whisper: hold the laws", ""],
+  "whisper:tariff:raise": ["⚖️ Whisper: raise the tariff", ""],
+  "whisper:tariff:lower": ["⚖️ Whisper: lower the tariff", ""],
+  "whisper:bar:ban": ["🚫 Whisper: bar the trade", ""],
+  "whisper:bar:lift": ["🍶 Whisper: lift the bar", ""],
+  "whisper:wed": ["💍 Whisper to the house: wed", ""],
+  "whisper:wed:alone": ["🏰 Whisper to the house: stand alone", ""],
 };
+/** A whisper toward a group's aim, by its name. */
+const aimLabel = (aim: string) => `🗣️ Whisper: toward ${aim.slice(4)}`;
 const GOD_HELD: Readonly<Record<string, string>> = {
   bless: "🌟 Blessed",
   curse: "🌑 Cursed",
@@ -1049,9 +1063,21 @@ const GOD_HELD: Readonly<Record<string, string>> = {
   inspire: "✨ Inspired",
   "whisper:war": "🗣️ Whispered to war",
   "whisper:peace": "🕊️ Whispered to hold from war",
+  "whisper:goal:land": "🗺️ Whispered to a war for land",
+  "whisper:goal:tribute": "💰 Whispered to a war for tribute",
+  "whisper:goal:back": "↩️ Whispered to a war for what was lost",
+  "whisper:terms:truce": "🤝 Whispered to a gentle peace",
+  "whisper:law:reform": "📜 Whispered to reform a law",
+  "whisper:law:hold": "🏛️ Whispered to hold the laws",
+  "whisper:tariff:raise": "⚖️ Whispered to raise the tariff",
+  "whisper:tariff:lower": "⚖️ Whispered to lower the tariff",
+  "whisper:bar:ban": "🚫 Whispered to bar the trade",
+  "whisper:bar:lift": "🍶 Whispered to lift the bar",
+  "whisper:wed": "💍 Their house whispered to wed",
+  "whisper:wed:alone": "🏰 Their house whispered to stand alone",
 };
 
-type GodAct = { kind: string; aim?: string; problem: string | null };
+type GodAct = { kind: string; aim?: string; ref?: string; problem: string | null; does?: string };
 type GodHeld = {
   kind: string;
   aim?: string;
@@ -1060,6 +1086,7 @@ type GodHeld = {
   left: number;
   event: string;
   spent: string | null;
+  does?: string;
 };
 
 /**
@@ -1091,14 +1118,33 @@ function godPersonActs(
       : `${GOD_HELD[key] ?? h.kind}: ${h.left} ${h.left === 1 ? "year" : "years"} left (until ${h.until})`;
     line.onclick = () => ctx.open(h.spent ?? h.event);
     box.append(line);
+    // (What it lays on them while it holds, as the rules read it.)
+    if (!done && h.does) box.append(el("p", "muted", h.does));
+  }
+  // (The whispers, a choice each, in a row of their own behind one button: a ruler has a dozen.)
+  const whispers = el("div", "tools god-acts-row god-whispers");
+  whispers.hidden = true;
+  if (acts.some((a) => a.kind === "whisper" && !a.problem)) {
+    const open = el("button", "tool", "🗣️ Whisper…");
+    open.title = "What the god can whisper to them: one choice of theirs it bends";
+    open.onclick = () => {
+      whispers.hidden = !whispers.hidden;
+      open.textContent = whispers.hidden ? "🗣️ Whisper…" : "🗣️ Whisper ▴";
+    };
+    tools.append(open);
   }
   for (const a of acts) {
     if (a.problem) continue;
+    const row = a.kind === "whisper" ? whispers : tools;
     const key = a.kind === "whisper" ? `whisper:${a.aim}` : a.kind,
-      [label, effect] = GOD_ACT[key] ?? [a.kind, ""];
-    twice(tools, note, label, `${first}: ${effect}`, async () => {
+      [label, effect] =
+        GOD_ACT[key] ?? (a.aim?.startsWith("aim:") ? [aimLabel(a.aim), ""] : [a.kind, ""]);
+    // (A group's head is struck at its next reckoning, not at once: the button says so.)
+    const shown =
+      a.kind === "smite" && args.atOnce === false ? `${label} at their group's reckoning` : label;
+    twice(row, note, shown, `${first}: ${a.does ?? effect}`, async () => {
       await ctx.client.command("act.person", {
-        ref,
+        ref: a.ref ?? ref,
         kind: a.kind,
         name,
         ...(a.aim ? { aim: a.aim } : {}),
@@ -1160,7 +1206,9 @@ function godPersonActs(
   }
   box.append(
     tools,
+    whispers,
     note,
+    ...(typeof args.help === "string" ? [el("p", "muted", args.help)] : []),
     el("p", "muted", "Free: the god's hand costs nothing. Each act is told in history as yours."),
   );
   into.append(box);
