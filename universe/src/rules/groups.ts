@@ -143,6 +143,8 @@ export const ORG = {
   /** Of a trade on roads or at sea within a preying group's reach, the most it can take a year (est: the Barbary corsairs and the
    * Caribbean's buccaneers at their height took a few in a hundred of the trade that passed; brigands on unpoliced roads as much). */
   catch: 0.05,
+  /** The least of a road or a sea left unwatched that keeps a preying crew. */
+  unwatched: 0.2,
   /** The most of a land's trade preying can take, all groups together. */
   takeMost: 0.15,
   /** Those a preying group kills a year, for each of its men (travellers, crews and guards, its own). */
@@ -320,6 +322,9 @@ export function crewOf(take: number, wage: number, cohesion: number, pool: numbe
  */
 export function preyTake(trade: number, guarded: number): number {
   const open = 1 - clamp01(guarded);
+  // (Watched more than four parts in five, a road or a sea keeps no crew at all: each is taken within a season or two, and in a
+  // land of millions the little left unwatched would else keep a named band in every one.)
+  if (open < ORG.unwatched) return 0;
   return Math.max(0, trade) * ORG.catch * open * open;
 }
 

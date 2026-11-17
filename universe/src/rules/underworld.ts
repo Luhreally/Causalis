@@ -84,6 +84,13 @@ export const UNDER = {
   crew: 20,
   /** A group's man costs this many of a working man's years a year (his keep, his risk, his arms). */
   keep: 1.6,
+  /** How much dearer a man is to keep where the crackdown bites in full: a hunted man is paid for his risk of the cell or the
+   * grave, and a group that cannot pay it loses him (est: several times his keep). */
+  hunted: 3,
+  /** A road's groups wither where its pull falls below this share of the line at which one would rise. */
+  withers: 0.5,
+  /** The most of what its treasury takes in that a realm spends on a crackdown: past it, it is given up as far as it cannot be paid. */
+  afford: 0.1,
   /** Of a realm's men who are skilled in violence and idle, the most a group can recruit. */
   recruit: 0.5,
   /** What a group spends a year of what it holds (its keep, its bribes, its show). */
@@ -135,6 +142,8 @@ export const UNDER = {
   /** Street gangs: a town has poor quarters from this many people; one small gang for so many young men at the full pull. */
   town: 2000,
   gangOf: 120,
+  /** A town's gangs fight by how many they are to this many of its people (ten and more to it: at the worst). */
+  fightTown: 20000,
   /** A federation forms where a realm's towns hold this many gangs of one identity; it reaches a town with this many. */
   fedForm: 8,
   fedTown: 2,
@@ -163,14 +172,16 @@ export type ProtectionFacts = {
 /**
  * The want of private protection (0 … 1): as far as holdings are unsafe and deals not held past the point where a protector's cut is
  * worth paying (what unsafety would take, UNDER.lost of a trade at the worst, against UNDER.cut), among those who have a trade worth
- * guarding, less where the seat's own reach supplies it.
+ * guarding, and only as far as the seat's own reach does not supply it: a protector sells what the state does not, and where its
+ * officers and courts reach every land there is nothing left to sell (Gambetta: the mafia as the trade in a protection the state fails
+ * to give).
  */
 export function protectionWanted(f: ProtectionFacts): number {
   const unsafe = 1 - (0.5 * clamp01(f.secure) + 0.5 * clamp01(f.deals)),
     pays = UNDER.cut / UNDER.lost,
     paid = clamp01((unsafe - pays) / (1 - pays)),
     rich = f.trade > 0 ? clamp01((2 * f.trade) / (f.trade + Math.max(1, f.earned))) : 0;
-  return clamp01(paid * (0.3 + 0.7 * rich) * (1 - 0.6 * clamp01(f.capacity)));
+  return clamp01(paid * (0.3 + 0.7 * rich) * (1 - clamp01(f.capacity)));
 }
 
 /** Who could sell it: the men of a realm skilled in violence and idle, each a share of its people. */

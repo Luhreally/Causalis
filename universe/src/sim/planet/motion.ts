@@ -9,7 +9,6 @@
 // What a land can be lived on and farmed is read through all of it (population/model.ts biomeUnder with a Shift): its
 // warmth, its sea, its ice. One row of whole numbers for the world, one small number a tracked land; nothing grows with
 // history but the few lands' turns told.
-import { surfaceWrites } from "./surface.ts";
 import {
   YEAR,
   Hasher,
@@ -182,6 +181,17 @@ export class MotionStore implements StateStore {
   private readonly digest: [number, number] = [0x811c9dc5, 0];
   /** The reading last made of it (not state: made again from the state when asked). */
   kept: { version: number; god: number; shift: Shift } | null = null;
+  /** What was read off the ground as it lay under one surface (not state: read again when the surface is another, and after a load):
+   * how far inside its sheets each land lies by warmth, and the seas' area. */
+  read: { surface: string; inside: Map<number, Float32Array>; seas: number | null } = {
+    surface: "",
+    inside: new Map(),
+    seas: null,
+  };
+  readOf(surface: string): { inside: Map<number, Float32Array>; seas: number | null } {
+    if (this.read.surface !== surface) this.read = { surface, inside: new Map(), seas: null };
+    return this.read;
+  }
   /** The reading's turn last counted for the world's dying (not state). */
   dyingSeen = -1;
 
@@ -231,6 +241,7 @@ export class MotionStore implements StateStore {
     };
   }
   load(state: unknown): void {
+    this.read = { surface: "", inside: new Map(), seas: null };
     const s = (state ?? {}) as {
       state?: MotionState;
       cells?: number[];
@@ -415,15 +426,11 @@ function trackedCells(g: HomeWorld): Int32Array {
   return Int32Array.from(out);
 }
 
-// (Read off the ground as it now lies, and kept for each world until its ground is written again: a world loaded at any year reads
-// what the run that made it read there. Kept by the world, never by its seed's ground: one moved world does not lend another its
-// sheets or its seas.)
-const INSIDE = new WeakMap<HomeWorld, { writes: number; by: Map<number, Float32Array> }>();
+// (Read off the ground as it now lies and kept in the world's own store, by its surface: a world loaded at any year reads what the
+// run that made it read there, and one moved world lends another neither its sheets nor its seas.)
 /** How far inside its sheet's edge each fine land lies (km), where its warmth now lies below the line. */
-function insideOf(g: HomeWorld, warm: number): Float32Array {
-  const writes = surfaceWrites(g);
-  let kept = INSIDE.get(g);
-  if (!kept || kept.writes !== writes) INSIDE.set(g, (kept = { writes, by: new Map() }));
+function insideOf(store: MotionStore, g: HomeWorld, warm: number): Float32Array {
+  const kept = { by: store.readOf(g.surface ?? "").inside };
   let d = kept.by.get(warm);
   if (d) return d;
   const n = g.grid.count,
@@ -466,12 +473,11 @@ function seasKm2(g: HomeWorld): number {
   for (let c = 0; c < g.grid.count; c++) if (g.tectonics.elevation[c]! <= 0) a += areaOf(g, c);
   return a;
 }
-const SEAS = new WeakMap<HomeWorld, { writes: number; km2: number }>();
 
 /** Begin a world's motion: its tracked lands and their sheets as made. */
 function begin(store: MotionStore, g: HomeWorld): void {
   const cells = trackedCells(g),
-    inside = insideOf(g, 0),
+    inside = insideOf(store, g, 0),
     ice = new Uint16Array(cells.length);
   for (let i = 0; i < cells.length; i++) {
     const c = cells[i]!;
@@ -524,7 +530,7 @@ export function motionYear(world: World, t: SimTime, years = 1): void {
   // A tenth of the tracked lands: each steps ten years at once (its snow, its summers, as high as its width bears).
   const god = groundWarming(world, planetRef(0)),
     warm = god + s.ground,
-    inside = insideOf(g, quantum(warm, STEP.warm)),
+    inside = insideOf(store, g, quantum(warm, STEP.warm)),
     rainK = 1,
     stepped: number[] = [];
   let melt = 0,
@@ -552,10 +558,9 @@ export function motionYear(world: World, t: SimTime, years = 1): void {
   let iceKm3 = 0;
   for (let i = 0; i < store.cells.length; i++)
     iceKm3 += ((store.made[i]! - store.ice[i]!) / 1000) * areaOf(g, store.cells[i]!);
-  let kept = SEAS.get(g);
-  if (!kept || kept.writes !== surfaceWrites(g))
-    SEAS.set(g, (kept = { writes: surfaceWrites(g), km2: seasKm2(g) }));
-  const seas = kept.km2;
+  const read = store.readOf(g.surface ?? "");
+  read.seas ??= seasKm2(g);
+  const seas = read.seas;
   s.seaIce = seaFromIce(iceKm3, seas);
   const liquid = KINDS[kind].liquid.subst,
     swellTo = swellOf((s.ground + god) * k, liquid);

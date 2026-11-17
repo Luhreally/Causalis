@@ -558,6 +558,8 @@ type Town = {
   killed: number;
   jailed: number;
   young: number;
+  /** Its town's people. */
+  town: number;
 };
 
 /** A realm's towns with poor quarters, and their gangs. */
@@ -635,6 +637,7 @@ function streetTowns(ctx: PopulationContext, p: Polity, r: Read): Town[] {
       killed: 0,
       jailed: 0,
       young,
+      town: town.population,
     });
   }
   return out;
@@ -867,7 +870,15 @@ function stepRealm(
   for (const tw of towns) {
     const feds = v.feds.filter((x) => x.towns.includes(tw.cell)),
       rival = feds.length >= 2 && feds.some((a) => feds.some((b) => a.rival === b.id)),
-      fight = streetFight(tw.gangs, rival, arms, tw.informal, r.idle);
+      // (How thick its gangs lie: so many to UNDER.fightTown of its people. A great town has many gangs by its size alone; it is
+      // where they crowd each other that they fight.)
+      fight = streetFight(
+        (tw.gangs * UNDER.fightTown) / Math.max(UNDER.fightTown, tw.town),
+        rival,
+        arms,
+        tw.informal,
+        r.idle,
+      );
     tw.killed = tw.members * UNDER.streetKill * fight * 1.3;
     streetKilled += tw.killed;
   }
@@ -911,7 +922,9 @@ function stepRealm(
       // (Room for another: the men the road's groups hold fall well short of what its rent would keep, or lands with towns lie
       // outside every one of them. A rent no one can hold all of draws rivals to it.)
       held = own.reduce((s, g) => s + g.members, 0),
-      keepAll = rent / (r.wage * UNDER.keep),
+      // (A man's keep, the dearer as the crackdown hunts him.)
+      manKeep = r.wage * UNDER.keep * (1 + UNDER.hunted * (v.bites / 1000)),
+      keepAll = rent / manKeep,
       taken = new Set(own.flatMap((g) => g.lands)),
       open = [...p.members].filter(
         (c) => !taken.has(c) && ctx.settlements.inProvince(c).some((s) => s.market),
@@ -923,7 +936,7 @@ function stepRealm(
       own.length < UNDER.ofRoad &&
       v.groups.length < UNDER.most &&
       // (A rent that keeps a crew at all, and, for a second or third, room the groups already there cannot hold.)
-      perGroup >= r.wage * UNDER.keep * UNDER.crew &&
+      perGroup >= manKeep * UNDER.crew &&
       (own.length === 0 || (room && f.u(40 + KIND(kind)) < 0.5))
     ) {
       // (Its home: the weightiest land none of its road holds; a cartel's on the border where it can.)
@@ -991,9 +1004,10 @@ function stepRealm(
     for (const g of now) g.share = Math.round((g.share * 1000) / Math.max(1, sumShare));
     for (const g of now) {
       const income = rent * (g.share / 1000),
-        keepMen = income / (r.wage * UNDER.keep),
+        keepMen = income / manKeep,
         canMen = pool * UNDER.recruit * (g.share / 1000),
-        aim = Math.min(keepMen, canMen);
+        // (A road no longer worth a group: its want or its rent fallen well below what one would rise for, its men drift away.)
+        aim = pull < line * UNDER.withers ? 0 : Math.min(keepMen, canMen);
       g.members = Math.max(0, Math.round(g.members + (aim - g.members) * stepped(0.4, span)));
       g.income = Math.round(income);
     }
@@ -1012,9 +1026,17 @@ function stepRealm(
       !!sheltering,
     ),
     collusion = v.collusion / 1000 + (collusionAim - v.collusion / 1000) * stepped(0.3, span),
+    // (What a full crackdown on the men it faces would cost, against what its treasury can spend on it.)
+    facedMen = v.groups.reduce((s, g) => s + (kindOfGroup(g) === "badge" ? 0 : g.members), 0),
+    afford = dmath.clamp(
+      (UNDER.afford * Math.max(0, r.revenue)) / Math.max(1, facedMen * r.wage * UNDER.crackCost),
+      0,
+      1,
+    ),
     crackAim =
       v.groups.length || v.feds.length
-        ? crackdownOf({
+        ? afford *
+          crackdownOf({
             capacity: r.capacity,
             legitimacy: r.legitimacy,
             voice: r.voice,
