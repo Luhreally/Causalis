@@ -419,18 +419,31 @@ async function walk(view: (typeof VIEWS)[number]): Promise<void> {
   await k(`globalThis.causalis.open("world:ledger")`);
   await until("the ledger", () => seen(".page-window.wide"), slow(20000));
   await settle(1000);
-  const ledgerTabs = await k<string[]>(
-    `[...document.querySelectorAll(".page-window .tabs .tab")].map((b) => b.textContent.trim())`,
+  // (Its tabs stand in sections: each section pressed, then each of its tabs.)
+  const sections = await k<number>(
+    `document.querySelectorAll(".page-window .tab-sections .tab-section").length`,
   );
-  if (!ledgerTabs.length) failures.push(`${view.name}: the ledger showed no tabs`);
-  for (let i = 0; i < ledgerTabs.length; i++)
-    await state(`ledger-${ledgerTabs[i]!.toLowerCase().replace(/\W+/g, "-")}`, async () => {
-      await must(
-        `the ledger's ${ledgerTabs[i]} tab`,
-        press(`.page-window .tabs .tab:nth-child(${i + 1})`),
-      );
-      await settle(700);
-    });
+  for (let s = 0; s < Math.max(1, sections); s++) {
+    if (sections) {
+      if (!(await press(`.page-window .tab-sections .tab-section:nth-child(${s + 1})`))) {
+        failures.push(`${view.name}: the ledger's section ${s + 1} could not be pressed`);
+        continue;
+      }
+      await settle(500);
+    }
+    const ledgerTabs = await k<string[]>(
+      `[...document.querySelectorAll(".page-window .tabs .tab")].map((b) => b.textContent.trim())`,
+    );
+    if (!ledgerTabs.length) failures.push(`${view.name}: the ledger showed no tabs`);
+    for (let i = 0; i < ledgerTabs.length; i++)
+      await state(`ledger-${ledgerTabs[i]!.toLowerCase().replace(/\W+/g, "-")}`, async () => {
+        await must(
+          `the ledger's ${ledgerTabs[i]} tab`,
+          press(`.page-window .tabs .tab:nth-child(${i + 1})`),
+        );
+        await settle(700);
+      });
+  }
   await closePage();
   await state("settings", async () => {
     await must(

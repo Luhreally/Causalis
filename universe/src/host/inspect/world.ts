@@ -51,6 +51,11 @@ import { sicknessLedger } from "./sickness.ts";
 import { creditLedger } from "./credit.ts";
 import { strifeLedger } from "./strife.ts";
 import { alliancesBlocks } from "./ties.ts";
+import { ledgerCtx } from "./ledger-kit.ts";
+import { groupsLedger, housesLedger, underworldLedger } from "./ledger-order.ts";
+import { cultureLedger, powersLedger, societyLedger, tradeLedger } from "./ledger-realm.ts";
+import { armsLedger, makingLedger, natureLedger } from "./ledger-nature.ts";
+import { treasuryLedger } from "./ledger-money.ts";
 import {
   faithLink,
   landLink,
@@ -1830,46 +1835,96 @@ function eventBlocks(world: World): Block[] {
 // ---------------------------------------------------------------------------------------
 // The ledger.
 
-/** The world's ledger: its realms, towns, wars, faiths, tongues, flights and life, compared. */
+/**
+ * The ledger's sections, in their order, and the tabs each holds (asked 2026-11-16): two dozen tabs in six sections, so a phone
+ * reaches every one in a row of sections over a row of that section's tabs, none crowding another.
+ */
+export const LEDGER_SECTIONS: readonly (readonly [string, readonly string[]])[] = [
+  ["Realms", ["realms", "houses", "towns", "society", "powers"]],
+  ["Wealth", ["wealth", "treasury", "trade", "money", "credit", "making"]],
+  ["War", ["wars", "arms", "alliances", "camps"]],
+  ["Order", ["underworld", "groups", "bonds", "strife"]],
+  ["Culture", ["culture", "faiths", "tongues", "might"]],
+  ["Nature", ["life", "nature", "sickness", "sky"]],
+];
+
+/** The world's ledger: its realms, wealth, wars, order, culture and nature, compared, in sections. */
 export function ledgerPage(world: World, tab?: string): PageModel {
   const now = yearNow(world),
     ctx = populationContext(world),
     g = homePlanet(world).generated,
-    peopleOf = (c: number) => ctx.provinces.get(c)?.total() ?? 0,
     realms = politiesOf(world).all(),
     standing = realms.filter((r) => r.ended === null),
-    realmPeople = new Map(
-      standing.map((r) => [r.ref, r.members.reduce((n, c) => n + peopleOf(c), 0)]),
-    );
-  const tabs: Tab[] = [
+    // (What every tab reads of the realms, once a build.)
+    lc = ledgerCtx(world),
+    realmPeople = lc.people,
+    // (The world-wide tables of the systems added on 2026-11-16 are read only while their tab is open: each reads every realm's
+    // records, and the page is read again every ten seconds. The rest are read whole, as they always were.)
+    later = (id: string, read: () => Block[]): Pick<Tab, "blocks" | "later"> =>
+      tab === id ? { blocks: read() } : { blocks: [], later: true };
+  const each: Tab[] = [
     {
       id: "realms",
       name: "Realms",
       blocks: realmLedger(world, standing, realmPeople, realms),
     },
+    // Every great house of every realm, and those ended (round H).
+    { id: "houses", name: "Houses", ...later("houses", () => housesLedger(world, lc)) },
+    { id: "towns", name: "Towns", blocks: townLedger(world) },
+    // Each realm's people's lives: the street, care, the old, law, work and rest (the society sweep).
+    { id: "society", name: "Society", ...later("society", () => societyLedger(world, lc)) },
+    // Who holds each realm's powers, its votes, its spies, the lands it holds by force (round E).
+    { id: "powers", name: "Powers", ...later("powers", () => powersLedger(world, lc)) },
     // Every realm's wealth (Lives L2).
     { id: "wealth", name: "Wealth", blocks: wealthBlocks(world) },
-    { id: "might", name: "Knowledge", blocks: knowledgeLedger(world, standing, realmPeople) },
-    { id: "towns", name: "Towns", blocks: townLedger(world) },
-    { id: "wars", name: "Wars", blocks: warLedger(world, now) },
-    // Each realm's order and its bound (Phase 19 M138).
-    { id: "bonds", name: "Bonds", blocks: bondsLedger(world) },
-    // Every alliance, the greatest first (the alliances lens's list, D1).
-    { id: "alliances", name: "Alliances", blocks: alliancesBlocks(world) },
-    // Every sickness side by side (Phase 20 M140).
-    { id: "sickness", name: "Sickness", blocks: sicknessLedger(world) },
-    // Every house of lending side by side, and what is owed them (Phase 21 M143).
-    { id: "credit", name: "Credit", blocks: creditLedger(world) },
+    // Each realm's money and treasury, its tariff, its lands' inequality, bondage and guilds (Round B).
+    { id: "treasury", name: "Treasury", ...later("treasury", () => treasuryLedger(world, lc)) },
+    // Each realm's years of plenty and want, its exchange, its plan, its smoke; cartels among realms (trade's last sweep).
+    { id: "trade", name: "Trade", ...later("trade", () => tradeLedger(world, lc)) },
     // Debt sold and who holds whom, the works' makings through the years; the camps, where two great realms fear each other.
     { id: "money", name: "Money", blocks: moneyLedger(world) },
+    // Every house of lending side by side, and what is owed them (Phase 21 M143).
+    { id: "credit", name: "Credit", blocks: creditLedger(world) },
+    // Which realms make which material ways, how hot their fires and how pure what they make.
+    { id: "making", name: "Making", ...later("making", () => makingLedger(world, lc)) },
+    { id: "wars", name: "Wars", blocks: warLedger(world, now) },
+    // War footing and arms races, backing, fleets and the sea, sieges.
+    { id: "arms", name: "Arms", ...later("arms", () => armsLedger(world, lc)) },
+    // Every alliance, the greatest first (the alliances lens's list, D1).
+    { id: "alliances", name: "Alliances", blocks: alliancesBlocks(world) },
     { id: "camps", name: "Camps", blocks: campsLedger(world) },
+    // Every crime group, each realm's smuggling, addiction and street, the wars between groups (the underworld).
+    {
+      id: "underworld",
+      name: "Underworld",
+      ...later("underworld", () => underworldLedger(world, lc)),
+    },
+    // Every group of the general layer: brigands, pirates, militias, sects, parties and the rest.
+    { id: "groups", name: "Groups", ...later("groups", () => groupsLedger(world, lc)) },
+    // Each realm's order and its bound (Phase 19 M138).
+    { id: "bonds", name: "Bonds", blocks: bondsLedger(world) },
     // Every coup and restoration (Phase 22 M145).
     { id: "strife", name: "Strife", blocks: strifeLedger(world) },
+    // Who each realm counts its own, what its seat tells, its art, towns and learning; every faith's temples.
+    { id: "culture", name: "Culture", ...later("culture", () => cultureLedger(world, lc)) },
     { id: "faiths", name: "Faiths", blocks: faithLedger(world) },
     { id: "tongues", name: "Tongues", blocks: tongueLedger(world) },
+    { id: "might", name: "Knowledge", blocks: knowledgeLedger(world, standing, realmPeople) },
     { id: "life", name: "Life", blocks: lifeLedger(world) },
+    // Fires below and floods, crops tamed and carried, what the table lacks; the sky's hazards and the far future.
+    { id: "nature", name: "Nature", ...later("nature", () => natureLedger(world, lc)) },
+    // Every sickness side by side (Phase 20 M140).
+    { id: "sickness", name: "Sickness", blocks: sicknessLedger(world) },
     { id: "sky", name: "Sky", blocks: skyLedger(world) },
   ];
+  // (Each tab in its section, the sections in their order.)
+  const sectionOf = new Map(
+      LEDGER_SECTIONS.flatMap(([name, ids]) => ids.map((id) => [id, name] as const)),
+    ),
+    tabs: Tab[] = LEDGER_SECTIONS.flatMap(([, ids]) => ids).map((id) => ({
+      ...each.find((t) => t.id === id)!,
+      group: sectionOf.get(id)!,
+    }));
   const home = ctx.provinces.all().filter((p) => !offworldSite(g, p.cell) && p.total() > 0).length;
   return {
     ref: "world:ledger",
@@ -1877,7 +1932,7 @@ export function ledgerPage(world: World, tab?: string): PageModel {
     icon: "📊",
     title: "The Ledger",
     subtitle: [
-      "the world's realms, towns, wars, faiths, tongues and life, side by side — ",
+      "the world's realms, wealth, wars, order, culture and nature, side by side — ",
       link("the chronicle", "world:chronicle"),
     ],
     color: null,
