@@ -130,6 +130,16 @@ export const ORG = {
   /** How fast a group's aims move toward the stakes in its reach, and its members toward what its stake keeps, a year. */
   turn: 0.2,
   grow: 0.35,
+  /**
+   * What a stake it does not yet serve is worth to a group against one it does: what it has built (its men's skills, its kit, its
+   * name and its standing with those it serves) is for what it does, and must be built again for another (est: a quarter).
+   */
+  retool: 0.25,
+  /** A second aim is told in its kind from this share of what it does, and kept there while it holds the lesser (thousandths). */
+  second: 250,
+  secondKept: 180,
+  /** A group keeps its first aim while that is at least this share of what it now does most: it turns once, not back and forth. */
+  firstKept: 0.67,
   /** Of a trade on roads or at sea within a preying group's reach, the most it can take a year (est: the Barbary corsairs and the
    * Caribbean's buccaneers at their height took a few in a hundred of the trade that passed; brigands on unpoliced roads as much). */
   catch: 0.05,
@@ -467,7 +477,13 @@ export function aimsToward(
   means: number,
   pace: number,
 ): number[] {
-  const want = ORG_AIMS.map((a, i) => Math.max(0, worth[i] ?? 0) * aimFit(a, means)),
+  // (A stake it serves pulls in full; one it does not yet, at what its means are worth turned to it: ORG.retool.)
+  const want = ORG_AIMS.map(
+      (a, i) =>
+        Math.max(0, worth[i] ?? 0) *
+        aimFit(a, means) *
+        (ORG.retool + (1 - ORG.retool) * Math.min(1, (had[i] ?? 0) / 1000 / 0.25)),
+    ),
     all = want.reduce((s, x) => s + x, 0),
     p = clamp01(pace);
   const out = ORG_AIMS.map((_, i) => {
@@ -477,6 +493,14 @@ export function aimsToward(
   });
   const sum = out.reduce((s, x) => s + x, 0) || 1;
   return out.map((x) => Math.round((x / sum) * 1000));
+}
+
+/** A group's first aim, kept while it does it near as much as what it now does most (ORG.firstKept). */
+export function keptFirstAim(aims: readonly number[], had: number): OrgAim {
+  const now = firstAim(aims),
+    h = ORG_AIMS[had];
+  if (!h || h === now || h === "smuggle") return now;
+  return (aims[had] ?? 0) >= ORG.firstKept * (aims[AIM[now]] ?? 0) ? h : now;
 }
 
 /** A group's first aim: the one it does most (never selling protection or smuggling, the underworld's, while another is held). */
