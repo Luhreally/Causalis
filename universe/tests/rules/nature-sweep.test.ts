@@ -8,6 +8,8 @@ import {
   VOLCANO,
   adaptStep,
   ashLoss,
+  coloursAt,
+  coloursSensed,
   cooledYield,
   cropFit,
   cropGives,
@@ -18,6 +20,7 @@ import {
   floodChance,
   floodHarm,
   floodSize,
+  marksSensed,
   gardenStrain,
   highSunShare,
   poissonCount,
@@ -158,4 +161,16 @@ test("woods come back as fast as their ground grows: a warm, wet land's in decad
   assert.ok(Math.abs(temperate - 0.02) < 0.001, `${temperate}`);
   assert.ok(tropic > 1.6 * temperate && boreal < temperate / 2 && dry < temperate / 2);
   assert.ok(primaryGrowth(26, 2500) > primaryGrowth(10, 800));
+});
+
+test("a people names things by its senses: by every colour where its eyes lead, by few where they follow, by none without eyes", () => {
+  const all = coloursAt(8, true);
+  assert.deepEqual(coloursSensed(all, ["sight", "hearing"]), all);
+  assert.deepEqual([...coloursSensed(all, ["smell", "sight"])].sort(), ["black", "red", "white"]);
+  assert.deepEqual(coloursSensed(all, ["hearing", "smell"]), []);
+  assert.deepEqual(marksSensed(["black", "hard", "bright", "stink"], ["smell", "hearing"]), [
+    "hard",
+    "stink",
+  ]);
+  assert.deepEqual(marksSensed(["black", "hard"], ["sight"]), ["black", "hard"]);
 });

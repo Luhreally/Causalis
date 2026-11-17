@@ -21,12 +21,14 @@ import {
   SUBSTANCES,
   WORKED,
   colourSaid,
+  coloursSensed,
   elementLikeness,
   findElement,
   findSubstance,
   glossOf,
   kindBurns,
   likenessOf,
+  marksSensed,
   metalOf,
   oresOn,
   stoneLikeness,
@@ -100,6 +102,8 @@ export type Lexicon = { readonly language: Language; readonly by: ReadonlyMap<st
 type Facts = {
   readonly chem: Chemistry;
   readonly naming: NamingWorld;
+  /** Its people's senses, the first leading (what its tongues name things by: rules/names.ts coloursSensed). */
+  readonly senses: readonly string[];
   /** Every substance, its world's own first (its life's, its stones, ores and metals). */
   readonly order: readonly Substance[];
   /** Its stones of no one substance, by name. */
@@ -244,7 +248,15 @@ function factsOf(world: World): Facts {
       `(?<![A-Za-z])(${all.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})(?![A-Za-z])`,
       "gi",
     );
-  return { chem, naming, order, rocks, words, pattern };
+  return {
+    chem,
+    naming,
+    order,
+    rocks,
+    words,
+    pattern,
+    senses: homePlanet(world).generated.life.people?.body.senses ?? [],
+  };
 }
 
 // —— Whose words, and their line ——————————————————————————————————————————————————————————
@@ -524,7 +536,7 @@ export function lexiconOf(world: World, l: Language): Lexicon {
   const store = languagesOf(world),
     lineage = lineageOf(store, l),
     roots = rootsOf(lineage),
-    speech = speechOf(lineage),
+    speech = sensedSpeech(speechOf(lineage), k.facts.senses),
     taken = takenAll(world, k).get(l.index),
     by = new Map<string, Called>(),
     words = new Set<string>(),
@@ -559,8 +571,8 @@ export function lexiconOf(world: World, l: Language): Lexicon {
     );
     keep({ id, ...named, taken: null });
   };
-  for (const s of f.order) own(s.id, likenessOf(s, f.naming));
-  for (const r of f.rocks) own(`rock:${r.name}`, stoneLikeness(r.colour));
+  for (const s of f.order) own(s.id, sensedLike(likenessOf(s, f.naming), f.senses));
+  for (const r of f.rocks) own(`rock:${r.name}`, sensedLike(stoneLikeness(r.colour), f.senses));
   // An element: the word for its own substance, or the stuff of what holds it.
   for (const e of [...ELEMENTS, ...NOVEL_ELEMENTS, ...LIFE_ELEMENTS]) {
     const like = elementLikeness(e.symbol),
@@ -577,6 +589,18 @@ export function lexiconOf(world: World, l: Language): Lexicon {
   return out;
 }
 
+/** A tongue's speech as its people's senses tell things: the colours it names by (the sweep, Nature lane). */
+function sensedSpeech(speech: Speech, senses: readonly string[]): Speech {
+  const colours = coloursSensed(speech.colours, senses);
+  return colours === speech.colours ? speech : { ...speech, colours };
+}
+
+/** A likeness as a people of these senses tells it: what its eyes cannot tell, dropped. */
+function sensedLike(like: Likeness, senses: readonly string[]): Likeness {
+  if (!senses.length || senses.includes("sight")) return like;
+  return { ...like, marks: marksSensed(like.marks, senses) };
+}
+
 /** A thing's own name in a language, apart from its others (where its words are still being worked out: on its own). */
 function ownName(f: Facts, store: LanguageStore, l: Language, id: string): Called | undefined {
   const s = findSubstance(id);
@@ -586,9 +610,9 @@ function ownName(f: Facts, store: LanguageStore, l: Language, id: string): Calle
       l,
       lineage,
       rootsOf(lineage),
-      speechOf(lineage),
+      sensedSpeech(speechOf(lineage), f.senses),
       id,
-      likenessOf(s, f.naming),
+      sensedLike(likenessOf(s, f.naming), f.senses),
       () => true,
     );
   return { id, ...named, taken: null };
