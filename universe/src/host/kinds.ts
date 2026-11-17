@@ -48,9 +48,7 @@ type Rgb = readonly [number, number, number];
 
 /** A world's kind (rocky for a world with no home planet: a toy world). */
 export function kindOf(world: World): WorldKind {
-  return world.hasStore("planet.home")
-    ? worldKindOf(homePlanet(world).generated)
-    : "rocky";
+  return world.hasStore("planet.home") ? worldKindOf(homePlanet(world).generated) : "rocky";
 }
 
 /** A kind's own age for a land's age, where its kind has one (null: the age as Earth's is told). */

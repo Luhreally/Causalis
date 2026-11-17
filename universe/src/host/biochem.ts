@@ -38,9 +38,7 @@ import { landLink } from "./inspect/names.ts";
 
 /** A world's life (Earth's on a world with no home planet: a toy world). */
 export function lifeHere(world: World): LifeChemistry {
-  return world.hasStore("planet.home")
-    ? worldLife(homePlanet(world).generated)
-    : EARTH_LIFE;
+  return world.hasStore("planet.home") ? worldLife(homePlanet(world).generated) : EARTH_LIFE;
 }
 
 /**
