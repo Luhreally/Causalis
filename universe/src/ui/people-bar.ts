@@ -145,7 +145,10 @@ type Chip = {
   readonly why: HTMLElement;
   readonly now: HTMLElement;
   readonly off: HTMLButtonElement;
+  readonly acts: HTMLButtonElement;
   drawn: string;
+  /** Whether they were among the living when last drawn (null: not yet drawn). */
+  alive: boolean | null;
   said: string;
 };
 
@@ -160,6 +163,10 @@ export class PeopleBar {
   readonly element = el("div", "people-bar");
   /** Open their page. */
   onOpen: (ref: string) => void = () => {};
+  /** Open their page at the god's acts on them (asked 2026-11-16). */
+  onActs: (ref: string) => void = () => {};
+  /** One pinned or followed who was living when last read and is gone now: told once (asked 2026-11-16). */
+  onDied: (p: BarPerson) => void = () => {};
   private readonly row = el("div", "people-row");
   private readonly fold = el("button", "people-fold", "👥");
   private readonly chips = new Map<string, Chip>();
@@ -310,7 +317,14 @@ export class PeopleBar {
       why = el("span", "people-why"),
       now = el("span", "people-now"),
       face = el(p.portrait ? "canvas" : "span", "people-face"),
-      off = el("button", "people-off", "×");
+      off = el("button", "people-off", "×"),
+      acts = el("button", "people-acts", "✨");
+    acts.setAttribute("aria-label", "Your acts on them");
+    acts.title = "Bless, curse, protect, inspire, play as them: their page's acts";
+    acts.onclick = (e) => {
+      e.stopPropagation();
+      this.onActs(open.dataset.ref ?? "");
+    };
     off.setAttribute("aria-label", "Take them off the bar");
     off.onclick = (e) => {
       e.stopPropagation();
@@ -319,8 +333,20 @@ export class PeopleBar {
     open.onclick = () => this.onOpen(open.dataset.ref ?? "");
     words.append(name, why, now);
     open.append(face, words);
-    box.append(open, off);
-    const chip: Chip = { box, open, face, name, why, now, off, drawn: "", said: "" };
+    box.append(open, acts, off);
+    const chip: Chip = {
+      box,
+      open,
+      face,
+      name,
+      why,
+      now,
+      off,
+      acts,
+      drawn: "",
+      said: "",
+      alive: null,
+    };
     this.chips.set(p.key, chip);
     return chip;
   }
@@ -332,6 +358,12 @@ export class PeopleBar {
     c.open.dataset.ref = p.ref;
     c.off.dataset.ref = p.key.slice(0, p.key.indexOf("|"));
     c.off.hidden = !p.pinned;
+    // (Acts on those kept or followed who live; a death among them told once, as it is first seen.)
+    const mine = p.pinned || p.kind === "followed";
+    c.acts.hidden = !mine || p.gone;
+    c.box.classList.toggle("acted", !c.acts.hidden);
+    if (mine && c.alive === true && p.gone) this.onDied(p);
+    c.alive = !p.gone;
     put(c.name, `${p.pinned ? "📌 " : ""}${p.name}`);
     put(c.why, p.why);
     const said = JSON.stringify(p.readings);

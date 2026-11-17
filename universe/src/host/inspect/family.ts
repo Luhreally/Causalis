@@ -11,8 +11,9 @@ import {
   type Stat,
 } from "../../bridge/index.ts";
 import { grainSum } from "../../causal/index.ts";
-import { originOf, politiesOf } from "../../sim/index.ts";
-import { courtFigure } from "../court.ts";
+import { courtOf, originOf, politiesOf } from "../../sim/index.ts";
+import { courtFigure, courtRef } from "../court.ts";
+import { deathWords, rulerDeath } from "../death.ts";
 import { realmColor } from "../colors.ts";
 import {
   houseMembers,
@@ -159,6 +160,9 @@ export function dynastyPage(world: World, ref: string): PageModel {
           : []),
       ],
     });
+  // (Its dead, as history keeps them, and how each died: its rulers' reigns ended, those of its name gone from court. Asked 2026-11-16.)
+  const dead = houseDead(world, h);
+  if (dead.length) blocks.push({ type: "list", title: "Its dead", items: dead });
   const passed = passedItems(world, houseNews(world, h), since);
   blocks.push(
     passed.length
@@ -280,4 +284,32 @@ export function withFamilyLink(world: World, ref: string, page: PageModel): Page
       t.id === "overview" || t.id === "family" ? { ...t, blocks: [row, ...t.blocks] } : t,
     ),
   };
+}
+
+/** The dead of a house history keeps: its rulers whose reigns ended in death, and those of its name who died at court. */
+function houseDead(world: World, h: NonNullable<ReturnType<typeof houseOf>>): Item[] {
+  const out: Item[] = [],
+    surname = (n: string) => n.split(" ").slice(1).join(" ");
+  for (const e of world.events.all()) {
+    if (e.type !== "polity.succession" && e.type !== "court.seized") continue;
+    if (!e.subjects.includes(h.realm.ref)) continue;
+    const old = (e.data as { old?: string } | null)?.old;
+    if (!old || surname(old) !== h.name) continue;
+    const a = rulerDeath(world, e);
+    if (a && a.cause !== "removed")
+      out.push(
+        item(
+          [`${old}, who ruled: `, link(a.short, e.id), ` (${a.year})`],
+          e.id,
+          a.year ?? undefined,
+        ),
+      );
+  }
+  for (const g of courtOf(world)?.of(h.realm.ref)?.gone ?? []) {
+    if (g.how !== "died" || surname(g.name) !== h.name) continue;
+    const ref = courtRef(h.realm.ref, g.id),
+      words = deathWords(world, ref);
+    out.push(item([link(g.name, ref), `: ${words ?? `died in ${g.year}`}`], ref, g.year));
+  }
+  return out.sort((x, y) => (y.year ?? 0) - (x.year ?? 0)).slice(0, 24);
 }

@@ -13,6 +13,7 @@ import {
   populationContext,
   realmName,
   warsOf,
+  type Gone,
 } from "../../sim/index.ts";
 import {
   LIFE_WORDS,
@@ -763,6 +764,9 @@ export function agentPage(world: World, ref: string): PageModel {
   const id = Number(ref.slice(ref.indexOf(":") + 1)),
     w = handOf(world).resting,
     a = w?.agents.find((x) => x.id === id);
+  // (One of them gone: who they were, and how they died, told by withDeath: asked 2026-11-16.)
+  const gone = w && !a ? w.gone?.find((x) => x.id === id) : undefined;
+  if (w && gone) return goneAgentPage(world, w, gone, ref);
   if (!w || !a) throw new Error(`no one under the hand is ${ref}`);
   const ctx = populationContext(world),
     year = yearOfMoment(world.now),
@@ -866,3 +870,43 @@ export function agentPage(world: World, ref: string): PageModel {
 }
 
 export { realmLink, cellRef };
+
+/** One of the people under the god's hand who died while it rested: who they were (how they died is told by withDeath). */
+function goneAgentPage(
+  world: World,
+  w: NonNullable<ReturnType<typeof handOf>["resting"]>,
+  g: Gone,
+  ref: string,
+): PageModel {
+  const ctx = populationContext(world),
+    town = ctx.settlements.get(w.village)!,
+    age = g.died - g.birthYear,
+    name = agentName(ctx, g as unknown as Parameters<typeof agentName>[1], town);
+  return {
+    ref,
+    kind: "agent",
+    icon: "🕯️",
+    title: name,
+    subtitle: [`died in ${g.died}, at ${age}, under your hand in `, townLink(world, w.village)],
+    color: null,
+    place: { scale: "village", town: w.village, person: ref },
+    stats: [stat("Age", `died at ${age}`), stat("Died", `year ${g.died}`)],
+    followable: false,
+    year: yearOfMoment(world.now),
+    tabs: [
+      {
+        id: "overview",
+        name: "Overview",
+        blocks: [
+          {
+            type: "facts",
+            rows: [
+              stat("Born", `year ${g.birthYear}`),
+              stat("Who", `a ${g.sex === FEMALE ? "woman" : "man"} of ${town.name}`),
+            ],
+          },
+        ],
+      },
+    ],
+  };
+}

@@ -57,6 +57,7 @@ export {
   occupationTargets,
   marketsOf,
   populationContext,
+  handHazardNow,
   provinceCapacity,
   regionOf,
   regionReady,
@@ -1815,3 +1816,10 @@ export {
   type PersonActKind,
   type PersonKind,
 } from "./acts/person.ts";
+export {
+  DeathNotes,
+  KILLING,
+  deathNotesOf,
+  type DeathNote,
+  type DeathPart,
+} from "./hand/deaths.ts";

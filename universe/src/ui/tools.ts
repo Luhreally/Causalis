@@ -418,6 +418,9 @@ export function drawTool(
     case "acts.agent":
       void agentActs(into, args.id as number, ctx);
       return;
+    case "acts.god-person":
+      godPersonActs(into, args, ctx);
+      return;
     case "acts.person": {
       // What a person met is like, the god's to change (Phase 16); and, over their village, the
       // hand that makes every one of its people someone.
@@ -995,4 +998,153 @@ async function agentActs(into: HTMLElement, id: number, ctx: ToolContext): Promi
     );
   parts.push(el("h3", undefined, "What they are like"), traits, traitNote);
   into.replaceChildren(...parts);
+}
+
+/** What each of the god's acts on one person does, as its button says it and as its confirm tells it (never how to harm anyone). */
+const GOD_ACT: Readonly<Record<string, readonly [string, string]>> = {
+  bless: ["🌟 Bless", "for ten years the chance their death rule draws against is halved."],
+  curse: ["🌑 Curse", "for ten years the chance their death rule draws against is doubled."],
+  protect: [
+    "🛡️ Protect",
+    "the next death by violence the world draws for them is spared, within twenty years.",
+  ],
+  heal: ["🩹 Heal", "the wounds they carry are lifted."],
+  smite: [
+    "⚡ Smite",
+    "they die at their next reckoning (a ruler and one of a court at the year's turn, one under your hand at the month's end), told as struck down by the god.",
+  ],
+  inspire: ["✨ Inspire", "their land comes upon the next thing it could know."],
+  "whisper:war": [
+    "🗣️ Whisper: war",
+    "for ten years, or until it comes, their realm's next choice of a war of its own is twice as likely.",
+  ],
+  "whisper:peace": [
+    "🕊️ Whisper: peace",
+    "for ten years their realm chooses no war of its own (wars on it, and wars it is called to, are not theirs to choose).",
+  ],
+};
+const GOD_HELD: Readonly<Record<string, string>> = {
+  bless: "🌟 Blessed",
+  curse: "🌑 Cursed",
+  protect: "🛡️ Protected",
+  heal: "🩹 Healed",
+  smite: "⚡ Marked to be struck down",
+  inspire: "✨ Inspired",
+  "whisper:war": "🗣️ Whispered to war",
+  "whisper:peace": "🕊️ Whispered to hold from war",
+};
+
+type GodAct = { kind: string; aim?: string; problem: string | null };
+type GodHeld = {
+  kind: string;
+  aim?: string;
+  from: number;
+  until: number;
+  left: number;
+  event: string;
+  spent: string | null;
+};
+
+/**
+ * The god's acts on one person (asked 2026-11-16: "if i have them pinned i should be able to bless, curse, inspire, play as them
+ * all that good stuff"): what holds on them with the years left, each act that reaches them now (each asks before it acts), and
+ * Play as them. Free: the god's hand costs nothing.
+ */
+function godPersonActs(
+  into: HTMLElement,
+  args: Readonly<Record<string, unknown>>,
+  ctx: ToolContext,
+): void {
+  const ref = args.ref as string,
+    name = args.name as string,
+    first = name.split(" ")[0],
+    acts = (args.acts as GodAct[] | undefined) ?? [],
+    held = (args.held as GodHeld[] | undefined) ?? [],
+    box = el("div", "god-acts"),
+    tools = el("div", "tools god-acts-row"),
+    note = el("p", "note");
+  note.hidden = true;
+  box.append(el("h3", undefined, "Acts"));
+  for (const h of held) {
+    const key = h.kind === "whisper" ? `whisper:${h.aim}` : h.kind,
+      line = el("button", "link god-held"),
+      done = h.spent !== null || h.left === 0 || h.kind === "heal" || h.kind === "inspire";
+    line.textContent = done
+      ? `${GOD_HELD[key] ?? h.kind} in ${h.from}${h.spent && h.kind !== "heal" && h.kind !== "inspire" ? ": spent" : h.left === 0 ? ", its years run" : ""}`
+      : `${GOD_HELD[key] ?? h.kind}: ${h.left} ${h.left === 1 ? "year" : "years"} left (until ${h.until})`;
+    line.onclick = () => ctx.open(h.spent ?? h.event);
+    box.append(line);
+  }
+  for (const a of acts) {
+    if (a.problem) continue;
+    const key = a.kind === "whisper" ? `whisper:${a.aim}` : a.kind,
+      [label, effect] = GOD_ACT[key] ?? [a.kind, ""];
+    twice(tools, note, label, `${first}: ${effect}`, async () => {
+      await ctx.client.command("act.person", {
+        ref,
+        kind: a.kind,
+        name,
+        ...(a.aim ? { aim: a.aim } : {}),
+      });
+      ctx.refresh();
+    });
+  }
+  // Play as them: the hand's own ways in (Lives L1 to L4), straight from here.
+  const kind = args.kind as string,
+    leader = args.leader as Leader | null | undefined;
+  if ((kind === "ruler" || kind === "court") && leader && ctx.leaderRule) {
+    const rule = ctx.leaderRule,
+      b = el("button", "tool", kind === "ruler" ? "👑 Play as them" : "🎭 Play as them");
+    b.title = kind === "ruler" ? `Rule as ${first}` : `Act as ${first}, within their station`;
+    b.onclick = () => rule(leader);
+    tools.append(b);
+  } else if (kind === "agent" && typeof args.agent === "number" && ctx.possess) {
+    const possess = ctx.possess,
+      id = args.agent;
+    twice(
+      tools,
+      note,
+      "🫳 Play as them",
+      `You will walk in ${first}'s body among their town.`,
+      async () => {
+        const why = await possess(id);
+        if (why) throw new Error(why);
+      },
+    );
+  } else if (kind === "holder" && args.touch) {
+    const who = args.touch as Touchable;
+    twice(
+      tools,
+      note,
+      "✋ Take them under your hand",
+      `Your hand will be laid on their town from ${first}: every one of its people someone, and every act and Play as them reach them.`,
+      async () => {
+        const hand = await ctx.client.query<{ village: string } | null>({ type: "hand" });
+        if (hand?.village !== who.town) {
+          if (hand) await ctx.client.command("hand.lift", {});
+          await ctx.client.command("hand.lay", {
+            village: who.town,
+            as: {
+              name: who.name,
+              age: who.age,
+              occupation: who.occupation,
+              ...(who.sex !== undefined ? { sex: who.sex } : {}),
+            },
+          });
+        }
+        const id = await ctx.client.query<number | null>({
+          type: "hand.named",
+          args: { name: who.name },
+        });
+        if (id === null) throw new Error(`${first} could not be found under your hand`);
+        ctx.open(`agent:${id}`);
+      },
+    );
+  }
+  box.append(
+    tools,
+    note,
+    el("p", "muted", "Free: the god's hand costs nothing. Each act is told in history as yours."),
+  );
+  into.append(box);
 }

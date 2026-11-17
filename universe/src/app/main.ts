@@ -10443,6 +10443,21 @@ async function runPlanetPage(): Promise<void> {
       ),
   );
   peopleBar.onOpen = (ref) => void pageWindow.open(ref);
+  // (Their page at the god's acts on them; and a death among those kept or followed told as news: asked 2026-11-16.)
+  peopleBar.onActs = (ref) =>
+    void pageWindow
+      .open(ref)
+      .then(() => document.querySelector(".god-acts")?.scrollIntoView({ block: "center" }));
+  peopleBar.onDied = (p) =>
+    tidings.tell({
+      watch: p.key,
+      label: p.name,
+      ref: p.ref,
+      year: Math.floor(clock.t / YEAR),
+      claim: `${p.pinned ? "Your pinned" : "Followed:"} ${p.name} ${p.died ? `died: ${p.died}` : "is gone"}`,
+      type: "life.died",
+      importance: 5,
+    });
   takeUp.push(() => peopleBar.fresh());
   exposed.peopleBar = peopleBar;
   exposed.barPins = barPins;
