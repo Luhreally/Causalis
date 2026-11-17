@@ -10,6 +10,7 @@ import {
   lodeSize,
   primaryGrowth,
   roleWord,
+  STAND,
 } from "../../rules/index.ts";
 import {
   homePlanet,
@@ -22,6 +23,7 @@ import {
   woodsWords,
   type Lode,
   type WoodsTurn,
+  standAge,
 } from "../../sim/index.ts";
 import { YEAR, type World } from "../../kernel/index.ts";
 import type { Block, Item, Line, Stat, WoodsMap } from "../../bridge/index.ts";
@@ -100,6 +102,18 @@ export function woodsBlock(world: World, cell: number): Block | null {
       `half of what is missing in some ${half} years: its ground grows ${Math.round(primaryGrowth(g.climate.temperature[cell]!, g.climate.precipitation[cell]!)).toLocaleString("en-US")} g of green a square metre a year`,
     ),
   );
+  // (Their age: old growth where no one has touched them; younger as they are cut and come back: the sweep, Nature lane.)
+  if (now > 0) {
+    const age = Math.round(standAge(world, cell));
+    rows.push(
+      stat(
+        "How old they are",
+        age >= STAND.climax - 5
+          ? `old growth: their trees some ${STAND.climax} years old on the mean, the old dying and the young filling their gaps`
+          : `their trees some ${age} years old on the mean, against the ${STAND.climax} of woods no one has touched`,
+      ),
+    );
+  }
   if (!turns.length)
     rows.push(
       stat(

@@ -4,6 +4,13 @@ import assert from "node:assert/strict";
 import { Rng, seedFromText, seedWithAct } from "../../src/kernel/index.ts";
 import {
   EARTHLIKE,
+  EXCHANGE,
+  STAND,
+  beastWorth,
+  lineageBit,
+  pestStrike,
+  pestsAfter,
+  standStep,
   KCAL,
   OPEN,
   OUR_LAWS,
@@ -150,4 +157,24 @@ test("heavy stars shine only in young clusters, at the arms", () => {
   assert.ok(field > 10_000);
   assert.ok(nurseries > 0 && nurseries < 60, `${nurseries} young clusters`);
   assert.ok(heavy > 0, `${heavy} heavy stars alive`);
+});
+
+test("weeds and pests come with a lineage never met, and fade; a beast is worth as it is tame and quick and fits", () => {
+  assert.equal(pestStrike(0), EXCHANGE.strike);
+  assert.ok(pestStrike(pestStrike(pestStrike(0))) <= EXCHANGE.most);
+  assert.ok(Math.abs(pestsAfter(0.2, 20) - 0.2 * Math.exp(-EXCHANGE.fade * 20)) < 1e-12);
+  assert.ok(pestsAfter(0.2, 20) < 0.11);
+  for (const c of [-2, -1, 0, 5, 300]) assert.ok(lineageBit(c) !== 0);
+  const cow = { docility: 0.8, growth: 0.6, warm: 12, tolerance: 8, rainMin: 300, rainMax: 1500 },
+    here = { warm: 12, rain: 700, lat: 45 },
+    hot = { warm: 32, rain: 700, lat: 5 };
+  assert.ok(Math.abs(beastWorth(cow, here) - 0.48) < 1e-9);
+  assert.ok(beastWorth(cow, hot) < beastWorth(cow, here));
+});
+
+test("woods let alone stay old; cut woods keep their age; woods coming back are young", () => {
+  assert.equal(standStep(STAND.climax, 1, 1), STAND.climax);
+  assert.ok(standStep(100, 0.5, 0.4) > 100);
+  const back = standStep(STAND.climax, 0.2, 0.6);
+  assert.ok(back < STAND.climax / 2, `${back}`);
 });

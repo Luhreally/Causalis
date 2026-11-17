@@ -1428,6 +1428,7 @@ export {
   pestsLeft,
   type ExchangeLand,
 } from "./ecology/exchange.ts";
+export { StandStore, standAge, standsOf, stepStand } from "./ecology/stands.ts";
 export {
   DIET_EVENTS,
   DietStore,

@@ -2,16 +2,39 @@
 // reads it, give exactly 1 where nothing has happened, and save and load the same.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, loadWorld, saveWorld, seedFromText } from "../../src/kernel/index.ts";
-import { STAR_LIFE, burstLeft } from "../../src/rules/index.ts";
 import {
+  YEAR,
+  loadWorld,
+  saveWorld,
+  seedFromText,
+  simTime,
+  yearOfMoment,
+} from "../../src/kernel/index.ts";
+import {
+  EXCHANGE,
+  STAND,
+  STAR_LIFE,
+  beastWorth,
+  burstLeft,
+  lineageBit,
+} from "../../src/rules/index.ts";
+import { lives } from "../../src/gen/index.ts";
+import {
+  CROP_STEP,
   clusterOf,
+  cropFieldOf,
   cropsGive,
   cropsOf,
   dietDeaths,
   dietOfWorld,
   eruptionsAYear,
+  exchangeOf,
+  exchangeYear,
   firesOf,
+  herdGives,
+  pestsLeft,
+  standAge,
+  standsOf,
   floodplains,
   floodYield,
   floodsOf,
@@ -44,6 +67,22 @@ test("crops, diets, eruptions and floods: their stores, their factors, and a sav
       assert.equal(k, 1);
   }
   assert.ok(sowing === cropsOf(w)!.size, "a crop is kept only where a land sows");
+  // Pests and beasts carried: a row for every sowing land, its factors bounded, 1 where nothing came.
+  assert.ok(exchangeOf(w) && exchangeOf(w)!.size === cropsOf(w)!.size);
+  for (const x of exchangeOf(w)!.all()) {
+    const left = pestsLeft(w, x.cell),
+      herds = herdGives(w, x.cell);
+    assert.ok(left >= 0.5 && left <= 1, `${left}`);
+    assert.ok(herds > 0, `${herds}`);
+    if (!x.struck) assert.equal(left, 1);
+    if (x.beast === x.first) assert.equal(herds, 1);
+  }
+  // The woods' age: kept only where they were touched, never past their climax.
+  assert.ok(standsOf(w));
+  for (const p of ctx.provinces.all()) {
+    const a = standAge(w, p.cell);
+    assert.ok(a > 0 && a <= STAND.climax + 1e-9, `${a}`);
+  }
   // A land's diet read from its books: its want's deaths at least 1.
   for (const p of ctx.provinces.all()) {
     const d = dietDeaths(w, p.cell);
@@ -81,4 +120,59 @@ test("a star's end reaches the peoples of the stars near it: its own goes dark, 
   assert.ok(burstLeft(by.harm, by.years) <= 1);
   // (Before it burst, nothing reached them.)
   assert.equal(starDeathAt(w, near.s.ref, 0, 9).harm, 1);
+});
+
+test("a lineage never met, sown across a land's border, brings its weeds and pests; a better beast kept there is taken up", () => {
+  const w = makePopulationWorld(seedFromText("nature sweep"), { frequency: 16, start: "spread" });
+  w.runTo(30 * YEAR);
+  const ctx = populationContext(w),
+    g = ctx.generated,
+    crops = cropsOf(w)!,
+    x = exchangeOf(w)!,
+    beside = (c: number) => {
+      const out: number[] = [];
+      for (let k = g.grid.offsets[c]!; k < g.grid.offsets[c + 1]!; k++)
+        out.push(g.grid.neighbours[k]!);
+      return out;
+    },
+    pair = x
+      .all()
+      .flatMap((l) =>
+        beside(l.cell).flatMap((n) => (x.get(n) ? [[l, x.get(n)!] as const] : [])),
+      )[0];
+  assert.ok(pair, "two sowing lands side by side");
+  const [land, other] = pair,
+    near = [land.cell, ...beside(land.cell)],
+    foreign = g.life.species.find(
+      (s) =>
+        s.died === null &&
+        !near.some((c) => lives(g.life, c, s.index)) &&
+        !(land.met & lineageBit(s.index)),
+    )!;
+  crops.get(other.cell)!.crop = foreign.index;
+  // (And a beast beside it worth more on its land than its own.)
+  const field = cropFieldOf(ctx, land.cell),
+    best = g.life.species
+      .filter((s) => s.niche === "grazer" && s.died === null)
+      .sort((a, b) => beastWorth(b, field) - beastWorth(a, field))[0];
+  const p = ctx.provinces.get(land.cell)!;
+  if (best && p.herding) {
+    land.beast = land.first = -1;
+    other.beast = best.index;
+  }
+  let year = 31;
+  while ((land.cell + yearOfMoment(simTime(year * YEAR))) % CROP_STEP !== 0) year++;
+  exchangeYear(ctx, simTime(year * YEAR));
+  assert.ok(land.struck, "pests came");
+  assert.ok(pestsLeft(w, land.cell) < 1 && pestsLeft(w, land.cell) >= 1 - EXCHANGE.most);
+  if (best && p.herding) {
+    // (It keeps the best beast it meets, or its own where that is better still, and gives by it against its first.)
+    assert.ok(land.beast >= 0);
+    assert.ok(
+      beastWorth(g.life.species[land.beast]!, field) >=
+        beastWorth(best, field) / EXCHANGE.better - 1e-9 ||
+        land.beast === g.life.herdBeast[land.cell],
+    );
+    assert.ok(herdGives(w, land.cell) > 0);
+  }
 });
