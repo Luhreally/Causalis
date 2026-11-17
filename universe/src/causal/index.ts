@@ -62,6 +62,8 @@ import "./order.ts";
 import "./houses.ts";
 import "./underworld.ts";
 export { groupWords } from "./underworld.ts";
+import "./groups.ts";
+export { ORG_IS, orgWords } from "./groups.ts";
 import "./health.ts";
 import "./credit.ts";
 import "./finance.ts";

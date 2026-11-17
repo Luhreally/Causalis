@@ -59,6 +59,7 @@ import { leaderBlocks } from "./leaders.ts";
 import { courtBlocks } from "./court.ts";
 import { realmHousesBlocks } from "./houses.ts";
 import { realmUnderworldBlocks } from "./mobs.ts";
+import { realmGroupsBlocks } from "./groups.ts";
 import { wealthStats } from "../wealth.ts";
 import { civilWarRows, realmStrifeBlocks } from "./strife.ts";
 import { nationRealmBlocks } from "../nations.ts";
@@ -226,6 +227,11 @@ export function realmPageModel(
   if (wants("underworld")) {
     const under = realmUnderworldBlocks(world, r);
     if (under.length) tabs.push({ id: "underworld", name: "Underworld", blocks: under });
+  }
+  // Its groups: those its people band into where a stake they share pays (sim/order/groups.ts).
+  if (wants("groups")) {
+    const groups = realmGroupsBlocks(world, r);
+    if (groups.length) tabs.push({ id: "groups", name: "Groups", blocks: groups });
   }
   // Who it stands with, whose houses it is tied to, who it called and who called it (D1).
   if (wants("ties")) tabs.push(realmTiesTab(world, r));

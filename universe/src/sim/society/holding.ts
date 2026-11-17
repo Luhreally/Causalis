@@ -34,6 +34,7 @@ import { deficitOf, lawTurn, revenueOf } from "../money/kept.ts";
 import { HOLDINGS, HOLDINGS_STORE, LAW_ROW, LAW_STORE, societyStore } from "./kept.ts";
 import { SOCIETY_EVERY, landTurn } from "./care.ts";
 import { protectedOf, trustLostOf } from "../order/underworld-kept.ts";
+import { orgFillsOf, orgPreyedOf } from "../order/groups-kept.ts";
 
 export const HOLDING_EVENTS = {
   /** A realm's law came to be written: its judges judge by it more than by custom. */
@@ -177,11 +178,19 @@ export function holdingsYear(ctx: PopulationContext, t: SimTime): void {
     // who is a crew of his own loses of it: sim/order/underworld.ts. Exactly as before where none is kept.)
     const under = protectedOf(world, c),
       byCourts = law[LAW_ROW.byCourts]! / 1000,
-      secure = (law[LAW_ROW.secure]! / 1000) * (1 - UNDER.extorts * under.extortion),
+      // (And what its groups do, sim/order/groups.ts: preying takes from a holding's safety; its own guards, vigilantes, communes,
+      // leagues and lending circles hold deals where the courts do not. Exactly as before where none is kept.)
+      preyed = orgPreyedOf(world, c),
+      filled = orgFillsOf(world, c),
+      secure =
+        (law[LAW_ROW.secure]! / 1000) *
+        (1 - UNDER.extorts * under.extortion) *
+        (preyed > 0 ? 1 - 2 * preyed : 1),
       deals =
         law[LAW_ROW.deals]! / 1000 +
         UNDER.enforces * under.protection * (1 - byCourts) * (1 - law[LAW_ROW.deals]! / 1000) -
-        trustLostOf(world, c) * (law[LAW_ROW.deals]! / 1000),
+        trustLostOf(world, c) * (law[LAW_ROW.deals]! / 1000) +
+        (filled > 0 ? filled * (1 - byCourts) * (1 - law[LAW_ROW.deals]! / 1000) : 0),
       tenure = law[LAW_ROW.tenure]! / 1000,
       target = improveTarget(secure, tenure),
       improved = improvedStep(

@@ -125,7 +125,8 @@ import {
   type PeaceTerms,
 } from "./bonds.ts";
 import type { AimKind } from "../../rules/index.ts";
-import { TIES, warReckoning } from "../../rules/index.ts";
+import { ORG, TIES, warReckoning } from "../../rules/index.ts";
+import { hiredBy } from "../order/groups-kept.ts";
 import {
   allyFront,
   answerCalls,
@@ -920,8 +921,13 @@ export function strengthOf(ctx: PopulationContext, p: Polity): number {
     arms = armsOf(ctx, p).power * ctx.affords.strength * footingPower(ctx.world, p.ref),
     own = fightingMen(ctx, p) * share * arms,
     // (And the men the god stood up for it, as they are armed: none for nearly every realm, godhost.ts.)
-    god = godPower(ctx.world, p.ref);
-  return god ? own + god * ctx.affords.strength : own;
+    god = godPower(ctx.world, p.ref),
+    // (And the companies and licensed ships it pays, each a veteran worth ORG.veteran of its own men, armed as its host is, at
+    // most ORG.hiredMost of what it fields itself: sim/order/groups.ts. Nothing where it pays none.)
+    hiredMen = hiredBy(ctx.world, p.ref),
+    paid = hiredMen > 0 ? Math.min(ORG.hiredMost * own, hiredMen * ORG.veteran * arms) : 0,
+    mine = paid > 0 ? own + paid : own;
+  return god ? mine + god * ctx.affords.strength : mine;
 }
 
 /** The border lands of `b` next to `a`, richest in food first. */
