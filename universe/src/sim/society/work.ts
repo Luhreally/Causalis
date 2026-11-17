@@ -61,10 +61,8 @@ export function workBySex(
       n = grown[s === FEMALE ? 0 : 1],
       base = 1000 * (s + 1);
     if (!n) continue;
-    const desired = apportion(
-        n,
-        shares[s === FEMALE ? 0 : 1],
-        targets.map((_, k) => world.rng.u32(WORK_BY_SEX, key, t, base, k)),
+    const desired = apportion(n, shares[s === FEMALE ? 0 : 1], (k) =>
+        world.rng.u32(WORK_BY_SEX, key, t, base, k),
       ),
       current = new Array<number>(COLS).fill(0);
     for (const r of adultRows) for (let o = 1; o < COLS; o++) current[o] = current[o]! + rest(r, o);
@@ -74,16 +72,8 @@ export function workBySex(
       totalDeficit = deficit.reduce((a, b) => a + b, 0),
       moving = Math.min(totalSurplus, totalDeficit, Math.ceil(n * 0.1));
     if (moving <= 0) continue;
-    const out = apportion(
-        moving,
-        surplus,
-        surplus.map((_, o) => world.rng.u32(WORK_BY_SEX, key, t, base + 1, o)),
-      ),
-      into = apportion(
-        moving,
-        deficit,
-        deficit.map((_, o) => world.rng.u32(WORK_BY_SEX, key, t, base + 2, o)),
-      );
+    const out = apportion(moving, surplus, (o) => world.rng.u32(WORK_BY_SEX, key, t, base + 1, o)),
+      into = apportion(moving, deficit, (o) => world.rng.u32(WORK_BY_SEX, key, t, base + 2, o));
     // Take each work's leavers from its rows, then hand them to the others in proportion to the need, row by row.
     const leavers = new Array<number>(adultRows.length).fill(0);
     out.forEach((k, o) => {
@@ -101,10 +91,8 @@ export function workBySex(
     const intoRemaining = [...into];
     leavers.forEach((k, i) => {
       if (!k) return;
-      const share = apportion(
-        k,
-        intoRemaining,
-        intoRemaining.map((_, o) => world.rng.u32(WORK_BY_SEX, key, t, base + 20, i * 16 + o)),
+      const share = apportion(k, intoRemaining, (o) =>
+        world.rng.u32(WORK_BY_SEX, key, t, base + 20, i * 16 + o),
       );
       share.forEach((m, o) => {
         d.add(adultRows[i]!, o, m);

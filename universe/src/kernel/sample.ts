@@ -64,15 +64,19 @@ const byRemainder = (
         : 1
       : x.i - y.i;
 
+/** So few weights are apportioned by picking, not by sorting (a bit each in one whole number says which are given to). */
+const FEW = 16;
+
 /**
  * Split an integer total into integer parts proportional to weights, summing
  * exactly to the total (largest remainder). Ties in the remainders go to the
- * lower tieKey, which callers draw from a stream so no index is favoured.
+ * lower tieKey, which callers draw from a stream so no index is favoured (a list of
+ * them, or a function of the index that always answers the same number for it).
  */
 export function apportion(
   total: number,
   weights: readonly number[],
-  tieKeys?: readonly number[],
+  tieKeys?: readonly number[] | ((i: number) => number),
 ): number[] {
   if (!Number.isInteger(total) || total < 0)
     throw new Error(`apportion needs a non-negative integer, got ${total}`);
@@ -82,25 +86,75 @@ export function apportion(
   for (const w of weights) if (w > 0) sum += w;
   if (n === 0 || total === 0) return parts;
   if (!(sum > 0)) throw new Error("apportion needs at least one positive weight");
-  const order: { i: number; rem: number; tie: number }[] = [];
-  let given = 0;
+  // (Tie keys given as a function are asked only where two remainders are the same: a draw each, most never needed.)
+  const keyOf = typeof tieKeys === "function" ? tieKeys : null,
+    keys = keyOf ? undefined : (tieKeys as readonly number[] | undefined);
+  let given = 0,
+    live = 0,
+    // (Whether every remainder and tie key is a number byRemainder orders: not NaN.)
+    plain = n <= FEW;
   for (let i = 0; i < n; i++) {
     const w = weights[i]! > 0 ? weights[i]! : 0,
       exact = (total * w) / sum,
       whole = Math.floor(exact);
     parts[i] = whole;
     given += whole;
-    if (w > 0) order.push({ i, rem: exact - whole, tie: tieKeys?.[i] ?? i });
+    if (w > 0) {
+      live++;
+      const rem = exact - whole,
+        tie = keyOf ? 0 : (keys?.[i] ?? i);
+      if (rem !== rem || tie !== tie) plain = false;
+    }
   }
   if (given >= total) return parts;
+  // (Among few, the left over go one by one to the greatest remainder not yet given to, then the lower tie key, then the
+  // lower index: the first of byRemainder's order, found without making or sorting it. The same parts: the order is total
+  // where nothing in it is NaN. A land's work is apportioned so four times a year; made and sorted, the order was most of it.)
+  if (plain && total - given < live) {
+    let taken = 0;
+    for (let left = total - given; left > 0; left--) {
+      let best = -1,
+        bestRem = 0;
+      for (let i = 0; i < n; i++) {
+        const w = weights[i]!;
+        if (!(w > 0) || taken & (1 << i)) continue;
+        const exact = (total * w) / sum,
+          rem = exact - Math.floor(exact);
+        if (best < 0 || rem > bestRem) {
+          best = i;
+          bestRem = rem;
+        } else if (rem === bestRem) {
+          const tie = keyOf ? keyOf(i) : (keys?.[i] ?? i),
+            bestTie = keyOf ? keyOf(best) : (keys?.[best] ?? best);
+          if (tie < bestTie) best = i;
+        }
+      }
+      taken |= 1 << best;
+      parts[best]!++;
+    }
+    return parts;
+  }
+  const order: { i: number; rem: number; tie: number }[] = [];
+  for (let i = 0; i < n; i++) {
+    const w = weights[i]! > 0 ? weights[i]! : 0,
+      exact = (total * w) / sum;
+    if (w > 0)
+      order.push({
+        i,
+        rem: exact - Math.floor(exact),
+        // (Asked where it is needed: of those at the threshold, or of all before a sort.)
+        tie: keyOf ? 0 : (keys?.[i] ?? i),
+      });
+  }
   // (Among many, the left over go to those over the threshold of the greatest remainders,
   // found by sorting the remainders alone, and to the first of those at it: the same parts.)
   if (
     order.length > 16 &&
     total - given < order.length &&
-    overThreshold(order, total - given, parts)
+    overThreshold(order, total - given, parts, keyOf)
   )
     return parts;
+  if (keyOf) for (const o of order) o.tie = keyOf(o.i);
   order.sort(byRemainder);
   for (let r = 0; given < total; r = (r + 1) % order.length, given++) parts[order[r]!.i]!++;
   return parts;
@@ -116,6 +170,7 @@ function overThreshold(
   order: readonly { i: number; rem: number; tie: number }[],
   left: number,
   parts: number[],
+  keyOf: ((i: number) => number) | null = null,
 ): boolean {
   const m = order.length,
     rems = new Float64Array(m);
@@ -132,6 +187,7 @@ function overThreshold(
       parts[o.i]!++;
       over++;
     } else if (o.rem === threshold) at.push(o);
+  if (keyOf) for (const o of at) o.tie = keyOf(o.i);
   at.sort(byRemainder);
   for (let r = 0; r < left - over; r++) parts[at[r]!.i]!++;
   return true;

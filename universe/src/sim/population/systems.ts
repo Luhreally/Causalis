@@ -1311,11 +1311,7 @@ export function workYear(ctx: PopulationContext, t: SimTime): void {
       );
     // (Each sex toward its own shares of the work, where the land's roles are kept: the society sweep, society/work.ts.)
     if (workBySex(ctx, p, targets, windowed, key, t)) continue;
-    const desired = apportion(
-      grown,
-      targets,
-      targets.map((_, k) => world.rng.u32(WORK, key, t, 0, k)),
-    );
+    const desired = apportion(grown, targets, (k) => world.rng.u32(WORK, key, t, 0, k));
     const current = new Array<number>(COLS).fill(0);
     const adultRows: number[] = [];
     for (let s = 0; s < SEXES; s++)
@@ -1331,16 +1327,8 @@ export function workYear(ctx: PopulationContext, t: SimTime): void {
       moving = Math.min(totalSurplus, totalDeficit, Math.ceil(grown * 0.1));
     if (moving <= 0) continue;
     const d = new CountDeltas(p.counts),
-      out = apportion(
-        moving,
-        surplus,
-        surplus.map((_, o) => world.rng.u32(WORK, key, t, 1, o)),
-      ),
-      into = apportion(
-        moving,
-        deficit,
-        deficit.map((_, o) => world.rng.u32(WORK, key, t, 2, o)),
-      );
+      out = apportion(moving, surplus, (o) => world.rng.u32(WORK, key, t, 1, o)),
+      into = apportion(moving, deficit, (o) => world.rng.u32(WORK, key, t, 2, o));
     // Take each occupation's leavers from its rows, then hand them to the others in
     // proportion to the need, row by row.
     const leavers = new Array<number>(adultRows.length).fill(0);
@@ -1359,11 +1347,7 @@ export function workYear(ctx: PopulationContext, t: SimTime): void {
     const intoRemaining = [...into];
     leavers.forEach((n, i) => {
       if (!n) return;
-      const share = apportion(
-        n,
-        intoRemaining,
-        intoRemaining.map((_, o) => world.rng.u32(WORK, key, t, 4, i * 16 + o)),
-      );
+      const share = apportion(n, intoRemaining, (o) => world.rng.u32(WORK, key, t, 4, i * 16 + o));
       share.forEach((m, o) => {
         d.add(adultRows[i]!, o, m);
         intoRemaining[o] = Math.max(0, intoRemaining[o]! - m);
@@ -1482,7 +1466,7 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
       movers,
       // (Those leaving a worked-out land take a land no better than their own: E1.)
       best.map((o) => Math.max(0.001, o.attraction)),
-      best.map((o) => world.rng.u32(MOVES, key, t, 0, o.cell)),
+      (k) => world.rng.u32(MOVES, key, t, 0, best[k]!.cell),
     );
     // Who goes: in proportion to every sex, age and occupation.
     const cells = ROWS * COLS,
@@ -2137,7 +2121,7 @@ export function settleYear(ctx: PopulationContext, t: SimTime): void {
             settled - inHand - inTown,
             // A spring the god opened draws people to its village.
             free.map((v) => 0.2 + siteOf(ctx, v) + (v.spring ? 0.6 : 0)),
-            free.map((v) => world.rng.u32(SITES, refHash(v.ref), t, 9)),
+            (k) => world.rng.u32(SITES, refHash(free[k]!.ref), t, 9),
           )
         : [];
       free.forEach((v, i) => (v.population = share[i]! + (v === market ? inTown : 0)));

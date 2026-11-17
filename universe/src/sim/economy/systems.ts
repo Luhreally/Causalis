@@ -380,7 +380,7 @@ function makeAndUse(
     const alloc = apportion(
       crafters,
       any ? weights : open.map(({ r }) => (r.inputs.length ? 0 : 1)),
-      open.map(({ i }) => world.rng.u32(CRAFT, key, t, 0, i)),
+      (k) => world.rng.u32(CRAFT, key, t, 0, open[k]!.i),
     );
     // (A good several crafts are worked from — copper, iron, tools — is shared among them by what
     // each was set to use of it: what one takes, another cannot. Phase 52 M217.)
@@ -421,11 +421,9 @@ function makeAndUse(
         r.inputs.length || room(r.output[0]) !== Infinity ? 0 : Math.max(0, weights[k]!) + 1e-9,
       );
       if (free.some((w) => w > 0))
-        apportion(
-          spare,
-          free,
-          open.map(({ i }) => world.rng.u32(CRAFT, key, t, 1, i)),
-        ).forEach((n, k) => (alloc[k] = alloc[k]! + n));
+        apportion(spare, free, (k) => world.rng.u32(CRAFT, key, t, 1, open[k]!.i)).forEach(
+          (n, k) => (alloc[k] = alloc[k]! + n),
+        );
     }
     open.forEach(({ r, i }, k) => {
       const n = alloc[k]!;
@@ -954,9 +952,14 @@ function workersOf(p: Province): number {
  * naturalPrices): grain its staple; a food by the work a unit takes against grain's; what its crafters make by what it costs them;
  * what it cannot make by what it does for whoever uses it, or what is made of it; else what it last fetched. Its makers ask above
  * their cost as far as they are few, buyers cannot go without, its crafters' guild acts as one and goods from abroad allow
- * (rules/labour.ts lerner).
+ * (rules/labour.ts lerner). Returns the recipes the land can work (their places in RECIPES), for its wages reckoned next.
  */
-function reprice(ctx: PopulationContext, p: Province, m: Market, want: readonly number[]): void {
+function reprice(
+  ctx: PopulationContext,
+  p: Province,
+  m: Market,
+  want: readonly number[],
+): readonly number[] {
   const life = ctx.life,
     pop = mouths(p, life),
     workers = workersOf(p);
@@ -1034,10 +1037,15 @@ function reprice(ctx: PopulationContext, p: Province, m: Market, want: readonly 
     };
     goods.set(p.cell, [...worth.map((x) => x * 1000), code(0), code(7)]);
   }
+  return recipes;
 }
 
-/** What a year of each kind of work was worth at the margin, in grain. */
-function wages(ctx: PopulationContext, p: Province, m: Market): void {
+/**
+ * What a year of each kind of work was worth at the margin, in grain. `can`: the recipes the land can work, as its prices'
+ * reckoning just found them (nothing a recipe's test reads is moved by setting prices: asked of every recipe again here it
+ * was a third of all such asking, 0.4% of a year at 1,500).
+ */
+function wages(ctx: PopulationContext, p: Province, m: Market, can: readonly number[]): void {
   const c = provinceCapacity(ctx, p.cell),
     rain = p.rain / 1000,
     tools = (1 + (TOOL_GAIN * m.toolCover) / 1000) * (1 + (MACHINE_GAIN * m.machineCover) / 1000),
@@ -1063,9 +1071,10 @@ function wages(ctx: PopulationContext, p: Province, m: Market): void {
       HERD_GOODS.woolPerMeat * m.price[G.wool]! +
       HERD_GOODS.hidesPerMeat * m.price[G.hides]!);
   let best = 0;
-  for (const r of RECIPES)
-    if (canMake(ctx, p, m, r) && (r.inputs.length === 0 || inputLimit(m, r) > 0))
-      best = Math.max(best, worth(m, r));
+  for (const i of can) {
+    const r = RECIPES[i]!;
+    if (r.inputs.length === 0 || inputLimit(m, r) > 0) best = Math.max(best, worth(m, r));
+  }
   // (Where its workers have bound themselves in a union, they win a share of their trade's rent: Round B, rules/labour.ts.)
   const union = unionOf(ctx.world, p.cell);
   w[OCC.crafter] = best * (1 + union.wage);
@@ -1095,8 +1104,7 @@ export function economyYear(ctx: PopulationContext, t: SimTime): void {
   relief(ctx, markets, flows, t);
   for (const p of provinces) {
     const m = markets.of(p.cell);
-    reprice(ctx, p, m, wanted.get(p.cell)!);
-    wages(ctx, p, m);
+    wages(ctx, p, m, reprice(ctx, p, m, wanted.get(p.cell)!));
   }
 }
 
