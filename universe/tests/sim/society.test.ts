@@ -2,7 +2,7 @@
 // its rest; what the older systems read of them lies within the rules' bounds; a land's Lives page says it.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CARE, KEEPING, improvedStep } from "../../src/rules/index.ts";
+import { BANDS, CARE, KEEPING, OCC, improvedStep } from "../../src/rules/index.ts";
 import {
   CARE_STORE,
   DRESS_STORE,
@@ -12,7 +12,9 @@ import {
   OLD_STORE,
   ROLES_STORE,
   TABLE_STORE,
+  bearerOddsOf,
   careEffectiveOf,
+  daysWorkedOf,
   careSparedOf,
   dressWantedOf,
   feastReliefOf,
@@ -98,4 +100,27 @@ test("five years of improvements at once come to five years one by one", () => {
   for (let y = 0; y < 5; y++) step = improvedStep(step, 0.1, 1, 0);
   const once = improvedStep(0.02, 0.1, 5, 0);
   assert.ok(Math.abs(step - once) < 1e-9, `${step} against ${once}`);
+});
+
+test("with its roles kept, a land's grown are all at some work by sex, its days at work near the reference, its rulers' odds a share", () => {
+  const ctx = populationContext(world),
+    life = ctx.life;
+  for (const p of ctx.provinces.all()) {
+    if (!p.total()) continue;
+    const days = daysWorkedOf(world, p.cell);
+    assert.ok(days > 0.8 && days < 1.2, `${days} of the reference year`);
+    const odds = bearerOddsOf(world, p.cell);
+    assert.ok(odds > 0 && odds < 0.6, `${odds} odds a bearer rules`);
+    // (The grown of either sex are counted at the land's works, none as children.)
+    let grown = 0,
+      atWork = 0;
+    for (let b = 0; b < BANDS; b++) {
+      if (life.bands[b]! < life.adulthood) continue;
+      for (const r of [b, BANDS + b]) {
+        grown += p.counts.rowSum(r);
+        atWork += p.counts.rowSum(r) - p.counts.get(r, OCC.dependent);
+      }
+    }
+    assert.ok(atWork >= 0.9 * grown, `${atWork} of ${grown} at work`);
+  }
 });

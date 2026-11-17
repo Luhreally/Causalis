@@ -5,6 +5,10 @@
 import type { World } from "../../kernel/index.ts";
 import type { Block, Stat } from "../../bridge/index.ts";
 import {
+  BANDS,
+  OCC,
+  WORK_YEAR,
+  daysWorked,
   GAME_WORDS,
   KEEPING_MEANS,
   gamesIn,
@@ -35,6 +39,35 @@ import {
   type Polity,
 } from "../../sim/index.ts";
 import { count, part, stat } from "./words.ts";
+
+/** Of each work's grown, the share who bear, said (from the land's own counts). */
+function bearersAtWork(world: World, cell: number): string {
+  const ctx = populationContext(world),
+    p = ctx.provinces.get(cell);
+  if (!p) return "none";
+  const words: [number, string][] = [
+    [OCC.farmer, "fields"],
+    [OCC.herder, "flocks"],
+    [OCC.forager, "the wild"],
+    [OCC.crafter, "crafts"],
+    [OCC.trader, "trade"],
+    [OCC.leader, "rule"],
+  ];
+  const out: string[] = [];
+  for (const [o, w] of words) {
+    let all = 0,
+      bear = 0;
+    for (let b = 0; b < BANDS; b++) {
+      if (ctx.life.bands[b]! < ctx.life.adulthood) continue;
+      const f = p.counts.get(b, o),
+        m = p.counts.get(BANDS + b, o);
+      all += f + m;
+      bear += f;
+    }
+    if (all > 0) out.push(`${w} ${pc(bear / all)}`);
+  }
+  return out.join(", ") || "none";
+}
 
 const pc = (x: number) => `${Math.round(x * 100)}%`,
   per = (thousandths: number) => pc(thousandths / 1000),
@@ -117,6 +150,7 @@ export function landLivesBlocks(world: World, cell: number): Block[] {
         }),
         stat("What a child costs its mother's work", one(roles[ROLE_ROW.forgone]! / 1000)),
         stat("Bearers among those who rule", per(roles[ROLE_ROW.rule]!)),
+        stat("Bearers at each work", bearersAtWork(world, cell)),
       ],
     });
   const held = societyStore(world, HOLDINGS_STORE)?.get(cell);
@@ -211,6 +245,10 @@ export function landLivesBlocks(world: World, cell: number): Block[] {
         stat("Feast days a year", count(rest[LEISURE_ROW.feasts]!)),
         stat("They play", games.join(", ") || "little"),
         stat("Grievance their feasts ease a year", pc(rest[LEISURE_ROW.relief]! / 10_000)),
+        stat(
+          "Days at work",
+          `${pc(daysWorked(rest[LEISURE_ROW.holy]!, rest[LEISURE_ROW.feasts]!))} of the reference year (${Math.round(WORK_YEAR)} days)`,
+        ),
       ],
     });
   }

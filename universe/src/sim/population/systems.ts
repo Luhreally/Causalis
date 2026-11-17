@@ -6,12 +6,14 @@
 import { intoxDeaths } from "../money/kept.ts";
 import {
   careSparedOf,
+  daysWorkedOf,
   forgoneOf,
   improvedOf,
   oldAgeWantOf,
   oldPressOf,
   tableKeptOf,
 } from "../society/kept.ts";
+import { workBySex } from "../society/work.ts";
 import {
   CountDeltas,
   MONTH,
@@ -357,7 +359,11 @@ export function farmingShare(ctx: PopulationContext, p: Province): number {
     alive = wildsOf(ctx, p.cell),
     lore = loreOf(ctx.world),
     tools = (1 + (TOOL_GAIN * m.toolCover) / 1000) * (1 + (MACHINE_GAIN * m.machineCover) / 1000),
-    gathers = ctx.life.appetite * (1 - hallsShare(ctx, p.cell)),
+    gathers =
+      ctx.life.appetite *
+      (1 - hallsShare(ctx, p.cell)) *
+      // (As many days as its people work against the reference year: the society sweep, rules/leisure.ts. 1 where none is kept.)
+      daysWorkedOf(ctx.world, p.cell),
     fields =
       (1 + lore.effect(p.cell, "farmYield")) *
       heatYield(ctx, p.cell) *
@@ -526,7 +532,12 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
       // A body gathers, sows and herds in proportion to what it eats (a giant's day's
       // grazing is a giant's meal), so a worker feeds as many as an upright ape's does —
       // less the share of every hand that keeps another world's halls alive.
-      gathers = ctx.life.appetite * (1 - hallsShare(ctx, p.cell)),
+      gathers =
+        ctx.life.appetite *
+        (1 - hallsShare(ctx, p.cell)) *
+        // (As many days as its people work against the reference year, its rest days the fewer: the society sweep, rules/leisure.ts.
+        // 1 where none is kept.)
+        daysWorkedOf(world, p.cell),
       pots = m.potteryCover / 1000,
       // What the land's people know: better fields, flocks and hunting, stores that keep.
       lore = loreOf(world),
@@ -1085,6 +1096,8 @@ export function workYear(ctx: PopulationContext, t: SimTime): void {
         marketsOf(world).wagesOf(p.cell),
         farmingShare(ctx, p),
       );
+    // (Each sex toward its own shares of the work, where the land's roles are kept: the society sweep, society/work.ts.)
+    if (workBySex(ctx, p, targets, windowed, key, t)) continue;
     const desired = apportion(
       grown,
       targets,

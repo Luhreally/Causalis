@@ -12,6 +12,7 @@
 // break it. Every step is a decision whose factors cite what drove it.
 import { inflationOf, intoxDependent, taxGrievance } from "../money/kept.ts";
 import { feastReliefOf } from "../society/kept.ts";
+import { bearerOddsOf } from "../society/kept.ts";
 import {
   YEAR,
   defineEventType,
@@ -412,7 +413,9 @@ export function crown(
   grown: number,
 ): Ruler {
   const u = (n: number) => world.rng.real(RULE, seq, t, n),
-    sex = u(1) < 0.5 ? 0 : 1,
+    // (A bearer (0) by the odds its people's roles give one of them a seat: the society sweep, rules/roles.ts bearersRule. The same
+    // keyed draw as ever, so no stream moves; even odds where no roles are kept.)
+    sex = u(1) < bearerOddsOf(world, ways.cell) ? 0 : 1,
     given = tonguePersonName(ways.tongue, Math.floor(u(2) * 1e6), sex),
     family =
       heir ??

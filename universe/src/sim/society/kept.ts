@@ -1,10 +1,11 @@
 // What the society sweep keeps (2026-11-16; the rules are rules/care.ts, roles.ts, holding.ts, table.ts, dress.ts, leisure.ts), and
 // what the older systems read of it. Each system keeps one store of fixed rows of whole numbers, a land's (keyed by its cell) or a
 // realm's (by its ref), last reckoned only (a faded stock where it needs the past), hashed by a running digest and dormant while it
-// holds nothing (Round B's RowStore). This file reaches only the kernel and Round B's kept rows, so the population, the economy and
+// holds nothing (Round B's RowStore). This file reaches only the kernel, the rules and Round B's kept rows, so the population, the economy and
 // the realms can read it without a circle. Every reader gives back exactly what the world did before where no row is kept.
 import type { World } from "../../kernel/index.ts";
 import { BIND, BIND_STORE, RowStore, moneyStore } from "../money/kept.ts";
+import { daysWorked } from "../../rules/index.ts";
 
 /** 1. A land's care of its sick (thousandths unless said): what its households spend (ten-thousandths of what they have), its healers
  * (in ten thousand of its people), whom they reach, who reaches them, the temple's alms, the realm's public care, what it knows of
@@ -200,4 +201,14 @@ export function feastReliefOf(world: World, cell: number): number {
 export function captiveWorthOf(world: World, seat: number): number | null {
   const row = moneyStore(world, BIND_STORE)?.get(seat);
   return row ? (row[BIND.gain]! / 1000) * (row[BIND.hold]! / 1000) : null;
+}
+/** The days a land works against the reference year (rules/leisure.ts daysWorked; 1 where none is reckoned). */
+export function daysWorkedOf(world: World, cell: number): number {
+  const row = societyStore(world, LEISURE_STORE)?.get(cell);
+  return row ? daysWorked(row[LEISURE_ROW.holy]!, row[LEISURE_ROW.feasts]!) : 1;
+}
+/** The odds one of a land's people raised to rule or to a court is a bearer (rules/roles.ts bearersRule; even where none is kept). */
+export function bearerOddsOf(world: World, cell: number): number {
+  const row = societyStore(world, ROLES_STORE)?.get(cell);
+  return row ? row[ROLE_ROW.rule]! / 1000 : 0.5;
 }

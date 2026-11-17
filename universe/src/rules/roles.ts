@@ -17,6 +17,7 @@
 // Pure functions.
 import { dmath } from "../kernel/index.ts";
 import type { Pairing } from "./self.ts";
+import { OCC } from "./species.ts";
 
 const clamp01 = (x: number): number => dmath.clamp(x, 0, 1);
 
@@ -82,7 +83,68 @@ export function forgone(norm: number, towns: number, machines: number): number {
   return ROLES.cost * clamp01(norm) * clamp01(clamp01(towns) + clamp01(machines));
 }
 
-/** The share of a realm's seats a people's bearers hold, by their norm and how different their bodies are (a reading). */
+/** The share of a realm's seats a people's bearers hold, by their norm and how different their bodies are: the odds a ruler or one of a court is a bearer. */
 export function bearersRule(norm: number, dimorphism: number): number {
   return clamp01(0.5 * clamp01(norm) * (1 - 0.5 * clamp01(dimorphism)) + 0.02);
+}
+
+// —— Who of a land's grown does which work, by sex (asked of the sweep: "occupations split by sex") ————————————————————————
+
+/**
+ * How readily one who bears takes up each work against one who does not (by OCC; 1: as readily): the fields, flocks and hunt as far
+ * as they ask a strength her body lacks (rolesTarget's own term); crafts done at home in the villages as readily as any, and in the
+ * towns' shops and works as far as her people's norm takes her beyond the home; trade and rule, which are beyond the home, by the norm.
+ */
+export function bearerWork(
+  norm: number,
+  dimorphism: number,
+  strength: number,
+  towns: number,
+): number[] {
+  const fields = dmath.clamp(1 - ROLES.strength * clamp01(dimorphism) * clamp01(strength), 0.05, 1),
+    beyond = dmath.clamp(norm, 0.05, 1),
+    crafts = 1 - clamp01(towns) + clamp01(towns) * beyond,
+    w = [1, fields, fields, fields, crafts, beyond, beyond];
+  return w.slice(0, Object.keys(OCC).length);
+}
+
+/**
+ * A land's work shares split between those who bear and those who do not (each row summing to 1), so that together they do the
+ * land's work in its shares and each takes up its works as readily as `w` says: fitted to both, row and column, in turn (iterative
+ * proportional fitting, twelve rounds).
+ */
+export function splitBySex(
+  targets: readonly number[],
+  bearers: number,
+  others: number,
+  w: readonly number[],
+): [number[], number[]] {
+  const n = targets.length,
+    sum = targets.reduce((a, x) => a + Math.max(0, x), 0),
+    want = targets.map((x) => (sum > 0 ? Math.max(0, x) / sum : 0)),
+    total = Math.max(0, bearers) + Math.max(0, others),
+    zero = () => new Array<number>(n).fill(0);
+  if (total <= 0 || sum <= 0) return [zero(), zero()];
+  const f = want.map((x, o) => x * (w[o] ?? 1) * Math.max(0, bearers)),
+    m = want.map((x) => x * Math.max(0, others));
+  for (let k = 0; k < 12; k++) {
+    for (let o = 0; o < n; o++) {
+      const c = f[o]! + m[o]!;
+      if (c > 0) {
+        const s = (want[o]! * total) / c;
+        f[o] = f[o]! * s;
+        m[o] = m[o]! * s;
+      }
+    }
+    const sf = f.reduce((a, x) => a + x, 0),
+      sm = m.reduce((a, x) => a + x, 0);
+    for (let o = 0; o < n; o++) {
+      if (sf > 0) f[o] = (f[o]! * bearers) / sf;
+      if (sm > 0) m[o] = (m[o]! * others) / sm;
+    }
+  }
+  return [
+    f.map((x) => (bearers > 0 ? x / bearers : 0)),
+    m.map((x) => (others > 0 ? x / others : 0)),
+  ];
 }
