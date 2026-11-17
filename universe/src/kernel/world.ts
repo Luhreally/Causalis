@@ -137,9 +137,12 @@ export class World {
         // (Every period through the first centuries, the oracle's; then one in LATE_EVERY: hashing every store
         // is a tenth of a late year, and a world parted from another stays parted. In the fifth year of a decade,
         // not the decade's own, when history is reckoned: no one year carries both.)
-        if (this.chain.length < DOMAINS_FIRST || Math.round(t / every) % LATE_EVERY === LATE_AT)
-          this.checkpoint(t);
-        this.keepHouse(t);
+        const first = this.chain.length < DOMAINS_FIRST,
+          hashed = first || Math.round(t / every) % LATE_EVERY === LATE_AT;
+        if (hashed) this.checkpoint(t);
+        // (Its housekeeping not in the late years' hashing year: a block written again beside every store hashed was the
+        // decade's slowest year, 70 to 105 ms of it here at 1,500. None of it is history, and the next year does it.)
+        if (first || !hashed) this.keepHouse(t);
         // (What reads each year as it closes, once all of it is done: nothing it does is history.)
         for (const record of this.recorders) record(t);
       },
