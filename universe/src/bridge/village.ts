@@ -405,7 +405,14 @@ export type VillagePlan = {
   readonly colony?: ColonyLook;
   readonly seed: number;
   /** Positions in metres from the village's middle; `household` for the watched homes. */
-  readonly homes: readonly { x: number; z: number; yaw: number; household: string | null }[];
+  /** (`lot`: which lot of its town a home stands on, where it is drawn from its fabric.) */
+  readonly homes: readonly {
+    x: number;
+    z: number;
+    yaw: number;
+    household: string | null;
+    lot?: number;
+  }[];
   readonly fields: readonly { x: number; z: number; w: number; d: number; yaw: number }[];
   readonly pasture: { x: number; z: number; r: number };
   /** How far out the wild begins. */

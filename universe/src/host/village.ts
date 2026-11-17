@@ -330,7 +330,7 @@ export function villagePlan(
 
   // Homes for everyone, the watched among them; five to a home. A city's homes stand
   // in its housing quarters; a village's around its square.
-  const homes: { x: number; z: number; yaw: number; household: string | null }[] = [],
+  const homes: { x: number; z: number; yaw: number; household: string | null; lot?: number }[] = [],
     count = Math.max(4, Math.min(160, Math.ceil(v.population / 5))),
     phase = u(seed, 1) * 2 * Math.PI;
   // A town built lot by lot (Phase 23): its people live in its own homes, the standing ones
@@ -358,13 +358,13 @@ export function villagePlan(
         states.what[p] === LOT.home &&
         progress(states.began[p]!, states.takes[p]!, world.now) >= 1
       )
-        homes.push({ x: lots.x[p]!, z: lots.z[p]!, yaw: lots.yaw[p]!, household: null });
+        homes.push({ x: lots.x[p]!, z: lots.z[p]!, yaw: lots.yaw[p]!, household: null, lot: p });
     // (A raid, a shock or a fire may flatten all of its middle that is drawn: its people are still about
     // its lots, and it keeps its fabric and its burning, as long as that ground lies flat: W2, N1.)
     if (homes.length < 4)
       for (let p = 0; p < town.lots && homes.length < Math.max(4, count); p++)
         if (states.what[p] === LOT.razed)
-          homes.push({ x: lots.x[p]!, z: lots.z[p]!, yaw: lots.yaw[p]!, household: null });
+          homes.push({ x: lots.x[p]!, z: lots.z[p]!, yaw: lots.yaw[p]!, household: null, lot: p });
   }
   const fabric = homes.length >= 4;
   if (!fabric) homes.length = 0;

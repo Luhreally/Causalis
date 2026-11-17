@@ -225,6 +225,18 @@ export {
   type TownRoad,
   type TownSite,
 } from "./sites.ts";
+export {
+  RANK_SORTS,
+  groundWealth,
+  homeGround,
+  rankSteep,
+  shareWords,
+  type HomeGround,
+  type RankHall,
+  type RankMark,
+  type RankSeat,
+  type TownRank,
+} from "./rank.ts";
 export type { DwellingRoom, DwellingStuff, DwellingThing, HomeInside, HomeMoney } from "./home.ts";
 export type { Garrison, HostKinds, StrikeEntry, WarRaid, WarSide, WarsMap } from "./wars.ts";
 export { HEART_REACH, heartTown } from "./wars.ts";

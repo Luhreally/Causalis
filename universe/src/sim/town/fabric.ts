@@ -1931,7 +1931,9 @@ export class TownBuilder {
    * works kept out in its lee where its land has written law to zone them, else among its homes.
    */
   wants(kind: CivicKind, s: Settlement, k: (id: string) => boolean): CivicSite {
-    const seat = politiesOf(this.ctx.world).of(s.cell)?.town === s.ref,
+    // (A realm keeps its seat's town by its land and its name.)
+    const realm = politiesOf(this.ctx.world).of(s.cell),
+      seat = !!realm && realm.seat === s.cell && realm.town === s.name,
       want = seat ? seatSite(kind) : CIVIC_SITE[kind];
     return want === "works" ? (k(ZONING_NEEDS) ? "lee" : "homes") : want;
   }
