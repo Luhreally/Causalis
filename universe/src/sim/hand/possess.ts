@@ -47,6 +47,7 @@ import { marketsOf, type PopulationContext } from "../population/systems.ts";
 import { loreOf } from "../lore/lore.ts";
 import { agentName } from "../acts/local.ts";
 import { installHeld } from "./held.ts";
+import { blowDeath } from "./deaths.ts";
 import {
   GONE_KEPT,
   bandOfAge,
@@ -503,8 +504,19 @@ function letGo(world: World, c: PopulationContext, w: Window, cause: Ref, t: num
       );
     notable(d.agent, event);
     if (byGod) notable(p.agent, event);
-    if (d.dead) die(c, w, victim, year);
-    else
+    if (d.dead) {
+      die(c, w, victim, year);
+      // (How they died, for their page: by this blow. A reading beside the world, sim/hand/deaths.ts.)
+      blowDeath(world, {
+        village: w.village,
+        id: victim.id,
+        t,
+        year,
+        age: year - victim.birthYear,
+        band: bandOfAge(year - victim.birthYear, c.life),
+        event,
+      });
+    } else
       victim.struck = [
         ...(victim.struck ?? []),
         {

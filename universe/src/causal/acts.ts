@@ -10,6 +10,7 @@ import {
   HAND_EVENTS,
   LOCAL_ACT_EVENTS,
   PEOPLE_ACT_EVENTS,
+  PERSON_ACT_EVENTS,
   WAYS_ACT_EVENTS,
   beliefOf,
   languagesOf,
@@ -478,4 +479,49 @@ registerCommandWords(
 registerCommandWords("act.faith", (world, c) => {
   const a = c.args as FaithArgs;
   return `Your act: you founded a faith of ${a.tenet} in ${landOf(world, c)}, year ${yearOfMoment(c.t)}`;
+});
+
+// The god's acts on one person (asked 2026-11-16): what was done, to whom, for how long; never how to harm anyone.
+const PERSON_ACT_WORDS: Readonly<Record<string, string>> = {
+  bless: "blessed, their chance of death halved",
+  curse: "cursed, their chance of death doubled",
+  protect: "protected from the next death by violence",
+  heal: "healed of their wounds",
+  smite: "marked to be struck down at their next reckoning",
+  inspire: "inspired: their land came upon something new",
+  whisper: "given a whisper",
+};
+registerEventWords(PERSON_ACT_EVENTS.act.type, (_, e) => {
+  const d = e.data as { kind?: string; until?: number; aim?: string } | null,
+    what =
+      d?.kind === "whisper"
+        ? d.aim === "peace"
+          ? "given a whisper to hold from war"
+          : "given a whisper to war"
+        : (PERSON_ACT_WORDS[d?.kind ?? ""] ?? "touched"),
+    lasts =
+      d?.kind === "bless" || d?.kind === "curse" || d?.kind === "whisper" || d?.kind === "protect"
+        ? ` until year ${d.until}`
+        : "";
+  return `By your hand: ${named(e.data, "someone")} was ${what}${lasts}, year ${yearOfMoment(e.t)}`;
+});
+registerEventWords(
+  PERSON_ACT_EVENTS.struck.type,
+  (_, e) =>
+    `By your hand: ${named(e.data, "someone")} was struck down by the god${typeof (e.data as { age?: unknown } | null)?.age === "number" ? `, at ${(e.data as { age: number }).age}` : ""}, year ${yearOfMoment(e.t)}`,
+);
+registerEventWords(
+  PERSON_ACT_EVENTS.spared.type,
+  (_, e) =>
+    `By your hand: ${named(e.data, "someone")} was spared a death by violence, as the god protected them, year ${yearOfMoment(e.t)}`,
+);
+registerEventWords(PERSON_ACT_EVENTS.lifted.type, (_, e) => {
+  const d = e.data as { kind?: string } | null;
+  return `The god's ${d?.kind === "curse" ? "curse" : d?.kind === "whisper" ? "whisper" : "blessing"} on ${named(e.data, "someone")} ran its years, year ${yearOfMoment(e.t)}`;
+});
+registerCommandWords("act.person", (_, c) => {
+  const a = c.args as { kind?: string; name?: string };
+  return a.kind === "smite"
+    ? `Your act: you marked ${a.name ?? "one person"} to be struck down, year ${yearOfMoment(c.t)}`
+    : `Your act: you ${a.kind === "whisper" ? "whispered to" : `${a.kind ?? "touch"}${a.kind?.endsWith("e") ? "d" : "ed"}`} ${a.name ?? "one person"}, year ${yearOfMoment(c.t)}`;
 });

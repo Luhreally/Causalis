@@ -717,7 +717,13 @@ export {
   Runs,
   plainCivic,
 } from "./town/fabric.ts";
-export { BLESSING, LOCAL_ACT_EVENTS, agentName, installLocalActs } from "./acts/local.ts";
+export {
+  BLESSING,
+  LOCAL_ACT_EVENTS,
+  agentName,
+  installLocalActs,
+  nextPrinciple,
+} from "./acts/local.ts";
 export {
   ASK_EVENTS,
   ASK_FIRSTS,
@@ -1786,3 +1792,26 @@ export {
   type OrgLeader,
   type RealmOrgs,
 } from "./order/groups-kept.ts";
+export {
+  ACTS_FOR,
+  ACT_YEARS,
+  BLESS_BY,
+  CURSE_BY,
+  PERSON_ACTS,
+  PERSON_ACT_EVENTS,
+  PROTECT_YEARS,
+  WHISPER_PEACE,
+  WHISPER_WAR,
+  PersonActStore,
+  actOn,
+  hazardBy,
+  personActProblem,
+  personActsOf,
+  personKind,
+  personNow,
+  whisperOn,
+  type PersonAct,
+  type PersonActArgs,
+  type PersonActKind,
+  type PersonKind,
+} from "./acts/person.ts";
