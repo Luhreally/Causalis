@@ -100,11 +100,13 @@ import {
   exciseOf,
   moneyStore,
   refNumber,
+  sanctionBetween,
   LAWS_EVERY,
   lawTurn,
   stepped,
 } from "./kept.ts";
 import { intoxYear, prohibitionYear } from "./intox.ts";
+import { reckonContraband } from "./contraband.ts";
 import { machineIncome, plannedOf, townRentOf } from "../trade/kept.ts";
 import { provisionCostOf } from "../society/kept.ts";
 import { shelterCostOf } from "../society/kept.ts";
@@ -123,6 +125,8 @@ export const MONEY_EVENTS = {
   sanction: defineEventType("money.sanction", 3),
   /** Goods first slipped past a realm's borders in worth. */
   smuggling: defineEventType("money.smuggling", 2),
+  /** A ware's trade into a realm first gone underground: much of it crossing unseen, and worth much (rules/contraband.ts). */
+  underground: defineEventType("money.underground", 2),
   /** A land's crafters first bound themselves in a guild; its workers in a union. */
   guild: defineEventType("money.guild", 2),
   union: defineEventType("money.union", 3),
@@ -633,6 +637,8 @@ function dropGone(world: World, living: readonly Polity[]): void {
 
 // —— 188.money.trade ————————————————————————————————————————————————————————————————————————————————————
 
+const NO_FOES: ReadonlySet<string> = new Set();
+
 /** Each realm's tariff and sanctions, and what slips past them, from this year's trade. */
 export function dutyYear(ctx: PopulationContext, t: SimTime): void {
   const { world } = ctx,
@@ -653,9 +659,21 @@ export function dutyYear(ctx: PopulationContext, t: SimTime): void {
     exports = new Map<string, number>(),
     crafted = new Map<string, number>(),
     dealings = new Map<string, number>(),
-    between = new Map<string, number>();
+    between = new Map<string, number>(),
+    // (And, for those that reckon this year, what each buys abroad by good, and of it what comes from a realm shut out: contraband.)
+    reckoning = new Set(living.map((p) => p.ref)),
+    inBy = new Map<string, Float64Array>(),
+    shutBy = new Map<string, Float64Array>(),
+    shutPair = new Map<string, number>(),
+    sanctioning = new Set<string>();
+  for (const k of duties.keys()) if (duties.at(k, DUTY.sanctions) > 0) sanctioning.add(k);
   let world_ = 0;
-  const add = (m: Map<string, number>, k: string, v: number) => m.set(k, (m.get(k) ?? 0) + v);
+  const add = (m: Map<string, number>, k: string, v: number) => m.set(k, (m.get(k) ?? 0) + v),
+    goods = (m: Map<string, Float64Array>, k: string) => {
+      let a = m.get(k);
+      if (!a) m.set(k, (a = new Float64Array(GOODS.length)));
+      return a;
+    };
   for (const f of markets.flows) {
     const ra = realms.of(f.from)?.ref,
       rb = realms.of(f.to)?.ref,
@@ -669,6 +687,29 @@ export function dutyYear(ctx: PopulationContext, t: SimTime): void {
     if (CRAFTED.includes(f.good)) add(crafted, rb, v);
     add(between, `${ra}|${rb}`, v);
     add(between, `${rb}|${ra}`, v);
+    if (reckoning.has(rb)) {
+      goods(inBy, rb)[f.good]! += v;
+      // (Only where either keeps a sanction at all: few do.)
+      if (sanctioning.has(ra) || sanctioning.has(rb)) {
+        const pair = `${ra}|${rb}`,
+          shut = shutPair.get(pair) ?? sanctionBetween(world, ra, rb);
+        shutPair.set(pair, shut);
+        if (shut > 0) goods(shutBy, rb)[f.good]! += v * shut;
+      }
+    }
+  }
+  // (Who is at war with whom now: trade with the enemy is forbidden, and what would cross is smuggled.)
+  const foes = new Map<string, Set<string>>();
+  for (const w of warsOf(world).hot()) {
+    if (w.ended !== null) continue;
+    for (const [a, b] of [
+      [w.attacker, w.defender],
+      [w.defender, w.attacker],
+    ] as const) {
+      let s = foes.get(a);
+      if (!s) foes.set(a, (s = new Set()));
+      s.add(b);
+    }
   }
   for (const p of living) {
     const r = readRealm(ctx, p),
@@ -786,6 +827,23 @@ export function dutyYear(ctx: PopulationContext, t: SimTime): void {
         wedge: Math.round(wedge * 100),
       });
     }
+    // Ware by ware: what crosses its borders unseen, and why (./contraband.ts).
+    reckonContraband({
+      ctx,
+      p,
+      lands: r.lands,
+      inBy: inBy.get(p.ref),
+      shutBy: shutBy.get(p.ref),
+      rate,
+      dealt: dealings.get(p.ref) ?? 0,
+      hold: { force: held[HOLD.force]!, capacity: r.capacity, corruption: o?.corruption ?? 0 },
+      border,
+      force: held[HOLD.force]!,
+      voice: held[HOLD.voice]!,
+      word: held[HOLD.word]!,
+      foes: foes.get(p.ref) ?? NO_FOES,
+      tell: (data) => tell(ctx, MONEY_EVENTS.underground.type, p, data),
+    });
     const row = [rate * 1000, ...want.parts.map(([, v]) => v * 1000), inn, revenueNow];
     for (let k = 0; k < 3; k++) row.push(sanctions[k]?.[0] ?? 0, (sanctions[k]?.[1] ?? 0) * 1000);
     row.push(told);

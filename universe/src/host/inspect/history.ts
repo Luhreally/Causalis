@@ -213,6 +213,7 @@ const TITLES: Readonly<Record<string, string>> = {
   "money.tariff": "A tariff",
   "money.sanction": "Trade shut by a fear",
   "money.smuggling": "Smuggling",
+  "money.underground": "Gone underground",
   "money.guild": "A guild",
   "money.union": "A union",
   "money.underwriters": "Underwriters",

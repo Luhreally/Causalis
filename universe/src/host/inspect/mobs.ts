@@ -37,8 +37,11 @@ import {
   type Polity,
   type RealmUnderworld,
   type Settlement,
+  contrabandOf,
 } from "../../sim/index.ts";
 import { grainSum, groupWords } from "../../causal/index.ts";
+import { contraWords } from "./tastes.ts";
+import { carryBlocks, groupCarryBlocks } from "./carriers.ts";
 import { realmColor } from "../colors.ts";
 import {
   fedNews,
@@ -198,6 +201,8 @@ export function realmUnderworldBlocks(world: World, r: Polity): Block[] {
   const ops = operationsBlock(r, v);
   if (ops) blocks.push(ops);
   blocks.push(feedsBlock(v));
+  // (Who carries each ware that crosses its borders unseen, and with what share: carriers.ts.)
+  blocks.push(...carryBlocks(world, r));
   const street = streetBlock(world, r, v);
   if (street) blocks.push(street);
   blocks.push(stateBlock(v));
@@ -247,12 +252,20 @@ function feedsBlock(v: Readonly<RealmUnderworld>): Block {
       }),
       stat(
         "The rent of what it forbids and taxes",
-        `${grain(v.banRent + v.tariffRent + v.borderRent)} a year`,
+        `${grain(v.banRent + v.tariffRent + v.borderRent + (v.wareRent ?? 0))} a year`,
         {
           parts: [
             part("of its ban", grain(v.banRent)),
             part("of its tariffs and sanctions", grain(v.tariffRent)),
             ...(v.borderRent ? [part("of a banning neighbour's market", grain(v.borderRent))] : []),
+            ...(v.wareRent
+              ? [
+                  part(
+                    "of trade its wars forbid, its licences hold or its bar on arms",
+                    grain(v.wareRent),
+                  ),
+                ]
+              : []),
             part("the share outside hands take", th(v.captured)),
           ],
         },
@@ -448,8 +461,8 @@ export function crimeGroupPage(world: World, ref: string): PageModel {
       ],
     });
   }
-  // (What it carries, and its means: arms, armour, hidden carriage, guarded word.)
-  if (rec) blocks.push(...gearBlocks(world, r, rec));
+  // (What it carries, its share of each ware where it works, and its means: arms, armour, hidden carriage, guarded word.)
+  if (rec) blocks.push(...gearBlocks(world, r, rec), ...groupCarryBlocks(world, r, rec));
   const passed = passedItems(world, groupNews(g) as (e: never) => boolean, since);
   blocks.push(
     passed.length
@@ -805,7 +818,12 @@ function gearBlocks(world: World, r: Polity, g: CrimeGroup): Block[] {
           "What",
           w
             ? `what calms, wakes and eases, forbidden: ${w.strength}`
-            : "what its realm forbids or taxes",
+            : contrabandOf(world, r.ref).length
+              ? contrabandOf(world, r.ref)
+                  .slice(0, 3)
+                  .map((x) => contraWords(x))
+                  .join("; ")
+              : "what its realm forbids or taxes",
           {
             parts: [
               part("the rent it takes a year", grain(g.income)),

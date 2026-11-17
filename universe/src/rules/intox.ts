@@ -1,8 +1,9 @@
 // Intoxicants (Round B, asked 2026-11-16: "are drugs in the game and that nuance to society and civs?"). What a world's own life makes
 // that acts on its people's nerves, and what a people makes of it. A rule says what a thing does; a world's life says what there is.
 //   What there is (intoxAvailable): a plant makes compounds to keep from being eaten, the more where growth is rich and eaters many
-//     (warm, wet, crowded lands: Earth's tropics hold the most alkaloids). Each lineage that grows (a seed grass, a light-eater) holds
-//     at most one kind, its own; a ferment calms wherever its life makes sugar and its people brew. They act only on a body of the same
+//     (warm, wet, crowded lands: Earth's tropics hold the most alkaloids). Each lineage that grows (a seed grass, a light-eater) may
+//     hold one kind of its own, and, a great clade, others besides (INTOX_ALSO); a ferment calms wherever its life makes sugar and
+//     its people brew. They act only on a body of the same
 //     liquid and hand as the life that made them: none on a world whose life is not the people's own.
 //   Who takes it (intoxUse): as much as there is, as far as a people wants it (its rites for what brings visions, its toil and its
 //     hours for what wakes, its wounds and sickness for what eases pain, its hardship for what calms), less what a law forbids.
@@ -49,6 +50,12 @@ export const INTOX_HOLD: Readonly<
 
 /** Of a world's growing lineages, the share that holds each kind (est: of Earth's flowering plants, some 1 in 5 makes an active alkaloid). */
 export const INTOX_LINEAGE = 0.2;
+/**
+ * Of a world's growing lineages, the share that holds each other kind besides the one it may hold of its own: a lineage is a great
+ * clade, and a clade makes several defences (est: Earth's nightshades hold what eases pain and what brings visions both; its
+ * mallows' kin both what wakes and what calms). Without it a world of nine lineages lacked what wakes two times in three.
+ */
+export const INTOX_ALSO = 0.15;
 
 /** What a land's own life puts within reach of each kind (0 … 1), read from what grows there and how richly. */
 export function intoxAvailable(
@@ -75,22 +82,49 @@ export type IntoxWants = {
   readonly hardship: number;
 };
 
-/** The share of a land's people who take each kind steadily: what there is, what they want, less what a law keeps from them. */
+/** The share of a land's people who would take each kind steadily were it within reach and allowed: by their ways and years. */
+export function intoxWant(w: IntoxWants): Record<IntoxKind, number> {
+  return {
+    calming: 0.2 + 0.4 * w.hardship,
+    waking: 0.1 + 0.5 * w.toil,
+    visions: 0.05 + 0.25 * w.piety,
+    easing: 0.05 + 0.5 * w.pain,
+  };
+}
+
+/** The share of those who want a kind that a law keeps from it (0 … 0.7). */
+export const lawKeeps = (barred: number): number => 0.7 * dmath.clamp(barred, 0, 1);
+
+/**
+ * The share of a land's people who take each kind steadily: what there is, what they want, less what a law keeps from them (one law
+ * for all four, or each kind's own: a realm may forbid what brings visions and only tax what calms).
+ */
 export function intoxUse(
   have: Readonly<Record<IntoxKind, number>>,
   w: IntoxWants,
-  barred: number,
+  barred: number | Readonly<Record<IntoxKind, number>>,
 ): Record<IntoxKind, number> {
-  const want: Record<IntoxKind, number> = {
-      calming: 0.2 + 0.4 * w.hardship,
-      waking: 0.1 + 0.5 * w.toil,
-      visions: 0.05 + 0.25 * w.piety,
-      easing: 0.05 + 0.5 * w.pain,
-    },
-    out = {} as Record<IntoxKind, number>,
-    kept = 1 - 0.7 * dmath.clamp(barred, 0, 1);
-  for (const k of INTOX_KINDS) out[k] = dmath.clamp(have[k] * want[k] * kept, 0, 0.6);
+  const want = intoxWant(w),
+    out = {} as Record<IntoxKind, number>;
+  for (const k of INTOX_KINDS) {
+    const kept = 1 - lawKeeps(typeof barred === "number" ? barred : barred[k]);
+    out[k] = dmath.clamp(have[k] * want[k] * kept, 0, 0.6);
+  }
   return out;
+}
+
+/** What one kind's steady takers cost a people, a share of its people each (dependent, work lost, deaths a year): INTOX_HOLD. */
+export function kindCost(
+  k: IntoxKind,
+  use: number,
+): { dependent: number; lost: number; deaths: number } {
+  const h = INTOX_HOLD[k],
+    d = use * h.binds;
+  return {
+    dependent: d,
+    lost: h.work >= 0 ? d * h.work : use * h.work * 0.2,
+    deaths: d * h.kills,
+  };
 }
 
 /** What a land's use gives and costs it in a year. */
@@ -141,7 +175,27 @@ export type BarSides = {
   readonly traders: number;
   readonly excise: number;
   readonly users: number;
+  /**
+   * Its harm, and those it falls on (a temperance movement's constituency): the share of its people who need it and who die of it a
+   * year (their kin, the temple that cares for them, the healers who tend them), and the crafters' sway (the masters and guilds who
+   * lose their days). Absent: weighed as none, as before.
+   */
+  readonly dependent?: number;
+  readonly deaths?: number;
+  readonly crafters?: number;
+  /** What a ban already costs: its crackdown, a share of what the treasury takes in; and its smugglers' rents, a share of it too, as
+   * far as its officers can be bought (0 … 1). Absent: none. */
+  readonly enforce?: number;
+  readonly rents?: number;
+  readonly corruption?: number;
 };
+
+/**
+ * How heavily harm weighs for a ban (est: a dependent's household of four, each harmed twice as keenly as a taker gains; the kin of
+ * the dead grieving a generation; a healer's load a share of the dependent and the dying). Temperance and the opium leagues rose
+ * where the harm was great and the harmed could be heard.
+ */
+export const BAR_HARM = { kin: 8, grief: 160, care: 10, healers: 2, dying: 50 } as const;
 
 /**
  * How far a realm forbids intoxicants (0 … 1) and its parts: the temple whose rites do not use them and the court whose people's work
@@ -149,14 +203,29 @@ export type BarSides = {
  * live by them, and their takers as far as they have a voice and word moves, against it.
  */
 export function prohibits(s: BarSides): { level: number; parts: [string, number][] } {
-  const parts: [string, number][] = [
-    ["the temple, whose rites do not use them", 1.2 * s.temple * (1 - s.rites)],
-    ["the court, whose people's work they take", 3 * s.court * s.lost],
-    ["a realm held hard", 0.4 * (s.force - 0.5)],
-    ["traders who live by their trade", -1.2 * s.traders],
-    ["what its treasury takes of them", -2 * s.excise],
-    ["their takers, as far as they are heard", -s.users * (0.3 + s.voice + 0.5 * s.word)],
-  ];
+  const heard = 0.3 + s.voice + 0.5 * s.word,
+    dependent = s.dependent ?? 0,
+    deaths = s.deaths ?? 0,
+    parts: [string, number][] = [
+      ["the temple, whose rites do not use them", 1.2 * s.temple * (1 - s.rites)],
+      ["the court, whose people's work they take", 3 * s.court * s.lost],
+      ["a realm held hard", 0.4 * (s.force - 0.5)],
+      ["traders who live by their trade", -1.2 * s.traders],
+      ["what its treasury takes of them", -2 * s.excise],
+      ["their takers, as far as they are heard", -s.users * heard],
+      // (Those its harm falls on: BAR_HARM.)
+      [
+        "the kin of those who need it and of its dead, as far as they are heard",
+        (BAR_HARM.kin * dependent + BAR_HARM.grief * deaths) * heard,
+      ],
+      ["masters and guilds who lose their days", 3 * (s.crafters ?? 0) * s.lost],
+      ["the temple, which cares for those it ruins", BAR_HARM.care * s.temple * dependent],
+      ["healers who tend them", BAR_HARM.healers * (dependent + BAR_HARM.dying * deaths)],
+      [
+        "what a ban costs: its crackdown, and its smugglers' rents that buy its officers",
+        -(s.enforce ?? 0) - (s.rents ?? 0) * (0.3 + (s.corruption ?? 0)),
+      ],
+    ];
   const sum = parts.reduce((a, [, v]) => a + v, 0);
   return { level: dmath.clamp(sum, 0, 1), parts };
 }

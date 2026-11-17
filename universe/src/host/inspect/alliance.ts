@@ -40,6 +40,7 @@ import {
 } from "../../bridge/index.ts";
 import { realmColor } from "../colors.ts";
 import { allianceTimeTab } from "./time.ts";
+import { blocCompareTabs } from "./bloc-compare.ts";
 import { wealthBook } from "../wealth.ts";
 import { landEra } from "../village.ts";
 import { eraWords } from "./world.ts";
@@ -595,7 +596,7 @@ function sampledYears(years: readonly number[]): number[] {
 // ————— Its page —————
 
 /** An alliance's own page: its weight, who leads it, its realms, its years, its wars, its story, and what holds it. */
-export function blocPage(world: World, ref: string): PageModel {
+export function blocPage(world: World, ref: string, tab?: string): PageModel {
   const head = ref.slice("bloc:".length) as Ref,
     realms = politiesOf(world),
     h = realms.get(head),
@@ -637,20 +638,29 @@ export function blocPage(world: World, ref: string): PageModel {
         : []),
     ],
     tabs: [
-      overviewTab(world, r, reads),
-      membersTab(world, r),
-      strengthTab(world, r),
-      // (Its realms of each year, summed, and who joined and left: asked 2026-11-13, "graphs over time".)
-      allianceTimeTab(world, a, {
-        realms: r.members.length,
-        lands: r.lands,
-        people: r.people,
-        host: r.host,
-      }),
-      warsTab(world, r),
-      historyTab(world, r),
-      withinTab(world, r),
+      ...[
+        overviewTab(world, r, reads),
+        membersTab(world, r),
+        strengthTab(world, r),
+        // (Its realms of each year, summed, and who joined and left: asked 2026-11-13, "graphs over time".)
+        allianceTimeTab(world, a, {
+          realms: r.members.length,
+          lands: r.lands,
+          people: r.people,
+          host: r.host,
+        }),
+        warsTab(world, r),
+        historyTab(world, r),
+        withinTab(world, r),
+      ].map((t) => ({ ...t, group: "Alliance" })),
+      // (Its members compared on every system the Ledger compares realms on, each read only while open: bloc-compare.ts.)
+      ...blocCompareTabs(
+        world,
+        r.members.map((m) => m.ref),
+        tab,
+      ),
     ],
+    ...(tab ? { tab } : {}),
     followable: false,
     year: yearNow(world),
   };

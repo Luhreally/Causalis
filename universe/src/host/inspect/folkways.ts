@@ -2,6 +2,7 @@
 // make, and what its town draws; for a realm, what its seat tells and how it is taken, how far its people count themselves one,
 // and its faith's houses; for a faith, its houses: clergy, granaries, relief and teaching. Pure readings of what the sweep's
 // systems kept (rules/folk.ts, temple.ts, voice.ts, urban.ts, art.ts), made when a page is read.
+import { mostTakenStat } from "./tastes.ts";
 import type { World } from "../../kernel/index.ts";
 import type { Block, Stat } from "../../bridge/index.ts";
 import {
@@ -61,7 +62,7 @@ export function theirLifeBlocks(world: World, r: Polity): Block[] {
     timelineBlock(world, r),
   ].filter((b): b is Block => !!b);
 }
-import { count, many, share, stat } from "./words.ts";
+import { count, link, many, share, stat } from "./words.ts";
 
 /** Who a land's people count their own, what they make, and what its town draws: for its People tab. */
 export function landCultureBlocks(world: World, cell: number): Block[] {
@@ -147,7 +148,15 @@ export function landCultureBlocks(world: World, cell: number): Block[] {
 export function realmCultureBlocks(world: World, r: Polity): Block[] {
   const blocks: Block[] = [...theirLifeBlocks(world, r)],
     ctx = populationContext(world),
-    v = voiceOf(world, r.ref);
+    v = voiceOf(world, r.ref),
+    // (What its people take most, legal, taxed or forbidden: tastes.ts.)
+    taken = mostTakenStat(world, r.ref, "What its people take most, and its law on it");
+  if (taken)
+    blocks.push({
+      type: "facts",
+      title: "What its people take most",
+      rows: [taken, stat("More", [link("its treasury: what it comes to", `${r.ref}#treasury`)])],
+    });
   if (v) {
     const rows: Stat[] = [
       stat("Its seat tells", v.topic ? VOICE_WORDS[v.topic] : "nothing of note", {}),

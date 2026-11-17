@@ -6,6 +6,7 @@
 // wealth, offices, title and generations, and the houses whose hold ended). Pure reads of the order's stores (sim/order/
 // underworld-kept.ts, groups-kept.ts, houses.ts) and Round B's rows, one pass over each a page build; no walk of the history.
 // Who, what, cost and effect: never how any crime is done. Phone first: each table sorts by a tap, its greatest first.
+import { worldCarryBlocks } from "./carriers.ts";
 import type { Ref, World } from "../../kernel/index.ts";
 import type { Block, Row, Span, Stat } from "../../bridge/index.ts";
 import { GROUP_KINDS, ORG_AIMS, ORG_KINDS, ORG_STANDING, RACKETS } from "../../rules/index.ts";
@@ -279,6 +280,8 @@ export function underworldLedger(world: World, lc: LedgerCtx): Block[] {
       mostLeast("Most killing under the law", killing),
     ]),
   );
+  // (Each ware smuggled, and the groups across the world that take most of its rent: carriers.ts.)
+  blocks.push(...worldCarryBlocks(world, lc.standing));
   if (wars.length) {
     wars.sort(
       (a, b) =>

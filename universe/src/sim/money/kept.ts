@@ -221,6 +221,8 @@ export const INTOX = {
   deaths: 10,
   rites: 11,
   eased: 12,
+  /** The share who would take each kind were it within reach and allowed (thousandths, by INTOX_KINDS): what trade answers. */
+  want: 13,
 } as const;
 /** A realm's law on them and their trade: how far forbidden and its six parts; its excise and whether it holds the trade; what it took. */
 export const BAR_STORE = "money.prohibition";
@@ -241,6 +243,43 @@ export const BAR = {
   /** Those who carry it organised, where it is forbidden (thousandths). */
   cartel: 16,
   told: 17,
+  /** The rest of its law's parts, those its harm falls on and what a ban costs to keep (rules/intox.ts prohibits, from its 7th). */
+  more: 18,
+} as const;
+
+/**
+ * 11. A realm's law and trade on each kind (by INTOX_KINDS, KIND_ROW.width numbers a kind): how far it forbids it (thousandths),
+ * what it bought of it from abroad (users' worth), from whom most (a realm's serial, one more), the share of its people's want of it
+ * that comes from abroad (thousandths), and the share of it that slips past its law (thousandths); then the kinds whose ban it told
+ * (bits). A realm may forbid what brings visions and only tax what calms: BAR.barred is these weighed by their use.
+ */
+export const KINDS_STORE = "money.intoxkinds";
+export const KIND_ROW = {
+  barred: 0,
+  imported: 1,
+  from: 2,
+  reach: 3,
+  slips: 4,
+  width: 5,
+  told: 20,
+} as const;
+
+/**
+ * 12. A realm's wares smuggled past its borders, its greatest few by the rent they make (CONTRA_SLOTS of them, CONTRA.width numbers
+ * each): the ware (rules/contraband.ts, one more), the share of it that crosses unseen (thousandths), why (CONTRA_CAUSES' place, one
+ * more), what crossed unseen a year (grain's worth) and its wedge (thousandths); then the wares it has told gone underground (bits).
+ * Reckoned with its tariff (LAWS_EVERY), from the year's trade.
+ */
+export const CONTRA_STORE = "money.contraband";
+export const CONTRA_SLOTS = 4;
+export const CONTRA = {
+  ware: 0,
+  share: 1,
+  cause: 2,
+  worth: 3,
+  wedge: 4,
+  width: 5,
+  told: 20,
 } as const;
 
 export const MONEY_STORES: readonly (readonly [string, number])[] = [
@@ -253,8 +292,10 @@ export const MONEY_STORES: readonly (readonly [string, number])[] = [
   [COVER_STORE, 9],
   [SHARES_STORE, 10],
   [BIND_STORE, 6],
-  [INTOX_STORE, 13],
-  [BAR_STORE, 18],
+  [INTOX_STORE, 17],
+  [BAR_STORE, 23],
+  [KINDS_STORE, 21],
+  [CONTRA_STORE, 21],
 ];
 
 /** One of Round B's stores on a world (null where it keeps none). */
@@ -385,4 +426,49 @@ export function cartelOf(world: World, realm: string): number {
 /** What a realm's treasury took of intoxicants this year (grain's worth). */
 export function exciseOf(world: World, realm: string): number {
   return moneyStore(world, BAR_STORE)?.at(realm, BAR.revenue) ?? 0;
+}
+
+/** How far a realm forbids one kind (0 … 1): its own law on it, or, where none is kept by kind, its one law on all four. */
+export function kindBarred(world: World, realm: string, kind: number): number {
+  const row = moneyStore(world, KINDS_STORE)?.get(realm);
+  if (row) return row[KIND_ROW.width * kind + KIND_ROW.barred]! / 1000;
+  return barredOf(world, realm);
+}
+
+/** The share of a realm's people's want of one kind met from abroad (0 … 1; 0 where none is kept). */
+export function kindReach(world: World, realm: string, kind: number): number {
+  return (
+    (moneyStore(world, KINDS_STORE)?.at(realm, KIND_ROW.width * kind + KIND_ROW.reach) ?? 0) / 1000
+  );
+}
+
+/** One of a realm's wares smuggled, as kept (CONTRA). */
+export type Contraband = {
+  /** Its place in rules/contraband.ts's wares; the share of it that crosses unseen (0 … 1); why (CONTRA_CAUSES' place). */
+  readonly ware: number;
+  readonly share: number;
+  readonly cause: number;
+  /** What crossed unseen a year (grain's worth); its wedge (0 … 1). */
+  readonly worth: number;
+  readonly wedge: number;
+};
+
+/** A realm's greatest smuggled wares, as last reckoned (the greatest rent first; none where none is kept). */
+export function contrabandOf(world: World, realm: string): Contraband[] {
+  const row = moneyStore(world, CONTRA_STORE)?.get(realm),
+    out: Contraband[] = [];
+  if (!row) return out;
+  for (let k = 0; k < CONTRA_SLOTS; k++) {
+    const at = CONTRA.width * k,
+      ware = row[at + CONTRA.ware]!;
+    if (!ware) continue;
+    out.push({
+      ware: ware - 1,
+      share: row[at + CONTRA.share]! / 1000,
+      cause: row[at + CONTRA.cause]! - 1,
+      worth: row[at + CONTRA.worth]!,
+      wedge: row[at + CONTRA.wedge]! / 1000,
+    });
+  }
+  return out;
 }

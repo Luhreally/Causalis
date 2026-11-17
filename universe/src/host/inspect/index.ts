@@ -152,7 +152,7 @@ function build(
   if (ref.startsWith("stone:")) return stonePage(world, ref);
   if (ref.startsWith("song:")) return songPage(world, ref);
   // What binds realms (D1).
-  if (ref.startsWith("bloc:")) return blocPage(world, ref);
+  if (ref.startsWith("bloc:")) return blocPage(world, ref, tab ?? undefined);
   if (ref.startsWith("league:")) return leaguePage(world, ref);
   if (ref.startsWith("match:")) return matchPage(world, ref);
   if (ref.startsWith("envoy:")) return envoyPage(world, ref);

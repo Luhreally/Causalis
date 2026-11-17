@@ -473,6 +473,42 @@ async function walk(view: (typeof VIEWS)[number]): Promise<void> {
       });
   }
   await closePage();
+  // An alliance's page, its members compared in sections (2026-11-16): each section pressed, then each of its tabs.
+  const bloc = await k<string | null>(
+    `globalThis.causalis.client.query({ type: "page", args: { ref: "world:alliances" } }).then((p) => {
+      for (const t of p?.tabs ?? []) for (const b of t.blocks ?? []) for (const r of b.rows ?? []) if (String(r.ref ?? "").startsWith("bloc:")) return r.ref;
+      return null;
+    }).catch(() => null)`,
+  );
+  if (bloc) {
+    await k(`globalThis.causalis.open(${JSON.stringify(bloc)})`);
+    await settle(1200);
+    const blocSections = await k<number>(
+      `document.querySelectorAll(".page-window .tab-sections .tab-section").length`,
+    );
+    for (let s = 0; s < Math.max(1, blocSections); s++) {
+      if (
+        blocSections &&
+        !(await press(`.page-window .tab-sections .tab-section:nth-child(${s + 1})`))
+      ) {
+        failures.push(`${view.name}: the alliance's section ${s + 1} could not be pressed`);
+        continue;
+      }
+      await settle(500);
+      const blocTabs = await k<string[]>(
+        `[...document.querySelectorAll(".page-window .tabs .tab")].map((b) => b.textContent.trim())`,
+      );
+      for (let i = 0; i < blocTabs.length; i++)
+        await state(`bloc-${blocTabs[i]!.toLowerCase().replace(/\W+/g, "-")}`, async () => {
+          await must(
+            `the alliance's ${blocTabs[i]} tab`,
+            press(`.page-window .tabs .tab:nth-child(${i + 1})`),
+          );
+          await settle(700);
+        });
+    }
+    await closePage();
+  } else say("no alliance stands to open");
   await state("settings", async () => {
     await must(
       "settings",
