@@ -221,8 +221,6 @@ export const INTOX = {
   deaths: 10,
   rites: 11,
   eased: 12,
-  /** What its people would take of what is not within reach (thousandths, all kinds): sought from abroad. */
-  sought: 13,
 } as const;
 /** A realm's law on them and their trade: how far forbidden and its six parts; its excise and whether it holds the trade; what it took. */
 export const BAR_STORE = "money.prohibition";
@@ -255,7 +253,7 @@ export const MONEY_STORES: readonly (readonly [string, number])[] = [
   [COVER_STORE, 9],
   [SHARES_STORE, 10],
   [BIND_STORE, 6],
-  [INTOX_STORE, 14],
+  [INTOX_STORE, 13],
   [BAR_STORE, 18],
 ];
 

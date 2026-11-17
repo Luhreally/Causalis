@@ -83,9 +83,6 @@ export const GROWER_USERS = 40;
 export const RISK = 4;
 /** At most this share of an importer's seat's money metal goes abroad for it in a year. */
 export const DRAIN_MOST = 0.05;
-/** Of what a land's people would take of a kind its own life does not give them, the share they seek from abroad (dearer, and
- * carried far: est half). */
-export const SOUGHT = 0.5;
 
 /** The kind a world's lineage holds, or null (pure: the world's seed and the lineage). */
 function kindOf(ctx: PopulationContext, species: number): IntoxKind | null {
@@ -129,7 +126,7 @@ export function intoxYear(ctx: PopulationContext, t: SimTime): void {
         const k = kindOf(ctx, s.index);
         if (k) here.push(k);
       }
-    const grown = intoxAvailable(
+    const have = intoxAvailable(
         here,
         Math.min(1, grows / 4),
         g.life.diversity[c] ?? 0,
@@ -140,43 +137,31 @@ export function intoxYear(ctx: PopulationContext, t: SimTime): void {
       workers = Math.max(1, pop - prov.occupation(OCC.dependent)),
       realm = realms.of(c),
       barred = realm ? barRead(world, realm.ref) : 0,
-      // (And what its realm brought from abroad last: within reach as far as it met what was sought.)
-      bar = realm ? moneyStore(world, BAR_STORE)?.get(realm.ref) : undefined,
-      carried = bar ? dmath.clamp(bar[BAR.imported]! / Math.max(1, bar[BAR.demand]!), 0, 1) : 0,
-      have = Object.fromEntries(INTOX_KINDS.map((k) => [k, Math.max(grown[k], carried)])) as Record<
-        IntoxKind,
-        number
-      >,
-      wants = {
-        piety: ways?.traits[WAY.piety] ?? 0.5,
-        toil: dmath.clamp(
-          0.2 + 0.5 * lore.effect(c, "industry") + prov.occupation(OCC.crafter) / workers,
-          0,
-          1,
-        ),
-        pain: dmath.clamp(0.2 + (realm && wars.fighting(realm.ref).length ? 0.4 : 0), 0, 1),
-        hardship: dmath.clamp(1 - prov.leanest / 1000, 0, 1),
-      },
-      // (What they would take were it all within reach, past what is.)
-      would = intoxUse(
-        { calming: 1, waking: 1, visions: 1, easing: 1 } as Record<IntoxKind, number>,
-        wants,
+      use = intoxUse(
+        have,
+        {
+          piety: ways?.traits[WAY.piety] ?? 0.5,
+          toil: dmath.clamp(
+            0.2 + 0.5 * lore.effect(c, "industry") + prov.occupation(OCC.crafter) / workers,
+            0,
+            1,
+          ),
+          pain: dmath.clamp(0.2 + (realm && wars.fighting(realm.ref).length ? 0.4 : 0), 0, 1),
+          hardship: dmath.clamp(1 - prov.leanest / 1000, 0, 1),
+        },
         barred,
       ),
-      use = intoxUse(have, wants, barred),
       fx = intoxEffects(use),
       // (How strong what they take has grown under a ban: more need it, more die of it. Exactly 1 where none is kept.)
       harm = potencyHarm(potencyOf(world, realm?.ref).potency, potencyOf(world, realm?.ref).made);
     store.set(c, [
-      // (What its own life gives: what its growers can supply. What came from abroad is in what they take.)
-      ...INTOX_KINDS.map((k) => grown[k] * 1000),
+      ...INTOX_KINDS.map((k) => have[k] * 1000),
       ...INTOX_KINDS.map((k) => use[k] * 1000),
       Math.min(1, fx.dependent * harm.binds) * 1000,
       fx.lost * 1000,
       Math.min(0.01, fx.deaths * harm.deaths) * 1e6,
       fx.rites * 1000,
       fx.eased * 1000,
-      INTOX_KINDS.reduce((sum, k) => sum + Math.max(0, would[k] - use[k]), 0) * 1000,
     ]);
   }
 }
@@ -242,8 +227,7 @@ export function prohibitionYear(ctx: PopulationContext, t: SimTime): void {
         used += row[INTOX.use + k]! / 1000;
         given += row[INTOX.have + k]! / 1000;
       }
-      // (What they take, and what they would take of what their own lands do not give, sought from abroad.)
-      demand += n * (used + (SOUGHT * (row[INTOX.sought] ?? 0)) / 1000);
+      demand += n * used;
       // (What its life could give: a share of its farmers could grow it for so many users each, where it grows at all.)
       supply += Math.min(1, given) * prov.occupation(OCC.farmer) * 0.05 * GROWER_USERS;
       people += n;
