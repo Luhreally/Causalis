@@ -336,6 +336,15 @@ export function newcomersOf(draw: number, target: number): number {
   return clamp01(beyond * coming);
 }
 
+/**
+ * Of a war's heat at the start of `years`, its mean over them as it tires by half every `half` years (0 … 1): what a war
+ * reckoned once for those years is fought at through them.
+ */
+export function tiringOver(half: number, years: number): number {
+  if (!(half > 0) || !(years > 0)) return 1;
+  return (half / (years * Math.LN2)) * (1 - dmath.pow(0.5, years / half));
+}
+
 /** The men a road's groups lose a year, and the others they kill, for their men and how hard they fight. */
 export function killingsOf(members: number, war: number): number {
   return (
@@ -657,9 +666,14 @@ export const ESCALATE = {
   perMan: 3,
   /** What a soldier sent costs a year, in working men's years. */
   cost: 1.2,
-  /** Of a group's men the share an operation's soldiers could take a year at full odds, and of the soldiers the share they lose. */
+  /**
+   * Of a group's men the share an operation's soldiers could take a year at full odds, and of the soldiers the share they lose
+   * were the group their match (est: Mexico's army lost some forty to fifty soldiers a year of fifty thousand and more sent, one
+   * in a thousand, against groups it outmatched three to one and more; at three in a hundred, the soldiers' own dead were a third
+   * of all an operation killed).
+   */
   takes: 0.25,
-  loses: 0.03,
+  loses: 0.004,
   /**
    * Of a group's men an operation takes, the share killed in the fighting; the rest are seized alive (est: Mexico 2007–2012, some
    * three to four thousand gunmen killed by the state's forces a year against well over twenty thousand arrested).

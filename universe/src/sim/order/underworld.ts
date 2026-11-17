@@ -74,6 +74,7 @@ import {
   diesWithin,
   exposedWithin,
   killingsOf,
+  tiringOver,
   protectionWantedIn,
   racketBit,
   rentCaptured,
@@ -1211,17 +1212,24 @@ function stepRealm(
     // (A war tires: fought for years with neither winning, its groups fight less by half every UNDER.warHalf years, until it
     // is a peace; and a peace made holds, wearing off over a generation (UNDER.paxHalf), before the same road is fought for again.)
     const last = v.wars.filter((w) => w.ended !== null && w.kind === KIND(kind)).at(-1),
+      // (Sooner where its seat hunts them: an open war draws all a state that reaches has. In realms with one open, a
+      // fifth of the world's people at 1,500, it was eleven in 100,000 of the whole world's killed a year.)
+      half = UNDER.warHalf * (1 - UNDER.cutShort * hunted),
       tired = open
-        ? // (Sooner where its seat hunts them: an open war draws all a state that reaches has. In realms with one open, a
-          // fifth of the world's people at 1,500, it was eleven in 100,000 of the whole world's killed a year.)
-          dmath.pow(0.5, (year - open.since) / (UNDER.warHalf * (1 - UNDER.cutShort * hunted)))
+        ? dmath.pow(0.5, (year - open.since) / half)
         : last
           ? 1 - dmath.pow(0.5, (year - last.ended!) / UNDER.paxHalf)
           : 1,
       warNow = fight.war * tired,
       // (Short of a war its groups feud: a road kills as a war does only once it is fought for. Before, a strain that never came
       // to a war killed as one for good, and was most of the killing of a world at 1,500: 87% of its roads' war dead.)
-      level = open || warNow >= UNDER.warAt ? warNow : UNDER.feud * warNow;
+      // (And a war is reckoned as it will be fought over the years this reckoning stands for, tiring through them, not as it is
+      // on their first day: its realm's turn comes once in UNDER.every years, and a war told at its opening's heat for all five
+      // was told half as hot again as it was fought, where its seat hunts it by half.)
+      level =
+        open || warNow >= UNDER.warAt
+          ? warNow * tiringOver(half, UNDER.every)
+          : UNDER.feud * warNow;
     // (A war's dead are its fighters': each group loses men as its rivals are many (the lesser the greater part of itself), and
     // of its purse as of its men. So a war wears both down, the weaker faster, until one holds the road or neither can fight on:
     // before, no loss came off its men and a war between two alike never ended.)
@@ -1913,8 +1921,9 @@ function writeLands(
   // (A group's men and its killing lie in its lands as their people do: none in an empty land, nor half of it in a hamlet.)
   const peopleOf = (c: number) => ctx.provinces.get(c)?.total() ?? 0,
     spread = new Map(v.groups.map((g) => [g, g.lands.reduce((s, c) => s + peopleOf(c), 0)]));
-  // (A road's war is fought where two of its groups meet: the lands both hold, and a group's lands on a rival's border; where they
-  // nowhere meet, at each one's home. Its peace's killing lies in all its lands, as its men do.)
+  // (A road's war is fought where two of its groups meet: in the lands both hold; where they hold none in common, in a group's
+  // lands on a rival's border; where they nowhere meet, at each one's home. Its peace's killing lies in all its lands, as its
+  // men do. Laid over the shared lands and every land on the border besides, a war's dead lay thin over most of a great realm.)
   const grid = ctx.generated.grid,
     fronts = new Map<CrimeGroup, { lands: readonly number[]; people: number; war: number }>();
   for (const g of v.groups) {
@@ -1923,12 +1932,13 @@ function writeLands(
     const theirs = new Set<number>();
     for (const x of v.groups)
       if (x !== g && x.kind === g.kind) for (const c of x.lands) theirs.add(c);
-    let lands = g.lands.filter((c) => {
-      if (theirs.has(c)) return true;
-      for (let k = grid.offsets[c]!; k < grid.offsets[c + 1]!; k++)
-        if (theirs.has(grid.neighbours[k]!)) return true;
-      return false;
-    });
+    let lands = g.lands.filter((c) => theirs.has(c) && peopleOf(c) > 0);
+    if (!lands.length)
+      lands = g.lands.filter((c) => {
+        for (let k = grid.offsets[c]!; k < grid.offsets[c + 1]!; k++)
+          if (theirs.has(grid.neighbours[k]!)) return true;
+        return false;
+      });
     if (!lands.some((c) => peopleOf(c) > 0))
       lands = [g.lands.includes(g.home) ? g.home : g.lands[0]!];
     fronts.set(g, { lands, people: lands.reduce((s, c) => s + peopleOf(c), 0), war });
