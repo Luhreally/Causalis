@@ -35,7 +35,8 @@ export class MemoryByteStore implements ByteStore {
 /** Bytes in IndexedDB (browsers and workers). */
 export class IndexedDbByteStore implements ByteStore {
   private readonly db: Promise<IDBDatabase>;
-  constructor(name = "causalis-universe") {
+  // (A preview build keeps its worlds apart from the game's on the same site: VITE_SAVE_DB at build.)
+  constructor(name = import.meta.env?.VITE_SAVE_DB ?? "causalis-universe") {
     this.db = new Promise((resolve, reject) => {
       const open = indexedDB.open(name, 1);
       open.onupgradeneeded = () => open.result.createObjectStore("bytes");
