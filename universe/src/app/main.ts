@@ -6932,6 +6932,8 @@ async function runPlanetPage(): Promise<void> {
       event: P.info.event,
       turn: P.turn,
       title: P.info.title,
+      // (Where its field lies before the town, metres from its square: on the attackers' road in.)
+      at: { x: P.frame.x, z: P.frame.z },
       stage: battleStage(seen, P.turn),
       s: battleSecond(seen, P.turn),
       per: P.field.per,
