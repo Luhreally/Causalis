@@ -15,6 +15,7 @@ import {
   exposedWithin,
   killingsOf,
   protectionWanted,
+  protectionWantedIn,
   rentCaptured,
   streetFight,
   streetPull,
@@ -338,7 +339,10 @@ test("towns with poor quarters grow small gangs; many of one people ally into a 
     assert.ok(read.street > 0 && read.street <= 1 && read.violence >= 0);
   }
   const all = towns.reduce((s, c) => s + (groupsIn(world, c)?.gangs ?? 0), 0);
-  if (all >= UNDER.fedForm) {
+  // (Many gangs of several towns, where cells or a cartel bind them: one town's gangs alone are no federation.)
+  const several = towns.filter((c) => (groupsIn(world, c)?.gangs ?? 0) >= UNDER.fedTown).length;
+  if (several < UNDER.fedTowns) assert.equal(v.feds.length, 0, "one town's gangs do not federate");
+  else if (all >= UNDER.fedForm && v.feds.length) {
     assert.ok(
       v.feds.length > 0 && v.feds.length <= UNDER.feds,
       `${all} gangs, ${v.feds.length} federations`,
@@ -543,4 +547,32 @@ test("on a forced world soldiers go against groups: each operation with its page
     withOps.flatMap((r) => store.of(r)!.ops!).length <=
       withOps.length * (ESCALATE.most + ESCALATE.gone),
   );
+});
+
+test("protection is wanted land by land: where the seat's courts reach and are trusted, little; where they are bought, the land held down or its people strangers, more; and for all that is traded against the law", () => {
+  const held = {
+    secure: 0.63,
+    deals: 0.48,
+    trade: 300,
+    earned: 100,
+    capacity: 0.95,
+    reach: 0.95,
+    corruption: 0,
+    legitimacy: 0.9,
+    kin: 1,
+    occupied: 0,
+    illegal: 0,
+  };
+  const well = protectionWantedIn(held);
+  assert.ok(well < 0.05, `${well}`);
+  for (const worse of [
+    { corruption: 0.4 },
+    { legitimacy: 0.2 },
+    { kin: 0.1 },
+    { occupied: 0.6 },
+    { reach: 0.4 },
+    { illegal: 0.1 },
+  ])
+    assert.ok(protectionWantedIn({ ...held, ...worse }) > well * 1.5, JSON.stringify(worse));
+  assert.equal(protectionWantedIn({ ...held, secure: 1, deals: 1, illegal: 0.2 }), 0.2);
 });
