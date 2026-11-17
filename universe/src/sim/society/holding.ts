@@ -29,7 +29,7 @@ import { capacityOf, orderOf } from "../order/order.ts";
 import { holdsOf } from "../order/holds.ts";
 import { LAW_OF } from "../order/laws.ts";
 import { warsOf } from "../war/war.ts";
-import { LAWS_EVERY, deficitOf, lawTurn, revenueOf } from "../money/kept.ts";
+import { deficitOf, lawTurn, revenueOf } from "../money/kept.ts";
 import { HOLDINGS, HOLDINGS_STORE, LAW_ROW, LAW_STORE, societyStore } from "./kept.ts";
 import { SOCIETY_EVERY, landTurn } from "./care.ts";
 
@@ -148,13 +148,25 @@ export function holdingsYear(ctx: PopulationContext, t: SimTime): void {
     if (was && !landTurn(c, year)) continue;
     const realm = realms.of(c),
       law = realm ? laws.get(realm.ref) : undefined;
-    if (p.total() <= 0 || !law) {
-      // (A land no realm holds keeps what was put into it, wearing; none is put in.)
-      if (p.total() <= 0) store.drop(c);
-      else if (was) {
-        const improved = improvedStep(was[HOLDINGS.improved]! / 10_000, 0, SOCIETY_EVERY, 0);
-        store.set(c, [improved * 10_000, 0, 0, 0, was[HOLDINGS.deals]!]);
-      }
+    if (p.total() <= 0) {
+      store.drop(c);
+      continue;
+    }
+    if (!law) {
+      // (A land no realm holds keeps what was put into it, wearing, and none is put in: nothing holds it safe; its deals are held
+      // to only among kin and those who know each other.)
+      const improved = was
+          ? improvedStep(was[HOLDINGS.improved]! / 10_000, 0, SOCIETY_EVERY, 0)
+          : 0,
+        kin = contractsKept(
+          0,
+          0,
+          0,
+          0,
+          holdsOf(world, null)[HOLD.trust]!,
+          cultureOf(world).get(c)?.traits[WAY.kinship] ?? 0.5,
+        );
+      store.set(c, [improved * 10_000, 0, 0, 0, kin.kept * 1000]);
       continue;
     }
     // (The battles fought on its lands in the years since it was last weighed: read once a year, for every land at once.)
@@ -188,6 +200,3 @@ function battleYears(ctx: PopulationContext, year: number): Map<number, number> 
   }
   return new Map([...out].map(([k, s]) => [k, s.size]));
 }
-
-/** How many years a realm's law waits between weighings (for pages). */
-export const LAW_EVERY_YEARS = LAWS_EVERY;

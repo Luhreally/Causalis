@@ -6,6 +6,8 @@ import { CARE, KEEPING, improvedStep } from "../../src/rules/index.ts";
 import {
   CARE_STORE,
   DRESS_STORE,
+  HOLDINGS_STORE,
+  LAW_STORE,
   LEISURE_STORE,
   OLD_STORE,
   ROLES_STORE,
@@ -17,6 +19,7 @@ import {
   forgoneOf,
   oldAgeWantOf,
   oldPressOf,
+  politiesOf,
   populationContext,
   provisionCostOf,
   societyStore,
@@ -41,6 +44,7 @@ test("every peopled land keeps a row in each of the sweep's land stores, and wha
       TABLE_STORE,
       DRESS_STORE,
       LEISURE_STORE,
+      HOLDINGS_STORE,
     ])
       assert.ok(societyStore(world, name)?.get(p.cell), `${name} keeps land ${p.cell}`);
     const spared = careSparedOf(world, p.cell)!;
@@ -76,6 +80,17 @@ test("a realm with no provision costs its treasury nothing; a land's Lives page 
     "Rest and feasts",
   ])
     assert.ok(titles.includes(t), `${t} on the page`);
+});
+
+test("every living realm keeps its law, and none past its end", () => {
+  const alive = new Set(
+    politiesOf(world)
+      .living()
+      .map((p) => p.ref),
+  );
+  for (const r of alive) assert.ok(societyStore(world, LAW_STORE)?.get(r), `${r} keeps its law`);
+  for (const k of societyStore(world, LAW_STORE)?.keys() ?? [])
+    assert.ok(alive.has(k as never), `${k} lives`);
 });
 
 test("five years of improvements at once come to five years one by one", () => {

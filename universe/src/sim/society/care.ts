@@ -9,7 +9,6 @@
 //     it pays its old and its poor's care, and what that costs its treasury (money.ts treasuryYear spends it).
 // Nothing is drawn: each is a reckoning from numbers the world keeps.
 import { defineEventType, dmath, yearOfMoment, type SimTime } from "../../kernel/index.ts";
-import { offworldSite } from "../../gen/index.ts";
 import {
   BANDS,
   CARE,
@@ -35,7 +34,7 @@ import { marketsOf, mouths, type PopulationContext } from "../population/systems
 import type { Market } from "../economy/market.ts";
 import { loreOf } from "../lore/lore.ts";
 import { WAY, cultureOf } from "../culture/culture.ts";
-import { politiesOf, realmName, type Polity } from "../polity/polity.ts";
+import { politiesOf, realmName } from "../polity/polity.ts";
 import { holdsOf } from "../order/holds.ts";
 import { giniOf, lawTurn, LAWS_EVERY, stepped, taxBurden } from "../money/kept.ts";
 import {
@@ -269,8 +268,9 @@ export function provisionYear(ctx: PopulationContext, t: SimTime): void {
       old += frail;
       kin += frail * (or[OLD_ROW.kin]! / 1000);
       untended += off;
-      // (A pension of half a living a year for each frail one; the care its untended would buy at what its households spend on theirs.)
-      pensionAll += frail * means.living * CARE_OLD.pension;
+      // (A pension of half a living a year for each frail one, a living a head being its workers' spread over those they keep; the
+      // care its untended would buy at what its households spend on theirs.)
+      pensionAll += frail * means.living * means.workers * CARE_OLD.pension;
       careAll += off * (cr[CARE_ROW.spend]! / 10_000) * means.earns * means.workers;
     }
     if (people <= 0) {
@@ -342,14 +342,4 @@ export function provisionYear(ctx: PopulationContext, t: SimTime): void {
       told,
     ]);
   }
-}
-
-/** The realm a land's provision comes from (for pages). */
-export function provisionRealm(ctx: PopulationContext, cell: number): Polity | null {
-  return politiesOf(ctx.world).of(cell) ?? null;
-}
-
-/** Whether a land lies on another world's halls (its climate is the halls'). */
-export function inHalls(ctx: PopulationContext, cell: number): boolean {
-  return !!offworldSite(ctx.generated, cell);
 }
