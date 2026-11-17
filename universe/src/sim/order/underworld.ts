@@ -1198,6 +1198,15 @@ function stepRealm(
         bites,
       ),
       open = v.wars.find((w) => w.ended === null && w.kind === KIND(kind));
+    // (A war tires: fought for years with neither winning, its groups fight less by half every UNDER.warHalf years, until it
+    // is a peace; and a peace made holds, wearing off over a generation (UNDER.paxHalf), before the same road is fought for again.)
+    const last = v.wars.filter((w) => w.ended !== null && w.kind === KIND(kind)).at(-1),
+      tired = open
+        ? dmath.pow(0.5, (year - open.since) / UNDER.warHalf)
+        : last
+          ? 1 - dmath.pow(0.5, (year - last.ended!) / UNDER.paxHalf)
+          : 1,
+      warNow = fight.war * tired;
     // (A war's dead are its fighters': each group loses men as its rivals are many (the lesser the greater part of itself), and
     // of its purse as of its men. So a war wears both down, the weaker faster, until one holds the road or neither can fight on:
     // before, no loss came off its men and a war between two alike never ended.)
@@ -1206,7 +1215,7 @@ function stepRealm(
       const calm = v.truce?.gid === g.id ? 1 - ESCALATE.calms : 1,
         rivals = Math.min(allMen - g.members, g.members * UNDER.warMost),
         peace = killingsOf(g.members, 0) * calm,
-        war = (killingsOf(rivals, fight.war) - killingsOf(rivals, 0)) * calm,
+        war = (killingsOf(rivals, warNow) - killingsOf(rivals, 0)) * calm,
         dead = Math.min(g.members, Math.round((war / (1 + UNDER.bystanders)) * span));
       g.violence = Math.round(peace + war);
       killings += g.violence;
@@ -1217,7 +1226,7 @@ function stepRealm(
       }
     }
     const ranked = [...own].sort((a, b) => b.share - a.share || a.id - b.id);
-    if (!open && fight.war >= UNDER.warAt && ranked.length >= 2) {
+    if (!open && warNow >= UNDER.warAt && ranked.length >= 2) {
       const [a, b] = ranked as [CrimeGroup, CrimeGroup];
       const event = tell(
         f,
@@ -1229,7 +1238,7 @@ function stepRealm(
           { ref: b.event, role: "enabler", weight: 1 },
         ],
         [
-          factor("two close in strength over one rent", b.share / Math.max(1, a.share), fight.war),
+          factor("two close in strength over one rent", b.share / Math.max(1, a.share), warNow),
           factor("a market no one group holds", 1 - fight.herfindahl, 1 - fight.herfindahl),
           factor("a pact with the state", collusion, -UNDER.pax * collusion),
         ],
@@ -1247,7 +1256,7 @@ function stepRealm(
           fallen: 0,
         },
       ].slice(-UNDER.wars);
-    } else if (open && fight.war < UNDER.warEnds) {
+    } else if (open && warNow < UNDER.warEnds) {
       open.ended = year;
       const holder = ranked[0];
       tell(

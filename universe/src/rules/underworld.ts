@@ -111,6 +111,9 @@ export const UNDER = {
   /** Others killed for each of a group's men killed (bystanders, police, those who would not pay). */
   bystanders: 0.6,
   /** A turf war is told from this much, and its end below the second. */
+  /** A war fought on halves in these years; a peace made wears off by half in these. */
+  warHalf: 5,
+  paxHalf: 25,
   warAt: 0.3,
   warEnds: 0.12,
   /** A group falls from the named below this share of its road's rent. */
