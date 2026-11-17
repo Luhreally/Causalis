@@ -28,6 +28,7 @@ import {
   type Mix,
 } from "./sound-mix.ts";
 import { SOUND_SPEED, type HeardKind, type Voicing } from "../view/index.ts";
+import type { MusicVoice } from "../bridge/index.ts";
 
 const STORE = "causalis.sound",
   STORE_VOLUME = "causalis.sound.volume",
@@ -2177,6 +2178,94 @@ export class Sound {
         when / n,
       );
     }
+  }
+
+  /**
+   * A realm's music played for some twelve seconds, quietly (its Culture tab's ▶ Hear it, asked 2026-11-16): its tune walked on its
+   * scale from its own seed, at its pace, in the timbre of what it is played on, its drums struck as many beats a bar as it has. Only
+   * while 🔊 is on, at the page's volume; false where it is off or the page cannot sound.
+   */
+  tune(v: MusicVoice, tries = 0): boolean {
+    if (!this.wanted || !canSound()) return false;
+    if (!this.ctx) this.begin();
+    const ctx = this.ctx,
+      g = this.graph;
+    if (!ctx) return false;
+    // (Its graph is built just after its context, in a moment: played as soon as it stands.)
+    if (!g) {
+      if (tries >= 12) return false;
+      setTimeout(() => this.tune(v, tries + 1), 250);
+      return true;
+    }
+    if (ctx.state !== "running") void this.wake();
+    // (Its own draw: the same realm's tune each time.)
+    let h = v.seed >>> 0 || 1;
+    const rand = () => {
+        h = (h + 0x6d2b79f5) >>> 0;
+        let t = Math.imul(h ^ (h >>> 15), 1 | h);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      },
+      beat = 60 / Math.max(40, Math.min(180, v.tempo)),
+      start = ctx.currentTime + 0.1,
+      length = 12,
+      bus = ctx.createGain(),
+      steps = v.scale.length ? v.scale : [0, 2, 4, 7, 9],
+      drums = new Set<number>([0]);
+    bus.gain.value = 0.22;
+    bus.connect(g.master);
+    while (drums.size < Math.min(8, v.drums)) drums.add(Math.floor(rand() * 8));
+    const note = (at: number, hz: number, dur: number) => {
+      const o = ctx.createOscillator(),
+        e = ctx.createGain(),
+        legato = v.timbre === "wood" || v.timbre === "voice";
+      o.type = v.timbre === "string" || v.timbre === "voice" ? "triangle" : "sine";
+      o.frequency.setValueAtTime(hz, at);
+      e.gain.setValueAtTime(0, at);
+      e.gain.linearRampToValueAtTime(legato ? 0.5 : 0.7, at + (legato ? 0.06 : 0.008));
+      e.gain.exponentialRampToValueAtTime(0.001, at + (v.timbre === "metal" ? dur * 2.5 : dur));
+      o.connect(e).connect(bus);
+      o.start(at);
+      o.stop(at + dur * 2.6 + 0.05);
+      // (A bell rings with a partial above its note that is no whole multiple of it.)
+      if (v.timbre === "metal") {
+        const p = ctx.createOscillator(),
+          pe = ctx.createGain();
+        p.frequency.setValueAtTime(hz * 2.76, at);
+        pe.gain.setValueAtTime(0.18, at);
+        pe.gain.exponentialRampToValueAtTime(0.001, at + dur);
+        p.connect(pe).connect(bus);
+        p.start(at);
+        p.stop(at + dur + 0.05);
+      }
+    };
+    const drum = (at: number, strong: boolean) => {
+      const o = ctx.createOscillator(),
+        e = ctx.createGain();
+      o.frequency.setValueAtTime(strong ? 110 : 150, at);
+      o.frequency.exponentialRampToValueAtTime(45, at + 0.18);
+      e.gain.setValueAtTime(strong ? 0.8 : 0.45, at);
+      e.gain.exponentialRampToValueAtTime(0.001, at + 0.25);
+      o.connect(e).connect(bus);
+      o.start(at);
+      o.stop(at + 0.3);
+    };
+    let at = start,
+      i = 0,
+      pos = steps.length + Math.floor(rand() * steps.length);
+    while (at < start + length) {
+      if (drums.has(i % 8) && v.drums > 0) drum(at, i % 8 === 0);
+      // (A walk on the scale over two octaves; a lament's falls through each bar.)
+      const fall = v.falling && i % 8 > 3 ? -1 : 0;
+      pos = Math.max(0, Math.min(steps.length * 2 - 1, pos + Math.floor(rand() * 5) - 2 + fall));
+      const step = steps[pos % steps.length]! + 12 * Math.floor(pos / steps.length),
+        held = rand() < 0.25 ? 2 : 1;
+      if (rand() > 0.12) note(at, v.root * Math.pow(2, step / 12), beat * held * 0.95);
+      at += beat * held;
+      i += held;
+    }
+    setTimeout(() => bus.disconnect(), (length + 4) * 1000);
+    return true;
   }
 
   /** The volume (0 … 1), kept between visits, heard at once. */

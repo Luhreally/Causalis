@@ -2,7 +2,7 @@
 // hand laid on a town and lifted, a family met, and the acts on one under the hand. A page
 // names its tools; they are drawn here, and each asks twice before it acts (what it will do,
 // then "confirm"), because what follows is history's.
-import type { HostClient, Leader } from "../bridge/index.ts";
+import type { HostClient, Leader, MusicVoice } from "../bridge/index.ts";
 import { drawCanPick } from "./can-pick.ts";
 import { drawYears } from "./years.ts";
 import { drawBarReading } from "./people-bar.ts";
@@ -60,6 +60,8 @@ export type ToolContext = {
     readonly person?: string;
     readonly household?: string;
   }) => void;
+  /** A realm's music played aloud, quietly (false: sound is off, or this page cannot sound). */
+  readonly hear?: (voice: MusicVoice) => boolean;
 };
 
 /** One of a town's people the god may touch (Phase 54): who they are, and their town. */
@@ -218,6 +220,21 @@ export function drawTool(
     case "acts.place":
       void placeActs(into, args.town as string, ctx);
       return;
+    case "culture.music": {
+      // (A realm's music played for some twelve seconds, quietly, through the page's own sound: never when 🔊 is off.)
+      if (!ctx.hear) return;
+      const b = el("button", "act", "▶ Hear it"),
+        note = el("p", "note");
+      b.title =
+        "Their music, played for a few seconds from what it is read from: its scale, its pace, what it is played on.";
+      b.onclick = () => {
+        note.textContent = ctx.hear!(args as MusicVoice)
+          ? "Played quietly, as it is read from their ways and what they make."
+          : "Sound is off: tap 🔊 to hear it.";
+      };
+      into.append(b, note);
+      return;
+    }
     case "watch.grow": {
       if (!ctx.watch) return;
       const b = el("button", "act", "🌱 Watch it grow");
