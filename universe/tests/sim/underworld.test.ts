@@ -55,7 +55,8 @@ import { refNumber } from "../../src/sim/money/kept.ts";
 import { EARTH } from "../../src/host/index.ts";
 import { pageOf } from "../../src/host/inspect/index.ts";
 import { claimOf } from "../../src/host/inspect/words.ts";
-import { groupRef } from "../../src/host/underworld.ts";
+import { fedRef, groupRef } from "../../src/host/underworld.ts";
+import { townUnderworldBlocks } from "../../src/host/inspect/underworld.ts";
 import { universeWorld } from "../host/worlds.ts";
 
 // —— The rules ——————————————————————————————————————————————————————————————————————————————————————————
@@ -291,4 +292,35 @@ test("a realm's Underworld tab, each group's page with its follow and pin, and t
     assert.ok(!/\bhow to\b|recipe|cook|synthes|assemble/i.test(s), s);
     assert.ok(!s.includes("underworld."), s);
   }
+});
+
+test("towns with poor quarters grow small gangs; many of one people ally into a federation, with its page, and a town's justice page says them", () => {
+  const { realm, year } = forced(world),
+    ctx = populationContext(world),
+    p = politiesOf(world).get(realm)!;
+  // (Its towns grown great, its young men without openings: the street's conditions written in.)
+  for (const c of p.members)
+    for (const s of ctx.settlements.inProvince(c)) if (s.market) s.population = 60_000;
+  underworldYear(ctx, simTime((year + 1) * YEAR));
+  const v = underworldOf(world)!.of(realm)!,
+    towns = p.members.filter((c) => (groupsIn(world, c)?.gangs ?? 0) > 0);
+  assert.ok(towns.length > 0, `street ${v.street}`);
+  for (const c of towns) {
+    const read = groupsIn(world, c)!;
+    assert.ok(read.street > 0 && read.street <= 1 && read.violence >= 0);
+  }
+  const all = towns.reduce((s, c) => s + (groupsIn(world, c)?.gangs ?? 0), 0);
+  if (all >= UNDER.fedForm) {
+    assert.ok(
+      v.feds.length > 0 && v.feds.length <= UNDER.feds,
+      `${all} gangs, ${v.feds.length} federations`,
+    );
+    const f = v.feds[0]!,
+      page = pageOf(world, fedRef(realm, f.event));
+    assert.equal(page.kind, "family");
+    assert.ok(page.followable && page.pin?.ref === fedRef(realm, f.event), page.title);
+  }
+  const town = ctx.settlements.inProvince(towns[0]!).find((s) => s.market)!,
+    blocks = townUnderworldBlocks(world, town);
+  assert.ok(blocks.length === 1 && "title" in blocks[0]! && blocks[0].title === "Its underworld");
 });
