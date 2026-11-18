@@ -97,13 +97,19 @@ const herbLands = ctx.provinces
   .filter((p) => p.total() > 0 && knowsHerbs(p.cell))
   .map((p) => p.cell)
   .sort((a, b) => a - b);
-for (const cell of herbLands.slice(0, 2)) {
-  const greatest = ctx.settlements
-    .inProvince(cell)
-    .filter((s) => s.population > 0)
-    .sort((a, b) => b.population - a.population || byRef(a, b))[0];
-  if (greatest) add(greatest.ref);
-}
+// (The two most peopled of their greatest towns: a land may know it and hold only camps, or a town so small that the one of its
+// lines its plan draws is named by a case, and keeps their own name.)
+const herbTowns = herbLands
+  .map(
+    (cell) =>
+      ctx.settlements
+        .inProvince(cell)
+        .filter((s) => s.population > 0)
+        .sort((a, b) => b.population - a.population || byRef(a, b))[0],
+  )
+  .filter((s) => s !== undefined)
+  .sort((a, b) => b.population - a.population || byRef(a, b));
+for (const s of herbTowns.slice(0, 2)) add(s.ref);
 const plans = new Map(towns.map((ref) => [ref, planOf(ref)] as const));
 
 /** Its holders who fell, and the people met of it who fell, in a battle's side. */
@@ -378,6 +384,17 @@ test("a healer sits where its land knows herb-lore, and nowhere else", () => {
     if (!knowsHerbs(s.cell)) {
       assert.equal(sat.length, 0, `${ref} no healer`);
       assert.equal(healerOf(world, s, Y), null, `${ref} no seat`);
+      continue;
+    }
+    // (Where any of its folk drawn could be: grown, at no trade, raising nothing, and named by no case.)
+    const named = new Set(namedByCases(world, ref, Y).named.map((n) => n.ref));
+    if (
+      !folk.some(
+        (p) =>
+          !p.child && !p.trade && p.occupation !== OCC.crafter && (!!p.healer || !named.has(p.ref)),
+      )
+    ) {
+      assert.equal(sat.length, 0, `${ref} no one to be its healer`);
       continue;
     }
     assert.equal(sat.length, 1, `${ref} one healer`);

@@ -12,6 +12,12 @@
 // What a crime is and what comes of it is who they are: a hive tries no one, it turns from them; a people with no written word has its old ones; a
 // water people has no cell; a realm that binds its condemned sends them to the works; custom has its kin and a blood-price; one law for all, a bench
 // of the town's own, who can find a person not guilty. Only ever what happened, who and why: never how it was done.
+//
+// Its grave matters (2026-11-17) are host/inspect/grave.ts's: the killings its land's rows keep, what a group that holds it lives on, what
+// its realm forbids, those of a circle it has outlawed, a spy found out, a boss taken. Each stands on a row, a record or an event the world
+// keeps, is told first and marked, and may end as no small wrong does: in death (never for one of the town's lines: a reading can't kill),
+// long years, the works, a mark for life, being sent out of the realm; in one let go because those who judged were paid or no one dared
+// speak, only where a group or a crew holds the town; in a pardon; or with no one brought at all. They are drawn after the small wrongs.
 import { finish, hashString, mix, type Ref, type World } from "../../kernel/index.ts";
 import { meansOfWorld } from "../../gen/index.ts";
 import {
@@ -34,6 +40,7 @@ import {
 } from "../../rules/index.ts";
 import {
   BOND,
+  KILLING,
   cartelOf,
   agentName,
   beliefOf,
@@ -47,6 +54,7 @@ import {
   politiesOf,
   populationContext,
   realmName,
+  underworldOf,
   warsOf,
   type Polity,
   type RealmOrder,
@@ -56,6 +64,21 @@ import { streetInTownOf } from "../../sim/index.ts";
 import { ROOF } from "../../rules/index.ts";
 import { cellRef } from "../../gen/index.ts";
 import { townUnderworldBlocks } from "./mobs.ts";
+import {
+  GRAVE_KIND,
+  GRAVE_NAMES,
+  cameOfGrave,
+  chiefTown,
+  graveRead,
+  unansweredWhy,
+  type CourtRead,
+  type Draft,
+  type GraveOffence,
+  type Outcome,
+} from "./grave.ts";
+import { agentDeath } from "../death.ts";
+import { groupOf } from "../underworld.ts";
+import { orgOf } from "../groups.ts";
 import type {
   Block,
   CourtForm,
@@ -73,13 +96,14 @@ import { breadCoin, homeNumberOf, landMadeHead, personLiving, dwellRef } from ".
 import { folkWork, levyHead, linesOf, rosterCost, townRoster, workOf } from "../roster.ts";
 import { landPast } from "../past.ts";
 import { keyedStanding, leanThen, type SelfRead } from "../self.ts";
-import { goodCoin, boardRef } from "./board.ts";
+import { goodCoin, goodName, boardRef } from "./board.ts";
 import { coinWords } from "./living.ts";
 import { memoryOf } from "./memory.ts";
 import { landLink, realmLink, townLink } from "./names.ts";
-import { count, item, link, many, sentence, stat, yearNow } from "./words.ts";
+import { count, item, link, many, part, sentence, stat, yearNow } from "./words.ts";
 
-export type Offence =
+/** What a town's court hears most days: the small wrongs of those who live there. */
+export type Petty =
   | "stores"
   | "bread"
   | "rent"
@@ -91,10 +115,16 @@ export type Offence =
   | "brawl"
   | "speech"
   | "faith"
-  | "flight";
+  | "flight"
+  | "poach"
+  | "fence";
+/** All a court hears: the small wrongs, and the grave matters the world keeps (host/inspect/grave.ts). */
+export type Offence = Petty | GraveOffence;
 
 /** One of a town named in a case: their page, their name, as old as they were then. */
 export type Party = {
+  /** Not one of the town's lines: a group's own, its head, a spy, an officer. Their ref is the page that tells of them; no age is kept. */
+  readonly outside?: boolean;
   readonly ref: string;
   readonly name: string;
   readonly age: number;
@@ -124,9 +154,47 @@ export type Case = {
   readonly came: string;
   readonly cost: string;
   readonly days: number;
+  /** A grave matter (host/inspect/grave.ts): told first, and marked. */
+  readonly grave: boolean;
+  /** What came of a grave matter, wider than what the town's day shows of it. */
+  readonly outcome?: Outcome;
+  /** The group it is of, the event of history it stands on, one killed whom the world keeps by name. */
+  readonly group?: { readonly ref: string; readonly name: string };
+  readonly event?: string;
+  readonly victim?: { readonly name: string; readonly ref: string };
+  /** Brought before this court the year before, and known to it. */
+  readonly repeat?: boolean;
+};
+
+/** A killing no one was brought for: what the land's rows keep of it, and why no one answered. */
+export type Open = {
+  readonly ref: string;
+  readonly town: string;
+  readonly year: number;
+  readonly index: number;
+  readonly day: number;
+  /** What happened ("Someone killed …"), and why no one was brought. */
+  readonly what: Line;
+  readonly whatWords: string;
+  readonly unanswered: string;
+  readonly why: readonly Line[];
+  readonly group?: { readonly ref: string; readonly name: string };
+  readonly victim?: { readonly name: string; readonly ref: string };
+};
+
+/** A town's year before its court: its cases, the killings no one answered for, and the killing by the numbers. */
+export type Docket = {
+  readonly cases: readonly Case[];
+  readonly open: readonly Open[];
+  /** Those killed in the town in the year by its land's rows, and how many of them someone was brought for. */
+  readonly killed: number;
+  readonly answered: number;
 };
 
 const MOST_CASES = 14;
+/** The grave matters a year's book tells one by one (the rest are in its numbers). */
+const MOST_GRAVE = 7;
+const MOST_OPEN = 3;
 const DAYS_A_YEAR = 365;
 /** Lines a case's people are drawn from: those any device draws first. */
 const POOL = 40;
@@ -172,7 +240,7 @@ const monthsWords = (days: number): string => {
 type Cause = {
   readonly line: Line;
   readonly weight: number;
-  readonly offences: readonly Offence[];
+  readonly offences: readonly Petty[];
 };
 
 type Facts = {
@@ -203,6 +271,11 @@ type Facts = {
   /** What weighs on its peace, all told (0.5 a quiet year), and each of it by name. */
   readonly weigh: number;
   readonly pressing: readonly (readonly [string, number])[];
+  /** Its realm's law of faith as it stood (-1: no realm), and what the land makes and trades that can be carried off. */
+  readonly faithLaw: number;
+  readonly goods: readonly string[];
+  /** Where in the town a thing can be said to have happened: its market, the quarters of its plan. */
+  readonly places: readonly string[];
 };
 
 /** What the people of a world are, for their law: a hive, of the water, no hands. */
@@ -568,6 +641,52 @@ function factsOf(world: World, s: Settlement, year: number): Facts {
       offences: ["stores", "bread", "stall"],
     });
 
+  // The lord's land: its woods and its game are his, and some take of them. (Where the land's law is the lord's.)
+  if (realm && order && land === 0 && !who.hive && !who.water)
+    causes.push({
+      line: [
+        "The land here is the lord's, its woods and its game with it: ",
+        link("its law of land", order.lawEvents[0] ?? realm.ref),
+        ".",
+      ],
+      weight: 0.45,
+      offences: ["poach"],
+    });
+  // The law of land lately moved toward the lord: those it took ground from don't all leave it.
+  if (realm && order && !who.hive && !who.water) {
+    const e = order.lawEvents[0] ? world.events.get(order.lawEvents[0]) : undefined,
+      changed = e ? Math.floor(e.t / (DAYS_A_YEAR * 86400)) : -1,
+      from = (e?.data as { from?: number } | null)?.from;
+    if (e && changed < year && changed >= year - 10 && from !== undefined && from > land)
+      causes.push({
+        line: [
+          `The law of land was changed in year ${changed}, and ground that had been its tillers' was not theirs after: `,
+          link("the law as it was made", e.id),
+          ".",
+        ],
+        weight: 0.8,
+        offences: ["fence"],
+      });
+  }
+
+  // What the land makes and trades that a hand can carry off, and where in the town a thing can happen.
+  const madeLine = book?.ledger[0] ?? [],
+    goods = madeLine
+      .map((n, good) => ({ n: n * (GOODS[good]?.value ?? 1), good }))
+      .filter((x) => x.n > 0 && x.good !== G.grain && x.good !== G.meat && x.good !== G.wild)
+      .sort((a, b) => b.n - a.n || a.good - b.good)
+      .slice(0, 4)
+      .map((x) => goodName(world, x.good)),
+    places = who.water
+      ? ["by the reef post", "at the edge of the reef"]
+      : [
+          ...(s.market ? ["at the market", "behind the market"] : ["in the square"]),
+          "by the water",
+          "on the high ground",
+          "by the way in to the town",
+          "on the lee side of the town",
+        ];
+
   // How many: by its size and what weighs on it; a loose law more, one law for all fewer. Sizes in half-steps, so a year's growth doesn't move them.
   const size = Math.round(2 * Math.log10(Math.max(10, s.population))) / 2,
     loose = !realm ? 0.25 : order && order.legitimacy < 0.42 ? 0.35 : 0,
@@ -657,6 +776,9 @@ function factsOf(world: World, s: Settlement, year: number): Facts {
     cartel,
     weigh,
     pressing,
+    faithLaw: order ? lawThen(world, order, "faith", year) : -1,
+    goods,
+    places,
   };
 }
 
@@ -672,6 +794,9 @@ const REACH: Readonly<Record<CourtForm, number>> = {
 
 /** What each wrong a court hears is, of the four that lead a person wrong (rules/self.ts). */
 export const OFFENCE_KIND: Readonly<Record<Offence, CrimeKind>> = {
+  ...GRAVE_KIND,
+  poach: "steal",
+  fence: "defy",
   stores: "steal",
   bread: "steal",
   rent: "cheat",
@@ -736,6 +861,8 @@ type Folk = {
   pick(h: number, n: number, not: ReadonlySet<string>, weigh?: Weigh): Party | null;
   /** One this battle's levy stood in (a deserter), by a draw. */
   levied(h: number, not: ReadonlySet<string>): Party | null;
+  /** One named in an earlier year, as they are this year (null: no longer of the town's people). */
+  still(p: Party): Party | null;
 };
 
 export function folkOf(world: World, s: Settlement, year: number): Folk {
@@ -772,6 +899,10 @@ export function folkOf(world: World, s: Settlement, year: number): Folk {
         );
       },
       levied: () => null,
+      still: (p) => {
+        const a = list.find((x) => `agent:${x.id}` === p.ref);
+        return a ? party(a) : null;
+      },
     };
   }
   const lines = linesOf(s.population),
@@ -813,12 +944,18 @@ export function folkOf(world: World, s: Settlement, year: number): Folk {
       }
       return null;
     },
+    still: (p) => {
+      const now = roster.holder(p.line);
+      return now && now.ref === p.ref && year - now.born >= grown ? party(now) : null;
+    },
   };
 }
 
 // —— What they did, and what came of it ——————————————————————————————————————————————————————
 
-const GRAVITY: Readonly<Record<Offence, 1 | 2 | 3>> = {
+const GRAVITY: Readonly<Record<Petty, 1 | 2 | 3>> = {
+  poach: 2,
+  fence: 2,
   stores: 2,
   bread: 1,
   rent: 1,
@@ -834,10 +971,13 @@ const GRAVITY: Readonly<Record<Offence, 1 | 2 | 3>> = {
 };
 
 /** What they did, in the chronicle's words: what happened, never how. */
-function deedOf(f: Facts, o: Offence, w: Party | null, h: number): Line {
+function deedOf(f: Facts, o: Petty, w: Party | null, h: number): Line {
   const them: Span = w ? link(w.name, w.ref) : "a neighbour",
     pick = <T>(l: readonly T[]): T => l[Math.floor(u(h, 11) * l.length)]!,
-    food = f.food;
+    food = f.food,
+    // (What was taken is what the land makes; where, a place of the town's own plan.)
+    good = f.goods.length ? f.goods[Math.floor(u(h, 12) * f.goods.length)]! : "goods",
+    at = f.places[Math.floor(u(h, 13) * f.places.length)] ?? "in the square";
   // (A hive keeps no stalls and pays no rent: what one of them can do is take more than their share, or not move with the rest.)
   if (f.form === "hive")
     switch (o) {
@@ -868,6 +1008,9 @@ function deedOf(f: Facts, o: Offence, w: Party | null, h: number): Line {
         return ["kept to a way of their own, apart from the rest"];
       case "flight":
         return ["left the cell they were bound to"];
+      case "poach":
+      case "fence":
+        return ["took of what is kept for all"];
     }
   switch (o) {
     case "stores":
@@ -895,12 +1038,52 @@ function deedOf(f: Facts, o: Offence, w: Party | null, h: number): Line {
         : ["owed ", them, " a season's rent and left without paying"];
     case "stall":
       return f.s.market
-        ? [pick(["stole from the market stall of ", "took goods from the stall of "]), them]
-        : [pick(["stole from the store of ", "took goods from the workshop of "]), them];
+        ? [
+            pick([
+              `stole ${good} from the market stall of `,
+              `took ${good} from the stall of `,
+              `was caught with ${good} from the stall of `,
+            ]),
+            them,
+          ]
+        : [pick([`stole ${good} from the store of `, `took ${good} from the workshop of `]), them];
     case "house":
-      return [pick(["robbed the home of ", "took what was of worth from the home of "]), them];
+      return [
+        pick([
+          "robbed the home of ",
+          "took what was of worth from the home of ",
+          "broke into the home of ",
+        ]),
+        them,
+        u(h, 14) < 0.5 ? ` ${at}` : `, and carried off its ${good}`,
+      ];
     case "road":
-      return ["robbed ", them, pick([", carrying goods on the road", ", on the road out of town"])];
+      return [
+        "robbed ",
+        them,
+        pick([
+          `, carrying ${good} on the road`,
+          ", on the road out of town",
+          ` of a load of ${good}`,
+        ]),
+      ];
+    case "poach":
+      return [
+        pick([
+          "took game from the lord's wood",
+          "cut wood in the lord's wood without leave",
+          "set their beasts to graze on the lord's meadow",
+          "fished the lord's water",
+        ]),
+      ];
+    case "fence":
+      return [
+        pick([
+          "would not leave the ground the new law gave to the lord",
+          "pulled down the fence put round what had been theirs to till",
+          "ploughed ground the new law took from them",
+        ]),
+      ];
     case "loot":
       return [
         pick([
@@ -913,7 +1096,16 @@ function deedOf(f: Facts, o: Offence, w: Party | null, h: number): Line {
     case "desert":
       return [pick(["left the levy and came home", "came home from the levy without leave"])];
     case "brawl":
-      return ["came to blows with ", them, " in the square"];
+      return [
+        pick(["came to blows with ", "fought ", "set on "]),
+        them,
+        ` ${at}`,
+        u(h, 14) < 0.35
+          ? ", over a debt"
+          : u(h, 14) < 0.6
+            ? ", after a quarrel between their families"
+            : "",
+      ];
     case "speech":
       return [
         pick([
@@ -936,7 +1128,9 @@ function deedOf(f: Facts, o: Offence, w: Party | null, h: number): Line {
   }
 }
 
-const NEEDS_WRONGED: Readonly<Record<Offence, boolean>> = {
+const NEEDS_WRONGED: Readonly<Record<Petty, boolean>> = {
+  poach: false,
+  fence: false,
   stores: true,
   bread: true,
   rent: true,
@@ -952,14 +1146,14 @@ const NEEDS_WRONGED: Readonly<Record<Offence, boolean>> = {
 };
 
 /** What a wrong takes from those wronged that the better off have the more of. */
-const ROBBED: Readonly<Partial<Record<Offence, boolean>>> = {
+const ROBBED: Readonly<Partial<Record<Petty, boolean>>> = {
   stall: true,
   house: true,
   road: true,
 };
 
 /** What a court here can do, by what they did, how it holds and who they are. */
-function sentenceOf(f: Facts, o: Offence, h: number): CourtSentence {
+function sentenceOf(f: Facts, o: Petty, h: number): CourtSentence {
   const g = GRAVITY[o],
     v = u(h, 21),
     up = f.strict && u(h, 22) < 0.5 ? 1 : 0,
@@ -1038,8 +1232,12 @@ function cameOf(
   g: number,
   days: number,
   h: number,
+  /** Told differently from the others of its year: a little more, or in other words. */
+  bump = 0,
 ): { came: string; cost: string } {
-  const worth = g * (4 + Math.floor(u(h, 25) * 10)),
+  const worth = g * (4 + Math.floor(u(h, 25) * 10)) + bump,
+    amount = f.coined ? `${coinWords(worth * f.bread)} coin` : `${spoken(worth)} days' ${f.food}`,
+    said = <T>(l: readonly T[]): T => l[bump % l.length]!,
     paid = f.coined
       ? `${coinWords(worth * f.bread)} coin, ${spoken(worth)} days' ${f.food} for one person`
       : `${spoken(worth)} days' ${f.food}`,
@@ -1050,31 +1248,50 @@ function cameOf(
   switch (s) {
     case "free":
       return {
-        came: "was found not guilty by the bench, and went home",
+        came: said([
+          "was found not guilty by the bench, and went home",
+          "was found not guilty: the bench did not believe what was said of them",
+          "was found not guilty, the bench being of two minds",
+        ]),
         cost: "Nothing but the days it took, and what the neighbours say.",
       };
     case "bribe":
       return {
-        came: "was let go, and it is said the magistrate was paid",
+        came: said([
+          "was let go, and it is said the magistrate was paid",
+          "was let go before it was heard, and it is said the magistrate was paid",
+        ]),
         cost: `${paid}, to no one who would say so.`,
       };
     case "fine":
       return f.form === "kin"
-        ? { came: `paid a blood-price to those they wronged`, cost: `${sentence(paid)}.` }
+        ? {
+            came: `paid a blood-price of ${amount} to those they wronged`,
+            cost: `${sentence(paid)}.`,
+          }
         : f.form === "elders" || reef
           ? {
-              came: "was told to make it good, and did",
+              came: `was told to make it good, and gave over ${amount}`,
               cost: `${sentence(paid)}, handed over before everyone.`,
             }
-          : { came: `was fined`, cost: `${sentence(paid)}, paid at the bench.` };
+          : { came: `was fined ${amount}`, cost: `${sentence(paid)}, paid at the bench.` };
     case "shame":
       return hive
         ? {
-            came: "was turned from: for a season no one works beside them, or feeds them first",
+            came: said([
+              "was turned from: for a season no one works beside them, or feeds them first",
+              "was turned from: for a season they eat last, and work alone",
+              "was turned from: until the next brood no one of the town goes near them",
+            ]),
             cost: "A season alone among all of them.",
           }
         : {
-            came: "was stood in the ring and named before everyone",
+            came: said([
+              "was stood in the ring and named before everyone",
+              "was named before the ring, and made to say what they had done",
+              "was made to stand at the ring's edge through the whole meeting",
+              "was named before everyone, and their family with them",
+            ]),
             cost: "Nothing they could count. Everyone here knows it now.",
           };
     case "stocks":
@@ -1130,11 +1347,18 @@ function cameOf(
           }
         : reef
           ? {
-              came: "was sent out on the current for two years",
+              came: said([
+                "was sent out on the current for two years",
+                "was sent beyond the reef for two years",
+              ]),
               cost: "Two years of their home, and everyone they knew.",
             }
           : {
-              came: "was walked out of town and sent away for two years",
+              came: said([
+                "was walked out of town and sent away for two years",
+                "was put on the road, not to come back for two years",
+                "was sent away for two years, before the whole town",
+              ]),
               cost: "Two years of their home, and everyone they knew.",
             };
   }
@@ -1142,11 +1366,12 @@ function cameOf(
 
 // —— The reading ——————————————————————————————————————————————————————————————————————————————
 
-type Kept = { hand: string; byKey: Map<string, readonly Case[]> };
+type Kept = { hand: string; byKey: Map<string, Docket> };
 const KEPT = new WeakMap<World, Kept>();
+const NO_DOCKET: Docket = { cases: [], open: [], killed: 0, answered: 0 };
 
-/** A town's cases of a year: once for each, as long as the god's hand rests where it did. */
-export function casesOf(world: World, town: string, year: number): readonly Case[] {
+/** A town's year before its court: once for each, as long as the god's hand rests where it did. */
+export function docketOf(world: World, town: string, year: number): Docket {
   const hand = handOf(world).resting?.village ?? "";
   let kept = KEPT.get(world);
   if (!kept || kept.hand !== hand) KEPT.set(world, (kept = { hand, byKey: new Map() }));
@@ -1154,19 +1379,25 @@ export function casesOf(world: World, town: string, year: number): readonly Case
     known = kept.byKey.get(key);
   if (known) return known;
   const s = populationContext(world).settlements.get(town as Ref),
-    made = s && s.population > 0 && s.founded < year ? readCases(world, s, year) : [];
+    made = s && s.population > 0 && s.founded < year ? readDocket(world, s, year) : NO_DOCKET;
   if (kept.byKey.size > 6000) kept.byKey.clear();
   kept.byKey.set(key, made);
   return made;
 }
 
-/** Those sent away in the year before, or still shut up from it: not to be brought up again. */
-function awayFrom(world: World, town: string, year: number): ReadonlySet<string> {
-  const out = new Set<string>();
-  const s = populationContext(world).settlements.get(town as Ref);
-  if (!s || s.population <= 0 || s.founded >= year - 1) return out;
-  for (const c of rawCases(world, s, year - 1)) out.add(c.accused.ref);
-  return out;
+/** A town's cases of a year: its grave matters first, then its small wrongs as they were heard. */
+export function casesOf(world: World, town: string, year: number): readonly Case[] {
+  return docketOf(world, town, year).cases;
+}
+
+/** The killings of a town's year no one was brought for. */
+export function openOf(world: World, town: string, year: number): readonly Open[] {
+  return docketOf(world, town, year).open;
+}
+
+/** The year before's book, as far as a town had one: those in it are not to be brought up again; one of them may be known to the court. */
+function lastOf(world: World, s: Settlement, year: number): readonly Case[] {
+  return s.population <= 0 || s.founded >= year - 1 ? [] : rawCases(world, s, year - 1);
 }
 
 const RAW = new WeakMap<World, Map<string, readonly Case[]>>();
@@ -1176,14 +1407,17 @@ function rawCases(world: World, s: Settlement, year: number): readonly Case[] {
   const key = `${s.ref}|${year}|${handOf(world).resting?.village ?? ""}`,
     known = m.get(key);
   if (known) return known;
-  const made = drawCases(world, s, year, new Set());
+  const made = drawDocket(world, s, year, new Set(), null).cases;
   if (m.size > 6000) m.clear();
   m.set(key, made);
   return made;
 }
 
-function readCases(world: World, s: Settlement, year: number): readonly Case[] {
-  return drawCases(world, s, year, awayFrom(world, s.ref, year));
+function readDocket(world: World, s: Settlement, year: number): Docket {
+  const last = lastOf(world, s, year),
+    away = new Set<string>();
+  for (const c of last) if (!c.accused.outside) away.add(c.accused.ref);
+  return drawDocket(world, s, year, away, last);
 }
 
 /** How many cases a town's year is due, by its rate and its draw. */
@@ -1210,20 +1444,127 @@ export function townWrong(
   return { weigh: f.weigh, due: dueOf(f), pressing: f.pressing };
 }
 
-function drawCases(
+// —— Its grave matters, as far as they can be read without its people (host/inspect/grave.ts) ——
+
+type Entry = {
+  readonly d: Draft;
+  /** Its number in the year's book: the same whoever reads it, its people read or not. */
+  readonly index: number;
+  readonly h: number;
+  readonly day: number;
+  /** Told one by one (the rest of a great town's are in its numbers). */
+  readonly told: boolean;
+  /** What came of it, where it can be said with the town's people unread: of one its roster doesn't hold. */
+  readonly came: ReturnType<typeof cameOfGrave> | null;
+};
+type Light = {
+  readonly court: CourtRead;
+  readonly read: ReturnType<typeof graveRead>;
+  readonly entries: readonly Entry[];
+};
+const LIGHT = new WeakMap<World, Map<string, Light>>();
+
+function graveLight(world: World, f: Facts): Light {
+  let m = LIGHT.get(world);
+  if (!m) LIGHT.set(world, (m = new Map()));
+  const key = `${f.s.ref}|${f.year}`,
+    known = m.get(key);
+  if (known) return known;
+  const court: CourtRead = {
+      form: f.form,
+      reach: f.scene.reach,
+      convicts: f.convicts,
+      strict: f.strict,
+      far: f.far,
+      grips: f.grips,
+      coined: f.coined,
+      bread: f.bread,
+      food: f.food,
+      places: f.places,
+    },
+    read = graveRead(world, f.s, f.year, f.realm, court, f.faithLaw),
+    drafts = [...read.drafts].sort((x, y) => y.gravity - x.gravity),
+    used = new Set<number>();
+  let brought = 0,
+    open = 0;
+  const saidSo = new Set<string>();
+  const entries = drafts.map((d): Entry => {
+    const h = hashString(`grave ${d.key}`) >>> 0;
+    let index = (d.brought ? 100 : 1000) + (h % 800);
+    while (used.has(index)) index++;
+    used.add(index);
+    // (Never the same thing said twice of one year: the next like it is drawn again, or told in other words.)
+    let came: Entry["came"] = null;
+    if (d.brought && d.stands.kind === "outside") {
+      let turn = 0;
+      came = cameOfGrave(court, d, read.favours, h, false);
+      while (saidSo.has(came.came) && turn < 4)
+        came = cameOfGrave(court, d, read.favours, h, false, ++turn);
+      if (saidSo.has(came.came)) came = { ...came, came: `${came.came}, ${forWhat(d)}` };
+      saidSo.add(came.came);
+    }
+    return {
+      came,
+      d,
+      index,
+      h,
+      day: f.year * DAYS_A_YEAR + Math.floor(u(h, 4) * (DAYS_A_YEAR - 1)),
+      told: d.brought ? brought++ < MOST_GRAVE : open++ < MOST_OPEN,
+    };
+  });
+  const made = { court, read, entries };
+  if (m.size > 6000) m.clear();
+  m.set(key, made);
+  return made;
+}
+
+/** A town's grave matters of a year, its people unread: for the pages of the groups they are of. */
+function graveOf(world: World, s: Settlement, year: number): Light | null {
+  return s.population > 0 && s.founded < year ? graveLight(world, factsOf(world, s, year)) : null;
+}
+
+/** Those under the hand whom the land's killing took the year before: the world keeps how each died (sim/hand/deaths.ts). */
+function killedUnderHand(
+  world: World,
+  s: Settlement,
+  year: number,
+): { name: string; ref: string }[] {
+  const hand = handOf(world).resting;
+  if (!hand || hand.village !== s.ref) return [];
+  const ctx = populationContext(world);
+  return (hand.gone ?? [])
+    .filter((g) => g.died === year - 1)
+    .filter((g) => agentDeath(world, s.ref, g.id)?.short.includes(KILLING))
+    .map((g) => ({
+      name: agentName(ctx, g as unknown as Parameters<typeof agentName>[1], s),
+      ref: `agent:${g.id}`,
+    }));
+}
+
+/** Where there is no other way to say what came of it, it is said for what. */
+const forWhat = (d: Draft): string => `for ${GRAVE_NAMES[d.offence].toLowerCase()}`;
+
+/** What a court can lay on one it has seen before without their being gone or shut up the year after. */
+const LIGHTLY: ReadonlySet<CourtSentence> = new Set(["fine", "shame", "stocks", "free", "bribe"]);
+
+function drawDocket(
   world: World,
   s: Settlement,
   year: number,
   away: ReadonlySet<string>,
-): readonly Case[] {
+  /** The year before's book (null: not asked, as when a year is read only for who is away). */
+  last: readonly Case[] | null,
+): Docket {
   const f = factsOf(world, s, year),
     folk = folkOf(world, s, year),
     want = dueOf(f),
     all = f.causes.reduce((n, c) => n + c.weight, 0),
     out: Case[] = [],
     taken = new Set<string>(away),
+    stood = new Set<string>(),
+    said = new Set<string>(),
     yearDay = year * DAYS_A_YEAR;
-  if (!all || !folk.lines) return out;
+  if (!all || !folk.lines) return NO_DOCKET;
   for (let i = 0; i < want; i++) {
     const h = hashString(`case ${s.ref} ${year} ${i}`) >>> 0;
     // Its cause, by its weight; its offence, of those that cause can lead to.
@@ -1250,6 +1591,7 @@ function drawCases(
             );
     if (!accused) continue;
     taken.add(accused.ref);
+    stood.add(accused.ref);
     // (Those robbed of what they keep are the likelier the more they have.)
     const wronged = NEEDS_WRONGED[offence]
       ? folk.pick(
@@ -1262,9 +1604,27 @@ function drawCases(
     // (Not one the whole town could not name: a town of one person has no one to wrong.)
     if (NEEDS_WRONGED[offence] && !wronged) continue;
     const sentenceWord = sentenceOf(f, offence, h),
-      days = daysOf(sentenceWord, GRAVITY[offence], h),
-      told = cameOf(f, sentenceWord, GRAVITY[offence], days, h),
-      what = deedOf(f, offence, wronged, h),
+      g = GRAVITY[offence],
+      base = daysOf(sentenceWord, g, h);
+    // (Never the same thing said twice of one year: the next like it is a little more, or in other words.)
+    let bump = 0,
+      days = base,
+      told = cameOf(f, sentenceWord, g, days, h);
+    while (said.has(told.came) && bump < 8) {
+      bump++;
+      days =
+        sentenceWord === "stocks"
+          ? base + bump
+          : sentenceWord === "cell" || sentenceWord === "labour"
+            ? base + 30 * bump
+            : base;
+      told = cameOf(f, sentenceWord, g, days, h, bump);
+    }
+    // (Where there is no other way to say it, it is said for what: the same thing twice only where the same was done.)
+    if (said.has(told.came))
+      told = { ...told, came: `${told.came}, for ${OFFENCE_NAMES[offence].toLowerCase()}` };
+    said.add(told.came);
+    const what = deedOf(f, offence, wronged, h),
       day =
         yearDay +
         Math.floor(((i + 0.5 + 0.7 * (u(h, 4) - 0.5)) * (DAYS_A_YEAR - 1)) / Math.max(1, want)),
@@ -1292,9 +1652,137 @@ function drawCases(
       came: told.came,
       cost: told.cost,
       days,
+      grave: false,
     });
   }
-  return out;
+
+  // Its grave matters: each stands on what the world keeps (host/inspect/grave.ts), and is drawn after the small wrongs, which they do not move.
+  const light = graveLight(world, f),
+    graves: Case[] = [],
+    open: Open[] = [],
+    victims = light.entries.some((e) => e.d.offence === "killing")
+      ? killedUnderHand(world, s, year)
+      : [];
+  let vi = 0;
+  for (const e of light.entries) if (e.told && e.came) said.add(e.came.came);
+  for (const e of light.entries) {
+    const d = e.d,
+      h = e.h,
+      victim = d.offence === "killing" && vi < victims.length ? victims[vi++] : undefined,
+      killedOne: Span | null = victim ? link(victim.name, victim.ref) : null,
+      ref = `case:${s.ref}:${year}:${e.index}`;
+    if (!e.told) continue;
+    if (!d.brought) {
+      const what: Line = ["Someone ", ...d.what(killedOne)];
+      // (Two alike are told once: the rest are in the year's numbers.)
+      if (open.some((o) => o.whatWords === plain(what))) continue;
+      open.push({
+        ref,
+        town: s.ref,
+        year,
+        index: e.index,
+        day: e.day,
+        what,
+        whatWords: plain(what),
+        unanswered: unansweredWhy(d),
+        why: d.why,
+        ...(d.group ? { group: d.group } : {}),
+        ...(victim ? { victim } : {}),
+      });
+      continue;
+    }
+    let accused: Party | null = null,
+      repeat = false;
+    if (d.stands.kind === "outside")
+      accused = {
+        outside: true,
+        ref: d.stands.ref,
+        name: d.stands.name,
+        age: 0,
+        sex: 0,
+        work: "",
+        line: -1,
+      };
+    else {
+      const lean = d.stands.lean,
+        rich = d.stands.rich,
+        // (One the court saw the year before, and let off lightly: known to it, and the likelier to be brought again.)
+        known = (last ?? []).filter(
+          (c) =>
+            !c.grave &&
+            !c.accused.outside &&
+            LIGHTLY.has(c.sentence) &&
+            !stood.has(c.accused.ref) &&
+            (lean === null ||
+              OFFENCE_KIND[c.offence] === lean ||
+              OFFENCE_KIND[c.offence] === "steal"),
+        );
+      if (known.length && !rich && u(h, 41) < 0.4) {
+        accused = folk.still(known[Math.floor(u(h, 42) * known.length)]!.accused);
+        repeat = !!accused;
+      }
+      accused ??= folk.pick(
+        h,
+        100,
+        taken,
+        lean || rich
+          ? (key, born) =>
+              (lean ? leanThen(world, s.cell, key, born, f.scene, f.barred)[lean] : 1) *
+              (rich ? 0.3 + 1.5 * keyedStanding(key) : 1)
+          : undefined,
+      );
+    }
+    if (!accused) continue;
+    const wronged = d.wronged
+      ? folk.pick(
+          h,
+          200,
+          new Set([...taken, accused.ref]),
+          d.wronged === "rich" ? (key) => 0.3 + 1.5 * keyedStanding(key) : undefined,
+        )
+      : null;
+    if (d.wronged && !wronged) continue;
+    if (!accused.outside) {
+      taken.add(accused.ref);
+      stood.add(accused.ref);
+    }
+    const what = d.what(killedOne ?? (wronged ? link(wronged.name, wronged.ref) : null));
+    let told = e.came ?? cameOfGrave(light.court, d, light.read.favours, h, repeat);
+    for (let turn = 1; !e.came && said.has(told.came) && turn <= 4; turn++)
+      told = cameOfGrave(light.court, d, light.read.favours, h, repeat, turn);
+    if (!e.came && said.has(told.came)) told = { ...told, came: `${told.came}, ${forWhat(d)}` };
+    said.add(told.came);
+    graves.push({
+      ref,
+      town: s.ref,
+      year,
+      index: e.index,
+      day: e.day,
+      offence: d.offence,
+      accused,
+      wronged,
+      what,
+      whatWords: plain(what),
+      why: d.why,
+      form: f.form,
+      sentence: told.sentence,
+      came: told.came,
+      cost: told.cost,
+      days: told.days,
+      grave: true,
+      outcome: told.outcome,
+      ...(d.group ? { group: d.group } : {}),
+      ...(d.event ? { event: d.event } : {}),
+      ...(victim ? { victim } : {}),
+      ...(repeat ? { repeat } : {}),
+    });
+  }
+  return {
+    cases: [...graves, ...out],
+    open,
+    killed: light.read.killed,
+    answered: light.read.answered,
+  };
 }
 
 const plain = (l: Line): string =>
@@ -1311,10 +1799,10 @@ export function namedByCases(
     named: Party[] = [],
     seen = new Set<string>(),
     away = new Set<string>();
-  for (const c of last) if (c.sentence === "banish") away.add(c.accused.ref);
+  for (const c of last) if (c.sentence === "banish" && !c.accused.outside) away.add(c.accused.ref);
   for (const c of [...now, ...last])
     for (const p of [c.accused, c.wronged])
-      if (p && !seen.has(p.ref)) {
+      if (p && !p.outside && !seen.has(p.ref)) {
         seen.add(p.ref);
         if (!away.has(p.ref)) named.push(p);
       }
@@ -1358,7 +1846,9 @@ const COURT_WORDS: Readonly<Record<CourtForm, { title: string; judged: string; l
 
 export const courtWords = (form: CourtForm): (typeof COURT_WORDS)[CourtForm] => COURT_WORDS[form];
 
-const OFFENCE_NAMES: Readonly<Record<Offence, string>> = {
+const OFFENCE_NAMES: Readonly<Record<Petty, string>> = {
+  poach: "Taking from the lord's wood",
+  fence: "Holding ground against the new law",
   stores: "Theft from the stores",
   bread: "Theft of food",
   rent: "Rent unpaid",
@@ -1374,7 +1864,7 @@ const OFFENCE_NAMES: Readonly<Record<Offence, string>> = {
 };
 
 /** A hive's own names for what one of them did. */
-const HIVE_NAMES: Readonly<Partial<Record<Offence, string>>> = {
+const HIVE_NAMES: Readonly<Partial<Record<Petty, string>>> = {
   stores: "Taking more than a share",
   bread: "Taking another's share",
   rent: "Keeping back a share",
@@ -1386,7 +1876,28 @@ const HIVE_NAMES: Readonly<Partial<Record<Offence, string>>> = {
   desert: "Leaving the muster",
 };
 const offenceName = (c: Case): string =>
-  (c.form === "hive" ? HIVE_NAMES[c.offence] : undefined) ?? OFFENCE_NAMES[c.offence];
+  c.grave
+    ? GRAVE_NAMES[c.offence as GraveOffence]
+    : ((c.form === "hive" ? HIVE_NAMES[c.offence as Petty] : undefined) ??
+      OFFENCE_NAMES[c.offence as Petty]);
+
+/** Many of one small wrong, as a year's book counts them. */
+const MANY_OF: Readonly<Record<Petty, string>> = {
+  stores: "thefts from the stores",
+  bread: "thefts of food",
+  rent: "rents unpaid",
+  stall: "thefts from traders",
+  house: "homes robbed",
+  road: "robberies on the road",
+  loot: "lootings of empty homes",
+  desert: "desertions from the levy",
+  brawl: "fights",
+  speech: "brought for speaking against the rule",
+  faith: "brought for keeping a forbidden faith",
+  flight: "brought for leaving a bond",
+  poach: "takings from the lord's wood",
+  fence: "brought for holding ground against the new law",
+};
 
 /** A party now: alive and here, or what's become of them. */
 function nowWords(world: World, c: Case, p: Party): string | null {
@@ -1411,21 +1922,78 @@ const sitting = (world: World, c: Case): boolean =>
   !heard(world, c) && world.now >= c.day * 86400 + 8.5 * 3600;
 
 const firstName = (p: Party): string => p.name.split(" ")[0]!;
+/** One the town's roster doesn't hold and no one names: a group's own, an officer, an agent. */
+const unnamed = (p: Party): boolean => !!p.outside && /^(one of|an? |the head of)/.test(p.name);
+/** Who a case's outcome is said of. */
+const subject = (p: Party): string => (unnamed(p) ? "The accused" : firstName(p));
+
+/** The case of the year before that makes one known to the court (null: its book doesn't hold it as it was read). */
+function priorOf(world: World, c: Case): Case | null {
+  if (!c.repeat) return null;
+  return (
+    casesOf(world, c.town, c.year - 1).find((x) => x.accused.ref === c.accused.ref && !x.grave) ??
+    null
+  );
+}
 
 function caseItem(world: World, c: Case): Item {
+  const who: Line = c.accused.outside
+      ? [link(sentence(c.accused.name), c.ref), " "]
+      : [link(c.accused.name, c.ref), `, ${c.accused.age}, `],
+    prior = priorOf(world, c),
+    known = prior
+      ? ` Known to the court: ${offenceName(prior).toLowerCase()}, year ${prior.year}.`
+      : "";
   return item(
-    heard(world, c)
-      ? [
-          link(c.accused.name, c.ref),
-          `, ${c.accused.age}, ${c.whatWords}. ${firstName(c.accused)} ${c.came}.`,
-        ]
-      : [
-          link(c.accused.name, c.ref),
-          `, ${c.accused.age}, ${c.whatWords}. ${sitting(world, c) ? "It is being heard today." : "To be heard later this year."}`,
-        ],
+    [
+      ...(c.grave ? [`${offenceName(c)}. `] : []),
+      ...who,
+      heard(world, c)
+        ? `${c.whatWords}. ${subject(c.accused)} ${c.came}.${known}`
+        : `${c.whatWords}. ${sitting(world, c) ? "It is being heard today." : "To be heard later this year."}${known}`,
+    ],
     c.ref,
     c.year,
   );
+}
+
+const openItem = (o: Open): Item =>
+  item([`A killing. `, link(o.whatWords, o.ref), `. ${o.unanswered}`], o.ref, o.year);
+
+/**
+ * A year's cases as a list: the grave ones first, each told; then the small wrongs, the third and later of one kind told
+ * together ("Four more thefts of food in the lean months: …"), each still a name that opens its case.
+ */
+function listed(world: World, cases: readonly Case[]): Item[] {
+  const out: Item[] = cases.filter((c) => c.grave).map((c) => caseItem(world, c)),
+    small = cases.filter((c) => !c.grave),
+    seen = new Map<Offence, number>(),
+    rest = new Map<Offence, Case[]>();
+  for (const c of small) {
+    const n = (seen.get(c.offence) ?? 0) + 1;
+    seen.set(c.offence, n);
+    if (n <= 2 || small.filter((x) => x.offence === c.offence).length === 3)
+      out.push(caseItem(world, c));
+    else rest.set(c.offence, [...(rest.get(c.offence) ?? []), c]);
+  }
+  for (const [o, l] of rest) {
+    const lean = l.some((c) =>
+        /^(It was a lean year|Their land went hungry)/.test(plain(c.why[0]!)),
+      ),
+      names: Span[] = [];
+    l.forEach((c, i) => {
+      if (i) names.push(i === l.length - 1 ? " and " : ", ");
+      names.push(link(c.accused.name, c.ref));
+    });
+    out.push(
+      item([
+        `${sentence(spoken(l.length))} more ${MANY_OF[o as Petty]}${lean ? " in the lean months" : ""}: `,
+        ...names,
+        ".",
+      ]),
+    );
+  }
+  return out;
 }
 
 /** Whose sentence runs now: the page's "held" list. */
@@ -1438,6 +2006,8 @@ function heldNow(world: World, town: string): readonly Case[] {
         c.sentence === "stocks" ||
         c.sentence === "labour" ||
         c.sentence === "banish") &&
+      // (One the town's roster doesn't hold is held only where they are locked up or at the works: not one dead, or sent out of the realm.)
+      (!c.accused.outside || c.outcome === "gaol" || c.outcome === "labour") &&
       day >= c.day &&
       day < c.day + c.days,
   );
@@ -1484,6 +2054,11 @@ export function townLawTab(world: World, ref: string): Tab | null {
     last = casesOf(world, ref, year - 1),
     done = now.filter((c) => heard(world, c)),
     coming = now.filter((c) => !heard(world, c)),
+    docket = docketOf(world, ref, year),
+    day = world.now / 86400,
+    // (A killing no one answered for is in the book from the day it was found.)
+    unanswered = docket.open.filter((o) => day >= o.day),
+    unansweredLast = openOf(world, ref, year - 1),
     held = heldNow(world, ref),
     compare = landCompare(world, s, year),
     blocks: Block[] = [
@@ -1503,6 +2078,22 @@ export function townLawTab(world: World, ref: string): Tab | null {
           stat("Heard this year", `${done.length}`),
           stat("Still to hear", `${coming.length}`),
           stat("Heard last year", `${last.length}`),
+          ...(docket.killed > 0
+            ? [
+                stat(
+                  "Killed in a year",
+                  `${count(docket.killed)} here, by its land's count of those its underworld kills; someone is brought for ${count(docket.answered)}`,
+                  {
+                    parts: [
+                      part(
+                        "told one by one below",
+                        `${count(now.filter((c) => c.offence === "killing").length + docket.open.length)}`,
+                      ),
+                    ],
+                  },
+                ),
+              ]
+            : []),
         ],
       },
       { type: "text", title: words.title, lines: [[words.line]] },
@@ -1516,32 +2107,57 @@ export function townLawTab(world: World, ref: string): Tab | null {
       type: "list",
       title: "Held now",
       items: held.map((c) =>
-        item([link(c.accused.name, c.ref), `, who ${c.came}.`], c.ref, c.year),
+        item([link(sentence(c.accused.name), c.ref), `, who ${c.came}.`], c.ref, c.year),
       ),
     });
+  const graveNow = now.filter((c) => c.grave);
+  if (graveNow.length || unanswered.length)
+    blocks.push({
+      type: "list",
+      title: "Grave matters this year",
+      items: [...graveNow.map((c) => caseItem(world, c)), ...unanswered.map(openItem)],
+    });
+  const small = done.filter((c) => !c.grave),
+    smallComing = coming.filter((c) => !c.grave);
   blocks.push(
-    done.length
-      ? { type: "list", title: "Heard this year", items: done.map((c) => caseItem(world, c)) }
+    small.length
+      ? { type: "list", title: "Heard this year", items: listed(world, small) }
       : {
           type: "text",
           title: "Heard this year",
           lines: [
             [
-              coming.length
+              smallComing.length
                 ? "No one yet."
-                : "No one has been brought before them this year. It has been quiet.",
+                : graveNow.length || unanswered.length
+                  ? "No small wrong has been brought before them this year."
+                  : "No one has been brought before them this year. It has been quiet.",
             ],
           ],
         },
   );
-  if (coming.length)
+  if (smallComing.length)
     blocks.push({
       type: "list",
       title: "To be heard",
-      items: coming.map((c) => caseItem(world, c)),
+      items: smallComing.map((c) => caseItem(world, c)),
     });
-  if (last.length)
-    blocks.push({ type: "list", title: "Last year", items: last.map((c) => caseItem(world, c)) });
+  if (last.length || unansweredLast.length)
+    blocks.push({
+      type: "list",
+      title: "Last year",
+      items: [
+        ...listed(
+          world,
+          last.filter((c) => c.grave),
+        ),
+        ...unansweredLast.map(openItem),
+        ...listed(
+          world,
+          last.filter((c) => !c.grave),
+        ),
+      ],
+    });
   return { id: "law", name: "Law and order", blocks };
 }
 
@@ -1578,21 +2194,38 @@ function homeOf(world: World, town: string, p: Party): string | null {
 export function casePage(world: World, ref: string): PageModel {
   const m = /^case:(town:\d+:\d+):(\d+):(\d+)$/.exec(ref);
   if (!m) return lostPage(world, ref);
+  const open = openOf(world, m[1]!, Number(m[2])).find((x) => x.index === Number(m[3]));
+  if (open) return openPage(world, open);
   const c = casesOf(world, m[1]!, Number(m[2])).find((x) => x.index === Number(m[3]));
   if (!c) return lostPage(world, ref);
   const s = populationContext(world).settlements.get(c.town as Ref)!,
     words = COURT_WORDS[c.form],
     done = heard(world, c),
-    home = homeOf(world, c.town, c.accused),
+    home = c.accused.outside ? null : homeOf(world, c.town, c.accused),
+    prior = priorOf(world, c),
     theirNow = nowWords(world, c, c.accused),
     wrongedNow = c.wronged ? nowWords(world, c, c.wronged) : null,
     year = yearNow(world),
     rows: Stat[] = [
-      stat("Brought", [
-        link(c.accused.name, c.accused.ref),
-        `, ${c.accused.age}, ${article(c.accused.work)} of `,
-        townLink(world, c.town),
-      ]),
+      stat(
+        "Brought",
+        c.accused.outside
+          ? [link(sentence(c.accused.name), c.accused.ref), ", not one of the town's own lines"]
+          : [
+              link(c.accused.name, c.accused.ref),
+              `, ${c.accused.age}, ${article(c.accused.work)} of `,
+              townLink(world, c.town),
+            ],
+      ),
+      ...(c.group ? [stat("Of", [link(sentence(c.group.name), c.group.ref)])] : []),
+      ...(c.victim ? [stat("Killed", [link(c.victim.name, c.victim.ref)])] : []),
+      ...(prior
+        ? [
+            stat("Known to the court", [
+              link(`${offenceName(prior).toLowerCase()}, year ${prior.year}`, prior.ref),
+            ]),
+          ]
+        : []),
       ...(home ? [stat("Their home", [link("Where they live", home)])] : []),
       ...(c.wronged
         ? [
@@ -1610,7 +2243,7 @@ export function casePage(world: World, ref: string): PageModel {
       {
         type: "text",
         title: "What happened",
-        lines: [[link(c.accused.name, c.accused.ref), " ", ...c.what, "."]],
+        lines: [[link(sentence(c.accused.name), c.accused.ref), " ", ...c.what, "."]],
       },
       { type: "text", title: "Why", lines: c.why.map((l) => [...l]) },
       {
@@ -1618,7 +2251,7 @@ export function casePage(world: World, ref: string): PageModel {
         title: "What came of it",
         lines: done
           ? [
-              [`${c.accused.name} ${c.came}.`],
+              [`${unnamed(c.accused) ? "The accused" : c.accused.name} ${c.came}.`],
               [`What it cost them: ${c.cost}`],
               ...(theirNow ? [[theirNow]] : []),
               ...(wrongedNow ? [[wrongedNow]] : []),
@@ -1637,7 +2270,9 @@ export function casePage(world: World, ref: string): PageModel {
         type: "text",
         lines: [
           [
-            "History counts a town's hungry, its prices and its wars, and doesn't keep its court's book. A case is read from those: the same town, the same year, the same case, each time.",
+            c.grave
+              ? "History keeps who holds a land outside the law, how many are killed there, what is forbidden and who was taken, and doesn't keep its court's book. A case is read from those: the same town, the same year, the same case, each time."
+              : "History counts a town's hungry, its prices and its wars, and doesn't keep its court's book. A case is read from those: the same town, the same year, the same case, each time.",
           ],
         ],
       },
@@ -1647,13 +2282,62 @@ export function casePage(world: World, ref: string): PageModel {
     kind: "event",
     icon: "⚖️",
     title: `${offenceName(c)}: ${c.accused.name}`,
-    subtitle: [`${words.title} of `, townLink(world, c.town), `, year ${c.year}`],
+    subtitle: [
+      c.grave ? `A grave matter before ${words.title.toLowerCase()} of ` : `${words.title} of `,
+      townLink(world, c.town),
+      `, year ${c.year}`,
+    ],
     color: null,
     place: { scale: "village", town: c.town, stone: ref },
     stats: [stat("Year", `${c.year}`), stat("Town", [townLink(world, c.town)])],
     tabs: [{ id: "overview", name: "Overview", blocks }],
     followable: false,
     year,
+  };
+}
+
+/** The page of a killing no one was brought for. */
+function openPage(world: World, o: Open): PageModel {
+  const s = populationContext(world).settlements.get(o.town as Ref);
+  return {
+    ref: o.ref,
+    kind: "event",
+    icon: "⚖️",
+    title: "A killing no one answered for",
+    subtitle: ["Of the book of ", townLink(world, o.town), `, year ${o.year}`],
+    color: null,
+    place: { scale: "village", town: o.town, stone: o.ref },
+    stats: [stat("Year", `${o.year}`), stat("Town", [townLink(world, o.town)])],
+    tabs: [
+      {
+        id: "overview",
+        name: "Overview",
+        blocks: [
+          {
+            type: "facts",
+            rows: [
+              stat("Brought", "No one"),
+              ...(o.group ? [stat("Laid to", [link(sentence(o.group.name), o.group.ref)])] : []),
+              ...(o.victim ? [stat("Killed", [link(o.victim.name, o.victim.ref)])] : []),
+              stat("Year", `${o.year}`),
+            ],
+          },
+          { type: "text", title: "What happened", lines: [[...o.what, "."]] },
+          { type: "text", title: "Why", lines: o.why.map((l) => [...l]) },
+          { type: "text", title: "What came of it", lines: [[o.unanswered]] },
+          {
+            type: "text",
+            lines: [
+              [
+                `History keeps how many are killed in ${s?.name ?? "a town"}'s land in a year and by whom, and not each of the dead. This one is read from those: the same town, the same year, the same killing, each time.`,
+              ],
+            ],
+          },
+        ],
+      },
+    ],
+    followable: false,
+    year: yearNow(world),
   };
 }
 
@@ -1678,7 +2362,11 @@ export function lawBlock(world: World, town: string, ref: string): Block | null 
         );
       else if (c.wronged?.ref === ref && heard(world, c))
         items.push(
-          item([link(c.accused.name, c.ref), ` ${c.whatWords}, in year ${c.year}.`], c.ref, c.year),
+          item(
+            [link(sentence(c.accused.name), c.ref), ` ${c.whatWords}, in year ${c.year}.`],
+            c.ref,
+            c.year,
+          ),
         );
     }
   return items.length ? { type: "list", title: "Before the law", items } : null;
@@ -1704,7 +2392,10 @@ export function courtIn(world: World, ref: string): { court?: TownCourt } {
   const year = yearNow(world),
     f = factsOf(world, s, year),
     sittings = [...casesOf(world, ref, year - 1), ...casesOf(world, ref, year)]
+      // (Those who stand in the town's day are its own: one its roster doesn't hold is told on the page, not drawn.)
+      .filter((c) => !c.accused.outside)
       .filter((c) => c.year === year || c.day + c.days >= year * DAYS_A_YEAR)
+      .sort((x, y) => x.day - y.day)
       .map((c) => ({
         ref: c.ref,
         day: c.day,
@@ -1855,7 +2546,7 @@ export function selfLawBlocks(world: World, p: SelfRead): Block[] {
           item(
             [
               link(`Year ${c.year}: wronged`, c.ref),
-              `. ${c.accused.name} ${c.whatWords}, and ${c.came}.`,
+              `. ${sentence(c.accused.name)} ${c.whatWords}, and ${c.came}.`,
             ],
             c.ref,
             c.year,
@@ -1937,4 +2628,218 @@ export function townLeanBlocks(world: World, town: string, selves: readonly Self
         ]
       : []),
   ];
+}
+
+// —— Where a trial is told from: the group it is of, its head, a land's and a realm's underworld, one killed ——————————————
+
+type Trial = {
+  readonly town: Settlement;
+  readonly year: number;
+  readonly e: Entry;
+  readonly light: Light;
+};
+
+/** The grave matters of some lands' chief towns, this year and last, that a test picks (their people unread). */
+function trialsIn(world: World, cells: readonly number[], test: (d: Draft) => boolean): Trial[] {
+  const year = yearNow(world),
+    out: Trial[] = [],
+    seen = new Set<string>();
+  for (const cell of cells) {
+    const t = chiefTown(world, cell);
+    if (!t || seen.has(t.ref)) continue;
+    seen.add(t.ref);
+    for (const y of [year, year - 1]) {
+      const light = graveOf(world, t, y);
+      if (!light) continue;
+      for (const e of light.entries)
+        if (e.told && test(e.d) && (y < year || !e.d.brought ? world.now >= e.day * 86400 : true))
+          out.push({ town: t, year: y, e, light });
+    }
+  }
+  return out;
+}
+
+/** What came of a trial, where it can be said with the town's people unread: of one its roster doesn't hold. */
+function trialCame(world: World, t: Trial): { outcome: Outcome | null; words: string } {
+  const d = t.e.d;
+  if (!d.brought) return { outcome: null, words: "no one was brought" };
+  if (world.now < t.e.day * 86400 + 14 * 3600) return { outcome: null, words: "still to be heard" };
+  if (!t.e.came) return { outcome: null, words: "one of the town was brought" };
+  return { outcome: t.e.came.outcome, words: t.e.came.came.replace(/^was /, "") };
+}
+
+function trialItem(world: World, t: Trial): Item {
+  const ref = `case:${t.town.ref}:${t.year}:${t.e.index}`,
+    came = trialCame(world, t);
+  return item(
+    [
+      `Year ${t.year}, at `,
+      townLink(world, t.town.ref),
+      ": ",
+      link(
+        t.e.d.brought ? GRAVE_NAMES[t.e.d.offence].toLowerCase() : "a killing no one answered for",
+        ref,
+      ),
+      t.e.d.brought ? `: ${came.words}.` : ".",
+    ],
+    ref,
+    t.year,
+  );
+}
+
+/** A list of trials, the newest first, with how many of them a group's pay or its hold ended. */
+function trialList(world: World, title: string, trials: readonly Trial[], most = 10): Block[] {
+  if (!trials.length) return [];
+  const sorted = [...trials].sort((a, b) => b.e.day - a.e.day),
+    cames = sorted.map((t) => trialCame(world, t).outcome),
+    bought = cames.filter((o) => o === "bought").length,
+    silent = cames.filter((o) => o === "frightened").length,
+    open = sorted.filter((t) => !t.e.d.brought).length,
+    rows: Stat[] = [
+      ...(bought ? [stat("Let go, those who judged being paid", `${count(bought)}`)] : []),
+      ...(silent ? [stat("Let go, no one daring to speak", `${count(silent)}`)] : []),
+      ...(open ? [stat("Killings no one was brought for", `${count(open)}`)] : []),
+    ];
+  return [
+    ...(rows.length ? [{ type: "facts" as const, title, rows }] : []),
+    {
+      type: "list",
+      title: rows.length ? "Its trials" : title,
+      items: sorted.slice(0, most).map((t) => trialItem(world, t)),
+      ...(sorted.length > most ? { more: sorted.length - most } : {}),
+    },
+  ];
+}
+
+/**
+ * What a thing's page says of the courts: a group's own tried and those let go for its pay or its hold (`mob:`, `org:`), its head's
+ * trial (`boss:`), the trials of a land's chief town and of a realm's groups' homes (on their Underworld tab), and the case of one
+ * killed under the hand. Nothing where there is none.
+ */
+export function trialBlocks(world: World, ref: string): { tab: string | null; blocks: Block[] } {
+  const none = { tab: null, blocks: [] };
+  if (ref.startsWith("mob:") || ref.startsWith("org:")) {
+    const lands = ref.startsWith("mob:")
+      ? groupOf(world, ref)?.record?.lands
+      : orgOf(world, ref)?.record?.lands;
+    if (!lands?.length) return none;
+    return {
+      tab: null,
+      blocks: trialList(
+        world,
+        "Before the courts",
+        trialsIn(world, lands.slice(0, 8), (d) => d.group?.ref === ref),
+      ),
+    };
+  }
+  if (ref.startsWith("boss:")) {
+    const m = /^boss:(pol:\d+:\d+):(ev:\d+:\d+)(?::\d+)?$/.exec(ref),
+      home = m ? groupOf(world, `mob:${m[1]}:${m[2]}`)?.record?.home : undefined;
+    if (!m || home === undefined) return none;
+    const head = `boss:${m[1]}:${m[2]}`;
+    return {
+      tab: null,
+      blocks: trialList(
+        world,
+        "Before the court",
+        trialsIn(
+          world,
+          [home],
+          (d) =>
+            d.offence === "boss" &&
+            d.stands.kind === "outside" &&
+            d.stands.ref.startsWith(`${head}:`) &&
+            (ref === head || d.stands.ref === ref),
+        ),
+      ),
+    };
+  }
+  if (ref.startsWith("cell:")) {
+    const cell = Number(ref.split(":")[2]),
+      t = chiefTown(world, cell);
+    if (!t) return none;
+    const blocks = trialList(
+      world,
+      `Before the court of ${t.name}`,
+      trialsIn(world, [cell], () => true),
+      8,
+    );
+    if (blocks.length)
+      blocks.push({
+        type: "text",
+        lines: [
+          [
+            "All of it, and its small wrongs: ",
+            link(`the court of ${t.name}`, `${t.ref}#law`),
+            ".",
+          ],
+        ],
+      });
+    return { tab: "underworld", blocks };
+  }
+  if (ref.startsWith("pol:")) {
+    const r = politiesOf(world).get(ref as Ref),
+      rec = r ? underworldOf(world)?.of(r.ref) : undefined;
+    if (!r || !rec) return none;
+    const cells = [...new Set([r.seat, ...rec.groups.map((g) => g.home)])].slice(0, 6);
+    return {
+      tab: "underworld",
+      blocks: trialList(
+        world,
+        "Before its courts",
+        trialsIn(world, cells, (d) => !!d.group || d.offence === "killing"),
+        10,
+      ),
+    };
+  }
+  if (ref.startsWith("agent:")) {
+    const hand = handOf(world).resting,
+      year = yearNow(world);
+    if (!hand || !(hand.gone ?? []).some((g) => `agent:${g.id}` === ref)) return none;
+    const items: Item[] = [];
+    for (const y of [year, year - 1]) {
+      for (const c of casesOf(world, hand.village, y))
+        if (c.victim?.ref === ref)
+          items.push(
+            item(
+              [
+                link(sentence(c.accused.name), c.ref),
+                ` was brought for it in year ${c.year}. ${subject(c.accused)} ${c.came}.`,
+              ],
+              c.ref,
+              c.year,
+            ),
+          );
+      for (const o of openOf(world, hand.village, y))
+        if (o.victim?.ref === ref)
+          items.push(
+            item([link("No one was brought for it", o.ref), `. ${o.unanswered}`], o.ref, o.year),
+          );
+    }
+    return {
+      tab: null,
+      blocks: items.length ? [{ type: "list", title: "Before the court", items }] : [],
+    };
+  }
+  return none;
+}
+
+/** A page with what the courts hold of it (see trialBlocks): on its Underworld tab where it has one, else its first. */
+export function withTrials(world: World, ref: string, page: PageModel): PageModel {
+  if (!/^(mob|org|boss|cell|pol|agent):/.test(ref)) return page;
+  const { tab, blocks } = trialBlocks(world, ref);
+  if (!blocks.length) return page;
+  const at = tab ? page.tabs.findIndex((t) => t.id === tab) : 0;
+  if (at < 0 || !page.tabs[at]) return page;
+  return {
+    ...page,
+    tabs: page.tabs.map((t, i) => (i === at ? { ...t, blocks: [...t.blocks, ...blocks] } : t)),
+  };
+}
+
+/** A world's readings let go, for a test that changes what they are read of. */
+export function forgetDockets(world: World): void {
+  KEPT.delete(world);
+  RAW.delete(world);
+  LIGHT.delete(world);
 }

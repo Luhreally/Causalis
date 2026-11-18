@@ -136,7 +136,11 @@ function read(f: Forged, far: boolean) {
     const p = casePage(w, c.ref),
       text = `${p.title} ${wordsOf(p.tabs as never)}`;
     check(!BAD.test(text), `${f.seed}: a bad word on ${c.ref}: ${text.slice(0, 240)}`);
-    check(c.accused.age >= 1 && !!c.accused.name, `${f.seed}: ${c.ref} has no one brought`);
+    // (One the town's roster doesn't hold, a group's own or a spy, has a name and no age: host/inspect/grave.ts.)
+    check(
+      (c.accused.outside || c.accused.age >= 1) && !!c.accused.name,
+      `${f.seed}: ${c.ref} has no one brought`,
+    );
     check(c.why.length > 0, `${f.seed}: ${c.ref} has no why`);
   }
   // The paths nobody watches: a town with no case at all says it was quiet; one named who has since died is said to have.
@@ -206,7 +210,10 @@ function read(f: Forged, far: boolean) {
   return {
     town: mostTown,
     year,
-    list: mostTown ? casesOf(w, mostTown, year) : ([] as readonly Case[]),
+    // (Those the town draws and whose pages are its people's: its own lines. One its roster doesn't hold is told on the case's page.)
+    list: mostTown
+      ? casesOf(w, mostTown, year).filter((c) => !c.accused.outside)
+      : ([] as readonly Case[]),
   };
 }
 

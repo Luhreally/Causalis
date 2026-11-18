@@ -77,7 +77,7 @@ import { bossPage } from "./boss.ts";
 import { withFollow } from "../follow.ts";
 import { withDeath } from "../death.ts";
 import { songPage, stonePage } from "./memory.ts";
-import { casePage, selfLawBlocks } from "./justice.ts";
+import { casePage, selfLawBlocks, withTrials } from "./justice.ts";
 import { namedPage, type NamesArg } from "../names.ts";
 import { lawPage } from "../lanes.ts";
 
@@ -299,6 +299,8 @@ export function pageOf(
     if (!brief) page = withFollow(world, withFamilyLink(world, base, page));
     // (How they died, or what could take them now, and the god's acts on them: asked 2026-11-16.)
     if (!brief && !only) page = withDeath(world, base, page);
+    // (What the courts hold of it: a group's own tried, its head's trial, a land's and a realm's trials, one killed. Asked 2026-11-17.)
+    if (!brief && !only) page = withTrials(world, base, page);
     // (What its tabs and banner are drawn of: asked 2026-11-13.)
     if (!brief && !only) page = withArt(world, page);
   } catch {
