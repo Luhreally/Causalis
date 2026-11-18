@@ -71,6 +71,11 @@ body.palette-off #hud > .people-bar {
 }
 .people-chip.gone .people-open {
   opacity: 0.75;
+  filter: grayscale(1);
+  border-style: dashed;
+}
+.people-chip.gone .people-name {
+  color: var(--muted);
 }
 .people-face {
   flex: none;

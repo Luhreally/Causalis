@@ -752,6 +752,41 @@ async function walk(view: (typeof VIEWS)[number]): Promise<void> {
     slow(30000),
   );
   await settle(800);
+  // One pinned who dies (asked 2026-11-17): their page tells their death with no act of the living, and their chip is the
+  // candle's, in Pinned still.
+  const doomed = await k<{ ref: string; name: string } | null>(
+    `(async () => { await globalThis.causalis.reloadPlan(); const p = globalThis.causalis.planNow()?.people.find((x) => /^agent:/.test(x.ref)); if (!p) return null; globalThis.causalis.barPins.toggle(p.ref, p.name); await globalThis.causalis.client.command("act.person", { ref: p.ref, kind: "smite", name: p.name }); return { ref: p.ref, name: p.name }; })()`,
+  ).catch(() => null);
+  await state("dead-page", async () => {
+    await must("one under the hand struck down", !!doomed);
+    await k("globalThis.causalis.reloadPlan()");
+    await k(`globalThis.causalis.open(${JSON.stringify(doomed!.ref)})`);
+    await must(
+      "how they died",
+      until(
+        "how they died",
+        () =>
+          k<boolean>(
+            `/How they died/.test(document.querySelector(".page-window")?.textContent ?? "") && !document.querySelector(".page-window .god-acts")`,
+          ),
+        slow(20000),
+      ),
+    );
+    await settle(600);
+  });
+  await closePage();
+  await closeCard();
+  await state("bar-dead", async () => {
+    await must("one under the hand struck down", !!doomed);
+    await must("the Pinned tab", press('.people-tab[data-tab="pinned"]'));
+    await must(
+      "the candle's chip",
+      until("the candle's chip", () => seen(".people-chip.gone.kept"), slow(15000)),
+    );
+    await settle(500);
+  });
+  if (doomed) await k(`globalThis.causalis.barPins.off(${JSON.stringify(doomed.ref)})`);
+  await press('.people-tab[data-tab="here"]');
   // (The hand lifted and the town drawn again: the states after meet it as they did before these.)
   await k(`globalThis.causalis.client.command("hand.lift", {})`).catch(() => undefined);
   await toTown(town.ref);

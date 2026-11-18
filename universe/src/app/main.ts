@@ -6493,7 +6493,9 @@ async function runPlanetPage(): Promise<void> {
     planYear = Math.floor(clock.t / YEAR);
     planAsked = client.status?.t ?? clock.t;
     // (The same town read again as the years turn keeps what its panel shows.)
-    const fresh = plan?.ref !== ref;
+    const fresh = plan?.ref !== ref,
+      // (The one looked at, by who they are: the town read again draws its people afresh, and their place among them moves.)
+      looked = !fresh && watched !== null ? plan?.people[watched] : undefined;
     const q0 = performance.now();
     plan = await client.query<VillagePlan>({
       type: "village.plan",
@@ -6510,6 +6512,18 @@ async function runPlanetPage(): Promise<void> {
     const t0 = performance.now();
     village.build(plan, now());
     performance.measure("village.build", { start: t0 });
+    // One looked at who is no longer among the town drawn (asked 2026-11-17: one dead "keeps running"): the eye leaves
+    // them, never passing to whoever stands at their number now; one under the hand, to their page, which tells their death.
+    if (looked) {
+      const j = plan.people.findIndex((x) => x.ref === looked.ref);
+      watched = j >= 0 ? j : null;
+      village.mark(watched);
+      if (j < 0) {
+        villagePanel.closeCard();
+        if (keeping === looked.ref) keep(null);
+        if (!looked.folk && /^agent:/.test(looked.ref)) void pageWindow.open(looked.ref);
+      }
+    }
     villagePanel.show(plan.name, fresh);
     villagePanel.foreign = !!plan.native;
     moneyPlan?.();

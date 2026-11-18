@@ -25,6 +25,8 @@ import type {
 } from "../../bridge/index.ts";
 import { courtFigure, heirWhy, wantWords } from "../court.ts";
 import { sicknessValue } from "./sickness.ts";
+import { resolvePerson } from "../../causal/index.ts";
+import { deathOf, parseBossRef } from "../death.ts";
 
 const pct = (x: number) => Math.round(x * 100);
 /** Old: their people's chance of dying in a year at that age is at least this. */
@@ -245,8 +247,151 @@ function courtRead(world: World, ref: string, page: PageModel): BarReadings | nu
   };
 }
 
+/**
+ * What became of one no longer where history kept them (asked 2026-11-17: "their tab keeps running their age and acts as if
+ * they're alive"): the one answer every reading, the bar and their page take. Dead, by the deaths layer (host/death.ts): when,
+ * at what age, of what. Or gone and not dead: stood down, fled, put out of a court, on the seat itself, taken, their realm
+ * fallen. Null: among the living, where history kept them.
+ */
+export type Fate = {
+  readonly dead: boolean;
+  /** "died of their years, at 74", "stood down": as their chip says it. */
+  readonly short: string;
+  /** A sentence of it, with its year. */
+  readonly words: string;
+  readonly year: number | null;
+  readonly age: number | null;
+};
+
+const LEFT_COURT: Readonly<Record<string, readonly [string, string]>> = {
+  seated: [
+    "took the seat",
+    "Left the court for the seat itself: they rule, and their page is the ruler's.",
+  ],
+  found: [
+    "put out of the court",
+    "Their move was found: put out of the court. History does not say they died.",
+  ],
+  fled: [
+    "fled the court",
+    "Fled the court and raised the far lands: living, as far as history says.",
+  ],
+  "stood down": ["stood down", "Stood down from the court: living, as far as history says."],
+};
+
+export function fateOf(world: World, ref: string, page: PageModel): Fate | null {
+  if (ref.startsWith("rule:")) {
+    const r = politiesOf(world).get(ref.slice(5) as Ref);
+    if (!r)
+      return {
+        dead: false,
+        short: "gone",
+        words: "History tells no more of them.",
+        year: null,
+        age: null,
+      };
+    return r.ended === null
+      ? null
+      : {
+          dead: false,
+          short: "their realm fell",
+          words: `Their realm fell in year ${r.ended}: they ruled it to the end, and history does not say where they went.`,
+          year: r.ended,
+          age: null,
+        };
+  }
+  if (ref.startsWith("court:")) {
+    const at = courtFigure(world, ref);
+    if (at?.f) return null;
+    const g = at?.gone;
+    if (!g)
+      return {
+        dead: false,
+        short: "gone from court",
+        words: "Gone from court: history keeps no more of them.",
+        year: null,
+        age: null,
+      };
+    if (g.how !== "died") {
+      const [short, words] = LEFT_COURT[g.how] ?? ["gone from court", "Gone from court."];
+      return {
+        dead: false,
+        short,
+        words: `In year ${g.year}: ${words}`,
+        year: g.year,
+        age: g.year - g.born,
+      };
+    }
+  }
+  if (ref.startsWith("boss:") && parseBossRef(ref)?.year === null) return null;
+  // (One met: their own record says when.)
+  if (ref.startsWith("prsn:")) {
+    const p = resolvePerson(world, ref as Ref, 4);
+    if (p.alive) return null;
+    const age = p.diedYear !== null ? p.diedYear - p.birthYear : null,
+      fell = p.wars?.find((w) => w.fate === "fell"),
+      short = `${fell ? "fell in battle" : "died"}${age !== null ? `, at ${age}` : ""}`;
+    return {
+      dead: true,
+      short,
+      words: `${short[0]!.toUpperCase()}${short.slice(1)}${p.diedYear !== null ? `, in year ${p.diedYear}` : ""}.`,
+      year: p.diedYear,
+      age,
+    };
+  }
+  const a = deathOf(world, ref, page.title),
+    told = /^died/.test(statOf(page, "Age") ?? "") || page.icon === "🪦" || page.icon === "🕯️";
+  if (!a && !told) return null;
+  if (!a)
+    return {
+      dead: true,
+      short: "died",
+      words: "No longer among the living: history keeps no more of how.",
+      year: null,
+      age: null,
+    };
+  const dead = a.cause !== "removed";
+  return {
+    dead,
+    short: a.short,
+    words: `${a.short[0]!.toUpperCase()}${a.short.slice(1)}${a.year !== null ? `, in year ${a.year}` : ""}.`,
+    year: a.year,
+    age: a.age,
+  };
+}
+
+/** The readings of one gone: nothing of the living, each the candle. */
+function goneRead(f: Fate): BarReadings {
+  return {
+    mood: read(
+      "🕯️",
+      "Mood",
+      "gone",
+      f.dead
+        ? "None: they are dead. As history last had them."
+        : "History keeps none for one gone from where it kept them.",
+      "plain",
+    ),
+    doing: read("🕯️", f.dead ? "Their end" : "What became of them", "gone", f.words, "plain"),
+    health: read(
+      "🕯️",
+      f.dead ? "Died" : "Health",
+      "gone",
+      f.dead
+        ? f.age !== null && f.year !== null
+          ? `Died at ${f.age}, in year ${f.year}.`
+          : "Dead: history keeps no year for it."
+        : "History does not say how they fare now.",
+      "plain",
+    ),
+  };
+}
+
 /** How a person is, from their own page and the world behind it. */
 export function readingsOf(world: World, ref: string, page: PageModel): BarReadings | null {
+  // (One dead or gone is so in every reading, at once: no mood, work or body of the living.)
+  const fate = fateOf(world, ref, page);
+  if (fate) return goneRead(fate);
   if (ref.startsWith("rule:")) {
     const r = politiesOf(world).get(ref.slice(5) as Ref);
     return r ? rulerRead(world, page, r) : null;
@@ -300,30 +445,35 @@ export function readingsOf(world: World, ref: string, page: PageModel): BarReadi
 
 /** Whether a page's person is no longer among the living, as far as history says. */
 export function goneOf(world: World, ref: string, page: PageModel): boolean {
-  if (ref.startsWith("rule:")) {
-    const r = politiesOf(world).get(ref.slice(5) as Ref);
-    return !r || r.ended !== null;
-  }
-  if (ref.startsWith("court:")) {
-    const at = courtFigure(world, ref);
-    return !at?.f;
-  }
-  return /^died/.test(statOf(page, "Age") ?? "") || page.icon === "🪦" || page.icon === "🕯️";
+  return fateOf(world, ref, page) !== null;
 }
 
 /** Their page told how they are, and the way on and off the bar. */
 export function withBarBlock(world: World, ref: string, page: PageModel): PageModel {
   if (page.kind !== "person" && page.kind !== "agent") return page;
-  if (!/^(folk:town:|seat:|heal:|prsn:|agent:|rule:|court:)/.test(ref)) return page;
+  if (!/^(folk:town:|seat:|heal:|prsn:|agent:|rule:|court:|boss:)/.test(ref)) return page;
   const readings = readingsOf(world, ref, page);
   if (!readings) return page;
-  const tool: Block = {
-    type: "tool",
-    tool: "bar.reading",
-    args: { ref: page.ref, name: page.title, readings, gone: goneOf(world, ref, page) },
-  };
+  const fate = fateOf(world, ref, page),
+    tool: Block = {
+      type: "tool",
+      tool: "bar.reading",
+      args: { ref: page.ref, name: page.title, readings, gone: fate !== null },
+    };
+  // (The dead do not age: their years stop at their death, said as that; one gone and living keeps theirs as last known.)
+  const stats =
+    fate?.dead && fate.age !== null
+      ? [
+          ...page.stats.filter((s) => s.label !== "Age"),
+          {
+            label: "Age",
+            value: [`died at ${fate.age}${fate.year !== null ? `, year ${fate.year}` : ""}`],
+          },
+        ]
+      : page.stats;
   return {
     ...page,
+    stats,
     tabs: page.tabs.map((t) => (t.id === "overview" ? { ...t, blocks: [tool, ...t.blocks] } : t)),
   };
 }
