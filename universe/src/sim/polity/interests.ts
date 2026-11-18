@@ -11,14 +11,14 @@
 // its wars) read those demands as factors, so their why runs through the people who
 // pressed them, and on to what moved those people.
 import { YEAR, type Ref, type SimTime } from "../../kernel/index.ts";
-import { HOLD, OCC, templeSway } from "../../rules/index.ts";
+import { GOODS, HOLD, OCC, templeSway } from "../../rules/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import type { MarketStore } from "../economy/market.ts";
 import { WAY, cultureOf } from "../culture/culture.ts";
 import { beliefOf } from "../belief/belief.ts";
 import { pulpitIn } from "../belief/temple.ts";
 import type { WarStore } from "../war/war.ts";
-import { diplomacyOf } from "../diplomacy/diplomacy.ts";
+import { TRADE_TIE, diplomacyOf, tradeTie } from "../diplomacy/diplomacy.ts";
 import { armyOf, strifeOf } from "../strife/strife.ts";
 import { GENERAL, LAW, politiesOf, type Polity } from "./polity.ts";
 import { holdOf } from "../order/holds.ts";
@@ -138,6 +138,8 @@ type Reading = {
   readonly sacred: boolean;
   readonly atWar: ReturnType<WarStore["fighting"]>;
   readonly junta: Ref | null;
+  /** What its lands used in the year, all goods in grain's worth. */
+  readonly used: number;
 };
 
 function readingOf(ctx: PopulationContext, p: Polity): Reading {
@@ -170,8 +172,12 @@ function readingOf(ctx: PopulationContext, p: Polity): Reading {
     headsF = 0,
     headsH = 0,
     headsC = 0,
-    headsT = 0;
+    headsT = 0,
+    // (What its lands used in the year, in grain's worth: what its trade with another is weighed against, see `want` below.)
+    used = 0;
   for (const c of p.members) {
+    const m = markets.get(c);
+    if (m) for (let k = 0; k < GOODS.length; k++) used += m.book("used", k) * GOODS[k]!.value;
     const prov = ctx.provinces.get(c);
     if (!prov) continue;
     const f = prov.occupation(OCC.farmer),
@@ -233,6 +239,7 @@ function readingOf(ctx: PopulationContext, p: Polity): Reading {
     headsH,
     headsC,
     headsT,
+    used,
   ];
   for (const f of famines) mark.push(f);
   return {
@@ -250,6 +257,7 @@ function readingOf(ctx: PopulationContext, p: Polity): Reading {
     sacred,
     atWar,
     junta,
+    used,
   };
 }
 
@@ -261,7 +269,7 @@ type Rival = { readonly q: Polity; readonly opinion: number; readonly source: Re
  */
 type Weighed = {
   readonly mark: readonly unknown[];
-  readonly trade: readonly (readonly [Ref, { volume: number; road: Ref | null }])[];
+  readonly trade: readonly (readonly [Ref, { worth: number; road: Ref | null }])[];
   readonly near: readonly Polity[];
   readonly theirs: readonly (Ref | null)[];
   readonly rival: Rival | null | undefined;
@@ -396,14 +404,14 @@ function interestsNow(
   if (!trade || !near) {
     const realms = politiesOf(world),
       markets = world.store<MarketStore>("economy.markets"),
-      met = new Map<Ref, { volume: number; road: Ref | null }>();
+      met = new Map<Ref, { worth: number; road: Ref | null }>();
     for (const f of markets.flowsOf(p.members)) {
       const from = realms.of(f.from),
         to = realms.of(f.to);
       if (!from || !to || from === to || (from !== p && to !== p)) continue;
       const other = from === p ? to : from,
-        tr = met.get(other.ref) ?? { volume: 0, road: null };
-      tr.volume += f.count;
+        tr = met.get(other.ref) ?? { worth: 0, road: null };
+      tr.worth += f.count * GOODS[f.good]!.value;
       tr.road ??= markets.route(f.from, f.to) ?? null;
       met.set(other.ref, tr);
     }
@@ -434,14 +442,16 @@ function interestsNow(
       toward: null,
       source: famine ?? p.tithed ?? null,
     });
-  // Traders (and crafters, whose goods go down the roads): peace with those they trade with.
+  // Traders (and crafters, whose goods go down the roads): peace with those they trade with, as far as that trade is of their
+  // own realm's living (sim/diplomacy/diplomacy.ts tradeTie's share: it stood as units of goods against a fixed 400).
   for (const [other, tr] of trade)
     for (const group of ["traders", "crafters"] as const)
       want({
         group,
         want: "peace",
         name: `${group} want peace with those they trade with`,
-        strength: Math.min(1, tr.volume / 400) * (group === "crafters" ? 0.5 : 1),
+        strength:
+          (tradeTie(tr.worth, reading.used) / TRADE_TIE.most) * (group === "crafters" ? 0.5 : 1),
         toward: other,
         source: tr.road,
       });

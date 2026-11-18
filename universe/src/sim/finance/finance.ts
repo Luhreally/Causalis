@@ -55,7 +55,7 @@ import type { Market } from "../economy/market.ts";
 import { loreOf } from "../lore/lore.ts";
 import { cultureOf } from "../culture/culture.ts";
 import { politiesOf, realmName, type Polity } from "../polity/polity.ts";
-import { diplomacyOf, type Relation } from "../diplomacy/diplomacy.ts";
+import { TRADE_TIE, diplomacyOf, type Relation } from "../diplomacy/diplomacy.ts";
 import { fieldedOf, warsOf } from "../war/war.ts";
 import { orderOf } from "../order/order.ts";
 import { holdsOf, waysRead } from "../order/holds.ts";
@@ -528,7 +528,7 @@ export function financeYear(ctx: PopulationContext, t: SimTime): void {
       b = reads.get(rel.b);
     if (!a || !b) continue;
     const near = Math.min(1, -term(rel, "the land along their border") / 0.2),
-      trade = Math.min(1, term(rel, "trade between them") / 0.35),
+      trade = Math.min(1, term(rel, "trade between them") / TRADE_TIE.most),
       like = rel.terms.find((x) => x.name === "alike speech" || x.name === "strange speech"),
       tongue = Math.max(0, Math.min(1, (like?.value ?? 0) / 1.2 + 0.75)),
       stakes = Math.min(1, stakesBetween(world, rel.a, rel.b) / 0.16),
