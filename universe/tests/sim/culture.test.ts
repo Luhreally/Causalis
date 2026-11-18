@@ -89,10 +89,12 @@ test("famine teaches thrift, and the people's ways say which famine", () => {
   const w = cultureOf(world).get(HOME)!;
   // (Each hungry year presses thrift as deep as its leanest month went, rules/ways.ts LIVED: five failed rains, some four in a
   // hundred on each round alone; merged, the land's store put by carries it a year longer, its hunger beginning in year 14 not 13,
-  // and its months' want spread the more evenly: 0.474 to 0.493.)
+  // and its months' want spread the more evenly: 0.474 to 0.493. Since a crafter's wage is what was earned and nothing is asked
+  // of a craft past its use, the cradle's hands stand a little otherwise in those years and its hunger is a touch shallower:
+  // 0.471 to 0.486, a press of 0.015 where 0.019; the bound is a hundredth.)
   assert.ok(
-    w.traits[WAY.thrift]! > before + 0.015,
-    `thrift ${before.toFixed(2)} → ${w.traits[WAY.thrift]!.toFixed(2)}`,
+    w.traits[WAY.thrift]! > before + 0.01,
+    `thrift ${before.toFixed(3)} → ${w.traits[WAY.thrift]!.toFixed(3)}`,
   );
   const node = why(world, waysRef(HOME)),
     cited = node.causes.map((c) => world.events.get(c.cause.ref)?.type);

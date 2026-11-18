@@ -81,8 +81,15 @@ export const UNDER = {
   lost: 0.25,
   /** A protection group rises where the pull (want of protection times men to sell it) reaches this. */
   riseProtect: 0.05,
-  /** A smuggling group rises where the rent taken reaches this share of what its people earn. */
-  riseRent: 0.004,
+  /**
+   * A smuggling group rises where the rent taken reaches this share of what its people earn (est: one part in two thousand,
+   * which keeps some twenty men in 100,000 of its people at UNDER.keep: the American mob at its height under a strong state,
+   * some five thousand sworn and their associates in 180 million. It stood at four in a thousand, 150 men in 100,000, the
+   * density of Sicily's or Mexico's at their worst, as the least a cartel could be: set while tools no one used were carried
+   * over every border and the rent of slipping past a tariff came to more than all its people earned in the median realm that
+   * had one. Of honest trade that rent is a few parts in ten thousand, and no realm of first light reached the old line.)
+   */
+  riseRent: 0.0005,
   /** The fewest men a group is: a rent that cannot keep so many keeps no group. */
   crew: 20,
   /** A group's man costs this many of a working man's years a year (his keep, his risk, his arms). */
@@ -201,12 +208,31 @@ export const UNDER = {
 
 // —— Who wants protection, and who can sell it ————————————————————————————————————————————————————————————
 
+/**
+ * What passes a land's shops and stalls in a year (grain's worth): all it uses that is not food, the food of those who do not
+ * grow, herd or gather their own (`growers`: the share of its workers who do), and what it sells on to other lands. It is what a
+ * protector's cut is a cut of, and what makes a land's people traders with something to guard. (What its markets send and take
+ * across its borders is not it: that counts a good each time it moves and nothing that is made and sold in one town. Read so,
+ * with half of all that moved for "trade", a world of unsold tools carried from land to land had three times what its people
+ * earned passing its stalls, and an honest one a seventh.)
+ */
+export function takings(f: {
+  readonly food: number;
+  readonly other: number;
+  readonly sentOn: number;
+  readonly growers: number;
+}): number {
+  return (
+    Math.max(0, f.other) + Math.max(0, f.food) * (1 - clamp01(f.growers)) + Math.max(0, f.sentOn)
+  );
+}
+
 /** What a realm's traders and holders want of private protection (0 … 1). */
 export type ProtectionFacts = {
   /** How safe a holding is from its ruler and from others (society's law row), and how far a deal is held to (0 … 1). */
   readonly secure: number;
   readonly deals: number;
-  /** Its trade, and what its people earn (grain's worth a year). */
+  /** What passes its shops and stalls (`takings`), and what its people earn (grain's worth a year). */
   readonly trade: number;
   readonly earned: number;
   /** How far its seat reaches its lands (0 … 1). */

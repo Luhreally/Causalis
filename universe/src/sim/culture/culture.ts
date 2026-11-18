@@ -277,6 +277,21 @@ export function cradleWays(
  */
 /** How far a people's ways wander in a generation of the prehistory, at the most likely (a normal spread's width). */
 const DRIFT_WIDTH = 0.035;
+/**
+ * Of how far a people's ways stand from what their body and land make of them, what a generation of the prehistory keeps: half
+ * of it is left after sixteen generations (est, four centuries of an upright ape's; no source gives a rate: what is known is
+ * that the ways of peoples without writing outlast many lifetimes, and that neighbours come of one stock are alike). The wander
+ * had nothing drawing it back, as the ways of the chronicle have: over the two hundred generations to a world's far side it came
+ * to a walk half the scale wide, every land's ways its forebears' chance (0.20 to 0.29 from what body and land make at the
+ * root mean square on three worlds, where a body's whole lean is 0.2 at most and a land's 0.1; 25 to 50 lands of 500 at an
+ * end of a way's scale), and the first rings' chance was every later land's: first light's lands stood at valour 0.67 at the
+ * mean from a cradle at 0.47, harrow 348's at 0.38 from 0.49. Drawn back so, a walk of DRIFT_WIDTH a generation settles at a
+ * spread of 0.12 about what body and land make (the width over the root of one less the square of what is kept): peoples
+ * still differ by their forebears' chance as much as by their bodies, and near kin are alike, but no world is all one way by
+ * its first few rings. (Drawn back at the chronicle's own rate, WAYS_RELAX a year, the spread is 0.044 and every rule with a
+ * line on a way, war games past valour 0.6, zeal past piety 0.55, falls silent on a world of one body: tried, not kept.)
+ */
+const DRIFT_KEEPS = dmath.pow(0.5, 1 / 16);
 
 export function driftedWays(
   world: { readonly rng: Rng },
@@ -285,16 +300,23 @@ export function driftedWays(
   steps: number,
   from: Ref | null,
   shift?: readonly number[],
+  /** What their body and the land they LEFT make of each way (0 … 1): what their ways were drawn back to there (absent: nothing drew them). */
+  made?: readonly number[],
 ): Ways {
   // Ways wander as a walk does (by the root of the distance); speech shifts at every step. (The wander is a founders' chance,
   // not what makes a people what it is: half as wide since ways are drawn from body and land, so that what a body and a land
-  // make of a people shows through it.)
+  // make of a people shows through it; and drawn back each generation toward what they make.)
+  const kept = made ? dmath.pow(DRIFT_KEEPS, steps) : 1,
+    // (A walk's spread over the steps: their root where nothing draws it back, less where each step keeps a part of the last.)
+    walked = made
+      ? dmath.sqrt((1 - kept * kept) / (1 - DRIFT_KEEPS * DRIFT_KEEPS))
+      : dmath.sqrt(steps);
   const traits = cradle.traits.map((v, i) =>
     dmath.clamp(
-      v +
+      (made ? made[i]! + kept * (v - made[i]!) : v) +
         (shift?.[i] ?? 0) +
         DRIFT_WIDTH *
-          dmath.sqrt(steps) *
+          walked *
           gaussian(world.rng.real(DRIFT, cell, 0, 1, i), world.rng.real(DRIFT, cell, 0, 2, i)),
       0.05,
       0.95,

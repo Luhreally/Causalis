@@ -412,10 +412,16 @@ function makeAndUse(
         (r.needs?.ore ? oreWorkable(ctx, p.cell, r.needs.ore)!.grade : 1) *
         skill(r.output[0]);
     open.forEach(({ r }, k) => {
-      for (const [g, per] of r.inputs) want[g] = want[g]! + alloc[k]! * per;
       const each = eachOf(r),
         out = r.output[0],
-        limit = Math.min(shared(r, alloc[k]!), Math.ceil(leftOf(out) / Math.max(1e-9, each)));
+        // (As many as there is use for the work of: what is wanted of a craft's inputs is what those would take. Wanted for
+        // every hand set to the craft, a land whose tools had no room for more went on asking for copper and tin for all its
+        // bronze-smiths, traders brought it, and what was sold on to such lands was made for: by first light's year 1,000 the
+        // world made sixty of tin for each one used and held seven hundred years' use of it, seventy of copper:
+        // scratchpad/release/st2.mts.)
+        useFor = Math.ceil(leftOf(out) / Math.max(1e-9, each)),
+        limit = Math.min(shared(r, alloc[k]!), useFor);
+      for (const [g, per] of r.inputs) want[g] = want[g]! + Math.min(alloc[k]!, useFor) * per;
       if (alloc[k]! > limit) {
         spare += alloc[k]! - limit;
         alloc[k] = limit;
@@ -459,7 +465,19 @@ function makeAndUse(
       if (r.needs?.ore) digOre(ctx, p.cell, r.needs.ore, out, n);
       else if (r.needs?.seam) digOre(ctx, p.cell, r.needs.seam, out, n, true);
     });
-  }
+    // (The share of its crafters' year there was use for the work of: what they earned follows it, wages.)
+    m.craftsWorked =
+      crafters > 0
+        ? Math.round(
+            (1000 *
+              Math.min(
+                crafters,
+                alloc.reduce((a, n) => a + n, 0),
+              )) /
+              crafters,
+          )
+        : 1000;
+  } else m.craftsWorked = crafters > 0 ? 0 : 1000;
   toolsOfYear(ctx, p, m, made, t);
 
   // What its households buy of what they need, by what they earn and what it costs, within their means (sim/trade/demand.ts, p87):
@@ -1117,7 +1135,13 @@ function wages(ctx: PopulationContext, p: Province, m: Market, can: readonly num
   }
   // (Where its workers have bound themselves in a union, they win a share of their trade's rent: Round B, rules/labour.ts.)
   const union = unionOf(ctx.world, p.cell);
-  w[OCC.crafter] = best * (1 + union.wage);
+  // (What a crafter earned in the year: what a year of the best of its crafts is worth, for as much of the year as there was
+  // use for the work (Market.craftsWorked). It was the worth of a full year whether or not anyone had use for what it would
+  // make: while every idle hand made tools no one wanted that was what the books showed a crafter making, 57 grain's worth a
+  // year on first light at 600; with nothing made past its use a crafter made 8.8 and at the median land 2 to 3 by 1,000 to
+  // 1,500, against a wage that still said 8 to 9, and the towns drew hands, the interests weighed crafters and the old were
+  // kept as if it were earned: scratchpad/release/wg.mts.)
+  w[OCC.crafter] = (best * (1 + union.wage) * m.craftsWorked) / 1000;
   w[OCC.trader] =
     0.6 * Math.max(w[OCC.farmer]!, w[OCC.forager]!) +
     m.tradeMargin / Math.max(1, p.occupation(OCC.trader));

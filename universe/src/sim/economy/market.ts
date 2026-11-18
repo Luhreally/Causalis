@@ -118,6 +118,12 @@ export class Market {
   /** Of machines its workers wear out, and of fuel its engines would burn (Phase 3 M32). */
   machineCover = 0;
   powerCover = 0;
+  /**
+   * Of its crafters' year, the share there was use for the work of last year (thousandths; 1000 where it has no crafters): the
+   * rest of their days they had nothing to make that anyone would use. What a crafter earned follows it (economy/systems.ts
+   * wages), and its hands without work are who the underworld's idle are (sim/order/underworld.ts).
+   */
+  craftsWorked = 1000;
   /** Fuel its engines burned last year (units of coal and oil), for its power. */
   burned = 0;
   /** The year its works can run again after a rocket's fall (W3; 0: they do). */
@@ -294,6 +300,7 @@ export class Market {
       .int(this.potteryCover)
       .int(this.machineCover)
       .int(this.powerCover)
+      .int(this.craftsWorked)
       .int(this.burned)
       .string(this.mine ?? "")
       .string(this.well ?? "")
@@ -327,6 +334,7 @@ export class Market {
       potteryCover: this.potteryCover,
       machineCover: this.machineCover,
       powerCover: this.powerCover,
+      craftsWorked: this.craftsWorked,
       burned: this.burned,
       mine: this.mine,
       well: this.well,
@@ -367,6 +375,7 @@ export class Market {
     m.potteryCover = s.potteryCover as number;
     m.machineCover = (s.machineCover as number | undefined) ?? 0;
     m.powerCover = (s.powerCover as number | undefined) ?? 0;
+    m.craftsWorked = (s.craftsWorked as number | undefined) ?? 1000;
     m.burned = (s.burned as number | undefined) ?? 0;
     m.mine = (s.mine as Ref | null | undefined) ?? null;
     m.well = (s.well as Ref | null | undefined) ?? null;

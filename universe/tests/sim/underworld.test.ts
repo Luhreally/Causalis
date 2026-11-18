@@ -73,6 +73,9 @@ import {
   potencyYear,
   type RealmUnderworld,
 } from "../../src/sim/index.ts";
+import { LEDGER, type MarketStore } from "../../src/sim/economy/market.ts";
+import { G } from "../../src/rules/goods.ts";
+import { OCC } from "../../src/rules/species.ts";
 import { LAW_ROW, LAW_STORE, societyStore } from "../../src/sim/society/kept.ts";
 import { refNumber } from "../../src/sim/money/kept.ts";
 import { EARTH } from "../../src/host/index.ts";
@@ -246,6 +249,23 @@ function forced(world: World): { realm: Ref; year: number } {
     f = [...(fisc.get(p.ref) ?? new Array<number>(33).fill(0))];
   f[FISC.base + 1] = 400_000;
   f[FISC.base + 3] = 200_000;
+  // (Trade rich: what passes its lands' stalls is what the underworld reads now (rules takings), not the treasury's count of
+  // what crossed its borders: written into its seat's last books as tools sold on, as much as its people earn. And a working
+  // man's year is what its people earn a worker (it was the seat's best wage): 200,000 among year 30's few thousand workers
+  // made a man's keep so dear that no rent kept a crew; they earn eight a worker here, as the seat's crafts paid.)
+  const ctx0 = populationContext(world),
+    workers = p.members.reduce((n, c) => {
+      const prov = ctx0.provinces.get(c);
+      return n + (prov ? Math.max(0, prov.total() - prov.occupation(OCC.dependent)) : 0);
+    }, 0),
+    seatMarket = world.store<MarketStore>("economy.markets").get(p.seat),
+    seatBooks = seatMarket?.years.at(-1)?.ledger as number[][] | undefined;
+  f[FISC.base + 3] = 8 * workers;
+  fisc.set(p.ref, f);
+  if (seatBooks && seatMarket)
+    seatBooks[LEDGER.indexOf("out")]![G.tools] = Math.ceil(
+      (8 * workers) / Math.max(0.1, seatMarket.price[G.tools]!),
+    );
   f[FISC.reserve] = 1_000_000;
   fisc.set(p.ref, f);
   const cycle = tradeStore(world, CYCLE_STORE);
@@ -392,7 +412,10 @@ test("towns with poor quarters grow small gangs; many of one people ally into a 
   }
   const town = ctx.settlements.inProvince(towns[0]!).find((s) => s.market)!,
     blocks = townUnderworldBlocks(world, town);
-  assert.ok(blocks.length === 1 && "title" in blocks[0]! && blocks[0].title === "Its underworld");
+  // (And, where soldiers stand in it, their operations after: the forced realm's cartels, which rise at the honest line of a
+  // smuggler's rent, draw them here.)
+  assert.ok(blocks.length >= 1 && "title" in blocks[0]! && blocks[0].title === "Its underworld");
+  for (const b of blocks.slice(1)) assert.ok("title" in b && b.title === "Operations");
 });
 
 // —— Means, and the iron law of prohibition ————————————————————————————————————————————————————————————
@@ -886,7 +909,9 @@ test("soldiers that break a group to what its police can meet put it down where 
     underworldYear(populationContext(world), simTime((year + 1) * YEAR));
     const after = store.of(realm)!,
       o = after.ops!.find((x) => x.event === sent)!,
-      gone = after.gone.filter((x) => x.name === names[0] && x.year === year).at(-1);
+      gone = after.gone
+        .filter((x) => x.name === names[0] && x.kind === 0 && x.year === year)
+        .at(-1);
     assert.equal(o.ended, year, "the operation is over");
     assert.ok(o.taken > 0, "its men were taken");
     if (bosses) {

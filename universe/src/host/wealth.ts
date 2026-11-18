@@ -113,7 +113,7 @@ export function wealthBlocks(world: World): Block[] {
     ];
   if (great.topGood)
     account.push(
-      `Tools never wear out in the record, so old lands pile them up for centuries: in ${great.short}, the greatest, ${share(great.topGood.share)} of what it holds is ${great.topGood.name}. So worth a head says how long a people have been making as much as how they live now: made last year says that better.`,
+      `In ${great.short}, the greatest, ${share(great.topGood.share)} of what it holds is ${great.topGood.name}. A land keeps a few years of what it uses and sells, no more, so worth a head says what its people use; made last year says how they live now.`,
     );
   account.push(
     "Realms of fewer than 1,000 people are listed last: a few left sitting on what their dead left would head the list.",

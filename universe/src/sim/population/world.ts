@@ -290,9 +290,12 @@ export function openingWays(
   const ways = new Map<number, Ways>([[cradle.cell, cradle]]),
     ring = new Map(lands.map(([cell, r]) => [cell, r])),
     medium = g?.life.people?.body.medium ?? "land",
-    appetite = g ? peopleLife(g).appetite : 1;
+    appetite = g ? peopleLife(g).appetite : 1,
+    body = g ? bodyWays(g.life.people?.body) : null;
   for (const [cell, r, back] of lands)
-    if (cell !== cradle.cell)
+    if (cell !== cradle.cell) {
+      // (What their body and the land they left make of them: their ways are drawn back to it as they go.)
+      const left = g && body ? landWays(g, back, medium, appetite) : null;
       ways.set(
         cell,
         driftedWays(
@@ -302,8 +305,10 @@ export function openingWays(
           (r - ring.get(back)!) * stride,
           from,
           g ? landShift(g, back, cell, medium, appetite) : undefined,
+          left ? left.map((x, k) => 0.5 + body![k]! + x) : undefined,
         ),
       );
+    }
   return ways;
 }
 

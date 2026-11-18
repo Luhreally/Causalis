@@ -62,6 +62,7 @@ import {
 } from "../../rules/index.ts";
 import { adults, type PopulationContext } from "../population/systems.ts";
 import type { MarketStore } from "../economy/market.ts";
+import { takingsOf } from "../trade/demand.ts";
 import { WAY, cultureOf } from "../culture/culture.ts";
 import { loreOf } from "../lore/lore.ts";
 import { interestsOf } from "../polity/interests.ts";
@@ -554,20 +555,26 @@ function stepRealm(
     duty = moneyStore(world, TARIFF_STORE)?.get(p.ref),
     c = dmath.clamp(corruption, 0, 0.9),
     taken = fisc ? fisc[FISC.take + 1]! + fisc[FISC.take + 2]! + fisc[FISC.take + 3]! : 0,
-    market = world.store<MarketStore>("economy.markets").get(p.seat),
+    markets = world.store<MarketStore>("economy.markets"),
+    market = markets.get(p.seat),
     granary = market
       ? Math.floor(market.stock[G.grain]! * corruption * 0.04) * market.price[G.grain]!
       : 0,
     skim = (taken * c) / (1 - c) + granary,
-    trade = fisc ? fisc[FISC.base + 1]! / 2 : 0,
+    // (What passes its lands' shops and stalls: what a licence is a licence to sell. It was half of all its markets sent and
+    // took across their borders, three times what its people earned while unsold tools were carried from land to land.)
+    trade = p.members.reduce((sum, cell) => {
+      const prov = ctx.provinces.get(cell),
+        lm = prov ? markets.get(cell) : undefined;
+      return sum + (prov && lm ? takingsOf(prov, lm) : 0);
+    }, 0),
     earned = fisc ? fisc[FISC.base + 3]! : 0,
     measured = fisc ? fisc[FISC.measured + 1]! / 1000 : 0,
     tariffs = fisc ? fisc[FISC.tariffs]! : 0,
     imported = trade > 0 ? dmath.clamp((duty?.[DUTY.imports] ?? 0) / trade, 0, 1) : 0,
     licence = writing && trade > 0 ? licensed(favours, cap) : 0,
     farm = tariffs > 0 ? farmedOut(favours, measured) : 0,
-    // (A licence's rent is on what its holders sell: no more than its people spend of what they earn, nor than its markets trade,
-    // which count a good each time it moves.)
+    // (A licence's rent is on what its holders sell: no more than what its people earn.)
     rent = licence * Math.min(trade, earned) * licenceRent(imported),
     margin = farm * tariffs * HOUSES.farmMargin,
     nepotism = kinInOffice({
