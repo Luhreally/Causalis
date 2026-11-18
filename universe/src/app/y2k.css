@@ -4152,3 +4152,27 @@ body.with-palette .hint {
     display: none;
   }
 }
+
+/* One a list's line names, gone to or followed at a press: two small buttons at the line's end, under it where it is narrow. */
+.entry.with-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+.entry.with-acts > :first-child {
+  flex: 1 1 14em;
+  min-width: 0;
+}
+.entry-acts {
+  display: inline-flex;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.entry-act {
+  min-width: 40px;
+  min-height: 32px;
+  padding: 2px 8px;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}

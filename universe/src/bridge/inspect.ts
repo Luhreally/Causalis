@@ -61,6 +61,8 @@ export type Item = {
   readonly ref?: string;
   readonly why?: string;
   readonly year?: number;
+  /** One it names who can be gone to and followed (their page's ref): a press on it does either, without opening their page. */
+  readonly who?: string;
   /** A small picture beside it (Phase 54 M223): the stone, the ore, the metal, the tool itself. */
   readonly thumb?: Portrait;
   /** How it stands (F5): had, could be had, or never will be. Its colour says so at a glance. */

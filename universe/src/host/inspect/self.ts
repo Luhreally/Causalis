@@ -25,7 +25,7 @@ import { item, link, many, share, stat } from "./words.ts";
 import { landLink } from "./names.ts";
 
 /** The pages a person's life is told on: anyone the game names and keeps a page for. */
-const SELF_PAGES = /^(folk:town:|seat:|heal:|prsn:|agent:|rule:|court:)/;
+const SELF_PAGES = /^(folk:town:|seat:|heal:|prsn:|agent:|rule:|court:|boss:|note:)/;
 
 const WORK_WORDS = ["a child", "forager", "farmer", "herder", "crafter", "trader", "leader"];
 const workWord = (occupation: number, trade: string | null) =>

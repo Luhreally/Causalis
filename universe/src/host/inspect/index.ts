@@ -2,6 +2,7 @@
 // ref, and the few names that are not refs (a far star, another star's world, one under
 // the god's hand) — to its page, and its place for "go to it". Pure reads of the world as
 // it stands (the observer ledger aside, which history never reads): asking never moves it.
+import { notablePage } from "./notables.ts";
 import { meansPage, measurePage } from "./means.ts";
 import { canPage } from "./can.ts";
 import { lifeElsewherePage, lifePage } from "./lifepage.ts";
@@ -200,6 +201,8 @@ function build(
   if (ref.startsWith("org:")) return orgPage(world, ref);
   // The head of a group: a boss, a group's leader (asked 2026-11-16).
   if (ref.startsWith("boss:")) return bossPage(world, ref);
+  // (One who holds an office or heads a great thing of a town, as read: host/inspect/notables.ts.)
+  if (ref.startsWith("note:")) return notablePage(world, ref);
   if (ref.startsWith("ofed:")) return orgFedPage(world, ref);
   const code = ref.slice(0, ref.indexOf(":")),
     t = tab ?? undefined;

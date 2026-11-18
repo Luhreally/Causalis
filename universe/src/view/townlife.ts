@@ -10,7 +10,7 @@ export { GOING_ICON };
 import { isGun } from "./arms.ts";
 import { hashText, unitOf } from "./draws.ts";
 import { beside, civicDoors, storeSpots } from "./errands.ts";
-import { feastOn, marketDay, marketScene, squareScale } from "./feast.ts";
+import { feastOn, feastPlace, marketDay, marketScene, squareScale } from "./feast.ts";
 import type { Ground } from "./ground.ts";
 import { streetDoor } from "./streets.ts";
 import type { Carry } from "./work.ts";
@@ -116,6 +116,7 @@ export function goingHeld(plan: VillagePlan, g: TownGoing, day: number): boolean
   if (g.kind === "posted" || g.kind === "guard" || g.quiet) return true;
   if (feastOn(plan, day)) return false;
   if (g.every) return true;
+  if (g.market) return marketDay(plan, day);
   if (g.kind === "meeting" || g.kind === "alms") return day % 7 === dayOfGoing(g);
   if (g.kind === "collect")
     return plan.market ? marketDay(plan, day) : day % 6 === drawn(g.key, 6, 6);
@@ -513,22 +514,55 @@ function laidOn(plan: VillagePlan, day: number, ground: Ground): Laid {
       const head = (g.to ?? []).map((ref) => indexOf.get(ref)).find((i) => i !== undefined),
         h = head !== undefined ? plan.people[head]!.home : homeBy(plan, g.key, 0.05, 0.35);
       // (Its head, before the door through the day, the guards either side; indoors by night as their own day has them.)
+      // (On a market day the head goes out to the market mid-morning, one of the guards with them: the rest keep the door.)
+      const fronts = plan.market && marketDay(plan, day) ? marketScene(plan).fronts : [],
+        stall =
+          head !== undefined && fronts.length
+            ? fronts[(hashText(g.key) >>> 9) % fronts.length]
+            : undefined,
+        out = [10 * HOUR, 11.5 * HOUR] as const,
+        through = (
+          door: Point & { face: number },
+          away: (Point & { face: number }) | undefined,
+          task: LifeStay["task"],
+          why: string,
+          abroad: string,
+        ): LifeStay[] =>
+          away
+            ? [
+                { from, to: out[0], at: door, face: door.face + Math.PI, task, carry: null, why },
+                {
+                  from: out[0],
+                  to: out[1],
+                  at: away,
+                  face: away.face,
+                  task,
+                  carry: null,
+                  why: abroad,
+                },
+                {
+                  from: out[1],
+                  to: until,
+                  at: door,
+                  face: door.face + Math.PI,
+                  task,
+                  carry: null,
+                  why,
+                },
+              ]
+            : [{ from, to: until, at: door, face: door.face + Math.PI, task, carry: null, why }];
       if (head !== undefined) {
         const d = beforeHome(plan, h, 0, 0.9);
         add(head, {
           going: g,
           of: false,
-          stays: [
-            {
-              from,
-              to: until,
-              at: d,
-              face: d.face + Math.PI,
-              task: "talk",
-              carry: null,
-              why: g.toDoing ?? g.doing,
-            },
-          ],
+          stays: through(
+            d,
+            stall ? { x: stall.x, z: stall.z, face: stall.yaw } : undefined,
+            "talk",
+            g.toDoing ?? g.doing,
+            "At the market, a guard beside them",
+          ),
         });
       }
       who.forEach((i, k) => {
@@ -536,18 +570,14 @@ function laidOn(plan: VillagePlan, day: number, ground: Ground): Laid {
         add(i, {
           going: g,
           of: true,
-          stays: [
-            {
-              from,
-              to: until,
-              at: s,
-              // (Their back to the door, looking out along the street.)
-              face: s.face + Math.PI,
-              task: "watch",
-              carry: null,
-              why: g.doing,
-            },
-          ],
+          // (Their back to the door, looking out along the street.)
+          stays: through(
+            s,
+            k === 0 && stall ? { x: stall.x + 1.6, z: stall.z + 1.2, face: stall.yaw } : undefined,
+            "watch",
+            g.doing,
+            `${g.doing}: out at the market beside them`,
+          ),
         });
       });
     } else {
@@ -590,6 +620,39 @@ function laidOn(plan: VillagePlan, day: number, ground: Ground): Laid {
       to: until,
       at: place.at,
       find: g.kind === "corner" && who.length >= 3 ? who[1]! : who[0]!,
+    });
+  }
+  // A feast day: those of standing in the town (its key figures) are at its tables with it of an evening.
+  const feast = feastOn(plan, day);
+  if (feast) {
+    const going: TownGoing = {
+      kind: "meeting",
+      key: `feast|${day}`,
+      of: { ref: feast.ref ?? plan.ref, name: feast.words },
+      words: feast.words,
+      doing: "At the feast: at the tables",
+      why: "",
+      who: [],
+      where: "square",
+    };
+    plan.people.forEach((p, i) => {
+      if (!p.figure) return;
+      const at = feastPlace(plan, false, unitOf(hashText(p.ref), 0, 6));
+      add(i, {
+        going,
+        of: false,
+        stays: [
+          {
+            from: 17 * HOUR,
+            to: 21 * HOUR,
+            at: { x: at.x, z: at.z },
+            face: at.yaw,
+            task: "talk",
+            carry: null,
+            why: going.doing,
+          },
+        ],
+      });
     });
   }
   if (kept.size > 40) kept.clear();

@@ -348,6 +348,8 @@ export type TownCourt = {
   readonly colour: readonly [number, number, number];
   readonly wood: readonly [number, number, number];
   readonly sittings: readonly CourtSitting[];
+  /** Its judge, where its form has one: one of the town's key figures (their page's ref), who sits first on its sitting days. */
+  readonly judge?: string;
 };
 
 /** A song a town knows (T1): its page, what it is called, its first line, what it is of. */
@@ -388,6 +390,8 @@ export type TownGoing = {
   readonly before?: { readonly ref: string; readonly name: string };
   /** What the first of it says, who leads it (a meeting's head, a ruler holding court); the rest say `doing`. */
   readonly lead?: string;
+  /** Held on the market's days (a merchant at their stall). */
+  readonly market?: true;
   /** Held every day, not one day in seven (a court kept). */
   readonly every?: true;
   /** Its hours of the day, where they are not its kind's own. */

@@ -13,6 +13,9 @@
 //   - a family: a realm's great house (`dyn:`), its own events and any that name one of it; a town's line (`line:`), the battles
 //     and strikes of its holders, and each new holder who heads it.
 // The observer ledger keeps the watches, saved with the world; reading them moves nothing.
+import { headLeader } from "./inspect/townlife.ts";
+import { goneNotable, notableOf } from "./inspect/notables.ts";
+import { groupNews, groupOf } from "./underworld.ts";
 import { YEAR, type HistoryEvent, type Ref, type World } from "../kernel/index.ts";
 import { politiesOf, folkByRef } from "../sim/index.ts";
 import {
@@ -319,3 +322,20 @@ export function familyOnBar(
   const name = familyName(world, ref);
   return name ? { head: familyHead(world, ref), name } : null;
 }
+
+// —— A group's head; one who holds an office ————————————————————————————————————————————————
+
+defineWatchKind({
+  test: (ref) => /^boss:pol:d+:d+:ev:d+:d+$/.test(ref),
+  label: (world, ref) => headLeader(world, ref)?.name ?? null,
+  // (What is news of their group is news of them: its wars, soldiers sent against it, its head taken.)
+  news: (world, w) => {
+    const g = groupOf(world, w.ref.replace(/^boss:/, "mob:"));
+    return g ? groupNews(g) : () => false;
+  },
+});
+defineWatchKind({
+  test: (ref) => ref.startsWith("note:"),
+  label: (world, ref) => notableOf(world, ref)?.name ?? goneNotable(world, ref)?.name ?? null,
+  news: () => () => false,
+});

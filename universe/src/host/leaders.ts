@@ -2,6 +2,7 @@
 // lives in the seat's town while the realm stands), the generals of its last coups, and the heads
 // of the houses of lending its lands hold. A town's own figures stand in it by name, each in one of
 // the homes nearest its square. Pure reads: asking moves nothing and nothing is kept.
+import { notableLeader, notablesIn, realmNotables } from "./inspect/notables.ts";
 import { headLeader, townRolesOf } from "./inspect/townlife.ts";
 import { orgsOf, underworldOf } from "../sim/index.ts";
 import type { World } from "../kernel/index.ts";
@@ -165,6 +166,8 @@ export function leadersOf(world: World, realm: string): LeaderList | null {
       }
     }
   }
+  if (r.ended === null)
+    leaders.push(...realmNotables(world, r).map((n) => notableLeader(world, n)));
   return { realm: r.ref, realmName: realmName(r), leaders };
 }
 
@@ -181,6 +184,8 @@ export function leadersOfTown(world: World, town: string): Leader[] {
   if (l) out.push(l);
   // (The heads of the groups whose home it is: host/inspect/townlife.ts.)
   out.push(...townRolesOf(world, town).heads);
+  // (Those who hold its offices and head its great things, as read: host/inspect/notables.ts.)
+  out.push(...notablesIn(world, town).map((n) => notableLeader(world, n)));
   return out;
 }
 

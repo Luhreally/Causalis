@@ -4,6 +4,8 @@
 // what history already holds of their land and from a key of their own (the key their name and their family are drawn from), so the
 // same person read twice is the same person and nothing per person enters the world's year. Readings are kept in bounded caches,
 // one per world, let go whole when they grow past their bound or the year turns.
+import { headLeader } from "./inspect/townlife.ts";
+import { notableLeader, notableOf } from "./inspect/notables.ts";
 import { YEAR, finish, hashString, mix, type Ref, type World } from "../kernel/index.ts";
 import {
   DAY_WAGE,
@@ -273,6 +275,35 @@ export function whoOf(world: World, ref: string): Who | null {
       trade: null,
       since: "since" in fig ? (fig as { since: number }).since : null,
       rank: 0.85,
+      lived: null,
+    };
+  }
+  // A group's head, or one who holds an office of a town (host/inspect/townlife.ts, notables.ts): one of their town's key
+  // figures, read as one seated there.
+  if (ref.startsWith("boss:") || ref.startsWith("note:")) {
+    const l = ref.startsWith("boss:")
+        ? headLeader(world, ref)
+        : (() => {
+            const n = notableOf(world, ref);
+            return n ? notableLeader(world, n) : null;
+          })(),
+      s = l?.town ? populationContext(world).settlements.get(l.town as Ref) : undefined;
+    if (!l || !l.as || !s) return null;
+    return {
+      ref,
+      name: l.name,
+      key: hashString(`head ${ref} ${l.name}`) >>> 0,
+      sex: l.as.sex === 0 ? 0 : 1,
+      born: now - l.as.age,
+      alive: true,
+      year: now,
+      cell: s.cell,
+      town: s.ref,
+      station: "maker",
+      occupation: l.as.occupation,
+      trade: l.title[0]!.toLowerCase() + l.title.slice(1),
+      since: null,
+      rank: 0.7,
       lived: null,
     };
   }

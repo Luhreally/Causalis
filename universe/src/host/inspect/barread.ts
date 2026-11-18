@@ -2,6 +2,7 @@
 // a true reading of that person or a plain saying that history keeps none. A ruler holds no mood: what history keeps is
 // how many hold their rule rightful, and a page says so. Nothing is kept, nothing drawn, and the same reading is on the
 // bar and on their page. A person's body is what their page's own Body line says; their age is against what their people live.
+import { goneNotable } from "./notables.ts";
 import { heldReading } from "./townlife.ts";
 import { parseTownsfolkRef } from "../../bridge/index.ts";
 import { yearOfMoment, type Ref, type World } from "../../kernel/index.ts";
@@ -326,6 +327,19 @@ export function fateOf(world: World, ref: string, page: PageModel): Fate | null 
     }
   }
   if (ref.startsWith("boss:") && parseBossRef(ref)?.year === null) return null;
+  // (One who held an office in a term before: gone from it when the term was out; who holds it now is not gone.)
+  if (ref.startsWith("note:")) {
+    const was = goneNotable(world, ref);
+    return was
+      ? {
+          dead: false,
+          short: "left the office",
+          words: `Left it in year ${was.year}, their term out: ${was.now.name} holds it now. History keeps no more of them.`,
+          year: was.year,
+          age: null,
+        }
+      : null;
+  }
   // (One met: their own record says when.)
   if (ref.startsWith("prsn:")) {
     const p = resolvePerson(world, ref as Ref, 4);
@@ -458,7 +472,7 @@ export function goneOf(world: World, ref: string, page: PageModel): boolean {
 /** Their page told how they are, and the way on and off the bar. */
 export function withBarBlock(world: World, ref: string, page: PageModel): PageModel {
   if (page.kind !== "person" && page.kind !== "agent") return page;
-  if (!/^(folk:town:|seat:|heal:|prsn:|agent:|rule:|court:|boss:)/.test(ref)) return page;
+  if (!/^(folk:town:|seat:|heal:|prsn:|agent:|rule:|court:|boss:|note:)/.test(ref)) return page;
   const readings = readingsOf(world, ref, page);
   if (!readings) return page;
   const fate = fateOf(world, ref, page),

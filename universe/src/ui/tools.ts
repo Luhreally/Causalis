@@ -343,7 +343,25 @@ export function drawTool(
       {
         const l = args.leader as Leader,
           live = ctx.live;
-        if (l.kind === "head" && l.as && l.town && live) {
+        // (One who holds an office or heads a house, as read: every act of the god's on one of a town's people, as on any
+        // of them, Live as them among them. What cannot reach them is there and says why.)
+        if (l.ref.startsWith("note:") && l.as && l.town) {
+          const acts = el("div", "touch");
+          into.append(acts);
+          void touchActs(
+            acts,
+            ctx.client,
+            {
+              town: l.town,
+              name: l.name,
+              age: l.as.age,
+              occupation: l.as.occupation,
+              sex: l.as.sex,
+            },
+            (agent) => ctx.open(agent),
+            live,
+          );
+        } else if ((l.kind === "head" || l.kind === "lender") && l.as && l.town && live) {
           const as = l.as,
             town = l.town,
             first = l.name.split(" ")[0],

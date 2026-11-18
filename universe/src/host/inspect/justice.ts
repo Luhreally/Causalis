@@ -18,6 +18,7 @@
 // keeps, is told first and marked, and may end as no small wrong does: in death (never for one of the town's lines: a reading can't kill),
 // long years, the works, a mark for life, being sent out of the realm; in one let go because those who judged were paid or no one dared
 // speak, only where a group or a crew holds the town; in a pardon; or with no one brought at all. They are drawn after the small wrongs.
+import { notablesIn } from "./notables.ts";
 import { finish, hashString, mix, type Ref, type World } from "../../kernel/index.ts";
 import { meansOfWorld } from "../../gen/index.ts";
 import {
@@ -2285,6 +2286,18 @@ export function casePage(world: World, ref: string): PageModel {
             ],
       ),
       ...(c.group ? [stat("Of", [link(sentence(c.group.name), c.group.ref)])] : []),
+      // (Who heard it, where the court is one with a judge and the case is of the judge's own term: the one paid, where it was bought.)
+      ...(() => {
+        const judge = notablesIn(world, c.town).find((n) => n.kind === "judge");
+        return judge && judge.since !== null && c.year >= judge.since
+          ? [
+              stat(c.outcome === "bought" ? "Judged by, and paid" : "Judged by", [
+                link(judge.name, judge.ref),
+                `, ${judge.title[0]!.toLowerCase()}${judge.title.slice(1)}`,
+              ]),
+            ]
+          : [];
+      })(),
       ...(c.victim ? [stat("Killed", [link(c.victim.name, c.victim.ref)])] : []),
       ...(prior
         ? [
@@ -2521,6 +2534,11 @@ function roleMan(
   return null;
 }
 
+/** A town's court's form this year, read without its books (who holds its offices asks only this). */
+export function courtFormOf(world: World, s: Settlement): CourtForm {
+  return factsOf(world, s, yearNow(world)).form;
+}
+
 /** A town's court, as its plan carries it (absent: no one lives there, or no one is ever heard). */
 export function courtIn(world: World, ref: string): { court?: TownCourt } {
   const s = populationContext(world).settlements.get(ref as Ref);
@@ -2556,6 +2574,11 @@ export function courtIn(world: World, ref: string): { court?: TownCourt } {
       law: `${COURT_WORDS[f.form].title} of ${s.name}`,
       grips: f.grips,
       far: f.far,
+      // (Its judge, where its form has one: the one who sits first on its sitting days. host/inspect/notables.ts.)
+      ...(() => {
+        const judge = notablesIn(world, ref).find((n) => n.kind === "judge");
+        return judge ? { judge: judge.ref } : {};
+      })(),
       colour: f.water ? [0.84, 0.66, 0.6] : f.far ? [0.2, 0.21, 0.28] : [rock[0], rock[1], rock[2]],
       wood: f.water ? [0.46, 0.34, 0.3] : f.far ? [0.42, 0.72, 0.95] : [0.34, 0.22, 0.13],
       sittings,

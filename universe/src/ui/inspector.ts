@@ -1322,6 +1322,29 @@ export class PageWindow {
       const ref = item.ref;
       row.onclick = () => void this.open(ref);
     }
+    // (One it names, gone to or followed at a press, their page not opened: asked 2026-11-18.)
+    if (item.who) {
+      const who = item.who,
+        acts = el("span", "entry-acts"),
+        go = el("button", "entry-act", "⌖");
+      go.title = "Go to them";
+      go.setAttribute("aria-label", "Go to them");
+      go.onclick = async (e) => {
+        e.stopPropagation();
+        const place = await this.client.query<Place | null>({ type: "place", args: { ref: who } });
+        if (place) this.onGoTo(place, who);
+        else this.note("History keeps no place for them to go to.");
+      };
+      acts.append(go);
+      if (this.tidings) {
+        const f = this.tidings.follow(who, "them", true);
+        f.classList.add("entry-act");
+        f.addEventListener("click", (e) => e.stopPropagation());
+        acts.append(f);
+      }
+      row.classList.add("with-acts");
+      row.append(acts);
+    }
     return row;
   }
 

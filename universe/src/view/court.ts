@@ -467,8 +467,16 @@ function rolesOn(plan: VillagePlan, day: number): ReadonlyMap<number, CourtRole>
                   [0, -0.6],
                   [3.2, -0.6],
                 ];
+    // (Where the court has a judge who is among those drawn, the first seat is theirs; the eldest sit beside them.)
+    const judge = court.judge
+        ? plan.people.findIndex((p) => p.figure === court.judge || p.ref === court.judge)
+        : -1,
+      seated =
+        judge >= 0 && !map.has(judge)
+          ? [{ p: plan.people[judge]!, i: judge }, ...elders.filter((e) => e.i !== judge)]
+          : elders;
     benches.forEach(([u, v], k) => {
-      const who = elders[k];
+      const who = seated[k];
       if (!who) return;
       const at = courtSpot(place, u!, v!);
       map.set(who.i, {

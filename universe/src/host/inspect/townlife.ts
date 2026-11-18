@@ -5,6 +5,8 @@
 // there where they hold nothing: a quiet village has none. Who of the town is in each is drawn from the town's own lines by a key
 // of the thing itself, so the same people are in it year on year, and one going more or less moves no one else. Pure reads: nothing
 // here flows back into the world. Words say what, who, at what cost and with what effect; never how.
+import { envoyAtCourt } from "./ties.ts";
+import { notablesIn } from "./notables.ts";
 import { finish, hashString, mix, type Ref, type World } from "../../kernel/index.ts";
 import {
   CONTRA_CAUSES,
@@ -151,6 +153,8 @@ const HEAD_WENT: Readonly<Record<"years" | "taken" | "struck", string>> = {
   taken: "was taken by the realm's soldiers",
   struck: "was killed",
 };
+/** A list's line with the one it names to be gone to and followed at a press (none: as it is). */
+const toWho = (i: Item, who: string | undefined): Item => (who ? { ...i, who } : i);
 const sentenceOf = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s);
 const cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s),
   pct = (x: number) =>
@@ -557,6 +561,8 @@ function readRoles(world: World, town: string, year: number): TownLife {
       other = foe
         ? politiesOf(world).get(foe.attacker === r.ref ? foe.defender : foe.attacker)
         : null;
+    // (One come from another seat, at its court this year or last: heard there. host/inspect/ties.ts)
+    const envoy = envoyAtCourt(world, town as Ref).envoy;
     known.push([ruler, r.ruler.name], ...court.map((c) => [c.ref, c.name] as const));
     goings.push({
       kind: "meeting",
@@ -564,7 +570,9 @@ function readRoles(world: World, town: string, year: number): TownLife {
       of: { ref: r.ref, name: `the court of ${realmName(r)}` },
       words: `${r.ruler.name} holds court at the seat of ${realmName(r)}`,
       doing: `At court before ${r.ruler.name}`,
-      lead: "Holding court at the seat",
+      lead: envoy
+        ? `Holding court at the seat, hearing ${envoy.name}`
+        : "Holding court at the seat",
       why: court.length
         ? `${many(court.length, "one of the court attends", "of the court attend")}; ${r.ruler.name} has ruled since year ${r.ruler.since}`
         : `${r.ruler.name} has ruled since year ${r.ruler.since}`,
@@ -587,6 +595,43 @@ function readRoles(world: World, town: string, year: number): TownLife {
         every: true,
         hours: [17.5, 19],
       });
+  }
+
+  // —— Those who hold its offices and head its great things (host/inspect/notables.ts): what each does in its day. ——
+  for (const n of notablesIn(world, town)) {
+    if (n.away) continue;
+    known.push([n.ref, n.name]);
+    if (n.kind === "priest")
+      goings.push({
+        kind: "meeting",
+        key: `${n.ref}|keep`,
+        of: n.of,
+        words: `${n.name} keeps the temple of ${s.name}`,
+        doing: `Keeping the temple of ${s.name}`,
+        why: `for ${n.of.name}, since year ${n.since}`,
+        who: [n.ref],
+        where: "temple",
+        every: true,
+        hours: [7.5, 10],
+      });
+    else if (n.kind === "merchant")
+      goings.push({
+        kind: "meeting",
+        key: `${n.ref}|stall`,
+        of: n.of,
+        words: `${n.name}, the richest of its merchants, is at their stall`,
+        doing: "At their stall, on market day",
+        why: `one of those ${s.name}'s market is known by`,
+        who: [n.ref],
+        where: "market",
+        market: true,
+        hours: [8.5, 12],
+      });
+    else if (n.kind === "house" || n.kind === "general") {
+      // (At court before the ruler, where they live at the realm's seat.)
+      const court = goings.find((g) => g.key.endsWith("|court"));
+      if (court) (court.who as string[]).push(n.ref);
+    }
   }
 
   // —— Its underworld: only in its land's few greatest towns, and only what its land's row holds. ——
@@ -709,6 +754,8 @@ function readRoles(world: World, town: string, year: number): TownLife {
           young,
           PART.corner,
         );
+      const gangHead = notablesIn(world, town).find((n) => n.kind === "gang");
+      if (gangHead) who.push(gangHead.ref);
       if (who.length >= 2)
         goings.push({
           kind: "corner",
@@ -732,6 +779,24 @@ function readRoles(world: World, town: string, year: number): TownLife {
     }
     // A crew of the realm's own enforcers working the town: two of it on their round.
     const crew = under.badge > 0 ? rec.groups.find((g) => kindOfGroup(g) === "badge") : undefined;
+    // (Its head, at the realm's seat: one of that town's key figures, as a family's head is of theirs.)
+    if (crew && seatTownOf(world, r)?.ref === town) {
+      const ref = `boss:${r.ref}:${crew.event}`,
+        name = groupWords(crew.name, "badge");
+      heads.push(
+        headOf(
+          world,
+          r,
+          ref,
+          crew.boss,
+          name,
+          `Heads ${name} since year ${crew.boss.since}.`,
+          crew.event,
+          s,
+        ),
+      );
+      known.push([ref, crew.boss.name]);
+    }
     if (crew) {
       const name = groupWords(crew.name, "badge"),
         ref = groupRef(r.ref, crew.event),
@@ -900,21 +965,24 @@ export function townGoingsBlock(world: World, town: string): Block | null {
     ]),
     items: Item[] = life.goings.map((g) => {
       const first = g.who.find((ref) => names.has(ref));
-      return item(
-        [
-          `${KIND_ICON[g.kind]} `,
-          link(g.words, g.of.ref),
-          `, ${WHEN[g.kind]}: ${g.why}.`,
-          ...(first
-            ? [
-                " Go to ",
-                link(names.get(first)!.replace(/^A /, "a "), first),
-                g.kind === "posted" ? ", one of them." : ", who is of it.",
-              ]
-            : []),
-          ...(g.before ? [" Before: ", link(g.before.name, g.before.ref), "."] : []),
-        ],
-        g.of.ref,
+      return toWho(
+        item(
+          [
+            `${KIND_ICON[g.kind]} `,
+            link(g.words, g.of.ref),
+            `, ${WHEN[g.kind]}: ${g.why}.`,
+            ...(first
+              ? [
+                  " Go to ",
+                  link(names.get(first)!.replace(/^A /, "a "), first),
+                  g.kind === "posted" ? ", one of them." : ", who is of it.",
+                ]
+              : []),
+            ...(g.before ? [" Before: ", link(g.before.name, g.before.ref), "."] : []),
+          ],
+          g.of.ref,
+        ),
+        first,
       );
     });
   const year = yearNow(world);
@@ -1041,11 +1109,14 @@ export function peopleHereBlock(world: World, ref: string): Block | null {
               ?.groups.some((x) => h.ref.endsWith(x.event)))
         )
           items.push(
-            item(
-              [
-                link(h.name, h.ref),
-                ` of ${t.name}: ${h.title.replace(/^Head/, "head")}, at their own house.`,
-              ],
+            toWho(
+              item(
+                [
+                  link(h.name, h.ref),
+                  ` of ${t.name}: ${h.title.replace(/^Head/, "head")}, at their own house.`,
+                ],
+                h.ref,
+              ),
               h.ref,
             ),
           );
@@ -1055,13 +1126,16 @@ export function peopleHereBlock(world: World, ref: string): Block | null {
           const name = names.get(who);
           if (!name || items.length >= 24) continue;
           items.push(
-            item(
-              [
-                link(name, who),
-                ` of ${t.name}: ${(g.quiet ?? g.doing).replace(/^./, (c) => c.toLowerCase())}`,
-                ...(cellAt ? [" (", link(g.of.name, g.of.ref), ")"] : []),
-                ".",
-              ],
+            toWho(
+              item(
+                [
+                  link(name, who),
+                  ` of ${t.name}: ${(g.quiet ?? g.doing).replace(/^./, (c) => c.toLowerCase())}`,
+                  ...(cellAt ? [" (", link(g.of.name, g.of.ref), ")"] : []),
+                  ".",
+                ],
+                who,
+              ),
               who,
             ),
           );
@@ -1119,11 +1193,14 @@ export function fightPeopleBlock(
         const name = names.get(who);
         if (name)
           items.push(
-            item(
-              [
-                link(name, who),
-                `, of ${side.name.replace(/^The /, "the ")}: ${ROLE_NAME[g.kind].replace(/\bits\b/, "their")} in the town`,
-              ],
+            toWho(
+              item(
+                [
+                  link(name, who),
+                  `, of ${side.name.replace(/^The /, "the ")}: ${ROLE_NAME[g.kind].replace(/\bits\b/, "their")} in the town`,
+                ],
+                who,
+              ),
               who,
             ),
           );
