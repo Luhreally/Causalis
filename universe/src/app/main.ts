@@ -9969,6 +9969,8 @@ async function runPlanetPage(): Promise<void> {
         i = who ? plan.people.findIndex((p) => p.ref === who) : -1,
         m = i >= 0 ? village.momentAt(i) : null;
       if (m) {
+        // (A card left open is another's: what the one gone to is doing is not theirs to say.)
+        villagePanel.closeCard();
         watched = i;
         village.mark(i);
         rig.flyTo({
