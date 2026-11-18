@@ -686,10 +686,6 @@ const dataOf = <T>(e: HistoryEvent) => (e.data ?? {}) as Partial<T>;
 const MORE: Readonly<Record<string, (n: number) => string>> = {
   "war.declared": (n) => `, and ${told(n, "more war", "more wars")} began`,
   "war.peace": (n) => `, and ${told(n, "more war", "more wars")} ended`,
-  "underworld.pax": (n) =>
-    `, and ${told(n, "more war", "more wars")} among groups ended in a peace`,
-  "underworld.disarmed": (n) =>
-    `, and ${told(n, "more group", "more groups")} laid down their arms`,
   "polity.succession": (n) => `, and ${told(n, "more seat", "more seats")} passed`,
   "polity.formed": (n) => `, and ${told(n, "more realm", "more realms")} rose`,
   "filled.sailed": (n) => `, and ${told(n, "more ship", "more ships")} set out`,
@@ -1005,37 +1001,78 @@ function tellYear(world: World, year: number, events: readonly HistoryEvent[], w
       key: `${e.type}:${e.id}`,
       say: () => lineOf(world, e, year),
     });
-  // A crime group's end, by how it went: those taken over in the wars they lost on one line, those put down by their realms'
-  // soldiers on another, each with how many more; the rest as one kind, as before.
-  const ends = new Map<string, HistoryEvent[]>();
-  for (const e of take("underworld.ended")) {
-    const how = groupEnd(e),
-      list = ends.get(how);
-    if (list) list.push(e);
-    else ends.set(how, [e]);
+  // How the underworld's wars and its groups ended in the year, on ONE line: led by a group taken over in a war it lost, else
+  // one put down by its realm's soldiers, else one that laid down its arms, a peace, one ended while at war; and how many of
+  // each besides. A line a kind (four at 1,500: a takeover, a put-down, arms laid down, a peace) left a year's four lines
+  // of wars to whichever came first: looked at on first light at 1,530, 24 years showed five takeovers and none of the others.
+  const ends = new Map<string, HistoryEvent[]>([
+      ["taken over", []],
+      ["put down", []],
+      ["disarmed", take("underworld.disarmed")],
+      ["peace", take("underworld.pax")],
+      ["at war", []],
+      ["", []],
+    ]),
+    greatest = (list: readonly HistoryEvent[]) =>
+      list.reduce((a, b) => (b.importance > a.importance ? b : a));
+  for (const e of take("underworld.ended")) ends.get(groupEnd(e))!.push(e);
+  const untold = ends.get("")!,
+    lead = [...ends].find(([how, list]) => how && list.length);
+  if (lead) {
+    const best = greatest(lead[1]),
+      left = (how: string) => ends.get(how)!.length - (how === lead[0] ? 1 : 0),
+      also = (how: string, one: string, more: string, did: (n: number) => string): string[] => {
+        const n = left(how),
+          again = how === lead[0] ? "more " : "";
+        return n ? [`${told(n, `${again}${one}`, `${again}${more}`)} ${did(n)}`] : [];
+      },
+      parts = [
+        ...also(
+          "taken over",
+          "group",
+          "groups",
+          (n) => `lost a war and ${n === 1 ? "was" : "were"} taken over`,
+        ),
+        ...also(
+          "put down",
+          "group",
+          "groups",
+          (n) => `${n === 1 ? "was" : "were"} put down by soldiers`,
+        ),
+        ...also(
+          "disarmed",
+          "group",
+          "groups",
+          (n) => `laid down ${n === 1 ? "its" : "their"} arms`,
+        ),
+        ...also("peace", "war", "wars", () => "among groups ended in a peace"),
+        ...also(
+          "at war",
+          "group",
+          "groups",
+          (n) => `at war ${n === 1 ? "was" : "were"} broken or withered`,
+        ),
+      ];
+    add({
+      kind: WARS,
+      worth: 3,
+      ref: best.id,
+      key: "underworld.ends",
+      say: () => lineOf(world, best, year, parts.length ? `; ${parts.join(", ")}` : ""),
+    });
   }
-  for (const [how, list] of ends) {
-    const best = list.reduce((a, b) => (b.importance > a.importance ? b : a)),
+  // (A group withered or taken into another with no war: one kind, as before.)
+  if (untold.length) {
+    const best = greatest(untold),
       [kind, worth] = ruleOf(best),
-      more = list.length - 1;
+      more = untold.length - 1;
     add({
       kind,
       worth,
       ref: best.id,
-      key: `underworld.ended:${how}`,
+      key: "underworld.ended",
       say: () =>
-        lineOf(
-          world,
-          best,
-          year,
-          !more
-            ? ""
-            : how === "taken over"
-              ? `, and ${told(more, "more group", "more groups")} lost a war and ${more === 1 ? "was" : "were"} taken over`
-              : how === "put down"
-                ? `, and ${told(more, "more group", "more groups")} ${more === 1 ? "was" : "were"} put down by soldiers`
-                : `, and ${told(more, "more", "more")} like it`,
-        ),
+        lineOf(world, best, year, more ? `, and ${told(more, "more", "more")} like it` : ""),
     });
   }
   // A rising crushed the year it rose: the crushing says it rose.
