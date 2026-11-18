@@ -58,6 +58,7 @@ import {
 import { claimOf, count, item, link, many, part, share, stat, yearAt, yearNow } from "./words.ts";
 import { landLink, landTitle, realmLink } from "./names.ts";
 import { bossLink } from "./boss.ts";
+import { headLeader } from "./townlife.ts";
 import { lastEvent, streetFightOf, watchFightTool } from "./streetfight.ts";
 
 const th = (n: number) => share(n / 1000),
@@ -134,7 +135,7 @@ export function realmUnderworldBlocks(world: World, r: Polity): Block[] {
       ref: groupRef(r.ref, g.event),
       cells: [
         [groupLink(r, g)],
-        [g.boss.name],
+        [bossLink(r.ref, g.event, g.boss.name)],
         [count(g.members)],
         [kindOfGroup(g) === "badge" ? "its towns" : count(g.lands.length)],
         [`${g.since}`],
@@ -148,6 +149,25 @@ export function realmUnderworldBlocks(world: World, r: Polity): Block[] {
       rows,
       few: UNDER.most,
       fit: true,
+    });
+    // (Each one's head by name: gone to and followed at a press where they live in a town that shows them.)
+    blocks.push({
+      type: "list",
+      title: "Who heads them",
+      items: groups.map((g) => {
+        const ref = `boss:${r.ref}:${g.event}`,
+          at = headLeader(world, ref),
+          line = item(
+            [
+              bossLink(r.ref, g.event, g.boss.name),
+              `, ${yearNow(world) - g.boss.born}: heads ${groupWords(g.name, kindOfGroup(g))} since year ${g.boss.since}`,
+              at?.townName ? `, at their own house in ${at.townName}.` : ", at home in ",
+              ...(at?.townName ? [] : [landLink(world, g.home), "."]),
+            ],
+            ref,
+          );
+        return at ? { ...line, who: ref } : line;
+      }),
     });
     blocks.push({
       type: "facts",

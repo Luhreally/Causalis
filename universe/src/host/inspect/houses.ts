@@ -14,7 +14,8 @@ import {
 } from "../../sim/index.ts";
 import { grainSum } from "../../causal/index.ts";
 import { realmColor } from "../colors.ts";
-import { count, item, link, many, part, share, stat } from "./words.ts";
+import { count, item, link, many, part, share, stat, yearNow } from "./words.ts";
+import { notableOf } from "./notables.ts";
 import { landLink } from "./names.ts";
 import { houseRef, roseBy } from "../family.ts";
 
@@ -113,6 +114,26 @@ export function realmHousesBlocks(world: World, r: Polity): Block[] {
       few: HOUSES.most,
       fit: true,
     });
+    // (Each one's head, where the house is seated in a town that shows them: gone to and followed at a press.)
+    const heads: Item[] = houses.flatMap((h) => {
+      const ref = `note:house:${r.ref}:${h.event}`,
+        n = notableOf(world, ref);
+      return n
+        ? [
+            {
+              ...item(
+                [
+                  link(n.name, ref),
+                  `, ${yearNow(world) - n.born}: heads the house of ${h.name}, at their own house in ${n.townName}.`,
+                ],
+                ref,
+              ),
+              who: ref,
+            },
+          ]
+        : [];
+    });
+    if (heads.length) blocks.push({ type: "list", title: "Who heads them", items: heads });
     const crown = houses.find((h) => h.crown);
     blocks.push({
       type: "facts",

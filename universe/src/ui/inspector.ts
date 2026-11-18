@@ -1220,6 +1220,9 @@ export class PageWindow {
           ...(this.onLive ? { live: this.onLive } : {}),
           ...(this.onLeaderHome ? { leaderHome: this.onLeaderHome } : {}),
           ...(this.onLeaderRule ? { leaderRule: this.onLeaderRule } : {}),
+          ...(this.tidings
+            ? { follow: (ref: string, what: string) => this.tidings!.follow(ref, what, true) }
+            : {}),
           ...(this.onHomeLook ? { homeLook: this.onHomeLook } : {}),
           ...(this.onHear ? { hear: this.onHear } : {}),
         });

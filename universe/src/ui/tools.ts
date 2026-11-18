@@ -57,6 +57,8 @@ export type ToolContext = {
   /** To a key figure's home in the town view (Lives L1). */
   readonly leaderHome?: (leader: Leader) => void;
   readonly leaderRule?: (leader: Leader) => void;
+  /** A button that follows one a card is of, and stops (asked 2026-11-18: Follow on the Leaders tab's cards). */
+  readonly follow?: (ref: string, what: string) => HTMLElement;
   /** A home looked into (Lives L6). */
   readonly homeLook?: (ask: {
     readonly town: string;
@@ -337,6 +339,7 @@ export function drawTool(
         open: ctx.open,
         ...(ctx.leaderHome ? { home: ctx.leaderHome } : {}),
         ...(ctx.leaderRule ? { rule: ctx.leaderRule } : {}),
+        ...(ctx.follow ? { follow: ctx.follow } : {}),
       });
       // (A group's head, who lives in a town as one of its key figures: lived as, as any of the town's people is. The hand is
       // laid on their town from them, and they are among its people by the name they are known by.)
@@ -345,7 +348,8 @@ export function drawTool(
           live = ctx.live;
         // (One who holds an office or heads a house, as read: every act of the god's on one of a town's people, as on any
         // of them, Live as them among them. What cannot reach them is there and says why.)
-        if (l.ref.startsWith("note:") && l.as && l.town) {
+        // (A house of lending's head is one of their town's makers by their seat: the same acts, and Live as them.)
+        if ((l.ref.startsWith("note:") || l.kind === "lender") && l.as && l.town) {
           const acts = el("div", "touch");
           into.append(acts);
           void touchActs(
@@ -361,7 +365,7 @@ export function drawTool(
             (agent) => ctx.open(agent),
             live,
           );
-        } else if ((l.kind === "head" || l.kind === "lender") && l.as && l.town && live) {
+        } else if (l.kind === "head" && l.as && l.town && live) {
           const as = l.as,
             town = l.town,
             first = l.name.split(" ")[0],

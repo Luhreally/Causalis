@@ -36,6 +36,14 @@ div.leader-did {
   font-size: 14px;
   color: #ffe3b0;
 }
+.leader-card .leader-follow {
+  /* (Beside "Go to their home", the same height; dark on the button's own light face.) */
+  min-height: 44px;
+  margin: 6px 0 0 6px;
+  padding: 2px 12px;
+  color: #0b1030;
+  font-weight: 600;
+}
 .leader-go,
 .wealth-compare button {
   min-height: 44px;

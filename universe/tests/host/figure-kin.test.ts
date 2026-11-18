@@ -104,7 +104,7 @@ test("their household is drawn under their roof, each a page that leads to them;
   for (const l of figures) {
     if (!l.town || seen.has(l.town) || seen.size >= 6) continue;
     seen.add(l.town);
-    const plan = withFigures(world, villagePlan(world, l.town)!);
+    const plan = withFigures(world, villagePlan(world, l.town as Ref)!);
     for (const g of plan.figures ?? []) {
       if (!/^(boss|note):/.test(g.ref)) continue;
       for (const k of figureHousehold(world, g.ref)) {
@@ -150,4 +150,29 @@ test("a head's page names no one as who follows before history does", () => {
   assert.match(text, /in the year they take it, and no one before/);
   const f = familyOf(world, boss.ref)!;
   for (const k of f.children) assert.doesNotMatch(k.note ?? "", /heir/);
+});
+
+test("a realm's Houses and Underworld tabs name who heads each, to be gone to and followed at a press", () => {
+  let houses = 0,
+    bosses = 0;
+  for (const r of politiesOf(world).living()) {
+    const page = pageOf(world, r.ref);
+    for (const id of ["houses", "underworld"]) {
+      const list = page.tabs
+        .find((t) => t.id === id)
+        ?.blocks.find((b) => b.type === "list" && b.title === "Who heads them");
+      if (!list || list.type !== "list") continue;
+      for (const i of list.items) {
+        if (!i.who) continue;
+        assert.match(i.who, id === "houses" ? /^note:house:/ : /^boss:/);
+        const them = pageOf(world, i.who);
+        assert.equal(them.place?.scale, "village", `${i.who}: a place to go to`);
+        assert.equal(them.followable, true, `${i.who}: followed`);
+        if (id === "houses") houses++;
+        else bosses++;
+      }
+    }
+    if (houses > 3 && bosses > 3) break;
+  }
+  assert.ok(houses > 0 && bosses > 0, `${houses} heads of houses, ${bosses} of groups`);
 });

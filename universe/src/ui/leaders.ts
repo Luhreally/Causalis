@@ -3,6 +3,9 @@
 import { LEADER_ICON, type Leader } from "../bridge/index.ts";
 import { el } from "./why.ts";
 
+/** The key figures history follows: a ruler, one of a court, a seat's holder, a group's head, one who holds an office. */
+const FOLLOWED = /^(rule|court|seat|boss|note):/;
+
 /** A figure's card: name, title, deed and home, each name a link to its page. */
 export function drawLeaderCard(
   into: HTMLElement,
@@ -12,6 +15,7 @@ export function drawLeaderCard(
     open: (ref: string) => void;
     home?: (l: Leader) => void;
     rule?: (l: Leader) => void;
+    follow?: (ref: string, what: string) => HTMLElement;
   },
 ): void {
   const card = el("div", "leader-card");
@@ -33,6 +37,12 @@ export function drawLeaderCard(
     const go = el("button", "act leader-go", "🏠 Go to their home");
     go.onclick = () => home(l);
     card.append(go);
+  }
+  // (On a list of them, each followed from their card: one who lives somewhere history follows. Their own page has its own.)
+  if (!short && ctx.follow && l.town && FOLLOWED.test(l.ref)) {
+    const f = ctx.follow(l.ref, l.name);
+    f.classList.add("leader-follow");
+    card.append(f);
   }
   // (One who rules now can be ruled as: nothing is recorded until something is done, Lives L4.)
   const rule = ctx.rule;
