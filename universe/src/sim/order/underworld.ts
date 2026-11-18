@@ -413,6 +413,11 @@ function ended(
   why: { ref: Ref; role: "trigger"; weight: number }[] = [],
 ): Ref {
   const { v, year } = f,
+    // (A group that ends at war ends its war: the chronicle carried the war's opening, so it carries this, with whom it fought.
+    // Of 132 wars opened in a century of first light 53 ended so, by soldiers, a crackdown or a rent gone, and nothing said
+    // their war was over.)
+    war = v.wars.find((w) => w.ended === null && (w.a === g.id || w.b === g.id)),
+    cited = war && !why.some((x) => x.ref === war.event),
     event = tell(
       f,
       type,
@@ -424,14 +429,24 @@ function ended(
         how,
         since: g.since,
         ...(into ? { into: into.name } : {}),
+        ...(war && how !== "taken over" ? { foe: war.names[war.a === g.id ? 1 : 0] } : {}),
         ...more,
       },
-      [{ ref: g.event, role: "enabler", weight: 1 }, ...why],
+      [
+        { ref: g.event, role: "enabler", weight: 1 },
+        ...why,
+        ...(war && cited ? [{ ref: war.event, role: "enabler" as const, weight: 1 }] : []),
+      ],
       factors,
-      importance,
+      war ? TOLD : importance,
     );
   v.groups = v.groups.filter((x) => x !== g);
-  for (const w of v.wars) if (w.ended === null && (w.a === g.id || w.b === g.id)) w.ended = year;
+  for (const w of v.wars)
+    if (w.ended === null && (w.a === g.id || w.b === g.id)) {
+      w.ended = year;
+      w.how = how;
+      w.lost = w.a === g.id ? 0 : 1;
+    }
   for (const fed of v.feds) if (fed.supplier === g.id) delete fed.supplier;
   v.gone = [
     ...v.gone,
@@ -969,8 +984,15 @@ function stepRealm(
           ],
         );
       }
-  // (Each road's groups by their share of its strength, as this reckoning finds them: what a peace is made on, step 7.)
-  const stood = new Map<GroupKind, (readonly [number, number])[]>();
+  // (Each road's groups by their share of its strength, as this reckoning finds them: what a peace is worn against, step 7.)
+  const stood = new Map<GroupKind, (readonly [number, number])[]>(),
+    // (A group's strength in a fight for a rent: its men, its wealth against the rent, its arms and armour as last reckoned.)
+    strengthOf = (g: CrimeGroup, rent: number): number =>
+      dmath.pow(Math.max(1, g.members), 0.7) *
+      (1 + g.wealth / Math.max(1, rent)) *
+      (1 +
+        (GEAR.armsFight * (g.means?.arms ?? 0)) / 1000 +
+        (GEAR.armourFight * (g.means?.armour ?? 0)) / 1000);
   for (const [kind, rent, pull] of roads) {
     const own = v.groups.filter((g) => kindOfGroup(g) === kind),
       line = kind === "protection" ? UNDER.riseProtect : UNDER.riseRent,
@@ -1045,15 +1067,7 @@ function stepRealm(
     // (Shares move toward strength; at war they swing by the fortunes of the fight.)
     const now = v.groups.filter((g) => kindOfGroup(g) === kind);
     if (!now.length) continue;
-    const strength = now.map(
-        (g) =>
-          dmath.pow(Math.max(1, g.members), 0.7) *
-          (1 + g.wealth / Math.max(1, rent)) *
-          // (Its arms and armour, as last reckoned: the stronger in a fight.)
-          (1 +
-            (GEAR.armsFight * (g.means?.arms ?? 0)) / 1000 +
-            (GEAR.armourFight * (g.means?.armour ?? 0)) / 1000),
-      ),
+    const strength = now.map((g) => strengthOf(g, rent)),
       sumS = strength.reduce((a, x) => a + x, 0),
       openWar = v.wars.find((w) => w.ended === null && w.kind === KIND(kind));
     stood.set(
@@ -1306,7 +1320,32 @@ function stepRealm(
         g.members -= dead;
       }
     }
-    const ranked = [...own].sort((a, b) => b.share - a.share || a.id - b.id);
+    const ranked = [...own].sort((a, b) => b.share - a.share || a.id - b.id),
+      // (What a war has killed: its two groups' killing through the years this reckoning stands for, its last years too. A
+      // peace told the dead of all its reckonings but the one it was made in.)
+      deadNow = (w: GangWar): number =>
+        own.filter((g) => g.id === w.a || g.id === w.b).reduce((s, g) => s + g.violence, 0) * span;
+    if (open) open.fallen += deadNow(open);
+    // (A war lost: of the two that went to war, the one whose men, or whose weight on the road as the fortunes of the fight
+    // have swung it, have fallen under UNDER.beaten of the other's is taken over: its lands, its wealth and the men it has
+    // left are the victor's, and the war is over. Weighed at every reckoning of a war, ITS LAST TOO: weighed only where the
+    // war went on, it was never asked of the wars that tired at their first reckoning, and of 132 opened in a century of
+    // first light 56 ended in a peace told as nothing changed, the lesser of the two at 0.40 of the greater's weight and 0.39
+    // of its men at the median (uww.mts), 15 in a takeover.)
+    const wa = open && own.find((g) => g.id === open.a),
+      wb = open && own.find((g) => g.id === open.b),
+      [won, lost] =
+        wa && wb
+          ? wa.share > wb.share || (wa.share === wb.share && wa.members >= wb.members)
+            ? [wa, wb]
+            : [wb, wa]
+          : [undefined, undefined],
+      beaten =
+        !!won &&
+        !!lost &&
+        won.since < year &&
+        lost.since < year &&
+        (lost.share < UNDER.beaten * won.share || lost.members < UNDER.beaten * won.members);
     if (!open && warNow >= UNDER.warAt && ranked.length >= 2) {
       const [a, b] = ranked as [CrimeGroup, CrimeGroup];
       const event = tell(
@@ -1341,10 +1380,56 @@ function stepRealm(
           fallen: 0,
         },
       ].slice(-UNDER.wars);
+      const made = v.wars.at(-1)!;
+      made.fallen += deadNow(made);
+    } else if (open && beaten && won && lost) {
+      const men = lost.members,
+        weight = lost.share / Math.max(1, won.share);
+      won.share = Math.min(1000, won.share + lost.share);
+      won.members += lost.members;
+      won.wealth += lost.wealth;
+      for (const c of lost.lands)
+        if (!won.lands.includes(c) && won.lands.length < UNDER.lands) won.lands.push(c);
+      ended(
+        f,
+        lost,
+        "taken over",
+        [
+          factor("its men against the victor's", men / Math.max(1, won.members - men), 1),
+          factor("its weight on their road against the victor's", weight, 1),
+          factor("the years of their war", year - open.since, 1),
+        ],
+        won,
+        UNDERWORLD_EVENTS.ended.type,
+        { fallen: Math.round(open.fallen), warSince: open.since, men },
+        TOLD,
+        [{ ref: open.event, role: "trigger", weight: 1 }],
+      );
+      // (And the road's strength as the takeover left it is what its peace rests on, as a peace made is: it wore by its years
+      // alone, whoever stood as the war had left them.)
+      const rent = roads.find((x) => x[0] === kind)![1],
+        after = own.filter((g) => g !== lost),
+        left = after.map((g) => strengthOf(g, rent)),
+        all = left.reduce((s, x) => s + x, 0);
+      if (all > 0) open.at = after.map((g, i) => [g.id, per(left[i]! / all)] as const);
     } else if (open && warNow < UNDER.warEnds) {
+      // (A war tired out with neither beaten ends in a peace: the rent they fought over parted at the strength each has LEFT,
+      // its dead and what they cost it off. The peace was kept as made on the strength this reckoning found them at, before
+      // its dead, so a peace was born part worn by its own war's last losses, balanceMoved reading them as strength changed
+      // hands since. Their lands are parted again by the men each has left at every reckoning, step 10: the side that lost
+      // the more holds the fewer. Measured against the peace kept as before (uwc-u14-*.log, uwc-u15-*.log: land-years at ten
+      // killed in 100,000 on the four windows 10.7, 7.6, 6.6, 5.1% and 10.5, 8.3, 6.8, 5.1%): no more killing either way.)
+      const rent = roads.find((x) => x[0] === kind)![1],
+        left = own.map((g) => strengthOf(g, rent)),
+        all = left.reduce((s, x) => s + x, 0);
       open.ended = year;
-      open.at = standing;
-      const holder = ranked[0];
+      open.how = "peace";
+      open.at = all > 0 ? own.map((g, i) => [g.id, per(left[i]! / all)] as const) : standing;
+      // (Of what the two could bring to a fight now, the greater's part: what the peace is told by.)
+      const sa = wa ? strengthOf(wa, rent) : 0,
+        sb = wb ? strengthOf(wb, rent) : 0,
+        [first, second] = sa >= sb ? [wa, wb] : [wb, wa],
+        holder = first || ranked[0];
       tell(
         f,
         UNDERWORLD_EVENTS.pax.type,
@@ -1354,53 +1439,25 @@ function stepRealm(
           kind,
           gids: [open.a, open.b],
           fallen: Math.round(open.fallen),
+          ...(first && second
+            ? {
+                against: second.name,
+                holds: Math.round((100 * Math.max(sa, sb)) / Math.max(1e-9, sa + sb)),
+                men: [first.members, second.members],
+              }
+            : {}),
+          warSince: open.since,
           ...(collusion >= 0.4 ? { pact: 1 } : {}),
         },
         [{ ref: open.event, role: "trigger", weight: 1 }],
         [
+          factor("a war fought to a stand, neither beaten", warNow, 1 - warNow),
           factor("one group holding the rent", fight.herfindahl, fight.herfindahl),
           factor("a pact with the state", collusion, UNDER.pax * collusion),
         ],
+        // (The chronicle carried its opening: it carries its end.)
+        TOLD,
       );
-    }
-    const still = v.wars.find((w) => w.ended === null && w.kind === KIND(kind));
-    if (still)
-      still.fallen +=
-        own
-          .filter((g) => g.id === still.a || g.id === still.b)
-          .reduce((s, g) => s + g.violence, 0) * span;
-    // (A war lost: of the two that went to war, the one whose men have fallen under UNDER.beaten of the other's is taken over:
-    // its lands, its wealth and the men it has left are the victor's, and the war is over. Before, no war had a loser: one
-    // tired into a peace with both standing, and a group ended only once its share of its road was under a twentieth,
-    // whatever war it had fought; none of 412 ends in a century of first light told who had beaten whom.)
-    const a = open && own.find((g) => g.id === open.a),
-      b = open && own.find((g) => g.id === open.b);
-    if (open && open.ended === null && a && b && a.since < year && b.since < year) {
-      // (Or whose weight on the road, swung by the fortunes of the fight, has: the lesser by weight is the one that lost.)
-      const [won, lost] =
-        a.share > b.share || (a.share === b.share && a.members >= b.members) ? [a, b] : [b, a];
-      if (lost.share < UNDER.beaten * won.share || lost.members < UNDER.beaten * won.members) {
-        const men = lost.members;
-        won.share = Math.min(1000, won.share + lost.share);
-        won.members += lost.members;
-        won.wealth += lost.wealth;
-        for (const c of lost.lands)
-          if (!won.lands.includes(c) && won.lands.length < UNDER.lands) won.lands.push(c);
-        ended(
-          f,
-          lost,
-          "taken over",
-          [
-            factor("its men against the victor's", men / Math.max(1, won.members - men), 1),
-            factor("the years of their war", year - open.since, 1),
-          ],
-          won,
-          UNDERWORLD_EVENTS.ended.type,
-          { fallen: Math.round(open.fallen), warSince: open.since },
-          TOLD,
-          [{ ref: open.event, role: "trigger", weight: 1 }],
-        );
-      }
     }
   }
   v.badge = badge ? Math.round(badge.members * (badge.squad ? 0.25 * crackdown : 0.01)) : 0;

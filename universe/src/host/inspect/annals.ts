@@ -197,7 +197,7 @@ const RULES: Readonly<Record<string, readonly [number, number]>> = {
   "underworld.badge": [PEOPLE, 3],
   "underworld.split": [PEOPLE, 2],
   "underworld.war": [WARS, 3],
-  "underworld.pax": [PEOPLE, 2],
+  "underworld.pax": [WARS, 3],
   "underworld.decapitated": [PEOPLE, 3],
   "underworld.boss": [PEOPLE, 0],
   "underworld.crackdown": [PEOPLE, 2],
@@ -363,9 +363,22 @@ const DOMAINS: Readonly<Record<string, number>> = {
 export function ruleOf(e: HistoryEvent): readonly [number, number] {
   // (What the world did by itself goes in by how great it was: N1.)
   if ((e.data as { natural?: boolean } | null)?.natural) return [SORROWS, e.importance - 1];
+  // (A group's end that ended a war of its road, or that its realm's soldiers made, is told beside that war's beginning.)
+  if (e.type === "underworld.ended" && groupEnd(e)) return [WARS, 3];
   return (
     RULES[e.type] ?? [DOMAINS[e.type.slice(0, e.type.indexOf("."))] ?? PEOPLE, e.importance - 2]
   );
+}
+
+/**
+ * How a crime group's end is told among a year's wars ("": not there, as one withered or taken into another is not): taken
+ * over in a war it lost, put down by its realm's soldiers, or ended while at war with another of its road (asked 2026-11-17:
+ * "i never see one taking over the other or being put down by government": a group's end was worth 1, under what any filter
+ * of the years shows, whatever ended it).
+ */
+function groupEnd(e: HistoryEvent): "" | "taken over" | "put down" | "at war" {
+  const x = e.data as { how?: string; foe?: string } | null;
+  return x?.how === "taken over" || x?.how === "put down" ? x.how : x?.foe ? "at war" : "";
 }
 
 /** How many of a thing, said: "three", up to twelve. */
@@ -673,6 +686,10 @@ const dataOf = <T>(e: HistoryEvent) => (e.data ?? {}) as Partial<T>;
 const MORE: Readonly<Record<string, (n: number) => string>> = {
   "war.declared": (n) => `, and ${told(n, "more war", "more wars")} began`,
   "war.peace": (n) => `, and ${told(n, "more war", "more wars")} ended`,
+  "underworld.pax": (n) =>
+    `, and ${told(n, "more war", "more wars")} among groups ended in a peace`,
+  "underworld.disarmed": (n) =>
+    `, and ${told(n, "more group", "more groups")} laid down their arms`,
   "polity.succession": (n) => `, and ${told(n, "more seat", "more seats")} passed`,
   "polity.formed": (n) => `, and ${told(n, "more realm", "more realms")} rose`,
   "filled.sailed": (n) => `, and ${told(n, "more ship", "more ships")} set out`,
@@ -988,6 +1005,39 @@ function tellYear(world: World, year: number, events: readonly HistoryEvent[], w
       key: `${e.type}:${e.id}`,
       say: () => lineOf(world, e, year),
     });
+  // A crime group's end, by how it went: those taken over in the wars they lost on one line, those put down by their realms'
+  // soldiers on another, each with how many more; the rest as one kind, as before.
+  const ends = new Map<string, HistoryEvent[]>();
+  for (const e of take("underworld.ended")) {
+    const how = groupEnd(e),
+      list = ends.get(how);
+    if (list) list.push(e);
+    else ends.set(how, [e]);
+  }
+  for (const [how, list] of ends) {
+    const best = list.reduce((a, b) => (b.importance > a.importance ? b : a)),
+      [kind, worth] = ruleOf(best),
+      more = list.length - 1;
+    add({
+      kind,
+      worth,
+      ref: best.id,
+      key: `underworld.ended:${how}`,
+      say: () =>
+        lineOf(
+          world,
+          best,
+          year,
+          !more
+            ? ""
+            : how === "taken over"
+              ? `, and ${told(more, "more group", "more groups")} lost a war and ${more === 1 ? "was" : "were"} taken over`
+              : how === "put down"
+                ? `, and ${told(more, "more group", "more groups")} ${more === 1 ? "was" : "were"} put down by soldiers`
+                : `, and ${told(more, "more", "more")} like it`,
+        ),
+    });
+  }
   // A rising crushed the year it rose: the crushing says it rose.
   if (types.has("order.crushed")) types.delete("order.revolt");
   // The rest: one line a kind, its greatest, and how many more.

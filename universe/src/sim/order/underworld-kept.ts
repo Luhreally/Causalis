@@ -88,6 +88,13 @@ export type GangWar = {
    * None on a war ended by a group's end, or before this was kept: such a peace wears by its years alone.
    */
   at?: readonly (readonly [number, number])[];
+  /**
+   * How it ended: "peace" (tired out, neither beaten: the rent parted at what each had left), or how the one of its two that
+   * ended went ("taken over" by the other, "put down", "disarmed", "crushed", "withered", "absorbed"), and which of the two that
+   * was (0: the first named). Absent while it is fought, and on a war ended before this was kept.
+   */
+  how?: string;
+  lost?: 0 | 1;
 };
 
 /** A group whose hold ended: its name and kind, when and how, who took it in, its rise and its end. */

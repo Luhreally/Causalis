@@ -34,6 +34,7 @@ import {
   type CrimeGroup,
   type Operation,
   type Federation,
+  type GangWar,
   type Polity,
   type RealmUnderworld,
   type Settlement,
@@ -183,22 +184,22 @@ export function realmUnderworldBlocks(world: World, r: Polity): Block[] {
     });
   // The wars between them.
   if (v.wars.length) {
-    const items: Item[] = [...v.wars]
-      .reverse()
-      .map((w) =>
-        item(
-          [
-            `Year ${w.since}${w.ended !== null ? `–${w.ended}` : ", still fought"}: `,
-            link(
-              `${cap(groupWords(w.names[0], kindOfGroup(w)))} against ${groupWords(w.names[1], kindOfGroup(w))}`,
-              w.event,
-            ),
-            w.fallen >= 1 ? `, some ${count(Math.round(w.fallen))} dead` : "",
-          ],
-          w.event,
-          w.since,
-        ),
-      );
+    const items: Item[] = [...v.wars].reverse().map((w) =>
+      item(
+        [
+          // (A war opened and ended in one reckoning is of one year, not "1239–1239".)
+          `Year ${w.since}${w.ended === null ? ", still fought" : w.ended !== w.since ? `–${w.ended}` : ""}: `,
+          link(
+            `${cap(groupWords(w.names[0], kindOfGroup(w)))} against ${groupWords(w.names[1], kindOfGroup(w))}`,
+            w.event,
+          ),
+          w.fallen >= 1 ? `, some ${count(Math.round(w.fallen))} dead` : "",
+          warEnding(w) ? `: ${warEnding(w)}` : "",
+        ],
+        w.event,
+        w.since,
+      ),
+    );
     blocks.push({ type: "list", title: "Wars between them", items });
     // (The latest few, each played in the streets of its town: 2026-11-16.)
     for (const w of [...v.wars].reverse().slice(0, 3))
@@ -230,7 +231,7 @@ export function realmUnderworldBlocks(world: World, r: Polity): Block[] {
             [
               `Year ${g.year}: `,
               link(cap(groupWords(g.name, kindOfGroup(g))), groupRef(r.ref, g.rose)),
-              ` (since ${g.since}), ${HOW[g.how] ?? g.how}${g.into ? ` ${groupWords(g.into, kindOfGroup(g))}` : ""}`,
+              ` (since ${g.since}), ${goneWords(g)}`,
             ],
             g.event,
             g.year,
@@ -238,6 +239,44 @@ export function realmUnderworldBlocks(world: World, r: Polity): Block[] {
         ),
     });
   return blocks;
+}
+
+/**
+ * How a war between two groups ended, in words (empty: still fought, or ended before its end was kept): a peace with neither
+ * beaten, or which of the two went, and how.
+ */
+export function warEnding(w: GangWar): string {
+  if (w.ended === null || !w.how) return "";
+  if (w.how === "peace") return "ended in a peace, neither beaten";
+  const kind = kindOfGroup(w),
+    lost = groupWords(w.names[w.lost ?? 1], kind),
+    won = groupWords(w.names[w.lost === 0 ? 1 : 0], kind);
+  return w.how === "taken over" || w.how === "absorbed"
+    ? `${lost} taken over by ${won}`
+    : w.how === "put down"
+      ? `${lost} put down by the realm's soldiers`
+      : w.how === "disarmed"
+        ? `${lost} laid down its arms on the realm's terms`
+        : w.how === "crushed"
+          ? `${lost} broken by the crackdown`
+          : `${lost} ${HOW[w.how] ?? w.how}`;
+}
+
+/** How a group's hold ended, in words, with who took it in where one did: "its war lost, taken over by the Vorath family". */
+export function goneWords(g: {
+  readonly how: string;
+  readonly into?: string;
+  readonly kind: number;
+}): string {
+  return `${HOW[g.how] ?? g.how}${g.into ? ` ${groupWords(g.into, kindOfGroup(g))}` : ""}`;
+}
+
+/** A war's years and its end, to follow who it was fought with: ", 1519–1529: the Stornar family taken over by the Tralournen family". */
+function warSaid(w: GangWar): string {
+  const end = warEnding(w);
+  return w.ended === null
+    ? `, since year ${w.since}`
+    : `, ${w.since === w.ended ? `year ${w.since}` : `${w.since}–${w.ended}`}${end ? `: ${end}` : ""}`;
 }
 
 const HOW: Readonly<Record<string, string>> = {
@@ -397,6 +436,10 @@ export function crimeGroupPage(world: World, ref: string): PageModel {
     v = underworldOf(world)?.of(r.ref),
     since = rec?.since ?? g.gone?.since ?? yearAt(world.events.get(g.event)?.t ?? world.now),
     of = rec?.of !== undefined ? v?.groups.find((x) => x.id === rec.of) : undefined,
+    // (Who took it in, where that one still stands.)
+    into = g.gone?.into
+      ? v?.groups.find((x) => x.name === g.gone!.into && x.kind === g.gone!.kind)
+      : undefined,
     facts: Stat[] = [
       stat("Realm", [realmLink(world, r.ref)]),
       stat("What it is", rec ? kindLine(rec) : KIND_WORDS[g.kind], { why: g.event }),
@@ -429,13 +472,66 @@ export function crimeGroupPage(world: World, ref: string): PageModel {
     facts.push(
       stat(
         "Its hold ended",
-        [`in year ${g.gone.year}, `, link(HOW[g.gone.how] ?? g.gone.how, g.gone.event)],
+        [
+          `in year ${g.gone.year}, `,
+          link(HOW[g.gone.how] ?? g.gone.how, g.gone.event),
+          ...(into
+            ? [" ", link(groupWords(into.name, g.kind), groupRef(r.ref, into.event))]
+            : g.gone.into
+              ? [` ${groupWords(g.gone.into, g.kind)}`]
+              : []),
+        ],
         {
           why: g.gone.event,
         },
       ),
     );
   const blocks: Block[] = [{ type: "facts", rows: facts }];
+  // (A group gone: the wars it fought are still its realm's to tell, and to watch, by its name and its years.)
+  if (g.gone) {
+    const gone = g.gone,
+      fought = (v?.wars ?? []).filter(
+        (w) =>
+          w.kind === gone.kind &&
+          w.names.includes(gone.name) &&
+          w.since >= gone.since &&
+          w.since <= gone.year,
+      );
+    if (fought.length) {
+      blocks.push({
+        type: "facts",
+        title: "The wars it fought",
+        rows: fought.map((w) =>
+          stat(
+            "Was at war with",
+            [
+              link(
+                cap(groupWords(w.names[0] === gone.name ? w.names[1] : w.names[0], g.kind)),
+                w.event,
+              ),
+              warSaid(w),
+            ],
+            {
+              why: w.event,
+              parts: [
+                part("years", w.ended !== null ? `${w.since}–${w.ended}` : `since ${w.since}`),
+                part("the dead", count(Math.round(w.fallen))),
+                ...(warEnding(w) ? [part("how it ended", warEnding(w))] : []),
+              ],
+            },
+          ),
+        ),
+      });
+      for (const w of [...fought].reverse().slice(0, 3))
+        if (streetFightOf(world, w.event))
+          blocks.push(
+            watchFightTool(
+              w.event,
+              `▶ Watch its war with ${groupWords(w.names[0] === gone.name ? w.names[1] : w.names[0], g.kind)}`,
+            ),
+          );
+    }
+  }
   if (rec) {
     const wars = (v?.wars ?? []).filter((w) => w.a === rec.id || w.b === rec.id);
     blocks.push({
@@ -458,11 +554,13 @@ export function crimeGroupPage(world: World, ref: string): PageModel {
                 cap(groupWords(w.a === rec.id ? w.names[1] : w.names[0], kindOfGroup(w))),
                 w.event,
               ),
+              warSaid(w),
             ],
             {
               parts: [
                 part("since", `year ${w.since}`),
                 part("the dead", count(Math.round(w.fallen))),
+                ...(warEnding(w) ? [part("how it ended", warEnding(w))] : []),
               ],
             },
           ),

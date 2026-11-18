@@ -5,6 +5,7 @@
 import { yearOfMoment, type World } from "../kernel/index.ts";
 import { POTENCY_EVENTS, UNDERWORLD_EVENTS, politiesOf, realmName } from "../sim/index.ts";
 import { registerDecisionWords, registerEventWords } from "./why.ts";
+import { count } from "./words.ts";
 
 type Data = {
   realm?: string;
@@ -27,6 +28,11 @@ type Data = {
   squad?: number;
   killed?: number;
   since?: number;
+  /** A peace: of the strength the two had left, the stronger's part in a hundred; the year their war opened. A group ended at war: whom it fought. */
+  holds?: number;
+  warSince?: number;
+  foe?: string;
+  men?: number | readonly number[];
 } | null;
 
 const d = (x: unknown) => (x as Data) ?? {},
@@ -45,6 +51,10 @@ export function groupWords(name: string | undefined, kind: string | undefined): 
 }
 const group = (x: unknown) => groupWords(d(x)?.group, d(x)?.kind);
 const rival = (x: unknown) => groupWords(d(x)?.against, d(x)?.kind);
+
+/** Of a group that ended while at war with another of its road: that their war ended with it. */
+const warOver = (x: Data): string =>
+  x?.foe ? `; its war with ${groupWords(x.foe, x.kind)} ended with it` : "";
 
 /** What each kind of group is, said once. */
 const IS: Readonly<Record<string, string>> = {
@@ -76,7 +86,17 @@ registerEventWords(
 );
 registerEventWords(UNDERWORLD_EVENTS.pax.type, (_, e) => {
   const x = d(e.data),
-    fallen = x?.fallen ? `, after some ${x.fallen} dead` : "";
+    fallen = x?.fallen ? `, after some ${count(x.fallen)} dead` : "";
+  // (A war tired out with neither beaten: who made the peace, and how each came out of it.)
+  if (x?.against && x.holds !== undefined) {
+    const years = x.warSince !== undefined ? yearOfMoment(e.t) - x.warSince : 0,
+      after = years > 0 ? ` after ${years} years of war` : "",
+      stood =
+        x.holds <= 52
+          ? "the two left as strong as each other"
+          : `${group(e.data)} the stronger, with ${x.holds} in 100 of the strength the two had left`;
+    return `${cap(group(e.data))} and ${rival(e.data)} made peace in ${realm(e.data)}${after}${x.pact ? ", under a pact with its officers" : ""}, neither beaten: the rent they fought over was parted as each came out of it, ${stood}${fallen}, ${year(e.t)}`;
+  }
   return x?.pact
     ? `The war among ${realm(e.data)}'s groups cooled under a pact with its officers${fallen}, ${year(e.t)}`
     : `${cap(group(e.data))} came to hold its rent in ${realm(e.data)}, and the killing over it fell away${fallen}, ${year(e.t)}`;
@@ -115,13 +135,13 @@ registerEventWords(UNDERWORLD_EVENTS.ended.type, (_, e) => {
       : how === "absorbed"
         ? `was taken into ${groupWords(x?.into, x?.kind)}`
         : how === "taken over"
-          ? `lost its war with ${groupWords(x?.into, x?.kind)} and was taken over by it, its lands and the men it had left the victor's${x?.fallen ? `, after some ${x.fallen} dead` : ""}`
+          ? `lost its war with ${groupWords(x?.into, x?.kind)} and was taken over by it, its lands and the ${typeof x?.men === "number" ? `${count(x.men)} ` : ""}men it had left the victor's${x?.fallen ? `, after some ${count(x.fallen)} dead` : ""}`
           : how === "put down"
             ? "was put down by the realm's soldiers: its boss taken, its armed men fewer than the seat's police could meet"
             : how === "split"
               ? "split among its lieutenants"
               : "withered, its rent no longer keeping it";
-  return `${cap(group(e.data))} of ${realm(e.data)} ${said}, ${year(e.t)}`;
+  return `${cap(group(e.data))} of ${realm(e.data)} ${said}${warOver(x)}, ${year(e.t)}`;
 });
 registerEventWords(
   UNDERWORLD_EVENTS.federation.type,
@@ -213,7 +233,7 @@ registerEventWords(
 registerEventWords(
   UNDERWORLD_EVENTS.disarmed.type,
   (_, e) =>
-    `The fighters of ${group(e.data)} laid down their arms on ${realm(e.data)}'s terms, too few now to go on, ${year(e.t)}`,
+    `The fighters of ${group(e.data)} laid down their arms on ${realm(e.data)}'s terms, too few now to go on${warOver(d(e.data))}, ${year(e.t)}`,
 );
 registerEventWords(UNDERWORLD_EVENTS.withdrew.type, (_, e) => {
   const x = op(e.data);

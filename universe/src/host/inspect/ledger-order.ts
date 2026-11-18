@@ -305,7 +305,13 @@ export function underworldLedger(world: World, lc: LedgerCtx): Block[] {
               ),
             ],
             [realmCell(r)],
-            [w.ended !== null ? `${w.since}–${w.ended}` : `${w.since}, still fought`],
+            [
+              w.ended === null
+                ? `${w.since}, still fought`
+                : w.ended !== w.since
+                  ? `${w.since}–${w.ended}`
+                  : `${w.since}`,
+            ],
             [count(Math.round(w.fallen))],
           ],
           keys: [w.names[0], r.town, w.since, w.fallen],
