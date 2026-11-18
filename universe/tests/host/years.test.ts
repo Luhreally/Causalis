@@ -129,5 +129,10 @@ test("the years thin as history's do, and the record stays small", () => {
   const bytes = JSON.stringify(s.save()).length;
   // (Ten columns a land: a column of one-figure numbers is some 25 kB here; Round A added energy a head and soil worn, round
   // "peoples" who of it read and those born, 529 kB on the rounds merged.)
-  assert.ok(bytes < 540_000, `${bytes} bytes of years at year ${YEARS}`);
+  // (And 612 to 646 kB since the release's arms pass, by the history: a realm's host against its people is the levy it can feed
+  // through a campaign that year (rules/arming.ts levyShare), which moves with every harvest, 18 in 100 of itself from one year
+  // to the next at the median where it moved 2.5; so its line has a point in most of its last 200 years, not one in seven:
+  // 13,168 points over 312 realms, 110 kB of the record where 22 kB (scratchpad/release/yb.mts, yh.mts). The lands' rows, the
+  // most of it, are as they were: 318 kB.)
+  assert.ok(bytes < 680_000, `${bytes} bytes of years at year ${YEARS}`);
 });

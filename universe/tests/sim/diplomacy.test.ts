@@ -11,6 +11,7 @@ import {
   relationRef,
 } from "../../src/sim/index.ts";
 import { why } from "../../src/causal/index.ts";
+import { TRADE_TIE, tradeTie } from "../../src/sim/diplomacy/diplomacy.ts";
 import { peopledWorld } from "../worlds.ts";
 
 // Juniper's land stays divided among many realms, who meet at borders and down roads.
@@ -59,6 +60,22 @@ test("only realms that meet — at a border or down a trade road — keep a rega
     );
     assert.ok(border || traded || met, `${a.town} and ${b.town} meet`);
   }
+});
+
+test("trade binds two realms as far as it is of the lesser's living, whatever their size", () => {
+  // (A fortieth of what the lesser uses passing between them is as bound as trade binds; half that, half; none, nothing.)
+  assert.equal(tradeTie(0, 1000), 0);
+  assert.equal(tradeTie(10, 0), 0);
+  assert.ok(Math.abs(tradeTie(25, 1000) - TRADE_TIE.most) < 1e-12);
+  assert.ok(Math.abs(tradeTie(12.5, 1000) - TRADE_TIE.most / 2) < 1e-12);
+  assert.equal(tradeTie(500, 1000), TRADE_TIE.most);
+  // (The same share of a hamlet's realm and an empire's is the same tie: it was units of goods against a fixed 600.)
+  assert.equal(tradeTie(5, 1000), tradeTie(5000, 1_000_000));
+  // (And in the world: every such term lies in (0, most], and a pair that trades and whose lesser uses anything has one.)
+  for (const r of relations)
+    for (const t of r.terms)
+      if (t.name === "trade between them")
+        assert.ok(t.value > 0 && t.value <= TRADE_TIE.most, `${t.value}`);
 });
 
 test("pacts are sworn and kept only while realms think well enough of each other", () => {

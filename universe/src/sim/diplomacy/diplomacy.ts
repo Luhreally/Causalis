@@ -27,7 +27,7 @@ import type { MarketStore } from "../economy/market.ts";
 import { WAY, cultureOf } from "../culture/culture.ts";
 import { LAW, POLITY_EVENTS, politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import { beliefOf } from "../belief/belief.ts";
-import { HOLD, HOLDING, OUTCOME } from "../../rules/index.ts";
+import { GOODS, HOLD, HOLDING, OUTCOME } from "../../rules/index.ts";
 import { orderOf } from "../order/order.ts";
 import { blamesOutsiders, holdOf } from "../order/holds.ts";
 import { fearOf, financeOf, stakesBetween, topFear, wayOf } from "../finance/finance.ts";
@@ -72,6 +72,25 @@ export const PACT = 0.4;
 export const RIVALRY = -0.4;
 
 const pairKey = (a: Ref, b: Ref) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+
+/**
+ * What the trade between two realms is worth to how they think of each other: as much as it is of the living of the lesser of
+ * the two (what passed between their lands last year, in grain's worth, against what the lesser's lands used in the year: its
+ * food eaten, its goods worn out and worked up). A share of something, so the same of a hamlet's realm and an empire's, of a
+ * world of gluts and one of want: it stood as units of goods against a fixed 600, which a glutted world's pairs all reached
+ * (the world before the society sweep: 122 of 207 pairs at year 60) and an honest early world's hardly ever, whatever the
+ * trade was to them. Full at `full` (est: before engines all a realm traded abroad was a few parts in a hundred of what it
+ * lived on, shared among all it traded with, so a fortieth of its living passing between it and ONE other is as bound by
+ * trade as two such realms come to be; and among the pairs of states of the last century, as Oneal and Russett counted them,
+ * the less bound side's trade with the other is a few parts in a thousand of its product at the middle and two or three in a
+ * hundred among the most bound, with fewer wars between them all the way up). First light's pairs that trade: 2 to 5 parts in
+ * a thousand at the median through its first century, 12 to 22 in the most bound tenth (scratchpad/release/dp.mts).
+ */
+export const TRADE_TIE = { most: 0.35, full: 1 / 40 } as const;
+export function tradeTie(worth: number, lesserUse: number): number {
+  if (!(worth > 0) || !(lesserUse > 0)) return 0;
+  return TRADE_TIE.most * Math.min(1, worth / lesserUse / TRADE_TIE.full);
+}
 
 export class DiplomacyStore implements StateStore {
   readonly name = "diplomacy.relations";
@@ -249,7 +268,21 @@ export function diplomacyYear(ctx: PopulationContext, t: SimTime): void {
   // Who meets whom: shared borders, and trade between their lands.
   const living = realms.living(),
     borders = new Map<string, { a: Polity; b: Polity; count: number }>(),
-    trade = new Map<string, { volume: number; road: Ref | null }>();
+    trade = new Map<string, { volume: number; road: Ref | null }>(),
+    // (What a realm's lands used last year, in grain's worth: asked only of those that trade, once each.)
+    uses = new Map<Ref, number>(),
+    useOf = (p: Polity): number => {
+      let u = uses.get(p.ref);
+      if (u === undefined) {
+        u = 0;
+        for (const c of p.members) {
+          const m = markets.get(c);
+          if (m) for (let k = 0; k < GOODS.length; k++) u += m.book("used", k) * GOODS[k]!.value;
+        }
+        uses.set(p.ref, u);
+      }
+      return u;
+    };
   for (const p of living)
     for (const c of p.members)
       for (let k = g.grid.offsets[c]!; k < g.grid.offsets[c + 1]!; k++) {
@@ -266,7 +299,7 @@ export function diplomacyYear(ctx: PopulationContext, t: SimTime): void {
     if (!p || !q || p === q) continue;
     const key = pairKey(p.ref, q.ref),
       tr = trade.get(key) ?? { volume: 0, road: null };
-    tr.volume += f.count;
+    tr.volume += f.count * GOODS[f.good]!.value;
     tr.road ??= markets.route(f.from, f.to) ?? null;
     trade.set(key, tr);
     if (!borders.has(key))
@@ -311,13 +344,9 @@ export function diplomacyYear(ctx: PopulationContext, t: SimTime): void {
       value: (like - 0.75) * 1.2,
       source: null,
     });
-    const tr = trade.get(key);
-    if (tr)
-      terms.push({
-        name: "trade between them",
-        value: Math.min(0.35, tr.volume / 600),
-        source: tr.road,
-      });
+    const tr = trade.get(key),
+      tie = tr ? tradeTie(tr.volume, Math.min(useOf(a), useOf(b))) : 0;
+    if (tr && tie > 0) terms.push({ name: "trade between them", value: tie, source: tr.road });
     if (count)
       terms.push({
         name: "the land along their border",

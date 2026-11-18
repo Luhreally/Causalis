@@ -14,6 +14,7 @@ import {
   kinToSeat,
   nationTarget,
   onenessStanding,
+  warRemembered,
   wordPace,
 } from "../../rules/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
@@ -41,7 +42,7 @@ export function folkTargets(
   realm: Polity,
   since: number,
   joined: number,
-  war: boolean,
+  war: boolean | number,
 ): {
   kin: number;
   nation: number;
@@ -106,6 +107,35 @@ export function atWarWithStrangers(world: World, realm: Polity): boolean {
   return false;
 }
 
+/**
+ * How far a realm's "us" is sharpened by war with those whose seat speaks another people's speech (0 … 1, rules/folk.ts
+ * warRemembered): wholly while one is fought, then as far as those who lived through the last are left. Only wars over fewer
+ * than WAR_KEPT years are asked for: they are in the wars' store as they were fought whatever its blocks' size (one over more
+ * than forty years may have gone cold or not). It read "at war" alone after reading every war not yet cold: at the first a
+ * realm's "us" stood sharpened for centuries after a peace, at the second it fell back from the day of the peace, and what a
+ * land ruled by strangers makes of that (rules/folk.ts apartGrievance) had been set against the first.
+ */
+export const WAR_KEPT = 40;
+export function warWithStrangers(ctx: PopulationContext, realm: Polity, year: number): number {
+  const { world } = ctx,
+    culture = cultureOf(world),
+    realms = politiesOf(world),
+    mine = culture.get(realm.seat);
+  if (!mine) return 0;
+  const span = ctx.generated.life.people?.body.span ?? 70;
+  let most = 0;
+  for (const w of warsOf(world).hotOf(realm.ref)) {
+    const over = w.ended === null ? null : year - w.ended;
+    if (over !== null && over >= WAR_KEPT) continue;
+    const level = warRemembered(over, span, WAR_KEPT);
+    if (level <= most) continue;
+    const other = realms.get(w.attacker === realm.ref ? w.defender : w.attacker),
+      theirs = other ? culture.get(other.seat) : undefined;
+    if (theirs && tongueLikeness(mine.tongue, theirs.tongue) < OTHER_SPEECH) most = level;
+  }
+  return most;
+}
+
 /** A land's kin to its seat and the reach of its "us" (0 … 1 each), as last weighed under the realm that holds it now, or null. */
 export function identityOf(
   world: World,
@@ -130,7 +160,7 @@ export function folkYear(ctx: PopulationContext, t: SimTime): void {
   const year = yearOfMoment(t),
     realms = politiesOf(world),
     joined = new Map<string, number>(),
-    war = new Map<string, boolean>();
+    war = new Map<string, number>();
   for (const p of ctx.provinces.all()) {
     if ((year + p.cell) % FOLK_EVERY !== 0) continue;
     const realm = realms.of(p.cell);
@@ -146,7 +176,7 @@ export function folkYear(ctx: PopulationContext, t: SimTime): void {
     let j = joined.get(realm.ref);
     if (j === undefined) joined.set(realm.ref, (j = realmJoined(ctx, realm)));
     let w = war.get(realm.ref);
-    if (w === undefined) war.set(realm.ref, (w = atWarWithStrangers(world, realm)));
+    if (w === undefined) war.set(realm.ref, (w = warWithStrangers(ctx, realm, year)));
     const target = folkTargets(ctx, p.cell, realm, since, j, w),
       years = row ? Math.min(MOST_YEARS, Math.max(1, year - row[FOLK_ROW.at]!)) : 0,
       // (A land first weighed, or newly under this realm, is what it is at once: who it counts its own is not learned anew.)

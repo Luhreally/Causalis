@@ -79,7 +79,8 @@ export type GangWar = {
   readonly names: readonly [string, string];
   readonly kind: number;
   readonly since: number;
-  readonly event: Ref;
+  /** Its opening, as told; of one ended in the reckoning it opened, never told as opened: the end of the group that ended it. */
+  event: Ref;
   ended: number | null;
   /** Those it killed, all told (heads). */
   fallen: number;
