@@ -2497,6 +2497,11 @@ function withLife(
     if (st.from < done || st.to <= st.from || busy(st.from, st.to)) continue;
     const of = part.going.of;
     if (st.own) {
+      // (Done to them only if the one who does it has come: one the court holds, or the levy, calls on no one.)
+      if (st.by !== undefined) {
+        const theirs = legAt(legsOf(plan, st.by, day, true), st.to - 60);
+        if (theirs.next || theirs.of?.ref !== of.ref) continue;
+      }
       // Where they are: the stays of theirs within it say what is done there (a walk through it does not).
       const mid = cutLegs(legs, st.from, st.to);
       if (
@@ -2747,7 +2752,12 @@ function outsiderDay(plan: VillagePlan, index: number, day: number, fine: boolea
 
 /** One's part in a day's sitting says whose case it is: the case's page a press away (what a sentence run on later days does not). */
 function ofCase(plan: VillagePlan, day: number, c: CourtRole, legs: Leg[]): Leg[] {
-  const sit = sittingOn(plan, day);
+  const sit = sittingOn(plan, day),
+    served = c.kind === "held" || c.kind === "labour" || c.kind === "gone" ? c.of : undefined;
+  if (served) {
+    for (const l of legs) if (l.why === c.why) l.of = served;
+    return legs;
+  }
   if (!sit || (c.kind !== "accused" && c.kind !== "judge" && c.kind !== "watch")) return legs;
   const of = { ref: sit.ref, name: `the case of ${sit.who}` };
   for (const l of legs) if (l.why === c.why) l.of = of;

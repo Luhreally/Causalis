@@ -382,6 +382,8 @@ export type TownGoing = {
    * at their own doors of a morning, and not at what they would be at.
    */
   readonly quiet?: string;
+  /** Those of it who took it up from one the court holds, each with from whom and since when ("took it up from X in year N"). */
+  readonly took?: Readonly<Record<string, string>>;
   /** What the one set apart to look out says (a corner kept). */
   readonly watch?: string;
   /** Where: a member's home, the temple, the market's stalls, a back lane, a corner, the square, a house guarded. */

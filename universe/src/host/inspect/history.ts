@@ -12,6 +12,7 @@ import { warmthBlocks } from "./warmth.ts";
 import { greatActsOf } from "../../sim/index.ts";
 import { landPlace } from "./land.ts";
 import { isFightEvent, streetFightOf, watchFightTool } from "./streetfight.ts";
+import { fightPeopleBlock } from "./townlife.ts";
 import { battlePage } from "./realm.ts";
 
 /** What an event's type is in a heading's words, and its icon. */
@@ -346,7 +347,12 @@ export function eventPage(world: World, ref: string): PageModel {
       },
     });
   // (A fight of the underworld: played again in the streets of its town, 2026-11-16.)
-  if (isFightEvent(e) && streetFightOf(world, ref)) blocks.splice(2, 0, watchFightTool(ref));
+  if (isFightEvent(e) && streetFightOf(world, ref)) {
+    blocks.splice(2, 0, watchFightTool(ref));
+    // (Those of its town who are of the two that fought, by name: the same people its days show at what they are for them.)
+    const theirs = fightPeopleBlock(world, streetFightOf(world, ref)!);
+    if (theirs) blocks.splice(3, 0, theirs);
+  }
   // (A fight among the stars: played again. Phase 67.)
   if (type === "starwar.battle" || type === "peoples.raid")
     blocks.splice(2, 0, {

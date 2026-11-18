@@ -426,3 +426,56 @@ test("a member's day differs by what they are for their group: a collector's rou
     dayTold(town, at("prsn:0:16"), d).map((l) => l.words),
   );
 });
+
+test("a collector the court locks up is in its cell and not on the rounds, saying until when, the case a press away; then back at it", () => {
+  const d0 = [30, 31, 32, 33, 34, 35, 36].find(
+      (x) => goingHeld(busy, collect, x) && !restDay(busy, x),
+    )!,
+    sat = d0 - 3,
+    tried: VillagePlan = {
+      ...village([collect]),
+      court: {
+        form: "bench",
+        law: "The town's bench of Lifeford",
+        grips: true,
+        far: false,
+        colour: [0.5, 0.5, 0.5],
+        wood: [0.3, 0.2, 0.1],
+        sittings: [
+          {
+            ref: "case:town:0:9:0:501",
+            day: sat,
+            accused: "prsn:0:24",
+            who: "P24 Test",
+            line: "P24 Test told a trader what their trade would pay the group each month.",
+            sentence: "cell",
+            days: 400,
+          },
+        ],
+      },
+    },
+    i = tried.people.findIndex((p) => p.ref === "prsn:0:24"),
+    // The day it sits: before the court, the case linked.
+    before = momentOf(tried, i, sat * DAY + 10 * HOUR),
+    // A collecting day while the sentence runs: in the cell, not collecting.
+    inside = momentOf(tried, i, d0 * DAY + 9.2 * HOUR),
+    // And the first collecting day after it is served: on the rounds again.
+    free = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+      .map((k) => sat + 400 + k)
+      .find((x) => goingHeld(tried, collect, x) && !restDay(tried, x))!;
+  assert.equal(before.of?.ref, "case:town:0:9:0:501");
+  assert.match(inside.why ?? "", /^Locked in the town's cell, until year 1$/);
+  assert.equal(inside.of?.ref, "case:town:0:9:0:501");
+  assert.equal(inside.of?.name, "the case of P24 Test");
+  assert.ok(
+    !dayTold(tried, i, d0).some((l) => /Collecting/.test(l.words)),
+    "no rounds from the cell",
+  );
+  assert.ok(
+    dayTold(tried, i, free).some((l) => /collecting for the Varro family/i.test(l.words)),
+    "back on the rounds, the sentence served",
+  );
+  // Those who pay are not called on by one who is locked up.
+  const payer = tried.people.findIndex((p) => p.ref === "prsn:0:25");
+  assert.ok(!dayTold(tried, payer, d0).some((l) => /Paying/.test(l.words)));
+});

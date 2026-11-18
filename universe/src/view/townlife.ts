@@ -51,7 +51,10 @@ export type LifeStay = {
   readonly face?: number;
   /** Where they are as their own day has them: only what they say of it changes. */
   readonly own?: true;
-  /** Beside one of the town (their place among those drawn), wherever that one's own day has them then. */
+  /**
+   * Beside one of the town (their place among those drawn), wherever that one's own day has them then. With `own`: the one
+   * who comes to them there; if that one does not come (held, away, called elsewhere), nothing is done to them.
+   */
   readonly by?: number;
   readonly task: "talk" | "haggle" | "watch" | "drill" | "pray" | "load" | null;
   readonly carry: Carry | null;
@@ -355,6 +358,7 @@ function laidOn(plan: VillagePlan, day: number, ground: Ground): Laid {
                 from: at,
                 to: at + CALL_S,
                 own: true,
+                by: i,
                 task: null,
                 carry: null,
                 why: g.toDoing ?? g.doing,

@@ -5,7 +5,7 @@
 // there where they hold nothing: a quiet village has none. Who of the town is in each is drawn from the town's own lines by a key
 // of the thing itself, so the same people are in it year on year, and one going more or less moves no one else. Pure reads: nothing
 // here flows back into the world. Words say what, who, at what cost and with what effect; never how.
-import { hashString, type Ref, type World } from "../../kernel/index.ts";
+import { finish, hashString, mix, type Ref, type World } from "../../kernel/index.ts";
 import {
   CONTRA_CAUSES,
   GROUP_KINDS,
@@ -48,7 +48,15 @@ import {
 import { fedRef, groupRef, opRef } from "../underworld.ts";
 import { orgRef } from "../groups.ts";
 import { folkWork, workOf } from "../roster.ts";
-import { casesOf, folkOf, type Case, type Party } from "./justice.ts";
+import {
+  casesOf,
+  folkOf,
+  heldCaseOf,
+  lastCaseOf,
+  type Case,
+  type FolkSlot,
+  type Party,
+} from "./justice.ts";
 import { musicOf } from "./customs.ts";
 import { count, item, link, many, stat, yearNow } from "./words.ts";
 
@@ -67,6 +75,13 @@ export const LIFE_MOST = {
   guards: 2,
 } as const;
 
+/** The lines a town's goings draw their people from (its first), and the parts its underworld's things each keep to. */
+const POOL = 96,
+  PARTS = 8,
+  PART = { collect: 0, guard: 1, corner: 3, patrol: 4, seller: 5, pays: 6, buys: 7 } as const,
+  unit = (h: number, n: number): number => finish(mix(h, n), 13) / 4294967296;
+
+const sentenceOf = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s);
 const cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s),
   pct = (x: number) =>
     x > 0 && x < 0.01 ? "under 1%" : `${Math.round(Math.min(1, Math.max(0, x)) * 100)}%`;
@@ -147,10 +162,32 @@ export type TownLife = {
   readonly outsiders: readonly (VillagePlan["people"][number] & { readonly page: string })[];
   /** The court's cases this year and last whose accused is not of the town, each with who stands for them. */
   readonly tried: readonly { readonly c: Case; readonly ref: string }[];
+  /** Those of its underworld its court holds now: who they were for it, and the case that took them from it. */
+  readonly past: readonly {
+    readonly ref: string;
+    readonly going: TownGoing;
+    readonly case: Case;
+  }[];
 };
 
-const NONE: TownLife = { goings: [], named: [], outsiders: [], tried: [] };
+const NONE: TownLife = { goings: [], named: [], outsiders: [], tried: [], past: [] };
 const KEPT = new WeakMap<World, { now: number; by: Map<string, TownLife> }>();
+const ROLES = new WeakMap<World, { now: number; by: Map<string, TownLife> }>();
+
+/**
+ * A town's goings and who is of each, as its land's rows have them, before what its court has done with any of them: what the
+ * court itself reads to know whom a case of a group is of (host/inspect/justice.ts). No case is read here.
+ */
+export function townRolesOf(world: World, town: string, year = yearNow(world)): TownLife {
+  let kept = ROLES.get(world);
+  if (!kept || kept.now !== world.now) ROLES.set(world, (kept = { now: world.now, by: new Map() }));
+  const key = `${town}|${year}`,
+    hit = kept.by.get(key);
+  if (hit) return hit;
+  const read = readRoles(world, town, year);
+  kept.by.set(key, read);
+  return read;
+}
 
 /** A town's life as its land's rows have it this year (kept while the world's moment stands). */
 export function townLifeOf(world: World, town: string, year = yearNow(world)): TownLife {
@@ -164,7 +201,117 @@ export function townLifeOf(world: World, town: string, year = yearNow(world)): T
   return read;
 }
 
+/** What each kind's people are for their group, for one who was it ("its collector"). */
+const ROLE_NAME: Readonly<Record<TownGoing["kind"], string>> = {
+  collect: "its collector",
+  seller: "its seller",
+  guard: "a guard at its head's house",
+  patrol: "one of those on its round",
+  corner: "one of those who kept its corner",
+  meeting: "a member",
+  alms: "one of its givers",
+  posted: "a soldier",
+};
+
+/**
+ * A town's goings with what its court has done laid on them: one of its underworld the court holds (locked up, at labour, sent
+ * away) is off what they were at, and another of the same lines' part takes it up in their place, saying from whom and since
+ * when; the one held is told as who they were for it and what came of them. One let go is back at it. And those not of the town
+ * its court hears, who are stood for at its sitting.
+ */
 function readLife(world: World, town: string, year: number): TownLife {
+  const roles = townRolesOf(world, town, year),
+    s = populationContext(world).settlements.get(town as Ref);
+  if (!s || s.population <= 0) return NONE;
+  const outsiders = [...roles.outsiders],
+    folk = roles.goings.some((g) => UNDER_KINDS.has(g.kind)) ? folkOf(world, s, year) : null,
+    { goings, named, past } = afterCourt(roles, folk?.slots(POOL) ?? [], (ref) =>
+      heldCaseOf(world, town, ref),
+    );
+  // —— One not of the town before its court: someone stands for them at its sitting. ——
+  const tried: { c: Case; ref: string }[] = [],
+    stood = new Set<string>();
+  for (const c of [...casesOf(world, town, year - 1), ...casesOf(world, town, year)]) {
+    if (!c.accused.outside) continue;
+    if (c.year !== year && c.day + c.days < year * 365) continue;
+    // (One for each case: two cases may be of the same group's people, and they are not the same one.)
+    const ref = `out:${c.ref}`;
+    tried.push({ c, ref });
+    if (stood.has(ref)) continue;
+    stood.add(ref);
+    outsiders.push({
+      ref,
+      page: c.accused.ref,
+      name: cap(c.accused.name),
+      role: `not of ${s.name}: brought before its court in year ${c.year}`,
+      home: 0,
+      age: 30 + ((hashString(ref) >>> 0) % 20),
+      occupation: OCC.dependent,
+      child: false,
+      sex: c.accused.sex,
+      folk: true,
+      outsider: true,
+    });
+  }
+  return { goings, named, outsiders, tried, past };
+}
+
+/**
+ * A town's goings with those its court holds taken off them, and who takes each one's place: pure of what holds whom (`held`:
+ * the case that holds one now, or none), so it is the same for the same answers.
+ */
+export function afterCourt(
+  roles: Pick<TownLife, "goings" | "named">,
+  pool: readonly FolkSlot[],
+  held: (ref: string) => Case | null,
+): Pick<TownLife, "goings" | "named" | "past"> {
+  const named = new Map(roles.named.map((p) => [p.ref, p] as const)),
+    past: TownLife["past"][number][] = [],
+    goings = roles.goings.map((g) => {
+      if (!UNDER_KINDS.has(g.kind)) return g;
+      const who: string[] = [],
+        took: Record<string, string> = {};
+      for (const ref of g.who) {
+        const c = held(ref);
+        if (!c) {
+          who.push(ref);
+          continue;
+        }
+        const was = named.get(ref)?.name ?? "another";
+        past.push({ ref, going: g, case: c });
+        // Who takes it up: the next of the same part of the town's lines by the thing's own key, the same one while it lasts.
+        const part = pool.find((x) => x.party.ref === ref),
+          h = hashString(`${g.key}|after|${c.ref}`) >>> 0,
+          next = pool
+            .filter(
+              (x) =>
+                part &&
+                x.id % PARTS === part.id % PARTS &&
+                !g.who.includes(x.party.ref) &&
+                !who.includes(x.party.ref) &&
+                !held(x.party.ref),
+            )
+            .sort((p, q) => unit(h, p.id) - unit(h, q.id) || p.id - q.id)[0];
+        if (!next) continue;
+        named.set(next.party.ref, next.party);
+        who.push(next.party.ref);
+        took[next.party.ref] = `took it up from ${was} in year ${c.year}`;
+      }
+      return who.length === g.who.length && !Object.keys(took).length
+        ? g
+        : { ...g, who, ...(Object.keys(took).length ? { took } : {}) };
+    });
+  return { goings: goings.filter((g) => g.who.length), named: [...named.values()], past };
+}
+const UNDER_KINDS: ReadonlySet<string> = new Set([
+  "collect",
+  "seller",
+  "guard",
+  "patrol",
+  "corner",
+]);
+
+function readRoles(world: World, town: string, year: number): TownLife {
   const s = populationContext(world).settlements.get(town as Ref);
   if (!s || s.population <= 0) return NONE;
   const r = politiesOf(world).of(s.cell),
@@ -175,27 +322,36 @@ function readLife(world: World, town: string, year: number): TownLife {
     goings: TownGoing[] = [],
     named = new Map<string, Party>(),
     outsiders: (VillagePlan["people"][number] & { page: string })[] = [];
-  /** So many of the town's own by a thing's key: the same lines each year, whoever else is drawn for another. */
-  const draw = (
-    key: string,
-    n: number,
-    weigh?: (key: number, born: number) => number,
-    not: Set<string> = new Set(),
-  ): string[] => {
-    const h = hashString(key) >>> 0,
-      out: string[] = [];
-    for (let k = 0; k < n; k++) {
-      const p = folk.pick(h, k * 64, not, weigh);
-      if (!p) continue;
-      not.add(p.ref);
-      named.set(p.ref, p);
-      out.push(p.ref);
-    }
-    return out;
-  };
-  // Those of its underworld are each one thing in it (one who collects is not also the one at the corner): each draw passes
-  // over those drawn before it, in the order below. The lawful groups' people may be of more than one thing, as people are.
-  const shady = new Set<string>();
+  /**
+   * So many of the town's own by a thing's key: of its first lines' holders (POOL of them), ordered by the key and their line, so
+   * the same people are of it year on year. Each thing of its underworld draws from lines of its own (`part`: one in PARTS of
+   * the pool), so no one is two things in it and no thing coming or going moves another's people. The lawful groups' people are
+   * drawn from all of it, and may be of more than one thing, as people are.
+   */
+  const pool = folk.slots(POOL),
+    draw = (
+      key: string,
+      n: number,
+      weigh?: (key: number, born: number) => number,
+      part = -1,
+      not: ReadonlySet<string> = new Set(),
+    ): string[] => {
+      const h = hashString(key) >>> 0,
+        from = pool
+          .filter((x) => (part < 0 || x.id % PARTS === part) && !not.has(x.party.ref))
+          .map((x) => ({
+            x,
+            // (Those it leans to first, then by the draw.)
+            at: (weigh && weigh(x.key, x.born) >= 1 ? 0 : 1) + unit(h, x.id),
+          }))
+          .sort((p, q) => p.at - q.at || p.x.id - q.x.id),
+        out: string[] = [];
+      for (const { x } of from.slice(0, n)) {
+        named.set(x.party.ref, x.party);
+        out.push(x.party.ref);
+      }
+      return out;
+    };
   const young = (_: number, born: number) => (year - born < grown + 14 ? 4 : 0.2),
     old = (_: number, born: number) => (year - born >= 55 ? 4 : 0.3),
     trading = (key: number) => {
@@ -222,7 +378,7 @@ function readLife(world: World, town: string, year: number): TownLife {
       if (!who.length) continue;
       shown++;
       if (how.kind === "alms") {
-        const to = draw(`${key}|given`, LIFE_MOST.given, old, new Set(who));
+        const to = draw(`${key}|given`, LIFE_MOST.given, old, -1, new Set(who));
         goings.push({
           kind: "alms",
           key,
@@ -283,12 +439,12 @@ function readLife(world: World, town: string, year: number): TownLife {
         ref = groupRef(r.ref, holder.event),
         // (By the town alone: whoever comes to hold the land, the same one collects, now for them.)
         key = `${town}|collect`,
-        who = draw(key, s.population >= 20_000 ? 2 : 1, undefined, shady),
+        who = draw(key, s.population >= 20_000 ? 2 : 1, undefined, PART.collect),
         to = draw(
           `${key}|pay`,
           Math.min(LIFE_MOST.payers, Math.max(2, Math.round(under.protection * 20))),
           trading,
-          new Set(shady),
+          PART.pays,
         );
       if (who.length && to.length)
         goings.push({
@@ -318,7 +474,12 @@ function readLife(world: World, town: string, year: number): TownLife {
         const name = groupWords(g.name, GROUP_KINDS[g.kind]),
           ref = `boss:${r.ref}:${g.event}`,
           key = `${ref}|${town}|guard`,
-          who = draw(key, g.members >= 30 ? LIFE_MOST.guards : 1, young, shady);
+          who = draw(
+            key,
+            g.members >= 30 ? LIFE_MOST.guards : 1,
+            young,
+            PART.guard + ((hashString(g.event) >>> 0) % 2),
+          );
         if (!who.length) continue;
         houses++;
         // (Its head, whom history keeps by name: at that house, seen at its door some hours of the day. Their page is their own.)
@@ -363,7 +524,7 @@ function readLife(world: World, town: string, year: number): TownLife {
           key,
           Math.min(LIFE_MOST.corner, Math.max(3, 2 + Math.round(under.street * 20))),
           young,
-          shady,
+          PART.corner,
         );
       if (who.length >= 2)
         goings.push({
@@ -392,7 +553,7 @@ function readLife(world: World, town: string, year: number): TownLife {
       const name = groupWords(crew.name, "badge"),
         ref = groupRef(r.ref, crew.event),
         key = `${ref}|${town}|patrol`,
-        who = draw(key, 2, undefined, shady);
+        who = draw(key, 2, undefined, PART.patrol);
       if (who.length)
         goings.push({
           kind: "patrol",
@@ -481,8 +642,8 @@ function readLife(world: World, town: string, year: number): TownLife {
           ? { ref: groupRef(r.ref, cartel.event), name: groupWords(cartel.name, "cartel") }
           : { ref: `${r.ref}#underworld`, name: `the forbidden trade of ${realm}` },
         key = `${r.ref}|${town}|seller`,
-        who = draw(key, s.population >= 20_000 ? 2 : 1, undefined, shady),
-        to = draw(`${key}|buy`, 2, undefined, new Set(shady));
+        who = draw(key, s.population >= 20_000 ? 2 : 1, undefined, PART.seller),
+        to = draw(`${key}|buy`, 2, undefined, PART.buys);
       if (who.length)
         goings.push({
           kind: "seller",
@@ -499,32 +660,7 @@ function readLife(world: World, town: string, year: number): TownLife {
     }
   }
 
-  // —— One not of the town before its court: someone stands for them at its sitting. ——
-  const tried: { c: Case; ref: string }[] = [],
-    stood = new Set<string>();
-  for (const c of [...casesOf(world, town, year - 1), ...casesOf(world, town, year)]) {
-    if (!c.accused.outside) continue;
-    if (c.year !== year && c.day + c.days < year * 365) continue;
-    // (One for each case: two cases may be of the same group's people, and they are not the same one.)
-    const ref = `out:${c.ref}`;
-    tried.push({ c, ref });
-    if (stood.has(ref)) continue;
-    stood.add(ref);
-    outsiders.push({
-      ref,
-      page: c.accused.ref,
-      name: cap(c.accused.name),
-      role: `not of ${s.name}: brought before its court in year ${c.year}`,
-      home: 0,
-      age: 30 + ((hashString(ref) >>> 0) % 20),
-      occupation: OCC.dependent,
-      child: false,
-      sex: c.accused.sex,
-      folk: true,
-      outsider: true,
-    });
-  }
-  return { goings, named: [...named.values()], outsiders, tried };
+  return { goings, named: [...named.values()], outsiders, tried: [], past: [] };
 }
 
 /** What a town's feasts dance to: its realm's music as its culture is read (host/inspect/customs.ts; none: nothing kept). */
@@ -601,15 +737,45 @@ export function townGoingsBlock(world: World, town: string): Block | null {
 
 /** What one of a town's lines is part of, for their own page (none: nothing). */
 export function partOfStats(world: World, town: string, ref: string): Stat[] {
-  const out: Stat[] = [];
-  for (const g of townLifeOf(world, town).goings) {
+  const out: Stat[] = [],
+    life = townLifeOf(world, town),
+    year = yearNow(world);
+  // One the court holds: who they were for it, what came of them, until when; the case a press away.
+  for (const p of life.past) {
+    if (p.ref !== ref) continue;
+    const c = p.case,
+      until = Math.floor((c.day + c.days) / 365);
+    out.push(
+      stat("Was", [
+        link(cap(p.going.of.name), p.going.of.ref),
+        `: ${ROLE_NAME[p.going.kind]} here until year ${c.year}. `,
+        link(`${sentenceOf(c.accused.name.split(" ")[0]!)} ${c.came}`, c.ref),
+        c.sentence === "banish"
+          ? `: gone from ${populationContext(world).settlements.get(town as Ref)?.name ?? "the town"}, alive, and not to come back before year ${until}`
+          : until > year
+            ? `: not at it again before year ${until}`
+            : "",
+        ".",
+      ]),
+    );
+  }
+  for (const g of life.goings) {
     const mine = g.who.includes(ref),
       theirs = !mine && !!g.to?.includes(ref);
     if (!mine && !theirs) continue;
+    // (One let go by the court, or back from what it laid on them: at it again, and it is said.)
+    const c = mine ? lastCaseOf(world, town, ref) : null;
     out.push(
       stat(mine ? "Part of" : g.kind === "alms" ? "Given by" : "Pays", [
         link(cap(g.of.name), g.of.ref),
-        `: ${(mine ? (g.quiet ?? g.doing) : (g.toDoing ?? g.doing)).replace(/^./, (c) => c.toLowerCase())}${g.quiet && mine ? "" : `, ${WHEN[g.kind]}`}${g.since !== undefined ? `. It has stood since year ${g.since}` : ""}`,
+        `: ${(mine ? (g.quiet ?? g.doing) : (g.toDoing ?? g.doing)).replace(/^./, (x) => x.toLowerCase())}${g.quiet && mine ? "" : `, ${WHEN[g.kind]}`}${mine && g.took?.[ref] ? `; ${g.took[ref]}` : ""}${g.since !== undefined ? `. It has stood since year ${g.since}` : ""}`,
+        ...(c
+          ? [
+              `. Brought before the court in year ${c.year}: `,
+              link(`${c.accused.name.split(" ")[0]} ${c.came}`, c.ref),
+              ", and is at it again",
+            ]
+          : []),
       ]),
     );
   }
@@ -619,10 +785,11 @@ export function partOfStats(world: World, town: string, ref: string): Stat[] {
 /** What was read of a world's towns let go (a test that sets a land's rows by hand reads them afresh). */
 export function forgetTownLife(world: World): void {
   KEPT.delete(world);
+  ROLES.delete(world);
 }
 
 /** The most lands of a group read for its people in their towns, and the most towns of each. */
-const HERE = { lands: 4, towns: 2 } as const;
+const HERE = { lands: 3, towns: 1 } as const;
 
 /**
  * "Its people here": those of a group, a head's house or a land's underworld who are someone in a town, each by name with what
@@ -706,4 +873,44 @@ export function withPeopleHere<
     ...page,
     tabs: page.tabs.map((t, i) => (i === tab ? { ...t, blocks: [...t.blocks, block] } : t)),
   } as P;
+}
+
+/**
+ * Those of a fight's town who are of the two that fought, as the town's days have them now: each by name with what they are
+ * for their side, their page a press away (null: none of either is someone there, or it was fought more than a year ago, when
+ * who is of them now says nothing of who was). Who fell is counted by history and is not told of them: one of a town's lines
+ * dies as its roster has them.
+ */
+export function fightPeopleBlock(
+  world: World,
+  fight: {
+    readonly town: string;
+    readonly year: number;
+    readonly sides: readonly { readonly ref: string; readonly name: string }[];
+  },
+): Block | null {
+  if (yearNow(world) - fight.year > 1) return null;
+  const roles = townRolesOf(world, fight.town),
+    names = new Map(roles.named.map((p) => [p.ref, p.name] as const)),
+    items: Item[] = [];
+  for (const side of fight.sides) {
+    const head = side.ref.replace(/^mob:/, "boss:");
+    for (const g of roles.goings) {
+      if (g.of.ref !== side.ref && g.of.ref !== head) continue;
+      for (const who of g.who) {
+        const name = names.get(who);
+        if (name)
+          items.push(
+            item(
+              [
+                link(name, who),
+                `, of ${side.name}: ${ROLE_NAME[g.kind].replace(/its/, "their")} in the town`,
+              ],
+              who,
+            ),
+          );
+      }
+    }
+  }
+  return items.length ? { type: "list", title: "Of the town, on either side", items } : null;
 }

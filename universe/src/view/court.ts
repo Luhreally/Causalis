@@ -337,9 +337,18 @@ export type CourtRole =
       readonly at: { x: number; z: number };
       readonly face: number;
       readonly why: string;
+      readonly of?: CaseOf;
     }
-  | { readonly kind: "labour"; readonly at: { x: number; z: number }; readonly why: string }
-  | { readonly kind: "gone"; readonly why: string };
+  | {
+      readonly kind: "labour";
+      readonly at: { x: number; z: number };
+      readonly why: string;
+      readonly of?: CaseOf;
+    }
+  | { readonly kind: "gone"; readonly why: string; readonly of?: CaseOf };
+
+/** The case a sentence being served is of: its page, and what it is called. */
+export type CaseOf = { readonly ref: string; readonly name: string };
 
 const ROLES = new WeakMap<VillagePlan, Map<number, ReadonlyMap<number, CourtRole>>>();
 const NONE: ReadonlyMap<number, CourtRole> = new Map();
@@ -366,7 +375,11 @@ function rolesOn(plan: VillagePlan, day: number): ReadonlyMap<number, CourtRole>
   for (const [d, s] of heardMap(plan)) {
     const i = indexOf.get(s.accused);
     if (i === undefined || day <= d || day >= d + s.days) continue;
-    if (s.sentence === "banish") map.set(i, { kind: "gone", why: `Sent away by ${court.law}` });
+    // (Whose case it is, a press away; and until when, where it runs past the year.)
+    const of: CaseOf = { ref: s.ref, name: `the case of ${s.who}` },
+      until = s.days > 365 ? `, until year ${Math.floor((d + s.days) / 365)}` : "";
+    if (s.sentence === "banish")
+      map.set(i, { kind: "gone", why: `Sent away by ${court.law}${until}`, of });
     else if (s.sentence === "stocks")
       map.set(i, {
         kind: "held",
@@ -378,19 +391,22 @@ function rolesOn(plan: VillagePlan, day: number): ReadonlyMap<number, CourtRole>
             : court.grips
               ? "In the stocks"
               : "Penned in the ring of stones",
+        of,
       });
     else if (s.sentence === "cell" && (court.form === "magistrate" || court.form === "bench"))
       map.set(i, {
         kind: "held",
         at: cellAt,
         face: toward(cellAt, courtSpot(place, CELL.u, 20)),
-        why: court.grips ? "Locked in the town's cell" : "Shut in the pit",
+        why: `${court.grips ? "Locked in the town's cell" : "Shut in the pit"}${until}`,
+        of,
       });
     else if (s.sentence === "labour")
       map.set(i, {
         kind: "labour",
         at: works,
-        why: hive ? "At work in the far cells" : "Set to labour, by the court",
+        why: `${hive ? "At work in the far cells" : "Set to labour, by the court"}${until}`,
+        of,
       });
   }
   // Today's sitting.

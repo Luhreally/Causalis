@@ -19,13 +19,16 @@ import {
 } from "../../src/sim/index.ts";
 import { CONTRA_CAUSES } from "../../src/rules/index.ts";
 import {
+  afterCourt,
   forgetTownLife,
   partOfStats,
   peopleHereBlock,
   townGoingsBlock,
   townLifeOf,
+  townRolesOf,
 } from "../../src/host/inspect/townlife.ts";
 import { pageOf } from "../../src/host/inspect/index.ts";
+import { casesOf, folkOf, forgetDockets, type Case } from "../../src/host/inspect/justice.ts";
 import { villagePlan } from "../../src/host/village.ts";
 import { yearNow } from "../../src/host/inspect/words.ts";
 import { momentOf, villageSolids, goingsOn } from "../../src/view/index.ts";
@@ -357,4 +360,84 @@ test("a member stays the same one through a year's turn, a takeover and soldiers
   held(false);
   forgetTownLife(world);
   assert.equal(peopleHereBlock(world, taken.of.ref), null, "no group, no people of it");
+});
+
+test("one of a group brought before the court for what its people do here is the town's own named one of it, and never put to death", () => {
+  ware("law");
+  held(true);
+  forgetDockets(world);
+  forgetTownLife(world);
+  let stood = 0;
+  for (let y = year - 4; y <= year; y++) {
+    const roles = townRolesOf(world, town, y),
+      collectors = new Set(roles.goings.filter((g) => g.kind === "collect").flatMap((g) => g.who)),
+      ofIt = new Set(roles.goings.flatMap((g) => g.who));
+    for (const c of casesOf(world, town, y)) {
+      if (!c.grave || c.accused.outside) continue;
+      assert.notEqual(c.outcome, "death", `${c.ref}: one of the town's lines put to death`);
+      if (c.offence !== "extort" || !ofIt.has(c.accused.ref)) continue;
+      stood++;
+      assert.ok(collectors.has(c.accused.ref), `${c.ref}: the one who collects answers for it`);
+      assert.equal(c.group?.name, "the Varro family");
+      // Their name leads what they did, as any case's does: a person, not "one of the family's own".
+      assert.doesNotMatch(c.accused.name, /^one of/);
+    }
+  }
+  assert.ok(stood > 0, "a collector stood for what was taken by threat in these years");
+  // The same reading every time, whatever was read before it.
+  const a = JSON.stringify(
+    casesOf(world, town, year - 2).map((c) => [c.ref, c.accused.ref, c.sentence]),
+  );
+  forgetDockets(world);
+  forgetTownLife(world);
+  casesOf(world, town, year);
+  assert.equal(
+    JSON.stringify(casesOf(world, town, year - 2).map((c) => [c.ref, c.accused.ref, c.sentence])),
+    a,
+  );
+  held(false);
+  ware(null);
+  forgetDockets(world);
+  forgetTownLife(world);
+});
+
+test("one the court holds is off what they were at; another of the same part takes it up, saying from whom; one let go is back at it", () => {
+  ware(null);
+  held(true);
+  forgetDockets(world);
+  forgetTownLife(world);
+  const roles = townRolesOf(world, town),
+    s = populationContext(world).settlements.get(town as Ref)!,
+    pool = folkOf(world, s, year).slots(96),
+    collect = roles.goings.find((g) => g.kind === "collect")!,
+    man = collect.who[0]!,
+    gaol = { ref: "case:x:1", year: year - 1, came: "was locked up for four years" } as Case,
+    none = afterCourt(roles, pool, () => null),
+    off = afterCourt(roles, pool, (ref) => (ref === man ? gaol : null)),
+    now = off.goings.find((g) => g.kind === "collect");
+  assert.deepEqual(none.goings, roles.goings, "no one held: as it was");
+  assert.equal(none.past.length, 0);
+  assert.deepEqual(
+    off.past.map((p) => [p.ref, p.going.kind, p.case.ref]),
+    [[man, "collect", "case:x:1"]],
+  );
+  assert.ok(now && !now.who.includes(man), "the one held is not at it");
+  const next = now.who.find((r) => !collect.who.includes(r))!;
+  assert.ok(next, "another took it up");
+  assert.match(now.took![next]!, new RegExp(`^took it up from .+ in year ${year - 1}$`));
+  // Of the same part of the town's lines: no one who is another thing in its underworld.
+  const others = new Set(roles.goings.filter((g) => g !== collect).flatMap((g) => g.who));
+  assert.ok(!others.has(next));
+  assert.ok(off.named.some((p) => p.ref === next) && off.named.some((p) => p.ref === man));
+  // The same one each read; and everyone else's things are as they were.
+  assert.deepEqual(
+    afterCourt(roles, pool, (ref) => (ref === man ? gaol : null)).goings,
+    off.goings,
+  );
+  for (const g of roles.goings)
+    if (g.kind !== "collect")
+      assert.deepEqual(off.goings.find((x) => x.key === g.key)!.who, g.who, g.kind);
+  held(false);
+  forgetDockets(world);
+  forgetTownLife(world);
 });
