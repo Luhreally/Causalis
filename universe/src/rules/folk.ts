@@ -29,8 +29,14 @@ export const FOLK = {
   /** Of the rest of the way, the share that readers make (by the root of their share) and that word joining far lands makes. */
   read: 0.7,
   joined: 0.3,
-  /** Added while their realm is at war with a realm of other speech. */
+  /**
+   * Added while their realm is at war with a realm of other speech, and after its peace as far as those who lived through it are
+   * still among them (warRemembered): an "us" made against strangers in arms is not unmade by the peace, it goes with the
+   * generation that fought.
+   */
   war: 0.15,
+  /** The share of a life after which none who were grown at a war's end are left (a people of 70 years: 40). */
+  warLives: 4 / 7,
   /**
    * Grievance a year from being ruled by those a land counts strangers (at kin 0), at an "us" no wider than a valley's and at its
    * widest: between, by how far it reaches. It falls as the square of kin's shortfall from the middle, and is none above it.
@@ -80,16 +86,30 @@ export function kinToSeat(t: FolkTies): number {
 
 /**
  * How far a land's "us" reaches (0 … 1): a valley's before letters, wider by the root of the share who read and by how far its
- * realm's word joins its lands (`joined`, 0 … 1 of the most it can), sharper at war with strangers.
+ * realm's word joins its lands (`joined`, 0 … 1 of the most it can), sharper at war with strangers and while that war is
+ * remembered (`war`: 0 … 1, warRemembered; true for 1).
  */
-export function nationTarget(readers: number, joined: number, war: boolean): number {
+export function nationTarget(readers: number, joined: number, war: boolean | number): number {
   const r = dmath.sqrt(dmath.clamp(readers, 0, 1)),
     j = dmath.clamp(joined, 0, 1);
   return dmath.clamp(
-    FOLK.least + (1 - FOLK.least) * (FOLK.read * r + FOLK.joined * j) + (war ? FOLK.war : 0),
+    FOLK.least +
+      (1 - FOLK.least) * (FOLK.read * r + FOLK.joined * j) +
+      FOLK.war * dmath.clamp(Number(war), 0, 1),
     0,
     1,
   );
+}
+
+/**
+ * How far a war with strangers still sharpens a people's "us" (0 … 1): wholly while it is fought (`over` null), then as far as
+ * those who lived through it are left, `over` years after its peace: none past `kept` years, however long they live (what is
+ * read of a war so long over is no longer asked of the wars' store).
+ */
+export function warRemembered(over: number | null, span: number, kept: number): number {
+  if (over === null) return 1;
+  const lives = Math.min(kept, FOLK.warLives * Math.max(5, span));
+  return dmath.clamp(1 - Math.max(0, over) / lives, 0, 1);
 }
 
 /** A land's identity `years` on, from where it was toward where it is drawn. */

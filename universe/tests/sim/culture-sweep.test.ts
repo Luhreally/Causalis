@@ -35,6 +35,7 @@ import {
   kinToSeat,
   nationTarget,
   onenessStanding,
+  warRemembered,
   renownOf,
   sharedLot,
   templeGiving,
@@ -94,6 +95,18 @@ test("a people's 'us' reaches a valley before letters, all its speech once it re
   assert.ok(nationTarget(0.25, 1, false) > nationTarget(0.25, 0, false));
   assert.ok(near(nationTarget(0.25, 0.5, true) - nationTarget(0.25, 0.5, false), FOLK.war));
   assert.ok(nationTarget(1, 1, true) <= 1);
+  // (A war with strangers sharpens it wholly while fought, and after its peace as far as those who lived through it are left:
+  // a people of seventy years' life, forty years; a shorter-lived one sooner; none past what is kept of a war, however long-lived.)
+  assert.equal(warRemembered(null, 70, 40), 1);
+  assert.equal(warRemembered(0, 70, 40), 1);
+  assert.ok(near(warRemembered(20, 70, 40), 0.5));
+  assert.equal(warRemembered(40, 70, 40), 0);
+  assert.ok(warRemembered(10, 35, 40) < warRemembered(10, 70, 40));
+  assert.equal(warRemembered(39, 700, 40) > 0 && warRemembered(40, 700, 40) === 0, true);
+  assert.ok(
+    near(nationTarget(0.25, 0.5, 0.5) - nationTarget(0.25, 0.5, 0), FOLK.war / 2),
+    "half remembered, half as sharp",
+  );
   // (It moves a share of the way a year, and never past where it is drawn.)
   const after = folkAfter(0.1, 0.9, 10);
   assert.ok(after > 0.1 && after < 0.9);
