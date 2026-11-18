@@ -411,7 +411,7 @@ function interestsNow(
       if (!from || !to || from === to || (from !== p && to !== p)) continue;
       const other = from === p ? to : from,
         tr = met.get(other.ref) ?? { worth: 0, road: null };
-      tr.worth += f.count * GOODS[f.good]!.value;
+      tr.worth += markets.boundOf(f) * GOODS[f.good]!.value;
       tr.road ??= markets.route(f.from, f.to) ?? null;
       met.set(other.ref, tr);
     }

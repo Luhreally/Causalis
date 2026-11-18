@@ -86,6 +86,7 @@ const pairKey = (a: Ref, b: Ref) => (a < b ? `${a}|${b}` : `${b}|${a}`);
  * the less bound side's trade with the other is a few parts in a thousand of its product at the middle and two or three in a
  * hundred among the most bound, with fewer wars between them all the way up). First light's pairs that trade: 2 to 5 parts in
  * a thousand at the median through its first century, 12 to 22 in the most bound tenth (scratchpad/release/dp.mts).
+ * What passed between them is each good counted once, not at every border it crossed (sim/economy/market.ts boundOf).
  */
 export const TRADE_TIE = { most: 0.35, full: 1 / 40 } as const;
 export function tradeTie(worth: number, lesserUse: number): number {
@@ -315,7 +316,7 @@ export function diplomacyYear(ctx: PopulationContext, t: SimTime): void {
     if (!p || !q || p === q) continue;
     const key = pairKey(p.ref, q.ref),
       tr = trade.get(key) ?? { volume: 0, road: null };
-    tr.volume += f.count * GOODS[f.good]!.value;
+    tr.volume += markets.boundOf(f) * GOODS[f.good]!.value;
     tr.road ??= markets.route(f.from, f.to) ?? null;
     trade.set(key, tr);
     if (!borders.has(key))
