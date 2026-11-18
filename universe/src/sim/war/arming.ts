@@ -31,6 +31,7 @@ import {
   warReckoning,
 } from "../../rules/index.ts";
 import { marketsOf, mouths, type PopulationContext } from "../population/systems.ts";
+import { LEDGER, MARKET_YEARS } from "../economy/market.ts";
 import { politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import { RIVALRY, diplomacyOf } from "../diplomacy/diplomacy.ts";
 import { fearOf } from "../finance/finance.ts";
@@ -104,6 +105,9 @@ const fresh = (realm: Ref): Footing => ({
 
 /** What a realm not yet read is taken to have to spare beyond its food. */
 export const SPARE_UNREAD = 0.3;
+
+/** The "made" line of a market's kept books. */
+const MADE = LEDGER.indexOf("made");
 
 const r4 = (x: number) => Math.round(x * 10_000) / 10_000;
 
@@ -276,19 +280,44 @@ export function armingSpend(world: World, realm: Ref): number {
 
 // —— The year ——————————————————————————————————————————————————————————————————————————————————————
 
-/** What a realm made last year (grain's worth), and of it the share beyond what its people ate. */
+/**
+ * What a realm made last year (grain's worth), and of what it makes the share beyond what its people eat: read over the years
+ * its lands' markets keep their books (MARKET_YEARS, the last reckoned and those before it), each year's making at that
+ * year's worth against a year of its people's food at that year's. A host is not raised and sent home with each harvest:
+ * what feeds it is the granary, which is what those years left. (Read off the last year alone, the levy a realm can feed
+ * followed every harvest: a realm's host against its people moved 18 in 100 of itself from one year to the next at the
+ * median.) A land a realm has just taken brings its own years with it.
+ */
 export function madeAndSpare(ctx: PopulationContext, p: Polity): { made: number; spare: number } {
   const markets = marketsOf(ctx.world);
   let made = 0,
+    over = 0,
     eaten = 0;
   for (const c of p.members) {
     const prov = ctx.provinces.get(c),
       m = markets.get(c);
     if (!prov || !m || prov.total() <= 0) continue;
-    for (let g = 0; g < GOODS.length; g++) made += m.book("made", g) * m.price[g]!;
-    eaten += 12 * mouths(prov, ctx.life) * m.price[G.grain]!;
+    const need = 12 * mouths(prov, ctx.life);
+    // (The year whose books are open and reckoned, or the last closed: what it made is what its footing costs it.)
+    let closed = m.years.length;
+    if (m.reckoned) {
+      let y = 0;
+      for (let g = 0; g < GOODS.length; g++) y += m.line("made", g) * m.price[g]!;
+      made += y;
+      over += y;
+      eaten += need * m.price[G.grain]!;
+    } else if (closed) {
+      const last = m.years[closed - 1]!.ledger[MADE]!;
+      for (let g = 0; g < GOODS.length; g++) made += last[g]! * m.price[g]!;
+    }
+    for (let n = m.reckoned ? 1 : 0; n < MARKET_YEARS && closed > 0; n++) {
+      const year = m.years[--closed]!,
+        line = year.ledger[MADE]!;
+      for (let g = 0; g < GOODS.length; g++) over += line[g]! * year.price[g]!;
+      eaten += need * year.price[G.grain]!;
+    }
   }
-  return { made, spare: made > 0 ? Math.max(0, 1 - eaten / made) : 0 };
+  return { made, spare: over > 0 ? Math.max(0, 1 - eaten / over) : 0 };
 }
 
 /**
@@ -344,7 +373,10 @@ export function armingYear(ctx: PopulationContext, t: SimTime): void {
     made = new Map<Ref, number>();
   for (const p of living) {
     const was = store.of(p.ref),
-      { made: m, spare } = madeAndSpare(ctx, p),
+      { made: m, spare: read } = madeAndSpare(ctx, p),
+      // (What it reckons it can spare turns toward what its books show a part a year, the books' own span of it: a realm does
+      // not remake its host for one reading. A realm not yet read takes its lands' books as they stand.)
+      spare = was && was.made > 0 ? was.spare + (read - was.spare) / MARKET_YEARS : read,
       fatigue = fatigueOf(spare, holdsOf(world, p.ref)[1] ?? 0.5);
     made.set(p.ref, m);
     // (Its answer to the rival it fears most for its strength.)
