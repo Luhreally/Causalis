@@ -356,6 +356,8 @@ export {
   boundIn,
   boundShare,
   capacityOf,
+  capacityValue,
+  reachOver,
   installOrder,
   landOf,
   legitimacyFactors,

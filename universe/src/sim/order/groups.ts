@@ -121,7 +121,7 @@ import {
   societyStore,
   streetOf,
 } from "../society/kept.ts";
-import { addsReach, addsStanding, capacityOf, orderOf } from "./order.ts";
+import { addsReach, addsStanding, orderOf, reachOver } from "./order.ts";
 import { holdsOf } from "./holds.ts";
 import { LAW_OF } from "./laws.ts";
 import { housesRead } from "./houses.ts";
@@ -304,7 +304,7 @@ function readRealm(ctx: PopulationContext, p: Polity, year: number, t: SimTime):
     credit = creditOf(world),
     steps = reach(ctx, p),
     relief = reliefOf(ctx.generated),
-    cap = capacityOf(ctx, p).value,
+    over = reachOver(ctx, p),
     seatWays = culture.get(p.seat),
     seatFaith = belief.of(p.seat).faith ?? null,
     m = markets.get(p.seat),
@@ -353,7 +353,7 @@ function readRealm(ctx: PopulationContext, p: Polity, year: number, t: SimTime):
     const town = ctx.settlements.inProvince(c).find((s) => s.market)?.population ?? 0,
       coast = coastal(ctx, c),
       far = steps.get(c) ?? 6,
-      landReach = dmath.clamp(cap / (1 + far / 4), 0, 1),
+      landReach = over.lands.get(c) ?? over.value,
       pressed =
         faith && seatFaith && faith !== seatFaith
           ? lawFaith === 0
@@ -387,7 +387,7 @@ function readRealm(ctx: PopulationContext, p: Polity, year: number, t: SimTime):
       grievance: dmath.clamp(realms.discontent(c).level, 0, 1),
       faith,
       pressed,
-      occupied: ow && ow.holder !== p.ref ? Math.max(0.2, ow.resistance) : 0,
+      occupied: ow && ow.holder === p.ref ? Math.max(0.2, ow.resistance) : 0,
       killed: killedOf(world, c),
       extorted: under.extortion,
       road: weight,
@@ -434,7 +434,7 @@ function readRealm(ctx: PopulationContext, p: Polity, year: number, t: SimTime):
     }),
     ships = navyOf(world)?.of(p.ref),
     // (A navy covers its merchantmen with a tonne of warships for some six of theirs; without a navy, its havens' reach alone.)
-    seaGuard = seaGuarded(ships?.tons ?? 0, Math.max(1, (ships?.merchant ?? 0) / 6), cap);
+    seaGuard = seaGuarded(ships?.tons ?? 0, Math.max(1, (ships?.merchant ?? 0) / 6), over.value);
   // (Realms at war short of men, its own or its neighbours, that would pay for soldiers: the best payer.)
   let hire = 0,
     payer: Ref | null = null,
@@ -498,7 +498,7 @@ function readRealm(ctx: PopulationContext, p: Polity, year: number, t: SimTime):
     sea,
     earned: fisc ? fisc[FISC.base + 3]! : 0,
     reserve: fisc ? fisc[FISC.reserve]! : 0,
-    capacity: cap,
+    capacity: over.value,
     corruption: o?.corruption ?? 0,
     legitimacy,
     doubt: dmath.clamp((0.62 - legitimacy) * 2, 0, 1),

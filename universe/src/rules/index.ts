@@ -1731,6 +1731,7 @@ export * from "./beyond.ts";
 export * from "./care.ts";
 export * from "./roles.ts";
 export * from "./holding.ts";
+export * from "./capacity.ts";
 export * from "./table.ts";
 export * from "./dress.ts";
 export * from "./leisure.ts";

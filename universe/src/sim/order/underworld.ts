@@ -99,7 +99,7 @@ import { WAY, cultureOf } from "../culture/culture.ts";
 import { FOLK_ROW, FOLK_STORE, cultureRows } from "../culture/rows.ts";
 import { beliefOf } from "../belief/belief.ts";
 import { loreOf } from "../lore/lore.ts";
-import { politiesOf, reach, realmName, type Polity } from "../polity/polity.ts";
+import { politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import { occupationOf } from "../war/occupation.ts";
 import { diplomacyOf } from "../diplomacy/diplomacy.ts";
 import { fieldedOf, warsOf } from "../war/war.ts";
@@ -133,7 +133,7 @@ import {
   societyStore,
   streetOf,
 } from "../society/kept.ts";
-import { addsReach, addsStanding, capacityOf, orderOf } from "./order.ts";
+import { addsReach, addsStanding, capacityValue, orderOf, reachOver } from "./order.ts";
 import { holdsOf } from "./holds.ts";
 import { LAW_OF } from "./laws.ts";
 import { housesOf, housesRead, originOf } from "./houses.ts";
@@ -488,6 +488,8 @@ type Read = {
   earned: number;
   revenue: number;
   capacity: number;
+  /** How far its seat reaches each of its peopled lands (sim/order reachOver). */
+  reachIn: ReadonlyMap<number, number>;
   corruption: number;
   legitimacy: number;
   force: number;
@@ -517,6 +519,7 @@ function readRealm(ctx: PopulationContext, p: Polity, year: number): Read {
     fisc = moneyStore(world, TREASURY_STORE)?.get(p.ref),
     bar = moneyStore(world, BAR_STORE)?.get(p.ref),
     lore = loreOf(world),
+    over = reachOver(ctx, p),
     markets = marketsOf(world),
     m = markets.get(p.seat),
     life = ctx.life,
@@ -585,7 +588,8 @@ function readRealm(ctx: PopulationContext, p: Polity, year: number): Read {
     trade: sold,
     earned: fisc ? fisc[FISC.base + 3]! : 0,
     revenue,
-    capacity: capacityOf(ctx, p).value,
+    capacity: over.value,
+    reachIn: over.lands,
     corruption: o?.corruption ?? 0,
     legitimacy: o?.legitimacy ?? 0.5,
     force: held[HOLD.force] ?? 0.5,
@@ -915,7 +919,6 @@ function stepRealm(
   // there that the law forbids. The realm's want is its lands', by their people; a group rises where its neediest land's pull does.
   const spent = Math.min(r.trade, r.earned),
     illegal = dmath.clamp((r.banWorth * r.barred + wareWorth) / Math.max(1, spent), 0, 1),
-    steps = reach(ctx, p),
     occ = occupationOf(world),
     folk = cultureRows(world, FOLK_STORE);
   let want = 0,
@@ -934,11 +937,11 @@ function stepRealm(
         trade: r.trade,
         earned: r.earned,
         capacity: r.capacity,
-        reach: dmath.clamp(r.capacity / (1 + (steps.get(c) ?? 6) / 4), 0, 1),
+        reach: r.reachIn.get(c) ?? r.capacity,
         corruption: r.corruption,
         legitimacy: r.legitimacy,
         kin: (folk?.get(c)?.[FOLK_ROW.kin] ?? 1000) / 1000,
-        occupied: ow && ow.holder !== p.ref ? Math.max(0.2, ow.resistance) : 0,
+        occupied: ow && ow.holder === p.ref ? Math.max(0.2, ow.resistance) : 0,
         illegal,
       });
     want += (here * n) / r.people;
@@ -2506,7 +2509,7 @@ export function potencyYear(ctx: PopulationContext, t: SimTime): void {
         canMake,
       }),
       hunted = dmath.clamp(
-        0.4 * capacityOf(ctx, p).value + bitesOf(world, p.ref) + 0.5 * blockadeOn(world, p.ref),
+        0.4 * capacityValue(ctx, p) + bitesOf(world, p.ref) + 0.5 * blockadeOn(world, p.ref),
         0,
         1,
       ),
