@@ -51,28 +51,29 @@ test("the test world has a history to search", () => {
   while (!search("zzqxv").whole) assert.ok(++warm < 100, "the words never all read");
 });
 
+const KIND = "settlement.market";
 test("a kind of event is found whole, in order, page by page, both ways", () => {
-  const want = events.filter((e) => e.type === "city.founded").map((e) => e.id);
-  assert.ok(want.length > 40, `${want.length} cities`);
-  const first = search("kind:city.founded", { limit: 50 });
+  // (Market towns: some 410 by year 40. It asked for cities, of which the world before the society sweep had 317 by then, a
+  // market town of a thousand in three lands of five while 1.5 million lived on the whole globe; towns grow to that later now:
+  // 6 by year 40, 45 to 52 by 60, some 220 by 100 (scratchpad/release/cf.mts).)
+  const want = events.filter((e) => e.type === KIND).map((e) => e.id);
+  assert.ok(want.length > 100, `${want.length} market towns`);
+  const first = search(`kind:${KIND}`, { limit: 50 });
   assert.equal(first.matched, want.length);
   assert.ok(first.whole);
   assert.equal(refsOf(first).length, 50);
   assert.notEqual(first.next, null);
-  const back = allPages("kind:city.founded", true, 23);
+  const back = allPages(`kind:${KIND}`, true, 23);
   assert.deepEqual(back.refs, [...want].reverse());
   assert.equal(back.pages, Math.ceil(want.length / 23));
-  const on = allPages("kind:city.founded", false, 50);
+  const on = allPages(`kind:${KIND}`, false, 50);
   assert.deepEqual(on.refs, want);
   // (Each year's lines in one group, years in the order asked.)
   for (let i = 1; i < on.years.length; i++) assert.ok(on.years[i]! >= on.years[i - 1]!);
-  const r = search("kind:city.founded", { limit: 100 });
+  const r = search(`kind:${KIND}`, { limit: 100 });
   assert.equal(new Set(r.years.map((y) => y.year)).size, r.years.length);
   // (No page holds more than a hundred lines, whatever it asks.)
-  assert.equal(
-    search("kind:city.founded", { limit: 5000 }).years.flatMap((y) => y.lines).length,
-    100,
-  );
+  assert.equal(search(`kind:${KIND}`, { limit: 5000 }).years.flatMap((y) => y.lines).length, 100);
 });
 
 test("words match without case or accents, in part, and reach what the annals leave out", () => {
