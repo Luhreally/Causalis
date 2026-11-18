@@ -308,7 +308,20 @@ function readRealm(ctx: PopulationContext, p: Polity, year: number, t: SimTime):
     seatWays = culture.get(p.seat),
     seatFaith = belief.of(p.seat).faith ?? null,
     m = markets.get(p.seat),
-    wage = Math.max(1, m ? Math.max(m.wage[OCC.crafter]!, m.wage[OCC.farmer]!) : 1),
+    // (A working man's year: what a worker of its lands earns, by the treasury's reckoning, a living at the least; the seat's
+    // wages before the treasury has read its lands. As the underworld reads it: sim/order/underworld.ts readRealm.)
+    workers = p.members.reduce((n, c) => {
+      const prov = ctx.provinces.get(c);
+      return n + (prov ? Math.max(0, prov.total() - prov.occupation(OCC.dependent)) : 0);
+    }, 0),
+    wage = Math.max(
+      1,
+      fisc && workers > 0
+        ? fisc[FISC.base + 3]! / workers
+        : m
+          ? Math.max(m.wage[OCC.crafter]!, m.wage[OCC.farmer]!)
+          : 1,
+    ),
     legitimacy = o?.legitimacy ?? 0.5,
     lawFaith = o?.laws[LAW_OF.faith] ?? 1,
     // (The seat holds its temple where its ruler is its priest, or its law knows one faith.)
@@ -439,7 +452,8 @@ function readRealm(ctx: PopulationContext, p: Polity, year: number, t: SimTime):
       if (!foe || foe.ended !== null || foe.ref === p.ref) continue;
       const short = fieldedOf(ctx, foe) - fieldedOf(ctx, qp),
         qm = markets.get(qp.seat),
-        qWage = Math.max(1, qm ? Math.max(qm.wage[OCC.crafter]!, qm.wage[OCC.farmer]!) : wage),
+        // (A hired man's year: his own food at the least.)
+        qWage = Math.max(12, qm ? Math.max(qm.wage[OCC.crafter]!, qm.wage[OCC.farmer]!) : wage),
         reserve = moneyStore(world, TREASURY_STORE)?.at(q, FISC.reserve) ?? 0,
         pay = hirePay(short, qWage, reserve);
       if (pay > hire) {

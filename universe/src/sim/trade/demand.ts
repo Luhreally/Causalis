@@ -12,8 +12,10 @@ import {
   G,
   GOODS,
   GOOD_USE,
+  OCC,
   OCCUPATIONS,
   demandFactor,
+  takings,
   withinMeans,
 } from "../../rules/index.ts";
 import type { Province } from "../population/model.ts";
@@ -22,6 +24,32 @@ import type { Market } from "../economy/market.ts";
 import { loreOf } from "../lore/lore.ts";
 import { GOODS_STORE, moneyStore } from "../money/kept.ts";
 import { DEMAND_STORE, DM, tradeStore } from "./kept.ts";
+
+/**
+ * What passes a land's shops and stalls in a year, by its last books (grain's worth; rules/underworld.ts takings): what a
+ * protector's cut and a licence's rent are of. Only reads.
+ */
+export function takingsOf(p: Province, m: Market): number {
+  const n = p.total();
+  if (!(n > 0)) return 0;
+  let food = 0,
+    other = 0,
+    sentOn = 0;
+  for (let g = 0; g < GOODS.length; g++) {
+    const worth = m.price[g]!;
+    if (FOODS.includes(g)) food += m.book("used", g) * worth;
+    else other += m.book("used", g) * worth;
+    sentOn += m.book("out", g) * worth;
+  }
+  return takings({
+    food,
+    other,
+    sentOn,
+    growers:
+      (p.occupation(OCC.farmer) + p.occupation(OCC.forager) + p.occupation(OCC.herder)) /
+      Math.max(1, n - p.occupation(OCC.dependent)),
+  });
+}
 
 /** The wares whose buying answers to income and price (machines follow the engines that want them, sim/economy/energy.ts). */
 export const BOUGHT_WARES = [G.tools, G.clothing, G.pottery] as const;

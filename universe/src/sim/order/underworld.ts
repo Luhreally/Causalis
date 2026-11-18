@@ -124,6 +124,7 @@ import {
 } from "../money/kept.ts";
 import { RISK } from "../money/intox.ts";
 import { idleOf } from "../trade/kept.ts";
+import { takingsOf } from "../trade/demand.ts";
 import {
   LAW_ROW,
   LAW_STORE,
@@ -516,17 +517,29 @@ function readRealm(ctx: PopulationContext, p: Polity, year: number): Read {
     fisc = moneyStore(world, TREASURY_STORE)?.get(p.ref),
     bar = moneyStore(world, BAR_STORE)?.get(p.ref),
     lore = loreOf(world),
-    m = marketsOf(world).get(p.seat),
+    markets = marketsOf(world),
+    m = markets.get(p.seat),
     life = ctx.life,
     edge = new Set<number>();
   let people = 0,
     young = 0,
-    street = 0;
+    street = 0,
+    sold = 0,
+    workers = 0,
+    handsIdle = 0;
   for (const c of p.members) {
     const prov = ctx.provinces.get(c);
     if (!prov) continue;
     const n = prov.total();
     people += n;
+    // (What passes this land's shops and stalls, by its last books: sim/trade/demand.ts takingsOf.)
+    const lm = n > 0 ? markets.get(c) : undefined;
+    workers += Math.max(0, n - prov.occupation(OCC.dependent));
+    if (lm) {
+      // (Its crafters' hands for the part of the year no one had use for their work: Market.craftsWorked.)
+      handsIdle += prov.occupation(OCC.crafter) * (1 - lm.craftsWorked / 1000);
+      sold += takingsOf(prov, lm);
+    }
     for (let b = 0; b < BANDS; b++)
       if (youngBand(life, b)) young += prov.counts.rowSum(row(MALE, b));
     street += n * streetOf(world, c);
@@ -558,8 +571,18 @@ function readRealm(ctx: PopulationContext, p: Polity, year: number): Read {
     people,
     young,
     veterans,
-    wage: Math.max(1, m ? Math.max(m.wage[OCC.crafter]!, m.wage[OCC.farmer]!) : 1),
-    trade: fisc ? fisc[FISC.base + 1]! / 2 : 0,
+    // (A working man's year: what a worker of its lands earns, the treasury's own reckoning of it, a living at the least. It
+    // was the worth of a full year at the seat's best craft, which is what a crafter earns only where all his year's work is
+    // wanted. Before the treasury has read its lands, the seat's wages.)
+    wage: Math.max(
+      1,
+      fisc && workers > 0
+        ? fisc[FISC.base + 3]! / workers
+        : m
+          ? Math.max(m.wage[OCC.crafter]!, m.wage[OCC.farmer]!)
+          : 1,
+    ),
+    trade: sold,
     earned: fisc ? fisc[FISC.base + 3]! : 0,
     revenue,
     capacity: capacityOf(ctx, p).value,
@@ -574,7 +597,9 @@ function readRealm(ctx: PopulationContext, p: Polity, year: number): Read {
     courts: law ? law[LAW_ROW.courts]! / 1000 : 0.3,
     writing: lore.effect(p.seat, "writing") > 0,
     justice: o?.laws[LAW_OF.justice] ?? 0,
-    idle: idleOf(world, p.ref),
+    // (Its hands with nothing to do: its crafts stood idle in a slump (sim/trade), and the hands of its crafts for whose work
+    // there was no use, of all who work. While every hand without work made tools no one wanted, none were idle but in a slump.)
+    idle: dmath.clamp(idleOf(world, p.ref) + (workers > 0 ? handsIdle / workers : 0), 0, 1),
     poor: fifth !== undefined ? dmath.clamp(1 - fifth / 1000 / 0.2, 0, 1) : 0.5,
     street: people > 0 ? street / people : 0,
     barred: (bar?.[BAR.barred] ?? 0) / 1000,
@@ -926,8 +951,7 @@ function stepRealm(
     }
   }
   v.want = per(want);
-  // (A cut of the takings of those who pay: what passes its shops and stalls, no more than its people spend of what they earn, nor
-  // than what its markets trade. The trade its markets book counts a good each time it moves, some three times what is spent.)
+  // (A cut of the takings of those who pay: what passes its shops and stalls, no more than what its people earn.)
   v.protectRent = Math.round(spent * UNDER.cut * want);
   v.banRent = Math.round(ban);
   v.tariffRent = Math.round(tariff);
@@ -2469,7 +2493,8 @@ export function potencyYear(ctx: PopulationContext, t: SimTime): void {
       // (What the cartel's lands can reach, or the seat's where none carries it.)
       at = cartel?.home ?? p.seat,
       knows = (id: string) => !!lore.get(at, id) || !!lore.get(p.seat, id),
-      wage = Math.max(1, marketsOf(world).get(p.seat)?.wage[OCC.crafter] ?? 1),
+      // (A man's own year of food at the least: a crafter's wage is what was earned of a year only part of which was wanted.)
+      wage = Math.max(12, marketsOf(world).get(p.seat)?.wage[OCC.crafter] ?? 1),
       canMake =
         (knows("cold-chemistry") || (knows("electrochemistry") && knows("medicine"))) &&
         !!cartel &&
