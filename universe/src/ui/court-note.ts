@@ -3,7 +3,13 @@ import { el } from "./why.ts";
 
 const LOOK_MS = 500;
 
-type Sitting = { readonly ref: string; readonly title: string; readonly line: string };
+type Sitting = {
+  readonly ref: string;
+  readonly title: string;
+  readonly line: string;
+  /** What leads its title (the court's scales, where none is given). */
+  readonly icon?: string;
+};
 
 export class CourtNote {
   readonly element = el("button", "sung-note court-note");
@@ -34,7 +40,7 @@ export class CourtNote {
     this.ref = s.ref;
     const head = el("b", "sung-head"),
       line = el("span", "sung-line");
-    head.textContent = `⚖️ ${s.title}`;
+    head.textContent = `${s.icon ?? "⚖️"} ${s.title}`;
     line.textContent = s.line;
     this.element.replaceChildren(head, line);
   }

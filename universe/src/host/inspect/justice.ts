@@ -2392,14 +2392,13 @@ export function courtIn(world: World, ref: string): { court?: TownCourt } {
   const year = yearNow(world),
     f = factsOf(world, s, year),
     sittings = [...casesOf(world, ref, year - 1), ...casesOf(world, ref, year)]
-      // (Those who stand in the town's day are its own: one its roster doesn't hold is told on the page, not drawn.)
-      .filter((c) => !c.accused.outside)
+      // (One its roster doesn't hold is stood for at the sitting by one drawn for them: host/inspect/townlife.ts.)
       .filter((c) => c.year === year || c.day + c.days >= year * DAYS_A_YEAR)
       .sort((x, y) => x.day - y.day)
       .map((c) => ({
         ref: c.ref,
         day: c.day,
-        accused: c.accused.ref,
+        accused: c.accused.outside ? `out:${c.accused.ref}` : c.accused.ref,
         who: c.accused.name,
         line: `${c.accused.name} ${c.whatWords}.`,
         sentence: c.sentence,

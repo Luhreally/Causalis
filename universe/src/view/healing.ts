@@ -82,7 +82,11 @@ function careOf(plan: VillagePlan, day: number): CareDay {
     far = (a: { x: number; z: number }, b: { x: number; z: number }) =>
       Math.hypot(a.x - b.x, a.z - b.z),
     free = (i: number) =>
-      !people[i]!.child && i !== healer && !scripts.has(i) && !hurtOn(plan, i, day);
+      !people[i]!.child &&
+      !people[i]!.outsider &&
+      i !== healer &&
+      !scripts.has(i) &&
+      !hurtOn(plan, i, day);
   // Each one abed today (as noon finds them), at home or at the hospital, and their wound.
   const abed: { i: number; w: Wound; where: "home" | "hospital" }[] = [];
   people.forEach((p, i) => {

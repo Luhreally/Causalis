@@ -25,7 +25,7 @@ import {
 } from "../ui/index.ts";
 import { enteredSeed, type EnterPlan, type Entered } from "../bridge/index.ts";
 import { CourtNote, SungNote } from "../ui/index.ts";
-import { courtSitting } from "../view/index.ts";
+import { GOING_ICON, courtSitting, goingsNow, villageSolids } from "../view/index.ts";
 import { PeopleBar, barPins, setWrittenHold, yearsWorld } from "../ui/index.ts";
 import { CornerRail } from "../ui/index.ts";
 import { closeLifeSheet, showLifeSheet, type LifeSheet } from "../ui/index.ts";
@@ -968,6 +968,7 @@ type Exposed = {
   court?: () => ReturnType<VillageScene["courtNow"]>;
   courtShown?: (on: boolean) => void;
   courtNote?: () => HTMLElement;
+  goingNote?: () => HTMLElement;
   sungNote?: () => HTMLElement;
   /** The song at the feast now (T1). */
   sung?: () => ReturnType<VillageScene["sungNow"]>;
@@ -7425,7 +7426,7 @@ async function runPlanetPage(): Promise<void> {
             ? `heal:${plan.ref}`
             : p.trade
               ? seatRef(plan.ref, p.trade.kind, p.trade.seat)
-              : p.ref,
+              : (p.page ?? p.ref),
         );
         return;
       }
@@ -7438,7 +7439,8 @@ async function runPlanetPage(): Promise<void> {
         village.workToday(i),
         // (Inspired or blessed where they are met, Phase 54: the hand laid on the town from them. A
         // people of another world's has no land under the hand: Phase 69.)
-        plan.native
+        // (Nor is one not of the town the hand's to touch there.)
+        plan.native || p.outsider
           ? undefined
           : {
               town: plan.ref,
@@ -7454,12 +7456,12 @@ async function runPlanetPage(): Promise<void> {
           ? `heal:${plan.ref}`
           : p.trade
             ? seatRef(plan.ref, p.trade.kind, p.trade.seat)
-            : p.ref,
+            : (p.page ?? p.ref),
         // (Their wounds as they are now: Phase 55 M226.)
         woundLines(p, now()),
       );
       // (Their family and body: Phase 55 wave 5.)
-      if (plan.native) return;
+      if (plan.native || p.outsider) return;
       void kinOnCard(
         p.healer
           ? `heal:${plan.ref}`
@@ -9550,9 +9552,23 @@ async function runPlanetPage(): Promise<void> {
         : p && pageWindow.current === p.ref
           ? pageWindow.liveMore
           : null;
+      // (The larger thing what they are at belongs to, a press from its page: a group, a family, the soldiers sent in.)
+      if (slot && m?.of) {
+        if (partOf.dataset.ref !== m.of.ref || partOf.parentElement !== slot) {
+          partOf.dataset.ref = m.of.ref;
+          partOf.textContent = `Part of: ${m.of.name} ›`;
+          slot.prepend(partOf);
+        }
+      } else if (partOf.parentElement) {
+        partOf.remove();
+        partOf.dataset.ref = "";
+      }
       if (slot && theirDay.element.parentElement !== slot) slot.append(theirDay.element);
       theirDay.show(slot ? theirs.lines : null, seen - day * DAY, `${plan.ref}|${watched}|${day}`);
-    } else theirDay.show(null, 0, "");
+    } else {
+      theirDay.show(null, 0, "");
+      if (partOf.parentElement) partOf.remove();
+    }
     // The years turn: re-read the plan, so those who died are gone.
     if (Math.floor(clock.t / YEAR) !== planYear) void loadPlan(plan.ref);
     if (signs) bubbles.update(village.bubbles());
@@ -9587,7 +9603,9 @@ async function runPlanetPage(): Promise<void> {
       return;
     }
     const names = new Map(
-      plan.people.map((p) => [plan!.homes[p.home]!.household, p.name.split(" ").at(-1)!]),
+      plan.people
+        .filter((p) => !p.outsider)
+        .map((p) => [plan!.homes[p.home]!.household, p.name.split(" ").at(-1)!]),
     );
     labels.update([
       ...hosts,
@@ -9724,6 +9742,12 @@ async function runPlanetPage(): Promise<void> {
   // A person's day told (Phase 45 M207): a line of it still to come, tapped, takes the clock on to
   // it, the eye kept on them.
   const theirDay = new DayTold();
+  // (What the one looked at is part of, pressed for its page: view/townlife.ts.)
+  const partOf = document.createElement("button");
+  partOf.className = "line now-of";
+  partOf.onclick = () => {
+    if (partOf.dataset.ref) void pageWindow.open(partOf.dataset.ref);
+  };
   let theirs: {
     plan: VillagePlan;
     i: number;
@@ -10680,6 +10704,44 @@ async function runPlanetPage(): Promise<void> {
       ),
   );
   exposed.courtNote = () => courtNote.element;
+  // What is going on in the town now that belongs to something larger (a meeting, a corner kept, bread given): the soonest
+  // to end, pressed to go to one of its people. Those that go on day and night (soldiers posted, a house guarded) are on
+  // the town's page, not here.
+  const goingNote = new CourtNote(
+    tidings.element,
+    (ref) => {
+      const i = Number(ref.slice(ref.lastIndexOf("|") + 1)),
+        m = plan && scale === "village" ? village.momentAt(i) : null;
+      if (!m) return;
+      selectPerson(i);
+      if (rig.enabled && !rig.follow)
+        rig.flyTo({
+          target: { x: m.x * VILLAGE_METRE, y: 0, z: m.z * VILLAGE_METRE },
+          distance: 9,
+        });
+    },
+    () => {
+      if (scale !== "village" || !plan?.goings || pageWindow.visible || events.open || !!time.lapse)
+        return null;
+      const g = goingsNow(plan, now(), villageSolids(plan)).find(
+        (x) => x.going.kind !== "posted" && x.going.kind !== "guard",
+      );
+      return g
+        ? {
+            ref: `${g.going.key}|${g.find}`,
+            icon: GOING_ICON[g.going.kind],
+            title: g.going.words,
+            line: `${g.going.why}. Press to go to it.`,
+          }
+        : null;
+    },
+    () =>
+      directorControls.watching ||
+      ["filming", "fleet-filming", "homing", "living", "possessing", "ruling", "paging"].some((c) =>
+        document.body.classList.contains(c),
+      ),
+  );
+  exposed.goingNote = () => goingNote.element;
   takeUp.push(() => runNote.fromNow());
   clusterPanel.under(directorControls.caption);
   // A colony's landing watched (Phase 64), and the list of the worlds settled that leads to it.

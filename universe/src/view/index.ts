@@ -1302,3 +1302,14 @@ export {
   type StreetFigure,
   type StreetScript,
 } from "./streetfight.ts";
+export {
+  GOING_ICON,
+  LIFE_HOURS,
+  goingHeld,
+  goingsNow,
+  goingsOn,
+  lifeParts,
+  type GoingOn,
+  type LifePart,
+  type LifeStay,
+} from "./townlife.ts";

@@ -57,6 +57,7 @@ import { landWords, meetHousehold, observer, settleAll, type WarFate } from "../
 import { personThings } from "./inspect/things.ts";
 import { memorialsOf, townSongs } from "./inspect/memory.ts";
 import { courtIn, namedByCases } from "./inspect/justice.ts";
+import { townLifeOf } from "./inspect/townlife.ts";
 import { fullName, herdPass, townWild } from "./inspect/herds.ts";
 import { envoyAtCourt } from "./inspect/ties.ts";
 import {
@@ -110,6 +111,25 @@ import { battleWords, townWarDead, warRests } from "./burials.ts";
 export const WATCHED_FAMILIES = 10;
 /** Under the hand, at most this many of the village's people are drawn (all of them live). */
 export const DRAWN_UNDER_HAND = 400;
+/**
+ * The most a town's goings add to those drawn (host/inspect/townlife.ts): of its own lines not drawn already, and of soldiers
+ * posted in it, by what the setting draws of its folk. A phone's frame is not given a second crowd; a going whose people are
+ * not drawn is told on the town's page and not seen.
+ */
+export const lifeExtras = (folk: number): { own: number; soldiers: number } => {
+  const drawn = folk > 0 ? folk : DRAWN_UNDER_HAND;
+  return {
+    own: Math.min(24, Math.max(6, Math.round(drawn * 0.12))),
+    soldiers: drawn < 100 ? 2 : drawn < 200 ? 4 : 6,
+  };
+};
+/** Those not of a town who stand in it, as many of its soldiers as the setting is given. */
+function outsidersFor(world: World, ref: Ref, year: number, folk: number) {
+  let soldiers = lifeExtras(folk).soldiers;
+  return townLifeOf(world, ref, year).outsiders.filter(
+    (p) => !p.page.startsWith("uop:") || soldiers-- > 0,
+  );
+}
 /** The crowd a town's folk are drawn to at High (render/quality.ts): from it up, the hand's 400. */
 export const HAND_FOLK_AT_HIGH = 220;
 /**
@@ -479,7 +499,12 @@ export function villagePlan(
     const most = folk > 0 && folk < HAND_FOLK_AT_HIGH ? folk : DRAWN_UNDER_HAND,
       every = Math.max(1, Math.ceil(hand.agents.length / most)),
       // (Whom a case names, always among them: J1.)
-      named = new Set(namedByCases(world, ref, now).named.map((p) => p.ref)),
+      named = new Set(
+        [
+          ...namedByCases(world, ref, now).named,
+          ...townLifeOf(world, ref, now).named.slice(0, lifeExtras(folk).own),
+        ].map((p) => p.ref),
+      ),
       held = new Set(hand.possessed?.local.bodies.map((b) => b.id) ?? []),
       // (One lived, those about them always drawn, their house under one roof: Lives L3.)
       house = hand.life
@@ -507,6 +532,7 @@ export function villagePlan(
           child: now - a.birthYear < lifeOf(world).adulthood,
         });
       });
+    if (homes.length) people.push(...outsidersFor(world, ref, now, folk));
     return planOf(people);
   }
   watched.forEach((hh, k) => {
@@ -660,13 +686,19 @@ export function villagePlan(
           a && !a.left && a.done > world.now ? a.crew.map((ref) => ({ ref })) : [],
         )
       : [];
-  if ((cases || crews.length) && homes.length) {
+  // And whoever is part of something going on in it (a group's meeting, a corner kept): the same people, found by their page.
+  const life = folk > 0 ? townLifeOf(world, ref, now) : null;
+  if ((cases || crews.length || life?.named.length) && homes.length) {
     const here = new Set(people.map((p) => p.ref)),
       roster = townRoster(world, ref, now),
       work = folkWork(world, v.cell),
       grown = lifeOf(world).adulthood;
-    for (const n of [...(cases?.named ?? []), ...crews]) {
+    const first = (cases?.named.length ?? 0) + crews.length;
+    let extra = lifeExtras(folk).own;
+    for (const [k, n] of [...(cases?.named ?? []), ...crews, ...(life?.named ?? [])].entries()) {
       if (here.has(n.ref)) continue;
+      // (Of those a going names who are not drawn already, as many as the setting is given.)
+      if (k >= first && extra-- <= 0) continue;
       here.add(n.ref);
       const m = /:(\d+):(\d+)$/.exec(n.ref),
         h = m ? roster.holderOf(Number(m[1]), Number(m[2])) : null;
@@ -691,6 +723,8 @@ export function villagePlan(
       });
     }
   }
+  // (Those not of it who stand in it: soldiers posted, one brought before its court from outside. Last, so no one's place moves.)
+  if (life && homes.length) people.push(...outsidersFor(world, ref, now, folk));
   return planOf(people);
 
   /**
@@ -1322,6 +1356,10 @@ export function villagePlan(
       rest: restOf(village.cell, village.population, village.founded),
       ...memoryIn(world, ref),
       ...courtIn(world, ref),
+      ...(() => {
+        const goings = townLifeOf(world, ref, now).goings;
+        return goings.length ? { goings } : {};
+      })(),
       // (One come from another seat, at its court: D1.)
       ...envoyAtCourt(world, ref as Ref),
       people,

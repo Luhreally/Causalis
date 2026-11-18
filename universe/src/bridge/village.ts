@@ -351,6 +351,49 @@ export type TownCourt = {
 };
 
 /** A song a town knows (T1): its page, what it is called, its first line, what it is of. */
+/**
+ * Something going on in a town that belongs to a larger thing its land's state keeps (a group that meets, a family that takes
+ * payment, a street's gang, a trade the realm bars, soldiers sent in): whose it is, who of the town's people are in it, and what
+ * each says of it. Read by the host from the world's kept rows for the town's land and year; never there where they hold nothing.
+ */
+export type TownGoingKind =
+  "meeting" | "alms" | "collect" | "corner" | "seller" | "posted" | "guard";
+export type TownGoing = {
+  readonly kind: TownGoingKind;
+  /** Its own key, the same year on year: its day and its place are drawn from it. */
+  readonly key: string;
+  /** The larger thing it belongs to: its page, and what it is called ("the Vorath family"). */
+  readonly of: { readonly ref: string; readonly name: string };
+  /** What it is, for the town's list ("The Vorath family takes payment from those who trade here"). */
+  readonly words: string;
+  /** What one of it says they are at ("Collecting for the Vorath family"). */
+  readonly doing: string;
+  /** What backs it, in the land's own numbers ("it has a third of this land's trade under its protection"). */
+  readonly why: string;
+  /** Who of the town is in it (their refs), each the same person year on year. */
+  readonly who: readonly string[];
+  /** Those it is done to (a collector's payers, those an alms is given), and what they say of it. */
+  readonly to?: readonly string[];
+  readonly toDoing?: string;
+  /** What the one set apart to look out says (a corner kept). */
+  readonly watch?: string;
+  /** Where: a member's home, the temple, the market's stalls, a back lane, a corner, the square, a house guarded. */
+  readonly where: "home" | "temple" | "granary" | "market" | "lane" | "corner" | "square" | "house";
+  /** Behind closed doors: those come to it go in and are not seen. */
+  readonly closed?: true;
+};
+
+/** Each kind's mark, where a line leads with one. */
+export const GOING_ICON: Readonly<Record<TownGoingKind, string>> = {
+  meeting: "🤝",
+  alms: "🍞",
+  collect: "💰",
+  corner: "🧍",
+  seller: "🌒",
+  posted: "🪖",
+  guard: "🚪",
+};
+
 export type TownSong = {
   readonly ref: string;
   readonly title: string;
@@ -474,6 +517,8 @@ export type VillagePlan = {
   readonly songs?: readonly TownSong[];
   /** Who judges there and whom they hear (J1; absent: no one lives there). */
   readonly court?: TownCourt;
+  /** What is going on in it that belongs to its land's groups, its underworld and its realm's bars (absent: nothing kept). */
+  readonly goings?: readonly TownGoing[];
   /** One come from another seat, at its court this year or last (D1). */
   readonly envoy?: {
     readonly ref: string;
@@ -530,6 +575,10 @@ export type VillagePlan = {
     figure?: string;
     /** When a strike of this year killed them (world seconds; Phase 55 M226): not seen from then. */
     gone?: number;
+    /** Not of the town (soldiers posted in it, one brought before its court from outside): seen only where a part puts them. */
+    outsider?: true;
+    /** The page that tells of them, where it is not their own (an outsider's: the soldiers', the group's, its head's). */
+    page?: string;
   }[];
   /**
    * How far past our ages its land has come (Phase 66; absent: not at all): the share of its folk of made

@@ -430,7 +430,7 @@ function rolesOn(plan: VillagePlan, day: number): ReadonlyMap<number, CourtRole>
     }
     const grown = plan.people
         .map((p, i) => ({ p, i }))
-        .filter(({ p, i }) => !p.child && !p.figure && !map.has(i)),
+        .filter(({ p, i }) => !p.child && !p.figure && !p.outsider && !map.has(i)),
       elders = [...grown].sort((a, b) => b.p.age - a.p.age || a.i - b.i),
       benches =
         court.form === "magistrate"
@@ -465,7 +465,10 @@ function rolesOn(plan: VillagePlan, day: number): ReadonlyMap<number, CourtRole>
     const seed = hashText(sit.ref),
       watching = plan.people
         .map((p, i) => ({ p, i }))
-        .filter(({ p, i }) => !p.figure && !map.has(i) && unitOf(seed, i, 3) < (hive ? 0.7 : 0.42))
+        .filter(
+          ({ p, i }) =>
+            !p.figure && !p.outsider && !map.has(i) && unitOf(seed, i, 3) < (hive ? 0.7 : 0.42),
+        )
         .slice(0, MOST_WATCHING);
     watching.forEach(({ i }, k) => {
       const row = Math.floor(k / 12),

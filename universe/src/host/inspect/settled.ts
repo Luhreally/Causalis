@@ -2,6 +2,7 @@
 // market, city, how it lives now, the families met there and what has happened there — a
 // household met, a person met (their life, family, moves, memories and character), a
 // memory, and one of the people under the god's hand.
+import { townGoingsBlock } from "./townlife.ts";
 import { cellRef } from "../../gen/index.ts";
 import { colonyTownCell } from "../colony.ts";
 import {
@@ -263,6 +264,9 @@ export function townPage(world: World, ref: string): PageModel {
         ? [{ type: "tool" as const, tool: "acts.place", args: { town: s.ref } }]
         : []),
     );
+    // (What is going on in it that belongs to its land's groups and its underworld: each a link, and someone to go to.)
+    const goings = s.population > 0 ? townGoingsBlock(world, s.ref) : null;
+    if (goings) blocks.splice(2, 0, goings);
     // (What it has been asked, H1: where a town's page opens.)
     const asked = askedTownBlock(world, s.ref);
     if (asked) blocks.unshift(asked);

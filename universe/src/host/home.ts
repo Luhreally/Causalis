@@ -143,7 +143,7 @@ function planRead(plan: VillagePlan): PlanRead {
     }
   }
   plan.people.forEach((p, i) => {
-    if (p.gone !== undefined) return;
+    if (p.gone !== undefined || p.outsider) return;
     const here = folkIn.get(p.home);
     if (here) here.push(i);
     else folkIn.set(p.home, [i]);

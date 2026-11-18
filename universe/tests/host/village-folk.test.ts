@@ -16,6 +16,7 @@ import { strikesOn } from "../../src/host/town.ts";
 import { FOLK_PER, healerOf } from "../../src/host/village.ts";
 import { namedByCases } from "../../src/host/inspect/justice.ts";
 import { townsfolkPage } from "../../src/host/inspect/townsfolk.ts";
+import { townLifeOf } from "../../src/host/inspect/townlife.ts";
 import {
   WAR_BURIAL,
   parseTownsfolkRef,
@@ -218,7 +219,7 @@ function noneDead(ref: string, plan: VillagePlan): number {
     refs = new Set(plan.people.map((p) => p.ref));
   let gone = 0;
   for (const p of plan.people) {
-    if (!p.folk) continue;
+    if (!p.folk || p.outsider) continue;
     const t = parseTownsfolkRef(p.ref)!;
     assert.equal(roster.holderOf(t.line, t.n!)?.died, null, `${p.ref} alive`);
   }
@@ -257,14 +258,16 @@ test("folk are the holders of the town's lines, named, aged and fated as its ros
       more = Math.min(480, Math.max(0, Math.ceil(s.population / FOLK_PER) - watched.length)),
       held: number[] = [];
     for (let k = 0; k < lines; k++) if (roster.holder(k) !== null) held.push(k);
-    const folk = plan.people.filter((p) => p.folk),
+    // (One not of the town who stands in it, a soldier posted or one brought before its court, holds none of its lines.)
+    const folk = plan.people.filter((p) => p.folk && !p.outsider),
       drawn = folk.map((p) => parseTownsfolkRef(p.ref)?.line ?? -1);
     // As many as the eye is given, the first of its lines that are held, in their order, but for
     // one a case sent away; and after them, whoever a case names that those don't reach (J1).
     const cases = namedByCases(world, ref, Y),
       here = held.filter((k) => !cases.away.has(roster.holder(k)!.ref)),
       first = here.slice(0, Math.min(more, here.length)),
-      inCase = new Set(cases.named.map((p) => p.ref));
+      // (Nor those who are part of something going on in it: host/inspect/townlife.ts.)
+      inCase = new Set([...cases.named, ...townLifeOf(world, ref, Y).named].map((p) => p.ref));
     assert.deepEqual(drawn.slice(0, first.length), first, `${ref} its first lines held`);
     for (const p of folk.slice(first.length))
       assert.ok(inCase.has(p.ref), `${ref} ${p.ref} past its share, and no case names them`);
@@ -335,7 +338,7 @@ test("a folk's card names the work their page does; its builders raise its build
   for (const [ref, plan] of plans) {
     const s = settlement(ref);
     for (const p of plan.people) {
-      if (!p.folk || p.trade || p.healer) continue;
+      if (!p.folk || p.outsider || p.trade || p.healer) continue;
       const page = townsfolkPage(world, p.ref),
         work = page.stats.find((x) => x.label === "Work")?.value.join("");
       assert.ok(work, `${p.ref} a page's work`);
@@ -379,7 +382,7 @@ test("a healer sits where its land knows herb-lore, and nowhere else", () => {
   let healers = 0;
   for (const [ref, plan] of plans) {
     const s = settlement(ref),
-      folk = plan.people.filter((p) => p.folk),
+      folk = plan.people.filter((p) => p.folk && !p.outsider),
       sat = folk.filter((p) => p.healer);
     if (!knowsHerbs(s.cell)) {
       assert.equal(sat.length, 0, `${ref} no healer`);

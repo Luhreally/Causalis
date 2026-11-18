@@ -4,6 +4,7 @@
 // ref alone (`lv:<battle>:<side>:<j>`). Read from the roster and the battle's record, never drawn, so
 // looking moves nothing; a line that stands empty or the town never had, a number that holds no one,
 // or a levy man out of his battle's places gives the router's unknown page, since these throw.
+import { partOfStats } from "./townlife.ts";
 import type { Ref, World } from "../../kernel/index.ts";
 import { parseTownsfolkRef, type Block, type PageModel, type Stat } from "../../bridge/index.ts";
 import { OCC } from "../../rules/index.ts";
@@ -128,6 +129,8 @@ export function townsfolkPage(world: World, ref: string): PageModel {
   const held = heldWords(world, s.ref, h.ref),
     law = lawBlock(world, s.ref, h.ref);
   if (held) rows.push(stat("Now", sentence(held)));
+  // What they are part of in their town (a group's meetings, a corner kept, a family's collecting), and what is done to them.
+  if (holds && !child) rows.push(...partOfStats(world, s.ref, h.ref));
   const blocks: Block[] = [{ type: "facts", rows }];
   if (law) blocks.push(law);
   if (h.fates.length)

@@ -488,6 +488,8 @@ export function hurtOn(plan: VillagePlan, index: number, day: number): boolean {
 /** Whether they go to their own work on a day (the town's errands): not kept from it by the levy or a wound still healing, nor on a crutch. A stump, a limp, an arm held stiff or a patch keeps no one from it. */
 export function fitOn(plan: VillagePlan, index: number, day: number): boolean {
   const p = plan.people[index];
+  // (One not of the town is at none of its work.)
+  if (p?.outsider) return false;
   if (!p || (!p.wounds?.length && !p.away?.length && p.gone === undefined)) return true;
   return woundDay(plan, index, day).kind === "whole" && !lookNow(p, day * DAY + 12 * HOUR).crutch;
 }

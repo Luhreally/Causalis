@@ -58,6 +58,7 @@ import {
 } from "./wounds.ts";
 import { careOn, type CareVisit } from "./healing.ts";
 import { hashText, unitOf } from "./draws.ts";
+import { lifeParts, type LifePart, type LifeStay } from "./townlife.ts";
 import { lifeTint } from "./biochem.ts";
 import { FLOCK_HANDS, herderAt, keepsFlock } from "./flock.ts";
 import type { TownTrade } from "../bridge/index.ts";
@@ -131,6 +132,8 @@ export const ACTIVITY = {
   abed: 11,
   /** Gone: killed where they were struck, not seen again (Phase 55 M226). */
   gone: 12,
+  /** Gone in behind closed doors with others (a lodge's meeting: view/townlife.ts): not seen. */
+  within: 13,
 } as const;
 export type Activity = (typeof ACTIVITY)[keyof typeof ACTIVITY];
 
@@ -148,6 +151,7 @@ export const ACTIVITY_WORDS: readonly string[] = [
   "away from the town",
   "abed with their wounds",
   "gone",
+  "indoors, behind closed doors",
 ];
 
 /**
@@ -230,6 +234,8 @@ export type Moment = {
   carry: Carry | null;
   /** What they are about, in words — the errand, and what it is for (Phase 39 M198); null, nothing to tell. */
   why: string | null;
+  /** The larger thing what they are about belongs to (a group, a family, the soldiers sent in): its page and what it is called. */
+  of?: { readonly ref: string; readonly name: string } | null;
 };
 
 const DAY = 86_400,
@@ -256,6 +262,8 @@ type Leg = {
   why: string | null;
   /** What it does to the stores as it ends. */
   effect: Effect | null;
+  /** The larger thing it belongs to (view/townlife.ts). */
+  of?: { readonly ref: string; readonly name: string };
 };
 
 /**
@@ -1007,6 +1015,7 @@ function fightsOn(plan: VillagePlan, day: number): ReadonlyMap<number, readonly 
       // (Nor one the court has that day, nor a trader out on the road: their day goes to that
       // first, and a bier would go on three shoulders.)
       !courtRole(plan, i, day) &&
+      !plan.people[i]!.outsider &&
       !onTrip(i),
     onTrip = (i: number) => {
       const p = plan.people[i]!;
@@ -2427,7 +2436,323 @@ function careDoor(
   return { ...door, face: Math.atan2(home.x - door.x, home.z - door.z) };
 }
 
+/** One's day as the town's work, its feasts, its court and its wounds lay it (before what its goings ask: view/townlife.ts). */
+const BASE = new WeakMap<VillagePlan, Map<string, Leg[]>>();
+function baseOf(plan: VillagePlan, index: number, day: number, fine: boolean): Leg[] {
+  let days = BASE.get(plan);
+  if (!days) BASE.set(plan, (days = new Map()));
+  const key = `${plan.people[index]!.ref}|${day}|${fine ? 1 : 0}`;
+  let legs = days.get(key);
+  if (!legs) {
+    if (days.size > 6000) days.clear();
+    days.set(key, (legs = dayBase(plan, index, day, fine)));
+  }
+  return legs;
+}
+
+/** Tasks no going takes one from: a fire fought, a funeral, the wounded tended and carried. */
+const HELD_TO: ReadonlySet<Task> = new Set<Task>([
+  "douse",
+  "pass",
+  "fill",
+  "mourn",
+  "bear",
+  "heal",
+  "carry",
+]);
+
+/**
+ * A day with what the town's goings ask of one laid into it (view/townlife.ts): they leave what they were at in time to be
+ * there, stay, and come back to their day where it has got to. One the court has that day, or who is away, abed or at a fire or
+ * a funeral then, keeps to that. One whom a thing is done to where they are (one who pays a collector) stays where their day
+ * has them, and says so.
+ */
+function withLife(
+  plan: VillagePlan,
+  index: number,
+  day: number,
+  base: Leg[],
+  parts: readonly LifePart[],
+): Leg[] {
+  if (courtRole(plan, index, day)) return base;
+  const ground = groundFor(plan),
+    pace = paceOf(plan.body) * woundPace(plan, index, day),
+    stays: { st: LifeStay; part: LifePart }[] = [];
+  for (const part of parts) for (const st of part.stays) stays.push({ st, part });
+  stays.sort((a, b) => a.st.from - b.st.from);
+  let legs = base,
+    done = 0,
+    said: string | null = null;
+  const busy = (from: number, to: number) =>
+    legs.some(
+      (l) =>
+        l.to > from &&
+        l.from < to &&
+        (l.activity === ACTIVITY.away ||
+          l.activity === ACTIVITY.abed ||
+          l.activity === ACTIVITY.gone ||
+          (l.task !== null && HELD_TO.has(l.task))),
+    );
+  for (const { st, part } of stays) {
+    if (st.from < done || st.to <= st.from || busy(st.from, st.to)) continue;
+    const of = part.going.of;
+    if (st.own) {
+      // Where they are: the stays of theirs within it say what is done there (a walk through it does not).
+      const mid = cutLegs(legs, st.from, st.to);
+      if (
+        mid.some((l) => !l.next && l.activity !== ACTIVITY.asleep && l.activity !== ACTIVITY.home)
+      )
+        legs = [
+          ...cutLegs(legs, 0, st.from),
+          ...mid.map((l) => (l.next ? l : { ...l, why: st.why, of })),
+          ...cutLegs(legs, st.to, DAY),
+        ];
+      continue;
+    }
+    let target: Point | null = st.at ?? null;
+    if (st.by !== undefined) {
+      // Beside one of the town, where their own day has them then: not one out of sight, nor on their way.
+      const theirs = baseOf(plan, st.by, day, true),
+        l = legAt(theirs, st.from);
+      if (
+        l.next ||
+        l.activity === ACTIVITY.asleep ||
+        l.activity === ACTIVITY.home ||
+        l.activity === ACTIVITY.away ||
+        l.activity === ACTIVITY.abed ||
+        l.activity === ACTIVITY.gone
+      )
+        continue;
+      const a = unit(hashString(`${plan.people[index]!.ref}|${st.by}`)) * 2 * Math.PI;
+      target = { x: l.at.x + 2.3 * Math.cos(a), z: l.at.z + 2.3 * Math.sin(a) };
+    }
+    if (!target) continue;
+    const spot = clearSpot(ground, target),
+      // (Set off in time to be there: from where their day has them a walk before.)
+      near = whereAt(legs, st.from),
+      guess = Math.max(done, st.from - (Math.hypot(spot.x - near.x, spot.z - near.z) * 1.4) / pace),
+      first = route(ground, whereAt(legs, guess), spot, PERSON_REACH),
+      leave = Math.max(done, Math.min(guess, st.from - lengthOf(first) / pace)),
+      out: Leg[] = cutLegs(legs, 0, leave);
+    let t = leave;
+    const walk = (path: readonly Point[], why: string | null, carry: Carry | null) => {
+      for (let k = 0; k + 1 < path.length; k++) {
+        const a = path[k]!,
+          b = path[k + 1]!,
+          to = t + walkTime(a, b, pace);
+        out.push({
+          from: t,
+          to,
+          at: a,
+          next: b,
+          activity: ACTIVITY.walking,
+          carry,
+          task: null,
+          face: null,
+          why,
+          effect: null,
+          ...(why ? { of } : {}),
+        });
+        t = to;
+      }
+    };
+    walk(route(ground, whereAt(legs, leave), spot, PERSON_REACH), st.why, st.carry);
+    const until = Math.max(t + 60, st.to);
+    out.push({
+      from: t,
+      to: until,
+      at: spot,
+      next: null,
+      activity: st.within
+        ? ACTIVITY.within
+        : st.task === "load"
+          ? ACTIVITY.working
+          : ACTIVITY.gathering,
+      carry: st.carry,
+      task: st.task,
+      face:
+        st.by !== undefined ? Math.atan2(target.x - spot.x, target.z - spot.z) : (st.face ?? null),
+      why: st.why,
+      effect: null,
+      of,
+    });
+    t = until;
+    done = until;
+    if (part.of) said = part.going.doing;
+    // Back to their day where it has got to by the time they are there.
+    if (t < DAY - 60) {
+      const back = whereAt(
+        legs,
+        Math.min(DAY - 1, t + Math.hypot(spot.x - near.x, spot.z - near.z) / pace),
+      );
+      walk(route(ground, spot, back, PERSON_REACH), null, null);
+      if (t < DAY) out.push(...cutLegs(legs, t, DAY));
+    }
+    const last = out[out.length - 1]!;
+    if (last.to < DAY)
+      out.push({ ...last, from: last.to, to: DAY, at: last.next ?? last.at, next: null });
+    legs = out;
+  }
+  if (legs === base) return base;
+  const was = TOLD.get(base)?.words ?? null,
+    add: string | null = said;
+  TOLD.set(legs, {
+    words: add ? `${was ? `${was}; ` : ""}${add[0]!.toLowerCase()}${add.slice(1)}` : was,
+  });
+  return legs;
+}
+
+/**
+ * The day of one not of the town (bridge: `outsider`): seen only where a part puts them. A soldier posted keeps their posts the
+ * day and the night through; one brought before its court from outside is led in by the road for the sitting, stands where the
+ * accused stands, and goes where it sends them; any other day they are not in the town.
+ */
+function outsiderDay(plan: VillagePlan, index: number, day: number, fine: boolean): Leg[] {
+  const legs: Leg[] = [],
+    ground = groundFor(plan),
+    pace = paceOf(plan.body),
+    edge = roadEdge(plan),
+    told: { words: string | null } = { words: null };
+  TOLD.set(legs, told);
+  const stay = (
+      from: number,
+      to: number,
+      at: Point,
+      activity: Activity,
+      why: string | null,
+      face: number | null = null,
+      task: Task | null = null,
+      carry: Carry | null = null,
+      of?: Leg["of"],
+    ) => {
+      if (to > from)
+        legs.push({
+          from,
+          to,
+          at,
+          next: null,
+          activity,
+          carry,
+          task,
+          face,
+          why,
+          effect: null,
+          ...(of ? { of } : {}),
+        });
+    },
+    go = (
+      from: number,
+      a: Point,
+      b: Point,
+      why: string | null,
+      carry: Carry | null = null,
+      of?: Leg["of"],
+    ) => {
+      let t = from;
+      const way = fine ? route(ground, a, b, PERSON_REACH) : [a, b];
+      for (let k = 0; k + 1 < way.length; k++) {
+        const to = t + walkTime(way[k]!, way[k + 1]!, pace);
+        legs.push({
+          from: t,
+          to,
+          at: way[k]!,
+          next: way[k + 1]!,
+          activity: ACTIVITY.walking,
+          carry,
+          task: null,
+          face: null,
+          why,
+          effect: null,
+          ...(of ? { of } : {}),
+        });
+        t = to;
+      }
+      return t;
+    },
+    away = (from: number, to = DAY) => stay(from, to, edge, ACTIVITY.away, "Not in the town");
+  const c = fine ? courtRole(plan, index, day) : null;
+  if (c) {
+    told.words = c.why.toLowerCase();
+    if (c.kind === "gone") away(0);
+    else if (c.kind === "held") stay(0, DAY, c.at, ACTIVITY.gathering, c.why, c.face);
+    else if (c.kind === "labour") {
+      away(0, 7 * HOUR);
+      const t = go(7 * HOUR, edge, c.at, c.why),
+        stop = Math.max(t, 18 * HOUR);
+      stay(t, stop, c.at, ACTIVITY.working, c.why, null, null, "sack");
+      away(go(stop, c.at, edge, "Led away from the court's labour"));
+    } else {
+      // Led in by the road in time to stand there as it gathers.
+      const spot = clearSpot(ground, c.at),
+        start = Math.max(
+          0,
+          COURT_HOURS.gather * HOUR - lengthOf(route(ground, edge, spot, PERSON_REACH)) / pace,
+        );
+      away(0, start);
+      const there = go(
+          start,
+          edge,
+          spot,
+          "Brought in from outside the town, to stand before its court",
+        ),
+        over = Math.max(there, COURT_HOURS.close * HOUR);
+      stay(there, over, spot, ACTIVITY.gathering, c.why, c.face);
+      const then = c.kind === "accused" ? c.thenAt : null,
+        sent = c.kind === "accused" ? c.then : null,
+        face = c.kind === "accused" ? c.thenFace : null;
+      if (then && (sent === "stocks" || sent === "cell")) {
+        const t = go(over, spot, then, "Led from the court to where it holds them");
+        stay(t, DAY, then, ACTIVITY.gathering, "Held by the court", face);
+      } else if (then && sent === "fine") {
+        const t = go(over, spot, then, "To pay what the court asks"),
+          paid = t + 0.3 * HOUR;
+        stay(t, paid, then, ACTIVITY.gathering, "Paying what the court asks", face);
+        away(go(paid, then, edge, "Out of the town, the court done with them"));
+      } else away(go(over, spot, edge, "Out of the town, the court done with them"));
+    }
+  } else {
+    const part = fine ? lifeParts(plan, index, day, ground).find((x) => x.whole) : undefined;
+    if (part) {
+      told.words = part.going.doing[0]!.toLowerCase() + part.going.doing.slice(1);
+      let at: Point | null = null,
+        t = 0;
+      for (const st of part.stays) {
+        if (!st.at) continue;
+        const spot = clearSpot(ground, st.at);
+        if (at && (at.x !== spot.x || at.z !== spot.z))
+          t = go(Math.max(t, st.from), at, spot, st.why, st.carry, part.going.of);
+        stay(
+          Math.max(t, st.from),
+          st.to,
+          spot,
+          ACTIVITY.gathering,
+          st.why,
+          st.face ?? null,
+          st.task,
+          st.carry,
+          part.going.of,
+        );
+        t = Math.max(t, st.to);
+        at = spot;
+      }
+    }
+    if (!legs.length) away(0);
+  }
+  const last = legs[legs.length - 1]!;
+  if (last.to < DAY)
+    legs.push({ ...last, from: last.to, to: DAY, at: last.next ?? last.at, next: null });
+  return legs;
+}
+
 function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Leg[] {
+  if (plan.people[index]!.outsider) return outsiderDay(plan, index, day, fine);
+  const base = baseOf(plan, index, day, fine);
+  if (!fine || !plan.goings?.length) return base;
+  const parts = lifeParts(plan, index, day, groundFor(plan));
+  return parts.length ? withLife(plan, index, day, base, parts) : base;
+}
+
+function dayBase(plan: VillagePlan, index: number, day: number, fine: boolean): Leg[] {
   const pace = paceOf(plan.body);
   // (Their own walk, as a wound slows it — on a crutch, a leg lost, a limp, a wound bound: Phase
   // 55 M226; walking in step with others, theirs.)
@@ -4940,7 +5265,8 @@ function momentIn(
       activity === ACTIVITY.sheltering ||
       activity === ACTIVITY.away ||
       activity === ACTIVITY.abed ||
-      activity === ACTIVITY.gone,
+      activity === ACTIVITY.gone ||
+      activity === ACTIVITY.within,
     carry: sheltering ? null : leg.carry,
     hunger: Math.max(0, Math.min(1, (s - fed) / ((lean ? 4.5 : 7) * HOUR))),
     tiredness:
@@ -4950,6 +5276,7 @@ function momentIn(
         ? "Indoors while the battle is fought before the town"
         : "In out of the downpour"
       : leg.why,
+    of: sheltering ? null : (leg.of ?? null),
   };
 }
 

@@ -1,0 +1,289 @@
+// A town's goings as its day shows them (view/townlife.ts, laid into each one's day by view/village.ts): pure, and nothing where
+// the plan names nothing. A village of forty about its square, given by hand a circle that meets, a lodge behind closed doors, a
+// corner kept, a collector and two who pay, and a soldier posted who is not of it.
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import type { TownGoing, VillageLife, VillagePlan } from "../../src/bridge/index.ts";
+import {
+  LIFE_HOURS,
+  goingHeld,
+  goingsNow,
+  goingsOn,
+  lifeParts,
+  momentOf,
+  restDay,
+  villageSolids,
+  workTold,
+} from "../../src/view/index.ts";
+import { OCC } from "../../src/rules/index.ts";
+
+const DAY = 86_400,
+  HOUR = 3_600;
+
+function village(goings: readonly TownGoing[], soldier = false): VillagePlan {
+  const life: VillageLife = {
+    fed: 1,
+    growing: false,
+    war: false,
+    unrest: 0,
+    faith: null,
+    talk: ["weather", "food", "gossip"],
+    site: null,
+    mourning: [],
+    newborn: [],
+    feasts: [],
+  };
+  const homes = Array.from({ length: 10 }, (_, k) => {
+    const a = k * 2.399963,
+      r = 16 + 8.5 * Math.sqrt(k);
+    return { x: r * Math.cos(a), z: r * Math.sin(a), yaw: a, household: `hhold:0:${k}` };
+  });
+  const people: VillagePlan["people"][number][] = Array.from({ length: 40 }, (_, i) => ({
+    ref: `prsn:0:${i}`,
+    name: `P${i} Test`,
+    home: i % 10,
+    age: i % 8 === 7 ? 9 : i % 8 === 6 ? 70 : 18 + ((i * 7) % 24),
+    occupation:
+      i % 8 === 7 ? OCC.dependent : i % 8 === 5 ? OCC.trader : i % 2 ? OCC.crafter : OCC.farmer,
+    child: i % 8 === 7,
+  }));
+  if (soldier)
+    people.push({
+      ref: "out:uop:x:0",
+      page: "uop:x",
+      name: "A soldier of Testland",
+      home: 0,
+      age: 24,
+      occupation: OCC.dependent,
+      child: false,
+      folk: true,
+      outsider: true,
+    });
+  return {
+    ref: "town:0:9",
+    name: "Lifeford",
+    population: 200,
+    market: false,
+    hand: false,
+    districts: null,
+    biome: 8,
+    seed: 3,
+    homes,
+    fields: [
+      { x: 160, z: 0, w: 40, d: 25, yaw: 0 },
+      { x: 150, z: 60, w: 40, d: 25, yaw: 0.2 },
+    ],
+    pasture: { x: -300, z: 0, r: 90 },
+    wild: 400,
+    water: { x: 0, z: -700 },
+    house: { walls: "wattle", roof: "thatch", form: "round", pitch: 45, design: null },
+    body: null,
+    road: { x: 0, z: 1100 },
+    people,
+    life,
+    ...(goings.length ? { goings } : {}),
+  };
+}
+
+const circle: TownGoing = {
+    kind: "meeting",
+    key: "org:circle|town:0:9",
+    of: { ref: "org:circle", name: "the Voto lending circle" },
+    words: "The Voto lending circle holds its meeting",
+    doing: "At the meeting of the Voto lending circle",
+    why: "223 members",
+    who: ["prsn:0:0", "prsn:0:1", "prsn:0:2", "prsn:0:3"],
+    where: "home",
+  },
+  lodge: TownGoing = {
+    kind: "meeting",
+    key: "org:lodge|town:0:9",
+    of: { ref: "org:lodge", name: "the Luthon lodge" },
+    words: "The Luthon lodge meets behind closed doors",
+    doing: "Gone in to the meeting of the Luthon lodge, behind closed doors",
+    why: "303 members",
+    who: ["prsn:0:8", "prsn:0:9", "prsn:0:10"],
+    where: "home",
+    closed: true,
+  },
+  corner: TownGoing = {
+    kind: "corner",
+    key: "pol:1|town:0:9|corner",
+    of: { ref: "gfed:1", name: "the Ash federation" },
+    words: "A corner is held by a gang of the Ash federation",
+    doing: "Keeping a corner with a gang of the Ash federation",
+    watch: "On watch down the street for a gang of the Ash federation",
+    why: "five small gangs",
+    who: ["prsn:0:16", "prsn:0:17", "prsn:0:18", "prsn:0:19"],
+    where: "corner",
+  },
+  collect: TownGoing = {
+    kind: "collect",
+    key: "mob:1|town:0:9|collect",
+    of: { ref: "mob:1", name: "the Varro family" },
+    words: "The Varro family takes payment from those who trade here",
+    doing: "Collecting for the Varro family, from those who pay it to be left to trade",
+    toDoing: "Paying the Varro family's collector what is asked, to be left to trade",
+    why: "20% of this land's trade is under its protection",
+    who: ["prsn:0:24"],
+    to: ["prsn:0:25", "prsn:0:27", "prsn:0:33"],
+    where: "market",
+  },
+  posted: TownGoing = {
+    kind: "posted",
+    key: "uop:x|town:0:9",
+    of: { ref: "uop:x", name: "the soldiers sent against the Varro family" },
+    words: "Soldiers are posted in its streets",
+    doing:
+      "Posted in the streets: one of 600 soldiers sent into this land against the Varro family",
+    why: "600 sent",
+    who: ["out:uop:x:0"],
+    where: "square",
+  };
+
+const all = [circle, lodge, corner, collect, posted],
+  quiet = village([]),
+  busy = village(all, true),
+  ground = villageSolids(busy),
+  index = (ref: string) => busy.people.findIndex((p) => p.ref === ref),
+  /** The first working day from 30 a going is held on. */
+  dayOf = (g: TownGoing) => {
+    for (let d = 30; d < 60; d++) if (goingHeld(busy, g, d) && !restDay(busy, d)) return d;
+    throw new Error(`never held: ${g.key}`);
+  };
+
+test("a quiet village has none: no part for anyone, nothing on, no one's day says whose it is", () => {
+  for (let d = 30; d < 37; d++) {
+    assert.equal(goingsOn(quiet, d, villageSolids(quiet)).length, 0);
+    quiet.people.forEach((_, i) => {
+      assert.equal(lifeParts(quiet, i, d, villageSolids(quiet)).length, 0);
+      for (const h of [9, 12, 16, 19, 20.5])
+        assert.ok(!momentOf(quiet, i, d * DAY + h * HOUR).of, `P${i} day ${d} at ${h}`);
+    });
+  }
+});
+
+test("those a going does not name are where they would be without it, to the metre", () => {
+  const named = new Set(all.flatMap((g) => [...g.who, ...(g.to ?? [])]));
+  for (let d = 30; d < 37; d++)
+    quiet.people.forEach((p, i) => {
+      if (named.has(p.ref)) return;
+      for (const h of [7, 9.5, 12, 15.5, 18.5, 19.5, 20.5, 22]) {
+        const a = momentOf(quiet, i, d * DAY + h * HOUR),
+          b = momentOf(busy, i, d * DAY + h * HOUR);
+        assert.deepEqual(
+          [b.x, b.z, b.activity, b.why],
+          [a.x, a.z, a.activity, a.why],
+          `${p.ref} day ${d} at ${h}`,
+        );
+      }
+    });
+});
+
+test("a circle meets one day in seven of an evening: its members together, each saying whose meeting it is", () => {
+  const d = dayOf(circle),
+    held = [0, 1, 2, 3, 4, 5, 6].filter((k) => goingHeld(busy, circle, d + k));
+  assert.deepEqual(held, [0], "one day in seven");
+  const t = d * DAY + (LIFE_HOURS.meeting[0] + 1) * HOUR,
+    at = circle.who.map((ref) => momentOf(busy, index(ref), t));
+  for (const m of at) {
+    assert.equal(m.why, circle.doing);
+    assert.deepEqual(m.of, circle.of);
+    assert.equal(m.hidden, false);
+  }
+  for (const m of at)
+    assert.ok(Math.hypot(m.x - at[0]!.x, m.z - at[0]!.z) < 9, "gathered in one place");
+  // Before it, and the day after, their day is their own.
+  for (const ref of circle.who) {
+    assert.ok(!momentOf(busy, index(ref), d * DAY + 10 * HOUR).of);
+    assert.ok(!momentOf(busy, index(ref), (d + 1) * DAY + 19 * HOUR).of);
+  }
+  assert.match(
+    workTold(busy, index(circle.who[0]!), d) ?? "",
+    /at the meeting of the Voto lending circle$/,
+  );
+  assert.equal(
+    goingsNow(busy, t, ground).some((g) => g.going === circle),
+    true,
+  );
+});
+
+test("a lodge's people go in behind closed doors: not seen, and saying so", () => {
+  const d = dayOf(lodge),
+    t = d * DAY + (LIFE_HOURS.closed[0] + 1.2) * HOUR;
+  for (const ref of lodge.who) {
+    const m = momentOf(busy, index(ref), t);
+    assert.equal(m.hidden, true, ref);
+    assert.match(m.why ?? "", /behind closed doors/);
+    assert.deepEqual(m.of, lodge.of);
+  }
+});
+
+test("a corner is kept from mid-afternoon until dark, one set apart on watch", () => {
+  const d = dayOf(corner),
+    t = d * DAY + 18 * HOUR,
+    at = corner.who.map((ref) => momentOf(busy, index(ref), t));
+  assert.equal(at[0]!.why, corner.watch);
+  for (const m of at.slice(1)) assert.equal(m.why, corner.doing);
+  const knot = at.slice(1);
+  for (const m of knot) assert.ok(Math.hypot(m.x - knot[0]!.x, m.z - knot[0]!.z) < 8);
+  assert.ok(
+    Math.hypot(at[0]!.x - knot[0]!.x, at[0]!.z - knot[0]!.z) > 5,
+    "the lookout stands apart",
+  );
+  for (const ref of corner.who) assert.ok(!momentOf(busy, index(ref), d * DAY + 10 * HOUR).of);
+});
+
+test("a collector goes to each who pays where their own day has them; the one who pays stays there and says what it is", () => {
+  const d = dayOf(collect),
+    i = index(collect.who[0]!),
+    part = lifeParts(busy, i, d, ground)[0]!;
+  assert.equal(part.stays.length, collect.to!.length);
+  let met = 0;
+  for (const st of part.stays) {
+    const j = st.by!,
+      t = d * DAY + st.to - 60,
+      payer = momentOf(busy, j, t),
+      theirs = momentOf(quiet, j, t),
+      mine = momentOf(busy, i, t);
+    // (One who is at home or on their way then is not called on.)
+    if (payer.why !== collect.toDoing) continue;
+    met++;
+    assert.deepEqual(
+      [payer.x, payer.z],
+      [theirs.x, theirs.z],
+      "the payer is where their day has them",
+    );
+    assert.deepEqual(payer.of, collect.of);
+    assert.equal(mine.why, collect.doing);
+    assert.ok(Math.hypot(mine.x - payer.x, mine.z - payer.z) < 8, "the collector stands by them");
+  }
+  assert.ok(met >= 1, "at least one who pays is called on");
+});
+
+test("a soldier posted is seen at a post day and night; the same one with nothing asked of them is not in the town", () => {
+  const i = index("out:uop:x:0");
+  for (const h of [2, 9, 15, 22]) {
+    const m = momentOf(busy, i, 31 * DAY + h * HOUR);
+    assert.equal(m.hidden, false);
+    assert.match(m.why ?? "", /^Posted in the streets/);
+    assert.deepEqual(m.of, posted.of);
+  }
+  const idle = village([circle], true),
+    m = momentOf(idle, idle.people.length - 1, 31 * DAY + 12 * HOUR);
+  assert.equal(m.hidden, true);
+  // And no work of the town's is theirs.
+  assert.equal(workTold(idle, idle.people.length - 1, 31), null);
+});
+
+test("the same plan and day lay the same parts", () => {
+  const again = village(all, true);
+  for (const g of all) {
+    const d = dayOf(g);
+    for (const ref of g.who) {
+      const a = momentOf(busy, index(ref), d * DAY + 19.3 * HOUR),
+        b = momentOf(again, index(ref), d * DAY + 19.3 * HOUR);
+      assert.deepEqual([a.x, a.z, a.why], [b.x, b.z, b.why]);
+    }
+  }
+});
