@@ -46,7 +46,7 @@ import { isFightEvent, lastFights, streetFightOf, watchFightTool } from "./stree
 import { fedRef, groupRef, opRef } from "../underworld.ts";
 import { orgRef } from "../groups.ts";
 import { AIM_WORDS } from "./groups.ts";
-import { kindLine, potencyWords, racketsOf } from "./mobs.ts";
+import { goneWords, kindLine, potencyWords, racketsOf } from "./mobs.ts";
 import { townWrong } from "./justice.ts";
 import { realmLink } from "./names.ts";
 import { claimOf, count, item, link, many, part, stat, yearAt, yearNow } from "./words.ts";
@@ -261,6 +261,26 @@ export function landUnderworldBlocks(world: World, cell: number): Block[] {
       }),
     });
   }
+  // Those whose home it was and whose hold has ended: who held it before, and who took them or put them down.
+  const before = (under?.gone ?? []).filter((g) => world.events.get(g.event)?.place === prov.ref);
+  if (before.length && living)
+    blocks.push({
+      type: "list",
+      title: "Those whose home it was",
+      items: [...before]
+        .reverse()
+        .map((g) =>
+          item(
+            [
+              `Year ${g.year}: `,
+              link(cap(groupWords(g.name, GROUP_KINDS[g.kind])), groupRef(living.ref, g.rose)),
+              ` (since ${g.since}), ${goneWords(g)}`,
+            ],
+            g.event,
+            g.year,
+          ),
+        ),
+    });
   // Who carries each ware its realm's borders let through unseen, here (carriers.ts).
   if (living) blocks.push(...carryBlocks(world, living, cell));
   // The soldiers its realm has sent against the groups here (the underworld's operations).

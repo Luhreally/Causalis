@@ -197,7 +197,7 @@ const RULES: Readonly<Record<string, readonly [number, number]>> = {
   "underworld.badge": [PEOPLE, 3],
   "underworld.split": [PEOPLE, 2],
   "underworld.war": [WARS, 3],
-  "underworld.pax": [PEOPLE, 2],
+  "underworld.pax": [WARS, 3],
   "underworld.decapitated": [PEOPLE, 3],
   "underworld.boss": [PEOPLE, 0],
   "underworld.crackdown": [PEOPLE, 2],
@@ -363,9 +363,22 @@ const DOMAINS: Readonly<Record<string, number>> = {
 export function ruleOf(e: HistoryEvent): readonly [number, number] {
   // (What the world did by itself goes in by how great it was: N1.)
   if ((e.data as { natural?: boolean } | null)?.natural) return [SORROWS, e.importance - 1];
+  // (A group's end that ended a war of its road, or that its realm's soldiers made, is told beside that war's beginning.)
+  if (e.type === "underworld.ended" && groupEnd(e)) return [WARS, 3];
   return (
     RULES[e.type] ?? [DOMAINS[e.type.slice(0, e.type.indexOf("."))] ?? PEOPLE, e.importance - 2]
   );
+}
+
+/**
+ * How a crime group's end is told among a year's wars ("": not there, as one withered or taken into another is not): taken
+ * over in a war it lost, put down by its realm's soldiers, or ended while at war with another of its road (asked 2026-11-17:
+ * "i never see one taking over the other or being put down by government": a group's end was worth 1, under what any filter
+ * of the years shows, whatever ended it).
+ */
+function groupEnd(e: HistoryEvent): "" | "taken over" | "put down" | "at war" {
+  const x = e.data as { how?: string; foe?: string } | null;
+  return x?.how === "taken over" || x?.how === "put down" ? x.how : x?.foe ? "at war" : "";
 }
 
 /** How many of a thing, said: "three", up to twelve. */
@@ -988,6 +1001,80 @@ function tellYear(world: World, year: number, events: readonly HistoryEvent[], w
       key: `${e.type}:${e.id}`,
       say: () => lineOf(world, e, year),
     });
+  // How the underworld's wars and its groups ended in the year, on ONE line: led by a group taken over in a war it lost, else
+  // one put down by its realm's soldiers, else one that laid down its arms, a peace, one ended while at war; and how many of
+  // each besides. A line a kind (four at 1,500: a takeover, a put-down, arms laid down, a peace) left a year's four lines
+  // of wars to whichever came first: looked at on first light at 1,530, 24 years showed five takeovers and none of the others.
+  const ends = new Map<string, HistoryEvent[]>([
+      ["taken over", []],
+      ["put down", []],
+      ["disarmed", take("underworld.disarmed")],
+      ["peace", take("underworld.pax")],
+      ["at war", []],
+      ["", []],
+    ]),
+    greatest = (list: readonly HistoryEvent[]) =>
+      list.reduce((a, b) => (b.importance > a.importance ? b : a));
+  for (const e of take("underworld.ended")) ends.get(groupEnd(e))!.push(e);
+  const untold = ends.get("")!,
+    lead = [...ends].find(([how, list]) => how && list.length);
+  if (lead) {
+    const best = greatest(lead[1]),
+      left = (how: string) => ends.get(how)!.length - (how === lead[0] ? 1 : 0),
+      also = (how: string, one: string, more: string, did: (n: number) => string): string[] => {
+        const n = left(how),
+          again = how === lead[0] ? "more " : "";
+        return n ? [`${told(n, `${again}${one}`, `${again}${more}`)} ${did(n)}`] : [];
+      },
+      parts = [
+        ...also(
+          "taken over",
+          "group",
+          "groups",
+          (n) => `lost a war and ${n === 1 ? "was" : "were"} taken over`,
+        ),
+        ...also(
+          "put down",
+          "group",
+          "groups",
+          (n) => `${n === 1 ? "was" : "were"} put down by soldiers`,
+        ),
+        ...also(
+          "disarmed",
+          "group",
+          "groups",
+          (n) => `laid down ${n === 1 ? "its" : "their"} arms`,
+        ),
+        ...also("peace", "war", "wars", () => "among groups ended in a peace"),
+        ...also(
+          "at war",
+          "group",
+          "groups",
+          (n) => `at war ${n === 1 ? "was" : "were"} broken or withered`,
+        ),
+      ];
+    add({
+      kind: WARS,
+      worth: 3,
+      ref: best.id,
+      key: "underworld.ends",
+      say: () => lineOf(world, best, year, parts.length ? `; ${parts.join(", ")}` : ""),
+    });
+  }
+  // (A group withered or taken into another with no war: one kind, as before.)
+  if (untold.length) {
+    const best = greatest(untold),
+      [kind, worth] = ruleOf(best),
+      more = untold.length - 1;
+    add({
+      kind,
+      worth,
+      ref: best.id,
+      key: "underworld.ended",
+      say: () =>
+        lineOf(world, best, year, more ? `, and ${told(more, "more", "more")} like it` : ""),
+    });
+  }
   // A rising crushed the year it rose: the crushing says it rose.
   if (types.has("order.crushed")) types.delete("order.revolt");
   // The rest: one line a kind, its greatest, and how many more.

@@ -641,3 +641,249 @@ test("protection is wanted land by land: where the seat's courts reach and are t
     assert.ok(protectionWantedIn({ ...held, ...worse }) > well * 1.5, JSON.stringify(worse));
   assert.equal(protectionWantedIn({ ...held, secure: 1, deals: 1, illegal: 0.2 }), 0.2);
 });
+
+// —— How a road's war ends, and a group put down ————————————————————————————————————————————————————————
+
+/**
+ * A realm forced as `forced` forces one, with two protection families written into its record: the first with `men[0]` men and
+ * `weight[0]` of their road's weight, the second likewise, both on the first's lands, at war since `since` years before the
+ * realm's next turn (null: the first alone, and no war). Returns the realm, its turn's year, the two, their war's event and the event the second rose by.
+ */
+function atWar(
+  world: World,
+  men: readonly [number, number],
+  weight: readonly [number, number],
+  since: number | null,
+): {
+  realm: Ref;
+  year: number;
+  a: number;
+  b: number;
+  names: [string, string];
+  war: Ref;
+  rose: Ref;
+} {
+  const { realm } = forced(world),
+    store = underworldOf(world)!,
+    p = politiesOf(world).get(realm)!,
+    turn = (from: number) => {
+      let y = from;
+      while ((refNumber(p.ref) + y) % UNDER.every !== 0) y++;
+      return y;
+    };
+  let year = turn(Math.max(yearOfMoment(world.now), store.of(realm)?.last ?? 0) + 1);
+  if (!store.of(realm)?.groups.some((g) => kindOfGroup(g) === "protection")) {
+    underworldYear(populationContext(world), simTime((year + 1) * YEAR));
+    year = turn(year + 1);
+  }
+  const v = structuredClone(store.of(realm)!) as RealmUnderworld,
+    first = v.groups.find((g) => kindOfGroup(g) === "protection");
+  assert.ok(first, "the forced realm has a protection family");
+  const rose = world.events.emit({
+      type: "underworld.rose",
+      subjects: [realm],
+      place: null,
+      causes: [],
+      data: { realm: "a realm", group: "Vesh", kind: "protection", gids: [v.next] },
+    }),
+    war = world.events.emit({
+      type: "underworld.war",
+      subjects: [realm],
+      place: null,
+      causes: [],
+      data: {
+        realm: "a realm",
+        group: first.name,
+        against: "Vesh",
+        kind: "protection",
+        gids: [first.id, v.next],
+      },
+    }),
+    alone = since === null,
+    born = year - (since ?? 0) - 5,
+    a = { ...first, members: men[0], share: weight[0], since: born, wealth: 1000 },
+    b = {
+      ...structuredClone(first),
+      id: v.next,
+      name: "Vesh",
+      event: rose,
+      members: men[1],
+      share: weight[1],
+      since: born,
+      wealth: 1000,
+    };
+  v.groups = [a, ...(alone ? [] : [b]), ...v.groups.filter((g) => kindOfGroup(g) !== "protection")];
+  v.next++;
+  v.ops = [];
+  delete v.truce;
+  v.wars = alone
+    ? []
+    : [
+        {
+          a: a.id,
+          b: b.id,
+          names: [a.name, b.name],
+          kind: a.kind,
+          since: year - since,
+          event: war,
+          ended: null,
+          fallen: 0,
+        },
+      ];
+  v.last = year - UNDER.every;
+  store.put(realm, v);
+  return { realm, year, a: a.id, b: b.id, names: [a.name, b.name], war, rose };
+}
+
+test("a road's war is lost by the side fallen under half the other's weight: taken over, told by the chronicle with the war as its cause, and its page still says who took it and the war it fought", () => {
+  const { realm, year, a, b, names, war, rose } = atWar(world, [6000, 300], [900, 100], 5),
+    store = underworldOf(world)!;
+  underworldYear(populationContext(world), simTime((year + 1) * YEAR));
+  const v = store.of(realm)!,
+    won = v.groups.find((g) => g.id === a),
+    gone = v.gone.find((g) => g.name === names[1] && g.rose === rose),
+    w = v.wars.find((x) => x.event === war)!;
+  assert.ok(won && !v.groups.some((g) => g.id === b), "the lesser is gone, the greater stands");
+  assert.ok(gone, "kept among those whose hold ended");
+  assert.equal(gone.how, "taken over");
+  assert.equal(gone.into, names[0]);
+  assert.deepEqual([w.ended, w.how, w.lost], [year, "taken over", 1]);
+  assert.ok(
+    w.at?.some(([id]) => id === a) && !w.at.some(([id]) => id === b),
+    "its peace rests on those left",
+  );
+  // (The chronicle carries it: of importance 4, its war among its causes, both named, never how.)
+  const e = world.events.get(gone.event)!,
+    said = claimOf(world, gone.event);
+  assert.equal(e.type, "underworld.ended");
+  assert.ok(e.importance >= 4, `importance ${e.importance}`);
+  assert.ok(
+    e.causes.some((c) => c.ref === war),
+    "its war is a cause",
+  );
+  assert.ok(
+    said.toLowerCase().includes(`the ${names[1]} family`.toLowerCase()) &&
+      said.toLowerCase().includes(`the ${names[0]} family`.toLowerCase()),
+    said,
+  );
+  assert.ok(/lost its war with .* and was taken over by it/.test(said), said);
+  assert.ok(!/how to|recipe|assembl|build a/i.test(said), said);
+  // (The realm's tab says who took whom; the gone family's page says who took it and still tells its war.)
+  const tab = JSON.stringify(pageOf(world, realm).tabs.find((t) => t.id === "underworld"));
+  assert.ok(
+    tab.includes(`the ${names[1]} family taken over by the ${names[0]} family`),
+    "the tab's wars",
+  );
+  assert.ok(tab.includes("its war lost, taken over by"), "the tab's ends");
+  const page = JSON.stringify(pageOf(world, groupRef(realm, rose)));
+  assert.ok(page.includes("its war lost, taken over by") && page.includes(names[0]), "who took it");
+  assert.ok(page.includes("The wars it fought") && page.includes("Was at war with"), "its wars");
+});
+
+test("a war tired out with neither beaten ends in a peace made on the strength each has left, told by the chronicle with both named", () => {
+  const { realm, year, a, b, names, war } = atWar(world, [3000, 2900], [505, 495], 20),
+    store = underworldOf(world)!;
+  underworldYear(populationContext(world), simTime((year + 1) * YEAR));
+  const v = store.of(realm)!,
+    w = v.wars.find((x) => x.event === war)!,
+    ga = v.groups.find((g) => g.id === a),
+    gb = v.groups.find((g) => g.id === b);
+  assert.ok(ga && gb, "both stand");
+  assert.deepEqual([w.ended, w.how], [year, "peace"]);
+  assert.ok(w.lost === undefined);
+  // (What the peace rests on: every group of the road, their parts of its strength making the whole.)
+  const parts = w.at!;
+  assert.ok(parts.some(([id]) => id === a) && parts.some(([id]) => id === b));
+  const sum = parts.reduce((s, [, x]) => s + x, 0);
+  assert.ok(Math.abs(sum - 1000) <= parts.length, `${sum}`);
+  // (And it holds while that strength stands: with nothing changed hands since, the years do not wear it.)
+  assert.equal(peaceWorn(10, balanceMoved(parts, parts)), 0);
+  const pax = world.events
+    .all()
+    .filter((e) => e.type === "underworld.pax" && e.causes.some((c) => c.ref === war))
+    .at(-1);
+  assert.ok(pax, "the peace is told");
+  assert.ok(pax.importance >= 4, `importance ${pax.importance}`);
+  const data = pax.data as { holds: number; against: string; group: string },
+    said = claimOf(world, pax.id);
+  assert.ok(data.holds >= 50 && data.holds <= 100, `${data.holds}`);
+  assert.ok(
+    names.includes(data.group) && names.includes(data.against) && data.group !== data.against,
+  );
+  assert.ok(/made peace in .* neither beaten/.test(said), said);
+  assert.ok(
+    said.toLowerCase().includes(`the ${names[0]} family`.toLowerCase()) &&
+      said.toLowerCase().includes(`the ${names[1]} family`.toLowerCase()),
+    said,
+  );
+  const tab = JSON.stringify(pageOf(world, realm).tabs.find((t) => t.id === "underworld"));
+  assert.ok(tab.includes("ended in a peace, neither beaten"), "the tab's wars");
+});
+
+test("soldiers that break a group to what its police can meet put it down where they have taken its boss, and go home where he is at large", () => {
+  for (const bosses of [1, 0]) {
+    const { realm, year, a, names } = atWar(world, [60, 0], [1000, 0], null),
+      store = underworldOf(world)!,
+      v = structuredClone(store.of(realm)!) as RealmUnderworld,
+      g = v.groups.find((x) => x.id === a)!,
+      sent = world.events.emit({
+        type: "underworld.operation",
+        subjects: [realm],
+        place: null,
+        causes: [],
+        data: { realm: "a realm", group: g.name, kind: "protection", gids: [a], soldiers: 100 },
+      });
+    // (Soldiers many times its men, and a reckoning that stands for a generation of raids: all but a few of its men taken.)
+    v.ops = [
+      {
+        id: 1,
+        target: a,
+        name: g.name,
+        kind: g.kind,
+        lands: [...g.lands],
+        since: year - 1,
+        event: sent,
+        soldiers: 100,
+        fallen: 0,
+        taken: 0,
+        bystanders: 0,
+        displaced: 0,
+        spent: 0,
+        bosses,
+        clashes: 0,
+        ended: null,
+      },
+    ];
+    v.last = year - 25;
+    store.put(realm, v);
+    underworldYear(populationContext(world), simTime((year + 1) * YEAR));
+    const after = store.of(realm)!,
+      o = after.ops!.find((x) => x.event === sent)!,
+      gone = after.gone.filter((x) => x.name === names[0] && x.year === year).at(-1);
+    assert.equal(o.ended, year, "the operation is over");
+    assert.ok(o.taken > 0, "its men were taken");
+    if (bosses) {
+      assert.ok(gone && !after.groups.some((x) => x.id === a), "the group is gone");
+      assert.equal(gone.how, "put down");
+      const e = world.events.get(gone.event)!,
+        said = claimOf(world, gone.event);
+      assert.equal(e.type, "underworld.ended");
+      // (It ruled its road alone: the chronicle carries it, the soldiers sent among its causes.)
+      assert.ok(e.importance >= 4, `importance ${e.importance}`);
+      assert.ok(
+        e.causes.some((c) => c.ref === sent),
+        "the soldiers sent are a cause",
+      );
+      assert.ok(/was put down by the realm's soldiers: its boss taken/.test(said), said);
+      assert.ok(!/how to|recipe|assembl|build a/i.test(said), said);
+      const tab = JSON.stringify(pageOf(world, realm).tabs.find((t) => t.id === "underworld"));
+      assert.ok(tab.includes("put down by its realm's soldiers, its boss taken"), "the tab's ends");
+      const page = JSON.stringify(pageOf(world, groupRef(realm, g.event)));
+      assert.ok(page.includes("put down by its realm's soldiers, its boss taken"), "its page");
+    } else {
+      // (Its boss at large: broken, it is not put down; the soldiers go home.)
+      assert.equal(o.how, "withdrew");
+      assert.ok(gone?.how !== "put down", `${gone?.how}`);
+    }
+  }
+});

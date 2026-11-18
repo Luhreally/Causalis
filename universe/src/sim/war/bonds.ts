@@ -43,6 +43,7 @@ import { armyOf } from "../strife/strife.ts";
 import { disarmRealm, warFootingOf } from "./arming.ts";
 import { capacityOf, orderOf } from "../order/order.ts";
 import { supplyOf } from "./ground.ts";
+import { FELL_TOWN_YEARS } from "./fell.ts";
 import { OCCUPYING } from "./occupation.ts";
 import { whisperIn, type PersonAct } from "../acts/person.ts";
 
@@ -182,11 +183,16 @@ function lostLand(
   a: Polity,
   d: Polity,
   front: readonly number[],
+  year: number,
 ): { land: number; year?: number } | null {
-  const wars = warsOf(ctx.world).hotOf(a.ref);
+  // (In their wars of the last FELL_TOWN_YEARS: a war over longer may have gone cold or not, as its block filled, and read
+  // while it happened to be warm it made one world of two that differed only in how many battles fill a block.)
+  const wars = warsOf(ctx.world).hotOf(a.ref),
+    since = year - FELL_TOWN_YEARS;
   for (let i = wars.length - 1; i >= 0; i--) {
     const w = wars[i]!;
     if (w.attacker !== d.ref || w.defender !== a.ref) continue;
+    if (w.ended !== null && w.ended < since) continue;
     for (let k = w.battles.length - 1; k >= 0; k--) {
       const b = w.battles[k]!;
       if (b.won && front.includes(b.land)) return { land: b.land, year: b.year };
@@ -259,7 +265,7 @@ export function chooseAim(
     });
   }
   // A land lost is an old grudge, and the host goes for it by name.
-  const lost = lostLand(ctx, a, d, front);
+  const lost = lostLand(ctx, a, d, front, year ?? yearOfMoment(world.now));
   if (lost)
     options.push({
       worth: Math.min(1, 2 * landWorth(lost.land)),
