@@ -171,25 +171,19 @@ const CRAFTED = GOODS.map((g, i) => [i, GOOD_USE[g.id]] as const)
 
 /** Each group's sway in a realm, read once a year (the few are the court, the army and the temple; the many all who work). */
 type Sway = { farmers: number; crafters: number; traders: number; few: number; many: number };
-/** The sways read this moment, kept for the moment's other systems (a pure reading: the same read twice). */
-let SWAYS: { world: World; t: number; by: Map<string, Sway> } | null = null;
 function swayOf(ctx: PopulationContext, p: Polity, t: SimTime): Sway {
-  if (!SWAYS || SWAYS.world !== ctx.world || SWAYS.t !== t)
-    SWAYS = { world: ctx.world, t, by: new Map() };
-  const kept = SWAYS.by.get(p.ref);
-  if (kept) return kept;
+  // (Summed new at each asking from the realm's interests, which the realms' store keeps for the moment with all they were read
+  // from, sim/polity/interests.ts: a memo of its own here, by the world and the moment alone, could not know them moved.)
   const sway = new Map<Group, number>();
   for (const i of interestsOf(ctx, p, t)) sway.set(i.group, i.sway);
   const g = (x: Group) => sway.get(x) ?? 0;
-  const read = {
+  return {
     farmers: g("farmers") + g("herders"),
     crafters: g("crafters"),
     traders: g("traders"),
     few: g("the court") + g("the army") + g("the temple"),
     many: g("farmers") + g("herders") + g("crafters"),
   };
-  SWAYS.by.set(p.ref, read);
-  return read;
 }
 
 /** A realm's lands as its money sees them. */
