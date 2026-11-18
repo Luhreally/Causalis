@@ -453,7 +453,8 @@ export class PeopleBar {
     c.box.classList.toggle("acted", !c.acts.hidden);
     c.box.classList.toggle("kept", p.pinned);
     c.alive = !p.gone;
-    put(c.name, `${p.pinned ? "📌 " : ""}${p.name}`);
+    // (One gone wears the candle, where a pin's mark stood: seen at a glance.)
+    put(c.name, `${p.gone ? "🕯️ " : p.pinned ? "📌 " : ""}${p.name}`);
     put(c.why, p.why);
     const said = JSON.stringify(p.readings);
     if (said !== c.said) {

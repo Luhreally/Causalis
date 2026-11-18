@@ -99,7 +99,10 @@ export function bossPage(world: World, ref: string): PageModel {
     ],
     color: r ? realmColor(r.ref) : null,
     place: null,
-    stats: [],
+    // (Their years and what they do, for how they are now: host/inspect/barread.ts.)
+    stats: head
+      ? [stat("Age", `${year - head.born}`), stat("Work", `${word.toLowerCase()} of a group`)]
+      : [],
     tabs: [{ id: "overview", name: "Overview", blocks }],
     followable: false,
     year,

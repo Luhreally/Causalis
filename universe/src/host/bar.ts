@@ -3,7 +3,7 @@
 // to take a seat by force, anywhere. Where no realm stands, an elder of the town there. Those a person keeps and follows
 // come first. The face and name are their page's own, so the two can't disagree. Pure reads: nothing is kept.
 import { yearOfMoment, type Ref, type World } from "../kernel/index.ts";
-import { courtOf, politiesOf, populationContext, type Polity } from "../sim/index.ts";
+import { courtOf, deathNotesOf, politiesOf, populationContext, type Polity } from "../sim/index.ts";
 import type {
   BarAsk,
   BarPerson,
@@ -16,12 +16,12 @@ import type {
 import { courtRef } from "./court.ts";
 import { linesOf, townRoster } from "./roster.ts";
 import { pageOf } from "./inspect/index.ts";
-import { goneOf, readingsOf, warOfRealm } from "./inspect/barread.ts";
+import { fateOf, readingsOf, warOfRealm } from "./inspect/barread.ts";
 import { bare, claimOf } from "./inspect/words.ts";
 import type { QueryHandler } from "./host.ts";
 import { isFamilyRef } from "./family.ts";
 import { familyOnBar } from "./follow.ts";
-import { deathWords, rulerDeath, rulerEnd } from "./death.ts";
+import { rulerDeath, rulerEnd } from "./death.ts";
 
 /** How many of a town's lines are looked through for an elder, and how many years back a seat taken is still news. */
 const ELDER_LINES = 96,
@@ -166,12 +166,26 @@ function personOf(
   }
   // (Kept, and not a person: a group, an operation, anything with a page. As it stands now.)
   if (page.kind !== "person" && page.kind !== "agent") return pinned ? keptThing(want, page) : null;
+  // (A group's head kept, and another heads it now: how the one kept went, from the note of it.)
+  if (
+    pinName !== null &&
+    page.title !== pinName &&
+    /^boss:[^:]+:\d+:\d+:ev:\d+:\d+$/.test(want.ref)
+  ) {
+    const note = deathNotesOf(world)?.head(want.ref, pinName),
+      was = note
+        ? personOf(world, { ...want, ref: `${want.ref}:${note.year}` }, pinned, null)
+        : null;
+    return was ? { ...was, key: `${want.ref}|${pinName}` } : goneOne(want, pinName);
+  }
   // (A seat's page tells whoever holds it now: the one pinned has left it.)
-  if (pinName !== null && page.title !== pinName) return leftSeat(world, want, pinName);
+  if (pinName !== null && page.title !== pinName) return leftSeat(world, want, pinName, page.title);
   const readings = readingsOf(world, want.ref, page);
   if (!readings) return pinned ? keptThing(want, page) : null;
-  const gone = goneOf(world, want.ref, page),
-    died = gone ? deathWords(world, want.ref, page.title) : null;
+  const fate = fateOf(world, want.ref, page),
+    gone = fate !== null,
+    at = fate && fate.year !== null ? ` (${fate.year})` : "",
+    died = fate?.dead ? `${fate.short}${at}` : null;
   return {
     key: `${want.ref}|${page.title}`,
     ref: page.ref,
@@ -182,7 +196,13 @@ function personOf(
     gone,
     portrait: (page.portrait as Portrait | undefined) ?? null,
     readings,
-    ...(died ? { died, why: `Died: ${died}` } : {}),
+    ...(died
+      ? { died, why: `Died: ${died}` }
+      : fate
+        ? {
+            why: `${fate.short[0]!.toUpperCase()}${fate.short.slice(1)}${at}: not dead, as far as history says`,
+          }
+        : {}),
   };
 }
 
@@ -245,7 +265,7 @@ function goneOne(want: Want, name: string | null): BarPerson {
 }
 
 /** One pinned who held a seat, and no longer does: pressed, how it passed. */
-function leftSeat(world: World, want: Want, name: string): BarPerson {
+function leftSeat(world: World, want: Want, name: string, now: string): BarPerson {
   const r = want.ref.startsWith("rule:")
       ? politiesOf(world).get(want.ref.slice(5) as Ref)
       : undefined,
@@ -256,7 +276,7 @@ function leftSeat(world: World, want: Want, name: string): BarPerson {
       ? `${died.short[0]!.toUpperCase()}${died.short.slice(1)}, in ${died.year}.`
       : r
         ? `${bare(claimOf(world, r.ruler.event))}.`
-        : "History tells no more of them.";
+        : `No longer in that place: ${now} is there now. History does not say they died.`;
   return {
     key: `${want.ref}|${name}`,
     ref: end ? end.id : r ? r.ruler.event : want.ref,
@@ -266,7 +286,7 @@ function leftSeat(world: World, want: Want, name: string): BarPerson {
       ? `${died.cause === "removed" ? "Left the seat" : "Died"}: ${died.short} (${died.year})`
       : r
         ? `No longer rules ${r.town}`
-        : "You kept them: history tells no more of them",
+        : `No longer there: ${now} is now`,
     pinned: true,
     gone: true,
     portrait: null,
