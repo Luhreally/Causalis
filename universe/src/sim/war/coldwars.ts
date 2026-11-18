@@ -37,8 +37,14 @@ import {
 import { fieldOf, type HostTerms } from "./fell.ts";
 import type { Battle, CivilKind, War } from "./war.ts";
 
-/** How many battles a block holds, at least (a war's battles stay together). */
-export const COLD_BATTLES = 4096;
+/**
+ * How many battles a block holds, at least (a war's battles stay together). The wars ready to go cold wait warm until they fill
+ * one, their battles' exchanges and tallies held as objects: at 4,096 a block that was up to 37 MB of first light's heap at
+ * 1,500 (3,800 battles waiting, 2,282 of them fought two centuries before: the heap by store read 28 MB of wars just after a
+ * block was made and 51 just before the next), and 2.1 MB of its save, a warm battle being written longer than a cold one.
+ * At 512, 4 MB and 0.3. Nothing hashed reads a block: the same world to the bit.
+ */
+export const COLD_BATTLES = 512;
 
 /** How many figures of the strengths a battle was fought at to try keeping, fewest first. */
 const STRENGTH_FIGURES = [4, 5, 6, 9];
