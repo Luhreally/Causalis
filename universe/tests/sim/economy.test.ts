@@ -218,3 +218,33 @@ test("a price explains itself: the year's numbers, then what lies behind them", 
   const path = spine(world, marketGoodRef(CRADLE, 0) as Ref).map((e) => e.ref.split(":")[0]);
   assert.equal(path.at(-1), "star");
 });
+
+test("what goes of a good in a land: what it used, passed on within the year, and sent of its own making; not what it sent back", () => {
+  const store = new MarketStore(),
+    g = GOODS.findIndex((x) => x.id === "clothing"),
+    year = (
+      cell: number,
+      y: number,
+      lines: { made?: number; used?: number; in?: number; out?: number },
+    ) => {
+      const m = store.of(cell);
+      if (lines.made) m.move("made", g, lines.made);
+      if (lines.in) m.move("in", g, lines.in);
+      if (lines.used) m.move("used", g, lines.used);
+      if (lines.out) m.move("out", g, lines.out);
+      m.closeYear(y);
+      return m;
+    };
+  // A land that wears out its own.
+  assert.equal(year(1, 1, { made: 100, used: 60 }).goes(g), 60);
+  // A maker that sends its making away: all of it goes.
+  assert.equal(year(2, 1, { made: 100, used: 20, out: 70 }).goes(g), 90);
+  // A land goods pass through within the year: what passed goes there.
+  assert.equal(year(3, 1, { in: 500, used: 10, out: 480 }).goes(g), 490);
+  // A land that took in a hoard one year and sent it back the next uses none of it: only what it wore out.
+  year(4, 1, { in: 6000, used: 10 });
+  assert.equal(year(4, 2, { made: 40, used: 10, out: 3000 }).goes(g), 50);
+  assert.equal(year(4, 3, { in: 3000, used: 10 }).went(g), 10);
+  // (The most of its last years, and the last year alone.)
+  assert.equal(store.of(4).goes(g), 50);
+});
