@@ -2398,7 +2398,7 @@ export function courtIn(world: World, ref: string): { court?: TownCourt } {
       .map((c) => ({
         ref: c.ref,
         day: c.day,
-        accused: c.accused.outside ? `out:${c.accused.ref}` : c.accused.ref,
+        accused: c.accused.outside ? `out:${c.ref}` : c.accused.ref,
         who: c.accused.name,
         line: `${c.accused.name} ${c.whatWords}.`,
         sentence: c.sentence,

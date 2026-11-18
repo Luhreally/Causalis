@@ -392,9 +392,11 @@ export function feastWords(
   at: { readonly feast: Feast; readonly lit: boolean },
   town: string,
   wet = false,
+  music: string | null = null,
 ): string {
   if (wet) return `${at.feast.words} in ${town}: the town in out of the downpour till it passes`;
-  return `${at.feast.words} in ${town}: the town feasts in its square${at.lit ? " by its bonfire" : " this evening"}`;
+  // (And what its people dance to, where their realm's music is read: host/inspect/customs.ts.)
+  return `${at.feast.words} in ${town}: the town feasts in its square${at.lit ? " by its bonfire" : " this evening"}${music ? `, dancing to ${music}` : ""}`;
 }
 
 /**
@@ -402,13 +404,16 @@ export function feastWords(
  * its market. `wet`: a downpour falls on it, those at their ease in out of it.
  */
 export function squareNow(
-  plan: Pick<VillagePlan, "life" | "market" | "seed" | "name">,
+  plan: Pick<VillagePlan, "life" | "market" | "seed" | "name" | "customs">,
   t: number,
   wet = false,
 ): { readonly icon: string; readonly words: string } | null {
   const f = feastAt(plan, t);
   if (f?.dressed)
-    return { icon: `${FEAST_SIGNS[f.feast.occasion]}🎉`, words: feastWords(f, plan.name, wet) };
+    return {
+      icon: `${FEAST_SIGNS[f.feast.occasion]}🎉`,
+      words: feastWords(f, plan.name, wet, plan.customs?.music ?? null),
+    };
   if (marketAt(plan, t))
     return {
       icon: "🛒",

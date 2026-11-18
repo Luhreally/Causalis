@@ -519,6 +519,11 @@ export type VillagePlan = {
   readonly court?: TownCourt;
   /** What is going on in it that belongs to its land's groups, its underworld and its realm's bars (absent: nothing kept). */
   readonly goings?: readonly TownGoing[];
+  /** Its people's own music, as its realm's culture is read (absent: nothing kept): what its feasts dance to. */
+  readonly customs?: {
+    readonly music: string;
+    readonly of: { readonly ref: string; readonly name: string };
+  };
   /** One come from another seat, at its court this year or last (D1). */
   readonly envoy?: {
     readonly ref: string;

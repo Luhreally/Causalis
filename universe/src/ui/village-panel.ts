@@ -367,6 +367,8 @@ export class VillagePanel {
     page?: string,
     // (Their wounds as they are now, a line each: Phase 55 M226.)
     wounds?: readonly string[],
+    // (One not of the town: what the card says of who they are, in place of what it says of the town's many.)
+    note?: string,
   ): void {
     this.view++;
     // (Inspired or blessed where they are met, Phase 54: the hand laid on the town from them.)
@@ -399,7 +401,8 @@ export class VillagePanel {
       el(
         "p",
         "muted",
-        "One of the town's many, drawn for its crowd and named in its tongue: history keeps them by their line — the wars they went to, their wounds, their fall — though not their days. They live its day as its own people do.",
+        note ??
+          "One of the town's many, drawn for its crowd and named in its tongue: history keeps them by their line — the wars they went to, their wounds, their fall — though not their days. They live its day as its own people do.",
       ),
     );
     this.whyBox.replaceChildren();
@@ -523,7 +526,12 @@ export class VillagePanel {
         m.why && m.activity !== ACTIVITY.sheltering
           ? `: ${m.why[0]!.toLowerCase()}${m.why.slice(1)}`
           : "";
-    return `Now ${borne ? "borne on a litter" : ACTIVITY_WORDS[m.activity]}${why}; ${needWords(m)}${carrying ? `; carrying ${carrying}` : ""}`;
+    // (One at something that belongs to a larger thing says that: "in the square" would not be true of a corner kept.)
+    const doing =
+      m.of && m.why && !borne && m.activity !== ACTIVITY.sheltering
+        ? `${m.why[0]!.toLowerCase()}${m.why.slice(1)}`
+        : `${borne ? "borne on a litter" : ACTIVITY_WORDS[m.activity]}${why}`;
+    return `Now ${doing}; ${needWords(m)}${carrying ? `; carrying ${carrying}` : ""}`;
   }
 
   /**

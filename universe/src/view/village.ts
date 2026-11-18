@@ -29,7 +29,7 @@ import { OCC, article } from "../rules/index.ts";
 import { paceOf } from "./figure.ts";
 import { clearAt, clearOf, keepOut, route, villageGround, type Ground } from "./ground.ts";
 import { memorialsPlaced } from "./memorial.ts";
-import { COURT_HOURS, courtRole, courtSolids, type CourtRole } from "./court.ts";
+import { COURT_HOURS, courtRole, courtSolids, sittingOn, type CourtRole } from "./court.ts";
 import { streetDoor } from "./streets.ts";
 import { FEAST_HOURS, MARKET_HOURS, feastOn, feastPlace, marketDay, marketScene } from "./feast.ts";
 import { FLAMES_S, strikeSpan } from "./town.ts";
@@ -2481,8 +2481,8 @@ function withLife(
   for (const part of parts) for (const st of part.stays) stays.push({ st, part });
   stays.sort((a, b) => a.st.from - b.st.from);
   let legs = base,
-    done = 0,
-    said: string | null = null;
+    done = 0;
+  const said: string[] = [];
   const busy = (from: number, to: number) =>
     legs.some(
       (l) =>
@@ -2578,7 +2578,7 @@ function withLife(
     });
     t = until;
     done = until;
-    if (part.of) said = part.going.doing;
+    if (part.of && !said.includes(part.going.doing)) said.push(part.going.doing);
     // Back to their day where it has got to by the time they are there.
     if (t < DAY - 60) {
       const back = whereAt(
@@ -2595,10 +2595,8 @@ function withLife(
   }
   if (legs === base) return base;
   const was = TOLD.get(base)?.words ?? null,
-    add: string | null = said;
-  TOLD.set(legs, {
-    words: add ? `${was ? `${was}; ` : ""}${add[0]!.toLowerCase()}${add.slice(1)}` : was,
-  });
+    add = said.map((x) => x[0]!.toLowerCase() + x.slice(1));
+  TOLD.set(legs, { words: add.length ? [...(was ? [was] : []), ...add].join("; ") : was });
   return legs;
 }
 
@@ -2697,6 +2695,7 @@ function outsiderDay(plan: VillagePlan, index: number, day: number, fine: boolea
         ),
         over = Math.max(there, COURT_HOURS.close * HOUR);
       stay(there, over, spot, ACTIVITY.gathering, c.why, c.face);
+      ofCase(plan, day, c, legs);
       const then = c.kind === "accused" ? c.thenAt : null,
         sent = c.kind === "accused" ? c.then : null,
         face = c.kind === "accused" ? c.thenFace : null;
@@ -2741,6 +2740,15 @@ function outsiderDay(plan: VillagePlan, index: number, day: number, fine: boolea
   const last = legs[legs.length - 1]!;
   if (last.to < DAY)
     legs.push({ ...last, from: last.to, to: DAY, at: last.next ?? last.at, next: null });
+  return legs;
+}
+
+/** One's part in a day's sitting says whose case it is: the case's page a press away (what a sentence run on later days does not). */
+function ofCase(plan: VillagePlan, day: number, c: CourtRole, legs: Leg[]): Leg[] {
+  const sit = sittingOn(plan, day);
+  if (!sit || (c.kind !== "accused" && c.kind !== "judge" && c.kind !== "watch")) return legs;
+  const of = { ref: sit.ref, name: `the case of ${sit.who}` };
+  for (const l of legs) if (l.why === c.why) l.of = of;
   return legs;
 }
 
@@ -2915,7 +2923,15 @@ function dayBase(plan: VillagePlan, index: number, day: number, fine: boolean): 
       first = feastPlace(plan, dancesFirst, dancesFirst ? ringU : seatU),
       then = feastPlace(plan, !dancesFirst, dancesFirst ? seatU : ringU),
       start = Math.max(from, FEAST_HOURS.gather * HOUR),
-      dancing = "At the feast: dancing in the ring about the fire",
+      music = plan.customs,
+      dancing = music
+        ? `At the feast: dancing in the ring about the fire, to ${music.music}`
+        : "At the feast: dancing in the ring about the fire",
+      // (The dance says whose music it is: its realm's culture, a press away.)
+      tagged = () => {
+        const l = legs[legs.length - 1];
+        if (music && l?.task === "dance") l.of = music.of;
+      },
       eating = "At the feast: at the tables";
     stay(from, start, at, ACTIVITY.home);
     let s = go(start, at, first, null, "To the feast in the square");
@@ -2929,6 +2945,7 @@ function dayBase(plan: VillagePlan, index: number, day: number, fine: boolean): 
       first.yaw,
       dancesFirst ? dancing : eating,
     );
+    tagged();
     s = go(Math.max(s, swap), first, then);
     stay(
       s,
@@ -2940,6 +2957,7 @@ function dayBase(plan: VillagePlan, index: number, day: number, fine: boolean): 
       then.yaw,
       dancesFirst ? eating : dancing,
     );
+    tagged();
     return go(Math.max(s, until), then, at, null, "Home from the feast");
   };
   /** An evening in the square: talk in the rings (or blows), or the drill while at war. */
@@ -2967,7 +2985,7 @@ function dayBase(plan: VillagePlan, index: number, day: number, fine: boolean): 
   // one of theirs abed).
   // The court's day (J1): one brought, one judging, one watching; one in the stocks or a cell, at labour, or sent away.
   const court = fine ? courtRole(plan, index, day) : null;
-  if (court) return courtDay(court);
+  if (court) return ofCase(plan, day, court, courtDay(court));
   const hurt = woundDay(plan, index, day);
   if (hurt.kind !== "whole" && hurt.kind !== "cut") return hurtDay(hurt);
   const cared = fine && hurt.kind === "whole" ? careOn(plan, day).scripts.get(index) : undefined;
@@ -5268,9 +5286,14 @@ function momentIn(
       activity === ACTIVITY.gone ||
       activity === ACTIVITY.within,
     carry: sheltering ? null : leg.carry,
-    hunger: Math.max(0, Math.min(1, (s - fed) / ((lean ? 4.5 : 7) * HOUR))),
+    // (Of one not of the town nothing is kept of when they ate or rose.)
+    hunger: plan.people[index]!.outsider
+      ? 0
+      : Math.max(0, Math.min(1, (s - fed) / ((lean ? 4.5 : 7) * HOUR))),
     tiredness:
-      leg.activity === ACTIVITY.asleep ? 0 : Math.max(0, Math.min(1, (s - woke) / (16 * HOUR))),
+      leg.activity === ACTIVITY.asleep || plan.people[index]!.outsider
+        ? 0
+        : Math.max(0, Math.min(1, (s - woke) / (16 * HOUR))),
     why: sheltering
       ? downpour!.all
         ? "Indoors while the battle is fought before the town"
@@ -5302,14 +5325,19 @@ export function dayTold(plan: VillagePlan, index: number, day: number, fine = tr
   const stays: { from: number; to: number; words: string; times: number }[] = [];
   let walked: number | null = null;
   // (What they go in where the walk is long: R1. A person's day says so.)
-  const going = fine ? (rideWord?.(plan, index) ?? null) : null,
+  // (Nor does one not of the town go by anything of its own.)
+  const going = fine && !plan.people[index]!.outsider ? (rideWord?.(plan, index) ?? null) : null,
     longs = going ? longWalks(plan, index, day, RIDE_LEAST) : [];
   for (const leg of legsOf(plan, index, day, fine)) {
     if (leg.activity === ACTIVITY.walking) {
       walked ??= leg.from;
       continue;
     }
-    const by = walked !== null && longs.some((w) => w.to <= leg.from + 1 && w.from >= walked!),
+    const by =
+        walked !== null &&
+        // (One not in the town went nowhere in it.)
+        leg.activity !== ACTIVITY.away &&
+        longs.some((w) => w.to <= leg.from + 1 && w.from >= walked!),
       said = leg.why ?? sentenceOf(ACTIVITY_WORDS[leg.activity] ?? "about"),
       words = by ? `${said}, gone there by ${going}` : said,
       last = stays.at(-1);

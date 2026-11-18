@@ -25,7 +25,7 @@ import {
 } from "../ui/index.ts";
 import { enteredSeed, type EnterPlan, type Entered } from "../bridge/index.ts";
 import { CourtNote, SungNote } from "../ui/index.ts";
-import { GOING_ICON, courtSitting, goingsNow, villageSolids } from "../view/index.ts";
+import { GOING_ICON, courtSitting, goingsNow, openYaw, villageSolids } from "../view/index.ts";
 import { PeopleBar, barPins, setWrittenHold, yearsWorld } from "../ui/index.ts";
 import { CornerRail } from "../ui/index.ts";
 import { closeLifeSheet, showLifeSheet, type LifeSheet } from "../ui/index.ts";
@@ -969,6 +969,7 @@ type Exposed = {
   courtShown?: (on: boolean) => void;
   courtNote?: () => HTMLElement;
   goingNote?: () => HTMLElement;
+  goToDrawn?: (i: number) => void;
   sungNote?: () => HTMLElement;
   /** The song at the feast now (T1). */
   sung?: () => ReturnType<VillageScene["sungNow"]>;
@@ -6506,6 +6507,11 @@ async function runPlanetPage(): Promise<void> {
         ...(folkFilmedAt !== null ? { at: folkFilmedAt } : {}),
       },
     });
+    // (`?nolife`, for measuring: the town drawn without its goings and those not of it, as it was before them.)
+    if (plan && params.has("nolife")) {
+      const { goings: _, ...bare } = plan;
+      plan = { ...bare, people: plan.people.filter((p) => !p.outsider) };
+    }
     spires = !!plan.town && hasSpires(plan.town);
     performance.measure("village.plan", { start: q0 });
     const t0 = performance.now();
@@ -7459,6 +7465,9 @@ async function runPlanetPage(): Promise<void> {
             : (p.page ?? p.ref),
         // (Their wounds as they are now: Phase 55 M226.)
         woundLines(p, now()),
+        p.outsider
+          ? "Not of the town: they stand for those the world's rows count here, and are no one history keeps by name. Their page tells of whom they are."
+          : undefined,
       );
       // (Their family and body: Phase 55 wave 5.)
       if (plan.native || p.outsider) return;
@@ -10707,19 +10716,23 @@ async function runPlanetPage(): Promise<void> {
   // What is going on in the town now that belongs to something larger (a meeting, a corner kept, bread given): the soonest
   // to end, pressed to go to one of its people. Those that go on day and night (soldiers posted, a house guarded) are on
   // the town's page, not here.
+  const goToDrawn = (i: number) => {
+    const m = plan && scale === "village" ? village.momentAt(i) : null;
+    if (!m) return;
+    selectPerson(i);
+    // (Near, and down the most open street from them: a town's blocks stand between a far eye and a few people at a door.)
+    if (rig.enabled && !rig.follow)
+      rig.flyTo({
+        target: { x: m.x * VILLAGE_METRE, y: 0.05, z: m.z * VILLAGE_METRE },
+        yaw: openYaw(plan!, { x: m.x, z: m.z }, 48),
+        pitch: -38,
+        distance: 5.5,
+      });
+  };
+  exposed.goToDrawn = goToDrawn;
   const goingNote = new CourtNote(
     tidings.element,
-    (ref) => {
-      const i = Number(ref.slice(ref.lastIndexOf("|") + 1)),
-        m = plan && scale === "village" ? village.momentAt(i) : null;
-      if (!m) return;
-      selectPerson(i);
-      if (rig.enabled && !rig.follow)
-        rig.flyTo({
-          target: { x: m.x * VILLAGE_METRE, y: 0, z: m.z * VILLAGE_METRE },
-          distance: 9,
-        });
-    },
+    (ref) => goToDrawn(Number(ref.slice(ref.lastIndexOf("|") + 1))),
     () => {
       if (scale !== "village" || !plan?.goings || pageWindow.visible || events.open || !!time.lapse)
         return null;

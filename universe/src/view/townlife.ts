@@ -418,14 +418,14 @@ function laidOn(plan: VillagePlan, day: number, ground: Ground): Laid {
         });
       });
     } else {
-      // Posted: in twos about the square's edge and the way in from the road, changing places through the day and the night.
+      // Posted: in twos at the ways into the square, clear of its stalls, changing places through the day and the night.
       const sc = squareScale(plan),
         road = Math.hypot(plan.road.x, plan.road.z) || 1,
         posts: Point[] = [
-          { x: (plan.road.x / road) * 15 * sc, z: (plan.road.z / road) * 15 * sc },
-          { x: (-plan.road.z / road) * 14 * sc, z: (plan.road.x / road) * 14 * sc },
-          { x: (-plan.road.x / road) * 15 * sc, z: (-plan.road.z / road) * 15 * sc },
-          { x: (plan.road.z / road) * 14 * sc, z: (-plan.road.x / road) * 14 * sc },
+          { x: (plan.road.x / road) * 24 * sc, z: (plan.road.z / road) * 24 * sc },
+          { x: (-plan.road.z / road) * 22 * sc, z: (plan.road.x / road) * 22 * sc },
+          { x: (-plan.road.x / road) * 24 * sc, z: (-plan.road.z / road) * 24 * sc },
+          { x: (plan.road.z / road) * 22 * sc, z: (-plan.road.x / road) * 22 * sc },
         ],
         WATCH = 3 * HOUR;
       who.forEach((i, k) => {
@@ -449,7 +449,14 @@ function laidOn(plan: VillagePlan, day: number, ground: Ground): Laid {
         add(i, { going: g, of: true, stays, whole: true });
       });
     }
-    on.push({ going: g, from, to: until, at: place.at, find: who[0]! });
+    // (The one to go to: of a corner, one of the knot, the one on watch standing apart from it.)
+    on.push({
+      going: g,
+      from,
+      to: until,
+      at: place.at,
+      find: g.kind === "corner" && who.length >= 3 ? who[1]! : who[0]!,
+    });
   }
   if (kept.size > 40) kept.clear();
   const laid = { parts, on };

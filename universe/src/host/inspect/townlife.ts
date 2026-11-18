@@ -49,6 +49,7 @@ import { fedRef, groupRef, opRef } from "../underworld.ts";
 import { orgRef } from "../groups.ts";
 import { folkWork, workOf } from "../roster.ts";
 import { casesOf, folkOf, type Case, type Party } from "./justice.ts";
+import { musicOf } from "./customs.ts";
 import { count, item, link, many, stat, yearNow } from "./words.ts";
 
 /** The towns of a land its underworld is seen in: its most peopled, as its crime is read of them (host/inspect/underworld.ts). */
@@ -225,9 +226,12 @@ function readLife(world: World, town: string, year: number): TownLife {
           of: { ref, name },
           words: `${cap(name)} gives bread and care to its own in need`,
           doing: `Giving out bread for ${name}, to its own in need`,
-          why: land?.spared
-            ? `${pct(land.spared)} of this land's deaths are spared by what its people pool; it has ${count(g.members)} members and gives ${count(Math.round(g.gives))} grain's worth a year`
-            : `it has ${count(g.members)} members and gives ${count(Math.round(g.gives))} grain's worth a year`,
+          why: [
+            ...(land?.spared
+              ? [`${pct(land.spared)} of this land's deaths are spared by what its people pool`]
+              : []),
+            `it has ${count(g.members)} members${g.gives >= 10 ? ` and gives ${count(Math.round(g.gives))} grain's worth a year` : ""}`,
+          ].join("; "),
           who,
           to,
           toDoing: `Taking the bread ${name} gives its own in need`,
@@ -441,7 +445,8 @@ function readLife(world: World, town: string, year: number): TownLife {
   for (const c of [...casesOf(world, town, year - 1), ...casesOf(world, town, year)]) {
     if (!c.accused.outside) continue;
     if (c.year !== year && c.day + c.days < year * 365) continue;
-    const ref = `out:${c.accused.ref}`;
+    // (One for each case: two cases may be of the same group's people, and they are not the same one.)
+    const ref = `out:${c.ref}`;
     tried.push({ c, ref });
     if (stood.has(ref)) continue;
     stood.add(ref);
@@ -449,7 +454,7 @@ function readLife(world: World, town: string, year: number): TownLife {
       ref,
       page: c.accused.ref,
       name: cap(c.accused.name),
-      role: `not of ${s.name}: brought before its court`,
+      role: `not of ${s.name}: brought before its court in year ${c.year}`,
       home: 0,
       age: 30 + ((hashString(ref) >>> 0) % 20),
       occupation: OCC.dependent,
@@ -460,6 +465,27 @@ function readLife(world: World, town: string, year: number): TownLife {
     });
   }
   return { goings, named: [...named.values()], outsiders, tried };
+}
+
+/** What a town's feasts dance to: its realm's music as its culture is read (host/inspect/customs.ts; none: nothing kept). */
+export function townCustoms(world: World, town: string): Pick<VillagePlan, "customs"> {
+  const s = populationContext(world).settlements.get(town as Ref),
+    r = s ? politiesOf(world).of(s.cell) : undefined,
+    mu = r ? musicOf(world, r) : null;
+  if (!r || !mu) return {};
+  const played = mu.heard
+    ? mu.instruments
+        .slice(0, 2)
+        .map((i) => i.what)
+        .join(" and ")
+    : mu.medium;
+  if (!played) return {};
+  return {
+    customs: {
+      music: `${played}, ${mu.feel}`,
+      of: { ref: `${r.ref}#culture`, name: `the music of ${realmName(r)}` },
+    },
+  };
 }
 
 // —— What a page reads of it ——————————————————————————————————————————————————————————————————————————————
@@ -486,10 +512,10 @@ export function townGoingsBlock(world: World, town: string): Block | null {
       const first = g.who.find((ref) => names.has(ref));
       return item(
         [
-          `${KIND_ICON[g.kind]} ${g.words}, ${WHEN[g.kind]}. `,
-          link(cap(g.of.name), g.of.ref),
-          `: ${g.why}.`,
-          ...(first ? [" Find it by ", link(names.get(first)!, first), ", who is of it."] : []),
+          `${KIND_ICON[g.kind]} `,
+          link(g.words, g.of.ref),
+          `, ${WHEN[g.kind]}: ${g.why}.`,
+          ...(first ? [" Go to ", link(names.get(first)!, first), ", who is of it."] : []),
         ],
         g.of.ref,
       );

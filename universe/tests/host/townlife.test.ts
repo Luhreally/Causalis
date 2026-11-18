@@ -275,7 +275,7 @@ test("the town's page lists what goes on with whose it is and someone to go to; 
   assert.equal(block.type, "list");
   const text = JSON.stringify(block);
   assert.match(text, /The Varro family takes payment from those who trade here/);
-  assert.match(text, /Find it by /);
+  assert.match(text, /Go to /);
   assert.match(text, new RegExp(`mob:${realm.ref}`));
   const page = pageOf(world, town);
   assert.match(JSON.stringify(page.tabs[0]!.blocks), /Going on here/);

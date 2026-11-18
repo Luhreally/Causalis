@@ -12,6 +12,7 @@ import {
   lifeParts,
   momentOf,
   restDay,
+  squareNow,
   villageSolids,
   workTold,
 } from "../../src/view/index.ts";
@@ -286,4 +287,34 @@ test("the same plan and day lay the same parts", () => {
       assert.deepEqual([a.x, a.z, a.why], [b.x, b.z, b.why]);
     }
   }
+});
+
+test("a feast's dance says what its people dance to, where their music is read; without it, as before", () => {
+  const day = [40, 41, 42, 43, 44, 45, 46].find((d) => !restDay(busy, d))!,
+    feast = { day, occasion: "harvest" as const, words: "Harvest home", ref: null },
+    plain = { ...village([]), life: { ...village([]).life!, feasts: [feast] } },
+    sung: VillagePlan = {
+      ...plain,
+      customs: {
+        music: "flutes and drums of wood, fast and loud",
+        of: { ref: "pol:0:1#culture", name: "the music of Testland" },
+      },
+    },
+    dancing = (p: VillagePlan) =>
+      p.people
+        .map((_, i) => momentOf(p, i, day * DAY + 19 * HOUR))
+        .filter((m) => m.task === "dance");
+  assert.ok(dancing(sung).length > 0);
+  for (const m of dancing(sung)) {
+    assert.match(m.why ?? "", /dancing in the ring about the fire, to flutes and drums of wood/);
+    assert.equal(m.of?.ref, "pol:0:1#culture");
+  }
+  for (const m of dancing(plain)) {
+    assert.equal(m.why, "At the feast: dancing in the ring about the fire");
+    assert.ok(!m.of);
+  }
+  assert.match(
+    squareNow(sung, day * DAY + 19 * HOUR)!.words,
+    /dancing to flutes and drums of wood/,
+  );
 });
