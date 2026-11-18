@@ -19,8 +19,15 @@ export const POOREST = 60;
 export const WORK_DAYS = 300,
   SAVED_YEARS = 10,
   SAVED_SHARE = 0.2;
-/** What a land making so much a head a year, at its goods' usual worth, is reckoned against: wages as the L3 table has them. */
-export const MADE_USUAL = 25;
+/**
+ * What a land making so much a head a year, at its goods' usual worth, is reckoned against: wages as the L3 table has them. It is
+ * what the table itself comes to: a household of FAMILY_SIZE with two at the fields' wage (rules/life.ts DAY_WAGE, 3.2 coin a day)
+ * for WORK_DAYS, in units of grain (COIN_A_UNIT): 2 × 3.2 × 300 / 30 / 4.5 = 14.2 a head. (It stood at 25, set while every idle hand
+ * made tools no one wanted and a land's books showed 60 to 114 a head: with nothing made past its use the median land makes 17 a
+ * head at first light's 1,000 and 21 at 1,500, scratchpad/release/gl.mts, and against 25 a middling family of a middling land was
+ * paid under the table in every age.)
+ */
+export const MADE_USUAL = 14;
 /** The most and least a land's making moves its wages by. */
 export const LAND_MOST = 12,
   LAND_LEAST = 0.3;
