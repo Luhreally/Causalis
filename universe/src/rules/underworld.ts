@@ -79,6 +79,13 @@ export const UNDER = {
    * is worth paying and no protector has a market.
    */
   lost: 0.25,
+  /**
+   * How what the seat leaves uncovered turns into a protector's custom: a deal is left to a protector where the seat's officers and
+   * courts reach neither of its two parties, so the share of dealings that want one goes as the uncovered share to this power (2:
+   * the two parties reached each on their own). Where the seat covers four deals in five, one in twenty-five is left; where it
+   * covers a third, nearly half.
+   */
+  neither: 2,
   /** A protection group rises where the pull (want of protection times men to sell it) reaches this. */
   riseProtect: 0.05,
   /**
@@ -251,7 +258,7 @@ export function protectionWanted(f: ProtectionFacts): number {
     pays = UNDER.cut / UNDER.lost,
     paid = clamp01((unsafe - pays) / (1 - pays)),
     rich = f.trade > 0 ? clamp01((2 * f.trade) / (f.trade + Math.max(1, f.earned))) : 0;
-  return clamp01(paid * (0.3 + 0.7 * rich) * (1 - clamp01(f.capacity)));
+  return clamp01(paid * (0.3 + 0.7 * rich) * dmath.pow(1 - clamp01(f.capacity), UNDER.neither));
 }
 
 /** What one land's traders and holders want of private protection: its realm's law, and what is the land's own. */
@@ -284,7 +291,7 @@ export function protectionWantedIn(f: LandProtectionFacts): number {
       (0.5 + 0.5 * clamp01(f.legitimacy)) *
       (0.5 + 0.5 * clamp01(f.kin)) *
       (1 - clamp01(f.occupied)),
-    lawful = paid * (0.3 + 0.7 * rich) * (1 - clamp01(f.reach) * trust),
+    lawful = paid * (0.3 + 0.7 * rich) * dmath.pow(1 - clamp01(f.reach) * trust, UNDER.neither),
     illegal = clamp01(f.illegal);
   return clamp01(lawful * (1 - illegal) + illegal);
 }
