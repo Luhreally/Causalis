@@ -21,6 +21,7 @@ import { CONTRA_CAUSES } from "../../src/rules/index.ts";
 import {
   forgetTownLife,
   partOfStats,
+  peopleHereBlock,
   townGoingsBlock,
   townLifeOf,
 } from "../../src/host/inspect/townlife.ts";
@@ -147,8 +148,9 @@ function record(): RealmUnderworld {
     ops: [
       {
         id: 1,
-        target: 7,
-        name: "Varro",
+        // (Against another family than the one that holds the land: its own collector goes on as ever.)
+        target: 8,
+        name: "Grey",
         kind: 0,
         lands: [cell],
         since: year,
@@ -307,4 +309,52 @@ test("the town's page lists what goes on with whose it is and someone to go to; 
   held(false);
   ware(null);
   forgetTownLife(world);
+});
+
+test("a member stays the same one through a year's turn, a takeover and soldiers sent in; what they say changes with it", () => {
+  ware(null);
+  held(true);
+  forgetTownLife(world);
+  const rec = record();
+  under.put(realm.ref, { ...rec, ops: [{ ...rec.ops![0]!, target: 7, name: "Varro" }] });
+  forgetTownLife(world);
+  const now = townLifeOf(world, town).goings.find((g) => g.kind === "collect")!;
+  assert.equal(now.since, 40, "the family's since");
+  // (Soldiers are in the land against the family: its collector lies low.)
+  assert.match(
+    now.quiet ?? "",
+    /^Lying low while soldiers sent against the Varro family are in the streets/,
+  );
+  assert.match(JSON.stringify(partOfStats(world, town, now.who[0]!)), /lying low/);
+  // The soldiers gone: collecting as ever, the same one; and the same one a year on.
+  under.put(realm.ref, { ...rec, ops: [] });
+  forgetTownLife(world);
+  const free = townLifeOf(world, town).goings.find((g) => g.kind === "collect")!;
+  assert.equal(free.quiet, undefined);
+  assert.deepEqual(free.who, now.who);
+  assert.deepEqual(
+    townLifeOf(world, town, year + 1).goings.find((g) => g.kind === "collect")!.who,
+    free.who,
+    "the same collector the year after",
+  );
+  // Taken over: another family holds the land. The same one collects, now for the victor.
+  under.put(realm.ref, {
+    ...rec,
+    ops: [],
+    groups: [{ ...rec.groups[0]!, id: 7, name: "Grey", event: sent, since: year }],
+  });
+  forgetTownLife(world);
+  const taken = townLifeOf(world, town).goings.find((g) => g.kind === "collect")!;
+  assert.deepEqual(taken.who, free.who);
+  assert.match(taken.doing, /^Collecting for the Grey family/);
+  assert.equal(taken.since, year);
+  // A group's page and its land's Underworld tab lead to its people in the town.
+  const here = peopleHereBlock(world, taken.of.ref)!;
+  assert.equal(here.type, "list");
+  assert.match(JSON.stringify(here), /Its people here/);
+  assert.ok(JSON.stringify(here).includes(taken.who[0]!));
+  assert.match(JSON.stringify(pageOf(world, taken.of.ref)), /Its people here/);
+  held(false);
+  forgetTownLife(world);
+  assert.equal(peopleHereBlock(world, taken.of.ref), null, "no group, no people of it");
 });

@@ -78,6 +78,7 @@ import { withFollow } from "../follow.ts";
 import { withDeath } from "../death.ts";
 import { songPage, stonePage } from "./memory.ts";
 import { casePage, selfLawBlocks, withTrials } from "./justice.ts";
+import { withPeopleHere } from "./townlife.ts";
 import { namedPage, type NamesArg } from "../names.ts";
 import { lawPage } from "../lanes.ts";
 
@@ -301,6 +302,8 @@ export function pageOf(
     if (!brief && !only) page = withDeath(world, base, page);
     // (What the courts hold of it: a group's own tried, its head's trial, a land's and a realm's trials, one killed. Asked 2026-11-17.)
     if (!brief && !only) page = withTrials(world, base, page);
+    // (Its people in their towns, each a name to go to and follow: asked 2026-11-17.)
+    if (!brief && !only) page = withPeopleHere(world, base, page);
     // (What its tabs and banner are drawn of: asked 2026-11-13.)
     if (!brief && !only) page = withArt(world, page);
   } catch {

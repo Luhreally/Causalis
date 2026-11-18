@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import type { TownGoing, VillageLife, VillagePlan } from "../../src/bridge/index.ts";
 import {
   LIFE_HOURS,
+  dayTold,
   goingHeld,
   goingsNow,
   goingsOn,
@@ -316,5 +317,112 @@ test("a feast's dance says what its people dance to, where their music is read; 
   assert.match(
     squareNow(sung, day * DAY + 19 * HOUR)!.words,
     /dancing to flutes and drums of wood/,
+  );
+});
+
+test("a member's day differs by what they are for their group: a collector's rounds and then the head's house, a lookout's hours, a guard's door, a round of the streets, and one lying low", () => {
+  const guard: TownGoing = {
+      kind: "guard",
+      key: "boss:1|town:0:9|guard",
+      of: { ref: "boss:1", name: "Old Varro, who heads the Varro family" },
+      words: "Old Varro keeps a house here, and it is guarded",
+      doing: "Guarding the house of Old Varro, who heads the Varro family",
+      toDoing: "At home, where the Varro family is headed from, guards at the door",
+      why: "40 men",
+      who: ["prsn:0:4"],
+      to: ["boss:1"],
+      where: "house",
+    },
+    patrol: TownGoing = {
+      kind: "patrol",
+      key: "mob:9|town:0:9|patrol",
+      of: { ref: "mob:9", name: "the Grey squad" },
+      words: "The Grey squad walk its streets",
+      doing: "On their round of the streets with the Grey squad",
+      why: "it works 20% of this land",
+      who: ["prsn:0:12"],
+      where: "square",
+    },
+    low: TownGoing = {
+      ...corner,
+      quiet: "Off the corner while soldiers are posted in the streets",
+    },
+    base = village([
+      { ...collect, of: { ref: "mob:1", name: "the Varro family" } },
+      corner,
+      guard,
+      patrol,
+    ]),
+    town: VillagePlan = {
+      ...base,
+      people: [
+        ...base.people,
+        {
+          ref: "boss:1",
+          page: "boss:1",
+          name: "Old Varro",
+          home: 0,
+          age: 60,
+          occupation: OCC.dependent,
+          child: false,
+          folk: true,
+          outsider: true,
+        },
+      ],
+    },
+    at = (ref: string) => town.people.findIndex((p) => p.ref === ref),
+    d = [30, 31, 32, 33, 34, 35, 36].find(
+      (x) => goingHeld(town, town.goings![0]!, x) && !restDay(town, x),
+    )!,
+    told = (ref: string) =>
+      dayTold(town, at(ref), d)
+        .map((l) => l.words)
+        .filter((w) => /Collect|Bringing|corner|watch|Guarding|round|home, where/i.test(w)),
+    days = {
+      collector: told("prsn:0:24"),
+      lookout: told("prsn:0:16"),
+      guard: told("prsn:0:4"),
+      patrol: told("prsn:0:12"),
+      head: told("boss:1"),
+    };
+  assert.ok(days.collector.some((w) => /collecting for the Varro family/i.test(w)));
+  assert.ok(
+    days.collector.some((w) => /Bringing what was collected to the house of Old Varro/.test(w)),
+    days.collector.join(" | "),
+  );
+  assert.ok(days.lookout.some((w) => /^On watch down the street/.test(w)));
+  assert.ok(days.guard.some((w) => /^Guarding the house of Old Varro/.test(w)));
+  assert.ok(days.patrol.some((w) => /^On their round of the streets with the Grey squad/i.test(w)));
+  assert.ok(days.head.some((w) => /at home, where the Varro family is headed from/i.test(w)));
+  const all = Object.values(days).map((x) => x.join("|"));
+  assert.equal(new Set(all).size, all.length, "no two roles' days read alike");
+  // Each is a townsperson first: they wake, eat and sleep at home as anyone does (the head, kept by history, is not of its lines).
+  for (const ref of ["prsn:0:24", "prsn:0:16", "prsn:0:4", "prsn:0:12"]) {
+    const whole = dayTold(town, at(ref), d).map((l) => l.words);
+    assert.ok(whole.includes("Asleep") && whole.some((w) => /Breakfast at home/.test(w)), ref);
+  }
+  // The head is seen at the door some hours, and is indoors the rest.
+  assert.equal(momentOf(town, at("boss:1"), d * DAY + 10.5 * HOUR).hidden, false);
+  assert.equal(momentOf(town, at("boss:1"), d * DAY + 13 * HOUR).hidden, true);
+  // Soldiers in the land: the corner's people are off it, at their own doors of a morning, and say why.
+  const hush = village([low]),
+    m = momentOf(
+      hush,
+      hush.people.findIndex((p) => p.ref === "prsn:0:17"),
+      d * DAY + 10 * HOUR,
+    ),
+    later = momentOf(
+      hush,
+      hush.people.findIndex((p) => p.ref === "prsn:0:17"),
+      d * DAY + 18 * HOUR,
+    );
+  assert.equal(m.why, low.quiet);
+  assert.ok(!later.of, "not at the corner that evening");
+  // And the plan read again (a year's turn makes a new one) lays the same day for the same one.
+  const again: VillagePlan = { ...town, people: [...town.people].reverse() },
+    i = again.people.findIndex((p) => p.ref === "prsn:0:16");
+  assert.deepEqual(
+    dayTold(again, i, d).map((l) => l.words),
+    dayTold(town, at("prsn:0:16"), d).map((l) => l.words),
   );
 });

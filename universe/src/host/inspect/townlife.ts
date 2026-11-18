@@ -193,6 +193,9 @@ function readLife(world: World, town: string, year: number): TownLife {
     }
     return out;
   };
+  // Those of its underworld are each one thing in it (one who collects is not also the one at the corner): each draw passes
+  // over those drawn before it, in the order below. The lawful groups' people may be of more than one thing, as people are.
+  const shady = new Set<string>();
   const young = (_: number, born: number) => (year - born < grown + 14 ? 4 : 0.2),
     old = (_: number, born: number) => (year - born >= 55 ? 4 : 0.3),
     trading = (key: number) => {
@@ -250,6 +253,7 @@ function readLife(world: World, town: string, year: number): TownLife {
           ? `Gone in to the ${how.at} of ${name}, behind closed doors`
           : `At the ${how.at} of ${name}`,
         why: `${count(g.members)} members under ${g.leader.name}, for ${FOR[kind] ?? "its own"}`,
+        since: g.since,
         who,
         where: how.where,
         ...(how.closed ? { closed: true as const } : {}),
@@ -262,18 +266,29 @@ function readLife(world: World, town: string, year: number): TownLife {
     rec = r ? underworldOf(world)?.of(r.ref) : undefined,
     streets = rank < UNDER_TOWNS && s.population >= UNDER_LEAST;
   if (r && rec && under && streets) {
-    const holder = under.group !== null ? rec.groups.find((g) => g.id === under.group) : undefined;
+    const holder = under.group !== null ? rec.groups.find((g) => g.id === under.group) : undefined,
+      // (Soldiers sent into this land, under way: those they are against lie low, and the street's gangs keep off it.)
+      op = (rec.ops ?? []).find((o) => o.ended === null && o.lands.includes(s.cell)),
+      // (A war of the holder's with another group, under way: its people say so.)
+      war = holder
+        ? rec.wars.find((x) => x.ended === null && (x.a === holder.id || x.b === holder.id))
+        : undefined,
+      atWar =
+        war && holder
+          ? `; it is at war with ${groupWords(war.names[war.a === holder.id ? 1 : 0], GROUP_KINDS[war.kind])} since year ${war.since}`
+          : "";
     // A family that takes payment from those who trade.
     if (holder && kindOfGroup(holder) === "protection" && under.protection >= 0.03) {
       const name = groupWords(holder.name, "protection"),
         ref = groupRef(r.ref, holder.event),
-        key = `${ref}|${town}|collect`,
-        who = draw(key, s.population >= 20_000 ? 2 : 1),
+        // (By the town alone: whoever comes to hold the land, the same one collects, now for them.)
+        key = `${town}|collect`,
+        who = draw(key, s.population >= 20_000 ? 2 : 1, undefined, shady),
         to = draw(
           `${key}|pay`,
           Math.min(LIFE_MOST.payers, Math.max(2, Math.round(under.protection * 20))),
           trading,
-          new Set(who),
+          new Set(shady),
         );
       if (who.length && to.length)
         goings.push({
@@ -282,7 +297,13 @@ function readLife(world: World, town: string, year: number): TownLife {
           of: { ref, name },
           words: `${cap(name)} takes payment from those who trade here`,
           doing: `Collecting for ${name}, from those who pay it to be left to trade`,
-          why: `${pct(under.protection)} of this land's trade is under its protection, and its hold here is ${pct(under.control)}`,
+          why: `${pct(under.protection)} of this land's trade is under its protection, and its hold here is ${pct(under.control)}${atWar}`,
+          since: holder.since,
+          ...(op && op.target === holder.id
+            ? {
+                quiet: `Lying low while soldiers sent against ${name} are in the streets: its collecting waits`,
+              }
+            : {}),
           who,
           to,
           toDoing: `Paying ${name}'s collector what is asked, to be left to trade`,
@@ -297,10 +318,26 @@ function readLife(world: World, town: string, year: number): TownLife {
         const name = groupWords(g.name, GROUP_KINDS[g.kind]),
           ref = `boss:${r.ref}:${g.event}`,
           key = `${ref}|${town}|guard`,
-          who = draw(key, g.members >= 30 ? LIFE_MOST.guards : 1, young);
+          who = draw(key, g.members >= 30 ? LIFE_MOST.guards : 1, young, shady);
         if (!who.length) continue;
         houses++;
+        // (Its head, whom history keeps by name: at that house, seen at its door some hours of the day. Their page is their own.)
+        outsiders.push({
+          ref,
+          page: ref,
+          name: g.boss.name,
+          role: `heads ${name} since year ${g.boss.since}: not one of the lines of ${s.name}, and kept by name in history`,
+          home: 0,
+          age: Math.max(grown, year - g.boss.born),
+          occupation: OCC.dependent,
+          child: false,
+          folk: true,
+          outsider: true,
+        });
         goings.push({
+          to: [ref],
+          toDoing: `At home, where ${name} is headed from, guards at the door`,
+          since: g.boss.since,
           kind: "guard",
           key,
           of: { ref, name: `${g.boss.name}, who heads ${name}` },
@@ -326,6 +363,7 @@ function readLife(world: World, town: string, year: number): TownLife {
           key,
           Math.min(LIFE_MOST.corner, Math.max(3, 2 + Math.round(under.street * 20))),
           young,
+          shady,
         );
       if (who.length >= 2)
         goings.push({
@@ -342,8 +380,30 @@ function readLife(world: World, town: string, year: number): TownLife {
             ? `On watch down the street for a gang of the ${fed.name} federation`
             : "On watch down the street for one of the town's small gangs",
           why: `${many(under.gangs, "small gang", "small gangs")} in its land's towns, their pull on its young ${pct(under.street)}`,
+          ...(fed ? { since: fed.since } : {}),
+          ...(op ? { quiet: "Off the corner while soldiers are posted in the streets" } : {}),
           who,
           where: "corner",
+        });
+    }
+    // A crew of the realm's own enforcers working the town: two of it on their round.
+    const crew = under.badge > 0 ? rec.groups.find((g) => kindOfGroup(g) === "badge") : undefined;
+    if (crew) {
+      const name = groupWords(crew.name, "badge"),
+        ref = groupRef(r.ref, crew.event),
+        key = `${ref}|${town}|patrol`,
+        who = draw(key, 2, undefined, shady);
+      if (who.length)
+        goings.push({
+          kind: "patrol",
+          key,
+          of: { ref, name },
+          words: `${cap(name)}, enforcers of ${realmName(r)} ${crew.squad ? "who kill outside the law" : "who keep what they seize"}, walk its streets`,
+          doing: `On their round of the streets with ${name}`,
+          why: `it works ${pct(under.badge)} of this land, and has ${count(crew.members)} men`,
+          since: crew.since,
+          who,
+          where: "square",
         });
     }
     // Soldiers sent into its land against a group, posted in its streets.
@@ -421,8 +481,8 @@ function readLife(world: World, town: string, year: number): TownLife {
           ? { ref: groupRef(r.ref, cartel.event), name: groupWords(cartel.name, "cartel") }
           : { ref: `${r.ref}#underworld`, name: `the forbidden trade of ${realm}` },
         key = `${r.ref}|${town}|seller`,
-        who = draw(key, s.population >= 20_000 ? 2 : 1),
-        to = draw(`${key}|buy`, 2, undefined, new Set(who));
+        who = draw(key, s.population >= 20_000 ? 2 : 1, undefined, shady),
+        to = draw(`${key}|buy`, 2, undefined, new Set(shady));
       if (who.length)
         goings.push({
           kind: "seller",
@@ -501,6 +561,7 @@ const WHEN: Readonly<Record<TownGoing["kind"], string>> = {
   seller: "at dusk, every day",
   posted: "day and night",
   guard: "from dawn until late, every day",
+  patrol: "through the day, every day",
 };
 
 /** "What is going on here": each thing a line, whose it is linked, one of its people to go to (null: nothing). */
@@ -548,7 +609,7 @@ export function partOfStats(world: World, town: string, ref: string): Stat[] {
     out.push(
       stat(mine ? "Part of" : g.kind === "alms" ? "Given by" : "Pays", [
         link(cap(g.of.name), g.of.ref),
-        `: ${(mine ? g.doing : (g.toDoing ?? g.doing)).replace(/^./, (c) => c.toLowerCase())}, ${WHEN[g.kind]}`,
+        `: ${(mine ? (g.quiet ?? g.doing) : (g.toDoing ?? g.doing)).replace(/^./, (c) => c.toLowerCase())}${g.quiet && mine ? "" : `, ${WHEN[g.kind]}`}${g.since !== undefined ? `. It has stood since year ${g.since}` : ""}`,
       ]),
     );
   }
@@ -558,4 +619,91 @@ export function partOfStats(world: World, town: string, ref: string): Stat[] {
 /** What was read of a world's towns let go (a test that sets a land's rows by hand reads them afresh). */
 export function forgetTownLife(world: World): void {
   KEPT.delete(world);
+}
+
+/** The most lands of a group read for its people in their towns, and the most towns of each. */
+const HERE = { lands: 4, towns: 2 } as const;
+
+/**
+ * "Its people here": those of a group, a head's house or a land's underworld who are someone in a town, each by name with what
+ * they are at for it: their page is a press away, and from it Go to, Follow and Pin. From the same reading the towns are drawn of.
+ */
+export function peopleHereBlock(world: World, ref: string): Block | null {
+  const ctx = populationContext(world),
+    m = /^(mob|org|boss):(pol:\d+:\d+):(ev:\d+:\d+)$/.exec(ref),
+    cellAt = /^cell:\d+:(\d+)$/.exec(ref),
+    realm = m ? politiesOf(world).get(m[2] as Ref) : undefined;
+  let cells: number[] = [];
+  if (cellAt) cells = [Number(cellAt[1])];
+  else if (m && realm) {
+    const g =
+      m[1] === "org"
+        ? orgsOf(world)
+            ?.of(realm.ref)
+            ?.orgs.find((x) => x.event === m[3])
+        : underworldOf(world)
+            ?.of(realm.ref)
+            ?.groups.find((x) => x.event === m[3]);
+    if (!g) return null;
+    // (A crew of enforcers holds no land of its own: it works its realm's, its seat's first.)
+    cells = [...new Set([g.home, ...g.lands, realm.seat])].slice(0, HERE.lands);
+  } else return null;
+  const mine = (of: string) =>
+      cellAt
+        ? /^(mob|gfed|boss|uop):|#underworld$/.test(of)
+        : of === ref ||
+          (m && of === `boss:${m[2]}:${m[3]}`) ||
+          (m?.[1] === "boss" && of === `mob:${m[2]}:${m[3]}`),
+    items: Item[] = [];
+  for (const cell of cells) {
+    const towns = ctx.settlements
+      .inProvince(cell)
+      .filter((t) => t.population > 0)
+      .sort((a, b) => b.population - a.population || (a.ref < b.ref ? -1 : 1))
+      .slice(0, HERE.towns);
+    for (const t of towns) {
+      const life = townLifeOf(world, t.ref),
+        names = new Map(life.named.map((p) => [p.ref, p.name] as const));
+      for (const g of life.goings) {
+        if (!mine(g.of.ref)) continue;
+        for (const who of g.who) {
+          const name = names.get(who);
+          if (!name || items.length >= 24) continue;
+          items.push(
+            item(
+              [
+                link(name, who),
+                ` of ${t.name}: ${(g.quiet ?? g.doing).replace(/^./, (c) => c.toLowerCase())}`,
+                ...(cellAt ? [" (", link(g.of.name, g.of.ref), ")"] : []),
+                ".",
+              ],
+              who,
+            ),
+          );
+        }
+      }
+    }
+  }
+  return items.length
+    ? {
+        type: "list",
+        title: "Its people here",
+        items,
+      }
+    : null;
+}
+
+/** A group's, a head's or a land's page with its people in their towns (none: as it was). */
+export function withPeopleHere<
+  P extends { tabs: readonly { id: string; blocks: readonly Block[] }[] },
+>(world: World, ref: string, page: P): P {
+  if (!/^(mob|org|boss|cell):/.test(ref)) return page;
+  const block = peopleHereBlock(world, ref.replace(/#.*$/, ""));
+  if (!block) return page;
+  const tab = ref.startsWith("cell:") ? page.tabs.findIndex((t) => t.id === "underworld") : 0;
+  if (tab < 0 || !page.tabs[tab]) return page;
+  return {
+    ...page,
+    tabs: page.tabs.map((t, i) => (i === tab ? { ...t, blocks: [...t.blocks, block] } : t)),
+  } as P;
 }

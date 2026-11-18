@@ -2578,7 +2578,8 @@ function withLife(
     });
     t = until;
     done = until;
-    if (part.of && !said.includes(part.going.doing)) said.push(part.going.doing);
+    const says = part.going.quiet ?? part.going.doing;
+    if (part.of && !said.includes(says)) said.push(says);
     // Back to their day where it has got to by the time they are there.
     if (t < DAY - 60) {
       const back = whereAt(
@@ -2712,7 +2713,8 @@ function outsiderDay(plan: VillagePlan, index: number, day: number, fine: boolea
   } else {
     const part = fine ? lifeParts(plan, index, day, ground).find((x) => x.whole) : undefined;
     if (part) {
-      told.words = part.going.doing[0]!.toLowerCase() + part.going.doing.slice(1);
+      const says = part.of ? part.going.doing : (part.going.toDoing ?? part.going.doing);
+      told.words = says[0]!.toLowerCase() + says.slice(1);
       let at: Point | null = null,
         t = 0;
       for (const st of part.stays) {
@@ -2724,7 +2726,7 @@ function outsiderDay(plan: VillagePlan, index: number, day: number, fine: boolea
           Math.max(t, st.from),
           st.to,
           spot,
-          ACTIVITY.gathering,
+          st.within ? ACTIVITY.within : ACTIVITY.gathering,
           st.why,
           st.face ?? null,
           st.task,

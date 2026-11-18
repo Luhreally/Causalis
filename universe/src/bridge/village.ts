@@ -357,7 +357,7 @@ export type TownCourt = {
  * each says of it. Read by the host from the world's kept rows for the town's land and year; never there where they hold nothing.
  */
 export type TownGoingKind =
-  "meeting" | "alms" | "collect" | "corner" | "seller" | "posted" | "guard";
+  "meeting" | "alms" | "collect" | "corner" | "seller" | "posted" | "guard" | "patrol";
 export type TownGoing = {
   readonly kind: TownGoingKind;
   /** Its own key, the same year on year: its day and its place are drawn from it. */
@@ -375,6 +375,13 @@ export type TownGoing = {
   /** Those it is done to (a collector's payers, those an alms is given), and what they say of it. */
   readonly to?: readonly string[];
   readonly toDoing?: string;
+  /** Since when the thing it belongs to has stood, or held here (a year; absent: not kept). */
+  readonly since?: number;
+  /**
+   * Lying low: soldiers are in the land against it, and its people keep off the street. What each of them says of it; they are
+   * at their own doors of a morning, and not at what they would be at.
+   */
+  readonly quiet?: string;
   /** What the one set apart to look out says (a corner kept). */
   readonly watch?: string;
   /** Where: a member's home, the temple, the market's stalls, a back lane, a corner, the square, a house guarded. */
@@ -392,6 +399,7 @@ export const GOING_ICON: Readonly<Record<TownGoingKind, string>> = {
   seller: "🌒",
   posted: "🪖",
   guard: "🚪",
+  patrol: "👮",
 };
 
 export type TownSong = {

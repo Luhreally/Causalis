@@ -28,6 +28,14 @@ export const LIFE_HOURS = {
   corner: [15, 21],
   seller: [17.5, 21],
   guard: [7, 21],
+  patrol: [8, 18],
+  /** One lying low is at their own door these hours of a morning. */
+  quiet: [9, 11.5],
+  /** A head is seen at their door these hours; indoors the rest. */
+  head: [
+    [9.5, 12],
+    [15, 18],
+  ],
 } as const;
 
 /** How long a collector stands with each who pays, and one who buys with a seller (seconds). */
@@ -100,7 +108,8 @@ export const dayOfGoing = (g: TownGoing): number => drawn(g.key, 7, 7);
 
 /** Whether a going is seen on a day: a meeting and a giving one day in seven, a collector on the market's days, the rest every day; none of them on a feast day. */
 export function goingHeld(plan: VillagePlan, g: TownGoing, day: number): boolean {
-  if (g.kind === "posted" || g.kind === "guard") return true;
+  // (Those lying low do so every day the soldiers are there.)
+  if (g.kind === "posted" || g.kind === "guard" || g.quiet) return true;
   if (feastOn(plan, day)) return false;
   if (g.kind === "meeting" || g.kind === "alms") return day % 7 === dayOfGoing(g);
   if (g.kind === "collect")
@@ -221,6 +230,28 @@ function laidOn(plan: VillagePlan, day: number, ground: Ground): Laid {
       who = drawn(g.who),
       to = drawn(g.to);
     if (!who.length) continue;
+    // Lying low: each at their own door of a morning, saying why; nothing of what they would be at.
+    if (g.quiet) {
+      who.forEach((i) => {
+        const d = beforeHome(plan, plan.people[i]!.home, 1.5, 0.2);
+        add(i, {
+          going: g,
+          of: true,
+          stays: [
+            {
+              from: LIFE_HOURS.quiet[0] * HOUR,
+              to: LIFE_HOURS.quiet[1] * HOUR,
+              at: d,
+              face: d.face + Math.PI,
+              task: null,
+              carry: null,
+              why: g.quiet!,
+            },
+          ],
+        });
+      });
+      continue;
+    }
     const place = placeOf(plan, g, day, ground, who[0]!),
       seed = hashText(`${g.key}|${day}`),
       late = (i: number, most: number) => unitOf(seed, i, 2) * most * HOUR;
@@ -331,6 +362,23 @@ function laidOn(plan: VillagePlan, day: number, ground: Ground): Laid {
             ],
           });
         });
+        // And then to the house of the one they collect for, where it stands in this town and is guarded.
+        const house = (plan.goings ?? []).find(
+          (x) => x.kind === "guard" && x.of.ref === g.of.ref.replace(/^mob:/, "boss:"),
+        );
+        if (stays.length && house) {
+          const d = beforeHome(plan, homeBy(plan, house.key, 0.05, 0.35), 0, 1.4),
+            at = stays[stays.length - 1]!.to + 0.35 * HOUR;
+          stays.push({
+            from: at,
+            to: at + 0.4 * HOUR,
+            at: d,
+            face: d.face,
+            task: null,
+            carry: "sack",
+            why: `Bringing what was collected to the house of ${house.of.name}`,
+          });
+        }
         if (stays.length) add(i, { going: g, of: true, stays });
       });
     } else if (g.kind === "corner") {
@@ -407,10 +455,76 @@ function laidOn(plan: VillagePlan, day: number, ground: Ground): Laid {
           ],
         });
       });
+    } else if (g.kind === "patrol") {
+      // A round of the square's four sides, side by side, an hour at each.
+      from = LIFE_HOURS.patrol[0] * HOUR;
+      until = LIFE_HOURS.patrol[1] * HOUR;
+      const sc = squareScale(plan);
+      who.forEach((i, k) => {
+        const stays: LifeStay[] = [];
+        for (let w = 0; from + w * HOUR < until; w++) {
+          const a = ((w + ((hashText(g.key) >>> 5) % 4)) % 4) * (Math.PI / 2) + 0.6,
+            at = {
+              x: 19 * sc * Math.cos(a) + (k ? 1.5 : 0),
+              z: 19 * sc * Math.sin(a) + (k ? 1.1 : 0),
+            };
+          // (At noon they eat as anyone does: no post then.)
+          if (w === 4) continue;
+          stays.push({
+            from: from + w * HOUR,
+            to: from + (w + 1) * HOUR,
+            at,
+            face: toward(at, { x: 0, z: 0 }),
+            task: "watch",
+            carry: null,
+            why: g.doing,
+          });
+        }
+        add(i, { going: g, of: true, stays });
+      });
     } else if (g.kind === "guard") {
       from = LIFE_HOURS.guard[0] * HOUR;
       until = LIFE_HOURS.guard[1] * HOUR;
       const h = homeBy(plan, g.key, 0.05, 0.35);
+      // (Its head, at the door some hours and indoors the rest: one history keeps, drawn as one not of the town's lines.)
+      for (const ref of g.to ?? []) {
+        const i = indexOf.get(ref);
+        if (i === undefined) continue;
+        const d = beforeHome(plan, h, 0, 0.9),
+          stays: LifeStay[] = [];
+        let t = 0;
+        for (const [a, b] of LIFE_HOURS.head) {
+          stays.push({
+            from: t,
+            to: a * HOUR,
+            at: d,
+            task: null,
+            carry: null,
+            why: "Indoors, at home",
+            within: true,
+          });
+          stays.push({
+            from: a * HOUR,
+            to: b * HOUR,
+            at: d,
+            face: d.face + Math.PI,
+            task: "talk",
+            carry: null,
+            why: g.toDoing ?? g.doing,
+          });
+          t = b * HOUR;
+        }
+        stays.push({
+          from: t,
+          to: DAY,
+          at: d,
+          task: null,
+          carry: null,
+          why: "Indoors, at home",
+          within: true,
+        });
+        add(i, { going: g, of: false, stays, whole: true });
+      }
       who.forEach((i, k) => {
         const s = beforeHome(plan, h, (k - (who.length - 1) / 2) * 3.2, 0.3);
         add(i, {
