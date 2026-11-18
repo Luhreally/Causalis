@@ -33,6 +33,11 @@ type Data = {
   warSince?: number;
   foe?: string;
   men?: number | readonly number[];
+  /** A group ended in the reckoning its war opened: the war was never told as opened, this tells it. */
+  opened?: number;
+  /** A group taken over: its men past what the victor's lands could keep, and the splinter they made, where they made one. */
+  rest?: number;
+  splinter?: string;
 } | null;
 
 const d = (x: unknown) => (x as Data) ?? {},
@@ -52,9 +57,23 @@ export function groupWords(name: string | undefined, kind: string | undefined): 
 const group = (x: unknown) => groupWords(d(x)?.group, d(x)?.kind);
 const rival = (x: unknown) => groupWords(d(x)?.against, d(x)?.kind);
 
-/** Of a group that ended while at war with another of its road: that their war ended with it. */
+/**
+ * Of a group that ended while at war with another of its road: that their war ended with it; of one ended in the reckoning it
+ * went to war, that it had gone to war (no line ever told that war's opening: this is all that is told of it).
+ */
 const warOver = (x: Data): string =>
-  x?.foe ? `; its war with ${groupWords(x.foe, x.kind)} ended with it` : "";
+  !x?.foe
+    ? ""
+    : x.opened
+      ? `; it had gone to war with ${groupWords(x.foe, x.kind)} over their road that year, a war over as it began`
+      : `; its war with ${groupWords(x.foe, x.kind)} ended with it`;
+/** Of a group taken over: its men the victor's lands could not keep, a splinter of their own or scattered. */
+const restWords = (x: Data): string =>
+  !x?.rest
+    ? ""
+    : x.splinter
+      ? `; ${count(x.rest)} more, past what the victor's lands could keep, held out as ${groupWords(x.splinter, x.kind)}`
+      : `; ${count(x.rest)} more, past what the victor's lands could keep, scattered`;
 
 /** What each kind of group is, said once. */
 const IS: Readonly<Record<string, string>> = {
@@ -135,7 +154,7 @@ registerEventWords(UNDERWORLD_EVENTS.ended.type, (_, e) => {
       : how === "absorbed"
         ? `was taken into ${groupWords(x?.into, x?.kind)}`
         : how === "taken over"
-          ? `lost its war with ${groupWords(x?.into, x?.kind)} and was taken over by it, its lands and the ${typeof x?.men === "number" ? `${count(x.men)} ` : ""}men it had left the victor's${x?.fallen ? `, after some ${count(x.fallen)} dead` : ""}`
+          ? `lost its war with ${groupWords(x?.into, x?.kind)} and was taken over by it, its lands and the ${typeof x?.men === "number" ? `${count(x.men)} ` : ""}men ${x?.rest ? "it could keep" : "it had left"} the victor's${x?.fallen ? `, after some ${count(x.fallen)} dead` : ""}${restWords(x)}`
           : how === "put down"
             ? "was put down by the realm's soldiers: its boss taken, its armed men fewer than the seat's police could meet"
             : how === "split"

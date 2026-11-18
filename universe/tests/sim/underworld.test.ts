@@ -23,6 +23,7 @@ import {
   turfWar,
   balanceMoved,
   peaceWorn,
+  takeoverMen,
   violentIdle,
   youngBand,
   GEAR,
@@ -778,6 +779,32 @@ test("a road's war is lost by the side fallen under half the other's weight: tak
   const page = JSON.stringify(pageOf(world, groupRef(realm, rose)));
   assert.ok(page.includes("its war lost, taken over by") && page.includes(names[0]), "who took it");
   assert.ok(page.includes("The wars it fought") && page.includes("Was at war with"), "its wars");
+  // (Of its men the victor took those its lands could keep, and the event says the rest: a splinter of a crew and more, named
+  // and standing, of the beaten; fewer scattered.)
+  const d = e.data as { men: number; rest?: number; splinter?: string },
+    splinter = d.splinter ? v.groups.find((g) => g.name === d.splinter && g.since === year) : null;
+  assert.ok(d.men >= 0 && d.men + (d.rest ?? 0) <= 300, JSON.stringify(d));
+  if (d.splinter) {
+    assert.ok(splinter, "the splinter stands");
+    assert.ok((d.rest ?? 0) >= UNDER.crew);
+    assert.equal(splinter.of, b);
+    assert.ok(/held out as the .* family/.test(said), said);
+    assert.ok(
+      w.at!.some(([id]) => id === splinter.id),
+      "the peace rests on it too",
+    );
+  } else if (d.rest) assert.ok(/scattered/.test(said) && d.rest < UNDER.crew, said);
+  else assert.ok(/the men it had left the victor's/.test(said), said);
+});
+
+test("a victor takes of the beaten's men what its lands can keep; the rest are not its own", () => {
+  // (Room for all: all taken.)
+  assert.deepEqual(takeoverMen(100, 40, 500), { taken: 40, rest: 0 });
+  // (Room for some: those, and the rest left.)
+  assert.deepEqual(takeoverMen(480, 40, 500), { taken: 20, rest: 20 });
+  // (A victor already as thick on its lands as a group comes to be takes none.)
+  assert.deepEqual(takeoverMen(600, 40, 500), { taken: 0, rest: 40 });
+  assert.deepEqual(takeoverMen(100, 0, 500), { taken: 0, rest: 0 });
 });
 
 test("a war tired out with neither beaten ends in a peace made on the strength each has left, told by the chronicle with both named", () => {
@@ -886,4 +913,80 @@ test("soldiers that break a group to what its police can meet put it down where 
       assert.ok(gone?.how !== "put down", `${gone?.how}`);
     }
   }
+});
+
+test("a war opened in the reckoning soldiers put one of its two down is told once, by that end, never as a war opened", (t) => {
+  // (Two families alike on one road, no war yet; soldiers many times the second's men, its boss already theirs.)
+  const { realm, year, a, b, names, rose } = atWar(world, [400, 380], [505, 495], 5),
+    store = underworldOf(world)!,
+    v = structuredClone(store.of(realm)!) as RealmUnderworld,
+    g = v.groups.find((x) => x.id === b)!,
+    sent = world.events.emit({
+      type: "underworld.operation",
+      subjects: [realm],
+      place: null,
+      causes: [],
+      data: { realm: "a realm", group: g.name, kind: "protection", gids: [b], soldiers: 4000 },
+    });
+  v.wars = [];
+  v.ops = [
+    {
+      id: 1,
+      target: b,
+      name: g.name,
+      kind: g.kind,
+      lands: [...g.lands],
+      since: year - 1,
+      event: sent,
+      soldiers: 4000,
+      fallen: 0,
+      taken: 0,
+      bystanders: 0,
+      displaced: 0,
+      spent: 0,
+      bosses: 1,
+      clashes: 0,
+      ended: null,
+    },
+  ];
+  v.last = year - 25;
+  store.put(realm, v);
+  const before = world.events.count;
+  underworldYear(populationContext(world), simTime((year + 1) * YEAR));
+  const after = store.of(realm)!,
+    w = after.wars.find((x) => x.since === year && (x.a === b || x.b === b)),
+    told = [];
+  for (let i = before; i < world.events.count; i++) told.push(world.events.at(i));
+  const opened = told.filter(
+    (e) => e.type === "underworld.war" && (e.data as { gids: number[] }).gids.includes(b),
+  );
+  if (!w) {
+    // (No war came of it on this world: then none was told, and nothing here is asked.)
+    assert.equal(opened.length, 0);
+    return;
+  }
+  // (Whichever of the two ended, by the soldiers or by the reckoning's other hands.)
+  const gone = after.gone.find((x) => x.year === year && x.event === w.event);
+  if (w.ended === null) {
+    // (Both stand at the reckoning's end: their war is told as opened, once, and is what its record opens.)
+    assert.equal(opened.length, 1);
+    assert.equal(w.event, opened[0]!.id);
+    return;
+  }
+  // (One was ended in the reckoning their war opened: no war is told; the end tells it, and the war's record opens that.)
+  t.diagnostic(`a war opened and ended in ${year}: ${gone?.name} ${gone?.how}`);
+  assert.equal(opened.length, 0, "no war told as opened");
+  assert.equal(w.ended, year);
+  assert.ok(gone && names.includes(gone.name), "its record opens the end of the one that ended");
+  const e = world.events.get(gone.event)!,
+    said = claimOf(world, gone.event);
+  assert.equal((e.data as { opened?: number }).opened, 1);
+  assert.ok(e.importance >= 4, `importance ${e.importance}`);
+  assert.ok(
+    /it had gone to war with .* over their road that year, a war over as it began/.test(said),
+    said,
+  );
+  for (const n of names)
+    assert.ok(said.toLowerCase().includes(`the ${n} family`.toLowerCase()), said);
+  assert.ok(a !== b && rose);
 });

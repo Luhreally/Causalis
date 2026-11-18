@@ -352,6 +352,21 @@ export function newcomersOf(draw: number, target: number): number {
 }
 
 /**
+ * Of a beaten group's men, those its victor takes and the rest: the victor's men come to no more than `room` (UNDER.thick of
+ * the people of the lands it holds with those it takes), and what the beaten has past that is not the victor's to keep.
+ * The rest make a group of their own where they are a crew's worth (UNDER.crew), and scatter where fewer (the sim's to say).
+ */
+export function takeoverMen(
+  victor: number,
+  beaten: number,
+  room: number,
+): { taken: number; rest: number } {
+  const had = Math.max(0, Math.round(beaten)),
+    taken = Math.max(0, Math.min(had, Math.round(room) - Math.round(victor)));
+  return { taken, rest: had - taken };
+}
+
+/**
  * How far a road's strength has changed hands between two reckonings of its groups' shares of it (0 … 1; each a list of a group
  * and its share in thousandths): half of all the shares have moved by, a group in one list alone by its whole share.
  */

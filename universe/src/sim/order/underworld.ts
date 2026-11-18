@@ -77,6 +77,7 @@ import {
   tiringOver,
   balanceMoved,
   peaceWorn,
+  takeoverMen,
   protectionWantedIn,
   racketBit,
   rentCaptured,
@@ -213,6 +214,13 @@ type Facts = {
   readonly year: number;
   readonly key: number;
   readonly u: (k: number) => number;
+  /**
+   * The wars opened in this reckoning, not yet told: one is told as opened only once both its groups still stand at the
+   * reckoning's end (stepRealm, before step 10). A group put down, disarmed or broken in the reckoning its war opened was told
+   * as a war opened and, in the same year, a group ended "its war ended with it": 18 of 126 wars in a century of first light,
+   * none of them ever fought past the clash it opened with. Such a one is told once, by the group's end, as what it was.
+   */
+  readonly opening: Set<GangWar>;
 };
 
 /** A realm's record as first reckoned. */
@@ -417,7 +425,9 @@ function ended(
     // Of 132 wars opened in a century of first light 53 ended so, by soldiers, a crackdown or a rent gone, and nothing said
     // their war was over.)
     war = v.wars.find((w) => w.ended === null && (w.a === g.id || w.b === g.id)),
-    cited = war && !why.some((x) => x.ref === war.event),
+    // (One opened in this very reckoning was never told: this end tells it, and is what its record opens.)
+    untold = !!war && f.opening.has(war),
+    cited = war && !untold && !why.some((x) => x.ref === war.event),
     event = tell(
       f,
       type,
@@ -430,6 +440,7 @@ function ended(
         since: g.since,
         ...(into ? { into: into.name } : {}),
         ...(war && how !== "taken over" ? { foe: war.names[war.a === g.id ? 1 : 0] } : {}),
+        ...(untold ? { opened: 1 } : {}),
         ...more,
       },
       [
@@ -446,6 +457,7 @@ function ended(
       w.ended = year;
       w.how = how;
       w.lost = w.a === g.id ? 0 : 1;
+      if (f.opening.delete(w)) w.event = event;
     }
   for (const fed of v.feds) if (fed.supplier === g.id) delete fed.supplier;
   v.gone = [
@@ -816,7 +828,16 @@ function stepRealm(
   const { world } = ctx,
     year = yearOfMoment(t),
     key = keyOf(p.ref),
-    f: Facts = { ctx, p, v, t, year, key, u: (k: number) => world.rng.real(DRAW, key, t, k) },
+    f: Facts = {
+      ctx,
+      p,
+      v,
+      t,
+      year,
+      key,
+      u: (k: number) => world.rng.real(DRAW, key, t, k),
+      opening: new Set(),
+    },
     r = readRealm(ctx, p, year),
     life = ctx.life,
     fade = 1 - dmath.pow(1 - UNDER.spends, span),
@@ -1251,7 +1272,8 @@ function stepRealm(
   // 7. Violence from structure: each road's war, or its peace.
   // (Of each group's killing, the part that is its road's war and not its peace: laid where its turf meets a rival's, writeLands.)
   let killings = 0;
-  const warring = new Map<number, number>();
+  const warring = new Map<number, number>(),
+    openings: [GangWar, () => Ref][] = [];
   for (const kind of ["protection", "cartel"] as const) {
     const own = v.groups.filter((g) => kindOfGroup(g) === kind);
     const hunted = huntedFor(
@@ -1348,25 +1370,27 @@ function stepRealm(
         (lost.share < UNDER.beaten * won.share || lost.members < UNDER.beaten * won.members);
     if (!open && warNow >= UNDER.warAt && ranked.length >= 2) {
       const [a, b] = ranked as [CrimeGroup, CrimeGroup];
-      const event = tell(
-        f,
-        UNDERWORLD_EVENTS.war.type,
-        a.home,
-        { group: a.name, against: b.name, kind, gids: [a.id, b.id] },
-        [
-          { ref: a.event, role: "enabler", weight: 1 },
-          { ref: b.event, role: "enabler", weight: 1 },
-        ],
-        [
-          factor("two close in strength over one rent", b.share / Math.max(1, a.share), warNow),
-          factor("the rent that lies where they meet", stake, stake),
-          factor("a market no one group holds", 1 - fight.herfindahl, 1 - fight.herfindahl),
-          factor("a pact with the state", collusion, -UNDER.pax * collusion),
-          ...(last?.at
-            ? [factor("strength changed hands since their last peace", moved, tired)]
-            : []),
-        ],
-      );
+      // (Told at the reckoning's end, if both still stand then: Facts.opening.)
+      const say = (): Ref =>
+        tell(
+          f,
+          UNDERWORLD_EVENTS.war.type,
+          a.home,
+          { group: a.name, against: b.name, kind, gids: [a.id, b.id] },
+          [
+            { ref: a.event, role: "enabler", weight: 1 },
+            { ref: b.event, role: "enabler", weight: 1 },
+          ],
+          [
+            factor("two close in strength over one rent", b.share / Math.max(1, a.share), warNow),
+            factor("the rent that lies where they meet", stake, stake),
+            factor("a market no one group holds", 1 - fight.herfindahl, 1 - fight.herfindahl),
+            factor("a pact with the state", collusion, -UNDER.pax * collusion),
+            ...(last?.at
+              ? [factor("strength changed hands since their last peace", moved, tired)]
+              : []),
+          ],
+        );
       v.wars = [
         ...v.wars,
         {
@@ -1375,40 +1399,95 @@ function stepRealm(
           names: [a.name, b.name] as const,
           kind: KIND(kind),
           since: year,
-          event,
+          // (Until it is told, the rise of the one that opened it.)
+          event: a.event,
           ended: null,
           fallen: 0,
         },
       ].slice(-UNDER.wars);
       const made = v.wars.at(-1)!;
       made.fallen += deadNow(made);
+      f.opening.add(made);
+      openings.push([made, say]);
     } else if (open && beaten && won && lost) {
-      const men = lost.members,
-        weight = lost.share / Math.max(1, won.share);
-      won.share = Math.min(1000, won.share + lost.share);
-      won.members += lost.members;
-      won.wealth += lost.wealth;
+      // (The victor takes of the beaten what it can hold: of its lands, as many as a group holds (UNDER.lands), and with them
+      // the men who stand there (a group's men are of the people where it holds: by the people of each land); and of those
+      // men as many as its own lands with the lands taken can keep (UNDER.thick of their people, the most a group's men come
+      // to be of the people where it stands). The men past that are not the victor's: a crew's worth and more of them follow
+      // one of their own, a splinter of the beaten in a land of its that the victor did not take, or its home; fewer
+      // scatter. The beaten went whole to the victor, lands to keep its men on or none. Measured (us.mts, usx.mts, a century
+      // of first light from 1,500 and of tide 207 from 1,000): the victor CAN hold nearly always: its men are 4 in 100 of
+      // what its lands could keep at the median and 18 at the ninth tenth, 6 and 20 with the beaten's; the beaten holds one
+      // land, the victor's own, in nine takeovers of ten (most are in realms of one land); a land is left untaken in 4 of
+      // 72. So the density cap parted none of 40 and none of 18, and the lands part the few.)
+      const had = lost.members,
+        weight = lost.share / Math.max(1, won.share),
+        wonMen = won.members,
+        lands = [...won.lands];
       for (const c of lost.lands)
-        if (!won.lands.includes(c) && won.lands.length < UNDER.lands) won.lands.push(c);
+        if (!lands.includes(c) && lands.length < UNDER.lands) lands.push(c);
+      const peopleOf = (cs: readonly number[]) =>
+          cs.reduce((n, c) => n + (ctx.provinces.get(c)?.total() ?? 0), 0),
+        untaken = lost.lands.filter((c) => !lands.includes(c)),
+        theirs = peopleOf(lost.lands),
+        // (Those who stand in the lands not taken.)
+        stay = untaken.length && theirs > 0 ? Math.round((had * peopleOf(untaken)) / theirs) : 0,
+        room = UNDER.thick * peopleOf(lands),
+        split = takeoverMen(wonMen, had - stay, room),
+        men = split.taken,
+        rest = stay + split.rest,
+        part = had > 0 ? men / had : 1,
+        // (The beaten's own place among the realm's groups is freed by its end.)
+        splinter =
+          rest >= UNDER.crew && v.groups.length - 1 < UNDER.most
+            ? rise(
+                f,
+                kind,
+                untaken[0] ?? lost.home,
+                ((1 - part) * lost.share) / 1000,
+                [
+                  factor("men of the beaten past what the victor's lands could keep", rest, 1),
+                  factor("lands of the beaten the victor did not take", untaken.length, 1),
+                ],
+                lost,
+                open.event,
+              )
+            : null;
+      if (splinter) {
+        splinter.members = rest;
+        splinter.wealth = Math.round(lost.wealth * (1 - part));
+        splinter.lands = [...untaken];
+        if (!splinter.lands.length) splinter.lands = [splinter.home];
+      }
+      won.share = Math.min(1000, won.share + lost.share - (splinter?.share ?? 0));
+      won.members += men;
+      won.wealth += splinter ? lost.wealth - splinter.wealth : lost.wealth;
+      won.lands = lands;
       ended(
         f,
         lost,
         "taken over",
         [
-          factor("its men against the victor's", men / Math.max(1, won.members - men), 1),
+          factor("its men against the victor's", had / Math.max(1, wonMen), 1),
           factor("its weight on their road against the victor's", weight, 1),
           factor("the years of their war", year - open.since, 1),
         ],
         won,
         UNDERWORLD_EVENTS.ended.type,
-        { fallen: Math.round(open.fallen), warSince: open.since, men },
+        {
+          fallen: Math.round(open.fallen),
+          warSince: open.since,
+          men,
+          ...(rest > 0 ? { rest } : {}),
+          ...(splinter ? { splinter: splinter.name } : {}),
+        },
         TOLD,
         [{ ref: open.event, role: "trigger", weight: 1 }],
       );
       // (And the road's strength as the takeover left it is what its peace rests on, as a peace made is: it wore by its years
       // alone, whoever stood as the war had left them.)
       const rent = roads.find((x) => x[0] === kind)![1],
-        after = own.filter((g) => g !== lost),
+        after = [...own.filter((g) => g !== lost), ...(splinter ? [splinter] : [])],
         left = after.map((g) => strengthOf(g, rent)),
         all = left.reduce((s, x) => s + x, 0);
       if (all > 0) open.at = after.map((g, i) => [g.id, per(left[i]! / all)] as const);
@@ -1688,6 +1767,9 @@ function stepRealm(
       badge = undefined;
     }
   }
+
+  // (The wars opened in this reckoning whose two groups both stand: told now. Facts.opening.)
+  for (const [w, say] of openings) if (f.opening.delete(w) && w.ended === null) w.event = say();
 
   // 10. Territory, power, and the lands' rows.
   const allMen = Math.max(
