@@ -3,7 +3,9 @@
 // one who went that year, from the note kept as their draw stood: sim/hand/deaths.ts). Their name, birth, group; how they went; and
 // (withDeath, host/death.ts) what could take them now and the god's acts on them.
 import type { Ref, World } from "../../kernel/index.ts";
-import { deathNotesOf, groupOfBoss, politiesOf } from "../../sim/index.ts";
+import { deathNotesOf, groupOfBoss, kindOfGroup, politiesOf } from "../../sim/index.ts";
+import { OCC } from "../../rules/index.ts";
+import { landEra, peopleBody } from "../village.ts";
 import type { Block, Item, PageModel, Stat } from "../../bridge/index.ts";
 import { realmColor } from "../colors.ts";
 import { parseBossRef } from "../death.ts";
@@ -40,16 +42,26 @@ export function bossPage(world: World, ref: string): PageModel {
     now = at.year === null ? groupOfBoss(world, at.head) : null,
     head = now ? (now.kind === "under" ? now.g.boss : now.g.leader) : null,
     word = now?.kind === "under" ? "Boss" : "Leader",
+    body = peopleBody(world),
     facts: Stat[] = [
       ...(r ? [stat("Realm", [realmLink(world, r.ref)])] : []),
       ...(group ? [stat("Group", [link(group.name, group.ref)])] : []),
     ],
     blocks: Block[] = [];
   if (head && now) {
+    // (Who follows them: history draws the next head's name in the year they take it, and keeps none before. A family's head
+    // passes in the family, and that much its record does say.)
+    const family = now.kind === "under" && kindOfGroup(now.g) === "protection";
     facts.push(
       stat("Born", `year ${head.born}`),
       stat("At its head since", `year ${head.since}`),
       stat("Home", [landLink(world, now.g.home)]),
+      stat(
+        "Who follows",
+        family
+          ? `One of the family: whoever takes its head next bears the name ${now.g.name}. History names them in the year they take it, and no one before.`
+          : "History names whoever takes its head next in the year they take it, and no one before.",
+      ),
     );
   } else if (gone) {
     facts.push(
@@ -91,6 +103,20 @@ export function bossPage(world: World, ref: string): PageModel {
     ref,
     kind: "person",
     icon: now?.kind === "org" ? "🧭" : "🕴️",
+    ...(head && now
+      ? {
+          portrait: {
+            kind: "person" as const,
+            ref,
+            age: year - head.born,
+            span: body?.span ?? 70,
+            occupation: OCC.trader,
+            child: false,
+            era: landEra(world, now.g.home),
+            body,
+          },
+        }
+      : {}),
     title: name,
     subtitle: [
       head ? `${word} of ` : gone ? "Once at the head of " : "Of ",

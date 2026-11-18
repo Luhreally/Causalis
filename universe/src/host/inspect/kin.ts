@@ -36,6 +36,7 @@ import {
   familyLine,
   familyOf,
   kinCard,
+  kinOfFigure,
   seatHolder,
   toldAt,
   type BodyRead,
@@ -326,7 +327,93 @@ function personOf(
 }
 
 /** The pages a family and a body are told on: the town's people, the levy, the seats, the people met, the hand's. */
-const KIN_PAGES = /^(folk:town:|lv:|seat:|heal:|prsn:|agent:|rule:|court:)/;
+const KIN_PAGES = /^(folk:town:|lv:|seat:|heal:|prsn:|agent:|rule:|court:|boss:|note:|kin:)/;
+
+/**
+ * One of a head's or an office-holder's household, by their page (`kin:<whose>~<which>`): who they are to them, their years,
+ * where they live; and that they are read from the one whose household it is, not kept.
+ */
+export function kinPage(world: World, ref: string): PageModel {
+  const at = kinOfFigure(world, ref);
+  if (!at) throw new Error(`no one of a household ${ref}`);
+  const { kin: k, of } = at,
+    year = Math.floor(world.now / (365 * 86400)),
+    grown = lifeOf(world).adulthood,
+    dead = k.died !== null,
+    age = (k.died ?? year) - k.born,
+    child = age < grown,
+    body = peopleBody(world),
+    home = !dead && of.town !== null,
+    whoseKin = `${k.tie} of `;
+  return {
+    ref,
+    kind: "person",
+    icon: dead ? "🪦" : child ? "🧒" : "🏠",
+    portrait: {
+      kind: "person",
+      ref,
+      age,
+      span: body?.span ?? 70,
+      occupation: OCC.dependent,
+      child,
+      era: landEra(world, of.cell),
+      body,
+    },
+    title: k.name,
+    subtitle: [
+      dead ? `${k.born}–${k.died}, ${whoseKin}` : `${age}, ${whoseKin}`,
+      link(of.name, of.ref),
+    ],
+    color: null,
+    place: home ? { scale: "village", town: of.town!, person: ref } : null,
+    stats: [
+      stat("Age", dead ? `died at ${age}, year ${k.died}` : `${age}`),
+      ...(dead ? [] : [stat("Work", child ? "a child" : "of the household")]),
+      ...(of.town ? [stat("Home", [townLink(world, of.town)])] : []),
+    ],
+    tabs: [
+      {
+        id: "overview",
+        name: "Overview",
+        blocks: [
+          {
+            type: "facts",
+            rows: [
+              stat("Born", `year ${k.born}`),
+              stat("Who", [cap(whoseKin), link(of.name, of.ref), k.note ? `, ${k.note}` : ""]),
+              ...(dead
+                ? [stat("Died", cap(k.how ?? `in ${k.died}`))]
+                : [
+                    of.town
+                      ? stat("Lives in", [
+                          townLink(world, of.town),
+                          ": under ",
+                          link(`${of.name.split(" ")[0]}'s`, of.ref),
+                          " roof",
+                        ])
+                      : stat("Lives", [
+                          "Under ",
+                          link(`${of.name.split(" ")[0]}'s`, of.ref),
+                          " roof",
+                        ]),
+                  ]),
+            ],
+          },
+          {
+            type: "text",
+            lines: [
+              [
+                `Read from ${of.name}'s own name and years by the rule a town's people's kin are given by, not kept: the same each time, and nothing of the world moves by it.`,
+              ],
+            ],
+          },
+        ],
+      },
+    ],
+    followable: home,
+    year,
+  };
+}
 
 /**
  * A page with its family and body (Phase 55 wave 5): the card's two lines first in its overview,

@@ -30,6 +30,7 @@ import { courtFigure, heirWhy, wantWords } from "../court.ts";
 import { sicknessValue } from "./sickness.ts";
 import { resolvePerson } from "../../causal/index.ts";
 import { deathOf, parseBossRef } from "../death.ts";
+import { kinOfFigure } from "../kin.ts";
 
 const pct = (x: number) => Math.round(x * 100);
 /** Old: their people's chance of dying in a year at that age is at least this. */
@@ -340,6 +341,22 @@ export function fateOf(world: World, ref: string, page: PageModel): Fate | null 
         }
       : null;
   }
+  // (One of a head's household, read from them: dead where the reading has them so, of what and when.)
+  if (ref.startsWith("kin:")) {
+    const k = kinOfFigure(world, ref)?.kin;
+    if (!k || k.died === null) return null;
+    const age = k.died - k.born,
+      short = (k.how ?? `died at ${age}`)
+        .replace(/,? in -?\d+$/, "")
+        .replace(/^died in -?\d+, /, "died ");
+    return {
+      dead: true,
+      short,
+      words: `${short[0]!.toUpperCase()}${short.slice(1)}, in year ${k.died}.`,
+      year: k.died,
+      age,
+    };
+  }
   // (One met: their own record says when.)
   if (ref.startsWith("prsn:")) {
     const p = resolvePerson(world, ref as Ref, 4);
@@ -472,7 +489,8 @@ export function goneOf(world: World, ref: string, page: PageModel): boolean {
 /** Their page told how they are, and the way on and off the bar. */
 export function withBarBlock(world: World, ref: string, page: PageModel): PageModel {
   if (page.kind !== "person" && page.kind !== "agent") return page;
-  if (!/^(folk:town:|seat:|heal:|prsn:|agent:|rule:|court:|boss:|note:)/.test(ref)) return page;
+  if (!/^(folk:town:|seat:|heal:|prsn:|agent:|rule:|court:|boss:|note:|kin:)/.test(ref))
+    return page;
   const readings = readingsOf(world, ref, page);
   if (!readings) return page;
   const fate = fateOf(world, ref, page),

@@ -32,12 +32,16 @@ import {
   agentName,
   courtOf,
   cultureOf,
+  groupOfBoss,
   handOf,
+  housesOf,
   orderOf,
   politiesOf,
   populationContext,
   realmName,
 } from "../sim/index.ts";
+import { notableOf } from "./inspect/notables.ts";
+import { headLeader } from "./inspect/townlife.ts";
 import { observer, type Person } from "../causal/index.ts";
 import {
   bodyAt,
@@ -976,6 +980,7 @@ function familyRead(world: World, ref: string): Family | null {
   if (ref.startsWith("heal:")) return seatFamily(world, ref.slice("heal:".length), "healer", 0);
   if (ref.startsWith("rule:")) return rulerFamily(world, ref);
   if (ref.startsWith("court:")) return courtFamily(world, ref);
+  if (ref.startsWith("boss:") || ref.startsWith("note:")) return figureFamily(world, ref);
   const seat = parseSeatRef(ref);
   return seat ? seatFamily(world, seat.town, seat.trade, seat.seat) : null;
 }
@@ -1033,6 +1038,158 @@ function courtFamily(world: World, ref: string): Family | null {
     parents: theirs?.parents ?? family.parents,
     siblings: [ruler, ...family.siblings],
   };
+}
+
+// —— A group's head, and one who holds an office (host/inspect/townlife.ts, notables.ts) ——————————————————
+
+/** One of a head's or an office-holder's household by their page (`kin:<whose>~<s | c2 | p0>`): whose, and which of them. */
+export function parseKinRef(ref: string): { of: string; slot: string } | null {
+  const m = /^kin:(.+)~(s|c\d+|p\d+)$/.exec(ref);
+  return m ? { of: m[1]!, slot: m[2]! } : null;
+}
+
+/** A group's head or one who holds an office, as their family and body are read: who, where they live, what of them is kept. */
+export type FigureSelf = {
+  readonly ref: string;
+  readonly name: string;
+  readonly sex: 0 | 1;
+  readonly born: number;
+  /** Their land, and the town their house is in (null: none that shows them). */
+  readonly cell: number;
+  readonly town: string | null;
+  readonly kept: string;
+  /** A great house's head: how many heirs the head before them left, they among them (absent: no head before, or no house). */
+  readonly heirs?: number;
+};
+
+export function figureSelf(world: World, ref: string): FigureSelf | null {
+  if (/^boss:pol:\d+:\d+:ev:\d+:\d+$/.test(ref)) {
+    const at = groupOfBoss(world, ref);
+    if (!at) return null;
+    const head = at.kind === "under" ? at.g.boss : at.g.leader,
+      sex = ((hashString(`${ref}|${head.name}`) >>> 0) & 1) as 0 | 1,
+      his = sex ? "his" : "her";
+    return {
+      ref,
+      name: head.name,
+      sex,
+      born: head.born,
+      cell: at.g.home,
+      town: headLeader(world, ref)?.town ?? null,
+      kept: `History keeps ${head.name} by name, with the year of ${his} birth and the year ${sex ? "he" : "she"} took the group's head: not ${his} kin. Those here are read from ${his} own name and years by the rule a town's people's kin are given by, living at ${his} house: the same each time, none of them kept.`,
+    };
+  }
+  const n = ref.startsWith("note:") ? notableOf(world, ref) : null;
+  if (!n) return null;
+  const s = populationContext(world).settlements.get(n.town as Ref),
+    sex = (n.sex === 0 ? 0 : 1) as 0 | 1,
+    his = sex ? "his" : "her",
+    m = n.kind === "house" ? /^note:house:(pol:\d+:\d+):(.+)$/.exec(ref) : null,
+    house = m
+      ? housesOf(world)
+          ?.of(m[1] as Ref)
+          ?.houses.find((h) => h.event === m[2])
+      : undefined,
+    heirs = house && house.generation > 0 ? Math.max(1, house.heirs) : undefined;
+  return {
+    ref,
+    name: n.name,
+    sex,
+    born: n.born,
+    cell: s?.cell ?? -1,
+    town: n.away ? null : n.town,
+    kept:
+      heirs !== undefined
+        ? `Read from the house, not kept one by one: the world keeps the house, its head's year of birth and that the head before left ${heirs === 1 ? "one heir" : `${number(heirs)} heirs`}, so ${his} living brothers and sisters are ${heirs === 1 ? "none" : number(heirs - 1)}. The rest of ${his} kin are read from ${his} own name and years by the rule a town's people's kin are given by: the same each time.`
+        : `Read from what ${sex ? "he" : "she"} holds and ${his} own name and years, not kept: the world keeps no kin of ${sex ? "his" : "hers"}. Those here are given by the rule a town's people's kin are given by, living at ${his} house: the same each time.`,
+    ...(heirs !== undefined ? { heirs } : {}),
+  };
+}
+
+/**
+ * A head's or an office-holder's family: a small one of their own key (a partner, their children by age, their parents living
+ * or dead), each with a page of their own (`kin:…`), and those living under their roof drawn there. A great house's head has
+ * as many living brothers and sisters as the heirs its record keeps, less themselves.
+ */
+function figureFamily(world: World, ref: string): Family | null {
+  const who = figureSelf(world, ref);
+  if (!who) return null;
+  const r = readingOf(world, who.cell),
+    key = hashString(`figure ${ref} ${who.name}`) >>> 0,
+    self: Node = {
+      key,
+      ref,
+      name: who.name,
+      sex: who.sex,
+      born: who.born,
+      died: null,
+      how: null,
+      event: null,
+    },
+    surname = who.name.split(" ").slice(1).join(" ") || who.name,
+    f = keyedFamily(r, self, surname, who.kept),
+    tag = (k: Kin, slot: string): Kin => ({ ...k, ref: `kin:${ref}~${slot}` });
+  let siblings = f.siblings;
+  if (who.heirs !== undefined) {
+    // (As many living as the house's record keeps: the keyed rule's first, and any it lacks born about their own years.)
+    const want = who.heirs - 1,
+      living = siblings.filter((k) => k.died === null),
+      keep = new Set(living.slice(0, want)),
+      more: Kin[] = [];
+    for (let i = living.length; i < want; i++) {
+      const k = hashString(`heir ${ref} ${i}`) >>> 0,
+        sex = ((k >>> 5) & 1) as 0 | 1;
+      more.push({
+        tie: tieWord(sex, "sibling"),
+        name: `${givenOf(r, k, sex)} ${surname}`,
+        ref: null,
+        sex,
+        born: who.born + 1 + (k % 9),
+        died: null,
+        how: null,
+        event: null,
+        note: null,
+      });
+    }
+    siblings = [...siblings.filter((k) => k.died !== null || keep.has(k)), ...more].sort(
+      (a, b) => a.born - b.born,
+    );
+  }
+  return {
+    ...f,
+    parents: f.parents.map((k, i) => tag(k, `p${i}`)),
+    spouse: f.spouse ? tag(f.spouse, "s") : null,
+    children: f.children.map((k, i) => tag(k, `c${i}`)),
+    siblings,
+  };
+}
+
+/** One of a head's or an office-holder's household, by their page: who they are to them, and the one whose household it is. */
+export function kinOfFigure(world: World, ref: string): { kin: Kin; of: FigureSelf } | null {
+  const at = parseKinRef(ref),
+    of = at ? figureSelf(world, at.of) : null,
+    f = of ? familyOf(world, of.ref) : null,
+    kin = f ? [f.spouse, ...f.children, ...f.parents].find((k) => k?.ref === ref) : null;
+  return kin && of ? { kin, of } : null;
+}
+
+/** The most of a head's household drawn at their house beside their partner. */
+const HOUSEHOLD = { children: 3, parents: 1 } as const;
+
+/**
+ * Those of a head's or an office-holder's kin who live under their roof now: their partner, their children not yet grown a few
+ * years, a parent living. Each is drawn at that house (host/leaders.ts) and has a page of their own.
+ */
+export function figureHousehold(world: World, ref: string): Kin[] {
+  const f = familyOf(world, ref);
+  if (!f) return [];
+  const grown = populationContext(world).life.adulthood,
+    at = (k: Kin | null): k is Kin => !!k && k.died === null && k.ref !== null;
+  return [
+    ...(at(f.spouse) ? [f.spouse] : []),
+    ...f.children.filter((k) => at(k) && f.year - k.born < grown + 4).slice(-HOUSEHOLD.children),
+    ...f.parents.filter(at).slice(0, HOUSEHOLD.parents),
+  ];
 }
 
 // —— The family in a line ——————————————————————————————————————————————————————————————
@@ -1265,6 +1422,14 @@ export function bodyOf(world: World, ref: string): BodyRead | null {
       c = courtOf(world)?.of(ref.slice("court:".length, at) as Ref),
       f = c?.figures.find((x) => x.id === id) ?? c?.gone.find((x) => x.id === id);
     return f ? { frame, wounds: [], death: null, sex: f.sex === 0 ? 0 : 1 } : null;
+  }
+  if (ref.startsWith("boss:") || ref.startsWith("note:")) {
+    const who = figureSelf(world, ref);
+    return who ? { frame, wounds: [], death: null, sex: who.sex } : null;
+  }
+  if (ref.startsWith("kin:")) {
+    const k = kinOfFigure(world, ref);
+    return k ? { frame, wounds: [], death: null, sex: k.kin.sex } : null;
   }
   const seat = ref.startsWith("heal:")
     ? { town: ref.slice("heal:".length), trade: "healer", seat: 0 }

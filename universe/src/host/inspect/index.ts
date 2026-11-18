@@ -68,7 +68,7 @@ import { healerPage } from "./wounds.ts";
 import { armPage, armsPage } from "./arm.ts";
 import { elementPage } from "./element.ts";
 import { levyManPage, townsfolkPage } from "./townsfolk.ts";
-import { seatPage, withKin } from "./kin.ts";
+import { kinPage, seatPage, withKin } from "./kin.ts";
 import { rulerPage, withLeaderPage } from "./leaders.ts";
 import { courtPage } from "./court.ts";
 import { dynastyPage, linePage, withFamilyLink } from "./family.ts";
@@ -203,6 +203,8 @@ function build(
   if (ref.startsWith("boss:")) return bossPage(world, ref);
   // (One who holds an office or heads a great thing of a town, as read: host/inspect/notables.ts.)
   if (ref.startsWith("note:")) return notablePage(world, ref);
+  // (One of a head's or an office-holder's household, read from them: host/kin.ts.)
+  if (ref.startsWith("kin:")) return kinPage(world, ref);
   if (ref.startsWith("ofed:")) return orgFedPage(world, ref);
   const code = ref.slice(0, ref.indexOf(":")),
     t = tab ?? undefined;

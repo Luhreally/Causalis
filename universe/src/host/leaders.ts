@@ -26,7 +26,7 @@ import {
   type LaidAs,
   type VillagePlan,
 } from "../bridge/index.ts";
-import { seatHolder } from "./kin.ts";
+import { figureHousehold, seatHolder } from "./kin.ts";
 import { courtLeaders } from "./court.ts";
 import { asRef, bare, claimOf, yearNow } from "./inspect/words.ts";
 import type { QueryHandler } from "./host.ts";
@@ -195,7 +195,9 @@ export function withFigures(world: World, plan: VillagePlan): VillagePlan {
     (l): l is Leader & { as: LaidAs } => l.as !== null,
   );
   if (here.length === 0 || plan.homes.length === 0) return plan;
-  const people = [...plan.people];
+  const people = [...plan.people],
+    year = yearNow(world),
+    grown = populationContext(world).life.adulthood;
   // Each one's home: by who they are, as ever; a group's head, who came to this later, the next of the homes about the square
   // that none of the others keeps (a head does not share the ruler's hall).
   const kept = new Set(
@@ -227,6 +229,24 @@ export function withFigures(world: World, plan: VillagePlan): VillagePlan {
         role: l.title,
         figure: l.ref,
       });
+    // (A head's and an office-holder's household, under their roof: each one of the town's to be met, with a page. host/kin.ts)
+    if (l.kind === "head")
+      for (const k of figureHousehold(world, l.ref)) {
+        const age = year - k.born;
+        // (A babe is in arms, not on the street.)
+        if (age < 3) continue;
+        people.push({
+          ref: k.ref!,
+          name: k.name,
+          home,
+          age,
+          occupation: OCC.dependent,
+          child: age < grown,
+          sex: k.sex,
+          folk: true,
+          role: `${k.tie} of ${l.name}`,
+        });
+      }
   }
   const figures = here.map((l) => ({
       ref: l.ref,
