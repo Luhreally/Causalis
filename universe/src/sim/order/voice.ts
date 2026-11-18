@@ -84,7 +84,8 @@ export function voiceSituation(
     folk = realmFolk(ctx, realm);
   return {
     legitimacy: o?.legitimacy ?? 0.6,
-    atWar: wars.length > 0,
+    // (At a war still fought: every war of its not yet gone cold was counted, ended or not, as folk.ts's did.)
+    atWar: wars.some((w) => w.ended === null),
     lost: won + lost ? lost / (won + lost) : 0,
     apart: folk.apart,
     nation: folk.nation,

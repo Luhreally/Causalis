@@ -94,7 +94,11 @@ export function atWarWithStrangers(world: World, realm: Polity): boolean {
     realms = politiesOf(world),
     mine = culture.get(realm.seat);
   if (!mine) return false;
+  // (Its wars still fought: it read every war of its not yet gone cold, ended or not, so a realm stood "at war with strangers"
+  // for forty years and more after its peace, until its war's block filled, and the same world with blocks of another size
+  // was another world from the first block on: found by coldab.mts, first light, year 115.)
   for (const w of warsOf(world).hotOf(realm.ref)) {
+    if (w.ended !== null) continue;
     const other = realms.get(w.attacker === realm.ref ? w.defender : w.attacker),
       theirs = other ? culture.get(other.seat) : undefined;
     if (theirs && tongueLikeness(mine.tongue, theirs.tongue) < OTHER_SPEECH) return true;
