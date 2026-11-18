@@ -5,7 +5,7 @@
 // to a stock goes through the ledger, so a year always balances.
 import { Hasher, defineKind, makeRef, type Ref, type StateStore } from "../../kernel/index.ts";
 import { cellRef } from "../../gen/index.ts";
-import { G, GOODS, OCCUPATIONS, type ToolMetal } from "../../rules/index.ts";
+import { G, GLUT_YEARS, GOODS, OCCUPATIONS, type ToolMetal } from "../../rules/index.ts";
 
 export const GOOD_COUNT = GOODS.length;
 
@@ -173,6 +173,19 @@ export class Market {
   book(line: LedgerLine, good: number): number {
     if (this.reckoned) return this.line(line, good);
     return this.years.at(-1)?.ledger[LINE[line]]?.[good] ?? 0;
+  }
+
+  /**
+   * What goes of a good here in a year: the most it used and sent on in any of the last GLUT_YEARS closed years (the most, for
+   * a good smelted one year is worked the next). What its making and what traders bring it are bounded by.
+   */
+  goes(good: number): number {
+    let most = 0;
+    for (let i = Math.max(0, this.years.length - GLUT_YEARS); i < this.years.length; i++) {
+      const y = this.years[i]!.ledger;
+      most = Math.max(most, (y[LINE.used]?.[good] ?? 0) + (y[LINE.out]?.[good] ?? 0));
+    }
+    return most;
   }
 
   /** What its crafted tools were headed with in a year (now, if none is given); null: never said. */
@@ -494,6 +507,51 @@ export class MarketStore implements StateStore {
     for (const cell of cells) for (const i of index.at.get(cell) ?? []) seen.add(i);
     return [...seen].sort((a, b) => a - b).map((i) => this.flows[i]!);
   }
+
+  /**
+   * What a flow counts for as trade that binds the two lands it passed between, in units of its good: each good counted once
+   * on its way from where it was made to where it is used, however many borders it crossed. A flow is a year's goods over one
+   * border, and a good carried on is a flow again at the next: summed as they stand, a bale sold across four realms was four
+   * realms' trade with their neighbours, and a realm on the road "traded" more than everything it used. So half of a flow
+   * counts as far as it is the sender's own (of all it sent of the good in the year, what it did not itself take in), half as
+   * far as it stays with the taker (of all it took in, what it did not send on); and what was only carried through counts for
+   * what the carrying earned, the share of its worth where it came that it gained on the way: a toll's worth of tie, not a
+   * trade's. Read off the year's flows alone (and the prices that year left), so what is kept of a reading of them stands
+   * while they do.
+   */
+  boundOf(f: TradeFlow): number {
+    let sums = this.flowSums;
+    if (sums?.flows !== this.flows || sums.length !== this.flows.length) {
+      const by = new Map<number, [sent: number, taken: number]>(),
+        at = (cell: number, good: number) => {
+          const k = cell * GOOD_COUNT + good;
+          let row = by.get(k);
+          if (!row) by.set(k, (row = [0, 0]));
+          return row;
+        };
+      for (const x of this.flows) {
+        at(x.from, x.good)[0] += x.count;
+        at(x.to, x.good)[1] += x.count;
+      }
+      this.flowSums = sums = { flows: this.flows, length: this.flows.length, by };
+    }
+    const a = sums.by.get(f.from * GOOD_COUNT + f.good),
+      b = sums.by.get(f.to * GOOD_COUNT + f.good);
+    if (!a || !b || !(a[0] > 0) || !(b[1] > 0)) return f.count;
+    const own = Math.max(0, a[0] - a[1]) / a[0],
+      stays = Math.max(0, b[1] - b[0]) / b[1],
+      whole = (own + stays) / 2,
+      here = this.map.get(f.from)?.price[f.good] ?? 0,
+      there = this.map.get(f.to)?.price[f.good] ?? 0,
+      gained = there > 0 ? Math.max(0, 1 - here / there) : 0;
+    return f.count * (whole + (1 - whole) * gained);
+  }
+  /** What each land sent and took of each good in the year's flows (a cache, never saved: made again with the year's trade). */
+  private flowSums: {
+    readonly flows: readonly TradeFlow[];
+    readonly length: number;
+    readonly by: Map<number, [sent: number, taken: number]>;
+  } | null = null;
 
   /** (A count of roads opened or opened anew: what is kept of a reading of them is kept by it. Not state; it only grows.) */
   roadsOpened = 0;

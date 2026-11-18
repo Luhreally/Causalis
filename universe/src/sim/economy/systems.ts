@@ -345,26 +345,22 @@ function makeAndUse(
               : 0));
 
   // Crafters go where their work is worth most; what lacks inputs sends them to what needs none.
-  // Fuel and machines — and tin and iron (Phase 52 M216) — are made only while there is use for
-  // them: up to GLUT_YEARS of what the land burned, wore out, worked and sold last year.
-  // (Tin and iron are worked only the year after they are smelted: their use is the most of the
-  // last GLUT_YEARS, or a year that smelted them and a year that worked them would take turns.)
+  // Nothing is made but while there is use for it: up to GLUT_YEARS of what the land burned, wore out, worked and sold (or of
+  // what its people need of it in the year, where that is more), less what it holds. (Fuel and machines by last year's; the
+  // rest by the most of the last GLUT_YEARS: tin and iron are worked only the year after they are smelted, Phase 52 M216, and
+  // a year that smelted them and a year that worked them would take turns. It was fuel, machines, tin and iron alone: every
+  // crafter with nothing else to work made what needs no inputs, wanted or not, and by first light's year 600 the world held
+  // 590 years' use of tools, 48 of pots and 54 of copper, made fourteen tools for each one used, and sent thirty-one over a
+  // border for each one used, to wherever a price stood a little higher: scratchpad/release/tg.mts.)
   const last = m.years.at(-1)?.ledger,
     gone = (g: number) =>
-      g === G.tin || g === G.iron
-        ? Math.max(
-            0,
-            ...m.years
-              .slice(-GLUT_YEARS)
-              .map((y) => (y.ledger[1]?.[g] ?? 0) + (y.ledger[3]?.[g] ?? 0)),
-          )
-        : (last?.[1]?.[g] ?? 0) + (last?.[3]?.[g] ?? 0),
+      FUELS.includes(g) || g === G.machines
+        ? (last?.[1]?.[g] ?? 0) + (last?.[3]?.[g] ?? 0)
+        : m.goes(g),
     room = (g: number) =>
       idle && g === G.machines
         ? 0
-        : FUELS.includes(g) || g === G.machines || g === G.tin || g === G.iron
-          ? GLUT_YEARS * (gone(g) + 1) - m.stock[g]!
-          : Infinity;
+        : GLUT_YEARS * (Math.max(gone(g), g === G.machines ? 0 : needOf(g)) + 1) - m.stock[g]!;
   const crafters = p.occupation(OCC.crafter),
     open = RECIPES.map((r, i) => ({ r, i })).filter(
       ({ r }) => canMake(ctx, p, m, r) && room(r.output[0]) > 0,
@@ -376,12 +372,15 @@ function makeAndUse(
       const w = Math.max(0, worth(m, r));
       return w * w;
     });
-    const any = weights.some((w) => w > 0);
-    const alloc = apportion(
-      crafters,
-      any ? weights : open.map(({ r }) => (r.inputs.length ? 0 : 1)),
-      (k) => world.rng.u32(CRAFT, key, t, 0, open[k]!.i),
-    );
+    const any = weights.some((w) => w > 0),
+      // (Where nothing is worth working, to what needs no inputs; where no such thing has room for more, no one makes anything.)
+      free = open.some(({ r }) => !r.inputs.length);
+    const alloc =
+      any || free
+        ? apportion(crafters, any ? weights : open.map(({ r }) => (r.inputs.length ? 0 : 1)), (k) =>
+            world.rng.u32(CRAFT, key, t, 0, open[k]!.i),
+          )
+        : open.map(() => 0);
     // (A good several crafts are worked from — copper, iron, tools — is shared among them by what
     // each was set to use of it: what one takes, another cannot. Phase 52 M217.)
     const asked = new Map<number, number>(),
@@ -405,24 +404,39 @@ function makeAndUse(
       return most;
     };
     let spare = 0;
+    // (What there is still room to make of each good, as its crafts take it up: several crafts make tools.)
+    const left: number[] = [],
+      leftOf = (g: number) => (left[g] ??= Math.max(0, room(g))),
+      eachOf = (r: Recipe) =>
+        r.output[1] *
+        (r.needs?.ore ? oreWorkable(ctx, p.cell, r.needs.ore)!.grade : 1) *
+        skill(r.output[0]);
     open.forEach(({ r }, k) => {
       for (const [g, per] of r.inputs) want[g] = want[g]! + alloc[k]! * per;
-      const grade = r.needs?.ore ? oreWorkable(ctx, p.cell, r.needs.ore)!.grade : 1,
-        each = r.output[1] * grade * skill(r.output[0]),
-        limit = Math.min(shared(r, alloc[k]!), Math.ceil(room(r.output[0]) / Math.max(1e-9, each)));
+      const each = eachOf(r),
+        out = r.output[0],
+        limit = Math.min(shared(r, alloc[k]!), Math.ceil(leftOf(out) / Math.max(1e-9, each)));
       if (alloc[k]! > limit) {
         spare += alloc[k]! - limit;
         alloc[k] = limit;
       }
+      left[out] = Math.max(0, leftOf(out) - alloc[k]! * each);
     });
     if (spare) {
-      // To what needs no inputs, and has room for more.
-      const free = open.map(({ r }, k) =>
-        r.inputs.length || room(r.output[0]) !== Infinity ? 0 : Math.max(0, weights[k]!) + 1e-9,
+      // To what needs no inputs, and has room for more: as many as that room takes. The rest make nothing this year.
+      const takers = open.map(({ r }, k) =>
+        r.inputs.length || !(leftOf(r.output[0]) > 0) ? 0 : Math.max(0, weights[k]!) + 1e-9,
       );
-      if (free.some((w) => w > 0))
-        apportion(spare, free, (k) => world.rng.u32(CRAFT, key, t, 1, open[k]!.i)).forEach(
-          (n, k) => (alloc[k] = alloc[k]! + n),
+      if (takers.some((w) => w > 0))
+        apportion(spare, takers, (k) => world.rng.u32(CRAFT, key, t, 1, open[k]!.i)).forEach(
+          (n, k) => {
+            if (!n) return;
+            const r = open[k]!.r,
+              each = eachOf(r),
+              more = Math.min(n, Math.ceil(leftOf(r.output[0]) / Math.max(1e-9, each)));
+            alloc[k] = alloc[k]! + more;
+            left[r.output[0]] = Math.max(0, leftOf(r.output[0]) - more * each);
+          },
         );
     }
     open.forEach(({ r, i }, k) => {
@@ -806,6 +820,23 @@ function trade(
         (1 + SIGNAL.carriers * info),
       carried = load.get(pl.from)!;
     if (carried > capacity) pl.count = Math.floor((pl.count * capacity) / carried);
+  }
+  // A market takes of a good no more than it has use for: what brings its stock to GLUT_YEARS of what goes there (what is
+  // wanted of it there this year, or what it used and sold on in the most of its last years), from all who would send it, each
+  // by what it would send. (Traders took a quarter of whatever a land had to spare of a good, each year, to any neighbour where
+  // its price stood higher by more than the haul, whether anyone there had use for it: and a price falls no lower than a third
+  // of a good's worth however much of it lies unsold, so where two lands' worths differed the goods went on going.)
+  const sent = new Map<number, number>(),
+    key = (pl: Plan) => pl.to * GOOD_COUNT + pl.good;
+  for (const pl of plans) if (pl.count) sent.set(key(pl), (sent.get(key(pl)) ?? 0) + pl.count);
+  for (const pl of plans) {
+    if (!pl.count) continue;
+    const to = markets.of(pl.to),
+      room =
+        GLUT_YEARS * (Math.max(wanted.get(pl.to)?.[pl.good] ?? 0, to.goes(pl.good)) + 1) -
+        to.stock[pl.good]!,
+      all = sent.get(key(pl))!;
+    if (all > room) pl.count = room > 0 ? Math.floor((pl.count * room) / all) : 0;
   }
   const flows: TradeFlow[] = [];
   for (const pl of plans) {
