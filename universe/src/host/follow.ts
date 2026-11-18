@@ -326,7 +326,7 @@ export function familyOnBar(
 // —— A group's head; one who holds an office ————————————————————————————————————————————————
 
 defineWatchKind({
-  test: (ref) => /^boss:pol:d+:d+:ev:d+:d+$/.test(ref),
+  test: (ref) => /^boss:pol:\d+:\d+:ev:\d+:\d+$/.test(ref),
   label: (world, ref) => headLeader(world, ref)?.name ?? null,
   // (What is news of their group is news of them: its wars, soldiers sent against it, its head taken.)
   news: (world, w) => {

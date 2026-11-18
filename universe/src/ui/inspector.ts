@@ -1326,7 +1326,7 @@ export class PageWindow {
     if (item.who) {
       const who = item.who,
         acts = el("span", "entry-acts"),
-        go = el("button", "entry-act", "⌖");
+        go = el("button", "entry-act", "⌖ Go");
       go.title = "Go to them";
       go.setAttribute("aria-label", "Go to them");
       go.onclick = async (e) => {

@@ -4169,7 +4169,11 @@ body.with-palette .hint {
   gap: 6px;
   flex: 0 0 auto;
 }
-.entry-act {
+.entry-act,
+.entry-act.follow {
+  /* (Dark on the button's own light face: a line's pale words would not be read on it.) */
+  color: #0b1030;
+  font-weight: 600;
   min-width: 40px;
   min-height: 32px;
   padding: 2px 8px;
