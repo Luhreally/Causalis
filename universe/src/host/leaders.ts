@@ -2,6 +2,8 @@
 // lives in the seat's town while the realm stands), the generals of its last coups, and the heads
 // of the houses of lending its lands hold. A town's own figures stand in it by name, each in one of
 // the homes nearest its square. Pure reads: asking moves nothing and nothing is kept.
+import { headLeader, townRolesOf } from "./inspect/townlife.ts";
+import { orgsOf, underworldOf } from "../sim/index.ts";
 import type { World } from "../kernel/index.ts";
 import {
   creditOf,
@@ -14,6 +16,7 @@ import {
 } from "../sim/index.ts";
 import { OCC } from "../rules/index.ts";
 import {
+  NEAREST_HOMES,
   homeOfFigure,
   seatRef,
   worthWords,
@@ -145,6 +148,23 @@ export function leadersOf(world: World, realm: string): LeaderList | null {
       if (l) leaders.push(l);
     }
   }
+  // The heads of its strongest groups, under the law and outside it, where they live in a town that shows them.
+  if (r.ended === null) {
+    const groups = [
+      ...(underworldOf(world)?.of(r.ref)?.groups ?? []),
+      ...(orgsOf(world)?.of(r.ref)?.orgs ?? []),
+    ]
+      .sort((a, b) => b.power - a.power || (a.event < b.event ? -1 : 1))
+      .slice(0, 8);
+    let heads = 0;
+    for (const g of groups) {
+      const l = heads < 4 ? headLeader(world, `boss:${r.ref}:${g.event}`) : null;
+      if (l) {
+        leaders.push(l);
+        heads++;
+      }
+    }
+  }
   return { realm: r.ref, realmName: realmName(r), leaders };
 }
 
@@ -159,6 +179,8 @@ export function leadersOfTown(world: World, town: string): Leader[] {
   const h = creditOf(world)?.houseIn(town),
     l = h ? lenderLeader(world, h) : null;
   if (l) out.push(l);
+  // (The heads of the groups whose home it is: host/inspect/townlife.ts.)
+  out.push(...townRolesOf(world, town).heads);
   return out;
 }
 
@@ -169,8 +191,23 @@ export function withFigures(world: World, plan: VillagePlan): VillagePlan {
   );
   if (here.length === 0 || plan.homes.length === 0) return plan;
   const people = [...plan.people];
+  // Each one's home: by who they are, as ever; a group's head, who came to this later, the next of the homes about the square
+  // that none of the others keeps (a head does not share the ruler's hall).
+  const kept = new Set(
+      here.filter((l) => l.kind !== "head").map((l) => homeOfFigure(l.ref, plan.homes.length)),
+    ),
+    homes = new Map<string, number>();
   for (const l of here) {
-    const home = homeOfFigure(l.ref, plan.homes.length),
+    let home = homeOfFigure(l.ref, plan.homes.length);
+    if (l.kind === "head") {
+      const among = Math.min(2 * NEAREST_HOMES, plan.homes.length);
+      for (let k = 0; k < among && kept.has(home); k++) home = (home + 1) % among;
+      kept.add(home);
+    }
+    homes.set(l.ref, home);
+  }
+  for (const l of here) {
+    const home = homes.get(l.ref)!,
       i = people.findIndex((p) => p.ref.startsWith("agent:") && p.name === l.name);
     if (i >= 0) people[i] = { ...people[i]!, home, role: l.title, figure: l.ref };
     else
@@ -190,7 +227,7 @@ export function withFigures(world: World, plan: VillagePlan): VillagePlan {
       ref: l.ref,
       name: l.name,
       title: l.title,
-      home: homeOfFigure(l.ref, plan.homes.length),
+      home: homes.get(l.ref)!,
     })),
     // (Each one's home marked on its lot, but the ruler's: the ruler keeps the seat's hall. bridge/rank.ts)
     marks = figures.flatMap((g) => {

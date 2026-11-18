@@ -240,7 +240,7 @@ export function lifeNow(world: World): LifeNow | null {
     }),
     // What this one is for a group of their town (host/inspect/townlife.ts): told in the tray, each a press that says what it
     // is, for whom and when. Their hours in a life lived are the life's own; these are told, not spent.
-    roles = f.age >= adult ? roleOffers(world, w.village, `agent:${l.agent}`) : [],
+    roles = f.age >= adult ? roleOffers(world, w.village, `agent:${l.agent}`, l.name) : [],
     market = marketsOf(world).get(w.cell),
     wantWords = (id: WantId) => LIFE_WANTS[id].words,
     wantAt = l.want ? wantNow(l.want, l, f, rival) : null;

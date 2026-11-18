@@ -386,6 +386,12 @@ export type TownGoing = {
   readonly took?: Readonly<Record<string, string>>;
   /** Who headed it before the one who does now, where history keeps a note of them (a head's house): their page and name. */
   readonly before?: { readonly ref: string; readonly name: string };
+  /** What the first of it says, who leads it (a meeting's head, a ruler holding court); the rest say `doing`. */
+  readonly lead?: string;
+  /** Held every day, not one day in seven (a court kept). */
+  readonly every?: true;
+  /** Its hours of the day, where they are not its kind's own. */
+  readonly hours?: readonly [number, number];
   /** What the one set apart to look out says (a corner kept). */
   readonly watch?: string;
   /** Where: a member's home, the temple, the market's stalls, a back lane, a corner, the square, a house guarded. */

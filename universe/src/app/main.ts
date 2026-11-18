@@ -9787,11 +9787,25 @@ async function runPlanetPage(): Promise<void> {
     void client.advance(Math.ceil(theirs.day * DAY + s));
     if (!p.folk) keep(p.ref);
   };
+  /**
+   * One of those drawn by the page that is theirs: their own ref, the key figure they are (one under the hand is the hand's and
+   * still that figure), the town's healer, a maker at their seat. -1: not among those drawn.
+   */
+  const drawnAs = (who: string): number =>
+    plan
+      ? plan.people.findIndex(
+          (p) =>
+            p.ref === who ||
+            p.figure === who ||
+            (!!p.healer && who === `heal:${plan!.ref}`) ||
+            (!!p.trade && who === seatRef(plan!.ref, p.trade.kind, p.trade.seat)),
+        )
+      : -1;
   const keep = (ref: string | null) => {
     keeping = ref;
     rig.follow = ref
       ? () => {
-          const i = plan?.people.findIndex((p) => p.ref === keeping) ?? -1,
+          const i = keeping ? drawnAs(keeping) : -1,
             m = i >= 0 ? village.momentAt(i) : null;
           return m && !m.hidden ? { x: m.x * VILLAGE_METRE, y: 0, z: m.z * VILLAGE_METRE } : null;
         }
@@ -9801,12 +9815,7 @@ async function runPlanetPage(): Promise<void> {
   // (Steered on over the land, the view lets the person kept in view go.)
   rig.onLetGo = () => keep(null);
   pageWindow.sceneActions = (page) => {
-    if (
-      scale !== "village" ||
-      page.kind !== "person" ||
-      !plan?.people.some((p) => p.ref === page.ref)
-    )
-      return [];
+    if (scale !== "village" || page.kind !== "person" || drawnAs(page.ref) < 0) return [];
     const on = keeping === page.ref;
     return [
       {
@@ -9822,8 +9831,7 @@ async function runPlanetPage(): Promise<void> {
   };
   // (Kept in view only in their village: another scale, or another village, lets them go.)
   stage.onUpdate(() => {
-    if (keeping && (scale !== "village" || !plan?.people.some((p) => p.ref === keeping)))
-      keep(null);
+    if (keeping && (scale !== "village" || drawnAs(keeping) < 0)) keep(null);
   });
   /** The land nearest a spot of the sea, within a few spots (a coast zoomed at), if any. */
   const landNear = (
@@ -9966,16 +9974,20 @@ async function runPlanetPage(): Promise<void> {
         return;
       }
       const who = place.person,
-        i = who ? plan.people.findIndex((p) => p.ref === who) : -1,
+        i = who ? drawnAs(who) : -1,
         m = i >= 0 ? village.momentAt(i) : null;
       if (m) {
         // (A card left open is another's: what the one gone to is doing is not theirs to say.)
         villagePanel.closeCard();
         watched = i;
         village.mark(i);
+        // (Near, and down the most open street from them, as the town's note goes to one: a town's blocks stand between a
+        // far eye and one at a door.)
         rig.flyTo({
-          target: { x: m.x * VILLAGE_METRE, y: 0, z: m.z * VILLAGE_METRE },
-          distance: 8,
+          target: { x: m.x * VILLAGE_METRE, y: 0.05, z: m.z * VILLAGE_METRE },
+          yaw: openYaw(plan, { x: m.x, z: m.z }, 48),
+          pitch: -38,
+          distance: 5.5,
         });
         keep(who!);
       } else rig.flyTo({ target: { x: 0, y: 0, z: 0 }, distance: plan.districts ? 78 : 26 });
@@ -10016,7 +10028,7 @@ async function runPlanetPage(): Promise<void> {
           await ready("the village", () => toVillage(place.town));
           const who = place.person;
           if (who && plan) {
-            const i = plan.people.findIndex((p) => p.ref === who);
+            const i = drawnAs(who);
             if (i >= 0) {
               watched = i;
               village.mark(i);

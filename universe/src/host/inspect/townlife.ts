@@ -34,6 +34,7 @@ import {
   realmName,
   soldiersIn,
   underworldOf,
+  warsOf,
   type Org,
   type Polity,
   type Settlement,
@@ -43,6 +44,7 @@ import {
   GOING_ICON,
   type Block,
   type Item,
+  type Leader,
   type Stat,
   type TownGoing,
   type VillagePlan,
@@ -62,6 +64,8 @@ import {
   type Party,
 } from "./justice.ts";
 import { musicOf } from "./customs.ts";
+import { seatTownOf } from "../leaders.ts";
+import { courtLeaders } from "../court.ts";
 import { count, item, link, many, stat, yearNow } from "./words.ts";
 
 /** The towns of a land its underworld is seen in: its most peopled, as its crime is read of them (host/inspect/underworld.ts). */
@@ -84,6 +88,62 @@ const POOL = 96,
   PARTS = 8,
   PART = { collect: 0, guard: 1, corner: 3, patrol: 4, seller: 5, pays: 6, buys: 7 } as const,
   unit = (h: number, n: number): number => finish(mix(h, n), 13) / 4294967296;
+
+/** A group's head as one of their town's key figures: who the hand can be laid from, and where they live. */
+function headOf(
+  world: World,
+  realm: Polity,
+  ref: string,
+  head: { readonly name: string; readonly born: number; readonly since: number },
+  group: string,
+  did: string,
+  why: string,
+  s: Settlement,
+): Leader {
+  const year = yearNow(world);
+  return {
+    ref,
+    kind: "head",
+    name: head.name,
+    title: `Head of ${group}, of ${realmName(realm)}`,
+    did,
+    why,
+    town: s.ref,
+    townName: s.name,
+    as: {
+      name: head.name,
+      age: Math.max(lifeOf(world).adulthood, Math.min(300, year - head.born)),
+      // (They live on what their group takes and trades, and hold no seat: a life lived as them works as a trader's does.)
+      occupation: OCC.trader,
+      // (No record says: by who they are, the same every read.)
+      sex: (hashString(`${ref}|${head.name}`) >>> 0) & 1,
+    },
+    cannot: null,
+  };
+}
+
+/**
+ * A group's head by their page (`boss:<realm>:<event>`), as a key figure of the town they live in: the first town of their
+ * group's home land, where the town's days show them (null: none such, or their town is not one that shows it).
+ */
+export function headLeader(world: World, ref: string): Leader | null {
+  const m = /^boss:(pol:\d+:\d+):(ev:\d+:\d+)$/.exec(ref),
+    realm = m ? politiesOf(world).get(m[1] as Ref) : undefined;
+  if (!m || !realm) return null;
+  const g =
+    underworldOf(world)
+      ?.of(realm.ref)
+      ?.groups.find((x) => x.event === m[2]) ??
+    orgsOf(world)
+      ?.of(realm.ref)
+      ?.orgs.find((x) => x.event === m[2]);
+  if (!g) return null;
+  const first = populationContext(world)
+    .settlements.inProvince(g.home)
+    .filter((t) => t.population > 0)
+    .sort((a, b) => b.population - a.population || (a.ref < b.ref ? -1 : 1))[0];
+  return (first && townRolesOf(world, first.ref).heads.find((h) => h.ref === ref)) || null;
+}
 
 /** How a head went, after "who". */
 const HEAD_WENT: Readonly<Record<"years" | "taken" | "struck", string>> = {
@@ -172,6 +232,13 @@ export type TownLife = {
   readonly outsiders: readonly (VillagePlan["people"][number] & { readonly page: string })[];
   /** The court's cases this year and last whose accused is not of the town, each with who stands for them. */
   readonly tried: readonly { readonly c: Case; readonly ref: string }[];
+  /**
+   * Those history keeps by name who live in it and are someone there: the heads of the groups whose home it is. Each is one of
+   * the town's key figures (host/leaders.ts): a body at their own house, the same one their page is of.
+   */
+  readonly heads: readonly Leader[];
+  /** The names of those a going names who are not of its lines (its heads, its ruler and court): for a line that leads to one. */
+  readonly known: readonly (readonly [string, string])[];
   /** Those of its underworld its court holds now: who they were for it, and the case that took them from it. */
   readonly past: readonly {
     readonly ref: string;
@@ -180,7 +247,15 @@ export type TownLife = {
   }[];
 };
 
-const NONE: TownLife = { goings: [], named: [], outsiders: [], tried: [], past: [] };
+const NONE: TownLife = {
+  goings: [],
+  named: [],
+  outsiders: [],
+  tried: [],
+  past: [],
+  heads: [],
+  known: [],
+};
 const KEPT = new WeakMap<World, { now: number; by: Map<string, TownLife> }>();
 const ROLES = new WeakMap<World, { now: number; by: Map<string, TownLife> }>();
 
@@ -263,7 +338,7 @@ function readLife(world: World, town: string, year: number): TownLife {
       outsider: true,
     });
   }
-  return { goings, named, outsiders, tried, past };
+  return { goings, named, outsiders, tried, past, heads: roles.heads, known: roles.known };
 }
 
 /**
@@ -331,7 +406,9 @@ function readRoles(world: World, town: string, year: number): TownLife {
     grown = lifeOf(world).adulthood,
     goings: TownGoing[] = [],
     named = new Map<string, Party>(),
-    outsiders: (VillagePlan["people"][number] & { page: string })[] = [];
+    outsiders: (VillagePlan["people"][number] & { page: string })[] = [],
+    heads: Leader[] = [],
+    known: (readonly [string, string])[] = [];
   /**
    * So many of the town's own by a thing's key: of its first lines' holders (POOL of them), ordered by the key and their line, so
    * the same people are of it year on year. Each thing of its underworld draws from lines of its own (`part`: one in PARTS of
@@ -430,7 +507,28 @@ function readRoles(world: World, town: string, year: number): TownLife {
         });
         continue;
       }
+      // (Its head, at its home land's first town: one of the town's key figures, who leads what it holds there.)
+      const leads = rank === 0 && g.home === s.cell ? `boss:${realm.ref}:${g.event}` : null;
+      if (leads) {
+        heads.push(
+          headOf(
+            world,
+            realm,
+            leads,
+            g.leader,
+            name,
+            `Leads ${name} since year ${g.leader.since}.`,
+            g.event,
+            s,
+          ),
+        );
+        known.push([leads, g.leader.name]);
+        who.unshift(leads);
+      }
       goings.push({
+        ...(leads
+          ? { lead: `Leading the ${how.at} of ${name}${how.closed ? ", behind closed doors" : ""}` }
+          : {}),
         kind: "meeting",
         key,
         of: { ref, name },
@@ -447,6 +545,48 @@ function readRoles(world: World, town: string, year: number): TownLife {
         ...(how.closed ? { closed: true as const } : {}),
       });
     }
+  }
+
+  // —— Its realm's seat: the ruler holds court with those of the court, every day; and looks over the levy while it is at war. ——
+  if (r && r.ended === null && seatTownOf(world, r)?.ref === town) {
+    const court = courtLeaders(world, r),
+      ruler = `rule:${r.ref}`,
+      foe = warsOf(world)
+        .fighting(r.ref)
+        .find((x) => x.ended === null),
+      other = foe
+        ? politiesOf(world).get(foe.attacker === r.ref ? foe.defender : foe.attacker)
+        : null;
+    known.push([ruler, r.ruler.name], ...court.map((c) => [c.ref, c.name] as const));
+    goings.push({
+      kind: "meeting",
+      key: `${r.ref}|court`,
+      of: { ref: r.ref, name: `the court of ${realmName(r)}` },
+      words: `${r.ruler.name} holds court at the seat of ${realmName(r)}`,
+      doing: `At court before ${r.ruler.name}`,
+      lead: "Holding court at the seat",
+      why: court.length
+        ? `${many(court.length, "one of the court attends", "of the court attend")}; ${r.ruler.name} has ruled since year ${r.ruler.since}`
+        : `${r.ruler.name} has ruled since year ${r.ruler.since}`,
+      since: r.ruler.since,
+      who: [ruler, ...court.map((c) => c.ref)],
+      where: "home",
+      every: true,
+      hours: [9, 12],
+    });
+    if (other)
+      goings.push({
+        kind: "meeting",
+        key: `${r.ref}|review`,
+        of: { ref: foe!.ref, name: `the war against ${realmName(other)}` },
+        words: `${r.ruler.name} looks over the levy drilled for the war against ${realmName(other)}`,
+        doing: `Looking over the levy drilled for the war against ${realmName(other)}`,
+        why: `${realmName(r)} has been at war with ${realmName(other)} since year ${foe!.declared}`,
+        who: [ruler],
+        where: "square",
+        every: true,
+        hours: [17.5, 19],
+      });
   }
 
   // —— Its underworld: only in its land's few greatest towns, and only what its land's row holds. ——
@@ -522,19 +662,20 @@ function readRoles(world: World, town: string, year: number): TownLife {
           after = before
             ? `, having taken its head from ${before.name}, who ${HEAD_WENT[before.how]} in year ${before.year}`
             : "";
-        // (Its head, whom history keeps by name: at that house, seen at its door some hours of the day. Their page is their own.)
-        outsiders.push({
-          ref,
-          page: ref,
-          name: g.boss.name,
-          role: `heads ${name} since year ${g.boss.since}${after}: not one of the lines of ${s.name}, and kept by name in history`,
-          home: 0,
-          age: Math.max(grown, year - g.boss.born),
-          occupation: OCC.dependent,
-          child: false,
-          folk: true,
-          outsider: true,
-        });
+        // (Its head, whom history keeps by name: one of the town's key figures, at that house. Their page is their own.)
+        heads.push(
+          headOf(
+            world,
+            r,
+            ref,
+            g.boss,
+            name,
+            `Heads ${name} since year ${g.boss.since}${after}.`,
+            g.event,
+            s,
+          ),
+        );
+        known.push([ref, g.boss.name]);
         goings.push({
           to: [ref],
           toDoing: `At home, where ${name} is headed from, guards at the door`,
@@ -709,7 +850,7 @@ function readRoles(world: World, town: string, year: number): TownLife {
     }
   }
 
-  return { goings, named: [...named.values()], outsiders, tried: [], past: [] };
+  return { goings, named: [...named.values()], outsiders, tried: [], past: [], heads, known };
 }
 
 /** What a town's feasts dance to: its realm's music as its culture is read (host/inspect/customs.ts; none: nothing kept). */
@@ -753,7 +894,10 @@ const WHEN: Readonly<Record<TownGoing["kind"], string>> = {
 export function townGoingsBlock(world: World, town: string): Block | null {
   const life = townLifeOf(world, town);
   if (!life.goings.length && !life.tried.length) return null;
-  const names = new Map([...life.named, ...life.outsiders].map((p) => [p.ref, p.name] as const)),
+  const names = new Map([
+      ...[...life.named, ...life.outsiders].map((p) => [p.ref, p.name] as const),
+      ...life.known,
+    ]),
     items: Item[] = life.goings.map((g) => {
       const first = g.who.find((ref) => names.has(ref));
       return item(
@@ -886,7 +1030,25 @@ export function peopleHereBlock(world: World, ref: string): Block | null {
       .slice(0, HERE.towns);
     for (const t of towns) {
       const life = townLifeOf(world, t.ref),
-        names = new Map(life.named.map((p) => [p.ref, p.name] as const));
+        names = new Map([...life.named.map((p) => [p.ref, p.name] as const), ...life.known]);
+      // (Its head first, where they live there: one of the town's key figures, gone to and followed from their page.)
+      for (const h of life.heads)
+        if (
+          (m && h.ref === `boss:${m[2]}:${m[3]}`) ||
+          (cellAt &&
+            !!underworldOf(world)
+              ?.of(h.ref.split(":").slice(1, 4).join(":") as Ref)
+              ?.groups.some((x) => h.ref.endsWith(x.event)))
+        )
+          items.push(
+            item(
+              [
+                link(h.name, h.ref),
+                ` of ${t.name}: ${h.title.replace(/^Head/, "head")}, at their own house.`,
+              ],
+              h.ref,
+            ),
+          );
       for (const g of life.goings) {
         if (!mine(g.of.ref)) continue;
         for (const who of g.who) {
@@ -989,9 +1151,24 @@ export function roleOffers(
   world: World,
   town: string,
   ref: string,
+  /** The name they are known by: one the hand was laid from who heads a group is that head, by it. */
+  name?: string,
 ): { what: "role"; target: number; icon: string; label: string; can: boolean; words: string }[] {
   const life = townLifeOf(world, town),
     out: ReturnType<typeof roleOffers> = [];
+  for (const h of life.heads) {
+    if (h.name !== name) continue;
+    const guarded = life.goings.find((g) => g.to?.includes(h.ref)),
+      leads = life.goings.find((g) => g.who[0] === h.ref);
+    out.push({
+      what: "role",
+      target: -1,
+      icon: "🕴️",
+      label: "Your house",
+      can: true,
+      words: `You are ${h.title.replace(/^Head/, "head")}. ${h.did}${guarded ? " Your house is guarded from dawn until late, and those who collect for you bring what they take to its door." : ""}${leads ? ` You lead what it holds here: ${leads.words.replace(/^./, (c) => c.toLowerCase())}, ${WHEN[leads.kind]}.` : ""} Told of this life, not yet lived in it: its hours are its own.`,
+    });
+  }
   for (const g of life.goings) {
     if (!g.who.includes(ref)) continue;
     out.push({

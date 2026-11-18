@@ -338,6 +338,41 @@ export function drawTool(
         ...(ctx.leaderHome ? { home: ctx.leaderHome } : {}),
         ...(ctx.leaderRule ? { rule: ctx.leaderRule } : {}),
       });
+      // (A group's head, who lives in a town as one of its key figures: lived as, as any of the town's people is. The hand is
+      // laid on their town from them, and they are among its people by the name they are known by.)
+      {
+        const l = args.leader as Leader,
+          live = ctx.live;
+        if (l.kind === "head" && l.as && l.town && live) {
+          const as = l.as,
+            town = l.town,
+            first = l.name.split(" ")[0],
+            tools = el("div", "tools god-acts-row"),
+            note = el("p", "note");
+          note.hidden = true;
+          twice(
+            tools,
+            note,
+            "🏡 Live as them",
+            `You will live ${first}'s life in their town, day by day. Your hand will be laid on their town, every one of its people someone, ${first} among them.`,
+            async () => {
+              const hand = await ctx.client.query<{ village: string } | null>({ type: "hand" });
+              if (hand?.village !== town) {
+                if (hand) await ctx.client.command("hand.lift", {});
+                await ctx.client.command("hand.lay", { village: town, as });
+              }
+              const id = await ctx.client.query<number | null>({
+                type: "hand.named",
+                args: { name: as.name },
+              });
+              if (id === null) throw new Error(`${first} could not be found under your hand`);
+              const why = await live(id, town);
+              if (why) throw new Error(why);
+            },
+          );
+          into.append(tools, note);
+        }
+      }
       return;
     case "home.look": {
       const look = ctx.homeLook;

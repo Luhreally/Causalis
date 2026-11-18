@@ -21,6 +21,7 @@ import { CONTRA_CAUSES } from "../../src/rules/index.ts";
 import {
   afterCourt,
   fightPeopleBlock,
+  headLeader,
   heldReading,
   forgetTownLife,
   partOfStats,
@@ -39,6 +40,7 @@ import {
   type Case,
 } from "../../src/host/inspect/justice.ts";
 import { villagePlan } from "../../src/host/village.ts";
+import { leadersOf, leadersOfTown, seatTownOf, withFigures } from "../../src/host/leaders.ts";
 import { yearNow } from "../../src/host/inspect/words.ts";
 import { momentOf, villageSolids, goingsOn } from "../../src/view/index.ts";
 import { peopledWorld } from "../worlds.ts";
@@ -265,7 +267,8 @@ test("the same people are of each thing every read, whatever else goes on, and a
   assert.ok(now.filter((r) => next.includes(r)).length >= now.length - 2, `${now} then ${next}`);
 
   const plan = villagePlan(world, town as Ref, undefined, 120),
-    refs = new Set(plan.people.map((p) => p.ref));
+    // (Its key figures are laid into the plan after: a group's head, who leads what it holds.)
+    refs = new Set(withFigures(world, plan).people.flatMap((p) => [p.ref, p.figure ?? p.ref]));
   for (const g of plan.goings!) for (const r of g.who) assert.ok(refs.has(r), `${g.kind}: ${r}`);
   // Those not of the town stand last, so no one's place among those drawn moves.
   const first = plan.people.findIndex((p) => p.outsider);
@@ -525,10 +528,7 @@ test("a fight's page names those of its town who are of either side, while it is
   for (const g of roles.goings)
     if (g.kind === "collect" || g.kind === "guard")
       for (const who of g.who) assert.ok(text.includes(who), `${g.kind} ${who}`);
-  assert.match(
-    text,
-    /of the Varro family: their collector in the town/,
-  );
+  assert.match(text, /of the Varro family: their collector in the town/);
   assert.doesNotMatch(text, /Grey/, "no one of the town is of the other side");
   assert.equal(
     fightPeopleBlock(world, { ...fight, year: year - 3 }),
@@ -552,4 +552,110 @@ test("a fight's page names those of its town who are of either side, while it is
   held(false);
   forgetDockets(world);
   forgetTownLife(world);
+});
+
+test("a group's head is one of their town's key figures: the same one their page is of, with a house, the way to them and the acts", () => {
+  ware(null);
+  held(true);
+  forgetDockets(world);
+  forgetTownLife(world);
+  const boss = `boss:${realm.ref}:${rose}`,
+    plan = withFigures(world, villagePlan(world, town as Ref, undefined, 120)),
+    drawn = plan.people.filter((p) => p.ref === boss || p.figure === boss);
+  assert.equal(drawn.length, 1, "one body, and only one");
+  assert.equal(drawn[0]!.name, "Old Varro");
+  assert.equal(drawn[0]!.figure, boss);
+  assert.ok(plan.figures!.some((f) => f.ref === boss && f.home === drawn[0]!.home));
+  // Every one a going names is among those drawn, the head too.
+  const refs = new Set(plan.people.flatMap((p) => [p.ref, ...(p.figure ? [p.figure] : [])]));
+  for (const g of plan.goings!)
+    for (const r of [...g.who, ...(g.to ?? [])])
+      if (!r.startsWith("folk:") || g.who.includes(r))
+        assert.ok(refs.has(r) || !g.who.includes(r), `${g.kind}: ${r}`);
+  // Their page: where they live, gone to as themself, followed, lived as, the god's acts.
+  const page = pageOf(world, boss),
+    tools = page.tabs.flatMap((t) => t.blocks.flatMap((b) => (b.type === "tool" ? [b.tool] : [])));
+  assert.deepEqual(page.place, { scale: "village", town, person: boss });
+  assert.ok(tools.includes("leader.card"), `the way to live as them: ${tools.join()}`);
+  assert.ok(tools.includes("acts.god-person"), "the god's acts on them");
+  assert.match(JSON.stringify(page), /Lives in/);
+  const l = headLeader(world, boss)!;
+  assert.equal(l.kind, "head");
+  assert.deepEqual([l.town, l.cannot, l.as?.name], [town, null, "Old Varro"]);
+  assert.ok(leadersOfTown(world, town).some((x) => x.ref === boss));
+  assert.ok(
+    leadersOf(world, realm.ref)!.leaders.some((x) => x.ref === boss),
+    "on its realm's leaders",
+  );
+  // The guards are at that same house in the town's day, and the head before its door.
+  const head = plan.people.findIndex((p) => p.figure === boss),
+    guard = plan.people.findIndex(
+      (p) => p.ref === plan.goings!.find((g) => g.kind === "guard")!.who[0],
+    ),
+    day = Math.floor(world.now / 86_400) + 1,
+    a = momentOf(plan, head, day * 86_400 + 11 * 3600),
+    b = momentOf(plan, guard, day * 86_400 + 11 * 3600),
+    house = plan.homes[plan.people[head]!.home]!;
+  assert.match(a.why ?? "", /^At home, where the Varro family is headed from/);
+  assert.ok(Math.hypot(a.x - house.x, a.z - house.z) < 20 && Math.hypot(a.x - b.x, a.z - b.z) < 10);
+  // Another heads it: the same page, the same body, another name; no second figure.
+  const rec = record();
+  under.put(realm.ref, {
+    ...rec,
+    groups: [{ ...rec.groups[0]!, boss: { name: "Young Varro", born: 30, since: year } }],
+  });
+  forgetTownLife(world);
+  const next = withFigures(world, villagePlan(world, town as Ref, undefined, 120)).people.filter(
+    (p) => p.figure === boss,
+  );
+  assert.deepEqual(
+    next.map((p) => p.name),
+    ["Young Varro"],
+  );
+  assert.match(pageOf(world, boss).title, /Young Varro/);
+  // A head whose group's home has no town that shows them says where they are, and is gone to there.
+  held(false);
+  forgetTownLife(world);
+  under.put(realm.ref, { ...rec, ops: [] });
+  gangs.drop(cell);
+  forgetTownLife(world);
+  const far = pageOf(world, boss);
+  assert.equal(headLeader(world, boss), null);
+  assert.deepEqual(far.place, { scale: "region", cell });
+  assert.match(JSON.stringify(far), /no town there is one whose days show them/);
+  held(false);
+  forgetDockets(world);
+  forgetTownLife(world);
+});
+
+test("a ruler and their court are drawn at the realm's seat and nowhere else, holding court there every day", () => {
+  ware(null);
+  held(false);
+  forgetDockets(world);
+  forgetTownLife(world);
+  const seat = seatTownOf(world, realm)!,
+    ruler = `rule:${realm.ref}`,
+    at = withFigures(world, villagePlan(world, seat.ref as Ref, undefined, 120)),
+    other = populationContext(world)
+      .settlements.all()
+      .find(
+        (t) =>
+          t.population > 0 && t.ref !== seat.ref && politiesOf(world).of(t.cell)?.ref === realm.ref,
+      )!,
+    away = withFigures(world, villagePlan(world, other.ref as Ref, undefined, 120));
+  assert.equal(at.people.filter((p) => p.figure === ruler).length, 1);
+  assert.equal(away.people.filter((p) => p.figure === ruler).length, 0);
+  assert.ok(!away.goings?.some((g) => g.key.endsWith("|court")));
+  const court = at.goings!.find((g) => g.key === `${realm.ref}|court`)!;
+  assert.equal(court.who[0], ruler);
+  assert.equal(court.every, true);
+  const i = at.people.findIndex((p) => p.figure === ruler),
+    day = Math.floor(world.now / 86_400) + 1,
+    m = momentOf(at, i, day * 86_400 + 10.5 * 3600),
+    hall = at.homes[at.people[i]!.home]!;
+  assert.equal(m.why, "Holding court at the seat");
+  assert.equal(m.of?.ref, realm.ref);
+  assert.ok(Math.hypot(m.x - hall.x, m.z - hall.z) < 22, "before their own hall");
+  assert.deepEqual(pageOf(world, ruler).place, { scale: "village", town: seat.ref, person: ruler });
+  assert.match(JSON.stringify(townGoingsBlock(world, seat.ref)), /holds court at the seat/);
 });

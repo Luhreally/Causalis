@@ -360,14 +360,14 @@ test("a member's day differs by what they are for their group: a collector's rou
         ...base.people,
         {
           ref: "boss:1",
-          page: "boss:1",
           name: "Old Varro",
-          home: 0,
+          home: 2,
           age: 60,
-          occupation: OCC.dependent,
+          occupation: OCC.leader,
           child: false,
-          folk: true,
-          outsider: true,
+          role: "Head of the Varro family",
+          // (One of the town's key figures: the same one their page is of.)
+          figure: "boss:1",
         },
       ],
     },
@@ -402,9 +402,18 @@ test("a member's day differs by what they are for their group: a collector's rou
     const whole = dayTold(town, at(ref), d).map((l) => l.words);
     assert.ok(whole.includes("Asleep") && whole.some((w) => /Breakfast at home/.test(w)), ref);
   }
-  // The head is seen at the door some hours, and is indoors the rest.
-  assert.equal(momentOf(town, at("boss:1"), d * DAY + 10.5 * HOUR).hidden, false);
-  assert.equal(momentOf(town, at("boss:1"), d * DAY + 13 * HOUR).hidden, true);
+  // The head is the figure their page is of, before their own house through the day, the guards at that same house.
+  const boss = momentOf(town, at("boss:1"), d * DAY + 10.5 * HOUR),
+    guardAt = momentOf(town, at("prsn:0:4"), d * DAY + 10.5 * HOUR),
+    house = town.homes[2]!;
+  assert.equal(boss.hidden, false);
+  assert.deepEqual(boss.of, guard.of);
+  assert.ok(Math.hypot(boss.x - house.x, boss.z - house.z) < 16, "at their own house");
+  assert.ok(
+    Math.hypot(guardAt.x - boss.x, guardAt.z - boss.z) < 9,
+    "the guard is at the head's house",
+  );
+  assert.equal(town.people.filter((p) => p.ref === "boss:1" || p.figure === "boss:1").length, 1);
   // Soldiers in the land: the corner's people are off it, at their own doors of a morning, and say why.
   const hush = village([low]),
     m = momentOf(

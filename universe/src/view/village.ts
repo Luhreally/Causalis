@@ -5303,11 +5303,12 @@ function momentIn(
       activity === ACTIVITY.within,
     carry: sheltering ? null : leg.carry,
     // (Of one not of the town nothing is kept of when they ate or rose.)
-    hunger: plan.people[index]!.outsider
-      ? 0
-      : Math.max(0, Math.min(1, (s - fed) / ((lean ? 4.5 : 7) * HOUR))),
+    hunger:
+      plan.people[index]!.outsider || plan.people[index]!.figure
+        ? 0
+        : Math.max(0, Math.min(1, (s - fed) / ((lean ? 4.5 : 7) * HOUR))),
     tiredness:
-      leg.activity === ACTIVITY.asleep || plan.people[index]!.outsider
+      leg.activity === ACTIVITY.asleep || plan.people[index]!.outsider || plan.people[index]!.figure
         ? 0
         : Math.max(0, Math.min(1, (s - woke) / (16 * HOUR))),
     why: sheltering

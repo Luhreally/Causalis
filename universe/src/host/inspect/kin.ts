@@ -418,7 +418,7 @@ export function seatPage(world: World, ref: string): PageModel {
     title: h.name,
     subtitle: [`${cap(article(seat.trade))} ${seat.trade} of `, townLink(world, seat.town)],
     color: null,
-    place: { scale: "village", town: seat.town },
+    place: { scale: "village", town: seat.town, person: ref },
     stats,
     tabs: [
       {

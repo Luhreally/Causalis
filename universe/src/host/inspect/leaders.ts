@@ -2,9 +2,10 @@
 // how they came to rule), the realm's list of who holds power, the realm's headline stat, and the
 // leaders a lender's house and a townsman's page show. Pure reads of the world as it stands:
 // asking moves nothing. The leaders themselves are host/leaders.ts's.
+import { headLeader } from "./townlife.ts";
 import { YEAR, type World } from "../../kernel/index.ts";
 import { FEMALE, OCC } from "../../rules/index.ts";
-import { creditOf, handOf, politiesOf, type Polity } from "../../sim/index.ts";
+import { creditOf, groupOfBoss, handOf, politiesOf, type Polity } from "../../sim/index.ts";
 import { governmentWords } from "../../causal/index.ts";
 import {
   LEADER_ICON,
@@ -176,6 +177,58 @@ export function withLeaderPage(world: World, ref: string, page: PageModel): Page
                     ],
                   },
                   { type: "tool", tool: "leader.card", args: { leader: l, short: true } },
+                  ...t.blocks,
+                ],
+              }
+            : t,
+        ),
+      };
+  }
+  // (A group's head who lives in a town that shows them: gone to, followed, their home looked into, lived as.)
+  if (ref.startsWith("boss:")) {
+    const l = headLeader(world, ref);
+    if (l?.town)
+      return {
+        ...page,
+        followable: true,
+        place: { scale: "village", town: l.town, person: ref },
+        tabs: page.tabs.map((t, i): Tab =>
+          i === 0
+            ? {
+                ...t,
+                blocks: [
+                  {
+                    type: "facts",
+                    rows: [stat("Lives in", [townLink(world, l.town!), ": at their own house"])],
+                  },
+                  { type: "tool", tool: "leader.card", args: { leader: l, short: true } },
+                  ...t.blocks,
+                ],
+              }
+            : t,
+        ),
+      };
+    // (One whose group's home has no town that shows them: where they are is their group's home land, and it is said.)
+    const of = l ? null : groupOfBoss(world, ref);
+    if (of)
+      return {
+        ...page,
+        place: { scale: "region", cell: of.g.home },
+        tabs: page.tabs.map((t, i): Tab =>
+          i === 0
+            ? {
+                ...t,
+                blocks: [
+                  {
+                    type: "facts",
+                    rows: [
+                      stat("Where", [
+                        "In ",
+                        landLink(world, of.g.home),
+                        ", their group's home land: no town there is one whose days show them, so there is no house to go to. Go to takes you to the land.",
+                      ]),
+                    ],
+                  },
                   ...t.blocks,
                 ],
               }

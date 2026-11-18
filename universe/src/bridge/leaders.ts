@@ -2,7 +2,7 @@
 // made by host/leaders.ts and host/wealth.ts from what history holds; nothing here is kept.
 import { hashString } from "../kernel/index.ts";
 
-export type LeaderKind = "ruler" | "general" | "lender" | "heir" | "rival" | "voice";
+export type LeaderKind = "ruler" | "general" | "lender" | "heir" | "rival" | "voice" | "head";
 
 export const LEADER_ICON: Readonly<Record<LeaderKind, string>> = {
   ruler: "👑",
@@ -11,6 +11,7 @@ export const LEADER_ICON: Readonly<Record<LeaderKind, string>> = {
   heir: "🌱",
   rival: "🗡️",
   voice: "🗣️",
+  head: "🕴️",
 };
 
 /** Who the god's hand is laid from, to find them among a town's people (hand.lay's `as`). */

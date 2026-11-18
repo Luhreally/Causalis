@@ -188,7 +188,7 @@ export function healerPage(world: World, ref: string): PageModel {
     title: h.name,
     subtitle: ["The healer of ", townLink(world, s.ref)],
     color: null,
-    place: { scale: "village", town: s.ref },
+    place: { scale: "village", town: s.ref, person: ref },
     stats,
     tabs: [
       {

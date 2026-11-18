@@ -115,6 +115,7 @@ export function goingHeld(plan: VillagePlan, g: TownGoing, day: number): boolean
   // (Those lying low do so every day the soldiers are there.)
   if (g.kind === "posted" || g.kind === "guard" || g.quiet) return true;
   if (feastOn(plan, day)) return false;
+  if (g.every) return true;
   if (g.kind === "meeting" || g.kind === "alms") return day % 7 === dayOfGoing(g);
   if (g.kind === "collect")
     return plan.market ? marketDay(plan, day) : day % 6 === drawn(g.key, 6, 6);
@@ -219,7 +220,10 @@ function laidOn(plan: VillagePlan, day: number, ground: Ground): Laid {
   if (hit) return hit;
   const parts = new Map<number, LifePart[]>(),
     on: GoingOn[] = [],
-    indexOf = new Map(plan.people.map((p, i) => [p.ref, i] as const)),
+    indexOf = new Map([
+      ...plan.people.flatMap((p, i) => (p.figure ? [[p.figure, i] as const] : [])),
+      ...plan.people.map((p, i) => [p.ref, i] as const),
+    ]),
     add = (i: number, part: LifePart) => {
       const l = parts.get(i);
       if (l) l.push(part);
@@ -262,7 +266,7 @@ function laidOn(plan: VillagePlan, day: number, ground: Ground): Laid {
     let from = 0,
       until = DAY;
     if (g.kind === "meeting") {
-      const [a, b] = g.closed ? LIFE_HOURS.closed : LIFE_HOURS.meeting;
+      const [a, b] = g.hours ?? (g.closed ? LIFE_HOURS.closed : LIFE_HOURS.meeting);
       from = a * HOUR;
       until = b * HOUR;
       const muster = /muster/.test(g.doing);
@@ -280,7 +284,7 @@ function laidOn(plan: VillagePlan, day: number, ground: Ground): Laid {
                   at: place.door ?? place.at,
                   task: null,
                   carry: null,
-                  why: g.doing,
+                  why: k === 0 ? (g.lead ?? g.doing) : g.doing,
                   within: true,
                 },
               ]
@@ -292,7 +296,8 @@ function laidOn(plan: VillagePlan, day: number, ground: Ground): Laid {
                   face: s.face,
                   task: muster ? "drill" : g.where === "temple" ? "pray" : "talk",
                   carry: muster ? "spear" : null,
-                  why: g.doing,
+                  // (Who leads it says so: a meeting's head, a ruler holding court.)
+                  why: k === 0 ? (g.lead ?? g.doing) : g.doing,
                 },
               ],
         });
@@ -372,7 +377,17 @@ function laidOn(plan: VillagePlan, day: number, ground: Ground): Laid {
           (x) => x.kind === "guard" && x.of.ref === g.of.ref.replace(/^mob:/, "boss:"),
         );
         if (stays.length && house) {
-          const d = beforeHome(plan, homeBy(plan, house.key, 0.05, 0.35), 0, 1.4),
+          const theirs = (house.to ?? [])
+              .map((ref) => indexOf.get(ref))
+              .find((x) => x !== undefined),
+            d = beforeHome(
+              plan,
+              theirs !== undefined
+                ? plan.people[theirs]!.home
+                : homeBy(plan, house.key, 0.05, 0.35),
+              0,
+              1.4,
+            ),
             at = stays[stays.length - 1]!.to + 0.35 * HOUR;
           stays.push({
             from: at,
@@ -494,45 +509,27 @@ function laidOn(plan: VillagePlan, day: number, ground: Ground): Laid {
     } else if (g.kind === "guard") {
       from = LIFE_HOURS.guard[0] * HOUR;
       until = LIFE_HOURS.guard[1] * HOUR;
-      const h = homeBy(plan, g.key, 0.05, 0.35);
-      // (Its head, at the door some hours and indoors the rest: one history keeps, drawn as one not of the town's lines.)
-      for (const ref of g.to ?? []) {
-        const i = indexOf.get(ref);
-        if (i === undefined) continue;
-        const d = beforeHome(plan, h, 0, 0.9),
-          stays: LifeStay[] = [];
-        let t = 0;
-        for (const [a, b] of LIFE_HOURS.head) {
-          stays.push({
-            from: t,
-            to: a * HOUR,
-            at: d,
-            task: null,
-            carry: null,
-            why: "Indoors, at home",
-            within: true,
-          });
-          stays.push({
-            from: a * HOUR,
-            to: b * HOUR,
-            at: d,
-            face: d.face + Math.PI,
-            task: "talk",
-            carry: null,
-            why: g.toDoing ?? g.doing,
-          });
-          t = b * HOUR;
-        }
-        stays.push({
-          from: t,
-          to: DAY,
-          at: d,
-          task: null,
-          carry: null,
-          why: "Indoors, at home",
-          within: true,
+      // (The house is its head's own, where the head is one of those drawn; a house by its key where not.)
+      const head = (g.to ?? []).map((ref) => indexOf.get(ref)).find((i) => i !== undefined),
+        h = head !== undefined ? plan.people[head]!.home : homeBy(plan, g.key, 0.05, 0.35);
+      // (Its head, before the door through the day, the guards either side; indoors by night as their own day has them.)
+      if (head !== undefined) {
+        const d = beforeHome(plan, h, 0, 0.9);
+        add(head, {
+          going: g,
+          of: false,
+          stays: [
+            {
+              from,
+              to: until,
+              at: d,
+              face: d.face + Math.PI,
+              task: "talk",
+              carry: null,
+              why: g.toDoing ?? g.doing,
+            },
+          ],
         });
-        add(i, { going: g, of: false, stays, whole: true });
       }
       who.forEach((i, k) => {
         const s = beforeHome(plan, h, (k - (who.length - 1) / 2) * 3.2, 0.3);
