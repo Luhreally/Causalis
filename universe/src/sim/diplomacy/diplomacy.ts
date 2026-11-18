@@ -2,7 +2,8 @@
 // trade road — think of each other, as a sum of terms that each name their
 // source: a shared faith or rival ones, alike speech, trade between their lands,
 // the land along their border, a famine that makes one covet the other's stores,
-// a land one took from the other, a broken pact, a people who prize valour.
+// a land one took from the other, a broken pact, a people who prize valour more than
+// their neighbour does.
 // Remembered wrongs fade over decades. Realms who think well of each other swear a
 // pact; when their opinion sours, the pact breaks, naming the term that soured it.
 // Realms who think ill are rivals — what war (M22) will read.
@@ -90,6 +91,21 @@ export const TRADE_TIE = { most: 0.35, full: 1 / 40 } as const;
 export function tradeTie(worth: number, lesserUse: number): number {
   if (!(worth > 0) || !(lesserUse > 0)) return 0;
   return TRADE_TIE.most * Math.min(1, worth / lesserUse / TRADE_TIE.full);
+}
+
+/**
+ * What a people's valour costs the regard between it and a neighbour: the fear of the one who prizes it less. Read against the
+ * NEIGHBOUR'S OWN valour, a margin past it, and only of a people who do prize it (past `prized`: 0.5 is the middle of the way):
+ * so a neighbour at the middle fears from `prized` up, as the term first stood, and one as martial fears nothing. (It stood as
+ * the greater of the two against a fixed 0.58 whoever the other was, from when every people began at the middle of every way:
+ * on a world whose peoples mostly prize valour, first light, where 83 seats of 131 stood past it at year 60, it set 169 pairs
+ * of 236 against each other, each for prizing what the other prized too, and took more regard than rival faiths, strange
+ * speech and borders together.) `by` regard for each part of valour past the line.
+ */
+export const VALOUR_FEARED = { prized: 0.58, margin: 0.08, by: 2 } as const;
+export function valourFeared(greater: number, lesser: number): number {
+  const line = Math.max(VALOUR_FEARED.prized, lesser + VALOUR_FEARED.margin);
+  return greater > line ? (greater - line) * VALOUR_FEARED.by : 0;
 }
 
 export class DiplomacyStore implements StateStore {
@@ -366,10 +382,16 @@ export function diplomacyYear(ctx: PopulationContext, t: SimTime): void {
           source: famine.id,
         });
     }
-    // A people who prize valour are feared by their neighbours.
-    const valour = Math.max(wa.traits[WAY.valour]!, wb.traits[WAY.valour]!);
-    if (valour > 0.58)
-      terms.push({ name: "a people who prize valour", value: -(valour - 0.58) * 2, source: null });
+    // A people who prize valour are feared by a neighbour who prizes it less: by how far past the neighbour's own (rules
+    // VALOUR_FEARED). Two who prize it alike know each other's measure; it is not, of itself, ill will toward every neighbour.
+    const [va, vb] = [wa.traits[WAY.valour]!, wb.traits[WAY.valour]!],
+      dread = valourFeared(Math.max(va, vb), Math.min(va, vb));
+    if (dread > 0)
+      terms.push({
+        name: `the valour of ${realmName(va >= vb ? a : b)}`,
+        value: -dread,
+        source: null,
+      });
     // How far each binds itself to others (rules/holds.ts trust): one wary of every pact holds back; two who bind freely draw close.
     const [ta, tb] = [holdOf(world, a.ref, HOLD.trust), holdOf(world, b.ref, HOLD.trust)],
       wary = Math.min(ta, tb);
