@@ -77,7 +77,7 @@ export const WANTS = {
   heatPerPerson: 0.4,
 } as const;
 
-/** Fuel, machines, tin and iron are made only while the stock is under this many years of their use. */
+/** A good is made only while the stock is under this many years of its use (what the land used, sold and needs of it). */
 export const GLUT_YEARS = 3;
 
 /** What a flock gives besides its meat and milk, per unit of meat. */

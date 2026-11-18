@@ -5,7 +5,7 @@
 // to a stock goes through the ledger, so a year always balances.
 import { Hasher, defineKind, makeRef, type Ref, type StateStore } from "../../kernel/index.ts";
 import { cellRef } from "../../gen/index.ts";
-import { G, GOODS, OCCUPATIONS, type ToolMetal } from "../../rules/index.ts";
+import { G, GLUT_YEARS, GOODS, OCCUPATIONS, type ToolMetal } from "../../rules/index.ts";
 
 export const GOOD_COUNT = GOODS.length;
 
@@ -173,6 +173,19 @@ export class Market {
   book(line: LedgerLine, good: number): number {
     if (this.reckoned) return this.line(line, good);
     return this.years.at(-1)?.ledger[LINE[line]]?.[good] ?? 0;
+  }
+
+  /**
+   * What goes of a good here in a year: the most it used and sent on in any of the last GLUT_YEARS closed years (the most, for
+   * a good smelted one year is worked the next). What its making and what traders bring it are bounded by.
+   */
+  goes(good: number): number {
+    let most = 0;
+    for (let i = Math.max(0, this.years.length - GLUT_YEARS); i < this.years.length; i++) {
+      const y = this.years[i]!.ledger;
+      most = Math.max(most, (y[LINE.used]?.[good] ?? 0) + (y[LINE.out]?.[good] ?? 0));
+    }
+    return most;
   }
 
   /** What its crafted tools were headed with in a year (now, if none is given); null: never said. */
