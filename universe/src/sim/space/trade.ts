@@ -85,8 +85,12 @@ export const MOST_KEPT = 60;
 export const LEAST_PEOPLE = 200;
 /** Holds a run has under way at most: it sails again when the crossing allows that (a save's bound). */
 export const MOST_UNDER_WAY = 4;
-/** A land keeps this many years of what it used before it sells any. */
-const KEEP_YEARS = 3;
+/**
+ * A land keeps this many years of what it used and sold on before it sells any to another star. (It was three: as many as
+ * GLUT_YEARS, the most a market now holds of anything, so no made good was ever spare and only food, wool and hides went
+ * between stars. What is sold counts as what goes there, and is made for.)
+ */
+const KEEP_YEARS = 1;
 /** A people of the stars asks this much of its goods' usual worth (the market's own floor): what it makes it has long made. */
 const FAR_FLOOR = 0.33;
 /** The yearly chance a raider at war takes a hold, at full strength (est.), and one short of what goes by it (est.). */

@@ -391,9 +391,29 @@ export function occupationTargets(
     // its people a third in fifty years.)
     needed = p.knowsCultivation && farming < 1 ? t[OCC.farmer]! : 0;
   if (mean <= 0) return t;
+  const farmBefore = t[OCC.farmer]!,
+    gatherBefore = t[OCC.forager]!;
   for (const o of flexible) t[o] = t[o]! * dmath.clamp(wages[o]! / mean, 0.4, 2.5);
   const after = flexible.reduce((s, o) => s + t[o]!, 0);
   for (const o of flexible) t[o] = (t[o]! * share) / after;
+  // (A better wage on the land draws hands to it only as far as its fields and its wild can use them (fieldsUse): the rest stay
+  // at their craft and work fewer of their days. A crafter's wage is what was earned, for as much of the year as there was use
+  // for the work, and where a land's crafts stand half idle the lean's mean falls under what a gatherer's last hour brings:
+  // unbounded, the hands the fields had freed went back to a wild that was already taken whole. Nothing where no land is sown.)
+  if (p.knowsCultivation) {
+    let back = 0;
+    for (const [o, before, most] of [
+      [OCC.farmer, farmBefore, use.tilled],
+      [OCC.forager, gatherBefore, use.gathered],
+    ] as const) {
+      const cap = Math.max(before, most);
+      if (t[o]! > cap) {
+        back += t[o]! - cap;
+        t[o] = cap;
+      }
+    }
+    t[OCC.crafter] = t[OCC.crafter]! + back;
+  }
   if (t[OCC.farmer]! < needed) {
     const rest = share - t[OCC.farmer]!,
       left = share - needed;
