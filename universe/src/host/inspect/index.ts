@@ -280,6 +280,12 @@ export function pageOf(
   /** Only these tabs read, where a page's kind can leave the others out (a whole history is written from thousands of pages). */
   only?: ReadonlySet<string>,
 ): PageModel {
+  // (A soldier posted in a town, `out:<town>:<the soldiers' page>:<n>`: the soldiers' page, and "go to" lands on that one.)
+  const posted = /^out:(town:\d+:\d+):(uop:.+):\d+$/.exec(ref);
+  if (posted) {
+    const told = pageOf(world, posted[2]!, names, brief, only);
+    return { ...told, place: { scale: "village", town: posted[1]!, person: ref } };
+  }
   const { ref: base, tab } = splitPageRef(ref);
   let page: PageModel;
   try {

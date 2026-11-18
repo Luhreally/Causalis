@@ -384,6 +384,8 @@ export type TownGoing = {
   readonly quiet?: string;
   /** Those of it who took it up from one the court holds, each with from whom and since when ("took it up from X in year N"). */
   readonly took?: Readonly<Record<string, string>>;
+  /** Who headed it before the one who does now, where history keeps a note of them (a head's house): their page and name. */
+  readonly before?: { readonly ref: string; readonly name: string };
   /** What the one set apart to look out says (a corner kept). */
   readonly watch?: string;
   /** Where: a member's home, the temple, the market's stalls, a back lane, a corner, the square, a house guarded. */

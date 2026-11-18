@@ -190,6 +190,8 @@ export type Docket = {
   /** Those killed in the town in the year by its land's rows, and how many of them someone was brought for. */
   readonly killed: number;
   readonly answered: number;
+  /** The sentences of earlier years still running as the year begins: who is held, and by which case. */
+  readonly running: readonly Case[];
 };
 
 const MOST_CASES = 14;
@@ -927,7 +929,11 @@ export function folkOf(world: World, s: Settlement, year: number, asLines = fals
     };
   }
   const lines = linesOf(s.population),
-    roster = townRoster(world, s.ref, year),
+    // (An earlier year's people are read from this year's roster, which knows who held each line then: a roster folded for
+    // every year asked cost a great town a fifth of a second each. A year to come is folded as ever.)
+    now = yearNow(world),
+    roster = townRoster(world, s.ref, Math.max(year, now)),
+    holds = (k: number) => (year >= now ? roster.holder(k) : roster.holderAt(k, year)),
     work = folkWork(world, s.cell),
     party = (h: NonNullable<ReturnType<typeof roster.holder>>): Party => ({
       ref: h.ref,
@@ -944,7 +950,7 @@ export function folkOf(world: World, s: Settlement, year: number, asLines = fals
       if (!pool) return null;
       const found: NonNullable<ReturnType<typeof roster.holder>>[] = [];
       for (let k = 0; k < 12 && found.length < (weigh ? PICK_FROM : 1); k++) {
-        const holder = roster.holder(Math.floor(u(h, n + k) * pool));
+        const holder = holds(Math.floor(u(h, n + k) * pool));
         if (!holder || year - holder.born < grown || not.has(holder.ref)) continue;
         if (found.some((x) => x.ref === holder.ref)) continue;
         found.push(holder);
@@ -959,20 +965,20 @@ export function folkOf(world: World, s: Settlement, year: number, asLines = fals
       if (!men.length) return null;
       for (let k = 0; k < men.length; k++) {
         const m = men[(Math.floor(u(h, 40) * men.length) + k) % men.length]!,
-          now = roster.holder(m.line);
+          now = holds(m.line);
         if (now && now.n === m.holder.n && !not.has(now.ref) && year - now.born >= grown)
           return party(now);
       }
       return null;
     },
     still: (p) => {
-      const now = roster.holder(p.line);
+      const now = holds(p.line);
       return now && now.ref === p.ref && year - now.born >= grown ? party(now) : null;
     },
     slots: (most) => {
       const out: FolkSlot[] = [];
       for (let k = 0; k < Math.min(lines, most); k++) {
-        const h = roster.holder(k);
+        const h = holds(k);
         if (h && year - h.born >= grown)
           out.push({ id: k, key: h.key, born: h.born, party: party(h) });
       }
@@ -1398,22 +1404,61 @@ function cameOf(
 
 type Kept = { hand: string; byKey: Map<string, Docket> };
 const KEPT = new WeakMap<World, Kept>();
-const NO_DOCKET: Docket = { cases: [], open: [], killed: 0, answered: 0 };
+const NO_DOCKET: Docket = { cases: [], open: [], killed: 0, answered: 0, running: [] };
+
+/**
+ * How a town's years before its court hang together: each year's book is drawn knowing the year before's (those in it are not
+ * brought again the next year) and every sentence still running from the years before (one held is not brought again, and has
+ * no second sentence laid on the first). So the books are drawn forward, year on year, from a year two spans back of the
+ * world's own, where nothing is taken as running: far enough that every sentence that could run in the last span's years was
+ * laid within the drawing (the longest is under a span). The same year is the same book whenever it is asked while the
+ * world's year stands in the same span; as it passes into the next (once in SPAN years) the drawing begins a span later, and
+ * a book of long ago may then read a case otherwise.
+ */
+const SPAN = 14;
+const spanBase = (year: number): number => (Math.floor(year / SPAN) - 2) * SPAN;
 
 /** A town's year before its court: once for each, as long as the god's hand rests where it did. */
 export function docketOf(world: World, town: string, year: number): Docket {
+  const s = populationContext(world).settlements.get(town as Ref);
+  if (!s || s.population <= 0 || s.founded >= year) return NO_DOCKET;
+  // (Every year told as the world stands is of the one drawing forward, the one this year's own is of: what holds whom now
+  // and what the years' pages say are then the same reading. A year from before it is drawn from its own.)
+  const base = spanBase(Math.max(year, yearNow(world)));
+  return chained(world, s, year, year >= base ? base : spanBase(year));
+}
+
+/** A year's book as drawn forward from `base` (kept by town, year and base). */
+function chained(world: World, s: Settlement, year: number, base: number): Docket {
   const hand = handOf(world).resting?.village ?? "";
   let kept = KEPT.get(world);
   if (!kept || kept.hand !== hand) KEPT.set(world, (kept = { hand, byKey: new Map() }));
-  const key = `${town}|${year}`,
-    known = kept.byKey.get(key);
+  const key = (y: number) => `${s.ref}|${y}|${base}`,
+    known = kept.byKey.get(key(year));
   if (known) return known;
-  const s = populationContext(world).settlements.get(town as Ref),
-    made = s && s.population > 0 && s.founded < year ? readDocket(world, s, year) : NO_DOCKET;
-  if (kept.byKey.size > 6000) kept.byKey.clear();
-  kept.byKey.set(key, made);
+  if (kept.byKey.size > 20000) kept.byKey.clear();
+  // Forward from the first year not yet drawn (the base, or the town's first whole year), each on the one before.
+  let from = year;
+  while (from - 1 >= base && from - 1 > s.founded && !kept.byKey.has(key(from - 1))) from--;
+  let made: Docket = NO_DOCKET;
+  for (let y = from; y <= year; y++) {
+    const before = y - 1 >= base && y - 1 > s.founded ? kept.byKey.get(key(y - 1))! : null,
+      // (Still running as this year begins: what the year before carried on, and what it laid itself.)
+      running = before
+        ? [...before.running, ...before.cases].filter(
+            (c) => !c.accused.outside && c.day + c.days > y * DAYS_A_YEAR && LONG.has(c.sentence),
+          )
+        : [],
+      away = new Set<string>();
+    for (const c of before?.cases ?? []) if (!c.accused.outside) away.add(c.accused.ref);
+    for (const c of running) away.add(c.accused.ref);
+    made = { ...drawDocket(world, s, y, away, before?.cases ?? []), running };
+    kept.byKey.set(key(y), made);
+  }
   return made;
 }
+/** What holds one of a town past the day it is laid on them. */
+const LONG: ReadonlySet<CourtSentence> = new Set(["cell", "stocks", "labour", "banish"]);
 
 /** A town's cases of a year: its grave matters first, then its small wrongs as they were heard. */
 export function casesOf(world: World, town: string, year: number): readonly Case[] {
@@ -1423,32 +1468,6 @@ export function casesOf(world: World, town: string, year: number): readonly Case
 /** The killings of a town's year no one was brought for. */
 export function openOf(world: World, town: string, year: number): readonly Open[] {
   return docketOf(world, town, year).open;
-}
-
-/** The year before's book, as far as a town had one: those in it are not to be brought up again; one of them may be known to the court. */
-function lastOf(world: World, s: Settlement, year: number): readonly Case[] {
-  return s.population <= 0 || s.founded >= year - 1 ? [] : rawCases(world, s, year - 1);
-}
-
-const RAW = new WeakMap<World, Map<string, readonly Case[]>>();
-/** (`depth`: how many books back this one is read for: each asks the years before it only so far, so every reading of a year is the same reading.) */
-function rawCases(world: World, s: Settlement, year: number, depth = 0): readonly Case[] {
-  let m = RAW.get(world);
-  if (!m) RAW.set(world, (m = new Map()));
-  const key = `${s.ref}|${year}|${depth}|${handOf(world).resting?.village ?? ""}`,
-    known = m.get(key);
-  if (known) return known;
-  const made = drawDocket(world, s, year, new Set(), null, depth).cases;
-  if (m.size > 6000) m.clear();
-  m.set(key, made);
-  return made;
-}
-
-function readDocket(world: World, s: Settlement, year: number): Docket {
-  const last = lastOf(world, s, year),
-    away = new Set<string>();
-  for (const c of last) if (!c.accused.outside) away.add(c.accused.ref);
-  return drawDocket(world, s, year, away, last);
 }
 
 /** How many cases a town's year is due, by its rate and its draw. */
@@ -1585,8 +1604,7 @@ function drawDocket(
   away: ReadonlySet<string>,
   /** The year before's book (null: not asked, as when a year is read only for who is away). */
   last: readonly Case[] | null,
-  depth = 0,
-): Docket {
+): Omit<Docket, "running"> {
   const f = factsOf(world, s, year),
     folk = folkOf(world, s, year),
     want = dueOf(f),
@@ -1731,7 +1749,7 @@ function drawDocket(
     // dies as history has them), nor one it holds already.
     const man =
       d.stands.kind === "outside" && e.came?.outcome !== "death"
-        ? roleMan(world, s, year, d.offence, d.stands.ref, taken, depth, e.day)
+        ? roleMan(world, s, year, d.offence, d.stands.ref, taken)
         : null;
     if (man) accused = man;
     else if (d.stands.kind === "outside")
@@ -2457,20 +2475,9 @@ export function heldWords(world: World, town: string, ref: string): string | nul
         : "locked up";
 }
 
-/** How far back a sentence still running is looked for (years): the longest a court lays on one of a town's lines. */
-const RUNS_YEARS = 6;
-
-/**
- * The grave cases of the years before last whose sentence still runs this year, where the town's underworld names its people
- * (none elsewhere: the years' books are not read for a town where no one's days hang on them). One held for years is still held.
- */
+/** The cases of earlier years whose sentence still runs as this year begins (the year before's among them): who is held. */
 export function runningOf(world: World, town: string, year: number): readonly Case[] {
-  if (!townRolesOf(world, town, year).goings.some((g) => ROLE_KINDS.has(g.kind))) return [];
-  const out: Case[] = [];
-  for (let y = year - RUNS_YEARS; y <= year - 2; y++)
-    for (const c of casesOf(world, town, y))
-      if (c.grave && !c.accused.outside && c.day + c.days >= year * DAYS_A_YEAR) out.push(c);
-  return out;
+  return docketOf(world, town, year).running;
 }
 const ROLE_KINDS: ReadonlySet<string> = new Set(["collect", "seller", "guard", "patrol", "corner"]);
 
@@ -2486,24 +2493,6 @@ const ROLE_FOR: Readonly<Partial<Record<Offence, string>>> = {
   crew: "patrol",
 };
 
-/** How many books back a book's own reading of who is held reaches (each of them reading as many less). */
-const HELD_DEPTH = 2;
-
-/** Whether an earlier year's book, as first drawn, holds one of a town on a day. */
-function heldBefore(
-  world: World,
-  s: Settlement,
-  year: number,
-  ref: string,
-  day: number,
-  depth: number,
-): boolean {
-  for (let y = year - 1; y >= year - RUNS_YEARS && y > s.founded; y--)
-    if (rawCases(world, s, y, depth).some((c) => c.accused.ref === ref && c.day + c.days > day))
-      return true;
-  return false;
-}
-
 /** The one of a town who is of a group for what an offence is of (null: none there, or held already, or taken by another case). */
 function roleMan(
   world: World,
@@ -2512,8 +2501,6 @@ function roleMan(
   offence: Offence,
   group: string,
   taken: ReadonlySet<string>,
-  depth: number,
-  day: number,
 ): Party | null {
   const town = s.ref;
   const kind = ROLE_FOR[offence];
@@ -2525,10 +2512,8 @@ function roleMan(
     const fits = g.kind === kind || (kind === "guard" && g.kind === "patrol");
     if (!fits || (g.of.ref !== group && g.of.ref !== head)) continue;
     for (const ref of g.who) {
+      // (One the year before's book named, or a sentence still holds, is among those taken: not brought again.)
       if (taken.has(ref)) continue;
-      // (One an earlier year's book still holds is not brought again: each of those years as first drawn, which asks nothing
-      // of the years before it. Not asked where the year itself is being first drawn.)
-      if (depth < HELD_DEPTH && heldBefore(world, s, year, ref, day, depth + 1)) continue;
       const p = roles.named.find((x) => x.ref === ref);
       if (p) return p;
     }
@@ -2994,6 +2979,5 @@ export function withTrials(world: World, ref: string, page: PageModel): PageMode
 /** A world's readings let go, for a test that changes what they are read of. */
 export function forgetDockets(world: World): void {
   KEPT.delete(world);
-  RAW.delete(world);
   LIGHT.delete(world);
 }

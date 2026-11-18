@@ -22,6 +22,7 @@ import {
   gangsStore,
   groupsIn,
   kindName,
+  deathNotesOf,
   handOf,
   kindOfGroup,
   lifeOf,
@@ -84,6 +85,12 @@ const POOL = 96,
   PART = { collect: 0, guard: 1, corner: 3, patrol: 4, seller: 5, pays: 6, buys: 7 } as const,
   unit = (h: number, n: number): number => finish(mix(h, n), 13) / 4294967296;
 
+/** How a head went, after "who". */
+const HEAD_WENT: Readonly<Record<"years" | "taken" | "struck", string>> = {
+  years: "died of their years",
+  taken: "was taken by the realm's soldiers",
+  struck: "was killed",
+};
 const sentenceOf = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s);
 const cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s),
   pct = (x: number) =>
@@ -507,12 +514,20 @@ function readRoles(world: World, town: string, year: number): TownLife {
           );
         if (!who.length) continue;
         houses++;
+        // (Who headed it before, where history keeps a note of them: taken, killed, or dead of their years.)
+        const before = (deathNotesOf(world)?.headsOf(ref) ?? [])
+            .filter((n) => n.year <= year)
+            .sort((p, q) => p.year - q.year)
+            .at(-1),
+          after = before
+            ? `, having taken its head from ${before.name}, who ${HEAD_WENT[before.how]} in year ${before.year}`
+            : "";
         // (Its head, whom history keeps by name: at that house, seen at its door some hours of the day. Their page is their own.)
         outsiders.push({
           ref,
           page: ref,
           name: g.boss.name,
-          role: `heads ${name} since year ${g.boss.since}: not one of the lines of ${s.name}, and kept by name in history`,
+          role: `heads ${name} since year ${g.boss.since}${after}: not one of the lines of ${s.name}, and kept by name in history`,
           home: 0,
           age: Math.max(grown, year - g.boss.born),
           occupation: OCC.dependent,
@@ -529,7 +544,9 @@ function readRoles(world: World, town: string, year: number): TownLife {
           of: { ref, name: `${g.boss.name}, who heads ${name}` },
           words: `${g.boss.name}, who heads ${name}, keeps a house here, and it is guarded`,
           doing: `Guarding the house of ${g.boss.name}, who heads ${name}`,
-          why: `${name} has ${count(g.members)} men, and this is its home land`,
+          why: `${name} has ${count(g.members)} men, and this is its home land${before ? `; ${g.boss.name} took over from ${before.name}, who ${HEAD_WENT[before.how]} in year ${before.year}` : ""}`,
+          // (One gone from a group's head has a page of their own, by the year they went.)
+          ...(before ? { before: { ref: `${ref}:${before.year}`, name: before.name } } : {}),
           who,
           where: "house",
         });
@@ -606,7 +623,8 @@ function readRoles(world: World, town: string, year: number): TownLife {
         page = opRef(r.ref, o.event),
         who: string[] = [];
       for (let k = 0; k < n; k++) {
-        const ref = `out:${page}:${k}`;
+        // (Their town in it: the page a line leads to by it lands on them.)
+        const ref = `out:${town}:${page}:${k}`;
         who.push(ref);
         outsiders.push({
           ref,
@@ -735,7 +753,7 @@ const WHEN: Readonly<Record<TownGoing["kind"], string>> = {
 export function townGoingsBlock(world: World, town: string): Block | null {
   const life = townLifeOf(world, town);
   if (!life.goings.length && !life.tried.length) return null;
-  const names = new Map(life.named.map((p) => [p.ref, p.name] as const)),
+  const names = new Map([...life.named, ...life.outsiders].map((p) => [p.ref, p.name] as const)),
     items: Item[] = life.goings.map((g) => {
       const first = g.who.find((ref) => names.has(ref));
       return item(
@@ -743,7 +761,14 @@ export function townGoingsBlock(world: World, town: string): Block | null {
           `${KIND_ICON[g.kind]} `,
           link(g.words, g.of.ref),
           `, ${WHEN[g.kind]}: ${g.why}.`,
-          ...(first ? [" Go to ", link(names.get(first)!, first), ", who is of it."] : []),
+          ...(first
+            ? [
+                " Go to ",
+                link(names.get(first)!.replace(/^A /, "a "), first),
+                g.kind === "posted" ? ", one of them." : ", who is of it.",
+              ]
+            : []),
+          ...(g.before ? [" Before: ", link(g.before.name, g.before.ref), "."] : []),
         ],
         g.of.ref,
       );
@@ -935,7 +960,7 @@ export function fightPeopleBlock(
             item(
               [
                 link(name, who),
-                `, of ${side.name}: ${ROLE_NAME[g.kind].replace(/its/, "their")} in the town`,
+                `, of ${side.name.replace(/^The /, "the ")}: ${ROLE_NAME[g.kind].replace(/\bits\b/, "their")} in the town`,
               ],
               who,
             ),
@@ -986,7 +1011,7 @@ export function roleOffers(
         icon: "⚖️",
         label: "The court",
         can: true,
-        words: `You were ${ROLE_NAME[p.going.kind].replace(/its/, "the")} for ${p.going.of.name} until year ${p.case.year}: you ${p.case.came.replace(/^was /, "were ")}.`,
+        words: `You were ${ROLE_NAME[p.going.kind].replace(/\bits\b/, "the")} for ${p.going.of.name} until year ${p.case.year}: you ${p.case.came.replace(/^was /, "were ")}.`,
       });
   return out;
 }
@@ -1000,3 +1025,33 @@ const ROLE_LABEL: Readonly<Record<TownGoing["kind"], string>> = {
   alms: "Your giving",
   posted: "Your post",
 };
+
+/**
+ * What the court holds one of a town to now, for the people bar's chip and their page's "Doing": in the cell or at its works
+ * until when, sent out of the realm or away from the town; the case that did it (null: nothing holds them).
+ */
+export function heldReading(
+  world: World,
+  town: string,
+  ref: string,
+): { readonly short: string; readonly words: string; readonly case: string } | null {
+  const c = heldCaseOf(world, town, ref);
+  if (!c) return null;
+  const until = Math.floor((c.day + c.days) / 365),
+    lasts = until > yearNow(world) ? ` until ${until}` : "",
+    short =
+      c.sentence === "banish"
+        ? c.outcome === "exile"
+          ? "sent out of the realm"
+          : "sent away"
+        : c.sentence === "labour"
+          ? `at the works${lasts}`
+          : c.sentence === "stocks"
+            ? "in the stocks"
+            : `in the cell${lasts}`;
+  return {
+    short,
+    words: `${sentenceOf(c.accused.name.split(" ")[0]!)} ${c.came}, in year ${c.year}: ${short}${c.sentence === "banish" ? ", alive" : ""}.`,
+    case: c.ref,
+  };
+}

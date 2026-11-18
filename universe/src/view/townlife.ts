@@ -558,10 +558,10 @@ function laidOn(plan: VillagePlan, day: number, ground: Ground): Laid {
       const sc = squareScale(plan),
         road = Math.hypot(plan.road.x, plan.road.z) || 1,
         posts: Point[] = [
-          { x: (plan.road.x / road) * 24 * sc, z: (plan.road.z / road) * 24 * sc },
-          { x: (-plan.road.z / road) * 22 * sc, z: (plan.road.x / road) * 22 * sc },
-          { x: (-plan.road.x / road) * 24 * sc, z: (-plan.road.z / road) * 24 * sc },
-          { x: (plan.road.z / road) * 22 * sc, z: (-plan.road.x / road) * 22 * sc },
+          { x: (plan.road.x / road) * 34 * sc, z: (plan.road.z / road) * 34 * sc },
+          { x: (-plan.road.z / road) * 32 * sc, z: (plan.road.x / road) * 32 * sc },
+          { x: (-plan.road.x / road) * 34 * sc, z: (-plan.road.z / road) * 34 * sc },
+          { x: (plan.road.z / road) * 32 * sc, z: (-plan.road.x / road) * 32 * sc },
         ],
         WATCH = 3 * HOUR;
       who.forEach((i, k) => {

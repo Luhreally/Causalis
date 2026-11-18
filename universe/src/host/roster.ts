@@ -159,6 +159,11 @@ export type Roster = {
   readonly year: number;
   /** The line's holder in the roster's year (null: it stands empty, its holder dead lately). */
   holder(line: number): Holder | null;
+  /**
+   * The line's holder in an earlier year of the roster's window, as the deaths it folded leave it (null: it stood empty): the
+   * same one that year's own roster names, without folding that year's.
+   */
+  holderAt(line: number, year: number): Holder | null;
   /** A holder by line and number: any met in the fold (the dead too), else a natural holder (r = 0); null: none. */
   holderOf(line: number, n: number): Holder | null;
   /** Oldest first. */
@@ -1492,6 +1497,8 @@ function foldRoster(
     town,
     year,
     holder: (line) => (Number.isInteger(line) && line >= 0 ? holderAt(line, year) : null),
+    holderAt: (line, y) =>
+      Number.isInteger(line) && line >= 0 ? holderAt(line, Math.min(year, Math.floor(y))) : null,
     holderOf,
     battles,
     battle: (event) => battles.find((rb) => rb.event === event) ?? null,

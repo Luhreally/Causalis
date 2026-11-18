@@ -20,6 +20,8 @@ import {
 import { CONTRA_CAUSES } from "../../src/rules/index.ts";
 import {
   afterCourt,
+  fightPeopleBlock,
+  heldReading,
   forgetTownLife,
   partOfStats,
   peopleHereBlock,
@@ -28,7 +30,14 @@ import {
   townRolesOf,
 } from "../../src/host/inspect/townlife.ts";
 import { pageOf } from "../../src/host/inspect/index.ts";
-import { casesOf, folkOf, forgetDockets, type Case } from "../../src/host/inspect/justice.ts";
+import { readingsOf } from "../../src/host/inspect/barread.ts";
+import {
+  casesOf,
+  folkOf,
+  forgetDockets,
+  runningOf,
+  type Case,
+} from "../../src/host/inspect/justice.ts";
 import { villagePlan } from "../../src/host/village.ts";
 import { yearNow } from "../../src/host/inspect/words.ts";
 import { momentOf, villageSolids, goingsOn } from "../../src/view/index.ts";
@@ -437,6 +446,109 @@ test("one the court holds is off what they were at; another of the same part tak
   for (const g of roles.goings)
     if (g.kind !== "collect")
       assert.deepEqual(off.goings.find((x) => x.key === g.key)!.who, g.who, g.kind);
+  held(false);
+  forgetDockets(world);
+  forgetTownLife(world);
+});
+
+test("no one a sentence holds is brought again while it runs, no one has two running, and a year is the same book in any order", () => {
+  ware(null);
+  held(false);
+  forgetDockets(world);
+  forgetTownLife(world);
+  const towns = populationContext(world)
+    .settlements.all()
+    .filter((t) => t.population > 0 && t.founded < year - 12)
+    .slice(0, 40);
+  let running = 0,
+    longest = 0,
+    one: { town: string; c: Case } | null = null;
+  for (const t of towns)
+    for (let y = year - 9; y <= year; y++) {
+      const run = runningOf(world, t.ref, y),
+        refs = run.map((c) => c.accused.ref);
+      running += run.length;
+      assert.equal(new Set(refs).size, refs.length, `${t.ref} ${y}: two sentences on one`);
+      for (const c of run) {
+        longest = Math.max(longest, c.days);
+        assert.ok(c.day + c.days > y * 365 && c.year < y, `${c.ref} runs into ${y}`);
+        if (y === year && !one && world.now < (c.day + c.days) * 86_400) one = { town: t.ref, c };
+      }
+      for (const c of casesOf(world, t.ref, y))
+        assert.ok(
+          c.accused.outside || !refs.includes(c.accused.ref),
+          `${c.ref}: brought while held`,
+        );
+    }
+  assert.ok(running > 0, "some sentence runs past its year in these towns");
+  assert.ok(longest < 14 * 365, "none longer than the span its years are drawn over");
+  // The same book whichever year is asked first.
+  const t = towns[0]!.ref,
+    told = (y: number) =>
+      JSON.stringify(casesOf(world, t, y).map((c) => [c.ref, c.accused.ref, c.sentence, c.days]));
+  const a = [year, year - 1, year - 6].map(told);
+  forgetDockets(world);
+  const b = [year - 6, year - 1, year].map(told).reverse();
+  assert.deepEqual(b, a);
+  // One held says so on the people bar's chip and their page, with until when.
+  assert.ok(one, "someone is held as the year stands");
+  const h = heldReading(world, one!.town, one!.c.accused.ref)!;
+  assert.match(
+    h.short,
+    /^(in the cell|at the works|sent away|sent out of the realm|in the stocks)/,
+  );
+  assert.equal(h.case, one!.c.ref);
+  const page = pageOf(world, one!.c.accused.ref),
+    chip = readingsOf(world, one!.c.accused.ref, page)!;
+  assert.equal(chip.doing.short, h.short);
+});
+
+test("a fight's page names those of its town who are of either side, while it is lately fought", () => {
+  ware(null);
+  held(true);
+  forgetDockets(world);
+  forgetTownLife(world);
+  const roles = townRolesOf(world, town),
+    mob = roles.goings.find((g) => g.kind === "collect")!.of,
+    fight = {
+      town,
+      year,
+      sides: [
+        { ref: mob.ref, name: "the Varro family" },
+        { ref: "mob:none", name: "the Grey family" },
+      ],
+    },
+    block = fightPeopleBlock(world, fight)!;
+  assert.equal(block.type, "list");
+  const text = JSON.stringify(block);
+  assert.match(text, /Of the town, on either side/);
+  for (const g of roles.goings)
+    if (g.kind === "collect" || g.kind === "guard")
+      for (const who of g.who) assert.ok(text.includes(who), `${g.kind} ${who}`);
+  assert.match(
+    text,
+    /of the Varro family: their collector in the town/,
+  );
+  assert.doesNotMatch(text, /Grey/, "no one of the town is of the other side");
+  assert.equal(
+    fightPeopleBlock(world, { ...fight, year: year - 3 }),
+    null,
+    "long ago: who is of them now says nothing",
+  );
+  held(false);
+  forgetTownLife(world);
+  assert.equal(fightPeopleBlock(world, fight), null);
+  // A soldier posted is gone to from the soldiers' page, which their ref leads to.
+  held(true);
+  forgetTownLife(world);
+  const soldier = townRolesOf(world, town).outsiders.find((p) => p.host)!;
+  assert.match(soldier.ref, new RegExp(`^out:${town}:uop:`));
+  assert.deepEqual(pageOf(world, soldier.ref).place, {
+    scale: "village",
+    town,
+    person: soldier.ref,
+  });
+  assert.match(JSON.stringify(townGoingsBlock(world, town)), /Go to .+a soldier of /);
   held(false);
   forgetDockets(world);
   forgetTownLife(world);

@@ -2,6 +2,8 @@
 // a true reading of that person or a plain saying that history keeps none. A ruler holds no mood: what history keeps is
 // how many hold their rule rightful, and a page says so. Nothing is kept, nothing drawn, and the same reading is on the
 // bar and on their page. A person's body is what their page's own Body line says; their age is against what their people live.
+import { heldReading } from "./townlife.ts";
+import { parseTownsfolkRef } from "../../bridge/index.ts";
 import { yearOfMoment, type Ref, type World } from "../../kernel/index.ts";
 import { bandOf, moodAt, REIGN } from "../../rules/index.ts";
 import {
@@ -397,19 +399,24 @@ export function readingsOf(world: World, ref: string, page: PageModel): BarReadi
     return r ? rulerRead(world, page, r) : null;
   }
   if (ref.startsWith("court:")) return courtRead(world, ref, page);
+  // (One the court holds says that, not their work: in the cell until when, at its works, sent away. host/inspect/townlife.ts.)
+  const at = ref.startsWith("folk:town:") ? parseTownsfolkRef(ref) : null,
+    heldNow = at ? heldReading(world, at.town, ref) : null;
   const work = statOf(page, "Work"),
     gone = /^died/.test(statOf(page, "Age") ?? "") || page.icon === "🪦",
-    doing = gone
-      ? read("🕯️", "Doing", "gone", "No longer among their people.", "plain")
-      : work
-        ? read(
-            "🛠️",
-            "Doing",
-            work === "a child" ? "child" : work,
-            work === "a child" ? "A child, not yet at any work." : `Their work is as a ${work}.`,
-            "plain",
-          )
-        : read("🛠️", "Doing", "untold", "History keeps no work for them.", "plain");
+    doing = heldNow
+      ? read("⚖️", "Doing", heldNow.short, heldNow.words, "poor")
+      : gone
+        ? read("🕯️", "Doing", "gone", "No longer among their people.", "plain")
+        : work
+          ? read(
+              "🛠️",
+              "Doing",
+              work === "a child" ? "child" : work,
+              work === "a child" ? "A child, not yet at any work." : `Their work is as a ${work}.`,
+              "plain",
+            )
+          : read("🛠️", "Doing", "untold", "History keeps no work for them.", "plain");
   // One under the god's hand holds a mood, as the hand moved it.
   if (ref.startsWith("agent:")) {
     const w = handOf(world).resting,

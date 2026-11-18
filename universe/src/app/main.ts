@@ -10760,8 +10760,12 @@ async function runPlanetPage(): Promise<void> {
             m = i >= 0 ? village.momentAt(i) : null;
           return m?.of?.ref === of ? i : -1;
         };
-      for (const g of goingsNow(plan, now(), villageSolids(plan))) {
-        if (g.going.kind === "posted" || g.going.kind === "guard") continue;
+      // (What is on for some hours first, the soonest to end; soldiers posted, who are there day and night, where none is.)
+      const on = goingsNow(plan, now(), villageSolids(plan));
+      for (const g of [
+        ...on.filter((x) => x.going.kind !== "posted" && x.going.kind !== "guard"),
+        ...on.filter((x) => x.going.kind === "posted"),
+      ]) {
         const there = g.going.who.map((ref) => at(ref, g.going.of.ref)).filter((i) => i >= 0),
           // (Of a corner, one of the knot, the one on watch standing apart from it.)
           find = there.find((i) => i === g.find) ?? there.at(-1);
