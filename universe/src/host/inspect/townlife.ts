@@ -22,6 +22,7 @@ import {
   gangsStore,
   groupsIn,
   kindName,
+  handOf,
   kindOfGroup,
   lifeOf,
   moneyStore,
@@ -46,6 +47,8 @@ import {
   type VillagePlan,
 } from "../../bridge/index.ts";
 import { fedRef, groupRef, opRef } from "../underworld.ts";
+import { hostKinds } from "../arms.ts";
+import { realmColor } from "../colors.ts";
 import { orgRef } from "../groups.ts";
 import { folkWork, workOf } from "../roster.ts";
 import {
@@ -329,6 +332,28 @@ function readRoles(world: World, town: string, year: number): TownLife {
    * drawn from all of it, and may be of more than one thing, as people are.
    */
   const pool = folk.slots(POOL),
+    // (Under the hand its people are the hand's, drawn anew; but one the hand was laid from is among them by the name they
+    // were known by, and is still what they were for their group: who its lines' holders were of each thing, by name, first.)
+    hand = handOf(world).resting,
+    lines = hand && hand.village === s.ref ? folkOf(world, s, year, true).slots(POOL) : null,
+    order = (
+      of: readonly FolkSlot[],
+      key: string,
+      weigh: ((key: number, born: number) => number) | undefined,
+      part: number,
+      not: ReadonlySet<string>,
+    ) => {
+      const h = hashString(key) >>> 0;
+      return of
+        .filter((x) => (part < 0 || x.id % PARTS === part) && !not.has(x.party.ref))
+        .map((x) => ({
+          x,
+          // (Those it leans to first, then by the draw.)
+          at: (weigh && weigh(x.key, x.born) >= 1 ? 0 : 1) + unit(h, x.id),
+        }))
+        .sort((p, q) => p.at - q.at || p.x.id - q.x.id)
+        .map((y) => y.x);
+    },
     draw = (
       key: string,
       n: number,
@@ -336,17 +361,17 @@ function readRoles(world: World, town: string, year: number): TownLife {
       part = -1,
       not: ReadonlySet<string> = new Set(),
     ): string[] => {
-      const h = hashString(key) >>> 0,
-        from = pool
-          .filter((x) => (part < 0 || x.id % PARTS === part) && !not.has(x.party.ref))
-          .map((x) => ({
-            x,
-            // (Those it leans to first, then by the draw.)
-            at: (weigh && weigh(x.key, x.born) >= 1 ? 0 : 1) + unit(h, x.id),
-          }))
-          .sort((p, q) => p.at - q.at || p.x.id - q.x.id),
+      const were = lines
+          ? new Set(
+              order(lines, key, weigh, part, new Set())
+                .slice(0, n)
+                .map((x) => x.party.name),
+            )
+          : null,
+        known = were ? pool.filter((x) => were.has(x.party.name) && !not.has(x.party.ref)) : [],
+        from = [...known, ...order(pool, key, weigh, part, not).filter((x) => !known.includes(x))],
         out: string[] = [];
-      for (const { x } of from.slice(0, n)) {
+      for (const x of from.slice(0, n)) {
         named.set(x.party.ref, x.party);
         out.push(x.party.ref);
       }
@@ -561,6 +586,10 @@ function readRoles(world: World, town: string, year: number): TownLife {
           of: { ref, name },
           words: `${cap(name)}, enforcers of ${realmName(r)} ${crew.squad ? "who kill outside the law" : "who keep what they seize"}, walk its streets`,
           doing: `On their round of the streets with ${name}`,
+          // (A crew that keeps what it seizes and is paid by those it leaves alone: one call of its round is where it is paid.)
+          ...(!crew.squad && crew.income > 0
+            ? { toDoing: `Calling where ${name} is paid to leave a trade alone` }
+            : {}),
           why: `it works ${pct(under.badge)} of this land, and has ${count(crew.members)} men`,
           since: crew.since,
           who,
@@ -573,6 +602,7 @@ function readRoles(world: World, town: string, year: number): TownLife {
       const here = soldiersIn(world, r.ref as Ref, s.cell),
         n = Math.min(LIFE_MOST.soldiers, Math.max(2, Math.round(here / 150))),
         against = groupWords(o.name, GROUP_KINDS[o.kind]),
+        arm = hostKinds(world, r.ref)?.arm ?? "",
         page = opRef(r.ref, o.event),
         who: string[] = [];
       for (let k = 0; k < n; k++) {
@@ -582,7 +612,7 @@ function readRoles(world: World, town: string, year: number): TownLife {
           ref,
           page,
           name: `A soldier of ${realmName(r)}`,
-          role: `a soldier of ${realmName(r)}, not of ${s.name}: posted here against ${against}`,
+          role: `a soldier of ${realmName(r)}, not of ${s.name}: posted here against ${against}${arm ? `, armed as its host is, with the ${arm}` : ""}`,
           home: 0,
           age: 20 + ((hashString(ref) >>> 0) % 14),
           occupation: OCC.dependent,
@@ -590,6 +620,7 @@ function readRoles(world: World, town: string, year: number): TownLife {
           sex: 1,
           folk: true,
           outsider: true,
+          host: true,
         });
       }
       goings.push({
@@ -914,3 +945,58 @@ export function fightPeopleBlock(
   }
   return items.length ? { type: "list", title: "Of the town, on either side", items } : null;
 }
+
+/** A town's soldiers posted, as its plan carries them: their realm's colour and the arm its host is fielded with (none: none posted). */
+export function townPosted(world: World, town: string): Pick<VillagePlan, "posted"> {
+  if (!townRolesOf(world, town).goings.some((g) => g.kind === "posted")) return {};
+  const s = populationContext(world).settlements.get(town as Ref),
+    r = s ? politiesOf(world).of(s.cell) : undefined;
+  if (!r) return {};
+  const c = realmColor(r.ref);
+  return { posted: { color: [c[0], c[1], c[2]], arm: hostKinds(world, r.ref)?.arm ?? "" } };
+}
+
+/**
+ * What one lived is for the groups of their town, for the tray of a life: each a line that says what it is, for whom and when.
+ * Pressed, it tells; a life's hours are spent by the life's own rules, and none of them is yet spent on these.
+ */
+export function roleOffers(
+  world: World,
+  town: string,
+  ref: string,
+): { what: "role"; target: number; icon: string; label: string; can: boolean; words: string }[] {
+  const life = townLifeOf(world, town),
+    out: ReturnType<typeof roleOffers> = [];
+  for (const g of life.goings) {
+    if (!g.who.includes(ref)) continue;
+    out.push({
+      what: "role",
+      target: -1,
+      icon: GOING_ICON[g.kind],
+      label: ROLE_LABEL[g.kind],
+      can: true,
+      words: `${g.quiet ?? g.doing}, ${WHEN[g.kind]}: ${g.why}. Told of this life, not yet lived in it: its hours are its own.`,
+    });
+  }
+  for (const p of life.past)
+    if (p.ref === ref)
+      out.push({
+        what: "role",
+        target: -1,
+        icon: "⚖️",
+        label: "The court",
+        can: true,
+        words: `You were ${ROLE_NAME[p.going.kind].replace(/its/, "the")} for ${p.going.of.name} until year ${p.case.year}: you ${p.case.came.replace(/^was /, "were ")}.`,
+      });
+  return out;
+}
+const ROLE_LABEL: Readonly<Record<TownGoing["kind"], string>> = {
+  collect: "Your rounds",
+  seller: "Your lane",
+  guard: "Your door",
+  patrol: "Your round",
+  corner: "Your corner",
+  meeting: "Your meeting",
+  alms: "Your giving",
+  posted: "Your post",
+};

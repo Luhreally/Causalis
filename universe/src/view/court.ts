@@ -377,7 +377,8 @@ function rolesOn(plan: VillagePlan, day: number): ReadonlyMap<number, CourtRole>
     if (i === undefined || day <= d || day >= d + s.days) continue;
     // (Whose case it is, a press away; and until when, where it runs past the year.)
     const of: CaseOf = { ref: s.ref, name: `the case of ${s.who}` },
-      until = s.days > 365 ? `, until year ${Math.floor((d + s.days) / 365)}` : "";
+      ends = Math.floor((d + s.days) / 365),
+      until = ends > Math.floor(day / 365) ? `, until year ${ends}` : "";
     if (s.sentence === "banish")
       map.set(i, { kind: "gone", why: `Sent away by ${court.law}${until}`, of });
     else if (s.sentence === "stocks")

@@ -7,6 +7,7 @@
 import { GOING_ICON, type TownGoing, type VillagePlan } from "../bridge/index.ts";
 
 export { GOING_ICON };
+import { isGun } from "./arms.ts";
 import { hashText, unitOf } from "./draws.ts";
 import { beside, civicDoors, storeSpots } from "./errands.ts";
 import { feastOn, marketDay, marketScene, squareScale } from "./feast.ts";
@@ -463,7 +464,8 @@ function laidOn(plan: VillagePlan, day: number, ground: Ground): Laid {
       // A round of the square's four sides, side by side, an hour at each.
       from = LIFE_HOURS.patrol[0] * HOUR;
       until = LIFE_HOURS.patrol[1] * HOUR;
-      const sc = squareScale(plan);
+      const sc = squareScale(plan),
+        fronts = marketScene(plan).fronts;
       who.forEach((i, k) => {
         const stays: LifeStay[] = [];
         for (let w = 0; from + w * HOUR < until; w++) {
@@ -474,14 +476,17 @@ function laidOn(plan: VillagePlan, day: number, ground: Ground): Laid {
             };
           // (At noon they eat as anyone does: no post then.)
           if (w === 4) continue;
+          // (Mid-morning, where the crew is paid: before one of the market's stalls, the same one day on day.)
+          const paid =
+            w === 2 && g.toDoing ? fronts[(hashText(g.key) >>> 7) % fronts.length] : undefined;
           stays.push({
             from: from + w * HOUR,
             to: from + (w + 1) * HOUR,
-            at,
-            face: toward(at, { x: 0, z: 0 }),
-            task: "watch",
+            at: paid ? { x: paid.x + (k ? 1.4 : 0), z: paid.z + (k ? 1.0 : 0) } : at,
+            face: paid ? paid.yaw : toward(at, { x: 0, z: 0 }),
+            task: paid ? "haggle" : "watch",
             carry: null,
-            why: g.doing,
+            why: paid ? g.toDoing! : g.doing,
           });
         }
         add(i, { going: g, of: true, stays });
@@ -573,7 +578,8 @@ function laidOn(plan: VillagePlan, day: number, ground: Ground): Laid {
             at,
             face: toward({ x: 0, z: 0 }, at),
             task: "watch",
-            carry: "spear",
+            // (What their realm's host is fielded with: a gun shouldered, a spear upright; another arm is told, not drawn.)
+            carry: isGun(plan.posted?.arm) ? "gun" : plan.posted?.arm === "spear" ? "spear" : null,
             why: g.doing,
           });
         }

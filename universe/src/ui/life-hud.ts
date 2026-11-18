@@ -217,7 +217,8 @@ export class LifeHud {
         b.title = o.words;
         b.onclick = () => {
           this.say(o.words);
-          this.onDo(o.what, o.target);
+          // (What they are for a group of their town is told; it is not a thing this life's hours are yet spent on.)
+          if (o.what !== "role") this.onDo(o.what, o.target);
         };
         return b;
       }),

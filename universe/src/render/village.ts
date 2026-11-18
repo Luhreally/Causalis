@@ -1363,8 +1363,11 @@ export class VillageScene {
       );
     });
     // (Those of made limbs, in a group of their own, whoever they are: Phase 66.)
-    const machines = plan.people.some((p) => p.machine);
-    if (machines) {
+    // (And the realm's soldiers posted in it, in its colour over what its age wears, a group past the machines': theirs is
+    // made too where it has soldiers and none of made limbs, so each group keeps its place.)
+    const hosts = !!plan.posted && plan.people.some((p) => p.host),
+      machines = plan.people.some((p) => p.machine);
+    if (machines || hosts) {
       const made: InstancedBatch[] = [];
       this.people.push(
         figured.map((part, pi) =>
@@ -1374,6 +1377,27 @@ export class VillageScene {
                 s,
                 meshes[part.shape],
                 MACHINE_TONES[part.tone]!,
+                each(pi),
+                this.root,
+              )),
+        ),
+      );
+    }
+    if (hosts) {
+      const made: InstancedBatch[] = [],
+        c = plan.posted!.color,
+        worn = dressedOn(plan.body, plan.era, 2, plan.colony).tones,
+        tones = worn.map((t, k) =>
+          k === 0 ? c : k === 1 ? ([c[0] * 0.42, c[1] * 0.42, c[2] * 0.42] as const) : t,
+        );
+      this.people.push(
+        figured.map((part, pi) =>
+          part.tone === 3
+            ? null
+            : (made[alike[pi]!] ??= this.batch(
+                s,
+                meshes[part.shape],
+                tones[part.tone]!,
                 each(pi),
                 this.root,
               )),

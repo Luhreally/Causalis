@@ -12,6 +12,7 @@ import {
   goingsOn,
   lifeParts,
   momentOf,
+  personGroup,
   restDay,
   squareNow,
   villageSolids,
@@ -478,4 +479,43 @@ test("a collector the court locks up is in its cell and not on the rounds, sayin
   // Those who pay are not called on by one who is locked up.
   const payer = tried.people.findIndex((p) => p.ref === "prsn:0:25");
   assert.ok(!dayTold(tried, payer, d0).some((l) => /Paying/.test(l.words)));
+});
+
+test("soldiers posted bear what their realm's host is fielded with and are of its group; an enforcers' round calls once where the crew is paid", () => {
+  const armed = (arm: string) => {
+      const p: VillagePlan = {
+        ...village([posted], true),
+        posted: { color: [0.8, 0.2, 0.2], arm },
+      };
+      return momentOf(p, p.people.length - 1, 31 * DAY + 10 * HOUR).carry;
+    },
+    one = village([posted], true).people.at(-1)!;
+  assert.equal(armed("rifle"), "gun");
+  assert.equal(armed("spear"), "spear");
+  assert.equal(armed("sword"), null, "an arm not drawn is told, not shown as another");
+  assert.equal(personGroup({ ...one, host: true }), 5, "the realm's colour, a group of its own");
+  assert.equal(personGroup(one), 0);
+  const round: TownGoing = {
+      kind: "patrol",
+      key: "mob:9|town:0:9|patrol",
+      of: { ref: "mob:9", name: "the Grey squad" },
+      words: "The Grey squad walk its streets",
+      doing: "On their round of the streets with the Grey squad",
+      toDoing: "Calling where the Grey squad is paid to leave a trade alone",
+      why: "it works 20% of this land",
+      who: ["prsn:0:12"],
+      where: "square",
+    },
+    town: VillagePlan = { ...village([round]), market: true },
+    i = town.people.findIndex((p) => p.ref === "prsn:0:12"),
+    d = [30, 31, 32, 33].find((x) => !restDay(town, x))!,
+    told = dayTold(town, i, d).map((l) => l.words);
+  assert.ok(
+    told.some((w) => /calling where the Grey squad is paid/i.test(w)),
+    told.join(" | "),
+  );
+  assert.ok(told.some((w) => /on their round of the streets/i.test(w)));
+  // A crew that is not paid (no such line from the land's rows) makes no such call.
+  const plain = village([{ ...round, toDoing: undefined } as TownGoing]);
+  assert.ok(!dayTold(plain, i, d).some((l) => /paid/.test(l.words)));
 });

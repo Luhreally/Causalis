@@ -534,6 +534,11 @@ export type VillagePlan = {
     readonly music: string;
     readonly of: { readonly ref: string; readonly name: string };
   };
+  /** The realm's soldiers posted in it: their realm's colour, and the arm its host is fielded with (its part's id: "rifle"). */
+  readonly posted?: {
+    readonly color: readonly [number, number, number];
+    readonly arm: string;
+  };
   /** One come from another seat, at its court this year or last (D1). */
   readonly envoy?: {
     readonly ref: string;
@@ -592,6 +597,8 @@ export type VillagePlan = {
     gone?: number;
     /** Not of the town (soldiers posted in it, one brought before its court from outside): seen only where a part puts them. */
     outsider?: true;
+    /** One of the realm's host posted in the town: dressed in its colour, bearing what its host is fielded with (`plan.posted`). */
+    host?: true;
     /** The page that tells of them, where it is not their own (an outsider's: the soldiers', the group's, its head's). */
     page?: string;
   }[];

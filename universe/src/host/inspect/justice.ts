@@ -878,12 +878,13 @@ export type FolkSlot = {
   readonly party: Party;
 };
 
-export function folkOf(world: World, s: Settlement, year: number): Folk {
+export function folkOf(world: World, s: Settlement, year: number, asLines = false): Folk {
   const ctx = populationContext(world),
     grown = lifeOf(world).adulthood,
     hand = handOf(world).resting;
-  // Under the hand everyone in the town is someone: the hand's people.
-  if (hand && hand.village === s.ref) {
+  // Under the hand everyone in the town is someone: the hand's people. (`asLines`: its lines' holders even so, as before
+  // the hand came to rest on it: whom one it was laid from was, by name.)
+  if (!asLines && hand && hand.village === s.ref) {
     const list = hand.agents.filter((a) => year - a.birthYear >= grown);
     const party = (a: (typeof hand.agents)[number]): Party => ({
       ref: `agent:${a.id}`,

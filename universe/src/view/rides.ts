@@ -7,6 +7,7 @@ import { hashString } from "../kernel/index.ts";
 import type { VillagePlan } from "../bridge/index.ts";
 import { clearAt, keepOut, route, type Ground } from "./ground.ts";
 import { streetDoor } from "./streets.ts";
+import { goingsOn } from "./townlife.ts";
 import {
   ACTIVITY,
   longWalks,
@@ -148,6 +149,22 @@ const CAR_DAYS = new WeakMap<VillagePlan, { day: number; cars: Map<number, CarDa
 const PARKED_APART = 4.4;
 const PARK_CELL = 16;
 
+/** How far from where people stand together a car is left (metres). */
+const MEET_CLEAR = 7;
+/** A place to leave a car, moved out from any place people stand together that day to MEET_CLEAR from its middle. */
+function clearOfGoings(p: Point, meets: readonly Point[]): Point {
+  for (const m of meets) {
+    const dx = p.x - m.x,
+      dz = p.z - m.z,
+      d = Math.hypot(dx, dz);
+    if (d >= MEET_CLEAR) continue;
+    // (Out the way it already lay from them; straight along x where it lay on them.)
+    const k = d > 0.01 ? MEET_CLEAR / d : 0;
+    return k ? { x: m.x + dx * k, z: m.z + dz * k } : { x: m.x + MEET_CLEAR, z: m.z };
+  }
+  return p;
+}
+
 /** Where all a town's cars stand through a day: about where their owners stop, no two in one place. */
 function carDays(plan: VillagePlan, day: number): Map<number, CarDay> {
   const had = CAR_DAYS.get(plan);
@@ -155,6 +172,8 @@ function carDays(plan: VillagePlan, day: number): Map<number, CarDay> {
   const ground = villageSolids(plan),
     taken = new Map<number, number>(),
     cars = new Map<number, CarDay>();
+  // (Where people stand together that day, a meeting, a corner kept, bread given: no car is left among them.)
+  const meets = goingsOn(plan, day, ground).map((g) => g.at);
   for (const o of ridesOf(plan).owners.values()) {
     const walks = longWalks(plan, o.index, day, LONG_WALK),
       home = plan.homes[o.home]!;
@@ -170,7 +189,10 @@ function carDays(plan: VillagePlan, day: number): Map<number, CarDay> {
         // (Out about the place in a widening turn: each the same way apart.)
         const a = k * 2.399963,
           r = PARKED_APART * (0.6 + Math.sqrt(k)),
-          q = parkNear(ground, { x: w.end.x + Math.cos(a) * r, z: w.end.z + Math.sin(a) * r });
+          q = parkNear(
+            ground,
+            clearOfGoings({ x: w.end.x + Math.cos(a) * r, z: w.end.z + Math.sin(a) * r }, meets),
+          );
         return { x: q.x, z: q.z, yaw: Math.atan2(w.end.x - w.start.x, w.end.z - w.start.z) };
       }),
     });

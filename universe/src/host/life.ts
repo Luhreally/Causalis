@@ -1,6 +1,7 @@
 // A life lived by the god's hand (Lives L3), as the page reads it: whom it may take up, and how the one
 // lived stands now (their numbers carried forward to the moment asked on a copy, so asking moves nothing).
 // Reading only.
+import { roleOffers } from "./inspect/townlife.ts";
 import { yearOfMoment, type World } from "../kernel/index.ts";
 import {
   FEMALE,
@@ -237,6 +238,9 @@ export function lifeNow(world: World): LifeNow | null {
       atWar: atWarHere(world, v.cell),
       shrine: !!c.settlements.get(w.village),
     }),
+    // What this one is for a group of their town (host/inspect/townlife.ts): told in the tray, each a press that says what it
+    // is, for whom and when. Their hours in a life lived are the life's own; these are told, not spent.
+    roles = f.age >= adult ? roleOffers(world, w.village, `agent:${l.agent}`) : [],
     market = marketsOf(world).get(w.cell),
     wantWords = (id: WantId) => LIFE_WANTS[id].words,
     wantAt = l.want ? wantNow(l.want, l, f, rival) : null;
@@ -288,7 +292,7 @@ export function lifeNow(world: World): LifeNow | null {
     worth: Math.floor(worthOf(l)),
     kin: [...kin, ...free],
     about: livedAbout(l),
-    offers,
+    offers: [...offers, ...roles],
     market:
       l.doing?.what === "market" && market
         ? [

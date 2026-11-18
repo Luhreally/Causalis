@@ -201,6 +201,8 @@ export function carryWords(
       return "a beam for the walls going up";
     case "spear":
       return `a ${m.name}-headed spear`;
+    case "gun":
+      return "the arm their realm's host is fielded with";
     case "log":
       return "a log felled in the woods";
     case "stone":

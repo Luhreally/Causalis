@@ -24,6 +24,8 @@ export const CARRIES = [
   "water",
   "beam",
   "spear",
+  // A gun shouldered: what a host of powder and shot is fielded with (soldiers posted in a town).
+  "gun",
   // A log felled for the yard on the shoulder; a block of stone held before them (Phase 39 M198).
   "log",
   "stone",
@@ -213,6 +215,10 @@ const ITEMS: Readonly<Record<Carry, readonly ItemPart[]>> = {
   spear: [
     P("wood", 0.12, 0.34, 0.06, 0.018, 0.74, 0.018),
     P("head", 0.12, 0.74, 0.06, 0.03, 0.07, 0.012),
+  ],
+  gun: [
+    P("wood", 0.12, 0.3, 0.05, 0.024, 0.3, 0.034),
+    P("head", 0.12, 0.6, 0.05, 0.013, 0.36, 0.013),
   ],
   log: [P("wood", 0.1, 0.52, 0.0, 0.08, 0.08, 0.52)],
   stone: [P("stone", 0, 0.34, 0.12, 0.17, 0.13, 0.13)],

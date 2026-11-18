@@ -57,7 +57,7 @@ import { landWords, meetHousehold, observer, settleAll, type WarFate } from "../
 import { personThings } from "./inspect/things.ts";
 import { memorialsOf, townSongs } from "./inspect/memory.ts";
 import { courtIn, namedByCases } from "./inspect/justice.ts";
-import { townCustoms, townLifeOf } from "./inspect/townlife.ts";
+import { townCustoms, townLifeOf, townPosted } from "./inspect/townlife.ts";
 import { fullName, herdPass, townWild } from "./inspect/herds.ts";
 import { envoyAtCourt } from "./inspect/ties.ts";
 import {
@@ -1357,6 +1357,7 @@ export function villagePlan(
       ...memoryIn(world, ref),
       ...courtIn(world, ref),
       ...townCustoms(world, ref),
+      ...townPosted(world, ref),
       ...(() => {
         const goings = townLifeOf(world, ref, now).goings;
         return goings.length ? { goings } : {};

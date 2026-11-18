@@ -2533,18 +2533,22 @@ function withLife(
     }
     if (!target) continue;
     const spot = clearSpot(ground, target),
-      // (Set off in time to be there: from where their day has them a walk before.)
+      // (Set off in time to be there: from where their day has them a walk before. One who rides, in what they ride or the
+      // town's line, is there the sooner where the way is long: they do not leave their work hours before.)
+      rides = !!rideWord?.(plan, index),
+      over = (long: number) => long / (rides && long >= RIDE_LEAST ? pace * RIDE_FAST : pace),
       near = whereAt(legs, st.from),
-      guess = Math.max(done, st.from - (Math.hypot(spot.x - near.x, spot.z - near.z) * 1.4) / pace),
+      guess = Math.max(done, st.from - over(Math.hypot(spot.x - near.x, spot.z - near.z) * 1.4)),
       first = route(ground, whereAt(legs, guess), spot, PERSON_REACH),
-      leave = Math.max(done, Math.min(guess, st.from - lengthOf(first) / pace)),
+      leave = Math.max(done, Math.min(guess, st.from - over(lengthOf(first)))),
       out: Leg[] = cutLegs(legs, 0, leave);
     let t = leave;
     const walk = (path: readonly Point[], why: string | null, carry: Carry | null) => {
+      const fast = rides && lengthOf(path) >= RIDE_LEAST ? pace * RIDE_FAST : pace;
       for (let k = 0; k + 1 < path.length; k++) {
         const a = path[k]!,
           b = path[k + 1]!,
-          to = t + walkTime(a, b, pace);
+          to = t + walkTime(a, b, fast);
         out.push({
           from: t,
           to,
@@ -2589,7 +2593,7 @@ function withLife(
     if (t < DAY - 60) {
       const back = whereAt(
         legs,
-        Math.min(DAY - 1, t + Math.hypot(spot.x - near.x, spot.z - near.z) / pace),
+        Math.min(DAY - 1, t + over(Math.hypot(spot.x - near.x, spot.z - near.z))),
       );
       walk(route(ground, spot, back, PERSON_REACH), null, null);
       if (t < DAY) out.push(...cutLegs(legs, t, DAY));
@@ -5324,6 +5328,8 @@ export type DayLine = { readonly from: number; readonly to: number; words: strin
 /** What a person goes in on a long walk, told to the day's lines by view/rides.ts (it reads this file, so not the other way about). */
 let rideWord: ((plan: VillagePlan, index: number) => string | null) | null = null;
 const RIDE_LEAST = 130;
+/** How much sooner than on foot one who rides is there, on a way to something a going asks of them. */
+const RIDE_FAST = 5;
 export function tellRides(read: (plan: VillagePlan, index: number) => string | null): void {
   rideWord = read;
 }
@@ -6455,6 +6461,8 @@ export function sayOf(
 /** People by what they do: those who work the land, the makers and carriers, the leaders, the young. */
 export function personGroup(p: VillagePlan["people"][number]): number {
   // (Those of made limbs: a group of their own, past the four. Phase 66.)
+  // (One of the realm's host posted in the town, in its colour: a group past those. Soldiers of made limbs are its soldiers first.)
+  if (p.host) return GROUP_COLORS.length + 1;
   if (p.machine) return GROUP_COLORS.length;
   if (p.child) return 3;
   if (p.occupation === OCC.leader) return 2;
