@@ -2,7 +2,7 @@
 // market, city, how it lives now, the families met there and what has happened there — a
 // household met, a person met (their life, family, moves, memories and character), a
 // memory, and one of the people under the god's hand.
-import { townGoingsBlock } from "./townlife.ts";
+import { partOfStats, townGoingsBlock } from "./townlife.ts";
 import { cellRef } from "../../gen/index.ts";
 import { colonyTownCell } from "../colony.ts";
 import {
@@ -831,6 +831,8 @@ export function agentPage(world: World, ref: string): PageModel {
               ...(named(a.mother) ? [stat("Mother", named(a.mother)!)] : []),
               ...(named(a.father) ? [stat("Father", named(a.father)!)] : []),
               ...(named(a.partner) ? [stat("Partner", named(a.partner)!)] : []),
+              // (What they are part of in their town, and what is done to them: host/inspect/townlife.ts.)
+              ...(grown ? partOfStats(world, w.village, ref) : []),
             ],
           },
           {

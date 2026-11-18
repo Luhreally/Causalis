@@ -141,8 +141,21 @@ function placeOf(
   };
   const t = day * DAY,
     home = (h: number) => {
-      const door = beforeHome(plan, h),
-        c = beforeHome(plan, h, 0, 2.6);
+      const door = beforeHome(plan, h);
+      // In a town, along the house's front in two close rows, off the roadway its carts and cars keep to; on a village's open
+      // ground, a ring.
+      if (plan.town) {
+        const c = beforeHome(plan, h, 0, 0.7);
+        return {
+          at: { x: c.x, z: c.z },
+          spot: (k: number, n: number) => {
+            const q = beforeHome(plan, h, (k - (n - 1) / 2) * 1.25, 0.1 + (k % 2) * 1.2);
+            return { x: q.x, z: q.z, face: toward(q, c) };
+          },
+          door: { x: door.x, z: door.z },
+        };
+      }
+      const c = beforeHome(plan, h, 0, 2.6);
       return { at: { x: c.x, z: c.z }, spot: ring(c, 2.1), door: { x: door.x, z: door.z } };
     };
   if (g.where === "temple") {

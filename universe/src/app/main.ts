@@ -9561,12 +9561,14 @@ async function runPlanetPage(): Promise<void> {
         : p && pageWindow.current === p.ref
           ? pageWindow.liveMore
           : null;
-      // (The larger thing what they are at belongs to, a press from its page: a group, a family, the soldiers sent in.)
-      if (slot && m?.of) {
-        if (partOf.dataset.ref !== m.of.ref || partOf.parentElement !== slot) {
+      // (The larger thing what they are at belongs to, a press from its page: a group, a family, the soldiers sent in. Under
+      // what they are doing now, on their page where it is open, else on their card.)
+      const ofSlot = p && pageWindow.current === p.ref ? pageWindow.liveMore : slot;
+      if (ofSlot && m?.of) {
+        if (partOf.dataset.ref !== m.of.ref || partOf.parentElement !== ofSlot) {
           partOf.dataset.ref = m.of.ref;
           partOf.textContent = `Part of: ${m.of.name} ›`;
-          slot.prepend(partOf);
+          ofSlot.prepend(partOf);
         }
       } else if (partOf.parentElement) {
         partOf.remove();
@@ -10736,17 +10738,28 @@ async function runPlanetPage(): Promise<void> {
     () => {
       if (scale !== "village" || !plan?.goings || pageWindow.visible || events.open || !!time.lapse)
         return null;
-      const g = goingsNow(plan, now(), villageSolids(plan)).find(
-        (x) => x.going.kind !== "posted" && x.going.kind !== "guard",
-      );
-      return g
-        ? {
-            ref: `${g.going.key}|${g.find}`,
-            icon: GOING_ICON[g.going.kind],
-            title: g.going.words,
-            line: `${g.going.why}. Press to go to it.`,
-          }
-        : null;
+      // (Only what someone is at now leads anywhere: one of its people who is there, not one the levy, a wound or the court
+      // has today. A going none of whose people is at it now is on the town's page, and not said here.)
+      const people = plan.people,
+        at = (ref: string, of: string) => {
+          const i = people.findIndex((p) => p.ref === ref),
+            m = i >= 0 ? village.momentAt(i) : null;
+          return m?.of?.ref === of ? i : -1;
+        };
+      for (const g of goingsNow(plan, now(), villageSolids(plan))) {
+        if (g.going.kind === "posted" || g.going.kind === "guard") continue;
+        const there = g.going.who.map((ref) => at(ref, g.going.of.ref)).filter((i) => i >= 0),
+          // (Of a corner, one of the knot, the one on watch standing apart from it.)
+          find = there.find((i) => i === g.find) ?? there.at(-1);
+        if (find === undefined) continue;
+        return {
+          ref: `${g.going.key}|${find}`,
+          icon: GOING_ICON[g.going.kind],
+          title: g.going.words,
+          line: `${g.going.why}. Press to go to it.`,
+        };
+      }
+      return null;
     },
     () =>
       directorControls.watching ||
