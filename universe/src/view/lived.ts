@@ -103,8 +103,9 @@ function partSpot(
     stall = (k: number): Point | null => (fronts.length ? fronts[(id + k) % fronts.length]! : null);
   switch (part) {
     case "rounds": {
-      // (From stall to stall through its hours: a quarter of them at each.)
-      const k = Math.floor((4 * (t - doing.from)) / Math.max(1, doing.to - doing.from));
+      // (From stall to stall through its hours, which begin when they arrive: a quarter of them at each.)
+      const began = doing.from + (doing.away ?? 0),
+        k = Math.floor((4 * (t - began)) / Math.max(1, doing.to - began));
       return at(
         stall(Math.max(0, Math.min(3, k))) ?? squareSpot(id),
         "haggle",
@@ -320,6 +321,23 @@ export class LivedBody implements PosedHook {
   /** Whom they eat with or sit with at their door. */
   set household(ids: readonly number[]) {
     this.home = ids;
+  }
+
+  /**
+   * How long the way is from where they stand to where a block would be spent (seconds, by their own pace round the town's
+   * walls; 0: they are there, or it has no place of its own). A part's hours are counted from their arriving: the one who
+   * plays it is told how far it is, and the block is so much the longer (one who collects was three hours walking in from
+   * the fields 3.7 km out, and the rounds were never seen).
+   */
+  wayTo(d: NonNullable<LifeNow["doing"]>, t: number): number {
+    const spot = spotOf(this.plan, this.index, d, t, null),
+      from = this.here;
+    if (!spot || !from || Math.hypot(from.x - spot.x, from.z - spot.z) < 1) return 0;
+    const way = route(villageSolids(this.plan), from, spot, REACH);
+    let long = 0;
+    for (let k = 0; k + 1 < way.length; k++)
+      long += Math.hypot(way[k + 1]!.x - way[k]!.x, way[k + 1]!.z - way[k]!.z);
+    return Math.ceil(long / this.pace);
   }
 
   /** The block chosen, as the host has it (null: their own day). */

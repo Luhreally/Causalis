@@ -29,6 +29,7 @@ import {
   WAGE_GOOD,
   LIFE_WANTS,
   WED_AT,
+  PART_AWAY_MOST,
   blockEnd,
   bonded,
   clothCost,
@@ -692,6 +693,12 @@ export function installLife(world: World, ctx: () => PopulationContext): void {
       if (typeof a.name !== "string" || !a.name || a.name.length > 120) return "for whom?";
       if (typeof a.of !== "string" || a.of.length > 120) return "for whom?";
       if (!Number.isInteger(a.n) || (a.n as number) < 0 || (a.n as number) > 12) return "how many?";
+      // (How long the way to its place is, as the one who plays it sees the town: the part's hours begin on arriving.)
+      if (
+        a.away !== undefined &&
+        (!Number.isInteger(a.away) || (a.away as number) < 0 || (a.away as number) > PART_AWAY_MOST)
+      )
+        return "how far is it?";
       if (a.what !== "judge") return null;
       const allowed = JUDGE_SENTENCES[String(a.form)];
       if (!allowed) return "this court has no judge";
@@ -719,6 +726,7 @@ export function installLife(world: World, ctx: () => PopulationContext): void {
           case?: string;
           sentence?: string;
           accused?: string;
+          away?: number;
         };
       settle(world, c, w, l, t, command.id);
       const part = (l.part ??= newPart()),
@@ -755,10 +763,11 @@ export function installLife(world: World, ctx: () => PopulationContext): void {
       l.doing = {
         what: "part",
         from: t,
-        to: blockEnd("part", t),
+        to: blockEnd("part", t) + (a.away ?? 0),
         target: -1,
         part: a.what,
         of: a.of,
+        ...(a.away ? { away: a.away } : {}),
       };
     },
   });

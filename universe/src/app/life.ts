@@ -201,8 +201,27 @@ export function installLife(d: LifeDeps): LifeFlow {
   // (A part played for a group of their town: hours spent, and what it came to said as the life's book has it.)
   hud.onPart = (part) => {
     until = null;
+    // (The way to its place, from where they stand: its hours begin when they are there.)
+    const t = clockNow(),
+      away = body
+        ? Math.min(
+            // (The most the world takes: three hours' walk. rules/life.ts PART_AWAY_MOST)
+            3 * 3600,
+            body.wayTo(
+              {
+                what: "part",
+                from: t,
+                to: t + 1,
+                target: -1,
+                part: String(part.what),
+                of: String(part.of),
+              },
+              t,
+            ),
+          )
+        : 0;
     void d.client
-      .command("life.part", part)
+      .command("life.part", away > 0 ? { ...part, away } : part)
       .then(refresh)
       .then(() => {
         const said = now?.log.at(-1)?.words;

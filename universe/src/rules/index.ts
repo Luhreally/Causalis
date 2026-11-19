@@ -830,6 +830,7 @@ export {
   WANT_IDS,
   WED_AT,
   WORK_WORDS,
+  PART_AWAY_MOST,
   blockEnd,
   bonded,
   clothCost,

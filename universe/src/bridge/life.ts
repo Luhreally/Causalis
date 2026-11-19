@@ -76,6 +76,8 @@ export type LifeNow = {
     /** A part played for a thing of the town (`what` is "part"): which (rules/part.ts), and the thing's ref. */
     readonly part?: string;
     readonly of?: string;
+    /** The way to a part's place (seconds): its hours begin `away` after `from`. */
+    readonly away?: number;
   } | null;
   readonly habit: number;
   readonly want: {

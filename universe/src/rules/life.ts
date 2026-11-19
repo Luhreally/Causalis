@@ -362,7 +362,12 @@ export type LifeBlock = {
   /** A part played for a thing of the town (rules/part.ts; `what` is "part"): which, and the thing's ref. Where the body goes. */
   readonly part?: string;
   readonly of?: string;
+  /** The way there, of a part's block (seconds; absent: none told): its hours begin when they arrive, `away` after `from`. */
+  readonly away?: number;
 };
+
+/** The most of a way to a part's place its block is lengthened by (seconds): three hours' walk. */
+export const PART_AWAY_MOST = 3 * 3600;
 
 /** One of the hand's people lived by the god (sim/hand/life.ts keeps it on the hand's Window). */
 export type Life = {
