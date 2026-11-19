@@ -366,8 +366,6 @@ test("where its people choose, an interest no house speaks for carries a party i
   takes[FISC.deficit] = 0;
   treasury.set(p.ref, takes);
   for (const c of p.members) politiesOf(world).setDiscontent(c, { level: 0, cause: null });
-  // (Its reach is kept from its year's reckoning: reckoned again here, of the seat as just made.)
-  reckonReach(ctx, p);
   const hv = housesOf(world)?.of(p.ref) as { houses: { origin: number }[] } | undefined;
   if (hv) hv.houses = hv.houses.filter((h) => h.origin !== 6);
   for (const c of p.members) landOf(orderOf(world)!, c).shares[0] = 0.3;
@@ -384,6 +382,8 @@ test("where its people choose, an interest no house speaks for carries a party i
   // (Reckoned until the slower stakes have had their turn: a land raises at most two groups a reckoning.)
   // (And once more after all three are there: a group risen in a reckoning is weighed, its hold on its votes, at its next.)
   for (let k = 0, last = 8; k < last; k++) {
+    // (Its reach is the year's, kept: reckoned as order.year does before the groups' turn, of the realm as made above.)
+    reckonReach(ctx, p);
     groupsYear(ctx, simTime((year + ORG.every * k + 1) * YEAR));
     const now: string[] = store.of(p.ref)?.orgs.map((g) => kindName(g)) ?? [];
     if (
