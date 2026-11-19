@@ -945,6 +945,8 @@ export type LandCamp = {
   readonly people: number;
   readonly bands: number;
   readonly herds: boolean;
+  /** A camp of those who fled to this land (sim/war/held.ts), by one of its towns: whence, and from what. Absent: a band's. */
+  readonly fled?: { readonly from: string; readonly why: string };
 };
 
 /** A land's towns and roads, as the land draws them at moment `t`; and its bands' camps. */

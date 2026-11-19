@@ -50,6 +50,7 @@ import { storesSummed } from "./stores.ts";
 import { realmOrderBlocks } from "./order.ts";
 import { powersBlocks, warGroundBlocks, warReckoningBlocks } from "./statecraft.ts";
 import { realmWarcraftBlocks, warWarcraftBlocks } from "./warcraft.ts";
+import { realmFleetBlocks, realmHeldBlocks, warFleetBlocks, warHeldBlocks } from "./uprooted.ts";
 import { fortuneBlocks } from "./fortune.ts";
 import { godBlocks } from "./godhand.ts";
 import { realmCreditBlocks, warChestRows } from "./credit.ts";
@@ -354,7 +355,12 @@ export function realmPageModel(
       id: "army",
       name: "Army",
       // (And what it turns to arms, sends into others' wars and keeps at sea: the last sweep, war.)
-      blocks: [...armyBlocks(world, r), ...realmWarcraftBlocks(world, r)],
+      blocks: [
+        ...armyBlocks(world, r),
+        ...realmWarcraftBlocks(world, r),
+        ...realmFleetBlocks(world, r),
+        ...realmHeldBlocks(world, r),
+      ],
     });
   // What its hosts have learned, its seat knows, and its lands have learned.
   if (wants("learned")) {
@@ -759,6 +765,8 @@ export function warPage(
         ...warGroundBlocks(world, w),
         // (Its seat besieged, the sea fought for, arms sent either side: the last sweep, war.)
         ...warWarcraftBlocks(world, w),
+        ...warFleetBlocks(world, w),
+        ...warHeldBlocks(world, w),
         // (Who was called, who came, who stood by: D1.)
         ...warSideBlocks(world, w).blocks,
         // (Its last battle watched fought, Phase 37 M186.)
@@ -922,6 +930,35 @@ export function battlePage(world: World, ref: string): PageModel {
             }),
           ]
         : []),
+      // (The hired companies that stood under their own banners: sim/war/companies.ts.)
+      ...((): Stat[] => {
+        const d = e.data as {
+          co?: [string | null, string | null];
+          coMen?: [number, number];
+        } | null;
+        if (!d?.co || !w) return [];
+        return [
+          stat(
+            "Hired companies",
+            d.co
+              .filter((x) => x)
+              .map((x) => x![0]!.toUpperCase() + x!.slice(1))
+              .join("; "),
+            {
+              parts: [0, 1].flatMap((s) =>
+                d.co![s]
+                  ? [
+                      part(
+                        [`${d.co![s]}, for `, realmLink(world, s === 0 ? w.attacker : w.defender)],
+                        `${count(d.coMen?.[s] ?? 0)} men`,
+                      ),
+                    ]
+                  : [],
+              ),
+            },
+          ),
+        ];
+      })(),
       stat("Year", `${year}`),
     ],
     tabs: [

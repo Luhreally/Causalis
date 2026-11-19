@@ -2,6 +2,7 @@
 // come to want and from what, its choices put to its people, its spies and those it caught, the lands it holds by force and
 // those that fight it there, and the bodies of realms it sits in. Each block reads the world's own stores; phone first: facts
 // and short lists, no table wider than a phone.
+import { watchFightTool } from "./streetfight.ts";
 import type { World } from "../../kernel/index.ts";
 import type { Block, Stat } from "../../bridge/index.ts";
 import {
@@ -284,6 +285,16 @@ function occupationBlocks(world: World, r: Polity): Block[] {
     ...(lost.length
       ? [{ type: "list" as const, title: "Its lands others hold by force", items: lost }]
       : []),
+    // (The latest raid on those posted in each, to be watched in its town's streets: sim/war/raids.ts.)
+    ...store
+      .cells()
+      .flatMap((c) => {
+        const o = store.of(c)!;
+        return o.raid && (o.holder === r.ref || o.from === r.ref) && world.events.get(o.raid)
+          ? [watchFightTool(o.raid, `▶ Watch the raid in ${landTitle(world, c)}`)]
+          : [];
+      })
+      .slice(0, 4),
   ];
 }
 

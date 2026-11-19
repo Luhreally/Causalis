@@ -96,6 +96,8 @@ function did(world: World, d: Deed, land: string): string | null {
       return `led those of ${land} who settled another world`;
     case "strife.foiled":
       return `plotted against the seat of ${n || land} and was found out`;
+    case "held.crime":
+      return `ordered the killing of those who had yielded at ${n || land}`;
     case "houses.grifter":
       return `bought a way into the great of ${land} by fraud`;
     default:
@@ -149,6 +151,8 @@ export function deedLine(
   const land = at || landWords(world, cellRef(0, home));
   if (d.w === "took command") return `took command of the host of ${d.n ?? "their realm"}`;
   if (d.w === "war.battle won") return `won ${d.n ? `the battle of ${d.n}` : "a battle"}`;
+  if (d.w === "war.fleet won") return `beat the fleet of ${d.n ?? "a foe"} at sea`;
+  if (d.w === "war.fleet lost") return `was beaten at sea by the fleet of ${d.n ?? "a foe"}`;
   if (d.w === "war.battle lost")
     return `was beaten at ${d.n ? `the battle of ${d.n}` : "a battle"}`;
   if (d.w === "stood out")

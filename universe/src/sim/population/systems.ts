@@ -141,6 +141,8 @@ import { starHazard } from "../acts/great.ts";
 import { homeSky, shiftNow, starEnded } from "../planet/motion.ts";
 import { actOn, hazardBy, luckBy } from "../acts/person.ts";
 import { KILLING, handDeath, type DeathPart } from "../hand/deaths.ts";
+import { fledKind, noteFled } from "../war/held.ts";
+import { seaYield } from "../ecology/seas.ts";
 import { capacity, COLS, livable, Province, row, ROWS, type Capacity } from "./model.ts";
 import {
   HistoryStore,
@@ -698,6 +700,8 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
           wilds *
           alive.wild *
           waterYield(alive) *
+          // (And as the reach of sea its boats go out on stands, fished by all on it: sim/ecology/seas.ts. Exactly 1 where untouched.)
+          seaYield(ctx, p.cell) *
           partners.wild,
       ],
       [
@@ -1551,6 +1555,27 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
       moved.forEach((m, j) => (remaining[j] = remaining[j]! - m));
       const drought = p.lastDrought ? world.events.get(p.lastDrought) : undefined,
         famine = p.lastFamine ? world.events.get(p.lastFamine) : undefined;
+      // (Of them, those who fled what struck the land, or its hunger in a famine's years: kept by where they came to, sim/war/held.ts.)
+      if (ruin)
+        noteFled(
+          world,
+          p.cell,
+          o.cell,
+          (count * fleeing) / pressure,
+          fledKind(world, ruin),
+          ruin,
+          year,
+        );
+      else if (famine && t - famine.t < 2 * YEAR && hunger > 0.3)
+        noteFled(
+          world,
+          p.cell,
+          o.cell,
+          (count * 0.6 * hunger) / pressure,
+          "hunger",
+          famine.id,
+          year,
+        );
       planned.push({
         from: p,
         to: o.cell,

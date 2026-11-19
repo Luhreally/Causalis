@@ -17,6 +17,9 @@ import { ArmingStore, armingYear, footingPower, mobilising } from "./arming.ts";
 import { orderOf } from "../order/order.ts";
 import { NavyStore, landingOf, navyYear } from "./navy.ts";
 import { SiegeStore, siegeAt, siegesOf, siegesYear, wallsOf } from "./siege.ts";
+import { heldAfter, installDisplaced } from "./held.ts";
+import { installFleets } from "./fleets.ts";
+import { companiesAfter, companiesField, companiesTold, companyOf } from "./companies.ts";
 import {
   YEAR,
   defineEventType,
@@ -945,6 +948,16 @@ export function strengthOf(ctx: PopulationContext, p: Polity): number {
   return god ? mine + god * ctx.affords.strength : mine;
 }
 
+/** Of a realm's strength, what its hired companies add and the whole (sim/war/companies.ts): nothing of it where it pays none. */
+function hiredPart(ctx: PopulationContext, p: Polity): { paid: number; all: number } {
+  const hiredMen = hiredBy(ctx.world, p.ref);
+  if (!(hiredMen > 0)) return { paid: 0, all: 1 };
+  const arms = armsOf(ctx, p).power * ctx.affords.strength * footingPower(ctx.world, p.ref),
+    own = fightingMen(ctx, p) * fieldShare(ctx, p) * arms,
+    paid = Math.min(ORG.hiredMost * own, hiredMen * ORG.veteran * arms);
+  return { paid, all: strengthOf(ctx, p) };
+}
+
 /** The border lands of `b` next to `a`, richest in food first. */
 export function frontier(ctx: PopulationContext, a: Polity, b: Polity): number[] {
   const g = ctx.generated,
@@ -1579,7 +1592,7 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       chestA = warChest(world, a.ref, w.ref) ?? warBonds(world, a.ref, w.ref),
       chestB = warChest(world, b.ref, w.ref) ?? warBonds(world, b.ref, w.ref),
       // (How fed it fights: its bread carried from its seat over the ground between, and what it takes where it stands.)
-      attack =
+      attackWith =
         strengthOf(ctx, a) *
         supplyOf(ctx, land, far, fieldedOf(ctx, a)) *
         (hungry && !chestA ? (fed > 0 ? 1 - 0.3 * (1 - Math.min(1, fed)) : 0.7) : 1) *
@@ -1609,7 +1622,7 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       // breaches its line; and the more there is in the air, the more both sides lie low and the
       // fewer fall. Both exactly 1 before the magazine.)
       { entrench } = fireTerms(armsA, armsB),
-      defend =
+      defendWith =
         strengthOf(ctx, b) *
         1.5 *
         (seat ? 2 : 1) *
@@ -1627,6 +1640,23 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         sightTerm(fleetB?.flyers ?? 0, fleetA?.flyers ?? 0) *
         rulerLuck(world, b.ref, b.ruler.event, year) *
         notableCommands(world, b.ref, year);
+    // (Each side's hired company as it chose the day, by its pay and its prospects: sim/war/companies.ts. As before where none is hired.)
+    const partA = hiredPart(ctx, a),
+      partB = hiredPart(ctx, b),
+      hiredField =
+        partA.paid > 0 || partB.paid > 0
+          ? companiesField(
+              world,
+              [a, b],
+              [
+                companyOf(world, a, partA.paid, partA.all),
+                companyOf(world, b, partB.paid, partB.all),
+              ],
+              [attackWith, defendWith],
+            )
+          : null,
+      attack = hiredField ? hiredField.power[0] : attackWith,
+      defend = hiredField ? hiredField.power[1] : defendWith;
     // The fallen (Phase 55 M224b): every land of each realm on its home world sends men by its
     // fighting men (D2); of those who close with the foe a share is struck down by the foe's arms
     // against their guard, more when beaten, fewer the farther and thicker the fire, and of the
@@ -1708,6 +1738,7 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         ...(ledA?.told || ledB?.told
           ? { led: [ledA?.told ? ledA.name : null, ledB?.told ? ledB.name : null] }
           : {}),
+        ...(hiredField ? companiesTold(hiredField.days) : {}),
       },
     });
     // (And how the day went for those who led: their standing, and whether they fell or were taken.)
@@ -1764,9 +1795,33 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       w.fallen = [w.fallen[0] + sieged.dead[0], w.fallen[1] + sieged.dead[1]];
     // (A host come for grain carries it off; come for tribute, or to be free, it leaves the land where it lies: W7.)
     const hauled = won && aim === "stores" ? sack(ctx, a, b, land, battle) : 0;
+    // (A company that left the field or went over is told; one unpaid that won takes its pay from the land's stores.)
+    if (hiredField?.days.length)
+      companiesAfter(ctx, w.ref, [a, b], hiredField.days, won, land, battle, () =>
+        hauled > 0 ? 0 : sack(ctx, a, b, land, battle),
+      );
     // (Or starved or stormed in a year its sally failed to break the lines.)
     if (((won && !besieged) || sieged?.falls) && takesLand(aim))
       takeLand(ctx, a, b, land, battle, t);
+    // (Of the beaten host's living, those taken and held, or given no quarter; a town stormed, spared or not: sim/war/held.ts.)
+    heldAfter(
+      ctx,
+      w,
+      a,
+      b,
+      {
+        won,
+        land,
+        battle,
+        levies: [levyA, levyB],
+        takes: [takesA, takesB],
+        fallen: [fa, fb],
+        led: [ledA, ledB],
+        hungry,
+        stormed: sieged?.how === "stormed" && takesLand(aim),
+      },
+      t,
+    );
     // 3. Peace: the prize won, or what the war has cost against what it is worth (below).
     const years = year - w.declared,
       prizeWon = a.members.includes(w.prize),
@@ -1905,9 +1960,13 @@ export function installWar(world: World, ctx: () => PopulationContext): WarStore
   const navy = world.register(new NavyStore());
   world.addPinner(() => navy.pinned());
   world.system({ key: "184.war.navy", every: YEAR, run: (t) => navyYear(ctx(), t) });
+  // (Each fleet's flagship and who commands it, and the fleets' meetings at sea: sim/war/fleets.ts.)
+  installFleets(world, ctx);
   const sieges = world.register(new SiegeStore());
   world.addPinner(() => sieges.pinned());
   world.system({ key: "185.war.zsieges", every: YEAR, run: (t) => siegesYear(ctx(), t) });
+  // (Those a war's sides hold, those who fled, and the wrongs done to either: sim/war/held.ts.)
+  installDisplaced(world, ctx);
   return store;
 }
 

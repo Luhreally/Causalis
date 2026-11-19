@@ -12,9 +12,11 @@
 // ranging about its good sites and camped this season near one. Looked at, never lived.
 import { DAY, YEAR, mix, yearOfMoment, type World } from "../kernel/index.ts";
 import { WATER, isProvinceWorld, offworldSite, worldKindOf } from "../gen/index.ts";
-import { OCC, OCCUPATIONS, flameLook } from "../rules/index.ts";
+import { FLED, OCC, OCCUPATIONS, flameLook } from "../rules/index.ts";
+import { landTitle } from "./inspect/names.ts";
 import {
   citiesOf,
+  displacedOf,
   landSites,
   loreOf,
   marketsOf,
@@ -142,7 +144,7 @@ export function landPlan(world: World, cell: number, budget = 8000): LandPlan {
     about: getAbout(world, cell, era),
     roads: landRoads(world, cell, towns, ends),
     lanes: landLanes(world, cell, towns),
-    camps: covered ? [] : landCamps(world, cell, towns),
+    camps: covered ? [] : [...landCamps(world, cell, towns), ...fledCamps(world, cell, towns)],
     ...(covered ? { covered: true as const } : {}),
     ...(populationContext(world).medium === "water" ? { undersea: true as const } : {}),
     ...envoysOfPlan(world, cell),
@@ -202,6 +204,63 @@ function landBurns(world: World, cell: number): { burns?: readonly LandBurn[] } 
       });
   }
   return burns.length ? { burns } : {};
+}
+
+/** The first id of a camp of the fled among a land's camps (a band's are numbered from 0). */
+export const FLED_CAMP = 900;
+const FLED_WHY = ["a war", "a ruin", "hunger"] as const;
+
+/**
+ * The camps of those who fled to a land and have not yet settled into it (sim/war/held.ts): the three greatest, each of
+ * FLED.camp and more, each by one of the land's towns (its greatest first), on dry ground of the land a little way off it.
+ */
+export function fledCamps(
+  world: World,
+  cell: number,
+  towns: readonly { readonly tile: number; readonly population?: number }[],
+): LandCamp[] {
+  const store = displacedOf(world);
+  if (!store || !store.campCount() || !towns.length) return [];
+  const here = store
+    .campsAt(cell)
+    .filter((c) => c.count >= FLED.camp)
+    .sort((a, b) => b.count - a.count || a.from - b.from)
+    .slice(0, 3);
+  if (!here.length) return [];
+  const ctx = populationContext(world),
+    r = regionOf(ctx, cell),
+    size = r.size,
+    by = [...towns].sort((a, b) => (b.population ?? 0) - (a.population ?? 0) || a.tile - b.tile),
+    taken = new Set<number>(towns.map((t) => t.tile)),
+    out: LandCamp[] = [];
+  here.forEach((c, k) => {
+    const town = by[k % by.length]!,
+      ti = town.tile % size,
+      tj = Math.floor(town.tile / size);
+    // (Around the town, three tiles off and then four: the first dry tile of the land no other camp or town holds.)
+    let tile = -1;
+    for (let ring = 3; ring <= 5 && tile < 0; ring++)
+      for (let a = 0; a < 12 && tile < 0; a++) {
+        const turn = ((a + 5 * k + (mix(0x7f4a7c15, cell) >>> 28)) % 12) * (Math.PI / 6),
+          i = ti + Math.round(Math.cos(turn) * ring),
+          j = tj + Math.round(Math.sin(turn) * ring),
+          t = j * size + i;
+        if (i < 1 || j < 1 || i >= size - 1 || j >= size - 1 || taken.has(t)) continue;
+        if (r.water[t] === WATER.land && provinceOfTile(ctx, r, t) === cell) tile = t;
+      }
+    if (tile < 0) return;
+    taken.add(tile);
+    out.push({
+      id: FLED_CAMP + k,
+      tile,
+      home: tile,
+      people: c.count,
+      bands: Math.max(1, Math.min(12, Math.round(c.count / 400))),
+      herds: false,
+      fled: { from: landTitle(world, c.from), why: FLED_WHY[c.kind] ?? "a ruin" },
+    });
+  });
+  return out;
 }
 
 /**

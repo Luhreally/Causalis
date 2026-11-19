@@ -952,6 +952,15 @@ export function commandAfter(
   }
 }
 
+/** A deed of one already kept, told by another system (a wrong done in war: sim/war/held.ts). False: no such one lives. */
+export function notableDeed(world: World, id: number, deed: Deed): boolean {
+  const store = notablesOf(world),
+    n = store?.get(id);
+  if (!store || !n) return false;
+  addDeed(n, deed);
+  return true;
+}
+
 /**
  * A realm's commander gone from it to raise lands against it (a foiled general fled: sim/strife): its host is no longer theirs.
  */

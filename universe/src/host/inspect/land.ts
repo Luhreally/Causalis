@@ -2,6 +2,7 @@
 // market and works, its realm, what it knows and what has happened there. A colony's halls
 // and a ship bound for a star are lands too (offworld sites), and a spot of the fine grid
 // and a region open onto the land they are part of.
+import { landFledBlocks } from "./uprooted.ts";
 import { notablePeopleBlock } from "./notables.ts";
 import { landLostBlocks } from "./lost.ts";
 import { landSkyRows } from "./motion.ts";
@@ -31,6 +32,8 @@ import {
   marketsOf,
   politiesOf,
   populationContext,
+  seaOf,
+  seaYield,
   realmName,
   starSitesOf,
   tameNow,
@@ -300,6 +303,8 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
     // Those of it the world keeps by name, living and remembered (sim/notable).
     const noted = notablePeopleBlock(world, [cell]);
     if (noted) blocks.push(noted);
+    // Those who fled to it and from it, not yet settled (sim/war/held.ts).
+    blocks.push(...landFledBlocks(world, cell));
     blocks.push({ type: "tool", tool: "meet.land", args: { cell } });
     tabs.push({ id: "people", name: "People", blocks });
     // Its numbers through the years, in one place (asked 2026-11-13: "graphs over time").
@@ -436,6 +441,23 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
           ]),
         );
       if (e.fish !== null) rows.push(stat("Fish", share(e.fish)));
+      // (The reach of open sea its boats go out on, shared with the other lands on it: sim/ecology/seas.ts.)
+      const sea = seaOf(ctx, cell).sea;
+      if (sea)
+        rows.push(
+          stat("Its sea", `${share(sea.stock)} of what it held`, {
+            ...(sea.few ? { why: sea.few } : {}),
+            parts: [
+              part("fished by", `${sea.lands} ${sea.lands === 1 ? "land" : "lands"} on it`),
+              part(
+                "pressed",
+                sea.pressed >= 1 ? "past what it gives for good" : "within what it gives for good",
+              ),
+              part(["most by ", landLink(world, sea.most)], ""),
+              part("what its boats bring in", share(seaYield(ctx, cell))),
+            ],
+          }),
+        );
       if (e.grainLost > 0)
         rows.push(stat("Grain eaten by small game", share(e.grainLost), { why: e.grainEaten }));
       blocks.push({ type: "facts", title: "The web of eating", rows });

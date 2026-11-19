@@ -30,6 +30,7 @@ import { cultureOf } from "../culture/culture.ts";
 import { beliefOf } from "../belief/belief.ts";
 import { holdsOf } from "../order/holds.ts";
 import { armyOf } from "../strife/strife.ts";
+import { raidIn } from "./raids.ts";
 
 export const OCCUPATION_EVENTS = {
   /** Those of a land held by force took up arms against its holder, or were put down, or threw it off. */
@@ -63,6 +64,8 @@ export type Occupied = {
   event: Ref | null;
   /** The last year it resisted at all. */
   quiet: number;
+  /** Its last raid on those posted there (sim/war/raids.ts); absent: none yet. */
+  raid?: Ref;
 };
 
 export class OccupationStore implements StateStore {
@@ -100,7 +103,10 @@ export class OccupationStore implements StateStore {
     this.lands.delete(cell);
   }
   pinned(): Ref[] {
-    return [...this.lands.values()].flatMap((o) => (o.event ? [o.event] : []));
+    return [...this.lands.values()].flatMap((o) => [
+      ...(o.event ? [o.event] : []),
+      ...(o.raid ? [o.raid] : []),
+    ]);
   }
   hashInto(h: Hasher): void {
     const cs = this.cells();
@@ -233,6 +239,25 @@ export function occupationYear(ctx: PopulationContext, t: SimTime): void {
     } else if (o.rising && o.resistance < OCCUPYING.rising / 2) {
       o.rising = false;
       o.event = tell("crushed");
+    }
+    // While it is risen, those who fight fall on the soldiers posted there (sim/war/raids.ts): what it comes to hardens or cows it.
+    if (o.rising && o.resistance < OCCUPYING.free) {
+      const raid = raidIn(
+        ctx,
+        holder,
+        o.from,
+        realms.get(o.from) ? realmName(realms.get(o.from)!) : "the realm it was taken from",
+        c,
+        o.resistance,
+        ground,
+        hostOf(holder),
+        o.event,
+        t,
+      );
+      if (raid) {
+        o.resistance = Math.round(dmath.clamp(o.resistance + raid.by, 0, 1) * 1000) / 1000;
+        o.raid = raid.event;
+      }
     }
     // At its height, the land throws off its holder and goes its own way.
     if (o.resistance >= OCCUPYING.free) {

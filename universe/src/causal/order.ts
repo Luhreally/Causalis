@@ -106,7 +106,7 @@ registerEventWords(HOLD_EVENTS.lesson.type, (_, e) => {
 registerEventWords(
   ORDER_EVENTS.captives.type,
   (world, e) =>
-    `${cap(realm(e.data))} carried off ${people(n(e.data, "count"))} of ${landWords(world, e.place)} into bondage, ${year(e.t)}`,
+    `${cap(realm(e.data))} carried off ${people(n(e.data, "count"))} of ${landWords(world, e.place)}${(e.data as { held?: boolean } | null)?.held ? ", to be held until the peace" : " into bondage"}, ${year(e.t)}`,
 );
 registerEventWords(
   ORDER_EVENTS.bondage.type,

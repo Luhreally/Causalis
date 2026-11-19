@@ -1929,3 +1929,26 @@ export {
   type Notable,
   type Post,
 } from "./notable/kept.ts";
+export {
+  HELD_EVENTS,
+  DisplacedStore,
+  displacedOf,
+  displacedYear,
+  heldAfter,
+  type Camp,
+  type Captives,
+  type Crime,
+} from "./war/held.ts";
+export { RAID, RAID_EVENTS, fightersOf, raidIn } from "./war/raids.ts";
+export { COMPANY, COMPANY_EVENTS, companiesField, companyOf, type CompanyAt } from "./war/companies.ts";
+export { SEA, SEA_EVENTS, SeaStore, seaOf, seaYield, seasOf, seasYear, type Sea } from "./ecology/seas.ts";
+export {
+  FLEET,
+  FLEET_EVENTS,
+  FleetStore,
+  fleetCommander,
+  fleetsOf,
+  fleetsYear,
+  type Fleet,
+  type SeaFight,
+} from "./war/fleets.ts";

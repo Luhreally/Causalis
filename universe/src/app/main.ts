@@ -3522,7 +3522,9 @@ async function runPlanetPage(): Promise<void> {
         ? [
             {
               key: `siege:${w.ref}`,
-              text: `🏰 ${w.defender.name.split(" of ").at(-1)} besieged`,
+              text: w.siegeNow
+                ? `🏰 ${w.siegeNow.name} besieged · ${w.siegeNow.months} mo of stores${w.siegeNow.breach > 0 ? ` · walls ${w.siegeNow.breach}% open` : ""}`
+                : `🏰 ${w.defender.name.split(" of ").at(-1)} besieged`,
               at: { x: at[i]!.x, y: at[i]!.y },
               priority: 1.6e9,
             },
@@ -6055,6 +6057,11 @@ async function runPlanetPage(): Promise<void> {
           }
         }
       if (camp >= 0 && campD < bestD && (best < 0 || campD < CAMP_REACH)) {
+        // (A camp of those who fled here is told on the land's own page: who they are, whence and from what.)
+        if (camp >= 900) {
+          void pageWindow.open(`cell:0:${regionCell}#people`);
+          return;
+        }
         await fadeOver(() => ready("the band", () => toCamp(regionCell, camp)));
         return;
       }
@@ -8423,7 +8430,7 @@ async function runPlanetPage(): Promise<void> {
           ? [
               {
                 key: `host:${i}`,
-                text: `${i === 0 ? "⚔️" : "🛡️"} ${side.name} · ${men.standing[i]!.toLocaleString("en-US")}`,
+                text: `${i === 0 ? "⚔️" : "🛡️"} ${side.name}${side.company ? ` 🚩 ${side.company.name}` : ""} · ${men.standing[i]!.toLocaleString("en-US")}`,
                 at: over[i],
                 priority: 2,
                 badge: { realm: side.ref },
