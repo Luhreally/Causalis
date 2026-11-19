@@ -60,6 +60,9 @@ function bare(): { ctx: PopulationContext; f: Fabric; store: TownStore } {
     walls: null,
     lean: 0,
     forsaken: null,
+    engines: -1,
+    order: 0xfff,
+    place: -1,
   });
   return { ctx, f, store };
 }

@@ -27,6 +27,7 @@ import {
   COLONISTS,
   SETTLEMENT,
   TownBuilder,
+  KEPT_NOT,
   TownStore,
   beliefOf,
   designsOf,
@@ -140,6 +141,9 @@ function afresh(world: World, cell: number): Kept {
       walls: null,
       lean: 0,
       forsaken: null,
+      engines: KEPT_NOT,
+      order: KEPT_NOT,
+      place: KEPT_NOT,
     });
   return {
     town: {

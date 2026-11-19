@@ -53,6 +53,7 @@ import { beliefOf } from "../belief/belief.ts";
 import { cultureOf } from "../culture/culture.ts";
 import { designsOf } from "../design/design.ts";
 import { politiesOf } from "../polity/polity.ts";
+import { landReach } from "../order/order.ts";
 import { warsOf } from "../war/war.ts";
 import {
   HEART_BLOCKS,
@@ -140,7 +141,42 @@ export type Fabric = {
   lean: number;
   /** The event of its forsaking, while every home of it is fallen. */
   forsaken: Ref | null;
+  /**
+   * What its form turns on (bridge/form.ts), each set down the year it happened and never changed after, so no block of it
+   * ever moves for the years gone by:
+   *  `engines`: the lots it had taken when engines came to its land (-1: they are not come); what it has taken since was
+   *   laid for them.
+   *  `order`: how far its realm's will was done on its land (tenths of a whole reach, sim/order/order.ts landReach) when it
+   *   was founded, when its walls were begun and when engines came: three digits of sixteen, lowest first (15: not yet).
+   *   Where a realm's will is done, ground is measured out before it is built.
+   *  `place`: its market place: the lots it had taken at its first market × 4, and how great a place its people then
+   *   asked (1 … 3) (-1: it has held no market).
+   * KEPT_NOT in a save from before they were kept, and in a town the eye reckons apart: read as before, and nothing set down.
+   */
+  engines: number;
+  order: number;
+  place: number;
 };
+
+/** A kept number of a town's form that was never kept (a save from before; a town read apart). */
+export const KEPT_NOT = -2;
+/** No reach set down yet (a digit of Fabric.order), and a town's order with none. */
+export const ORDER_NONE = 15;
+export const ORDER_NEW = ORDER_NONE * 0x111;
+/** The digits of Fabric.order. */
+export const ORDER_AT = { founded: 0, walled: 1, engines: 2 } as const;
+/** A town's realm's reach on its land as it was set down at one of ORDER_AT (0 … 1; null: not set down). */
+export function orderAt(f: Fabric, at: number): number | null {
+  if (f.order < 0) return null;
+  const d = (f.order >> (4 * at)) & 15;
+  return d === ORDER_NONE ? null : d / 10;
+}
+/** What a land must know for engines to have come to it (as host/roads.ts machinesYear reads it). */
+const ENGINES = "electricity|sea-electricity|engines";
+/** How great a market place a town's people ask at its first market: one block, two across its main street, four. */
+export function placeClass(people: number): number {
+  return people >= 12_000 ? 3 : people >= 1500 ? 2 : 1;
+}
 
 /** How many lots each building takes: a smithy one, a market hall a row of four, a factory a block. */
 export const CIVIC_LOTS: Readonly<Record<CivicKind, number>> = {
@@ -190,6 +226,8 @@ const FOLD = {
   walls: 5,
   forsaken: 6,
   livedIn: 7,
+  /** What its form turns on, set down: which (0 its reach when founded, 1 when walled, 2 when engines came, 3 its market place, 4 the lots it had when engines came), and the number. */
+  form: 8,
 } as const;
 
 /**
@@ -215,6 +253,8 @@ type Saved = [
   runs: number[],
   civics: number[],
   fallen: number[],
+  /** (Absent in a save from before they were kept.) */
+  form?: [engines: number, order: number, place: number],
 ];
 
 /**
@@ -357,7 +397,9 @@ type SavedColumns = {
   readonly fallen: readonly number[];
   readonly fallenOf: readonly number[];
 };
-const HEADS = 9,
+const HEADS = 12,
+  /** (The heads of a save from before a town's form's numbers were kept.) */
+  HEADS_OLD = 9,
   RUN_COLUMNS = 7,
   CIVIC_COLUMNS = 3;
 
@@ -402,6 +444,9 @@ function intoColumns(c: Columns, f: Fabric): void {
   h[6]!.push(f.lean);
   h[7]!.push(f.forsaken);
   h[8]!.push(f.walls ? [f.walls.start, f.walls.end, f.walls.reach] : null);
+  h[9]!.push(f.engines);
+  h[10]!.push(f.order);
+  h[11]!.push(f.place);
   const R = f.changes,
     designs: number[] = [],
     runs = c.runs;
@@ -471,13 +516,14 @@ function fromColumns(c: SavedColumns): Saved[] {
       wasAt = at;
       wasStart = start;
     }
-    const head = c.heads.map((h) => h[n]);
+    const head = c.heads.slice(0, HEADS_OLD).map((h) => h[n]);
     out.push([
       ...head,
       c.designs.slice(d, d + c.designsOf[n]!),
       runs,
       civics,
       c.fallen.slice(f, f + c.fallenOf[n]!),
+      ...(c.heads.length > HEADS_OLD ? [[c.heads[9]![n], c.heads[10]![n], c.heads[11]![n]]] : []),
     ] as Saved);
     d += c.designsOf[n]!;
     f += c.fallenOf[n]!;
@@ -541,6 +587,9 @@ function unpack(s: Saved): Fabric {
     walls: walls ? { start: walls[0], end: walls[1], reach: walls[2] } : null,
     lean,
     forsaken,
+    engines: s[13]?.[0] ?? KEPT_NOT,
+    order: s[13]?.[1] ?? KEPT_NOT,
+    place: s[13]?.[2] ?? KEPT_NOT,
   };
   readStanding(f);
   return f;
@@ -1928,6 +1977,7 @@ export class TownBuilder {
       this.clearFor(f, at, lots);
       f.civics.add(i, at, lots, this.year, this.year + def.years);
       this.store.fold(f.town, FOLD.begun, i, at, this.year);
+      if (def.kind === "market") this.firstMarket(f, people);
       begun++;
       // (A temple raised is told: its town's faith in stone. Not one the eye reckons apart: reading a town changes nothing.)
       if (def.kind === "temple" && this.store === townsOf(this.ctx.world)) {
@@ -2065,13 +2115,34 @@ export class TownBuilder {
     this.clearFor(f, at, lots);
     f.civics.add(CIVIC_INDEX.get(kind)!, at, lots, this.year, this.year + def.years);
     this.store.fold(f.town, FOLD.begun, CIVIC_INDEX.get(kind)!, at, this.year);
+    if (kind === "market") this.firstMarket(f, this.ctx.settlements.get(f.town)?.population ?? 0);
     return { at, lots };
+  }
+
+  /**
+   * Its first market: its market place is held on the ground it would have taken next, as great as its people ask
+   * (Fabric.place). Set down once.
+   */
+  firstMarket(f: Fabric, people: number): void {
+    if (f.place !== -1) return;
+    f.place = f.next * 4 + placeClass(people);
+    this.store.fold(f.town, FOLD.form, 3, f.place);
+  }
+
+  /** Its realm's reach on its land set down (Fabric.order: at one of ORDER_AT), once. */
+  orderSet(f: Fabric, at: number, cell: number): void {
+    if (f.order < 0 || ((f.order >> (4 * at)) & 15) !== ORDER_NONE) return;
+    const tenths = Math.max(0, Math.min(10, Math.round(landReach(this.ctx, cell) * 10)));
+    f.order = (f.order & ~(15 << (4 * at))) | (tenths << (4 * at));
+    this.store.fold(f.town, FOLD.form, at, tenths);
   }
 
   /** Its walls begun at the asking (H1), about the town as it stands. */
   askedWalls(f: Fabric): { at: number; lots: number } {
     f.walls = { start: this.year, end: this.year + wallYears(f.next), reach: f.next };
     this.store.fold(f.town, FOLD.walls, this.year, f.next);
+    const cell = this.ctx.settlements.get(f.town)?.cell;
+    if (cell !== undefined) this.orderSet(f, ORDER_AT.walled, cell);
     return { at: -1, lots: 0 };
   }
 
@@ -2127,6 +2198,9 @@ function found(ctx: PopulationContext, s: Settlement): Fabric {
     walls: null,
     lean: 0,
     forsaken: null,
+    engines: -1,
+    order: ORDER_NEW,
+    place: -1,
   });
 }
 
@@ -2207,12 +2281,19 @@ export function townYear(ctx: PopulationContext, t: SimTime): void {
     if (!f) {
       if (s.population <= 0) continue;
       f = found(ctx, s);
+      builder.orderSet(f, ORDER_AT.founded, s.cell);
     }
     const cell = s.cell,
       k = knowers.get(cell) ?? knowerOf(cell),
       city = !!cities.get(s.ref),
       people = s.population,
       weighs = f.next === 0 || (year + f.phase) % CIVIC_EVERY === 0;
+    // (Engines come to its land: what it has taken by now was laid before them. Set down once.)
+    if (f.engines === -1 && k(ENGINES)) {
+      f.engines = f.next;
+      store.fold(f.town, FOLD.form, 4, f.next);
+      builder.orderSet(f, ORDER_AT.engines, cell);
+    }
     builder.settle(f);
     if (store.ashen.has(f)) {
       const top = topLevel(k, people, city);
@@ -2266,6 +2347,7 @@ export function townYear(ctx: PopulationContext, t: SimTime): void {
         data: { name: s.name },
       });
       store.fold(f.town, FOLD.walls, year, f.next);
+      builder.orderSet(f, ORDER_AT.walled, cell);
     }
     // Forsaken: every home of a town that had them fallen (and lived in again, no longer).
     const empty = homesOf(f) === 0 && f.next > 0;

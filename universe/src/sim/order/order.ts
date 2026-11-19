@@ -677,6 +677,17 @@ function seatValue(ctx: PopulationContext, p: Polity): number {
   return Math.min(1, x);
 }
 
+/**
+ * How far a land's realm's will is done there (0 … 1; 0 where no realm holds it): as its year last reckoned it, and its
+ * realm's own reach where the land was taken since.
+ */
+export function landReach(ctx: PopulationContext, cell: number): number {
+  const p = politiesOf(ctx.world).of(cell);
+  if (!p) return 0;
+  const l = reachRows(ctx.world, REACH_LANDS_STORE)?.get(cell);
+  return l && l[0] === keyOf(p.ref) ? l[1]! / REACH_UNIT : capacityValue(ctx, p);
+}
+
 /** A realm's reach alone (0 … 1): as its year last reckoned it; read now for a realm founded since. */
 export function capacityValue(ctx: PopulationContext, p: Polity): number {
   const row = reachRows(ctx.world, REACH_STORE)?.get(p.ref);

@@ -28,6 +28,7 @@ import {
   STAGE_WORDS,
   SETTLEMENT,
   TownBuilder,
+  KEPT_NOT,
   TownStore,
   arrivalsAt,
   clusterOf,
@@ -373,6 +374,9 @@ function townOf(world: World, f: Folk, year: number): Kept {
       walls: null,
       lean: 0,
       forsaken: null,
+      engines: KEPT_NOT,
+      order: KEPT_NOT,
+      place: KEPT_NOT,
     }),
     town: Settlement = {
       ref,
