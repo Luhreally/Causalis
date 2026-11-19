@@ -128,14 +128,16 @@ function referenceCompact(
   const young = (t: number) => now - t < world.retention.window;
   for (const e of world.events.all())
     if (kept.has(e.id) && !forever.has(e.id) && !young(e.t)) seen.pinned++;
-  if (world.retention.tombstones !== undefined) {
-    seen.tombstonesDropped += world.events.dropTombstones(now - world.retention.tombstones);
-    seen.tombstonesDropped += world.decisions.dropTombstones(now - world.retention.tombstones);
-  }
   const forgotten = {
     events: world.events.sweep((e) => forever.has(e.id) || kept.has(e.id) || young(e.t)),
     decisions: world.decisions.sweep((d) => forever.has(d.id) || kept.has(d.id) || young(d.t)),
   };
+  // (The one thing not as it was: tombstones older than they are kept go after the sweep, not before it, so that what a
+  // reckoning forgets of the far past lays none that outlast it. 2026-11-19, kernel/world.ts dropOldTombstones.)
+  if (world.retention.tombstones !== undefined) {
+    seen.tombstonesDropped += world.events.dropTombstones(now - world.retention.tombstones);
+    seen.tombstonesDropped += world.decisions.dropTombstones(now - world.retention.tombstones);
+  }
   seen.forgotten += forgotten.events + forgotten.decisions;
   return forgotten;
 }

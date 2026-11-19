@@ -306,8 +306,9 @@ export class World {
       ix.clear(IN_F | SHALLOW);
       this.foreverChronicle = this.retention.chronicle;
     }
-    const reckoned = aging ? Math.floor(now / aging.every) * aging.every : -1;
-    if (aging && reckoned !== this.agedAt) {
+    const reckoned = aging ? Math.floor(now / aging.every) * aging.every : -1,
+      aged = !!aging && reckoned !== this.agedAt;
+    if (aged) {
       ix.clear(IN_F | SHALLOW);
       this.agedAt = reckoned;
     }
@@ -326,14 +327,29 @@ export class World {
     const joined = ix.mark(this.events, r);
     ix.walk(IN_F, joined, joined.length);
     this.pinners.forEach((pins, p) => ix.walkPinned(p, pins()));
-    if (this.retention.tombstones !== undefined) {
-      this.events.dropTombstones(now - this.retention.tombstones);
-      this.decisions.dropTombstones(now - this.retention.tombstones);
-    }
-    return {
+    const forgotten = {
       events: ix.sweep(this.events, ix.ev, r),
       decisions: ix.sweep(this.decisions, ix.dec, r),
     };
+    this.dropOldTombstones(now);
+    // (The chronicle thinned by age forgets a third and more of the oldest blocks' rows at once, some three megabytes of a
+    // save at 1,500: those blocks are written again now, not one a year over the decade after. None of it is history.)
+    if (aged) {
+      this.events.tidy(Infinity, this.coldRows);
+      this.decisions.tidy(Infinity, this.coldRows);
+    }
+    return forgotten;
+  }
+
+  /**
+   * Tombstones of what happened longer ago than they are kept go (the summaries keep the count): after the sweep, so that what
+   * a reckoning forgets of the far past (the chronicle thinning with age: tens of thousands at once, each centuries old) lays
+   * none that outlast it. (Dropped before the sweep, those lay in every save of the decade after.)
+   */
+  private dropOldTombstones(now: number): void {
+    if (this.retention.tombstones === undefined) return;
+    this.events.dropTombstones(now - this.retention.tombstones);
+    this.decisions.dropTombstones(now - this.retention.tombstones);
   }
 
   /** From now on reckon by text (compactByText), carrying over what the index held. */
@@ -445,16 +461,14 @@ export class World {
         })(),
         kept,
       );
-    const young = (t: number) => now - t < this.retention.window;
+    const young = (t: number) => now - t < this.retention.window,
+      forgotten = {
+        events: this.events.sweep((e) => forever.has(e.id) || kept.has(e.id) || young(e.t)),
+        decisions: this.decisions.sweep((d) => forever.has(d.id) || kept.has(d.id) || young(d.t)),
+      };
     // Tombstones of what was forgotten long ago go too (the summaries keep the count).
-    if (this.retention.tombstones !== undefined) {
-      this.events.dropTombstones(now - this.retention.tombstones);
-      this.decisions.dropTombstones(now - this.retention.tombstones);
-    }
-    return {
-      events: this.events.sweep((e) => forever.has(e.id) || kept.has(e.id) || young(e.t)),
-      decisions: this.decisions.sweep((d) => forever.has(d.id) || kept.has(d.id) || young(d.t)),
-    };
+    this.dropOldTombstones(now);
+    return forgotten;
   }
 
   /** Declare a kind of command (a divine act, the hand, a time boundary). */
