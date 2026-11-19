@@ -53,6 +53,8 @@ export type Body = {
   /** A workers' body: the year it last struck, and the share of their trade's rent it has won (thousandths). */
   struck?: number;
   won?: number;
+  /** A workers' body: what a year of its land's craft was worth as it has known it (hundredths of grain's worth), faded in. */
+  mark?: number;
   /** A god's hand on it: the year until which it is blessed (1), cursed (-1) or kept from its seat's hand (2). */
   hand?: number;
   handUntil?: number;
@@ -131,6 +133,7 @@ export class BodiesStore implements StateStore {
         .int(g.leader.born)
         .int(g.held ?? 0)
         .int((g.won ?? 0) * 4096 + (g.struck ?? 0))
+        .int(g.mark ?? 0)
         .int(((g.hand ?? 0) + 2) * 8192 + (g.handUntil ?? 0) + (g.higher ?? 0) * 65536);
     for (const [, n] of v.profit) h.int(n);
     this.digest = h.hex();

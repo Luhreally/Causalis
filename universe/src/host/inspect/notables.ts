@@ -7,11 +7,13 @@
 // reading, as a court's cases are. Each is one of their town's key figures (host/leaders.ts): a body at a house of their own.
 import { hashString, type Ref, type World } from "../../kernel/index.ts";
 import { cradleTongue, personName, tonguePersonName } from "../../gen/index.ts";
-import { OCC } from "../../rules/index.ts";
+import { DOES, OCC } from "../../rules/index.ts";
 import {
   GANG_ROW,
   beliefOf,
   cultureOf,
+  doesOf,
+  workedName,
   gangsStore,
   housesOf,
   lifeOf,
@@ -28,12 +30,17 @@ import { workshopOf } from "../chain.ts";
 import { landEra, peopleBody } from "../village.ts";
 import { seatTownOf } from "../leaders.ts";
 import { fedRef } from "../underworld.ts";
+import { bodiesIn, bodyName, bodyOf, bodyRef } from "../bodies.ts";
+import { bodyHeadRef, headTitle } from "./bodies.ts";
+import { doesWords } from "../../causal/index.ts";
 import { boardRef } from "./board.ts";
 import { courtFormOf } from "./justice.ts";
 import { landLink, townLink } from "./names.ts";
 import { link, stat, yearNow } from "./words.ts";
 
-export type NotableKind = "house" | "judge" | "priest" | "general" | "merchant" | "gang";
+export type NotableKind = "house" | "judge" | "priest" | "general" | "merchant" | "gang" | "head";
+/** The offices held for a term, their holder read from the office: the rest are kept by name (a house's head, a body's). */
+type Termed = Exclude<NotableKind, "house" | "head">;
 
 /** One who holds an office or heads a great thing of a town, as read. */
 export type Notable = {
@@ -61,7 +68,7 @@ export type Notable = {
 };
 
 /** How long each office is held (years), about: its own term is drawn a little either side by its key. */
-const TERM: Readonly<Record<Exclude<NotableKind, "house">, number>> = {
+const TERM: Readonly<Record<Termed, number>> = {
   judge: 9,
   priest: 15,
   general: 11,
@@ -97,7 +104,7 @@ function familyName(world: World, cell: number, key: number): string {
 function holder(
   world: World,
   key: string,
-  kind: Exclude<NotableKind, "house">,
+  kind: Termed,
   cell: number,
   year: number,
 ): { name: string; born: number; sex: number; since: number; n: number } {
@@ -148,7 +155,7 @@ function read(world: World, town: string): Notable[] {
     chief = first(world, s.cell)?.ref === town,
     out: Notable[] = [],
     termed = (
-      kind: Exclude<NotableKind, "house">,
+      kind: Termed,
       key: string,
       title: string,
       did: string,
@@ -201,9 +208,46 @@ function read(world: World, town: string): Notable[] {
       if (out.length >= 2) break;
     }
   }
+  // The heads of the bodies at home in this land, at its first town (sim/order/institutions.ts): each kept by name, with the
+  // year they were born and the year they took it. Its court's is its judge, its clergy's keeps its temple; the rest, the
+  // greatest few, are each a key figure of their own.
+  const bodies = chief ? bodiesIn(world, s.cell).filter((x) => x.g.home === s.cell) : [],
+    headOf = (
+      g: (typeof bodies)[number]["g"],
+      ref: string,
+      kind: NotableKind,
+      title: string,
+      did: string,
+    ) => {
+      const name = bodyName(world, bodyRef(g.event)) ?? "a body";
+      out.push({
+        ref,
+        kind,
+        name: g.leader.name,
+        born: g.leader.born,
+        sex: (hashString(`${g.event}|${g.leaders}`) >>> 0) & 1,
+        since: g.leader.since,
+        title: `${title} of ${name}`,
+        did,
+        town,
+        townName: s.name,
+        of: { ref: bodyRef(g.event), name },
+        read: "The world keeps this body and its head by name: the year they were born and the year they took it.",
+      });
+    },
+    court = bodies.find((x) => x.g.does === DOES.judge)?.g,
+    clergy = bodies.find((x) => x.g.does === DOES.worship)?.g;
   // The judge, where the court is one that has one.
   const form = courtFormOf(world, s);
-  if (form === "magistrate" || form === "bench")
+  if (court && (form === "magistrate" || form === "bench"))
+    headOf(
+      court,
+      `note:judge:${town}`,
+      "judge",
+      "First judge",
+      `Sits first in ${bodyName(world, bodyRef(court.event))}, which hears what is brought before it at ${s.name}.`,
+    );
+  else if (form === "magistrate" || form === "bench")
     termed(
       "judge",
       town,
@@ -219,7 +263,15 @@ function read(world: World, town: string): Notable[] {
   const held = beliefOf(world).of(s.cell).faith,
     faith = held ? beliefOf(world).get(held) : undefined,
     temple = workshopOf(world, town, ["temple", "shrine"], year);
-  if (faith && temple)
+  if (faith && temple && clergy)
+    headOf(
+      clergy,
+      `note:priest:${town}:${faith.ref}`,
+      "priest",
+      "Head",
+      `Heads ${bodyName(world, bodyRef(clergy.event))}, keeps the temple of ${s.name} for ${faith.name}, and leads those who pray there on the day of rest.`,
+    );
+  else if (faith && temple)
     termed(
       "priest",
       `${town}:${faith.ref}`,
@@ -283,8 +335,26 @@ function read(world: World, town: string): Notable[] {
         { ref: fedRef(r.ref, fed.event), name: `the ${fed.name} federation` },
       );
   }
+  // The heads of its other bodies: the greatest few.
+  let heads = 0;
+  for (const { g } of bodies) {
+    if (g === court || g === clergy || heads >= HEADS_MOST) continue;
+    const does = doesOf(g),
+      name = bodyName(world, bodyRef(g.event)) ?? "a body";
+    headOf(
+      g,
+      bodyHeadRef(g.event),
+      "head",
+      headTitle(does, name),
+      `Heads ${name}, which ${doesWords(does, g.of >= 0 ? workedName(g.of) : "")} at ${s.name}: at its head since year ${g.leader.since}.`,
+    );
+    heads++;
+  }
   return out;
 }
+
+/** The most heads of bodies a town's key figures name (beside its judge and the one who keeps its temple). */
+const HEADS_MOST = 5;
 
 const ordinal = (n: number): string =>
   ["", "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth"][n] ?? `${n}th`;
@@ -305,6 +375,11 @@ function townOfRef(world: World, ref: string): string | null {
     inTown = /:(town:\d+:\d+)$/.exec(key)?.[1];
   if (inTown) return inTown;
   if (town) return town;
+  // (A body's head lives at its home land's first town.)
+  if (m[1] === "head") {
+    const g = bodyOf(world, bodyRef(key))?.record;
+    return g ? (first(world, g.home)?.ref ?? null) : null;
+  }
   const r = realm ? politiesOf(world).get(realm as Ref) : undefined;
   if (!r) return null;
   if (m[1] === "house") {
@@ -323,7 +398,7 @@ export function goneNotable(
 ): { name: string; year: number; now: Notable } | null {
   const m = /^(note:[a-z]+:.+)~(-?\d+)$/.exec(ref),
     now = m ? notableOf(world, m[1]!) : null;
-  if (!m || !now || now.kind === "house") return null;
+  if (!m || !now || now.kind === "house" || now.kind === "head" || !now.before) return null;
   const key = m[1]!.slice(`note:${now.kind}:`.length),
     cell = populationContext(world).settlements.get(now.town as Ref)?.cell ?? 0;
   // (Back through the terms to theirs: each begins where the one before it ends.)
@@ -354,7 +429,11 @@ export function notableLeader(world: World, n: Notable): Leader {
           name: n.name,
           age: Math.max(lifeOf(world).adulthood, Math.min(300, year - n.born)),
           occupation:
-            n.kind === "merchant" ? OCC.trader : n.kind === "gang" ? OCC.crafter : OCC.leader,
+            n.kind === "merchant" || n.kind === "head"
+              ? OCC.trader
+              : n.kind === "gang"
+                ? OCC.crafter
+                : OCC.leader,
           sex: n.sex,
         },
     cannot: n.away ? `${n.away.words}.` : null,
@@ -472,6 +551,7 @@ const ICON: Readonly<Record<NotableKind, string>> = {
   general: "⚔️",
   merchant: "💰",
   gang: "🧍",
+  head: "🏛️",
 };
 const WORK: Readonly<Record<NotableKind, string>> = {
   house: "head of a house",
@@ -480,6 +560,7 @@ const WORK: Readonly<Record<NotableKind, string>> = {
   general: "commander of a host",
   merchant: "merchant",
   gang: "head of a gang",
+  head: "head of a body",
 };
 
 /** A realm's own of these, for its leaders: its host's commander and the heads of the houses seated at its seat. */

@@ -865,6 +865,37 @@ export function drawTool(
       );
       return;
     }
+    case "acts.body": {
+      // A body in the god's hand (sim/order/institutions.ts): blessed, cursed, or kept from its seat's hand, for some years.
+      const tools = el("div", "tools"),
+        note = el("p", "note"),
+        body = args.body as string,
+        name = args.name as string,
+        years = args.years as number,
+        act = (label: string, said: string, what: string) =>
+          twice(tools, note, label, said, async () => {
+            await ctx.client.command("act.body", { body, act: what });
+            ctx.refresh();
+          });
+      note.hidden = true;
+      act(
+        "✨ Bless it",
+        `For ${years} years more comes to ${name}: it is paid a fifth more, and is the better run.`,
+        "bless",
+      );
+      act(
+        "🌑 Curse it",
+        `For ${years} years less comes to ${name}: it is paid a fifth less, and is the worse run.`,
+        "curse",
+      );
+      act(
+        "🛡️ Keep its seat's hand off it",
+        `For ${years} years its seat neither outlaws ${name} nor takes it for itself.`,
+        "protect",
+      );
+      into.replaceChildren(el("h3", undefined, "Your hand on it"), tools, note);
+      return;
+    }
     case "acts.laws": {
       // A realm's laws in the god's hand (Phase 19 M139): each a step older or newer, at once.
       const laws = (args.laws as [string, string, number, string[]][] | undefined) ?? [],

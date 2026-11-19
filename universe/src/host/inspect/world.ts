@@ -53,6 +53,7 @@ import { strifeLedger } from "./strife.ts";
 import { alliancesBlocks } from "./ties.ts";
 import { ledgerCtx } from "./ledger-kit.ts";
 import { groupsLedger, housesLedger, underworldLedger } from "./ledger-order.ts";
+import { institutionsLedger } from "./bodies.ts";
 import { cultureLedger, powersLedger, societyLedger, tradeLedger } from "./ledger-realm.ts";
 import { armsLedger, makingLedger, natureLedger } from "./ledger-nature.ts";
 import { treasuryLedger } from "./ledger-money.ts";
@@ -1844,7 +1845,7 @@ export const LEDGER_SECTIONS: readonly (readonly [string, readonly string[]])[] 
   ["Realms", ["realms", "houses", "towns", "society", "powers"]],
   ["Wealth", ["wealth", "treasury", "trade", "money", "credit", "making"]],
   ["War", ["wars", "arms", "alliances", "camps"]],
-  ["Order", ["underworld", "groups", "bonds", "strife"]],
+  ["Order", ["underworld", "groups", "institutions", "bonds", "strife"]],
   ["Culture", ["culture", "tastes", "intox", "faiths", "tongues", "might"]],
   ["Nature", ["life", "nature", "sickness", "sky"]],
 ];
@@ -1902,6 +1903,12 @@ export function ledgerPage(world: World, tab?: string): PageModel {
     },
     // Every group of the general layer: brigands, pirates, militias, sects, parties and the rest.
     { id: "groups", name: "Groups", ...later("groups", () => groupsLedger(world, lc)) },
+    // Every body kept to do what others want: works, guilds, watches, courts, schools, papers.
+    {
+      id: "institutions",
+      name: "Institutions",
+      ...later("institutions", () => institutionsLedger(world)),
+    },
     // Each realm's order and its bound (Phase 19 M138).
     { id: "bonds", name: "Bonds", blocks: bondsLedger(world) },
     // Every coup and restoration (Phase 22 M145).

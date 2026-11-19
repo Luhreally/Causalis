@@ -202,12 +202,30 @@ function placeOf(
       c = { x: 8.5 * s * Math.cos(a), z: 8.5 * s * Math.sin(a) };
     return { at: c, spot: ring(c, 2.6) };
   }
+  if (g.where === "works" || g.where === "school") {
+    // (Before the building itself where the town has raised one; else a house toward its edge, or among its homes.)
+    const doors = plan.town ? civicDoors(plan, t) : null,
+      works = g.where === "works";
+    for (const kind of works ? WORKS_DOORS : SCHOOL_DOORS) {
+      const d = doors?.get(kind)?.[0];
+      if (d)
+        return {
+          at: beside(d, 2, 1.3, 3, 5),
+          spot: (k) => ({ ...beside(d, k, 1.3, 2.4, 5), face: d.yaw }),
+        };
+    }
+    return home(homeBy(plan, g.key, works ? 0.7 : 0.2, works ? 1 : 0.6));
+  }
   if (g.where === "corner") return home(homeBy(plan, g.key, 0.3, 0.6));
   if (g.where === "lane") return home(homeBy(plan, g.key, 0.7, 1));
   if (g.where === "house") return home(homeBy(plan, g.key, 0.05, 0.35));
   // (A member's home: the first of them drawn; a home by its key where none is.)
   return home(host >= 0 ? plan.people[host]!.home : homeBy(plan, g.key, 0.2, 0.7));
 }
+
+/** The buildings a works' people and a school's gather before, the first the town has. */
+const WORKS_DOORS = ["factory", "workshop", "mill", "smithy", "kiln"] as const,
+  SCHOOL_DOORS = ["academy", "school"] as const;
 
 type Laid = { readonly parts: ReadonlyMap<number, LifePart[]>; readonly on: readonly GoingOn[] };
 const LAID = new WeakMap<VillagePlan, Map<number, Laid>>();
@@ -270,7 +288,9 @@ function laidOn(plan: VillagePlan, day: number, ground: Ground): Laid {
       const [a, b] = g.hours ?? (g.closed ? LIFE_HOURS.closed : LIFE_HOURS.meeting);
       from = a * HOUR;
       until = b * HOUR;
-      const muster = /muster/.test(g.doing);
+      const muster = /muster/.test(g.doing),
+        // (At a works its hands carry what they make in and out; on strike they stand at its gate.)
+        labour = g.where === "works" && !/strike/.test(g.doing);
       who.forEach((i, k) => {
         const s = place.spot(k, who.length),
           come = from + late(i, 0.3);
@@ -295,8 +315,14 @@ function laidOn(plan: VillagePlan, day: number, ground: Ground): Laid {
                   to: until,
                   at: s,
                   face: s.face,
-                  task: muster ? "drill" : g.where === "temple" ? "pray" : "talk",
-                  carry: muster ? "spear" : null,
+                  task: muster
+                    ? "drill"
+                    : g.where === "temple"
+                      ? "pray"
+                      : labour && k > 0
+                        ? "load"
+                        : "talk",
+                  carry: muster ? "spear" : labour && k > 0 ? "sack" : null,
                   // (Who leads it says so: a meeting's head, a ruler holding court.)
                   why: k === 0 ? (g.lead ?? g.doing) : g.doing,
                 },

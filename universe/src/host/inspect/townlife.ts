@@ -10,6 +10,10 @@ import { notablesIn } from "./notables.ts";
 import { finish, hashString, mix, type Ref, type World } from "../../kernel/index.ts";
 import {
   CONTRA_CAUSES,
+  DOES,
+  FUND_WORDS,
+  INST_FUNDS,
+  madeWords,
   GROUP_KINDS,
   JUDGED,
   JUDGE_SENTENCES,
@@ -22,6 +26,9 @@ import {
 } from "../../rules/index.ts";
 import {
   GANG_ROW,
+  doesOf,
+  strikeIn,
+  workedName,
   INTOX,
   INTOX_STORE,
   contrabandOf,
@@ -60,6 +67,7 @@ import { fedRef, groupRef, opRef } from "../underworld.ts";
 import { hostKinds } from "../arms.ts";
 import { realmColor } from "../colors.ts";
 import { orgRef } from "../groups.ts";
+import { bodiesIn, bodyName, bodyRef } from "../bodies.ts";
 import { folkWork, townRoster, workOf } from "../roster.ts";
 import {
   casesOf,
@@ -82,6 +90,9 @@ const UNDER_TOWNS = 4;
 /** No fewer people than this for a town's street to hold a racket, a corner or a back lane's trade. */
 const UNDER_LEAST = 600;
 /** The most groups a town's days show meeting, and the most of each thing's people drawn. */
+/** The most bodies of its land a town's goings show. */
+const BODIES_MOST = 8;
+
 export const LIFE_MOST = {
   groups: 3,
   members: 8,
@@ -957,6 +968,164 @@ function readRoles(world: World, town: string, year: number): TownLife {
           toDoing: `Buying ${what}, ${barred}, in a back lane`,
           where: "lane",
         });
+    }
+  }
+
+  // —— Its bodies (sim/order/institutions.ts): those at home in its land, at its first town. A works its hands go in to, and
+  // its master; the watch the seat pays, on its round; a school in session; a paper's criers on market day; a guild's and a
+  // union's meeting; and a strike, its workers at the gate of works that stand idle. ——
+  if (rank === 0) {
+    const crafting = (key: number) => (workOf(key, work) === OCC.crafter ? 6 : 0.2),
+      struck = strikeIn(world, s.cell, year),
+      here = bodiesIn(world, s.cell)
+        .filter((x) => x.g.home === s.cell)
+        .slice(0, BODIES_MOST),
+      headOf = (ref: string) => notablesIn(world, town).find((n) => n.of.ref === ref && !n.away);
+    for (const { g } of here) {
+      const ref = bodyRef(g.event),
+        name = bodyName(world, ref) ?? "a body",
+        of = { ref, name },
+        key = `${ref}|${town}`,
+        head = headOf(ref),
+        kept = FUND_WORDS[INST_FUNDS[g.fund] ?? "dues"],
+        led = (who: string[]) => (head ? [head.ref, ...who] : who);
+      switch (doesOf(g)) {
+        case "make": {
+          const who = draw(key, 5, crafting);
+          if (!who.length) break;
+          goings.push(
+            struck > 0
+              ? {
+                  kind: "meeting",
+                  key,
+                  of,
+                  words: `${cap(name)} stands idle: its hands are out on strike, at its gate`,
+                  doing: `Out on strike, at the gate of ${name}`,
+                  lead: `At the gate of ${name}, which stands idle while its hands are out on strike`,
+                  why: `${pct(struck)} of this land's year of craft is lost to the strike`,
+                  since: g.since,
+                  who: led(who),
+                  where: "works",
+                  every: true,
+                  hours: [8, 13],
+                }
+              : {
+                  kind: "meeting",
+                  key,
+                  of,
+                  words: `The hands of ${name} are at their work`,
+                  doing: `At work for ${name}`,
+                  lead: `Running ${name}`,
+                  why: `${count(g.staff)} hands work for it${g.of >= 0 ? `, making ${madeWords(workedName(g.of))}` : ""}; ${g.keeper ? `it is owned by the house of ${g.keeper}` : "it is owned by its partners"}`,
+                  since: g.since,
+                  who: led(who),
+                  where: "works",
+                  every: true,
+                  hours: [7.5, 16],
+                },
+          );
+          break;
+        }
+        case "order": {
+          const who = draw(`${key}|round`, 2);
+          if (!who.length) break;
+          goings.push({
+            kind: "patrol",
+            key: `${key}|round`,
+            of,
+            words: `${cap(name)}, paid from the seat's treasury, walks its streets`,
+            doing: `On their round of the streets with ${name}`,
+            why: `${count(g.staff)} of them keep order in this land; ${g.quality >= 700 ? "they are paid and are not for sale" : g.quality >= 450 ? "some of them are bought" : "they are underpaid, and bought"}`,
+            since: g.since,
+            who,
+            where: "square",
+          });
+          break;
+        }
+        case "teach": {
+          const who = draw(key, 4, young);
+          if (!who.length) break;
+          goings.push({
+            kind: "meeting",
+            key,
+            of,
+            words: `${cap(name)} is in session`,
+            doing: `At their lessons in ${name}`,
+            lead: `Teaching at ${name}`,
+            why: `${count(g.staff)} teach there, kept by ${kept}${g.higher ? "; it inquires as well as teaches" : ""}`,
+            since: g.since,
+            who: led(who),
+            where: "school",
+            every: true,
+            hours: [8.5, 12],
+          });
+          break;
+        }
+        case "word": {
+          const who = draw(key, 2, young);
+          if (!who.length) break;
+          goings.push({
+            kind: "meeting",
+            key,
+            of,
+            words: `Criers of ${name} call its news on market day`,
+            doing: `Crying the news of ${name} at the market`,
+            why: `${count(g.staff)} work for it, kept by ${kept}`,
+            since: g.since,
+            who,
+            where: "market",
+            market: true,
+            hours: [8.5, 11.5],
+          });
+          break;
+        }
+        case "craft":
+        case "bargain": {
+          const union = doesOf(g) === "bargain",
+            out = union && struck > 0 && !here.some((x) => x.g.does === DOES.make),
+            who = draw(key, 4, crafting);
+          if (!who.length) break;
+          goings.push(
+            out
+              ? {
+                  kind: "meeting",
+                  key,
+                  of,
+                  words: `${cap(name)} is out on strike: its workers gather in the square`,
+                  doing: `Out on strike with ${name}`,
+                  lead: `Speaking for ${name}, out on strike`,
+                  why: `${pct(struck)} of this land's year of craft is lost to the strike`,
+                  since: g.since,
+                  who: led(who),
+                  where: "square",
+                  every: true,
+                  hours: [8, 13],
+                }
+              : {
+                  kind: "meeting",
+                  key,
+                  of,
+                  words:
+                    g.standing === 0
+                      ? `${cap(name)} meets behind closed doors`
+                      : `${cap(name)} holds its meeting`,
+                  doing:
+                    g.standing === 0
+                      ? `Gone in to the meeting of ${name}, behind closed doors`
+                      : `At the meeting of ${name}`,
+                  lead: `Leading the meeting of ${name}`,
+                  why: `${count(g.staff)} members, for ${union ? "what their work is paid" : "who may work their trade, and at what price"}`,
+                  since: g.since,
+                  who: led(who),
+                  where: "home",
+                  ...(g.standing === 0 ? { closed: true as const } : {}),
+                },
+          );
+          break;
+        }
+        default:
+          break;
+      }
     }
   }
 

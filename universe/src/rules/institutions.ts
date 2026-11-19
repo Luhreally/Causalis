@@ -227,6 +227,9 @@ export const INST = {
   withers: 0.5,
   /** One of two that do the same in one land is taken over when its part falls under this share of the other's. */
   takenUnder: 0.3,
+  /** A body its customers keep fails, by this chance, in a reckoning where what they pay it falls under this part of what it was. */
+  slump: 0.5,
+  fails: 0.5,
   /** A body may part in two at a head's passing when it is this many times the fewest hands, by this chance. */
   partsAt: 12,
   parts: 0.25,
@@ -357,7 +360,7 @@ export function honestyOf(f: {
 
 /**
  * Whether a land's organised workers strike, and how hard (0: no; else the share of a year's work lost, at most
- * INST.strikeCosts): what they earn has fallen behind what it was or what a tiller earns (`lag`, 0 … 1), they are many enough
+ * INST.strikeCosts): what they earn has fallen behind what it was as they have known it (`lag`, 0 … 1), they are many enough
  * of its crafters to stop its works (`organised`), and their fund can keep them out.
  */
 export function walkoutOf(f: { lag: number; organised: number; fund: number }): number {
@@ -423,6 +426,27 @@ export const DOES_ASKS: Readonly<Record<InstDoes, string>> = {
   deal: "Who carries what is forbidden",
   govern: "Who rules themselves",
   rise: "Who seeks the seat",
+};
+/** What each is, as a thing wanted: for a list of what a realm's people would pay to have done. */
+export const DOES_WANTS: Readonly<Record<InstDoes, string>> = {
+  make: "Goods made under one roof",
+  craft: "A trade governed by its own",
+  bargain: "Wages bargained for together",
+  order: "Order kept",
+  judge: "Judging",
+  teach: "Teaching",
+  heal: "Healing",
+  worship: "Worship and its rites",
+  word: "Word carried to those who read",
+  insure: "Risk shared out",
+  carry: "Carrying",
+  fight: "Arms for pay",
+  lend: "Lending",
+  aid: "Care for their own",
+  take: "Taking",
+  deal: "What is forbidden, carried",
+  govern: "Their own rule",
+  rise: "The seat",
 };
 export const FUND_WORDS: Readonly<Record<InstFund, string>> = {
   dues: "its members' dues",
@@ -559,9 +583,14 @@ export function instTitle(b: Basis, f: TitleFacts): string {
   }
 }
 
+/** What a works makes, as a sentence says it, from the word its title bears: a tool works makes tools, an iron works iron. */
+export function madeWords(of: string): string {
+  return of === "tool" || of === "engine" ? `${of}s` : of;
+}
+
 /** A body's basis said in one line: what it does, who pays, whom it answers to. */
 export function basisWords(b: Basis, of = ""): string {
-  const does = b.does === "make" && of ? `${DOES_WORDS.make} ${of}` : DOES_WORDS[b.does];
+  const does = b.does === "make" && of ? `${DOES_WORDS.make} ${madeWords(of)}` : DOES_WORDS[b.does];
   return `It ${does}, is kept by ${FUND_WORDS[b.fund]} and answers to ${ANSWERS_WORDS[b.answers]}.`;
 }
 

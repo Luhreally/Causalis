@@ -64,6 +64,8 @@ import "./underworld.ts";
 export { groupWords } from "./underworld.ts";
 import "./groups.ts";
 export { ORG_IS, orgWords } from "./groups.ts";
+import "./institutions.ts";
+export { bodyWords, doesWords } from "./institutions.ts";
 import "./health.ts";
 import "./credit.ts";
 import "./finance.ts";

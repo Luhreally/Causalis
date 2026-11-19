@@ -130,7 +130,7 @@ export const INST_EVENTS = {
   /** Its hold ended: failed, withered, suppressed, taken over, merged. */
   ended: defineEventType("bodies.ended", 3),
   /** The god's hand laid on it. */
-  hand: defineEventType("bodies.hand", 3),
+  hand: defineEventType("act.body", 4),
 };
 
 const DRAW = defineStream("order.bodies");
@@ -441,7 +441,8 @@ function newHead(f: Facts, g: { does: number }, cell: number, salt: number, foun
     family = tongueWord(f, cell, salt + 1, 0x41c3),
     drawn = {
       name: family ? `${given} ${family}` : given,
-      born: f.year - Math.round(f.ctx.life.adulthood * (1.3 + f.u(salt * 7 + 3))),
+      // (Of an age to head such a thing: a generation and more past coming of age.)
+      born: f.year - Math.round(f.ctx.life.adulthood * (1.8 + 1.2 * f.u(salt * 7 + 3))),
       since: f.year,
     },
     one = headGiver?.(f.ctx.world, {
@@ -550,7 +551,15 @@ function keeperOf(r: Read, l: Land, does: number, fund: number): string {
   return "";
 }
 
-function found(f: Facts, does: number, l: Land, fund: InstFund, staff: number, factors: Factor[]) {
+function found(
+  f: Facts,
+  does: number,
+  l: Land,
+  fund: InstFund,
+  staff: number,
+  pays: number,
+  factors: Factor[],
+) {
   const { v, r, year } = f,
     salt = v.next * 19 + does,
     own = does === DOES.make || does === DOES.word,
@@ -570,13 +579,25 @@ function found(f: Facts, does: number, l: Land, fund: InstFund, staff: number, f
       fund: k,
       // (A priest-king's clergy answer to him: the seat holds its temple.)
       answers: does === DOES.worship && r.priest ? ANSWERS.seat : ANSWERS[answersTo(fund)],
-      standing: 1,
+      // (What the seat pays for is its own from the first: no charter is told of it.)
+      standing: fund === "treasury" || (does === DOES.worship && r.priest) ? 2 : 1,
       of,
       since: year,
       event: "" as Ref,
       home: l.cell,
       lands: [l.cell],
-      keeper: keeperOf(r, l, does, k),
+      // (A house owns one works of a good in a land: a second there is its own partners'.)
+      keeper: v.bodies.some(
+        (x) =>
+          does === DOES.make &&
+          x.does === does &&
+          x.of === of &&
+          x.keeper !== "" &&
+          x.keeper === keeperOf(r, l, does, k) &&
+          x.lands.includes(l.cell),
+      )
+        ? ""
+        : keeperOf(r, l, does, k),
       leader: head.leader,
       leaders: 1,
       ...(head.id ? { founderId: head.id, headId: head.id } : {}),
@@ -585,9 +606,9 @@ function found(f: Facts, does: number, l: Land, fund: InstFund, staff: number, f
         Math.round(staff * stepped(INST.grow, INST.every)),
       ),
       wealth: 0,
-      income: 0,
+      income: Math.round(pays),
       quality: 550 + Math.round(400 * f.u(salt * 5 + 1)),
-      share: 0,
+      share: 1000,
     };
   const title = titleOf(g, l),
     event = tell(
@@ -717,17 +738,29 @@ function stepRealm(
     w = r.wage,
     oversight = (r.written + r.voice + r.word) / 3,
     gone: [Body, InstEnd, Factor[], Body?][] = [],
+    slumped = new Map<Body, number>(),
     ending = new Set<Body>();
 
   // 0. A body whose land has passed to another realm goes with it.
-  for (const g of [...v.bodies]) {
-    if (lands.has(g.home)) {
-      g.lands = g.lands.filter((c) => lands.has(c));
-      continue;
-    }
+  let strayed = false;
+  for (const g of v.bodies) {
+    if (!lands.has(g.home)) strayed = true;
+    else
+      for (const c of g.lands)
+        if (!lands.has(c)) {
+          g.lands = g.lands.filter((x) => lands.has(x));
+          break;
+        }
+  }
+  for (const g of strayed ? [...v.bodies] : []) {
+    if (lands.has(g.home)) continue;
     const now = realms.of(g.home);
-    v.bodies = v.bodies.filter((x) => x !== g);
-    if (now && now.ended === null && now.ref !== p.ref) moved.push([g, now.ref]);
+    if (now && now.ended === null && now.ref !== p.ref) {
+      v.bodies = v.bodies.filter((x) => x !== g);
+      moved.push([g, now.ref]);
+    } else
+      // (A land no realm holds keeps no body: no one is left to pay for it, or to answer to.)
+      ended(f, g, "lost with its land", [factor("a realm that holds its land", 0, -1)]);
   }
 
   // 1. Each body: who pays it now, what that keeps, how its realm holds it.
@@ -741,13 +774,25 @@ function stepRealm(
     const does = doesOf(g),
       rowOf = DOES_ROWS[does],
       home = lands.get(g.home)!,
-      was = titleOf(g, home);
+      // (As it stood, for what it was called before any change this reckoning: read only where one is told.)
+      fundWas = g.fund,
+      answersWas = g.answers,
+      standingWas = g.standing,
+      staffWas = g.staff,
+      higherWas = g.higher;
     // (Another payer comes to keep it where it would pay twice what the one that does can.)
     const best = home.best[g.does]!,
       bestPays = home.bestPays[g.does]!,
       mine = payAt(home, g.does, g.fund) * READILY[g.does * FUNDS + g.fund]!;
     let how: string | null = null;
-    if (best >= 0 && best !== g.fund && bestPays > 2 * mine && g.since < year) {
+    if (
+      best >= 0 &&
+      best !== g.fund &&
+      bestPays > 2 * mine &&
+      g.since < year &&
+      // (Not to the payer who already keeps another that does the same from its home.)
+      !v.bodies.some((x) => x !== g && x.does === g.does && x.home === g.home && x.fund === best)
+    ) {
       g.fund = best;
       if (g.answers !== ANSWERS.seat || best === FUND.treasury)
         g.answers = ANSWERS[answersTo(INST_FUNDS[best]!)];
@@ -779,6 +824,21 @@ function stepRealm(
         if (l) room += worksRoom(l, (rows?.at(c, BODY_ROW.craft) ?? 0) / 1000);
       }
       target = Math.min(target, room * (g.share / 1000 || 1));
+    } else if (g.does === DOES.order || g.does === DOES.judge) {
+      // (No more than half again of a full watch or court for the people of its lands: the rest of what the treasury
+      // spends on its clerks keeps other clerks.)
+      let served = 0;
+      for (const c of g.lands) served += lands.get(c)?.people ?? 0;
+      target = Math.min(
+        target,
+        1.5 *
+          Math.max(
+            rowOf.least,
+            g.does === DOES.order
+              ? (served * INST.watchFull) / 1000
+              : (served * INST.courtFull) / 1e5,
+          ),
+      );
     }
     // How its realm holds it.
     // (A charter once given stands while its grounds nearly do: told once, not each time they are crossed.)
@@ -821,6 +881,9 @@ function stepRealm(
     // (Outlawed, the seat's hand takes of its people each year as far as it reaches.)
     if (g.standing === 0) g.staff = Math.round(g.staff * dmath.pow(1 - 0.15 * r.capacity, span));
     else g.staff = Math.max(0, Math.round(g.staff + (target - g.staff) * stepped(INST.grow, span)));
+    // (A slump: what its customers pay it fallen under half of what it was a reckoning ago.)
+    if (g.fund === FUND.customers && g.since < year - INST.every && pays < INST.slump * g.income)
+      slumped.set(g, g.income > 0 ? pays / g.income : 0);
     g.income = Math.round(pays);
     g.wealth = Math.round(g.wealth * stays + (Math.max(0, g.income) * 0.1 * fade) / INST.spends);
     // What it is besides: a watch and a court as honest as they are paid and watched; a house of teaching that inquires.
@@ -849,7 +912,6 @@ function stepRealm(
       g.won = Math.round(g.won * dmath.pow(1 - INST.wonFades, span));
       if (g.won <= 0) delete g.won;
     }
-    const title = titleOf(g, home);
     if (how && g.since < year)
       tell(
         f,
@@ -857,8 +919,18 @@ function stepRealm(
         g.home,
         {
           body: g.name,
-          title,
-          was,
+          title: titleOf(g, home),
+          was: titleOf(
+            {
+              ...g,
+              fund: fundWas,
+              answers: answersWas,
+              standing: standingWas,
+              staff: staffWas,
+              ...(higherWas ? { higher: higherWas } : { higher: 0 }),
+            },
+            home,
+          ),
           how,
           bids: [g.id],
           fund: INST_FUNDS[g.fund],
@@ -885,14 +957,17 @@ function stepRealm(
   // 2. A workers' body strikes where its wage has fallen behind, and is many enough to stop the works.
   const strikes = new Map<number, number>();
   for (const g of v.bodies) {
-    if (g.does !== DOES.bargain || g.standing === 0 || g.since >= year) continue;
-    if (g.struck !== undefined && year - g.struck < 8) continue;
+    if (g.does !== DOES.bargain || g.since >= year) continue;
     const l = lands.get(g.home)!;
-    if (l.crafters <= 0 || l.tillWage <= 0) continue;
-    const lag = dmath.clamp(1 - l.craftWage / l.tillWage, 0, 1),
-      organised = g.staff / l.crafters,
+    if (l.crafters <= 0) continue;
+    // (Behind what it was as they have known it: the wage a year of their craft has come to, against the years before.)
+    const was = (g.mark ?? 0) / 100,
+      lag = was > 0 ? dmath.clamp(1 - l.craftWage / was, 0, 1) : 0;
+    g.mark = Math.round(100 * (was > 0 ? 0.5 * was + 0.5 * l.craftWage : l.craftWage));
+    const organised = g.staff / l.crafters,
       fund = g.wealth / Math.max(1, g.staff * w * 0.1),
       lost = walkoutOf({ lag, organised, fund });
+    if (g.standing === 0 || (g.struck !== undefined && year - g.struck < 8)) continue;
     if (lost <= 0 || f.u(300 + g.id * 4) >= 1 - dmath.pow(0.5, span / 5)) continue;
     const chance = walkoutWon(r.force, r.voice, fund),
       won = f.u(301 + g.id * 4) < chance;
@@ -916,7 +991,7 @@ function stepRealm(
       },
       [{ ref: g.event, role: "enabler", weight: 1 }],
       [
-        factor("its wage behind what a tiller earns", lag, lag),
+        factor("its wage behind what it was", lag, lag),
         factor("of its land's crafters, organised", organised, organised),
         factor("a fund to keep them out", fund, 0.2 * Math.min(1, fund)),
         factor(
@@ -962,6 +1037,22 @@ function stepRealm(
       // (A rival enters only a custom great enough for both: four times the fewest hands each.)
       if (here > 0 && !RIVALS.has(d)) continue;
       if (OF_A_TRADE.has(d) && l.of < 0) continue;
+      // (A second voice in a land is another payer's: a house keeps one, and those who read keep theirs.)
+      if (d === DOES.word && here > 0) {
+        let at = -1,
+          most = 0;
+        for (let k = 0; k < FUNDS; k++) {
+          const x = l.pay[d * FUNDS + k]! * READILY[d * FUNDS + k]!;
+          if (x <= most) continue;
+          if (v.bodies.some((g) => g.does === d && g.fund === k && g.lands.includes(l.cell)))
+            continue;
+          most = x;
+          at = k;
+        }
+        if (at < 0) continue;
+        best.fund = INST_FUNDS[at]!;
+        best.pays = most;
+      }
       let staff = staffKept(does, best.pays, w);
       if (d === DOES.make)
         staff = Math.min(staff, worksRoom(l, (rows?.at(l.cell, BODY_ROW.craft) ?? 0) / 1000));
@@ -980,7 +1071,7 @@ function stepRealm(
     if (v.bodies.length >= INST.most || risen >= INST.rise * turns) break;
     if (count[c.does]! >= DOES_ROWS[INST_DOES[c.does]!].most) continue;
     if (risen > 0 && f.u(50 + risen) >= 0.6) continue;
-    const g = found(f, c.does, c.l, c.fund, c.staff, [
+    const g = found(f, c.does, c.l, c.fund, c.staff, c.pays, [
       factor(`what ${c.fund} would pay for it`, c.pays, 1),
       factor("the hands that keeps", c.staff, Math.min(2, c.rel / 4)),
       factor("the fewest the work takes", DOES_ROWS[INST_DOES[c.does]!].least, -0.2),
@@ -991,6 +1082,7 @@ function stepRealm(
     ]);
     if (!g) continue;
     count[c.does] = count[c.does]! + 1;
+    v.paid[c.does] = v.paid[c.does]! + g.income;
     risen++;
   }
 
@@ -1106,6 +1198,23 @@ function stepRealm(
           v.bodies.push(n);
         }
       }
+    }
+    const fell = slumped.get(g);
+    if (
+      fell !== undefined &&
+      !(g.hand === 2 && (g.handUntil ?? 0) >= year) &&
+      f.u(104 + g.id * 8) < INST.fails
+    ) {
+      gone.push([
+        g,
+        "failed",
+        [
+          factor("what its customers pay, of what they paid a reckoning ago", fell, -1),
+          factor("its purse, in years of its pay", g.wealth / Math.max(1, g.income), 0.2),
+        ],
+      ]);
+      ending.add(g);
+      continue;
     }
     if (g.staff < INST.withers * rowOf.least) {
       const slump = g.fund === FUND.customers;
@@ -1427,7 +1536,12 @@ export const BODY_ACT_YEARS = 20;
  * Lay the hand on a body (found by the event it was founded by): its mark kept on the body until it fades, read where its pay
  * and its realm's hold on it are reckoned. Tells the act; null where no such body stands. Only a player sets this off.
  */
-export function actOnBody(ctx: PopulationContext, founded: Ref, act: BodyAct): Ref | null {
+export function actOnBody(
+  ctx: PopulationContext,
+  founded: Ref,
+  act: BodyAct,
+  command: Ref | null = null,
+): Ref | null {
   const { world } = ctx,
     store = bodiesOf(world);
   if (!store) return null;
@@ -1447,7 +1561,10 @@ export function actOnBody(ctx: PopulationContext, founded: Ref, act: BodyAct): R
       type: INST_EVENTS.hand.type,
       subjects: [realm],
       place: ctx.provinces.get(g.home)?.ref ?? null,
-      causes: [{ ref: g.event, role: "enabler", weight: 1 }],
+      causes: [
+        ...(command ? [{ ref: command, role: "agent" as const, weight: 1 }] : []),
+        { ref: g.event, role: "enabler" as const, weight: 1 },
+      ],
       data: {
         realm: p ? realmName(p) : "",
         body: g.name,
@@ -1513,6 +1630,22 @@ export function installInstitutions(world: World, ctx: () => PopulationContext):
   world.register(new RowStore(BODY_LANDS_STORE, BODY_LANDS_WIDTH));
   world.addPinner(() => store.pinned());
   world.system({ key: "188.order.zzbodies", every: YEAR, run: (t) => bodiesYear(ctx(), t) });
+  // The god's hand on a body: blessed, cursed, or kept from its seat's hand, for BODY_ACT_YEARS.
+  world.defineCommand({
+    type: "act.body",
+    validate: (args) => {
+      const a = args as { body?: string; act?: string };
+      if (!a.act || !(BODY_ACTS as readonly string[]).includes(a.act)) return "no such act";
+      const found = store
+        .realmsKept()
+        .some((r) => store.of(r)!.bodies.some((g) => g.event === a.body));
+      return found ? null : "it no longer stands";
+    },
+    apply: (command) => {
+      const a = command.args as { body: Ref; act: BodyAct };
+      actOnBody(ctx(), a.body, a.act, command.id);
+    },
+  });
   // (Exactly as before where none is kept: a house of teaching is a school, higher learning inquires, healing reaches further.)
   teachesAsSchool(taught);
   inquiresMore(inquires);
