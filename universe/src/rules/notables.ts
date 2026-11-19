@@ -94,6 +94,13 @@ export const ACTS = {
   /** A faith's spread from the land of one who speaks for it; how much less a land leaves a faith such a one holds it to. */
   faith: 0.6,
   faithHolds: 0.3,
+  /**
+   * A faith with one of name speaking for it far from its seat (their standing past `reformer` lines) breaks sooner: where two
+   * lands of other speech hold it, not three, and after so many years since it last split, not a hundred.
+   */
+  reformer: 2,
+  reformLands: 2,
+  reformYears: 70,
   /** What one who moves people adds to their group's candidate (as nearness of wants is weighed, 0 … 1). */
   speaks: 0.04,
   /** Of a land's deaths, the share its healers of name spare. */

@@ -23,6 +23,7 @@ import {
   speaksFor,
   ACTS,
   DOMAIN,
+  NOTE,
 } from "../../rules/index.ts";
 
 /** A notable person's own reference: an event's subject, a page's address. */
@@ -323,6 +324,34 @@ export function notableFaithHolds(world: World, cell: number, faith: Ref | null)
   let s = 0;
   for (const n of store.in(cell)) if (n.faith === faith) s += n.by[DOMAIN.faith] ?? 0;
   return s > 0 ? faithHolds(s) : 1;
+}
+
+/**
+ * Of the lands given (a faith's lands far from its seat in speech), the one where one of name speaks for that faith with standing
+ * enough to lead it out, and who (null: none): sim/belief/belief.ts, where a faith splits.
+ */
+export function notableReformer(
+  world: World,
+  faith: Ref,
+  lands: readonly number[],
+): { cell: number; name: string } | null {
+  const store = notablesOf(world);
+  if (!store) return null;
+  let best: Notable | undefined;
+  for (const c of lands) {
+    if (store.at(c, DOMAIN.faith) < ACTS.reformer * NOTE.line) continue;
+    for (const n of store.in(c)) {
+      const s = n.by[DOMAIN.faith] ?? 0;
+      if (n.faith !== faith || s < ACTS.reformer * NOTE.line) continue;
+      if (
+        !best ||
+        s > (best.by[DOMAIN.faith] ?? 0) ||
+        (s === best.by[DOMAIN.faith] && n.id < best.id)
+      )
+        best = n;
+    }
+  }
+  return best ? { cell: best.home, name: best.name } : null;
 }
 
 /** Of a land's deaths, what its healers of name leave (1 where none): sim/population/systems.ts. */

@@ -8,7 +8,7 @@
 // and they are blamed — famine under a priest-king of the same faith breeds more
 // grievance. A faith held far from where it began, by people of other speech,
 // splits. Every founding, conversion and schism cites what caused it.
-import { notableFaithHolds, notableFaithSpreads } from "../notable/kept.ts";
+import { notableFaithHolds, notableFaithSpreads, notableReformer } from "../notable/kept.ts";
 import {
   YEAR,
   defineEventType,
@@ -27,7 +27,7 @@ import type { MarketStore } from "../economy/market.ts";
 import { WAY, cultureOf, drawsWays } from "../culture/culture.ts";
 import { readsScripture } from "../lore/letters.ts";
 import { homePlanet } from "../planet/store.ts";
-import { creedHeld, creedOf, scriptureOfTenet } from "../../rules/index.ts";
+import { ACTS, creedHeld, creedOf, scriptureOfTenet } from "../../rules/index.ts";
 import { politiesOf } from "../polity/polity.ts";
 import { orgSectOf } from "../order/groups-kept.ts";
 
@@ -375,12 +375,15 @@ export function beliefYear(ctx: PopulationContext, t: SimTime): void {
   if (year % 10 === 0)
     for (const f of [...store.all()]) {
       const seat = culture.get(f.seat);
-      if (!seat || year - store.lastSplit(f.ref) < 100) continue;
+      if (!seat || year - store.lastSplit(f.ref) < ACTS.reformYears) continue;
       const far = store
         .lands(f.ref)
         .filter((c) => tongueLikeness(culture.get(c)!.tongue, seat.tongue) < 0.72);
-      if (far.length < 3) continue;
-      const first = far[0]!,
+      // (One of name who speaks for it far from its seat leads it out sooner, from their own land: sim/notable. Exactly as
+      // before where no one is kept: three lands, a hundred years.)
+      const reformer = far.length >= ACTS.reformLands ? notableReformer(world, f.ref, far) : null;
+      if (!reformer && (far.length < 3 || year - store.lastSplit(f.ref) < 100)) continue;
+      const first = reformer?.cell ?? far[0]!,
         there = culture.get(first)!,
         ref = world.minter.mint(FAITH),
         name = faithName(
@@ -393,7 +396,7 @@ export function beliefYear(ctx: PopulationContext, t: SimTime): void {
         subjects: [ref, f.ref],
         place: ctx.provinces.get(first)!.ref,
         causes: [{ ref: f.event, role: "enabler", weight: 1 }],
-        data: { name, from: f.name },
+        data: { name, from: f.name, ...(reformer ? { by: reformer.name } : {}) },
       });
       // (A schism keeps its tenet, and hallows what marks those who broke away.)
       store.add({

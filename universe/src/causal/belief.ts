@@ -40,7 +40,8 @@ registerEventWords(
 );
 registerEventWords(BELIEF_EVENTS.schism.type, (world, e) => {
   const from = text(e.data, "from");
-  return `${cap(text(e.data, "name") ?? "A faith")} broke from ${from ?? "its elders"} in ${landWords(world, e.place)}, ${year(e.t)}`;
+  const by = text(e.data, "by");
+  return `${cap(text(e.data, "name") ?? "A faith")} broke from ${from ?? "its elders"} in ${landWords(world, e.place)}${by ? `, led out by ${by}` : ""}, ${year(e.t)}`;
 });
 
 function cap(s: string): string {

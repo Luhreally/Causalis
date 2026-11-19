@@ -386,10 +386,20 @@ function occasion(r: Run, e: HistoryEvent, o: Occasion, inspired: Map<number, nu
   // (A people's choice kept as it was makes no one new.)
   if (e.type === "order.elected" && data.held === true) return;
   // (One the god inspired this year is the one who found what their land then found.)
-  const led = e.type.startsWith("lore.") ? inspired.get(cell) : undefined,
-    standing = led !== undefined ? store.get(led) : standingIn(store, cell, o.d);
+  // (And one who led a faith out is named by the faith's own telling: sim/belief.)
+  const led = e.type.startsWith("lore.")
+      ? inspired.get(cell)
+      : typeof data.by === "string"
+        ? store.in(cell).find((n) => n.name === data.by)?.id
+        : undefined,
+    standing = led !== undefined ? store.get(led) : standingIn(store, cell, o.d),
+    // (One who founds a faith or leads one out speaks for the new one from then on.)
+    spoken = e.type.startsWith("belief.")
+      ? e.subjects.find((s) => kindCodeOf(s) === "faith")
+      : undefined;
   if (standing && (led !== undefined || u(1) < doneBy(standing.by[o.d] ?? 0))) {
     addDeed(standing, deed);
+    if (spoken) standing.faith = spoken;
     if (e.type.startsWith("act.inspire") || e.type === INSPIRED) inspired.set(cell, standing.id);
     return;
   }
@@ -416,6 +426,7 @@ function occasion(r: Run, e: HistoryEvent, o: Occasion, inspired: Map<number, nu
         : undefined,
     n = arise(r, cell, key, Math.max(NOTE.line, made), deed, general);
   if (e.type.startsWith("act.inspire") || e.type === INSPIRED) inspired.set(cell, n.id);
+  if (spoken) n.faith = spoken;
   if (e.type === "order.elected" && realm && typeof data.group === "string") {
     // (They speak for the group that won, until another does.)
     const was = store.holder("speaks", realm.ref);
