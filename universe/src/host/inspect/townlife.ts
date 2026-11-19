@@ -30,6 +30,7 @@ import {
   kindName,
   deathNotesOf,
   groupOfBoss,
+  WAS_MOST,
   handOf,
   kindOfGroup,
   lifeOf,
@@ -314,6 +315,29 @@ export function townLifeOf(world: World, town: string, year = yearNow(world)): T
 }
 const BY_LINES = new WeakMap<World, Map<string, Map<string, ReadonlySet<string>>>>();
 
+/**
+ * Who of a town is of each thing going on there now, by name, as its lines have it with no hand on it: what hand.lay is told
+ * as `was`, so the hand keeps it (a save loaded with the hand resting has no other memory of it). Empty: nothing going on, or
+ * the hand rests there already.
+ */
+export function linesWere(
+  world: World,
+  town: string,
+): { readonly key: string; readonly names: readonly string[] }[] {
+  if (handOf(world).resting?.village === town) return [];
+  const read = townLifeOf(world, town),
+    names = new Map(read.named.map((p) => [p.ref, p.name] as const));
+  return read.goings
+    .slice(0, WAS_MOST.goings)
+    .map((g) => ({
+      key: g.key,
+      names: g.who
+        .flatMap((ref) => (names.has(ref) ? [names.get(ref)!] : []))
+        .slice(0, WAS_MOST.names),
+    }))
+    .filter((g) => g.names.length > 0);
+}
+
 /** What each kind's people are for their group, for one who was it ("its collector"). */
 const ROLE_NAME: Readonly<Record<TownGoing["kind"], string>> = {
   collect: "its collector",
@@ -343,8 +367,15 @@ function readLife(world: World, town: string, year: number): TownLife {
     named = [...after.named];
   // (Under the hand: one it was laid from, who was of a thing by the town's lines when it came to rest (having taken it up
   // from one the court held, as may be), is of it still, by the name they were known by, unless the court holds them now.)
-  const byLines =
-      handOf(world).resting?.village === town && folk ? BY_LINES.get(world)?.get(town) : undefined,
+  // (As the hand was told when it was laid, which a save keeps; else as last read here with no hand on it.)
+  const resting = handOf(world).resting,
+    kept = resting?.village === town ? resting.was : undefined,
+    byLines: ReadonlyMap<string, ReadonlySet<string>> | undefined =
+      resting?.village === town && folk
+        ? kept
+          ? new Map(kept.map((g) => [g.key, new Set(g.names)] as const))
+          : BY_LINES.get(world)?.get(town)
+        : undefined,
     all = byLines ? folk!.slots(POOL) : [],
     goings = !byLines
       ? after.goings

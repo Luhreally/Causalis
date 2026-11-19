@@ -159,6 +159,7 @@ import {
   worldFirstsNow,
   type Counted,
 } from "./inspect/index.ts";
+import { linesWere } from "./inspect/townlife.ts";
 import { annalsIndex, annalsRead, runTold } from "./inspect/annals.ts";
 import { ANNALS_SEARCH_QUERIES } from "./inspect/annals-search.ts";
 import { askedKey, townOffers } from "./inspect/asks.ts";
@@ -937,6 +938,17 @@ function planetUniverse(name: string, prior: Prior): Universe {
     name,
     version,
     defaultView: "globe",
+    // The hand laid on a town is told who of it was of each thing going on there, by name, read now, before its people are
+    // the hand's: the hand keeps it, and a save with it (host/inspect/townlife.ts). Whoever lays it, from whatever page.
+    told: (world, type, args) => {
+      if (type !== "hand.lay" || !args || typeof args !== "object" || "was" in args)
+        return undefined;
+      const village = (args as { village?: unknown }).village;
+      if (typeof village !== "string" || !populationContext(world).settlements.get(village as Ref))
+        return undefined;
+      const was = linesWere(world, village);
+      return was.length ? { ...args, was } : undefined;
+    },
     // A farming land with no village yet will found one soon: work out its village sites early.
     idle: (world) => {
       const ctx = populationContext(world),

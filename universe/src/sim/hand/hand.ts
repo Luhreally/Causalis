@@ -439,7 +439,16 @@ export type Window = {
     readonly by: string;
     readonly at: number;
   }[];
+  /**
+   * Who of its town was of each thing going on there, by the names they were known by, as last read before the hand was
+   * laid (hand.lay's `was`; absent: not told): the hand's people are drawn anew, and one it was laid from is still what they
+   * were for their group by this (host/inspect/townlife.ts). Kept with the hand, so a save loaded has it.
+   */
+  readonly was?: readonly { readonly key: string; readonly names: readonly string[] }[];
 };
+
+/** The most hand.lay's `was` may hold: things going on, and names of each. */
+export const WAS_MOST = { goings: 64, names: 16 } as const;
 
 /** One of the hand's people who died while it rests: who they were, and when they died. */
 export type Gone = {
@@ -596,6 +605,26 @@ export function installHand(world: World): HandStore {
         )
           return "as must be one of its people: a name, an age, a work and a sex";
       }
+      const was = (args as { was?: unknown }).was;
+      if (was !== undefined) {
+        const short = (x: unknown, most: number): x is string =>
+          typeof x === "string" && x.length > 0 && x.length <= most;
+        if (
+          !Array.isArray(was) ||
+          was.length > WAS_MOST.goings ||
+          !was.every((g: { key?: unknown; names?: unknown } | null) => {
+            const names = g?.names;
+            return (
+              !!g &&
+              short(g.key, 240) &&
+              Array.isArray(names) &&
+              names.length <= WAS_MOST.names &&
+              names.every((n) => short(n, 80))
+            );
+          })
+        )
+          return "was must be who was of each thing going on there: a key and their names";
+      }
       return null;
     },
     apply: (command, t) => {
@@ -661,6 +690,7 @@ export function installHand(world: World): HandStore {
         const a = laidFromAgent(agents, from, year);
         if (a) a.name = from.name.trim();
       }
+      const was = (command.args as { was?: Window["was"] }).was;
       store.resting = {
         command: command.id,
         event,
@@ -670,6 +700,8 @@ export function installHand(world: World): HandStore {
         agents,
         next: agents.length,
         ...(whole > n ? { beyond: whole - n } : {}),
+        // (Told only by one who lays the hand so: a hand laid without it is the hand as it ever was.)
+        ...(was?.length ? { was: was.map((g) => ({ key: g.key, names: [...g.names] })) } : {}),
       };
     },
   });

@@ -14,9 +14,18 @@ import {
   type PartFacts,
   type PartId,
 } from "../../src/rules/index.ts";
-import { handOf, populationContext } from "../../src/sim/index.ts";
+import {
+  handOf,
+  makePopulationWorld,
+  politiesOf,
+  populationContext,
+  underworldOf,
+} from "../../src/sim/index.ts";
+import { deserialize, serialize } from "node:v8";
+import { loadWorld, saveWorld, seedFromText, type SaveDocument } from "../../src/kernel/index.ts";
 import { LIFE_QUERIES } from "../../src/host/life.ts";
-import { roleOffers, townLifeOf } from "../../src/host/inspect/townlife.ts";
+import { linesWere, roleOffers, townLifeOf } from "../../src/host/inspect/townlife.ts";
+import { EARTH } from "../../src/host/planet.ts";
 import { notablesIn } from "../../src/host/inspect/notables.ts";
 import { casesOf, courtFormOf } from "../../src/host/inspect/justice.ts";
 import { yearNow } from "../../src/host/inspect/words.ts";
@@ -307,4 +316,79 @@ test("one the hand is laid from keeps what they were for their group, by name, a
     o.part ? [o.part.what] : [],
   );
   assert.deepEqual(parts, ["rounds", "lielow"]);
+});
+
+test("the hand is told who was what when it is laid, and keeps it: a save loaded with the hand resting has the lived one at their part", () => {
+  // One who took a part up from another the court holds: no reading of the town's lines alone says they are of it. Kestrel at
+  // 400, a town of the lands the chiefdom of Groris sent its soldiers into, where two of the cartel's guards were taken.
+  const make = () => peopledWorld("kestrel", 400, { start: "spread" }),
+    build = () => makePopulationWorld(seedFromText("kestrel"), { start: "spread" }),
+    reload = (w: ReturnType<typeof make>) =>
+      loadWorld(deserialize(serialize(saveWorld(w, "r"))) as SaveDocument, build, "r").world,
+    w4 = make(),
+    lands = new Set(
+      [...politiesOf(w4).living()].flatMap((r) =>
+        (underworldOf(w4)?.of(r.ref)?.ops ?? [])
+          .filter((o) => o.taken >= 1)
+          .flatMap((o) => o.lands),
+      ),
+    ),
+    town = populationContext(w4)
+      .settlements.all()
+      .filter((t) => t.population > 0 && lands.has(t.cell))
+      .find((t) => townLifeOf(w4, t.ref).goings.some((g) => Object.keys(g.took ?? {}).length))!;
+  assert.ok(town, "a town where one took a part up from another held");
+  const before = townLifeOf(w4, town.ref),
+    g = before.goings.find((x) => Object.keys(x.took ?? {}).length)!,
+    who = before.named.find((p) => p.ref === Object.keys(g.took!)[0])!,
+    asked = {
+      village: town.ref,
+      as: { name: who.name, age: who.age, occupation: 5, sex: who.sex },
+    },
+    at = (w: ReturnType<typeof make>) => {
+      const under = townLifeOf(w, town.ref),
+        me = under.named.find((p) => p.name === who.name);
+      return {
+        me,
+        of: !!me && !!under.goings.find((x) => x.key === g.key)?.who.includes(me.ref),
+      };
+    };
+  // As the host lays it for any page: told who of the town was of each thing, by name, read before the hand is on it.
+  const told = EARTH.told!(w4, "hand.lay", asked) as typeof asked & {
+    was: { key: string; names: string[] }[];
+  };
+  assert.deepEqual(told.was, linesWere(w4, town.ref));
+  assert.ok(told.was.find((x) => x.key === g.key)?.names.includes(who.name));
+  // (Nothing else is told anything, and a hand told already is left as told.)
+  assert.equal(EARTH.told!(w4, "hand.lift", {}), undefined);
+  assert.equal(EARTH.told!(w4, "hand.lay", told), undefined);
+  w4.runTo(w4.submit("hand.lay", told).t);
+  assert.deepEqual(handOf(w4).resting?.was, told.was);
+  assert.ok(at(w4).of, `${who.name} is of it under the hand`);
+  // Saved and loaded: another world in memory, with nothing read of the town before the hand.
+  const back = reload(w4);
+  assert.deepEqual(handOf(back).resting?.was, told.was);
+  const kept = at(back);
+  assert.ok(kept.me?.ref.startsWith("agent:"), `${who.name} is one of the hand's, by name`);
+  assert.ok(kept.of, `${who.name} is of it still after the load`);
+  assert.ok(
+    roleOffers(back, town.ref, kept.me!.ref, kept.me!.name).some((o) => o.part),
+    "and is offered its part",
+  );
+  // Laid untold, the hand is as it ever was: of it while this world is in memory, and not after a load.
+  const w5 = make();
+  townLifeOf(w5, town.ref);
+  w5.runTo(w5.submit("hand.lay", asked).t);
+  assert.equal("was" in handOf(w5).resting!, false);
+  assert.ok(at(w5).of);
+  assert.equal(at(reload(w5)).of, false, "untold, a load forgets it");
+  // What it is told is refused when it is not names by key.
+  const w6 = make();
+  for (const was of [
+    "all",
+    [{ key: "", names: [] }],
+    [{ key: "k", names: [7] }],
+    Array.from({ length: 65 }, (_, i) => ({ key: `k${i}`, names: ["a"] })),
+  ])
+    assert.throws(() => w6.submit("hand.lay", { ...asked, was }), /was must be/);
 });

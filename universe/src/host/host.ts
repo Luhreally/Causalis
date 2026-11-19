@@ -65,6 +65,11 @@ export type Universe = {
   readonly glance?: (seed: Seed, target: string) => boolean;
   /** The rules its worlds run by, read from a small world built for that alone. */
   readonly ruleset?: () => string;
+  /**
+   * What a command is told beside what the page asked, read from the world as it stands before it is taken (undefined: as
+   * asked): what only a reading knows and the world must keep with the deed.
+   */
+  readonly told?: (world: World, type: string, args: unknown) => unknown;
 };
 
 /**
@@ -464,7 +469,9 @@ export class SimHost {
       switch (m.kind) {
         case "command": {
           this.dropSteps();
-          const c = world.submit(m.type, m.args);
+          // (What the universe tells it beside: the hand laid on a town, who of it was of each thing going on there.)
+          const args = this.universe?.told?.(world, m.type, m.args) ?? m.args;
+          const c = world.submit(m.type, args);
           // Carry the world to the command's own moment, so it has taken hold when the
           // reply arrives, even while time is paused.
           world.runTo(c.t);

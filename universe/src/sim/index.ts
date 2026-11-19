@@ -247,6 +247,7 @@ export {
   TRAIT_WORK,
   bandOfAge,
   drawTraits,
+  WAS_MOST,
   handOf,
   installHand,
   laidFromAgent,
