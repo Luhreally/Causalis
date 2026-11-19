@@ -10,17 +10,27 @@
 //      doer: the land's standing notable of that domain where one is and the draw gives it to them (rules doneBy), or someone new
 //      whom the deed makes, if the deed is weighty enough to be noticed (its importance). Battles are not read here: the war asks
 //      who commands each host before it fights (commandIn) and tells how it went after (commandAfter);
-//   2. each peopled land in its year of NOTE.every: for every domain many do there (its learned, its crafters, its clergy, its
-//      traders, those who tend its sick, those who judge, those who kill), the chance one of them is far past the rest
-//      (arisesChance: the doers, how developed the domain is there, what the land has to spare and its rich give, a sickness
-//      abroad, one of name who taught there; less the more names its people hold), and how far past, from a heavy tail;
+//   2. each peopled land in its year of NOTE.every, where one of the names its people can hold is free (as many as their number
+//      has digits, less one: a thousand hold two, a million five): the chance one of its doers is far past the rest, each
+//      domain's rate added (its learned, its crafters, its clergy, its traders, those who tend its sick, those who judge, those
+//      who kill; arisesRate: the doers, how developed the domain is there, what the land has to spare and its rich give, one of
+//      name who taught there; less the more names its people hold), of which domain by its share of that, and how far past, from
+//      a heavy tail. One a turn at the most. In a year of sickness out of its turn a land is weighed for its healers alone;
 //   3. they age and die: by their people's life table, more in a year of sickness in their land (and those who tend the sick
 //      more yet), by the fall of the seat they served (a coup, a revolution), in battle (commandAfter); a standing falls a little
-//      each year without a deed; the least of a crowded land and a crowded world are let go; the dead are kept as short records
-//      while past the line or newly mourned;
+//      each year without a deed; where a deed forces a name on a land that holds all it can, the least of them is let go, and
+//      the least of a crowded world; the dead are kept as short records while past the line or newly mourned;
 //   4. the greatest risings and deaths of the year are told (NOTE.told), each with its causes.
-// What they do flows back through ./kept.ts, each a small bounded term an older system reads. A people whose bodies live as one
-// keep lines, not persons (rules keepsPersons): fewer, and never one body.
+// What they do flows back through ./kept.ts, each a small bounded term an older system reads (rules ACTS: the most each can be):
+// a commander in their host's strength, and a host shaken when one falls (sim/war/war.ts); the learned in how readily their land
+// inquires (sim/lore/lore.ts) and in who rises after them; makers in their land's renown (sim/culture/art.ts); one who speaks
+// for a faith in its spread from their land, its hold there, and its breaking from its seat (sim/belief/belief.ts); one who
+// won a people's choice in the next (sim/order/elections.ts); healers in the deaths their land's care spares
+// (sim/population/systems.ts); the rich in what their land has to spare for its other names (here). The god's acts on a person
+// reach them (sim/acts/person.ts), and `notableTargets` / `strikeNotable` are the hook by which a group may strike at one.
+// A people whose bodies live as one keep lines, not persons (rules keepsPersons): fewer, and never one body.
+// Not done here, each a lever: one of the law moving their realm's law; a great fortune founding a house of lending (a house's
+// founding does make its founder known); a notable moving to another land or realm; kin and heirs of a name.
 import {
   YEAR,
   defineEventType,
