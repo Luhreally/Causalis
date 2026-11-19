@@ -59,6 +59,8 @@ test("a reach pressed past what it gives falls, feeds those who go out on it the
   const reach = seaOf(ctx, p.cell).reach;
   assert.equal(seaYield(ctx, p.cell) <= 1, true);
   store.set({ reach, stock: 0.2, pressed: 2, lands: 1, most: p.cell, few: null });
+  // (The year sets what the months' food reads of it.)
+  seasYear(ctx, ((Math.floor(world.now / YEAR) + 1) * YEAR) as SimTime);
   const poor = seaYield(ctx, p.cell);
   assert.ok(poor < 1 && poor >= 1 - SEA.lives, `yield ${poor}`);
   // (Saved and loaded, the same.)

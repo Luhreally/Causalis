@@ -70,8 +70,21 @@ export class SeaStore implements StateStore {
   private readonly rows = new Map<number, Sea>();
   /** Each cell's reach (-1: none), read off the world as made, for the world it was read from. */
   private reaches: { key: string; of: Int32Array; size: Int32Array } | null = null;
+  /**
+   * What each land's wild food is worth as its reach stands, where less than whole (thousandths): set by the year, read by
+   * the months' food (a land not here: 1). Kept in a save, so that a world loaded eats as the one that ran on.
+   */
+  private readonly yields = new Map<number, number>();
   dormant(): boolean {
     return this.rows.size === 0;
+  }
+  yieldOf(cell: number): number {
+    const y = this.yields.get(cell);
+    return y === undefined ? 1 : y / 1000;
+  }
+  setYields(next: ReadonlyMap<number, number>): void {
+    this.yields.clear();
+    for (const [c, y] of next) this.yields.set(c, y);
   }
   get(reach: number): Sea | undefined {
     return this.rows.get(reach);
@@ -141,20 +154,31 @@ export class SeaStore implements StateStore {
         .int(Math.round(s.stock * 1e6))
         .string(s.few ?? "");
     }
+    let sum = 0;
+    for (const [c, y] of this.yields) sum += c * 1009 + y;
+    h.int(this.yields.size).int(sum);
   }
   save(): unknown {
-    return [...this.rows.keys()]
-      .sort((a, b) => a - b)
-      .map((id) => {
-        const s = this.rows.get(id)!;
-        return [s.reach, s.stock, s.pressed, s.lands, s.most, s.few];
-      });
+    return {
+      rows: [...this.rows.keys()]
+        .sort((a, b) => a - b)
+        .map((id) => {
+          const s = this.rows.get(id)!;
+          return [s.reach, s.stock, s.pressed, s.lands, s.most, s.few];
+        }),
+      yields: [...this.yields].sort((a, b) => a[0] - b[0]),
+    };
   }
   load(state: unknown): void {
     this.rows.clear();
-    for (const [reach, stock, pressed, lands, most, few] of (state as
-      [number, number, number, number, number, Ref | null][] | null) ?? [])
+    this.yields.clear();
+    const t = state as {
+      rows?: [number, number, number, number, number, Ref | null][];
+      yields?: [number, number][];
+    } | null;
+    for (const [reach, stock, pressed, lands, most, few] of t?.rows ?? [])
       this.rows.set(reach, { reach, stock, pressed, lands, most, few });
+    for (const [c, y] of t?.yields ?? []) this.yields.set(c, y);
   }
 }
 
@@ -184,8 +208,11 @@ function goesOut(ctx: PopulationContext, cell: number): boolean {
  */
 export function seaYield(ctx: PopulationContext, cell: number): number {
   const store = seasOf(ctx.world);
-  if (!store || store.dormant()) return 1;
-  const { sea } = seaOf(ctx, cell);
+  return store && !store.dormant() ? store.yieldOf(cell) : 1;
+}
+
+/** The same as it is reckoned from its reach's stock (the year sets what the months read). */
+function yieldNow(ctx: PopulationContext, sea: Sea | undefined, cell: number): number {
   if (!sea || sea.stock >= 1 || !goesOut(ctx, cell)) return 1;
   return 1 - (ctx.medium === "water" ? SEA.lives : SEA.boats) * (1 - sea.stock);
 }
@@ -280,6 +307,17 @@ export function seasYear(ctx: PopulationContext, t: SimTime): void {
     } else if (s.stock > SEA.well && s.few) s.few = null;
     store.set(s);
   }
+  // What each land that goes out on a reach less than whole eats of it, until next year.
+  const yields = new Map<number, number>();
+  if (!store.dormant())
+    for (const p of ctx.provinces.all()) {
+      const reach = of[p.cell] ?? -1,
+        sea = reach >= 0 ? store.get(reach) : undefined;
+      if (!sea) continue;
+      const y = Math.round(yieldNow(ctx, sea, p.cell) * 1000);
+      if (y < 1000) yields.set(p.cell, y);
+    }
+  store.setYields(yields);
 }
 
 /** Teach a peopled world its seas. */
