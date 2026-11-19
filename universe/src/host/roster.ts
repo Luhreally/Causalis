@@ -52,7 +52,16 @@ import {
   bearersSent,
 } from "../sim/index.ts";
 import { townsfolkRef } from "../bridge/index.ts";
-import { factsOf, killedOf, motiveOf, motivesOf, slainOf, type Slain } from "./killings.ts";
+import {
+  factsOf,
+  killedOf,
+  motiveOf,
+  motivesOf,
+  oustedOf,
+  slainOf,
+  takeoverOf,
+  type Slain,
+} from "./killings.ts";
 
 /** People a line stands for: one of every LINE of a town's people is kept by name. */
 export const LINE = 12;
@@ -747,6 +756,8 @@ type Step =
       readonly count: number;
       /** The land's killing as reckoned for the year, the realm it was of, and how many of the town's lines died of it. */
       readonly killing: LandKilling;
+      /** The land taken that year from the group that held it the year before: who lost it and who took it (null: not so). */
+      readonly ousted: ReturnType<typeof takeoverOf>;
       readonly realm: string;
       readonly dead: number;
       readonly killed: number;
@@ -1137,6 +1148,8 @@ function foldRoster(
             seq: steps.length,
             count: Math.min(SLOT - 1, lines),
             killing: k,
+            // (The land taken from the group that held it the year before: its collector here is the first to die of it.)
+            ousted: takeoverOf(k, notes.killingAt(cell, y - 1), y, realm),
             realm,
             dead,
             killed,
@@ -1241,7 +1254,7 @@ function foldRoster(
     const step = steps[at_]!,
       { count } = step;
     if ("killing" in step) {
-      const { killing, realm, dead, year: at } = step,
+      const { killing, realm, dead, year: at, ousted } = step,
         f = factsOf(killing, realm),
         motives = motivesOf(f),
         grown = life.adulthood,
@@ -1331,6 +1344,14 @@ function foldRoster(
             }
           }
         }
+        // A land taken over: the one who collected for the group that lost it is the first killed of the year, where the
+        // town's lines hold such a one.
+        const out =
+          j === 0 && ousted && streets ? ofIt(`${town}|collect`, 1, PART_COLLECT, false) : [];
+        if (out.length) {
+          own = out;
+          role = "its collector";
+        }
         let k = -1,
           best = Infinity;
         for (const x of own) {
@@ -1350,7 +1371,12 @@ function foldRoster(
         }
         if (k < 0) continue;
         const who = living(k)!;
-        hit.set(k, slainOf(f, m, h, at, j, role));
+        hit.set(
+          k,
+          out.length && role
+            ? oustedOf(slainOf(f, m, h, at, j, role), ousted!)
+            : slainOf(f, m, h, at, j, role),
+        );
         die(k, who.n, who.key, at, at_);
       }
       if (hit.size) {

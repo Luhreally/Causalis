@@ -2562,6 +2562,8 @@ const ROLE_FOR: Readonly<Partial<Record<Offence, string>>> = {
   kidnap: "guard",
   robbery: "guard",
   crew: "patrol",
+  // (One the soldiers took: of those at its head's door.)
+  taken: "guard",
 };
 
 /** The one of a town who is of a group for what an offence is of (null: none there, or held already, or taken by another case). */
@@ -2578,9 +2580,17 @@ function roleMan(
   if (!kind || !/^mob:/.test(group)) return null;
   const roles = townRolesOf(world, town, year),
     head = group.replace(/^mob:/, "boss:");
-  for (const g of roles.goings) {
+  // (One the soldiers took is whichever of its own the town's lines hold: those at its head's door first, then the rest.)
+  const any = offence === "taken",
+    goings = any
+      ? [...roles.goings].sort((x, y) => Number(y.kind === "guard") - Number(x.kind === "guard"))
+      : roles.goings;
+  for (const g of goings) {
     // (A crew of the realm's own has no head's house: for what its people do, one of those on its round.)
-    const fits = g.kind === kind || (kind === "guard" && g.kind === "patrol");
+    const fits =
+      g.kind === kind ||
+      (kind === "guard" && g.kind === "patrol") ||
+      (any && ROLE_KINDS.has(g.kind));
     if (!fits || (g.of.ref !== group && g.of.ref !== head)) continue;
     for (const ref of g.who) {
       // (One the year before's book named, or a sentence still holds, is among those taken: not brought again.)

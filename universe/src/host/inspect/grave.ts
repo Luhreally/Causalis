@@ -74,6 +74,7 @@ export type GraveOffence =
   | "banned"
   | "spy"
   | "boss"
+  | "taken"
   | "crew"
   | "purge"
   | "bond"
@@ -142,6 +143,11 @@ export type Draft = {
   readonly brought: boolean;
   /** One killed whom the world keeps by name (under the hand). */
   readonly victim?: { readonly name: string; readonly ref: string };
+  /**
+   * What is laid on them whoever judges, and for how many years: one the realm's soldiers took is the realm's to hold, at its
+   * works or shut in. No court's draw turns it, and no one is paid to undo it.
+   */
+  readonly forced?: { readonly sentence: "labour" | "cell"; readonly years: number };
 };
 
 export type GraveRead = {
@@ -338,7 +344,47 @@ export function graveRead(
         drafted = drafts.length;
       const at = place(k),
         where = at ? ` ${at}` : "";
-      if (m === "turf" && war) {
+      // (The first of a year its land was taken from the group that held it, where the town's lines hold the one who collected
+      // for that group: the roster names them killed of it, and the case of it is of that. host/roster.ts)
+      const over =
+        j === 0 && keptKilling && year < yearOfMoment(world.now)
+          ? townRoster(world, s.ref)
+              .killings.find((x) => x.year === year)
+              ?.men.find((x) => x.slain.j === 0 && x.slain.role === "its collector" && x.slain.of)
+              ?.slain
+          : undefined;
+      if (over?.of && over.by && over.source === over.by.ref && m && m !== "road") {
+        const A = over.by,
+          B = over.of;
+        drafts.push({
+          offence: "killing",
+          key: k,
+          gravity: 5,
+          stands: { kind: "outside", ref: A.ref, name: manOf(A.name) },
+          wronged: null,
+          what: (them) => [
+            "killed ",
+            them ?? `the one who collected for ${B.name}`,
+            ", who collected for ",
+            link(B.name, B.ref),
+            `, when ${A.name} took this land from it`,
+          ],
+          why: [
+            [
+              link(sentenceCase(A.name), A.ref),
+              " took what this land pays from ",
+              link(B.name, B.ref),
+              ` in year ${year}: `,
+              under,
+              ".",
+            ],
+          ],
+          group: A,
+          hold: clamp(hold + 0.3),
+          paid: clamp(paid + 0.3),
+          brought: u(h, 4) < clear * 0.3,
+        });
+      } else if (m === "turf" && war) {
         const A = u(h, 3) < 0.5 ? war.a : war.b,
           B = A === war.a ? war.b : war.a;
         drafts.push({
@@ -889,6 +935,51 @@ export function graveRead(
       }
   }
 
+  // —— Those of a group the realm's soldiers took ——
+  // Each sending of its soldiers against a group whose lands this is one of, in the years it ran, once any were taken: one of
+  // the group's own here stands for them (the one the town's days show at its head's door, where its lines hold such a one),
+  // held by the realm at its works, or shut in where it keeps none.
+  if (realm && rec)
+    for (const o of rec.ops ?? []) {
+      if (!o.lands.includes(cell) || !(o.taken >= 1)) continue;
+      if (year < o.since || (o.ended !== null && year > o.ended)) continue;
+      const g = rec.groups.find((x) => x.id === o.target);
+      if (!g) continue;
+      const G = named(g),
+        k = `taken ${o.event} ${s.ref} ${year}`,
+        took = Math.round(o.taken);
+      drafts.push({
+        offence: "taken",
+        key: k,
+        gravity: 4,
+        stands: { kind: "outside", ref: G.ref, name: manOf(G.name) },
+        wronged: null,
+        what: () => [
+          "was taken by the soldiers ",
+          realmLink(world, realm.ref),
+          " sent against ",
+          link(G.name, G.ref),
+        ],
+        why: [
+          [
+            realmLink(world, realm.ref),
+            ` has had its soldiers in ${G.name}'s lands since year ${o.since}: `,
+            link("what began it", o.event),
+            `. Of the group's people, ${took.toLocaleString("en-US")} have been taken or killed so far.`,
+          ],
+        ],
+        group: G,
+        event: o.event,
+        hold: 0,
+        paid: 0,
+        brought: true,
+        forced: {
+          sentence: court.convicts ? "labour" : "cell",
+          years: 2 + Math.floor(u(key(k), 9) * 4),
+        },
+      });
+    }
+
   // —— The bound ——
   const store = orderOf(world),
     bound = banded(store?.bound(cell) ?? 0);
@@ -1079,6 +1170,28 @@ export function cameOfGrave(
     their = folk ? "their home" : "those who waited on them",
     reef = court.form === "reef",
     writ = court.form === "magistrate" || court.form === "bench";
+  // One the realm's soldiers took: held as the realm holds them, whoever sits.
+  if (d.forced) {
+    const n = d.forced.years + turn,
+      t = yearsWords(n);
+    return d.forced.sentence === "labour"
+      ? {
+          outcome: "labour",
+          sentence: "labour",
+          days: n * 365,
+          came: `was bound to the realm's works for ${t}`,
+          cost: `${sentenceCase(t)} at the works, unpaid, and ${their} went without.`,
+        }
+      : {
+          outcome: "gaol",
+          sentence: "cell",
+          days: n * 365,
+          came: court.far
+            ? `was sealed in the realm's holding for ${t}`
+            : `was shut in by the realm for ${t}`,
+          cost: `${sentenceCase(t)} of their life, that ${their} went without.`,
+        };
+  }
   // Bought, or no one would speak: a group's or a crew's hold on the town.
   if (
     d.hold > 0 &&
@@ -1286,6 +1399,7 @@ export const GRAVE_NAMES: Readonly<Record<GraveOffence, string>> = {
   banned: "Belonging to an outlawed circle",
   spy: "Spying for another realm",
   boss: "The head of a group, taken",
+  taken: "One of a group, taken by the realm's soldiers",
   crew: "A crew under the badge, found out",
   purge: "A great house brought down",
   bond: "Holding one bound past their debt",
@@ -1306,6 +1420,7 @@ export const GRAVE_KIND: Readonly<Record<GraveOffence, CrimeKind>> = {
   banned: "defy",
   spy: "defy",
   boss: "harm",
+  taken: "harm",
   crew: "cheat",
   purge: "defy",
   bond: "cheat",

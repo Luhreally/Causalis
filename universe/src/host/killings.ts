@@ -64,6 +64,34 @@ export function factsOf(k: LandKilling, realm: string): KillFacts {
   };
 }
 
+/**
+ * A land taken over: the year's reckoning is the first to name its holder, and the reckoning that stood for the year before
+ * named another group. Who lost it and who took it (null: the same holder, none before or none now, or no reckoning kept).
+ */
+export function takeoverOf(
+  k: LandKilling,
+  before: LandKilling | null,
+  year: number,
+  realm: string,
+): { readonly lost: Named; readonly took: Named } | null {
+  if (k.year !== year || !k.holder || !before?.holder) return null;
+  const lost = group(realm, before.holder)!,
+    took = group(realm, k.holder)!;
+  return lost.event === took.event ? null : { lost, took };
+}
+
+/** One who collected for the group that held a land, killed as another took it: told of them in place of what the draw says. */
+export function oustedOf(base: Slain, t: { readonly lost: Named; readonly took: Named }): Slain {
+  return {
+    ...base,
+    words: `when ${t.took.name} took this land from ${t.lost.name}`,
+    source: t.took.ref,
+    of: t.lost,
+    by: t.took,
+    role: "its collector",
+  };
+}
+
 /** What a land's underworld killed in a year, as kept (null: no reckoning kept stands for that year). */
 export function killingKept(world: World, cell: number, year: number): LandKilling | null {
   return deathNotesOf(world)?.killingAt(cell, year) ?? null;
