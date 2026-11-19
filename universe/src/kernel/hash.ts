@@ -80,8 +80,22 @@ function spelt(text: string): Int32Array {
   return out;
 }
 
+/**
+ * Whether an object's first key is a ref or a number: one used as a map by id (a disaster's homes by town), its keys its own and
+ * never asked for twice. Its shape is not kept: kept, each lay under its own first key, 7 MB of a world at 700 and 1.2 MB more
+ * a century.
+ */
+function byId(first: string): boolean {
+  const c = first.charCodeAt(0);
+  return (c >= 48 && c <= 57) || first.indexOf(":") >= 0;
+}
+
 function shapeOf(came: string[]): KeyShape {
   const first = came.length ? came[0]! : "";
+  if (byId(first)) {
+    const sorted = [...came].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+    return { came, sorted, words: sorted.map(spelt) };
+  }
   let known = SHAPES.get(first);
   if (known)
     next: for (let s = 0; s < known.length; s++) {

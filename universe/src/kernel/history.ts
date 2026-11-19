@@ -407,6 +407,9 @@ export class EventLog {
     if (!done) return;
     this.events = this.events.slice(done);
     this.epoch++;
+    // (What all() last made is of the log as it was: let go now, not at the next asking. Asked once in a run and never
+    // again, it held every event then warm for good: 20 MB of a world at 1,000.)
+    this.whole = null;
   }
 
   /** Write again the cold blocks a share of whose rows are forgotten, at most `most` of them. */
@@ -471,6 +474,7 @@ export class EventLog {
     if (lanes) this.digest = hexOf(lanes);
     this.events = survivors;
     this.epoch++;
+    this.whole = null;
     return forgotten;
   }
 

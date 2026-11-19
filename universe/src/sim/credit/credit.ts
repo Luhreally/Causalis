@@ -917,12 +917,14 @@ function lostWar(world: World, w: War, realm: Ref): boolean {
 
 /** The event of a realm's end, if the record still holds it. */
 function fallOf(world: World, realm: Ref): Ref | null {
-  return (
-    world.events
-      .all()
-      .findLast((e) => e.type === POLITY_EVENTS.ended.type && e.subjects.includes(realm))?.id ??
-    null
-  );
+  // (Walked back from the end, as what runs in a year reads the log: all() makes an object for every event gone cold and the
+  // log holds them, 130,000 at year 1,000, for one realm's fall.)
+  const log = world.events;
+  for (let i = log.count - 1; i >= 0; i--) {
+    const e = log.at(i);
+    if (e.type === POLITY_EVENTS.ended.type && e.subjects.includes(realm)) return e.id;
+  }
+  return null;
 }
 
 /** The debt-bound of lands set free, so many of them, by a release of their debts. */
