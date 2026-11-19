@@ -8,6 +8,7 @@ import * as pc from "playcanvas";
 import { InstancedBatch, boxMesh, coneMesh, cylinderMesh } from "./batch.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 import { VehicleLayer } from "./vehicles.ts";
+import { SiegeWorksLayer } from "./siegeworks.ts";
 import type { TownWarScene } from "../view/index.ts";
 
 const M = 0.1;
@@ -54,6 +55,8 @@ export class TownWarLayer {
   private readonly flashes: InstancedBatch;
   private readonly bursts: InstancedBatch;
   private readonly dirt: InstancedBatch;
+  /** A kept siege's works about the town (render/siegeworks.ts). */
+  private readonly works: SiegeWorksLayer;
   /** An armoured host's cars (built when first brought to the town), and each side's colour. */
   private vehicles: VehicleLayer | null = null;
   private colored: readonly [Rgb, Rgb] = [
@@ -134,6 +137,7 @@ export class TownWarLayer {
       flatMaterial(SMOKE, 0.7),
     );
     this.dirt = new InstancedBatch(stage, box, DIRT, MOST_BURSTS, root);
+    this.works = new SiegeWorksLayer(stage, root);
   }
 
   /** Each side's colour, for its cars' paint. */
@@ -367,6 +371,7 @@ export class TownWarLayer {
       lines = [...(scene?.camp ?? []), ...camp],
       nc = Math.min(MOST_CAMP, lines.length);
     this.shown = { ...this.shown, tents: nt, fires: nf, camp: nc };
+    this.works.update(scene?.works ?? null);
     this.past(scene, s, folk);
     this.tents.set(nt, (i, out) => {
       const t = tents[i]!;

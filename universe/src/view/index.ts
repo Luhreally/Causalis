@@ -1332,3 +1332,10 @@ export {
   type SeaHull,
   type SeaHullNow,
 } from "./seafight.ts";
+export {
+  SIEGE_WORKS,
+  siegeWords,
+  siegeWorks,
+  type SiegeState,
+  type SiegeWorks,
+} from "./siegeworks.ts";

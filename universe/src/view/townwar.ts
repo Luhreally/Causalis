@@ -20,7 +20,8 @@ import {
   borneShare,
   type BattleStage,
 } from "./battleday.ts";
-import { armLook } from "./arms.ts";
+import { armLook, isGun } from "./arms.ts";
+import { siegeWords, siegeWorks, type SiegeState, type SiegeWorks } from "./siegeworks.ts";
 import type { VehicleNow } from "./battle.ts";
 import {
   approachWay,
@@ -139,6 +140,8 @@ export type TownWar = {
   readonly eve: boolean;
   /** Whether a siege is about it this year (its besiegers' camp; the storm at the year's end). */
   readonly siege: boolean;
+  /** The siege as the world keeps it, where it keeps one about this town (view/siegeworks.ts draws its works). */
+  readonly works?: SiegeState;
   /** How hard it burns (0 … 1): a town stormed (a land taken, a little). */
   readonly burning: number;
   /** The most pressing of what its hosts are at, told ("📯 Hyv: mustering for the war upon Taitrandath"). */
@@ -325,6 +328,17 @@ export function townWarNow(
         (chosen ? 1e6 : 0);
     if (score <= bestScore) continue;
     bestScore = score;
+    // (The siege the world keeps about this town: its stores, its walls, its dead.)
+    const kept = place.heart && w.siegeNow?.spot === place.spot ? w.siegeNow : null,
+      works: SiegeState | null = kept
+        ? {
+            since: kept.since,
+            months: kept.months,
+            breach: kept.breach / 100,
+            dead: kept.dead,
+            years: Math.max(0, Math.floor(y) - kept.since),
+          }
+        : null;
     const c = place.heart && n.closing?.spot === place.spot ? n.closing : null,
       T = WAR_YEAR,
       // (Drawn up to the turn and through the night; engaged the next morning, D4: Phase 55 M227.)
@@ -383,15 +397,18 @@ export function townWarNow(
       placed,
       eve: night === "eve" || night === "morning",
       siege: place.heart && (n.siege === place.spot || (walls && n.after < T.after)),
+      ...(works ? { works } : {}),
       burning,
       words:
         placed?.stage === "morning"
           ? `🛡️ ${sideName(0)} and ${w.defender.name} drawn up before the town: ${battleTurnWords(n.turn)}, at eight`
           : placed?.stage === "battle"
             ? `⚔️ ${told}, fought before the town`
-            : top
-              ? `${townDoingIcon(top.doing, w.attacker.host?.arm)} ${sideName(top.side)}: ${top.words}`
-              : `⚔️ The field where ${sideName(0)} fought ${w.defender.name}`,
+            : works && (!top || top.doing === "besieging" || top.doing === "besieged")
+              ? `🏰 ${sideName(0)} about the town, ${siegeWords(works)}`
+              : top
+                ? `${townDoingIcon(top.doing, w.attacker.host?.arm)} ${sideName(top.side)}: ${top.words}`
+                : `⚔️ The field where ${sideName(0)} fought ${w.defender.name}`,
     };
   }
   return best;
@@ -435,6 +452,8 @@ export type TownWarScene = {
   readonly battery?: readonly (Flat & { readonly yaw: number })[];
   /** Where their shells are landing in the town's lots, a burst at a time by the screen's clock. */
   readonly shells?: readonly Flat[];
+  /** A kept siege's works about it: the besiegers' bank, their approaches, what they throw with, the walls' rubble. */
+  readonly works?: SiegeWorks;
   /** An armoured host's cars (as the close field's: render/vehicles.ts), in the town's metres. */
   readonly cars?: readonly VehicleNow[];
 };
@@ -1497,5 +1516,25 @@ export function townWarScene(
         ...(shelled ? { battery: apart.battery, shells: apart.shells } : {}),
       }
     : {};
-  return { soldiers, tents, fires, camp: nightFires, middles: [middle(0), middle(1)], ...past };
+  // A kept siege's works about it, between the tents and its walls (not while a battle is fought in place before it).
+  const works =
+    war.works && !fighting
+      ? siegeWorks(
+          key,
+          openArc(ground, camp - 14, ringStart),
+          camp - 14,
+          wallsAt(ground),
+          war.works,
+          isGun(war.sides[0].host?.arm) || !!apart?.shelling,
+        )
+      : null;
+  return {
+    soldiers,
+    tents,
+    fires,
+    camp: nightFires,
+    middles: [middle(0), middle(1)],
+    ...past,
+    ...(works ? { works } : {}),
+  };
 }
