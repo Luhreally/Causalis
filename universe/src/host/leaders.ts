@@ -27,6 +27,7 @@ import {
   type VillagePlan,
 } from "../bridge/index.ts";
 import { figureHousehold, seatHolder } from "./kin.ts";
+import { figureHomesIn } from "./home.ts";
 import { courtLeaders } from "./court.ts";
 import { asRef, bare, claimOf, yearNow } from "./inspect/words.ts";
 import type { QueryHandler } from "./host.ts";
@@ -166,9 +167,40 @@ export function leadersOf(world: World, realm: string): LeaderList | null {
       }
     }
   }
+  // (One of name who is already here, as its ruler or a general of its coups, is one person and one card that says both: a
+  // ruler who commands the realm's host stood twice, as a town's figures did before metAs.)
   if (r.ended === null)
-    leaders.push(...realmNotables(world, r).map((n) => notableLeader(world, n)));
+    for (const n of realmNotables(world, r)) {
+      const card = notableLeader(world, n),
+        i = leaders.findIndex((l) => sameOne(world, l, n));
+      if (i < 0) leaders.push(card);
+      else leaders[i] = bothRoles(leaders[i]!, card, realmName(r));
+    }
   return { realm: r.ref, realmName: realmName(r), leaders };
+}
+
+/** Whether a card already among a realm's leaders is the one of name: a ruler by name and year born, one history only names by name. */
+function sameOne(world: World, l: Leader, n: { name: string; born: number }): boolean {
+  if (l.name !== n.name) return false;
+  if (l.ref.startsWith("rule:")) {
+    const p = politiesOf(world).get(asRef(l.ref.slice("rule:".length)));
+    return !!p && p.ruler.born === n.born;
+  }
+  // (A general of a coup is kept by name alone; anyone else here has an age to tell them by.)
+  return l.as === null || l.as.age === yearNow(world) - n.born;
+}
+
+/** One card for one who is two things: the one with a page and a home kept, and its words say both. */
+function bothRoles(a: Leader, b: Leader, realm: string): Leader {
+  const [keep, other] = a.as === null && b.as !== null ? [b, a] : [a, b],
+    also = other.title.replace(`the host of ${realm}`, "its host"),
+    words = also ? also[0]!.toLowerCase() + also.slice(1) : also;
+  return {
+    ...keep,
+    title: `${keep.title}, and ${words}`,
+    did: `${keep.did} ${other.did}`,
+    why: keep.why ?? other.why,
+  };
 }
 
 /** The key figures living in a town: its realm's ruler if it is the seat, and its house's lender. */
@@ -236,14 +268,17 @@ export function withFigures(world: World, plan: VillagePlan): VillagePlan {
     grown = populationContext(world).life.adulthood;
   // Each one's home: by who they are, as ever; a group's head, who came to this later, the next of the homes about the square
   // that none of the others keeps (a head does not share the ruler's hall).
-  const kept = new Set(
-      here.filter((l) => l.kind !== "head").map((l) => homeOfFigure(l.ref, plan.homes.length)),
-    ),
+  // (Among the homes standing on the town's first lots, which every device draws: one's home was by how much of the town the
+  // device drew, a ruin where a phone drew only a middle burnt flat. Where none stands there, they are drawn about the lots
+  // as its people are, and no home is theirs to look into. 2026-11-19)
+  const near = figureHomesIn(world, plan),
+    among1 = near || plan.homes.length,
+    kept = new Set(here.filter((l) => l.kind !== "head").map((l) => homeOfFigure(l.ref, among1))),
     homes = new Map<string, number>();
   for (const l of here) {
-    let home = homeOfFigure(l.ref, plan.homes.length);
+    let home = homeOfFigure(l.ref, among1);
     if (l.kind === "head") {
-      const among = Math.min(2 * NEAREST_HOMES, plan.homes.length);
+      const among = Math.min(2 * NEAREST_HOMES, among1);
       for (let k = 0; k < among && kept.has(home); k++) home = (home + 1) % among;
       kept.add(home);
     }
@@ -293,7 +328,7 @@ export function withFigures(world: World, plan: VillagePlan): VillagePlan {
     // (Each one's home marked on its lot, but the ruler's: the ruler keeps the seat's hall. bridge/rank.ts)
     marks = figures.flatMap((g) => {
       const lot = plan.homes[g.home]?.lot;
-      return lot === undefined || g.ref.startsWith("rule:")
+      return lot === undefined || near === 0 || g.ref.startsWith("rule:")
         ? []
         : [{ lot, ref: g.ref, name: g.name, title: g.title }];
     }),

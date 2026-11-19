@@ -3,7 +3,14 @@
 // to take a seat by force, anywhere. Where no realm stands, an elder of the town there. Those a person keeps and follows
 // come first. The face and name are their page's own, so the two can't disagree. Pure reads: nothing is kept.
 import { yearOfMoment, type Ref, type World } from "../kernel/index.ts";
-import { courtOf, deathNotesOf, politiesOf, populationContext, type Polity } from "../sim/index.ts";
+import {
+  courtOf,
+  deathNotesOf,
+  notablesOf,
+  politiesOf,
+  populationContext,
+  type Polity,
+} from "../sim/index.ts";
 import type {
   BarAsk,
   BarPerson,
@@ -321,13 +328,43 @@ function familyChip(world: World, ref: string, name: string): BarPerson | null {
   };
 }
 
+/**
+ * The one the world keeps by name who is this ruler or this one of a court (their own page's ref; null: it keeps none). One
+ * kept or followed as themselves is the same person the place puts on the bar by their office: one card, not two.
+ */
+function namedAs(world: World, ref: string): string | null {
+  const court = /^court:(.+):(\d+)$/.exec(ref),
+    r = politiesOf(world).get(
+      (court ? court[1]! : ref.startsWith("rule:") ? ref.slice(5) : "") as Ref,
+    );
+  if (!r) return null;
+  for (const n of notablesOf(world)?.all() ?? [])
+    if (
+      n.realm === r.ref &&
+      (court ? n.as === `court:${court[2]}` : n.name === r.ruler.name && n.born === r.ruler.born)
+    )
+      return `note:named:${n.id}`;
+  return null;
+}
+
 /** The bar at a place: those kept, those followed, and those the place puts there. Nobody yet: no one on it. */
 export function barOf(world: World, ask: BarAsk): BarRead {
   const year = yearOfMoment(world.now),
     wanted = wantedAt(world, ask),
     byRef = new Map(wanted.map((w) => [w.ref, w])),
+    // (One kept or followed as the one of name they are: why the place wants them is said on that card.)
+    kept = new Set([...ask.pins.map((x) => x.ref), ...ask.followed]),
+    asNamed = new Map<string, string>(),
     seen = new Set<string>(),
     people: BarPerson[] = [];
+  if (kept.size)
+    for (const w of wanted) {
+      const named = namedAs(world, w.ref);
+      if (named && kept.has(named) && !kept.has(w.ref)) {
+        asNamed.set(w.ref, named);
+        if (!byRef.has(named)) byRef.set(named, w);
+      }
+    }
   for (const pin of ask.pins) {
     if (seen.has(pin.ref)) continue;
     seen.add(pin.ref);
@@ -358,7 +395,7 @@ export function barOf(world: World, ask: BarAsk): BarRead {
     if (p) people.push(p);
   }
   for (const w of wanted) {
-    if (seen.has(w.ref)) continue;
+    if (seen.has(w.ref) || asNamed.has(w.ref)) continue;
     seen.add(w.ref);
     const p = personOf(world, w, false, null);
     if (p) people.push(p);

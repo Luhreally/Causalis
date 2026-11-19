@@ -488,6 +488,8 @@ export type VillagePlan = {
     yaw: number;
     household: string | null;
     lot?: number;
+    /** (Burnt or shaken down, and its people still about it: a town whose drawn middle lies flat. No one's home to look into.) */
+    flat?: true;
   }[];
   readonly fields: readonly { x: number; z: number; w: number; d: number; yaw: number }[];
   readonly pasture: { x: number; z: number; r: number };

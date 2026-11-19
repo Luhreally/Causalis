@@ -11,6 +11,7 @@ import {
   foodWord,
   homeFacts,
   homeTitle,
+  homeUnseen,
   personLiving,
   rentOf,
   townWage,
@@ -159,6 +160,8 @@ function livingBlocks(world: World, ref: string, page: PageModel): Block[] {
     ];
   // In a town, but not among those it draws; or in none that is drawn.
   const name = town ? populationContext(world).settlements.get(town as never)?.name : undefined,
+    // (A town whose middle lies flat, or holds no homes: said, where it was "one of the many" of one of its key figures.)
+    unseen = town ? homeUnseen(world, ref, town) : null,
     portrait = page.portrait?.kind === "person" ? page.portrait : null,
     earns =
       town && portrait && !portrait.child && portrait.occupation
@@ -171,9 +174,13 @@ function livingBlocks(world: World, ref: string, page: PageModel): Block[] {
       rows: [
         stat(
           "Their home",
-          name
-            ? `Not to be seen: they are one of the many of ${name}, and their home is not among those the town draws.`
-            : "Not to be seen: they are not in any town that is drawn.",
+          name && unseen === "flat"
+            ? `Not to be seen: the middle of ${name} lies burnt or shaken down, and its people are about its lots. Its homes still standing are farther out than the town is drawn.`
+            : name && unseen === "far"
+              ? `Not to be seen: the middle of ${name} is its halls, its works and open ground, and its homes stand farther out than the town is drawn.`
+              : name
+                ? `Not to be seen: they are one of the many of ${name}, and their home is not among those the town draws.`
+                : "Not to be seen: they are not in any town that is drawn.",
         ),
         ...(earns && earns.wage > 0
           ? [

@@ -5,6 +5,7 @@ import { hashString, YEAR, type Ref, type World } from "../kernel/index.ts";
 import {
   BLOCK_LOTS,
   LOT,
+  figureHomes,
   lotStates,
   townLots,
   type HomeInside,
@@ -49,6 +50,7 @@ import {
   politiesOf,
   populationContext,
   toolMetal,
+  townsOf,
 } from "../sim/index.ts";
 import { meansOfWorld } from "../gen/index.ts";
 import type { QueryHandler } from "./host.ts";
@@ -468,7 +470,9 @@ export function homeFacts(world: World, r: HomeRead): DwellingFacts {
 /** The family a name's last word tells (null: they keep no family's name). */
 function familyName(plan: VillagePlan, residents: readonly number[]): string | null {
   const grown = residents.map((i) => plan.people[i]!).filter((p) => p.figure || !p.child);
-  const named = (grown[0] ?? plan.people[residents[0] ?? -1])?.name;
+  // (A home one of the town's key figures lives in is theirs by name: who else is drawn under its roof is by how many of the
+  // town's people the device draws, and the home of one of name was called by another family from one sitting to the next.)
+  const named = (grown.find((p) => p.figure) ?? grown[0] ?? plan.people[residents[0] ?? -1])?.name;
   if (!named) return null;
   const words = named
     .replace(/ of .*$/, "")
@@ -655,6 +659,17 @@ export type PersonLiving = {
   readonly purse: number | null;
 };
 
+/**
+ * How many of a plan's homes, from its first, one of its key figures may live in (bridge/leaders.ts figureHomes). A town drawn as
+ * a ring of homes because too few of its first lots hold one (its middle all halls and works, or bare) has none either: more of
+ * it drawn would show its homes farther out, and a figure's home is the same however much is drawn.
+ */
+export function figureHomesIn(world: World, plan: VillagePlan): number {
+  return !plan.town && !plan.native && townsOf(world).get(plan.ref as Ref)
+    ? 0
+    : figureHomes(plan.homes);
+}
+
 /** The one a ref is, among those a plan draws. */
 function drawnAs(plan: VillagePlan, ref: string): number {
   const seat = /^seat:(.+):([a-z]+):(\d+)$/.exec(ref);
@@ -685,10 +700,15 @@ export function personLiving(world: World, ref: string, town: string | null): Pe
   const who = plan.people[i]!,
     r = plan.homes[who.home] ? homeRead(world, there, homeNumberOf(plan, who.home)) : null;
   if (!r || r.state === "open") return null;
+  // (One lived has their own purse and their own day: what their strip says.)
+  const life = handOf(world).resting?.life,
+    lived = !!life && who.ref === `agent:${life.agent}`;
+  // (Drawn about a lot burnt or let fall, where the town's middle lies flat: no one lives in a ruin, and theirs is not among
+  // the homes drawn. A key figure's is one on the town's first lots or none: the same whatever the device draws.)
+  if (!lived && (r.state !== "stands" || (who.figure && figureHomesIn(world, plan) === 0)))
+    return null;
   const ledger = townLedger(world, plan),
-    day = reckonHome(plan, r, ledger),
-    // (One lived has their own purse and their own day: what their strip says.)
-    life = handOf(world).resting?.life;
+    day = reckonHome(plan, r, ledger);
   if (life && who.ref === `agent:${life.agent}`) {
     const ratio = (occupation: number) => {
         const good = WAGE_GOOD[occupation] ?? -1;
@@ -723,6 +743,19 @@ export function personLiving(world: World, ref: string, town: string | null): Pe
     wage: wageAtUsual(ledger, who.occupation, who.child) * day.times,
     purse: null,
   };
+}
+
+/**
+ * Why one a town draws has no home there to look into (null: they have one, or the town does not draw them): its middle
+ * lies "flat", burnt or shaken down, and they are drawn about its lots; or its homes stand "far", past its first lots.
+ */
+export function homeUnseen(world: World, ref: string, town: string): "flat" | "far" | null {
+  const plan = planOf(world, town),
+    who = plan ? plan.people[drawnAs(plan, ref)] : undefined;
+  if (!plan || !who) return null;
+  if (plan.homes[who.home]?.flat) return "flat";
+  if (!who.figure || figureHomesIn(world, plan) > 0) return null;
+  return plan.homes.some((h) => h.flat) ? "flat" : "far";
 }
 
 /** What one of a town earns in a day whose home is not drawn: at the town's middling standing (null: no town). */

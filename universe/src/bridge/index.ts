@@ -80,7 +80,9 @@ export type {
 export {
   FEW_PEOPLE,
   LEADER_ICON,
+  FIGURE_LOTS,
   NEAREST_HOMES,
+  figureHomes,
   homeOfFigure,
   worthWords,
   type LaidAs,

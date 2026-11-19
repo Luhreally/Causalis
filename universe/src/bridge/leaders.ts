@@ -109,6 +109,24 @@ export const FEW_PEOPLE = 1000;
 /** A figure's home is one of a town's homes this near its square, by their ref. */
 export const NEAREST_HOMES = 8;
 
+/**
+ * A figure's home stands on one of a town's first lots, as many as the least a device draws (five families' worth: render/quality.ts
+ * low). Which homes a town's plan holds past them is by how much of it the device draws, and a figure's home is the same on all.
+ */
+export const FIGURE_LOTS = 5 * 5 * 80;
+
+/**
+ * How many of a plan's homes, from its first, a figure may live in: those standing on its first lots (a village's ring of homes:
+ * all of them). None: the town's middle lies flat, and no figure has a home there to look into.
+ */
+export function figureHomes(
+  homes: readonly { readonly lot?: number; readonly flat?: true }[],
+): number {
+  let n = 0;
+  while (n < homes.length && !homes[n]!.flat && (homes[n]!.lot ?? 0) < FIGURE_LOTS) n++;
+  return n;
+}
+
 /** Which of a town's homes a figure lives in (`plan.homes` index): the same every time. */
 export function homeOfFigure(ref: string, homes: number): number {
   return homes > 0 ? (hashString(ref) >>> 0) % Math.min(NEAREST_HOMES, homes) : 0;
