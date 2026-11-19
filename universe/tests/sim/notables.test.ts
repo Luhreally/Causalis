@@ -163,3 +163,25 @@ test("a thing found has its finder, and a year's telling stays within its budget
     if (world.events.at(i).type.startsWith("notable.")) risings++;
   assert.ok(risings <= 6 * NOTE.told, `${risings} told`);
 });
+
+test("the god's inspiring of a land makes someone of it known, and what the land then finds is theirs", () => {
+  const p = ctx.provinces
+      .all()
+      .find((x) => x.total() > 500 && !store.in(x.cell).some((n) => n.by[DOMAIN.knowledge]! > 0))!,
+    year = Math.floor(world.now / YEAR) + 1;
+  world.events.emit({ type: "act.inspire", importance: 5, place: p.ref });
+  world.events.emit({
+    type: "lore.found",
+    importance: 5,
+    place: p.ref,
+    data: { principle: "pottery" },
+  });
+  notablesYear(ctx, (year * YEAR) as SimTime);
+  const shown = store.in(p.cell).find((n) => n.deeds.some((d) => d.w === "act.inspire"));
+  assert.ok(shown, "no one was shown");
+  assert.ok(
+    shown.deeds.some((d) => d.w === "lore.found"),
+    "the one shown is the one who found it",
+  );
+  assert.equal(firstField(shown), DOMAIN.knowledge);
+});
