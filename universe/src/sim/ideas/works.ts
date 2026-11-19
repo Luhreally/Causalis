@@ -38,7 +38,7 @@ import type { PopulationContext } from "../population/systems.ts";
 import { cultureOf } from "../culture/culture.ts";
 import { loreOf } from "../lore/lore.ts";
 import { politiesOf, realmName, type Polity } from "../polity/polity.ts";
-import { addsStanding } from "../order/order.ts";
+import { addsStanding, orderOf } from "../order/order.ts";
 import { housesOf } from "../order/houses.ts";
 import { bodiesOf } from "../order/institutions-kept.ts";
 import { notablesOf, type Notable } from "../notable/kept.ts";
@@ -133,11 +133,29 @@ export function worksYear(ctx: PopulationContext, t: SimTime): void {
     if (standing < line) continue;
     const u = world.rng.real(MAKE, n.id, t, 0);
     if (!(u < WORK.made * satOf(standing))) continue;
-    const worth = store.worthIn(n.home);
-    if (!worth || worth.used || year - worth.y > WORK.back) continue;
     if (!ctx.provinces.get(n.home)?.total()) continue;
     const realm = polities?.of(n.home),
-      patrons = patronsIn(world, realm, n.home);
+      // (What its realm itself remembers of this land, or of any of its lands for one at its seat (a rising, a massacre, those
+      // carried off, a freedom won: sim/order), comes before what the land has otherwise worth remembering: a people makes
+      // its works first of what it cannot forget. The heaviest no work yet carries.)
+      held = realm ? orderOf(world)?.of(realm.ref)?.memory : undefined;
+    let worth = store.worthIn(n.home);
+    if (worth && (worth.used || year - worth.y > WORK.back)) worth = undefined;
+    if (held)
+      for (const mem of held) {
+        if (year - mem.year > WORK.back || store.carries(mem.event)) continue;
+        if (mem.cell !== n.home && realm!.seat !== n.home) continue;
+        worth = {
+          e: mem.event,
+          type: `memory.${mem.what}`,
+          w: WORK.worth + 1,
+          y: mem.year,
+          used: false,
+        };
+        break;
+      }
+    if (!worth) continue;
+    const patrons = patronsIn(world, realm, n.home);
     if (!patrons.length) continue;
     make(ctx, store, n, standing, m >= k && m >= f, worth, patrons, realm!, year, t);
   }

@@ -11,7 +11,7 @@ import { dmath } from "../kernel/index.ts";
 export const ABROAD = {
   /** A land keeps so many peoples abroad in it, each at least this share of its people (thousandths). */
   keep: 3,
-  least: 10,
+  least: 25,
   /** All of them together are never counted more than this share (thousandths). */
   most: 900,
   /** Generations (rules/faith.ts CREED.generation, by the people's span) in which a people abroad halves, at speech wholly unlike. */

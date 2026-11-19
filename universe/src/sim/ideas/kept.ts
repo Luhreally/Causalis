@@ -52,6 +52,8 @@ type Saved = {
 
 export class SchoolsStore implements StateStore {
   readonly name = SCHOOLS_STORE;
+  /** Saved packed by column (kernel/pack.ts). */
+  readonly packed = true;
   private next = 1;
   private list: School[] = [];
   private readonly byId = new Map<number, School>();

@@ -55,6 +55,8 @@ const patronKey = (kind: Patron["kind"], ref: string): string => `${kind} ${ref}
 
 export class WorksStore implements StateStore {
   readonly name = WORKS_STORE;
+  /** Saved packed by column (kernel/pack.ts): one list of records of one shape. */
+  readonly packed = true;
   private next = 1;
   /** The serial of the last event read for what is worth remembering. */
   seen = 0;

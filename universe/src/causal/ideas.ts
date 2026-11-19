@@ -103,6 +103,11 @@ export function workFormWords(world: World, form: string): string {
 export function workThemeWords(theme: string): string {
   const head = theme.slice(0, theme.indexOf(".") < 0 ? theme.length : theme.indexOf("."));
   if (theme === "people.famine") return "a hunger";
+  if (theme === "memory.rising") return "a rising of the bound";
+  if (theme === "memory.massacre") return "a massacre";
+  if (theme === "memory.captivity") return "those carried off";
+  if (theme === "memory.freedom") return "a freedom won";
+  if (theme === "memory.abolition") return "the bound set free";
   if (theme.startsWith("war.battle")) return "a battle";
   if (theme === "polity.formed") return "the founding of a realm";
   if (theme === "polity.succession") return "a ruler's passing and another's coming";

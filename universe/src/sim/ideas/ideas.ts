@@ -54,7 +54,7 @@ export const IDEA_EVENTS = {
   /** One of name founded a school of thought. */
   founded: defineEventType("ideas.founded", 5),
   /** A realm's seat took up a school. */
-  taken: defineEventType("ideas.taken", 4),
+  taken: defineEventType("ideas.taken", 3),
   /** A school broke in two. */
   split: defineEventType("ideas.split", 5),
 };
@@ -62,11 +62,33 @@ export const IDEA_EVENTS = {
 const FOUND = defineStream("ideas.found");
 const SPREAD = defineStream("ideas.spread");
 
-/** A school's name: what it presses hardest, of a word of its founders' tongue for their place. */
-function schoolName(world: World, creed: readonly number[], cell: number): string {
+/**
+ * A school's name: what it presses hard, of a word of its founders' tongue for their place. Of the leanings it presses nearly as
+ * hard as its hardest (four fifths of it, each against the most that kind of leaning can be), the one fewest schools are yet
+ * called for: a school is known by what sets it apart.
+ */
+function schoolName(
+  world: World,
+  store: SchoolsStore,
+  creed: readonly number[],
+  cell: number,
+): string {
   const lead = ideaLeads(creed),
-    calling = IDEA_CALLINGS[lead.part]![lead.end],
-    ways = cultureOf(world).get(cell);
+    press = (k: number) => Math.abs(creed[k] ?? 0) / (k < 4 ? IDEA.lean : IDEA.lawLean),
+    most = Math.max(...creed.map((_, k) => press(k)));
+  let calling = IDEA_CALLINGS[lead.part]![lead.end],
+    fewest = Infinity;
+  for (let k = 0; k < creed.length; k++) {
+    if (!(creed[k] ?? 0) || press(k) < 0.8 * most) continue;
+    const name = IDEA_CALLINGS[k]![(creed[k] ?? 0) >= 0 ? 1 : 0];
+    let n = 0;
+    for (const s of store.all()) if (s.name.startsWith(name)) n++;
+    if (n < fewest) {
+      fewest = n;
+      calling = name;
+    }
+  }
+  const ways = cultureOf(world).get(cell);
   return ways
     ? `${calling} of ${tongueName({ ...ways.tongue, seed: ways.tongue.seed ^ 0x1dea }, cell)}`
     : calling;
@@ -134,7 +156,7 @@ function found(
     lead = ideaLeads(teaching.creed),
     id = store.mint(),
     ref = schoolRef(id),
-    name = schoolName(world, teaching.creed, n.home),
+    name = schoolName(world, store, teaching.creed, n.home),
     // (What the realm's holding of the thing it presses hardest came of, where that was told.)
     stood =
       lead.part < 4 ? (o.heldEvents?.[lead.part] ?? null) : (o.lawEvents[lead.part - 4] ?? null),
@@ -331,7 +353,7 @@ export function ideasYear(ctx: PopulationContext, t: SimTime): void {
         );
       if (creed.every((v, k) => v === s.creed[k])) continue;
       const id = store.mint(),
-        name = schoolName(world, creed, first);
+        name = schoolName(world, store, creed, first);
       store.markSplit(s.id, year);
       const event = world.events.emit({
         type: IDEA_EVENTS.split.type,
