@@ -61,6 +61,8 @@ type RealmVotes = {
 
 export class ElectionStore implements StateStore {
   readonly name = "order.elections";
+  /** Saved packed by column (kernel/pack.ts). */
+  readonly packed = true;
   private readonly realms = new Map<Ref, RealmVotes>();
   dormant(): boolean {
     return this.realms.size === 0;

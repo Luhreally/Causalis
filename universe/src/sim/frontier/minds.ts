@@ -66,6 +66,8 @@ export type UpLand = { readonly cell: number; up: number; gone: Ref | null };
 
 export class MindsStore implements StateStore {
   readonly name = "frontier.minds";
+  /** Saved packed by column (kernel/pack.ts). */
+  readonly packed = true;
   readonly rows = new Map<Ref, MindsRow>();
   readonly lands = new Map<number, UpLand>();
   /** All gone up, and the world's going told. */

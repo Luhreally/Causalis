@@ -171,6 +171,8 @@ function omenOf(type: string, data: unknown): { tenet: Tenet; strength: number }
 
 export class BeliefStore implements StateStore {
   readonly name = "belief.faiths";
+  /** Saved packed by column (kernel/pack.ts). */
+  readonly packed = true;
   private list: Faith[] = [];
   private readonly held = new Map<number, Belief>();
   private readonly splits = new Map<string, number>();

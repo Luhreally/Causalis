@@ -50,6 +50,8 @@ export type Holder = {
 
 export class LessonStore implements StateStore {
   readonly name = "lore.lessons";
+  /** Saved packed by column (kernel/pack.ts). */
+  readonly packed = true;
   /** Each holder (a land's ref, `cell:0:N`, or a realm's) and what it keeps. */
   readonly holders = new Map<string, Holder>();
   /** The last event read into it, by its code. */

@@ -161,6 +161,8 @@ export type Court = {
 
 export class CourtStore implements StateStore {
   readonly name = "court.states";
+  /** Saved packed by column (kernel/pack.ts). */
+  readonly packed = true;
   private readonly courts = new Map<string, Court>();
   private next = 1;
 

@@ -133,6 +133,8 @@ const refNumber = (r: Ref | null): number => {
 
 export class ArmingStore implements StateStore {
   readonly name = "war.arming";
+  /** Saved packed by column (kernel/pack.ts). */
+  readonly packed = true;
   private readonly rows = new Map<Ref, Footing>();
   private readonly digest: [number, number] = [0x811c9dc5, 0];
   private sets = 0;

@@ -305,21 +305,33 @@ export class OrderStore implements StateStore {
     }
     return out;
   }
-  save(): unknown {
+  /** Every realm's order and every land's bonds as they are kept, in the order of their refs and cells. */
+  private rows(): { realms: RealmOrder[]; lands: LandBonds[] } {
     return {
       realms: [...this.realms.values()].sort((a, b) => (a.realm < b.realm ? -1 : 1)),
       lands: [...this.lands.values()].sort((a, b) => a.cell - b.cell),
     };
   }
+  /**
+   * Saved with every realm's record of one shape: the same keys in the same order, a part a realm does not keep as null
+   * (SOMETIMES: none of them is ever null where it is kept; `load` leaves them out again). Packed by column, each run of keys
+   * is a shape with columns and a table of strings of its own, and a realm's record has its keys in the order it came by them:
+   * first light's 1,433 records at year 1,500 were of 337 shapes, and packed took 2.83 MB of the save where their JSON was 2.10.
+   */
+  save(): unknown {
+    const { realms, lands } = this.rows();
+    return { realms: realms.map(sameShape), lands };
+  }
   hashInto(h: Hasher): void {
-    h.value(this.save());
+    // (As they are kept, not as they are saved: a part not kept is no part of the hash.)
+    h.value(this.rows());
   }
   load(state: unknown): void {
     const s = state as { realms: RealmOrder[]; lands: LandBonds[] };
     this.realms = new Map(
-      s.realms.map((o) => [
-        o.realm,
-        {
+      s.realms.map((saved) => [
+        saved.realm,
+        ((o: RealmOrder): RealmOrder => ({
           ...o,
           firsts: [...o.firsts],
           laws: [...o.laws],
@@ -335,12 +347,65 @@ export class OrderStore implements StateStore {
           ...(o.from ? { from: o.from.map((x) => [x[0], x[1]] as [string, number]) } : {}),
           movements: o.movements.map((m) => ({ ...m })),
           memory: o.memory.map((m) => ({ ...m })),
-        },
+        }))(asKept(saved)),
       ]),
     );
     this.lands = new Map(s.lands.map((l) => [l.cell, { ...l, shares: [...l.shares] }]));
     this.freed = [...this.realms.values()].filter((o) => o.abolished !== null);
   }
+}
+
+/** A realm's order's parts in the order they are saved in: those every realm keeps, and those only some do. */
+const ALWAYS = [
+  "realm",
+  "legitimacy",
+  "corruption",
+  "caste",
+  "corvee",
+  "abolished",
+  "abolition",
+  "crisis",
+  "firsts",
+  "corveeEvent",
+  "movements",
+  "memory",
+  "laws",
+  "lawEvents",
+  "approval",
+] as const satisfies readonly (keyof RealmOrder)[];
+const SOMETIMES = [
+  "mandate",
+  "held",
+  "heldEvents",
+  "pulls",
+  "taught",
+  "fortune",
+  "was",
+  "stood",
+  "learnt",
+  "learntAt",
+  "from",
+  "toldSeen",
+  "toldOwn",
+  "matches",
+] as const satisfies readonly (keyof RealmOrder)[];
+
+/** A realm's order as saved: its parts in one order, null for one of SOMETIMES it does not keep (OrderStore.save). */
+function sameShape(o: RealmOrder): Record<string, unknown> {
+  const from = o as unknown as Record<string, unknown>,
+    row: Record<string, unknown> = {};
+  for (const k of ALWAYS) if (from[k] !== undefined) row[k] = from[k];
+  for (const k of SOMETIMES) row[k] = from[k] ?? null;
+  // (Anything else it holds, as it is.)
+  for (const k of Object.keys(from)) if (!(k in row)) row[k] = from[k];
+  return row;
+}
+
+/** A saved record as it was kept: without the parts saved as null because it did not keep them. */
+function asKept(saved: RealmOrder): RealmOrder {
+  const o: Record<string, unknown> = { ...saved };
+  for (const k of SOMETIMES) if (o[k] === null || o[k] === undefined) delete o[k];
+  return o as unknown as RealmOrder;
 }
 
 export function orderOf(world: World): OrderStore | null {

@@ -117,6 +117,8 @@ function readGrove(ctx: PopulationContext): GroveIndex {
 
 export class WoodsStore implements StateStore {
   readonly name = "ecology.woods";
+  /** Saved packed by column (kernel/pack.ts). */
+  readonly packed = true;
   /** Each land's reach, in ten-thousandths of it (empty: not begun, every land's as it was at first). */
   reach: Uint16Array = new Uint16Array(0);
   /** A land's reach and what stood of it when it was last told, in hundredths. */

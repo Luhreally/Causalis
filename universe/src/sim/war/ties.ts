@@ -126,6 +126,8 @@ const pairOf = (a: Ref, b: Ref) => (a < b ? `${a}|${b}` : `${b}|${a}`);
 
 export class TieStore implements StateStore {
   readonly name = "war.ties";
+  /** Saved packed by column (kernel/pack.ts). */
+  readonly packed = true;
   private calls: Call[] = [];
   private leagueList: League[] = [];
   private embassyList: Embassy[] = [];

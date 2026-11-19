@@ -34,6 +34,8 @@ export type GroupWants = {
 
 export class WantsStore implements StateStore {
   readonly name = "order.wants";
+  /** Saved packed by column (kernel/pack.ts). */
+  readonly packed = true;
   private readonly realms = new Map<Ref, Map<Group, GroupWants>>();
   dormant(): boolean {
     return this.realms.size === 0;

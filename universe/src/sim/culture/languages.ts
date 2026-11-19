@@ -83,6 +83,8 @@ export const NEARER = 0.06;
 
 export class LanguageStore implements StateStore {
   readonly name = "culture.languages";
+  /** Saved packed by column (kernel/pack.ts). */
+  readonly packed = true;
   private list: Language[] = [];
   private readonly byRef = new Map<string, Language>();
   /** Each land's language, and the event it came with. */

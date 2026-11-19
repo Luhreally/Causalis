@@ -95,6 +95,8 @@ export type Program = {
 
 export class SpaceStore implements StateStore {
   readonly name = "space.flight";
+  /** Saved packed by column (kernel/pack.ts). */
+  readonly packed = true;
   private readonly programs = new Map<string, Program>();
   /** The world's firsts. */
   first: { satellite: Ref | null; crew: Ref | null; station: Ref | null; colony: Ref | null } = {

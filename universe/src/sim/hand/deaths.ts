@@ -90,6 +90,8 @@ export const KILLINGS_KEPT = 46;
 
 export class DeathNotes implements StateStore {
   readonly name = "readings.deaths";
+  /** Saved packed by column (kernel/pack.ts). */
+  readonly packed = true;
   readonly observational = true;
   readonly outsideRules = true;
   private list: DeathNote[] = [];

@@ -52,6 +52,8 @@ const order = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 export class CouncilStore implements StateStore {
   readonly name = "diplomacy.councils";
+  /** Saved packed by column (kernel/pack.ts). */
+  readonly packed = true;
   private readonly bonds = new Map<string, Bond>();
   private readonly list: Council[] = [];
   private next = 1;
