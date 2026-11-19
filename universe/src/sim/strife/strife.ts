@@ -139,6 +139,13 @@ export const STRIFE = {
   beaten: 0.3,
   might: 0.4,
   unreached: 0.3,
+  /**
+   * The reach at which a seat is as safe from its army, its streets and a rising in its far lands as reach makes it. These rules
+   * were set while a lettered, settled realm of few lands read as wholly reached (0.95, nine realms in ten); read off what a realm
+   * is (rules/capacity.ts) such a realm stands near three quarters, and against 1 every seat was a seat that cannot reach: coups
+   * were three to seven times as many (first light, by century to 600: 17/49/44/44/36/34 where 8/24/17/14/7/5).
+   */
+  reached: 0.75,
   /** A revolution is weighed above this line, its yearly chance for each point above; a movement this strong to begin. */
   rising: 0.3,
   revolts: 0.08,
@@ -466,7 +473,7 @@ export function coupDanger(
     hungry = famine ? world.events.get(famine) : undefined,
     unpaid = !!hungry && world.now - hungry.t <= 2 * YEAR,
     valour = trait(seat, WAY.valour),
-    cap = capacityOf(ctx, p).value,
+    cap = reachedOf(capacityOf(ctx, p).value),
     junta = strifeOf(world)?.junta(p.ref) ?? null,
     old = Math.min(1, Math.max(0, year - p.founded) / 200),
     standing = loreOf(world).get(p.seat, "standing-army"),
@@ -886,7 +893,7 @@ export function settleCivil(
   const mine = strengthOf(ctx, loyal),
     theirs = strengthOf(ctx, rebel),
     might = 2 * Math.max(0, mine / Math.max(1, mine + theirs) - 0.5),
-    cap = capacityOf(ctx, loyal).value,
+    cap = reachedOf(capacityOf(ctx, loyal).value),
     factors: Factor[] = [
       {
         name: "a rising beaten back",
@@ -998,7 +1005,7 @@ export function revolutionDanger(
     famine = ctx.provinces.get(p.seat)?.lastFamine ?? null,
     hungry = famine ? world.events.get(famine) : undefined,
     starving = !!hungry && world.now - hungry.t <= 2 * YEAR,
-    cap = capacityOf(ctx, p).value,
+    cap = reachedOf(capacityOf(ctx, p).value),
     lore = loreOf(world),
     thought = lore.get(p.seat, "philosophy"),
     works = lore.get(p.seat, "factories"),
@@ -1224,6 +1231,9 @@ export function repress(
   strifeOf(world)!.revolutions.push({ realm: p.ref, year, event, won: false, cause: movement });
   return event;
 }
+
+/** A realm's reach as these rules weigh it: whole at STRIFE.reached. */
+const reachedOf = (reach: number): number => Math.min(1, reach / STRIFE.reached);
 
 /** The odds a coup tried is won: the army's weight and a rule doubted, against a seat that reaches its lands. */
 function coupOdds(danger: { weight: number; doubt: number; cap: number }): number {
