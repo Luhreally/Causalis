@@ -213,8 +213,15 @@ export const INST = {
    * body's affairs are settled over years (five was tried: twice the system's year for the same bodies).
    */
   every: 10,
-  /** The bodies a realm keeps account of (the rest too small to be named), the ended ones it remembers, a body's lands. */
-  most: 14,
+  /**
+   * The bodies a realm keeps account of (the rest too small to be named): so many for a realm of one land and so many more
+   * for each land beyond, to the most; the ended ones it remembers; a body's lands. (Fourteen for every realm was tried: a
+   * world of three hundred realms kept three thousand bodies, eleven in the least of them, and its save was 0.4 MB the
+   * greater for them alone.)
+   */
+  most: 12,
+  mostOne: 6,
+  mostALand: 2,
   gone: 4,
   lands: 3,
   /** How many may be founded in each five years of a reckoning's span. */
@@ -247,6 +254,7 @@ export const INST = {
   /** A strike: the least of a land's crafters organised that can stop its works; the most of a year's work it costs them; the
    * share of their trade's rent it wins where it is not broken; the most ever won so; how fast what was won wears a year. */
   strikeLeast: 0.15,
+  strikeGap: 20,
   strikeCosts: 0.3,
   strikeWins: 0.04,
   wonMost: 0.12,
@@ -281,6 +289,19 @@ export const INST = {
   shuts: 0.25,
   seizes: 0.6,
 } as const;
+
+/** The bodies a realm of so many lands keeps account of. */
+export function bodiesKept(lands: number): number {
+  return Math.min(INST.most, INST.mostOne + INST.mostALand * Math.max(0, lands - 1));
+}
+
+/**
+ * How many of one thing done a realm of so many lands keeps account of: one, and a second where those that do it vie for the
+ * same custom (`rivals`) or its lands are three and more; never past the work's own most.
+ */
+export function ofOneKept(does: InstDoes, lands: number, rivals: boolean): number {
+  return Math.min(DOES_ROWS[does].most, 1 + (rivals ? 1 : 0) + Math.floor(Math.max(0, lands) / 3));
+}
 
 // —— The rule ————————————————————————————————————————————————————————————————————————————————————————————
 

@@ -16,6 +16,7 @@ import {
   INST_DOES,
   INST_FORMED,
   INST_FUNDS,
+  OCC,
   ORG_AIMS,
   answersTo,
   basisOfAim,
@@ -40,6 +41,8 @@ import {
   bodiesYear,
   bodyLandsStore,
   bodyTitle,
+  marketsOf,
+  politiesOf,
   courtIn,
   populationContext,
   strikeIn,
@@ -201,7 +204,8 @@ test("on a world's first centuries bodies are founded from what is paid for: cle
       assert.ok(g.staff >= 0 && g.lands.length >= 1 && g.lands.length <= INST.lands);
       assert.ok(g.lands[0] === g.home, "its home is the first of its lands");
       assert.ok(g.quality >= 0 && g.quality <= 1000 && g.share >= 0 && g.share <= 1000);
-      assert.equal(world.events.get(g.event)?.type, "bodies.founded");
+      // (Founded, or parted from another at its head's passing: either is the event its page is made of.)
+      assert.match(world.events.get(g.event)?.type ?? "", /^bodies\.(founded|parted)$/);
       // (Whom it answers to follows from who pays, but where the seat holds its temple or has taken a works.)
       if (g.answers !== ANSWERS.seat)
         assert.equal(INST_ANSWERS[g.answers], answersTo(INST_FUNDS[g.fund]!), title);
@@ -333,4 +337,82 @@ test("the god's hand on a body is kept on it and told; a realm stepped again kee
   assert.equal(a.hex(), b.hex());
   assert.deepEqual(t.of(realm), s.of(realm));
   assert.equal(DOES.make, 0);
+});
+
+test("where a workers' body's wage has fallen behind what it was and it is many of its land's crafters, some strike: a year's craft lost in the year after, told won or broken", () => {
+  const store = bodiesOf(world)!,
+    ctx = populationContext(world),
+    year = yearOfMoment(world.now) + INST.every,
+    put: { realm: Ref; cell: number; event: Ref }[] = [];
+  for (const p of politiesOf(world).living()) {
+    const prov = ctx.provinces.get(p.seat),
+      m = marketsOf(world).get(p.seat),
+      crafters = prov?.occupation(OCC.crafter) ?? 0;
+    if (!prov || !m || crafters < 50 || !(m.wage[OCC.crafter]! > 0)) continue;
+    const was = store.of(p.ref),
+      v: RealmBodies = was
+        ? (structuredClone(was) as RealmBodies)
+        : {
+            last: year - INST.every,
+            next: 1,
+            need: [],
+            paid: [],
+            profit: [],
+            reach: 0,
+            told: 0,
+            bodies: [],
+            gone: [],
+          },
+      event = world.events.all().find((e) => e.type === "bodies.founded")!.id;
+    v.bodies = v.bodies.filter((g) => g.does !== DOES.bargain);
+    v.bodies.push({
+      id: v.next++,
+      name: "Test",
+      does: DOES.bargain,
+      fund: FUND.dues,
+      answers: ANSWERS.members,
+      standing: 1,
+      of: 6,
+      since: year - 30,
+      event,
+      home: p.seat,
+      lands: [p.seat],
+      keeper: "",
+      leader: { name: "One", born: year - 40, since: year - 30 },
+      leaders: 1,
+      staff: Math.round(crafters * 0.6),
+      wealth: 1e9,
+      income: 1,
+      quality: 800,
+      share: 1000,
+      // (Their craft's year was worth three times what it is now.)
+      mark: Math.round(300 * m.wage[OCC.crafter]!),
+    });
+    store.put(p.ref, v);
+    put.push({ realm: p.ref, cell: p.seat, event });
+  }
+  assert.ok(put.length >= 10, `${put.length} realms with crafters at their seat`);
+  const before = world.events.all().length;
+  for (let y = year - INST.every + 1; y <= year; y++) bodiesYear(ctx, simTime(y * YEAR));
+  const strikes = world.events
+    .all()
+    .slice(before)
+    .filter((e) => e.type === "bodies.strike");
+  assert.ok(strikes.length >= 1, `${strikes.length} strikes of ${put.length} bodies`);
+  let lost = 0;
+  for (const e of strikes) {
+    const d = e.data as { outcome: string; lost: number };
+    assert.ok(d.outcome === "won" || d.outcome === "broken");
+    assert.ok(d.lost > 0 && d.lost <= INST.strikeCosts * 100);
+    assert.match(claimOf(world, e.id), /struck/);
+    // (Lost in the year after the reckoning that told it, and in no other.)
+    const cell = put.find((x) => x.realm === e.subjects[0])!.cell,
+      at = bodyLandsStore(world)!.get(cell)![BODY_ROW.strikeYear]!;
+    assert.ok(at > year - INST.every && at <= year + 1, `${at}`);
+    assert.ok(strikeIn(world, cell, at) > 0, "the year after");
+    assert.equal(strikeIn(world, cell, at + 1), 0);
+    assert.equal(strikeIn(world, cell, at - 1), 0);
+    lost += strikeIn(world, cell, at);
+  }
+  assert.ok(lost > 0 && lost <= strikes.length * INST.strikeCosts);
 });
