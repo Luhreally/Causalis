@@ -2836,7 +2836,8 @@ function dayBase(plan: VillagePlan, index: number, day: number, fine: boolean): 
       legs.push({ from, to, at: where, next: null, activity, carry, task, face, why, effect });
   };
   // (A key figure stands before their door, where the eye and the hand find them: Lives L1. Their day is L3's.)
-  if (p.figure) {
+  // (But on a day the court has them, as its judge or one brought before it, their day is the court's: below.)
+  if (p.figure && !(fine && courtRole(plan, index, day))) {
     // (An eye behind them, taking them, has room: in a town they look along their street toward its heart; a
     // street may be narrower than the eye's arm. In a village, at their door, with the open ground behind them.)
     const theirs = plan.homes[p.home];
