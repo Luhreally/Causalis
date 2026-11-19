@@ -173,10 +173,25 @@ export function leadersOf(world: World, realm: string): LeaderList | null {
 
 /** The key figures living in a town: its realm's ruler if it is the seat, and its house's lender. */
 export function leadersOfTown(world: World, town: string): Leader[] {
-  const s = populationContext(world).settlements.get(asRef(town));
-  if (!s) return [];
-  const out: Leader[] = [],
-    r = politiesOf(world).of(s.cell);
+  return metIn(world, town).leaders;
+}
+
+/**
+ * The ref one of a town's key figures is met under there. One the world keeps by name who is also their realm's ruler or of
+ * its court is one person, listed and drawn once: as the holder of an office of the town where they hold one (its judge, its
+ * host's commander: the court's entry gives way), else as the ruler or the one of the court (their own entry gives way). The
+ * page of the entry that gave way leads to the one met.
+ */
+export function metAs(world: World, town: string, ref: string): string {
+  return metIn(world, town).as.get(ref) ?? ref;
+}
+
+function metIn(world: World, town: string): { leaders: Leader[]; as: Map<string, string> } {
+  const s = populationContext(world).settlements.get(asRef(town)),
+    as = new Map<string, string>();
+  if (!s) return { leaders: [], as };
+  let out: Leader[] = [];
+  const r = politiesOf(world).of(s.cell);
   if (r && r.ended === null && seatTownOf(world, r)?.ref === town)
     out.push(rulerLeader(world, r), ...courtLeaders(world, r));
   const h = creditOf(world)?.houseIn(town),
@@ -185,8 +200,29 @@ export function leadersOfTown(world: World, town: string): Leader[] {
   // (The heads of the groups whose home it is: host/inspect/townlife.ts.)
   out.push(...townRolesOf(world, town).heads);
   // (Those who hold its offices and head its great things, as read: host/inspect/notables.ts.)
-  out.push(...notablesIn(world, town).map((n) => notableLeader(world, n)));
-  return out;
+  for (const n of notablesIn(world, town)) {
+    // (One of name who is the ruler or of the court listed above: the same person, once. Two were listed, and drawn.)
+    // (One of the court who has since taken the seat is its ruler, by their name and the year they were born.)
+    const also =
+        !n.sim || !r || n.sim.realm !== r.ref
+          ? null
+          : r.ruler.name === n.name && r.ruler.born === n.born
+            ? `rule:${r.ref}`
+            : n.sim.as?.startsWith("court:")
+              ? n.sim.as.replace("court:", `court:${r.ref}:`)
+              : null,
+      same = also ? out.find((l) => l.ref === also) : undefined;
+    if (same && (n.kind === "named" || same.ref.startsWith("rule:"))) {
+      as.set(n.ref, same.ref);
+      continue;
+    }
+    if (same) {
+      out = out.filter((l) => l !== same);
+      as.set(same.ref, n.ref);
+    }
+    out.push(notableLeader(world, n));
+  }
+  return { leaders: out, as };
 }
 
 /** A town's plan with its key figures in it: each one's home, and the figures it lists. */

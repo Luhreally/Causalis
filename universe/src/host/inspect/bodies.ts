@@ -35,6 +35,7 @@ import {
   populationContext,
   workedName,
   type Body,
+  type GoneNotable,
   type Polity,
 } from "../../sim/index.ts";
 import { bodyWords, grainSum } from "../../causal/index.ts";
@@ -51,10 +52,34 @@ const th = (n: number) => share(n / 1000),
 /** The page a body's head has, where they live at its home's first town (host/inspect/notables.ts). */
 export const bodyHeadRef = (event: string): string => `note:head:${event}`;
 /** A body's head by their page: themselves where the world keeps them by name (sim/notable/heads.ts), else the body's own. */
-export function headRefOf(world: World, g: { readonly event: string; readonly headId?: string }): string {
+export function headRefOf(
+  world: World,
+  g: { readonly event: string; readonly headId?: string },
+): string {
   const m = g.headId ? /^note:named:(\d+)$/.exec(g.headId) : null,
     kept = m ? notablesOf(world) : null;
-  return m && kept && (kept.get(Number(m[1])) || kept.goneOf(Number(m[1]))) ? g.headId! : bodyHeadRef(g.event);
+  return m && kept && (kept.get(Number(m[1])) || kept.goneOf(Number(m[1])))
+    ? g.headId!
+    : bodyHeadRef(g.event);
+}
+/** A body head by name: a link to their page, where they have one (they live at the first town of its home land: where that land has none, there is no one to meet). */
+function headLink(world: World, g: Readonly<Body>): ReturnType<typeof link> | string {
+  const ref = headRefOf(world, g);
+  return ref !== bodyHeadRef(g.event) ||
+    populationContext(world)
+      .settlements.inProvince(g.home)
+      .some((t) => t.population > 0)
+    ? link(g.leader.name, ref)
+    : g.leader.name;
+}
+/**
+ * The one of name a body still names at its head who has died (null: its head lives). A body takes another head at its next
+ * reckoning, some years on (sim/order/institutions.ts): till then its seat stands empty, and no one walks its town as its head.
+ */
+export function headDied(world: World, g: { readonly headId?: string }): GoneNotable | null {
+  const m = g.headId ? /^note:named:(\d+)$/.exec(g.headId) : null,
+    kept = m ? notablesOf(world) : null;
+  return m && kept && !kept.get(Number(m[1])) ? (kept.goneOf(Number(m[1])) ?? null) : null;
 }
 
 const titleNow = (world: World, g: Readonly<Body>): string =>
@@ -415,13 +440,16 @@ export function institutionPage(world: World, ref: string): PageModel {
       stat("Since", `year ${since}`, { why: g.gone?.event ?? g.event }),
     ];
   if (rec) {
-    const head = headTitle(does, g.title);
+    const head = headTitle(does, g.title),
+      died = headDied(world, rec);
     facts.push(
       stat(
         "Its head",
         [
-          link(rec.leader.name, headRefOf(world, rec)),
-          `, ${head.toLowerCase()}, born year ${rec.leader.born}, at its head since year ${rec.leader.since}`,
+          headLink(world, rec),
+          died
+            ? `, ${head.toLowerCase()}, born year ${rec.leader.born}, at its head from year ${rec.leader.since} until they died in year ${died.died}: it has named no one after them yet`
+            : `, ${head.toLowerCase()}, born year ${rec.leader.born}, at its head since year ${rec.leader.since}`,
         ],
         { parts: [part("its heads so far", count(rec.leaders))] },
       ),
@@ -513,7 +541,7 @@ export function institutionPage(world: World, ref: string): PageModel {
     stats: [
       ...(rec
         ? [
-            stat("Head", [link(rec.leader.name, headRefOf(world, rec))]),
+            stat("Head", [headLink(world, rec)]),
             stat(rec.fund === 0 ? "Members" : "Hands", count(rec.staff)),
           ]
         : []),
@@ -526,6 +554,9 @@ export function institutionPage(world: World, ref: string): PageModel {
 }
 
 // —— The ledger's Institutions tab —————————————————————————————————————————————————————————————————————————
+
+/** The most bodies of one kind the ledger lists. */
+const LEDGER_EACH = 14;
 
 /** Every body of the world: how many of each title, the greatest listed, how the latest holds ended. */
 export function institutionsLedger(world: World): Block[] {
@@ -549,7 +580,25 @@ export function institutionsLedger(world: World): Block[] {
     titles.set(t, { n: was.n + 1, hands: was.hands + g.staff, does: g.does });
     realms.add(r.ref);
   }
-  const shown = [...all].sort((a, b) => b.g.staff - a.g.staff || a.g.id - b.g.id).slice(0, 120),
+  // The greatest of each kind, and the commonest titles of each: by hands alone a world's hundred greatest were its workers'
+  // bodies and no court, school or watch among them, and its first two dozen titles were its works, guilds and unions.
+  const kinds = new Map<number, number>(),
+    shown = [...all]
+      .sort((a, b) => b.g.staff - a.g.staff || a.g.id - b.g.id)
+      .filter(({ g }) => {
+        const n = kinds.get(g.does) ?? 0;
+        kinds.set(g.does, n + 1);
+        return n < LEDGER_EACH;
+      }),
+    told = new Map<number, number>(),
+    listed = [...titles]
+      .sort((a, b) => a[1].does - b[1].does || b[1].n - a[1].n)
+      .filter(([, x]) => {
+        const n = told.get(x.does) ?? 0;
+        told.set(x.does, n + 1);
+        return n < 3;
+      }),
+    rest = all.length - listed.reduce((s, [, x]) => s + x.n, 0),
     blocks: Block[] = [
       {
         type: "facts",
@@ -558,19 +607,23 @@ export function institutionsLedger(world: World): Block[] {
           stat("Bodies kept", count(all.length), {
             parts: [part("realms that keep any", count(realms.size))],
           }),
-          ...[...titles]
-            .sort((a, b) => a[1].does - b[1].does || b[1].n - a[1].n)
-            .slice(0, 24)
-            .map(([t, x]) =>
-              stat(cap(t), count(x.n), {
-                parts: [part("hands or members each, about", count(Math.round(x.hands / x.n)))],
-              }),
-            ),
+          ...listed.map(([t, x]) =>
+            stat(cap(t), count(x.n), {
+              parts: [part("hands or members each, about", count(Math.round(x.hands / x.n)))],
+            }),
+          ),
+          ...(rest > 0
+            ? [
+                stat("Under other names", count(rest), {
+                  parts: [part("names not listed here", count(titles.size - listed.length))],
+                }),
+              ]
+            : []),
         ],
       },
       {
         type: "table",
-        title: "Every body",
+        title: "The greatest of each kind",
         columns: ["Body", "Does", "Realm", "Head", "Hands", "Kept by", "Since"],
         rows: shown.map(({ r, g }) => ({
           ref: bodyRef(g.event),
@@ -585,7 +638,8 @@ export function institutionsLedger(world: World): Block[] {
           ],
           keys: [
             g.name,
-            doesOf(g),
+            // (Its filter's chips say it as the column does: they read "bargain", "word".)
+            DOES_ASKS[doesOf(g)].replace(/^Who /, ""),
             r.town,
             g.leader.name,
             g.staff,
@@ -595,7 +649,7 @@ export function institutionsLedger(world: World): Block[] {
         })),
         filter: 1,
       },
-      ...listedOf(shown.length, all.length, "greatest bodies"),
+      ...listedOf(shown.length, all.length, "greatest bodies, the most of each kind,"),
     ];
   const gone: { r: Polity; g: NonNullable<ReturnType<typeof bodyOf>>["gone"] & object }[] = [],
     store = bodiesOf(world),

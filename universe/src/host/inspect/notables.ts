@@ -19,6 +19,7 @@ import { NOTABLE_ENDS, deedLine, notableTitle } from "../../causal/index.ts";
 import {
   GANG_ROW,
   beliefOf,
+  courtOf,
   cultureOf,
   doesOf,
   workedName,
@@ -42,10 +43,10 @@ import {
 import type { Block, Leader, PageModel, Place, Stat } from "../../bridge/index.ts";
 import { workshopOf } from "../chain.ts";
 import { landEra, peopleBody } from "../village.ts";
-import { seatTownOf } from "../leaders.ts";
+import { metAs, seatTownOf } from "../leaders.ts";
 import { fedRef } from "../underworld.ts";
 import { bodiesIn, bodyName, bodyOf, bodyRef } from "../bodies.ts";
-import { bodyHeadRef, headTitle } from "./bodies.ts";
+import { bodyHeadRef, headDied, headTitle } from "./bodies.ts";
 import { doesWords } from "../../causal/index.ts";
 import { boardRef } from "./board.ts";
 import { courtFormOf } from "./justice.ts";
@@ -300,35 +301,35 @@ function read(world: World, town: string): Notable[] {
       title: string,
       did: string,
     ) => {
-      const name = bodyName(world, bodyRef(g.event)) ?? "a body";
-      out.push({
-        ref,
-        kind,
-        name: g.leader.name,
-        born: g.leader.born,
-        sex: (hashString(`${g.event}|${g.leaders}`) >>> 0) & 1,
-        since: g.leader.since,
-        title: `${title} of ${name}`,
-        did,
-        town,
-        townName: s.name,
-        of: { ref: bodyRef(g.event), name },
-        read: "The world keeps this body and its head by name: the year they were born and the year they took it.",
-      });
+      // (One of name it still names who has died: its seat stands empty till it takes another.)
+      if (headDied(world, g)) return;
+      // (One the world keeps by name heads it: they hold the office as themselves, once, and not beside themselves.)
+      const id = g.headId ? namedId(g.headId) : null,
+        n = id !== null ? kept?.get(id) : undefined;
+      if (n && !placed.has(n.id)) {
+        const name = bodyName(world, bodyRef(g.event)) ?? "a body";
+        return asKept(n, kind, {
+          title: `${title} of ${name}`,
+          did,
+          of: { ref: bodyRef(g.event), name },
+        });
+      }
+      out.push(bodyHead(world, g, town, s.name, ref, kind, title, did));
     },
     court = bodies.find((x) => x.g.does === DOES.judge)?.g,
     clergy = bodies.find((x) => x.g.does === DOES.worship)?.g;
   // The judge, where the court is one that has one.
   const form = courtFormOf(world, s);
-  if (court && (form === "magistrate" || form === "bench"))
-    headOf(
-      court,
-      `note:judge:${town}`,
-      "judge",
-      "First judge",
-      `Sits first in ${bodyName(world, bodyRef(court.event))}, which hears what is brought before it at ${s.name}.`,
-    );
-  else if (form === "magistrate" || form === "bench")
+  if (court) {
+    if (form === "magistrate" || form === "bench")
+      headOf(
+        court,
+        `note:judge:${town}`,
+        "judge",
+        "First judge",
+        `Sits first in ${bodyName(world, bodyRef(court.event))}, which hears what is brought before it at ${s.name}.`,
+      );
+  } else if (form === "magistrate" || form === "bench")
     termed(
       "judge",
       town,
@@ -346,7 +347,7 @@ function read(world: World, town: string): Notable[] {
   const held = beliefOf(world).of(s.cell).faith,
     faith = held ? beliefOf(world).get(held) : undefined,
     temple = workshopOf(world, town, ["temple", "shrine"], year);
-  if (faith && temple && clergy)
+  if (faith && temple && clergy) {
     headOf(
       clergy,
       `note:priest:${town}:${faith.ref}`,
@@ -354,7 +355,7 @@ function read(world: World, town: string): Notable[] {
       "Head",
       `Heads ${bodyName(world, bodyRef(clergy.event))}, keeps the temple of ${s.name} for ${faith.name}, and leads those who pray there on the day of rest.`,
     );
-  else if (faith && temple)
+  } else if (faith && temple)
     termed(
       "priest",
       `${town}:${faith.ref}`,
@@ -428,18 +429,11 @@ function read(world: World, town: string): Notable[] {
   let heads = 0;
   for (const { g } of bodies) {
     if (g === court || g === clergy || heads >= HEADS_MOST) continue;
-    // (One the world keeps by name heads it: they are met as themselves, below.)
-    const kept = g.headId ? namedId(g.headId) : null;
-    if (kept !== null && notablesOf(world)?.get(kept)) continue;
-    const does = doesOf(g),
-      name = bodyName(world, bodyRef(g.event)) ?? "a body";
-    headOf(
-      g,
-      bodyHeadRef(g.event),
-      "head",
-      headTitle(does, name),
-      `Heads ${name}, which ${doesWords(does, g.of >= 0 ? workedName(g.of) : "")} at ${s.name}: at its head since year ${g.leader.since}.`,
-    );
+    // (One the world keeps by name heads it: they are met as themselves, below. One of name who has died: no one, yet.)
+    const nid = g.headId ? namedId(g.headId) : null;
+    if (nid !== null && kept?.get(nid)) continue;
+    if (headDied(world, g)) continue;
+    headOf(g, bodyHeadRef(g.event), "head", ...headWords(world, g, s.name));
     heads++;
   }
   // The rest of the land's notables, as themselves.
@@ -449,6 +443,44 @@ function read(world: World, town: string): Notable[] {
 
 /** The most heads of bodies a town's key figures name (beside its judge and the one who keeps its temple). */
 const HEADS_MOST = 5;
+
+type HeadedBody = ReturnType<typeof bodiesIn>[number]["g"];
+/** What a body's head is called and does, where they are met as its head and no more. */
+function headWords(world: World, g: HeadedBody, townName: string): [title: string, did: string] {
+  const does = doesOf(g),
+    name = bodyName(world, bodyRef(g.event)) ?? "a body";
+  return [
+    headTitle(does, name),
+    `Heads ${name}, which ${doesWords(does, g.of >= 0 ? workedName(g.of) : "")} at ${townName}: at its head since year ${g.leader.since}.`,
+  ];
+}
+/** A body's head as one of its home's first town: the name, the year born and the year they took it are the body's own. */
+function bodyHead(
+  world: World,
+  g: HeadedBody,
+  town: string,
+  townName: string,
+  ref: string,
+  kind: NotableKind,
+  title: string,
+  did: string,
+): Notable {
+  const name = bodyName(world, bodyRef(g.event)) ?? "a body";
+  return {
+    ref,
+    kind,
+    name: g.leader.name,
+    born: g.leader.born,
+    sex: (hashString(`${g.event}|${g.leaders}`) >>> 0) & 1,
+    since: g.leader.since,
+    title: `${title} of ${name}`,
+    did,
+    town,
+    townName,
+    of: { ref: bodyRef(g.event), name },
+    read: "The world keeps this body and its head by name: the year they were born and the year they took it.",
+  };
+}
 
 /** One the world kept by name who is gone, by their page's ref (null: none such). */
 export function goneNamed(world: World, ref: string): GoneNotable | null {
@@ -514,7 +546,24 @@ const ordinal = (n: number): string =>
 /** One who holds an office, by their page's ref (null: none such now; one of a term before reads as gone, by `goneNotable`). */
 export function notableOf(world: World, ref: string): Notable | null {
   const town = townOfRef(world, ref);
-  return (town && notablesIn(world, town).find((n) => n.ref === ref)) || null;
+  if (!town) return null;
+  const list = notablesIn(world, town),
+    hit = list.find((n) => n.ref === ref);
+  if (hit) return hit;
+  // A body's head, asked for as the body names them: one of their town's key figures under what they are there (its judge,
+  // the one who keeps its temple, themselves where the world keeps them by name), or, past the few a town lists, read here
+  // the same way. (A body's page links its head so; a third of a world's bodies' heads had no page.)
+  const m = /^note:head:(.+)$/.exec(ref),
+    g = m ? bodyOf(world, bodyRef(m[1]!))?.record : undefined;
+  if (!g || headDied(world, g)) return null;
+  const of = bodyRef(g.event),
+    id = g.headId ? namedId(g.headId) : null,
+    as = list.find(
+      (n) => (id !== null && n.sim?.id === id) || (n.of.ref === of && n.name === g.leader.name),
+    ),
+    s = populationContext(world).settlements.get(town as Ref);
+  if (as) return as;
+  return s ? bodyHead(world, g, town, s.name, ref, "head", ...headWords(world, g, s.name)) : null;
 }
 
 /** The town a notable's ref is of. */
@@ -556,7 +605,14 @@ export function goneNotable(
 ): { name: string; year: number; now: Notable } | null {
   const m = /^(note:[a-z]+:.+)~(-?\d+)$/.exec(ref),
     now = m ? notableOf(world, m[1]!) : null;
-  if (!m || !now || now.kind === "house" || now.kind === "head" || now.kind === "named" || !now.before)
+  if (
+    !m ||
+    !now ||
+    now.kind === "house" ||
+    now.kind === "head" ||
+    now.kind === "named" ||
+    !now.before
+  )
     return null;
   const key = m[1]!.slice(`note:${now.kind}:`.length),
     cell = populationContext(world).settlements.get(now.town as Ref)?.cell ?? 0;
@@ -588,7 +644,9 @@ export function notableLeader(world: World, n: Notable): Leader {
           name: n.name,
           age: Math.max(lifeOf(world).adulthood, Math.min(300, year - n.born)),
           occupation:
-            n.kind === "merchant" || n.kind === "head" || (n.sim && firstField(n.sim) === DOMAIN.wealth)
+            n.kind === "merchant" ||
+            n.kind === "head" ||
+            (n.sim && firstField(n.sim) === DOMAIN.wealth)
               ? OCC.trader
               : n.kind === "gang" || (n.sim && firstField(n.sim) === DOMAIN.making)
                 ? OCC.crafter
@@ -600,11 +658,18 @@ export function notableLeader(world: World, n: Notable): Leader {
 }
 
 /** A notable's page: who they are, what they hold, where they live or are, who held it before; the way to them and to their life. */
-export function notablePage(world: World, ref: string): PageModel {
-  const n = notableOf(world, ref),
+export function notablePage(world: World, asked: string): PageModel {
+  const n = notableOf(world, asked),
+    // (One asked for as a body's head is shown as who they are in their town: the page, and the way to them, are that one's.)
+    ref = n?.ref ?? asked,
     year = yearNow(world),
     dead = n ? null : goneNamed(world, ref);
   if (dead) return gonePage(world, ref, dead);
+  // (A body's head of name who has died, asked for as its head: as the world remembers them.)
+  const headed = n ? null : /^note:head:(.+)$/.exec(ref),
+    theirs = headed ? bodyOf(world, bodyRef(headed[1]!))?.record : undefined,
+    died = theirs ? headDied(world, theirs) : null;
+  if (theirs && died) return gonePage(world, theirs.headId!, died);
   // (One the world keeps whose land has no town to show them in: their page all the same, at their land.)
   const apart = n ? null : (notablesOf(world)?.get(namedId(ref) ?? -1) ?? null);
   if (apart) return apartPage(world, ref, apart);
@@ -697,7 +762,13 @@ export function notablePage(world: World, ref: string): PageModel {
     title: who.name,
     subtitle: [`${age}, ${lower(who.title)}`],
     color: null,
-    place: who.away ? who.away.place : { scale: "village", town: who.town, person: ref },
+    // (A head past the few their town lists is not drawn there: the way to them is the way to their town.)
+    place: who.away
+      ? who.away.place
+      : notablesIn(world, who.town).includes(who)
+        ? // (One of name met there as their realm's ruler or one of its court: the way to them is to that one.)
+          { scale: "village", town: who.town, person: metAs(world, who.town, ref) }
+        : { scale: "village", town: who.town },
     stats: [
       stat("Age", `${age}`),
       stat(
@@ -745,11 +816,17 @@ function keptBlocks(world: World, n: Named): Block[] {
     ),
     does = fields.map(([d, x]) => NAME_DOES[d]?.(x)).filter((t): t is string => !!t),
     // (Someone the world keeps elsewhere too: one of their realm's court, or its ruler since they took its seat.)
+    // (Of the court while it has them: one who has left it was linked to "one gone from the court".)
+    seat = n.realm ? politiesOf(world).get(n.realm) : undefined,
     court =
-      n.as?.startsWith("court:") && n.realm
-        ? n.as.replace("court:", `court:${n.realm}:`)
-        : n.as === "rule" && n.realm && politiesOf(world).get(n.realm)?.ruler.name === n.name
-          ? `rule:${n.realm}`
+      seat && seat.ended === null && seat.ruler.name === n.name && seat.ruler.born === n.born
+        ? `rule:${n.realm}`
+        : n.as?.startsWith("court:") &&
+            n.realm &&
+            courtOf(world)
+              ?.of(n.realm)
+              ?.figures.some((f) => `court:${f.id}` === n.as)
+          ? n.as.replace("court:", `court:${n.realm}:`)
           : null;
   return [
     {
@@ -777,7 +854,9 @@ function keptBlocks(world: World, n: Named): Block[] {
             ]
           : []),
         ...headed.map((g) =>
-          stat("At the head of", [link(bodyName(world, bodyRef(g.event)) ?? g.name, bodyRef(g.event))]),
+          stat("At the head of", [
+            link(bodyName(world, bodyRef(g.event)) ?? g.name, bodyRef(g.event)),
+          ]),
         ),
         ...(teacher ? [stat("Taught by", [teacher])] : []),
         ...(students.length
@@ -947,6 +1026,15 @@ function gonePage(world: World, ref: string, g: GoneNotable): PageModel {
               ),
               ...(r ? [stat("Their realm", [realmLink(world, r.ref)])] : []),
               ...(g.faith ? [stat("Their faith", [faithLink(world, g.faith)])] : []),
+              // (A body they headed that has not yet taken another head: it names them still.)
+              ...(g.realm ? (bodiesOf(world)?.of(g.realm)?.bodies ?? []) : [])
+                .filter((b) => b.headId === ref)
+                .map((b) =>
+                  stat("Was at the head of", [
+                    link(bodyName(world, bodyRef(b.event)) ?? b.name, bodyRef(b.event)),
+                    ", which has named no one after them yet",
+                  ]),
+                ),
               ...(teacher ? [stat("Taught by", [teacher])] : []),
               ...(rival ? [stat("Measured against", [rival])] : []),
             ],

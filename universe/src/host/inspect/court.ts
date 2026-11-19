@@ -24,7 +24,7 @@ import {
   seatWords_,
   wantWords,
 } from "../court.ts";
-import { rulerLeader, seatTownOf } from "../leaders.ts";
+import { metAs, rulerLeader, seatTownOf } from "../leaders.ts";
 import { landEra, peopleBody } from "../village.ts";
 import { landLink, realmLink, townLink } from "./names.ts";
 import { asRef, claimOf, item, link, stat, yearAt, yearNow } from "./words.ts";
@@ -201,7 +201,10 @@ export function courtPage(world: World, ref: string): PageModel {
     title: who.name,
     subtitle: [role[0], realmLink(world, r.ref), `${role[1]}, ${age}`],
     color: realmColor(r.ref),
-    place: me?.town ? { scale: "village", town: me.town, person: ref } : null,
+    // (One of the court who holds an office of the seat as one the world keeps by name is met there as its holder.)
+    place: me?.town
+      ? { scale: "village", town: me.town, person: metAs(world, me.town, ref) }
+      : null,
     stats: [
       stat("Age", `${age}`),
       ...(f ? [stat("Sway", `${pct(f.sway)} in a hundred`)] : []),

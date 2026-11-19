@@ -5,6 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { YEAR } from "../../src/kernel/index.ts";
 import {
+  bodiesOf,
   commandIn,
   firstField,
   notablesOf,
@@ -23,6 +24,7 @@ import { fateOf } from "../../src/host/inspect/barread.ts";
 import { pageOf } from "../../src/host/inspect/index.ts";
 import { godActsFor } from "../../src/host/death.ts";
 import { leadersOfTown, seatTownOf } from "../../src/host/leaders.ts";
+import { bodyRef } from "../../src/host/bodies.ts";
 import { why } from "../../src/causal/index.ts";
 import { personsOfNote } from "../../src/host/persons.ts";
 import { peopledWorld } from "../worlds.ts";
@@ -142,4 +144,42 @@ test("everyone the world keeps by name is read one way: rulers, courts, heads, e
     if (p.also) assert.ok(!refs.includes(p.also), `${p.name} twice`);
   }
   for (const p of all.slice(0, 40)) assert.ok(p.name && p.title, p.ref);
+});
+
+test("a body's head has a page wherever its body's page links them: its judge, its temple's keeper, one of name, or a head past the few a town lists; and no one is two of a town's key figures", () => {
+  const bodies = bodiesOf(world)!;
+  let linked = 0;
+  const towns = new Set<string>();
+  for (const r of bodies.realmsKept())
+    for (const g of bodies.of(r)!.bodies) {
+      const head = pageOf(world, bodyRef(g.event)).stats.find((s) => s.label === "Head"),
+        span = Array.isArray(head?.value) ? head.value[0] : undefined;
+      assert.ok(span !== undefined, `${g.event}: its head is named`);
+      // (A body whose home land has no town names its head and links no one.)
+      if (typeof span === "string") continue;
+      const page = pageOf(world, span!.ref);
+      assert.equal(page.title, g.leader.name, `${g.event}: ${span!.ref} is its head's page`);
+      linked++;
+      const n = notableOf(world, span!.ref);
+      if (!n) continue;
+      towns.add(n.town);
+      // (The way to one a town lists is to them; to one past its few, to their town.)
+      const listed = notablesIn(world, n.town).includes(n);
+      assert.equal(page.place?.scale, "village");
+      assert.equal(
+        page.place?.scale === "village" ? page.place.person : undefined,
+        listed ? n.ref : undefined,
+        span!.ref,
+      );
+    }
+  assert.ok(linked > 20, `${linked} heads with a page`);
+  // (And one of name who is their realm's ruler or of its court is met once at its seat, not beside themselves.)
+  for (const r of politiesOf(world).living()) {
+    const seat = seatTownOf(world, r);
+    if (seat) towns.add(seat.ref);
+  }
+  for (const t of towns) {
+    const names = leadersOfTown(world, t).map((l) => l.name);
+    assert.equal(new Set(names).size, names.length, `${t}: ${names.join(", ")}`);
+  }
 });
