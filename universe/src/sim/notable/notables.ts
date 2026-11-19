@@ -765,7 +765,12 @@ function cull(r: Run): void {
     if (l) l.push(n);
     else byLand.set(n.home, [n]);
   }
-  const rank = (a: Notable, b: Notable) => b.standing - a.standing || a.id - b.id;
+  // (One with a deed this year is on everyone's lips: where a name must be let go it is not theirs, whatever they stand at.
+  // Without this the finder of a thing in a land that held all its names was let go the year they found it: at 1,000 on first
+  // light one finder was kept of the 74 things found in the century before.)
+  const fresh = (n: Notable) => (n.last === year ? 1 : 0),
+    rank = (a: Notable, b: Notable) =>
+      fresh(b) - fresh(a) || b.standing - a.standing || a.id - b.id;
   for (const [cell, l] of byLand) {
     const held = Math.max(1, namesHeld(r.ctx.provinces.get(cell)?.total() ?? 0));
     if (l.length <= held) continue;
