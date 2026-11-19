@@ -145,7 +145,18 @@ test("tribute flows to the seats, and every market's books still balance", () =>
   const last = markets.all().map((m) => m.years.at(-1)!),
     sum = (line: number) =>
       last.reduce((s, y) => s + y.ledger[line]!.reduce((a, b) => a + b, 0), 0);
-  assert.equal(sum(IN), sum(OUT), "what one market sends another receives");
+  // (And what the keepers outside every market took of it, less what they gave back: a faith's granaries are on a market's "out"
+  // line and in no market's "in". tests/sim/economy.test.ts holds this good by good, year by year.)
+  const year = last[0]!.year,
+    kept = (markets.apart.find((y) => y.year === year)?.rows ?? []).reduce(
+      (n, [, , took, gave]) => n + took - gave,
+      0,
+    );
+  assert.ok(
+    last.every((y) => y.year === year),
+    "every market's last year is the same",
+  );
+  assert.equal(sum(IN) + kept, sum(OUT), "what one market sends another receives, or a keeper");
   const seats = new Set(
     realms
       .living()

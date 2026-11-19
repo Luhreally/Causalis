@@ -28,6 +28,15 @@ const LINE: Readonly<Record<LedgerLine, number>> = {
 };
 const INCREASES: readonly boolean[] = [true, false, true, false, false, true, false];
 
+/** What went of a good in one closed year's books: used, passed on within the year, and sent away of what was made there. */
+function wentOf(y: readonly (readonly number[] | undefined)[], good: number): number {
+  const made = y[LINE.made]?.[good] ?? 0,
+    used = y[LINE.used]?.[good] ?? 0,
+    came = y[LINE.in]?.[good] ?? 0,
+    left = y[LINE.out]?.[good] ?? 0;
+  return used + Math.min(came, left) + Math.min(made, Math.max(0, left - came));
+}
+
 /** A market's year, kept for the charts and the explainer. */
 export type MarketYear = {
   readonly year: number;
@@ -182,16 +191,24 @@ export class Market {
   }
 
   /**
-   * What goes of a good here in a year: the most it used and sent on in any of the last GLUT_YEARS closed years (the most, for
-   * a good smelted one year is worked the next). What its making and what traders bring it are bounded by.
+   * What goes of a good here in a year: the most, in any of the last GLUT_YEARS closed years (the most, for a good smelted one
+   * year is worked the next), of what it used, what it sent on of what came in that same year, and what it sent away of its own
+   * making. What its making and what traders bring it are bounded by. (It was all it used and sent on, whatever it sent: a good
+   * no one there used, sent on one year and brought back the next, counted as its use each time it left, and a market took in
+   * three years of such "use". By first light's 1,500 a land of 66 million that wore out ten million garments a year took in six
+   * thousand million one year and sent them all on the next, 96 a head, and the world's markets passed 260 thousand million
+   * garments a year between them while 3 thousand million were worn: scratchpad/release/st4.mts.)
    */
   goes(good: number): number {
     let most = 0;
-    for (let i = Math.max(0, this.years.length - GLUT_YEARS); i < this.years.length; i++) {
-      const y = this.years[i]!.ledger;
-      most = Math.max(most, (y[LINE.used]?.[good] ?? 0) + (y[LINE.out]?.[good] ?? 0));
-    }
+    for (let i = Math.max(0, this.years.length - GLUT_YEARS); i < this.years.length; i++)
+      most = Math.max(most, wentOf(this.years[i]!.ledger, good));
     return most;
+  }
+  /** The same of its last closed year alone. */
+  went(good: number): number {
+    const last = this.years.at(-1)?.ledger;
+    return last ? wentOf(last, good) : 0;
   }
 
   /** What its crafted tools were headed with in a year (now, if none is given); null: never said. */

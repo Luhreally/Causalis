@@ -248,8 +248,10 @@ test("a coup foiled: its plotters purged, its army cowed twenty years, the court
     ctx = populationContext(w),
     o = orderOf(w)!.of(p.ref)!,
     before = o.legitimacy,
-    event = foil(ctx, p, [], at(1)),
-    store = strifeOf(w)!;
+    store = strifeOf(w)!,
+    // (Its coups before this one: since a realm's reach is read off what it is, juniper's greatest has had one by year 60.)
+    had = store.coups.filter((c) => c.realm === p.ref).length,
+    event = foil(ctx, p, [], at(1));
   assert.equal(store.of(p.ref)!.purged, 60 + STRIFE.purged);
   assert.ok(o.legitimacy > before, "the court the firmer");
   assert.notEqual(p.leadership, GENERAL);
@@ -259,7 +261,7 @@ test("a coup foiled: its plotters purged, its army cowed twenty years, the court
     doubted(w, p);
     strifeYear(ctx, at(k * YEAR));
   }
-  assert.equal(store.coups.filter((c) => c.realm === p.ref).length, 1, "none while cowed");
+  assert.equal(store.coups.filter((c) => c.realm === p.ref).length, had + 1, "none while cowed");
 });
 
 test("the god stirs an army against its seat, and gives a realm back its rule; asked where its army does not rule, refuses", () => {

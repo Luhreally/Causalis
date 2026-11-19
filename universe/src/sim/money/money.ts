@@ -43,6 +43,7 @@ import {
   moneyForm,
   moneyGood,
   organised,
+  notesRenewed,
   priceLevel,
   rentOf,
   sanctionWanted,
@@ -120,6 +121,8 @@ export const MONEY_EVENTS = {
   debased: defineEventType("money.debased", 3),
   /** Prices rose a tenth or more in a year. */
   dearer: defineEventType("money.dearer", 2),
+  /** Its notes called in for new ones, so many old for one new. */
+  renewed: defineEventType("money.renewed", 3),
   /** A realm first laid a tax on a base. */
   taxed: defineEventType("money.taxed", 2),
   /** A realm first laid a tariff of a tenth or more; first shut its trade with a realm it fears. */
@@ -171,25 +174,19 @@ const CRAFTED = GOODS.map((g, i) => [i, GOOD_USE[g.id]] as const)
 
 /** Each group's sway in a realm, read once a year (the few are the court, the army and the temple; the many all who work). */
 type Sway = { farmers: number; crafters: number; traders: number; few: number; many: number };
-/** The sways read this moment, kept for the moment's other systems (a pure reading: the same read twice). */
-let SWAYS: { world: World; t: number; by: Map<string, Sway> } | null = null;
 function swayOf(ctx: PopulationContext, p: Polity, t: SimTime): Sway {
-  if (!SWAYS || SWAYS.world !== ctx.world || SWAYS.t !== t)
-    SWAYS = { world: ctx.world, t, by: new Map() };
-  const kept = SWAYS.by.get(p.ref);
-  if (kept) return kept;
+  // (Summed new at each asking from the realm's interests, which the realms' store keeps for the moment with all they were read
+  // from, sim/polity/interests.ts: a memo of its own here, by the world and the moment alone, could not know them moved.)
   const sway = new Map<Group, number>();
   for (const i of interestsOf(ctx, p, t)) sway.set(i.group, i.sway);
   const g = (x: Group) => sway.get(x) ?? 0;
-  const read = {
+  return {
     farmers: g("farmers") + g("herders"),
     crafters: g("crafters"),
     traders: g("traders"),
     few: g("the court") + g("the army") + g("the temple"),
     many: g("farmers") + g("herders") + g("crafters"),
   };
-  SWAYS.by.set(p.ref, read);
-  return read;
 }
 
 /** A realm's lands as its money sees them. */
@@ -559,6 +556,16 @@ export function coinYear(ctx: PopulationContext, t: SimTime): void {
     // a new unit, and no year of it is a rise.)
     const sameMoney = wasForm === form && (form !== "metal" || !was || was[COIN.good] === good),
       inflation = sameMoney && before > 0 ? dmath.clamp(level / before - 1, -0.9, 9) : 0;
+    // Notes whose prices have run past MONEY.renew of them for a grain's worth are called in for new ones, MONEY.renew old for one
+    // new: the same money counted in a new unit, so nothing it buys or owes moves. (Without it a realm that printed in its lean
+    // years for centuries counted its prices up to the most this row holds and stayed there, its page reading a thousand million
+    // of its money for a grain's worth and no rise ever told again: half of first light's realms by 1,500, gl.mts.)
+    const old = notesRenewed(form, level);
+    if (old > 1) {
+      level /= old;
+      stock /= old;
+      tell(ctx, MONEY_EVENTS.renewed.type, p, { form, old });
+    }
     let toldFine = was ? was[COIN.toldFine]! : 1e6;
     // Told: a new money; a coin debased (or notes printed) by a fifth since last told; prices risen a tenth in a year.
     let forms = was ? was[COIN.forms]! : 0;

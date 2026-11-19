@@ -71,6 +71,7 @@ import { housesOf } from "../../src/sim/order/houses.ts";
 import { LAW_ROW, LAW_STORE, societyStore } from "../../src/sim/society/kept.ts";
 import { refNumber } from "../../src/sim/money/kept.ts";
 import { EARTH } from "../../src/host/index.ts";
+import { lettersOf } from "../../src/sim/lore/letters.ts";
 import { pageOf } from "../../src/host/inspect/index.ts";
 import { claimOf } from "../../src/host/inspect/words.ts";
 import { orgRef } from "../../src/host/groups.ts";
@@ -347,6 +348,23 @@ test("where its people choose, an interest no house speaks for carries a party i
   const o = orderOf(world)!.of(p.ref)!;
   o.held = [40, 85, 80, 60];
   o.legitimacy = 0.6;
+  // (And a seat that reaches its lands, as one that votes and writes does: an old seat with clerks and readers, nothing skimmed,
+  // a treasury that takes a fifth of what its people earn, lands that bear it no grudge. Under a seat thirty years old that
+  // reaches four parts in ten, its towns' own rule (a commune) is worth more than the learned's band, and the eight groups a
+  // realm keeps are full before the learned society rises: the rule's answer to a thin reach, and not this test's matter.)
+  o.corruption = 0;
+  o.crisis = null;
+  (p as { founded: number }).founded = yearOfMoment(world.now) - 100;
+  for (const c of p.members) lettersOf(world)?.set(c, 0.8);
+  const clerks = PRINCIPLES.find((x) => x.id === "bureaucracy")!;
+  loreOf(world).learn(p.seat, "bureaucracy", { year: 1, event: p.event }, clerks);
+  const treasury = moneyStore(world, TREASURY_STORE)!,
+    takes = [...(treasury.get(p.ref) ?? new Array<number>(33).fill(0))];
+  takes[FISC.base + 3] = Math.max(1, takes[FISC.base + 3]!);
+  takes[FISC.take + 3] = 0.2 * takes[FISC.base + 3]!;
+  takes[FISC.deficit] = 0;
+  treasury.set(p.ref, takes);
+  for (const c of p.members) politiesOf(world).setDiscontent(c, { level: 0, cause: null });
   const hv = housesOf(world)?.of(p.ref) as { houses: { origin: number }[] } | undefined;
   if (hv) hv.houses = hv.houses.filter((h) => h.origin !== 6);
   for (const c of p.members) landOf(orderOf(world)!, c).shares[0] = 0.3;

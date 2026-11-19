@@ -13,6 +13,7 @@ import {
   G,
   GOODS,
   HOME_COST,
+  MADE_USUAL,
   MIDDLE_WAYS,
   OCC,
   WAGE_GOOD,
@@ -665,7 +666,8 @@ function readSelf(world: World, who: Who, deep: boolean): SelfRead {
       standing,
       mouths,
       ownsHome,
-      homeWorth: HOME_COST * (0.5 + standing) * Math.sqrt(Math.max(0.3, land.madeHead / 25)),
+      homeWorth:
+        HOME_COST * (0.5 + standing) * Math.sqrt(Math.max(0.3, land.madeHead / MADE_USUAL)),
       left: day.left,
       rent: day.rent,
       purse: who.lived?.purse ?? null,

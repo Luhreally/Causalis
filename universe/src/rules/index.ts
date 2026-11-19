@@ -1178,6 +1178,7 @@ export {
   STREET_SHARE,
   LEVEL_ROOMS,
   NEEDS,
+  MADE_USUAL,
   POOREST,
   ROOM_UNIT,
   SHAPE_SIZE,
@@ -1733,6 +1734,7 @@ export * from "./beyond.ts";
 export * from "./care.ts";
 export * from "./roles.ts";
 export * from "./holding.ts";
+export * from "./capacity.ts";
 export * from "./table.ts";
 export * from "./dress.ts";
 export * from "./leisure.ts";

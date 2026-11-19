@@ -127,11 +127,17 @@ export const ORDER_CONCEPTS: Readonly<Record<string, Concept>> = {
     icon: "🏛️",
     title: "Reach",
     what: [
-      "A realm's reach is how far its seat makes its will felt across its lands: writing at its seat, roads and clerks, few lands to hold, an old seat.",
+      "A realm's reach is how far what its seat wills is done in its lands, in a hundred parts. It is a chain, and each link keeps a share of what the one before it left, so the weakest tells most.",
+      "At its seat: what it can set down and send (word of mouth; writing, the more who can read it; clerks who keep accounts), the officials its treasury can keep (what it takes of what its people earn, less what it goes short), how much is skimmed or held by kin, how far its rule is held rightful and so obeyed unforced, how old its seat is, and whether it is fought over within or in a crisis of its standing.",
+      "In each land: how far it lies from the seat against the roads, ships and word the realm has to carry its will, how hard its ground is, how far its people resent the rule, and whether it is held by force. A realm's reach is its lands', by their people.",
     ],
-    drives: ["Writing; what its seat knows of roads; its size; its age."],
+    drives: [
+      "Writing, readers and clerks; the treasury's takings; what is skimmed; its standing; its age; a civil war.",
+      "For each land: its distance from the seat, its ground, its grievance, being held by force.",
+    ],
     leads: [
       "Less skimmed where the seat reaches; a stronger hand against risings; a standing the more for it.",
+      "Where it is thin, courts and officers are far: holdings are less safe, more is carried past its borders unseen, and those who sell protection find buyers.",
     ],
     see: [LEDGER],
     related: ["legitimacy", "corruption", "lore"],

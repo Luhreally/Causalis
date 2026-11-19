@@ -248,6 +248,7 @@ const RULES: Readonly<Record<string, readonly [number, number]>> = {
   "money.coin": [PEOPLE, 2],
   "money.debased": [PEOPLE, 3],
   "money.dearer": [PEOPLE, 2],
+  "money.renewed": [PEOPLE, 2],
   "money.taxed": [PEOPLE, 1],
   "money.tariff": [PEOPLE, 1],
   "money.sanction": [PEOPLE, 3],

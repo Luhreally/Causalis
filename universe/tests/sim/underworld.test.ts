@@ -664,6 +664,14 @@ test("protection is wanted land by land: where the seat's courts reach and are t
   ])
     assert.ok(protectionWantedIn({ ...held, ...worse }) > well * 1.5, JSON.stringify(worse));
   assert.equal(protectionWantedIn({ ...held, secure: 1, deals: 1, illegal: 0.2 }), 0.2);
+  // (A deal is left to a protector where the seat reaches neither of its two: the want goes as the uncovered share squared.
+  // Covered four parts in five, a twenty-fifth of what a land with no seat at all would want; covered a third, nearly half.)
+  const bare = protectionWantedIn({ ...held, reach: 0, legitimacy: 1 }),
+    at = (reach: number) => protectionWantedIn({ ...held, reach, legitimacy: 1 }) / bare;
+  assert.ok(bare > 0.1, `${bare}`);
+  assert.ok(Math.abs(at(0.8) - 0.04) < 1e-9, `${at(0.8)}`);
+  assert.ok(Math.abs(at(0.5) - 0.25) < 1e-9, `${at(0.5)}`);
+  assert.ok(at(1 / 3) > 0.44 && at(1 / 3) < 0.45);
 });
 
 // —— How a road's war ends, and a group put down ————————————————————————————————————————————————————————

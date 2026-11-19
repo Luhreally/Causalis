@@ -14,6 +14,7 @@ import {
   STIR_SHARE,
   boundIn,
   capacityOf,
+  reachOver,
   legitimacyFactors,
   mostHeld,
   orderOf,
@@ -149,14 +150,32 @@ export function legitimacyWords(x: number): string {
 }
 /** How far a seat reaches its lands, in words. */
 export function reachWords(x: number): string {
-  return x < 0.3
-    ? "thin: its will fades past the seat"
-    : x < 0.5
-      ? "felt in its nearer lands"
-      : x < 0.7
-        ? "felt across its lands"
-        : "felt in every village";
+  return x < 0.15
+    ? "its seat's word hardly leaves its hall"
+    : x < 0.3
+      ? "thin: its will fades past the seat"
+      : x < 0.5
+        ? "obeyed where its officers stand"
+        : x < 0.7
+          ? "felt across most of its lands"
+          : x < 0.85
+            ? "its law known in every town"
+            : "felt in every village";
 }
+/** Where a realm of several lands is reached most and least: the two lands, each with its share. */
+function reachEnds(world: World, r: Polity): Part[] {
+  if (r.ended !== null || r.members.length < 2) return [];
+  const over = reachOver(populationContext(world), r),
+    lands = [...over.lands].sort((a, b) => b[1] - a[1] || a[0] - b[0]),
+    most = lands[0],
+    least = lands.at(-1);
+  if (!most || !least || most[0] === least[0]) return [];
+  return [
+    part(["most in ", landLink(world, most[0], true)], share(most[1])),
+    part(["least in ", landLink(world, least[0], true)], share(least[1])),
+  ];
+}
+
 /** What is skimmed between the lands and the seat, in words. */
 export function skimWords(x: number): string {
   return x < 0.05 ? "little" : x < 0.15 ? "some" : x < 0.3 ? "much" : "most of what passes";
@@ -376,7 +395,7 @@ export function realmOrderBlocks(world: World, r: Polity): Block[] {
     },
     {
       ...stat("Reach", `${share(cap.value)} — ${reachWords(cap.value)}`, {
-        parts: cap.parts.map(factorPart),
+        parts: [...reachEnds(world, r), ...cap.parts.map(factorPart)],
       }),
       concept: "capacity",
     },

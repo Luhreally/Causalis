@@ -45,7 +45,9 @@ import {
   GENERAL,
   cutOff,
   politiesOf,
+  holdsLands,
   raiseRealm,
+  reach,
   realmName,
   type Polity,
 } from "../polity/polity.ts";
@@ -54,17 +56,33 @@ import { warsOf } from "../war/war.ts";
 import { grieve, strike } from "../acts/disasters.ts";
 import { handOf } from "../hand/hand.ts";
 import { LAW_OF, firstLaws, lawGrievance, weighLaws } from "./laws.ts";
-import { HOLD, HOLDING } from "../../rules/index.ts";
+import {
+  HOLD,
+  HOLDING,
+  REACH,
+  forceKeeps,
+  groundKeeps,
+  linkLosses,
+  linked,
+  near,
+  resentKeeps,
+  seatKeeps,
+  seatLinks,
+  type ReachLink,
+  type SeatFacts,
+} from "../../rules/index.ts";
 import { heldOf, holdOf, weighHolds, type Taught } from "./holds.ts";
 import { WantsStore } from "./wants.ts";
 import { ElectionStore, electionsYear } from "./elections.ts";
-import { housesRead, installHouses } from "./houses.ts";
+import { housesOf, housesRead, installHouses } from "./houses.ts";
 import { underworldSkim } from "./underworld-kept.ts";
 import { orgRefugeOf } from "./groups-kept.ts";
 import { CREDIT, creditOf, debtBurden } from "../credit/credit.ts";
 import { seizedFactor } from "../strife/strife.ts";
 import { fortunePull } from "../acts/fortune.ts";
-import { bindOf } from "../money/kept.ts";
+import { FISC, TREASURY_STORE, bindOf, deficitOf, moneyStore, revenueOf } from "../money/kept.ts";
+import { readersOf } from "../lore/letters.ts";
+import { occupationOf, reliefOf } from "../war/occupation.ts";
 import { captiveWorthOf } from "../society/kept.ts";
 
 /** The kinds of bondage a people may be held in (corvée, a levy on the free, is the realm's). */
@@ -397,10 +415,6 @@ export function boundIn(
 }
 
 /**
- * How far a realm's seat can make its will felt across its lands (0 … 1): writing, the reach
- * its roads and clerks give, its size (the more lands, the thinner), its age.
- */
-/**
  * What a realm's houses add to what is skimmed a year (round H): a coalition loyal past the middle, kin in office, a grifter's cut.
  * 0 where none are reckoned.
  */
@@ -410,42 +424,168 @@ export function houseSkim(world: World, realm: Ref): number {
   return 0.008 * (h.loyalty - 0.5) + 0.012 * h.nepotism + 0.01 * h.grift;
 }
 
-export function capacityOf(ctx: PopulationContext, p: Polity): { value: number; parts: Factor[] } {
-  const lore = loreOf(ctx.world),
-    year = yearOfMoment(ctx.world.now),
-    writing = lore.effect(p.seat, "writing") > 0 ? 1 : 0,
-    reach = Math.min(1, lore.effect(p.seat, "reach") / 2),
-    small = 1 / (1 + p.members.length / 10),
-    old = Math.min(1, Math.max(0, year - p.founded) / 150),
-    parts: Factor[] = [
-      { name: "writing at its seat", value: writing, contribution: 0.3 * writing, source: null },
-      { name: "roads and clerks", value: reach, contribution: 0.2 * reach, source: null },
-      { name: "few lands to hold", value: small, contribution: 0.25 * small, source: null },
-      { name: "an old seat", value: old, contribution: 0.1 * old, source: p.event },
-      // (What else makes its reach the surer: its seat's learned clerks and judges, sim/lore/academy.ts.)
-      ...REACHES.flatMap((f) => f(ctx, p)),
-      // (Round H, sim/order/houses.ts: offices given to the great houses' kin and not to the able.)
-      ...(() => {
-        const kin = housesRead(ctx.world, p.ref)?.nepotism ?? 0;
-        return kin > 0
-          ? [
-              {
-                name: "offices held by kin, not the able",
-                value: kin,
-                contribution: -0.15 * kin,
-                source: null,
-              },
-            ]
-          : [];
-      })(),
-    ].map((f) => ({
-      ...f,
-      source: f.source ? { ref: f.source, role: "enabler" as const, weight: 1 } : null,
-    }));
+/** A realm's reach, link by link: at its seat, and what each of its peopled lands keeps of that. */
+export type ReachOver = {
+  /** How far its will is done at its seat (0 … 1). */
+  readonly seat: number;
+  /** How far in each of its peopled lands (0 … 1). */
+  readonly lands: ReadonlyMap<number, number>;
+  /** Its lands', by their people (REACH.least … REACH.most). */
+  readonly value: number;
+};
+
+/** What a realm's seat can do, read off what is kept of it: its letters, its treasury, its order, its houses, its strife. */
+function seatFacts(ctx: PopulationContext, p: Polity): SeatFacts {
+  const { world } = ctx,
+    lore = loreOf(world),
+    o = orderOf(world)?.realms.get(p.ref),
+    fisc = moneyStore(world, TREASURY_STORE)?.get(p.ref),
+    revenue = fisc ? revenueOf(world, p.ref) : 0,
+    earned = fisc ? fisc[FISC.base + 3]! : 0;
+  let fought = false;
+  for (const w of warsOf(world).hotOf(p.ref))
+    if (w.ended === null && w.civil && (w.attacker === p.ref || w.defender === p.ref)) {
+      fought = true;
+      break;
+    }
   return {
-    value: clamp(0.05, 0.95, 0.15 + parts.reduce((s, f) => s + f.contribution, 0)),
-    parts,
+    writing: lore.effect(p.seat, "writing") > 0,
+    clerks: !!lore.get(p.seat, "bureaucracy"),
+    readers: readersOf(world, p.seat),
+    // (Before its treasury has read its lands, as one that takes its tithe.)
+    taken: fisc && earned > 0 ? revenue / earned : p.tribute,
+    short: fisc && revenue > 0 ? deficitOf(world, p.ref) / revenue : 0,
+    corruption: o?.corruption ?? 0,
+    // (housesRead's nepotism, without the rest of its reading.)
+    kin: (housesOf(world)?.of(p.ref)?.nepotism ?? 0) / 1000,
+    legitimacy: o?.legitimacy ?? 0.6,
+    age: yearOfMoment(world.now) - p.founded,
+    // (A civil war being fought, on either side of it: sim/strife, kept among its wars.)
+    civil: fought,
+    crisis: !!o?.crisis,
   };
+}
+
+/** The seat's links, with what else makes its reach the surer or the thinner (REACHES: each a share more or less). */
+function seatChain(
+  ctx: PopulationContext,
+  p: Polity,
+): { links: ReachLink[]; sources: (Ref | null)[] } {
+  const links = seatLinks(seatFacts(ctx, p)),
+    sources: (Ref | null)[] = links.map((l) => (l.name === "a seat not yet old" ? p.event : null));
+  // (Its seat's learned clerks and judges, sim/lore/academy.ts; officers bought, sim/order/underworld.ts; towns and roads held
+  // by their own, sim/order/groups.ts.)
+  for (const f of REACHES)
+    for (const x of f(ctx, p)) {
+      links.push({ name: x.name, value: x.value, keeps: clamp(0.2, 1.5, 1 + x.contribution) });
+      sources.push(x.source);
+    }
+  return { links, sources };
+}
+
+/**
+ * How far a realm's will is done at its seat and in each of its lands (rules/capacity.ts): read new at every asking from what the
+ * world keeps, so it holds nothing of its own.
+ */
+export function reachOver(ctx: PopulationContext, p: Polity): ReachOver {
+  const seat = seatValue(ctx, p),
+    lands = new Map<number, number>(),
+    value = landsReach(ctx, p, seat, lands);
+  return { seat, lands, value };
+}
+
+/** Each peopled land's reach set down in `into` (where given); the realm's, by its lands' people. */
+function landsReach(
+  ctx: PopulationContext,
+  p: Polity,
+  seat: number,
+  into: Map<number, number> | null,
+  tally?: { near: number; ground: number; resent: number; force: number },
+): number {
+  const { world } = ctx,
+    realms = politiesOf(world),
+    occ = occupationOf(world),
+    relief = reliefOf(ctx.generated),
+    carriers = loreOf(world).effect(p.seat, "reach"),
+    steps = p.members.length > 1 ? reach(ctx, p) : null;
+  let people = 0,
+    sum = 0;
+  for (const c of p.members) {
+    const n = ctx.provinces.get(c)?.total() ?? 0;
+    if (n <= 0) continue;
+    const ow = occ?.of(c),
+      nearBy = near(steps ? (steps.get(c) ?? 6) : 0, carriers),
+      ground = groundKeeps(relief[c] ?? 0),
+      resent = resentKeeps(realms.discontent(c).level),
+      force = forceKeeps(ow && ow.holder === p.ref ? ow.resistance : null),
+      here = seat * nearBy * ground * resent * force;
+    into?.set(c, here);
+    people += n;
+    sum += n * here;
+    if (tally) {
+      tally.near += n * nearBy;
+      tally.ground += n * ground;
+      tally.resent += n * resent;
+      tally.force += n * force;
+    }
+  }
+  if (tally && people > 0) {
+    tally.near /= people;
+    tally.ground /= people;
+    tally.resent /= people;
+    tally.force /= people;
+  }
+  return clamp(REACH.least, REACH.most, people > 0 ? sum / people : seat);
+}
+
+/** The seat's reach alone: `linked(seatChain(ctx, p).links)` to the bit, without the links. */
+function seatValue(ctx: PopulationContext, p: Polity): number {
+  let x = seatKeeps(seatFacts(ctx, p));
+  for (const f of REACHES) for (const y of f(ctx, p)) x *= clamp(0.2, 1.5, 1 + y.contribution);
+  return Math.min(1, x);
+}
+
+/** A realm's reach alone (0 … 1). */
+export function capacityValue(ctx: PopulationContext, p: Polity): number {
+  return landsReach(ctx, p, seatValue(ctx, p), null);
+}
+
+/**
+ * A realm's reach (0 … 1) and, where asked, what makes it: each part a link, its contribution what it takes of a whole reach (they
+ * sum to what is missing). The many that read only the number do not pay for the parts.
+ */
+export function capacityOf(ctx: PopulationContext, p: Polity): { value: number; parts: Factor[] } {
+  return {
+    value: capacityValue(ctx, p),
+    get parts() {
+      return reachParts(ctx, p);
+    },
+  };
+}
+
+function reachParts(ctx: PopulationContext, p: Polity): Factor[] {
+  const { links, sources } = seatChain(ctx, p),
+    seat = Math.min(1, linked(links)),
+    tally = { near: 0, ground: 0, resent: 0, force: 0 },
+    value = landsReach(ctx, p, seat, null, tally),
+    all: ReachLink[] = [...links],
+    from: (Ref | null)[] = [...sources];
+  const land = (name: string, keeps: number) => {
+    if (keeps > 0.995) return;
+    all.push({ name, value: Math.round(keeps * 100) / 100, keeps });
+    from.push(null);
+  };
+  land("lands far from its seat", tally.near || 1);
+  land("ground that hides its people from the count", tally.ground || 1);
+  land("lands that resent its rule", tally.resent || 1);
+  land("lands held by force", tally.force || 1);
+  const losses = linkLosses(all, value);
+  return all.map((l, i) => ({
+    name: l.name,
+    value: l.value,
+    contribution: losses[i]!,
+    source: from[i] ? { ref: from[i]!, role: "enabler" as const, weight: 1 } : null,
+  }));
 }
 
 /** What else makes a realm's seat reach its lands (each a list of factors whose source is a ref, read in `capacityOf`). */
@@ -1822,6 +1962,9 @@ export function orderYear(ctx: PopulationContext, t: SimTime): void {
 
 export function installOrder(world: World, ctx: () => PopulationContext): OrderStore {
   const store = world.register(new OrderStore());
+  // (A land breaks away as far as its seat's hand is not there to hold it: sim/polity/polity.ts asks, each year, of the realms with
+  // a land past the line.)
+  holdsLands((c, p) => reachOver(c, p).lands);
   // (What its groups have learned to want of how it is held: sim/order/wants.ts.)
   world.register(new WantsStore());
   // (Choices put to its people, where its rule has them: sim/order/elections.ts.)

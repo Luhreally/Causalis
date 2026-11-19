@@ -345,18 +345,15 @@ function makeAndUse(
               : 0));
 
   // Crafters go where their work is worth most; what lacks inputs sends them to what needs none.
-  // Nothing is made but while there is use for it: up to GLUT_YEARS of what the land burned, wore out, worked and sold (or of
-  // what its people need of it in the year, where that is more), less what it holds. (Fuel and machines by last year's; the
+  // Nothing is made but while there is use for it: up to GLUT_YEARS of what the land burned, wore out, worked, passed on within the
+  // year and sent away of its own making (Market.goes; or of what its people need of it in the year, where that is more), less
+  // what it holds. (Fuel and machines by last year's; the
   // rest by the most of the last GLUT_YEARS: tin and iron are worked only the year after they are smelted, Phase 52 M216, and
   // a year that smelted them and a year that worked them would take turns. It was fuel, machines, tin and iron alone: every
   // crafter with nothing else to work made what needs no inputs, wanted or not, and by first light's year 600 the world held
   // 590 years' use of tools, 48 of pots and 54 of copper, made fourteen tools for each one used, and sent thirty-one over a
   // border for each one used, to wherever a price stood a little higher: scratchpad/release/tg.mts.)
-  const last = m.years.at(-1)?.ledger,
-    gone = (g: number) =>
-      FUELS.includes(g) || g === G.machines
-        ? (last?.[1]?.[g] ?? 0) + (last?.[3]?.[g] ?? 0)
-        : m.goes(g),
+  const gone = (g: number) => (FUELS.includes(g) || g === G.machines ? m.went(g) : m.goes(g)),
     room = (g: number) =>
       idle && g === G.machines
         ? 0
@@ -840,7 +837,7 @@ function trade(
     if (carried > capacity) pl.count = Math.floor((pl.count * capacity) / carried);
   }
   // A market takes of a good no more than it has use for: what brings its stock to GLUT_YEARS of what goes there (what is
-  // wanted of it there this year, or what it used and sold on in the most of its last years), from all who would send it, each
+  // wanted of it there this year, or what went of it there in the most of its last years: Market.goes), from all who would send it, each
   // by what it would send. (Traders took a quarter of whatever a land had to spare of a good, each year, to any neighbour where
   // its price stood higher by more than the haul, whether anyone there had use for it: and a price falls no lower than a third
   // of a good's worth however much of it lies unsold, so where two lands' worths differed the goods went on going.)

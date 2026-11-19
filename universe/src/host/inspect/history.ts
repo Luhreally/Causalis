@@ -211,6 +211,7 @@ const TITLES: Readonly<Record<string, string>> = {
   "money.coin": "A new money",
   "money.debased": "A coin debased",
   "money.dearer": "Prices rising",
+  "money.renewed": "Notes called in for new",
   "money.taxed": "A new tax",
   "money.tariff": "A tariff",
   "money.sanction": "Trade shut by a fear",
