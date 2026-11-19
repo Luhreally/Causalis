@@ -17,6 +17,7 @@ import { tongueLikeness } from "../../gen/index.ts";
 import { ABROAD, CREED, abroadAfter } from "../../rules/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { languagesOf } from "./languages.ts";
+import { readersOf } from "../lore/letters.ts";
 import { cultureOf } from "./culture.ts";
 import { AbroadStore, abroadOf, type Abroad } from "./abroad-kept.ts";
 
@@ -96,7 +97,7 @@ export function abroadYear(ctx: PopulationContext, t: SimTime): void {
       if (e[0] === own.index) continue;
       const theirs = languages.at(e[0]),
         like = mine && theirs ? tongueLikeness(mine.tongue, theirs.standard) : 0,
-        share = Math.floor(abroadAfter(e[1], ABROAD.every, generation, like));
+        share = Math.floor(abroadAfter(e[1], ABROAD.every, generation, like, readersOf(world, c)));
       if (share >= ABROAD.least) kept.push([e[0], share, e[2], e[3]]);
     }
     store.set(c, kept);

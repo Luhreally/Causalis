@@ -40,7 +40,7 @@ export function abroadBlocks(world: World, cell: number): Block[] {
       type: "text",
       lines: [
         [
-          `Those who came into a land that speaks another tongue are counted so until their young take the speech around them (half in ${ABROAD.halves} generations, sooner the nearer the two tongues). While they are, more passes down the road to the land they came from, this land counts its seat's people the less its own, and its town's quarters are set the more apart.`,
+          `Those who came into a land that speaks another tongue are counted so until their young take the speech around them (half in ${ABROAD.halves === 1 ? "a generation" : `${ABROAD.halves} generations`}, sooner the nearer the two tongues and where its people read). While they are, more passes down the road to the land they came from, this land counts its seat's people the less its own, and its town's quarters are set the more apart.`,
         ],
       ],
     });

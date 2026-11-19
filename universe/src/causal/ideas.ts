@@ -110,6 +110,12 @@ export function workThemeWords(theme: string): string {
   if (theme === "memory.abolition") return "the bound set free";
   if (theme.startsWith("war.battle")) return "a battle";
   if (theme === "polity.formed") return "the founding of a realm";
+  if (theme.startsWith("frontier.minds")) return "minds grown past their makers";
+  if (theme.startsWith("frontier.gone-up") || theme === "frontier.world-gone-up")
+    return "those who went up into minds";
+  if (theme === "act.flood") return "a flood";
+  if (theme === "act.quake") return "a shaking of the ground";
+  if (theme === "act.fire" || theme === "wild.fire") return "a fire";
   if (theme === "polity.succession") return "a ruler's passing and another's coming";
   switch (head) {
     case "war":

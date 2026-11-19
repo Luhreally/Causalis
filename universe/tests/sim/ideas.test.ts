@@ -101,9 +101,10 @@ test("works, pilgrims and peoples abroad as numbers", () => {
   assert.equal(pilgrimsFrom(1e6, 0, 100), 0);
   assert.equal(pilgrimsFeed(1e9, 1000), PILGRIM.most);
   assert.equal(pilgrimsFeed(100, 0), 0);
-  // (A people abroad halves in two generations at speech wholly unlike, sooner at speech alike.)
-  assert.ok(Math.abs(abroadAfter(400, 50, 25, 0) - 200) < 1e-6);
-  assert.ok(abroadAfter(400, 50, 25, 0.9) < 150);
+  // (A people abroad halves in a generation at speech wholly unlike, sooner at speech alike and where the land reads.)
+  assert.ok(Math.abs(abroadAfter(400, 25, 25, 0) - 200) < 1e-6);
+  assert.ok(abroadAfter(400, 25, 25, 0.9) < 150);
+  assert.ok(abroadAfter(400, 25, 25, 0, 1) < abroadAfter(400, 25, 25, 0));
   assert.equal(kinTrade(0), 1);
   assert.equal(kinTrade(0.5), 1 + ABROAD.trade);
   assert.ok(kinTrade(0.05) > 1 && kinTrade(0.05) < 1.05);
