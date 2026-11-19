@@ -1929,3 +1929,14 @@ export {
   type Notable,
   type Post,
 } from "./notable/kept.ts";
+export {
+  HELD_EVENTS,
+  DisplacedStore,
+  displacedOf,
+  displacedYear,
+  heldAfter,
+  type Camp,
+  type Captives,
+  type Crime,
+} from "./war/held.ts";
+export { RAID, RAID_EVENTS, fightersOf, raidIn } from "./war/raids.ts";

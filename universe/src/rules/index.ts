@@ -1749,3 +1749,5 @@ export * from "./groups.ts";
 export * from "./institutions.ts";
 // Notable people (2026-11-18): who a people notice, their kind read off what they did.
 export * from "./notables.ts";
+// People out of their place (2026-11-19): the held, the fled, and what is done to them.
+export * from "./held.ts";

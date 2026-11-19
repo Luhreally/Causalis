@@ -52,7 +52,8 @@ import {
   type Polity,
 } from "../polity/polity.ts";
 import { interestsOf } from "../polity/interests.ts";
-import { warsOf } from "../war/war.ts";
+import { warsOf, type War } from "../war/war.ts";
+import { holdCarried, holdsCarried } from "../war/held.ts";
 import { grieve, strike } from "../acts/disasters.ts";
 import { handOf } from "../hand/hand.ts";
 import { LAW_OF, firstLaws, lawGrievance, weighLaws } from "./laws.ts";
@@ -1017,6 +1018,7 @@ function takeCaptives(
   land: number,
   battle: Ref,
   t: SimTime,
+  war?: War,
 ): void {
   const { world } = ctx,
     culture = cultureOf(world),
@@ -1148,17 +1150,54 @@ function takeCaptives(
         { ref: decision, role: "trigger", weight: 1 },
         { ref: battle, role: "enabler", weight: 1 },
       ],
-      data: { realm: realmName(a), count: drawn.n },
+      data: {
+        realm: realmName(a),
+        count: drawn.n,
+        ...(holdsCarried(world, war, a) ? { held: true } : {}),
+      },
     });
   carry(ctx, land, a.seat, drawn.moved, drawn.n, decision, event, t);
+  grieve(world, land, 0.3, event);
+  // (Held at its seat until the war's peace says what becomes of them: sim/war/held.ts. Bound at once where no war holds them.)
+  if (holdsCarried(world, war, a))
+    return holdCarried(world, war, a, drawn.n, yearOfMoment(t), event);
   bindNew(store, a.seat, BOND.chattel, drawn.n, before);
   landOf(store, a.seat).cause = event;
   o.firsts[BOND.chattel] ??= event;
-  grieve(world, land, 0.3, event);
   // The realm the land was taken from remembers.
   const from = politiesOf(world).formerly(land),
     loser = from ? store.realms.get(from) : undefined;
   if (loser) remember(loser, { what: "captivity", year: yearOfMoment(t), cell: land, event });
+}
+
+/**
+ * Those a realm held through a war and keeps at its peace (sim/war/held.ts), already among the people of `cell`: bound there as
+ * the carried-off always were, and the realm they are of remembers.
+ */
+export function bindCarried(
+  ctx: PopulationContext,
+  a: Polity,
+  cell: number,
+  n: number,
+  event: Ref,
+  of: Polity | null,
+  year: number,
+): void {
+  const store = orderOf(ctx.world),
+    prov = ctx.provinces.get(cell);
+  if (!store || !prov || n <= 0) return;
+  const o = realmOrder(store, a, cultureOf(ctx.world).get(a.seat));
+  bindNew(store, cell, BOND.chattel, n, Math.max(0, prov.total() - n));
+  landOf(store, cell).cause = event;
+  o.firsts[BOND.chattel] ??= event;
+  const loser = of ? store.realms.get(of.ref) : undefined;
+  if (loser) remember(loser, { what: "captivity", year, cell, event });
+}
+
+/** Whether a realm's people bind those they take in war: they have before, and their law has not freed the bound. */
+export function bindsTaken(world: World, realm: Ref): boolean {
+  const o = orderOf(world)?.realms.get(realm);
+  return !!o && o.abolished === null && !!o.firsts[BOND.chattel];
 }
 
 /**
@@ -1784,7 +1823,7 @@ export function orderYear(ctx: PopulationContext, t: SimTime): void {
       if (b.year !== year || !b.won) continue;
       const a = realms.get(w.attacker);
       if (a && a.ended === null && realms.of(b.land)?.ref === a.ref)
-        takeCaptives(ctx, store, a, b.land, b.event, t);
+        takeCaptives(ctx, store, a, b.land, b.event, t, w);
     }
   }
 

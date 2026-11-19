@@ -180,7 +180,9 @@ export function lastEvent(world: World, test: (e: HistoryEvent) => boolean): His
  * land gone with no town standing in it).
  */
 export function streetFightOf(world: World, ref: string): StreetFight | null {
-  const f = ref.startsWith("org:") ? preyingOf(world, ref) : readFight(world, ref);
+  const f = ref.startsWith("org:")
+    ? preyingOf(world, ref)
+    : (raidFight(world, ref) ?? readFight(world, ref));
   if (!f) return null;
   // (Two sides told apart at a glance: where their colours come near, the second's turned to the first's opposite.)
   const [a, b] = f.sides,
@@ -221,6 +223,87 @@ export function streetFightOf(world: World, ref: string): StreetFight | null {
       : near >= 0.4
         ? {}
         : { sides: [a, { ...b, color: turned }] as const }),
+  };
+}
+
+/**
+ * A raid of those who fight their holder on the soldiers posted in a land held by force (sim/war/raids.ts), as a fight in
+ * its greatest town's streets: the holder's soldiers at their posts, those who fight against them. Null: not one.
+ */
+function raidFight(world: World, ref: string): StreetFight | null {
+  const e = world.events.get(ref as Ref);
+  if (!e || e.type !== "war.raid" || !e.place) return null;
+  const r = politiesOf(world).get(e.subjects[0] as Ref);
+  if (!r) return null;
+  const cell = parseRef(e.place).b,
+    ctx = populationContext(world),
+    town =
+      [...ctx.settlements.inProvince(cell)]
+        .filter((t) => t.population > 0)
+        .sort((a, b) => b.population - a.population || (a.ref < b.ref ? -1 : 1))[0] ?? null;
+  if (!town) return null;
+  const d = (e.data ?? {}) as {
+      b?: string;
+      out?: number;
+      posted?: number;
+      dead?: [number, number];
+      won?: boolean;
+      group?: string;
+      kind?: string;
+      leader?: string;
+      gid?: number;
+    },
+    year = yearAt(e.t),
+    dead = d.dead ?? [0, 0],
+    org =
+      d.gid !== undefined
+        ? orgsOf(world)
+            ?.of(r.ref)
+            ?.orgs.find((g) => g.id === d.gid)
+        : undefined,
+    who = d.group
+      ? `the ${d.group} ${d.kind ?? "resistance"}`
+      : `those of ${landTitle(world, cell)} who fight it`,
+    side = org ? orgRef(r.ref, org.event) : (e.place as string),
+    realmHost = hostKinds(world, r.ref),
+    soldiers = {
+      ...soldierSide(world, r, undefined, dead[0]),
+      men: Math.round(d.posted ?? 0),
+      ref: r.ref as string,
+    },
+    raiders: StreetFightSide = {
+      ref: side,
+      name: cap(who),
+      color: holderColor(side),
+      as: "gang",
+      men: Math.round(d.out ?? 0),
+      fallen: Math.round(dead[1]),
+      arms: null,
+      host: { arm: realmHost?.arm ?? "club", guard: "", mount: "" },
+      gear: "what arms its people kept or took",
+    };
+  return {
+    event: ref,
+    year,
+    cell,
+    land: landTitle(world, cell),
+    town: town.ref as string,
+    townName: town.name,
+    page: e.place as string,
+    kind: "army",
+    title: `${cap(who)} against ${soldiers.name.replace(/^The /, "the ")}`,
+    sides: [soldiers, raiders],
+    others: 0,
+    won: d.won === undefined ? null : d.won ? 1 : 0,
+    open: false,
+    words: {
+      what: `A raid on the soldiers posted in a land ${realmName(r)} holds by force, taken from ${d.b ?? "another realm"}`,
+      who: `${cap(who)}${d.leader ? `, led by ${d.leader}` : ""}, some ${count(d.out ?? 0)}; ${soldiers.name.replace(/^The /, "the ")}, some ${count(d.posted ?? 0)} posted there`,
+      cost: `${many(dead[0] + dead[1], "dead", "dead")}: ${count(dead[0])} of the soldiers, ${count(dead[1])} of those who fell on them`,
+      effect: d.won
+        ? "It cost the posted more than the raiders: the land stands harder against its holder"
+        : "It was beaten off: the land is cowed for a time",
+    },
   };
 }
 

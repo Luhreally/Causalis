@@ -17,6 +17,7 @@ import { ArmingStore, armingYear, footingPower, mobilising } from "./arming.ts";
 import { orderOf } from "../order/order.ts";
 import { NavyStore, landingOf, navyYear } from "./navy.ts";
 import { SiegeStore, siegeAt, siegesOf, siegesYear, wallsOf } from "./siege.ts";
+import { heldAfter, installDisplaced } from "./held.ts";
 import {
   YEAR,
   defineEventType,
@@ -1767,6 +1768,25 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
     // (Or starved or stormed in a year its sally failed to break the lines.)
     if (((won && !besieged) || sieged?.falls) && takesLand(aim))
       takeLand(ctx, a, b, land, battle, t);
+    // (Of the beaten host's living, those taken and held, or given no quarter; a town stormed, spared or not: sim/war/held.ts.)
+    heldAfter(
+      ctx,
+      w,
+      a,
+      b,
+      {
+        won,
+        land,
+        battle,
+        levies: [levyA, levyB],
+        takes: [takesA, takesB],
+        fallen: [fa, fb],
+        led: [ledA, ledB],
+        hungry,
+        stormed: sieged?.how === "stormed" && takesLand(aim),
+      },
+      t,
+    );
     // 3. Peace: the prize won, or what the war has cost against what it is worth (below).
     const years = year - w.declared,
       prizeWon = a.members.includes(w.prize),
@@ -1908,6 +1928,8 @@ export function installWar(world: World, ctx: () => PopulationContext): WarStore
   const sieges = world.register(new SiegeStore());
   world.addPinner(() => sieges.pinned());
   world.system({ key: "185.war.zsieges", every: YEAR, run: (t) => siegesYear(ctx(), t) });
+  // (Those a war's sides hold, those who fled, and the wrongs done to either: sim/war/held.ts.)
+  installDisplaced(world, ctx);
   return store;
 }
 

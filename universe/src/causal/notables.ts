@@ -96,6 +96,8 @@ function did(world: World, d: Deed, land: string): string | null {
       return `led those of ${land} who settled another world`;
     case "strife.foiled":
       return `plotted against the seat of ${n || land} and was found out`;
+    case "held.crime":
+      return `ordered the killing of those who had yielded at ${n || land}`;
     case "houses.grifter":
       return `bought a way into the great of ${land} by fraud`;
     default:
