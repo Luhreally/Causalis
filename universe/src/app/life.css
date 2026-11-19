@@ -311,3 +311,8 @@ body.living-walk #hud .possess-live {
   background: rgba(10, 20, 40, 0.85);
   pointer-events: none;
 }
+/* (The sheet of lives has the foot of the screen: the hand's own button, which stands there, is put away while it is open.
+   Laying the hand is what the sheet is for.) */
+#hud:has(> .life-picker:not([hidden])) > .palette-toggle {
+  display: none !important;
+}
