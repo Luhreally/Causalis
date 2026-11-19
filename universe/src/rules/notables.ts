@@ -61,7 +61,7 @@ export const NOTE = {
   keepLand: 5,
   keepWorld: 420,
   goneLand: 3,
-  goneWorld: 420,
+  goneWorld: 320,
   /** The dead are kept whatever their standing for so many years, then only while past the line. */
   mourned: 10,
   /** A notable's deeds kept: the greatest and the latest. */
@@ -71,7 +71,7 @@ export const NOTE = {
   /** Only one who stands so many lines high is told at all. */
   tellAt: 1.5,
   /** Above so many lines a rising or a death is the chronicle's. */
-  great: 2.2,
+  great: 3,
   /** Where the one who did a thing is a standing notable of the land: the chance at standing one line. */
   doneBy: 0.6,
   /** A people whose bodies live as one (rules/folk: social past this) keep no one apart: a line of them is kept, seldom. */

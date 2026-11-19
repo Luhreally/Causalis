@@ -575,19 +575,19 @@ function weighLand(r: Run, p: Province, sick: boolean, turn: boolean): void {
       [],
       [
         {
-          name: `those of its people who do this (${Math.round(doers[d]!)})`,
+          name: `its doers of this (${Math.round(doers[d]!)})`,
           value: doers[d]!,
           contribution: chance * (rates[d]! / all),
           source: null,
         },
         {
-          name: "how far the craft of it has come there",
+          name: "how far the craft has come there",
           value: dev[d]!,
           contribution: 0.9 * dev[d]!,
           source: null,
         },
         {
-          name: "what the land has to spare to keep such a one",
+          name: "what the land can spare",
           value: spare,
           contribution: 0.7 * spare,
           source: null,
@@ -595,7 +595,7 @@ function weighLand(r: Run, p: Province, sick: boolean, turn: boolean): void {
         ...(pat > spare
           ? [
               {
-                name: "its rich, who keep those of name",
+                name: "its rich",
                 value: pat - spare,
                 contribution: 0.7 * (pat - spare),
                 source: null,
@@ -605,7 +605,7 @@ function weighLand(r: Run, p: Province, sick: boolean, turn: boolean): void {
         ...(taught > 1
           ? [
               {
-                name: "one of name taught there before them",
+                name: "one of name taught there",
                 value: taught,
                 contribution: taught - 1,
                 source: null,
@@ -615,7 +615,7 @@ function weighLand(r: Run, p: Province, sick: boolean, turn: boolean): void {
         ...(tried > 1
           ? [
               {
-                name: "a sickness in the land tried its healers",
+                name: "a sickness tried its healers",
                 value: tried,
                 contribution: tried - 1,
                 source: null,
@@ -625,7 +625,7 @@ function weighLand(r: Run, p: Province, sick: boolean, turn: boolean): void {
         ...(here.length
           ? [
               {
-                name: "the names its people hold already",
+                name: "names held already",
                 value: here.length,
                 contribution: -here.length / (1 + here.length),
                 source: null,
@@ -805,7 +805,8 @@ function cull(r: Run): void {
 
 // —— The war's commanders (sim/war/war.ts asks before a battle and tells after) ————————————————————————————————
 
-export type Command = { readonly id: number; readonly name: string } | null;
+/** Who commands a host: `told` where they stand high enough that a battle is told with their name. */
+export type Command = { readonly id: number; readonly name: string; readonly told: boolean } | null;
 
 /**
  * Who commands a realm's host as it takes the field: the one who does already, or someone the day makes (the one its court
@@ -816,7 +817,7 @@ export function commandIn(ctx: PopulationContext, p: Polity, t: SimTime): Comman
     store = notablesOf(world);
   if (!store) return null;
   const held = store.holder("command", p.ref);
-  if (held) return { id: held.id, name: held.name };
+  if (held) return { id: held.id, name: held.name, told: held.standing >= NOTE.tellAt * NOTE.line };
   const year = yearOfMoment(t),
     r: Run = {
       ctx,
@@ -843,7 +844,7 @@ export function commandIn(ctx: PopulationContext, p: Polity, t: SimTime): Comman
     );
   n.post = { kind: "command", of: p.ref };
   store.moved();
-  return { id: n.id, name: n.name };
+  return { id: n.id, name: n.name, told: false };
 }
 
 /**

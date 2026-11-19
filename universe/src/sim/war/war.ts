@@ -1703,7 +1703,11 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         won,
         fallen: fa + fb,
         ...(tip ? { tip } : {}),
-        ...(ledA || ledB ? { led: [ledA?.name ?? null, ledB?.name ?? null] } : {}),
+        // (Told with who led it only where one of them is spoken of: an untried commander's name on every battle was
+        // 0.4 MB of a save at 1,500.)
+        ...(ledA?.told || ledB?.told
+          ? { led: [ledA?.told ? ledA.name : null, ledB?.told ? ledB.name : null] }
+          : {}),
       },
     });
     // (And how the day went for those who led: their standing, and whether they fell or were taken.)
