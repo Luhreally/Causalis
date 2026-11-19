@@ -502,8 +502,8 @@ const REACH_UNIT = 1e6;
 const reachRows = (world: World, name: string): RowStore | null =>
   world.hasStore(name) ? world.store<RowStore>(name) : null;
 
-/** A realm's reach reckoned now and set down for the year (orderYear). */
-function reckonReach(ctx: PopulationContext, p: Polity): void {
+/** A realm's reach reckoned now and set down for the year (orderYear; and a test that makes a realm what it would have it be). */
+export function reckonReach(ctx: PopulationContext, p: Polity): void {
   const realms = reachRows(ctx.world, REACH_STORE),
     rows = reachRows(ctx.world, REACH_LANDS_STORE);
   if (!realms || !rows) return;

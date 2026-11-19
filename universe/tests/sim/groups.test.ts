@@ -68,6 +68,7 @@ import {
 import { ACADEMY_STORE } from "../../src/sim/culture/rows.ts";
 import { reliefOf } from "../../src/sim/war/occupation.ts";
 import { housesOf } from "../../src/sim/order/houses.ts";
+import { reckonReach } from "../../src/sim/order/order.ts";
 import { LAW_ROW, LAW_STORE, societyStore } from "../../src/sim/society/kept.ts";
 import { refNumber } from "../../src/sim/money/kept.ts";
 import { EARTH } from "../../src/host/index.ts";
@@ -365,6 +366,8 @@ test("where its people choose, an interest no house speaks for carries a party i
   takes[FISC.deficit] = 0;
   treasury.set(p.ref, takes);
   for (const c of p.members) politiesOf(world).setDiscontent(c, { level: 0, cause: null });
+  // (Its reach is kept from its year's reckoning: reckoned again here, of the seat as just made.)
+  reckonReach(ctx, p);
   const hv = housesOf(world)?.of(p.ref) as { houses: { origin: number }[] } | undefined;
   if (hv) hv.houses = hv.houses.filter((h) => h.origin !== 6);
   for (const c of p.members) landOf(orderOf(world)!, c).shares[0] = 0.3;
