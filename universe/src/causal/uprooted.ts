@@ -1,7 +1,13 @@
 // People out of their place, in words (sim/war/held.ts): what became of those a war's sides held, a wrong done to the beaten
 // or to a stormed town and who did it, whether it was answered for, and many fled come over a border. What and who, never how.
 import { yearOfMoment } from "../kernel/index.ts";
-import { COMPANY_EVENTS, HELD_EVENTS, RAID_EVENTS, SEA_EVENTS } from "../sim/index.ts";
+import {
+  COMPANY_EVENTS,
+  FLEET_EVENTS,
+  HELD_EVENTS,
+  RAID_EVENTS,
+  SEA_EVENTS,
+} from "../sim/index.ts";
 import { landWords } from "./generated.ts";
 import { count } from "./words.ts";
 import { grainSum } from "./war.ts";
@@ -137,4 +143,25 @@ registerEventWords(SEA_EVENTS.few.type, (world, e) => {
   return d?.water
     ? `The waters the people of ${landWords(world, e.place)} live in grew poor${left}: ${lands > 1 ? `${count(lands)} lands draw on them` : "they took more than it gives"}, ${year(e.t)}`
     : `The sea off ${landWords(world, e.place)} was fished poor${left}${lands > 1 ? ` by the boats of ${count(lands)} lands` : " by its boats"}, ${year(e.t)}`;
+});
+
+// Two fleets met at sea in a war (sim/war/fleets.ts).
+registerEventWords(FLEET_EVENTS.met.type, (world, e) => {
+  const d = e.data as {
+      flags?: [string, string];
+      led?: [string | null, string | null];
+      won?: number;
+      lost?: number;
+    } | null,
+    names = [text(e.data, "a"), text(e.data, "b")],
+    sunk = pair(e.data, "sunk"),
+    won = d?.won === 1 ? 1 : 0,
+    under = d?.led?.[won] ? ` under ${d.led[won]}` : "",
+    flag = d?.flags?.[won] ? `, its flagship the ${d.flags[won]},` : "",
+    where = e.place ? ` off ${landWords(world, e.place)}` : " at sea",
+    gone =
+      d?.lost === 0 || d?.lost === 1
+        ? `; ${names[d.lost]} lost its flagship${d.flags?.[d.lost] ? `, the ${d.flags[d.lost]}` : ""}`
+        : "";
+  return `The fleet of ${names[won]}${under}${flag} beat the fleet of ${names[1 - won]}${where}: ${count(sunk[1 - won]!)} tonnes of ships sunk for ${count(sunk[won]!)}${gone}, ${year(e.t)}`;
 });

@@ -6,12 +6,15 @@ import type { Ref, World } from "../../kernel/index.ts";
 import type { Block, Item, Line, Span, Stat } from "../../bridge/index.ts";
 import {
   displacedOf,
+  fleetCommander,
+  fleetsOf,
   notablesOf,
   politiesOf,
   realmName,
   type Camp,
   type Crime,
   type Polity,
+  type SeaFight,
   type War,
 } from "../../sim/index.ts";
 import { FLED } from "../../rules/index.ts";
@@ -187,5 +190,81 @@ export function landFledBlocks(world: World, cell: number): Block[] {
         .slice(0, 8)
         .map((c) => ({ ...item(campLine(world, c, false), c.cause), why: c.cause })),
     });
+  return blocks;
+}
+
+function fightItem(world: World, f: SeaFight, a: Ref, b: Ref): Item {
+  const sides = [a, b],
+    led = f.led[f.won] ? ` under ${f.led[f.won]}` : "",
+    gone =
+      f.lost === 0 || f.lost === 1
+        ? `; the ${f.flags[f.lost]}, flagship of the beaten, went down`
+        : "";
+  const line: Line = [
+    `Year ${f.year}: the fleet of `,
+    realmLink(world, sides[f.won]!),
+    `${led}${f.flags[f.won] ? `, in the ${f.flags[f.won]},` : ""} beat that of `,
+    realmLink(world, sides[1 - f.won]!),
+    `: ${count(f.sunk[1 - f.won]!)} t sunk of ${count(f.tons[1 - f.won]!)}, for ${count(f.sunk[f.won]!)} of ${count(f.tons[f.won]!)}${gone}`,
+  ];
+  return { ...item(line, f.event, f.year), why: f.event };
+}
+
+/** A war's meetings of fleets. Nothing where its fleets never met in numbers. */
+export function warFleetBlocks(world: World, w: War): Block[] {
+  const fights = fleetsOf(world)?.fightsOf(w.ref) ?? [];
+  return fights.length
+    ? [
+        {
+          type: "list",
+          title: "Its fleets met",
+          items: fights.map((f) => fightItem(world, f, w.attacker, w.defender)),
+        },
+      ]
+    : [];
+}
+
+/** A realm's fleet as a thing: its flagship, who commands it, the flagships it has lost and the meetings it has fought. */
+export function realmFleetBlocks(world: World, r: Polity): Block[] {
+  const store = fleetsOf(world),
+    fleet = store?.of(r.ref);
+  if (!store || !fleet) return [];
+  const led = fleetCommander(world, r.ref),
+    blocks: Block[] = [
+      {
+        type: "facts",
+        title: "Its fleet",
+        rows: [
+          stat("Flagship", `the ${fleet.flagship}`, {
+            parts: [
+              part("hers since", `year ${fleet.laid}`),
+              part("flagships lost before her", count(fleet.lost)),
+            ],
+          }),
+          stat(
+            "Commanded by",
+            led ? [link(led.name, `note:named:${led.id}`)] : "no one the world keeps by name",
+          ),
+          stat("Meetings of fleets fought", count(fleet.fought)),
+        ],
+      },
+    ],
+    wars = new Map<Ref, SeaFight[]>();
+  for (const f of store.allFights()) {
+    const l = wars.get(f.war);
+    if (l) l.push(f);
+    else wars.set(f.war, [f]);
+  }
+  const items: Item[] = [];
+  for (const [war, fights] of wars) {
+    const e = world.events.get(fights[0]!.event),
+      a = e?.subjects[1] as Ref | undefined,
+      b = e?.subjects[2] as Ref | undefined;
+    void war;
+    if (!a || !b || (a !== r.ref && b !== r.ref)) continue;
+    for (const f of fights) items.push(fightItem(world, f, a, b));
+  }
+  if (items.length)
+    blocks.push({ type: "list", title: "Its fleet's meetings at sea", items: items.slice(-10) });
   return blocks;
 }

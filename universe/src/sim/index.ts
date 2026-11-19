@@ -1942,3 +1942,13 @@ export {
 export { RAID, RAID_EVENTS, fightersOf, raidIn } from "./war/raids.ts";
 export { COMPANY, COMPANY_EVENTS, companiesField, companyOf, type CompanyAt } from "./war/companies.ts";
 export { SEA, SEA_EVENTS, SeaStore, seaOf, seaYield, seasOf, seasYear, type Sea } from "./ecology/seas.ts";
+export {
+  FLEET,
+  FLEET_EVENTS,
+  FleetStore,
+  fleetCommander,
+  fleetsOf,
+  fleetsYear,
+  type Fleet,
+  type SeaFight,
+} from "./war/fleets.ts";

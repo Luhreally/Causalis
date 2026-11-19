@@ -153,6 +153,7 @@ const TITLES: Readonly<Record<string, string>> = {
   "war.insurgency": "A land held by force",
   "ecology.sea-few": "A sea fished poor",
   "war.raid": "A raid on the posted",
+  "war.fleet": "Fleets met at sea",
   "war.company": "A hired company's day",
   "held.crime": "No quarter given",
   "held.reckoned": "A reckoning for a wrong of war",

@@ -18,6 +18,7 @@ import { orderOf } from "../order/order.ts";
 import { NavyStore, landingOf, navyYear } from "./navy.ts";
 import { SiegeStore, siegeAt, siegesOf, siegesYear, wallsOf } from "./siege.ts";
 import { heldAfter, installDisplaced } from "./held.ts";
+import { installFleets } from "./fleets.ts";
 import { companiesAfter, companiesField, companiesTold, companyOf } from "./companies.ts";
 import {
   YEAR,
@@ -1959,6 +1960,8 @@ export function installWar(world: World, ctx: () => PopulationContext): WarStore
   const navy = world.register(new NavyStore());
   world.addPinner(() => navy.pinned());
   world.system({ key: "184.war.navy", every: YEAR, run: (t) => navyYear(ctx(), t) });
+  // (Each fleet's flagship and who commands it, and the fleets' meetings at sea: sim/war/fleets.ts.)
+  installFleets(world, ctx);
   const sieges = world.register(new SiegeStore());
   world.addPinner(() => sieges.pinned());
   world.system({ key: "185.war.zsieges", every: YEAR, run: (t) => siegesYear(ctx(), t) });
