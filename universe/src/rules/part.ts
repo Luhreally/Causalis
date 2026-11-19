@@ -20,6 +20,10 @@ export const PART_IDS = [
   "lead",
   "attend",
   "alms",
+  "lend",
+  "callin",
+  "forgive",
+  "refuse",
   "judge",
 ] as const;
 export type PartId = (typeof PART_IDS)[number];
@@ -40,6 +44,10 @@ export const PARTS: Readonly<Record<PartId, { readonly icon: string; readonly la
   lead: { icon: "🗣️", label: "Lead the meeting" },
   attend: { icon: "🪑", label: "Go to the meeting" },
   alms: { icon: "🍞", label: "Give alms" },
+  lend: { icon: "🏦", label: "Lend to one who asks" },
+  callin: { icon: "📜", label: "Call in a debt" },
+  forgive: { icon: "🕊️", label: "Forgive a debt" },
+  refuse: { icon: "🚫", label: "Turn them away" },
   judge: { icon: "⚖️", label: "Hear the case" },
 };
 
@@ -57,6 +65,7 @@ export type PartOf =
   | "alms"
   | "head"
   | "leads"
+  | "lender"
   | "judge";
 export const PARTS_OF: Readonly<Record<PartOf, readonly PartId[]>> = {
   collect: ["rounds", "lielow"],
@@ -68,6 +77,7 @@ export const PARTS_OF: Readonly<Record<PartOf, readonly PartId[]>> = {
   alms: ["alms"],
   head: ["receive", "settle", "send", "answer", "paywatch", "lielow"],
   leads: ["lead"],
+  lender: ["lend", "callin", "forgive", "refuse"],
   judge: ["judge"],
 };
 
@@ -325,6 +335,42 @@ export function partOutcome(
         group: 1,
         heart: 0.05,
       });
+    // The head of a house of lending, at its table. What is lent and owed is the house's, and nothing of the house moves by
+    // it: what comes to the one lived is the day's dealing, and what the town and the house's family say of them.
+    case "lend": {
+      const lent = coin(40 + 20 * n),
+        fee = coin(2 + n);
+      return came(
+        `You heard ${n} who came to borrow from ${name} and lent to one of them: ${lent} coin of the house's, to come back with a tenth more. ${fee} coin is yours for the day's dealing.`,
+        { coin: fee, group: 1, standing: 1 },
+      );
+    }
+    case "callin": {
+      const owed = coin(30 + 15 * n);
+      if (u(1) < 0.65) {
+        const fee = coin(3);
+        return came(
+          `You called in what one who owes ${name} was behind with: ${owed} coin, and they paid it. ${fee} coin is yours. They will not speak well of you.`,
+          { coin: fee, group: 2, standing: -1 },
+        );
+      }
+      return came(
+        `You called in what one who owes ${name} was behind with: ${owed} coin, and they had not got it. Nothing came to the house, and it is said in the town that you asked.`,
+        { group: -1, standing: -1, heart: -0.05 },
+      );
+    }
+    case "forgive": {
+      const owed = coin(30 + 15 * n);
+      return came(
+        `You forgave one who owes ${name} what they could not pay: ${owed} coin the house will not see. The town speaks well of you, and the house's family less so.`,
+        { group: -3, standing: 3, heart: 0.08 },
+      );
+    }
+    case "refuse":
+      return came(
+        `You heard ${n} who came to borrow from ${name} and sent them all away: the house risks nothing by it and earns nothing, and those who asked will remember.`,
+        { standing: -1 },
+      );
     case "alms": {
       const cost = Math.min(Math.floor(purse), coin(n));
       return came(

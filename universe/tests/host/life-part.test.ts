@@ -15,6 +15,7 @@ import {
   type PartId,
 } from "../../src/rules/index.ts";
 import {
+  creditOf,
   handOf,
   makePopulationWorld,
   politiesOf,
@@ -26,6 +27,8 @@ import { loadWorld, saveWorld, seedFromText, type SaveDocument } from "../../src
 import { LIFE_QUERIES } from "../../src/host/life.ts";
 import { linesWere, roleOffers, townLifeOf } from "../../src/host/inspect/townlife.ts";
 import { EARTH } from "../../src/host/planet.ts";
+import { seatHolder } from "../../src/host/kin.ts";
+import { readingsOf } from "../../src/host/inspect/barread.ts";
 import { notablesIn } from "../../src/host/inspect/notables.ts";
 import { casesOf, courtFormOf, heldCaseOf } from "../../src/host/inspect/justice.ts";
 import { pageOf } from "../../src/host/inspect/index.ts";
@@ -276,6 +279,12 @@ test("a case ruled by one lived as the court's judge reads as ruled in the court
   // Its page reads it as ruled from then, though the book had set it for a later day; and what was laid runs from the ruling.
   const page = JSON.stringify(pageOf(w2, c0.ref));
   assert.doesNotMatch(page, /still to be heard|being heard today/);
+  // What it cost is said as any case says it, and who ruled it.
+  assert.match(
+    page,
+    /Three months of their life, that their home went without\. You ruled it, living as /,
+  );
+  assert.doesNotMatch(page, /under your hand/);
   assert.match(page, /was locked in the town's cell for three months, by /);
   assert.ok(c.day <= Math.floor(w2.now / 86_400), "heard the day it was ruled");
   assert.equal(heldCaseOf(w2, court.ref, c.accused.ref)?.ref, c.ref);
@@ -398,4 +407,62 @@ test("the hand is told who was what when it is laid, and keeps it: a save loaded
     Array.from({ length: 65 }, (_, i) => ({ key: `k${i}`, names: ["a"] })),
   ])
     assert.throws(() => w6.submit("hand.lay", { ...asked, was }), /was must be/);
+});
+
+test("the head of a house of lending: what they do is read from its books, and lived they lend, turn away, call in and forgive, on their life alone", () => {
+  const w7 = peopledWorld("kestrel", 400, { start: "spread" }),
+    credit = creditOf(w7)!,
+    house = credit.standing()[0]!;
+  assert.ok(house, "a house of lending stands");
+  const ref = `seat:${house.town}:lender:0`,
+    holder = seatHolder(w7, house.town, "lender", 0)!,
+    loans = credit.open().filter((l) => l.house === house.ref),
+    doing = readingsOf(w7, ref, pageOf(w7, ref)!)!.doing;
+  // Their Doing line: whose house, since when, what it holds, what is out and who owes it.
+  assert.equal(doing.short, "lending");
+  assert.match(
+    doing.words,
+    new RegExp(
+      `^Heads ${house.name}, lending since year ${house.year}\\. It holds .+ grain's worth of its own`,
+    ),
+  );
+  assert.match(
+    doing.words,
+    loans.length ? / is out, owed by / : /nothing is out: no one owes it now\.$/,
+  );
+  assert.doesNotMatch(doing.words, /History keeps no work/);
+  // Their parts: to lend and to turn away while it holds anything; to call in and to forgive only where someone owes.
+  const offers = roleOffers(w7, house.town, ref, holder.name),
+    part = (what: string) => offers.find((o) => o.part?.what === what)!;
+  assert.deepEqual(
+    offers.flatMap((o) => (o.part ? [o.part.what] : [])),
+    ["lend", "refuse", "callin", "forgive"],
+  );
+  assert.equal(part("lend").can, house.capital > 0);
+  assert.equal(part("callin").can, loans.length > 0);
+  assert.equal(part("forgive").can, loans.length > 0);
+  assert.match(offers[0]!.words, /^You head .+, lending since year \d+\./);
+  // No one else of the town is offered them.
+  assert.deepEqual(
+    roleOffers(w7, house.town, ref, "No Such One").filter((o) => o.part),
+    [],
+  );
+  // Lived: a loan made from the tray is written on the life, and the house's books do not move.
+  w7.runTo(w7.submit("hand.lay", { village: house.town }).t);
+  const card = (LIFE_QUERIES["life.pick"]!(w7, undefined) as LifeCard[]).find(
+    (c) => c.kind !== "child",
+  )!;
+  w7.runTo(w7.submit("life.begin", { agent: card.id, home: 1 }).t);
+  const before = new Map(w7.domainHashes()),
+    purse = handOf(w7).resting!.life!.purse;
+  w7.runTo(w7.submit("life.part", part("lend").part).t);
+  const l = handOf(w7).resting!.life!,
+    moved = [...w7.domainHashes()].filter(([k, v]) => before.get(k) !== v).map(([k]) => k);
+  assert.match(
+    l.log.at(-1)!.words,
+    /^You heard \d+ who came to borrow from .+ and lent to one of them: \d+ coin of the house's/,
+  );
+  assert.ok(l.purse > purse, "the day's dealing reaches the purse");
+  assert.equal(l.doing?.part, "lend");
+  assert.deepEqual(moved.sort(), ["commands", "hand", "kernel"], `moved: ${moved.join(", ")}`);
 });

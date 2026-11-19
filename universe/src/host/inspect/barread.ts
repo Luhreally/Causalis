@@ -3,12 +3,15 @@
 // how many hold their rule rightful, and a page says so. Nothing is kept, nothing drawn, and the same reading is on the
 // bar and on their page. A person's body is what their page's own Body line says; their age is against what their people live.
 import { goneNotable } from "./notables.ts";
+import { landName } from "./annals.ts";
+import { worthWords } from "../../bridge/index.ts";
 import { heldReading } from "./townlife.ts";
 import { parseTownsfolkRef } from "../../bridge/index.ts";
 import { yearOfMoment, type Ref, type World } from "../../kernel/index.ts";
 import { bandOf, moodAt, REIGN } from "../../rules/index.ts";
 import {
   courtOf,
+  creditOf,
   handOf,
   healthOf,
   orderOf,
@@ -420,6 +423,44 @@ function goneRead(f: Fate): BarReadings {
   };
 }
 
+/**
+ * What the head of a house of lending does, from the world's books of credit: whose house, how much it holds, how much is out
+ * and to whom (the lands and realms that owe it, the most owed first). Null: not such a one, or the house has failed.
+ */
+function lenderDoing(world: World, ref: string): BarReading | null {
+  const m = /^seat:(town:\d+:\d+):lender:\d+$/.exec(ref),
+    credit = m ? creditOf(world) : null,
+    house = m ? credit?.houseIn(m[1]!) : undefined;
+  if (!credit || !house || house.failed !== null) return null;
+  const loans = credit
+      .open()
+      .filter((l) => l.house === house.ref)
+      .sort((a, b) => b.owed - a.owed || a.id - b.id),
+    owed = credit.outstanding(house.ref),
+    realms = politiesOf(world),
+    who = [
+      ...new Set(
+        loans.map((l) =>
+          l.realm && realms.get(l.realm)
+            ? realmName(realms.get(l.realm)!)
+            : landName(world, l.cell),
+        ),
+      ),
+    ],
+    told =
+      who.length > 3 ? `${who.slice(0, 3).join(", ")} and ${who.length - 3} more` : who.join(", "),
+    name = house.name.replace(/^The /, "the ");
+  return read(
+    "🏦",
+    "Doing",
+    "lending",
+    loans.length
+      ? `Heads ${name}, lending since year ${house.year}. It holds ${worthWords(house.capital)} grain's worth of its own; ${worthWords(owed)} is out, owed by ${told}.`
+      : `Heads ${name}, lending since year ${house.year}. It holds ${worthWords(house.capital)} grain's worth of its own, and nothing is out: no one owes it now.`,
+    "good",
+  );
+}
+
 /** How a person is, from their own page and the world behind it. */
 export function readingsOf(world: World, ref: string, page: PageModel): BarReadings | null {
   // (One dead or gone is so in every reading, at once: no mood, work or body of the living.)
@@ -447,7 +488,8 @@ export function readingsOf(world: World, ref: string, page: PageModel): BarReadi
               work === "a child" ? "A child, not yet at any work." : `Their work is as a ${work}.`,
               "plain",
             )
-          : read("🛠️", "Doing", "untold", "History keeps no work for them.", "plain");
+          : (lenderDoing(world, ref) ??
+            read("🛠️", "Doing", "untold", "History keeps no work for them.", "plain"));
   // One under the god's hand holds a mood, as the hand moved it.
   if (ref.startsWith("agent:")) {
     const w = handOf(world).resting,

@@ -152,6 +152,11 @@ function partSpot(
     case "send":
     case "paywatch":
       return at(door, "talk", ACTIVITY.working, "At the door of their house");
+    case "lend":
+    case "callin":
+    case "forgive":
+    case "refuse":
+      return at(door, "haggle", ACTIVITY.working, "At the counting table of their house");
     case "lielow":
       return at(door, null, ACTIVITY.home, "Lying low");
     default:

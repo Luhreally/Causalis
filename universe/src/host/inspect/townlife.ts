@@ -31,6 +31,7 @@ import {
   deathNotesOf,
   groupOfBoss,
   WAS_MOST,
+  creditOf,
   handOf,
   kindOfGroup,
   lifeOf,
@@ -75,6 +76,8 @@ import {
 } from "./justice.ts";
 import { musicOf } from "./customs.ts";
 import { seatTownOf } from "../leaders.ts";
+import { seatHolder } from "../kin.ts";
+import { worthWords } from "../../bridge/index.ts";
 import { courtLeaders } from "../court.ts";
 import { count, item, link, many, stat, yearNow } from "./words.ts";
 
@@ -1387,6 +1390,14 @@ const PART_SAYS: Readonly<Record<Exclude<PartId, "judge">, (name: string, n: num
   attend: (name) => `Go to the meeting of ${name}, among its own.`,
   alms: (name, n) =>
     `Give out bread for ${name} to ${n} of its own in need: a little of your own coin beside what it pools.`,
+  lend: (name, n) =>
+    `Hear the ${n} who come to borrow from ${name}, and lend to one of them from the house's chest: a little for the day's dealing is yours.`,
+  callin: (name, n) =>
+    `Call in what one who owes ${name} is behind with (${n === 1 ? "one owes" : `${n} owe`} it): they may have it, or not. The town does not love it.`,
+  forgive: (name) =>
+    `Forgive one who owes ${name} what they cannot pay: the town speaks well of it, the house's family does not.`,
+  refuse: (name, n) =>
+    `Turn away the ${n} who come to borrow from ${name}: nothing risked, nothing earned.`,
 };
 
 /**
@@ -1530,6 +1541,30 @@ export function roleOffers(
       can: true,
       words: `You are ${judge.title.replace(/^./, (c) => c.toLowerCase())}. No small wrong waits to be heard before the year is out.`,
     });
+  // The head of the town's house of lending: at its table, with those who come to borrow and those who owe.
+  const house = creditOf(world)?.houseIn(town),
+    lender = house && house.failed === null ? seatHolder(world, town, "lender", 0) : null;
+  if (house && lender && lender.name === name) {
+    const credit = creditOf(world)!,
+      loans = credit.open().filter((l) => l.house === house.ref),
+      out_ = credit.outstanding(house.ref),
+      s = populationContext(world).settlements.get(town as Ref),
+      askers = Math.max(1, Math.min(8, Math.round(Math.log10(Math.max(10, s?.population ?? 10))))),
+      owing = Math.max(1, Math.min(8, loans.length)),
+      of = { ref: house.ref, name: house.name.replace(/^The /, "the ") };
+    out.push({
+      what: "role",
+      target: -1,
+      icon: "🏦",
+      label: "Your house",
+      can: true,
+      words: `You head ${of.name}, lending since year ${house.year}. It holds ${worthWords(house.capital)} grain's worth of its own, ${loans.length ? `and ${worthWords(out_)} is out to ${loans.length === 1 ? "one who owes" : `${loans.length} who owe`} it` : "and nothing is out: no one owes it now"}.`,
+    });
+    add("lend", of, askers, "", house.capital > 0);
+    add("refuse", of, askers);
+    add("callin", of, owing, "", loans.length > 0);
+    add("forgive", of, owing, "", loans.length > 0);
+  }
   if (held)
     out.push({
       what: "role",
