@@ -17,7 +17,8 @@ import {
   DRY_MOST,
   type Fabric,
 } from "../sim/index.ts";
-import type { TownRoad, TownSite } from "../bridge/index.ts";
+import { streetsLaid, type TownRoad, type TownSite } from "../bridge/index.ts";
+import { formFacts } from "./form.ts";
 
 /** A town as its roads are reckoned. */
 export type RoadTown = {
@@ -240,6 +241,12 @@ export function townSiteOf(
     measured: measuredFrom(world, s.cell, s.founded, f),
     walled: f.walls?.reach ?? null,
     dry: f.next < DRY_MOST && floodWary(world, s.cell, year),
+    // (What its streets were laid for, part by part: bridge/form.ts.)
+    ...(() => {
+      const facts = formFacts(world, ref, f, null),
+        laid = facts ? streetsLaid(facts) : undefined;
+      return laid ? { laid } : {};
+    })(),
   };
 }
 

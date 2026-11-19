@@ -6622,6 +6622,15 @@ export type HouseLook = {
   readonly height: number;
   readonly raised: number;
   readonly open: boolean;
+  // —— As its lot's ground has it in a town (view/townform.ts; absent: as its design alone has it):
+  /** Wall to wall with its neighbours along the street, a floor higher. */
+  readonly joined?: boolean;
+  /** Apart from its neighbours, in its yard. */
+  readonly apart?: boolean;
+  /** A tall home's height against its kind's own. */
+  readonly tall?: number;
+  /** Its tall homes are raised in its people's own stuff. */
+  readonly own?: boolean;
 };
 
 // Walls and roofs in the bright, clean colours of the era's games (art track A3).

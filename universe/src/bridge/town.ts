@@ -11,7 +11,8 @@ import type { ColonyLook } from "./colony.ts";
 import { MONTH, YEAR, mix } from "../kernel/index.ts";
 import type { GenesisPlan, MeadowPlan } from "./genesis.ts";
 import type { GetAbout } from "./village.ts";
-import { grownBlocks, type TownSite } from "./sites.ts";
+import { grownBlocks, type MainStreet, type TownSite } from "./sites.ts";
+import type { TownForm } from "./form.ts";
 import type { TownRank } from "./rank.ts";
 
 /** A lot: so many metres along its street, so many deep. */
@@ -141,6 +142,8 @@ export type TownPlan = {
   readonly site?: TownSite;
   /** Who its buildings belong to, as far as it shows (bridge/rank.ts; absent: not read). */
   readonly rank?: TownRank;
+  /** What moving, building and holding ground cost its people here, as its form shows it (bridge/form.ts; absent: not read). */
+  readonly form?: TownForm;
   /** For the plan's own turns and wanderings. */
   readonly seed: number;
   /** The heading of its streets (a grid's runs along its road). */
@@ -234,13 +237,18 @@ export type TownBlocks = {
   readonly x: Float32Array;
   readonly z: Float32Array;
   readonly yaw: Float32Array;
+  /** Its main streets, where its streets were grown from its ground (bridge/sites.ts; absent: laid by its family). */
+  readonly mains?: readonly MainStreet[];
 };
 
 /**
  * A town's blocks grown along its streets (bridge/sites.ts), kept for the towns last asked of: the land's map and the town's
  * own view ask the same town's again and again, at different counts (the first so many are the same at any count).
  */
-const GROWN = new Map<string, TownBlocks & { readonly straight: Uint8Array }>();
+const GROWN = new Map<
+  string,
+  TownBlocks & { readonly straight: Uint8Array; readonly mains: readonly MainStreet[] }
+>();
 function grownOf(
   seed: number,
   site: TownSite,
@@ -270,6 +278,7 @@ function grownOf(
         z: kept.z.subarray(0, count),
         yaw: kept.yaw.subarray(0, count),
         straight: kept.straight.subarray(0, count),
+        mains: kept.mains,
       } as TownBlocks);
 }
 

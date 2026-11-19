@@ -30,6 +30,7 @@ import {
 import {
   BLOCK_LOTS,
   blocksHeld,
+  formWhys,
   lotStates,
   measuredBlocks,
   townBlocks,
@@ -53,6 +54,8 @@ import {
   whyOpen,
 } from "./sited.ts";
 import { townRank } from "../rank.ts";
+import { townFormOf } from "../form.ts";
+import { colonyTownCell } from "../colony.ts";
 import { townPlan } from "../town.ts";
 import { workshopBlocks } from "../chain.ts";
 import { townSite } from "../village.ts";
@@ -502,6 +505,16 @@ function townStreets(world: World, town: Ref, f: Fabric): Line | null {
   return streetsLine(site, measuredBlocks(blocks));
 }
 
+/** A town's form in plain lines (none: not grown from a site, a colony's halls). */
+function townFormWhys(world: World, town: Ref, f: Fabric): string[] {
+  if (colonyTownCell(town) !== null || !siteOfTown(world, town, f)) return [];
+  const rank = townRank(world, town, f),
+    read = townFormOf(world, town, f, rank),
+    // (Its walls make its ground scarce while they stand about it: as its view reads them, grown past thrice over they are down.)
+    walled = !!f.walls && f.next < 3 * f.walls.reach;
+  return read ? formWhys(read.form, read.laid, walled) : [];
+}
+
 /** A town's buildings, for its page: its homes by level, its other buildings, its walls (null: no fabric yet). */
 export function buildingsTab(world: World, town: Ref): Tab | null {
   const f = townsOf(world).get(town);
@@ -554,6 +567,10 @@ export function buildingsTab(world: World, town: Ref): Tab | null {
   // (Its streets in a line, read off how they were laid: asked 2026-11-16.)
   const streets = townStreets(world, town, f);
   if (streets) blocks.push({ type: "text", lines: [streets] });
+  // (Its form, each line what is seen and why: asked 2026-11-19, bridge/form.ts.)
+  const whys = townFormWhys(world, town, f);
+  if (whys.length)
+    blocks.push({ type: "list", title: "Why it is built so", items: whys.map((w) => item([w])) });
   blocks.push(
     items.length
       ? { type: "list", title: "Its buildings", items }
