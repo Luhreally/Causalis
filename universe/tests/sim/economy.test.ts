@@ -201,7 +201,11 @@ test("trade answers a famine, and says so", () => {
   assert.match(node.claim, /^Food came to the .* while famine was on/);
   const kinds = node.causes.map((c) => grown.events.get(c.cause.ref)?.type);
   assert.ok(kinds.includes(POPULATION_EVENTS.famine.type), "the famine");
-  assert.ok(kinds.includes(ECONOMY_EVENTS.route.type), "the road the food came down");
+  // (By the road it came down or the sea route it came over: first light's first relief, in 146, comes by sea.)
+  assert.ok(
+    kinds.includes(ECONOMY_EVENTS.route.type) || kinds.includes(ECONOMY_EVENTS.seaRoute.type),
+    "the way the food came",
+  );
 });
 
 test("a price explains itself: the year's numbers, then what lies behind them", () => {
