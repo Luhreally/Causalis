@@ -181,6 +181,9 @@ const RULES: Readonly<Record<string, readonly [number, number]>> = {
   "order.law": [PEOPLE, 2],
   "order.held": [PEOPLE, 3],
   "order.elected": [PEOPLE, 3],
+  // (Those the world keeps by name, sim/notable: a rising, and a death.)
+  "notable.arose": [PEOPLE, 3],
+  "notable.died": [PEOPLE, 2],
   "houses.rose": [PEOPLE, 2],
   "houses.demagogue": [PEOPLE, 3],
   "houses.grifter": [PEOPLE, 2],

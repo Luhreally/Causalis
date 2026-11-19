@@ -64,6 +64,8 @@ import "./underworld.ts";
 export { groupWords } from "./underworld.ts";
 import "./groups.ts";
 export { ORG_IS, orgWords } from "./groups.ts";
+import "./notables.ts";
+export { NOTABLE_ENDS, deedLine, notableTitle, type Titled } from "./notables.ts";
 import "./health.ts";
 import "./credit.ts";
 import "./finance.ts";

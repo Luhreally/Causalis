@@ -14,7 +14,7 @@
 //     and strikes of its holders, and each new holder who heads it.
 // The observer ledger keeps the watches, saved with the world; reading them moves nothing.
 import { headLeader } from "./inspect/townlife.ts";
-import { goneNotable, notableOf } from "./inspect/notables.ts";
+import { goneNamed, goneNotable, notableOf } from "./inspect/notables.ts";
 import { groupNews, groupOf } from "./underworld.ts";
 import { YEAR, type HistoryEvent, type Ref, type World } from "../kernel/index.ts";
 import { politiesOf, folkByRef } from "../sim/index.ts";
@@ -336,6 +336,21 @@ defineWatchKind({
 });
 defineWatchKind({
   test: (ref) => ref.startsWith("note:"),
-  label: (world, ref) => notableOf(world, ref)?.name ?? goneNotable(world, ref)?.name ?? null,
-  news: () => () => false,
+  label: (world, ref) =>
+    notableOf(world, ref)?.name ??
+    goneNamed(world, ref)?.name ??
+    goneNotable(world, ref)?.name ??
+    null,
+  // (What is told of one the world keeps by name is news of them: their rising, their death. A battle they led names them.)
+  news: (world, w) => {
+    const m = /^note:named:(\d+)$/.exec(w.ref),
+      own = m ? `nota:0:${m[1]}` : null,
+      name = m ? (notableOf(world, w.ref)?.name ?? null) : null;
+    return (e) =>
+      own !== null &&
+      ((e.subjects as readonly string[]).includes(own) ||
+        (name !== null &&
+          e.type === "war.battle" &&
+          ((e.data as { led?: (string | null)[] } | null)?.led ?? []).includes(name)));
+  },
 });

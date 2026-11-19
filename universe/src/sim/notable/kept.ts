@@ -95,7 +95,7 @@ export type Gone = {
   readonly born: number;
   readonly since: number;
   readonly died: number;
-  /** How: "age", "battle", "taken" (in battle, not seen again), "sickness", "purge", "struck" (by the god), "killed". */
+  /** How: "age", "ills" (of their time's common ills, not old), "battle", "taken" (in battle, not seen again), "sickness", "purge", "struck" (by the god), "killed". */
   readonly how: string;
   readonly home: number;
   readonly realm: Ref | null;

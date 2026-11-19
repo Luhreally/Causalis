@@ -1407,6 +1407,8 @@ export function fortuneWords(kind: PersonKind, sign: 1 | -1): string {
       return `their chance of death ${against}; a woman's chance of a child ${goes}`;
     case "boss":
       return `the chance they are taken or die of their years ${against}; what the realm's hand takes of their group ${against}`;
+    case "notable":
+      return `their chance of dying of their years ${against}; their standing among their people a tenth of what it takes to be known ${sign > 0 ? "higher; no sickness or fallen seat takes them" : "lower"}`;
     default:
       return "";
   }

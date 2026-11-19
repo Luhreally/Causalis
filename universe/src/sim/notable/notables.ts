@@ -125,6 +125,8 @@ const OCCASIONS: Readonly<Record<string, Occasion>> = {
   "strife.foiled": { d: DOMAIN.infamy, share: 0.6, note: "realm" },
   "houses.grifter": { d: DOMAIN.infamy, share: 1, note: "name" },
 };
+/** The god's act on one person (sim/acts/person.ts): an inspiring is an occasion. */
+const INSPIRED = "person.act";
 /** A sickness in a land this year: its healers are tried, and its notables die the more. */
 const SICKNESS = "health.outbreak";
 /** A seat's fall: those of name who served it may fall with it. */
@@ -275,10 +277,17 @@ function tellRise(r: Run, n: Notable, causes: CauseRef[], factors?: Factor[]): v
           what: deed.w,
           ...(deed.n ? { of: deed.n } : {}),
           ...(n.many ? { many: true } : {}),
+          ...atOf(r, n.home),
         },
       });
     },
   });
+}
+
+/** A land as its people call it, for a telling: its first town's name. */
+function atOf(r: Run, cell: number): { at?: string } {
+  const town = r.ctx.settlements.inProvince(cell)[0]?.name;
+  return town ? { at: town } : {};
 }
 
 /** One of the living ends: kept among the gone, their post empty, and told if they stood high. */
@@ -332,6 +341,7 @@ function end(r: Run, n: Notable, how: string, by: Ref | null): void {
             ...(gone.deeds[0]?.n ? { of: gone.deeds[0].n } : {}),
             what: gone.deeds[0]?.w ?? "stood out",
             ...(n.many ? { many: true } : {}),
+            ...atOf(r, n.home),
           },
         });
       // (The record kept is told by its own event from here on.)
@@ -380,7 +390,7 @@ function occasion(r: Run, e: HistoryEvent, o: Occasion, inspired: Map<number, nu
     standing = led !== undefined ? store.get(led) : standingIn(store, cell, o.d);
   if (standing && (led !== undefined || u(1) < doneBy(standing.by[o.d] ?? 0))) {
     addDeed(standing, deed);
-    if (e.type.startsWith("act.inspire")) inspired.set(cell, standing.id);
+    if (e.type.startsWith("act.inspire") || e.type === INSPIRED) inspired.set(cell, standing.id);
     return;
   }
   // (Is the deed weighty enough that the one who did it is noticed for it alone? Among a hive, seldom.)
@@ -394,7 +404,7 @@ function occasion(r: Run, e: HistoryEvent, o: Occasion, inspired: Map<number, nu
           read *
           (e.type === "order.elected" ? 0.5 : 1) *
           (r.many ? NOTE.hiveShare : 1);
-  if (!noticed && !e.type.startsWith("act.inspire")) return;
+  if (!noticed && !e.type.startsWith("act.inspire") && e.type !== INSPIRED) return;
   // (A seat seized is seized by its general, whom the court may keep already.)
   const general =
       e.type === "strife.coup" && typeof data.general === "string" && data.general
@@ -405,7 +415,7 @@ function occasion(r: Run, e: HistoryEvent, o: Occasion, inspired: Map<number, nu
           }
         : undefined,
     n = arise(r, cell, key, Math.max(NOTE.line, made), deed, general);
-  if (e.type.startsWith("act.inspire")) inspired.set(cell, n.id);
+  if (e.type.startsWith("act.inspire") || e.type === INSPIRED) inspired.set(cell, n.id);
   if (e.type === "order.elected" && realm && typeof data.group === "string") {
     // (They speak for the group that won, until another does.)
     const was = store.holder("speaks", realm.ref);
@@ -590,14 +600,27 @@ export function notablesYear(ctx: PopulationContext, t: SimTime): void {
     if (e.type === SICKNESS) {
       const c = cellOf(e.place);
       if (c !== null) sick.set(c, e.id);
-    } else if (OCCASIONS[e.type]) found.push(e);
+    } else if (OCCASIONS[e.type] || e.type === INSPIRED) found.push(e);
     if (SEAT_FALLS.has(e.type))
       for (const s of e.subjects) if (kindCodeOf(s) === "pol") fell.set(s, e.id);
   }
   store.seen = newest;
   const inspired = new Map<number, number>();
-  for (let i = found.length - 1; i >= 0; i--)
-    occasion(r, found[i]!, OCCASIONS[found[i]!.type]!, inspired);
+  for (let i = found.length - 1; i >= 0; i--) {
+    const e = found[i]!;
+    if (e.type !== INSPIRED) {
+      occasion(r, e, OCCASIONS[e.type]!, inspired);
+      continue;
+    }
+    // (The god inspired one person: one of name is then the one who finds what their land finds this year; anyone else, and
+    // someone of their land is, as when the god inspires a land.)
+    const d = e.data as { kind?: string; who?: string } | null,
+      cell = cellOf(e.place),
+      m = /^note:named:(\d+)$/.exec(d?.who ?? "");
+    if (d?.kind !== "inspire" || cell === null) continue;
+    if (m && store.get(Number(m[1]))) inspired.set(cell, Number(m[1]));
+    else occasion(r, e, OCCASIONS["act.inspire-one"]!, inspired);
+  }
   // 2. The lands whose turn it is, and those a sickness tries.
   for (const p of ctx.provinces.all()) {
     const turn = (year + p.cell) % NOTE.every === 0;
@@ -626,9 +649,15 @@ export function notablesYear(ctx: PopulationContext, t: SimTime): void {
     }
     if (
       u(3) <
-      diesWithin(ctx.life, age, 1) * (n.favour?.kind === "curse" ? 3 : guarded ? 0.5 : 1)
+      diesWithin(ctx.life, age, 1) * (n.favour?.kind === "curse" ? 2 : guarded ? 0.5 : 1)
     ) {
-      end(r, n, "age", null);
+      // (Of their years where they were old; of the common ills of their time where they were not.)
+      end(
+        r,
+        n,
+        age >= 0.75 * (ctx.life.bands[ctx.life.bands.length - 1] ?? 60) ? "age" : "ills",
+        null,
+      );
       continue;
     }
     // (A post is held of a living realm: a commander of a realm that ended commands no one.)
