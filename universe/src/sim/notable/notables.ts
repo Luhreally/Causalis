@@ -25,7 +25,7 @@
 // a commander in their host's strength, and a host shaken when one falls (sim/war/war.ts); the learned in how readily their land
 // inquires (sim/lore/lore.ts) and in who rises after them; makers in their land's renown (sim/culture/art.ts); one who speaks
 // for a faith in its spread from their land, its hold there, and its breaking from its seat (sim/belief/belief.ts); one who
-// won a people's choice in the next (sim/order/elections.ts); healers in the deaths their land's care spares
+// won a people's choice speaks for the group that won (sim/order/elections.ts reads it, at nothing yet: rules ACTS.speaks); healers in the deaths their land's care spares
 // (sim/population/systems.ts); the rich in what their land has to spare for its other names (here). The god's acts on a person
 // reach them (sim/acts/person.ts), and `notableTargets` / `strikeNotable` are the hook by which a group may strike at one.
 // A people whose bodies live as one keep lines, not persons (rules keepsPersons): fewer, and never one body.

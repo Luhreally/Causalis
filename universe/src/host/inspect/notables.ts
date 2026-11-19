@@ -766,8 +766,11 @@ const DOES: readonly (((x: number) => string) | null)[] = [
     `Their faith passes from their land to its neighbours ${pct(ACTS.faith * satOf(x))} more readily, and their own land is ${pct(ACTS.faithHolds * satOf(x))} slower to leave it.`,
   (x) =>
     `What they have keeps others of name: their land has ${pct(ACTS.patron * satOf(x))} more to spare for its makers, its learned and its healers.`,
+  // (One who speaks for a group moves no choice yet: rules ACTS.speaks is none, and why.)
   (x) =>
-    `Where they speak for a group in their realm's choosing, its candidate draws others ${pct(ACTS.speaks * satOf(x))} nearer.`,
+    ACTS.speaks > 0
+      ? `Where they speak for a group in their realm's choosing, ${pct(ACTS.speaks * satOf(x))} more of its own come to choose its candidate.`
+      : "",
   (x) => `Of their land's deaths, ${pct(ACTS.heal * satOf(x))} are spared.`,
   null,
   null,

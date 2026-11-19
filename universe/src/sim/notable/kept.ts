@@ -360,7 +360,7 @@ export function notableHeals(world: World, cell: number): number {
   return s > 0 ? healTerm(s) : 1;
 }
 
-/** What one who speaks for a group of a realm adds to its candidate (0 where none does): sim/order/elections.ts. */
+/** How many more of a group's own one who speaks for it brings to its candidate (a share; 0 where none does): sim/order/elections.ts. */
 export function notableSpeaks(world: World, realm: Ref, group: string): number {
   const n = notablesOf(world)?.holder("speaks", realm);
   return n && n.post?.group === group ? speaksFor(n.by[DOMAIN.rule] ?? 0) : 0;

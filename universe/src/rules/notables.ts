@@ -19,7 +19,7 @@
 // They act, each a small bounded term read by an older system, exactly 1 (or 0) where no one is kept: a commander's standing in
 // their host's strength (commandTerm); the learned in how readily their land inquires (inquiryTerm); makers in their land's renown
 // (renownTerm); one who speaks for a faith in how it spreads from their land and holds there (faithTerm, faithHolds); one who
-// moves people in the choice their realm makes (speaksFor); healers in the deaths their land's care spares (healTerm); the rich
+// moves people in the choice their realm makes (speaksFor: none yet, see ACTS.speaks); healers in the deaths their land's care spares (healTerm); the rich
 // in what their land has to spare for its other notables (patronTerm).
 import { dmath } from "../kernel/index.ts";
 
@@ -101,8 +101,14 @@ export const ACTS = {
   reformer: 2,
   reformLands: 2,
   reformYears: 70,
-  /** What one who moves people adds to their group's candidate (as nearness of wants is weighed, 0 … 1). */
-  speaks: 0.04,
+  /**
+   * How many more of their own group one who speaks for it brings to its candidate in their realm's choosing (a share). NONE:
+   * the one who speaks is whoever won last, so any pull is the governing group's, and a realm's choosing is close enough that
+   * it was then chosen again term after term. Measured on tide 207, elections held in the ninth and tenth centuries: 284 and 358
+   * with no notable people, 277 and 298 at 0, 469 and 711 at 0.04 of its own, 696 and 883 at 0.04 on every group's choice.
+   * The lever is one who speaks for a group that does NOT govern.
+   */
+  speaks: 0,
   /** Of a land's deaths, the share its healers of name spare. */
   heal: 0.02,
   /** What a land's rich add to what it has to spare for its notables. */

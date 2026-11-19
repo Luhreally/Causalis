@@ -203,9 +203,7 @@ export function electionsYear(ctx: PopulationContext, t: SimTime): void {
             (g === v.governing ? SWING * ill : 0) +
             (g === i.group ? 0.05 : 0) +
             // (A party holds its own interest's votes to its candidate.)
-            (own > 0 ? ORG.discipline * own : 0) +
-            // (One of name who speaks for a group draws others to its candidate: sim/notable. 0 where no one does.)
-            notableSpeaks(world, p.ref, g);
+            (own > 0 ? ORG.discipline * own : 0);
         if (by > bestBy) {
           bestBy = by;
           best = g;
@@ -213,8 +211,15 @@ export function electionsYear(ctx: PopulationContext, t: SimTime): void {
       }
       if (!best) continue;
       // (And brings out its own the more: those it organises go to vote.)
-      const out = best === i.group ? party(best) : 0;
-      given.set(best, given.get(best)! + (out > 0 ? i.sway * (1 + ORG.turnout * out) : i.sway));
+      const out = best === i.group ? party(best) : 0,
+        // (And one of name who speaks for a group brings out a few more of its own: sim/notable. Exactly as before where no one
+        // does. Only its own: given as a pull on every group's choice, the group last chosen was chosen again each term, and
+        // on tide 207 twice the elections were held from the eighth century on.)
+        spoken = best === i.group ? notableSpeaks(world, p.ref, best) : 0;
+      given.set(
+        best,
+        given.get(best)! + (out > 0 ? i.sway * (1 + ORG.turnout * out) : i.sway) * (1 + spoken),
+      );
       gave.set(i.group, best);
     }
     const all = [...given.values()].reduce((s, x) => s + x, 0),
