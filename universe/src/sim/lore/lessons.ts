@@ -288,13 +288,14 @@ const READINGS: Readonly<Record<string, Reading>> = {
     };
   },
   // What a people's own use took from its land (sim/ecology): its woods cleared to a remnant, its wild hunted thin, a kind of
-  // great beast hunted out, its herds gone. Each is a turn told once, so each counts as a loss that would press a people as a
-  // fortieth of them lost would: there is no count of the dead to weigh it by.
-  "ecology.forest-cleared": (_, e) => ownUse(e, "woods-lost", 1),
-  "ecology.wild-thinned": (_, e) => ownUse(e, "wild-lost", 0.6),
+  // great beast hunted out, its herds gone. Each is a turn told once and seen by the whole land, with no count of the dead to
+  // weigh it by: woods gone weigh as three times the loss that presses a people as hard as can be (it is not told again while
+  // they stay gone), a wild hunted thin as one and a half, each kind of beast lost as one, its herds gone as two.
+  "ecology.forest-cleared": (_, e) => ownUse(e, "woods-lost", 3),
+  "ecology.wild-thinned": (_, e) => ownUse(e, "wild-lost", 1.5),
   "ecology.hunted-out": (_, e) => ownUse(e, "wild-lost", 1),
   "ecology.herds-gone": (_, e) =>
-    (e.data as { why?: string } | null)?.why === "hunted" ? ownUse(e, "wild-lost", 1) : null,
+    (e.data as { why?: string } | null)?.why === "hunted" ? ownUse(e, "wild-lost", 2) : null,
   // A sickness come to a land (sim/health/health.ts): its dead.
   "health.outbreak": (ctx, e) => {
     const dead = num(e.data, "dead");

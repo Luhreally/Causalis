@@ -17,7 +17,11 @@ import {
   politiesOf,
   populationContext,
   realmName,
+  schoolRef,
+  schoolsOf,
   warsOf,
+  workRef,
+  worksOf,
 } from "../sim/index.ts";
 import { observer } from "../causal/index.ts";
 import { ELEMENTS, GOODS, PRINCIPLES, REACTIONS, SUBSTANCES } from "../rules/index.ts";
@@ -116,6 +120,26 @@ export function search(world: World, asked: string, most = 24): Found[] {
       subtitle: lands ? `held in ${many(lands, "land", "lands")}` : "no land holds it now",
     }));
   }
+  // (Schools of thought and works of name: sim/ideas.)
+  const schools = schoolsOf(world);
+  for (const x of schools?.all() ?? []) {
+    const lands = schools!.landsOf(x.id);
+    offer(x.name, lands * 1000, () => ({
+      ref: schoolRef(x.id),
+      icon: "📜",
+      title: x.name,
+      subtitle: lands
+        ? `a school of thought held in ${many(lands, "land", "lands")}`
+        : "a school of thought no land holds now",
+    }));
+  }
+  for (const x of worksOf(world)?.all() ?? [])
+    offer(x.title, x.renown, () => ({
+      ref: workRef(x.id),
+      icon: "🎭",
+      title: `"${x.title}"`,
+      subtitle: `a work by ${x.by}, year ${x.year}`,
+    }));
   const langs = languagesOf(world),
     speakers = langs.speakers();
   for (const l of langs.all()) {

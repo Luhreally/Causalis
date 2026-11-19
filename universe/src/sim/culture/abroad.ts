@@ -41,7 +41,9 @@ export function abroadYear(ctx: PopulationContext, t: SimTime): void {
   // 1. The moves since the last read.
   for (let i = Math.max(store.seen, base); i < end; i++) {
     const f = flows[i - base]!;
-    if (f.count <= 0) continue;
+    // (Only the moves of this year and the last: a save from before this was kept holds a lifetime of old moves, which are
+    // not counted as if they had all come now.)
+    if (f.count <= 0 || f.year < year - 1) continue;
     const from = languages.of(f.from),
       to = languages.of(f.to);
     if (!from || !to || from.index === to.index) continue;
