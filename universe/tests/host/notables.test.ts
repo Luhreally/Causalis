@@ -113,7 +113,10 @@ test("one who holds an office is one of their town's key figures: one body, a pa
   }
   // On the realm's leaders: its host's commander.
   assert.ok(
-    leadersOf(world, realm.ref)!.leaders.some((l) => l.ref === `note:general:${realm.ref}`),
+    leadersOf(world, realm.ref)!.leaders.some(
+      // (As themselves, where the world keeps the commander by name.)
+      (l) => l.ref === notablesIn(world, seat).find((n) => n.kind === "general")!.ref,
+    ),
   );
   // A day of theirs: the one who keeps a temple is at it of a morning; a house's head and the commander are at court.
   const day = Math.floor(world.now / 86_400) + 1;
