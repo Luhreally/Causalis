@@ -142,7 +142,7 @@ registerEventWords(SEA_EVENTS.few.type, (world, e) => {
     left = d?.stock !== undefined ? `, ${d.stock} in a hundred of what it held` : "";
   return d?.water
     ? `The waters the people of ${landWords(world, e.place)} live in grew poor${left}: ${lands > 1 ? `${count(lands)} lands draw on them` : "they took more than it gives"}, ${year(e.t)}`
-    : `The sea off ${landWords(world, e.place)} was fished poor${left}${lands > 1 ? ` by the boats of ${count(lands)} lands` : " by its boats"}, ${year(e.t)}`;
+    : `The sea off ${landWords(world, e.place)} was fished poor${lands > 1 ? ` by the boats of ${count(lands)} lands` : " by its boats"}${left}, ${year(e.t)}`;
 });
 
 // Two fleets met at sea in a war (sim/war/fleets.ts).
