@@ -457,6 +457,8 @@ export class BattleLayer {
     parts: InstancedBatch[];
     shields: InstancedBatch;
     flags: InstancedBatch;
+    /** A hired company's banner, in its own colour (view/battle.ts CompanyBlock). */
+    coFlags: InstancedBatch;
     stripes: InstancedBatch;
     armor: InstancedBatch;
     helmet: InstancedBatch;
@@ -717,6 +719,13 @@ export class BattleLayer {
         ),
         shields: new InstancedBatch(this.stage, this.box, shieldOf(s.kit, c), MOST, this.root),
         flags: new InstancedBatch(this.stage, this.box, c, 32, this.root),
+        coFlags: new InstancedBatch(
+          this.stage,
+          this.box,
+          [...(field.company?.[side]?.color ?? [0.1, 0.1, 0.1])] as Rgb,
+          4,
+          this.root,
+        ),
         stripes: new InstancedBatch(this.stage, this.box, metal as Rgb, 32, this.root),
         armor: new InstancedBatch(this.stage, this.box, guardTone(), MOST * 6, this.root),
         helmet: new InstancedBatch(
@@ -999,6 +1008,7 @@ export class BattleLayer {
       for (const b of s.parts) b.destroy();
       s.shields.destroy();
       s.flags.destroy();
+      s.coFlags.destroy();
       s.stripes.destroy();
       s.armor.destroy();
       s.helmet.destroy();
@@ -1256,7 +1266,9 @@ export class BattleLayer {
         out[7] = fall ? Math.PI / 2 : lean;
       });
       // Banners over those who bear them; fallen with them.
-      const banners = list.filter((t) => t.bearer && t.act !== "flee");
+      const hired = field.company?.[side]?.bearers,
+        banners = list.filter((t) => t.bearer && t.act !== "flee" && !hired?.has(t.id)),
+        coBanners = hired ? list.filter((t) => hired.has(t.id) && t.act !== "flee") : [];
       const flagAt = (t: TrooperNow) => {
         const fall = t.act === "fall",
           pole = 1.45 * k,
@@ -1286,6 +1298,20 @@ export class BattleLayer {
         out[5] = 0.48 * k;
         out[6] = t.yaw + Math.PI / 2 + wave;
         out[7] = a.fall ? 0 : 0;
+      });
+      // A hired company's banner: its own colour, longer and swallow-flown, over its block.
+      s.coFlags.set(coBanners.length, (j, out) => {
+        const t = coBanners[j]!,
+          a = flagAt(t),
+          wave = Math.sin(now.s * 2.6 + t.id) * 0.3;
+        out[0] = a.x + (a.fall ? 0 : Math.sin(t.yaw + Math.PI / 2 + wave) * 0.34 * k);
+        out[1] = a.fall ? a.y : a.y + a.pole - 0.13 * k;
+        out[2] = a.z + (a.fall ? 0 : Math.cos(t.yaw + Math.PI / 2 + wave) * 0.34 * k);
+        out[3] = 0.02 * k;
+        out[4] = a.fall ? 0.02 * k : 0.24 * k;
+        out[5] = 0.68 * k;
+        out[6] = t.yaw + Math.PI / 2 + wave;
+        out[7] = 0;
       });
       s.stripes.set(banners.length, (j, out) => {
         const t = banners[j]!,
