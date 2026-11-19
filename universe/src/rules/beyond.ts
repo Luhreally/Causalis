@@ -136,6 +136,18 @@ export function freeingChance(past: number, held: number): number {
   return BEYOND.freeing * dmath.log10(past) * (1 - dmath.clamp(held, 0, 1));
 }
 
+/**
+ * Minds as someone (the audit's "made minds as someone"): once a realm's minds think more than all its people, its people
+ * speak of them as one, by a name. Kept, that one counsels the seat, and a seat so counselled reaches farther over its lands
+ * (by how far past their makers they think, a tenfold a third of the most); gone their own way, they are a power in the realm
+ * that answers to no one, and the seat that leaned on them reaches the less.
+ */
+export const MIND = { counsel: 0.05, gone: 0.03 } as const;
+export function mindCounsel(past: number, free: boolean): number {
+  if (!(past >= 1)) return 0;
+  return free ? -MIND.gone : MIND.counsel * dmath.clamp(dmath.log10(past) / 3 + 1 / 3, 0, 1);
+}
+
 /** How tightly a people holds what it has made (0 … 1), from its ways: its order and its tradition. */
 export const heldOf = (hierarchy: number, tradition: number): number =>
   dmath.clamp(0.5 * hierarchy + 0.5 * tradition, 0, 1);

@@ -2,6 +2,7 @@
 // the dangers of its sky (its storms, the great stones, the galaxy's fire); on the home world's, what lies past our ages
 // (the works in the sky, bodies written for a world, minds past their makers, the going up, the ships in the dark).
 // Pure reads; weapons and works are told by what, who, what they cost and what they did, never how.
+import { mindLink } from "./minds.ts";
 import { yearOfMoment, type Ref, type World } from "../../kernel/index.ts";
 import {
   BEYOND,
@@ -335,12 +336,13 @@ export function frontierBlocks(world: World): Block[] {
     blocks.push({
       type: "table",
       title: "Minds past their makers",
-      columns: ["Realm", "Since", "Against its people", "Now"],
+      columns: ["Realm", "Spoken of as", "Since", "Against its people", "Now"],
       fit: true,
       rows: minds.all().map((m): Row => ({
         ref: m.free ?? m.passed ?? m.realm,
         cells: [
           [realmLink(world, m.realm)],
+          [mindLink(world, m.realm) ?? "not yet one"],
           [String(m.begun)],
           [
             m.past >= 0
@@ -349,7 +351,7 @@ export function frontierBlocks(world: World): Block[] {
           ],
           [m.free ? "gone their own way" : m.passed ? "past them, kept" : "growing"],
         ],
-        keys: [m.realm, m.begun, m.past, m.free ? 2 : m.passed ? 1 : 0],
+        keys: [m.realm, m.name ?? "", m.begun, m.past, m.free ? 2 : m.passed ? 1 : 0],
       })),
     });
   if (minds && minds.up > 0)

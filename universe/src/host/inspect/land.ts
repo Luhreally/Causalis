@@ -2,6 +2,7 @@
 // market and works, its realm, what it knows and what has happened there. A colony's halls
 // and a ship bound for a star are lands too (offworld sites), and a spot of the fine grid
 // and a region open onto the land they are part of.
+import { landMindBlock } from "./self.ts";
 import { notablePeopleBlock } from "./notables.ts";
 import { landPilgrimRows, landSchoolRows } from "./ideas.ts";
 import { landWorksBlock } from "./works.ts";
@@ -303,6 +304,8 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
     // (The school of thought it is taught: sim/ideas.)
     const taught = landSchoolRows(world, cell);
     if (taught.length) blocks.push({ type: "facts", title: "What they are taught", rows: taught });
+    // (How one of the middle of them bears their years: a reading, host/self.ts landMind.)
+    blocks.push(landMindBlock(world, cell));
     blocks.push(...abroadBlocks(world, cell));
     const going = landPilgrimRows(world, cell);
     if (going.length) blocks.push({ type: "facts", title: "A place of pilgrimage", rows: going });

@@ -18,19 +18,21 @@ import {
   type StateStore,
   type World,
 } from "../../kernel/index.ts";
-import { cellRef, planetRef } from "../../gen/index.ts";
+import { cellRef, planetRef, tongueName } from "../../gen/index.ts";
 import {
   BEYOND,
   WAY,
   freeingChance,
   goingUpOf,
   heldOf,
+  mindCounsel,
   mindsPast,
   mirrorKw,
   wouldGoUp,
 } from "../../rules/index.ts";
 import { knows, loreOf } from "../lore/lore.ts";
 import { politiesOf, type Polity } from "../polity/polity.ts";
+import { addsReach } from "../order/order.ts";
 import { homePlanet } from "../planet/store.ts";
 import { cultureOf } from "../culture/culture.ts";
 import { deathsIn } from "../acts/disasters.ts";
@@ -60,6 +62,8 @@ export type MindsRow = {
   past: number;
   passed: Ref | null;
   free: Ref | null;
+  /** What its people call them, once they think more than their makers and are spoken of as one (absent before). */
+  name?: string;
 };
 
 export type UpLand = { readonly cell: number; up: number; gone: Ref | null };
@@ -177,13 +181,21 @@ export function mindsYear(ctx: PopulationContext, t: SimTime): void {
     row.past = past;
     if (ratio < 1) continue;
     const known = lore.get(p.seat, "machine-minds");
+    // (Past their makers they are spoken of as one, by a name in their makers' tongue; a save from before names them now.)
+    if (!row.name) {
+      const tongue = culture.get(p.seat)?.tongue;
+      row.name = tongue
+        ? tongueName({ ...tongue, seed: tongue.seed ^ 0x313d }, refNumber(p.ref))
+        : `Mind of ${p.town}`;
+      store.note([refNumber(p.ref), year, 3]);
+    }
     if (!row.passed)
       row.passed = world.events.emit({
         type: MINDS_EVENTS.past.type,
         place: cellRef(0, p.seat),
         subjects: [p.ref],
         causes: known ? [{ ref: known.event, role: "enabler", weight: 1 }] : [],
-        data: { realm: p.town, past: Math.round(ratio * 10) / 10 },
+        data: { realm: p.town, past: Math.round(ratio * 10) / 10, mind: row.name },
       });
     const ways = culture.get(p.seat)?.traits ?? [];
     if (!row.free) {
@@ -199,6 +211,7 @@ export function mindsYear(ctx: PopulationContext, t: SimTime): void {
             realm: p.town,
             past: Math.round(ratio * 10) / 10,
             held: Math.round(held * 100) / 100,
+            mind: row.name,
           },
         });
         store.note([refNumber(p.ref), year, 2]);
@@ -256,5 +269,24 @@ export function installMinds(world: World, ctx: () => PopulationContext): MindsS
   const store = world.register(new MindsStore());
   world.addPinner(() => store.pinned());
   world.system({ key: "209.frontier.minds", every: YEAR, run: (t) => mindsYear(ctx(), t) });
+  // (A seat its minds counsel reaches farther; one whose minds went their own way, less: rules/beyond.ts mindCounsel. Nothing
+  // where a realm's minds are not yet past their makers.)
+  addsReach((c, p) => {
+    const row = mindsOf(c.world)?.rows.get(p.ref);
+    if (!row || !row.passed || row.past < 0) return [];
+    const contribution = mindCounsel(dmath.pow(10, row.past / 100), !!row.free);
+    return contribution
+      ? [
+          {
+            name: row.free
+              ? `its made minds went their own way${row.name ? `: ${row.name}` : ""}`
+              : `its made minds counsel its seat${row.name ? `: ${row.name}` : ""}`,
+            value: row.past / 100,
+            contribution,
+            source: row.free ?? row.passed,
+          },
+        ]
+      : [];
+  });
   return store;
 }

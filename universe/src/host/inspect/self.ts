@@ -6,6 +6,12 @@ import { populationContext } from "../../sim/index.ts";
 import {
   CAREER_WHY,
   GOODS,
+  MIND_HOLDS,
+  MIND_HOLD_WORDS,
+  MIND_STATES,
+  MIND_WEIGHTS,
+  MIND_WEIGHT_WORDS,
+  mindState,
   PAIRING_WORDS,
   SELF_TRAITS,
   SELF_TRAIT_WORDS,
@@ -19,9 +25,9 @@ import {
   type Want,
 } from "../../rules/index.ts";
 import type { Block, Item, Line, PageModel, Stat, Tab } from "../../bridge/index.ts";
-import { selfOf, townSelves, type SelfRead } from "../self.ts";
+import { landMind, selfOf, townSelves, type SelfRead } from "../self.ts";
 import { coinWords } from "./living.ts";
-import { item, link, many, share, stat } from "./words.ts";
+import { item, link, many, share, stat, yearNow } from "./words.ts";
 import { landLink } from "./names.ts";
 
 /** The pages a person's life is told on: anyone the game names and keeps a page for. */
@@ -171,6 +177,111 @@ function characterBlocks(p: SelfRead): Block[] {
   ];
 }
 
+// —— How they bear what they have lived ——————————————————————————————————————————————————————————————————————————
+
+/** What weighs on them and what holds them up (rules/self.ts mindOf): a reading of their own life, kept nowhere. */
+function mindBlocks(p: SelfRead): Block[] {
+  const m = p.mind,
+    first = p.who.name.split(" ")[0]!,
+    state = MIND_STATES[mindState(m.burden)]!,
+    weighs = MIND_WEIGHTS.filter((k) => m.weights[k] >= 0.05).sort(
+      (a, b) => m.weights[b] - m.weights[a],
+    ),
+    holds = MIND_HOLDS.filter((k) => m.holds[k] >= 0.05).sort((a, b) => m.holds[b] - m.holds[a]),
+    why: Record<string, string> = {
+      loss: p.land.nature.hive
+        ? "a hive bears a death as one, and one of it is little bowed"
+        : "those of their near kin who have died, the latest the heaviest",
+      war: "the war, fire and raiding of their young years, their grown years and their land now; the bold carry it lighter",
+      want: "the hungry years they have known, how their land ate last year, and a day that leaves nothing over",
+      place: "a low place where rank has set hard, or a faith their realm forbids",
+    };
+  return [
+    {
+      type: "facts",
+      title: "How they bear what they have lived",
+      rows: [
+        stat("They are", p.who.alive ? state : `${state} (as they were at the end)`, {
+          parts: [
+            { label: ["what weighs on them"], value: share(m.weight) },
+            { label: ["what holds them up, which lightens it"], value: share(m.held) },
+            {
+              label: ["and how it sits on one of their temper and conscience"],
+              value: share(m.burden),
+            },
+          ],
+        }),
+      ],
+    },
+    ...(weighs.length
+      ? [
+          {
+            type: "bars" as const,
+            title: "What weighs on them",
+            wrap: true,
+            unit: "share" as const,
+            bars: weighs.map((k) => ({
+              label: [`${MIND_WEIGHT_WORDS[k].icon} ${MIND_WEIGHT_WORDS[k].label}`],
+              ref: "concept:self-wants",
+              value: Math.round(m.weights[k] * 100) / 100,
+            })),
+          },
+        ]
+      : []),
+    ...(holds.length
+      ? [
+          {
+            type: "bars" as const,
+            title: "What holds them up",
+            wrap: true,
+            unit: "share" as const,
+            bars: holds.map((k) => ({
+              label: [`${MIND_HOLD_WORDS[k].icon} ${MIND_HOLD_WORDS[k].label}`],
+              ref: "concept:self-wants",
+              value: Math.round(m.holds[k] * 100) / 100,
+            })),
+          },
+        ]
+      : []),
+    {
+      type: "text",
+      lines: [
+        [
+          weighs.length
+            ? `What weighs most on ${first}: ${why[weighs[0]!] ?? ""}.`
+            : `Little has weighed on ${first}: their years were quiet ones and those near them live.`,
+        ],
+      ],
+    } as Block,
+  ];
+}
+
+/** How one of the middle of a land's people bears their years, for the land's page: a reading of the land's own numbers. */
+export function landMindBlock(world: World, cell: number): Block {
+  const m = landMind(world, cell, yearNow(world)),
+    weighs = MIND_WEIGHTS.filter((k) => m.weights[k] >= 0.05).sort(
+      (a, b) => m.weights[b] - m.weights[a],
+    );
+  return {
+    type: "facts",
+    title: "How its people bear their years",
+    rows: [
+      stat("One of the middle of them is", MIND_STATES[mindState(m.burden)]!, {
+        parts: [
+          { label: ["what weighs on them"], value: share(m.weight) },
+          { label: ["what holds them up"], value: share(m.held) },
+        ],
+      }),
+      ...weighs.map((k) =>
+        stat(`${MIND_WEIGHT_WORDS[k].icon} ${MIND_WEIGHT_WORDS[k].label}`, share(m.weights[k])),
+      ),
+      ...(weighs.length
+        ? []
+        : [stat("What weighs on them", "little: quiet years, and enough to eat")]),
+    ],
+  };
+}
+
 // —— Their work over the years ———————————————————————————————————————————————————————————————————————————————————
 
 function careerBlocks(p: SelfRead): Block[] {
@@ -297,6 +408,7 @@ export function selfTab(world: World, ref: string, more: readonly Block[] = []):
   const blocks: Block[] = [
     ...(p.who.alive ? wantsBlocks(p) : []),
     ...characterBlocks(p),
+    ...mindBlocks(p),
     kinBlock(p),
     ...careerBlocks(p),
     ...(p.who.alive && !p.child ? wealthBlocks(world, p) : []),

@@ -19,6 +19,7 @@ import {
   WAGE_GOOD,
   careerOf,
   levelOf,
+  mindOf,
   crimeLean,
   holdingsOf,
   pairingOf,
@@ -33,6 +34,7 @@ import {
   type CrimeKind,
   type CrimeScene,
   type Holdings,
+  type Mind,
   type Nature,
   type Pairing,
   type SelfTraits,
@@ -156,6 +158,8 @@ export type SelfRead = {
   readonly young: number;
   readonly left: number;
   readonly rent: number;
+  /** How they bear what they have lived (rules/self.ts mindOf): what weighs on them, what holds them up. */
+  readonly mind: Mind;
 };
 
 const u = (seed: number, n: number): number => finish(mix(seed, n), 13) / 4294967296;
@@ -512,6 +516,45 @@ function readYearsOn(
   };
 }
 
+/**
+ * How one of the middle of a land's people bears their years now (rules/self.ts mindOf): someone of middling place and bent,
+ * with kin about them, who has lived this land's last generation. A reading of the land's own numbers; nothing kept.
+ */
+export function landMind(world: World, cell: number, year: number): Mind {
+  const land = landSelf(world, cell, year),
+    grown = yearsOn(world, cell, year - 25, year),
+    young = yearsOn(world, cell, year - 25 - land.adulthood, year - 25);
+  return mindOf({
+    nature: land.nature,
+    traits: {
+      boldness: 0.5,
+      warmth: 0.5,
+      temper: 0.5,
+      conscience: 0.5,
+      curiosity: 0.5,
+      drive: 0.5,
+    },
+    child: false,
+    lost: 0,
+    mourning: false,
+    dangerYoung: young.danger,
+    dangerGrown: grown.danger,
+    dangerNow: land.danger,
+    hungerYoung: young.hunger,
+    hungerGrown: grown.hunger,
+    fed: land.fed,
+    left: land.fed >= 0.95 ? 1 : -1,
+    standing: 0.5,
+    caste: land.caste,
+    barred: land.barred,
+    partners: 1,
+    young: 2,
+    parents: false,
+    faith: land.faith,
+    piety: land.ways.piety,
+  });
+}
+
 // —— One person, whole ——————————————————————————————————————————————————————————————————————————————————————————
 
 const SELVES = new WeakMap<World, { year: number; map: Map<string, SelfRead | null> }>();
@@ -672,6 +715,32 @@ function readSelf(world: World, who: Who, deep: boolean): SelfRead {
       rent: day.rent,
       purse: who.lived?.purse ?? null,
     });
+  const lostKin = family
+      ? family.children.filter((k) => !alive(k)).length +
+        (family.spouse && !alive(family.spouse) ? 1 : 0)
+      : 0,
+    mind = mindOf({
+      nature: land.nature,
+      traits,
+      child,
+      lost: lostKin,
+      mourning,
+      dangerYoung: youth.danger,
+      dangerGrown: child ? 0 : working.danger,
+      dangerNow: land.danger,
+      hungerYoung: youth.hunger,
+      hungerGrown: child ? 0 : working.hunger,
+      fed: land.fed,
+      left,
+      standing,
+      caste: land.caste,
+      barred: land.barred,
+      partners,
+      young,
+      parents,
+      faith: land.faith,
+      piety: land.ways.piety,
+    });
   return {
     who,
     land,
@@ -689,6 +758,7 @@ function readSelf(world: World, who: Who, deep: boolean): SelfRead {
     young,
     left: day.left,
     rent: day.rent,
+    mind,
   };
 }
 

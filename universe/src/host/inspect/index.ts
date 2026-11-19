@@ -5,6 +5,7 @@
 import { notablePage } from "./notables.ts";
 import { schoolPage } from "./ideas.ts";
 import { workPage } from "./works.ts";
+import { mindPage } from "./minds.ts";
 import { meansPage, measurePage } from "./means.ts";
 import { canPage } from "./can.ts";
 import { lifeElsewherePage, lifePage } from "./lifepage.ts";
@@ -210,6 +211,8 @@ function build(
   if (ref.startsWith("note:")) return notablePage(world, ref);
   // (A work someone of name made: sim/ideas.)
   if (ref.startsWith("work:")) return workPage(world, ref);
+  // (A realm's made minds, spoken of as one: sim/frontier/minds.ts.)
+  if (ref.startsWith("mind:")) return mindPage(world, ref);
   // (One of a head's or an office-holder's household, read from them: host/kin.ts.)
   if (ref.startsWith("kin:")) return kinPage(world, ref);
   if (ref.startsWith("ofed:")) return orgFedPage(world, ref);

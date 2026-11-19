@@ -188,3 +188,90 @@ test("how a kind pairs, and whose mothers its levies take", () => {
   assert.equal(bearersServe(bearingHeld(ape, HUMANLIKE)), 0);
   assert.equal(bearersServe(bearingHeld(spawner, HUMANLIKE)), 1);
 });
+
+test("how someone bears what they have lived: what weighs against what holds them up, by their own temper and their kind", async () => {
+  const { mindOf, mindState } = await import("../../src/rules/index.ts");
+  const middle = {
+      boldness: 0.5,
+      warmth: 0.5,
+      temper: 0.5,
+      conscience: 0.5,
+      curiosity: 0.5,
+      drive: 0.5,
+    },
+    quiet = {
+      nature: selfNature(ape),
+      traits: middle,
+      child: false,
+      lost: 0,
+      mourning: false,
+      dangerYoung: 0,
+      dangerGrown: 0,
+      dangerNow: 0,
+      hungerYoung: 0,
+      hungerGrown: 0,
+      fed: 1,
+      left: 1,
+      standing: 0.5,
+      caste: 0.3,
+      barred: false,
+      partners: 1,
+      young: 2,
+      parents: true,
+      faith: true,
+      piety: 0.5,
+    },
+    at = (f: Partial<typeof quiet>) => mindOf({ ...quiet, ...f });
+  const calm = at({});
+  assert.equal(mindState(calm.burden), 0, `${calm.burden}`);
+  assert.ok(calm.held > 0.4);
+  // (Each kind of weight weighs, alone; together more than any one.)
+  const mourning = at({ mourning: true, lost: 1 }),
+    war = at({ dangerYoung: 1, dangerGrown: 1, dangerNow: 1 }),
+    hungry = at({ hungerYoung: 1, hungerGrown: 1, fed: 0.4, left: -1 }),
+    low = at({ standing: 0, caste: 1, barred: true }),
+    all = at({
+      mourning: true,
+      lost: 3,
+      dangerYoung: 1,
+      dangerGrown: 1,
+      dangerNow: 1,
+      hungerYoung: 1,
+      hungerGrown: 1,
+      fed: 0.4,
+      left: -1,
+      standing: 0,
+      caste: 1,
+      barred: true,
+    });
+  for (const [m, k] of [
+    [mourning, "loss"],
+    [war, "war"],
+    [hungry, "want"],
+    [low, "place"],
+  ] as const) {
+    assert.ok(m.weights[k] > 0.3 && m.burden > calm.burden, k);
+    assert.ok(all.weight > m.weight, k);
+  }
+  assert.ok(all.burden <= 1 && mindState(all.burden) === 3, `${all.burden}`);
+  // (The same weight is lighter with kin about, heavier alone; lighter on the bold in war; heavier on the quick to anger.)
+  const alone = at({
+    mourning: true,
+    lost: 1,
+    partners: 0,
+    young: 0,
+    parents: false,
+    faith: false,
+  });
+  assert.ok(alone.burden > mourning.burden && alone.held < mourning.held);
+  assert.ok(
+    at({ dangerGrown: 1, traits: { ...middle, boldness: 1 } }).weights.war <
+      at({ dangerGrown: 1 }).weights.war,
+  );
+  assert.ok(at({ mourning: true, traits: { ...middle, temper: 1 } }).burden > mourning.burden);
+  // (One of a hive is little bowed by a death in it; a forbidden faith holds no one up.)
+  const hive = selfNature({ ...ape, social: 0.95, size: 5 });
+  assert.ok(hive.hive);
+  assert.ok(at({ nature: hive, mourning: true, lost: 2 }).weights.loss < mourning.weights.loss / 3);
+  assert.equal(at({ barred: true }).holds.faith, 0);
+});

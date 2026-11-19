@@ -190,6 +190,7 @@ export {
   HOME_PACE,
   MOST_CIVILIZATIONS,
   civName,
+  civWord,
   civBody,
   civKind,
   civilizationsOf,
