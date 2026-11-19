@@ -289,6 +289,21 @@ test("the scene in its town: its places read off the town, its fallen and its ho
     assert.deepEqual(script.drawn, [44, 33]);
     assert.deepEqual(script.falls, [6, 23]);
     assert.ok(script.clashes.length >= 3, `${script.clashes.length} clashes`);
+    // (One clash at a time, 2026-11-19: each begins only after the one before is decided and the eye has gone over, and the eye
+    // is on it from before its men close until it is decided. They ran over one another, and the eye left each being fought.)
+    script.clashes.forEach((c, k) => {
+      const before = script.clashes[k - 1];
+      if (before)
+        assert.ok(
+          c.from >= before.to + 4.4 - 1e-9,
+          `clash ${k} begins as the one before is fought`,
+        );
+      assert.ok(c.to - c.from >= 7.6, `clash ${k} lasts ${(c.to - c.from).toFixed(1)}s`);
+      for (const t of [c.from, (c.from + c.to) / 2, c.to])
+        assert.equal(streetEye(script, t)!.clash, k);
+      assert.ok(script.figures.some((g) => g.clash === k && g.side === 0));
+      assert.ok(script.figures.some((g) => g.clash === k && g.side === 1));
+    });
     assert.deepEqual(fallenBy(script, script.end), [6, 23]);
     assert.deepEqual(fallenBy(script, 0), [0, 0]);
     const end = streetAt(script, slots, script.end),
@@ -311,6 +326,20 @@ test("the scene in its town: its places read off the town, its fallen and its ho
     const army = streetScript(streetFightOf(world, w.clash)!, plan, slots),
       posts = streetAt(army, slots, army.end);
     assert.ok(army.posts.length >= 1);
+    // (Its clashes too, one at a time, the post first held first, at four posts at the most; and before any squad has set out
+    // the eye is by the road in where the first will, never at a place no one is at yet.)
+    assert.ok(
+      army.clashes.length >= 1 && army.clashes.length <= 4,
+      `${army.clashes.length} clashes`,
+    );
+    army.clashes.forEach((c, k) => {
+      const before = army.clashes[k - 1];
+      if (before) assert.ok(c.from >= before.to + 4.4 - 1e-9, `the soldiers' clash ${k}`);
+      assert.equal(streetEye(army, (c.from + c.to) / 2)!.clash, k);
+      assert.ok(army.figures.some((g) => g.clash === k && g.side === 0 && g.arrive <= c.from));
+      assert.ok(army.figures.some((g) => g.clash === k && g.side === 1));
+    });
+    assert.equal(streetEye(army, 0)!.why, "post");
     assert.equal(posts.tents.length, army.posts.length);
     assert.deepEqual(fallenBy(army, army.end), [...army.falls]);
   } finally {
