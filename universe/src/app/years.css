@@ -73,11 +73,24 @@
 .years-row.here {
   background: rgba(201, 146, 31, 0.22);
 }
-.years-year {
+.years-year,
+.page-window button.years-year {
   flex: 0 0 2.9em;
+  align-self: flex-start;
+  min-height: 44px;
   padding: 10px 0 0 2px;
+  font: inherit;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  text-align: left;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: pointer;
 }
 .years-lines {
   flex: 1 1 auto;
@@ -131,6 +144,9 @@
   margin-left: auto;
   font-size: 0.8rem;
   white-space: nowrap;
+}
+.ran-note .ran-told + .ran-read {
+  margin-left: 0;
 }
 /* On a phone the note stands at the foot of the news's column: beside the corner's rail, above the
    people bar and the god's hand; while the eye roams, its stick and its hint have that foot. */

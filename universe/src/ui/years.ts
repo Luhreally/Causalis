@@ -115,8 +115,12 @@ export function drawYears(into: HTMLElement, ctx: ToolContext): void {
 
   const rowOf = (y: AnnalYear): HTMLElement => {
     const row = el("div", "years-row"),
-      at = el("div", "years-year", String(y.year)),
+      // (The year itself opens that year told: what it was, whole. ui/told.ts.)
+      at = el("button", "years-year", String(y.year)),
       lines = el("div", "years-lines");
+    at.title = "This year told: what it was, whole";
+    at.setAttribute("aria-label", `Year ${y.year}, told whole`);
+    at.onclick = () => ctx.open(`told:${y.year}`);
     row.dataset.year = String(y.year);
     for (const l of linesOf(y)) {
       const line = el("div", "line entry years-line");

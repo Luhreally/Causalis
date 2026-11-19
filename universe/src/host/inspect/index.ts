@@ -3,6 +3,7 @@
 // the god's hand) — to its page, and its place for "go to it". Pure reads of the world as
 // it stands (the observer ledger aside, which history never reads): asking never moves it.
 import { notablePage } from "./notables.ts";
+import { toldPage } from "./told.ts";
 import { meansPage, measurePage } from "./means.ts";
 import { canPage } from "./can.ts";
 import { lifeElsewherePage, lifePage } from "./lifepage.ts";
@@ -91,6 +92,8 @@ function build(
   tab: string | null,
   only?: ReadonlySet<string>,
 ): PageModel {
+  // A year told, of the world or of a realm, or a run of years.
+  if (ref.startsWith("told:")) return toldPage(world, ref);
   if (ref === "world:chronicle") return chroniclePage(world, tab ?? undefined);
   if (ref === "world:ledger") return ledgerPage(world, tab ?? undefined);
   if (ref === "world:log") return logPage(world, tab ?? undefined);

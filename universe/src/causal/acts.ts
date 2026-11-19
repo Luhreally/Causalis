@@ -318,9 +318,10 @@ registerEventWords(DISASTER_EVENTS.meteor.type, (world, e) => {
   return `By your hand: fire fell from the sky on ${landWords(world, e.place as Ref | null)}: ${said(d?.dead)} died, and its fields burned for ${d?.years ?? 2} years, year ${yearOfMoment(e.t)}`;
 });
 registerEventWords(DISASTER_EVENTS.flood.type, (world, e) => {
-  const d = e.data as { dead?: number; lands?: number } | null,
+  const d = e.data as { dead?: number; lands?: number; natural?: boolean } | null,
     down = (d?.lands ?? 1) - 1;
-  return `By your hand: the river rose over ${landWords(world, e.place as Ref | null)}${down > 0 ? ` and ${down} land${down === 1 ? "" : "s"} downriver` : ""}, and ${said(d?.dead)} drowned, year ${yearOfMoment(e.t)}`;
+  // (A river that rose by itself in a wet year is no one's hand: the world's own floods were told as the god's. 2026-11-19.)
+  return `${d?.natural ? "The river rose over" : "By your hand: the river rose over"} ${landWords(world, e.place as Ref | null)}${down > 0 ? ` and ${down} land${down === 1 ? "" : "s"} downriver` : ""}, and ${said(d?.dead)} drowned, year ${yearOfMoment(e.t)}`;
 });
 registerCommandWords(
   "act.quake",

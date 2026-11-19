@@ -34,6 +34,8 @@ export class TimeBar {
   private widest = 0;
   /** Called as the clock widens (the bar it is in may take another line). */
   onWiden: (() => void) | null = null;
+  /** The date pressed: the year it shows is told (ui/told.ts). */
+  onDate: (() => void) | null = null;
   /**
    * What bounds the speed sent to the world as it is chosen, before a frame has seen it (Phase 55
    * M227: a battle the clock is to be slowed for, at once — a frame late, at a month a second, is days).
@@ -53,6 +55,16 @@ export class TimeBar {
     this.speeds.setAttribute("aria-label", "Speed");
     this.weatherMark.hidden = true;
     this.besides.hidden = true;
+    // (The date is a way in to its year told, where the page gives one.)
+    this.clock.setAttribute("role", "button");
+    this.clock.tabIndex = 0;
+    this.clock.title = "This year, told";
+    this.clock.onclick = () => this.onDate?.();
+    this.clock.onkeydown = (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      e.preventDefault();
+      this.onDate?.();
+    };
     this.element.append(this.weatherMark, this.clock, this.besides, this.speeds);
     client.onStatus((s) => {
       this.status = s;

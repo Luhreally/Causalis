@@ -13,7 +13,7 @@
 import { YEAR, yearOfMoment, type HistoryEvent, type World } from "../../kernel/index.ts";
 import { cellRef } from "../../gen/index.ts";
 import { landWords, why } from "../../causal/index.ts";
-import { homePlanet, notablesOf, politiesOf } from "../../sim/index.ts";
+import { homePlanet, notablesOf, politiesOf, warsOf } from "../../sim/index.ts";
 import {
   ALL_WORTH,
   ANNAL_ALL,
@@ -653,7 +653,7 @@ function realmSpan(e: HistoryEvent, i: number, words: string): Span {
 }
 
 /** What is told of a year: its kind, its worth, what it opens, and its words when they are asked for. */
-type Told = {
+export type Told = {
   readonly kind: number;
   readonly worth: number;
   readonly ref: string;
@@ -695,7 +695,12 @@ const GREAT_WARS = 0.2;
 /** And never more of them than one to so many of a world's years. */
 const GREAT_WAR_YEARS = 10;
 
-function wholeOf(world: World, kept: readonly HistoryEvent[]): Whole {
+function wholeOf(
+  world: World,
+  kept: readonly HistoryEvent[],
+  /** The worst of a world's wars as its own count of them has it, where `kept` is not all of history (a few years read). */
+  greatWars?: ReadonlySet<string>,
+): Whole {
   const wars: Whole["wars"] = new Map(),
     runs: Whole["runs"] = new Map(),
     later: Whole["later"] = new Set(),
@@ -755,9 +760,11 @@ function wholeOf(world: World, kept: readonly HistoryEvent[]): Whole {
     w.strikeYear = bestYear(`war.strike|${ref}`);
   }
   const worst = [...wars.values()].sort((a, b) => b.dead - a.dead);
-  worst
-    .slice(0, Math.ceil(Math.min(worst.length * GREAT_WARS, world.now / YEAR / GREAT_WAR_YEARS)))
-    .forEach((w) => (w.great = true));
+  if (greatWars) for (const [ref, w] of wars) w.great = greatWars.has(ref);
+  else
+    worst
+      .slice(0, Math.ceil(Math.min(worst.length * GREAT_WARS, world.now / YEAR / GREAT_WAR_YEARS)))
+      .forEach((w) => (w.great = true));
   const firsts: Whole["firsts"] = new Map(),
     bare: Whole["bare"] = new Map();
   for (const f of firstsNow(world)) {
@@ -1420,4 +1427,149 @@ export function annalsTally(world: World) {
       t.map((x) => ({ key: x.key, worth: x.worth, kind: x.kind })),
     );
   return out;
+}
+
+// ————— A few years read by themselves (the year told, host/inspect/told.ts) —————
+//
+// The Years read all of history at once (some 1.3 s of a world of 1,500 years, and again whenever its log has moved on). A
+// year's own page is asked for one year at a time and must come at once: so the same telling is made of a stretch of years
+// alone. The log lies in the order it was written, so a stretch is found by halving; what a year's words ask of the rest of
+// history is read from a few years either side of it, and of each war that fought in it from that war's own years.
+
+/** How many years a stretch read together holds; how far before and after it the rest is read for (a famine's run, a body's founding). */
+const STRETCH = 16,
+  BEFORE = 6,
+  AFTER = 12;
+/** The stretches kept: read again when the log has moved on. */
+const STRETCHES_KEPT = 16;
+
+/** A stretch of years as read: every event of each year, and what each year tells. */
+export type Stretch = {
+  readonly from: number;
+  readonly events: ReadonlyMap<number, readonly HistoryEvent[]>;
+  readonly told: ReadonlyMap<number, readonly Told[]>;
+  readonly whole: Whole;
+};
+
+const STRETCHES = new WeakMap<
+  World,
+  { stamp: string; by: Map<number, Stretch>; great: ReadonlySet<string> | null }
+>();
+
+/** The first event at or after a moment, by its place in the log (which lies in the order it was written). */
+export function logFrom(world: World, t: number): number {
+  const log = world.events;
+  let lo = 0,
+    hi = log.count;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (log.at(mid).t < t) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+/** The worst of a world's wars by its own count of each war's fallen: the share the Years tell with no filter. */
+function worstWars(world: World): ReadonlySet<string> {
+  const all = world.hasStore("war.wars") ? warsOf(world).all() : [],
+    worst = [...all].sort(
+      (a, b) => b.fallen[0] + b.fallen[1] - (a.fallen[0] + a.fallen[1]) || (a.ref < b.ref ? -1 : 1),
+    );
+  return new Set(
+    worst
+      .slice(0, Math.ceil(Math.min(worst.length * GREAT_WARS, world.now / YEAR / GREAT_WAR_YEARS)))
+      .map((w) => w.ref as string),
+  );
+}
+
+/** The stretch of years a year lies in, read (and kept until the log has moved on; the oldest let go past STRETCHES_KEPT). */
+export function stretchOf(world: World, year: number): Stretch {
+  const stamp = stampOf(world);
+  let kept = STRETCHES.get(world);
+  if (!kept || kept.stamp !== stamp)
+    STRETCHES.set(world, (kept = { stamp, by: new Map(), great: null }));
+  const from = Math.floor(year / STRETCH) * STRETCH,
+    was = kept.by.get(from);
+  if (was) {
+    kept.by.delete(from);
+    kept.by.set(from, was);
+    return was;
+  }
+  const log = world.events,
+    // (What is done at the turn of a year is of the year before it: kernel/time.ts.)
+    i0 = logFrom(world, (from - BEFORE) * YEAR + 1),
+    i1 = logFrom(world, (from + STRETCH + AFTER) * YEAR + 1),
+    around: HistoryEvent[] = [],
+    events = new Map<number, HistoryEvent[]>(),
+    wars = new Set<string>();
+  for (let i = i0; i < i1; i++) {
+    const e = log.at(i);
+    if (RULES[e.type]?.[1] === 0) continue;
+    around.push(e);
+    const y = yearOfMoment(e.t);
+    if (y < from || y >= from + STRETCH) continue;
+    const list = events.get(y);
+    if (list) list.push(e);
+    else events.set(y, [e]);
+    if (e.type === "war.battle" || e.type === "war.strike") wars.add(warOf(e));
+  }
+  // (A war that fought in these years and began before them or went on after: its other years' battles, for its worst year.)
+  if (wars.size && world.hasStore("war.wars")) {
+    const store = warsOf(world),
+      now = Math.floor(world.now / YEAR);
+    let first = from - BEFORE,
+      last = from + STRETCH + AFTER;
+    for (const ref of wars) {
+      const w = store.get(ref as never);
+      if (!w) continue;
+      first = Math.min(first, w.declared);
+      last = Math.max(last, (w.ended ?? now) + 1);
+    }
+    const more = (a: number, b: number) => {
+      for (let i = a; i < b; i++) {
+        const e = log.at(i);
+        if ((e.type === "war.battle" || e.type === "war.strike") && wars.has(warOf(e)))
+          around.push(e);
+      }
+    };
+    if (first < from - BEFORE) more(logFrom(world, first * YEAR + 1), i0);
+    if (last > from + STRETCH + AFTER) more(i1, logFrom(world, last * YEAR + 1));
+  }
+  kept.great ??= worstWars(world);
+  const whole = wholeOf(world, around, kept.great),
+    told = new Map<number, readonly Told[]>();
+  for (const y of whole.bare.keys())
+    if (y >= from && y < from + STRETCH && !events.has(y)) events.set(y, []);
+  for (const [y, list] of events) told.set(y, tellYear(world, y, list, whole));
+  const read: Stretch = { from, events, told, whole };
+  kept.by.set(from, read);
+  while (kept.by.size > STRETCHES_KEPT) kept.by.delete(kept.by.keys().next().value!);
+  return read;
+}
+
+/** What a year tells of those of its events a reader keeps (a realm's own year): the same telling, of fewer events. */
+export function toldOf(
+  world: World,
+  year: number,
+  keep?: (e: HistoryEvent) => boolean,
+): readonly Told[] {
+  const s = stretchOf(world, year);
+  if (!keep) return s.told.get(year) ?? [];
+  const mine = (s.events.get(year) ?? []).filter(keep);
+  return mine.length ? tellYear(world, year, mine, s.whole) : [];
+}
+
+/** A year's events as the log still holds them (those the Years never tell left out). */
+export function eventsOf(world: World, year: number): readonly HistoryEvent[] {
+  return stretchOf(world, year).events.get(year) ?? [];
+}
+
+/** A told line's words (what the explainer keeps of it, where its event has since been forgotten). */
+export function toldWords(world: World, t: Told, year: number): Line {
+  return wordsOf(world, t, year);
+}
+
+/** How many stretches of years a world keeps read now (for a test of its bound). */
+export function stretchesKept(world: World): number {
+  return STRETCHES.get(world)?.by.size ?? 0;
 }

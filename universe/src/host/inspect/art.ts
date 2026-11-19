@@ -43,7 +43,7 @@ export function withArt(world: World, page: PageModel): PageModel {
 }
 
 /** A world's kind, its life's colours and its star's warmth. */
-function worldArt(world: World): PageArt["world"] {
+export function worldArt(world: World): PageArt["world"] {
   const g = homePlanet(world).generated,
     look = lifeLook(g);
   return { kind: worldKindOf(g), ...(look ? { look } : {}), star: g.star.temperature };
@@ -83,6 +83,53 @@ function bannerOf(world: World, page: PageModel): PageBanner | null {
     default:
       return null;
   }
+}
+
+/**
+ * A scene for a happening's picture (a year told): two realms' banners against each other, a town's skyline, a realm's arms over its
+ * lands, or a land's own ground, whichever is asked for first and can be read. As the world stands now: what is kept of a past year
+ * is its words, not its look.
+ */
+export function sceneBanner(
+  world: World,
+  what: { sides?: readonly [string, string]; town?: string; realm?: string; land?: number },
+): PageBanner | null {
+  const tries: (() => PageBanner | null)[] = [];
+  if (what.sides) {
+    const [a, b] = what.sides;
+    tries.push(() => {
+      const sides = [a, b].map((realm) => {
+        const arms = realmArms(world, realm);
+        let arm: Portrait | null = null;
+        try {
+          arm = politiesOf(world).get(realm as Ref) ? realmArmLook(world, realm) : null;
+        } catch {
+          arm = null;
+        }
+        return arms ? { arms, arm } : null;
+      });
+      if (!sides[0] || !sides[1]) return null;
+      const g = homePlanet(world).generated,
+        seat = what.land ?? politiesOf(world).get(a as Ref)?.seat ?? -1;
+      return {
+        kind: "war",
+        sides: [sides[0], sides[1]],
+        biome: seat >= 0 && seat < g.grid.count ? g.climate.biome[seat]! : 9,
+      };
+    });
+  }
+  if (what.town) tries.push(() => townBanner(world, what.town!));
+  if (what.realm) tries.push(() => realmBanner(world, what.realm!));
+  if (what.land !== undefined) tries.push(() => landBanner(world, what.land!));
+  for (const t of tries) {
+    try {
+      const b = t();
+      if (b) return b;
+    } catch {
+      // (The next it could be drawn of.)
+    }
+  }
+  return null;
 }
 
 /** A cell's place on the unit sphere. */
