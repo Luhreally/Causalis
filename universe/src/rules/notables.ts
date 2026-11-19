@@ -43,7 +43,7 @@ export const NOTE = {
   /** The standing at which a people notice one of their own (standings are in thousandths of it). */
   line: 1000,
   /** No one's standing passes this. */
-  most: 8000,
+  most: 12000,
   /** A land's doers are weighed once in so many years, each land in its own year. */
   every: 8,
   /** The heavy tail: of those who cross the line, the share past k times it is k to the minus this. */
@@ -52,7 +52,7 @@ export const NOTE = {
    * Doer-years for one to arise, by domain, where the domain is fully developed, kept and unoccupied by other names. (None for
    * war, rule and exploration: no one is a great commander without a battle, and those are made by occasions alone.)
    */
-  doerYears: [0, 9000, 220000, 12000, 160000, 0, 2500, 9000, 0, 60000],
+  doerYears: [0, 9000, 220000, 12000, 160000, 0, 2500, 9000, 0, 60],
   /** A living notable's standing falls this share a year once their last deed is a generation's tenth behind them. */
   fade: 0.03,
   /** A dead one's, a year: history lets go slowly. */
@@ -138,15 +138,26 @@ export function arisesChance(
   held: number,
   years: number,
 ): number {
+  return 1 - dmath.exp(-arisesRate(domain, doers, development, patronage, occasion, held) * years);
+}
+
+/** The same as a rate a year (so that several domains' can be added, and one chosen by its share when someone arises). */
+export function arisesRate(
+  domain: number,
+  doers: number,
+  development: number,
+  patronage: number,
+  occasion: number,
+  held: number,
+): number {
   const per = NOTE.doerYears[domain] ?? 0;
   if (!(per > 0) || !(doers > 0)) return 0;
   const d = dmath.clamp(development, 0, 1),
     p = dmath.clamp(patronage, 0, 1),
     // (The doers who could be seen at all grow as the root of their number: a great city's ten thousand crafters do not make a
     // hundred times the names of a town's hundred, since a people holds only so many names.)
-    seen = dmath.sqrt(doers) * dmath.sqrt(Math.min(doers, per)),
-    rate = ((seen / per) * (0.1 + 0.9 * d) * (0.3 + 0.7 * p) * occasion) / (1 + held);
-  return 1 - dmath.exp(-rate * years);
+    seen = dmath.sqrt(doers) * dmath.sqrt(Math.min(doers, per));
+  return ((seen / per) * (0.1 + 0.9 * d) * (0.3 + 0.7 * p) * occasion) / (1 + held);
 }
 
 /** The standing of one who crosses the line, for a draw `u` (0 … 1): a heavy tail from the line up. */

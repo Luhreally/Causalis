@@ -25,6 +25,7 @@ import {
   YEAR,
   defineEventType,
   defineStream,
+  dmath,
   kindCodeOf,
   yearOfMoment,
   type CauseRef,
@@ -42,7 +43,7 @@ import {
   NOTE,
   ACTS,
   OCC,
-  arisesChance,
+  arisesRate,
   deedGain,
   diesWithin,
   doneBy,
@@ -502,36 +503,59 @@ function doersOf(
   };
 }
 
-/** A land's turn: for every domain many do there, whether one of them crosses the line this turn, and how far. */
+/**
+ * A land's turn. Its people hold only so many names (rules namesHeld): where one is free, whether someone of its doers crosses the
+ * line this turn (each domain's rate added), of which domain (by its share of that), and how far (the heavy tail). One at the
+ * most a turn; a land whose names are all held notices no one new until a name is let go, unless a deed forces one on it.
+ */
 function weighLand(r: Run, p: Province, sick: boolean): void {
   const { world, store, year } = r,
     cell = p.cell,
-    here = store.in(cell),
-    row = store.row(cell),
+    here = store.in(cell);
+  let held = 0;
+  for (const n of here) if (!n.post) held++;
+  if (held >= namesHeld(p.total())) return;
+  const row = store.row(cell),
     { doers, dev, patronage, spare } = doersOf(r, p),
-    held = namesHeld(p.total()),
-    u = (k: number) => world.rng.real(DRAW, cell, r.t, k);
-  let least = Infinity;
-  for (const n of here) if (!n.post && n.standing < least) least = n.standing;
-  for (let d = 0; d < D; d++) {
-    if (!(doers[d]! > 0) || !NOTE.doerYears[d]) continue;
+    u = (k: number) => world.rng.real(DRAW, cell, r.t, k),
+    rates = new Array<number>(D).fill(0);
+  let all = 0;
+  for (let k = 0; k < D; k++) {
+    if (!(doers[k]! > 0) || !NOTE.doerYears[k]) continue;
+    const lineage = row && row[k]! > 0 ? 1 + ACTS.lineage * satOf(row[k]!) : 1;
+    rates[k] = arisesRate(
+      k,
+      doers[k]!,
+      dev[k]!,
+      k === DOMAIN.infamy ? 1 : patronage,
+      lineage * (k === DOMAIN.healing && sick ? 6 : 1),
+      here.length,
+    );
+    all += rates[k]!;
+  }
+  const chance = (1 - dmath.exp(-all * NOTE.every)) * (r.many ? NOTE.hiveShare : 1);
+  if (!(all > 0) || !(u(10) < chance)) return;
+  // (Of which domain: each by its share of the land's rate.)
+  let d = 0,
+    at = u(11) * all;
+  for (let k = 0; k < D; k++) {
+    if (!rates[k]) continue;
+    d = k;
+    at -= rates[k]!;
+    if (at < 0) break;
+  }
+  {
     const taught = row && row[d]! > 0 ? 1 + ACTS.lineage * satOf(row[d]!) : 1,
       tried = d === DOMAIN.healing && sick ? 6 : 1,
       pat = d === DOMAIN.infamy ? 1 : patronage,
-      chance =
-        arisesChance(d, doers[d]!, dev[d]!, pat, taught * tried, here.length, NOTE.every) *
-        (r.many ? NOTE.hiveShare : 1);
-    if (!(u(10 + d) < chance)) continue;
-    const standing = talentOf(u(30 + d));
-    // (Where its people hold all the names they can, only one past the least of those is noticed.)
-    if (here.length >= held && standing <= least) continue;
-    const n = arise(r, cell, cell * 16 + d, standing, {
-      y: year,
-      d,
-      w: "stood out",
-      e: null,
-      g: standing,
-    });
+      standing = talentOf(u(30)),
+      n = arise(r, cell, cell * 16 + d, standing, {
+        y: year,
+        d,
+        w: "stood out",
+        e: null,
+        g: standing,
+      });
     tellRise(
       r,
       n,
@@ -540,7 +564,7 @@ function weighLand(r: Run, p: Province, sick: boolean): void {
         {
           name: `those of its people who do this (${Math.round(doers[d]!)})`,
           value: doers[d]!,
-          contribution: chance,
+          contribution: chance * (rates[d]! / all),
           source: null,
         },
         {
