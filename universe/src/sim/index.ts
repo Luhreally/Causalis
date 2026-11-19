@@ -1980,5 +1980,11 @@ export {
 // Land set aside (rules/lessons.ts kept-woods, kept-wild): what a land keeps from its own use now.
 export { asideIn } from "./lore/lessons-store.ts";
 // Who leads a people of another star, and the house that holds its seat (2026-11-19): read off the people and the year.
-export { FAR_RULE, farHouseOf, farRulerOf, type FarHouse, type FarRuler } from "./space/far-rulers.ts";
+export {
+  FAR_RULE,
+  farHouseOf,
+  farRulerOf,
+  type FarHouse,
+  type FarRuler,
+} from "./space/far-rulers.ts";
 export { peopleTemper } from "./space/peoples.ts";
