@@ -1,0 +1,162 @@
+/*
+ * A thumb's size (2026-11-19): what is touched on a phone is 44 by 44 px at the least, and none of it over another.
+ * Measured on the main screen and on a realm's, a town's, a person's and a body's page, the ledger, the chronicle and
+ * the Years, every tab, at 430x932: what was under 44 and is grown here, each said with what it was.
+ */
+
+/* The page window's title bar: back, forward, taller, fold and close were 26 by 26. Each is 44 by 44 to the touch, in a
+   row with nothing between them; what is seen of each is its box of 34 by 28 drawn within (its ground is the button's
+   own, so the whole 44 takes the touch). The bar stands 45px (it was 37), and the name takes two lines of it, so a long
+   name is read further than it was on one. */
+@media (pointer: coarse), (max-width: 640px) {
+  .page-window h2 {
+    gap: 0;
+    padding: 0 3px;
+  }
+  .page-window h2 .page-icon {
+    margin: 0 4px 0 1px;
+  }
+  .page-window h2 .page-title {
+    margin-right: 3px;
+  }
+  .page-window h2 .page-boxes {
+    gap: 0;
+  }
+  .page-window h2 button,
+  .page-window h2 .close,
+  .page-window h2 .fold {
+    position: relative;
+    isolation: isolate;
+    flex: none;
+    min-width: 44px;
+    min-height: 44px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+  }
+  .page-window h2 button::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    inset: 8px 5px;
+    border: 1px solid #3c5186;
+    border-radius: 5px;
+    background: linear-gradient(180deg, #ffffff 0%, #dbe5fb 46%, #aebfe6 54%, #d7e3fb 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      0 1px 2px rgba(0, 0, 20, 0.5);
+  }
+  .page-window h2 button:active:not(:disabled)::before {
+    background: linear-gradient(180deg, #a9bde6 0%, #d3e0fa 100%);
+    box-shadow: inset 0 1px 3px rgba(0, 0, 30, 0.5);
+  }
+}
+@media (max-width: 640px) {
+  .page-window h2 .page-title {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    white-space: normal;
+    overflow-wrap: break-word;
+    font-size: 0.88rem;
+    line-height: 1.18;
+  }
+  /* (A name of more than 14 letters has the icon's 30px as well, 163px in all: with the icon "The commonwealth of
+     Haimath" broke after "The" and was cut at "commonwealt…", less of it than on the one line before. Its page's
+     head shows its arms or its picture; a short name, "The Ledger", keeps its icon.) */
+  .page-window h2.long-name .page-icon {
+    display: none;
+  }
+  .page-window h2.long-name .page-title {
+    margin-left: 4px;
+  }
+}
+
+@media (pointer: coarse) {
+  /* A page's own controls. A table's headings were 22 tall (39 wide at the least), "Show all" 32, the god's acts 35,
+     a deed 37, a line's Go to and Follow 42 and 32, "set off by" 28, the names' switch 30, a nature's pushes 28 by 26. */
+  .table .sort {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .table-wrap .show-all,
+  .page-body .tool,
+  .page-body .act,
+  .page-body .cause,
+  .page-window .names-switch,
+  .page-window .entry-act,
+  .page-window .entry-act.follow {
+    min-height: 44px;
+  }
+  .page-window .entry-act,
+  .page-window .nature-push {
+    min-width: 44px;
+  }
+  .page-window .nature-push {
+    min-height: 44px;
+  }
+  /* (A fact's "why" was 22 by 22 and is 44 wide; its line is not made taller for it. "Open its page" in a why was 20
+     by 18.) */
+  .page-window .fact .ask {
+    min-width: 44px;
+  }
+  /* (A chip that opens a page, 27 tall.) */
+  .page-body .chips a.chip {
+    min-height: 44px;
+  }
+  .page-window .why .open-ref {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  /* The people bar's tabs were 36 tall, 34 wide at the least. */
+  .people-bar .people-tab {
+    height: 44px;
+    min-width: 44px;
+    justify-content: center;
+  }
+}
+
+/* The bar on a phone. The speeds, the world's numbers and the lenses were 32 tall, the world's pages 28, the stage's
+   chip 41 by 32, the bar's fold 44 by 40: each row is 44 tall. The world's numbers stand six to a line, not five, so
+   a world's six take one line where they took two: the bar is 24px taller with all of it, not 68. The world's pages keep
+   their 26px of width: fifteen across a phone cannot each have 44 without a second line of them. */
+@media (max-width: 640px) {
+  .bar button.speed,
+  .bar .speeds button {
+    min-height: 44px;
+  }
+  .bar .speeds .speed:first-child {
+    min-width: 44px;
+  }
+  .bar .bar-fold {
+    min-height: 44px;
+  }
+  .beside-date > .stat-chip.stage {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .bar .world-stats {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .bar .world-stats > .stat-chip {
+    min-height: 44px;
+  }
+  .bar .world-stats > .stat-chip:nth-child(5n) {
+    border-right: 1px solid rgba(160, 188, 240, 0.28);
+  }
+  .bar .world-stats > .stat-chip:nth-child(6n),
+  .bar .world-stats > .stat-chip:last-child {
+    border-right: 0;
+  }
+  .world-menu .link {
+    min-height: 44px;
+  }
+  /* (The lenses, some twenty-seven, are a row pushed sideways: each its 44 by 44, eight and a part of the ninth in
+     sight where eleven of 34 were.) */
+  .mapmodes .mode {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

@@ -955,8 +955,47 @@ canvas.thumb.thumb-zoomable {
 }
 .table {
   width: 100%;
-  border-collapse: collapse;
+  /* (Not collapsed: a cell that sticks would leave its line behind. No space between them, so it looks the same.) */
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: 0.86rem;
+}
+/* A table scrolled sideways keeps its first column (whose row it is) at the left, the rest going under it: the ledger's
+   widest ran 796px past a phone's edge, and its realms' names were gone at the first push. While it is slid the column
+   has a ground of its own, whole, with the row's tint over it, and an edge, so the row is not read through it. "Show
+   all" stays at the left too. (ui/inspector.ts sets `slid`.) */
+.table th:first-child,
+.table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+.table-wrap.slid .table th:first-child,
+.table-wrap.slid .table td:first-child {
+  background:
+    linear-gradient(var(--row-tint, transparent), var(--row-tint, transparent)), rgb(19, 31, 72);
+  box-shadow:
+    1px 0 0 rgba(160, 188, 240, 0.4),
+    8px 0 7px -5px rgba(0, 0, 14, 0.75);
+}
+.table-wrap .show-all {
+  position: sticky;
+  left: 0;
+}
+/* (A table fitted to the page breaks a word anywhere to fit; one that scrolls sideways all the same, its first column 49px
+   and "Its fields' harvest" in it a letter or two to a line, keeps that column's words whole: ui/inspector.ts sets `over`.) */
+.table-wrap.over .table.fit td:first-child {
+  overflow-wrap: break-word;
+  min-width: 5.5rem;
+}
+/* (On a phone a long name in it takes lines of its own, so the column that stays never takes the width the rest is
+   read in.) */
+@media (max-width: 640px) {
+  .page-window.wide .table:not(.fit) td:first-child {
+    max-width: 9.5rem;
+    white-space: normal;
+    overflow-wrap: break-word;
+  }
 }
 .table th {
   padding: 0 2px 4px;
@@ -996,6 +1035,9 @@ canvas.thumb.thumb-zoomable {
   padding: 3px 6px;
   border-bottom: 1px dotted var(--line);
 }
+.table tr.row:nth-child(even) {
+  --row-tint: rgba(20, 40, 100, 0.22);
+}
 .table tr.row:nth-child(even) td {
   background: rgba(20, 40, 100, 0.22);
 }
@@ -1006,6 +1048,9 @@ canvas.thumb.thumb-zoomable {
   margin: 0;
   padding: 0;
   cursor: pointer;
+}
+.table tr.entry:hover {
+  --row-tint: rgba(40, 90, 200, 0.35);
 }
 .table tr.entry:hover td {
   background: rgba(40, 90, 200, 0.35);
@@ -4163,6 +4208,9 @@ body.with-palette .hint {
   /* (In the date's line, at its right end: it takes no line of its own.) */
   .bar:has(.bar-fold) {
     position: relative;
+    /* (In the flow it is as wide as the screen, set 8px in from the left: its right edge, corner and padding stood 8px
+       off a phone's right side. Its 8px at either side again.) */
+    margin-right: 16px;
   }
   /* (In the line's own flow, after the date and before the speeds, so a long date or the speeds
      wrapping never run under it.) */

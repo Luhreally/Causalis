@@ -15,6 +15,7 @@ import "./memory.css";
 import "./alliances.css";
 import "./learned.css";
 import "./enter.css";
+import "./touch.css";
 import {
   aboutEntered,
   askEnter,

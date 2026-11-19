@@ -66,7 +66,15 @@ const HISTORY = 64;
 const HOLD_MS = 4000;
 
 /** A table's sorting, whether it shows every row, and the word it is filtered by. */
-type TableState = { by: number; down: boolean; all: boolean; only?: string | number };
+type TableState = {
+  by: number;
+  down: boolean;
+  all: boolean;
+  only?: string | number;
+  /** (Found wider than its page when last drawn, and scrolled sideways: drawn so again at once, not a frame late.) */
+  over?: boolean;
+  slid?: boolean;
+};
 /** What a block drew, and what it said (to keep what is unchanged). */
 type Drawn = Map<string, { same: string; element: HTMLElement }>;
 /** A part of the page scrolled within itself (a wide table): which element of the window, and how far. */
@@ -562,6 +570,8 @@ export class PageWindow {
     if (!page.tabs.some((t) => t.id === this.tab)) this.tab = page.tabs[0]?.id ?? "";
     this.icon.textContent = page.icon;
     this.name.textContent = page.title;
+    // (A name too long for one line of a phone's title gives it the icon's room too: app/touch.css.)
+    this.heading.classList.toggle("long-name", page.title.length > 14);
     this.heading.style.borderLeft = page.color
       ? `6px solid rgb(${page.color.map((c) => Math.round(c * 255)).join(",")})`
       : "";
@@ -1629,6 +1639,30 @@ export class PageWindow {
       );
     fill();
     box.append(table, more);
+    // (Scrolled sideways, its first column stays at the left with a ground and an edge of its own: app/y2k.css.)
+    // (A page read again every two seconds is drawn anew: as it was, at once, and seen to when it has been put back.)
+    const slide = () => {
+      state.slid = box.scrollLeft > 1;
+      box.classList.toggle("slid", state.slid);
+    };
+    box.addEventListener("scroll", slide, { passive: true });
+    if (state.slid) {
+      box.classList.add("slid");
+      if (typeof requestAnimationFrame === "function")
+        requestAnimationFrame(() => requestAnimationFrame(() => box.isConnected && slide()));
+    }
+    // (A table fitted to the page that runs past it all the same: its first column, which stays, keeps its words whole.)
+    if (fit && typeof ResizeObserver === "function") {
+      box.classList.toggle("over", !!state.over);
+      // (Read at the next frame: changed as it is told of, the browser says its telling went round in a loop.)
+      new ResizeObserver(() =>
+        requestAnimationFrame(() => {
+          if (!box.clientWidth) return;
+          state.over = box.scrollWidth > box.clientWidth + 1;
+          box.classList.toggle("over", state.over);
+        }),
+      ).observe(table);
+    }
     if (words.size < 2) return box;
     // (Its chips stand over the table, never scrolled sideways with it.)
     choose();

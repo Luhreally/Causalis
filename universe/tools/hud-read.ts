@@ -52,6 +52,21 @@ export const hudRead = (exempt: readonly Exemption[] = [], tol = 4): string => `
     }
     return got;
   };
+  // (And what sticks at the left of a box scrolled sideways, a table's first column, cuts off what goes under it in its row.)
+  const STUCKX = new Map();
+  const stuckLeft = (p) => {
+    let got = STUCKX.get(p);
+    if (!got) {
+      got = [];
+      if (p.scrollLeft > 0)
+        for (const x of p.querySelectorAll("*")) {
+          const s = getComputedStyle(x);
+          if (s.position === "sticky" && s.left !== "auto") got.push(x);
+        }
+      STUCKX.set(p, got);
+    }
+    return got;
+  };
   // (As much of a thing as the boxes it scrolls in let be seen; what stands fixed to the screen
   // is clipped by none of those that hold it.)
   const clip = (e) => {
@@ -67,6 +82,12 @@ export const hudRead = (exempt: readonly Exemption[] = [], tol = 4): string => `
       const q = p.getBoundingClientRect();
       if (ox) { x0 = Math.max(x0, q.left); x1 = Math.min(x1, q.right); }
       if (oy) { y0 = Math.max(y0, q.top); y1 = Math.min(y1, q.bottom); }
+      if (ox) for (const k of stuckLeft(p)) {
+        if (k === e || k.contains(e) || e.contains(k)) continue;
+        const t = k.getBoundingClientRect();
+        if (t.width < 1 || t.bottom <= r.top + 1 || t.top >= r.bottom - 1) continue;
+        if (t.left <= q.left + p.clientLeft + 1 && t.right > x0) x0 = Math.min(x1, t.right);
+      }
       if (oy) for (const k of stuckIn(p)) {
         if (k.x === e || k.x.contains(e) || e.contains(k.x)) continue;
         const t = k.x.getBoundingClientRect();
