@@ -196,7 +196,11 @@ test("veterans: the men met came home from their land's battles, levied by its s
           if (sent <= 0) continue;
           const total = ctx.provinces.get(cell)!.total(),
             men = Math.max(1, Math.round((peopleAt(cell, y) * poolOf(ctx, cell, y).men) / total));
-          chances += Math.min(1, land[1] / men);
+          // (Those met are alive: of the men it sent, those who fell that day are not among them. So of a man who lived, the
+          // chance he had gone is his land's share sent less its dead, over all of its men who lived.)
+          const went = Math.min(1, land[1] / men),
+            died = land[1] > 0 ? Math.min(1, land[2] / land[1]) : 0;
+          chances += went * died < 1 ? (went * (1 - died)) / (1 - went * died) : 0;
           if (p.wars?.some((w) => w.event === b.event)) levied++;
         }
       }
