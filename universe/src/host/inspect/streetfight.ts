@@ -37,6 +37,7 @@ import { organisedIn, orgsOf } from "../../sim/index.ts";
 import { orgWords } from "../../causal/index.ts";
 import { landTitle } from "./names.ts";
 import { count, many, yearAt } from "./words.ts";
+import { fightFallen } from "./townlife.ts";
 
 const cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s);
 const TYPES = new Set(STREET_FIGHT_TYPES),
@@ -200,8 +201,20 @@ export function streetFightOf(world: World, ref: string): StreetFight | null {
       Math.max(0, Math.min(1, mid + (turned[1] - mid) * 1.8 - 0.06)),
       Math.max(0, Math.min(1, mid + (turned[2] - mid) * 1.8 - 0.06)),
     ];
+  // (Those of the town's lines killed in it by name, where its roster has them: the same the fight's page lists.)
+  const named = fightFallen(world, f),
+    words = named.length
+      ? {
+          ...f.words,
+          cost: `${f.words.cost.replace(/\.?$/, ".")} Of ${f.townName}'s own, by name: ${named
+            .slice(0, 4)
+            .map((m) => m.name)
+            .join(", ")}${named.length > 4 ? `, and ${named.length - 4} more` : ""}.`,
+        }
+      : f.words;
   return {
     ...f,
+    words,
     figure,
     ...(army
       ? { sides: [a, { ...b, color: strong }] as const }

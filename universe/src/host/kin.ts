@@ -375,12 +375,22 @@ function childrenOf(r: Reading, unit: Unit): Node[] {
 
 /** The parents of `x` given by the keyed rule where no line holds them: a mother of the age that bears, a father a few years her elder, of the house. */
 function keyedParents(r: Reading, x: Node, house: string, known: readonly Node[]): Unit {
-  const fk = hashString(`father ${x.ref ?? x.key}`),
+  // (Where the line holds more of their children than `x`, the eldest: she bore the youngest too, within her bearing years
+  // and living, and he lived to a year before it. One child known: as ever.)
+  const youngest = known.reduce((y, n) => Math.max(y, n.born), x.born),
+    fk = hashString(`father ${x.ref ?? x.key}`),
     mk = hashString(`mother ${x.ref ?? x.key}`),
-    age = r.grown + Math.floor(u(mk, 2) * Math.max(1, r.bears - r.grown - 5)),
+    age = r.grown + Math.floor(u(mk, 2) * Math.max(1, r.bears - r.grown - 5 - (youngest - x.born))),
     motherBorn = x.born - age,
-    mother = keyedNode(r, mk, 0, motherBorn, house, x.born),
-    father = keyedNode(r, fk, 1, motherBorn - Math.floor(u(fk, 2) * SPOUSE_GAP), house, x.born - 1),
+    mother = keyedNode(r, mk, 0, motherBorn, house, youngest),
+    father = keyedNode(
+      r,
+      fk,
+      1,
+      motherBorn - Math.floor(u(fk, 2) * SPOUSE_GAP),
+      house,
+      youngest - 1,
+    ),
     from = x.born - Math.floor(u(mk, 3) * Math.max(1, x.born - (motherBorn + r.grown))),
     to = Math.min(father.died ?? r.now, mother.died ?? r.now, r.now);
   return {
@@ -485,16 +495,21 @@ function otherHouse(t: Lines, line: number, key: number): string {
  * not their parent but near their age), then on while the next is. The eldest's parents are theirs.
  */
 function siblingChain(t: Lines, h: Holder): { eldest: Holder; chain: Holder[] } {
+  // (No two of one mother are born further apart than she bears: a line that lost one holder after another, each near the
+  // last in age, is not all one brood. Which of them are a given parent's children is holderFamily's to say.)
+  const apart = Math.max(1, t.bears - t.grown);
   let eldest = h;
   for (let i = 0; i < CHAIN_MOST; i++) {
     const p = predOf(t, eldest);
     if (!p || tieOf(t, holderNode(t, p), holderNode(t, eldest)) !== "sibling") break;
+    if (Math.abs(h.born - p.born) > apart) break;
     eldest = p;
   }
   const chain = [eldest];
   for (let i = 0; i < CHAIN_MOST; i++) {
     const s = succOf(t, chain.at(-1)!);
     if (!s || tieOf(t, holderNode(t, chain.at(-1)!), holderNode(t, s)) !== "sibling") break;
+    if (Math.abs(s.born - eldest.born) > apart || Math.abs(s.born - h.born) > apart) break;
     chain.push(s);
   }
   return { eldest, chain };
@@ -504,7 +519,11 @@ function siblingChain(t: Lines, h: Holder): { eldest: Holder; chain: Holder[] } 
 function lineChildren(t: Lines, h: Holder): Node[] {
   const s = succOf(t, h);
   if (!s || tieOf(t, holderNode(t, h), holderNode(t, s)) !== "child") return [];
-  return siblingChain(t, s).chain.map((x) => holderNode(t, x));
+  // (Of the brothers and sisters after him, those born while he could be their parent.)
+  const self = holderNode(t, h);
+  return siblingChain(t, s)
+    .chain.map((x) => holderNode(t, x))
+    .filter((n) => tieOf(t, self, n) === "child");
 }
 
 const MAN_TIES = { parent: "father", spouse: "husband", child: "son", sibling: "brother" } as const;
@@ -539,9 +558,18 @@ function holderFamily(t: Lines, h: Holder): Family {
     { eldest, chain } = siblingChain(t, h),
     before = predOf(t, eldest),
     beforeNode = before ? holderNode(t, before) : null,
-    known = chain.map((x) => holderNode(t, x)),
+    brood = chain.map((x) => holderNode(t, x)),
+    // (The one before the eldest is their parent only where they could be this one's too, by their years; and then only
+    // those of the brood born while that one could be their parent are that one's children. Else all of it is given by the
+    // keyed rule, about the eldest: no one is told born to a parent past bearing, or dead a year and more.)
+    theirs =
+      !!before &&
+      !!beforeNode &&
+      tieOf(t, beforeNode, brood[0]!) === "child" &&
+      tieOf(t, beforeNode, self) === "child",
+    known = theirs ? brood.filter((n) => tieOf(t, beforeNode!, n) === "child") : brood,
     parentUnit =
-      before && beforeNode && tieOf(t, beforeNode, known[0]!) === "child"
+      theirs && before && beforeNode
         ? unitOf(
             t,
             beforeNode,

@@ -60,7 +60,7 @@ import { fedRef, groupRef, opRef } from "../underworld.ts";
 import { hostKinds } from "../arms.ts";
 import { realmColor } from "../colors.ts";
 import { orgRef } from "../groups.ts";
-import { folkWork, workOf } from "../roster.ts";
+import { folkWork, townRoster, workOf } from "../roster.ts";
 import {
   casesOf,
   courtFormOf,
@@ -1188,6 +1188,23 @@ export function fightPeopleBlock(
     readonly sides: readonly { readonly ref: string; readonly name: string }[];
   },
 ): Block | null {
+  // (Those of the town's lines its year's killings took who were of either side or killed by one: the same its roster and
+  // their own pages tell, host/roster.ts. Of a year gone by: a year's own dead are counted from the next.)
+  const fell = fightFallen(world, fight);
+  if (fell.length)
+    return {
+      type: "list",
+      title: "Of the town, killed in it",
+      items: fell.map((m) =>
+        item(
+          [
+            link(m.name, m.ref),
+            `, ${m.age}: killed ${m.words}${m.role ? `; ${m.role.replace(/\bits\b/, "their")}` : ", one of the town's many"}.`,
+          ],
+          m.ref,
+        ),
+      ),
+    };
   if (yearNow(world) - fight.year > 1) return null;
   const roles = townRolesOf(world, fight.town),
     names = new Map(roles.named.map((p) => [p.ref, p.name] as const)),
@@ -1215,6 +1232,34 @@ export function fightPeopleBlock(
     }
   }
   return items.length ? { type: "list", title: "Of the town, on either side", items } : null;
+}
+
+/**
+ * Those of a fight's town its land's underworld killed in the fight's year who were of either side, or killed by one (their
+ * names, pages, ages and what the killing was of): none for the year the world stands in.
+ */
+export function fightFallen(
+  world: World,
+  fight: {
+    readonly town: string;
+    readonly year: number;
+    readonly sides: readonly { readonly ref: string; readonly name: string }[];
+  },
+): { ref: string; name: string; age: number; words: string; role: string | null }[] {
+  if (fight.year >= yearNow(world)) return [];
+  const roster = townRoster(world, fight.town),
+    refs = new Set(fight.sides.flatMap((s) => [s.ref, s.ref.replace(/^mob:/, "boss:")]));
+  return (roster.killings.find((k) => k.year === fight.year)?.men ?? [])
+    .filter(
+      (m) => (m.slain.of && refs.has(m.slain.of.ref)) || (m.slain.by && refs.has(m.slain.by.ref)),
+    )
+    .map((m) => ({
+      ref: m.holder.ref,
+      name: roster.nameOf(m.holder),
+      age: fight.year - m.holder.born,
+      words: m.slain.words,
+      role: m.slain.role,
+    }));
 }
 
 /** A town's soldiers posted, as its plan carries them: their realm's colour and the arm its host is fielded with (none: none posted). */
