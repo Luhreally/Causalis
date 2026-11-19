@@ -681,6 +681,9 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
         asks.stored(p.cell, t) +
         // (Grain put by, where famine taught them to: rules/lessons.ts granaries. Exactly 0 where it has not.)
         lessonAdds(world, p.ref, "stores", yearOfMoment(t)),
+      // (What they keep from their own use, as the ecology's year last set it: rules/lessons.ts kept-wild, kept-woods.)
+      asideWild = alive.asideWild ?? 0,
+      asideWoods = alive.asideWoods ?? 0,
       // Food grown in vats (Phase 66), whatever its ground, tended by machines more than hands.
       vats = lore.get(p.cell, "vat-food")
         ? saturate(
@@ -693,7 +696,12 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
     const harvest: [number, number][] = [
       [
         G.wild,
-        saturate(c.forage, p.occupation(OCC.forager), PRODUCTIVITY[OCC.forager]! * gathers) *
+        saturate(
+          // (Less what they have set aside from their own taking: rules/lessons.ts kept-wild. As before where none is.)
+          asideWild > 0 ? c.forage * (1 - asideWild) : c.forage,
+          p.occupation(OCC.forager),
+          PRODUCTIVITY[OCC.forager]! * gathers,
+        ) *
           rain *
           wilds *
           alive.wild *
@@ -704,7 +712,8 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
         G.grain,
         p.knowsCultivation
           ? saturate(
-              c.farm,
+              // (Less the ground they keep as woods: rules/lessons.ts kept-woods. As before where none is.)
+              asideWoods > 0 ? c.farm * (1 - asideWoods) : c.farm,
               p.occupation(OCC.farmer),
               PRODUCTIVITY[OCC.farmer]! * tools * gathers,
             ) *

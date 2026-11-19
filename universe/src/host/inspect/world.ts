@@ -3,6 +3,8 @@
 // side, its records, its lives through the years and its greatest events. And its ledger:
 // its realms, towns, wars, faiths, tongues, flights and living lineages compared, as a
 // grand strategy game's ledger compares them. Pure reads of the world as it stands.
+import { schoolsLedger } from "./ideas.ts";
+import { worksLedger } from "./works.ts";
 import { cellRef, lives, offworldSite } from "../../gen/index.ts";
 import { farOf, fireOf } from "../../sim/index.ts";
 import {
@@ -1919,7 +1921,11 @@ export function ledgerPage(world: World, tab?: string): PageModel {
     { id: "tastes", name: "Tastes", ...later("tastes", () => tastesLedger(world, lc)) },
     // Each kind of what calms, wakes, brings visions and eases pain, realm beside realm.
     { id: "intox", name: "Intoxicants", ...later("intox", () => intoxLedger(world, lc)) },
-    { id: "faiths", name: "Faiths", blocks: faithLedger(world) },
+    {
+      id: "faiths",
+      name: "Faiths",
+      blocks: [...faithLedger(world), ...schoolsLedger(world), ...worksLedger(world)],
+    },
     { id: "tongues", name: "Tongues", blocks: tongueLedger(world) },
     { id: "might", name: "Knowledge", blocks: knowledgeLedger(world, standing, realmPeople) },
     { id: "life", name: "Life", blocks: lifeLedger(world) },

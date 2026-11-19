@@ -45,6 +45,7 @@ import {
   yearNow,
 } from "./words.ts";
 import { landLink, landTitle, realmLink } from "./names.ts";
+import { realmSchoolBlock } from "./ideas.ts";
 import { designsOf, holdLines, type RealmOrder } from "../../sim/index.ts";
 import { heldWords, partWords, type Hold } from "../../rules/index.ts";
 
@@ -543,6 +544,11 @@ export function realmOrderBlocks(world: World, r: Polity): Block[] {
         ]
       : []),
     ...heldBlocks(world, r, o),
+    // (The school of thought most of its lands hold, and what it draws the realm toward: sim/ideas.)
+    ...(() => {
+      const school = living ? realmSchoolBlock(world, r) : null;
+      return school ? [school] : [];
+    })(),
     whoIsHeld("Who is held, and how", people, held),
     ...(lands.length
       ? [

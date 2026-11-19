@@ -320,6 +320,7 @@ function landRoads(
           ? Math.max(railed, e.since)
           : null,
       traffic: e.traffic,
+      ...(e.pilgrims ? { pilgrims: e.pilgrims } : {}),
     };
     return {
       ...bare,

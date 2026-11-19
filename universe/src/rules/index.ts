@@ -1749,3 +1749,6 @@ export * from "./groups.ts";
 export * from "./institutions.ts";
 // Notable people (2026-11-18): who a people notice, their kind read off what they did.
 export * from "./notables.ts";
+// Things of the mind (2026-11-19): schools of thought, works, pilgrimage.
+export * from "./ideas.ts";
+export * from "./abroad.ts";

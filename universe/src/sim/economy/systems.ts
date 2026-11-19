@@ -9,6 +9,7 @@
 // Ore is reckoned by one rule (./ore.ts): a land's own, else a neighbour's; tin and
 // iron are smelted where their crafts are known, and tools are headed with the metal
 // a land's market holds (Phase 52 M216).
+import { kinAcross } from "../culture/abroad-kept.ts";
 import {
   YEAR,
   apportion,
@@ -798,7 +799,9 @@ function trade(
         (1 - barred) *
         (1 - blockaded) *
         kept *
-        (1 - preyed),
+        (1 - preyed) *
+        // (Kin on both ends of a road carry more down it: sim/culture/abroad.ts. Exactly 1 where neither end keeps any.)
+        kinAcross(ctx.world, e.a, e.b),
       keen = 2 * (1 + SIGNAL.tradeMargin * linked),
       // (And what a journey cost in waiting on word and finding a buyer: the haul itself is what it was.)
       dealt = 1 - SIGNAL.tradeCost * linked;

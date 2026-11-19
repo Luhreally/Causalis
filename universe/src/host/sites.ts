@@ -18,6 +18,7 @@ import {
   type Fabric,
 } from "../sim/index.ts";
 import type { TownRoad, TownSite } from "../bridge/index.ts";
+import { pilgrimsBetween, pilgrimsBusy } from "./pilgrims.ts";
 
 /** A town as its roads are reckoned. */
 export type RoadTown = {
@@ -36,6 +37,8 @@ export type RoadEnd = {
   readonly toward: { readonly land: number; readonly name: string | null } | null;
   readonly since: number;
   readonly traffic: number;
+  /** The pilgrims a year who go by it, and the land they go to (host/pilgrims.ts; absent: none). */
+  readonly pilgrims?: { readonly n: number; readonly seat: number; readonly of: string };
   /** Its opening is on record (a way out of the land: the route's event). */
   readonly known: boolean;
 };
@@ -119,7 +122,8 @@ export function roadEnds(world: World, cell: number, towns: readonly RoadTown[])
     const great = ctx.settlements
         .seenIn(nb)
         .sort((a, b) => b.population - a.population || (a.ref < b.ref ? -1 : 1))[0],
-      opened = world.events.get(route);
+      opened = world.events.get(route),
+      going = pilgrimsBetween(world, cell, nb);
     out.push({
       from,
       to: end,
@@ -127,7 +131,14 @@ export function roadEnds(world: World, cell: number, towns: readonly RoadTown[])
       toward: { land: nb, name: great?.name ?? null },
       since: opened ? yearOfMoment(opened.t) : yearOfMoment(world.now),
       known: !!opened,
-      traffic: busy(goodsBetween(world, cell, nb)),
+      // (Its pilgrims go among its carts: host/pilgrims.ts. As before where none go by it.)
+      traffic: Math.min(
+        MOST_TRAFFIC,
+        busy(goodsBetween(world, cell, nb)) + pilgrimsBusy(going.pilgrims),
+      ),
+      ...(going.pilgrims && going.seat !== null && going.of
+        ? { pilgrims: { n: going.pilgrims, seat: going.seat, of: going.of } }
+        : {}),
     });
   }
   return out;

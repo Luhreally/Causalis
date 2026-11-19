@@ -28,6 +28,7 @@ import { realmName, type Polity } from "../polity/polity.ts";
 import { interestsOf, type Group } from "../polity/interests.ts";
 import type { RealmOrder } from "./order.ts";
 import { whisperIn } from "../acts/person.ts";
+import { pullOnLaw, schoolOver } from "../ideas/kept.ts";
 
 export const LAWS = ["land", "strangers", "faith", "justice"] as const;
 export type Law = (typeof LAWS)[number];
@@ -91,6 +92,12 @@ const WANTS: Readonly<Record<Law, Readonly<Record<Group, readonly [number, numbe
     "the army": [-0.4, 0.8, -0.2],
   },
 };
+
+/** The position of a law (0 … 2) a group wants most (the older of equals): what a school that speaks for it teaches (sim/ideas). */
+export function lawWanted(group: Group, law: Law): number {
+  const w = WANTS[law][group];
+  return w[2] > w[1] && w[2] > w[0] ? 2 : w[1] > w[0] ? 1 : 0;
+}
 
 const trait = (w: Ways | undefined, k: number) => w?.traits[k] ?? 0.5;
 /** The strongest push behind a people's way, as a factor's source. */
@@ -192,7 +199,9 @@ export function weighLaws(ctx: PopulationContext, p: Polity, o: RealmOrder, t: S
         i.sway * (i.group === "the court" ? 1 - 0.5 * doubted : 1),
       ]),
     ),
-    moved = (cause: "land" | "voice") => o.movements.find((m) => m.cause === cause);
+    moved = (cause: "land" | "voice") => o.movements.find((m) => m.cause === cause),
+    // (The school most of its lands hold draws each law the way it teaches: sim/ideas. Nothing where none is held.)
+    school = schoolOver(world, p.members, p.seat, year, ctx.generated.life.people?.body.span ?? 70);
   for (const law of LAWS) {
     const k = LAW_OF[law],
       now = o.laws[k]!;
@@ -215,9 +224,10 @@ export function weighLaws(ctx: PopulationContext, p: Polity, o: RealmOrder, t: S
             : law === "faith"
               ? 0.4 * (open - 0.5) - 0.5 * (piety - 0.5)
               : 0.3 * (open - 0.5),
+      taught = pullOnLaw(school, k),
       support = (pos: number) =>
         groups(pos) +
-        (push + waysPull + 0.15 * doubted) * NEWER[pos]! +
+        (push + waysPull + taught + 0.15 * doubted) * NEWER[pos]! +
         (pos === now ? 0.25 * tradition : 0);
     let best = now;
     for (let pos = 0; pos < 3; pos++) if (support(pos) > support(best) + 1e-9) best = pos;
@@ -271,6 +281,16 @@ export function weighLaws(ctx: PopulationContext, p: Polity, o: RealmOrder, t: S
           contribution: doubted > 0 ? 0.15 * doubted * toward : -0.25 * tradition,
           source: doubted > 0 && o.crisis ? { ref: o.crisis, role: "pressure", weight: 1 } : null,
         },
+        ...(taught
+          ? [
+              {
+                name: `what ${school!.school.name} teaches`,
+                value: school!.hold,
+                contribution: taught * toward,
+                source: { ref: school!.school.event, role: "pressure" as const, weight: 1 },
+              },
+            ]
+          : []),
       ],
       decision = world.decisions.record({
         rule: "order.law",

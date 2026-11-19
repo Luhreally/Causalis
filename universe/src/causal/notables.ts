@@ -63,6 +63,12 @@ function did(world: World, d: Deed, land: string): string | null {
       return `first spoke the faith of ${n || land}`;
     case "belief.schism":
       return `led ${n || "the faithful"} out of the faith they were of`;
+    case "ideas.work":
+      return `made ${n ? `"${n}"` : "a work"} in ${land}`;
+    case "ideas.founded":
+      return `founded ${n || "a school of thought"} in ${land}`;
+    case "ideas.split":
+      return `led ${n || "a school"} out of the school it was of`;
     case "strife.coup":
       return `seized the seat of ${n || land}`;
     case "strife.revolution":

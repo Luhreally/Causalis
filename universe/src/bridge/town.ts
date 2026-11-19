@@ -867,6 +867,8 @@ export type LandRoad = {
   readonly works?: RoadWorks | null;
   /** Cut this year (R1; absent: whole). */
   readonly cut?: RoadCut | null;
+  /** The pilgrims a year who go by it, the land they go to and what they hold (a faith's ref, a school's); absent: none. */
+  readonly pilgrims?: { readonly n: number; readonly seat: number; readonly of: string };
 };
 
 /** What a road is laid as (R1). */

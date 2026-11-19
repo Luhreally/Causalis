@@ -16,6 +16,7 @@
 // past what it was: the game multiplies and browses the woods back; the small game eats
 // the grain. Fished hard, the waters give less.
 // What each stock stands at feeds the year's food, and each turn is history.
+import { asideIn, lessonsOf } from "../lore/lessons-store.ts";
 import {
   YEAR,
   Hasher,
@@ -92,6 +93,12 @@ export type Wilds = {
   thinned: Ref | null;
   cleared: Ref | null;
   worn: Ref | null;
+  /**
+   * What its people keep from their own use, as last reckoned (rules/lessons.ts kept-wild, kept-woods; 0: nothing): the share of
+   * what its wild yields left untaken, and of its farming ground left as woods. Absent in a save from before: nothing.
+   */
+  asideWild?: number;
+  asideWoods?: number;
 };
 
 export class EcologyStore implements StateStore {
@@ -148,6 +155,12 @@ export class EcologyStore implements StateStore {
         .string(w.multiplied ?? "")
         .string(w.grainEaten ?? "")
         .string(w.fishFew ?? "");
+    // (What is set aside, only where anything is: a world that keeps nothing hashes as it did.)
+    for (const w of this.all())
+      if (w.asideWild || w.asideWoods)
+        h.int(w.cell)
+          .float(w.asideWild ?? 0)
+          .float(w.asideWoods ?? 0);
   }
   save(): unknown {
     return { lands: this.all() };
@@ -173,6 +186,8 @@ export class EcologyStore implements StateStore {
         multiplied: w.multiplied ?? null,
         grainEaten: w.grainEaten ?? null,
         fishFew: w.fishFew ?? null,
+        asideWild: w.asideWild ?? 0,
+        asideWoods: w.asideWoods ?? 0,
       });
   }
 }
@@ -243,6 +258,8 @@ export function wildsOf(ctx: PopulationContext, cell: number): Wilds {
     thinned: null,
     cleared: null,
     worn: null,
+    asideWild: 0,
+    asideWoods: 0,
     hunter,
     hunters: hunter >= 0 ? 1 : 0,
     flocksTaken: null,
@@ -440,8 +457,23 @@ export function ecologyYear(ctx: PopulationContext, t: SimTime): void {
       g.climate.temperature[p.cell]! + shift.warm,
       (g.climate.precipitation[p.cell]! * p.rain) / 1000,
     );
-    const before = w.forest;
-    stepWilds(w, take, farmed, rest, herding, keepSoil, regrowth);
+    const before = w.forest,
+      // (What its people have learned to set aside from their own use: rules/lessons.ts kept-woods, kept-wild. So much of what
+      // the wild yields is left untaken, so much of its farming ground left as woods. Exactly as before where none is kept.)
+      kept = lessonsOf(world)?.get(p.ref),
+      asideWild = kept ? asideIn(kept, "aside:wild", year) : 0,
+      asideWoods = kept ? asideIn(kept, "aside:woods", year) : 0;
+    w.asideWild = asideWild;
+    w.asideWoods = asideWoods;
+    stepWilds(
+      w,
+      asideWild > 0 ? take * (1 - asideWild) : take,
+      asideWoods > 0 ? farmed * (1 - asideWoods) : farmed,
+      rest,
+      herding,
+      keepSoil,
+      regrowth,
+    );
     store.set(w);
     // (And its woods' age, where it has woods: stands.ts.)
     if (w.firstForest > 0) stepStand(world, p.cell, before, w.forest);

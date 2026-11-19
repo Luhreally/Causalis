@@ -141,6 +141,16 @@ export function roadPage(world: World, ref: string): PageModel {
         : `What goes along it: ${go}, one at a time.`,
     ]);
   else tell.push(["Nothing goes along it yet: it isn't joined up."]);
+  // (Those who go by it to where what they hold began: sim/ideas.)
+  if (road.pilgrims)
+    tell.push([
+      `Pilgrims go by it: ${count(road.pilgrims.n)} a year, ${road.pilgrims.seat === cell ? "come to this land, where " : "on their way to "}`,
+      ...(road.pilgrims.seat === cell
+        ? []
+        : [link(placeName(world, road.pilgrims.seat), `cell:0:${road.pilgrims.seat}`), ", where "]),
+      link("what they hold", road.pilgrims.of),
+      " began.",
+    ]);
   // (A road out of the land: what its trade carried last year, each way, said as the things themselves.)
   const beyond = !road.b && road.toward ? landToward(world, cell, road.toward) : null,
     carried = beyond !== null ? betweenItems(world, cell, beyond) : [];

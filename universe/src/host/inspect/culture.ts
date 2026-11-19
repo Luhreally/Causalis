@@ -2,6 +2,7 @@
 // a people builds, what a realm's host fights with, a land's works) and a good in a land's
 // market.
 import { faithHousesBlock } from "./folkways.ts";
+import { pilgrimageBlock } from "./ideas.ts";
 import {
   cellRef,
   tongueName,
@@ -96,6 +97,11 @@ export function faithPage(world: World, ref: string): PageModel {
         ...(() => {
           const houses = faithHousesBlock(world, f);
           return houses ? [houses] : [];
+        })(),
+        // (Those who go to where it began: sim/ideas.)
+        ...(() => {
+          const going = pilgrimageBlock(world, f.ref);
+          return going ? [going] : [];
         })(),
         { type: "why", title: "How it began", ref: f.ref },
       ],

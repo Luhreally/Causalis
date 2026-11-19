@@ -45,6 +45,10 @@ export type LessonHow =
   | "steady"
   | "supply"
   | "stores"
+  /** Ground a people sets aside from its own use (conservation): `aside:woods` so much of its farming ground left standing as
+   * woods, `aside:wild` so much of what its wild yields left untaken. What is set aside is forgone: that is its cost. */
+  | "aside:woods"
+  | "aside:wild"
   | `doctrine:${string}`;
 
 /**
@@ -195,6 +199,23 @@ export const LESSON_CAUSES: readonly LessonCause[] = [
     lost: "men lost far from their bread",
     each: ["battle", "battles"],
     answers: ["haul", "storage"],
+  },
+  // (What a people's own use took from its land: read off the ecology's turns for the worse, sim/ecology.)
+  {
+    id: "woods-lost",
+    scope: "land",
+    words: "their woods cleared away",
+    lost: "times their woods were cleared to a remnant",
+    each: ["clearing", "clearings"],
+    answers: ["farmYield"],
+  },
+  {
+    id: "wild-lost",
+    scope: "land",
+    words: "their game and herds hunted away",
+    lost: "times their wild was hunted thin or a kind of beast lost",
+    each: ["loss", "losses"],
+    answers: ["herdYield", "forageYield"],
   },
 ];
 
@@ -404,6 +425,35 @@ export const LESSON_RESPONSES: readonly LessonResponse[] = [
       { needs: ["engines"], words: "lorries and depots" },
     ],
     name: "supply trains and depots",
+  },
+  // Conservation: ground set aside from a people's own use, at the cost of what it would have given them. At full use three
+  // tenths of its farming ground is left as woods, or three tenths of what its wild yields is left untaken; a people pressed
+  // by hunger breaks it (sim/lore/lessons-store.ts asideIn), and it fades like any practice once the loss is out of mind.
+  {
+    id: "kept-woods",
+    cause: "woods-lost",
+    how: "aside:woods",
+    most: 0.3,
+    asks: 0.45,
+    does: "keep woods no one may clear, watched by {means}",
+    means: [
+      { needs: [], words: "those who live beside them" },
+      { needs: ["writing"], words: "wardens under a written rule" },
+    ],
+    name: "woods set aside from the axe",
+  },
+  {
+    id: "kept-wild",
+    cause: "wild-lost",
+    how: "aside:wild",
+    most: 0.3,
+    asks: 0.4,
+    does: "close part of their hunting grounds and waters, by place and by season, under {means}",
+    means: [
+      { needs: [], words: "a ban their elders keep" },
+      { needs: ["writing"], words: "wardens and a written rule" },
+    ],
+    name: "hunting grounds closed in their season",
   },
 ];
 

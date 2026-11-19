@@ -913,6 +913,9 @@ export type PageKind =
   | "walls"
   /** A band's camp on its land (Phase 28 M159). */
   | "camp"
+  /** A school of thought, a work someone made (sim/ideas). */
+  | "school"
+  | "work"
   | "unknown";
 
 export type PageModel = {

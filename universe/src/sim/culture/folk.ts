@@ -5,6 +5,7 @@
 import { YEAR, yearOfMoment, type Factor, type SimTime, type World } from "../../kernel/index.ts";
 import { tongueLikeness } from "../../gen/index.ts";
 import {
+  ABROAD,
   INQUIRY,
   VOICE_TOPICS,
   VOICE,
@@ -26,6 +27,7 @@ import { warsOf } from "../war/war.ts";
 import { addsStanding } from "../order/order.ts";
 import { refNumber } from "../money/kept.ts";
 import { cultureOf } from "./culture.ts";
+import { strangersIn } from "./abroad-kept.ts";
 import { FOLK_ROW, FOLK_STORE, VOICE_ROW, VOICE_STORE, cultureRows } from "./rows.ts";
 
 /** A land weighs who its own are once in so many years, each land in its own year. */
@@ -67,6 +69,9 @@ export function folkTargets(
         : 0,
     years = Math.max(0, year - since);
   let kin = cell === realm.seat ? 1 : kinToSeat({ like, sameFaith, waysGap, years, span });
+  // (A land with peoples not its own in it counts its seat's people the less its own: ./abroad.ts. As before where none is kept.)
+  const strangers = strangersIn(world, cell);
+  if (strangers > 0) kin *= 1 - ABROAD.apart * strangers;
   // (One people told by its seat and believed draws a land nearer it: sim/order/voice.ts.)
   const voice = cultureRows(world, VOICE_STORE)?.get(refNumber(realm.ref));
   if (voice && VOICE_TOPICS[voice[VOICE_ROW.topic]! - 1] === "one")

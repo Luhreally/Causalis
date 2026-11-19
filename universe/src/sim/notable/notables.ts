@@ -992,6 +992,14 @@ export function strikeNotable(
   if (n.post?.kind === "command") store.shake(n.post.of, r.year + 1);
   return true;
 }
+/** A deed done by one already kept, told by another system (a school founded: sim/ideas). False where they are not kept. */
+export function creditNotable(world: World, id: number, deed: Deed): boolean {
+  const store = notablesOf(world),
+    n = store?.get(id);
+  if (!n) return false;
+  addDeed(n, deed);
+  return true;
+}
 export function favourNotable(
   world: World,
   id: number,

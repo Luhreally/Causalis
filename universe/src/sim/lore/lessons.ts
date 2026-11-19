@@ -48,6 +48,7 @@ const OUTCOME_TYPES: ReadonlySet<string> = new Set(HOLD_READ);
 
 export {
   LessonStore,
+  asideIn,
   lessonsOf,
   lessened,
   lessonAdds,
@@ -133,6 +134,15 @@ function onLand(
       dead,
     },
   ];
+}
+
+/** A loss a land's own use brought on it, weighed against the loss that presses a people as hard as can be (`weight` of it). */
+function ownUse(e: HistoryEvent, cause: string, weight: number): { struck: Strike[] } | null {
+  const cell = cellOf(e.place);
+  if (cell === null) return null;
+  return {
+    struck: [{ holder: cellRef(0, cell), cause, share: LESSON.presses * weight, lost: 1, dead: 0 }],
+  };
 }
 
 /** A realm's people, in all its lands. */
@@ -277,6 +287,14 @@ const READINGS: Readonly<Record<string, Reading>> = {
       ],
     };
   },
+  // What a people's own use took from its land (sim/ecology): its woods cleared to a remnant, its wild hunted thin, a kind of
+  // great beast hunted out, its herds gone. Each is a turn told once, so each counts as a loss that would press a people as a
+  // fortieth of them lost would: there is no count of the dead to weigh it by.
+  "ecology.forest-cleared": (_, e) => ownUse(e, "woods-lost", 1),
+  "ecology.wild-thinned": (_, e) => ownUse(e, "wild-lost", 0.6),
+  "ecology.hunted-out": (_, e) => ownUse(e, "wild-lost", 1),
+  "ecology.herds-gone": (_, e) =>
+    (e.data as { why?: string } | null)?.why === "hunted" ? ownUse(e, "wild-lost", 1) : null,
   // A sickness come to a land (sim/health/health.ts): its dead.
   "health.outbreak": (ctx, e) => {
     const dead = num(e.data, "dead");

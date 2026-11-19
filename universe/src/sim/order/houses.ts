@@ -89,7 +89,8 @@ import { LAW_OF } from "./laws.ts";
 import { chooses, electionsOf } from "./elections.ts";
 import { orgPartyOf } from "./groups-kept.ts";
 import { worksProfitOf } from "./institutions-kept.ts";
-import { ORG } from "../../rules/index.ts";
+import { ORG, WORK } from "../../rules/index.ts";
+import { patronCredit } from "../ideas/works-kept.ts";
 import { spend, whisperIn } from "../acts/person.ts";
 
 export const HOUSE_EVENTS = {
@@ -973,6 +974,9 @@ function stepRealm(
     if (origin === "the army") power *= 1 + force;
     if (origin === "demagogue") power = Math.max(power, following);
     if (h.crown) power += 0.5 * force * cap;
+    // (A house credited for works of name it paid for stands the higher among the great: sim/ideas. Nothing where none is.)
+    const credit = patronCredit(world, "house", h.event, year);
+    if (credit > 0) power *= 1 + WORK.housePower * credit;
     h.power = per(power);
   }
   const crown = v.houses.find((h) => h.crown),

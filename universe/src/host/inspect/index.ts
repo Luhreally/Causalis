@@ -3,6 +3,8 @@
 // the god's hand) — to its page, and its place for "go to it". Pure reads of the world as
 // it stands (the observer ledger aside, which history never reads): asking never moves it.
 import { notablePage } from "./notables.ts";
+import { schoolPage } from "./ideas.ts";
+import { workPage } from "./works.ts";
 import { meansPage, measurePage } from "./means.ts";
 import { canPage } from "./can.ts";
 import { lifeElsewherePage, lifePage } from "./lifepage.ts";
@@ -206,6 +208,8 @@ function build(
   if (ref.startsWith("boss:")) return bossPage(world, ref);
   // (One who holds an office or heads a great thing of a town, as read: host/inspect/notables.ts.)
   if (ref.startsWith("note:")) return notablePage(world, ref);
+  // (A work someone of name made: sim/ideas.)
+  if (ref.startsWith("work:")) return workPage(world, ref);
   // (One of a head's or an office-holder's household, read from them: host/kin.ts.)
   if (ref.startsWith("kin:")) return kinPage(world, ref);
   if (ref.startsWith("ofed:")) return orgFedPage(world, ref);
@@ -239,6 +243,8 @@ function build(
       return starWarPage(world, ref);
     case "faith":
       return faithPage(world, ref);
+    case "idea":
+      return schoolPage(world, ref);
     case "lang":
       return languagePage(world, ref);
     case "dsgn":
