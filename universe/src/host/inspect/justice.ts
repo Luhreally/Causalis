@@ -1484,6 +1484,15 @@ function ruled(
       labour: `was bound to the realm's works for six months, by ${r.by}'s word`,
       banish: `was sent away from the town for two years, by ${r.by}'s word`,
       bribe: `was let go: ${r.by}, who heard it, took what was offered`,
+    },
+    cost: Readonly<Record<string, string>> = {
+      free: "Nothing but the day it took.",
+      fine: "The fine, paid that day.",
+      stocks: "Three days in the square, where everyone could see.",
+      cell: "Three months of their life, that their home went without.",
+      labour: "Six months at the works, unpaid, and their home went without.",
+      banish: "Their home and everyone they knew, for two years.",
+      bribe: "Nothing to them. What was offered went to the one who heard it.",
     };
   return {
     ...c,
@@ -1493,7 +1502,8 @@ function ruled(
     sentence: r.sentence as CourtSentence,
     days,
     came: came[r.sentence] ?? c.came,
-    cost: `As ${r.by} ruled it, lived as the court's judge under your hand.`,
+    // (What it cost the one brought, as any case says it; and who ruled it.)
+    cost: `${cost[r.sentence] ?? c.cost} You ruled it, living as ${r.by}.`,
   };
 }
 
