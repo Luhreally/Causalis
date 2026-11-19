@@ -619,7 +619,13 @@ export function notablePage(world: World, ref: string): PageModel {
     place: who.away ? who.away.place : { scale: "village", town: who.town, person: ref },
     stats: [
       stat("Age", `${age}`),
-      stat("Work", WORK[who.kind]),
+      stat(
+        "Work",
+        // (One the world keeps who holds no office: what they are known for is their work.)
+        who.kind === "named" && who.sim
+          ? (NAMED_WORK[firstField(who.sim)] ?? WORK.named)
+          : WORK[who.kind],
+      ),
       stat("Home", [townLink(world, who.town)]),
     ],
     tabs: [{ id: "overview", name: "Overview", blocks }],
@@ -877,6 +883,19 @@ function gonePage(world: World, ref: string, g: GoneNotable): PageModel {
   };
 }
 
+/** What one known for a domain does, as a word for their work (by rules DOMAINS). */
+const NAMED_WORK: readonly string[] = [
+  "captain of fighting men",
+  "keeper of what is known",
+  "maker",
+  "preacher",
+  "trader",
+  "speaker for others",
+  "healer",
+  "judge",
+  "wayfarer",
+  "wrongdoer",
+];
 const WORK: Readonly<Record<NotableKind, string>> = {
   house: "head of a house",
   judge: "judge",
