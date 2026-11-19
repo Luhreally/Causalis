@@ -24,6 +24,7 @@ import { pageOf } from "../../src/host/inspect/index.ts";
 import { godActsFor } from "../../src/host/death.ts";
 import { leadersOfTown, seatTownOf } from "../../src/host/leaders.ts";
 import { why } from "../../src/causal/index.ts";
+import { personsOfNote } from "../../src/host/persons.ts";
 import { peopledWorld } from "../worlds.ts";
 
 const world = peopledWorld("juniper", 120, { start: "spread" }),
@@ -126,4 +127,19 @@ test("the god's hand reaches one of name: blessed, then struck down, and from th
   assert.ok(fate.dead);
   assert.match(fate.words, /struck down/);
   assert.equal(godActsFor(world, ref), null, "no act reaches the dead");
+});
+
+test("everyone the world keeps by name is read one way: rulers, courts, heads, envoys and those known for a deed, each once", () => {
+  const all = personsOfNote(world),
+    by = (k: string) => all.filter((p) => p.kept === k);
+  assert.equal(by("ruler").length, politiesOf(world).living().length);
+  assert.ok(by("named").length >= 3);
+  const refs = all.map((p) => p.ref);
+  assert.equal(new Set(refs).size, refs.length, "no one twice");
+  for (const p of by("named")) {
+    assert.ok(p.standing! > 0 && p.domain);
+    // (One of name who is of a court is given as the notable, the court's ref beside, and not again as the court's.)
+    if (p.also) assert.ok(!refs.includes(p.also), `${p.name} twice`);
+  }
+  for (const p of all.slice(0, 40)) assert.ok(p.name && p.title, p.ref);
 });
