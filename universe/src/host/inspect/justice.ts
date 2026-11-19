@@ -62,7 +62,7 @@ import {
   type Settlement,
 } from "../../sim/index.ts";
 import { streetInTownOf } from "../../sim/index.ts";
-import { ROOF } from "../../rules/index.ts";
+import { JUDGED, ROOF } from "../../rules/index.ts";
 import { cellRef } from "../../gen/index.ts";
 import { townUnderworldBlocks } from "./mobs.ts";
 import { townRolesOf } from "./townlife.ts";
@@ -1431,7 +1431,10 @@ export function docketOf(world: World, town: string, year: number): Docket {
 
 /** A year's book as drawn forward from `base` (kept by town, year and base). */
 function chained(world: World, s: Settlement, year: number, base: number): Docket {
-  const hand = handOf(world).resting?.village ?? "";
+  // (What one lived as its judge has ruled is of the book: read again when another case is ruled.)
+  const resting = handOf(world).resting,
+    rulings = resting?.village === s.ref ? (resting.rulings ?? []) : [],
+    hand = `${resting?.village ?? ""}|${resting?.rulings?.length ?? 0}`;
   let kept = KEPT.get(world);
   if (!kept || kept.hand !== hand) KEPT.set(world, (kept = { hand, byKey: new Map() }));
   const key = (y: number) => `${s.ref}|${y}|${base}`,
@@ -1454,10 +1457,44 @@ function chained(world: World, s: Settlement, year: number, base: number): Docke
     for (const c of before?.cases ?? []) if (!c.accused.outside) away.add(c.accused.ref);
     for (const c of running) away.add(c.accused.ref);
     made = { ...drawDocket(world, s, y, away, before?.cases ?? []), running };
+    if (rulings.length)
+      made = {
+        ...made,
+        cases: made.cases.map((c) => {
+          const r = rulings.find((x) => x.case === c.ref);
+          return r ? ruled(c, r) : c;
+        }),
+      };
     kept.byKey.set(key(y), made);
   }
   return made;
 }
+/** A case as one lived as the court's judge ruled it (rules/part.ts): what was laid, for how long, in whose word. */
+function ruled(c: Case, r: { readonly sentence: string; readonly by: string }): Case {
+  const days = JUDGED[r.sentence]?.days ?? 1,
+    came: Readonly<Record<string, string>> = {
+      free: `was heard by ${r.by}, who found nothing to hold them for, and went home`,
+      fine: `was fined by ${r.by}, and paid it at the bench`,
+      stocks: `was put in the stocks in the square for three days, by ${r.by}'s word`,
+      cell: `was locked in the town's cell for three months, by ${r.by}'s word`,
+      labour: `was bound to the realm's works for six months, by ${r.by}'s word`,
+      banish: `was sent away from the town for two years, by ${r.by}'s word`,
+      bribe: `was let go: ${r.by}, who heard it, took what was offered`,
+    };
+  return {
+    ...c,
+    sentence: r.sentence as CourtSentence,
+    days,
+    came: came[r.sentence] ?? c.came,
+    cost: `As ${r.by} ruled it, lived as the court's judge under your hand.`,
+  };
+}
+
+/** Whether one lived as the court's judge has ruled a case. */
+export function ruledCase(world: World, ref: string): boolean {
+  return !!handOf(world).resting?.rulings?.some((r) => r.case === ref);
+}
+
 /** What holds one of a town past the day it is laid on them. */
 const LONG: ReadonlySet<CourtSentence> = new Set(["cell", "stocks", "labour", "banish"]);
 

@@ -198,6 +198,18 @@ export function installLife(d: LifeDeps): LifeFlow {
       .then(refresh)
       .catch((e: Error) => hud.say(e.message));
   };
+  // (A part played for a group of their town: hours spent, and what it came to said as the life's book has it.)
+  hud.onPart = (part) => {
+    until = null;
+    void d.client
+      .command("life.part", part)
+      .then(refresh)
+      .then(() => {
+        const said = now?.log.at(-1)?.words;
+        if (said) hud.say(said);
+      })
+      .catch((e: Error) => hud.say(e.message));
+  };
   hud.onBuy = (good) =>
     void d.client
       .command("life.buy", { good })

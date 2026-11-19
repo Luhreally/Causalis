@@ -64,6 +64,7 @@ export class LifeHud {
   private last: LifeNow | null = null;
   private purseWas: number | null = null;
   onDo: (what: string, target: number) => void = () => {};
+  onPart: (part: Readonly<Record<string, string | number>>) => void = () => {};
   onBuy: (good: "tool" | "cloth" | "stake") => void = () => {};
   onAnswer: (key: string, choice: number) => void = () => {};
   onWant: (want: string) => void = () => {};
@@ -199,7 +200,7 @@ export class LifeHud {
     const tall = `${Math.round(this.tray.offsetHeight)}px`;
     if (this.tray.offsetHeight && this.element.style.getPropertyValue("--tray-h") !== tall)
       this.element.style.setProperty("--tray-h", tall);
-    const key = `${l.rules ?? ""}${l.offers.map((o) => `${o.what}|${o.target}|${o.label}|${o.can}`).join(",")}`;
+    const key = `${l.rules ?? ""}${l.offers.map((o) => `${o.what}|${o.target}|${o.label}|${o.can}|${o.part?.case ?? ""}`).join(",")}`;
     if (key === this.trayKey) return;
     this.trayKey = key;
     const realm = l.rules,
@@ -217,8 +218,9 @@ export class LifeHud {
         b.title = o.words;
         b.onclick = () => {
           this.say(o.words);
-          // (What they are for a group of their town is told; it is not a thing this life's hours are yet spent on.)
+          // (What they are for a group of their town: told; and where it is a part to play, hours spent on it.)
           if (o.what !== "role") this.onDo(o.what, o.target);
+          else if (o.part) this.onPart(o.part);
         };
         return b;
       }),

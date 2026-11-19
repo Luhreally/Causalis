@@ -56,6 +56,17 @@ import {
 import { marketsOf, type PopulationContext } from "../population/systems.ts";
 import { agentName } from "../acts/local.ts";
 import { handOf, type Agent, type Window } from "./hand.ts";
+import { politiesOf } from "../polity/polity.ts";
+import { groupsIn, underworldOf } from "../order/underworld-kept.ts";
+import {
+  JUDGE_SENTENCES,
+  PARTS,
+  judgeCame,
+  newPart,
+  partOutcome,
+  type PartFacts,
+  type PartId,
+} from "../../rules/index.ts";
 import { agentById } from "./possess.ts";
 
 export const LIFE_EVENTS = {
@@ -74,7 +85,7 @@ export const LIFE_EVENTS = {
 export const HAND_LIFE = defineStream("hand.life");
 
 /** Why each draw is asked. */
-const P = { rival: 1, suitor: 2, face: 3, luck: 4, owned: 5, what: 6 };
+const P = { rival: 1, suitor: 2, face: 3, luck: 4, owned: 5, what: 6, part: 100 };
 
 const adultOf = (c: PopulationContext) => c.life.adulthood;
 
@@ -298,6 +309,37 @@ function tell(
   });
   w.notables = [...(w.notables ?? []), { agent: l.agent, deed: event }];
   return event;
+}
+
+/**
+ * What a part is played against (rules/part.ts): read from what the world keeps of the group (`of`: its page, or its head's)
+ * in the town's land. `n`: those it touches, as the town's days draw them.
+ */
+export function partFacts(
+  world: World,
+  c: PopulationContext,
+  w: Window,
+  l: Life,
+  of: string,
+  n: number,
+  t: number,
+): PartFacts {
+  const realm = politiesOf(world).of(w.cell),
+    under = groupsIn(world, w.cell),
+    rec = realm ? underworldOf(world)?.of(realm.ref) : undefined,
+    event = /(ev:\d+:\d+)$/.exec(of)?.[1],
+    g = event ? rec?.groups.find((x) => x.event === event) : undefined;
+  return {
+    n,
+    hold: under?.control ?? 0,
+    share: under?.protection ?? 0,
+    strength: g ? g.power / 1000 : 0,
+    war: !!g && !!rec?.wars.some((x) => x.ended === null && (x.a === g.id || x.b === g.id)),
+    soldiers: !!rec?.ops?.some((o) => o.ended === null && o.lands.includes(w.cell)),
+    crew: (under?.badge ?? 0) > 0,
+    takes: !!g && !g.squad && g.income > 0,
+    bread: lifeFacts(world, c, w, l, t).bread,
+  };
 }
 
 /** A life's numbers carried forward to `t`, and what that came to written where it lasts. */
@@ -628,6 +670,88 @@ export function installLife(world: World, ctx: () => PopulationContext): void {
         return;
       }
       l.doing = { what: a.what, from: t, to: blockEnd(a.what, t), target };
+    },
+  });
+
+  // A part played for a group of their town (rules/part.ts): hours spent, and what they came to written on the life alone.
+  // Only ever by the one living the life: no world is moved by it that no one lives in.
+  world.defineCommand({
+    type: "life.part",
+    validate: (args) => {
+      const bad = lifeProblem(world);
+      if (bad) return bad;
+      const c = ctx(),
+        w = resting()!,
+        l = w.life!,
+        a = (args ?? {}) as Record<string, unknown>,
+        t = world.now + 1,
+        me = agentById(w, l.agent)!;
+      if (typeof a.what !== "string" || !Object.hasOwn(PARTS, a.what))
+        return "no such part to play";
+      if (yearOfMoment(t) - me.birthYear < adultOf(c)) return "that is for the grown";
+      if (typeof a.name !== "string" || !a.name || a.name.length > 120) return "for whom?";
+      if (typeof a.of !== "string" || a.of.length > 120) return "for whom?";
+      if (!Number.isInteger(a.n) || (a.n as number) < 0 || (a.n as number) > 12) return "how many?";
+      if (a.what !== "judge") return null;
+      const allowed = JUDGE_SENTENCES[String(a.form)];
+      if (!allowed) return "this court has no judge";
+      if (typeof a.sentence !== "string" || !allowed.includes(a.sentence))
+        return "this court does not lay that on anyone";
+      if (typeof a.accused !== "string" || !a.accused || a.accused.length > 80)
+        return "whose case?";
+      if (
+        typeof a.case !== "string" ||
+        !new RegExp(`^case:${w.village}:${yearOfMoment(t)}:\\d+$`).test(a.case)
+      )
+        return "that case is not before this court this year";
+      if (w.rulings?.some((r) => r.case === a.case)) return "that case has been heard";
+      return null;
+    },
+    apply: (command, t) => {
+      const c = ctx(),
+        w = resting()!,
+        l = w.life!,
+        a = command.args as {
+          what: PartId;
+          of: string;
+          name: string;
+          n: number;
+          case?: string;
+          sentence?: string;
+          accused?: string;
+        };
+      settle(world, c, w, l, t, command.id);
+      const part = (l.part ??= newPart()),
+        f = partFacts(world, c, w, l, a.of, a.n, t),
+        paid = part.paid > t,
+        out =
+          a.what === "judge"
+            ? judgeCame(a.sentence!, a.accused!, f.bread)
+            : partOutcome(
+                a.what,
+                a.name,
+                f,
+                (n) => world.rng.real(HAND_LIFE, l.agent, t, P.part + n),
+                l.purse,
+                paid,
+              );
+      l.purse = Math.max(0, l.purse + out.coin);
+      l.standing = Math.max(0, Math.min(100, l.standing + out.standing));
+      l.heart = Math.max(0, Math.min(1, l.heart + out.heart));
+      part.standing = Math.max(0, Math.min(100, part.standing + out.group));
+      part.done++;
+      if (out.wound) {
+        part.wounds++;
+        l.rested = Math.max(0, l.rested - 0.4);
+      }
+      if (out.paid) part.paid = t + out.paid * 86_400;
+      if (a.what === "judge")
+        w.rulings = [
+          ...(w.rulings ?? []).slice(-(LIFE_MOST.log - 1)),
+          { case: a.case!, sentence: a.sentence!, by: l.name.replace(/ of .*$/, ""), at: t },
+        ];
+      say(l, t, out.words);
+      l.doing = { what: "part", from: t, to: blockEnd("part", t), target: -1 };
     },
   });
 

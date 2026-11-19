@@ -429,6 +429,16 @@ export type Window = {
   possessed?: Possession;
   /** One of them lived on by the god's hand, day on day (Lives L3: sim/hand/life.ts). */
   life?: Life;
+  /**
+   * What one lived as the town's judge laid on those brought before the court (rules/part.ts; absent: none): the case, what
+   * was laid, by whom and when. The court's book reads each as ruled while the hand rests here (host/inspect/justice.ts).
+   */
+  rulings?: {
+    readonly case: string;
+    readonly sentence: string;
+    readonly by: string;
+    readonly at: number;
+  }[];
 };
 
 /** One of the hand's people who died while it rests: who they were, and when they died. */

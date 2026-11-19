@@ -9,6 +9,7 @@
 import { dmath } from "../kernel/index.ts";
 import { G } from "./goods.ts";
 import { OCC } from "./species.ts";
+import type { PartState } from "./part.ts";
 
 const HOUR = 3600,
   DAY = 86_400;
@@ -31,6 +32,7 @@ export const DOING_IDS = [
   "play",
   "learn",
   "drill",
+  "part",
 ] as const;
 export type DoingId = (typeof DOING_IDS)[number];
 
@@ -101,6 +103,8 @@ export const DOINGS: Readonly<Record<DoingId, Doing>> = {
   play: doing("🪁", "Play", 2, -0.04, -0.03, 0.12, { who: "child" }),
   learn: doing("✏️", "Learn", 4, -0.03, -0.03, 0.01, { skill: true, who: "child" }),
   drill: doing("🛡️", "Drill", 2, -0.04, -0.06, 0.02, { pay: 0.5, standing: 0.3, who: "grown" }),
+  // (Hours given to what one is for a group of one's town: what it comes to is its own, rules/part.ts.)
+  part: doing("🕴️", "Your part", 3, -0.03, -0.03, 0, { who: "grown" }),
 };
 
 /** What each work is called when it is pressed, and its sign, by OCC. */
@@ -413,6 +417,8 @@ export type Life = {
   log: LifeLine[];
   /** Why it ended ("": it goes on; "died"). */
   ended: string;
+  /** How they stand in what they are for a group of their town, once they have played it (rules/part.ts; absent: never). */
+  part?: PartState;
 };
 
 /** A life copied to go on in place (a load's own, apart from the state it was read from). */
@@ -425,6 +431,7 @@ export function copyLife(l: Life): Life {
     suitors: [...l.suitors],
     asked: [...l.asked],
     ...(l.won ? { won: [...l.won] } : {}),
+    ...(l.part ? { part: { ...l.part } } : {}),
     waiting: l.waiting.map((h) => ({ ...h })),
     log: l.log.map((x) => ({ ...x })),
   };

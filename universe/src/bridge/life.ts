@@ -9,6 +9,8 @@ export type LifeOfferNow = {
   readonly label: string;
   readonly can: boolean;
   readonly words: string;
+  /** A part played for a group of their town (rules/part.ts): what a press spends hours on, as the command `life.part` takes it. */
+  readonly part?: Readonly<Record<string, string | number>>;
 };
 
 /** Someone about a life: who, how old, what they are to them, how they stand. */

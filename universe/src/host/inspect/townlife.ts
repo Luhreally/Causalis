@@ -11,10 +11,14 @@ import { finish, hashString, mix, type Ref, type World } from "../../kernel/inde
 import {
   CONTRA_CAUSES,
   GROUP_KINDS,
+  JUDGED,
+  JUDGE_SENTENCES,
   OCC,
+  PARTS as LIFE_PARTS,
   WARE_ARMS,
   WARE_INTOX,
   wareName,
+  type PartId,
 } from "../../rules/index.ts";
 import {
   GANG_ROW,
@@ -25,6 +29,7 @@ import {
   groupsIn,
   kindName,
   deathNotesOf,
+  groupOfBoss,
   handOf,
   kindOfGroup,
   lifeOf,
@@ -58,9 +63,11 @@ import { orgRef } from "../groups.ts";
 import { folkWork, workOf } from "../roster.ts";
 import {
   casesOf,
+  courtFormOf,
   folkOf,
   heldCaseOf,
   lastCaseOf,
+  ruledCase,
   type Case,
   type FolkSlot,
   type Party,
@@ -1220,54 +1227,212 @@ export function townPosted(world: World, town: string): Pick<VillagePlan, "poste
   return { posted: { color: [c[0], c[1], c[2]], arm: hostKinds(world, r.ref)?.arm ?? "" } };
 }
 
+/** One of the tray's lines for what one lived is for a group of their town: told at a press; with `part`, hours spent on it. */
+export type RoleOffer = {
+  what: "role";
+  target: number;
+  icon: string;
+  label: string;
+  can: boolean;
+  words: string;
+  /** What a press spends hours on (the command `life.part`'s own; absent: it only tells). */
+  part?: {
+    what: PartId;
+    of: string;
+    name: string;
+    n: number;
+    case?: string;
+    sentence?: string;
+    form?: string;
+    accused?: string;
+  };
+};
+
+/** What each part is, before it is played: who it touches, what it brings, what it risks. */
+const PART_SAYS: Readonly<Record<Exclude<PartId, "judge">, (name: string, n: number) => string>> = {
+  rounds: (name, n) =>
+    `Make the rounds for ${name}: ${many(n, "pays", "pay")} here to be left to trade. What they give is ${name}'s, three parts in ten yours to keep. Some will be short.`,
+  watch: (name) =>
+    `Hold the corner for ${name} until dark: see who comes, and give warning in time.`,
+  sell: (name, n) =>
+    `Sell what the realm bars in the back lane: about ${n} come for it. Four parts in ten are yours; the rest is theirs who carry it in (${name}).`,
+  lielow: () => "Keep out of sight for some hours: nothing earned, nothing risked.",
+  door: (name) => `Hold the door of the house ${name} is headed from: paid by the house.`,
+  receive: (name) =>
+    `Receive those who come to your house with what they owe or ask of ${name}: coin to you, and you are seen.`,
+  settle: (name) =>
+    `Hear two of ${name}'s own who are at odds, and say how it will be: it holds together the better, if both take it.`,
+  send: (name, n) =>
+    `Send your collector round for ${name}: ${many(n, "pays", "pay")} here. Seven parts in ten come to the house.`,
+  answer: (name) =>
+    `Answer the group ${name} is at war with, in this town: its ground or yours, your standing with your own on it.`,
+  paywatch: (name) =>
+    `Pay the watch to look elsewhere when ${name}'s people are about, for thirty days.`,
+  patrol: (name) => `Walk the round of the streets with ${name}: the realm's pay for the hours.`,
+  lead: (name, n) => `Lead the meeting of ${name}: about ${n} come.`,
+  attend: (name) => `Go to the meeting of ${name}, among its own.`,
+  alms: (name, n) =>
+    `Give out bread for ${name} to ${n} of its own in need: a little of your own coin beside what it pools.`,
+};
+
 /**
- * What one lived is for the groups of their town, for the tray of a life: each a line that says what it is, for whom and when.
- * Pressed, it tells; a life's hours are spent by the life's own rules, and none of them is yet spent on these.
+ * What one lived is for the groups of their town, for the tray of a life: what a collector, a lookout, a seller, a guard, a
+ * head, an officer of a crew, a member, a giver and the court's judge can spend hours on (rules/part.ts), each offered only to
+ * the one who is that for the thing, and saying what it is, for whom, what it brings and what it risks. One the court holds
+ * plays no part until it lets them go.
  */
 export function roleOffers(
   world: World,
   town: string,
   ref: string,
-  /** The name they are known by: one the hand was laid from who heads a group is that head, by it. */
+  /** The name they are known by: one the hand was laid from who heads a group or holds an office is that one, by it. */
   name?: string,
-): { what: "role"; target: number; icon: string; label: string; can: boolean; words: string }[] {
+): RoleOffer[] {
   const life = townLifeOf(world, town),
-    out: ReturnType<typeof roleOffers> = [];
+    out: RoleOffer[] = [],
+    held = life.past.find((p) => p.ref === ref),
+    soldiers = life.goings.some((g) => g.kind === "posted"),
+    risk = soldiers ? " Soldiers are posted in the streets: what you carry may be taken." : "",
+    add = (
+      id: Exclude<PartId, "judge">,
+      of: { ref: string; name: string },
+      n: number,
+      more = "",
+      can = true,
+    ) =>
+      out.push({
+        what: "role",
+        target: -1,
+        icon: LIFE_PARTS[id].icon,
+        label: LIFE_PARTS[id].label,
+        can: can && !held,
+        words: `${PART_SAYS[id](of.name, n)}${more}`,
+        part: { what: id, of: of.ref, name: of.name, n },
+      });
   for (const h of life.heads) {
     if (h.name !== name) continue;
     const guarded = life.goings.find((g) => g.to?.includes(h.ref)),
-      leads = life.goings.find((g) => g.who[0] === h.ref);
+      leads = life.goings.find((g) => g.who[0] === h.ref),
+      group = h.title.replace(/^Head of /, "").replace(/, of .*$/, ""),
+      of = { ref: h.ref, name: group };
     out.push({
       what: "role",
       target: -1,
       icon: "🕴️",
       label: "Your house",
       can: true,
-      words: `You are ${h.title.replace(/^Head/, "head")}. ${h.did}${guarded ? " Your house is guarded from dawn until late, and those who collect for you bring what they take to its door." : ""}${leads ? ` You lead what it holds here: ${leads.words.replace(/^./, (c) => c.toLowerCase())}, ${WHEN[leads.kind]}.` : ""} Told of this life, not yet lived in it: its hours are its own.`,
+      words: `You are ${h.title.replace(/^Head/, "head")}. ${h.did}${guarded ? " Your house is guarded from dawn until late, and those who collect for you bring what they take to its door." : ""}${leads ? ` You lead what it holds here: ${leads.words.replace(/^./, (c) => c.toLowerCase())}, ${WHEN[leads.kind]}.` : ""}`,
     });
+    if (leads) add("lead", leads.of, Math.max(1, leads.who.length - 1));
+    // (A head outside the law: what their house is headed for.)
+    const at = groupOfBoss(world, h.ref);
+    if (at?.kind !== "under") continue;
+    const collect = life.goings.find(
+        (g) => g.kind === "collect" && g.of.ref === groupRef(at.realm, at.g.event),
+      ),
+      war = /at war with/.test(collect?.why ?? "") || /at war with/.test(guarded?.why ?? "");
+    add("receive", of, 3);
+    add("settle", of, 2);
+    if (collect) add("send", of, collect.to?.length ?? 2, risk, !collect.quiet);
+    add(
+      "answer",
+      of,
+      1,
+      war ? "" : ` ${cap(group)} is at war with no one now.`,
+      !!at.g && underAtWar(world, at.realm, at.g.id),
+    );
+    add("paywatch", of, 1);
+    if (soldiers) add("lielow", of, 1);
   }
   for (const g of life.goings) {
     if (!g.who.includes(ref)) continue;
-    out.push({
-      what: "role",
-      target: -1,
-      icon: GOING_ICON[g.kind],
-      label: ROLE_LABEL[g.kind],
-      can: true,
-      words: `${g.quiet ?? g.doing}, ${WHEN[g.kind]}: ${g.why}. Told of this life, not yet lived in it: its hours are its own.`,
-    });
+    const quiet = g.quiet ? ` ${g.quiet}.` : "",
+      why = ` ${cap(g.why)}.`;
+    switch (g.kind) {
+      case "collect":
+        add("rounds", g.of, g.to?.length ?? 2, `${why}${risk}${quiet}`, !g.quiet);
+        add("lielow", g.of, 1);
+        break;
+      case "corner":
+        add("watch", g.of, g.who.length, `${why}${quiet}`, !g.quiet);
+        break;
+      case "seller":
+        add("sell", g.of, Math.max(2, g.to?.length ?? 2), `${why}${risk}`);
+        add("lielow", g.of, 1);
+        break;
+      case "guard":
+        add("door", g.of, 1, why);
+        break;
+      case "patrol":
+        add("patrol", g.of, 3, why);
+        break;
+      case "alms":
+        add("alms", g.of, g.to?.length ?? 3, why);
+        break;
+      case "meeting":
+        add("attend", g.of, Math.max(1, g.who.length - 1), why);
+        break;
+      default:
+        break;
+    }
   }
-  for (const p of life.past)
-    if (p.ref === ref)
+  // The court's judge: the next small wrong to be heard this year, and what the court's form lets them lay on it.
+  const judge = notablesIn(world, town).find((n) => n.kind === "judge" && n.name === name),
+    s = judge ? populationContext(world).settlements.get(town as Ref) : undefined,
+    form = s ? courtFormOf(world, s) : null,
+    year = yearNow(world),
+    next =
+      judge && form && JUDGE_SENTENCES[form]
+        ? [...casesOf(world, town, year)]
+            .filter((c) => !c.grave && c.day * 86400 > world.now && !ruledCase(world, c.ref))
+            .sort((a, b) => a.day - b.day)[0]
+        : undefined;
+  if (judge && form && next)
+    for (const sentence of JUDGE_SENTENCES[form]!)
       out.push({
         what: "role",
         target: -1,
-        icon: "⚖️",
-        label: "The court",
+        icon: LIFE_PARTS.judge.icon,
+        label: JUDGED[sentence]!.label,
         can: true,
-        words: `You were ${ROLE_NAME[p.going.kind].replace(/\bits\b/, "the")} for ${p.going.of.name} until year ${p.case.year}: you ${p.case.came.replace(/^was /, "were ")}.`,
+        words: `Hear the case of ${next.accused.name}, who ${next.whatWords}, to be heard on day ${next.day - year * 365} of the year: ${JUDGED[sentence]!.label.replace(/^./, (c) => c.toLowerCase())}. The court's book will read as you rule.`,
+        part: {
+          what: "judge",
+          of: judge.ref,
+          name: judge.of.name,
+          n: 1,
+          case: next.ref,
+          sentence,
+          form,
+          accused: next.accused.name,
+        },
       });
+  else if (judge)
+    out.push({
+      what: "role",
+      target: -1,
+      icon: LIFE_PARTS.judge.icon,
+      label: "Your bench",
+      can: true,
+      words: `You are ${judge.title.replace(/^./, (c) => c.toLowerCase())}. No small wrong waits to be heard before the year is out.`,
+    });
+  if (held)
+    out.push({
+      what: "role",
+      target: -1,
+      icon: "⚖️",
+      label: "The court",
+      can: true,
+      words: `You were ${ROLE_NAME[held.going.kind].replace(/\bits\b/, "the")} for ${held.going.of.name} until year ${held.case.year}: you ${held.case.came.replace(/^was /, "were ")}. You play no part for it until the court lets you go.`,
+    });
   return out;
+}
+
+/** Whether a group outside the law is at war with another now. */
+function underAtWar(world: World, realm: string, id: number): boolean {
+  return !!underworldOf(world)
+    ?.of(realm as Ref)
+    ?.wars.some((x) => x.ended === null && (x.a === id || x.b === id));
 }
 const ROLE_LABEL: Readonly<Record<TownGoing["kind"], string>> = {
   collect: "Your rounds",
