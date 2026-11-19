@@ -395,7 +395,11 @@ export function realmOrderBlocks(world: World, r: Polity): Block[] {
     },
     {
       ...stat("Reach", `${share(cap.value)} — ${reachWords(cap.value)}`, {
-        parts: [...reachEnds(world, r), ...cap.parts.map(factorPart)],
+        // (A link that takes under half a point is left out, as of the standing: it read as a loss of nothing.)
+        parts: [
+          ...reachEnds(world, r),
+          ...cap.parts.filter((f) => Math.abs(f.contribution) >= 0.005).map(factorPart),
+        ],
       }),
       concept: "capacity",
     },

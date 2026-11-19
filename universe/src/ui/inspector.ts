@@ -1406,6 +1406,8 @@ export class PageWindow {
           const tr = el("tr", r.ref ? "row entry" : "row");
           r.cells.forEach((c, i) => {
             const td = el("td");
+            // (A number in a table fitted to the page is never broken across lines: "96,39" over "8" on a phone.)
+            if (fit && typeof r.keys?.[i] === "number") td.className = "num";
             if (i === 0 && r.thumb) td.append(thumbOf(r.thumb));
             if (i === 0 && r.swatch) {
               const dot = el("span", "swatch");

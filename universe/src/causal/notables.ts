@@ -76,7 +76,8 @@ function did(world: World, d: Deed, land: string): string | null {
     case "houses.demagogue":
       return `rose on the people's anger in ${land}`;
     case "order.elected":
-      return `spoke for the ${n || "people"} of ${land} and won its people's choice`;
+      // (A group's name may carry its own "the": it read "spoke for the the army".)
+      return `spoke for ${/^the /i.test(n) ? n : `the ${n || "people"}`} of ${land} and won its people's choice`;
     case "order.law":
       return `wrote the changed law of ${n || land}`;
     case "society.written":

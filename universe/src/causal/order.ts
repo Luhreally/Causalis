@@ -60,11 +60,13 @@ registerEventWords(ELECTION_EVENTS.elected.type, (_, e) => {
       held?: boolean;
       was?: string | null;
     } | null,
-    who = d?.group ?? "a group",
+    // (A group's name may carry its own "the": "the court", "the army", beside "farmers". It read "the the court".)
+    the = (g: string) => (/^the /i.test(g) ? g : `the ${g}`),
+    who = the(d?.group ?? "group"),
     by = `${Math.round((d?.share ?? 0) * 100)} in a hundred of its sway`;
   return d?.held
-    ? `${cap(realm(e.data))} chose again: the ${who} govern still, given ${by}, ${year(e.t)}`
-    : `${cap(realm(e.data))} chose the ${who} to govern${d?.was ? `, in place of the ${d.was}` : ""}, given ${by}, ${year(e.t)}`;
+    ? `${cap(realm(e.data))} chose again: ${who} govern still, given ${by}, ${year(e.t)}`
+    : `${cap(realm(e.data))} chose ${who} to govern${d?.was ? `, in place of ${the(d.was)}` : ""}, given ${by}, ${year(e.t)}`;
 });
 // A lesson of rule (sim/order/holds.ts): what befell it, or another, whom it blamed, and what it did.
 registerEventWords(HOLD_EVENTS.lesson.type, (_, e) => {

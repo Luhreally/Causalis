@@ -13,7 +13,7 @@
 import { YEAR, yearOfMoment, type HistoryEvent, type World } from "../../kernel/index.ts";
 import { cellRef } from "../../gen/index.ts";
 import { landWords, why } from "../../causal/index.ts";
-import { homePlanet, politiesOf } from "../../sim/index.ts";
+import { homePlanet, notablesOf, politiesOf } from "../../sim/index.ts";
 import {
   ALL_WORTH,
   ANNAL_ALL,
@@ -467,10 +467,22 @@ function namesOf(world: World, e: HistoryEvent) {
     str = (k: string) => (typeof d[k] === "string" ? (d[k] as string) : ""),
     realms = politiesOf(world),
     pols = e.subjects.filter((s) => s.startsWith("pol:")),
-    names: { text: string; ref: string; as?: string }[] = [];
+    names: { text: string; ref: string; as?: string }[] = [],
+    // (One the world keeps by name, told of: their name opens their own page while it keeps them or remembers them, and is
+    // never their realm's name. It opened the realm.)
+    person =
+      e.subjects.some((s) => s.startsWith("nota:")) && typeof d.id === "number" ? d.id : null,
+    kept = person === null ? null : notablesOf(world);
+  if (person !== null && str("name") && (kept?.get(person) || kept?.goneOf(person)))
+    names.push({ text: str("name"), ref: `note:named:${person}` });
   pols.forEach((ref, i) => {
     const r = realms.get(ref),
-      said = i === 0 ? [str("a"), str("name"), str("realm")] : i === 1 ? [str("b")] : [];
+      said =
+        i === 0
+          ? [str("a"), person === null ? str("name") : "", str("realm")]
+          : i === 1
+            ? [str("b")]
+            : [];
     for (const text of said) if (text) names.push({ text, ref });
     if (r) {
       names.push({ text: nameOf(world, ref), ref });

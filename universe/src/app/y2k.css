@@ -958,6 +958,11 @@ canvas.thumb.thumb-zoomable {
 .table.fit td {
   overflow-wrap: anywhere;
 }
+/* …but a number in it is kept whole. */
+.table.fit td.num {
+  overflow-wrap: normal;
+  white-space: nowrap;
+}
 /* An alliance's colour at its row's start. */
 .table .swatch {
   display: inline-block;
@@ -1309,6 +1314,9 @@ body.paging .panel:not(.page-panel) .inspector {
   .page-window.wide .table.fit td {
     white-space: normal;
   }
+  .page-window.wide .table.fit td.num {
+    white-space: nowrap;
+  }
 }
 /* …but for the message log's words, which wrap. */
 .page-window[data-kind="log"] .table td:last-child {
@@ -1465,6 +1473,8 @@ body.paging .panel:not(.page-panel) .inspector {
   display: inline-flex;
   align-items: center;
   gap: 3px;
+  /* (A link's wider reach is a margin drawn back over its neighbours: here it drew the row up over the line above it.) */
+  margin-block: 0;
 }
 @media (max-width: 640px) {
   .world-about {
