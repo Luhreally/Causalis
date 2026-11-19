@@ -278,3 +278,33 @@ test("a case ruled by one lived as the court's judge reads as ruled in the court
   assert.throws(() => w2.submit("life.part", { ...part, case: `case:town:9:9:${y}:1` }));
   assert.throws(() => w2.submit("life.part", { ...part, case: `case:${court.ref}:${y - 1}:1` }));
 });
+
+test("one the hand is laid from keeps what they were for their group, by name, and is offered its part", () => {
+  const w3 = peopledWorld("juniper", 60, { start: "spread" }),
+    y = yearNow(w3),
+    town = populationContext(w3)
+      .settlements.all()
+      .filter((t) => t.population > 0 && t.founded < y)
+      .find((t) => townLifeOf(w3, t.ref).goings.some((g) => g.kind === "collect"))!,
+    before = townLifeOf(w3, town.ref),
+    g = before.goings.find((x) => x.kind === "collect")!,
+    who = before.named.find((p) => p.ref === g.who[0])!;
+  assert.ok(who, "its collector, by the town's lines");
+  // Laid from them, as their page's Live as them lays it.
+  w3.runTo(
+    w3.submit("hand.lay", {
+      village: town.ref,
+      as: { name: who.name, age: who.age, occupation: 5, sex: who.sex },
+    }).t,
+  );
+  const under = townLifeOf(w3, town.ref),
+    now = under.goings.find((x) => x.kind === "collect")!,
+    me = under.named.find((p) => p.name === who.name);
+  assert.ok(me && me.ref.startsWith("agent:"), `${who.name} is one of the hand's, by name`);
+  assert.ok(now.who.includes(me.ref), `${who.name} still collects: ${now.who.join(",")}`);
+  assert.equal(now.who.length, g.who.length, "and no more collect than did");
+  const parts = roleOffers(w3, town.ref, me.ref, me.name).flatMap((o) =>
+    o.part ? [o.part.what] : [],
+  );
+  assert.deepEqual(parts, ["rounds", "lielow"]);
+});

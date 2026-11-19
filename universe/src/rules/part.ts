@@ -156,7 +156,8 @@ export function partOutcome(
 ): PartCame {
   const n = Math.max(1, Math.min(8, Math.round(f.n))),
     coin = (x: number) => Math.max(1, Math.round(x * Math.max(0.5, f.bread))),
-    per = coin(dmath.clamp(2 + 20 * f.share, 2, 10)),
+    // (What one who trades gives at a round: some days' bread, the more the more of the land's trade is under the group.)
+    per = coin(dmath.clamp(4 + 40 * f.share, 4, 20)),
     watched = f.soldiers || f.crew,
     who = f.soldiers ? "Soldiers posted in the streets" : "The realm's enforcers",
     seenAt = paid ? 0 : f.soldiers ? 0.3 : f.crew ? 0.15 : 0;

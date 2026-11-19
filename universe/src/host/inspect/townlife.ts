@@ -294,8 +294,25 @@ export function townLifeOf(world: World, town: string, year = yearNow(world)): T
   if (hit) return hit;
   const read = readLife(world, town, year);
   kept.by.set(key, read);
+  // (Who was of each thing by the town's lines, as last read while no hand rested on it: under the hand, one it was laid
+  // from is still that, by name. What the court had done by then is in it: one who took a part up from another held is of it.)
+  if (year === yearNow(world) && handOf(world).resting?.village !== town) {
+    let all = BY_LINES.get(world);
+    if (!all) BY_LINES.set(world, (all = new Map()));
+    const names = new Map(read.named.map((p) => [p.ref, p.name] as const));
+    all.set(
+      town,
+      new Map(
+        read.goings.map((g) => [
+          g.key,
+          new Set(g.who.flatMap((ref) => (names.has(ref) ? [names.get(ref)!] : []))),
+        ]),
+      ),
+    );
+  }
   return read;
 }
+const BY_LINES = new WeakMap<World, Map<string, Map<string, ReadonlySet<string>>>>();
 
 /** What each kind's people are for their group, for one who was it ("its collector"). */
 const ROLE_NAME: Readonly<Record<TownGoing["kind"], string>> = {
@@ -321,9 +338,30 @@ function readLife(world: World, town: string, year: number): TownLife {
   if (!s || s.population <= 0) return NONE;
   const outsiders = [...roles.outsiders],
     folk = roles.goings.some((g) => UNDER_KINDS.has(g.kind)) ? folkOf(world, s, year) : null,
-    { goings, named, past } = afterCourt(roles, folk?.slots(POOL) ?? [], (ref) =>
-      heldCaseOf(world, town, ref),
-    );
+    after = afterCourt(roles, folk?.slots(POOL) ?? [], (ref) => heldCaseOf(world, town, ref)),
+    past = after.past,
+    named = [...after.named];
+  // (Under the hand: one it was laid from, who was of a thing by the town's lines when it came to rest (having taken it up
+  // from one the court held, as may be), is of it still, by the name they were known by, unless the court holds them now.)
+  const byLines =
+      handOf(world).resting?.village === town && folk ? BY_LINES.get(world)?.get(town) : undefined,
+    all = byLines ? folk!.slots(POOL) : [],
+    goings = !byLines
+      ? after.goings
+      : after.goings.map((g) => {
+          const were = byLines.get(g.key),
+            one = were
+              ? all.find(
+                  (x) =>
+                    were.has(x.party.name) &&
+                    !g.who.includes(x.party.ref) &&
+                    !heldCaseOf(world, town, x.party.ref),
+                )
+              : undefined;
+          if (!one) return g;
+          named.push(one.party);
+          return { ...g, who: [one.party.ref, ...g.who.slice(0, Math.max(0, g.who.length - 1))] };
+        });
   // —— One not of the town before its court: someone stands for them at its sitting. ——
   const tried: { c: Case; ref: string }[] = [],
     stood = new Set<string>();
