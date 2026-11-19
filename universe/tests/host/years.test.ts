@@ -133,5 +133,7 @@ test("the years thin as history's do, and the record stays small", () => {
   // next at the median: its line had a point in most years, 110 kB of the record. What a realm can spare is read over the
   // years its markets keep and turned toward a part a year since (sim/war/arming.ts madeAndSpare), 1.6 in 100 at peace: the
   // line 72 kB, the record 565 kB, the lands' rows 317 kB of it as they were: scratchpad/release/yb.mts, ys.mts.)
-  assert.ok(bytes < 600_000, `${bytes} bytes of years at year ${YEARS}`);
+  // (595 kB before the institutions, 608 kB with them: the lands' rows as they were, 317 kB; the realms' lines 255 kB where
+  // 240, this world holding 196 realms at year 220 where it held 176, so some 830 bytes a realm as before.)
+  assert.ok(bytes < 625_000, `${bytes} bytes of years at year ${YEARS}`);
 });

@@ -117,17 +117,15 @@ export function bodyName(world: World, ref: string): string | null {
   return g ? bodyWords(g.name, g.title) : null;
 }
 
-/** Whether an event is news of a body: one that names its number in the realm that keeps it, or its founding's own name. */
+/**
+ * Whether an event is news of a body: its founding, or one told of it since, which names its founding among its causes (so it
+ * is found whichever realm kept it then: a body goes with its land, and takes a new number where it comes).
+ */
 export function bodyNews(g: BodyRead): (e: HistoryEvent) => boolean {
-  const realm = g.realm?.ref,
-    id = g.record?.id;
   return (e) => {
     if (e.id === g.event) return true;
     if (!e.type.startsWith("bodies.") && e.type !== "act.body") return false;
-    const d = e.data as { bids?: number[]; body?: string; into?: string; from?: string } | null;
-    if (!d) return false;
-    if (id !== undefined && realm && e.subjects.includes(realm) && d.bids?.includes(id))
-      return d.body === g.name || d.into === g.name || d.from === g.name;
+    for (const c of e.causes) if (c.ref === g.event) return true;
     return false;
   };
 }
