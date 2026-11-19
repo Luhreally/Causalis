@@ -1,16 +1,17 @@
 // Lore in words (docs/architecture §22, §13): a people came upon a principle, or
 // learned it from their neighbours; the finding cites who found it and what pressed
 // or allowed them, the learning the neighbour who knew it and the road between.
-import { type World, yearOfMoment } from "../kernel/index.ts";
-import { meansOfWorld, worldChemistry } from "../gen/index.ts";
+import { type Ref, type World, yearOfMoment } from "../kernel/index.ts";
+import { cellRef, meansOfWorld, worldChemistry } from "../gen/index.ts";
 import {
   METAL_PRINCIPLES,
   PRINCIPLE_INDEX,
   PRINCIPLES,
   meansName,
   principleNameOn,
+  wayById,
 } from "../rules/index.ts";
-import { LORE_EVENTS, homePlanet } from "../sim/index.ts";
+import { LORE_EVENTS, MATERIALS_EVENTS, homePlanet } from "../sim/index.ts";
 import { landWords } from "./generated.ts";
 import { registerDecisionWords, registerEventWords } from "./why.ts";
 
@@ -50,6 +51,23 @@ registerEventWords(
 registerEventWords(LORE_EVENTS.learned.type, (world, e) => {
   const land = landWords(world, e.place);
   return `${land[0]!.toUpperCase()}${land.slice(1)} learned ${principleName(principleOf(e.data), world)} from its neighbours, year ${yearOfMoment(e.t)}`;
+});
+
+// A stuff a land comes to make (sim/lore/materials.ts): made first by its own crafters, or taken up from a neighbour that
+// makes it. Named as the rules name it ("crucible steel", "porcelain"); its record forgotten, "a new stuff".
+const stuffOf = (data: unknown) => {
+  const v = (data as Readonly<Record<string, unknown>> | null)?.way;
+  return (typeof v === "string" && wayById(v)?.name) || "a new stuff";
+};
+registerEventWords(
+  MATERIALS_EVENTS.found.type,
+  (world, e) =>
+    `In ${landWords(world, e.place)} crafters came upon the making of ${stuffOf(e.data)}, year ${yearOfMoment(e.t)}`,
+);
+registerEventWords(MATERIALS_EVENTS.learned.type, (world, e) => {
+  const land = landWords(world, e.place),
+    from = (e.data as { from?: unknown } | null)?.from;
+  return `${land[0]!.toUpperCase()}${land.slice(1)} took up the making of ${stuffOf(e.data)} from ${typeof from === "number" ? landWords(world, cellRef(0, from) as Ref) : "its neighbours"}, year ${yearOfMoment(e.t)}`;
 });
 registerDecisionWords(
   "lore.find",

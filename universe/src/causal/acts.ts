@@ -12,6 +12,7 @@ import {
   PEOPLE_ACT_EVENTS,
   PERSON_ACT_EVENTS,
   WAYS_ACT_EVENTS,
+  NATURE_EVENTS,
   beliefOf,
   languagesOf,
   politiesOf,
@@ -31,7 +32,7 @@ import {
 } from "../sim/index.ts";
 import { coverWords, landWords } from "./generated.ts";
 import { principleName } from "./lore.ts";
-import { registerCommandWords, registerEventWords } from "./why.ts";
+import { registerCommandWords, registerEventWords, why } from "./why.ts";
 
 const BRUSH_DEEDS: Record<string, string> = {
   raise: "raised the ground",
@@ -524,4 +525,46 @@ registerCommandWords("act.person", (_, c) => {
   return a.kind === "smite"
     ? `Your act: you marked ${a.name ?? "one person"} to be struck down, year ${yearOfMoment(c.t)}`
     : `Your act: you ${a.kind === "whisper" ? "whispered to" : `${a.kind ?? "touch"}${a.kind?.endsWith("e") ? "d" : "ed"}`} ${a.name ?? "one person"}, year ${yearOfMoment(c.t)}`;
+});
+
+// A realm's ways pushed across all its lands, and one person's or one lineage's nature pushed (Phase 16).
+const NATURE_SAID: Readonly<Record<string, readonly [string, string]>> = {
+  boldness: ["more cautious", "bolder"],
+  warmth: ["colder to others", "warmer to others"],
+  thrift: ["freer with what they have", "more thrifty"],
+  curiosity: ["less curious", "more curious"],
+  patience: ["less patient", "more patient"],
+  docility: ["wilder", "more docile"],
+  growth: ["slower to grow", "quicker to grow"],
+};
+const natureSaid = (trait: unknown, sign: unknown) =>
+  NATURE_SAID[String(trait)]?.[sign === -1 ? 0 : 1] ?? "changed in nature";
+/** Who a nature was pushed in, by name: a person, or a lineage of beasts. */
+const natured = (world: WordsWorld, ref: unknown) => {
+  if (typeof ref !== "string") return "one of the living";
+  try {
+    const name = why(world, ref as Ref)
+      .claim.split(/[,:(—]/)[0]!
+      .trim();
+    if (name && name.length <= 60) return name.replace(/^The /, "the ");
+  } catch {
+    // (Gone from the world: said without its name.)
+  }
+  return ref.startsWith("prsn:") ? "one person" : "a lineage of beasts";
+};
+registerEventWords(NATURE_EVENTS.realmWays.type, (world, e) => {
+  const d = e.data as { way?: string; sign?: number } | null;
+  return `By your hand: the people of ${realmCalled(world, e.subjects[0])}, in all its lands, grew ${waySaid(d?.way, d?.sign)}, year ${yearOfMoment(e.t)}`;
+});
+registerCommandWords("act.realm-ways", (world, c) => {
+  const a = c.args as { realm?: string; way?: string; sign?: number };
+  return `Your act: you made the people of ${realmCalled(world, a.realm)} ${waySaid(a.way, a.sign)}, year ${yearOfMoment(c.t)}`;
+});
+registerEventWords(NATURE_EVENTS.nature.type, (world, e) => {
+  const d = e.data as { trait?: string; sign?: number } | null;
+  return `By your hand: ${natured(world, e.subjects[0])} grew ${natureSaid(d?.trait, d?.sign)}, year ${yearOfMoment(e.t)}`;
+});
+registerCommandWords("act.nature", (world, c) => {
+  const a = c.args as { ref?: string; trait?: string; sign?: number };
+  return `Your act: you made ${natured(world, a.ref)} ${natureSaid(a.trait, a.sign)}, year ${yearOfMoment(c.t)}`;
 });

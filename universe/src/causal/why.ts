@@ -81,6 +81,11 @@ export function registerEventWords(type: string, words: EventWords): void {
   EVENT_WORDS.set(type, words);
 }
 
+/** Whether an event type is said in words (one that is not shows as its raw type, place and moment). */
+export function eventHasWords(type: string): boolean {
+  return EVENT_WORDS.has(type);
+}
+
 /** Something outside history that keeps copies of events history may forget. */
 export function registerEventKeeper(keeper: (world: World, ref: Ref) => EventFacts | null): void {
   EVENT_KEEPERS.push(keeper);

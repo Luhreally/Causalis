@@ -56,6 +56,7 @@ import "./design.ts";
 import "./ecology.ts";
 import "./languages.ts";
 import "./climate.ts";
+import "./nature.ts";
 import "./space.ts";
 import "./frontier.ts";
 import "./order.ts";
@@ -103,4 +104,5 @@ export {
   type Explainer,
   type Explanation,
   type ExplanationEdge,
+  eventHasWords,
 } from "./why.ts";

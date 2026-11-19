@@ -142,6 +142,10 @@ registerCommandWords(
   (world, c) =>
     `Your act: you warded ${landWords(world, cellRef(0, (c.args as { cell: number }).cell))} against sickness, year ${yearOfMoment(c.t)}`,
 );
+registerEventWords(
+  HEALTH_ACTS.loose.type,
+  (world, e) => `By your hand: a sickness was loosed on ${landWords(world, e.place)}, ${year(e.t)}`,
+);
 registerCommandWords("act.loose", (world, c) => {
   const a = c.args as { cell: number; sickness?: string | null },
     s = a.sickness ? healthOf(world)?.get(a.sickness) : undefined;
