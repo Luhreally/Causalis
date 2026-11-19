@@ -129,6 +129,8 @@ type Saved = {
 
 export class NotablesStore implements StateStore {
   readonly name = NOTABLES_STORE;
+  /** Saved packed by column (kernel/pack.ts): two lists of records of one shape each. */
+  readonly packed = true;
   private next = 1;
   /** The serial of the last event read for its occasion. */
   seen = 0;
