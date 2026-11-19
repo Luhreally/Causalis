@@ -61,7 +61,7 @@ export type Notable = {
   /** The year their people first noticed them. */
   readonly since: number;
   /** Their land; the realm that held it when last read (their patron where they serve one), their land's faith then. */
-  home: number;
+  readonly home: number;
   realm: Ref | null;
   faith: Ref | null;
   /** Their standing by domain (thousandths of the line), and in all; the most it has been. */
@@ -139,8 +139,8 @@ export class NotablesStore implements StateStore {
   /** Each land's living standing by domain (thousandths), as last summed: what the older systems read. */
   private readonly rows = new Map<number, number[]>();
   private digest = "";
-  // (Read off the living, never saved: who is in each land, and who holds each realm's posts.)
-  private landIndex: Map<number, Notable[]> | null = null;
+  // (Read off the living, never saved: who is in each land, kept as they come and go; and who holds each realm's posts.)
+  private readonly landIndex = new Map<number, Notable[]>();
   private postIndex: Map<string, Notable> | null = null;
 
   dormant(): boolean {
@@ -166,34 +166,34 @@ export class NotablesStore implements StateStore {
   }
   add(n: Notable): void {
     this.living.set(n.id, n);
-    this.landIndex = null;
-    this.postIndex = null;
+    const l = this.landIndex.get(n.home);
+    if (l) l.push(n);
+    else this.landIndex.set(n.home, [n]);
+    if (n.post) this.postIndex = null;
   }
   /** One of the living is gone: dead (kept among the gone) or let go by their people (nothing kept). */
   remove(id: number, gone?: Gone): void {
-    if (!this.living.delete(id)) return;
+    const n = this.living.get(id);
+    if (!n) return;
+    this.living.delete(id);
     if (gone) this.goneList.push(gone);
-    this.landIndex = null;
-    this.postIndex = null;
+    const l = this.landIndex.get(n.home);
+    if (l) {
+      const i = l.indexOf(n);
+      if (i >= 0) l.splice(i, 1);
+      if (!l.length) this.landIndex.delete(n.home);
+    }
+    if (n.post) this.postIndex = null;
   }
   setGone(list: Gone[]): void {
     this.goneList = list;
   }
-  /** Posts and homes changed in place: read the indexes again. */
+  /** A post changed in place: read who holds what again. */
   moved(): void {
-    this.landIndex = null;
     this.postIndex = null;
   }
+  /** A land's living notables, in the order they came to be known. */
   in(cell: number): readonly Notable[] {
-    if (!this.landIndex) {
-      const m = new Map<number, Notable[]>();
-      for (const n of this.living.values()) {
-        const l = m.get(n.home);
-        if (l) l.push(n);
-        else m.set(n.home, [n]);
-      }
-      this.landIndex = m;
-    }
     return this.landIndex.get(cell) ?? NONE;
   }
   holder(kind: Post["kind"], of: Ref): Notable | undefined {
@@ -270,11 +270,11 @@ export class NotablesStore implements StateStore {
     this.living.clear();
     this.shaken.clear();
     this.rows.clear();
-    this.landIndex = null;
+    this.landIndex.clear();
     this.postIndex = null;
     this.next = s?.next ?? 1;
     this.seen = s?.seen ?? 0;
-    for (const n of s?.living ?? []) this.living.set(n.id, n);
+    for (const n of s?.living ?? []) this.add(n);
     this.goneList = [...(s?.gone ?? [])];
     for (const [r, y] of s?.shaken ?? []) this.shaken.set(r, y);
     for (const [c, row] of s?.rows ?? []) this.rows.set(c, row);
