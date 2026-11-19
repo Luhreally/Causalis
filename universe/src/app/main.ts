@@ -9986,8 +9986,9 @@ async function runPlanetPage(): Promise<void> {
         rig.flyTo({
           target: { x: m.x * VILLAGE_METRE, y: 0.05, z: m.z * VILLAGE_METRE },
           yaw: openYaw(plan, { x: m.x, z: m.z }, 48),
-          pitch: -38,
-          distance: 5.5,
+          // (One indoors is not seen: from higher and further off, the house they are in is, whole, with its door.)
+          pitch: m.hidden ? -58 : -38,
+          distance: m.hidden ? 15 : 5.5,
         });
         keep(who!);
       } else rig.flyTo({ target: { x: 0, y: 0, z: 0 }, distance: plan.districts ? 78 : 26 });
@@ -10036,7 +10037,7 @@ async function runPlanetPage(): Promise<void> {
               const m = village.momentAt(i);
               if (m) {
                 rig.target.set(m.x * VILLAGE_METRE, 0, m.z * VILLAGE_METRE);
-                rig.distance = 8;
+                rig.distance = m.hidden ? 15 : 8;
               }
               keep(who);
             }

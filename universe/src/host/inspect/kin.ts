@@ -368,7 +368,7 @@ export function kinPage(world: World, ref: string): PageModel {
     place: home ? { scale: "village", town: of.town!, person: ref } : null,
     stats: [
       stat("Age", dead ? `died at ${age}, year ${k.died}` : `${age}`),
-      ...(dead ? [] : [stat("Work", child ? "a child" : "of the household")]),
+      ...(dead ? [] : [stat("Work", child ? "a child" : "keeper of the house")]),
       ...(of.town ? [stat("Home", [townLink(world, of.town)])] : []),
     ],
     tabs: [
