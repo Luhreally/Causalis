@@ -133,7 +133,8 @@ test("a host has a commander when it fights; the day moves their standing; one w
   } else assert.ok(store.goneOf(ledA.id), "fell, and is kept among the dead");
   if (wb) {
     assert.ok(wb.by[DOMAIN.war]! < before[1]!);
-    assert.ok(notableCommands(world, b.ref, year) < 1);
+    // (Less than it was: one who stood high may still stand past the line after a day lost.)
+    assert.ok(notableCommands(world, b.ref, year) < commandTerm(before[1]!));
   } else {
     assert.ok(["battle", "taken"].includes(store.goneOf(ledB.id)!.how));
     assert.ok(notableCommands(world, b.ref, year) < 1, "its host is shaken");

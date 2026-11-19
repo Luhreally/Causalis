@@ -311,7 +311,10 @@ test("a realm's and a land's Institutions tabs, each body's page with its follow
 test("the god's hand on a body is kept on it and told; a realm stepped again keeps its bounds; the store saves and loads whole", () => {
   const store = bodiesOf(world)!,
     ctx = populationContext(world),
-    realm = store.realmsKept().find((r) => store.of(r)!.bodies.length > 0)!,
+    // (A living realm's: one ended keeps its record only until its bodies are sent after their lands.)
+    realm = store
+      .realmsKept()
+      .find((r) => store.of(r)!.bodies.length > 0 && politiesOf(world).get(r)?.ended === null)!,
     g = store.of(realm)!.bodies[0]!,
     year = yearOfMoment(world.now),
     told = actOnBody(ctx, g.event, "bless");

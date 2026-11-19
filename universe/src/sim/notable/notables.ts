@@ -439,7 +439,15 @@ function occasion(r: Run, e: HistoryEvent, o: Occasion, inspired: Map<number, nu
     spoken = e.type.startsWith("belief.")
       ? e.subjects.find((s) => kindCodeOf(s) === "faith")
       : undefined;
-  if (standing && (led !== undefined || u(1) < doneBy(standing.by[o.d] ?? 0))) {
+  // (A seat seized is its general's deed, and no one else's: with more of name at a seat (those its people chose), the
+  // land's standing one was now and then given a seizing the general did.)
+  const byGeneral =
+    e.type === "strife.coup" && typeof data.general === "string" && data.general !== "";
+  if (
+    standing &&
+    (!byGeneral || standing.name === data.general) &&
+    (led !== undefined || u(1) < doneBy(standing.by[o.d] ?? 0))
+  ) {
     // (One person does one such thing a year: where a land's towns each raise a temple in one year, the rest are others' work,
     // and no one is known for them.)
     if (standing.deeds.some((x) => x.y === year && x.w === e.type)) return;
