@@ -172,9 +172,15 @@ export type HeadAsked = {
 };
 export type HeadGiven = { readonly id: string; readonly name: string; readonly born: number };
 let headGiver: ((world: World, asked: HeadAsked) => HeadGiven | null) | null = null;
-export function headsWith(f: (world: World, asked: HeadAsked) => HeadGiven | null): void {
+export function headsWith(
+  f: (world: World, asked: HeadAsked) => HeadGiven | null,
+  /** Whether one given is gone (dead, or let go by their people): their body then takes another head at its next reckoning. */
+  gone?: (world: World, id: string) => boolean,
+): void {
   headGiver = f;
+  headGone = gone ?? null;
 }
+let headGone: ((world: World, id: string) => boolean) | null = null;
 
 // —— What a realm's lands want done, and who could pay ————————————————————————————————————————————————————
 
@@ -1119,7 +1125,7 @@ function stepRealm(
       rowOf = DOES_ROWS[does],
       age = year - g.leader.born,
       lost = leaderLost(diesWithin(ctx.life, age, 1), 0, span);
-    if (f.u(100 + g.id * 8) < lost) {
+    if ((g.headId && headGone?.(ctx.world, g.headId)) || f.u(100 + g.id * 8) < lost) {
       const before = g.leader.name,
         head = newHead(f, g, g.home, g.id * 37 + g.leaders, false);
       g.leader = head.leader;

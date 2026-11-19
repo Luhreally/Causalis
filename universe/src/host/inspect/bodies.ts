@@ -52,7 +52,7 @@ const th = (n: number) => share(n / 1000),
 export const bodyHeadRef = (event: string): string => `note:head:${event}`;
 /** A body's head by their page: themselves where the world keeps them by name (sim/notable/heads.ts), else the body's own. */
 export function headRefOf(world: World, g: { readonly event: string; readonly headId?: string }): string {
-  const m = g.headId ? /^note:named:(d+)$/.exec(g.headId) : null,
+  const m = g.headId ? /^note:named:(\d+)$/.exec(g.headId) : null,
     kept = m ? notablesOf(world) : null;
   return m && kept && (kept.get(Number(m[1])) || kept.goneOf(Number(m[1]))) ? g.headId! : bodyHeadRef(g.event);
 }

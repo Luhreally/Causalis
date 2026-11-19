@@ -41,4 +41,7 @@ export function notableHead(
   return best ? { id: namedHeadId(best.id), name: best.name, born: best.born } : null;
 }
 
-headsWith(notableHead);
+headsWith(notableHead, (world, id) => {
+  const m = /^note:named:(\d+)$/.exec(id);
+  return !!m && !notablesOf(world)?.get(Number(m[1]));
+});
