@@ -74,12 +74,13 @@ export function rooflessYear(ctx: PopulationContext, t: SimTime): void {
     for (const s of ctx.settlements.inProvince(c)) {
       const f = towns.of(s);
       if (!f) continue;
+      const homes = housingOf(f);
       town += s.population;
-      housing += housingOf(f);
+      housing += homes;
       // (Those beyond its homes past what its builders raise in a year (fabric.ts grow: a quarter of its people, thirty at
       // least) wait without one; in a town new within ROOF.settling years its settlers raise their own as it rises.)
       if (year - s.founded >= ROOF.settling)
-        waiting += Math.max(0, s.population - housingOf(f) - Math.max(30, s.population / 4));
+        waiting += Math.max(0, s.population - homes - Math.max(30, s.population / 4));
     }
     const means = town > 0 ? landMeans(ctx, p, markets.get(c)) : null;
     if (!means) {

@@ -73,6 +73,8 @@ const faded = (m: Memory, year: number) => m.value * dmath.pow(0.5, (year - m.ye
 export const PACT = 0.4;
 export const RIVALRY = -0.4;
 
+/** More realms than a year's reckoning ever numbers: two realms' numbers as one. */
+const REALM_SPAN = 2 ** 24;
 const pairKey = (a: Ref, b: Ref) => (a < b ? `${a}|${b}` : `${b}|${a}`);
 
 /**
@@ -290,9 +292,34 @@ export function diplomacyYear(ctx: PopulationContext, t: SimTime): void {
   }
 
   // Who meets whom: shared borders, and trade between their lands.
+  // (Each pair is found under a number of its two realms, the lesser by ref first, and its key spelt once when all are found:
+  // spelt for every border and every flow, some seven thousand keys a year, the spelling was a sixth of the year's diplomacy.)
+  type Met = {
+    a: Polity;
+    b: Polity;
+    count: number;
+    traded: boolean;
+    volume: number;
+    road: Ref | null;
+  };
   const living = realms.living(),
-    borders = new Map<string, { a: Polity; b: Polity; count: number }>(),
-    trade = new Map<string, { volume: number; road: Ref | null }>(),
+    met = new Map<number, Met>(),
+    numbers = new Map<Polity, number>(),
+    numberOf = (p: Polity): number => {
+      let n = numbers.get(p);
+      if (n === undefined) numbers.set(p, (n = numbers.size));
+      return n;
+    },
+    metOf = (lesser: Polity, greater: Polity): Met => {
+      const at = numberOf(lesser) * REALM_SPAN + numberOf(greater);
+      let m = met.get(at);
+      if (!m)
+        met.set(
+          at,
+          (m = { a: lesser, b: greater, count: 0, traded: false, volume: 0, road: null }),
+        );
+      return m;
+    },
     // (What a realm's lands used last year, in grain's worth: asked only of those that trade, once each.)
     uses = new Map<Ref, number>(),
     useOf = (p: Polity): number => {
@@ -312,22 +339,16 @@ export function diplomacyYear(ctx: PopulationContext, t: SimTime): void {
       for (let k = g.grid.offsets[c]!; k < g.grid.offsets[c + 1]!; k++) {
         const q = realms.of(g.grid.neighbours[k]!);
         if (!q || q === p || q.ended !== null || p.ref > q.ref) continue;
-        const key = pairKey(p.ref, q.ref),
-          b = borders.get(key) ?? { a: p, b: q, count: 0 };
-        b.count++;
-        borders.set(key, b);
+        metOf(p, q).count++;
       }
   for (const f of markets.flows) {
     const p = realms.of(f.from),
       q = realms.of(f.to);
     if (!p || !q || p === q) continue;
-    const key = pairKey(p.ref, q.ref),
-      tr = trade.get(key) ?? { volume: 0, road: null };
+    const tr = p.ref < q.ref ? metOf(p, q) : metOf(q, p);
+    tr.traded = true;
     tr.volume += markets.boundOf(f) * GOODS[f.good]!.value;
     tr.road ??= markets.route(f.from, f.to) ?? null;
-    trade.set(key, tr);
-    if (!borders.has(key))
-      borders.set(key, { a: p.ref < q.ref ? p : q, b: p.ref < q.ref ? q : p, count: 0 });
   }
 
   // What they think, term by term.
@@ -361,9 +382,10 @@ export function diplomacyYear(ctx: PopulationContext, t: SimTime): void {
       return s;
     };
   const seen = new Set<string>();
-  for (const [key, { a, b, count }] of [...borders.entries()].sort((x, y) =>
-    x[0] < y[0] ? -1 : 1,
-  )) {
+  for (const [key, pair] of [...met.values()]
+    .map((m) => [pairKey(m.a.ref, m.b.ref), m] as const)
+    .sort((x, y) => (x[0] < y[0] ? -1 : 1))) {
+    const { a, b, count } = pair;
     seen.add(key);
     const wa = culture.get(a.seat)!,
       wb = culture.get(b.seat)!,
@@ -397,7 +419,7 @@ export function diplomacyYear(ctx: PopulationContext, t: SimTime): void {
       value: (like - 0.75) * 1.2,
       source: null,
     });
-    const tr = trade.get(key),
+    const tr = pair.traded ? pair : undefined,
       tie = tr ? tradeTie(tr.volume, Math.min(useOf(a), useOf(b))) : 0;
     if (tr && tie > 0) terms.push({ name: "trade between them", value: tie, source: tr.road });
     if (count)

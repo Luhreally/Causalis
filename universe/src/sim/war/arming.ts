@@ -324,21 +324,25 @@ export function madeAndSpare(ctx: PopulationContext, p: Polity): { made: number;
 
 /**
  * Whom each living realm fears, and how much (its kept fear of them or how far their regard is below rivalry, the greater), and
- * each pair's regard by "a|b". Read once a year by the arming and the fleets.
+ * the regard between two living realms that meet (undefined: they do not), asked as it is wanted: every pair's set down under
+ * both its spellings for the few the arming asks, and none the fleets do, was a fifth of the year's arming. Read once a year by
+ * the arming and the fleets.
  */
 export function rivalsOf(
   world: World,
   alive: ReadonlySet<Ref>,
 ): {
   rivals: Map<Ref, { of: Ref; level: number }[]>;
-  opinions: Map<string, number>;
+  opinion: (a: Ref, b: Ref) => number | undefined;
 } {
   const rivals = new Map<Ref, { of: Ref; level: number }[]>(),
-    opinions = new Map<string, number>();
-  for (const r of diplomacyOf(world).all()) {
+    relations = diplomacyOf(world),
+    opinion = (a: Ref, b: Ref): number | undefined => {
+      const r = relations.get(a, b);
+      return r && alive.has(r.a) && alive.has(r.b) ? r.opinion : undefined;
+    };
+  for (const r of relations.all()) {
     if (!alive.has(r.a) || !alive.has(r.b)) continue;
-    opinions.set(`${r.a}|${r.b}`, r.opinion);
-    opinions.set(`${r.b}|${r.a}`, r.opinion);
     for (const [x, y] of [
       [r.a, r.b],
       [r.b, r.a],
@@ -347,7 +351,7 @@ export function rivalsOf(
       if (level > 0) (rivals.get(x) ?? rivals.set(x, []).get(x)!).push({ of: y, level });
     }
   }
-  return { rivals, opinions };
+  return { rivals, opinion };
 }
 
 /** Every realm's footing moved toward what it would have, what it sends into others' wars, and the races and backings told. */
@@ -369,7 +373,7 @@ export function armingYear(ctx: PopulationContext, t: SimTime): void {
       if (s === undefined) strengths.set(p.ref, (s = strengthOf(ctx, p)));
       return s;
     };
-  const { rivals, opinions } = rivalsOf(world, alive);
+  const { rivals, opinion: regard } = rivalsOf(world, alive);
   // 1. Each realm's footing.
   const next = new Map<Ref, Footing>(),
     made = new Map<Ref, number>();
@@ -463,7 +467,7 @@ export function armingYear(ctx: PopulationContext, t: SimTime): void {
         for (const w of wars.fighting(r.of)) {
           if (w.civil || w.attacker === p.ref || w.defender === p.ref) continue;
           const helps = w.attacker === r.of ? w.defender : w.attacker,
-            opinion = opinions.get(`${p.ref}|${helps}`);
+            opinion = regard(p.ref, helps);
           if (opinion === undefined || opinion <= RIVALRY || !alive.has(helps)) continue;
           if (
             !best ||

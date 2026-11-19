@@ -657,6 +657,8 @@ export function powerOf(ctx: PopulationContext, cell: number): number {
 }
 
 type Edge = { a: number; b: number; cost: number; sea: boolean };
+/** More than any land's number: two coasts as one number. */
+const COAST_SPAN = 2 ** 24;
 
 /** The roads between peopled neighbours (and coasts that ships reach), in canonical order, with what a unit of grain costs to carry. */
 function edges(ctx: PopulationContext): Edge[] {
@@ -688,7 +690,8 @@ function edges(ctx: PopulationContext): Edge[] {
     }
   }
   // Across the sea, where either land's ships reach: the nearest few coasts of each.
-  const across = new Set<string>();
+  // (Each pair of coasts once, the lesser land first, as one number: in the order they are first reached.)
+  const across = new Set<number>();
   for (const p of ctx.provinces.all()) {
     if (!p.total() || !lore.effect(p.cell, "ships")) continue;
     // Each land's own ships: the pair is joined if either's reach the other.
@@ -700,11 +703,12 @@ function edges(ctx: PopulationContext): Edge[] {
       if (taken >= SEA_PARTNERS || steps > range) break;
       if (!ctx.provinces.get(b)?.total()) continue;
       taken++;
-      across.add(a < b ? `${a}:${b}` : `${b}:${a}`);
+      across.add(a < b ? a * COAST_SPAN + b : b * COAST_SPAN + a);
     }
   }
   for (const key of across) {
-    const [a, b] = key.split(":").map(Number) as [number, number],
+    const a = Math.floor(key / COAST_SPAN),
+      b = key % COAST_SPAN,
       km = kmBetween(g, a, b);
     out.push({ a, b, cost: SAIL_PER_100KM * (km / 100) + LANDING, sea: true });
   }

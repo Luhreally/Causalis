@@ -8,6 +8,8 @@ import { cellRef } from "../../gen/index.ts";
 import { G, GLUT_YEARS, GOODS, OCCUPATIONS, type ToolMetal } from "../../rules/index.ts";
 
 export const GOOD_COUNT = GOODS.length;
+/** More than any land's number: two lands as one number (MarketStore.route). */
+const ROUTE_SPAN = 2 ** 24;
 
 /** A good's market in a province: why its price is what it is. */
 export const MARKET_GOOD = defineKind("mkt", "a good in a market", "structural");
@@ -440,6 +442,30 @@ export class MarketStore implements StateStore {
   private readonly map = new Map<number, Market>();
   /** Routes that have carried goods, by "a:b" (a < b): the event that opened each. */
   private readonly routes = new Map<string, Ref>();
+  /**
+   * (The same roads by their two lands as one number, the lesser times ROUTE_SPAN and the greater: a road is asked for of every
+   * flow and every neighbour, tens of thousands of times a year, and its key spelt each time was a good part of each asking.
+   * Not state: kept as roads open, made anew on loading. `routesPlain`: every key is two lands' numbers so spelt, else the
+   * spelt keys are asked.)
+   */
+  private readonly routeAt = new Map<number, Ref>();
+  private routesPlain = true;
+  private routeKept(key: string, event: Ref): void {
+    const cut = key.indexOf(":"),
+      a = Number(key.slice(0, cut)),
+      b = Number(key.slice(cut + 1));
+    if (
+      cut > 0 &&
+      Number.isInteger(a) &&
+      Number.isInteger(b) &&
+      a >= 0 &&
+      a <= b &&
+      b < ROUTE_SPAN &&
+      `${a}:${b}` === key
+    )
+      this.routeAt.set(a * ROUTE_SPAN + b, event);
+    else this.routesPlain = false;
+  }
   /** Those of them that cross the sea, and each land's partners across it (in cell order). */
   private readonly sea = new Set<string>();
   private readonly partners = new Map<number, number[]>();
@@ -512,6 +538,16 @@ export class MarketStore implements StateStore {
   }
 
   route(a: number, b: number): Ref | undefined {
+    if (
+      this.routesPlain &&
+      a >= 0 &&
+      b >= 0 &&
+      a < ROUTE_SPAN &&
+      b < ROUTE_SPAN &&
+      (a | 0) === a &&
+      (b | 0) === b
+    )
+      return this.routeAt.get(a < b ? a * ROUTE_SPAN + b : b * ROUTE_SPAN + a);
     return this.routes.get(a < b ? `${a}:${b}` : `${b}:${a}`);
   }
 
@@ -585,6 +621,7 @@ export class MarketStore implements StateStore {
   openRoute(a: number, b: number, event: Ref, bySea = false): void {
     const key = a < b ? `${a}:${b}` : `${b}:${a}`;
     this.routes.set(key, event);
+    this.routeKept(key, event);
     this.roadsOpened++;
     if (bySea) this.crossing(key);
   }
@@ -670,8 +707,13 @@ export class MarketStore implements StateStore {
       this.map.set(market.cell, market);
     }
     this.routes.clear();
+    this.routeAt.clear();
+    this.routesPlain = true;
     this.roadsOpened++;
-    for (const [k, v] of s.routes) this.routes.set(k, v);
+    for (const [k, v] of s.routes) {
+      this.routes.set(k, v);
+      this.routeKept(k, v);
+    }
     this.sea.clear();
     this.partners.clear();
     for (const k of s.sea ?? []) this.crossing(k);

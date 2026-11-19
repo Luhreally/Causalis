@@ -687,16 +687,20 @@ export function dutyYear(ctx: PopulationContext, t: SimTime): void {
     const ra = realms.of(f.from)?.ref,
       rb = realms.of(f.to)?.ref,
       v = f.count * (markets.get(f.to)?.price[f.good] ?? 0);
-    if (ra) add(dealings, ra, v);
-    if (rb && rb !== ra) add(dealings, rb, v);
+    // (Each sum is read only for a realm that reckons this year, one in LAWS_EVERY: kept for those alone. All the world's
+    // trade is every realm's.)
+    const fromTurn = ra !== undefined && reckoning.has(ra),
+      toTurn = rb !== undefined && reckoning.has(rb);
+    if (fromTurn) add(dealings, ra!, v);
+    if (toTurn && rb !== ra) add(dealings, rb!, v);
     if (!ra || !rb || ra === rb) continue;
-    add(imports, rb, v);
-    add(exports, ra, v);
+    if (toTurn) add(imports, rb, v);
+    if (fromTurn) add(exports, ra, v);
     world_ += v;
-    if (CRAFTED.includes(f.good)) add(crafted, rb, v);
-    add(between, `${ra}|${rb}`, v);
-    add(between, `${rb}|${ra}`, v);
-    if (reckoning.has(rb)) {
+    if (toTurn && CRAFTED.includes(f.good)) add(crafted, rb, v);
+    if (fromTurn) add(between, `${ra}|${rb}`, v);
+    if (toTurn) add(between, `${rb}|${ra}`, v);
+    if (toTurn) {
       goods(inBy, rb)[f.good]! += v;
       // (Only where either keeps a sanction at all: few do.)
       if (sanctioning.has(ra) || sanctioning.has(rb)) {
