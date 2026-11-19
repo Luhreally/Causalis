@@ -329,22 +329,23 @@ function familyChip(world: World, ref: string, name: string): BarPerson | null {
 }
 
 /**
- * The one the world keeps by name who is this ruler or this one of a court (their own page's ref; null: it keeps none). One
- * kept or followed as themselves is the same person the place puts on the bar by their office: one card, not two.
+ * Those the world keeps by name who are this ruler or this one of a court (their own pages' refs: it may keep one under two
+ * names' numbers, as a ruler and as their host's commander). One kept or followed as themselves is the same person the place
+ * puts on the bar by their office: one card, not two.
  */
-function namedAs(world: World, ref: string): string | null {
+function namedAs(world: World, ref: string): string[] {
   const court = /^court:(.+):(\d+)$/.exec(ref),
     r = politiesOf(world).get(
       (court ? court[1]! : ref.startsWith("rule:") ? ref.slice(5) : "") as Ref,
     );
-  if (!r) return null;
-  for (const n of notablesOf(world)?.all() ?? [])
-    if (
-      n.realm === r.ref &&
-      (court ? n.as === `court:${court[2]}` : n.name === r.ruler.name && n.born === r.ruler.born)
+  if (!r) return [];
+  return (notablesOf(world)?.all() ?? [])
+    .filter(
+      (n) =>
+        n.realm === r.ref &&
+        (court ? n.as === `court:${court[2]}` : n.name === r.ruler.name && n.born === r.ruler.born),
     )
-      return `note:named:${n.id}`;
-  return null;
+    .map((n) => `note:named:${n.id}`);
 }
 
 /** The bar at a place: those kept, those followed, and those the place puts there. Nobody yet: no one on it. */
@@ -359,8 +360,8 @@ export function barOf(world: World, ask: BarAsk): BarRead {
     people: BarPerson[] = [];
   if (kept.size)
     for (const w of wanted) {
-      const named = namedAs(world, w.ref);
-      if (named && kept.has(named) && !kept.has(w.ref)) {
+      const named = namedAs(world, w.ref).find((x) => kept.has(x));
+      if (named && !kept.has(w.ref)) {
         asNamed.set(w.ref, named);
         if (!byRef.has(named)) byRef.set(named, w);
       }
