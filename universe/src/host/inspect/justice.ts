@@ -1434,7 +1434,8 @@ function chained(world: World, s: Settlement, year: number, base: number): Docke
   // (What one lived as its judge has ruled is of the book: read again when another case is ruled.)
   const resting = handOf(world).resting,
     rulings = resting?.village === s.ref ? (resting.rulings ?? []) : [],
-    hand = `${resting?.village ?? ""}|${resting?.rulings?.length ?? 0}`;
+    // (And as the year turns: a year gone by names those of the town its killings took.)
+    hand = `${resting?.village ?? ""}|${resting?.rulings?.length ?? 0}|${yearNow(world)}`;
   let kept = KEPT.get(world);
   if (!kept || kept.hand !== hand) KEPT.set(world, (kept = { hand, byKey: new Map() }));
   const key = (y: number) => `${s.ref}|${y}|${base}`,
@@ -1751,12 +1752,31 @@ function drawDocket(
     victims = light.entries.some((e) => e.d.offence === "killing")
       ? killedUnderHand(world, s, year)
       : [];
+  // (One of the town's lines its land's underworld killed that year, where the roster has one for the killing: the same one
+  // their own page tells as killed in it. Of a year gone by: the year's own dead are counted from the next. host/roster.ts)
+  const slainMen =
+      year < yearNow(world) && light.entries.some((e) => e.d.offence === "killing")
+        ? townRoster(world, s.ref)
+        : null,
+    slainIn = (k: { j: number; motive: string } | undefined) => {
+      const m = k
+        ? slainMen?.killings
+            .find((x) => x.year === year)
+            ?.men.find((x) => x.slain.j === k.j && x.slain.motive === k.motive)
+        : undefined;
+      return m ? { name: slainMen!.nameOf(m.holder), ref: m.holder.ref } : undefined;
+    };
   let vi = 0;
   for (const e of light.entries) if (e.told && e.came) said.add(e.came.came);
   for (const e of light.entries) {
     const d = e.d,
       h = e.h,
-      victim = d.offence === "killing" && vi < victims.length ? victims[vi++] : undefined,
+      victim =
+        d.offence !== "killing"
+          ? undefined
+          : vi < victims.length
+            ? victims[vi++]
+            : slainIn(d.killing),
       killedOne: Span | null = victim ? link(victim.name, victim.ref) : null,
       ref = `case:${s.ref}:${year}:${e.index}`;
     if (!e.told) continue;
@@ -1789,7 +1809,8 @@ function drawDocket(
       d.stands.kind === "outside" && e.came?.outcome !== "death"
         ? roleMan(world, s, year, d.offence, d.stands.ref, taken)
         : null;
-    if (man) accused = man;
+    // (Never the one killed in it.)
+    if (man && man.ref !== victim?.ref) accused = man;
     else if (d.stands.kind === "outside")
       accused = {
         outside: true,

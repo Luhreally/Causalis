@@ -151,7 +151,16 @@ export type Account = {
 };
 
 export type Cause =
-  "age" | "month" | "battle" | "strike" | "seized" | "struck" | "blow" | "removed" | "unknown";
+  | "age"
+  | "month"
+  | "battle"
+  | "strike"
+  | "killing"
+  | "seized"
+  | "struck"
+  | "blow"
+  | "removed"
+  | "unknown";
 
 /** The path back from an event: its strongest cause at each step, two to four steps. */
 function pathItems(world: World, from: string | null): Item[] {
@@ -735,6 +744,48 @@ function holderDeath(world: World, ref: string): Account | null {
       decided: [["The strike alone."]],
       from: st.event,
       noPath: null,
+      changed: [],
+    };
+  }
+  // (Killed by their land's underworld: the killing as its realm reckoned it that year, host/killings.ts.)
+  const sl = h.slain;
+  if (sl) {
+    const told = roster.killings.find((k) => k.year === sl.year),
+      population = Math.max(1, ctx.settlements.get(town as Ref)?.population ?? 1),
+      event = sl.source?.startsWith("ev:") ? sl.source : null;
+    return {
+      short: `was killed ${sl.words}`,
+      year: sl.year,
+      age: sl.year - h.born,
+      event,
+      cause: "killing",
+      rule: "A land's underworld kills so many of its people a year, as its realm reckons it; of a town's dead by it, as many of its named lines as the lines are of its people. Who of them dies is by what each killing was of: one of the group's own in the town first, where it was of a group, and else one of the town's many, by the killing's key.",
+      draw: told
+        ? `Its land's underworld killed ${told.dead} of the town's ${population} that year; ${told.men.length} of them ${told.men.length === 1 ? "was" : "were"} of its named lines. ${sl.role ? `They were ${sl.role.replace(/\bits\b/, sl.of ? `${sl.of.name}'s` : "its")}: such are killed first.` : "They were one of the town's many, of no group."}`
+        : null,
+      parts: [
+        {
+          name:
+            sl.motive === "turf"
+              ? "A war between groups"
+              : sl.motive === "racket"
+                ? "The racket"
+                : sl.motive === "squad"
+                  ? "A crew that kills outside the law"
+                  : "The streets' gangs",
+          words: sl.words,
+          source: sl.source,
+        },
+        ...(sl.by ? [{ name: "Killed by", words: `one of ${sl.by.name}`, source: sl.by.ref }] : []),
+        ...(sl.of
+          ? [{ name: "Whose they were", words: `${sl.of.name}: ${sl.role}`, source: sl.of.ref }]
+          : []),
+      ],
+      decided: [["The killing alone: not their age or their health."]],
+      from: event,
+      noPath: event
+        ? null
+        : "What the land's underworld was that year: who held it, its street's gangs, who hunted whom.",
       changed: [],
     };
   }

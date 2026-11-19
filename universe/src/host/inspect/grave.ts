@@ -48,7 +48,17 @@ import {
 } from "../../sim/index.ts";
 import type { CourtForm, CourtSentence, Line, Span } from "../../bridge/index.ts";
 import { orgName, orgRef } from "../groups.ts";
-import { groupRef, underName } from "../underworld.ts";
+import { fedRef, groupRef, underName } from "../underworld.ts";
+import { townRoster } from "../roster.ts";
+import {
+  factsOf,
+  killingKept,
+  killingKey,
+  motiveOf,
+  motivesOf,
+  type KillFacts,
+  type Named,
+} from "../killings.ts";
 import { memoryOf } from "./memory.ts";
 import { landLink, realmLink } from "./names.ts";
 import { count, link } from "./words.ts";
@@ -120,6 +130,8 @@ export type Draft = {
   readonly why: readonly Line[];
   /** The group it is of (its page shows the case). */
   readonly group?: { readonly ref: string; readonly name: string };
+  /** A killing: which of the town's killings of the year, and what it was of (host/killings.ts). */
+  readonly killing?: { readonly j: number; readonly motive: string };
   /** The event of history it stands on. */
   readonly event?: string;
   /** How far those it touches are held outside the law here by a group or a crew (0: by no one). */
@@ -253,15 +265,25 @@ export function graveRead(
   const preying = (orgs?.orgs ?? []).filter(
       (g) => g.aim === AIM.prey && g.standing === 0 && g.lands.includes(cell),
     ),
-    perHead = (row ? row.violence : 0) / 1e5 + (orgRow ? orgRow.violence : 0) / 1e5,
+    // (What the land's underworld killed that year and what of, as its realm reckoned it then, where that is kept: a year gone
+    // by is not read from the land's row as it stands now. host/killings.ts)
+    keptKilling = realm ? killingKept(world, cell, year) : null,
+    perHead =
+      (keptKilling ? keptKilling.per / 10 : row ? row.violence : 0) / 1e5 +
+      (orgRow ? orgRow.violence : 0) / 1e5,
     killedRate = perHead * pop,
-    killed =
+    // (Never fewer than those of the town's lines the year's killings took, in a year gone by: host/roster.ts.)
+    killed = Math.max(
       killedRate >= 1
         ? Math.round(killedRate)
         : times(banded(killedRate), `killed ${s.ref} ${year}`, 1),
+      keptKilling && year < yearOfMoment(world.now)
+        ? (townRoster(world, s.ref).killings.find((k) => k.year === year)?.men.length ?? 0)
+        : 0,
+    ),
     clear = clamp(0.5 * court.reach * (1 - 0.7 * control) * (1 - 0.5 * collusion), 0.02, 0.45);
   if (killed > 0 && realm) {
-    const war = rec?.wars.find(
+    const warNow = rec?.wars.find(
         (w) =>
           w.since < year &&
           (w.ended === null || w.ended >= year - 1) &&
@@ -270,37 +292,55 @@ export function graveRead(
       ),
       fa = gangsStore(world)?.at(cell, GANG_ROW.fedA) ?? 0,
       fb = gangsStore(world)?.at(cell, GANG_ROW.fedB) ?? 0,
-      fed = (id: number) => (id > 0 ? rec?.feds.find((f) => f.id === id - 1) : undefined),
-      motives: { m: string; w: number }[] = [];
-    if (war) motives.push({ m: "turf", w: 3 });
-    if (holder && (has(holder, "protection") || has(holder, "extortion") || has(holder, "killing")))
-      motives.push({ m: "racket", w: 0.5 + 2 * control });
-    if (row && row.gangs > 0 && row.street > 0)
-      motives.push({ m: "street", w: 0.5 + 3 * row.street });
-    if (crew?.squad) motives.push({ m: "squad", w: 2 * row!.badge });
-    if (preying.length && orgRow && orgRow.violence > 0)
-      motives.push({ m: "road", w: 0.5 + orgRow.violence / Math.max(1, row?.violence ?? 1) });
-    const all = motives.reduce((n, x) => n + x.w, 0),
+      fed = (id: number): Named | null => {
+        const f = id > 0 ? rec?.feds.find((x) => x.id === id - 1) : undefined;
+        return f
+          ? { ref: fedRef(realm.ref, f.event), name: `the ${f.name} federation`, event: f.event }
+          : null;
+      },
+      known = (g: CrimeGroup): Named => ({ ...named(g), event: g.event }),
+      // What the killing was of: as kept for the year, else as the land's row and its realm's record have it now.
+      F: KillFacts = keptKilling
+        ? factsOf(keptKilling, realm.ref)
+        : {
+            per: row ? row.violence : 0,
+            control,
+            gangs: row?.gangs ?? 0,
+            street: row?.street ?? 0,
+            badge: row?.badge ?? 0,
+            racket:
+              !!holder &&
+              (has(holder, "protection") || has(holder, "extortion") || has(holder, "killing")),
+            squad: !!crew?.squad,
+            war: warNow
+              ? {
+                  event: warNow.event,
+                  a: known(here.find((g) => g.id === warNow.a)!),
+                  b: known(here.find((g) => g.id === warNow.b)!),
+                }
+              : null,
+            holder: holder ? known(holder) : null,
+            crew: crew ? known(crew) : null,
+            feds: [fed(fa), fed(fb)],
+          },
+      war = F.war,
+      motives = motivesOf(
+        F,
+        preying.length && orgRow && orgRow.violence > 0
+          ? 0.5 + orgRow.violence / Math.max(1, F.per || 1)
+          : 0,
+      ),
+      all = motives.reduce((n, x) => n + x.w, 0),
       shown = all > 0 ? Math.min(3, killed) : 0;
     for (let j = 0; j < shown; j++) {
-      const k = `killing ${s.ref} ${year} ${j}`,
-        h = key(k);
-      let v = u(h, 2) * all,
-        m = motives[0]!.m;
-      for (const x of motives) {
-        v -= x.w;
-        if (v < 0) {
-          m = x.m;
-          break;
-        }
-      }
+      const k = killingKey(s.ref, year, j),
+        { m, h } = motiveOf(motives, s.ref, year, j),
+        drafted = drafts.length;
       const at = place(k),
         where = at ? ` ${at}` : "";
       if (m === "turf" && war) {
-        const a = here.find((g) => g.id === (u(h, 3) < 0.5 ? war.a : war.b))!,
-          b = here.find((g) => g.id === (a.id === war.a ? war.b : war.a))!,
-          A = named(a),
-          B = named(b);
+        const A = u(h, 3) < 0.5 ? war.a : war.b,
+          B = A === war.a ? war.b : war.a;
         drafts.push({
           offence: "killing",
           key: k,
@@ -324,8 +364,8 @@ export function graveRead(
           paid,
           brought: u(h, 4) < clear,
         });
-      } else if (m === "racket" && holder) {
-        const G = named(holder),
+      } else if (m === "racket" && F.holder) {
+        const G = F.holder,
           who = ["a trader", "a carter", "one who kept a stall", "one who kept a workshop"][
             Math.floor(u(h, 5) * 4)
           ]!;
@@ -352,8 +392,8 @@ export function graveRead(
           brought: u(h, 4) < clear,
         });
       } else if (m === "street") {
-        const f1 = fed(fa),
-          f2 = fed(fb),
+        const f1 = F.feds[0],
+          f2 = F.feds[1],
           rival = f1 && f2 ? (u(h, 3) < 0.5 ? f2 : f1) : (f1 ?? f2);
         drafts.push({
           offence: "killing",
@@ -363,12 +403,13 @@ export function graveRead(
           wronged: null,
           what: (them) => [
             "killed ",
-            them ?? `a youth of ${rival ? `the ${rival.name} gangs` : "another street's gang"}`,
+            them ??
+              `a youth of ${rival ? `${rival.name.replace(/ federation$/, "")} gangs` : "another street's gang"}`,
             `${where}, in a fight between their streets`,
           ],
           why: [
             [
-              `${count(row!.gangs)} small gangs hold its streets, and they fight over them: `,
+              `${count(F.gangs)} small gangs hold its streets, and they fight over them: `,
               under,
               ".",
             ],
@@ -377,8 +418,8 @@ export function graveRead(
           paid: 0,
           brought: u(h, 4) < clear,
         });
-      } else if (m === "squad" && crew) {
-        const G = named(crew);
+      } else if (m === "squad" && F.crew) {
+        const G = F.crew;
         drafts.push({
           offence: "killing",
           key: k,
@@ -434,6 +475,9 @@ export function graveRead(
           brought: u(h, 4) < clear * 0.6,
         });
       }
+      // (Which of the year's killings it is, and what of: the one of the town's lines killed in it is found by these.)
+      if (drafts.length > drafted && m)
+        drafts[drafted] = { ...drafts[drafted]!, killing: { j, motive: m } };
     }
   }
   const answered = Math.min(killed, Math.round(killed * clear));

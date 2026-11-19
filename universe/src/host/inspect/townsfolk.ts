@@ -22,7 +22,7 @@ import { item, link, sentence, stat, yearNow } from "./words.ts";
 import { landLink, realmLink, townLink } from "./names.ts";
 import { lookOf, woundBlock } from "./wounds.ts";
 import { isMachineFolk, landPast } from "../past.ts";
-import { heldWords, lawBlock } from "./justice.ts";
+import { casesOf, heldWords, lawBlock, openOf } from "./justice.ts";
 
 /** How a man came home from a battle he went to, said before its name (as the veterans' page does). */
 const WAR_WORDS: Readonly<Record<Fate, string>> = {
@@ -123,7 +123,36 @@ export function townsfolkPage(world: World, ref: string): PageModel {
         { why: died.event },
       ),
     );
-  if (!fell && !died && !holds) rows.push(stat("Now", "no longer among the town's people"));
+  // (Killed by their land's underworld: what the killing was of, whose they were, and the case of it where the court has one.)
+  const slain = h.slain;
+  if (slain) {
+    const tried = [...casesOf(world, s.ref, slain.year), ...openOf(world, s.ref, slain.year)].find(
+      (c) => c.victim?.ref === h.ref,
+    );
+    rows.push(
+      stat(
+        "Fate",
+        [
+          "Killed ",
+          slain.source ? link(slain.words, slain.source) : slain.words,
+          ` in year ${slain.year}`,
+          ...(slain.role && slain.of
+            ? [
+                ": ",
+                link(slain.of.name, slain.of.ref),
+                `'s, ${slain.role.replace(/\bits\b/, "the")}`,
+              ]
+            : slain.role
+              ? [`: ${slain.role.replace(/\bits\b/, "the")}`]
+              : []),
+          ...(tried ? [". ", link("The case of it", tried.ref)] : []),
+        ],
+        { why: tried?.ref ?? slain.source ?? `${s.ref}#law` },
+      ),
+    );
+  }
+  if (!fell && !died && !slain && !holds)
+    rows.push(stat("Now", "no longer among the town's people"));
 
   // What came of them before their town's court (J1).
   const held = heldWords(world, s.ref, h.ref),

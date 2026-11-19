@@ -157,7 +157,7 @@ import {
 } from "./underworld-kept.ts";
 import { RowStore } from "../money/kept.ts";
 import { actOn, bossRef, hazardBy, sparedBy, struckBy } from "../acts/person.ts";
-import { deathNotesOf } from "../hand/deaths.ts";
+import { KILLINGS_KEPT, deathNotesOf } from "../hand/deaths.ts";
 
 /** The causes of contraband whose rent the underworld's groups carry beside the tariff's and the ban's (money/contraband.ts). */
 const WARE_RENT_CAUSES: ReadonlySet<string> = new Set(["war", "licence", "harm"]);
@@ -1861,7 +1861,7 @@ function stepRealm(
     if (!g.lands.length) g.lands = [p.members.includes(g.home) ? g.home : p.seat];
     for (const c of g.lands) held.add(c);
   }
-  writeLands(ctx, p, v, towns, r, badge, bites, warring);
+  writeLands(ctx, p, v, towns, r, badge, bites, warring, year);
   v.last = year;
   return towns.length > 0 || crackdown > 0.01;
 }
@@ -2291,9 +2291,14 @@ function writeLands(
   badge: CrimeGroup | undefined,
   bites: number,
   warring: ReadonlyMap<number, number>,
+  year: number,
 ): void {
   const rows = gangsStore(ctx.world);
   if (!rows) return;
+  // (What each land's killing was of, kept beside the world as it is reckoned: a reading, no part of its hash. sim/hand/deaths.ts)
+  const notes = deathNotesOf(ctx.world),
+    named = (g: CrimeGroup) => `${g.event}|${g.name}|${g.kind}`;
+  if (notes && year % UNDER.every === 0) notes.forgetKillings(year - KILLINGS_KEPT);
   const byTown = new Map(towns.map((t) => [t.cell, t])),
     badgeTowns = badge ? new Set(towns.map((t) => t.cell)) : new Set<number>();
   if (badge)
@@ -2383,6 +2388,38 @@ function writeLands(
       youngShare = young > 0 ? (0.8 * killed) / young : 0;
     extorted += ext * n;
     trade += n;
+    if (notes && killedShare > 0) {
+      const here = v.groups.filter((g) => g.lands.includes(c)),
+        war = v.wars.find(
+          (w) =>
+            w.ended === null && here.some((g) => g.id === w.a) && here.some((g) => g.id === w.b),
+        ),
+        a = war ? here.find((g) => g.id === war.a) : undefined,
+        b = war ? here.find((g) => g.id === war.b) : undefined;
+      notes.addKilling({
+        year,
+        years: UNDER.every,
+        cell: c,
+        per: killedShare * 1e6,
+        control: best ? per(bestW / (bestW + police)) : 0,
+        gangs: tw?.gangs ?? 0,
+        street: tw ? tw.pull * 1000 : 0,
+        badge: bw * 1000,
+        racket:
+          !!best &&
+          (best.rackets &
+            (racketBit("protection") | racketBit("extortion") | racketBit("killing"))) !==
+            0,
+        squad: bw > 0 && !!badge?.squad,
+        war: war && a && b ? `${war.event}|${named(a)}|${named(b)}` : null,
+        holder: best ? named(best) : null,
+        crew: bw > 0 && badge ? named(badge) : null,
+        feds: [
+          fedsHere[0] ? `${fedsHere[0].event}|${fedsHere[0].name}` : null,
+          fedsHere[1] ? `${fedsHere[1].event}|${fedsHere[1].name}` : null,
+        ],
+      });
+    }
     rows.set(c, [
       best ? per(bestW / (bestW + police)) : 0,
       best ? best.id + 1 : 0,

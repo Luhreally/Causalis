@@ -1844,6 +1844,7 @@ export {
   KILLING,
   deathNotesOf,
   type DeathNote,
+  type LandKilling,
   type DeathPart,
 } from "./hand/deaths.ts";
 export {

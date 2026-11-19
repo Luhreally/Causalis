@@ -39,15 +39,20 @@ import {
   WAR_EVENTS,
   LOCAL_ACT_EVENTS,
   cultureOf,
+  deathNotesOf,
   fighting,
+  politiesOf,
   populationContext,
+  underworldOf,
   warsOf,
+  type LandKilling,
   type Battle,
   type PopulationContext,
   type War,
   bearersSent,
 } from "../sim/index.ts";
 import { townsfolkRef } from "../bridge/index.ts";
+import { factsOf, killedOf, motiveOf, motivesOf, slainOf, type Slain } from "./killings.ts";
 
 /** People a line stands for: one of every LINE of a town's people is kept by name. */
 export const LINE = 12;
@@ -119,8 +124,20 @@ export type Holder = {
   /** Their battles in the window, oldest first. */
   readonly fates: readonly HolderFate[];
   readonly struck: readonly StrikeFate[];
-  /** The year they fell or a strike killed them (null: none). */
+  /** The year they fell, a strike killed them or their land's underworld did (null: none). */
   readonly died: number | null;
+  /** The killing of their land's underworld they died of: what it was of, whose they were, who did it (absent: none). */
+  readonly slain?: Slain;
+};
+/** A year's killings by its land's underworld as the town's lines tell them: its dead among the town, those of its lines among them. */
+export type RosterKilling = {
+  readonly year: number;
+  readonly dead: number;
+  readonly men: readonly {
+    readonly line: number;
+    readonly holder: Holder;
+    readonly slain: Slain;
+  }[];
 };
 export type RosterMan = { readonly line: number; readonly holder: Holder; readonly fate: Fate };
 /** A battle the town sent men to, as its lines tell it. */
@@ -171,6 +188,8 @@ export type Roster = {
   battle(event: string): RosterBattle | null;
   /** Oldest first. */
   readonly strikes: readonly RosterStrike[];
+  /** The years its land's underworld killed one of its lines, oldest first. */
+  readonly killings: readonly RosterKilling[];
   /**
    * The lines a battle of the roster's window sent a man home from hurt or maimed, or a strike hurt, lowest first: no
    * other line's holder bears a wound of them. For those who look for a town's wounded: asking every line for its
@@ -461,6 +480,21 @@ export function clearRosters(): void {
   cleared++;
 }
 
+let killingsOn = true;
+/** Whether a town's lines die of what its land's underworld killed (a test folds without, to see what it moves). */
+export function foldKillings(on: boolean): void {
+  killingsOn = on;
+  cleared++;
+}
+/** The lines a town's goings draw their people from, and the part of them each thing keeps to (host/inspect/townlife.ts). */
+const POOL = 96,
+  PARTS = 8,
+  PART_COLLECT = 0,
+  PART_GUARD = 1,
+  PART_CORNER = 3;
+/** Of a land's killings, the share whose dead is one of the group's own in the town, by what the killing was of. */
+const OWN_SHARE = { turf: 0.6, street: 0.5, squad: 0.5, racket: 0 } as const;
+
 /** What a world's rosters keep now: how many, and their bytes as reckoned (for a test to hold to what the heap says). */
 export function rostersKept(world: World): { rosters: number; bytes: number } {
   const c = CACHES.get(world);
@@ -705,6 +739,20 @@ type Step =
       readonly count: number;
       readonly strike: Struck;
       readonly dead: number;
+    }
+  | {
+      readonly t: number;
+      readonly event: string;
+      readonly seq: number;
+      readonly count: number;
+      /** The land's killing as reckoned for the year, the realm it was of, and how many of the town's lines died of it. */
+      readonly killing: LandKilling;
+      readonly realm: string;
+      readonly dead: number;
+      readonly killed: number;
+      /** The lines one of the town's many killed is drawn from: its first so many, a power of two. */
+      readonly among: number;
+      readonly year: number;
     };
 /** A battle or a strike as the fold keeps it: the lines it fell on, by line, and what it did. */
 type Kept = {
@@ -714,6 +762,13 @@ type Kept = {
 };
 type KeptBattle = Kept & { readonly told: RosterBattle };
 type KeptStrike = Kept & { readonly told: RosterStrike };
+/** A year's killings as the fold keeps them: the lines they fell on, by line, and what each was of. */
+type KeptKilling = {
+  readonly year: number;
+  readonly lines: Int32Array;
+  readonly slain: readonly Slain[];
+  readonly told: RosterKilling;
+};
 
 const numberOf = (term: number, r: number) => term * PER_TERM + Math.min(r, PER_TERM - 1) + 1;
 
@@ -1053,6 +1108,43 @@ function foldRoster(
             dead,
           });
       }
+    // What its land's underworld killed, as its realm reckoned each year (kept beside the world: sim/hand/deaths.ts): of the
+    // town's dead by it, as many of its lines as the lines are of its people. Read from the reckoning kept for that year and
+    // never from the land's row as it stands, so no one killed in a year gone by comes back when the row moves.
+    const notes = killingsOn ? deathNotesOf(world) : null;
+    if (notes && notes.killings > 0 && population > 0) {
+      const realm = politiesOf(world).of(cell)?.ref ?? "pol:0:0",
+        lines = linesOf(population);
+      // (Its lines as a round number, a power of two or half as many again: who died in a year gone by is the same while the
+      // town grows or shrinks by less than that, where its people to the head would move the count year on year.)
+      let whole = 1;
+      while (whole * 2 <= lines) whole *= 2;
+      const about = lines >= 1.5 * whole ? 1.5 * whole : whole;
+      for (let y = first; y < year; y++) {
+        const k = notes.killingAt(cell, y);
+        if (!k || k.per <= 0) continue;
+        const killed = killedOf(k.per / 1e6, population, town, y),
+          // (By the reckoning and the town's lines as a round number alone: nothing that moves as its people do year on year.)
+          dead = Math.min(
+            lines,
+            keyedRound((k.per / 1e6) * about, hashString(`slain ${town} ${y}`)),
+          );
+        if (dead > 0)
+          steps.push({
+            // (Through the year: after its strikes of the first half, before the battles fought at its turn.)
+            t: y * YEAR + YEAR / 2,
+            event: `killing ${y}`,
+            seq: steps.length,
+            count: Math.min(SLOT - 1, lines),
+            killing: k,
+            realm,
+            dead,
+            killed,
+            among: whole,
+            year: y,
+          });
+      }
+    }
   }
   steps.sort(
     (p, q) => p.t - q.t || (p.event < q.event ? -1 : p.event > q.event ? 1 : p.seq - q.seq),
@@ -1126,11 +1218,159 @@ function foldRoster(
     // (Each war's levy key, asked once: the same for every battle of it.)
     warKeys = new Map<string, number>(),
     struck: KeptStrike[] = [],
+    slayings: KeptKilling[] = [],
     battles: RosterBattle[] = [],
-    strikes: RosterStrike[] = [];
+    strikes: RosterStrike[] = [],
+    killings: RosterKilling[] = [];
+  // (Where the town stands among its land's towns by people: its underworld is seen in the land's few greatest. townlife.ts)
+  let rank = -1;
+  const rankOf = (): number => {
+    if (rank < 0) {
+      const all = ctx.settlements
+        .inProvince(cell)
+        .filter((t) => t.population > 0)
+        .sort((a, b) => b.population - a.population || (a.ref < b.ref ? -1 : 1));
+      rank = Math.max(
+        0,
+        all.findIndex((t) => t.ref === town),
+      );
+    }
+    return rank;
+  };
   for (let at_ = 0; at_ < steps.length; at_++) {
     const step = steps[at_]!,
       { count } = step;
+    if ("killing" in step) {
+      const { killing, realm, dead, year: at } = step,
+        f = factsOf(killing, realm),
+        motives = motivesOf(f),
+        grown = life.adulthood,
+        q = Math.floor(at / term),
+        edge = (q + 1) * term - at,
+        hit = new Map<number, Slain>(),
+        /** Line k's holder that year, living and grown: their number, key and birth (null: none such). */
+        living = (
+          k: number,
+          /** As the year began: one this year's killings have taken already among them. */
+          then = false,
+        ): { n: number; key: number; born: number } | null => {
+          if (!then && hit.has(k)) return null;
+          let phi = phis[k]!;
+          if (phi < 0) phi = seenLine(shape, k);
+          let n: number, key: number, born: number;
+          if (mourned[k] === 1) {
+            // (As the steps before this one left it: this year's own killings are told by `hit`.)
+            const h = tenureAt(k, at, phi, at_);
+            if (h === null || h.dead) return null;
+            n = h.n;
+            key = keyIn(k, n);
+            born = h.from - took(key);
+          } else {
+            const tau = phi >= edge ? q + 1 : q;
+            if (natTau[k] !== tau) natural(shape, k, tau, phi);
+            n = numberOf(tau, 0);
+            key = natKey[k]!;
+            born = tau * term - phi - took(key);
+          }
+          return at - born >= grown ? { n, key, born } : null;
+        },
+        /** Those of the town's first lines a thing of its underworld names, as its days draw them (townlife.ts draw). */
+        ofIt = (key: string, n: number, part: number, young: boolean): number[] => {
+          const hk = hashString(key) >>> 0,
+            found: { k: number; at: number }[] = [];
+          for (let k = part; k < Math.min(count, POOL); k += PARTS) {
+            const h = living(k, true);
+            if (!h) continue;
+            found.push({
+              k,
+              at:
+                (young && at - h.born >= grown + 14 ? 1 : 0) + finish(mix(hk, k), 13) / 4294967296,
+            });
+          }
+          return found
+            .sort((p, q2) => p.at - q2.at || p.k - q2.k)
+            .slice(0, n)
+            .map((x) => x.k)
+            .filter((k) => !hit.has(k));
+        },
+        streets = rankOf() < 4 && population >= 600;
+      for (let j = 0; j < dead; j++) {
+        const { m, h } = motiveOf(motives, town, at, j);
+        if (m === null || m === "road") continue;
+        // One of the group's own in the town first, by what the killing was of: those who keep a corner in a fight of the
+        // streets and when a crew hunts them; in a war between groups, the guards of the house of the one that lost him, and
+        // its collector where it holds the land.
+        let own: number[] = [],
+          role: string | null = null;
+        if (streets && finish(mix(h, 6), 13) / 4294967296 < OWN_SHARE[m]) {
+          if (m === "street" || m === "squad") {
+            own = ofIt(
+              `${realm}|${town}|corner`,
+              Math.min(6, Math.max(3, 2 + Math.round(f.street * 20))),
+              PART_CORNER,
+              true,
+            );
+            role = "one of those who kept its corner";
+          } else if (m === "turf" && f.war) {
+            const lost = slainOf(f, m, h, at, j, "x").of!,
+              g = underworldOf(world)
+                ?.of(realm as Ref)
+                ?.groups.find((x) => x.event === lost.event);
+            if (g && g.home === cell && rankOf() === 0) {
+              own = ofIt(
+                `boss:${realm}:${g.event}|${town}|guard`,
+                g.members >= 30 ? 2 : 1,
+                PART_GUARD + ((hashString(g.event) >>> 0) % 2),
+                true,
+              );
+              role = "a guard at its head's house";
+            }
+            if (!own.length && f.holder?.event === lost.event) {
+              own = ofIt(`${town}|collect`, population >= 20_000 ? 2 : 1, PART_COLLECT, false);
+              role = "its collector";
+            }
+          }
+        }
+        let k = -1,
+          best = Infinity;
+        for (const x of own) {
+          const v = finish(mix(h, x), 5);
+          if (v < best) {
+            best = v;
+            k = x;
+          }
+        }
+        // Else one of the town's many: the first of a few lines by the killing's key whose holder lives and is grown.
+        if (k < 0) {
+          role = null;
+          for (let i = 0; i < 12 && k < 0; i++) {
+            const x = finish(mix(h, 100 + i), 7) % step.among;
+            if (living(x)) k = x;
+          }
+        }
+        if (k < 0) continue;
+        const who = living(k)!;
+        hit.set(k, slainOf(f, m, h, at, j, role));
+        die(k, who.n, who.key, at, at_);
+      }
+      if (hit.size) {
+        const by = [...hit.keys()].sort((a, b) => a - b),
+          // (Its dead by the count, and never fewer than those of its lines it names.)
+          told = lazily<RosterKilling>(
+            { year: at, dead: Math.max(step.killed, by.length) },
+            "men",
+            () => by.map((line) => ({ line, holder: holderIn(line, at), slain: hit.get(line)! })),
+          );
+        slayings.push({
+          year: at,
+          lines: Int32Array.from(by),
+          slain: by.map((line) => hit.get(line)!),
+          told,
+        });
+        killings.push(told);
+      }
+      continue;
+    }
     if ("strike" in step) {
       // Each line's holder dies at the town's share of the dead, or is hurt at its share of the hurt.
       const { strike: e, dead } = step,
@@ -1320,6 +1560,7 @@ function foldRoster(
         4096 +
         levies.reduce((n, x) => n + 1024 + 5 * x.lines.length, 0) +
         struck.reduce((n, x) => n + 768 + 5 * x.lines.length, 0) +
+        slayings.reduce((n, x) => n + 512 + 260 * x.lines.length, 0) +
         160 * deaths.size,
       into: null,
       head,
@@ -1366,6 +1607,13 @@ function foldRoster(
       if (hit === NO_STRIKES) hit = [told];
       else (hit as StrikeFate[]).push(told);
     }
+    // (The killing they died of, where their land's underworld killed them while they held it.)
+    let slain: Slain | undefined;
+    for (const x of slayings) {
+      if (x.year < from || x.year >= end) continue;
+      const i = placeOf(x.lines, k);
+      if (i >= 0) slain = x.slain[i];
+    }
     const h: Holder = {
       ref: townsfolkRef(town, k, n),
       line: k,
@@ -1378,6 +1626,7 @@ function foldRoster(
       fates,
       struck: hit,
       died,
+      ...(slain ? { slain } : {}),
     };
     list.push(h);
     weigh(240 + 64 * (fates.length + hit.length));
@@ -1503,6 +1752,7 @@ function foldRoster(
     battles,
     battle: (event) => battles.find((rb) => rb.event === event) ?? null,
     strikes,
+    killings,
     hurt,
     fell,
     fallen,
