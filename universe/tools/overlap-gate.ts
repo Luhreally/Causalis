@@ -696,6 +696,12 @@ async function walk(view: (typeof VIEWS)[number]): Promise<void> {
     await settle(800);
   });
   await closeCard();
+  // The town's money shown (2026-11-19: its legend lay over the people bar at both sizes, and no state here showed it).
+  await state("village-money", async () => {
+    await must("the money", press(".town-money:not(.town-board):not(.town-ask)"));
+    await settle(1200);
+  });
+  await press(".town-money:not(.town-board):not(.town-ask)");
   await state("village-board", async () => {
     await must("the board", press(".town-board"));
     await settle(1000);

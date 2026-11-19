@@ -14,6 +14,20 @@
   line-height: 1.3;
   pointer-events: none;
 }
+/* (Clear of the people bar, 2026-11-19: on a phone its tabs stand over its cards, 44px each since a thumb's size, and the
+   legend lay 23px over the first of them; on a desk the bar is a column at the lower left, 172px wide, and the legend lay
+   over three of its cards. Above the tabs on a phone held upright; beside the column on a desk. On a phone turned on its
+   side the tabs stand beside the cards, and 92px clears them.) */
+@media (max-width: 640px) {
+  #hud > .money-legend {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 124px);
+  }
+}
+@media (min-width: 641px) and (min-height: 521px) {
+  #hud > .money-legend {
+    left: calc(env(safe-area-inset-left, 0px) + 188px);
+  }
+}
 #hud > .money-legend[hidden] {
   display: none;
 }
