@@ -55,6 +55,15 @@ export function touching(): boolean {
   return typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
 }
 
+/** The media query of a phone's layout: a narrow screen, or a short one (a phone turned on its side). The same as the
+ * stylesheets' "(max-width: 640px), (max-height: 520px)". */
+export const PHONE_QUERY = "(max-width: 640px), (max-height: 520px)";
+
+/** Whether the page is laid out as a phone's (see PHONE_QUERY). */
+export function phoneSized(): boolean {
+  return innerWidth <= 640 || innerHeight <= 520;
+}
+
 /** How the view is steered over a flat land, about a globe, or among the stars. */
 export function steerWords(scene: "flat" | "round" | "space"): string {
   if (touching())

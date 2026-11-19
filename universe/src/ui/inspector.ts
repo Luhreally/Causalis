@@ -10,6 +10,7 @@
 //
 // It follows the world as it runs without rebuilding under the pointer: the tab, the
 // scroll, the whys and breakdowns opened stay as they were.
+import { PHONE_QUERY, phoneSized } from "./keys.ts";
 import type {
   Block,
   HostClient,
@@ -305,7 +306,7 @@ export class PageWindow {
     );
     // (On a phone its actions take the whole width under the portrait and its words: Go to, follow, pin and keep in view on
     // one line, none over another. On a desk they stand under its words.)
-    const phone = typeof matchMedia === "function" ? matchMedia("(max-width: 640px)") : null,
+    const phone = typeof matchMedia === "function" ? matchMedia(PHONE_QUERY) : null,
       placeActions = () => {
         if (phone?.matches) head.after(this.actions, this.actionNote);
         else this.namesBar.before(this.actions, this.actionNote);
@@ -543,11 +544,11 @@ export class PageWindow {
         (page.kind === "can" ||
           page.kind === "life" ||
           (/^(board|dear):/.test(page.ref) && !document.body.classList.contains("living"))) &&
-        innerWidth <= 640
+        phoneSized()
       )
         this.inspector.classList.add("tall");
       // (A life's strips stand over the top of the screen: a tall sheet would lie under them, its close with it.)
-      if (innerWidth <= 640 && document.body.classList.contains("living"))
+      if (phoneSized() && document.body.classList.contains("living"))
         this.inspector.classList.remove("tall");
       this.tab = view?.tab ?? page.tab ?? page.tabs[0]?.id ?? "";
       this.opened = view?.opened ?? new Set();
@@ -606,7 +607,7 @@ export class PageWindow {
       return;
     }
     const w = Math.max(160, Math.floor(this.inspector.clientWidth - 2 * this.padding())),
-      h = innerWidth > 640 ? 68 : 56,
+      h = !phoneSized() ? 68 : 56,
       c = bannerCanvas(art, page.portrait, page.ref, w, h);
     this.banner.hidden = !c;
     if (c && this.banner.firstChild !== c) this.banner.replaceChildren(c);
@@ -630,7 +631,7 @@ export class PageWindow {
       p.kind === "thing" || p.kind === "matter" || p.kind === "element" || p.kind === "plant";
     this.portrait.classList.toggle("portrait-zoomable", specimen);
     this.portrait.onclick = specimen ? () => openZoom(p, page.title) : null;
-    const size = innerWidth > 640 ? 96 : 84,
+    const size = !phoneSized() ? 96 : 84,
       started = performance.now(),
       // (A world's face is drawn pixel by pixel: it turns at a few frames a second.)
       every = p.kind === "world" ? 250 : 50;
@@ -833,7 +834,7 @@ export class PageWindow {
     const press = (id: string) => {
       if (this.tab === id || !this.page) return;
       this.tab = id;
-      if (id === "body" && innerWidth <= 640) this.inspector.classList.add("tall");
+      if (id === "body" && phoneSized()) this.inspector.classList.add("tall");
       this.drawTabs(this.page);
       // (A tab read only while open is asked for now; the rest are drawn from what the page holds.)
       if (this.page.tabs.find((t) => t.id === id)?.later) void this.readTab(id);

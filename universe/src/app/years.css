@@ -134,7 +134,7 @@
 }
 /* On a phone the note stands at the foot of the news's column: beside the corner's rail, above the
    people bar and the god's hand; while the eye roams, its stick and its hint have that foot. */
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) {
   .ran-note {
     position: fixed;
     left: 8px;
@@ -270,7 +270,7 @@
   overflow-anchor: none;
 }
 /* (At a desk, what is offered wraps: a mouse has no sideways scroll to hand.) */
-@media (min-width: 641px) {
+@media (min-width: 641px) and (min-height: 521px) {
   .years-suggest {
     flex-wrap: wrap;
   }

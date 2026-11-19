@@ -141,7 +141,7 @@ body.godpalette .reign-hud :is(.reign-tray, .reign-sheet, .reign-told, .reign-wi
 .reign-hud.under-page .reign-bars {
   display: none;
 }
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) {
   body:is(.ruling, .living) .page-panel .page-window {
     max-height: min(55%, calc(100% - var(--bar-bottom, 72px) - 16px - var(--safe-bottom, 0px)));
   }
@@ -275,7 +275,7 @@ body.godpalette .reign-hud :is(.reign-tray, .reign-sheet, .reign-told, .reign-wi
 /* (At a desk's width the bar is the taller, its readings and rivals under the name: a sheet or a window stands between
    the bar's foot and the tray, the tray's buttons to hand, and the day's line waits under it. 2026-11-13: the sheet lay
    over the tray and the bar's foot.) */
-@media (min-width: 641px) {
+@media (min-width: 641px) and (min-height: 521px) {
   .reign-hud > :is(.reign-sheet, .reign-window) {
     box-sizing: border-box;
     bottom: calc(env(safe-area-inset-bottom, 0px) + 86px);

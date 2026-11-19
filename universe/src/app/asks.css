@@ -21,7 +21,7 @@
 }
 /* (On a phone a page opened over the town has the foot while it is read: the sheet waits behind
    it, and comes back as the page is closed.) */
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) {
   #hud:has(.page-window:not([hidden])) .panel.page-panel.ask-sheet {
     display: none;
   }
@@ -91,7 +91,7 @@
   min-width: 34px;
 }
 /* (On a desk: beside the corner's rail, as wide as a scale's card, above the windows at the foot.) */
-@media (min-width: 641px) {
+@media (min-width: 641px) and (min-height: 521px) {
   .panel.page-panel.ask-sheet {
     left: auto;
     right: calc(var(--rail-left, 60px) + env(safe-area-inset-right, 0px));

@@ -445,7 +445,7 @@ button:disabled {
   font-size: 0.75rem;
   color: var(--muted);
 }
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) {
   .inspector {
     left: 8px;
     right: 8px;
@@ -825,6 +825,11 @@ body[data-scale="micro"] {
 .war-views[hidden] {
   display: none;
 }
+/* (While a page is open the column stands aside, as the scales' own windows do: the page stood over all four of its
+   buttons, a war's page read while the war is watched, at a desk's size and a phone's. 2026-11-19.) */
+body.paging #hud > .war-views {
+  display: none;
+}
 .war-view {
   min-height: 32px;
   padding: 3px 10px;
@@ -840,7 +845,7 @@ body[data-scale="micro"] {
   cursor: default;
 }
 /* (The news stands beside the column while it shows, not over it: on a desk the column a set width.) */
-@media (min-width: 641px) {
+@media (min-width: 641px) and (min-height: 521px) {
   .war-views {
     width: 9rem;
   }
@@ -851,7 +856,7 @@ body[data-scale="micro"] {
     left: calc(16px + 9rem);
   }
 }
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) {
   .war-views {
     top: calc(var(--bar-bottom, 72px) + 96px);
   }
@@ -908,7 +913,7 @@ body[data-scale="micro"] {
 .war-acts[hidden] {
   display: none;
 }
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) {
   .battle-sheet {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
@@ -1118,7 +1123,7 @@ body[data-scale="micro"] {
     animation: none;
   }
 }
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) {
   /* (Under the scale's bar however many lines it takes, never over it, and clear of the corner's
      rail at the right; under the director's caption while it shows.) */
   .tidings {
@@ -1635,7 +1640,7 @@ p.pick-tag {
 .god-acts .god-whispers {
   margin-top: 6px;
 }
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) {
   .god-acts .tool,
   .god-acts .god-held {
     min-height: 44px;

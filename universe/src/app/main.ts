@@ -36,7 +36,7 @@ import {
   villageSolids,
 } from "../view/index.ts";
 import { PeopleBar, barPins, setWrittenHold, yearsWorld } from "../ui/index.ts";
-import { CornerRail } from "../ui/index.ts";
+import { CornerRail, phoneSized } from "../ui/index.ts";
 import { closeLifeSheet, showLifeSheet, type LifeSheet } from "../ui/index.ts";
 import { THUMB_TIMES, bannerMs, drawPortrait, forgetBanners, paintThumb } from "../ui/index.ts";
 import type { Portrait } from "../bridge/index.ts";
@@ -10693,7 +10693,7 @@ async function runPlanetPage(): Promise<void> {
       )
         return null;
       // (On a phone the foot of the stars' map is its legend's, and of the galaxy its own.)
-      if ((scale === "cluster" || scale === "galaxy") && innerWidth <= 640) return null;
+      if ((scale === "cluster" || scale === "galaxy") && phoneSized()) return null;
       if (scale === "village") barAt = { cell: plan?.cell ?? null, town: plan?.ref ?? null };
       else if (scale === "region" || scale === "camp")
         barAt = { cell: regionCell >= 0 ? regionCell : null, town: null };

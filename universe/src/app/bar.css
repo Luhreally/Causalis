@@ -159,7 +159,7 @@ body.paging #hud > .people-bar,
 #hud:has(> .panel > .page-window:not([hidden])) > .people-bar {
   display: none;
 }
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) {
   #hud:has(> .panel:not([hidden]) > .inspector:not([hidden], .page-window)) > .people-bar,
   #hud:has(> .leader-chip:not([hidden])) > .people-bar {
     display: none;
@@ -176,7 +176,7 @@ body.paging #hud > .people-bar,
  * god's acts), which stand first; a swipe comes to rest at a card's edge. (A card was 190px in a row of 306: the second was cut
  * off at the fold's button.) The row's width is the screen's less the god's hand at the left, the fold's button and the gaps.
  */
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) {
   #hud > .people-bar {
     --people-row: calc(100vw - 64px - 8px - 44px - 4px);
   }
@@ -199,7 +199,7 @@ body.paging #hud > .people-bar,
   }
 }
 /* On a desk: a column at the lower left, clear of the god's palette and the map modes. */
-@media (min-width: 641px) {
+@media (min-width: 641px) and (min-height: 521px) {
   #hud > .people-bar {
     left: 8px;
     right: auto;
@@ -372,7 +372,7 @@ body.paging #hud > .people-bar,
   border: 1px solid var(--line);
   border-radius: 6px;
 }
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) {
   .people-tab {
     height: 36px;
   }
@@ -391,7 +391,7 @@ body.paging #hud > .people-bar,
   max-width: 100%;
 }
 /* On a phone the god's palette, open, has the row above the bar's chips: the tabs stand aside for it (asked 2026-11-17: no button covers another). */
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) {
   #hud:has(> .palette.open) > .people-bar .people-tabs {
     display: none;
   }
@@ -401,7 +401,7 @@ body.paging #hud > .people-bar,
  * edge, reached only by dragging the row sideways. There a card with strips is as wide as any other, and its strips stand in one
  * narrow column at its end, the × over the acts where it has both: a pointer's width, not a finger's.
  */
-@media (min-width: 641px) {
+@media (min-width: 641px) and (min-height: 521px) {
   .people-row > .people-chip.kept,
   .people-row > .people-chip.acted,
   .people-row > .people-chip.kept.acted {

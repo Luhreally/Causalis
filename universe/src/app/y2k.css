@@ -280,7 +280,7 @@ button:active {
 }
 
 /* On a phone the bar keeps to the top of the screen: smaller words, the same buttons. */
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) {
   .bar {
     gap: 6px 10px;
     padding: 6px 10px;
@@ -526,7 +526,7 @@ body[data-world="methane"][data-scale="ground"]:not([data-daylight]) {
 
 /* On a phone the sheet keeps to the lower part of the screen (it scrolls within), leaving
    the world between it and the bar. */
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) {
   .inspector {
     max-height: 46%;
   }
@@ -543,7 +543,7 @@ body[data-world="methane"][data-scale="ground"]:not([data-daylight]) {
  * window in the era's chrome — back and forward in its title bar, the thing's headline
  * numbers as bevelled chips, its tabs as glossy tabs, every name a link.
  */
-@media (min-width: 641px) {
+@media (min-width: 641px) and (min-height: 521px) {
   .page-window {
     width: min(27rem, calc(100% - 16px));
   }
@@ -990,7 +990,7 @@ canvas.thumb.thumb-zoomable {
 }
 /* (On a phone a long name in it takes lines of its own, so the column that stays never takes the width the rest is
    read in.) */
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) {
   .page-window.wide .table:not(.fit) td:first-child {
     max-width: 9.5rem;
     white-space: normal;
@@ -1061,12 +1061,12 @@ canvas.thumb.thumb-zoomable {
 /* On a phone the page is a sheet; a tap on ⤢ grows it tall, up to 8px under the foot of the
    scale's bar (however many lines the bar takes), so the bar is never seen through it. (Its
    padding and its bevel, 28px, lie outside its max-height; 8px under it, 8px under the bar.) */
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) {
   .page-window.tall {
     max-height: calc(100% - var(--bar-bottom, 128px) - 44px - var(--safe-bottom));
   }
 }
-@media (min-width: 641px) {
+@media (min-width: 641px) and (min-height: 521px) {
   .page-window .tall {
     display: none;
   }
@@ -1166,7 +1166,7 @@ body.paging .panel:not(.page-panel) .inspector {
   margin: -4px 0 8px;
 }
 /* (A phone: Go to, follow, pin and keep in view on one line beside the portrait.) */
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) {
   .page-actions {
     gap: 4px;
   }
@@ -1378,7 +1378,7 @@ body.paging .panel:not(.page-panel) .inspector {
   white-space: nowrap;
 }
 /* …and but for a table fitted to the page, on a phone: its names wrap, so no column is cut at the edge. */
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) {
   .page-window.wide .table.fit td {
     white-space: normal;
   }
@@ -1459,7 +1459,7 @@ body.paging .panel:not(.page-panel) .inspector {
 }
 /* On a desk: the map modes a panel of their own at the lower right, as the genre keeps them;
    the page's window at the left, as it opens its windows. */
-@media (min-width: 641px) {
+@media (min-width: 641px) and (min-height: 521px) {
   .mapmodes {
     position: fixed;
     z-index: 1;
@@ -1544,7 +1544,7 @@ body.paging .panel:not(.page-panel) .inspector {
   /* (A link's wider reach is a margin drawn back over its neighbours: here it drew the row up over the line above it.) */
   margin-block: 0;
 }
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) {
   .world-about {
     display: none;
   }
@@ -1572,7 +1572,7 @@ body.paging .panel:not(.page-panel) .inspector {
  * The world's own pages (Phase 10 M96b): its chronicle and its ledger open wide, as a grand
  * strategy game's ledger does, with charts of several lines, bars side by side and timelines.
  */
-@media (min-width: 641px) {
+@media (min-width: 641px) and (min-height: 521px) {
   /* (Its width is its words': its padding and its bevel, 2 × 14px and 2 × 2px, lie outside it. On a screen narrower than
      itself it took the screen's width less 16px and stood 32px past the right edge, its close box with it: 760px wide. And it
      ends at the left of the corner's rail, whose tools stood over its title's boxes, its close box among them, on any screen
@@ -2081,7 +2081,7 @@ body.paging .panel:not(.page-panel) .inspector {
   font-size: 0.82rem;
 }
 /* (On a phone: from the left edge to the corner's rail, its words over two lines.) */
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) {
   .director-caption {
     left: 8px;
     right: 60px;
@@ -2603,7 +2603,7 @@ body.roaming .hint {
  * window at the right standing beside the column, not under it. On a phone: while a sheet is
  * open, it is what is looked at, and the tools stand aside (its × gives them back).
  */
-@media (min-width: 641px) {
+@media (min-width: 641px) and (min-height: 521px) {
   .alerts {
     position: relative;
   }
@@ -2632,7 +2632,7 @@ body.roaming .hint {
     max-width: calc(100vw - 188px - var(--rail-left, 60px) - 22rem - 4px - 16px);
   }
 }
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) {
   /* (Not while roaming: its stick is among them.) */
   body:not(.roaming) #hud:has(> .panel:not([hidden]) > .inspector:not([hidden])) .corner-tools {
     display: none;
@@ -2657,7 +2657,7 @@ body.roaming .hint {
 }
 /* News, while a page is open on a desk: beside the corner's tools, clear of the page, so a
    card never stands over a page's buttons. */
-@media (min-width: 641px) {
+@media (min-width: 641px) and (min-height: 521px) {
   .tidings {
     top: calc(var(--bar-bottom, 72px) + 8px);
   }
@@ -2685,7 +2685,7 @@ body.roaming .hint {
  * What a tool opens (search, what is followed, an alert's list, how to steer) is a window beside
  * the rail, as tall as the screen leaves under the bar, so the rail never moves under a thumb.
  */
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) {
   .corner-tools,
   .free-controls,
   .free-buttons,
@@ -2749,7 +2749,7 @@ body.roaming .hint {
   }
 }
 /* On a desk, free roam's hint under the bar at the middle, clear of the rail and of the cards beside it. */
-@media (min-width: 641px) {
+@media (min-width: 641px) and (min-height: 521px) {
   .free-hint {
     position: fixed;
     z-index: 3;
@@ -3024,7 +3024,7 @@ canvas.arms {
   align-items: center;
   gap: 6px;
 }
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) {
   .event-body {
     flex-direction: column;
     align-items: center;
@@ -3232,7 +3232,7 @@ body.palette-off #hud > .palette,
 body.palette-off #hud > .palette-toggle {
   display: none;
 }
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) {
   body.paging #hud > .palette,
   body.paging #hud > .palette-toggle {
     display: none;
@@ -3260,7 +3260,7 @@ body.with-palette .hint {
 }
 /* While a page is open at the left, the palette stands clear of it, beside the map modes (10px from
    the edge, 206px wide with their padding and bevel, 2 × 8px and 2 × 2px, and a gap of 8px). */
-@media (min-width: 641px) {
+@media (min-width: 641px) and (min-height: 521px) {
   body.paging #hud > .palette {
     left: auto;
     right: 244px;
@@ -3271,13 +3271,13 @@ body.with-palette .hint {
 /* While a wide page is open (the Ledger, the Chronicle: 58rem of the screen), no room is left at the foot for the palette beside
    it: on a desk the palette stands aside, as it does on a phone under any page, and is there again as the page is closed. (Until
    2026-11-15 it stayed out, and the wide page lay over it on every tab.) */
-@media (min-width: 641px) {
+@media (min-width: 641px) and (min-height: 521px) {
   #hud:has(.page-window.wide:not([hidden])) > .palette {
     display: none;
   }
 }
 /* On a phone: a round button at the lower left; the palette a sheet above it when opened. */
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) {
   #hud > .palette-toggle {
     display: block;
     position: fixed;
@@ -3823,7 +3823,7 @@ body.with-palette .hint {
   display: none;
 }
 /* (On a phone the line wraps: the years and the strength each a finger's size, under what the act will do.) */
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) {
   .palette-line {
     flex-wrap: wrap;
   }
@@ -3872,7 +3872,7 @@ body.with-palette .hint {
   padding: 1px 3px;
   font-size: 1.05rem;
 }
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) {
   .legend-picks .speed[data-choice="smuggling"],
   .legend-picks .speed[data-choice="cartels"],
   .legend-picks .speed[data-choice="addiction"],
@@ -4182,7 +4182,7 @@ body.with-palette .hint {
 
 /* A lens's key on a phone: its name at the head of the first line of colours, not a line of its own
    (the bar is the top of the screen's third; a line given back is the map's). */
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) {
   .legend:has(> .legend-keys) {
     display: flex;
     flex-wrap: wrap;
@@ -4204,7 +4204,7 @@ body.with-palette .hint {
 .bar-fold {
   display: none;
 }
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) {
   /* (In the date's line, at its right end: it takes no line of its own.) */
   .bar:has(.bar-fold) {
     position: relative;

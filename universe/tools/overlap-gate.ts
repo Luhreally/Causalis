@@ -873,7 +873,7 @@ async function walk(view: (typeof VIEWS)[number]): Promise<void> {
     await k(`globalThis.causalis.open(${JSON.stringify(town.ref)})`);
     await must(
       "the page",
-      until("the page", () => seen(".page-panel .page-icon"), slow(20000)),
+      until("the page", () => seen(".page-panel .page-title"), slow(20000)),
     );
     await settle(900);
   });
@@ -912,7 +912,7 @@ async function walk(view: (typeof VIEWS)[number]): Promise<void> {
       await k(`globalThis.causalis.open(${JSON.stringify(ruled)})`);
       await must(
         "the page",
-        until("the page", () => seen(".page-panel .page-icon"), slow(20000)),
+        until("the page", () => seen(".page-panel .page-title"), slow(20000)),
       );
       await settle(900);
     });

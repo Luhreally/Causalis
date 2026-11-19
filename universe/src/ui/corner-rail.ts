@@ -12,6 +12,7 @@
 // standing there take (the map modes, the god's hand, the people bar), as `--rail-foot` (under the
 // rail), `--right-foot` (beside it, as wide as a scale's card) and `--left-foot` (under the news, at
 // the left), so a card, a sheet, the news or what the rail opens ends above them, never over them.
+import { phoneSized } from "./keys.ts";
 import { el } from "./why.ts";
 
 /** The rail's tools, each a button that folds alone. */
@@ -131,7 +132,7 @@ export class CornerRail {
     const root = document.documentElement,
       W = innerWidth,
       H = innerHeight,
-      cols = W <= 640 ? 1 : 2,
+      cols = phoneSized() ? 1 : 2,
       rem = parseFloat(getComputedStyle(root).fontSize),
       bar = barBottom(),
       railFoot = this.foot(W - 8 - cols * 52, W, bar),

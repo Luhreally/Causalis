@@ -8,7 +8,7 @@
    row with nothing between them; what is seen of each is its box of 34 by 28 drawn within (its ground is the button's
    own, so the whole 44 takes the touch). The bar stands 45px (it was 37), and the name takes two lines of it, so a long
    name is read further than it was on one. */
-@media (pointer: coarse), (max-width: 640px) {
+@media (pointer: coarse), (max-width: 640px), (max-height: 520px) {
   .page-window h2 {
     gap: 0;
     padding: 0 3px;
@@ -53,7 +53,7 @@
     box-shadow: inset 0 1px 3px rgba(0, 0, 30, 0.5);
   }
 }
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) {
   .page-window h2 .page-title {
     display: -webkit-box;
     -webkit-box-orient: vertical;
@@ -122,7 +122,7 @@
    chip 41 by 32, the bar's fold 44 by 40: each row is 44 tall. The world's numbers stand six to a line, not five, so
    a world's six take one line where they took two: the bar is 24px taller with all of it, not 68. The world's pages keep
    their 26px of width: fifteen across a phone cannot each have 44 without a second line of them. */
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) {
   .bar button.speed,
   .bar .speeds button {
     min-height: 44px;
@@ -158,5 +158,171 @@
   .mapmodes .mode {
     min-width: 44px;
     min-height: 44px;
+  }
+}
+
+/*
+ * A phone turned on its side (2026-11-19): 932 by 430. It has the phone's layout (every "(max-width: 640px)" of the
+ * stylesheets is "or (max-height: 520px)" now: at a desk's layout the bar's menu ran under the map modes, the god's hand
+ * lay over the people bar, and no state of the game was without one window over another). What is here is what a
+ * screen wide and short needs beyond that: its 430px of height cannot hold the bar's five lines and a sheet under them.
+ */
+@media (max-height: 520px) and (min-width: 641px) {
+  /* The world's numbers on one line, all nine of them where a world has nine. */
+  .bar .world-stats {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+  .bar .world-stats > .stat-chip:nth-child(6n) {
+    border-right: 1px solid rgba(160, 188, 240, 0.28);
+  }
+  .bar .world-stats > .stat-chip:last-child {
+    border-right: 0;
+  }
+  /* While anything has the foot of the screen (a page, a card, a sheet, a great happening's window, the god's hand
+     open) the bar keeps to its first line, as if folded, and is whole again as that is put by: under its five lines a
+     sheet had 90px. Its fold waits with them (it would fold nothing to be seen). */
+  body:is(
+      .paging,
+      :has(#hud > .panel:not([hidden]) > .inspector:not([hidden])),
+      :has(
+        .colony-sheet:not([hidden]),
+        .strike-sheet:not([hidden]),
+        .brush-panel:not([hidden]),
+        .ask-sheet:not([hidden]),
+        .event-window:not([hidden]),
+        #hud > .palette.open
+      )
+    )
+    :is(.bar .world-stats, .bar .world-menu, .mapmodes .modes, .bar .bar-fold) {
+    display: none;
+  }
+  /* A sheet at the foot is as tall as the screen leaves under the bar (46% of 430 is four lines of a page). */
+  .inspector,
+  .page-window.tall {
+    max-height: calc(100% - var(--bar-bottom, 68px) - 44px - var(--safe-bottom));
+  }
+  /* What a run came to: no taller than the room between the bar and the people bar. */
+  .ran-note {
+    max-height: calc(100dvh - var(--bar-bottom, 68px) - 16px - var(--left-foot, 72px) - 14px);
+  }
+  /* The people bar's tabs beside its cards, not above them: a line of the screen given back. */
+  .people-main {
+    flex-direction: row;
+    align-items: flex-end;
+  }
+  #hud > .people-bar {
+    --people-row: calc(100vw - 64px - 8px - 44px - 4px - 152px);
+  }
+  body.palette-off #hud > .people-bar {
+    --people-row: calc(100vw - 8px - 8px - 44px - 4px - 152px);
+  }
+  /* The bar, open, ends above the people bar however long its lens's key is (the Wealth lens's, with its picks and its
+     ranking, stood 21px over the people bar): what is past that is scrolled to. And it leaves the right edge to the
+     corner's rail, which stands beside it from the screen's top, not under it: under the bar's five lines the rail had
+     room for one tool, and what it opened for two lines. */
+  .panel > header.bar,
+  .bar:has(.bar-fold) {
+    max-height: calc(100dvh - 146px);
+    margin-right: 68px;
+    overflow: hidden auto;
+    overscroll-behavior: contain;
+  }
+  #hud > .corner-tools {
+    top: calc(8px + env(safe-area-inset-top, 0px));
+  }
+  /* The lone 🔊 (shown where the rail is put away) stands where the rail's first tool does, beside the bar: under
+     the bar it stood on a card's close box and on the god's hand, open. In the lives lived, whose strips have the
+     whole of the screen's top, it waits. */
+  html
+    body:not(.filming):not(.fleet-filming):not(.living):not(.possessing):not(.ruling):not(.homing)
+    .sound-button.free:not(.on-title) {
+    top: calc(8px + env(safe-area-inset-top, 0px));
+  }
+  /* (The director's line under the bar waits while a card or a page has the screen under the bar: a card stood 26px
+     over "The eye is yours again".) */
+  #hud:has(> .panel:not([hidden]) > .inspector:not([hidden])) > .director-caption {
+    display: none;
+  }
+  body:is(.living, .ruling, .possessing, .homing) .sound-button.free {
+    display: none !important;
+  }
+  /* The god's hand, open: no taller than the room between the bar and the people bar (whole, with an act in hand,
+     it stood 21px over the bar), its lines scrolled to, none squeezed onto another. */
+  #hud > .palette {
+    max-height: calc(100dvh - var(--bar-bottom, 68px) - 8px - 76px - 24px - var(--safe-bottom));
+    overflow: hidden auto;
+  }
+  #hud > .palette > * {
+    flex-shrink: 0;
+  }
+  /* The brushes' panel: under the bar (100dvh less 520px is less than nothing here: it was a sliver at the foot). */
+  .brush-panel {
+    max-height: calc(100dvh - var(--bar-bottom, 68px) - 24px - env(safe-area-inset-bottom));
+  }
+  /* A town asked: its sheet under the bar (70vh of it stood 35px over the bar, its close box on the town's stores). */
+  .panel.page-panel.ask-sheet {
+    max-height: calc(100dvh - var(--bar-bottom, 68px) - 16px - 28px);
+  }
+  /* A page under a life's or a ruler's strip: its padding and bevel lie outside its max-height (it stood 20px over the
+     strip's last line). */
+  #hud:is(body.ruling *, body.living *) .page-panel .page-window {
+    max-height: calc(100% - var(--bar-bottom, 72px) - 44px - var(--safe-bottom, 0px));
+  }
+  /* (And under one held: their strip and Let go keep the screen's top.) */
+  #hud:is(body.possessing *) .page-panel .page-window {
+    max-height: calc(100% - 110px - 44px - var(--safe-bottom, 0px));
+  }
+  /* A life's strip and a ruler's, across a wide screen: the name and the clock on one line, the wish and the rival
+     side by side, a ruler's six readings on one line (they took 240px and 330px of the screen's 430). */
+  .life-strip,
+  .reign-strip {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 8px;
+  }
+  :is(.life-strip, .reign-strip) > :is(.life-line, .life-paces) {
+    flex: 1 1 40%;
+  }
+  :is(.life-strip, .reign-strip) > :is(.life-needs, .reign-glance, .reign-bars) {
+    flex: 1 1 100%;
+  }
+  .life-strip > :is(.life-want, .life-rival) {
+    flex: 1 1 40%;
+    width: auto;
+  }
+  .reign-strip > .reign-glance {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  /* What a life or a reign opens stands between its strip and its tray, and scrolls within. */
+  .life-hud > :is(.life-book, .life-window) {
+    max-height: calc(100dvh - var(--bar-bottom, 130px) - 8px - 12px - var(--tray-h, 74px) - 24px);
+  }
+  #hud .reign-hud > :is(.reign-sheet, .reign-window) {
+    max-height: calc(100dvh - var(--bar-bottom, 150px) - 8px - 86px - 24px);
+  }
+  /* The ways to watch a battle: a row under the bar (a column of four reached down onto the people bar's tabs). The
+     news waits while a battle is watched, and is in the log: under a battle's bar and the row there are 12px for it,
+     and a card stood 24px over the people bar. */
+  .war-views {
+    flex-direction: row;
+    top: calc(var(--bar-bottom, 72px) + 8px);
+  }
+  #hud:has(> .war-views:not([hidden])) > .tidings {
+    display: none;
+  }
+  /* One held: what they cannot do is said beside their acts, not over Live their day. */
+  #hud .possess-hint {
+    right: calc(env(safe-area-inset-right, 0px) + 200px);
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+  }
+}
+
+/* A page read while walking in someone, on a phone: their acts, their stick, sprint, the paces and Live their day wait
+   while it is read, as their hint does (the page lay over them, each still to be touched past its edge). */
+@media (max-width: 640px), (max-height: 520px) {
+  body.possessing:has(.page-window:not([hidden]))
+    :is(.possess-acts, .possess-stick, .possess-sprint, .possess-live, .possess-paces) {
+    display: none;
   }
 }

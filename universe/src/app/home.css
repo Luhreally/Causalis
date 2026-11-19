@@ -63,7 +63,7 @@ body.homing:has(.page-window:not([hidden])) .home-who {
 }
 /* (On a phone the caption is as tall as its words wrap to, and who is out follows under it: at a
    fixed height, a caption's third line ran under them.) */
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) {
   #hud > .home-hud {
     display: flex;
     flex-direction: column;

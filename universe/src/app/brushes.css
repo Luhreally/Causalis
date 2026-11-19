@@ -32,7 +32,7 @@
 }
 /* (On a desk, beside the corner's rail as a scale's card stands, above the windows at the foot there,
    and under the bar.) */
-@media (min-width: 641px) {
+@media (min-width: 641px) and (min-height: 521px) {
   .brush-panel {
     right: calc(var(--rail-left, 60px) + env(safe-area-inset-right, 0px));
     bottom: var(--right-foot, 10px);
@@ -41,7 +41,7 @@
 }
 /* (On a phone the panel is the screen's foot, under the god's hand's line: the ground above it is
    what is painted.) */
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) {
   .brush-panel {
     left: 8px;
     right: 8px;
@@ -282,7 +282,7 @@
   line-height: 1.5;
   color: #bac9df;
 }
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) {
   .page-window.body-open .page-head,
   .page-window.body-open .page-banner-box {
     display: none;

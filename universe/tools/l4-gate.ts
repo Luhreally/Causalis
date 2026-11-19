@@ -527,7 +527,11 @@ async function play(f: Forged, tag: string): Promise<void> {
         await settle(200);
         await shot(`${tag}-8-battle-line`);
         await tap(".reign-battle");
-        await until(`${tag}: the battle's page`, () => seen(".page-panel .page-icon"), slow(30000));
+        await until(
+          `${tag}: the battle's page`,
+          () => seen(".page-panel .page-title"),
+          slow(30000),
+        );
         await settle(600);
         await shot(`${tag}-9-battle-page`);
         await k(`globalThis.causalis.closePage?.()`);

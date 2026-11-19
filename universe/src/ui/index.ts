@@ -47,7 +47,15 @@ export { MapModes, type AllianceKey } from "./mapmodes.ts";
 export { FreeControls, type FreeMode } from "./free.ts";
 export { DirectorControls } from "./director.ts";
 export { STAR_LENSES, StarLenses } from "./star-lenses.ts";
-export { KEY_LINES, installTimeKeys, steerWords, touching, typing, type TimeKeys } from "./keys.ts";
+export {
+  KEY_LINES,
+  installTimeKeys,
+  phoneSized,
+  steerWords,
+  touching,
+  typing,
+  type TimeKeys,
+} from "./keys.ts";
 export { SearchBox } from "./search.ts";
 export { Outliner } from "./outliner.ts";
 export { Tooltip } from "./tooltip.ts";

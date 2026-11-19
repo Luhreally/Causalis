@@ -134,7 +134,7 @@ body.filming
 }
 /* (On a desk: beside the corner's rail, as wide as a scale's card, above the windows at the foot
    there — the map modes, the god's hand — and under the bar.) */
-@media (min-width: 641px) {
+@media (min-width: 641px) and (min-height: 521px) {
   .colony-sheet {
     left: auto;
     right: calc(var(--rail-left, 60px) + env(safe-area-inset-right, 0px));
@@ -249,13 +249,13 @@ body.filming
   right: calc(var(--rail-left, 60px) + env(safe-area-inset-right, 0px));
   bottom: var(--left-foot, 84px);
 }
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) {
   body:has(.colony-news:not([hidden]), .port-chip:not([hidden])) .ran-note,
   body:has(.port-chip:not([hidden])) .colony-news {
     display: none;
   }
 }
-@media (min-width: 641px) {
+@media (min-width: 641px) and (min-height: 521px) {
   .colony-news {
     left: auto;
     width: 22rem;
@@ -282,7 +282,7 @@ body.filming
   text-align: left;
   pointer-events: auto;
 }
-@media (min-width: 641px) {
+@media (min-width: 641px) and (min-height: 521px) {
   .port-chip {
     left: auto;
     width: 22rem;

@@ -161,7 +161,7 @@ body.paging .life-tray {
 .life-hud > :is(.life-book, .life-window) {
   bottom: calc(env(safe-area-inset-bottom, 0px) + 12px + var(--tray-h, 74px));
 }
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) {
   /* (The day's line waits under it. A reign's the same.) */
   .reign-hud > :is(.reign-sheet, .reign-window) {
     bottom: calc(env(safe-area-inset-bottom, 0px) + 86px);
