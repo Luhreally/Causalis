@@ -160,6 +160,8 @@ type Run = {
   readonly many: boolean;
   /** What may be told this year: a standing, and how to tell it. */
   readonly tell: { standing: number; id: number; run: () => void }[];
+  /** Where the world holds all the names it keeps: the least of them, which one newly noticed must pass (0: room yet). */
+  bar: number;
 };
 
 function nameIn(r: Run, cell: number, key: number): { name: string; sex: number } {
@@ -561,14 +563,16 @@ function weighLand(r: Run, p: Province, sick: boolean, turn: boolean): void {
     const taught = row && row[d]! > 0 ? 1 + ACTS.lineage * satOf(row[d]!) : 1,
       tried = d === DOMAIN.healing && sick ? 6 : 1,
       pat = d === DOMAIN.infamy ? 1 : patronage,
-      standing = talentOf(u(30)),
-      n = arise(r, cell, cell * 16 + d, standing, {
-        y: year,
-        d,
-        w: "stood out",
-        e: null,
-        g: standing,
-      });
+      standing = talentOf(u(30));
+    // (The world's names all held by greater: not noticed.)
+    if (standing <= r.bar) return;
+    const n = arise(r, cell, cell * 16 + d, standing, {
+      y: year,
+      d,
+      w: "stood out",
+      e: null,
+      g: standing,
+    });
     tellRise(
       r,
       n,
@@ -651,6 +655,7 @@ export function notablesYear(ctx: PopulationContext, t: SimTime): void {
       year,
       many: !keepsPersons(ctx.generated.life.people?.body.social),
       tell: [],
+      bar: 0,
     },
     events = world.events;
   // 1. The year's occasions, oldest first.
@@ -687,7 +692,15 @@ export function notablesYear(ctx: PopulationContext, t: SimTime): void {
     if (m && store.get(Number(m[1]))) inspired.set(cell, Number(m[1]));
     else occasion(r, e, OCCASIONS["act.inspire-one"]!, inspired);
   }
-  // 2. The lands whose turn it is, and those a sickness tries.
+  // 2. The lands whose turn it is, and those a sickness tries. (Where the world holds all the names it keeps, one newly
+  // noticed must stand past the least of them: read once.)
+  {
+    const free = store.all().filter((n) => !n.post);
+    if (free.length >= NOTE.keepWorld) {
+      free.sort((a, b) => b.standing - a.standing || a.id - b.id);
+      r.bar = free[NOTE.keepWorld - 1]!.standing;
+    }
+  }
   for (const p of ctx.provinces.all()) {
     const turn = (year + p.cell) % NOTE.every === 0;
     if ((!turn && !sick.has(p.cell)) || !p.total()) continue;
@@ -768,7 +781,10 @@ function cull(r: Run): void {
   // (One with a deed this year is on everyone's lips: where a name must be let go it is not theirs, whatever they stand at.
   // Without this the finder of a thing in a land that held all its names was let go the year they found it: at 1,000 on first
   // light one finder was kept of the 74 things found in the century before.)
-  const fresh = (n: Notable) => (n.last === year ? 1 : 0),
+  // (A deed, not a first noticing: one who merely stood out this year is weighed with the rest. Protected too, a year's
+  // noticings took the places of older and greater names each year, on a world with more lands than names kept.)
+  const fresh = (n: Notable) =>
+      n.last === year && n.deeds[n.deeds.length - 1]?.w !== "stood out" ? 1 : 0,
     rank = (a: Notable, b: Notable) =>
       fresh(b) - fresh(a) || b.standing - a.standing || a.id - b.id;
   for (const [cell, l] of byLand) {
@@ -827,6 +843,7 @@ export function commandIn(ctx: PopulationContext, p: Polity, t: SimTime): Comman
       year,
       many: !keepsPersons(ctx.generated.life.people?.body.social),
       tell: [],
+      bar: 0,
     },
     key = serialOf(p.ref) * 8 + 5,
     figure = courtOf(world)
@@ -886,7 +903,7 @@ export function commandAfter(
       falls = victor ? FIELD.fallsWon : FIELD.fallsLost;
     if (guarded) continue;
     if (u < falls || (!victor && u < falls + FIELD.taken)) {
-      const r: Run = { ctx, world, store, t, year, many: n.many, tell: [] };
+      const r: Run = { ctx, world, store, t, year, many: n.many, tell: [], bar: 0 };
       end(r, n, u < falls ? "battle" : "taken", battle);
       // (Told at once: the year's own telling is the notables' year's, and a commander's fall is the battle's news.)
       for (const x of r.tell) x.run();
@@ -909,7 +926,16 @@ export function strikeNotable(
   const store = notablesOf(ctx.world),
     n = store?.get(id);
   if (!store || !n) return false;
-  const r: Run = { ctx, world: ctx.world, store, t, year: yearOfMoment(t), many: n.many, tell: [] };
+  const r: Run = {
+    ctx,
+    world: ctx.world,
+    store,
+    t,
+    year: yearOfMoment(t),
+    many: n.many,
+    tell: [],
+    bar: 0,
+  };
   end(r, n, how, event);
   for (const x of r.tell) x.run();
   if (n.post?.kind === "command") store.shake(n.post.of, r.year + 1);
