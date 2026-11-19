@@ -7,10 +7,13 @@ import type { TownGoing, VillageLife, VillagePlan } from "../../src/bridge/index
 import {
   LIFE_HOURS,
   dayTold,
+  LivedBody,
   goingHeld,
   goingPlace,
   goingsNow,
   goingsOn,
+  growingHallAt,
+  hallSpot,
   lifeParts,
   momentOf,
   personGroup,
@@ -588,4 +591,53 @@ test("a part played by the hand takes the body to its place: the look-out's spot
   );
   // The same asked twice is the same.
   assert.deepEqual(spot(lookout, "watch", corner.of.ref), held);
+  // From far off the way is long, and the rounds' hours are counted from arriving: the first stall still theirs then.
+  const out = new LivedBody(busy, me, { x: 900, z: 0 }),
+    way = out.wayTo(block("rounds", collect.of.ref), from);
+  assert.ok(way > 600 && way < 3 * HOUR, `${way} s to walk in from 900 m`);
+  assert.equal(
+    new LivedBody(busy, me, { x: stops[0]!.x, z: stops[0]!.z }).wayTo(
+      block("rounds", collect.of.ref),
+      from,
+    ),
+    0,
+  );
+  const late = { ...block("rounds", collect.of.ref), to: from + way + 2 * HOUR, away: way },
+    first = spotOf(busy, me, late, from + way + 60, null)!,
+    last = spotOf(busy, me, late, from + way + 1.9 * HOUR, null)!;
+  assert.deepEqual({ x: first.x, z: first.z }, { x: stops[0]!.x, z: stops[0]!.z });
+  assert.deepEqual({ x: last.x, z: last.z }, { x: stops[3]!.x, z: stops[3]!.z });
+});
+
+test("a land built over has no field work: its farmers tend the vats at their hall's wall, outside it, and the eye finds the hall", () => {
+  const covered: VillagePlan = { ...quiet, past: { machines: 0, fliers: 0, covered: true } },
+    farmers = covered.people.flatMap((p, i) =>
+      p.occupation === OCC.farmer && !p.child ? [i] : [],
+    );
+  assert.ok(farmers.length >= 3, `${farmers.length} farmers`);
+  let tending = 0;
+  for (const d of [40, 130, 200, 250, 300])
+    for (const i of farmers)
+      for (const h of [10.5, 15]) {
+        const m = momentOf(covered, i, d * DAY + h * HOUR),
+          open = momentOf(quiet, i, d * DAY + h * HOUR);
+        assert.doesNotMatch(
+          m.why ?? "",
+          /Hoeing|Sowing|Reaping|rows|stubble|sheaves|harvest|muck/,
+          m.why ?? "",
+        );
+        if (m.why !== "Tending the vats of the growing hall") continue;
+        tending++;
+        // At a hall, outside its walls; and the eye is given that hall to stand outside of.
+        const hall = growingHallAt(covered, m.x, m.z);
+        assert.ok(hall, "a hall where they stand");
+        assert.ok(Math.hypot(m.x - hall.x, m.z - hall.z) >= hall.w / 2, "outside its walls");
+        assert.equal(growingHallAt(quiet, m.x, m.z), null, "no hall on open ground");
+        // (On open ground the same one is in the field that day, or at another's work as the town's needs set it.)
+        assert.notEqual(open.why, m.why);
+      }
+  assert.ok(tending >= 10, `${tending} moments at the vats`);
+  const s = hallSpot(covered, 0, 0.5)!,
+    f = covered.fields[0]!;
+  assert.ok(Math.hypot(s.x, s.z) < Math.hypot(f.x, f.z), "on the side toward the town");
 });

@@ -1392,8 +1392,8 @@ const PART_SAYS: Readonly<Record<Exclude<PartId, "judge">, (name: string, n: num
     `Give out bread for ${name} to ${n} of its own in need: a little of your own coin beside what it pools.`,
   lend: (name, n) =>
     `Hear the ${n} who come to borrow from ${name}, and lend to one of them from the house's chest: a little for the day's dealing is yours.`,
-  callin: (name, n) =>
-    `Call in what one who owes ${name} is behind with (${n === 1 ? "one owes" : `${n} owe`} it): they may have it, or not. The town does not love it.`,
+  callin: (name) =>
+    `Call in what one who owes ${name} is behind with: they may have it, or not. The town does not love it.`,
   forgive: (name) =>
     `Forgive one who owes ${name} what they cannot pay: the town speaks well of it, the house's family does not.`,
   refuse: (name, n) =>
@@ -1560,10 +1560,11 @@ export function roleOffers(
       can: true,
       words: `You head ${of.name}, lending since year ${house.year}. It holds ${worthWords(house.capital)} grain's worth of its own, ${loans.length ? `and ${worthWords(out_)} is out to ${loans.length === 1 ? "one who owes" : `${loans.length} who owe`} it` : "and nothing is out: no one owes it now"}.`,
     });
+    const none = loans.length ? "" : " No one owes it now.";
     add("lend", of, askers, "", house.capital > 0);
     add("refuse", of, askers);
-    add("callin", of, owing, "", loans.length > 0);
-    add("forgive", of, owing, "", loans.length > 0);
+    add("callin", of, owing, none, loans.length > 0);
+    add("forgive", of, owing, none, loans.length > 0);
   }
   if (held)
     out.push({

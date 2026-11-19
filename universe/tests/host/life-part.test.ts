@@ -222,6 +222,15 @@ test("a part played writes on the life alone: the world's other parts hash as th
   assert.ok(l.purse >= purse - 1, "what a round brings reaches the purse, or nothing does");
   // Only what the hand itself keeps has moved (its own state, and the clock the command was told by).
   assert.deepEqual([...moved].sort(), ["commands", "hand", "kernel"], `moved: ${moved.join(", ")}`);
+  // Told how far its place is, the block is so much the longer and its hours begin on arriving; a way no one walks is refused.
+  const hours = l.doing!.to - l.doing!.from;
+  assert.equal(l.doing!.away, undefined);
+  world.runTo(world.submit("life.part", { ...rounds.part, away: 1800 }).t);
+  const far = handOf(world).resting!.life!.doing!;
+  assert.equal(far.away, 1800);
+  assert.equal(far.to - far.from, hours + 1800);
+  for (const away of [-1, 0.5, 3 * 3600 + 1, "far"])
+    assert.throws(() => world.submit("life.part", { ...rounds.part, away }), /how far/);
   // A part no one is: refused. A sentence the court's form does not allow: refused.
   assert.throws(() => world.submit("life.part", { what: "nothing", of: "x", name: "x", n: 1 }));
   assert.throws(() =>
@@ -396,6 +405,15 @@ test("the hand is told who was what when it is laid, and keeps it: a save loaded
   townLifeOf(w5, town.ref);
   w5.runTo(w5.submit("hand.lay", asked).t);
   assert.equal("was" in handOf(w5).resting!, false);
+  // Told or untold, the two worlds differ in the hand and the command that laid it, and in nothing else.
+  const told4 = new Map(w4.domainHashes());
+  assert.deepEqual(
+    [...w5.domainHashes()]
+      .filter(([k, v]) => told4.get(k) !== v)
+      .map(([k]) => k)
+      .sort(),
+    ["commands", "hand"],
+  );
   assert.ok(at(w5).of);
   assert.equal(at(reload(w5)).of, false, "untold, a load forgets it");
   // What it is told is refused when it is not names by key.
