@@ -46,6 +46,7 @@ import { namesThings, type NamesSwitch } from "./names.ts";
 import { bannerCanvas, glyphCanvas, glyphOf, paletteOf, sectionGlyph } from "./page-art.ts";
 import { beliefsChart, evidenceChart, taughtChart } from "./learned.ts";
 import { pinButton } from "./people-bar.ts";
+import { PageHistory, type Visit } from "./page-history.ts";
 
 /** How often an open page is read again while the world runs (ms). */
 const REFRESH_MS = 2000;
@@ -61,6 +62,37 @@ function thumbOf(p: Portrait): HTMLCanvasElement {
 const TABLE_ROWS = 60;
 /** How many pages back the history reaches. */
 const HISTORY = 64;
+/** How long a page come back to is held where it was left, as what it draws late comes in (ms). */
+const HOLD_MS = 4000;
+
+/** A table's sorting, whether it shows every row, and the word it is filtered by. */
+type TableState = { by: number; down: boolean; all: boolean; only?: string | number };
+/** What a block drew, and what it said (to keep what is unchanged). */
+type Drawn = Map<string, { same: string; element: HTMLElement }>;
+/** A part of the page scrolled within itself (a wide table): which element of the window, and how far. */
+interface InnerScroll {
+  readonly at: number;
+  readonly tag: string;
+  readonly top: number;
+  readonly left: number;
+}
+/**
+ * How a page stood when it was left (asked 2026-11-19): what back and forward bring back. Its tab, how far down it was
+ * read, whether its sheet stood tall, the number opened, the whys opened, each table's sorting, each chart's year, and
+ * what each tool of its open tab said of itself (the Years: its filter, its order, the year under the eye). What it drew
+ * is not kept: a tool taken out of the page stops reading the world, and the page's small pictures are lent on.
+ */
+export interface PageView {
+  readonly tab: string;
+  readonly scroll: number;
+  readonly inner: readonly InnerScroll[];
+  readonly tall: boolean;
+  readonly openStat: string | null;
+  readonly opened: Set<string>;
+  readonly sorts: Map<string, TableState>;
+  readonly picks: Map<string, number>;
+  readonly tools: Map<string, unknown>;
+}
 /** What following a thing is said as, by its kind. */
 const FOLLOW_WORDS: Readonly<Record<string, string>> = {
   land: "this land",
@@ -123,8 +155,11 @@ export class PageWindow {
   /** How long the last drawing of a page took (ms), its art and all. */
   drawMs = 0;
   private readonly body = el("div", "page-body page");
-  private history: string[] = [];
-  private at = -1;
+  private readonly history = new PageHistory<PageView>(HISTORY);
+  /** The visit whose page stands drawn (none while one is being read: there is nothing of it to keep yet). */
+  private drawn: Visit<PageView> | null = null;
+  /** The hold on a page come back to, let go by the first touch. */
+  private letGo: (() => void) | null = null;
   private page: PageModel | null = null;
   private tab = "";
   private token = 0;
@@ -137,14 +172,14 @@ export class PageWindow {
   private opened = new Set<string>();
   private openStat: string | null = null;
   /** The blocks drawn, by their tab and place, with what each said (to keep what is unchanged). */
-  private blocks = new Map<string, { same: string; element: HTMLElement }>();
+  private blocks: Drawn = new Map();
   /** Each table's sorting and whether it shows every row, kept as the page is read again. */
-  private sorts = new Map<
-    string,
-    { by: number; down: boolean; all: boolean; only?: string | number }
-  >();
+  private sorts = new Map<string, TableState>();
   /** Each series' year picked by a tap, kept as the page is read again. */
   private picks = new Map<string, number>();
+  /** How each tool drawn says it stands (asked as the page is left), and what each said when the page was last left. */
+  private toolReads = new Map<string, () => unknown>();
+  private toolKept = new Map<string, unknown>();
   private readAt = 0;
   private pressing = false;
   tidings: Tidings | null = null;
@@ -271,6 +306,12 @@ export class PageWindow {
     placeActions();
     this.element.append(this.inspector);
     parent.append(this.element);
+    // (Its title stays at its top as it scrolls: what sticks or is scrolled to under it is told how tall it stands.)
+    if (typeof ResizeObserver === "function")
+      new ResizeObserver(() => {
+        const h = this.heading.offsetHeight;
+        if (h) this.inspector.style.setProperty("--page-title-h", `${h}px`);
+      }).observe(this.heading);
     // (Not rebuilt while a finger or the pointer is down on it.)
     this.inspector.addEventListener("pointerdown", () => (this.pressing = true));
     addEventListener("pointerup", () => (this.pressing = false));
@@ -291,29 +332,103 @@ export class PageWindow {
 
   /** The ref of the page open, if one is. */
   get current(): string | null {
-    return this.visible ? (this.history[this.at] ?? null) : null;
+    return this.visible ? (this.history.current?.ref ?? null) : null;
   }
 
   /** Open a thing's page (`ref#tab` opens a tab), after what is open now. */
   async open(ref: string): Promise<void> {
-    if (this.history[this.at] !== ref) {
-      this.history = this.history.slice(0, this.at + 1);
-      this.history.push(ref);
-      if (this.history.length > HISTORY) this.history.shift();
-      this.at = this.history.length - 1;
-    }
-    await this.show(ref, true);
+    const shut = !this.visible,
+      { visit, again } = this.history.open(ref, this.viewNow());
+    // (The page closed and asked for again opens on the tab it was left on, with what was opened on it, from its top;
+    // one asked for by a tab of its own opens on that tab.)
+    const view = again && shut && !ref.includes("#") ? visit.view : null;
+    await this.show(ref, true, view ? { ...view, scroll: 0, inner: [] } : null);
   }
 
-  /** Back (-1) or forward (+1) through what has been looked at. */
+  /** Back (-1) or forward (+1) through what has been looked at: each page as it was left. */
   private async step(way: -1 | 1): Promise<void> {
-    const next = this.at + way;
-    if (next < 0 || next >= this.history.length) return;
-    this.at = next;
-    await this.show(this.history[next]!, true);
+    const visit = this.history.step(way, this.viewNow());
+    if (!visit) return;
+    await this.show(visit.ref, true, visit.view);
+  }
+
+  /** How the open page stands now, to be kept as it is left: nothing while it is still being read. */
+  private viewNow(): PageView | null {
+    if (!this.page || !this.drawn || this.drawn !== this.history.current) return null;
+    const inner: InnerScroll[] = [];
+    this.inspector.querySelectorAll<HTMLElement>("*").forEach((x, at) => {
+      if (x.scrollTop > 0 || x.scrollLeft > 0)
+        inner.push({ at, tag: x.tagName, top: x.scrollTop, left: x.scrollLeft });
+    });
+    // (What the open tab's tools say of themselves; one that cannot say leaves nothing.)
+    const tools = new Map<string, unknown>();
+    for (const [key, read] of this.toolReads) {
+      if (!this.blocks.has(key)) continue;
+      try {
+        const said = read();
+        if (said !== undefined && said !== null) tools.set(key, said);
+      } catch {
+        // (Nothing kept of it.)
+      }
+    }
+    return {
+      tab: this.tab,
+      scroll: this.inspector.scrollTop,
+      inner,
+      tall: this.inspector.classList.contains("tall"),
+      openStat: this.openStat,
+      opened: this.opened,
+      sorts: this.sorts,
+      picks: this.picks,
+      tools,
+    };
+  }
+
+  /**
+   * A page come back to held where it was left: what it draws late (a why read from the host, a tool's rows) lengthens
+   * it after it is drawn, and only then is there that far to scroll. Let go at the first touch, or when another page opens.
+   */
+  private hold(top: number, inner: readonly InnerScroll[]): void {
+    this.letGo?.();
+    const box = this.inspector,
+      token = this.token,
+      place = () => {
+        if (Math.abs(box.scrollTop - top) > 1) box.scrollTop = top;
+        if (!inner.length) return;
+        const all = box.querySelectorAll<HTMLElement>("*");
+        for (const s of inner) {
+          const x = all[s.at];
+          if (!x || x.tagName !== s.tag) continue;
+          if (Math.abs(x.scrollTop - s.top) > 1) x.scrollTop = s.top;
+          if (Math.abs(x.scrollLeft - s.left) > 1) x.scrollLeft = s.left;
+        }
+      };
+    place();
+    // (Left at its top with nothing scrolled in it: there is nothing to hold.)
+    if ((top <= 0 && !inner.length) || typeof ResizeObserver !== "function") return;
+    const touches = ["wheel", "touchstart", "pointerdown", "keydown"] as const,
+      stop = () => {
+        watch.disconnect();
+        clearTimeout(timer);
+        for (const t of touches) box.removeEventListener(t, stop);
+        if (this.letGo === stop) this.letGo = null;
+      },
+      watch = new ResizeObserver(() => {
+        if (token !== this.token) stop();
+        else place();
+      }),
+      timer = window.setTimeout(stop, HOLD_MS);
+    for (const t of touches) box.addEventListener(t, stop, { passive: true });
+    watch.observe(box);
+    watch.observe(this.body);
+    this.letGo = stop;
   }
 
   close(): void {
+    // (How it stood is kept: asked for again, it opens on the tab it was left on.)
+    this.history.keep(this.viewNow());
+    this.drawn = null;
+    this.letGo?.();
     this.setLive(null);
     this.liveMore.replaceChildren();
     this.inspector.hidden = true;
@@ -324,25 +439,43 @@ export class PageWindow {
     this.onClose();
   }
 
-  /** Read a page and draw it (afresh: its first tab; or kept as it was). */
-  private async show(ref: string, fresh: boolean): Promise<void> {
-    const token = ++this.token;
+  /** Read a page and draw it (afresh: its first tab, or as it stood when it was left, `view`; or kept as it is). */
+  private async show(ref: string, fresh: boolean, view: PageView | null = null): Promise<void> {
+    const token = ++this.token,
+      visit = this.history.current;
     this.inspector.hidden = false;
     this.element.hidden = false;
     if (fresh) {
+      this.drawn = null;
+      this.letGo?.();
       this.setLive(null);
       this.liveMore.replaceChildren();
       this.name.textContent = "…";
       this.body.replaceChildren(el("p", "muted", "…"));
     }
-    const page = await this.client.query<PageModel>({
+    let page = await this.client.query<PageModel>({
       type: "page",
       args: { ref, ...this.names?.args() },
     });
     if (token !== this.token) return;
+    // (Left on a tab read only while it is open — the ledger's newer tables: the page is read again with that tab asked.)
+    if (
+      view &&
+      view.tab !== (page.tab ?? page.tabs[0]?.id) &&
+      page.tabs.find((t) => t.id === view.tab)?.later
+    ) {
+      page = await this.client.query<PageModel>({
+        type: "page",
+        args: { ref: `${ref.split("#")[0]}#${view.tab}`, ...this.names?.args() },
+      });
+      if (token !== this.token) return;
+    }
     this.readAt = performance.now();
-    this.draw(page, fresh);
-    if (fresh) this.onOpen(page);
+    this.draw(page, fresh, view);
+    if (fresh) {
+      this.drawn = visit;
+      this.onOpen(page);
+    }
   }
 
   /** Read the open page again as the world runs; redraw only if it says something new. */
@@ -390,14 +523,15 @@ export class PageWindow {
     this.draw(page, false);
   }
 
-  private draw(page: PageModel, fresh: boolean): void {
+  private draw(page: PageModel, fresh: boolean, view: PageView | null = null): void {
     const began = performance.now(),
       scroll = this.inspector.scrollTop;
     this.page = page;
     this.seen = JSON.stringify({ ...page, year: 0 });
     if (fresh) {
       // (A long page to read: it opens tall on a phone.)
-      if (
+      if (view) this.inspector.classList.toggle("tall", view.tall);
+      else if (
         (page.kind === "can" ||
           page.kind === "life" ||
           (/^(board|dear):/.test(page.ref) && !document.body.classList.contains("living"))) &&
@@ -407,12 +541,14 @@ export class PageWindow {
       // (A life's strips stand over the top of the screen: a tall sheet would lie under them, its close with it.)
       if (innerWidth <= 640 && document.body.classList.contains("living"))
         this.inspector.classList.remove("tall");
-      this.tab = page.tab ?? page.tabs[0]?.id ?? "";
-      this.opened = new Set();
-      this.openStat = null;
+      this.tab = view?.tab ?? page.tab ?? page.tabs[0]?.id ?? "";
+      this.opened = view?.opened ?? new Set();
+      this.openStat = view?.openStat ?? null;
       this.blocks = new Map();
-      this.sorts = new Map();
-      this.picks = new Map();
+      this.toolReads = new Map();
+      this.toolKept = new Map(view?.tools ?? []);
+      this.sorts = view?.sorts ?? new Map();
+      this.picks = view?.picks ?? new Map();
     }
     // (The world's own pages — its chronicle, its ledger — open wide, as a ledger does.)
     this.inspector.dataset.kind = page.kind;
@@ -429,8 +565,8 @@ export class PageWindow {
     this.heading.style.borderLeft = page.color
       ? `6px solid rgb(${page.color.map((c) => Math.round(c * 255)).join(",")})`
       : "";
-    this.backButton.disabled = this.at <= 0;
-    this.forwardButton.disabled = this.at >= this.history.length - 1;
+    this.backButton.disabled = !this.history.canBack;
+    this.forwardButton.disabled = !this.history.canForward;
     this.sub.replaceChildren(this.line(page.subtitle));
     this.crumbs.replaceChildren(this.line(page.crumbs ?? []));
     this.crumbs.hidden = !page.crumbs?.length;
@@ -442,6 +578,7 @@ export class PageWindow {
     this.drawTabs(page);
     this.drawBody(page);
     if (!fresh) this.inspector.scrollTop = scroll;
+    else if (view) this.hold(view.scroll, view.inner);
     else this.inspector.scrollTop = 0;
     this.drawMs = performance.now() - began;
   }
@@ -693,8 +830,12 @@ export class PageWindow {
       else this.drawBody(this.page);
       // (On a phone a page's facts fill the screen above its tabs: the row stays in sight, with what it opened under it.)
       const top = sectioned ? this.sections : this.tabs;
+      // (Under its title, which stays at the window's top.)
       this.inspector.scrollTop +=
-        top.getBoundingClientRect().top - this.inspector.getBoundingClientRect().top;
+        top.getBoundingClientRect().top -
+        this.inspector.getBoundingClientRect().top -
+        this.inspector.clientTop -
+        this.heading.offsetHeight;
     };
     const names: string[] = [];
     for (const t of page.tabs) if (t.group && !names.includes(t.group)) names.push(t.group);
@@ -791,6 +932,14 @@ export class PageWindow {
     // (Rested on, on a desk, it tells of its thing in a few words.)
     this.hoverTips?.attach(a, () => this.hoverTips!.tipOf(ref));
     return a;
+  }
+
+  /** What a tool said of itself when its page was last left, given to it once as it is drawn there again. */
+  private keptOf(key: string): { kept?: unknown } {
+    if (!this.toolKept.has(key)) return {};
+    const kept = this.toolKept.get(key);
+    this.toolKept.delete(key);
+    return { kept };
   }
 
   private block(b: Block, key: string): HTMLElement {
@@ -1199,6 +1348,10 @@ export class PageWindow {
             if (ref) void this.show(ref, false);
           },
           open: (ref) => void this.open(ref),
+          // (Come back to: what it said of itself as its page was left, once; and the way to say it again.)
+          ...this.keptOf(key),
+          keep: (read) => this.toolReads.set(key, read),
+          placed: () => this.letGo?.(),
           ...(this.onWatch ? { watch: this.onWatch } : {}),
           ...(this.onLanding ? { landing: this.onLanding } : {}),
           ...(this.onStarFight ? { starFight: this.onStarFight } : {}),

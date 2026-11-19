@@ -46,6 +46,19 @@ export function lineInto(box: HTMLElement, line: Line, open: (ref: string) => vo
   }
 }
 
+/**
+ * How the scroll stood when its page was left (ui/inspector.ts keeps it across back and forward): its filter, its order,
+ * and the year under the bar with how far under it (none where the bar had not yet come to the window's top: the
+ * window's own place says it all there). Years far from the eye keep a guessed height until they are drawn, so how far
+ * down the window was scrolled does not say which year was read.
+ */
+interface YearsKept {
+  readonly kind: number;
+  readonly newest: boolean;
+  readonly year: number | null;
+  readonly off: number;
+}
+
 /** The tab's tool: the bar, and the scroll. */
 export function drawYears(into: HTMLElement, ctx: ToolContext): void {
   const box = el("div", "years"),
@@ -78,9 +91,11 @@ export function drawYears(into: HTMLElement, ctx: ToolContext): void {
   // (The whole of it written out as a file a person can keep: B1.)
   drawWritten(written, ctx.client);
 
+  // (Come back to, not opened to read a year: as it was left.)
+  const was = wanted === null ? ((ctx.kept as YearsKept | undefined) ?? null) : null;
   let index: AnnalsIndex | null = null,
-    kind = -1,
-    newest = true,
+    kind = was?.kind ?? -1,
+    newest = was?.newest ?? true,
     shown: number[] = [],
     pieces: HTMLElement[] = [];
   const scroller = () => box.closest<HTMLElement>(".page-window") ?? document.documentElement;
@@ -253,14 +268,25 @@ export function drawYears(into: HTMLElement, ctx: ToolContext): void {
   /** The bar at the top of the window, with the way to a year under it and then the years. */
   const toTop = () => {
     const root = scroller();
-    // (To where the bar sticks: inside the window's padding, or the way to a year would lie under it.)
+    // (To where the bar sticks: inside the window's padding and under its title, or the way to a year would lie under it.)
     const pad =
       root === document.documentElement ? 0 : parseFloat(getComputedStyle(root).paddingTop) || 0;
-    root.scrollTop += box.getBoundingClientRect().top - root.getBoundingClientRect().top - pad;
+    root.scrollTop +=
+      box.getBoundingClientRect().top - root.getBoundingClientRect().top - pad - under();
+  };
+  /** How far under the window's padding the bar sticks: the window's title stays over it (ui/inspector.ts). */
+  const under = () => {
+    const root = scroller();
+    if (root === document.documentElement) return 0;
+    const title = root.querySelector<HTMLElement>(":scope > h2"),
+      pad = parseFloat(getComputedStyle(root).paddingTop) || 0;
+    return title && getComputedStyle(title).position === "sticky"
+      ? Math.max(0, title.offsetHeight - pad)
+      : 0;
   };
 
   /** To a year, or the nearest with something told. */
-  const toYear = async (year: number) => {
+  const toYear = async (year: number, back?: number) => {
     if (!shown.length) return;
     let best = 0;
     for (let i = 0; i < shown.length; i++)
@@ -270,17 +296,44 @@ export function drawYears(into: HTMLElement, ctx: ToolContext): void {
       piece = pieces[i / PIECE]!,
       root = scroller();
     root.scrollTop +=
-      piece.getBoundingClientRect().top - root.getBoundingClientRect().top - bar.offsetHeight;
+      piece.getBoundingClientRect().top -
+      root.getBoundingClientRect().top -
+      bar.offsetHeight -
+      under();
     await draw(piece, shown.slice(i, i + PIECE));
     const row = list.querySelector<HTMLElement>(`[data-year="${at}"]`);
+    if (row && back !== undefined) {
+      // (Come back to: the year where it stood under the bar, and nothing said of it.)
+      root.scrollTop += row.getBoundingClientRect().top - bar.getBoundingClientRect().bottom - back;
+      return;
+    }
     if (row) {
       root.scrollTop +=
-        row.getBoundingClientRect().top - root.getBoundingClientRect().top - bar.offsetHeight - 4;
+        row.getBoundingClientRect().top -
+        root.getBoundingClientRect().top -
+        bar.offsetHeight -
+        under() -
+        4;
       row.classList.add("here");
       setTimeout(() => row.classList.remove("here"), 2400);
     }
     tell(at === year ? "" : `Nothing is told of ${year}: the nearest is ${at}.`);
   };
+  // How it stands, asked as its page is left.
+  ctx.keep?.((): YearsKept => {
+    const edge = bar.getBoundingClientRect().bottom;
+    let year: number | null = null,
+      off = 0;
+    if (!list.hidden && list.getBoundingClientRect().top < edge)
+      for (const row of list.querySelectorAll<HTMLElement>("[data-year]")) {
+        const r = row.getBoundingClientRect();
+        if (r.bottom <= edge) continue;
+        year = Number(row.dataset.year);
+        off = r.top - edge;
+        break;
+      }
+    return { kind, newest, year, off };
+  });
   const goNow = () => {
     const y = Number(input.value);
     if (input.value.trim() && Number.isFinite(y)) void toYear(Math.round(y));
@@ -336,8 +389,15 @@ export function drawYears(into: HTMLElement, ctx: ToolContext): void {
     words.clear();
     onward.hidden = true;
     lay();
-    // (The years under the eye at once, the page's head above them.)
-    if (first) toTop();
+    // (The years under the eye at once, the page's head above them; come back to, the year that was under the eye, or
+    // where the window stood above them.)
+    if (first && was) {
+      first = false;
+      if (was.year !== null && wanted === null) {
+        ctx.placed?.();
+        await toYear(was.year, was.off);
+      }
+    } else if (first) toTop();
     first = false;
     if (wanted !== null) {
       const y = wanted;

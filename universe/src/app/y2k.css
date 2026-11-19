@@ -555,6 +555,21 @@ body[data-world="methane"][data-scale="ground"]:not([data-daylight]) {
   gap: 5px;
   padding: 5px 6px 5px 6px;
   min-height: 1.4em;
+  /* (Always in reach, wherever the page is scrolled to: back and forward, its name and its close stay at the window's top
+     as the page goes under them — as an event's title does. A page read far down had to be scrolled to its top to go back,
+     and was then left at its top. Its top is the window's padding above where a sticking thing stands. Asked 2026-11-19.) */
+  position: sticky;
+  top: -12px;
+  z-index: 5;
+}
+/* (What is scrolled to in it comes to stand under its title, not behind it: `--page-title-h` is the title's height,
+   ui/inspector.ts. What sticks in a page sticks under the title.) */
+.page-window {
+  scroll-padding-top: var(--page-title-h, 0px);
+}
+.page-window .years-bar,
+.page-window .sides-head {
+  top: calc(var(--page-title-h, 12px) - 12px);
 }
 .page-icon {
   font-size: 1.15rem;
