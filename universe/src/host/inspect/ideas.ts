@@ -333,7 +333,7 @@ export function realmSchoolBlock(world: World, r: Polity): Block | null {
  */
 export function pilgrimageBlock(world: World, of: string): Block | null {
   const p = pilgrimsOf(world)?.get(of as Ref);
-  if (!p) return null;
+  if (!p || !p.pilgrims) return null;
   return {
     type: "facts",
     title: "Pilgrimage",
@@ -366,7 +366,7 @@ export function pilgrimageBlock(world: World, of: string): Block | null {
 export function landPilgrimRows(world: World, cell: number): Stat[] {
   const out: Stat[] = [];
   for (const p of pilgrimsOf(world)?.all() ?? []) {
-    if (p.seat !== cell) continue;
+    if (p.seat !== cell || !p.pilgrims) continue;
     const school = p.of.startsWith("idea:"),
       name = school ? schoolLink(world, schoolId(p.of)) : link(beliefName(world, p.of), p.of);
     out.push(

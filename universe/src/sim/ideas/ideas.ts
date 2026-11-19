@@ -30,6 +30,7 @@ import {
   IDEA,
   IDEA_CALLINGS,
   NOTE,
+  ideaApart,
   ideaCreed,
   ideaLeads,
   ideaSpreads,
@@ -152,6 +153,10 @@ function found(
   const unmet = ideaUnmet(teaching.gap),
     chance = IDEA.found * satOf(standing) * unmet;
   if (!(u < chance) || teaching.creed.every((x) => !x)) return;
+  // (What they would teach is what their land already holds, or near it: they teach that, and found nothing.)
+  const holds = store.of(n.home),
+    heldNow = holds ? store.get(holds.school) : undefined;
+  if (heldNow && ideaApart(teaching.creed, heldNow.creed) < IDEA.apart) return;
   const o = orderOf(world)!.of(realm.ref)!,
     lead = ideaLeads(teaching.creed),
     id = store.mint(),
@@ -351,7 +356,8 @@ export function ideasYear(ctx: PopulationContext, t: SimTime): void {
         creed = s.creed.map((v, k) =>
           teaching ? Math.round((v + teaching.creed[k]!) / 2) : Math.round(v * 0.8),
         );
-      if (creed.every((v, k) => v === s.creed[k])) continue;
+      // (A breaking that would teach all but what its elder does is no breaking.)
+      if (ideaApart(creed, s.creed) < IDEA.apart / 2) continue;
       const id = store.mint(),
         name = schoolName(world, store, creed, first);
       store.markSplit(s.id, year);

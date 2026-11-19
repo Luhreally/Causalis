@@ -47,13 +47,18 @@ export const IDEA = {
   lawPull: 0.5,
   /** A school held in this many lands of speech unlike its seat's, this long since it last split, splits (with one of name: sooner). */
   splitLands: 3,
-  splitYears: 90,
+  splitYears: 150,
   ledLands: 2,
   ledYears: 50,
   /** One who leads a school out stands this many lines high in knowledge. */
   leader: 2,
   /** Speech this unlike the seat's is far. */
   far: 0.72,
+  /**
+   * How far a teaching must lie from the school its land already holds to be a school of its own (hundredths, summed over
+   * the eight leanings): nearer than that, one who would teach it teaches what is held, and founds nothing.
+   */
+  apart: 45,
   /** A world keeps at most this many schools no land holds any more (the oldest forgotten first). */
   keepGone: 60,
 } as const;
@@ -104,6 +109,13 @@ export function ideaCreed(
     out.push(Math.round((want - 1) * IDEA.lawLean * (want === now ? 0.5 : 1)));
   }
   return out;
+}
+
+/** How far two teachings lie apart: the sum of the differences of their eight leanings (hundredths). */
+export function ideaApart(a: readonly number[], b: readonly number[]): number {
+  let d = 0;
+  for (let k = 0; k < IDEA_PARTS; k++) d += Math.abs((a[k] ?? 0) - (b[k] ?? 0));
+  return d;
 }
 
 /** The leaning a school presses hardest: its index (0 … 7) and which end (0 | 1); the first of equals. */
@@ -209,8 +221,12 @@ export const PILGRIM = {
   share: 0.004,
   /** The way's length (km) over which half as many go; over the sea, as if this many times nearer than by land's length. */
   half: 1500,
-  /** The least a year for a pilgrimage to be one; one that stands is kept while a quarter as many still come. */
+  /**
+   * The least a year for a pilgrimage to be one, and the least share of the seat land's own people they must be (a going
+   * its town would notice); one that stands is kept while a quarter as many still come.
+   */
   least: 500,
+  leastShare: 0.003,
   /** What one pilgrim leaves at the seat, in a year's keep of one of its people (a share: some weeks' keep and their gifts). */
   leaves: 0.3,
   /** The most a seat's town gains of its own people's keep from pilgrims. */

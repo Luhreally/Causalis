@@ -12,6 +12,7 @@ import {
   WORK,
   abroadAfter,
   creditLeft,
+  ideaApart,
   ideaCreed,
   ideaLeads,
   ideaSpreads,
@@ -71,6 +72,15 @@ test("a school's leanings are what a group wants and is not given; its name is w
   );
   assert.equal(ideaUnmet(IDEA.unmet), 0);
   assert.equal(ideaUnmet(4 * IDEA.unmet), 1);
+  // (A teaching near what a land already holds is no school of its own.)
+  assert.equal(ideaApart(creed, creed), 0);
+  assert.ok(ideaApart(creed, [0, 0, 0, 0, 0, 0, 0, 0]) >= IDEA.apart);
+  assert.ok(
+    ideaApart(
+      creed,
+      creed.map((v) => v + 2),
+    ) < IDEA.apart,
+  );
 });
 
 test("a school spreads by speech alike, a road, a body that teaches and higher learning, less where word is watched", () => {
@@ -301,6 +311,11 @@ test("the years run on a world with all of it, and a seat pilgrims come to draws
   }
   // (The school set over the realm above has a seat others hold it far from: whether a pilgrimage stands is the world's.)
   for (const p of pilgrims.all()) {
+    // (One that no longer comes is kept stilled, so that its coming again is not told as its first.)
+    if (!p.pilgrims) {
+      assert.equal(pilgrimFeed(world, p.seat) > PILGRIM.most, false);
+      continue;
+    }
     assert.ok(p.pilgrims >= PILGRIM.least / 4 && p.lands >= 1 && p.ways.length <= PILGRIM.ways);
     assert.ok(pilgrimFeed(world, p.seat) > 0 && pilgrimFeed(world, p.seat) <= PILGRIM.most);
   }

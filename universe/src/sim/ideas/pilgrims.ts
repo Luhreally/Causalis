@@ -85,11 +85,24 @@ export function pilgrimsYear(ctx: PopulationContext, t: SimTime): void {
         Math.min(0.5, 2 * readersOf(world, p.cell) + (taughtIn(world, p.cell) ? 0.05 : 0)),
       );
   }
-  // What stands, moved; what no longer comes, let go; what is new, told.
-  for (const p of store.all())
-    if ((sums.get(p.of)?.pilgrims ?? 0) < PILGRIM.least / 4) store.drop(p.of);
+  // What stands, moved; what no longer comes, stilled (kept, so that its coming again is not told as its first); what is new, told.
+  const enough = (s: Sum, stands: boolean): boolean => {
+    const least = Math.max(
+      PILGRIM.least,
+      PILGRIM.leastShare * (ctx.provinces.get(s.seat)?.total() ?? 0),
+    );
+    return s.pilgrims >= (stands ? least / 4 : least);
+  };
+  for (const p of store.all()) {
+    const s = sums.get(p.of);
+    if (s && enough(s, p.pilgrims > 0)) continue;
+    p.pilgrims = 0;
+    p.lands = 0;
+    p.feed = 0;
+    p.ways = [];
+  }
   for (const [of, s] of [...sums].sort((a, b) => (a[0] < b[0] ? -1 : 1))) {
-    if (s.pilgrims < (store.get(of) ? PILGRIM.least / 4 : PILGRIM.least)) continue;
+    if (!enough(s, (store.get(of)?.pilgrims ?? 0) > 0)) continue;
     const ways = s.ways.sort((a, b) => b[1] - a[1] || a[0] - b[0]).slice(0, PILGRIM.ways),
       feed = Math.round(1000 * pilgrimsFeed(s.pilgrims, ctx.provinces.get(s.seat)?.total() ?? 0)),
       was = store.get(of);
