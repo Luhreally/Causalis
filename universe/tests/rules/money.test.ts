@@ -19,6 +19,8 @@ import {
   moneyGood,
   naturalPrices,
   organised,
+  MONEY,
+  notesRenewed,
   priceLevel,
   priceTarget,
   rentOf,
@@ -243,4 +245,18 @@ test("bondage: scarce hands, arms that hold and a law that allows bind; plenty, 
   assert.ok(bindPull({ ...scarce, power: 0.05 }).share < bound / 2);
   assert.ok(bindPull({ ...scarce, open: 2 }).share < bound);
   assert.equal(bindPull({ ...scarce, law: 0 }).share, 0);
+});
+
+test("notes whose prices have run past a thousand for a grain's worth are called in, a thousand old for one new; coin never", () => {
+  assert.equal(notesRenewed("paper", 999), 1);
+  assert.equal(notesRenewed("paper", MONEY.renew), 1);
+  assert.equal(notesRenewed("paper", 1001), MONEY.renew);
+  assert.equal(notesRenewed("credit", 5e8), MONEY.renew);
+  assert.equal(notesRenewed("metal", 5e8), 1);
+  assert.equal(notesRenewed("barter", 5e8), 1);
+  // (The same money in a new unit: what a stock of it buys is as it was.)
+  const level = 4200,
+    stock = 9e9,
+    old = notesRenewed("paper", level);
+  assert.equal(stock / old / (level / old), stock / level);
 });

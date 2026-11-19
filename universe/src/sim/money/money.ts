@@ -43,6 +43,7 @@ import {
   moneyForm,
   moneyGood,
   organised,
+  notesRenewed,
   priceLevel,
   rentOf,
   sanctionWanted,
@@ -120,6 +121,8 @@ export const MONEY_EVENTS = {
   debased: defineEventType("money.debased", 3),
   /** Prices rose a tenth or more in a year. */
   dearer: defineEventType("money.dearer", 2),
+  /** Its notes called in for new ones, so many old for one new. */
+  renewed: defineEventType("money.renewed", 3),
   /** A realm first laid a tax on a base. */
   taxed: defineEventType("money.taxed", 2),
   /** A realm first laid a tariff of a tenth or more; first shut its trade with a realm it fears. */
@@ -553,6 +556,16 @@ export function coinYear(ctx: PopulationContext, t: SimTime): void {
     // a new unit, and no year of it is a rise.)
     const sameMoney = wasForm === form && (form !== "metal" || !was || was[COIN.good] === good),
       inflation = sameMoney && before > 0 ? dmath.clamp(level / before - 1, -0.9, 9) : 0;
+    // Notes whose prices have run past MONEY.renew of them for a grain's worth are called in for new ones, MONEY.renew old for one
+    // new: the same money counted in a new unit, so nothing it buys or owes moves. (Without it a realm that printed in its lean
+    // years for centuries counted its prices up to the most this row holds and stayed there, its page reading a thousand million
+    // of its money for a grain's worth and no rise ever told again: half of first light's realms by 1,500, gl.mts.)
+    const old = notesRenewed(form, level);
+    if (old > 1) {
+      level /= old;
+      stock /= old;
+      tell(ctx, MONEY_EVENTS.renewed.type, p, { form, old });
+    }
     let toldFine = was ? was[COIN.toldFine]! : 1e6;
     // Told: a new money; a coin debased (or notes printed) by a fifth since last told; prices risen a tenth in a year.
     let forms = was ? was[COIN.forms]! : 0;

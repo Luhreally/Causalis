@@ -44,6 +44,10 @@ registerEventWords(MONEY_EVENTS.dearer.type, (_w, e) => {
   const d = e.data as { realm?: string; rise?: number } | null;
   return `Prices in ${d?.realm ?? "a realm"} rose ${d?.rise ?? 0} in a hundred in a year, ${year(e.t)}`;
 });
+registerEventWords(MONEY_EVENTS.renewed.type, (_w, e) => {
+  const d = e.data as { realm?: string; old?: number } | null;
+  return `${realm(d)} called in its notes for new ones, ${count(d?.old ?? 1000)} old for one new, ${year(e.t)}`;
+});
 registerEventWords(MONEY_EVENTS.taxed.type, (_w, e) => {
   const d = e.data as { realm?: string; base?: TaxBase; rate?: number } | null;
   return `${realm(d)} first taxed ${TAX_WORDS[d?.base ?? "trade"]}, at ${d?.rate ?? 0} in a hundred, ${year(e.t)}`;

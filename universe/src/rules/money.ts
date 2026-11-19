@@ -338,6 +338,9 @@ export const MONEY = {
   multiplier: 4,
   /** Prices rising this fast a year are told. */
   told: 0.1,
+  /** Notes are called in for new ones when a grain's worth costs more than this many of them: so many old for one new (est: Earth's
+   * redenominations struck three to six noughts off; a thousand is the least of them). */
+  renew: 1000,
 } as const;
 
 /**
@@ -364,6 +367,14 @@ export function priceLevel(
   if (form === "barter") return 1;
   if (form === "metal") return 1 / Math.max(1e-6, q.fine * q.metalWorth);
   return (q.stock * q.velocity) / Math.max(1, q.made);
+}
+
+/**
+ * How many old notes a realm calls in for one new this year (1: none): MONEY.renew of them once a grain's worth costs more than
+ * that many. Only notes and lenders' claims: a coin is worth its metal, and is debased, not renamed.
+ */
+export function notesRenewed(form: MoneyForm, level: number): number {
+  return (form === "paper" || form === "credit") && level > MONEY.renew ? MONEY.renew : 1;
 }
 
 // —— 3. Public finance ——————————————————————————————————————————————————————————————————————————————————
