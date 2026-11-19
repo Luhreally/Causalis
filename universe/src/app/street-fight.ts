@@ -2,8 +2,10 @@
 // recorded but i cant watch?"). Its words asked of the host (host/inspect/streetfight.ts), the town gone down to, its sides armed
 // as the town's war arms its hosts (in their colours, with what they carry), and its scene drawn by view/streetfight.ts on a clock
 // of its own: the world's clock held, the town's hour at night or dusk, those at their ease going in as it begins, a crowd come to
-// the fallen after. The eye close and low, going from clash to clash; its sound low and tense; its colours graded cold. Nothing
-// here writes to history.
+// the fallen after. The eye on one clash at a time: first all of it, fitted to the screen left free, then nearer, and over to the
+// next only once this one is decided (view/street-shots.ts; 2026-11-19: "the gang war camreas i guess move too fast between
+// battles like i cant see the whole scene"). The hand is the watcher's: a tap or Space holds it, ⏮ and ⏭ go to the clash before
+// and the next. Its sound low and tense; its colours graded cold. Nothing here writes to history.
 import "./street-fight.css";
 import { sound } from "./sound.ts";
 import type { HostClient, StreetFight, VillagePlan } from "../bridge/index.ts";
@@ -33,6 +35,14 @@ import {
   streetEye,
   streetScript,
   type StreetScript,
+  NEARER,
+  clashBounds,
+  clashFacing,
+  fitEye,
+  shotStarts,
+  shotStep,
+  travelSeconds,
+  type EyeFrame,
   type TownWar,
   type TownWarScene,
 } from "../view/index.ts";
@@ -60,8 +70,10 @@ export type StreetFilm = {
   readonly holds: boolean;
   /** The world's moment the town is drawn at, given the world's own. */
   seen(t: number): number;
-  /** Space and the numbers work its own clock, as a battle's. */
+  /** Space and the numbers work its own clock, as a battle's. (A tap on the scene holds it and lets it go, as Space does.) */
   readonly keys: { toggle(): void; pick(i: number): boolean };
+  /** To the next clash of it, or the one before (a few seconds into one: that one from its beginning). */
+  go(dir: 1 | -1): void;
   /** Its fill of light on or off (the look tools: to measure what it does). */
   light(on: boolean): void;
   /** To a second of it (the look tools). */
@@ -70,6 +82,17 @@ export type StreetFilm = {
   views(): { why: string; from: number; yaw: number; pitch: number; clear: boolean }[];
   /** Whether those at their ease are indoors now (a clash begun). */
   readonly indoors: boolean;
+  /**
+   * What of it the eye has now (the look tools): the clash it is on, and for each clash those of both sides by it now and how
+   * many of them stand whole (feet and head) in the screen left free above its caption.
+   */
+  frame(): {
+    on: number;
+    wide: boolean;
+    flying: boolean;
+    fits: boolean;
+    clashes: { from: number; to: number; there: number; inside: number }[];
+  };
   /** The film as it stands, as plain numbers (a gate or a test reads it). */
   state(): {
     event: string | null;
@@ -117,12 +140,22 @@ const setText = (node: HTMLElement, text: string) => {
   if (node.textContent !== text) node.textContent = text;
 };
 
-/** How close and low the eye is on a clash (the rig's units, degrees), and how long it takes going from one to the next (s). */
 const SPEED_WORDS = ["❚❚", "½×", "1×", "2×", "4×"] as const;
 /** The fill of light a fight in the streets is seen by: what stands in a street's shade keeps its colours. */
 const FILL = 0.3;
+/** How far off the eye follows a squad on its way (the rig's units), and how long each step of following takes (s). */
 const EYE_DISTANCE = 7.8,
   EYE_GOES = 1.3;
+/**
+ * A clash fitted to the screen: how tall one of its men is drawn (metres: larger than life, as the town draws its people), how
+ * high the eye's mark is, the nearest the eye stands on all of it and on those fighting, and how much of the free screen each
+ * takes (the street they hold is seen about them at first).
+ */
+const MAN_HIGH = 6.5,
+  MAN_ABOUT = 3.5,
+  EYE_LEVEL = 1.2,
+  WHOLE = { min: 58, side: 0.78, pad: 0.1 },
+  NEAR = { min: 44, side: 0.94, pad: 0.04 };
 /** The burying after: how long it is watched (s), the world's seconds a second of it, how far off the eye stands. */
 const BURY_LASTS = 26,
   BURY_PACE = 18,
@@ -148,13 +181,22 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
     course = el("div", "street-course"),
     fill = el("div", "street-course-fill"),
     again = el("button", "street-again", "↺"),
+    // (Plain marks: a phone draws ⏮ and ⏭ as coloured pictures.)
+    before = el("button", "street-before", "«"),
+    next = el("button", "street-next", "»"),
+    track = el("div", "street-track"),
     page = el("button", "street-page", "Its page ›"),
     done = el("button", "street-done", "✕");
   again.title = "From its beginning";
   page.title = "Its page: who, what it cost, and what came of it";
   done.title = "Back to the town as it stands";
+  before.title = "The clash before (a few seconds into one: that one again). [";
+  before.setAttribute("aria-label", "The clash before");
+  next.title = "The next clash. ]";
+  next.setAttribute("aria-label", "The next clash");
   void speeds;
-  course.append(fill);
+  track.append(fill);
+  course.append(track);
   course.setAttribute("role", "slider");
   course.setAttribute("aria-label", "Its course");
   course.title = "Draw it back and forth: any moment of it";
@@ -165,8 +207,9 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
   words.append(title, where, tally);
   setText(page, "›");
   page.setAttribute("aria-label", "Its page");
-  bar.append(again, ...speedButtons, page, done);
-  ui.append(words, course, bar);
+  // (Its course between ⏮ and ⏭ on a phone held upright, a row of its own; where there is width, over one row of them all.)
+  bar.append(before, course, next, again, ...speedButtons, page, done);
+  ui.append(words, bar);
   // (A small flag over each side where the eye is, in its colour and the caption's chip's.)
   const flags = [0, 1].map(() => {
     const flag = el("div", "street-flag");
@@ -187,6 +230,10 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
     was = 2,
     scene: TownWarScene | null = null,
     eyeKey = "",
+    // (The eye set where it stands at once, not flown: as the film begins. The clash it is on, and its turn and tilt there.)
+    eyeCut = false,
+    stood: { clash: number; yaw: number; pitch: number } | null = null,
+    eyeFits = true,
     heard: readonly number[] = [0, 0],
     crowd = 0,
     caught = 0,
@@ -266,6 +313,8 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
     s = 0;
     setSpeed(2);
     eyeKey = "";
+    eyeCut = true;
+    stood = null;
     heard = [0, 0];
     blowAt = 0;
     crowd = 0;
@@ -331,6 +380,117 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
     if (fight) d.openPage(fight.page);
   };
   done.onclick = () => stop();
+  /**
+   * To the next clash or the one before: the eye goes over, eased, held or not. (Held, to where its men have come and stand
+   * off, so what is held is the clash and not the street before anyone is in it.)
+   */
+  const go = (dir: 1 | -1) => {
+    if (!playing || !script) return;
+    const starts = shotStarts(script),
+      to =
+        s > script.end
+          ? dir < 0
+            ? (starts[starts.length - 1] ?? 0)
+            : null
+          : shotStep(script, s, dir, speed === 0);
+    if (to !== null) seek(to);
+  };
+  before.onclick = () => go(-1);
+  next.onclick = () => go(1);
+  addEventListener("keydown", (e) => {
+    if (!playing || e.ctrlKey || e.metaKey || e.altKey) return;
+    const on = e.target as HTMLElement | null;
+    if (on && (on.tagName === "INPUT" || on.tagName === "TEXTAREA" || on.isContentEditable)) return;
+    if (e.key === "[") go(-1);
+    else if (e.key === "]") go(1);
+  });
+
+  /** The eye's field at a turn and tilt, and the screen left free to it: above the caption, under the corner's button. */
+  const eyeFrame = (yaw: number, pitch: number, wide: boolean): EyeFrame => {
+    const cam = d.stage.camera.camera,
+      h = Math.max(1, innerHeight),
+      top = ui.getBoundingClientRect().top,
+      how = wide ? WHOLE : NEAR;
+    return {
+      yaw,
+      pitch,
+      tan: Math.tan((((cam?.fov ?? 45) * Math.PI) / 180) * 0.5),
+      aspect: innerWidth / h,
+      lo: Math.min(0.2, -1 + (2 * (h - top)) / h + how.pad),
+      hi: Math.max(0.4, 1 - (2 * 52) / h - how.pad),
+      side: how.side,
+      high: MAN_HIGH,
+      about: MAN_ABOUT,
+      level: EYE_LEVEL,
+      // (On a short screen, a phone on its side, as near again as it is shorter: its men no smaller than on a tall one.)
+      min: how.min * Math.max(0.5, Math.min(1, h / 900)),
+      max: rig.limits.max / VILLAGE_METRE,
+    };
+  };
+  /**
+   * Where the eye stands on a clash: all of it (or all of those fighting, nearer) fitted to the screen left free. Its turn and
+   * tilt chosen once for a clash — across the way its sides face, with no block before the place or the furthest of its men —
+   * and kept as it goes nearer.
+   */
+  const standOn = (p: VillagePlan, sc: StreetScript, clash: number, wide: boolean) => {
+    const pts = clashBounds(sc, clash, wide);
+    if (!stood || stood.clash !== clash) {
+      const all = clashBounds(sc, clash, true),
+        mid = { x: 0, z: 0 };
+      for (const q of all) {
+        mid.x += q.x / all.length;
+        mid.z += q.z / all.length;
+      }
+      // (The furthest of them each way.)
+      const ends = [
+          all.reduce((a, q) => (q.x < a.x ? q : a)),
+          all.reduce((a, q) => (q.x > a.x ? q : a)),
+          all.reduce((a, q) => (q.z < a.z ? q : a)),
+          all.reduce((a, q) => (q.z > a.z ? q : a)),
+        ],
+        across = clashFacing(sc, clash);
+      let v = streetView(p, mid, EYE_DISTANCE / VILLAGE_METRE, across, ends);
+      // (Its stand chosen again at how far off it truly is: the line from there is the clear one.)
+      for (let turn = 0; turn < 2; turn++)
+        v = streetView(p, mid, fitEye(all, eyeFrame(v.yaw, v.pitch, true)).distance, across, ends);
+      stood = { clash, yaw: v.yaw, pitch: v.pitch };
+    }
+    const fit = fitEye(pts, eyeFrame(stood.yaw, stood.pitch, wide));
+    eyeFits = fit.fits;
+    return {
+      target: { x: fit.target.x * VILLAGE_METRE, y: 0.12, z: fit.target.z * VILLAGE_METRE },
+      distance: fit.distance * VILLAGE_METRE,
+      pitch: stood.pitch,
+      yaw: stood.yaw,
+    };
+  };
+  /** Where the eye stands by a squad on its way: near, its place brought up into the screen left free above the caption. */
+  const standBy = (p: VillagePlan, at: { x: number; z: number }) => {
+    // The eye's mark so much nearer itself as half the caption's share of the eye's field, at this height. The eye then stands
+    // that much further from the place: its stand is chosen again with that, so the line from where it truly stands is the clear one.
+    const cam = d.stage.camera.camera,
+      fov = ((cam?.fov ?? 45) * Math.PI) / 180,
+      covered = ui.getBoundingClientRect().height / Math.max(1, innerHeight),
+      far = EYE_DISTANCE / VILLAGE_METRE,
+      nearAt = (pitch: number) =>
+        (far * Math.tan((fov * covered) / 2)) / Math.max(0.3, Math.sin((-pitch * Math.PI) / 180));
+    let v = streetView(p, at, far),
+      near = nearAt(v.pitch);
+    for (let turn = 0; turn < 2; turn++) {
+      v = streetView(p, at, far + near / Math.max(0.2, Math.cos((v.pitch * Math.PI) / 180)));
+      near = nearAt(v.pitch);
+    }
+    return {
+      target: {
+        x: (at.x + Math.sin((v.yaw * Math.PI) / 180) * near) * VILLAGE_METRE,
+        y: 0.12,
+        z: (at.z + Math.cos((v.yaw * Math.PI) / 180) * near) * VILLAGE_METRE,
+      },
+      distance: EYE_DISTANCE,
+      pitch: v.pitch,
+      yaw: v.yaw,
+    };
+  };
 
   /** History's dead of a side, as many of its fallen figures have fallen by now. */
   const told = (f: StreetFight, sc: StreetScript, by: readonly number[]): number[] =>
@@ -359,6 +519,7 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
     fill.style.width = `${((s / Math.max(1, whole())) * 100).toFixed(1)}%`;
     // After it: the town's burying, by its own road to its graveyard (Phase 43), where it has one.
     if (s > script.end && burying) {
+      next.disabled = true;
       scene = streetAt(script, slots, -100);
       shown = scene;
       for (const flag of flags) flag.hidden = true;
@@ -393,76 +554,35 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
     }
     document.body.dataset.street = fight.kind;
     scene = streetAt(script, slots, s, p);
-    // The eye close on the clash now, from one to the next: from the side with no block between, higher where it must be.
+    // The eye: on one clash until it is decided and a breath more (view/street-shots.ts). First all of it, fitted to the screen
+    // left free; then nearer, still all of those in it; then over to the next, eased, as long on its way at any speed as can be
+    // followed. (A squad on its way is followed near, step by step.)
     const eye = streetEye(script, s),
-      key = eye ? `${Math.round(eye.at.x / 4)}:${Math.round(eye.at.z / 4)}` : "";
-    // (Chosen once both sides are by it, so its side is the one both are seen from; before that, by the place alone.)
-    const both = eye
-      ? [0, 1].every((side) =>
-          scene!.soldiers.some(
-            (q) =>
-              q.side === side && q.size > 0.5 && Math.hypot(q.x - eye.at.x, q.z - eye.at.z) < 16,
-          ),
-        )
-      : false;
-    if (eye && `${key}${both ? "+" : ""}` !== eyeKey && !rig.steering) {
-      eyeKey = `${key}${both ? "+" : ""}`;
-      // Its place brought up into the screen left free above its caption: the eye's mark so much nearer itself as half the
-      // caption's share of the eye's field, at this height. The eye then stands that much further from the place: its stand
-      // is chosen again with that, so the line from where it truly stands to the place is the clear one.
-      const cam = d.stage.camera.camera,
-        fov = ((cam?.fov ?? 45) * Math.PI) / 180,
-        covered = ui.getBoundingClientRect().height / Math.max(1, innerHeight),
-        far = EYE_DISTANCE / VILLAGE_METRE,
-        nearAt = (pitch: number) =>
-          (far * Math.tan((fov * covered) / 2)) / Math.max(0.3, Math.sin((-pitch * Math.PI) / 180));
-      // (The way its two sides face each other there: from the one's men to the other's.)
-      const mean = [0, 1].map((side) => {
-          let x = 0,
-            z = 0,
-            m = 0;
-          for (const q of scene!.soldiers)
-            if (
-              q.side === side &&
-              q.size > 0.5 &&
-              Math.hypot(q.x - eye.at.x, q.z - eye.at.z) < 16
-            ) {
-              x += q.x;
-              z += q.z;
-              m++;
-            }
-          return m ? { x: x / m, z: z / m } : null;
-        }),
-        across =
-          mean[0] && mean[1] && Math.hypot(mean[1].x - mean[0].x, mean[1].z - mean[0].z) > 0.5
-            ? (Math.atan2(mean[1].x - mean[0].x, mean[1].z - mean[0].z) * 180) / Math.PI
-            : undefined;
-      let v = streetView(p, eye.at, far, across),
-        near = nearAt(v.pitch);
-      for (let turn = 0; turn < 2; turn++) {
-        v = streetView(
-          p,
-          eye.at,
-          far + near / Math.max(0.2, Math.cos((v.pitch * Math.PI) / 180)),
-          across,
-        );
-        near = nearAt(v.pitch);
-      }
-      rig.flyTo(
-        {
-          // (On a tall screen its caption stands over the lower third: the place looked at brought up the screen, the eye's mark a little nearer itself.)
-          target: {
-            x: (eye.at.x + Math.sin((v.yaw * Math.PI) / 180) * near) * VILLAGE_METRE,
-            y: 0.12,
-            z: (eye.at.z + Math.cos((v.yaw * Math.PI) / 180) * near) * VILLAGE_METRE,
-          },
-          distance: EYE_DISTANCE,
-          pitch: v.pitch,
-          yaw: v.yaw,
-        },
-        EYE_GOES,
-      );
+      key = !eye
+        ? ""
+        : eye.clash !== undefined
+          ? `c${eye.clash}${eye.wide ? "w" : "n"}`
+          : `p${Math.round(eye.at.x / 4)}:${Math.round(eye.at.z / 4)}`;
+    if (eye && key !== eyeKey && !rig.steering) {
+      const same = eye.clash !== undefined && stood?.clash === eye.clash,
+        to =
+          eye.clash !== undefined
+            ? standOn(p, script, eye.clash, eye.wide === true)
+            : standBy(p, eye.at);
+      if (eye.clash === undefined) stood = null;
+      eyeKey = key;
+      if (eyeCut) {
+        eyeCut = false;
+        rig.halt();
+        rig.yaw = to.yaw;
+        rig.pitch = to.pitch;
+        rig.distance = to.distance;
+        rig.target.set(to.target.x, to.target.y, to.target.z);
+        rig.userZoomed = true;
+      } else
+        rig.flyTo(to, eye.clash === undefined ? EYE_GOES : same ? NEARER : travelSeconds(pace));
     }
+    next.disabled = shotStep(script, s, 1) === null;
     // Its sound: a man down, low and near; iron or a shot where a clash begins.
     const by = fallenBy(script, s);
     // (Where they are drawn as a battle's men, each blow that fells one is heard as a battle's is, below.)
@@ -531,7 +651,10 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
       s >= script.quiet
         ? `${fight.words.cost}. ${fight.words.effect}.`
         : eye
-          ? `Year ${fight.year}, late in the day in ${fight.townName}: ${eye.why === "post" ? "soldiers going into its quarter, street by street" : SPOT_WORDS[eye.why]}`
+          ? eye.why === "post"
+            ? `Year ${fight.year}, late in the day in ${fight.townName}: soldiers going into its quarter, street by street`
+            : // (Which of its clashes this is comes first: on a phone its words are two lines until they are tapped.)
+              `${script.clashes.length > 1 ? `Clash ${(eye.clash ?? 0) + 1} of ${script.clashes.length}, ` : ""}${SPOT_WORDS[eye.why]} in ${fight.townName}, late in the day, year ${fight.year}`
           : `Year ${fight.year}, late in the day in ${fight.townName}. ${fight.words.what}.`,
     );
     const hurt = drawn?.hurt ? drawn.hurt[0] + drawn.hurt[1] : 0,
@@ -597,6 +720,7 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
       d.stage.fill = on ? FILL : 0;
     },
     seek,
+    go,
     keys: {
       toggle: () => setSpeed(speed === 0 ? was : 0),
       pick: (i: number) => {
@@ -617,6 +741,28 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
     },
     get indoors() {
       return playing && !!script && s <= script.end && script.clashes.some((c) => c.from - 2 <= s);
+    },
+    frame() {
+      const eye = script ? streetEye(script, s) : null,
+        top = ui.getBoundingClientRect().top,
+        seen = (q: { x: number; z: number }) =>
+          [0, MAN_HIGH].every((high) => {
+            const at = village.screenOf(q.x, q.z, high);
+            return !!at && at.x >= 0 && at.x <= innerWidth && at.y >= 0 && at.y <= top;
+          });
+      return {
+        on: eye?.clash ?? -1,
+        wide: eye?.wide === true,
+        flying: rig.flying,
+        fits: eyeFits,
+        clashes: (script?.clashes ?? []).map((c, k) => {
+          const there = (script?.figures ?? [])
+            .filter((g) => g.clash === k && g.slot < slots)
+            .map((g) => scene?.soldiers[g.side * slots + g.slot])
+            .filter((q): q is NonNullable<typeof q> => !!q && q.size > 0.5);
+          return { from: c.from, to: c.to, there: there.length, inside: there.filter(seen).length };
+        }),
+      };
     },
     state() {
       const sc = script,

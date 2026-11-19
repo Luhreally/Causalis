@@ -1308,6 +1308,26 @@ export {
   type StreetScript,
 } from "./streetfight.ts";
 export {
+  LINGER,
+  NEARER,
+  STAND_OFF,
+  TRAVEL,
+  WIDE_MORE,
+  clashBounds,
+  clashFacing,
+  clashFought,
+  eyeSees,
+  fitEye,
+  nextClashFrom,
+  shareSeen,
+  shotStarts,
+  shotStep,
+  streetShot,
+  travelSeconds,
+  type EyeFit,
+  type EyeFrame,
+} from "./street-shots.ts";
+export {
   GOING_ICON,
   LIFE_HOURS,
   goingHeld,

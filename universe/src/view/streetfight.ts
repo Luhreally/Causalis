@@ -34,6 +34,7 @@ import {
   type TrooperNow,
 } from "./battle.ts";
 import { newBlows, type Blows } from "./blows.ts";
+import { STAND_OFF, TRAVEL, clashFought, nextClashFrom, streetShot } from "./street-shots.ts";
 import type { PlacedFrame, Watcher } from "./placed.ts";
 import type { TownWarScene } from "./townwar.ts";
 import type { Soldier } from "./war.ts";
@@ -58,14 +59,12 @@ export const SPOT_WORDS: Readonly<Record<SpotWhy, string>> = {
 /** How far a figure keeps off the walls on its way (metres); how far apart two places are at the least. */
 const REACH = 0.6,
   APART = 14;
-/** Seconds: a figure's coming to its place, a clash's length (at the least, and more by a draw), the time between clashes. */
-const COMES = 3.2,
-  CLASH = 9,
-  CLASH_MORE = 5,
-  EVERY = 6.5;
-/** A survivor's going after its clash (seconds), and how long the scene holds on what is left after the last (seconds). */
-/** How long the two sides stand off at a place before they close (seconds). */
-const STAND_OFF = 2.6;
+/**
+ * Seconds: a figure's coming to its place. (A clash's length and the time between two are the eye's rules, view/street-shots.ts:
+ * one at a time, each as long as what happens in it, the next begun once this one is decided and the eye has gone over. They
+ * began every six or seven seconds and lasted nine to fourteen, so the eye left each while it was fought: 2026-11-19.)
+ */
+const COMES = 3.2;
 /** A man's reach about him (metres, as the town draws its people: larger than life; no two stand nearer than twice it); an arm's length between two who fight; pairs so far apart, so many abreast; how far back each stands off first. */
 export const BODY = 0.5;
 const ARM = 1.7,
@@ -86,8 +85,11 @@ const PACE = 2.6,
 export const DUSK = 0.705;
 /** The most of a side at a year's preying on a road or a coast: a few, at one place. */
 const RAID_MOST = 9;
-const MOST_SPOTS = 8,
+const MOST_MET = 4;
+const MOST_SPOTS = 6,
   DRAWN = 0.8;
+/** How many of both sides a clash is made of, about: enough at each for it to be worth the eye's stay. */
+const TO_A_CLASH = 8;
 
 /** One man of it, as the scene moves him. */
 export type StreetFigure = {
@@ -108,6 +110,8 @@ export type StreetFigure = {
   /** When he falls (null: he lives), and when he goes back the way he came (null: he holds his place to the end). */
   readonly falls: number | null;
   readonly leaves: number | null;
+  /** Which of the scene's clashes he is in (absent: none; he holds a post no one comes to). */
+  readonly clash?: number;
 };
 
 export type StreetClash = {
@@ -340,19 +344,27 @@ function coreScript(f: StreetFight, plan: VillagePlan, slots: number): Core {
   // Turf and street: so many small clashes over the places, a few men of each side at each.
   const n = Math.max(
       1,
-      Math.min(MOST_SPOTS, spots.length, drawn[0], drawn[1], Math.ceil((drawn[0] + drawn[1]) / 6)),
+      Math.min(
+        MOST_SPOTS,
+        spots.length,
+        drawn[0],
+        drawn[1],
+        Math.ceil((drawn[0] + drawn[1]) / TO_A_CLASH),
+      ),
     ),
     order = [...spots.keys()],
     each: number[][] = [[], []];
-  for (let k = 0; k < n; k++) {
-    const spot = spots[order[k % order.length]!]!,
-      from = 2 + k * EVERY + u(10 + k) * 1.5,
-      to = from + CLASH + u(30 + k) * CLASH_MORE;
-    clashes.push({ spot, from, to });
-  }
   // (Each side's men dealt out over the clashes from a drawn start; its fallen spread the same way.)
   for (const side of [0, 1] as const)
     for (let m = 0; m < drawn[side]; m++) each[side]!.push((m + Math.floor(u(50 + side) * n)) % n);
+  // (One clash at a time, each as long as what happens in it: the next begins once this one is decided and the eye has gone over.)
+  for (let k = 0, at = 2 + u(10) * 1.5; k < n; k++) {
+    const spot = spots[order[k % order.length]!]!,
+      there = each[0]!.filter((c) => c === k).length + each[1]!.filter((c) => c === k).length,
+      to = at + STAND_OFF + clashFought(there, falls[0] + falls[1] > 0) + u(30 + k);
+    clashes.push({ spot, from: at, to });
+    at = nextClashFrom(to);
+  }
   const last = clashes.length - 1;
   for (const side of [0, 1] as const) {
     const sign = side === 0 ? 1 : -1,
@@ -395,8 +407,8 @@ function coreScript(f: StreetFight, plan: VillagePlan, slots: number): Core {
           z: c.spot.z + ax * across + az * sign * deep,
         },
         place = { x: meet.x + ax * sign * OFF, z: meet.z + az * sign * OFF };
-      standClear(plan, meet);
-      standClear(plan, place);
+      standNear(plan, meet, c.spot);
+      standNear(plan, place, meet);
       const path = [...base.slice(0, -1), place],
         // (In file down the street: each a step behind the one before.)
         late = Math.min(2.2, rank * FILE),
@@ -419,6 +431,7 @@ function coreScript(f: StreetFight, plan: VillagePlan, slots: number): Core {
           : null,
         // (The winner's men at the last of it hold their ground; the rest go back the way they came.)
         leaves: falling || winner ? null : c.to,
+        clash: k,
       });
     }
   }
@@ -490,14 +503,22 @@ function armyScript(
   });
   // (Where the group's men meet them: at the posts, a clash at each in turn once it is held, as many as the dead told need.)
   // (Where the group's men meet them: at so many posts as there are three of its men for, the nearest the road in first.)
-  const meets = Math.max(1, Math.min(take.length, Math.ceil(drawn[1] / 3)));
-  for (let j = 0; j < meets; j++) {
-    const from = times[j]!.arrive + 2 + u(900 + j) * 2;
-    clashes.push({
-      spot: { x: take[j]!.x, z: take[j]!.z, why: "crossing" },
-      from,
-      to: from + (falls[0] + falls[1] > 0 ? CLASH + u(910 + j) * CLASH_MORE : 6),
-    });
+  // (At four posts at the most: each clash is looked at to its end, one after another, and the film is not to drag.)
+  const meets = Math.max(1, Math.min(take.length, MOST_MET, Math.ceil(drawn[1] / 3)));
+  // (One at a time, as the eye goes, the post first held first: the next begins once this one is decided and the eye has
+  // gone over. `clashAt`: a post's clash; `postAt`: a clash's post.)
+  const clashAt: (number | undefined)[] = [],
+    postAt: number[] = [],
+    held = [...Array(meets).keys()].sort((a, b) => times[a]!.arrive - times[b]!.arrive || a - b);
+  let free = 0;
+  for (const j of held) {
+    const from = Math.max(free, times[j]!.arrive + 2 + u(900 + j) * 2),
+      there = Math.ceil(drawn[0] / take.length) + Math.ceil(drawn[1] / meets),
+      to = from + (falls[0] + falls[1] > 0 ? STAND_OFF + clashFought(there, true) + u(910 + j) : 6);
+    clashAt[j] = clashes.length;
+    postAt.push(j);
+    clashes.push({ spot: { x: take[j]!.x, z: take[j]!.z, why: "crossing" }, from, to });
+    free = nextClashFrom(to);
   }
   // The soldiers: dealt out over the squads, each to its post, standing there from then on (some fall where the dead told need).
   const soldierFalls = new Set<number>();
@@ -525,7 +546,7 @@ function armyScript(
         x: p.x + Math.cos(yaw) * side - Math.sin(yaw) * rank * 2.3,
         z: p.z - Math.sin(yaw) * side - Math.cos(yaw) * rank * 2.3,
       },
-      c = clashes[j],
+      c = clashAt[j] !== undefined ? clashes[clashAt[j]] : undefined,
       falling = soldierFalls.has(m) && !!c;
     figures.push({
       side: 0,
@@ -538,6 +559,7 @@ function armyScript(
       fight: c && (rank === 0 || falling) ? [c.from, c.to] : null,
       falls: falling ? c.from + 1.5 + u(1100 + m) * Math.max(0.5, c.to - c.from - 3) : null,
       leaves: null,
+      ...(c ? { clash: clashAt[j] } : {}),
     });
   }
   // The group's men: come from deeper in their quarter to the posts they meet; some fall, the rest go back.
@@ -555,8 +577,9 @@ function armyScript(
         base = route(ground, start, c.spot, REACH),
         back = base.length > 1 ? base[base.length - 2]! : start,
         // (Before the cordon, the way it faces: never behind the soldiers' backs.)
-        bx = Math.sin(posts[k]?.yaw ?? Math.atan2(back.x - c.spot.x, back.z - c.spot.z)),
-        bz = Math.cos(posts[k]?.yaw ?? Math.atan2(back.x - c.spot.x, back.z - c.spot.z)),
+        post = posts[postAt[k]!],
+        bx = Math.sin(post?.yaw ?? Math.atan2(back.x - c.spot.x, back.z - c.spot.z)),
+        bz = Math.cos(post?.yaw ?? Math.atan2(back.x - c.spot.x, back.z - c.spot.z)),
         bl = 1,
         // (Where no one dies of it: they stand off and watch, further back, and go.)
         wide = 0.6,
@@ -574,7 +597,7 @@ function armyScript(
           x: c.spot.x + (bx / bl) * (wide + ARM + behind) - (bz / bl) * across,
           z: c.spot.z + (bz / bl) * (wide + ARM + behind) + (bx / bl) * across,
         },
-        fight = [c.from + STAND_OFF + u(1600 + m) * 0.8, c.to + STAND_OFF] as const,
+        fight = [c.from + STAND_OFF + u(1600 + m) * 0.8, c.to] as const,
         falling = groupFalls.has(m);
       figures.push({
         side: 1,
@@ -590,6 +613,7 @@ function armyScript(
           ? fight[0] + 1.5 + u(1800 + m) * Math.max(0.5, fight[1] - fight[0] - 3)
           : null,
         leaves: falling ? null : c.to,
+        clash: k,
       });
     }
   const quiet = Math.max(...times.map((t) => t.arrive), ...clashes.map((c) => c.to));
@@ -696,7 +720,7 @@ export function streetAt(
   if (plan)
     for (const q of live) if (q.doing === "fight" || q.doing === "stand") standClear(plan, q);
 
-  for (let pass = 0; pass < (moving.length ? 8 : 0); pass++) {
+  for (let pass = 0; pass < (moving.length ? 14 : 0); pass++) {
     for (const q of moving) {
       for (const o of live) {
         if (o === q) continue;
@@ -746,24 +770,35 @@ export function fallenBy(script: StreetScript, s: number): [number, number] {
   return out;
 }
 
-/** The clash the eye is on at a second (the latest begun and not long over; null: none yet), or the squad on its way. */
+/**
+ * The clash the eye is on at a second (which of them, and whether it is still seen whole: view/street-shots.ts; null: the scene
+ * has none), or the squad on its way. On a clash it stays until that one is decided and a breath more.
+ */
 export function streetEye(
   script: StreetScript,
   s: number,
-): { at: Point; why: SpotWhy | "post" } | null {
-  let best: StreetClash | null = null;
-  for (const c of script.clashes) if (c.from - 1.5 <= s && (!best || c.from > best.from)) best = c;
-  if (script.kind === "army") {
-    // (The squad going in, until the posts' clashes begin.)
+): { at: Point; why: SpotWhy | "post"; clash?: number; wide?: boolean } | null {
+  const shot = streetShot(script, s),
+    first = script.clashes[0];
+  if (script.kind === "army" && (!first || s < first.from - TRAVEL - 0.5)) {
+    // (The squad going in, until the eye must go over to the first post met.)
     const going = script.figures
       .filter((g) => g.side === 0 && g.from <= s && s < g.arrive)
       .sort((a, b) => b.from - a.from)[0];
-    if (going && (!best || s < best.from - 1.5)) {
+    if (going) {
       const p = figureAt(going, s);
       if (p) return { at: { x: p.x, z: p.z }, why: "post" };
     }
+    // (Before any has set out: where the first will, by the road in. Never a place no one is at yet.)
+    const soldiers = script.figures.filter((g) => g.side === 0);
+    if (soldiers.length && soldiers.every((g) => s < g.from)) {
+      const g = soldiers.reduce((a, b) => (b.from < a.from ? b : a));
+      return { at: g.path[0]!, why: "post" };
+    }
   }
-  return best ? { at: best.spot, why: best.spot.why } : null;
+  if (!shot) return null;
+  const c = script.clashes[shot.clash]!;
+  return { at: c.spot, why: c.spot.why, clash: shot.clash, wide: shot.wide };
 }
 
 /** Those of the town come out to the fallen after it: grown, at home that day, from the nearest homes, stood about the place. */
@@ -956,6 +991,8 @@ export function streetView(
   at: Point,
   far: number,
   across?: number,
+  /** Others there the eye should see as well (the furthest of a clash's men): a stand with nothing before any of them is taken first. */
+  also: readonly Point[] = [],
 ): { yaw: number; pitch: number; clear: boolean } {
   const town = villageGround(plan).town;
   if (!town) return { yaw: across !== undefined ? across + 90 : 30, pitch: -34, clear: true };
@@ -970,25 +1007,39 @@ export function streetView(
   };
   // (`across`: the way the two sides face each other, in degrees. The eye to one side of that first, a quarter turn off it or
   // near it, so both are seen facing across the gap and neither stands before the other; lower before it is nearer side-on.)
-  if (across !== undefined)
-    for (const pitch of [-32, -38, -46, -56]) {
+  const find = (
+    all: readonly Point[],
+    steepest: number,
+  ): { yaw: number; pitch: number; clear: boolean } | null => {
+    const from = (yaw: number, run: number): boolean => {
+      const r = (yaw * Math.PI) / 180,
+        dx = Math.sin(r) * run,
+        dz = Math.cos(r) * run;
+      return all.every((q) => open(q, { x: q.x + dx, z: q.z + dz }));
+    };
+    if (across !== undefined)
+      for (const pitch of [-32, -38, -46, -56]) {
+        const run = far * Math.cos((pitch * Math.PI) / 180);
+        for (const off of [90, -90, 67.5, -67.5, 112.5, -112.5, 45, -45, 135, -135]) {
+          const yaw = (((across + off) % 360) + 360) % 360;
+          if (from(yaw, run)) return { yaw, pitch, clear: true };
+        }
+      }
+    for (const pitch of [-32, -38, -46, -56, -68, -80]) {
+      if (pitch < steepest) break;
       const run = far * Math.cos((pitch * Math.PI) / 180);
-      for (const off of [90, -90, 67.5, -67.5, 112.5, -112.5, 45, -45, 135, -135]) {
-        const yaw = (((across + off) % 360) + 360) % 360,
-          r = (yaw * Math.PI) / 180;
-        if (open(at, { x: at.x + Math.sin(r) * run, z: at.z + Math.cos(r) * run }))
-          return { yaw, pitch, clear: true };
+      for (let k = 0; k < 16; k++) {
+        const yaw = (k / 16) * 360;
+        if (from(yaw, run)) return { yaw, pitch, clear: true };
       }
     }
-  for (const pitch of [-32, -38, -46, -56, -68, -80]) {
-    const run = far * Math.cos((pitch * Math.PI) / 180);
-    for (let k = 0; k < 16; k++) {
-      const yaw = (k / 16) * 360,
-        r = (yaw * Math.PI) / 180;
-      if (open(at, { x: at.x + Math.sin(r) * run, z: at.z + Math.cos(r) * run }))
-        return { yaw, pitch, clear: true };
-    }
-  }
+    return null;
+  };
+  // (With nothing before any of them, where there is such a stand not too steep; else with nothing before the place itself.)
+  const whole = also.length ? find([at, ...also], -56) : null;
+  if (whole) return whole;
+  const one = find([at], -80);
+  if (one) return one;
   return { yaw: 0, pitch: -88, clear: false };
 }
 
@@ -1152,6 +1203,29 @@ export function standClear(plan: VillagePlan, p: { x: number; z: number }): void
       p.z += (p.z / d) * 1.2;
     }
     keepOut(ground, p, REACH);
+  }
+}
+
+/**
+ * A place to stand moved off what stands there, and kept by where it was meant: where that would send it far (through the
+ * square's hall or a block to its other side, a man fighting no one behind a building), it is taken nearer `by` instead,
+ * where there is room. (Measured 2026-11-19: one man of a clash by the square stood 22 metres from it, and the eye had to
+ * stand 117 metres off on a phone to have all of that clash in the screen.)
+ */
+export function standNear(plan: VillagePlan, p: { x: number; z: number }, by: Point): void {
+  const x = p.x,
+    z = p.z;
+  standClear(plan, p);
+  if (Math.hypot(p.x - x, p.z - z) <= 4) return;
+  for (let k = 1; k <= 8; k++) {
+    const qx = x + ((by.x - x) * k) / 8,
+      qz = z + ((by.z - z) * k) / 8,
+      q = { x: qx, z: qz };
+    standClear(plan, q);
+    if (Math.hypot(q.x - qx, q.z - qz) > 4) continue;
+    p.x = q.x;
+    p.z = q.z;
+    return;
   }
 }
 

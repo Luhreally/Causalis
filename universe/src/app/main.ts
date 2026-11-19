@@ -7261,6 +7261,8 @@ async function runPlanetPage(): Promise<void> {
   let ruling: () => boolean = () => false,
     ruleLeave: () => void = () => {};
   const tapVillage = (x: number, y: number) => {
+    // (A fight of the underworld watched: a tap on it holds it, and lets it go on. Its people are the film's, not the town's now.)
+    if (streetFilm?.holds) return void streetFilm.keys.toggle();
     // (The sheet of lives up: one tapped goes on it, Lives L3.)
     if (homeTap?.(x, y)) return;
     if (lifeTap?.(x, y)) return;
