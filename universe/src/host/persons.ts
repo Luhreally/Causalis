@@ -50,7 +50,9 @@ export function personsOfRealm(world: World, r: Polity): PersonOfNote[] {
     named = kept ? r.members.flatMap((c) => [...kept.in(c)]) : [],
     commander = kept?.holder("command", r.ref);
   if (commander && !named.includes(commander)) named.push(commander);
-  const asCourt = new Set(named.map((n) => n.as).filter((a): a is string => !!a));
+  const asCourt = new Set(named.map((n) => n.as).filter((a): a is string => !!a)),
+    // (One of name who took the seat is its ruler: given once, as the ruler, their own page beside.)
+    seated = named.find((n) => n.as === "rule" && n.name === r.ruler.name);
   out.push({
     ref: `rule:${r.ref}`,
     kept: "ruler",
@@ -59,6 +61,7 @@ export function personsOfRealm(world: World, r: Polity): PersonOfNote[] {
     born: r.ruler.born,
     realm: r.ref,
     cell: r.seat,
+    ...(seated ? { also: namedRef(seated.id) } : {}),
   });
   for (const f of courtOf(world)?.of(r.ref)?.figures ?? []) {
     if (asCourt.has(`court:${f.id}`)) continue;
@@ -106,7 +109,8 @@ export function personsOfRealm(world: World, r: Polity): PersonOfNote[] {
         cell: null,
       });
     }
-  for (const n of named)
+  for (const n of named) {
+    if (n === seated) continue;
     out.push({
       ref: namedRef(n.id),
       kept: "named",
@@ -117,8 +121,9 @@ export function personsOfRealm(world: World, r: Polity): PersonOfNote[] {
       cell: n.home,
       domain: DOMAINS[firstField(n)]!,
       standing: n.standing / NOTE.line,
-      ...(n.as ? { also: n.as.replace("court:", `court:${r.ref}:`) } : {}),
+      ...(n.as?.startsWith("court:") ? { also: n.as.replace("court:", `court:${r.ref}:`) } : {}),
     });
+  }
   return out;
 }
 

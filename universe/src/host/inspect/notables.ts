@@ -653,7 +653,13 @@ function keptBlocks(world: World, n: Named): Block[] {
       .filter((o) => o.teacher === n.id)
       .slice(0, 4),
     does = fields.map(([d, x]) => DOES[d]?.(x)).filter((t): t is string => !!t),
-    court = n.as && n.realm ? `${n.as.replace("court:", `court:${n.realm}:`)}` : null;
+    // (Someone the world keeps elsewhere too: one of their realm's court, or its ruler since they took its seat.)
+    court =
+      n.as?.startsWith("court:") && n.realm
+        ? n.as.replace("court:", `court:${n.realm}:`)
+        : n.as === "rule" && n.realm && politiesOf(world).get(n.realm)?.ruler.name === n.name
+          ? `rule:${n.realm}`
+          : null;
   return [
     {
       type: "facts",
@@ -667,7 +673,18 @@ function keptBlocks(world: World, n: Named): Block[] {
         stat("Known since", `year ${n.since}, at ${n.since - n.born}`),
         ...(n.realm ? [stat("Their realm", [realmLink(world, n.realm)])] : []),
         ...(n.faith ? [stat("Their faith", [faithLink(world, n.faith)])] : []),
-        ...(court ? [stat("Also", [link("one of their realm's court", court)])] : []),
+        ...(court
+          ? [
+              stat("Also", [
+                link(
+                  court.startsWith("rule:")
+                    ? "the ruler of their realm"
+                    : "one of their realm's court",
+                  court,
+                ),
+              ]),
+            ]
+          : []),
         ...(teacher ? [stat("Taught by", [teacher])] : []),
         ...(students.length
           ? [

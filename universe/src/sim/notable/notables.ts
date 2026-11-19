@@ -385,6 +385,14 @@ function occasion(r: Run, e: HistoryEvent, o: Occasion, inspired: Map<number, nu
     deed: Deed = { y: year, d: o.d, w: e.type, e: e.id, g: gain, ...(word ? { n: word } : {}) };
   // (A people's choice kept as it was makes no one new.)
   if (e.type === "order.elected" && data.held === true) return;
+  /** One who won a people's choice speaks for the group that won, until another does (one who commands a host keeps to it). */
+  const speaksNow = (n: Notable): void => {
+    if (e.type !== "order.elected" || !realm || typeof data.group !== "string" || n.post) return;
+    const was = store.holder("speaks", realm.ref);
+    if (was) delete was.post;
+    n.post = { kind: "speaks", of: realm.ref, group: data.group };
+    store.moved();
+  };
   // (One the god inspired this year is the one who found what their land then found.)
   // (And one who led a faith out is named by the faith's own telling: sim/belief.)
   const led = e.type.startsWith("lore.")
@@ -404,6 +412,7 @@ function occasion(r: Run, e: HistoryEvent, o: Occasion, inspired: Map<number, nu
     addDeed(standing, deed);
     if (spoken) standing.faith = spoken;
     if (e.type.startsWith("act.inspire") || e.type === INSPIRED) inspired.set(cell, standing.id);
+    speaksNow(standing);
     return;
   }
   // (Is the deed weighty enough that the one who did it is noticed for it alone? Among a hive, seldom.)
@@ -419,24 +428,30 @@ function occasion(r: Run, e: HistoryEvent, o: Occasion, inspired: Map<number, nu
           (r.many ? NOTE.hiveShare : 1);
   if (!noticed && !e.type.startsWith("act.inspire") && e.type !== INSPIRED) return;
   // (A seat seized is seized by its general, whom the court may keep already.)
-  const general =
+  // (Where the seat is theirs after it, they are its ruler: one person, kept in both places, `as` saying so.)
+  const figure =
+      e.type === "strife.coup" && realm && typeof data.fig === "number"
+        ? courtOf(world)
+            ?.of(realm.ref)
+            ?.figures.find((f) => f.id === data.fig)
+        : undefined,
+    rules = e.type === "strife.coup" && realm && realm.ruler.name === data.general,
+    general =
       e.type === "strife.coup" && typeof data.general === "string" && data.general
         ? {
             name: data.general,
-            sex: 0,
-            ...(typeof data.fig === "number" ? { as: `court:${data.fig}` } : {}),
+            sex: rules ? realm.ruler.sex : (figure?.sex ?? 1),
+            ...(rules
+              ? { born: realm.ruler.born, as: "rule" }
+              : figure
+                ? { born: figure.born, as: `court:${figure.id}` }
+                : {}),
           }
         : undefined,
     n = arise(r, cell, key, Math.max(NOTE.line, made), deed, general);
   if (e.type.startsWith("act.inspire") || e.type === INSPIRED) inspired.set(cell, n.id);
   if (spoken) n.faith = spoken;
-  if (e.type === "order.elected" && realm && typeof data.group === "string") {
-    // (They speak for the group that won, until another does.)
-    const was = store.holder("speaks", realm.ref);
-    if (was) delete was.post;
-    n.post = { kind: "speaks", of: realm.ref, group: data.group };
-    store.moved();
-  }
+  speaksNow(n);
   tellRise(r, n, [{ ref: e.id, role: "trigger", weight: 1 }]);
 }
 

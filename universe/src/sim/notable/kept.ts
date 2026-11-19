@@ -75,7 +75,7 @@ export type Notable = {
   /** Who taught them, whom they are set against (ids; the dead are found among the gone). */
   teacher?: number;
   rival?: number;
-  /** Someone the world already keeps whom they are (a court figure: "court:<figure id>"), where they are. */
+  /** Someone the world already keeps whom they are (a court figure: "court:<figure id>"; a realm's ruler: "rule"), where they are. */
   as?: string;
   /** The event their rising was told by, where it was. */
   event?: Ref;
