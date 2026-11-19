@@ -123,7 +123,8 @@ export function faithPage(world: World, ref: string): PageModel {
     kind: "faith",
     icon: "✨",
     portrait: { kind: "sign", color: realmColor(`${f.ref}:faith`), tenet: f.tenet },
-    title: f.name,
+    // (A window's title begins with a capital, as a realm's does: "The Keepers of the Flame of …".)
+    title: sentence(f.name),
     subtitle: [`A faith of ${DEITIES[f.tenet]}`],
     color: realmColor(`${f.ref}:faith`),
     place: globeAt(world, f.seat),

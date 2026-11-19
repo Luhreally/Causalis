@@ -26,7 +26,8 @@
 }
 .page-window .years-chip.on {
   background: var(--accent);
-  color: var(--panel-solid);
+  /* (A colour, not the panel's ground: that is a gradient, and the chosen kind's word was left pale on the bright chip.) */
+  color: #0c1432;
 }
 .years-go {
   display: flex;

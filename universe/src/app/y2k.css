@@ -570,6 +570,8 @@ body[data-world="methane"][data-scale="ground"]:not([data-daylight]) {
 .page-window .years-bar,
 .page-window .sides-head {
   top: calc(var(--page-title-h, 12px) - 12px);
+  /* (Whole: the panel's own ground lets a little through, and the years going under the bar were read through its words.) */
+  background: linear-gradient(180deg, rgb(34, 54, 110) 0%, rgb(12, 20, 50) 100%);
 }
 .page-icon {
   font-size: 1.15rem;
@@ -596,6 +598,12 @@ body[data-world="methane"][data-scale="ground"]:not([data-daylight]) {
   padding: 0 7px;
   font-size: 0.78rem;
   line-height: 1;
+}
+/* (Its fold is one of the row's boxes: as a window's own it stood 3px over the title's top, taller than the rest.) */
+.page-window h2 .fold {
+  margin: 0;
+  min-height: 26px;
+  padding: 0 7px;
 }
 .page-window h2 .nav-back,
 .page-window h2 .nav-forward {

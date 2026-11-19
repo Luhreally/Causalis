@@ -35,6 +35,23 @@ export const hudRead = (exempt: readonly Exemption[] = [], tol = 4): string => `
     }
     return true;
   };
+  // (What sticks at a scrolling box's top or foot while the box is scrolled — a page's title bar, the Years' bar under
+  // it, an event's buttons — cuts off what goes under it as the box's own edge does: a line scrolled under a title is no
+  // more covered than one scrolled past the window's top. Read once for each box.)
+  const STUCK = new Map();
+  const stuckIn = (p) => {
+    let got = STUCK.get(p);
+    if (!got) {
+      got = [];
+      if (p.scrollTop > 0 || p.scrollHeight > p.clientHeight + 1)
+        for (const x of p.querySelectorAll("*")) {
+          const s = getComputedStyle(x);
+          if (s.position === "sticky" && (s.top !== "auto" || s.bottom !== "auto")) got.push({ x, top: s.top !== "auto" });
+        }
+      STUCK.set(p, got);
+    }
+    return got;
+  };
   // (As much of a thing as the boxes it scrolls in let be seen; what stands fixed to the screen
   // is clipped by none of those that hold it.)
   const clip = (e) => {
@@ -50,6 +67,13 @@ export const hudRead = (exempt: readonly Exemption[] = [], tol = 4): string => `
       const q = p.getBoundingClientRect();
       if (ox) { x0 = Math.max(x0, q.left); x1 = Math.min(x1, q.right); }
       if (oy) { y0 = Math.max(y0, q.top); y1 = Math.min(y1, q.bottom); }
+      if (oy) for (const k of stuckIn(p)) {
+        if (k.x === e || k.x.contains(e) || e.contains(k.x)) continue;
+        const t = k.x.getBoundingClientRect();
+        if (t.height < 1 || t.right <= x0 || t.left >= x1) continue;
+        if (k.top && p.scrollTop > 0 && t.top <= Math.max(y0, q.top + p.clientTop) + 1 && t.bottom > y0) y0 = Math.min(y1, t.bottom);
+        if (!k.top && p.scrollTop < p.scrollHeight - p.clientHeight - 1 && t.bottom >= Math.min(y1, q.bottom - p.clientTop) - 1 && t.top < y1) y1 = Math.max(y0, t.top);
+      }
     }
     return { r, x0, y0, x1, y1 };
   };

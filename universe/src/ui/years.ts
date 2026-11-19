@@ -267,12 +267,18 @@ export function drawYears(into: HTMLElement, ctx: ToolContext): void {
 
   /** The bar at the top of the window, with the way to a year under it and then the years. */
   const toTop = () => {
-    const root = scroller();
     // (To where the bar sticks: inside the window's padding and under its title, or the way to a year would lie under it.)
-    const pad =
-      root === document.documentElement ? 0 : parseFloat(getComputedStyle(root).paddingTop) || 0;
-    root.scrollTop +=
-      box.getBoundingClientRect().top - root.getBoundingClientRect().top - pad - under();
+    scroller().scrollTop += box.getBoundingClientRect().top - sticks();
+  };
+  /**
+   * Where on the screen the bar's top stands once it sticks: under the window's edge, its padding and its title. (Reckoned
+   * from the window's outer top alone, a year gone to stood some 10px behind the bar: its edge and padding were left out.)
+   */
+  const sticks = () => {
+    const root = scroller();
+    if (root === document.documentElement) return 0;
+    const pad = parseFloat(getComputedStyle(root).paddingTop) || 0;
+    return root.getBoundingClientRect().top + root.clientTop + pad + under();
   };
   /** How far under the window's padding the bar sticks: the window's title stays over it (ui/inspector.ts). */
   const under = () => {
@@ -295,11 +301,7 @@ export function drawYears(into: HTMLElement, ctx: ToolContext): void {
       i = Math.floor(best / PIECE) * PIECE,
       piece = pieces[i / PIECE]!,
       root = scroller();
-    root.scrollTop +=
-      piece.getBoundingClientRect().top -
-      root.getBoundingClientRect().top -
-      bar.offsetHeight -
-      under();
+    root.scrollTop += piece.getBoundingClientRect().top - sticks() - bar.offsetHeight;
     await draw(piece, shown.slice(i, i + PIECE));
     const row = list.querySelector<HTMLElement>(`[data-year="${at}"]`);
     if (row && back !== undefined) {
@@ -308,12 +310,8 @@ export function drawYears(into: HTMLElement, ctx: ToolContext): void {
       return;
     }
     if (row) {
-      root.scrollTop +=
-        row.getBoundingClientRect().top -
-        root.getBoundingClientRect().top -
-        bar.offsetHeight -
-        under() -
-        4;
+      // (Whole under the bar, a hair of the year before it showing that it is the one come to.)
+      root.scrollTop += row.getBoundingClientRect().top - sticks() - bar.offsetHeight - 4;
       row.classList.add("here");
       setTimeout(() => row.classList.remove("here"), 2400);
     }
