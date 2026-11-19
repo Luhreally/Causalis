@@ -402,9 +402,10 @@ export function institutionPage(world: World, ref: string): PageModel {
               of,
             )
           : `It ${does === "make" ? "made and sold goods" : "did what was wanted of it"}, while it stood.`,
-        { why: g.event },
+        // (Of one whose hold ended, history keeps how it ended; its founding it lets go with its years.)
+        { why: g.gone?.event ?? g.event },
       ),
-      stat("Since", `year ${since}`, { why: g.event }),
+      stat("Since", `year ${since}`, { why: g.gone?.event ?? g.event }),
     ];
   if (rec) {
     const head = headTitle(does, g.title);

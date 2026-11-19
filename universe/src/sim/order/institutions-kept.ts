@@ -151,7 +151,8 @@ export class BodiesStore implements StateStore {
     const out: Ref[] = [];
     for (const v of this.realms.values()) {
       for (const g of v.bodies) out.push(g.event);
-      for (const g of v.gone) out.push(g.rose, g.event);
+      // (Of one whose hold ended, how it ended: its founding is its page's name and no more, and is let go with its years.)
+      for (const g of v.gone) out.push(g.event);
     }
     return out;
   }

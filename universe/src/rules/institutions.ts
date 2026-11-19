@@ -225,7 +225,7 @@ export const INST = {
   most: 12,
   mostOne: 8,
   mostALand: 2,
-  gone: 4,
+  gone: 2,
   lands: 3,
   /** How many may be founded in each five years of a reckoning's span. */
   rise: 2,
