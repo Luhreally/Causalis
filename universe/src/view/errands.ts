@@ -840,11 +840,14 @@ export type RoleKind =
   // The road's trade (Phase 48 M210): a trader setting out, away, or coming back with goods.
   | "trade"
   // At what the town was asked to put first (H1).
-  | "first";
+  | "first"
+  // The town's healer on a day no wound asks a round of them (Phase 55 M225): at the hospital's door, or their own.
+  | "heal";
 
 /** Each day's work in words, for the town's card: "reaping", "felling timber". */
 export const ROLE_WORDS: Readonly<Record<RoleKind, string>> = {
   "as-ever": "about their usual day",
+  heal: "seeing those who come to be healed",
   reap: "reaping",
   sow: "sowing",
   hoe: "in the fields",
@@ -1086,35 +1089,34 @@ export function townDay(plan: VillagePlan, day: number, ground: Ground): TownDay
   // The town's makers at their own trades, day on day (Phase 50 M212): its smiths at the forge
   // while there is ore to work, its potters at its kilns, its weavers at its workshops — the same
   // people the pages of its buildings name, and the makers of the things its people hold.
-  if (!rest && !lean)
+  // One the town names at a trade is at that trade every working day, whatever else the town wants hands for and lean year or
+  // not: a smith with no ore in the yard is at the forge with what there is to mend, and one whose building does not stand is
+  // at their craft by the market. (A smith was sent to teach the children their letters, and a healer to plough the muck in,
+  // on the days the yard was empty or no one was wounded: seen at Braimylwick, 2026-11-18.)
+  if (!rest)
     plan.people.forEach((p, i) => {
       const t = p.trade;
       if (!t || !working(i)) return;
-      if (t.kind === "smith") {
-        if (!oreIn || plan.metal === "stone") return;
-        kept.add(i);
-        sit(i, "smith", 0);
-        return;
-      }
+      kept.add(i);
+      // (Where nothing is forged in its land, the smithy stands idle: its smiths at their craft by the market.)
+      if (t.kind === "smith")
+        return plan.metal === "stone" ? sit(i, "workshop", -1) : sit(i, "smith", 0);
       // (Its founders at the foundry by its works, its machinists at its machines: Phase 51 M215.)
-      if (t.kind === "founder") {
-        if (!foundryOf(plan)) return;
-        kept.add(i);
-        sit(i, "foundry", 0);
-        return;
-      }
-      if (t.kind === "machinist") {
-        if (!floorOf(plan)) return;
-        kept.add(i);
-        sit(i, "machine", 0);
-        return;
-      }
+      if (t.kind === "founder")
+        return foundryOf(plan) ? sit(i, "foundry", 0) : sit(i, "workshop", -1);
+      if (t.kind === "machinist")
+        return floorOf(plan) ? sit(i, "machine", 0) : sit(i, "workshop", -1);
       // (Its own, at most six to a trade: each to theirs, however many the others fill.)
       const kind = t.kind === "potter" ? "kiln" : "workshop",
         at = t.kind === "potter" ? kilns : shops;
-      if (!at.length) return;
+      sit(i, at.length ? kind : "workshop", at.length ? t.seat % at.length : -1);
+    });
+  // Its healer, on a day no wound asks a round of them (view/village.ts careOn lays those days): seeing those who come.
+  if (!rest)
+    plan.people.forEach((p, i) => {
+      if (!p.healer || p.trade || !working(i)) return;
       kept.add(i);
-      sit(i, kind, t.seat % at.length);
+      sit(i, "heal", 0);
     });
   if (!rest) {
     keep("teach", schools);

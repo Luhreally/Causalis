@@ -350,6 +350,19 @@ function workplace(
   // The old keep near home: from sixty-two for upright apes, as late in any people's span.
   if (p.age >= (62 * (plan.body?.span ?? 70)) / 70)
     return nearHome(3, null, null, null, "Keeping near home in their old age");
+  // One the town names at a trade, and its healer, at that work whatever they were counted as (a town watched growing
+  // lays no errands: view/errands.ts townDay does where it is watched closely).
+  if (p.healer)
+    return nearHome(3, null, null, "tend", "Seeing those who come to their door to be healed");
+  if (p.trade)
+    return at(
+      WORKSHOP.x + 6 * Math.cos(angle),
+      WORKSHOP.z + 6 * Math.sin(angle),
+      null,
+      null,
+      "hammer",
+      `At their trade: ${article(p.trade.kind)} ${p.trade.kind}`,
+    );
   // As the village grows, its crafters (and a farmer or two between sowing and harvest)
   // build its next home: out with a beam, round the rising walls.
   const site = plan.life?.site;
@@ -4500,7 +4513,45 @@ function dayBase(plan: VillagePlan, index: number, day: number, fine: boolean): 
           { hours: 0.05, task: "load", carry: "metal", why: `${BENCHED}${part} on the bench` },
         ];
       }
+      // The town's healer on a day no wound asks a round of them: at the hospital's door where the town keeps one, else
+      // their own, for those who come; and a while at their herbs.
+      case "heal": {
+        const d = hospitalDoor(plan, day * DAY),
+          own = !(plan.town && civicDoors(plan, day * DAY).get("hospital")?.[0]),
+          spot = clearSpot(ground, { x: d.x, z: d.z }),
+          where = own ? "their door" : "the hospital";
+        return [
+          { to: spot, carry: null, why: `To ${where}, for those who come to be healed` },
+          {
+            flex: true,
+            hours: 3,
+            min: 0.25,
+            task: first ? "tend" : "talk",
+            carry: null,
+            face: d.face,
+            why: first
+              ? `Drying and sorting their herbs at ${where}`
+              : `Seeing those who come to ${where} to be healed`,
+          },
+        ];
+      }
       case "smith": {
+        // (No ore in the yard, or a land that works stone: at the forge all the same, with what there is to mend.)
+        if (plan.metal === "stone" || storeAt(plan, "ore", day * DAY) <= 1) {
+          const bench = clearSpot(ground, beside(spots.smithy, Math.max(0, role.seat), 2.2));
+          return [
+            { to: bench, carry: null, why: `To ${spots.smithy.words}` },
+            {
+              flex: true,
+              hours: 3,
+              min: 0.25,
+              task: "hammer",
+              carry: null,
+              face: spots.smithy.yaw,
+              why: `Mending and sharpening at ${spots.smithy.words}: the yard has nothing to forge`,
+            },
+          ];
+        }
         const anvil = clearSpot(ground, beside(spots.smithy, Math.max(0, role.seat), 2.2)),
           // (What they make today, of the metal their land works: Phase 50 M212; the bars they
           // take from the yard, the new tool hung on the rack before the smithy: Phase 51 M213.)
