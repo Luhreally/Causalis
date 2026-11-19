@@ -36,18 +36,13 @@ export const LAWS_EVERY = 5;
 export const lawTurn = (p: { readonly ref: string }, year: number): boolean =>
   (refNumber(p.ref) + year) % LAWS_EVERY === 0;
 
-/** Fold whole numbers into a running digest (two 32-bit words). */
-function fold(d: [number, number], xs: readonly number[]): void {
-  let a = d[0],
+/** One whole number folded into a running digest (two 32-bit words). */
+function foldOne(d: [number, number], x: number): void {
+  const lo = x | 0,
+    hi = Math.floor(x / 4294967296) | 0,
     b = d[1];
-  for (const x of xs) {
-    const lo = x | 0,
-      hi = Math.floor(x / 4294967296) | 0;
-    a = Math.imul(a ^ lo, 0x01000193) ^ hi;
-    b = Math.imul(b + lo + 0x9e3779b9, 0x85ebca6b) ^ (b >>> 13);
-  }
-  d[0] = a;
-  d[1] = b;
+  d[0] = Math.imul(d[0] ^ lo, 0x01000193) ^ hi;
+  d[1] = Math.imul(b + lo + 0x9e3779b9, 0x85ebca6b) ^ (b >>> 13);
 }
 
 /** A store of rows of whole numbers, each a land's (keyed by its cell) or a realm's (by its ref), of one fixed width. */
@@ -72,6 +67,8 @@ export class RowStore implements StateStore {
   }
   private keep(k: string, r: number[]): void {
     this.rows.set(k, r);
+    // (A key that begins with a small letter, as every ref does, is no number's spelling.)
+    if (k.charCodeAt(0) >= 97) return;
     const n = Number(k);
     if (String(n) === k) this.byNumber.set(n, r);
   }
@@ -82,8 +79,16 @@ export class RowStore implements StateStore {
       r[i] = Number.isFinite(x) ? Math.round(x) : 0;
     }
     const k = String(key);
-    this.keep(k, r);
-    fold(this.digest, [this.sets & 0xffff, k.length, ...r]);
+    // (A number is its own spelling's number: kept by it without reading its spelling back. Tens of thousands of rows a year.)
+    if (typeof key === "number") {
+      this.rows.set(k, r);
+      this.byNumber.set(Number.isNaN(key) ? NaN : key, r);
+    } else this.keep(k, r);
+    // (The row folded in behind its count of sets and its key's length, a number at a time: no list made of them.)
+    const d = this.digest;
+    foldOne(d, this.sets & 0xffff);
+    foldOne(d, k.length);
+    for (let i = 0; i < r.length; i++) foldOne(d, r[i]!);
     this.sets++;
   }
   drop(key: string | number): void {

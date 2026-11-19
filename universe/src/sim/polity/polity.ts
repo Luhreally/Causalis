@@ -137,6 +137,13 @@ export class PolityStore implements StateStore {
   /** The same realms by ref. */
   private readonly byRef = new Map<string, Polity>();
   private readonly member = new Map<number, Ref>();
+  /**
+   * (The realm of each land that has one, as `member` and `byRef` give it, and the realms that have not ended, in the list's
+   * order: asked tens of thousands of times a year, and found by ref and by sifting every realm that ever was they were a
+   * hundredth of a late year. Not state: kept as lands join and leave, the living checked at each asking, made anew on loading.)
+   */
+  private readonly holder = new Map<number, Polity>();
+  private alive: Polity[] | null = null;
   private readonly grievance = new Map<number, Discontent>();
   private readonly former = new Map<number, Ref>();
   /** Realms that ended are folded into a digest once, the year after, and not hashed again. */
@@ -160,7 +167,11 @@ export class PolityStore implements StateStore {
   add(p: Polity): void {
     this.list.push(p);
     this.byRef.set(p.ref, p);
-    for (const c of p.members) this.member.set(c, p.ref);
+    for (const c of p.members) {
+      this.member.set(c, p.ref);
+      this.holder.set(c, p);
+    }
+    this.alive = null;
     if (this.weighed) for (const c of p.members) this.weighed.moved.push(c);
   }
 
@@ -169,7 +180,16 @@ export class PolityStore implements StateStore {
   }
 
   living(): Polity[] {
-    return this.list.filter((p) => p.ended === null);
+    // (A realm is ended where it stands, sim/polity endRealm: one of those kept that has ended since, and they are sifted again.)
+    let alive = this.alive;
+    if (alive)
+      for (let i = 0; i < alive.length; i++)
+        if (alive[i]!.ended !== null) {
+          alive = null;
+          break;
+        }
+    alive ??= this.alive = this.list.filter((p) => p.ended === null);
+    return alive.slice();
   }
 
   get(ref: Ref): Polity | undefined {
@@ -178,6 +198,8 @@ export class PolityStore implements StateStore {
 
   /** The realm a land belongs to, if any. */
   of(cell: number): Polity | undefined {
+    const held = this.holder.get(cell);
+    if (held) return held;
     const ref = this.member.get(cell);
     return ref ? this.get(ref) : undefined;
   }
@@ -185,6 +207,9 @@ export class PolityStore implements StateStore {
   join(p: Polity, cell: number): void {
     p.members = [...p.members, cell].sort((a, b) => a - b);
     this.member.set(cell, p.ref);
+    const kept = this.byRef.get(p.ref);
+    if (kept) this.holder.set(cell, kept);
+    else this.holder.delete(cell);
     this.weighed?.moved.push(cell);
   }
 
@@ -192,6 +217,7 @@ export class PolityStore implements StateStore {
   leave(p: Polity, cell: number): void {
     p.members = p.members.filter((c) => c !== cell);
     this.member.delete(cell);
+    this.holder.delete(cell);
     this.former.set(cell, p.ref);
     this.weighed?.moved.push(cell);
   }
@@ -258,11 +284,17 @@ export class PolityStore implements StateStore {
     this.list = [];
     this.byRef.clear();
     this.member.clear();
+    this.holder.clear();
+    this.alive = null;
     for (const p of s.polities) {
       const copy = { ...p, members: [...p.members] };
       this.list.push(copy);
       this.byRef.set(copy.ref, copy);
-      if (copy.ended === null) for (const c of copy.members) this.member.set(c, copy.ref);
+      if (copy.ended === null)
+        for (const c of copy.members) {
+          this.member.set(c, copy.ref);
+          this.holder.set(c, copy);
+        }
     }
     this.grievance.clear();
     for (const [c, d] of s.grievance) this.grievance.set(c, { ...d });

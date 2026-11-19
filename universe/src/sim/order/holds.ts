@@ -543,13 +543,17 @@ function usualOf(ctx: PopulationContext): number[] {
     sum = [0, 0, 0, 0];
   let n = 0;
   for (const q of politiesOf(ctx.world).living()) {
-    const stance = store?.of(q.ref)?.stood ?? store?.of(q.ref)?.held;
+    const o = store?.of(q.ref),
+      stance = o?.stood ?? o?.held;
     if (!stance) continue;
     n++;
     for (let k = 0; k < 4; k++) sum[k]! += stance[k]! / 100;
   }
   return sum.map((x) => (n ? x / n : 0.5));
 }
+
+/** How much greater the square of the straight line to a seat may be than the last of the nearest few's, for it to be measured too. */
+const NEAR_ENOUGH = 1 + 1e-9;
 
 /** What a piece of evidence was, as a realm weighed it. */
 type Weighed = {
@@ -645,9 +649,43 @@ function looked(ctx: PopulationContext, p: Polity, o: RealmOrder, year: number):
   weigh(ctx, p, o, p, 1, year, usual);
   const reach = reachOf(ctx, p),
     seen: { q: Polity; km: number }[] = [];
-  for (const q of politiesOf(ctx.world).living()) {
-    if (q === p) continue;
-    const km = kmBetween(ctx, q.seat, p.seat);
+  // (The nearest few of those within its word's reach, nearest first. Every living realm's distance reckoned and all within reach
+  // set in order, a realm's look was a tenth of a millisecond at 360 realms and a third of the order's year: the few are found by
+  // the straight line between seats, which grows as the way round does, and only those about as near as the last of them are
+  // measured the way round. NEAR_ENOUGH apart in the line's square, two are thousands of times farther apart than the way round
+  // is reckoned to, so none left out could have stood among the few.)
+  const living = politiesOf(ctx.world).living(),
+    pos = ctx.generated.grid.positions,
+    x = pos[3 * p.seat]!,
+    y = pos[3 * p.seat + 1]!,
+    z = pos[3 * p.seat + 2]!,
+    lines = new Float64Array(living.length),
+    least: number[] = [];
+  for (let i = 0; i < living.length; i++) {
+    const q = living[i]!;
+    if (q === p) {
+      lines[i] = Infinity;
+      continue;
+    }
+    const dx = pos[3 * q.seat]! - x,
+      dy = pos[3 * q.seat + 1]! - y,
+      dz = pos[3 * q.seat + 2]! - z,
+      line = dx * dx + dy * dy + dz * dz;
+    lines[i] = line;
+    if (least.length < LEARNING.look || line < least[least.length - 1]!) {
+      let at = least.length < LEARNING.look ? least.length : least.length - 1;
+      while (at > 0 && least[at - 1]! > line) {
+        least[at] = least[at - 1]!;
+        at--;
+      }
+      least[at] = line;
+    }
+  }
+  const within = least.length < LEARNING.look ? Infinity : least[least.length - 1]! * NEAR_ENOUGH;
+  for (let i = 0; i < living.length; i++) {
+    if (!(lines[i]! <= within)) continue;
+    const q = living[i]!,
+      km = kmBetween(ctx, q.seat, p.seat);
     if (km <= reach) seen.push({ q, km });
   }
   seen.sort((a, b) => a.km - b.km || (a.q.ref < b.q.ref ? -1 : 1));

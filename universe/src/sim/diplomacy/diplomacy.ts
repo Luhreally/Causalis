@@ -17,6 +17,7 @@ import {
   makeRef,
   yearOfMoment,
   type Hasher,
+  type HistoryEvent,
   type Ref,
   type SimTime,
   type StateStore,
@@ -129,6 +130,11 @@ export class DiplomacyStore implements StateStore {
     return this.relations.get(pairKey(a, b));
   }
 
+  /** The relation of a pair by its key, where the key is in hand (the year's reckoning spells each pair's once). */
+  keyed(key: string): Relation | undefined {
+    return this.relations.get(key);
+  }
+
   /** A count that moves whenever any of a realm's relations is set, dropped or told changed (`touch`). */
   writtenOf(realm: Ref): number {
     return this.written.get(realm) ?? 0;
@@ -140,8 +146,7 @@ export class DiplomacyStore implements StateStore {
     this.written.set(r.b, this.writes);
   }
 
-  set(r: Relation): void {
-    const key = pairKey(r.a, r.b);
+  set(r: Relation, key = pairKey(r.a, r.b)): void {
     if (this.relations.get(key) !== r) this.sorted = this.byRealm = null;
     this.relations.set(key, r);
     this.touch(r);
@@ -190,9 +195,11 @@ export class DiplomacyStore implements StateStore {
    * What two realms remember of each other, faded to now: each kind of wrong once, at
    * its strongest — a second war renews the bitterness of the first, it does not double it.
    */
-  remembered(a: Ref, b: Ref, year: number): Term[] {
+  remembered(a: Ref, b: Ref, year: number, key = pairKey(a, b)): Term[] {
+    const ms = this.memories.get(key);
+    if (!ms) return [];
     const strongest = new Map<string, Term>();
-    for (const m of this.memories.get(pairKey(a, b)) ?? []) {
+    for (const m of ms) {
       const t = { name: m.name, value: faded(m, year), source: m.source },
         held = strongest.get(m.name);
       if (Math.abs(t.value) > FORGOTTEN && (!held || Math.abs(t.value) > Math.abs(held.value)))
@@ -324,6 +331,35 @@ export function diplomacyYear(ctx: PopulationContext, t: SimTime): void {
   }
 
   // What they think, term by term.
+  // (What is read of one realm alone is read once for all the pairs it is of, six of them at the middle and two dozen at the
+  // most: nothing the pairs' reckoning writes (their relations, pacts sworn and broken) is any of it.)
+  type Side = {
+    famine: HistoryEvent | undefined;
+    trust: number;
+    blamed: ReturnType<typeof blamesOutsiders>;
+  };
+  const sides = new Map<Polity, Side>(),
+    sideOf = (p: Polity): Side => {
+      let s = sides.get(p);
+      if (!s) {
+        let famine: HistoryEvent | undefined;
+        for (const c of p.members) {
+          const last = ctx.provinces.get(c)?.lastFamine,
+            e = last ? world.events.get(last) : undefined;
+          if (e && t - e.t <= 2 * YEAR) {
+            famine = e;
+            break;
+          }
+        }
+        s = {
+          famine,
+          trust: holdOf(world, p.ref, HOLD.trust),
+          blamed: blamesOutsiders(world, p.ref, year),
+        };
+        sides.set(p, s);
+      }
+      return s;
+    };
   const seen = new Set<string>();
   for (const [key, { a, b, count }] of [...borders.entries()].sort((x, y) =>
     x[0] < y[0] ? -1 : 1,
@@ -371,11 +407,10 @@ export function diplomacyYear(ctx: PopulationContext, t: SimTime): void {
         source: null,
       });
     // A realm in famine covets a neighbour's stores.
+    const sa = sideOf(a),
+      sb = sideOf(b);
     for (const hungry of [a, b]) {
-      const famine = hungry.members
-        .map((c) => ctx.provinces.get(c)?.lastFamine)
-        .map((r) => (r ? world.events.get(r) : undefined))
-        .find((e) => e && t - e.t <= 2 * YEAR);
+      const famine = (hungry === a ? sa : sb).famine;
       if (famine && count)
         terms.push({
           name: `the hunger of ${realmName(hungry)} for their stores`,
@@ -394,7 +429,8 @@ export function diplomacyYear(ctx: PopulationContext, t: SimTime): void {
         source: null,
       });
     // How far each binds itself to others (rules/holds.ts trust): one wary of every pact holds back; two who bind freely draw close.
-    const [ta, tb] = [holdOf(world, a.ref, HOLD.trust), holdOf(world, b.ref, HOLD.trust)],
+    const ta = sa.trust,
+      tb = sb.trust,
       wary = Math.min(ta, tb);
     if (wary < 0.3)
       terms.push({
@@ -414,7 +450,7 @@ export function diplomacyYear(ctx: PopulationContext, t: SimTime): void {
       });
     // A people who laid its own woes at outsiders' door looks on its neighbours the darker (rules/holds.ts blame "theirs").
     for (const side of [a, b]) {
-      const blamed = blamesOutsiders(world, side.ref, year);
+      const blamed = (side === a ? sa : sb).blamed;
       if (blamed)
         terms.push({
           name: `${realmName(side)} blaming outsiders for ${OUTCOME.get(blamed.taught.what)?.words ?? "its woes"}`,
@@ -461,7 +497,7 @@ export function diplomacyYear(ctx: PopulationContext, t: SimTime): void {
           source: null,
         });
     }
-    terms.push(...store.remembered(a.ref, b.ref, year));
+    for (const x of store.remembered(a.ref, b.ref, year, key)) terms.push(x);
     const opinion = Math.max(
       -1,
       Math.min(
@@ -469,7 +505,7 @@ export function diplomacyYear(ctx: PopulationContext, t: SimTime): void {
         terms.reduce((s, x) => s + x.value, 0),
       ),
     );
-    const before = store.get(a.ref, b.ref),
+    const before = store.keyed(key),
       relation: Relation = { a: a.ref, b: b.ref, opinion, terms, pact: before?.pact ?? null };
     // Pacts sworn and broken.
     if (!relation.pact && opinion > PACT) {
@@ -496,7 +532,7 @@ export function diplomacyYear(ctx: PopulationContext, t: SimTime): void {
       store.remember(a.ref, b.ref, { name: "a broken pact", value: -0.4, year, source: broken });
       relation.pact = null;
     }
-    store.set(relation);
+    store.set(relation, key);
   }
   // Realms that no longer meet (or no longer are) keep no standing regard.
   for (const r of store.all()) {

@@ -983,10 +983,12 @@ function bondsMade(ctx: PopulationContext, t: SimTime): void {
     // An embassy, between those sworn.
     if (
       r.pact &&
+      // (The draw first: it is the pair's and the year's whatever else stands, and each realm's embassies are found by going
+      // through all there are.)
+      world.rng.real(STREAM, key, t, 3) < TIES.embassyChance &&
       !store.embassyOf(a.ref, b.ref) &&
       store.embassiesOf(a.ref).length < TIES.embassiesMost &&
-      store.embassiesOf(b.ref).length < TIES.embassiesMost &&
-      world.rng.real(STREAM, key, t, 3) < TIES.embassyChance
+      store.embassiesOf(b.ref).length < TIES.embassiesMost
     )
       openEmbassy(ctx, a, b, r.pact, t);
     if (!(world.rng.real(STREAM, key, t, 2) < TIES.matchChance)) continue;

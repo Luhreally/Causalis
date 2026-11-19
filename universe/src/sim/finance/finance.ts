@@ -438,13 +438,13 @@ export function yieldNow(
   return yieldRead(ctx, readRealm(ctx, store, p), yearOfMoment(ctx.world.now));
 }
 
-function yieldRead(ctx: PopulationContext, r: Read, year: number) {
+function yieldRead(ctx: PopulationContext, r: Read, year: number, refusals?: Refusals) {
   const credit = creditOf(ctx.world),
     burden = debtOf(r.m) / r.takings,
     y = yieldOf({
-      refused: (credit?.defaults ?? [])
-        .filter((d) => d.realm === r.p.ref)
-        .map((d) => year - d.year),
+      refused: refusals
+        ? refusals.yearsOf(credit?.defaults ?? [], r.p.ref).map((y) => year - y)
+        : (credit?.defaults ?? []).filter((d) => d.realm === r.p.ref).map((d) => year - d.year),
       burden,
       atWar: r.atWar,
       voice: r.way[1],
@@ -457,6 +457,31 @@ function yieldRead(ctx: PopulationContext, r: Read, year: number) {
     });
   return { ...y, burden, takings: r.takings };
 }
+
+/**
+ * The years of each realm's refusals in the lenders' record, in the record's order, for one year's reckoning: each realm's yield
+ * is read once and again at every sale, and each reading went through two centuries of every realm's refusals. Sorted out once,
+ * and again whenever the record is another list or longer (a debt refused in the year: refuseDebt).
+ */
+class Refusals {
+  private of: readonly unknown[] | null = null;
+  private n = -1;
+  private readonly by = new Map<Ref, number[]>();
+  yearsOf(record: readonly { realm: Ref; year: number }[], realm: Ref): readonly number[] {
+    if (this.of !== record || this.n !== record.length) {
+      this.by.clear();
+      for (const d of record) {
+        const years = this.by.get(d.realm);
+        if (years) years.push(d.year);
+        else this.by.set(d.realm, [d.year]);
+      }
+      this.of = record;
+      this.n = record.length;
+    }
+    return this.by.get(realm) ?? NONE;
+  }
+}
+const NONE: readonly number[] = [];
 
 const burntBy = (m: Money, by: Ref, year: number) =>
   !!m.burnt?.some(([r, y]) => r === by && year - y < FINANCE.burnt);
@@ -522,7 +547,16 @@ export function financeYear(ctx: PopulationContext, t: SimTime): void {
 
   // 2. Whom each fears: of each two that meet, each one's fear of the other's way.
   const relations = diplomacy.all(),
+    // (Each realm's own of them, in their order: what a sale goes through, not all there are for each realm that sells.)
+    meets = new Map<string, Relation[]>(),
+    refusals = new Refusals(),
     fears = new Map<string, Fear[]>();
+  for (const rel of relations)
+    for (const x of rel.a === rel.b ? [rel.a] : [rel.a, rel.b]) {
+      const list = meets.get(x);
+      if (list) list.push(rel);
+      else meets.set(x, [rel]);
+    }
   for (const rel of relations) {
     const a = reads.get(rel.a),
       b = reads.get(rel.b);
@@ -730,7 +764,7 @@ export function financeYear(ctx: PopulationContext, t: SimTime): void {
       }
       m.held = next;
     } else m.missed = 0;
-    const y = yieldRead(ctx, r, year);
+    const y = yieldRead(ctx, r, year, refusals);
     m.rate = Math.round(y.rate * 10_000);
     // Refused: unpaid too long; or unpaid and crushed by it; or beaten in a war with a year's takings owed and unpaid.
     const owed = debtOf(m),
@@ -759,23 +793,30 @@ export function financeYear(ctx: PopulationContext, t: SimTime): void {
       const want = Math.ceil(keep * (0.5 + r.trust));
       if (want < 50) continue;
       const foe = w.attacker === p.ref ? w.defender : w.attacker,
-        sale = sell(ctx, r, reads, relations, want, "war", year, { war: w.event, foe });
+        sale = sell(ctx, r, reads, meets.get(p.ref) ?? [], refusals, want, "war", year, {
+          war: w.event,
+          foe,
+        });
       if (sale) m.chests = [...(m.chests ?? []), [w.ref, sale] as [Ref, Ref]].slice(-3);
     }
     const hunger = Math.ceil(CREDIT.months * mouths(seat, ctx.life) - sm.food(FOODS));
-    if (hunger >= 50 && seat.lastFamine) sell(ctx, r, reads, relations, hunger, "hunger", year, {});
+    if (hunger >= 50 && seat.lastFamine)
+      sell(ctx, r, reads, meets.get(p.ref) ?? [], refusals, hunger, "hunger", year, {});
     // (What its treasury goes short beyond what it keeps by it: Round B, sim/money. What it cannot borrow it may debase or print.)
     const short = Math.floor(deficitOf(world, p.ref));
     if (short >= 50) {
       const before = debtOf(m);
-      sell(ctx, r, reads, relations, short, "deficit", year, {});
+      sell(ctx, r, reads, meets.get(p.ref) ?? [], refusals, short, "deficit", year, {});
       const raised = Math.max(0, Math.round(debtOf(m) - before));
       if (raised > 0) borrowedFor(world, p.ref, raised);
     }
     const fear = m.fears[0];
     if (fear && fear.level >= FINANCE.armAt * 100 && !fighting.length) {
       const want = Math.ceil(FINANCE.arm * keep * (fear.level / 100));
-      if (want >= 50) sell(ctx, r, reads, relations, want, "arms", year, { feared: fear.of });
+      if (want >= 50)
+        sell(ctx, r, reads, meets.get(p.ref) ?? [], refusals, want, "arms", year, {
+          feared: fear.of,
+        });
     }
   }
 
@@ -882,7 +923,9 @@ function sell(
   ctx: PopulationContext,
   r: Read,
   reads: ReadonlyMap<string, Read>,
+  /** The relations the seller has, in the order of all relations. */
   relations: readonly Relation[],
+  refusals: Refusals,
   want: number,
   why: "war" | "hunger" | "arms" | "deficit",
   year: number,
@@ -891,7 +934,7 @@ function sell(
   const { world } = ctx,
     m = r.m,
     p = r.p,
-    y = yieldRead(ctx, r, year),
+    y = yieldRead(ctx, r, year, refusals),
     markets = marketsOf(world),
     wars = warsOf(world);
   if (y.rate > FINANCE.shut || y.burden >= FINANCE.full) return null;
