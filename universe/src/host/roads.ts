@@ -92,7 +92,7 @@ export function roadStages(
 }
 
 /** The year each age of machines reached this land (null: not yet). */
-function machinesYear(world: World, cell: number): number | null {
+export function machinesYear(world: World, cell: number): number | null {
   const lore = loreOf(world);
   return (
     lore.get(cell, "electricity")?.year ??

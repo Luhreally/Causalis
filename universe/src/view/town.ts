@@ -60,6 +60,8 @@ import { houseLook, type HouseLook } from "./village.ts";
 import { biomeColor } from "./globe.ts";
 import { lifeTint } from "./biochem.ts";
 import { WORN_WIDE, wornOf } from "./worn.ts";
+import { edgeYard, formGround, formLook, formTiers, tierOf } from "./townform.ts";
+import { TIER, streetWide } from "../bridge/index.ts";
 
 type Rgb = readonly [number, number, number];
 export type PartMesh = "box" | "gable" | "cone" | "cyl" | "dome";
@@ -139,9 +141,9 @@ const TOP_LEVEL = LEVELS.length - 1;
 export function homeSize(scene: TownScene, p: number): { high: number; wide: number } {
   const level = Math.max(0, Math.min(TOP_LEVEL, scene.states.level[p]!)),
     L = LEVELS[level]!;
-  if (level > 1) return { high: L.h + (level === 2 ? 3.2 : 0.5), wide: L.w };
-  const look = scene.looks[scene.states.design[p]!] ?? scene.looks[0]!,
-    [w, d] = lowFoot(L, look),
+  const look = formLook(scene, p, scene.states.design[p]!)!;
+  if (level > 1) return { high: L.h * tallOf(look, level) + (level === 2 ? 3.2 : 0.5), wide: L.w };
+  const [w, d] = lowFoot(L, look),
     flat = look.rise < 0.1,
     rh = look.open ? 0 : look.tent ? 7.5 : flat ? 0.6 : Math.min(5, look.rise * d * 0.5);
   return { high: look.raised * 10 + L.h * look.height + rh, wide: Math.max(w, d) };
@@ -182,9 +184,26 @@ const darker = (c: Rgb, f: number): Rgb => [c[0] * f, c[1] * f, c[2] * f];
  * look, but no longer than its lot holds, its eaves clear of its neighbours'.
  */
 const lowFoot = (L: { w: number; d: number }, look: HouseLook): [number, number] => [
-  Math.min(LOT_W - 1.2, L.w * (look.length / 0.7)),
-  Math.min(LOT_D - 1.6, L.d * (look.width / 0.55)),
+  Math.min(
+    look.joined ? LOT_W - 0.1 : look.apart ? LOT_W - 3 : LOT_W - 1.2,
+    L.w * (look.length / 0.7),
+  ),
+  // (By the square a house is built back to its lot's end: no ground there is left for a yard.)
+  look.joined ? LOT_D - 1 : Math.min(LOT_D - 1.6, L.d * (look.width / 0.55)),
 ];
+
+/**
+ * How high a home's walls stand against its level's own: a hut's or a house's as its look has it; a tenement's, a block's and
+ * a high-rise's as its ground is dear, a townhouse by the square a floor higher (view/townform.ts; a spire as ever).
+ */
+const tallOf = (look: HouseLook, level: number): number =>
+  level <= 1
+    ? look.height
+    : level >= 3 && level < TOP_LEVEL
+      ? (look.tall ?? 1)
+      : level === 2 && look.joined
+        ? 4 / 3
+        : 1;
 
 /** A part placed by an offset in a turned frame: (u along, v across) from (x, z), turned by yaw. */
 function at(x: number, z: number, yaw: number, u: number, v: number): [number, number] {
@@ -214,6 +233,10 @@ export type TownScene = {
   /** The lots whose drawing changes through the year (rising, or not yet begun), and the rest. */
   readonly active: readonly number[];
   readonly settled: readonly number[];
+  /** Each lot's ground as its worth sorts it and how high a tall home stands on it (view/townform.ts; null: no form read). */
+  readonly tiers: Uint8Array | null;
+  /** The looks its homes stand in by design, ground and height, made as they are asked for. */
+  readonly formLooks: Map<number, HouseLook>;
 };
 
 /** A town's scene at the moment its plan came (lots that change from then on are active). */
@@ -237,16 +260,20 @@ export function townScene(plan: TownPlan, t: number, previous?: TownLots): TownS
     active: number[] = [],
     settled: number[] = [],
     struck: number[] = [],
-    scene = {
+    walls = wallRing(plan, lots, held),
+    scene: TownScene = {
       plan,
       lots,
       states,
       struck,
       held,
-      walls: wallRing(plan, lots, held),
+      walls,
       looks,
       active,
       settled,
+      // (Its walls make ground scarce while they stand.)
+      tiers: formTiers(plan, !!walls?.lengths.length),
+      formLooks: new Map(),
     };
   // (A raid's lots caught as its machines pass over them: W2.)
   timeRaids(plan, lots, states, homesRiseTo(plan), sprawlOf(plan, lots));
@@ -303,14 +330,14 @@ export function roofTop(scene: TownScene, p: number, t: number): number | null {
     L = LEVELS[level]!;
   // (No hearth's smoke from a needle.)
   if (level >= TOP_LEVEL) return null;
-  const look = looks[homeWear(scene, p, t).look] ?? looks[0];
+  const look = formLook(scene, p, homeWear(scene, p, t).look);
   if (!look) return null;
   if (level <= 1) {
     const [, d] = lowFoot(L, look),
       rise = look.tent ? 7.5 : look.rise < 0.1 ? 0.6 : Math.min(5, look.rise * d * 0.5);
     return look.raised * 10 + L.h * look.height + rise;
   }
-  return L.h + (level === 2 ? 3.2 : level === 5 ? 10 : 2.8);
+  return L.h * tallOf(look, level) + (level === 2 ? 3.2 : level === 5 ? 10 : 2.8);
 }
 
 /** A home's box at moment t, whole or rising or what is left of it (metres), for what is laid over it; null: no such lot. */
@@ -506,7 +533,7 @@ function lotTop(scene: TownScene, p: number, x: number, z: number, t: number): n
   } else if (what === LOT.fallen || what === LOT.razed)
     return t >= states.began[p]! && under(lots, p, x, z, LOT_W - 1.5, LOT_D - 2) ? 1.2 : 0;
   else return 0;
-  const look = looks[design] ?? looks[0];
+  const look = formLook(scene, p, design);
   if (!look) return 0;
   return shapeTop(look, level, lots.x[p]!, lots.z[p]!, lots.yaw[p]!, grow, roof, x, z);
 }
@@ -560,7 +587,7 @@ function shapeTop(
       if (u <= (L.w * wide) / 2 && v <= (L.d * wide) / 2) top = Math.max(top, high * to);
     return top;
   }
-  const h = L.h * (level <= 1 ? look.height : 1) * grow;
+  const h = L.h * tallOf(look, level) * grow;
   if (level <= 1) {
     const [w, d] = lowFoot(L, look),
       base = look.raised * 10 + h,
@@ -671,9 +698,15 @@ export function townGround(
     const x = lots.blocks.x[b]!,
       z = lots.blocks.z[b]!,
       yaw = lots.blocks.yaw[b]!;
-    out.put("box", street, x, 0.18, z, BLOCK_W + STREET, 0.24, BLOCK_D + STREET, yaw);
-    out.put("box", yard, x, 0.3, z, BLOCK_W - 0.6, 0.4, BLOCK_D - 0.6, yaw);
+    // (As broad as its part of the town was laid: bridge/form.ts.)
+    const wide = plan.site?.laid ? streetWide(plan.site, b) : STREET;
+    out.put("box", street, x, 0.18, z, BLOCK_W + wide, 0.24, BLOCK_D + wide, yaw);
+    // (By the square no ground is left to grass: a block's yards are trodden courts.)
+    const court = tierOf(scene, b * BLOCK_LOTS) === TIER.heart && !plan.ways;
+    out.put("box", court ? street : yard, x, 0.3, z, BLOCK_W - 0.6, 0.4, BLOCK_D - 0.6, yaw);
   }
+  // Its form on its ground: its main streets, its market's cover, its column, its temple's steps (view/townform.ts).
+  formGround(scene, out, ash);
   // Where its people have gone (R1), over the streets and under the yards' curbs.
   // (Bared to the ground under it, in its land's own colours: dark enough to be told from a street none walks, from as far as a person's eye goes.)
   const wornEarth: Rgb =
@@ -1225,7 +1258,7 @@ function home(
   if (look.sealed) return sealedHome(out, look, level, x, z, yaw, grow, roof);
   if (level >= TOP_LEVEL) return spire(out, look, x, z, yaw, grow, roof);
   const L = LEVELS[Math.max(0, Math.min(TOP_LEVEL, level))]!,
-    h = L.h * (level <= 1 ? look.height : 1) * grow;
+    h = L.h * tallOf(look, level) * grow;
   if (h <= 0.01) return;
   if (level <= 1) {
     // Huts and houses: the land's own, round or square, its roof pitched to the rain.
@@ -1235,10 +1268,12 @@ function home(
     // Two windows on its front, toward its street (none in a tent, nor where it is open).
     if (!look.tent && !look.open && grow >= 1 && h > 1.4)
       for (const side of [-1, 1]) {
+        // (Apart at the edge, a cottage of one window; by the square a floor higher, a window to each floor.)
+        if (look.apart && side < 0) continue;
         const [wx, wz] = at(x, z, yaw, (side * w) / 4, (-d / 2) * (look.round ? 0.9 : 1) - 0.06);
         out.lamp(
           wx,
-          look.raised * 10 + h * 0.55,
+          look.raised * 10 + h * (look.joined ? (side < 0 ? 0.3 : 0.74) : 0.55),
           wz,
           Math.min(1, w / 5),
           Math.min(0.8, h * 0.3),
@@ -1289,7 +1324,18 @@ function home(
     }
     return;
   }
-  const wall = level === 3 ? BRICK : level === 4 ? CONCRETE : GLASS;
+  // (Brick, concrete, glass; where its people have no brick to stack, in what its low homes are built of.)
+  const wall = look.own
+    ? level === 3
+      ? darker(look.wall, 0.85)
+      : level === 4
+        ? mixed(look.wall, CONCRETE, 0.5)
+        : GLASS
+    : level === 3
+      ? BRICK
+      : level === 4
+        ? CONCRETE
+        : GLASS;
   out.put("box", wall, x, h / 2, z, L.w, h, L.d, yaw);
   // Storeys told by bands of windows, lit at night (fewer bands than storeys on the tall ones;
   // a tower's between the frames of its floors).
@@ -1322,7 +1368,7 @@ function rising(
 ): void {
   const L = LEVELS[Math.max(0, Math.min(TOP_LEVEL, level))]!,
     [w, d] = level <= 1 ? lowFoot(L, look) : [L.w, L.d],
-    h = L.h * (level <= 1 ? look.height : 1) * (level >= TOP_LEVEL ? spireShare(x, z) : 1),
+    h = L.h * tallOf(look, level) * (level >= TOP_LEVEL ? spireShare(x, z) : 1),
     corners = [
       [w / 2 + 0.5, d / 2 + 0.5],
       [-w / 2 - 0.5, d / 2 + 0.5],
@@ -1660,7 +1706,7 @@ export function townHomes(
       x = lots.x[p]!,
       z = lots.z[p]!,
       yaw = lots.yaw[p]!,
-      look = looks[states.design[p]!] ?? looks[0];
+      look = formLook(scene, p, states.design[p]!);
     if (!look) continue;
     if (what === LOT.home) {
       const level = states.level[p]!,
@@ -1668,11 +1714,13 @@ export function townHomes(
       if (g >= 1) {
         // Done: standing, or worn and being rebuilt.
         const w = homeWear(scene, p, t),
-          now = looks[w.look] ?? look;
+          now = formLook(scene, p, w.look) ?? look;
         if (w.at !== null && t < w.at + states.takes[p]!)
           rising(out, now, level, x, z, yaw, (t - w.at) / states.takes[p]!);
         else {
           rankedHome(scene, out, now, level, p, x, z, yaw, t);
+          // (At the edge, what stands in its yard: view/townform.ts.)
+          if (level <= 1 && !now.joined) edgeYard(scene, out, p, x, z, yaw, LEVELS[level]!.d);
           // (Shops on the ground floor of a tall home near the square: asked 2026-11-16.)
           if (shopsBelow(p, scene.plan.whole, level)) shopfront(out, level, x, z, yaw, p);
           // (Framed against the shaking, as many as its people have learned to frame: the lessons.)

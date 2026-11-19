@@ -33,6 +33,7 @@ import { kindOf } from "./kinds.ts";
 import { homePlanet, lessonUse } from "../sim/index.ts";
 import { townSiteOf, type RoadEnd } from "./sites.ts";
 import { townRank } from "./rank.ts";
+import { townFormOf } from "./form.ts";
 
 /** How a people pass over their ground, where it isn't on foot (R1): as their law and homes read them. */
 function waysOf(world: World): { ways?: "swim" | "tunnel" } {
@@ -236,6 +237,11 @@ export function townPlan(
     family: f.family,
     ...(site ? { site } : {}),
     ...(rank ? { rank } : {}),
+    // (Its form: what moving, building and holding ground cost its people here.)
+    ...(() => {
+      const form = site ? townFormOf(world, ref, f, rank)?.form : undefined;
+      return form ? { form } : {};
+    })(),
     seed: hashString(`town ${ref}`),
     axis,
     lots,

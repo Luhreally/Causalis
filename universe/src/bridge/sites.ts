@@ -40,7 +40,37 @@ export type TownSite = {
   readonly walled: number | null;
   /** It raises no new homes toward its water: it has flooded, and learned from it. */
   readonly dry: boolean;
+  /**
+   * What its streets were laid for, part by part as it grew, oldest first (absent: for those on foot, all of it): from which
+   * block on, how broad a lane and a measured street were laid (metres) and how far each block was set back from the next
+   * (its verge). A street is as broad as two of what goes down it need to pass: so a town's old heart keeps the lanes it was
+   * walked in, and what was laid after its people took to engines is broad and set apart.
+   */
+  readonly laid?: readonly StreetsLaid[];
 };
+
+/** How a part of a town's streets was laid (TownSite.laid). */
+export type StreetsLaid = {
+  readonly from: number;
+  readonly lane: number;
+  readonly street: number;
+  readonly verge: number;
+};
+
+/** How a town's streets were laid at block `b` (null: for those on foot, as of old). */
+export function laidAt(site: TownSite | null | undefined, b: number): StreetsLaid | null {
+  const laid = site?.laid;
+  if (!laid) return null;
+  let at: StreetsLaid | null = null;
+  for (const l of laid) if (b >= l.from) at = l;
+  return at;
+}
+
+/** How broad the street about block `b` is (metres), as its ground is drawn. */
+export function streetWide(site: TownSite | null | undefined, b: number): number {
+  const l = laidAt(site, b);
+  return l ? Math.max(l.lane, l.street) + 2 * l.verge : 8;
+}
 
 /**
  * The quarters a town's blocks are taken in, eight to each round of its growth: toward its water, its lee, its high ground,
@@ -164,6 +194,10 @@ type Street = {
   readonly half: number;
   /** Straight (a road, or measured ground): no wandering. */
   readonly straight: boolean;
+  /** The breadth of the gaps along it, where its side streets cross (a lane's, or a measured street's, as it was laid). */
+  readonly cross: number;
+  /** How far each block along it keeps from the next (KEEP, and its verge). */
+  readonly pad: number;
   readonly id: number;
   /** Each slot's middle and heading, laid as far as asked: x, z, h, the start of the next. */
   readonly xs: number[];
@@ -181,6 +215,8 @@ type Street = {
   readonly done: [boolean, boolean];
   /** The slots that have had a block on either side (where branches leave from). */
   readonly used: Set<number>;
+  /** A main street's: the first block that fronted each slot. */
+  readonly since: number[];
 };
 
 /** Where a town's blocks stand, in the order it takes them, and which of them were measured out straight. */
@@ -189,6 +225,25 @@ export type GrownBlocks = {
   readonly z: Float32Array;
   readonly yaw: Float32Array;
   readonly straight: Uint8Array;
+  /** Its main streets: the first street of each quarter, out from its square (a road's along its road). */
+  readonly mains: readonly MainStreet[];
+};
+
+/**
+ * A main street of a town, length by length out from its square: each length's middle and heading, how long it is, and the
+ * first block that fronted it (a town drawn to fewer blocks draws only the lengths fronted by then).
+ */
+export type MainStreet = {
+  /** Its quarter (QUARTER), and the road in it runs along (an index into the site's roads; -1: none). */
+  readonly q: number;
+  readonly road: number;
+  /** Half its breadth (metres). */
+  readonly half: number;
+  readonly x: Float32Array;
+  readonly z: Float32Array;
+  readonly h: Float32Array;
+  readonly len: Float32Array;
+  readonly since: Int32Array;
 };
 
 /**
@@ -218,7 +273,13 @@ export function grownBlocks(
     cells = new Map<number, number[]>(),
     cellKey = (i: number, j: number) => (i + 4096) * 8192 + (j + 4096),
     wallBlock = site.walled !== null ? Math.ceil(site.walled / 8) : -1,
-    measuredAt = (b: number) => site.measured >= 0 && b >= site.measured;
+    measuredAt = (b: number) => site.measured >= 0 && b >= site.measured,
+    // (What each part's streets were laid for: absent, for those on foot.)
+    laneAt = (b: number) => laidAt(site, b)?.lane ?? LANE_W,
+    streetAt = (b: number) => laidAt(site, b)?.street ?? STREET_W,
+    vergeAt = (b: number) => laidAt(site, b)?.verge ?? 0,
+    // (How far each block keeps from the next: half of it each; never more than its lane leaves.)
+    padAt = (b: number) => Math.min(KEEP, laneAt(b) / 2 - 0.25) + vergeAt(b);
   let placed = 0,
     wallR = -1;
   const roadX = site.roads.map((r) => Math.cos(r.bearing)),
@@ -283,7 +344,7 @@ export function grownBlocks(
   const streets: Street[] = [],
     heaps: MinHeap[] = Array.from({ length: QUARTERS }, () => new MinHeap()),
     gapOf = (st: Street, i: number) =>
-      st.straight ? STREET_W : LANE_W + 3 * unit(seed, st.id * 131 + i, 3);
+      st.straight ? st.cross : st.cross + 3 * unit(seed, st.id * 131 + i, 3);
   const slot = (st: Street, i: number) => {
     while (st.xs.length <= i) {
       const k = st.xs.length;
@@ -342,12 +403,15 @@ export function grownBlocks(
     half: number,
     isStraight: boolean,
     from: number,
+    b = 0,
   ) => {
     const st: Street = {
       q,
       depth,
-      half,
+      half: half + vergeAt(b),
       straight: isStraight,
+      cross: (isStraight ? streetAt(b) : laneAt(b)) + 2 * vergeAt(b),
+      pad: padAt(b),
       id: streets.length,
       xs: [],
       zs: [],
@@ -361,6 +425,7 @@ export function grownBlocks(
       fails: [0, 0],
       done: [false, false],
       used: new Set(),
+      since: [],
     };
     streets.push(st);
     push(st, -1);
@@ -379,27 +444,50 @@ export function grownBlocks(
     for (const side of [-1, 1]) {
       let hb = h + (side * Math.PI) / 2;
       if (!st.straight || !flat) hb += turnTo(nearestAlong(hb), hb) * bendBy;
-      const half = st.straight ? STREET_W / 2 : LANE_W / 2;
       // (Straight where its ground was measured out; a road's own side streets are lanes like any other's.)
-      street(st.q, st.depth + 1, ox, oz, hb, half, measuredAt(b), st.half + BD + g);
+      const half = (st.straight ? streetAt(b) : laneAt(b)) / 2;
+      street(st.q, st.depth + 1, ox, oz, hb, half, measuredAt(b), st.half + BD + g, b);
     }
   };
   // The first streets: one down each quarter from the square, a road's along its road.
   for (let q = 0; q < QUARTERS; q++) {
     const b = bearing[q]!,
       isRoad = road[q]! >= 0;
-    street(q, 0, 0, 0, b, isRoad ? ROAD_HALF + 2 : LANE_W / 2, isRoad, SQUARE_R + 4);
+    street(q, 0, 0, 0, b, isRoad ? ROAD_HALF + 2 : laneAt(0) / 2, isRoad, SQUARE_R + 4);
   }
 
   // —— Measured ground: a lattice along the main road ——
-  const PU = BW + STREET_W,
-    PV = BD + STREET_W,
-    lc = Math.cos(lattice),
+  // (One lattice to each breadth of street its measured ground was laid with: what was cut for engines is cut wider.)
+  type Lattice = {
+    readonly PU: number;
+    readonly PV: number;
+    readonly pad: number;
+    readonly cellHeaps: MinHeap[];
+    readonly cellX: number[];
+    readonly cellZ: number[];
+    ring: number;
+  };
+  const lc = Math.cos(lattice),
     ls = Math.sin(lattice),
-    cellHeaps: MinHeap[] = Array.from({ length: QUARTERS }, () => new MinHeap()),
-    cellX: number[] = [],
-    cellZ: number[] = [];
-  let ring = -1;
+    lattices = new Map<number, Lattice>(),
+    latticeAt = (b: number): Lattice => {
+      const wide = streetAt(b) + 2 * vergeAt(b);
+      let l = lattices.get(wide);
+      if (!l)
+        lattices.set(
+          wide,
+          (l = {
+            PU: BW + wide,
+            PV: BD + wide,
+            pad: padAt(b),
+            cellHeaps: Array.from({ length: QUARTERS }, () => new MinHeap()),
+            cellX: [],
+            cellZ: [],
+            ring: -1,
+          }),
+        );
+      return l;
+    };
   const quarterNear = (bx: number, bz: number) => {
     const a = Math.atan2(bz, bx);
     let best = 0,
@@ -413,8 +501,9 @@ export function grownBlocks(
     }
     return best;
   };
-  const growLattice = () => {
-    ring++;
+  const growLattice = (l: Lattice) => {
+    const { PU, PV, cellX, cellZ, cellHeaps } = l,
+      ring = ++l.ring;
     for (let i = -ring - 1; i <= ring; i++)
       for (let j = -ring - 1; j <= ring; j++) {
         if (Math.max(Math.abs(i + 0.5), Math.abs(j + 0.5)) !== ring + 0.5) continue;
@@ -429,13 +518,15 @@ export function grownBlocks(
       }
   };
   const takeCell = (b: number, q: number): boolean => {
-    const heap = cellHeaps[q]!;
+    const l = latticeAt(b),
+      { PU, PV, cellX, cellZ } = l,
+      heap = l.cellHeaps[q]!;
     for (let tries = 0; tries < 4000; tries++) {
-      while (!heap.size || heap.peekKey() > (ring + 0.5) * Math.min(PU, PV)) growLattice();
+      while (!heap.size || heap.peekKey() > (l.ring + 0.5) * Math.min(PU, PV)) growLattice(l);
       const id = heap.pop(),
         bx = cellX[id]!,
         bz = cellZ[id]!;
-      if (clear(bx, bz, -lattice, KEEP, b)) {
+      if (clear(bx, bz, -lattice, l.pad, b)) {
         put(b, bx, bz, -lattice, true);
         return true;
       }
@@ -453,9 +544,9 @@ export function grownBlocks(
           bx = r * Math.cos(a),
           bz = r * Math.sin(a),
           t = -(a + Math.PI / 2);
-        if (!clear(bx, bz, t, KEEP, b)) continue;
+        if (!clear(bx, bz, t, padAt(b), b)) continue;
         put(b, bx, bz, t, false);
-        street(q, 1, bx, bz, a, LANE_W / 2, false, REACH + LANE_W);
+        street(q, 1, bx, bz, a, laneAt(b) / 2, false, REACH + laneAt(b), b);
         return;
       }
     put(b, r * Math.cos(bearing[q]!), r * Math.sin(bearing[q]!), -bearing[q]!, false);
@@ -481,11 +572,12 @@ export function grownBlocks(
         st.done[s] = true;
         continue;
       }
-      if (clear(bx, bz, t, KEEP, b)) {
+      if (clear(bx, bz, t, Math.max(st.pad, padAt(b)), b)) {
         put(b, bx, bz, t, measuredAt(b));
         st.fails[s] = 0;
         if (!st.used.has(i)) {
           st.used.add(i);
+          if (st.depth === 0) st.since[i] = b;
           branch(st, i, b);
         }
         push(st, side);
@@ -495,7 +587,24 @@ export function grownBlocks(
     }
     if (!done) fallback(b, q);
   }
-  return { x, z, yaw, straight };
+  // Its main streets, as far as each was fronted: the first of each quarter (they are the first eight laid).
+  const mains: MainStreet[] = [];
+  for (let q = 0; q < QUARTERS; q++) {
+    const st = streets[q]!,
+      at: number[] = [];
+    for (let i = 0; i < st.xs.length; i++) if (st.since[i] !== undefined) at.push(i);
+    mains.push({
+      q: st.q,
+      road: road[st.q]!,
+      half: st.half,
+      x: Float32Array.from(at, (i) => st.xs[i]!),
+      z: Float32Array.from(at, (i) => st.zs[i]!),
+      h: Float32Array.from(at, (i) => st.hs[i]!),
+      len: Float32Array.from(at, (i) => BW + gapOf(st, i)),
+      since: Int32Array.from(at, (i) => st.since[i]!),
+    });
+  }
+  return { x, z, yaw, straight, mains };
 }
 
 /** Whether two blocks overlap, each kept `pad` clear about it (their sides apart, by their axes). */
