@@ -78,8 +78,18 @@ export type WarsMap = {
     readonly declared: number;
     /** The year it ended (null: still fought). */
     readonly ended: number | null;
-    /** The defender's seat, if it is under siege (a victory there, the seat still held): its spot. */
+    /** The land under siege (the siege the world keeps; else the defender's seat with a victory there, still held): its spot. */
     readonly siege: number | null;
+    /** The siege as the world keeps it (sim/war/siege.ts): where, since when, its stores, its walls, its dead. Absent: none kept. */
+    readonly siegeNow?: {
+      readonly spot: number;
+      readonly name: string;
+      readonly since: number;
+      /** Months of food left within; how far its walls are open (in a hundred); the dead of camp and town. */
+      readonly months: number;
+      readonly breach: number;
+      readonly dead: number;
+    };
     /**
      * Where its next battle will be fought, as things stand (Phase 40 M203: the land its attacker
      * wants most now, as history will choose it at the year's turn; null: none, or the war over),

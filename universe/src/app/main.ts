@@ -3522,7 +3522,9 @@ async function runPlanetPage(): Promise<void> {
         ? [
             {
               key: `siege:${w.ref}`,
-              text: `🏰 ${w.defender.name.split(" of ").at(-1)} besieged`,
+              text: w.siegeNow
+                ? `🏰 ${w.siegeNow.name} besieged · ${w.siegeNow.months} mo of stores${w.siegeNow.breach > 0 ? ` · walls ${w.siegeNow.breach}% open` : ""}`
+                : `🏰 ${w.defender.name.split(" of ").at(-1)} besieged`,
               at: { x: at[i]!.x, y: at[i]!.y },
               priority: 1.6e9,
             },

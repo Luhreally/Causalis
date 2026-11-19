@@ -33,6 +33,7 @@ import {
   PERSON_TRAITS,
   PIOUS_BLESSING,
   politiesOf,
+  siegeOf,
   populationContext,
   powerOf,
   farReadNext,
@@ -1366,7 +1367,25 @@ function planetUniverse(name: string, prior: Prior): Universe {
                 declared: w.declared,
                 ended: w.ended,
                 // (A seat is besieged by a victory there while its realm still holds it.)
+                // (Where the world keeps the siege itself, that is it: a seat or a walled land, with how it stands. sim/war/siege.ts.)
+                ...(() => {
+                  const laid = w.ended === null ? siegeOf(world, w.ref) : null;
+                  return laid && realms.of(laid.land)?.ref === w.defender
+                    ? {
+                        siegeNow: {
+                          spot: spot(laid.land),
+                          name: landTitle(world, laid.land, true),
+                          since: laid.since,
+                          months: Math.round(laid.months),
+                          breach: Math.round(laid.breach * 100),
+                          dead: laid.campDead + laid.townDead,
+                        },
+                      }
+                    : {};
+                })(),
                 siege: (() => {
+                  const laid = w.ended === null ? siegeOf(world, w.ref) : null;
+                  if (laid && realms.of(laid.land)?.ref === w.defender) return spot(laid.land);
                   const seat = realms.get(w.defender)?.seat;
                   return w.ended === null &&
                     seat !== undefined &&
