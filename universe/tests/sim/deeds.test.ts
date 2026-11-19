@@ -24,7 +24,10 @@ import {
 import { YEAR, yearOfMoment, type Ref } from "../../src/kernel/index.ts";
 import {
   DEED_EVENTS,
+  GROUP_ACT_YEARS,
+  GROUP_HAND_EVENTS,
   bodiesOf,
+  orgsOf,
   politiesOf,
   populationContext,
   sentence,
@@ -210,4 +213,51 @@ test("on a real world: one taken comes before the court of their land, where it 
   }
   assert.ok(tried >= 5, `${tried} tried (${none} realms keep no court)`);
   assert.ok(held >= 1, `${held} held by name`);
+});
+
+test("the hand on a group: the god outlaws it and it is held so until the years run out; a ruler charters one of their own realm's", () => {
+  const world = universeWorld(EARTH, "first light", 240),
+    store = orgsOf(world)!;
+  let done = 0;
+  for (const p of politiesOf(world).living()) {
+    const g = store.of(p.ref)?.orgs.find((x) => x.standing === 1);
+    if (!g) continue;
+    const before = world.domainHashes().find(([d]) => d === "order")?.[1];
+    world.submit("act.group", { group: g.event, act: "outlaw" });
+    world.runTo(world.now + 1);
+    const now = store.of(p.ref)!.orgs.find((x) => x.event === g.event)!;
+    assert.equal(now.standing, 0);
+    assert.equal(now.decree, 0);
+    assert.equal(now.decreeUntil, yearOfMoment(world.now) + GROUP_ACT_YEARS);
+    assert.notEqual(world.domainHashes().find(([d]) => d === "order")?.[1], before);
+    const told = world.events
+      .all()
+      .filter((e) => e.type === GROUP_HAND_EVENTS.act.type)
+      .at(-1)!;
+    assert.match(why(world, told.id).claim, /The god outlawed the /);
+    // (Its ruler lets it be again; another realm's ruler cannot.)
+    assert.throws(() =>
+      world.submit("reign.charter", {
+        realm: p.ref,
+        ruler: "No One",
+        target: g.event,
+        to: "let be",
+      }),
+    );
+    world.submit("reign.charter", {
+      realm: p.ref,
+      ruler: p.ruler.name,
+      target: g.event,
+      to: "charter",
+    });
+    world.runTo(world.now + 1);
+    assert.equal(store.of(p.ref)!.orgs.find((x) => x.event === g.event)!.standing, 2);
+    const word = world.events
+      .all()
+      .filter((e) => e.type === GROUP_HAND_EVENTS.charter.type)
+      .at(-1)!;
+    assert.match(why(world, word.id).claim, /granted the .* its charter/);
+    if (++done >= 2) break;
+  }
+  assert.ok(done >= 1, `${done} groups acted on`);
 });

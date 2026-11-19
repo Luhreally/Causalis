@@ -1131,14 +1131,20 @@ function stepRealm(
     if (g.does !== DOES.craft || g.since >= year || g.standing === 0) continue;
     if (g.struck !== undefined && year - g.struck < INST.strikeGap) continue;
     const l = lands.get(g.home)!;
+    // (The works of its own good first; else the greatest of its land, whose roof takes the hands its crafts would have:
+    // over a world's thousand years no works of a trade's own good stood beside it with both strong, and none was closed against.)
     let works: Body | undefined;
-    for (const x of v.bodies)
-      if (x.does === DOES.make && x.of === g.of && x.lands.includes(g.home) && x.since < year)
-        if (!works || x.staff > works.staff) works = x;
+    for (const x of v.bodies) {
+      if (x.does !== DOES.make || !x.lands.includes(g.home) || x.since >= year) continue;
+      const mine = x.of === g.of ? 1 : 0,
+        best = works ? (works.of === g.of ? 1 : 0) : -1;
+      if (mine > best || (mine === best && x.staff > works!.staff)) works = x;
+    }
     if (!works || l.crafters <= 0) continue;
     const under = works.staff / l.crafters,
       held = g.staff / l.crafters;
-    if (under < INST.strikeLeast || held < INST.strikeLeast) continue;
+    // (A works of another good must hold twice the hands to be the trade's quarrel.)
+    if (under < INST.strikeLeast * (works.of === g.of ? 1 : 2) || held < INST.strikeLeast) continue;
     if (f.u(310 + g.id * 4) >= 1 - dmath.pow(0.5, span / 10)) continue;
     const upheld =
       g.standing === 2 && f.u(311 + g.id * 4) < 0.35 + 0.5 * r.legitimacy - 0.4 * r.force;
