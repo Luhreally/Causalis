@@ -154,7 +154,9 @@ function electionBlocks(world: World, r: Polity): Block[] {
     rows: Stat[] = [
       stat(
         "Who governs",
-        v.governing ? `The ${v.governing}, by its people's choice` : "None chosen yet",
+        v.governing
+          ? `The ${v.governing}${v.past.at(-1)?.who ? `, under ${v.past.at(-1)!.who}${v.past.at(-1)!.party ? ` of the ${v.past.at(-1)!.party} party` : ""}` : ""}, by its people's choice`
+          : "None chosen yet",
         { why: v.past.at(-1)?.event ?? null },
       ),
       stat("Its people choose", `Every ${term} years; next in year ${v.next}`),
@@ -163,7 +165,10 @@ function electionBlocks(world: World, r: Polity): Block[] {
   if (last)
     rows.push(
       stat("At the last", `Year ${last.year}`, {
-        parts: last.votes.map(([g, x]) => part(`the ${g}' candidate`, share(x))),
+        parts: last.votes.map(([g, x]) => {
+          const name = last.ran?.find(([k]) => k === g)?.[1];
+          return part(name ? `${name}, of the ${g}` : `the ${g}' candidate`, share(x));
+        }),
       }),
     );
   return [
@@ -175,7 +180,7 @@ function electionBlocks(world: World, r: Polity): Block[] {
         .reverse()
         .map((e) =>
           item(
-            `Year ${e.year}: the ${e.group} ${e.held ? "chosen again" : "chosen to govern"}, ${share(e.votes[0]?.[1] ?? 0)} of its sway`,
+            `Year ${e.year}: the ${e.group} ${e.held ? "chosen again" : "chosen to govern"}${e.who ? `, under ${e.who}${e.party ? ` of the ${e.party} party` : ""}` : ""}, ${share(e.votes[0]?.[1] ?? 0)} of its sway`,
             e.event,
             e.year,
           ),

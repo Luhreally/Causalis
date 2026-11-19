@@ -12,6 +12,7 @@
 // together at one level in one design are one run; runs never overlap, a run changed over is
 // cut back, and a ruin weathered away is let go), so the fabric of twenty thousand towns stays
 // small; the view reads from it what stands on any lot, and since when.
+import { courtIn } from "../order/institutions-kept.ts";
 import {
   YEAR,
   defineEventType,
@@ -167,6 +168,7 @@ export const CIVIC_LOTS: Readonly<Record<CivicKind, number>> = {
   minds: 4,
   vats: 8,
   well: 1,
+  prison: 2,
 };
 
 /** Years a run must have stood untouched before it is history and may join the run it continues (a home takes at most three to raise). */
@@ -1918,6 +1920,8 @@ export class TownBuilder {
         : 1;
       if (HAVE[i]! >= want || RISING[i]) continue;
       if ((def.faith && !faith()) || (def.water && !water()) || !this.meets(def, i, k)) continue;
+      // (A prison only where its land's court holds people.)
+      if (def.held && !(courtIn(this.ctx.world, s.cell).held > 0)) continue;
       // (What it takes the place of comes down first: it may rise where that stood.)
       const old = def.replaces
         ? f.civics.find((c) => c.fell === null && c.kind === def.replaces)

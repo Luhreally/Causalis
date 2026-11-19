@@ -873,6 +873,39 @@ export function drawTool(
       );
       return;
     }
+    case "acts.group": {
+      // A group in the god's hand (sim/order/grouphand.ts): blessed, cursed, kept from its realm's hand, chartered or outlawed.
+      const tools = el("div", "tools"),
+        note = el("p", "note"),
+        group = args.group as string,
+        name = args.name as string,
+        years = args.years as number,
+        act = (label: string, said: string, what: string) =>
+          twice(tools, note, label, said, async () => {
+            await ctx.client.command("act.group", { group, act: what });
+            ctx.refresh();
+          });
+      note.hidden = true;
+      act("✨ Bless it", `For ${years} years a fifth more come to ${name}.`, "bless");
+      act("🌑 Curse it", `For ${years} years a fifth fewer come to ${name}.`, "curse");
+      act(
+        "🛡️ Keep its realm's hand off it",
+        `For ${years} years its realm takes none of ${name}'s people, though it outlaws it.`,
+        "protect",
+      );
+      act(
+        "📜 Grant it its rights",
+        `For ${years} years ${name} is chartered, whatever its realm would have done.`,
+        "charter",
+      );
+      act(
+        "⛔ Outlaw it",
+        `For ${years} years ${name} is outlawed: it must hide, and its realm takes of its people.`,
+        "outlaw",
+      );
+      into.replaceChildren(el("h3", undefined, "Your hand on it"), tools, note);
+      return;
+    }
     case "acts.body": {
       // A body in the god's hand (sim/order/institutions.ts): blessed, cursed, or kept from its seat's hand, for some years.
       const tools = el("div", "tools"),
@@ -900,6 +933,16 @@ export function drawTool(
         "🛡️ Keep its seat's hand off it",
         `For ${years} years its seat neither outlaws ${name} nor takes it for itself.`,
         "protect",
+      );
+      act(
+        "📜 Grant it its charter",
+        `For ${years} years ${name} is chartered, whatever its seat would have done.`,
+        "charter",
+      );
+      act(
+        "⛔ Outlaw it",
+        `For ${years} years ${name} is outlawed: its seat's hand takes of its people each year.`,
+        "outlaw",
       );
       into.replaceChildren(el("h3", undefined, "Your hand on it"), tools, note);
       return;

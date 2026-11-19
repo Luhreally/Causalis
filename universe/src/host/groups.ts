@@ -91,7 +91,15 @@ export function orgNews(g: OrgRead): (e: HistoryEvent) => boolean {
   const realm = g.realm.ref,
     id = g.record?.id;
   return (e) => {
-    if (!e.type.startsWith("groups.") || !e.subjects.includes(realm)) return false;
+    // (And a choice its realm's people made of its head: sim/order/elections.ts names the party.)
+    if (e.type === "order.elected")
+      return (
+        e.subjects.includes(realm) &&
+        g.kind === "party" &&
+        (e.data as { party?: string } | null)?.party === g.name
+      );
+    const hand = e.type === "act.group" || e.type === "reign.charter";
+    if ((!e.type.startsWith("groups.") && !hand) || !e.subjects.includes(realm)) return false;
     const d = e.data as { gids?: number[]; group?: string; into?: string } | null;
     if (!d) return false;
     if (id !== undefined && d.gids?.includes(id)) return true;

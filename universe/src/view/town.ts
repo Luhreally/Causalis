@@ -2234,6 +2234,12 @@ function civicShape(
       put("cyl", WHITE, 0, 6, 0, 8, 12, 8);
       put("cone", [0.62, 0.66, 0.72], 0, 14, 0, 9, 4, 9);
       break;
+    case "prison":
+      // (A blind block within a wall, a watch tower at one corner.)
+      put("box", [0.5, 0.5, 0.52], 0, 1.8, 0, w * 0.96, 3.6, d * 0.96);
+      put("box", [0.42, 0.42, 0.45], 0, 4.5, 0, w * 0.7, 9, d * 0.6);
+      put("box", [0.36, 0.36, 0.4], w * 0.42, 6, d * 0.42, 2.4, 12, 2.4);
+      break;
     case "hospital":
       put("box", WHITE, 0, 6, 0, w * 0.9, 12, d * 0.8);
       put("box", [0.86, 0.14, 0.14], 0, 12.3, 0, 7, 0.4, 2.2);
@@ -2439,6 +2445,7 @@ const CIVIC_HIGH: Readonly<Record<string, number>> = {
   minds: 42,
   vats: 16,
   well: 4,
+  prison: 12,
 };
 
 /**

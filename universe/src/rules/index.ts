@@ -1749,3 +1749,5 @@ export * from "./groups.ts";
 export * from "./institutions.ts";
 // Notable people (2026-11-18): who a people notice, their kind read off what they did.
 export * from "./notables.ts";
+// Deeds (2026-11-19): a group or a body acting on someone or something the world keeps by name.
+export * from "./deeds.ts";

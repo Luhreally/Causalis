@@ -59,14 +59,21 @@ registerEventWords(ELECTION_EVENTS.elected.type, (_, e) => {
       share?: number;
       held?: boolean;
       was?: string | null;
+      by?: string;
+      party?: string;
+      rival?: string;
+      rivalGroup?: string;
     } | null,
     // (A group's name may carry its own "the": "the court", "the army", beside "farmers". It read "the the court".)
     the = (g: string) => (/^the /i.test(g) ? g : `the ${g}`),
     who = the(d?.group ?? "group"),
-    by = `${Math.round((d?.share ?? 0) * 100)} in a hundred of its sway`;
+    by = `${Math.round((d?.share ?? 0) * 100)} in a hundred of its sway`,
+    // (Who was chosen by name, of which party, and over whom: where the world keeps them.)
+    under = d?.by ? `, under ${d.by}${d.party ? ` of the ${d.party} party` : ""}` : "",
+    over = d?.rival ? `, over ${d.rival} of ${the(d.rivalGroup ?? "another group")}` : "";
   return d?.held
-    ? `${cap(realm(e.data))} chose again: ${who} govern still, given ${by}, ${year(e.t)}`
-    : `${cap(realm(e.data))} chose ${who} to govern${d?.was ? `, in place of ${the(d.was)}` : ""}, given ${by}, ${year(e.t)}`;
+    ? `${cap(realm(e.data))} chose again: ${who} govern still${under}${over}, given ${by}, ${year(e.t)}`
+    : `${cap(realm(e.data))} chose ${who} to govern${under}${d?.was ? `, in place of ${the(d.was)}` : ""}${over}, given ${by}, ${year(e.t)}`;
 });
 // A lesson of rule (sim/order/holds.ts): what befell it, or another, whom it blamed, and what it did.
 registerEventWords(HOLD_EVENTS.lesson.type, (_, e) => {

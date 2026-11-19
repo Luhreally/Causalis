@@ -47,7 +47,7 @@ export type HeadNote = {
   readonly name: string;
   readonly year: number;
   readonly age: number;
-  readonly how: "years" | "taken" | "struck";
+  readonly how: "years" | "taken" | "struck" | "killed";
   readonly years?: number;
   readonly chance?: number;
   readonly draw?: number;

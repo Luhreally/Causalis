@@ -402,9 +402,9 @@ test("where a workers' body's wage has fallen behind what it was and it is many 
   let lost = 0;
   for (const e of strikes) {
     const d = e.data as { outcome: string; lost: number };
-    assert.ok(d.outcome === "won" || d.outcome === "broken");
+    assert.ok(d.outcome === "won" || d.outcome === "settled" || d.outcome === "broken");
     assert.ok(d.lost > 0 && d.lost <= INST.strikeCosts * 100);
-    assert.match(claimOf(world, e.id), /struck/);
+    assert.match(claimOf(world, e.id), /struck|stopped/);
     // (Lost in the year after the reckoning that told it, and in no other.)
     const cell = put.find((x) => x.realm === e.subjects[0])!.cell,
       at = bodyLandsStore(world)!.get(cell)![BODY_ROW.strikeYear]!;

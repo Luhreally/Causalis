@@ -170,10 +170,11 @@ export function headLeader(world: World, ref: string): Leader | null {
 }
 
 /** How a head went, after "who". */
-const HEAD_WENT: Readonly<Record<"years" | "taken" | "struck", string>> = {
+const HEAD_WENT: Readonly<Record<"years" | "taken" | "struck" | "killed", string>> = {
   years: "died of their years",
   taken: "was taken by the realm's soldiers",
   struck: "was killed",
+  killed: "was killed by those who held them to account",
 };
 /** A list's line with the one it names to be gone to and followed at a press (none: as it is). */
 const toWho = (i: Item, who: string | undefined): Item => (who ? { ...i, who } : i);

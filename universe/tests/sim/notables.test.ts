@@ -96,7 +96,17 @@ test("a rising told has its causes, and the dead are kept as short records", () 
   for (const g of store.gone()) {
     assert.ok(g.died >= g.since && g.deeds.length <= 2);
     assert.ok(
-      ["age", "ills", "battle", "taken", "sickness", "purge", "struck", "killed"].includes(g.how),
+      [
+        "age",
+        "ills",
+        "battle",
+        "taken",
+        "sickness",
+        "purge",
+        "struck",
+        "killed",
+        "executed",
+      ].includes(g.how),
     );
   }
 });

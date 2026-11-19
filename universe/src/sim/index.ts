@@ -1265,6 +1265,7 @@ export {
   ElectionStore,
   GOVERNS_BY,
   chooses,
+  candidateOf,
   electionsOf,
   electionsYear,
   termOf,
@@ -1792,7 +1793,14 @@ export {
   type RealmUnderworld,
 } from "./order/underworld-kept.ts";
 // Groups (2026-11-16): the general layer of collective action, each group's kind read off what it does.
-export { ORG_EVENTS, orgAimOf, groupsYear, installGroups, kindName } from "./order/groups.ts";
+export {
+  ORG_EVENTS,
+  orgAimOf,
+  groupsYear,
+  installGroups,
+  kindName,
+  strikerOf,
+} from "./order/groups.ts";
 export {
   ORGS_STORE,
   ORG_LANDS_STORE,
@@ -1826,6 +1834,7 @@ export {
   BODY_ACT_YEARS,
   INST_EVENTS,
   actOnBody,
+  bodyHeadFalls,
   bodiesYear,
   bodyTitle,
   doesOf,
@@ -1904,6 +1913,26 @@ export {
   whispersFor,
 } from "./acts/person.ts";
 export type { HeadNote } from "./hand/deaths.ts";
+// The hand on groups (2026-11-19): the god's acts and a ruler's decrees on a group or a body by name.
+export {
+  CHARTER_ACTS,
+  GROUP_ACTS,
+  GROUP_ACT_YEARS,
+  GROUP_HAND_EVENTS,
+  installGroupHand,
+  type CharterAct,
+  type GroupAct,
+} from "./order/grouphand.ts";
+// Deeds (2026-11-19): a group or a body acting on someone the world keeps by name.
+export {
+  DEED_EVENTS,
+  sentence,
+  standsAgainst,
+  strikes,
+  trials,
+  type Accused,
+  type Striker,
+} from "./order/deeds.ts";
 // Notable people (2026-11-18): who a people notice, their kind read off what they did.
 export {
   NOTABLE_EVENTS,

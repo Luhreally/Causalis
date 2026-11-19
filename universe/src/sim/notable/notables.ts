@@ -495,7 +495,16 @@ function occasion(r: Run, e: HistoryEvent, o: Occasion, inspired: Map<number, nu
           (e.type === "order.elected" ? 0.5 : 1) *
           (r.many ? NOTE.hiveShare : 1);
   if (!noticed && !e.type.startsWith("act.inspire") && e.type !== INSPIRED) return;
-  const n = arise(r, cell, key, Math.max(NOTE.line, made), deed, general);
+  // (One a people chose by name, a party's head: the one who arises is that person, of that name and birth.)
+  const chosen =
+    e.type === "order.elected" && typeof data.by === "string" && data.by
+      ? {
+          name: data.by,
+          sex: u(3) < 0.5 ? 1 : 0,
+          ...(typeof data.born === "number" ? { born: data.born } : {}),
+        }
+      : undefined;
+  const n = arise(r, cell, key, Math.max(NOTE.line, made), deed, general ?? chosen);
   if (e.type.startsWith("act.inspire") || e.type === INSPIRED) inspired.set(cell, n.id);
   if (spoken) n.faith = spoken;
   speaksNow(n);
@@ -970,7 +979,7 @@ export function commandLeft(world: World, realm: Ref, name: string): void {
 export function strikeNotable(
   ctx: PopulationContext,
   id: number,
-  how: "struck" | "killed",
+  how: "struck" | "killed" | "executed",
   event: Ref,
   t: SimTime,
 ): boolean {

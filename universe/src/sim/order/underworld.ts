@@ -45,6 +45,10 @@ import {
 import { tongueName } from "../../gen/index.ts";
 import {
   BANDS,
+  INST,
+  policedReach,
+  CRIME_AGAINST,
+  DEED,
   COURTS,
   GEAR,
   GEAR_PARTS,
@@ -157,6 +161,8 @@ import {
 } from "./underworld-kept.ts";
 import { RowStore } from "../money/kept.ts";
 import { actOn, bossRef, hazardBy, sparedBy, struckBy } from "../acts/person.ts";
+import { sentence, strikes } from "./deeds.ts";
+import { BODY_ROW, bodyLandsStore, courtJailsIn, watchOf } from "./institutions-kept.ts";
 import { KILLINGS_KEPT, deathNotesOf } from "../hand/deaths.ts";
 
 /** The causes of contraband whose rent the underworld's groups carry beside the tariff's and the ban's (money/contraband.ts). */
@@ -205,6 +211,14 @@ export const kindOfGroup = (g: { readonly kind: number }): GroupKind =>
 const per = (x: number) => Math.round(dmath.clamp(x, 0, 1) * 1000);
 const keyOf = (r: Ref) => parseRef(r).b >>> 0;
 const r2 = (x: number) => Math.round(x * 100) / 100;
+
+/** A seat's reach in a land against those outside the law: as the watch there makes it, where one is kept. */
+function policedIn(rows: RowStore | null, cell: number, reach: number): number {
+  const row = rows?.get(cell);
+  return row && row[BODY_ROW.watch]! > 0
+    ? policedReach(reach, row[BODY_ROW.watch]! / 1000, row[BODY_ROW.honest]! / 1000)
+    : reach;
+}
 
 /** The facts of a realm's reckoning. */
 type Facts = {
@@ -488,6 +502,10 @@ type Read = {
   earned: number;
   revenue: number;
   capacity: number;
+  /** Its watch, where it keeps one (sim/order/institutions.ts watchOf): how far it is manned (0 … 1), how honest, its hands. */
+  watch: { manned: number; honest: number; staff: number } | null;
+  /** Its reach against those outside the law, as that watch makes it (its reach itself where it keeps none). */
+  policed: number;
   /** How far its seat reaches each of its peopled lands (sim/order reachOver). */
   reachIn: ReadonlyMap<number, number>;
   corruption: number;
@@ -561,6 +579,15 @@ function readRealm(ctx: PopulationContext, p: Polity, year: number): Read {
     for (const b of w.battles) most = Math.max(most, b.fielded?.[side] ?? 0);
     veterans += Math.max(0, most - w.fallen[side]);
   }
+  // (Its watch, where it keeps one: how far manned for its people, how honest.)
+  const kept = watchOf(world, p.ref),
+    watch = kept
+      ? {
+          manned: Math.min(1, kept.staff / Math.max(1, (people * INST.watchFull) / 1000)),
+          honest: kept.honest,
+          staff: kept.staff,
+        }
+      : null;
   const fifth = moneyStore(world, SHARES_STORE)?.get(p.seat)?.[SHARE.fifths],
     revenue = fisc
       ? fisc[FISC.tariffs]! +
@@ -589,6 +616,8 @@ function readRealm(ctx: PopulationContext, p: Polity, year: number): Read {
     earned: fisc ? fisc[FISC.base + 3]! : 0,
     revenue,
     capacity: over.value,
+    watch,
+    policed: watch ? policedReach(over.value, watch.manned, watch.honest) : over.value,
     reachIn: over.lands,
     corruption: o?.corruption ?? 0,
     legitimacy: o?.legitimacy ?? 0.5,
@@ -937,7 +966,8 @@ function stepRealm(
         trade: r.trade,
         earned: r.earned,
         capacity: r.capacity,
-        reach: r.reachIn.get(c) ?? r.capacity,
+        // (As its land's watch makes it, where one is kept there.)
+        reach: policedIn(bodyLandsStore(world), c, r.reachIn.get(c) ?? r.capacity),
         corruption: r.corruption,
         legitimacy: r.legitimacy,
         kin: (folk?.get(c)?.[FOLK_ROW.kin] ?? 1000) / 1000,
@@ -976,7 +1006,11 @@ function stepRealm(
   for (const tw of towns)
     tw.jailed = jails
       ? Math.round(
-          tw.members * UNDER.jailed * r.capacity * (opTowns.has(tw.cell) ? ESCALATE.jails : 1),
+          // (By the court of its land, as far as it reaches and is not bought, where one is kept: sim/order/institutions.ts.)
+          tw.members *
+            UNDER.jailed *
+            (courtJailsIn(world, tw.cell) ?? r.capacity) *
+            (opTowns.has(tw.cell) ? ESCALATE.jails : 1),
         )
       : 0;
   // (Ties made inside: those jailed come out bound to their gangs the more.)
@@ -1174,11 +1208,11 @@ function stepRealm(
   const killedBefore = (v.killings + v.street + v.badge) / r.people,
     groupIncome = v.groups.reduce((s, g) => s + g.income, 0),
     sheltering = housesShelter(world, p.ref),
-    collusionAim = collusionOf(
-      r.corruption,
-      groupIncome / Math.max(1, r.revenue),
-      r.word,
-      !!sheltering,
+    // (A watch that is not honest is bought the more readily.)
+    collusionAim = Math.min(
+      1,
+      collusionOf(r.corruption, groupIncome / Math.max(1, r.revenue), r.word, !!sheltering) *
+        (r.watch ? 1 - UNDER.crookedBuys / 2 + UNDER.crookedBuys * (1 - r.watch.honest) : 1),
     ),
     collusion = v.collusion / 1000 + (collusionAim - v.collusion / 1000) * stepped(0.3, span),
     // (What a full crackdown on the men it faces would cost, against what its treasury can spend on it.)
@@ -1192,7 +1226,8 @@ function stepRealm(
       v.groups.length || v.feds.length
         ? afford *
           crackdownOf({
-            capacity: r.capacity,
+            // (A crackdown is its watch's to carry out: as far as that is manned and honest.)
+            capacity: r.policed,
             legitimacy: r.legitimacy,
             voice: r.voice,
             word: r.word,
@@ -1213,6 +1248,15 @@ function stepRealm(
       [],
       [
         factor("the seat's reach", r.capacity, r.capacity),
+        ...(r.watch
+          ? [
+              factor(
+                "its watch, manned and honest",
+                r.watch.manned * r.watch.honest,
+                r.policed - r.capacity,
+              ),
+            ]
+          : []),
         factor("its rule held rightful", r.legitimacy, r.legitimacy),
         factor(
           "the killing, as far as the harmed are heard",
@@ -1255,15 +1299,19 @@ function stepRealm(
   // 6. The badge: a crackdown under weak oversight, with a rent in reach.
   const streetMarket = towns.reduce((s, tw) => s + tw.members, 0) * r.wage * 0.5,
     within = r.earned > 0 ? (streetMarket + smuggleRent * 0.3 + v.seized) / r.earned : 0,
-    bp = badgePull({
-      // (Soldiers sent against a group are a crackdown given licence too: under weak oversight, they abuse and turn.)
-      crackdown: Math.max(crackdown, opTowns.size ? ESCALATE.bite : 0),
-      voice: r.voice,
-      word: r.word,
-      courts: r.byCourts,
-      force: r.force,
-      within,
-    });
+    // (And as its watch is honest: one paid a living and watched turns less, one bought the more.)
+    bp = Math.min(
+      1,
+      badgePull({
+        // (Soldiers sent against a group are a crackdown given licence too: under weak oversight, they abuse and turn.)
+        crackdown: Math.max(crackdown, opTowns.size ? ESCALATE.bite : 0),
+        voice: r.voice,
+        word: r.word,
+        courts: r.byCourts,
+        force: r.force,
+        within,
+      }) * (r.watch ? 1 - UNDER.crookedTurns / 2 + UNDER.crookedTurns * (1 - r.watch.honest) : 1),
+    );
   v.badgePull = per(bp);
   let badge = v.groups.find((g) => kindOfGroup(g) === "badge");
   // (A crew found out leaves its realm watching its enforcers for a while: none rises again until its scandal has faded.)
@@ -1276,9 +1324,13 @@ function stepRealm(
         factor("word that does not move freely", r.word, 1 - r.word),
         factor("courts that are the seat's", r.byCourts, 1 - r.byCourts),
         factor("what is seized and the street's market", within, within * 20),
+        ...(r.watch
+          ? [factor("a watch that is not honest", 1 - r.watch.honest, 1 - r.watch.honest)]
+          : []),
       ]) ?? undefined;
   }
-  const enforcers = r.people * 0.004 * r.capacity;
+  // (Its enforcers: its watch's own hands where it keeps one.)
+  const enforcers = r.watch ? r.watch.staff : r.people * 0.004 * r.capacity;
   if (badge) {
     badge.members = Math.round(enforcers * bp * 0.3);
     badge.income = Math.round(within * r.earned * 0.3 * bp);
@@ -1658,6 +1710,24 @@ function stepRealm(
         draw: f.u(100 + g.id * 8),
         event,
       });
+      // (Taken by the realm's hand: brought before the court of his land, where it keeps one. sim/order/deeds.ts.)
+      sentence(
+        ctx,
+        p,
+        g.home,
+        {
+          name: g.boss.name,
+          what: `boss of the ${g.name} ${kind === "cartel" ? "cartel" : "family"}`,
+          ref: head,
+          charge:
+            kind === "cartel" ? "carrying what is forbidden" : "what was taken for protection",
+          grave: 0.6,
+          purse: true,
+        },
+        event,
+        t,
+        20_000 + g.id,
+      );
       g.boss = newBoss(f, g.home, kind === "protection" ? g.name : null, g.id * 31 + g.bosses);
       g.bosses++;
       if (op) op.op.bosses++;
@@ -1865,6 +1935,48 @@ function stepRealm(
     for (const c of g.lands) held.add(c);
   }
   writeLands(ctx, p, v, towns, r, badge, bites, warring, year);
+  // 11. Those who hunt and tell of them, struck at (sim/order/deeds.ts): as far as its groups are hunted and its officers are
+  // not bought, and a free voice tells of them where they live.
+  const huntedBy = DEED.hunted * dmath.clamp(bites * (1 - collusion), 0, 1);
+  for (const g of v.groups) {
+    if (kindOfGroup(g) === "badge" || g.since >= year || g.members < UNDER.crew) continue;
+    const toldBy = Math.min(
+      1,
+      (2 * (bodyLandsStore(world)?.at(g.home, BODY_ROW.word) ?? 0)) / 1000,
+    );
+    if (huntedBy <= 0 && toldBy <= 0) continue;
+    const will = 0.75 * huntedBy + 0.25 * toldBy;
+    if (will < DEED.willLeast) continue;
+    const hit = strikes(
+      ctx,
+      p,
+      {
+        crime: true,
+        id: g.id,
+        will,
+        members: g.members,
+        striker: () => ({
+          crime: true,
+          id: g.id,
+          name: g.name,
+          kind: kindOfGroup(g),
+          event: g.event,
+          lands: g.lands,
+          members: g.members,
+          armed: true,
+          hidden: true,
+          identity: "",
+          against: CRIME_AGAINST.map(([at, share]) => ({
+            at,
+            weight: share * (at.who === "head" && at.does === "word" ? toldBy : huntedBy),
+          })),
+        }),
+      },
+      { pressed: bites, capacity: r.capacity, crew: UNDER.crew, span },
+      t,
+    );
+    if (hit) g.members = Math.max(0, g.members - hit.lost);
+  }
   v.last = year;
   return towns.length > 0 || crackdown > 0.01;
 }
@@ -2442,6 +2554,55 @@ function writeLands(
     ]);
   }
   v.extortion = trade > 0 ? per(extorted / trade) : 0;
+}
+
+/**
+ * A boss brought down by another's deed (sim/order/deeds.ts: those who hold wrongdoers to account where the courts do not;
+ * `by`: its event): another takes his place at once, and a fifth of his men scatter. False where no such group stands.
+ */
+export function bossFalls(
+  ctx: PopulationContext,
+  p: Polity,
+  founded: Ref,
+  by: Ref,
+  t: SimTime,
+): boolean {
+  const { world } = ctx,
+    store = underworldOf(world),
+    was = store?.of(p.ref);
+  if (!store || !was || !was.groups.some((g) => g.event === founded)) return false;
+  const v = copyOf(was),
+    g = v.groups.find((x) => x.event === founded)!,
+    year = yearOfMoment(t),
+    key = keyOf(p.ref),
+    f: Facts = {
+      ctx,
+      p,
+      v,
+      t,
+      year,
+      key,
+      u: (k: number) => world.rng.real(DRAW, key, t, k),
+      opening: new Set(),
+    };
+  deathNotesOf(world)?.addHead({
+    ref: bossRef(p.ref, g.event),
+    name: g.boss.name,
+    year,
+    age: year - g.boss.born,
+    how: "killed",
+    event: by,
+  });
+  g.boss = newBoss(
+    f,
+    g.home,
+    kindOfGroup(g) === "protection" ? g.name : null,
+    g.id * 41 + g.bosses,
+  );
+  g.bosses++;
+  g.members = Math.round(g.members * 0.8);
+  store.put(p.ref, v);
+  return true;
 }
 
 /**

@@ -50,14 +50,34 @@ export type Body = {
   higher?: number;
   /** Those a court holds (heads). */
   held?: number;
+  /** Those it holds by name (sim/order/deeds.ts: at most JUSTICE.inmates, the latest): who, their page, since and until, what they were. */
+  inmates?: Inmate[];
   /** A workers' body: the year it last struck, and the share of their trade's rent it has won (thousandths). */
   struck?: number;
   won?: number;
   /** A workers' body: what a year of its land's craft was worth as it has known it (hundredths of grain's worth), faded in. */
   mark?: number;
+  /** A workers' body: what its land's staple cost as it has known it (thousandths), faded in. */
+  bread?: number;
   /** A god's hand on it: the year until which it is blessed (1), cursed (-1) or kept from its seat's hand (2). */
   hand?: number;
   handUntil?: number;
+  /** How it is held by a decree (the god's, or its realm's ruler's) whatever its realm would do, until a year. */
+  decree?: number;
+  decreeUntil?: number;
+  /** A watch or a court a voice told of: the year until which it is watched, and so the more honest. */
+  watched?: number;
+};
+
+/** One a court holds by name. */
+export type Inmate = {
+  readonly n: string;
+  readonly r: string;
+  readonly y: number;
+  readonly u: number;
+  readonly w: string;
+  /** Put to labour. */
+  readonly l?: number;
 };
 
 /** A body whose hold ended: its name and what it did, when and how, who took it in, its founding and its end. */
@@ -86,6 +106,9 @@ export type RealmBodies = {
   /** What its watch adds to its seat's reach or takes from it, and what its voices do to its standing (ten-thousandths, signed). */
   reach: number;
   told: number;
+  /** How far its voices that answer to their readers reach those of its people who read, and those a house keeps (thousandths). */
+  voice?: number;
+  keptVoice?: number;
   bodies: Body[];
   gone: GoneBody[];
 };
@@ -117,6 +140,7 @@ export class BodiesStore implements StateStore {
       .int(v.next)
       .int(v.reach)
       .int(v.told)
+      .int((v.voice ?? 0) * 1024 + (v.keptVoice ?? 0))
       .int(v.bodies.length)
       .int(v.gone.length);
     for (const g of v.bodies)
@@ -131,10 +155,11 @@ export class BodiesStore implements StateStore {
         .int(g.quality * 1024 + g.share)
         .int(g.leaders)
         .int(g.leader.born)
-        .int(g.held ?? 0)
+        .int((g.held ?? 0) + (g.inmates?.length ?? 0) * 1e9)
         .int((g.won ?? 0) * 4096 + (g.struck ?? 0))
-        .int(g.mark ?? 0)
-        .int(((g.hand ?? 0) + 2) * 8192 + (g.handUntil ?? 0) + (g.higher ?? 0) * 65536);
+        .int((g.mark ?? 0) + (g.bread ?? 0) * 1048576)
+        .int(((g.hand ?? 0) + 2) * 8192 + (g.handUntil ?? 0) + (g.higher ?? 0) * 65536)
+        .int((g.watched ?? 0) + ((g.decree ?? -1) + 1) * 1e6 + (g.decreeUntil ?? 0) * 1e7);
     for (const [, n] of v.profit) h.int(n);
     this.digest = h.hex();
     this.sets++;
@@ -327,4 +352,30 @@ export function watchOf(world: World, realm: Ref): { honest: number; staff: numb
       honest += g.staff * g.quality;
     }
   return staff > 0 ? { honest: honest / staff / 1000, staff } : null;
+}
+
+/**
+ * Of a land's people, the share its court holds at labour (0 where no court is kept): those it holds, the part its seat puts
+ * to work (`part`: rules JUSTICE.labourDecree under a seat that rules by decree, JUSTICE.labour elsewhere). Read where a
+ * land's bound are reckoned (sim/order/order.ts: the condemned).
+ */
+export function courtLabourIn(world: World, cell: number, people: number, part: number): number {
+  const row = bodyLandsStore(world)?.get(cell);
+  return row && row[BODY_ROW.held]! > 0 && people > 0 ? (row[BODY_ROW.held]! * part) / people : 0;
+}
+/** How far a land's court reaches and is not bought (0 … 1), or null where none is kept: who jails its gangs' young. */
+export function courtJailsIn(world: World, cell: number): number | null {
+  const row = bodyLandsStore(world)?.get(cell);
+  return row && row[BODY_ROW.court]! > 0
+    ? (row[BODY_ROW.court]! - 0.5 * row[BODY_ROW.bought]!) / 1000
+    : null;
+}
+
+/**
+ * How far a realm's voices reach those of its people who read (0 … 1 each): those that answer to their readers, and those a
+ * house keeps. Null where its bodies are not kept (its seat's word is then believed as before: sim/order/voice.ts).
+ */
+export function voicesOf(world: World, realm: Ref): { free: number; kept: number } | null {
+  const v = bodiesOf(world)?.of(realm);
+  return v ? { free: (v.voice ?? 0) / 1000, kept: (v.keptVoice ?? 0) / 1000 } : null;
 }

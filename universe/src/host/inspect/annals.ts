@@ -223,9 +223,12 @@ const RULES: Readonly<Record<string, readonly [number, number]>> = {
   "bodies.head": [PEOPLE, 0],
   "bodies.standing": [PEOPLE, 1],
   "bodies.strike": [PEOPLE, 2],
+  "bodies.told": [PEOPLE, 3],
   "bodies.parted": [PEOPLE, 1],
   "bodies.ended": [PEOPLE, 2],
   "act.body": [PEOPLE, 3],
+  "act.group": [PEOPLE, 3],
+  "reign.charter": [PEOPLE, 3],
   "money.stronger": [SORROWS, 2],
   "underworld.operation": [WARS, 3],
   "underworld.clash": [WARS, 1],
@@ -377,6 +380,12 @@ export function ruleOf(e: HistoryEvent): readonly [number, number] {
   if ((e.data as { natural?: boolean } | null)?.natural) return [SORROWS, e.importance - 1];
   // (A group's end that ended a war of its road, or that its realm's soldiers made, is told beside that war's beginning.)
   if (e.type === "underworld.ended" && groupEnd(e)) return [WARS, 3];
+  // (A group that struck at someone by name: a ruler killed is told with the year's greatest, another killed as a plain
+  // line, a blow that missed or was found out with the ordinary years. sim/order/deeds.ts sets each one's importance.)
+  if (e.type === "groups.struck" || e.type === "underworld.struck")
+    return [PEOPLE, e.importance - 1];
+  // (A court's sentence on one by name: one put to death is told under a filter of the years, the rest go with the ordinary years.)
+  if (e.type === "bodies.sentenced") return [PEOPLE, e.importance - 2];
   return (
     RULES[e.type] ?? [DOMAINS[e.type.slice(0, e.type.indexOf("."))] ?? PEOPLE, e.importance - 2]
   );

@@ -64,7 +64,7 @@ registerEventWords(INST_EVENTS.founded.type, (world, e) => {
 });
 registerEventWords(INST_EVENTS.head.type, (_, e) => {
   const x = d(e.data);
-  return `${x?.before ?? "The head"} of ${body(x)} was gone, and ${x?.leader ?? "another"} took their place, ${year(e.t)}`;
+  return `${x?.before ?? "The head"} of ${body(x)} was ${x?.how === "killed" ? "killed" : x?.how === "sentenced" ? "taken by the court" : x?.how === "disgraced" ? "put out in disgrace" : "gone"}, and ${x?.leader ?? "another"} took their place, ${year(e.t)}`;
 });
 registerEventWords(INST_EVENTS.standing.type, (world, e) => {
   const x = d(e.data),
@@ -89,8 +89,35 @@ registerEventWords(INST_EVENTS.standing.type, (world, e) => {
   return `${said}, ${year(e.t)}`;
 });
 registerEventWords(INST_EVENTS.strike.type, (world, e) => {
-  const x = d(e.data);
-  return `${cap(body(x))} of ${realmOf(world, e.subjects[0] ?? "")} struck${x?.lost ? `, ${x.lost} in a hundred of its land's year of craft lost` : ""}: ${x?.outcome === "won" ? "the works gave, and its wage rose" : "it was broken, and many left it"}, ${year(e.t)}`;
+  const x = d(e.data) as NonNullable<Data> & {
+      works?: string;
+      worksTitle?: string;
+      by?: string;
+      killed?: number;
+      closed?: number;
+      masters?: number;
+    },
+    realm = realmOf(world, e.subjects[0] ?? ""),
+    works = x.works ? bodyWords(x.works, x.worksTitle) : null;
+  // (A governed trade closed against a works.)
+  if (x.closed)
+    return `${cap(body(x))} of ${realm} closed its trade against ${works ?? "a works"}: ${x.outcome === "upheld" ? "the seat upheld its charter, and the works was held to what the trade allows" : "the seat sided with the works, and many left the trade's hold"}, ${year(e.t)}`;
+  const ended =
+    x.outcome === "won"
+      ? `${x.masters ? "its masters" : "the works"} gave, and its wage rose`
+      : x.outcome === "settled"
+        ? "it ended by terms, each side giving half"
+        : `it was broken by ${x.by ?? "force"}${x.killed ? `, ${x.killed} of those out killed` : ""}, and many left it`;
+  return `${cap(body(x))} of ${realm} ${works ? (x.masters ? `struck against the masters of ${works}` : `stopped ${works}`) : "struck"}${x.lost ? `, ${x.lost} in a hundred of its land's year of craft lost` : ""}: ${ended}, ${year(e.t)}`;
+});
+registerEventWords(INST_EVENTS.told.type, (world, e) => {
+  const x = d(e.data) as NonNullable<Data> & {
+    of?: string;
+    ofTitle?: string;
+    who?: string;
+    what?: string;
+  };
+  return `${cap(body(x))} of ${realmOf(world, e.subjects[0] ?? "")} told its readers that ${bodyWords(x.of, x.ofTitle)} was bought, and named ${x.who ?? "its head"}: its head was put out, and it is watched, ${year(e.t)}`;
 });
 registerEventWords(INST_EVENTS.parted.type, (world, e) => {
   const x = d(e.data);
@@ -116,13 +143,14 @@ registerEventWords(INST_EVENTS.ended.type, (world, e) => {
 registerEventWords(INST_EVENTS.hand.type, (world, e) => {
   const x = d(e.data),
     act = x?.act ?? "bless";
-  return `The god ${act === "bless" ? "blessed" : act === "curse" ? "cursed" : "took under its hand"} ${body(x)} of ${realmOf(world, e.subjects[0] ?? "")}, ${year(e.t)}`;
+  return `The god ${act === "bless" ? "blessed" : act === "curse" ? "cursed" : act === "charter" ? "granted its charter to" : act === "outlaw" ? "outlawed" : "took under its hand"} ${body(x)} of ${realmOf(world, e.subjects[0] ?? "")}, ${year(e.t)}`;
 });
 
 for (const [type, words] of [
   [INST_EVENTS.founded.type, "A body was founded in"],
   [INST_EVENTS.standing.type, "A body's standing changed in"],
   [INST_EVENTS.strike.type, "Workers struck in"],
+  [INST_EVENTS.told.type, "A voice told of a body that was bought in"],
   [INST_EVENTS.parted.type, "A body parted in two in"],
   [INST_EVENTS.ended.type, "A body's hold ended in"],
 ] as const)

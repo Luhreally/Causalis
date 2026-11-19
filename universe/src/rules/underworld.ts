@@ -209,6 +209,15 @@ export const UNDER = {
   streetKill: 0.01,
   /** Of a town's gangs' young, the share jailed a year by a court that jails, at full reach. */
   jailed: 0.08,
+  /**
+   * What a seat's reach is worth against those outside the law where it keeps a watch (sim/order/institutions.ts): with one
+   * unmanned or wholly bought, this part of it; with one full and honest, this much more. Where it keeps none, its reach as it is.
+   */
+  watchLeast: 0.7,
+  watchGives: 0.55,
+  /** How far a crooked watch adds to what its officers are bought for, and to how readily its enforcers turn to their own. */
+  crookedBuys: 0.5,
+  crookedTurns: 1,
   /** How far a town's killings keep newcomers from it. */
   deters: 6,
 } as const;
@@ -870,4 +879,11 @@ export function fightOdds(
     g = Math.max(0, men) * (0.5 + clamp01(menArms)),
     odds = s + g > 0 ? s / (s + g) : 0;
   return { taken: ESCALATE.takes * odds, lost: ESCALATE.loses * (1 - odds) };
+}
+
+/** A seat's reach against those outside the law as its watch makes it (0 … 1): how far it is manned (0 … 1), how honest (0 … 1). */
+export function policedReach(reach: number, manned: number, honest: number): number {
+  return clamp01(
+    clamp01(reach) * (UNDER.watchLeast + UNDER.watchGives * clamp01(manned) * clamp01(honest)),
+  );
 }

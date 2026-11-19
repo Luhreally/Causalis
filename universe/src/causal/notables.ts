@@ -166,6 +166,7 @@ export const NOTABLE_ENDS: Readonly<Record<string, string>> = {
   purge: "fell with the seat they served",
   struck: "was struck down by a hand no one saw",
   killed: "was killed",
+  executed: "was put to death by a court",
 };
 
 type Told = {
