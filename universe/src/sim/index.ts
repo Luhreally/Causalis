@@ -359,6 +359,7 @@ export {
   capacityOf,
   capacityValue,
   reachOver,
+  reachNow,
   installOrder,
   landOf,
   legitimacyFactors,

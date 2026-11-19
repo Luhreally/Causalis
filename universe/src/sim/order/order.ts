@@ -80,7 +80,15 @@ import { orgRefugeOf } from "./groups-kept.ts";
 import { CREDIT, creditOf, debtBurden } from "../credit/credit.ts";
 import { seizedFactor } from "../strife/strife.ts";
 import { fortunePull } from "../acts/fortune.ts";
-import { FISC, TREASURY_STORE, bindOf, deficitOf, moneyStore, revenueOf } from "../money/kept.ts";
+import {
+  FISC,
+  RowStore,
+  TREASURY_STORE,
+  bindOf,
+  deficitOf,
+  moneyStore,
+  revenueOf,
+} from "../money/kept.ts";
 import { readersOf } from "../lore/letters.ts";
 import { occupationOf, reliefOf } from "../war/occupation.ts";
 import { captiveWorthOf } from "../society/kept.ts";
@@ -484,13 +492,72 @@ function seatChain(
 }
 
 /**
- * How far a realm's will is done at its seat and in each of its lands (rules/capacity.ts): read new at every asking from what the
- * world keeps, so it holds nothing of its own.
+ * A realm's reach as its year last reckoned it (orderYear, once a year for every living realm, as its standing and what is skimmed
+ * are): a realm's row is its reach and its seat's, a land's the realm it was reckoned under and the seat's reach there, all in
+ * millionths. Some twenty systems ask a realm's reach in a year; each reads the row. Saved and hashed with the rest.
  */
-export function reachOver(ctx: PopulationContext, p: Polity): ReachOver {
+export const REACH_STORE = "order.reach";
+export const REACH_LANDS_STORE = "order.reachlands";
+const REACH_UNIT = 1e6;
+const reachRows = (world: World, name: string): RowStore | null =>
+  world.hasStore(name) ? world.store<RowStore>(name) : null;
+
+/** A realm's reach reckoned now and set down for the year (orderYear). */
+function reckonReach(ctx: PopulationContext, p: Polity): void {
+  const realms = reachRows(ctx.world, REACH_STORE),
+    rows = reachRows(ctx.world, REACH_LANDS_STORE);
+  if (!realms || !rows) return;
+  const over = reachNow(ctx, p),
+    serial = keyOf(p.ref);
+  realms.set(p.ref, [over.value * REACH_UNIT, over.seat * REACH_UNIT]);
+  for (const c of p.members) {
+    const here = over.lands.get(c);
+    if (here !== undefined) rows.set(c, [serial, here * REACH_UNIT]);
+    else rows.drop(c);
+  }
+}
+
+/** The rows of realms that are no more are let go (orderYear). */
+function forgetReach(world: World, living: readonly Polity[]): void {
+  const realms = reachRows(world, REACH_STORE);
+  if (!realms || realms.size <= living.length) return;
+  const are = new Set<string>(living.map((p) => p.ref));
+  for (const k of realms.keys()) if (!are.has(k)) realms.drop(k);
+}
+
+/**
+ * How far a realm's will is done at its seat and in each of its lands (rules/capacity.ts), read new from what the world keeps:
+ * what the year sets down (reckonReach), what a realm not yet reckoned is read by, and what a page's parts are told from.
+ */
+export function reachNow(ctx: PopulationContext, p: Polity): ReachOver {
   const seat = seatValue(ctx, p),
     lands = new Map<number, number>(),
     value = landsReach(ctx, p, seat, lands);
+  return { seat, lands, value };
+}
+
+/**
+ * How far a realm's will is done at its seat and in each of its lands: as its year last reckoned it (REACH_STORE). A realm
+ * founded since is read now; where a peopled land of its has no row under it (taken since), its lands are read now from the
+ * seat's reach as reckoned.
+ */
+export function reachOver(ctx: PopulationContext, p: Polity): ReachOver {
+  const row = reachRows(ctx.world, REACH_STORE)?.get(p.ref),
+    rows = reachRows(ctx.world, REACH_LANDS_STORE);
+  if (!row || !rows) return reachNow(ctx, p);
+  const seat = row[1]! / REACH_UNIT,
+    value = row[0]! / REACH_UNIT,
+    serial = keyOf(p.ref),
+    lands = new Map<number, number>();
+  for (const c of p.members) {
+    const l = rows.get(c);
+    if (l && l[0] === serial) lands.set(c, l[1]! / REACH_UNIT);
+    else if ((ctx.provinces.get(c)?.total() ?? 0) > 0) {
+      lands.clear();
+      landsReach(ctx, p, seat, lands);
+      break;
+    }
+  }
   return { seat, lands, value };
 }
 
@@ -545,9 +612,10 @@ function seatValue(ctx: PopulationContext, p: Polity): number {
   return Math.min(1, x);
 }
 
-/** A realm's reach alone (0 … 1). */
+/** A realm's reach alone (0 … 1): as its year last reckoned it; read now for a realm founded since. */
 export function capacityValue(ctx: PopulationContext, p: Polity): number {
-  return landsReach(ctx, p, seatValue(ctx, p), null);
+  const row = reachRows(ctx.world, REACH_STORE)?.get(p.ref);
+  return row ? row[0]! / REACH_UNIT : landsReach(ctx, p, seatValue(ctx, p), null);
 }
 
 /**
@@ -567,7 +635,9 @@ function reachParts(ctx: PopulationContext, p: Polity): Factor[] {
   const { links, sources } = seatChain(ctx, p),
     seat = Math.min(1, linked(links)),
     tally = { near: 0, ground: 0, resent: 0, force: 0 },
-    value = landsReach(ctx, p, seat, null, tally),
+    now = landsReach(ctx, p, seat, null, tally),
+    // (The links are read now; what they take is told of the reach as the year reckoned it, which is what everything reads.)
+    value = reachRows(ctx.world, REACH_STORE)?.get(p.ref)?.[0] ?? now * REACH_UNIT,
     all: ReachLink[] = [...links],
     from: (Ref | null)[] = [...sources];
   const land = (name: string, keeps: number) => {
@@ -579,7 +649,7 @@ function reachParts(ctx: PopulationContext, p: Polity): Factor[] {
   land("ground that hides its people from the count", tally.ground || 1);
   land("lands that resent its rule", tally.resent || 1);
   land("lands held by force", tally.force || 1);
-  const losses = linkLosses(all, value);
+  const losses = linkLosses(all, value / REACH_UNIT);
   return all.map((l, i) => ({
     name: l.name,
     value: l.value,
@@ -1957,11 +2027,17 @@ export function orderYear(ctx: PopulationContext, t: SimTime): void {
     // 9. What it remembers fades.
     for (const m of o.memory) m.weight *= MEMORY_KEPT;
     o.memory = o.memory.filter((m) => m.weight >= 0.05);
+
+    // 10. Its reach, for the year: what every system asks of it till the next (REACH_STORE).
+    reckonReach(ctx, p);
   }
+  forgetReach(world, living);
 }
 
 export function installOrder(world: World, ctx: () => PopulationContext): OrderStore {
   const store = world.register(new OrderStore());
+  world.register(new RowStore(REACH_STORE, 2));
+  world.register(new RowStore(REACH_LANDS_STORE, 2));
   // (A land breaks away as far as its seat's hand is not there to hold it: sim/polity/polity.ts asks, each year, of the realms with
   // a land past the line.)
   holdsLands((c, p) => reachOver(c, p).lands);
