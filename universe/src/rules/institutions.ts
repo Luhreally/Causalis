@@ -217,10 +217,13 @@ export const INST = {
    * The bodies a realm keeps account of (the rest too small to be named): so many for a realm of one land and so many more
    * for each land beyond, to the most; the ended ones it remembers; a body's lands. (Fourteen for every realm was tried: a
    * world of three hundred realms kept three thousand bodies, eleven in the least of them, and its save was 0.4 MB the
-   * greater for them alone.)
+   * greater for them alone. Six for a realm of one land was tried: its watch, its clergy, its school, its court and its
+   * workers' body left one place for its works, its guild, its voices and its healers, and a works stood in a third of
+   * realms.) Where a realm keeps all it can, a thing none of its bodies does takes the place of the least of what it keeps
+   * two and more of, which is taken into the greatest of its kind.
    */
   most: 12,
-  mostOne: 6,
+  mostOne: 8,
   mostALand: 2,
   gone: 4,
   lands: 3,

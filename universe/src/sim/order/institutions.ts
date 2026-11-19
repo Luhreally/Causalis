@@ -1063,11 +1063,46 @@ function stepRealm(
   const kept = bodiesKept(r.lands.length);
   let risen = 0;
   const turns = Math.max(1, Math.round(span / INST.riseYears));
+  let madeRoom = false;
   for (const c of cands) {
-    if (v.bodies.length >= kept || risen >= INST.rise * turns) break;
+    if (risen >= INST.rise * turns) break;
     if (count[c.does]! >= ofOneKept(INST_DOES[c.does]!, r.lands.length, RIVALS.has(c.does)))
       continue;
     if (risen > 0 && f.u(50 + risen) >= 0.6) continue;
+    if (v.bodies.length >= kept) {
+      // (It keeps all it can: a thing none of its bodies does takes the place of the least of what it keeps two and more of,
+      // which is taken into the greatest of its kind. Once a reckoning.)
+      if (madeRoom || count[c.does]! > 0) continue;
+      let many = -1;
+      for (let d = 0; d < INST_FORMED; d++)
+        if (count[d]! >= 2 && (many < 0 || count[d]! > count[many]!)) many = d;
+      if (many < 0) continue;
+      let least: Body | undefined, most: Body | undefined;
+      for (const g of v.bodies) {
+        if (g.does !== many) continue;
+        if (!most || g.staff > most.staff || (g.staff === most.staff && g.id < most.id)) most = g;
+        if (
+          g.since < year &&
+          (!least || g.staff < least.staff || (g.staff === least.staff && g.id > least.id))
+        )
+          least = g;
+      }
+      if (!least || !most || least === most) continue;
+      most.staff += least.staff;
+      most.wealth += least.wealth;
+      ended(
+        f,
+        least,
+        "merged",
+        [
+          factor("of its kind in its realm", count[many]!, 1),
+          factor("its hands", least.staff, -0.2),
+        ],
+        most,
+      );
+      count[many] = count[many]! - 1;
+      madeRoom = true;
+    }
     const g = found(f, c.does, c.l, c.fund, c.staff, c.pays);
     if (!g) continue;
     count[c.does] = count[c.does]! + 1;
@@ -1453,8 +1488,16 @@ function rehome(
     const was = store.of(to),
       v = was ? copyOf(was) : fresh(year);
     for (const g of by.get(to)!) {
-      // (Not past what a realm keeps account of; nor a second of what one land holds one of.)
-      const rowOf = DOES_ROWS[doesOf(g)];
+      // (Not past what a realm keeps account of; nor a second of what one land holds one of. One more of its kind than its
+      // new realm keeps is taken into that realm's greatest of the kind.)
+      const rowOf = DOES_ROWS[doesOf(g)],
+        kin = v.bodies.filter((x) => x.does === g.does);
+      if (kin.length > ofOneKept(doesOf(g), lands(to), RIVALS.has(g.does))) {
+        const into = kin.sort((a, b) => b.staff - a.staff || a.id - b.id)[0]!;
+        into.staff += g.staff;
+        into.wealth += g.wealth;
+        continue;
+      }
       if (v.bodies.length >= bodiesKept(lands(to)) + 2) continue;
       if (
         v.bodies.filter((x) => x.does === g.does && x.lands.includes(g.home)).length >= rowOf.aLand
