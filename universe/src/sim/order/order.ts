@@ -45,6 +45,7 @@ import {
   GENERAL,
   cutOff,
   politiesOf,
+  holdsLands,
   raiseRealm,
   reach,
   realmName,
@@ -65,6 +66,7 @@ import {
   linked,
   near,
   resentKeeps,
+  seatKeeps,
   seatLinks,
   type ReachLink,
   type SeatFacts,
@@ -72,7 +74,7 @@ import {
 import { heldOf, holdOf, weighHolds, type Taught } from "./holds.ts";
 import { WantsStore } from "./wants.ts";
 import { ElectionStore, electionsYear } from "./elections.ts";
-import { housesRead, installHouses } from "./houses.ts";
+import { housesOf, housesRead, installHouses } from "./houses.ts";
 import { underworldSkim } from "./underworld-kept.ts";
 import { orgRefugeOf } from "./groups-kept.ts";
 import { CREDIT, creditOf, debtBurden } from "../credit/credit.ts";
@@ -440,6 +442,12 @@ function seatFacts(ctx: PopulationContext, p: Polity): SeatFacts {
     fisc = moneyStore(world, TREASURY_STORE)?.get(p.ref),
     revenue = fisc ? revenueOf(world, p.ref) : 0,
     earned = fisc ? fisc[FISC.base + 3]! : 0;
+  let fought = false;
+  for (const w of warsOf(world).hotOf(p.ref))
+    if (w.ended === null && w.civil && (w.attacker === p.ref || w.defender === p.ref)) {
+      fought = true;
+      break;
+    }
   return {
     writing: lore.effect(p.seat, "writing") > 0,
     clerks: !!lore.get(p.seat, "bureaucracy"),
@@ -448,13 +456,12 @@ function seatFacts(ctx: PopulationContext, p: Polity): SeatFacts {
     taken: fisc && earned > 0 ? revenue / earned : p.tribute,
     short: fisc && revenue > 0 ? deficitOf(world, p.ref) / revenue : 0,
     corruption: o?.corruption ?? 0,
-    kin: housesRead(world, p.ref)?.nepotism ?? 0,
+    // (housesRead's nepotism, without the rest of its reading.)
+    kin: (housesOf(world)?.of(p.ref)?.nepotism ?? 0) / 1000,
     legitimacy: o?.legitimacy ?? 0.6,
     age: yearOfMoment(world.now) - p.founded,
     // (A civil war being fought, on either side of it: sim/strife, kept among its wars.)
-    civil: warsOf(world)
-      .fighting(p.ref)
-      .some((w) => !!w.civil),
+    civil: fought,
     crisis: !!o?.crisis,
   };
 }
@@ -481,7 +488,7 @@ function seatChain(
  * world keeps, so it holds nothing of its own.
  */
 export function reachOver(ctx: PopulationContext, p: Polity): ReachOver {
-  const seat = Math.min(1, linked(seatChain(ctx, p).links)),
+  const seat = seatValue(ctx, p),
     lands = new Map<number, number>(),
     value = landsReach(ctx, p, seat, lands);
   return { seat, lands, value };
@@ -531,9 +538,16 @@ function landsReach(
   return clamp(REACH.least, REACH.most, people > 0 ? sum / people : seat);
 }
 
+/** The seat's reach alone: `linked(seatChain(ctx, p).links)` to the bit, without the links. */
+function seatValue(ctx: PopulationContext, p: Polity): number {
+  let x = seatKeeps(seatFacts(ctx, p));
+  for (const f of REACHES) for (const y of f(ctx, p)) x *= clamp(0.2, 1.5, 1 + y.contribution);
+  return Math.min(1, x);
+}
+
 /** A realm's reach alone (0 … 1). */
 export function capacityValue(ctx: PopulationContext, p: Polity): number {
-  return landsReach(ctx, p, Math.min(1, linked(seatChain(ctx, p).links)), null);
+  return landsReach(ctx, p, seatValue(ctx, p), null);
 }
 
 /**
@@ -1948,6 +1962,9 @@ export function orderYear(ctx: PopulationContext, t: SimTime): void {
 
 export function installOrder(world: World, ctx: () => PopulationContext): OrderStore {
   const store = world.register(new OrderStore());
+  // (A land breaks away as far as its seat's hand is not there to hold it: sim/polity/polity.ts asks, each year, of the realms with
+  // a land past the line.)
+  holdsLands((c, p) => reachOver(c, p).lands);
   // (What its groups have learned to want of how it is held: sim/order/wants.ts.)
   world.register(new WantsStore());
   // (Choices put to its people, where its rule has them: sim/order/elections.ts.)

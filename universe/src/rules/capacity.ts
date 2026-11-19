@@ -137,6 +137,39 @@ export function seatLinks(f: SeatFacts): ReachLink[] {
   return out;
 }
 
+/**
+ * The seat's links' product alone: what `linked(seatLinks(f))` comes to, to the bit (the same shares multiplied in the same order),
+ * without the links: for the many readings a year that want only the number.
+ */
+export function seatKeeps(f: SeatFacts): number {
+  const R = REACH,
+    short = clamp01(f.short);
+  let x = f.writing
+    ? Math.min(
+        1,
+        R.lettered + R.readers * clamp01(f.readers / R.readersFull) + (f.clerks ? R.clerks : 0),
+      )
+    : R.unlettered;
+  x *= R.unpaid + (1 - R.unpaid) * clamp01(f.taken / R.takenFull);
+  if (short > 0) x *= 1 - R.short * short;
+  if (f.corruption > 0) x *= 1 - R.skimmed * clamp01(f.corruption);
+  if (f.kin > 0) x *= 1 - R.kin * clamp01(f.kin);
+  x *= R.forced + (1 - R.forced) * clamp01(f.legitimacy);
+  if (f.age < R.settles) x *= R.fresh + (1 - R.fresh) * clamp01(f.age / R.settles);
+  if (f.civil) x *= R.civil;
+  if (f.crisis) x *= R.crisis;
+  return x;
+}
+
+/**
+ * The chance a year that a land whose grievance has passed the line breaks away, of what its grievance alone would make it: as far
+ * as the seat's hand is not in the land to hold it. A seat that reaches a restive land keeps it (its officers, its garrison, its
+ * courts are there); one whose word hardly comes loses it as soon as it will go.
+ */
+export function slipsAway(reach: number): number {
+  return 1 - clamp01(reach);
+}
+
 export type LandReachFacts = {
   /** Steps from the seat (a sea crossing two), and how many means of carrying word the realm's seat knows. */
   readonly steps: number;

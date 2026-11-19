@@ -11,7 +11,9 @@ import {
   linked,
   near,
   resentKeeps,
+  seatKeeps,
   seatLinks,
+  slipsAway,
   type SeatFacts,
 } from "../../src/rules/index.ts";
 
@@ -100,4 +102,18 @@ test("what the links take sums to what is missing of a whole reach", () => {
   // (The weakest link takes the most.)
   const weakest = links.reduce((a, l, i) => (l.keeps < links[a]!.keeps ? i : a), 0);
   assert.equal(losses.indexOf(Math.min(...losses)), weakest);
+});
+
+test("the seat's product without its links is the links' product to the bit; a land breaks away as far as the seat's hand is not in it", () => {
+  const cases: Partial<SeatFacts>[] = [
+    {},
+    { writing: false, clerks: false, readers: 0 },
+    { clerks: false, readers: 0.13, taken: 0.047, short: 0.31, corruption: 0.27, kin: 0.44 },
+    { legitimacy: 0.23, age: 7, civil: true, crisis: true, taken: 0.61, short: 3 },
+    { readers: 0.97, corruption: 0, kin: 0, age: 59, legitimacy: 1 },
+  ];
+  for (const c of cases) assert.equal(seatKeeps({ ...modern, ...c }), seat(c), JSON.stringify(c));
+  assert.equal(slipsAway(0), 1);
+  assert.equal(slipsAway(1), 0);
+  assert.ok(slipsAway(0.7) < slipsAway(0.2));
 });

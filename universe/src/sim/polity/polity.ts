@@ -30,7 +30,7 @@ import {
   type World,
 } from "../../kernel/index.ts";
 import { tongueLikeness, tongueName, tonguePersonName } from "../../gen/index.ts";
-import { FOODS, G, HOLDING, OCC } from "../../rules/index.ts";
+import { FOODS, G, HOLDING, OCC, slipsAway } from "../../rules/index.ts";
 import { mouths, spaceSteps, type PopulationContext } from "../population/systems.ts";
 import type { MarketStore } from "../economy/market.ts";
 import { WAY, cultureOf, type Ways } from "../culture/culture.ts";
@@ -377,6 +377,12 @@ export function governmentKey(p: Polity): string {
   return `${LEADERSHIP[p.leadership]} / ${SUCCESSION[p.succession]} / ${LAW[p.law]}`;
 }
 
+/** How far a realm's seat reaches each of its lands (0 … 1): sim/order/order.ts sets it at its loading; nothing before. */
+let HELD: (ctx: PopulationContext, p: Polity) => ReadonlyMap<number, number> | null = () => null;
+export function holdsLands(f: typeof HELD): void {
+  HELD = f;
+}
+
 /** A realm's name: what it is, by who leads it now, and the town it is ruled from. */
 export function realmName(p: { leadership: number; town: string }): string {
   return `the ${REALM_WORDS[p.leadership]} of ${p.town}`;
@@ -707,12 +713,18 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
     }
   }
 
-  // 4. Lands whose discontent runs high secede.
+  // 4. Lands whose discontent runs high secede: the likelier the higher it runs, and as far as the seat's hand is not in the land
+  // to hold it (rules/capacity.ts slipsAway; the seat's reach there, sim/order/order.ts reachOver: read once for a realm with a
+  // land past the line).
   for (const p of store.living()) {
+    let held: ReadonlyMap<number, number> | null | undefined;
     for (const c of [...p.members]) {
       if (c === p.seat || heldAmongStars(world, c)) continue;
       const d = store.discontent(c);
-      if (d.level < 0.9 || !(world.rng.real(JOIN, c, t, 7) < 0.15 * (d.level - 0.8))) continue;
+      if (d.level < 0.9) continue;
+      if (held === undefined) held = HELD(ctx, p);
+      const hand = held?.get(c) ?? 0;
+      if (!(world.rng.real(JOIN, c, t, 7) < 0.15 * (d.level - 0.8) * slipsAway(hand))) continue;
       const prov = ctx.provinces.get(c)!;
       const decision = world.decisions.record({
         rule: "polity.secede",
@@ -728,6 +740,7 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
             source: d.cause ? { ref: d.cause, role: "pressure", weight: 1 } : null,
           },
           { name: "tribute", value: p.tribute, contribution: p.tribute * 1.5, source: null },
+          { name: "the seat's hand in the land", value: hand, contribution: -hand, source: null },
         ],
       });
       const seceded = world.events.emit({
