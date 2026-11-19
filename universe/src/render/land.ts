@@ -771,6 +771,10 @@ export class LandLayer {
       !!plan.undersea,
       (plan.envoys ?? []).map((e) => e.color),
       plan.about?.how,
+      // (The fled still coming to a camp here: a column on the road to it.)
+      plan.camps
+        .filter((c) => c.fled?.coming)
+        .map((c) => ({ ...tileMiddle(g, c.tile), people: c.people })),
     );
     for (const look of ["track", "paved", "rails", "faint"] as const) {
       const list = pieces[look];

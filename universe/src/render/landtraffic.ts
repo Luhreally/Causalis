@@ -42,7 +42,82 @@ export type CarrierKind =
   | "sled"
   | "porters"
   | "hauler"
-  | "shuttle";
+  | "shuttle"
+  /** Those who fled to the land, still on the road to the town they camp by (sim/war/held.ts): a column on foot, one way. */
+  | "fled";
+
+/** A column of the fled: its people in what they wore, a bundle on every other back, a handcart among every six. */
+const DRAB: readonly Rgb[] = [
+  [0.42, 0.36, 0.3],
+  [0.33, 0.33, 0.36],
+  [0.5, 0.44, 0.34],
+];
+const fledColumn = (files: number): Car[] =>
+  Array.from({ length: files }, (_, k): Car => {
+    const cart = k % 6 === 3,
+      // (Two abreast, not in step.)
+      side = (k % 2 ? 1 : -1) * 0.007;
+    return {
+      back: k * 0.021 + (k % 3) * 0.004,
+      parts: cart
+        ? [
+            {
+              mesh: "box",
+              color: [0.34, 0.25, 0.16],
+              along: 0,
+              up: 0.006,
+              len: 0.03,
+              wide: 0.02,
+              tall: 0.012,
+            },
+            {
+              mesh: "box",
+              color: [0.78, 0.74, 0.62],
+              along: 0,
+              up: 0.018,
+              len: 0.024,
+              wide: 0.018,
+              tall: 0.012,
+            },
+            {
+              mesh: "box",
+              color: DRAB[k % 3]!,
+              along: 0.026,
+              up: 0.004,
+              len: 0.01,
+              wide: 0.01,
+              tall: 0.022,
+            },
+          ]
+        : [
+            {
+              mesh: "box",
+              color: DRAB[k % 3]!,
+              along: side,
+              up: 0.004,
+              len: 0.01,
+              wide: 0.01,
+              tall: k % 4 === 2 ? 0.014 : 0.022,
+            },
+            ...(k % 2
+              ? [
+                  {
+                    mesh: "box" as const,
+                    color: [0.78, 0.74, 0.62] as Rgb,
+                    along: side - 0.004,
+                    up: 0.02,
+                    len: 0.012,
+                    wide: 0.012,
+                    tall: 0.01,
+                  },
+                ]
+              : []),
+          ],
+    };
+  });
+/** The most columns of the fled a land draws, and the files of one by how many camp where it goes. */
+const FLED_COLUMNS = 3;
+const fledFiles = (people: number) => Math.max(8, Math.min(30, Math.round(people / 120)));
 
 /** How much larger than life one on an errand is drawn: the land's nearest eye is twelve units off, and they should be picked out from there. */
 const RIDER_LARGE = 2.5;
@@ -131,6 +206,7 @@ const goodsWagon = (back: number, color: Rgb): Car => ({
 function cars(kind: CarrierKind, turn: number): readonly Car[] {
   switch (kind) {
     case "envoy":
+    case "fled":
       return [];
     case "sled":
       return [
@@ -399,6 +475,7 @@ const PACE: Readonly<Record<CarrierKind, number>> = {
   porters: 0.06,
   hauler: 0.26,
   shuttle: 0.5,
+  fled: 0.035,
   "steam-train": 0.42,
   train: 0.7,
   sail: 0.22,
@@ -429,7 +506,16 @@ type Carrier = {
   readonly aside: number;
   readonly floats: boolean;
   readonly lift: number;
+  /** One way only, begun again at its start (the fled, coming): 1 toward the way's end, -1 toward its start. */
+  readonly oneWay?: 1 | -1;
 };
+
+/** Where along its way (to and fro) one going one way only is: begun again at its start once it has come. */
+function oneWayAt(c: Carrier, s: number): number {
+  const L = c.way.length,
+    d = L > 0 ? ((s % L) + L) % L : 0;
+  return c.oneWay === 1 ? d : L + d;
+}
 
 /** How far over the ground a carrier on a road stands, and on a railway (the rails' bed). */
 const ON_ROAD = 0.014,
@@ -472,6 +558,8 @@ export class LandTraffic {
     envoys: readonly Rgb[] = [],
     /** How its people get about, read off what they are (R1): what goes on its roads, if not a cart behind a beast. */
     how?: GetAbout["how"],
+    /** Camps of the fled that more are still coming to: where each stands (region units), and how many camp there. */
+    fled: readonly { readonly x: number; readonly z: number; readonly people: number }[] = [],
   ): void {
     this.undersea = undersea;
     const by = CARRIERS[era],
@@ -559,6 +647,33 @@ export class LandTraffic {
           lift: ON_ROAD,
         }),
       );
+    // The fled still coming: a column on the road that ends nearest their camp, toward it, over whatever else is on it.
+    fled.slice(0, FLED_COLUMNS).forEach((camp, k) => {
+      let best: { way: Way; to: 1 | -1; d: number } | null = null;
+      for (const r of roads) {
+        const line = r.way.line,
+          a = line[0],
+          b = line[line.length - 1];
+        if (!a || !b || r.way.length < 0.3) continue;
+        const da = Math.hypot(a.x - camp.x, a.z - camp.z),
+          db = Math.hypot(b.x - camp.x, b.z - camp.z),
+          d = Math.min(da, db);
+        if (!best || d < best.d) best = { way: r.way, to: db <= da ? 1 : -1, d };
+      }
+      if (!best) return;
+      this.carriers.push({
+        way: best.way,
+        kind: "fled",
+        cars: fledColumn(fledFiles(camp.people)),
+        slots: [],
+        start: (0.31 + 0.37 * k) * best.way.length,
+        pace: PACE.fled,
+        aside: 0.012,
+        floats: false,
+        lift: ON_ROAD,
+        oneWay: best.to,
+      });
+    });
     wants.forEach((w, k) => {
       const n = given[k]!;
       for (let c = 0; c < n; c++) {
@@ -631,7 +746,11 @@ export class LandTraffic {
     for (const c of this.carriers) {
       const head = c.start + c.pace * this.gone;
       c.cars.forEach((car, k) => {
-        const at = alongWay(c.way, head - car.back, c.aside),
+        const at = alongWay(
+            c.way,
+            c.oneWay ? oneWayAt(c, head - car.back) : head - car.back,
+            c.aside,
+          ),
           sin = Math.sin(at.yaw),
           cos = Math.cos(at.yaw),
           base = c.floats ? 0.01 : (this.undersea ? floorAt : onLand)(g, at.x, at.z) + c.lift,

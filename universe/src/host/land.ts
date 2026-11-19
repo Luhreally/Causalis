@@ -257,7 +257,11 @@ export function fledCamps(
       people: c.count,
       bands: Math.max(1, Math.min(12, Math.round(c.count / 400))),
       herds: false,
-      fled: { from: landTitle(world, c.from), why: FLED_WHY[c.kind] ?? "a ruin" },
+      fled: {
+        from: landTitle(world, c.from),
+        why: FLED_WHY[c.kind] ?? "a ruin",
+        ...(c.last >= yearOfMoment(world.now) - 1 ? { coming: true as const } : {}),
+      },
     });
   });
   return out;
