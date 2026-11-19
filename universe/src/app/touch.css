@@ -196,6 +196,11 @@
     :is(.bar .world-stats, .bar .world-menu, .mapmodes .modes, .bar .bar-fold) {
     display: none;
   }
+  /* (A war's bar and a battle's the same: the sides and the course wait while their page is read. Under them the page
+     had its title and 14px.) */
+  body.paging :is(.war-panel, .battle-panel) > .bar > .battle-sheet {
+    display: none;
+  }
   /* A sheet at the foot is as tall as the screen leaves under the bar (46% of 430 is four lines of a page). */
   .inspector,
   .page-window.tall {
