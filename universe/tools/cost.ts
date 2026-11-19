@@ -543,6 +543,24 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     );
     process.exit(again.status ?? 1);
   }
+  // COST_PIN=<hex mask> (Windows): keep to those processors. On a machine of fast and slow cores the system moves a lone busy
+  // thread between the two kinds, and one world, the same to the bit, read 270 to 475 ms a year by where it fell (2026-11-19).
+  // FFFF is the eight fast cores of the machine this is measured on.
+  const pin = process.env.COST_PIN;
+  if (pin && process.platform === "win32") {
+    const set = spawnSync(
+      "powershell",
+      [
+        "-NoProfile",
+        "-c",
+        `(Get-Process -Id ${process.pid}).ProcessorAffinity = [IntPtr][Int64]${Number.parseInt(pin, 16)}`,
+      ],
+      { stdio: "ignore" },
+    );
+    console.log(
+      set.status === 0 ? `[kept to processors ${pin}]` : "[not pinned: the mask was refused]",
+    );
+  }
   if (argv.includes("--jump")) {
     const by = await jump(universe, seed, years);
     console.log(
