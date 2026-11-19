@@ -255,6 +255,7 @@ export {
   streetsLaid,
   tallShare,
   townForm,
+  walkBlocks,
   type FormFacts,
   type TownForm,
 } from "./form.ts";

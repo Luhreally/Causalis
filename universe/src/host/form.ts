@@ -5,8 +5,8 @@ import { YEAR, type Ref, type World } from "../kernel/index.ts";
 import { bodyFunction } from "../rules/index.ts";
 import { homePlanet, loreOf, populationContext, type Fabric } from "../sim/index.ts";
 import {
-  BLOCK_LOTS,
   streetsLaid,
+  walkBlocks,
   townForm,
   type FormFacts,
   type StreetsLaid,
@@ -18,15 +18,21 @@ import { kindOf } from "./kinds.ts";
 import { landEra } from "./village.ts";
 
 /**
- * The first block of a town laid since a year (-1: the year is not come): past every lot it had taken before then, as its
- * fabric's runs and buildings keep their years. A town founded since is laid so from its first block.
+ * The first block of a town laid for engines (-1: they are not come to its land). A town founded since they came is laid for
+ * them from its first block. One that stood before keeps the lanes it was walked in as far out as a household walks
+ * (bridge/form.ts walkBlocks): past that only engines make ground worth holding, so what stands there was laid for them.
+ * Both are read off what never changes (the year it was founded, the year engines came, its people's body), so no block
+ * moves as the years go: a fabric's runs lose their first years as its homes are rebuilt, and cannot say where it had got
+ * to when engines came (read so, a third of first light's towns moved between years 1,000 and 1,500).
  */
-export function laidSince(f: Fabric, year: number | null, now: number): number {
+export function laidForEngines(
+  founded: number,
+  year: number | null,
+  now: number,
+  mass: number,
+): number {
   if (year === null || year > now) return -1;
-  let lots = 0;
-  for (const c of f.changes) if (c[3] < year) lots = Math.max(lots, c[2]);
-  for (const c of f.civics) if (c.start < year) lots = Math.max(lots, c.at + c.lots);
-  return Math.ceil(Math.min(lots, f.next) / BLOCK_LOTS);
+  return founded >= year ? 0 : walkBlocks(mass);
 }
 
 /** A town's form's facts (null: no such town). */
@@ -52,7 +58,12 @@ export function formFacts(
     winged: !!body && !water && bodyFunction(body).stance === "winged",
     water,
     social: body?.social ?? 0.6,
-    engines: laidSince(f, machinesYear(world, s.cell), Math.floor(world.now / YEAR)),
+    engines: laidForEngines(
+      s.founded,
+      machinesYear(world, s.cell),
+      Math.floor(world.now / YEAR),
+      body?.size ?? 70,
+    ),
     rain: climate.precipitation[s.cell] ?? 0,
     warm: climate.temperature[s.cell] ?? 10,
     stone: !!lore.get(s.cell, "masonry"),

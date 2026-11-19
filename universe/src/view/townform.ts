@@ -160,7 +160,7 @@ export function edgeYard(
     return;
   }
   const back = Math.min(LOT_D / 2 - 1.6, deep / 2 + 2.4),
-    shed = form.drive && Math.floor(p / BLOCK_LOTS) >= form.engines && share(p, 5) < form.rides;
+    shed = form.drive && share(p, 5) < form.rides;
   // (A cottage has one window where a house has two: what stands in its yard is drawn in the part that saves, and no more.)
   if (!shed && form.green >= 0.12 && share(p, 2) < form.green * 0.4) {
     const [gx, gz] = at(x, z, yaw, -0.8, back);

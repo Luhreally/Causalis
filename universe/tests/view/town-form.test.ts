@@ -10,6 +10,7 @@ import {
   streetsLaid,
   tallShare,
   townForm,
+  walkBlocks,
   type FormFacts,
   type TownPlan,
   type TownSite,
@@ -247,7 +248,18 @@ test("a town's form draws a few parts more, in the batches it had, and says itse
   const whys = formWhys(plan.form!, plan.site!.laid, false);
   assert.ok(whys.length >= 4);
   for (const w of whys) assert.doesNotMatch(w, /undefined|NaN|null/);
-  assert.match(whys.join(" "), /laid since engines came/);
+  assert.match(whys.join(" "), /only engines make ground worth holding/);
+  assert.match(
+    formWhys(
+      townForm({ ...DRIVES, engines: 0 }),
+      streetsLaid({ ...DRIVES, engines: 0 }),
+      false,
+    ).join(" "),
+    /founded after engines came/,
+  );
+  // (How far a household walks: a heavier people a little further, never a block fewer for the years gone by.)
+  assert.ok(walkBlocks(70) > 1500 && walkBlocks(70) < 3000, `${walkBlocks(70)}`);
+  assert.ok(walkBlocks(700) > walkBlocks(70) && walkBlocks(20) < walkBlocks(70));
   assert.match(whys.join(" "), /colonnade of stone/);
   assert.match(whys.join(" "), /A column \d+ m high/);
 });

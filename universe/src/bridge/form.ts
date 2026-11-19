@@ -4,7 +4,8 @@
 //
 //   • A street is as broad as two of what goes down it need to pass. Those on foot lay lanes two of their own bodies and their
 //     loads wide; engines want twice that and a verge; a people who swim or fly pass over their town, and leave between their
-//     blocks only what lets the light and the water through.
+//     blocks only what lets the light and the water through. A town founded after engines came is laid for them from its
+//     first block; one that stood before keeps its lanes as far out as a household walks, and is laid for engines past that.
 //   • Ground is worth what it saves in going. By the square, a short way from everything, it is dear: homes stand wall to wall
 //     and a floor higher. At the edge it is cheap: homes stand apart in their yards. The faster and cheaper the going, the
 //     flatter that falls: once households keep engines the edge is as near as the heart was, and most of the town is yards.
@@ -31,7 +32,7 @@ export type FormFacts = {
   readonly winged: boolean;
   readonly water: boolean;
   readonly social: number;
-  /** The first block laid since engines came to its land (-1: none yet). */
+  /** The first block laid for engines (-1: they are not come to its land; host/form.ts laidForEngines). */
   readonly engines: number;
   /** Its land's rain (mm a year) and mean warmth (°C). */
   readonly rain: number;
@@ -80,6 +81,19 @@ const clamp = (x: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, x
 /** A body's breadth against ours: as the cube root of its weight. */
 export function bodyBreadth(mass: number): number {
   return clamp(Math.cbrt(Math.max(1, mass) / 70), 0.6, 1.6);
+}
+
+/** How long a household walks to its town's square and thinks nothing of it (minutes), and how fast ours walk (metres a minute). */
+const WALK_MINUTES = 15,
+  WALK_PACE = 75;
+
+/**
+ * How many blocks of a town lie within a household's walk of its square, for a people of a body's weight (they walk as fast
+ * as the root of their breadth): the blocks of the round that far out, three quarters of it built, each with its street.
+ */
+export function walkBlocks(mass: number): number {
+  const r = WALK_MINUTES * WALK_PACE * Math.sqrt(bodyBreadth(mass));
+  return Math.round((Math.PI * r * r * 0.75) / ((36 + 7) * (28 + 7)));
 }
 
 /** How broad what goes down a street is (metres): a walker with a load, a beast with panniers, a cart, an engine. */
@@ -199,8 +213,8 @@ export function formWhys(
   if (engines)
     out.push(
       engines.from > 0
-        ? `What was laid since engines came is laid for them: streets ${metres(engines.street)} wide${engines.verge ? ", each block behind a verge" : ""}. Its old heart keeps the lanes it was walked in.`
-        : `It was laid for engines from its first block: streets ${metres(engines.street)} wide${engines.verge ? ", each block behind a verge" : ""}.`,
+        ? `Past a quarter hour's walk from its square only engines make ground worth holding, and what stands there was laid for them: streets ${metres(engines.street)} wide${engines.verge ? ", each block behind a verge" : ""}. Nearer in it keeps the lanes it was walked in.`
+        : `It was founded after engines came to its land, and laid for them from its first block: streets ${metres(engines.street)} wide${engines.verge ? ", each block behind a verge" : ""}.`,
     );
   if (form.heart > 0)
     out.push(
