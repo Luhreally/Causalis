@@ -17,6 +17,14 @@ export type ToolContext = {
   readonly refresh: () => void;
   /** Open a thing's page. */
   readonly open: (ref: string) => void;
+  /**
+   * Back and forward bring a page as it was left (asked 2026-11-19): a tool that holds a choice or a place of its own
+   * says how it stands as its page is left (`keep`), is given what it said when it is drawn on that page again
+   * (`kept`), and says when it has put the page where it was (`placed`: the window lets go of its own hold on it).
+   */
+  readonly kept?: unknown;
+  readonly keep?: (read: () => unknown) => void;
+  readonly placed?: () => void;
   /** Go down to a town's land and watch it grow (Phase 26 M154). */
   readonly watch?: (cell: number, town: string) => void;
   /** A colony's landing played again (Phase 64). */
