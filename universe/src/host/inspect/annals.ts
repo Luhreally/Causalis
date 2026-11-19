@@ -28,6 +28,7 @@ import { firstsNow } from "./alerts.ts";
 import { landTitle, nameOf } from "./names.ts";
 import { count, link, many, sentence } from "./words.ts";
 import { isFightEvent } from "./streetfight.ts";
+import { isSeaFight } from "./seafight.ts";
 
 /** A line's kind: its place in ANNAL_KINDS. */
 const WARS = 0,
@@ -1339,6 +1340,9 @@ export function annalsRead(world: World, years: readonly number[]): AnnalYear[] 
         ref: t.ref,
         line: wordsOf(world, t, year),
         ...(isFightEvent(world.events.get(t.ref as HistoryEvent["id"])) ? { watch: t.ref } : {}),
+        ...(isSeaFight(world.events.get(t.ref as HistoryEvent["id"]))
+          ? { watch: t.ref, sea: true as const }
+          : {}),
       })),
     };
     a.words.set(year, said);

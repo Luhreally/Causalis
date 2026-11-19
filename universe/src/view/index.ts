@@ -1319,3 +1319,16 @@ export {
   type LifePart,
   type LifeStay,
 } from "./townlife.ts";
+export {
+  SEA_LENGTH,
+  SEA_MOMENTS,
+  SEA_SHIPS,
+  SEA_SINKS,
+  newSeaFight,
+  seaHullAt,
+  seaTally,
+  seaWords,
+  type SeaField,
+  type SeaHull,
+  type SeaHullNow,
+} from "./seafight.ts";

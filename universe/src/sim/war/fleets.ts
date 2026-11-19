@@ -20,6 +20,8 @@ import { DOMAIN } from "../../rules/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import { cultureOf } from "../culture/culture.ts";
+import { loreOf } from "../lore/lore.ts";
+import { seaRange } from "../economy/sea.ts";
 import { notablesOf } from "../notable/kept.ts";
 import { notableDeed } from "../notable/notables.ts";
 import { coastal, navyOf } from "./navy.ts";
@@ -222,6 +224,9 @@ export function fleetsYear(ctx: PopulationContext, t: SimTime): void {
           sunk,
           flags,
           led: [led[0]?.name ?? null, led[1]?.name ?? null],
+          ledId: [led[0]?.id ?? null, led[1]?.id ?? null],
+          // (What each side's shipwrights knew that year: for whoever watches it after.)
+          rig: [rigOf(world, sides[0]), rigOf(world, sides[1])],
           won,
           ...(lost >= 0 ? { lost } : {}),
         },
@@ -260,6 +265,21 @@ export function fleetsYear(ctx: PopulationContext, t: SimTime): void {
   }
   store.unsee(live);
   store.forget(year - FLEET.years);
+}
+
+/**
+ * What a realm's shipwrights know, as kept with a meeting: how far its ships carry (sea provinces: 2 sails, 4 planked hulls,
+ * 8 ships that keep the sea, 16 steam), whether its works give its hulls (iron and steel), and whether it knows powder.
+ */
+export type FleetRig = readonly [steps: number, works: 0 | 1, powder: 0 | 1];
+export function rigOf(world: World, p: Polity): FleetRig {
+  const lore = loreOf(world),
+    steps = seaRange(lore, p.seat);
+  return [
+    steps,
+    lore.effect(p.seat, "power") > 0 && steps >= 16 ? 1 : 0,
+    lore.get(p.seat, "gunpowder") ? 1 : 0,
+  ];
 }
 
 /** A war's two realms, living (null: either is gone). */

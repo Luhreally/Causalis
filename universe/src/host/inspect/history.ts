@@ -12,6 +12,7 @@ import { warmthBlocks } from "./warmth.ts";
 import { greatActsOf } from "../../sim/index.ts";
 import { landPlace } from "./land.ts";
 import { isFightEvent, streetFightOf, watchFightTool } from "./streetfight.ts";
+import { isSeaFight, watchSeaTool } from "./seafight.ts";
 import { fightPeopleBlock } from "./townlife.ts";
 import { battlePage } from "./realm.ts";
 
@@ -364,6 +365,8 @@ export function eventPage(world: World, ref: string): PageModel {
         great: (e.data as { great?: boolean }).great === true,
       },
     });
+  // (A meeting of fleets: watched on its sea.)
+  if (isSeaFight(e)) blocks.splice(2, 0, watchSeaTool(ref));
   // (A fight of the underworld: played again in the streets of its town, 2026-11-16.)
   if (isFightEvent(e) && streetFightOf(world, ref)) {
     blocks.splice(2, 0, watchFightTool(ref));

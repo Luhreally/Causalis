@@ -4,6 +4,7 @@
 // from what, and those of its own who fled elsewhere. Each says what, who and why; never how.
 import type { Ref, World } from "../../kernel/index.ts";
 import type { Block, Item, Line, Span, Stat } from "../../bridge/index.ts";
+import { watchSeaTool } from "./seafight.ts";
 import {
   displacedOf,
   fleetCommander,
@@ -210,6 +211,25 @@ function fightItem(world: World, f: SeaFight, a: Ref, b: Ref): Item {
   return { ...item(line, f.event, f.year), why: f.event };
 }
 
+/** The buttons that play a list of meetings: the latest, and the one where most went down where that is another. */
+function watchTools(fights: readonly SeaFight[]): Block[] {
+  const last = fights.at(-1);
+  if (!last) return [];
+  const down = (f: SeaFight) => f.sunk[0] + f.sunk[1],
+    worst = fights.reduce((m, f) => (down(f) > down(m) ? f : m), last);
+  return [
+    watchSeaTool(last.event, `▶ Watch the fleets meet (year ${last.year})`),
+    ...(worst !== last
+      ? [
+          watchSeaTool(
+            worst.event,
+            `▶ Watch the costliest (year ${worst.year}: ${count(down(worst))} t sunk)`,
+          ),
+        ]
+      : []),
+  ];
+}
+
 /** A war's meetings of fleets. Nothing where its fleets never met in numbers. */
 export function warFleetBlocks(world: World, w: War): Block[] {
   const fights = fleetsOf(world)?.fightsOf(w.ref) ?? [];
@@ -220,6 +240,7 @@ export function warFleetBlocks(world: World, w: War): Block[] {
           title: "Its fleets met",
           items: fights.map((f) => fightItem(world, f, w.attacker, w.defender)),
         },
+        ...watchTools(fights),
       ]
     : [];
 }
@@ -255,16 +276,22 @@ export function realmFleetBlocks(world: World, r: Polity): Block[] {
     if (l) l.push(f);
     else wars.set(f.war, [f]);
   }
-  const items: Item[] = [];
+  const items: Item[] = [],
+    mine: SeaFight[] = [];
   for (const [war, fights] of wars) {
     const e = world.events.get(fights[0]!.event),
       a = e?.subjects[1] as Ref | undefined,
       b = e?.subjects[2] as Ref | undefined;
     void war;
     if (!a || !b || (a !== r.ref && b !== r.ref)) continue;
-    for (const f of fights) items.push(fightItem(world, f, a, b));
+    for (const f of fights) {
+      items.push(fightItem(world, f, a, b));
+      mine.push(f);
+    }
   }
-  if (items.length)
+  if (items.length) {
     blocks.push({ type: "list", title: "Its fleet's meetings at sea", items: items.slice(-10) });
+    blocks.push(...watchTools(mine));
+  }
   return blocks;
 }

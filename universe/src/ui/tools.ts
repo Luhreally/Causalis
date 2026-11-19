@@ -470,6 +470,15 @@ export function drawTool(
       into.append(b);
       return;
     }
+    case "watch.sea": {
+      if (!ctx.fight) return;
+      const b = el("button", "act fight-watch", (args.label as string | undefined) ?? "▶ Watch it");
+      b.title =
+        "Out to the sea they met on: each fleet's ships as its wrights could build them, its flagship, who commanded, what went down and who held the sea after, played again with the world's clock held.";
+      b.onclick = () => ctx.fight!(args.event as string);
+      into.append(b);
+      return;
+    }
     case "watch.far": {
       if (!ctx.far) return;
       const b = el("button", "act far-watch", (args.label as string | undefined) ?? "▶ Watch it");

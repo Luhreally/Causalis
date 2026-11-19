@@ -1940,13 +1940,30 @@ export {
   type Crime,
 } from "./war/held.ts";
 export { RAID, RAID_EVENTS, fightersOf, raidIn } from "./war/raids.ts";
-export { COMPANY, COMPANY_EVENTS, companiesField, companyOf, type CompanyAt } from "./war/companies.ts";
-export { SEA, SEA_EVENTS, SeaStore, seaOf, seaYield, seasOf, seasYear, type Sea } from "./ecology/seas.ts";
+export {
+  COMPANY,
+  COMPANY_EVENTS,
+  companiesField,
+  companyOf,
+  type CompanyAt,
+} from "./war/companies.ts";
+export {
+  SEA,
+  SEA_EVENTS,
+  SeaStore,
+  seaOf,
+  seaYield,
+  seasOf,
+  seasYear,
+  type Sea,
+} from "./ecology/seas.ts";
 export {
   FLEET,
   FLEET_EVENTS,
   FleetStore,
   fleetCommander,
+  rigOf,
+  type FleetRig,
   fleetsOf,
   fleetsYear,
   type Fleet,
