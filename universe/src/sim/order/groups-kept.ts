@@ -115,12 +115,14 @@ export class OrgsStore implements StateStore {
   put(realm: Ref, v: RealmOrgs): void {
     this.realms.set(realm, v);
     this.hiredMemo = null;
+    this.hiredLists = null;
     this.digest = new Hasher().string(this.digest).string(realm).value(v).hex();
     this.sets++;
   }
   forget(realm: Ref): void {
     if (!this.realms.delete(realm)) return;
     this.hiredMemo = null;
+    this.hiredLists = null;
     this.digest = new Hasher().string(this.digest).string(`-${realm}`).hex();
     this.sets++;
   }
@@ -137,6 +139,22 @@ export class OrgsStore implements StateStore {
       this.hiredMemo = m;
     }
     return this.hiredMemo.get(realm) ?? 0;
+  }
+  /** The groups a realm pays or licenses, whichever realm they are of (a memo, made again after any record is set). */
+  private hiredLists: Map<Ref, Org[]> | null = null;
+  hiredList(realm: Ref): readonly Org[] {
+    if (!this.hiredLists) {
+      const m = new Map<Ref, Org[]>();
+      for (const v of this.realms.values())
+        for (const g of v.orgs)
+          if (g.patron) {
+            const l = m.get(g.patron);
+            if (l) l.push(g);
+            else m.set(g.patron, [g]);
+          }
+      this.hiredLists = m;
+    }
+    return this.hiredLists.get(realm) ?? [];
   }
   pinned(): Ref[] {
     const out: Ref[] = [];
@@ -160,6 +178,7 @@ export class OrgsStore implements StateStore {
   load(state: unknown): void {
     this.realms.clear();
     this.hiredMemo = null;
+    this.hiredLists = null;
     const s = state as {
       realms?: [Ref, RealmOrgs][];
       digest?: string;

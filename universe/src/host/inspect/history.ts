@@ -152,6 +152,7 @@ const TITLES: Readonly<Record<string, string>> = {
   "ties.spy": "A spy caught",
   "war.insurgency": "A land held by force",
   "war.raid": "A raid on the posted",
+  "war.company": "A hired company's day",
   "held.crime": "No quarter given",
   "held.reckoned": "A reckoning for a wrong of war",
   "held.settled": "Those held in a war",

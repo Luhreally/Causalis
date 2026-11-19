@@ -928,6 +928,35 @@ export function battlePage(world: World, ref: string): PageModel {
             }),
           ]
         : []),
+      // (The hired companies that stood under their own banners: sim/war/companies.ts.)
+      ...((): Stat[] => {
+        const d = e.data as {
+          co?: [string | null, string | null];
+          coMen?: [number, number];
+        } | null;
+        if (!d?.co || !w) return [];
+        return [
+          stat(
+            "Hired companies",
+            d.co
+              .filter((x) => x)
+              .map((x) => x![0]!.toUpperCase() + x!.slice(1))
+              .join("; "),
+            {
+              parts: [0, 1].flatMap((s) =>
+                d.co![s]
+                  ? [
+                      part(
+                        [`${d.co![s]}, for `, realmLink(world, s === 0 ? w.attacker : w.defender)],
+                        `${count(d.coMen?.[s] ?? 0)} men`,
+                      ),
+                    ]
+                  : [],
+              ),
+            },
+          ),
+        ];
+      })(),
       stat("Year", `${year}`),
     ],
     tabs: [

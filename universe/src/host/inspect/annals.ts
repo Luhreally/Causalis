@@ -54,6 +54,7 @@ const RULES: Readonly<Record<string, readonly [number, number]>> = {
   "ties.spy": [WARS, 2],
   "war.insurgency": [WARS, 3],
   "war.raid": [WARS, 2],
+  "war.company": [WARS, 3],
   "held.crime": [WARS, 4],
   "held.reckoned": [WARS, 3],
   "held.settled": [WARS, 2],

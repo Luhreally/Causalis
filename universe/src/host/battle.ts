@@ -171,7 +171,12 @@ export function battleNear(world: World, ref: string): BattleNear | null {
     g = homePlanet(world).generated,
     realms = politiesOf(world),
     lore = loreOf(world),
-    data = e.data as { a?: string; b?: string },
+    data = e.data as {
+      a?: string;
+      b?: string;
+      co?: [string | null, string | null];
+      coMen?: [number, number];
+    },
     colors = sideColors(realmColor(war.attacker), realmColor(war.defender)),
     // (Its hosts as they were in the field, with the men who rose with them: as the roll counts them.)
     counts = nearCounts(b),
@@ -208,6 +213,7 @@ export function battleNear(world: World, ref: string): BattleNear | null {
         ...(r && (lore.get(r.seat, "gunpowder")?.year ?? Infinity) <= b.year
           ? { cannon: true }
           : {}),
+        ...(data?.co?.[at] ? { company: { name: data.co[at]!, men: data.coMen?.[at] ?? 0 } } : {}),
       } satisfies BattleSideNear;
     },
     land = b.land,

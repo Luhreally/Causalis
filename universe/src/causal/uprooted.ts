@@ -1,7 +1,7 @@
 // People out of their place, in words (sim/war/held.ts): what became of those a war's sides held, a wrong done to the beaten
 // or to a stormed town and who did it, whether it was answered for, and many fled come over a border. What and who, never how.
 import { yearOfMoment } from "../kernel/index.ts";
-import { HELD_EVENTS, RAID_EVENTS } from "../sim/index.ts";
+import { COMPANY_EVENTS, HELD_EVENTS, RAID_EVENTS } from "../sim/index.ts";
 import { landWords } from "./generated.ts";
 import { count } from "./words.ts";
 import { grainSum } from "./war.ts";
@@ -107,4 +107,24 @@ registerEventWords(RAID_EVENTS.raid.type, (world, e) => {
         ? `: ${count(dead[0])} of the posted and ${count(dead[1])} of their own died`
         : "";
   return `${who} fell on the soldiers of ${text(e.data, "a")} posted in ${landWords(world, e.place)}${d?.won === false ? " and were beaten off" : ""}${cost}, ${year(e.t)}`;
+});
+
+// A hired company on a battle's day (sim/war/companies.ts): gone home unpaid, gone over, or paid from a land's stores.
+registerEventWords(COMPANY_EVENTS.company.type, (world, e) => {
+  const d = e.data as {
+      group?: string;
+      kind?: string;
+      leader?: string;
+      how?: string;
+      grain?: number;
+    } | null,
+    who = d?.group ? `The ${d.group} ${d.kind ?? "free company"}` : "A hired company",
+    led = d?.leader ? ` under ${d.leader}` : "",
+    a = text(e.data, "a"),
+    b = text(e.data, "b");
+  return d?.how === "turned"
+    ? `${who}${led}, unpaid by ${a}, went over to ${b} before the battle in ${landWords(world, e.place)}, ${year(e.t)}`
+    : d?.how === "left"
+      ? `${who}${led}, unpaid by ${a}, left the field before a battle it did not expect to win in ${landWords(world, e.place)}, ${year(e.t)}`
+      : `${who}${led}, unpaid by ${a}, took its pay from the stores of ${landWords(world, e.place)}${d?.grain ? `: ${grainSum(d.grain)} grain` : ""}, ${year(e.t)}`;
 });

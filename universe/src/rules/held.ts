@@ -23,7 +23,7 @@ export const HELD = {
   kept: -0.25,
   home: 0.1,
   /** No quarter: at this, the beaten are put to death (quarterScore); a town stormed after its camp's dying adds `storm`. */
-  line: 0.43,
+  line: 0.44,
   storm: 0.12,
   /** Of a stormed land's people, the share put to the sword at the line, and the most. */
   sword: 0.02,

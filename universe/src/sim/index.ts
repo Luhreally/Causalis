@@ -1940,3 +1940,4 @@ export {
   type Crime,
 } from "./war/held.ts";
 export { RAID, RAID_EVENTS, fightersOf, raidIn } from "./war/raids.ts";
+export { COMPANY, COMPANY_EVENTS, companiesField, companyOf, type CompanyAt } from "./war/companies.ts";
