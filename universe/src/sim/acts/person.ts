@@ -11,6 +11,8 @@
 //   - a whisper to a ruler: their next choice of war doubled, or no war of their choosing while it holds (the war rule's own draw).
 // Nothing is kept, nothing is hashed, not even a name, while no act holds anywhere: a world no one touches runs exactly as before,
 // and every factor read here is exactly 1 where none holds.
+import { notableRef, notablesOf } from "../notable/kept.ts";
+import { favourNotable, strikeNotable } from "../notable/notables.ts";
 import {
   YEAR,
   defineEventType,
@@ -219,13 +221,15 @@ export function spend(a: PersonAct, event: Ref): void {
 }
 
 /** The kinds of person the god acts on. */
-export type PersonKind = "ruler" | "court" | "agent" | "holder" | "boss" | "house";
+export type PersonKind = "ruler" | "court" | "agent" | "holder" | "boss" | "house" | "notable";
 
 export function personKind(ref: string): PersonKind | null {
   if (ref.startsWith("rule:pol:")) return "ruler";
   if (/^court:pol:\d+:\d+:\d+$/.test(ref)) return "court";
   if (/^agent:\d+$/.test(ref)) return "agent";
   if (ref.startsWith("folk:town:")) return "holder";
+  // (One the world keeps by name: sim/notable. Their page's ref is the host's, `note:named:<id>`.)
+  if (/^note:named:\d+$/.test(ref)) return "notable";
   if (/^boss:pol:\d+:\d+:ev:\d+:\d+$/.test(ref)) return "boss";
   if (/^dyn:pol:\d+:\d+:ev:\d+:\d+$/.test(ref)) return "house";
   return null;
@@ -269,6 +273,7 @@ export const ACTS_FOR: Readonly<Record<PersonKind, readonly PersonActKind[]>> = 
   holder: ["inspire"],
   boss: ["bless", "curse", "protect", "smite", "whisper"],
   house: ["whisper"],
+  notable: ["bless", "curse", "protect", "smite", "inspire"],
 };
 
 /** The whispers each kind of person can be given (a group leader's: toward each aim but its first; a boss's: none of choice). */
@@ -367,6 +372,13 @@ export function personNow(
     const head = at.kind === "under" ? at.g.boss : at.g.leader;
     return { kind, name: head.name, of: head.name, cell: at.g.home, subject: r.ref };
   }
+  if (kind === "notable") {
+    const id = Number(ref.slice("note:named:".length)),
+      n = notablesOf(world)?.get(id);
+    return n
+      ? { kind, name: n.name, of: null, cell: n.home, subject: notableRef(id), fig: id }
+      : null;
+  }
   if (kind === "house") {
     const m = /^dyn:(pol:\d+:\d+):(ev:\d+:\d+)$/.exec(ref),
       r = m ? politiesOf(world).get(m[1] as Ref) : undefined,
@@ -436,6 +448,7 @@ const whoWords = (k: PersonKind) =>
     holder: "one of a town's many: lay your hand on their town and every act reaches them",
     boss: "the head of a group",
     house: "a house",
+    notable: "one known by name",
   })[k];
 
 /** Teach a peopled world the god's acts on one person. */
@@ -513,6 +526,9 @@ export function installPersonActs(world: World, ctx: () => PopulationContext): v
         act.used = found;
       }
       store.add(act);
+      // (One the world keeps by name carries a blessing, a curse or a guard on their own record, where their year reads it.)
+      if (who.kind === "notable" && (kind === "bless" || kind === "curse" || kind === "protect"))
+        favourNotable(world, who.fig!, kind, until, event);
       // A smiting ends them at the act's moment, by their own death's path: the seat passes, the court names its next, the
       // hand lets them go. (A group's head is struck at its next reckoning: its successor is its reckoning's to name.)
       if (kind === "smite" && smitesAtOnce(who.kind)) {
@@ -521,7 +537,8 @@ export function installPersonActs(world: World, ctx: () => PopulationContext): v
           ...(who.fig !== undefined ? { fig: who.fig } : {}),
           now: 1,
         });
-        if (who.kind === "ruler") rulerDies(c, r!, t, struck);
+        if (who.kind === "notable") strikeNotable(c, who.fig!, "struck", struck, t);
+        else if (who.kind === "ruler") rulerDies(c, r!, t, struck);
         else if (who.kind === "court") courtFigureDies(c, r!, who.fig!, t, struck);
         else if (who.kind === "agent") {
           const w = handOf(world).resting!,

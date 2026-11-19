@@ -166,9 +166,16 @@ registerEventWords(WAR_EVENTS.declared.type, (world, e) => {
     : `${cap(text(e.data, "a"))} went to war with ${text(e.data, "b")} ${aim}, ${year(e.t)}`;
 });
 registerEventWords(WAR_EVENTS.battle.type, (world, e) => {
-  const d = e.data as { won?: boolean; fallen?: number; tip?: boolean } | null;
+  const d = e.data as {
+      won?: boolean;
+      fallen?: number;
+      tip?: boolean;
+      led?: (string | null)[];
+    } | null,
+    // (Who led each host, where the world keeps them: sim/notable.)
+    under = (i: number) => (d?.led?.[i] ? `, led by ${d.led[i]},` : "");
   // (Where arms decided it, Phase 52 M217: the winner's.)
-  return `${cap(text(e.data, "a"))} ${d?.won ? "won" : "lost"} a battle against ${text(e.data, "b")} in ${landWords(world, e.place)}${d?.tip ? `, ${text(e.data, d.won ? "a" : "b")}'s arms deciding it` : ""}; ${count(d?.fallen ?? 0)} fell, ${year(e.t)}`;
+  return `${cap(text(e.data, "a"))}${under(0)} ${d?.won ? "won" : "lost"} a battle against ${text(e.data, "b")}${under(1)} in ${landWords(world, e.place)}${d?.tip ? `, ${text(e.data, d.won ? "a" : "b")}'s arms deciding it` : ""}; ${count(d?.fallen ?? 0)} fell, ${year(e.t)}`;
 });
 registerEventWords(
   WAR_EVENTS.taken.type,

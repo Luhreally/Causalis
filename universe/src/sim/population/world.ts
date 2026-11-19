@@ -43,6 +43,8 @@ import { installSociety } from "../society/society.ts";
 import { installUnderworld } from "../order/underworld.ts";
 import { installGroups } from "../order/groups.ts";
 import { installInstitutions } from "../order/institutions.ts";
+import { installNotables } from "../notable/notables.ts";
+import "../notable/heads.ts";
 import { installEconomy } from "../economy/systems.ts";
 import { installActs } from "../acts/acts.ts";
 import { installGreatActs } from "../acts/great.ts";
@@ -466,6 +468,8 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   // (Groups: the general layer of collective action, sim/order/groups.ts.)
   installGroups(world, () => populationContext(world));
   installInstitutions(world, () => populationContext(world));
+  // (Notable people: who a people notice, their kind read off what they did, sim/notable/notables.ts.)
+  installNotables(world, () => populationContext(world));
   installStrife(world, () => populationContext(world));
   installCourts(world, () => populationContext(world));
   installCities(world, () => populationContext(world));

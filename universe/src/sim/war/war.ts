@@ -105,6 +105,8 @@ import { interestsOf, pressure } from "../polity/interests.ts";
 import { loreOf } from "../lore/lore.ts";
 import { lessonAdds } from "../lore/lessons-store.ts";
 import { holdOf } from "../order/holds.ts";
+import { notableCommands } from "../notable/kept.ts";
+import { commandAfter, commandIn } from "../notable/notables.ts";
 import { asksOf } from "../town/asks.ts";
 import { RIVALRY, diplomacyOf, relationRef } from "../diplomacy/diplomacy.ts";
 import { fearFields, warBonds } from "../finance/finance.ts";
@@ -1565,6 +1567,9 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
     driveHerds(ctx, w.ref, w.event, a, b, land, t);
     // (A host fed from behind it, where its realm has learned what marching far from its bread cost: what distance and hunger
     // take from it, so much less. Exactly as before where nothing has been learned.)
+    // (Who commands each host: the one who does already, or one the day makes. sim/notable/notables.ts.)
+    const ledA = commandIn(ctx, a, t),
+      ledB = commandIn(ctx, b, t);
     const fed = lessonAdds(world, a.ref, "supply", year),
       key = Number(w.ref.split(":")[2]),
       far =
@@ -1588,7 +1593,9 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         (1 / Math.max(1, wars.fighting(a.ref).length)) *
         sightTerm(fleetA?.flyers ?? 0, fleetB?.flyers ?? 0) *
         // (Its ruler blessed, its host fights as two; cursed, as half: exactly 1 where none holds, sim/acts/person.ts.)
-        rulerLuck(world, a.ref, a.ruler.event, year),
+        rulerLuck(world, a.ref, a.ruler.event, year) *
+        // (And under the one who commands it, by their standing: sim/notable. Exactly 1 where no one is kept.)
+        notableCommands(world, a.ref, year),
       // (The ground favours those who hold it as far as it is broken, watered and wooded: sim/war/ground.ts.)
       ground = groundOf(ctx, land).factor,
       // (And what its towns were asked to raise and see to, H1: exactly 1 on a land never asked.)
@@ -1618,7 +1625,8 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         entrench *
         (1 / Math.max(1, wars.fighting(b.ref).length)) *
         sightTerm(fleetB?.flyers ?? 0, fleetA?.flyers ?? 0) *
-        rulerLuck(world, b.ref, b.ruler.event, year);
+        rulerLuck(world, b.ref, b.ruler.event, year) *
+        notableCommands(world, b.ref, year);
     // The fallen (Phase 55 M224b): every land of each realm on its home world sends men by its
     // fighting men (D2); of those who close with the foe a share is struck down by the foe's arms
     // against their guard, more when beaten, fewer the farther and thicker the fire, and of the
@@ -1689,8 +1697,30 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         // The winner's arms, where they tipped it.
         ...(tipped ? [{ ref: tipped, role: "enabler" as const, weight: 0.4 }] : []),
       ],
-      data: { a: realmName(a), b: realmName(b), won, fallen: fa + fb, ...(tip ? { tip } : {}) },
+      data: {
+        a: realmName(a),
+        b: realmName(b),
+        won,
+        fallen: fa + fb,
+        ...(tip ? { tip } : {}),
+        // (Told with who led it only where one of them is spoken of: an untried commander's name on every battle was
+        // 0.4 MB of a save at 1,500.)
+        ...(ledA?.told || ledB?.told
+          ? { led: [ledA?.told ? ledA.name : null, ledB?.told ? ledB.name : null] }
+          : {}),
+      },
     });
+    // (And how the day went for those who led: their standing, and whether they fell or were taken.)
+    commandAfter(
+      ctx,
+      [ledA, ledB],
+      [a, b],
+      won,
+      fielded,
+      battle,
+      ctx.settlements.inProvince(land)[0]?.name ?? "",
+      t,
+    );
     const fought: Battle = {
       year,
       land,

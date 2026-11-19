@@ -2,6 +2,7 @@
 // how they came to rule), the realm's list of who holds power, the realm's headline stat, and the
 // leaders a lender's house and a townsman's page show. Pure reads of the world as it stands:
 // asking moves nothing. The leaders themselves are host/leaders.ts's.
+import { notablePeopleBlock } from "./notables.ts";
 import { headLeader } from "./townlife.ts";
 import { YEAR, type World } from "../../kernel/index.ts";
 import { FEMALE, OCC } from "../../rules/index.ts";
@@ -53,6 +54,8 @@ export function leaderBlocks(world: World, r: Polity): Block[] {
       ],
     },
     ...list.leaders.map((l): Block => ({ type: "tool", tool: "leader.card", args: { leader: l } })),
+    // (Those its lands know by name, living and remembered: sim/notable.)
+    ...[notablePeopleBlock(world, r.members, 12)].filter((b): b is Block => b !== null),
   ];
 }
 

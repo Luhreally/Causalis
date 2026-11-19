@@ -5,9 +5,17 @@
 // year of birth drawn from a key of the office and the term it is held for, so the same one holds it year on year, another takes
 // it when the term is out, and the one before is told as gone. Nothing here is kept, and nothing of the world moves by it: a
 // reading, as a court's cases are. Each is one of their town's key figures (host/leaders.ts): a body at a house of their own.
+//
+// Since 2026-11-18 the world does keep people by name (sim/notable: whoever crossed the line their people notice, their kind read
+// off what they did). Where one of them holds what an office here is read from, they ARE its holder: the commander of a realm's
+// host is the one the war asks for before each battle; a land's judge, the keeper of its temple and the richest of its merchants
+// are its standing notable of law, of its faith, of wealth, where it has one. The drawn name is kept only where the world keeps
+// no one. The rest of a land's notables live in its first town as themselves (kind "named"), and the dead among them are read
+// from the short record the world keeps (`goneNamed`).
 import { hashString, type Ref, type World } from "../../kernel/index.ts";
 import { cradleTongue, personName, tonguePersonName } from "../../gen/index.ts";
-import { DOES, OCC } from "../../rules/index.ts";
+import { ACTS, DOES, DOMAIN, DOMAINS, NOTE, OCC, commandTerm, satOf } from "../../rules/index.ts";
+import { NOTABLE_ENDS, deedLine, notableTitle } from "../../causal/index.ts";
 import {
   GANG_ROW,
   beliefOf,
@@ -16,12 +24,18 @@ import {
   workedName,
   gangsStore,
   housesOf,
+  firstField,
   lifeOf,
+  bodiesOf,
+  notablesOf,
   politiesOf,
   populationContext,
   realmName,
   underworldOf,
   warsOf,
+  type Deed,
+  type GoneNotable,
+  type Notable as Named,
   type Polity,
   type Settlement,
 } from "../../sim/index.ts";
@@ -35,12 +49,22 @@ import { bodyHeadRef, headTitle } from "./bodies.ts";
 import { doesWords } from "../../causal/index.ts";
 import { boardRef } from "./board.ts";
 import { courtFormOf } from "./justice.ts";
-import { landLink, townLink } from "./names.ts";
-import { link, stat, yearNow } from "./words.ts";
+import { faithLink, landLink, landTitle, realmLink, townLink } from "./names.ts";
+import { item, link, stat, yearNow } from "./words.ts";
 
-export type NotableKind = "house" | "judge" | "priest" | "general" | "merchant" | "gang" | "head";
-/** The offices held for a term, their holder read from the office: the rest are kept by name (a house's head, a body's). */
-type Termed = Exclude<NotableKind, "house" | "head">;
+export type NotableKind =
+  | "house"
+  | "judge"
+  | "priest"
+  | "general"
+  | "merchant"
+  | "gang"
+  /** One the world keeps by name who holds no office here: known for what they did. */
+  | "named"
+  /** The head of one of the town's bodies (host/bodies.ts). */
+  | "head";
+/** The offices held for a term, their holder read from the office: the rest are kept by name. */
+type Termed = Exclude<NotableKind, "house" | "head" | "named">;
 
 /** One who holds an office or heads a great thing of a town, as read. */
 export type Notable = {
@@ -65,7 +89,19 @@ export type Notable = {
   readonly before?: { readonly ref: string; readonly name: string; readonly year: number };
   /** What of them is read and not kept, in a line for their page. */
   readonly read: string;
+  /** The one the world keeps by name whom this is (sim/notable), where it keeps one. */
+  readonly sim?: Named;
 };
+
+/** A notable the world keeps, by their page's ref. */
+export const namedRef = (id: number): string => `note:named:${id}`;
+const namedId = (ref: string): number | null => {
+  const m = /^note:named:(\d+)$/.exec(ref);
+  return m ? Number(m[1]) : null;
+};
+const KEPT_READ =
+  "The world keeps them by name: their standing among their people, what they did, who taught them and how they end.";
+const cap1 = (t: string): string => (t ? t[0]!.toUpperCase() + t.slice(1) : t);
 
 /** How long each office is held (years), about: its own term is drawn a little either side by its key. */
 const TERM: Readonly<Record<Termed, number>> = {
@@ -154,6 +190,49 @@ function read(world: World, town: string): Notable[] {
     r = politiesOf(world).of(s.cell),
     chief = first(world, s.cell)?.ref === town,
     out: Notable[] = [],
+    kept = notablesOf(world),
+    // (Those of this land the world keeps by name, the highest first: each holds at most one office here.)
+    named = chief && kept ? [...kept.in(s.cell)].sort((a, b) => b.standing - a.standing) : [],
+    placed = new Set<number>(),
+    /** One the world keeps, as they are here: holding an office, or as themselves. */
+    asKept = (
+      n: Named,
+      kind: NotableKind,
+      office?: { title: string; did: string; of: Notable["of"]; away?: Notable["away"] },
+    ) => {
+      const realm = n.post?.kind === "command" ? politiesOf(world).get(n.post.of) : r,
+        known = notableTitle(
+          world,
+          n,
+          realm ? realmName(realm) : null,
+          landTitle(world, n.home, true),
+        );
+      placed.add(n.id);
+      out.push({
+        ref: namedRef(n.id),
+        kind,
+        name: n.name,
+        born: n.born,
+        sex: n.sex,
+        since: n.since,
+        title: office?.title ?? cap1(known),
+        did: office ? `${office.did} Known as ${known}.` : `${cap1(known)}.`,
+        town,
+        townName: s.name,
+        of: office?.of ?? {
+          ref: populationContext(world).provinces.get(n.home)?.ref ?? town,
+          name: landTitle(world, n.home),
+        },
+        ...(office?.away ? { away: office.away } : {}),
+        read: KEPT_READ,
+        sim: n,
+      });
+    },
+    /** A land's standing notable of a domain not yet placed (of its faith, where asked). */
+    standing = (d: number, faith?: string): Named | undefined =>
+      named.find(
+        (n) => !placed.has(n.id) && !n.post && firstField(n) === d && (!faith || n.faith === faith),
+      ),
     termed = (
       kind: Termed,
       key: string,
@@ -161,7 +240,9 @@ function read(world: World, town: string): Notable[] {
       did: string,
       of: Notable["of"],
       away?: Notable["away"],
+      who?: Named,
     ) => {
+      if (who) return asKept(who, kind, { title, did, of, ...(away ? { away } : {}) });
       const h = holder(world, key, kind, s.cell, year),
         ref = `note:${kind}:${key}`,
         was = holder(world, key, kind, s.cell, h.since - 1);
@@ -258,6 +339,8 @@ function read(world: World, town: string): Notable[] {
         ? `Hears what is brought before the court of ${s.name} in the ruler's name, and says what comes of it.`
         : `Sits first on the bench of ${s.name}, which hears what is brought before it.`,
       { ref: `${town}#law`, name: `the court of ${s.name}` },
+      undefined,
+      standing(DOMAIN.law),
     );
   // The one who keeps its temple, where it has one and its land a faith.
   const held = beliefOf(world).of(s.cell).faith,
@@ -278,6 +361,8 @@ function read(world: World, town: string): Notable[] {
       `Keeper of the temple of ${s.name}`,
       `Keeps the temple of ${s.name} for ${faith.name}, and leads those who pray there on the day of rest.`,
       { ref: faith.ref, name: faith.name },
+      undefined,
+      standing(DOMAIN.faith, faith.ref),
     );
   // The commander of the realm's host: at its seat in peace; with the host while it is at war.
   if (r && r.ended === null && seatTownOf(world, r)?.ref === town) {
@@ -305,6 +390,8 @@ function read(world: World, town: string): Notable[] {
             place: { scale: "region", cell: fought?.land ?? r.seat },
           }
         : undefined,
+      // (The one the war asks for before each battle, where the world keeps one: sim/notable commandIn.)
+      kept?.holder("command", r.ref),
     );
   }
   // The richest of a market town's merchants.
@@ -315,6 +402,8 @@ function read(world: World, town: string): Notable[] {
       `The richest of the merchants of ${s.name}`,
       `Trades at the market of ${s.name}, and is at their stall on its market days.`,
       { ref: boardRef(town), name: `the market of ${s.name}` },
+      undefined,
+      standing(DOMAIN.wealth),
     );
   // The head of the gang that leads its street's federation.
   if (chief && r) {
@@ -339,6 +428,9 @@ function read(world: World, town: string): Notable[] {
   let heads = 0;
   for (const { g } of bodies) {
     if (g === court || g === clergy || heads >= HEADS_MOST) continue;
+    // (One the world keeps by name heads it: they are met as themselves, below.)
+    const kept = g.headId ? namedId(g.headId) : null;
+    if (kept !== null && notablesOf(world)?.get(kept)) continue;
     const does = doesOf(g),
       name = bodyName(world, bodyRef(g.event)) ?? "a body";
     headOf(
@@ -350,11 +442,71 @@ function read(world: World, town: string): Notable[] {
     );
     heads++;
   }
+  // The rest of the land's notables, as themselves.
+  for (const n of named) if (!placed.has(n.id) && !n.post) asKept(n, "named");
   return out;
 }
 
 /** The most heads of bodies a town's key figures name (beside its judge and the one who keeps its temple). */
 const HEADS_MOST = 5;
+
+/** One the world kept by name who is gone, by their page's ref (null: none such). */
+export function goneNamed(world: World, ref: string): GoneNotable | null {
+  const id = namedId(ref);
+  return id === null ? null : (notablesOf(world)?.goneOf(id) ?? null);
+}
+
+/** A name for one the world keeps or kept, by id, and their page (null: let go). */
+function namedLink(world: World, id: number | undefined): ReturnType<typeof link> | null {
+  if (id === undefined) return null;
+  const n = notablesOf(world)?.get(id) ?? notablesOf(world)?.goneOf(id);
+  return n ? link(n.name, namedRef(id)) : null;
+}
+
+/** A land's notable people for a page: the living by standing, then those remembered. */
+export function notablePeopleBlock(world: World, cells: readonly number[], most = 8): Block | null {
+  const kept = notablesOf(world);
+  if (!kept) return null;
+  const set = new Set(cells),
+    realm = (r: string | null) => (r ? politiesOf(world).get(r as Ref) : undefined),
+    living = cells
+      .flatMap((c) => [...kept.in(c)])
+      .sort((a, b) => b.standing - a.standing || a.id - b.id)
+      .slice(0, most),
+    gone = kept
+      .gone()
+      .filter((g) => set.has(g.home) && g.standing >= NOTE.line)
+      .sort((a, b) => b.standing - a.standing || a.id - b.id)
+      .slice(0, Math.max(3, most >> 1));
+  if (!living.length && !gone.length) return null;
+  const year = yearNow(world);
+  return {
+    type: "list",
+    title: "Its notable people",
+    items: [
+      ...living.map((n) => {
+        const r = realm(n.post?.kind === "command" ? n.post.of : n.realm);
+        return item(
+          [
+            link(n.name, namedRef(n.id)),
+            `, ${year - n.born}: ${notableTitle(world, n, r ? realmName(r) : null, landTitle(world, n.home, true))}`,
+          ],
+          namedRef(n.id),
+        );
+      }),
+      ...gone.map((g) => {
+        const r = realm(g.realm);
+        return item(
+          [
+            link(g.name, namedRef(g.id)),
+            ` (${g.born} to ${g.died}), remembered: ${notableTitle(world, g, r ? realmName(r) : null, landTitle(world, g.home, true))}`,
+          ],
+          namedRef(g.id),
+        );
+      }),
+    ],
+  };
+}
 
 const ordinal = (n: number): string =>
   ["", "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth"][n] ?? `${n}th`;
@@ -369,6 +521,12 @@ export function notableOf(world: World, ref: string): Notable | null {
 function townOfRef(world: World, ref: string): string | null {
   const m = /^note:([a-z]+):(.+)$/.exec(ref);
   if (!m) return null;
+  if (m[1] === "named") {
+    const n = notablesOf(world)?.get(Number(m[2]));
+    if (!n) return null;
+    const of = n.post?.kind === "command" ? politiesOf(world).get(n.post.of) : undefined;
+    return (of ? seatTownOf(world, of)?.ref : first(world, n.home)?.ref) ?? null;
+  }
   const key = m[2]!,
     town = /^(town:\d+:\d+)/.exec(key)?.[1],
     realm = /^(pol:\d+:\d+)/.exec(key)?.[1],
@@ -398,7 +556,8 @@ export function goneNotable(
 ): { name: string; year: number; now: Notable } | null {
   const m = /^(note:[a-z]+:.+)~(-?\d+)$/.exec(ref),
     now = m ? notableOf(world, m[1]!) : null;
-  if (!m || !now || now.kind === "house" || now.kind === "head" || !now.before) return null;
+  if (!m || !now || now.kind === "house" || now.kind === "head" || now.kind === "named" || !now.before)
+    return null;
   const key = m[1]!.slice(`note:${now.kind}:`.length),
     cell = populationContext(world).settlements.get(now.town as Ref)?.cell ?? 0;
   // (Back through the terms to theirs: each begins where the one before it ends.)
@@ -429,9 +588,9 @@ export function notableLeader(world: World, n: Notable): Leader {
           name: n.name,
           age: Math.max(lifeOf(world).adulthood, Math.min(300, year - n.born)),
           occupation:
-            n.kind === "merchant" || n.kind === "head"
+            n.kind === "merchant" || n.kind === "head" || (n.sim && firstField(n.sim) === DOMAIN.wealth)
               ? OCC.trader
-              : n.kind === "gang"
+              : n.kind === "gang" || (n.sim && firstField(n.sim) === DOMAIN.making)
                 ? OCC.crafter
                 : OCC.leader,
           sex: n.sex,
@@ -443,8 +602,13 @@ export function notableLeader(world: World, n: Notable): Leader {
 /** A notable's page: who they are, what they hold, where they live or are, who held it before; the way to them and to their life. */
 export function notablePage(world: World, ref: string): PageModel {
   const n = notableOf(world, ref),
-    gone = n ? null : goneNotable(world, ref),
-    year = yearNow(world);
+    year = yearNow(world),
+    dead = n ? null : goneNamed(world, ref);
+  if (dead) return gonePage(world, ref, dead);
+  // (One the world keeps whose land has no town to show them in: their page all the same, at their land.)
+  const apart = n ? null : (notablesOf(world)?.get(namedId(ref) ?? -1) ?? null);
+  if (apart) return apartPage(world, ref, apart);
+  const gone = n ? null : goneNotable(world, ref);
   if (!n && !gone) throw new Error(`no one holds ${ref}`);
   const s = populationContext(world).settlements.get((n ?? gone!.now).town as Ref)!,
     body = peopleBody(world);
@@ -514,6 +678,7 @@ export function notablePage(world: World, ref: string): PageModel {
         args: { leader: notableLeader(world, who), short: true },
       },
       { type: "text", lines: [[who.did], [who.read]] },
+      ...(who.sim ? keptBlocks(world, who.sim) : []),
     ];
   return {
     ref,
@@ -535,7 +700,13 @@ export function notablePage(world: World, ref: string): PageModel {
     place: who.away ? who.away.place : { scale: "village", town: who.town, person: ref },
     stats: [
       stat("Age", `${age}`),
-      stat("Work", WORK[who.kind]),
+      stat(
+        "Work",
+        // (One the world keeps who holds no office: what they are known for is their work.)
+        who.kind === "named" && who.sim
+          ? (NAMED_WORK[firstField(who.sim)] ?? WORK.named)
+          : WORK[who.kind],
+      ),
       stat("Home", [townLink(world, who.town)]),
     ],
     tabs: [{ id: "overview", name: "Overview", blocks }],
@@ -552,7 +723,270 @@ const ICON: Readonly<Record<NotableKind, string>> = {
   merchant: "💰",
   gang: "🧍",
   head: "🏛️",
+  named: "⭐",
 };
+/** What the world keeps of one of name, for their page: what they did, their ties, what their name does, why they are known. */
+function keptBlocks(world: World, n: Named): Block[] {
+  const kept = notablesOf(world)!,
+    year = yearNow(world),
+    lines = (n.standing / NOTE.line).toFixed(1),
+    fields = n.by
+      .map((x, d) => [d, x] as const)
+      .filter(([, x]) => x > 0)
+      .sort((a, b) => b[1] - a[1]),
+    teacher = namedLink(world, n.teacher),
+    rival = namedLink(world, n.rival),
+    students = kept
+      .all()
+      .filter((o) => o.teacher === n.id)
+      .slice(0, 4),
+    headed = (n.realm ? (bodiesOf(world)?.of(n.realm)?.bodies ?? []) : []).filter(
+      (g) => g.headId === namedRef(n.id),
+    ),
+    does = fields.map(([d, x]) => NAME_DOES[d]?.(x)).filter((t): t is string => !!t),
+    // (Someone the world keeps elsewhere too: one of their realm's court, or its ruler since they took its seat.)
+    court =
+      n.as?.startsWith("court:") && n.realm
+        ? n.as.replace("court:", `court:${n.realm}:`)
+        : n.as === "rule" && n.realm && politiesOf(world).get(n.realm)?.ruler.name === n.name
+          ? `rule:${n.realm}`
+          : null;
+  return [
+    {
+      type: "facts",
+      title: "Among their people",
+      rows: [
+        stat(
+          "Standing",
+          `${lines} times what it takes to be known by name${n.best > n.standing * 1.1 ? ` (once ${(n.best / NOTE.line).toFixed(1)})` : ""}`,
+        ),
+        stat("Known for", fields.map(([d]) => FOR[d] ?? DOMAINS[d]!).join(", ")),
+        stat("Known since", `year ${n.since}, at ${n.since - n.born}`),
+        ...(n.realm ? [stat("Their realm", [realmLink(world, n.realm)])] : []),
+        ...(n.faith ? [stat("Their faith", [faithLink(world, n.faith)])] : []),
+        ...(court
+          ? [
+              stat("Also", [
+                link(
+                  court.startsWith("rule:")
+                    ? "the ruler of their realm"
+                    : "one of their realm's court",
+                  court,
+                ),
+              ]),
+            ]
+          : []),
+        ...headed.map((g) =>
+          stat("At the head of", [link(bodyName(world, bodyRef(g.event)) ?? g.name, bodyRef(g.event))]),
+        ),
+        ...(teacher ? [stat("Taught by", [teacher])] : []),
+        ...(students.length
+          ? [
+              stat(
+                "Taught",
+                students.flatMap((o, i) => [i ? ", " : "", link(o.name, namedRef(o.id))]),
+              ),
+            ]
+          : []),
+        ...(rival ? [stat("Measured against", [rival])] : []),
+        ...(n.favour
+          ? [stat("Under the god's hand", `${FAVOUR[n.favour.kind]} until year ${n.favour.until}`)]
+          : []),
+      ],
+    },
+    {
+      type: "list",
+      title: "What they did",
+      items: n.deeds.map((d) => deedItem(world, d, n.home, n.many)),
+    },
+    ...(does.length
+      ? [{ type: "text" as const, title: "What their name does", lines: does.map((t) => [t]) }]
+      : []),
+    ...(n.event
+      ? [
+          {
+            type: "text" as const,
+            title: "Why they are known",
+            lines: [[link(`How ${n.name} came to be known, and what it rested on`, n.event)]],
+          },
+        ]
+      : []),
+    ...(year - n.last > 0 && n.standing < n.best
+      ? [
+          {
+            type: "text" as const,
+            lines: [
+              [
+                `Their last deed was in year ${n.last}. A name with nothing new to it fades a little each year, and is let go below half of what it takes to be known.`,
+              ],
+            ],
+          },
+        ]
+      : []),
+  ];
+}
+const deedItem = (world: World, d: Deed, home: number, many: boolean) =>
+  item(`Year ${d.y}: ${deedLine(world, d, home, many, landTitle(world, home, true))}`, d.e, d.y);
+const FOR: readonly string[] = [
+  "war",
+  "what they know",
+  "what they make",
+  "their faith",
+  "their wealth",
+  "moving people",
+  "healing",
+  "the law",
+  "going where none had",
+  "the harm they did",
+];
+const FAVOUR = { bless: "blessed", curse: "cursed", protect: "guarded" } as const;
+const pct = (x: number) => `${(Math.abs(x) * 100).toFixed(1)} in a hundred`;
+/** What standing in each domain does, in words with its size (sim/notable/kept.ts: the terms the older systems read). */
+const NAME_DOES: readonly (((x: number) => string) | null)[] = [
+  (x) =>
+    commandTerm(x) >= 1
+      ? `The host they command fights ${pct(commandTerm(x) - 1)} the stronger for them. Should they fall, it is shaken for a year.`
+      : `The host they command fights ${pct(1 - commandTerm(x))} the weaker under them.`,
+  (x) =>
+    `Their land comes upon new things ${pct(ACTS.inquiry * satOf(x))} more readily while they live, and another of the learned is likelier to rise where they taught.`,
+  (x) => `Their land's works are ${pct(ACTS.renown * satOf(x))} the more renowned for theirs.`,
+  (x) =>
+    `Their faith passes from their land to its neighbours ${pct(ACTS.faith * satOf(x))} more readily, and their own land is ${pct(ACTS.faithHolds * satOf(x))} slower to leave it.`,
+  (x) =>
+    `What they have keeps others of name: their land has ${pct(ACTS.patron * satOf(x))} more to spare for its makers, its learned and its healers.`,
+  // (One who speaks for a group moves no choice yet: rules ACTS.speaks is none, and why.)
+  (x) =>
+    ACTS.speaks > 0
+      ? `Where they speak for a group in their realm's choosing, ${pct(ACTS.speaks * satOf(x))} more of its own come to choose its candidate.`
+      : "",
+  (x) => `Of their land's deaths, ${pct(ACTS.heal * satOf(x))} are spared.`,
+  null,
+  null,
+  null,
+];
+
+/** The page of one the world keeps by name whose land has no town they could be met in. */
+function apartPage(world: World, ref: string, n: Named): PageModel {
+  const r =
+      n.post?.kind === "command" ? politiesOf(world).get(n.post.of) : politiesOf(world).of(n.home),
+    title = notableTitle(world, n, r ? realmName(r) : null, landTitle(world, n.home, true)),
+    year = yearNow(world);
+  return {
+    ref,
+    kind: "person",
+    icon: "⭐",
+    title: n.name,
+    subtitle: [`${year - n.born}, ${title}`],
+    color: null,
+    place: { scale: "region", cell: n.home },
+    stats: [stat("Age", `${year - n.born}`), stat("Of", [landLink(world, n.home, true)])],
+    tabs: [
+      {
+        id: "overview",
+        name: "Overview",
+        blocks: [
+          {
+            type: "facts",
+            rows: [
+              stat("Born", `year ${n.born}`),
+              stat("Who", cap1(title)),
+              stat("Lives in", [
+                landLink(world, n.home, true),
+                ": a land with no town to find them in, so there is no house of theirs to go to",
+              ]),
+            ],
+          },
+          { type: "text", lines: [[KEPT_READ]] },
+          ...keptBlocks(world, n),
+        ],
+      },
+    ],
+    followable: false,
+    year,
+  };
+}
+
+/** The page of one the world kept by name who is gone. */
+function gonePage(world: World, ref: string, g: GoneNotable): PageModel {
+  const r = g.realm ? politiesOf(world).get(g.realm) : undefined,
+    title = notableTitle(world, g, r ? realmName(r) : null, landTitle(world, g.home, true)),
+    teacher = namedLink(world, g.teacher),
+    rival = namedLink(world, g.rival),
+    year = yearNow(world),
+    end = NOTABLE_ENDS[g.how] ?? "was gone";
+  return {
+    ref,
+    kind: "person",
+    icon: "🕯️",
+    title: g.name,
+    subtitle: [`${g.born} to ${g.died}: ${title}`],
+    color: null,
+    place: { scale: "region", cell: g.home },
+    stats: [stat("Died", `year ${g.died}, at ${g.died - g.born}`)],
+    tabs: [
+      {
+        id: "overview",
+        name: "Overview",
+        blocks: [
+          {
+            type: "facts",
+            rows: [
+              stat("Was", cap1(title)),
+              stat("Of", [landLink(world, g.home, true)]),
+              stat("Born", `year ${g.born}`),
+              stat("Known from", `year ${g.since}`),
+              stat("End", [
+                `In year ${g.died}, at ${g.died - g.born}: ${end}`,
+                ...(g.event ? [". ", link("What is told of it", g.event)] : []),
+              ]),
+              stat(
+                "Remembered",
+                g.standing >= NOTE.line
+                  ? `${(g.standing / NOTE.line).toFixed(1)} times what it takes to be known by name, ${year - g.died} years on`
+                  : "still spoken of by those who knew them; history will let them go",
+              ),
+              ...(r ? [stat("Their realm", [realmLink(world, r.ref)])] : []),
+              ...(g.faith ? [stat("Their faith", [faithLink(world, g.faith)])] : []),
+              ...(teacher ? [stat("Taught by", [teacher])] : []),
+              ...(rival ? [stat("Measured against", [rival])] : []),
+            ],
+          },
+          {
+            type: "list",
+            title: "What they did",
+            items: g.deeds.map((d) => deedItem(world, d, g.home, g.many)),
+          },
+          ...(g.rose
+            ? [
+                {
+                  type: "text" as const,
+                  title: "Why they were known",
+                  lines: [[link(`How ${g.name} came to be known`, g.rose)]],
+                },
+              ]
+            : []),
+          { type: "text", lines: [[KEPT_READ]] },
+        ],
+      },
+    ],
+    followable: false,
+    year,
+  };
+}
+
+/** What one known for a domain does, as a word for their work (by rules DOMAINS). */
+const NAMED_WORK: readonly string[] = [
+  "captain of fighting men",
+  "keeper of what is known",
+  "maker",
+  "preacher",
+  "trader",
+  "speaker for others",
+  "healer",
+  "judge",
+  "wayfarer",
+  "wrongdoer",
+];
 const WORK: Readonly<Record<NotableKind, string>> = {
   house: "head of a house",
   judge: "judge",
@@ -561,12 +995,26 @@ const WORK: Readonly<Record<NotableKind, string>> = {
   merchant: "merchant",
   gang: "head of a gang",
   head: "head of a body",
+  named: "one known by name",
 };
 
 /** A realm's own of these, for its leaders: its host's commander and the heads of the houses seated at its seat. */
 export function realmNotables(world: World, r: Polity): Notable[] {
   const seat = seatTownOf(world, r);
-  return seat
-    ? notablesIn(world, seat.ref).filter((n) => n.kind === "general" || n.kind === "house")
-    : [];
+  if (!seat) return [];
+  const at = notablesIn(world, seat.ref),
+    own = at.filter((n) => n.kind === "general" || n.kind === "house"),
+    // (And the highest of those its lands know by name, wherever in it they live: three.)
+    has = new Set(own.map((n) => n.ref)),
+    kept = notablesOf(world),
+    named = kept
+      ? r.members
+          .flatMap((c) => [...kept.in(c)])
+          .filter((n) => !n.post && !has.has(namedRef(n.id)))
+          .sort((a, b) => b.standing - a.standing || a.id - b.id)
+          .slice(0, 3)
+          .map((n) => notableOf(world, namedRef(n.id)))
+          .filter((n): n is Notable => n !== null)
+      : [];
+  return [...own, ...named];
 }

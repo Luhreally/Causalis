@@ -99,6 +99,8 @@ const TITLES: Readonly<Record<string, string>> = {
   "order.law": "A law changed",
   "order.held": "How a realm is held",
   "order.elected": "A choice put to a people",
+  "notable.arose": "One came to be known by name",
+  "notable.died": "One of name died",
   "houses.rose": "A great house rose",
   "houses.demagogue": "A demagogue rose",
   "houses.grifter": "A grifter bought in",

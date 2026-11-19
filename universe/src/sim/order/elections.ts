@@ -6,6 +6,7 @@
 // governing group as far as the realm fared ill in its term (fewer people, lands lost, a famine, a war lost). The group whose
 // candidate is given the most governs until the next, its wants weighed half again in how the realm is held. A decision whose
 // factors are each group's sway and where it went, and the event. A few numbers a realm, a few past elections kept.
+import { notableSpeaks } from "../notable/kept.ts";
 import {
   defineEventType,
   dmath,
@@ -210,8 +211,15 @@ export function electionsYear(ctx: PopulationContext, t: SimTime): void {
       }
       if (!best) continue;
       // (And brings out its own the more: those it organises go to vote.)
-      const out = best === i.group ? party(best) : 0;
-      given.set(best, given.get(best)! + (out > 0 ? i.sway * (1 + ORG.turnout * out) : i.sway));
+      const out = best === i.group ? party(best) : 0,
+        // (And one of name who speaks for a group brings out a few more of its own: sim/notable. Exactly as before where no one
+        // does. Only its own: given as a pull on every group's choice, the group last chosen was chosen again each term, and
+        // on tide 207 twice the elections were held from the eighth century on.)
+        spoken = best === i.group ? notableSpeaks(world, p.ref, best) : 0;
+      given.set(
+        best,
+        given.get(best)! + (out > 0 ? i.sway * (1 + ORG.turnout * out) : i.sway) * (1 + spoken),
+      );
       gave.set(i.group, best);
     }
     const all = [...given.values()].reduce((s, x) => s + x, 0),

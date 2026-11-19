@@ -26,6 +26,7 @@ import {
   BODY_ACT_YEARS,
   beliefOf,
   bodiesOf,
+  notablesOf,
   bodyLandsStore,
   BODY_ROW,
   bodyTitle,
@@ -49,6 +50,12 @@ const th = (n: number) => share(n / 1000),
 
 /** The page a body's head has, where they live at its home's first town (host/inspect/notables.ts). */
 export const bodyHeadRef = (event: string): string => `note:head:${event}`;
+/** A body's head by their page: themselves where the world keeps them by name (sim/notable/heads.ts), else the body's own. */
+export function headRefOf(world: World, g: { readonly event: string; readonly headId?: string }): string {
+  const m = g.headId ? /^note:named:(d+)$/.exec(g.headId) : null,
+    kept = m ? notablesOf(world) : null;
+  return m && kept && (kept.get(Number(m[1])) || kept.goneOf(Number(m[1]))) ? g.headId! : bodyHeadRef(g.event);
+}
 
 const titleNow = (world: World, g: Readonly<Body>): string =>
   bodyTitle(populationContext(world), g as Body);
@@ -413,7 +420,7 @@ export function institutionPage(world: World, ref: string): PageModel {
       stat(
         "Its head",
         [
-          link(rec.leader.name, bodyHeadRef(g.event)),
+          link(rec.leader.name, headRefOf(world, rec)),
           `, ${head.toLowerCase()}, born year ${rec.leader.born}, at its head since year ${rec.leader.since}`,
         ],
         { parts: [part("its heads so far", count(rec.leaders))] },
@@ -506,7 +513,7 @@ export function institutionPage(world: World, ref: string): PageModel {
     stats: [
       ...(rec
         ? [
-            stat("Head", [link(rec.leader.name, bodyHeadRef(g.event))]),
+            stat("Head", [link(rec.leader.name, headRefOf(world, rec))]),
             stat(rec.fund === 0 ? "Members" : "Hands", count(rec.staff)),
           ]
         : []),

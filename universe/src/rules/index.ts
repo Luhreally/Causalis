@@ -1747,3 +1747,5 @@ export * from "./underworld.ts";
 // Groups (2026-11-16): collective action, a group's kind read off what it does.
 export * from "./groups.ts";
 export * from "./institutions.ts";
+// Notable people (2026-11-18): who a people notice, their kind read off what they did.
+export * from "./notables.ts";
