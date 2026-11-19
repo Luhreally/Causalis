@@ -1743,3 +1743,4 @@ export * from "./roof.ts";
 export * from "./underworld.ts";
 // Groups (2026-11-16): collective action, a group's kind read off what it does.
 export * from "./groups.ts";
+export * from "./institutions.ts";

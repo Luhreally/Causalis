@@ -35,6 +35,7 @@ import { HOLDINGS, HOLDINGS_STORE, LAW_ROW, LAW_STORE, societyStore } from "./ke
 import { SOCIETY_EVERY, landTurn } from "./care.ts";
 import { protectedOf, trustLostOf } from "../order/underworld-kept.ts";
 import { orgFillsOf, orgPreyedOf } from "../order/groups-kept.ts";
+import { courtBoughtIn } from "../order/institutions-kept.ts";
 
 export const HOLDING_EVENTS = {
   /** A realm's law came to be written: its judges judge by it more than by custom. */
@@ -189,7 +190,9 @@ export function holdingsYear(ctx: PopulationContext, t: SimTime): void {
       deals =
         law[LAW_ROW.deals]! / 1000 +
         UNDER.enforces * under.protection * (1 - byCourts) * (1 - law[LAW_ROW.deals]! / 1000) -
-        trustLostOf(world, c) * (law[LAW_ROW.deals]! / 1000) +
+        trustLostOf(world, c) * (law[LAW_ROW.deals]! / 1000) -
+        // (Judges who are bought lose of the deals its law keeps: sim/order/institutions.ts. Nothing where none is kept.)
+        courtBoughtIn(world, c) * (law[LAW_ROW.deals]! / 1000) +
         (filled > 0 ? filled * (1 - byCourts) * (1 - law[LAW_ROW.deals]! / 1000) : 0),
       tenure = law[LAW_ROW.tenure]! / 1000,
       target = improveTarget(secure, tenure),

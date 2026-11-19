@@ -88,6 +88,7 @@ import { holdsOf } from "./holds.ts";
 import { LAW_OF } from "./laws.ts";
 import { chooses, electionsOf } from "./elections.ts";
 import { orgPartyOf } from "./groups-kept.ts";
+import { worksProfitOf } from "./institutions-kept.ts";
 import { ORG } from "../../rules/index.ts";
 import { spend, whisperIn } from "../acts/person.ts";
 
@@ -821,13 +822,16 @@ function stepRealm(
     h.offices = per(nepotism * share);
     h.grants = per(licence * share);
     h.farm = per(farm * share);
-    const income =
+    const income0 =
       (h.crown ? keep * left : 0) +
       left * (1 - keep) * favours * favour +
       officePay * share +
       (rent + margin) * share +
       landRent(world, h.seat, h.land) +
       (originOf(h) === "grifter" ? griftTake : 0);
+    // (What the works it owns pay it, at most half again of the rest: sim/order/institutions.ts. Nothing where none is kept.)
+    const worksPay = Math.min(worksProfitOf(world, p.ref, h.name), 0.5 * income0);
+    const income = income0 + worksPay;
     rents += (rent + margin) * share;
     h.income = Math.round(income);
     // (What it holds, spent of a share a year and added to by what it takes in, over the years since last reckoned.)
