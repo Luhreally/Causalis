@@ -45,7 +45,18 @@ import { wealthBook } from "../wealth.ts";
 import { landEra } from "../village.ts";
 import { eraWords } from "./world.ts";
 import { faithLink, languageLink, realmLink, spotOfLand } from "./names.ts";
-import { claimOf, count, item, link, many, part, share, stat, yearNow } from "./words.ts";
+import {
+  claimOf,
+  claimUnder,
+  count,
+  item,
+  link,
+  many,
+  part,
+  share,
+  stat,
+  yearNow,
+} from "./words.ts";
 import {
   alliancesOf,
   callLine,
@@ -1032,7 +1043,11 @@ function warsTab(world: World, r: AllianceRead): Tab {
         .reverse()
         .slice(0, 12)
         .map((x) =>
-          item([`Year ${x.declared}: `, link(claimOf(world, x.event), x.ref)], x.ref, x.declared),
+          item(
+            [`Year ${x.declared}: `, link(claimUnder(world, x.event, x.declared), x.ref)],
+            x.ref,
+            x.declared,
+          ),
         ),
     });
   return { id: "wars", name: "Wars", blocks };

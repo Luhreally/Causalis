@@ -57,7 +57,18 @@ import {
   opOf,
   opRef,
 } from "../underworld.ts";
-import { claimOf, count, item, link, many, part, share, stat, yearAt, yearNow } from "./words.ts";
+import {
+  claimUnder,
+  count,
+  item,
+  link,
+  many,
+  part,
+  share,
+  stat,
+  yearAt,
+  yearNow,
+} from "./words.ts";
 import { landLink, landTitle, realmLink } from "./names.ts";
 import { bossLink } from "./boss.ts";
 import { headLeader } from "./townlife.ts";
@@ -107,7 +118,7 @@ function passedItems(world: World, news: (e: never) => boolean, since: number): 
     if (yearAt(e.t) < since) break;
     if (!(news as (x: typeof e) => boolean)(e)) continue;
     const y = yearAt(e.t);
-    out.push(item([`Year ${y}: `, link(claimOf(world, e.id), e.id)], e.id, y));
+    out.push(item([`Year ${y}: `, link(claimUnder(world, e.id, y), e.id)], e.id, y));
   }
   return out;
 }

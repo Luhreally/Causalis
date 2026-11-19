@@ -45,6 +45,18 @@ export function claimOf(world: World, ref: string): string {
   return isRef(ref) ? why(world, ref).claim : ref;
 }
 
+/**
+ * What an event is, told under its own year ("Year 997: ..."): the year its words end on is not said again (a body's history
+ * read "Year 997: ... took their place, year 997"). Another year in it stays.
+ */
+export function claimUnder(world: World, ref: string, year: number): string {
+  return claimOf(world, ref)
+    .replace(/,? (?:in )?year (-?\d+)(?=[:;,.]|$)/g, (all, n: string) =>
+      Number(n) === year ? "" : all,
+    )
+    .trim();
+}
+
 /** A headline number or word, with what explains it and what it is made of. */
 export function stat(
   label: string,

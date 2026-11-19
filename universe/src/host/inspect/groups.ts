@@ -28,7 +28,18 @@ import {
 import { ORG_IS, grainSum, orgWords } from "../../causal/index.ts";
 import { realmColor } from "../colors.ts";
 import { orgFedNews, orgFedOf, orgFedRef, orgNews, orgOf, orgRef } from "../groups.ts";
-import { claimOf, count, item, link, many, part, share, stat, yearAt, yearNow } from "./words.ts";
+import {
+  claimUnder,
+  count,
+  item,
+  link,
+  many,
+  part,
+  share,
+  stat,
+  yearAt,
+  yearNow,
+} from "./words.ts";
 import { landLink, realmLink } from "./names.ts";
 import { bossLink } from "./boss.ts";
 import { streetFightOf, watchFightTool } from "./streetfight.ts";
@@ -103,7 +114,7 @@ function passedItems(
     if (yearAt(e.t) < since) break;
     if (!news(e)) continue;
     const y = yearAt(e.t);
-    out.push(item([`Year ${y}: `, link(claimOf(world, e.id), e.id)], e.id, y));
+    out.push(item([`Year ${y}: `, link(claimUnder(world, e.id, y), e.id)], e.id, y));
   }
   return out;
 }

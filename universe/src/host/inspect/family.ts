@@ -27,7 +27,18 @@ import {
   lineRef,
   type FamilyMember,
 } from "../family.ts";
-import { claimOf, count, item, link, many, part, share, stat, yearAt, yearNow } from "./words.ts";
+import {
+  claimUnder,
+  count,
+  item,
+  link,
+  many,
+  part,
+  share,
+  stat,
+  yearAt,
+  yearNow,
+} from "./words.ts";
 import { landLink, realmLink, townLink } from "./names.ts";
 
 /** Whence a house rose, in words. */
@@ -77,7 +88,7 @@ function passedItems(world: World, news: (e: HistoryEvent) => boolean, since: nu
     if (yearAt(e.t) < since) break;
     if (!news(e)) continue;
     const y = yearAt(e.t);
-    out.push(item([`Year ${y}: `, link(claimOf(world, e.id), e.id)], e.id, y));
+    out.push(item([`Year ${y}: `, link(claimUnder(world, e.id, y), e.id)], e.id, y));
   }
   return out;
 }

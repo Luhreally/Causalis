@@ -27,7 +27,7 @@ import {
 import { metAs, rulerLeader, seatTownOf } from "../leaders.ts";
 import { landEra, peopleBody } from "../village.ts";
 import { landLink, realmLink, townLink } from "./names.ts";
-import { asRef, claimOf, item, link, stat, yearAt, yearNow } from "./words.ts";
+import { asRef, claimOf, claimUnder, item, link, stat, yearAt, yearNow } from "./words.ts";
 
 const pct = (x: number) => Math.round(x * 100);
 
@@ -39,7 +39,7 @@ function toldItems(world: World, told: readonly Ref[], only?: number): Item[] {
     if (!e) continue;
     if (only !== undefined && (e.data as { fig?: number } | null)?.fig !== only) continue;
     const y = yearAt(e.t);
-    out.push(item([`Year ${y}: `, link(claimOf(world, e.id), e.id)], e.id, y));
+    out.push(item([`Year ${y}: `, link(claimUnder(world, e.id, y), e.id)], e.id, y));
   }
   return out;
 }

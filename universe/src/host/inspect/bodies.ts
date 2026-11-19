@@ -41,7 +41,18 @@ import {
 import { bodyWords, grainSum } from "../../causal/index.ts";
 import { realmColor } from "../colors.ts";
 import { bodiesAll, bodiesIn, bodyNews, bodyOf, bodyRef } from "../bodies.ts";
-import { claimOf, count, item, link, many, part, share, stat, yearAt, yearNow } from "./words.ts";
+import {
+  claimUnder,
+  count,
+  item,
+  link,
+  many,
+  part,
+  share,
+  stat,
+  yearAt,
+  yearNow,
+} from "./words.ts";
 import { faithLink, landLink, realmLink } from "./names.ts";
 import { listedOf } from "./ledger-kit.ts";
 
@@ -391,7 +402,7 @@ function passedItems(
     if (yearAt(e.t) < since) break;
     if (!news(e)) continue;
     const y = yearAt(e.t);
-    out.push(item([`Year ${y}: `, link(claimOf(world, e.id), e.id)], e.id, y));
+    out.push(item([`Year ${y}: `, link(claimUnder(world, e.id, y), e.id)], e.id, y));
   }
   return out;
 }

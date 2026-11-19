@@ -49,7 +49,7 @@ import { AIM_WORDS } from "./groups.ts";
 import { goneWords, kindLine, potencyWords, racketsOf } from "./mobs.ts";
 import { townWrong } from "./justice.ts";
 import { realmLink } from "./names.ts";
-import { claimOf, count, item, link, many, part, stat, yearAt, yearNow } from "./words.ts";
+import { claimUnder, count, item, link, many, part, stat, yearAt, yearNow } from "./words.ts";
 
 /** A share, a small one to a tenth of one in a hundred. */
 const pc = (x: number) =>
@@ -483,7 +483,7 @@ export function landUnderworldBlocks(world: World, cell: number): Block[] {
     if (!UNDER_EVENTS.test(e.type)) continue;
     if (!(e.place && refs.has(e.place)) && !e.subjects.some((s) => refs.has(s))) continue;
     const y = yearAt(e.t);
-    passed.push(item([`Year ${y}: `, link(claimOf(world, e.id), e.id)], e.id, y));
+    passed.push(item([`Year ${y}: `, link(claimUnder(world, e.id, y), e.id)], e.id, y));
     if (isFightEvent(e) && fights.length < FIGHTS_SHOWN) fights.push(e.id);
   }
   if (passed.length)

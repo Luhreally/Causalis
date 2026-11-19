@@ -23,7 +23,7 @@ import { houseLink } from "./credit.ts";
 import { landLink, realmLink, spotOfLand, townLink } from "./names.ts";
 import { landEra, peopleBody } from "../village.ts";
 import { leadersOf, leadersOfTown, lenderLeader, rulerLeader, seatTownOf } from "../leaders.ts";
-import { asRef, claimOf, count, item, link, stat, yearAt, yearNow } from "./words.ts";
+import { asRef, claimOf, claimUnder, count, item, link, stat, yearAt, yearNow } from "./words.ts";
 
 /** A realm's headline stat: who rules it, and its leaders' page. */
 export function rulerStat(realm: Polity): Stat {
@@ -80,7 +80,7 @@ export function rulerPage(world: World, ref: string): PageModel {
     if (e.t > until) continue;
     if (e.id === r.ruler.event || e.importance < 3 || !e.subjects.includes(r.ref)) continue;
     const y = yearAt(e.t);
-    reign.push(item([`Year ${y}: `, link(claimOf(world, e.id), e.id)], e.id, y));
+    reign.push(item([`Year ${y}: `, link(claimUnder(world, e.id, y), e.id)], e.id, y));
   }
   const home: Block | null = town
     ? {
