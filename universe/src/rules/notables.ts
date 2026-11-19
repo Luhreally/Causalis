@@ -52,7 +52,7 @@ export const NOTE = {
    * Doer-years for one to arise, by domain, where the domain is fully developed, kept and unoccupied by other names. (None for
    * war, rule and exploration: no one is a great commander without a battle, and those are made by occasions alone.)
    */
-  doerYears: [0, 9000, 220000, 12000, 160000, 0, 2500, 9000, 0, 60],
+  doerYears: [0, 9000, 220000, 12000, 160000, 0, 6000, 40000, 0, 60],
   /** A living notable's standing falls this share a year once their last deed is a generation's tenth behind them. */
   fade: 0.03,
   /** A dead one's, a year: history lets go slowly. */

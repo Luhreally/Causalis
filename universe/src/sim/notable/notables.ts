@@ -507,8 +507,9 @@ function doersOf(
  * A land's turn. Its people hold only so many names (rules namesHeld): where one is free, whether someone of its doers crosses the
  * line this turn (each domain's rate added), of which domain (by its share of that), and how far (the heavy tail). One at the
  * most a turn; a land whose names are all held notices no one new until a name is let go, unless a deed forces one on it.
+ * In a year of sickness out of its turn, only those who tend its sick are weighed, for that year.
  */
-function weighLand(r: Run, p: Province, sick: boolean): void {
+function weighLand(r: Run, p: Province, sick: boolean, turn: boolean): void {
   const { world, store, year } = r,
     cell = p.cell,
     here = store.in(cell);
@@ -522,6 +523,8 @@ function weighLand(r: Run, p: Province, sick: boolean): void {
   let all = 0;
   for (let k = 0; k < D; k++) {
     if (!(doers[k]! > 0) || !NOTE.doerYears[k]) continue;
+    // (Out of its turn a land is weighed only for those who tend its sick, in a year of sickness.)
+    if (!turn && k !== DOMAIN.healing) continue;
     const lineage = row && row[k]! > 0 ? 1 + ACTS.lineage * satOf(row[k]!) : 1;
     rates[k] = arisesRate(
       k,
@@ -533,7 +536,7 @@ function weighLand(r: Run, p: Province, sick: boolean): void {
     );
     all += rates[k]!;
   }
-  const chance = (1 - dmath.exp(-all * NOTE.every)) * (r.many ? NOTE.hiveShare : 1);
+  const chance = (1 - dmath.exp(-all * (turn ? NOTE.every : 1))) * (r.many ? NOTE.hiveShare : 1);
   if (!(all > 0) || !(u(10) < chance)) return;
   // (Of which domain: each by its share of the land's rate.)
   let d = 0,
@@ -678,7 +681,7 @@ export function notablesYear(ctx: PopulationContext, t: SimTime): void {
   for (const p of ctx.provinces.all()) {
     const turn = (year + p.cell) % NOTE.every === 0;
     if ((!turn && !sick.has(p.cell)) || !p.total()) continue;
-    weighLand(r, p, sick.has(p.cell));
+    weighLand(r, p, sick.has(p.cell), turn);
   }
   // 3. They age, fade, fall with their seat, and die.
   const realms = world.hasStore("polity.states") ? politiesOf(world) : null,
