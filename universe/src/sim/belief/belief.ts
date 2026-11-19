@@ -8,6 +8,7 @@
 // and they are blamed — famine under a priest-king of the same faith breeds more
 // grievance. A faith held far from where it began, by people of other speech,
 // splits. Every founding, conversion and schism cites what caused it.
+import { notableFaithHolds, notableFaithSpreads } from "../notable/kept.ts";
 import {
   YEAR,
   defineEventType,
@@ -343,7 +344,12 @@ export function beliefYear(ctx: PopulationContext, t: SimTime): void {
         // (And a sect of its own pressed faith keeps it the more: sim/order/groups.ts. Exactly as before where none is kept.)
         sect = orgSectOf(world, p.cell),
         hold = (now.faith ? 0.3 : 1) * (sect > 0 ? 1 - 0.8 * sect : 1),
-        chance = 0.05 * like * like * road * holy * hold * (0.5 + other.traits[WAY.piety]!);
+        // (One of name who speaks for a faith carries it from their land, and holds their own land to theirs: sim/notable.
+        // Both exactly 1 where no one is kept.)
+        spoken =
+          notableFaithSpreads(world, n, theirs.faith) * notableFaithHolds(world, p.cell, now.faith),
+        chance =
+          0.05 * like * like * road * holy * hold * spoken * (0.5 + other.traits[WAY.piety]!);
       if (!best || chance > best.chance || (chance === best.chance && theirs.faith < best.faith))
         best = { cell: p.cell, faith: theirs.faith, via: n, chance };
     }

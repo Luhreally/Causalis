@@ -6,6 +6,7 @@
 // governing group as far as the realm fared ill in its term (fewer people, lands lost, a famine, a war lost). The group whose
 // candidate is given the most governs until the next, its wants weighed half again in how the realm is held. A decision whose
 // factors are each group's sway and where it went, and the event. A few numbers a realm, a few past elections kept.
+import { notableSpeaks } from "../notable/kept.ts";
 import {
   defineEventType,
   dmath,
@@ -202,7 +203,9 @@ export function electionsYear(ctx: PopulationContext, t: SimTime): void {
             (g === v.governing ? SWING * ill : 0) +
             (g === i.group ? 0.05 : 0) +
             // (A party holds its own interest's votes to its candidate.)
-            (own > 0 ? ORG.discipline * own : 0);
+            (own > 0 ? ORG.discipline * own : 0) +
+            // (One of name who speaks for a group draws others to its candidate: sim/notable. 0 where no one does.)
+            notableSpeaks(world, p.ref, g);
         if (by > bestBy) {
           bestBy = by;
           best = g;

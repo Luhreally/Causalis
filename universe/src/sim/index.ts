@@ -1859,3 +1859,28 @@ export {
   whispersFor,
 } from "./acts/person.ts";
 export type { HeadNote } from "./hand/deaths.ts";
+// Notable people (2026-11-18): who a people notice, their kind read off what they did.
+export {
+  NOTABLE_EVENTS,
+  commandAfter,
+  commandIn,
+  favourNotable,
+  firstField,
+  installNotables,
+  notablesYear,
+  strikeNotable,
+} from "./notable/notables.ts";
+export {
+  NOTABLE,
+  NOTABLES_STORE,
+  NotablesStore,
+  notableCommands,
+  notableRef,
+  notableTargets,
+  notablesOf,
+  notedIn,
+  type Deed,
+  type Gone as GoneNotable,
+  type Notable,
+  type Post,
+} from "./notable/kept.ts";

@@ -3,6 +3,7 @@
 // commits its changes after (compute-then-commit), draws every chance from a key
 // (province, time, purpose), and writes what it did to the ledgers and the
 // history, with causes recorded at the point of decision.
+import { notableHeals } from "../notable/kept.ts";
 import { intoxDeaths } from "../money/kept.ts";
 import {
   careSparedOf,
@@ -1209,7 +1210,11 @@ export function raisingCost(ctx: PopulationContext, cell: number): number {
 
 /** What a land's care spares of its deaths (society/care.ts), or, where none is reckoned, all its healing lore as before. */
 function healedIn(world: World, cell: number): number {
-  return 1 - (careSparedOf(world, cell) ?? Math.min(0.3, loreOf(world).effect(cell, "health")));
+  // (And what its healers of name spare besides: sim/notable. Exactly as before where no one is kept.)
+  return (
+    (1 - (careSparedOf(world, cell) ?? Math.min(0.3, loreOf(world).effect(cell, "health")))) *
+    notableHeals(world, cell)
+  );
 }
 
 /** How much of the cold a people's own coat leaves to clothes (rules/dress.ts; a bare skin's, 1). */
