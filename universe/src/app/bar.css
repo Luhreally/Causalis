@@ -171,6 +171,33 @@ body.paging #hud > .people-bar,
     display: none;
   }
 }
+/*
+ * On a phone the row shows whole cards and no part of one: two side by side, or one that carries its strips (kept, or with the
+ * god's acts), which stand first; a swipe comes to rest at a card's edge. (A card was 190px in a row of 306: the second was cut
+ * off at the fold's button.) The row's width is the screen's less the god's hand at the left, the fold's button and the gaps.
+ */
+@media (max-width: 640px) {
+  #hud > .people-bar {
+    --people-row: calc(100vw - 64px - 8px - 44px - 4px);
+  }
+  body.palette-off #hud > .people-bar {
+    --people-row: calc(100vw - 8px - 8px - 44px - 4px);
+  }
+  .people-row {
+    max-width: var(--people-row);
+    scroll-snap-type: x mandatory;
+  }
+  .people-chip {
+    width: calc((var(--people-row) - 4px) / 2);
+    scroll-snap-align: start;
+  }
+  .people-row > .people-chip.kept,
+  .people-row > .people-chip.acted,
+  .people-row > .people-chip.kept.acted {
+    width: var(--people-row);
+    order: -1;
+  }
+}
 /* On a desk: a column at the lower left, clear of the god's palette and the map modes. */
 @media (min-width: 641px) {
   #hud > .people-bar {
@@ -367,5 +394,36 @@ body.paging #hud > .people-bar,
 @media (max-width: 640px) {
   #hud:has(> .palette.open) > .people-bar .people-tabs {
     display: none;
+  }
+}
+/*
+ * On a desk the bar is a column 172px wide, and a card with its strips was 236 or 262: its × and its acts lay past the column's
+ * edge, reached only by dragging the row sideways. There a card with strips is as wide as any other, and its strips stand in one
+ * narrow column at its end, the × over the acts where it has both: a pointer's width, not a finger's.
+ */
+@media (min-width: 641px) {
+  .people-row > .people-chip.kept,
+  .people-row > .people-chip.acted,
+  .people-row > .people-chip.kept.acted {
+    width: auto;
+  }
+  .people-row > .people-chip.kept .people-open,
+  .people-row > .people-chip.acted .people-open,
+  .people-row > .people-chip.kept.acted .people-open {
+    width: calc(100% - 34px);
+  }
+  .people-row > .people-chip.kept .people-off,
+  .people-row > .people-chip.acted .people-acts,
+  .people-row > .people-chip.kept.acted .people-acts {
+    right: 0;
+    width: 32px;
+    height: 100%;
+  }
+  .people-row > .people-chip.kept.acted .people-off {
+    height: 50%;
+  }
+  .people-row > .people-chip.kept.acted .people-acts {
+    top: 50%;
+    height: 50%;
   }
 }

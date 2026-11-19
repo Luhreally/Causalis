@@ -1505,8 +1505,12 @@ body.paging .panel:not(.page-panel) .inspector {
  * strategy game's ledger does, with charts of several lines, bars side by side and timelines.
  */
 @media (min-width: 641px) {
+  /* (Its width is its words': its padding and its bevel, 2 × 14px and 2 × 2px, lie outside it. On a screen narrower than
+     itself it took the screen's width less 16px and stood 32px past the right edge, its close box with it: 760px wide. And it
+     ends at the left of the corner's rail, whose tools stood over its title's boxes, its close box among them, on any screen
+     too narrow to hold both: `--rail-left` is how far in from the right the rail reaches, ui/corner-rail.ts.) */
   .page-window.wide {
-    width: min(58rem, calc(100% - 16px));
+    width: min(58rem, calc(100% - 16px - 32px - var(--rail-left, 60px)));
   }
   /* Below the scale's bar, however many lines it wraps to, its foot 8px above the screen's (its
      padding and its bevel, 2 × 12px and 2 × 2px, lie outside its max-height: without them its
