@@ -73,7 +73,10 @@ registerEventWords(INST_EVENTS.standing.type, (world, e) => {
     now = x?.was && x.was !== x.title ? `, now ${body(x)}` : "";
   const said =
     how === "chartered"
-      ? `${cap(realmOf(world, e.subjects[0] ?? ""))} granted ${was} its charter${now}`
+      ? // (One the seat itself has come to pay is its own, not a thing it grants leave to.)
+        x?.answers === "seat"
+        ? `${cap(realmOf(world, e.subjects[0] ?? ""))} made ${was} the seat's own${now}`
+        : `${cap(realmOf(world, e.subjects[0] ?? ""))} granted ${was} its charter${now}`
       : how === "outlawed"
         ? `${cap(realmOf(world, e.subjects[0] ?? ""))} outlawed ${was}${now}`
         : how === "seized"
