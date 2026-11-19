@@ -2657,6 +2657,65 @@ export function townThingAt(scene: TownScene, x: number, z: number, t: number): 
   return p >= 0 ? { kind: "lot", lot: p } : null;
 }
 
+/** How far a point stands from a footprint turned by its yaw (0: within it). */
+function offFootprint(
+  f: { x: number; z: number; yaw: number; w: number; d: number },
+  x: number,
+  z: number,
+): number {
+  const dx = x - f.x,
+    dz = z - f.z,
+    c = Math.cos(f.yaw),
+    s = Math.sin(f.yaw);
+  return Math.hypot(
+    Math.max(0, Math.abs(dx * c - dz * s) - f.w / 2),
+    Math.max(0, Math.abs(dx * s + dz * c) - f.d / 2),
+  );
+}
+
+/**
+ * The building of a town a point lies within at moment t (metres from its middle), or stands before (within `pad` metres of
+ * it: those at its door, in their rows before it or at work on it, are as hidden by it from its far side as one inside): one of
+ * its buildings begun and not fallen, or the home on a lot; the nearest. Its middle, its turn (its front on the street it faces)
+ * and its breadth along the street and depth. Null on open ground, the square, a street's middle or past its edge: for the eye
+ * set on one who is there (view/streetfight.ts goToFrame).
+ */
+export function townBuildingAt(
+  scene: TownScene,
+  x: number,
+  z: number,
+  t: number,
+  pad = 6,
+): { x: number; z: number; yaw: number; w: number; d: number } | null {
+  const { plan, lots, states } = scene;
+  let best: { x: number; z: number; yaw: number; w: number; d: number } | null = null,
+    near = pad;
+  for (const c of plan.civics) {
+    if (c.at + c.lots > lots.x.length) continue;
+    const m = civicMoments(c);
+    if (t < m.began || (m.fell !== null && t >= m.fell)) continue;
+    const f = footprint(lots, c.at, c.lots),
+      off = offFootprint(f, x, z);
+    if (off < near) {
+      near = off;
+      best = f;
+    }
+  }
+  const reach = (LOT_D + pad) ** 2;
+  for (let p = 0; p < plan.lots; p++) {
+    const dx = lots.x[p]! - x,
+      dz = lots.z[p]! - z;
+    if (dx * dx + dz * dz >= reach || states.what[p] !== LOT.home || t < states.began[p]!) continue;
+    const f = { x: lots.x[p]!, z: lots.z[p]!, yaw: lots.yaw[p]!, w: LOT_W, d: LOT_D },
+      off = offFootprint(f, x, z);
+    if (off < near) {
+      near = off;
+      best = f;
+    }
+  }
+  return best;
+}
+
 /** The lot nearest a point (metres from the middle), for a tap (-1 if none near). */
 export function lotNear(scene: TownScene, x: number, z: number, reach = LOT_W): number {
   let best = -1,

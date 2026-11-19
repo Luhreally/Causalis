@@ -21,7 +21,7 @@ import {
 import { blowOf, sideWounds } from "../rules/index.ts";
 import { hashText, unitOf } from "./draws.ts";
 import { clearOfHall, marketScene, squareScale } from "./feast.ts";
-import { keepOut, route, villageGround } from "./ground.ts";
+import { clearOf, keepOut, route, villageGround, type Ground, type Solid } from "./ground.ts";
 import { memorialsPlaced } from "./memorial.ts";
 import { armLook } from "./arms.ts";
 import {
@@ -819,6 +819,83 @@ export function openYaw(plan: VillagePlan, at: Point, far: number): number {
     }
   }
   return best;
+}
+
+/** How the town's eye is set on one gone to: which way it stands off (degrees), how steeply it looks down, how far. */
+export interface GoToFrame {
+  readonly yaw: number;
+  readonly pitch: number;
+  readonly distance: number;
+}
+
+/**
+ * The eye on one gone to. One in the open: near, from the way most open about them: down the longest street running from them
+ * that nothing the town's people go round stands in either (a court's stones, what a town raised, a village's homes: a judge at
+ * the court was looked at through it). One whose spot lies within a building (`within`: the town's own at their spot, as
+ * townBuildingAt reads it; else a solid they stand in, or the nearest one to one not seen): from outside it, on the side most
+ * open past its wall and nearest them, where its door gives on the street; low enough that its front is seen and not its roof
+ * alone, and as far off as it is broad. `solids` is what stands in the town (villageSolids).
+ */
+export function goToFrame(
+  plan: VillagePlan,
+  solids: Ground,
+  m: { readonly x: number; readonly z: number; readonly hidden: boolean },
+  within: { x: number; z: number; yaw: number; w: number; d: number } | null = null,
+): GoToFrame {
+  const at = { x: m.x, z: m.z },
+    town = solids.town ?? null;
+  let inside: Solid | null = within
+      ? {
+          x: within.x,
+          z: within.z,
+          r: 0,
+          ax: Math.cos(within.yaw),
+          az: -Math.sin(within.yaw),
+          half: within.w / 2,
+          across: within.d / 2,
+        }
+      : null,
+    deep = m.hidden ? 5 : 0.3;
+  if (!inside)
+    for (const h of solids.homes) {
+      const c = clearOf(h, at);
+      if (c < deep) {
+        deep = c;
+        inside = h;
+      }
+    }
+  const s = inside,
+    broad = s ? s.r + Math.max(s.half ?? 0, s.across ?? 0) : 0;
+  let best = 30,
+    most = -Infinity;
+  for (let k = 0; k < 16; k++) {
+    const yaw = (k / 16) * 360,
+      r = (yaw * Math.PI) / 180,
+      dx = Math.sin(r),
+      dz = Math.cos(r);
+    // (Out through its wall this way, a step past it.)
+    let out = 0;
+    if (s)
+      while (out < 2 * broad + 2 && clearOf(s, { x: at.x + dx * out, z: at.z + dz * out }) < 0.8)
+        out += 0.5;
+    const from = { x: at.x + dx * out, z: at.z + dz * out };
+    let open = 0;
+    for (let d = 2; d <= 48; d += 2) {
+      const q = { x: from.x + dx * d, z: from.z + dz * d };
+      if (solids.homes.some((h) => h !== s && clearOf(h, q) < 0.5)) break;
+      if (town && !town.clear(from, q, 0.5)) break;
+      open = d;
+    }
+    // (The nearer wall first where two ways are as open: the eye stands less of the building's depth off.)
+    const score = open - out * 2;
+    if (score > most) {
+      most = score;
+      best = yaw;
+    }
+  }
+  if (!s) return { yaw: best, pitch: m.hidden ? -58 : -38, distance: m.hidden ? 15 : 5.5 };
+  // (The eye's distance is in the town's own units, a tenth of a metre each.)
+  return { yaw: best, pitch: -28, distance: Math.max(6.5, Math.min(13, 5 + broad * 0.4)) };
 }
 
 /** The armoured carriers a side came in (its means say so): one stood behind its men at each of its first two places, while they are there. */

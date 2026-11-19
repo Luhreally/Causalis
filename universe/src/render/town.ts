@@ -30,6 +30,7 @@ import {
   townGround,
   townHomes,
   townScene,
+  townBuildingAt,
   townThingAt,
   townWalls,
   strikeSpan,
@@ -296,6 +297,11 @@ export class TownLayer {
   /** What of the town stands at a point (metres from its middle) at moment t, for a tap. */
   thingAt(x: number, z: number, t: number): TownThing | null {
     return this.scene && this.visible ? townThingAt(this.scene, x, z, t) : null;
+  }
+
+  /** The building of it a point lies within (view/town.ts townBuildingAt; null: none, or no town drawn). */
+  buildingAt(x: number, z: number, t: number): ReturnType<typeof townBuildingAt> {
+    return this.scene && this.visible ? townBuildingAt(this.scene, x, z, t) : null;
   }
 
   /**

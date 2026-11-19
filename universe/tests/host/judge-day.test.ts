@@ -1,7 +1,7 @@
 // A court's judge on its sitting days, on a world that has such a court (first light three hundred years on, spread: its
 // realms write and keep a magistrate; juniper at sixty and first light at 245 have only elders, so the check in
 // notables.test.ts that the judge judges never ran). The judge is a key figure with a body in the town, and a key figure
-// the court has that day keeps the court's day.
+// the court has that day keeps the court's day; and the eye set on them there stands where the court is not in the way.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Ref } from "../../src/kernel/index.ts";
@@ -10,8 +10,9 @@ import { notablesIn } from "../../src/host/inspect/notables.ts";
 import { courtFormOf } from "../../src/host/inspect/justice.ts";
 import { withFigures } from "../../src/host/leaders.ts";
 import { villagePlan } from "../../src/host/village.ts";
-import { momentOf } from "../../src/view/index.ts";
-import { courtRole } from "../../src/view/court.ts";
+import { goToFrame, momentOf, villageSolids } from "../../src/view/index.ts";
+import { courtRole, courtSolids } from "../../src/view/court.ts";
+import { clearOf } from "../../src/view/ground.ts";
 import { peopledWorld } from "../worlds.ts";
 
 const world = peopledWorld("first light", 300, { start: "spread" }),
@@ -41,6 +42,15 @@ test("a magistrate's court has a judge, who judges on the days it sits and not o
       assert.match(m.why ?? "", /^Judging at /, `${t.ref} day ${s.day}`);
       assert.equal(m.of?.ref, s.ref);
       sat++;
+      // The eye on them: no stone of the court within ten metres of them the way it stands off.
+      const f = goToFrame(plan, villageSolids(plan), m),
+        r = (f.yaw * Math.PI) / 180;
+      for (let d = 2; d <= 10; d += 2)
+        for (const c of courtSolids(plan))
+          assert.ok(
+            clearOf(c, { x: m.x + Math.sin(r) * d, z: m.z + Math.cos(r) * d }) >= 0.5,
+            `${t.ref}: the court stands between the eye and its judge (${f.yaw}°, ${d} m)`,
+          );
       // The day after, where the court does not sit: not at the court.
       if (!days.has(s.day + 1)) {
         assert.equal(courtRole(plan, i, s.day + 1), null);

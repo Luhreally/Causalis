@@ -1732,6 +1732,10 @@ export class VillageScene {
   townThingAt(x: number, z: number, t: number): TownThing | null {
     return this.town.thingAt(x, z, t);
   }
+  /** The building of a town a point lies within (metres from its middle): for the eye set on one who is in it. */
+  townBuildingAt(x: number, z: number, t: number): ReturnType<TownLayer["buildingAt"]> {
+    return this.town.buildingAt(x, z, t);
+  }
 
   /** Where on the screen a point of the town is (metres from its middle; the look tools), or null behind the eye. */
   screenOf(x: number, z: number, high = 0): { x: number; y: number } | null {

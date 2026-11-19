@@ -25,7 +25,14 @@ import {
 } from "../ui/index.ts";
 import { enteredSeed, type EnterPlan, type Entered } from "../bridge/index.ts";
 import { CourtNote, SungNote } from "../ui/index.ts";
-import { GOING_ICON, courtSitting, goingsNow, openYaw, villageSolids } from "../view/index.ts";
+import {
+  GOING_ICON,
+  courtSitting,
+  goingsNow,
+  goToFrame,
+  momentOf,
+  villageSolids,
+} from "../view/index.ts";
 import { PeopleBar, barPins, setWrittenHold, yearsWorld } from "../ui/index.ts";
 import { CornerRail } from "../ui/index.ts";
 import { closeLifeSheet, showLifeSheet, type LifeSheet } from "../ui/index.ts";
@@ -9801,6 +9808,15 @@ async function runPlanetPage(): Promise<void> {
             (!!p.trade && who === seatRef(plan!.ref, p.trade.kind, p.trade.seat)),
         )
       : -1;
+  // Where one drawn is, for the eye to go to. One out of sight is drawn nowhere, and what the town last drew of them is where
+  // they were last seen (one abed was gone to in the field they ploughed that morning, the clock having leapt): their day says
+  // where they are.
+  const whereNow = (i: number): { x: number; z: number; hidden: boolean } | null => {
+    const m = village.momentAt(i);
+    if (!m || !m.hidden || !plan) return m;
+    const at = momentOf(plan, i, now());
+    return at.hidden ? at : m;
+  };
   const keep = (ref: string | null) => {
     keeping = ref;
     rig.follow = ref
@@ -9975,7 +9991,7 @@ async function runPlanetPage(): Promise<void> {
       }
       const who = place.person,
         i = who ? drawnAs(who) : -1,
-        m = i >= 0 ? village.momentAt(i) : null;
+        m = i >= 0 ? whereNow(i) : null;
       if (m) {
         // (A card left open is another's: what the one gone to is doing is not theirs to say.)
         villagePanel.closeCard();
@@ -9985,10 +10001,9 @@ async function runPlanetPage(): Promise<void> {
         // far eye and one at a door.)
         rig.flyTo({
           target: { x: m.x * VILLAGE_METRE, y: 0.05, z: m.z * VILLAGE_METRE },
-          yaw: openYaw(plan, { x: m.x, z: m.z }, 48),
-          // (One indoors is not seen: from higher and further off, the house they are in is, whole, with its door.)
-          pitch: m.hidden ? -58 : -38,
-          distance: m.hidden ? 15 : 5.5,
+          // (One within walls, seen or not, is looked at from outside them, on the side its door gives on: from above
+          // them the eye had only a roof, and from beside them only the inside of a wall. view/streetfight.ts.)
+          ...goToFrame(plan, villageSolids(plan), m, village.townBuildingAt(m.x, m.z, now())),
         });
         keep(who!);
       } else rig.flyTo({ target: { x: 0, y: 0, z: 0 }, distance: plan.districts ? 78 : 26 });
@@ -10034,10 +10049,22 @@ async function runPlanetPage(): Promise<void> {
               watched = i;
               village.mark(i);
               // (Their village come to: the view on them, kept on them as they go.)
-              const m = village.momentAt(i);
+              const m = whereNow(i);
               if (m) {
                 rig.target.set(m.x * VILLAGE_METRE, 0, m.z * VILLAGE_METRE);
-                rig.distance = m.hidden ? 15 : 8;
+                {
+                  const f = goToFrame(
+                    plan,
+                    villageSolids(plan),
+                    m,
+                    village.townBuildingAt(m.x, m.z, now()),
+                  );
+                  rig.distance = Math.max(8, f.distance);
+                  if (f.pitch !== -38) {
+                    rig.yaw = f.yaw;
+                    rig.pitch = f.pitch;
+                  }
+                }
               }
               keep(who);
             }
@@ -10755,12 +10782,23 @@ async function runPlanetPage(): Promise<void> {
     if (rig.enabled && !rig.follow)
       rig.flyTo({
         target: { x: m.x * VILLAGE_METRE, y: 0.05, z: m.z * VILLAGE_METRE },
-        yaw: openYaw(plan!, { x: m.x, z: m.z }, 48),
-        pitch: -38,
-        distance: 5.5,
+        ...goToFrame(plan!, villageSolids(plan!), m, village.townBuildingAt(m.x, m.z, now())),
       });
   };
   exposed.goToDrawn = goToDrawn;
+  // (How the eye would be set on one drawn, and what it is read from: the look tools.)
+  (exposed as Record<string, unknown>).goFrame = (i: number) => {
+    const m = plan && scale === "village" ? whereNow(i) : null;
+    if (!m || !plan) return null;
+    const within = village.townBuildingAt(m.x, m.z, now());
+    return {
+      x: m.x,
+      z: m.z,
+      hidden: m.hidden,
+      within,
+      frame: goToFrame(plan, villageSolids(plan), m, within),
+    };
+  };
   const goingNote = new CourtNote(
     tidings.element,
     (ref) => goToDrawn(Number(ref.slice(ref.lastIndexOf("|") + 1))),
