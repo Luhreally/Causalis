@@ -398,6 +398,9 @@ function occasion(r: Run, e: HistoryEvent, o: Occasion, inspired: Map<number, nu
       ? e.subjects.find((s) => kindCodeOf(s) === "faith")
       : undefined;
   if (standing && (led !== undefined || u(1) < doneBy(standing.by[o.d] ?? 0))) {
+    // (One person does one such thing a year: where a land's towns each raise a temple in one year, the rest are others' work,
+    // and no one is known for them.)
+    if (standing.deeds.some((x) => x.y === year && x.w === e.type)) return;
     addDeed(standing, deed);
     if (spoken) standing.faith = spoken;
     if (e.type.startsWith("act.inspire") || e.type === INSPIRED) inspired.set(cell, standing.id);
