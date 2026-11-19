@@ -380,6 +380,15 @@ function workplace(
       "Raising the new home",
     );
   }
+  // (A land built over: its farmers tend the vats of its growing halls, at their walls.)
+  if (p.occupation === OCC.farmer && plan.past?.covered) {
+    const hall = hallSpot(plan, Math.floor(draw(3) * plan.fields.length), draw(4));
+    if (hall)
+      return {
+        ...at(hall.x, hall.z, null, null, "tend", "Tending the vats of the growing hall"),
+        face: hall.face,
+      };
+  }
   switch (p.occupation) {
     case OCC.farmer: {
       const f = plan.fields[Math.floor(draw(3) * plan.fields.length)] ?? {
@@ -2449,6 +2458,52 @@ function careDoor(
   return { ...door, face: Math.atan2(home.x - door.x, home.z - door.z) };
 }
 
+/** The field work that a land built over does in its halls of vats instead. */
+const HALL_WORK: ReadonlySet<string> = new Set(["reap", "sow", "hoe", "water", "pull", "cart"]);
+
+/**
+ * Where one stands to tend the `k`-th growing hall of a land built over: at its wall on the side toward the town, a step
+ * along it by `u` (0 … 1), facing it (null: it has none). The halls stand where its fields were (render/village.ts).
+ */
+export function hallSpot(
+  plan: VillagePlan,
+  k: number,
+  u: number,
+): (Point & { face: number }) | null {
+  const f = plan.fields[((k % plan.fields.length) + plan.fields.length) % plan.fields.length];
+  if (!f) return null;
+  const r = Math.hypot(f.x, f.z) || 1,
+    out = Math.max(f.w, f.d) / 2 + 2,
+    along = (u - 0.5) * 12,
+    p = {
+      x: f.x - (f.x / r) * out - (f.z / r) * along,
+      z: f.z - (f.z / r) * out + (f.x / r) * along,
+    };
+  return { ...p, face: Math.atan2(f.x - p.x, f.z - p.z) };
+}
+
+/** The growing hall of a land built over that a point stands at or in (within `pad` metres of it; null: none, or no such land). */
+export function growingHallAt(
+  plan: VillagePlan,
+  x: number,
+  z: number,
+  pad = 8,
+): { x: number; z: number; yaw: number; w: number; d: number } | null {
+  if (!plan.past?.covered) return null;
+  let best: { x: number; z: number; yaw: number; w: number; d: number } | null = null,
+    near = Infinity;
+  for (const f of plan.fields) {
+    const side = Math.max(f.w, f.d),
+      off = Math.hypot(f.x - x, f.z - z) - side / 2;
+    if (off < pad && off < near) {
+      near = off;
+      // (As broad every way as its longer side: which way it lies does not matter to an eye set outside it.)
+      best = { x: f.x, z: f.z, yaw: f.yaw, w: side, d: side };
+    }
+  }
+  return best;
+}
+
 /** One's day as the town's work, its feasts, its court and its wounds lay it (before what its goings ask: view/townlife.ts). */
 const BASE = new WeakMap<VillagePlan, Map<string, Leg[]>>();
 function baseOf(plan: VillagePlan, index: number, day: number, fine: boolean): Leg[] {
@@ -3721,6 +3776,30 @@ function dayBase(plan: VillagePlan, index: number, day: number, fine: boolean): 
       season = (day % 365) / 365,
       // (The k-th errand's own draws: a stretch of the field, a tree, a spot in the wild.)
       at2 = (a: number, b: number) => [draw(k ? a + k : 4), draw(k ? b + k : 5)] as const;
+    // A land built over grows its food in halls of vats where its fields were (Phase 66): no row is ploughed, sown or
+    // reaped under those roofs. Its vat-tenders stand at their hall's wall, on the side toward the town.
+    if (plan.past?.covered && HALL_WORK.has(role.kind)) {
+      const hall = hallSpot(
+        plan,
+        role.place >= 0 ? role.place : Math.floor(draw(3) * plan.fields.length),
+        draw(k ? 1000 + k : 4),
+      );
+      if (hall) {
+        if (first) told.words = "tending the vats";
+        return [
+          { to: clearSpot(ground, hall), carry: null, why: "To the growing hall" },
+          {
+            flex: true,
+            hours: 3,
+            min: 0.25,
+            task: "tend",
+            carry: null,
+            face: hall.face,
+            why: "Tending the vats of the growing hall",
+          },
+        ];
+      }
+    }
     switch (role.kind) {
       case "reap": {
         // (At a field being reaped today, each in their place at its front — two cutting, those

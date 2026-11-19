@@ -105,6 +105,8 @@ export {
   TASKS,
   houseLook,
   keepApart,
+  growingHallAt,
+  hallSpot,
   momentOf,
   longWalks,
   momentsOf,

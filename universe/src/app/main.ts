@@ -30,6 +30,7 @@ import {
   courtSitting,
   goingsNow,
   goToFrame,
+  growingHallAt,
   momentOf,
   villageSolids,
 } from "../view/index.ts";
@@ -9811,6 +9812,9 @@ async function runPlanetPage(): Promise<void> {
   // Where one drawn is, for the eye to go to. One out of sight is drawn nowhere, and what the town last drew of them is where
   // they were last seen (one abed was gone to in the field they ploughed that morning, the clock having leapt): their day says
   // where they are.
+  // The building one stands in or before: the town's own, or a growing hall of a land built over.
+  const buildingAt = (m: { x: number; z: number }) =>
+    village.townBuildingAt(m.x, m.z, now()) ?? (plan ? growingHallAt(plan, m.x, m.z) : null);
   const whereNow = (i: number): { x: number; z: number; hidden: boolean } | null => {
     const m = village.momentAt(i);
     if (!m || !m.hidden || !plan) return m;
@@ -10003,7 +10007,7 @@ async function runPlanetPage(): Promise<void> {
           target: { x: m.x * VILLAGE_METRE, y: 0.05, z: m.z * VILLAGE_METRE },
           // (One within walls, seen or not, is looked at from outside them, on the side its door gives on: from above
           // them the eye had only a roof, and from beside them only the inside of a wall. view/streetfight.ts.)
-          ...goToFrame(plan, villageSolids(plan), m, village.townBuildingAt(m.x, m.z, now())),
+          ...goToFrame(plan, villageSolids(plan), m, buildingAt(m)),
         });
         keep(who!);
       } else rig.flyTo({ target: { x: 0, y: 0, z: 0 }, distance: plan.districts ? 78 : 26 });
@@ -10053,12 +10057,7 @@ async function runPlanetPage(): Promise<void> {
               if (m) {
                 rig.target.set(m.x * VILLAGE_METRE, 0, m.z * VILLAGE_METRE);
                 {
-                  const f = goToFrame(
-                    plan,
-                    villageSolids(plan),
-                    m,
-                    village.townBuildingAt(m.x, m.z, now()),
-                  );
+                  const f = goToFrame(plan, villageSolids(plan), m, buildingAt(m));
                   rig.distance = Math.max(8, f.distance);
                   if (f.pitch !== -38) {
                     rig.yaw = f.yaw;
@@ -10782,7 +10781,7 @@ async function runPlanetPage(): Promise<void> {
     if (rig.enabled && !rig.follow)
       rig.flyTo({
         target: { x: m.x * VILLAGE_METRE, y: 0.05, z: m.z * VILLAGE_METRE },
-        ...goToFrame(plan!, villageSolids(plan!), m, village.townBuildingAt(m.x, m.z, now())),
+        ...goToFrame(plan!, villageSolids(plan!), m, buildingAt(m)),
       });
   };
   exposed.goToDrawn = goToDrawn;
@@ -10790,7 +10789,7 @@ async function runPlanetPage(): Promise<void> {
   (exposed as Record<string, unknown>).goFrame = (i: number) => {
     const m = plan && scale === "village" ? whereNow(i) : null;
     if (!m || !plan) return null;
-    const within = village.townBuildingAt(m.x, m.z, now());
+    const within = buildingAt(m);
     return {
       x: m.x,
       z: m.z,
