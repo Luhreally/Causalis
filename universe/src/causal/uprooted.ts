@@ -81,7 +81,15 @@ registerEventWords(HELD_EVENTS.reckoned.type, (world, e) => {
     ? `${cap(who)} was given up by ${text(e.data, "a")} at the peace and put to death for ${what}, ${year(e.t)}`
     : d?.how === "dead"
       ? `At the peace ${text(e.data, "b")} named ${who} for ${what}; they were dead already, ${year(e.t)}`
-      : `No one answered for ${what}: ${text(e.data, "a")} was not beaten, and ${text(e.data, "b")} remembers it, ${year(e.t)}`;
+      : d?.how === "own"
+        ? `${cap(who)} was tried by ${text(e.data, "a")}, their own, and put to death for ${what}, ${year(e.t)}`
+        : d?.how === "cast"
+          ? `${cap(who)} was tried by ${text(e.data, "a")}, their own, for ${what}, and cast down, ${year(e.t)}`
+          : d?.how === "censured"
+            ? `The faith ${text(e.data, "a")} shares with ${text(e.data, "b")} named ${what} a wrong, and ${who} with it, ${year(e.t)}`
+            : d?.how === "disowned"
+              ? `${cap(text(e.data, "a"))}, under a later ruler, disowned ${what}, done by the order of ${who}, ${year(e.t)}`
+              : `No one answered for ${what}: ${text(e.data, "a")} was not beaten, and ${text(e.data, "b")} remembers it, ${year(e.t)}`;
 });
 
 registerEventWords(HELD_EVENTS.fled.type, (world, e) => {
@@ -96,6 +104,10 @@ registerEventWords(HELD_EVENTS.fled.type, (world, e) => {
   return `${n ? cap(count(n)) : "Many"} who fled ${why} came over the border from ${text(e.data, "b")} into ${landWords(world, e.place)}, ${year(e.t)}`;
 });
 
+registerDecisionWords(
+  "held.own",
+  () => "A people weighed whether to answer for a wrong done in its name",
+);
 registerDecisionWords(
   "held.quarter",
   () => "A host weighed what to do with those who had yielded to it",

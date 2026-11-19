@@ -6,6 +6,9 @@ import {
   FLED,
   HELD,
   caughtOf,
+  ownParts,
+  ownReckoning,
+  ownScore,
   quarterParts,
   quarterScore,
   settleHeld,
@@ -110,4 +113,26 @@ test("the fled are kept by where they came to and whence, settle a share a year,
   }
   assert.ok(!store.campsAt(a.seat).includes(camp), "a camp of a few was never let go");
   assert.ok(last < FLED.least / (1 - 2 * FLED.settle) + 1);
+});
+
+test("a wrong no peace answered is answered at home only where much weighs for it: a say, a later ruler, a shared faith", () => {
+  const none = { voice: 0.1, citizens: 0, kin: 0, later: 0, standing: 0.5, won: 1 };
+  // (A people with no say, under the ruler who had it done, in a war it won: no one answers.)
+  assert.equal(ownReckoning(none), null);
+  // (The wronged keep its own faith: that faith names it, though no court tries it.)
+  assert.equal(ownReckoning({ ...none, kin: 1 }), "censured");
+  // (A later ruler and a people come to a say: tried and cast down; with a law for strangers and no standing to shield them, they die for it.)
+  assert.equal(ownReckoning({ ...none, voice: 0.6, later: 1, won: 0 }), "cast");
+  assert.equal(
+    ownReckoning({ voice: 0.9, citizens: 1, kin: 0, later: 1, standing: 0, won: 0 }),
+    "own",
+  );
+  // (One who stands high is shielded: the same people, the same year.)
+  const mid = { voice: 0.6, citizens: 0, kin: 0, later: 1, standing: 0, won: 0 };
+  assert.ok(ownScore({ ...mid, standing: 1 }) < ownScore(mid));
+  assert.ok(ownScore(mid) >= HELD.own && ownScore(mid) < HELD.ownDeath);
+  assert.equal(
+    Math.round(ownParts(mid).reduce((s, p) => s + p.by, 0) * 1e6),
+    Math.round(ownScore(mid) * 1e6),
+  );
 });
