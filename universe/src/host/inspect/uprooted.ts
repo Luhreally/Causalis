@@ -50,9 +50,17 @@ function crimeItem(world: World, c: Crime): Item {
         ? `; given up at the peace and put to death for it in year ${c.reckoned.year}`
         : c.reckoned?.how === "dead"
           ? "; named at the peace, dead by then"
-          : c.reckoned
-            ? "; no one answered for it"
-            : "; not yet reckoned";
+          : c.reckoned?.how === "own"
+            ? `; tried by their own and put to death for it in year ${c.reckoned.year}`
+            : c.reckoned?.how === "cast"
+              ? `; tried by their own and cast down in year ${c.reckoned.year}`
+              : c.reckoned?.how === "censured"
+                ? `; named a wrong by the faith both keep, year ${c.reckoned.year}`
+                : c.reckoned?.how === "disowned"
+                  ? `; disowned by a later ruler in year ${c.reckoned.year}`
+                  : c.reckoned
+                    ? "; no one answered for it"
+                    : "; not yet reckoned";
   const line: Line = [
     `Year ${c.year}, `,
     landLink(world, c.land),
@@ -264,7 +272,14 @@ export function realmFleetBlocks(world: World, r: Polity): Block[] {
           }),
           stat(
             "Commanded by",
-            led ? [link(led.name, `note:named:${led.id}`)] : "no one the world keeps by name",
+            led
+              ? [
+                  link(led.name, `note:named:${led.id}`),
+                  led.admiral
+                    ? ", its admiral"
+                    : ", who commands its host: it has had no admiral named",
+                ]
+              : "no one the world keeps by name",
           ),
           stat("Meetings of fleets fought", count(fleet.fought)),
         ],

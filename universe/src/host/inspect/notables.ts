@@ -201,7 +201,7 @@ function read(world: World, town: string): Notable[] {
       kind: NotableKind,
       office?: { title: string; did: string; of: Notable["of"]; away?: Notable["away"] },
     ) => {
-      const realm = n.post?.kind === "command" ? politiesOf(world).get(n.post.of) : r,
+      const realm = n.post && n.post.kind !== "speaks" ? politiesOf(world).get(n.post.of) : r,
         known = notableTitle(
           world,
           n,
@@ -395,6 +395,21 @@ function read(world: World, town: string): Notable[] {
       kept?.holder("command", r.ref),
     );
   }
+  // The admiral of the realm's fleet, where it has had one named (sim/notable admiralIn): at its seat.
+  const admiral =
+    r && r.ended === null && seatTownOf(world, r)?.ref === town
+      ? kept?.holder("fleet", r.ref)
+      : undefined;
+  if (r && admiral)
+    termed(
+      "general",
+      r.ref,
+      `Admiral of the fleet of ${realmName(r)}`,
+      `Commands the fleet of ${realmName(r)}: named the day it first met another at sea.`,
+      { ref: `${r.ref}#army`, name: `the fleet of ${realmName(r)}` },
+      undefined,
+      admiral,
+    );
   // The richest of a market town's merchants.
   if (s.market !== null)
     termed(
@@ -517,7 +532,7 @@ export function notablePeopleBlock(world: World, cells: readonly number[], most 
     title: "Its notable people",
     items: [
       ...living.map((n) => {
-        const r = realm(n.post?.kind === "command" ? n.post.of : n.realm);
+        const r = realm(n.post && n.post.kind !== "speaks" ? n.post.of : n.realm);
         return item(
           [
             link(n.name, namedRef(n.id)),
@@ -573,7 +588,7 @@ function townOfRef(world: World, ref: string): string | null {
   if (m[1] === "named") {
     const n = notablesOf(world)?.get(Number(m[2]));
     if (!n) return null;
-    const of = n.post?.kind === "command" ? politiesOf(world).get(n.post.of) : undefined;
+    const of = n.post && n.post.kind !== "speaks" ? politiesOf(world).get(n.post.of) : undefined;
     return (of ? seatTownOf(world, of)?.ref : first(world, n.home)?.ref) ?? null;
   }
   const key = m[2]!,
@@ -947,7 +962,9 @@ const NAME_DOES: readonly (((x: number) => string) | null)[] = [
 /** The page of one the world keeps by name whose land has no town they could be met in. */
 function apartPage(world: World, ref: string, n: Named): PageModel {
   const r =
-      n.post?.kind === "command" ? politiesOf(world).get(n.post.of) : politiesOf(world).of(n.home),
+      n.post && n.post.kind !== "speaks"
+        ? politiesOf(world).get(n.post.of)
+        : politiesOf(world).of(n.home),
     title = notableTitle(world, n, r ? realmName(r) : null, landTitle(world, n.home, true)),
     year = yearNow(world);
   return {

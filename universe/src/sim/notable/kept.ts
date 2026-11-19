@@ -44,9 +44,9 @@ export type Deed = {
   readonly n?: string;
 };
 
-/** A post one of them holds: a realm's host commanded, a group of a realm spoken for. */
+/** A post one of them holds: a realm's host commanded, its fleet commanded, a group of a realm spoken for. */
 export type Post = {
-  readonly kind: "command" | "speaks";
+  readonly kind: "command" | "speaks" | "fleet";
   readonly of: Ref;
   readonly group?: string;
 };

@@ -905,6 +905,50 @@ export function commandIn(ctx: PopulationContext, p: Polity, t: SimTime): Comman
 }
 
 /**
+ * Who commands a realm's fleet as it meets another (sim/war/fleets.ts asks, only then): the one who does already, or someone
+ * the day makes, untried, of the line's standing, of the coast the fleet sails from (`cell`). A post of its own, apart from
+ * the host's commander. Null where no one is kept apart.
+ */
+export function admiralIn(ctx: PopulationContext, p: Polity, cell: number, t: SimTime): Command {
+  const { world } = ctx,
+    store = notablesOf(world);
+  if (!store) return null;
+  const held = store.holder("fleet", p.ref);
+  if (held) return { id: held.id, name: held.name, told: held.standing >= NOTE.tellAt * NOTE.line };
+  const year = yearOfMoment(t),
+    r: Run = {
+      ctx,
+      world,
+      store,
+      t,
+      year,
+      many: !keepsPersons(ctx.generated.life.people?.body.social),
+      tell: [],
+      bar: 0,
+    },
+    n = arise(r, cell, serialOf(p.ref) * 8 + 6, NOTE.line, {
+      y: year,
+      d: DOMAIN.war,
+      w: "took the fleet",
+      e: null,
+      g: NOTE.line,
+      n: realmName(p),
+    });
+  n.post = { kind: "fleet", of: p.ref };
+  store.moved();
+  return { id: n.id, name: n.name, told: false };
+}
+
+/** A realm keeps no fleet any more: whoever commanded it holds no post (they are kept on as themselves). */
+export function admiralLeft(world: World, realm: Ref): void {
+  const store = notablesOf(world),
+    n = store?.holder("fleet", realm);
+  if (!n) return;
+  delete n.post;
+  store!.moved();
+}
+
+/**
  * A battle fought: each commander's standing by how it went (the fielded on each side), and whether they fell or were taken
  * (their host then shaken a year). Returns what befell each, for the battle's own telling.
  */

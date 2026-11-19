@@ -98,6 +98,10 @@ function did(world: World, d: Deed, land: string): string | null {
       return `plotted against the seat of ${n || land} and was found out`;
     case "held.crime":
       return `ordered the killing of those who had yielded at ${n || land}`;
+    case "held.cast":
+      return `was tried by their own and cast down for a killing of those of ${n || "another realm"}`;
+    case "held.censured":
+      return `was named by their faith for a killing of those of ${n || "another realm"}`;
     case "houses.grifter":
       return `bought a way into the great of ${land} by fraud`;
     default:
@@ -121,6 +125,23 @@ export function notableTitle(
     wars = n.deeds.filter((d) => d.d === DOMAIN.war),
     won = wars.filter((d) => d.w === "war.battle won"),
     lost = wars.filter((d) => d.w === "war.battle lost");
+  // (One who leads a fleet: by its meetings at sea.)
+  const seaWon = wars.filter((d) => d.w === "war.fleet won"),
+    seaLost = wars.filter((d) => d.w === "war.fleet lost");
+  if (
+    n.post?.kind === "fleet" ||
+    ((seaWon.length || seaLost.length) && !won.length && !lost.length)
+  ) {
+    const fleet = realm ? `the fleet of ${realm}` : "a fleet",
+      top = [...seaWon].sort((a, b) => b.g - a.g || b.y - a.y)[0];
+    if (top)
+      return seaWon.length > 1
+        ? `victor of ${seaWon.length} meetings of fleets at the head of ${fleet}`
+        : `who beat the fleet of ${top.n ?? "a foe"} at sea at the head of ${fleet}`;
+    if (seaLost.length)
+      return `who led ${fleet} and was beaten at sea by the fleet of ${seaLost[seaLost.length - 1]!.n ?? "a foe"}`;
+    return n.post?.kind === "fleet" ? `admiral of ${fleet}` : `once admiral of ${fleet}`;
+  }
   // (One who leads a host: by their battles.)
   if (wars.length && wars.reduce((s, d) => s + Math.abs(d.g), 0) >= bestOf(n.deeds, wars)) {
     const host = realm ? `the host of ${realm}` : "a host",
@@ -150,6 +171,7 @@ export function deedLine(
 ): string {
   const land = at || landWords(world, cellRef(0, home));
   if (d.w === "took command") return `took command of the host of ${d.n ?? "their realm"}`;
+  if (d.w === "took the fleet") return `took the fleet of ${d.n ?? "their realm"} to sea`;
   if (d.w === "war.battle won") return `won ${d.n ? `the battle of ${d.n}` : "a battle"}`;
   if (d.w === "war.fleet won") return `beat the fleet of ${d.n ?? "a foe"} at sea`;
   if (d.w === "war.fleet lost") return `was beaten at sea by the fleet of ${d.n ?? "a foe"}`;
