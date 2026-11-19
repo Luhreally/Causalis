@@ -190,6 +190,8 @@ type Land = {
   people: number;
   town: number;
   townName: string | null;
+  /** Whether any village stands in it: a body's home is a place (a land of people and no village has nowhere to stand one). */
+  settled: boolean;
   weight: number;
   crafters: number;
   /** What its crafts sold of the good they sell most of (grain's worth a year), and that good. */
@@ -279,7 +281,8 @@ function readRealm(ctx: PopulationContext, p: Polity): Read {
     people += n;
     workers += Math.max(0, n - prov.occupation(OCC.dependent));
     const m = markets.get(c),
-      market = ctx.settlements.inProvince(c).find((s) => s.market),
+      villages = ctx.settlements.inProvince(c),
+      market = villages.find((s) => s.market),
       town = market?.population ?? 0,
       weight = n + 2 * town + (c === p.seat ? n : 0),
       crafters = prov.occupation(OCC.crafter),
@@ -303,6 +306,7 @@ function readRealm(ctx: PopulationContext, p: Polity): Read {
       people: n,
       town,
       townName: market?.name ?? null,
+      settled: villages.length > 0,
       weight,
       crafters,
       made,
@@ -1030,6 +1034,8 @@ function stepRealm(
         rowOf = DOES_ROWS[does],
         best = { fund: INST_FUNDS[l.best[d]!]!, pays: l.bestPays[d]! };
       v.need[d] = v.need[d]! + best.pays;
+      // (It rises where there is a place to keep its house: the want of a land with no village is counted and waits.)
+      if (!l.settled) continue;
       if (!canStand(does, l.ground) || count[d]! >= ofOneKept(does, r.lands.length, RIVALS.has(d)))
         continue;
       const here = doing.get(l.cell * 32 + d) ?? 0,
@@ -1171,7 +1177,10 @@ function stepRealm(
             ? l
             : lands.get(
                 g.lands.find(
-                  (c) => c !== g.home && !v.bodies.some((x) => alike(x, g) && x.home === c),
+                  (c) =>
+                    c !== g.home &&
+                    lands.get(c)?.settled &&
+                    !v.bodies.some((x) => alike(x, g) && x.home === c),
                 ) ?? -1,
               );
         const name = to ? tongueWord(f, to.cell, v.next * 19 + g.does + 5, 0x0c5e) : null;
@@ -1481,9 +1490,13 @@ function writeLands(
   v.told = Math.round(told * 10000);
 }
 
-/** Bodies whose land passed to another realm, taken into its record (a new number there; the same founding, so the same page). */
+/**
+ * Bodies whose land passed to another realm, taken into its record (a new number there; the same founding, so the same page).
+ * One whose land has no village is taken into the new realm's greatest of its kind, which has a house, where there is one.
+ */
 function rehome(
   lands: (realm: Ref) => number,
+  settled: (land: number) => boolean,
   store: BodiesStore,
   moved: [Body, Ref][],
   year: number,
@@ -1498,7 +1511,10 @@ function rehome(
       // new realm keeps is taken into that realm's greatest of the kind.)
       const rowOf = DOES_ROWS[doesOf(g)],
         kin = v.bodies.filter((x) => x.does === g.does);
-      if (kin.length > ofOneKept(doesOf(g), lands(to), RIVALS.has(g.does))) {
+      if (
+        kin.length > ofOneKept(doesOf(g), lands(to), RIVALS.has(g.does)) ||
+        (kin.length > 0 && !settled(g.home))
+      ) {
         const into = kin.sort((a, b) => b.staff - a.staff || a.id - b.id)[0]!;
         into.staff += g.staff;
         into.wealth += g.wealth;
@@ -1563,7 +1579,14 @@ export function bodiesYear(ctx: PopulationContext, t: SimTime): void {
     stepRealm(ctx, p, v, span, t, moved);
     if (was || v.bodies.length || v.next > 1) store.put(p.ref, v);
   }
-  if (moved.length) rehome((r) => realms.get(r)?.members.length ?? 1, store, moved, year);
+  if (moved.length)
+    rehome(
+      (r) => realms.get(r)?.members.length ?? 1,
+      (c) => ctx.settlements.inProvince(c).length > 0,
+      store,
+      moved,
+      year,
+    );
 }
 
 // —— The god's hand on a body ————————————————————————————————————————————————————————————————————————————

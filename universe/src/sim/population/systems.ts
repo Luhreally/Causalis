@@ -1901,6 +1901,14 @@ function buildable(medium: Medium, r: Region, t: number): boolean {
   if (r.water[t] !== WATER.land || r.fertility[t]! < 0.2) return false;
   return medium === "land" || near(r, t, (u) => r.water[u] === WATER.sea);
 }
+/**
+ * Ground of a people's own medium at all, good or not: where they build when their land has none of the kind they would
+ * choose. People who live in a land build in it: a desert's or a cold shore's millions are not without a village for
+ * want of soil that passes a line (first light, year 1,500: 93 of 602 peopled lands had no site, some of four million).
+ */
+function standable(medium: Medium, r: Region, t: number): boolean {
+  return medium === "water" ? r.water[t] === WATER.sea : r.water[t] === WATER.land;
+}
 /** The deepest water a people of the water raise their villages in, metres. */
 const SHALLOWS = 120;
 
@@ -1993,8 +2001,14 @@ function readSites(
     cells.add(c);
     for (let k = grid.offsets[c]!; k < grid.offsets[c + 1]!; k++) cells.add(grid.neighbours[k]!);
   }
+  // Its blocks of ground fit to build on; where it has none, its blocks of any ground of its people's medium, the best
+  // of them first as ever (a land of no such ground at all has no site).
+  let fit = false;
+  for (let b = 0; b < side * side && !fit; b++)
+    fit = provinceOfTile(ctx, r, b) === cell && buildable(ctx.medium, r, b);
   for (let b = 0; b < side * side; b++) {
-    if (provinceOfTile(ctx, r, b) !== cell || !buildable(ctx.medium, r, b)) continue;
+    if (provinceOfTile(ctx, r, b) !== cell) continue;
+    if (!(fit ? buildable(ctx.medium, r, b) : standable(ctx.medium, r, b))) continue;
     scores[b] = Math.fround(ctx.medium === "water" ? reefScore(r, b) : siteScore(r, b));
     // The village stands at its block's middle tile of the land's full region.
     const i = (b % side) * BLOCK + BLOCK / 2,
@@ -2114,11 +2128,14 @@ export function settleYear(ctx: PopulationContext, t: SimTime): void {
           )
         : 0,
       needed = Math.min(MOST_VILLAGES, Math.ceil((settled - townsfolk) / VILLAGE_SIZE));
-    // A land's first village waits its turn: only so many a year across the world.
-    if (!villages.length && needed > 0 && firsts++ >= FIRST_VILLAGES_A_YEAR) continue;
+    // A land's first village waits its turn: only so many a year across the world. The turn is spent by a village
+    // founded, not by a land asking: lands with nowhere to build came first in the world's order every year and took
+    // all fifty turns for good (harrow 348, year 1,000: 38 lands with sites and up to 3.5 million people, never a village).
+    if (!villages.length && needed > 0 && firsts >= FIRST_VILLAGES_A_YEAR) continue;
     for (let n = 0; villages.length < needed && n < 3; n++) {
       const site = chooseSite(ctx, p.cell, villages, t);
       if (!site) break;
+      if (!villages.length) firsts++;
       const crowding = settled / Math.max(1, villages.length * VILLAGE_SIZE);
       const decision = world.decisions.record({
         rule: "settlement.found",

@@ -19,6 +19,7 @@ import {
   NOTABLE_EVENTS,
   commandAfter,
   commandIn,
+  courtOf,
   favourNotable,
   firstField,
   notableCommands,
@@ -28,6 +29,7 @@ import {
   notablesYear,
   politiesOf,
   populationContext,
+  seize,
   strikeNotable,
 } from "../../src/sim/index.ts";
 import { notableTitle, why } from "../../src/causal/index.ts";
@@ -136,6 +138,38 @@ test("a host has a commander when it fights; the day moves their standing; one w
   assert.equal(store.goneOf(live.id)!.how, "struck");
   assert.ok(notableCommands(world, a.ref, year) < 1);
   assert.equal(notableRef(live.id), `nota:0:${live.id}`);
+});
+
+test("a general who commands a host and then seizes the seat is one person, kept once", () => {
+  // (Each occasion made them anew: first light at year 1,500 kept Eai Giaigeamere, born 1461, as 99260 and 99337.)
+  const p = politiesOf(world)
+    .living()
+    .find(
+      (r) =>
+        !store.holder("command", r.ref) &&
+        courtOf(world)
+          ?.of(r.ref)
+          ?.figures.some((f) => f.seat === "the army"),
+    );
+  assert.ok(p, "a realm whose court keeps a soldier");
+  const t = world.now as SimTime,
+    led = commandIn(ctx, p, t)!,
+    one = store.get(led.id)!;
+  assert.match(one.as ?? "", /^court:/);
+  seize(ctx, p, [], t);
+  assert.equal(p.ruler.name, one.name);
+  notablesYear(ctx, t);
+  const same = store.all().filter((n) => n.name === one.name && n.born === one.born);
+  assert.deepEqual(
+    same.map((n) => n.id),
+    [one.id],
+  );
+  assert.ok(
+    one.deeds.some((d) => d.w === "strife.coup"),
+    "the seizing is their deed",
+  );
+  assert.equal(one.as, "rule");
+  assert.equal(commandIn(ctx, p, t)!.id, one.id, "and the host is still theirs");
 });
 
 test("a thing found has its finder, and a year's telling stays within its budget", () => {

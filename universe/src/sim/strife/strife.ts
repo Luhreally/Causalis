@@ -80,6 +80,7 @@ import { wantsOf } from "../order/wants.ts";
 import { financeOf } from "../finance/finance.ts";
 import { grieve, strike } from "../acts/disasters.ts";
 import { armyDone, armyMoves, armyVoice } from "../court/court.ts";
+import { commandLeft } from "../notable/notables.ts";
 import { rulerHazard } from "../acts/person.ts";
 
 export const STRIFE_EVENTS = {
@@ -696,8 +697,14 @@ export function foil(
   store.coups.push({ realm: p.ref, year, event, won: false, was: realmName(p), general });
   armyDone(world, p, event, false);
   // (The foiled general may flee to the far lands, raise them and march on the seat: M146.)
-  if (world.rng.real(COUP, parseRef(p.ref).b >>> 0, t, 5) < STRIFE.flees + 0.5 * weight)
-    breakAway(ctx, p, farLands(ctx, p), event, "general", t, general);
+  if (world.rng.real(COUP, parseRef(p.ref).b >>> 0, t, 5) < STRIFE.flees + 0.5 * weight) {
+    // (The one who fled is the one who rules what he raised: his own sex and birth, not ones drawn anew, and the host he
+    // left is no longer his. First light, year 1,000: Raisair Gritaien, born 956, still commanded the host of Drywyndis and
+    // ruled Brythis as one born 962.)
+    const raised = breakAway(ctx, p, farLands(ctx, p), event, "general", t, general);
+    if (raised && man) raised.ruler = { ...raised.ruler, sex: man.sex, born: man.born };
+    if (raised) commandLeft(world, p.ref, general);
+  }
   return event;
 }
 

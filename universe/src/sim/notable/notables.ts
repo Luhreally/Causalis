@@ -257,6 +257,27 @@ function arise(
   return n;
 }
 
+/**
+ * One the world keeps already who is this one given by name (a court's figure, a ruler): of the same name and the same birth
+ * or the same figure, among those of the land and the one who commands the realm's host. A general who commands a host and
+ * then seizes the seat is one person, and so is one who seized it and then takes the field: without this each occasion
+ * made them anew (first light, year 1,500: Eai Giaigeamere, born 1461, kept as 99260 and 99337).
+ */
+function keptAs(
+  store: NotablesStore,
+  cell: number,
+  realm: Ref | undefined,
+  given: { name: string; born?: number; as?: string },
+): Notable | undefined {
+  const is = (n: Notable | undefined): n is Notable =>
+      !!n &&
+      n.name === given.name &&
+      ((given.born !== undefined && n.born === given.born) ||
+        (!!given.as && given.as !== "rule" && n.as === given.as)),
+    holds = realm ? store.holder("command", realm) : undefined;
+  return is(holds) ? holds : store.in(cell).find(is);
+}
+
 /** Tell a rising, if the year's telling has room for it (the greatest first). */
 function tellRise(r: Run, n: Notable, causes: CauseRef[], factors?: Factor[]): void {
   if (n.standing < NOTE.tellAt * NOTE.line) return;
@@ -428,18 +449,6 @@ function occasion(r: Run, e: HistoryEvent, o: Occasion, inspired: Map<number, nu
     speaksNow(standing);
     return;
   }
-  // (Is the deed weighty enough that the one who did it is noticed for it alone? Among a hive, seldom.)
-  // (One who writes a law is known for it where its people read; one a people chose is one of many they have chosen.)
-  const read = o.d === DOMAIN.law ? 0.1 + 0.9 * Math.min(1, 2 * readersOf(world, cell)) : 1,
-    made = Math.round(0.75 * NOTE.line + gain),
-    noticed =
-      made >= NOTE.line &&
-      u(2) <
-        Math.min(1, (e.importance - 2) / 3) *
-          read *
-          (e.type === "order.elected" ? 0.5 : 1) *
-          (r.many ? NOTE.hiveShare : 1);
-  if (!noticed && !e.type.startsWith("act.inspire") && e.type !== INSPIRED) return;
   // (A seat seized is seized by its general, whom the court may keep already.)
   // (Where the seat is theirs after it, they are its ruler: one person, kept in both places, `as` saying so.)
   const figure =
@@ -461,7 +470,32 @@ function occasion(r: Run, e: HistoryEvent, o: Occasion, inspired: Map<number, nu
                 : {}),
           }
         : undefined,
-    n = arise(r, cell, key, Math.max(NOTE.line, made), deed, general);
+    // (And the general the world keeps already, as their host's commander or for an earlier seizing, did it: the deed is theirs
+    // whether or not it would have made a name alone.)
+    same = general
+      ? keptAs(store, cell, realm?.ref, {
+          ...general,
+          ...(typeof data.fig === "number" ? { as: `court:${data.fig}` } : {}),
+        })
+      : undefined;
+  if (same) {
+    if (!same.deeds.some((x) => x.y === year && x.w === e.type)) addDeed(same, deed);
+    if (rules) same.as = "rule";
+    return;
+  }
+  // (Is the deed weighty enough that the one who did it is noticed for it alone? Among a hive, seldom.)
+  // (One who writes a law is known for it where its people read; one a people chose is one of many they have chosen.)
+  const read = o.d === DOMAIN.law ? 0.1 + 0.9 * Math.min(1, 2 * readersOf(world, cell)) : 1,
+    made = Math.round(0.75 * NOTE.line + gain),
+    noticed =
+      made >= NOTE.line &&
+      u(2) <
+        Math.min(1, (e.importance - 2) / 3) *
+          read *
+          (e.type === "order.elected" ? 0.5 : 1) *
+          (r.many ? NOTE.hiveShare : 1);
+  if (!noticed && !e.type.startsWith("act.inspire") && e.type !== INSPIRED) return;
+  const n = arise(r, cell, key, Math.max(NOTE.line, made), deed, general);
   if (e.type.startsWith("act.inspire") || e.type === INSPIRED) inspired.set(cell, n.id);
   if (spoken) n.faith = spoken;
   speaksNow(n);
@@ -849,16 +883,22 @@ export function commandIn(ctx: PopulationContext, p: Polity, t: SimTime): Comman
     figure = courtOf(world)
       ?.of(p.ref)
       ?.figures.find((f) => f.seat === "the army"),
-    n = arise(
-      r,
-      p.seat,
-      key,
-      NOTE.line,
-      { y: year, d: DOMAIN.war, w: "took command", e: null, g: NOTE.line, n: realmName(p) },
+    given =
       figure && !r.many
         ? { name: figure.name, sex: figure.sex, born: figure.born, as: `court:${figure.id}` }
         : undefined,
-    );
+    deed: Deed = {
+      y: year,
+      d: DOMAIN.war,
+      w: "took command",
+      e: null,
+      g: NOTE.line,
+      n: realmName(p),
+    },
+    // (The court's soldier whom the world keeps already, for a seat seized or a host led before, is the one who takes it.)
+    same = given ? keptAs(store, p.seat, undefined, given) : undefined,
+    n = same ?? arise(r, p.seat, key, NOTE.line, deed, given);
+  if (n === same) addDeed(n, deed);
   n.post = { kind: "command", of: p.ref };
   store.moved();
   return { id: n.id, name: n.name, told: false };
@@ -910,6 +950,17 @@ export function commandAfter(
       store.shake(realms[s]!.ref, year + 1);
     }
   }
+}
+
+/**
+ * A realm's commander gone from it to raise lands against it (a foiled general fled: sim/strife): its host is no longer theirs.
+ */
+export function commandLeft(world: World, realm: Ref, name: string): void {
+  const store = notablesOf(world),
+    n = store?.holder("command", realm);
+  if (!n || n.name !== name) return;
+  delete n.post;
+  store!.moved();
 }
 
 /**

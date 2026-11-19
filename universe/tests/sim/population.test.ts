@@ -13,6 +13,7 @@ import { OCC } from "../../src/rules/index.ts";
 import {
   HistoryStore,
   POPULATION_EVENTS,
+  landSites,
   makePopulationWorld,
   populationContext,
   provinceCapacity,
@@ -87,6 +88,26 @@ test("a people grows, spreads, learns to farm and founds villages", () => {
       f.byOccupation.reduce((a, b) => a + b, 0),
       f.count,
     );
+});
+
+test("people who live in a land build in it: no land of settled hundreds is without a village, however poor its ground", () => {
+  // (Villages stood only on ground of some soil, so a desert's or a cold shore's people had none for good: first light at year
+  // 1,500, 93 of 602 peopled lands, some of four million. And a land with nowhere to build spent a first village's turn each
+  // year.) A land with no site at all is one of no ground of its people's medium.
+  let peopled = 0,
+    bare = 0;
+  for (const p of longCtx.provinces.all()) {
+    if (!p.knowsCultivation || p.total() < 100) continue;
+    peopled++;
+    if (longCtx.settlements.inProvince(p.cell).length) continue;
+    assert.equal(landSites(longCtx, p.cell).length, 0, `land ${p.cell} has ground and no village`);
+    bare++;
+  }
+  assert.ok(peopled > 10, `${peopled} lands of settled people`);
+  // (Lands of this world with no soil that passes the line on any block: a desert of millions by year 1,000, a cold shore.)
+  for (const cell of [165, 1516, 3631, 365])
+    assert.ok(landSites(longCtx, cell).length > 0, `land ${cell} has somewhere to build`);
+  assert.ok(bare <= peopled * 0.01, `${bare} of ${peopled} with no ground at all`);
 });
 
 test("a village explains itself back to the first people", () => {

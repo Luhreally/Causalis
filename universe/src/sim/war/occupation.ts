@@ -25,7 +25,7 @@ import {
   type HomeWorld,
 } from "../../gen/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
-import { politiesOf, realmName, type Polity } from "../polity/polity.ts";
+import { cutOff, politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import { cultureOf } from "../culture/culture.ts";
 import { beliefOf } from "../belief/belief.ts";
 import { holdsOf } from "../order/holds.ts";
@@ -238,6 +238,9 @@ export function occupationYear(ctx: PopulationContext, t: SimTime): void {
     if (o.resistance >= OCCUPYING.free) {
       const freed = tell("free");
       realms.leave(holder, c);
+      // (And what the holder held only through it is cut off from its seat, and goes its own way as after any land lost:
+      // first light, year 300, Aer held a land thirteen years with no land or ship between it and the seat.)
+      cutOff(ctx, holder, freed);
       realms.setDiscontent(c, { level: 0, cause: freed });
       store.end(c);
       continue;
