@@ -222,6 +222,7 @@ const RULES: Readonly<Record<string, readonly [number, number]>> = {
   "groups.rose": [PEOPLE, 2],
   "groups.turned": [PEOPLE, 2],
   "groups.hired": [WARS, 2],
+  "groups.unpaid": [WARS, 2],
   "groups.chartered": [PEOPLE, 1],
   "groups.leader": [PEOPLE, 0],
   "groups.federation": [PEOPLE, 2],

@@ -94,6 +94,11 @@ registerEventWords(
     `${cap(d(e.data)?.patron ?? "A realm")} took ${group(e.data)} of ${realm(e.data)} into its pay${d(e.data)?.members ? `, some ${d(e.data)!.members} strong` : ""}, ${year(e.t)}`,
 );
 registerEventWords(
+  ORG_EVENTS.unpaid.type,
+  (_, e) =>
+    `${cap(group(e.data))} of ${realm(e.data)} left the pay of ${d(e.data)?.patron ?? "a realm"}, whose treasury had nothing by it${d(e.data)?.members ? `: some ${d(e.data)!.members} under arms with no one to pay them` : ""}, ${year(e.t)}`,
+);
+registerEventWords(
   ORG_EVENTS.chartered.type,
   (_, e) => `${cap(realm(e.data))} granted ${group(e.data)} its rights, ${year(e.t)}`,
 );

@@ -130,6 +130,7 @@ const TITLES: Readonly<Record<string, string>> = {
   "groups.rose": "A group formed",
   "groups.turned": "A group turned",
   "groups.hired": "A group hired",
+  "groups.unpaid": "A company left unpaid",
   "groups.chartered": "A group granted its rights",
   "groups.leader": "A group's new head",
   "groups.federation": "Groups allied",
