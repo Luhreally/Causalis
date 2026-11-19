@@ -27,7 +27,8 @@ import { LIFE_QUERIES } from "../../src/host/life.ts";
 import { linesWere, roleOffers, townLifeOf } from "../../src/host/inspect/townlife.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { notablesIn } from "../../src/host/inspect/notables.ts";
-import { casesOf, courtFormOf } from "../../src/host/inspect/justice.ts";
+import { casesOf, courtFormOf, heldCaseOf } from "../../src/host/inspect/justice.ts";
+import { pageOf } from "../../src/host/inspect/index.ts";
 import { yearNow } from "../../src/host/inspect/words.ts";
 import type { LifeCard, LifeNow } from "../../src/bridge/index.ts";
 import { peopledWorld } from "../worlds.ts";
@@ -272,6 +273,12 @@ test("a case ruled by one lived as the court's judge reads as ruled in the court
   assert.equal(c.accused.ref, c0.accused.ref);
   assert.match(l.log.at(-1)!.words, /^You heard the case of /);
   assert.equal(handOf(w2).resting!.rulings?.length, 1);
+  // Its page reads it as ruled from then, though the book had set it for a later day; and what was laid runs from the ruling.
+  const page = JSON.stringify(pageOf(w2, c0.ref));
+  assert.doesNotMatch(page, /still to be heard|being heard today/);
+  assert.match(page, /was locked in the town's cell for three months, by /);
+  assert.ok(c.day <= Math.floor(w2.now / 86_400), "heard the day it was ruled");
+  assert.equal(heldCaseOf(w2, court.ref, c.accused.ref)?.ref, c.ref);
   // The rest of the year's book is as it was.
   assert.deepEqual(
     casesOf(w2, court.ref, y)

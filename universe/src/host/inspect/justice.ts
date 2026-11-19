@@ -1471,7 +1471,10 @@ function chained(world: World, s: Settlement, year: number, base: number): Docke
   return made;
 }
 /** A case as one lived as the court's judge ruled it (rules/part.ts): what was laid, for how long, in whose word. */
-function ruled(c: Case, r: { readonly sentence: string; readonly by: string }): Case {
+function ruled(
+  c: Case,
+  r: { readonly sentence: string; readonly by: string; readonly at: number },
+): Case {
   const days = JUDGED[r.sentence]?.days ?? 1,
     came: Readonly<Record<string, string>> = {
       free: `was heard by ${r.by}, who found nothing to hold them for, and went home`,
@@ -1484,6 +1487,9 @@ function ruled(c: Case, r: { readonly sentence: string; readonly by: string }): 
     };
   return {
     ...c,
+    // (Heard the day it was ruled, where that is before the day the book had set for it: what was laid runs from then, and
+    // the court does not sit for it again.)
+    day: Math.min(c.day, Math.floor(r.at / 86_400)),
     sentence: r.sentence as CourtSentence,
     days,
     came: came[r.sentence] ?? c.came,
@@ -2039,7 +2045,9 @@ function nowWords(world: World, c: Case, p: Party): string | null {
 }
 
 /** Heard once its day's sitting is over (the hours the view's court sits: view/court.ts). */
-const heard = (world: World, c: Case): boolean => world.now >= c.day * 86400 + 14 * 3600;
+// (One the hand's judge has ruled is heard from then: its page read "still to be heard, later this year" of a case just ruled.)
+const heard = (world: World, c: Case): boolean =>
+  world.now >= c.day * 86400 + 14 * 3600 || ruledCase(world, c.ref);
 const sitting = (world: World, c: Case): boolean =>
   !heard(world, c) && world.now >= c.day * 86400 + 8.5 * 3600;
 
