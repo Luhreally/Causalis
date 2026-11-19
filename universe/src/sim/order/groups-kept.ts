@@ -6,6 +6,7 @@
 // where nothing is kept.
 import { Hasher, type Ref, type StateStore, type World } from "../../kernel/index.ts";
 import { RowStore } from "../money/kept.ts";
+import { almsSparedIn, lawHeldIn } from "./institutions-kept.ts";
 
 /** A group's leader: a figure with a birth year, as a house keeps its head. */
 export type OrgLeader = { name: string; born: number; since: number };
@@ -270,7 +271,8 @@ export const orgYoungKilledOf = (world: World, cell: number): number =>
   at(world, cell, ORG_ROW.young) / 1e6;
 /** Of a land's deaths, the share mutual aid spares (0 where nothing is kept). */
 export const orgSparedOf = (world: World, cell: number): number =>
-  at(world, cell, ORG_ROW.spared) / 1000;
+  // (And what its clergy's alms and its shared risk spare: sim/order/institutions.ts. Nothing where none is kept.)
+  at(world, cell, ORG_ROW.spared) / 1000 + almsSparedIn(world, cell);
 /** Of a land's roofless, the share its mutual-aid societies take in (0 where nothing is kept). */
 export const orgShelteredOf = (world: World, cell: number): number =>
   at(world, cell, ORG_ROW.sheltered) / 1000;
@@ -282,7 +284,8 @@ export const orgSectOf = (world: World, cell: number): number =>
   at(world, cell, ORG_ROW.sect) / 1000;
 /** Of what a land's courts leave undone, the share its own groups hold to (0 where nothing is kept). */
 export const orgFillsOf = (world: World, cell: number): number =>
-  at(world, cell, ORG_ROW.fills) / 1000;
+  // (And what an honest watch and court hold to: sim/order/institutions.ts. Nothing where none is kept.)
+  at(world, cell, ORG_ROW.fills) / 1000 + lawHeldIn(world, cell);
 /** How far a land's own rule thins its seat's reach (0 where nothing is kept). */
 export const orgThinsOf = (world: World, cell: number): number =>
   at(world, cell, ORG_ROW.thins) / 1000;

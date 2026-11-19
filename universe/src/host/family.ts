@@ -17,6 +17,7 @@ import {
 import { courtRef } from "./court.ts";
 import { isUnderRef, underName } from "./underworld.ts";
 import { isOrgRef, orgName } from "./groups.ts";
+import { bodyName, isBodyRef } from "./bodies.ts";
 import { townLine, type TownLine } from "./kin.ts";
 import type { Holder } from "./roster.ts";
 
@@ -36,7 +37,11 @@ export function parseLineRef(ref: string): { town: string; line: number } | null
 }
 /** Whether a ref is a family's. */
 export const isFamilyRef = (ref: string): boolean =>
-  ref.startsWith("dyn:") || ref.startsWith("line:") || isUnderRef(ref) || isOrgRef(ref);
+  ref.startsWith("dyn:") ||
+  ref.startsWith("line:") ||
+  isUnderRef(ref) ||
+  isOrgRef(ref) ||
+  isBodyRef(ref);
 
 const surname = (name: string) => name.split(" ").slice(1).join(" ");
 
@@ -151,6 +156,8 @@ export function familyName(world: World, ref: string): string | null {
   if (isUnderRef(ref)) return underName(world, ref);
   // (A group of the general layer, or a federation of them: sim/order/groups.ts.)
   if (isOrgRef(ref)) return orgName(world, ref);
+  // (A body kept to do what others want: sim/order/institutions.ts.)
+  if (isBodyRef(ref)) return bodyName(world, ref);
   const h = ref.startsWith("dyn:") ? houseOf(world, ref) : null;
   if (h) return `the house of ${h.name}`;
   const l = ref.startsWith("line:") ? lineOf(world, ref) : null;
@@ -160,7 +167,7 @@ export function familyName(world: World, ref: string): string | null {
 /** Who heads a family now (null: no one history names; a house gone from the great, a line standing empty). */
 export function familyHead(world: World, ref: string): FamilyMember | null {
   // (A group's boss is a name and a birth year, not a person history keeps a page of.)
-  if (isUnderRef(ref) || isOrgRef(ref)) return null;
+  if (isUnderRef(ref) || isOrgRef(ref) || isBodyRef(ref)) return null;
   const h = ref.startsWith("dyn:") ? houseOf(world, ref) : null;
   if (h) return houseMembers(world, h)[0] ?? null;
   const l = ref.startsWith("line:") ? lineOf(world, ref) : null;

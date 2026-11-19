@@ -74,6 +74,7 @@ import { courtPage } from "./court.ts";
 import { dynastyPage, linePage, withFamilyLink } from "./family.ts";
 import { crimeGroupPage, federationPage, operationPage } from "./mobs.ts";
 import { orgFedPage, orgPage } from "./groups.ts";
+import { institutionPage } from "./bodies.ts";
 import { bossPage } from "./boss.ts";
 import { withFollow } from "../follow.ts";
 import { withDeath } from "../death.ts";
@@ -199,6 +200,8 @@ function build(
   if (ref.startsWith("uop:")) return operationPage(world, ref);
   // A group of the general layer, a federation of them (sim/order/groups.ts).
   if (ref.startsWith("org:")) return orgPage(world, ref);
+  // A body kept to do what others want (sim/order/institutions.ts).
+  if (ref.startsWith("inst:")) return institutionPage(world, ref);
   // The head of a group: a boss, a group's leader (asked 2026-11-16).
   if (ref.startsWith("boss:")) return bossPage(world, ref);
   // (One who holds an office or heads a great thing of a town, as read: host/inspect/notables.ts.)

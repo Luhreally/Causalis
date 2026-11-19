@@ -62,6 +62,8 @@ import {
   GOOD_USE,
   PRICE_BASES,
   SHOP,
+  INST,
+  roofGain,
   lerner,
   naturalPrices,
   priceTarget,
@@ -111,6 +113,7 @@ import {
   unionOf,
 } from "../money/kept.ts";
 import { boughtOf, foodWanted } from "../trade/demand.ts";
+import { craftHeldIn, strikeIn, wageWonIn, worksIn } from "../order/institutions-kept.ts";
 import { dealsOf, dressWantedOf } from "../society/kept.ts";
 import { daysWorkedOf } from "../society/kept.ts";
 
@@ -328,6 +331,8 @@ function makeAndUse(
       craftsKept(world, p.cell) *
       // (As many days as its crafters work against the reference year: the society sweep, rules/leisure.ts. 1 where none is kept.)
       daysWorkedOf(world, p.cell) *
+      // (And what the part of its crafters under a works' roof gains by it: sim/order/institutions.ts. 1 where none is kept.)
+      roofGain(worksIn(world, p.cell).share, !!lore.get(p.cell, "factories")) *
       (idle
         ? 1
         : (1 + (ENGINE_GAIN * industry * m.powerCover) / 1000) *
@@ -358,7 +363,10 @@ function makeAndUse(
       idle && g === G.machines
         ? 0
         : GLUT_YEARS * (Math.max(gone(g), g === G.machines ? 0 : needOf(g)) + 1) - m.stock[g]!;
-  const crafters = p.occupation(OCC.crafter),
+  // (Less those out on strike this year, where its workers' body struck: sim/order/institutions.ts. None where none is kept.)
+  const hands = p.occupation(OCC.crafter),
+    struck = strikeIn(world, p.cell, yearOfMoment(t)),
+    crafters = struck > 0 ? Math.round(hands * (1 - struck)) : hands,
     open = RECIPES.map((r, i) => ({ r, i })).filter(
       ({ r }) => canMake(ctx, p, m, r) && room(r.output[0]) > 0,
     ),
@@ -464,17 +472,17 @@ function makeAndUse(
     });
     // (The share of its crafters' year there was use for the work of: what they earned follows it, wages.)
     m.craftsWorked =
-      crafters > 0
+      hands > 0
         ? Math.round(
             (1000 *
               Math.min(
                 crafters,
                 alloc.reduce((a, n) => a + n, 0),
               )) /
-              crafters,
+              hands,
           )
         : 1000;
-  } else m.craftsWorked = crafters > 0 ? 0 : 1000;
+  } else m.craftsWorked = hands > 0 ? 0 : 1000;
   toolsOfYear(ctx, p, m, made, t);
 
   // What its households buy of what they need, by what they earn and what it costs, within their means (sim/trade/demand.ts, p87):
@@ -1048,7 +1056,11 @@ function reprice(
   const lore = loreOf(ctx.world),
     perShop = lore.get(p.cell, "factories") ? SHOP.works : SHOP.hands,
     crafters = p.occupation(OCC.crafter),
-    guild = guildOf(ctx.world, p.cell);
+    // (A trade governed by a body of its own asks as one the more; works gather its shops under fewer roofs, each works one
+    // seller: sim/order/institutions.ts. Exactly as before where none is kept.)
+    works = worksIn(ctx.world, p.cell),
+    shops = (crafters * (1 - works.share)) / perShop + works.firms,
+    guild = Math.min(1, guildOf(ctx.world, p.cell) + INST.governs * craftHeldIn(ctx.world, p.cell));
   let craftedWorth = 0;
   for (let g = 0; g < GOOD_COUNT; g++)
     if (basis[g] === "made") craftedWorth += m.line("made", g) * m.price[g]!;
@@ -1061,12 +1073,7 @@ function reprice(
       bought = m.line("in", g),
       markup =
         basis[g] === "made" && made > 0 && craftedWorth > 0
-          ? lerner(
-              crafters / perShop,
-              ELASTICITY[GOOD_USE[good.id]!]!,
-              guild,
-              bought / (bought + made),
-            )
+          ? lerner(shops, ELASTICITY[GOOD_USE[good.id]!]!, guild, bought / (bought + made))
           : 0,
       // (A good worth here only what is made of it stands, at that worth, at the most its users will give for it: what its
       // product fetches less the rest of the making. A shortage cannot lift it past that, for above it no one asks for any; a
@@ -1138,7 +1145,8 @@ function wages(ctx: PopulationContext, p: Province, m: Market, can: readonly num
   // year on first light at 600; with nothing made past its use a crafter made 8.8 and at the median land 2 to 3 by 1,000 to
   // 1,500, against a wage that still said 8 to 9, and the towns drew hands, the interests weighed crafters and the old were
   // kept as if it were earned: scratchpad/release/wg.mts.)
-  w[OCC.crafter] = (best * (1 + union.wage) * m.craftsWorked) / 1000;
+  // (And what a strike won them, while it lasts: sim/order/institutions.ts. Nothing where none is kept.)
+  w[OCC.crafter] = (best * (1 + union.wage + wageWonIn(ctx.world, p.cell)) * m.craftsWorked) / 1000;
   w[OCC.trader] =
     0.6 * Math.max(w[OCC.farmer]!, w[OCC.forager]!) +
     m.tradeMargin / Math.max(1, p.occupation(OCC.trader));

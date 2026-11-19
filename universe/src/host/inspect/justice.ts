@@ -19,6 +19,7 @@
 // long years, the works, a mark for life, being sent out of the realm; in one let go because those who judged were paid or no one dared
 // speak, only where a group or a crew holds the town; in a pardon; or with no one brought at all. They are drawn after the small wrongs.
 import { notablesIn } from "./notables.ts";
+import { lawBodiesRows } from "./bodies.ts";
 import { finish, hashString, mix, type Ref, type World } from "../../kernel/index.ts";
 import { meansOfWorld } from "../../gen/index.ts";
 import {
@@ -2222,6 +2223,8 @@ export function townLawTab(world: World, ref: string): Tab | null {
           stat("Heard this year", `${done.length}`),
           stat("Still to hear", `${coming.length}`),
           stat("Heard last year", `${last.length}`),
+          // (Its court and its watch as bodies, where its land keeps them: sim/order/institutions.ts.)
+          ...lawBodiesRows(world, s.cell),
           ...(docket.killed > 0
             ? [
                 stat(

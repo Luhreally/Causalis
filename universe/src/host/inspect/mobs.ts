@@ -13,6 +13,8 @@ import {
   dosePrice,
   potencyHarm,
   type GroupKind,
+  basisOfCrime,
+  basisWords,
 } from "../../rules/index.ts";
 import {
   BAR,
@@ -462,7 +464,11 @@ export function crimeGroupPage(world: World, ref: string): PageModel {
       : undefined,
     facts: Stat[] = [
       stat("Realm", [realmLink(world, r.ref)]),
-      stat("What it is", rec ? kindLine(rec) : KIND_WORDS[g.kind], { why: g.event }),
+      stat("What it is", rec ? kindLine(rec) : KIND_WORDS[g.kind], {
+        why: g.event,
+        // (The same said in the terms every organised body is told by: rules/institutions.ts.)
+        parts: [part(basisWords(basisOfCrime(g.kind)), "")],
+      }),
       stat("Since", `year ${since}`, { why: g.event }),
     ];
   if (of) facts.push(stat("Split from", [groupLink(r, of)]));

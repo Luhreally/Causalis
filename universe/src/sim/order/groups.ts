@@ -47,6 +47,7 @@ import {
   ORG_AIMS,
   ORG_BASES,
   ORG_KINDS,
+  INST,
   FULL_TIME,
   aidWorth,
   aimFit,
@@ -147,6 +148,7 @@ import {
   type OrgFed,
   type RealmOrgs,
 } from "./groups-kept.ts";
+import { watchIn } from "./institutions-kept.ts";
 import { actOn, bossRef, hazardBy, sparedBy, struckBy, whisperIn } from "../acts/person.ts";
 import { deathNotesOf } from "../hand/deaths.ts";
 
@@ -611,7 +613,12 @@ function weighStakes(ctx: PopulationContext, p: Polity, r: Read, v: RealmOrgs): 
       men = l.people / 4,
       w = r.wage,
       had = rows?.get(l.cell),
-      guardedBefore = had ? had[ORG_ROW.guard]! / 1000 : 0,
+      // (And what a paid, honest watch guards of its roads: ./institutions.ts. Nothing where none is kept.)
+      kept = watchIn(world, l.cell),
+      guardedBefore = Math.min(
+        1,
+        (had ? had[ORG_ROW.guard]! / 1000 : 0) + INST.guards * kept.watch * kept.honest,
+      ),
       preyedBefore = had ? (had[ORG_ROW.prey]! + had[ORG_ROW.seaPrey]!) / 1000 : 0,
       killedBefore = (had ? had[ORG_ROW.killings]! / 1e6 : 0) + l.killed,
       ways = culture.get(l.cell),

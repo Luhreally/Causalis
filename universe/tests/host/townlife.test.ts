@@ -302,7 +302,11 @@ test("the town's page lists what goes on with whose it is and someone to go to; 
     pays = partOfStats(world, town, collect.to![0]!);
   assert.equal(mine[0]!.label, "Part of");
   assert.match(JSON.stringify(mine), /collecting for the Varro family/);
-  assert.equal(pays[0]!.label, "Pays");
+  // (One who pays may be of a lawful group of the town besides: the line that says whom they pay, wherever it stands.)
+  assert.ok(
+    pays.some((x) => x.label === "Pays"),
+    JSON.stringify(pays),
+  );
   assert.match(JSON.stringify(pageOf(world, collect.who[0]!)), /Part of/);
   assert.equal(townGoingsBlock(world, village)?.type ?? "list", "list");
 

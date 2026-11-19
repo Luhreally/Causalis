@@ -5,7 +5,15 @@
 // a few facts, one set of bars, one table that fits.
 import type { Ref, World } from "../../kernel/index.ts";
 import type { Block, Item, PageModel, Stat } from "../../bridge/index.ts";
-import { ORG, ORG_AIMS, ORG_BASES, ORG_STANDING, type OrgAim } from "../../rules/index.ts";
+import {
+  ORG,
+  ORG_AIMS,
+  ORG_BASES,
+  ORG_STANDING,
+  basisOfAim,
+  basisWords,
+  type OrgAim,
+} from "../../rules/index.ts";
 import {
   beliefOf,
   templeOf,
@@ -272,7 +280,25 @@ export function orgPage(world: World, ref: string): PageModel {
     since = rec?.since ?? g.gone?.since ?? yearAt(world.events.get(g.event)?.t ?? world.now),
     facts: Stat[] = [
       stat("Realm", [realmLink(world, r.ref)]),
-      stat("What it is", ORG_IS[g.kind] ?? g.kind, { why: g.event }),
+      stat("What it is", ORG_IS[g.kind] ?? g.kind, {
+        why: g.event,
+        // (The same said in the terms every organised body is told by: rules/institutions.ts.)
+        parts: rec
+          ? [
+              part(
+                basisWords(
+                  basisOfAim(ORG_AIMS[rec.aim] ?? "aid", {
+                    standing: rec.standing,
+                    patron: !!rec.patron,
+                    basis: ORG_BASES[rec.basis] ?? "poor",
+                    house: !!rec.house,
+                  }),
+                ),
+                "",
+              ),
+            ]
+          : [],
+      }),
       stat("Since", `year ${since}`, { why: g.event }),
     ];
   if (rec) {

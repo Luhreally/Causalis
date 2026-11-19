@@ -398,8 +398,19 @@ export type TownGoing = {
   readonly hours?: readonly [number, number];
   /** What the one set apart to look out says (a corner kept). */
   readonly watch?: string;
-  /** Where: a member's home, the temple, the market's stalls, a back lane, a corner, the square, a house guarded. */
-  readonly where: "home" | "temple" | "granary" | "market" | "lane" | "corner" | "square" | "house";
+  /** Where: a member's home, the temple, the market's stalls, a back lane, a corner, the square, a house guarded, the works, the school. */
+  readonly where:
+    | "home"
+    | "temple"
+    | "granary"
+    | "market"
+    | "lane"
+    | "corner"
+    | "square"
+    | "house"
+    // (Before the town's works, or its school: the building where it has one, a house toward its edge or among its homes else.)
+    | "works"
+    | "school";
   /** Behind closed doors: those come to it go in and are not seen. */
   readonly closed?: true;
 };
