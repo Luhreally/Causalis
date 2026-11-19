@@ -13,12 +13,14 @@ import {
   type Moment,
   type Task,
 } from "./village.ts";
+import { judgeSeat } from "./court.ts";
 import { civicDoors } from "./errands.ts";
 import { marketScene } from "./feast.ts";
 import { paceOf } from "./figure.ts";
 import { route } from "./ground.ts";
 import { goesIn } from "./rides.ts";
 import { agentOf, type PosedHook } from "./possess.ts";
+import { goingPlace } from "./townlife.ts";
 import type { Presence } from "./presence.ts";
 
 const DAY = 86_400,
@@ -56,6 +58,105 @@ function squareSpot(id: number): Point {
 function civicAt(plan: VillagePlan, kind: string, t: number): Point | null {
   const doors = civicDoors(plan, t) as ReadonlyMap<string, readonly Point[]>;
   return doors.get(kind)?.[0] ?? null;
+}
+
+/** The going of a town a part is played in: of the thing the part is for (its group, or its head), of the kind the part is of. */
+const PART_GOING: Readonly<Record<string, readonly string[]>> = {
+  rounds: ["collect"],
+  watch: ["corner"],
+  sell: ["seller"],
+  door: ["guard"],
+  patrol: ["patrol"],
+  lead: ["meeting"],
+  attend: ["meeting"],
+  alms: ["alms", "meeting"],
+  answer: ["corner", "guard"],
+};
+
+/**
+ * Where a part played for a thing of the town takes the body for its hours (rules/part.ts): the stalls for a collector's rounds
+ * and what is sold where no lane is; the corner's look-out for one who holds it; the door of the head's house for its guard,
+ * and their own door for the head who receives, settles and sends from it; where the thing meets or gives for a meeting and
+ * alms; the round's own ground for a crew's; the court for its judge. One lying low is at their own door. Null: no such place
+ * stands (their own day has them).
+ */
+function partSpot(
+  plan: VillagePlan,
+  id: number,
+  doing: NonNullable<LifeNow["doing"]>,
+  t: number,
+  door: Point,
+  at: (p: Point, task: Task | null, activity: number, words: string, hidden?: boolean) => Spot,
+): Spot | null {
+  const part = doing.part ?? "",
+    day = Math.floor(t / DAY),
+    head = doing.of?.replace(/^mob:/, "boss:"),
+    kinds = PART_GOING[part] ?? [],
+    g =
+      doing.of && kinds.length
+        ? (plan.goings ?? [])
+            .filter((x) => kinds.includes(x.kind) && (x.of.ref === doing.of || x.of.ref === head))
+            .sort((a, b) => kinds.indexOf(a.kind) - kinds.indexOf(b.kind))[0]
+        : undefined,
+    place = g ? goingPlace(plan, g, day, villageSolids(plan)) : null,
+    fronts = marketScene(plan).fronts,
+    stall = (k: number): Point | null => (fronts.length ? fronts[(id + k) % fronts.length]! : null);
+  switch (part) {
+    case "rounds": {
+      // (From stall to stall through its hours: a quarter of them at each.)
+      const k = Math.floor((4 * (t - doing.from)) / Math.max(1, doing.to - doing.from));
+      return at(
+        stall(Math.max(0, Math.min(3, k))) ?? squareSpot(id),
+        "haggle",
+        ACTIVITY.working,
+        "Making the rounds",
+      );
+    }
+    case "sell":
+      return at(
+        place?.at ?? stall(0) ?? squareSpot(id),
+        "haggle",
+        ACTIVITY.working,
+        "Selling in the lane",
+      );
+    case "watch":
+      return place
+        ? at(place.watch ?? place.at, "watch", ACTIVITY.gathering, "Holding the corner")
+        : null;
+    case "door":
+      return place
+        ? at(place.door ?? place.at, "watch", ACTIVITY.gathering, "Holding the door")
+        : null;
+    case "patrol":
+      return place ? at(place.at, "watch", ACTIVITY.working, "Walking the round") : null;
+    case "lead":
+    case "attend":
+      return place
+        ? at(
+            place.at,
+            "talk",
+            ACTIVITY.gathering,
+            part === "lead" ? "Leading the meeting" : "At the meeting",
+          )
+        : null;
+    case "alms":
+      return place ? at(place.at, "talk", ACTIVITY.gathering, "Giving alms") : null;
+    case "answer":
+      return place ? at(place.at, "watch", ACTIVITY.gathering, "Answering the rival") : null;
+    case "judge": {
+      const seat = judgeSeat(plan);
+      return seat ? at(seat, "talk", ACTIVITY.working, "Hearing the case") : null;
+    }
+    case "receive":
+    case "settle":
+    case "send":
+    case "paywatch":
+      return at(door, "talk", ACTIVITY.working, "At the door of their house");
+    case "lielow":
+      return at(door, null, ACTIVITY.home, "Lying low");
+    default:
+      return null;
+  }
 }
 
 /** Where the block is spent, by what it is. Null: their own day has them (their work). */
@@ -135,6 +236,8 @@ export function spotOf(
       return at(civicAt(plan, "school", t) ?? door, "learn", ACTIVITY.working, "At their learning");
     case "drill":
       return at(drillGround(plan), "drill", ACTIVITY.gathering, "At the drill");
+    case "part":
+      return partSpot(plan, id, doing, t, door, at);
     default:
       return null;
   }

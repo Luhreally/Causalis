@@ -359,6 +359,9 @@ export type LifeBlock = {
   readonly from: number;
   readonly to: number;
   readonly target: number;
+  /** A part played for a thing of the town (rules/part.ts; `what` is "part"): which, and the thing's ref. Where the body goes. */
+  readonly part?: string;
+  readonly of?: string;
 };
 
 /** One of the hand's people lived by the god (sim/hand/life.ts keeps it on the hand's Window). */

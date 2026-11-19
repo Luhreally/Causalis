@@ -73,6 +73,9 @@ export type LifeNow = {
     readonly from: number;
     readonly to: number;
     readonly target: number;
+    /** A part played for a thing of the town (`what` is "part"): which (rules/part.ts), and the thing's ref. */
+    readonly part?: string;
+    readonly of?: string;
   } | null;
   readonly habit: number;
   readonly want: {

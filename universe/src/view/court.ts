@@ -350,6 +350,15 @@ export type CourtRole =
 /** The case a sentence being served is of: its page, and what it is called. */
 export type CaseOf = { readonly ref: string; readonly name: string };
 
+/** Where the one who judges sits, sitting day or not, and which way they face (null: no court, or none sits at it). */
+export function judgeSeat(plan: VillagePlan): { x: number; z: number; face: number } | null {
+  const place = courtPlaced(plan);
+  if (!place || !plan.court || plan.court.form === "hive") return null;
+  const at = courtSpot(place, 0, plan.court.form === "elders" ? -3.5 : -0.6),
+    dock = courtSpot(place, 0, DOCK_V + 1.4);
+  return { ...at, face: Math.atan2(dock.x - at.x, dock.z - at.z) };
+}
+
 const ROLES = new WeakMap<VillagePlan, Map<number, ReadonlyMap<number, CourtRole>>>();
 const NONE: ReadonlyMap<number, CourtRole> = new Map();
 

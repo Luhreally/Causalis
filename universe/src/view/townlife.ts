@@ -661,6 +661,33 @@ function laidOn(plan: VillagePlan, day: number, ground: Ground): Laid {
   return laid;
 }
 
+/**
+ * Where a going is, held that day or not: its middle, the door of the house it is at where it is at one, and for a corner kept
+ * where the one set apart to look out stands. For one who plays a part in it by the hand (view/lived.ts): the same places its
+ * own people are seen at.
+ */
+export function goingPlace(
+  plan: VillagePlan,
+  g: TownGoing,
+  day: number,
+  ground: Ground,
+): {
+  readonly at: Point;
+  readonly door: Point | null;
+  readonly watch: (Point & { face: number }) | null;
+} {
+  const index = new Map(plan.people.map((p, i) => [p.ref, i] as const)),
+    host = g.who.map((r) => index.get(r) ?? -1).find((i) => i >= 0) ?? -1,
+    place = placeOf(plan, g, day, ground, host);
+  if (g.kind !== "corner") return { at: place.at, door: place.door ?? null, watch: null };
+  const w = beforeHome(plan, homeBy(plan, g.key, 0.3, 0.6), 11, 0.4);
+  return {
+    at: place.at,
+    door: place.door ?? null,
+    watch: { x: w.x, z: w.z, face: toward(place.at, w) },
+  };
+}
+
 /** One's parts in a day's goings, in the order the plan has its goings (none: nothing asks them). */
 export function lifeParts(
   plan: VillagePlan,

@@ -8,12 +8,14 @@ import {
   LIFE_HOURS,
   dayTold,
   goingHeld,
+  goingPlace,
   goingsNow,
   goingsOn,
   lifeParts,
   momentOf,
   personGroup,
   restDay,
+  spotOf,
   squareNow,
   villageSolids,
   workTold,
@@ -527,4 +529,63 @@ test("soldiers posted bear what their realm's host is fielded with and are of it
   // A crew that is not paid (no such line from the land's rows) makes no such call.
   const plain = village([{ ...round, toDoing: undefined } as TownGoing]);
   assert.ok(!dayTold(plain, i, d).some((l) => /paid/.test(l.words)));
+});
+
+test("a part played by the hand takes the body to its place: the look-out's spot, the stalls, the head's door, the meeting, their own door", () => {
+  const d = dayOf(corner),
+    from = d * DAY + 15 * HOUR,
+    block = (part: string, of: string) => ({
+      what: "part",
+      from,
+      to: from + 2 * HOUR,
+      target: -1,
+      part,
+      of,
+    }),
+    spot = (i: number, part: string, of: string, at = from + 60) =>
+      spotOf(busy, i, block(part, of), at, null);
+  // The look-out: where the corner's own look-out stands that afternoon, and looking out.
+  const lookout = index(corner.who[1]!),
+    own = momentOf(busy, index(corner.who[0]!), d * DAY + 18 * HOUR),
+    held = spot(lookout, "watch", corner.of.ref)!;
+  assert.ok(Math.hypot(held.x - own.x, held.z - own.z) < 0.01, "at the corner's look-out");
+  assert.equal(held.task, "watch");
+  assert.equal(held.words, "Holding the corner");
+  assert.deepEqual(
+    { x: held.x, z: held.z },
+    (({ x, z }) => ({ x, z }))(goingPlace(busy, corner, d, ground).watch!),
+  );
+  // The rounds: at the market's stalls where it has them (else the square), moving on through its hours, and never at home.
+  const me = index(collect.who[0]!),
+    home = busy.homes[busy.people[me]!.home]!,
+    stops = [0, 1, 2, 3].map((k) =>
+      spot(me, "rounds", collect.of.ref, from + (k + 0.5) * 0.5 * HOUR)!,
+    );
+  for (const s of stops) {
+    assert.equal(s.task, "haggle");
+    assert.equal(s.words, "Making the rounds");
+    assert.ok(Math.hypot(s.x - home.x, s.z - home.z) > 6, "not at their own house");
+    assert.ok(Math.hypot(s.x, s.z) < 40, "about the square");
+  }
+  // A meeting: where the circle meets, the same place its own are seen at.
+  const meet = spot(index(circle.who[1]!), "attend", circle.of.ref)!,
+    there = goingPlace(busy, circle, d, ground).at;
+  assert.deepEqual({ x: meet.x, z: meet.z }, { x: there.x, z: there.z });
+  assert.equal(spot(index(circle.who[0]!), "lead", circle.of.ref)!.words, "Leading the meeting");
+  // Lying low, and a head who receives: at their own door.
+  const low = spot(me, "lielow", collect.of.ref)!,
+    receive = spot(me, "receive", collect.of.ref)!,
+    morning = momentOf(busy, me, Math.floor(from / DAY) * DAY + 1);
+  assert.ok(Math.hypot(low.x - morning.x, low.z - morning.z) < 0.01);
+  assert.deepEqual({ x: receive.x, z: receive.z }, { x: low.x, z: low.z });
+  // A part of a thing the town has nothing of, or no part at all: their own day has them.
+  assert.equal(spot(me, "watch", "gfed:none"), null);
+  assert.equal(spot(me, "door", collect.of.ref), null);
+  assert.equal(spot(me, "judge", ""), null, "no court, no seat");
+  assert.equal(
+    spotOf(busy, me, { what: "part", from, to: from + HOUR, target: -1 }, from, null),
+    null,
+  );
+  // The same asked twice is the same.
+  assert.deepEqual(spot(lookout, "watch", corner.of.ref), held);
 });

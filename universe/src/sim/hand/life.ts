@@ -751,7 +751,15 @@ export function installLife(world: World, ctx: () => PopulationContext): void {
           { case: a.case!, sentence: a.sentence!, by: l.name.replace(/ of .*$/, ""), at: t },
         ];
       say(l, t, out.words);
-      l.doing = { what: "part", from: t, to: blockEnd("part", t), target: -1 };
+      // (Which part, and for what: the body goes where that part is played. view/lived.ts)
+      l.doing = {
+        what: "part",
+        from: t,
+        to: blockEnd("part", t),
+        target: -1,
+        part: a.what,
+        of: a.of,
+      };
     },
   });
 

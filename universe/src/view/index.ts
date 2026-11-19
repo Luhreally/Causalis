@@ -320,6 +320,7 @@ export {
   courtParts,
   courtPlaced,
   courtSitting,
+  judgeSeat,
   type CourtPlaced,
 } from "./court.ts";
 export {
@@ -1308,6 +1309,7 @@ export {
   GOING_ICON,
   LIFE_HOURS,
   goingHeld,
+  goingPlace,
   goingsNow,
   goingsOn,
   lifeParts,
