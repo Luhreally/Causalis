@@ -142,6 +142,7 @@ import { homeSky, shiftNow, starEnded } from "../planet/motion.ts";
 import { actOn, hazardBy, luckBy } from "../acts/person.ts";
 import { KILLING, handDeath, type DeathPart } from "../hand/deaths.ts";
 import { fledKind, noteFled } from "../war/held.ts";
+import { seaYield } from "../ecology/seas.ts";
 import { capacity, COLS, livable, Province, row, ROWS, type Capacity } from "./model.ts";
 import {
   HistoryStore,
@@ -699,6 +700,8 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
           wilds *
           alive.wild *
           waterYield(alive) *
+          // (And as the reach of sea its boats go out on stands, fished by all on it: sim/ecology/seas.ts. Exactly 1 where untouched.)
+          seaYield(ctx, p.cell) *
           partners.wild,
       ],
       [

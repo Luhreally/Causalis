@@ -32,6 +32,8 @@ import {
   marketsOf,
   politiesOf,
   populationContext,
+  seaOf,
+  seaYield,
   realmName,
   starSitesOf,
   tameNow,
@@ -439,6 +441,23 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
           ]),
         );
       if (e.fish !== null) rows.push(stat("Fish", share(e.fish)));
+      // (The reach of open sea its boats go out on, shared with the other lands on it: sim/ecology/seas.ts.)
+      const sea = seaOf(ctx, cell).sea;
+      if (sea)
+        rows.push(
+          stat("Its sea", `${share(sea.stock)} of what it held`, {
+            ...(sea.few ? { why: sea.few } : {}),
+            parts: [
+              part("fished by", `${sea.lands} ${sea.lands === 1 ? "land" : "lands"} on it`),
+              part(
+                "pressed",
+                sea.pressed >= 1 ? "past what it gives for good" : "within what it gives for good",
+              ),
+              part(["most by ", landLink(world, sea.most)], ""),
+              part("what its boats bring in", share(seaYield(ctx, cell))),
+            ],
+          }),
+        );
       if (e.grainLost > 0)
         rows.push(stat("Grain eaten by small game", share(e.grainLost), { why: e.grainEaten }));
       blocks.push({ type: "facts", title: "The web of eating", rows });

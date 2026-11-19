@@ -6055,6 +6055,11 @@ async function runPlanetPage(): Promise<void> {
           }
         }
       if (camp >= 0 && campD < bestD && (best < 0 || campD < CAMP_REACH)) {
+        // (A camp of those who fled here is told on the land's own page: who they are, whence and from what.)
+        if (camp >= 900) {
+          void pageWindow.open(`cell:0:${regionCell}#people`);
+          return;
+        }
         await fadeOver(() => ready("the band", () => toCamp(regionCell, camp)));
         return;
       }

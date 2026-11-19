@@ -1,7 +1,7 @@
 // People out of their place, in words (sim/war/held.ts): what became of those a war's sides held, a wrong done to the beaten
 // or to a stormed town and who did it, whether it was answered for, and many fled come over a border. What and who, never how.
 import { yearOfMoment } from "../kernel/index.ts";
-import { COMPANY_EVENTS, HELD_EVENTS, RAID_EVENTS } from "../sim/index.ts";
+import { COMPANY_EVENTS, HELD_EVENTS, RAID_EVENTS, SEA_EVENTS } from "../sim/index.ts";
 import { landWords } from "./generated.ts";
 import { count } from "./words.ts";
 import { grainSum } from "./war.ts";
@@ -127,4 +127,14 @@ registerEventWords(COMPANY_EVENTS.company.type, (world, e) => {
     : d?.how === "left"
       ? `${who}${led}, unpaid by ${a}, left the field before a battle it did not expect to win in ${landWords(world, e.place)}, ${year(e.t)}`
       : `${who}${led}, unpaid by ${a}, took its pay from the stores of ${landWords(world, e.place)}${d?.grain ? `: ${grainSum(d.grain)} grain` : ""}, ${year(e.t)}`;
+});
+
+// A reach of sea fished poor by the lands on it (sim/ecology/seas.ts).
+registerEventWords(SEA_EVENTS.few.type, (world, e) => {
+  const d = e.data as { stock?: number; lands?: number; water?: boolean } | null,
+    lands = d?.lands ?? 0,
+    left = d?.stock !== undefined ? `, ${d.stock} in a hundred of what it held` : "";
+  return d?.water
+    ? `The waters the people of ${landWords(world, e.place)} live in grew poor${left}: ${lands > 1 ? `${count(lands)} lands draw on them` : "they took more than it gives"}, ${year(e.t)}`
+    : `The sea off ${landWords(world, e.place)} was fished poor${left}${lands > 1 ? ` by the boats of ${count(lands)} lands` : " by its boats"}, ${year(e.t)}`;
 });

@@ -151,6 +151,7 @@ const TITLES: Readonly<Record<string, string>> = {
   "ties.council": "A council of realms",
   "ties.spy": "A spy caught",
   "war.insurgency": "A land held by force",
+  "ecology.sea-few": "A sea fished poor",
   "war.raid": "A raid on the posted",
   "war.company": "A hired company's day",
   "held.crime": "No quarter given",

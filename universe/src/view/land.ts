@@ -737,6 +737,8 @@ export function landTidings(prev: LandPlan | null, next: LandPlan): Map<string, 
 
 /** A camp's name on the land (Phase 28 M159): its bands, whether they herd, how many they are. */
 export function campWords(c: LandCamp): string {
+  if (c.fled)
+    return `⛺ ${c.people.toLocaleString("en-US")} fled ${c.fled.why}, from ${c.fled.from}`;
   const who = c.bands > 1 ? `${c.bands} bands` : "a band";
   return `${c.herds ? "🐑" : "⛺"} ${who}${c.herds ? " of herders" : ""} · ${c.people}`;
 }

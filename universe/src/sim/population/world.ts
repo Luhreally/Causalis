@@ -100,6 +100,7 @@ import { installStrife, installStrifeActs } from "../strife/strife.ts";
 import { installCourts } from "../court/court.ts";
 import { installDesigns } from "../design/design.ts";
 import { installEcology } from "../ecology/ecology.ts";
+import { installSeas } from "../ecology/seas.ts";
 import { installWoods } from "../ecology/woods.ts";
 import { installHerds } from "../ecology/herds.ts";
 import { installLodes } from "../economy/worked.ts";
@@ -499,6 +500,8 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installStrifeActs(world, () => populationContext(world));
   installDesigns(world, () => populationContext(world));
   installEcology(world, () => populationContext(world));
+  // (The open sea's stock, shared by the lands on each reach of it: sim/ecology/seas.ts.)
+  installSeas(world, () => populationContext(world));
   installLanguages(world, () => populationContext(world));
   installAir(world, () => populationContext(world));
   installMotion(world);
