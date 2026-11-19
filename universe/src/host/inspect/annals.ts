@@ -383,6 +383,71 @@ export function ruleOf(e: HistoryEvent): readonly [number, number] {
 }
 
 /**
+ * What those the world keeps by name and its bodies did, seen (asked 2026-11-19: "i want to see these things happen"). By
+ * their kinds' worth alone a rising was one more 3 among a year's dozen and the rest were 2s: over a thousand years of a
+ * world of two hundred realms such a line was told in seven years of ten and stood among the People filter's four in under
+ * one of ten, never after year 600. The great of them are worth more than any plain 3 and less than what is told with no
+ * filter: one of high standing rising or dying, a great body founded, a body outlawed, put down or taken over, a strike won,
+ * and what the god's hand did to a body. Two a year at the most are raised, so they never fill the four. The measures are
+ * set so a year in three to a year in two shows one (tallied over first light to years 1,000 and 1,500). A great founding is
+ * by the years before it, not by a count of hands: an age of engines founds a body of forty thousand every year.
+ */
+const SEEN = {
+  /** One of name whose standing came to this many times the line a people notice at (rules NOTE.line: 1,000). */
+  standing: 10_000,
+  /** A body founded with more hands than any in this many years before it, and with this many at the least. */
+  years: 3,
+  hands: 1000,
+  /** A strike won with this many out. */
+  out: 50_000,
+  /** The most raised in a year. */
+  most: 2,
+} as const;
+const SEEN_TYPES = new Set([
+  "notable.arose",
+  "notable.died",
+  "bodies.founded",
+  "bodies.standing",
+  "bodies.ended",
+  "bodies.strike",
+  "act.body",
+]);
+/** What one of these is worth: raised (past 3, under 4) where it is great, else its kind's. */
+function seenWorth(world: World, e: HistoryEvent, w: Whole): number {
+  const d = (e.data ?? {}) as Record<string, unknown>,
+    num = (k: string) => (typeof d[k] === "number" ? (d[k] as number) : 0),
+    base = RULES[e.type]?.[1] ?? 0;
+  switch (e.type) {
+    case "act.body":
+      return 3.9;
+    case "notable.arose":
+    case "notable.died": {
+      const kept = notablesOf(world),
+        n = kept?.get(num("id")) ?? kept?.goneOf(num("id")),
+        high = (n?.best ?? 0) >= SEEN.standing;
+      // (One of name killed, in battle or by another's hand, is told above one who died in bed.)
+      if (e.type === "notable.arose") return high ? 3.8 : base;
+      return high ? 3.7 : d.how === "battle" || d.how === "taken" ? 3.2 : base;
+    }
+    case "bodies.standing":
+      return d.how === "outlawed" ? 3.6 : d.how === "chartered" ? 2 : base;
+    case "bodies.ended":
+      return d.how === "suppressed" || d.how === "taken over" ? 3.5 : base;
+    case "bodies.strike":
+      return d.outcome === "won" && num("out") >= SEEN.out ? 3.4 : base;
+    case "bodies.founded": {
+      const hands = num("hands"),
+        y = yearOfMoment(e.t);
+      if (hands < SEEN.hands || hands < (w.founded.get(y) ?? 0)) return base;
+      for (let k = 1; k <= SEEN.years; k++) if ((w.founded.get(y - k) ?? 0) >= hands) return base;
+      return 3.3;
+    }
+    default:
+      return base;
+  }
+}
+
+/**
  * How a crime group's end is told among a year's wars ("": not there, as one withered or taken into another is not): taken
  * over in a war it lost, put down by its realm's soldiers, or ended while at war with another of its road (asked 2026-11-17:
  * "i never see one taking over the other or being put down by government": a group's end was worth 1, under what any filter
@@ -617,6 +682,8 @@ type Whole = {
   readonly firsts: Map<string, string>;
   /** The firsts with no event left, by their year. */
   readonly bare: Map<number, { what: string; land: number | null }[]>;
+  /** The most hands a body was founded with, by year (SEEN: a great founding is one greater than the few years before it saw). */
+  readonly founded: Map<number, number>;
 };
 
 /** How many years may lie between a sickness's coming to one land and the next, and be one sickness's passing. */
@@ -698,7 +765,14 @@ function wholeOf(world: World, kept: readonly HistoryEvent[]): Whole {
     if (f.ref && world.events.get(f.ref)) firsts.set(f.ref, what);
     else bare.set(f.year, [...(bare.get(f.year) ?? []), { what, land: f.land }]);
   }
-  return { wars, runs, later, great, firsts, bare };
+  const founded: Whole["founded"] = new Map();
+  for (const e of kept) {
+    if (e.type !== "bodies.founded") continue;
+    const y = yearOfMoment(e.t),
+      hands = (e.data as { hands?: number } | null)?.hands ?? 0;
+    if (hands > (founded.get(y) ?? 0)) founded.set(y, hands);
+  }
+  return { wars, runs, later, great, firsts, bare, founded };
 }
 
 /** A war an event of it is of. */
@@ -1102,8 +1176,13 @@ function tellYear(world: World, year: number, events: readonly HistoryEvent[], w
   // A rising crushed the year it rose: the crushing says it rose.
   if (types.has("order.crushed")) types.delete("order.revolt");
   // The rest: one line a kind, its greatest, and how many more.
+  const raised: { t: Told; base: number }[] = [];
   for (const [type, list] of types) {
-    const best = list.reduce((a, b) => (b.importance > a.importance ? b : a)),
+    // (Of those the world keeps by name and its bodies, the year's greatest is the one most worth seeing: SEEN.)
+    const seen = SEEN_TYPES.has(type),
+      best = seen
+        ? list.reduce((a, b) => (seenWorth(world, b, w) > seenWorth(world, a, w) ? b : a))
+        : list.reduce((a, b) => (b.importance > a.importance ? b : a)),
       [kind, base] = ruleOf(best),
       more = list.length - 1,
       war = type === "war.declared" || type === "war.peace" ? warOf(best) : "",
@@ -1113,9 +1192,23 @@ function tellYear(world: World, year: number, events: readonly HistoryEvent[], w
         type === "lessons.taken"
           ? list.find((e) => (e.data as { first?: boolean } | null)?.first)
           : undefined,
-      worth = war && great ? 4 : first ? ALL_WORTH : base,
+      worth = war && great ? 4 : first ? ALL_WORTH : seen ? seenWorth(world, best, w) : base,
       lead =
         war && great ? (list.find((e) => w.wars.get(warOf(e))?.great) ?? best) : (first ?? best);
+    if (seen && worth > base) {
+      raised.push({
+        base,
+        t: {
+          kind,
+          worth,
+          ref: lead.id,
+          key: type,
+          say: () =>
+            lineOf(world, lead, year, more ? `, and ${told(more, "more", "more")} like it` : ""),
+        },
+      });
+      continue;
+    }
     add({
       kind,
       worth,
@@ -1130,6 +1223,10 @@ function tellYear(world: World, year: number, events: readonly HistoryEvent[], w
         ),
     });
   }
+  // (The greatest of the raised keep their worth; the rest are told at their kind's, as before.)
+  raised
+    .sort((a, b) => b.t.worth - a.t.worth)
+    .forEach((r, i) => add(i < SEEN.most ? r.t : { ...r.t, worth: r.base }));
   return out.sort((a, b) => b.worth - a.worth);
 }
 
