@@ -266,11 +266,37 @@ export class LoreStore implements StateStore {
     h.string(this.digest).int(this.count);
   }
 
+  /**
+   * A land's totals as loading sums them: what it knows in the order a save keeps it (`of`), each effect added in turn.
+   */
+  private summedAsSaved(cell: number): Float64Array {
+    const t = new Float64Array(EFFECTS.length);
+    for (const [id] of this.of(cell)) {
+      const p = PRINCIPLES[PRINCIPLE_INDEX.get(id)!]!;
+      EFFECTS.forEach((e, i) => (t[i] = t[i]! + (p.effects[e] ?? 0)));
+    }
+    return t;
+  }
+
+  /**
+   * (`summed`: the totals of the few lands where they are not what loading would sum. A land's totals are summed as it
+   * learns, and a land that learned two things in a year need not have learned them in the order a save keeps them in:
+   * the same numbers added in another order can differ in their last place. By first light's year 1,500 four lands' did,
+   * and the world loaded from a save went another way from the next year's trade on. Those lands' totals are kept as they
+   * stand; a save from before has none, and its lands are summed as they always were.)
+   */
   save(): unknown {
+    const summed: number[][] = [];
+    for (const cell of [...this.totals.keys()].sort((a, b) => a - b)) {
+      const now = this.totals.get(cell)!,
+        loaded = this.summedAsSaved(cell);
+      if (now.some((x, i) => !Object.is(x, loaded[i]))) summed.push([cell, ...now]);
+    }
     return {
       known: [...this.known.keys()].sort((a, b) => a - b).map((c) => [c, this.of(c)]),
       digest: this.digest,
       count: this.count,
+      ...(summed.length ? { summed } : {}),
     };
   }
 
@@ -280,9 +306,16 @@ export class LoreStore implements StateStore {
     this.lands.clear();
     this.opens.clear();
     const byId = new Map(PRINCIPLES.map((p) => [p.id, p]));
-    const s = state as { known: [number, [string, Known][]][]; digest?: string; count?: number };
+    const s = state as {
+      known: [number, [string, Known][]][];
+      digest?: string;
+      count?: number;
+      summed?: number[][];
+    };
     for (const [cell, list] of s.known)
       for (const [id, k] of list) this.learn(cell, id, k, byId.get(id)!);
+    for (const [cell, ...xs] of s.summed ?? [])
+      if (this.totals.has(cell!)) this.totals.set(cell!, Float64Array.from(xs));
     // The fold goes on from where it stood (the order it was learned in, not the save's).
     if (s.digest !== undefined) {
       this.digest = s.digest;
