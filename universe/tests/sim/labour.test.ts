@@ -39,3 +39,28 @@ test("a stream of people going on is saved and loaded with its land", () => {
   const { going: _, ...old } = p.save() as Record<string, unknown>;
   assert.deepEqual(Province.load(old).going, []);
 });
+
+test("where no ground can be tilled none are at fields: those the wild cannot use keep its herds, and the rest go to the crafts", () => {
+  const NONE = { forage: 100, farm: 0, pasture: 5000, areaKm2: 100 },
+    use = { tilled: 0, gathered: 0.25, herded: 0.3 },
+    herding = sowing();
+  herding.herding = "ev:0:1" as never;
+  const t = occupationTargets(herding, NONE, 3, null, 1, use),
+    sum = (x: number[]) => x.reduce((s, v) => s + v, 0);
+  // (Until 2026-11-20 they stayed "farmers" on fields the land did not have: a third of tide 207's land 3659 grew nothing.)
+  assert.equal(t[OCC.farmer], 0);
+  assert.ok(Math.abs(t[OCC.herder]! - 0.3) < 1e-9, `herders ${t[OCC.herder]}`);
+  assert.ok(Math.abs(t[OCC.forager]! - 0.25) < 1e-9);
+  assert.ok(Math.abs(sum(t) - 1) < 1e-9, "every hand at some work");
+  // (No herds kept: all to the crafts and to trade.)
+  const none = occupationTargets(sowing(), NONE, 3, null, 1, use);
+  assert.equal(none[OCC.farmer], 0);
+  assert.equal(none[OCC.herder], 0);
+  assert.ok(Math.abs(sum(none) - 1) < 1e-9);
+  // (A land with any field is as it was.)
+  const some = occupationTargets(herding, { ...NONE, farm: 10 }, 3, null, 1, {
+    ...use,
+    tilled: 0.2,
+  });
+  assert.ok(Math.abs(some[OCC.farmer]! - 0.55) < 1e-9, `farmers ${some[OCC.farmer]}`);
+});
