@@ -74,7 +74,7 @@ test("a school's leanings are what a group wants and is not given; its name is w
   assert.equal(ideaUnmet(4 * IDEA.unmet), 1);
   // (A teaching near what a land already holds is no school of its own.)
   assert.equal(ideaApart(creed, creed), 0);
-  assert.ok(ideaApart(creed, [0, 0, 0, 0, 0, 0, 0, 0]) >= IDEA.apart);
+  assert.ok(ideaApart(creed, creed.map((v) => -v)) >= IDEA.apart);
   assert.ok(
     ideaApart(
       creed,

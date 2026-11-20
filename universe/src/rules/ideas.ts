@@ -27,7 +27,7 @@ export const IDEA = {
   /** A founder's standing in knowledge or faith, in lines (rules/notables.ts NOTE.line), at the least. */
   founder: 1,
   /** The chance a year one who could found a school does, at a full saturation of standing and wants wholly unmet. */
-  found: 0.006,
+  found: 0.004,
   /** The least gap between what a group wants and how its realm is held for a teaching to come of it (summed over the four). */
   unmet: 0.12,
   /** A land that took up a school within these years gives no other its ear (its founder's own pupils still teach). */
@@ -37,6 +37,8 @@ export const IDEA = {
   lawLean: 15,
   /** A school's spread to a neighbour a year, at speech alike; by a road; where a body teaches; from higher learning. */
   spread: 0.02,
+  /** A land is weighed for taking a school once in so many years, at as many years' chance. */
+  every: 3,
   road: 1.5,
   taught: 1.6,
   higher: 1,
@@ -58,7 +60,7 @@ export const IDEA = {
    * How far a teaching must lie from the school its land already holds to be a school of its own (hundredths, summed over
    * the eight leanings): nearer than that, one who would teach it teaches what is held, and founds nothing.
    */
-  apart: 45,
+  apart: 60,
   /** A world keeps at most this many schools no land holds any more (the oldest forgotten first). */
   keepGone: 60,
 } as const;

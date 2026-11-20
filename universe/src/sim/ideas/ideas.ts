@@ -269,6 +269,8 @@ export function ideasYear(ctx: PopulationContext, t: SimTime): void {
       if (mine) store.set(p.cell, null);
       continue;
     }
+    // (Each land is weighed in its own year of IDEA.every, at as many years' chance: a third of the lands a year.)
+    if ((year + p.cell) % IDEA.every !== 0) continue;
     if (mine && mine.since === year) continue;
     let best = -1,
       bestVia = -1,
@@ -300,13 +302,15 @@ export function ideasYear(ctx: PopulationContext, t: SimTime): void {
       if (store.of(n)) weigh(n, !!markets.route(p.cell, n));
     }
     for (const n of markets.seaPartners(p.cell)) if (store.of(n)) weigh(n, true);
-    if (best >= 0 && world.rng.real(SPREAD, p.cell, t, 0) < bestChance)
+    if (best >= 0 && world.rng.real(SPREAD, p.cell, t, 0) < IDEA.every * bestChance)
       takes.push({ cell: p.cell, school: best, via: bestVia });
   }
   for (const x of takes) {
+    // (Told where a realm's seat takes up its first school: a seat's turning from one to another is kept, not told.)
+    const before = store.of(x.cell);
     store.set(x.cell, { school: x.school, since: year, via: x.via });
     const realm = polities.of(x.cell);
-    if (!realm || realm.seat !== x.cell || realm.ended !== null) continue;
+    if (before || !realm || realm.seat !== x.cell || realm.ended !== null) continue;
     const s = store.get(x.school)!,
       road = markets.route(x.cell, x.via);
     world.events.emit({
@@ -357,7 +361,7 @@ export function ideasYear(ctx: PopulationContext, t: SimTime): void {
           teaching ? Math.round((v + teaching.creed[k]!) / 2) : Math.round(v * 0.8),
         );
       // (A breaking that would teach all but what its elder does is no breaking.)
-      if (ideaApart(creed, s.creed) < IDEA.apart / 2) continue;
+      if (ideaApart(creed, s.creed) < IDEA.apart) continue;
       const id = store.mint(),
         name = schoolName(world, store, creed, first);
       store.markSplit(s.id, year);

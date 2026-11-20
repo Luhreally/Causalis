@@ -28,7 +28,7 @@ import { PilgrimsStore, pilgrimsOf } from "./pilgrims-kept.ts";
 
 export const PILGRIM_EVENTS = {
   /** A seat's first pilgrimage: enough come in a year to be one. */
-  began: defineEventType("ideas.pilgrimage", 4),
+  began: defineEventType("ideas.pilgrimage", 3),
 };
 
 type Sum = { seat: number; event: Ref; pilgrims: number; lands: number; ways: [number, number][] };

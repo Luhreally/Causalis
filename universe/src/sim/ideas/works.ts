@@ -103,12 +103,12 @@ export function worksYear(ctx: PopulationContext, t: SimTime): void {
     events = world.events;
 
   // 1. What each land has most worth remembering, from the year's events.
-  let newest = store.seen;
+  // (The year since the last reading, by the events' own moments: one told at the very moment of the last reading is read
+  // again, and is known for the one a land already keeps.)
+  const since = t - YEAR;
   for (let i = events.count - 1; i >= 0; i--) {
-    const e = events.at(i),
-      serial = serialOf(e.id);
-    if (serial <= store.seen || e.t <= t - 2 * YEAR) break;
-    if (serial > newest) newest = serial;
+    const e = events.at(i);
+    if (e.t < since) break;
     if (e.importance < WORK.worth || !e.place || kindCodeOf(e.place) !== "cell") continue;
     const type = e.type;
     if (type.startsWith("ideas.") || type.startsWith("notable.")) continue;
@@ -118,7 +118,7 @@ export function worksYear(ctx: PopulationContext, t: SimTime): void {
     if (now && now.e === e.id) continue;
     store.setWorth(cell, { e: e.id, type, w: e.importance, y: year, used: false });
   }
-  store.seen = newest;
+  store.seen = year;
 
   // 2. Makers.
   const line = WORK.maker * NOTE.line,
