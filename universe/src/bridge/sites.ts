@@ -131,17 +131,18 @@ function wetCell(w: NonNullable<TownSite["wet"]>, x: number, z: number): boolean
   return (bits & (1 << (east + 2 * south))) !== 0;
 }
 
-/** How far from its tile's middle a town's square is sought on dry ground (metres), by what step, and how much dry ground about it. */
-const BANK_FAR = 720,
-  BANK_STEP = 8,
+/** The step a town's square is sought on dry ground by, near its tile's middle (metres), and how much dry ground about it. */
+const BANK_STEP = 8,
   // (Its square, and a block's depth and a lane past it each way: its first blocks stand between it and the water.)
   BANK_DRY = 72;
 
 /**
  * Where a town's square stands from its tile's middle (TownSite.bank; null: at the middle): where its land's map draws its
  * own tile as water (a river's, a lake's, the sea's), the nearest point the map draws dry, with the square's own ground
- * and a row of blocks about it dry too (BANK_DRY): the tile's bank, the water at its back and its waterfront before it. Sought ring by ring out from the middle (BANK_STEP apart, as far
- * as BANK_FAR: a tile and a half); none found (an island too small for a square), it stands where it was.
+ * and a row of blocks about it dry too (BANK_DRY): the tile's bank, the water at its back and its waterfront before it.
+ * Sought ring by ring out from the middle, BANK_STEP apart near it and a fortieth of the way out further off, as far as its
+ * land's water is read (TownSite.wet: a town the map has out on the sea comes ashore on the nearest coast); none found, it
+ * stands where it was.
  */
 export function bankOf(wet: TownSite["wet"]): { x: number; z: number } | null {
   if (!wet || !wetCell(wet, 0, 0)) return null;
@@ -154,8 +155,9 @@ export function bankOf(wet: TownSite["wet"]): { x: number; z: number } | null {
     }
     return true;
   };
-  for (let r = BANK_STEP; r <= BANK_FAR; r += BANK_STEP) {
-    const n = Math.max(8, Math.ceil((2 * Math.PI * r) / BANK_STEP));
+  const far = wet.half * wet.m - BANK_DRY;
+  for (let r = BANK_STEP; r <= far; r += Math.max(BANK_STEP, r / 40)) {
+    const n = Math.max(8, Math.ceil((2 * Math.PI * r) / Math.max(BANK_STEP, r / 40)));
     for (let k = 0; k < n; k++) {
       const a = (2 * Math.PI * k) / n,
         x = Math.round(r * Math.cos(a)),

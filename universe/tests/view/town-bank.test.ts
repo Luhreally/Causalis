@@ -120,14 +120,25 @@ test("a town on dry ground stays at its tile's middle; a people of the water's s
   );
 });
 
-test("with no dry ground within a tile and a half, the square stands where it was", () => {
+test("a town the map has out on the water comes ashore on the nearest coast; with none in reach it stands where it was", () => {
+  // (A lake seven tiles across: its shore two tiles and more off.)
   const lake = landOf((i, j) => (Math.hypot(i - I, j - J) <= 3 ? WATER.lake : WATER.land)),
     read = landWater(lake, I, J, false);
-  assert.ok(read.wet && !read.bank, "the middle of a lake three tiles across: no bank found");
+  assert.ok(read.wet && read.bank, "the shore of a lake seven tiles across is found");
+  const off = Math.hypot(read.bank.x, read.bank.z) / 480;
+  assert.ok(off > 2 && off < 4, `ashore ${off.toFixed(2)} tiles off`);
+  assert.ok(!wetGround({ ...BASE, ...read }, 0, 0));
+  // (Sea as far as its water is read: no shore.)
+  const sea = landOf((i, j) => (Math.hypot(i - I, j - J) <= 9 ? WATER.sea : WATER.land)),
+    out = landWater(sea, I, J, false);
+  assert.ok(out.wet && !out.bank, "open sea: no bank found");
   assert.equal(bankOf(undefined), null);
-  // (A lake two tiles across: its shore within reach.)
+  // (A lake three tiles across: its shore close.)
   const small = landOf((i, j) => (Math.hypot(i - I, j - J) <= 1 ? WATER.lake : WATER.land)),
     near = landWater(small, I, J, false);
-  assert.ok(near.bank, "a small lake's shore is found");
+  assert.ok(
+    near.bank && Math.hypot(near.bank.x, near.bank.z) < 720,
+    "a small lake's shore is found",
+  );
   assert.ok(!wetGround({ ...BASE, ...near }, 0, 0));
 });
