@@ -5,7 +5,7 @@
 import "./sea-fight.css";
 import { sound } from "./sound.ts";
 import type { HostClient, SeaFightNear } from "../bridge/index.ts";
-import { SeaLayer, type OrbitRig, type Stage } from "../render/index.ts";
+import { SEA_UP, SeaLayer, type OrbitRig, type Stage } from "../render/index.ts";
 import type { TimeBar } from "../ui/index.ts";
 import {
   BATTLE_SPEEDS,
@@ -252,17 +252,18 @@ export function installSeaFilm(d: SeaFilmDeps): SeaFilm {
       field = newSeaFight(f, stage.quality.detail >= 1 ? 20 : 14);
       layer.setup(field);
       const tall = innerWidth < innerHeight,
-        far = Math.max(16, field.reach * (tall ? 1.25 : 0.8) + 8);
+        far = Math.max(18, field.reach * (tall ? 1.7 : 1.1) + 10);
       stage.backdrop("ground", far * 1.6);
       rig.configure({
         distance: far,
         minDistance: 4,
         maxDistance: far * 2.2,
-        pitch: -24,
+        pitch: tall ? -36 : -26,
         minPitch: -85,
         maxPitch: -6,
         drift: 0,
-        target: [0, 0.3, 0],
+        // (On a tall screen the caption stands over the foot: the sea's middle is looked at a little past it.)
+        target: [0, SEA_UP + 0.3, 0],
       });
       // (On a tall screen: seen along the lines, so both fit.)
       rig.yaw = tall ? 68 : 18;

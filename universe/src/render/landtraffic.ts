@@ -52,63 +52,63 @@ const DRAB: readonly Rgb[] = [
   [0.33, 0.33, 0.36],
   [0.5, 0.44, 0.34],
 ];
-const fledColumn = (files: number): Car[] =>
+const fledColumn = (files: number, L = RIDER_LARGE): Car[] =>
   Array.from({ length: files }, (_, k): Car => {
     const cart = k % 6 === 3,
       // (Two abreast, not in step.)
       side = (k % 2 ? 1 : -1) * 0.007;
     return {
-      back: k * 0.021 + (k % 3) * 0.004,
+      back: L * (k * 0.021 + (k % 3) * 0.004),
       parts: cart
         ? [
             {
               mesh: "box",
               color: [0.34, 0.25, 0.16],
-              along: 0,
-              up: 0.006,
-              len: 0.03,
-              wide: 0.02,
-              tall: 0.012,
+              along: L * 0,
+              up: L * 0.006,
+              len: L * 0.03,
+              wide: L * 0.02,
+              tall: L * 0.012,
             },
             {
               mesh: "box",
               color: [0.78, 0.74, 0.62],
-              along: 0,
-              up: 0.018,
-              len: 0.024,
-              wide: 0.018,
-              tall: 0.012,
+              along: L * 0,
+              up: L * 0.018,
+              len: L * 0.024,
+              wide: L * 0.018,
+              tall: L * 0.012,
             },
             {
               mesh: "box",
               color: DRAB[k % 3]!,
-              along: 0.026,
-              up: 0.004,
-              len: 0.01,
-              wide: 0.01,
-              tall: 0.022,
+              along: L * 0.026,
+              up: L * 0.004,
+              len: L * 0.01,
+              wide: L * 0.01,
+              tall: L * 0.022,
             },
           ]
         : [
             {
               mesh: "box",
               color: DRAB[k % 3]!,
-              along: side,
-              up: 0.004,
-              len: 0.01,
-              wide: 0.01,
-              tall: k % 4 === 2 ? 0.014 : 0.022,
+              along: L * side,
+              up: L * 0.004,
+              len: L * 0.01,
+              wide: L * 0.01,
+              tall: L * (k % 4 === 2 ? 0.014 : 0.022),
             },
             ...(k % 2
               ? [
                   {
                     mesh: "box" as const,
                     color: [0.78, 0.74, 0.62] as Rgb,
-                    along: side - 0.004,
-                    up: 0.02,
-                    len: 0.012,
-                    wide: 0.012,
-                    tall: 0.01,
+                    along: L * (side - 0.004),
+                    up: L * 0.02,
+                    len: L * 0.012,
+                    wide: L * 0.012,
+                    tall: L * 0.01,
                   },
                 ]
               : []),
@@ -792,7 +792,8 @@ export class LandTraffic {
   nth(kind: CarrierKind, k: number): { x: number; y: number; z: number } | null {
     const c = this.carriers.filter((x) => x.kind === kind)[k];
     if (!c) return null;
-    const at = alongWay(c.way, c.start + c.pace * this.gone, c.aside),
+    const head = c.start + c.pace * this.gone,
+      at = alongWay(c.way, c.oneWay ? oneWayAt(c, head) : head, c.aside),
       on = this.ground;
     return {
       x: at.x,
