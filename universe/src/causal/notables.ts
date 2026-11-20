@@ -65,6 +65,8 @@ function did(world: World, d: Deed, land: string): string | null {
       return `led ${n || "the faithful"} out of the faith they were of`;
     case "ideas.work":
       return `made ${n ? `"${n}"` : "a work"} in ${land}`;
+    case "ideas.brought":
+      return `brought the teaching of ${n || "a school"} to ${land}`;
     case "ideas.founded":
       return `founded ${n || "a school of thought"} in ${land}`;
     case "ideas.split":

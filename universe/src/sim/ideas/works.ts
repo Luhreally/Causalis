@@ -14,6 +14,7 @@ import {
   YEAR,
   defineEventType,
   defineStream,
+  hashString,
   kindCodeOf,
   yearOfMoment,
   type CauseRef,
@@ -30,6 +31,7 @@ import {
   WORK,
   WORK_FORMS,
   satOf,
+  standsOut,
   workForm,
   workRenown,
   workRenownNow,
@@ -114,10 +116,15 @@ export function worksYear(ctx: PopulationContext, t: SimTime): void {
     if (type.startsWith("ideas.") || type.startsWith("notable.")) continue;
     const cell = serialOf(e.place),
       now = store.worthIn(cell);
-    if (now && !now.used && year - now.y <= WORK.back && now.w > e.importance) continue;
     if (now && now.e === e.id) continue;
-    store.setWorth(cell, { e: e.id, type, w: e.importance, y: year, used: false });
+    // (What stands out is weighed against the land's own history: a kind of thing it has been through often weighs little.)
+    const kind = hashString(type) & 0xffff,
+      w = standsOut(e.importance, store.toldBefore(cell, kind));
+    store.tell(cell, kind);
+    if (now && !now.used && year - now.y <= WORK.back && now.w >= w) continue;
+    store.setWorth(cell, { e: e.id, type, w, y: year, used: false });
   }
+  if (year % WORK.back === 0) store.fadeTold();
   store.seen = year;
 
   // 2. Makers.

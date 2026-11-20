@@ -137,6 +137,40 @@ function teachingOf(
   };
 }
 
+/**
+ * The school nearest in teaching to `creed` that one in a land could have heard of (held in a land of their realm, or in a
+ * land beside theirs), where it lies nearer than would make a school of its own; and a land it is held in. Null: none.
+ */
+function heardOf(
+  ctx: PopulationContext,
+  store: SchoolsStore,
+  cell: number,
+  realm: Polity,
+  creed: readonly number[],
+  not: number,
+): { school: School; via: number } | null {
+  const g = ctx.generated;
+  let best: School | null = null,
+    bestD: number = IDEA.apart,
+    via = cell;
+  const weigh = (c: number): void => {
+    const h = store.of(c);
+    if (!h || h.school === not) return;
+    const s = store.get(h.school);
+    if (!s) return;
+    const d = ideaApart(creed, s.creed);
+    if (d < bestD || (d === bestD && best !== null && s.id < best.id)) {
+      best = s;
+      bestD = d;
+      via = c;
+    }
+  };
+  for (const c of realm.members) weigh(c);
+  for (let k = g.grid.offsets[cell]!; k < g.grid.offsets[cell + 1]!; k++)
+    weigh(g.grid.neighbours[k]!);
+  return best ? { school: best, via } : null;
+}
+
 function found(
   ctx: PopulationContext,
   store: SchoolsStore,
@@ -153,10 +187,25 @@ function found(
   const unmet = ideaUnmet(teaching.gap),
     chance = IDEA.found * satOf(standing) * unmet;
   if (!(u < chance) || teaching.creed.every((x) => !x)) return;
-  // (What they would teach is what their land already holds, or near it: they teach that, and found nothing.)
+  // (What they would teach is what their land already holds, or near it: they teach that, and found nothing. And where a
+  // school they could have heard of, held in their realm or beside their land, already teaches it, they bring that school
+  // home by its name: a teaching is one school however many teach it.)
   const holds = store.of(n.home),
     heldNow = holds ? store.get(holds.school) : undefined;
   if (heldNow && ideaApart(teaching.creed, heldNow.creed) < IDEA.apart) return;
+  const known = heardOf(ctx, store, n.home, realm, teaching.creed, heldNow?.id ?? -1);
+  if (known) {
+    store.set(n.home, { school: known.school.id, since: year, via: known.via });
+    creditNotable(world, n.id, {
+      y: year,
+      d: holy ? DOMAIN.faith : DOMAIN.knowledge,
+      w: "ideas.brought",
+      e: known.school.event,
+      g: Math.round(NOTE.line / 10),
+      n: known.school.name,
+    });
+    return;
+  }
   const o = orderOf(world)!.of(realm.ref)!,
     lead = ideaLeads(teaching.creed),
     id = store.mint(),
@@ -355,16 +404,21 @@ export function ideasYear(ctx: PopulationContext, t: SimTime): void {
       if (!leader && (lands.length < IDEA.splitLands || since < IDEA.splitYears)) continue;
       const first = leader?.home ?? lands[0]!,
         realm = polities.of(first),
-        teaching = realm && realm.ended === null ? teachingOf(world, realm, false) : null,
-        // (Half its elder's leanings, half what the breaking land's realm lacks; its elder's alone where no group there wants.)
-        creed = s.creed.map((v, k) =>
-          teaching ? Math.round((v + teaching.creed[k]!) / 2) : Math.round(v * 0.8),
-        );
-      // (A breaking that would teach all but what its elder does is no breaking.)
-      if (ideaApart(creed, s.creed) < IDEA.apart) continue;
+        teaching = realm && realm.ended === null ? teachingOf(world, realm, false) : null;
+      // (Far speech alone breaks no school: it breaks where those far lands' own realm wants otherwise than it teaches, by
+      // as much as would found a school of its own. Then it teaches half its elder's leanings, half what that realm lacks.)
+      if (!realm || !teaching || ideaApart(teaching.creed, s.creed) < IDEA.apart) continue;
+      const creed = s.creed.map((v, k) => Math.round((v + teaching.creed[k]!) / 2));
+      store.markSplit(s.id, year);
+      // (And where a school they could have heard of already teaches that, they go over to it: no new school.)
+      const known = heardOf(ctx, store, first, realm, creed, s.id);
+      if (known) {
+        for (const c of lands)
+          store.set(c, { school: known.school.id, since: year, via: known.via });
+        continue;
+      }
       const id = store.mint(),
         name = schoolName(world, store, creed, first);
-      store.markSplit(s.id, year);
       const event = world.events.emit({
         type: IDEA_EVENTS.split.type,
         subjects: [schoolRef(id), schoolRef(s.id)],

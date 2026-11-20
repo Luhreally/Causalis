@@ -379,7 +379,16 @@ function landRoads(
           ? Math.max(railed, e.since)
           : null,
       traffic: e.traffic,
-      ...(e.pilgrims ? { pilgrims: e.pilgrims } : {}),
+      ...(e.pilgrims
+        ? {
+            pilgrims: {
+              ...e.pilgrims,
+              color: realmColor(
+                `${e.pilgrims.of}:${e.pilgrims.of.startsWith("idea:") ? "school" : "faith"}`,
+              ),
+            },
+          }
+        : {}),
     };
     return {
       ...bare,

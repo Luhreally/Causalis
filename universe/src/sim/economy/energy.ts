@@ -444,7 +444,11 @@ export function energyInputs(
     k = knowingOf(ctx, p.cell),
     fire = meansOfWorld(g).burns,
     people = p.total(),
-    standing = woodsRead(ctx, p.cell).now * site.areaKm2,
+    // (Less the woods its people keep from the axe: rules/lessons.ts kept-woods. All of it where none is kept.)
+    wilds = ecologyOf(ctx.world).get(p.cell),
+    spared =
+      wilds?.asideWoods && wilds.forest > 0 ? Math.max(0, 1 - wilds.asideWoods / wilds.forest) : 1,
+    standing = woodsRead(ctx, p.cell).now * site.areaKm2 * spared,
     own = k.engine ? ownFuel(ctx, p.cell, n.airHolds, k) : null;
   return {
     people,

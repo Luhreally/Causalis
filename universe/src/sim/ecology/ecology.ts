@@ -33,7 +33,7 @@ import {
 import { BIOME, isProvinceWorld, lives, offworldSite, type HomeWorld } from "../../gen/index.ts";
 import { OCC, PRODUCTIVITY, regrowthPace } from "../../rules/index.ts";
 import { shiftNow } from "../planet/motion.ts";
-import type { Capacity } from "../population/model.ts";
+import { FARM_YIELD, type Capacity } from "../population/model.ts";
 import { provinceCapacity, type PopulationContext } from "../population/systems.ts";
 import { loreOf } from "../lore/lore.ts";
 import { GroundStore, groundYear } from "./ground.ts";
@@ -48,6 +48,8 @@ export const ECOLOGY_EVENTS = {
   huntersGone: defineEventType("ecology.hunters-gone", 4),
   flocksTaken: defineEventType("ecology.flocks-taken", 3),
   cleared: defineEventType("ecology.forest-cleared", 3),
+  /** A land's woods still gone, a generation on: told while they stay cleared (what a people's lessons of them rest on). */
+  woodsGone: defineEventType("ecology.woods-gone", 2),
   worn: defineEventType("ecology.soil-worn", 3),
   multiplied: defineEventType("ecology.game-multiplied", 3),
   grainEaten: defineEventType("ecology.grain-eaten", 3),
@@ -284,6 +286,15 @@ export function grainLost(w: Wilds): number {
   return GRAIN_LOSS * Math.max(0, w.small - 1);
 }
 
+/** A land whose woods stay cleared is told so again once in so many years. */
+export const WOODS_GONE_EVERY = 20;
+
+/** The most of a land's woods its fields can take: its tillable ground against the ground its woods stood on (0 … 1). */
+export function fieldsTake(c: Capacity, firstForest: number): number {
+  if (!(firstForest > 0) || !(c.areaKm2 > 0)) return 1;
+  return Math.min(1, c.farm / (FARM_YIELD * c.areaKm2) / firstForest);
+}
+
 /** What the wild's food is worth as the land's waters stand (fished hard, they give less). */
 export function waterYield(w: Wilds): number {
   return w.fish < 0 ? 1 : 0.85 + 0.15 * w.fish;
@@ -335,6 +346,12 @@ export function stepWilds(
   keepSoil = false,
   /** How fast its woods come back, by what its ground grows (rules/succession.ts; the temperate woods' pace where not given). */
   regrowth = FOREST_REGROWTH,
+  /**
+   * The most of its woods a land's fields can take (0 … 1): its ground that can be put under fields, against the ground its
+   * woods stood on. (Fields at full use took every wood of every land: first light at 1,000 had no forest standing in any of
+   * its 411 wooded lands, though under half of a wooded land's ground can be tilled at all: rules of the biomes, ARABLE.)
+   */
+  fields = 1,
 ): void {
   // A people living close to what the wild yields (taking more than three-fifths of it)
   // thin it, the more the harder they press; a wild pressed less grows back toward what
@@ -352,7 +369,7 @@ export function stepWilds(
   w.wild = Math.max(0.05, Math.min(w.wild, ground * top));
   // The forest gives way to the fields fast, and comes back slowly — slower still where
   // the game has multiplied and browses its saplings.
-  const standing = 1 - farmed,
+  const standing = 1 - farmed * fields,
     browsed = 1 - Math.min(0.8, 3 * Math.max(0, w.wild - 1));
   w.forest =
     standing < w.forest
@@ -473,7 +490,16 @@ export function ecologyYear(ctx: PopulationContext, t: SimTime): void {
       herding,
       keepSoil,
       regrowth,
+      fieldsTake(c, w.firstForest),
     );
+    // (Its woods still gone a generation on, told again in the land's own year of twenty: a loss that stays is felt again.)
+    if (w.cleared && (year + p.cell) % WOODS_GONE_EVERY === 0 && w.forest < 0.3)
+      world.events.emit({
+        type: ECOLOGY_EVENTS.woodsGone.type,
+        place: p.ref,
+        causes: [{ ref: w.cleared, role: "trigger", weight: 1 }],
+        data: { forest: Math.round(w.forest * 100) },
+      });
     store.set(w);
     // (And its woods' age, where it has woods: stands.ts.)
     if (w.firstForest > 0) stepStand(world, p.cell, before, w.forest);

@@ -198,3 +198,9 @@ registerEventWords(ECOLOGY_EVENTS.worn.type, (world, e) => {
   const left = num(e.data, "soil");
   return `The soils of ${landWords(world, e.place)} wore thin under the plough${left === null ? "" : `: ${left} parts in a hundred of their strength`}, ${year(e.t)}`;
 });
+
+registerEventWords(
+  "ecology.woods-gone",
+  (world, e) =>
+    `The woods of ${landWords(world, e.place)} were still gone, a generation after they were cleared, year ${yearOfMoment(e.t)}`,
+);

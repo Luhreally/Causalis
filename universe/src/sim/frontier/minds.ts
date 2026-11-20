@@ -33,6 +33,7 @@ import {
 import { knows, loreOf } from "../lore/lore.ts";
 import { politiesOf, type Polity } from "../polity/polity.ts";
 import { addsReach } from "../order/order.ts";
+import { mindsSitAtCourt } from "../court/court.ts";
 import { homePlanet } from "../planet/store.ts";
 import { cultureOf } from "../culture/culture.ts";
 import { deathsIn } from "../acts/disasters.ts";
@@ -271,6 +272,11 @@ export function installMinds(world: World, ctx: () => PopulationContext): MindsS
   world.system({ key: "209.frontier.minds", every: YEAR, run: (t) => mindsYear(ctx(), t) });
   // (A seat its minds counsel reaches farther; one whose minds went their own way, less: rules/beyond.ts mindCounsel. Nothing
   // where a realm's minds are not yet past their makers.)
+  // (And while kept they sit at its court, one of its figures: sim/court/court.ts.)
+  mindsSitAtCourt((w, realm) => {
+    const row = mindsOf(w)?.rows.get(realm);
+    return row && row.passed && row.name && !row.free ? { name: row.name, since: row.begun } : null;
+  });
   addsReach((c, p) => {
     const row = mindsOf(c.world)?.rows.get(p.ref);
     if (!row || !row.passed || row.past < 0) return [];
