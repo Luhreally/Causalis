@@ -19,7 +19,16 @@ import type {
 } from "../bridge/index.ts";
 import { REGION_RELIEF, type RegionTree } from "./region.ts";
 import { outlineAt, sprawlFar, sprawlOf, type TownScene } from "./town.ts";
-import { LAND_SCALE, townReach } from "../bridge/index.ts";
+import {
+  BLOCK_D,
+  BLOCK_W,
+  GROUND,
+  GroundClaims,
+  LAND_SCALE,
+  kindsOf,
+  townReach,
+  wallAt,
+} from "../bridge/index.ts";
 
 export { LAND_SCALE };
 /** Region units to a town's metre: across, and up (the land's own relief). */
@@ -76,13 +85,18 @@ export function tileOf(g: LandGround, x: number, z: number): number {
  * (the greatest of its three weights), and whether that tile is water (render/region.ts cuts a facet of water and land so).
  */
 export function facetWet(g: LandGround, x: number, z: number): boolean {
+  return facetWater(g, x, z) !== 0;
+}
+
+/** The water the land's map draws at a point (0 land, 1 sea, 2 river, 3 lake: of the tile whose facet share it lies in). */
+export function facetWater(g: LandGround, x: number, z: number): number {
   const half = ((g.size - 1) * g.tileKm) / 2,
     fx = Math.max(0, Math.min(g.size - 1 - 1e-6, (x + half) / g.tileKm)),
     fz = Math.max(0, Math.min(g.size - 1 - 1e-6, (z + half) / g.tileKm)),
     i = Math.floor(fx),
     j = Math.floor(fz),
-    a = j * g.size + i;
-  return g.water[a + facetOwner(fx - i, fz - j)[0] + facetOwner(fx - i, fz - j)[1] * g.size]! !== 0;
+    o = facetOwner(fx - i, fz - j);
+  return g.water[j * g.size + i + o[0] + o[1] * g.size]!;
 }
 
 /**
@@ -169,16 +183,22 @@ const FIELD_W = 0.5,
   FIELD_D = 0.34,
   HEDGE = 0.05;
 
-/** Fields already laid on a land, by the square kilometre they fall in. */
-export type FieldsLaid = Map<string, { x: number; z: number }[]>;
-/** How near the middles of two towns' fields may come (region units: they would overlap). */
-const FIELD_APART = 0.42;
+/** The cell a land's ground is read by (region units: 60 m on the map, less than a field or a road is across). */
+export const LAND_STEP = 0.06;
+/** Half the breadth of ground a road takes on a land (region units: its paving and a verge). */
+export const ROAD_TAKES = 0.06;
+
+/** A land's ground as it is taken (bridge/claims.ts): its water first, read from its own tiles as its map draws them. */
+export function landClaims(g: LandGround, undersea = false): GroundClaims {
+  return new GroundClaims(LAND_STEP, undersea ? () => false : (x, z) => facetWet(g, x, z));
+}
 
 /**
  * A town's fields (none where its land does not sow): more for more people, a patchwork laid
  * along its streets' way about its edge, the nearest first — each on dry ground of some soil and
- * not up a hillside, none on another town's ground or fields (`laid`: the fields of the towns laid
- * before it, which this town's are added to).
+ * not up a hillside, on ground no one has taken (`claims`: the land's water, its towns' ground, its roads, and the fields of
+ * the towns laid before it, which this town's take their ground in), and only where this town is the nearest that tills it
+ * (`others`: the rest of its land's towns, each as far as it reaches): neighbours share the land between them.
  */
 export function landFields(
   g: LandGround,
@@ -187,9 +207,11 @@ export function landFields(
   z: number,
   reach: number,
   others: readonly { x: number; z: number; r: number }[] = [],
-  laid: FieldsLaid = new Map(),
+  claims: GroundClaims = landClaims(g),
   /** How far its drawing reaches toward a bearing (region units: landEdge), where its outline is read. */
   edge?: (a: number) => number,
+  /** Whose its fields are among the land's holders (its own built ground it may lie beside). */
+  owner = -1,
 ): LandField[] {
   if (!town.fields || town.population <= 0) return [];
   const n = Math.max(4, Math.min(MOST_FIELDS, Math.round(Math.sqrt(town.population) * 0.9))),
@@ -214,24 +236,22 @@ export function landFields(
     }
   cells.sort((a, b) => a.r - b.r || a.i - b.i || a.j - b.j);
   const out: LandField[] = [],
-    near = (fx: number, fz: number) => {
-      const i = Math.floor(fx),
-        j = Math.floor(fz);
-      for (let di = -1; di <= 1; di++)
-        for (let dj = -1; dj <= 1; dj++)
-          for (const f of laid.get(`${i + di},${j + dj}`) ?? [])
-            if (Math.hypot(f.x - fx, f.z - fz) < FIELD_APART) return true;
-      return false;
-    };
+    // (Its own fields lie side by side on its own lattice, a hedge between: they may lie beside each other.)
+    mine = kindsOf(GROUND.field);
   for (const c of cells) {
     if (out.length >= n) break;
     const u = c.i * FIELD_W,
       v = c.j * FIELD_D,
       fx = x + u * ca + v * sa,
       fz = z - u * sa + v * ca,
-      t = tileOf(g, fx, fz);
-    if (g.water[t] !== 0 || facetWet(g, fx, fz) || g.fertility[t]! < 40 || near(fx, fz)) continue;
-    if (others.some((o) => Math.hypot(fx - o.x, fz - o.z) < o.r + 0.3)) continue;
+      t = tileOf(g, fx, fz),
+      w = FIELD_W - HEDGE - 0.05 * unit(seed, c.i, c.j),
+      d = FIELD_D - HEDGE - 0.04 * unit(seed, c.j, c.i);
+    if (g.water[t] !== 0 || g.fertility[t]! < 40) continue;
+    // (Another town nearer, as far as each reaches: its ground to till, not this one's.)
+    const mineBy = Math.hypot(fx - x, fz - z) - reach;
+    if (others.some((o) => Math.hypot(fx - o.x, fz - o.z) - o.r < mineBy)) continue;
+    if (!claims.free(fx, fz, w, d, axis, owner, mine)) continue;
     // (Not up a hillside: the ground about it within a field's length of level.)
     const y = groundAt(g, fx, fz),
       steep = [0, 1, 2, 3].some((q) => {
@@ -239,22 +259,191 @@ export function landFields(
         return Math.abs(groundAt(g, fx + 0.3 * Math.cos(b), fz + 0.3 * Math.sin(b)) - y) > 0.12;
       });
     if (steep) continue;
-    out.push({
-      x: fx,
-      z: fz,
-      w: FIELD_W - HEDGE - 0.05 * unit(seed, c.i, c.j),
-      d: FIELD_D - HEDGE - 0.04 * unit(seed, c.j, c.i),
-      yaw: axis,
-      sown: unit(seed, c.i * 31 + c.j, 4) * 0.12,
-    });
+    out.push({ x: fx, z: fz, w, d, yaw: axis, sown: unit(seed, c.i * 31 + c.j, 4) * 0.12 });
   }
-  for (const f of out) {
-    const key = `${Math.floor(f.x)},${Math.floor(f.z)}`,
-      list = laid.get(key);
-    if (list) list.push({ x: f.x, z: f.z });
-    else laid.set(key, [{ x: f.x, z: f.z }]);
-  }
+  for (const f of out) claims.rect(f.x, f.z, f.w, f.d, f.yaw, GROUND.field, owner);
   return out;
+}
+
+/**
+ * Whether a piece of road (linePieces': middle x, y, z, length, heading) is drawn on its land's ground as laid: not where
+ * it runs over a town's built ground or its walls, where the town's own streets carry it (its ends and its middle read).
+ */
+export function roadClear(claims: GroundClaims | null): (piece: readonly number[]) => boolean {
+  if (!claims) return () => true;
+  return (q) => {
+    const dx = (Math.sin(q[4]!) * q[3]!) / 2,
+      dz = (Math.cos(q[4]!) * q[3]!) / 2;
+    for (const t of [-1, 0, 1]) {
+      const k = claims.kindAt(q[0]! + t * dx, q[2]! + t * dz);
+      if (k === GROUND.built || k === GROUND.wall) return false;
+    }
+    return true;
+  };
+}
+
+/** How far a band's camp spreads about its middle on its land's map (region units: its tents' rings and its fire). */
+export const CAMP_REACH = 0.45;
+
+/**
+ * Where a band's camp is pitched on its land's map (region units): a keyed spot within its tile, not all on the tiles'
+ * grid; where that ground is taken (`free`: the land's ground as laid, view/land.ts landLaid), the nearest free ground
+ * about it, ring by ring; none free, the keyed spot.
+ */
+export function campSpot(
+  g: LandGround,
+  camp: { readonly id: number; readonly home: number; readonly tile: number },
+  free?: (x: number, z: number, r: number) => boolean,
+): { x: number; z: number; seed: number } {
+  const m = tileMiddle(g, camp.tile),
+    seed = ((camp.id * 2654435761) ^ (camp.home * 40503)) >>> 0,
+    x = m.x + ((seed % 1000) / 1000 - 0.5) * 0.6 * g.tileKm,
+    z = m.z + (((seed >>> 10) % 1000) / 1000 - 0.5) * 0.6 * g.tileKm;
+  if (!free || free(x, z, CAMP_REACH)) return { x, z, seed };
+  for (let ring = 1; ring <= 8; ring++)
+    for (let k = 0; k < 8 + 2 * ring; k++) {
+      const a = (k / (8 + 2 * ring)) * 2 * Math.PI + (seed % 7) * 0.3,
+        px = x + Math.cos(a) * ring * 0.3,
+        pz = z + Math.sin(a) * ring * 0.3;
+      if (free(px, pz, CAMP_REACH)) return { x: px, z: pz, seed };
+    }
+  return { x, z, seed };
+}
+
+/** A town as its land draws it, for laying what lies about it: its square, how far it reaches, and toward each bearing. */
+export type LandDrawn = {
+  readonly x: number;
+  readonly z: number;
+  readonly reach: number;
+  readonly edge?: (a: number) => number;
+  /** The ways its own streets leave it by (TownSite's roads), which the land's roads come in on. */
+  readonly site?: TownSite;
+  /** Its blocks drawn (metres about its square) and how many: the ground its lots stand on. */
+  readonly blocks?: {
+    readonly x: Float32Array;
+    readonly z: Float32Array;
+    readonly yaw: Float32Array;
+  };
+  readonly count?: number;
+  /** Its walls' line as they stand (bridge/wall.ts: metres out toward each bearing; absent: none). */
+  readonly wall?: Float32Array;
+};
+
+/**
+ * A road's way between the towns it joins (null: none to draw): round the water over the dry ground, into each end town
+ * along the street its own streets were laid by, cut at their edges. `lines` keeps each road's way over the land once.
+ */
+export function landRoadOut(
+  g: LandGround,
+  road: LandRoad,
+  drawn: (ref: string) => LandDrawn | undefined,
+  lines: Map<string, { x: number; z: number }[]>,
+  undersea = false,
+): { x: number; z: number }[] | null {
+  const k = `${road.from}-${road.to}`;
+  let line = lines.get(k);
+  if (!line) lines.set(k, (line = roadLine(g, roadTiles(g, road.from, road.to, undersea))));
+  if (line.length < 2) return null;
+  // (Cut where it comes into its ends' towns' ground, then into each along its main street, the bearing its own streets
+  // were laid by, to where its outline comes that way: the town's view shows the same, and no lot of it stands on the road.)
+  const ends = [road.a, road.b].flatMap((ref) => {
+    const d = ref ? drawn(ref) : undefined;
+    return d ? [{ x: d.x, z: d.z, r: d.reach * 0.92 }] : [];
+  });
+  let met: { x: number; z: number }[] = roadOutside(line, ends);
+  if (met.length < 2) met = [line[0]!, line.at(-1)!];
+  // (Over a lake or the sea a road does not go: where its way in along the street would cross them, it comes in as it
+  // came over the land.)
+  const overWater = (line: readonly { x: number; z: number }[]) =>
+    !undersea &&
+    line.some((p, k) => {
+      const q = line[k + 1];
+      if (!q) return false;
+      const n = Math.ceil(Math.hypot(q.x - p.x, q.z - p.z) / LAND_STEP);
+      for (let s = 1; s < n; s++) {
+        const w = facetWater(g, p.x + ((q.x - p.x) * s) / n, p.z + ((q.z - p.z) * s) / n);
+        if (w === 1 || w === 3) return true;
+      }
+      return false;
+    });
+  [road.a, road.b].forEach((ref, end) => {
+    const d = ref ? drawn(ref) : undefined,
+      far = end === 0 ? road.to : road.from,
+      way = d?.site?.roads.find((r) => r.to === far);
+    if (!d || !way) return;
+    const into = roadIntoTown(
+      met,
+      { x: d.x, z: d.z, r: d.reach },
+      way.bearing,
+      end === 1,
+      d.edge ? Math.min(d.reach * 0.97, d.edge(way.bearing) + LAND_STEP) : d.reach * 0.97,
+    );
+    // (Only what it adds is read: its first three points from that end.)
+    const added = end === 1 ? into.slice(-3) : into.slice(0, 3);
+    if (!overWater(added)) met = into;
+  });
+  const out = met;
+  return out.length < 2 ? null : out;
+}
+
+/**
+ * What a land lays on its ground about its towns (bridge/claims.ts): its water first (its own tiles); then each town's
+ * built ground out to its outline, the greatest first; then its roads; then its fields, the greatest town's first, each
+ * field only where its town is the nearest that tills it and the ground is free. `roads`: the roads' ways as drawn.
+ */
+export function landLaid(
+  g: LandGround,
+  plan: Pick<LandPlan, "towns" | "undersea">,
+  drawn: (ref: string) => LandDrawn | undefined,
+  middle: (town: LandTown) => { x: number; z: number },
+  roads: readonly (readonly { x: number; z: number }[])[],
+): { claims: GroundClaims; fields: LandField[]; owner: Map<string, number> } {
+  const claims = landClaims(g, !!plan.undersea),
+    order = [...plan.towns].sort((a, b) => b.population - a.population || (a.ref < b.ref ? -1 : 1)),
+    owner = new Map(order.map((t, i) => [t.ref, i])),
+    circles = order.map((town) => {
+      const d = drawn(town.ref),
+        m = middle(town);
+      return { ref: town.ref, x: m.x, z: m.z, r: d?.reach ?? 0.3, edge: d?.edge };
+    });
+  // (Each town's built ground, as far out as it is drawn each way: the greatest first, so that where two towns' ground
+  // meets, the greater holds it.)
+  circles.forEach((c, i) => {
+    const d = drawn(c.ref);
+    if (!d) return;
+    claims.star(c.x, c.z, c.edge ?? (() => c.r), GROUND.built, i);
+    // (Its walls' line and what it holds, where they stand out past its lots.)
+    const line = d.wall;
+    if (line)
+      claims.star(c.x, c.z, (a) => wallAt(line, a) * LAND_ACROSS + ROAD_TAKES, GROUND.wall, i);
+    // (And every block it draws, where its outline between two bearings comes in past one.)
+    for (let b = 0; d.blocks && b < (d.count ?? 0); b++)
+      claims.rect(
+        c.x + d.blocks.x[b]! * LAND_ACROSS,
+        c.z + d.blocks.z[b]! * LAND_ACROSS,
+        BLOCK_W * LAND_ACROSS,
+        BLOCK_D * LAND_ACROSS,
+        d.blocks.yaw[b]!,
+        GROUND.built,
+        i,
+      );
+  });
+  for (const line of roads) claims.line(line, ROAD_TAKES, GROUND.road, -1);
+  const fields = order.flatMap((town, i) => {
+    const c = circles[i]!;
+    return landFields(
+      g,
+      town,
+      c.x,
+      c.z,
+      c.r,
+      circles.filter((o) => o.ref !== town.ref),
+      claims,
+      c.edge,
+      i,
+    );
+  });
+  return { claims, fields, owner };
 }
 
 /** What a field shows at a share of the year (0 midwinter): ploughed, green, ripe, stubble. */
@@ -336,8 +525,12 @@ export function roadTiles(
           nj = j + dj;
         if (ni < 0 || nj < 0 || ni >= g.size || nj >= g.size) continue;
         const s = nj * g.size + ni,
-          w = g.water[s]!;
-        if (done[s] || ((undersea ? w !== 1 : w === 1 || w === 3) && s !== b)) continue;
+          w = g.water[s]!,
+          barred = (q: number) =>
+            undersea ? g.water[q] !== 1 : g.water[q] === 1 || g.water[q] === 3;
+        if (done[s] || (barred(s) && s !== b)) continue;
+        // (Not across a corner of the water: a step slantwise passes over the two tiles beside it, as the map draws them.)
+        if (di && dj && (barred(j * g.size + ni) || barred(nj * g.size + i))) continue;
         const run = (di && dj ? Math.SQRT2 : 1) * g.tileKm,
           climb = Math.abs(g.heights[s]! - g.heights[t]!) / run,
           step = run * (1 + 5 * climb) + (w === 2 ? 2 * g.tileKm : 0),
@@ -515,6 +708,8 @@ export function roadIntoTown(
   town: { x: number; z: number; r: number },
   bearing: number,
   atEnd = false,
+  /** How far out from its square the road meets it (default: nearly its whole reach). */
+  enter = town.r * 0.97,
 ): { x: number; z: number }[] {
   const way = atEnd ? [...line].reverse() : [...line],
     far = 2 * town.r;
@@ -523,7 +718,7 @@ export function roadIntoTown(
   const c = Math.cos(bearing),
     s = Math.sin(bearing),
     out = [
-      { x: town.x + c * town.r * 0.97, z: town.z + s * town.r * 0.97 },
+      { x: town.x + c * enter, z: town.z + s * enter },
       { x: town.x + c * town.r * 1.4, z: town.z + s * town.r * 1.4 },
       ...way.slice(k),
     ];

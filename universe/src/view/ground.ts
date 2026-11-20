@@ -6,7 +6,7 @@
 // reach off them (a beast's half-length as drawn), so its body does not pass into a wall.
 // In a town built lot by lot (Phase 23), every block that holds anything and the lengths of its
 // walls stand solid too, and a walk goes by its streets (streets.ts).
-import { LAKE_R, LOT_D, LOT_W, type VillagePlan } from "../bridge/index.ts";
+import { LOT_D, LOT_W, waterR, type VillagePlan } from "../bridge/index.ts";
 import { houseLook } from "./village.ts";
 import { streetsOf, type Streets } from "./streets.ts";
 
@@ -48,7 +48,7 @@ export function villageGround(plan: VillagePlan): Ground {
 }
 
 function groundOf(plan: VillagePlan): Ground {
-  const lake = plan.water ? { x: plan.water.x, z: plan.water.z, r: LAKE_R } : null;
+  const lake = plan.water ? { x: plan.water.x, z: plan.water.z, r: waterR(plan.water) } : null;
   if (plan.town) {
     // A town's: its blocks and walls, and the watched homes each its lot's whole footprint (as
     // much as any home on it is built to, wall to wall along its street); what it reaches out

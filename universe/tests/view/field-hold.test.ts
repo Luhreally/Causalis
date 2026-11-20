@@ -262,7 +262,7 @@ test("the land's map lays its fields in the green between its fingers, nearer it
       plan: null,
       key: 1,
     } as LandTown,
-    fields = landFields(g, town, 8.5, 8.5, far, [], new Map(), edge),
+    fields = landFields(g, town, 8.5, 8.5, far, [], undefined, edge),
     within = fields.filter((f) => Math.hypot(f.x - 8.5, f.z - 8.5) < 0.7 * far);
   assert.equal(b.x.length, 40);
   assert.ok(fields.length > 20, `${fields.length} fields`);

@@ -13,6 +13,7 @@ import {
   LOT_W,
   townLots,
   townReach,
+  wetShares,
   woundStage,
   type ColonyLook,
   type HomeMoney,
@@ -194,6 +195,41 @@ const CROWNS = {
 } as const;
 /** A village scene's units per metre (its plans are in metres). */
 export const VILLAGE_METRE = M;
+
+/**
+ * One flat mesh of four-cornered pieces lying at height `y` (each piece four (x, z) corners in metres, scaled by `scale`
+ * to the scene's units), each turned to face up: a land's water shares as a town's view draws them.
+ */
+function sharesMesh(stage: Stage, quads: Float32Array, scale: number, y: number): pc.Mesh {
+  const positions: number[] = [],
+    normals: number[] = [],
+    indices: number[] = [];
+  for (let q = 0; q + 7 < quads.length; q += 8) {
+    const base = positions.length / 3;
+    for (let k = 0; k < 4; k++) {
+      positions.push(quads[q + 2 * k]! * scale, y, quads[q + 2 * k + 1]! * scale);
+      normals.push(0, 1, 0);
+    }
+    for (const [a, b, c] of [
+      [0, 1, 2],
+      [0, 2, 3],
+    ] as const) {
+      const ax = quads[q + 2 * a]!,
+        az = quads[q + 2 * a + 1]!,
+        up =
+          (quads[q + 2 * b + 1]! - az) * (quads[q + 2 * c]! - ax) -
+          (quads[q + 2 * b]! - ax) * (quads[q + 2 * c + 1]! - az);
+      if (up >= 0) indices.push(base + a, base + b, base + c);
+      else indices.push(base + a, base + c, base + b);
+    }
+  }
+  const mesh = new pc.Mesh(stage.device);
+  mesh.setPositions(positions);
+  mesh.setNormals(normals);
+  mesh.setIndices(indices);
+  mesh.update();
+  return mesh;
+}
 /** The grass of a battle's field before a town (laid flat: no ridge to colour). */
 const PLACED_GRASS: Rgb = [0.42, 0.56, 0.3];
 /** How many a side a village's battle draws, by the setting's detail (M202: hosts the size of a town's). */
@@ -294,6 +330,8 @@ export class VillageScene {
   private readonly stage: Stage;
   private readonly root = new pc.Entity("village");
   private plan: VillagePlan | null = null;
+  /** Its land's water as drawn about it (one mesh a plan, destroyed with the next). */
+  private waterMesh: pc.Mesh | null = null;
   /** The sown fields, a batch to each crop (Phase 32: a patchwork), and the colour each was last drawn in. */
   private crops: { crop: Crop; batch: InstancedBatch; shown: string }[] = [];
   /** Each group's batch for each part of the figure (null: a part drawn by the person's hair). */
@@ -647,6 +685,8 @@ export class VillageScene {
         child !== this.placedLayer?.root
       )
         child.destroy();
+    this.waterMesh?.destroy();
+    this.waterMesh = null;
     this.stacks = [];
     this.dressed = [];
     this.plan = plan;
@@ -753,15 +793,30 @@ export class VillageScene {
         true,
       );
     }
-    if (plan.water)
-      disc(
-        LAKE_R * M,
-        kindWater(plan.kind)?.lake ?? [0.2, 0.4, 0.6],
-        plan.water.x * M,
-        plan.water.z * M,
-        0.014,
-        "water",
-      );
+    // Its land's water, as its land's map draws it, share by share (bridge/claims.ts wetShares): no lake laid over the
+    // land. (A people of the water's keeps its old round of water.)
+    const waterColor = kindWater(plan.kind)?.lake ?? [0.2, 0.4, 0.6];
+    if (plan.landWater?.wet) {
+      const shares = wetShares(plan.landWater, 4200);
+      if (shares.length) {
+        const mesh = sharesMesh(s, shares, M, 0.024),
+          m = flatMaterial(waterColor),
+          e = new pc.Entity("land water");
+        this.waterMesh = mesh;
+        e.addComponent("render", { meshInstances: [new pc.MeshInstance(mesh, m)] });
+        this.root.addChild(e);
+        this.dressed.push({
+          kind: "water",
+          base: waterColor,
+          paint: (c) => {
+            m.diffuse.set(c[0], c[1], c[2]);
+            m.update();
+          },
+          grass: false,
+        });
+      }
+    } else if (plan.water)
+      disc(LAKE_R * M, waterColor, plan.water.x * M, plan.water.z * M, 0.014, "water");
     // The road out (through a city, both ways; paved stone once it is paved), and the square.
     const quarters = plan.districts,
       paved = !!quarters?.paved;

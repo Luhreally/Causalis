@@ -98,7 +98,11 @@ export const LAND_SCALE = 5;
  * Whether a point of a town's ground (metres from its square) lies on its land's water (TownSite.wet): in a water tile's
  * share of the facet of its land's map it lies on.
  */
-export function wetGround(site: TownSite | null | undefined, x: number, z: number): boolean {
+export function wetGround(
+  site: Pick<TownSite, "wet" | "bank"> | null | undefined,
+  x: number,
+  z: number,
+): boolean {
   const w = site?.wet;
   if (!w) return false;
   const b = site!.bank;
@@ -334,6 +338,11 @@ export function quarterBearings(
   return { bearing, road };
 }
 
+/** The bearings a town's way out over its ground is read at, the step it is read by, and how much water a lane bridges (metres). */
+const WAYS = 144,
+  WAY_STEP = 12,
+  BRIDGED = 36;
+
 /** How far off its road's bearing a block of a quarter down a road in may lie (against WEDGE for a quarter with none). */
 const ROAD_WEDGE = 0.55;
 
@@ -513,6 +522,21 @@ export function grownBlocks(
     place: MarketPlace | undefined;
   const roadX = site.roads.map((r) => Math.cos(r.bearing)),
     roadZ = site.roads.map((r) => Math.sin(r.bearing));
+  // (Its people walk out to a block from its square over dry ground: no block across the water from it, its way out
+  // crossing more water than a lane bridges. How much water lies on the way out toward each bearing is read as it is asked.)
+  const ways = site.wet ? Array.from({ length: WAYS }, () => [0]) : null,
+    across = (bx: number, bz: number): boolean => {
+      if (!ways) return false;
+      const d = Math.hypot(bx, bz),
+        k = Math.round(((Math.atan2(bz, bx) / (2 * Math.PI) + 1) % 1) * WAYS) % WAYS,
+        run = ways[k]!,
+        a = (k / WAYS) * 2 * Math.PI;
+      while ((run.length - 1) * WAY_STEP < d) {
+        const r = run.length * WAY_STEP;
+        run.push(run.at(-1)! + (wetGround(site, r * Math.cos(a), r * Math.sin(a)) ? WAY_STEP : 0));
+      }
+      return run[Math.min(run.length - 1, Math.floor(d / WAY_STEP))]! > BRIDGED;
+    };
   const clear = (bx: number, bz: number, t: number, pad: number, b: number): boolean => {
     // (The block's axes in the town's frame: along it u = (c, -s), across it v = (s, c).)
     const c = Math.cos(t),
@@ -525,6 +549,7 @@ export function grownBlocks(
     }
     // The water and its shore; and its land's own water, as its map has it.
     if (water && Math.hypot(bx - water.x, bz - water.z) < water.r + SHORE_W + REACH) return false;
+    if (across(bx, bz)) return false;
     // (Its middle and its four corners: no lot of it on a facet the map draws as water.)
     if (
       site.wet &&
@@ -803,20 +828,41 @@ export function grownBlocks(
   };
 
   // —— A block a street can't give: the nearest open ground in its quarter, a new street from it ——
+  let hemmed = false,
+    // (Where the last search round about found ground: what lay nearer was taken then, and is taken still.)
+    round = SQUARE_R + REACH;
   const fallback = (b: number, q: number) => {
-    let r = SQUARE_R + REACH;
-    for (let o = 0; o < placed; o++) r = Math.max(r, Math.hypot(x[o]!, z[o]!) * 0.6);
-    for (let step = 0; step < 400; step++, r += 10)
-      for (let k = 0; k <= 12; k++) {
-        const a = bearing[q]! + ((k % 2 ? 1 : -1) * Math.ceil(k / 2) * (Math.PI / 8)) / 6,
-          bx = r * Math.cos(a),
-          bz = r * Math.sin(a),
-          t = -(a + Math.PI / 2);
-        if (!clear(bx, bz, t, padAt(b), b)) continue;
-        put(b, bx, bz, t, false);
-        street(q, 1, bx, bz, a, laneAt(b) / 2, false, REACH + laneAt(b), b);
-        return;
+    let from = SQUARE_R + REACH;
+    for (let o = 0; o < placed; o++) from = Math.max(from, Math.hypot(x[o]!, z[o]!) * 0.6);
+    // (Its own quarter's way first; then, where the water hems that in, any way round its square, from its middle out.)
+    for (const [r0, turns, wide, steps] of [
+      [from, 12, Math.PI / 8 / 6, hemmed ? 0 : ways ? 200 : 400],
+      [round, 48, Math.PI / 24, ways && !hemmed ? 75 : 0],
+    ] as const)
+      for (
+        let step = 0, r = r0, walked = true;
+        step < steps && walked;
+        step++, r += ways ? 20 : 10
+      ) {
+        // (Out as far as any of these ways can be walked: past the water on every one, nothing further is sought.)
+        walked = false;
+        for (let k = 0; k <= turns; k++) {
+          const a = bearing[q]! + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * wide,
+            bx = r * Math.cos(a),
+            bz = r * Math.sin(a),
+            t = -(a + Math.PI / 2);
+          if (across(bx, bz)) continue;
+          walked = true;
+          if (!clear(bx, bz, t, padAt(b), b)) continue;
+          if (turns > 12) round = Math.max(SQUARE_R + REACH, r - 20);
+          put(b, bx, bz, t, false);
+          street(q, 1, bx, bz, a, laneAt(b) / 2, false, REACH + laneAt(b), b);
+          return;
+        }
       }
+    // (No ground left it can walk to: no more is sought round about for the blocks after.)
+    hemmed ||= !!ways;
+    const r = from + 4000;
     put(b, r * Math.cos(bearing[q]!), r * Math.sin(bearing[q]!), -bearing[q]!, false);
   };
 

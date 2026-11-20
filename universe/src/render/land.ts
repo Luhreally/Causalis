@@ -7,7 +7,7 @@
 // (Phase 26 M153, render/landtraffic.ts).
 import * as pc from "playcanvas";
 import { YEAR, hashString } from "../kernel/index.ts";
-import type { LandPlan } from "../bridge/index.ts";
+import { BLOCK_LOTS, type GroundClaims, type LandPlan } from "../bridge/index.ts";
 import {
   CROPS,
   LAND_ACROSS,
@@ -47,7 +47,10 @@ import {
   wayOf,
   floorAt,
   wetAt,
-  type FieldsLaid,
+  landLaid,
+  landRoadOut,
+  roadClear,
+  type LandDrawn,
   type LandField,
   type LandGround,
   type PartMesh,
@@ -318,6 +321,10 @@ export class LandLayer {
   private ground: LandGround | null = null;
   private towns = new Map<string, Drawn>();
   private fields: { field: LandField; crop: number }[] = [];
+  /** The land's ground as last laid (view/land.ts landLaid): what its camps are pitched clear of. */
+  private claims: GroundClaims | null = null;
+  /** Whether the land's ground as last laid is free about a point (one for each laying, so its camps are pitched again). */
+  private campGround: ((x: number, z: number, r: number) => boolean) | undefined;
   private plan: LandPlan | null = null;
   /** What a land built over shows past its towns' own fabric (Phase 66). */
   private built: TownParts | null = null;
@@ -415,7 +422,6 @@ export class LandLayer {
     const g = this.ground;
     if (!g) return;
     this.plan = plan;
-    this.camps.set(plan.camps ?? [], g);
     const seen = new Set<string>();
     let changed = false;
     for (const town of plan.towns) {
@@ -496,37 +502,27 @@ export class LandLayer {
         g,
         !!plan.undersea,
       );
-      // Fields about each town, the greatest's first, none on another's ground or fields.
-      const circles = plan.towns.map((town) => {
-          const d = this.towns.get(town.ref),
-            m = townMiddle(g, town);
-          return {
-            ref: town.ref,
-            x: m.x,
-            z: m.z,
-            r: d?.reach ?? 0.3,
-            edge: d ? landEdge(d.scene) : undefined,
-          };
+      // What lies about its towns takes its ground in one reading (view/land.ts landLaid): its water, its towns' built
+      // ground, its roads as they are drawn this year, then the fields, each town's nearest it; none on another.
+      const year = Math.floor(plan.t / YEAR);
+      const laid = landLaid(
+        g,
+        plan,
+        this.drawnOf,
+        (town) => townMiddle(g, town),
+        plan.roads.flatMap((r) => {
+          const out = roadLook(r, year) === "none" ? null : this.roadOut(r);
+          return out ? [out] : [];
         }),
-        laid: FieldsLaid = new Map();
-      this.fields = [...plan.towns]
-        .sort((a, b) => b.population - a.population || (a.ref < b.ref ? -1 : 1))
-        .flatMap((town) => {
-          const c = circles.find((o) => o.ref === town.ref)!;
-          return landFields(
-            g,
-            town,
-            c.x,
-            c.z,
-            c.r,
-            circles.filter((o) => o.ref !== town.ref),
-            laid,
-            c.edge,
-          ).map((field) => ({ field, crop: -1 }));
-        });
+      );
+      this.claims = laid.claims;
+      this.campGround = (x, z, r) => laid.claims.freeDisc(x, z, r);
+      this.fields = laid.fields.map((field) => ({ field, crop: -1 }));
       this.layFieldTops();
       this.season = -1;
     }
+    // (Its bands' camps last, each on free ground of the land as it is laid: off its towns, roads, fields and water.)
+    this.camps.set(plan.camps ?? [], g, this.campGround);
     this.drawnAt = -Infinity;
     this.drawnWall = 0;
     this.update(t, this.running);
@@ -626,31 +622,26 @@ export class LandLayer {
     });
   }
 
+  /** A town drawn, as what is laid about it reads it (view/land.ts LandDrawn). */
+  private readonly drawnOf = (ref: string): LandDrawn | undefined => {
+    const d = this.towns.get(ref);
+    return d
+      ? {
+          x: d.x,
+          z: d.z,
+          reach: d.reach,
+          edge: landEdge(d.scene),
+          site: d.scene.plan.site,
+          blocks: d.scene.lots.blocks,
+          count: Math.ceil(d.scene.plan.lots / BLOCK_LOTS),
+          ...(d.scene.walls?.lengths.length ? { wall: d.scene.walls.line } : {}),
+        }
+      : undefined;
+  };
+
   /** A road's way between the towns it joins (null: none to draw). */
   private roadOut(road: LandPlan["roads"][number]): { x: number; z: number }[] | null {
-    const g = this.ground!,
-      k = `${road.from}-${road.to}`;
-    let line = this.lines.get(k);
-    if (!line)
-      this.lines.set(
-        k,
-        (line = roadLine(g, roadTiles(g, road.from, road.to, !!this.plan!.undersea))),
-      );
-    if (line.length < 2) return null;
-    // (Into each town along its main street, the bearing its own streets were laid by: the town's view shows the same.)
-    let met: { x: number; z: number }[] = line;
-    [road.a, road.b].forEach((ref, end) => {
-      const d = ref ? this.towns.get(ref) : undefined,
-        far = end === 0 ? road.to : road.from,
-        way = d?.scene.plan.site?.roads.find((r) => r.to === far);
-      if (d && way) met = roadIntoTown(met, { x: d.x, z: d.z, r: d.reach }, way.bearing, end === 1);
-    });
-    const ends = [road.a, road.b].flatMap((ref) => {
-        const d = ref ? this.towns.get(ref) : undefined;
-        return d ? [{ x: d.x, z: d.z, r: d.reach * 0.92 }] : [];
-      }),
-      out = roadOutside(met, ends);
-    return out.length < 2 ? null : out;
+    return landRoadOut(this.ground!, road, this.drawnOf, this.lines, !!this.plan!.undersea);
   }
 
   private showRoads(moment: number): void {
@@ -692,7 +683,8 @@ export class LandLayer {
     this.roadsKey = key;
     this.roadWays = [];
     this.railWays = [];
-    const sites: WorksSite[] = [];
+    const sites: WorksSite[] = [],
+      clear = roadClear(this.claims);
     plan.roads.forEach((road, k) => {
       const now = nows[k]!,
         look = now.behind,
@@ -704,8 +696,11 @@ export class LandLayer {
         gap = cut ? (cutLine(out, cut.at)[0].at(-1) ?? null) : null,
         lay = (line: readonly { x: number; z: number }[], as: typeof look) => {
           if (as === "none" || line.length < 2) return;
+          // (Open at a cut; and not over a town's built ground or walls, where its own streets carry it.)
           const open = (list: number[][]) =>
-            gap ? list.filter((q) => Math.hypot(q[0]! - gap.x, q[2]! - gap.z) > CUT_GAP) : list;
+            list.filter(
+              (q) => (!gap || Math.hypot(q[0]! - gap.x, q[2]! - gap.z) > CUT_GAP) && clear(q),
+            );
           pieces[as === "rails" ? "paved" : as].push(
             ...open(linePieces(g, line, LIFT * 1.4, undefined, onGround)),
           );

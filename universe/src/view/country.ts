@@ -17,7 +17,7 @@
 // steam launches, motor boats — out on the water by day, tied up at the jetty by night and while
 // the water is frozen. Pure: the same plan, the same countryside; what moves (a tractor, the
 // sails, the boats) by the moment and the screen's clock.
-import { LAKE_R, type VillagePlan } from "../bridge/index.ts";
+import { rectsOverlap, waterR, wetGround, type VillagePlan } from "../bridge/index.ts";
 import { hashText, unitOf } from "./draws.ts";
 import { HARVEST, SOWING } from "./seasons.ts";
 import { foldOf, foldReach } from "./flock.ts";
@@ -387,7 +387,11 @@ export function countryOf(plan: VillagePlan, detail = 1): Country {
     outermost = fields.length ? Math.max(...fields.map(radius)) : 0,
     middle = [...fields.map(radius)].sort((a, c) => a - c)[Math.floor(fields.length / 2)] ?? 0,
     barns: Country["barns"][number][] = [],
-    silos: Country["silos"][number][] = [];
+    silos: Country["silos"][number][] = [],
+    // (A barn, a shed or a silo stands on dry ground and on no field: bridge/claims.ts.)
+    standsFree = (x: number, z: number, across: number) =>
+      !wetGround(plan.landWater, x, z) &&
+      fields.every((o) => !rectsOverlap({ x, z, w: across, d: across, yaw: 0 }, o));
   fields.forEach((f, k) => {
     if (orchard[k]) return;
     const r = radius(f) || 1,
@@ -396,22 +400,28 @@ export function countryOf(plan: VillagePlan, detail = 1): Country {
     if (!outer || draw(k, 7) >= BARN_SHARE) {
       if (radius(f) > middle && draw(k, 15) < SHED_SHARE) {
         const out = Math.max(f.w, f.d) / 2 + 4.5;
-        barns.push({
-          x: f.x + (f.x / r) * out,
-          z: f.z + (f.z / r) * out,
-          yaw,
-          w: 6,
-          d: 4.5,
-          h: 2.8,
-        });
+        if (standsFree(f.x + (f.x / r) * out, f.z + (f.z / r) * out, 7.5))
+          barns.push({
+            x: f.x + (f.x / r) * out,
+            z: f.z + (f.z / r) * out,
+            yaw,
+            w: 6,
+            d: 4.5,
+            h: 2.8,
+          });
       }
       return;
     }
     const out = Math.max(f.w, f.d) / 2 + 9,
       x = f.x + (f.x / r) * out,
       z = f.z + (f.z / r) * out;
+    if (!standsFree(x, z, 13.6)) return;
     barns.push({ x, z, yaw, w: 11, d: 8, h: 4.2 });
-    if (engines && draw(k, 8) < SILO_SHARE) {
+    if (
+      engines &&
+      draw(k, 8) < SILO_SHARE &&
+      standsFree(x + Math.cos(yaw) * 9.5, z - Math.sin(yaw) * 9.5, 5)
+    ) {
       // (Beside the barn, along the rim.)
       const side = 9.5;
       silos.push({
@@ -434,7 +444,8 @@ export function countryOf(plan: VillagePlan, detail = 1): Country {
     apart = (a: number, c: number) =>
       Math.abs(((((a - c) % (2 * Math.PI)) + 3 * Math.PI) % (2 * Math.PI)) - Math.PI),
     clear = (x: number, z: number, room: number) =>
-      (!plan.water || Math.hypot(x - plan.water.x, z - plan.water.z) > LAKE_R + room) &&
+      (!plan.water || Math.hypot(x - plan.water.x, z - plan.water.z) > waterR(plan.water) + room) &&
+      !wetGround(plan.landWater, x, z) &&
       Math.hypot(x - plan.pasture.x, z - plan.pasture.z) > plan.pasture.r + room &&
       apart(Math.atan2(z, x), roadWay) * Math.hypot(x, z) > 24 &&
       (!plan.districts || apart(Math.atan2(z, x), roadWay + Math.PI) * Math.hypot(x, z) > 24),
@@ -539,10 +550,10 @@ export function countryOf(plan: VillagePlan, detail = 1): Country {
   if (plan.water) {
     const w = plan.water,
       from = Math.hypot(w.x, w.z) || 1,
-      // (Into the water: from the town toward the lake's middle.)
+      // (Into the water: from the town toward the lake's middle, out from its shore.)
       ix = w.x / from,
       iz = w.z / from,
-      shore = { x: w.x - ix * LAKE_R, z: w.z - iz * LAKE_R },
+      shore = w.shore ?? { x: w.x - ix * waterR(w), z: w.z - iz * waterR(w) },
       yaw = Math.atan2(ix, iz),
       pier: Piece[] = [
         {
@@ -572,7 +583,7 @@ export function countryOf(plan: VillagePlan, detail = 1): Country {
       const along = 9 + Math.floor(i / 2) * 8,
         side = i % 2 ? 1 : -1,
         a = Math.atan2(-iz, -ix) + Math.PI + (i - (count - 1) / 2) * 0.9 + draw(i, 16) * 0.3,
-        far = LAKE_R * (0.35 + 0.25 * draw(i, 17));
+        far = waterR(w) * (0.35 + 0.25 * draw(i, 17));
       boats.push({
         // (Alongside the jetty, bow out over the water.)
         mooring: {
@@ -580,7 +591,12 @@ export function countryOf(plan: VillagePlan, detail = 1): Country {
           z: shore.z + iz * along - ix * side * 4,
           yaw: Math.atan2(-iz, ix),
         },
-        out: { x: w.x + Math.cos(a) * far, z: w.z + Math.sin(a) * far, r: 22 + 18 * draw(i, 18) },
+        // (Going about within its water: never so far round as to come ashore.)
+        out: {
+          x: w.x + Math.cos(a) * far,
+          z: w.z + Math.sin(a) * far,
+          r: Math.min(22 + 18 * draw(i, 18), Math.max(4, waterR(w) - far - 8)),
+        },
       });
     }
     water = {

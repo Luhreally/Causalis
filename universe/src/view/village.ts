@@ -20,6 +20,9 @@ import {
   LOT,
   SQUARE,
   STORE_KINDS,
+  shoreOut,
+  waterR,
+  wetGround,
   type StoreBook,
   type StoreKind,
   type VillagePlan,
@@ -423,7 +426,7 @@ function workplace(
       // By the water, some fish from its shore; the rest gather in the wild.
       if (plan.water && draw(12) < 0.4) {
         const d = Math.hypot(plan.water.x, plan.water.z) || 1,
-          shore = d - 205,
+          shore = shoreOut(plan.water, d),
           a = Math.atan2(plan.water.z, plan.water.x) + (draw(4) - 0.5) * 0.5;
         return at(
           shore * Math.cos(a),
@@ -4044,7 +4047,7 @@ function dayBase(plan: VillagePlan, index: number, day: number, fine: boolean): 
       case "fish": {
         if (!plan.water) return errandOf({ ...role, kind: "gather" }, town, k);
         const d = Math.hypot(plan.water.x, plan.water.z) || 1,
-          shore = d - 205,
+          shore = shoreOut(plan.water, d),
           a = Math.atan2(plan.water.z, plan.water.x) + (draw(k ? 5000 + k : 4) - 0.5) * 0.5,
           w = clearSpot(ground, { x: shore * Math.cos(a), z: shore * Math.sin(a) });
         return [
@@ -6771,7 +6774,9 @@ export function treesOf(plan: VillagePlan, share = 1): Tree[] {
         off = Math.abs(-x * rz + z * rx);
       if (off < 18 && (plan.districts ? true : along > 0)) return false;
       if (Math.hypot(x - plan.pasture.x, z - plan.pasture.z) < plan.pasture.r + 8) return false;
-      if (plan.water && Math.hypot(x - plan.water.x, z - plan.water.z) < 230) return false;
+      if (plan.water && Math.hypot(x - plan.water.x, z - plan.water.z) < waterR(plan.water) + 10)
+        return false;
+      if (wetGround(plan.landWater, x, z)) return false;
       for (const f of plan.fields) {
         const dx = x - f.x,
           dz = z - f.z,

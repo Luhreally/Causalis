@@ -1,9 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { LandRoad, LandTown, TownPlan } from "../../src/bridge/index.ts";
+import { rectsOverlap } from "../../src/bridge/index.ts";
 import {
   cropAt,
   groundAt,
+  landClaims,
   landFields,
   linePieces,
   roadLine,
@@ -131,14 +133,14 @@ test("a town's fields: more for more people, on dry ground, none on another town
   const other = { x: at.x + 1.5, z: at.z, r: 0.8 },
     beside = landFields(g, town(5000), at.x, at.z, 0.6, [other]);
   assert.ok(beside.every((f) => Math.hypot(f.x - other.x, f.z - other.z) > other.r));
-  // Laid once, a cell is not laid again by the next town.
-  const laid = new Map(),
-    first = landFields(g, town(3000), at.x, at.z, 0.4, [], laid),
-    second = landFields(g, town(3000), at.x + 0.2, at.z, 0.4, [], laid);
+  // Laid once, its ground is taken: the next town's fields lie on none of it.
+  const laid = landClaims(g),
+    first = landFields(g, town(3000), at.x, at.z, 0.4, [], laid, undefined, 0),
+    second = landFields(g, town(3000), at.x + 0.2, at.z, 0.4, [], laid, undefined, 1);
   assert.ok(first.length > 0);
   for (const f of second)
     assert.ok(
-      first.every((e) => Math.hypot(e.x - f.x, e.z - f.z) > 0.3),
+      first.every((e) => !rectsOverlap(e, f)),
       "no field on a field",
     );
   // Through the year: ploughed, green, ripe, stubble.

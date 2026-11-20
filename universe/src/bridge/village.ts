@@ -10,6 +10,19 @@ import type { Away, Wound } from "./wounds.ts";
 export const WATER_OUT = 700;
 export const LAKE_R = 220;
 
+/** How far a town's own water reaches about its middle (VillagePlan.water; an old plan's, LAKE_R). */
+export function waterR(w: { readonly r?: number }): number {
+  return w.r ?? LAKE_R;
+}
+
+/** How far out from a town's square its fishers stand on its water's shore (`d`: how far its water's middle lies). */
+export function shoreOut(
+  w: { readonly r?: number; readonly shore?: { readonly x: number; readonly z: number } },
+  d: number,
+): number {
+  return w.shore ? Math.hypot(w.shore.x, w.shore.z) : d - waterR(w) + 15;
+}
+
 /** A lineage's body plan as it crosses to the page (the rules' creature body, in plain values). */
 export type { HerdPass } from "./herds.ts";
 import type { HerdPass } from "./herds.ts";
@@ -495,7 +508,22 @@ export type VillagePlan = {
   readonly pasture: { x: number; z: number; r: number };
   /** How far out the wild begins. */
   readonly wild: number;
-  readonly water: { x: number; z: number } | null;
+  /**
+   * Its own water (null: none near): the broadest round of its land's water nearest it, wholly on what its land's map draws
+   * as water (bridge/claims.ts openWater), how far that round reaches, and the shore it is come to by from the square. Its
+   * boats, fishers and fish keep to it; the water drawn about it is its land's own (`landWater`).
+   */
+  readonly water: {
+    x: number;
+    z: number;
+    readonly r?: number;
+    readonly shore?: { readonly x: number; readonly z: number };
+  } | null;
+  /** Its land's water about it, as its land's map draws it and everything laid in its view reads it (TownSite.wet, .bank). */
+  readonly landWater?: {
+    readonly wet?: { readonly m: number; readonly half: number; readonly cells: string };
+    readonly bank?: { readonly x: number; readonly z: number };
+  };
   /**
    * How its houses are built (the land's design): walls, roof and shape by
    * realization id ("mudbrick", "flat", "court"), the roof's pitch in degrees, and

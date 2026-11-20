@@ -61,8 +61,11 @@ import { townCustoms, townLifeOf, townPosted } from "./inspect/townlife.ts";
 import { fullName, herdPass, townWild } from "./inspect/herds.ts";
 import { envoyAtCourt } from "./inspect/ties.ts";
 import {
+  BLOCK_D,
+  BLOCK_W,
+  GROUND,
+  GroundClaims,
   LAKE_R,
-  bankLake,
   LOT,
   WATER_OUT,
   heartTown,
@@ -71,7 +74,12 @@ import {
   townLots,
   outlineAt,
   outlineOf,
+  layOn,
+  openWater,
+  shoreOf,
+  townClaims,
   townReach,
+  wetGround,
   type StoreBook,
   type TownPlan,
   type TownStores,
@@ -89,7 +97,7 @@ import {
   type Wonder,
 } from "../bridge/index.ts";
 import { strikesOn, townPlan } from "./town.ts";
-import { realmWays, townBankOf, townSiteOf, townSquareOff } from "./sites.ts";
+import { landWater, realmWays, townSiteOf, townSquareOff } from "./sites.ts";
 import { realmColor } from "./colors.ts";
 import { hostKinds } from "./arms.ts";
 import { visitorsAt } from "./peoples.ts";
@@ -269,14 +277,40 @@ export function townSite(world: World, ref: Ref): { axis: number; water: TownWat
   };
 }
 
+/** How far a town's road out is drawn in its own view (metres), at the most. */
+const ROAD_OUT = 1100;
+
+/** How far out from a town's square the dry ground goes toward a bearing, up to `most` (metres): to the shore. */
+function dryOut(ground: ReturnType<typeof landWater> | null, a: number, most: number): number {
+  if (!ground?.wet) return most;
+  for (let r = 10; r <= most; r += 10)
+    if (wetGround(ground, r * Math.cos(a), r * Math.sin(a))) return Math.max(0, r - 10);
+  return most;
+}
+
+/** How near a town's square its own water must come (metres): about as far as the middle of the tile beside its own. */
+const OWN_WATER = 900;
+
 /**
- * The water a town's view lays its blocks about (null: none beside it): a town on its tile's bank (host/sites.ts
- * townBankOf) has its own tile's water back across its waterfront (bridge/sites.ts bankLake); any other, the first way
- * out of its tile that is water, WATER_OUT off.
+ * A town's land's water about it, as its land's map draws it (TownSite.wet, .bank; null: a people of the water's, whose
+ * ground the sea is).
+ */
+function townWet(world: World, ref: Ref): ReturnType<typeof landWater> | null {
+  const ctx = populationContext(world),
+    s = ctx.settlements.get(ref);
+  if (!s || ctx.medium === "water") return null;
+  const r = regionOf(ctx, s.cell);
+  return landWater(r, s.tile % r.size, Math.floor(s.tile / r.size), false);
+}
+
+/**
+ * The water a town's view lays its blocks about (null: none beside it): its land's own, the broadest round of it nearest
+ * its square (bridge/claims.ts openWater), wholly on what its land's map draws as water: one water, read off its land's
+ * tiles, for the map and the town alike. (A people of the water's keeps its old way out to the water, WATER_OUT off.)
  */
 function lakeOf(world: World, ref: Ref, waterWay: number | null): TownWater | null {
-  const bank = townBankOf(world, ref);
-  if (bank) return bankLake(bank);
+  const ground = townWet(world, ref);
+  if (ground) return openWater(ground, OWN_WATER);
   return waterWay === null
     ? null
     : { x: WATER_OUT * Math.cos(waterWay), z: WATER_OUT * Math.sin(waterWay), r: LAKE_R };
@@ -494,13 +528,14 @@ export function villagePlan(
               30,
           )
         : edge;
+  const meant: { x: number; z: number; w: number; d: number; yaw: number }[] = [];
   for (let k = 0; k < fieldCount; k++) {
     const ring = Math.floor(k / 12),
       // (Each row of the fan from where its own way out is open: one row's fields never on the next's.)
       way = fieldWay + (((k % 12) - 5.5) / 12) * 2.6,
       a = way + (u(seed, 400 + k) - 0.5) * 0.15,
       rad = edgeAt(way) + 40 + ring * 45 + u(seed, 500 + k) * 12;
-    fields.push({
+    meant.push({
       x: rad * Math.cos(a),
       z: rad * Math.sin(a),
       w: 34 + 10 * u(seed, 600 + k),
@@ -508,6 +543,28 @@ export function villagePlan(
       yaw: a,
     });
   }
+  // (Its ground as its countryside is laid on it: its land's water, its built ground, its road out; then its fields, each
+  // where it was meant to lie if that is free, else on out along its way to the nearest that is, else not sown: none on
+  // the water, none on its streets, none on another. bridge/claims.ts.)
+  const ground = townWet(world, ref),
+    // (Its road out goes as far as the dry ground does that way: to the shore, where the water comes first.)
+    roadLong = (city ? [roadWay, roadWay + Math.PI] : [roadWay]).reduce(
+      (m, a) => Math.min(m, dryOut(ground, a, ROAD_OUT)),
+      ROAD_OUT,
+    ),
+    roadOut = { x: roadLong * Math.cos(roadWay), z: roadLong * Math.sin(roadWay) },
+    claims = townClaims({
+      ground,
+      blocks: lots && town ? lots.blocks : null,
+      count: lots && town ? Math.ceil(town.lots / 8) : 0,
+      outline,
+      outlineAt,
+      scale: town ? Math.sqrt(town.whole / Math.max(1, town.lots)) : 1,
+      edge,
+      road: roadOut,
+      through: !!city,
+    });
+  fields.push(...layOn(claims, meant, GROUND.field, 0, { x: 0, z: 0 }, 15, 24));
   // The pasture lies toward the poorer ground, near the homes where that is clear of the
   // fields' fan (else just past them); the wild begins beyond the last fields.
   const outer = fields.reduce(
@@ -517,19 +574,25 @@ export function villagePlan(
     pastureR = 90,
     pastureOut = (way: number) =>
       apart(way, fieldWay) > 1.9 ? edge + pastureR + 20 : outer + pastureR + 15,
-    // (Never in the water: turned from it, a step at a time, if that is where it would lie.)
-    dry = (way: number) =>
-      !lake ||
-      Math.hypot(
-        pastureOut(way) * Math.cos(way) - lake.x,
-        pastureOut(way) * Math.sin(way) - lake.z,
-      ) >
-        LAKE_R + pastureR + 30,
-    pastureWay =
-      [0, 0.6, -0.6, 1.2, -1.2, 1.8, -1.8, 2.4, -2.4]
-        .map((t) => pastureToward + t)
-        .find((w) => dry(w) && (w === pastureToward || offRoad(w) > 0.7)) ?? pastureToward,
-    pastureAt = pastureOut(pastureWay),
+    // (On free ground: never on the water, the town or a field; turned a step at a time, then on out, till it is.)
+    pastureFree = (way: number, out: number) =>
+      claims.freeDisc(
+        (pastureOut(way) + out) * Math.cos(way),
+        (pastureOut(way) + out) * Math.sin(way),
+        pastureR,
+      ),
+    pastureTry = [0, 60, 140, 260, 420]
+      .flatMap((out) =>
+        [0, 0.6, -0.6, 1.2, -1.2, 1.8, -1.8, 2.4, -2.4].map((t) => ({
+          way: pastureToward + t,
+          out,
+        })),
+      )
+      .find(
+        (p) => (p.way === pastureToward || offRoad(p.way) > 0.7) && pastureFree(p.way, p.out),
+      ) ?? { way: pastureToward, out: 0 },
+    pastureWay = pastureTry.way,
+    pastureAt = pastureOut(pastureWay) + pastureTry.out,
     wildAt = Math.round(outer + 60);
   const watched = known().sort((a, b) => a.seq - b.seq),
     people: VillagePlan["people"][number][] = [],
@@ -1367,7 +1430,8 @@ export function villagePlan(
         r: pastureR,
       },
       wild: wildAt,
-      water: lake ? { x: lake.x, z: lake.z } : null,
+      water: lake ? { x: lake.x, z: lake.z, r: lake.r, shore: shoreOf(ground, lake) } : null,
+      ...(ground?.wet ? { landWater: ground } : {}),
       house: houseOf(village.cell),
       // (No beast is left on ground built over from edge to edge.)
       ...(past?.covered ? {} : { fauna: faunaOf(village.cell, village.population, village.ref) }),
@@ -1386,7 +1450,7 @@ export function villagePlan(
       visitors,
       // A city's road runs along its axis; a village's out toward the far fields; either's, where its streets were grown
       // from its roads in, along the busiest of them (as its works keep off it).
-      road: { x: 1100 * Math.cos(roadWay), z: 1100 * Math.sin(roadWay) },
+      road: roadOut,
       ...(() => {
         const ways = realmWays(world, ref, siteOf);
         return ways.length ? { ways } : {};

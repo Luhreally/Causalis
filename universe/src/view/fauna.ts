@@ -573,7 +573,7 @@ export function faunaOf(plan: VillagePlan, cap: number, detail: number, ambient:
         n = Math.max(1, Math.min(6, Math.round(4 * s.stock)));
       for (let k = 0; k < n; k++) {
         const a = u(80 + i, k) * 2 * Math.PI,
-          r = 150 * Math.sqrt(u(81 + i, k));
+          r = (plan.water!.r ?? 220) * 0.68 * Math.sqrt(u(81 + i, k));
         fish.push({
           species: sp,
           x: plan.water!.x + r * Math.cos(a),

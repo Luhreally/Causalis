@@ -5,7 +5,7 @@
 // drift while the clock runs, and stand while it is held.
 import * as pc from "playcanvas";
 import type { LandCamp } from "../bridge/index.ts";
-import { LAND_ACROSS, LAND_UP, groundAt, tileMiddle, type LandGround } from "../view/index.ts";
+import { LAND_ACROSS, LAND_UP, campSpot, groundAt, type LandGround } from "../view/index.ts";
 import { InstancedBatch } from "./batch.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
@@ -66,6 +66,8 @@ export class LandCamps {
   private readonly flocks: InstancedBatch;
   private placed: Placed[] = [];
   private key = "";
+  /** The land's ground the camps were last pitched on (a new laying of it pitches them again). */
+  private free: ((x: number, z: number, r: number) => boolean) | undefined;
   /** The wall clock the smoke and flocks go by (held still while the land's clock is). */
   private time = 0;
   private wall = 0;
@@ -96,16 +98,19 @@ export class LandCamps {
   }
 
   /** The land's camps this season, set on its ground (laid again only when they move). */
-  set(camps: readonly LandCamp[], g: LandGround): void {
+  set(
+    camps: readonly LandCamp[],
+    g: LandGround,
+    /** Whether the land's ground is free about a point (its towns, roads, fields and water laid: view/land.ts landLaid). */
+    free?: (x: number, z: number, r: number) => boolean,
+  ): void {
     const key = camps.map((c) => `${c.id}:${c.tile}:${c.people}:${c.herds ? 1 : 0}`).join(",");
-    if (key === this.key) return;
+    if (key === this.key && free === this.free) return;
     this.key = key;
+    this.free = free;
     this.placed = camps.slice(0, MOST).map((camp) => {
-      const m = tileMiddle(g, camp.tile),
-        seed = ((camp.id * 2654435761) ^ (camp.home * 40503)) >>> 0,
-        // (Within its tile, a keyed spot: not all on the tiles' grid.)
-        x = m.x + ((seed % 1000) / 1000 - 0.5) * 0.6 * g.tileKm,
-        z = m.z + (((seed >>> 10) % 1000) / 1000 - 0.5) * 0.6 * g.tileKm;
+      // (Within its tile, a keyed spot: not all on the tiles' grid; on free ground.)
+      const { x, z, seed } = campSpot(g, camp, free);
       return { camp, x, z, y: groundAt(g, x, z) + LIFT, tents: tentsOf(camp.people), seed };
     });
     const tents = (felt: boolean) =>
