@@ -77,7 +77,12 @@ test("every living realm's fortune is measured, and no realm gone keeps evidence
     for (const x of o.fortune ?? []) assert.ok(Number.isInteger(x) && x >= -100 && x <= 100);
     assert.ok((o.taught?.length ?? 0) <= LEARNING.taught);
     assert.ok((o.from?.length ?? 0) <= LEARNING.teachers);
-    if (o.learnt) assert.equal(o.learnt.length, 16);
+    if (o.learnt)
+      assert.equal(
+        o.learnt.length,
+        24,
+        "sums, evidence, and the squares of its pieces: eight each",
+      );
   }
   // (And what is kept is what a save gives back: no nothing below nothing, which a save writes as nothing.)
   assert.deepEqual(JSON.parse(JSON.stringify(store.save())), store.save());

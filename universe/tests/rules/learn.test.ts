@@ -18,7 +18,11 @@ import {
   leanOf,
   leaningOf,
   likeness,
+  kinOf,
   madeItsOwn,
+  pastChance,
+  shareHeard,
+  squaresOf,
   movedWords,
   noBelief,
   pullOf,
@@ -231,4 +235,49 @@ test("the way a realm stands is its own making only with the years: a realm fall
     "both say: it stood with its choices in few hands, and fell",
   );
   assert.ok(young[1]! < 0.1 * old[1]!);
+});
+
+test("what a realm heard of others it believes past chance; what it lived, whole; one fall is one piece however many hear", () => {
+  // Past chance: the sum less two of what luck would make of as many pieces.
+  assert.equal(
+    pastChance(12, 144),
+    0,
+    "twelve of a hundred and forty-four like pieces one way: luck",
+  );
+  assert.equal(pastChance(40, 144), 16);
+  assert.equal(pastChance(-40, 144), -16);
+  assert.equal(pastChance(1, 1), 0, "one tale is no belief");
+  // A realm's own fate, once, is a belief; the same heard of another, once, is none; heard of ten, it is.
+  const fate = [0, 0.3, 0, 0];
+  let own = noBelief(100),
+    heard = noBelief(100);
+  own = believeAfter(own, fate, true, 100);
+  heard = believeAfter(heard, fate, false, 100);
+  assert.ok(leanOf(own, 1, 100) > 0.3);
+  assert.equal(leanOf(heard, 1, 100), 0);
+  for (let i = 0; i < 9; i++) heard = believeAfter(heard, fate, false, 100);
+  assert.ok(leanOf(heard, 1, 100) > 0.2, "ten that all fell the same way");
+  // Ten that fell six one way and four the other say nothing past chance.
+  let mixed = noBelief(100);
+  for (let i = 0; i < 10; i++)
+    mixed = believeAfter(mixed, i < 6 ? fate : [0, -0.3, 0, 0], false, 100);
+  assert.equal(leanOf(mixed, 1, 100), 0);
+  // The squares fade as the square of what the pieces do; a belief kept before they were reads its pieces as small ones.
+  assert.ok(Math.abs(squaresOf(heard)[5]! - 10 * 0.09) < 1e-9);
+  const later = believeAfter(heard, [0, 0, 0, 0], false, 160);
+  assert.ok(
+    Math.abs(later.q![5]! - 0.9 * 0.25) < 1e-3,
+    "sixty years: the pieces halved, their squares quartered",
+  );
+  assert.deepEqual(squaresOf({ a: [], n: [1, 2], at: 0 }), [
+    1 * LEARNING.piece,
+    2 * LEARNING.piece,
+  ]);
+  // Kin: like speech and one faith, whole; another faith, half; speech half alike, a quarter.
+  assert.equal(kinOf(1, true), 1);
+  assert.equal(kinOf(1, false), LEARNING.otherFaith);
+  assert.equal(kinOf(0.5, true), 0.25);
+  // One fall heard by many is shared among them; heard by few, taken whole.
+  assert.equal(shareHeard(0.4), 1);
+  assert.equal(shareHeard(20), 0.05);
 });
