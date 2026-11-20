@@ -385,6 +385,18 @@ export function formWhys(
         ? `Until engines came (it had ${see.tilled.fed * 8} lots) it lived on the fields about it, and a field close in was worth the walk it saved: it built along its ${see.tilled.roads === 1 ? "road" : "roads"} before it built over one. Since its food comes from further off, it has filled the ground between.`
         : `It lives on the fields about it, and a field close in is worth the walk it saves: so it builds along its ${see.tilled.roads === 1 ? "road" : "roads"} before it builds over one, and fields reach in beside them until the road is built along far past them.`,
     );
+  // (Measured ground is held by no field: once its realm's clerks have cut it into lots, those lots are no one's field
+  // any more, and its blocks are taken nearest the square first: bridge/sites.ts takeCell.)
+  if (
+    see.tilled &&
+    !form.over &&
+    see.surveys?.some(
+      (v, k) => v.order >= SURVEYED && (see.surveys![k + 1]?.from ?? Infinity) > v.from,
+    )
+  )
+    out.push(
+      "Where its ground was cut into equal blocks, each was a lot to be had and no longer anyone's field: no field holds its measured streets back, and they are built on nearest the square first.",
+    );
   if (see.ring)
     out.push(
       "Nothing was built on the line of its walls while they stood: a ring street runs there now they are down.",

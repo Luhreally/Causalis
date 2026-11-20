@@ -13,6 +13,9 @@ import {
   townLots,
   type GrownBlocks,
   type LandTown,
+  formWhys,
+  townForm,
+  type FormFacts,
   type TownSite,
 } from "../../src/bridge/index.ts";
 import { LAND_ACROSS, landFields, type LandGround } from "../../src/view/index.ts";
@@ -36,6 +39,25 @@ const SITE: TownSite = {
 };
 const TILLED: TownSite = { ...SITE, tilled: { until: -1 } };
 const SEED = 77;
+/** A people on foot, as tests/view/town-form.test.ts has them. */
+const FORM_FOOT: FormFacts = {
+  how: "feet",
+  share: 0,
+  mass: 70,
+  winged: false,
+  water: false,
+  social: 0.6,
+  engines: -1,
+  rain: 800,
+  warm: 12,
+  reach: 0.5,
+  spare: 0.2,
+  stone: true,
+  market: true,
+  seat: 0,
+  people: 4000,
+  own: false,
+};
 
 const grown = (site: TownSite, blocks: number) => grownBlocks(SEED, site, blocks, null, 0.3);
 /** How far a block lies from the nearest of a site's roads in (metres from the road's own line; past its square). */
@@ -179,6 +201,38 @@ test("what its walls came to hold was built close: its fingers go out from its g
   assert.ok(
     far(b, 30, 90) > far(close, 30, 90) * 1.15,
     `${far(b, 30, 90)} against ${far(close, 30, 90)}`,
+  );
+});
+
+test("ground cut into equal blocks is no one's field: its measured blocks are not held back, and its page says so", () => {
+  // (Measured from its founding: the lattice its realm's clerks cut is taken nearest the square first, fields or none.)
+  const surveys = [{ from: 0, order: 0.6 }],
+    cut: TownSite = { ...TILLED, surveys },
+    bare: TownSite = { ...SITE, surveys },
+    a = grown(cut, 80),
+    b = grown(bare, 80);
+  let measured = 0;
+  for (let k = 0; k < 80; k++)
+    if (a.straight[k]) {
+      measured++;
+      assert.equal(a.x[k], b.x[k], `measured block ${k} where it would stand with no field`);
+      assert.equal(a.z[k], b.z[k]);
+    }
+  assert.ok(measured > 40, `${measured} measured blocks`);
+  const form = townForm(FORM_FOOT),
+    said = (see: Parameters<typeof formWhys>[2]) => formWhys(form, undefined, see).join(" ");
+  assert.match(
+    said({ walled: false, surveys, tilled: { fed: -1, roads: 2 } }),
+    /no field holds its measured streets back/,
+  );
+  assert.doesNotMatch(
+    said({ walled: false, surveys: [{ from: 0, order: 0.1 }], tilled: { fed: -1, roads: 2 } }),
+    /measured streets/,
+  );
+  assert.doesNotMatch(
+    said({ walled: false, surveys }),
+    /measured streets/,
+    "no fields, nothing to say",
   );
 });
 
