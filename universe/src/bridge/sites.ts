@@ -60,7 +60,27 @@ export type TownSite = {
    * people then asked (1: a block beside its main street; 2: one each side, the street through it; 3: two each side).
    */
   readonly place?: { readonly at: number; readonly size: number };
+  /**
+   * Its land's water about it, as its land's map has it (absent: none near, or its people live in the water): the sea,
+   * lake and river tiles of the map about its own, each `m` metres across on the town's ground (the map draws a town LAND_SCALE
+   * times its size), `half` tiles out each way, row by row from the north-west, "1" where wet. Nothing of it is laid there:
+   * no block, no sprawl; the land's map and the town's own view read the one water.
+   */
+  readonly wet?: { readonly m: number; readonly half: number; readonly cells: string };
 };
+
+/** How many times its size a town is drawn on its land's map (so a tile of the map is a fifth of its breadth on the town's ground). */
+export const LAND_SCALE = 5;
+
+/** Whether a point of a town's ground (metres from its square) lies on its land's water (TownSite.wet). */
+export function wetGround(site: TownSite | null | undefined, x: number, z: number): boolean {
+  const w = site?.wet;
+  if (!w) return false;
+  const i = Math.round(x / w.m) + w.half,
+    j = Math.round(z / w.m) + w.half,
+    n = 2 * w.half + 1;
+  return i >= 0 && j >= 0 && i < n && j < n && w.cells.charCodeAt(j * n + i) === 49;
+}
 
 /** A part of a town's ground taken up under a realm's will (TownSite.surveys). */
 export type Survey = { readonly from: number; readonly order: number };
@@ -205,6 +225,9 @@ export function quarterBearings(
   return { bearing, road };
 }
 
+/** How far off its road's bearing a block of a quarter down a road in may lie (against WEDGE for a quarter with none). */
+const ROAD_WEDGE = 0.55;
+
 /** What the going down a road in costs against a lane's, a metre. */
 export const ROAD_GOING = 0.6;
 
@@ -328,6 +351,8 @@ export function grownBlocks(
     { bearing, road } = quarterBearings(site, water, axis),
     lattice = site.roads[0]?.bearing ?? axis,
     flat = site.rise < STEEP,
+    // (A people who pass over their town, swimming or on the wing, gain nothing by a road: theirs keeps no fingers.)
+    over = !!site.laid?.length && site.laid[0]!.from === 0 && site.laid[0]!.street <= 3,
     // (Contour headings: across the slope.)
     along = site.up + Math.PI / 2,
     bendBy = Math.min(0.85, site.rise / 50),
@@ -369,8 +394,10 @@ export function grownBlocks(
         dv = Math.max(0, Math.abs(bx * s + bz * c) - BD / 2);
       if (du * du + dv * dv < (SQUARE_R + 2) ** 2) return false;
     }
-    // The water and its shore.
+    // The water and its shore; and its land's own water, as its map has it.
     if (water && Math.hypot(bx - water.x, bz - water.z) < water.r + SHORE_W + REACH) return false;
+    if (site.wet && (wetGround(site, bx, bz) || wetGround(site, bx + c * 14, bz - s * 14)))
+      return false;
     // The roads in: a block never stands across one.
     for (let k = 0; k < roadX.length; k++) {
       const rx = roadX[k]!,
@@ -465,7 +492,7 @@ export function grownBlocks(
     // going is slow, along it easy: the town lies long across its hillside.)
     return (
       d *
-        (st.depth === 0 && road[st.q]! >= 0 ? ROAD_GOING : 1) *
+        (st.depth === 0 && road[st.q]! >= 0 && !over ? ROAD_GOING : 1) *
         climb(site, Math.atan2(bz, bx)) *
         (1 + 4 * grade(st.hs[i]!)) +
       3 * unit(seed, st.id * 7 + side, i)
@@ -709,7 +736,12 @@ export function grownBlocks(
       const { bx, bz, t } = blockAt(st, i, side),
         off = Math.abs(turnTo(Math.atan2(bz, bx), bearing[q]!)),
         wide = st.depth === 0 ? 0.2 : 0;
-      if (off > WEDGE + wide && Math.hypot(bx, bz) > SQUARE_R + REACH * 2) {
+      // (A quarter down a road in keeps to its road: its blocks go out along it, not round about. A quarter with none
+      // spreads as it will.)
+      if (
+        off > (road[q]! >= 0 && !over ? ROAD_WEDGE : WEDGE) + wide &&
+        Math.hypot(bx, bz) > SQUARE_R + REACH * 2
+      ) {
         st.done[s] = true;
         continue;
       }

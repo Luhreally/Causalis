@@ -342,6 +342,7 @@ export {
   campWords,
   laneLine,
   landReach,
+  landEdge,
   linePieces,
   campTracks,
   cutLine,
