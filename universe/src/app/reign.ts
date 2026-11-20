@@ -253,7 +253,14 @@ export function installReign(d: ReignDeps): ReignFlow {
           law === "tithe" ? { what: "tithe", to } : { what: "law", law, to },
           "You put it to the realm, and it carried: it is law.",
         )
-      : act("reign.decree", { law, to }, "Your word has gone out."));
+      : law.startsWith("charter:")
+        ? // (A word on a group, a body, a faith's seat or a house of lending by name: sim/order/grouphand.ts.)
+          act(
+            "reign.charter",
+            { target: law.slice(8), to: to === 2 ? "charter" : to === 0 ? "outlaw" : "let be" },
+            "Your word has gone out.",
+          )
+        : act("reign.decree", { law, to }, "Your word has gone out."));
   hud.onWar = (against, prize) =>
     void (on?.role
       ? act(

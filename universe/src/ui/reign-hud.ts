@@ -518,6 +518,34 @@ export class ReignHud {
       }
       body.push(box);
     }
+    // (Its groups and bodies, a faith's seat, a house of lending: yours to charter, outlaw or let be. The same boxes and
+    // buttons a law has, so each is as wide as the sheet and as tall as any choice in it.)
+    if (d.charters?.length) {
+      body.push(
+        el(
+          "p",
+          "life-winwords reign-charters",
+          "Its groups and bodies, by name: your word holds each as you set it for twenty years, whatever the realm would have done.",
+        ),
+      );
+      for (const law of d.charters) {
+        const box = el("div", "reign-law reign-charter");
+        box.dataset.law = law.law;
+        box.append(
+          el("div", "reign-lawtitle", law.title),
+          el("div", "reign-lawnow", `Now: ${law.now}`),
+        );
+        for (const o of law.options) {
+          const b = el("button", `life-choice reign-opt${o.can ? "" : " refused"}`, o.label);
+          b.dataset.law = law.law;
+          b.dataset.to = `${o.to}`;
+          b.dataset.can = o.can ? "1" : "0";
+          b.onclick = () => this.onDecree(law.law, o.to);
+          box.append(b, el("div", "reign-optwords", o.words));
+        }
+        body.push(box);
+      }
+    }
     this.open_(this.last?.role ? "📜 Put to the realm" : "📜 Decrees", ...body);
   }
 

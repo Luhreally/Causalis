@@ -365,6 +365,27 @@ function fail(ctx: PopulationContext, store: CreditStore, h: House, cause: Ref, 
 }
 
 /**
+ * A house of lending under its realm's ruler's word (sim/order/grouphand.ts, `reign.charter`): closed (it fails at once, as
+ * when the god breaks one: what it is owed forgiven, its town's savers ruined), or backed (`stake`, grain's worth put into
+ * it from the seat's reserve). False where none such stands.
+ */
+export function houseDecreed(
+  ctx: PopulationContext,
+  house: Ref,
+  to: "outlaw" | "charter",
+  cause: Ref,
+  t: SimTime,
+  stake = 0,
+): boolean {
+  const store = creditOf(ctx.world),
+    h = store?.standing().find((x) => x.ref === house);
+  if (!store || !h) return false;
+  if (to === "outlaw") fail(ctx, store, h, cause, yearOfMoment(t));
+  else h.capital += Math.max(0, Math.round(stake));
+  return true;
+}
+
+/**
  * The yearly work of credit: interest and payment, losses, repudiations, jubilees and failures,
  * new houses, new loans against famine and for war.
  */

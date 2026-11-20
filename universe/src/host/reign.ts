@@ -2,6 +2,8 @@
 // they could fight, whom their house could wed, and how their rule ended. Each option says what it would cost or
 // why not, in the very words the world refuses it with. Pure reads: asking moves nothing, and nothing is kept
 // but a memo of the last reading of a moment.
+import { ANSWERS, DOES, ORG_KINDS } from "../rules/index.ts";
+import { beliefOf, bodiesOf, bodyTitle, charterProblem, creditOf, orgsOf } from "../sim/index.ts";
 import { yearOfMoment, type Ref, type World } from "../kernel/index.ts";
 import {
   FEMALE,
@@ -623,6 +625,90 @@ function reignDecrees(
       };
     }),
   });
+  // (Its groups and bodies, yours to charter or outlaw: the strongest of its groups, its greatest bodies, the faiths that
+  // keep clergy in it, its houses of lending. A dozen at the most.)
+  const charters: ReignLaw[] = [];
+  if (!held) {
+    const HELD = ["outlawed", "let be", "chartered"],
+      row = (target: string, title: string, now: string, tos: readonly number[], costs: string) => {
+        charters.push({
+          law: `charter:${target}`,
+          title,
+          now,
+          options: tos.map((to) => {
+            const bad = charterProblem(world, {
+              realm: r.ref,
+              ruler: r.ruler.name,
+              target,
+              to: to === 2 ? "charter" : to === 0 ? "outlaw" : "let be",
+            });
+            return {
+              to,
+              label: to === 2 ? "Grant its charter" : to === 0 ? "Outlaw it" : "Let it be",
+              can: !bad,
+              words:
+                bad ??
+                (to === 0
+                  ? costs
+                  : to === 2
+                    ? "It is yours to grant, for twenty years."
+                    : "Your word on it is withdrawn."),
+            };
+          }),
+        });
+      },
+      orgs = [...(orgsOf(world)?.of(r.ref)?.orgs ?? [])]
+        .sort((a, b) => b.power - a.power || a.id - b.id)
+        .slice(0, 4),
+      bodies = [...(bodiesOf(world)?.of(r.ref)?.bodies ?? [])].sort(
+        (a, b) => b.income - a.income || a.id - b.id,
+      ),
+      faiths = new Set<string>();
+    for (const g of orgs)
+      row(
+        g.event,
+        `The ${g.name} ${ORG_KINDS[g.kind] ?? "group"}`,
+        HELD[g.standing] ?? "let be",
+        [0, 1, 2].filter((to) => to !== g.standing || g.decree === undefined),
+        `It must hide, and your realm takes of its people. Costs ${pct(0.04 * (g.power / 1000))} in a hundred of your standing: it is strong among your realm's groups.`,
+      );
+    // (A faith's seat: the body its tithes keep in this realm.)
+    for (const g of bodies) {
+      if (charters.length >= 7 || g.does !== DOES.worship || !g.keeper || faiths.has(g.keeper))
+        continue;
+      faiths.add(g.keeper);
+      const faith = beliefOf(world).get(g.keeper as Ref);
+      row(
+        g.keeper,
+        `The seat of ${faith?.name ?? "its faith"} here: the ${g.name} ${bodyTitle(ctx, g)}`,
+        HELD[g.standing] ?? "let be",
+        [0, 1, 2].filter((to) => to !== g.standing || g.decree === undefined),
+        "Your hand takes of its clergy each year. Costs 2 in a hundred of your standing.",
+      );
+    }
+    for (const g of bodies) {
+      if (charters.length >= 10) break;
+      if (g.does === DOES.worship || g.answers === ANSWERS.seat) continue;
+      row(
+        g.event,
+        `The ${g.name} ${bodyTitle(ctx, g)}`,
+        HELD[g.standing] ?? "let be",
+        [0, 1, 2].filter((to) => to !== g.standing || g.decree === undefined),
+        "Your hand takes of its people each year. Costs 2 in a hundred of your standing.",
+      );
+    }
+    for (const h of (creditOf(world)?.standing() ?? [])
+      .filter((x) => r.members.includes(x.cell))
+      .sort((a, b) => b.capital - a.capital || (a.ref < b.ref ? -1 : 1))
+      .slice(0, 2))
+      row(
+        h.ref,
+        `${h.name}, a house of lending`,
+        "standing",
+        [0, 2],
+        "It fails at once: what it is owed is forgiven and its town's savers are ruined. Costs 4 in a hundred of your standing.",
+      );
+  }
   const mode = as.channel ? `${CHANNEL_WORDS} ` : "";
   if (held && rs)
     return {
@@ -632,6 +718,7 @@ function reignDecrees(
   return {
     words: `${mode}${stationWords(st)} ${pct(st.legitimacy)} in a hundred hold your rule rightful.${spends} What you set is weighed again by the realm in its turn.`,
     laws,
+    ...(charters.length ? { charters } : {}),
   };
 }
 

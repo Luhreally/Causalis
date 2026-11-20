@@ -216,6 +216,12 @@ export type ReignDecrees = {
   /** Their standing, and how they are answered, in a line. */
   readonly words: string;
   readonly laws: readonly ReignLaw[];
+  /**
+   * Their realm's groups and bodies, a faith's seat and a house of lending, each theirs to charter, outlaw or let be
+   * (sim/order/grouphand.ts): as a law is laid out, `law` being "charter:" and what the word falls on, `to` how it would
+   * be held (0 outlawed, 1 let be, 2 chartered). None for one of a court: only who rules gives such a word.
+   */
+  readonly charters?: readonly ReignLaw[];
 };
 
 /** A neighbour in reach of war: what fighting them would be. */

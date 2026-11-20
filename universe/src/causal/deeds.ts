@@ -130,5 +130,5 @@ registerCommandWords("act.group", (_, c) => {
 });
 registerCommandWords("reign.charter", (world, c) => {
   const a = c.args as { realm?: string; ruler?: string; to?: string };
-  return `Your act: as ${a.ruler ?? "its ruler"} of ${realmOf(world, a.realm ?? "")} you gave your word on one of its groups (${a.to ?? "a decree"}), ${year(c.t)}`;
+  return `Your act: as ${a.ruler ?? "its ruler"} of ${realmOf(world, a.realm ?? "")} you gave your word on one of its groups, its bodies or its houses of lending (${a.to ?? "a decree"}), ${year(c.t)}`;
 });
