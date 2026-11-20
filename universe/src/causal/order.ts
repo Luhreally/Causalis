@@ -252,6 +252,17 @@ registerDecisionWords(
   "order.law",
   (world, d) => `${cap(realmOf(world, d.subject))} weighed changing a law`,
 );
+// (A decision read "order.held for pol:0:832: score 0.20 against 0.06" on its page: it had no words.)
+const HELD_WHAT: Readonly<Record<string, string>> = {
+  force: "who bears its arms",
+  voice: "who carries its choices",
+  word: "how freely word moves in it",
+  trust: "what it keeps with others",
+};
+registerDecisionWords("order.held", (world, d) => {
+  const o = d.outcome as { hold?: string } | null;
+  return `${cap(realmOf(world, d.subject))} weighed ${HELD_WHAT[o?.hold ?? ""] ?? "how it is held"}`;
+});
 registerDecisionWords(
   "order.legitimacy",
   (world, d) => `${cap(realmOf(world, d.subject))}'s people weighed its right to rule`,
