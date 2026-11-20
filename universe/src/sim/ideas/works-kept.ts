@@ -53,7 +53,8 @@ type Saved = {
   digest: string;
 };
 
-const patronKey = (kind: Patron["kind"], ref: string): string => `${kind} ${ref}`;
+/** (A patron's ref is its own whatever its kind: a realm's, or the event a house or a body rose by.) */
+const patronKey = (_kind: Patron["kind"], ref: string): string => ref;
 
 export class WorksStore implements StateStore {
   readonly name = WORKS_STORE;
@@ -158,11 +159,26 @@ export class WorksStore implements StateStore {
     this.list.push(w);
     this.index(w);
   }
-  /** Works lost: these ids are let go. */
+  /** Works lost: these ids are let go (each taken out of what is read off the works, none of it read again). */
   lose(ids: ReadonlySet<number>): void {
     if (!ids.size) return;
+    const out = <T>(list: T[] | undefined, w: T): boolean => {
+      if (!list) return true;
+      const i = list.indexOf(w);
+      if (i >= 0) list.splice(i, 1);
+      return list.length === 0;
+    };
+    for (const w of this.list) {
+      if (!ids.has(w.id)) continue;
+      this.byId.delete(w.id);
+      if (out(this.byLand.get(w.land), w)) this.byLand.delete(w.land);
+      const key = patronKey(w.patron.kind, w.patron.ref);
+      if (out(this.byPatron.get(key), w)) this.byPatron.delete(key);
+      const n = (this.carried.get(w.of) ?? 1) - 1;
+      if (n > 0) this.carried.set(w.of, n);
+      else this.carried.delete(w.of);
+    }
     this.list = this.list.filter((w) => !ids.has(w.id));
-    this.reindex();
   }
   /** The year's state folded in: a checkpoint hashes this, not every work. */
   fold(year: number): void {

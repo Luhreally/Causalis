@@ -249,7 +249,7 @@ test("a work carries its memory, adds to its land's renown and credits its patro
   assert.ok(renown > 1 && renown <= 1 + WORK.renown);
   assert.ok(patronCredit(world, "seat", realm.ref, year) > 0.9);
   assert.equal(patronCredit(world, "seat", realm.ref, year + 3 * WORK.fresh), 0);
-  assert.equal(patronCredit(world, "house", realm.ref, year), 0);
+  assert.equal(patronCredit(world, "house", realm.ruler.event, year), 0);
   const again = new WorksStore();
   again.load(JSON.parse(JSON.stringify(store.save())));
   assert.equal(again.in(realm.seat).length, 1);
