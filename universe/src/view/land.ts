@@ -267,7 +267,8 @@ export function landFields(
 
 /**
  * Whether a piece of road (linePieces': middle x, y, z, length, heading) is drawn on its land's ground as laid: not where
- * it runs over a town's built ground or its walls, where the town's own streets carry it (its ends and its middle read).
+ * it runs over a town's built ground or its walls, or the water within them, where the town's own streets carry it (its ends,
+ * its middle and its middle's sides read).
  */
 export function roadClear(claims: GroundClaims | null): (piece: readonly number[]) => boolean {
   if (!claims) return () => true;
@@ -278,7 +279,8 @@ export function roadClear(claims: GroundClaims | null): (piece: readonly number[
       side = ROAD_TAKES / 2;
     // (Its two ends, its middle, and its middle's two sides.)
     for (const [t, n] of ROAD_READ) {
-      const k = claims.kindAt(
+      // (What a town holds, its water within it with it: the town's own streets and bridges carry it there.)
+      const k = claims.laidAt(
         q[0]! + t * along * ux + n * side * uz,
         q[2]! + t * along * uz - n * side * ux,
       );

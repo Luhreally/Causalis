@@ -87,6 +87,12 @@ export class GroundClaims {
     return this.heldKind;
   }
 
+  /** What was laid at a point, the water under it or not (GROUND.free: nothing). */
+  laidAt(x: number, z: number): number {
+    this.held(Math.floor(x / this.step), Math.floor(z / this.step));
+    return this.heldKind;
+  }
+
   /** Whose the ground at a point is (-1: no one's, or the water's). */
   ownerAt(x: number, z: number): number {
     if (this.wet(x, z)) return -1;
