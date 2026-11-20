@@ -62,6 +62,7 @@
   flex: 1 1 8em;
   gap: 4px;
   min-width: 0;
+  max-width: 15em;
 }
 .page-window .told-at {
   flex: 1 1 4em;
@@ -276,9 +277,24 @@ canvas.told-key {
   min-width: 0;
   line-height: 1.35;
 }
+/* (Its one tab is the page: no row of tabs for it.) */
+.page-window[data-kind="year"] > .tabs {
+  display: none;
+}
 /* (The date in the top bar is a way in: it says so to a pointer.) */
 .bar .clock[role="button"] {
   cursor: pointer;
+}
+/* (Under a thumb the date is taken a thumb's height: as tall as the buttons beside it in its row, over nothing above or below.) */
+@media (pointer: coarse) {
+  .bar .clock[role="button"] {
+    position: relative;
+  }
+  .bar .clock[role="button"]::after {
+    content: "";
+    position: absolute;
+    inset: -11px 0;
+  }
 }
 @media (pointer: coarse) {
   .page-window .told-line,

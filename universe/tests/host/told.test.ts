@@ -8,6 +8,7 @@ import {
   TOLD_SPAN,
   toldAsk,
   toldBase,
+  toldForget,
   toldKept,
   toldPage,
   yearTold,
@@ -233,8 +234,12 @@ test("asking moves nothing, what is kept is bounded, and a year comes quickly", 
       ms.push(performance.now() - t0);
     }
   assert.equal(JSON.stringify(world.domainHashes()), before);
-  assert.ok(toldKept(world) <= 48, `${toldKept(world)} tellings kept`);
-  assert.ok(stretchesKept(world) <= 16, `${stretchesKept(world)} stretches kept`);
+  assert.ok(toldKept(world) <= 16, `${toldKept(world)} tellings kept`);
+  assert.ok(stretchesKept(world) <= 10, `${stretchesKept(world)} stretches kept`);
+  // Its page shut, nothing is kept.
+  toldForget(world);
+  assert.equal(toldKept(world), 0);
+  assert.equal(stretchesKept(world), 0);
   ms.sort((a, b) => a - b);
   // (A year already read is its telling handed back; one not kept is read again from its stretch.)
   assert.ok(ms[ms.length >> 1]! < 50, `median ${ms[ms.length >> 1]!.toFixed(1)} ms`);

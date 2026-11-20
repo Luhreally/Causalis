@@ -131,6 +131,8 @@ export type YearTold = {
     readonly headline: string;
     readonly worth: number;
   }[];
+  /** How many more of its years have a telling of their own. */
+  readonly moreYears: number;
   readonly sections: readonly ToldSection[];
   readonly figures: readonly ToldFigure[];
   readonly map: ToldMap | null;

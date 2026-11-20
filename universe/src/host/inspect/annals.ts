@@ -1441,7 +1441,7 @@ const STRETCH = 16,
   BEFORE = 6,
   AFTER = 12;
 /** The stretches kept: read again when the log has moved on. */
-const STRETCHES_KEPT = 16;
+const STRETCHES_KEPT = 10;
 
 /** A stretch of years as read: every event of each year, and what each year tells. */
 export type Stretch = {
@@ -1572,4 +1572,9 @@ export function toldWords(world: World, t: Told, year: number): Line {
 /** How many stretches of years a world keeps read now (for a test of its bound). */
 export function stretchesKept(world: World): number {
   return STRETCHES.get(world)?.by.size ?? 0;
+}
+
+/** Let go of every stretch read (a measure of what they hold; the log's moving on does the same). */
+export function stretchesForget(world: World): void {
+  STRETCHES.delete(world);
 }

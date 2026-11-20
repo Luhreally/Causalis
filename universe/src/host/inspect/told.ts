@@ -46,6 +46,7 @@ import {
   landName,
   lineOf,
   ruleOf,
+  stretchesForget,
   toldOf,
   toldWords,
   withoutYear,
@@ -64,7 +65,7 @@ const ABOUT = 10;
  * What is left of a line's worth where its like is told in every year about it: a realm's fall is worth 6 as the Years weigh
  * it, and in a late world one falls most years; the one plague of a generation, worth 5, leads over it.
  */
-const COMMON = 0.55;
+const COMMON = 0.45;
 /** The most sentences a lead tells, and the most lines a section shows. */
 const LEAD_LINES = 3,
   SECTION_LINES = 4;
@@ -73,9 +74,11 @@ const LEAD_WORTH = ALL_WORTH;
 /** And where its like is not told in most of the years about it (its worth, and what its rarity adds). */
 const BESIDE_SCORE = 3.9;
 /** The tellings kept (a year or a run, of the world or of a realm), until the log has moved on. */
-const TOLD_KEPT = 48;
+const TOLD_KEPT = 16;
 /** The longest run of years told as one. */
 export const TOLD_SPAN = 100;
+/** Of a run of years, how many are named by their headlines. */
+const YEARS_SHOWN = 12;
 /** The most marks of a kind a map bears. */
 const MARKS = 14;
 
@@ -534,28 +537,31 @@ function headlineOf(world: World, t: Told, year: number): string {
     .replace(/, and (?:\w+|[\d,]+) more [^,.;:]*?(?=[.;:]|$)/, "")
     .replace(/, the most of any year in the twenty about it/, ", the most in twenty years")
     .replace(/, the most of any year in (\w+) years/, ", the most in $1 years")
-    .replace(/^(\w+) realms came to an end: .*$/, "$1 realms came to an end");
+    // (Several realms fallen: by their short names, so the headline holds who they were.)
+    .replace(
+      /^(\w+) realms came to an end: (.*)$/,
+      (_, n: string, names: string) =>
+        `${n} realms fell: ${names.replace(/\bthe [a-z][a-z ]*? of (?=\p{Lu})/gu, "")}`,
+    );
   return clip(words);
 }
 
 /** What a lead's picture shows, by its happening's kind. */
 const TYPE_MOTIF: readonly (readonly [RegExp, ToldMotif])[] = [
-  [/^planet\.eruption/, "eruption"],
+  [/^(planet\.eruption|wild\.rise)/, "eruption"],
+  [/^(fire\.clear|wild\.answer)/, "found"],
   [/^(act\.quake)/, "quake"],
   [/^(act|toy)\.flood/, "flood"],
   [/^(act\.(fire|meteor|flare)|wild\.fire|war\.strike|fire\.)/, "fire"],
-  [
-    /^(war\.peace|terms\.|diplomacy\.pact|ties\.(league|council)$|underworld\.(pax|truce))/,
-    "peace",
-  ],
+  [/^(war\.peace|terms\.|diplomacy\.pact|ties\.league$|underworld\.(pax|truce))/, "peace"],
   [/^(war\.|underworld\.(war|feud|clash|operation)|groups\.hired)/, "battle"],
   [
     /^(polity\.ended|town\.forsaken|lore\.lost|nation\.(fell|dark)|far\.fell|language\.died)/,
     "fall",
   ],
-  [/^(polity\.(formed|split|seceded|joined)|city\.|settlement\.|town\.|province\.)/, "rise"],
+  [/^(polity\.(formed|seceded|joined)|city\.|settlement\.|town\.|province\.)/, "rise"],
   [
-    /^(strife\.|order\.(revolt|crushed|crisis|movement)|houses\.(purged|overthrown)|bodies\.strike)/,
+    /^(strife\.|polity\.split|order\.(revolt|crushed|crisis|movement)|houses\.(purged|overthrown)|bodies\.strike)/,
     "strife",
   ],
   [/^(polity\.|court\.|reign\.|order\.|notable\.|houses\.|ties\.)/, "crown"],
@@ -564,7 +570,7 @@ const TYPE_MOTIF: readonly (readonly [RegExp, ToldMotif])[] = [
   [/^(industry\.(lode-out|lode-deeper|mine|well))/, "dig"],
   [/^(people\.famine|weather\.|climate\.|ecology\.|people\.smoke)/, "famine"],
   [/^(belief\.)/, "faith"],
-  [/^(trade\.(sea-route)|peoples\.sailed)/, "ship"],
+  [/^(trade\.sea-route|war\.sea)/, "ship"],
   [
     /^(money\.|credit\.|finance\.|trade\.(crash|slump|cartel|route-opened|machines|relief|embargo))/,
     "coin",
@@ -590,10 +596,10 @@ function vignetteOf(world: World, t: Told | null, land: number | null): ToldVign
     at = place >= 0 ? place : seat >= 0 ? seat : (land ?? -1),
     motif: ToldMotif = !t
       ? "quiet"
-      : t.key === "first"
-        ? "found"
-        : e
-          ? (TYPE_MOTIF.find(([re]) => re.test(e.type))?.[1] ?? "found")
+      : e
+        ? (TYPE_MOTIF.find(([re]) => re.test(e.type))?.[1] ?? "found")
+        : t.key === "first"
+          ? "found"
           : (["battle", "found", "famine", "crown", "star"] as const)[t.kind]!,
     g = homePlanet(world).generated,
     here = at >= 0 && at < g.offworld.base ? at : undefined,
@@ -1263,6 +1269,15 @@ export function toldKept(world: World): number {
   return TOLD.get(world)?.by.size ?? 0;
 }
 
+/** Let go of everything kept for the tellings (a measure of what they hold; the log's moving on does the same). */
+export function toldForget(world: World): void {
+  TOLD.delete(world);
+  PEOPLE.delete(world);
+  WARS.delete(world);
+  GONE.delete(world);
+  stretchesForget(world);
+}
+
 /** The first year anything is told of. */
 function firstYear(world: World): number {
   return world.events.count ? yearOfMoment(world.events.at(0).t) : 0;
@@ -1357,16 +1372,19 @@ export function yearTold(world: World, ask: { year: number; to?: number; realm?:
     return was;
   }
   const r = readerOf(world, realm),
+    // (A world no one lives on, and never has: its years are its own.)
+    alone = populationContext(world).provinces.total() === 0 && !politiesOf(world).all().length,
     run = to > year,
     leads: ToldLead[] = [],
     years: { year: number; headline: string; worth: number }[] = [],
     used = new Set<Told>();
+  let moreYears = 0;
   if (!run) {
     const cands = ranked(r, year),
       top = cands[0] ?? null,
       // (Beside it, what else would lead a year of its own: of another kind, the greatest first.)
       beside: Cand[] = [];
-    const quiet = quietLines(world, r, year),
+    const quiet = alone ? { headline: "", lines: [], land: null } : quietLines(world, r, year),
       loud = !!top && top.t.worth >= LEAD_WORTH;
     if (loud)
       for (const c of cands.slice(1)) {
@@ -1381,10 +1399,18 @@ export function yearTold(world: World, ask: { year: number; to?: number; realm?:
       for (const b of beside) used.add(b.t);
       // (A lead of one line is no telling: what quietly changed is said after it. A quiet year says all of it.)
       const said = lead.lines.filter((l) => l.ref !== null).length,
-        room = loud ? Math.max(0, LEAD_LINES - said) : quiet.lines.length;
+        room = loud ? Math.max(0, LEAD_LINES - said) : quiet.lines.length,
+        lines = [...lead.lines, ...quiet.lines.slice(0, said >= 2 && loud ? 0 : room)];
+      // (Still one line, in a year whose people were not counted: the next greatest of what it holds, of another kind.)
+      for (const c of cands.slice(1)) {
+        if (lines.filter((l) => l.ref !== null).length >= 2) break;
+        if (used.has(c.t) || [...used].some((u) => u.key === c.t.key)) continue;
+        used.add(c.t);
+        lines.push({ line: toldWords(world, c.t, year), ref: c.t.ref, year });
+      }
       leads.push({
         ...lead,
-        lines: [...lead.lines, ...quiet.lines.slice(0, said >= 2 && loud ? 0 : room)],
+        lines,
         vignette: lead.vignette?.scene ? lead.vignette : vignetteOf(world, top!.t, quiet.land),
       });
     } else if (quiet.lines.length)
@@ -1399,15 +1425,19 @@ export function yearTold(world: World, ask: { year: number; to?: number; realm?:
       leads.push({
         headline: realm
           ? "Nothing is kept of its year"
-          : first > year
-            ? "Before anyone could tell of it"
-            : "Nothing is kept of this year by itself",
+          : alone
+            ? `Year ${count(year)} of a world alone`
+            : first > year
+              ? "Before anyone could tell of it"
+              : "Nothing is kept of this year by itself",
         lines: [
           {
             line: [
               realm
                 ? "History keeps nothing that this realm did or suffered in the year."
-                : "History keeps no happening of this year, and its people were not counted in it.",
+                : alone
+                  ? "No one lives on this world, and nothing that befell it in the year is kept: with no one to tell it, a year here is its star's light, its seas and its weather."
+                  : "History keeps no happening of this year, and its people were not counted in it.",
             ],
             ref: null,
           },
@@ -1423,9 +1453,12 @@ export function yearTold(world: World, ask: { year: number; to?: number; realm?:
       const c = ranked(r, y)[0];
       if (!c) continue;
       tops.push({ c, year: y });
-      years.push({ year: y, headline: headlineOf(world, c.t, y), worth: c.score });
     }
     tops.sort((a, b) => b.c.score - a.c.score || a.year - b.year);
+    // (The greatest of its years by their headlines; the rest are counted, and stepped to.)
+    for (const { c, year: y } of tops.slice(0, YEARS_SHOWN))
+      years.push({ year: y, headline: headlineOf(world, c.t, y), worth: c.score });
+    moreYears = Math.max(0, tops.length - YEARS_SHOWN);
     const seen = new Set<string>();
     for (const { c, year: y } of tops) {
       if (leads.length >= LEAD_LINES) break;
@@ -1436,7 +1469,6 @@ export function yearTold(world: World, ask: { year: number; to?: number; realm?:
       if (lead) leads.push({ ...lead, headline: `${y}: ${lead.headline}` });
       used.add(c.t);
     }
-    years.sort((a, b) => b.worth - a.worth || a.year - b.year);
     if (!leads.length)
       leads.push({
         headline: "Nothing is kept of these years",
@@ -1462,8 +1494,9 @@ export function yearTold(world: World, ask: { year: number; to?: number; realm?:
           : `Year ${count(year)}`,
       leads,
       years,
+      moreYears,
       sections: sectionsOf(world, r, year, to, used),
-      figures: figuresOf(world, r, to, year),
+      figures: alone ? [] : figuresOf(world, r, to, year),
       map: mapOf(world, r, year, to),
       less: lessOf(world, year, realm),
       art: world.hasStore("planet.home") ? worldArt(world) : null,
@@ -1487,9 +1520,9 @@ export function toldPage(world: World, ref: string): PageModel {
     icon: "🗓️",
     title: realm ? `${sentence(name)}: its year` : "The year told",
     subtitle: realm
-      ? ["What each year was to ", link(name, realm), ", from what history keeps."]
+      ? ["What each year was to ", link(name, realm), "."]
       : [
-          "What each year was, from what history keeps. Line by line: ",
+          "From what history keeps. Line by line: ",
           link("The Years", "world:chronicle#years"),
           ".",
         ],

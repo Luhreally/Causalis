@@ -1477,7 +1477,8 @@ function centuryBlocks(s: Survey): Block[] {
       name = `${ordinal(c + 1)} century${whole ? "" : " (so far)"}`;
     rows.push({
       cells: [
-        [name],
+        // (Its name opens the century told as one: host/inspect/told.ts.)
+        [link(name, `told:${from}..${Math.min(from + 99, s.now)}`)],
         [count(people)],
         [count(n.towns)],
         [count(n.realms)],

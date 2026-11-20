@@ -37,6 +37,9 @@ interface ToldKept {
 /** A world's lands as the map draws them: asked once a world, the last two kept. */
 const BASES = new Map<string, ToldMapBase>();
 
+/** How many of these stand in a page now: when the last is shut, the host lets go of what it kept for them. */
+let standing = 0;
+
 /** How long the last telling took to draw (ms), and its pictures: for a gate to weigh. */
 export const TOLD_COST = { read: 0, draw: 0, art: 0, drawn: 0 };
 
@@ -92,6 +95,7 @@ export function drawTold(
     TOLD_COST.art += performance.now() - t;
     TOLD_COST.drawn++;
     c.dataset.drawn = "1";
+    box.dataset.art = TOLD_COST.art.toFixed(1);
   };
   const lend = (cls: string, draw: (c: HTMLCanvasElement) => void): HTMLCanvasElement => {
     const c = pool.pop() ?? document.createElement("canvas");
@@ -228,8 +232,8 @@ export function drawTold(
         t.subject
           ? "Its lands and those about them"
           : t.to > t.year
-            ? "The world over these years"
-            : "The world that year",
+            ? "Who held what over these years"
+            : "Who held what that year",
       ),
       c,
     );
@@ -283,7 +287,7 @@ export function drawTold(
     if (!t.years.length) return null;
     const s = part("years", "told-years");
     s.append(el("h3", "told-h", "Year by year, the greatest first"));
-    for (const y of t.years.slice(0, 12)) {
+    for (const y of t.years) {
       const row = el("button", "told-year-row");
       row.append(
         el("span", "told-year-at", String(y.year)),
@@ -292,12 +296,12 @@ export function drawTold(
       row.onclick = () => void read(y.year, y.year, null);
       s.append(row);
     }
-    if (t.years.length > 12)
+    if (t.moreYears)
       s.append(
         el(
           "p",
           "muted told-note",
-          `and ${comma(t.years.length - 12)} more years, each its own telling: step to any of them.`,
+          `and ${comma(t.moreYears)} more ${t.moreYears === 1 ? "year" : "years"}, each its own telling: step to any of them.`,
         ),
       );
     return s;
@@ -445,6 +449,9 @@ export function drawTold(
     }
     if (mine !== token || !box.isConnected) return;
     TOLD_COST.read = performance.now() - t0;
+    TOLD_COST.art = 0;
+    TOLD_COST.drawn = 0;
+    box.dataset.asked = TOLD_COST.read.toFixed(1);
     box.classList.remove("reading");
     onward.hidden = true;
     fill(t, at);
@@ -488,10 +495,16 @@ export function drawTold(
     if (told)
       void read(told.to >= told.now ? Math.max(year, told.now) : year, to > year ? to : undefined);
   };
+  standing++;
   const stop = ctx.client.onStatus((s) => {
     if (!box.isConnected) {
       stop();
       watch?.disconnect();
+      // (Its page shut and no other open: what the host kept for it is let go.)
+      if (--standing <= 0) {
+        standing = 0;
+        void ctx.client.query({ type: "told.forget" }).catch(() => {});
+      }
       return;
     }
     if (!told || told.to < told.now) return;

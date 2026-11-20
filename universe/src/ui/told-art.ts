@@ -100,11 +100,23 @@ function motif(
   h: number,
   key: number,
   tints: readonly Rgb[],
-  plain: boolean,
+  /** The scene it is drawn over: a land's ground has its house and its people at the middle and right, so it stands to the left. */
+  over: "war" | "land" | "town" | "realm" | "none",
 ): void {
-  const next = artStream(key),
+  const plain = over !== "war",
+    next = artStream(key),
     gy = h * 0.84,
-    cx = w * (plain ? 0.5 : 0.74),
+    cx =
+      w *
+      (over === "land"
+        ? kind === "crown"
+          ? 0.66
+          : kind === "sickness" || kind === "flood" || kind === "star"
+            ? 0.5
+            : 0.2
+        : over === "realm"
+          ? 0.74
+          : 0.5),
     a = tints[0] ?? ([0.72, 0.2, 0.18] as Rgb),
     b = tints[1] ?? ([0.2, 0.34, 0.66] as Rgb),
     s = h * 0.62;
@@ -725,7 +737,17 @@ export function drawVignette(
       css(p.ground, 0.9),
     );
   }
-  motif(g, v.motif, p, w, h, v.key, v.tints, !v.scene || v.scene.kind !== "war");
+  const kind = v.scene?.kind;
+  motif(
+    g,
+    v.motif,
+    p,
+    w,
+    h,
+    v.key,
+    v.tints,
+    kind === "war" || kind === "land" || kind === "town" || kind === "realm" ? kind : "none",
+  );
 }
 
 // —— The map ——————————————————————————————————————————————————————————————————————————————
@@ -868,39 +890,49 @@ export function drawYearMap(
 ): number {
   const p = paletteOf(world),
     n = base.lon.length,
-    focus = map.focus?.length ? map.focus : null;
-  // Where it looks: the whole world, or about a realm's lands.
+    focus = map.focus?.length ? map.focus : null,
+    // (What it frames: a realm's lands; else the lands that are held, where they lie in one part of the world.)
+    frame = focus ?? (map.lands.length ? map.lands : null);
+  // Where it looks: the whole world, or about a realm's lands, or about the peopled part of a world mostly empty.
   let lon0 = 0,
     lat0 = 0,
     k = w / (2 * Math.PI),
     h = Math.round(w / 2),
-    squash = 1;
-  if (focus) {
+    squash = 1,
+    near = false;
+  if (frame) {
     let sx = 0,
       sy = 0,
       sl = 0;
-    for (const c of focus) {
+    for (const c of frame) {
       sx += Math.cos(base.lon[c]! / 1000);
       sy += Math.sin(base.lon[c]! / 1000);
       sl += base.lat[c]! / 1000;
     }
-    lon0 = Math.atan2(sy, sx);
-    lat0 = sl / focus.length;
-    squash = Math.max(0.2, Math.cos(lat0));
+    const mid = Math.atan2(sy, sx),
+      midLat = sl / frame.length,
+      narrow = Math.max(0.2, Math.cos(midLat));
     let reach = base.step * 3;
-    for (const c of focus) {
-      let dl = base.lon[c]! / 1000 - lon0;
+    for (const c of frame) {
+      let dl = base.lon[c]! / 1000 - mid;
       if (dl > Math.PI) dl -= 2 * Math.PI;
       if (dl < -Math.PI) dl += 2 * Math.PI;
       reach = Math.max(
         reach,
-        Math.abs(dl) * squash * 1.0,
-        Math.abs(base.lat[c]! / 1000 - lat0) * 1.9,
+        Math.abs(dl) * narrow * 1.0,
+        Math.abs(base.lat[c]! / 1000 - midLat) * 1.9,
       );
     }
     reach = Math.min(Math.PI, reach + base.step * 2.5);
-    k = w / (2 * reach);
-    h = Math.round(w * 0.52);
+    // (A people spread about most of the world are drawn on the whole of it.)
+    if (focus || reach < Math.PI * 0.8) {
+      near = true;
+      lon0 = mid;
+      lat0 = midLat;
+      squash = narrow;
+      k = w / (2 * reach);
+      h = Math.round(w * 0.52);
+    }
   }
   const g = surface(canvas, w, h),
     at = (c: number): [number, number] | null => {
@@ -915,8 +947,9 @@ export function drawYearMap(
     // (On a map of the whole world a land nearer a pole is drawn as wide as the map stretches it.)
     // (And a little over, the more the nearer a pole: its few lands leave no gaps between them.)
     wide = (c: number) => {
-      if (focus) return side;
       const cos = Math.max(0.03, Math.cos(base.lat[c]! / 1000));
+      // (Drawn near, as wide as its own latitude is against the middle's, within bounds.)
+      if (near) return side * Math.max(1, Math.min(4, squash / cos));
       return (side / cos) * (1 + 0.7 * (1 - cos));
     },
     owner = new Map<number, number>();
@@ -969,8 +1002,9 @@ export function drawYearMap(
   g.setLineDash([]);
   for (const m of map.marks) {
     const q = at(m.cell);
-    if (q) drawMark(g, m.kind, q[0], q[1], focus ? 5 : 4);
+    if (q) drawMark(g, m.kind, q[0], q[1], Math.max(4, Math.min(6.5, w / 120)));
   }
+  canvas.dataset.near = near ? "1" : "0";
   return h;
 }
 
