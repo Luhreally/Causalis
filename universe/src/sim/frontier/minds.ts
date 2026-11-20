@@ -277,22 +277,33 @@ export function installMinds(world: World, ctx: () => PopulationContext): MindsS
     const row = mindsOf(w)?.rows.get(realm);
     return row && row.passed && row.name && !row.free ? { name: row.name, since: row.begun } : null;
   });
-  addsReach((c, p) => {
-    const row = mindsOf(c.world)?.rows.get(p.ref);
-    if (!row || !row.passed || row.past < 0) return [];
-    const contribution = mindCounsel(dmath.pow(10, row.past / 100), !!row.free);
-    return contribution
-      ? [
-          {
-            name: row.free
-              ? `its made minds went their own way${row.name ? `: ${row.name}` : ""}`
-              : `its made minds counsel its seat${row.name ? `: ${row.name}` : ""}`,
-            value: row.past / 100,
-            contribution,
-            source: row.free ?? row.passed,
-          },
-        ]
-      : [];
-  });
+  addsReach(mindsReach);
   return store;
+}
+
+/**
+ * What a realm's made minds add to its seat's reach, or take from it. One function for every world: given anew at each world's
+ * making, the list of what bears on reach (sim/order/order.ts addsReach, which knows a function it already has) took another
+ * copy of it for every world made in the process, and a realm's minds counselled it once more for each: a world loaded beside
+ * the one that ran on, or after any other was made, went another way from the first year (found 2026-11-20, first light 1,500).
+ */
+function mindsReach(
+  c: PopulationContext,
+  p: Polity,
+): { name: string; value: number; contribution: number; source: Ref | null }[] {
+  const row = mindsOf(c.world)?.rows.get(p.ref);
+  if (!row || !row.passed || row.past < 0) return [];
+  const contribution = mindCounsel(dmath.pow(10, row.past / 100), !!row.free);
+  return contribution
+    ? [
+        {
+          name: row.free
+            ? `its made minds went their own way${row.name ? `: ${row.name}` : ""}`
+            : `its made minds counsel its seat${row.name ? `: ${row.name}` : ""}`,
+          value: row.past / 100,
+          contribution,
+          source: row.free ?? row.passed,
+        },
+      ]
+    : [];
 }
