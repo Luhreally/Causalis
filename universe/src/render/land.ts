@@ -25,6 +25,7 @@ import {
   landFields,
   laneLine,
   landReach,
+  landEdge,
   linePieces,
   onLines,
   roadLine,
@@ -486,7 +487,13 @@ export class LandLayer {
       const circles = plan.towns.map((town) => {
           const d = this.towns.get(town.ref),
             m = tileMiddle(g, town.tile);
-          return { ref: town.ref, x: m.x, z: m.z, r: d?.reach ?? 0.3 };
+          return {
+            ref: town.ref,
+            x: m.x,
+            z: m.z,
+            r: d?.reach ?? 0.3,
+            edge: d ? landEdge(d.scene) : undefined,
+          };
         }),
         laid: FieldsLaid = new Map();
       this.fields = [...plan.towns]
@@ -501,6 +508,7 @@ export class LandLayer {
             c.r,
             circles.filter((o) => o.ref !== town.ref),
             laid,
+            c.edge,
           ).map((field) => ({ field, crop: -1 }));
         });
       this.layFieldTops();

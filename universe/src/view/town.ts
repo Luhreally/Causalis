@@ -38,7 +38,7 @@ import {
   townLots,
   townReach,
   wallRing,
-  reachToward,
+  wetGround,
   type LotStates,
   type TownCivic,
   type TownDesign,
@@ -242,7 +242,50 @@ export type TownScene = {
   readonly tiers: Uint8Array | null;
   /** The looks its homes stand in by design, ground and height, made as they are asked for. */
   readonly formLooks: Map<number, HouseLook>;
+  /** How far out its lots drawn reach toward each of OUTLINE bearings about its square (metres): its outline. */
+  readonly outline: Float32Array;
 };
+
+/** The bearings a town's outline is read at. */
+export const OUTLINE = 72;
+
+/**
+ * A town's outline: how far out its first `count` lots reach toward each of OUTLINE bearings (to their far edge; a bearing
+ * no lot lies toward takes the lesser of its neighbours'). By this its sprawl past the lots drawn and its fields are laid:
+ * no ring of one radius about it.
+ */
+export function outlineOf(lots: TownLots, count: number): Float32Array {
+  const out = new Float32Array(OUTLINE);
+  for (let p = 0; p < count; p++) {
+    const x = lots.x[p]!,
+      z = lots.z[p]!,
+      k = Math.floor(((Math.atan2(z, x) / (2 * Math.PI) + 1) % 1) * OUTLINE) % OUTLINE;
+    out[k] = Math.max(out[k]!, Math.hypot(x, z) + LOT_D);
+  }
+  // (Bearings between its fingers that no lot lies toward: as far as the nearer-in of the two beside them, twice over.)
+  for (let pass = 0; pass < 3; pass++)
+    for (let k = 0; k < OUTLINE; k++)
+      if (out[k]! <= 0) {
+        const a = out[(k + OUTLINE - 1) % OUTLINE]!,
+          b = out[(k + 1) % OUTLINE]!;
+        out[k] = a > 0 && b > 0 ? Math.min(a, b) : Math.max(a, b);
+      }
+  for (let k = 0; k < OUTLINE; k++) if (out[k]! <= 0) out[k] = SQUARE + LOT_D;
+  return out;
+}
+
+/** A town's outline toward a bearing (metres), between the bearings it is read at. */
+export function outlineAt(outline: Float32Array, a: number): number {
+  const f = ((((a / (2 * Math.PI)) % 1) + 1) % 1) * OUTLINE - 0.5,
+    k = Math.floor(f),
+    t = f - k;
+  return outline[(k + OUTLINE) % OUTLINE]! * (1 - t) + outline[(k + 1 + OUTLINE) % OUTLINE]! * t;
+}
+
+/** How far out a town's sprawl goes toward a bearing (metres): its outline, as many times over as all its lots are to those drawn (the same way sprawlOf reckons its furthest). */
+export function sprawlFar(scene: TownScene, ring: { r0: number; r1: number }, a: number): number {
+  return outlineAt(scene.outline, a) * (ring.r1 / ring.r0);
+}
 
 /** A town's scene at the moment its plan came (lots that change from then on are active). */
 export function townScene(plan: TownPlan, t: number, previous?: TownLots): TownScene {
@@ -279,6 +322,7 @@ export function townScene(plan: TownPlan, t: number, previous?: TownLots): TownS
       // (Its walls make ground scarce while they stand.)
       tiers: formTiers(plan, !!walls?.lengths.length),
       formLooks: new Map(),
+      outline: outlineOf(lots, plan.lots),
     };
   // (A raid's lots caught as its machines pass over them: W2.)
   timeRaids(plan, lots, states, homesRiseTo(plan), sprawlOf(plan, lots));
@@ -861,18 +905,9 @@ export function avenueWay(plan: TownPlan, k: number): number {
  * A great city's sprawl (null: none): from as far as its lots drawn reach out to as far as all its
  * lots would (metres).
  */
-/** How far out a town's lots drawn would reach were they gathered in one round about its square (metres): by their mean square way from it. */
-export function roundReach(lots: TownLots, count: number): number {
-  let sum = 0;
-  for (let p = 0; p < count; p++) sum += lots.x[p]! * lots.x[p]! + lots.z[p]! * lots.z[p]!;
-  return Math.min(townReach(lots, count), Math.sqrt((2 * sum) / Math.max(1, count)) + LOT_D);
-}
-
 export function sprawlOf(plan: TownPlan, lots: TownLots): { r0: number; r1: number } | null {
   if (plan.whole <= plan.lots || plan.lots === 0 || !plan.designs.length) return null;
-  // (From as far out as its lots drawn would reach were they one round: the fingers it grows down its roads reach past
-  // that, through its sprawl.)
-  const r0 = roundReach(lots, plan.lots),
+  const r0 = townReach(lots, plan.lots),
     // (Built up as spires are, it holds as many on far less: yet it has spread far past any other.)
     r1 = Math.min(hasSpires(plan) ? 5200 : 2600, r0 * Math.sqrt(plan.whole / plan.lots));
   return r1 > r0 + 20 ? { r0, r1 } : null;
@@ -898,19 +933,21 @@ function sprawl(scene: TownScene, out: TownParts, burned = false): void {
   // Its trodden ground, in bands of patches about it (none on the water).
   const bands = 6,
     round = 72;
-  // (Out each way as far as its ground is taken that way: a finger down each road in, less up its slope. bridge/sites.ts.)
+  // (From its lots' own outline each way, out as many times over as all its lots are to those drawn: its sprawl is the
+  // town's own shape grown on, with no ring of one radius at its inner edge or its outer.)
   for (let b = 0; b < bands; b++) {
-    if (r0 + ((r1 - r0) * (b + 1)) / bands <= clear) continue;
     for (let k = 0; k < round; k++) {
       const a = ((k + 0.5) / round) * 2 * Math.PI,
-        far = r0 + (r1 - r0) * reachToward(plan.site, a),
-        lo = r0 + ((far - r0) * b) / bands,
-        hi = r0 + ((far - r0) * (b + 1)) / bands,
+        near = outlineAt(scene.outline, a),
+        far = sprawlFar(scene, ring, a),
+        lo = near + ((far - near) * b) / bands,
+        hi = near + ((far - near) * (b + 1)) / bands,
         mid = (lo + hi) / 2,
         across = (2 * Math.PI * hi) / round + 1,
         x = mid * Math.cos(a),
         z = mid * Math.sin(a);
-      if (wet(x, z, across / 2)) continue;
+      if (hi <= clear || hi - lo < 2) continue;
+      if (wet(x, z, across / 2) || wetGround(plan.site, x, z)) continue;
       out.put("box", trodden, x, 0.12, z, across, 0.1, hi - lo + 1, Math.PI / 2 - a);
     }
   }
@@ -919,8 +956,8 @@ function sprawl(scene: TownScene, out: TownParts, burned = false): void {
     const a = avenueWay(plan, k),
       ca = Math.cos(a),
       sa = Math.sin(a);
-    const far = r0 + (r1 - r0) * reachToward(plan.site, a);
-    for (let r = r0; r < far; r += 60) {
+    const far = sprawlFar(scene, ring, a);
+    for (let r = outlineAt(scene.outline, a); r < far; r += 60) {
       const len = Math.min(60, far - r),
         x = (r + len / 2) * ca,
         z = (r + len / 2) * sa;
@@ -962,16 +999,15 @@ function sprawlRoofs(scene: TownScene, out: TownParts, from: number, to: number)
     wet = (x: number, z: number, margin: number) =>
       !!water && Math.hypot(x - water.x, z - water.z) < water.r + margin,
     towers = hasSpires(plan);
-  const sector = (2 * Math.PI) / AVENUES,
-    fingers = townReach(scene.lots, plan.lots) + 20,
-    roadsIn = plan.site?.roads.map((x) => x.bearing) ?? [];
+  const sector = (2 * Math.PI) / AVENUES;
   // (Its roofs a street's breadth past the lots drawn.)
   const inner = r0 + SPRAWL_GAP;
   for (let i = 0; i < n; i++) {
     const a = scatter(plan.seed, i, 1) * 2 * Math.PI,
       // (As far out that way as its ground is taken: bridge/sites.ts reachToward.)
-      ring = Math.sqrt(inner * inner + scatter(plan.seed, i, 0) * (r1 * r1 - inner * inner)),
-      r = r0 + (ring - r0) * reachToward(plan.site, a),
+      at = Math.sqrt(inner * inner + scatter(plan.seed, i, 0) * (r1 * r1 - inner * inner)),
+      near = outlineAt(scene.outline, a) + SPRAWL_GAP,
+      r = near + ((at - inner) / (r1 - inner)) * Math.max(0, sprawlFar(scene, ring, a) - near),
       look = looks[i % looks.length]!,
       // Nearer the heart, the taller.
       h = 5 + scatter(plan.seed, i, 2) * 5 + 14 * (1 - (r - r0) / (r1 - r0)) ** 3,
@@ -984,12 +1020,7 @@ function sprawlRoofs(scene: TownScene, out: TownParts, from: number, to: number)
     if (r < from || r >= to) continue;
     // (Off its avenues, and out of its water.)
     if (Math.min(off, sector * r - off) < AVENUE_HALF + w / 2 + 1 || wet(x, z, w / 2 + 4)) continue;
-    // (And off the fingers its lots drawn reach down its roads.)
-    if (
-      r < fingers &&
-      roadsIn.some((b) => Math.cos(a - b) > 0 && Math.abs(r * Math.sin(a - b)) < 52)
-    )
-      continue;
+    if (wetGround(plan.site, x, z)) continue;
     if (towers) {
       // Towers and more towers, tallest toward its heart, their floors lit, into the haze.
       const near = 1 - (r - r0) / (r1 - r0),

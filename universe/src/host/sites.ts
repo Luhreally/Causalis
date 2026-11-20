@@ -5,7 +5,7 @@
 // measured out before it was built — its land writing, and the town founded since, or walled since and grown out past its
 // walls; its walls; and whether it has flooded and learned to keep off the ground toward its water. All read, none kept.
 import { YEAR, yearOfMoment, type Ref, type World } from "../kernel/index.ts";
-import { isProvinceWorld } from "../gen/index.ts";
+import { WATER, isProvinceWorld } from "../gen/index.ts";
 import {
   floodWary,
   loreOf,
@@ -19,7 +19,13 @@ import {
   orderAt,
   type Fabric,
 } from "../sim/index.ts";
-import { streetsLaid, type Survey, type TownRoad, type TownSite } from "../bridge/index.ts";
+import {
+  LAND_SCALE,
+  streetsLaid,
+  type Survey,
+  type TownRoad,
+  type TownSite,
+} from "../bridge/index.ts";
 import { formFacts } from "./form.ts";
 import { pilgrimsBetween } from "./pilgrims.ts";
 import { machinesYear } from "./roads.ts";
@@ -244,6 +250,37 @@ export function surveysOf(
   return { surveys: out.sort((a, b) => a.from - b.from) };
 }
 
+/** How many tiles of its land's map about a town's own its water is read to. */
+const WET_HALF = 6;
+
+/**
+ * Its land's water about a town (TownSite.wet; nothing where none is near, or its people live in the water): the sea and
+ * lake tiles of its land's map about its own tile. A river is bridged and built along.
+ */
+export function landWater(
+  r: { size: number; tileKm: number; water: Uint8Array },
+  i: number,
+  j: number,
+  undersea: boolean,
+): { wet?: { m: number; half: number; cells: string } } {
+  if (undersea) return {};
+  let cells = "",
+    any = false;
+  for (let dj = -WET_HALF; dj <= WET_HALF; dj++)
+    for (let di = -WET_HALF; di <= WET_HALF; di++) {
+      const a = i + di,
+        b = j + dj,
+        w = a < 0 || b < 0 || a >= r.size || b >= r.size ? 0 : r.water[b * r.size + a]!,
+        // (Never its own tile: a town stands on its ground, whatever its map's tile is called.)
+        wet = (w === WATER.sea || w === WATER.lake) && (di !== 0 || dj !== 0);
+      cells += wet ? "1" : "0";
+      any ||= wet;
+    }
+  return any
+    ? { wet: { m: Math.round((r.tileKm * 1000) / LAND_SCALE), half: WET_HALF, cells } }
+    : {};
+}
+
 /** A town's site, as its streets are grown from it (`ends`: its land's roads, where they are reckoned already). */
 export function townSiteOf(
   world: World,
@@ -284,6 +321,7 @@ export function townSiteOf(
     ...(f.place >= 0 ? { place: { at: Math.ceil((f.place >> 2) / 8), size: f.place & 3 } } : {}),
     walled: f.walls?.reach ?? null,
     dry: f.next < DRY_MOST && floodWary(world, s.cell, year),
+    ...landWater(r, i, j, ctx.medium === "water"),
     // (What its streets were laid for, part by part: bridge/form.ts.)
     ...(() => {
       const facts = formFacts(world, ref, f, null),

@@ -242,6 +242,8 @@ export {
   laidAt,
   streetWide,
   placeReach,
+  wetGround,
+  LAND_SCALE,
   reachToward,
   climb,
   ROAD_GOING,

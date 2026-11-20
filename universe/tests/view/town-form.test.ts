@@ -173,11 +173,10 @@ test("a people of the water's town is laid another way, and says why", () => {
     form = townForm(SWIMS);
   assert.ok(form.over && form.heart === 0 && form.edge === 1 && form.green === 0 && form.own);
   assert.ok(laid[0]!.lane < 6);
-  // (As many blocks on less ground.)
-  const reach = (b: { x: Float32Array; z: Float32Array }) =>
-    // (Its mean way out: a town reaches further down its roads than between them.)
-    [...b.x].reduce((sum, x, i) => sum + Math.hypot(x, b.z[i]!), 0) / b.x.length;
-  assert.ok(reach(swim) < reach(walk) - 5, `${reach(swim)} against ${reach(walk)}`);
+  // (As many blocks on less ground: each nearer its neighbour.)
+  const close = nearest(swim, 0, 200),
+    apart = nearest(walk, 0, 200);
+  assert.ok(close < apart - 1, `${close.toFixed(1)} m against ${apart.toFixed(1)} m`);
   // (No ground dearer than the rest: every lot the town's own.)
   for (const p of [0, 50, 400, 1599]) assert.equal(lotTier(form, p, 1600), TIER.town);
   const whys = formWhys(form, laid, false).join(" ");

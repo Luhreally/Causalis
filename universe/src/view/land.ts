@@ -11,11 +11,10 @@ import { MinHeap, YEAR } from "../kernel/index.ts";
 import { civic, type CivicKind } from "../rules/index.ts";
 import type { LandCamp, LandPlan, LandRoad, LandTown, RoadWorks } from "../bridge/index.ts";
 import { REGION_RELIEF, type RegionTree } from "./region.ts";
-import { sprawlOf, type TownScene } from "./town.ts";
-import { reachToward, townReach } from "../bridge/index.ts";
+import { outlineAt, sprawlFar, sprawlOf, type TownScene } from "./town.ts";
+import { LAND_SCALE, townReach } from "../bridge/index.ts";
 
-/** How many times its size a town is drawn on the land's map. */
-export const LAND_SCALE = 5;
+export { LAND_SCALE };
 /** Region units to a town's metre: across, and up (the land's own relief). */
 export const LAND_ACROSS = LAND_SCALE / 1000;
 export const LAND_UP = REGION_RELIEF / 1000;
@@ -90,6 +89,12 @@ export function landReach(scene: TownScene): number {
   return r * LAND_ACROSS;
 }
 
+/** How far a town's drawing reaches toward a bearing, in region units: its outline, and its sprawl's where it has one. */
+export function landEdge(scene: TownScene): (a: number) => number {
+  const ring = sprawlOf(scene.plan, scene.lots);
+  return (a) => (ring ? sprawlFar(scene, ring, a) : outlineAt(scene.outline, a)) * LAND_ACROSS;
+}
+
 /** A field about a town: its middle, its size and turn, and when in the year it is sown (0–1). */
 export type LandField = {
   readonly x: number;
@@ -133,6 +138,8 @@ export function landFields(
   reach: number,
   others: readonly { x: number; z: number; r: number }[] = [],
   laid: FieldsLaid = new Map(),
+  /** How far its drawing reaches toward a bearing (region units: landEdge), where its outline is read. */
+  edge?: (a: number) => number,
 ): LandField[] {
   if (!town.fields || town.population <= 0) return [];
   const n = Math.max(4, Math.min(MOST_FIELDS, Math.round(Math.sqrt(town.population) * 0.9))),
@@ -141,14 +148,9 @@ export function landFields(
     ca = Math.cos(axis),
     sa = Math.sin(axis),
     inner = reach + 0.2,
-    site = town.plan?.site,
-    // (Its fields come in as near as its ground is taken each way: close between its roads, held off down them. bridge/sites.ts.)
+    // (Its fields come in as near as its ground is taken each way: close between its fingers, held off down them.)
     innerAt = (du: number, dv: number) =>
-      site
-        ? reach *
-            (0.5 + 0.5 * reachToward(site, Math.atan2(-du * sa + dv * ca, du * ca + dv * sa))) +
-          0.2
-        : inner,
+      edge ? edge(Math.atan2(-du * sa + dv * ca, du * ca + dv * sa)) + 0.2 : inner,
     outer = Math.sqrt((n * FIELD_W * FIELD_D) / Math.PI + inner * inner) * 1.35 + 0.5,
     ri = Math.ceil(outer / FIELD_W),
     rj = Math.ceil(outer / FIELD_D),
