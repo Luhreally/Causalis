@@ -153,4 +153,7 @@ registerEventWords(DEED_EVENTS.razed.type, (world, e) => {
     lost = x?.lost ? `; ${x.lost} of its own were taken in the answer` : "";
   return `${cap(orgWords(x?.group, x?.kind))} of ${x?.realm ?? realmOf(world, e.subjects[0] ?? "")} struck at ${where}: ${homes}${hands}${lost}, ${year(e.t)}`;
 });
-registerDecisionWords(DEED_EVENTS.razed.type, (world, x) => `A group struck at a place in ${realmOf(world, x.subject)}`);
+registerDecisionWords(
+  DEED_EVENTS.razed.type,
+  (world, x) => `A group struck at a place in ${realmOf(world, x.subject)}`,
+);

@@ -372,7 +372,11 @@ export function orgPage(world: World, ref: string): PageModel {
         stat(
           "Carries word",
           `to those who read in ${rec.lands.length === 1 ? "its land" : "its lands"}: a free voice, half as far as it holds among their learned`,
-          { parts: [part("its hold among the learned at home", share(orgInquiryOf(world, rec.home)))] },
+          {
+            parts: [
+              part("its hold among the learned at home", share(orgInquiryOf(world, rec.home))),
+            ],
+          },
         ),
       );
   }

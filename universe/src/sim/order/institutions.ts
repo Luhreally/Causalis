@@ -1730,7 +1730,8 @@ function writeLands(
     out[BODY_ROW.union] = dmath.clamp(union, 0, 1) * 1000;
     // (A learned society that its realm lets be carries word too, to those who read, half as far as it holds among the
     // learned: the groups' own free voice, sim/order/groups.ts. None where word is shut, or where none is kept.)
-    if (r.word >= INST.shuts) free = Math.max(free, INST.societySpeaks * orgInquiryOf(world, l.cell));
+    if (r.word >= INST.shuts)
+      free = Math.max(free, INST.societySpeaks * orgInquiryOf(world, l.cell));
     out[BODY_ROW.word] = free * 1000;
     out[BODY_ROW.kept] = kept * 1000;
     out[BODY_ROW.bodies] = here.length;

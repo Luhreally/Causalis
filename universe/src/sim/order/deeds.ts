@@ -107,7 +107,12 @@ type Found = {
   readonly kept: boolean;
   readonly fall: (by: Ref) => void;
   /** The body they head, where they head one: its house may be struck in their place. */
-  readonly house?: { readonly event: Ref; readonly name: string; readonly title: string; readonly place: string };
+  readonly house?: {
+    readonly event: Ref;
+    readonly name: string;
+    readonly title: string;
+    readonly place: string;
+  };
 };
 
 /** The kinds of building a body's house is, by what the rules call its place (rules DOES_ROWS.place), greatest first. */
@@ -151,7 +156,10 @@ function strikePlace(
   if (!town) return null;
   const f = townsOf(world).get(town.ref),
     kinds = house ? (HOUSES[house.place] ?? []) : [],
-    at = f && kinds.length ? f.civics.find((c) => c.fell === null && kinds.includes(c.kind)) : undefined,
+    at =
+      f && kinds.length
+        ? f.civics.find((c) => c.fell === null && kinds.includes(c.kind))
+        : undefined,
     homes = razeTown(ctx, town.ref, DEED.razes, t, at?.at);
   if (house) bodyHouseStruck(ctx, p, house.event, DEED.houseHands, DEED.housePurse);
   const event = world.events.emit({
@@ -342,7 +350,10 @@ export function strikes(
   if (!found.length) {
     // (No one of name within its reach: an armed group's blow falls, some of the time, on a quarter of its land's town.)
     if (g.crime || !g.armed || u(3) >= DEED.atPlace || !g.lands.length) return null;
-    const lost = Math.min(g.members, Math.round(g.members * strikeCost("survived", facts.capacity))),
+    const lost = Math.min(
+        g.members,
+        Math.round(g.members * strikeCost("survived", facts.capacity)),
+      ),
       decision = world.decisions.record({
         rule: DEED_EVENTS.razed.type,
         subject: p.ref,
@@ -408,17 +419,17 @@ export function strikes(
     razed = atHouse ? strikePlace(ctx, p, g, target.cell, target.house!, lost, decision, t) : null;
   if (razed) return { lost, outcome: "survived", event: razed };
   const event = world.events.emit({
-      type,
-      // (A ruler killed is the chronicle's; another killed is told above the ordinary years.)
-      importance: outcome === "killed" ? (target.at.who === "ruler" ? 5 : 4) : 3,
-      subjects: target.subject ? [p.ref, target.subject] : [p.ref],
-      place,
-      causes: [
-        { ref: decision, role: "trigger", weight: 1 },
-        { ref: g.event, role: "enabler", weight: 1 },
-      ],
-      data,
-    });
+    type,
+    // (A ruler killed is the chronicle's; another killed is told above the ordinary years.)
+    importance: outcome === "killed" ? (target.at.who === "ruler" ? 5 : 4) : 3,
+    subjects: target.subject ? [p.ref, target.subject] : [p.ref],
+    place,
+    causes: [
+      { ref: decision, role: "trigger", weight: 1 },
+      { ref: g.event, role: "enabler", weight: 1 },
+    ],
+    data,
+  });
   if (outcome === "spared" && target.guarded)
     sparedBy(world, target.guarded, p.ref, place, { group: g.name });
   if (outcome === "killed") target.fall(event);
