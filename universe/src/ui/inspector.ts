@@ -543,6 +543,8 @@ export class PageWindow {
       else if (
         (page.kind === "can" ||
           page.kind === "life" ||
+          // (A year told is a page to read: ui/told.ts.)
+          page.kind === "year" ||
           (/^(board|dear):/.test(page.ref) && !document.body.classList.contains("living"))) &&
         phoneSized()
       )
@@ -566,6 +568,7 @@ export class PageWindow {
       page.kind === "chronicle" ||
         page.kind === "ledger" ||
         page.kind === "stats" ||
+        page.kind === "year" ||
         page.kind === "log",
     );
     if (!page.tabs.some((t) => t.id === this.tab)) this.tab = page.tabs[0]?.id ?? "";

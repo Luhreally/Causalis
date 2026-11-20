@@ -1443,3 +1443,6 @@ export function bannerCanvas(
   while (BANNERS.size > BANNERS_KEPT) BANNERS.delete(BANNERS.keys().next().value!);
   return c;
 }
+
+/** The banners' own brush, for a picture drawn over one (a year told: ui/told-art.ts). */
+export { css as artCss, mix as artMix, stream as artStream, sky as artSky };

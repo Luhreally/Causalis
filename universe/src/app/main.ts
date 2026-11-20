@@ -11,6 +11,7 @@ import "./brushes.css";
 import "./tour.css";
 import "./can.css";
 import "./years.css";
+import "./told.css";
 import "./memory.css";
 import "./alliances.css";
 import "./learned.css";
@@ -10685,6 +10686,8 @@ async function runPlanetPage(): Promise<void> {
       !!document.querySelector(".jump-screen"),
   );
   if (exposed.jumpedFrom !== undefined) runNote.jumped();
+  // The date, pressed: this year told (ui/told.ts).
+  time.onDate = () => void pageWindow.open(`told:${Math.floor((client.status?.t ?? 0) / YEAR)}`);
   // The people bar (B1): who matters where the eye is, and how they are. The eye's place is read here at a low rate; who
   // they are is the worker's. A mode with its own chrome hides it, and it isn't read then.
   barPins.open(`${universe}:${seed}`);

@@ -125,7 +125,9 @@ export class RunNote {
     const head = el("div", "ran-head"),
       close = el("button", "ran-close", "×"),
       lines = el("div", "ran-lines"),
-      read = el("button", "ran-read", "📜 Read them");
+      read = el("button", "ran-read", "📜 Read them"),
+      // (The years gone by told as one, as a year is: its last hundred where it was longer. ui/told.ts.)
+      tell = el("button", "ran-read ran-told", "🗓️ Told");
     close.setAttribute("aria-label", "Put it by");
     close.onclick = () => this.close();
     head.append(
@@ -134,9 +136,14 @@ export class RunNote {
         "ran-title",
         `⏩ ${run.words}, ${told.years.toLocaleString("en")} year${told.years === 1 ? "" : "s"}`,
       ),
+      tell,
       read,
       close,
     );
+    tell.title =
+      told.years > 100 ? "Its last hundred years, told as one" : "These years, told as one";
+    tell.setAttribute("aria-label", tell.title);
+    tell.onclick = () => this.go(`told:${Math.max(told.from + 1, told.to - 99)}..${told.to}`);
     for (const l of told.lines) {
       const line = el("div", "ran-line");
       lineInto(line, l.line, (ref) => this.go(ref));

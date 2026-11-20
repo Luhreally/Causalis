@@ -505,7 +505,16 @@ export function chroniclePage(world: World, tab?: string): PageModel {
       id: "years",
       name: "The Years",
       blocks: [
-        { type: "text", lines: [["Each year something happened. Every name opens its page."]] },
+        {
+          type: "text",
+          lines: [
+            [
+              "Each year something happened. Every name opens its page, and a year's number that year told whole. ",
+              link("This year, told", `told:${now}`),
+              ".",
+            ],
+          ],
+        },
         { type: "tool", tool: "years.scroll", args: {} },
       ],
     },
@@ -524,6 +533,8 @@ export function chroniclePage(world: World, tab?: string): PageModel {
     subtitle: [
       `of the world, from its first people to year ${count(now)} — `,
       link("the ledger", "world:ledger"),
+      " · ",
+      link("this year, told", `told:${now}`),
     ],
     color: null,
     place: null,
@@ -1466,7 +1477,8 @@ function centuryBlocks(s: Survey): Block[] {
       name = `${ordinal(c + 1)} century${whole ? "" : " (so far)"}`;
     rows.push({
       cells: [
-        [name],
+        // (Its name opens the century told as one: host/inspect/told.ts.)
+        [link(name, `told:${from}..${Math.min(from + 99, s.now)}`)],
         [count(people)],
         [count(n.towns)],
         [count(n.realms)],

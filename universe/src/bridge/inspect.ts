@@ -883,6 +883,8 @@ export type PageKind =
   | "element"
   /** The world's own: its chronicle, its ledger, the message log; and the book of concepts. */
   | "chronicle"
+  /** A year told, of the world or of a realm, or a run of years (bridge/told.ts). */
+  | "year"
   | "ledger"
   | "stats"
   | "log"

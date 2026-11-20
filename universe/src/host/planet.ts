@@ -162,6 +162,7 @@ import {
 } from "./inspect/index.ts";
 import { linesWere } from "./inspect/townlife.ts";
 import { annalsIndex, annalsRead, runTold } from "./inspect/annals.ts";
+import { toldBase, toldForget, toldGone, yearTold } from "./inspect/told.ts";
 import { ANNALS_SEARCH_QUERIES } from "./inspect/annals-search.ts";
 import { askedKey, townOffers } from "./inspect/asks.ts";
 import { MAP_QUERIES } from "./map.ts";
@@ -1758,6 +1759,13 @@ function planetUniverse(name: string, prior: Prior): Universe {
         const a = args as { from: number; to: number };
         return runTold(world, a.from, a.to);
       },
+      // A year told, of the world or of a realm, or a run of years: read when its page asks (bridge/told.ts).
+      "told.read": (world, args) =>
+        yearTold(world, args as { year: number; to?: number; realm?: string | null }),
+      "told.base": (world) => toldBase(world),
+      "told.gone": (world, args) => toldGone(world, (args as { year: number }).year),
+      // (Its page shut: what was kept for it is let go.)
+      "told.forget": (world) => toldForget(world),
       // What the god's hand may answer a great happening with (Phase 11 M100).
       "event.answers": (world, args) => {
         const a = args as { ref: string; watch: string };

@@ -151,6 +151,13 @@ export function realmPageModel(
       {
         type: "facts",
         rows: [
+          // (Its year told: what this year, or its last, was to it. host/inspect/told.ts.)
+          stat("Its year", [
+            link(
+              r.ended === null ? "This year, told" : `Its last year, ${r.ended}, told`,
+              `told:${r.ended ?? yearNow(world)}:${r.ref}`,
+            ),
+          ]),
           stat(
             "Seat",
             seatTown

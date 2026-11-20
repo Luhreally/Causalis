@@ -3,6 +3,18 @@
 // See README.md and docs/architecture/universe-architecture.md §30.
 export { ALL_LINES, ALL_WORTH, ANNAL_ALL, ANNAL_KINDS, KIND_LINES, KIND_WORTH } from "./annals.ts";
 export type { AnnalLine, AnnalYear, AnnalsIndex, RunTold } from "./annals.ts";
+export type {
+  ToldFigure,
+  ToldItem,
+  ToldLead,
+  ToldMap,
+  ToldMapBase,
+  ToldMark,
+  ToldMotif,
+  ToldSection,
+  ToldVignette,
+  YearTold,
+} from "./told.ts";
 export {
   ANNAL_KEYS,
   ANNAL_RANKS,

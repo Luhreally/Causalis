@@ -1,0 +1,307 @@
+/* A year told (ui/told.ts): a page to read in a minute. Every control a thumb's size on a phone; nothing of it stands over
+   anything else: it lies in the page window's own scroll. */
+.told {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.told.reading .told-body {
+  opacity: 0.55;
+}
+.told-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.told-foot {
+  justify-content: space-between;
+  margin-top: 4px;
+}
+.page-window .told-step {
+  flex: 0 0 auto;
+  min-width: 76px;
+  min-height: 44px;
+  padding: 0 10px;
+  font-size: 0.86rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.told-kicker {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: center;
+  line-height: 1.2;
+}
+.told-kicker-year {
+  font-size: 1.12rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.told-kicker-of {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+.told-spans {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.page-window .told-span {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 0 10px;
+  font-size: 0.8rem;
+}
+.page-window .told-span.on {
+  background: var(--accent);
+  color: #0c1432;
+}
+.told-go {
+  display: flex;
+  flex: 1 1 8em;
+  gap: 4px;
+  min-width: 0;
+  max-width: 15em;
+}
+.page-window .told-at {
+  flex: 1 1 4em;
+  width: 4em;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 8px;
+  /* (Under 16 px, a phone's browser zooms in on a field as it is touched.) */
+  font-size: 16px;
+}
+.page-window .told-to {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 10px;
+  font-size: 0.82rem;
+}
+.page-window .told-onward {
+  min-height: 44px;
+  font-size: 0.82rem;
+}
+.told-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  /* (The reader is put back by hand as the year changes: the browser's own anchor would fight it.) */
+  overflow-anchor: none;
+}
+.told-part {
+  min-width: 0;
+}
+.page-window .told-headline {
+  margin: 2px 0 6px;
+  padding: 0;
+  border: 0;
+  font-size: 1.16rem;
+  line-height: 1.22;
+  font-weight: 700;
+  /* (A sentence to read, not a section's label: the page's own headings are small capitals.) */
+  text-transform: none;
+  letter-spacing: normal;
+  text-wrap: balance;
+}
+.page-window h4.told-headline {
+  font-size: 1rem;
+}
+canvas.told-vignette,
+canvas.told-map-canvas {
+  display: block;
+  max-width: 100%;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  margin-bottom: 6px;
+}
+.page-window .told-lead-line {
+  display: block;
+  margin: 0;
+  padding: 5px 2px;
+  line-height: 1.42;
+  font-size: 0.95rem;
+}
+.page-window p.told-lead-line {
+  color: var(--muted);
+  font-style: italic;
+}
+.page-window .told-line,
+.page-window .told-way {
+  display: block;
+  padding: 6px 4px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+.told-ways {
+  margin-top: 4px;
+  border-top: 1px solid var(--line);
+}
+.told-ways > summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 0.86rem;
+  font-weight: 600;
+  list-style: none;
+}
+.told-ways > summary::-webkit-details-marker {
+  display: none;
+}
+.told-ways > summary::before {
+  content: "▸";
+}
+.told-ways[open] > summary::before {
+  content: "▾";
+}
+.page-window .told-less {
+  margin: 0;
+  padding: 6px 8px;
+  border-left: 3px solid var(--muted);
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.38;
+}
+.page-window .told-h {
+  margin: 4px 0 2px;
+  font-size: 0.95rem;
+}
+.page-window .told-text {
+  margin: 0 0 2px;
+  line-height: 1.42;
+  font-size: 0.9rem;
+}
+.page-window .told-note {
+  margin: 2px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+.page-window .told-more {
+  min-height: 44px;
+  padding: 0 8px;
+  font-size: 0.78rem;
+}
+/* The numbers that move: tiles, two or three across a phone. */
+.told-figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
+  gap: 6px;
+}
+.page-window .told-figure {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 6px 8px;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: rgba(127, 127, 127, 0.1);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: none;
+}
+.page-window button.told-figure {
+  cursor: pointer;
+}
+.told-figure-label {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.told-figure-value {
+  font-size: 1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+canvas.told-spark {
+  display: block;
+}
+.told-change {
+  font-size: 0.72rem;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+.told-good {
+  color: #57c46a;
+}
+.told-bad {
+  color: #e8705e;
+}
+.told-same {
+  color: var(--muted);
+}
+.told-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+.told-legend-one {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+canvas.told-key {
+  flex: none;
+}
+.page-window .told-year-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 4px;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  box-shadow: none;
+  cursor: pointer;
+}
+.told-year-at {
+  flex: 0 0 2.9em;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.told-year-says {
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: 1.35;
+}
+/* (Its one tab is the page: no row of tabs for it.) */
+.page-window[data-kind="year"] > .tabs {
+  display: none;
+}
+/* (The date in the top bar is a way in: it says so to a pointer.) */
+.bar .clock[role="button"] {
+  cursor: pointer;
+}
+/* (Under a thumb the date is taken a thumb's height: as tall as the buttons beside it in its row, over nothing above or below.) */
+@media (pointer: coarse) {
+  .bar .clock[role="button"] {
+    position: relative;
+  }
+  .bar .clock[role="button"]::after {
+    content: "";
+    position: absolute;
+    inset: -11px 0;
+  }
+}
+@media (pointer: coarse) {
+  .page-window .told-line,
+  .page-window .told-way,
+  .page-window div.told-lead-line {
+    min-height: 44px;
+    padding-top: 9px;
+    padding-bottom: 9px;
+  }
+}
