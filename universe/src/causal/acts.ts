@@ -123,7 +123,7 @@ registerEventWords(LOCAL_ACT_EVENTS.fire.type, (world, e) => {
   const blocks = (e.data as { blocks?: number } | null)?.blocks ?? 0,
     wild = e.data as { natural?: boolean; cover?: string; homes?: number; dead?: number } | null;
   if (wild?.natural)
-    return `A fire out of the ${coverWords(world, wild.cover ?? "land")} came to ${named(e.data, villageName(world, e.subjects[0]))}: ${said(wild.homes ?? 0)} of its homes burned, and ${said(wild.dead ?? 0)} died, year ${yearOfMoment(e.t)}`;
+    return `A fire out of the ${coverWords(world, wild.cover ?? "land")} came to ${named(e.data, villageName(world, e.subjects[0]))}: ${said(wild.homes ?? 0)} of its homes burned, and ${wild.dead ? said(wild.dead) : "no one"} died, year ${yearOfMoment(e.t)}`;
   // (Its record forgotten, whether a hand did it is too: no one's is claimed.)
   if (!e.data)
     return `Fire swept ${named(e.data, villageName(world, e.subjects[0]))}, year ${yearOfMoment(e.t)}`;
@@ -246,7 +246,7 @@ registerEventWords(UNBIDDEN_EVENTS.fire.type, (world, e) => {
     } | null,
     towns = d?.towns ?? [],
     reached = towns.length
-      ? `, and reached ${towns.length === 1 ? towns[0] : `${towns[0]} and ${towns.length - 1} more`}, where ${said(d?.dead ?? 0)} died`
+      ? `, and reached ${towns.length === 1 ? towns[0] : `${towns[0]} and ${towns.length - 1} more`}, where ${d?.dead ? said(d.dead) : "no one"} died`
       : "";
   const where = landWords(world, e.place as Ref | null),
     cover = coverWords(world, d?.cover ?? "land"),

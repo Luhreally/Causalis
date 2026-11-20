@@ -232,7 +232,7 @@ const op = (x: unknown) => (x as OpData | null) ?? {};
 registerEventWords(
   UNDERWORLD_EVENTS.operation.type,
   (_, e) =>
-    `${cap(realm(e.data))} sent ${op(e.data).soldiers ?? "its"} soldiers against ${group(e.data)}, its police no match for it, ${year(e.t)}`,
+    `${cap(realm(e.data))} sent ${typeof op(e.data).soldiers === "number" ? count(op(e.data).soldiers as number) : "its"} soldiers against ${group(e.data)}, its police no match for it, ${year(e.t)}`,
 );
 registerEventWords(
   UNDERWORLD_EVENTS.clash.type,

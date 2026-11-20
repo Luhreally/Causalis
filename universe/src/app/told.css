@@ -285,23 +285,11 @@ canvas.told-key {
 .bar .clock[role="button"] {
   cursor: pointer;
 }
-/* (Under a thumb the date is taken a thumb's height: as tall as the buttons beside it in its row, over nothing above or below.) */
+/* (Under a thumb the date is a thumb's height: as tall as the buttons beside it in its row.) */
 @media (pointer: coarse) {
   .bar .clock[role="button"] {
-    position: relative;
-  }
-  .bar .clock[role="button"]::after {
-    content: "";
-    position: absolute;
-    inset: -11px 0;
-  }
-}
-@media (pointer: coarse) {
-  .page-window .told-line,
-  .page-window .told-way,
-  .page-window div.told-lead-line {
+    display: inline-flex;
+    align-items: center;
     min-height: 44px;
-    padding-top: 9px;
-    padding-bottom: 9px;
   }
 }

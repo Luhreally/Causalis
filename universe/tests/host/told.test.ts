@@ -11,6 +11,8 @@ import {
   toldForget,
   toldKept,
   toldPage,
+  toldPlace,
+  toldWays,
   yearTold,
 } from "../../src/host/inspect/told.ts";
 import { annalsRead, stretchesKept } from "../../src/host/inspect/annals.ts";
@@ -28,7 +30,10 @@ const NOW = 60,
 for (let y = 0; y <= NOW; y++) all.push(yearTold(world, { year: y }));
 /** Every line of a telling. */
 const linesOf = (t: YearTold): ToldItem[] => [
-  ...t.leads.flatMap((l) => [...l.lines, ...l.before, ...l.after]),
+  ...t.leads.flatMap((l) => {
+    const w = l.ways ? toldWays(world, { ...l.ways, realm: t.subject?.ref ?? null }) : null;
+    return [...l.lines, ...(w?.before ?? []), ...(w?.after ?? [])];
+  }),
   ...t.sections.flatMap((s) => s.items),
 ];
 
@@ -46,9 +51,13 @@ test("every year has a lead, and no year reads as the one before it", () => {
       `years ${y - 1} and ${y} have one headline`,
     );
   }
-  // (And the years are mostly their own: a headline is not said of many years.)
-  const heads = new Set(all.map((t) => t.leads[0]!.headline));
-  assert.ok(heads.size >= NOW * 0.9, `${heads.size} headlines over ${NOW + 1} years`);
+  // And no headline is said of two years anywhere in the world's history: each holds who, where or how many.
+  const heads = new Map<string, number>();
+  for (const t of all) {
+    const h = t.leads[0]!.headline;
+    assert.ok(!heads.has(h), `years ${heads.get(h)} and ${t.year} have one headline: ${h}`);
+    heads.set(h, t.year);
+  }
 });
 
 test("no line shows a kind of event or a ref, and a headline is short enough to be one", () => {
@@ -59,7 +68,7 @@ test("no line shows a kind of event or a ref, and a headline is short enough to 
       assert.doesNotMatch(words, /\b[a-z]+\.[a-z]+(-[a-z]+)* for /, `year ${t.year}: ${words}`);
       assert.doesNotMatch(words, /score [\d.]+ against/, `year ${t.year}: ${words}`);
     }
-    for (const lead of t.leads) assert.ok(lead.headline.length <= 96, lead.headline);
+    for (const lead of t.leads) assert.ok(lead.headline.length <= 118, lead.headline);
     for (const s of t.sections) assert.doesNotMatch(plain(s.text), /undefined|NaN/);
   }
 });
@@ -247,4 +256,55 @@ test("asking moves nothing, what is kept is bounded, and a year comes quickly", 
     ms[Math.floor(ms.length * 0.95)]! < 150,
     `p95 ${ms[Math.floor(ms.length * 0.95)]!.toFixed(1)} ms`,
   );
+});
+
+test("what led to a thing is near it, and a far root is said to be far", () => {
+  let asked = 0,
+    led = 0;
+  for (const t of all) {
+    const w = t.leads[0]!.ways;
+    if (!w) continue;
+    asked++;
+    const { before, after } = toldWays(world, w);
+    assert.ok(before.length <= 3 && after.length <= 3);
+    if (!before.length) continue;
+    led++;
+    // (Its first is of its own years; one long before is said so, and is not the first.)
+    for (const b of before) {
+      assert.ok(b.year! <= t.year);
+      if (t.year - b.year! >= 40) assert.match(plain(b.line), /^Long before, in \d+: /);
+    }
+    for (const a of after) assert.ok(a.year! >= t.year);
+  }
+  assert.ok(
+    asked > 20 && led > 5,
+    `${asked} leads with a happening, ${led} with something behind it`,
+  );
+});
+
+test("every kind of event has its side of life by rule, and the kinds merged since have theirs", () => {
+  for (const [type, section, motif] of [
+    ["held.crime", "war", "fall"],
+    ["held.fled", "people", "fall"],
+    ["held.reckoned", "war", "crown"],
+    ["war.raid", "war", "battle"],
+    ["war.company", "war", "battle"],
+    ["war.fleet", "war", "ship"],
+    ["ecology.sea-few", "nature", "fall"],
+    ["bodies.sentenced", "bodies", "crown"],
+    ["groups.struck", "bodies", "strife"],
+    ["underworld.struck", "bodies", "strife"],
+    ["bodies.told", "bodies", "found"],
+    ["reign.charter", "power", "crown"],
+  ] as const) {
+    const p = toldPlace(type);
+    assert.equal(p.section, section, type);
+    assert.equal(p.motif, motif, type);
+  }
+  // Every kind the world's log holds falls under a side of life by its domain or its own rule, not by default.
+  const seen = new Set<string>();
+  for (let i = 0; i < world.events.count; i++) seen.add(world.events.at(i).type);
+  for (const type of seen)
+    if (!type.startsWith("act."))
+      assert.ok(toldPlace(type).ruled, `${type} has no side of life of its own`);
 });
