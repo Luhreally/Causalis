@@ -564,7 +564,7 @@ export function villagePlan(
       road: roadOut,
       through: !!city,
     });
-  fields.push(...layOn(claims, meant, GROUND.field, 0, { x: 0, z: 0 }, 15, 24));
+  fields.push(...layOn(claims, meant, GROUND.field, 0, { x: 0, z: 0 }, 24, 12));
   // The pasture lies toward the poorer ground, near the homes where that is clear of the
   // fields' fan (else just past them); the wild begins beyond the last fields.
   const outer = fields.reduce(

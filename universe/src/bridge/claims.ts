@@ -539,8 +539,9 @@ export function townClaims(o: {
 
 /**
  * Lay what is wanted of one kind on a town's or a land's ground (`wanted`, the nearest first): each where it was meant to
- * lie if that ground is free, else stepped on out from `from` along its own bearing to the nearest free ground (up to
- * `tries` steps of `out`), else not laid. Each laid takes its ground, so none lies on another.
+ * lie if that ground is free, else on the nearest free ground about that spot, ring by ring `out` apart (the way out from
+ * `from` first in each ring, then round about), up to `rings` rings; else not laid. Each laid takes its ground, so none
+ * lies on another.
  */
 export function layOn(
   claims: GroundClaims,
@@ -549,21 +550,24 @@ export function layOn(
   owner: number,
   from: { readonly x: number; readonly z: number },
   out: number,
-  tries: number,
-  keep: (r: Rect) => boolean = () => true,
+  rings: number,
 ): Rect[] {
   const laid: Rect[] = [];
   for (const f of wanted) {
-    const dx = f.x - from.x,
-      dz = f.z - from.z,
-      d = Math.hypot(dx, dz) || 1;
-    for (let k = 0; k <= tries; k++) {
-      const r = { ...f, x: f.x + (dx / d) * out * k, z: f.z + (dz / d) * out * k };
-      if (!keep(r) || !claims.free(r.x, r.z, r.w, r.d, r.yaw, owner, 0)) continue;
-      claims.rect(r.x, r.z, r.w, r.d, r.yaw, kind, owner);
-      laid.push(r);
-      break;
+    const way = Math.atan2(f.z - from.z, f.x - from.x);
+    let at: Rect | null = claims.free(f.x, f.z, f.w, f.d, f.yaw, owner, 0) ? f : null;
+    for (let ring = 1; !at && ring <= rings; ring++) {
+      const turns = 6 + 2 * ring;
+      for (let k = 0; k < turns && !at; k++) {
+        // (Outward first, then either side of it in turn, round to inward.)
+        const a = way + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * ((2 * Math.PI) / turns),
+          r = { ...f, x: f.x + Math.cos(a) * out * ring, z: f.z + Math.sin(a) * out * ring };
+        if (claims.free(r.x, r.z, r.w, r.d, r.yaw, owner, 0)) at = r;
+      }
     }
+    if (!at) continue;
+    claims.rect(at.x, at.z, at.w, at.d, at.yaw, kind, owner);
+    laid.push(at);
   }
   return laid;
 }

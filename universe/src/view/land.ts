@@ -272,15 +272,29 @@ export function landFields(
 export function roadClear(claims: GroundClaims | null): (piece: readonly number[]) => boolean {
   if (!claims) return () => true;
   return (q) => {
-    const dx = (Math.sin(q[4]!) * q[3]!) / 2,
-      dz = (Math.cos(q[4]!) * q[3]!) / 2;
-    for (const t of [-1, 0, 1]) {
-      const k = claims.kindAt(q[0]! + t * dx, q[2]! + t * dz);
+    const ux = Math.sin(q[4]!),
+      uz = Math.cos(q[4]!),
+      along = q[3]! / 2,
+      side = ROAD_TAKES / 2;
+    // (Its two ends, its middle, and its middle's two sides.)
+    for (const [t, n] of ROAD_READ) {
+      const k = claims.kindAt(
+        q[0]! + t * along * ux + n * side * uz,
+        q[2]! + t * along * uz - n * side * ux,
+      );
       if (k === GROUND.built || k === GROUND.wall) return false;
     }
     return true;
   };
 }
+
+const ROAD_READ = [
+  [-1, 0],
+  [0, 0],
+  [1, 0],
+  [0, -1],
+  [0, 1],
+] as const;
 
 /** How far a band's camp spreads about its middle on its land's map (region units: its tents' rings and its fire). */
 export const CAMP_REACH = 0.45;
