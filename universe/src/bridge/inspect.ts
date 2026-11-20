@@ -918,6 +918,8 @@ export type PageKind =
   /** A school of thought, a work someone made (sim/ideas). */
   | "school"
   | "work"
+  /** A realm's made minds, spoken of as one (sim/frontier/minds.ts). */
+  | "mind"
   | "unknown";
 
 export type PageModel = {

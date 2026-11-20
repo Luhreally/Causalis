@@ -133,7 +133,7 @@ export function mindPage(world: World, ref: string): PageModel {
     );
   return {
     ref,
-    kind: "person",
+    kind: "mind",
     icon: "🧠",
     portrait: { kind: "sign", color, tenet: "teaching" },
     title: sentence(row.name),
@@ -173,4 +173,14 @@ export function mindPage(world: World, ref: string): PageModel {
     followable: false,
     year,
   };
+}
+
+/** The page of a realm's made minds, where a ref is their figure at its court (`court:<realm>:<id>`); null: anyone else's. */
+export function mindOfCourtRef(world: World, ref: string): string | null {
+  const m = /^court:(pol:\d+:\d+):(\d+)$/.exec(ref);
+  if (!m) return null;
+  const f = courtOf(world)
+    ?.of(m[1] as never)
+    ?.figures.find((x) => x.id === Number(m[2]));
+  return f?.seat === "minds" ? mindRef(m[1]!) : null;
 }
