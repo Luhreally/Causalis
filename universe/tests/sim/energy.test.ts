@@ -19,7 +19,9 @@ import { EARTH } from "../../src/host/index.ts";
 import { universeWorld } from "../host/worlds.ts";
 
 const early = universeWorld(EARTH, "first light", 125),
-  late = universeWorld(EARTH, "first light", 700);
+  // (760: first light's first engines turn between 700 and 750 as the world now runs: coal dug in 239 lands and clockwork
+  // known in 254 at 700, the engine in none; in 134 by 750. At 700 no land's works ran on burned fuel yet.)
+  late = universeWorld(EARTH, "first light", 760);
 
 test("every peopled land keeps an account whose lines add up", () => {
   for (const world of [early, late]) {
@@ -83,7 +85,7 @@ test("the air takes the carbon of what was burned, by the carbon its make-up hol
   const used = marketsOf(late)
     .all()
     .reduce((s, m) => s + (m.years.at(-1)?.ledger[1]?.[G.coal] ?? 0), 0);
-  assert.ok(used > 0, "coal burned by 700");
+  assert.ok(used > 0, "coal burned by 760");
 });
 
 test("each land's soil is what its ground's stocks give", () => {

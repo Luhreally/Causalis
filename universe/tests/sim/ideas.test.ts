@@ -136,13 +136,22 @@ const world = peopledWorld("kestrel", 400, { start: "spread" }),
     .filter(
       (r) =>
         r.members.length >= 2 &&
-        r.members.every((c) => !schoolsOf(world)!.of(c) && !worksOf(world)!.in(c).length) &&
+        r.members.every((c) => !worksOf(world)!.in(c).length) &&
         !worksOf(world)!.carries(r.event) &&
         !worksOf(world)!.for("seat", r.ref).length,
     )
-    .sort((a, b) => b.members.length - a.members.length || (a.ref < b.ref ? -1 : 1))[0]!,
+    // (One whose lands hold no school first; kestrel at 400 has none such of two lands now, so the schools of the one taken
+    // are let go below: its lands then hold none.)
+    .sort(
+      (a, b) =>
+        a.members.filter((c) => schoolsOf(world)!.of(c)).length -
+          b.members.filter((c) => schoolsOf(world)!.of(c)).length ||
+        b.members.length - a.members.length ||
+        (a.ref < b.ref ? -1 : 1),
+    )[0]!,
   year = 400,
   anEvent = realm.event;
+for (const c of realm.members) schoolsOf(world)!.set(c, null);
 
 test("a world of four centuries has schools, works and peoples abroad of its own", () => {
   const schools = schoolsOf(world)!.all(),

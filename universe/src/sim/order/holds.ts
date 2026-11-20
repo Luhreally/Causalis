@@ -39,6 +39,9 @@ import {
   evidenceKept,
   evidenceOf,
   leaningOf,
+  kinOf,
+  shareHeard,
+  squaresOf,
   madeItsOwn,
   faredBy,
   howWords,
@@ -68,6 +71,8 @@ import {
 } from "../../rules/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { WAY, cultureOf, type Ways } from "../culture/culture.ts";
+import { beliefOf } from "../belief/belief.ts";
+import { tongueLikeness } from "../../gen/index.ts";
 import { politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import type { MarketStore } from "../economy/market.ts";
 import { knows } from "../lore/lore.ts";
@@ -515,7 +520,9 @@ export function learntOf(o: RealmOrder | undefined): Belief | undefined {
   return l
     ? {
         a: l.slice(0, 8).map((x) => x / 1000),
-        n: l.slice(8).map((x) => x / 1000),
+        n: l.slice(8, 16).map((x) => x / 1000),
+        // (The squares of its pieces, in millionths; a save from before keeps none.)
+        ...(l.length >= 24 ? { q: l.slice(16, 24).map((x) => x / 1e6) } : {}),
         at: o!.learntAt ?? 0,
       }
     : undefined;
@@ -587,6 +594,38 @@ type Weighed = {
 };
 
 /**
+ * How much what befell `whose` weighs with a realm that heard of it (0 … 1, against its own fate's 1): by how near it is, how
+ * like they are (their ways, how great they are, their speech and whether they keep one faith), how freely word leaves them,
+ * and how far this realm heeds outsiders at all.
+ */
+function heardBy(
+  ctx: PopulationContext,
+  p: Polity,
+  o: RealmOrder,
+  whose: Polity,
+  theirs: RealmOrder,
+  near: number,
+): number {
+  const { world } = ctx,
+    culture = cultureOf(world),
+    mine = culture.get(p.seat),
+    other = culture.get(whose.seat),
+    ways = waysRead(mine),
+    faiths = world.hasStore("belief.faiths") ? beliefOf(world) : null,
+    kin = kinOf(
+      mine && other ? tongueLikeness(mine.tongue, other.tongue) : 1,
+      !faiths || faiths.of(p.seat).faith === faiths.of(whose.seat).faith,
+    ),
+    stance = theirs.stood ?? theirs.held;
+  return seenWeight(
+    near,
+    likeness(ways, waysRead(other)) * alikeInSize(o.was?.[0] ?? 0, theirs.was?.[0] ?? 0) * kin,
+    (stance?.[HOLD.word] ?? 50) / 100,
+    ways.openness,
+  );
+}
+
+/**
  * A realm takes a piece of evidence: how `whose` stood (as its last year closed) and how it has fared (its fortune, as this realm's
  * ways count it; a realm gone lost everything), by what it weighs with this realm: all, where it is its own, less what its people
  * put to the gods; another's by how near and like it is and how freely word leaves it (`near`: 1 at hand … 0 at the edge of its
@@ -600,6 +639,7 @@ function weigh(
   near: number,
   year: number,
   usual: readonly number[],
+  share = 1,
 ): Weighed | null {
   const { world } = ctx,
     own = whose === p,
@@ -613,24 +653,24 @@ function weigh(
     fared = faredBy(fortune, values),
     chance = chanceOf(ways),
     theirWays = own ? ways : waysRead(culture.get(whose.seat)),
-    seen = own
-      ? 1
-      : seenWeight(
-          near,
-          // (How like it they are: in their ways, and in how great they are.)
-          likeness(ways, theirWays) * alikeInSize(o.was?.[0] ?? 0, theirs.was?.[0] ?? 0),
-          stance[HOLD.word]! / 100,
-          ways.openness,
-        ),
+    seen = own ? 1 : heardBy(ctx, p, o, whose, theirs, near),
     // (And by how far the way it stood was of its own making: a realm new-founded stands as its founding left it.)
-    weight = seen * (1 - chance) * madeItsOwn(year - whose.founded, theirWays.tradition),
+    // (And another's by this realm's share of it among all who heard: one fall is one piece, however many hear.)
+    weight =
+      seen *
+      (own ? 1 : share) *
+      (1 - chance) *
+      madeItsOwn(year - whose.founded, theirWays.tradition),
     stood = stance.map((x) => x / 100),
     evidence = evidenceOf(stood, usual, fared, weight),
     moved = evidence.reduce((s, x) => s + Math.abs(x), 0);
   if (moved > 0) {
     const keep = evidenceKept(year - (o.learntAt ?? year)),
       b = believeAfter(learntOf(o) ?? noBelief(year), evidence, own, year);
-    o.learnt = [...b.a, ...b.n].map((x) => whole(x * 1000));
+    o.learnt = [
+      ...[...b.a, ...b.n].map((x) => whole(x * 1000)),
+      ...squaresOf(b).map((x) => whole(x * 1e6)),
+    ];
     o.learntAt = b.at;
     // (Whom it learns from: each by how far their fates have moved it, faded as its evidence is.)
     const from = new Map((o.from ?? []).map(([ref, w]) => [ref, w * keep]));
@@ -750,14 +790,25 @@ export function readOutcomes(
       // Those who could know of it: their word reaching its seat within a season, the farther the more freely word moves among them.
       living ??= realms.living();
       reach ??= new Map(living.map((q) => [q.ref, reachOf(ctx, q)]));
+      // (One thing that befell one realm is one piece of evidence: those who hear share it, by what it weighs with each.)
+      const theirs = store.of(p.ref),
+        hearers: { q: Polity; near: number }[] = [];
+      let heard = 0;
       for (const q of living) {
         if (q === p || taken.has(`${q.ref}|${p.ref}`)) continue;
         const km = kmBetween(ctx, q.seat, p.seat),
           far = reach.get(q.ref)!;
         if (km > far) continue;
         taken.add(`${q.ref}|${p.ref}`);
-        learn(ctx, q, o, p, 1 - km / far, e, year, (usual ??= usualOf(ctx)));
+        const mine = store.of(q.ref),
+          near = 1 - km / far;
+        if (!mine || !theirs) continue;
+        hearers.push({ q, near });
+        heard += heardBy(ctx, q, mine, p, theirs, near);
       }
+      const share = shareHeard(heard);
+      for (const { q, near } of hearers)
+        learn(ctx, q, o, p, near, e, year, (usual ??= usualOf(ctx)), share);
     }
   }
   for (const p of gone) {
@@ -780,12 +831,13 @@ function learn(
   e: HistoryEvent,
   year: number,
   usual: readonly number[],
+  share = 1,
 ): void {
   const { world } = ctx,
     order = orderOf(world)!.of(p.ref);
   if (!order) return;
   heldOf(ctx, p, order);
-  const got = weigh(ctx, p, order, other ?? p, near, year, usual);
+  const got = weigh(ctx, p, order, other ?? p, near, year, usual, share);
   // (Kept where it moved some belief of its far enough to tell.)
   if (!got || Math.max(...got.evidence.map(Math.abs)) < LEARNING.noted) return;
   // Told where it moved it far: its own fate, once in some years unless it was a great one; another's once in two generations,

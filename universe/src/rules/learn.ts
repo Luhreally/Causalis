@@ -42,6 +42,15 @@ export const LEARNING = {
   teachers: 6,
   /** Each ten years a realm looks at itself and at this many of the nearest realms it can see. */
   look: 3,
+  /**
+   * What a realm heard of others it believes past chance: of pieces that pointed either way by luck alone, the sum would
+   * lie within about the root of the sum of their squares; so many of those are taken off it before it is leaned on.
+   */
+  chance: 2,
+  /** The size of one piece, for a belief kept before its pieces' squares were (a save of 2026-11-19). */
+  piece: 0.03,
+  /** What befell those of another faith weighs this much of what befell those of one's own. */
+  otherFaith: 0.5,
   /** A realm weighs how it is held once in so many years (sim/order/laws.ts LAW_EVERY), each time HOLDING.pace of the way. */
   weighed: 10,
 } as const;
@@ -170,6 +179,25 @@ export function madeItsOwn(years: number, tradition = 0.5): number {
 }
 
 /**
+ * How far another realm is kin (0 … 1): by how like their speech is (squared, as a teaching passes: rules/ideas.ts) and
+ * whether they keep one faith. What befell strangers of another tongue and another faith is held to say little of us.
+ */
+export function kinOf(speechAlike: number, oneFaith: boolean): number {
+  const like = Math.max(0, Math.min(1, speechAlike));
+  return like * like * (oneFaith ? 1 : LEARNING.otherFaith);
+}
+
+/**
+ * Of one thing that befell a realm, the share each realm that heard of it takes (0 … 1), `heard` being what it weighs with
+ * all who heard, summed: a fall is one piece of evidence however many hear of it. Told to three hundred realms it is not
+ * three hundred falls: taken whole by each, every realm in the world held the same few fates as its own proof, and all
+ * believed alike. Those nearest and most like take most of it; where few hear, each takes it whole.
+ */
+export function shareHeard(heard: number): number {
+  return heard > 1 ? 1 / heard : 1;
+}
+
+/**
  * How much another's fate weighs with a realm, against its own (1): by how near it is (1 at its border, nothing where its word
  * does not reach), how like it they are, how freely word leaves them (`shown`: their own number for word), and how far it heeds
  * outsiders (its openness).
@@ -205,14 +233,32 @@ export type Belief = {
   a: number[];
   /** Evidence, four of its own then four seen. */
   n: number[];
+  /** The squares of its pieces, summed (four of its own then four seen): what chance alone would make of them. Absent in a save from before. */
+  q?: number[];
   at: number;
 };
 
 export const noBelief = (year: number): Belief => ({
   a: [0, 0, 0, 0, 0, 0, 0, 0],
   n: [0, 0, 0, 0, 0, 0, 0, 0],
+  q: [0, 0, 0, 0, 0, 0, 0, 0],
   at: year,
 });
+
+/** The squares of a belief's pieces as kept, or, for one kept before they were, as if each piece were LEARNING.piece. */
+export function squaresOf(b: Belief): number[] {
+  return b.q ?? b.n.map((x) => x * LEARNING.piece);
+}
+
+/**
+ * What a sum of evidence says past chance: the sum, less LEARNING.chance times the root of its pieces' squares (what pieces
+ * pointing either way by luck would come to), toward nothing and never past it. Forty of a hundred and forty-four like
+ * pieces one way is sixteen past chance; twelve of them is nothing.
+ */
+export function pastChance(sum: number, squares: number): number {
+  const over = Math.abs(sum) - LEARNING.chance * Math.sqrt(Math.max(0, squares));
+  return over > 0 ? Math.sign(sum) * over : 0;
+}
 
 /** What is left of evidence after `years`. */
 export function evidenceKept(years: number): number {
@@ -230,23 +276,32 @@ export function believeAfter(
     at = own ? 0 : 4,
     // (Never a nothing below nothing: a save writes -0 as 0.)
     round = (x: number) => Math.round(x * 1000) / 1000 || 0,
+    // (Squares kept to millionths: a piece of 0.03 has a square of 0.0009.)
+    fine = (x: number) => Math.round(x * 1e6) / 1e6 || 0,
     a = b.a.map((x) => x * keep),
-    n = b.n.map((x) => x * keep);
+    n = b.n.map((x) => x * keep),
+    // (A piece faded to `keep` of itself has a square faded to keep squared.)
+    q = squaresOf(b).map((x) => x * keep * keep);
   for (let k = 0; k < 4; k++) {
-    a[at + k]! += evidence[k] ?? 0;
-    n[at + k]! += Math.abs(evidence[k] ?? 0);
+    const e = evidence[k] ?? 0;
+    a[at + k]! += e;
+    n[at + k]! += Math.abs(e);
+    q[at + k]! += e * e;
   }
-  return { a: a.map(round), n: n.map(round), at: Math.max(year, b.at) };
+  return { a: a.map(round), n: n.map(round), q: q.map(fine), at: Math.max(year, b.at) };
 }
 
 /**
  * What a realm believes of a number in a year (-1 … 1): above nothing, that standing high on it goes well (or low on it, ill);
  * under, the other way. Its strength is how one-sided the evidence is and how much of it there is, against LEARNING.prior.
+ * What a realm lived itself it takes whole: one clear fate of its own is a belief. What it heard of others it takes only
+ * past what chance would make of as many pieces (pastChance): a few far fates that happened to fall one way are none.
  */
 export function leanOf(b: Belief | undefined, k: number, year: number): number {
   if (!b) return 0;
   const keep = evidenceKept(year - b.at),
-    a = (b.a[k]! + b.a[4 + k]!) * keep,
+    q = squaresOf(b),
+    a = b.a[k]! * keep + pastChance(b.a[4 + k]! * keep, q[4 + k]! * keep * keep),
     n = (b.n[k]! + b.n[4 + k]!) * keep;
   return n > 0 ? a / (n + LEARNING.prior) : 0;
 }
