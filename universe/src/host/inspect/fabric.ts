@@ -33,6 +33,7 @@ import {
 import {
   BLOCK_LOTS,
   STACKS,
+  WALLS_RING_MOST,
   blocksHeld,
   formWhys,
   heightHeld,
@@ -532,7 +533,7 @@ function townFormWhys(world: World, town: Ref, f: Fabric): string[] {
   if (!read || !site || !at) return [];
   const year = yearNow(world),
     // (Its walls make its ground scarce while they stand about it: as its view reads them, grown past thrice over they are down.)
-    walled = !!f.walls && f.next < 3 * f.walls.reach,
+    walled = !!f.walls && f.next < WALLS_RING_MOST * f.walls.reach,
     seed = hashString(`town ${town}`),
     axis = site.roads[0]?.bearing ?? at.axis,
     // (Its market place and the line of its walls, as its view lays them: out to the blocks its page's streets are read to.)

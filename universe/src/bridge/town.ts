@@ -20,7 +20,15 @@ import {
   type TownSite,
 } from "./sites.ts";
 import type { TownForm } from "./form.ts";
-import { wallLineOf, wallLong, wallMean, wallOff, wallWalk, type WallStretch } from "./wall.ts";
+import {
+  WALLS_RING_MOST,
+  wallLineOf,
+  wallLong,
+  wallMean,
+  wallOff,
+  wallWalk,
+  type WallStretch,
+} from "./wall.ts";
 import type { TownRank } from "./rank.ts";
 
 /** A lot: so many metres along its street, so many deep. */
@@ -901,7 +909,7 @@ export function wallRing(plan: TownPlan, lots: TownLots, held: Uint8Array): Wall
   if (over * 3 > dry) return { r, line, n, lengths: [] };
   // (Grown out past them to three times what they rang, its streets grown about their line: they are pulled down, a ring street
   // where they stood. Asked 2026-11-16: "walls leave rings".)
-  if (plan.site && plan.whole >= 3 * w.reach) return { r, line, n, lengths: [] };
+  if (plan.site && plan.whole >= WALLS_RING_MOST * w.reach) return { r, line, n, lengths: [] };
   // A gate where each road crosses the line: at the length standing nearest it.
   const gates = new Set<number>();
   for (const road of roads) {

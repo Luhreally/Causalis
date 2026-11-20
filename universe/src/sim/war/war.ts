@@ -16,7 +16,7 @@ import { godFall, godMen, godPower } from "./godhost.ts";
 import { ArmingStore, armingYear, footingPower, mobilising } from "./arming.ts";
 import { orderOf } from "../order/order.ts";
 import { NavyStore, landingOf, navyYear } from "./navy.ts";
-import { SiegeStore, siegeAt, siegesOf, siegesYear, wallsOf } from "./siege.ts";
+import { SiegeStore, siegeAt, siegesOf, siegesYear, wallsOf, wallsStand } from "./siege.ts";
 import { heldAfter, installDisplaced } from "./held.ts";
 import { installFleets } from "./fleets.ts";
 import { companiesAfter, companiesField, companiesTold, companyOf } from "./companies.ts";
@@ -1770,11 +1770,12 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
     w.battles.push(fought);
     wars.noteFell(fought);
     wars.noteTerms(w, fought, termsA, termsB, bodySize(ctx));
-    // A seat, or a land behind walls, is not taken in a day: a victory before it lays a siege, and it falls only when stormed
-    // or starved (sim/war/siege.ts). Those the siege killed besides the battle (the camp's sick, the town's sick and starved)
-    // are the war's cost too. (Only the one land fought for this year is read: a war has one siege at a time.)
-    const known = wallsOf(ctx, land, asksOf(world).guard(land, t)),
-      walled = seat || known > 0,
+    // A land behind walls (its heart's walls done and still ringing it), its seat or not, is not taken in a day: a
+    // victory before it lays a siege, and it falls only when stormed or starved (sim/war/siege.ts). One without walls standing is
+    // taken with the field. Those the siege killed besides the battle (the camp's sick, the town's sick and starved) are the
+    // war's cost too. (Only the one land fought for this year is read: a war has one siege at a time.)
+    const walled = wallsStand(ctx, land, year),
+      known = walled ? wallsOf(ctx, land, asksOf(world).guard(land, t)) : 0,
       sieged = walled
         ? siegeAt(
             ctx,

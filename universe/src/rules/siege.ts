@@ -8,6 +8,16 @@
 // readings of numbers the world keeps; sim/war/siege.ts keeps one row a siege and steps it in a war's year.
 import { dmath } from "../kernel/index.ts";
 
+/**
+ * How many times the lots its walls rang a town has grown to when it pulls them down: grown out that far, its streets have grown
+ * about their line and a ring street runs where they stood (the town as it is drawn reads the same: bridge/wall.ts
+ * WALLS_RING_MOST). A land is besieged only while a town of it stands behind walls it has not outgrown.
+ */
+export const WALLS_OUTGROWN = 3;
+
+/** How near a land's middle its heart lies (km): the town its battles are fought before (bridge/wars.ts HEART_REACH, the same). */
+export const LAND_HEART_KM = 60;
+
 export const SIEGE = {
   /** The share of a besieged land's harvest grown inside the walls or slipped past the lines. The camp takes the rest. */
   within: 0.1,

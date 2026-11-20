@@ -7,6 +7,9 @@ import { Province } from "./model.ts";
 
 export const SETTLEMENT = defineKind("town", "settlement", "minted");
 
+/** (No settlements: a province without any, read without a copy.) */
+const NONE: readonly Settlement[] = Object.freeze([]);
+
 export class PopulationStore implements StateStore {
   readonly name = "population.provinces";
   /** Saved packed by column (kernel/pack.ts). */
@@ -139,6 +142,11 @@ export class SettlementStore implements StateStore {
 
   all(): readonly Settlement[] {
     return this.list;
+  }
+
+  /** A province's settlements, in the order they were founded, as kept (not a copy: never to be added to). */
+  kept(cell: number): readonly Settlement[] {
+    return this.byCell.get(cell) ?? NONE;
   }
 
   /** A province's settlements, in the order they were founded (a copy: the caller may add to it). */
