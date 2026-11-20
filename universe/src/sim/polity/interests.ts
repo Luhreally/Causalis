@@ -110,6 +110,31 @@ export function swayOf(
   return raw;
 }
 
+/**
+ * Of what a year of the many's work is worth over a realm's lands (each head by its wage, as its markets paid it), the share
+ * that is its crafters' and traders' (0 … 1): wealth made away from the fields, which a seat that rules alone needs and has
+ * no hold over. Nothing where no land of it has a market. Only reads.
+ */
+export function makersWorth(ctx: PopulationContext, p: Polity): number {
+  const markets = ctx.world.store<MarketStore>("economy.markets");
+  let makers = 0,
+    all = 0;
+  for (const c of p.members) {
+    const prov = ctx.provinces.get(c),
+      w = prov ? markets.wagesOf(c) : undefined;
+    if (!prov || !w) continue;
+    const made =
+      prov.occupation(OCC.crafter) * (w[OCC.crafter] ?? 0) +
+      prov.occupation(OCC.trader) * (w[OCC.trader] ?? 0);
+    makers += made;
+    all +=
+      made +
+      prov.occupation(OCC.farmer) * (w[OCC.farmer] ?? 0) +
+      prov.occupation(OCC.herder) * (w[OCC.herder] ?? 0);
+  }
+  return all > 0 ? makers / all : 0;
+}
+
 type Count = Record<Exclude<Group, "the temple">, number>;
 /** Of a reading's marks, the first that say whose lands and what trade and roads were read; the one after, its relations. */
 const ACROSS = 4;

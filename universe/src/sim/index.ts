@@ -846,6 +846,7 @@ export {
 export {
   GROUPS,
   interestsOf,
+  makersWorth,
   pressure,
   swayOf,
   type Demand,

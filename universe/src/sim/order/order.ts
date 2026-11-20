@@ -53,7 +53,7 @@ import {
   realmName,
   type Polity,
 } from "../polity/polity.ts";
-import { interestsOf } from "../polity/interests.ts";
+import { interestsOf, makersWorth } from "../polity/interests.ts";
 import { warsOf, type War } from "../war/war.ts";
 import { holdCarried, holdsCarried } from "../war/held.ts";
 import { grieve, strike } from "../acts/disasters.ts";
@@ -156,6 +156,8 @@ export const ABOLITION_MOVEMENT = 0.35;
 export const ABOLITION_LINE = 0.15;
 /** A movement forms when what moves it reaches this; it grows toward it by this share a year. */
 export const MOVEMENT_LINE = 0.3;
+/** The share of the year's worth past which a realm's makers and traders outweigh its tillers. */
+export const MAKERS_OUTWEIGH = 0.5;
 export const MOVEMENT_GROWS = 0.06;
 /** How far a sign from the god moves a realm's standing at first, and the years it fades over. */
 export const MANDATE_PUSH = 0.25;
@@ -1715,10 +1717,14 @@ function stirMovements(
     free = freedElsewhere(world, store, o),
     interests = interestsOf(ctx, p, t),
     traders = interests.find((i) => i.group === "traders")?.sway ?? 0,
-    makers = interests.reduce(
-      (s, i) => s + (i.group === "traders" || i.group === "crafters" ? i.sway : 0),
-      0,
-    ),
+    alone = p.leadership === 0 || p.leadership === 3 || p.leadership === GENERAL,
+    // (What its makers hold that the seat needs: their share of what the year's work is worth. It was their share of the
+    // realm's SWAY; but sway is read off who carries its choices (interests.ts swayOf), so under one who rules alone the
+    // makers had none however much they made, and the want of a voice read that there was nothing to want it with: at
+    // year 1,000 the makers of harrow's 189 realms under one made half of what their realms' work was worth and held 0.07
+    // of the sway; the want stood over its line in 2 of them. A chief's realm never opened from within.)
+    makers = alone ? makersWorth(ctx, p) : 0,
+    force = holdOf(world, p.ref, HOLD.force),
     thought = loreOf(world).get(p.seat, "philosophy"),
     works = loreOf(world).get(p.seat, "factories");
   let hungry = 0,
@@ -1752,16 +1758,19 @@ function stirMovements(
     // (A voice is wanted against a chief, a priest-king, or a general: M145; the more where ideas
     // of a voice and of rights are known, and the many work massed in workshops: M146.)
     voice: {
-      target:
-        p.leadership === 0 || p.leadership === 3 || p.leadership === GENERAL
-          ? 1.5 * (makers - 0.15) +
-            0.4 * (open - 0.5) -
-            0.5 * (hier - 0.5) +
-            (thought ? 0.2 : 0) +
-            (works ? 0.15 : 0) -
-            // (A voice given quiets the want of one; one kept from them stirs it: rules/holds.ts voice, about where such rule holds it.)
-            0.4 * (holdOf(world, p.ref, HOLD.voice) - HOLDING.voiceOne)
-          : 0,
+      target: alone
+        ? // (Past half: where those who make and trade earn more than those who till, the seat's living no longer comes of
+          // the land it holds; under half, the want is the weaker for it. As their share of the sway it stood against 0.15.)
+          1.5 * (makers - MAKERS_OUTWEIGH) +
+          // (Whose arms are their own can ask: the bolder the fewer of its arms the seat keeps.)
+          0.3 * (HOLDING.forceMid - force) +
+          0.4 * (open - 0.5) -
+          0.5 * (hier - 0.5) +
+          (thought ? 0.2 : 0) +
+          (works ? 0.15 : 0) -
+          // (A voice given quiets the want of one; one kept from them stirs it: rules/holds.ts voice, about where such rule holds it.)
+          0.4 * (holdOf(world, p.ref, HOLD.voice) - HOLDING.voiceOne)
+        : 0,
       source: thought?.event ?? null,
     },
   };

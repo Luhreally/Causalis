@@ -12,7 +12,7 @@ import {
   type SimTime,
   type World,
 } from "../../src/kernel/index.ts";
-import { PRINCIPLES } from "../../src/rules/index.ts";
+import { OCC, PRINCIPLES } from "../../src/rules/index.ts";
 import {
   BIND_STORE,
   moneyStore,
@@ -31,6 +31,8 @@ import {
   capacityOf,
   cultureOf,
   legitimacyFactors,
+  makersWorth,
+  interestsOf,
   loreOf,
   makePopulationWorld,
   orderOf,
@@ -522,4 +524,43 @@ test("the god decrees a realm's law: set at once, told, kept by a save", () => {
   const again = loadWorld(saveWorld(w, RULESET), build, RULESET).world;
   assert.deepEqual(orderOf(again)!.of(p.ref)!.laws, o.laws);
   assert.equal(orderOf(again)!.of(p.ref)!.lawEvents[LAW_OF.justice], decreed.id);
+});
+
+test("a want of a voice under one who rules alone reads what the makers make, not the sway they are given", () => {
+  const w = fresh(),
+    ctx = populationContext(w),
+    markets = w.store("economy.markets") as unknown as {
+      wagesOf(c: number): readonly number[] | undefined;
+    };
+  let read = 0;
+  for (const p of politiesOf(w).living()) {
+    const worth = makersWorth(ctx, p);
+    assert.ok(worth >= 0 && worth <= 1, `${worth}`);
+    // (By hand: each head by its wage, over the lands of it that have a market.)
+    let makers = 0,
+      all = 0;
+    for (const c of p.members) {
+      const prov = ctx.provinces.get(c),
+        wg = markets.wagesOf(c);
+      if (!prov || !wg) continue;
+      const m =
+        prov.occupation(OCC.crafter) * (wg[OCC.crafter] ?? 0) +
+        prov.occupation(OCC.trader) * (wg[OCC.trader] ?? 0);
+      makers += m;
+      all +=
+        m +
+        prov.occupation(OCC.farmer) * (wg[OCC.farmer] ?? 0) +
+        prov.occupation(OCC.herder) * (wg[OCC.herder] ?? 0);
+    }
+    assert.equal(worth, all > 0 ? makers / all : 0);
+    if (all > 0) read++;
+    // Under one who rules alone the makers' sway says nothing of what they make: it is the share of a voice they are given.
+    if (p.leadership === 0 && worth > 0.2) {
+      const sway = interestsOf(ctx, p, w.now)
+        .filter((i) => i.group === "crafters" || i.group === "traders")
+        .reduce((n, i) => n + i.sway, 0);
+      assert.ok(sway < worth, `sway ${sway} against worth ${worth}`);
+    }
+  }
+  assert.ok(read > 0, "some realm's lands have a market");
 });
