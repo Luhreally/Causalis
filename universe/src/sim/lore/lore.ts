@@ -196,6 +196,32 @@ export class LoreStore implements StateStore {
     return this.known.keys();
   }
 
+  /**
+   * What other systems read off what a land knows and its world as made, as last read (see `readOff`): a cache, never saved,
+   * let go on loading.
+   */
+  private readonly read = new Map<
+    string,
+    Map<
+      number,
+      { readonly known: ReadonlyMap<string, Known>; readonly size: number; readonly value: unknown }
+    >
+  >();
+  /**
+   * What `make` gives for a land, kept while the land knows what it knows (its map and that map's size, as `openKept`): for a
+   * reading of nothing but what it knows and its world as made. A land that knows nothing is read each time.
+   */
+  readOff<T>(cell: number, name: string, make: () => T): T {
+    const known = this.known.get(cell);
+    if (!known) return make();
+    let by = this.read.get(name);
+    if (!by) this.read.set(name, (by = new Map()));
+    const had = by.get(cell);
+    if (had && had.known === known && had.size === known.size) return had.value as T;
+    const value = make();
+    by.set(cell, { known, size: known.size, value });
+    return value;
+  }
   learn(cell: number, id: string, k: Known, p: Principle): void {
     let m = this.known.get(cell);
     if (!m) this.known.set(cell, (m = new Map()));
@@ -305,6 +331,7 @@ export class LoreStore implements StateStore {
     this.totals.clear();
     this.lands.clear();
     this.opens.clear();
+    this.read.clear();
     const byId = new Map(PRINCIPLES.map((p) => [p.id, p]));
     const s = state as {
       known: [number, [string, Known][]][];
