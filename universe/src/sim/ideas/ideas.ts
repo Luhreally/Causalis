@@ -185,7 +185,7 @@ function found(
     teaching = teachingOf(world, realm, holy);
   if (!teaching) return;
   const unmet = ideaUnmet(teaching.gap),
-    chance = IDEA.found * satOf(standing) * unmet;
+    chance = IDEA.every * IDEA.found * satOf(standing) * unmet;
   if (!(u < chance) || teaching.creed.every((x) => !x)) return;
   // (What they would teach is what their land already holds, or near it: they teach that, and found nothing. And where a
   // school they could have heard of, held in their realm or beside their land, already teaches it, they bring that school
@@ -295,9 +295,10 @@ export function ideasYear(ctx: PopulationContext, t: SimTime): void {
     const k = n.by[DOMAIN.knowledge] ?? 0,
       f = n.by[DOMAIN.faith] ?? 0,
       standing = Math.max(k, f);
-    if (standing < line || store.founded(n.id)) continue;
+    // (Each in their own year of IDEA.every, at as many years' chance.)
+    if (standing < line || (year + n.id) % IDEA.every !== 0 || store.founded(n.id)) continue;
     const u = world.rng.real(FOUND, n.id, t, 0);
-    if (!(u < IDEA.found * satOf(standing))) continue;
+    if (!(u < IDEA.every * IDEA.found * satOf(standing))) continue;
     const now = store.of(n.home);
     if (now && year - now.since < IDEA.fresh) continue;
     if (!ctx.provinces.get(n.home)?.total()) continue;
