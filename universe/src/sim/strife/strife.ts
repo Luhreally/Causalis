@@ -18,7 +18,16 @@
 // for) — and its old court may flee to the far lands and fight to return; a revolution lost is
 // drowned in blood and remembered.
 // Every step is a decision whose factors cite what drove it.
-import { LABOUR_STORE, giniOf, moneyStore, unionOf } from "../money/kept.ts";
+import {
+  FISC,
+  LABOUR_STORE,
+  TREASURY_STORE,
+  deficitOf,
+  giniOf,
+  moneyStore,
+  revenueOf,
+  unionOf,
+} from "../money/kept.ts";
 import { housesRead } from "../order/houses.ts";
 import { risingOrganised } from "../order/groups-kept.ts";
 import {
@@ -74,7 +83,7 @@ import {
   type RealmOrder,
 } from "../order/order.ts";
 import { LAW_OF } from "../order/laws.ts";
-import { FEW_RULE, HOLD, HOLDING, ORG } from "../../rules/index.ts";
+import { FEW_RULE, HOLD, HOLDING, ORG, TREASURY } from "../../rules/index.ts";
 import { holdOf, holdsOf, setHeld } from "../order/holds.ts";
 import { wantsOf } from "../order/wants.ts";
 import { financeOf } from "../finance/finance.ts";
@@ -472,7 +481,16 @@ export function coupDanger(
     defeats = fought.lost ? fought.lost / (fought.won + fought.lost) : 0,
     famine = ctx.provinces.get(p.seat)?.lastFamine ?? null,
     hungry = famine ? world.events.get(famine) : undefined,
-    unpaid = !!hungry && world.now - hungry.t <= 2 * YEAR,
+    // (Its army goes unpaid where its treasury cannot pay what it spends on arms: nothing by it, and short of it this year past
+    // what it can let run unborrowed (rules/money.ts TREASURY.strained, as the treasury reads itself strained). A realm that keeps
+    // no treasury pays its host in kind, and goes short where its seat has starved. Until 2026-11-20 every realm's army was unpaid
+    // only by a famine at its seat: a realm that could not pay its host, and was fed, was never short; one that starved, always.)
+    purse = moneyStore(world, TREASURY_STORE)?.get(p.ref),
+    unpaid = purse
+      ? purse[FISC.arms]! > 0 &&
+        purse[FISC.reserve]! <= 0 &&
+        deficitOf(world, p.ref) > TREASURY.strained * Math.max(1, revenueOf(world, p.ref))
+      : !!hungry && world.now - hungry.t <= 2 * YEAR,
     valour = trait(seat, WAY.valour),
     cap = reachedOf(capacityOf(ctx, p).value),
     junta = strifeOf(world)?.junta(p.ref) ?? null,
@@ -510,7 +528,7 @@ export function coupDanger(
       name: "an army unpaid",
       value: unpaid ? 1 : 0,
       contribution: unpaid ? STRAIN.coup.famine : 0,
-      source: unpaid ? { ref: famine!, role: "pressure", weight: 1 } : null,
+      source: unpaid && !purse && famine ? { ref: famine, role: "pressure", weight: 1 } : null,
     },
     // (Read off its money and its seat's bread, continuously: an army eats what its seat eats; wealth in few hands
     // buys a general; a seat that pays strangers first pays its host last.)
