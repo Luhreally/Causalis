@@ -669,10 +669,17 @@ const TREE: readonly Principle[] = [
     { crafters: 1, traders: 0.3 },
     { learning: 0.3 },
   ),
+  // (The rocket stands on the gun, 2026-11-19: a charge that turns to gas in an instant, a tube that holds its pressure and the
+  // lighting of it are the gun's, and a rocket is that tube left open at one end; under the sea, the dart driven by gas. Until then
+  // it asked a current and the stars' courses alone, and one land in ten came to rockets, and some to orbit, never having made a gun.)
   P(
     "rocketry",
     "the rocket",
-    ["electricity|sea-electricity|graphite-dynamos|ground-dynamos|polymer-wire", "astronomy"],
+    [
+      "electricity|sea-electricity|graphite-dynamos|ground-dynamos|polymer-wire",
+      "astronomy",
+      "firearms|gas-darts",
+    ],
     0.0035,
     { crafters: 1, leaders: 0.3 },
     { arms: 1 },
