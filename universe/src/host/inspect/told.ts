@@ -28,6 +28,7 @@ import { homePlanet, politiesOf, populationContext, warsOf } from "../../sim/ind
 import {
   ALL_WORTH,
   KIND_WORTH,
+  worthWords,
   type Line,
   type PageModel,
   type ToldFigure,
@@ -59,6 +60,19 @@ import { count, link, sentence, yearNow } from "./words.ts";
 import { logAt, yearsOf, EVERY_YEARS } from "../years.ts";
 import { realmThrough } from "./time.ts";
 import { realmColor } from "../colors.ts";
+import {
+  BLOC,
+  blocOwn,
+  blocSubject,
+  blocTold,
+  blocText,
+  blocYears,
+  isBloc,
+  realmBlocAt,
+  shortWords,
+  standingLine,
+  type BlocYears,
+} from "./told-bloc.ts";
 
 /** How many years either side a year is weighed against. */
 const ABOUT = 10;
@@ -87,9 +101,12 @@ const plain = (l: Line) => l.map((s) => (typeof s === "string" ? s : s.text)).jo
 
 // ————— What is asked —————
 
-/** What a page's ref asks to be told: `told:1204`, `told:1200..1209`, either of a realm (`told:1204:pol:0:12`). */
+/**
+ * What a page's ref asks to be told: `told:1204`, `told:1200..1209`, either of a realm (`told:1204:pol:0:12`) or of an alliance
+ * (`told:1204:bloc:pol:0:12`, by its head realm, as its page's ref). `realm` is whose: a realm's ref or an alliance's.
+ */
 export function toldAsk(ref: string): { year: number; to: number; realm: string | null } | null {
-  const m = /^told:(-?\d+)(?:\.\.(-?\d+))?(?::(pol:.+))?$/.exec(ref);
+  const m = /^told:(-?\d+)(?:\.\.(-?\d+))?(?::((?:bloc:)?pol:.+))?$/.exec(ref);
   if (!m) return null;
   const year = Number(m[1]),
     to = m[2] === undefined ? year : Math.max(year, Number(m[2]));
@@ -104,6 +121,8 @@ export function toldRef(year: number, to = year, realm: string | null = null): s
 // ————— Which side of life a line is of —————
 
 const SECTIONS = [
+  // (An alliance's own doings: its year's alone.)
+  { id: "bloc", icon: "🪢", name: "The alliance" },
   { id: "power", icon: "👑", name: "Power" },
   { id: "war", icon: "⚔️", name: "War and peace" },
   { id: "money", icon: "💰", name: "Money and trade" },
@@ -236,6 +255,8 @@ function sectionOf(e: HistoryEvent | undefined, t?: Told): SectionId {
 
 /** What is counted of a side of life, in the order it is said: each kind's words for one and for more. */
 const COUNTED: Readonly<Record<SectionId, readonly (readonly [string, string, string])[]>> = {
+  // (An alliance's counts are its own sentence: told-bloc.ts blocText.)
+  bloc: [],
   power: [
     ["polity.ended", "realm fell", "realms fell"],
     ["polity.formed", "realm rose", "realms rose"],
@@ -401,9 +422,13 @@ function keepOf(world: World, realm: string, year: number): (e: HistoryEvent) =>
   };
 }
 
-/** What each year tells of the world or of a realm, read once for one telling. */
+/** What each year tells of the world, of a realm or of an alliance, read once for one telling. */
 type Reader = {
   readonly realm: string | null;
+  /** An alliance's years, where it is an alliance's telling. */
+  readonly bloc: BlocYears | null;
+  /** Of an alliance: those who stood in it that year or the year before (whose doings are its own). */
+  inIt(year: number): ReadonlySet<string>;
   readonly world: World;
   readonly now: number;
   told(year: number): readonly Told[];
@@ -418,25 +443,63 @@ type Counts = {
   readonly battle: HistoryEvent | null;
 };
 
-function readerOf(world: World, realm: string | null): Reader {
+/**
+ * Whether an event is an alliance's in a year: it names one who stood in it then or the year before, or it is a great thing
+ * that fell in one of their lands (a land's lesser weather is its realm's to tell, not the alliance's).
+ */
+function keepOfBloc(world: World, b: BlocYears, y: number, inIt: ReadonlySet<string>) {
+  const lands = new Set<number>();
+  for (const r of b.members(y)) for (const c of landsIn(world, r, y)) lands.add(c);
+  const towns = populationContext(world).settlements;
+  return (e: HistoryEvent): boolean => {
+    for (const s of e.subjects) if (inIt.has(s)) return true;
+    if (e.importance < 5) return false;
+    if (lands.has(cellOf(e.place))) return true;
+    for (const s of e.subjects) {
+      if (s.startsWith("cell:") && lands.has(cellOf(s))) return true;
+      if (s.startsWith("town:") && lands.has(towns.get(s)?.cell ?? -1)) return true;
+    }
+    return false;
+  };
+}
+
+function readerOf(world: World, subject: string | null): Reader {
   const told = new Map<number, readonly Told[]>(),
     events = new Map<number, readonly HistoryEvent[]>(),
     counts = new Map<number, Counts>(),
     keeps = new Map<number, (e: HistoryEvent) => boolean>(),
+    sets = new Map<number, ReadonlySet<string>>(),
     now = yearNow(world),
+    bloc = isBloc(subject) ? blocYears(world, subject.slice(BLOC.length)) : null,
+    realm = bloc || isBloc(subject) ? null : subject,
+    inIt = (y: number): ReadonlySet<string> => {
+      let set = sets.get(y);
+      if (!set)
+        sets.set(y, (set = new Set(bloc ? [...bloc.members(y), ...bloc.members(y - 1)] : [])));
+      return set;
+    },
     keep = (y: number) => {
       let k = keeps.get(y);
-      if (!k) keeps.set(y, (k = keepOf(world, realm!, y)));
+      if (!k)
+        keeps.set(y, (k = bloc ? keepOfBloc(world, bloc, y, inIt(y)) : keepOf(world, realm!, y)));
       return k;
-    };
+    },
+    filtered = !!(realm || bloc);
   return {
     realm,
+    bloc,
+    inIt,
     world,
     now,
     told(year) {
       if (year < 0 || year > now) return [];
       let t = told.get(year);
-      if (!t) told.set(year, (t = realm ? toldOf(world, year, keep(year)) : toldOf(world, year)));
+      if (!t) {
+        t = filtered ? toldOf(world, year, keep(year)) : toldOf(world, year);
+        // (An alliance's own: who came and went, its forming and its end, the foes it fought side by side.)
+        if (bloc) t = [...blocTold(world, bloc, year, (y) => eventsOf(world, y)), ...t];
+        told.set(year, t);
+      }
       return t;
     },
     events(year) {
@@ -444,7 +507,7 @@ function readerOf(world: World, realm: string | null): Reader {
       let e = events.get(year);
       if (!e) {
         e = eventsOf(world, year);
-        if (realm) e = e.filter(keep(year));
+        if (filtered) e = e.filter(keep(year));
         events.set(year, e);
       }
       return e;
@@ -499,9 +562,13 @@ function ranked(r: Reader, year: number): Cand[] {
     ...most,
     ...mine.map((t) => {
       const like = (others.get(t.key) ?? []).filter((w) => w >= t.worth - 0.5).length,
-        // (Of a realm's own year, what it did or what was done to it leads over what befell one of its lands.)
+        // (Of a realm's own year, what it did or what was done to it leads over what befell one of its lands; of an
+        // alliance's, its own doings over what one of its realms did alone.)
         own =
-          r.realm && r.world.events.get(t.ref as Ref)?.subjects.includes(r.realm as Ref) ? 1.5 : 0;
+          (r.realm && r.world.events.get(t.ref as Ref)?.subjects.includes(r.realm as Ref)) ||
+          (r.bloc && isOwn(r, t, year))
+            ? 1.5
+            : 0;
       return {
         t,
         score: t.worth * (COMMON + (1 - COMMON) / (1 + like / 3)) + own,
@@ -509,6 +576,37 @@ function ranked(r: Reader, year: number): Cand[] {
       };
     }),
   ].sort((a, b) => b.score - a.score);
+}
+
+/** Whether a line is an alliance's own doing: its comings and goings, or a call, a bond, a peace or a quarrel of its own. */
+function isOwn(r: Reader, t: Told, year: number): boolean {
+  return t.key.startsWith("bloc.") || blocOwn(r.world.events.get(t.ref as Ref), r.inIt(year));
+}
+
+/** What may change who leads an alliance in person: its head realm's ruler, or its rule, changing. */
+const HEAD_TYPES = new Set([
+  "polity.succession",
+  "polity.reformed",
+  "strife.coup",
+  "strife.revolution",
+  "strife.throne",
+  "order.elected",
+  "court.seized",
+]);
+
+/**
+ * What may lead a year: of the world or a realm, all of it; of an alliance, its own doings, what changed who leads it, and
+ * what is great enough to be told with no filter. A guild founded in one of its realms is that realm's to lead with.
+ */
+function leading(r: Reader, year: number): Cand[] {
+  const all = ranked(r, year);
+  if (!r.bloc) return all;
+  const h = r.bloc.headAt(year);
+  return all.filter((c) => {
+    if (c.t.worth >= ALL_WORTH || isOwn(r, c.t, year)) return true;
+    const e = r.world.events.get(c.t.ref as Ref);
+    return !!e && HEAD_TYPES.has(e.type) && !!h && e.subjects[0] === h;
+  });
 }
 
 /** A year must hold this many of a kind, and this many times the usual of the years about it, for the count itself to be told. */
@@ -552,7 +650,7 @@ function standouts(r: Reader, year: number): Cand[] {
     for (const [type, one, more] of COUNTED[id]) {
       const n = here.n.get(type) ?? 0;
       // (Of one realm's lands a handful is no count to tell.)
-      if (n < (r.realm ? 2 * MOST_LEAST : MOST_LEAST) || seen.has(one)) continue;
+      if (n < (r.realm || r.bloc ? 2 * MOST_LEAST : MOST_LEAST) || seen.has(one)) continue;
       seen.add(one);
       const times = weigh(
         n,
@@ -897,7 +995,7 @@ function cameOf(world: World, r: Reader, ref: string, year: number): ToldItem[] 
   const found: HistoryEvent[] = [],
     now = yearNow(world);
   for (let y = year; y <= Math.min(now, year + ABOUT) && found.length < 24; y++)
-    for (const e of r.realm ? eventsOf(world, y) : r.events(y))
+    for (const e of r.realm || r.bloc ? eventsOf(world, y) : r.events(y))
       if (e.id !== ref && e.causes.some((c) => c.ref === ref)) found.push(e);
   return found
     .sort((a, b) => b.importance - a.importance || a.t - b.t)
@@ -1042,7 +1140,92 @@ function figuresOf(world: World, r: Reader, year: number, from = year): ToldFigu
     now = yearNow(world),
     out: (ToldFigure | null)[] = [],
     pct = (n: number) => `${Math.round(n * 100)}%`;
-  if (r.realm) {
+  if (r.bloc) {
+    // An alliance's numbers: its realms of each year, summed (not its realms of now), and its share of the world's people.
+    const b = r.bloc,
+      ref = `bloc:${b.head}`;
+    if (b.headAt(year)) {
+      // (Its numbers from the year it last came to stand: before then they were another alliance's, or none.)
+      const since = b.standingSince(year),
+        mine = (y: number) => y >= since && y <= now;
+      b.prepare(Math.max(since, Math.min(from, year - 2 * ABOUT)) - 1, year);
+      const of =
+          (f: (n: { realms: number; people: number; host: number }) => number) => (y: number) => {
+            const n = mine(y) ? b.numbers(y) : null;
+            return n ? f(n) : undefined;
+          },
+        foes = (y: number) => {
+          if (!world.hasStore("war.wars") || !mine(y)) return undefined;
+          const inIt = new Set(b.members(y));
+          if (!inIt.size) return undefined;
+          const seen = new Set<string>();
+          for (const m of inIt)
+            for (const w of warsOf(world).of(m as Ref))
+              if (
+                w.declared <= y &&
+                (w.ended ?? now) >= y &&
+                !inIt.has(w.attacker === m ? w.defender : w.attacker)
+              )
+                seen.add(w.ref);
+          return seen.size;
+        };
+      out.push(
+        figure(
+          "realms",
+          "Realms in it",
+          of((n) => n.realms),
+          year,
+          count,
+          1,
+          {
+            ref: `${ref}#time`,
+            ...run,
+          },
+        ),
+        figure(
+          "people",
+          "People",
+          of((n) => n.people),
+          year,
+          short,
+          1,
+          { ref, ...run },
+        ),
+        figure(
+          "share",
+          "Of the world's people",
+          (y) => {
+            const n = mine(y) ? b.numbers(y) : null,
+              all = n ? b.peopled(y) : 0;
+            return n && all ? n.people / all : undefined;
+          },
+          year,
+          pct,
+          1,
+          { share: true, ref: "world:alliances", ...run },
+        ),
+        figure(
+          "host",
+          "Their hosts",
+          of((n) => n.host),
+          year,
+          short,
+          0,
+          run,
+        ),
+        figure(
+          "worth",
+          "Its lands' wealth",
+          (y) => (mine(y) ? b.worth(y) : undefined),
+          year,
+          worthWords,
+          1,
+          run,
+        ),
+        figure("wars", "Wars its realms fight", foes, year, count, -1, run),
+      );
+    }
+  } else if (r.realm) {
     const t = realmThrough(world, r.realm),
       realm = politiesOf(world).get(r.realm as Ref),
       at = (list: readonly (number | null)[] | undefined) => {
@@ -1170,7 +1353,12 @@ function figuresOf(world: World, r: Reader, year: number, from = year): ToldFigu
 // ————— A quiet year —————
 
 /** What quietly changed: its people's number, the land that grew most, how long a peace has held. */
-function quietLines(world: World, r: Reader, year: number) {
+function quietLines(
+  world: World,
+  r: Reader,
+  year: number,
+): { headline: string; lines: ToldItem[]; land: number | null } {
+  if (r.bloc) return blocQuiet(world, r.bloc, year);
   const now = yearNow(world),
     lines: ToldItem[] = [];
   let land: number | null = null,
@@ -1272,6 +1460,94 @@ function quietLines(world: World, r: Reader, year: number) {
   return { headline, lines, land };
 }
 
+/**
+ * What quietly held of an alliance: how many stood together and how many they were, where it stood among the alliances, and
+ * how long its realms have kept from war. A year it did not stand says so, and whom its head realm stood with.
+ */
+function blocQuiet(
+  world: World,
+  b: BlocYears,
+  year: number,
+): { headline: string; lines: ToldItem[]; land: number | null } {
+  const now = yearNow(world),
+    h = b.headAt(year),
+    lines: ToldItem[] = [],
+    home = politiesOf(world).get(b.head as Ref);
+  if (!h) {
+    const gone = home && home.ended !== null && home.ended <= year,
+      before = home && home.founded > year;
+    lines.push({
+      line: [
+        gone
+          ? `${sentence(home.town)} had fallen by then: its alliance stood no longer.`
+          : before
+            ? `${sentence(home.town)} had not yet risen.`
+            : `${sentence(home?.town ?? "Its head realm")} stood in no alliance in the year: none stronger was bound to it, nor it to one.`,
+      ],
+      ref: home?.ref ?? null,
+    });
+    return {
+      headline: gone
+        ? `${sentence(home.town)} had fallen by ${count(year)}`
+        : `${sentence(home?.town ?? "It")} stood alone in ${count(year)}`,
+      lines,
+      land: home?.seat ?? null,
+    };
+  }
+  const n = b.numbers(year),
+    since = b.standingSince(year),
+    k = year - since + 1,
+    // (Its years kept begin after it stood: how long before, no one can say.)
+    unknown = since <= b.first && b.first > (home?.founded ?? 0),
+    cur = b.members(year);
+  lines.push({
+    line: [
+      `${sentence(said(cur.length))} realms stood together under `,
+      link(politiesOf(world).get(h as Ref)?.town ?? "its head", `told:${year}:${h}`),
+      n
+        ? `: ${short(n.people)} people, ${short(n.host)} under arms${year >= now ? "" : " as the year closed"}.`
+        : ".",
+    ],
+    ref: `bloc:${b.head}`,
+  });
+  const place = standingLine(world, b, year);
+  if (place.length) lines.push({ line: place, ref: "world:alliances" });
+  if (world.hasStore("war.wars")) {
+    const inIt = new Set(cur),
+      all = [...inIt].flatMap((m) =>
+        warsOf(world)
+          .of(m as Ref)
+          .filter((w) => !inIt.has(w.attacker === m ? w.defender : w.attacker)),
+      ),
+      on = new Set(
+        all.filter((w) => w.declared <= year && (w.ended ?? now) >= year).map((w) => w.ref),
+      );
+    if (on.size)
+      lines.push({
+        line: [
+          `Its realms were at war: ${said(on.size)} ${on.size === 1 ? "war" : "wars"} against those outside it went on through the year.`,
+        ],
+        ref: `bloc:${b.head}#wars`,
+      });
+    else {
+      let last = -1;
+      for (const w of all) if (w.ended !== null && w.ended < year) last = Math.max(last, w.ended);
+      if (last >= 0)
+        lines.push({
+          line: [
+            `Its realms fought no war against those outside it, the ${ordinal(year - last)} year since the last ended.`,
+          ],
+          ref: `bloc:${b.head}#wars`,
+        });
+    }
+  }
+  return {
+    headline: `${unknown ? `Together since ${count(b.first)} at least` : `Its ${ordinal(k)} year together`}: ${said(cur.length)} realms${n ? `, ${short(n.people)} people` : ""}`,
+    lines,
+    land: politiesOf(world).get(h as Ref)?.seat ?? null,
+  };
+}
+
 // ————— The sections —————
 
 /**
@@ -1335,10 +1611,13 @@ function sectionsOf(
     counts = new Map<string, number>(),
     run = to > from;
   let fallen = 0;
+  // (Of an alliance, its own doings are its own side of life.)
+  const side = (t: Told, y: number): SectionId =>
+    r.bloc && isOwn(r, t, y) ? "bloc" : sectionOf(world.events.get(t.ref as Ref), t);
   for (let y = from; y <= to; y++) {
     for (const t of r.told(y)) {
       if (t.worth < KIND_WORTH) continue;
-      const id = sectionOf(world.events.get(t.ref as Ref), t),
+      const id = side(t, y),
         list = lines.get(id);
       if (list) list.push({ t, year: y });
       else lines.set(id, [{ t, year: y }]);
@@ -1352,7 +1631,7 @@ function sectionsOf(
     const was = new Map<SectionId, Told[]>();
     for (const t of r.told(from - 1)) {
       if (t.worth < KIND_WORTH) continue;
-      const id = sectionOf(world.events.get(t.ref as Ref), t);
+      const id = side(t, from - 1);
       was.set(id, [...(was.get(id) ?? []), t]);
     }
     for (const [id, list] of was)
@@ -1379,15 +1658,23 @@ function sectionsOf(
         return true;
       }),
       shown = preferred(rest, before.get(s.id) ?? new Set(), from);
+    if (s.id === "bloc" && !r.bloc) continue;
     let text = sectionSentence(s.id, counts);
     if (s.id === "war" && fallen > 0)
       text += ` ${count(fallen)} fell in the battles history still keeps.`;
-    if (!all.length && !text) continue;
+    // (An alliance's own: who stood in it, who came and went, its calls, its place among the alliances.)
+    const said: Line =
+      s.id === "bloc" && r.bloc
+        ? blocText(world, r.bloc, from, to, (y) => eventsOf(world, y))
+        : text
+          ? [text]
+          : [];
+    if (!all.length && !said.length) continue;
     out.push({
       id: s.id,
       icon: s.icon,
       name: s.name,
-      text: text ? [text] : [],
+      text: said,
       items: shown.map(({ t, year }) => {
         const line = toldWords(world, t, year);
         return { line: run ? [`${year}: `, ...line] : line, ref: t.ref, year };
@@ -1463,6 +1750,7 @@ const MARK_WORDS: Readonly<Record<ToldMark["kind"], string>> = {
 function mapOf(world: World, r: Reader, from: number, to: number): ToldMap | null {
   const store = yearsOf(world);
   if (!world.hasStore("planet.home") || !store) return null;
+  if (r.bloc) return blocMap(world, r, r.bloc, from, to);
   const g = homePlanet(world).generated,
     base = g.offworld.base,
     now = yearNow(world),
@@ -1540,6 +1828,138 @@ function mapOf(world: World, r: Reader, from: number, to: number): ToldMap | nul
   };
 }
 
+/** A colour between two. */
+const between = (a: Rgb, b: Rgb, t: number): Rgb => [
+  a[0] + (b[0] - a[0]) * t,
+  a[1] + (b[1] - a[1]) * t,
+  a[2] + (b[2] - a[2]) * t,
+];
+type Rgb = readonly [number, number, number];
+/** Those its realms fought, on its map. */
+const FOE: Rgb = [0.7, 0.2, 0.17];
+
+/**
+ * An alliance's map: its realms' lands, each realm in its alliance's colour, the deeper the longer it has stood in it (those
+ * come in lately pale); the lands of those its realms fought, red; what its realms took or lost, hatched or dashed; and where
+ * its great things fell.
+ */
+function blocMap(world: World, r: Reader, b: BlocYears, from: number, to: number): ToldMap | null {
+  const g = homePlanet(world).generated,
+    base = g.offworld.base,
+    cur = b.members(to);
+  if (!cur.length) return null;
+  const start = b.standingSince(to),
+    color = blocSubject(world, `${BLOC}${b.head}`)?.color ?? realmColor(b.head),
+    pale = between(color, [1, 1, 1], 0.62),
+    tone = (since: number) => between(color, pale, to > start ? (since - start) / (to - start) : 0),
+    realms: { ref: string; name: string; color: Rgb }[] = [],
+    lands: number[] = [],
+    owner: number[] = [],
+    focus: number[] = [],
+    mine = new Map<number, string>();
+  for (const m of cur) {
+    const since = b.sinceOf(m, to);
+    realms.push({
+      ref: m,
+      name: `${nameOf(world, m)}, in it since ${count(since)}`,
+      color: tone(since),
+    });
+    for (const c of landsIn(world, m, to)) {
+      if (c >= base || offworldSite(g, c)) continue;
+      lands.push(c);
+      owner.push(realms.length - 1);
+      focus.push(c);
+      mine.set(c, m);
+    }
+  }
+  // Those its realms fought in these years.
+  const inIt = new Set(cur),
+    foes = new Set<string>();
+  if (world.hasStore("war.wars"))
+    for (const m of cur)
+      for (const w of warsOf(world).of(m as Ref)) {
+        const foe = w.attacker === m ? w.defender : w.attacker;
+        if (!inIt.has(foe) && w.declared <= to && (w.ended ?? b.now) >= from) foes.add(foe);
+      }
+  if (foes.size) {
+    realms.push({ ref: "", name: "its foes", color: FOE });
+    for (const f of foes)
+      for (const c of landsIn(world, f, to)) {
+        if (c >= base || offworldSite(g, c) || mine.has(c)) continue;
+        lands.push(c);
+        owner.push(realms.length - 1);
+      }
+  }
+  // What its realms took and lost in these years (not what came and went with a realm).
+  const store = yearsOf(world)!,
+    was = new Map<number, string>(),
+    before = new Set(b.members(from - 1));
+  for (const m of before) for (const c of landsIn(world, m, from - 1)) was.set(c, m);
+  const gained: number[] = [],
+    lost: number[] = [];
+  for (const [c, m] of mine) {
+    if (was.get(c) === m) continue;
+    const log = store.landRealm.get(c),
+      then = log && from - 1 >= log.first ? logAt(log, from - 1) : undefined;
+    // (Another realm's then, and none of it: taken. A realm come in with its lands is no taking.)
+    if (then && then !== m && !inIt.has(then)) gained.push(c);
+  }
+  for (const [c, m] of was) {
+    if (mine.has(c) || c >= base) continue;
+    const holder = to >= b.now ? politiesOf(world).of(c)?.ref : logAt(store.landRealm.get(c), to);
+    // (Held now by one outside it, while the realm that held it stands in it still.)
+    if (inIt.has(m) && holder !== m) lost.push(c);
+  }
+  // Where its great things fell.
+  const found = new Map<ToldMark["kind"], { cell: number; worth: number }[]>();
+  for (let y = from; y <= to; y++)
+    for (const e of r.events(y)) {
+      const kind = MARK_TYPES[e.type],
+        cell = cellOf(e.place);
+      if (!kind || cell < 0 || cell >= base) continue;
+      const list = found.get(kind);
+      if (list) list.push({ cell, worth: e.importance });
+      else found.set(kind, [{ cell, worth: e.importance }]);
+    }
+  const marks: ToldMark[] = [],
+    legend: { kind: string; words: string }[] = [];
+  for (const [kind, list] of found) {
+    const seen = new Set<number>();
+    for (const m of list.sort((a, c) => c.worth - a.worth)) {
+      if (seen.has(m.cell) || seen.size >= MARKS) continue;
+      seen.add(m.cell);
+      marks.push({ kind, cell: m.cell });
+    }
+    legend.push({ kind, words: MARK_WORDS[kind] });
+  }
+  if (gained.length) legend.unshift({ kind: "gained", words: "taken by its realms" });
+  if (lost.length) legend.push({ kind: "lost", words: "lost by its realms" });
+  const mid = Math.round((start + to) / 2),
+    key: { color: Rgb; words: string }[] = [
+      { color: tone(start), words: `in it since ${count(start)}` },
+      ...(to - start >= 20 ? [{ color: tone(mid), words: `came in about ${count(mid)}` }] : []),
+      ...(to > start ? [{ color: tone(to), words: "came in lately" }] : []),
+      ...(foes.size ? [{ color: FOE, words: "those its realms fought" }] : []),
+    ];
+  return {
+    base: baseKey(world),
+    realms,
+    lands,
+    owner,
+    gained,
+    lost,
+    marks,
+    focus,
+    legend,
+    key,
+    ...(b.rough(to) || from - 1 < b.now - EVERY_YEARS
+      ? {
+          note: "This far back who stood with whom, and the borders, are remembered by the half-century: as near as is kept.",
+        }
+      : {}),
+  };
+}
+
 // ————— The telling —————
 
 const READERS = new WeakMap<
@@ -1577,7 +1997,7 @@ export function toldWays(
   ask: { ref: string; year: number; realm?: string | null },
 ): { before: ToldItem[]; after: ToldItem[] } {
   if (!world.events.get(ask.ref as Ref)) return { before: [], after: [] };
-  const realm = ask.realm && politiesOf(world).get(ask.realm as Ref) ? ask.realm : null;
+  const realm = subjectOf(world, ask.realm);
   return {
     before: ledTo(world, ask.ref, ask.year),
     after: cameOf(world, readerOf(world, realm), ask.ref, ask.year),
@@ -1692,7 +2112,7 @@ export function yearTold(
     first = firstYear(world),
     year = Math.max(0, Math.min(now, Math.round(ask.year))),
     to = Math.max(year, Math.min(now, Math.round(ask.to ?? year), year + TOLD_SPAN - 1)),
-    realm = ask.realm && politiesOf(world).get(ask.realm as Ref) ? ask.realm : null,
+    realm = subjectOf(world, ask.realm),
     key = `${year}..${to}|${realm ?? ""}${ask.lead ? "|lead" : ""}`,
     stamp = stampOf(world);
   let kept = TOLD.get(world);
@@ -1723,7 +2143,7 @@ export function yearTold(
     used = new Set<Told>();
   let moreYears = 0;
   if (!run) {
-    const cands = ranked(r, year),
+    const cands = leading(r, year),
       top = cands[0] ?? null,
       // (Beside it, what else would lead a year of its own: of another kind, the greatest first.)
       beside: Cand[] = [];
@@ -1766,21 +2186,25 @@ export function yearTold(
       });
     else
       leads.push({
-        headline: realm
-          ? "Nothing is kept of its year"
-          : alone
-            ? `Year ${count(year)} of a world alone`
-            : first > year
-              ? "Before anyone could tell of it"
-              : "Nothing is kept of this year by itself",
+        headline: r.bloc
+          ? `Nothing is kept of its year ${count(year)}`
+          : realm
+            ? "Nothing is kept of its year"
+            : alone
+              ? `Year ${count(year)} of a world alone`
+              : first > year
+                ? "Before anyone could tell of it"
+                : "Nothing is kept of this year by itself",
         lines: [
           {
             line: [
-              realm
-                ? "History keeps nothing that this realm did or suffered in the year."
-                : alone
-                  ? "No one lives on this world, and nothing that befell it in the year is kept: with no one to tell it, a year here is its star's light, its seas and its weather."
-                  : "History keeps no happening of this year, and its people were not counted in it.",
+              r.bloc
+                ? "History keeps nothing that this alliance or its realms did or suffered in the year."
+                : realm
+                  ? "History keeps nothing that this realm did or suffered in the year."
+                  : alone
+                    ? "No one lives on this world, and nothing that befell it in the year is kept: with no one to tell it, a year here is its star's light, its seas and its weather."
+                    : "History keeps no happening of this year, and its people were not counted in it.",
             ],
             ref: null,
           },
@@ -1790,10 +2214,11 @@ export function yearTold(
         after: [],
       });
   } else {
-    // A run of years: its years' leads ranked, the greatest told first, each year a way in.
+    // A run of years: its years' leads ranked, the greatest told first, each year a way in. Of an alliance, its arc first.
+    if (r.bloc) leads.push(blocArc(world, r, r.bloc, year, to));
     const tops: { c: Cand; year: number }[] = [];
     for (let y = year; y <= to; y++) {
-      const c = ranked(r, y)[0];
+      const c = leading(r, y)[0];
       if (!c) continue;
       tops.push({ c, year: y });
     }
@@ -1821,15 +2246,31 @@ export function yearTold(
         after: [],
       });
   }
-  const subject = realm
-      ? { ref: realm, name: nameOf(world, realm), color: realmColor(realm) }
-      : null,
+  const subject = r.bloc
+      ? blocSubject(world, realm!)
+      : realm
+        ? { ref: realm, name: nameOf(world, realm), color: realmColor(realm) }
+        : null,
+    // (A realm's year beside its alliance's, and an alliance's beside its head realm's.)
+    allied = realm && !r.bloc ? realmBlocAt(world, realm, to) : "",
+    leader = r.bloc ? r.bloc.headAt(to) || r.bloc.head : "",
+    also = allied
+      ? [{ words: "🪢 Its alliance's", ref: toldRef(year, to, `${BLOC}${allied}`) }]
+      : leader && politiesOf(world).get(leader as Ref)
+        ? [
+            {
+              words: `👑 ${politiesOf(world).get(leader as Ref)!.town}'s`,
+              ref: toldRef(year, to, leader),
+            },
+          ]
+        : [],
     told: YearTold = {
       year,
       to,
       now,
       first,
       subject,
+      ...(also.length ? { also } : {}),
       kicker: run
         ? `Years ${count(year)} to ${count(to)}`
         : year === now
@@ -1852,25 +2293,223 @@ export function yearTold(
   return done;
 }
 
+/** Whose a telling is, as asked: a realm the world knows, or an alliance whose years are kept (null: the world's). */
+function subjectOf(world: World, ask: string | null | undefined): string | null {
+  if (!ask) return null;
+  if (isBloc(ask))
+    return blocSubject(world, ask) && blocYears(world, ask.slice(BLOC.length)) ? ask : null;
+  return politiesOf(world).get(ask as Ref) ? ask : null;
+}
+
+/**
+ * An alliance's run of years read as its arc: whether it formed in them, how far it grew and when it stood greatest, who came
+ * and went, and whether it came apart. Each piece a way to the year it happened in.
+ */
+function blocArc(world: World, r: Reader, b: BlocYears, from: number, to: number): ToldLead {
+  const last = Math.min(to, b.now);
+  b.prepare(from - 1, last);
+  const stood: number[] = [];
+  for (let y = from; y <= last; y++) if (b.headAt(y)) stood.push(y);
+  const home = politiesOf(world).get(b.head as Ref),
+    who = home?.town ?? "Its head realm",
+    span = `from ${count(from)} to ${count(last)}`;
+  if (!stood.length)
+    return {
+      headline: `${sentence(who)} stood in no alliance ${span}`,
+      lines: [
+        {
+          line: [`In none of these years were two or more realms bound together with ${who}.`],
+          ref: home?.ref ?? null,
+        },
+      ],
+      vignette: vignetteOf(world, null, home?.seat ?? null),
+      before: [],
+      after: [],
+    };
+  const own = (y: number, keys: readonly string[]) =>
+      r.told(y).find((t) => keys.includes(t.key)) ?? null,
+    first = stood[0]!,
+    end = stood.at(-1)!,
+    formedAt = stood.find((y) => y - 1 >= b.first && !b.headAt(y - 1)),
+    endedAt = stood.find((y) => y < last && !b.headAt(y + 1)),
+    formed = formedAt !== undefined ? own(formedAt, ["bloc.formed", "bloc.joined"]) : null,
+    ended = endedAt !== undefined ? own(endedAt + 1, ["bloc.ended", "bloc.left"]) : null;
+  let peak = 0,
+    peakYear = first,
+    most = 0,
+    mostYear = first,
+    joined = 0,
+    left = 0,
+    heads = 0,
+    split: { y: number; n: number } | null = null;
+  for (const y of stood) {
+    const n = b.members(y).length,
+      p = b.numbers(y)?.people ?? 0;
+    if (n > peak) {
+      peak = n;
+      peakYear = y;
+    }
+    if (p > most) {
+      most = p;
+      mostYear = y;
+    }
+    if (y - 1 >= b.first && b.headAt(y - 1)) {
+      const prev = b.members(y - 1),
+        cur = b.members(y),
+        out = prev.filter((x) => !cur.includes(x)).length;
+      joined += cur.filter((x) => !prev.includes(x)).length;
+      left += out;
+      if (b.headAt(y - 1) !== b.headAt(y)) heads++;
+      if (out >= 2 && (!split || out > split.n)) split = { y, n: out };
+    }
+  }
+  const n0 = b.members(first).length,
+    n1 = b.members(end).length,
+    parts = [
+      formed && formed.key === "bloc.formed"
+        ? `Formed in ${count(formedAt!)}`
+        : `${sentence(said(n0))} realms in ${count(first)}`,
+      peak > Math.max(n0, n1)
+        ? `${said(peak)} at its height in ${count(peakYear)}`
+        : n1 > n0
+          ? `grew to ${said(n1)}`
+          : n1 < n0
+            ? `down to ${said(n1)}`
+            : "",
+      endedAt !== undefined
+        ? `came apart in ${count(endedAt + 1)}`
+        : end < last
+          ? `stood no longer after ${count(end)}`
+          : n1 === n0 && peak <= n0
+            ? `${said(n1)} still in ${count(end)}`
+            : `${said(n1)} in ${count(end)}`,
+    ].filter(Boolean),
+    lines: ToldItem[] = [];
+  if (formed)
+    lines.push({
+      line: [`${formedAt}: `, ...toldWords(world, formed, formedAt!)],
+      ref: formed.ref,
+      year: formedAt,
+    });
+  const whole = b.numbers(mostYear),
+    all = b.peopled(mostYear);
+  if (whole)
+    lines.push({
+      line: [
+        `At its greatest in ${count(mostYear)}: ${shortWords(whole.people)} people in ${said(whole.realms)} realms`,
+        all ? `, ${Math.round((whole.people / all) * 100)}% of the world's` : "",
+        `, ${shortWords(whole.host)} under arms.`,
+      ],
+      ref: toldRef(mostYear, mostYear, `${BLOC}${b.head}`),
+      year: mostYear,
+    });
+  if (joined || left || heads)
+    lines.push({
+      line: [
+        sentence(
+          [
+            joined ? `${said(joined)} ${joined === 1 ? "realm" : "realms"} came in` : "",
+            left ? `${said(left)} left` : "",
+            heads ? `its head changed ${heads === 1 ? "once" : `${said(heads)} times`}` : "",
+          ]
+            .filter(Boolean)
+            .join(", "),
+        ),
+        ` ${span}.`,
+      ],
+      ref: `bloc:${b.head}#time`,
+    });
+  if (split && !(endedAt !== undefined && split.y === endedAt + 1))
+    lines.push({
+      line: [`${split.y}: ${said(split.n)} of its realms left it in one year.`],
+      ref: toldRef(split.y, split.y, `${BLOC}${b.head}`),
+      year: split.y,
+    });
+  if (ended)
+    lines.push({
+      line: [`${endedAt! + 1}: `, ...toldWords(world, ended, endedAt! + 1)],
+      ref: ended.ref,
+      year: endedAt! + 1,
+    });
+  const pic = formed ?? ended;
+  return {
+    headline: clip(parts.join(", "), 110),
+    lines,
+    vignette: vignetteOf(world, pic, home?.seat ?? null),
+    before: [],
+    after: [],
+  };
+}
+
+/**
+ * A realm's or an alliance's last years, each with its headline (the alliance page's Years told): read when its tab is
+ * opened, one reading of the years for all of them. Its decades and centuries are the ways on.
+ */
+export function toldList(
+  world: World,
+  ask: { subject: string; most?: number },
+): { years: { year: number; headline: string }[]; decades: number[]; now: number; first: number } {
+  const now = yearNow(world),
+    subject = subjectOf(world, ask.subject),
+    r = readerOf(world, subject),
+    most = Math.max(1, Math.min(40, ask.most ?? 20)),
+    home = r.bloc ? null : subject ? politiesOf(world).get(subject as Ref) : null,
+    first = r.bloc ? r.bloc.first : (home?.founded ?? firstYear(world)),
+    years: { year: number; headline: string }[] = [];
+  for (let y = home?.ended ?? now; y >= Math.max(0, first) && years.length < most; y--) {
+    if (r.bloc && !r.bloc.headAt(y)) {
+      // (A gap in its standing: the years it stood before are told after, the gap once.)
+      if (years.length && !years.at(-1)!.headline.startsWith("—")) {
+        let back = y;
+        while (back > first && !r.bloc.headAt(back - 1)) back--;
+        years.push({
+          year: back,
+          headline: `— it stood no longer from ${count(back)} to ${count(y)} —`,
+        });
+        y = back;
+      }
+      continue;
+    }
+    const top = leading(r, y)[0];
+    years.push({
+      year: y,
+      headline: top
+        ? headlineOf(world, top.t, y)
+        : quietLines(world, r, y).headline || "Nothing is kept of it",
+    });
+  }
+  const decades: number[] = [];
+  for (
+    let d = Math.floor((home?.ended ?? now) / 10) * 10;
+    d >= Math.max(0, first - 9) && decades.length < 10;
+    d -= 10
+  )
+    if (!r.bloc || [0, 3, 6, 9].some((k) => r.bloc!.headAt(Math.min(now, d + k)))) decades.push(d);
+  return { years, decades, now, first };
+}
+
 /** The page a year told stands in: its tool reads it, and goes from year to year in place. */
 export function toldPage(world: World, ref: string): PageModel {
   const ask = toldAsk(ref) ?? { year: yearNow(world), to: yearNow(world), realm: null },
     now = yearNow(world),
-    realm = ask.realm && politiesOf(world).get(ask.realm as Ref) ? ask.realm : null,
-    name = realm ? nameOf(world, realm) : "";
+    realm = subjectOf(world, ask.realm),
+    bloc = isBloc(realm) ? blocSubject(world, realm) : null,
+    name = bloc ? bloc.name : realm ? nameOf(world, realm) : "";
   return {
     ref,
     kind: "year",
     icon: "🗓️",
     title: realm ? `${sentence(name)}: its year` : "The year told",
-    subtitle: realm
-      ? ["What each year was to ", link(name, realm), "."]
-      : [
-          "From what history keeps. Line by line: ",
-          link("The Years", "world:chronicle#years"),
-          ".",
-        ],
-    color: realm ? realmColor(realm) : null,
+    subtitle: bloc
+      ? ["What each year was to ", link(name, realm), ", and to the realms who stood in it then."]
+      : realm
+        ? ["What each year was to ", link(name, realm), "."]
+        : [
+            "From what history keeps. Line by line: ",
+            link("The Years", "world:chronicle#years"),
+            ".",
+          ],
+    color: bloc ? bloc.color : realm ? realmColor(realm) : null,
     place: null,
     stats: [],
     tabs: [
