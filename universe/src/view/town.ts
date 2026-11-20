@@ -110,6 +110,15 @@ export class TownParts {
     if (!g) this.groups.set(key, (g = { mesh, color, data: [] }));
     g.data.push(x, y, z, sx, sy, sz, yaw);
   }
+  /**
+   * How many batches draw them: one to a mesh, its roofs apart (snow lies on them), and the windows' own; each part's
+   * colour rides in its instance (render/stage.ts tonedMaterial), so a colour more is no batch more.
+   */
+  get batches(): number {
+    const seen = new Set<string>();
+    for (const [key, g] of this.groups) if (g.data.length) seen.add(partBatch(key, g));
+    return seen.size;
+  }
   /** How many parts in all. */
   get count(): number {
     let n = 0;
@@ -119,6 +128,11 @@ export class TownParts {
   clear(): void {
     for (const g of this.groups.values()) g.data.length = 0;
   }
+}
+
+/** The batch a group of parts is drawn in (TownParts.batches). */
+export function partBatch(key: string, g: { mesh: PartMesh; lamp?: boolean }): string {
+  return g.lamp ? key : `${g.mesh}|${g.mesh === "gable" || g.mesh === "cone" ? "roof" : "wall"}`;
 }
 
 const YEAR_S = 365 * 86_400;
@@ -1010,7 +1024,9 @@ function sprawlRoofs(scene: TownScene, out: TownParts, from: number, to: number)
       r = near + ((at - inner) / (r1 - inner)) * Math.max(0, sprawlFar(scene, ring, a) - near),
       look = looks[i % looks.length]!,
       // Nearer the heart, the taller.
-      h = 5 + scatter(plan.seed, i, 2) * 5 + 14 * (1 - (r - r0) / (r1 - r0)) ** 3,
+      // (By how far out of its sprawl it stands, not by a radius: its sprawl is no ring. A roof read by the old ring's
+      // radius stood hundreds of metres high where its outline came in close: 2026-11-20.)
+      h = 5 + scatter(plan.seed, i, 2) * 5 + 14 * (1 - (at - inner) / (r1 - inner)) ** 3,
       w = 10 + scatter(plan.seed, i, 3) * 16,
       d = 7 + scatter(plan.seed, i, 4) * 4,
       x = r * Math.cos(a),
@@ -1023,7 +1039,7 @@ function sprawlRoofs(scene: TownScene, out: TownParts, from: number, to: number)
     if (wetGround(plan.site, x, z)) continue;
     if (towers) {
       // Towers and more towers, tallest toward its heart, their floors lit, into the haze.
-      const near = 1 - (r - r0) / (r1 - r0),
+      const near = 1 - (at - inner) / (r1 - inner),
         high = 34 + 40 * scatter(plan.seed, i, 5) + 170 * near * near * scatter(plan.seed, i, 6),
         glass = SPIRE_GLASS[i % SPIRE_GLASS.length]!;
       out.put("box", glass, x, high / 2, z, Math.min(w, 18), high, Math.min(d * 2, 18), yaw);
@@ -1401,7 +1417,7 @@ function home(
       ? (look.stuff ?? (look.own ? darker(look.wall, 0.85) : BRICK))
       : level === 4
         ? (look.block ?? (look.own ? mixed(look.wall, CONCRETE, 0.5) : CONCRETE))
-        : GLASS;
+        : (look.glass ?? GLASS);
   out.put("box", wall, x, h / 2, z, L.w, h, L.d, yaw);
   // Storeys told by bands of windows, lit at night (fewer bands than storeys on the tall ones;
   // a tower's between the frames of its floors).

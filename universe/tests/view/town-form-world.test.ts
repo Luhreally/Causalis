@@ -50,9 +50,7 @@ function drawn(plan: NonNullable<ReturnType<typeof townPlan>>) {
   townHomes(scene, scene.active, world.now, parts);
   townCivics(scene, world.now, parts);
   townWalls(scene, world.now, parts);
-  let batches = 0;
-  for (const g of parts.groups.values()) if (g.data.length) batches++;
-  return { scene, parts: parts.count, batches, groups: parts.groups };
+  return { scene, parts: parts.count, batches: parts.batches, groups: parts.groups };
 }
 
 test("a lived world's towns read what they kept: a market place where they held a market, their ground by their realm's reach", () => {
@@ -110,13 +108,11 @@ test("every form its view draws is said on its page, and costs a few parts and b
     more += a.parts;
     was += b.parts;
     assert.ok(
-      // (Eight in the hundred, or a hundred and fifty: a town of a few hundred lots with a market place, a ring street and a
-      // keep draws that many more, and a phone draws two hundred thousand.)
-      a.parts <= Math.max(b.parts * 1.08, b.parts + 200),
+      a.parts <= b.parts * 1.08,
       `${s.name}: ${a.parts} parts against ${b.parts} (${plan.lots} lots)`,
     );
     assert.ok(
-      a.batches <= Math.max(b.batches * 1.15, b.batches + 16),
+      a.batches <= Math.ceil(b.batches * 1.15),
       `${s.name}: ${a.batches} batches against ${b.batches}`,
     );
     const tab = buildingsTab(world, s.ref),

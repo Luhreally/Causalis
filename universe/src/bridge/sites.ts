@@ -61,10 +61,11 @@ export type TownSite = {
    */
   readonly place?: { readonly at: number; readonly size: number };
   /**
-   * Its land's water about it, as its land's map has it (absent: none near, or its people live in the water): the sea,
-   * lake and river tiles of the map about its own, each `m` metres across on the town's ground (the map draws a town LAND_SCALE
-   * times its size), `half` tiles out each way, row by row from the north-west, "1" where wet. Nothing of it is laid there:
-   * no block, no sprawl; the land's map and the town's own view read the one water.
+   * Its land's water about it, as its land's map draws it (absent: none near, or its people live in the water): the squares
+   * between the middles of the map's tiles about its own, each `m` metres across on the town's ground (the map draws a town
+   * LAND_SCALE times its size), `half` squares out each way, row by row from the north-west; each square's two facets (as
+   * the map's mesh cuts it), bit 1 the one toward the north-west, bit 2 the other, set where two of the facet's three
+   * tiles are water. Nothing of the town is laid there: no block, no sprawl; the land's map and the town read one water.
    */
   readonly wet?: { readonly m: number; readonly half: number; readonly cells: string };
 };
@@ -72,14 +73,21 @@ export type TownSite = {
 /** How many times its size a town is drawn on its land's map (so a tile of the map is a fifth of its breadth on the town's ground). */
 export const LAND_SCALE = 5;
 
-/** Whether a point of a town's ground (metres from its square) lies on its land's water (TownSite.wet). */
+/**
+ * Whether a point of a town's ground (metres from its square) lies on its land's water (TownSite.wet): on a facet of its
+ * land's map that is drawn as water.
+ */
 export function wetGround(site: TownSite | null | undefined, x: number, z: number): boolean {
   const w = site?.wet;
   if (!w) return false;
-  const i = Math.round(x / w.m) + w.half,
-    j = Math.round(z / w.m) + w.half,
-    n = 2 * w.half + 1;
-  return i >= 0 && j >= 0 && i < n && j < n && w.cells.charCodeAt(j * n + i) === 49;
+  const fx = x / w.m + w.half,
+    fz = z / w.m + w.half,
+    i = Math.floor(fx),
+    j = Math.floor(fz),
+    n = 2 * w.half;
+  if (i < 0 || j < 0 || i >= n || j >= n) return false;
+  const bits = w.cells.charCodeAt(j * n + i) - 48;
+  return fx - i + (fz - j) <= 1 ? (bits & 1) !== 0 : (bits & 2) !== 0;
 }
 
 /** A part of a town's ground taken up under a realm's will (TownSite.surveys). */
@@ -396,7 +404,20 @@ export function grownBlocks(
     }
     // The water and its shore; and its land's own water, as its map has it.
     if (water && Math.hypot(bx - water.x, bz - water.z) < water.r + SHORE_W + REACH) return false;
-    if (site.wet && (wetGround(site, bx, bz) || wetGround(site, bx + c * 14, bz - s * 14)))
+    // (Its middle and its four corners: no lot of it on a facet the map draws as water.)
+    if (
+      site.wet &&
+      (wetGround(site, bx, bz) ||
+        [-1, 1].some((u) =>
+          [-1, 1].some((v) =>
+            wetGround(
+              site,
+              bx + (u * c * BW) / 2 + (v * s * BD) / 2,
+              bz - (u * s * BW) / 2 + (v * c * BD) / 2,
+            ),
+          ),
+        ))
+    )
       return false;
     // The roads in: a block never stands across one.
     for (let k = 0; k < roadX.length; k++) {

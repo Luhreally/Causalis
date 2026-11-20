@@ -18,6 +18,7 @@ import {
   type TownSite,
 } from "../../src/bridge/index.ts";
 import { TownParts, townGround, townHomes, townScene } from "../../src/view/index.ts";
+import { outlineAt, sprawlFar } from "../../src/view/town.ts";
 import { heightOf, streetOf } from "../../src/view/townform.ts";
 import { YEAR } from "../../src/kernel/index.ts";
 
@@ -250,16 +251,15 @@ test("a town's form draws a few parts more, in the batches it had, and says itse
       townGround(scene, parts);
       townHomes(scene, scene.settled, t, parts);
       townHomes(scene, scene.active, t, parts);
-      let batches = 0;
-      for (const g of parts.groups.values()) if (g.data.length) batches++;
-      return { parts: parts.count, batches };
+      return { parts: parts.count, batches: parts.batches };
     },
     plan = planOf({ ...DRIVES, seat: 2 }, 1600, 1),
     bare: TownPlan = { ...plan, form: undefined, site: SITE },
     a = count(plan),
     b = count(bare);
   assert.ok(a.parts < b.parts * 1.06, `${a.parts} parts against ${b.parts}`);
-  assert.ok(a.batches <= b.batches + 12, `${a.batches} batches against ${b.batches}`);
+  // (A colour is no batch: only a mesh the bare town never drew is one more. A cone for a tree, a cylinder for a column.)
+  assert.ok(a.batches <= b.batches + 2, `${a.batches} batches against ${b.batches}`);
   const whys = formWhys(plan.form!, plan.site!.laid, false);
   assert.ok(whys.length >= 4);
   for (const w of whys) assert.doesNotMatch(w, /undefined|NaN|null/);
@@ -442,19 +442,27 @@ test("a home is built against its weather and to its people's measure: pale and 
   assert.ok(hot.courts && hot.pale >= 0.5 && hot.heart > mild.heart + 0.2);
   assert.ok(!mild.courts && mild.pale === 0 && mild.steep === 1);
   assert.ok(cold.steep === 1.5 && wet.steep === 1.25 && !wet.courts);
-  // Pale walls in the heat: its walls are lighter than the mild town's.
-  const wallKey = (d: ReturnType<typeof draw>) =>
-      [...d.parts.groups].filter(
-        ([k, g]) => k.startsWith("box|") && g.data.length > 7 * 200,
-      )[0]![0],
-    a = wallKey(draw(FOOT, 2)),
-    b = wallKey(draw({ ...FOOT, warm: 27, rain: 200 }, 2));
-  const light = (k: string) =>
-    k
-      .split("|")
-      .slice(1)
-      .reduce((x, v) => x + Number(v), 0);
-  assert.ok(light(b) > light(a) + 0.3, `${b} paler than ${a}`);
+  // Pale walls in the heat: its townhouses' walls are lighter than the mild town's, taken together.
+  const wallLight = (d: ReturnType<typeof draw>) => {
+    let sum = 0,
+      n = 0;
+    for (const [k, g] of d.parts.groups) {
+      if (!k.startsWith("box|")) continue;
+      const light = k
+        .split("|")
+        .slice(1)
+        .reduce((x, v) => x + Number(v), 0);
+      for (let i = 0; i < g.data.length; i += 7)
+        if (Math.abs(g.data[i + 3]! - 8.4) < 1e-3 && g.data[i + 4]! > 3) {
+          sum += light;
+          n++;
+        }
+    }
+    return sum / n;
+  };
+  const a = wallLight(draw(FOOT, 2)),
+    b = wallLight(draw({ ...FOOT, warm: 27, rain: 200 }, 2));
+  assert.ok(b > a + 0.3, `${b.toFixed(2)} paler than ${a.toFixed(2)}`);
   // Steeper roofs in the snow.
   const roofs = (d: ReturnType<typeof draw>) =>
     Math.max(
@@ -482,9 +490,7 @@ test("all of it within a few parts and batches of the town drawn with no form", 
       townGround(scene, parts);
       townHomes(scene, scene.settled, t, parts);
       townHomes(scene, scene.active, t, parts);
-      let batches = 0;
-      for (const g of parts.groups.values()) if (g.data.length) batches++;
-      return { parts: parts.count, batches };
+      return { parts: parts.count, batches: parts.batches };
     };
   for (const level of [1, 2, 4]) {
     const facts: FormFacts = {
@@ -513,9 +519,8 @@ test("all of it within a few parts and batches of the town drawn with no form", 
       b = count(bare);
     assert.ok(a.parts < b.parts * 1.08, `level ${level}: ${a.parts} parts against ${b.parts}`);
     assert.ok(
-      // (Every form at once on a town of one design and no other building: each a colour of its own, sixteen at the most.
-      // A lived world's towns are held to the greater of fifteen in the hundred and twelve: town-form-world.test.ts.)
-      a.batches <= b.batches + 16,
+      // (A colour rides in its part's instance: only a mesh the bare town never drew is a batch more.)
+      a.batches <= b.batches + 3,
       `level ${level}: ${a.batches} batches against ${b.batches}`,
     );
   }
@@ -548,4 +553,43 @@ test("a town is no disc: it reaches furthest down its roads in, less between the
     "long across its hillside",
   );
   assert.ok(climb(steep, 0) > climb(steep, Math.PI / 2));
+});
+
+test("a great town's sprawl is its own outline grown on: low roofs from its lots' edge each way, none a tower by mistake", () => {
+  const t = 40 * YEAR,
+    plan: TownPlan = { ...planOf(FOOT, 800, 2), whole: 6400 },
+    scene = townScene(plan, t),
+    parts = new TownParts();
+  townGround(scene, parts);
+  townHomes(scene, scene.settled, t, parts);
+  // (Its sprawl's roofs are boxes broader than any home: 10 m and more along, none 30 m high.)
+  let roofs = 0,
+    high = 0,
+    inside = 0;
+  for (const [key, g] of parts.groups)
+    if (key.startsWith("box|"))
+      for (let i = 0; i < g.data.length; i += 7)
+        if (
+          g.data[i + 3]! >= 10 &&
+          g.data[i + 3]! <= 26 &&
+          g.data[i + 4]! > 4 &&
+          g.data[i + 5]! <= 11
+        ) {
+          const a = Math.atan2(g.data[i + 2]!, g.data[i]!),
+            r = Math.hypot(g.data[i]!, g.data[i + 2]!);
+          if (r < outlineAt(scene.outline, a)) inside++;
+          else {
+            roofs++;
+            high = Math.max(high, g.data[i + 4]!);
+          }
+        }
+  assert.ok(roofs > 200, `${roofs} roofs of its sprawl`);
+  assert.ok(high < 30, `the highest ${high.toFixed(0)} m`);
+  // And no ring of one radius: its sprawl's reach differs by bearing as its outline does.
+  const ring = { r0: 1, r1: 2 },
+    far = Array.from({ length: 72 }, (_, k) =>
+      sprawlFar(scene, ring, ((k + 0.5) / 72) * 2 * Math.PI),
+    );
+  assert.ok(Math.max(...far) > Math.min(...far) * 1.3);
+  assert.ok(inside >= 0);
 });

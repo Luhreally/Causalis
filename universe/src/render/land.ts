@@ -25,6 +25,7 @@ import {
   landFields,
   laneLine,
   landReach,
+  facetWet,
   landEdge,
   linePieces,
   onLines,
@@ -145,84 +146,95 @@ class GroundBatches {
     const floor = undersea ? floorAt : groundAt;
     if (this.tops?.length !== g.size * g.size) this.tops = new Float32Array(g.size * g.size);
     this.tops.fill(-Infinity);
-    const keys = new Map<string, { mesh: PartMesh; color: Rgb; n: number }>();
+    // (One batch to a mesh for all the land's towns: each part's colour rides in its instance.)
+    const keys = new Map<string, { mesh: PartMesh; n: number }>();
     for (const t of towns)
-      for (const [key, grp] of t.parts.groups) {
+      for (const grp of t.parts.groups.values()) {
         // (No lamps on the land: it is seen by day.)
         if (grp.lamp || !grp.data.length) continue;
-        const k = keys.get(key);
+        const k = keys.get(grp.mesh);
         if (k) k.n += grp.data.length / 7;
-        else keys.set(key, { mesh: grp.mesh, color: grp.color, n: grp.data.length / 7 });
+        else keys.set(grp.mesh, { mesh: grp.mesh, n: grp.data.length / 7 });
       }
     for (const [key, k] of keys) {
-      if (this.scratch.length < k.n * 7) this.scratch = new Float32Array(Math.ceil(k.n * 1.3) * 7);
+      if (this.scratch.length < k.n * 10)
+        this.scratch = new Float32Array(Math.ceil(k.n * 1.3) * 10);
       const out = this.scratch;
       let m = 0;
-      for (const t of towns) {
-        const grp = t.parts.groups.get(key);
-        if (!grp) continue;
-        const d = grp.data;
-        for (let o = 0; o < d.length; o += 7) {
-          const x = t.x + d[o]! * LAND_ACROSS,
-            z = t.z + d[o + 2]! * LAND_ACROSS;
-          if (wetAt(g, x, z) !== undersea) continue;
-          if (t.gone?.some((h) => Math.hypot(x - h.x, z - h.z) < h.r)) continue;
-          const top = d[o + 1]! + d[o + 4]! / 2,
-            q = m * 7;
-          let ground = floor(g, x, z),
-            wide = false;
-          // (A wide slab lies on its highest corner, or the land's rises come up through it. On the
-          // seabed the shore comes up over it, as it should: one lifted there would hang in the sea.)
-          const sx = d[o + 3]! * LAND_ACROSS,
-            sz = d[o + 5]! * LAND_ACROSS;
-          if (t.kept && top >= LAND_FLAT && t.kept(x, z, Math.max(sx, sz) / 2 + WAY_CLEAR))
-            continue;
-          if (!undersea && Math.max(sx, sz) > g.tileKm / 4) {
-            wide = true;
-            const c = Math.cos(d[o + 6]!),
-              s = Math.sin(d[o + 6]!);
-            for (const [u, v] of CORNERS) {
-              const a = (u * sx) / 2,
-                b = (v * sz) / 2;
-              ground = Math.max(ground, floor(g, x + a * c + b * s, z - a * s + b * c));
+      for (const t of towns)
+        for (const grp of t.parts.groups.values()) {
+          if (grp.lamp || grp.mesh !== k.mesh) continue;
+          const d = grp.data;
+          for (let o = 0; o < d.length; o += 7) {
+            const x = t.x + d[o]! * LAND_ACROSS,
+              z = t.z + d[o + 2]! * LAND_ACROSS;
+            // (None of a land people's on what the map draws as water; a water people's on its sea alone.)
+            if (undersea ? !wetAt(g, x, z) : wetAt(g, x, z) || facetWet(g, x, z)) continue;
+            if (t.gone?.some((h) => Math.hypot(x - h.x, z - h.z) < h.r)) continue;
+            const top = d[o + 1]! + d[o + 4]! / 2,
+              q = m * 10;
+            out[q + 7] = grp.color[0];
+            out[q + 8] = grp.color[1];
+            out[q + 9] = grp.color[2];
+            let ground = floor(g, x, z),
+              wide = false;
+            // (A wide slab lies on its highest corner, or the land's rises come up through it. On the
+            // seabed the shore comes up over it, as it should: one lifted there would hang in the sea.)
+            const sx = d[o + 3]! * LAND_ACROSS,
+              sz = d[o + 5]! * LAND_ACROSS;
+            if (t.kept && top >= LAND_FLAT && t.kept(x, z, Math.max(sx, sz) / 2 + WAY_CLEAR))
+              continue;
+            if (!undersea && Math.max(sx, sz) > g.tileKm / 4) {
+              wide = true;
+              const c = Math.cos(d[o + 6]!),
+                s = Math.sin(d[o + 6]!);
+              for (const [u, v] of CORNERS) {
+                const a = (u * sx) / 2,
+                  b = (v * sz) / 2;
+                ground = Math.max(ground, floor(g, x + a * c + b * s, z - a * s + b * c));
+              }
             }
+            ground += LIFT;
+            out[q] = x;
+            out[q + 2] = z;
+            out[q + 3] = d[o + 3]! * LAND_ACROSS;
+            out[q + 5] = d[o + 5]! * LAND_ACROSS;
+            out[q + 6] = d[o + 6]!;
+            if (top < LAND_FLAT) {
+              // Flat: a slab set into the ground, its top a little over it (higher for higher things).
+              const up = ground + top * FLAT_UP;
+              out[q + 1] = up - SLAB / 2;
+              out[q + 4] = SLAB;
+              if (wide) layTop(this.tops, g, x, z, Math.hypot(sx, sz) / 2, up);
+            } else {
+              // (Towers kept from being needles at the land's height: Phase 66.)
+              const foot = landHigh(d[o + 1]! - d[o + 4]! / 2),
+                head = landHigh(top);
+              out[q + 1] = ground + ((foot + head) / 2) * LAND_UP;
+              out[q + 4] = (head - foot) * LAND_UP;
+            }
+            m++;
           }
-          ground += LIFT;
-          out[q] = x;
-          out[q + 2] = z;
-          out[q + 3] = d[o + 3]! * LAND_ACROSS;
-          out[q + 5] = d[o + 5]! * LAND_ACROSS;
-          out[q + 6] = d[o + 6]!;
-          if (top < LAND_FLAT) {
-            // Flat: a slab set into the ground, its top a little over it (higher for higher things).
-            const up = ground + top * FLAT_UP;
-            out[q + 1] = up - SLAB / 2;
-            out[q + 4] = SLAB;
-            if (wide) layTop(this.tops, g, x, z, Math.hypot(sx, sz) / 2, up);
-          } else {
-            // (Towers kept from being needles at the land's height: Phase 66.)
-            const foot = landHigh(d[o + 1]! - d[o + 4]! / 2),
-              head = landHigh(top);
-            out[q + 1] = ground + ((foot + head) / 2) * LAND_UP;
-            out[q + 4] = (head - foot) * LAND_UP;
-          }
-          m++;
         }
-      }
       let b = this.batches.get(key);
       if (!b || b.capacity < m) {
         b?.destroy();
         b = new InstancedBatch(
           this.stage,
           this.meshes[k.mesh],
-          [k.color[0], k.color[1], k.color[2]],
+          [1, 1, 1],
           Math.max(16, Math.ceil(m * 1.3)),
           this.root,
+          undefined,
+          true,
         );
         this.batches.set(key, b);
       }
       b.set(m, (i, o) => {
-        const q = i * 7;
+        const q = i * 10;
+        o[8] = out[q + 7]!;
+        o[9] = out[q + 8]!;
+        o[10] = out[q + 9]!;
         o[0] = out[q]!;
         o[1] = out[q + 1]!;
         o[2] = out[q + 2]!;

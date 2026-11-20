@@ -53,6 +53,14 @@ const TALL_STEPS = 12,
   TALL_LOW = 0.45,
   TALL_STEP = 0.1;
 
+/** How dark a block's walls and roofs have weathered, oldest first; and what a quarter's roofing leans to. */
+const WEATHERED = [0.8, 0.9, 1, 1.07],
+  ROOF_WARM: Rgb = [0.72, 0.5, 0.24],
+  ROOF_DARK: Rgb = [0.3, 0.22, 0.2],
+  GLASS_BLUE: Rgb = [0.44, 0.58, 0.7],
+  GLASS_GREEN: Rgb = [0.4, 0.62, 0.62],
+  GLASS_GREY: Rgb = [0.56, 0.6, 0.66];
+
 /** Lime, and the washes a front is painted in where there is something to spare. */
 const LIME: Rgb = [0.95, 0.93, 0.86],
   OCHRE: Rgb = [0.86, 0.66, 0.3],
@@ -110,7 +118,16 @@ export function formLook(scene: TownScene, p: number, index: number): HouseLook 
     form = scene.plan.form!,
     // (Two washes: one front in three painted, the rest in its land's own stuff. Each wash is a batch more to a design.)
     wash = form.spare >= PAINTED_FROM && share(p, 7) < 0.34 ? 1 : 0,
-    key = ((scene.looks[index] ? index : 0) * 64 + code) * 4 + wash;
+    // (Its block's age and quarter: the older the block the more its walls have weathered, and each quarter roofs a little
+    // its own way. A tone to each of four ages and three roofings: every one rides in its instance, no batch more.)
+    block = p >> 3,
+    aged = Math.min(
+      3,
+      Math.floor(4 * Math.sqrt((p + 0.5) / Math.max(1, scene.plan.whole))) +
+        (share(block, 9) < 0.3 ? 1 : 0),
+    ),
+    roofing = (quarterOf(scene.plan.seed, block) + (share(block, 11) < 0.4 ? 1 : 0)) % 3,
+    key = (((scene.looks[index] ? index : 0) * 64 + code) * 4 + wash) * 12 + aged * 3 + roofing;
   let look = scene.formLooks.get(key);
   if (!look) {
     const tier = code & 3,
@@ -119,7 +136,18 @@ export function formLook(scene: TownScene, p: number, index: number): HouseLook 
       plain = base.tent || base.open || base.raised > 0,
       walls = scene.plan.designs[scene.looks[index] ? index : 0]?.walls ?? "",
       limed = form.pale > 0 && !plain ? mixed(base.wall, LIME, form.pale) : base.wall,
-      wall = plain ? base.wall : wash === 1 ? mixed(limed, OCHRE, 0.4) : limed,
+      weather = WEATHERED[aged]!,
+      toned = (c: Rgb): Rgb => [c[0] * weather, c[1] * weather, c[2] * weather],
+      wall = plain ? base.wall : toned(wash === 1 ? mixed(limed, OCHRE, 0.4) : limed),
+      roofed = plain
+        ? base.roof
+        : toned(
+            roofing === 1
+              ? mixed(base.roof, ROOF_WARM, 0.24)
+              : roofing === 2
+                ? mixed(base.roof, ROOF_DARK, 0.22)
+                : base.roof,
+          ),
       stuff = form.own
         ? mixed(wall, [0, 0, 0], 0.15)
         : STACKS.has(walls)
@@ -131,6 +159,8 @@ export function formLook(scene: TownScene, p: number, index: number): HouseLook 
     look = {
       ...base,
       wall,
+      roof: roofed,
+      glass: toned(roofing === 1 ? GLASS_GREEN : roofing === 2 ? GLASS_GREY : GLASS_BLUE),
       tall,
       // (Those who fly lose nothing by a floor more: their townhouses by the square stand half as high again.)
       storey: storey * (form.winged && tier === TIER.heart && !plain ? 1.45 : 1),
@@ -141,7 +171,7 @@ export function formLook(scene: TownScene, p: number, index: number): HouseLook 
         ? {
             rise: base.rise * steep,
             steep,
-            ...(steep >= 1.5 ? { roof: mixed(base.roof, SLATE, 0.45) } : {}),
+            ...(steep >= 1.5 ? { roof: mixed(roofed, SLATE, 0.45) } : {}),
           }
         : {}),
       ...(form.own ? { own: true } : {}),
@@ -209,9 +239,10 @@ export function edgeYard(
     return;
   }
   const back = Math.min(LOT_D / 2 - 1.6, deep / 2 + 2.4),
-    shed = form.drive && share(p, 5) < form.rides;
+    // (A shed to one household in three of those that keep an engine: the rest stand theirs in the street.)
+    shed = form.drive && share(p, 5) < form.rides / 3;
   // (A cottage has one window where a house has two: what stands in its yard is drawn in the part that saves, and no more.)
-  if (!shed && form.green >= 0.12 && share(p, 2) < form.green * 0.4) {
+  if (!shed && form.green >= 0.12 && share(p, 2) < form.green * 0.3) {
     const [gx, gz] = at(x, z, yaw, -0.8, back);
     out.put(
       "box",
@@ -226,7 +257,7 @@ export function edgeYard(
     );
   }
   // (A tree in one part: its crown down to the ground, as a child draws one.)
-  if (share(p, 3) < form.green * 0.34) {
+  if (share(p, 3) < form.green * 0.28) {
     const [tx, tz] = at(x, z, yaw, -LOT_W / 2 + 1.6, back + 0.4),
       high = 4.2 + 3.4 * share(p, 4);
     out.put(
@@ -246,7 +277,7 @@ export function edgeYard(
     const [sx, sz] = at(x, z, yaw, LOT_W / 2 - 1.7, 0.6),
       [dx, dz] = at(x, z, yaw, LOT_W / 2 - 1.7, -LOT_D / 4 - 0.4);
     out.put("box", SHED, sx, 1.6, sz, 2.8, 2.2, 4.6, yaw);
-    if (share(p, 6) < 0.4) out.put("box", DRIVE, dx, 0.53, dz, 2.4, 0.06, LOT_D / 2 - 1.8, yaw);
+    if (share(p, 6) < 0.25) out.put("box", DRIVE, dx, 0.53, dz, 2.4, 0.06, LOT_D / 2 - 1.8, yaw);
   }
 }
 
@@ -314,7 +345,7 @@ function marketPlace(scene: TownScene, out: TownParts, place: MarketPlace): void
   // Its cover down each long side (a place beside its street has one, at its back).
   const sides = place.through ? [-1, 1] : [1],
     deep = 4.4,
-    n = Math.max(4, Math.round(w / 7));
+    n = Math.max(4, Math.round(w / 9));
   for (const side of sides) {
     const v = side * (d / 2 - deep / 2 + 1);
     if (form.forum === 2) {
@@ -342,7 +373,7 @@ function marketPlace(scene: TownScene, out: TownParts, place: MarketPlace): void
   // Stalls in the open while it holds a market: rows of them, each under its own cloth.
   if (form.forum) {
     const rows = place.through ? [-1, 1] : [0],
-      stalls = Math.max(2, Math.round(w / 13));
+      stalls = Math.max(2, Math.round(w / 24));
     for (const row of rows)
       for (let k = 0; k < stalls; k++)
         put(
@@ -434,11 +465,13 @@ export function formGround(scene: TownScene, out: TownParts, ash: number): void 
     for (const m of mains) {
       const road = m.road >= 0,
         wide = 2 * m.half + (road ? 0 : 0.6);
+      // (A quarter's first lane with no road down it is drawn apart from its blocks' own ground only once the town paves.)
+      if (!road && !plan.paved && form.engines < 0) continue;
       for (const i of drawnLengths(m, blocks, ashBlocks)) {
         const engines = form.engines >= 0 && (form.drive || road),
           c = engines ? TARMAC : plan.paved ? SETTS : TRACK;
         out.put("box", c, m.x[i]!, 0.33, m.z[i]!, m.len[i]! + 0.4, 0.06, wide, -m.h[i]!);
-        if (engines && road)
+        if (engines && road && i % 2 === 0)
           out.put("box", LINE, m.x[i]!, 0.365, m.z[i]!, m.len[i]! * 0.45, 0.02, 0.28, -m.h[i]!);
       }
     }
@@ -455,7 +488,7 @@ export function formGround(scene: TownScene, out: TownParts, ash: number): void 
     plan.site &&
     !form.over
   ) {
-    const n = Math.max(10, Math.round((2 * Math.PI * ring.r) / 42)),
+    const n = Math.max(10, Math.round((2 * Math.PI * ring.r) / 60)),
       len = (2 * Math.PI * ring.r) / n + 0.6,
       c = form.engines >= 0 ? TARMAC : plan.paved ? SETTS : TRACK,
       leaf = lifeTint(LEAF, plan.lifeLook);
@@ -465,7 +498,7 @@ export function formGround(scene: TownScene, out: TownParts, ash: number): void 
         z = ring.r * Math.sin(a);
       if (plan.water && Math.hypot(x - plan.water.x, z - plan.water.z) < plan.water.r + 4) continue;
       out.put("box", c, x, 0.34, z, len, 0.06, 9, Math.atan2(-Math.cos(a), -Math.sin(a)));
-      if (form.green >= 0.2 && k % 2 === 0)
+      if (form.green >= 0.2 && k % 3 === 0)
         out.put(
           "cone",
           leaf,
@@ -484,7 +517,7 @@ export function formGround(scene: TownScene, out: TownParts, ash: number): void 
   if (place) marketPlace(scene, out, place);
   // Its market's cover about the square, where no ground was kept for a place.
   else if (form.forum) {
-    const n = 26,
+    const n = 16,
       r = SQUARE - 1.3,
       high = form.cover,
       stands: boolean[] = [];
@@ -563,7 +596,7 @@ export function formGround(scene: TownScene, out: TownParts, ash: number): void 
     }
     if (m && !form.over && (form.column > 0 || form.forum === 2))
       for (const i of drawnLengths(m, blocks, 0)) {
-        if (Math.hypot(m.x[i]!, m.z[i]!) > far || i > 8) break;
+        if (Math.hypot(m.x[i]!, m.z[i]!) > far || i > 3) break;
         for (const side of [-1, 1]) {
           const off = side * Math.max(1.6, m.half - 0.5),
             px = m.x[i]! - Math.sin(m.h[i]!) * off,
