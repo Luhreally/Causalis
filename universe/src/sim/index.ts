@@ -2055,3 +2055,5 @@ export {
   type FarRuler,
 } from "./space/far-rulers.ts";
 export { peopleTemper } from "./space/peoples.ts";
+// A land's woods against its tillable ground (sim/ecology/ecology.ts).
+export { WOODS_GONE_EVERY, fieldsTake } from "./ecology/ecology.ts";
