@@ -224,7 +224,7 @@ export const JUSTICE = {
   tries: 0.5,
   silences: 0.15,
   /** Those held by name a court keeps account of; the years one is held, at the least and the most. */
-  inmates: 4,
+  inmates: 2,
   termLeast: 3,
   termMost: 20,
   /** What being tried for one's word adds to one's name (thousandths of the line). */
