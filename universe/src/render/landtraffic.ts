@@ -38,6 +38,8 @@ export type CarrierKind =
   | "sail"
   | "steam"
   | "envoy"
+  /** Those going to where what they hold began (sim/ideas/pilgrims.ts): a file of them on foot, as their kind goes. */
+  | "pilgrims"
   /** By what a people is (R1): a sled over the sea's floor; a file on foot with loads; a hive's hauler; a car on a line. */
   | "sled"
   | "porters"
@@ -99,6 +101,76 @@ const envoyCar = (banner: Rgb): Car => ({
   })),
 });
 
+/** How much larger than life a file of pilgrims is drawn, to be picked out among the carts. */
+const PILGRIM_LARGE = 2;
+const CLOTH: Rgb = [0.88, 0.84, 0.72],
+  STAFF: Rgb = [0.24, 0.18, 0.12];
+/**
+ * A file of pilgrims, as their kind goes about (R1 `how`): upright walkers; those who swim or slide, long and low; a hive's,
+ * low and broad. Each wears a band of the colour of what they hold, and the first carries its pennon on a staff.
+ */
+function pilgrimCars(color: Rgb, how: string | undefined): Car[] {
+  const low = how === "sled" || how === "swim",
+    broad = how === "hauler",
+    body = low
+      ? { len: 0.026, wide: 0.01, tall: 0.008 }
+      : broad
+        ? { len: 0.018, wide: 0.014, tall: 0.01 }
+        : { len: 0.01, wide: 0.01, tall: 0.022 },
+    top = 0.004 + body.tall,
+    L = PILGRIM_LARGE,
+    one = (k: number): Car => ({
+      back: k * (low ? 0.07 : 0.045),
+      parts: (
+        [
+          { mesh: "box", color: CLOTH, along: 0, up: 0.004, ...body },
+          // (A band of what they hold; a head for those who go upright.)
+          low || broad
+            ? {
+                mesh: "box",
+                color,
+                along: 0,
+                up: top,
+                len: body.len * 0.4,
+                wide: body.wide * 1.05,
+                tall: 0.003,
+              }
+            : { mesh: "box", color, along: 0, up: top, len: 0.009, wide: 0.009, tall: 0.008 },
+          ...(k === 0
+            ? [
+                {
+                  mesh: "box",
+                  color: STAFF,
+                  along: 0.01,
+                  up: 0.004,
+                  len: 0.003,
+                  wide: 0.003,
+                  tall: 0.06,
+                },
+                {
+                  mesh: "box",
+                  color,
+                  along: -0.004,
+                  up: 0.05,
+                  len: 0.026,
+                  wide: 0.004,
+                  tall: 0.016,
+                },
+              ]
+            : []),
+        ] as Part[]
+      ).map((p) => ({
+        ...p,
+        along: p.along * L,
+        up: p.up * L,
+        len: p.len * L,
+        wide: p.wide * L,
+        tall: p.tall * L,
+      })),
+    });
+  return [0, 1, 2, 3, 4].map(one);
+}
+
 const SLED: Rgb = [0.3, 0.62, 0.64],
   HAULER: Rgb = [0.5, 0.42, 0.3];
 const WOOD: Rgb = [0.5, 0.36, 0.22],
@@ -131,6 +203,7 @@ const goodsWagon = (back: number, color: Rgb): Car => ({
 function cars(kind: CarrierKind, turn: number): readonly Car[] {
   switch (kind) {
     case "envoy":
+    case "pilgrims":
       return [];
     case "sled":
       return [
@@ -392,6 +465,7 @@ function cars(kind: CarrierKind, turn: number): readonly Car[] {
 /** How fast each kind goes (region units a real second), at a pace the eye can follow. */
 const PACE: Readonly<Record<CarrierKind, number>> = {
   envoy: 0.1,
+  pilgrims: 0.05,
   cart: 0.08,
   wagon: 0.11,
   truck: 0.34,
@@ -410,6 +484,8 @@ export type RoadWay = {
   readonly way: Way;
   readonly look: "track" | "paved" | "rails";
   readonly traffic: number;
+  /** Pilgrims who go by it a year, and the colour of what they hold (absent: none). */
+  readonly pilgrims?: { readonly n: number; readonly color: Rgb };
 };
 /** A railway or a sea lane, and how many go along it. */
 export type BusyWay = { readonly way: Way; readonly busy: number };
@@ -559,6 +635,24 @@ export class LandTraffic {
           lift: ON_ROAD,
         }),
       );
+    // (Pilgrims go by the roads that carry them, a file a road, two where very many go: sim/ideas. They go on foot whatever
+    // else the road carries, on its other side from those on an errand.)
+    roads.forEach((r, k) => {
+      if (!r.pilgrims || r.way.length <= 0.2) return;
+      const files = r.pilgrims.n >= 20000 ? 2 : 1;
+      for (let c = 0; c < files; c++)
+        this.carriers.push({
+          way: r.way,
+          kind: "pilgrims",
+          cars: pilgrimCars(r.pilgrims.color, how),
+          slots: [],
+          start: ((c + 0.5 + 0.21 * k) / files) * 2 * r.way.length,
+          pace: PACE.pilgrims,
+          aside: r.look === "track" ? 0.03 : 0.04,
+          floats: false,
+          lift: ON_ROAD,
+        });
+    });
     wants.forEach((w, k) => {
       const n = given[k]!;
       for (let c = 0; c < n; c++) {

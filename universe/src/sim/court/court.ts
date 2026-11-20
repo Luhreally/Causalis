@@ -73,7 +73,17 @@ const DEATH = defineStream("court.death"),
 const clamp = (lo: number, hi: number, x: number) => Math.max(lo, Math.min(hi, x));
 
 /** Whence a figure's weight comes: one of the groups a realm's orders hear, or the ruler's own house. */
-export type CourtSeat = "house" | "the army" | "the court" | "the temple" | "traders";
+export type CourtSeat = "house" | "the army" | "the court" | "the temple" | "traders" | "minds";
+
+/**
+ * A realm's made minds at its court (sim/frontier/minds.ts sets it): once they are spoken of as one and while they are kept,
+ * they sit among its figures by their name, from the year they came to be. They neither age nor die as a body does, are no
+ * one's heir, rival or regent, and leave when they go their own way. Nothing where a realm has none.
+ */
+let mindAt: (world: World, realm: Ref) => { name: string; since: number } | null = () => null;
+export function mindsSitAtCourt(f: typeof mindAt): void {
+  mindAt = f;
+}
 
 /** One of a court: real, with a name and a year of birth, and few to a realm. */
 export type CourtFigure = {
@@ -307,6 +317,7 @@ function reckon(ctx: PopulationContext, p: Polity, c: Court, t: SimTime): void {
   for (const f of [...c.figures])
     if (
       f.seat !== "house" &&
+      f.seat !== "minds" &&
       (!heard.some((v) => v.group === f.seat) || year - f.born >= grown * COURT.voiceRetires) &&
       f.id !== c.regent &&
       f.id !== c.plot?.by
@@ -337,6 +348,23 @@ function reckon(ctx: PopulationContext, p: Polity, c: Court, t: SimTime): void {
       since: year,
       sway: v.sway,
     });
+  }
+  // (Its made minds, where they are kept and spoken of as one: one more at court, by their name.)
+  {
+    const mind = mindAt(world, p.ref),
+      sits = c.figures.find((f) => f.seat === "minds");
+    if (mind && !sits)
+      c.figures.push({
+        id: store.mint(),
+        name: mind.name,
+        sex: 0,
+        born: mind.since,
+        seat: "minds",
+        tie: null,
+        since: year,
+        sway: 0,
+      });
+    else if (!mind && sits) letGo(c, sits, year, "stood down", null);
   }
   // The house, where the seat passes by blood.
   const blood = byBlood(p, ways),
@@ -394,7 +422,7 @@ function reckon(ctx: PopulationContext, p: Polity, c: Court, t: SimTime): void {
       letGo(c, f, year, "stood down", null);
   }
   // The heir: the eldest of the house; or the one the voices lean to. (A word already said stands, while they live.)
-  const adults = c.figures.filter((f) => year - f.born >= grown),
+  const adults = c.figures.filter((f) => f.seat !== "minds" && year - f.born >= grown),
     named = c.heirBy === "word" ? figureOf(c, c.heir) : undefined;
   if (named) {
     /* it stands */
@@ -801,7 +829,7 @@ function seatChanged(ctx: PopulationContext, p: Polity, c: Court, t: SimTime): v
   // A child on the seat: one who is grown and weighs most holds it for them.
   if (year - p.ruler.born < grown) {
     const regent = c.figures
-      .filter((f) => year - f.born >= grown)
+      .filter((f) => f.seat !== "minds" && year - f.born >= grown)
       .sort((a, b) => b.sway - a.sway || a.id - b.id)[0];
     if (regent) {
       c.regent = regent.id;
@@ -899,6 +927,8 @@ export function courtYear(ctx: PopulationContext, t: SimTime): void {
     // Those at court die as anyone does: an heir's death is told, and the next is named.
     let heirGone: { who: string; fig: number; age: number } | null = null;
     for (const f of [...c.figures]) {
+      // (Made minds do not die as a body does: they leave the court when they go their own way.)
+      if (f.seat === "minds") continue;
       const band = bandOfAge(year - f.born, life),
         // (Blessed, cursed or struck down by the god: exactly as ever where no act holds, sim/acts/person.ts.)
         me = `court:${p.ref}:${f.id}`,

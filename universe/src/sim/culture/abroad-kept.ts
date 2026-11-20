@@ -28,6 +28,10 @@ export class AbroadStore implements StateStore {
     else this.by.delete(cell);
   }
   /** The lands that keep any, in order. */
+  /** The same lands in no order: for a pass in which each land's turn touches itself alone. */
+  cells(): number[] {
+    return [...this.by.keys()];
+  }
   lands(): number[] {
     return [...this.by.keys()].sort((a, b) => a - b);
   }

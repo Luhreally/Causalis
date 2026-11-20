@@ -292,6 +292,8 @@ const READINGS: Readonly<Record<string, Reading>> = {
   // weigh it by: woods gone weigh as three times the loss that presses a people as hard as can be (it is not told again while
   // they stay gone), a wild hunted thin as one and a half, each kind of beast lost as one, its herds gone as two.
   "ecology.forest-cleared": (_, e) => ownUse(e, "woods-lost", 3),
+  // (And while they stay gone, the loss is felt again each generation: sim/ecology woodsGone.)
+  "ecology.woods-gone": (_, e) => ownUse(e, "woods-lost", 1.5),
   "ecology.wild-thinned": (_, e) => ownUse(e, "wild-lost", 1.5),
   "ecology.hunted-out": (_, e) => ownUse(e, "wild-lost", 1),
   "ecology.herds-gone": (_, e) =>

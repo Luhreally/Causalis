@@ -877,7 +877,13 @@ export type LandRoad = {
   /** Cut this year (R1; absent: whole). */
   readonly cut?: RoadCut | null;
   /** The pilgrims a year who go by it, the land they go to and what they hold (a faith's ref, a school's); absent: none. */
-  readonly pilgrims?: { readonly n: number; readonly seat: number; readonly of: string };
+  readonly pilgrims?: {
+    readonly n: number;
+    readonly seat: number;
+    readonly of: string;
+    /** The colour of what they hold (its page's own), for the pennon they go under. */
+    readonly color?: readonly [number, number, number];
+  };
 };
 
 /** What a road is laid as (R1). */

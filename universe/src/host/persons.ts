@@ -64,7 +64,7 @@ export function personsOfRealm(world: World, r: Polity): PersonOfNote[] {
     ...(seated ? { also: namedRef(seated.id) } : {}),
   });
   for (const f of courtOf(world)?.of(r.ref)?.figures ?? []) {
-    if (asCourt.has(`court:${f.id}`)) continue;
+    if (asCourt.has(`court:${f.id}`) || f.seat === "minds") continue;
     out.push({
       ref: `court:${r.ref}:${f.id}`,
       kept: "court",

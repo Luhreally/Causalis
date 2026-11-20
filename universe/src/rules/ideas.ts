@@ -38,7 +38,7 @@ export const IDEA = {
   /** A school's spread to a neighbour a year, at speech alike; by a road; where a body teaches; from higher learning. */
   spread: 0.02,
   /** A land is weighed for taking a school once in so many years, at as many years' chance. */
-  every: 3,
+  every: 5,
   road: 1.5,
   taught: 1.6,
   higher: 1,
@@ -167,6 +167,8 @@ export const WORK = {
   /** A maker's standing, in lines, at the least; the least importance of what a work remembers. */
   maker: 1,
   worth: 5,
+  /** A land's own history is kept by kind for this many kinds, the most told. */
+  kinds: 6,
   /** How far back a maker looks for what to remember (years). */
   back: 25,
   /** The chance a year one who could make a work does, at the most. */
@@ -199,6 +201,15 @@ export function workForm(
   if (signal > 0.3) return "sent";
   if (maker && building > 0) return "raised";
   return writing > 0 ? "written" : "told";
+}
+
+/**
+ * How far a thing stands out for a land against what that land has been through before: its weight (the chronicle's, 0 … 7),
+ * the less the more often the land has known its kind (halved at the second time, a third at the third). A land flooded every
+ * decade makes no work of each flood; the one year its seat was seized, it does.
+ */
+export function standsOut(importance: number, before: number): number {
+  return importance / (1 + Math.max(0, before));
 }
 
 /** A work's renown (thousandths of a line) from its maker's standing and the weight of what it remembers. */
@@ -234,7 +245,7 @@ export const PILGRIM = {
   /** The most a seat's town gains of its own people's keep from pilgrims. */
   most: 0.15,
   /** Read again once in this many years. */
-  every: 5,
+  every: 10,
   /** The ways drawn to one seat, at the most. */
   ways: 6,
 } as const;

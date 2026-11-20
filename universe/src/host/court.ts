@@ -73,7 +73,11 @@ const holds = (seat: string) => `${seat} ${seat === "traders" ? "hold" : "holds"
 
 /** What a seat at court is called. */
 const seatWords = (f: { seat: string }) =>
-  f.seat === "house" ? "of the ruler's house" : `the voice of ${f.seat}`;
+  f.seat === "house"
+    ? "of the ruler's house"
+    : f.seat === "minds"
+      ? "the realm's made minds, who counsel its seat"
+      : `the voice of ${f.seat}`;
 
 /** What they are to the realm's drama, in a title. */
 export function titleOf(r: Polity, c: Court, f: CourtFigure): string {
@@ -140,7 +144,9 @@ export function reasonsOf(world: World, r: Polity, c: Court, f: CourtFigure): Co
       words:
         f.seat === "house"
           ? `of the ruler's own house, carrying ${pct(f.sway)} in a hundred of the realm's sway`
-          : `${holds(f.seat)} ${pct(f.sway)} in a hundred of the realm's sway`,
+          : f.seat === "minds"
+            ? "made minds hold none of the realm's sway: they counsel"
+            : `${holds(f.seat)} ${pct(f.sway)} in a hundred of the realm's sway`,
       weight: COURT.wantWeight * d.weight,
       why: null,
     },
@@ -157,6 +163,12 @@ export function reasonsOf(world: World, r: Polity, c: Court, f: CourtFigure): Co
 /** What a voice wants: what their group presses for hardest; else to keep what they have. */
 function wantOf(world: World, r: Polity, f: CourtFigure): { words: string; why: string | null } {
   if (f.seat === "house") return { words: "A place near the seat, and to keep it.", why: null };
+  // (A realm's made minds, kept: sim/frontier/minds.ts.)
+  if (f.seat === "minds")
+    return {
+      words: "To counsel the seat that keeps them: it reaches the farther for it.",
+      why: null,
+    };
   const ctx = populationContext(world),
     d = interestsOf(ctx, r, world.now)
       .find((i) => i.group === f.seat)
@@ -227,7 +239,9 @@ export function courtLeaders(world: World, r: Polity): Leader[] {
   const c = courtOf(world)?.of(r.ref);
   if (!c || r.ended !== null) return [];
   const rank = (f: CourtFigure) => (f.id === c.heir ? 0 : f.id === c.rival ? 1 : 2);
-  return [...c.figures]
+  // (Its made minds sit at court and are no body: they are told on the court's page by their own, host/inspect/minds.ts.)
+  return c.figures
+    .filter((f) => f.seat !== "minds")
     .sort((a, b) => rank(a) - rank(b) || b.sway - a.sway || a.id - b.id)
     .map((f) => courtLeader(world, r, c, f));
 }
@@ -392,7 +406,7 @@ export function dramaOf(world: World, r: Polity): ReignDrama | null {
       grown = populationContext(world).life.adulthood,
       heir = c.figures.find((f) => f.id === c.heir),
       others = c.figures
-        .filter((f) => f.id !== c.heir && year - f.born >= grown)
+        .filter((f) => f.id !== c.heir && f.seat !== "minds" && year - f.born >= grown)
         .sort((a, b) => b.sway - a.sway || a.id - b.id)
         .slice(0, 3);
     return {

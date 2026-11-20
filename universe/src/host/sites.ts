@@ -19,7 +19,7 @@ import {
 } from "../sim/index.ts";
 import { streetsLaid, type TownRoad, type TownSite } from "../bridge/index.ts";
 import { formFacts } from "./form.ts";
-import { pilgrimsBetween, pilgrimsBusy } from "./pilgrims.ts";
+import { pilgrimsBetween } from "./pilgrims.ts";
 
 /** A town as its roads are reckoned. */
 export type RoadTown = {
@@ -132,11 +132,8 @@ export function roadEnds(world: World, cell: number, towns: readonly RoadTown[])
       toward: { land: nb, name: great?.name ?? null },
       since: opened ? yearOfMoment(opened.t) : yearOfMoment(world.now),
       known: !!opened,
-      // (Its pilgrims go among its carts: host/pilgrims.ts. As before where none go by it.)
-      traffic: Math.min(
-        MOST_TRAFFIC,
-        busy(goodsBetween(world, cell, nb)) + pilgrimsBusy(going.pilgrims),
-      ),
+      // (Its pilgrims go as their own file beside its carts: host/pilgrims.ts, render/landtraffic.ts.)
+      traffic: busy(goodsBetween(world, cell, nb)),
       ...(going.pilgrims && going.seat !== null && going.of
         ? { pilgrims: { n: going.pilgrims, seat: going.seat, of: going.of } }
         : {}),

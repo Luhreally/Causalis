@@ -660,7 +660,7 @@ export class LandLayer {
     const key = `${this.stage.quality.landTraffic}|${plan.era}|${plan.roads
       .map(
         (r, k) =>
-          `${r.from}-${r.to}-${nows[k]!.behind}-${nows[k]!.ahead}-${laidOf(k)}-${nows[k]!.stopped ?? ""}-${cutNow(r)?.from ?? ""}-${r.traffic}`,
+          `${r.from}-${r.to}-${nows[k]!.behind}-${nows[k]!.ahead}-${laidOf(k)}-${nows[k]!.stopped ?? ""}-${cutNow(r)?.from ?? ""}-${r.traffic}-${r.pilgrims?.n ?? ""}`,
       )
       .join("|")}|${plan.lanes
       .map((l) => (l.since <= year ? `${l.from}:${l.dx}:${l.dz}:${l.ships}` : ""))
@@ -716,7 +716,14 @@ export class LandLayer {
               : out;
       if (going.length >= 2) {
         const as = (look === "none" ? now.ahead : look) as "track" | "paved" | "rails";
-        this.roadWays.push({ way: wayOf(going), look: as, traffic: road.traffic });
+        this.roadWays.push({
+          way: wayOf(going),
+          look: as,
+          traffic: road.traffic,
+          ...(road.pilgrims?.color
+            ? { pilgrims: { n: road.pilgrims.n, color: road.pilgrims.color } }
+            : {}),
+        });
       }
       const ref = road.ref;
       if (ref && now.works)

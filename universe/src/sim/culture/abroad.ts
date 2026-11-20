@@ -84,7 +84,7 @@ export function abroadYear(ctx: PopulationContext, t: SimTime): void {
   // 2. Each land that keeps any, in its own year: aged, and those no longer abroad let go.
   const culture = cultureOf(world),
     generation = (CREED.generation * Math.max(5, ctx.generated.life.people?.body.span ?? 70)) / 70;
-  for (const c of store.lands()) {
+  for (const c of store.cells()) {
     if ((year + c) % ABROAD.every !== 0) continue;
     const own = languages.of(c),
       mine = culture.get(c);

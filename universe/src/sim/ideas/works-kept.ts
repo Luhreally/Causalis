@@ -48,10 +48,13 @@ type Saved = {
   seen: number;
   works: Work[];
   worth: [number, Ref, string, number, number, number][];
+  /** Absent in a save from before a land's own history was weighed. */
+  told?: [number, number[]][];
   digest: string;
 };
 
-const patronKey = (kind: Patron["kind"], ref: string): string => `${kind} ${ref}`;
+/** (A patron's ref is its own whatever its kind: a realm's, or the event a house or a body rose by.) */
+const patronKey = (_kind: Patron["kind"], ref: string): string => ref;
 
 export class WorksStore implements StateStore {
   readonly name = WORKS_STORE;
@@ -62,6 +65,11 @@ export class WorksStore implements StateStore {
   seen = 0;
   private list: Work[] = [];
   private readonly worth = new Map<number, Worth>();
+  /**
+   * What each land has been through before, by kind: pairs of a kind's number (its type's hash, 16 bits) and how many times
+   * (in tenths, halved each WORK.back years), the WORK.kinds most told. What stands out for a land is weighed against this.
+   */
+  private readonly told = new Map<number, number[]>();
   private digest = "";
   // (Read off the works, never saved.)
   private readonly byId = new Map<number, Work>();
@@ -93,6 +101,38 @@ export class WorksStore implements StateStore {
   worthIn(cell: number): Worth | undefined {
     return this.worth.get(cell);
   }
+  /** How many times a land has been through a thing of this kind before (0: never), and one more told. */
+  toldBefore(cell: number, kind: number): number {
+    const row = this.told.get(cell);
+    if (row) for (let i = 0; i < row.length; i += 2) if (row[i] === kind) return row[i + 1]! / 10;
+    return 0;
+  }
+  tell(cell: number, kind: number): void {
+    let row = this.told.get(cell);
+    if (!row) this.told.set(cell, (row = []));
+    for (let i = 0; i < row.length; i += 2)
+      if (row[i] === kind) {
+        row[i + 1] = row[i + 1]! + 10;
+        return;
+      }
+    if (row.length >= 2 * WORK.kinds) {
+      // (The least told gives its place.)
+      let least = 0;
+      for (let i = 2; i < row.length; i += 2) if (row[i + 1]! < row[least + 1]!) least = i;
+      row[least] = kind;
+      row[least + 1] = 10;
+    } else row.push(kind, 10);
+  }
+  /** What a land has been through fades: halved, and what is all but forgotten let go. */
+  fadeTold(): void {
+    for (const [c, row] of [...this.told]) {
+      const kept: number[] = [];
+      for (let i = 0; i < row.length; i += 2)
+        if (row[i + 1]! >= 4) kept.push(row[i]!, Math.floor(row[i + 1]! / 2));
+      if (kept.length) this.told.set(c, kept);
+      else this.told.delete(c);
+    }
+  }
   setWorth(cell: number, w: Worth | null): void {
     if (w) this.worth.set(cell, w);
     else this.worth.delete(cell);
@@ -119,18 +159,33 @@ export class WorksStore implements StateStore {
     this.list.push(w);
     this.index(w);
   }
-  /** Works lost: these ids are let go. */
+  /** Works lost: these ids are let go (each taken out of what is read off the works, none of it read again). */
   lose(ids: ReadonlySet<number>): void {
     if (!ids.size) return;
+    const out = <T>(list: T[] | undefined, w: T): boolean => {
+      if (!list) return true;
+      const i = list.indexOf(w);
+      if (i >= 0) list.splice(i, 1);
+      return list.length === 0;
+    };
+    for (const w of this.list) {
+      if (!ids.has(w.id)) continue;
+      this.byId.delete(w.id);
+      if (out(this.byLand.get(w.land), w)) this.byLand.delete(w.land);
+      const key = patronKey(w.patron.kind, w.patron.ref);
+      if (out(this.byPatron.get(key), w)) this.byPatron.delete(key);
+      const n = (this.carried.get(w.of) ?? 1) - 1;
+      if (n > 0) this.carried.set(w.of, n);
+      else this.carried.delete(w.of);
+    }
     this.list = this.list.filter((w) => !ids.has(w.id));
-    this.reindex();
   }
   /** The year's state folded in: a checkpoint hashes this, not every work. */
   fold(year: number): void {
     const h = new Hasher().string(this.digest).int(year).int(this.next).int(this.seen);
     h.int(this.list.length);
     for (const w of this.list) h.int(w.id).int(w.land).int(w.renown);
-    h.int(this.worth.size);
+    h.int(this.worth.size).int(this.told.size);
     this.digest = h.hex();
   }
   pinned(): Ref[] {
@@ -150,6 +205,7 @@ export class WorksStore implements StateStore {
       worth: [...this.worth]
         .sort((a, b) => a[0] - b[0])
         .map(([c, w]) => [c, w.e, w.type, w.w, w.y, w.used ? 1 : 0]),
+      told: [...this.told].sort((a, b) => a[0] - b[0]),
       digest: this.digest,
     };
     return s;
@@ -162,6 +218,8 @@ export class WorksStore implements StateStore {
     this.worth.clear();
     for (const [c, e, type, w, y, used] of s?.worth ?? [])
       this.worth.set(c, { e, type, w, y, used: !!used });
+    this.told.clear();
+    for (const [c, row] of s?.told ?? []) this.told.set(c, [...row]);
     this.digest = s?.digest ?? "";
     this.reindex();
   }

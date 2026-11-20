@@ -6,7 +6,7 @@ import { notablePage } from "./notables.ts";
 import { toldPage } from "./told.ts";
 import { schoolPage } from "./ideas.ts";
 import { workPage } from "./works.ts";
-import { mindPage } from "./minds.ts";
+import { mindOfCourtRef, mindPage } from "./minds.ts";
 import { meansPage, measurePage } from "./means.ts";
 import { canPage } from "./can.ts";
 import { lifeElsewherePage, lifePage } from "./lifepage.ts";
@@ -306,6 +306,9 @@ export function pageOf(
     const told = pageOf(world, posted[2]!, names, brief, only);
     return { ...told, place: { scale: "village", town: posted[1]!, person: ref } };
   }
+  // (A realm's made minds at its court are no body: their figure's ref is their own page's, with nothing of a person's read in.)
+  const minds = mindOfCourtRef(world, ref.split("#")[0]!);
+  if (minds) return pageOf(world, minds, names, brief, only);
   const { ref: base, tab } = splitPageRef(ref);
   let page: PageModel;
   try {

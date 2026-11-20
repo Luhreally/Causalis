@@ -74,7 +74,12 @@ test("a school's leanings are what a group wants and is not given; its name is w
   assert.equal(ideaUnmet(4 * IDEA.unmet), 1);
   // (A teaching near what a land already holds is no school of its own.)
   assert.equal(ideaApart(creed, creed), 0);
-  assert.ok(ideaApart(creed, creed.map((v) => -v)) >= IDEA.apart);
+  assert.ok(
+    ideaApart(
+      creed,
+      creed.map((v) => -v),
+    ) >= IDEA.apart,
+  );
   assert.ok(
     ideaApart(
       creed,
@@ -244,7 +249,7 @@ test("a work carries its memory, adds to its land's renown and credits its patro
   assert.ok(renown > 1 && renown <= 1 + WORK.renown);
   assert.ok(patronCredit(world, "seat", realm.ref, year) > 0.9);
   assert.equal(patronCredit(world, "seat", realm.ref, year + 3 * WORK.fresh), 0);
-  assert.equal(patronCredit(world, "house", realm.ref, year), 0);
+  assert.equal(patronCredit(world, "house", realm.ruler.event, year), 0);
   const again = new WorksStore();
   again.load(JSON.parse(JSON.stringify(store.save())));
   assert.equal(again.in(realm.seat).length, 1);
@@ -323,4 +328,38 @@ test("the years run on a world with all of it, and a seat pilgrims come to draws
   again.load(JSON.parse(JSON.stringify(pilgrims.save())));
   assert.equal(again.all().length, pilgrims.all().length);
   assert.ok((anEvent as Ref).length > 0);
+});
+
+test("a wood stands where no field can go, a thing stands out the less the oftener a land has known it, and kept minds sit at court", async () => {
+  const { fieldsTake, courtYear, courtOf, mindsOf } = await import("../../src/sim/index.ts"),
+    { standsOut } = await import("../../src/rules/index.ts");
+  // (A land a third of whose ground can be tilled, all of it wooded: its fields take a third of its woods at the most.)
+  assert.ok(
+    Math.abs(fieldsTake({ forage: 0, farm: 40 * 100 * 0.3, pasture: 0, areaKm2: 100 }, 1) - 0.3) <
+      1e-9,
+  );
+  assert.equal(fieldsTake({ forage: 0, farm: 1e9, pasture: 0, areaKm2: 100 }, 0.5), 1);
+  assert.equal(standsOut(5, 0), 5);
+  assert.ok(standsOut(5, 9) < 1 && standsOut(6, 1) === 3);
+  const minds = mindsOf(world)!,
+    court = courtOf(world)!;
+  minds.rows.set(realm.ref, {
+    realm: realm.ref,
+    begun: year - 40,
+    past: 150,
+    passed: realm.event,
+    free: null,
+    name: "Testmind",
+  });
+  let t = world.now as SimTime;
+  for (let y = 0; y < 12; y++) courtYear(ctx, (t = (t + YEAR) as SimTime));
+  const sits = court.of(realm.ref)?.figures.find((f) => f.seat === "minds");
+  assert.ok(sits && sits.name === "Testmind", "the kept minds sit at court by their name");
+  assert.notEqual(court.of(realm.ref)!.heir, sits!.id);
+  assert.notEqual(court.of(realm.ref)!.rival, sits!.id);
+  // (Gone their own way, they leave it.)
+  minds.rows.get(realm.ref)!.free = realm.event;
+  for (let y = 0; y < 12; y++) courtYear(ctx, (t = (t + YEAR) as SimTime));
+  assert.ok(!court.of(realm.ref)?.figures.some((f) => f.seat === "minds"));
+  minds.rows.delete(realm.ref);
 });

@@ -1,11 +1,18 @@
 // A realm's made minds as someone (sim/frontier/minds.ts; rules/beyond.ts MIND): once they think more than all their makers
 // they are spoken of as one, by a name. Their page: who they are, whose, since when, how far past their makers, whether they are
 // kept or have gone their own way and why that turned on how tightly their makers hold what they make, and what they do. One
-// named actor a realm, kept in the minds' own row: not one of the court's figures, not a group of the groups' layer.
+// named actor a realm, kept in the minds' own row; while kept they sit at its court as one of its figures (sim/court/court.ts).
 import type { World } from "../../kernel/index.ts";
 import type { Block, PageModel, Place, Stat } from "../../bridge/index.ts";
 import { BEYOND, MIND, WAY, heldOf, mindCounsel } from "../../rules/index.ts";
-import { cultureOf, mindsOf, politiesOf, realmName, type Polity } from "../../sim/index.ts";
+import {
+  courtOf,
+  cultureOf,
+  mindsOf,
+  politiesOf,
+  realmName,
+  type Polity,
+} from "../../sim/index.ts";
 import { realmColor } from "../colors.ts";
 import { count, eventsAbout, link, sentence, stat, yearNow } from "./words.ts";
 import { landLink, spotOfLand } from "./names.ts";
@@ -57,6 +64,9 @@ export function mindPage(world: World, ref: string): PageModel {
     ways = cultureOf(world).get(r.seat)?.traits ?? [],
     held = heldOf(ways[WAY.hierarchy] ?? 0.5, ways[WAY.tradition] ?? 0.5),
     reach = mindCounsel(past, !!row.free),
+    sits = courtOf(world)
+      ?.of(r.ref)
+      ?.figures.find((f) => f.seat === "minds"),
     spot = spotOfLand(world, r.seat),
     place: Place | null = spot === null ? null : { scale: "globe", spot },
     color = realmColor(`${ref}:mind`),
@@ -107,7 +117,10 @@ export function mindPage(world: World, ref: string): PageModel {
           }),
         ]
       : [
-          stat("At the seat", "they counsel it: it reaches farther over its lands"),
+          stat("At the seat", [
+            "they counsel it, one of its court",
+            ...(sits ? [": ", link(row.name, `court:${r.ref}:${sits.id}`)] : []),
+          ]),
           stat("Its seat's reach", `+${Math.round(reach * 100)}%`, {
             parts: [{ label: ["at the most"], value: `+${Math.round(MIND.counsel * 100)}%` }],
           }),
@@ -120,7 +133,7 @@ export function mindPage(world: World, ref: string): PageModel {
     );
   return {
     ref,
-    kind: "person",
+    kind: "mind",
     icon: "🧠",
     portrait: { kind: "sign", color, tenet: "teaching" },
     title: sentence(row.name),
@@ -160,4 +173,14 @@ export function mindPage(world: World, ref: string): PageModel {
     followable: false,
     year,
   };
+}
+
+/** The page of a realm's made minds, where a ref is their figure at its court (`court:<realm>:<id>`); null: anyone else's. */
+export function mindOfCourtRef(world: World, ref: string): string | null {
+  const m = /^court:(pol:\d+:\d+):(\d+)$/.exec(ref);
+  if (!m) return null;
+  const f = courtOf(world)
+    ?.of(m[1] as never)
+    ?.figures.find((x) => x.id === Number(m[2]));
+  return f?.seat === "minds" ? mindRef(m[1]!) : null;
 }
