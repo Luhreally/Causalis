@@ -388,17 +388,16 @@ type Knowing = {
   readonly fitMm: number;
   readonly strengthMpa: number;
 };
-/** Each land's Knowing, by what it knows as kept, with that map's size then: lore only grows, so it holds while the size does. */
-// (By cell, holding the map it was read from: one entry a land, whatever the world; a land of another
-// world, or one whose map was made anew, is read afresh.)
-const KNOWING = new Map<number, { known: object; size: number; k: Knowing }>();
-
+/**
+ * Each land's Knowing, kept by its world's lore while the land knows what it knows (LoreStore.readOff: its map of what it
+ * knows and that map's size). It was a module's map by cell: whatever world asked.
+ */
 function knowingOf(ctx: PopulationContext, cell: number): Knowing {
+  return loreOf(ctx.world).readOff(cell, "energy.knowing", () => knowingNow(ctx, cell));
+}
+function knowingNow(ctx: PopulationContext, cell: number): Knowing {
   const lore = loreOf(ctx.world),
-    known = lore.knownOf(cell),
-    kept = known && KNOWING.get(cell);
-  if (kept && known && kept.known === known && kept.size === known.size) return kept.k;
-  const g = ctx.generated,
+    g = ctx.generated,
     n = meansNumbers(g),
     knows = (id: string) => !!lore.get(cell, id),
     taps = new Set<Source>();
@@ -426,7 +425,6 @@ function knowingOf(ctx: PopulationContext, cell: number): Knowing {
       fitMm: engine ? fitOf(facts).mm : 1,
       strengthMpa: engine ? stuffOf(facts, worldChemistry(g)).strength : 50,
     };
-  if (known) KNOWING.set(cell, { known, size: known.size, k });
   return k;
 }
 

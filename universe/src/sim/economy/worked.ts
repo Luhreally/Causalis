@@ -51,16 +51,8 @@ export function digMeans(ctx: PopulationContext, cell: number): number {
 /** The depth a means reaches a lode to: picks the first; engines the second; thinking machines the third and the heaps. */
 const reachedBy = (means: number): number => (means >= 2 ? 3 : means);
 
-/** Who dug each lode this year (not state: the year's own, read when its digging is done). */
-const WORKERS = new Map<LodeStore, Map<number, number>>();
-const workersOf = (s: LodeStore): Map<number, number> => {
-  let m = WORKERS.get(s);
-  if (!m) {
-    if (WORKERS.size > 8) WORKERS.clear();
-    WORKERS.set(s, (m = new Map()));
-  }
-  return m;
-};
+/** Who dug each lode this year: the year's own, kept with the lodes dug (LodeStore.diggers). */
+const workersOf = (s: LodeStore): Map<number, number> => s.diggers;
 
 /** A land's crafters won `made` of an ore's good this year, `crafters` of them: its lode goes down by that, more for a lean one. */
 export function digOre(
