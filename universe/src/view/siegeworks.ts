@@ -31,6 +31,8 @@ export type SiegeWorks = {
   readonly rubble: readonly (Flat & { readonly size: number; readonly yaw: number })[];
   /** The middle of the open length of wall (null: its walls stand whole). */
   readonly breachAt: Flat | null;
+  /** The bearing of the breach's middle and how wide it is (radians): no length of the walls stands there (null: none). */
+  readonly open: { readonly mid: number; readonly wide: number } | null;
 };
 
 const unit = (a: number, b: number) => {
@@ -50,9 +52,11 @@ export const SIEGE_WORKS = {
 } as const;
 
 /**
- * The works of a siege: `arc` is the dry ground about the town at the bank's ring `r` (m from its middle; radians from, and
+ * The works of a siege: `arc` is the dry ground about the town at the camp's ring `r` (m from its middle; radians from, and
  * how far round), `wall` how far out its walls' line runs toward a bearing (bridge/wall.ts: the line its walls stand on),
- * `key` the war's.
+ * `key` the war's. Their bank keeps one distance from the walls all round, as near as the camp's ring lets it come where
+ * the walls stand furthest out (out of the walls' reach alike everywhere, the line following the walls' turns); their
+ * approaches go in from it as far as the siege has come; what they throw with stands at the approaches' heads.
  */
 export function siegeWorks(
   key: number,
@@ -67,19 +71,34 @@ export function siegeWorks(
     saps: (Flat & { yaw: number; long: number })[] = [],
     engines: (Flat & { yaw: number })[] = [],
     rubble: (Flat & { size: number; yaw: number })[] = [],
-    whole = arc.span >= 2 * Math.PI - 1e-6,
-    n = Math.max(3, Math.min(W.banks, Math.floor((arc.span * r) / (W.bank + W.gap)))),
+    whole = arc.span >= 2 * Math.PI - 1e-6;
+  // (How far out the bank stands from the walls: the camp's ring less where the walls reach furthest over the dry ground.)
+  let most = 0;
+  for (let k = 0; k <= 48; k++) most = Math.max(most, wall(arc.from + (k / 48) * arc.span));
+  const standoff = Math.max(24, r - most),
+    bankAt = (a: number) => wall(a) + standoff,
+    // (The bank's length round the dry ground, by the line it follows.)
+    pointAt = (a: number) => ({ x: Math.cos(a) * bankAt(a), z: Math.sin(a) * bankAt(a) });
+  let long = 0;
+  for (let k = 0; k < 48; k++) {
+    const p = pointAt(arc.from + (k / 48) * arc.span),
+      q = pointAt(arc.from + ((k + 1) / 48) * arc.span);
+    long += Math.hypot(q.x - p.x, q.z - p.z);
+  }
+  const n = Math.max(3, Math.min(W.banks, Math.floor(long / (W.bank + W.gap)))),
     step = arc.span / n;
-  // The bank: lengths of it round the dry ground, each lying along the ring.
+  // The bank: lengths of it round the dry ground, each lying along the walls' line at its standoff.
   for (let i = 0; i < n; i++) {
     const a = arc.from + (i + 0.5) * step,
-      out = r + (unit(key + 11, i) - 0.5) * 3;
+      out = bankAt(a) + (unit(key + 11, i) - 0.5) * 3,
+      p = pointAt(a - step / 2),
+      q = pointAt(a + step / 2);
     banks.push({
       x: Math.cos(a) * out,
       z: Math.sin(a) * out,
-      // (Along the ring: square to the way out from the town.)
-      yaw: Math.atan2(-Math.sin(a), Math.cos(a)),
-      long: Math.max(3, Math.min(W.bank, step * r - W.gap)),
+      // (Along the line it follows, from one end of its stretch to the other.)
+      yaw: Math.atan2(q.x - p.x, q.z - p.z),
+      long: Math.max(3, Math.min(W.bank, Math.hypot(q.x - p.x, q.z - p.z) - W.gap)),
     });
   }
   // The middle of the approach the walls are thrown at: the middle of the dry ground.
@@ -87,17 +106,19 @@ export function siegeWorks(
     // (Their approaches go in further each year the siege has stood, and as the walls open.)
     reached = Math.min(0.85, 0.3 + 0.2 * state.years + 0.35 * state.breach),
     // (The open ground between their bank and the walls, where each approach goes in.)
-    roomAt = (a: number) => Math.max(0, r - wall(a) - 6),
-    room = roomAt(mid);
+    room = Math.max(0, standoff - 8),
+    legs = W.saps / 3,
+    // (Each leg at least seven metres; as long as the ground the siege has come over asks, in as many legs as are drawn.)
+    leg = Math.max(7, (room * reached) / legs),
+    count = Math.min(legs, Math.max(1, Math.round((room * reached) / leg)));
   for (const way of [-1, 0, 1]) {
-    let at = r - 2,
-      a = mid + way * Math.min(0.5, arc.span / 6);
-    const legs = Math.min(W.saps / 3, Math.max(1, Math.round((roomAt(a) * reached) / 7)));
-    for (let k = 0; k < legs; k++) {
-      // A leg of it: seven metres nearer, slanting across the way in so no shot from the walls runs along it.
+    let a = mid + way * Math.min(0.5, arc.span / 6),
+      at = bankAt(a) - 2;
+    for (let k = 0; k < count; k++) {
+      // A leg of it: nearer the walls, slanting across the way in so no shot from the walls runs along it.
       const slant = k % 2 ? 1 : -1,
-        in1 = at - 7,
-        a1 = a + (slant * 5) / Math.max(20, in1),
+        in1 = at - leg,
+        a1 = a + (slant * leg * 0.7) / Math.max(20, in1),
         x0 = Math.cos(a) * at,
         z0 = Math.sin(a) * at,
         x1 = Math.cos(a1) * in1,
@@ -112,19 +133,19 @@ export function siegeWorks(
       a = a1;
     }
   }
-  // What they throw with: behind the approaches' heads, facing the walls.
-  const off = Math.max(14, room * (1 - reached) + 10);
+  // What they throw with: at the approaches' heads, a little behind them, facing the walls.
+  const off = Math.max(14, room * (1 - reached) + 12);
   for (let i = 0; i < W.engines; i++) {
     const a = mid + ((i + 0.5) / W.engines - 0.5) * Math.min(1.1, arc.span * 0.5),
       // (Never behind their own bank.)
-      stand = Math.min(wall(a) + off, Math.max(wall(a) + 6, r - 4));
+      stand = Math.min(wall(a) + off, Math.max(wall(a) + 6, bankAt(a) - 4));
     engines.push({
       x: Math.cos(a) * stand,
       z: Math.sin(a) * stand,
       yaw: Math.atan2(-Math.cos(a), -Math.sin(a)),
     });
   }
-  // Its walls where they are open: so much of their ring before the approaches lies as rubble.
+  // Its walls where they are open: so much of their line before the approaches lies as rubble, and none of it stands there.
   const open = Math.max(0, Math.min(1, state.breach)),
     heaps = Math.round(open * W.rubble),
     wide = (open * 46) / Math.max(20, wall(mid));
@@ -146,6 +167,7 @@ export function siegeWorks(
     guns,
     rubble,
     breachAt: heaps ? { x: Math.cos(mid) * wall(mid), z: Math.sin(mid) * wall(mid) } : null,
+    open: heaps ? { mid, wide } : null,
   };
 }
 

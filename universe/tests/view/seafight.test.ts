@@ -125,12 +125,19 @@ test("a siege's works: a bank on the dry ground, approaches nearer each year, ru
     early = siegeWorks(7, arc, 120, wall, state, false),
     late = siegeWorks(7, arc, 120, wall, { ...state, years: 2, breach: 0.5, months: 2 }, true);
   assert.ok(early.banks.length >= 3 && early.banks.length <= SIEGE_WORKS.banks);
-  // Every length of bank lies on the dry arc, at about the ring.
+  // Every length of bank lies on the dry arc, within the camp's ring, one distance out from the walls all round: their
+  // line followed where it turns.
+  let most = 0;
+  for (let k = 0; k <= 48; k++) most = Math.max(most, wall(arc.from + (k / 48) * arc.span));
   for (const b of early.banks) {
     const a = Math.atan2(b.z, b.x),
       r = Math.hypot(b.x, b.z);
     assert.ok(a > arc.from - 1e-6 && a < arc.from + arc.span + 1e-6);
-    assert.ok(Math.abs(r - 120) < 3);
+    assert.ok(r < 120 + 2, `a bank past the camp's ring at ${r}`);
+    assert.ok(
+      Math.abs(r - wall(a) - (120 - most)) < 2,
+      `a bank ${r - wall(a)} m out from the walls`,
+    );
   }
   assert.equal(early.rubble.length, 0);
   assert.equal(early.breachAt, null);
@@ -157,6 +164,20 @@ test("a siege's works: a bank on the dry ground, approaches nearer each year, ru
       r = Math.hypot(e.x, e.z);
     assert.ok(r > wall(a) + 5 && r < 120, `what they throw with at ${r}`);
   }
+  // What they throw with stands at the approaches' heads, a little behind them: never in front, never far back.
+  for (const w of [early, late]) {
+    const heads = Math.min(...w.saps.map((s) => Math.hypot(s.x, s.z) - wall(Math.atan2(s.z, s.x)))),
+      engines = Math.min(
+        ...w.engines.map((e) => Math.hypot(e.x, e.z) - wall(Math.atan2(e.z, e.x))),
+      );
+    assert.ok(
+      engines >= heads - 2 && engines < heads + 16,
+      `engines ${engines} m out, the heads ${heads}`,
+    );
+  }
+  // Where the walls are open, none of them stands (render/town.ts puts their lengths away in the breach's arc).
+  assert.ok(late.open && !early.open);
+  assert.ok(Math.abs(late.open.mid - mid) < 1e-9 && late.open.wide > 0);
   assert.ok(late.guns && !early.guns);
   assert.equal(
     siegeWords({ ...state, months: 2, breach: 0.5, dead: 1200 }),

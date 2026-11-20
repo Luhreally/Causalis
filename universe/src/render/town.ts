@@ -154,6 +154,8 @@ export class TownLayer {
   private drawnAt = -Infinity;
   /** Whether anything rises or falls this year (else the rising set is put once). */
   private busy = false;
+  /** Where a siege has its walls open (view/siegeworks.ts SiegeWorks.open; null: they stand whole). */
+  private open: { readonly mid: number; readonly wide: number } | null = null;
 
   constructor(stage: Stage, parent: pc.Entity) {
     parent.addChild(this.root);
@@ -209,6 +211,18 @@ export class TownLayer {
     this.update(t);
   }
 
+  /** Where a siege has opened its walls (null: whole): those lengths are put again only when the breach changes. */
+  breach(open: { readonly mid: number; readonly wide: number } | null): void {
+    const was = this.open;
+    if (
+      was === open ||
+      (was && open && Math.abs(was.mid - open.mid) < 1e-3 && Math.abs(was.wide - open.wide) < 1e-3)
+    )
+      return;
+    this.open = open;
+    this.drawnAt = -Infinity;
+  }
+
   /** What rises through the year, put again as it climbs. */
   update(t: number): void {
     const scene = this.scene;
@@ -230,7 +244,7 @@ export class TownLayer {
     townHomes(scene, scene.active, t, this.parts);
     // (A mill's sails turning are drawn by themselves: render/trades.ts.)
     townCivics(scene, t, this.parts, false);
-    townWalls(scene, t, this.parts);
+    townWalls(scene, t, this.parts, this.open);
     townAsh(scene, t, this.parts);
     this.rising.show(this.parts);
   }

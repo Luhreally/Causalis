@@ -1945,6 +1945,8 @@ export class VillageScene {
           : null,
       troops = scene?.soldiers ?? [];
     this.warScene = scene;
+    // (Its walls open where the siege has breached them: their lengths there put away, once, as the breach changes.)
+    this.town.breach(scene?.works?.open ?? null);
     this.warLayer.update(scene, screen, this.campNow, this.figure.scale);
     const targets = momentsOf(plan, t, downpour, fine);
     // (Those gone by car or on a line, in it, not walking beside it: R1.)

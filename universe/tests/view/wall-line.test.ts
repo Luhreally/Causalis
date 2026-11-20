@@ -257,6 +257,23 @@ test("one line for all that reads a town's walls: its streets' clear ground, its
           "a wall drawn off the line",
         );
   assert.equal(drawn, ring.lengths.length);
+  // A siege's breach: the lengths in its arc are not drawn, the gates and the rest are.
+  const plain = ring.lengths.filter((l) => !l.gate),
+    mid = Math.atan2(plain[3]!.z, plain[3]!.x),
+    opened = new TownParts();
+  townWalls(scene, 40 * YEAR, opened, { mid, wide: 0.3 });
+  let left = 0;
+  for (const [key, g] of opened.groups)
+    if (key.startsWith("box|"))
+      for (let i = 0; i < g.data.length; i += 7) {
+        left++;
+        const a = Math.atan2(g.data[i + 2]!, g.data[i]!);
+        assert.ok(
+          Math.abs(Math.atan2(Math.sin(a - mid), Math.cos(a - mid))) > 0.15,
+          "a length standing in the breach",
+        );
+      }
+  assert.ok(left < drawn && left > drawn / 2, `${left} of ${drawn} lengths stand about the breach`);
   const village: VillagePlan = {
     ref: "town:0:5",
     name: "Wallford",

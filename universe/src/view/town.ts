@@ -2677,9 +2677,15 @@ const SITE_FLAG: Rgb = [0.95, 0.42, 0.08],
 
 /**
  * A town's walls at moment t: courses of stone about it, a tower every few lengths, a gate where
- * its road runs out — none where the town has grown over them, nor in its water.
+ * its road runs out — none where the town has grown over them, nor in its water, nor where a siege
+ * has opened them (`open`: the breach's bearing and breadth, view/siegeworks.ts; its rubble lies there).
  */
-export function townWalls(scene: TownScene, t: number, out: TownParts): void {
+export function townWalls(
+  scene: TownScene,
+  t: number,
+  out: TownParts,
+  open: { readonly mid: number; readonly wide: number } | null = null,
+): void {
   const w = scene.plan.walls,
     ring = scene.walls;
   if (!w || !ring) return;
@@ -2694,6 +2700,19 @@ export function townWalls(scene: TownScene, t: number, out: TownParts): void {
     k++;
     // (Those asked for go up length by length about the town; what a town raises by itself rises all at once, as it always has.)
     const high = 7 * (w.asked ? Math.max(0, Math.min(1, around - k)) : g);
+    // (Open in a siege's breach: its rubble lies where it stood.)
+    if (
+      open &&
+      !l.gate &&
+      Math.abs(
+        Math.atan2(
+          Math.sin(Math.atan2(l.z, l.x) - open.mid),
+          Math.cos(Math.atan2(l.z, l.x) - open.mid),
+        ),
+      ) <
+        open.wide / 2 + l.len / 2 / Math.max(20, Math.hypot(l.x, l.z))
+    )
+      continue;
     // (A gate where the road runs out, both ways: a tower between two ways through.)
     if (l.gate) {
       if (high > 0.05 || !w.asked)
