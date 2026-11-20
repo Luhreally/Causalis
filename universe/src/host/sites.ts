@@ -255,7 +255,8 @@ const WET_HALF = 6;
 
 /**
  * Its land's water about a town (TownSite.wet; nothing where none is near, or its people live in the water): the sea and
- * lake tiles of its land's map about its own tile. A river is bridged and built along.
+ * lake and river tiles of its land's map about its own tile (the map draws a river's tile as water from edge to edge:
+ * a town on a river stands on its own tile's bank and grows away from the water, not over the next tile of it).
  */
 export function landWater(
   r: { size: number; tileKm: number; water: Uint8Array },
@@ -272,7 +273,7 @@ export function landWater(
         b = j + dj,
         w = a < 0 || b < 0 || a >= r.size || b >= r.size ? 0 : r.water[b * r.size + a]!,
         // (Never its own tile: a town stands on its ground, whatever its map's tile is called.)
-        wet = (w === WATER.sea || w === WATER.lake) && (di !== 0 || dj !== 0);
+        wet = w !== WATER.land && (di !== 0 || dj !== 0);
       cells += wet ? "1" : "0";
       any ||= wet;
     }

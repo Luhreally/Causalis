@@ -61,8 +61,8 @@ export type TownSite = {
    */
   readonly place?: { readonly at: number; readonly size: number };
   /**
-   * Its land's water about it, as its land's map has it (absent: none near, or its people live in the water): the sea and
-   * lake tiles of the map about its own, each `m` metres across on the town's ground (the map draws a town LAND_SCALE
+   * Its land's water about it, as its land's map has it (absent: none near, or its people live in the water): the sea,
+   * lake and river tiles of the map about its own, each `m` metres across on the town's ground (the map draws a town LAND_SCALE
    * times its size), `half` tiles out each way, row by row from the north-west, "1" where wet. Nothing of it is laid there:
    * no block, no sprawl; the land's map and the town's own view read the one water.
    */
