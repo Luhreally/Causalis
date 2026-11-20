@@ -645,6 +645,20 @@ export function armyVoice(
 }
 
 /** A coup's end, for the one whose it was. */
+/**
+ * A realm's orders changed how its seat passes: an heir named by blood stands only while it passes by blood. Told to the court
+ * the moment the orders change (a seat seized, a rising, a rule restored: sim/strife; a reform: seen at the court's own year),
+ * so that no year ends with an heir by blood under orders that give the seat by choice. The voices name another at the
+ * court's next reckoning. (First light, year 330: a general seized Stawa that year and its chief's child stood heir by blood
+ * under his orders until the next.)
+ */
+export function ordersChanged(world: World, p: Polity): void {
+  const c = courtOf(world)?.of(p.ref);
+  if (!c || c.heirBy !== "blood" || p.succession === 0) return;
+  c.heir = null;
+  c.heirBy = null;
+}
+
 export function armyDone(world: World, p: Polity, event: Ref, seated: boolean): void {
   const c = courtOf(world)?.of(p.ref);
   if (!c) return;
@@ -923,6 +937,7 @@ export function courtYear(ctx: PopulationContext, t: SimTime): void {
       reckon(ctx, p, c, t);
       continue;
     }
+    ordersChanged(world, p);
     if (c.ruler !== p.ruler.event) seatChanged(ctx, p, c, t);
     // Those at court die as anyone does: an heir's death is told, and the next is named.
     let heirGone: { who: string; fig: number; age: number } | null = null;
@@ -953,6 +968,7 @@ export function courtYear(ctx: PopulationContext, t: SimTime): void {
       letGo(c, f, year, "died", struck);
     }
     if (c.plot && c.plot.since < year) resolve(ctx, p, c, c.plot, t);
+    ordersChanged(world, p);
     if (c.ruler !== p.ruler.event) seatChanged(ctx, p, c, t);
     if (heirGone) {
       reckon(ctx, p, c, t);

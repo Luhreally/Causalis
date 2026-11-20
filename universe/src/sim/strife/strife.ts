@@ -79,7 +79,7 @@ import { holdOf, holdsOf, setHeld } from "../order/holds.ts";
 import { wantsOf } from "../order/wants.ts";
 import { financeOf } from "../finance/finance.ts";
 import { grieve, strike } from "../acts/disasters.ts";
-import { armyDone, armyMoves, armyVoice } from "../court/court.ts";
+import { armyDone, armyMoves, armyVoice, ordersChanged } from "../court/court.ts";
 import { commandLeft } from "../notable/notables.ts";
 import { rulerHazard } from "../acts/person.ts";
 
@@ -649,6 +649,7 @@ export function seize(ctx: PopulationContext, p: Polity, causes: CauseRef[], t: 
   s.purged = year + STRIFE.grip;
   p.leadership = GENERAL;
   p.succession = 1;
+  ordersChanged(world, p);
   p.ruler = man
     ? { name: man.name, sex: man.sex, born: man.born, since: year, event }
     : { ...newRuler(ctx, p, t, event, 1), event };
@@ -1174,6 +1175,7 @@ export function revolt(
     });
   p.leadership = to;
   p.succession = 2;
+  ordersChanged(world, p);
   p.ruler = { ...newRuler(ctx, p, t, event, 4), event };
   const s = store.ensure(p.ref);
   s.junta = null;
@@ -1276,6 +1278,7 @@ export function restore(
   store.restorations.push({ realm: p.ref, year, event, years: year - s.junta.since });
   p.leadership = inst.leadership;
   p.succession = inst.succession;
+  ordersChanged(world, p);
   p.law = inst.law;
   p.ruler = { ...newRuler(ctx, p, t, event, 2), event };
   s.junta = null;
