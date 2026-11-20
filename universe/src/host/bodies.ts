@@ -124,7 +124,14 @@ export function bodyName(world: World, ref: string): string | null {
 export function bodyNews(g: BodyRead): (e: HistoryEvent) => boolean {
   return (e) => {
     if (e.id === g.event) return true;
-    if (!e.type.startsWith("bodies.") && e.type !== "act.body") return false;
+    // (And a blow at its house, or a ruler's word on it: sim/order/deeds.ts, grouphand.ts.)
+    if (
+      !e.type.startsWith("bodies.") &&
+      e.type !== "act.body" &&
+      e.type !== "groups.razed" &&
+      e.type !== "reign.charter"
+    )
+      return false;
     for (const c of e.causes) if (c.ref === g.event) return true;
     return false;
   };

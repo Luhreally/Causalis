@@ -228,8 +228,10 @@ export const INST = {
    */
   // (And eight for a realm of one land, twelve at the most, were fewer than the ten things done: a realm that kept one of each
   // of eight had no place for a works or for those who share out its risks, however well either would have been paid.)
-  most: 14,
-  mostOne: 10,
+  // (Ten and fourteen were tried next, one of each thing done for every realm: 17% more bodies a world, 0.27 MB of a save
+  // and a third more of the system's year. Nine: a realm of one land keeps one of all but one.)
+  most: 13,
+  mostOne: 9,
   mostALand: 2,
   gone: 2,
   lands: 3,
@@ -312,6 +314,8 @@ export const INST = {
   watchedYears: 10,
   watchedHonest: 0.15,
   /** How many who read each hand of a voice reaches: by hand and on foot, by engines, by wire and air. */
+  /** How far a learned society carries word to those who read, of how far it holds among its land's learned. */
+  societySpeaks: 0.5,
   voiceReach: 300,
   voiceEngines: 3,
   voiceSignal: 10,

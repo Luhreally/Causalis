@@ -955,7 +955,8 @@ function stepRealm(
     wantHome = p.seat;
   // (Each peopled land's people, and its want of protection by them: what a road's rent is of, land by land, in step 4.)
   const peopleIn = new Map<number, number>(),
-    wantIn = new Map<number, number>();
+    wantIn = new Map<number, number>(),
+    bodyRows = bodyLandsStore(world);
   for (const c of [...p.members].sort((a, b) => a - b)) {
     const n = ctx.provinces.get(c)?.total() ?? 0;
     if (n <= 0) continue;
@@ -967,7 +968,7 @@ function stepRealm(
         earned: r.earned,
         capacity: r.capacity,
         // (As its land's watch makes it, where one is kept there.)
-        reach: policedIn(bodyLandsStore(world), c, r.reachIn.get(c) ?? r.capacity),
+        reach: policedIn(bodyRows, c, r.reachIn.get(c) ?? r.capacity),
         corruption: r.corruption,
         legitimacy: r.legitimacy,
         kin: (folk?.get(c)?.[FOLK_ROW.kin] ?? 1000) / 1000,

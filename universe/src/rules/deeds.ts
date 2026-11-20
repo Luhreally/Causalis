@@ -61,6 +61,17 @@ export const DEED = {
   lostFoiled: 0.25,
   /** A body whose head is killed loses this share of its hands for a time (they leave, or lie low). */
   shakes: 0.15,
+  /**
+   * Of an armed group's blows at the head of a body, the share that fall on its house instead (the works, the hall, the
+   * print-house); and of its blows that find no one of name within its reach, the share that fall on a quarter of its
+   * land's first town. What a house struck loses of its hands and of its purse; of a town's homes, what comes down about
+   * it; the grief it is to its land.
+   */
+  atPlace: 0.3,
+  houseHands: 0.3,
+  housePurse: 0.5,
+  razes: 0.01,
+  placeGrief: 0.04,
   /** Those outside the law strike at those who hunt and tell of them as far as they are hunted and not bought. */
   hunted: 0.6,
 } as const;

@@ -322,6 +322,12 @@ export function electionsYear(ctx: PopulationContext, t: SimTime): void {
           ...(rival ? { rival: rival[1].name, rivalGroup: rival[0] } : {}),
         },
       });
+    // (Who else ran is kept of the last choice alone: its page reads no other's, and six of them a realm were 60 KB of a save.)
+    const before = v.past.at(-1);
+    if (before?.ran) {
+      const { ran: _gone, ...rest } = before;
+      v.past[v.past.length - 1] = rest;
+    }
     v.past.push({
       year,
       group: winner,

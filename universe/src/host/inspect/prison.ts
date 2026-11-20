@@ -45,7 +45,11 @@ export function prisonLines(world: World, cell: number, town: number, townRef?: 
     row = bodyLandsStore(world)?.get(cell),
     held = row ? row[BODY_ROW.held]! : 0,
     people = populationContext(world).provinces.get(cell)?.total() ?? 0,
-    own = townRef ? lockedNow(world, townRef) : [],
+    // (The town's own lines, each once: one held by last year's case and tried again this year is one person.)
+    own = (townRef ? lockedNow(world, townRef) : []).filter(
+      (c, i, all) =>
+        !c.accused.outside && all.findIndex((x) => x.accused.ref === c.accused.ref) === i,
+    ),
     named = court ? inmateItems(world, court) : [];
   if (!court || !(held > 0)) {
     // (No court of its land holds anyone: only those its own town's cases keep.)
