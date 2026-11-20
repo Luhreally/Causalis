@@ -75,7 +75,7 @@ export class WrittenStore implements StateStore {
 }
 
 export function writtenOf(world: World): WrittenStore | null {
-  return world.hasStore("frontier.written") ? world.store<WrittenStore>("frontier.written") : null;
+  return world.peek<WrittenStore>("frontier.written") ?? null;
 }
 
 /** The ground a land of another world stands on, as its halls' needs read it (null: a ship still sailing, or home). */

@@ -130,7 +130,7 @@ export class MindsStore implements StateStore {
 }
 
 export function mindsOf(world: World): MindsStore | null {
-  return world.hasStore("frontier.minds") ? world.store<MindsStore>("frontier.minds") : null;
+  return world.peek<MindsStore>("frontier.minds") ?? null;
 }
 
 /** How many times their makers' sum a realm's minds think, as last read (0: it has none). */

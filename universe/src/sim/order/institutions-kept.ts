@@ -205,7 +205,7 @@ export class BodiesStore implements StateStore {
 }
 
 export function bodiesOf(world: World): BodiesStore | null {
-  return world.hasStore(BODIES_STORE) ? world.store<BodiesStore>(BODIES_STORE) : null;
+  return world.peek<BodiesStore>(BODIES_STORE) ?? null;
 }
 
 /** A land's row: what its bodies do there. Thousandths unless said. */
@@ -242,7 +242,7 @@ export const BODY_ROW = {
 export const BODY_LANDS_WIDTH = 20;
 
 export function bodyLandsStore(world: World): RowStore | null {
-  return world.hasStore(BODY_LANDS_STORE) ? world.store<RowStore>(BODY_LANDS_STORE) : null;
+  return world.peek<RowStore>(BODY_LANDS_STORE) ?? null;
 }
 
 // —— What the older systems read ——————————————————————————————————————————————————————————————————————————

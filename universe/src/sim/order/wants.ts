@@ -90,7 +90,7 @@ export class WantsStore implements StateStore {
 }
 
 export function wantsOf(world: World): WantsStore | null {
-  return world.hasStore("order.wants") ? world.store<WantsStore>("order.wants") : null;
+  return world.peek<WantsStore>("order.wants") ?? null;
 }
 
 /** The occupation each group of the many works at (the court, the temple and the army are paid otherwise). */

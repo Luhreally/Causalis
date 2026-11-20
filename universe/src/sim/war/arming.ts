@@ -200,7 +200,7 @@ export class ArmingStore implements StateStore {
 }
 
 export function armingOf(world: World): ArmingStore | null {
-  return world.hasStore("war.arming") ? world.store<ArmingStore>("war.arming") : null;
+  return world.peek<ArmingStore>("war.arming") ?? null;
 }
 
 // —— What the other systems read ——————————————————————————————————————————————————————————————————————

@@ -188,7 +188,7 @@ export class FinanceStore implements StateStore {
 }
 
 export function financeOf(world: World): FinanceStore | null {
-  return world.hasStore("finance.realms") ? world.store<FinanceStore>("finance.realms") : null;
+  return world.peek<FinanceStore>("finance.realms") ?? null;
 }
 
 const pct = (x: number) => Math.round(Math.max(0, Math.min(1, x)) * 100);

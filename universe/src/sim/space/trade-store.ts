@@ -168,5 +168,5 @@ export class TradeStore implements StateStore {
 
 /** The store of runs (none on a world with no space rules). */
 export function tradeOf(world: World): TradeStore | null {
-  return world.hasStore("space.trade") ? world.store<TradeStore>("space.trade") : null;
+  return world.peek<TradeStore>("space.trade") ?? null;
 }

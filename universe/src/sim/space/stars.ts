@@ -160,7 +160,7 @@ export class StarSiteStore implements StateStore {
 
 /** The kept sites a world's ships hold (none on a world that never flew). */
 export function starSitesOf(world: World): StarSiteStore | null {
-  return world.hasStore("space.stars") ? world.store<StarSiteStore>("space.stars") : null;
+  return world.peek<StarSiteStore>("space.stars") ?? null;
 }
 
 /** How many light-years' lag a crossing is worth in steps of rule (as a land's steps are reckoned). */

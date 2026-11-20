@@ -196,7 +196,7 @@ function rowOf(e: EnergyLand): number[] {
 
 /** A world's energy store (null on a world that keeps none). */
 export function energyBooks(world: World): EnergyStore | null {
-  return world.hasStore("economy.energy") ? world.store<EnergyStore>("economy.energy") : null;
+  return world.peek<EnergyStore>("economy.energy") ?? null;
 }
 
 // —— What a land is, read once from its ground ——————————————————————————————————————————————————————

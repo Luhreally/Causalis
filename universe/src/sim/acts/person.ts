@@ -131,7 +131,7 @@ export class PersonActStore implements StateStore {
 }
 
 export function personActsOf(world: World): PersonActStore | null {
-  return world.hasStore("acts.persons") ? world.store<PersonActStore>("acts.persons") : null;
+  return world.peek<PersonActStore>("acts.persons") ?? null;
 }
 
 /** What the god's blessings and curses lay on one's chance of death this year: exactly 1 where none holds. */

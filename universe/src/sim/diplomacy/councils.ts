@@ -139,9 +139,7 @@ export class CouncilStore implements StateStore {
 }
 
 export function councilsOf(world: World): CouncilStore | null {
-  return world.hasStore("diplomacy.councils")
-    ? world.store<CouncilStore>("diplomacy.councils")
-    : null;
+  return world.peek<CouncilStore>("diplomacy.councils") ?? null;
 }
 
 /** Whether two realms sit in one council, and which (null: they do not). */

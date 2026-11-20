@@ -93,7 +93,7 @@ export class FilledStore implements StateStore {
 
 /** The store of worlds filling (none on a world with no space rules). */
 export function filledOf(world: World): FilledStore | null {
-  return world.hasStore("space.filled") ? world.store<FilledStore>("space.filled") : null;
+  return world.peek<FilledStore>("space.filled") ?? null;
 }
 
 export const bodyKey = (body: number) => `b${body}`;

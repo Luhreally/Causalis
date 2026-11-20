@@ -219,7 +219,7 @@ export class CourtStore implements StateStore {
 }
 
 export function courtOf(world: World): CourtStore | null {
-  return world.hasStore("court.states") ? world.store<CourtStore>("court.states") : null;
+  return world.peek<CourtStore>("court.states") ?? null;
 }
 
 const figureOf = (c: Court, id: number | null): CourtFigure | undefined =>

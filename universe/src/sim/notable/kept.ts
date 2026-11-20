@@ -287,7 +287,7 @@ export class NotablesStore implements StateStore {
 const NONE: readonly Notable[] = [];
 
 export function notablesOf(world: World): NotablesStore | null {
-  return world.hasStore(NOTABLES_STORE) ? world.store<NotablesStore>(NOTABLES_STORE) : null;
+  return world.peek<NotablesStore>(NOTABLES_STORE) ?? null;
 }
 
 // —— What the older systems read (each exactly as before where no one is kept) ————————————————————————————————

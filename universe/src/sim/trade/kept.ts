@@ -123,7 +123,7 @@ export const TRADE_STORES: readonly (readonly [string, number])[] = [
 
 /** One of trade's stores on a world (null where it keeps none). */
 export function tradeStore(world: World, name: string): RowStore | null {
-  return world.hasStore(name) ? world.store<RowStore>(name) : null;
+  return world.peek<RowStore>(name) ?? null;
 }
 
 // —— What the older systems read ——————————————————————————————————————————————————————————————————————————

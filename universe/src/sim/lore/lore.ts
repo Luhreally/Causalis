@@ -391,16 +391,14 @@ function openOf(
   cell?: number,
 ): Principle[] {
   const reach = reachIn(means, here),
-    made =
-      cell !== undefined && ctx.world.hasStore("lore.materials")
-        ? ctx.world.store<MaterialsStore>("lore.materials")
-        : null;
+    made = cell !== undefined && (ctx.world.peek<MaterialsStore>("lore.materials") ?? null);
+  // (What it knows already is asked first: late, a land knows nearly all of them, and each of the rest only reads.)
   return PRINCIPLES.filter(
     (p) =>
       asked(p) &&
-      affordsPrinciple(p, ctx.medium, reach, means.wants) &&
       !here(p.id) &&
       needsMet(p, here) &&
+      affordsPrinciple(p, ctx.medium, reach, means.wants) &&
       (!p.body?.lifts || (lifts !== null && here(lifts.id))) &&
       matterAllows(ctx.generated, p) &&
       lawAllows(ctx.world, p) &&

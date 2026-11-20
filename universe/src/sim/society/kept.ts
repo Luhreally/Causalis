@@ -133,7 +133,7 @@ export const SOCIETY_STORES: readonly (readonly [string, number])[] = [
 
 /** One of the society sweep's stores on a world (null where it keeps none). */
 export function societyStore(world: World, name: string): RowStore | null {
-  return world.hasStore(name) ? world.store<RowStore>(name) : null;
+  return world.peek<RowStore>(name) ?? null;
 }
 
 // —— What the older systems read ——————————————————————————————————————————————————————————————————————————

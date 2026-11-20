@@ -132,7 +132,7 @@ export class SiegeStore implements StateStore {
 }
 
 export function siegesOf(world: World): SiegeStore | null {
-  return world.hasStore("war.sieges") ? world.store<SiegeStore>("war.sieges") : null;
+  return world.peek<SiegeStore>("war.sieges") ?? null;
 }
 
 /** Take `n` of a land's people as dead, drawn from `rows` (each `r × COLS + o`) by the siege's own stream; never the hand's own. */

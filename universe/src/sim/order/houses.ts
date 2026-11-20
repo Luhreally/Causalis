@@ -251,7 +251,7 @@ export class HouseStore implements StateStore {
 }
 
 export function housesOf(world: World): HouseStore | null {
-  return world.hasStore("order.houses") ? world.store<HouseStore>("order.houses") : null;
+  return world.peek<HouseStore>("order.houses") ?? null;
 }
 
 /** What the older systems read of a realm's houses (each 0 … 1; null where none are kept). */

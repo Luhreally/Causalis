@@ -415,7 +415,7 @@ export class HerdStore implements StateStore {
 }
 
 export function herdsOf(world: World): HerdStore | null {
-  return world.hasStore("ecology.herds") ? world.store<HerdStore>("ecology.herds") : null;
+  return world.peek<HerdStore>("ecology.herds") ?? null;
 }
 
 /** What a world's ground gives its creatures (made once, and again if its ground has moved). */

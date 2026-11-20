@@ -117,7 +117,7 @@ export class FloodStore implements StateStore {
 }
 
 export function floodsOf(world: World): FloodStore | null {
-  return world.hasStore("planet.floods") ? world.store<FloodStore>("planet.floods") : null;
+  return world.peek<FloodStore>("planet.floods") ?? null;
 }
 
 /** What a flood left of a land's harvest this year (exactly 1 where none rose). */

@@ -179,7 +179,7 @@ export class GroundStore implements StateStore {
 
 /** A world's ground store (null on a world that keeps none). */
 export function groundOf(world: World): GroundStore | null {
-  return world.hasStore("ecology.ground") ? world.store<GroundStore>("ecology.ground") : null;
+  return world.peek<GroundStore>("ecology.ground") ?? null;
 }
 
 /** The principles by which engines haul bulk (railways, steamships): rock for the fields goes where they run. */
@@ -501,9 +501,7 @@ export const GROUND_EVERY = 5;
 
 /** The sour rain let fall on a land a year (kg of sulphur a hectare): its own burning's and its neighbours' (their energy accounts). */
 function sourOn(ctx: PopulationContext, cell: number, areaKm2: number): number {
-  const energy = ctx.world.hasStore("economy.energy")
-    ? ctx.world.store<EnergyStore>("economy.energy")
-    : null;
+  const energy = ctx.world.peek<EnergyStore>("economy.energy") ?? null;
   if (!energy) return 0;
   const lie = lieOf(ctx, cell, areaKm2);
   // (Less what each land's works cut of their smoke at their realm's price on it: sim/trade, p87.)

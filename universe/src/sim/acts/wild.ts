@@ -297,7 +297,7 @@ export class WildStore implements StateStore {
 }
 
 export function wildOf(world: World): WildStore | null {
-  return world.hasStore("acts.wild") ? world.store<WildStore>("acts.wild") : null;
+  return world.peek<WildStore>("acts.wild") ?? null;
 }
 
 const key = (ref: Ref): number => Number(ref.split(":")[2]) || 0;

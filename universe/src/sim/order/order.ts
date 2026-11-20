@@ -412,7 +412,7 @@ function asKept(saved: RealmOrder): RealmOrder {
 }
 
 export function orderOf(world: World): OrderStore | null {
-  return world.hasStore("order.bonds") ? world.store<OrderStore>("order.bonds") : null;
+  return world.peek<OrderStore>("order.bonds") ?? null;
 }
 
 const clamp = (lo: number, hi: number, x: number) => Math.max(lo, Math.min(hi, x));
@@ -568,7 +568,7 @@ export const REACH_STORE = "order.reach";
 export const REACH_LANDS_STORE = "order.reachlands";
 const REACH_UNIT = 1e6;
 const reachRows = (world: World, name: string): RowStore | null =>
-  world.hasStore(name) ? world.store<RowStore>(name) : null;
+  world.peek<RowStore>(name) ?? null;
 
 /** A realm's reach reckoned now and set down for the year (orderYear; and a test that makes a realm what it would have it be). */
 export function reckonReach(ctx: PopulationContext, p: Polity): void {
@@ -1806,7 +1806,7 @@ export function orderYear(ctx: PopulationContext, t: SimTime): void {
     year = yearOfMoment(t),
     living = realms.living();
   // (What the groups of a realm that has ended learned goes with it.)
-  const wanting = world.hasStore("order.wants") ? world.store<WantsStore>("order.wants") : null;
+  const wanting = world.peek<WantsStore>("order.wants") ?? null;
   if (wanting && year % 10 === 0) {
     const alive = new Set(living.map((p) => p.ref));
     for (const r of wanting.realmsKept()) if (!alive.has(r)) wanting.forget(r);

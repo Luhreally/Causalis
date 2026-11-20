@@ -63,7 +63,7 @@ export class LettersStore implements StateStore {
 
 /** A world's readers, where it keeps them (a world from before letters keeps none: no one reads there yet). */
 export function lettersOf(world: World): LettersStore | null {
-  return world.hasStore("lore.letters") ? world.store<LettersStore>("lore.letters") : null;
+  return world.peek<LettersStore>("lore.letters") ?? null;
 }
 
 /** The share of a land's people who read (0 … 1). Only reads. */

@@ -346,7 +346,7 @@ export class DisplacedStore implements StateStore {
 const NONE: readonly Camp[] = [];
 
 export function displacedOf(world: World): DisplacedStore | null {
-  return world.hasStore("war.held") ? world.store<DisplacedStore>("war.held") : null;
+  return world.peek<DisplacedStore>("war.held") ?? null;
 }
 
 // —— Moving and losing them ——————————————————————————————————————————————————————————————————————————

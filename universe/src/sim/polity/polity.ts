@@ -684,7 +684,7 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
     }
 
   // 3. Tribute to the seat, and the discontent it and hard years breed.
-  const faiths = world.hasStore("belief.faiths") ? world.store<BeliefStore>("belief.faiths") : null;
+  const faiths = world.peek<BeliefStore>("belief.faiths") ?? null;
   for (const p of store.living()) {
     // (Round B: what its treasury takes beyond the tithe, and prices rising faster than what its people are paid catch up.)
     // (What it takes beyond what its people have borne for a generation, and a share of that: money/kept.ts taxGrievance.)

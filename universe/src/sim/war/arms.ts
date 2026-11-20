@@ -286,7 +286,7 @@ export class ArmsStore implements StateStore {
 }
 
 function armsOf_(world: World): ArmsStore | null {
-  return world.hasStore("war.arms") ? world.store<ArmsStore>("war.arms") : null;
+  return world.peek<ArmsStore>("war.arms") ?? null;
 }
 
 /**

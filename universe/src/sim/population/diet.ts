@@ -83,7 +83,7 @@ export class DietStore implements StateStore {
 }
 
 export function dietOfWorld(world: World): DietStore | null {
-  return world.hasStore("life.diet") ? world.store<DietStore>("life.diet") : null;
+  return world.peek<DietStore>("life.diet") ?? null;
 }
 
 const ONE = { young: 1, grown: 1 } as const;

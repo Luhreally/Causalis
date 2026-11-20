@@ -159,7 +159,7 @@ export class NationStore implements StateStore {
 
 /** The store of realms among the stars (none on a world with no space rules). */
 export function nationsOf(world: World): NationStore | null {
-  return world.hasStore("space.nations") ? world.store<NationStore>("space.nations") : null;
+  return world.peek<NationStore>("space.nations") ?? null;
 }
 
 /** Whether a land of another star is ruled by the rule of the stars: who holds it is read there, not by its grievance. */

@@ -191,6 +191,11 @@ export class World {
     return s as S;
   }
 
+  /** The store of this name, or undefined where none is registered: one look where `hasStore` then `store` are two. */
+  peek<S extends StateStore>(name: string): S | undefined {
+    return this.stores.get(name) as S | undefined;
+  }
+
   /** Whether a store of this name is registered (cheap: for checks on the hot path). */
   hasStore(name: string): boolean {
     return this.stores.has(name);

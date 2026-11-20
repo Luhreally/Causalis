@@ -146,7 +146,7 @@ export class ElectionStore implements StateStore {
 }
 
 export function electionsOf(world: World): ElectionStore | null {
-  return world.hasStore("order.elections") ? world.store<ElectionStore>("order.elections") : null;
+  return world.peek<ElectionStore>("order.elections") ?? null;
 }
 
 /** Whether a realm's rule has elections: rule passed by choice, its choices carried by more than a few. */

@@ -86,7 +86,7 @@ export class LateStore implements StateStore {
 
 /** The store of what lies past our ages (none on a world with no space rules). */
 export function lateOf(world: World): LateStore | null {
-  return world.hasStore("space.late") ? world.store<LateStore>("space.late") : null;
+  return world.peek<LateStore>("space.late") ?? null;
 }
 
 /** The key a body is remade by: its index in the home system, or (-1 - land) under another star. */

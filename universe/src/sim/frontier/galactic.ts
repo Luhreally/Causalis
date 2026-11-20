@@ -132,9 +132,7 @@ export class GalacticStore implements StateStore {
 }
 
 export function galacticOf(world: World): GalacticStore | null {
-  return world.hasStore("frontier.galactic")
-    ? world.store<GalacticStore>("frontier.galactic")
-    : null;
+  return world.peek<GalacticStore>("frontier.galactic") ?? null;
 }
 
 /** The galaxy home lies in (a pure function of the seed, kept while it is the same). */

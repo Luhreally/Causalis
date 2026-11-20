@@ -285,7 +285,7 @@ export class StrifeStore implements StateStore {
 }
 
 export function strifeOf(world: World): StrifeStore | null {
-  return world.hasStore("strife.realms") ? world.store<StrifeStore>("strife.realms") : null;
+  return world.peek<StrifeStore>("strife.realms") ?? null;
 }
 
 const clamp = (lo: number, hi: number, x: number) => Math.max(lo, Math.min(hi, x));

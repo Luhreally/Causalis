@@ -180,7 +180,7 @@ export class NavyStore implements StateStore {
 }
 
 export function navyOf(world: World): NavyStore | null {
-  return world.hasStore("war.navy") ? world.store<NavyStore>("war.navy") : null;
+  return world.peek<NavyStore>("war.navy") ?? null;
 }
 
 // —— What the other systems read ——————————————————————————————————————————————————————————————————————

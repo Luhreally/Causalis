@@ -155,7 +155,7 @@ export class CropStore implements StateStore {
 }
 
 export function cropsOf(world: World): CropStore | null {
-  return world.hasStore("life.crops") ? world.store<CropStore>("life.crops") : null;
+  return world.peek<CropStore>("life.crops") ?? null;
 }
 
 /** What a land's crop gives its fields against what they always gave (1 where it keeps no crop). */

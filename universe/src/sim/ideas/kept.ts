@@ -178,7 +178,7 @@ export class SchoolsStore implements StateStore {
 }
 
 export function schoolsOf(world: World): SchoolsStore | null {
-  return world.hasStore(SCHOOLS_STORE) ? world.store<SchoolsStore>(SCHOOLS_STORE) : null;
+  return world.peek<SchoolsStore>(SCHOOLS_STORE) ?? null;
 }
 
 /** The school a land holds, where it holds one. Only reads. */
