@@ -1,7 +1,7 @@
 // Sieges, as they are fought (the last sweep, war; the rules are rules/siege.ts). In a war's year (sim/war/war.ts), a battle won
-// before a land of the defender's that stands behind walls (a town of it whose walls are done and still ring it), its seat or
-// not, lays a siege where none is laid (a land with none is stormed or entered with the field; only where a battle was won that
-// year, so a war has one at a time). Each later year that the besiegers win there again,
+// before a land of the defender's that stands behind walls (its heart's walls done and still ringing it), its seat or not, lays
+// a siege where none is laid (a land with none is stormed or entered with the field; only where a battle was won that year, so
+// a war has one at a time). Each later year that the besiegers win there again,
 // the siege goes one year on. The town eats into what it had in store, fed only by what its walls grow and its ships bring in. The walls open by
 // what the besiegers know and throw. Their camp sickens and the town sickens and starves, and those deaths are written into the
 // lands' ledgers. The land falls when its walls are open (stormed) or its stores are gone (starved). A year the besiegers lose
@@ -22,13 +22,21 @@ import { cellRef } from "../../gen/index.ts";
 import {
   BANDS,
   FOODS,
+  LAND_HEART_KM,
   WALLS_OUTGROWN,
   apportionCapped,
   siegeStep,
   storeMonths,
   type SiegeOutcome,
 } from "../../rules/index.ts";
-import { marketsOf, mouths, type PopulationContext } from "../population/systems.ts";
+import {
+  PROVINCE_TILE_KM,
+  REGION_SIZE,
+  marketsOf,
+  mouths,
+  type PopulationContext,
+} from "../population/systems.ts";
+import type { Settlement } from "../population/stores.ts";
 import { COLS, ROWS } from "../population/model.ts";
 import { politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import { loreOf } from "../lore/lore.ts";
@@ -209,17 +217,45 @@ function landYear(
 }
 
 /**
- * Whether a land stands behind walls: a peopled town of it whose walls are done and still ring it (not grown past them so far that
- * they were pulled down). A land behind walls is besieged; one without is stormed or entered, its town taken with the field.
+ * A land's heart, the town its battles are fought before and its sieges laid about: the greatest of its peopled towns within
+ * LAND_HEART_KM of its middle, else the one nearest that (as the land is drawn: bridge/wars.ts heartTown, its towns where its map
+ * has them; null: none peopled).
+ */
+export function heartOf(ctx: PopulationContext, land: number): Settlement | null {
+  const half = ((REGION_SIZE - 1) * PROVINCE_TILE_KM) / 2;
+  let best: Settlement | null = null,
+    near: Settlement | null = null,
+    nearAt = Infinity;
+  for (const s of ctx.settlements.kept(land)) {
+    if (s.population <= 0) continue;
+    // (Squared, km: exact on every engine.)
+    const dx = (s.tile % REGION_SIZE) * PROVINCE_TILE_KM - half,
+      dz = Math.floor(s.tile / REGION_SIZE) * PROVINCE_TILE_KM - half,
+      at = dx * dx + dz * dz;
+    if (
+      at <= LAND_HEART_KM * LAND_HEART_KM &&
+      (!best ||
+        s.population > best.population ||
+        (s.population === best.population && s.ref < best.ref))
+    )
+      best = s;
+    if (at < nearAt) {
+      nearAt = at;
+      near = s;
+    }
+  }
+  return best ?? near;
+}
+
+/**
+ * Whether a land stands behind walls: its heart's walls are done and still ring it (not grown past them so far that they were
+ * pulled down). A land behind walls is besieged; one without is stormed or entered, its heart taken with the field.
  */
 export function wallsStand(ctx: PopulationContext, land: number, year: number): boolean {
-  const towns = townsOf(ctx.world);
-  for (const s of ctx.settlements.kept(land)) {
-    const f = s.population > 0 ? towns.of(s) : undefined,
-      w = f?.walls;
-    if (w && w.end <= year && f!.next < w.reach * WALLS_OUTGROWN) return true;
-  }
-  return false;
+  const heart = heartOf(ctx, land),
+    f = heart ? townsOf(ctx.world).of(heart) : undefined,
+    w = f?.walls;
+  return !!w && w.end <= year && f!.next < w.reach * WALLS_OUTGROWN;
 }
 
 /** The principles of walls a land knows, and the walls its towns raised as so many more (sim/town/asks.ts guard: a principle's worth, 0.25, a battle reads). */

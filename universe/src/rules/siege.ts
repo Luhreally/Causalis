@@ -15,6 +15,9 @@ import { dmath } from "../kernel/index.ts";
  */
 export const WALLS_OUTGROWN = 3;
 
+/** How near a land's middle its heart lies (km): the town its battles are fought before (bridge/wars.ts HEART_REACH, the same). */
+export const LAND_HEART_KM = 60;
+
 export const SIEGE = {
   /** The share of a besieged land's harvest grown inside the walls or slipped past the lines. The camp takes the rest. */
   within: 0.1,
