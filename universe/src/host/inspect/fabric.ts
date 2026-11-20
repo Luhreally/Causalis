@@ -463,16 +463,23 @@ export function wallsPage(world: World, ref: string): PageModel {
       stat("Ringing", many(w.reach, "lot", "lots")),
       stat("Now", standing ? "standing" : "pulled down"),
     ];
-  const lines: Line[] = [
-    [
-      `Raised in ${years(w.start, w.end)} about the town as it stood then — ${many(w.reach, "lot", "lots")} of it — a tower at every few lengths, a gate where its road runs out.`,
-    ],
-    [
-      standing
-        ? "They stand: the town has not yet grown far over their line."
-        : "The town has grown over their line, and they have been pulled down: a ring road runs where they stood.",
-    ],
-  ];
+  // (Their line is bridge/wall.ts's: close about the blocks they ring, a tower where it turns and every few lengths between,
+  // a gate across each road out.)
+  const about = `about the town as it stood when they were begun — ${many(w.reach, "lot", "lots")} of it — close about its outermost blocks: a tower wherever their line turns and every few lengths between, a gate across each road out.`,
+    lines: Line[] = [
+      [
+        w.end > year
+          ? `Rising since year ${w.start} ${about}`
+          : `Raised in ${years(w.start, w.end)} ${about}`,
+      ],
+      [
+        standing
+          ? w.end > year
+            ? "The town has not grown past their line."
+            : "They stand: the town has not yet grown far over their line."
+          : "The town has grown over their line, and they have been pulled down: a ring street runs where they stood.",
+      ],
+    ];
   return {
     ref,
     kind: "walls",
