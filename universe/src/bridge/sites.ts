@@ -75,6 +75,13 @@ export type TownSite = {
    */
   readonly wet?: { readonly m: number; readonly half: number; readonly cells: string };
   /**
+   * Where its square stands from its tile's middle (metres on its ground; absent: at the middle): a town whose own tile its
+   * land's map draws as water stands on that tile's bank, at the nearest ground the map draws dry about it (bankOf), its
+   * water quarter toward the water. Its streets, walls and fields are laid about its square as ever; the land's map draws it
+   * there (view/land.ts townMiddle), and `wet` is read from there. A people of the water's has no bank: none is sought.
+   */
+  readonly bank?: { readonly x: number; readonly z: number };
+  /**
    * Its land sows, and its people live on the fields about it (absent: it sows none, or lives on the water's): `until` is
    * the block it had come to when engines came to carry its food from further off (-1: they have not). While its food is
    * walked in, a field close in is worth the walk it saves (FIELD_KEEP), and the town builds along its roads before it
@@ -93,6 +100,12 @@ export const LAND_SCALE = 5;
 export function wetGround(site: TownSite | null | undefined, x: number, z: number): boolean {
   const w = site?.wet;
   if (!w) return false;
+  const b = site!.bank;
+  return b ? wetCell(w, x + b.x, z + b.z) : wetCell(w, x, z);
+}
+
+/** Whether a point (metres from its tile's middle) lies on the water of a town's land's map (TownSite.wet). */
+function wetCell(w: NonNullable<TownSite["wet"]>, x: number, z: number): boolean {
   const fx = x / w.m + w.half,
     fz = z / w.m + w.half,
     i = Math.floor(fx),
@@ -115,6 +128,41 @@ export function wetGround(site: TownSite | null | undefined, x: number, z: numbe
     [east, south] = o >= e && o >= so ? [1, 1] : e >= so ? [1, 0] : [0, 1];
   }
   return (bits & (1 << (east + 2 * south))) !== 0;
+}
+
+/** How far from its tile's middle a town's square is sought on dry ground (metres), by what step, and how much dry ground about it. */
+const BANK_FAR = 720,
+  BANK_STEP = 8,
+  // (Its square, and a block's depth and a lane past it each way: its first blocks stand between it and the water.)
+  BANK_DRY = 72;
+
+/**
+ * Where a town's square stands from its tile's middle (TownSite.bank; null: at the middle): where its land's map draws its
+ * own tile as water (a river's, a lake's, the sea's), the nearest point the map draws dry, with the square's own ground
+ * and a row of blocks about it dry too (BANK_DRY): the tile's bank, the water at its back and its waterfront before it. Sought ring by ring out from the middle (BANK_STEP apart, as far
+ * as BANK_FAR: a tile and a half); none found (an island too small for a square), it stands where it was.
+ */
+export function bankOf(wet: TownSite["wet"]): { x: number; z: number } | null {
+  if (!wet || !wetCell(wet, 0, 0)) return null;
+  const dry = (x: number, z: number) => {
+    if (wetCell(wet, x, z)) return false;
+    for (let k = 0; k < 16; k++) {
+      const a = (k * Math.PI) / 8,
+        r = k % 2 ? BANK_DRY / 2 : BANK_DRY;
+      if (wetCell(wet, x + r * Math.cos(a), z + r * Math.sin(a))) return false;
+    }
+    return true;
+  };
+  for (let r = BANK_STEP; r <= BANK_FAR; r += BANK_STEP) {
+    const n = Math.max(8, Math.ceil((2 * Math.PI * r) / BANK_STEP));
+    for (let k = 0; k < n; k++) {
+      const a = (2 * Math.PI * k) / n,
+        x = Math.round(r * Math.cos(a)),
+        z = Math.round(r * Math.sin(a));
+      if (dry(x, z)) return { x, z };
+    }
+  }
+  return null;
 }
 
 /** A part of a town's ground taken up under a realm's will (TownSite.surveys). */
@@ -215,7 +263,15 @@ export function quarterBearings(
     want: [number, number][] = [
       // (The way in first: where a road runs to the water, the road keeps its bearing and the water quarter lies beside it.)
       [QUARTER.road, main ? main.bearing : zero],
-      [QUARTER.water, water ? Math.atan2(water.z, water.x) : site.up + Math.PI],
+      // (A town on its tile's bank: its water lies back toward the tile's middle, the nearest there is.)
+      [
+        QUARTER.water,
+        site.bank
+          ? Math.atan2(-site.bank.z, -site.bank.x)
+          : water
+            ? Math.atan2(water.z, water.x)
+            : site.up + Math.PI,
+      ],
       [QUARTER.lee, site.lee],
       [QUARTER.high, site.up],
     ],

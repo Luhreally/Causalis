@@ -357,6 +357,7 @@ export {
   onLines,
   roadTiles,
   tileMiddle,
+  townMiddle,
   tileOf,
   treesClear,
   wayOf,

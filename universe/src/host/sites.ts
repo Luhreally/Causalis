@@ -23,6 +23,7 @@ import {
 } from "../sim/index.ts";
 import {
   LAND_SCALE,
+  bankOf,
   streetsLaid,
   type Survey,
   type TownRoad,
@@ -265,7 +266,7 @@ export function landWater(
   i: number,
   j: number,
   undersea: boolean,
-): { wet?: { m: number; half: number; cells: string } } {
+): { wet?: { m: number; half: number; cells: string }; bank?: { x: number; z: number } } {
   if (undersea) return {};
   const w = (a: number, b: number) =>
     a < 0 || b < 0 || a >= r.size || b >= r.size
@@ -283,9 +284,27 @@ export function landWater(
       cells += String.fromCharCode(48 + bits);
       any ||= bits > 0;
     }
-  return any
-    ? { wet: { m: Math.round((r.tileKm * 1000) / LAND_SCALE), half: WET_HALF, cells } }
-    : {};
+  if (!any) return {};
+  // (Its own tile drawn as water: its square stands on the tile's bank, and its water is read from there.)
+  const wet = { m: Math.round((r.tileKm * 1000) / LAND_SCALE), half: WET_HALF, cells },
+    bank = r.water[j * r.size + i] !== WATER.land ? bankOf(wet) : null;
+  return bank ? { wet, bank } : { wet };
+}
+
+/**
+ * Where a town's square stands on its land's map, from its tile's middle (kilometres: the map's own units; 0, 0 where it
+ * stands at the middle): the bank of a tile drawn as water (TownSite.bank), as the land's map draws the town there.
+ */
+export function townSquareOff(world: World, ref: Ref): { x: number; z: number } {
+  const ctx = populationContext(world),
+    s = ctx.settlements.get(ref);
+  if (!s || ctx.medium === "water") return { x: 0, z: 0 };
+  const r = regionOf(ctx, s.cell);
+  if (r.water[s.tile] === WATER.land) return { x: 0, z: 0 };
+  const bank = landWater(r, s.tile % r.size, Math.floor(s.tile / r.size), false).bank;
+  return bank
+    ? { x: (bank.x * LAND_SCALE) / 1000, z: (bank.z * LAND_SCALE) / 1000 }
+    : { x: 0, z: 0 };
 }
 
 /**

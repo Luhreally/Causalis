@@ -294,6 +294,8 @@ export type FormSeen = {
   /** It has homes of five floors and more, and whether its land's walls can be stacked so. */
   readonly tall?: boolean;
   readonly stacks?: boolean;
+  /** Its own ground on its land's map is water, and it stands on the bank (TownSite.bank): which water. */
+  readonly bank?: "river" | "lake" | "sea" | null;
 };
 
 /** How a part of a town's ground was laid, by how far its realm's will was done there. */
@@ -359,6 +361,12 @@ export function formWhys(
       form.drive
         ? `${Math.round(form.rides * 10)} in 10 of its households keep an engine to ride, so the edge is as near as the heart once was: from ${Math.round(form.edge * 10)} tenths of the way out its homes stand apart in their yards.`
         : `At its edge ground is cheap: homes stand apart, each in its yard${form.green >= 0.35 ? " and garden" : form.green < 0.12 ? ", bare for want of rain" : ""}.`,
+    );
+  if (see.bank)
+    out.push(
+      see.bank === "river"
+        ? "It was founded on its river, for its water, and stands on the dry bank: its square by the water, its waterfront along it, the rest of it on the ground behind."
+        : `It was founded on the ${see.bank === "sea" ? "sea" : "lake"}, for its water, and stands on the dry shore: its square by the water, its waterfront along it, the rest of it on the ground behind.`,
     );
   // How its ground was taken up, part by part.
   if (see.surveys && !form.over)

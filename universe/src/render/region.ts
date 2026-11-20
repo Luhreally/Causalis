@@ -526,11 +526,16 @@ export class RegionScene {
   }
 
   /** Screen positions (CSS pixels) of tiles, for labels; null when behind the camera. */
-  screenOf(tiles: readonly number[]): ({ x: number; y: number } | null)[] {
+  screenOf(
+    tiles: readonly number[],
+    /** Each tile's town, where it has one: its name stands over its square as the land draws it (view/land.ts townMiddle). */
+    towns?: readonly (string | undefined)[],
+  ): ({ x: number; y: number } | null)[] {
     const cam = this.stage.camera.camera!,
       out: ({ x: number; y: number } | null)[] = [];
-    for (const tile of tiles) {
-      const at = this.groundAt(tile);
+    for (let k = 0; k < tiles.length; k++) {
+      const tile = tiles[k]!,
+        at = this.townGround(tile, towns?.[k]);
       if (!at) {
         out.push(null);
         continue;
@@ -560,17 +565,17 @@ export class RegionScene {
     return best;
   }
 
-  mark(tile: number | null): void {
+  mark(tile: number | null, town?: string): void {
     this.marker.enabled = tile !== null && this.heights !== null;
     if (tile === null || !this.heights) return;
-    const half = ((this.size - 1) * this.tileKm) / 2,
-      i = tile % this.size,
-      j = Math.floor(tile / this.size);
-    this.marker.setLocalPosition(
-      i * this.tileKm - half,
-      Math.max(0, this.heights[tile]!) + 3,
-      j * this.tileKm - half,
-    );
+    const at = this.townGround(tile, town)!;
+    this.marker.setLocalPosition(at.x, at.y + 3, at.z);
+  }
+
+  /** Where a tile's town stands on the ground (its square as the land draws it), else the tile's middle. */
+  private townGround(tile: number, town?: string): pc.Vec3 | null {
+    const d = town ? this.land.townAt(town) : null;
+    return d ? new pc.Vec3(d.x, this.heightAt(d.x, d.z), d.z) : this.groundAt(tile);
   }
 }
 

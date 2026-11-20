@@ -88,7 +88,7 @@ import {
   type Wonder,
 } from "../bridge/index.ts";
 import { strikesOn, townPlan } from "./town.ts";
-import { realmWays, townSiteOf } from "./sites.ts";
+import { realmWays, townSiteOf, townSquareOff } from "./sites.ts";
 import { realmColor } from "./colors.ts";
 import { hostKinds } from "./arms.ts";
 import { visitorsAt } from "./peoples.ts";
@@ -283,12 +283,16 @@ export function landHeart(world: World, cell: number): Ref | null {
       populationContext(world)
         .settlements.seenIn(cell)
         .filter((s) => s.population > 0)
-        .map((s) => ({
-          ref: s.ref,
-          population: s.population,
-          x: (s.tile % REGION_SIZE) * PROVINCE_TILE_KM - half,
-          z: Math.floor(s.tile / REGION_SIZE) * PROVINCE_TILE_KM - half,
-        })),
+        .map((s) => {
+          // (Its square as the land's map draws it: on its tile's bank, where the tile is water.)
+          const off = townSquareOff(world, s.ref);
+          return {
+            ref: s.ref,
+            population: s.population,
+            x: (s.tile % REGION_SIZE) * PROVINCE_TILE_KM - half + off.x,
+            z: Math.floor(s.tile / REGION_SIZE) * PROVINCE_TILE_KM - half + off.z,
+          };
+        }),
     )?.ref ?? null
   );
 }

@@ -263,6 +263,7 @@ export {
   streetWide,
   placeReach,
   wetGround,
+  bankOf,
   LAND_SCALE,
   reachToward,
   climb,

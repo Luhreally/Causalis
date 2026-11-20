@@ -3775,7 +3775,7 @@ async function runPlanetPage(): Promise<void> {
     const village = tile === null ? null : region.villageNear(tile);
     const hit = village === null ? undefined : villages.find((v) => v.tile === village);
     if (hit) {
-      region.mark(hit.tile);
+      region.mark(hit.tile, hit.ref);
       void pageWindow.open(hit.ref);
       return;
     }
@@ -5986,7 +5986,10 @@ async function runPlanetPage(): Promise<void> {
     } else if (scale === "region") {
       // Into the village nearest the pointer (else the middle of the screen).
       const aim = rig.pointer ?? { x: innerWidth / 2, y: innerHeight / 2 },
-        on = region.screenOf(villages.map((v) => v.tile));
+        on = region.screenOf(
+          villages.map((v) => v.tile),
+          villages.map((v) => v.ref),
+        );
       let best = -1,
         bestD = Infinity;
       on.forEach((p, i) => {
@@ -10337,7 +10340,9 @@ async function runPlanetPage(): Promise<void> {
       const tile = villages.find((v) => v.ref === town)?.tile,
         at = region.land.townAt(town),
         ground = tile === undefined ? null : region.groundAt(tile),
-        target = at ? { x: at.x, y: ground?.y ?? 0, z: at.z } : (ground ?? { x: 0, y: 0, z: 0 });
+        target = at
+          ? { x: at.x, y: region.heightAt(at.x, at.z), z: at.z }
+          : (ground ?? { x: 0, y: 0, z: 0 });
       rig.flyTo({ target, distance: Math.max(14, (at?.r ?? 1) * 9), pitch: -42 });
       return { target, drawn: !!at };
     };
@@ -10374,7 +10379,7 @@ async function runPlanetPage(): Promise<void> {
     } else if (scale === "region") {
       if (p.scale === "village") {
         const v = villages.find((x) => x.ref === p.town);
-        if (v) region.mark(v.tile);
+        if (v) region.mark(v.tile, v.ref);
       } else if (p.scale === "region" && p.tile !== undefined && p.cell === regionCell)
         region.mark(p.tile);
     } else if (scale === "village" && plan) {
@@ -10450,7 +10455,10 @@ async function runPlanetPage(): Promise<void> {
     const camps = landPlan?.camps ?? [];
     if (scale !== "region" || (!villages.length && !camps.length && !campsLabelled)) return;
     campsLabelled = camps.length > 0;
-    const at = region.screenOf(villages.map((v) => v.tile)),
+    const at = region.screenOf(
+        villages.map((v) => v.tile),
+        villages.map((v) => v.ref),
+      ),
       campsAt = region.land.camps.named(stage.camera.camera!),
       wall = performance.now();
     // (The underworld in the land view: its marks, while the 🥷 lens is on: 2026-11-16.)

@@ -9,7 +9,14 @@
 // trodden, then paved, then railed. Pure: what is drawn, in the region's units (kilometres).
 import { MinHeap, YEAR } from "../kernel/index.ts";
 import { civic, type CivicKind } from "../rules/index.ts";
-import type { LandCamp, LandPlan, LandRoad, LandTown, RoadWorks } from "../bridge/index.ts";
+import type {
+  LandCamp,
+  LandPlan,
+  LandRoad,
+  LandTown,
+  RoadWorks,
+  TownSite,
+} from "../bridge/index.ts";
 import { REGION_RELIEF, type RegionTree } from "./region.ts";
 import { outlineAt, sprawlFar, sprawlOf, type TownScene } from "./town.ts";
 import { LAND_SCALE, townReach } from "../bridge/index.ts";
@@ -40,6 +47,19 @@ export function tileMiddle(g: LandGround, tile: number): { x: number; z: number 
     x: (tile % g.size) * g.tileKm - half,
     z: Math.floor(tile / g.size) * g.tileKm - half,
   };
+}
+
+/**
+ * Where a town's square is on its land (region units): its tile's middle, or that tile's bank where the map draws the tile as
+ * water (TownSite.bank). Its mark, its name, its roads' ends, its walls and its fields are all laid about this one point.
+ */
+export function townMiddle(
+  g: LandGround,
+  town: { readonly tile: number; readonly plan: { readonly site?: TownSite } | null },
+): { x: number; z: number } {
+  const m = tileMiddle(g, town.tile),
+    b = town.plan?.site?.bank;
+  return b ? { x: m.x + b.x * LAND_ACROSS, z: m.z + b.z * LAND_ACROSS } : m;
 }
 
 /** The tile a point of the region falls on (its nearest). */

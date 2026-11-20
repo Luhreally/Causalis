@@ -35,6 +35,7 @@ import {
   roadOutside,
   roadTiles,
   tileMiddle,
+  townMiddle,
   townCivics,
   ashReach,
   landMoment,
@@ -422,7 +423,7 @@ export class LandLayer {
       seen.add(town.ref);
       const had = this.towns.get(town.ref);
       if (had && had.key === town.key) continue;
-      const m = tileMiddle(g, town.tile),
+      const m = townMiddle(g, town),
         moment = landMoment(town.plan, t),
         scene = townScene(town.plan, moment, had?.scene.lots),
         settled = had?.settled ?? new TownParts();
@@ -498,7 +499,7 @@ export class LandLayer {
       // Fields about each town, the greatest's first, none on another's ground or fields.
       const circles = plan.towns.map((town) => {
           const d = this.towns.get(town.ref),
-            m = tileMiddle(g, town.tile);
+            m = townMiddle(g, town);
           return {
             ref: town.ref,
             x: m.x,

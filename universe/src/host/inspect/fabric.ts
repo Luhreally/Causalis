@@ -6,6 +6,7 @@
 // walls — when raised, round how much of the town, whether it has grown over them since; and, on
 // the town's own page, all of them together. Pure reads of the fabric as it stands.
 import { hashString, isRef, type Ref, type World } from "../../kernel/index.ts";
+import { WATER } from "../../gen/index.ts";
 import {
   CIVIC_FOR,
   CIVIC_ICON,
@@ -24,6 +25,7 @@ import {
   housingOf,
   houseFor,
   populationContext,
+  regionOf,
   townsOf,
   type Civic,
   type Fabric,
@@ -565,7 +567,14 @@ function townFormWhys(world: World, town: Ref, f: Fabric): string[] {
     temple,
     tall: top >= 3,
     stacks: STACKS.has(walls ?? ""),
+    // (Its own tile is water on its land's map: it stands on the bank, host/sites.ts landWater.)
+    bank: site.bank && home ? bankWater(regionOf(ctx, home.cell).water[home.tile]) : null,
   });
+}
+
+/** Which water a town's tile is, as its page names what it stands on the bank of. */
+function bankWater(w: number | undefined): "river" | "lake" | "sea" | null {
+  return w === WATER.river ? "river" : w === WATER.lake ? "lake" : w === WATER.sea ? "sea" : null;
 }
 
 /** A town's buildings, for its page: its homes by level, its other buildings, its walls (null: no fabric yet). */
