@@ -130,7 +130,13 @@ test("a land struck again and again takes up a response by a draw, tells it, and
   assert.ok(lessened(w, holder, "quake", took) < 1, "learned: each quake costs less");
   const told = w.events
     .all()
-    .find((e) => e.type === LESSON_EVENTS.taken.type && e.place === holder);
+    // (Its taking up of this: the land may have taken up another thing before, against fire or flood.)
+    .find(
+      (e) =>
+        e.type === LESSON_EVENTS.taken.type &&
+        e.place === holder &&
+        (e.data as { cause?: string } | null)?.cause === "quake",
+    );
   assert.ok(told, "the taking up is told");
   // (In what they know: lashed poles before joinery, braced timber after it, steel after that.)
   assert.match(
