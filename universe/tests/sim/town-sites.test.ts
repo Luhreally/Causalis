@@ -23,6 +23,7 @@ import {
   QUARTER,
   QUARTERS,
   grownBlocks,
+  wallOff,
   quarterOf,
   shopsBelow,
   townLots,
@@ -110,15 +111,14 @@ for (const [name, site] of [
     else if (site.rise < 40)
       assert.ok(measured > (n - site.measured) * 0.9, `${measured} measured`);
     if (site.walled !== null) {
-      // (Past the walls' blocks, none on their line.)
-      const wallBlock = Math.ceil(site.walled / 8);
-      let r = 0;
-      for (let i = 0; i < wallBlock; i++) r = Math.max(r, Math.hypot(b.x[i]!, b.z[i]!));
+      // (The blocks walled within their line (bridge/wall.ts); past them, none on it.)
+      const wallBlock = Math.ceil(site.walled / 8),
+        line = b.wall!.line;
+      assert.equal(b.wall!.blocks, wallBlock);
+      for (let i = 0; i < wallBlock; i++)
+        assert.ok(wallOff(line, b.x[i]!, b.z[i]!) < 0, `block ${i} outside its walls`);
       for (let i = wallBlock; i < n; i++)
-        assert.ok(
-          Math.abs(Math.hypot(b.x[i]!, b.z[i]!) - (r + 37)) > 20,
-          `block ${i} on the walls' line`,
-        );
+        assert.ok(Math.abs(wallOff(line, b.x[i]!, b.z[i]!)) > 20, `block ${i} on the walls' line`);
     }
   });
 
