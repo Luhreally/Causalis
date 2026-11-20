@@ -657,6 +657,12 @@ function reignDecrees(
           }),
         });
       },
+      // (What a word could change: to outlaw what is not outlawed, to charter what is not chartered, and to let be again
+      // what a word of theirs or the god's holds now.)
+      tosFor = (g: { standing: number; decree?: number }) =>
+        [0, 1, 2].filter((to) =>
+          to === 1 ? g.decree !== undefined && g.standing !== 1 : to !== g.standing,
+        ),
       orgs = [...(orgsOf(world)?.of(r.ref)?.orgs ?? [])]
         .sort((a, b) => b.power - a.power || a.id - b.id)
         .slice(0, 4),
@@ -669,7 +675,7 @@ function reignDecrees(
         g.event,
         `The ${g.name} ${ORG_KINDS[g.kind] ?? "group"}`,
         HELD[g.standing] ?? "let be",
-        [0, 1, 2].filter((to) => to !== g.standing || g.decree === undefined),
+        tosFor(g),
         `It must hide, and your realm takes of its people. Costs ${pct(0.04 * (g.power / 1000))} in a hundred of your standing: it is strong among your realm's groups.`,
       );
     // (A faith's seat: the body its tithes keep in this realm.)
@@ -682,7 +688,7 @@ function reignDecrees(
         g.keeper,
         `The seat of ${faith?.name ?? "its faith"} here: the ${g.name} ${bodyTitle(ctx, g)}`,
         HELD[g.standing] ?? "let be",
-        [0, 1, 2].filter((to) => to !== g.standing || g.decree === undefined),
+        tosFor(g),
         "Your hand takes of its clergy each year. Costs 2 in a hundred of your standing.",
       );
     }
@@ -693,7 +699,7 @@ function reignDecrees(
         g.event,
         `The ${g.name} ${bodyTitle(ctx, g)}`,
         HELD[g.standing] ?? "let be",
-        [0, 1, 2].filter((to) => to !== g.standing || g.decree === undefined),
+        tosFor(g),
         "Your hand takes of its people each year. Costs 2 in a hundred of your standing.",
       );
     }

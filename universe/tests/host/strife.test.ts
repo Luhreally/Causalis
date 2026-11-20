@@ -24,7 +24,8 @@ const ask = <T>(type: string, args: unknown = {}) => EARTH.queries[type]!(world,
 const ctx = populationContext(world),
   people = (p: Polity) => p.members.reduce((n, c) => n + (ctx.provinces.get(c)?.total() ?? 0), 0),
   [realm, other] = [...politiesOf(world).living()]
-    .filter((p) => p.members.length >= 2)
+    // (Whose rule is its own now: the greatest realm of a history may be under its army at this very year.)
+    .filter((p) => p.members.length >= 2 && !strifeOf(world)?.junta(p.ref))
     .sort((a, b) => people(b) - people(a) || (a.ref < b.ref ? -1 : 1)) as [Polity, Polity],
   at = (k: number) => (world.now + k) as SimTime;
 const page = (ref: string) => ask<PageModel>("page", { ref }),

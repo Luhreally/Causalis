@@ -922,7 +922,13 @@ function stepRealm(
     // (A slump: what its customers pay it fallen under half of what it was a reckoning ago.)
     if (g.fund === FUND.customers && g.since < year - INST.every && pays < INST.slump * g.income)
       slumped.set(g, g.income > 0 ? pays / g.income : 0);
-    g.income = Math.round(pays);
+    // (What its customers pay it is known to it as the years have gone, half this reckoning's and half what it knew: one thin
+    // reckoning of a good that sold little is not a slump. A works was founded 941 times in a century of first light and
+    // failed 305 times, each a body named, told and let go for a year's glut.)
+    g.income =
+      g.fund === FUND.customers && g.since < year - INST.every
+        ? Math.round(0.5 * g.income + 0.5 * pays)
+        : Math.round(pays);
     g.wealth = Math.round(g.wealth * stays + (Math.max(0, g.income) * 0.1 * fade) / INST.spends);
     // What it is besides: a watch and a court as honest as they are paid and watched; a house of teaching that inquires.
     if (g.does === DOES.order || g.does === DOES.judge)

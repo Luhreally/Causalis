@@ -1938,13 +1938,11 @@ function stepRealm(
   writeLands(ctx, p, v, towns, r, badge, bites, warring, year);
   // 11. Those who hunt and tell of them, struck at (sim/order/deeds.ts): as far as its groups are hunted and its officers are
   // not bought, and a free voice tells of them where they live.
-  const huntedBy = DEED.hunted * dmath.clamp(bites * (1 - collusion), 0, 1);
+  const huntedBy = DEED.hunted * dmath.clamp(bites * (1 - collusion), 0, 1),
+    wordRows = bodyLandsStore(world);
   for (const g of v.groups) {
     if (kindOfGroup(g) === "badge" || g.since >= year || g.members < UNDER.crew) continue;
-    const toldBy = Math.min(
-      1,
-      (2 * (bodyLandsStore(world)?.at(g.home, BODY_ROW.word) ?? 0)) / 1000,
-    );
+    const toldBy = Math.min(1, (2 * (wordRows?.at(g.home, BODY_ROW.word) ?? 0)) / 1000);
     if (huntedBy <= 0 && toldBy <= 0) continue;
     const will = 0.75 * huntedBy + 0.25 * toldBy;
     if (will < DEED.willLeast) continue;
