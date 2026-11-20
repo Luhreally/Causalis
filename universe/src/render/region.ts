@@ -221,17 +221,34 @@ export class RegionScene {
     return this.ground;
   }
 
-  /** Recolour the terrain (RGBA per tile): each facet the colour most of its three tiles have. */
+  /**
+   * Recolour the terrain (RGBA per tile): each facet the colour most of its three tiles have. A facet is water only where
+   * two of its three tiles are (view/land.ts facetWet reads the same): one water tile among land coloured the facets about
+   * it blue a tile out each way, and towns and fields that kept off the water's tiles stood on blue (2026-11-20).
+   */
   paint(colors: Uint8Array): void {
     if (!this.mesh || !this.corners || !this.colors) return;
     const tiles = new Uint32Array(colors.buffer, colors.byteOffset, colors.length >> 2),
       out = new Uint32Array(this.colors.buffer),
-      k = this.corners;
+      k = this.corners,
+      water = this.ground?.water;
     for (let t = 0; t < k.length; t += 3) {
-      const a = tiles[k[t]!]!,
-        b = tiles[k[t + 1]!]!,
-        c = tiles[k[t + 2]!]!,
-        face = a === b || a === c ? a : b === c ? b : a;
+      const ka = k[t]!,
+        kb = k[t + 1]!,
+        kc = k[t + 2]!,
+        a = tiles[ka]!,
+        b = tiles[kb]!,
+        c = tiles[kc]!;
+      let face = a === b || a === c ? a : b === c ? b : a;
+      if (water) {
+        const wa = water[ka]! !== 0,
+          wb = water[kb]! !== 0,
+          wc = water[kc]! !== 0,
+          wet = (wa ? 1 : 0) + (wb ? 1 : 0) + (wc ? 1 : 0);
+        // (Two of water: the first of them. One: the first of the two of land.)
+        if (wet >= 2) face = wa ? a : b;
+        else if (wet === 1) face = wa ? b : a;
+      }
       out[t] = out[t + 1] = out[t + 2] = face;
     }
     this.mesh.setColors32(this.colors);

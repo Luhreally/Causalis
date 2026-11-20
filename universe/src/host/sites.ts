@@ -254,9 +254,8 @@ export function surveysOf(
 const WET_HALF = 6;
 
 /**
- * Its land's water about a town (TownSite.wet; nothing where none is near, or its people live in the water): the sea and
- * lake and river tiles of its land's map about its own tile (the map draws a river's tile as water from edge to edge:
- * a town on a river stands on its own tile's bank and grows away from the water, not over the next tile of it).
+ * Its land's water about a town (TownSite.wet; nothing where none is near, or its people live in the water): the facets of
+ * its land's map about its own tile that the map draws as water (two of a facet's three tiles in the sea, a lake or a river).
  */
 export function landWater(
   r: { size: number; tileKm: number; water: Uint8Array },
@@ -265,17 +264,24 @@ export function landWater(
   undersea: boolean,
 ): { wet?: { m: number; half: number; cells: string } } {
   if (undersea) return {};
+  const w = (a: number, b: number) =>
+    a < 0 || b < 0 || a >= r.size || b >= r.size
+      ? 0
+      : r.water[b * r.size + a]! !== WATER.land
+        ? 1
+        : 0;
   let cells = "",
     any = false;
-  for (let dj = -WET_HALF; dj <= WET_HALF; dj++)
-    for (let di = -WET_HALF; di <= WET_HALF; di++) {
+  for (let dj = -WET_HALF; dj < WET_HALF; dj++)
+    for (let di = -WET_HALF; di < WET_HALF; di++) {
       const a = i + di,
         b = j + dj,
-        w = a < 0 || b < 0 || a >= r.size || b >= r.size ? 0 : r.water[b * r.size + a]!,
-        // (Never its own tile: a town stands on its ground, whatever its map's tile is called.)
-        wet = w !== WATER.land && (di !== 0 || dj !== 0);
-      cells += wet ? "1" : "0";
-      any ||= wet;
+        // (The square's facets as the map's mesh cuts it: its near corner, the one south of it and the one east; then
+        // the east, the south and the far corner.)
+        first = w(a, b) + w(a, b + 1) + w(a + 1, b) >= 2 ? 1 : 0,
+        second = w(a + 1, b) + w(a, b + 1) + w(a + 1, b + 1) >= 2 ? 2 : 0;
+      cells += String(first + second);
+      any ||= first + second > 0;
     }
   return any
     ? { wet: { m: Math.round((r.tileKm * 1000) / LAND_SCALE), half: WET_HALF, cells } }

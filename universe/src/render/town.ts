@@ -35,6 +35,7 @@ import {
   townWalls,
   strikeSpan,
   strikeTurned,
+  partBatch,
   type BlazeNow,
   type CivicMotion,
   type PartMesh,
@@ -52,7 +53,9 @@ const RISE_EVERY = 6 * 3600,
   /** ... and while what struck it plays out — homes catching, burning, falling in (Phase 42 M201). */
   STRUCK_EVERY = 60;
 
-/** Batches of parts by mesh and colour, kept and refilled (made anew only when one outgrows itself). */
+type Group = { mesh: PartMesh; color: Rgb; data: number[]; lamp?: boolean };
+
+/** Batches of parts by mesh, each part in its own colour, kept and refilled (made anew only when one outgrows itself). */
 class PartBatches {
   private readonly batches = new Map<string, InstancedBatch>();
   private readonly stage: Stage;
@@ -61,8 +64,6 @@ class PartBatches {
   /** The windows' glass, lit at night (its batch made anew when it changes). */
   lamps: pc.Material | null = null;
   private lampsIn: pc.Material | null = null;
-  /** Each batch's own colour, and whether it is a roof (snow lies on it: Phase 30 M164). */
-  private readonly bases = new Map<string, { color: Rgb; roof: boolean }>();
   private snow = 0;
   constructor(stage: Stage, root: pc.Entity, meshes: Readonly<Record<PartMesh, pc.Mesh>>) {
     this.stage = stage;
@@ -70,34 +71,46 @@ class PartBatches {
     this.meshes = meshes;
   }
   show(parts: TownParts): void {
+    // (One batch to a mesh, its roofs apart for the snow that lies on them: every colour of wall, roof and ground rides in
+    // its instance. The windows keep theirs, lit at night.)
+    const sets = new Map<string, { mesh: PartMesh; lamp: boolean; n: number; groups: Group[] }>();
     for (const [key, g] of parts.groups) {
       const n = g.data.length / 7;
+      if (n === 0) continue;
+      const k = partBatch(key, g);
+      let set = sets.get(k);
+      if (!set) sets.set(k, (set = { mesh: g.mesh, lamp: !!g.lamp, n: 0, groups: [] }));
+      set.n += n;
+      set.groups.push(g);
+    }
+    for (const [key, set] of sets) {
       let b = this.batches.get(key);
-      if (n === 0) {
-        b?.set(0, () => {});
-        continue;
-      }
-      if (!b || b.capacity < n || (g.lamp && this.lampsIn !== this.lamps)) {
+      if (!b || b.capacity < set.n || (set.lamp && this.lampsIn !== this.lamps)) {
         b?.destroy();
         b = new InstancedBatch(
           this.stage,
-          this.meshes[g.mesh],
-          [g.color[0], g.color[1], g.color[2]],
-          Math.max(16, Math.ceil(n * 1.3)),
+          this.meshes[set.mesh],
+          [set.groups[0]!.color[0], set.groups[0]!.color[1], set.groups[0]!.color[2]],
+          Math.max(16, Math.ceil(set.n * 1.3)),
           this.root,
-          g.lamp ? (this.lamps ?? undefined) : undefined,
+          set.lamp ? (this.lamps ?? undefined) : undefined,
+          !set.lamp,
         );
-        if (g.lamp) this.lampsIn = this.lamps;
+        if (set.lamp) this.lampsIn = this.lamps;
         this.batches.set(key, b);
-        this.bases.set(key, {
-          color: [g.color[0], g.color[1], g.color[2]],
-          roof: !g.lamp && (g.mesh === "gable" || g.mesh === "cone"),
-        });
-        if (this.snow > 0) this.tint(key, b);
+        if (this.snow > 0 && key.endsWith("|roof")) b.toneSnow(this.snow * 0.8);
       }
-      const d = g.data;
-      b.set(n, (i, out) => {
-        const o = i * 7;
+      // (Group by group, in the order they were gathered.)
+      let at = 0,
+        from = 0,
+        g = set.groups[0]!;
+      b.set(set.n, (i, out) => {
+        while (i - from >= g.data.length / 7) {
+          from += g.data.length / 7;
+          g = set.groups[++at]!;
+        }
+        const d = g.data,
+          o = (i - from) * 7;
         out[0] = d[o]! * M;
         out[1] = d[o + 1]! * M;
         out[2] = d[o + 2]! * M;
@@ -105,29 +118,29 @@ class PartBatches {
         out[4] = d[o + 4]! * M;
         out[5] = d[o + 5]! * M;
         out[6] = d[o + 6]!;
+        out[8] = g.color[0];
+        out[9] = g.color[1];
+        out[10] = g.color[2];
       });
     }
-    for (const [key, b] of this.batches) if (!parts.groups.has(key)) b.set(0, () => {});
+    for (const [key, b] of this.batches) if (!sets.has(key)) b.set(0, () => {});
+  }
+  /** How many batches hold anything (for a measure). */
+  get drawn(): number {
+    let n = 0;
+    for (const b of this.batches.values()) if (b.size) n++;
+    return n;
   }
   /** Snow lying on the roofs (0 … 1). */
   season(snow: number): void {
     if (snow === this.snow) return;
     this.snow = snow;
-    for (const [key, b] of this.batches) this.tint(key, b);
-  }
-
-  private tint(key: string, b: InstancedBatch): void {
-    const base = this.bases.get(key);
-    if (!base?.roof) return;
-    const c = base.color,
-      k = this.snow * 0.8;
-    b.recolor([c[0] + (0.93 - c[0]) * k, c[1] + (0.95 - c[1]) * k, c[2] + (0.98 - c[2]) * k]);
+    for (const [key, b] of this.batches) if (key.endsWith("|roof")) b.toneSnow(snow * 0.8);
   }
 
   destroy(): void {
     for (const b of this.batches.values()) b.destroy();
     this.batches.clear();
-    this.bases.clear();
   }
 }
 

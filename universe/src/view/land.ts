@@ -51,6 +51,23 @@ export function tileOf(g: LandGround, x: number, z: number): number {
 }
 
 /**
+ * Whether the land's map draws a point as water: the facet it lies on (of the two each square of four tiles' middles is cut
+ * into, as the terrain's mesh cuts them) has two of its three tiles in water (render/region.ts paint).
+ */
+export function facetWet(g: LandGround, x: number, z: number): boolean {
+  const half = ((g.size - 1) * g.tileKm) / 2,
+    fx = Math.max(0, Math.min(g.size - 1 - 1e-6, (x + half) / g.tileKm)),
+    fz = Math.max(0, Math.min(g.size - 1 - 1e-6, (z + half) / g.tileKm)),
+    i = Math.floor(fx),
+    j = Math.floor(fz),
+    a = j * g.size + i,
+    w = (t: number) => (g.water[t]! !== 0 ? 1 : 0);
+  return fx - i + (fz - j) <= 1
+    ? w(a) + w(a + g.size) + w(a + 1) >= 2
+    : w(a + 1) + w(a + g.size) + w(a + g.size + 1) >= 2;
+}
+
+/**
  * The ground's height at a point, on the terrain's own facets: each square of four tiles' middles
  * split corner to corner from its upper right to its lower left, as the mesh is (never below the sea).
  */
@@ -180,7 +197,7 @@ export function landFields(
       fx = x + u * ca + v * sa,
       fz = z - u * sa + v * ca,
       t = tileOf(g, fx, fz);
-    if (g.water[t] !== 0 || g.fertility[t]! < 40 || near(fx, fz)) continue;
+    if (g.water[t] !== 0 || facetWet(g, fx, fz) || g.fertility[t]! < 40 || near(fx, fz)) continue;
     if (others.some((o) => Math.hypot(fx - o.x, fz - o.z) < o.r + 0.3)) continue;
     // (Not up a hillside: the ground about it within a field's length of level.)
     const y = groundAt(g, fx, fz),

@@ -3,7 +3,7 @@
 // and fleets are drawn this way; entities exist only for the batch, never per
 // simulated thing.
 import * as pc from "playcanvas";
-import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
+import { flatMaterial, toneOf, tonedMaterial, type Rgb, type Stage } from "./stage.ts";
 import { BEAST_SHAPES } from "../view/index.ts";
 
 export class InstancedBatch {
@@ -12,6 +12,7 @@ export class InstancedBatch {
   private readonly buffer: pc.VertexBuffer;
   private readonly instance: pc.MeshInstance;
   private readonly entity: pc.Entity;
+  private readonly toned: boolean;
   private count = 0;
 
   constructor(
@@ -21,10 +22,16 @@ export class InstancedBatch {
     capacity: number,
     parent?: pc.Entity,
     material?: pc.Material,
+    /** Each instance carries its own colour (stage.ts tonedMaterial): set() reads it from out[8 … 10]; `color` is not used. */
+    toned = false,
   ) {
     this.capacity = capacity;
+    this.toned = toned;
     this.matrices = new Float32Array(capacity * 16);
-    this.instance = new pc.MeshInstance(mesh, material ?? flatMaterial(color));
+    this.instance = new pc.MeshInstance(
+      mesh,
+      material ?? (toned ? tonedMaterial() : flatMaterial(color)),
+    );
     const format = pc.VertexFormat.getDefaultInstancingFormat(stage.device);
     this.buffer = new pc.VertexBuffer(stage.device, format, capacity, {
       usage: pc.BUFFER_DYNAMIC,
@@ -42,6 +49,11 @@ export class InstancedBatch {
     const m = this.instance.material as pc.StandardMaterial;
     m.diffuse.set(color[0], color[1], color[2]);
     m.update();
+  }
+
+  /** How far its instances are whitened (0 … 1: snow on a toned batch of roofs). */
+  toneSnow(k: number): void {
+    this.instance.material.setParameter("uToneSnow", k);
   }
 
   /** Whether it casts shadows (fire, smoke and dust: not). */
@@ -64,8 +76,9 @@ export class InstancedBatch {
    */
   set(count: number, place: (i: number, out: number[]) => void): void {
     const n = Math.min(count, this.capacity),
-      t = [0, 0, 0, 1, 1, 1, 0, 0],
-      m = this.matrices;
+      t = [0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1],
+      m = this.matrices,
+      toned = this.toned;
     for (let i = 0; i < n; i++) {
       t[7] = 0;
       place(i, t);
@@ -88,15 +101,15 @@ export class InstancedBatch {
       m[o] = c * sx;
       m[o + 1] = 0;
       m[o + 2] = -s * sx;
-      m[o + 3] = 0;
+      m[o + 3] = toned ? toneOf(t[8]!) : 0;
       m[o + 4] = s * sp * sy;
       m[o + 5] = cp * sy;
       m[o + 6] = c * sp * sy;
-      m[o + 7] = 0;
+      m[o + 7] = toned ? toneOf(t[9]!) : 0;
       m[o + 8] = s * cp * sz;
       m[o + 9] = -sp * sz;
       m[o + 10] = c * cp * sz;
-      m[o + 11] = 0;
+      m[o + 11] = toned ? toneOf(t[10]!) : 0;
       m[o + 12] = x;
       m[o + 13] = y;
       m[o + 14] = z;

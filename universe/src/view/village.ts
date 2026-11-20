@@ -6637,6 +6637,8 @@ export type HouseLook = {
   /** What its tenements are raised in, and its blocks (absent: brick, concrete). */
   readonly stuff?: Rgb;
   readonly block?: Rgb;
+  /** What its high-rises are glazed in (absent: blue glass). */
+  readonly glass?: Rgb;
 };
 
 // Walls and roofs in the bright, clean colours of the era's games (art track A3).
