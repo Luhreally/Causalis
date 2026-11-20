@@ -3,7 +3,7 @@
 import { cellRef } from "../../gen/index.ts";
 import type { Ref, World } from "../../kernel/index.ts";
 import type { Block, PageModel, Place, Row, Stat, Tab } from "../../bridge/index.ts";
-import { IDEA_ASKS, IDEA_PARTS } from "../../rules/index.ts";
+import { HOLD_KINDS, IDEA_ASKS, IDEA_PARTS, holdWords } from "../../rules/index.ts";
 import {
   beliefOf,
   homePlanet,
@@ -15,6 +15,7 @@ import {
   schoolId,
   schoolOver,
   schoolRef,
+  schoolStands,
   schoolsOf,
   type Polity,
   type School,
@@ -43,9 +44,14 @@ function founderOf(world: World, s: School): ReturnType<typeof link> {
 
 const groupWords = (g: string): string => (/^the /.test(g) ? g : `the ${g}`);
 
-/** What a school teaches: each leaning, the end it presses toward and how hard. */
-function teachingBlock(s: School): Block {
-  const rows: Stat[] = [];
+/**
+ * What a school teaches: each leaning, the end it presses toward and how hard; and, of how a realm is held, where it would
+ * have that stand (its voice is for that and no further: where a realm's groups want more, it is for less).
+ */
+function teachingBlock(world: World, s: School): Block {
+  const rows: Stat[] = [],
+    body = homePlanet(world).generated.life.people?.body,
+    stands = schoolStands(s);
   for (const a of schoolAsks(s, IDEA_PARTS))
     rows.push(
       stat(sentence(a.words), `${Math.abs(a.lean) >= 15 ? "pressed hard" : "asked"}`, {
@@ -54,6 +60,18 @@ function teachingBlock(s: School): Block {
             label: [`rather than ${IDEA_ASKS[a.part]![a.lean >= 0 ? 0 : 1]}`],
             value: `${Math.abs(a.lean)} in a hundred`,
           },
+          ...(a.part < HOLD_KINDS.length
+            ? [
+                {
+                  label: ["It would have a realm held so, and no further"],
+                  value: holdWords(HOLD_KINDS[a.part]!, (stands[a.part] ?? 50) / 100, {
+                    body,
+                    arm: null,
+                    far: null,
+                  }),
+                },
+              ]
+            : []),
         ],
       }),
     );
@@ -135,7 +153,7 @@ export function schoolPage(world: World, ref: string): PageModel {
                 : []),
             ],
           },
-          teachingBlock(s),
+          teachingBlock(world, s),
           {
             type: "text",
             title: "What holding it does",

@@ -39,6 +39,7 @@ import {
   evidenceKept,
   evidenceOf,
   leaningOf,
+  madeItsOwn,
   faredBy,
   howWords,
   fortuneAfter,
@@ -254,7 +255,8 @@ export function weighHolds(ctx: PopulationContext, p: Polity, o: RealmOrder, t: 
             ? 0.2 * (0.5 - now[HOLD.voice]!)
             : 0,
       afraid = fear && k < 3 ? fear.moves[k as 0 | 1 | 2] : 0,
-      schooled = pullOnHold(school, k),
+      // (The school most of its lands hold is one more voice among its groups, for what it teaches: sim/ideas.)
+      schooled = 0.5 * pullOnHold(school, k, groups),
       target = dmath.clamp(
         0.5 * anchor[k]! + 0.5 * groups + pressed + carried + pulls[k]! + afraid + schooled,
         0,
@@ -343,7 +345,8 @@ export function weighHolds(ctx: PopulationContext, p: Polity, o: RealmOrder, t: 
         ...(Math.abs(schooled) >= 0.005
           ? [
               {
-                name: `what ${school!.school.name} teaches`,
+                // (Where its groups want more of a thing than its school asks, the school's voice is for less: said so.)
+                name: `what ${school!.school.name} teaches${schooled * (school!.school.creed[k] ?? 0) < 0 ? ", though those here already want more of that than it asks" : ""}`,
                 value: school!.hold,
                 contribution: schooled,
                 source: { ref: school!.school.event, role: "pressure" as const, weight: 1 },
@@ -609,17 +612,18 @@ function weigh(
     values = valuesOf(ways),
     fared = faredBy(fortune, values),
     chance = chanceOf(ways),
+    theirWays = own ? ways : waysRead(culture.get(whose.seat)),
     seen = own
       ? 1
       : seenWeight(
           near,
           // (How like it they are: in their ways, and in how great they are.)
-          likeness(ways, waysRead(culture.get(whose.seat))) *
-            alikeInSize(o.was?.[0] ?? 0, theirs.was?.[0] ?? 0),
+          likeness(ways, theirWays) * alikeInSize(o.was?.[0] ?? 0, theirs.was?.[0] ?? 0),
           stance[HOLD.word]! / 100,
           ways.openness,
         ),
-    weight = seen * (1 - chance),
+    // (And by how far the way it stood was of its own making: a realm new-founded stands as its founding left it.)
+    weight = seen * (1 - chance) * madeItsOwn(year - whose.founded, theirWays.tradition),
     stood = stance.map((x) => x / 100),
     evidence = evidenceOf(stood, usual, fared, weight),
     moved = evidence.reduce((s, x) => s + Math.abs(x), 0);

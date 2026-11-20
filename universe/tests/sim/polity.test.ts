@@ -101,7 +101,7 @@ test("a realm explains itself back through its founding to the land and the star
   assert.equal(node.basis, "recorded");
   assert.match(
     node.claim,
-    /^the (chiefdom|league|commonwealth|holy seat) of .*: \d+ lands? ruled from/,
+    /^the (chiefdom|league|commonwealth|holy seat|protectorate) of .*: \d+ lands? ruled from/,
   );
   const path = spine(world, p.ref),
     types = path.map(

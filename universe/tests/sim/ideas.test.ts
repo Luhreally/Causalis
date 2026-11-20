@@ -13,6 +13,9 @@ import {
   abroadAfter,
   creditLeft,
   ideaApart,
+  ideaStands,
+  ideaSways,
+  teachingsApart,
   ideaCreed,
   ideaLeads,
   ideaSpreads,
@@ -178,7 +181,7 @@ test("the new stores are a world's, and every new kind of event is said in words
 test("a school most of a realm's lands hold draws its numbers and its laws the way it teaches, the more the longer held", () => {
   const store = schoolsOf(world)!;
   assert.equal(schoolOver(world, realm.members, realm.seat, year, 70), null, "none held: no pull");
-  assert.equal(pullOnHold(null, 1), 0);
+  assert.equal(pullOnHold(null, 1, 0.5), 0);
   const id = store.mint();
   store.add({
     id,
@@ -188,6 +191,8 @@ test("a school most of a realm's lands hold draws its numbers and its laws the w
     seat: realm.seat,
     from: null,
     creed: [0, 20, 10, 0, 15, 0, -15, 0],
+    // (Founded where voice stood at 0.4 and word at 0.5: it would have them at 0.6 and 0.6; arms and trust as they were.)
+    stands: [50, 60, 60, 50],
     founder: 0,
     by: "Someone",
     speaks: "farmers",
@@ -201,8 +206,48 @@ test("a school most of a realm's lands hold draws its numbers and its laws the w
   for (const c of realm.members) store.set(c, { school: id, since: year - 60, via: realm.seat });
   const all = schoolOver(world, realm.members, realm.seat, year, 70)!;
   assert.ok(all.hold > one.hold && all.hold <= 1);
-  assert.ok(pullOnHold(all, 1) > 0 && pullOnHold(all, 1) <= (20 / 100) * IDEA.pull);
-  assert.equal(pullOnHold(all, 0), 0);
+  // (What its groups want of voice: 0.4. The school would have it at 0.6: its voice among theirs, by how far it holds.)
+  const e = IDEA.pull * all.hold;
+  assert.ok(Math.abs(pullOnHold(all, 1, 0.4) - (e / (1 + e)) * 0.2) < 1e-12);
+  assert.ok(
+    pullOnHold(all, 1, 0.4) > 0 &&
+      pullOnHold(all, 1, 0.4) < 0.2 * (IDEA.pull / (1 + IDEA.pull)) + 1e-12,
+  );
+  assert.equal(pullOnHold(all, 0, 0.5), 0);
+  // A teaching is a place to stand, and its voice is one among the realm's: the nearer what they want is to it the less it
+  // adds, nothing where they want what it asks, and the other way where they already want more than it asks; never more
+  // than its share of the sway, however far apart they are; less the less it holds.
+  assert.ok(pullOnHold(all, 1, 0.5) < pullOnHold(all, 1, 0.4));
+  assert.equal(pullOnHold(all, 1, 0.6), 0);
+  assert.ok(
+    pullOnHold(all, 1, 0.8) < 0,
+    "where they want more than it asks, its voice is for less",
+  );
+  assert.ok(Math.abs(pullOnHold(all, 1, 0.8) + pullOnHold(all, 1, 0.4)) < 1e-12);
+  assert.ok(Math.abs(pullOnHold(all, 1, 0)) <= 0.6 * (IDEA.pull / (1 + IDEA.pull)) + 1e-12);
+  assert.ok(pullOnHold(one, 1, 0.4) > 0 && pullOnHold(one, 1, 0.4) < pullOnHold(all, 1, 0.4));
+  assert.equal(ideaSways(60, 0.4, 0), 0);
+  // (One kept before its place was: its leanings from the middle.)
+  assert.deepEqual(ideaStands([0, 20, 10, 0, 15, 0, -15, 0]), [50, 70, 60, 50]);
+  // Two that would have a realm held alike are one teaching, however far each realm that heard them stood from it.
+  assert.equal(
+    teachingsApart(
+      [50, 60, 60, 50],
+      [0, 25, 10, 0, 0, 0, 0, 0],
+      [50, 60, 60, 50],
+      [0, 5, 0, 0, 0, 0, 0, 0],
+    ),
+    0,
+  );
+  assert.equal(
+    teachingsApart(
+      [50, 60, 60, 50],
+      [0, 0, 0, 0, 15, 0, 0, 0],
+      [50, 80, 60, 40],
+      [0, 0, 0, 0, -15, 0, 0, 0],
+    ),
+    60,
+  );
   assert.ok(pullOnLaw(all, 0) > 0 && pullOnLaw(all, 2) < 0);
   // (Held a year, it draws far less than held two generations.)
   for (const c of realm.members) store.set(c, { school: id, since: year - 1, via: realm.seat });

@@ -2012,6 +2012,7 @@ export {
   schoolId,
   schoolIn,
   schoolOver,
+  schoolStands,
   schoolRef,
   schoolsOf,
   type School,

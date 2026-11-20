@@ -12,7 +12,14 @@
 //   its founder: one of name in knowledge or in faith (rules/notables.ts), in a land where word can be kept or passed on;
 //   its spread: as a faith's, by likeness of speech, a road, and more where a body teaches or where higher learning stands, less
 //     where word is watched;
-//   its pull: on a realm by the share of its lands that hold it and by how long (a generation: half of it), bounded.
+//   its pull: on a realm by the share of its lands that hold it and by how long (a generation: half of it). A school is a
+//     voice for those it speaks for, where the realm weighs how it is held: it adds to the sway that is weighed there (at
+//     the most IDEA.pull of all the rest together), and what it asks is where it teaches each number should stand (what its
+//     founder's group wanted, kept as the school's own). Sway is shared out: what the school's voice gains, every other
+//     loses; it draws a realm no further than what it asks, and where those of a realm already want more of a thing than
+//     the school asks, its voice is for less. Kept as a push of its own beside the groups (its founding gap added at every
+//     weighing, wherever the realm had since come to), a school went on moving a realm that already gave more than it had
+//     ever asked, nothing answered it, and no one paid for it;
 // A work (a song, a carved stone, a book, as the people's means allow) is made by one of name for a patron who can spare for it,
 // of something worth remembering: it keeps that memory from fading and credits whoever paid. A pilgrimage is the faithful's (or
 // the taught's) going to where the thing they hold began, by how many hold it, how devout, how far. Pure numbers and functions.
@@ -113,7 +120,45 @@ export function ideaCreed(
   return out;
 }
 
-/** How far two teachings lie apart: the sum of the differences of their eight leanings (hundredths). */
+/**
+ * What a school's voice adds to what a realm's groups together want of a number (as a share, either way): `wanted` is what
+ * they want of it, each by its sway (0 … 1); `stands` where the school teaches it should stand (hundredths); `hold` how far
+ * the school holds in that realm (0 … 1). The school speaks with IDEA.pull of all their sway at the most, and the whole is
+ * shared out again: (wanted + e × stands) / (1 + e), less what was wanted. Nothing where they want what it asks.
+ */
+export function ideaSways(stands: number, wanted: number, hold: number): number {
+  const e = IDEA.pull * dmath.clamp(hold, 0, 1);
+  return (e / (1 + e)) * (stands / 100 - wanted);
+}
+
+/**
+ * Where a school teaches each of the four numbers should stand (hundredths), for one kept before that was (a save of
+ * 2026-11-19): its leanings from the middle.
+ */
+export function ideaStands(creed: readonly number[]): number[] {
+  return HOLD_KINDS.map((_, k) => dmath.clamp(50 + (creed[k] ?? 0), 0, 100));
+}
+
+/**
+ * How far two teachings lie apart (hundredths, summed over the eight): where each would have the four numbers stand, and how
+ * each leans on the four laws. Two that would have a realm held alike are one teaching, however far each realm that heard
+ * them stood from it.
+ */
+export function teachingsApart(
+  standsA: readonly number[],
+  creedA: readonly number[],
+  standsB: readonly number[],
+  creedB: readonly number[],
+): number {
+  let d = 0;
+  for (let k = 0; k < HOLD_KINDS.length; k++)
+    d += Math.abs((standsA[k] ?? 50) - (standsB[k] ?? 50));
+  for (let k = HOLD_KINDS.length; k < IDEA_PARTS; k++)
+    d += Math.abs((creedA[k] ?? 0) - (creedB[k] ?? 0));
+  return d;
+}
+
+/** How far two teachings' leanings lie apart: the sum of the differences of their eight leanings (hundredths). */
 export function ideaApart(a: readonly number[], b: readonly number[]): number {
   let d = 0;
   for (let k = 0; k < IDEA_PARTS; k++) d += Math.abs((a[k] ?? 0) - (b[k] ?? 0));

@@ -10,7 +10,7 @@ import {
   type StateStore,
   type World,
 } from "../../kernel/index.ts";
-import { IDEA, IDEA_PARTS, creedHeld } from "../../rules/index.ts";
+import { IDEA, IDEA_PARTS, creedHeld, ideaStands, ideaSways } from "../../rules/index.ts";
 
 /** A school's own reference: an event's subject, a page's address. */
 export const SCHOOL = defineKind("idea", "school of thought", "structural");
@@ -28,6 +28,11 @@ export type School = {
   readonly from: number | null;
   /** Its leanings, in hundredths: on force, voice, word and trust, then on the laws of land, strangers, faith and justice. */
   readonly creed: readonly number[];
+  /**
+   * Where it teaches each of the four numbers should stand (hundredths): what its founder's group wanted of the realm when it
+   * was founded. Absent in a save from before it was kept (2026-11-19): read then as its leanings from the middle (`schoolStands`).
+   */
+  readonly stands?: readonly number[];
   /** Who founded it (a notable's id, their name as it was), and the group of their realm whose wants it speaks. */
   readonly founder: number;
   readonly by: string;
@@ -163,6 +168,7 @@ export class SchoolsStore implements StateStore {
     for (const s of this.list) {
       h.int(s.id).int(s.founded).int(s.seat).int(s.founder).string(s.name);
       for (let k = 0; k < IDEA_PARTS; k++) h.int(s.creed[k] ?? 0);
+      if (s.stands) for (const v of s.stands) h.int(v);
     }
     const rows = this.heldRows();
     h.int(rows.length);
@@ -213,6 +219,11 @@ export function schoolIn(world: World, cell: number): School | undefined {
   return h ? store!.get(h.school) : undefined;
 }
 
+/** Where a school teaches each of the four numbers should stand (hundredths). */
+export function schoolStands(s: School): readonly number[] {
+  return s.stands ?? ideaStands(s.creed);
+}
+
 /** What a school draws a realm toward: which, how far it holds there (0 … 1), and its leanings (hundredths). */
 export type SchoolPull = { readonly school: School; readonly hold: number };
 
@@ -250,9 +261,14 @@ export function schoolOver(
   return school && total > 0 ? { school, hold: Math.min(1, bestW / total) } : null;
 }
 
-/** A school's pull on one of a realm's four numbers (about ±0.15 at the most), and on a law's support toward the new order. */
-export function pullOnHold(p: SchoolPull | null, k: number): number {
-  return p ? ((p.school.creed[k] ?? 0) / 100) * IDEA.pull * p.hold : 0;
+/**
+ * What a school adds to what a realm's groups want of one of its four numbers, where `wanted` is what they want of it by
+ * their sway (0 … 1): the school's voice among theirs, for where it teaches the number should stand (rules/ideas.ts
+ * ideaSways). And its pull on a law's support toward the new order (a law has three places to stand: the pull ends where the
+ * law has come to the end it leans to).
+ */
+export function pullOnHold(p: SchoolPull | null, k: number, wanted: number): number {
+  return p ? ideaSways(schoolStands(p.school)[k] ?? 50, wanted, p.hold) : 0;
 }
 export function pullOnLaw(p: SchoolPull | null, law: number): number {
   return p ? ((p.school.creed[4 + law] ?? 0) / 100) * IDEA.lawPull * p.hold : 0;

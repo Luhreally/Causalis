@@ -18,6 +18,7 @@ import {
   leanOf,
   leaningOf,
   likeness,
+  madeItsOwn,
   movedWords,
   noBelief,
   pullOf,
@@ -203,4 +204,31 @@ test("how a realm took it is read off what it did with it, and its words are com
   assert.equal(tookWords("theirs", false, true), "held it its strength");
   assert.equal(tookWords("ours", true, true), "took it as an example to itself");
   assert.equal(tookWords("theirs", true, false), "blamed those who brought them down");
+});
+
+test("the way a realm stands is its own making only with the years: a realm fallen new says little of how it was held", () => {
+  assert.equal(madeItsOwn(0), 0, "as its founding left it");
+  assert.equal(madeItsOwn(-3), 0);
+  assert.ok(
+    Math.abs(madeItsOwn(10, 0) - 0.3) < 1e-9,
+    "one weighing, a people who keep to nothing: the pace whole",
+  );
+  assert.ok(
+    Math.abs(madeItsOwn(10) - 0.225) < 1e-9,
+    "at middling ways: a weighing moves three quarters of that",
+  );
+  assert.ok(Math.abs(madeItsOwn(10, 1) - 0.15) < 1e-9, "a people who keep to what is: half");
+  assert.ok(madeItsOwn(30) > 0.5 && madeItsOwn(30) < 0.6);
+  assert.ok(madeItsOwn(100) > 0.9 && madeItsOwn(1000) <= 1);
+  for (let y = 1; y < 200; y++) assert.ok(madeItsOwn(y) > madeItsOwn(y - 1));
+  // The same fall, of a realm that stood far under the usual on voice: weighed by it, the new realm's says a tenth of the old one's.
+  const usual = [0.5, 0.5, 0.5, 0.5],
+    stood = [0.5, 0.2, 0.5, 0.5],
+    young = evidenceOf(stood, usual, -1, 0.1 * madeItsOwn(3)),
+    old = evidenceOf(stood, usual, -1, 0.1 * madeItsOwn(200));
+  assert.ok(
+    young[1]! > 0 && old[1]! > 0,
+    "both say: it stood with its choices in few hands, and fell",
+  );
+  assert.ok(young[1]! < 0.1 * old[1]!);
 });

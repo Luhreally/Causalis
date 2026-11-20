@@ -30,12 +30,12 @@ import {
   IDEA,
   IDEA_CALLINGS,
   NOTE,
-  ideaApart,
   ideaCreed,
   ideaLeads,
   ideaSpreads,
   ideaUnmet,
   satOf,
+  teachingsApart,
 } from "../../rules/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import type { MarketStore } from "../economy/market.ts";
@@ -49,7 +49,7 @@ import { wantsOf } from "../order/wants.ts";
 import { higherIn, taughtIn } from "../order/institutions-kept.ts";
 import { notablesOf, type Notable } from "../notable/kept.ts";
 import { creditNotable } from "../notable/notables.ts";
-import { SchoolsStore, schoolRef, schoolsOf, type School } from "./kept.ts";
+import { SchoolsStore, schoolRef, schoolsOf, schoolStands, type School } from "./kept.ts";
 
 export const IDEA_EVENTS = {
   /** One of name founded a school of thought. */
@@ -100,7 +100,7 @@ function teachingOf(
   world: World,
   realm: Polity,
   holy: boolean,
-): { group: Group; gap: number; sway: number; creed: number[] } | null {
+): { group: Group; gap: number; sway: number; creed: number[]; stands: number[] } | null {
   const o = orderOf(world)?.of(realm.ref),
     wants = wantsOf(world)?.of(realm.ref);
   if (!o?.held || !wants) return null;
@@ -134,6 +134,8 @@ function teachingOf(
       LAWS.map((law) => lawWanted(best, law)),
       o.laws,
     ),
+    // (Where it would have each number stand: what that group wants, as it wants it now.)
+    stands: w.want.slice(0, HOLD_KINDS.length),
   };
 }
 
@@ -146,6 +148,7 @@ function heardOf(
   store: SchoolsStore,
   cell: number,
   realm: Polity,
+  stands: readonly number[],
   creed: readonly number[],
   not: number,
 ): { school: School; via: number } | null {
@@ -158,7 +161,7 @@ function heardOf(
     if (!h || h.school === not) return;
     const s = store.get(h.school);
     if (!s) return;
-    const d = ideaApart(creed, s.creed);
+    const d = teachingsApart(stands, creed, schoolStands(s), s.creed);
     if (d < bestD || (d === bestD && best !== null && s.id < best.id)) {
       best = s;
       bestD = d;
@@ -192,8 +195,21 @@ function found(
   // home by its name: a teaching is one school however many teach it.)
   const holds = store.of(n.home),
     heldNow = holds ? store.get(holds.school) : undefined;
-  if (heldNow && ideaApart(teaching.creed, heldNow.creed) < IDEA.apart) return;
-  const known = heardOf(ctx, store, n.home, realm, teaching.creed, heldNow?.id ?? -1);
+  if (
+    heldNow &&
+    teachingsApart(teaching.stands, teaching.creed, schoolStands(heldNow), heldNow.creed) <
+      IDEA.apart
+  )
+    return;
+  const known = heardOf(
+    ctx,
+    store,
+    n.home,
+    realm,
+    teaching.stands,
+    teaching.creed,
+    heldNow?.id ?? -1,
+  );
   if (known) {
     store.set(n.home, { school: known.school.id, since: year, via: known.via });
     creditNotable(world, n.id, {
@@ -261,6 +277,7 @@ function found(
     seat: n.home,
     from: null,
     creed: teaching.creed,
+    stands: teaching.stands,
     founder: n.id,
     by: n.name,
     speaks: teaching.group,
@@ -408,11 +425,17 @@ export function ideasYear(ctx: PopulationContext, t: SimTime): void {
         teaching = realm && realm.ended === null ? teachingOf(world, realm, false) : null;
       // (Far speech alone breaks no school: it breaks where those far lands' own realm wants otherwise than it teaches, by
       // as much as would found a school of its own. Then it teaches half its elder's leanings, half what that realm lacks.)
-      if (!realm || !teaching || ideaApart(teaching.creed, s.creed) < IDEA.apart) continue;
-      const creed = s.creed.map((v, k) => Math.round((v + teaching.creed[k]!) / 2));
+      if (
+        !realm ||
+        !teaching ||
+        teachingsApart(teaching.stands, teaching.creed, schoolStands(s), s.creed) < IDEA.apart
+      )
+        continue;
+      const creed = s.creed.map((v, k) => Math.round((v + teaching.creed[k]!) / 2)),
+        stands = schoolStands(s).map((v, k) => Math.round((v + teaching.stands[k]!) / 2));
       store.markSplit(s.id, year);
       // (And where a school they could have heard of already teaches that, they go over to it: no new school.)
-      const known = heardOf(ctx, store, first, realm, creed, s.id);
+      const known = heardOf(ctx, store, first, realm, stands, creed, s.id);
       if (known) {
         for (const c of lands)
           store.set(c, { school: known.school.id, since: year, via: known.via });
@@ -438,6 +461,7 @@ export function ideasYear(ctx: PopulationContext, t: SimTime): void {
         seat: first,
         from: s.id,
         creed,
+        stands,
         founder: leader?.id ?? 0,
         by: leader?.name ?? "",
         speaks: teaching?.group ?? s.speaks,

@@ -1481,6 +1481,7 @@ export {
   leanOf,
   leaningOf,
   likeness,
+  madeItsOwn,
   noBelief,
   partsOf,
   pullOf,

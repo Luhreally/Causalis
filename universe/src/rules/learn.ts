@@ -11,7 +11,7 @@
 // same rule, from who stood how when it happened. What a people counts as faring well is read off its ways (the warlike count lands,
 // the trading wealth), so the same year teaches two peoples differently. Pure functions and a few figures.
 import { dmath } from "../kernel/index.ts";
-import { HOLD_KINDS, type Blame, type Hold, type WaysRead } from "./holds.ts";
+import { HOLDING, HOLD_KINDS, type Blame, type Hold, type WaysRead } from "./holds.ts";
 
 /** What a realm's faring is measured in, in the order it is kept. */
 export const FORTUNES = ["people", "lands", "standing", "wealth", "fed"] as const;
@@ -42,6 +42,8 @@ export const LEARNING = {
   teachers: 6,
   /** Each ten years a realm looks at itself and at this many of the nearest realms it can see. */
   look: 3,
+  /** A realm weighs how it is held once in so many years (sim/order/laws.ts LAW_EVERY), each time HOLDING.pace of the way. */
+  weighed: 10,
 } as const;
 
 const unit = (x: number) => Math.max(-1, Math.min(1, x));
@@ -146,6 +148,25 @@ export function likeness(a: WaysRead, b: WaysRead): number {
  */
 export function alikeInSize(a: number, b: number): number {
   return a > 0 && b > 0 ? Math.sqrt(Math.min(a, b) / Math.max(a, b)) : 1;
+}
+
+/**
+ * How far the way a realm stands is of its own making (0 … 1), `years` after it was founded. A realm begins as its founding
+ * left it (the rule it was founded under, its people's ways) and weighs its numbers once in ten years, each time part of the
+ * way toward what it would be, the less the more its people keep to what is (`tradition`, 0 … 1: sim/order/holds.ts
+ * weighHolds moves by HOLDING.pace × (1 − tradition / 2)). At middling ways: after ten years a fifth of how it stands is its
+ * own doing, after thirty a half, after a century nine tenths. What befalls a realm says of how it was held only by so much.
+ * Realms fall in their first years far more often than later, for being new and small; and a new realm stands where it was
+ * founded, not where the realms about it have since come to. Read whole, each such fall said "it stood apart from the usual,
+ * and fell": every realm in reach moved further the way the usual had already moved, the next one founded stood further off
+ * still, and its fall said the same louder: a belief that fed on itself, in every realm at once, whichever way the usual
+ * first lay from where realms are founded (first light, what the falls of realms under thirty years said of voice: +156 of
+ * 246 over the years 400 to 1,000 in a world whose usual lay above it; −117 of 263 over 300 to 800 in one whose usual lay
+ * below).
+ */
+export function madeItsOwn(years: number, tradition = 0.5): number {
+  const pace = HOLDING.pace * (1 - 0.5 * Math.max(0, Math.min(1, tradition)));
+  return 1 - dmath.pow(1 - pace, Math.max(0, years) / LEARNING.weighed);
 }
 
 /**
