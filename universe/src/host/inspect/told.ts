@@ -173,6 +173,10 @@ const DOMAIN_SECTION: Readonly<Record<string, SectionId>> = {
   star: "far",
   // (Those a war takes and uproots: prisoners, what was done to them, the reckoning for it.)
   held: "war",
+  // (Schools of thought, their works and their places of pilgrimage.)
+  ideas: "minds",
+  // (The god's own acts, where none is told under what it struck: the hand over those who rule.)
+  act: "power",
   hand: "people",
   person: "people",
 };
@@ -293,6 +297,10 @@ const COUNTED: Readonly<Record<SectionId, readonly (readonly [string, string, st
     ["notable.arose", "person of name rose", "people of name rose"],
     ["notable.died", "person of name died", "people of name died"],
     ["lore.lost-world", "craft was lost to the world", "crafts were lost to the world"],
+    ["ideas.founded", "school of thought was founded", "schools of thought were founded"],
+    ["ideas.split", "school of thought broke in two", "schools of thought broke in two"],
+    ["ideas.work", "work of name was made", "works of name were made"],
+    ["ideas.pilgrimage", "land became a place of pilgrimage", "lands became places of pilgrimage"],
   ],
   bodies: [
     ["bodies.founded", "institution was founded", "institutions were founded"],
@@ -308,6 +316,7 @@ const COUNTED: Readonly<Record<SectionId, readonly (readonly [string, string, st
       "courts passed sentences that were told",
     ],
     ["groups.struck", "group struck at one of name", "groups struck at people of name"],
+    ["groups.razed", "group's hold was razed", "groups' holds were razed"],
   ],
   nature: [
     ["act.flood", "land was flooded", "lands were flooded"],
@@ -708,6 +717,10 @@ function headlineOf(world: World, t: Told, year: number): string {
 const TYPE_MOTIF: readonly (readonly [RegExp, ToldMotif])[] = [
   [/^(planet\.eruption|wild\.rise)/, "eruption"],
   [/^(war\.fleet)/, "ship"],
+  [/^(ideas\.pilgrimage)/, "faith"],
+  [/^(ideas\.split)/, "strife"],
+  [/^(groups\.razed)/, "fire"],
+  [/^(groups\.unpaid)/, "coin"],
   [/^(held\.(crime|fled)|ecology\.sea-few)/, "fall"],
   [/^(held\.reckoned|bodies\.sentenced)/, "crown"],
   [/^(held\.settled)/, "peace"],
@@ -1261,6 +1274,26 @@ function quietLines(world: World, r: Reader, year: number) {
 
 // ————— The sections —————
 
+/**
+ * A section's lines: its two greatest, the greatest of the kinds the year before did not show, and one of the rest in its
+ * turn. By worth alone a war's four lines were its peace, its beginning, its worst battle and its lands taken, year after
+ * year, and a raid, a reckoning or prisoners settled were counted and never told.
+ */
+function preferred<T extends { t: Told }>(
+  all: readonly T[],
+  before: ReadonlySet<string>,
+  turn: number,
+): T[] {
+  if (all.length <= SECTION_LINES) return [...all];
+  const out = all.slice(0, 2),
+    fresh = all.find((x) => !out.includes(x) && !before.has(x.t.key)) ?? all[2]!;
+  out.push(fresh);
+  // (And the last line goes round those left, a year each: the least of a section's kinds is told in its turn.)
+  const left = all.filter((x) => !out.includes(x));
+  out.push(left[turn % left.length]!);
+  return all.filter((x) => out.includes(x));
+}
+
 /** What was counted of a side of life, said: its four first kinds that there were any of. */
 export function sectionSentence(id: string, counts: ReadonlyMap<string, number>): string {
   const table = COUNTED[id as SectionId] ?? [],
@@ -1313,20 +1346,39 @@ function sectionsOf(
     for (const [type, n] of r.counts(y).n) counts.set(type, (counts.get(type) ?? 0) + n);
     fallen += r.counts(y).fallen;
   }
+  // What the year before showed of each side of life, by worth alone: this year's later lines prefer other kinds.
+  const before = new Map<SectionId, Set<string>>();
+  if (!run) {
+    const was = new Map<SectionId, Told[]>();
+    for (const t of r.told(from - 1)) {
+      if (t.worth < KIND_WORTH) continue;
+      const id = sectionOf(world.events.get(t.ref as Ref), t);
+      was.set(id, [...(was.get(id) ?? []), t]);
+    }
+    for (const [id, list] of was)
+      before.set(
+        id,
+        new Set(
+          list
+            .sort((a, b) => b.worth - a.worth)
+            .slice(0, SECTION_LINES)
+            .map((t) => t.key),
+        ),
+      );
+  }
   const out: ToldSection[] = [];
   for (const s of SECTIONS) {
     const all = (lines.get(s.id) ?? []).sort((a, b) => b.t.worth - a.t.worth || a.year - b.year),
       kinds = new Set<string>(),
       // (Of a run of years, one line a kind: ten years' floods are one flood's line, and how many were counted.)
-      shown = all
-        .filter((x) => {
-          if (skip.has(x.t)) return false;
-          if (!run) return true;
-          if (kinds.has(x.t.key)) return false;
-          kinds.add(x.t.key);
-          return true;
-        })
-        .slice(0, SECTION_LINES);
+      rest = all.filter((x) => {
+        if (skip.has(x.t)) return false;
+        if (!run) return true;
+        if (kinds.has(x.t.key)) return false;
+        kinds.add(x.t.key);
+        return true;
+      }),
+      shown = preferred(rest, before.get(s.id) ?? new Set(), from);
     let text = sectionSentence(s.id, counts);
     if (s.id === "war" && fallen > 0)
       text += ` ${count(fallen)} fell in the battles history still keeps.`;

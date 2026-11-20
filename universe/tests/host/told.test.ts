@@ -18,6 +18,7 @@ import {
 import { annalsRead, stretchesKept } from "../../src/host/inspect/annals.ts";
 import { pageOf } from "../../src/host/inspect/index.ts";
 import { politiesOf, populationContext } from "../../src/sim/index.ts";
+import { eventTypes } from "../../src/kernel/index.ts";
 import { ALL_WORTH, type Line, type ToldItem, type YearTold } from "../../src/bridge/index.ts";
 import { universeWorld } from "./worlds.ts";
 
@@ -301,10 +302,24 @@ test("every kind of event has its side of life by rule, and the kinds merged sin
     assert.equal(p.section, section, type);
     assert.equal(p.motif, motif, type);
   }
-  // Every kind the world's log holds falls under a side of life by its domain or its own rule, not by default.
-  const seen = new Set<string>();
-  for (let i = 0; i < world.events.count; i++) seen.add(world.events.at(i).type);
-  for (const type of seen)
-    if (!type.startsWith("act."))
-      assert.ok(toldPlace(type).ruled, `${type} has no side of life of its own`);
+  // Every kind of event the game can write (the kernel's own list of them, filled as the universe's rules are read)
+  // falls under a side of life by its domain or its own rule, not by default: a kind added later fails here at once.
+  const kinds = eventTypes().map((k) => k.type);
+  assert.ok(kinds.length > 400, `${kinds.length} kinds of event`);
+  for (const type of kinds) {
+    const p = toldPlace(type);
+    assert.ok(p.ruled, `${type} has no side of life of its own`);
+    assert.ok(p.motif.length > 0, type);
+  }
+  for (const [type, section, motif] of [
+    ["ideas.founded", "minds", "found"],
+    ["ideas.work", "minds", "found"],
+    ["ideas.pilgrimage", "minds", "faith"],
+    ["ideas.split", "minds", "strife"],
+    ["groups.razed", "bodies", "fire"],
+    ["groups.unpaid", "bodies", "coin"],
+  ] as const) {
+    assert.equal(toldPlace(type).section, section, type);
+    assert.equal(toldPlace(type).motif, motif, type);
+  }
 });

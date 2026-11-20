@@ -43,7 +43,7 @@ function pick<T>(list: readonly T[], h: number): T {
  * A culture's phonology is a subset of the syllable parts, so its names share a sound;
  * `key` picks one name in that style.
  */
-export function placeName(culture: number, key: number): string {
+function placeNameDrawn(culture: number, key: number): string {
   const onsets = ONSETS.filter((_, i) => (finish(mix(culture, i), 1) & 3) !== 0),
     vowels = VOWELS.filter((_, i) => (finish(mix(culture ^ 0x5a5a, i), 1) & 3) !== 0),
     codas = CODAS.filter((_, i) => (finish(mix(culture ^ 0xa5a5, i), 1) & 1) === 0 || i < 2);
@@ -65,7 +65,7 @@ const FEMININE = ["a", "e", "i", "ia", "ea", "wen", "ys", "et"];
 const MASCULINE = ["", "n", "r", "l", "th", "d", "k", "s", "m"];
 
 /** A given name in a culture's sound; `sex` 0 takes a feminine ending, 1 a masculine one. */
-export function personName(culture: number, key: number, sex: number): string {
+function personNameDrawn(culture: number, key: number, sex: number): string {
   const vowels = VOWELS.filter((_, i) => (finish(mix(culture ^ 0x5a5a, i), 1) & 3) !== 0),
     onsets = ONSETS.filter((_, i) => (finish(mix(culture, i), 1) & 3) !== 0);
   let h = finish(mix(mix(culture ^ 0x3c3c, key), sex), 2);
@@ -122,7 +122,7 @@ export function cradleTongue(culture: number): Tongue {
 }
 
 /** A place's name in a tongue (in the cradle tongue, exactly placeName's). */
-export function tongueName(t: Tongue, key: number): string {
+function tongueNameDrawn(t: Tongue, key: number): string {
   const onsets = chosen(ONSETS, t.onsets),
     vowels = chosen(VOWELS, t.vowels),
     codas = chosen(CODAS, t.codas),
@@ -144,7 +144,7 @@ export function tongueName(t: Tongue, key: number): string {
 const SPEECH_ENDINGS = ["ic", "ish", "an", "ese", "i", "ian", "ar", "en"];
 
 /** A language's name in its own tongue: a stem of one or two syllables and a speech ending. */
-export function languageName(t: Tongue, key: number): string {
+function languageNameDrawn(t: Tongue, key: number): string {
   const onsets = chosen(ONSETS, t.onsets),
     vowels = chosen(VOWELS, t.vowels),
     codas = chosen(CODAS, t.codas).filter((c) => c.length > 0);
@@ -164,7 +164,7 @@ export function languageName(t: Tongue, key: number): string {
 }
 
 /** A person's given name in a tongue. */
-export function tonguePersonName(t: Tongue, key: number, sex: number): string {
+function tonguePersonNameDrawn(t: Tongue, key: number, sex: number): string {
   const vowels = chosen(VOWELS, t.vowels),
     onsets = chosen(ONSETS, t.onsets);
   let h = finish(mix(mix(t.seed ^ 0x3c3c, key), sex), 2);
@@ -268,4 +268,66 @@ function bits(v: number): number {
   v = v - ((v >>> 1) & 0x55555555);
   v = (v & 0x33333333) + ((v >>> 2) & 0x33333333);
   return (Math.imul((v + (v >>> 4)) & 0x0f0f0f0f, 0x01010101) >>> 24) & 0xff;
+}
+
+// ————— Names no name should be —————
+//
+// Syllables drawn from a tongue's sounds come out, now and then, as a word of the language the game is told in: a town of
+// first light was named "Penis", and one who hunted a beast was named "The" ("The brought down Ragre, the Spotted Hide").
+// Such a name is drawn again, from the same key and a count of the tries, so the same world gives the same name always.
+
+/** Words a name is never, whole or as one of its words: the obscene, and the articles, which break a sentence that begins with one. */
+const NOT_NAMES: ReadonlySet<string> = new Set(
+  (
+    "anus arse ass asses bitch bollock bollocks boner boob boobs bum butt clit cock cocks coon crap cum cunt cunts damn dick " +
+    "dicks dildo dyke fag fags fanny fart fuck fucks homo jizz kike knob nazi nigga nigger paki penis piss poo poon poop porn " +
+    "prick pube pubes pussy rape rapist rectum retard scrotum semen sex shag shat shit shite shits slag slut sluts sperm spic " +
+    "tit tits turd twat vagina vulva wank whore " +
+    "a an the"
+  ).split(" "),
+);
+
+/** How many names have been drawn again in this process (for a tally of which worlds it touches). */
+export const NAMES_REDRAWN = { n: 0, last: "" };
+
+/** Whether a name may stand: neither it nor any word of it is one of those. */
+export function nameStands(name: string): boolean {
+  for (const word of name.toLowerCase().split(/[^a-z]+/)) if (NOT_NAMES.has(word)) return false;
+  return true;
+}
+
+/** A name drawn until one may stand: the first as it always was, the next from its key and the count of tries. */
+function standing(draw: (key: number) => string, key: number): string {
+  let name = draw(key);
+  for (let again = 1; again <= 8 && !nameStands(name); again++) {
+    NAMES_REDRAWN.n++;
+    NAMES_REDRAWN.last = name;
+    name = draw(finish(mix(key, 0x6e6f + again), 5));
+  }
+  return name;
+}
+
+/** A place's name in a culture's sound. */
+export function placeName(culture: number, key: number): string {
+  return standing((k) => placeNameDrawn(culture, k), key);
+}
+
+/** A given name in a culture's sound; `sex` 0 takes a feminine ending, 1 a masculine one. */
+export function personName(culture: number, key: number, sex: number): string {
+  return standing((k) => personNameDrawn(culture, k, sex), key);
+}
+
+/** A place's name in a tongue (in the cradle tongue, exactly placeName's). */
+export function tongueName(t: Tongue, key: number): string {
+  return standing((k) => tongueNameDrawn(t, k), key);
+}
+
+/** A language's name in its own tongue: a stem of one or two syllables and a speech ending. */
+export function languageName(t: Tongue, key: number): string {
+  return standing((k) => languageNameDrawn(t, k), key);
+}
+
+/** A person's given name in a tongue. */
+export function tonguePersonName(t: Tongue, key: number, sex: number): string {
+  return standing((k) => tonguePersonNameDrawn(t, k, sex), key);
 }
