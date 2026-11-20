@@ -484,8 +484,10 @@ export function villagePlan(
         : edge;
   for (let k = 0; k < fieldCount; k++) {
     const ring = Math.floor(k / 12),
-      a = fieldWay + (((k % 12) - 5.5) / 12) * 2.6 + (u(seed, 400 + k) - 0.5) * 0.15,
-      rad = edgeAt(a) + 40 + ring * 45 + u(seed, 500 + k) * 12;
+      // (Each row of the fan from where its own way out is open: one row's fields never on the next's.)
+      way = fieldWay + (((k % 12) - 5.5) / 12) * 2.6,
+      a = way + (u(seed, 400 + k) - 0.5) * 0.15,
+      rad = edgeAt(way) + 40 + ring * 45 + u(seed, 500 + k) * 12;
     fields.push({
       x: rad * Math.cos(a),
       z: rad * Math.sin(a),

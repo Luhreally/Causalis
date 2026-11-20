@@ -559,7 +559,11 @@ export function grownBlocks(
     };
   };
   // (Whether its fields hold it at block b: its land sows, its food is walked in, and it does not pass over its ground.)
-  const held = (b: number) => !over && fieldHold(site, b, 0) > 0;
+  // (Nor the ground its walls came to hold: a wall is paid for by its length, and what was walled was built close. Its
+  // fingers go out from its gates.)
+  const holdAt = (b: number, a: number) =>
+      over || b < HEART_BLOCKS || b < wallBlock ? 0 : fieldHold(site, b, a),
+    held = (b: number) => holdAt(b, 0) > 0;
   const costOf = (st: Street, i: number, side: number, b = placed) => {
     const { bx, bz } = blockAt(st, i, side),
       d = Math.hypot(bx, bz),
@@ -574,7 +578,7 @@ export function grownBlocks(
         (1 + 4 * grade(st.hs[i]!)) +
       // (Off a road in, past its heart, it stands on a field: what that field was worth, as the town stood when the
       // front was come to.)
-      (onRoad || over || b < HEART_BLOCKS ? 0 : fieldHold(site, b, Math.atan2(bz, bx))) +
+      (onRoad ? 0 : holdAt(b, Math.atan2(bz, bx))) +
       3 * unit(seed, st.id * 7 + side, i)
     );
   };
@@ -816,7 +820,7 @@ export function grownBlocks(
   }
   /** A front on its road for a block of a quarter that has none: taken where it costs less than the quarter's own next. */
   const front = (b: number, q: number): boolean => {
-    const st = lends[q]! >= 0 && b >= HEART_BLOCKS && held(b) ? streets[lends[q]!]! : null;
+    const st = lends[q]! >= 0 && held(b) ? streets[lends[q]!]! : null;
     for (let tries = 0; st && tries < 4; tries++) {
       let s = -1,
         cost = heaps[q]!.size ? heaps[q]!.peekKey() : Infinity;

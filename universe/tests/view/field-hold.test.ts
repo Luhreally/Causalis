@@ -160,6 +160,28 @@ test("its fields are built over as its roads are built along far past them: a gr
   assert.ok(carried.green < walked.green - 0.08, `${carried.green} green against ${walked.green}`);
 });
 
+test("what its walls came to hold was built close: its fingers go out from its gates", () => {
+  const walled: TownSite = { ...TILLED, walled: 240 },
+    b = grown(walled, 90),
+    open = grown(TILLED, 90),
+    close = grown({ ...SITE, walled: 240 }, 90);
+  // The blocks walled lie where they would with no field to hold them; what came after is held as any town's.
+  assert.deepEqual([...b.x.subarray(0, 30)], [...close.x.subarray(0, 30)]);
+  const far = (g: GrownBlocks, from: number, to: number) => {
+    let r = 0;
+    for (let k = from; k < to; k++) r = Math.max(r, Math.hypot(g.x[k]!, g.z[k]!));
+    return r;
+  };
+  assert.ok(
+    far(b, 0, 30) < far(open, 0, 30) - 20,
+    `${far(b, 0, 30)} m against ${far(open, 0, 30)}`,
+  );
+  assert.ok(
+    far(b, 30, 90) > far(close, 30, 90) * 1.15,
+    `${far(b, 30, 90)} against ${far(close, 30, 90)}`,
+  );
+});
+
 test("the land's map lays its fields in the green between its fingers, nearer its square than its fingers reach", () => {
   const size = 16,
     n = size * size,
