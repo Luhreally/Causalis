@@ -34,7 +34,7 @@ import {
   blocksHeld,
   formWhys,
   heightHeld,
-  wallRadius,
+  wallLine,
   lotStates,
   measuredBlocks,
   townBlocks,
@@ -539,7 +539,12 @@ function townFormWhys(world: World, town: Ref, f: Fabric): string[] {
     held = f.walls
       ? heightHeld(
           site,
-          wallRadius(f.walls.reach, townLots(f.family, seed, axis, f.walls.reach, at.water, site)),
+          wallLine(
+            f.walls.reach,
+            townLots(f.family, seed, axis, f.walls.reach, at.water, site),
+            at.water,
+            site,
+          ),
           at.water,
           !!rank?.seat,
           temple,

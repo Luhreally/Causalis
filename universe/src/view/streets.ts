@@ -84,8 +84,15 @@ export class Streets {
   readonly reach: number;
   /** Where its ways out stand: beyond it, open ground (past a great city's sprawl). */
   readonly edge: number;
-  /** Its walls' ring (metres from its square's middle), and whether they stand or were pulled down to a ring street; null: none. */
-  readonly walls: { readonly r: number; readonly standing: boolean } | null;
+  /**
+   * Its walls' ring: their line (bridge/wall.ts: metres from its square's middle toward each bearing; `r` its middling
+   * reach), and whether they stand or were pulled down to a ring street; null: none.
+   */
+  readonly walls: {
+    readonly r: number;
+    readonly line: Float32Array;
+    readonly standing: boolean;
+  } | null;
   private readonly plan: TownPlan;
   private readonly lake: Solid | null;
   private readonly sprawl: { r0: number; r1: number } | null;
@@ -175,7 +182,9 @@ export class Streets {
       }
     }
     this.reach = reach;
-    this.walls = walls ? { r: walls.r, standing: walls.lengths.length > 0 } : null;
+    this.walls = walls
+      ? { r: walls.r, line: walls.line, standing: walls.lengths.length > 0 }
+      : null;
     this.sprawl = sprawlOf(plan, lots);
     this.edge = Math.max(reach, this.sprawl ? this.sprawl.r1 : 0) + 8;
     this.solids.forEach((s, i) => {

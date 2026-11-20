@@ -120,8 +120,10 @@ test("the lines pass each other, guns speak only where a side has them, and the 
 test("a siege's works: a bank on the dry ground, approaches nearer each year, rubble as the walls are open", () => {
   const state = { since: 500, months: 9, breach: 0, dead: 0, years: 0 },
     arc = { from: 0.2, span: 2.5 },
-    early = siegeWorks(7, arc, 120, 60, state, false),
-    late = siegeWorks(7, arc, 120, 60, { ...state, years: 2, breach: 0.5, months: 2 }, true);
+    // (Its walls' line no circle: nearer on one side of the approach than the other.)
+    wall = (a: number) => 60 + 8 * Math.sin(a * 3),
+    early = siegeWorks(7, arc, 120, wall, state, false),
+    late = siegeWorks(7, arc, 120, wall, { ...state, years: 2, breach: 0.5, months: 2 }, true);
   assert.ok(early.banks.length >= 3 && early.banks.length <= SIEGE_WORKS.banks);
   // Every length of bank lies on the dry arc, at about the ring.
   for (const b of early.banks) {
@@ -137,7 +139,24 @@ test("a siege's works: a bank on the dry ground, approaches nearer each year, ru
   // The approaches' heads are nearer the walls once it has stood and the walls have opened; never past them.
   const head = (w: typeof early) => Math.min(...w.saps.map((s) => Math.hypot(s.x, s.z)));
   assert.ok(head(late) < head(early));
-  assert.ok(head(late) > 60);
+  for (const s of late.saps) {
+    const a = Math.atan2(s.z, s.x);
+    assert.ok(Math.hypot(s.x, s.z) > wall(a), "an approach past the walls");
+  }
+  // The walls' rubble and the middle of the breach lie on the walls' own line, wherever it runs; what they throw with
+  // stands between it and their bank.
+  for (const h of late.rubble) {
+    const a = Math.atan2(h.z, h.x);
+    assert.ok(Math.abs(Math.hypot(h.x, h.z) - wall(a)) < 3.5, "rubble off the walls' line");
+  }
+  const at = late.breachAt!,
+    mid = Math.atan2(at.z, at.x);
+  assert.ok(Math.abs(Math.hypot(at.x, at.z) - wall(mid)) < 1e-6);
+  for (const e of [...early.engines, ...late.engines]) {
+    const a = Math.atan2(e.z, e.x),
+      r = Math.hypot(e.x, e.z);
+    assert.ok(r > wall(a) + 5 && r < 120, `what they throw with at ${r}`);
+  }
   assert.ok(late.guns && !early.guns);
   assert.equal(
     siegeWords({ ...state, months: 2, breach: 0.5, dead: 1200 }),

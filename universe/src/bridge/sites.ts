@@ -12,6 +12,7 @@
 // Every block is laid in the order the town takes it, each by the blocks before it and the town's ground alone, so a block
 // never moves as the town grows. Pure: what the eye is given, read from what history keeps; nothing here is kept.
 import { MinHeap, mix } from "../kernel/index.ts";
+import { wallLineOf, wallOff } from "./wall.ts";
 
 /** A road into a town, as its streets meet it. */
 export type TownRoad = {
@@ -322,6 +323,8 @@ export type GrownBlocks = {
   readonly mains: readonly MainStreet[];
   /** Its market place (absent: none, or no ground could be kept for it): its middle, its turn, how long and deep, and the block it was taken at. */
   readonly place?: MarketPlace;
+  /** The line of its walls, which its later blocks keep clear of (bridge/wall.ts), and how many blocks it was raised about. */
+  readonly wall?: { readonly blocks: number; readonly line: Float32Array };
 };
 
 /** A town's market place on its ground (GrownBlocks.place). */
@@ -402,7 +405,7 @@ export function grownBlocks(
     // (How far each block keeps from the next: half of it each; never more than its lane leaves.)
     padAt = (b: number) => Math.min(KEEP, laneAt(b) / 2 - 0.25) + vergeAt(b);
   let placed = 0,
-    wallR = -1,
+    wall: Float32Array | undefined,
     place: MarketPlace | undefined;
   const roadX = site.roads.map((r) => Math.cos(r.bearing)),
     roadZ = site.roads.map((r) => Math.sin(r.bearing));
@@ -443,10 +446,7 @@ export function grownBlocks(
       if (bx * rx + bz * rz + long > 0 && Math.abs(across) < wide + ROAD_HALF) return false;
     }
     // Where its walls stood.
-    if (wallR > 0 && b >= wallBlock) {
-      const r = Math.hypot(bx, bz);
-      if (Math.abs(r - wallR) < REACH + 4) return false;
-    }
+    if (wall && b >= wallBlock && Math.abs(wallOff(wall, bx, bz)) < REACH + 4) return false;
     // The blocks before it.
     const ci = Math.floor(bx / CELL),
       cj = Math.floor(bz / CELL);
@@ -468,15 +468,24 @@ export function grownBlocks(
     if (list) list.push(b);
     else cells.set(key, [b]);
     placed = b + 1;
-    // (The walls' line, once every block they were raised about stands: as wallRing reads it.)
-    if (b + 1 === wallBlock) {
-      // (A lot's middle lies at most some 15 m from its block's.)
-      let r = SQUARE_R + 10;
-      for (let o = 0; o <= b; o++) r = Math.max(r, Math.hypot(x[o]!, z[o]!) + 15.2 + 14);
-      // (And its market place, where it was kept before them.)
-      if (place) r = Math.max(r, placeReach(place));
-      wallR = r + 8;
-    }
+    // (The walls' line, once every block they were raised about stands: the one line wallRing reads (bridge/town.ts
+    // wallLine), about those blocks and its market place where it was kept before them.)
+    if (b + 1 === wallBlock)
+      wall = wallLineOf(
+        x,
+        z,
+        yaw,
+        wallBlock,
+        BW,
+        BD,
+        place ? [place] : [],
+        SQUARE_R + 10,
+        water || site.wet
+          ? (px, pz) =>
+              (!!water && Math.hypot(px - water.x, pz - water.z) < water.r + 2) ||
+              wetGround(site, px, pz)
+          : null,
+      );
   };
 
   // —— Streets ——
@@ -819,6 +828,7 @@ export function grownBlocks(
     straight,
     mains,
     ...(place ? { place } : {}),
+    ...(wall ? { wall: { blocks: wallBlock, line: wall } } : {}),
   };
 }
 

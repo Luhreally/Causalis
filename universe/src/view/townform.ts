@@ -14,6 +14,8 @@ import {
   STACKS,
   footprint,
   heightHeld,
+  wallWalk,
+  wallWet,
   lotTier,
   measuredBlocks,
   quarterOf,
@@ -422,7 +424,7 @@ export function heightOf(
   if (!plan.site || !ring || !plan.walls || plan.sealed) return null;
   return heightHeld(
     plan.site,
-    ring.r,
+    ring.line,
     plan.water,
     !!plan.rank?.seat,
     plan.civics.some((c) => c.kind === "temple" && c.fell === null && c.end <= plan.year),
@@ -508,28 +510,20 @@ export function formGround(scene: TownScene, out: TownParts, ash: number): void 
     plan.site &&
     !form.over
   ) {
-    const n = Math.max(10, Math.round((2 * Math.PI * ring.r) / 60)),
-      len = (2 * Math.PI * ring.r) / n + 0.6,
+    // (Along the line they stood on, as its later blocks kept clear of it: bridge/wall.ts.)
+    // (In lengths as long as the walls' were: a longer one would cut the line's corners.)
+    const n = ring.n,
       c = form.engines >= 0 ? TARMAC : plan.paved ? SETTS : TRACK,
-      leaf = lifeTint(LEAF, plan.lifeLook);
-    for (let k = 0; k < n; k++) {
-      const a = ((k + 0.5) / n) * 2 * Math.PI,
-        x = ring.r * Math.cos(a),
-        z = ring.r * Math.sin(a);
-      if (plan.water && Math.hypot(x - plan.water.x, z - plan.water.z) < plan.water.r + 4) continue;
-      out.put("box", c, x, 0.34, z, len, 0.06, 9, Math.atan2(-Math.cos(a), -Math.sin(a)));
-      if (form.green >= 0.2 && k % 3 === 0)
-        out.put(
-          "cone",
-          leaf,
-          (ring.r - 6.5) * Math.cos(a),
-          3.9,
-          (ring.r - 6.5) * Math.sin(a),
-          4.4,
-          7,
-          4.4,
-          0,
-        );
+      leaf = lifeTint(LEAF, plan.lifeLook),
+      wet = wallWet(plan.water, plan.site);
+    for (const l of wallWalk(ring.line, n)) {
+      if (wet && wet(l.x, l.z)) continue;
+      out.put("box", c, l.x, 0.34, l.z, l.len + 0.6, 0.06, 9, l.yaw);
+      if (form.green >= 0.2 && l.k % 8 === 0) {
+        // (A tree on its inner side.)
+        const d = Math.max(1e-6, Math.hypot(l.x, l.z));
+        out.put("cone", leaf, l.x * (1 - 6.5 / d), 3.9, l.z * (1 - 6.5 / d), 4.4, 7, 4.4, 0);
+      }
     }
   }
   const mouths = (mains ?? []).filter((m) => m.x.length).map((m) => Math.atan2(m.z[0]!, m.x[0]!)),

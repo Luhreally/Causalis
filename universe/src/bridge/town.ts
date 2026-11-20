@@ -13,13 +13,14 @@ import type { GenesisPlan, MeadowPlan } from "./genesis.ts";
 import type { GetAbout } from "./village.ts";
 import {
   grownBlocks,
-  placeReach,
+  wetGround,
   type GrownBlocks,
   type MainStreet,
   type MarketPlace,
   type TownSite,
 } from "./sites.ts";
 import type { TownForm } from "./form.ts";
+import { wallLineOf, wallLong, wallMean, wallOff, wallWalk, type WallStretch } from "./wall.ts";
 import type { TownRank } from "./rank.ts";
 
 /** A lot: so many metres along its street, so many deep. */
@@ -248,6 +249,8 @@ export type TownBlocks = {
   readonly mains?: readonly MainStreet[];
   /** Its market place, where ground was kept for one (bridge/sites.ts). */
   readonly place?: MarketPlace;
+  /** The line of its walls its streets were grown about (bridge/wall.ts), and how many blocks it was raised about. */
+  readonly wall?: { readonly blocks: number; readonly line: Float32Array };
 };
 
 /**
@@ -287,6 +290,7 @@ function grownOf(
         mains: kept.mains,
         // (Kept open from the block it was taken at: a town drawn to fewer has none yet.)
         ...(kept.place && kept.place.at < count ? { place: kept.place } : {}),
+        ...(kept.wall && kept.wall.blocks <= count ? { wall: kept.wall } : {}),
       } as TownBlocks);
 }
 
@@ -740,7 +744,7 @@ export type WallLength = {
   readonly len: number;
   /** A gate: a tower between two ways through, where the road runs out. */
   readonly gate: boolean;
-  /** A round tower at its middle (every fourth length). */
+  /** A round tower at its middle (where the line turns: TOWER_TURN). */
   readonly tower: boolean;
 };
 
@@ -749,41 +753,89 @@ export const WALL_THICK = 2.4;
 export const GATE_TOWER = 4;
 export const WALL_TOWER = 5;
 
-/** How far from a town's middle the line of its walls runs, raised about its first `walled` lots. */
-export function wallRadius(walled: number, lots: TownLots): number {
-  const reach = Math.min(walled, lots.x.length);
-  let r = SQUARE + 10;
-  for (let p = 0; p < reach; p++) r = Math.max(r, Math.hypot(lots.x[p]!, lots.z[p]!) + LOT_D);
-  // (Its market place within them, where it was kept before they were raised: as its streets were grown about their line.)
+/**
+ * The line of a town's walls, raised about its first `walled` lots (bridge/wall.ts: how far out it runs toward each of
+ * WALL_BEARINGS bearings): the one its streets were grown about, where its ground was grown (TownBlocks.wall).
+ */
+export function wallLine(
+  walled: number,
+  lots: TownLots,
+  water: TownWater | null = null,
+  site: TownSite | null = null,
+): Float32Array {
+  const blocks = Math.min(Math.ceil(walled / BLOCK_LOTS), Math.ceil(lots.x.length / BLOCK_LOTS)),
+    grown = lots.blocks.wall;
+  if (grown && grown.blocks === blocks) return grown.line;
   const place = lots.blocks.place;
-  if (place && place.at < Math.ceil(walled / BLOCK_LOTS)) r = Math.max(r, placeReach(place));
-  return r + 8;
+  return wallLineOf(
+    lots.blocks.x,
+    lots.blocks.z,
+    lots.blocks.yaw,
+    blocks,
+    BLOCK_W,
+    BLOCK_D,
+    // (Its market place within them, where it was kept before they were raised.)
+    place && place.at < blocks ? [place] : [],
+    SQUARE + 10,
+    wallWet(water, site),
+  );
 }
 
+/** Whether a point of a town's ground is water a wall can't stand in: its own lake or sea, its land's water as its map has it. */
+export function wallWet(
+  water: TownWater | null,
+  site: TownSite | null,
+): ((x: number, z: number) => boolean) | null {
+  if (!water && !site?.wet) return null;
+  return (x, z) =>
+    (!!water && Math.hypot(x - water.x, z - water.z) < water.r + 2) || wetGround(site, x, z);
+}
+
+/** A town's walls as they are read: their line, its middling reach, how many lengths it is walked in, those standing. */
+export type WallRing = {
+  /** The line's middling reach (metres): how great the ring is. Where it runs is `line`. */
+  readonly r: number;
+  readonly line: Float32Array;
+  readonly n: number;
+  readonly lengths: WallLength[];
+};
+
 /**
- * A town's walls as they stand (null: it has none): a ring about the lots walled, a length every
- * twenty-odd metres, a gate where its road runs out both ways (at the length standing nearest), a
- * round tower every fourth length — none in its water, none where the town has since grown over
- * their line, and none at all once it has grown over a third of it (pulled down, a ring road
- * where they stood).
+ * How far a wall turns between one tower and the next (radians): past a turn its face can't be seen along from the last;
+ * and how many lengths it runs straight between two at the most (some ninety metres: what is thrown from one reaches
+ * half way to the next).
  */
-export function wallRing(
-  plan: TownPlan,
-  lots: TownLots,
-  held: Uint8Array,
-): { r: number; n: number; lengths: WallLength[] } | null {
+export const TOWER_TURN = Math.PI / 6,
+  TOWER_RUN = 4;
+
+/**
+ * A town's walls as they stand (null: it has none): along their line (wallLine) about the lots walled, a length every
+ * twenty-odd metres, a gate where each road in crosses it (where it has none, each way its street runs out), a round
+ * tower where the line has turned a twelfth of the way round since the last or run four lengths straight, so each sees
+ * along the wall to the next —
+ * none in its water, none where the town has since grown over their line, and none at all once it has grown over a third
+ * of it (pulled down, a ring street where they stood).
+ */
+export function wallRing(plan: TownPlan, lots: TownLots, held: Uint8Array): WallRing | null {
   const w = plan.walls;
   if (!w) return null;
-  const r = wallRadius(w.reach, lots);
-  const n = Math.max(16, Math.round((2 * Math.PI * r) / 22)),
-    len = (2 * Math.PI * r) / n + 0.8,
-    gate = (((plan.axis % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) / ((2 * Math.PI) / n),
+  const line = wallLine(w.reach, lots, plan.water, plan.site ?? null),
+    r = wallMean(line),
+    long = wallLong(line),
+    n = Math.max(16, Math.round(long / 22)),
+    roads = plan.site?.roads.length
+      ? plan.site.roads.map((x) => x.bearing)
+      : [plan.axis, plan.axis + Math.PI],
+    // (Walked from its first road in: a length's middle lies on it, its gate across the road.)
+    walk = wallWalk(line, n, roads[0]!, 0.5),
+    len = long / n + 0.8,
     bx = lots.blocks.x,
     bz = lots.blocks.z,
-    near: number[] = [];
+    near: number[] = [],
+    wet = wallWet(plan.water, plan.site ?? null);
   // (The blocks held about its line, which it may have been pulled down for.)
   for (let b = 0; b < Math.min(held.length, bx.length); b++)
-    if (held[b] && Math.abs(Math.hypot(bx[b]!, bz[b]!) - r) < BLOCK_REACH + len) near.push(b);
+    if (held[b] && Math.abs(wallOff(line, bx[b]!, bz[b]!)) < BLOCK_REACH + len) near.push(b);
   const built = (x: number, z: number) =>
     near.some((b) => {
       const dx = x - bx[b]!,
@@ -796,52 +848,63 @@ export function wallRing(
         Math.abs(dx * c - dz * s) < BLOCK_W / 2 + 2 && Math.abs(dx * s + dz * c) < BLOCK_D / 2 + 2
       );
     });
-  const standing: { k: number; x: number; z: number; yaw: number }[] = [];
+  const standing: WallStretch[] = [];
   let dry = 0,
     over = 0;
-  for (let k = 0; k < n; k++) {
-    const a = ((k + 0.5) / n) * 2 * Math.PI,
-      x = r * Math.cos(a),
-      z = r * Math.sin(a),
-      ux = -Math.sin(a),
-      uz = Math.cos(a);
-    if (plan.water && Math.hypot(x - plan.water.x, z - plan.water.z) < plan.water.r + 2) continue;
+  for (const l of walk) {
+    const ux = Math.cos(l.yaw),
+      uz = -Math.sin(l.yaw);
+    if (wet && wet(l.x, l.z)) continue;
     dry++;
     let built_ = false;
     for (let f = -0.5; f <= 0.5 && !built_; f += 0.25)
-      built_ = built(x + ux * f * len, z + uz * f * len);
+      built_ = built(l.x + ux * f * len, l.z + uz * f * len);
     if (built_) over++;
-    else standing.push({ k, x, z, yaw: Math.atan2(-Math.cos(a), -Math.sin(a)) });
+    else standing.push(l);
   }
-  if (over * 3 > dry) return { r, n, lengths: [] };
+  if (over * 3 > dry) return { r, line, n, lengths: [] };
   // (Grown out past them to three times what they rang, its streets grown about their line: they are pulled down, a ring street
   // where they stood. Asked 2026-11-16: "walls leave rings".)
-  if (plan.site && plan.whole >= 3 * w.reach) return { r, n, lengths: [] };
-  // A gate each way a road runs in (its own bearing), else each way its street runs: at the length standing nearest it.
-  const gateNear = (at: number) => {
+  if (plan.site && plan.whole >= 3 * w.reach) return { r, line, n, lengths: [] };
+  // A gate where each road crosses the line: at the length standing nearest it.
+  const gates = new Set<number>();
+  for (const road of roads) {
     let best = -1,
-      off = 4;
+      off = (4 * 2 * Math.PI) / n;
     for (const l of standing) {
-      const d = Math.abs(l.k + 0.5 - at),
-        o = Math.min(d, n - d);
+      const o = Math.abs(Math.atan2(Math.sin(l.a - road), Math.cos(l.a - road)));
       if (o < off) {
         off = o;
         best = l.k;
       }
     }
-    return best;
-  };
-  const at = (a: number) =>
-      (((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) / ((2 * Math.PI) / n),
-    gates = new Set(
-      plan.site?.roads.length
-        ? plan.site.roads.map((x) => gateNear(at(x.bearing)))
-        : [gateNear(gate), gateNear((gate + n / 2) % n)],
-    );
+    gates.add(best);
+  }
+  // A tower where the line has turned TOWER_TURN since the last, or run TOWER_RUN lengths straight.
+  const towers = new Set<number>();
+  let turned = 0,
+    run = 0;
+  for (const l of walk) {
+    turned += l.turn;
+    if (turned >= TOWER_TURN || ++run >= TOWER_RUN) {
+      turned = Math.max(0, turned - TOWER_TURN);
+      run = 0;
+      towers.add(l.k);
+    }
+  }
   return {
     r,
+    line,
     n,
-    lengths: standing.map((l) => ({ ...l, len, gate: gates.has(l.k), tower: l.k % 4 === 0 })),
+    lengths: standing.map((l) => ({
+      k: l.k,
+      x: l.x,
+      z: l.z,
+      yaw: l.yaw,
+      len: l.len + 0.8,
+      gate: gates.has(l.k),
+      tower: towers.has(l.k),
+    })),
   };
 }
 

@@ -245,6 +245,8 @@ export type TownScene = {
   /** Its walls as they stand (null: none). */
   readonly walls: {
     readonly r: number;
+    /** Their line (bridge/wall.ts): how far out they run toward each bearing. */
+    readonly line: Float32Array;
     readonly n: number;
     readonly lengths: readonly WallLength[];
   } | null;

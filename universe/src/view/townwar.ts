@@ -11,7 +11,7 @@
 //   stormed burns;
 // - at the peace its men come home by the road.
 // Pure: who stands where, at a moment of the world's.
-import type { BattleOutcome, VillagePlan, WarsMap } from "../bridge/index.ts";
+import { wallAt, type BattleOutcome, type VillagePlan, type WarsMap } from "../bridge/index.ts";
 import {
   BATTLE_DAY,
   battleSecond,
@@ -534,10 +534,17 @@ function offWater(ground: Ground, a: number, r: number): number {
   return a;
 }
 
-/** Its walls' ring as the storm meets it (its walls, or the ring street where they were pulled down), else its homes' edge. */
-function wallsAt(ground: Ground): number {
-  return ground.town?.walls?.r ?? ground.homesReach;
+/**
+ * How far out its walls' line runs toward bearing `a`, as the storm meets it (bridge/wall.ts: its walls, or the ring street
+ * where they were pulled down), else its homes' edge; with no bearing, the ring's middling reach.
+ */
+function wallsAt(ground: Ground, a?: number): number {
+  const w = ground.town?.walls;
+  return w ? (a === undefined ? w.r : wallAt(w.line, a)) : ground.homesReach;
 }
+/** How far out one stands toward bearing `a` just past its walls' line, and just within it. */
+const wallOutAt = (ground: Ground, a: number) => wallsAt(ground, a) + 1.6,
+  wallInAt = (ground: Ground, a: number) => Math.max(4, wallsAt(ground, a) - 2);
 
 /** The yaw that faces a soldier along (dx, dz). */
 const facing = (dx: number, dz: number) => Math.atan2(dx, dz);
@@ -712,8 +719,6 @@ function makeSpread(
       ),
     ] as const,
     camp = reach + CAMP_OUT,
-    wallOut = wallsAt(ground) + 1.6,
-    wallIn = Math.max(4, wallsAt(ground) - 2),
     // (The defenders hold its gate on the attackers' road, and the high ground its seat's hall and granary stand on.)
     up = plan.town?.site?.up,
     shelling = shellsWalls(war.sides[0].host?.arm),
@@ -745,6 +750,7 @@ function makeSpread(
             : hold === 1
               ? up! + (unit(j, key + 43) - 0.5) * 0.9
               : way + ((j + 0.5) / squads1) * 2 * Math.PI + (unit(j, key + 43) - 0.5) * 0.3,
+        wallIn = wallInAt(ground, a),
         r =
           hold === 0
             ? wallIn * (0.85 + 0.1 * unit(j, key + 47))
@@ -788,10 +794,13 @@ function makeSpread(
       // (Past the ladders one squad in two makes by the streets for the high ground its defenders hold last.)
       const l = leader0[j]!,
         d = Math.max(1e-6, Math.hypot(l.x, l.z)),
-        r = shelling ? reach * (0.25 + 0.3 * unit(j, key + 53)) : wallOut,
+        r = shelling
+          ? reach * (0.25 + 0.3 * unit(j, key + 53))
+          : wallOutAt(ground, Math.atan2(l.z, l.x)),
         high = shelling && up !== undefined && j % 2 === 1,
+        upIn = up === undefined ? 0 : wallInAt(ground, up) * 0.35,
         to = high
-          ? { x: Math.cos(up!) * wallIn * 0.35, z: Math.sin(up!) * wallIn * 0.35 }
+          ? { x: Math.cos(up!) * upIn, z: Math.sin(up!) * upIn }
           : { x: (l.x / d) * r, z: (l.z / d) * r },
         walk = route(ground, l, to, 1.2);
       return (ways[j] = pathOf(walk.length > 1 ? walk : [l, to]));
@@ -892,7 +901,7 @@ export function townWarScene(
     muster = drillGround(plan),
     road = at(reach + ROAD_OUT, 0),
     // (Its gate on the attackers' road: in its walls where they stand, else at its edge.)
-    gate = at(ground.town?.walls?.standing ? ground.town.walls.r + 4 : reach + 12, 0),
+    gate = at(ground.town?.walls?.standing ? wallsAt(ground, way) + 4 : reach + 12, 0),
     // (The defenders rallying to the land come in across the open ground, the road the attackers'.)
     aside = (unit(key, 3) < 0.5 ? -1 : 1) * (reach + ROAD_OUT),
     soldiers: Soldier[] = [],
@@ -955,14 +964,18 @@ export function townWarScene(
   /** About its walls: each soldier's turn about the town (the defenders' paired with the besiegers'). */
   // (Round its dry ground only: none camped in its water.)
   const ringStart = way + (unit(key, 5) - 0.5) * 0.3,
-    ringAt = (i: number, r: number): Flat => {
-      const arc = openArc(ground, r, ringStart),
-        a = arc.from + ((i + 0.5) / each) * arc.span;
+    camp = reach + CAMP_OUT,
+    /** About its walls' own line: `off` metres past it (within it: less than nothing), `close` of the way in to it from `far`. */
+    wallAt_ = (i: number, off: number, close = 1, far = 0): Flat => {
+      // (Round its dry ground at about where they stand.)
+      const arc = openArc(ground, far + (wallsAt(ground) + off - far) * close, ringStart),
+        a = arc.from + ((i + 0.5) / each) * arc.span,
+        on = off < 0 ? wallInAt(ground, a) : wallsAt(ground, a) + off,
+        r = far + (on - far) * close;
       return { x: Math.cos(a) * r, z: Math.sin(a) * r };
     },
-    camp = reach + CAMP_OUT,
-    wallOut = wallsAt(ground) + 1.6,
-    wallIn = Math.max(4, wallsAt(ground) - 2);
+    OUT = 1.6,
+    IN = -2;
   /** A block of four files on the muster ground, facing the road. */
   const blockAt = (i: number, middle: Flat): Flat => {
     const col = (i % 4) - 1.5,
@@ -1066,7 +1079,7 @@ export function townWarScene(
           ? wallsNow(i, side as 0 | 1, fallsAt(i, side))
           : fieldNow(i, side as 0 | 1, fallsAt(i, side))
         : fought?.walls
-          ? ringAt(i, side === 0 ? wallOut : wallIn)
+          ? wallAt_(i, side === 0 ? OUT : IN)
           : meetOf(i, side),
     /** Facing the foe there. */
     foughtFacing = (p: Flat, side: number) =>
@@ -1270,7 +1283,7 @@ export function townWarScene(
             to = h.inward
               ? spread(side)
                 ? apart!.about[1][i]!
-                : ringAt(i, wallIn)
+                : wallAt_(i, IN)
               : at(
                   front - 20 - unit(i, key + 9) * 60,
                   (unit(i, key) < 0.5 ? -1 : 1) * (reach + ROAD_OUT),
@@ -1352,8 +1365,7 @@ export function townWarScene(
           // Camped about it, by their tents; storming its walls as the year ends.
           const storm = h.doing === "assaulting" && fight?.stage === "engaged" ? fight.k : 0,
             close = smooth(storm / 0.3),
-            r = camp - 6 + (wallOut - (camp - 6)) * close,
-            ring = ringAt(i, r),
+            ring = wallAt_(i, OUT, close, camp - 6),
             // (From the field won, the year's first weeks, to its place about the town.)
             settle = h.doing === "besieging" ? smooth(k) : 1,
             from = foughtAt(i, side),
@@ -1362,7 +1374,7 @@ export function townWarScene(
               z: from.z + (ring.z - from.z) * settle,
             };
           if (h.doing === "assaulting" && falls(i, side, each, during) && storm > fallsAt(i, side))
-            push(i, side, ringAt(i, wallOut), facing(-p.x, -p.z), "fallen");
+            push(i, side, wallAt_(i, OUT), facing(-p.x, -p.z), "fallen");
           else
             push(
               i,
@@ -1403,7 +1415,7 @@ export function townWarScene(
               );
             break;
           }
-          const p = ringAt(i, wallIn);
+          const p = wallAt_(i, IN);
           if (storm > 0 && falls(i, side, each, during) && storm > fallsAt(i, side))
             push(i, side, p, facing(p.x, p.z), "fallen", 1, false);
           else push(i, side, p, facing(p.x, p.z), storm > 0 ? "fight" : "stand", 1, false);
@@ -1523,7 +1535,7 @@ export function townWarScene(
           key,
           openArc(ground, camp - 14, ringStart),
           camp - 14,
-          wallsAt(ground),
+          (a) => wallsAt(ground, a),
           war.works,
           isGun(war.sides[0].host?.arm) || !!apart?.shelling,
         )

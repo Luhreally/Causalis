@@ -51,13 +51,14 @@ export const SIEGE_WORKS = {
 
 /**
  * The works of a siege: `arc` is the dry ground about the town at the bank's ring `r` (m from its middle; radians from, and
- * how far round), `wall` its walls' ring, `key` the war's.
+ * how far round), `wall` how far out its walls' line runs toward a bearing (bridge/wall.ts: the line its walls stand on),
+ * `key` the war's.
  */
 export function siegeWorks(
   key: number,
   arc: { readonly from: number; readonly span: number },
   r: number,
-  wall: number,
+  wall: (a: number) => number,
   state: SiegeState,
   guns: boolean,
 ): SiegeWorks {
@@ -85,11 +86,13 @@ export function siegeWorks(
   const mid = arc.from + arc.span / 2 + (whole ? unit(key, 3) * 2 * Math.PI : 0),
     // (Their approaches go in further each year the siege has stood, and as the walls open.)
     reached = Math.min(0.85, 0.3 + 0.2 * state.years + 0.35 * state.breach),
-    room = Math.max(0, r - wall - 6);
+    // (The open ground between their bank and the walls, where each approach goes in.)
+    roomAt = (a: number) => Math.max(0, r - wall(a) - 6),
+    room = roomAt(mid);
   for (const way of [-1, 0, 1]) {
-    const legs = Math.min(W.saps / 3, Math.max(1, Math.round((room * reached) / 7)));
     let at = r - 2,
       a = mid + way * Math.min(0.5, arc.span / 6);
+    const legs = Math.min(W.saps / 3, Math.max(1, Math.round((roomAt(a) * reached) / 7)));
     for (let k = 0; k < legs; k++) {
       // A leg of it: seven metres nearer, slanting across the way in so no shot from the walls runs along it.
       const slant = k % 2 ? 1 : -1,
@@ -110,9 +113,11 @@ export function siegeWorks(
     }
   }
   // What they throw with: behind the approaches' heads, facing the walls.
-  const stand = wall + Math.max(14, room * (1 - reached) + 10);
+  const off = Math.max(14, room * (1 - reached) + 10);
   for (let i = 0; i < W.engines; i++) {
-    const a = mid + ((i + 0.5) / W.engines - 0.5) * Math.min(1.1, arc.span * 0.5);
+    const a = mid + ((i + 0.5) / W.engines - 0.5) * Math.min(1.1, arc.span * 0.5),
+      // (Never behind their own bank.)
+      stand = Math.min(wall(a) + off, Math.max(wall(a) + 6, r - 4));
     engines.push({
       x: Math.cos(a) * stand,
       z: Math.sin(a) * stand,
@@ -122,10 +127,10 @@ export function siegeWorks(
   // Its walls where they are open: so much of their ring before the approaches lies as rubble.
   const open = Math.max(0, Math.min(1, state.breach)),
     heaps = Math.round(open * W.rubble),
-    wide = (open * 46) / Math.max(20, wall);
+    wide = (open * 46) / Math.max(20, wall(mid));
   for (let i = 0; i < heaps; i++) {
     const a = mid + ((i + 0.5) / heaps - 0.5) * wide,
-      out = wall + (unit(key + 23, i) - 0.35) * 3.4;
+      out = wall(a) + (unit(key + 23, i) - 0.35) * 3.4;
     rubble.push({
       x: Math.cos(a) * out,
       z: Math.sin(a) * out,
@@ -140,7 +145,7 @@ export function siegeWorks(
     engines,
     guns,
     rubble,
-    breachAt: heaps ? { x: Math.cos(mid) * wall, z: Math.sin(mid) * wall } : null,
+    breachAt: heaps ? { x: Math.cos(mid) * wall(mid), z: Math.sin(mid) * wall(mid) } : null,
   };
 }
 

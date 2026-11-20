@@ -25,6 +25,7 @@
 //
 // Pure: facts in (read by the host from what the world keeps, host/form.ts), a few numbers out; the view draws from them and
 // the town's page says them. Nothing here is kept, and no world's history turns on it.
+import { wallAt } from "./wall.ts";
 import {
   SURVEYED,
   STRAIGHT,
@@ -245,18 +246,19 @@ export const HEIGHT_RISE = 6;
 
 /**
  * The height a town holds, and for whom (null: none): its ground rises, it was once walled (the height is on its walls'
- * line, `r` from its middle, where no block was ever laid), and someone rules here (`seat`: a keep) or is prayed to here
+ * line (bridge/wall.ts), where no block was ever laid), and someone rules here (`seat`: a keep) or is prayed to here
  * (`temple`: a shrine). Not in its water, nor across a road in.
  */
 export function heightHeld(
   site: TownSite,
-  r: number,
+  line: Float32Array,
   water: { readonly x: number; readonly z: number; readonly r: number } | null,
   seat: boolean,
   temple: boolean,
 ): { x: number; z: number; yaw: number; keep: boolean } | null {
   if (site.rise < HEIGHT_RISE || (!seat && !temple)) return null;
-  const x = r * Math.cos(site.up),
+  const r = wallAt(line, site.up),
+    x = r * Math.cos(site.up),
     z = r * Math.sin(site.up);
   if (water && Math.hypot(x - water.x, z - water.z) < water.r + 24) return null;
   for (const road of site.roads)
