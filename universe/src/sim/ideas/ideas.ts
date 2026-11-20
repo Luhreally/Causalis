@@ -110,8 +110,10 @@ function teachingOf(
     bestGap = 0;
   for (const g of GROUPS) {
     const w = wants.get(g);
-    // (The court is how the realm is held: what it wants is no teaching against it.)
-    if (!w || g === "the court") continue;
+    // (The court among them: a realm held otherwise than its court would have it grows a teaching of the seat's right, as one
+    // that leaves its tillers unheard grows a teaching of theirs. Left out, every school spoke against the seat: schools could
+    // ask for more hands in a choice and never for fewer, and their voices together leaned every realm one way.)
+    if (!w) continue;
     let gap = 0;
     for (let k = 0; k < HOLD_KINDS.length; k++) gap += Math.abs(w.want[k]! - held[k]!) / 100;
     // (One of faith speaks for the temple where it wants anything of the realm.)
