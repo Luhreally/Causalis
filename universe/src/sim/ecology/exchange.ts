@@ -116,7 +116,7 @@ export class ExchangeStore implements StateStore {
 }
 
 export function exchangeOf(world: World): ExchangeStore | null {
-  return world.hasStore("life.exchange") ? world.store<ExchangeStore>("life.exchange") : null;
+  return world.peek<ExchangeStore>("life.exchange") ?? null;
 }
 
 /** What carried weeds and pests leave of a land's fields (1 where none came). */

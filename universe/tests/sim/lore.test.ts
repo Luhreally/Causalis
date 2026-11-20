@@ -1,9 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { type Ref } from "../../src/kernel/index.ts";
+import { packList, unpackList, type Ref } from "../../src/kernel/index.ts";
 import { EFFECTS, PRINCIPLES, PRINCIPLE_INDEX, principle } from "../../src/rules/index.ts";
 import {
   LORE_EVENTS,
+  LoreStore,
   knows,
   loreOf,
   marketsOf,
@@ -104,6 +105,46 @@ test("what a land knows sums into what it can do", () => {
       assert.ok(Math.abs(lore.effect(p.cell, e) - sum) < 1e-9, `${e} in ${p.cell}`);
     }
   }
+});
+
+test("a land's totals come back from a save as they stood, in whatever order it learned", () => {
+  // (Three principles of one effect whose sum depends on the order they are added in: the same numbers, another last place.)
+  let found: { e: number; a: number; b: number; c: number } | null = null;
+  for (let e = 0; e < EFFECTS.length && !found; e++) {
+    const of = (i: number) => PRINCIPLES[i]!.effects[EFFECTS[e]!] ?? 0,
+      has = PRINCIPLES.map((_, i) => i).filter((i) => of(i) !== 0);
+    for (const a of has)
+      for (const b of has)
+        for (const c of has)
+          if (!found && a !== b && a !== c && PRINCIPLES[b]!.id < PRINCIPLES[c]!.id)
+            if (!Object.is(of(a) + of(b) + of(c), of(a) + of(c) + of(b))) found = { e, a, b, c };
+  }
+  assert.ok(found, "some three principles' effects sum otherwise in another order");
+  const [a, b, c] = [found.a, found.b, found.c].map((i) => PRINCIPLES[i]!),
+    event = "ev:0:1" as Ref,
+    live = new LoreStore();
+  // (Learned the later of a year's two first: a save keeps a year's in the order of their names.)
+  live.learn(7, a!.id, { year: 10, event }, a!);
+  live.learn(7, c!.id, { year: 20, event }, c!);
+  live.learn(7, b!.id, { year: 20, event }, b!);
+  const totals = (s: LoreStore) => EFFECTS.map((e) => s.effect(7, e)),
+    saved = unpackList(JSON.parse(JSON.stringify(packList([live.save()]))))[0] as {
+      summed?: number[][];
+    },
+    back = new LoreStore();
+  back.load(saved);
+  assert.deepStrictEqual(totals(back), totals(live));
+  assert.equal(saved.summed?.length, 1, "the one land whose totals loading would sum otherwise");
+  // (A save from before kept none: its lands are summed in the order it keeps them, as they always were.)
+  const old = new LoreStore();
+  old.load({ ...saved, summed: undefined });
+  assert.notDeepStrictEqual(totals(old), totals(live));
+  // (And a land that learned in the order a save keeps is kept as it always was.)
+  const plain = new LoreStore();
+  plain.learn(7, a!.id, { year: 10, event }, a!);
+  plain.learn(7, b!.id, { year: 20, event }, b!);
+  plain.learn(7, c!.id, { year: 20, event }, c!);
+  assert.equal((plain.save() as { summed?: unknown }).summed, undefined);
 });
 
 test("no realm rules by decree without writing at its seat", () => {

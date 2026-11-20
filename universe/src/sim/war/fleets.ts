@@ -154,7 +154,7 @@ export class FleetStore implements StateStore {
 }
 
 export function fleetsOf(world: World): FleetStore | null {
-  return world.hasStore("war.fleets") ? world.store<FleetStore>("war.fleets") : null;
+  return world.peek<FleetStore>("war.fleets") ?? null;
 }
 
 /** A flagship's name: in the tongue of its realm's seat, the n-th it has had. */

@@ -123,7 +123,7 @@ export class OccupationStore implements StateStore {
 }
 
 export function occupationOf(world: World): OccupationStore | null {
-  return world.hasStore("war.occupation") ? world.store<OccupationStore>("war.occupation") : null;
+  return world.peek<OccupationStore>("war.occupation") ?? null;
 }
 
 /** A land taken in war: held by force from now (sim/war/war.ts, where it is taken). */

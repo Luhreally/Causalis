@@ -73,7 +73,7 @@ export class PilgrimsStore implements StateStore {
 }
 
 export function pilgrimsOf(world: World): PilgrimsStore | null {
-  return world.hasStore(PILGRIMS_STORE) ? world.store<PilgrimsStore>(PILGRIMS_STORE) : null;
+  return world.peek<PilgrimsStore>(PILGRIMS_STORE) ?? null;
 }
 
 /** What pilgrims add to what a land's town draws (0 where none come): sim/population/urban.ts. */

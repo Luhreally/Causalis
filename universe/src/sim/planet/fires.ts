@@ -203,7 +203,7 @@ export class EruptionStore implements StateStore {
 }
 
 export function firesOf(world: World): EruptionStore | null {
-  return world.hasStore("planet.fires") ? world.store<EruptionStore>("planet.fires") : null;
+  return world.peek<EruptionStore>("planet.fires") ?? null;
 }
 
 /** What the world's veil and a land's ash leave of its harvest now (exactly 1 under a clear sky, on clean ground). */

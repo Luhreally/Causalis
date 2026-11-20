@@ -251,6 +251,7 @@ test("old saves send no one: battles with no record of their men give no fronts"
       storeNames: () => ["war.wars"],
       // (A store is asked for by name since 979e9fed.)
       hasStore: (name: string) => name === "war.wars",
+      peek: (name: string) => (name === "war.wars" ? oldWorld.store("war.wars") : undefined),
       store: () => ({
         all: () => old,
         battlesIn: (from: number, to: number) =>

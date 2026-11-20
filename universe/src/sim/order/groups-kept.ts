@@ -197,7 +197,7 @@ export class OrgsStore implements StateStore {
 }
 
 export function orgsOf(world: World): OrgsStore | null {
-  return world.hasStore(ORGS_STORE) ? world.store<OrgsStore>(ORGS_STORE) : null;
+  return world.peek<OrgsStore>(ORGS_STORE) ?? null;
 }
 
 /** A land's row: who holds it and what that does there. Thousandths unless said. */
@@ -240,7 +240,7 @@ export const ORG_ROW = {
 export const ORG_LANDS_WIDTH = 21;
 
 export function orgLandsStore(world: World): RowStore | null {
-  return world.hasStore(ORG_LANDS_STORE) ? world.store<RowStore>(ORG_LANDS_STORE) : null;
+  return world.peek<RowStore>(ORG_LANDS_STORE) ?? null;
 }
 
 // —— What the older systems read ——————————————————————————————————————————————————————————————————————————

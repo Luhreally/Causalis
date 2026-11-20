@@ -268,7 +268,7 @@ export class MotionStore implements StateStore {
 }
 
 export function motionOf(world: World): MotionStore | null {
-  return world.hasStore("planet.motion") ? world.store<MotionStore>("planet.motion") : null;
+  return world.peek<MotionStore>("planet.motion") ?? null;
 }
 
 // —— The reading every land is seen through ——————————————————————————————————————————————————————

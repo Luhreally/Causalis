@@ -92,7 +92,7 @@ export class LineageStore implements StateStore {
 }
 
 export function kindsInPlayOf(world: World): LineageStore | null {
-  return world.hasStore("life.lineage") ? world.store<LineageStore>("life.lineage") : null;
+  return world.peek<LineageStore>("life.lineage") ?? null;
 }
 
 /** What a land's partners and parasites do to its year's food: its flocks' and its wild's shares (exactly 1 where none stand). */

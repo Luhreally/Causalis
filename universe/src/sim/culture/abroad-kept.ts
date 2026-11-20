@@ -61,7 +61,7 @@ export class AbroadStore implements StateStore {
 }
 
 export function abroadOf(world: World): AbroadStore | null {
-  return world.hasStore(ABROAD_STORE) ? world.store<AbroadStore>(ABROAD_STORE) : null;
+  return world.peek<AbroadStore>(ABROAD_STORE) ?? null;
 }
 
 // —— What the older systems read ——————————————————————————————————————————————————————————————————————————————————

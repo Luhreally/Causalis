@@ -341,13 +341,14 @@ export function diplomacyYear(ctx: PopulationContext, t: SimTime): void {
         if (!q || q === p || q.ended !== null || p.ref > q.ref) continue;
         metOf(p, q).count++;
       }
-  for (const f of markets.flows) {
-    const p = realms.of(f.from),
+  for (let i = 0; i < markets.flows.length; i++) {
+    const f = markets.flows[i]!,
+      p = realms.of(f.from),
       q = realms.of(f.to);
     if (!p || !q || p === q) continue;
     const tr = p.ref < q.ref ? metOf(p, q) : metOf(q, p);
     tr.traded = true;
-    tr.volume += markets.boundOf(f) * GOODS[f.good]!.value;
+    tr.volume += markets.boundAt(i) * GOODS[f.good]!.value;
     tr.road ??= markets.route(f.from, f.to) ?? null;
   }
 

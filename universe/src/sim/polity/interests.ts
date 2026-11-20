@@ -405,13 +405,14 @@ function interestsNow(
     const realms = politiesOf(world),
       markets = world.store<MarketStore>("economy.markets"),
       met = new Map<Ref, { worth: number; road: Ref | null }>();
-    for (const f of markets.flowsOf(p.members)) {
-      const from = realms.of(f.from),
+    for (const i of markets.flowsAt(p.members)) {
+      const f = markets.flows[i]!,
+        from = realms.of(f.from),
         to = realms.of(f.to);
       if (!from || !to || from === to || (from !== p && to !== p)) continue;
       const other = from === p ? to : from,
         tr = met.get(other.ref) ?? { worth: 0, road: null };
-      tr.worth += markets.boundOf(f) * GOODS[f.good]!.value;
+      tr.worth += markets.boundAt(i) * GOODS[f.good]!.value;
       tr.road ??= markets.route(f.from, f.to) ?? null;
       met.set(other.ref, tr);
     }

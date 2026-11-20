@@ -228,7 +228,7 @@ export class WorksStore implements StateStore {
 const NONE: readonly Work[] = [];
 
 export function worksOf(world: World): WorksStore | null {
-  return world.hasStore(WORKS_STORE) ? world.store<WorksStore>(WORKS_STORE) : null;
+  return world.peek<WorksStore>(WORKS_STORE) ?? null;
 }
 
 // —— What the older systems read (each exactly as before where no work is kept) ————————————————————————————————

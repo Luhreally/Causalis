@@ -72,7 +72,7 @@ export class StrainStore implements StateStore {
 }
 
 export function strainsOf(world: World): StrainStore | null {
-  return world.hasStore("health.strains") ? world.store<StrainStore>("health.strains") : null;
+  return world.peek<StrainStore>("health.strains") ?? null;
 }
 
 /** A sickness's line, begun as it rose (its range by where it rose) where it has none yet. */

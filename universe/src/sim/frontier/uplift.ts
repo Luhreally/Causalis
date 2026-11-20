@@ -99,7 +99,7 @@ export class UpliftStore implements StateStore {
 }
 
 export function upliftOf(world: World): UpliftStore | null {
-  return world.hasStore("frontier.uplift") ? world.store<UpliftStore>("frontier.uplift") : null;
+  return world.peek<UpliftStore>("frontier.uplift") ?? null;
 }
 
 /** A beast as the uplift reads it (null: a grass, or the people themselves). */

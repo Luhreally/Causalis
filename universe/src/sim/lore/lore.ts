@@ -121,6 +121,45 @@ export class LoreStore implements StateStore {
   /** How many lands know each principle (derived). */
   private readonly lands = new Map<string, number>();
   /**
+   * What each land may yet come to by what it knows alone, as last read (see `openKept`): a cache, never saved, let go
+   * on loading.
+   */
+  private readonly opens = new Map<
+    number,
+    {
+      readonly known: ReadonlyMap<string, Known> | undefined;
+      readonly size: number;
+      readonly flags: number;
+      readonly means: unknown;
+      readonly list: readonly Principle[];
+    }
+  >();
+  /**
+   * What `make` gives for a land, kept while all it reads stands: what the land knows (its map and that map's size: a land
+   * that forgets is given a new map, see `forget`), `flags` (what the older systems know for it) and its world's `means`.
+   */
+  openKept(
+    cell: number,
+    known: ReadonlyMap<string, Known> | undefined,
+    flags: number,
+    means: unknown,
+    make: () => readonly Principle[],
+  ): readonly Principle[] {
+    const had = this.opens.get(cell),
+      size = known?.size ?? 0;
+    if (
+      had &&
+      had.known === known &&
+      had.size === size &&
+      had.flags === flags &&
+      had.means === means
+    )
+      return had.list;
+    const list = make();
+    this.opens.set(cell, { known, size, flags, means, list });
+    return list;
+  }
+  /**
    * Every learning and every forgetting folded in as it happens, so a checkpoint hashes one
    * digest, not every land's whole knowledge every year.
    */
@@ -227,11 +266,37 @@ export class LoreStore implements StateStore {
     h.string(this.digest).int(this.count);
   }
 
+  /**
+   * A land's totals as loading sums them: what it knows in the order a save keeps it (`of`), each effect added in turn.
+   */
+  private summedAsSaved(cell: number): Float64Array {
+    const t = new Float64Array(EFFECTS.length);
+    for (const [id] of this.of(cell)) {
+      const p = PRINCIPLES[PRINCIPLE_INDEX.get(id)!]!;
+      EFFECTS.forEach((e, i) => (t[i] = t[i]! + (p.effects[e] ?? 0)));
+    }
+    return t;
+  }
+
+  /**
+   * (`summed`: the totals of the few lands where they are not what loading would sum. A land's totals are summed as it
+   * learns, and a land that learned two things in a year need not have learned them in the order a save keeps them in:
+   * the same numbers added in another order can differ in their last place. By first light's year 1,500 four lands' did,
+   * and the world loaded from a save went another way from the next year's trade on. Those lands' totals are kept as they
+   * stand; a save from before has none, and its lands are summed as they always were.)
+   */
   save(): unknown {
+    const summed: number[][] = [];
+    for (const cell of [...this.totals.keys()].sort((a, b) => a - b)) {
+      const now = this.totals.get(cell)!,
+        loaded = this.summedAsSaved(cell);
+      if (now.some((x, i) => !Object.is(x, loaded[i]))) summed.push([cell, ...now]);
+    }
     return {
       known: [...this.known.keys()].sort((a, b) => a - b).map((c) => [c, this.of(c)]),
       digest: this.digest,
       count: this.count,
+      ...(summed.length ? { summed } : {}),
     };
   }
 
@@ -239,10 +304,18 @@ export class LoreStore implements StateStore {
     this.known.clear();
     this.totals.clear();
     this.lands.clear();
+    this.opens.clear();
     const byId = new Map(PRINCIPLES.map((p) => [p.id, p]));
-    const s = state as { known: [number, [string, Known][]][]; digest?: string; count?: number };
+    const s = state as {
+      known: [number, [string, Known][]][];
+      digest?: string;
+      count?: number;
+      summed?: number[][];
+    };
     for (const [cell, list] of s.known)
       for (const [id, k] of list) this.learn(cell, id, k, byId.get(id)!);
+    for (const [cell, ...xs] of s.summed ?? [])
+      if (this.totals.has(cell!)) this.totals.set(cell!, Float64Array.from(xs));
     // The fold goes on from where it stood (the order it was learned in, not the save's).
     if (s.digest !== undefined) {
       this.digest = s.digest;
@@ -391,16 +464,14 @@ function openOf(
   cell?: number,
 ): Principle[] {
   const reach = reachIn(means, here),
-    made =
-      cell !== undefined && ctx.world.hasStore("lore.materials")
-        ? ctx.world.store<MaterialsStore>("lore.materials")
-        : null;
+    made = cell !== undefined && (ctx.world.peek<MaterialsStore>("lore.materials") ?? null);
+  // (What it knows already is asked first: late, a land knows nearly all of them, and each of the rest only reads.)
   return PRINCIPLES.filter(
     (p) =>
       asked(p) &&
-      affordsPrinciple(p, ctx.medium, reach, means.wants) &&
       !here(p.id) &&
       needsMet(p, here) &&
+      affordsPrinciple(p, ctx.medium, reach, means.wants) &&
       (!p.body?.lifts || (lifts !== null && here(lifts.id))) &&
       matterAllows(ctx.generated, p) &&
       lawAllows(ctx.world, p) &&
@@ -425,6 +496,7 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
     // (The least engine that lifts a machine here: W2's, what a row that flies asks of a land.)
     lifts = liftingEngine(meansNumbers(g)),
     gone = lostOf(world),
+    made = world.peek<MaterialsStore>("lore.materials") ?? null,
     letters = lettersOf(world),
     // (Each realm's readers, and how much of them its seat's fastest word joins each of its lands to: rules/letters.ts.)
     realmReaders = new Map<string, number>(),
@@ -471,19 +543,40 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
       // (What this land has lost it takes up again only once it has the hands to hold it, or is what it was: K1. What only
       // having lived through a thing opens is open too, to be taught by those who did.)
       lostHere = gone.ofLand(cell),
-      open = openOf(
-        ctx,
-        here,
-        means,
-        lifts,
-        (p) =>
-          (p.rate > 0 || p.seen !== undefined) &&
-          (!lostHere ||
-            !lostHere.has(p.id) ||
-            (year - lostHere.get(p.id)!.year >= RETAKE_AFTER &&
-              holdsAgain(ctx, prov, p, lostHere.get(p.id)!.then))),
+      // (`openOf` in two parts. What stands while the land knows what it knows is kept by exactly that: what it does not yet
+      // know, has the needs of, and its body, its world's heat and matter allow. Read afresh each year: what it has lost and
+      // may not yet take up again, the law of the lanes, its stuffs. A land went through every principle every year for
+      // them: the lore's year was 13 ms of a year over a world's fifteen centuries.)
+      metal = !!markets.get(cell)?.metalworking,
+      byKnowing = store.openKept(
         cell,
-      );
+        knownHere,
+        (prov.knowsCultivation ? 1 : 0) + (metal ? 2 : 0),
+        means,
+        () => {
+          const reach = reachIn(means, here);
+          return PRINCIPLES.filter(
+            (p) =>
+              (p.rate > 0 || p.seen !== undefined) &&
+              !here(p.id) &&
+              needsMet(p, here) &&
+              affordsPrinciple(p, ctx.medium, reach, means.wants) &&
+              (!p.body?.lifts || (lifts !== null && here(lifts.id))) &&
+              matterAllows(g, p),
+          );
+        },
+      ),
+      open = byKnowing.length
+        ? byKnowing.filter(
+            (p) =>
+              (!lostHere ||
+                !lostHere.has(p.id) ||
+                (year - lostHere.get(p.id)!.year >= RETAKE_AFTER &&
+                  holdsAgain(ctx, prov, p, lostHere.get(p.id)!.then))) &&
+              lawAllows(world, p) &&
+              (!made || made.allows(ctx, cell, p.id)),
+          )
+        : byKnowing;
     if (!open.length) continue;
     // Finding: the first principle whose drivers carry it, in the tree's order.
     const famine = (() => {

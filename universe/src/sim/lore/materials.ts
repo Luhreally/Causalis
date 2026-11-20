@@ -191,7 +191,7 @@ export class MaterialsStore implements StateStore {
 
 /** A world's making store (null on a world that keeps none). */
 export function materialsOf(world: World): MaterialsStore | null {
-  return world.hasStore("lore.materials") ? world.store<MaterialsStore>("lore.materials") : null;
+  return world.peek<MaterialsStore>("lore.materials") ?? null;
 }
 
 // —— What a world holds for its ways, read once ——————————————————————————————————————————————————————————————

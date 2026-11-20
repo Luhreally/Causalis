@@ -258,7 +258,7 @@ export class DeathNotes implements StateStore {
 }
 
 export function deathNotesOf(world: World): DeathNotes | null {
-  return world.hasStore("readings.deaths") ? world.store<DeathNotes>("readings.deaths") : null;
+  return world.peek<DeathNotes>("readings.deaths") ?? null;
 }
 
 /** The part of a month's hazard the land's killing lays (what protection spares). */

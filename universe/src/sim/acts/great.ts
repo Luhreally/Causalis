@@ -95,7 +95,7 @@ export class GreatActStore implements StateStore {
 }
 
 export function greatActsOf(world: World): GreatActStore | null {
-  return world.hasStore("acts.great") ? world.store<GreatActStore>("acts.great") : null;
+  return world.peek<GreatActStore>("acts.great") ?? null;
 }
 
 /** The god's warming of a world now (degrees; 0 when none). */

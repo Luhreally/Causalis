@@ -131,7 +131,7 @@ export class WeatherStore implements StateStore {
 }
 
 export function weatherOf(world: World): WeatherStore | null {
-  return world.hasStore("frontier.weather") ? world.store<WeatherStore>("frontier.weather") : null;
+  return world.peek<WeatherStore>("frontier.weather") ?? null;
 }
 
 /** The home star's flaring now: flares a year at least a Carrington, and the home world's usual yearly greatest storm. */

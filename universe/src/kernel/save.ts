@@ -131,6 +131,28 @@ function throughJson(value: unknown): { data: unknown; text?: string } {
   return { data: JSON.parse(text) as unknown, text };
 }
 
+/** The least a store's JSON must be (characters) for its packing to be tried, and the most of it its packing may be to be kept. */
+const PACK_FROM = 2048,
+  PACK_WORTH = 0.9;
+
+/** A store's save packed by column, where that is smaller than its JSON `plain` and unpacks to exactly it; null otherwise. */
+function packedIfSmaller(saved: unknown, plain: string): { data: unknown; text: string } | null {
+  let text: string;
+  try {
+    text = JSON.stringify(packList([saved]));
+  } catch {
+    return null;
+  }
+  if (text.length > plain.length * PACK_WORTH) return null;
+  const data = JSON.parse(text) as unknown;
+  try {
+    if (JSON.stringify(unpackList(structuredClone(data) as Packed)[0]) !== plain) return null;
+  } catch {
+    return null;
+  }
+  return { data, text };
+}
+
 /** Turn a world into a save document. Only between moments. */
 export function saveWorld(
   world: World,
@@ -160,12 +182,23 @@ export function* saveSteps(
   const stores: Record<string, StoreChunk> = {};
   for (const name of world.storeNames()) {
     const store = world.store(name),
-      packed = store.packed === true,
+      asked = store.packed === true,
       saved = store.saveSteps ? yield* store.saveSteps() : store.save();
     yield;
     // (Packed straight from the store: packList keeps what JSON keeps, and the copy through
     // JSON is then of the packed lists, a fraction of the size.)
-    const { data, text } = throughJson(packed ? packList([saved]) : saved);
+    let { data, text } = throughJson(asked ? packList([saved]) : saved),
+      packed = asked;
+    // (A store that says nothing of it is kept packed all the same where that is the smaller and gives back, letter for
+    // letter, what its JSON does: some hundred and fifty small stores of rows were 1.9 MB of a save at year 1,500
+    // as they were and 1.2 MB so. A chunk says which it is, and a save from before loads as it did.)
+    if (store.packed === undefined && text !== undefined && text.length >= PACK_FROM) {
+      const smaller = packedIfSmaller(saved, text);
+      if (smaller) {
+        ({ data, text } = smaller);
+        packed = true;
+      }
+    }
     yield;
     stores[name] = {
       schema: schemaOf(store),

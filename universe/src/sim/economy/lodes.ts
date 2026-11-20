@@ -220,5 +220,5 @@ export class LodeStore implements StateStore {
 }
 
 export function lodesOf(world: World): LodeStore | null {
-  return world.hasStore("economy.lodes") ? world.store<LodeStore>("economy.lodes") : null;
+  return world.peek<LodeStore>("economy.lodes") ?? null;
 }

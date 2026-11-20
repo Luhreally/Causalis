@@ -183,7 +183,7 @@ export class SeaStore implements StateStore {
 }
 
 export function seasOf(world: World): SeaStore | null {
-  return world.hasStore("ecology.seas") ? world.store<SeaStore>("ecology.seas") : null;
+  return world.peek<SeaStore>("ecology.seas") ?? null;
 }
 
 /** The reach a land is on (-1: none), and its row where it is fished. */

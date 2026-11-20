@@ -107,7 +107,7 @@ export class FortuneStore implements StateStore {
 }
 
 export function fortunesOf(world: World): FortuneStore | null {
-  return world.hasStore("acts.fortunes") ? world.store<FortuneStore>("acts.fortunes") : null;
+  return world.peek<FortuneStore>("acts.fortunes") ?? null;
 }
 
 /** How hard the fortunes on a realm pull on its people's regard for its rule (0 under none): +, a blessing's. */

@@ -551,8 +551,11 @@ export class MarketStore implements StateStore {
     return this.routes.get(a < b ? `${a}:${b}` : `${b}:${a}`);
   }
 
-  /** Last year's flows out of or into any of these lands, each once, in canonical order. */
-  flowsOf(cells: readonly number[]): TradeFlow[] {
+  /**
+   * Last year's flows out of or into any of these lands, each once, in canonical order: `flowsAt` where each stands among the
+   * year's flows (what `boundAt` is asked by).
+   */
+  flowsAt(cells: readonly number[]): readonly number[] {
     let index = this.flowsByLand;
     if (index?.flows !== this.flows || index.length !== this.flows.length) {
       const at = new Map<number, number[]>();
@@ -565,9 +568,14 @@ export class MarketStore implements StateStore {
       });
       this.flowsByLand = index = { flows: this.flows, length: this.flows.length, at };
     }
+    // (One land's are each once and in order as they stand.)
+    if (cells.length === 1) return index.at.get(cells[0]!) ?? [];
     const seen = new Set<number>();
     for (const cell of cells) for (const i of index.at.get(cell) ?? []) seen.add(i);
-    return [...seen].sort((a, b) => a - b).map((i) => this.flows[i]!);
+    return [...seen].sort((a, b) => a - b);
+  }
+  flowsOf(cells: readonly number[]): TradeFlow[] {
+    return this.flowsAt(cells).map((i) => this.flows[i]!);
   }
 
   /**
@@ -582,6 +590,27 @@ export class MarketStore implements StateStore {
    * while they do.
    */
   boundOf(f: TradeFlow): number {
+    return this.boundNow(f);
+  }
+  /**
+   * `boundOf` of the year's flow that stands at `i`, reckoned once for all who ask: both realms it passed between and the
+   * reading of their relations ask it each year. Kept while the year's flows stand (prices are written only in the economy's
+   * year, which sets the year's flows down and asks no flow's binding before it is done: sim/economy/systems.ts), never saved.
+   */
+  boundAt(i: number): number {
+    let kept = this.flowBound;
+    if (kept?.flows !== this.flows || kept.bound.length !== this.flows.length)
+      this.flowBound = kept = {
+        flows: this.flows,
+        bound: new Float64Array(this.flows.length).fill(NaN),
+      };
+    let b = kept.bound[i]!;
+    if (b !== b) kept.bound[i] = b = this.boundNow(this.flows[i]!);
+    return b;
+  }
+  private flowBound: { readonly flows: readonly TradeFlow[]; readonly bound: Float64Array } | null =
+    null;
+  private boundNow(f: TradeFlow): number {
     let sums = this.flowSums;
     if (sums?.flows !== this.flows || sums.length !== this.flows.length) {
       const by = new Map<number, [sent: number, taken: number]>(),

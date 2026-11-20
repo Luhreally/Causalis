@@ -68,7 +68,7 @@ export class StandStore implements StateStore {
 }
 
 export function standsOf(world: World): StandStore | null {
-  return world.hasStore("ecology.stands") ? world.store<StandStore>("ecology.stands") : null;
+  return world.peek<StandStore>("ecology.stands") ?? null;
 }
 
 /** A land's woods' mean age (years; old growth where untouched or where the world keeps no stands). */

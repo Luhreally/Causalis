@@ -80,7 +80,7 @@ export class SpyStore implements StateStore {
 }
 
 export function spiesOf(world: World): SpyStore | null {
-  return world.hasStore("ties.spies") ? world.store<SpyStore>("ties.spies") : null;
+  return world.peek<SpyStore>("ties.spies") ?? null;
 }
 
 /** The realms a realm has most reason to watch, most first: those at war with it, its rivals, the one it fears most. */

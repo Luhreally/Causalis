@@ -6,7 +6,7 @@ import { COMPANY, companiesField, type CompanyAt, type Polity } from "../../src/
 import { companiesTold } from "../../src/sim/war/companies.ts";
 
 // (A world with no treasury kept: no realm has silver by it, so no foe can pay a company to come over.)
-const world = { hasStore: () => false } as unknown as World,
+const world = { hasStore: () => false, peek: () => undefined } as unknown as World,
   sides = [{ ref: "pol:0:1" }, { ref: "pol:0:2" }] as unknown as [Polity, Polity],
   co = (unpaid: boolean, share = 0.2): CompanyAt => ({
     org: { id: 1, name: "Varn", kind: 0, members: 400, leader: { name: "X" } } as CompanyAt["org"],

@@ -48,6 +48,8 @@ type Saved = {
   schools: School[];
   held: [number, number, number, number][];
   splits: [number, number][];
+  /** Those who founded a school the world has since forgotten (`forget`): absent in a save from before, and where there are none. */
+  gone?: number[];
 };
 
 export class SchoolsStore implements StateStore {
@@ -61,6 +63,12 @@ export class SchoolsStore implements StateStore {
   private readonly splits = new Map<number, number>();
   /** (Read off what is held, never saved: how many lands hold each.) */
   private readonly lands = new Map<number, number>();
+  /**
+   * Who has founded a school, those whose school the world has since forgotten among them: one of name founds once. (Those of
+   * the schools kept are read off them; the rest are kept by `goneFounders`, saved and hashed: read off the schools alone on
+   * loading, one whose school was forgotten could found again in a world loaded and not in the one that ran on. First light
+   * saved at 1,500 and loaded was another world by 1,525.)
+   */
   private readonly founders = new Set<number>();
 
   dormant(): boolean {
@@ -137,6 +145,14 @@ export class SchoolsStore implements StateStore {
   pinned(): Ref[] {
     return this.list.map((s) => s.event);
   }
+  /** The founders of schools forgotten, in order: what of `founders` the schools kept do not tell. */
+  private goneFounders(): number[] {
+    const kept = new Set<number>();
+    for (const s of this.list) kept.add(s.founder);
+    const out: number[] = [];
+    for (const f of this.founders) if (!kept.has(f)) out.push(f);
+    return out.sort((a, b) => a - b);
+  }
   private heldRows(): [number, number, number, number][] {
     return [...this.held]
       .map(([c, h]): [number, number, number, number] => [c, h.school, h.since, h.via])
@@ -152,6 +168,12 @@ export class SchoolsStore implements StateStore {
     h.int(rows.length);
     for (const r of rows) h.int(r[0]).int(r[1]).int(r[2]).int(r[3]);
     for (const [id, y] of [...this.splits].sort((a, b) => a[0] - b[0])) h.int(id).int(y);
+    // (Only where any is: a world that has forgotten no school hashes as it did.)
+    const gone = this.goneFounders();
+    if (gone.length) {
+      h.int(-gone.length);
+      for (const f of gone) h.int(f);
+    }
   }
   save(): unknown {
     const s: Saved = {
@@ -160,6 +182,8 @@ export class SchoolsStore implements StateStore {
       held: this.heldRows(),
       splits: [...this.splits].sort((a, b) => a[0] - b[0]),
     };
+    const gone = this.goneFounders();
+    if (gone.length) s.gone = gone;
     return s;
   }
   load(state: unknown): void {
@@ -174,11 +198,12 @@ export class SchoolsStore implements StateStore {
     for (const x of s?.schools ?? []) this.add(x);
     for (const [c, school, since, via] of s?.held ?? []) this.set(c, { school, since, via });
     for (const [id, y] of s?.splits ?? []) this.splits.set(id, y);
+    for (const f of s?.gone ?? []) this.founders.add(f);
   }
 }
 
 export function schoolsOf(world: World): SchoolsStore | null {
-  return world.hasStore(SCHOOLS_STORE) ? world.store<SchoolsStore>(SCHOOLS_STORE) : null;
+  return world.peek<SchoolsStore>(SCHOOLS_STORE) ?? null;
 }
 
 /** The school a land holds, where it holds one. Only reads. */

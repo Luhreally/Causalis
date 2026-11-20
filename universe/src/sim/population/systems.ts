@@ -2064,13 +2064,16 @@ function siteBlocks(ctx: PopulationContext, cell: number): SiteBlocks {
   return homePlanet(ctx.world).landReading(`sites:${ctx.medium}`, cell, () => readSites(ctx, cell));
 }
 
-/** A village's site score: its block's. */
-function siteOf(ctx: PopulationContext, v: Settlement): number {
+/** A village's site score: its block's, among its land's sites. */
+function siteIn(sites: SiteBlocks, v: Settlement): number {
   const size = REGION_SIZE,
     b =
       Math.floor(Math.floor(v.tile / size) / BLOCK) * SITE_SIDE +
       Math.floor((v.tile % size) / BLOCK);
-  return Math.max(0, siteBlocks(ctx, v.cell).scores[b]!);
+  return Math.max(0, sites.scores[b]!);
+}
+function siteOf(ctx: PopulationContext, v: Settlement): number {
+  return siteIn(siteBlocks(ctx, v.cell), v);
 }
 
 /** Whether a land's village sites are known already (they are pure: knowing them early changes nothing). */
@@ -2231,14 +2234,16 @@ export function settleYear(ctx: PopulationContext, t: SimTime): void {
         market = free.find((v) => v.market),
         inHand = held ? Math.min(settled, hand!.agents.length + (hand!.beyond ?? 0)) : 0,
         inTown = market ? Math.min(townsfolk, settled - inHand) : 0;
-      const share = free.length
-        ? apportion(
-            settled - inHand - inTown,
-            // A spring the god opened draws people to its village.
-            free.map((v) => 0.2 + siteOf(ctx, v) + (v.spring ? 0.6 : 0)),
-            (k) => world.rng.u32(SITES, refHash(free[k]!.ref), t, 9),
-          )
-        : [];
+      // (Its land's sites asked for once, not once a village: they are all of this land, and tens of thousands a year.)
+      const sites = free.length ? siteBlocks(ctx, p.cell) : null,
+        share = sites
+          ? apportion(
+              settled - inHand - inTown,
+              // A spring the god opened draws people to its village.
+              free.map((v) => 0.2 + siteIn(sites, v) + (v.spring ? 0.6 : 0)),
+              (k) => world.rng.u32(SITES, refHash(free[k]!.ref), t, 9),
+            )
+          : [];
       free.forEach((v, i) => (v.population = share[i]! + (v === market ? inTown : 0)));
       // (Of a great town, the ward it holds and the rest of the town about it: its people still all there.)
       if (held) held.population = hand!.beyond ? inHand : hand!.agents.length;

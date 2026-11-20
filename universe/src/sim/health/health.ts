@@ -276,7 +276,7 @@ export class HealthStore implements StateStore {
 }
 
 export function healthOf(world: World): HealthStore | null {
-  return world.hasStore("health.sickness") ? world.store<HealthStore>("health.sickness") : null;
+  return world.peek<HealthStore>("health.sickness") ?? null;
 }
 
 const RISE = defineStream("health.rise"),

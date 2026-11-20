@@ -245,7 +245,7 @@ export class FarLifeStore implements StateStore {
 
 /** A world's far lives (null on a world that keeps none). */
 export function farLifeOf(world: World): FarLifeStore | null {
-  return world.hasStore("space.farlife") ? world.store<FarLifeStore>("space.farlife") : null;
+  return world.peek<FarLifeStore>("space.farlife") ?? null;
 }
 
 /** A far people's numbers as history holds them, where it holds them. */

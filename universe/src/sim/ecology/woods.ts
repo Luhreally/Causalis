@@ -194,7 +194,7 @@ export class WoodsStore implements StateStore {
 }
 
 export function woodsOf(world: World): WoodsStore | null {
-  return world.hasStore("ecology.woods") ? world.store<WoodsStore>("ecology.woods") : null;
+  return world.peek<WoodsStore>("ecology.woods") ?? null;
 }
 
 /** What a world's lands hold (made once, and again if a god's hand has moved its ground). */

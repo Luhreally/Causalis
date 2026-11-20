@@ -227,7 +227,7 @@ export class FarReadStore implements StateStore {
   }
 }
 const kept = (world: World): FarReadStore | null =>
-  world.hasStore("readings.far") ? world.store<FarReadStore>("readings.far") : null;
+  world.peek<FarReadStore>("readings.far") ?? null;
 
 const CEILINGS = new Map<string, FarCeiling>();
 

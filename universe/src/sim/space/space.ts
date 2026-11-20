@@ -230,17 +230,23 @@ export function spaceYear(ctx: PopulationContext, t: SimTime): void {
   for (const p of politiesOf(world).living()) {
     const seat = p.seat;
     if (!knows(ctx, seat, "orbital-flight")) continue;
+    // The next first a realm can reach for.
+    const nextOf = (prog: Program): "satellite" | "crew" | "station" | null =>
+        !prog.satellite
+          ? "satellite"
+          : !prog.crew && knows(ctx, seat, "life-support")
+            ? "crew"
+            : !prog.station && prog.crew && knows(ctx, seat, "stations")
+              ? "station"
+              : null,
+      had = store.of(p.ref);
+    // (A realm with nothing before it asks for no launcher: late, nearly every realm has made its firsts, and each was
+    // reckoned a launcher every year to find that out.)
+    if (had && !nextOf(had)) continue;
     const launcher = launcherOfRealm(ctx, p);
     if (!launcher) continue;
     const prog = store.program(p.ref),
-      // The next first this realm can reach for.
-      next: "satellite" | "crew" | "station" | null = !prog.satellite
-        ? "satellite"
-        : !prog.crew && knows(ctx, seat, "life-support")
-          ? "crew"
-          : !prog.station && prog.crew && knows(ctx, seat, "stations")
-            ? "station"
-            : null;
+      next = nextOf(prog);
     if (!next) continue;
     const tonnes =
         next === "satellite" ? SATELLITE_TONNES : next === "crew" ? CREW_TONNES : STATION_TONNES,

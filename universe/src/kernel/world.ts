@@ -32,7 +32,8 @@ export interface StateStore {
   readonly outsideRules?: boolean;
   /**
    * Whether a save keeps what save() gives packed by column (kernel/pack.ts): for a store of
-   * long lists of records, which load back as JSON would give them.
+   * long lists of records, which load back as JSON would give them. Unsaid, a save packs it where
+   * that is the smaller and gives back exactly what its JSON does (kernel/save.ts); false, never.
    */
   readonly packed?: boolean;
   /**
@@ -189,6 +190,11 @@ export class World {
     const s = this.stores.get(name);
     if (!s) throw new Error(`no store ${name}`);
     return s as S;
+  }
+
+  /** The store of this name, or undefined where none is registered: one look where `hasStore` then `store` are two. */
+  peek<S extends StateStore>(name: string): S | undefined {
+    return this.stores.get(name) as S | undefined;
   }
 
   /** Whether a store of this name is registered (cheap: for checks on the hot path). */

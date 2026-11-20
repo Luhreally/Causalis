@@ -304,7 +304,7 @@ export class PeoplesStore implements StateStore {
 }
 
 export function peoplesOf(world: World): PeoplesStore | null {
-  return world.hasStore("space.peoples") ? world.store<PeoplesStore>("space.peoples") : null;
+  return world.peek<PeoplesStore>("space.peoples") ?? null;
 }
 
 const keyOf = (ref: Ref) => {

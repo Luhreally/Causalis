@@ -56,8 +56,8 @@ export function rooflessYear(ctx: PopulationContext, t: SimTime): void {
     shares = moneyStore(world, SHARES_STORE),
     olds = societyStore(world, OLD_STORE),
     dress = societyStore(world, DRESS_STORE),
-    rent = world.hasStore(TRADE_RENT.store) ? world.store<never>(TRADE_RENT.store) : null,
-    draw = world.hasStore(TOWN_DRAW.store) ? world.store<never>(TOWN_DRAW.store) : null,
+    rent = world.peek<never>(TRADE_RENT.store) ?? null,
+    draw = world.peek<never>(TOWN_DRAW.store) ?? null,
     struck = struckThisYear(ctx, t),
     year = yearOfMoment(t);
   for (const p of ctx.provinces.all()) {

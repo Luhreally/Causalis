@@ -63,7 +63,7 @@ export class GodHostStore implements StateStore {
 }
 
 export function godHostsOf(world: World): GodHostStore | null {
-  return world.hasStore("war.godhosts") ? world.store<GodHostStore>("war.godhosts") : null;
+  return world.peek<GodHostStore>("war.godhosts") ?? null;
 }
 
 /** How many of the god's men stand for a realm (0 for nearly every realm). */

@@ -156,7 +156,7 @@ export class ImpactStore implements StateStore {
 }
 
 export function impactsOf(world: World): ImpactStore | null {
-  return world.hasStore("frontier.impacts") ? world.store<ImpactStore>("frontier.impacts") : null;
+  return world.peek<ImpactStore>("frontier.impacts") ?? null;
 }
 
 // —— The home system's sky ————————————————————————————————————————————————————————————————————————

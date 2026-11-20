@@ -25,6 +25,8 @@ export type CommandSpec = {
 
 export class CommandLog {
   readonly name = "commands.log";
+  /** Kept as it is in a save, never packed: what was asked of a world is read straight off its save (tools, a replay). */
+  readonly packed = false;
   private list: Command[] = [];
   private readonly specs = new Map<string, CommandSpec>();
   private readonly minter: Minter;

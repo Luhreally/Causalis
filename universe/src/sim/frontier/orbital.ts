@@ -118,7 +118,7 @@ export class OrbitalStore implements StateStore {
 }
 
 export function orbitalOf(world: World): OrbitalStore | null {
-  return world.hasStore("frontier.orbital") ? world.store<OrbitalStore>("frontier.orbital") : null;
+  return world.peek<OrbitalStore>("frontier.orbital") ?? null;
 }
 
 /** Whether the mirrors about the star light the works now. */

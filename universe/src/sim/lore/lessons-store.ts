@@ -166,7 +166,7 @@ export class LessonStore implements StateStore {
 }
 
 export function lessonsOf(world: World): LessonStore | null {
-  return world.hasStore("lore.lessons") ? world.store<LessonStore>("lore.lessons") : null;
+  return world.peek<LessonStore>("lore.lessons") ?? null;
 }
 
 /** How far a holder leans on a response in a year (0: not at all, or let go). */

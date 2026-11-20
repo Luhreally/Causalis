@@ -251,7 +251,7 @@ export class UnderworldStore implements StateStore {
 }
 
 export function underworldOf(world: World): UnderworldStore | null {
-  return world.hasStore(UNDERWORLD_STORE) ? world.store<UnderworldStore>(UNDERWORLD_STORE) : null;
+  return world.peek<UnderworldStore>(UNDERWORLD_STORE) ?? null;
 }
 
 /** A land's row: who holds it and what that does there. Thousandths unless said. */
@@ -282,7 +282,7 @@ export const GANG_ROW = {
 export const GANGS_WIDTH = 15;
 
 export function gangsStore(world: World): RowStore | null {
-  return world.hasStore(GANGS_STORE) ? world.store<RowStore>(GANGS_STORE) : null;
+  return world.peek<RowStore>(GANGS_STORE) ?? null;
 }
 
 // —— What the older systems read ——————————————————————————————————————————————————————————————————————————
@@ -409,7 +409,7 @@ export const POT_ROW = {
 export const POTENCY_WIDTH = 7;
 
 export function potencyStore(world: World): RowStore | null {
-  return world.hasStore(POTENCY_STORE) ? world.store<RowStore>(POTENCY_STORE) : null;
+  return world.peek<RowStore>(POTENCY_STORE) ?? null;
 }
 
 /** How strong a realm's trade in what calms, wakes and eases has grown (1: its grown form), and its made share (0 … 1). */

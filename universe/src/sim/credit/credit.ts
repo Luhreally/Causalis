@@ -273,7 +273,7 @@ export class CreditStore implements StateStore {
 }
 
 export function creditOf(world: World): CreditStore | null {
-  return world.hasStore("credit.houses") ? world.store<CreditStore>("credit.houses") : null;
+  return world.peek<CreditStore>("credit.houses") ?? null;
 }
 
 /** The food a land made in its last year closed: its grain, its game and its gathering. */

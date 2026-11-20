@@ -104,7 +104,7 @@ export const CULTURE_ROWS: readonly (readonly [string, number])[] = [
 
 /** One of the sweep's stores, where a world keeps it (a world from before the sweep, or one no one lives on, keeps none). */
 export function cultureRows(world: World, name: string): RowStore | null {
-  return world.hasStore(name) ? world.store<RowStore>(name) : null;
+  return world.peek<RowStore>(name) ?? null;
 }
 
 /** Register the sweep's stores. */
