@@ -385,7 +385,7 @@ export function buildingPage(world: World, ref: string): PageModel {
   ];
   // (A prison: whom it holds, by which court. host/inspect/prison.ts.)
   if (c.kind === "prison" && c.fell === null && !rising)
-    lines.push(...prisonLines(world, s.cell, s.population));
+    lines.push(...prisonLines(world, s.cell, s.population, s.ref));
   const seated = c.kind === "hall" && c.fell === null ? seatLine(townRank(world, s.ref, f)) : null;
   if (seated) lines.push(seated);
   if (waited)

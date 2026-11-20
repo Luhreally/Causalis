@@ -134,6 +134,7 @@ const TITLES: Readonly<Record<string, string>> = {
   "groups.federation": "Groups allied",
   "groups.ended": "A group's hold ended",
   "groups.struck": "A group struck at someone",
+  "groups.razed": "A group struck at a place",
   "bodies.sentenced": "A court's sentence",
   "underworld.struck": "A crime group struck at someone",
   "bodies.founded": "A body founded",

@@ -108,6 +108,7 @@ import { addsReach, addsStanding, capacityOf, orderOf } from "./order.ts";
 import { holdOf } from "./holds.ts";
 import { housesOf } from "./houses.ts";
 import { collusionIn, killedOf } from "./underworld-kept.ts";
+import { orgInquiryOf } from "./groups-kept.ts";
 import { trials } from "./deeds.ts";
 import { grieve } from "../acts/disasters.ts";
 import {
@@ -921,7 +922,13 @@ function stepRealm(
     // (A slump: what its customers pay it fallen under half of what it was a reckoning ago.)
     if (g.fund === FUND.customers && g.since < year - INST.every && pays < INST.slump * g.income)
       slumped.set(g, g.income > 0 ? pays / g.income : 0);
-    g.income = Math.round(pays);
+    // (What its customers pay it is known to it as the years have gone, half this reckoning's and half what it knew: one thin
+    // reckoning of a good that sold little is not a slump. A works was founded 941 times in a century of first light and
+    // failed 305 times, each a body named, told and let go for a year's glut.)
+    g.income =
+      g.fund === FUND.customers && g.since < year - INST.every
+        ? Math.round(0.5 * g.income + 0.5 * pays)
+        : Math.round(pays);
     g.wealth = Math.round(g.wealth * stays + (Math.max(0, g.income) * 0.1 * fade) / INST.spends);
     // What it is besides: a watch and a court as honest as they are paid and watched; a house of teaching that inquires.
     if (g.does === DOES.order || g.does === DOES.judge)
@@ -1597,13 +1604,14 @@ function stepRealm(
   v.profit = [...profit]
     .map(([a, b]) => [a, Math.round(b)] as [string, number])
     .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
-  writeLands(v, r, lands, strikes, year, rows);
+  writeLands(world, v, r, lands, strikes, year, rows);
   for (const run of after) run();
   v.last = year;
 }
 
 /** Each of a realm's lands: what its bodies do there; and what they come to for its seat. */
 function writeLands(
+  world: World,
   v: RealmBodies,
   r: Read,
   lands: ReadonlyMap<number, Land>,
@@ -1726,6 +1734,10 @@ function writeLands(
     out[BODY_ROW.works] = dmath.clamp(works, 0, INST.worksEngines) * 1000;
     out[BODY_ROW.craft] = dmath.clamp(craft, 0, 1) * 1000;
     out[BODY_ROW.union] = dmath.clamp(union, 0, 1) * 1000;
+    // (A learned society that its realm lets be carries word too, to those who read, half as far as it holds among the
+    // learned: the groups' own free voice, sim/order/groups.ts. None where word is shut, or where none is kept.)
+    if (r.word >= INST.shuts)
+      free = Math.max(free, INST.societySpeaks * orgInquiryOf(world, l.cell));
     out[BODY_ROW.word] = free * 1000;
     out[BODY_ROW.kept] = kept * 1000;
     out[BODY_ROW.bodies] = here.length;
@@ -1967,6 +1979,27 @@ export function bodyHeadFalls(
       ...(head.id ? { head: head.id } : {}),
     },
   });
+  store.put(p.ref, v);
+  return true;
+}
+
+/**
+ * A body's house struck by another's deed (sim/order/deeds.ts): of its hands and of its purse, what is lost. False where no
+ * such body stands in the realm.
+ */
+export function bodyHouseStruck(
+  ctx: PopulationContext,
+  p: Polity,
+  founded: Ref,
+  hands: number,
+  purse: number,
+): boolean {
+  const store = bodiesOf(ctx.world),
+    v = store?.of(p.ref) as RealmBodies | undefined,
+    g = v?.bodies.find((x) => x.event === founded);
+  if (!store || !v || !g) return false;
+  g.staff = Math.max(1, Math.round(g.staff * (1 - dmath.clamp(hands, 0, 0.9))));
+  g.wealth = Math.round(g.wealth * (1 - dmath.clamp(purse, 0, 1)));
   store.put(p.ref, v);
   return true;
 }

@@ -61,6 +61,14 @@ export const DEED = {
   lostFoiled: 0.25,
   /** A body whose head is killed loses this share of its hands for a time (they leave, or lie low). */
   shakes: 0.15,
+  /**
+   * Of an armed group's blows at the head of a body, the share that fall on its house instead (the works, the hall, the
+   * print-house); what a house struck loses of its hands and of its purse; the grief it is to its land.
+   */
+  atPlace: 0.3,
+  houseHands: 0.3,
+  housePurse: 0.5,
+  placeGrief: 0.04,
   /** Those outside the law strike at those who hunt and tell of them as far as they are hunted and not bought. */
   hunted: 0.6,
 } as const;
@@ -138,10 +146,19 @@ export function blowChance(
   crew: number,
   span: number,
 ): number {
+  const rate = blowRate(will, pressed, members, crew);
+  return rate > 0 ? 1 - dmath.exp(-rate * Math.max(1, span)) : 0;
+}
+
+/**
+ * The same as a rate a year (blowChance is 1 - e^(-rate x years), never more than rate x years: one asked of every group at
+ * every reckoning is screened by that bound before any root or power is taken).
+ */
+export function blowRate(will: number, pressed: number, members: number, crew: number): number {
   if (will < DEED.willLeast || !(members > 0)) return 0;
-  const size = Math.min(1, dmath.sqrt(members / Math.max(1, 4 * crew))),
-    rate = DEED.strikes * clamp01(will) * (0.4 + 0.6 * clamp01(pressed)) * size;
-  return 1 - dmath.exp(-rate * Math.max(1, span));
+  const full = 4 * Math.max(1, crew),
+    size = members >= full ? 1 : dmath.sqrt(members / full);
+  return DEED.strikes * clamp01(will) * (0.4 + 0.6 * clamp01(pressed)) * size;
 }
 
 /** What guards a target (0 … 0.95): their own guard by kind, and the watch where they are, or the seat's hand where none is kept. */
@@ -213,7 +230,7 @@ export const JUSTICE = {
   tries: 0.5,
   silences: 0.15,
   /** Those held by name a court keeps account of; the years one is held, at the least and the most. */
-  inmates: 4,
+  inmates: 2,
   termLeast: 3,
   termMost: 20,
   /** What being tried for one's word adds to one's name (thousandths of the line). */

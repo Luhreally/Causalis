@@ -391,6 +391,8 @@ export function ruleOf(e: HistoryEvent): readonly [number, number] {
   // line, a blow that missed or was found out with the ordinary years. sim/order/deeds.ts sets each one's importance.)
   if (e.type === "groups.struck" || e.type === "underworld.struck")
     return [PEOPLE, e.importance - 1];
+  // (A house struck: with the ordinary years, under a filter of them.)
+  if (e.type === "groups.razed") return [PEOPLE, e.importance - 1];
   // (A court's sentence on one by name: one put to death is told under a filter of the years, the rest go with the ordinary years.)
   if (e.type === "bodies.sentenced") return [PEOPLE, e.importance - 2];
   return (

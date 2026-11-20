@@ -19,6 +19,7 @@ import {
   templeOf,
   GROUP_ACT_YEARS,
   kindName,
+  orgInquiryOf,
   orgSectOf,
   orgsOf,
   populationContext,
@@ -365,6 +366,19 @@ export function orgPage(world: World, ref: string): PageModel {
       );
     }
     if (fed) facts.push(stat("Allied in", [fedLink(r, fed)]));
+    // (A learned society is a voice: it carries word to those who read, where its realm lets it be. sim/order/institutions.ts)
+    if (g.kind === "learned society")
+      facts.push(
+        stat(
+          "Carries word",
+          `to those who read in ${rec.lands.length === 1 ? "its land" : "its lands"}: a free voice, half as far as it holds among their learned`,
+          {
+            parts: [
+              part("its hold among the learned at home", share(orgInquiryOf(world, rec.home))),
+            ],
+          },
+        ),
+      );
   }
   if (g.gone)
     facts.push(

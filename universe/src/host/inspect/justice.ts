@@ -20,6 +20,7 @@
 // speak, only where a group or a crew holds the town; in a pardon; or with no one brought at all. They are drawn after the small wrongs.
 import { notablesIn } from "./notables.ts";
 import { lawBodiesRows } from "./bodies.ts";
+import { courtIn as courtHeldRow } from "../../sim/index.ts";
 import { finish, hashString, mix, type Ref, type World } from "../../kernel/index.ts";
 import { meansOfWorld } from "../../gen/index.ts";
 import {
@@ -2158,6 +2159,15 @@ function heldNow(world: World, town: string): readonly Case[] {
   );
 }
 
+/** Those a land's court holds (heads; 0 where none is kept). */
+const courtHeldIn = (world: World, cell: number): number =>
+  Math.round(courtHeldRow(world, cell).held);
+
+/** Those of a town whose sentence runs now and keeps them under lock or at the works (a prison's page lists them: host/inspect/prison.ts). */
+export function lockedNow(world: World, town: string): readonly Case[] {
+  return heldNow(world, town).filter((c) => c.sentence === "cell" || c.sentence === "labour");
+}
+
 /** How a case's year looks against the others of its land. */
 function landCompare(world: World, s: Settlement, year: number): Line | null {
   const towns = populationContext(world)
@@ -2257,6 +2267,20 @@ export function townLawTab(world: World, ref: string): Tab | null {
         item([link(sentence(c.accused.name), c.ref), `, who ${c.came}.`], c.ref, c.year),
       ),
     });
+  // (How these few add up to what its land's court holds: the named are of the held. sim/order/institutions.ts keeps the number.)
+  {
+    const all = courtHeldIn(world, s.cell),
+      locked = held.filter((c) => c.sentence === "cell" || c.sentence === "labour").length;
+    if (all > 0 && locked > 0)
+      blocks.push({
+        type: "text",
+        lines: [
+          [
+            `Of those held now, ${count(locked)} ${locked === 1 ? "is" : "are"} locked up or at the works: ${locked === 1 ? "one" : "some"} of the ${count(Math.max(all, locked))} its land's court holds, the few of them told one by one.`,
+          ],
+        ],
+      });
+  }
   const graveNow = now.filter((c) => c.grave);
   if (graveNow.length || unanswered.length)
     blocks.push({

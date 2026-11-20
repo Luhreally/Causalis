@@ -330,7 +330,8 @@ export function electionsYear(ctx: PopulationContext, t: SimTime): void {
       event,
       ...(chosen ? { who: chosen.name } : {}),
       ...(chosen?.party ? { party: chosen.party } : {}),
-      ...(ran.length ? { ran: ran.map(([g, c]) => [g, c.name] as const) } : {}),
+      // (Who else ran is told by the event, with the rival's name: kept on every record it was 60 KB of a save.)
+      ...(rival ? { ran: [[rival[0], rival[1].name] as const] } : {}),
     });
     if (v.past.length > KEPT) v.past.splice(0, v.past.length - KEPT);
     v.governing = winner;

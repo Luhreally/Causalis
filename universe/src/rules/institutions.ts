@@ -216,7 +216,9 @@ export const INST = {
    * A realm's bodies are reckoned once in this many years, in its turn (a year after its groups), stepped as many at once: a
    * body's affairs are settled over years (five was tried: twice the system's year for the same bodies).
    */
-  every: 10,
+  // (Twelve since the bodies came to act on those of name: a sixth less of the system's year, which their strikes, their
+  // tellings, their trials and a ninth more bodies had made a third dearer. Every rate here is by the years stepped.)
+  every: 12,
   /**
    * The bodies a realm keeps account of (the rest too small to be named): so many for a realm of one land and so many more
    * for each land beyond, to the most; the ended ones it remembers; a body's lands. (Fourteen for every realm was tried: a
@@ -228,8 +230,10 @@ export const INST = {
    */
   // (And eight for a realm of one land, twelve at the most, were fewer than the ten things done: a realm that kept one of each
   // of eight had no place for a works or for those who share out its risks, however well either would have been paid.)
-  most: 14,
-  mostOne: 10,
+  // (Ten and fourteen were tried next, one of each thing done for every realm: 17% more bodies a world, 0.27 MB of a save
+  // and a third more of the system's year. Nine: a realm of one land keeps one of all but one.)
+  most: 13,
+  mostOne: 9,
   mostALand: 2,
   gone: 2,
   lands: 3,
@@ -312,6 +316,8 @@ export const INST = {
   watchedYears: 10,
   watchedHonest: 0.15,
   /** How many who read each hand of a voice reaches: by hand and on foot, by engines, by wire and air. */
+  /** How far a learned society carries word to those who read, of how far it holds among its land's learned. */
+  societySpeaks: 0.5,
   voiceReach: 300,
   voiceEngines: 3,
   voiceSignal: 10,

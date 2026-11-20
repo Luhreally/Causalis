@@ -741,9 +741,10 @@ export function farLands(ctx: PopulationContext, p: Polity): number[] {
 }
 
 /**
- * The town to raise a realm at among lands: their most peopled market town; none where they have no market town (a realm is
- * seated at a market town, as one that forms of itself is: sim/polity. A general who fled with fifteen lands and no market
- * town among them was seated at a village of 95: first light, year 140).
+ * The town to raise a realm at among lands: their greatest market town; none where no market town stands among them. (It
+ * was "a market town first, then the most peopled": a general who broke away with lands of hamlets seated a realm in a
+ * village of 71 with no market, which stood for a century and a half beside realms of millions. Every other way a realm
+ * is raised asks a market town to seat it: polity.form, a split at a ruler's death, a land freed.)
  */
 function townAmong(ctx: PopulationContext, lands: readonly number[]) {
   return lands

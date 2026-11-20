@@ -1919,6 +1919,8 @@ export {
   GROUP_ACTS,
   GROUP_ACT_YEARS,
   GROUP_HAND_EVENTS,
+  charterProblem,
+  charterTarget,
   installGroupHand,
   type CharterAct,
   type GroupAct,

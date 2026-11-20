@@ -962,7 +962,8 @@ function stepRealm(
     wantHome = p.seat;
   // (Each peopled land's people, and its want of protection by them: what a road's rent is of, land by land, in step 4.)
   const peopleIn = new Map<number, number>(),
-    wantIn = new Map<number, number>();
+    wantIn = new Map<number, number>(),
+    bodyRows = bodyLandsStore(world);
   for (const c of [...p.members].sort((a, b) => a - b)) {
     const n = ctx.provinces.get(c)?.total() ?? 0;
     if (n <= 0) continue;
@@ -974,7 +975,7 @@ function stepRealm(
         earned: r.earned,
         capacity: r.capacity,
         // (As its land's watch makes it, where one is kept there.)
-        reach: policedIn(bodyLandsStore(world), c, r.reachIn.get(c) ?? r.capacity),
+        reach: policedIn(bodyRows, c, r.reachIn.get(c) ?? r.capacity),
         corruption: r.corruption,
         legitimacy: r.legitimacy,
         kin: (folk?.get(c)?.[FOLK_ROW.kin] ?? 1000) / 1000,
@@ -1944,13 +1945,11 @@ function stepRealm(
   writeLands(ctx, p, v, towns, r, badge, bites, warring, year);
   // 11. Those who hunt and tell of them, struck at (sim/order/deeds.ts): as far as its groups are hunted and its officers are
   // not bought, and a free voice tells of them where they live.
-  const huntedBy = DEED.hunted * dmath.clamp(bites * (1 - collusion), 0, 1);
+  const huntedBy = DEED.hunted * dmath.clamp(bites * (1 - collusion), 0, 1),
+    wordRows = bodyLandsStore(world);
   for (const g of v.groups) {
     if (kindOfGroup(g) === "badge" || g.since >= year || g.members < UNDER.crew) continue;
-    const toldBy = Math.min(
-      1,
-      (2 * (bodyLandsStore(world)?.at(g.home, BODY_ROW.word) ?? 0)) / 1000,
-    );
+    const toldBy = Math.min(1, (2 * (wordRows?.at(g.home, BODY_ROW.word) ?? 0)) / 1000);
     if (huntedBy <= 0 && toldBy <= 0) continue;
     const will = 0.75 * huntedBy + 0.25 * toldBy;
     if (will < DEED.willLeast) continue;
@@ -1979,7 +1978,7 @@ function stepRealm(
           })),
         }),
       },
-      { pressed: bites, capacity: r.capacity, crew: UNDER.crew, span },
+      { pressed: bites, capacity: r.capacity, crew: UNDER.crew, span, key },
       t,
     );
     if (hit) g.members = Math.max(0, g.members - hit.lost);

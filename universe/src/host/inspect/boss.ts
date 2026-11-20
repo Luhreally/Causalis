@@ -13,6 +13,7 @@ import { groupRef, underName } from "../underworld.ts";
 import { orgName, orgRef } from "../groups.ts";
 import { landLink, realmLink } from "./names.ts";
 import { item, link, stat, yearNow } from "./words.ts";
+import { headLeader } from "./townlife.ts";
 
 /** A link to a group's head's page, by their group's realm and rising event. */
 export const bossLink = (realm: string, event: string, name: string) =>
@@ -82,6 +83,11 @@ export function bossPage(world: World, ref: string): PageModel {
     });
   }
   blocks.unshift({ type: "facts", rows: facts });
+  // (One who heads it now, seated in their town as one of its key figures: their card, with the way to live as them. One
+  // whose land has no town, or whose town already seats its few heads, has none: they are not among its people.)
+  const seated = head && now ? headLeader(world, ref) : null;
+  if (seated)
+    blocks.push({ type: "tool", tool: "leader.card", args: { leader: seated, short: true } });
   // Those who headed it before, as their notes stand.
   const before: Item[] = notes
     .filter((n) => n !== gone)

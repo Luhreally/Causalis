@@ -27,6 +27,8 @@ import {
   GROUP_ACT_YEARS,
   GROUP_HAND_EVENTS,
   bodiesOf,
+  charterProblem,
+  charterTarget,
   orgsOf,
   politiesOf,
   populationContext,
@@ -260,4 +262,81 @@ test("the hand on a group: the god outlaws it and it is held so until the years 
     if (++done >= 2) break;
   }
   assert.ok(done >= 1, `${done} groups acted on`);
+});
+
+test("on a real world: a blow at one who heads a body falls, some of the time, on its house: told, its hands scattered", () => {
+  const world = universeWorld(EARTH, "first light", 240),
+    ctx = populationContext(world),
+    store = bodiesOf(world)!;
+  world.runTo(world.now + 20 * YEAR);
+  let razed = 0,
+    tried = 0;
+  for (const p of politiesOf(world).living()) {
+    const watch = store.of(p.ref)?.bodies.find((b) => b.does === DOES.order && b.since < 255);
+    if (!watch) continue;
+    for (let id = 1; id <= 12 && razed < 3; id++) {
+      const before = store.of(p.ref)!.bodies.find((b) => b.event === watch.event)!.staff,
+        g: Striker = {
+          crime: false,
+          id,
+          name: "Test",
+          kind: "insurgents",
+          event: p.event,
+          lands: [watch.home],
+          members: 400,
+          armed: true,
+          hidden: true,
+          identity: "",
+          against: [{ at: { who: "head", does: "order" }, weight: 1 }],
+        },
+        hit = strikes(
+          ctx,
+          p,
+          { crime: false, id, will: 1, members: 400, striker: () => g },
+          { pressed: 1, capacity: 0.2, crew: 12, span: 50 },
+          world.now,
+        );
+      if (!hit) continue;
+      tried++;
+      const e = world.events.get(hit.event)!;
+      if (e.type !== DEED_EVENTS.razed.type) continue;
+      razed++;
+      const words = why(world, hit.event).claim;
+      assert.match(words, /struck at the house of the .* in /);
+      assert.ok(!/\(t=\d+\)/.test(words), words);
+      assert.ok(store.of(p.ref)!.bodies.find((b) => b.event === watch.event)!.staff <= before);
+    }
+    if (razed >= 3) break;
+  }
+  assert.ok(tried >= 10, `${tried} blows`);
+  assert.ok(razed >= 1, `${razed} houses struck of ${tried} blows`);
+});
+
+test("a ruler's word falls on a faith's seat in their realm by the faith's name, and not on another realm's", () => {
+  const world = universeWorld(EARTH, "first light", 240),
+    store = bodiesOf(world)!;
+  world.runTo(world.now + 20 * YEAR);
+  let done = 0;
+  for (const p of politiesOf(world).living()) {
+    const clergy = store.of(p.ref)?.bodies.find((b) => b.does === DOES.worship && b.keeper);
+    if (!clergy) continue;
+    const at = charterTarget(world, p.ref, clergy.keeper);
+    assert.ok(at && at.kind === "body" && at.g.keeper === clergy.keeper);
+    assert.equal(
+      charterProblem(world, { realm: p.ref, ruler: "No One", target: clergy.keeper, to: "outlaw" }),
+      "No One no longer rules there",
+    );
+    world.submit("reign.charter", {
+      realm: p.ref,
+      ruler: p.ruler.name,
+      target: clergy.keeper,
+      to: "outlaw",
+    });
+    world.runTo(world.now + 1);
+    const now = store.of(p.ref)!.bodies.find((b) => b.event === at!.g.event)!;
+    assert.equal(now.standing, 0);
+    assert.equal(now.decree, 0);
+    if (++done >= 2) break;
+  }
+  assert.ok(done >= 1, `${done} seats outlawed`);
 });

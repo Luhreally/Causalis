@@ -17,6 +17,68 @@ import { bodiesOf, type Body, type RealmBodies } from "./institutions-kept.ts";
 import { bodyTitle } from "./institutions.ts";
 import { orderOf } from "./order.ts";
 import { rulerProblem } from "./reign.ts";
+import { creditOf, houseDecreed, type House } from "../credit/credit.ts";
+import { FISC, TREASURY_STORE, moneyStore } from "../money/kept.ts";
+
+/** Of its reserve, what a seat puts into a house of lending it charters. */
+export const BACKS = 0.1;
+
+/**
+ * What a ruler's word may fall on, by the ref given: a group (the event it rose by), a body (the event it was founded by), a
+ * faith's seat in their realm (the faith's ref: the body that keeps its worship there), a house of lending (its ref).
+ */
+export function charterTarget(
+  world: World,
+  realm: Ref,
+  target: string,
+):
+  | { kind: "org"; realm: Ref; v: Readonly<RealmOrgs>; g: Org }
+  | { kind: "body"; realm: Ref; v: RealmBodies; g: Body }
+  | { kind: "house"; realm: Ref; h: House }
+  | null {
+  const org = findOrg(world, target as Ref);
+  if (org) return { kind: "org", ...org };
+  const body = findBody(world, target as Ref);
+  if (body) return { kind: "body", ...body };
+  // (A faith's seat: the body of this realm that its tithes keep.)
+  const v = bodiesOf(world)?.of(realm) as RealmBodies | undefined,
+    clergy = v?.bodies
+      .filter((x) => x.keeper === target && x.keeper !== "")
+      .sort((a, b) => b.staff - a.staff || a.id - b.id)[0];
+  if (v && clergy) return { kind: "body", realm, v, g: clergy };
+  const h = creditOf(world)
+    ?.standing()
+    .find((x) => x.ref === target);
+  if (h) {
+    const of = politiesOf(world).of(h.cell);
+    return of ? { kind: "house", realm: of.ref, h } : null;
+  }
+  return null;
+}
+
+/** Why a ruler's word on one cannot be given (null: it can), in the words the world refuses it with. */
+export function charterProblem(world: World, args: unknown): string | null {
+  const bad = rulerProblem(world, args);
+  if (bad) return bad;
+  const a = args as { realm?: Ref; target?: string; to?: string };
+  if (!a.to || !(CHARTER_ACTS as readonly string[]).includes(a.to)) return "no such decree";
+  const at = a.realm && a.target ? charterTarget(world, a.realm, a.target) : null;
+  if (!at) return "it no longer stands";
+  if (at.realm !== a.realm) return "it is not of your realm";
+  // (A group in another realm's pay is that realm's to hold, not theirs.)
+  if (at.kind === "org" && at.g.patron && at.g.patron !== a.realm && a.to === "charter")
+    return "another realm pays it";
+  if (at.kind === "house" && a.to === "let be") return "a house of lending stands or is closed";
+  if (at.kind === "house" && a.to === "charter") {
+    const reserve = moneyStore(world, TREASURY_STORE)?.at(a.realm!, FISC.reserve) ?? 0;
+    if (!(reserve * BACKS >= 1)) return "your treasury has nothing to put into it";
+  }
+  const now = at.kind === "house" ? -1 : at.g.standing,
+    want = a.to === "charter" ? 2 : a.to === "outlaw" ? 0 : 1;
+  if (now === want && at.kind !== "house" && at.g.decree === want)
+    return "your word already holds it so";
+  return null;
+}
 
 export const GROUP_HAND_EVENTS = {
   /** The god's hand laid on a group. */
@@ -118,27 +180,15 @@ export function installGroupHand(world: World, ctx: () => PopulationContext): vo
 
   world.defineCommand({
     type: "reign.charter",
-    validate: (args) => {
-      const bad = rulerProblem(world, args);
-      if (bad) return bad;
-      const a = args as { realm?: Ref; target?: string; to?: string };
-      if (!a.to || !(CHARTER_ACTS as readonly string[]).includes(a.to)) return "no such decree";
-      const org = a.target ? findOrg(world, a.target as Ref) : null,
-        body = a.target && !org ? findBody(world, a.target as Ref) : null;
-      if (!org && !body) return "it no longer stands";
-      if ((org ?? body)!.realm !== a.realm) return "it is not of your realm";
-      // (A group in another realm's pay is that realm's to hold, not theirs.)
-      if (org?.g.patron && org.g.patron !== a.realm && a.to === "charter")
-        return "another realm pays it";
-      return null;
-    },
+    validate: (args) => charterProblem(world, args),
     apply: (command) => {
       const a = command.args as { realm: Ref; ruler: string; target: Ref; to: CharterAct },
         c = ctx(),
         year = yearOfMoment(world.now),
         until = year + GROUP_ACT_YEARS,
         p = politiesOf(world).get(a.realm)!,
-        org = findOrg(world, a.target),
+        at = charterTarget(world, a.realm, a.target)!,
+        org = at.kind === "org" ? at : null,
         standing = standingOfAct(a.to);
       let name: string,
         what: string,
@@ -161,8 +211,16 @@ export function installGroupHand(world: World, ctx: () => PopulationContext): vo
         home = g.home;
         // (To outlaw what is strong among its realm's groups costs the one who does it.)
         if (a.to === "outlaw") cost = OUTLAW_COSTS * (g.power / 1000);
-      } else {
-        const body = findBody(world, a.target)!;
+      } else if (at.kind === "house") {
+        // (A house of lending: closed, or backed from the seat's reserve. The closing is told by its own failing, which
+        // stands on this word.)
+        was = 1;
+        name = at.h.name;
+        what = "house of lending";
+        home = at.h.cell;
+        if (a.to === "outlaw") cost = OUTLAW_COSTS;
+      } else if (at.kind === "body") {
+        const body = at;
         was = body.g.standing;
         body.g.decree = standing ?? 1;
         body.g.decreeUntil = until;
@@ -172,16 +230,20 @@ export function installGroupHand(world: World, ctx: () => PopulationContext): vo
         what = bodyTitle(c, body.g);
         home = body.g.home;
         if (a.to === "outlaw") cost = OUTLAW_COSTS * 0.5;
-      }
+      } else return;
       const o = orderOf(world)?.of(a.realm);
       if (o && cost > 0) o.legitimacy = Math.max(0.02, o.legitimacy - cost);
-      world.events.emit({
+      const told = world.events.emit({
         type: GROUP_HAND_EVENTS.charter.type,
         subjects: [a.realm],
         place: c.provinces.get(home)?.ref ?? null,
         causes: [
           { ref: command.id, role: "agent", weight: 1 },
-          { ref: a.target, role: "enabler", weight: 1 },
+          {
+            ref: at.kind === "house" ? at.h.event : at.g.event,
+            role: "enabler",
+            weight: 1,
+          },
         ],
         data: {
           realm: realmName(p),
@@ -195,6 +257,17 @@ export function installGroupHand(world: World, ctx: () => PopulationContext): vo
           ...(cost > 0 ? { cost: Math.round(cost * 1000) / 1000 } : {}),
         },
       });
+      if (at.kind === "house") {
+        const fisc = moneyStore(world, TREASURY_STORE),
+          row = fisc?.get(a.realm),
+          stake = a.to === "charter" && row ? Math.floor(row[FISC.reserve]! * BACKS) : 0;
+        if (fisc && row && stake > 0) {
+          const next = [...row];
+          next[FISC.reserve] = row[FISC.reserve]! - stake;
+          fisc.set(a.realm, next);
+        }
+        houseDecreed(c, at.h.ref, a.to === "outlaw" ? "outlaw" : "charter", told, world.now, stake);
+      }
     },
   });
 }

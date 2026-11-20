@@ -130,5 +130,25 @@ registerCommandWords("act.group", (_, c) => {
 });
 registerCommandWords("reign.charter", (world, c) => {
   const a = c.args as { realm?: string; ruler?: string; to?: string };
-  return `Your act: as ${a.ruler ?? "its ruler"} of ${realmOf(world, a.realm ?? "")} you gave your word on one of its groups (${a.to ?? "a decree"}), ${year(c.t)}`;
+  return `Your act: as ${a.ruler ?? "its ruler"} of ${realmOf(world, a.realm ?? "")} you gave your word on one of its groups, its bodies or its houses of lending (${a.to ?? "a decree"}), ${year(c.t)}`;
 });
+
+// —— A place struck ——
+registerEventWords(DEED_EVENTS.razed.type, (world, e) => {
+  const x = e.data as {
+      realm?: string;
+      group?: string;
+      kind?: string;
+      town?: string;
+      body?: string;
+      title?: string;
+      lost?: number;
+    } | null,
+    where = `the house of the ${x?.body ?? "nameless"} ${x?.title ?? "body"} in ${x?.town ?? "its town"}`,
+    lost = x?.lost ? `; ${x.lost} of its own were taken in the answer` : "";
+  return `${cap(orgWords(x?.group, x?.kind))} of ${x?.realm ?? realmOf(world, e.subjects[0] ?? "")} struck at ${where}: three in ten of its hands left it, and half its purse was lost${lost}, ${year(e.t)}`;
+});
+registerDecisionWords(
+  DEED_EVENTS.razed.type,
+  (world, x) => `A group struck at a place in ${realmOf(world, x.subject)}`,
+);
