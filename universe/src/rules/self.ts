@@ -801,3 +801,113 @@ export function householdOf(p: Pairing, partners: number, young: number): number
       return 1 + partners + young;
   }
 }
+
+// —— How they bear what they have lived ——————————————————————————————————————————————————————————————————————————
+// (Asked 2026-11-19, the audit's "mental health": absent.) No list of ills: a mind is what has weighed on someone against what
+// holds them up, each read off what they have lived. What weighs: those they have lost, the war and fire they have been through,
+// the want they have known and know now, and a place among their people that shuts them out. What holds them up: their kin
+// about them, a faith they may keep, a place of standing, enough to live on, and how closely their kind lives (a burden shared
+// is lighter: a hive bears as one, and one of a hive is not bowed by a death as one who pairs for life is). How it sits on them
+// is their own: the quick to anger and the tender of conscience carry more of the same weight, the bold less.
+
+/** What weighs on someone, by kind. */
+export const MIND_WEIGHTS = ["loss", "war", "want", "place"] as const;
+export type MindWeight = (typeof MIND_WEIGHTS)[number];
+/** What holds them up, by kind. */
+export const MIND_HOLDS = ["kin", "faith", "standing", "plenty", "company"] as const;
+export type MindHold = (typeof MIND_HOLDS)[number];
+
+export type MindFacts = {
+  readonly nature: Nature;
+  readonly traits: SelfTraits;
+  readonly child: boolean;
+  /** Of their near kin, how many have died, and whether one did within these three years. */
+  readonly lost: number;
+  readonly mourning: boolean;
+  /** How much war, fire and raiding their young years saw, and their grown years (0 … 1 each); their land now. */
+  readonly dangerYoung: number;
+  readonly dangerGrown: number;
+  readonly dangerNow: number;
+  /** How hungry their young and their grown years were (0 … 1); how their land ate last year (1: fully); what their day leaves. */
+  readonly hungerYoung: number;
+  readonly hungerGrown: number;
+  readonly fed: number;
+  readonly left: number;
+  /** Their household's place (0 … 1), how hard their realm's rank has set (0 … 1), whether their faith is forbidden. */
+  readonly standing: number;
+  readonly caste: number;
+  readonly barred: boolean;
+  /** Who is about them: partners, living young, living parents; whether they keep a faith; their people's piety. */
+  readonly partners: number;
+  readonly young: number;
+  readonly parents: boolean;
+  readonly faith: boolean;
+  readonly piety: number;
+};
+
+export type Mind = {
+  /** What weighs on them (0 … 1), by kind and in all; what holds them up, by kind and in all. */
+  readonly weights: Readonly<Record<MindWeight, number>>;
+  readonly weight: number;
+  readonly holds: Readonly<Record<MindHold, number>>;
+  readonly held: number;
+  /** How they bear it (0 … 1: at ease … broken by it). */
+  readonly burden: number;
+};
+
+const c01 = (x: number): number => Math.max(0, Math.min(1, x));
+const either = (...xs: number[]): number => 1 - xs.reduce((p, x) => p * (1 - c01(x)), 1);
+
+/** How someone bears what they have lived. */
+export function mindOf(f: MindFacts): Mind {
+  const t = f.traits,
+    // (One of a hive is of the hive: a death in it is the hive's, not theirs. Those who live close feel a death the less alone.)
+    bond = f.nature.hive ? 0.2 : 1 - 0.4 * c01(f.nature.social - 0.5) * 2,
+    loss = either(f.mourning ? 0.45 * bond : 0, 0.12 * bond * Math.min(4, f.lost)),
+    war = either(
+      0.35 * f.dangerYoung,
+      0.3 * f.dangerGrown * (1 - 0.5 * t.boldness),
+      0.25 * f.dangerNow * (1 - 0.5 * t.boldness),
+    ),
+    want = either(
+      0.25 * f.hungerYoung,
+      0.25 * f.hungerGrown,
+      0.5 * c01(1 - f.fed),
+      f.left < 0 && !f.child ? 0.2 : 0,
+    ),
+    place = either(0.35 * f.caste * (1 - f.standing), f.barred ? 0.25 : 0),
+    weights = { loss, war, want, place },
+    weight = either(loss, war, want, place),
+    kin =
+      either(f.partners > 0 ? 0.2 : 0, 0.08 * Math.min(4, f.young), f.parents ? 0.12 : 0) *
+      (0.6 + 0.8 * t.warmth),
+    faith = f.faith && !f.barred ? 0.3 * f.piety : 0,
+    standing = 0.25 * f.standing,
+    plenty = f.left > 0 && f.fed >= 0.95 ? 0.15 : 0,
+    company = 0.3 * c01(f.nature.social),
+    holds = { kin: c01(kin), faith, standing, plenty, company },
+    held = either(holds.kin, faith, standing, plenty, company),
+    // (The same weight sits harder on the quick to anger and the tender of conscience.)
+    own = 0.75 + 0.3 * (t.temper - 0.5) + 0.2 * (t.conscience - 0.5),
+    burden = c01(weight * (1 - 0.6 * held) * own);
+  return { weights, weight, holds, held, burden };
+}
+
+/** How someone bears it, in words. */
+export const MIND_STATES = ["at ease", "carrying it", "worn by it", "bowed under it"] as const;
+export function mindState(burden: number): number {
+  return burden < 0.12 ? 0 : burden < 0.3 ? 1 : burden < 0.5 ? 2 : 3;
+}
+export const MIND_WEIGHT_WORDS: Readonly<Record<MindWeight, { icon: string; label: string }>> = {
+  loss: { icon: "🕯️", label: "Those they have lost" },
+  war: { icon: "🔥", label: "War, fire and raiding lived through" },
+  want: { icon: "🥣", label: "Want, known and now" },
+  place: { icon: "⛓️", label: "A place that shuts them out" },
+};
+export const MIND_HOLD_WORDS: Readonly<Record<MindHold, { icon: string; label: string }>> = {
+  kin: { icon: "🫂", label: "Their kin about them" },
+  faith: { icon: "✨", label: "A faith they may keep" },
+  standing: { icon: "🏅", label: "Their standing" },
+  plenty: { icon: "🍞", label: "Enough to live on" },
+  company: { icon: "👥", label: "How closely their kind lives" },
+};

@@ -77,6 +77,7 @@ import { orderOf, type RealmOrder } from "./order.ts";
 import { learnWants, wantsOf } from "./wants.ts";
 import { GOVERNS_BY, electionsOf } from "./elections.ts";
 import { interestsOf } from "../polity/interests.ts";
+import { pullOnHold, schoolOver } from "../ideas/kept.ts";
 
 export const HOLD_EVENTS = {
   /** A realm's number told in other words: arms banned, a vote given, word freed. */
@@ -228,7 +229,9 @@ export function weighHolds(ctx: PopulationContext, p: Polity, o: RealmOrder, t: 
     standing = knows(ctx, p.seat, "standing-army") ? 1 : 0,
     // (Another's way feared, or looked to: what it presses on arms, voice and word. sim/finance, rules/finance.ts fearMoves.)
     fear = fearPress(world, p.ref),
-    feared = fear ? politiesOf(world).get(fear.of) : undefined;
+    feared = fear ? politiesOf(world).get(fear.of) : undefined,
+    // (The school most of its lands hold draws each number the way it teaches: sim/ideas. Nothing where none is held.)
+    school = schoolOver(world, p.members, p.seat, year, ctx.generated.life.people?.body.span ?? 70);
   for (const h of HOLD_KINDS) {
     const k = HOLD[h],
       groups =
@@ -251,8 +254,9 @@ export function weighHolds(ctx: PopulationContext, p: Polity, o: RealmOrder, t: 
             ? 0.2 * (0.5 - now[HOLD.voice]!)
             : 0,
       afraid = fear && k < 3 ? fear.moves[k as 0 | 1 | 2] : 0,
+      schooled = pullOnHold(school, k),
       target = dmath.clamp(
-        0.5 * anchor[k]! + 0.5 * groups + pressed + carried + pulls[k]! + afraid,
+        0.5 * anchor[k]! + 0.5 * groups + pressed + carried + pulls[k]! + afraid + schooled,
         0,
         1,
       ),
@@ -333,6 +337,16 @@ export function weighHolds(ctx: PopulationContext, p: Polity, o: RealmOrder, t: 
                 source: fear!.event
                   ? { ref: fear!.event, role: "pressure" as const, weight: 1 }
                   : null,
+              },
+            ]
+          : []),
+        ...(Math.abs(schooled) >= 0.005
+          ? [
+              {
+                name: `what ${school!.school.name} teaches`,
+                value: school!.hold,
+                contribution: schooled,
+                source: { ref: school!.school.event, role: "pressure" as const, weight: 1 },
               },
             ]
           : []),

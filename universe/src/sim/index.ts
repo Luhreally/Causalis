@@ -1981,3 +1981,62 @@ export {
   type Fleet,
   type SeaFight,
 } from "./war/fleets.ts";
+// Things of the mind (2026-11-19): schools of thought (sim/ideas).
+export { IDEA_EVENTS, ideasYear, installIdeas } from "./ideas/ideas.ts";
+export {
+  SCHOOL,
+  SCHOOLS_STORE,
+  SchoolsStore,
+  pullOnHold,
+  pullOnLaw,
+  schoolId,
+  schoolIn,
+  schoolOver,
+  schoolRef,
+  schoolsOf,
+  type School,
+  type SchoolPull,
+  type Taught as SchoolTaught,
+} from "./ideas/kept.ts";
+export { WORK_EVENTS, installWorks, worksYear } from "./ideas/works.ts";
+export {
+  WORKS_STORE,
+  WorksStore,
+  memoryLost,
+  patronCredit,
+  workId,
+  workRef,
+  worksOf,
+  worksRenown,
+  type Patron,
+  type Work,
+} from "./ideas/works-kept.ts";
+export { PILGRIM_EVENTS, installPilgrims, pilgrimsYear } from "./ideas/pilgrims.ts";
+export {
+  PILGRIMS_STORE,
+  PilgrimsStore,
+  pilgrimFeed,
+  pilgrimsOf,
+  type Pilgrimage,
+} from "./ideas/pilgrims-kept.ts";
+// Peoples abroad (2026-11-19): who of another people lives in a land (sim/culture/abroad.ts).
+export { ABROAD_EVENTS, abroadYear, installAbroad } from "./culture/abroad.ts";
+export {
+  ABROAD_STORE,
+  AbroadStore,
+  abroadOf,
+  kinAcross,
+  strangersIn,
+  type Abroad,
+} from "./culture/abroad-kept.ts";
+// Land set aside (rules/lessons.ts kept-woods, kept-wild): what a land keeps from its own use now.
+export { asideIn } from "./lore/lessons-store.ts";
+// Who leads a people of another star, and the house that holds its seat (2026-11-19): read off the people and the year.
+export {
+  FAR_RULE,
+  farHouseOf,
+  farRulerOf,
+  type FarHouse,
+  type FarRuler,
+} from "./space/far-rulers.ts";
+export { peopleTemper } from "./space/peoples.ts";

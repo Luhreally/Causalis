@@ -3,6 +3,7 @@
 // its renown against its people. Read where a land's ways are drawn (a canon kept: culture.ts drawsWays) and where a realm's
 // standing is weighed (works raised at its seat: order.ts addsStanding). One row a land; nothing that grows with history.
 import { notableRenown } from "../notable/kept.ts";
+import { worksRenown } from "../ideas/works-kept.ts";
 import { YEAR, yearOfMoment, type Factor, type SimTime, type World } from "../../kernel/index.ts";
 import {
   ART,
@@ -122,7 +123,13 @@ export function artYear(ctx: PopulationContext, t: SimTime): void {
       Math.round(works * 10),
       Math.round(m.made * 10),
       // (More for its makers of name: sim/notable. Exactly as before where no one is kept.)
-      Math.round(renownOf(works, people) * notableRenown(world, p.cell) * 1000),
+      // (And for the works of name kept there: sim/ideas. Exactly as before where none is.)
+      Math.round(
+        renownOf(works, people) *
+          notableRenown(world, p.cell) *
+          worksRenown(world, p.cell, year) *
+          1000,
+      ),
       m.made > 0 ? Math.round(((ART.court * m.rulers) / m.made) * 1000) : 0,
       m.made > 0 ? Math.round(((ART.clergy * m.clergy) / m.made) * 1000) : 0,
       stuff === null ? 0 : stuff + 1,

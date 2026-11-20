@@ -60,6 +60,7 @@ import { faithLink, landLink, landTitle, languageLink, realmLink, townLink } fro
 import { TRAIT_LOOK, agentFamily, metChips, metFamily, traitChips } from "./folk.ts";
 import { agentHolder, householdThingsBlocks, personThingsBlocks } from "./things.ts";
 import { buildingsTab } from "./fabric.ts";
+import { townNetworksBlocks } from "./networks.ts";
 import { townSongsTab } from "./memory.ts";
 import { townLawTab, townLeanBlocks } from "./justice.ts";
 import { townPeopleTab } from "./self.ts";
@@ -274,8 +275,12 @@ export function townPage(world: World, ref: string): PageModel {
   }
   // Its fabric: its homes by level, its other buildings, its walls (Phase 25 M151).
   {
-    const built = buildingsTab(world, s.ref as Ref);
-    if (built) tabs.push(built);
+    const built = buildingsTab(world, s.ref as Ref),
+      // (Its water, its drains and its power, as the networks they make: a reading, host/inspect/networks.ts.)
+      networks = townNetworksBlocks(world, s);
+    if (built) tabs.push({ ...built, blocks: [...built.blocks, ...networks] });
+    else if (networks.length)
+      tabs.push({ id: "networks", name: "Water & power", blocks: networks });
   }
   {
     const items: Item[] = met.map((h) =>

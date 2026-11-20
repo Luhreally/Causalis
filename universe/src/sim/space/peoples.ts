@@ -55,6 +55,7 @@ import { LORE_EVENTS, knows, lawAllows, loreOf, matterAllows } from "../lore/lor
 import { marketsOf, type PopulationContext } from "../population/systems.ts";
 import { grieve, raze, strike } from "../acts/disasters.ts";
 import { civilizationsNear } from "./contact.ts";
+import { farRulerOf } from "./far-rulers.ts";
 import { laneLawOf, laneRoute, laneYearOf } from "./lanes.ts";
 import { clusterOf, worldsOf } from "./voyages.ts";
 import { machinesOfRealm, spaceOf } from "./space.ts";
@@ -321,8 +322,25 @@ export function peopleWords(world: World, civ: Civilization): { name: string; ki
   };
 }
 
-/** A people's nature: curious, wary, bold and given to trade, by a draw keyed to it. */
+/**
+ * A people's nature now: its own (peopleTemper), bent a little by who leads it this year (./far-rulers.ts: a people is bolder
+ * under one who leads it and warier under the next). Its own alone before anyone leads it.
+ */
 export function peopleNature(world: World, civ: Civilization): Nature {
+  const own = peopleTemper(world, civ),
+    ruler = farRulerOf(world, civ, yearOfMoment(world.now));
+  if (!ruler) return own;
+  const at = (x: number, bend: number) => Math.max(0, Math.min(1, x + bend));
+  return {
+    curious: at(own.curious, ruler.bent[0]),
+    wary: at(own.wary, ruler.bent[1]),
+    bold: at(own.bold, ruler.bent[2]),
+    trading: at(own.trading, ruler.bent[3]),
+  };
+}
+
+/** A people's own nature, whoever leads it: curious, wary, bold and given to trade, by a draw keyed to it. */
+export function peopleTemper(world: World, civ: Civilization): Nature {
   const k = keyOf(civ.ref),
     u = (n: number) => world.rng.real(NATURE, k, 0, 0, n),
     body = civBody(civ),

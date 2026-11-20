@@ -9,6 +9,8 @@ import { readsTownDraw, type PopulationContext } from "./systems.ts";
 import type { Province } from "./model.ts";
 import { URBAN_ROW, URBAN_STORE, cultureRows } from "../culture/rows.ts";
 import { gangDeterOf } from "../order/underworld-kept.ts";
+import { pilgrimFeed } from "../ideas/pilgrims-kept.ts";
+import { URBAN } from "../../rules/index.ts";
 
 /** A land weighs what its town draws once in so many years, each land in its own year. */
 export const URBAN_EVERY = 5;
@@ -61,7 +63,10 @@ export function urbanYear(ctx: PopulationContext, t: SimTime): void {
     const w = wagesOfLand(world, p),
       // (Fewer come to a town whose quarters are fought over: sim/order/underworld.ts. Exactly as before where none is kept.)
       drawn = townDraw(w.town, w.field, town.population),
-      target = drawn > 1 ? 1 + (drawn - 1) * (1 - gangDeterOf(world, p.cell)) : drawn,
+      deterred = drawn > 1 ? 1 + (drawn - 1) * (1 - gangDeterOf(world, p.cell)) : drawn,
+      // (And more to a town pilgrims come to, for what they leave there: sim/ideas. Exactly as before where none come.)
+      fed = pilgrimFeed(world, p.cell),
+      target = fed > 0 ? Math.min(URBAN.most, deterred * (1 + fed)) : deterred,
       row = rows.get(p.cell),
       // (A land is weighed in its own year of every URBAN_EVERY, and comes those years' way at once; first weighed, its
       // town holds its trades alone and begins to draw.)

@@ -188,3 +188,22 @@ export function civName(rng: Rng, civ: { readonly ref: Ref }): string {
   name += pick(ENDINGS, 9);
   return name.charAt(0).toUpperCase() + name.slice(1);
 }
+
+/**
+ * A word in a people's own sounds, by a draw keyed to them and to a number: the same each time (the name of one who leads
+ * them, of a house of theirs: sim/space/far-rulers.ts).
+ */
+export function civWord(rng: Rng, civ: { readonly ref: Ref }, key: number): string {
+  const { a, b } = parseRef(civ.ref),
+    u = (n: number) => rng.real(NAMES, (a * 4096 + b) >>> 0, key, 1, n),
+    pick = (list: readonly string[], n: number) => list[Math.floor(u(n) * list.length)]!,
+    syllables = 1 + Math.floor(u(0) * 2);
+  let name = "";
+  for (let s = 0; s < syllables; s++)
+    name +=
+      pick(ONSETS, 1 + 3 * s) +
+      pick(VOWELS, 2 + 3 * s) +
+      (s === syllables - 1 ? pick(CODAS, 3 + 3 * s) : "");
+  name += pick(ENDINGS, 9);
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}

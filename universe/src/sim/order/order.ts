@@ -17,6 +17,7 @@
 // push its ways; where the movement to free the bound outweighs the court and those whose
 // wealth rests on the bound, the realm outlaws bondage (all but the labour of the condemned).
 // Every step is a decision whose factors cite what drove it.
+import { memoryLost } from "../ideas/works-kept.ts";
 import {
   YEAR,
   defineEventType,
@@ -2133,7 +2134,11 @@ export function orderYear(ctx: PopulationContext, t: SimTime): void {
     weighHolds(ctx, p, o, t);
 
     // 9. What it remembers fades.
-    for (const m of o.memory) m.weight *= MEMORY_KEPT;
+    // (A memory a work carries fades the slower: sim/ideas. Exactly as before where none does.)
+    for (const m of o.memory) {
+      const lost = memoryLost(world, m.event);
+      m.weight *= lost === 1 ? MEMORY_KEPT : 1 - (1 - MEMORY_KEPT) * lost;
+    }
     o.memory = o.memory.filter((m) => m.weight >= 0.05);
 
     // 10. Its reach, for the year: what every system asks of it till the next (REACH_STORE).

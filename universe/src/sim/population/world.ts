@@ -45,6 +45,10 @@ import { installGroups } from "../order/groups.ts";
 import { installInstitutions } from "../order/institutions.ts";
 import { installGroupHand } from "../order/grouphand.ts";
 import { installNotables } from "../notable/notables.ts";
+import { installIdeas } from "../ideas/ideas.ts";
+import { installWorks } from "../ideas/works.ts";
+import { installPilgrims } from "../ideas/pilgrims.ts";
+import { installAbroad } from "../culture/abroad.ts";
 import "../notable/heads.ts";
 import { installEconomy } from "../economy/systems.ts";
 import { installActs } from "../acts/acts.ts";
@@ -472,6 +476,12 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installInstitutions(world, () => populationContext(world));
   // (Notable people: who a people notice, their kind read off what they did, sim/notable/notables.ts.)
   installNotables(world, () => populationContext(world));
+  // (Things of the mind: schools of thought, sim/ideas.)
+  installIdeas(world, () => populationContext(world));
+  installWorks(world, () => populationContext(world));
+  installPilgrims(world, () => populationContext(world));
+  // (Peoples abroad: who of another people lives in a land, sim/culture/abroad.ts.)
+  installAbroad(world, () => populationContext(world));
   installStrife(world, () => populationContext(world));
   installCourts(world, () => populationContext(world));
   installCities(world, () => populationContext(world));

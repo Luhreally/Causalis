@@ -3,7 +3,11 @@
 // and a ship bound for a star are lands too (offworld sites), and a spot of the fine grid
 // and a region open onto the land they are part of.
 import { landFledBlocks } from "./uprooted.ts";
+import { landMindBlock } from "./self.ts";
 import { notablePeopleBlock } from "./notables.ts";
+import { landPilgrimRows, landSchoolRows } from "./ideas.ts";
+import { landWorksBlock } from "./works.ts";
+import { abroadBlocks } from "./abroad.ts";
 import { landLostBlocks } from "./lost.ts";
 import { landSkyRows } from "./motion.ts";
 import { partnersBlock } from "./kinds-play.ts";
@@ -300,6 +304,16 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
           stat("Since", `year ${p.faith.since}`, { why: p.faith.event }),
         ],
       });
+    // (The school of thought it is taught: sim/ideas.)
+    const taught = landSchoolRows(world, cell);
+    if (taught.length) blocks.push({ type: "facts", title: "What they are taught", rows: taught });
+    // (How one of the middle of them bears their years: a reading, host/self.ts landMind.)
+    blocks.push(landMindBlock(world, cell));
+    blocks.push(...abroadBlocks(world, cell));
+    const going = landPilgrimRows(world, cell);
+    if (going.length) blocks.push({ type: "facts", title: "A place of pilgrimage", rows: going });
+    const works = landWorksBlock(world, cell);
+    if (works) blocks.push(works);
     // Those of it the world keeps by name, living and remembered (sim/notable).
     const noted = notablePeopleBlock(world, [cell]);
     if (noted) blocks.push(noted);

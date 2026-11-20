@@ -2,6 +2,7 @@
 // is, drawn in its own body; when it came to signals, to orbit and to the stars; its nature;
 // the stars it holds and how it came by each; its ships under way; whom it met, how each met
 // the other and how they stand now; what has passed between them; its wars.
+import { farHouseOf, farRulerOf, peopleTemper } from "../../sim/index.ts";
 import { civBody } from "../../gen/index.ts";
 import {
   civilizationsEver,
@@ -19,7 +20,7 @@ import type { World } from "../../kernel/index.ts";
 import type { Item, PageModel, Stat } from "../../bridge/index.ts";
 import { PEOPLE_COLORS, metName } from "../peoples.ts";
 import { figureBody, starFolk } from "../folk.ts";
-import { claimOf, item, link, many, stat, yearNow } from "./words.ts";
+import { claimOf, count, item, link, many, stat, yearNow } from "./words.ts";
 import { folkBlocks, nativePage } from "./natives.ts";
 import { starSicknessBlocks } from "./sickness.ts";
 import { starLifeBlock } from "../biochem.ts";
@@ -163,12 +164,58 @@ export function civilizationPage(world: World, ref: string): PageModel {
               : "have reached orbit, but not yet the stars"
             : `have been at the stars ${many(year - c.stars, "year", "years")}`,
     yearOr = (y: number) => (never(y) ? "never, on their own world" : `year ${y}`);
+  // (Who leads them, and the house that holds their seat: read off them and the year, sim/space/far-rulers.ts.)
+  const ruler = farRulerOf(world, c, year),
+    house = farHouseOf(world, c, year),
+    own = peopleTemper(world, c),
+    bentWords = (b: number, more: string, less: string) =>
+      Math.abs(b) < 0.03 ? null : b > 0 ? more : less,
+    bents = ruler
+      ? [
+          bentWords(ruler.bent[0], "more curious", "less curious"),
+          bentWords(ruler.bent[1], "warier of strangers", "less wary of strangers"),
+          bentWords(ruler.bent[2], "bolder", "less bold"),
+          bentWords(ruler.bent[3], "more given to trade", "less given to trade"),
+        ].filter((x): x is string => x !== null)
+      : [],
+    under = (now: number, was: number) =>
+      ruler && Math.round(now * 100) !== Math.round(was * 100)
+        ? {
+            parts: [
+              { label: ["their own"], value: `${Math.round(was * 100)}%` },
+              {
+                label: [`under ${ruler.name}`],
+                value: `${now >= was ? "+" : ""}${Math.round((now - was) * 100)}`,
+              },
+            ],
+          }
+        : {};
   const natureRows: Stat[] = [
-    stat("Curious", `${Math.round(n.curious * 100)}%`),
-    stat("Wary of strangers", `${Math.round(n.wary * 100)}%`),
-    stat("Bold", `${Math.round(n.bold * 100)}%`),
-    stat("Given to trade", `${Math.round(n.trading * 100)}%`),
+    stat("Curious", `${Math.round(n.curious * 100)}%`, under(n.curious, own.curious)),
+    stat("Wary of strangers", `${Math.round(n.wary * 100)}%`, under(n.wary, own.wary)),
+    stat("Bold", `${Math.round(n.bold * 100)}%`, under(n.bold, own.bold)),
+    stat("Given to trade", `${Math.round(n.trading * 100)}%`, under(n.trading, own.trading)),
   ];
+  const leadRows: Stat[] = ruler
+    ? [
+        stat(
+          ruler.many ? "The line that leads them" : "Who leads them",
+          `${ruler.name}${house && house.name !== ruler.name ? ` of the house of ${house.name}` : ""}`,
+        ),
+        stat("Since", `year ${count(ruler.since)}, the ${ordinal(ruler.reign + 1)} to lead them`),
+        ...(house
+          ? [
+              stat(
+                "The house that holds their seat",
+                house.old
+                  ? `${house.name}, for longer than is reckoned`
+                  : `${house.name}, since year ${count(house.since)}: ${many(house.reigns, "reign", "reigns")}`,
+              ),
+            ]
+          : []),
+        stat("Against their people", bents.length ? bents.join(", ") : "much as their people are"),
+      ]
+    : [];
   const holdItems: Item[] = holds.map((h) =>
       item(
         [
@@ -263,6 +310,9 @@ export function civilizationPage(world: World, ref: string): PageModel {
             const f = folkByRef(world, c.ref);
             return f ? folkBlocks(world, f) : [];
           })(),
+          ...(leadRows.length
+            ? [{ type: "facts" as const, title: "Who leads them", rows: leadRows }]
+            : []),
           { type: "facts", title: "Their nature", rows: natureRows },
           starLifeBlock(world, c),
           { type: "list", title: "On the home world", items: told(landings) },

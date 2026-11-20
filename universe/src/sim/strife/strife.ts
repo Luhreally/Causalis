@@ -739,16 +739,16 @@ export function farLands(ctx: PopulationContext, p: Polity): number[] {
   return out.sort((a, b) => a - b);
 }
 
-/** The town to raise a realm at among lands: a market town first, then the most peopled. */
+/**
+ * The town to raise a realm at among lands: their most peopled market town; none where they have no market town (a realm is
+ * seated at a market town, as one that forms of itself is: sim/polity. A general who fled with fifteen lands and no market
+ * town among them was seated at a village of 95: first light, year 140).
+ */
 function townAmong(ctx: PopulationContext, lands: readonly number[]) {
   return lands
     .flatMap((c) => ctx.settlements.inProvince(c))
-    .sort(
-      (x, y) =>
-        (y.market ? 1 : 0) - (x.market ? 1 : 0) ||
-        y.population - x.population ||
-        (x.ref < y.ref ? -1 : 1),
-    )[0];
+    .filter((x) => x.market)
+    .sort((x, y) => y.population - x.population || (x.ref < y.ref ? -1 : 1))[0];
 }
 
 /**

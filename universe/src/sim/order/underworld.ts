@@ -29,6 +29,8 @@
 // urban); its officers bought (sim/order corruption) and its reach thinned (capacityOf); its standing lowered by open killing and a
 // crew found out (legitimacy); the forbidden trade's organisation (sim/money/intox.ts BAR.cartel), and with it its smuggling.
 // One record a realm, one row a land; a realm's record goes with it.
+import { strangersIn } from "../culture/abroad-kept.ts";
+import { ABROAD } from "../../rules/index.ts";
 import {
   MAX_CAUSES,
   YEAR,
@@ -690,7 +692,12 @@ function streetTowns(ctx: PopulationContext, p: Polity, r: Read): Town[] {
       newcomers = urban ? newcomersOf(urban.draw, urban.target) : 0,
       kin = (folk?.get(c)?.[FOLK_ROW.kin] ?? 1000) / 1000,
       otherFaith = r.people > 0 ? 1 - (faiths.get(faith) ?? 0) / r.people : 0,
-      apart = dmath.clamp(newcomers * otherFaith + 0.5 * (1 - kin), 0, 1),
+      // (And for the peoples not its own who live in it: sim/culture/abroad.ts. As before where none is kept.)
+      apart = dmath.clamp(
+        newcomers * otherFaith + 0.5 * (1 - kin) + ABROAD.street * strangersIn(world, c),
+        0,
+        1,
+      ),
       informal = dmath.clamp(
         0.5 * (ways?.traits[WAY.kinship] ?? 0.5) + 0.35 * (ways?.traits[WAY.piety] ?? 0.5),
         0,

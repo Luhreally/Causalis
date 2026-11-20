@@ -1753,3 +1753,6 @@ export * from "./notables.ts";
 export * from "./held.ts";
 // Deeds (2026-11-19): a group or a body acting on someone or something the world keeps by name.
 export * from "./deeds.ts";
+// Things of the mind (2026-11-19): schools of thought, works, pilgrimage.
+export * from "./ideas.ts";
+export * from "./abroad.ts";

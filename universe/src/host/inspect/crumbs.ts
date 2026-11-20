@@ -13,6 +13,7 @@ import { landOfRef } from "./land.ts";
 /** Which of the ledger's tabs a kind of thing is compared in. */
 const LEDGER_TAB: Readonly<Record<string, string>> = {
   faith: "faiths",
+  idea: "faiths",
   lang: "tongues",
   spec: "life",
   war: "wars",

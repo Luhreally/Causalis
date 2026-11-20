@@ -219,3 +219,20 @@ export function lessonAdds(world: World, holder: string, how: LessonHow, year: n
   }
   return add;
 }
+
+/**
+ * What a land sets aside from its own use now (`aside:woods`: the share of its farming ground left as woods; `aside:wild`: the
+ * share of what its wild yields left untaken), given its holder as already looked up: what it has learned to keep, broken as far
+ * as hunger presses it (a people going hungry clears and hunts what it had spared). Exactly 0 where it has learned neither.
+ */
+export function asideIn(
+  h: Holder | undefined,
+  how: "aside:woods" | "aside:wild",
+  year: number,
+): number {
+  if (!h || !h.uses.size) return 0;
+  const id = how === "aside:woods" ? "kept-woods" : "kept-wild",
+    use = useIn(h, id, year);
+  if (use <= 0) return 0;
+  return (LESSON_RESPONSE.get(id)?.most ?? 0) * use * (1 - pressIn(h, "famine", year));
+}

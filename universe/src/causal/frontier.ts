@@ -99,11 +99,11 @@ registerEventWords(WRITTEN_EVENTS.limbs.type, (_world, e) => {
 
 registerEventWords(MINDS_EVENTS.past.type, (_world, e) => {
   const d = data(e);
-  return `The made minds of the realm of ${realm(d)} came to think more than all its people together, year ${yearOfMoment(e.t)}`;
+  return `The made minds of the realm of ${realm(d)} came to think more than all its people together${typeof d.mind === "string" ? `, and its people came to speak of them as one: ${d.mind}` : ""}, year ${yearOfMoment(e.t)}`;
 });
 registerEventWords(MINDS_EVENTS.free.type, (_world, e) => {
   const d = data(e);
-  return `The made minds of the realm of ${realm(d)}, thinking ${count(Math.round(num(d.past)))} times as much as their makers, went their own way, and took the works in the sky they tended, year ${yearOfMoment(e.t)}`;
+  return `${typeof d.mind === "string" ? `${d.mind}, the` : "The"} made minds of the realm of ${realm(d)}, thinking ${count(Math.round(num(d.past)))} times as much as their makers, went their own way, and took the works in the sky they tended, year ${yearOfMoment(e.t)}`;
 });
 registerEventWords(MINDS_EVENTS.goneUp.type, (world, e) => {
   const d = data(e);
