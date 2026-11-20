@@ -1528,18 +1528,21 @@ export function townWarScene(
         ...(shelled ? { battery: apart.battery, shells: apart.shells } : {}),
       }
     : {};
-  // A kept siege's works about it, between the tents and its walls (not while a battle is fought in place before it).
-  const works =
-    war.works && !fighting
-      ? siegeWorks(
-          key,
-          openArc(ground, camp - 14, ringStart),
-          camp - 14,
-          (a) => wallsAt(ground, a),
-          war.works,
-          isGun(war.sides[0].host?.arm) || !!apart?.shelling,
-        )
-      : null;
+  // A kept siege's works about it, between the tents and its walls (not while a battle is fought in place before it). Where
+  // its walls have been pulled down (it grew over them: a ring street runs there, homes past it), the works face its
+  // edge, and no breach is opened in walls that no longer stand.
+  const standing = !!ground.town?.walls?.standing,
+    works =
+      war.works && !fighting
+        ? siegeWorks(
+            key,
+            openArc(ground, camp - 14, ringStart),
+            camp - 14,
+            standing ? (a) => wallsAt(ground, a) : () => ground.homesReach,
+            standing ? war.works : { ...war.works, breach: 0 },
+            isGun(war.sides[0].host?.arm) || !!apart?.shelling,
+          )
+        : null;
   return {
     soldiers,
     tents,
