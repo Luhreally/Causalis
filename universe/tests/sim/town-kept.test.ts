@@ -60,8 +60,8 @@ test("a town's reach is set down when it is founded, its market place at its fir
     }
   }
   assert.ok(towns > 20 && places > 0, `${towns} towns, ${places} with a market place`);
-  assert.equal(placeClass(300), 1);
-  assert.equal(placeClass(5000), 2);
+  assert.equal(placeClass(30), 1);
+  assert.equal(placeClass(100), 2);
   assert.equal(placeClass(50_000), 3);
   assert.ok(ctx.settlements.all().length >= towns);
 });

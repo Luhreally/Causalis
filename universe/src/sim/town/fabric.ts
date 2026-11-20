@@ -173,9 +173,13 @@ export function orderAt(f: Fabric, at: number): number | null {
 }
 /** What a land must know for engines to have come to it (as host/roads.ts machinesYear reads it). */
 const ENGINES = "electricity|sea-electricity|engines";
-/** How great a market place a town's people ask at its first market: one block, two across its main street, four. */
+/**
+ * How great a market place a town's people ask at its first market: one block, two across its main street, four. (A market
+ * comes to a town young: on first light the 551 towns that ever held one had 8 lots then at the median, 57 at the ninth
+ * tenth.)
+ */
 export function placeClass(people: number): number {
-  return people >= 12_000 ? 3 : people >= 1500 ? 2 : 1;
+  return people >= 250 ? 3 : people >= 60 ? 2 : 1;
 }
 
 /** How many lots each building takes: a smithy one, a market hall a row of four, a factory a block. */

@@ -216,6 +216,7 @@ export {
   type TownStrike,
   type TownWater,
   type WallLength,
+  wallRadius,
 } from "./town.ts";
 export {
   HEART_BLOCKS,
@@ -228,8 +229,16 @@ export {
   streetWords,
   laidAt,
   streetWide,
+  placeReach,
+  reachToward,
+  climb,
+  ROAD_GOING,
+  SURVEYED,
+  STRAIGHT,
   type GrownBlocks,
   type MainStreet,
+  type MarketPlace,
+  type Survey,
   type StreetsLaid,
   type TownRoad,
   type TownSite,
@@ -249,8 +258,13 @@ export {
 } from "./rank.ts";
 export {
   TIER,
+  HEIGHT_RISE,
+  PAINTED_FROM,
+  STACKS,
   bodyBreadth,
+  heightHeld,
   formWhys,
+  type FormSeen,
   lotTier,
   streetsLaid,
   tallShare,

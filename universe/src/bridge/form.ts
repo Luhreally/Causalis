@@ -14,13 +14,25 @@
 //     living high, so theirs are tall.
 //   • How closely a people live (a hive, or each alone) sets how much of the town is built wall to wall.
 //   • What grows in a yard is what its land's rain grows.
-//   • A market is held under cover where there is one: posts and awnings, or a colonnade once its land builds in stone. A realm
-//     seated here raises a column in its square, as high as it is old and great. A way is kept broad from the square to its
-//     temple.
+//   • A market is held on ground kept open for it: the next the town would have taken at its first market, as great as its
+//     people then asked; under cover where there is one: posts and awnings, or a colonnade once its land builds in stone, as
+//     high as its land has to spare. A realm seated here raises a column there, the higher the further its will is done
+//     and the more its land has to spare. A way is kept broad from the square to its temple, and the temple stands on steps.
+//     Where its ground rises and it was ever walled, whoever rules or is prayed to here holds the height on the walls' line.
+//   • A home is built against its weather, of what its land holds, to its people's measure: its roof the steeper the more
+//     snow and rain it sheds; its walls limewashed pale and built wall to wall about shaded courts where the sun is the
+//     enemy; its floors as high as those who live on them; its front painted where there is something to spare.
 //
 // Pure: facts in (read by the host from what the world keeps, host/form.ts), a few numbers out; the view draws from them and
 // the town's page says them. Nothing here is kept, and no world's history turns on it.
-import type { StreetsLaid } from "./sites.ts";
+import {
+  SURVEYED,
+  STRAIGHT,
+  type MarketPlace,
+  type StreetsLaid,
+  type Survey,
+  type TownSite,
+} from "./sites.ts";
 
 /** What a town's form is reckoned from: all read from what the world keeps. */
 export type FormFacts = {
@@ -37,6 +49,9 @@ export type FormFacts = {
   /** Its land's rain (mm a year) and mean warmth (°C). */
   readonly rain: number;
   readonly warm: number;
+  /** How far its realm's will is done on its land now (0 … 1), and what its land makes a head past what a head must eat (0 none … 1 plenty). */
+  readonly reach: number;
+  readonly spare: number;
   /** Whether its land builds in stone, and whether it holds a market. */
   readonly stone: boolean;
   readonly market: boolean;
@@ -74,6 +89,16 @@ export type TownForm = {
   readonly forum: 0 | 1 | 2;
   /** The column in its square, metres high (0: none). */
   readonly column: number;
+  /** How high its market's cover stands (metres). */
+  readonly cover: number;
+  /** How pale its walls are washed against the sun (0 none … 0.6). */
+  readonly pale: number;
+  /** Its homes turn in on shaded courts, wall to wall (a hot, dry land). */
+  readonly courts: boolean;
+  /** How much steeper than its roofing asks a roof is pitched, for the snow it must shed (1: no steeper). */
+  readonly steep: number;
+  /** What its land has to spare, as its homes' fronts and its monuments show it (0 none … 1 plenty). */
+  readonly spare: number;
 };
 
 const clamp = (x: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, x));
@@ -145,7 +170,12 @@ export function townForm(f: FormFacts): TownForm {
     drive = f.engines >= 0 && (f.how === "wheels" || f.how === "sled"),
     rides = drive ? clamp(f.share, 0, 1) : 0,
     // (The closer they live, the more of the town is built wall to wall; a swimmer saves nothing by the heart.)
-    heart = f.water ? 0 : clamp(0.14 + 0.26 * f.social + (f.winged ? 0.15 : 0), 0, 0.6),
+    // (And where the sun is the enemy a wall shared is a wall shaded: more of the town is built so.)
+    courts = !over && f.warm >= 20 && f.rain < 600,
+    heart = f.water
+      ? 0
+      : clamp(0.14 + 0.26 * f.social + (f.winged ? 0.15 : 0) + (courts ? 0.25 : 0), 0, 0.75),
+    spare = clamp(f.spare, 0, 1),
     // (On foot the last sixth of the way out is cheap enough for yards; with engines, as far in as they are kept.)
     edge = over ? 1 : clamp(1 - (0.16 + 0.7 * rides), Math.max(heart + 0.1, 0.35), 1),
     green = f.water ? 0 : clamp(f.rain / 900, 0, 1) * (f.warm < -4 ? 0.3 : 1);
@@ -162,10 +192,19 @@ export function townForm(f: FormFacts): TownForm {
     own: f.own,
     stone: f.stone,
     forum: f.market ? (f.stone ? 2 : 1) : 0,
+    // (A column is as high as the hands a realm can call to raise it: by how far its will is done, and what its land spares.)
     column:
       f.seat > 0 && f.stone
-        ? Math.round(6 + 5 * (f.seat - 1) + 2 * Math.log10(Math.max(10, f.people)))
+        ? Math.round(10 + 5 * (f.seat - 1) + 14 * clamp(f.reach, 0, 1) + 10 * spare)
         : 0,
+    cover: Math.round((4.5 + 3.5 * spare) * Math.max(0.8, body) * 2) / 2,
+    pale: f.water
+      ? 0
+      : Math.round(clamp((f.warm - 14) / 14, 0, 1) * (f.rain < 900 ? 0.6 : 0.3) * 20) / 20,
+    courts,
+    // (Snow lies where the year's mean is near freezing; heavy rain wants a quick roof too.)
+    steep: f.water ? 1 : f.warm < 3 && f.rain > 250 ? 1.5 : f.rain > 1500 ? 1.25 : 1,
+    spare: Math.round(spare * 10) / 10,
   };
 }
 
@@ -186,19 +225,99 @@ export function lotTier(form: TownForm, p: number, whole: number, walled = 0): n
 export function tallShare(form: TownForm, p: number, whole: number): number {
   const out = Math.sqrt((p + 0.5) / Math.max(1, whole)),
     // (Flatter where the going is fast and cheap.)
-    fall = form.over ? 0.15 : 0.55 - 0.3 * form.rides;
-  return (form.winged ? 1.25 : 1.15) - fall * Math.min(1, out / Math.max(0.2, form.edge));
+    fall = form.over ? 0.15 : 0.95 - 0.3 * form.rides;
+  // (A swimmer's town has no dearest ground to build high on; a flier's is high from end to end.)
+  return (
+    (form.winged ? 1.5 : form.over ? 1.05 : 1.5) -
+    fall * Math.min(1, out / Math.max(0.2, form.edge))
+  );
 }
 
-/** A count of metres in words. */
-const metres = (m: number) => `${Math.round(m)} m`;
+/** From how much to spare a town's fronts are painted, each its own of a few washes. */
+export const PAINTED_FROM = 0.4;
+
+/**
+ * From how steep a rise (metres in a kilometre, over its land's map about it) a town's ground has a height worth holding:
+ * the steepest quarter of sites (on first light at year 120 a town's ground rises 3.5 at the median, 5.3 at the third
+ * quarter, 8.8 at the nineteenth twentieth).
+ */
+export const HEIGHT_RISE = 6;
+
+/**
+ * The height a town holds, and for whom (null: none): its ground rises, it was once walled (the height is on its walls'
+ * line, `r` from its middle, where no block was ever laid), and someone rules here (`seat`: a keep) or is prayed to here
+ * (`temple`: a shrine). Not in its water, nor across a road in.
+ */
+export function heightHeld(
+  site: TownSite,
+  r: number,
+  water: { readonly x: number; readonly z: number; readonly r: number } | null,
+  seat: boolean,
+  temple: boolean,
+): { x: number; z: number; yaw: number; keep: boolean } | null {
+  if (site.rise < HEIGHT_RISE || (!seat && !temple)) return null;
+  const x = r * Math.cos(site.up),
+    z = r * Math.sin(site.up);
+  if (water && Math.hypot(x - water.x, z - water.z) < water.r + 24) return null;
+  for (const road of site.roads)
+    if (
+      Math.abs(Math.atan2(Math.sin(road.bearing - site.up), Math.cos(road.bearing - site.up))) <
+      22 / r
+    )
+      return null;
+  return { x, z, yaw: -site.up, keep: seat };
+}
+
+/** What of a town's form its page is told beside the form itself: all read, as its view reads them. */
+export type FormSeen = {
+  /** Its walls stand about it. */
+  readonly walled: boolean;
+  /** The lots it had when engines came were set down then (else: read off a household's walk). */
+  readonly kept?: boolean;
+  /** How far its realm's will was done as its ground was taken up (TownSite.surveys). */
+  readonly surveys?: readonly Survey[];
+  /** Its market place, where ground was kept for one. */
+  readonly place?: MarketPlace | null;
+  /** A ring street runs where its walls stood. */
+  readonly ring?: boolean;
+  /** The height it holds. */
+  readonly height?: "keep" | "shrine" | null;
+  /** A temple stands in it. */
+  readonly temple?: boolean;
+  /** It has homes of five floors and more, and whether its land's walls can be stacked so. */
+  readonly tall?: boolean;
+  readonly stacks?: boolean;
+};
+
+/** How a part of a town's ground was laid, by how far its realm's will was done there. */
+function orderWords(order: number): string {
+  const tenths = Math.round(order * 10);
+  return order >= SURVEYED
+    ? `its realm's will was done here ${tenths} parts in 10, enough to hold every household to a line: its ground was cut into equal blocks before it was built`
+    : order >= STRAIGHT
+      ? `its realm's will was done here ${tenths} parts in 10: enough to lay its streets straight, not to cut its blocks alike`
+      : order > 0
+        ? `its realm's will was done here only ${tenths} part${tenths === 1 ? "" : "s"} in 10: no one could hold a household to a line, and its lanes went where its people walked`
+        : "no one here could hold a household to a line or write a plot down: its lanes went where its people walked";
+}
+
+/** The walls a people can stack five floors of as they are; the rest fire brick for it. */
+export const STACKS: ReadonlySet<string> = new Set(["stone", "brick", "mudbrick"]);
+
+/** A place in a row, in words. */
+const ordinal = (n: number) =>
+  `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th")}`;
+
+/** A count of metres in words. */ const metres = (m: number) => `${Math.round(m)} m`;
 
 /** A town's form in plain lines, each saying what is seen and why (`laid`: its streets, as streetsLaid gave them). */
 export function formWhys(
   form: TownForm,
   laid: readonly StreetsLaid[] | undefined,
-  walled: boolean,
+  seen: FormSeen | boolean,
 ): string[] {
+  const see: FormSeen = typeof seen === "boolean" ? { walled: seen } : seen,
+    walled = see.walled;
   const out: string[] = [],
     first = laid?.[0],
     engines = laid?.find((l) => l.from === form.engines && form.engines >= 0);
@@ -213,14 +332,16 @@ export function formWhys(
   if (engines)
     out.push(
       engines.from > 0
-        ? `Past a quarter hour's walk from its square only engines make ground worth holding, and what stands there was laid for them: streets ${metres(engines.street)} wide${engines.verge ? ", each block behind a verge" : ""}. Nearer in it keeps the lanes it was walked in.`
+        ? see.kept
+          ? `What it has taken since engines came to its land was laid for them: streets ${metres(engines.street)} wide and tarred${engines.verge ? ", each block behind a verge" : ""}. What stood before keeps the lanes it was walked in.`
+          : `Past a quarter hour's walk from its square only engines make ground worth holding, and what stands there was laid for them: streets ${metres(engines.street)} wide${engines.verge ? ", each block behind a verge" : ""}. Nearer in it keeps the lanes it was walked in.`
         : `It was founded after engines came to its land, and laid for them from its first block: streets ${metres(engines.street)} wide${engines.verge ? ", each block behind a verge" : ""}.`,
     );
   if (form.heart > 0)
     out.push(
       form.winged
         ? "Nothing is lost by living high for those who fly: its homes by the square stand tall, wall to wall."
-        : `Ground is dearest by its square, a short walk from everything: homes there stand wall to wall and a floor higher${walled ? ", and as close everywhere within its walls, where ground is scarce" : ""}.`,
+        : `Ground is dearest by its square, a short walk from everything: homes there stand wall to wall and a floor higher, the ground between them trodden bare${walled ? "; and as close everywhere within its walls, where ground is scarce" : ""}.`,
     );
   else if (form.over)
     out.push(
@@ -232,15 +353,70 @@ export function formWhys(
         ? `${Math.round(form.rides * 10)} in 10 of its households keep an engine to ride, so the edge is as near as the heart once was: from ${Math.round(form.edge * 10)} tenths of the way out its homes stand apart in their yards.`
         : `At its edge ground is cheap: homes stand apart, each in its yard${form.green >= 0.35 ? " and garden" : form.green < 0.12 ? ", bare for want of rain" : ""}.`,
     );
+  // How its ground was taken up, part by part.
+  if (see.surveys && !form.over)
+    see.surveys.forEach((v, k) => {
+      const next = see.surveys![k + 1];
+      if (next && next.from <= v.from) return;
+      out.push(
+        k === 0
+          ? `When it was founded ${orderWords(v.order)}.`
+          : `Where it grew on from its ${ordinal(v.from)} block ${orderWords(v.order)}.`,
+      );
+    });
+  if (see.ring)
+    out.push(
+      "Nothing was built on the line of its walls while they stood: a ring street runs there now they are down.",
+    );
+  const where = see.place ? "on its market place" : "about its square";
+  if (see.place)
+    out.push(
+      `Its market place is the ground it would have built on next at its first market, kept open: ${metres(see.place.w)} by ${metres(see.place.d)}, as great as its people then asked${see.place.through ? ", its main street through its middle" : ""}.`,
+    );
   if (form.forum)
     out.push(
       form.forum === 2
-        ? "Its market is held under a colonnade of stone about its square."
-        : "Its market is held under posts and awnings about its square: its land does not build in stone.",
+        ? `Its market is held under a colonnade of stone ${where}, ${metres(form.cover)} high: the more its land has to spare, the higher.`
+        : `Its market is held under posts and awnings ${where}: its land does not build in stone.`,
     );
   if (form.column)
     out.push(
-      `A column ${metres(form.column)} high stands in its square, raised by the realm seated here: the older and greater the realm, the higher.`,
+      `A column ${metres(form.column)} high stands ${see.place ? "there" : "in its square"}, raised by the realm seated here: as high as the hands it can call on, by how far its will is done and what its land spares.`,
+    );
+  if (see.temple && form.stone)
+    out.push(
+      "Its temple stands on steps, two tall stones before its doors, and a way is kept to it from the square between pillars.",
+    );
+  if (see.height)
+    out.push(
+      see.height === "keep"
+        ? "Its ground rises to one side, and whoever rules here holds that height: a keep on the line of its walls, in the realm's colours."
+        : "Its ground rises to one side, and its people pray on that height: a shrine on the line of its walls.",
+    );
+  if (form.courts)
+    out.push(
+      "The sun is the enemy here: walls are washed pale with lime, and homes stand wall to wall about shaded courts well out from its square.",
+    );
+  else if (form.pale >= 0.15) out.push("Its walls are washed pale with lime against the sun.");
+  if (form.steep > 1)
+    out.push(
+      form.steep >= 1.5
+        ? "Its roofs are pitched steep and laid dark, to shed the snow."
+        : "Its roofs are pitched steep, to shed its heavy rain.",
+    );
+  if (Math.abs(form.body - 1) > 0.08 && !form.over)
+    out.push(
+      `Its floors are ${(3 * Math.max(0.75, Math.min(1.5, form.body))).toFixed(1)} m high: its people stand ${form.body > 1 ? "broader and taller" : "smaller"} than ours.`,
+    );
+  if (form.spare >= PAINTED_FROM)
+    out.push("Its land makes well more than it eats: one front in three is painted.");
+  else if (form.spare < 0.15)
+    out.push("Its land has little to spare: its homes stand in the bare stuff they are built of.");
+  if (see.tall && !form.own)
+    out.push(
+      see.stacks
+        ? "Its tall homes are raised in what its low ones are built of: its land's walls can be stacked floor on floor."
+        : "Its tall homes are of fired brick: what its low ones are built of cannot be stacked five floors high.",
     );
   if (form.own)
     out.push(
