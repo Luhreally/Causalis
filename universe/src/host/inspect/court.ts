@@ -1,6 +1,7 @@
 // Lives L5 as pages: a realm's Court tab (the ruler, the heir and why, the rival and why, the voices and what each wants,
 // what has passed), and a page for each of its people (who they are in this drama, what they want and why, what they
 // did). Pure reads of the world as it stands: asking moves nothing.
+import { mindPage } from "./minds.ts";
 import type { Ref, World } from "../../kernel/index.ts";
 import { FEMALE, OCC, mustCarry } from "../../rules/index.ts";
 import { courtOf, politiesOf, realmName, type Polity } from "../../sim/index.ts";
@@ -73,6 +74,18 @@ export function courtBlocks(world: World, r: Polity): Block[] {
   blocks.push({ type: "tool", tool: "leader.card", args: { leader: rulerLeader(world, r) } });
   for (const l of courtLeaders(world, r))
     blocks.push({ type: "tool", tool: "leader.card", args: { leader: l } });
+  // (Its made minds, kept: one of its court, with a page of their own.)
+  const mind = c?.figures.find((f) => f.seat === "minds");
+  if (mind)
+    blocks.push({
+      type: "facts",
+      title: "Its made minds at court",
+      rows: [
+        stat("Spoken of as", [link(mind.name, `mind:${r.ref}`)]),
+        stat("At court since", `year ${mind.since}`),
+        stat("What they do there", "counsel the seat: no one's heir, no one's rival"),
+      ],
+    });
   if (!c?.figures.length)
     blocks.push({
       type: "text",
@@ -89,6 +102,13 @@ export function courtPage(world: World, ref: string): PageModel {
   const at = parseCourtRef(ref),
     r = at ? politiesOf(world).get(asRef(at.realm)) : undefined;
   if (!at || !r) throw new Error(`no one at court ${ref}`);
+  // (A realm's made minds at its court are no body: their page is their own.)
+  if (
+    courtOf(world)
+      ?.of(r.ref)
+      ?.figures.some((x) => x.id === at.id && x.seat === "minds")
+  )
+    return mindPage(world, `mind:${r.ref}`);
   const read = courtFigure(world, ref),
     year = yearNow(world),
     f = read?.f ?? null,

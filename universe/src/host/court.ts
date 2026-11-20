@@ -239,7 +239,9 @@ export function courtLeaders(world: World, r: Polity): Leader[] {
   const c = courtOf(world)?.of(r.ref);
   if (!c || r.ended !== null) return [];
   const rank = (f: CourtFigure) => (f.id === c.heir ? 0 : f.id === c.rival ? 1 : 2);
-  return [...c.figures]
+  // (Its made minds sit at court and are no body: they are told on the court's page by their own, host/inspect/minds.ts.)
+  return c.figures
+    .filter((f) => f.seat !== "minds")
     .sort((a, b) => rank(a) - rank(b) || b.sway - a.sway || a.id - b.id)
     .map((f) => courtLeader(world, r, c, f));
 }
