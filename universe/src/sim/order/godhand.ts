@@ -9,7 +9,7 @@
 // matter cannot hold, no arms its people's bodies cannot bear, no war on a realm no land of theirs can reach.
 import { YEAR, defineEventType, yearOfMoment, type Ref, type World } from "../../kernel/index.ts";
 import { cellRef } from "../../gen/index.ts";
-import { G, GOODS, TERMS, designWords, type Part } from "../../rules/index.ts";
+import { G, GOODS, PRINCIPLE_INDEX, TERMS, designWords, type Part } from "../../rules/index.ts";
 import { COLS, Province } from "../population/model.ts";
 import {
   POPULATION_EVENTS,
@@ -250,7 +250,14 @@ function emptyBeside(c: PopulationContext, r: Polity): number | null {
   return godTownSite(c, r)?.cell ?? null;
 }
 
-/** What a land could come to next, each opening the next: one craft, or an age of them (with what it opens, ids). */
+/**
+ * What a land could come to next, each opening the next: one craft, or an age of them (with what it opens, ids). In the order a
+ * people would come to them, not the order the tree is written in: all that is open to what it knows now, then all that those
+ * open, and so on, so nothing comes before what it stands on or before what lay nearer; among those open together, the likeliest
+ * found first (a rule's rate), then as the tree lists them. What only having lived through a thing opens comes when nothing else is
+ * left. (Until 2026-11-19 it took the first open row of the tree, whose later rows are written at its end so that no world's draws
+ * move: powder and every gun came after the rocket, orbit and every drive.)
+ */
 export function godLearning(c: PopulationContext, seat: number, most: number): string[] {
   const known = new Set<string>(),
     prov = c.provinces.get(seat),
@@ -268,10 +275,16 @@ export function godLearning(c: PopulationContext, seat: number, most: number): s
     known.add("cultivation");
   }
   while (out.length < most) {
-    const next = openTo(c, seat, lore)[0];
-    if (!next) break;
-    out.push(next.id);
-    known.add(next.id);
+    const open = openTo(c, seat, lore),
+      lived = open.filter((p) => !p.seen),
+      wave = (lived.length ? lived : open).sort(
+        (a, b) => b.rate - a.rate || PRINCIPLE_INDEX.get(a.id)! - PRINCIPLE_INDEX.get(b.id)!,
+      );
+    if (!wave.length) break;
+    for (const p of wave.slice(0, most - out.length)) {
+      out.push(p.id);
+      known.add(p.id);
+    }
   }
   return out;
 }

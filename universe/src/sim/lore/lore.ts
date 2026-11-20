@@ -736,10 +736,17 @@ export function openTo(
 
 /** A principle given a land outright, as learning it would (the god's gift): known from this year, by this event. */
 export function giveLore(ctx: PopulationContext, cell: number, p: Principle, event: Ref): void {
-  const year = yearOfMoment(ctx.world.now);
+  const year = yearOfMoment(ctx.world.now),
+    market = ctx.world.store<MarketStore>("economy.markets").of(cell);
+  // (Smelting is the older systems': a land knows it by its market, as `knows` reads it. Until 2026-11-19 the gift wrote it
+  // in the lore, where no one reads it: the land still could not smelt, bronze and all that stands on it stayed shut, and
+  // every age of learning after gave "smelting copper" again.)
+  if (p.id === "metalworking") {
+    market.metalworking ??= event;
+    return;
+  }
   loreOf(ctx.world).learn(cell, p.id, { year, event }, p);
-  if (METAL_ROOTS.includes(p.id))
-    ctx.world.store<MarketStore>("economy.markets").of(cell).metalworking ??= event;
+  if (METAL_ROOTS.includes(p.id)) market.metalworking ??= event;
 }
 
 /** Teach a peopled world its lore. */

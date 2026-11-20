@@ -120,9 +120,14 @@ const FROZEN: readonly (readonly [id: string, needs: readonly string[], body?: B
     "electronics",
     ["electricity|sea-electricity|graphite-dynamos|ground-dynamos|polymer-wire", "mathematics"],
   ],
+  // (2026-11-19: the rocket stands on the gun, the land's or the sea's.)
   [
     "rocketry",
-    ["electricity|sea-electricity|graphite-dynamos|ground-dynamos|polymer-wire", "astronomy"],
+    [
+      "electricity|sea-electricity|graphite-dynamos|ground-dynamos|polymer-wire",
+      "astronomy",
+      "firearms|gas-darts",
+    ],
   ],
   ["guidance", ["electronics", "clockwork|current-reading"]],
   ["orbital-flight", ["rocketry", "guidance"]],

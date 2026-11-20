@@ -65,6 +65,7 @@ import { heldUnpacked, leanUnpacked, yearsOf } from "../years.ts";
 import { link } from "./words.ts";
 import { HOLD_ASKS } from "./order.ts";
 import { thinPoints } from "./time.ts";
+import { armsKnownBlocks } from "./armsknown.ts";
 
 const capital = (s: string) => `${s[0]!.toUpperCase()}${s.slice(1)}`;
 
@@ -513,6 +514,8 @@ export function learnedBlocks(world: World, holder: string, cell: number | null)
       })),
     });
   }
+  // (Known is not carried: which arms of shot they know, and whether their realm's host bears them.)
+  if (cell !== null) blocks.push(...armsKnownBlocks(world, cell));
   return blocks;
 }
 
