@@ -8498,6 +8498,21 @@ async function runPlanetPage(): Promise<void> {
           fallen: [...fight.now.fallen],
           men: menAt(fight.field, fight.now),
           words: fight.now.words,
+          // (Each side's hired company's block, and where its banner's bearer stands now: the look tools.)
+          company:
+            fight.field.company?.map((c) => {
+              const id = c ? [...c.bearers][0] : undefined,
+                at = id !== undefined ? fight!.now.troopers.find((t) => t.id === id) : undefined;
+              return c
+                ? {
+                    name: c.name,
+                    from: c.from,
+                    files: c.files,
+                    color: c.color,
+                    at: at ? { x: at.x, z: at.z, act: at.act } : null,
+                  }
+                : null;
+            }) ?? null,
           bolts: fight.now.bolts?.length ?? 0,
           blood: fight.now.blood.length,
           smoke: fight.now.smoke.length,
