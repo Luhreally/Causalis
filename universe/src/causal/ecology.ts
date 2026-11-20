@@ -59,7 +59,7 @@ registerEventWords(HERD_EVENTS.ended.type, (world, e) => {
     name = `${d?.given ?? "The beast"}, ${d?.by ?? ""}`,
     at = d?.town ?? landWords(world, e.place);
   if (d?.how === "hunted")
-    return `${d?.killer ?? "Those who went after it"} brought down ${name}, as ${at} had long wanted, ${year(e.t)}`;
+    return `${d?.killer && !/^(the|a)$/i.test(d.killer.trim()) ? d.killer : "Those who went after it"} brought down ${name}, as ${at} had long wanted, ${year(e.t)}`;
   if (d?.how === "old") return `${name} was found dead of its years near ${at}, ${year(e.t)}`;
   if (d?.how === "town") return `No one was left in ${at} to tell of ${name}, ${year(e.t)}`;
   return `${name} was seen no more about ${at} after ${year(e.t)}`;
