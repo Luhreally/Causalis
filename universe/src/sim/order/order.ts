@@ -34,7 +34,8 @@ import {
   type World,
 } from "../../kernel/index.ts";
 import { cellRef, tongueLikeness } from "../../gen/index.ts";
-import { G, OCC } from "../../rules/index.ts";
+import { G, JUSTICE, OCC } from "../../rules/index.ts";
+import { courtLabourIn } from "./institutions-kept.ts";
 import { COLS, ROWS } from "../population/model.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import type { MarketStore } from "../economy/market.ts";
@@ -1881,7 +1882,10 @@ export function orderYear(ctx: PopulationContext, t: SimTime): void {
         l.shares[BOND.debt]! * (1 - (prov.leanest >= 950 ? DEBT_WORKED_OFF : 0.02));
       l.shares[BOND.indenture] = l.shares[BOND.indenture]! * (1 - 1 / INDENTURE_YEARS);
       // The condemned at labour, under a seat that rules by decree.
-      const condemned = decree ? 0.003 + 0.01 * Math.min(1, realms.discontent(c).level) : 0;
+      // (And those its court holds and puts to work, where one is kept: sim/order/institutions-kept.ts. None where none is.)
+      const condemned =
+        (decree ? 0.003 + 0.01 * Math.min(1, realms.discontent(c).level) : 0) +
+        courtLabourIn(world, c, prov.total(), decree ? JUSTICE.labourDecree : JUSTICE.labour);
       l.shares[BOND.convict] =
         l.shares[BOND.convict]! + 0.2 * (condemned - l.shares[BOND.convict]!);
       if (l.shares.every((x) => x < 0.0005) && !l.cause) store.lands.delete(c);

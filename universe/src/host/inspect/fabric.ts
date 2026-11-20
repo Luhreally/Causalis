@@ -63,6 +63,7 @@ import { count, eventsAbout, item, link, many, sentence, stat, yearNow } from ".
 import { landLink, townLink } from "./names.ts";
 import { askedBlocks } from "./asks.ts";
 import { lostRef, shutFor } from "./lost.ts";
+import { prisonLines } from "./prison.ts";
 import { principleName } from "../../causal/index.ts";
 import { raiseThe } from "../../causal/index.ts";
 
@@ -382,6 +383,9 @@ export function buildingPage(world: World, ref: string): PageModel {
       ? ["It stands where the town could find room for it, on lots it cleared."]
       : whyBuilding(world, s.ref, s.cell, c.kind, c.at, siteOfTown(world, s.ref, f)),
   ];
+  // (A prison: whom it holds, by which court. host/inspect/prison.ts.)
+  if (c.kind === "prison" && c.fell === null && !rising)
+    lines.push(...prisonLines(world, s.cell, s.population));
   const seated = c.kind === "hall" && c.fell === null ? seatLine(townRank(world, s.ref, f)) : null;
   if (seated) lines.push(seated);
   if (waited)

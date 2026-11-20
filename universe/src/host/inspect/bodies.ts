@@ -5,6 +5,7 @@
 // never how. Phone first: a few facts, one table that fits.
 import type { Ref, World } from "../../kernel/index.ts";
 import type { Block, Item, PageModel, Stat } from "../../bridge/index.ts";
+import { inmateItems } from "./prison.ts";
 import {
   ANSWERS_WORDS,
   DOES,
@@ -523,6 +524,11 @@ export function institutionPage(world: World, ref: string): PageModel {
       );
     blocks.push({ type: "facts", title: "What it holds", rows });
     blocks.push({ type: "text", lines: [[ABOUT[does] ?? ""]] });
+    // (A court: those it holds by name. sim/order/deeds.ts.)
+    if (rec.does === DOES.judge) {
+      const held = inmateItems(world, rec);
+      if (held.length) blocks.push({ type: "list", title: "Those it holds by name", items: held });
+    }
     blocks.push({
       type: "tool",
       tool: "acts.body",

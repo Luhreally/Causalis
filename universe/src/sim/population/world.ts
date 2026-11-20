@@ -43,6 +43,7 @@ import { installSociety } from "../society/society.ts";
 import { installUnderworld } from "../order/underworld.ts";
 import { installGroups } from "../order/groups.ts";
 import { installInstitutions } from "../order/institutions.ts";
+import { installGroupHand } from "../order/grouphand.ts";
 import { installNotables } from "../notable/notables.ts";
 import "../notable/heads.ts";
 import { installEconomy } from "../economy/systems.ts";
@@ -493,6 +494,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installBrushes(world, () => populationContext(world));
   installOrderActs(world, () => populationContext(world));
   installReign(world, () => populationContext(world));
+  installGroupHand(world, () => populationContext(world));
   installRoles(world, () => populationContext(world));
   installGodHand(world, () => populationContext(world));
   installHealthActs(world, () => populationContext(world));

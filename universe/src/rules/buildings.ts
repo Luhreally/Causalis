@@ -61,7 +61,9 @@ export type CivicKind =
   | "minds"
   | "vats"
   // A well: raised only at the asking (H1). No town's own plan wants one.
-  | "well";
+  | "well"
+  // A prison: raised where its land's court holds people (sim/order/institutions.ts). Last, so no older kind's number moves.
+  | "prison";
 
 export type CivicDef = {
   readonly kind: CivicKind;
@@ -79,6 +81,8 @@ export type CivicDef = {
   readonly faith?: true;
   /** Only where a river or the sea is at hand. */
   readonly water?: true;
+  /** Only where its land's court holds people (sim/order/institutions-kept.ts courtIn). */
+  readonly held?: true;
   /** At the town's heart (about its square), or at its edge as it stands when it is begun. */
   readonly place: "core" | "edge";
   /** Years to build. */
@@ -298,6 +302,21 @@ export const CIVICS: readonly CivicDef[] = [
   },
   // (Only ever asked for: H1. No town holds so many, so none plans one.)
   { kind: "well", name: "a well", needs: [], people: Infinity, place: "core", years: 1 },
+  // (Where those a court holds are kept: one for a market town whose land's court holds any, and one more for every
+  // half million of its people, two at the most. Before courts hold people for years they are fined, bound or killed, and
+  // no town builds one.)
+  {
+    kind: "prison",
+    name: "a prison",
+    needs: [],
+    people: 2000,
+    market: true,
+    held: true,
+    place: "edge",
+    years: 2,
+    per: 500_000,
+    most: 2,
+  },
 ];
 
 export const CIVIC_INDEX: ReadonlyMap<CivicKind, number> = new Map(
@@ -337,6 +356,7 @@ export const CIVIC_SITE: Readonly<Record<CivicKind, CivicSite>> = {
   minds: "heart",
   vats: "works",
   well: "heart",
+  prison: "edge",
 };
 /** What a land must know to keep its works out of its homes: written law, by which ground is zoned. */
 export const ZONING_NEEDS = "law-codes";
@@ -383,6 +403,7 @@ export const CIVIC_FOR: Readonly<Record<CivicKind, string>> = {
   minds: "where the town's minds of crystal reckon, and its machines are told what to do",
   vats: "where the town's food is grown, in tanks of warm broth",
   well: "where those with no river at hand draw what they drink",
+  prison: "where those its land's court holds are kept",
 };
 
 /** Each building's sign. */
@@ -410,4 +431,5 @@ export const CIVIC_ICON: Readonly<Record<CivicKind, string>> = {
   minds: "🧠",
   vats: "🧫",
   well: "🪣",
+  prison: "⛓️",
 };

@@ -896,6 +896,7 @@ const CIVIC_SHAPE: Readonly<Record<string, readonly [number, number, Tower["roof
   fusion: [2, 1.8, "torus"],
   minds: [1.4, 6, "spire"],
   vats: [1.8, 1.4, "dome"],
+  prison: [2, 1.5, "flat"],
 };
 const CONCRETE: Rgb = [0.7, 0.7, 0.72],
   GLASS: Rgb = [0.42, 0.56, 0.68];

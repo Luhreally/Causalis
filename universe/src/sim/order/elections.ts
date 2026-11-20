@@ -25,7 +25,8 @@ import { interestsOf, type Group } from "../polity/interests.ts";
 import { politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import { holdsOf } from "./holds.ts";
 import { wantsOf } from "./wants.ts";
-import { orgPartyOf } from "./groups-kept.ts";
+import { orgPartyOf, orgsOf } from "./groups-kept.ts";
+import { notablesOf } from "../notable/kept.ts";
 import { ORG } from "../../rules/index.ts";
 
 export const ELECTION_EVENTS = {
@@ -46,7 +47,41 @@ export type Election = {
   readonly held: boolean;
   readonly votes: readonly (readonly [Group, number])[];
   readonly event: Ref;
+  /** Who was chosen, by name, where the group that won put forward one the world keeps (a party's head, one who speaks for
+   * it), and the party; and each other group's candidate so kept. Absent where no one was. */
+  readonly who?: string;
+  readonly party?: string;
+  readonly ran?: readonly (readonly [Group, string])[];
 };
+
+/** A group's candidate, where the world keeps one by name. */
+export type Candidate = {
+  readonly name: string;
+  readonly born?: number;
+  /** Their party (sim/order/groups.ts), its name and its number in its realm. */
+  readonly party?: string;
+  readonly gid?: number;
+};
+
+/**
+ * Whom a group of a realm puts forward: the head of the party that carries it, where it is organised in one (sim/order/groups.ts);
+ * else one of name who speaks for it (sim/notable: whoever it last carried to govern); else no one the world keeps by name
+ * (one of its own, untold). A pure reading.
+ */
+export function candidateOf(world: World, realm: Ref, group: Group): Candidate | null {
+  let party: {
+    name: string;
+    leader: { name: string; born: number };
+    id: number;
+    members: number;
+  } | null = null;
+  for (const g of orgsOf(world)?.of(realm)?.orgs ?? [])
+    if (g.identity === group && g.organised && (!party || g.members > party.members)) party = g;
+  if (party)
+    return { name: party.leader.name, born: party.leader.born, party: party.name, gid: party.id };
+  const n = notablesOf(world)?.holder("speaks", realm);
+  return n && n.post?.group === group ? { name: n.name, born: n.born } : null;
+}
 
 type RealmVotes = {
   /** The year of its next election. */
@@ -224,6 +259,10 @@ export function electionsYear(ctx: PopulationContext, t: SimTime): void {
       );
       gave.set(i.group, best);
     }
+    // (Who each group put forward, where the world keeps them by name: read before the choice, told with it.)
+    const ran = running
+      .map((g) => [g, candidateOf(world, p.ref, g)] as const)
+      .filter((x): x is readonly [Group, Candidate] => x[1] !== null);
     const all = [...given.values()].reduce((s, x) => s + x, 0),
       ranked = [...given]
         .map(([g, x]) => [g, all > 0 ? Math.round((x / all) * 1000) / 1000 : 0] as const)
@@ -251,6 +290,13 @@ export function electionsYear(ctx: PopulationContext, t: SimTime): void {
         threshold: 0,
         factors,
       }),
+      chosen = ran.find(([g]) => g === winner)?.[1] ?? null,
+      // (The candidate of the group given the most after the winner's.)
+      rival =
+        ranked
+          .slice(1)
+          .map(([g]) => ran.find(([x]) => x === g))
+          .find((x) => !!x) ?? null,
       event = world.events.emit({
         type: ELECTION_EVENTS.elected.type,
         // (A vote that changed who governs is told as the chronicle tells; one that kept them is let go with the ordinary
@@ -265,9 +311,27 @@ export function electionsYear(ctx: PopulationContext, t: SimTime): void {
           share: top,
           held,
           was: v.governing,
+          // (Who was chosen, and against whom, where they are kept by name. `by` is whom the deed is: sim/notable reads it.)
+          ...(chosen
+            ? {
+                by: chosen.name,
+                ...(chosen.born !== undefined ? { born: chosen.born } : {}),
+                ...(chosen.party ? { party: chosen.party, gids: [chosen.gid] } : {}),
+              }
+            : {}),
+          ...(rival ? { rival: rival[1].name, rivalGroup: rival[0] } : {}),
         },
       });
-    v.past.push({ year, group: winner, held, votes: ranked, event });
+    v.past.push({
+      year,
+      group: winner,
+      held,
+      votes: ranked,
+      event,
+      ...(chosen ? { who: chosen.name } : {}),
+      ...(chosen?.party ? { party: chosen.party } : {}),
+      ...(ran.length ? { ran: ran.map(([g, c]) => [g, c.name] as const) } : {}),
+    });
     if (v.past.length > KEPT) v.past.splice(0, v.past.length - KEPT);
     v.governing = winner;
     v.people = people;

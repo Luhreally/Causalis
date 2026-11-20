@@ -311,7 +311,10 @@ test("a realm's and a land's Institutions tabs, each body's page with its follow
 test("the god's hand on a body is kept on it and told; a realm stepped again keeps its bounds; the store saves and loads whole", () => {
   const store = bodiesOf(world)!,
     ctx = populationContext(world),
-    realm = store.realmsKept().find((r) => store.of(r)!.bodies.length > 0)!,
+    // (A living realm's: one ended keeps its record only until its bodies are sent after their lands.)
+    realm = store
+      .realmsKept()
+      .find((r) => store.of(r)!.bodies.length > 0 && politiesOf(world).get(r)?.ended === null)!,
     g = store.of(realm)!.bodies[0]!,
     year = yearOfMoment(world.now),
     told = actOnBody(ctx, g.event, "bless");
@@ -402,9 +405,9 @@ test("where a workers' body's wage has fallen behind what it was and it is many 
   let lost = 0;
   for (const e of strikes) {
     const d = e.data as { outcome: string; lost: number };
-    assert.ok(d.outcome === "won" || d.outcome === "broken");
+    assert.ok(d.outcome === "won" || d.outcome === "settled" || d.outcome === "broken");
     assert.ok(d.lost > 0 && d.lost <= INST.strikeCosts * 100);
-    assert.match(claimOf(world, e.id), /struck/);
+    assert.match(claimOf(world, e.id), /struck|stopped/);
     // (Lost in the year after the reckoning that told it, and in no other.)
     const cell = put.find((x) => x.realm === e.subjects[0])!.cell,
       at = bodyLandsStore(world)!.get(cell)![BODY_ROW.strikeYear]!;

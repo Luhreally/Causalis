@@ -20,6 +20,7 @@ import {
   toldStanding,
   voiceBelied,
   voiceCredence,
+  voiceCredenceWith,
   voiceHeard,
   voiceNeeds,
   voiceStanding,
@@ -38,6 +39,7 @@ import { WAY, cultureOf, drawsWays } from "../culture/culture.ts";
 import { realmFolk, realmJoined } from "../culture/folk.ts";
 import { VOICE_ROW, VOICE_STORE, cultureRows } from "../culture/rows.ts";
 import { addsStanding, orderOf } from "./order.ts";
+import { voicesOf } from "./institutions-kept.ts";
 
 /** What a realm stands in, as its seat reads it this year, and how far its word carries: pure reads of the world. */
 export function voiceSituation(
@@ -146,7 +148,13 @@ export function voiceYear(ctx: PopulationContext, t: SimTime): void {
       was = row ? (VOICE_TOPICS[row[VOICE_ROW.topic]! - 1] ?? null) : null,
       // (A seat that needs to say nothing new keeps telling what it told.)
       topic = chosen ?? was,
-      credence = topic ? voiceCredence(voiceBelied(topic, s), s.free, s.readers) : 0,
+      // (Where its bodies are kept, a free word checks the seat as far as voices carry it: sim/order/institutions.ts.)
+      voices = voicesOf(world, realm.ref),
+      credence = !topic
+        ? 0
+        : voices
+          ? voiceCredenceWith(voiceBelied(topic, s), s.free, s.readers, voices.free, voices.kept)
+          : voiceCredence(voiceBelied(topic, s), s.free, s.readers),
       standing = topic ? voiceStanding(s.reach, credence) : 0,
       told = toldStanding(s.free, s.readers, s.grievance);
     if (!row && !topic && told === 0) continue;

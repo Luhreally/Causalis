@@ -1751,3 +1751,5 @@ export * from "./institutions.ts";
 export * from "./notables.ts";
 // People out of their place (2026-11-19): the held, the fled, and what is done to them.
 export * from "./held.ts";
+// Deeds (2026-11-19): a group or a body acting on someone or something the world keeps by name.
+export * from "./deeds.ts";

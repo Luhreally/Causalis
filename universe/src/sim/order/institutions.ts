@@ -40,6 +40,7 @@ import {
 import { tongueName } from "../../gen/index.ts";
 import {
   ANSWERS,
+  COVER,
   DOES,
   DOES_ROWS,
   FUND,
@@ -51,7 +52,10 @@ import {
   INST_DOES,
   INST_FORMED,
   INST_FUNDS,
+  JUSTICE,
   OCC,
+  harshOf,
+  heldBy,
   answersTo,
   bodiesKept,
   canStand,
@@ -103,7 +107,9 @@ import {
 import { addsReach, addsStanding, capacityOf, orderOf } from "./order.ts";
 import { holdOf } from "./holds.ts";
 import { housesOf } from "./houses.ts";
-import { collusionIn } from "./underworld-kept.ts";
+import { collusionIn, killedOf } from "./underworld-kept.ts";
+import { trials } from "./deeds.ts";
+import { grieve } from "../acts/disasters.ts";
 import {
   BODY_LANDS_STORE,
   BODY_LANDS_WIDTH,
@@ -131,6 +137,8 @@ export const INST_EVENTS = {
   parted: defineEventType("bodies.parted", 2),
   /** Its hold ended: failed, withered, suppressed, taken over, merged. */
   ended: defineEventType("bodies.ended", 3),
+  /** A voice that answers to its readers told of a watch or a court that is bought, by name. */
+  told: defineEventType("bodies.told", 3),
   /** The god's hand laid on it. */
   hand: defineEventType("act.body", 4),
 };
@@ -205,6 +213,8 @@ type Land = {
   union: number;
   craftWage: number;
   tillWage: number;
+  /** What its staple costs (grain, or what is gathered where none is grown): what a wage must buy. */
+  bread: number;
   grievance: number;
   /** Its clergy (heads) and what its faithful give a year (grain), by its people's part of their faith's. */
   faith: Ref | null;
@@ -232,6 +242,7 @@ type Read = {
   short: number;
   bought: number;
   priest: boolean;
+  seatFaith: Ref | null;
   /** Its richest great house: its name, what it takes a year, the land it is seated in, whether it holds the seat. */
   house: { name: string; income: number; seat: number; crown: boolean } | null;
   lands: Land[];
@@ -251,7 +262,18 @@ function readRealm(ctx: PopulationContext, p: Polity): Read {
     revenue = revenueOf(world, p.ref),
     clerks = fisc ? fisc[FISC.clerks]! : 0,
     care = provisionOf(world, p.ref).publicCare,
-    premiums = moneyStore(world, COVER_STORE)?.at(p.ref, POOL.premiums) ?? 0,
+    cover = moneyStore(world, COVER_STORE)?.get(p.ref),
+    // (What those who share out its risks are paid for the work: of what its traders pay to have their cargoes at sea covered
+    // (the trade that crosses, the part of it covered, what is lost of it) and of what its lands pay into their common
+    // harvest, the part asked above the loss expected (rules COVER.load). Only the harvest's was read, and one realm in six
+    // pools a harvest where one in two covers its ships.)
+    premiums = cover
+      ? cover[POOL.seaTrade]! *
+          (cover[POOL.insured]! / 1000) *
+          (cover[POOL.loss]! / 10_000) *
+          COVER.load +
+        (cover[POOL.premiums]! * COVER.load) / (1 + COVER.load)
+      : 0,
     clerked = !!lore.get(p.seat, "bureaucracy"),
     courts = law ? law[LAW_ROW.courts]! / 1000 : 0.3,
     priest = p.leadership === 3,
@@ -323,6 +345,7 @@ function readRealm(ctx: PopulationContext, p: Polity): Read {
       guild: guildOf(world, c),
       union: unionOf(world, c).union,
       craftWage: m ? m.wage[OCC.crafter]! : 0,
+      bread: m ? (m.price[G.grain]! > 0 ? m.price[G.grain]! : m.price[G.wild]!) : 0,
       tillWage: m ? Math.max(m.wage[OCC.farmer]!, m.wage[OCC.herder]!, m.wage[OCC.forager]!) : 0,
       grievance: dmath.clamp(realms.discontent(c).level, 0, 1),
       faith,
@@ -381,7 +404,7 @@ function readRealm(ctx: PopulationContext, p: Polity): Read {
     set(DOES.word, FUND.customers, l.town * l.ground.readers * wage * 0.004);
     set(DOES.word, FUND.patron, houseHere * 0.02);
     // Insure: what its realm's traders already pay against loss, by its towns.
-    set(DOES.insure, FUND.customers, townAll > 0 ? (premiums * 0.15 * l.town) / townAll : 0);
+    set(DOES.insure, FUND.customers, townAll > 0 ? (premiums * l.town) / townAll : 0);
     // (Who would pay most for each: rules funderOf, read once a land.)
     for (let d = 0; d < INST_FORMED; d++) {
       let at = -1,
@@ -411,6 +434,7 @@ function readRealm(ctx: PopulationContext, p: Polity): Read {
     short: revenue > 0 ? Math.min(1, deficitOf(world, p.ref) / revenue) : 0,
     bought: collusionIn(world, p.ref),
     priest,
+    seatFaith: belief?.of(p.seat).faith ?? null,
     house,
     lands,
   };
@@ -745,6 +769,7 @@ function stepRealm(
     oversight = (r.written + r.voice + r.word) / 3,
     gone: [Body, InstEnd, Factor[], Body?][] = [],
     slumped = new Map<Body, number>(),
+    after: (() => void)[] = [],
     ending = new Set<Body>();
 
   // 0. A body whose land has passed to another realm goes with it.
@@ -863,9 +888,15 @@ function stepRealm(
             r.legitimacy >= 0.5 - slack) ||
           (g.does === DOES.make && !!r.house?.crown && g.keeper === r.house.name) ||
           g.answers === ANSWERS.seat),
-      standing = outlaw ? 0 : charter ? 2 : 1;
+      // (A decree on it holds whatever its realm would do, while it lasts: sim/order/grouphand.ts.)
+      decreed = g.decreeUntil !== undefined && g.decreeUntil >= year ? g.decree : undefined,
+      standing = decreed ?? (outlaw ? 0 : charter ? 2 : 1);
+    if (g.decreeUntil !== undefined && g.decreeUntil < year) {
+      delete g.decree;
+      delete g.decreeUntil;
+    }
     // (A charter lapsed is not news: told are a charter given and an outlawing.)
-    if (standing !== g.standing && g.since < year && standing !== 1)
+    if (decreed === undefined && standing !== g.standing && g.since < year && standing !== 1)
       how = standing === 0 ? "outlawed" : "chartered";
     g.standing = standing;
     // (A seat that takes what it will takes a works for itself; one that no longer does sells it back.)
@@ -900,20 +931,49 @@ function stepRealm(
           corruption: r.corruption,
           oversight,
           bought: r.bought,
-        }) + (hand === 1 ? 0.15 : hand === -1 ? -0.15 : 0),
+        }) +
+          (hand === 1 ? 0.15 : hand === -1 ? -0.15 : 0) +
+          // (Told of by a voice, it is watched for a time.)
+          (g.watched !== undefined && g.watched >= year ? INST.watchedHonest : 0),
       );
+    if (g.watched !== undefined && g.watched < year) delete g.watched;
     if (g.does === DOES.teach) {
       if (home.learned >= 0.5 && g.staff >= 2 * rowOf.least) g.higher = 1;
       else if (home.learned < 0.25) delete g.higher;
     }
-    if (g.does === DOES.judge)
-      // (Those it holds: as its law keeps them and does not fine or kill, for the people its reach covers.)
+    if (g.does === DOES.judge) {
+      // (Those it holds: for the people its reach covers, as it is manned, the more under a seat that holds by arms and
+      // answers to no voice, and where its land is killed in. Rules heldBy.)
+      const manned = Math.min(1, g.staff / Math.max(1, (home.people * INST.courtFull) / 1e5)),
+        harsh = harshOf(r.force, r.voice);
       g.held = Math.round(
-        g.lands.reduce((s, c) => s + (lands.get(c)?.people ?? 0), 0) *
-          INST.held *
-          1e-5 *
-          Math.min(1, g.staff / Math.max(1, (home.people * INST.courtFull) / 1e5)),
+        heldBy(
+          g.lands.reduce((s, c) => s + (lands.get(c)?.people ?? 0), 0),
+          INST.held,
+          manned,
+          harsh,
+          killedOf(world, g.home),
+        ),
       );
+      if (g.inmates) {
+        g.inmates = g.inmates.filter((x) => x.u > year);
+        if (!g.inmates.length) delete g.inmates;
+      }
+      if (g.since < year) {
+        // (Those by name it tries: sim/order/deeds.ts.)
+        trials(ctx, p, g, { manned, word: r.word, force: r.force, seatFaith: r.seatFaith }, t);
+        // (Judges bought, and a harsh seat's justice with no voice to answer to, are its land's grief.)
+        const grief =
+          manned *
+          (JUSTICE.grievesBought * (1 - g.quality / 1000) +
+            JUSTICE.grievesHarsh * Math.max(0, harsh - 0.5) * 2);
+        if (grief >= 0.005) {
+          const cell = g.home,
+            by = g.event;
+          after.push(() => grieve(world, cell, grief, by));
+        }
+      }
+    }
     if (g.won) {
       g.won = Math.round(g.won * dmath.pow(1 - INST.wonFades, span));
       if (g.won <= 0) delete g.won;
@@ -958,30 +1018,67 @@ function stepRealm(
       );
   }
 
-  // 2. A workers' body strikes where its wage has fallen behind, and is many enough to stop the works.
+  // 2. A works stopped by its hands (the rule of sim/order/deeds.ts from the body's side: a body acting on one by name). A
+  // workers' body strikes where what its wage buys has fallen behind what it bought (its pay, and the price of its staple), the
+  // more where its land is aggrieved, and is many enough to stop the works; it is against the works of its land, by name where
+  // one stands. It ends by terms (the works give, or meet it half way) or by force (the seat's watch or its soldiers break it).
   const strikes = new Map<number, number>();
   for (const g of v.bodies) {
     if (g.does !== DOES.bargain || g.since >= year) continue;
     const l = lands.get(g.home)!;
     if (l.crafters <= 0) continue;
-    // (Behind what it was as they have known it: the wage a year of their craft has come to, against the years before.)
+    // (Behind what it was as they have known it: the wage a year of their craft has come to, and what their staple costs,
+    // each against the years before.)
     const was = (g.mark ?? 0) / 100,
-      lag = was > 0 ? dmath.clamp(1 - l.craftWage / was, 0, 1) : 0;
+      breadWas = (g.bread ?? 0) / 1000,
+      behind = was > 0 ? dmath.clamp(1 - l.craftWage / was, 0, 1) : 0,
+      dearer = breadWas > 0 && l.bread > 0 ? dmath.clamp(l.bread / breadWas - 1, 0, 1) : 0,
+      lag = dmath.clamp(1 - (1 - behind) / (1 + dearer), 0, 1);
     g.mark = Math.round(100 * (was > 0 ? 0.5 * was + 0.5 * l.craftWage : l.craftWage));
+    if (l.bread > 0)
+      g.bread = Math.round(1000 * (breadWas > 0 ? 0.5 * breadWas + 0.5 * l.bread : l.bread));
     const organised = g.staff / l.crafters,
       fund = g.wealth / Math.max(1, g.staff * w * 0.1),
-      lost = walkoutOf({ lag, organised, fund });
+      lost = walkoutOf({ lag, organised, fund, grievance: l.grievance });
     // (No oftener than once in a generation's working years, and by half in a reckoning's ten where all else holds.)
     if (g.standing === 0 || (g.struck !== undefined && year - g.struck < INST.strikeGap)) continue;
     if (lost <= 0 || f.u(300 + g.id * 4) >= 1 - dmath.pow(0.5, span / 10)) continue;
     const chance = walkoutWon(r.force, r.voice, fund),
-      won = f.u(301 + g.id * 4) < chance;
+      drawn = f.u(301 + g.id * 4),
+      // (Terms: the works give; or, where the seat does not send its arms, each side gives half. Else force.)
+      outcome: "won" | "settled" | "broken" =
+        drawn < chance
+          ? "won"
+          : drawn < chance + (1 - chance) * INST.strikeSettles * (1 - r.force)
+            ? "settled"
+            : "broken",
+      out = Math.round(g.staff);
+    // (Whose works: the greatest that makes in its land, of its own trade first; else the body that governs its trade.)
+    let works: Body | undefined, masters: Body | undefined, watch: Body | undefined;
+    for (const x of v.bodies) {
+      if (!x.lands.includes(g.home)) continue;
+      if (x.does === DOES.make) {
+        const mine = x.of === g.of ? 1 : 0,
+          best = works ? (works.of === g.of ? 1 : 0) : -1;
+        if (mine > best || (mine === best && x.staff > works!.staff)) works = x;
+      } else if (x.does === DOES.craft) masters = x;
+      else if (x.does === DOES.order && x.answers === ANSWERS.seat) watch = x;
+    }
+    const against = works ?? masters,
+      // (Force: of those out, a few in a thousand killed where the seat holds by arms; told, and grieved.)
+      killed = outcome === "broken" ? Math.round(out * INST.strikeKills * r.force) : 0;
     g.struck = year;
-    if (won) g.won = Math.min(INST.wonMost * 1000, (g.won ?? 0) + INST.strikeWins * 1000);
+    if (outcome !== "broken")
+      g.won = Math.min(
+        INST.wonMost * 1000,
+        (g.won ?? 0) + INST.strikeWins * 1000 * (outcome === "won" ? 1 : 0.5),
+      );
     else g.staff = Math.round(g.staff * 0.7);
     g.wealth = Math.round(g.wealth * 0.3);
+    // (What the works lose: of what they have laid by, the part of the year their hands were out.)
+    if (works) works.wealth = Math.round(works.wealth * (1 - lost));
     strikes.set(g.home, lost);
-    tell(
+    const event = tell(
       f,
       INST_EVENTS.strike.type,
       g.home,
@@ -989,18 +1086,95 @@ function stepRealm(
         body: g.name,
         title: titleOf(g, l),
         lost: Math.round(lost * 100),
-        outcome: won ? "won" : "broken",
-        out: Math.round(g.staff),
+        outcome,
+        out,
         leader: g.leader.name,
+        ...(against ? { works: against.name, worksTitle: titleOf(against, l) } : {}),
+        // (Against the masters of its trade, where no works stands in its land.)
+        ...(against && !works ? { masters: 1 } : {}),
+        ...(outcome === "broken"
+          ? { by: watch ? `the ${watch.name} ${titleOf(watch, l)}` : "the seat's soldiers" }
+          : {}),
+        ...(killed > 0 ? { killed } : {}),
       },
-      [{ ref: g.event, role: "enabler", weight: 1 }],
       [
-        factor("its wage behind what it was", lag, lag),
+        { ref: g.event, role: "enabler", weight: 1 },
+        ...(against ? [{ ref: against.event, role: "pressure" as const, weight: 1 }] : []),
+        ...(outcome === "broken" && watch
+          ? [{ ref: watch.event, role: "enabler" as const, weight: 0.5 }]
+          : []),
+      ],
+      [
+        factor("its wage behind what it was", behind, behind),
+        factor("its staple dearer than it was", dearer, dearer),
+        factor("its land's grievance", l.grievance, INST.strikeGrief * l.grievance),
         factor("of its land's crafters, organised", organised, organised),
         factor("a fund to keep them out", fund, 0.2 * Math.min(1, fund)),
         factor(
-          won ? "a seat that hears them" : "a seat's arms against them",
-          won ? r.voice : r.force,
+          outcome === "broken" ? "a seat's arms against them" : "a seat that hears them",
+          outcome === "broken" ? r.force : r.voice,
+          0.2,
+        ),
+      ],
+    );
+    // (The dead of a strike broken are its land's grief, laid on its realm once its bodies are written.)
+    if (killed > 0) {
+      const cell = g.home,
+        amount = Math.min(0.15, 0.03 + (40 * killed) / Math.max(1, l.people));
+      after.push(() => grieve(world, cell, amount, event));
+    }
+  }
+  // (A governed trade closes itself against a works that makes its good in its land with hands the trade does not hold: the
+  // same thing from the masters' side. The seat upholds a charter it gave, and the works is held to what the trade allows; or
+  // it sides with the works, and the trade's hold is broken.)
+  for (const g of v.bodies) {
+    if (g.does !== DOES.craft || g.since >= year || g.standing === 0) continue;
+    if (g.struck !== undefined && year - g.struck < INST.strikeGap) continue;
+    const l = lands.get(g.home)!;
+    // (The works of its own good first; else the greatest of its land, whose roof takes the hands its crafts would have:
+    // over a world's thousand years no works of a trade's own good stood beside it with both strong, and none was closed against.)
+    let works: Body | undefined;
+    for (const x of v.bodies) {
+      if (x.does !== DOES.make || !x.lands.includes(g.home) || x.since >= year) continue;
+      const mine = x.of === g.of ? 1 : 0,
+        best = works ? (works.of === g.of ? 1 : 0) : -1;
+      if (mine > best || (mine === best && x.staff > works!.staff)) works = x;
+    }
+    if (!works || l.crafters <= 0) continue;
+    const under = works.staff / l.crafters,
+      held = g.staff / l.crafters;
+    // (A works of another good must hold twice the hands to be the trade's quarrel.)
+    if (under < INST.strikeLeast * (works.of === g.of ? 1 : 2) || held < INST.strikeLeast) continue;
+    if (f.u(310 + g.id * 4) >= 1 - dmath.pow(0.5, span / 10)) continue;
+    const upheld =
+      g.standing === 2 && f.u(311 + g.id * 4) < 0.35 + 0.5 * r.legitimacy - 0.4 * r.force;
+    g.struck = year;
+    if (upheld) works.staff = Math.max(1, Math.round(works.staff * (1 - INST.resists * 0.5)));
+    else g.staff = Math.round(g.staff * 0.7);
+    tell(
+      f,
+      INST_EVENTS.strike.type,
+      g.home,
+      {
+        body: g.name,
+        title: titleOf(g, l),
+        outcome: upheld ? "upheld" : "overruled",
+        closed: 1,
+        out: Math.round(g.staff),
+        leader: g.leader.name,
+        works: works.name,
+        worksTitle: titleOf(works, l),
+      },
+      [
+        { ref: g.event, role: "enabler", weight: 1 },
+        { ref: works.event, role: "pressure", weight: 1 },
+      ],
+      [
+        factor("of its land's crafters, under the works' roof", under, under),
+        factor("of them, held by their trade", held, held),
+        factor(
+          upheld ? "a charter the seat upholds" : "a seat that sides with the works",
+          r.legitimacy,
           0.2,
         ),
       ],
@@ -1305,6 +1479,78 @@ function stepRealm(
     ended(f, g, how, factors, into);
   }
 
+  // 4b. A voice that answers to its readers tells of one by name (the rule of sim/order/deeds.ts from the body's side): the
+  // watch or the court of its lands that is most bought, where word is free enough to say it. The one told of loses its
+  // head and is watched for a time; the voice is what its seat shuts first where word is no longer free (step 1), and whom
+  // those outside the law strike at (sim/order/underworld.ts).
+  for (const g of v.bodies) {
+    if (g.does !== DOES.word || g.answers !== ANSWERS.owners || g.standing === 0) continue;
+    if (g.since >= year || ending.has(g)) continue;
+    let worst: Body | undefined;
+    for (const x of v.bodies) {
+      if ((x.does !== DOES.order && x.does !== DOES.judge) || x.since >= year || ending.has(x))
+        continue;
+      if (x.watched !== undefined || !x.lands.some((c) => g.lands.includes(c))) continue;
+      if (!worst || x.quality < worst.quality || (x.quality === worst.quality && x.id < worst.id))
+        worst = x;
+    }
+    if (!worst) continue;
+    const bought = 1 - worst.quality / 1000;
+    if (bought < INST.toldLeast) continue;
+    const chance =
+      INST.toldOf * bought * (g.quality / 1000) * r.word * (1 - dmath.pow(0.5, span / 10));
+    if (f.u(320 + g.id * 4) >= chance) continue;
+    const l = lands.get(g.home),
+      wl = lands.get(worst.home),
+      before = worst.leader.name,
+      event = tell(
+        f,
+        INST_EVENTS.told.type,
+        worst.home,
+        {
+          body: g.name,
+          title: titleOf(g, l),
+          of: worst.name,
+          ofTitle: titleOf(worst, wl),
+          who: before,
+          what: worst.does === DOES.order ? "watch" : "court",
+          leader: g.leader.name,
+        },
+        [
+          { ref: g.event, role: "enabler", weight: 1 },
+          { ref: worst.event, role: "pressure", weight: 1 },
+        ],
+        [
+          factor("how far it is bought", bought, bought),
+          factor("how well the voice is run", g.quality / 1000, 0.3 * (g.quality / 1000)),
+          factor("word free to say it", r.word, 0.5 * r.word),
+        ],
+      ),
+      head = newHead(f, worst, worst.home, worst.id * 47 + worst.leaders, false);
+    worst.leader = head.leader;
+    if (head.id) worst.headId = head.id;
+    else delete worst.headId;
+    worst.leaders++;
+    worst.watched = year + INST.watchedYears;
+    tell(
+      f,
+      INST_EVENTS.head.type,
+      worst.home,
+      {
+        body: worst.name,
+        title: titleOf(worst, wl),
+        leader: worst.leader.name,
+        before,
+        how: "disgraced",
+        ...(head.id ? { head: head.id } : {}),
+      },
+      [
+        { ref: event, role: "trigger", weight: 1 },
+        { ref: worst.event, role: "enabler", weight: 1 },
+      ],
+    );
+  }
+
   // 5. Its lands: its home, and as it grows the lands where its payer pays most for what it does.
   const ranked = new Map<number, number[]>();
   for (const g of v.bodies) {
@@ -1352,6 +1598,7 @@ function stepRealm(
     .map(([a, b]) => [a, Math.round(b)] as [string, number])
     .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
   writeLands(v, r, lands, strikes, year, rows);
+  for (const run of after) run();
   v.last = year;
 }
 
@@ -1380,7 +1627,10 @@ function writeLands(
     spread.set(g, all);
   }
   let reach = 0,
-    told = 0;
+    told = 0,
+    reading = 0,
+    voiced = 0,
+    keptVoiced = 0;
   for (const l of r.lands) {
     const was = rows.get(l.cell),
       here = hereOf.get(l.cell);
@@ -1457,8 +1707,13 @@ function writeLands(
           );
           break;
         case DOES.word: {
-          // (Each hand of a voice reaches some three hundred who read.)
-          const reaches = Math.min(1, (n * 300) / Math.max(1, l.people * l.ground.readers)) * q;
+          // (Each hand of a voice reaches some three hundred who read: by engines three times as many, by wire and air ten.)
+          const means = l.signal ? INST.voiceSignal : l.engines ? INST.voiceEngines : 1,
+            reaches =
+              Math.min(
+                1,
+                (n * INST.voiceReach * means) / Math.max(1, l.people * l.ground.readers),
+              ) * q;
           if (g.answers === ANSWERS.owners && g.standing > 0) free = Math.max(free, reaches);
           else if (g.answers === ANSWERS.house) kept = Math.max(kept, reaches);
           break;
@@ -1481,6 +1736,9 @@ function writeLands(
       watch = out[BODY_ROW.watch]! / 1000,
       honest = out[BODY_ROW.honest]! / 1000;
     reach += share * watch * (2 * honest - 1);
+    reading += l.people * l.ground.readers;
+    voiced += l.people * l.ground.readers * free;
+    keptVoiced += l.people * l.ground.readers * kept;
     told +=
       share *
       l.ground.readers *
@@ -1488,6 +1746,11 @@ function writeLands(
   }
   v.reach = Math.round(dmath.clamp(reach, -1, 1) * INST.reach * 10000);
   v.told = Math.round(told * 10000);
+  // (How far its voices reach those of its people who read: sim/order/voice.ts reads it where the seat's word is weighed.)
+  if (reading > 0 && voiced > 0) v.voice = Math.round((1000 * voiced) / reading);
+  else delete v.voice;
+  if (reading > 0 && keptVoiced > 0) v.keptVoice = Math.round((1000 * keptVoiced) / reading);
+  else delete v.keptVoice;
 }
 
 /**
@@ -1592,7 +1855,7 @@ export function bodiesYear(ctx: PopulationContext, t: SimTime): void {
 // —— The god's hand on a body ————————————————————————————————————————————————————————————————————————————
 
 /** What the hand may do to a body: bless it (it draws more, runs better), curse it, keep its seat's hand off it. */
-export const BODY_ACTS = ["bless", "curse", "protect"] as const;
+export const BODY_ACTS = ["bless", "curse", "protect", "charter", "outlaw"] as const;
 export type BodyAct = (typeof BODY_ACTS)[number];
 /** How long the hand's mark on a body lasts (years). */
 export const BODY_ACT_YEARS = 20;
@@ -1617,9 +1880,16 @@ export function actOnBody(
     const v = copyOf(was),
       g = v.bodies.find((x) => x.event === founded)!,
       p = politiesOf(world).get(realm);
-    g.hand = act === "bless" ? 1 : act === "curse" ? -1 : 2;
-    g.handUntil = year + BODY_ACT_YEARS;
-    if (act !== "protect" && g.does !== DOES.order && g.does !== DOES.judge)
+    if (act === "charter" || act === "outlaw") {
+      // (How its realm holds it, set by the hand whatever its realm would do.)
+      g.decree = act === "charter" ? 2 : 0;
+      g.decreeUntil = year + BODY_ACT_YEARS;
+      g.standing = g.decree;
+    } else {
+      g.hand = act === "bless" ? 1 : act === "curse" ? -1 : 2;
+      g.handUntil = year + BODY_ACT_YEARS;
+    }
+    if ((act === "bless" || act === "curse") && g.does !== DOES.order && g.does !== DOES.judge)
       g.quality = Math.round(dmath.clamp(g.quality + (act === "bless" ? 150 : -150), 100, 1000));
     store.put(realm, v);
     return world.events.emit({
@@ -1634,11 +1904,71 @@ export function actOnBody(
         body: g.name,
         title: bodyTitle(ctx, g),
         act,
-        until: g.handUntil,
+        until: g.decreeUntil ?? g.handUntil,
       },
     });
   }
   return null;
+}
+
+// —— A body acted on by another (sim/order/deeds.ts) ——————————————————————————————————————————————————————
+
+/**
+ * A body's head brought down by another's deed (`by`: its event; `how`: "killed", "sentenced"): another follows at once, as
+ * at any passing, and its work is shaken (`harm`: the share of its hands that leave or lie low). Told as a head's passing
+ * that stands on the deed. False where no such body stands in the realm.
+ */
+export function bodyHeadFalls(
+  ctx: PopulationContext,
+  p: Polity,
+  founded: Ref,
+  by: Ref,
+  t: SimTime,
+  how: string,
+  harm: number,
+): boolean {
+  const { world } = ctx,
+    store = bodiesOf(world),
+    v = store?.of(p.ref) as RealmBodies | undefined,
+    g = v?.bodies.find((x) => x.event === founded);
+  if (!store || !v || !g) return false;
+  const year = yearOfMoment(t),
+    key = keyOf(p.ref),
+    f = {
+      ctx,
+      p,
+      v,
+      t,
+      year,
+      key,
+      u: (k: number) => world.rng.real(DRAW, key, t, k),
+    } as Facts,
+    before = g.leader.name,
+    head = newHead(f, g, g.home, g.id * 43 + g.leaders, false);
+  g.leader = head.leader;
+  if (head.id) g.headId = head.id;
+  else delete g.headId;
+  g.leaders++;
+  g.staff = Math.max(1, Math.round(g.staff * (1 - dmath.clamp(harm, 0, 0.9))));
+  world.events.emit({
+    type: INST_EVENTS.head.type,
+    subjects: [p.ref],
+    place: ctx.provinces.get(g.home)?.ref ?? null,
+    causes: [
+      { ref: by, role: "trigger", weight: 1 },
+      { ref: g.event, role: "enabler", weight: 1 },
+    ],
+    data: {
+      body: g.name,
+      title: bodyTitle(ctx, g),
+      leader: g.leader.name,
+      before,
+      how,
+      ...(head.id ? { head: head.id } : {}),
+    },
+  });
+  store.put(p.ref, v);
+  return true;
 }
 
 // —— What the realm's reach and standing gain and lose ————————————————————————————————————————————————————

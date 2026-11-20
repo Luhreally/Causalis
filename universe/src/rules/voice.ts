@@ -28,6 +28,13 @@ export const VOICE = {
   readNear: 0.3,
   /** How far free word among readers checks what the seat says (at word wholly free and all reading). */
   checked: 0.6,
+  /**
+   * Where a realm's bodies are kept (sim/order/institutions.ts): how far a free word checks what the seat says with no voice
+   * to carry it (the rest as far as voices that answer to their readers reach those who read); and how far voices a house
+   * keeps for the seat win it belief, at their full reach.
+   */
+  unvoiced: 0.5,
+  echoed: 0.1,
   /** Standing a year from what is told and believed (at reach 1 and credence 1; the same taken where it is seen false). */
   push: 0.08,
   /** Standing taken by what free voices tell of its lands' grievance (at word free, all reading, all aggrieved). */
@@ -145,3 +152,21 @@ export const VOICE_WORDS: Readonly<Record<VoiceTopic, string>> = {
   blame: "that the hunger is the strangers' doing",
   faith: "that its rule is the faith's",
 };
+
+/**
+ * How far what a seat tells is believed where its realm's voices are kept (0 … 1): a free word checks it as far as voices
+ * that answer to their readers carry it (`freeReach`, 0 … 1), and voices kept for the seat win it belief (`keptReach`).
+ */
+export function voiceCredenceWith(
+  belied: number,
+  free: number,
+  readers: number,
+  freeReach: number,
+  keptReach: number,
+): number {
+  const carried = VOICE.unvoiced + (1 - VOICE.unvoiced) * dmath.clamp(freeReach, 0, 1),
+    c = voiceCredence(belied, free * carried, readers);
+  return (
+    c + VOICE.echoed * dmath.clamp(keptReach, 0, 1) * (1 - dmath.clamp(belied, 0, 1)) * (1 - c)
+  );
+}

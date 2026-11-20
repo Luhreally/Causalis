@@ -126,7 +126,11 @@ export type DoesRow = {
 };
 export const DOES_ROWS: Readonly<Record<InstDoes, DoesRow>> = {
   // (Making under one roof for sale: capital laid out before anything is sold, so coin and deals that are kept.)
-  make: row(30, 1.2, 4000, true, true, 0.45, 0, { customers: 1, treasury: 0.3 }, 1, 3, 2, "works"),
+  // (Deals kept: past what kin and those who know each other hold to by themselves (rules/holding.ts contractsKept: at the most
+  // 0.4), so that strangers' word is held to by a court. The bars stood at 0.45 and, for shared risk, 0.55: on first light no
+  // land of 549 to 602 kept deals past 0.40, 0.51 and 0.50 at years 300, 1,000 and 1,500 (the middle land 0.22, 0.32, 0.36), so
+  // no body that shares out risk ever stood anywhere and a works in six realms of three hundred.)
+  make: row(30, 1.2, 4000, true, true, 0.3, 0, { customers: 1, treasury: 0.3 }, 1, 3, 2, "works"),
   // (A trade governed by its own: a roll kept. The seat's leave and the gain are in what its crafters would win, read from
   // rules/labour.ts organised.)
   craft: row(20, 0.15, 2000, true, false, 0, 0, { dues: 1 }, 0, 2, 1, "hall"),
@@ -178,7 +182,7 @@ export const DOES_ROWS: Readonly<Record<InstDoes, DoesRow>> = {
     2,
     "print-house",
   ),
-  insure: row(5, 3, 5000, true, true, 0.55, 0, { customers: 1 }, 0.5, 1, 1, "hall"),
+  insure: row(5, 3, 5000, true, true, 0.4, 0, { customers: 1 }, 0.5, 1, 1, "hall"),
   // (The rest are not formed here: the groups' and the underworld's.)
   carry: row(12, 1.2, 0, false, false, 0, 0, { customers: 1 }, 0.5, 0, 0, "docks"),
   fight: row(12, 1.5, 0, false, false, 0, 0, { treasury: 1, plunder: 1 }, 0.2, 0, 0, "camp"),
@@ -222,8 +226,10 @@ export const INST = {
    * realms.) Where a realm keeps all it can, a thing none of its bodies does takes the place of the least of what it keeps
    * two and more of, which is taken into the greatest of its kind.
    */
-  most: 12,
-  mostOne: 8,
+  // (And eight for a realm of one land, twelve at the most, were fewer than the ten things done: a realm that kept one of each
+  // of eight had no place for a works or for those who share out its risks, however well either would have been paid.)
+  most: 14,
+  mostOne: 10,
   mostALand: 2,
   gone: 2,
   lands: 3,
@@ -262,6 +268,11 @@ export const INST = {
   strikeWins: 0.04,
   wonMost: 0.12,
   wonFades: 0.03,
+  /** What its land's grievance adds to how far its workers feel behind, at the full; of strikes not won outright where the
+   * seat sends no arms, the share met half way; of those out in one broken by force, the share killed at the seat's full arms. */
+  strikeGrief: 0.2,
+  strikeSettles: 0.6,
+  strikeKills: 0.002,
   /** Of what its treasury spends on its clerks, the part that keeps order, and the part that judges. */
   orderOf: 0.35,
   judgeOf: 0.1,
@@ -291,6 +302,19 @@ export const INST = {
    * seizure is over this (society law, rules/holding.ts seizureRisk). */
   shuts: 0.25,
   seizes: 0.6,
+  /**
+   * A voice that answers to its readers tells of the watch or the court of its lands, by name, where that is bought past
+   * this (1 less how honest it is), so often in a reckoning's ten years at the full (wholly bought, the voice well run, word
+   * free); the one told of loses its head, and is watched and so the more honest for so many years.
+   */
+  toldLeast: 0.45,
+  toldOf: 0.6,
+  watchedYears: 10,
+  watchedHonest: 0.15,
+  /** How many who read each hand of a voice reaches: by hand and on foot, by engines, by wire and air. */
+  voiceReach: 300,
+  voiceEngines: 3,
+  voiceSignal: 10,
 } as const;
 
 /** The bodies a realm of so many lands keeps account of. */
@@ -387,12 +411,19 @@ export function honestyOf(f: {
  * INST.strikeCosts): what they earn has fallen behind what it was as they have known it (`lag`, 0 … 1), they are many enough
  * of its crafters to stop its works (`organised`), and their fund can keep them out.
  */
-export function walkoutOf(f: { lag: number; organised: number; fund: number }): number {
-  if (f.organised < INST.strikeLeast || f.lag < 0.1) return 0;
+export function walkoutOf(f: {
+  lag: number;
+  organised: number;
+  fund: number;
+  /** Its land's grievance (0 … 1): those aggrieved feel what they are behind the more. */
+  grievance?: number;
+}): number {
+  const felt = f.lag * (1 + INST.strikeGrief * 5 * clamp01(f.grievance ?? 0));
+  if (f.organised < INST.strikeLeast || felt < 0.1) return 0;
   return (
     INST.strikeCosts *
     clamp01(f.organised / 0.5) *
-    clamp01(f.lag / 0.3) *
+    clamp01(felt / 0.3) *
     (0.5 + 0.5 * clamp01(f.fund))
   );
 }

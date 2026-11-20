@@ -41,6 +41,9 @@ import {
 import { tongueName } from "../../gen/index.ts";
 import {
   AIM,
+  DEED,
+  againstOf,
+  againstWeights,
   HOLD,
   OCC,
   ORG,
@@ -151,6 +154,7 @@ import {
 import { watchIn } from "./institutions-kept.ts";
 import { actOn, bossRef, hazardBy, sparedBy, struckBy, whisperIn } from "../acts/person.ts";
 import { deathNotesOf } from "../hand/deaths.ts";
+import { sentence, strikes, type Striker } from "./deeds.ts";
 
 export const ORG_EVENTS = {
   /** A group formed where a shared stake beat what holding together costs. */
@@ -173,6 +177,8 @@ const per = (x: number) => Math.round(dmath.clamp(x, 0, 1) * 1000);
 const keyOf = (r: Ref) => parseRef(r).b >>> 0;
 const r2 = (x: number) => Math.round(x * 100) / 100;
 const AIMS = ORG_AIMS.length;
+/** How far each aim is against anyone (rules AGAINST), by ORG_AIMS. */
+const AGAINST_WILL: readonly number[] = againstWeights(ORG_AIMS);
 /** The aims that take men under arms. */
 const ARMED: ReadonlySet<OrgAim> = new Set([
   "prey",
@@ -903,6 +909,26 @@ function basisFor(aim: OrgAim, r: Read, l: Land): OrgBasis {
   }
 }
 
+/**
+ * A group as one who may strike (sim/order/deeds.ts): how far what it does is against anyone, its faith's aim only where its
+ * faith is pressed. Its page reads the same.
+ */
+export function strikerOf(g: Readonly<Org>, pressed: boolean): Striker {
+  return {
+    crime: false,
+    id: g.id,
+    name: g.name,
+    kind: kindName(g),
+    event: g.event,
+    lands: g.lands,
+    members: g.members,
+    armed: !!(g.means & meansBit("arms")),
+    hidden: g.standing === 0,
+    identity: ORG_BASES[g.basis] === "faith" ? g.identity : "",
+    against: againstOf(g.aims, AIM, pressed),
+  };
+}
+
 /** The rise of a group: its record and its event. */
 function rise(
   f: Facts,
@@ -1223,8 +1249,18 @@ function stepRealm(
         (((aim === "trade" || aim === "guard") && r.capacity < 0.5 && r.legitimacy >= 0.45) ||
           (aim === "worship" && cloistered(g, r.lands) && r.legitimacy >= 0.4) ||
           (aim === "inquire" && r.writing > 0 && r.word >= 0.5 && r.legitimacy >= 0.5));
-    const standing = outlaw ? (g.patron === p.ref ? 2 : 0) : charter || g.patron ? 2 : 1;
-    const granted = standing === 2 && g.standing !== 2 && !g.patron;
+    // (A decree on it, the god's or its ruler's, holds whatever its realm would do, while it lasts: sim/order/grouphand.ts.)
+    if (g.decreeUntil !== undefined && g.decreeUntil < year) {
+      delete g.decree;
+      delete g.decreeUntil;
+    }
+    if (g.handUntil !== undefined && g.handUntil < year) {
+      delete g.hand;
+      delete g.handUntil;
+    }
+    const decreed = g.decree,
+      standing = decreed ?? (outlaw ? (g.patron === p.ref ? 2 : 0) : charter || g.patron ? 2 : 1);
+    const granted = decreed === undefined && standing === 2 && g.standing !== 2 && !g.patron;
     g.standing = standing;
     g.means = meansOf(g, r.lands);
     g.kind = KIND(readKind(g, r.lands, !!g.patron));
@@ -1259,6 +1295,9 @@ function stepRealm(
       // (A rent kept full-time is its income; a common aim's, what its members pay in.)
       income += FULL_TIME.has(ORG_AIMS[k]!) ? a * s.worth : a * g.members * r.wage * ORG.cost;
     }
+    // (Blessed, a fifth more come to it; cursed, a fifth fewer.)
+    if (g.hand === 1) aimMen *= 1.2;
+    else if (g.hand === -1) aimMen *= 0.8;
     g.members = Math.max(0, Math.round(g.members + (aimMen - g.members) * stepped(ORG.grow, span)));
     g.income = Math.round(income);
     g.takes = Math.round(
@@ -1364,7 +1403,9 @@ function stepRealm(
           );
       // (Its leader blessed, the realm's hand takes half as many of it; cursed, twice. Exactly as ever where none holds.)
       const by = hazardBy(world, bossRef(p.ref, g.event), g.leader.name, year);
-      g.members = Math.round(g.members * (1 - (by === 1 ? taken : Math.min(1, taken * by))));
+      // (Kept from its realm's hand, none of it are taken.)
+      if (g.hand !== 2)
+        g.members = Math.round(g.members * (1 - (by === 1 ? taken : Math.min(1, taken * by))));
     }
     if (g.since >= year) continue;
     // (Its head gone: dead of his years, or taken where it is outlawed. The god's acts on them as sim/acts/person.ts lays them.)
@@ -1413,6 +1454,33 @@ function stepRealm(
         draw: drawn,
         event: struck ?? told,
       });
+      // (Taken by the realm's hand: brought before the court of their land, where it keeps one. sim/order/deeds.ts.)
+      if (!struck && drawn >= leaderLost(years, 0, span)) {
+        const aim = orgAimOf(g);
+        sentence(
+          ctx,
+          p,
+          g.home,
+          {
+            name: before,
+            what: `head of the ${g.name} ${kindName(g)}`,
+            ref: head,
+            charge:
+              aim === "rebel" || aim === "conspire"
+                ? "rising against the seat"
+                : aim === "prey" || aim === "smuggle"
+                  ? "what was taken on its roads and seas"
+                  : aim === "worship"
+                    ? "keeping a faith the seat forbids"
+                    : "holding to what the seat outlaws",
+            grave: aim === "rebel" || aim === "conspire" ? 0.8 : aim === "prey" ? 0.6 : 0.3,
+            purse: g.wealth > 20 * r.wage,
+          },
+          told,
+          t,
+          g.id,
+        );
+      }
     }
     if (orgAimOf(g) === "rebel" && revolution) {
       gone.push([g, "won", [factor("a revolution won at its seat", 1, 1)]]);
@@ -1533,6 +1601,41 @@ function stepRealm(
   v.plot = per(plot);
   treasuryPays(world, p.ref, pays * span);
   writeLands(ctx, p, v, r, suppression);
+  // 6. Whom its violence falls on (sim/order/deeds.ts): a group whose aim is against someone strikes at whoever heads what it
+  // is against, the likelier the harder it is pressed; the answer takes of its men.
+  for (const g of v.orgs) {
+    if (g.since >= year || g.members < ORG.crew) continue;
+    let will = 0;
+    for (let k = 0; k < AIMS; k++)
+      if (g.aims[k]! >= DEED.aimLeast) will += AGAINST_WILL[k]! * g.aims[k]!;
+    // (Its faith's aim is against no one where its faith is not pressed.)
+    const pressedFaith =
+      g.aims[AIM.worship]! >= DEED.aimLeast &&
+      g.lands.some((c) => (lands.get(c)?.pressed ?? 0) >= 0.5);
+    if (!pressedFaith && g.aims[AIM.worship]! >= DEED.aimLeast)
+      will -= AGAINST_WILL[AIM.worship]! * g.aims[AIM.worship]!;
+    will /= 1000;
+    if (will < DEED.willLeast) continue;
+    const hit = strikes(
+      ctx,
+      p,
+      {
+        crime: false,
+        id: g.id,
+        will,
+        members: g.members,
+        striker: () => strikerOf(g, pressedFaith),
+      },
+      {
+        pressed: Math.max(g.standing === 0 ? suppression : 0, lands.get(g.home)?.grievance ?? 0),
+        capacity: r.capacity,
+        crew: ORG.crew,
+        span,
+      },
+      t,
+    );
+    if (hit) g.members = Math.max(0, g.members - hit.lost);
+  }
   v.last = year;
   return v.orgs.length > 0 || v.stakes.some((x, k) => x > 0 && v.gather[k]! >= ORG.crew);
 }

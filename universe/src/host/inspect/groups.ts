@@ -17,8 +17,13 @@ import {
 import {
   beliefOf,
   templeOf,
+  GROUP_ACT_YEARS,
   kindName,
+  orgSectOf,
   orgsOf,
+  populationContext,
+  standsAgainst,
+  strikerOf,
   politiesOf,
   realmName,
   type Org,
@@ -412,6 +417,54 @@ export function orgPage(world: World, ref: string): PageModel {
         ],
       ],
     });
+  }
+  // (Your hand on it: sim/order/grouphand.ts.)
+  if (rec) {
+    const held =
+        rec.decreeUntil !== undefined && rec.decreeUntil >= yearNow(world)
+          ? `held ${ORG_STANDING[rec.decree ?? 1] ?? "let be"} by decree until year ${rec.decreeUntil}`
+          : null,
+      hand =
+        rec.handUntil !== undefined && rec.handUntil >= yearNow(world)
+          ? `${rec.hand === 1 ? "blessed" : rec.hand === -1 ? "cursed" : "kept from its realm's hand"} until year ${rec.handUntil}`
+          : null;
+    if (held || hand)
+      blocks.push({
+        type: "facts",
+        rows: [stat("The hand on it", [held, hand].filter(Boolean).join("; "))],
+      });
+    blocks.push({
+      type: "tool",
+      tool: "acts.group",
+      args: { group: g.event, name: orgWords(g.name, g.kind), years: GROUP_ACT_YEARS },
+    });
+  }
+  // (Whom what it does is against, within its reach: who would be struck at, were it pressed to. sim/order/deeds.ts.)
+  if (rec) {
+    const against = standsAgainst(
+      populationContext(world),
+      r,
+      strikerOf(
+        rec,
+        rec.lands.some((c) => orgSectOf(world, c) > 0),
+      ),
+    );
+    if (against.length)
+      blocks.push({
+        type: "list",
+        title: "Whom it stands against",
+        items: [
+          ...against.map((a) =>
+            item([
+              link(a.name, a.ref),
+              `, ${a.what}${a.near ? "" : ", beyond its own lands"}: ${share(a.weight)} of what it does`,
+            ]),
+          ),
+          item([
+            "A group pressed hard may strike at the one who heads what it is against. A watch that is manned and honest where they are guards them, and the answer takes of the group's own.",
+          ]),
+        ],
+      });
   }
   const passed = passedItems(world, orgNews(g), since);
   blocks.push(

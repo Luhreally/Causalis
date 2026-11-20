@@ -91,7 +91,7 @@ export function bossPage(world: World, ref: string): PageModel {
       item(
         [
           link(n.name, `${at.head}:${n.year}`),
-          `: ${n.how === "struck" ? "struck down by the god" : n.how === "taken" ? "taken by the realm" : "died of their years"}, aged ${n.age}`,
+          `: ${n.how === "struck" ? "struck down by the god" : n.how === "killed" ? "killed by those who held them to account" : n.how === "taken" ? "taken by the realm" : "died of their years"}, aged ${n.age}`,
         ],
         n.event ?? null,
         n.year,

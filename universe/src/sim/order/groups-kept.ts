@@ -50,6 +50,12 @@ export type Org = {
   /** A party's share of its interest it holds to its candidate (thousandths); the great house whose head leads it (a demagogue). */
   organised?: number;
   house?: string;
+  /** The god's hand on it (sim/order/grouphand.ts): blessed (1), cursed (-1) or kept from its realm's hand (2), until a year. */
+  hand?: number;
+  handUntil?: number;
+  /** How it is held by a decree (the god's, or its realm's ruler's) whatever its realm would do (by ORG_STANDING), until a year. */
+  decree?: number;
+  decreeUntil?: number;
 };
 
 /** Groups of one first aim allied across a realm: a league of communes, a brethren of pirates, a network of cells. */

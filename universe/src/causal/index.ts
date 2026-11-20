@@ -68,6 +68,8 @@ import "./groups.ts";
 export { ORG_IS, orgWords } from "./groups.ts";
 import "./institutions.ts";
 export { bodyWords, doesWords } from "./institutions.ts";
+import "./deeds.ts";
+export { sentenceWords, struckAt } from "./deeds.ts";
 import "./notables.ts";
 export { NOTABLE_ENDS, deedLine, notableTitle, type Titled } from "./notables.ts";
 import "./health.ts";
