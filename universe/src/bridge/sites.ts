@@ -339,6 +339,10 @@ export function quarterBearings(
 }
 
 /** The bearings a town's way out over its ground is read at, the step it is read by, and how much water a lane bridges (metres). */
+/** Where a block is read against its land's water (as halves of it): every corner of every lot of it, four along it and two across. */
+const BLOCK_READ: readonly (readonly [number, number])[] = [-1, -0.5, 0, 0.5, 1].flatMap((u) =>
+  [-1, 0, 1].map((v) => [u, v] as const),
+);
 const WAYS = 144,
   WAY_STEP = 12,
   BRIDGED = 36;
@@ -550,19 +554,16 @@ export function grownBlocks(
     // The water and its shore; and its land's own water, as its map has it.
     if (water && Math.hypot(bx - water.x, bz - water.z) < water.r + SHORE_W + REACH) return false;
     if (across(bx, bz)) return false;
-    // (Its middle and its four corners: no lot of it on a facet the map draws as water.)
+    // (Every corner of every lot of it: no lot of it on a facet the map draws as water.)
     if (
       site.wet &&
-      (wetGround(site, bx, bz) ||
-        [-1, 1].some((u) =>
-          [-1, 1].some((v) =>
-            wetGround(
-              site,
-              bx + (u * c * BW) / 2 + (v * s * BD) / 2,
-              bz - (u * s * BW) / 2 + (v * c * BD) / 2,
-            ),
-          ),
-        ))
+      BLOCK_READ.some(([u, v]) =>
+        wetGround(
+          site,
+          bx + (u * c * BW) / 2 + (v * s * BD) / 2,
+          bz - (u * s * BW) / 2 + (v * c * BD) / 2,
+        ),
+      )
     )
       return false;
     // The roads in: a block never stands across one.
