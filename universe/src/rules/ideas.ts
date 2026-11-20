@@ -38,7 +38,7 @@ export const IDEA = {
   /** A school's spread to a neighbour a year, at speech alike; by a road; where a body teaches; from higher learning. */
   spread: 0.02,
   /** A land is weighed for taking a school once in so many years, at as many years' chance. */
-  every: 3,
+  every: 5,
   road: 1.5,
   taught: 1.6,
   higher: 1,
@@ -245,7 +245,7 @@ export const PILGRIM = {
   /** The most a seat's town gains of its own people's keep from pilgrims. */
   most: 0.15,
   /** Read again once in this many years. */
-  every: 5,
+  every: 10,
   /** The ways drawn to one seat, at the most. */
   ways: 6,
 } as const;
