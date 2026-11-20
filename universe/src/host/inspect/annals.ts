@@ -1203,6 +1203,24 @@ function tellYear(world: World, year: number, events: readonly HistoryEvent[], w
         lineOf(world, best, year, more ? `, and ${told(more, "more", "more")} like it` : ""),
     });
   }
+  // Fleets met at sea: one line a year, its gravest; worth more where a flagship went down, most where an admiral did with her.
+  const met = take("war.fleet");
+  if (met.length) {
+    const rank = (e: HistoryEvent) => {
+        const d = dataOf<{ lost?: number; drowned?: string }>(e);
+        return d.drowned ? 2 : d.lost !== undefined ? 1 : 0;
+      },
+      best = met.reduce((a, b) => (rank(b) > rank(a) ? b : a)),
+      more = met.length - 1;
+    add({
+      kind: WARS,
+      worth: [RULES["war.fleet"]![1], 5, 6][rank(best)]!,
+      ref: best.id,
+      key: "war.fleet",
+      say: () =>
+        lineOf(world, best, year, more ? `, and ${told(more, "more", "more")} like it` : ""),
+    });
+  }
   // A rising crushed the year it rose: the crushing says it rose.
   if (types.has("order.crushed")) types.delete("order.revolt");
   // The rest: one line a kind, its greatest, and how many more.

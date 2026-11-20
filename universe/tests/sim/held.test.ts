@@ -5,7 +5,9 @@ import { YEAR, type Ref, type SimTime } from "../../src/kernel/index.ts";
 import {
   FLED,
   HELD,
+  caughtBy,
   caughtOf,
+  takenShare,
   ownParts,
   ownReckoning,
   ownScore,
@@ -135,4 +137,19 @@ test("a wrong no peace answered is answered at home only where much weighs for i
     Math.round(ownParts(mid).reduce((s, p) => s + p.by, 0) * 1e6),
     Math.round(ownScore(mid) * 1e6),
   );
+});
+
+test("how many are taken follows how the day ended: overrun most, broken by how far outweighed, drawn off few", () => {
+  const share = (how: "overrun" | "morale" | "stalemate", pressure = 0) =>
+    takenShare({ how, pressure });
+  assert.equal(share("overrun"), HELD.overrun);
+  assert.equal(share("stalemate", 0.9), HELD.withdrew);
+  assert.equal(share("morale", 0), HELD.broke);
+  assert.equal(share("morale", 1), HELD.brokeMost);
+  assert.ok(share("morale", 0.2) < share("morale", 0.6));
+  assert.ok(share("stalemate") < share("morale", 0) && share("morale", 1) < share("overrun"));
+  assert.equal(caughtBy(10000, { how: "morale", pressure: 0.5 }, 1, 1), 1075);
+  assert.equal(caughtBy(1000, { how: "stalemate", pressure: 0 }, 1, 1), 0, "under the least");
+  // (A record that keeps no ending: by its losses, as before.)
+  assert.equal(caughtBy(10000, null, 500, 500), caughtOf(10000, 500, 500));
 });

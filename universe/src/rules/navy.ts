@@ -40,7 +40,37 @@ export const NAVY = {
   relief: 0.8,
   /** A fleet under this many tonnes is laid up. */
   least: 10,
+  /**
+   * When two fleets at war meet (seaMeets): the weaker gives battle once, untried, from `dares` of the sea's command; once
+   * beaten in that war it keeps to port unless it has `stands` of it. A fleet that met refits before it sails again: a year,
+   * and a year more for each year of its wrights' building it lost, at most `refitMost`.
+   */
+  dares: 0.2,
+  stands: 0.42,
+  refitMost: 6,
 } as const;
+
+/**
+ * Whether two fleets at war meet this year: both at sea (neither refitting), and the weaker willing. The stronger seeks the
+ * other; the weaker gives battle untried from NAVY.dares of the command, and once beaten in this war only from NAVY.stands.
+ * `command`: each side's share of the sea as their tonnes and hulls stand; `beaten`: the meetings each has lost in this war.
+ */
+export function seaMeets(
+  command: readonly [number, number],
+  refitting: readonly [boolean, boolean],
+  beaten: readonly [number, number],
+): boolean {
+  if (refitting[0] || refitting[1]) return false;
+  const weak = command[0] <= command[1] ? 0 : 1,
+    share = command[weak]!;
+  if (!(share > 0)) return false;
+  return share >= (beaten[weak]! > 0 ? NAVY.stands : NAVY.dares);
+}
+
+/** How many years a fleet refits after a meeting: one, and one more for each year of its wrights' building it lost. */
+export function refitYears(lost: number, canBuild: number): number {
+  return Math.min(NAVY.refitMost, 1 + Math.floor(Math.max(0, lost) / Math.max(1, canBuild)));
+}
 
 /** What a tonne of a realm's warships is worth in a fight: its arms, their fire, and how far its ships can go to sea. */
 export function hullQuality(arms: number, fire: number, seaSteps: number): number {

@@ -40,7 +40,8 @@ import {
   HOLD,
   NOTE,
   apportionCapped,
-  caughtOf,
+  caughtBy,
+  type FieldEnd,
   ownParts,
   ownReckoning,
   ownScore,
@@ -458,6 +459,8 @@ export type Fought = {
   /** Whether the attacker's host went hungry; whether the land was stormed after a siege, and taken. */
   readonly hungry: boolean;
   readonly stormed: boolean;
+  /** How the day ended for the beaten (absent: not kept; taken by their losses, as before). */
+  readonly end?: FieldEnd | null;
 };
 
 /** How a host's people would deal with the beaten: the score, and its parts as factors. */
@@ -595,8 +598,9 @@ export function heldAfter(
     levy = f.levies[s]!,
     takes = f.takes[s]!,
     living = levy.sent.map((sent, k) => Math.max(0, sent - (takes[k]?.[2] ?? 0))),
-    caught = caughtOf(
+    caught = caughtBy(
       living.reduce((n, x) => n + x, 0),
+      f.end ?? null,
       f.fallen[s]!,
       f.fallen[1 - s]!,
     ),

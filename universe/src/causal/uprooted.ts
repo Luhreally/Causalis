@@ -164,6 +164,7 @@ registerEventWords(FLEET_EVENTS.met.type, (world, e) => {
       led?: [string | null, string | null];
       won?: number;
       lost?: number;
+      drowned?: string;
     } | null,
     names = [text(e.data, "a"), text(e.data, "b")],
     sunk = pair(e.data, "sunk"),
@@ -175,5 +176,5 @@ registerEventWords(FLEET_EVENTS.met.type, (world, e) => {
       d?.lost === 0 || d?.lost === 1
         ? `; ${names[d.lost]} lost its flagship${d.flags?.[d.lost] ? `, the ${d.flags[d.lost]}` : ""}`
         : "";
-  return `The fleet of ${names[won]}${under}${flag} beat the fleet of ${names[1 - won]}${where}: ${count(sunk[1 - won]!)} tonnes of ships sunk for ${count(sunk[won]!)}${gone}, ${year(e.t)}`;
+  return `The fleet of ${names[won]}${under}${flag} beat the fleet of ${names[1 - won]}${where}: ${count(sunk[1 - won]!)} tonnes of ships sunk for ${count(sunk[won]!)}${gone}${d?.drowned ? `, and ${d.drowned}, its admiral, with her` : ""}, ${year(e.t)}`;
 });

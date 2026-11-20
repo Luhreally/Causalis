@@ -1819,6 +1819,13 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         led: [ledA, ledB],
         hungry,
         stormed: sieged?.how === "stormed" && takesLand(aim),
+        // (How the day ended: the beaten overrun, broken, or drawn off with neither broken.)
+        end: resolved.combat
+          ? {
+              how: resolved.combat.broken < 0 ? "stalemate" : resolved.combat.reason,
+              pressure: Math.abs(resolved.combat.frames.at(-1)?.pressure ?? 0),
+            }
+          : null,
       },
       t,
     );

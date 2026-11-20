@@ -25,15 +25,14 @@ export type SeaFilmDeps = {
   readonly rig: OrbitRig;
   /** Everything of the world put away, for the sea alone (inside a cut, its readying told). */
   readonly enter: (work: () => void) => Promise<void>;
-  /** Back to the world as it stands. */
-  readonly leave: () => Promise<void>;
-  readonly openPage: (ref: string) => void;
+  /** Back to where it was entered from, with the page it was pressed on (or `page`, asked for from the film) open again. */
+  readonly leave: (page?: string) => Promise<void>;
 };
 
 export type SeaFilm = {
   /** Watch a meeting of fleets by its event (false: it is not one, or is no longer kept). */
   play(event: string): Promise<boolean>;
-  stop(): void;
+  stop(page?: string): void;
   readonly playing: boolean;
   readonly keys: { toggle(): void; pick(i: number): boolean };
   seek(s: number): void;
@@ -128,7 +127,8 @@ export function installSeaFilm(d: SeaFilmDeps): SeaFilm {
     heardSmoke = 0,
     heardGone = 0,
     cueAt = 0,
-    session = 0;
+    session = 0,
+    coveredWas: OrbitRig["covered"] | null = null;
 
   const setSpeed = (i: number) => {
     const next = Math.max(0, Math.min(BATTLE_SPEEDS.length - 1, i));
@@ -159,17 +159,17 @@ export function installSeaFilm(d: SeaFilmDeps): SeaFilm {
   };
   // (Its page is read with the world back: the film is left for it.)
   page.onclick = () => {
-    const ref = near?.event;
-    stop();
-    if (ref) d.openPage(ref);
+    stop(near?.event);
   };
 
-  const stop = () => {
+  const stop = (page?: string) => {
     if (!playing) return;
     playing = false;
     session++;
     layer?.setup(null);
     time.release("sea fight");
+    if (coveredWas) rig.covered = coveredWas;
+    coveredWas = null;
     document.body.classList.remove("filming", "sea-filming");
     ui.hidden = true;
     ui.classList.remove("open");
@@ -178,7 +178,7 @@ export function installSeaFilm(d: SeaFilmDeps): SeaFilm {
     field = null;
     rig.follow = null;
     rig.halt();
-    void d.leave();
+    void d.leave(page);
   };
   done.onclick = () => stop();
 
@@ -289,6 +289,12 @@ export function installSeaFilm(d: SeaFilmDeps): SeaFilm {
     cueAt = 0;
     setSpeed(2);
     time.hold("sea fight");
+    // (The sea is framed in what the caption leaves of the screen: on a short one it stands over a third of it.)
+    coveredWas ??= rig.covered;
+    rig.covered = () => ({
+      top: 0,
+      bottom: ui.hidden ? 0 : (ui.getBoundingClientRect().height + 30) / Math.max(1, innerHeight),
+    });
     document.body.classList.add("filming", "sea-filming");
     ui.hidden = false;
     setText(title, f.title);
