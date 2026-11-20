@@ -140,6 +140,25 @@ function peopleBefore(ctx: PopulationContext, cell: number): number {
   return most;
 }
 
+/**
+ * The people a land had and kept: the most, at any year of its ledger's last ten, that it had held through the ten years before
+ * that one. Those who came within ten years are not yet the hands its crafts lie in (the same ten years a craft must have been
+ * held for a fall to take it: FALL_YEARS), and those who go are the last who came: a land swollen for some years by the fled,
+ * by settlers its soil could not keep, or by a host's captives held at its seat, and back to what it was, has lost none of the
+ * hands that held anything. Never more than `peopleBefore`; the same where a land has not grown.
+ */
+export function keptBefore(populations: readonly number[]): number {
+  const n = populations.length;
+  let most = 0;
+  for (let s = n - 1; s >= 0 && s >= n - 1 - FALL_YEARS; s--) {
+    let least = populations[s]!;
+    for (let j = s - 1; j >= 0 && j >= s - FALL_YEARS && least > most; j--)
+      if (populations[j]! < least) least = populations[j]!;
+    if (least > most) most = least;
+  }
+  return most;
+}
+
 /** Why a land fell: the worst of what happened to it in these years, and its event. */
 function whyFell(
   world: World,
@@ -594,7 +613,10 @@ export function lostYear(ctx: PopulationContext, t: SimTime): void {
     const now = prov.total(),
       then = peopleBefore(ctx, cell);
     if (now > 0 && now >= then * (1 - FALL_LEAST)) continue;
-    loseFrom(ctx, t, { cell, now, then }, store, cache, touched);
+    // (Fallen from its most: but only against those it had kept is anything of its crafts gone. An emptied land lost them all.)
+    const kept = now > 0 ? keptBefore(ctx.history.yearsOf(cell).map((l) => l.population)) : then;
+    if (now > 0 && now >= kept * (1 - FALL_LEAST)) continue;
+    loseFrom(ctx, t, { cell, now, then: kept }, store, cache, touched);
   }
   worldLosses(ctx, store, year, touched);
   seenYear(ctx, t, year);

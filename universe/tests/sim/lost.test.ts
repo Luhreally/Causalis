@@ -4,7 +4,14 @@ import test from "node:test";
 import { PRINCIPLES, PRINCIPLE_DEPTH, RESTS_ON, principle } from "../../src/rules/index.ts";
 import { seedFromText, YEAR, type Ref } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
-import { loreOf, lostOf, lostYear, needOfHands, populationContext } from "../../src/sim/index.ts";
+import {
+  keptBefore,
+  loreOf,
+  lostOf,
+  lostYear,
+  needOfHands,
+  populationContext,
+} from "../../src/sim/index.ts";
 
 test("deeper crafts ask more hands, and every need is on the tree", () => {
   assert.equal(PRINCIPLE_DEPTH.get("cultivation"), 0);
@@ -92,4 +99,25 @@ test("a world where no one falls keeps nothing here", () => {
   world.runTo(10 * YEAR);
   assert.equal(lostOf(world).allOpen().length, 0);
   assert.equal(lostOf(world).archives.length, 0);
+});
+
+test("a land's own hands are those it has kept ten years: a swelling that passes is no fall", () => {
+  const flat = Array.from({ length: 30 }, () => 1000);
+  // Held steadily, then struck: what it had is what it had.
+  assert.equal(keptBefore(flat), 1000);
+  // A slow dying counts from where it stood ten years ago.
+  const dying = Array.from({ length: 30 }, (_, i) => (i < 20 ? 1000 : 1000 - 40 * (i - 19)));
+  assert.equal(keptBefore(dying), 1000);
+  // Those who came five years ago and are going again were never its hands: it has what it had before them.
+  const swollen = [...flat.slice(0, 24), 2400, 2200, 1900, 1600, 1300, 1100];
+  assert.equal(keptBefore(swollen), 1000);
+  assert.ok(1000 >= keptBefore(swollen) * 0.65, "back to what it was: not fallen");
+  // Those who stayed past ten years are.
+  const settled = [...flat.slice(0, 10), ...Array.from({ length: 20 }, () => 2000)];
+  assert.equal(keptBefore(settled), 2000);
+  // A land newly peopled has kept only what its short ledger shows; none at all, nothing.
+  assert.equal(keptBefore([300, 500, 800]), 300);
+  assert.equal(keptBefore([]), 0);
+  // Never more than its most.
+  for (const l of [flat, dying, swollen, settled]) assert.ok(keptBefore(l) <= Math.max(...l));
 });

@@ -1309,6 +1309,7 @@ export {
   READ_RATE,
   SONGS_REACH,
   keeperOf,
+  keptBefore,
   lostYear,
 } from "./lore/lost.ts";
 export {
