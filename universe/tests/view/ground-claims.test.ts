@@ -253,9 +253,16 @@ test("a town's own view: its fields, pasture and water on its land's own ground,
     const p = plan.pasture;
     assert.ok(
       !wet(p.x, p.z) &&
-        plan.fields.every(
-          (f) => !rectsOverlap(f, { x: p.x, z: p.z, w: p.r * 1.8, d: p.r * 1.8, yaw: 0 }),
-        ),
+        plan.fields.every((f) => {
+          // (The field's nearest point to the pasture's middle, out of the pasture's round.)
+          const c = Math.cos(f.yaw),
+            sn = Math.sin(f.yaw),
+            dx = p.x - f.x,
+            dz = p.z - f.z,
+            u = Math.max(0, Math.abs(dx * c - dz * sn) - f.w / 2),
+            v = Math.max(0, Math.abs(dx * sn + dz * c) - f.d / 2);
+          return u * u + v * v >= p.r * p.r;
+        }),
       `${s.name}: its pasture on the water or a field`,
     );
     // (Its own water is its land's: a round wholly on what its map draws as water.)

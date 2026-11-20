@@ -339,6 +339,9 @@ export function quarterBearings(
 }
 
 /** The bearings a town's way out over its ground is read at, the step it is read by, and how much water a lane bridges (metres). */
+/** How far out a town's grid is ever sought (metres), and how far it may always be. */
+const LATTICE_FAR = 3000,
+  LATTICE_NEAR = 600;
 /** Where a block is read against its land's water (as halves of it): every corner of every lot of it, four along it and two across. */
 const BLOCK_READ: readonly (readonly [number, number])[] = [-1, -0.5, 0, 0.5, 1].flatMap((u) =>
   [-1, 0, 1].map((v) => [u, v] as const),
@@ -759,6 +762,8 @@ export function grownBlocks(
     readonly cellHeaps: MinHeap[];
     readonly cellX: number[];
     readonly cellZ: number[];
+    /** How far out it is sought: thrice as far as its blocks would reach laid round its square, and never past LATTICE_FAR. */
+    readonly far: number;
     ring: number;
   };
   const lc = Math.cos(lattice),
@@ -777,6 +782,10 @@ export function grownBlocks(
             cellHeaps: Array.from({ length: QUARTERS }, () => new MinHeap()),
             cellX: [],
             cellZ: [],
+            far: Math.min(
+              LATTICE_FAR,
+              Math.max(LATTICE_NEAR, 3 * Math.sqrt((count * (BW + wide) * (BD + wide)) / Math.PI)),
+            ),
             ring: -1,
           }),
         );
@@ -798,9 +807,9 @@ export function grownBlocks(
   const growLattice = (l: Lattice) => {
     const { PU, PV, cellX, cellZ, cellHeaps } = l,
       ring = ++l.ring;
+    // (Its new ring's cells only: the rows at its two ends whole, the rest of its rows at their ends.)
     for (let i = -ring - 1; i <= ring; i++)
-      for (let j = -ring - 1; j <= ring; j++) {
-        if (Math.max(Math.abs(i + 0.5), Math.abs(j + 0.5)) !== ring + 0.5) continue;
+      for (let j = -ring - 1; j <= ring; j += i === -ring - 1 || i === ring ? 1 : 2 * ring + 1) {
         const u = (i + 0.5) * PU,
           v = (j + 0.5) * PV,
           // (Along the road u, across it v: as a block's own frame.)
@@ -816,7 +825,14 @@ export function grownBlocks(
       { PU, PV, cellX, cellZ } = l,
       heap = l.cellHeaps[q]!;
     for (let tries = 0; tries < 4000; tries++) {
-      while (!heap.size || heap.peekKey() > (l.ring + 0.5) * Math.min(PU, PV)) growLattice(l);
+      while (!heap.size || heap.peekKey() > (l.ring + 0.5) * Math.min(PU, PV)) {
+        // (No further out than any town's ground goes: past the water on every side, it is sought round about instead.)
+        if ((l.ring + 1.5) * Math.min(PU, PV) > l.far) {
+          if (!heap.size) return false;
+          break;
+        }
+        growLattice(l);
+      }
       const id = heap.pop(),
         bx = cellX[id]!,
         bz = cellZ[id]!;

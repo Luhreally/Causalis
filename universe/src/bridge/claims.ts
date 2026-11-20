@@ -270,17 +270,29 @@ export class GroundClaims {
     });
   }
 
-  /** Whether a disc lies wholly on free ground (as `free`). */
+  /** Whether a disc lies wholly on free ground (as `free`): its rim and middle off the water, and every cell it touches. */
   freeDisc(x: number, z: number, r: number, owner = -1, mine = 0): boolean {
+    if (this.wet(x, z)) return false;
     for (let k = 0; k < 8; k++) {
       const a = (k * Math.PI) / 4;
       if (this.wet(x + r * Math.cos(a), z + r * Math.sin(a))) return false;
     }
-    const side = r * Math.SQRT2;
-    return (
-      this.free(x, z, side, side, 0, owner, mine) &&
-      this.free(x, z, side, side, Math.PI / 4, owner, mine)
-    );
+    const st = this.step,
+      out = r + st * Math.SQRT1_2;
+    for (let i = Math.floor((x - out) / st); i <= Math.floor((x + out) / st); i++)
+      for (let j = Math.floor((z - out) / st); j <= Math.floor((z + out) / st); j++) {
+        const cx = (i + 0.5) * st,
+          cz = (j + 0.5) * st;
+        if ((cx - x) ** 2 + (cz - z) ** 2 > out * out) continue;
+        this.held(i, j);
+        if (
+          this.heldKind !== GROUND.free &&
+          !(this.heldOwner === owner && ((mine >> this.heldKind) & 1) === 1)
+        )
+          return false;
+        if (this.wet(cx, cz)) return false;
+      }
+    return true;
   }
 }
 
