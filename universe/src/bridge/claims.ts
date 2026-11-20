@@ -477,6 +477,21 @@ export function openWater(
 ): { x: number; z: number; r: number } | null {
   const w = site?.wet;
   if (!w) return null;
+  // (Read once for each water about a square: a town's is asked whenever its land's plan is made.)
+  const key = `${near}|${w.m}|${w.half}|${site.bank ? `${site.bank.x},${site.bank.z}` : ""}|${w.cells}`,
+    known = OPEN_KNOWN.get(key);
+  if (known !== undefined) return known;
+  if (OPEN_KNOWN.size >= OPEN_KEPT) OPEN_KNOWN.clear();
+  const found = openWaterRead(site, near);
+  OPEN_KNOWN.set(key, found);
+  return found;
+}
+
+/** The waters read (openWater), by all they are read from; the most kept before they are let go together. */
+const OPEN_KNOWN = new Map<string, { x: number; z: number; r: number } | null>(),
+  OPEN_KEPT = 4096;
+
+function openWaterRead(site: Wet, near: number): { x: number; z: number; r: number } | null {
   const STEP = 30,
     n = Math.ceil((2 * near) / STEP) + 1,
     wet = new Uint8Array(n * n),

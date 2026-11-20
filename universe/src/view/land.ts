@@ -237,7 +237,11 @@ export function landFields(
   cells.sort((a, b) => a.r - b.r || a.i - b.i || a.j - b.j);
   const out: LandField[] = [],
     // (Its own fields lie side by side on its own lattice, a hedge between: they may lie beside each other.)
-    mine = kindsOf(GROUND.field);
+    mine = kindsOf(GROUND.field),
+    // (The towns that could be nearer any of its fields: those whose reach comes within its fields' furthest.)
+    rivals = others.filter(
+      (o) => Math.hypot(o.x - x, o.z - z) - o.r < 2 * (outer + FIELD_W) - reach,
+    );
   for (const c of cells) {
     if (out.length >= n) break;
     const u = c.i * FIELD_W,
@@ -250,7 +254,7 @@ export function landFields(
     if (g.water[t] !== 0 || g.fertility[t]! < 40) continue;
     // (Another town nearer, as far as each reaches: its ground to till, not this one's.)
     const mineBy = Math.hypot(fx - x, fz - z) - reach;
-    if (others.some((o) => Math.hypot(fx - o.x, fz - o.z) - o.r < mineBy)) continue;
+    if (rivals.some((o) => Math.hypot(fx - o.x, fz - o.z) - o.r < mineBy)) continue;
     if (!claims.free(fx, fz, w, d, axis, owner, mine)) continue;
     // (Not up a hillside: the ground about it within a field's length of level.)
     const y = groundAt(g, fx, fz),
