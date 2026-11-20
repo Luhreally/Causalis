@@ -296,15 +296,20 @@ export function landWater(
  * stands at the middle): the bank of a tile drawn as water (TownSite.bank), as the land's map draws the town there.
  */
 export function townSquareOff(world: World, ref: Ref): { x: number; z: number } {
-  const ctx = populationContext(world),
-    s = ctx.settlements.get(ref);
-  if (!s || ctx.medium === "water") return { x: 0, z: 0 };
-  const r = regionOf(ctx, s.cell);
-  if (r.water[s.tile] === WATER.land) return { x: 0, z: 0 };
-  const bank = landWater(r, s.tile % r.size, Math.floor(s.tile / r.size), false).bank;
+  const bank = townBankOf(world, ref);
   return bank
     ? { x: (bank.x * LAND_SCALE) / 1000, z: (bank.z * LAND_SCALE) / 1000 }
     : { x: 0, z: 0 };
+}
+
+/** A town's square on its tile's bank (TownSite.bank, metres on its ground; null: at its tile's middle). */
+export function townBankOf(world: World, ref: Ref): { x: number; z: number } | null {
+  const ctx = populationContext(world),
+    s = ctx.settlements.get(ref);
+  if (!s || ctx.medium === "water") return null;
+  const r = regionOf(ctx, s.cell);
+  if (r.water[s.tile] === WATER.land) return null;
+  return landWater(r, s.tile % r.size, Math.floor(s.tile / r.size), false).bank ?? null;
 }
 
 /**

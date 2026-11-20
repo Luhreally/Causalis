@@ -264,6 +264,7 @@ export {
   placeReach,
   wetGround,
   bankOf,
+  bankLake,
   LAND_SCALE,
   reachToward,
   climb,

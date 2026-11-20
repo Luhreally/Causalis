@@ -62,6 +62,7 @@ import { fullName, herdPass, townWild } from "./inspect/herds.ts";
 import { envoyAtCourt } from "./inspect/ties.ts";
 import {
   LAKE_R,
+  bankLake,
   LOT,
   WATER_OUT,
   heartTown,
@@ -88,7 +89,7 @@ import {
   type Wonder,
 } from "../bridge/index.ts";
 import { strikesOn, townPlan } from "./town.ts";
-import { realmWays, townSiteOf, townSquareOff } from "./sites.ts";
+import { realmWays, townBankOf, townSiteOf, townSquareOff } from "./sites.ts";
 import { realmColor } from "./colors.ts";
 import { hostKinds } from "./arms.ts";
 import { visitorsAt } from "./peoples.ts";
@@ -264,11 +265,21 @@ export function townSite(world: World, ref: Ref): { axis: number; water: TownWat
     waterWay = ways.find((w) => w.water)?.angle ?? null;
   return {
     axis: city ? city.axis : fieldWay + Math.PI * 0.75,
-    water:
-      waterWay === null
-        ? null
-        : { x: WATER_OUT * Math.cos(waterWay), z: WATER_OUT * Math.sin(waterWay), r: LAKE_R },
+    water: lakeOf(world, ref, waterWay),
   };
+}
+
+/**
+ * The water a town's view lays its blocks about (null: none beside it): a town on its tile's bank (host/sites.ts
+ * townBankOf) has its own tile's water back across its waterfront (bridge/sites.ts bankLake); any other, the first way
+ * out of its tile that is water, WATER_OUT off.
+ */
+function lakeOf(world: World, ref: Ref, waterWay: number | null): TownWater | null {
+  const bank = townBankOf(world, ref);
+  if (bank) return bankLake(bank);
+  return waterWay === null
+    ? null
+    : { x: WATER_OUT * Math.cos(waterWay), z: WATER_OUT * Math.sin(waterWay), r: LAKE_R };
 }
 
 /**
@@ -370,10 +381,7 @@ export function villagePlan(
   // nearest its square; its quarters and its ring of homes are drawn no more.
   // (Lots drawn as the device can bear, by the families it meets: two thousand to sixteen.)
   // (Laid about its water, never in it.)
-  const lake =
-      waterWay === null
-        ? null
-        : { x: WATER_OUT * Math.cos(waterWay), z: WATER_OUT * Math.sin(waterWay), r: LAKE_R },
+  const lake = lakeOf(world, ref, waterWay),
     town = townPlan(
       world,
       ref,
@@ -511,10 +519,10 @@ export function villagePlan(
       apart(way, fieldWay) > 1.9 ? edge + pastureR + 20 : outer + pastureR + 15,
     // (Never in the water: turned from it, a step at a time, if that is where it would lie.)
     dry = (way: number) =>
-      waterWay === null ||
+      !lake ||
       Math.hypot(
-        pastureOut(way) * Math.cos(way) - WATER_OUT * Math.cos(waterWay),
-        pastureOut(way) * Math.sin(way) - WATER_OUT * Math.sin(waterWay),
+        pastureOut(way) * Math.cos(way) - lake.x,
+        pastureOut(way) * Math.sin(way) - lake.z,
       ) >
         LAKE_R + pastureR + 30,
     pastureWay =
@@ -1359,10 +1367,7 @@ export function villagePlan(
         r: pastureR,
       },
       wild: wildAt,
-      water:
-        waterWay === null
-          ? null
-          : { x: WATER_OUT * Math.cos(waterWay), z: WATER_OUT * Math.sin(waterWay) },
+      water: lake ? { x: lake.x, z: lake.z } : null,
       house: houseOf(village.cell),
       // (No beast is left on ground built over from edge to edge.)
       ...(past?.covered ? {} : { fauna: faunaOf(village.cell, village.population, village.ref) }),

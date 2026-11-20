@@ -4,6 +4,7 @@ import { WATER } from "../../src/gen/index.ts";
 import { landWater } from "../../src/host/sites.ts";
 import {
   QUARTER,
+  bankLake,
   bankOf,
   grownBlocks,
   quarterBearings,
@@ -82,7 +83,7 @@ test("a town on a river's tile stands on its bank, its square's ground dry, the 
 test("its first blocks stand close about its square, none on the water the land's map draws", () => {
   const read = landWater(RIVER, I, J, false),
     site: TownSite = { ...BASE, ...read },
-    blocks = grownBlocks(77, site, 48, null, Math.PI / 2),
+    blocks = grownBlocks(77, site, 48, bankLake(read.bank!), Math.PI / 2),
     first = Math.hypot(blocks.x[0]!, blocks.z[0]!);
   assert.ok(first < 150, `the first block ${first.toFixed(0)} m from the square`);
   // On the land's map: the square and every block's middle over dry ground, the map's own facets read.

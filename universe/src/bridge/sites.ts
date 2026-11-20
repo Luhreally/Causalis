@@ -18,6 +18,7 @@
 // never moves as the town grows. Pure: what the eye is given, read from what history keeps; nothing here is kept.
 import { MinHeap, mix } from "../kernel/index.ts";
 import { wallLineOf, wallOff } from "./wall.ts";
+import { LAKE_R } from "./village.ts";
 
 /** A road into a town, as its streets meet it. */
 export type TownRoad = {
@@ -163,6 +164,21 @@ export function bankOf(wet: TownSite["wet"]): { x: number; z: number } | null {
     }
   }
   return null;
+}
+
+/**
+ * The water a town on its tile's bank lays its blocks about in its own view (TownPlan.water): back across its waterfront
+ * toward its tile's middle, its near shore a little past the dry ground its bank was sought with, so its first blocks stand
+ * between its square and the water.
+ */
+export function bankLake(bank: { readonly x: number; readonly z: number }): {
+  x: number;
+  z: number;
+  r: number;
+} {
+  const d = Math.hypot(bank.x, bank.z) || 1,
+    out = BANK_DRY + 10 + LAKE_R;
+  return { x: (-bank.x / d) * out, z: (-bank.z / d) * out, r: LAKE_R };
 }
 
 /** A part of a town's ground taken up under a realm's will (TownSite.surveys). */
