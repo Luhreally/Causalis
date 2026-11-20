@@ -46,10 +46,11 @@ import {
   landName,
   lineOf,
   ruleOf,
+  STRETCH_YEARS,
+  stretchRead,
   stretchesForget,
   toldOf,
   toldWords,
-  withoutYear,
   type Told,
 } from "./annals.ts";
 import { sceneBanner, worldArt } from "./art.ts";
@@ -169,6 +170,11 @@ const DOMAIN_SECTION: Readonly<Record<string, SectionId>> = {
   late: "far",
   starwar: "far",
   frontier: "far",
+  star: "far",
+  // (Those a war takes and uproots: prisoners, what was done to them, the reckoning for it.)
+  held: "war",
+  hand: "people",
+  person: "people",
 };
 /** The kinds a domain's rule does not hold for. */
 const TYPE_SECTION: Readonly<Record<string, SectionId>> = {
@@ -201,6 +207,14 @@ const TYPE_SECTION: Readonly<Record<string, SectionId>> = {
   "people.smoke": "nature",
   "war.herds-driven": "nature",
   "groups.hired": "war",
+  "held.fled": "people",
+  "ecology.sea-few": "nature",
+  "bodies.sentenced": "bodies",
+  "bodies.told": "bodies",
+  "groups.struck": "bodies",
+  "underworld.struck": "bodies",
+  "act.group": "bodies",
+  "reign.charter": "power",
 };
 /** A line of the Years' own kinds, where its happening is not known: wars, firsts, sorrows, people, the stars. */
 const KIND_SECTION: readonly SectionId[] = ["war", "minds", "nature", "power", "far"];
@@ -236,6 +250,19 @@ const COUNTED: Readonly<Record<SectionId, readonly (readonly [string, string, st
     ["war.siege", "seat was besieged", "seats were besieged"],
     ["war.strike", "town was struck from the air", "towns were struck from the air"],
     ["war.rebellion", "land rose in arms", "lands rose in arms"],
+    [
+      "war.raid",
+      "raid fell on soldiers posted in a land",
+      "raids fell on soldiers posted in lands",
+    ],
+    ["war.fleet", "fleet met another at sea", "fleets met at sea"],
+    ["war.company", "hired company took the field", "hired companies took the field"],
+    [
+      "held.crime",
+      "wrong was done to those a war had taken",
+      "wrongs were done to those wars had taken",
+    ],
+    ["held.reckoned", "such wrong was answered for", "such wrongs were answered for"],
   ],
   money: [
     ["trade.crash", "market crashed", "markets crashed"],
@@ -255,6 +282,7 @@ const COUNTED: Readonly<Record<SectionId, readonly (readonly [string, string, st
     ["town.forsaken", "town was forsaken", "towns were forsaken"],
     ["order.revolt", "rising of the unfree broke out", "risings of the unfree broke out"],
     ["order.freed", "realm freed its unfree", "realms freed their unfree"],
+    ["held.fled", "land took in those who fled a war", "lands took in those who fled wars"],
   ],
   minds: [
     ["lore.found", "craft was found", "crafts were found"],
@@ -274,6 +302,12 @@ const COUNTED: Readonly<Record<SectionId, readonly (readonly [string, string, st
     ["underworld.rose", "crime group rose", "crime groups rose"],
     ["underworld.war", "war broke out in the underworld", "wars broke out in the underworld"],
     ["underworld.ended", "crime group came to its end", "crime groups came to their end"],
+    [
+      "bodies.sentenced",
+      "court passed a sentence that was told",
+      "courts passed sentences that were told",
+    ],
+    ["groups.struck", "group struck at one of name", "groups struck at people of name"],
   ],
   nature: [
     ["act.flood", "land was flooded", "lands were flooded"],
@@ -284,6 +318,7 @@ const COUNTED: Readonly<Record<SectionId, readonly (readonly [string, string, st
     ["planet.eruption", "mountain burst", "mountains burst"],
     ["ecology.hunters-gone", "land lost its great hunters", "lands lost their great hunters"],
     ["life.kind-gone", "kind of creature died out", "kinds of creature died out"],
+    ["ecology.sea-few", "sea ran low of its catch", "seas ran low of their catch"],
   ],
   far: [
     ["space.satellite", "craft was put above the sky", "craft were put above the sky"],
@@ -360,6 +395,7 @@ function keepOf(world: World, realm: string, year: number): (e: HistoryEvent) =>
 /** What each year tells of the world or of a realm, read once for one telling. */
 type Reader = {
   readonly realm: string | null;
+  readonly world: World;
   readonly now: number;
   told(year: number): readonly Told[];
   events(year: number): readonly HistoryEvent[];
@@ -386,6 +422,7 @@ function readerOf(world: World, realm: string | null): Reader {
     };
   return {
     realm,
+    world,
     now,
     told(year) {
       if (year < 0 || year > now) return [];
@@ -452,8 +489,15 @@ function ranked(r: Reader, year: number): Cand[] {
   return [
     ...most,
     ...mine.map((t) => {
-      const like = (others.get(t.key) ?? []).filter((w) => w >= t.worth - 0.5).length;
-      return { t, score: t.worth * (COMMON + (1 - COMMON) / (1 + like / 3)), alone: like === 0 };
+      const like = (others.get(t.key) ?? []).filter((w) => w >= t.worth - 0.5).length,
+        // (Of a realm's own year, what it did or what was done to it leads over what befell one of its lands.)
+        own =
+          r.realm && r.world.events.get(t.ref as Ref)?.subjects.includes(r.realm as Ref) ? 1.5 : 0;
+      return {
+        t,
+        score: t.worth * (COMMON + (1 - COMMON) / (1 + like / 3)) + own,
+        alone: like === 0,
+      };
     }),
   ].sort((a, b) => b.score - a.score);
 }
@@ -473,7 +517,9 @@ function standouts(r: Reader, year: number): Cand[] {
     if (y !== year && y >= 0 && y <= r.now) about.push(r.counts(y));
   // (Against a few years alone, the most means little.)
   if (about.length < ABOUT) return [];
-  const span = about.length >= 2 * ABOUT ? "the twenty about it" : `${said(about.length)} years`,
+  const first = Math.max(0, year - ABOUT),
+    last = Math.min(r.now, year + ABOUT),
+    span = `from ${count(first)} to ${count(last)}`,
     out: Cand[] = [],
     weigh = (n: number, others: readonly number[]) => {
       const mean = others.reduce((a, b) => a + b, 0) / others.length,
@@ -487,7 +533,7 @@ function standouts(r: Reader, year: number): Cand[] {
           worth: ALL_WORTH,
           ref: e?.id ?? "world:chronicle#years",
           key,
-          say: () => [`${sentence(words)}, the most of any year in ${span}.`],
+          say: () => [`${sentence(words)}, more than in any other year ${span}.`],
         },
         score: 3.6 + Math.min(1.4, times / 5),
         alone: false,
@@ -496,7 +542,8 @@ function standouts(r: Reader, year: number): Cand[] {
   for (const id of Object.keys(COUNTED) as SectionId[])
     for (const [type, one, more] of COUNTED[id]) {
       const n = here.n.get(type) ?? 0;
-      if (n < MOST_LEAST || seen.has(one)) continue;
+      // (Of one realm's lands a handful is no count to tell.)
+      if (n < (r.realm ? 2 * MOST_LEAST : MOST_LEAST) || seen.has(one)) continue;
       seen.add(one);
       const times = weigh(
         n,
@@ -530,25 +577,141 @@ function clip(words: string, most = 84): string {
   return `${s.slice(0, at > 0 ? at : most)}…`;
 }
 
-/** A line's headline: its own words, short. */
-function headlineOf(world: World, t: Told, year: number): string {
-  const words = plain(toldWords(world, t, year))
-    // (How many more like it is the line's to say.)
-    .replace(/, and (?:\w+|[\d,]+) more [^,.;:]*?(?=[.;:]|$)/, "")
-    .replace(/, the most of any year in the twenty about it/, ", the most in twenty years")
-    .replace(/, the most of any year in (\w+) years/, ", the most in $1 years")
-    // (Several realms fallen: by their short names, so the headline holds who they were.)
-    .replace(
-      /^(\w+) realms came to an end: (.*)$/,
-      (_, n: string, names: string) =>
-        `${n} realms fell: ${names.replace(/\bthe [a-z][a-z ]*? of (?=\p{Lu})/gu, "")}`,
+const SAME = new WeakMap<
+  World,
+  {
+    stamp: string;
+    /** Where in the log each kind's events lie: read once, from its column of kinds alone. */
+    rows: Map<string, number[]>;
+    by: Map<string, { t: number; who: string; i: number }[]>;
+  }
+>();
+
+/**
+ * Whether a headline was said before of the same one, said after it ("…, for the second time"): a realm of a name ends, and
+ * centuries on another of that name does; a coup in a realm is foiled, and again. Only where the earlier headline is the same
+ * word for word: a seat that passes thirty times passes each time to another. Read from the log's own column of kinds, a kind
+ * at a time, and kept until the log moves on.
+ */
+function againWords(world: World, t: Told, said: string): string {
+  const e = world.events.get(t.ref as Ref);
+  // (A line of many happenings, or a count, is its own; and what a land suffers again says its own numbers.)
+  if (!e || t.key !== e.type || !e.subjects[0]?.startsWith("pol:")) return "";
+  const stamp = stampOf(world);
+  let kept = SAME.get(world);
+  if (!kept || kept.stamp !== stamp) {
+    const rows = new Map<string, number[]>(),
+      log = world.events;
+    for (let i = 0; i < log.count; i++) {
+      // (What mattered little is never a headline.)
+      if (log.importanceAt(i) < 3) continue;
+      const type = log.at(i).type,
+        list = rows.get(type);
+      if (list) list.push(i);
+      else rows.set(type, [i]);
+    }
+    SAME.set(world, (kept = { stamp, rows, by: new Map() }));
+  }
+  let list = kept.by.get(e.type);
+  if (!list) {
+    list = [];
+    for (const i of kept.rows.get(e.type) ?? []) {
+      const x = world.events.at(i);
+      if (x.subjects[0]) list.push({ t: x.t, who: x.subjects.join("|"), i });
+    }
+    kept.by.set(e.type, list);
+  }
+  // (A realm's seat names it whatever its rule is called from age to age.)
+  const seatOf = (ref: string) => politiesOf(world).get(ref as Ref)?.town ?? "",
+    who = e.subjects.join("|"),
+    name = seatOf(e.subjects[0]),
+    like: number[] = [];
+  for (const x of list) {
+    if (x.t >= e.t) break;
+    if (x.who === who || (name && seatOf(x.who.split("|")[0]!) === name)) like.push(x.i);
+  }
+  // (The last few dozen of them are read for their words: a headline said longer ago than that is said again.)
+  // (The same up to its first break: what follows a comma is how, or by whom, and may differ.)
+  const head = said.split(/, |: |…/)[0]!;
+  let same = 0;
+  for (const i of like.slice(-8)) {
+    const x = world.events.at(i);
+    if (headWords(world, lineOf(world, x, yearOfMoment(x.t))).startsWith(head)) same++;
+  }
+  if (!same) return "";
+  return e.type === "polity.ended"
+    ? `, the ${ordinal(same + 1)} of that name`
+    : `, for the ${ordinal(same + 1)} time`;
+}
+
+/** A line as a headline's words, before they are cut short: who, where, how many. */
+function headWords(world: World, line: Line): string {
+  const g = world.hasStore("planet.home") ? homePlanet(world).generated : null;
+  return (
+    line
+      // (A land with no name of its own is told by where it lies: "the hot desert" is a hundred lands.)
+      .map((s) => {
+        if (typeof s === "string") return s;
+        const cell = cellOf(s.ref);
+        if (
+          !g ||
+          cell < 0 ||
+          cell >= g.offworld.base ||
+          /\p{Lu}/u.test(s.text.replace(/^The /, "the "))
+        )
+          return s.text;
+        const lat = (g.grid.lat[cell]! * 180) / Math.PI,
+          lon = (g.grid.lon[cell]! * 180) / Math.PI;
+        return `${s.text} at ${Math.abs(Math.round(lat))}°${lat < 0 ? "S" : "N"} ${Math.abs(Math.round(lon))}°${lon < 0 ? "W" : "E"}`;
+      })
+      .join("")
+      // (How many more like it is the line's to say.)
+      .replace(/, and (?:\w+|[\d,]+) more [^,.;:]*?(?=[.;:]|$)/, "")
+      // (Signals heard: from how far, not what they looked like who sent them.)
+      .replace(/ — [^—]*?, of a world ([\d.]+ light-years) away — .*$/, " $1 away")
+      // (What all the world waits on: who stands at the brink is the headline.)
+      .replace(/^The whole world holds its breath: (.)/, (_, c: string) => `At the brink: ${c}`)
+      // (Several realms fallen: by their short names, so the headline holds who they were.)
+      .replace(
+        /^(\w+) realms came to an end: (.*)$/,
+        (_, n: string, names: string) =>
+          `${n} realms fell: ${names.replace(/\bthe [a-z][a-z ]*? of (?=\p{Lu})/gu, "")}`,
+      )
+  );
+}
+
+/** A line's headline with nothing said after it: cut where it has named someone or counted something. */
+function baseHeadline(world: World, line: Line, room = 0): string {
+  const words = headWords(world, line),
+    short = clip(words, 96 - room),
+    names = line.flatMap((s) =>
+      typeof s !== "string" && /\p{Lu}/u.test(s.text.slice(1)) ? [s.text] : [],
     );
-  return clip(words);
+  // (Cut before it named anyone or counted anything: the longer cut, which does.)
+  if (
+    short.length < words.replace(/[.!?…]+$/, "").length &&
+    !/\d/.test(short) &&
+    !names.some((n) => short.includes(n))
+  )
+    return clip(words, 118 - room);
+  return short;
+}
+
+/** A line's headline: its own words, short, and holding who or where or how many, so that no two years share one. */
+function headlineOf(world: World, t: Told, year: number): string {
+  const line = toldWords(world, t, year),
+    again = againWords(world, t, baseHeadline(world, line));
+  return again ? `${baseHeadline(world, line, again.length)}${again}` : baseHeadline(world, line);
 }
 
 /** What a lead's picture shows, by its happening's kind. */
 const TYPE_MOTIF: readonly (readonly [RegExp, ToldMotif])[] = [
   [/^(planet\.eruption|wild\.rise)/, "eruption"],
+  [/^(war\.fleet)/, "ship"],
+  [/^(held\.(crime|fled)|ecology\.sea-few)/, "fall"],
+  [/^(held\.reckoned|bodies\.sentenced)/, "crown"],
+  [/^(held\.settled)/, "peace"],
+  [/^(groups\.struck|underworld\.struck)/, "strife"],
   [/^(fire\.clear|wild\.answer)/, "found"],
   [/^(act\.quake)/, "quake"],
   [/^(act|toy)\.flood/, "flood"],
@@ -636,33 +799,81 @@ function eventItem(world: World, e: HistoryEvent, under: number): ToldItem {
   return { line: y === under ? line : [`${y}: `, ...line], ref: e.id, year: y };
 }
 
-/** What led to a happening: the strongest of its causes, a step or two back, as far as history holds them. */
+/** How far back, in years, a cause counts for half of what one of the year itself does; how old one is called "long before". */
+const NEAR_YEARS = 8,
+  LONG_BEFORE = 40;
+
+/**
+ * What led to a happening: of the happenings behind it (its causes, and theirs, through the choices between), the one a reader
+ * would call the reason, by how much it weighed in what followed and how near it lies. The 1,493 coup of Baisholt named a land
+ * that learned a standing army in 659: the heaviest link at each step, eight centuries back. A root long before is kept as a
+ * second line, said to be so, only where it mattered greatly.
+ */
 function ledTo(world: World, ref: string, year: number): ToldItem[] {
-  const out: ToldItem[] = [],
-    seen = new Set<string>([ref]);
-  let node = why(world, ref as Ref);
-  for (let step = 0; step < 6 && out.length < 2; step++) {
-    const edge = [...node.causes].sort((a, b) => b.cause.weight - a.cause.weight)[0];
-    if (!edge || seen.has(edge.cause.ref)) break;
-    seen.add(edge.cause.ref);
-    node = edge.next();
-    if (node.basis === "unknown") break;
-    // (A choice between them is told on the happening's own page, with what weighed in it: here, what happened before.)
-    const e = world.events.get(node.ref);
-    if (e) {
-      out.push(eventItem(world, e, year));
-      continue;
-    }
-    if (!world.events.tombstone(node.ref)) continue;
-    // (Forgotten but for its outline: its words, without where on the globe it lay.)
-    const y = node.t === null ? null : yearOfMoment(node.t),
-      words = sentence(withoutYear(node.claim, y ?? year))
-        .replace(/ at -?\d[\d.]*°[NS] -?\d[\d.]*°[EW]/g, "")
-        .replace(/\.$/, "");
+  type Found = { e: HistoryEvent; weight: number; depth: number };
+  const found = new Map<string, Found>(),
+    seen = new Set<string>([ref]),
+    walk = (id: string, weight: number, depth: number, steps: number) => {
+      // (No more than a score of what lies behind it is read: each may be a far year's, unpacked for the asking.)
+      if (steps > 8 || depth > 3 || ++read > 20) return;
+      const node = why(world, id as Ref),
+        top = Math.max(1e-9, ...node.causes.map((c) => Math.abs(c.cause.weight)));
+      for (const edge of [...node.causes]
+        .sort((a, b) => b.cause.weight - a.cause.weight)
+        .slice(0, 3)) {
+        const to = edge.cause.ref;
+        if (seen.has(to) || edge.cause.weight <= 0) continue;
+        seen.add(to);
+        const w = weight * (edge.cause.weight / top),
+          e = world.events.get(to);
+        // (A choice between them is told on the happening's own page, with what weighed in it: here, what happened before.)
+        if (e) {
+          found.set(to, { e, weight: w, depth: depth + 1 });
+          walk(to, w * 0.6, depth + 1, steps + 1);
+        } else walk(to, w, depth, steps + 1);
+      }
+    };
+  let read = 0;
+  walk(ref, 1, 0, 0);
+  const of = world.events.get(ref as Ref),
+    mine = new Set<string>([...(of?.subjects ?? []), ...(of?.place ? [of.place] : [])]);
+  if (!found.size) return [];
+  const ago = (f: Found) => Math.max(0, year - yearOfMoment(f.e.t)),
+    score = (f: Found) => (f.weight * (2 + f.e.importance)) / (1 + ago(f) / NEAR_YEARS),
+    // (What lies long before is no one's reason for a thing unless it mattered greatly: it is the root, or nothing.)
+    ranked = [...found.values()]
+      .filter((f) => ago(f) < LONG_BEFORE)
+      .sort((a, b) => score(b) - score(a) || b.e.t - a.e.t),
+    reason = ranked[0],
+    // (What a year's turn did is stamped a breath after what it caused: told as of the same year.)
+    item = (e: HistoryEvent): ToldItem =>
+      yearOfMoment(e.t) > year
+        ? { line: lineOf(world, e, yearOfMoment(e.t)), ref: e.id, year }
+        : eventItem(world, e, year),
+    out = reason ? [item(reason.e)] : [],
+    // (A second of the same years, where one weighs nearly as much.)
+    second = reason
+      ? ranked.find((f) => f !== reason && score(f) >= 0.6 * score(reason))
+      : undefined,
+    root = [...found.values()]
+      // (Telling: it mattered greatly, weighed much in what followed, lies within a few lifetimes, and is of the same
+      // realm or the same land.)
+      .filter(
+        (f) =>
+          ago(f) >= LONG_BEFORE &&
+          ago(f) <= 250 &&
+          f.e.importance >= 5 &&
+          f.weight >= 0.35 &&
+          (f.e.subjects.some((x) => mine.has(x)) || (!!f.e.place && mine.has(f.e.place))),
+      )
+      .sort((a, b) => b.weight * b.e.importance - a.weight * a.e.importance)[0];
+  if (second) out.push(item(second.e));
+  if (root) {
+    const y = yearOfMoment(root.e.t);
     out.push({
-      line: [y !== null && y !== year ? `${y}: ${words}.` : `${words}.`],
-      ref: node.ref,
-      ...(y !== null ? { year: y } : {}),
+      line: [`Long before, in ${y}: `, ...lineOf(world, root.e, y)],
+      ref: root.e.id,
+      year: y,
     });
   }
   return out;
@@ -730,9 +941,12 @@ function against(
     amount = sharePoints
       ? `${sign}${Math.abs(Math.round(d * 100))} points`
       : Math.abs(was) >= 100
-        ? Math.abs(d / was) >= 0.1
-          ? `${sign}${Math.round(Math.abs(d / was) * 100)}%`
-          : `${sign}${(Math.abs(d / was) * 100).toFixed(1)}%`
+        ? d / was >= 2
+          ? // (Many times over is said so: "+3084%" is no one's way of saying thirty-two times.)
+            `${count(Math.round(now / was))} times what it was,`
+          : Math.abs(d / was) >= 0.1
+            ? `${sign}${Math.round(Math.abs(d / was) * 100)}%`
+            : `${sign}${(Math.abs(d / was) * 100).toFixed(1)}%`
         : `${sign}${count(Math.abs(d))}`;
   return { words: `${amount} ${words}`, way } as const;
 }
@@ -1037,7 +1251,8 @@ function quietLines(world: World, r: Reader, year: number) {
           ref: r.realm ? `${r.realm}#wars` : "world:ledger#wars",
         });
         if (since >= 3)
-          headline = `The ${ordinal(since)} year of peace${headline ? `, ${headline.replace(/^A (quiet|still) year: /, "")}` : ""}`;
+          // (Of a realm, no war on its own world: its fleets may be years out among the stars.)
+          headline = `${r.realm ? `Its ${ordinal(since)} year with no war at home` : `The world's ${ordinal(since)} year without a war`}${headline ? `: ${headline.replace(/^A (quiet|still) year: /, "")}` : ""}`;
       }
     }
   }
@@ -1045,6 +1260,36 @@ function quietLines(world: World, r: Reader, year: number) {
 }
 
 // ————— The sections —————
+
+/** What was counted of a side of life, said: its four first kinds that there were any of. */
+export function sectionSentence(id: string, counts: ReadonlyMap<string, number>): string {
+  const table = COUNTED[id as SectionId] ?? [],
+    parts: string[] = [],
+    seen = new Set<string>();
+  for (const [type, one, more] of table) {
+    const n = counts.get(type) ?? 0;
+    // (Two kinds told in the same words are one count.)
+    if (!n || seen.has(one)) continue;
+    const sum =
+      n +
+      table
+        .filter((c) => c[1] === one && c[0] !== type)
+        .reduce((k, c) => k + (counts.get(c[0]) ?? 0), 0);
+    seen.add(one);
+    parts.push(`${said(sum)} ${sum === 1 ? one : more}`);
+    if (parts.length >= 4) break;
+  }
+  return clauses(parts);
+}
+
+/** The side of life and the picture a kind of event is told by (for a check that every kind has both). */
+export function toldPlace(type: string): { section: string; ruled: boolean; motif: string } {
+  return {
+    section: TYPE_SECTION[type] ?? DOMAIN_SECTION[type.slice(0, type.indexOf("."))] ?? "power",
+    ruled: !!(TYPE_SECTION[type] ?? DOMAIN_SECTION[type.slice(0, type.indexOf("."))]),
+    motif: TYPE_MOTIF.find(([re]) => re.test(type))?.[1] ?? "found",
+  };
+}
 
 function sectionsOf(
   world: World,
@@ -1081,20 +1326,8 @@ function sectionsOf(
           kinds.add(x.t.key);
           return true;
         })
-        .slice(0, SECTION_LINES),
-      parts: string[] = [],
-      seen = new Set<string>();
-    for (const [type, one, more] of COUNTED[s.id]) {
-      const n = counts.get(type) ?? 0;
-      // (Two kinds told in the same words are one count.)
-      if (!n || seen.has(one)) continue;
-      const also = COUNTED[s.id].filter((c) => c[1] === one && c[0] !== type),
-        sum = n + also.reduce((k, c) => k + (counts.get(c[0]) ?? 0), 0);
-      seen.add(one);
-      parts.push(`${said(sum)} ${sum === 1 ? one : more}`);
-      if (parts.length >= 4) break;
-    }
-    let text = clauses(parts);
+        .slice(0, SECTION_LINES);
+    let text = sectionSentence(s.id, counts);
     if (s.id === "war" && fallen > 0)
       text += ` ${count(fallen)} fell in the battles history still keeps.`;
     if (!all.length && !text) continue;
@@ -1257,12 +1490,47 @@ function mapOf(world: World, r: Reader, from: number, to: number): ToldMap | nul
 
 // ————— The telling —————
 
+const READERS = new WeakMap<
+  World,
+  { stamp: string; at: number; read: number; by: Map<string, Reader> }
+>();
 const TOLD = new WeakMap<World, { stamp: string; at: number; by: Map<string, YearTold> }>();
 
 const stampOf = (world: World) => {
   const n = world.events.count;
   return `${n}:${n ? world.events.at(n - 1).id : ""}`;
 };
+
+/** A year's stretch read ahead of a long run's telling, one asking a stretch: the next year not yet read (null: all read). */
+export function toldWarm(world: World, year: number, to: number): number | null {
+  const now = yearNow(world),
+    last = Math.min(now, to + ABOUT);
+  let y = Math.max(0, Math.min(now, year) - ABOUT);
+  const t0 = performance.now();
+  for (; y <= last; y = (Math.floor(y / STRETCH_YEARS) + 1) * STRETCH_YEARS) {
+    const fresh = !stretchRead(world, y);
+    toldOf(world, y);
+    // (One stretch not yet read an asking, or as many as come in a few milliseconds.)
+    if (fresh && performance.now() - t0 > 25) {
+      const next = (Math.floor(y / STRETCH_YEARS) + 1) * STRETCH_YEARS;
+      return next <= last ? next : null;
+    }
+  }
+  return null;
+}
+
+/** What led to a happening and what came of it, read when a reader opens either. */
+export function toldWays(
+  world: World,
+  ask: { ref: string; year: number; realm?: string | null },
+): { before: ToldItem[]; after: ToldItem[] } {
+  if (!world.events.get(ask.ref as Ref)) return { before: [], after: [] };
+  const realm = ask.realm && politiesOf(world).get(ask.realm as Ref) ? ask.realm : null;
+  return {
+    before: ledTo(world, ask.ref, ask.year),
+    after: cameOf(world, readerOf(world, realm), ask.ref, ask.year),
+  };
+}
 
 /** How many tellings a world keeps now (for a test of its bound). */
 export function toldKept(world: World): number {
@@ -1272,6 +1540,8 @@ export function toldKept(world: World): number {
 /** Let go of everything kept for the tellings (a measure of what they hold; the log's moving on does the same). */
 export function toldForget(world: World): void {
   TOLD.delete(world);
+  SAME.delete(world);
+  READERS.delete(world);
   PEOPLE.delete(world);
   WARS.delete(world);
   GONE.delete(world);
@@ -1347,20 +1617,31 @@ function leadOf(
     headline: headlineOf(world, t, year),
     lines,
     vignette: vignetteOf(world, t, null),
-    before: isEvent ? ledTo(world, t.ref, year) : [],
-    after: isEvent ? cameOf(world, r, t.ref, year) : [],
+    // (What led to it and what came of it are read when a reader asks: each may be a far year's.)
+    before: [],
+    after: [],
+    ...(isEvent ? { ways: { ref: t.ref, year } } : {}),
   };
 }
 
 /** A year told, or a run of years, of the world or of one realm. */
-export function yearTold(world: World, ask: { year: number; to?: number; realm?: string | null }) {
+export function yearTold(
+  world: World,
+  ask: {
+    year: number;
+    to?: number;
+    realm?: string | null;
+    /** Its lead alone, the rest to be asked after (a long run of years, drawn as it comes). */
+    lead?: boolean;
+  },
+) {
   const t0 = performance.now(),
     now = yearNow(world),
     first = firstYear(world),
     year = Math.max(0, Math.min(now, Math.round(ask.year))),
     to = Math.max(year, Math.min(now, Math.round(ask.to ?? year), year + TOLD_SPAN - 1)),
     realm = ask.realm && politiesOf(world).get(ask.realm as Ref) ? ask.realm : null,
-    key = `${year}..${to}|${realm ?? ""}`,
+    key = `${year}..${to}|${realm ?? ""}${ask.lead ? "|lead" : ""}`,
     stamp = stampOf(world);
   let kept = TOLD.get(world);
   if (!kept || kept.stamp !== stamp || kept.at !== now)
@@ -1371,8 +1652,18 @@ export function yearTold(world: World, ask: { year: number; to?: number; realm?:
     kept.by.set(key, was);
     return was;
   }
-  const r = readerOf(world, realm),
-    // (A world no one lives on, and never has: its years are its own.)
+  // (The reading of its years is kept from a run's lead to the rest of it: the same years, weighed once.)
+  let readers = READERS.get(world);
+  if (!readers || readers.stamp !== stamp || readers.at !== now)
+    READERS.set(world, (readers = { stamp, at: now, read: 0, by: new Map() }));
+  let r = readers.by.get(realm ?? "");
+  if (!r || readers.read > 400) {
+    readers.by.clear();
+    readers.read = 0;
+    readers.by.set(realm ?? "", (r = readerOf(world, realm)));
+  }
+  readers.read += to - year + 1;
+  const // (A world no one lives on, and never has: its years are its own.)
     alone = populationContext(world).provinces.total() === 0 && !politiesOf(world).all().length,
     run = to > year,
     leads: ToldLead[] = [],
@@ -1495,9 +1786,10 @@ export function yearTold(world: World, ask: { year: number; to?: number; realm?:
       leads,
       years,
       moreYears,
-      sections: sectionsOf(world, r, year, to, used),
-      figures: alone ? [] : figuresOf(world, r, to, year),
-      map: mapOf(world, r, year, to),
+      sections: ask.lead ? [] : sectionsOf(world, r, year, to, used),
+      figures: alone || ask.lead ? [] : figuresOf(world, r, to, year),
+      map: ask.lead ? null : mapOf(world, r, year, to),
+      partial: !!ask.lead,
       less: lessOf(world, year, realm),
       art: world.hasStore("planet.home") ? worldArt(world) : null,
       ms: 0,

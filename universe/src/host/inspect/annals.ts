@@ -492,11 +492,14 @@ function oneIn(share: number): string {
 
 /** An event's words for a line that says its year first: the year gone from them, wherever it stood. */
 export function withoutYear(claim: string, year: number): string {
-  return claim
-    .replace(/,? (?:in )?year (-?\d+)(?=[:;,.]|$)/g, (all, n: string) =>
-      Math.abs(Number(n) - year) <= 1 ? "" : all,
-    )
-    .trim();
+  return (
+    claim
+      // (But not the year a thing has stood since: "there since year 1482" is not its date.)
+      .replace(/(?<!\bsince),? (?:in )?year (-?\d+)(?=[:;,.]|$)/g, (all, n: string) =>
+        Math.abs(Number(n) - year) <= 1 ? "" : all,
+      )
+      .trim()
+  );
 }
 
 /** A sentence's end. */
@@ -1457,7 +1460,7 @@ const STRETCH = 16,
   BEFORE = 6,
   AFTER = 12;
 /** The stretches kept: read again when the log has moved on. */
-const STRETCHES_KEPT = 10;
+const STRETCHES_KEPT = 12;
 
 /** A stretch of years as read: every event of each year, and what each year tells. */
 export type Stretch = {
@@ -1583,6 +1586,15 @@ export function eventsOf(world: World, year: number): readonly HistoryEvent[] {
 /** A told line's words (what the explainer keeps of it, where its event has since been forgotten). */
 export function toldWords(world: World, t: Told, year: number): Line {
   return wordsOf(world, t, year);
+}
+
+/** How many years a stretch holds, and whether a year's is read now. */
+export const STRETCH_YEARS = STRETCH;
+export function stretchRead(world: World, year: number): boolean {
+  const kept = STRETCHES.get(world);
+  return (
+    !!kept && kept.stamp === stampOf(world) && kept.by.has(Math.floor(year / STRETCH) * STRETCH)
+  );
 }
 
 /** How many stretches of years a world keeps read now (for a test of its bound). */

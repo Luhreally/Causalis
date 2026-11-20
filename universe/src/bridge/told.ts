@@ -50,6 +50,8 @@ export type ToldLead = {
   /** What led to it, and what came of it, as far as history holds either. */
   readonly before: readonly ToldItem[];
   readonly after: readonly ToldItem[];
+  /** The happening whose causes and outcomes are read when the reader asks for them (none: a count, a quiet year). */
+  readonly ways?: { readonly ref: string; readonly year: number };
 };
 
 export type ToldSection = {
@@ -140,6 +142,8 @@ export type YearTold = {
   readonly less: Line | null;
   /** The world its pictures are drawn in the colours of. */
   readonly art: PageArt["world"] | null;
+  /** Its lead alone: its sections, numbers and map are asked for after it. */
+  readonly partial?: boolean;
   /** How long it took to read (ms), for a gate to weigh. */
   readonly ms: number;
 };

@@ -37,6 +37,9 @@ interface ToldKept {
 /** A world's lands as the map draws them: asked once a world, the last two kept. */
 const BASES = new Map<string, ToldMapBase>();
 
+/** A run of this many years or more is read a piece at a time. */
+const LONG_RUN = 30;
+
 /** How many of these stand in a page now: when the last is shut, the host lets go of what it kept for them. */
 let standing = 0;
 
@@ -173,6 +176,48 @@ export function drawTold(
     };
     ways("What led to this", lead.before, "told-before");
     ways("What came of this", lead.after, "told-after");
+    // Read when either is opened, once: what lies behind a happening may be a far year's.
+    if (lead.ways) {
+      const asked = lead.ways,
+        boxes = (["before", "after"] as const).map((side) => {
+          const more = el("details", `told-ways told-${side}`);
+          more.append(
+            el("summary", undefined, side === "before" ? "What led to this" : "What came of this"),
+          );
+          s.append(more);
+          return more;
+        });
+      let got = false;
+      const open = async () => {
+        if (got) return;
+        got = true;
+        for (const b of boxes) b.append(el("p", "muted told-note", "Reading…"));
+        let w: { before: ToldItem[]; after: ToldItem[] } = { before: [], after: [] };
+        try {
+          w = await ctx.client.query({ type: "told.ways", args: { ...asked, realm } });
+        } catch {
+          // (Nothing to show of it.)
+        }
+        boxes.forEach((b, i) => {
+          const items = i ? w.after : w.before;
+          b.replaceChildren(
+            b.firstElementChild!,
+            ...(items.length
+              ? items.map((x) => lineOf(x, "told-way"))
+              : [
+                  el(
+                    "p",
+                    "muted told-note",
+                    i
+                      ? "History holds nothing yet that names it as its cause."
+                      : "History holds no happening behind it: it began with those who did it.",
+                  ),
+                ]),
+          );
+        });
+      };
+      for (const b of boxes) b.addEventListener("toggle", () => b.open && void open());
+    }
     return s;
   };
 
@@ -400,7 +445,7 @@ export function drawTold(
     );
     const parts: (HTMLElement | null)[] = [];
     t.leads.forEach((l, i) => parts.push(leadPart(l, i, t)));
-    if (t.less) {
+    if (t.less && !t.partial) {
       const less = el("p", "told-less");
       lineInto(less, t.less, ctx.open);
       parts.push(less);
@@ -437,17 +482,39 @@ export function drawTold(
     const mine = ++token,
       t0 = performance.now();
     box.classList.add("reading");
-    let t: YearTold;
+    let t: YearTold,
+      longest = 0;
+    /** One asking of the host, and how long the longest of this reading took. */
+    const ask = async <T>(type: string, args: Record<string, unknown>): Promise<T> => {
+      const a0 = performance.now(),
+        got = await ctx.client.query<T>({ type, args });
+      longest = Math.max(longest, performance.now() - a0);
+      return got;
+    };
     try {
-      t = await ctx.client.query<YearTold>({
-        type: "told.read",
-        args: { year: y, to: end, realm },
-      });
+      if (end - y >= LONG_RUN) {
+        // A long run of years is read a stretch an asking, so the host is never held long; its lead is drawn as soon as
+        // its years are read, and its sections, numbers and map when they come.
+        kicker.replaceChildren(el("span", "told-kicker-year", `Reading ${y} to ${end}…`));
+        for (let next: number | null = y; next !== null;) {
+          next = await ask<number | null>("told.warm", { year: next, to: end });
+          if (mine !== token || !box.isConnected) return;
+        }
+        const lead = await ask<YearTold>("told.read", { year: y, to: end, realm, lead: true });
+        if (mine !== token || !box.isConnected) return;
+        fill(lead, at);
+        body.append(
+          el("p", "muted told-note told-coming", "Its years, numbers and map are being read…"),
+        );
+        at = where();
+      }
+      t = await ask<YearTold>("told.read", { year: y, to: end, realm });
     } catch {
       box.classList.remove("reading");
       return;
     }
     if (mine !== token || !box.isConnected) return;
+    box.dataset.longest = longest.toFixed(1);
     TOLD_COST.read = performance.now() - t0;
     TOLD_COST.art = 0;
     TOLD_COST.drawn = 0;

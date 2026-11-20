@@ -162,7 +162,7 @@ import {
 } from "./inspect/index.ts";
 import { linesWere } from "./inspect/townlife.ts";
 import { annalsIndex, annalsRead, runTold } from "./inspect/annals.ts";
-import { toldBase, toldForget, toldGone, yearTold } from "./inspect/told.ts";
+import { toldBase, toldForget, toldGone, toldWarm, toldWays, yearTold } from "./inspect/told.ts";
 import { ANNALS_SEARCH_QUERIES } from "./inspect/annals-search.ts";
 import { askedKey, townOffers } from "./inspect/asks.ts";
 import { MAP_QUERIES } from "./map.ts";
@@ -1761,7 +1761,16 @@ function planetUniverse(name: string, prior: Prior): Universe {
       },
       // A year told, of the world or of a realm, or a run of years: read when its page asks (bridge/told.ts).
       "told.read": (world, args) =>
-        yearTold(world, args as { year: number; to?: number; realm?: string | null }),
+        yearTold(
+          world,
+          args as { year: number; to?: number; realm?: string | null; lead?: boolean },
+        ),
+      "told.ways": (world, args) =>
+        toldWays(world, args as { ref: string; year: number; realm?: string | null }),
+      "told.warm": (world, args) => {
+        const a = args as { year: number; to: number };
+        return toldWarm(world, a.year, a.to);
+      },
       "told.base": (world) => toldBase(world),
       "told.gone": (world, args) => toldGone(world, (args as { year: number }).year),
       // (Its page shut: what was kept for it is let go.)
