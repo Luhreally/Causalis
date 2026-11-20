@@ -216,7 +216,9 @@ export const INST = {
    * A realm's bodies are reckoned once in this many years, in its turn (a year after its groups), stepped as many at once: a
    * body's affairs are settled over years (five was tried: twice the system's year for the same bodies).
    */
-  every: 10,
+  // (Twelve since the bodies came to act on those of name: a sixth less of the system's year, which their strikes, their
+  // tellings, their trials and a ninth more bodies had made a third dearer. Every rate here is by the years stepped.)
+  every: 12,
   /**
    * The bodies a realm keeps account of (the rest too small to be named): so many for a realm of one land and so many more
    * for each land beyond, to the most; the ended ones it remembers; a body's lands. (Fourteen for every realm was tried: a
