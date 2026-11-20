@@ -241,6 +241,7 @@ export {
   WALL_BEARINGS,
   WALL_CLEAR,
   WALL_OUT,
+  WALLS_RING_MOST,
   wallAt,
   wallLineOf,
   wallLong,

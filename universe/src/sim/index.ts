@@ -1559,6 +1559,7 @@ export {
   SiegeStore,
   siegeAt,
   wallsOf,
+  wallsStand,
   siegeOf,
   siegesOf,
   siegesYear,

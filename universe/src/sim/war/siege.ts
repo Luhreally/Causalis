@@ -1,6 +1,7 @@
-// Sieges, as they are fought (the last sweep, war; the rules are rules/siege.ts). In a war's year (sim/war/war.ts), a battle won at
-// the defender's seat, or before any land of its that knows how to raise walls or has raised them, lays a siege where none is
-// laid (only where a battle was won that year, so a war has one at a time). Each later year that the besiegers win there again,
+// Sieges, as they are fought (the last sweep, war; the rules are rules/siege.ts). In a war's year (sim/war/war.ts), a battle won
+// before a land of the defender's that stands behind walls (a town of it whose walls are done and still ring it), its seat or
+// not, lays a siege where none is laid (a land with none is stormed or entered with the field; only where a battle was won that
+// year, so a war has one at a time). Each later year that the besiegers win there again,
 // the siege goes one year on. The town eats into what it had in store, fed only by what its walls grow and its ships bring in. The walls open by
 // what the besiegers know and throw. Their camp sickens and the town sickens and starves, and those deaths are written into the
 // lands' ledgers. The land falls when its walls are open (stormed) or its stores are gone (starved). A year the besiegers lose
@@ -21,6 +22,7 @@ import { cellRef } from "../../gen/index.ts";
 import {
   BANDS,
   FOODS,
+  WALLS_OUTGROWN,
   apportionCapped,
   siegeStep,
   storeMonths,
@@ -30,6 +32,7 @@ import { marketsOf, mouths, type PopulationContext } from "../population/systems
 import { COLS, ROWS } from "../population/model.ts";
 import { politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import { loreOf } from "../lore/lore.ts";
+import { townsOf } from "../town/fabric.ts";
 import { handOf } from "../hand/hand.ts";
 import { levyOf } from "./levy.ts";
 import { coastal, seaRelief } from "./navy.ts";
@@ -203,6 +206,20 @@ function landYear(
       careTown: lore.effect(seat, "health"),
     }),
   };
+}
+
+/**
+ * Whether a land stands behind walls: a peopled town of it whose walls are done and still ring it (not grown past them so far that
+ * they were pulled down). A land behind walls is besieged; one without is stormed or entered, its town taken with the field.
+ */
+export function wallsStand(ctx: PopulationContext, land: number, year: number): boolean {
+  const towns = townsOf(ctx.world);
+  for (const s of ctx.settlements.kept(land)) {
+    const f = s.population > 0 ? towns.of(s) : undefined,
+      w = f?.walls;
+    if (w && w.end <= year && f!.next < w.reach * WALLS_OUTGROWN) return true;
+  }
+  return false;
 }
 
 /** The principles of walls a land knows, and the walls its towns raised as so many more (sim/town/asks.ts guard: a principle's worth, 0.25, a battle reads). */

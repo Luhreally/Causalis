@@ -9,6 +9,11 @@
 
 /** The bearings a wall line is read at (each two and a half degrees: at 300 m out, 13 m apart). */
 export const WALL_BEARINGS = 144;
+/**
+ * How many times the lots its walls rang a town has grown to when it pulls them down, a ring street where they stood (history's
+ * siege reads the same: rules/siege.ts WALLS_OUTGROWN, a land besieged only while it stands behind walls).
+ */
+export const WALLS_RING_MOST = 3;
 /** How far out from the lots it was raised about a wall runs (metres), and the least it keeps where it draws in to a bank. */
 export const WALL_OUT = 8,
   WALL_CLEAR = 4;
