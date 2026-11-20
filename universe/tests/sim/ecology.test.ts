@@ -10,14 +10,18 @@ import {
   makePopulationWorld,
   marketsOf,
   populationContext,
+  provinceCapacity,
+  row,
   grainLost,
   stepWilds,
   waterYield,
   wildsOf,
   type Wilds,
 } from "../../src/sim/index.ts";
+import type { Province } from "../../src/sim/population/model.ts";
 import { why } from "../../src/causal/index.ts";
-import { G } from "../../src/rules/index.ts";
+import { G, MALE, OCC } from "../../src/rules/index.ts";
+import { farmedOf } from "../../src/sim/ecology/farmed.ts";
 import { peopledWorld } from "../worlds.ts";
 
 const fresh = (): Wilds => ({
@@ -159,6 +163,27 @@ test("a land's harvest is what its soil still gives; its wood, what its forest s
     { ...wildsOf(ctx, cell), wild: 0.5, soil: 0.25, small: 1, fish: 1 },
   );
   assert.deepEqual([c.forage, c.farm, c.pasture], [50, 50, 50]);
+});
+
+test("ground no plough can turn has no fields on it, whoever there is called a farmer", () => {
+  const world = peopledWorld("first light", 120),
+    ctx = populationContext(world),
+    tillable = ctx.provinces.all().find((p) => provinceCapacity(ctx, p.cell).farm > 1000)!;
+  // (A land that can be lived on and not tilled, as the cold dry tundra about first light's land 364 is.)
+  let cold = 0;
+  while (!(provinceCapacity(ctx, cold).forage > 0 && provinceCapacity(ctx, cold).farm === 0))
+    cold++;
+  const untillable = {
+    cell: cold,
+    occupation: (o: number) => (o === OCC.farmer ? 40 : 0),
+  } as Province;
+  tillable.counts.add(row(MALE, 5), OCC.farmer, 40);
+  // (Until 2026-11-20 forty farmers on tundra read as fields over all of it, and its game fell to the fifth the fields leave.)
+  assert.equal(farmedOf(ctx, untillable), 0);
+  assert.ok(farmedOf(ctx, tillable) > 0, "and they till where there is ground to till");
+  const w = { ...fresh(), forest: 1 };
+  for (let y = 0; y < 10; y++) stepWilds(w, 0.3, farmedOf(ctx, untillable), 0);
+  assert.ok(w.wild > 0.95 && w.forest === 1 && w.soil === 1, `wild ${w.wild.toFixed(2)}`);
 });
 
 test("where people press the land hard, its turns for the worse enter history", () => {
