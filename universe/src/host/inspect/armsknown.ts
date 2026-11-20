@@ -9,7 +9,7 @@ import { BEAMS, FIREARMS, partWords, realization, type Part } from "../../rules/
 import { designsOf, knows, loreOf, politiesOf, populationContext } from "../../sim/index.ts";
 import { principleName } from "../../causal/index.ts";
 import type { Block, Line, Stat } from "../../bridge/index.ts";
-import { count, stat } from "./words.ts";
+import { count, many, stat } from "./words.ts";
 import { landLink, realmLink } from "./names.ts";
 
 /** The arms of shot, least to greatest of each line: each a host's part, known by one principle. */
@@ -121,7 +121,7 @@ export function carriedStats(world: World, principle: string): Stat[] {
   return [
     stat(
       "Carried by",
-      `${count(carry)} of the ${count(know)} realms whose seats know it now; ${count(ever.size)} realms have armed a host with it at some time. Knowing it is not carrying it: a host is armed with what its seat can get made and what its realm thinks best for the field.`,
+      `${count(carry)} of the ${many(know, "realm whose seat knows", "realms whose seats know")} it now; ${ever.size === 1 ? "1 realm has" : `${count(ever.size)} realms have`} armed a host with it at some time. Knowing it is not carrying it: a host is armed with what its seat can get made and what its realm thinks best for the field.`,
     ),
   ];
 }

@@ -78,13 +78,16 @@ const world = (() => {
   return () => (cached ??= universeWorld(EARTH, "first light", 220));
 })();
 /** The realm whose seat knows least: the longest road for the act to give. */
-const least = (w: World): Polity => {
-  const lore = loreOf(w);
-  return [...politiesOf(w).living()]
-    .filter((r) => (populationContext(w).provinces.get(r.seat)?.total() ?? 0) > 0)
-    .sort(
-      (a, b) => lore.of(a.seat).length - lore.of(b.seat).length || (a.ref < b.ref ? -1 : 1),
-    )[0]!;
+const least = (w: World, unsmelted = false): Polity => {
+  const lore = loreOf(w),
+    c = populationContext(w),
+    peopled = [...politiesOf(w).living()].filter(
+      (r) => (c.provinces.get(r.seat)?.total() ?? 0) > 0,
+    ),
+    cold = peopled.filter((r) => !knows(c, r.seat, "metalworking"));
+  return (unsmelted && cold.length ? cold : peopled).sort(
+    (a, b) => lore.of(a.seat).length - lore.of(b.seat).length || (a.ref < b.ref ? -1 : 1),
+  )[0]!;
 };
 
 test("an age of learning gives each craft after what it needs, and the gun long before the rocket", () => {
@@ -122,16 +125,21 @@ test("an age of learning gives each craft after what it needs, and the gun long 
 
 test("pressed again and again, no land of the realm holds a rocket without a gun; its pages say what is carried", () => {
   const w = universeWorld(EARTH, "first light", 220),
-    r = least(w),
+    // (One that cannot smelt yet, where there is one: the gift of smelting must take hold, or bronze and all on it stay shut.)
+    r = least(w, true),
     god = { realm: r.ref, ruler: r.ruler.name, channel: true },
     lore = loreOf(w),
     c = populationContext(w);
   let gunAt = 0,
     rocketAt = 0;
   for (let press = 1; press <= 9; press++) {
-    const at = w.now;
+    const at = w.now,
+      promised = godLearning(c, r.seat, 12);
     w.submit("reign.god", { ...god, what: "age", crafts: 12 });
     w.runTo(at + 2);
+    // (Each craft told is held after: none is given again at the next press.)
+    for (const id of promised)
+      assert.ok(knows(c, r.seat, id), `press ${press}: ${id} was told and is not known`);
     for (const cell of r.members) {
       if (!c.provinces.get(cell)?.total()) continue;
       const gun = !!lore.get(cell, "firearms");
@@ -146,6 +154,10 @@ test("pressed again and again, no land of the realm holds a rocket without a gun
     if (!gunAt && lore.get(r.seat, "firearms")) gunAt = press;
     if (!rocketAt && lore.get(r.seat, "rocketry")) rocketAt = press;
   }
+  assert.ok(
+    knows(c, r.seat, "metalworking") && knows(c, r.seat, "bronze"),
+    "no smelting, no bronze",
+  );
   assert.ok(gunAt > 0 && rocketAt > 0, "nine ages gave no gun or no rocket");
   assert.ok(gunAt <= rocketAt, `the gun at press ${gunAt}, the rocket at ${rocketAt}`);
   // (Known at once; carried only when its host is next armed, and only if it is: the page says which.)
