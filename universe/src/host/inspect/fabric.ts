@@ -560,6 +560,7 @@ function townFormWhys(world: World, town: Ref, f: Fabric): string[] {
     ...(site.surveys ? { surveys: site.surveys } : {}),
     place: blocks.place ?? null,
     ring: !!f.walls && !walled,
+    ...(site.tilled ? { tilled: { fed: site.tilled.until, roads: site.roads.length } } : {}),
     height: held ? (held.keep ? "keep" : "shrine") : null,
     temple,
     tall: top >= 3,

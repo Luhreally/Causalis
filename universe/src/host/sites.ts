@@ -5,7 +5,9 @@
 // measured out before it was built — its land writing, and the town founded since, or walled since and grown out past its
 // walls; its walls; and whether it has flooded and learned to keep off the ground toward its water. All read, none kept.
 import { YEAR, yearOfMoment, type Ref, type World } from "../kernel/index.ts";
-import { WATER, isProvinceWorld } from "../gen/index.ts";
+import { WATER, isProvinceWorld, offworldSite } from "../gen/index.ts";
+import { landPast } from "./past.ts";
+import { landEra } from "./village.ts";
 import {
   floodWary,
   loreOf,
@@ -286,6 +288,20 @@ export function landWater(
     : {};
 }
 
+/**
+ * Whether a land sows open fields about its towns: not one that forages still, nor one built over from edge to edge
+ * (Phase 66), nor one farmed under roofs on another body, nor a people of the water's (their fields are the shelf's).
+ */
+export function landSows(world: World, cell: number): boolean {
+  const ctx = populationContext(world);
+  return (
+    landEra(world, cell) !== "forage" &&
+    !landPast(world, cell)?.covered &&
+    !offworldSite(ctx.generated, cell) &&
+    ctx.medium !== "water"
+  );
+}
+
 /** A town's site, as its streets are grown from it (`ends`: its land's roads, where they are reckoned already). */
 export function townSiteOf(
   world: World,
@@ -327,11 +343,15 @@ export function townSiteOf(
     walled: f.walls?.reach ?? null,
     dry: f.next < DRY_MOST && floodWary(world, s.cell, year),
     ...landWater(r, i, j, ctx.medium === "water"),
-    // (What its streets were laid for, part by part: bridge/form.ts.)
+    // (What its streets were laid for, part by part: bridge/form.ts. And whether its fields hold it: its land sows, and
+    // until engines came its food was walked in.)
     ...(() => {
       const facts = formFacts(world, ref, f, null),
         laid = facts ? streetsLaid(facts) : undefined;
-      return laid ? { laid } : {};
+      return {
+        ...(laid ? { laid } : {}),
+        ...(landSows(world, s.cell) ? { tilled: { until: facts ? facts.engines : -1 } } : {}),
+      };
     })(),
   };
 }

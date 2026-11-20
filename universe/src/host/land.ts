@@ -44,7 +44,15 @@ import { landEra, townSite } from "./village.ts";
 import { colonyLook } from "./colony.ts";
 import { landPast } from "./past.ts";
 import { getAbout, readRoad } from "./roads.ts";
-import { RAIL_TOWN, busy, goodsBetween, landRoadEnds, realmWays, type RoadEnd } from "./sites.ts";
+import {
+  RAIL_TOWN,
+  busy,
+  goodsBetween,
+  landRoadEnds,
+  landSows,
+  realmWays,
+  type RoadEnd,
+} from "./sites.ts";
 
 /** Lots a land draws of each of its towns at the least (a village's every lot). */
 const LEAST_LOTS = 240;
@@ -85,13 +93,8 @@ export function landPlan(world: World, cell: number, budget = 8000): LandPlan {
     era = landEra(world, cell),
     // (Built over from edge to edge: no fields, nor bands, are left on it. Phase 66.)
     covered = !!landPast(world, cell)?.covered,
-    // (Farmed under its roofs, on another body: no open fields.)
-    // (Nor ashore, for a people of the water: their fields are the shelf's.)
-    fields =
-      era !== "forage" &&
-      !covered &&
-      !offworldSite(populationContext(world).generated, cell) &&
-      populationContext(world).medium !== "water",
+    // (Its towns' fields: the same reading their streets are held back by.)
+    fields = landSows(world, cell),
     plans = new Map<string, TownPlan | null>(),
     // (Its roads, reckoned once: each town's streets meet them, as its map draws them.)
     ends = landRoadEnds(world, cell);

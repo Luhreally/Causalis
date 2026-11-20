@@ -7,7 +7,12 @@
 // grows over, quarter by quarter. Where someone measures the ground out before it is built (a realm's clerks, who can write
 // and record a plot), it is cut into equal straight blocks, as equal lots are the cheapest to measure, record and sell: but
 // only where the ground lies flat enough; on a slope even a measured street bends with it. A wall leaves a ring: what is
-// built after it keeps off its line, which is a ring street once the wall is down.
+// built after it keeps off its line, which is a ring street once the wall is down. And the fields a town lives on hold it
+// back (asked 2026-11-20): a field close in between its roads is worth the walk it saves those who work it, so a block off
+// a road in costs that much more than its going, and the town takes the fronts along its roads first (the quarters with no
+// meaning of their own take theirs there too), building over a field only once the road is built along well past it.
+// So a young town is a street or a star, green between its fingers, and an old, great one is filled; and one whose food
+// comes by engine fills at once.
 //
 // Every block is laid in the order the town takes it, each by the blocks before it and the town's ground alone, so a block
 // never moves as the town grows. Pure: what the eye is given, read from what history keeps; nothing here is kept.
@@ -69,6 +74,13 @@ export type TownSite = {
    * a water tile's own share of each facet. Nothing of the town is laid there: no block, no sprawl; the land's map and the town read one water.
    */
   readonly wet?: { readonly m: number; readonly half: number; readonly cells: string };
+  /**
+   * Its land sows, and its people live on the fields about it (absent: it sows none, or lives on the water's): `until` is
+   * the block it had come to when engines came to carry its food from further off (-1: they have not). While its food is
+   * walked in, a field close in is worth the walk it saves (FIELD_KEEP), and the town builds along its roads before it
+   * builds over one.
+   */
+  readonly tilled?: { readonly until: number };
 };
 
 /** How many times its size a town is drawn on its land's map (so a tile of the map is a fifth of its breadth on the town's ground). */
@@ -253,6 +265,24 @@ const ROAD_WEDGE = 0.55;
 
 /** What the going down a road in costs against a lane's, a metre. */
 export const ROAD_GOING = 0.6;
+
+/**
+ * What a field close in is worth to the town that lives on it, as so many metres of going to its square: about the walk
+ * out to it and back that building over it would add to a working day, were its food grown one field further off for
+ * each built on (TownSite.tilled).
+ */
+export const FIELD_KEEP = 150;
+
+/**
+ * What building at block `b` toward bearing `a` costs a town in the field it stands on (metres of going; 0: none held): the
+ * whole of FIELD_KEEP on level ground, less up or down its slope (a hillside is poorer field, and is not sown), nothing
+ * once its food comes by engine, nothing for a people who pass over their town.
+ */
+export function fieldHold(site: TownSite | null | undefined, b: number, a: number): number {
+  const t = site?.tilled;
+  if (!t || (t.until >= 0 && b >= t.until)) return 0;
+  return FIELD_KEEP / climb(site, a);
+}
 
 /**
  * What the going costs toward bearing `a` from a town's square against level ground: more up or down its slope (by a
@@ -528,17 +558,23 @@ export function grownBlocks(
       t: -h,
     };
   };
-  const costOf = (st: Street, i: number, side: number) => {
+  // (Whether its fields hold it at block b: its land sows, its food is walked in, and it does not pass over its ground.)
+  const held = (b: number) => !over && fieldHold(site, b, 0) > 0;
+  const costOf = (st: Street, i: number, side: number, b = placed) => {
     const { bx, bz } = blockAt(st, i, side),
-      d = Math.hypot(bx, bz);
+      d = Math.hypot(bx, bz),
+      onRoad = st.depth === 0 && road[st.q]! >= 0;
     // (What a block costs is the going to it from the square. Down a road in, the going is quick: its fronts are taken
     // half as far again as a lane's, and the town grows a finger along each way it trades by. Up or down its slope the
     // going is slow, along it easy: the town lies long across its hillside.)
     return (
       d *
-        (st.depth === 0 && road[st.q]! >= 0 && !over ? ROAD_GOING : 1) *
+        (onRoad && !over ? ROAD_GOING : 1) *
         climb(site, Math.atan2(bz, bx)) *
         (1 + 4 * grade(st.hs[i]!)) +
+      // (Off a road in, past its heart, it stands on a field: what that field was worth, as the town stood when the
+      // front was come to.)
+      (onRoad || over || b < HEART_BLOCKS ? 0 : fieldHold(site, b, Math.atan2(bz, bx))) +
       3 * unit(seed, st.id * 7 + side, i)
     );
   };
@@ -763,19 +799,87 @@ export function grownBlocks(
     }
   };
 
+  // The road each quarter with no meaning of its own fronts while fields hold the town: the nearest road in (-1: none; the
+  // quarters toward its water, its lee and its high ground keep to their own ground, as what stands in them is read there).
+  const lends = new Int8Array(QUARTERS).fill(-1);
+  for (let q = 0; q < QUARTERS; q++) {
+    if (q === QUARTER.water || q === QUARTER.lee || q === QUARTER.high || road[q]! >= 0) continue;
+    let off = Infinity;
+    for (let o = 0; o < QUARTERS; o++) {
+      if (road[o]! < 0) continue;
+      const d = Math.abs(turnTo(bearing[o]!, bearing[q]!));
+      if (d < off - 1e-9) {
+        off = d;
+        lends[q] = o;
+      }
+    }
+  }
+  /** A front on its road for a block of a quarter that has none: taken where it costs less than the quarter's own next. */
+  const front = (b: number, q: number): boolean => {
+    const st = lends[q]! >= 0 && b >= HEART_BLOCKS && held(b) ? streets[lends[q]!]! : null;
+    for (let tries = 0; st && tries < 4; tries++) {
+      let s = -1,
+        cost = heaps[q]!.size ? heaps[q]!.peekKey() : Infinity;
+      for (const k of [0, 1] as const) {
+        if (st.done[k]) continue;
+        const c = costOf(st, st.next[k], k ? 1 : -1, b);
+        if (c < cost) {
+          cost = c;
+          s = k;
+        }
+      }
+      if (s < 0) return false;
+      const side = s ? 1 : -1,
+        i = st.next[s as 0 | 1],
+        { bx, bz, t } = blockAt(st, i, side);
+      st.next[s as 0 | 1] = i + 1;
+      if (clear(bx, bz, t, Math.max(st.pad, padAt(b)), b)) {
+        put(b, bx, bz, t, measuredAt(b));
+        st.fails[s as 0 | 1] = 0;
+        if (!st.used.has(i)) {
+          st.used.add(i);
+          st.since[i] = b;
+          branch(st, i, b);
+        }
+        return true;
+      }
+      if (++st.fails[s as 0 | 1] >= 3) st.done[s as 0 | 1] = true;
+    }
+    return false;
+  };
+
   for (let b = 0; b < count; b++) {
     const q = quarterOf(seed, b);
+    // (Engines come: no field holds it now, and every front is reckoned again.)
+    if (site.tilled && b === site.tilled.until && b > 0 && !over) {
+      for (let o = 0; o < QUARTERS; o++) heaps[o] = new MinHeap();
+      for (const st of streets) {
+        push(st, -1);
+        push(st, 1);
+      }
+    }
     if (site.place && b === site.place.at) keepPlace(b);
     if (measuredAt(b) && flat && takeCell(b, q)) continue;
+    if (front(b, q)) continue;
     const heap = heaps[q]!;
     let done = false;
     for (let tries = 0; tries < 600 && heap.size && !done; tries++) {
-      const id = heap.pop(),
+      const key = heap.peekKey(),
+        id = heap.pop(),
         st = streets[id >> 1]!,
         s = (id & 1) as 0 | 1,
         side = s ? 1 : -1,
         i = st.next[s];
       if (st.done[s]) continue;
+      // (A front taken from another quarter's turn since this was reckoned, or reckoned before its fields held it:
+      // reckoned again, and tried in its turn.)
+      if (!over && site.tilled) {
+        const now = costOf(st, i, side, b);
+        if (now > key + 6) {
+          heap.push(now, id);
+          continue;
+        }
+      }
       st.next[s] = i + 1;
       const { bx, bz, t } = blockAt(st, i, side),
         off = Math.abs(turnTo(Math.atan2(bz, bx), bearing[q]!)),

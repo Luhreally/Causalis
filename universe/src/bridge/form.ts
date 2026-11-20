@@ -282,6 +282,11 @@ export type FormSeen = {
   readonly place?: MarketPlace | null;
   /** A ring street runs where its walls stood. */
   readonly ring?: boolean;
+  /**
+   * Its fields hold it back (TownSite.tilled): `fed`, the blocks it had when engines came to carry its food (-1: they
+   * have not); `roads`, how many roads in it has.
+   */
+  readonly tilled?: { readonly fed: number; readonly roads: number };
   /** The height it holds. */
   readonly height?: "keep" | "shrine" | null;
   /** A temple stands in it. */
@@ -366,6 +371,12 @@ export function formWhys(
           : `Where it grew on from its ${ordinal(v.from)} block ${orderWords(v.order)}.`,
       );
     });
+  if (see.tilled && !form.over && see.tilled.roads > 0)
+    out.push(
+      see.tilled.fed >= 0
+        ? `Until engines came (it had ${see.tilled.fed * 8} lots) it lived on the fields about it, and a field close in was worth the walk it saved: it built along its ${see.tilled.roads === 1 ? "road" : "roads"} before it built over one. Since its food comes from further off, it has filled the ground between.`
+        : `It lives on the fields about it, and a field close in is worth the walk it saves: so it builds along its ${see.tilled.roads === 1 ? "road" : "roads"} before it builds over one, and fields reach in beside them until the road is built along far past them.`,
+    );
   if (see.ring)
     out.push(
       "Nothing was built on the line of its walls while they stood: a ring street runs there now they are down.",

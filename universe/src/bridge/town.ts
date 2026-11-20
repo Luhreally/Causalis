@@ -472,6 +472,42 @@ export function townReach(lots: TownLots, count = lots.x.length): number {
   return r;
 }
 
+/** The bearings a town's outline is read at. */
+export const OUTLINE = 72;
+
+/**
+ * A town's outline: how far out its first `count` lots reach toward each of OUTLINE bearings (to their far edge; a bearing
+ * no lot lies toward takes the lesser of its neighbours'). By this its sprawl past the lots drawn and its fields are laid:
+ * no ring of one radius about it.
+ */
+export function outlineOf(lots: TownLots, count: number): Float32Array {
+  const out = new Float32Array(OUTLINE);
+  for (let p = 0; p < count; p++) {
+    const x = lots.x[p]!,
+      z = lots.z[p]!,
+      k = Math.floor(((Math.atan2(z, x) / (2 * Math.PI) + 1) % 1) * OUTLINE) % OUTLINE;
+    out[k] = Math.max(out[k]!, Math.hypot(x, z) + LOT_D);
+  }
+  // (Bearings between its fingers that no lot lies toward: as far as the nearer-in of the two beside them, twice over.)
+  for (let pass = 0; pass < 3; pass++)
+    for (let k = 0; k < OUTLINE; k++)
+      if (out[k]! <= 0) {
+        const a = out[(k + OUTLINE - 1) % OUTLINE]!,
+          b = out[(k + 1) % OUTLINE]!;
+        out[k] = a > 0 && b > 0 ? Math.min(a, b) : Math.max(a, b);
+      }
+  for (let k = 0; k < OUTLINE; k++) if (out[k]! <= 0) out[k] = SQUARE + LOT_D;
+  return out;
+}
+
+/** A town's outline toward a bearing (metres), between the bearings it is read at. */
+export function outlineAt(outline: Float32Array, a: number): number {
+  const f = ((((a / (2 * Math.PI)) % 1) + 1) % 1) * OUTLINE - 0.5,
+    k = Math.floor(f),
+    t = f - k;
+  return outline[(k + OUTLINE) % OUTLINE]! * (1 - t) + outline[(k + 1 + OUTLINE) % OUTLINE]! * t;
+}
+
 /** What a lot holds. */
 export const LOT = {
   /** Never taken, or open ground (cleared, weathered away). */

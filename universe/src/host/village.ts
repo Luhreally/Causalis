@@ -68,6 +68,8 @@ import {
   lotStates,
   progress,
   townLots,
+  outlineAt,
+  outlineOf,
   townReach,
   type StoreBook,
   type TownPlan,
@@ -463,11 +465,27 @@ export function villagePlan(
         : city
           ? (BLOCKS * BLOCK_M) / 2 + 60
           : 16 + 8.5 * Math.sqrt(count) + 30,
-    fieldCount = Math.max(6, Math.min(90, Math.round(count * 0.7)));
+    fieldCount = Math.max(6, Math.min(90, Math.round(count * 0.7))),
+    // (A town's fields come in as near as its ground is taken each way: close in between its fingers, held off down them.
+    // As its land's map lays them: view/land.ts landFields.)
+    outline = fabric && lots && town ? outlineOf(lots, town.lots) : null,
+    edgeAt = (a: number) =>
+      outline && town
+        ? Math.min(
+            edge,
+            Math.max(
+              outlineAt(outline, a - 0.12),
+              outlineAt(outline, a),
+              outlineAt(outline, a + 0.12),
+            ) *
+              Math.sqrt(town.whole / Math.max(1, town.lots)) +
+              30,
+          )
+        : edge;
   for (let k = 0; k < fieldCount; k++) {
     const ring = Math.floor(k / 12),
       a = fieldWay + (((k % 12) - 5.5) / 12) * 2.6 + (u(seed, 400 + k) - 0.5) * 0.15,
-      rad = edge + 40 + ring * 45 + u(seed, 500 + k) * 12;
+      rad = edgeAt(a) + 40 + ring * 45 + u(seed, 500 + k) * 12;
     fields.push({
       x: rad * Math.cos(a),
       z: rad * Math.sin(a),
