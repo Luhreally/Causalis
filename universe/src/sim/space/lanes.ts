@@ -93,8 +93,13 @@ export function laneMapOf(world: World): LaneMap {
   return map;
 }
 
-const TABLES = new Map<string, LaneTable>();
-/** The way by lanes between two stars, whoever knows of it (null: none runs). */
+/**
+ * From a star of a seed's map: the table of the ways from it, and each way read off that table so far (a pure function of the
+ * seed's name, kept as the map is: every realm that might sail asked the way home-to-star of every world it could live on,
+ * each year, and the way was walked and summed again each time).
+ */
+const TABLES = new Map<string, { readonly table: LaneTable; readonly to: (LaneRoute | null)[] }>();
+/** The way by lanes between two stars, whoever knows of it (null: none runs). Not to be written to: all who ask share it. */
 export function laneRoute(world: World, from: string, to: string): LaneRoute | null {
   const map = laneMapOf(world),
     a = map.at.get(from),
@@ -104,9 +109,11 @@ export function laneRoute(world: World, from: string, to: string): LaneRoute | n
   let t = TABLES.get(key);
   if (!t) {
     if (TABLES.size > 64) TABLES.clear();
-    TABLES.set(key, (t = laneTable(map.stars, map.lanes, map.ways, a)));
+    TABLES.set(key, (t = { table: laneTable(map.stars, map.lanes, map.ways, a), to: [] }));
   }
-  return routeIn(map.stars, map.lanes, map.ways, t, b);
+  let route = t.to[b];
+  if (route === undefined) t.to[b] = route = routeIn(map.stars, map.lanes, map.ways, t.table, b);
+  return route;
 }
 
 /** No people of the stars finds the lanes before this year of the chronicle: early histories stand (est.). */
