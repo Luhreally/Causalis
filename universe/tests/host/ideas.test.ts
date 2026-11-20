@@ -70,7 +70,12 @@ test("a land with people from elsewhere, and a seat pilgrims come to, say so; a 
     assert.ok(titles(page).includes("Peoples from elsewhere who live here"), `land ${c}`);
     clean(page);
   }
-  for (const p of pilgrimsOf(world)!.all().slice(0, 3)) {
+  // (One that no longer comes is kept, stilled, so that its coming again is not told as its first: those that stand.)
+  const standing = pilgrimsOf(world)!
+    .all()
+    .filter((p) => p.pilgrims > 0);
+  assert.ok(standing.length > 0);
+  for (const p of standing.slice(0, 3)) {
     assert.ok(
       titles(pageOf(world, ctx.provinces.get(p.seat)!.ref)).includes("A place of pilgrimage"),
     );
