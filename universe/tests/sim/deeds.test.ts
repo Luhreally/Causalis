@@ -305,7 +305,6 @@ test("on a real world: a blow at one who heads a body falls, some of the time, o
       assert.match(words, /struck at the house of the .* in /);
       assert.ok(!/\(t=\d+\)/.test(words), words);
       assert.ok(store.of(p.ref)!.bodies.find((b) => b.event === watch.event)!.staff <= before);
-      assert.ok((e.data as { homes: number }).homes >= 0);
     }
     if (razed >= 3) break;
   }

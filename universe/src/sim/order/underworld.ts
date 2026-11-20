@@ -1971,7 +1971,7 @@ function stepRealm(
           })),
         }),
       },
-      { pressed: bites, capacity: r.capacity, crew: UNDER.crew, span },
+      { pressed: bites, capacity: r.capacity, crew: UNDER.crew, span, key },
       t,
     );
     if (hit) g.members = Math.max(0, g.members - hit.lost);

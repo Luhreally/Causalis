@@ -13,6 +13,7 @@
 import {
   defineEventType,
   defineStream,
+  dmath,
   parseRef,
   yearOfMoment,
   type Factor,
@@ -32,7 +33,7 @@ import {
   NOTE,
   GROUP_KINDS,
   guardOf,
-  blowChance,
+  blowRate,
   strikeCost,
   strikeOutcome,
   strikeReach,
@@ -47,7 +48,6 @@ import { actOn, bossRef, sparedBy } from "../acts/person.ts";
 import { bodiesOf, watchIn, type Body, type RealmBodies } from "./institutions-kept.ts";
 import { holdOf } from "./holds.ts";
 import { bodyHeadFalls, bodyHouseStruck, bodyTitle } from "./institutions.ts";
-import { razeTown, townsOf } from "../town/fabric.ts";
 import { grieve } from "../acts/disasters.ts";
 import { underworldOf } from "./underworld-kept.ts";
 import { bossFalls } from "./underworld.ts";
@@ -115,62 +115,43 @@ type Found = {
   };
 };
 
-/** The kinds of building a body's house is, by what the rules call its place (rules DOES_ROWS.place), greatest first. */
-const HOUSES: Readonly<Record<string, readonly string[]>> = {
-  works: ["factory", "workshop", "smithy", "kiln", "mill"],
-  hall: ["hall", "offices", "market"],
-  watch: ["hall", "offices"],
-  court: ["hall", "offices"],
-  school: ["academy", "school"],
-  hospital: ["hospital"],
-  temple: ["temple", "shrine"],
-  "print-house": ["offices", "workshop", "hall"],
-};
-
 /**
- * A place struck (rules DEED.atPlace): a body's house, or with none a quarter of the land's first town. Of the town's homes
- * a few in a hundred about it come down, by the fabric's own razing (sim/town/fabric.ts razeTown, nearest the building where
- * the town has raised one of its kind); a house struck loses of its hands and its purse; its land grieves. Told; gives back
- * its event and the homes that came down (null: no town stands there to strike in).
+ * A place struck (rules DEED.atPlace): a body's house, in the first town of its land. It loses of its hands and its purse, and
+ * its land grieves. Told; gives back its event (null: no town stands there to strike in). (The town's lots are not touched:
+ * razing a hundredth of a great town's homes about the building, by the fabric's own razing, was 1.3 ms a year of a world at
+ * 1,500 for some twenty such blows a century, most of this rule's whole cost.)
  */
 function strikePlace(
   ctx: PopulationContext,
   p: Polity,
   g: Striker,
   cell: number,
-  house: Found["house"] | null,
+  house: NonNullable<Found["house"]>,
   lost: number,
   cause: Ref,
-  t: SimTime,
 ): Ref | null {
-  const { world } = ctx,
-    town = ctx.settlements
-      .inProvince(cell)
-      .filter((x) => x.population > 0)
-      .sort(
-        (a, b) =>
-          (b.market ? 1 : 0) - (a.market ? 1 : 0) ||
-          b.population - a.population ||
-          (a.ref < b.ref ? -1 : 1),
-      )[0];
+  const { world } = ctx;
+  let town: { ref: Ref; name: string; population: number; market: unknown } | undefined;
+  for (const x of ctx.settlements.inProvince(cell)) {
+    if (x.population <= 0) continue;
+    if (
+      !town ||
+      (x.market ? 1 : 0) > (town.market ? 1 : 0) ||
+      ((x.market ? 1 : 0) === (town.market ? 1 : 0) &&
+        (x.population > town.population || (x.population === town.population && x.ref < town.ref)))
+    )
+      town = x;
+  }
   if (!town) return null;
-  const f = townsOf(world).get(town.ref),
-    kinds = house ? (HOUSES[house.place] ?? []) : [],
-    at =
-      f && kinds.length
-        ? f.civics.find((c) => c.fell === null && kinds.includes(c.kind))
-        : undefined,
-    homes = razeTown(ctx, town.ref, DEED.razes, t, at?.at);
-  if (house) bodyHouseStruck(ctx, p, house.event, DEED.houseHands, DEED.housePurse);
+  bodyHouseStruck(ctx, p, house.event, DEED.houseHands, DEED.housePurse);
   const event = world.events.emit({
     type: DEED_EVENTS.razed.type,
-    importance: homes >= 200 ? 4 : 3,
     subjects: [p.ref, town.ref],
     place: ctx.provinces.get(cell)?.ref ?? null,
     causes: [
       { ref: cause, role: "trigger", weight: 1 },
       { ref: g.event, role: "enabler", weight: 1 },
-      ...(house ? [{ ref: house.event, role: "pressure" as const, weight: 1 }] : []),
+      { ref: house.event, role: "pressure", weight: 1 },
     ],
     data: {
       realm: realmName(p),
@@ -178,8 +159,8 @@ function strikePlace(
       kind: g.kind,
       gids: [g.id],
       town: town.name,
-      ...(house ? { body: house.name, title: house.title } : {}),
-      homes,
+      body: house.name,
+      title: house.title,
       lost,
     },
   });
@@ -326,17 +307,22 @@ export function strikes(
     readonly capacity: number;
     readonly crew: number;
     readonly span: number;
+    /** Its realm's number, where the caller has it (its ref is not read again for each group). */
+    readonly key?: number;
   },
   t: SimTime,
 ): { lost: number; outcome: StrikeOutcome; event: Ref } | null {
+  // (Asked of every group at every reckoning, and nearly always no: the draw is weighed first against the rate itself,
+  // which the chance never passes, and the power taken only for the few it does not rule out.)
   const will = who.will,
-    chance = blowChance(will, facts.pressed, who.members, facts.crew, facts.span);
-  if (chance <= 0) return null;
+    x = blowRate(will, facts.pressed, who.members, facts.crew) * Math.max(1, facts.span);
+  if (x <= 0) return null;
   const { world } = ctx,
-    key = keyOf(p.ref),
+    key = facts.key ?? keyOf(p.ref),
     salt = (who.crime ? 40_000 : 0) + who.id * 8,
-    u = (k: number) => world.rng.real(DRAW, key, t, salt + k);
-  if (u(0) >= chance) return null;
+    first = world.rng.real(DRAW, key, t, salt);
+  if (first >= x || first >= 1 - dmath.exp(-x)) return null;
+  const u = (k: number) => world.rng.real(DRAW, key, t, salt + k);
   const g = who.striker();
   // (At whom: among those of the kinds it is against who stand within its reach, by how far it is against each.)
   const found: [Found, number][] = [];
@@ -347,28 +333,7 @@ export function strikes(
     found.push([x, a.weight]);
     all += a.weight;
   }
-  if (!found.length) {
-    // (No one of name within its reach: an armed group's blow falls, some of the time, on a quarter of its land's town.)
-    if (g.crime || !g.armed || u(3) >= DEED.atPlace || !g.lands.length) return null;
-    const lost = Math.min(
-        g.members,
-        Math.round(g.members * strikeCost("survived", facts.capacity)),
-      ),
-      decision = world.decisions.record({
-        rule: DEED_EVENTS.razed.type,
-        subject: p.ref,
-        outcome: { group: g.name },
-        score: will,
-        threshold: 0,
-        factors: [
-          factor("how far what it does is against them", will, will),
-          factor("how hard it is pressed", facts.pressed, 0.6 * facts.pressed),
-          factor("no one of name within its reach", 1, 0.2),
-        ],
-      }),
-      event = strikePlace(ctx, p, g, g.lands[0]!, null, lost, decision, t);
-    return event ? { lost, outcome: "survived", event } : null;
-  }
+  if (!found.length) return null;
   let pick = u(1) * all,
     target = found[0]![0];
   for (const [x, w] of found) {
@@ -416,7 +381,7 @@ export function strikes(
         ),
       ],
     }),
-    razed = atHouse ? strikePlace(ctx, p, g, target.cell, target.house!, lost, decision, t) : null;
+    razed = atHouse ? strikePlace(ctx, p, g, target.cell, target.house!, lost, decision) : null;
   if (razed) return { lost, outcome: "survived", event: razed };
   const event = world.events.emit({
     type,

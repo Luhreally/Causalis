@@ -142,16 +142,11 @@ registerEventWords(DEED_EVENTS.razed.type, (world, e) => {
       town?: string;
       body?: string;
       title?: string;
-      homes?: number;
       lost?: number;
     } | null,
-    where = x?.body
-      ? `the house of the ${x.body} ${x.title ?? "body"} in ${x.town ?? "its town"}`
-      : `a quarter of ${x?.town ?? "a town"}`,
-    homes = x?.homes ? `${x.homes} home${x.homes === 1 ? "" : "s"} about it came down` : "it stood",
-    hands = x?.body ? ", and three in ten of its hands left it" : "",
+    where = `the house of the ${x?.body ?? "nameless"} ${x?.title ?? "body"} in ${x?.town ?? "its town"}`,
     lost = x?.lost ? `; ${x.lost} of its own were taken in the answer` : "";
-  return `${cap(orgWords(x?.group, x?.kind))} of ${x?.realm ?? realmOf(world, e.subjects[0] ?? "")} struck at ${where}: ${homes}${hands}${lost}, ${year(e.t)}`;
+  return `${cap(orgWords(x?.group, x?.kind))} of ${x?.realm ?? realmOf(world, e.subjects[0] ?? "")} struck at ${where}: three in ten of its hands left it, and half its purse was lost${lost}, ${year(e.t)}`;
 });
 registerDecisionWords(
   DEED_EVENTS.razed.type,

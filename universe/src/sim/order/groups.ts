@@ -1631,6 +1631,7 @@ function stepRealm(
         capacity: r.capacity,
         crew: ORG.crew,
         span,
+        key,
       },
       t,
     );
