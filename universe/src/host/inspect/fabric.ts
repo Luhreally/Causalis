@@ -22,6 +22,7 @@ import {
   designsOf,
   homesOf,
   housingOf,
+  houseFor,
   populationContext,
   townsOf,
   type Civic,
@@ -29,8 +30,11 @@ import {
 } from "../../sim/index.ts";
 import {
   BLOCK_LOTS,
+  STACKS,
   blocksHeld,
   formWhys,
+  heightHeld,
+  wallRadius,
   lotStates,
   measuredBlocks,
   townBlocks,
@@ -512,11 +516,50 @@ function townStreets(world: World, town: Ref, f: Fabric): Line | null {
 /** A town's form in plain lines (none: not grown from a site, a colony's halls). */
 function townFormWhys(world: World, town: Ref, f: Fabric): string[] {
   if (colonyTownCell(town) !== null || !siteOfTown(world, town, f)) return [];
-  const rank = townRank(world, town, f),
-    read = townFormOf(world, town, f, rank),
+  const site = siteOfTown(world, town, f),
+    at = townSite(world, town),
+    rank = townRank(world, town, f),
+    read = townFormOf(world, town, f, rank);
+  if (!read || !site || !at) return [];
+  const year = yearNow(world),
     // (Its walls make its ground scarce while they stand about it: as its view reads them, grown past thrice over they are down.)
-    walled = !!f.walls && f.next < 3 * f.walls.reach;
-  return read ? formWhys(read.form, read.laid, walled) : [];
+    walled = !!f.walls && f.next < 3 * f.walls.reach,
+    seed = hashString(`town ${town}`),
+    axis = site.roads[0]?.bearing ?? at.axis,
+    // (Its market place and the line of its walls, as its view lays them: out to the blocks its page's streets are read to.)
+    blocks = townBlocks(
+      f.family,
+      seed,
+      axis,
+      Math.min(1000, Math.ceil(f.next / BLOCK_LOTS)),
+      at.water,
+      site,
+    ),
+    temple = f.civics.some((c) => c.kind === "temple" && c.fell === null && c.end <= year),
+    held = f.walls
+      ? heightHeld(
+          site,
+          wallRadius(f.walls.reach, townLots(f.family, seed, axis, f.walls.reach, at.water, site)),
+          at.water,
+          !!rank?.seat,
+          temple,
+        )
+      : null,
+    top = f.homes.reduce((to, n, level) => (n > 0 ? level : to), 0),
+    ctx = populationContext(world),
+    home = ctx.settlements.get(town),
+    walls = home ? houseFor(ctx, home.cell).find((p) => p.role === "walls")?.id : undefined;
+  return formWhys(read.form, read.laid, {
+    walled,
+    kept: f.engines >= 0,
+    ...(site.surveys ? { surveys: site.surveys } : {}),
+    place: blocks.place ?? null,
+    ring: !!f.walls && !walled,
+    height: held ? (held.keep ? "keep" : "shrine") : null,
+    temple,
+    tall: top >= 3,
+    stacks: STACKS.has(walls ?? ""),
+  });
 }
 
 /** A town's buildings, for its page: its homes by level, its other buildings, its walls (null: no fabric yet). */

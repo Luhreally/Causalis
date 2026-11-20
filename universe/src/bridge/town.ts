@@ -11,7 +11,14 @@ import type { ColonyLook } from "./colony.ts";
 import { MONTH, YEAR, mix } from "../kernel/index.ts";
 import type { GenesisPlan, MeadowPlan } from "./genesis.ts";
 import type { GetAbout } from "./village.ts";
-import { grownBlocks, type MainStreet, type TownSite } from "./sites.ts";
+import {
+  grownBlocks,
+  placeReach,
+  type GrownBlocks,
+  type MainStreet,
+  type MarketPlace,
+  type TownSite,
+} from "./sites.ts";
 import type { TownForm } from "./form.ts";
 import type { TownRank } from "./rank.ts";
 
@@ -239,16 +246,15 @@ export type TownBlocks = {
   readonly yaw: Float32Array;
   /** Its main streets, where its streets were grown from its ground (bridge/sites.ts; absent: laid by its family). */
   readonly mains?: readonly MainStreet[];
+  /** Its market place, where ground was kept for one (bridge/sites.ts). */
+  readonly place?: MarketPlace;
 };
 
 /**
  * A town's blocks grown along its streets (bridge/sites.ts), kept for the towns last asked of: the land's map and the town's
  * own view ask the same town's again and again, at different counts (the first so many are the same at any count).
  */
-const GROWN = new Map<
-  string,
-  TownBlocks & { readonly straight: Uint8Array; readonly mains: readonly MainStreet[] }
->();
+const GROWN = new Map<string, GrownBlocks>();
 function grownOf(
   seed: number,
   site: TownSite,
@@ -279,6 +285,8 @@ function grownOf(
         yaw: kept.yaw.subarray(0, count),
         straight: kept.straight.subarray(0, count),
         mains: kept.mains,
+        // (Kept open from the block it was taken at: a town drawn to fewer has none yet.)
+        ...(kept.place && kept.place.at < count ? { place: kept.place } : {}),
       } as TownBlocks);
 }
 
@@ -741,6 +749,17 @@ export const WALL_THICK = 2.4;
 export const GATE_TOWER = 4;
 export const WALL_TOWER = 5;
 
+/** How far from a town's middle the line of its walls runs, raised about its first `walled` lots. */
+export function wallRadius(walled: number, lots: TownLots): number {
+  const reach = Math.min(walled, lots.x.length);
+  let r = SQUARE + 10;
+  for (let p = 0; p < reach; p++) r = Math.max(r, Math.hypot(lots.x[p]!, lots.z[p]!) + LOT_D);
+  // (Its market place within them, where it was kept before they were raised: as its streets were grown about their line.)
+  const place = lots.blocks.place;
+  if (place && place.at < Math.ceil(walled / BLOCK_LOTS)) r = Math.max(r, placeReach(place));
+  return r + 8;
+}
+
 /**
  * A town's walls as they stand (null: it has none): a ring about the lots walled, a length every
  * twenty-odd metres, a gate where its road runs out both ways (at the length standing nearest), a
@@ -755,10 +774,7 @@ export function wallRing(
 ): { r: number; n: number; lengths: WallLength[] } | null {
   const w = plan.walls;
   if (!w) return null;
-  const reach = Math.min(w.reach, lots.x.length);
-  let r = SQUARE + 10;
-  for (let p = 0; p < reach; p++) r = Math.max(r, Math.hypot(lots.x[p]!, lots.z[p]!) + LOT_D);
-  r += 8;
+  const r = wallRadius(w.reach, lots);
   const n = Math.max(16, Math.round((2 * Math.PI * r) / 22)),
     len = (2 * Math.PI * r) / n + 0.8,
     gate = (((plan.axis % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) / ((2 * Math.PI) / n),

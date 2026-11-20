@@ -12,7 +12,7 @@ import { civic, type CivicKind } from "../rules/index.ts";
 import type { LandCamp, LandPlan, LandRoad, LandTown, RoadWorks } from "../bridge/index.ts";
 import { REGION_RELIEF, type RegionTree } from "./region.ts";
 import { sprawlOf, type TownScene } from "./town.ts";
-import { townReach } from "../bridge/index.ts";
+import { reachToward, townReach } from "../bridge/index.ts";
 
 /** How many times its size a town is drawn on the land's map. */
 export const LAND_SCALE = 5;
@@ -141,15 +141,24 @@ export function landFields(
     ca = Math.cos(axis),
     sa = Math.sin(axis),
     inner = reach + 0.2,
+    site = town.plan?.site,
+    // (Its fields come in as near as its ground is taken each way: close between its roads, held off down them. bridge/sites.ts.)
+    innerAt = (du: number, dv: number) =>
+      site
+        ? reach *
+            (0.5 + 0.5 * reachToward(site, Math.atan2(-du * sa + dv * ca, du * ca + dv * sa))) +
+          0.2
+        : inner,
     outer = Math.sqrt((n * FIELD_W * FIELD_D) / Math.PI + inner * inner) * 1.35 + 0.5,
     ri = Math.ceil(outer / FIELD_W),
     rj = Math.ceil(outer / FIELD_D),
     cells: { i: number; j: number; r: number }[] = [];
   for (let i = -ri; i <= ri; i++)
     for (let j = -rj; j <= rj; j++) {
-      const r = Math.hypot(i * FIELD_W, j * FIELD_D);
-      if (r < inner || r > outer) continue;
-      cells.push({ i, j, r: r + unit(seed, i * 977 + j, 5) * 0.35 });
+      const r = Math.hypot(i * FIELD_W, j * FIELD_D),
+        from = innerAt(i * FIELD_W, j * FIELD_D);
+      if (r < from || r > outer) continue;
+      cells.push({ i, j, r: r - from + unit(seed, i * 977 + j, 5) * 0.35 });
     }
   cells.sort((a, b) => a.r - b.r || a.i - b.i || a.j - b.j);
   const out: LandField[] = [],

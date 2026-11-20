@@ -15,11 +15,14 @@ import {
   regionOf,
   townsOf,
   DRY_MOST,
+  ORDER_AT,
+  orderAt,
   type Fabric,
 } from "../sim/index.ts";
-import { streetsLaid, type TownRoad, type TownSite } from "../bridge/index.ts";
+import { streetsLaid, type Survey, type TownRoad, type TownSite } from "../bridge/index.ts";
 import { formFacts } from "./form.ts";
 import { pilgrimsBetween } from "./pilgrims.ts";
+import { machinesYear } from "./roads.ts";
 
 /** A town as its roads are reckoned. */
 export type RoadTown = {
@@ -212,6 +215,35 @@ export function measuredFrom(world: World, cell: number, founded: number, f: Fab
   return f.walls && f.walls.start >= writes ? Math.ceil(f.walls.reach / 8) : -1;
 }
 
+/**
+ * How far its realm's will was done on a town's land each time its ground was taken up anew (TownSite.surveys; nothing where
+ * that was never set down): when it was founded, when its walls were begun (what lies past them), when engines came (what
+ * was taken since). No one measures ground out before its land can write a plot down: before that, none of it counts.
+ */
+export function surveysOf(
+  world: World,
+  cell: number,
+  founded: number,
+  f: Fabric,
+): { surveys?: Survey[] } {
+  const first = orderAt(f, ORDER_AT.founded);
+  if (first === null) return {};
+  const writes = loreOf(world).get(cell, "writing")?.year,
+    written = (year: number | null | undefined) =>
+      writes !== undefined && year !== null && year !== undefined && year >= writes,
+    out: Survey[] = [{ from: 0, order: written(founded) ? first : 0 }],
+    walled = orderAt(f, ORDER_AT.walled),
+    engines = orderAt(f, ORDER_AT.engines);
+  if (f.walls && walled !== null)
+    out.push({ from: Math.ceil(f.walls.reach / 8), order: written(f.walls.start) ? walled : 0 });
+  if (f.engines >= 0 && engines !== null)
+    out.push({
+      from: Math.ceil(f.engines / 8),
+      order: written(machinesYear(world, cell)) ? engines : 0,
+    });
+  return { surveys: out.sort((a, b) => a.from - b.from) };
+}
+
 /** A town's site, as its streets are grown from it (`ends`: its land's roads, where they are reckoned already). */
 export function townSiteOf(
   world: World,
@@ -247,6 +279,9 @@ export function townSiteOf(
     lee: leeAt(lat, g.climate.bands),
     roads: roads.map((x, k) => (railed && k === 0 ? { ...x, rails: true } : x)),
     measured: measuredFrom(world, s.cell, s.founded, f),
+    ...surveysOf(world, s.cell, s.founded, f),
+    // (Its market place, where its first market was set down: the block it had come to, and how great.)
+    ...(f.place >= 0 ? { place: { at: Math.ceil((f.place >> 2) / 8), size: f.place & 3 } } : {}),
     walled: f.walls?.reach ?? null,
     dry: f.next < DRY_MOST && floodWary(world, s.cell, year),
     // (What its streets were laid for, part by part: bridge/form.ts.)

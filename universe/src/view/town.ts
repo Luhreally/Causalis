@@ -38,6 +38,7 @@ import {
   townLots,
   townReach,
   wallRing,
+  reachToward,
   type LotStates,
   type TownCivic,
   type TownDesign,
@@ -60,7 +61,7 @@ import { houseLook, type HouseLook } from "./village.ts";
 import { biomeColor } from "./globe.ts";
 import { lifeTint } from "./biochem.ts";
 import { WORN_WIDE, wornOf } from "./worn.ts";
-import { edgeYard, formGround, formLook, formTiers, tierOf } from "./townform.ts";
+import { edgeYard, formGround, formLook, formTiers, streetOf, tierOf } from "./townform.ts";
 import { TIER, streetWide } from "../bridge/index.ts";
 
 type Rgb = readonly [number, number, number];
@@ -142,7 +143,8 @@ export function homeSize(scene: TownScene, p: number): { high: number; wide: num
   const level = Math.max(0, Math.min(TOP_LEVEL, scene.states.level[p]!)),
     L = LEVELS[level]!;
   const look = formLook(scene, p, scene.states.design[p]!)!;
-  if (level > 1) return { high: L.h * tallOf(look, level) + (level === 2 ? 3.2 : 0.5), wide: L.w };
+  if (level > 1)
+    return { high: L.h * tallOf(look, level) + (level === 2 ? roof2(look) : 0.5), wide: L.w };
   const [w, d] = lowFoot(L, look),
     flat = look.rise < 0.1,
     rh = look.open ? 0 : look.tent ? 7.5 : flat ? 0.6 : Math.min(5, look.rise * d * 0.5);
@@ -201,9 +203,12 @@ const tallOf = (look: HouseLook, level: number): number =>
     ? look.height
     : level >= 3 && level < TOP_LEVEL
       ? (look.tall ?? 1)
-      : level === 2 && look.joined
-        ? 4 / 3
+      : level === 2
+        ? (look.joined ? 4 / 3 : 1) * (look.storey ?? 1)
         : 1;
+
+/** How high a townhouse's roof rises: as its roofing asks, the steeper for the snow it sheds. */
+const roof2 = (look: HouseLook): number => (look.rise < 0.1 ? 0.6 : 3.2 * (look.steep ?? 1));
 
 /** A part placed by an offset in a turned frame: (u along, v across) from (x, z), turned by yaw. */
 function at(x: number, z: number, yaw: number, u: number, v: number): [number, number] {
@@ -337,7 +342,7 @@ export function roofTop(scene: TownScene, p: number, t: number): number | null {
       rise = look.tent ? 7.5 : look.rise < 0.1 ? 0.6 : Math.min(5, look.rise * d * 0.5);
     return look.raised * 10 + L.h * look.height + rise;
   }
-  return L.h * tallOf(look, level) + (level === 2 ? 3.2 : level === 5 ? 10 : 2.8);
+  return L.h * tallOf(look, level) + (level === 2 ? roof2(look) : level === 5 ? 10 : 2.8);
 }
 
 /** A home's box at moment t, whole or rising or what is left of it (metres), for what is laid over it; null: no such lot. */
@@ -606,7 +611,7 @@ function shapeTop(
   if (u > L.w * 0.52 || v > L.d * 0.54) return 0;
   if (level === 2) {
     const flat = look.rise < 0.1,
-      rh = (flat ? 0.6 : 3.2) * roof;
+      rh = roof2(look) * roof;
     return flat ? h + rh : h + rh * (1 - v / (L.d * 0.54));
   }
   return h + (roof > 0 ? 0.5 : 0);
@@ -698,9 +703,22 @@ export function townGround(
     const x = lots.blocks.x[b]!,
       z = lots.blocks.z[b]!,
       yaw = lots.blocks.yaw[b]!;
-    // (As broad as its part of the town was laid: bridge/form.ts.)
-    const wide = plan.site?.laid ? streetWide(plan.site, b) : STREET;
-    out.put("box", street, x, 0.18, z, BLOCK_W + wide, 0.24, BLOCK_D + wide, yaw);
+    // (As broad as its part of the town was laid: bridge/form.ts. Its ground tells its age: a lane as it was trodden, a
+    // street measured out set evener and paler, one laid for engines tarred.)
+    const wide = plan.site?.laid ? streetWide(plan.site, b) : STREET,
+      // (By the square the ground between its blocks is trodden bare: no green left from wall to wall.)
+      trod = plan.form && !plan.form.over && tierOf(scene, b * BLOCK_LOTS) === TIER.heart ? 12 : 0;
+    out.put(
+      "box",
+      streetOf(scene, b, street),
+      x,
+      0.18,
+      z,
+      BLOCK_W + wide + trod,
+      0.24,
+      BLOCK_D + wide + trod,
+      yaw,
+    );
     // (By the square no ground is left to grass: a block's yards are trodden courts.)
     const court = tierOf(scene, b * BLOCK_LOTS) === TIER.heart && !plan.ways;
     out.put("box", court ? street : yard, x, 0.3, z, BLOCK_W - 0.6, 0.4, BLOCK_D - 0.6, yaw);
@@ -843,9 +861,18 @@ export function avenueWay(plan: TownPlan, k: number): number {
  * A great city's sprawl (null: none): from as far as its lots drawn reach out to as far as all its
  * lots would (metres).
  */
+/** How far out a town's lots drawn would reach were they gathered in one round about its square (metres): by their mean square way from it. */
+export function roundReach(lots: TownLots, count: number): number {
+  let sum = 0;
+  for (let p = 0; p < count; p++) sum += lots.x[p]! * lots.x[p]! + lots.z[p]! * lots.z[p]!;
+  return Math.min(townReach(lots, count), Math.sqrt((2 * sum) / Math.max(1, count)) + LOT_D);
+}
+
 export function sprawlOf(plan: TownPlan, lots: TownLots): { r0: number; r1: number } | null {
   if (plan.whole <= plan.lots || plan.lots === 0 || !plan.designs.length) return null;
-  const r0 = townReach(lots, plan.lots),
+  // (From as far out as its lots drawn would reach were they one round: the fingers it grows down its roads reach past
+  // that, through its sprawl.)
+  const r0 = roundReach(lots, plan.lots),
     // (Built up as spires are, it holds as many on far less: yet it has spread far past any other.)
     r1 = Math.min(hasSpires(plan) ? 5200 : 2600, r0 * Math.sqrt(plan.whole / plan.lots));
   return r1 > r0 + 20 ? { r0, r1 } : null;
@@ -871,14 +898,16 @@ function sprawl(scene: TownScene, out: TownParts, burned = false): void {
   // Its trodden ground, in bands of patches about it (none on the water).
   const bands = 6,
     round = 72;
+  // (Out each way as far as its ground is taken that way: a finger down each road in, less up its slope. bridge/sites.ts.)
   for (let b = 0; b < bands; b++) {
-    const lo = r0 + ((r1 - r0) * b) / bands,
-      hi = r0 + ((r1 - r0) * (b + 1)) / bands,
-      mid = (lo + hi) / 2,
-      across = (2 * Math.PI * hi) / round + 1;
-    if (hi <= clear) continue;
+    if (r0 + ((r1 - r0) * (b + 1)) / bands <= clear) continue;
     for (let k = 0; k < round; k++) {
       const a = ((k + 0.5) / round) * 2 * Math.PI,
+        far = r0 + (r1 - r0) * reachToward(plan.site, a),
+        lo = r0 + ((far - r0) * b) / bands,
+        hi = r0 + ((far - r0) * (b + 1)) / bands,
+        mid = (lo + hi) / 2,
+        across = (2 * Math.PI * hi) / round + 1,
         x = mid * Math.cos(a),
         z = mid * Math.sin(a);
       if (wet(x, z, across / 2)) continue;
@@ -890,8 +919,9 @@ function sprawl(scene: TownScene, out: TownParts, burned = false): void {
     const a = avenueWay(plan, k),
       ca = Math.cos(a),
       sa = Math.sin(a);
-    for (let r = r0; r < r1; r += 60) {
-      const len = Math.min(60, r1 - r),
+    const far = r0 + (r1 - r0) * reachToward(plan.site, a);
+    for (let r = r0; r < far; r += 60) {
+      const len = Math.min(60, far - r),
         x = (r + len / 2) * ca,
         z = (r + len / 2) * sa;
       if (wet(x, z, 4) || r + len <= clear) continue;
@@ -932,12 +962,16 @@ function sprawlRoofs(scene: TownScene, out: TownParts, from: number, to: number)
     wet = (x: number, z: number, margin: number) =>
       !!water && Math.hypot(x - water.x, z - water.z) < water.r + margin,
     towers = hasSpires(plan);
-  const sector = (2 * Math.PI) / AVENUES;
+  const sector = (2 * Math.PI) / AVENUES,
+    fingers = townReach(scene.lots, plan.lots) + 20,
+    roadsIn = plan.site?.roads.map((x) => x.bearing) ?? [];
   // (Its roofs a street's breadth past the lots drawn.)
   const inner = r0 + SPRAWL_GAP;
   for (let i = 0; i < n; i++) {
-    const r = Math.sqrt(inner * inner + scatter(plan.seed, i, 0) * (r1 * r1 - inner * inner)),
-      a = scatter(plan.seed, i, 1) * 2 * Math.PI,
+    const a = scatter(plan.seed, i, 1) * 2 * Math.PI,
+      // (As far out that way as its ground is taken: bridge/sites.ts reachToward.)
+      ring = Math.sqrt(inner * inner + scatter(plan.seed, i, 0) * (r1 * r1 - inner * inner)),
+      r = r0 + (ring - r0) * reachToward(plan.site, a),
       look = looks[i % looks.length]!,
       // Nearer the heart, the taller.
       h = 5 + scatter(plan.seed, i, 2) * 5 + 14 * (1 - (r - r0) / (r1 - r0)) ** 3,
@@ -950,6 +984,12 @@ function sprawlRoofs(scene: TownScene, out: TownParts, from: number, to: number)
     if (r < from || r >= to) continue;
     // (Off its avenues, and out of its water.)
     if (Math.min(off, sector * r - off) < AVENUE_HALF + w / 2 + 1 || wet(x, z, w / 2 + 4)) continue;
+    // (And off the fingers its lots drawn reach down its roads.)
+    if (
+      r < fingers &&
+      roadsIn.some((b) => Math.cos(a - b) > 0 && Math.abs(r * Math.sin(a - b)) < 52)
+    )
+      continue;
     if (towers) {
       // Towers and more towers, tallest toward its heart, their floors lit, into the haze.
       const near = 1 - (r - r0) / (r1 - r0),
@@ -1302,7 +1342,7 @@ function home(
     out.put("box", look.wall, x, h / 2, z, L.w, h, L.d, yaw);
     if (roof <= 0) return;
     const flat = look.rise < 0.1,
-      rh = flat ? 0.6 : 3.2;
+      rh = roof2(look);
     out.put(
       flat ? "box" : "gable",
       look.roof,
@@ -1325,16 +1365,11 @@ function home(
     return;
   }
   // (Brick, concrete, glass; where its people have no brick to stack, in what its low homes are built of.)
-  const wall = look.own
-    ? level === 3
-      ? darker(look.wall, 0.85)
+  const wall =
+    level === 3
+      ? (look.stuff ?? (look.own ? darker(look.wall, 0.85) : BRICK))
       : level === 4
-        ? mixed(look.wall, CONCRETE, 0.5)
-        : GLASS
-    : level === 3
-      ? BRICK
-      : level === 4
-        ? CONCRETE
+        ? (look.block ?? (look.own ? mixed(look.wall, CONCRETE, 0.5) : CONCRETE))
         : GLASS;
   out.put("box", wall, x, h / 2, z, L.w, h, L.d, yaw);
   // Storeys told by bands of windows, lit at night (fewer bands than storeys on the tall ones;

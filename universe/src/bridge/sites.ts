@@ -47,7 +47,26 @@ export type TownSite = {
    * walked in, and what was laid after its people took to engines is broad and set apart.
    */
   readonly laid?: readonly StreetsLaid[];
+  /**
+   * How far its realm's will was done on its land each time its ground was taken up anew, oldest first (absent: read by
+   * `measured`, as a save from before they were kept is): from which block on, and how far (0 … 1). Ground is measured out
+   * before it is built where someone can make a household build to a line: cut into equal blocks where the realm's will is
+   * done (SURVEYED), its streets at least run straight where it is half done (STRAIGHT), and its lanes wander the more the
+   * less it is.
+   */
+  readonly surveys?: readonly Survey[];
+  /**
+   * Its market place: the ground it would have taken next at its first market (block `at`), kept open, as great as its
+   * people then asked (1: a block beside its main street; 2: one each side, the street through it; 3: two each side).
+   */
+  readonly place?: { readonly at: number; readonly size: number };
 };
+
+/** A part of a town's ground taken up under a realm's will (TownSite.surveys). */
+export type Survey = { readonly from: number; readonly order: number };
+/** From what reach a realm's clerks cut ground into equal blocks, and from what its streets are at least laid straight. */
+export const SURVEYED = 0.45,
+  STRAIGHT = 0.25;
 
 /** How a part of a town's streets was laid (TownSite.laid). */
 export type StreetsLaid = {
@@ -186,6 +205,33 @@ export function quarterBearings(
   return { bearing, road };
 }
 
+/** What the going down a road in costs against a lane's, a metre. */
+export const ROAD_GOING = 0.6;
+
+/**
+ * What the going costs toward bearing `a` from a town's square against level ground: more up or down its slope (by a
+ * fifteenth for each metre it rises in a kilometre, as its land's map has it), nothing more along it.
+ */
+export function climb(site: TownSite, a: number): number {
+  return 1 + (Math.min(30, site.rise) / 15) * Math.abs(Math.cos(a - site.up));
+}
+
+/**
+ * How far out a town's ground is taken toward bearing `a`, of the furthest it goes (0.4 … 1): a finger down each road in,
+ * the way it trades by, less between them, and less up and down its slope than along it. By this its sprawl past the lots
+ * drawn is laid, as its blocks are by what the going to each costs.
+ */
+export function reachToward(site: TownSite | null | undefined, a: number): number {
+  if (!site) return 1;
+  let finger = 0;
+  for (const r of site.roads) {
+    const off = Math.atan2(Math.sin(a - r.bearing), Math.cos(a - r.bearing));
+    finger = Math.max(finger, Math.exp(-((off / 0.24) ** 2)));
+  }
+  const open = site.roads.length ? 0.55 + 0.45 * finger : 1;
+  return Math.max(0.4, open / (0.5 + 0.5 * climb(site, a)));
+}
+
 /** A street as it is laid: from where it leaves the one it branches from, slot by slot (a block each side of each). */
 type Street = {
   readonly q: number;
@@ -194,6 +240,8 @@ type Street = {
   readonly half: number;
   /** Straight (a road, or measured ground): no wandering. */
   readonly straight: boolean;
+  /** How much it wanders, of what a lane walked under no one's will does. */
+  readonly loose: number;
   /** The breadth of the gaps along it, where its side streets cross (a lane's, or a measured street's, as it was laid). */
   readonly cross: number;
   /** How far each block along it keeps from the next (KEEP, and its verge). */
@@ -227,6 +275,20 @@ export type GrownBlocks = {
   readonly straight: Uint8Array;
   /** Its main streets: the first street of each quarter, out from its square (a road's along its road). */
   readonly mains: readonly MainStreet[];
+  /** Its market place (absent: none, or no ground could be kept for it): its middle, its turn, how long and deep, and the block it was taken at. */
+  readonly place?: MarketPlace;
+};
+
+/** A town's market place on its ground (GrownBlocks.place). */
+export type MarketPlace = {
+  readonly x: number;
+  readonly z: number;
+  readonly yaw: number;
+  readonly w: number;
+  readonly d: number;
+  readonly at: number;
+  /** Its main street runs through its middle (else beside it). */
+  readonly through: boolean;
 };
 
 /**
@@ -257,9 +319,11 @@ export function grownBlocks(
   water: { readonly x: number; readonly z: number; readonly r: number } | null,
   axis: number,
 ): GrownBlocks {
-  const x = new Float32Array(count),
-    z = new Float32Array(count),
-    yaw = new Float32Array(count),
+  // (Past the blocks asked, the ground kept open for its market place: four blocks' at the most.)
+  const HELD = 4,
+    x = new Float32Array(count + HELD),
+    z = new Float32Array(count + HELD),
+    yaw = new Float32Array(count + HELD),
     straight = new Uint8Array(count),
     { bearing, road } = quarterBearings(site, water, axis),
     lattice = site.roads[0]?.bearing ?? axis,
@@ -273,7 +337,17 @@ export function grownBlocks(
     cells = new Map<number, number[]>(),
     cellKey = (i: number, j: number) => (i + 4096) * 8192 + (j + 4096),
     wallBlock = site.walled !== null ? Math.ceil(site.walled / 8) : -1,
-    measuredAt = (b: number) => site.measured >= 0 && b >= site.measured,
+    // (How far its realm's will was done when block b's ground was taken up; of old, all or nothing from `measured`.)
+    orderOf = (b: number): number => {
+      if (!site.surveys) return site.measured >= 0 && b >= site.measured ? 1 : 0;
+      let o = 0;
+      for (const s of site.surveys) if (b >= s.from) o = s.order;
+      return o;
+    },
+    measuredAt = (b: number) => orderOf(b) >= SURVEYED,
+    straightAt = (b: number) => orderOf(b) >= STRAIGHT,
+    // (How much a lane wanders: as it was walked where no one's will was done, less where some was.)
+    looseAt = (b: number) => (site.surveys ? Math.max(0.25, 1 - orderOf(b) / STRAIGHT) : 1),
     // (What each part's streets were laid for: absent, for those on foot.)
     laneAt = (b: number) => laidAt(site, b)?.lane ?? LANE_W,
     streetAt = (b: number) => laidAt(site, b)?.street ?? STREET_W,
@@ -281,7 +355,8 @@ export function grownBlocks(
     // (How far each block keeps from the next: half of it each; never more than its lane leaves.)
     padAt = (b: number) => Math.min(KEEP, laneAt(b) / 2 - 0.25) + vergeAt(b);
   let placed = 0,
-    wallR = -1;
+    wallR = -1,
+    place: MarketPlace | undefined;
   const roadX = site.roads.map((r) => Math.cos(r.bearing)),
     roadZ = site.roads.map((r) => Math.sin(r.bearing));
   const clear = (bx: number, bz: number, t: number, pad: number, b: number): boolean => {
@@ -336,6 +411,8 @@ export function grownBlocks(
       // (A lot's middle lies at most some 15 m from its block's.)
       let r = SQUARE_R + 10;
       for (let o = 0; o <= b; o++) r = Math.max(r, Math.hypot(x[o]!, z[o]!) + 15.2 + 14);
+      // (And its market place, where it was kept before them.)
+      if (place) r = Math.max(r, placeReach(place));
       wallR = r + 8;
     }
   };
@@ -351,8 +428,8 @@ export function grownBlocks(
       if (!st.straight) {
         // (A lane wanders a little as it was walked, and leans along the hillside.)
         st.wander = Math.max(
-          -0.35,
-          Math.min(0.35, st.wander + (unit(seed, st.id, k) - 0.5) * 0.22),
+          -0.35 * st.loose,
+          Math.min(0.35 * st.loose, st.wander + (unit(seed, st.id, k) - 0.5) * 0.22 * st.loose),
         );
         const lean = turnTo(nearestAlong(st.h0 + st.wander), st.h0 + st.wander) * bendBy * 0.5;
         st.h = st.h0 + st.wander + lean;
@@ -383,9 +460,14 @@ export function grownBlocks(
   const costOf = (st: Street, i: number, side: number) => {
     const { bx, bz } = blockAt(st, i, side),
       d = Math.hypot(bx, bz);
+    // (What a block costs is the going to it from the square. Down a road in, the going is quick: its fronts are taken
+    // half as far again as a lane's, and the town grows a finger along each way it trades by. Up or down its slope the
+    // going is slow, along it easy: the town lies long across its hillside.)
     return (
-      d * (1 + 4 * grade(st.hs[i]!)) -
-      (st.straight && st.depth === 0 && road[st.q]! >= 0 ? 10 : 0) +
+      d *
+        (st.depth === 0 && road[st.q]! >= 0 ? ROAD_GOING : 1) *
+        climb(site, Math.atan2(bz, bx)) *
+        (1 + 4 * grade(st.hs[i]!)) +
       3 * unit(seed, st.id * 7 + side, i)
     );
   };
@@ -410,6 +492,7 @@ export function grownBlocks(
       depth,
       half: half + vergeAt(b),
       straight: isStraight,
+      loose: looseAt(b),
       cross: (isStraight ? streetAt(b) : laneAt(b)) + 2 * vergeAt(b),
       pad: padAt(b),
       id: streets.length,
@@ -446,7 +529,7 @@ export function grownBlocks(
       if (!st.straight || !flat) hb += turnTo(nearestAlong(hb), hb) * bendBy;
       // (Straight where its ground was measured out; a road's own side streets are lanes like any other's.)
       const half = (st.straight ? streetAt(b) : laneAt(b)) / 2;
-      street(st.q, st.depth + 1, ox, oz, hb, half, measuredAt(b), st.half + BD + g, b);
+      street(st.q, st.depth + 1, ox, oz, hb, half, straightAt(b), st.half + BD + g, b);
     }
   };
   // The first streets: one down each quarter from the square, a road's along its road.
@@ -552,8 +635,66 @@ export function grownBlocks(
     put(b, r * Math.cos(bearing[q]!), r * Math.sin(bearing[q]!), -bearing[q]!, false);
   };
 
+  // —— Its market place: the next ground along its main street, both sides of it where it is great, kept open ——
+  const keepPlace = (b: number) => {
+    const want = site.place!,
+      st = streets[QUARTER.road]!,
+      both = want.size >= 2,
+      slots = want.size >= 3 ? 2 : 1,
+      sides = both ? [-1, 1] : [1],
+      first = Math.max(st.next[0], st.next[1]);
+    for (let i = first; i < first + 6; i++) {
+      let free = true;
+      for (let k = 0; k < slots && free; k++)
+        for (const side of sides) {
+          const { bx, bz, t } = blockAt(st, i + k, side);
+          if (!clear(bx, bz, t, Math.max(st.pad, padAt(b)), b)) free = false;
+        }
+      if (!free) continue;
+      let n = 0,
+        mx = 0,
+        mz = 0;
+      for (let k = 0; k < slots; k++) {
+        for (const side of sides) {
+          const { bx, bz, t } = blockAt(st, i + k, side),
+            o = count + n++;
+          x[o] = bx;
+          z[o] = bz;
+          yaw[o] = t;
+          mx += bx;
+          mz += bz;
+          const key = cellKey(Math.floor(bx / CELL), Math.floor(bz / CELL)),
+            list = cells.get(key);
+          if (list) list.push(o);
+          else cells.set(key, [o]);
+        }
+        // (Its main street goes on through it, and side streets leave it as they leave any block.)
+        st.used.add(i + k);
+        st.since[i + k] = b;
+        branch(st, i + k, b);
+      }
+      st.next[0] = Math.max(st.next[0], i + slots);
+      st.next[1] = Math.max(st.next[1], i + slots);
+      const h = st.hs[i]!,
+        last = st.hs[i + slots - 1]!;
+      place = {
+        x: mx / n,
+        z: mz / n,
+        yaw: -(slots > 1
+          ? Math.atan2(Math.sin(h) + Math.sin(last), Math.cos(h) + Math.cos(last))
+          : h),
+        w: slots * BW + (slots - 1) * gapOf(st, i),
+        d: both ? 2 * (st.half + BD) : BD,
+        at: b,
+        through: both,
+      };
+      return;
+    }
+  };
+
   for (let b = 0; b < count; b++) {
     const q = quarterOf(seed, b);
+    if (site.place && b === site.place.at) keepPlace(b);
     if (measuredAt(b) && flat && takeCell(b, q)) continue;
     const heap = heaps[q]!;
     let done = false;
@@ -604,7 +745,19 @@ export function grownBlocks(
       since: Int32Array.from(at, (i) => st.since[i]!),
     });
   }
-  return { x, z, yaw, straight, mains };
+  return {
+    x: x.subarray(0, count),
+    z: z.subarray(0, count),
+    yaw: yaw.subarray(0, count),
+    straight,
+    mains,
+    ...(place ? { place } : {}),
+  };
+}
+
+/** How far out a market place reaches from its town's middle. */
+export function placeReach(p: MarketPlace): number {
+  return Math.hypot(p.x, p.z) + Math.hypot(p.w / 2, p.d / 2);
 }
 
 /** Whether two blocks overlap, each kept `pad` clear about it (their sides apart, by their axes). */

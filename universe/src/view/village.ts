@@ -6631,6 +6631,12 @@ export type HouseLook = {
   readonly tall?: number;
   /** Its tall homes are raised in its people's own stuff. */
   readonly own?: boolean;
+  /** How high its floors are against ours (its people's measure), and how much steeper than its roofing asks its roof is pitched. */
+  readonly storey?: number;
+  readonly steep?: number;
+  /** What its tenements are raised in, and its blocks (absent: brick, concrete). */
+  readonly stuff?: Rgb;
+  readonly block?: Rgb;
 };
 
 // Walls and roofs in the bright, clean colours of the era's games (art track A3).
