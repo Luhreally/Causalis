@@ -477,9 +477,10 @@ test("a home is built against its weather and to its people's measure: pale and 
   const plain = draw(FOOT, 2),
     rich = draw({ ...FOOT, spare: 0.8 }, 2),
     walls = (d: ReturnType<typeof draw>) =>
-      [...d.parts.groups].filter(([k, g]) => k.startsWith("box|") && g.data.length > 7 * 50).length;
+      [...d.parts.groups].filter(([k, g]) => k.startsWith("box|") && g.data.length > 0).length;
   assert.equal(rich.parts.count, plain.parts.count);
-  assert.ok(walls(rich) >= walls(plain) + 1);
+  assert.ok(walls(rich) > walls(plain), `${walls(rich)} colours of wall against ${walls(plain)}`);
+  assert.equal(rich.parts.batches, plain.parts.batches);
 });
 
 test("all of it within a few parts and batches of the town drawn with no form", () => {

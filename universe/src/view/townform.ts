@@ -53,10 +53,34 @@ const TALL_STEPS = 12,
   TALL_LOW = 0.45,
   TALL_STEP = 0.1;
 
+const LIME_Q: Rgb = [0.95, 0.93, 0.86],
+  OCHRE_Q: Rgb = [0.86, 0.66, 0.3];
+
 /** How dark a block's walls and roofs have weathered, oldest first; and what a quarter's roofing leans to. */
-const WEATHERED = [0.8, 0.9, 1, 1.07],
+const WEATHERED = [0.72, 0.86, 1, 1.09],
   ROOF_WARM: Rgb = [0.72, 0.5, 0.24],
   ROOF_DARK: Rgb = [0.3, 0.22, 0.2],
+  ROOF_FINE: Rgb = [0.86, 0.3, 0.16],
+  ROOF_GREY: Rgb = [0.45, 0.5, 0.52],
+  SOOT: Rgb = [0.3, 0.29, 0.28],
+  DAMP: Rgb = [0.58, 0.66, 0.7],
+  EARTHY: Rgb = [0.75, 0.6, 0.45],
+  /**
+   * What each quarter's walls and roofs lean to, by what the quarter is (bridge/sites.ts QUARTER: toward its water, its
+   * lee, its high ground, its busiest way in; four more about them): [the walls' lean and how far, the roofs']. In the
+   * lee stand its smithies and kilns, and soot lies on everything; on the high ground its well-off, limed and under
+   * the best roofing; down its road its traders, their fronts washed to be seen; by its water the damp greys both.
+   */
+  QUARTER_TONE: readonly (readonly [Rgb, number, Rgb, number])[] = [
+    [DAMP, 0.2, ROOF_GREY, 0.34],
+    [SOOT, 0.34, ROOF_DARK, 0.4],
+    [LIME_Q, 0.3, ROOF_FINE, 0.45],
+    [OCHRE_Q, 0.26, ROOF_WARM, 0.3],
+    [EARTHY, 0, ROOF_WARM, 0.12],
+    [EARTHY, 0.14, ROOF_DARK, 0.14],
+    [EARTHY, 0, ROOF_DARK, 0],
+    [EARTHY, 0.14, ROOF_WARM, 0.2],
+  ],
   GLASS_BLUE: Rgb = [0.44, 0.58, 0.7],
   GLASS_GREEN: Rgb = [0.4, 0.62, 0.62],
   GLASS_GREY: Rgb = [0.56, 0.6, 0.66];
@@ -126,8 +150,9 @@ export function formLook(scene: TownScene, p: number, index: number): HouseLook 
       Math.floor(4 * Math.sqrt((p + 0.5) / Math.max(1, scene.plan.whole))) +
         (share(block, 9) < 0.3 ? 1 : 0),
     ),
-    roofing = (quarterOf(scene.plan.seed, block) + (share(block, 11) < 0.4 ? 1 : 0)) % 3,
-    key = (((scene.looks[index] ? index : 0) * 64 + code) * 4 + wash) * 12 + aged * 3 + roofing;
+    quarter = quarterOf(scene.plan.seed, block),
+    roofing = (quarter + (share(block, 11) < 0.4 ? 1 : 0)) % 3,
+    key = (((scene.looks[index] ? index : 0) * 64 + code) * 4 + wash) * 32 + aged * 8 + quarter;
   let look = scene.formLooks.get(key);
   if (!look) {
     const tier = code & 3,
@@ -138,16 +163,11 @@ export function formLook(scene: TownScene, p: number, index: number): HouseLook 
       limed = form.pale > 0 && !plain ? mixed(base.wall, LIME, form.pale) : base.wall,
       weather = WEATHERED[aged]!,
       toned = (c: Rgb): Rgb => [c[0] * weather, c[1] * weather, c[2] * weather],
-      wall = plain ? base.wall : toned(wash === 1 ? mixed(limed, OCHRE, 0.4) : limed),
-      roofed = plain
-        ? base.roof
-        : toned(
-            roofing === 1
-              ? mixed(base.roof, ROOF_WARM, 0.24)
-              : roofing === 2
-                ? mixed(base.roof, ROOF_DARK, 0.22)
-                : base.roof,
-          ),
+      lean = QUARTER_TONE[quarter]!,
+      wall = plain
+        ? base.wall
+        : toned(mixed(wash === 1 ? mixed(limed, OCHRE, 0.4) : limed, lean[0], lean[1])),
+      roofed = plain ? base.roof : toned(mixed(base.roof, lean[2], lean[3])),
       stuff = form.own
         ? mixed(wall, [0, 0, 0], 0.15)
         : STACKS.has(walls)

@@ -51,8 +51,9 @@ export function tileOf(g: LandGround, x: number, z: number): number {
 }
 
 /**
- * Whether the land's map draws a point as water: the facet it lies on (of the two each square of four tiles' middles is cut
- * into, as the terrain's mesh cuts them) has two of its three tiles in water (render/region.ts paint).
+ * Whether the land's map draws a point as water: of the facet it lies on (the two each square of four tiles' middles is
+ * cut into, as the terrain's mesh cuts them), the share of the tile whose corner it is nearest by the facet's own measure
+ * (the greatest of its three weights), and whether that tile is water (render/region.ts cuts a facet of water and land so).
  */
 export function facetWet(g: LandGround, x: number, z: number): boolean {
   const half = ((g.size - 1) * g.tileKm) / 2,
@@ -60,11 +61,23 @@ export function facetWet(g: LandGround, x: number, z: number): boolean {
     fz = Math.max(0, Math.min(g.size - 1 - 1e-6, (z + half) / g.tileKm)),
     i = Math.floor(fx),
     j = Math.floor(fz),
-    a = j * g.size + i,
-    w = (t: number) => (g.water[t]! !== 0 ? 1 : 0);
-  return fx - i + (fz - j) <= 1
-    ? w(a) + w(a + g.size) + w(a + 1) >= 2
-    : w(a + 1) + w(a + g.size) + w(a + g.size + 1) >= 2;
+    a = j * g.size + i;
+  return g.water[a + facetOwner(fx - i, fz - j)[0] + facetOwner(fx - i, fz - j)[1] * g.size]! !== 0;
+}
+
+/**
+ * Whose share of its facet a point of a square of four tiles' middles lies in: the tile east by `[0]` and south by `[1]` of
+ * the square's north-west one (u east, v south, each 0 … 1). The square is cut north-east to south-west.
+ */
+export function facetOwner(u: number, v: number): readonly [number, number] {
+  if (u + v <= 1) {
+    const w = 1 - u - v;
+    return w >= u && w >= v ? [0, 0] : u >= v ? [1, 0] : [0, 1];
+  }
+  const w = u + v - 1,
+    e = 1 - v,
+    so = 1 - u;
+  return w >= e && w >= so ? [1, 1] : e >= so ? [1, 0] : [0, 1];
 }
 
 /**

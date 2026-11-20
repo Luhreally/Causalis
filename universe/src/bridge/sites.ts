@@ -63,9 +63,9 @@ export type TownSite = {
   /**
    * Its land's water about it, as its land's map draws it (absent: none near, or its people live in the water): the squares
    * between the middles of the map's tiles about its own, each `m` metres across on the town's ground (the map draws a town
-   * LAND_SCALE times its size), `half` squares out each way, row by row from the north-west; each square's two facets (as
-   * the map's mesh cuts it), bit 1 the one toward the north-west, bit 2 the other, set where two of the facet's three
-   * tiles are water. Nothing of the town is laid there: no block, no sprawl; the land's map and the town read one water.
+   * LAND_SCALE times its size), `half` squares out each way, row by row from the north-west; each square's four tiles, bit 1 the
+   * north-west, 2 the north-east, 4 the south-west, 8 the south-east, set where the tile is water: the map draws water in
+   * a water tile's own share of each facet. Nothing of the town is laid there: no block, no sprawl; the land's map and the town read one water.
    */
   readonly wet?: { readonly m: number; readonly half: number; readonly cells: string };
 };
@@ -74,8 +74,8 @@ export type TownSite = {
 export const LAND_SCALE = 5;
 
 /**
- * Whether a point of a town's ground (metres from its square) lies on its land's water (TownSite.wet): on a facet of its
- * land's map that is drawn as water.
+ * Whether a point of a town's ground (metres from its square) lies on its land's water (TownSite.wet): in a water tile's
+ * share of the facet of its land's map it lies on.
  */
 export function wetGround(site: TownSite | null | undefined, x: number, z: number): boolean {
   const w = site?.wet;
@@ -86,8 +86,22 @@ export function wetGround(site: TownSite | null | undefined, x: number, z: numbe
     j = Math.floor(fz),
     n = 2 * w.half;
   if (i < 0 || j < 0 || i >= n || j >= n) return false;
-  const bits = w.cells.charCodeAt(j * n + i) - 48;
-  return fx - i + (fz - j) <= 1 ? (bits & 1) !== 0 : (bits & 2) !== 0;
+  const bits = w.cells.charCodeAt(j * n + i) - 48,
+    u = fx - i,
+    v = fz - j;
+  // (The square's four tiles, bit 1 north-west, 2 north-east, 4 south-west, 8 south-east; the share as view/land.ts
+  // facetOwner has it: the greatest of the facet's three weights.)
+  let east: number, south: number;
+  if (u + v <= 1) {
+    const o = 1 - u - v;
+    [east, south] = o >= u && o >= v ? [0, 0] : u >= v ? [1, 0] : [0, 1];
+  } else {
+    const o = u + v - 1,
+      e = 1 - v,
+      so = 1 - u;
+    [east, south] = o >= e && o >= so ? [1, 1] : e >= so ? [1, 0] : [0, 1];
+  }
+  return (bits & (1 << (east + 2 * south))) !== 0;
 }
 
 /** A part of a town's ground taken up under a realm's will (TownSite.surveys). */

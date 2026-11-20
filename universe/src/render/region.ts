@@ -126,39 +126,90 @@ export class RegionScene {
         indices[k++] = c;
         indices[k++] = d;
       }
-    // Every triangle its own corners, lit by its own face: facets, not a blur.
-    const tris = indices.length / 3,
-      corners = new Int32Array(tris * 3),
+    // Every triangle its own corners, lit by its own face: facets, not a blur. A facet whose three tiles are not all
+    // water or all land is cut into each tile's own share of it (to the middles of its sides and its own middle), each
+    // share coloured as its tile is: water is drawn where a tile is water and only as far as that tile goes, so a lone
+    // lake tile is a small lake and a river a band as broad as its tiles (view/land.ts facetWet reads the same shares).
+    const base = indices.length / 3,
+      wetTile = (v: number) => water[v]! !== 0;
+    let tris = 0;
+    for (let t = 0; t < base; t++) {
+      const w = wetTile(indices[3 * t]!),
+        mixed = wetTile(indices[3 * t + 1]!) !== w || wetTile(indices[3 * t + 2]!) !== w;
+      tris += mixed ? 6 : 1;
+    }
+    const corners = new Int32Array(tris * 3),
       at = new Float32Array(tris * 9),
       normals = new Float32Array(tris * 9),
-      order = new Uint32Array(tris * 3);
-    for (let t = 0; t < tris; t++) {
-      const o = 9 * t;
+      order = new Uint32Array(tris * 3),
+      P = new Float64Array(21);
+    let n3 = 0;
+    const emit = (
+      owner: readonly [number, number, number],
+      a: number,
+      b: number,
+      c: number,
+      nx: number,
+      ny: number,
+      nz: number,
+    ) => {
+      const o = 9 * n3;
       for (let q = 0; q < 3; q++) {
-        const v = indices[3 * t + q]!;
-        corners[3 * t + q] = v;
-        at[o + 3 * q] = positions[3 * v]!;
-        at[o + 3 * q + 1] = positions[3 * v + 1]!;
-        at[o + 3 * q + 2] = positions[3 * v + 2]!;
-        order[3 * t + q] = 3 * t + q;
+        const from = (q === 0 ? a : q === 1 ? b : c) * 3;
+        at[o + 3 * q] = P[from]!;
+        at[o + 3 * q + 1] = P[from + 1]!;
+        at[o + 3 * q + 2] = P[from + 2]!;
+        normals[o + 3 * q] = nx;
+        normals[o + 3 * q + 1] = ny;
+        normals[o + 3 * q + 2] = nz;
+        corners[3 * n3 + q] = owner[q]!;
+        order[3 * n3 + q] = 3 * n3 + q;
       }
-      const ux = at[o + 3]! - at[o]!,
-        uy = at[o + 4]! - at[o + 1]!,
-        uz = at[o + 5]! - at[o + 2]!,
-        vx = at[o + 6]! - at[o]!,
-        vy = at[o + 7]! - at[o + 1]!,
-        vz = at[o + 8]! - at[o + 2]!;
+      n3++;
+    };
+    for (let t = 0; t < base; t++) {
+      const v0 = indices[3 * t]!,
+        v1 = indices[3 * t + 1]!,
+        v2 = indices[3 * t + 2]!;
+      // (Its corners 0 … 2, the middles of its sides 3 (0–1), 4 (1–2), 5 (2–0), its own middle 6.)
+      for (let q = 0; q < 3; q++) {
+        const v = q === 0 ? v0 : q === 1 ? v1 : v2;
+        P[3 * q] = positions[3 * v]!;
+        P[3 * q + 1] = positions[3 * v + 1]!;
+        P[3 * q + 2] = positions[3 * v + 2]!;
+      }
+      for (let d = 0; d < 3; d++) {
+        P[9 + d] = (P[d]! + P[3 + d]!) / 2;
+        P[12 + d] = (P[3 + d]! + P[6 + d]!) / 2;
+        P[15 + d] = (P[6 + d]! + P[d]!) / 2;
+        P[18 + d] = (P[d]! + P[3 + d]! + P[6 + d]!) / 3;
+      }
+      const ux = P[3]! - P[0]!,
+        uy = P[4]! - P[1]!,
+        uz = P[5]! - P[2]!,
+        vx = P[6]! - P[0]!,
+        vy = P[7]! - P[1]!,
+        vz = P[8]! - P[2]!;
       let nx = uy * vz - uz * vy,
         ny = uz * vx - ux * vz,
         nz = ux * vy - uy * vx;
       // Up, whichever way the triangle winds.
       if (ny < 0) [nx, ny, nz] = [-nx, -ny, -nz];
       const len = Math.hypot(nx, ny, nz) || 1;
-      for (let q = 0; q < 3; q++) {
-        normals[o + 3 * q] = nx / len;
-        normals[o + 3 * q + 1] = ny / len;
-        normals[o + 3 * q + 2] = nz / len;
+      nx /= len;
+      ny /= len;
+      nz /= len;
+      const w = wetTile(v0);
+      if (wetTile(v1) === w && wetTile(v2) === w) {
+        emit([v0, v1, v2], 0, 1, 2, nx, ny, nz);
+        continue;
       }
+      emit([v0, v0, v0], 0, 3, 6, nx, ny, nz);
+      emit([v0, v0, v0], 0, 6, 5, nx, ny, nz);
+      emit([v1, v1, v1], 1, 4, 6, nx, ny, nz);
+      emit([v1, v1, v1], 1, 6, 3, nx, ny, nz);
+      emit([v2, v2, v2], 2, 5, 6, nx, ny, nz);
+      emit([v2, v2, v2], 2, 6, 4, nx, ny, nz);
     }
     const mesh = new pc.Mesh(this.stage.device);
     mesh.setPositions(at);
@@ -222,33 +273,19 @@ export class RegionScene {
   }
 
   /**
-   * Recolour the terrain (RGBA per tile): each facet the colour most of its three tiles have. A facet is water only where
-   * two of its three tiles are (view/land.ts facetWet reads the same): one water tile among land coloured the facets about
-   * it blue a tile out each way, and towns and fields that kept off the water's tiles stood on blue (2026-11-20).
+   * Recolour the terrain (RGBA per tile): each facet the colour most of its three tiles have. (A facet with water and land
+   * in it was cut into each tile's share when the mesh was made, and each share's three corners are its one tile.)
    */
   paint(colors: Uint8Array): void {
     if (!this.mesh || !this.corners || !this.colors) return;
     const tiles = new Uint32Array(colors.buffer, colors.byteOffset, colors.length >> 2),
       out = new Uint32Array(this.colors.buffer),
-      k = this.corners,
-      water = this.ground?.water;
+      k = this.corners;
     for (let t = 0; t < k.length; t += 3) {
-      const ka = k[t]!,
-        kb = k[t + 1]!,
-        kc = k[t + 2]!,
-        a = tiles[ka]!,
-        b = tiles[kb]!,
-        c = tiles[kc]!;
-      let face = a === b || a === c ? a : b === c ? b : a;
-      if (water) {
-        const wa = water[ka]! !== 0,
-          wb = water[kb]! !== 0,
-          wc = water[kc]! !== 0,
-          wet = (wa ? 1 : 0) + (wb ? 1 : 0) + (wc ? 1 : 0);
-        // (Two of water: the first of them. One: the first of the two of land.)
-        if (wet >= 2) face = wa ? a : b;
-        else if (wet === 1) face = wa ? b : a;
-      }
+      const a = tiles[k[t]!]!,
+        b = tiles[k[t + 1]!]!,
+        c = tiles[k[t + 2]!]!,
+        face = a === b || a === c ? a : b === c ? b : a;
       out[t] = out[t + 1] = out[t + 2] = face;
     }
     this.mesh.setColors32(this.colors);

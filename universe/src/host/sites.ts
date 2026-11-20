@@ -255,7 +255,8 @@ const WET_HALF = 6;
 
 /**
  * Its land's water about a town (TownSite.wet; nothing where none is near, or its people live in the water): the facets of
- * its land's map about its own tile that the map draws as water (two of a facet's three tiles in the sea, a lake or a river).
+ * its land's map about its own tile: which tiles of each square between their middles are water (sea, lake or river), by which
+ * the map draws each facet and the town reads it.
  */
 export function landWater(
   r: { size: number; tileKm: number; water: Uint8Array },
@@ -276,12 +277,9 @@ export function landWater(
     for (let di = -WET_HALF; di < WET_HALF; di++) {
       const a = i + di,
         b = j + dj,
-        // (The square's facets as the map's mesh cuts it: its near corner, the one south of it and the one east; then
-        // the east, the south and the far corner.)
-        first = w(a, b) + w(a, b + 1) + w(a + 1, b) >= 2 ? 1 : 0,
-        second = w(a + 1, b) + w(a, b + 1) + w(a + 1, b + 1) >= 2 ? 2 : 0;
-      cells += String(first + second);
-      any ||= first + second > 0;
+        bits = w(a, b) + 2 * w(a + 1, b) + 4 * w(a, b + 1) + 8 * w(a + 1, b + 1);
+      cells += String.fromCharCode(48 + bits);
+      any ||= bits > 0;
     }
   return any
     ? { wet: { m: Math.round((r.tileKm * 1000) / LAND_SCALE), half: WET_HALF, cells } }

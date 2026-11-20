@@ -408,6 +408,10 @@ export function formWhys(
     out.push(
       `Its floors are ${(3 * Math.max(0.75, Math.min(1.5, form.body))).toFixed(1)} m high: its people stand ${form.body > 1 ? "broader and taller" : "smaller"} than ours.`,
     );
+  if (!form.over)
+    out.push(
+      "Its quarters differ as what stands in them does: soot on the walls and roofs of its lee, where its smithies and kilns are; lime and its best roofing on its high ground; fronts washed to be seen down its busiest road; the damp's grey by its water. Its oldest blocks have weathered darkest.",
+    );
   if (form.spare >= PAINTED_FROM)
     out.push("Its land makes well more than it eats: one front in three is painted.");
   else if (form.spare < 0.15)
