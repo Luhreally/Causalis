@@ -197,6 +197,43 @@ test("a store of long lists is saved packed by column, and loads back as it was"
   assert.equal(world.decisions.count, live.decisions.count);
 });
 
+test("a store of many rows that does not ask is kept packed where that is smaller, and loads back as it was", () => {
+  // (A store of rows as the small ones of a peopled world are: a key and a few whole numbers each.)
+  class Rows implements StateStore {
+    readonly name = "test.rows";
+    rows: [string, number, number, number][] = [];
+    hashInto(h: Hasher): void {
+      h.value(this.rows);
+    }
+    save(): unknown {
+      return { rows: this.rows, sets: this.rows.length };
+    }
+    load(state: unknown): void {
+      this.rows = (state as { rows: [string, number, number, number][] }).rows;
+    }
+  }
+  const withRows = (seed: Seed) => {
+      const w = makeToyWorld(seed.text);
+      w.register(new Rows());
+      return w;
+    },
+    live = withRows(seedFromText("rows"));
+  live.runTo(3 * YEAR);
+  const rows = live.store<Rows>("test.rows");
+  for (let i = 0; i < 400; i++) rows.rows.push([`cell:0:${i}`, i * 7, 1000 - i, i % 5]);
+  const ruleset = rulesetId(live, VERSION),
+    doc = roundTrip(saveWorld(live, ruleset)),
+    chunk = doc.stores["test.rows"]!,
+    plain = JSON.stringify(rows.save());
+  assert.equal(chunk.packed, true);
+  assert.ok(JSON.stringify(chunk.data).length < 0.9 * plain.length, "smaller than its JSON");
+  assert.equal(JSON.stringify(chunkData(chunk)), plain, "and gives back what its JSON does");
+  assert.equal(doc.stores["commands.log"]!.packed, undefined, "a few lines are kept as they are");
+  const { world } = loadWorld(doc, withRows, ruleset);
+  assert.deepEqual(world.domainHashes(), live.domainHashes());
+  assert.deepEqual(world.store<Rows>("test.rows").rows, rows.rows);
+});
+
 test("a save from before packing loads, and runs on as the world it came from", () => {
   const live = liveWorld(),
     ruleset = rulesetId(live, VERSION),

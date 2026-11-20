@@ -32,7 +32,8 @@ export interface StateStore {
   readonly outsideRules?: boolean;
   /**
    * Whether a save keeps what save() gives packed by column (kernel/pack.ts): for a store of
-   * long lists of records, which load back as JSON would give them.
+   * long lists of records, which load back as JSON would give them. Unsaid, a save packs it where
+   * that is the smaller and gives back exactly what its JSON does (kernel/save.ts); false, never.
    */
   readonly packed?: boolean;
   /**
