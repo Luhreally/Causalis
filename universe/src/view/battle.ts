@@ -337,10 +337,10 @@ function companyColor(
   d: readonly number[],
 ): [number, number, number] {
   const tones: readonly [number, number, number][] = [
-      [0.08, 0.08, 0.09],
       [0.95, 0.93, 0.86],
-      [0.55, 0.12, 0.6],
       [0.95, 0.55, 0.08],
+      [0.55, 0.12, 0.6],
+      [0.08, 0.08, 0.09],
       [0.1, 0.55, 0.6],
       [0.75, 0.1, 0.25],
     ],
@@ -821,7 +821,7 @@ export function newBattle(told: BattleNear, most: number, placed = false): Battl
       // files has none of its own to give.)
       co = (side === 0 ? a : d).company,
       coFiles =
-        co && co.men > 0 && h.files >= 6 && !h.open
+        co && co.men > 0 && h.files >= 6
           ? Math.max(
               2,
               Math.min(

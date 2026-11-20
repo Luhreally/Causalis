@@ -59,6 +59,8 @@ export class LodeStore implements StateStore {
   private readonly lodes = new Map<number, Lode>();
   /** Lodes dug this year, to look at when the year's digging is done (not state: the year's own). */
   readonly dugNow = new Set<number>();
+  /** How many dug each of them (not state: the year's own, let go with them). It was a module's map by store. */
+  readonly diggers = new Map<number, number>();
   /** A land's people still feeling a mine's end: the year, and how hard it pushes them. */
   private readonly felt = new Map<number, [number, number]>();
   tally: LodeTally = emptyTally();
@@ -208,6 +210,7 @@ export class LodeStore implements StateStore {
     this.sizes.clear();
     this.ground = "";
     this.dugNow.clear();
+    this.diggers.clear();
     for (const [cell, kind, dug, tier, out, ref, first] of s.lodes ?? []) {
       const name = LODE_KINDS[kind]!;
       this.lodes.set(keyOf(cell, name), { cell, kind: name, dug, tier, out, ref, first });

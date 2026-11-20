@@ -32,8 +32,8 @@ const DRAWN = 6;
 /** Region units to a camp's metre, across and up. */
 const ACROSS = DRAWN * LAND_ACROSS;
 const UP = DRAWN * LAND_UP;
-/** The most camps a land draws (the host's MOST_CAMPS), and the most tents of one. */
-const MOST = 16;
+/** The most camps a land draws (the host's MOST_CAMPS, and three of those who fled to it), and the most tents of one. */
+const MOST = 19;
 const MOST_TENTS = 14;
 
 const HIDE: Rgb = [0.6, 0.45, 0.3];

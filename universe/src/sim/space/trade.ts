@@ -49,7 +49,7 @@ import { farOf, fireOf } from "../war/fire.ts";
 import { warsOf } from "../war/war.ts";
 import { civilizationOf, civilizationsNear } from "./contact.ts";
 import { LANE_ROW, laneLawOf, laneMapOf, laneRoute, laneYearOf } from "./lanes.ts";
-import { folkByRef } from "./natives.ts";
+import { folkChem } from "./natives.ts";
 import { farSpare } from "./farlife.ts";
 import { peopleWords, peoplesOf } from "./peoples.ts";
 import { machinesOfRealm, spaceOf, spendMachines } from "./space.ts";
@@ -201,7 +201,8 @@ function farGoods(world: World, civ: Ref): readonly number[] {
   let list = FAR_GOODS.get(key);
   if (!list) {
     if (FAR_GOODS.size > 64) FAR_GOODS.clear();
-    const poor = folkByRef(world, civ)?.chem.metals === "poor";
+    // (Their world's matter as it was made: a pure reading, whatever has become of them since.)
+    const poor = folkChem(world, civ)?.metals === "poor";
     FAR_GOODS.set(key, (list = GROUND_GOODS.filter((g) => !(poor && WON_METALS.has(g)))));
   }
   return list;
