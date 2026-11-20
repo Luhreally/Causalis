@@ -320,6 +320,40 @@ export type VehicleNow = {
   readonly burning: number;
 };
 
+/** A hired company's block in a host drawn. */
+export type CompanyBlock = {
+  readonly name: string;
+  readonly from: number;
+  readonly files: number;
+  readonly bearers: ReadonlySet<number>;
+  /** Its banner's colour: its own, keyed by its name, neither host's. */
+  readonly color: readonly [number, number, number];
+};
+
+/** A company's own colour, by its name: a strong hue, told from both hosts' and the grass. */
+function companyColor(
+  name: string,
+  a: readonly number[],
+  d: readonly number[],
+): [number, number, number] {
+  const tones: readonly [number, number, number][] = [
+      [0.08, 0.08, 0.09],
+      [0.95, 0.93, 0.86],
+      [0.55, 0.12, 0.6],
+      [0.95, 0.55, 0.08],
+      [0.1, 0.55, 0.6],
+      [0.75, 0.1, 0.25],
+    ],
+    far = (c: readonly number[], o: readonly number[]) =>
+      Math.hypot(c[0]! - o[0]!, c[1]! - o[1]!, c[2]! - o[2]!),
+    start = hashText(name) % tones.length;
+  for (let k = 0; k < tones.length; k++) {
+    const c = tones[(start + k) % tones.length]!;
+    if (far(c, a) > 0.4 && far(c, d) > 0.4) return c;
+  }
+  return tones[start]!;
+}
+
 /** One who fought: their place in their host, their fate in the battle. */
 export type Trooper = {
   readonly id: number;
@@ -418,6 +452,11 @@ export type BattleField = {
   readonly perOf?: readonly [number, number];
   readonly hosts: readonly [HostDrawn, HostDrawn];
   readonly troopers: readonly Trooper[];
+  /**
+   * A side's hired company (sim/war/companies.ts; null: none): its block is the files from `from` on, at its host's flank
+   * and a little off it, under one banner of its own (the bearers' ids), as many files as its men are of the host.
+   */
+  readonly company?: readonly [CompanyBlock | null, CompanyBlock | null];
   /** Each side's files, each front first (who steps up as the front falls). */
   readonly files: readonly (readonly (readonly Trooper[])[])[];
   readonly arrows: readonly Arrow[];
@@ -773,10 +812,26 @@ export function newBattle(told: BattleNear, most: number, placed = false): Battl
         }
       : null;
   // Each one in their rank and file.
-  const troopers: Trooper[] = [];
+  const troopers: Trooper[] = [],
+    company: [CompanyBlock | null, CompanyBlock | null] = [null, null];
   for (const side of [0, 1] as const) {
     const h = hosts[side],
       gap = gapOf(h).file,
+      // (A hired company: the files at its host's flank, as many as its men are of the host, at least two; a host of few
+      // files has none of its own to give.)
+      co = (side === 0 ? a : d).company,
+      coFiles =
+        co && co.men > 0 && h.files >= 6 && !h.open
+          ? Math.max(
+              2,
+              Math.min(
+                Math.floor(h.files / 2),
+                Math.round((h.files * co.men) / Math.max(1, (side === 0 ? a : d).fielded)),
+              ),
+            )
+          : 0,
+      coFrom = h.files - coFiles,
+      coBearers = new Set<number>(),
       // (A machine gun's team: the first two ranks, every third file, are its gunners.)
       team = armLook((side === 0 ? a : d).host?.arm).team !== undefined,
       // (Fought by fire, those who stand off stand by squads: four to a block, drawn together, the
@@ -788,7 +843,9 @@ export function newBattle(told: BattleNear, most: number, placed = false): Battl
         rank = Math.floor(i / h.files),
         // (The last rank, short, stands to the middle.)
         inRank = rank === h.ranks - 1 ? h.n - rank * h.files : h.files,
-        across = (file - (inRank - 1) / 2) * gap,
+        ofCompany = coFiles > 0 && file >= coFrom,
+        // (The company stands a little off its payer's host.)
+        across = (file - (inRank - 1) / 2) * gap + (ofCompany ? gap * 1.6 : 0),
         u = unit(key + side * 7919, i),
         gun = team && rank < 2 && file % 3 === 1,
         block = Math.floor(file / 2) * 37 + Math.floor(rank / 2),
@@ -816,8 +873,9 @@ export function newBattle(told: BattleNear, most: number, placed = false): Battl
           Math.min(FIELD.z - 3, blockZ + (u - 0.5) * gap * (squads ? 0.12 : 0.3)),
         ),
         // (Those in open order carry no banners.)
-        bearer:
-          !h.open && rank === 1 % h.ranks && (file === Math.floor(inRank / 2) || file % 14 === 7),
+        bearer: ofCompany
+          ? rank === 1 % h.ranks && file === coFrom + Math.floor(coFiles / 2)
+          : !h.open && rank === 1 % h.ranks && (file === Math.floor(inRank / 2) || file % 14 === 7),
         falls: null,
         by: null,
         flees: null,
@@ -827,7 +885,16 @@ export function newBattle(told: BattleNear, most: number, placed = false): Battl
         ...(squads ? { off: blockBack } : {}),
         ...(gun ? { gun: true as const } : {}),
       });
+      if (ofCompany && troopers[troopers.length - 1]!.bearer) coBearers.add(troopers.length - 1);
     }
+    if (co && coFiles > 0)
+      company[side] = {
+        name: co.name,
+        from: coFrom,
+        files: coFiles,
+        bearers: coBearers,
+        color: companyColor(co.name, a.color, d.color),
+      };
   }
   // A front reaching far past the other's, in the open (no walls, no river between), closes its
   // wings about the other's flanks.
@@ -912,6 +979,7 @@ export function newBattle(told: BattleNear, most: number, placed = false): Battl
     ...(perOf[0] !== per || perOf[1] !== per ? { perOf } : {}),
     hosts,
     troopers,
+    ...(company[0] || company[1] ? { company } : {}),
     files: [0, 1].map((side) =>
       Array.from({ length: hosts[side]!.files }, (_, f) =>
         troopers.filter((t) => t.side === side && t.file === f).sort((p, q) => p.rank - q.rank),

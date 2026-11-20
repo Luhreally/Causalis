@@ -1993,6 +1993,8 @@ export {
   FLEET_EVENTS,
   FleetStore,
   fleetCommander,
+  rigOf,
+  type FleetRig,
   fleetsOf,
   fleetsYear,
   type Fleet,

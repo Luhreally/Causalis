@@ -51,3 +51,4 @@ export {
   SOLDIER_EYE,
   lieDown,
 } from "./possess.ts";
+export { SeaLayer } from "./seafight.ts";

@@ -110,17 +110,36 @@ export class LandCamps {
     });
     const tents = (felt: boolean) =>
       this.placed.flatMap((p) =>
-        p.camp.herds === felt
-          ? Array.from({ length: p.tents }, (_, k) => {
-              // (A second ring about the first, for a camp of many.)
-              const outer = k >= 8,
-                n = outer ? p.tents - 8 : Math.min(8, p.tents),
-                a =
-                  ((outer ? k - 8 : k) / n) * 2 * Math.PI + (p.seed % 7) * 0.4 + (outer ? 0.3 : 0),
-                r = RING * (outer ? 1.7 : 1) * ACROSS;
-              return { x: p.x + Math.cos(a) * r, z: p.z + Math.sin(a) * r, y: p.y, a };
-            })
-          : [],
+        // (Those who fled here: canvas in rows by the town, not a band's ring about its fire.)
+        p.camp.fled
+          ? felt
+            ? Array.from({ length: p.tents }, (_, k) => {
+                const cols = Math.ceil(Math.sqrt(p.tents * 1.6)),
+                  i = k % cols,
+                  j = Math.floor(k / cols),
+                  rows = Math.ceil(p.tents / cols),
+                  step = TENT_W * 1.35 * ACROSS;
+                return {
+                  x: p.x + (i - (cols - 1) / 2) * step,
+                  z: p.z + (j - (rows - 1) / 2) * step * 1.25,
+                  y: p.y,
+                  a: Math.PI / 4,
+                };
+              })
+            : []
+          : p.camp.herds === felt
+            ? Array.from({ length: p.tents }, (_, k) => {
+                // (A second ring about the first, for a camp of many.)
+                const outer = k >= 8,
+                  n = outer ? p.tents - 8 : Math.min(8, p.tents),
+                  a =
+                    ((outer ? k - 8 : k) / n) * 2 * Math.PI +
+                    (p.seed % 7) * 0.4 +
+                    (outer ? 0.3 : 0),
+                  r = RING * (outer ? 1.7 : 1) * ACROSS;
+                return { x: p.x + Math.cos(a) * r, z: p.z + Math.sin(a) * r, y: p.y, a };
+              })
+            : [],
       );
     for (const [batch, list] of [
       [this.hide, tents(false)],

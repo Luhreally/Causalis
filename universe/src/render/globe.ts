@@ -78,6 +78,9 @@ const KIND_GLOBES: Readonly<
   },
 };
 
+/** A kind of world's sea, as its globe colours it (a meeting of fleets is watched on it). */
+export const kindSea = (kind: string): Rgb => (KIND_GLOBES[kind] ?? KIND_GLOBES.rocky!).sea;
+
 /** The lights of halls seen from orbit (Phase 10 M95): a warm point, soft about it. */
 const LIGHTS: GlowStops = [
   [0, "rgba(255,238,176,1)"],

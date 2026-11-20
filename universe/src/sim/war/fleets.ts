@@ -1,6 +1,6 @@
 // Fleets as things (2026-11-19). A realm's ships are tonnes (sim/war/navy.ts); here its fleet is someone's: it sails under a
-// flagship named in its seat's tongue, laid down the year it first kept warships, and under whoever commands its arms (the
-// realm's commander, a notable, where it keeps one). Each year a war is fought at sea, what the fleets lost to each other
+// flagship named in its seat's tongue, laid down the year it first kept warships, and under its admiral: a post of its own (a
+// notable), named the day its fleet first meets another (until then, whoever commands its arms). Each year a war is fought at sea, what the fleets lost to each other
 // that year is a meeting of fleets where it was much (FLEET.told of a side's tonnes): told, kept a while, and a deed on each
 // commander's name. A side that lost FLEET.flagship of its tonnes in the one year lost its flagship with them, and names
 // another. No draws: all of it is read off the navy's own year. Level: one record a realm with warships (a named ship, a
@@ -20,8 +20,10 @@ import { DOMAIN } from "../../rules/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import { cultureOf } from "../culture/culture.ts";
+import { loreOf } from "../lore/lore.ts";
+import { seaRange } from "../economy/sea.ts";
 import { notablesOf } from "../notable/kept.ts";
-import { notableDeed } from "../notable/notables.ts";
+import { admiralIn, admiralLeft, notableDeed } from "../notable/notables.ts";
 import { coastal, navyOf } from "./navy.ts";
 import { warsOf } from "./war.ts";
 
@@ -162,10 +164,15 @@ function flagshipName(world: World, p: Polity, nth: number): string {
   return tongue ? tongueName(tongue, key) : `the ${nth + 1}th ship of ${realmName(p)}`;
 }
 
-/** Who commands a realm's fleet: the one who commands its arms, where it keeps one. */
-export function fleetCommander(world: World, realm: Ref): { id: number; name: string } | null {
-  const n = notablesOf(world)?.holder("command", realm);
-  return n ? { id: n.id, name: n.name } : null;
+/** Who commands a realm's fleet: its admiral, where it has had one named; else the one who commands its arms, where it keeps one. */
+export function fleetCommander(
+  world: World,
+  realm: Ref,
+): { id: number; name: string; admiral: boolean } | null {
+  const kept = notablesOf(world),
+    a = kept?.holder("fleet", realm),
+    n = a ?? kept?.holder("command", realm);
+  return n ? { id: n.id, name: n.name, admiral: !!a } : null;
 }
 
 /** The fleets' year, after the navy's: each realm with warships has its flagship; each war's year at sea, where much was lost, is a meeting told. */
@@ -177,7 +184,11 @@ export function fleetsYear(ctx: PopulationContext, t: SimTime): void {
   const realms = politiesOf(world),
     year = yearOfMoment(t);
   // 1. Each realm with warships sails under a flagship; one with none keeps no fleet.
-  for (const r of store.realms()) if (!(navy.of(r)?.tons ?? 0)) store.drop(r);
+  for (const r of store.realms())
+    if (!(navy.of(r)?.tons ?? 0)) {
+      store.drop(r);
+      admiralLeft(world, r);
+    }
   for (const r of navy.realms()) {
     if (store.of(r) || !(navy.of(r)!.tons > 0)) continue;
     const p = realms.get(r);
@@ -203,12 +214,17 @@ export function fleetsYear(ctx: PopulationContext, t: SimTime): void {
     if (Math.max(share[0]!, share[1]!) < FLEET.told || sunk[0] + sunk[1] <= 0) continue;
     const fleets = [store.of(sides[0].ref), store.of(sides[1].ref)],
       flags: [string, string] = [fleets[0]?.flagship ?? "", fleets[1]?.flagship ?? ""],
-      led = [fleetCommander(world, sides[0].ref), fleetCommander(world, sides[1].ref)],
       won: 0 | 1 = s.command[0] >= s.command[1] ? 0 : 1,
       lost: -1 | 0 | 1 =
         share[1 - won]! >= FLEET.flagship && fleets[1 - won] ? ((1 - won) as 0 | 1) : -1,
-      place =
-        [...sides[1 - won]!.members].sort((x, y) => x - y).find((c) => coastal(ctx, c)) ?? null,
+      coast = (p: Polity) => [...p.members].sort((x, y) => x - y).find((c) => coastal(ctx, c)),
+      place = coast(sides[1 - won]!) ?? null,
+      // (Each fleet under its admiral: the one it has, or one the day makes, of the coast it sails from.)
+      led = [0, 1].map((k) =>
+        fleets[k]
+          ? admiralIn(ctx, sides[k]!, coast(sides[k]!) ?? sides[k]!.seat, t)
+          : fleetCommander(world, sides[k]!.ref),
+      ),
       event = world.events.emit({
         type: FLEET_EVENTS.met.type,
         importance: lost >= 0 ? 4 : 3,
@@ -222,6 +238,9 @@ export function fleetsYear(ctx: PopulationContext, t: SimTime): void {
           sunk,
           flags,
           led: [led[0]?.name ?? null, led[1]?.name ?? null],
+          ledId: [led[0]?.id ?? null, led[1]?.id ?? null],
+          // (What each side's shipwrights knew that year: for whoever watches it after.)
+          rig: [rigOf(world, sides[0]), rigOf(world, sides[1])],
           won,
           ...(lost >= 0 ? { lost } : {}),
         },
@@ -248,7 +267,7 @@ export function fleetsYear(ctx: PopulationContext, t: SimTime): void {
         }
       }
       if (led[k])
-        notableDeed(world, led[k].id, {
+        notableDeed(world, led[k]!.id, {
           y: year,
           d: DOMAIN.war,
           w: k === won ? "war.fleet won" : "war.fleet lost",
@@ -260,6 +279,21 @@ export function fleetsYear(ctx: PopulationContext, t: SimTime): void {
   }
   store.unsee(live);
   store.forget(year - FLEET.years);
+}
+
+/**
+ * What a realm's shipwrights know, as kept with a meeting: how far its ships carry (sea provinces: 2 sails, 4 planked hulls,
+ * 8 ships that keep the sea, 16 steam), whether its works give its hulls (iron and steel), and whether it knows powder.
+ */
+export type FleetRig = readonly [steps: number, works: 0 | 1, powder: 0 | 1];
+export function rigOf(world: World, p: Polity): FleetRig {
+  const lore = loreOf(world),
+    steps = seaRange(lore, p.seat);
+  return [
+    steps,
+    lore.effect(p.seat, "power") > 0 && steps >= 16 ? 1 : 0,
+    lore.get(p.seat, "gunpowder") ? 1 : 0,
+  ];
 }
 
 /** A war's two realms, living (null: either is gone). */

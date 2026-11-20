@@ -11,6 +11,8 @@ export type AnnalLine = {
   readonly ref: string;
   /** A fight of the underworld it tells, to be watched in its town (its event; absent: none). 2026-11-16. */
   readonly watch?: string;
+  /** What is watched is a meeting of fleets, on its sea. */
+  readonly sea?: true;
 };
 
 export type AnnalYear = { readonly year: number; readonly lines: readonly AnnalLine[] };

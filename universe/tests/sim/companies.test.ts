@@ -37,3 +37,84 @@ test("the battle is told with each side's company by name, or not at all", () =>
   assert.match(told.co[1]!, /^the Varn /);
   assert.deepEqual(told.coMen, [0, 400]);
 });
+
+// An unpaid company leaves its payer's pay the year its treasury has nothing by it (sim/order/groups.ts unpaidLeave).
+test("a company leaves a payer whose treasury is empty, the year it is so; one that is paid, or paid in kind, stays", async () => {
+  const { peopledWorld } = await import("../worlds.ts"),
+    sim = await import("../../src/sim/index.ts"),
+    { unpaidLeave, ORG_EVENTS } = await import("../../src/sim/order/groups.ts"),
+    { FISC, TREASURY_STORE, moneyStore } = await import("../../src/sim/money/kept.ts"),
+    { AIM } = await import("../../src/rules/index.ts"),
+    w = peopledWorld("kestrel", 400, { start: "spread" }),
+    ctx = sim.populationContext(w),
+    store = sim.orgsOf(w)!,
+    purse = moneyStore(w, TREASURY_STORE)!,
+    living = sim.politiesOf(w).living(),
+    [home, payer] = living;
+  assert.ok(store && purse && home && payer);
+  const org = (id: number, patron: string, aim: number) =>
+      ({
+        id,
+        name: `Co${id}`,
+        kind: 0,
+        aim,
+        aims: [],
+        since: 390,
+        event: home.event,
+        home: home.seat,
+        lands: [home.seat],
+        basis: 0,
+        identity: "",
+        means: 0,
+        standing: 1,
+        leader: { name: "X" },
+        leaders: 1,
+        members: 300,
+        wealth: 0,
+        income: 0,
+        takes: 0,
+        gives: 0,
+        violence: 0,
+        power: 0,
+        patron,
+      }) as unknown as CompanyAt["org"],
+    was = store.of(home.ref),
+    record = {
+      ...(was ?? {
+        last: 399,
+        next: 1,
+        stakes: [],
+        gather: [],
+        suppression: 0,
+        killings: 0,
+        taken: 0,
+        pays: 0,
+        rising: 0,
+        plot: 0,
+        feds: [],
+        gone: [],
+      }),
+      // (One in the payer's pay for the field; one it licenses to prey, which costs it nothing.)
+      orgs: [org(901, payer.ref, AIM.hire), org(902, payer.ref, AIM.prey)],
+    };
+  store.put(home.ref, record as never);
+  const row = [...(purse.get(payer.ref) ?? [])],
+    told = () => w.events.all().filter((e) => e.type === ORG_EVENTS.unpaid.type).length,
+    before = told();
+  row[FISC.reserve] = 5000;
+  purse.set(payer.ref, row);
+  unpaidLeave(ctx, store, living, 400);
+  assert.equal(store.of(home.ref)!.orgs[0]!.patron, payer.ref, "a paid company stays");
+  assert.equal(told(), before);
+  row[FISC.reserve] = 0;
+  purse.set(payer.ref, row);
+  unpaidLeave(ctx, store, living, 400);
+  const now = store.of(home.ref)!.orgs;
+  assert.equal(now[0]!.patron, undefined, "unpaid, it leaves");
+  assert.equal(now[1]!.patron, payer.ref, "a licence is not pay");
+  assert.equal(told(), before + 1);
+  assert.equal(store.hiredList(payer.ref).length, 1);
+  // (Left once: nothing more is told of it.)
+  unpaidLeave(ctx, store, living, 401);
+  assert.equal(told(), before + 1);
+});

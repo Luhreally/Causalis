@@ -163,6 +163,8 @@ export const ORG_EVENTS = {
   turned: defineEventType("groups.turned", 3),
   /** A realm took it into its pay or licensed it; granted it its rights. */
   hired: defineEventType("groups.hired", 3),
+  /** A company left the pay of a realm whose treasury had nothing by it. */
+  unpaid: defineEventType("groups.unpaid", 3),
   chartered: defineEventType("groups.chartered", 2),
   /** Its head gone, another in his place. */
   leader: defineEventType("groups.leader", 1),
@@ -1847,6 +1849,7 @@ export function groupsYear(ctx: PopulationContext, t: SimTime): void {
       }
   }
   const rows = orgLandsStore(world);
+  unpaidLeave(ctx, store, living, year);
   for (const p of living) {
     if ((refNumber(p.ref) + year + 2) % ORG.every === 0) {
       const was = store.of(p.ref),
@@ -1920,6 +1923,64 @@ const societyInquires = (world: World, cell: number): number => {
   const k = orgInquiryOf(world, cell);
   return k > 0 ? 1 + ORG.inquiry * k : 1;
 };
+
+/**
+ * A company whose payer's treasury has nothing by it leaves its pay, the year it is so (2026-11-19): between a realm's
+ * reckonings (ORG.every years) it would else stay hired and leave the field at every battle (sim/war/companies.ts). No
+ * draw: the treasury's own row. A realm that keeps no treasury pays in kind, and is not left. Whom it follows next is its
+ * realm's next reckoning of who pays. One pass over the realms that keep groups; a record is set only where one leaves.
+ */
+export function unpaidLeave(
+  ctx: PopulationContext,
+  store: OrgsStore,
+  living: readonly Polity[],
+  year: number,
+): void {
+  const { world } = ctx,
+    purse = moneyStore(world, TREASURY_STORE);
+  if (!purse) return;
+  const realms = politiesOf(world);
+  for (const p of living) {
+    const was = store.of(p.ref);
+    if (!was || !was.orgs.length) continue;
+    let v: RealmOrgs | null = null;
+    for (let i = 0; i < was.orgs.length; i++) {
+      const g = was.orgs[i]!;
+      // (Those in a realm's pay for the field: a privateer's licence costs its realm nothing.)
+      if (!g.patron || ORG_AIMS[g.aim] !== "hire") continue;
+      const row = purse.get(g.patron);
+      if (!row || (row[FISC.reserve] ?? 0) > 0) continue;
+      const payer = realms.get(g.patron);
+      v ??= copyOf(was);
+      const mine = v.orgs[i]!;
+      delete mine.patron;
+      world.events.emit({
+        type: ORG_EVENTS.unpaid.type,
+        subjects: payer ? [p.ref, payer.ref] : [p.ref],
+        place: ctx.provinces.get(g.home)?.ref ?? null,
+        causes: [
+          { ref: g.event, role: "enabler", weight: 1 },
+          ...(payer
+            ? warsOf(world)
+                .fighting(payer.ref)
+                .slice(0, 1)
+                .map((w) => ({ ref: w.event, role: "pressure" as const, weight: 1 }))
+            : []),
+        ],
+        data: {
+          realm: realmName(p),
+          group: g.name,
+          kind: kindName(g),
+          gids: [g.id],
+          patron: payer ? realmName(payer) : "a realm",
+          members: g.members,
+          year,
+        },
+      });
+    }
+    if (v) store.put(p.ref, v);
+  }
+}
 
 /** Register the groups on a peopled world. */
 export function installGroups(world: World, ctx: () => PopulationContext): OrgsStore {

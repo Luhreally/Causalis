@@ -33,7 +33,59 @@ export const HELD = {
   answered: 0.2,
   /** How long a wrong is kept by its war (years). */
   years: 120,
+  /**
+   * A wrong no peace answered may be answered at home (ownScore): from `own` its doer is tried by their own people and cast
+   * down; from `ownDeath` they die for it. Below that, where the wronged keep the doer's people's own faith, that faith
+   * names it a wrong (`censure`: what it takes from the doer's name, of the line). What each gives back between the realms.
+   */
+  own: 0.3,
+  ownDeath: 0.5,
+  cast: 1.5,
+  censure: 0.5,
+  answeredOwn: 0.15,
+  answeredFaith: 0.05,
 } as const;
+
+/** What weighs on a people's answering, itself, for a wrong done in its name that no peace made it answer for (each 0 … 1). */
+export type OwnRead = {
+  /** How far its people have a say in its rule now; whether its law counts strangers its own. */
+  readonly voice: number;
+  readonly citizens: number;
+  /** Whether the wronged keep its own faith. */
+  readonly kin: number;
+  /** Whether it is ruled now by another than ruled when it was done. */
+  readonly later: number;
+  /** How high the one who ordered it stands among them, apart from the infamy of it. */
+  readonly standing: number;
+  /** Whether the war it was done in was won (a people does not try those who won for it). */
+  readonly won: number;
+};
+
+/** The parts of a people's answering for its own wrong, in the order told: name, value, what it adds. */
+export function ownParts(r: OwnRead): { name: string; value: number; by: number }[] {
+  return [
+    {
+      name: "a people with a say in what is done in their name",
+      value: r.voice,
+      by: 0.45 * r.voice,
+    },
+    { name: "a law that counts strangers its own", value: r.citizens, by: 0.2 * r.citizens },
+    { name: "the wronged keep its own faith", value: r.kin, by: 0.15 * r.kin },
+    { name: "a ruler who did not order it", value: r.later, by: 0.2 * r.later },
+    { name: "the one who ordered it stands high", value: r.standing, by: -0.25 * r.standing },
+    { name: "the war was won", value: r.won, by: -0.15 * r.won },
+  ];
+}
+
+export function ownScore(r: OwnRead): number {
+  return ownParts(r).reduce((s, p) => s + p.by, 0);
+}
+
+/** How a people answers for its own wrong: its doer dies for it, is cast down, is named by its faith, or nothing (null). */
+export function ownReckoning(r: OwnRead): "own" | "cast" | "censured" | null {
+  const s = ownScore(r);
+  return s >= HELD.ownDeath ? "own" : s >= HELD.own ? "cast" : r.kin > 0 ? "censured" : null;
+}
 
 export const FLED = {
   /** Of those who fled to a land, the share who settle into it in a year (twice that among their own tongue). */

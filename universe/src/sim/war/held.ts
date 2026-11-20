@@ -41,6 +41,9 @@ import {
   NOTE,
   apportionCapped,
   caughtOf,
+  ownParts,
+  ownReckoning,
+  ownScore,
   quarterParts,
   quarterScore,
   settleHeld,
@@ -58,7 +61,7 @@ import { bindCarried, bindsTaken, orderOf } from "../order/order.ts";
 import { grieve } from "../acts/disasters.ts";
 import { handOf } from "../hand/hand.ts";
 import { notablesOf } from "../notable/kept.ts";
-import { notableDeed, strikeNotable, type Command } from "../notable/notables.ts";
+import { commandLeft, notableDeed, strikeNotable, type Command } from "../notable/notables.ts";
 import { landSpare } from "./bonds.ts";
 import { poolOf, type Levy } from "./levy.ts";
 import type { Take } from "./fell.ts";
@@ -124,13 +127,19 @@ export type Crime = {
   readonly doer: number;
   readonly name: string;
   readonly event: Ref;
-  /** What came of it at the peace: "tried" (handed over, and died for it), "dead" (already), "unanswered". */
+  /**
+   * What came of it at the peace: "tried" (handed over, and died for it), "dead" (already), "unanswered". And what its own
+   * people made of it, then or later (ownReckoning): "own" (tried at home, and died for it), "cast" (tried at home and cast
+   * down), "censured" (its faith named it a wrong), "disowned" (its ruler ordered it, and a later one disowned it).
+   */
   reckoned?: {
     readonly year: number;
-    readonly how: "tried" | "dead" | "unanswered";
+    readonly how: Reckoned;
     readonly event: Ref;
   };
 };
+
+export type Reckoned = "tried" | "dead" | "unanswered" | "own" | "cast" | "censured" | "disowned";
 
 const campKey = (at: number, from: number) => at * 131072 + from;
 
@@ -472,7 +481,13 @@ function quarter(
       .allCrimes()
       .some(
         (c) =>
-          c.by === b.ref && c.on === v.ref && c.reckoned?.how !== "tried" && year - c.year <= 60,
+          c.by === b.ref &&
+          c.on === v.ref &&
+          (!c.reckoned ||
+            c.reckoned.how === "unanswered" ||
+            c.reckoned.how === "dead" ||
+            c.reckoned.how === "censured") &&
+          year - c.year <= 60,
       ),
     read = {
       strange: mine && theirs ? 1 - tongueLikeness(mine.tongue, theirs.tongue) : 0,
@@ -863,7 +878,114 @@ function settle(ctx: PopulationContext, store: DisplacedStore, w: War, t: SimTim
           source: event,
         });
     }
+    // (No peace made it answer: its own people may, now or in a later year.)
+    else if (how === "unanswered" && alive[side]) answerAtHome(ctx, c, victor === side, t);
   }
+}
+
+/**
+ * A wrong no peace answered, read by the people it was done in the name of (rules ownReckoning; no draw): tried at home (and
+ * the doer dies for it, or is cast down), named a wrong by their faith where the wronged keep it, or left. Read at the peace
+ * and each year after while the one who ordered it lives (a ruler's: while the realm stands), so a later ruler or a people
+ * come to a say may answer what an earlier would not. Each answer is told once, and takes the place of "unanswered".
+ */
+function answerAtHome(ctx: PopulationContext, c: Crime, won: boolean, t: SimTime): boolean {
+  const { world } = ctx,
+    realms = politiesOf(world),
+    by = realms.get(c.by),
+    was = c.reckoned;
+  if (!by || by.ended !== null || !was || (was.how !== "unanswered" && was.how !== "censured"))
+    return false;
+  const year = yearOfMoment(t),
+    kept = notablesOf(world),
+    doer = c.doer ? kept?.get(c.doer) : undefined;
+  // (Whoever ordered it is dead, or no longer of this realm: there is no one to try. A ruler's own is the realm's.)
+  if (c.doer && (!doer || (doer.realm !== null && doer.realm !== by.ref))) return false;
+  const faiths = beliefOf(world),
+    on = realms.get(c.on),
+    ours = faiths.of(by.seat).faith,
+    theirs = on && on.ended === null ? faiths.of(on.seat).faith : faiths.of(c.land).faith,
+    read = {
+      voice: holdOf(world, by.ref, HOLD.voice),
+      citizens: orderOf(world)?.realms.get(by.ref)?.laws[LAW_OF.strangers] === 2 ? 1 : 0,
+      kin: ours !== null && ours === theirs ? 1 : 0,
+      later: by.ruler.since > c.year ? 1 : 0,
+      standing: doer
+        ? Math.max(
+            0,
+            Math.min(1, (doer.standing - (doer.by[DOMAIN.infamy] ?? 0)) / (3 * NOTE.line)),
+          )
+        : // (Its ruler ordered it: none stands higher while they rule; a later ruler owes them nothing.)
+          by.ruler.since > c.year
+          ? 0
+          : 1,
+      won: won ? 1 : 0,
+    },
+    found = ownReckoning(read),
+    // (A ruler's own wrong is disowned by a later one, not tried: the one who ordered it is not kept apart.)
+    how: Reckoned | null =
+      found === null
+        ? null
+        : c.doer
+          ? found
+          : found === "censured"
+            ? "censured"
+            : read.later
+              ? "disowned"
+              : null;
+  if (!how || how === was.how) return false;
+  const decision = world.decisions.record({
+      rule: "held.own",
+      subject: by.ref,
+      outcome: { how, land: cellRef(0, c.land) },
+      score: ownScore(read),
+      threshold: HELD.own,
+      factors: ownParts(read)
+        .filter((p) => p.by !== 0)
+        .map((p) => ({ name: p.name, value: p.value, contribution: p.by, source: null })),
+    }),
+    event = world.events.emit({
+      type: HELD_EVENTS.reckoned.type,
+      importance: how === "own" ? 4 : 3,
+      subjects: [c.war, c.by, c.on],
+      place: cellRef(0, c.land),
+      causes: [
+        { ref: decision, role: "trigger", weight: 1 },
+        { ref: c.event, role: "enabler", weight: 1 },
+      ],
+      data: {
+        a: realmName(by),
+        b: on ? realmName(on) : "a realm that is no more",
+        how,
+        by: c.name,
+        doer: c.doer,
+        kind: c.kind,
+        dead: c.dead,
+        year: c.year,
+      },
+    });
+  c.reckoned = { year, how, event };
+  if (how === "own") strikeNotable(ctx, c.doer, "killed", event, t);
+  else if (c.doer && doer) {
+    // (Cast down, or named by their faith: it is taken from their name among their own, and a host is no longer theirs.)
+    notableDeed(world, c.doer, {
+      y: year,
+      d: DOMAIN.war,
+      w: how === "cast" ? "held.cast" : "held.censured",
+      e: event,
+      g: -Math.round(NOTE.line * (how === "cast" ? HELD.cast : HELD.censure)),
+      n: on ? realmName(on) : "",
+    });
+    if (how === "cast" && doer.post?.kind === "command") commandLeft(world, by.ref, doer.name);
+  }
+  if (on && on.ended === null)
+    diplomacyOf(world).remember(by.ref, on.ref, {
+      name: how === "censured" ? "a wrong named a wrong" : "a wrong answered for",
+      value: how === "censured" ? HELD.answeredFaith : HELD.answeredOwn,
+      year,
+      source: event,
+    });
+  return true;
 }
 
 /** The year of the held and the fled: wars over are settled, the held waste, the fled settle in or weigh. */
@@ -896,6 +1018,15 @@ export function displacedYear(ctx: PopulationContext, t: SimTime): void {
   for (const r of [...over].sort((x, y) => serial(x) - serial(y)))
     settle(ctx, store, wars.get(r)!, t);
   store.forgetCrimes(year - HELD.years);
+  // 1b. Wrongs no peace answered: read again by their own people while there is someone to answer (a few records a world).
+  for (const c of store.allCrimes())
+    if (
+      c.reckoned &&
+      c.reckoned.year < year &&
+      (c.reckoned.how === "unanswered" || c.reckoned.how === "censured") &&
+      !over.has(c.war)
+    )
+      answerAtHome(ctx, c, false, t);
   // 2. The fled: a share settle; many among strangers weigh on the land that shelters them, and are told once.
   if (!store.campCount()) return;
   const gone: Camp[] = [];

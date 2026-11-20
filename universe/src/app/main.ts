@@ -401,6 +401,7 @@ import { installLandfallFilm, type LandfallFilm } from "./landfall-film.ts";
 import { VisitorsLayer } from "../render/index.ts";
 import { installFleetFilm, type FleetFilm } from "./fleet-film.ts";
 import { installStreetFilm, type StreetFilm } from "./street-fight.ts";
+import { installSeaFilm, type SeaFilm } from "./sea-fight.ts";
 import { installNationFilm, type FilmMark, type NationFilm } from "./nation-film.ts";
 import { installFarFilm, type FarFilm } from "./far-film.ts";
 import { installJumpFilm, type JumpFilm } from "./jump-film.ts";
@@ -1055,6 +1056,7 @@ type Exposed = {
   toFolkWorld?: (star: string, index: number) => Promise<void>;
   fleetFilm?: FleetFilm;
   streetFilm?: StreetFilm;
+  seaFilm?: SeaFilm;
   /** What is heard (Sound, first slice): its state and its measures, for a gate. */
   sound?: typeof sound;
   /** Realms among the stars (Phase 72): a realm's coming apart watched, the stars drawn held. */
@@ -1822,21 +1824,25 @@ async function runPlanetPage(): Promise<void> {
     warKeys: TimeKeys | null = null;
   installTimeKeys({
     toggle: () =>
-      streetFilm?.holds
-        ? streetFilm.keys.toggle()
-        : scale === "battle" && battleKeys
-          ? battleKeys.toggle()
-          : warKeys
-            ? warKeys.toggle()
-            : time.toggle(),
+      seaFilm?.playing
+        ? seaFilm.keys.toggle()
+        : streetFilm?.holds
+          ? streetFilm.keys.toggle()
+          : scale === "battle" && battleKeys
+            ? battleKeys.toggle()
+            : warKeys
+              ? warKeys.toggle()
+              : time.toggle(),
     pick: (i) =>
-      streetFilm?.holds
-        ? streetFilm.keys.pick(i)
-        : scale === "battle" && battleKeys
-          ? battleKeys.pick(i)
-          : warKeys
-            ? warKeys.pick(i)
-            : time.pick(i),
+      seaFilm?.playing
+        ? seaFilm.keys.pick(i)
+        : streetFilm?.holds
+          ? streetFilm.keys.pick(i)
+          : scale === "battle" && battleKeys
+            ? battleKeys.pick(i)
+            : warKeys
+              ? warKeys.pick(i)
+              : time.pick(i),
   });
   let lens: Lens = "terrain",
     regionLens: RegionLens = "land",
@@ -4930,7 +4936,8 @@ async function runPlanetPage(): Promise<void> {
   /** A fight among the stars watched (Phase 67). */
   let fleetFilm: FleetFilm | null = null;
   /** A fight of the underworld watched in its town (2026-11-16). */
-  let streetFilm: StreetFilm | null = null;
+  let streetFilm: StreetFilm | null = null,
+    seaFilm: SeaFilm | null = null;
   let directorNation: ((event: string) => Promise<void>) | null = null;
   let directorJump: (() => Promise<boolean>) | null = null;
   let directorFar: ((event: string) => Promise<boolean>) | null = null;
@@ -8494,6 +8501,21 @@ async function runPlanetPage(): Promise<void> {
           fallen: [...fight.now.fallen],
           men: menAt(fight.field, fight.now),
           words: fight.now.words,
+          // (Each side's hired company's block, and where its banner's bearer stands now: the look tools.)
+          company:
+            fight.field.company?.map((c) => {
+              const id = c ? [...c.bearers][0] : undefined,
+                at = id !== undefined ? fight!.now.troopers.find((t) => t.id === id) : undefined;
+              return c
+                ? {
+                    name: c.name,
+                    from: c.from,
+                    files: c.files,
+                    color: c.color,
+                    at: at ? { x: at.x, z: at.z, act: at.act } : null,
+                  }
+                : null;
+            }) ?? null,
           bolts: fight.now.bolts?.length ?? 0,
           blood: fight.now.blood.length,
           smoke: fight.now.smoke.length,
@@ -11149,7 +11171,33 @@ async function runPlanetPage(): Promise<void> {
     now: () => now(),
   });
   exposed.streetFilm = streetFilm;
-  pageWindow.onFight = (event) => void streetFilm?.play(event);
+  // A meeting of fleets watched on its sea (2026-11-19): the world put away for it, come back to on the globe.
+  seaFilm = installSeaFilm({
+    stage,
+    hud,
+    client,
+    time,
+    rig,
+    enter: (work) =>
+      fadeOver(() =>
+        ready("the sea", () => {
+          pageWindow.close();
+          allAway();
+          toGlobe();
+          globe.visible = false;
+          planetPanel.visible = false;
+          work();
+        }),
+      ),
+    leave: async () => {
+      toGlobe();
+    },
+    openPage: (ref) => void pageWindow.open(ref),
+  });
+  exposed.seaFilm = seaFilm;
+  // (A fight watched from its line: a meeting of fleets on its sea, else a fight of the underworld in its town.)
+  pageWindow.onFight = (event) =>
+    void seaFilm!.play(event).then((sea) => (sea ? true : streetFilm?.play(event)));
   const nationFilm = installNationFilm({
     stage,
     hud,
@@ -11420,6 +11468,7 @@ async function runPlanetPage(): Promise<void> {
     if (contactFilm!.playing) contactFilm!.skip();
     if (landfallFilm!.playing) landfallFilm!.skip();
     if (fleetFilm!.playing) fleetFilm!.skip();
+    if (seaFilm?.playing) seaFilm.stop();
     if (nationFilm.playing) nationFilm.skip();
     if (farFilm.playing) farFilm.skip();
   };

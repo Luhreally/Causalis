@@ -129,7 +129,9 @@ export function drawYears(into: HTMLElement, ctx: ToolContext): void {
       // (A fight of the underworld: watched from its line, 2026-11-16.)
       if (l.watch && ctx.fight) {
         const play = el("button", "years-watch", "▶");
-        play.title = "Watch it, in the streets of its town";
+        play.title = l.sea
+          ? "Watch the fleets meet, on their sea"
+          : "Watch it, in the streets of its town";
         play.onclick = (e) => {
           e.stopPropagation();
           ctx.fight!(l.watch!);

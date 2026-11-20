@@ -277,6 +277,8 @@ export { HEART_REACH, heartTown } from "./wars.ts";
 export type { BattleNear, BattleOutcome, BattleSideNear, LevyPlace } from "./battle.ts";
 export type { StreetFight, StreetFightKind, StreetFightSide } from "./streetfight.ts";
 export { STREET_FIGHT_TYPES } from "./streetfight.ts";
+export type { SeaFightNear, SeaFightSide, SeaRig } from "./seafight.ts";
+export { SEA_FIGHT_TYPE } from "./seafight.ts";
 export {
   HURT_MOST,
   ROLL_DEFAULT,
