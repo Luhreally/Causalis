@@ -310,9 +310,13 @@ export function adults(p: Province, life: LifeHistory): number {
 /** How many times the hands that would win all a land's fields give, were each hand's work its first, its fields can use. */
 export const FIELDS_FULL = 3;
 
-/** The most of a land's grown its fields can use, and its wild (shares; past 1 where they can use them all). */
-export type LandUse = { readonly tilled: number; readonly gathered: number };
-const ALL_USED: LandUse = { tilled: Infinity, gathered: Infinity };
+/** The most of a land's grown its fields can use, its wild, and its pasture (shares; past 1 where they can use them all). */
+export type LandUse = {
+  readonly tilled: number;
+  readonly gathered: number;
+  readonly herded: number;
+};
+const ALL_USED: LandUse = { tilled: Infinity, gathered: Infinity, herded: Infinity };
 
 /**
  * The most of a land's grown its fields can use, and the most its wild can (LandUse): FIELDS_FULL times the hands that would
@@ -330,6 +334,7 @@ export function fieldsUse(ctx: PopulationContext, p: Province): LandUse {
   return {
     tilled: (FIELDS_FULL * room) / (PRODUCTIVITY[OCC.farmer]! * work * grown),
     gathered: (FIELDS_FULL * c.forage) / (PRODUCTIVITY[OCC.forager]! * work * grown),
+    herded: (FIELDS_FULL * c.pasture) / (PRODUCTIVITY[OCC.herder]! * work * grown),
   };
 }
 
@@ -376,6 +381,19 @@ export function occupationTargets(
     t[OCC.herder] = herds;
     t[OCC.crafter] = 0.06 + freed * (trades ? 0.6 : 1);
     t[OCC.trader] = trades ? 0.04 + freed * 0.4 : 0;
+    // (Where it has no ground at all that can be tilled, none are at fields: those the old ways sent to them and the wild
+    // cannot use keep its herds, as far as its pasture can use them where it keeps herds, and the rest go to the crafts and
+    // to trade. They stayed "farmers" there and grew nothing: tide 207's pasture land 3659 kept 7,360 of its
+    // 21,000 grown at fields it did not have, a century long, its leanest month at three fifths of its bread in most years
+    // and a famine told in 77 of 100. A land with any field is as it was.)
+    if (use.tilled === 0 && farm > 0) {
+      const herd = herds > 0 ? Math.min(farm, Math.max(0, use.herded - herds)) : 0,
+        idle = farm - herd;
+      t[OCC.farmer] = 0;
+      t[OCC.herder] = herds + herd;
+      t[OCC.crafter] = t[OCC.crafter]! + idle * (trades ? 0.6 : 1);
+      t[OCC.trader] = t[OCC.trader]! + (trades ? idle * 0.4 : 0);
+    }
     t[OCC.leader] = 0.03;
   } else {
     t[OCC.forager] = 0.94;
