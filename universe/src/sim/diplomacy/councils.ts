@@ -83,6 +83,21 @@ export class CouncilStore implements StateStore {
   pairs(): [Ref, Ref][] {
     return [...this.bonds.keys()].sort(order).map((k) => k.split("|") as [Ref, Ref]);
   }
+  /** Whom each realm is bound to at all, as the bonds stand now (made at the asking). */
+  partners(): Map<Ref, Set<Ref>> {
+    const out = new Map<Ref, Set<Ref>>(),
+      add = (a: Ref, b: Ref) => {
+        const set = out.get(a);
+        if (set) set.add(b);
+        else out.set(a, new Set([b]));
+      };
+    for (const k of this.bonds.keys()) {
+      const [a, b] = k.split("|") as [Ref, Ref];
+      add(a, b);
+      add(b, a);
+    }
+    return out;
+  }
   /** Let go a pair whose bond has faded to nothing, or one of whose realms has ended. */
   drop(a: Ref, b: Ref): void {
     this.bonds.delete(pairKey(a, b));
@@ -197,11 +212,15 @@ export function councilsYear(ctx: PopulationContext, t: SimTime): void {
     }
   }
   // 3. Realms join: bound to half its members or more, two at the least.
-  const free = realms.living().filter((p) => !store.councilOf(p.ref));
+  // (Asked only of those a realm is bound to at all, which nothing here changes: every realm in no council was asked its bond
+  // to every member of every council, a pair's key spelt and looked for each time, and nearly none of them is bound to any.)
+  const free = realms.living().filter((p) => !store.councilOf(p.ref)),
+    partners = store.partners();
   for (const c of store.sitting())
     for (const p of free) {
-      if (store.councilOf(p.ref)) continue;
-      const to = c.members.filter((m) => bondOf(p.ref, m) >= 1).length;
+      const mine = partners.get(p.ref);
+      if (!mine || store.councilOf(p.ref)) continue;
+      const to = c.members.filter((m) => mine.has(m) && bondOf(p.ref, m) >= 1).length;
       if (to >= 2 && to * 2 >= c.members.length) {
         c.members.push(p.ref);
         c.members.sort(order);
