@@ -320,6 +320,49 @@ export function rectsOverlap(a: Rect, b: Rect, slack = 0): boolean {
   return !(apart(ac, -as) || apart(as, ac) || apart(bc, -bs) || apart(bs, bc));
 }
 
+/**
+ * The ground buildings stand on, read exactly: each footprint (a turned rectangle, metres) kept in a hash of `cell`-sized
+ * squares, and a new one asked against those near it. What would run into one laid before is not laid, or laid smaller.
+ */
+export class Footprints {
+  private readonly cells = new Map<number, number[]>();
+  private readonly rects: Rect[] = [];
+  private readonly cell: number;
+  constructor(cell = 40) {
+    this.cell = cell;
+  }
+  private keys(r: Rect, out: number[]): number[] {
+    const reach = Math.hypot(r.w, r.d) / 2,
+      c = this.cell;
+    out.length = 0;
+    for (let i = Math.floor((r.x - reach) / c); i <= Math.floor((r.x + reach) / c); i++)
+      for (let j = Math.floor((r.z - reach) / c); j <= Math.floor((r.z + reach) / c); j++)
+        out.push((i + 32768) * 65536 + (j + 32768));
+    return out;
+  }
+  private readonly scratch: number[] = [];
+  /** Whether a footprint would run into one laid (by more than `slack` metres). */
+  clashes(r: Rect, slack = 0): boolean {
+    for (const k of this.keys(r, this.scratch))
+      for (const i of this.cells.get(k) ?? [])
+        if (rectsOverlap(r, this.rects[i]!, slack)) return true;
+    return false;
+  }
+  /** Lay a footprint. */
+  add(r: Rect): void {
+    const i = this.rects.length;
+    this.rects.push(r);
+    for (const k of this.keys(r, this.scratch)) {
+      const at = this.cells.get(k);
+      if (at) at.push(i);
+      else this.cells.set(k, [i]);
+    }
+  }
+  get size(): number {
+    return this.rects.length;
+  }
+}
+
 /** The points of a rectangle a reading of the ground is asked at: its middle, corners and the middles of its sides. */
 export function rectPoints(r: Rect): { x: number; z: number }[] {
   const c = Math.cos(r.yaw),

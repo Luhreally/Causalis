@@ -18,6 +18,7 @@ import {
   BLOCK_D,
   BLOCK_LOTS,
   BLOCK_W,
+  Footprints,
   GATE_TOWER,
   LOT,
   LOT_D,
@@ -263,6 +264,8 @@ export type TownScene = {
   readonly formLooks: Map<number, HouseLook>;
   /** How far out its lots drawn reach toward each of OUTLINE bearings about its square (metres): its outline. */
   readonly outline: Float32Array;
+  /** Its sprawl's roofs as they stand on their ground, each clear of every other and of its blocks (made when first asked). */
+  sprawlRoofs?: Float32Array;
 };
 
 export { OUTLINE, outlineAt, outlineOf };
@@ -973,44 +976,100 @@ export function ashReach(plan: TownPlan, lots: TownLots): number {
   return Math.sqrt(r0 * r0 + (r1 * r1 - r0 * r0) * ((ash - plan.lots) / (plan.whole - plan.lots)));
 }
 
+/** A sprawl's roof as laid: x, z, its breadth, depth and height, its yaw, how far out of its sprawl (0 … 1), its draw. */
+const ROOF = 8;
+
+/**
+ * A great city's sprawl's roofs on their ground (sprawlRoofs, ROOF to each): one for every few homes past those drawn,
+ * scattered from its outline out, off its avenues and its water; and each on ground of its own (asked 2026-11-20: "are you
+ * fixing this overlapping and glitch thats going on here too?"). Its blocks drawn take their ground first, then each roof in
+ * turn: one that would run into what stands is laid narrower, or not at all. Read once a scene, so the ash's edge drawing
+ * them again draws the same.
+ */
+function sprawlLaid(scene: TownScene): Float32Array {
+  if (scene.sprawlRoofs) return scene.sprawlRoofs;
+  const { plan } = scene,
+    ring = sprawlOf(plan, scene.lots),
+    rows: number[] = [];
+  if (ring) {
+    const { r0, r1 } = ring,
+      n = Math.min(3000, Math.round((plan.whole - plan.lots) / 6)),
+      water = plan.water,
+      wet = (x: number, z: number, margin: number) =>
+        !!water && Math.hypot(x - water.x, z - water.z) < water.r + margin,
+      towers = hasSpires(plan),
+      sector = (2 * Math.PI) / AVENUES,
+      taken = new Footprints(48),
+      blocks = scene.lots.blocks;
+    // (Its blocks drawn, their streets' edge with them.)
+    for (let b = 0; b < Math.ceil(plan.lots / BLOCK_LOTS) && b < blocks.x.length; b++)
+      taken.add({
+        x: blocks.x[b]!,
+        z: blocks.z[b]!,
+        w: BLOCK_W + 4,
+        d: BLOCK_D + 4,
+        yaw: blocks.yaw[b]!,
+      });
+    // (Its roofs a street's breadth past the lots drawn.)
+    const inner = r0 + SPRAWL_GAP;
+    for (let i = 0; i < n; i++) {
+      const a = scatter(plan.seed, i, 1) * 2 * Math.PI,
+        // (As far out that way as its ground is taken: bridge/sites.ts reachToward.)
+        at = Math.sqrt(inner * inner + scatter(plan.seed, i, 0) * (r1 * r1 - inner * inner)),
+        near = outlineAt(scene.outline, a) + SPRAWL_GAP,
+        r = near + ((at - inner) / (r1 - inner)) * Math.max(0, sprawlFar(scene, ring, a) - near),
+        out = (at - inner) / (r1 - inner),
+        // Nearer the heart, the taller.
+        // (By how far out of its sprawl it stands, not by a radius: its sprawl is no ring. A roof read by the old ring's
+        // radius stood hundreds of metres high where its outline came in close: 2026-11-20.)
+        h = 5 + scatter(plan.seed, i, 2) * 5 + 14 * (1 - out) ** 3,
+        d = 7 + scatter(plan.seed, i, 4) * 4,
+        x = r * Math.cos(a),
+        z = r * Math.sin(a),
+        yaw = Math.PI / 2 - a,
+        off = ((((a - plan.axis) % sector) + sector) % sector) * r;
+      let w = 10 + scatter(plan.seed, i, 3) * 16;
+      // (Off its avenues, and out of its water.)
+      if (Math.min(off, sector * r - off) < AVENUE_HALF + w / 2 + 1 || wet(x, z, w / 2 + 4))
+        continue;
+      if (wetGround(plan.site, x, z)) continue;
+      // (What it stands on, its eaves with it: a tower's own breadth, a roof's overhang.)
+      const across = (wide: number) =>
+        towers
+          ? { x, z, w: Math.min(wide, 18) + 1, d: Math.min(d * 2, 18) + 1, yaw }
+          : { x, z, w: wide * 1.04 + 1, d: d * 1.1 + 1, yaw };
+      let foot = across(w);
+      if (taken.clashes(foot)) {
+        w = 10;
+        foot = across(w);
+        if (taken.clashes(foot)) continue;
+      }
+      taken.add(foot);
+      rows.push(x, z, w, d, h, yaw, out, i);
+    }
+  }
+  return (scene.sprawlRoofs = Float32Array.from(rows));
+}
+
 /** A great city's roofs past those drawn, between so far and so far from its middle (metres). */
 function sprawlRoofs(scene: TownScene, out: TownParts, from: number, to: number): void {
   const { plan, looks } = scene,
-    ring = sprawlOf(plan, scene.lots);
-  if (!ring) return;
-  const { r0, r1 } = ring,
-    n = Math.min(3000, Math.round((plan.whole - plan.lots) / 6)),
-    water = plan.water,
-    wet = (x: number, z: number, margin: number) =>
-      !!water && Math.hypot(x - water.x, z - water.z) < water.r + margin,
+    roofs = sprawlLaid(scene),
     towers = hasSpires(plan);
-  const sector = (2 * Math.PI) / AVENUES;
-  // (Its roofs a street's breadth past the lots drawn.)
-  const inner = r0 + SPRAWL_GAP;
-  for (let i = 0; i < n; i++) {
-    const a = scatter(plan.seed, i, 1) * 2 * Math.PI,
-      // (As far out that way as its ground is taken: bridge/sites.ts reachToward.)
-      at = Math.sqrt(inner * inner + scatter(plan.seed, i, 0) * (r1 * r1 - inner * inner)),
-      near = outlineAt(scene.outline, a) + SPRAWL_GAP,
-      r = near + ((at - inner) / (r1 - inner)) * Math.max(0, sprawlFar(scene, ring, a) - near),
-      look = looks[i % looks.length]!,
-      // Nearer the heart, the taller.
-      // (By how far out of its sprawl it stands, not by a radius: its sprawl is no ring. A roof read by the old ring's
-      // radius stood hundreds of metres high where its outline came in close: 2026-11-20.)
-      h = 5 + scatter(plan.seed, i, 2) * 5 + 14 * (1 - (at - inner) / (r1 - inner)) ** 3,
-      w = 10 + scatter(plan.seed, i, 3) * 16,
-      d = 7 + scatter(plan.seed, i, 4) * 4,
-      x = r * Math.cos(a),
-      z = r * Math.sin(a),
-      yaw = Math.PI / 2 - a,
-      off = ((((a - plan.axis) % sector) + sector) % sector) * r;
+  for (let k = 0; k < roofs.length; k += ROOF) {
+    const x = roofs[k]!,
+      z = roofs[k + 1]!,
+      w = roofs[k + 2]!,
+      d = roofs[k + 3]!,
+      h = roofs[k + 4]!,
+      yaw = roofs[k + 5]!,
+      i = roofs[k + 7]!,
+      r = Math.hypot(x, z),
+      look = looks[i % looks.length]!;
     if (r < from || r >= to) continue;
-    // (Off its avenues, and out of its water.)
-    if (Math.min(off, sector * r - off) < AVENUE_HALF + w / 2 + 1 || wet(x, z, w / 2 + 4)) continue;
-    if (wetGround(plan.site, x, z)) continue;
     if (towers) {
       // Towers and more towers, tallest toward its heart, their floors lit, into the haze.
-      const near = 1 - (at - inner) / (r1 - inner),
+      const near = 1 - roofs[k + 6]!,
         high = 34 + 40 * scatter(plan.seed, i, 5) + 170 * near * near * scatter(plan.seed, i, 6),
         glass = SPIRE_GLASS[i % SPIRE_GLASS.length]!;
       out.put("box", glass, x, high / 2, z, Math.min(w, 18), high, Math.min(d * 2, 18), yaw);

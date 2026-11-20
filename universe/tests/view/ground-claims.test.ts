@@ -7,7 +7,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { EARTH } from "../../src/host/planet.ts";
 import { landPlan } from "../../src/host/land.ts";
-import { villagePlan } from "../../src/host/village.ts";
+import { townSite, villagePlan } from "../../src/host/village.ts";
+import { townPlan } from "../../src/host/town.ts";
 import { landWater } from "../../src/host/sites.ts";
 import { YEAR } from "../../src/kernel/index.ts";
 import { populationContext, regionOf, townsOf } from "../../src/sim/index.ts";
@@ -35,8 +36,14 @@ import {
   linePieces,
   roadClear,
   roadLook,
+  TownParts,
+  townAsh,
+  townCivics,
+  townGround,
+  townHomes,
   townMiddle,
   townScene,
+  townWalls,
   type LandDrawn,
   type LandGround,
 } from "../../src/view/index.ts";
@@ -289,3 +296,86 @@ test("a town's own view: its fields, pasture and water on its land's own ground,
 function blocksFields(fields: readonly Rect[], block: Rect): Rect[] {
   return fields.filter((f) => rectsOverlap(f, block, 1e-4));
 }
+
+test("a town's own view: no building runs into another, its sprawl's roofs with them; no part in two colours in one place", () => {
+  // (Its greatest towns drawn with few lots, so the rest stand as sprawl: render/town.ts's order.)
+  const great = ctx.settlements
+    .all()
+    .filter((s) => s.population > 0 && towns.get(s.ref))
+    .sort((a, b) => b.population - a.population)
+    .slice(0, 6);
+  let roofs = 0,
+    bodies = 0;
+  for (const s of great) {
+    const site = townSite(world, s.ref)!,
+      plan = townPlan(world, s.ref, site.axis, 120, site.water)!,
+      t = world.now,
+      scene = townScene(plan, t),
+      parts = new TownParts();
+    townGround(scene, parts);
+    townHomes(scene, scene.settled, t, parts);
+    townHomes(scene, scene.active, t, parts);
+    townCivics(scene, t, parts, false);
+    townWalls(scene, t, parts);
+    townAsh(scene, t, parts);
+    roofs += (scene.sprawlRoofs?.length ?? 0) / 8;
+    type Part = Rect & { y: number; h: number; c: string };
+    const list: Part[] = [];
+    for (const [key, g] of parts.groups) {
+      if (g.lamp) continue;
+      for (let i = 0; i < g.data.length; i += 7)
+        list.push({
+          c: key,
+          x: g.data[i]!,
+          y: g.data[i + 1]!,
+          z: g.data[i + 2]!,
+          w: g.data[i + 3]!,
+          h: g.data[i + 4]!,
+          d: g.data[i + 5]!,
+          yaw: g.data[i + 6]!,
+        });
+    }
+    // Two parts of one shape in one place at one size, in two colours, flicker.
+    const where = new Map<string, string>();
+    for (const p of list) {
+      const k = [p.c.split("|")[0], p.x, p.y, p.z, p.w, p.h, p.d, p.yaw]
+          .map((v) => (typeof v === "number" ? v.toFixed(2) : v))
+          .join("|"),
+        was = where.get(k);
+      assert.ok(was === undefined || was === p.c, `${s.name}: ${k} in ${was} and ${p.c}`);
+      where.set(k, p.c);
+    }
+    // A building's body: a standing box 3 m high and more. None runs into another by more than a metre and a half (a base
+    // and what rises from its middle are one building's).
+    const body = list.filter(
+      (p) => p.c.startsWith("box|") && p.h >= 3 && p.w >= 3 && p.d >= 3 && p.y - p.h / 2 < 1.5,
+    );
+    bodies += body.length;
+    const shrunk = (p: Part): Rect => ({ x: p.x, z: p.z, w: p.w - 1.5, d: p.d - 1.5, yaw: p.yaw }),
+      cell = new Map<string, number[]>();
+    body.forEach((p, i) => {
+      const k = `${Math.floor(p.x / 40)},${Math.floor(p.z / 40)}`;
+      cell.set(k, [...(cell.get(k) ?? []), i]);
+    });
+    body.forEach((a, i) => {
+      for (let u = -1; u <= 1; u++)
+        for (let v = -1; v <= 1; v++)
+          for (const j of cell.get(`${Math.floor(a.x / 40) + u},${Math.floor(a.z / 40) + v}`) ??
+            []) {
+            const b = body[j]!;
+            if (
+              j <= i ||
+              (Math.abs(a.x - b.x) < 0.01 &&
+                Math.abs(a.z - b.z) < 0.01 &&
+                Math.abs(a.yaw - b.yaw) < 0.01)
+            )
+              continue;
+            assert.ok(
+              !rectsOverlap(shrunk(a), shrunk(b)),
+              `${s.name}: ${JSON.stringify([a, b].map((p) => [p.c, +p.x.toFixed(1), +p.z.toFixed(1), +p.w.toFixed(1), +p.d.toFixed(1)]))}`,
+            );
+          }
+    });
+  }
+  assert.ok(roofs > 100 && bodies > 1000, `${roofs} sprawl roofs, ${bodies} buildings`);
+});

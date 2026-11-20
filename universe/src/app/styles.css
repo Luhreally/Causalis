@@ -176,6 +176,16 @@ button:disabled {
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }
+/* (On a desk, its buttons a little closer and its picture buttons no wider than they need: a town's bar keeps to one row
+   where it fits, its asking with the rest. Asked 2026-11-20. A finger's buttons keep their breadth.) */
+@media (pointer: fine) and (min-width: 900px) {
+  .bar {
+    column-gap: 8px;
+  }
+  .bar button.town-money {
+    min-width: 36px;
+  }
+}
 .brand {
   font-weight: 650;
 }

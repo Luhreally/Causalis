@@ -495,6 +495,7 @@ export type {
 export {
   GROUND,
   GroundClaims,
+  Footprints,
   kindsOf,
   rectsOverlap,
   rectPoints,

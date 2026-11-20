@@ -707,9 +707,16 @@ export class VillageScene {
         y = 0,
         kind: "ground" | "water" = "ground",
         grass = false,
+        under = 0,
       ) => {
         const e = new pc.Entity("disc"),
           m = flatMaterial(color);
+        // (What lies under all else is set back in depth, so what lies on it never flickers with it seen from high
+        // above: a few metres apart are less than the depth can tell kilometres off.)
+        if (under) {
+          m.depthBias = under;
+          m.slopeDepthBias = under;
+        }
         e.addComponent("render", {
           meshInstances: [new pc.MeshInstance(cylinderMesh(s, r, 0.02, 48), m)],
         });
@@ -782,6 +789,7 @@ export class VillageScene {
         0,
         "ground",
         true,
+        4,
       );
       disc(
         plan.pasture.r * M,
@@ -791,6 +799,7 @@ export class VillageScene {
         0.012,
         "ground",
         true,
+        2,
       );
     }
     // Its land's water, as its land's map draws it, share by share (bridge/claims.ts wetShares): no lake laid over the
