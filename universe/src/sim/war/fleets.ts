@@ -37,8 +37,8 @@ export const FLEET = {
   told: 0.1,
   /** A side that lost this share of its tonnes in the year lost its flagship. */
   flagship: 0.4,
-  /** How long a meeting is kept (years). */
-  years: 150,
+  /** How long a meeting is kept (years): a war at sea is a meeting most years it lasts, some four a year the world over late on. */
+  years: 60,
   /** What a meeting adds to or takes from its commander's standing (thousandths of the line). */
   won: 250,
   lost: -120,

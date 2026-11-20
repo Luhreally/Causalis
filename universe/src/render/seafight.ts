@@ -71,6 +71,8 @@ type Part = {
 };
 
 const MOST = 24;
+/** How high the sea stands over the stage's middle. */
+export const SEA_UP = 4;
 
 export class SeaLayer {
   readonly root = new pc.Entity("sea fight");
@@ -97,6 +99,8 @@ export class SeaLayer {
   constructor(stage: Stage) {
     this.stage = stage;
     stage.root.addChild(this.root);
+    // (Stood over whatever the world's own scene leaves drawn at its middle: the sea's sheet hides it.)
+    this.root.setLocalPosition(0, SEA_UP, 0);
     this.root.enabled = false;
     const box = boxMesh(stage),
       hull = keptMesh(facetedMesh(stage, HULL)),
@@ -298,7 +302,7 @@ export class SeaLayer {
   onScreen(i: number, high: number): { x: number; y: number } | null {
     const n = this.now[i];
     if (!n) return null;
-    const s = this.stage.camera.camera!.worldToScreen(new pc.Vec3(n.x, high, n.z));
+    const s = this.stage.camera.camera!.worldToScreen(new pc.Vec3(n.x, high + SEA_UP, n.z));
     return s.z > 0 ? { x: s.x, y: s.y } : null;
   }
 
