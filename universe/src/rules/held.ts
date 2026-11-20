@@ -11,6 +11,11 @@ export const HELD = {
   /** Of a beaten host's living, the share taken where it lost as many as it killed; more the worse it was beaten, to `most`. */
   caught: 0.03,
   caughtMost: 0.12,
+  /** By how the battle ended (takenShare): overrun where it stood; broken and run, from this to this; drawn off unbroken. */
+  overrun: 0.3,
+  broke: 0.015,
+  brokeMost: 0.2,
+  withdrew: 0.003,
   /** Fewer than this are not held apart (they are let go on the field, or go with the dead). */
   least: 20,
   /** Of those held, the share who die of their keeping in a year. */
@@ -112,6 +117,38 @@ export function caughtOf(living: number, lostBeaten: number, lostVictor: number)
   if (!(living > 0)) return 0;
   const rout = Math.min(4, Math.max(0.25, lostBeaten / Math.max(1, lostVictor))),
     n = Math.floor(living * Math.min(HELD.caughtMost, HELD.caught * rout));
+  return n >= HELD.least ? n : 0;
+}
+
+/** How a battle ended for the beaten: overrun where it stood, broken and run, or drawn off unbroken; and how far the victors' standing strength outweighed theirs at the end (0 … 1). */
+export type FieldEnd = {
+  readonly how: "overrun" | "morale" | "stalemate";
+  readonly pressure: number;
+};
+
+/**
+ * Of a beaten host's living, the share taken, by how the day ended: a host overrun where it stood gives up HELD.overrun of
+ * those left; one that broke and ran, HELD.broke and more as the victors outweighed it at the end (to HELD.brokeMost: a
+ * host that breaks before one barely stronger gets away, one swept from the field does not); one that drew off unbroken,
+ * its stragglers (HELD.withdrew).
+ */
+export function takenShare(end: FieldEnd): number {
+  if (end.how === "overrun") return HELD.overrun;
+  if (end.how === "stalemate") return HELD.withdrew;
+  const p = Math.min(1, Math.max(0, end.pressure));
+  return HELD.broke + (HELD.brokeMost - HELD.broke) * p;
+}
+
+/** Those taken of a beaten host by how its battle ended; none under HELD.least. (`end` null: an older record, by its losses.) */
+export function caughtBy(
+  living: number,
+  end: FieldEnd | null,
+  lostBeaten: number,
+  lostVictor: number,
+): number {
+  if (!end) return caughtOf(living, lostBeaten, lostVictor);
+  if (!(living > 0)) return 0;
+  const n = Math.floor(living * takenShare(end));
   return n >= HELD.least ? n : 0;
 }
 

@@ -23,7 +23,7 @@ import { cultureOf } from "../culture/culture.ts";
 import { loreOf } from "../lore/lore.ts";
 import { seaRange } from "../economy/sea.ts";
 import { notablesOf } from "../notable/kept.ts";
-import { admiralIn, admiralLeft, notableDeed } from "../notable/notables.ts";
+import { admiralIn, admiralLeft, notableDeed, strikeNotable } from "../notable/notables.ts";
 import { coastal, navyOf } from "./navy.ts";
 import { warsOf } from "./war.ts";
 
@@ -33,10 +33,13 @@ export const FLEET_EVENTS = {
 };
 
 export const FLEET = {
-  /** A year's losses at sea are a meeting of fleets from this share of a side's tonnes. */
-  told: 0.1,
-  /** A side that lost this share of its tonnes in the year lost its flagship. */
-  flagship: 0.4,
+  /** A side that lost this share of its tonnes with its flagship lost its admiral with her. */
+  admiral: 0.115,
+  /**
+   * A side that lost this share of its tonnes in a meeting lost its flagship (a meeting sinks at most NAVY.meet x NAVY.sink,
+   * 0.15, of a fleet: this is a foe with two thirds of the sea's command).
+   */
+  flagship: 0.1,
   /** How long a meeting is kept (years): a war at sea is a meeting most years it lasts, some four a year the world over late on. */
   years: 60,
   /** What a meeting adds to or takes from its commander's standing (thousandths of the line). */
@@ -197,7 +200,8 @@ export function fleetsYear(ctx: PopulationContext, t: SimTime): void {
   }
   // 2. The year at sea in each war fought there.
   const wars = navy.wars(),
-    live = new Set<Ref>(wars);
+    live = new Set<Ref>(wars),
+    lostAtSea: { id: number; event: Ref }[] = [];
   for (const w of wars) {
     const s = navy.sea(w)!,
       was = store.seenIn(w),
@@ -211,7 +215,8 @@ export function fleetsYear(ctx: PopulationContext, t: SimTime): void {
     const ships = [navy.of(sides[0].ref), navy.of(sides[1].ref)],
       tons: [number, number] = [(ships[0]?.tons ?? 0) + sunk[0], (ships[1]?.tons ?? 0) + sunk[1]],
       share = [sunk[0] / Math.max(1, tons[0]), sunk[1] / Math.max(1, tons[1])];
-    if (Math.max(share[0]!, share[1]!) < FLEET.told || sunk[0] + sunk[1] <= 0) continue;
+    // (The navy's year says when the fleets met: rules seaMeets. A year either kept to port is no meeting.)
+    if (s.met !== year || sunk[0] + sunk[1] <= 0) continue;
     const fleets = [store.of(sides[0].ref), store.of(sides[1].ref)],
       flags: [string, string] = [fleets[0]?.flagship ?? "", fleets[1]?.flagship ?? ""],
       won: 0 | 1 = s.command[0] >= s.command[1] ? 0 : 1,
@@ -225,9 +230,11 @@ export function fleetsYear(ctx: PopulationContext, t: SimTime): void {
           ? admiralIn(ctx, sides[k]!, coast(sides[k]!) ?? sides[k]!.seat, t)
           : fleetCommander(world, sides[k]!.ref),
       ),
+      // (An admiral goes down with a flagship lost in a fleet's ruin.)
+      drowned = lost >= 0 && share[lost]! >= FLEET.admiral && !!fleets[lost] && !!led[lost],
       event = world.events.emit({
         type: FLEET_EVENTS.met.type,
-        importance: lost >= 0 ? 4 : 3,
+        importance: drowned ? 5 : lost >= 0 ? 4 : 3,
         subjects: [w, sides[0].ref, sides[1].ref],
         place: place !== null ? (ctx.provinces.get(place)?.ref ?? null) : null,
         causes: [{ ref: war.event, role: "trigger", weight: 1 }],
@@ -243,6 +250,7 @@ export function fleetsYear(ctx: PopulationContext, t: SimTime): void {
           rig: [rigOf(world, sides[0]), rigOf(world, sides[1])],
           won,
           ...(lost >= 0 ? { lost } : {}),
+          ...(drowned ? { drowned: led[lost]!.name } : {}),
         },
       });
     store.addFight({
@@ -276,9 +284,11 @@ export function fleetsYear(ctx: PopulationContext, t: SimTime): void {
           n: realmName(sides[1 - k]!),
         });
     }
+    if (drowned) lostAtSea.push({ id: led[lost]!.id, event });
   }
   store.unsee(live);
   store.forget(year - FLEET.years);
+  for (const d of lostAtSea) strikeNotable(ctx, d.id, "killed", d.event, t);
 }
 
 /**

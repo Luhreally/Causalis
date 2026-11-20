@@ -8,6 +8,7 @@
 // until then.
 import {
   defineEventType,
+  yearOfMoment,
   type Hasher,
   type Ref,
   type SimTime,
@@ -24,6 +25,8 @@ import {
   fleetYear,
   hullQuality,
   landingShare,
+  refitYears,
+  seaMeets,
   navyWanted,
   seaBattle,
 } from "../../rules/index.ts";
@@ -68,6 +71,10 @@ export type SeaWar = {
   sunk: [number, number];
   won: Ref | null;
   blockade: Ref | null;
+  /** The year the fleets last met; the year each may sail again after its refit; the meetings each has lost (absent: an older save's, none). */
+  met?: number;
+  refit?: [number, number];
+  beaten?: [number, number];
 };
 
 const r3 = (x: number) => Math.round(x * 1000) / 1000;
@@ -129,6 +136,7 @@ export class NavyStore implements StateStore {
       Math.round(s.command[0] * 1000),
       Math.round(s.sunk[0]),
       Math.round(s.sunk[1]),
+      s.met ?? 0,
     ]);
     this.sets++;
   }
@@ -172,7 +180,13 @@ export class NavyStore implements StateStore {
     } | null;
     for (const f of s?.fleets ?? []) this.fleets.set(f.realm, { ...f });
     for (const w of s?.seas ?? [])
-      this.seas.set(w.war, { ...w, command: [...w.command], sunk: [...w.sunk] });
+      this.seas.set(w.war, {
+        ...w,
+        command: [...w.command],
+        sunk: [...w.sunk],
+        ...(w.refit ? { refit: [...w.refit] } : {}),
+        ...(w.beaten ? { beaten: [...w.beaten] } : {}),
+      });
     this.digest[0] = s?.digest?.[0] ?? 0x811c9dc5;
     this.digest[1] = s?.digest?.[1] ?? 0;
     this.sets = s?.sets ?? 0;
@@ -306,7 +320,9 @@ export function navyYear(ctx: PopulationContext, t: SimTime): void {
       return s;
     };
   // 1. Each realm's fleet: built toward what it would keep, and worn.
-  const fleets = new Map<Ref, Ships>();
+  const fleets = new Map<Ref, Ships>(),
+    wrights = new Map<Ref, number>(),
+    year = yearOfMoment(t);
   for (const p of living) {
     const was = store.of(p.ref),
       steps = seaRange(lore, p.seat);
@@ -353,6 +369,7 @@ export function navyYear(ctx: PopulationContext, t: SimTime): void {
       continue;
     }
     fleets.set(p.ref, f);
+    wrights.set(p.ref, steps > 0 ? shores.canBuild : 0);
   }
   // 2. The sea fought for in each war it joins, where either side has warships.
   const fought = new Set<Ref>();
@@ -363,18 +380,33 @@ export function navyYear(ctx: PopulationContext, t: SimTime): void {
     const fa = fleets.get(a.ref),
       fb = fleets.get(b.ref);
     if (!(fa?.tons ?? 0) && !(fb?.tons ?? 0)) continue;
-    const s = seaBattle(fa?.tons ?? 0, fa?.quality ?? 0, fb?.tons ?? 0, fb?.quality ?? 0),
+    const all = seaBattle(fa?.tons ?? 0, fa?.quality ?? 0, fb?.tons ?? 0, fb?.quality ?? 0),
       kept = store.sea(w.ref),
-      row: SeaWar = {
-        war: w.ref,
-        command: [r3(s.command[0]), r3(s.command[1])],
-        sunk: [
-          Math.round((kept?.sunk[0] ?? 0) + s.sunk[0]),
-          Math.round((kept?.sunk[1] ?? 0) + s.sunk[1]),
-        ],
-        won: kept?.won ?? null,
-        blockade: kept?.blockade ?? null,
-      };
+      refit: [number, number] = [kept?.refit?.[0] ?? 0, kept?.refit?.[1] ?? 0],
+      beaten: [number, number] = [kept?.beaten?.[0] ?? 0, kept?.beaten?.[1] ?? 0],
+      // (The fleets meet where both are at sea and the weaker will give battle; else each holds what its strength commands,
+      // the weaker in port, and nothing is sunk: rules seaMeets.)
+      meets = seaMeets(all.command, [refit[0] >= year, refit[1] >= year], beaten),
+      s = meets ? all : { command: all.command, sunk: [0, 0] as [number, number] };
+    if (meets) {
+      const lost = all.command[0] >= all.command[1] ? 1 : 0;
+      beaten[lost]++;
+      refit[0] = year + refitYears(all.sunk[0], wrights.get(a.ref) ?? 0);
+      refit[1] = year + refitYears(all.sunk[1], wrights.get(b.ref) ?? 0);
+    }
+    const row: SeaWar = {
+      war: w.ref,
+      command: [r3(s.command[0]), r3(s.command[1])],
+      sunk: [
+        Math.round((kept?.sunk[0] ?? 0) + s.sunk[0]),
+        Math.round((kept?.sunk[1] ?? 0) + s.sunk[1]),
+      ],
+      won: kept?.won ?? null,
+      blockade: kept?.blockade ?? null,
+      ...(meets ? { met: year } : kept?.met !== undefined ? { met: kept.met } : {}),
+      ...(meets || kept?.refit ? { refit } : {}),
+      ...(meets || kept?.beaten ? { beaten } : {}),
+    };
     if (fa) {
       fa.sunk += Math.round(s.sunk[0]);
       fa.tons = Math.max(0, Math.round(fa.tons - s.sunk[0]));
@@ -415,5 +447,4 @@ export function navyYear(ctx: PopulationContext, t: SimTime): void {
   // (A war no longer fought at sea, or over, keeps nothing.)
   for (const r of store.wars()) if (!fought.has(r)) store.dropSea(r);
   for (const f of fleets.values()) store.set(f);
-  void t;
 }

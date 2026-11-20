@@ -317,3 +317,10 @@
   vertical-align: middle;
   cursor: pointer;
 }
+/* (Under a finger it is a finger's size.) */
+@media (pointer: coarse) {
+  .page-window .years-watch {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

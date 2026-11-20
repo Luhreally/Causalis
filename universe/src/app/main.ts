@@ -11181,6 +11181,13 @@ async function runPlanetPage(): Promise<void> {
     enter: (work) =>
       fadeOver(() =>
         ready("the sea", () => {
+          // (Where it was entered from: the scale, its land and town, and the page it was pressed on.)
+          seaBack = {
+            scale,
+            cell: regionCell,
+            town: scale === "village" ? (plan?.ref ?? null) : null,
+            page: pageWindow.current,
+          };
           pageWindow.close();
           allAway();
           toGlobe();
@@ -11189,12 +11196,34 @@ async function runPlanetPage(): Promise<void> {
           work();
         }),
       ),
-    leave: async () => {
-      toGlobe();
+    // (Back to where it was entered from: the town, the land or the globe, and the page it was pressed on.)
+    leave: async (page) => {
+      const back = seaBack;
+      seaBack = null;
+      await fadeOver(() =>
+        ready(
+          back?.town ? "the village" : back?.scale === "region" ? "the land" : "the world",
+          async () => {
+            if (back?.town && back.cell >= 0) {
+              leaveScale();
+              globe.visible = false;
+              planetPanel.visible = false;
+              regionCell = back.cell;
+              await toVillage(back.town);
+            } else if (back?.scale === "region" && back.cell >= 0) {
+              leaveScale();
+              await toRegion(back.cell);
+            } else toGlobe();
+          },
+        ),
+      );
+      const ref = page ?? back?.page;
+      if (ref) void pageWindow.open(ref);
     },
-    openPage: (ref) => void pageWindow.open(ref),
   });
   exposed.seaFilm = seaFilm;
+  let seaBack: { scale: string; cell: number; town: string | null; page: string | null } | null =
+    null;
   // (A fight watched from its line: a meeting of fleets on its sea, else a fight of the underworld in its town.)
   pageWindow.onFight = (event) =>
     void seaFilm!.play(event).then((sea) => (sea ? true : streetFilm?.play(event)));
