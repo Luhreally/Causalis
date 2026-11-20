@@ -30,16 +30,8 @@ export const VISIT_MACHINES = 2_000_000;
 /** The stages that show across the dark: fields and towns; a camp shows nothing. */
 const SEEN_STAGES: ReadonlySet<string> = new Set(["villages", "towns", "cities", "works"]);
 
-const FOLKS = new Map<string, readonly Folk[]>();
-function peoplesNear(world: World): readonly Folk[] {
-  const key = world.seed.text;
-  let list = FOLKS.get(key);
-  if (!list) {
-    if (FOLKS.size > 4) FOLKS.clear();
-    FOLKS.set(key, (list = folksNear(world)));
-  }
-  return list;
-}
+/** (As history holds them now: natives.ts keeps where they rose, never what has become of them.) */
+const peoplesNear = (world: World): readonly Folk[] => folksNear(world);
 
 /** The people a realm would send to now: seen at a stage no ship has gone to them at, the nearest in time. */
 function seenBy(

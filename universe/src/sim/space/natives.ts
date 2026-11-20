@@ -504,26 +504,62 @@ function folkMade(world: World, s: GalaxyStar, index: number): Folk | null {
   return heldFolk(world, made);
 }
 
-/** Every people about the stars within reach, the nearest first. */
+/**
+ * Where a people rose about the stars within reach, the nearest first: a pure reading of the seed (which worlds, not what
+ * has since become of anyone there), kept.
+ */
+const ROSE = new Map<string, readonly (readonly [GalaxyStar, number])[]>();
+function roseNear(world: World): readonly (readonly [GalaxyStar, number])[] {
+  const key = world.seed.text;
+  let list = ROSE.get(key);
+  if (!list) {
+    const out: (readonly [GalaxyStar, number])[] = [];
+    for (const s of clusterOf(world))
+      for (const p of foreignPlanets(new Rng(world.seed), s))
+        if (folkMade(world, s, p.index)) out.push([s, p.index]);
+    if (ROSE.size > 4) ROSE.clear();
+    ROSE.set(key, (list = out));
+  }
+  return list;
+}
+
+/**
+ * Every people about the stars within reach, the nearest first, as this world's history holds them now (a world unmade has no
+ * one; a people come down on stands where history has it). Read now at each asking: a list of them kept by the seed held what
+ * one world had come to, and another world of the same seed in the same process (an earlier save loaded) read it.
+ */
 export function folksNear(world: World): readonly Folk[] {
   const out: Folk[] = [];
-  for (const s of clusterOf(world))
-    for (const p of foreignPlanets(new Rng(world.seed), s)) {
-      const f = folkOf(world, s, p.index);
-      if (f) out.push(f);
-    }
+  for (const [s, index] of roseNear(world)) {
+    const f = folkOf(world, s, index);
+    if (f) out.push(f);
+  }
   return out;
 }
 
-/** A people by its ref (null: none rose there). */
+/** A people by its ref (null: none rose there, or its world is unmade). */
 export function folkByRef(world: World, ref: string): Folk | null {
+  return folkAt(world, ref, folkOf);
+}
+/**
+ * The matter of a people's own world by its ref, as that world was made (null: none rose there): what never changes of them,
+ * whatever has since become of them (for what is kept by the seed: sim/space/trade.ts).
+ */
+export function folkChem(world: World, ref: string): Folk["chem"] | null {
+  return folkAt(world, ref, folkMade)?.chem ?? null;
+}
+function folkAt(
+  world: World,
+  ref: string,
+  read: (world: World, s: GalaxyStar, index: number) => Folk | null,
+): Folk | null {
   const parts = ref.split(":");
   if (parts[0] !== "civ") return null;
   const sector = Number(parts[1]),
     b = Number(parts[2]),
     k = Math.floor(b / 16),
     s = clusterOf(world).find((x) => x.sector === sector && x.k === k);
-  return s ? folkOf(world, s, b % 16) : null;
+  return s ? read(world, s, b % 16) : null;
 }
 
 /** How far a people has come by a year. */
