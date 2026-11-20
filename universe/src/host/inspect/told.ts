@@ -2215,7 +2215,11 @@ export function yearTold(
       });
   } else {
     // A run of years: its years' leads ranked, the greatest told first, each year a way in. Of an alliance, its arc first.
-    if (r.bloc) leads.push(blocArc(world, r, r.bloc, year, to));
+    if (r.bloc) {
+      const arc = blocArc(world, r, r.bloc, year, to);
+      leads.push(arc.lead);
+      for (const t of arc.used) used.add(t);
+    }
     const tops: { c: Cand; year: number }[] = [];
     for (let y = year; y <= to; y++) {
       const c = leading(r, y)[0];
@@ -2231,7 +2235,7 @@ export function yearTold(
     for (const { c, year: y } of tops) {
       if (leads.length >= LEAD_LINES) break;
       // (Two of one kind would read as one: the greatest, and on to something else. A first is each its own.)
-      if (seen.has(c.t.key) && c.t.key !== "first") continue;
+      if ((seen.has(c.t.key) && c.t.key !== "first") || used.has(c.t)) continue;
       seen.add(c.t.key);
       const lead = leadOf(world, r, c, y, [], true);
       if (lead) leads.push({ ...lead, headline: `${y}: ${lead.headline}` });
@@ -2305,7 +2309,13 @@ function subjectOf(world: World, ask: string | null | undefined): string | null 
  * An alliance's run of years read as its arc: whether it formed in them, how far it grew and when it stood greatest, who came
  * and went, and whether it came apart. Each piece a way to the year it happened in.
  */
-function blocArc(world: World, r: Reader, b: BlocYears, from: number, to: number): ToldLead {
+function blocArc(
+  world: World,
+  r: Reader,
+  b: BlocYears,
+  from: number,
+  to: number,
+): { lead: ToldLead; used: Told[] } {
   const last = Math.min(to, b.now);
   b.prepare(from - 1, last);
   const stood: number[] = [];
@@ -2315,25 +2325,41 @@ function blocArc(world: World, r: Reader, b: BlocYears, from: number, to: number
     span = `from ${count(from)} to ${count(last)}`;
   if (!stood.length)
     return {
-      headline: `${sentence(who)} stood in no alliance ${span}`,
-      lines: [
-        {
-          line: [`In none of these years were two or more realms bound together with ${who}.`],
-          ref: home?.ref ?? null,
-        },
-      ],
-      vignette: vignetteOf(world, null, home?.seat ?? null),
-      before: [],
-      after: [],
+      lead: {
+        headline: `${sentence(who)} stood in no alliance ${span}`,
+        lines: [
+          {
+            line: [`In none of these years were two or more realms bound together with ${who}.`],
+            ref: home?.ref ?? null,
+          },
+        ],
+        vignette: vignetteOf(world, null, home?.seat ?? null),
+        before: [],
+        after: [],
+      },
+      used: [],
     };
+  // Its stands in these years: each from the year it came to stand (or the run's first) to the last it stood.
   const own = (y: number, keys: readonly string[]) =>
       r.told(y).find((t) => keys.includes(t.key)) ?? null,
-    first = stood[0]!,
+    stands: { from: number; to: number; formed: Told | null; ended: Told | null }[] = [];
+  for (const y of stood) {
+    const s = stands.at(-1);
+    if (s && s.to === y - 1) s.to = y;
+    else
+      stands.push({
+        from: y,
+        to: y,
+        formed:
+          y - 1 >= b.first && !b.headAt(y - 1) ? own(y, ["bloc.formed", "bloc.joined"]) : null,
+        ended: null,
+      });
+  }
+  for (const s of stands) if (s.to < last) s.ended = own(s.to + 1, ["bloc.ended", "bloc.left"]);
+  const first = stood[0]!,
     end = stood.at(-1)!,
-    formedAt = stood.find((y) => y - 1 >= b.first && !b.headAt(y - 1)),
-    endedAt = stood.find((y) => y < last && !b.headAt(y + 1)),
-    formed = formedAt !== undefined ? own(formedAt, ["bloc.formed", "bloc.joined"]) : null,
-    ended = endedAt !== undefined ? own(endedAt + 1, ["bloc.ended", "bloc.left"]) : null;
+    one = stands[0]!,
+    apart = stands.filter((s) => s.to < last).length;
   let peak = 0,
     peakYear = first,
     most = 0,
@@ -2365,32 +2391,33 @@ function blocArc(world: World, r: Reader, b: BlocYears, from: number, to: number
   }
   const n0 = b.members(first).length,
     n1 = b.members(end).length,
+    standsNow = end === last,
     parts = [
-      formed && formed.key === "bloc.formed"
-        ? `Formed in ${count(formedAt!)}`
-        : `${sentence(said(n0))} realms in ${count(first)}`,
-      peak > Math.max(n0, n1)
-        ? `${said(peak)} at its height in ${count(peakYear)}`
-        : n1 > n0
-          ? `grew to ${said(n1)}`
+      one.formed?.key === "bloc.formed"
+        ? `Formed in ${count(one.from)}`
+        : one.formed
+          ? `Came into an alliance in ${count(one.from)}`
+          : `${sentence(said(n0))} realms in ${count(first)}`,
+      peak > Math.max(n0, n1) ? `${said(peak)} at its height in ${count(peakYear)}` : "",
+      apart === 0
+        ? n1 > n0
+          ? `grew to ${said(n1)} by ${count(end)}`
           : n1 < n0
-            ? `down to ${said(n1)}`
-            : "",
-      endedAt !== undefined
-        ? `came apart in ${count(endedAt + 1)}`
-        : end < last
-          ? `stood no longer after ${count(end)}`
-          : n1 === n0 && peak <= n0
-            ? `${said(n1)} still in ${count(end)}`
-            : `${said(n1)} in ${count(end)}`,
+            ? `down to ${said(n1)} by ${count(end)}`
+            : `${said(n1)} still in ${count(end)}`
+        : apart === 1 && stands.length === 1
+          ? `came apart in ${count(one.to + 1)}`
+          : `came apart ${apart === 1 ? "once" : apart === 2 ? "twice" : `${said(apart)} times`}${standsNow ? `, together again from ${count(stands.at(-1)!.from)}` : `, the last in ${count(stands.filter((s) => s.to < last).at(-1)!.to + 1)}`}`,
     ].filter(Boolean),
-    lines: ToldItem[] = [];
-  if (formed)
-    lines.push({
-      line: [`${formedAt}: `, ...toldWords(world, formed, formedAt!)],
-      ref: formed.ref,
-      year: formedAt,
-    });
+    lines: ToldItem[] = [],
+    used: Told[] = [],
+    piece = (t: Told | null, y: number) => {
+      if (!t) return;
+      used.push(t);
+      lines.push({ line: [`${y}: `, ...toldWords(world, t, y)], ref: t.ref, year: y });
+    };
+  // (Its first stand's beginning, then its greatest year; the ends and beginnings after, the last few.)
+  piece(one.formed, one.from);
   const whole = b.numbers(mostYear),
     all = b.peopled(mostYear);
   if (whole)
@@ -2419,25 +2446,28 @@ function blocArc(world: World, r: Reader, b: BlocYears, from: number, to: number
       ],
       ref: `bloc:${b.head}#time`,
     });
-  if (split && !(endedAt !== undefined && split.y === endedAt + 1))
+  if (split && !stands.some((s) => s.to + 1 === split!.y))
     lines.push({
       line: [`${split.y}: ${said(split.n)} of its realms left it in one year.`],
       ref: toldRef(split.y, split.y, `${BLOC}${b.head}`),
       year: split.y,
     });
-  if (ended)
-    lines.push({
-      line: [`${endedAt! + 1}: `, ...toldWords(world, ended, endedAt! + 1)],
-      ref: ended.ref,
-      year: endedAt! + 1,
-    });
-  const pic = formed ?? ended;
+  // (Each end and new beginning after its first, the last three of them.)
+  const turns: { t: Told; y: number }[] = [];
+  stands.forEach((s, i) => {
+    if (i && s.formed) turns.push({ t: s.formed, y: s.from });
+    if (s.ended) turns.push({ t: s.ended, y: s.to + 1 });
+  });
+  for (const x of turns.slice(-3)) piece(x.t, x.y);
   return {
-    headline: clip(parts.join(", "), 110),
-    lines,
-    vignette: vignetteOf(world, pic, home?.seat ?? null),
-    before: [],
-    after: [],
+    lead: {
+      headline: clip(parts.join(", "), 110),
+      lines,
+      vignette: vignetteOf(world, one.formed ?? stands.at(-1)!.ended, home?.seat ?? null),
+      before: [],
+      after: [],
+    },
+    used,
   };
 }
 

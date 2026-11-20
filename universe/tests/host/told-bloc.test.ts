@@ -110,7 +110,7 @@ test("a decade and a century are read as its arc, each piece a way to its year",
     decade = yearTold(world, { year: d, to: d + 9, realm: subject }),
     century = yearTold(world, { year: 0, to: 99, realm: subject });
   for (const t of [decade, century]) {
-    assert.ok(t.leads.length >= 2 && t.leads.length <= 3, `${t.leads.length} leads`);
+    assert.ok(t.leads.length >= 1 && t.leads.length <= 3, `${t.leads.length} leads`);
     const arc = t.leads[0]!;
     assert.ok(arc.headline.length > 8 && arc.headline.length <= 118, arc.headline);
     assert.match(arc.headline, /\d/);

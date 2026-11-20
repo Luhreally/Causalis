@@ -471,10 +471,13 @@ export function blocTold(world: World, b: BlocYears, y: number, events: YearEven
               CAME_BY,
             )
           : null);
+    // (Which of its stands this is: an alliance of the same two may come apart and be sworn again.)
+    let stands = 1;
+    for (let x = y - 1; x > b.first; x--) if (b.headAt(x) && !b.headAt(x - 1)) stands++;
     if (formed)
       add("bloc.formed", 6, cause?.id ?? `told:${y}:${h}`, () => [
         sentence(name),
-        " came to be: ",
+        stands > 1 ? ` came together again, the ${ordinal(stands)} time: ` : " came to be: ",
         ...realmsSaid(world, cur, y),
         ` bound together${cause ? boundBy(world, cause) : ""}.`,
       ]);
