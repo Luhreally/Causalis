@@ -407,6 +407,23 @@ function landsIn(world: World, realm: string, year: number): Set<number> {
   return out;
 }
 
+/** The lands any of some realms held in a year, in one reading of the lands' realms. */
+function landsOfAll(world: World, realms: ReadonlySet<string>, year: number): Map<number, string> {
+  const out = new Map<number, string>(),
+    store = yearsOf(world);
+  if (!realms.size) return out;
+  if (year >= yearNow(world) || !store) {
+    for (const r of realms)
+      for (const c of politiesOf(world).get(r as Ref)?.members ?? []) out.set(c, r);
+    return out;
+  }
+  for (const [cell, log] of store.landRealm) {
+    const r = year >= log.first ? logAt(log, year) : undefined;
+    if (r && realms.has(r)) out.set(cell, r);
+  }
+  return out;
+}
+
 /** Whether an event is of a realm in a year: it names it, or fell in one of its lands or towns. */
 function keepOf(world: World, realm: string, year: number): (e: HistoryEvent) => boolean {
   const lands = landsIn(world, realm, year),
@@ -448,8 +465,7 @@ type Counts = {
  * that fell in one of their lands (a land's lesser weather is its realm's to tell, not the alliance's).
  */
 function keepOfBloc(world: World, b: BlocYears, y: number, inIt: ReadonlySet<string>) {
-  const lands = new Set<number>();
-  for (const r of b.members(y)) for (const c of landsIn(world, r, y)) lands.add(c);
+  const lands = landsOfAll(world, new Set(b.members(y)), y);
   const towns = populationContext(world).settlements;
   return (e: HistoryEvent): boolean => {
     for (const s of e.subjects) if (inIt.has(s)) return true;
@@ -1857,20 +1873,22 @@ function blocMap(world: World, r: Reader, b: BlocYears, from: number, to: number
     owner: number[] = [],
     focus: number[] = [],
     mine = new Map<number, string>();
+  const index = new Map<string, number>();
   for (const m of cur) {
     const since = b.sinceOf(m, to);
+    index.set(m, realms.length);
     realms.push({
       ref: m,
       name: `${nameOf(world, m)}, in it since ${count(since)}`,
       color: tone(since),
     });
-    for (const c of landsIn(world, m, to)) {
-      if (c >= base || offworldSite(g, c)) continue;
-      lands.push(c);
-      owner.push(realms.length - 1);
-      focus.push(c);
-      mine.set(c, m);
-    }
+  }
+  for (const [c, m] of landsOfAll(world, new Set(cur), to)) {
+    if (c >= base || offworldSite(g, c)) continue;
+    lands.push(c);
+    owner.push(index.get(m)!);
+    focus.push(c);
+    mine.set(c, m);
   }
   // Those its realms fought in these years.
   const inIt = new Set(cur),
@@ -1883,18 +1901,17 @@ function blocMap(world: World, r: Reader, b: BlocYears, from: number, to: number
       }
   if (foes.size) {
     realms.push({ ref: "", name: "its foes", color: FOE });
-    for (const f of foes)
-      for (const c of landsIn(world, f, to)) {
-        if (c >= base || offworldSite(g, c) || mine.has(c)) continue;
-        lands.push(c);
-        owner.push(realms.length - 1);
-      }
+    for (const c of landsOfAll(world, foes, to).keys()) {
+      if (c >= base || offworldSite(g, c) || mine.has(c)) continue;
+      lands.push(c);
+      owner.push(realms.length - 1);
+    }
   }
   // What its realms took and lost in these years (not what came and went with a realm).
   const store = yearsOf(world)!,
     was = new Map<number, string>(),
     before = new Set(b.members(from - 1));
-  for (const m of before) for (const c of landsIn(world, m, from - 1)) was.set(c, m);
+  for (const [c, m] of landsOfAll(world, before, from - 1)) was.set(c, m);
   const gained: number[] = [],
     lost: number[] = [];
   for (const [c, m] of mine) {
