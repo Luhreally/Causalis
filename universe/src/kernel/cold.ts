@@ -302,33 +302,65 @@ function keptData(
   );
 }
 
-/** What keptData kept, each group's rows in full. */
-function fullData(
-  part: string,
-  words: Words,
-  subjectsOf: (group: number) => readonly (readonly string[])[],
-): unknown[][] {
-  const last = new Map<string, unknown>();
-  return (JSON.parse(part) as (readonly [Packed, readonly (readonly [string, number])[]])[]).map(
-    ([packed, fields], g) => {
-      const rows = unpackList(packed, words);
-      if (!fields.length) return rows;
-      const subjects = subjectsOf(g);
-      for (let k = 0; k < rows.length; k++) {
-        const d = rows[k] as Record<string, unknown> | null;
-        if (d === null || typeof d !== "object" || Array.isArray(d)) continue;
-        for (let n = 0; n < fields.length; n++) {
-          const f = fields[n]![0],
-            v = d[f];
-          if (v === undefined) continue;
-          const key = `${f}|${subjects[k]![fields[n]![1]]!}`;
-          if (v === 0) d[f] = last.get(key);
-          else last.set(key, v);
-        }
+/**
+ * What keptData kept, read back a group at a time, as asked (a block holds a hundred kinds and more; a reader
+ * mostly asks of a few). A group whose fields keptData wrote as "as the last said" reads them from one memory
+ * shared by every such group of the block, in their order: so it is read only after every one before it that
+ * has such fields (a handful of a block's groups), as reading the whole block in order would.
+ */
+class DataGroups {
+  private readonly parts: readonly (readonly [Packed, readonly (readonly [string, number])[]])[];
+  private readonly lists: (unknown[] | undefined)[] = [];
+  private readonly last = new Map<string, unknown>();
+  /** The groups with remembered fields are read in order, up to here. */
+  private done = 0;
+  private readonly words: Words;
+  private readonly subjectsOf: (group: number) => readonly (readonly string[])[];
+
+  constructor(
+    part: string,
+    words: Words,
+    subjectsOf: (group: number) => readonly (readonly string[])[],
+  ) {
+    this.parts = JSON.parse(part) as (readonly [Packed, readonly (readonly [string, number])[]])[];
+    this.words = words;
+    this.subjectsOf = subjectsOf;
+  }
+
+  of(g: number): readonly unknown[] {
+    const hit = this.lists[g];
+    if (hit) return hit;
+    const [packed, fields] = this.parts[g]!;
+    if (!fields.length) return (this.lists[g] = unpackList(packed, this.words));
+    for (; this.done <= g; this.done++) {
+      const [p, f] = this.parts[this.done]!;
+      if (f.length)
+        this.lists[this.done] = this.remembered(this.done, unpackList(p, this.words), f);
+    }
+    return this.lists[g]!;
+  }
+
+  private remembered(
+    g: number,
+    rows: unknown[],
+    fields: readonly (readonly [string, number])[],
+  ): unknown[] {
+    const subjects = this.subjectsOf(g),
+      last = this.last;
+    for (let k = 0; k < rows.length; k++) {
+      const d = rows[k] as Record<string, unknown> | null;
+      if (d === null || typeof d !== "object" || Array.isArray(d)) continue;
+      for (let n = 0; n < fields.length; n++) {
+        const f = fields[n]![0],
+          v = d[f];
+        if (v === undefined) continue;
+        const key = `${f}|${subjects[k]![fields[n]![1]]!}`;
+        if (v === 0) d[f] = last.get(key);
+        else last.set(key, v);
       }
-      return rows;
-    },
-  );
+    }
+    return rows;
+  }
 }
 
 /** Parts read back lately: a few are kept, the oldest let go. Only a cache: nothing depends on it. */
@@ -475,7 +507,7 @@ export class ColdEvents {
   private subjectsOf = new Recent<Groups<readonly Ref[]>>();
   private kidsIn = new Recent<Groups<readonly number[]>>();
   private causesOf = new Recent<Groups<readonly KeptCause[]>>();
-  private dataOf = new Recent<readonly (readonly unknown[])[]>();
+  private dataOf = new Recent<DataGroups>();
   private placesOf = new Recent<readonly (readonly number[])[]>();
 
   private room(n: number): void {
@@ -685,9 +717,12 @@ export class ColdEvents {
 
   data(row: number): unknown {
     const b = this.block[row]!;
-    return this.dataOf.get(b, () =>
-      fullData(this.blocks[b]!.data, this.words, (group) => this.subjectsIn(b).of(group)),
-    )[this.group[row]!]![this.within[row]!];
+    return this.dataOf
+      .get(
+        b,
+        () => new DataGroups(this.blocks[b]!.data, this.words, (g) => this.subjectsIn(b).of(g)),
+      )
+      .of(this.group[row]!)[this.within[row]!];
   }
 
   /** A row moved up over the forgotten (a reckoning, walking in order). */

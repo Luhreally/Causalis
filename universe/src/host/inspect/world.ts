@@ -106,14 +106,13 @@ function happenings(world: World, types: readonly string[]): Map<string, Happeni
     const list = out.get(e.type);
     if (list) list.push({ year: yearAt(e.t), land: landOfPlace(e.place), ref: e.id });
   }
-  for (const s of world.events.summaries())
-    for (const t of types) {
-      const n = s.counts[t];
-      if (!n) continue;
-      const list = out.get(t)!,
-        h = { year: s.decade * 10 + 5, land: landOfPlace(s.place), ref: null };
-      for (let i = 0; i < n; i++) list.push(h);
-    }
+  // (Only the folded counts of these types: making every summary of every type cost more than the rest.)
+  for (const c of world.events.countsOf(new Set(types))) {
+    if (!c.n) continue;
+    const list = out.get(c.type)!,
+      h = { year: c.decade * 10 + 5, land: landOfPlace(c.place as Ref), ref: null };
+    for (let i = 0; i < c.n; i++) list.push(h);
+  }
   for (const list of out.values()) list.sort((a, b) => a.year - b.year);
   return out;
 }
@@ -1076,16 +1075,22 @@ function firstsOf(world: World, s: BaseSurvey): First[] {
       faith: "🙏 Free conscience",
       justice: "⚖️ One law for all",
     };
-    const lawChanges = world.events
-      .all()
-      .filter((e) => e.type === "order.law" || e.type === "act.decree");
+    // (One walk, oldest first, each change's data read once and the walk left once every law has its
+    // first two: a far law's data lies in cold blocks, read back a block at a time.)
+    const comes = new Map<string, { year: number; land: number | null; ref: Ref }[]>(
+      LAWS.map((law) => [law, []]),
+    );
+    let short = LAWS.length;
+    for (const e of world.events.all()) {
+      if (e.type !== "order.law" && e.type !== "act.decree") continue;
+      const d = e.data as { law?: string; to?: number } | null,
+        list = d?.to === 2 && d.law !== undefined ? comes.get(d.law) : undefined;
+      if (!list || list.length >= 2) continue;
+      list.push({ year: yearAt(e.t), land: landOfPlace(e.place), ref: e.id });
+      if (list.length === 2 && --short === 0) break;
+    }
     for (const law of LAWS) {
-      const came = lawChanges
-          .filter((e) => {
-            const d = e.data as { law?: string; to?: number } | null;
-            return d?.law === law && d.to === 2;
-          })
-          .map((e) => ({ year: yearAt(e.t), land: landOfPlace(e.place), ref: e.id })),
+      const came = comes.get(law)!,
         keeping = store
           ? s.realms.filter((r) => r.ended === null && store.of(r.ref)?.laws[LAW_OF[law]] === 2)
               .length

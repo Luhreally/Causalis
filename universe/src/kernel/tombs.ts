@@ -176,6 +176,28 @@ export class Folded {
     counts.set(key, (counts.get(key) ?? 0) + n);
   }
 
+  /** The counts of a few types only, by place and then decade as summaries() has them (none of the rest made up). */
+  countsOf(
+    types: ReadonlySet<string>,
+  ): { place: string; decade: number; type: string; n: number }[] {
+    const out: { place: string; decade: number; type: string; n: number }[] = [],
+      wanted = new Map<number, string | null>();
+    for (const [place, counts] of this.by)
+      for (const [key, n] of counts) {
+        const decade = Math.floor(key / TYPES),
+          code = key - decade * TYPES;
+        let type = wanted.get(code);
+        if (type === undefined) {
+          const word = this.types.wordOf(code);
+          wanted.set(code, (type = types.has(word) ? word : null));
+        }
+        if (type !== null) out.push({ place, decade, type, n });
+      }
+    return out.sort((a, b) =>
+      a.place !== b.place ? (a.place < b.place ? -1 : 1) : a.decade - b.decade,
+    );
+  }
+
   /** The summaries, by place and then decade; each one's types in the order first counted. */
   summaries(): Summary[] {
     const out: Summary[] = [];
