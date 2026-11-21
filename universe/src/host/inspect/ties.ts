@@ -252,7 +252,8 @@ export function alliancesOf(world: World): Alliance[] {
     }),
     yearOf = (e: Ref | null | undefined) => {
       const t = e ? world.events.get(e)?.t : undefined;
-      return t === undefined ? null : Math.floor(t / (365 * 86400));
+      // (A moment closing a year is of that year, as the Years say it.)
+      return t === undefined ? null : yearOfMoment(t);
     },
     list: Alliance[] = [];
   for (const [head, members] of read.blocs) {

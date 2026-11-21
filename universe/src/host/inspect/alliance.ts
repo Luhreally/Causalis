@@ -3,7 +3,7 @@
 // through the years, the wars it fought and how they went, how it came together, and what holds it and what strains it, each line read from what the
 // rules weigh. The same depth for every alliance at once (their ranking, two side by side) and for a compact sworn against one realm. Pure readings:
 // nothing is kept in the world, nothing is read each tick; what is read is kept here for the year it was read in.
-import { YEAR, yearOfMoment, type Ref, type World } from "../../kernel/index.ts";
+import { yearOfMoment, type Ref, type World } from "../../kernel/index.ts";
 import { offworldSite } from "../../gen/index.ts";
 import { TIES } from "../../rules/index.ts";
 import {
@@ -101,7 +101,8 @@ const part100 = (x: number) =>
 const cap = (s: string) => s[0]!.toUpperCase() + s.slice(1);
 const yearOfEvent = (world: World, e: Ref | null | undefined): number | null => {
   const t = e ? world.events.get(e)?.t : undefined;
-  return t === undefined ? null : Math.floor(t / YEAR);
+  // (A moment closing a year is of that year, as the Years and its years told say it: a pact sworn at a year's turn.)
+  return t === undefined ? null : yearOfMoment(t);
 };
 
 // ————— The world's own sums, and what history holds of lands taken and pacts broken (read once a year) —————
@@ -157,8 +158,8 @@ function yearRead(world: World): YearRead {
   const note = (type: string, t: number, subjects: readonly Ref[], id: Ref) => {
     const [a, b] = subjects;
     if (!a || !b) return;
-    if (type === TAKEN) taken.push({ y: Math.floor(t / YEAR), by: a, from: b, id });
-    else broken.push({ y: Math.floor(t / YEAR), a, b, id });
+    if (type === TAKEN) taken.push({ y: yearOfMoment(t), by: a, from: b, id });
+    else broken.push({ y: yearOfMoment(t), a, b, id });
   };
   // (The log's cold rows read by their columns, each type's name once: an object for each of
   // seven hundred thousand events costs a phone a tenth of a second, and nothing here needs one.)
@@ -663,6 +664,8 @@ export function blocPage(world: World, ref: string, tab?: string): PageModel {
         warsTab(world, r),
         historyTab(world, r),
         withinTab(world, r),
+        // (Its years told, each its headline, read when the tab is opened: told.ts toldList. Asked 2026-11-20.)
+        yearsToldTab(world, a.head),
       ].map((t) => ({ ...t, group: "Alliance" })),
       // (Its members compared on every system the Ledger compares realms on, each read only while open: bloc-compare.ts.)
       ...blocCompareTabs(
@@ -709,9 +712,34 @@ function lonePage(world: World, ref: string, h: Polity | undefined): PageModel {
           },
         ],
       },
+      // (The years it stood, told, where any were kept.)
+      ...(h ? [yearsToldTab(world, h.ref)] : []),
     ],
     followable: false,
     year: yearNow(world),
+  };
+}
+
+/** An alliance's Years told: its last years each a line, its decades and centuries, each a telling of its own. */
+function yearsToldTab(world: World, head: Ref): Tab {
+  const now = yearNow(world),
+    ref = `bloc:${head}`;
+  return {
+    id: "years",
+    name: "Years told",
+    blocks: [
+      {
+        type: "text",
+        lines: [
+          [
+            "What each year was to it: who came in and who left, the wars its realms called each other to and who came, the foes they fought side by side, its quarrels, and how it stood against the other alliances. ",
+            link("This year, told", `told:${now}:${ref}`),
+            ".",
+          ],
+        ],
+      },
+      { type: "tool", tool: "told.list", args: { subject: ref } },
+    ],
   };
 }
 
