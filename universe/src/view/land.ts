@@ -25,7 +25,10 @@ import {
   GROUND,
   GroundClaims,
   LAND_SCALE,
+  LOT_D,
+  LOT_W,
   kindsOf,
+  rectPoints,
   townReach,
   wallAt,
 } from "../bridge/index.ts";
@@ -270,6 +273,31 @@ export function landFields(
 }
 
 /**
+ * The lots of a town drawn on its land's map (of `which`): each wholly on its land's ground, its middle, its corners and its
+ * sides' middles off the water the map draws (a people of the water's: all, on its sea), and none on ground a greater town
+ * holds (heldByGreater). A lot is drawn whole or not at all, so no house of it stands half in the water.
+ */
+export function lotsOnLand(
+  g: LandGround,
+  town: { readonly x: number; readonly z: number },
+  scene: Pick<TownScene, "lots">,
+  which: readonly number[],
+  undersea: boolean,
+  held?: (x: number, z: number) => boolean,
+): readonly number[] {
+  if (undersea && !held) return which;
+  const lots = scene.lots;
+  return which.filter((p) => {
+    const x = town.x + lots.x[p]! * LAND_ACROSS,
+      z = town.z + lots.z[p]! * LAND_ACROSS;
+    if (held?.(x, z)) return false;
+    if (undersea) return true;
+    const r = { x, z, w: LOT_W * LAND_ACROSS, d: LOT_D * LAND_ACROSS, yaw: lots.yaw[p]! };
+    return !rectPoints(r).some((q) => facetWet(g, q.x, q.z));
+  });
+}
+
+/**
  * Whether another town holds the ground at a point of a land as laid (landLaid), so that none of this town's stands there:
  * where two towns' ground meets, the greater holds it, being laid first (undefined: none can hold this one's, it is the greatest).
  */
@@ -307,7 +335,7 @@ export function roadClear(
       uz = Math.cos(q[4]!),
       along = q[3]! / 2,
       side = ROAD_TAKES / 2;
-    // (Its two ends, its middle, and its middle's two sides.)
+    // (Its two ends, its middle, its middle's two sides and its four corners.)
     for (const [t, n] of ROAD_READ) {
       // (What a town holds, its water within it with it: the town's own streets and bridges carry it there.)
       const k = claims.laidAt(
@@ -326,6 +354,10 @@ const ROAD_READ = [
   [1, 0],
   [0, -1],
   [0, 1],
+  [-1, -1],
+  [-1, 1],
+  [1, -1],
+  [1, 1],
 ] as const;
 
 /** How far a band's camp spreads about its middle on its land's map (region units: its tents' rings and its fire). */

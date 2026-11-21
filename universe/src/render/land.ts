@@ -48,6 +48,7 @@ import {
   floorAt,
   wetAt,
   landLaid,
+  lotsOnLand,
   heldByGreater,
   landRoadOut,
   roadClear,
@@ -452,7 +453,8 @@ export class LandLayer {
         !!town.plan.ash,
         Math.min(LAND_WORN, 40 + Math.floor(scene.plan.lots / 6)),
       );
-      townHomes(scene, scene.settled, moment, settled);
+      // (A lot wholly on the land's ground, or none of it: view/land.ts lotsOnLand.)
+      townHomes(scene, lotsOnLand(g, m, scene, scene.settled, !!plan.undersea), moment, settled);
       townAsh(scene, moment, settled, true);
       this.towns.set(town.ref, {
         ref: town.ref,
@@ -571,7 +573,12 @@ export class LandLayer {
         if (!d.busy) continue;
         const parts = new TownParts(),
           moment = landMoment(d.scene.plan, t);
-        townHomes(d.scene, d.scene.active, moment, parts);
+        townHomes(
+          d.scene,
+          lotsOnLand(g, d, d.scene, d.scene.active, !!this.plan.undersea),
+          moment,
+          parts,
+        );
         townCivics(d.scene, moment, parts);
         townWalls(d.scene, moment, parts);
         rising.push({ parts, x: d.x, z: d.z, held: this.heldOf(d.ref) });

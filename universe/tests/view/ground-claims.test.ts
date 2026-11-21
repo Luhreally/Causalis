@@ -31,6 +31,7 @@ import {
   landEdge,
   landLaid,
   heldByGreater,
+  lotsOnLand,
   landMoment,
   landReach,
   landRoadOut,
@@ -154,8 +155,8 @@ test("a land's map: no field on the water, a lot, a road, a wall or another fiel
           d: LOT_D * LAND_ACROSS,
           yaw: sc.lots.yaw[p]!,
         };
-        // (A lot on the map's water is not drawn: render/land.ts.)
-        if (!plan.undersea && facetWet(g, r.x, r.z)) continue;
+        // (A lot touching the map's water is not drawn: render/land.ts by view/land.ts lotsOnLand.)
+        if (!lotsOnLand(g, d, sc, [p], !!plan.undersea).length) continue;
         // (Nor one where a greater town holds the ground: the two met there.)
         if (held?.(r.x, r.z)) continue;
         lots.push({ r, town: ref });
@@ -221,13 +222,11 @@ test("a land's map: no field on the water, a lot, a road, a wall or another fiel
     "field-wall",
     "road-water",
     "lot-lot",
+    "lot-water",
+    "road-lot",
     "camp-any",
   ])
     assert.equal(n[k], 0, `${k}: ${JSON.stringify(n)}`);
-  // (A lot's edge where a share of the water's points in between its block's corners, and a road's piece on a bridge beside
-  // a lot on the bank: a few in a hundred thousand.)
-  assert.ok(n["lot-water"]! <= n.lots! / 20_000, JSON.stringify(n));
-  assert.ok(n["road-lot"]! <= n.pieces! / 2_000, JSON.stringify(n));
 });
 
 test("a town's own view: its fields, pasture and water on its land's own ground, none on another; no block across the water", () => {

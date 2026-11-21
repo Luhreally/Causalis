@@ -367,6 +367,7 @@ export {
   ROAD_TAKES,
   landClaims,
   landLaid,
+  lotsOnLand,
   heldByGreater,
   landRoadOut,
   campSpot,
