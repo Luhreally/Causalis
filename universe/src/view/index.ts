@@ -1393,3 +1393,13 @@ export {
   type NearFlora,
   type NearThing,
 } from "./flora.ts";
+export {
+  townBudget,
+  townClear,
+  townEdge,
+  townFlora,
+  townGroundAt,
+  townGroundOf,
+  type TownFlora,
+  type TownGround,
+} from "./townflora.ts";

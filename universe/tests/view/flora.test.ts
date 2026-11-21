@@ -235,3 +235,68 @@ test("far woods: crowns by the reading, none on the water; near things on a fixe
     `the same trees in the same places: ${both.length}, ${missing.length} not, e.g. ${JSON.stringify(missing[0])}; a ${a.trees}`,
   );
 });
+
+test("about a town: its ground coloured by its land's reading, trees by its woods, hedges by its fields, nothing on what it holds", async () => {
+  const { floraWindow } = await import("../../src/bridge/index.ts");
+  const { townBudget, townFlora, townGroundAt, townGroundOf, townEdge } =
+    await import("../../src/view/index.ts");
+  const size = 16,
+    read = floraRead(facts(size, 11, 1000, 9)),
+    plan = {
+      ref: "town:0:1",
+      name: "Testford",
+      population: 60,
+      market: true,
+      hand: false,
+      districts: null,
+      biome: 9,
+      seed: 3,
+      homes: [{ x: 20, z: 0, yaw: 0, household: "hhold:0:1" }],
+      fields: [
+        { x: 260, z: 0, w: 60, d: 40, yaw: 0.3 },
+        { x: 250, z: 90, w: 60, d: 40, yaw: 0.2 },
+      ],
+      pasture: { x: -300, z: 0, r: 90 },
+      wild: 400,
+      water: null,
+      house: { walls: "wattle", roof: "thatch", form: "long", pitch: 45, design: null },
+      body: null,
+      road: { x: 0, z: 1100 },
+      people: [],
+      landFlora: floraWindow(read, 4, 8, 6, 480),
+    } as unknown as Parameters<typeof townGroundOf>[0];
+  const g = townGroundOf(plan)!;
+  assert.ok(g, "a reading");
+  const f = townFlora(g, plan, 1200, townBudget(0.7)),
+    edge = townEdge(plan);
+  assert.ok(f.trees > 300, `${f.trees} trees in a broadleaf land`);
+  assert.ok(f.hedges > 10, `${f.hedges} hedge bushes along the fields`);
+  const all = [...f.trunks, ...f.balls, ...f.cones, ...f.tufts, ...f.stones];
+  for (const t of all) {
+    assert.ok(Math.hypot(t.x, t.z) >= edge, "none in the town");
+    assert.ok(
+      Math.hypot(t.x - plan.pasture.x, t.z - plan.pasture.z) >= plan.pasture.r,
+      "none on the pasture",
+    );
+    assert.ok(Math.abs(t.x) > 9 || t.z < 0 || t.z > 1110, "none on the road");
+    for (const fl of plan.fields) {
+      const c = Math.cos(fl.yaw),
+        s = Math.sin(fl.yaw),
+        u = (t.x - fl.x) * c - (t.z - fl.z) * s,
+        v = (t.x - fl.x) * s + (t.z - fl.z) * c;
+      assert.ok(!(Math.abs(u) < fl.w / 2 && Math.abs(v) < fl.d / 2), "none on a field");
+    }
+  }
+  // Its ground varies from point to point; a desert land's is sandier than this green one's.
+  const a = townGroundAt(g, plan, 600, 600, edge),
+    b = townGroundAt(g, plan, -900, 300, edge);
+  assert.notDeepEqual(a, b);
+  assert.ok(a[1] > a[0], "green ground in a broadleaf land");
+  const desert = townGroundOf({
+      ...plan,
+      landFlora: floraWindow(floraRead(facts(size, 26, 120, 11)), 4, 8, 6, 480),
+    })!,
+    sand = townGroundAt(desert, plan, 600, 600, edge);
+  assert.ok(sand[0] > sand[1] * 0.95 && sand[0] > a[0], `sand ${sand}`);
+  assert.ok(townFlora(desert, plan, 1200, townBudget(0.7)).trees < f.trees / 8, "a desert's few");
+});

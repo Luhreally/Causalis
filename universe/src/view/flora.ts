@@ -69,15 +69,15 @@ export function floraLandOf(frame: FrameMessage): FloraLand | null {
   return last;
 }
 
-const mixRgb = (a: Rgb, b: Rgb, k: number): Rgb => [
+export const mixRgb = (a: Rgb, b: Rgb, k: number): Rgb => [
   a[0] + (b[0] - a[0]) * k,
   a[1] + (b[1] - a[1]) * k,
   a[2] + (b[2] - a[2]) * k,
 ];
-const scale = (a: Rgb, k: number): Rgb => [a[0] * k, a[1] * k, a[2] * k];
+export const scale = (a: Rgb, k: number): Rgb => [a[0] * k, a[1] * k, a[2] * k];
 
 /** The palette's rows (gen's BIOME order) each ground is read in. */
-const ROW = {
+export const ROW = {
   tundra: 5,
   boreal: 6,
   coldSoil: 7,
@@ -94,7 +94,7 @@ const ROW = {
 } as const;
 
 /** The shade under each cover's woods (its crowns seen from above): its own row of the palette. */
-function woodsShade(p: readonly Rgb[], cover: number): Rgb {
+export function woodsShade(p: readonly Rgb[], cover: number): Rgb {
   switch (cover) {
     case FLORA.taiga:
     case FLORA.tundra:
@@ -116,7 +116,7 @@ function woodsShade(p: readonly Rgb[], cover: number): Rgb {
 }
 
 /** The open ground of a cover (its grass at `lush`, 0 straw … 1 green), what lies between its trees. */
-function openGround(p: readonly Rgb[], cover: number, lush: number): Rgb {
+export function openGround(p: readonly Rgb[], cover: number, lush: number): Rgb {
   const grass = mixRgb(p[ROW.straw]!, mixRgb(p[ROW.green]!, p[ROW.straw]!, 0.18), lush);
   switch (cover) {
     case FLORA.ice:
@@ -157,33 +157,40 @@ export function floraColors(frame: FrameMessage, waters: Uint8Array): Uint8Array
   const { read: r, palette: p } = land,
     n = land.size * land.size,
     out = waters.slice(0, n * 4),
-    fert = frame.arrays.fertility as Uint8Array | undefined,
-    rock = mixRgb(p[ROW.rock]!, p[ROW.coldSoil]!, 0.2);
+    fert = frame.arrays.fertility as Uint8Array | undefined;
   for (let t = 0; t < n; t++) {
     if (land.water[t] !== 0) continue;
-    const cover = r.cover[t]!,
-      c = r.canopy[t]! / 255,
-      k = r.rock[t]! / 255,
-      wet = r.wet[t]! / 255,
-      lush = r.lush[t]! / 255;
-    let g = openGround(p, cover, Math.min(1, lush + 0.3 * wet));
-    // (A bank's grass greener and darker: the water's.)
-    if (wet > 0 && cover !== FLORA.marsh) g = mixRgb(g, scale(p[ROW.green]!, 0.9), 0.3 * wet);
-    const shade = woodsShade(p, cover),
-      under = Math.min(0.92, c * 1.05),
-      bare = Math.min(1 - under, k);
-    let col = mixRgb(mixRgb(g, rock, bare / Math.max(1e-6, 1 - under)), shade, under);
-    // (Tile from tile: a little lighter or darker, a little warmer or cooler; richer soil darker.)
-    const j = 0.93 + 0.14 * tileUnit(t, 11),
-      warmth = (tileUnit(t, 12) - 0.5) * 0.04,
-      soil = fert ? 1 - 0.06 * (fert[t]! / 255) : 1;
-    col = [col[0] * j * soil * (1 + warmth), col[1] * j * soil, col[2] * j * soil * (1 - warmth)];
+    const col = tileGround(p, r, t, t, fert ? fert[t]! / 255 : 0);
     out[t * 4] = Math.max(0, Math.min(255, Math.round(col[0] * 255)));
     out[t * 4 + 1] = Math.max(0, Math.min(255, Math.round(col[1] * 255)));
     out[t * 4 + 2] = Math.max(0, Math.min(255, Math.round(col[2] * 255)));
     out[t * 4 + 3] = 255;
   }
   return out;
+}
+
+/**
+ * One tile's ground: its woods' shade over as much of it as they cover, rock where it is bare, the rest its open ground; a
+ * bank's grass greener; a little lighter or darker tile from tile (`id`: its own number), richer soil (`soil`, 0 … 1) darker.
+ */
+export function tileGround(p: readonly Rgb[], r: FloraTiles, t: number, id: number, soil = 0): Rgb {
+  const cover = r.cover[t]!,
+    c = r.canopy[t]! / 255,
+    k = r.rock[t]! / 255,
+    wet = r.wet[t]! / 255,
+    lush = r.lush[t]! / 255,
+    rock = mixRgb(p[ROW.rock]!, p[ROW.coldSoil]!, 0.2);
+  let g = openGround(p, cover, Math.min(1, lush + 0.3 * wet));
+  // (A bank's grass greener and darker: the water's.)
+  if (wet > 0 && cover !== FLORA.marsh) g = mixRgb(g, scale(p[ROW.green]!, 0.9), 0.3 * wet);
+  const shade = woodsShade(p, cover),
+    under = Math.min(0.92, c * 1.05),
+    bare = Math.min(1 - under, k),
+    col = mixRgb(mixRgb(g, rock, bare / Math.max(1e-6, 1 - under)), shade, under),
+    // (Tile from tile: a little lighter or darker, a little warmer or cooler; richer soil darker.)
+    j = (0.93 + 0.14 * tileUnit(id, 11)) * (1 - 0.06 * soil),
+    warmth = (tileUnit(id, 12) - 0.5) * 0.04;
+  return [col[0] * j * (1 + warmth), col[1] * j, col[2] * j * (1 - warmth)];
 }
 
 /** The colour a form's crown stands in, in its world's colours (a land's woods browned in a dry run: `parched`). */
@@ -244,7 +251,7 @@ export function farKind(
 }
 
 /** A tile's warmth as the reading's mix reads it: the open ground's own (a hot desert's palms, a cold one's willows). */
-function warmOf(read: FloraTiles, t: number): number {
+export function warmOf(read: FloraTiles, t: number): number {
   const c = read.cover[t]!;
   return c === FLORA.hotDesert ||
     c === FLORA.savanna ||
@@ -383,7 +390,7 @@ function tileAt(land: FloraLand, x: number, z: number): number {
 }
 
 /** A lattice cell's own number (fixed on the land: the same cell, the same thing in it). */
-function cellUnit(i: number, j: number, k: number): number {
+export function cellUnit(i: number, j: number, k: number): number {
   let h =
     Math.imul(i + 0x7fff, 0x9e3779b1) ^
     Math.imul(j + 0x3fff, 0x85ebca6b) ^
@@ -464,7 +471,12 @@ export function nearReach(
 }
 
 /** Square rings of lattice cells about a point, nearest first, as far as a reach. */
-function* rings(cx: number, cz: number, cell: number, reach: number): Generator<[number, number]> {
+export function* rings(
+  cx: number,
+  cz: number,
+  cell: number,
+  reach: number,
+): Generator<[number, number]> {
   const i0 = Math.floor(cx / cell),
     j0 = Math.floor(cz / cell),
     k = Math.ceil(reach / cell) + 1;

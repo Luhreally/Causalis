@@ -1151,6 +1151,7 @@ type Exposed = {
   /** How many trees a land's woods were planted with (E1). */
   landTrees?: () => number;
   landFlora?: () => unknown;
+  townFlora?: () => unknown;
   streaksOnScreen?: () => { x: number; y: number }[];
   warsInPlace?: () => {
     marks: {
@@ -9703,6 +9704,8 @@ async function runPlanetPage(): Promise<void> {
   exposed.watch = (ref: string) => void toVillage(ref);
   exposed.watching = () => (scale === "village" && plan ? plan.people.length : 0);
   exposed.townOnScreen = () => (scale === "village" && plan ? village.townOnScreen(now()) : null);
+  // What grows about the town as drawn, and how many of its things stand on its fields, pasture, water, streets or road (none).
+  exposed.townFlora = () => ({ ...village.townFlora.info(), on: village.townFlora.onTaken() });
   exposed.townShown = () =>
     scale === "village" && plan
       ? {

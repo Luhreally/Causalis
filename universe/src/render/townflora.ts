@@ -1,0 +1,319 @@
+// What grows about a town, drawn in its own view (view/townflora.ts says what and where): its ground one mesh, coloured point
+// by point from its land's reading (the tiles' colours blended, greener by its water, trodden about its streets), and its
+// trees, hedgerows, tufts and stones in five toned batches. Built once a plan; the season and a dry year laid over it as its
+// other ground is (its vertex colours made again, its batches' leaves turned), never per frame.
+import * as pc from "playcanvas";
+import { wetGround, type VillagePlan } from "../bridge/index.ts";
+import {
+  FAIR_YEAR,
+  formColor,
+  grassTint,
+  seasonGround,
+  seasonLeaf,
+  seasonNeedle,
+  townBudget,
+  townEdge,
+  townFlora,
+  townGroundAt,
+  townGroundOf,
+  type GroundSeason,
+  type NearThing,
+  type TownFlora,
+} from "../view/index.ts";
+import { InstancedBatch, coneMesh, cylinderMesh, keptMesh } from "./batch.ts";
+import type { Rgb, Stage } from "./stage.ts";
+
+/** Units a metre, as the town's view draws (render/village.ts M). */
+const M = 0.1;
+/** The ground mesh's rings and spokes. */
+const RINGS = 30,
+  SPOKES = 72;
+
+export class TownFloraLayer {
+  readonly root = new pc.Entity("town-flora");
+  private readonly stage: Stage;
+  private readonly cone: pc.Mesh;
+  private readonly ball: pc.Mesh;
+  private readonly trunk: pc.Mesh;
+  private readonly tuft: pc.Mesh;
+  private readonly stone: pc.Mesh;
+  private ground: pc.Entity | null = null;
+  private groundMesh: pc.Mesh | null = null;
+  /** Each vertex's own colour, and the colours as last painted. */
+  private base: Float32Array | null = null;
+  private painted: Uint8Array | null = null;
+  private batches: Record<
+    "trunks" | "cones" | "balls" | "tufts" | "stones",
+    InstancedBatch | null
+  > = {
+    trunks: null,
+    cones: null,
+    balls: null,
+    tufts: null,
+    stones: null,
+  };
+  private leafBase: Rgb = [0.2, 0.5, 0.2];
+  private needleBase: Rgb = [0.1, 0.4, 0.2];
+  private shown: TownFlora | null = null;
+  private plan: VillagePlan | null = null;
+  /** The last building's time (ms). */
+  buildMs = 0;
+
+  constructor(stage: Stage, parent: pc.Entity) {
+    this.stage = stage;
+    parent.addChild(this.root);
+    this.cone = keptMesh(coneMesh(stage, 0.5, 1, 6));
+    this.ball = keptMesh(
+      pc.Mesh.fromGeometry(
+        stage.device,
+        new pc.SphereGeometry({ radius: 0.5, latitudeBands: 3, longitudeBands: 6 }),
+      ),
+    );
+    this.trunk = keptMesh(cylinderMesh(stage, 0.5, 1, 5));
+    this.tuft = keptMesh(coneMesh(stage, 0.5, 1, 4));
+    this.stone = keptMesh(
+      pc.Mesh.fromGeometry(
+        stage.device,
+        new pc.SphereGeometry({ radius: 0.5, latitudeBands: 2, longitudeBands: 5 }),
+      ),
+    );
+  }
+
+  /**
+   * A town's ground and what grows on it (`radius`: how far its ground is drawn, units; `share`: the setting's share of
+   * trees). Whether it drew any: a plan with no reading draws none, and its plain ground stays.
+   */
+  build(plan: VillagePlan, radius: number, share: number): boolean {
+    const t0 = performance.now();
+    this.clear();
+    this.plan = plan;
+    const g = townGroundOf(plan);
+    if (!g) return false;
+    const edge = townEdge(plan);
+    // The ground: rings closer near the middle, where the eye is.
+    const n = (RINGS + 1) * SPOKES + 1,
+      positions = new Float32Array(n * 3),
+      normals = new Float32Array(n * 3),
+      base = new Float32Array(n * 3),
+      put = (k: number, x: number, z: number) => {
+        positions[k * 3] = x;
+        positions[k * 3 + 1] = 0;
+        positions[k * 3 + 2] = z;
+        normals[k * 3 + 1] = 1;
+        const c = townGroundAt(g, plan, x / M, z / M, edge);
+        base[k * 3] = c[0];
+        base[k * 3 + 1] = c[1];
+        base[k * 3 + 2] = c[2];
+      };
+    put(0, 0, 0);
+    for (let r = 1; r <= RINGS + 1; r++) {
+      const rr = radius * Math.pow((r - 1 + 0.35) / (RINGS + 0.35), 1.7);
+      for (let a = 0; a < SPOKES; a++) {
+        const an = (a / SPOKES) * Math.PI * 2 + (r % 2) * (Math.PI / SPOKES);
+        put(1 + (r - 1) * SPOKES + a, rr * Math.cos(an), rr * Math.sin(an));
+      }
+    }
+    const indices: number[] = [];
+    for (let a = 0; a < SPOKES; a++) indices.push(0, 1 + ((a + 1) % SPOKES), 1 + a);
+    for (let r = 0; r < RINGS; r++)
+      for (let a = 0; a < SPOKES; a++) {
+        const i0 = 1 + r * SPOKES + a,
+          i1 = 1 + r * SPOKES + ((a + 1) % SPOKES),
+          j0 = 1 + (r + 1) * SPOKES + a,
+          j1 = 1 + (r + 1) * SPOKES + ((a + 1) % SPOKES);
+        indices.push(i0, i1, j0, i1, j1, j0);
+      }
+    const mesh = new pc.Mesh(this.stage.device);
+    mesh.setPositions(positions);
+    mesh.setNormals(normals);
+    this.painted = new Uint8Array(n * 4).fill(255);
+    mesh.setColors32(this.painted);
+    mesh.setIndices(indices);
+    mesh.update();
+    const m = new pc.StandardMaterial();
+    m.diffuseVertexColor = true;
+    m.specular = new pc.Color(0.04, 0.04, 0.04);
+    m.gloss = 0.1;
+    // (Under all else that lies on the ground, as its plain ground was: set back in depth.)
+    m.depthBias = 3;
+    m.slopeDepthBias = 3;
+    m.update();
+    const e = new pc.Entity("town-ground");
+    e.addComponent("render", { meshInstances: [new pc.MeshInstance(mesh, m)] });
+    e.render!.castShadows = false;
+    e.setLocalPosition(0, 0.004, 0);
+    this.root.addChild(e);
+    this.ground = e;
+    this.groundMesh = mesh;
+    this.base = base;
+    this.paint(null, 0);
+    // What stands on it.
+    const f = townFlora(g, plan, (radius / M) * 0.98, townBudget(share), edge);
+    this.shown = f;
+    this.show("trunks", f.trunks, this.trunk);
+    this.show("cones", f.cones, this.cone);
+    this.show("balls", f.balls, this.ball);
+    this.show("tufts", f.tufts, this.tuft);
+    this.show("stones", f.stones, this.stone);
+    this.leafBase = formColor(g.palette, "broadleaf");
+    this.needleBase = formColor(g.palette, "conifer");
+    this.buildMs = performance.now() - t0;
+    return true;
+  }
+
+  private show(
+    key: keyof TownFloraLayer["batches"],
+    list: readonly NearThing[],
+    mesh: pc.Mesh,
+  ): void {
+    let b = this.batches[key];
+    if (!b || b.capacity < list.length) {
+      b?.destroy();
+      b = new InstancedBatch(
+        this.stage,
+        mesh,
+        [1, 1, 1],
+        Math.max(64, Math.ceil(list.length * 1.3)),
+        this.root,
+        undefined,
+        true,
+      );
+      if (key === "tufts" || key === "stones") b.shadows(false);
+      this.batches[key] = b;
+    }
+    b.set(list.length, (i, out) => {
+      const t = list[i]!;
+      out[0] = t.x * M;
+      out[1] = (t.y + t.h / 2) * M;
+      out[2] = t.z * M;
+      out[3] = out[5] = t.w * M;
+      out[4] = t.h * M;
+      out[6] = t.yaw;
+      out[8] = t.r;
+      out[9] = t.g;
+      out[10] = t.b;
+    });
+  }
+
+  /** The season and the year in the fields (how dry, 0 … 1) on its ground and what grows on it. */
+  season(s: GroundSeason | null, dry: number): void {
+    this.paint(s, dry);
+    const ratio = (base: Rgb, c: Rgb): Rgb => [
+      c[0] / Math.max(0.02, base[0]),
+      c[1] / Math.max(0.02, base[1]),
+      c[2] / Math.max(0.02, base[2]),
+    ];
+    const bare = s ? { ...s, snow: 0 } : null,
+      leaf = bare ? ratio(this.leafBase, seasonLeaf(this.leafBase, bare)) : ([1, 1, 1] as Rgb),
+      needle = bare
+        ? ratio(this.needleBase, seasonNeedle(this.needleBase, bare))
+        : ([1, 1, 1] as Rgb),
+      snow = s?.snow ?? 0;
+    this.batches.balls?.recolor(leaf);
+    this.batches.cones?.recolor(needle);
+    this.batches.balls?.toneSnow(snow * 0.45);
+    this.batches.cones?.toneSnow(snow * 0.5);
+    this.batches.tufts?.toneSnow(snow * 0.85);
+    this.batches.stones?.toneSnow(snow * 0.7);
+  }
+
+  private paint(s: GroundSeason | null, dry: number): void {
+    const base = this.base,
+      out = this.painted,
+      mesh = this.groundMesh;
+    if (!base || !out || !mesh) return;
+    const year = { ...FAIR_YEAR, dry };
+    for (let k = 0; k * 3 < base.length; k++) {
+      let c: Rgb = [base[k * 3]!, base[k * 3 + 1]!, base[k * 3 + 2]!];
+      if (dry > 0) c = grassTint(c, year);
+      if (s) c = seasonGround(c, s);
+      out[k * 4] = Math.max(0, Math.min(255, Math.round(c[0] * 255)));
+      out[k * 4 + 1] = Math.max(0, Math.min(255, Math.round(c[1] * 255)));
+      out[k * 4 + 2] = Math.max(0, Math.min(255, Math.round(c[2] * 255)));
+    }
+    mesh.setColors32(out);
+    mesh.update();
+  }
+
+  /** What it draws (the look tools): trees, hedge bushes, tufts, stones, and whether its ground is its land's. */
+  info(): {
+    ground: boolean;
+    trees: number;
+    hedges: number;
+    tufts: number;
+    stones: number;
+    buildMs: number;
+  } {
+    const f = this.shown;
+    return {
+      ground: !!this.ground,
+      trees: f?.trees ?? 0,
+      hedges: f?.hedges ?? 0,
+      tufts: f?.tufts.length ?? 0,
+      stones: f?.stones.length ?? 0,
+      buildMs: +this.buildMs.toFixed(1),
+    };
+  }
+
+  /** Every thing as last laid (metres from the square), for the look tools' count of what stands where it may not. */
+  things(): { x: number; z: number; r: number }[] {
+    const f = this.shown;
+    if (!f) return [];
+    return [...f.trunks, ...f.balls, ...f.cones, ...f.tufts, ...f.stones].map((t) => ({
+      x: t.x,
+      z: t.z,
+      r: t.w / 2,
+    }));
+  }
+
+  /**
+   * How many things stand where they may not, by what holds the ground (the look tools; must be none): a field, the pasture,
+   * the water, the town's built ground, its road out. Read exactly (no margin), apart from how they were laid.
+   */
+  onTaken(): Record<string, number> {
+    const plan = this.plan,
+      out: Record<string, number> = { field: 0, pasture: 0, water: 0, town: 0, road: 0 };
+    if (!plan) return out;
+    const edge = townEdge(plan),
+      len = Math.hypot(plan.road.x, plan.road.z) || 1,
+      rx = plan.road.x / len,
+      rz = plan.road.z / len;
+    for (const t of this.things()) {
+      const { x, z } = t;
+      if (
+        plan.fields.some((f) => {
+          const c = Math.cos(f.yaw),
+            s = Math.sin(f.yaw),
+            u = (x - f.x) * c - (z - f.z) * s,
+            v = (x - f.x) * s + (z - f.z) * c;
+          return Math.abs(u) < f.w / 2 && Math.abs(v) < f.d / 2;
+        })
+      )
+        out.field!++;
+      if (Math.hypot(x - plan.pasture.x, z - plan.pasture.z) < plan.pasture.r) out.pasture!++;
+      if (wetGround(plan.landWater, x, z)) out.water!++;
+      if (Math.hypot(x, z) < edge) out.town!++;
+      const along = x * rx + z * rz;
+      if (Math.abs(-x * rz + z * rx) < 4 && (plan.districts || along > 0) && along < len)
+        out.road!++;
+    }
+    return out;
+  }
+
+  private clear(): void {
+    this.ground?.destroy();
+    this.groundMesh?.destroy();
+    this.ground = null;
+    this.groundMesh = null;
+    this.base = null;
+    this.painted = null;
+    this.shown = null;
+    for (const b of Object.values(this.batches)) b?.set(0, () => {});
+  }
+
+  destroy(): void {
+    this.clear();
+    for (const b of Object.values(this.batches)) b?.destroy();
+    this.root.destroy();
+  }
+}

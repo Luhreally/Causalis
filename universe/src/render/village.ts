@@ -7,6 +7,7 @@
 // its people indoors while it is fought but for those come out to its edge to watch.
 import { TownTraffic } from "./towntraffic.ts";
 import * as pc from "playcanvas";
+import { TownFloraLayer } from "./townflora.ts";
 import {
   LAKE_R,
   LOT_D,
@@ -520,6 +521,8 @@ export class VillageScene {
    * world moves drawn where it has them, those it struck down lying where they fell.
    */
   posed: PosedHook | null = null;
+  /** What grows about it, and its ground as its land's reading colours it (render/townflora.ts). */
+  readonly townFlora: TownFloraLayer;
 
   constructor(stage: Stage) {
     this.stage = stage;
@@ -553,6 +556,7 @@ export class VillageScene {
     this.worn = new WoundsLayer(stage, this.root);
     this.litters = new LittersLayer(stage, this.root);
     this.moneyLayer = new TownMoneyLayer(stage, this.root);
+    this.townFlora = new TownFloraLayer(stage, this.root);
     this.colony = new ColonyLayer(stage, stage.root);
     this.root.enabled = false;
   }
@@ -633,6 +637,7 @@ export class VillageScene {
     this.town.season(s?.snow ?? 0);
     this.graveyard.season(s?.snow ?? 0);
     this.country.season(s);
+    this.townFlora.season(s, this.dryAs);
     for (const d of this.dressed)
       d.paint(
         !s
@@ -687,7 +692,8 @@ export class VillageScene {
         child !== this.rides.root &&
         child !== this.litters.root &&
         child !== this.moneyLayer.root &&
-        child !== this.placedLayer?.root
+        child !== this.placedLayer?.root &&
+        child !== this.townFlora.root
       )
         child.destroy();
     this.waterMesh?.destroy();
@@ -782,20 +788,28 @@ export class VillageScene {
       const open = (plan.colony.remade ?? 0) >= 1;
       this.colony.glasshouses(open ? [] : plan.fields, open ? null : plan.pasture);
     }
+    // (What grows about it, and its ground coloured by it, from its land's reading: render/townflora.ts. Its plain ground
+    // stays under it, past where it is drawn.)
+    const flora = this.townFlora.build(
+      plan,
+      Math.min(390, Math.max(140, (reach + 300) * M)),
+      s.quality.villageTrees,
+    );
     if (plan.past?.covered)
       // (Built over from edge to edge: its ground, street and roof to the haze. Phase 66.)
       disc(900, [0.27, 0.28, 0.31], 0, 0, 0, "ground", false);
     else if (!plan.colony) {
-      disc(
-        Math.min(390, Math.max(140, (reach + 300) * M)),
-        [g[0] * 0.95 + 0.03, g[1] * 0.95 + 0.05, g[2] * 0.9],
-        0,
-        0,
-        0,
-        "ground",
-        true,
-        4,
-      );
+      if (!flora)
+        disc(
+          Math.min(390, Math.max(140, (reach + 300) * M)),
+          [g[0] * 0.95 + 0.03, g[1] * 0.95 + 0.05, g[2] * 0.9],
+          0,
+          0,
+          0,
+          "ground",
+          true,
+          4,
+        );
       disc(
         plan.pasture.r * M,
         [g[0] * 0.8 + 0.12, g[1] * 0.85 + 0.14, g[2] * 0.7 + 0.05],
