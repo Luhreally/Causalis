@@ -189,7 +189,25 @@ export function townClear(
   const roadLen = Math.hypot(plan.road.x, plan.road.z) || 1,
     rx = plan.road.x / roadLen,
     rz = plan.road.z / roadLen,
-    fields = plan.fields.map((f) => ({ ...f, c: Math.cos(f.yaw), s: Math.sin(f.yaw) }));
+    fields = plan.fields.map((f) => ({ ...f, c: Math.cos(f.yaw), s: Math.sin(f.yaw) })),
+    // (A great city has hundreds of fields and its growth asks tens of thousands of points: each asks only the fields
+    // in its cell of the ground, each field kept in every cell its bounds and a spare reach over.)
+    cells = new Map<number, (typeof fields)[number][]>(),
+    cellOf = (i: number, j: number) => (i + 4096) * 8192 + (j + 4096);
+  for (const f of fields) {
+    const e = Math.hypot(f.w, f.d) / 2 + 2 + FIELD_SPARE;
+    for (let i = Math.floor((f.x - e) / FIELD_CELL); i <= Math.floor((f.x + e) / FIELD_CELL); i++)
+      for (
+        let j = Math.floor((f.z - e) / FIELD_CELL);
+        j <= Math.floor((f.z + e) / FIELD_CELL);
+        j++
+      ) {
+        const k = cellOf(i, j),
+          list = cells.get(k);
+        if (list) list.push(f);
+        else cells.set(k, [f]);
+      }
+  }
   return (x, z, r) => {
     if (Math.hypot(x, z) < edge + 15 + r) return false;
     const along = x * rx + z * rz,
@@ -199,16 +217,25 @@ export function townClear(
     if (plan.water && Math.hypot(x - plan.water.x, z - plan.water.z) < (plan.water.r ?? 0) + 6 + r)
       return false;
     if (wetGround(plan.landWater, x, z)) return false;
-    for (const f of fields) {
-      const dx = x - f.x,
-        dz = z - f.z,
-        u = dx * f.c - dz * f.s,
-        v = dx * f.s + dz * f.c;
-      if (Math.abs(u) < f.w / 2 + 2 + r && Math.abs(v) < f.d / 2 + 2 + r) return false;
-    }
+    const near =
+      r <= FIELD_SPARE
+        ? cells.get(cellOf(Math.floor(x / FIELD_CELL), Math.floor(z / FIELD_CELL)))
+        : fields;
+    if (near)
+      for (const f of near) {
+        const dx = x - f.x,
+          dz = z - f.z,
+          u = dx * f.c - dz * f.s,
+          v = dx * f.s + dz * f.c;
+        if (Math.abs(u) < f.w / 2 + 2 + r && Math.abs(v) < f.d / 2 + 2 + r) return false;
+      }
     return true;
   };
 }
+
+/** A cell of the ground fields are found by (metres), and the reach a point asks within it at most (metres). */
+const FIELD_CELL = 64,
+  FIELD_SPARE = 12;
 
 /** Of the land's covers, those whose farmers keep hedgerows between their fields. */
 const HEDGED = new Set<number>([
