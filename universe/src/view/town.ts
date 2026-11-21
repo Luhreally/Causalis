@@ -1157,7 +1157,8 @@ export const FAR_WHOLE = 2500,
  * with them: without it a city's first spire drawn whole left its count not a number, and no home after it was drawn whole.
  */
 const WHOLE_PARTS = [4.5, 4.5, 6.5, 7, 9, 15, 15],
-  LOD_PARTS = [4, 4, 5, 5, 7, 15, 15];
+  LOD_PARTS = [4, 4, 5, 5, 7, 15, 15],
+  FINE0_PARTS = [2, 2, 5, 4, 7, 15, 15];
 
 /** A town's lots past those its plan draws whole: where each stands on its blocks grown on, and what stands there. */
 export type TownFar = {
@@ -1322,11 +1323,10 @@ function farParts(level: number, look: HouseLook | undefined): number {
   if (!look) return 0;
   // (A spire as it stands whole, its masts, bands and caps tall enough to be seen as far as it is drawn.)
   if (level >= TOP_LEVEL) return 15;
-  if (!rowJoins(level, look)) return look.open ? 1 : 2;
+  // (Each on its own as from afar: home's fine 0, measured.)
+  if (!rowJoins(level, look)) return look.open ? 1 : FINE0_PARTS[level]!;
   if (level <= 1) return 1;
   if (level === 2) return 1.25;
-  // (A tower's frames with its bands, and its mast each.)
-  if (level === 5) return (2 + 2 * towerBands(level)) / 4 + 1;
   return (2 + towerBands(level)) / 4;
 }
 
@@ -1595,8 +1595,9 @@ function tallWall(look: HouseLook, level: number): Rgb {
 function rowJoins(level: number, look: HouseLook): boolean {
   if (look.sealed || look.open || look.tent || look.round || level >= TOP_LEVEL) return false;
   if (level <= 1) return look.joined === true;
-  // (Towers of flats a little apart, a metre and more: from as far off as their rows are drawn, one face.)
-  return LOT_W - LEVELS[level]!.w <= (level >= 3 ? 1.25 : 0.6);
+  // (Not towers a metre and more apart: drawn as one, the gaps between them closed and opened as the eye moved, near
+  // enough to see: 2026-11-21. Drawn each on its own they are as they stand whole.)
+  return LOT_W - LEVELS[level]!.w <= 0.6;
 }
 
 /**
@@ -1637,7 +1638,6 @@ function rowsLod(
     )
       j++;
     const n = j - i,
-      first = i,
       a = place(p),
       b = place(sorted[j - 1]!);
     i = j;
@@ -1668,18 +1668,9 @@ function rowsLod(
     if (level >= 3) {
       // (Its storeys' bands and its roof's tar, as each of its homes has them.)
       const bands = towerBands(level);
-      for (let k = 0; k < bands; k++) {
-        const y = ((k + 0.6) / bands) * h;
-        if (level === 5) towerBand(out, x, y, z, long, L.d, L.w, h / bands, true, yaw);
-        else out.lamp(x, y, z, long + L.w * 0.01, 0.8, L.d * 1.01, yaw);
-      }
+      for (let k = 0; k < bands; k++)
+        out.lamp(x, ((k + 0.6) / bands) * h, z, long + L.w * 0.01, 0.8, L.d * 1.01, yaw);
       out.put("box", TAR, x, h + 0.25, z, long + L.w * 0.02, 0.5, L.d * 1.02, yaw);
-      // (A tower's mast each, where it stands.)
-      if (level === 5)
-        for (let q = first; q < first + n; q++) {
-          const c = place(sorted[q]!);
-          towerMast(out, c.x, c.z, h);
-        }
       continue;
     }
     const flat = look.rise < 0.1;
