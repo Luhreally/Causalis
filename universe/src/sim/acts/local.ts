@@ -15,6 +15,7 @@ import {
   kindBurns,
   needsMet,
   reachIn,
+  throughOf,
 } from "../../rules/index.ts";
 import {
   cellRef,
@@ -218,6 +219,7 @@ export function installLocalActs(world: World, ctx: () => PopulationContext): vo
           dead: toll - dead,
           ...(lot !== undefined ? { lot } : {}),
           ...strengthMark(s),
+          ...throughOf(command.args),
         },
       });
     },

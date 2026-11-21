@@ -15,6 +15,7 @@ import {
   type World,
 } from "../../kernel/index.ts";
 import { cellRef } from "../../gen/index.ts";
+import { throughOf } from "../../rules/index.ts";
 import { FORTUNE_STRENGTHS, SPAN_MOST } from "./fortune.ts";
 
 export const ACT_KINDS = ["rain", "harvest", "plague", "inspire"] as const;
@@ -307,7 +308,7 @@ export function installActs(
           type: ACT_EVENTS[kind].type,
           place: cellRef(0, a.cell),
           causes: [{ ref: command.id, role: "agent", weight: 1 }],
-          data: { sign: a.sign, years, ...strong },
+          data: { sign: a.sign, years, ...strong, ...throughOf(command.args) },
         });
         store.add({
           command: command.id,

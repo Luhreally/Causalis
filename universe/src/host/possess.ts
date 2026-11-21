@@ -12,6 +12,8 @@ import {
   HAND_ACT,
   HAND_TOLD,
   OCC,
+  GIFT_ACT,
+  SMITES,
   STORE_GOOD,
   TRADE_PLACE,
   WORK_STAGES,
@@ -23,6 +25,7 @@ import {
   type HandOffer,
   type LocalBody,
   type LocalWorld,
+  type Smite,
   type WorkPlaceKind,
 } from "../rules/index.ts";
 import {
@@ -122,6 +125,7 @@ function whereFrom(b: LocalBody, x: number, z: number, sex: number): string {
 type Ahead = {
   readonly kept: number;
   readonly letters: string;
+  /** Those joining, the gifts and the strokes asked with them (as words: a change steps it afresh). */
   readonly joins: string;
   local: LocalWorld;
 };
@@ -136,9 +140,11 @@ function aheadOf(
   p: Possession,
   letters: string,
   joins: readonly JoinArgs[],
+  gifts = 0,
+  smites: readonly Smite[] = [],
 ): LocalWorld | null {
   const life = populationContext(world).life,
-    key = JSON.stringify(joins),
+    key = JSON.stringify([joins, gifts, smites]),
     was = AHEAD.get(p);
   if (
     was &&
@@ -149,6 +155,7 @@ function aheadOf(
   ) {
     const k = was.letters.length / 3,
       rest = joins.filter((j) => j.when >= k).map((j) => ({ ...j, when: j.when - k })),
+      later = smites.filter((m) => m.when >= k).map((m) => ({ ...m, when: m.when - k })),
       local = possessionAhead(
         world,
         life,
@@ -156,6 +163,8 @@ function aheadOf(
         rest,
         world.now + 1,
         was.local,
+        gifts,
+        later,
       );
     if (local) {
       AHEAD.set(p, { kept: p.local.step, letters, joins: key, local });
@@ -164,7 +173,16 @@ function aheadOf(
   }
   if (was && was.kept === p.local.step && was.joins === key && was.letters === letters)
     return was.local;
-  const local = possessionAhead(world, life, letters, joins);
+  const local = possessionAhead(
+    world,
+    life,
+    letters,
+    joins,
+    world.now + 1,
+    undefined,
+    gifts,
+    smites,
+  );
   if (local) AHEAD.set(p, { kept: p.local.step, letters, joins: key, local });
   return local;
 }
@@ -285,7 +303,12 @@ function offerOf(
 ): PossessOffer {
   const trade = p.scene.trade,
     form = p.scene.form,
-    busy = o.why === "busy" ? `${s.first} is busy: ${busyWords(a)}` : null,
+    busy =
+      o.why === "busy"
+        ? `${s.first} is busy: ${busyWords(a)}`
+        : o.why === "aloft"
+          ? `${s.first} is up in the air: come down to do it`
+          : null,
     down = o.why === "down" ? `${s.first} is struck down` : null,
     held = inHand(l, a.carry),
     target = o.target >= 0 ? s.name(o.target) : "";
@@ -349,6 +372,25 @@ function offerOf(
       label: "Set down",
       can: !o.why,
       words: down ?? busy ?? `Set down ${thingWords(l, a.carry, s.sex)}`,
+    };
+  }
+  // (The god's touch that heals: rules/gifts.ts.)
+  if (o.act === GIFT_ACT.heal) {
+    const self = o.target === p.agent,
+      t = l.bodies.find((b) => b.id === o.target);
+    return {
+      act: o.act,
+      icon: "✨",
+      label: "Heal",
+      can: !o.why,
+      words:
+        down ??
+        busy ??
+        (o.why
+          ? `No one within ${hisOf(s.sex)} touch to heal`
+          : self
+            ? `Heal ${himOf(s.sex)}self: the god's touch makes ${himOf(s.sex)} whole`
+            : `Heal ${target}${t && (t.doing === "down" || t.doing === "thrown") ? ", who lies struck down" : ""}: a touch makes them whole`),
     };
   }
   if (o.act === HAND_ACT.talk)
@@ -482,6 +524,24 @@ function toldOf(
       return told(`${who} came running and parted the brawl`);
     case "down":
       return told(`${he} is struck down by ${who}: your hand lets go`, false);
+    // (The god's gifts: rules/gifts.ts.)
+    case "warded":
+      return told(`${who}'s blow fell on ${he} and did no harm`);
+    case "healed":
+      return told(
+        id === p.agent
+          ? `The god's touch made ${he} whole`
+          : `${who} is made whole at ${he}'s touch`,
+      );
+    case "no-heal":
+      return told(`No one within ${he}'s touch to heal`, false);
+    case "smote": {
+      const d = l.deeds.findLast((x) => x.kind === "smote") as { struck: number } | undefined,
+        what = SMITE_WORDS[SMITES[more] ?? "lightning"] ?? "The god's hand fell";
+      return told(`${what}${d?.struck ? `: ${d.struck} struck down` : ""}`);
+    }
+    case "aloft":
+      return told(`${he} is up in the air: come down to do it`, false);
     default:
       return null;
   }
@@ -503,6 +563,14 @@ function bodyLine(world: World, l: LocalWorld, p: Possession, s: Speaker): strin
   return bodyWords(bodyAt(frame, wounds, world.now, null, struck), wounds, world.now, s.sex);
 }
 
+/** A stroke called down, as told under the strip. */
+const SMITE_WORDS: Readonly<Record<string, string>> = {
+  lightning: "A bolt falls from the sky",
+  fire: "Fire falls from the sky",
+  quake: "The ground shakes",
+  rain: "Rain falls",
+};
+
 /** The small world as the page draws it, and its words. */
 function liveOf(world: World, w: Window, p: Possession, l: LocalWorld): PossessLive {
   const a = l.bodies[0]!,
@@ -521,6 +589,7 @@ function liveOf(world: World, w: Window, p: Possession, l: LocalWorld): PossessL
         task: b.task,
         carry: h && h.carry ? h.carry : null,
         say: BODY_SAYS[b.say] ?? "",
+        ...(b === a && l.gait?.y ? { lift: l.gait.y } : {}),
       };
     },
     strip: PossessStrip = {
@@ -529,6 +598,9 @@ function liveOf(world: World, w: Window, p: Possession, l: LocalWorld): PossessL
       strength: Math.max(0, Math.min(1, a.strength)),
       carries: a.carry ? thingWords(l, a.carry, s.sex) : "empty-handed",
       body: bodyLine(world, l, p, s),
+      ...(l.gait && l.gait.wind < 1 ? { wind: l.gait.wind } : {}),
+      ...(l.gait?.y ? { lift: l.gait.y } : {}),
+      ...(l.gifts ? { gifts: l.gifts } : {}),
     };
   return {
     step: l.step,
@@ -582,10 +654,17 @@ export const POSSESS_QUERIES: Readonly<Record<string, QueryHandler>> = {
     const w = handOf(world).resting,
       p = w?.possessed;
     if (!w || !p) return null;
-    const a = (args ?? {}) as { steps?: unknown; joins?: unknown },
+    const a = (args ?? {}) as {
+        steps?: unknown;
+        joins?: unknown;
+        gifts?: unknown;
+        smites?: unknown;
+      },
       letters = typeof a.steps === "string" ? a.steps : "",
       joins = Array.isArray(a.joins) ? (a.joins as JoinArgs[]) : [],
-      local = aheadOf(world, p, letters, joins);
+      gifts = Number.isInteger(a.gifts) ? (a.gifts as number) : 0,
+      smites = Array.isArray(a.smites) ? (a.smites as Smite[]) : [],
+      local = aheadOf(world, p, letters, joins, gifts, smites);
     return local ? liveOf(world, w, p, local) : null;
   },
 };

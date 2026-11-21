@@ -17,6 +17,22 @@ import { NINES } from "./anatomy.ts";
 import { BLOW_PLACES, SEVER, blowPlaceOf, killShare, type Striker } from "./blows.ts";
 import { HAND_ACT, POSSESS_HZ, type HandBid, type LocalDraw } from "./possess.ts";
 import { TURN, type Blow } from "./wounds.ts";
+import {
+  ARMOUR_LOAD,
+  ARMS_LOAD,
+  FLIGHT,
+  FRESH_GAIT,
+  GAIT,
+  GIFT_ACT,
+  SLOW,
+  SMITES,
+  SMITE_MOST,
+  SMITE_REACH,
+  gaitStep,
+  gifted,
+  type Gait,
+  type SmiteKind,
+} from "./gifts.ts";
 
 const DT = 1 / POSSESS_HZ;
 
@@ -211,6 +227,21 @@ export type FightDeed = {
   readonly striker: number;
   readonly dead: boolean;
   readonly lost: boolean;
+  /** Struck down by a gift: at a touch (strength), or by a stroke called down. */
+  readonly gift?: "strength" | SmiteKind;
+};
+
+/**
+ * A wonder done in the fight by the god's gifts (rules/gifts.ts): one healed (a figure), a blow on him that did no harm,
+ * his rising over the field, one felled at a touch, a stroke called down (and the figures it struck down); and how many
+ * figures saw it.
+ */
+export type FightWonder = {
+  readonly kind: "healed" | "warded" | "flew" | "felled" | SmiteKind;
+  readonly step: number;
+  readonly seen: number;
+  readonly id?: number;
+  readonly struck?: number;
 };
 
 /** What strikes in the fight, by index: a hand's blow, an arrow, a dart, a bullet. */
@@ -237,6 +268,10 @@ export const FIGHT_TOLD = [
   "stood",
   "nothing",
   "hit",
+  // (The god's gifts: rules/gifts.ts.)
+  "warded",
+  "healed",
+  "smote",
 ] as const;
 export type FightTold = (typeof FIGHT_TOLD)[number];
 
@@ -255,6 +290,10 @@ export type FightWorld = {
   told: [number, number, number, number];
   /** Why it ended for the possessed ("": it goes on): dead, wounded down, fled from the field, the battle over. */
   ended: "" | "dead" | "down" | "fled" | "over";
+  /** His breath and height (absent: full, on the ground), the god's gifts this second (absent: none), the wonders done. */
+  gait?: Gait;
+  gifts?: number;
+  wonders?: FightWonder[];
 };
 
 /** A body as the fight takes it: where the field had it, how strong. */
@@ -388,6 +427,9 @@ export function copyFight(f: FightWorld): FightWorld {
     deeds: [...f.deeds],
     told: [...f.told],
     ended: f.ended,
+    ...(f.gait ? { gait: { ...f.gait } } : {}),
+    ...(f.gifts ? { gifts: f.gifts } : {}),
+    ...(f.wonders ? { wonders: [...f.wonders] } : {}),
   };
 }
 
@@ -409,6 +451,20 @@ const far = (a: { x: number; z: number }, b: { x: number; z: number }) => Math.s
 const told = (f: FightWorld, what: FightTold, id = -1, more = 0) => {
   f.told = [FIGHT_TOLD.indexOf(what), f.step, id, more];
 };
+
+/** Whether the one held is up over the field on the god's wings, out of reach of any blow by hand. */
+export const fightAloft = (f: FightWorld): boolean => (f.gait?.y ?? 0) > FIGHT_CLEAR;
+const FIGHT_CLEAR = FLIGHT.clear;
+/** How many figures standing within `r` of a point see what is done there (the one held not among them). */
+function seenBy(f: FightWorld, x: number, z: number, r: number): number {
+  let n = 0;
+  for (let i = 1; i < f.bodies.length; i++) {
+    const b = f.bodies[i]!;
+    if (fighting(b) && far2(b, { x, z }) <= r * r) n++;
+  }
+  return n;
+}
+const wonder = (f: FightWorld, w: FightWonder) => (f.wonders ??= []).push(w);
 
 /** A body's missile, what it strikes as, and the blow it deals. */
 function missileOf(looses: Looses): { striker: number; blow: Blow } {
@@ -456,6 +512,8 @@ function strike(
     own = scene.sides[a.side],
     foe = scene.sides[b.side],
     s = f.step,
+    // (The god's strength in his blow: it lands the oftener, and fells at once. Up on his wings, no blow by hand reaches.)
+    strong = held && byHand && ai === 0 && !missile && gifted(f.gifts, "strength"),
     m = missile ? missileOf(own.looses) : { striker: 0, blow: own.blow },
     near = far(a, b),
     range = FIGHT_RANGE[own.looses],
@@ -473,7 +531,9 @@ function strike(
       dmath.sqrt(own.might / foe.might) *
       a.strength *
       (own.mounted && !missile ? 1.15 : 1) *
-      (fled(b) ? FIGHT_HIT.back : 1);
+      (fled(b) ? FIGHT_HIT.back : 1) *
+      (strong ? 3 : 1);
+  if (held && bi === 0 && !missile && fightAloft(f)) return;
   if (draw(a.id, s, P.hit) >= Math.min(0.95, lands)) {
     if (ai === 0) told(f, b.doing === "parry" && !missile ? "parried" : "missed", b.id);
     else if (bi === 0 && b.doing === "parry") told(f, "parried", a.id, 1);
@@ -481,13 +541,19 @@ function strike(
   }
   const place = BLOW_PLACES.indexOf(blowPlaceOf(LANDS, draw(b.id, s, P.place))),
     striker = FIGHT_STRIKERS[m.striker]!,
-    ward = held && bi === 0,
-    kills =
+    ward = held && bi === 0;
+  // (The unbreakable: the blow lands, and is heard, and does no harm.)
+  if (ward && gifted(f.gifts, "unbreakable")) {
+    wonder(f, { kind: "warded", step: s, seen: unseenHeld(f) ? 0 : seenBy(f, b.x, b.z, 30) });
+    told(f, "warded", a.id, place);
+    return;
+  }
+  const kills =
       killShare(BLOW_PLACES[place]!, striker, m.blow) *
       (1 - TURN[m.blow] * dmath.clamp(foe.guard, 0, 1)) *
       (0.6 + 0.5 * dmath.clamp(own.shock, 0, 1.4)) *
       (ward ? FIGHT_WARD.kill : 1),
-    dead = draw(b.id, s, P.kill) < kills,
+    dead = draw(b.id, s, P.kill) < kills * (strong ? 2 : 1),
     cut =
       !missile &&
       own.cuts &&
@@ -497,14 +563,30 @@ function strike(
   if (cut) b.lost = place;
   if (dead) b.doing = "dead";
   else {
-    b.hurt = Math.min(1, b.hurt + hurtAt(place) * (ward ? FIGHT_WARD.hurt : 1));
+    b.hurt = strong ? 1 : Math.min(1, b.hurt + hurtAt(place) * (ward ? FIGHT_WARD.hurt : 1));
     if (b.hurt >= 1 || cut) b.doing = "down";
   }
   const down = b.doing === "dead" || b.doing === "down";
   if (down) {
     b.vx = 0;
     b.vz = 0;
-    f.deeds.push({ step: s, by: a.id, id: b.id, place, striker: m.striker, dead, lost: cut });
+    f.deeds.push({
+      step: s,
+      by: a.id,
+      id: b.id,
+      place,
+      striker: m.striker,
+      dead,
+      lost: cut,
+      ...(strong ? { gift: "strength" as const } : {}),
+    });
+    if (strong)
+      wonder(f, {
+        kind: "felled",
+        step: s,
+        id: b.id,
+        seen: unseenHeld(f) ? 0 : seenBy(f, b.x, b.z, 30),
+      });
   }
   if (ai === 0) told(f, down ? (dead ? "felled" : "wounded") : "struck", b.id, place);
   else if (bi === 0) told(f, "hit", a.id, place);
@@ -543,12 +625,15 @@ function face(b: FightBody, tx: number, tz: number): void {
   b.yaw = turned(b.yaw, dmath.atan2(tx - b.x, tz - b.z), 0.3);
 }
 
-/** The nearest of the other side still in the fight (or, after a break, fleeing) to `i` (-1: none). */
-function nearestFoe(f: FightWorld, i: number, fleeing: boolean): number {
+/** Whether the one held is unseen (the god's gift): none of the field goes for him. */
+const unseenHeld = (f: FightWorld) => gifted(f.gifts, "unseen");
+
+/** The nearest of the other side still in the fight (or, after a break, fleeing) to `i` (-1: none); `hide`: not the one held. */
+function nearestFoe(f: FightWorld, i: number, fleeing: boolean, hide = false): number {
   const a = f.bodies[i]!;
   let best = -1,
     bestD = Infinity;
-  for (let j = 0; j < f.bodies.length; j++) {
+  for (let j = hide ? 1 : 0; j < f.bodies.length; j++) {
     const b = f.bodies[j]!;
     if (b.side === a.side || !fighting(b) || (!fleeing && b.doing === "flee")) continue;
     const d = far2(a, b);
@@ -603,9 +688,20 @@ function think(scene: FightScene, f: FightWorld, i: number, draw: LocalDraw, hel
     if (offField(scene, b)) b.doing = "gone";
     return;
   }
-  const won = f.broke >= 0;
+  const won = f.broke >= 0,
+    me = f.bodies[0]!,
+    hide = held && unseenHeld(f) && b.side !== me.side,
+    // (Those of his near him, under the god's Command, go for whom he goes for, and come on beside him.)
+    commanded =
+      held &&
+      gifted(f.gifts, "command") &&
+      b.side === me.side &&
+      fighting(me) &&
+      far2(b, me) <= FIGHT_NEAR.rally * FIGHT_NEAR.rally;
   // (Looked for afresh every so often, each at its own step of the round, or when its foe is gone.)
-  if ((s + i) % FIGHT_TAKES.look === 0 || !foeHolds(f, i, won)) b.foe = nearestFoe(f, i, won);
+  if ((s + i) % FIGHT_TAKES.look === 0 || !foeHolds(f, i, won) || (hide && b.foe === 0))
+    b.foe = nearestFoe(f, i, won, hide);
+  if (commanded && me.foe >= 0 && foeHolds(f, 0, won)) b.foe = me.foe;
   const foe = f.bodies[b.foe];
   if (!foe) {
     b.doing = "stand";
@@ -657,8 +753,9 @@ function think(scene: FightScene, f: FightWorld, i: number, draw: LocalDraw, hel
   // to meet one come near.
   // (Behind one of its own nearer the foe, it keeps its rank: only the front closes.)
   if (
-    (b.side === 1 && Math.abs(b.x - scene.meet) > FIGHT_NEAR.hold && d > FIGHT_NEAR.meet) ||
-    behind(f, i, foe)
+    !commanded &&
+    ((b.side === 1 && Math.abs(b.x - scene.meet) > FIGHT_NEAR.hold && d > FIGHT_NEAR.meet) ||
+      behind(f, i, foe))
   ) {
     b.doing = "stand";
     face(b, foe.x, foe.z);
@@ -710,10 +807,17 @@ function hand(scene: FightScene, f: FightWorld, bid: HandBid, draw: LocalDraw): 
     (bid.act === HAND_ACT.strike || bid.act === FIGHT_ACT.parry || bid.act === FIGHT_ACT.rally)
   )
     b.doing = "stand";
+  // (His own gait, from his body and what he bears: a sprint's breath spent and got back, a flier's height; rules/gifts.ts.)
+  const gaitPace = handGait(scene, f, b, bid, m),
+    slow = gifted(f.gifts, "slow") ? SLOW : 1;
   if (m > 0.05) {
     const pace =
-      b.doing === "flee" ? FIGHT_PACE.flee : bid.run ? FIGHT_PACE.run : FIGHT_PACE.walk * 1.3;
-    go(b, b.x + bid.mx, b.z + bid.mz, paceOf(scene, b, pace) * m);
+      b.doing === "flee"
+        ? Math.max(paceOf(scene, b, FIGHT_PACE.flee), gaitPace)
+        : bid.run || fightAloft(f)
+          ? gaitPace
+          : paceOf(scene, b, FIGHT_PACE.walk * 1.3);
+    go(b, b.x + bid.mx, b.z + bid.mz, pace * m * slow);
   } else {
     b.vx = 0;
     b.vz = 0;
@@ -728,8 +832,9 @@ function hand(scene: FightScene, f: FightWorld, bid: HandBid, draw: LocalDraw): 
     d = foe ? far(foe, b) : Infinity,
     reach = FIGHT_REACH[own.blow];
   b.foe = fi;
-  if (bid.act === HAND_ACT.strike) {
-    if (foe && d <= reach * 1.15 && s >= b.ready) {
+  if (bid.act === GIFT_ACT.heal) fieldHeal(f);
+  else if (bid.act === HAND_ACT.strike) {
+    if (foe && d <= reach * 1.15 && s >= b.ready && !fightAloft(f)) {
       face(b, foe.x, foe.z);
       b.yaw = dmath.atan2(foe.x - b.x, foe.z - b.z);
       b.doing = "fight";
@@ -769,19 +874,163 @@ function hand(scene: FightScene, f: FightWorld, bid: HandBid, draw: LocalDraw): 
   if (foe && d <= reach * 1.5 && m <= 0.05) face(b, foe.x, foe.z);
 }
 
+/** The top a soldier held sprints at (m/s): a prime body's, his kind's pace, as strong as he was drawn, under what he bears; mounted, his horse's. */
+export function soldierTop(scene: FightScene, b: FightBody, strong = false): number {
+  const own = scene.sides[b.side],
+    load = strong ? 1 : 1 - ARMOUR_LOAD * dmath.clamp(own.guard, 0, 1) - ARMS_LOAD;
+  return (
+    GAIT.prime * (scene.pace ?? 1) * b.strength * load * (own.mounted ? FIGHT_PACE.mounted : 1)
+  );
+}
+
+/** The one held's gait a step on: his pace at a sprint (or aloft) now, his breath and height kept; his rising told. */
+function handGait(scene: FightScene, f: FightWorld, b: FightBody, bid: HandBid, m: number): number {
+  const was = f.gait ?? FRESH_GAIT,
+    r = gaitStep(was, {
+      dt: DT,
+      walk: paceOf(scene, b, FIGHT_PACE.walk * 1.3),
+      top: soldierTop(scene, b, gifted(f.gifts, "strength")),
+      health: 1 - b.hurt,
+      load: 1,
+      sprint: bid.run,
+      moving: m > 0.05,
+      age: 1,
+      swift: gifted(f.gifts, "swift"),
+      wings: gifted(f.gifts, "wings"),
+      rise: !!bid.rise,
+    });
+  if (was.y <= FIGHT_CLEAR && r.gait.y > FIGHT_CLEAR)
+    wonder(f, { kind: "flew", step: f.step, seen: unseenHeld(f) ? 0 : seenBy(f, b.x, b.z, 60) });
+  if (r.gait.wind >= 1 && r.gait.y <= 0) delete f.gait;
+  else f.gait = r.gait;
+  return r.pace;
+}
+
+/** Whom a healing touch on the field falls on: the nearest within reach struck down or hurt (not the dead), his own first; else himself (-1: none). */
+export function fieldHealTarget(f: FightWorld): number {
+  const me = f.bodies[0]!;
+  let best = -1,
+    bestD = Infinity;
+  for (let j = 1; j < f.bodies.length; j++) {
+    const o = f.bodies[j]!;
+    if (o.doing === "dead" || o.doing === "gone" || (o.hurt <= 0 && o.doing !== "down")) continue;
+    const d = far2(o, me) + (o.side === me.side ? 0 : 1);
+    if (d <= FIELD_HEAL * FIELD_HEAL + 1 && d < bestD) {
+      best = j;
+      bestD = d;
+    }
+  }
+  return best >= 0 ? best : me.hurt > 0 ? 0 : -1;
+}
+const FIELD_HEAL = 2.6;
+
+/** A healing touch on the field: one struck down stands again whole, their fall not counted; seen by those about. */
+function fieldHeal(f: FightWorld): void {
+  const me = f.bodies[0]!,
+    k = gifted(f.gifts, "healing") ? fieldHealTarget(f) : -1;
+  if (k < 0) return told(f, "nothing", -1, 3);
+  const o = f.bodies[k]!;
+  o.hurt = 0;
+  o.struck = -1;
+  if (o.doing === "down") o.doing = "stand";
+  if (k > 0) f.deeds = f.deeds.filter((x) => x.id !== o.id || x.dead);
+  wonder(f, {
+    kind: "healed",
+    step: f.step,
+    id: o.id,
+    seen: unseenHeld(f) ? (k > 0 ? 1 : 0) : seenBy(f, o.x, o.z, 30),
+  });
+  told(f, "healed", o.id);
+  if (k > 0) face(me, o.x, o.z);
+}
+
+/**
+ * The god's hand called down on the field at (x, z) (never on the one it is called through): a bolt kills or fells those
+ * it falls among, wounds those near it, and takes heart from his foes; fire burns those it falls among; the ground shaken
+ * throws all within its reach off their blows; rain wets every bow and match under it, so they loose the later.
+ */
+export function fieldSmite(
+  scene: FightScene,
+  f: FightWorld,
+  kind: number,
+  x: number,
+  z: number,
+  draw: LocalDraw,
+): void {
+  const me = f.bodies[0]!,
+    what = SMITES[kind],
+    s = f.step;
+  if (!what || far(me, { x, z }) > SMITE_MOST.far) return;
+  const seen = seenBy(f, x, z, SMITE_REACH[what].seen);
+  let struck = 0;
+  for (let i = 1; i < f.bodies.length; i++) {
+    const b = f.bodies[i]!;
+    if (!fighting(b)) continue;
+    const d = far(b, { x, z });
+    let downNow = false,
+      dead = false;
+    if (what === "lightning") {
+      if (d <= SMITE_REACH.lightning.strikes) {
+        dead = draw(b.id, s, P.kill) < 0.7;
+        downNow = true;
+      } else if (d <= SMITE_REACH.lightning.throws) {
+        b.hurt = Math.min(1, b.hurt + 0.3);
+        b.ready = Math.max(b.ready, s + 40);
+        downNow = b.hurt >= 1;
+      }
+    } else if (what === "fire") {
+      if (d <= SMITE_REACH.fire.burns) {
+        b.hurt = Math.min(1, b.hurt + SMITE_REACH.fire.harm * (0.75 + 0.5 * draw(b.id, s, P.pace)));
+        downNow = b.hurt >= 1;
+        dead = downNow && draw(b.id, s, P.kill) < 0.4;
+      }
+    } else if (what === "quake") {
+      if (d <= SMITE_REACH.quake.throws) {
+        b.ready = Math.max(b.ready, s + 40);
+        if (b.loaded >= 0) b.loaded = Math.max(b.loaded, s + 40);
+      }
+    } else if (d <= SMITE_REACH.rain.parts && b.loaded >= 0)
+      b.loaded = Math.max(b.loaded, s + Math.round(scene.sides[b.side].reload * 2 * POSSESS_HZ));
+    if (!downNow) continue;
+    b.doing = dead ? "dead" : "down";
+    b.vx = 0;
+    b.vz = 0;
+    b.struck = 1;
+    struck++;
+    f.deeds.push({
+      step: s,
+      by: me.id,
+      id: b.id,
+      place: 1,
+      striker: 0,
+      dead,
+      lost: false,
+      gift: what,
+    });
+  }
+  // (A bolt or a fire from the sky on his foes' side takes heart from it.)
+  if ((what === "lightning" || what === "fire") && struck) {
+    const other = me.side === 0 ? 1 : 0;
+    f.lift[other] = Math.max(-FIGHT_HEART.lift, f.lift[other] - FIGHT_HEART.fly * struck);
+  }
+  wonder(f, { kind: what, step: s, seen, struck });
+  told(f, "smote", -1, kind);
+}
+
 /** The bodies kept off each other: those nearer than FIGHT_NEAR.apart pushed apart, the fallen not. */
 function apart(f: FightWorld): void {
   const n = f.bodies.length,
-    room = FIGHT_NEAR.apart;
+    room = FIGHT_NEAR.apart,
+    aloft = fightAloft(f);
   // (Sorted along x by insertion each step: a body moves little between steps.)
   const order = sorted(f);
   for (let a = 0; a < n; a++) {
     const p = f.bodies[order[a]!]!;
-    if (!fighting(p) || p.doing === "flee") continue;
+    if (!fighting(p) || p.doing === "flee" || (aloft && order[a] === 0)) continue;
     for (let c = a + 1; c < n; c++) {
       const q = f.bodies[order[c]!]!;
       if (q.x - p.x > room) break;
-      if (!fighting(q) || q.doing === "flee") continue;
+      if (!fighting(q) || q.doing === "flee" || (aloft && order[c] === 0)) continue;
       const dx = q.x - p.x,
         dz = q.z - p.z,
         d2 = dx * dx + dz * dz;
@@ -877,8 +1126,11 @@ export function stepFight(
   bid: HandBid,
   draw: LocalDraw,
   held = true,
+  smites: readonly { readonly kind: number; readonly x: number; readonly z: number }[] = [],
 ): void {
   if (held && f.ended) return;
+  if (held && gifted(f.gifts, "smite"))
+    for (const k of smites) fieldSmite(scene, f, k.kind, k.x, k.z, draw);
   if (held) hand(scene, f, bid, draw);
   for (let i = held ? 1 : 0; i < f.bodies.length; i++) think(scene, f, i, draw, held);
   apart(f);
@@ -958,7 +1210,7 @@ export type FightWhy = (typeof FIGHT_WHY)[number];
 /** One of the four acts before him: which, whether he can, and why not. */
 export type FightOffer = {
   readonly act: number;
-  readonly kind: "strike" | "loose" | "parry" | "rally" | "fly" | "stand";
+  readonly kind: "strike" | "loose" | "parry" | "rally" | "fly" | "stand" | "heal";
   readonly can: boolean;
   readonly why: FightWhy;
 };
@@ -981,8 +1233,8 @@ export function fightOffers(scene: FightScene, f: FightWorld): FightOffer[] {
         ? {
             act: HAND_ACT.strike,
             kind: "strike",
-            can: d <= reach && s >= b.ready,
-            why: d <= reach ? (s >= b.ready ? "" : "soon") : "reach",
+            can: d <= reach && s >= b.ready && !fightAloft(f),
+            why: d <= reach && !fightAloft(f) ? (s >= b.ready ? "" : "soon") : "reach",
           }
         : {
             act: HAND_ACT.strike,
@@ -1005,5 +1257,16 @@ export function fightOffers(scene: FightScene, f: FightWorld): FightOffer[] {
       why: f.broke === b.side ? "broken" : s - f.rallied >= FIGHT_TAKES.rally ? "" : "soon",
     },
     { act: FIGHT_ACT.fly, kind: flying ? "stand" : "fly", can: true, why: "" },
+    // (With the god's healing, a fifth: a touch that heals: rules/gifts.ts.)
+    ...(gifted(f.gifts, "healing")
+      ? [
+          {
+            act: GIFT_ACT.heal,
+            kind: "heal" as const,
+            can: fieldHealTarget(f) >= 0,
+            why: fieldHealTarget(f) >= 0 ? ("" as const) : ("near" as const),
+          },
+        ]
+      : []),
   ];
 }

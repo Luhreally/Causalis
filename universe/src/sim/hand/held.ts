@@ -3,13 +3,19 @@
 // (sim/hand/wild.ts). Each is taken by its own command; both are stepped by a second's bids
 // ("possess.held") and let go ("possess.leave") alike, as the hand's people are (sim/hand/possess.ts).
 import type { SimTime, World } from "../../kernel/index.ts";
+import type { Smite } from "../../rules/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { installFight, soldierBidsProblem, stepSoldier } from "./fight.ts";
 import { handOf } from "./hand.ts";
 import { beastBidsProblem, installWild, stepBeast } from "./wild.ts";
 
-/** A second's bids for the body held (or a letting go's): the step it begins at, the bids in letters. */
-export type HeldInput = { readonly step: number; readonly steps: string };
+/** A second's bids for the body held (or a letting go's): the step it begins at, the bids in letters; a soldier's gifts and strokes. */
+export type HeldInput = {
+  readonly step: number;
+  readonly steps: string;
+  readonly gifts?: number;
+  readonly smites?: readonly Smite[];
+};
 
 /** Teach a peopled world the hand in a soldier and in a beast: taking each, stepping and letting go of either. */
 export function installHeld(world: World, ctx: () => PopulationContext): void {
@@ -32,7 +38,8 @@ export function installHeld(world: World, ctx: () => PopulationContext): void {
   ) => {
     const h = store.held!,
       a = args as HeldInput;
-    if (h.kind === "soldier") stepSoldier(world, ctx(), h, a.steps, cause, t, release);
+    if (h.kind === "soldier")
+      stepSoldier(world, ctx(), h, a.steps, cause, t, release, a.gifts, a.smites);
     else stepBeast(world, ctx(), h, a.steps, cause, t, release);
   };
   world.defineCommand({

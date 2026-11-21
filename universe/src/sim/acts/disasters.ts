@@ -13,7 +13,7 @@ import {
   type SimTime,
   type World,
 } from "../../kernel/index.ts";
-import { GOODS, BANDS } from "../../rules/index.ts";
+import { GOODS, BANDS, throughOf } from "../../rules/index.ts";
 import { cellRef, offworldSite } from "../../gen/index.ts";
 import { lessened } from "../lore/lessons-store.ts";
 import { COLS } from "../population/model.ts";
@@ -220,7 +220,7 @@ export function installDisasters(world: World, ctx: () => PopulationContext): vo
         subjects: [c.provinces.get(cell)!.ref],
         place: c.provinces.get(cell)!.ref,
         causes: agent(command),
-        data: { dead, blocks, homes, ...strengthMark(s) },
+        data: { dead, blocks, homes, ...strengthMark(s), ...throughOf(command.args) },
       });
       grieve(world, cell, k.grief, event);
     },

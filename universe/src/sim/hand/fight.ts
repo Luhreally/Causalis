@@ -45,8 +45,14 @@ import {
   personFrame,
   stepFight,
   unpackFight,
+  WONDER_TENET,
+  giftsProblem,
+  smitesProblem,
   type FightScene,
   type FightWorld,
+  type HandBid,
+  type Smite,
+  type WonderTenet,
   type LandFell,
   type LocalDraw,
   type Looses,
@@ -95,7 +101,13 @@ export type SoldierArgs = {
   readonly names: readonly string[];
 };
 /** A second of the fight's bids (or fewer, letting go): the step it begins at, the bids in letters. */
-export type HeldArgs = { readonly step: number; readonly steps: string };
+/** A second's bids for the soldier held; the god's gifts held through it and the strokes called down in it (rules/gifts.ts). */
+export type HeldArgs = {
+  readonly step: number;
+  readonly steps: string;
+  readonly gifts?: number;
+  readonly smites?: readonly Smite[];
+};
 
 const finite = (v: unknown, most: number): boolean =>
   typeof v === "number" && Number.isFinite(v) && Math.abs(v) <= most;
@@ -198,15 +210,44 @@ function drawsOf(world: World, h: Pick<HeldSoldier, "from">): LocalDraw {
  * already stepped by the second's first bids, stepped on by the rest. Null: no soldier is held, or
  * the bids are not.
  */
-export function soldierAhead(world: World, letters: string, onto?: FightWorld): FightWorld | null {
+export function soldierAhead(
+  world: World,
+  letters: string,
+  onto?: FightWorld,
+  gifts = 0,
+  smites: readonly Smite[] = [],
+): FightWorld | null {
   const h = handOf(world).held;
   if (!h || h.kind !== "soldier" || letters.length > POSSESS_HZ * 3) return null;
   const bids = bidsOf(letters);
-  if (!bids) return null;
+  if (!bids || giftsProblem(gifts) || smitesProblem(smites, bids.length)) return null;
   const f = onto ?? copyFight(h.fight),
     draw = drawsOf(world, h);
-  for (const bid of bids) stepFight(h.scene, f, bid, draw);
+  stepSecond(h, f, bids, draw, gifts, smites);
   return f;
+}
+
+/** A fight stepped by bids (a second's, or the rest of one), the gifts held through it and the strokes called in it. */
+function stepSecond(
+  h: HeldSoldier,
+  f: FightWorld,
+  bids: readonly HandBid[],
+  draw: LocalDraw,
+  gifts: number,
+  smites: readonly Smite[],
+): void {
+  if (gifts) f.gifts = gifts;
+  else delete f.gifts;
+  bids.forEach((bid, k) =>
+    stepFight(
+      h.scene,
+      f,
+      bid,
+      draw,
+      true,
+      smites.filter((m) => m.when === k),
+    ),
+  );
 }
 
 /**
@@ -313,7 +354,7 @@ export function soldierBidsProblem(h: HeldSoldier, args: unknown, whole: boolean
     return whole
       ? `a second's bids are ${POSSESS_HZ}, three letters each`
       : `the bids of a second begun: at most ${POSSESS_HZ}, three letters each`;
-  return null;
+  return giftsProblem(a.gifts) ?? smitesProblem(a.smites, a.steps.length / 3);
 }
 
 /** The soldier held stepped by a second's bids (fewer, letting go); let go where it ended for him. */
@@ -325,10 +366,11 @@ export function stepSoldier(
   cause: Ref,
   t: SimTime,
   release: boolean,
+  gifts = 0,
+  smites: readonly Smite[] = [],
 ): void {
   if (steps) {
-    const draw = drawsOf(world, h);
-    for (const bid of bidsOf(steps)!) stepFight(h.scene, h.fight, bid, draw);
+    stepSecond(h, h.fight, bidsOf(steps)!, drawsOf(world, h), gifts, smites);
     h.inputs.push({ at: t, steps });
   }
   if (release || h.fight.ended) foughtOut(world, c, h, cause, t);
@@ -528,6 +570,84 @@ export function handDay(
 }
 
 /**
+ * What the god's gifts did on the field, told: those healed, each stroke called down, and a wonder seen for each thing it
+ * showed of the god (rules/gifts.ts WONDER: by as many men as saw the most of it, a figure standing for `per` of them),
+ * the sign a people may found a faith on (sim/belief/belief.ts omenOf).
+ */
+function fieldWonders(
+  world: World,
+  c: PopulationContext,
+  h: HeldSoldier,
+  f: FightWorld,
+  land: number,
+  cause: Ref,
+  fought: Ref,
+  _t: SimTime,
+): void {
+  const wonders = f.wonders ?? [];
+  if (!wonders.length) return;
+  const place = c.provinces.get(land)?.ref ?? cellRef(0, land),
+    emit = (type: string, data: Record<string, unknown>, importance?: number) =>
+      world.events.emit({
+        type,
+        subjects: [fought],
+        place,
+        causes: [
+          { ref: cause, role: "agent", weight: 0.6 },
+          { ref: fought, role: "enabler", weight: 0.4 },
+        ],
+        ...(importance !== undefined ? { importance } : {}),
+        data,
+      }),
+    nameOf = (id: number | undefined) => {
+      const k = id === undefined ? -1 : f.bodies.findIndex((b) => b.id === id);
+      return k >= 0 ? (h.names[k] ?? "one of the field") : "one of the field";
+    },
+    men = (figures: number) => figures * Math.max(1, h.per),
+    shown = new Map<WonderTenet, { seen: number; what: Set<string> }>();
+  for (const w of wonders) {
+    if (w.kind === "healed")
+      emit("hand.healed", {
+        name: nameOf(w.id),
+        hand: h.name,
+        own: w.id === f.bodies[0]!.id,
+        was: "down",
+        seen: men(w.seen),
+        field: true,
+      });
+    else if (w.kind === "lightning" || w.kind === "fire" || w.kind === "quake" || w.kind === "rain")
+      emit(
+        "hand.smote",
+        {
+          hand: h.name,
+          town: h.town,
+          smite: w.kind,
+          struck: men(w.struck ?? 0),
+          seen: men(w.seen),
+          field: true,
+        },
+        w.struck ? 5 : 4,
+      );
+    const tenet = WONDER_TENET[w.kind];
+    if (!tenet || w.seen <= 0 || (w.kind === "healed" && w.id === f.bodies[0]!.id && w.seen <= 1))
+      continue;
+    const s = shown.get(tenet) ?? { seen: 0, what: new Set<string>() };
+    s.seen = Math.max(s.seen, men(w.seen));
+    s.what.add(w.kind);
+    shown.set(tenet, s);
+  }
+  for (const [tenet, s] of shown)
+    emit("hand.wonder", {
+      tenet,
+      what: [...s.what],
+      seen: s.seen,
+      hand: h.name,
+      town: h.town,
+      field: true,
+    });
+}
+
+/**
  * Let go of the soldier: the fight fought out without him, and what it decided against the same
  * fight with no hand in it made the battle's (handDay) — its victor, its fallen (each side's
  * lands), its record, the land — and told as the god's act.
@@ -543,6 +663,9 @@ function foughtOut(
   store.held = null;
   const found = battleBy(world, h.battle);
   if (!found) return;
+  // (Let go, he is as any other: the gifts gone from him, set down on the field where he flew.)
+  delete h.fight.gifts;
+  if (h.fight.gait) h.fight.gait = { ...h.fight.gait, y: 0 };
   const { war: w, k, b } = found,
     left = copyFight(h.fight),
     f = h.fight,
@@ -625,6 +748,7 @@ function foughtOut(
                 : "lived",
       },
     });
+  fieldWonders(world, c, h, left, b.land, cause, event, t);
   store.fought.push({
     battle: b.event,
     war: w.ref,

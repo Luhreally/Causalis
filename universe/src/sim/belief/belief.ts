@@ -27,7 +27,7 @@ import type { MarketStore } from "../economy/market.ts";
 import { WAY, cultureOf, drawsWays } from "../culture/culture.ts";
 import { readsScripture } from "../lore/letters.ts";
 import { homePlanet } from "../planet/store.ts";
-import { ACTS, creedHeld, creedOf, scriptureOfTenet } from "../../rules/index.ts";
+import { ACTS, creedHeld, creedOf, scriptureOfTenet, wonderStrength } from "../../rules/index.ts";
 import { politiesOf } from "../polity/polity.ts";
 import { orgSectOf } from "../order/groups-kept.ts";
 
@@ -99,7 +99,7 @@ const OMEN = defineStream("belief.omen");
 const SPREAD = defineStream("belief.spread");
 
 /** Omens: what a people may take as a sign, by event type, and how strongly. */
-function omenOf(type: string, data: unknown): { tenet: Tenet; strength: number } | null {
+export function omenOf(type: string, data: unknown): { tenet: Tenet; strength: number } | null {
   const sign = (data as { sign?: number } | null)?.sign ?? 1,
     rain = (data as { rain?: number } | null)?.rain ?? 1000;
   switch (type) {
@@ -121,6 +121,14 @@ function omenOf(type: string, data: unknown): { tenet: Tenet; strength: number }
       return { tenet: "presence", strength: 1.1 };
     case "hand.ran":
       return { tenet: "presence", strength: 0.5 };
+    // (A wonder done through one of their bodies by the god's gifts, as strong a sign as it was seen: rules/gifts.ts.)
+    case "hand.wonder": {
+      const d = data as { tenet?: string; seen?: number } | null,
+        strength = wonderStrength(d?.seen ?? 0);
+      return strength > 0 && (TENETS as readonly string[]).includes(d?.tenet ?? "")
+        ? { tenet: d!.tenet as Tenet, strength }
+        : null;
+    }
     case "act.shrine":
       return { tenet: "presence", strength: 1 };
     case "act.fire":

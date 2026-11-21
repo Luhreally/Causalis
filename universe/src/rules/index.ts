@@ -768,8 +768,12 @@ export {
   bidsOf,
   bodyBefore,
   carriedGood,
+  aloft,
   copyLocal,
   handOffers,
+  healTarget,
+  smiteAt,
+  wholeStrength,
   inHand,
   localBody,
   localWorld,
@@ -900,6 +904,9 @@ export {
   LOOSES,
   breakingPoint,
   copyFight,
+  fieldHealTarget,
+  fieldSmite,
+  fightAloft,
   fightBody,
   fightCounts,
   fightDecided,
@@ -919,8 +926,10 @@ export {
   type FightOffer,
   type FightScene,
   type FightSide,
+  soldierTop,
   type FightTold,
   type FightWhy,
+  type FightWonder,
   type FightWorld,
   type Looses,
 } from "./fight.ts";
@@ -1761,3 +1770,5 @@ export * from "./deeds.ts";
 // Things of the mind (2026-11-19): schools of thought, works, pilgrimage.
 export * from "./ideas.ts";
 export * from "./abroad.ts";
+// The god's gifts to a body held, and a body's own sprint (2026-11-21).
+export * from "./gifts.ts";

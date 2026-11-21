@@ -509,6 +509,7 @@ export {
   TENETS,
   beliefOf,
   beliefYear,
+  omenOf,
   creedOfFaith,
   heldCreed,
   heldScripture,

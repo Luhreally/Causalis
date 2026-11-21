@@ -75,11 +75,15 @@ registerEventWords(POSSESS_EVENTS.struck.type, (world, e) => {
       sex?: number;
       maimed?: boolean;
       arm?: string | null;
+      gift?: string;
     } | null,
     what = d?.dead
       ? "killed"
       : `wounded in ${partWords(world, d?.place, d?.sex)}${d?.maimed ? ", maimed" : ""}`,
     arm = d?.arm ? ` with ${many(1, d.arm)}` : "";
+  // (By the god's gifts: felled at a touch, or by a stroke called down; rules/gifts.ts.)
+  if (d?.god && d.gift)
+    return `By your hand, through ${first(d.hand)}: ${d.name ?? "one of their people"} was ${d.gift === "strength" ? "felled at a touch" : d.gift === "lightning" ? "struck down by a bolt from the sky" : "struck down by fire from the sky"}: ${what}, year ${yearOfMoment(e.t)}`;
   return d?.god
     ? `By your hand: ${d.name ?? "one of their people"} struck down by the god in ${first(d.hand)}'s body${arm}: ${what}, year ${yearOfMoment(e.t)}`
     : `By your hand: ${first(d?.hand)}, in whom the god walked, struck down by ${d?.byName ?? "one of the town"}${arm}: ${what}, year ${yearOfMoment(e.t)}`;

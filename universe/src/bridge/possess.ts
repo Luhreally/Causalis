@@ -30,6 +30,14 @@ export type PossessPlace = {
 };
 
 /** `possess.take`: the one taken and where; his trade and the day's thing it makes ("" none); those near; the town's solids (seven numbers each, view/ground.ts Solid) and places. */
+/** A stroke called down at a step of the second (0 … 19), where on the small world's ground (m), which (rules/gifts.ts SMITES). */
+export type PossessSmite = {
+  readonly when: number;
+  readonly kind: number;
+  readonly x: number;
+  readonly z: number;
+};
+
 export type PossessTakeArgs = {
   readonly agent: number;
   readonly at: PossessAt;
@@ -38,6 +46,8 @@ export type PossessTakeArgs = {
   readonly near: readonly PossessNear[];
   readonly solids: readonly number[];
   readonly places: readonly PossessPlace[];
+  /** How high the town's homes stand at their tallest (m): a flier above them is not held by its walls. */
+  readonly roofs?: number;
 };
 
 /** `possess.input` (twenty bids exactly) and `possess.release` (at most twenty): the step they begin at, the bids in letters, those joining. */
@@ -45,6 +55,9 @@ export type PossessInputArgs = {
   readonly step: number;
   readonly steps: string;
   readonly joins?: readonly PossessJoin[];
+  /** The god's gifts held through the second (rules/gifts.ts GIFT_BIT), and the strokes called down in it. */
+  readonly gifts?: number;
+  readonly smites?: readonly PossessSmite[];
 };
 
 /** The one possessed and the town about him, as taken (`possess.now`; null: no one is). */
@@ -87,6 +100,8 @@ export type PossessBody = {
   readonly carry: string | null;
   /** A word over it ("💬", "Thief!"); "" none. */
   readonly say: string;
+  /** How high above the ground it is drawn (m: one held flying on the god's wings; absent: on it). */
+  readonly lift?: number;
 };
 
 /** One of the four acts under the right thumb, always in its own place: what it is, whether it can be done now, and why or why not in words. */
@@ -109,6 +124,10 @@ export type PossessStrip = {
   readonly carries: string;
   /** His body in a line ("whole"; "struck: his left arm"): the slot wave 5's Body model draws into. */
   readonly body: string;
+  /** His breath for a sprint (0 … 1; absent: full), how high he flies (m; absent: on the ground), the gifts on him now. */
+  readonly wind?: number;
+  readonly lift?: number;
+  readonly gifts?: number;
 };
 
 /** The small world as the host steps it ahead by the bids not yet sent (`possess.live`). */

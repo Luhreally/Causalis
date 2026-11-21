@@ -35,6 +35,7 @@ import "./economy.ts";
 import "./acts.ts";
 export { fortuneHow, fortuneWhat } from "./acts.ts";
 import "./possess.ts";
+import "./gifts.ts";
 import "./life.ts";
 import "./reign.ts";
 export { againWords, shareWords, timesWords } from "./reign.ts";

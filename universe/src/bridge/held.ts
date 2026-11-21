@@ -115,6 +115,8 @@ export type HeldBody = {
   readonly lost: number;
   /** Battle seconds of the disabling blow (read from its deed, never separate saved state). */
   readonly struckAt?: number;
+  /** How high above the ground it is drawn (m: one held flying on the god's wings; absent: on it). */
+  readonly lift?: number;
 };
 
 /** One side of a battle as the tally tells it: its realm (and its seat's name, as the bar names it), its men standing and fallen (so many a figure). */

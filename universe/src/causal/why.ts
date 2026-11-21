@@ -104,7 +104,13 @@ export function edges(world: World, causes: readonly CauseRef[]): ExplanationEdg
 
 function describeEvent(world: World, e: EventFacts): string {
   const words = EVENT_WORDS.get(e.type);
-  return words ? words(world, e) : `${e.type}${e.place ? ` at ${e.place}` : ""} (t=${e.t})`;
+  if (!words) return `${e.type}${e.place ? ` at ${e.place}` : ""} (t=${e.t})`;
+  const said = words(world, e),
+    // (One of the god's acts called down through a body held: rules/gifts.ts throughOf.)
+    through = (e.data as { through?: unknown } | null)?.through;
+  return typeof through === "string" && said.startsWith("By your hand: ")
+    ? `By your hand, through ${through}: ${said.slice("By your hand: ".length)}`
+    : said;
 }
 
 function describeDecision(world: World, d: DecisionFacts): string | null {

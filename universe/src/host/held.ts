@@ -12,6 +12,7 @@ import {
   FIGHT_TOLD,
   POSSESS_HZ,
   WILD_TOLD,
+  fieldHealTarget,
   fightOffers,
   fightHeart,
   herdMiddle,
@@ -20,6 +21,7 @@ import {
   type FightBody,
   type FightScene,
   type FightWorld,
+  type Smite,
   type WildScene,
   type WildWorld,
 } from "../rules/index.ts";
@@ -66,7 +68,12 @@ const PLACE_WORDS: Readonly<Record<string, string>> = {
 const placeWords = (k: number) => PLACE_WORDS[BLOW_PLACES[k] ?? ""] ?? "the body";
 
 /** A held one's small world stepped ahead, kept for the bids last asked (the next ask steps only those added). */
-type Ahead<W> = { readonly kept: number; readonly letters: string; world: W };
+type Ahead<W> = {
+  readonly kept: number;
+  readonly letters: string;
+  readonly extra: string;
+  world: W;
+};
 const AHEAD = new WeakMap<object, Ahead<FightWorld | WildWorld>>();
 
 /** The small world as the bids not yet sent make it: from what was last asked if these go on from those, else afresh. */
@@ -75,20 +82,24 @@ function aheadOf<W extends FightWorld | WildWorld>(
   kept: number,
   letters: string,
   step: (letters: string, onto?: W) => W | null,
+  extra = "",
 ): W | null {
   const was = AHEAD.get(h) as Ahead<W> | undefined;
-  if (was && was.kept === kept) {
+  // (The gifts and strokes asked with the bids, as words: any change steps it afresh, and so does any with them.)
+  if (was && was.kept === kept && was.extra === extra && extra) {
+    if (was.letters === letters) return was.world;
+  } else if (was && was.kept === kept && was.extra === extra) {
     if (was.letters === letters) return was.world;
     if (letters.startsWith(was.letters) && letters.length > was.letters.length) {
       const w = step(letters.slice(was.letters.length), was.world);
       if (w) {
-        AHEAD.set(h, { kept, letters, world: w });
+        AHEAD.set(h, { kept, letters, extra, world: w });
         return w;
       }
     }
   }
   const w = step(letters);
-  if (w) AHEAD.set(h, { kept, letters, world: w });
+  if (w) AHEAD.set(h, { kept, letters, extra, world: w });
   return w;
 }
 
@@ -113,9 +124,11 @@ function bodyOf(b: FightBody | WildWorld["bodies"][number]): HeldBody {
 function fightBodies(scene: FightScene, f: FightWorld): HeldBody[] {
   const struck = new Map<number, number>();
   for (const deed of f.deeds) struck.set(deed.id, scene.from + deed.step / POSSESS_HZ);
-  return f.bodies.map((b) => {
-    const at = struck.get(b.id);
-    return at === undefined ? bodyOf(b) : { ...bodyOf(b), struckAt: at };
+  return f.bodies.map((b, i) => {
+    const at = struck.get(b.id),
+      out = at === undefined ? bodyOf(b) : { ...bodyOf(b), struckAt: at };
+    // (The one held, flying on the god's wings: rules/gifts.ts.)
+    return i === 0 && f.gait?.y ? { ...out, lift: f.gait.y } : out;
   });
 }
 
@@ -204,6 +217,10 @@ function soldierLive(world: World, h: HeldSoldier, f: FightWorld): HeldLive {
               : w === "broken"
                 ? "His side is broken: none will stand"
                 : "",
+    healWho = () => {
+      const k = fieldHealTarget(f);
+      return k === 0 ? `${he}self` : k > 0 ? nameOf(f.bodies[k]!.id) : "";
+    },
     offers: PossessOffer[] = fightOffers(scene, f).map((o) => {
       const [icon, label] =
         o.kind === "strike"
@@ -216,21 +233,27 @@ function soldierLive(world: World, h: HeldSoldier, f: FightWorld): HeldLive {
                 ? ["📯", "Rally"]
                 : o.kind === "fly"
                   ? ["🏃", "Fly"]
-                  : ["✊", "Stand"];
+                  : o.kind === "heal"
+                    ? ["✨", "Heal"]
+                    : ["✊", "Stand"];
       const foe = me.foe >= 0 ? f.bodies[me.foe] : undefined,
         words = !o.can
-          ? why(o.why, o.kind)
-          : o.kind === "strike"
-            ? `${look.label} at ${foe ? nameOf(foe.id) : "the foe"} with ${look.arm}`
-            : o.kind === "loose"
-              ? `${label} at ${foe ? nameOf(foe.id) : "the foe"}`
-              : o.kind === "parry"
-                ? "Turn the blows coming at him a while"
-                : o.kind === "rally"
-                  ? "Rally the men about him: their hearts lift"
-                  : o.kind === "fly"
-                    ? "Turn and fly the field: his side's heart sinks"
-                    : "Stand and fight again";
+          ? o.kind === "heal"
+            ? "No one struck down within his touch"
+            : why(o.why, o.kind)
+          : o.kind === "heal"
+            ? `Heal ${healWho()}: a touch makes them whole`
+            : o.kind === "strike"
+              ? `${look.label} at ${foe ? nameOf(foe.id) : "the foe"} with ${look.arm}`
+              : o.kind === "loose"
+                ? `${label} at ${foe ? nameOf(foe.id) : "the foe"}`
+                : o.kind === "parry"
+                  ? "Turn the blows coming at him a while"
+                  : o.kind === "rally"
+                    ? "Rally the men about him: their hearts lift"
+                    : o.kind === "fly"
+                      ? "Turn and fly the field: his side's heart sinks"
+                      : "Stand and fight again";
       return { act: o.act, icon, label, can: o.can, words };
     }),
     [code, step, id, more] = f.told,
@@ -266,20 +289,35 @@ function soldierLive(world: World, h: HeldSoldier, f: FightWorld): HeldLive {
                               ? told("Their line breaks: the day is his side's")
                               : what === "hit"
                                 ? told(`${who} struck ${he} in ${placeWords(more)}`, false)
-                                : told(
-                                    more === 2
-                                      ? "Too soon"
-                                      : more === 1
-                                        ? "None in reach"
-                                        : "No foe before him",
-                                    false,
-                                  ),
+                                : what === "warded"
+                                  ? told(`${who}'s blow fell on ${he} and did no harm`)
+                                  : what === "healed"
+                                    ? told(
+                                        id === me.id
+                                          ? `The god's touch made ${he} whole`
+                                          : `${who} stands again, whole at ${he}'s touch`,
+                                      )
+                                    : what === "smote"
+                                      ? told(FIELD_SMITE[more] ?? "The god's hand falls")
+                                      : told(
+                                          more === 3
+                                            ? "No one struck down within his touch"
+                                            : more === 2
+                                              ? "Too soon"
+                                              : more === 1
+                                                ? "None in reach"
+                                                : "No foe before him",
+                                          false,
+                                        ),
     borne = armOf(world, h),
     strip: PossessStrip = {
       name: he,
       what: `of the host of ${sideRealm(world, h)}${h.town ? `, from ${h.town}` : ""}`,
       strength: Math.max(0, 1 - me.hurt),
       carries: borne,
+      ...(f.gait && f.gait.wind < 1 ? { wind: f.gait.wind } : {}),
+      ...(f.gait?.y ? { lift: f.gait.y } : {}),
+      ...(f.gifts ? { gifts: f.gifts } : {}),
       body:
         me.doing === "dead"
           ? "Struck dead"
@@ -299,6 +337,14 @@ function soldierLive(world: World, h: HeldSoldier, f: FightWorld): HeldLive {
     ended: f.ended,
   };
 }
+
+/** A stroke called down on the field, as told under the strip (rules/gifts.ts SMITES' order). */
+const FIELD_SMITE = [
+  "A bolt falls among them from the sky",
+  "Fire falls among them from the sky",
+  "The ground shakes under the field",
+  "Rain sweeps the field: bows and matches wet",
+];
 
 /** The realm a soldier held fights for. */
 function sideRealm(world: World, h: Pick<HeldSoldier, "war" | "side">): string {
@@ -599,13 +645,17 @@ export const HELD_QUERIES: Readonly<Record<string, QueryHandler>> = {
   "held.live": (world, args) => {
     const h = handOf(world).held;
     if (!h) return null;
-    const letters =
-      typeof (args as { steps?: unknown } | null)?.steps === "string"
-        ? (args as { steps: string }).steps
-        : "";
+    const a = (args ?? {}) as { steps?: unknown; gifts?: unknown; smites?: unknown },
+      letters = typeof a.steps === "string" ? a.steps : "",
+      gifts = Number.isInteger(a.gifts) ? (a.gifts as number) : 0,
+      smites = Array.isArray(a.smites) ? (a.smites as Smite[]) : [];
     if (h.kind === "soldier") {
-      const f = aheadOf<FightWorld>(h, h.fight.step, letters, (l, onto) =>
-        soldierAhead(world, l, onto),
+      const f = aheadOf<FightWorld>(
+        h,
+        h.fight.step,
+        letters,
+        (l, onto) => soldierAhead(world, l, onto, gifts, smites),
+        gifts || smites.length ? JSON.stringify([gifts, smites]) : "",
       );
       return f ? soldierLive(world, h, f) : null;
     }

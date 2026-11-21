@@ -21,6 +21,14 @@ import {
 import {
   BODY_NATURE,
   HAND_FORMS,
+  WONDER_TENET,
+  ageShare,
+  anatomyOf,
+  giftsProblem,
+  smitesProblem,
+  sprintTop,
+  type Smite,
+  type WonderTenet,
   POSSESS_HZ,
   POSSESS_MOST,
   TRADE_PLACE,
@@ -65,6 +73,11 @@ export const POSSESS_EVENTS = {
   struck: defineEventType("hand.struck", 4),
   took: defineEventType("hand.took", 3),
   spoke: defineEventType("hand.spoke", 2),
+  // The god's gifts through a body (rules/gifts.ts): one healed, a stroke called down at a place, and a wonder seen
+  // (one a holding for each thing it showed of the god: the sign a people may found a faith on, sim/belief/belief.ts).
+  healed: defineEventType("hand.healed", 4),
+  smote: defineEventType("hand.smote", 5),
+  wonder: defineEventType("hand.wonder", 5),
 };
 
 /** The small world's own draws, keyed by whom, the step (counted from the possession's first second), and what for. */
@@ -92,12 +105,19 @@ export type TakeArgs = {
   readonly near: readonly NearArgs[];
   readonly solids: readonly number[];
   readonly places: readonly WorkPlace[];
+  /** How high the town's homes stand at their tallest (m; absent: rules/gifts.ts FLIGHT.over). */
+  readonly roofs?: number;
 };
-/** A second's bids: the step it begins at, twenty bids in letters (rules/possess.ts bidLetters), and those joining. */
+/**
+ * A second's bids: the step it begins at, twenty bids in letters (rules/possess.ts bidLetters), and those joining; the
+ * god's gifts held through it (rules/gifts.ts GIFT_BIT; absent: none), and the strokes called down in it.
+ */
 export type InputArgs = {
   readonly step: number;
   readonly steps: string;
   readonly joins?: readonly JoinArgs[];
+  readonly gifts?: number;
+  readonly smites?: readonly Smite[];
 };
 /** Letting go: the bids of the second begun (at most twenty), and those joining it. */
 export type ReleaseArgs = InputArgs;
@@ -245,8 +265,13 @@ function advance(
   letters: string,
   joins: readonly JoinArgs[],
   t: number,
+  gifts = 0,
+  smites: readonly Smite[] = [],
 ): void {
   const last = p.inputs.at(-1)?.at ?? p.from;
+  // (The gifts held through this second: none kept where none is.)
+  if (gifts) l.gifts = gifts;
+  else delete l.gifts;
   // (The hand's people die only as the months are reckoned: looked for when one has passed.)
   if (Math.floor(t / MONTH) !== Math.floor(last / MONTH))
     l.bodies = l.bodies.filter((b, i) => i === 0 || agentById(w, b.id) !== undefined);
@@ -259,7 +284,14 @@ function advance(
       const a = agentById(w, j.id);
       if (a && a.id !== p.agent) coming.push(bodyFor(a, j, j.ways, t, life, false, p.scene.frame));
     }
-    stepLocal(p.scene, l, bids[k]!, draw, coming);
+    stepLocal(
+      p.scene,
+      l,
+      bids[k]!,
+      draw,
+      coming,
+      smites.filter((m) => m.when === k),
+    );
   }
 }
 
@@ -277,13 +309,16 @@ export function possessionAhead(
   joins: readonly JoinArgs[] = [],
   t: number = world.now + 1,
   onto?: LocalWorld,
+  gifts = 0,
+  smites: readonly Smite[] = [],
 ): LocalWorld | null {
   const w = handOf(world).resting,
     p = w?.possessed;
   if (!w || !p || letters.length > POSSESS_HZ * 3 || !bidsOf(letters)) return null;
   if (nearProblem(joins, POSSESS_MOST.joins, true)) return null;
+  if (giftsProblem(gifts) || smitesProblem(smites, letters.length / 3)) return null;
   const l = onto ?? copyLocal(p.local);
-  advance(world, life, w, p, l, letters, joins, t);
+  advance(world, life, w, p, l, letters, joins, t, gifts, smites);
   return l;
 }
 
@@ -305,6 +340,8 @@ export function installPossession(world: World, ctx: () => PopulationContext): v
         return `a trade is one of ${Object.keys(TRADE_PLACE).join(", ")}, or none`;
       if (typeof a.form !== "string" || (a.form !== "" && !Object.hasOwn(HAND_FORMS, a.form)))
         return "a thing made by hand is one of the day's things";
+      if (a.roofs !== undefined && !(finite(a.roofs, 1e4) && a.roofs >= 0))
+        return "the roofs stand so high: metres";
       return (
         atProblem(a.at) ?? nearProblem(a.near, POSSESS_MOST.bodies - 1, false) ?? sceneProblem(a)
       );
@@ -318,6 +355,19 @@ export function installPossession(world: World, ctx: () => PopulationContext): v
         name = agentName(c, me, v),
         // (A people of another world moves by its own body: Phase 61.)
         frame = personFrame(c.generated.life.people?.body ?? null),
+        // (His sprint from his body: his kind, his age, his nature and the legs his old wounds left him; rules/gifts.ts.)
+        age = yearOfMoment(t) - me.birthYear,
+        legs = (me.struck ?? []).filter(
+          (h) => h.maimed && (h.place === "leg-l" || h.place === "leg-r"),
+        ).length,
+        top = sprintTop({
+          age,
+          adulthood: c.life.adulthood,
+          kind: frame?.run ?? 1,
+          hardy: me.traits?.includes("hardy") ?? false,
+          frail: me.traits?.includes("frail") ?? false,
+          lame: Math.min(2, legs),
+        }),
         scene: LocalScene = {
           x: a.at.x,
           z: a.at.z,
@@ -327,6 +377,9 @@ export function installPossession(world: World, ctx: () => PopulationContext): v
           form: a.form,
           care: careIn(world, w.cell, yearOfMoment(t)),
           ...(frame ? { frame } : {}),
+          top,
+          age: ageShare(age, c.life.adulthood),
+          ...(a.roofs !== undefined ? { roofs: a.roofs } : {}),
         },
         bodies = [bodyFor(me, a.at, [], t, c.life, true, scene.frame)];
       // (Those of the hand's people near him; one died since the page drew them is not.)
@@ -373,7 +426,11 @@ export function installPossession(world: World, ctx: () => PopulationContext): v
       return whole
         ? `a second's bids are ${POSSESS_HZ}, three letters each`
         : `the bids of a second begun: at most ${POSSESS_HZ}, three letters each`;
-    return a.joins === undefined ? null : nearProblem(a.joins, POSSESS_MOST.joins, true);
+    return (
+      giftsProblem(a.gifts) ??
+      smitesProblem(a.smites, a.steps.length / 3) ??
+      (a.joins === undefined ? null : nearProblem(a.joins, POSSESS_MOST.joins, true))
+    );
   };
 
   world.defineCommand({
@@ -383,7 +440,7 @@ export function installPossession(world: World, ctx: () => PopulationContext): v
       const w = resting()!,
         p = w.possessed!,
         a = command.args as InputArgs;
-      advance(world, ctx().life, w, p, p.local, a.steps, a.joins ?? [], t);
+      advance(world, ctx().life, w, p, p.local, a.steps, a.joins ?? [], t, a.gifts, a.smites);
       p.inputs.push({ at: t, steps: a.steps });
       // Struck down, or dead of his years: the hand lets him go.
       if (p.local.ended || !agentById(w, p.agent)) letGo(world, ctx(), w, command.id, t);
@@ -398,7 +455,7 @@ export function installPossession(world: World, ctx: () => PopulationContext): v
         p = w.possessed!,
         a = command.args as ReleaseArgs;
       if (a.steps) {
-        advance(world, ctx().life, w, p, p.local, a.steps, a.joins ?? [], t);
+        advance(world, ctx().life, w, p, p.local, a.steps, a.joins ?? [], t, a.gifts, a.smites);
         p.inputs.push({ at: t, steps: a.steps });
       }
       letGo(world, ctx(), w, command.id, t);
@@ -477,6 +534,10 @@ function letGo(world: World, c: PopulationContext, w: Window, cause: Ref, t: num
     );
   }
 
+  // The healed (the god's touch: rules/gifts.ts), the last step each was healed at: a blow before it healed with them.
+  const healedAt = new Map<number, number>();
+  for (const d of of("healed")) healedAt.set(d.agent, d.step);
+
   // The struck down: dead, or wounded on the part struck.
   let struck = 0;
   for (const d of of("struck")) {
@@ -499,6 +560,7 @@ function letGo(world: World, c: PopulationContext, w: Window, cause: Ref, t: num
           place: d.place,
           maimed: d.maimed,
           arm: d.arm,
+          ...(d.gift ? { gift: d.gift } : {}),
         },
         d.dead ? 5 : 4,
       );
@@ -516,7 +578,7 @@ function letGo(world: World, c: PopulationContext, w: Window, cause: Ref, t: num
         band: bandOfAge(year - victim.birthYear, c.life),
         event,
       });
-    } else
+    } else if ((healedAt.get(d.agent) ?? -1) < d.step)
       victim.struck = [
         ...(victim.struck ?? []),
         {
@@ -530,6 +592,73 @@ function letGo(world: World, c: PopulationContext, w: Window, cause: Ref, t: num
         },
       ];
   }
+
+  // The healed: their wounds healed but for a member lost (that does not grow again), told, and remembered for it.
+  const losable = (p.scene.frame?.anatomy ?? anatomyOf(c.generated.life.people?.body ?? null))
+    .losable as readonly string[];
+  for (const d of of("healed")) {
+    const a = agentById(w, d.agent);
+    if (!a) continue;
+    const had = a.struck ?? [],
+      kept = had.filter((h) => h.maimed && losable.includes(h.place));
+    if (kept.length) a.struck = kept;
+    else delete a.struck;
+    notable(
+      d.agent,
+      emit(POSSESS_EVENTS.healed.type, {
+        agent: d.agent,
+        name: nameOf(d.agent),
+        hand: p.name,
+        own: d.agent === p.agent,
+        was: d.was,
+        wounds: had.length - kept.length,
+        seen: d.seen,
+      }),
+    );
+  }
+  // The strokes called down, each told where it fell and whom it struck down.
+  for (const d of of("smote"))
+    notable(
+      p.agent,
+      emit(
+        POSSESS_EVENTS.smote.type,
+        {
+          agent: p.agent,
+          hand: p.name,
+          town: v.name,
+          smite: d.smite,
+          struck: d.struck,
+          seen: d.seen,
+        },
+        d.struck ? 5 : 4,
+      ),
+    );
+  // A wonder seen: one for each thing shown of the god, as many as saw the most of it (rules/gifts.ts WONDER).
+  const shown = new Map<WonderTenet, { seen: number; what: Set<string> }>(),
+    saw = (what: string, seen: number) => {
+      const tenet = WONDER_TENET[what];
+      if (!tenet || seen <= 0) return;
+      const s = shown.get(tenet) ?? { seen: 0, what: new Set<string>() };
+      s.seen = Math.max(s.seen, seen);
+      s.what.add(what);
+      shown.set(tenet, s);
+    };
+  for (const d of deeds)
+    if (d.kind === "healed" && d.was !== "whole") saw("healed", d.seen);
+    else if (d.kind === "smote") saw(d.smite, d.seen);
+    else if (d.kind === "warded" || d.kind === "flew") saw(d.kind, d.seen);
+    else if (d.kind === "struck" && d.gift === "strength") saw("felled", d.seen ?? 0);
+  for (const [tenet, s] of shown)
+    notable(
+      p.agent,
+      emit(POSSESS_EVENTS.wonder.type, {
+        tenet,
+        what: [...s.what],
+        seen: s.seen,
+        hand: p.name,
+        town: v.name,
+      }),
+    );
 
   // Spirits moved: each one's, onto what it was (as it has faded since).
   for (const b of l.bodies) {
@@ -565,6 +694,9 @@ function letGo(world: World, c: PopulationContext, w: Window, cause: Ref, t: num
       struck,
       took: took.length,
       spoke: heard.size,
+      ...(of("healed").length ? { healed: of("healed").length } : {}),
+      ...(of("smote").length ? { smote: of("smote").length } : {}),
+      ...(of("warded").length ? { warded: of("warded").length } : {}),
       // (Why the hand let go of him, where it did not let go of its own accord.)
       ended: l.ended || (me ? "" : "died"),
     }),
