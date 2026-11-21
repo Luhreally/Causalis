@@ -300,3 +300,38 @@ test("about a town: its ground coloured by its land's reading, trees by its wood
   assert.ok(sand[0] > sand[1] * 0.95 && sand[0] > a[0], `sand ${sand}`);
   assert.ok(townFlora(desert, plan, 1200, townBudget(0.7)).trees < f.trees / 8, "a desert's few");
 });
+
+test("a people of the water's: weed beds on the warm shallow shelf, nothing on the deep; their far crowns stand there and ashore, none on the deep", () => {
+  const size = 16,
+    n = size * size,
+    elevation = new Float32Array(n),
+    water = new Uint8Array(n);
+  for (let t = 0; t < n; t++) {
+    const i = t % size;
+    elevation[t] = i < 6 ? -60 : i < 10 ? -3000 : 150;
+    water[t] = i < 10 ? 1 : 0;
+  }
+  const f = facts(size, 18, 900, 9, { elevation, water }),
+    read = floraRead(f, { undersea: true });
+  assert.equal(read.cover[2], FLORA.reef);
+  assert.ok(read.canopy[2]! > 100);
+  assert.equal(read.cover[7], FLORA.none, "nothing on the deep sea floor");
+  assert.equal(floraMix(FLORA.reef)[TREE_FORMS.indexOf("kelp")], 1);
+  const land = floraLandOf({
+    kind: "frame",
+    view: "region",
+    seq: 1,
+    t: 0,
+    meta: { ref: "regn:0:9", surfaceKey: "undersea", size, tileKm: 2.4, undersea: true },
+    arrays: { elevation, water, biome: new Uint8Array(n).fill(9), flora: floraPack(read) },
+  })!;
+  const crowns = floraClumps(land, 2000);
+  assert.ok(
+    crowns.some((c) => c.tile % size < 6),
+    "weed beds on the shelf",
+  );
+  assert.ok(
+    crowns.every((c) => c.tile % size < 6 || c.tile % size >= 10),
+    "none on the deep: on the shelf and ashore",
+  );
+});

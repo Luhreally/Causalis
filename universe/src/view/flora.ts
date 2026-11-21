@@ -51,6 +51,7 @@ export function floraLandOf(frame: FrameMessage): FloraLand | null {
       size?: number;
       tileKm?: number;
       undersea?: boolean;
+      floraUndersea?: boolean;
     },
     size = meta.size ?? Math.round(Math.sqrt(frame.arrays.elevation?.length ?? 0));
   if (!packed || !size) return null;
@@ -64,7 +65,7 @@ export function floraLandOf(frame: FrameMessage): FloraLand | null {
     water: (frame.arrays.water as Uint8Array) ?? new Uint8Array(size * size),
     read: floraUnpack(packed, size),
     palette: lifePalette(frameKind(frame), frameLook(frame)),
-    undersea: !!meta.undersea,
+    undersea: !!(meta.floraUndersea ?? meta.undersea),
   };
   return last;
 }
@@ -285,8 +286,7 @@ export function floraClumps(
     n = land.size * land.size;
   let expected = 0;
   for (let t = 0; t < n; t++)
-    if (land.undersea ? r.cover[t] === FLORA.reef : land.water[t] === 0)
-      expected += (r.canopy[t]! / 255) * CLUMP;
+    if (r.cover[t] === FLORA.reef || land.water[t] === 0) expected += (r.canopy[t]! / 255) * CLUMP;
   const thin = Math.min(1, (0.92 * cap) / Math.max(1, expected)),
     out: {
       tile: number;
@@ -297,7 +297,7 @@ export function floraClumps(
       tone: number;
     }[] = [];
   for (let t = 0; t < n && out.length + CLUMP <= cap; t++) {
-    if (land.undersea ? r.cover[t] !== FLORA.reef : land.water[t] !== 0) continue;
+    if (r.cover[t] !== FLORA.reef && land.water[t] !== 0) continue;
     const c = (r.canopy[t]! / 255) * CLUMP * thin;
     for (let k = 0; k < CLUMP; k++) {
       if (tileUnit(t, 20 + k) >= c - k) continue;
@@ -462,7 +462,7 @@ export function nearReach(
         j = j0 + dj;
       if (i < 0 || j < 0 || i >= s || j >= s) continue;
       const t = j * s + i;
-      sum += land.water[t] === 0 || land.undersea ? land.read.canopy[t]! / 255 : 0;
+      sum += land.read.canopy[t]! / 255;
       count++;
     }
   const mean = Math.max(0.05, sum / Math.max(1, count)),
@@ -522,7 +522,7 @@ export function nearFlora(
     p = land.palette,
     seabed = land.undersea,
     r2 = reach * reach,
-    grows = (t: number) => (seabed ? r.cover[t] === FLORA.reef : land.water[t] === 0);
+    grows = (t: number) => land.water[t] === 0 || (seabed && r.cover[t] === FLORA.reef);
   const put = (
     list: NearThing[],
     x: number,
@@ -548,7 +548,7 @@ export function nearFlora(
       size = FORM_SIZE[form],
       k = 0.75 + 0.5 * cellUnit(i, j, 5);
     if (!free(x, z, size.w * k * 0.5)) continue;
-    const g = facetAt(land, x, z, seabed),
+    const g = facetAt(land, x, z, r.cover[t] === FLORA.reef),
       tone = 0.86 + 0.28 * cellUnit(i, j, 6),
       hue = (cellUnit(i, j, 7) - 0.5) * 0.12,
       brown = parched && form !== "conifer" && form !== "dead" && cellUnit(i, j, 8) < 0.55,
@@ -577,7 +577,6 @@ export function nearFlora(
     }
     out.trees++;
   }
-  if (seabed) return out;
   // Tufts of grass and low plants where the ground is open, near only.
   const tuftReach = Math.min(reach, 2.6),
     t2 = tuftReach * tuftReach;

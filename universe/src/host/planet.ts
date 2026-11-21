@@ -384,6 +384,8 @@ function regionFrame(world: World, focus: string | null) {
       woods: woods.key,
       woodsRatio: woods.ratio,
       woodsParched: woods.parched,
+      // (A people of the water's: what grows on their land is on its seabed. view/flora.ts.)
+      ...(populationContext(world).medium === "water" ? { floraUndersea: true } : {}),
       center,
       size: r.size,
       tileKm: r.tileKm,
