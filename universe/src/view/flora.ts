@@ -476,9 +476,10 @@ export function* rings(
     }
 }
 
-/** The square of land the near things are laid in, a piece at a time (region units: twelve trees' cells), each piece the same
- * whenever it is laid: what stands in it is the land's, never the eye's. */
-export const NEAR_CHUNK = 12 * 0.085;
+/** The square of land the near things are laid in, a piece at a time (region units: six trees' cells), each piece the same
+ * whenever it is laid: what stands in it is the land's, never the eye's; small, so a piece laid as finely as its nearest
+ * corner needs is not much finer than the rest of it needs. */
+export const NEAR_CHUNK = 6 * 0.085;
 
 /** Of each kind of near thing, the share laid (by each one's own fixed rank: those under it); 0 none, 1 all. */
 export type NearKeep = { trees: number; tufts: number; stones: number; patches: number };
