@@ -148,6 +148,26 @@ test("which of a city's homes past those drawn are drawn at all is chosen by the
     }
   }
   assert.ok(thinned >= 4, `${thinned} looks thinned far out`);
+  // And as the eye moves a little, few far off come or go: fewer than chosen afresh, as each holds as it was.
+  let afresh = 0,
+    held = 0;
+  const small = { whole: 60, lod: 80, rows: 150, thin: 40 };
+  for (const { plan } of great) {
+    const scene = townScene(plan, world.now);
+    townGround(scene, new TownParts());
+    const far = farOf(scene);
+    if (!far) continue;
+    const a = townDetail(scene, { x: 0, z: 0 }, small),
+      b = townDetail(scene, { x: 25, z: 10 }, small),
+      c = townDetail(scene, { x: 25, z: 10 }, small, a);
+    for (let p = far.from; p < far.from + far.count; p++) {
+      const thin = (v: number) => v === 3 || v === 4;
+      if (!thin(a.drawn[p]!)) continue;
+      if (thin(b.drawn[p]!) && a.drawn[p] !== b.drawn[p]) afresh++;
+      if (thin(c.drawn[p]!) && a.drawn[p] !== c.drawn[p]) held++;
+    }
+  }
+  assert.ok(afresh > 0 && held < afresh * 0.75, `${held} came or went held, ${afresh} chosen afresh`);
 });
 
 test("a city's lots past those drawn stand on its own blocks grown on, as its runs say, with no scattered roof among them", () => {

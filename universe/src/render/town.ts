@@ -327,7 +327,7 @@ export class TownLayer {
 
   private *choose(scene: TownScene, eye: { x: number; z: number }): Generator<void, void> {
     const t0 = performance.now(),
-      detail = yield* townDetailSteps(scene, eye);
+      detail = yield* townDetailSteps(scene, eye, undefined, this.detail);
     if (this.scene !== scene) return;
     const homes = new TownParts();
     yield* homesSeen(scene, detail, this.seenAt, homes);

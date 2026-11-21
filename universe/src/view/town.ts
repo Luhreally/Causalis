@@ -1438,8 +1438,10 @@ export function townDetail(
   focus: { x: number; z: number },
   /** How many parts each way (for a check to ask fewer). */
   budget: { whole: number; lod: number; rows: number; thin: number } = DETAIL_BUDGET,
+  /** As last chosen (null: none): those thinned out far off stay as they were unless their chance has passed their draw by THIN_HOLD. */
+  was: TownDetail | null = null,
 ): TownDetail {
-  const run = townDetailSteps(scene, focus, budget);
+  const run = townDetailSteps(scene, focus, budget, was);
   for (;;) {
     const r = run.next();
     if (r.done) return r.value;
@@ -1449,6 +1451,11 @@ export function townDetail(
 const DETAIL_BUDGET = { whole: FAR_WHOLE, lod: LOD_LOTS, rows: FAR_PARTS, thin: THIN_PARTS };
 /** How many of a city's lots townDetailSteps goes through between yields. */
 const DETAIL_STEP = 2048;
+/**
+ * How far past its draw a far home's chance must go before it comes or goes from as it was last chosen (a share of its
+ * chance): with none, every 30 m the eye moved some thousands far off came and went, 0.4-0.8% of the view (2026-11-21).
+ */
+const THIN_HOLD = 1;
 
 /**
  * townDetail a few thousand lots a step (render/town.ts draws a choosing over frames): in one, a great city's choosing held
@@ -1458,6 +1465,7 @@ export function* townDetailSteps(
   scene: TownScene,
   focus: { x: number; z: number },
   budget: { whole: number; lod: number; rows: number; thin: number } = DETAIL_BUDGET,
+  was: TownDetail | null = null,
 ): Generator<void, TownDetail> {
   const { plan, states } = scene,
     far = farOf(scene),
@@ -1559,7 +1567,11 @@ export function* townDetailSteps(
   for (let j = i; j < homes; j++) {
     if (j % DETAIL_STEP === 0) yield;
     const k = order[j]!,
-      kept = scatter(plan.seed, far.from + k, 41) < chance(d[k]!, share);
+      p = far.from + k,
+      then = was && was.drawn.length > p ? was.drawn[p]! : -1,
+      // (Kept before: kept on till its chance falls a good way under its draw; left out before: left till well over.)
+      hold = then === 4 ? 1 / (1 + THIN_HOLD) : then >= 0 ? 1 + THIN_HOLD : 1,
+      kept = scatter(plan.seed, p, 41) < chance(d[k]!, share) * hold;
     drawn[far.from + k] = !kept ? 4 : far.ruin[k] ? 0 : 3;
   }
   return { focus: { x: focus.x, z: focus.z }, drawn };
