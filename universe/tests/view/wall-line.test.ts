@@ -22,6 +22,10 @@ import {
   wallRing,
   wallRound,
   wallWalk,
+  wallsOut,
+  townReach,
+  SPIRE_LEVEL,
+  sprawlOf,
   type TownPlan,
   type TownSite,
   type VillagePlan,
@@ -33,6 +37,7 @@ import {
   townWalls,
   villageGround,
 } from "../../src/view/index.ts";
+import { TOP_LEVEL } from "../../src/view/town.ts";
 import { heightOf } from "../../src/view/townform.ts";
 import { YEAR } from "../../src/kernel/index.ts";
 
@@ -335,4 +340,29 @@ test("pulled down, a ring street runs where the walls stood: on their line, not 
           on++;
         }
   assert.ok(on >= 10, `${on} lengths of ring street`);
+});
+
+test("a great city's walls, raised about more lots than are drawn, stand out in its sprawl as far as the lots they rang; outgrown, they are down", () => {
+  // (Drawn: 300 lots of it; all of it 6,000, its walls about 2,400 of them: out past every lot drawn, short of its sprawl's edge.)
+  const t = town(300, { whole: 6000, walls: { start: 20, end: 24, reach: 2400 } }),
+    { lots, ring } = ringOf(t),
+    drawn = townReach(lots, t.lots),
+    sprawl = sprawlOf(t, lots)!,
+    out = wallsOut(t, lots),
+    about = wallLine(t.lots, lots, null, SITE);
+  assert.ok(out > 1 && out < sprawl.r1 / sprawl.r0, `${out} times out`);
+  for (let k = 0; k < WALL_BEARINGS; k++)
+    assert.ok(Math.abs(ring.line[k]! - about[k]! * out) < 1e-3);
+  assert.ok(
+    ring.r > drawn,
+    `the walls at ${ring.r.toFixed(0)} m, the lots drawn to ${drawn.toFixed(0)} m`,
+  );
+  // Standing whole, a gate across each road out: no lot drawn comes near their line.
+  assert.equal(ring.lengths.length, ring.n);
+  assert.ok(ring.lengths.filter((l) => l.gate).length >= 2);
+  // Grown to three times what they rang (the sim's own test, rules WALLS_OUTGROWN): down, a ring street where they stood.
+  const down = ringOf({ ...t, whole: 7200 }).ring;
+  assert.equal(down.lengths.length, 0);
+  // Drawn as tall as spires the sprawl reckons farther: the view's tallest level is the one bridge reads as spires.
+  assert.equal(SPIRE_LEVEL, TOP_LEVEL);
 });

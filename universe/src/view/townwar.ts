@@ -538,6 +538,15 @@ function offWater(ground: Ground, a: number, r: number): number {
  * How far out its walls' line runs toward bearing `a`, as the storm meets it (bridge/wall.ts: its walls, or the ring street
  * where they were pulled down), else its homes' edge; with no bearing, the ring's middling reach.
  */
+/** How far out a town reaches: its homes, or its walls where they stand further out (a great city's, out in its sprawl). */
+function outerReach(ground: Ground): number {
+  const w = ground.town?.walls;
+  if (!w?.standing) return ground.homesReach;
+  let most = 0;
+  for (let k = 0; k < w.line.length; k++) most = Math.max(most, w.line[k]!);
+  return Math.max(ground.homesReach, most);
+}
+
 function wallsAt(ground: Ground, a?: number): number {
   const w = ground.town?.walls;
   return w ? (a === undefined ? w.r : wallAt(w.line, a)) : ground.homesReach;
@@ -680,7 +689,7 @@ function makeSpread(
     way = warWay(plan, war),
     ux = Math.cos(way),
     uz = Math.sin(way),
-    reach = ground.homesReach,
+    reach = outerReach(ground),
     front = reach + FRONT,
     key = hashText(war.ref),
     at = (out: number, across: number): Flat => ({
@@ -891,7 +900,7 @@ export function townWarScene(
     way = warWay(plan, war),
     ux = Math.cos(way),
     uz = Math.sin(way),
-    reach = ground.homesReach,
+    reach = outerReach(ground),
     front = reach + FRONT,
     key = hashText(war.ref),
     at = (out: number, across: number): Flat => ({

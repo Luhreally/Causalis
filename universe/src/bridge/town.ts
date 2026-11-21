@@ -792,6 +792,45 @@ export type WallLength = {
   readonly tower: boolean;
 };
 
+/** The level a town's tallest homes rise to: spires (view/town.ts TOP_LEVEL, the tallest drawn). */
+export const SPIRE_LEVEL = 6;
+
+/** Whether a town has come to raise spires: what its sprawl is then made of. */
+export function hasSpires(plan: TownPlan): boolean {
+  return plan.runs.some((r) => r[0]! <= 1 && r[5]! >= SPIRE_LEVEL);
+}
+
+/**
+ * A great city's sprawl (null: none): from as far as its lots drawn reach out to as far as all its
+ * lots would (metres).
+ */
+export function sprawlOf(plan: TownPlan, lots: TownLots): { r0: number; r1: number } | null {
+  if (plan.whole <= plan.lots || plan.lots === 0 || !plan.designs.length) return null;
+  const r0 = townReach(lots, plan.lots),
+    // (Built up as spires are, it holds as many on far less: yet it has spread far past any other.)
+    r1 = Math.min(hasSpires(plan) ? 5200 : 2600, r0 * Math.sqrt(plan.whole / plan.lots));
+  return r1 > r0 + 20 ? { r0, r1 } : null;
+}
+
+/**
+ * How many times over the line about all its lots drawn a great city's walls run, raised about more lots than are drawn (1:
+ * none): out into its sprawl as far as the lots they rang would reach, as the sprawl reckons its own reach from the lots
+ * drawn to all of them.
+ */
+export function wallsOut(plan: TownPlan, lots: TownLots): number {
+  const w = plan.walls;
+  if (!w || w.reach <= plan.lots) return 1;
+  const s = sprawlOf(plan, lots);
+  if (!s) return 1;
+  const from = Math.sqrt(plan.lots),
+    to = Math.sqrt(plan.whole);
+  return (
+    1 +
+    ((s.r1 / s.r0 - 1) * (Math.sqrt(Math.min(w.reach, plan.whole)) - from)) /
+      Math.max(1e-9, to - from)
+  );
+}
+
 /** A wall's thickness, a gate's tower's side, a round tower's breadth (metres). */
 export const WALL_THICK = 2.4;
 export const GATE_TOWER = 4;
@@ -863,7 +902,10 @@ export const TOWER_TURN = Math.PI / 6,
 export function wallRing(plan: TownPlan, lots: TownLots, held: Uint8Array): WallRing | null {
   const w = plan.walls;
   if (!w) return null;
-  const line = wallLine(w.reach, lots, plan.water, plan.site ?? null),
+  // (Raised about more lots than are drawn, a great city's: about all those drawn, out into its sprawl: wallsOut.)
+  const about = wallLine(Math.min(w.reach, plan.lots), lots, plan.water, plan.site ?? null),
+    out = wallsOut(plan, lots),
+    line = out === 1 ? about : about.map((v) => v * out),
     r = wallMean(line),
     long = wallLong(line),
     n = Math.max(16, Math.round(long / 22)),
