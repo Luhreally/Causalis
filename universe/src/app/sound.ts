@@ -1832,6 +1832,15 @@ export type HeardEvent = {
 };
 /** The kinds whose too many at once are heard together, as a line's fire. */
 const MASSED: ReadonlySet<HeardKind> = new Set(["gun", "bow", "dart", "zap"]);
+/** Every kind, in the order heard() takes them. */
+const HEARD_KINDS = Object.keys(KIND_CUE) as HeardKind[];
+/** The most sounds one telling is heard of (the rest are not: a battle's reading tells fewer). */
+const HEARD_MOST = 512;
+
+/** 🔊 and 🔇 as the button draws them: a speaker, and its waves or a cross (the stroke the button's own ink, the cross red). */
+const SPEAKER = '<path d="M3 9h4l5-4v14l-5-4H3z" fill="currentColor"/>',
+  SPEAKER_ON = `<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">${SPEAKER}<path d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
+  SPEAKER_OFF = `<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">${SPEAKER}<path d="M15.5 9.5l5 5M20.5 9.5l-5 5" fill="none" stroke="#d0201a" stroke-width="2.4" stroke-linecap="round"/></svg>`;
 
 /** Whether this browser can make sound at all. */
 const canSound = () =>
@@ -1877,6 +1886,11 @@ export class Sound {
   private fireWas = -1;
   /** While the greatest fire's aftermath lasts (the page's reading of the hour takes it in). */
   fireHush = 0;
+  /** What heard() is told, as it reaches the ear (slots kept between tellings), in its order, and those heard each alone. */
+  private readonly heardSlots: { e: HeardEvent; when: number; level: number; kind: number }[] = [];
+  private readonly heardOrder: number[] = [];
+  private readonly heardChosen: number[] = [];
+  private readonly heardWay = { far: 0, pan: 0 };
   private installed = false;
 
   constructor() {
@@ -1962,8 +1976,11 @@ export class Sound {
     const b = this.button;
     if (!b) return;
     const words = this.wanted ? "Sound on: tap for quiet" : "Sound off: tap to hear";
-    b.textContent = this.wanted ? "🔊" : "🔇";
+    // (Drawn, not an emoji: Windows draws 🔊 grey, and the owner took it for off, 2026-11-20. On, a lit button and the
+    // speaker's waves; off, the plain button and a red cross where the waves were.)
+    b.innerHTML = this.wanted ? SPEAKER_ON : SPEAKER_OFF;
     b.classList.toggle("off", !this.wanted);
+    b.classList.toggle("on", this.wanted);
     b.title = words;
     b.setAttribute("aria-label", words);
     b.setAttribute("aria-pressed", String(this.wanted));
@@ -2095,7 +2112,7 @@ export class Sound {
 
   /** What is about now: taken up only if it has changed by enough to hear. */
   tell(a: Air): void {
-    const key = `${a.place}|${a.night}|${Math.round(a.rain * 12)}|${a.market}|${a.feast}|${a.war}|${a.strife ? 1 : 0}|${a.under}|${a.alive}|${Math.round(a.thin * 12)}|${Math.round(a.wind * 12)}|${Math.round(a.hush * 12)}|${a.held}`;
+    const key = `${a.place}|${a.night}|${Math.round(a.rain * 12)}|${a.market}|${a.feast}|${a.war}|${a.strife ? 1 : 0}|${a.under}|${a.alive}|${Math.round(a.thin * 12)}|${Math.round(a.wind * 12)}|${Math.round(a.hush * 12)}|${a.held}|${Math.round(a.melee * 12)}|${Math.round(a.engines * 12)}|${a.jet}|${Math.round(a.ring)}`;
     if (key === this.airKey) return;
     this.airKey = key;
     this.air = { ...a };
@@ -2170,53 +2187,66 @@ export class Sound {
       this.unheard += list.length;
       return;
     }
-    const kinds = new Map<HeardKind, { e: HeardEvent; when: number; level: number }[]>();
-    for (const e of list) {
-      const delay = Math.min(MOST_DELAY, e.far / SOUND_SPEED / Math.max(0.05, pace)),
-        at = { e, when: Math.max(0, e.in + delay), level: farOf(e.far).level };
+    // (Each as it reaches the ear, in slots kept from one telling to the next: nothing made anew four times a second.)
+    const slots = this.heardSlots,
+      n = Math.min(list.length, HEARD_MOST);
+    if (list.length > n) this.unheard += list.length - n;
+    let m = 0;
+    for (let i = 0; i < n; i++) {
+      const e = list[i]!,
+        delay = Math.min(MOST_DELAY, e.far / SOUND_SPEED / Math.max(0.05, pace));
       // (Made so long ago that its sound has passed the ear already: not heard.)
       if (e.in + delay < -0.4) {
         this.unheard++;
         continue;
       }
-      const k = kinds.get(e.kind);
-      if (k) k.push(at);
-      else kinds.set(e.kind, [at]);
+      const a = slots[m] ?? (slots[m] = { e, when: 0, level: 0, kind: 0 });
+      a.e = e;
+      a.when = Math.max(0, e.in + delay);
+      a.level = farOf(e.far).level;
+      a.kind = HEARD_KINDS.indexOf(e.kind);
+      m++;
     }
-    for (const [kind, all] of kinds) {
-      const cue = KIND_CUE[kind],
-        wait = CUE_RULES[cue].wait / 1000,
-        chosen: number[] = [],
-        rest: typeof all = [];
-      all.sort((a, b) => b.level - a.level);
-      for (const a of all) {
-        const apart = chosen.every((w) => Math.abs(w - a.when) >= wait);
-        if (apart && chosen.length < CUE_RULES[cue].most && this.cue(cue, 1, a.e.v, a.e, a.when))
-          chosen.push(a.when);
-        else rest.push(a);
+    const order = this.heardOrder;
+    order.length = 0;
+    for (let i = 0; i < m; i++) order.push(i);
+    // (By kind, and in each the nearest first.)
+    order.sort((p, q) => slots[p]!.kind - slots[q]!.kind || slots[q]!.level - slots[p]!.level);
+    const chosen = this.heardChosen;
+    for (let i = 0; i < m;) {
+      const kind = slots[order[i]!]!.e.kind,
+        cue = KIND_CUE[kind],
+        wait = CUE_RULES[cue].wait / 1000;
+      chosen.length = 0;
+      let rest = 0,
+        when = 0,
+        far = 0,
+        pan = 0,
+        first: HeardEvent | null = null;
+      for (; i < m && slots[order[i]!]!.e.kind === kind; i++) {
+        const a = slots[order[i]!]!;
+        let apart = chosen.length < CUE_RULES[cue].most;
+        for (let c = 0; apart && c < chosen.length; c++)
+          if (Math.abs(chosen[c]! - a.when) < wait) apart = false;
+        if (apart && this.cue(cue, 1, a.e.v, a.e, a.when)) chosen.push(a.when);
+        else {
+          rest++;
+          when += a.when;
+          far += a.e.far;
+          pan += a.e.pan;
+          first ??= a.e;
+        }
       }
-      if (!rest.length) continue;
+      if (!rest || !first) continue;
       if (!MASSED.has(kind)) {
-        this.dropped[cue] += rest.length;
+        this.dropped[cue] += rest;
         continue;
       }
       // (The rest of them together: when most of them are, from where most of them are.)
-      let when = 0,
-        far = 0,
-        pan = 0;
-      for (const a of rest) {
-        when += a.when;
-        far += a.e.far;
-        pan += a.e.pan;
-      }
-      const n = rest.length;
-      this.cue(
-        "volley",
-        kind === "gun" ? 1 : 0.8,
-        { ...rest[0]!.e.v, n },
-        { far: far / n, pan: pan / n },
-        when / n,
-      );
+      const way = this.heardWay;
+      way.far = far / rest;
+      way.pan = pan / rest;
+      this.cue("volley", kind === "gun" ? 1 : 0.8, { ...first.v, n: rest }, way, when / rest);
     }
   }
 

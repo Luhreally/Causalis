@@ -33,6 +33,51 @@ const MOST_GUNS = 24,
 /** How long a shell's burst lasts (s), and how often one lands (s). */
 const BURST_S = 1.5,
   LANDS_S = 0.7;
+/** A field gun's flash: while sin(s * BATTERY_HZ + n * BATTERY_APART) is past BATTERY_ON (the screen's clock s, its gun n). */
+const BATTERY_HZ = 1.9,
+  BATTERY_APART = 1.7,
+  BATTERY_ON = 0.93,
+  BATTERY_RISE = Math.asin(BATTERY_ON);
+/** Whether field gun `n` shows its flash at second `s` of the screen's clock. */
+export const batteryFlashing = (s: number, n: number): boolean =>
+  Math.sin(s * BATTERY_HZ + n * BATTERY_APART) > BATTERY_ON;
+
+/**
+ * What the guns past the line fire from `c0` to `c1` of the screen's clock (s), as the layer draws it: each field gun as its
+ * flash begins, each shell as it lands (where, metres). Into `out` (added to; for what is heard).
+ */
+export function firesBetween(
+  scene: TownWarScene | null,
+  c0: number,
+  c1: number,
+  black: boolean,
+  out: {
+    t: number;
+    x: number;
+    z: number;
+    arm: string;
+    kind?: "cannon" | "blast";
+    black?: boolean;
+  }[],
+): void {
+  if (!scene || c1 <= c0) return;
+  const field = scene.battery ?? [],
+    shells = scene.shells ?? [],
+    nb = Math.min(MOST_BATTERY, field.length),
+    turn = (2 * Math.PI) / BATTERY_HZ;
+  for (let n = 0; n < nb; n++) {
+    const g = field[n]!,
+      // (Its flash begins each turn as its sine rises past BATTERY_ON.)
+      first = (BATTERY_RISE - n * BATTERY_APART) / BATTERY_HZ;
+    for (let k = Math.floor((c0 - first) / turn) + 1; first + k * turn <= c1; k++)
+      out.push({ t: first + k * turn, x: g.x, z: g.z, arm: "", kind: "cannon", black });
+  }
+  if (shells.length)
+    for (let b = Math.floor(c0 / LANDS_S) + 1; b * LANDS_S <= c1; b++) {
+      const at = shells[(((b * 7) % shells.length) + shells.length) % shells.length]!;
+      out.push({ t: b * LANDS_S, x: at.x, z: at.z, arm: "", kind: "blast" });
+    }
+}
 /** Units to a true metre of what stands among its folk, who are drawn three times a person's size. */
 const FOLK_METRE = 0.55 / 1.75;
 
@@ -267,7 +312,7 @@ export class TownWarLayer {
           .map((g) => ({ x: g.x, z: g.z, yaw: g.yaw, big: false })),
         ...field
           .slice(0, nb)
-          .filter((_, n) => Math.sin(s * 1.9 + n * 1.7) > 0.93)
+          .filter((_, n) => batteryFlashing(s, n))
           .map((g) => ({ x: g.x, z: g.z, yaw: g.yaw, big: true })),
       ];
     this.flashes.set(landing.length + muzzles.length, (n, out) => {

@@ -251,6 +251,7 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
     playing = false;
     session++;
     village.warSceneOverride = null;
+    village.gunsOf = null;
     village.war(null);
     village.battleAt(null);
     village.placeBattle(null);
@@ -506,7 +507,16 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
   const NONE = new Set<number>(),
     NO_ONE: TownWarScene["soldiers"] = [],
     SIDES: [object, object] = [{}, {}],
-    struck: BattleSound[] = [];
+    struck: BattleSound[] = [],
+    /** The blows heard this frame, in slots kept from frame to frame. */
+    blowSlots: {
+      kind: BattleSound["kind"];
+      v: BattleSound["v"];
+      in: number;
+      far: number;
+      pan: number;
+    }[] = [],
+    blowsHeard: typeof blowSlots = [];
 
   d.stage.onUpdate((dt) => {
     if (!playing || !fight || !script) return;
@@ -525,6 +535,7 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
       for (const flag of flags) flag.hidden = true;
       village.battleAt(null);
       village.streetDowned = null;
+      village.gunsOf = null;
       document.body.dataset.street = "after";
       // (The eye kept on the bier as it goes: set, not flown, so it neither lags nor swings out.)
       const bier = village.graveyardShown()?.bier;
@@ -590,22 +601,26 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
       for (const side of [0, 1])
         if (by[side]! > heard[side]!)
           sound.cue("thud", 0.55, undefined, { far: 14, pan: side ? 0.3 : -0.3 });
+    // (Its guns are heard each as it fires, where its flash is drawn: app/ears.ts, off render/village.ts shotsBetween.)
     const begun = script.clashes.find((c) => c.from <= s && c.from > s - dt);
-    if (begun) {
-      const gun = fight.sides.some((x) => isGun(x.host?.arm));
-      sound.cue(gun ? "gun" : "clash", 0.45, undefined, { far: 20, pan: 0 });
-    }
+    if (begun && !battle && !fight.sides.some((x) => isGun(x.host?.arm)))
+      sound.cue("clash", 0.45, undefined, { far: 20, pan: 0 });
     heard = by;
-    // (Blows as they land, where men fight: a few a second at the most, by the arm that lands them; nothing while it is held or drawn back.)
-    if (dt > 0 && s >= blowAt) {
-      const fighting = scene.soldiers.filter((q) => q.doing === "fight" && q.size > 0.5);
-      if (fighting.length) {
-        const q = fighting[Math.floor(s * 7.3) % fighting.length]!,
-          arm = fight.sides[q.side]!.host?.arm;
-        sound.cue(isGun(arm) ? "gun" : arm === "club" ? "thud" : "clash", 0.3, undefined, {
-          far: 16,
-          pan: q.side ? 0.25 : -0.25,
-        });
+    // (Blows as they land, where men fight hand to hand: a few a second at the most, by the arm that lands them; nothing while it
+    // is held or drawn back. Drawn as a battle's men, their blows are a battle's, below.)
+    if (dt > 0 && s >= blowAt && !battle) {
+      let n = 0;
+      for (const q of scene.soldiers) if (q.doing === "fight" && q.size > 0.5) n++;
+      let k = n ? Math.floor(s * 7.3) % n : -1;
+      for (const q of scene.soldiers) {
+        if (q.doing !== "fight" || q.size <= 0.5 || k-- !== 0) continue;
+        const arm = fight.sides[q.side]!.host?.arm;
+        if (!isGun(arm))
+          sound.cue(arm === "club" ? "thud" : "clash", 0.3, undefined, {
+            far: 16,
+            pan: q.side ? 0.25 : -0.25,
+          });
+        break;
       }
       blowAt = s + 0.45 + ((s * 3.1) % 0.5);
     }
@@ -623,17 +638,29 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
       );
       village.battleAt(drawn, there.folk);
       shown = { ...scene, soldiers: NO_ONE };
-      if (dt > 0) {
+      // (Its shooters' flashes and smoke drawn at their muzzles by the town, as its war's are, and so heard.)
+      village.gunsOf = scene.soldiers;
+      const layer = village.placedBattle;
+      if (dt > 0 && layer) {
         battleSounds(battle.field, battle.blows, s - dt, s, drawn, SIDES, struck);
-        if (struck.length)
-          sound.heard(
-            struck.map((e) => ({ kind: e.kind, v: e.v, in: (e.t - s) / pace, far: 12, pan: 0 })),
-            pace,
-          );
+        blowsHeard.length = 0;
+        for (const e of struck) {
+          if (blowsHeard.length >= 24) break;
+          const h =
+            blowSlots[blowsHeard.length] ??
+            (blowSlots[blowsHeard.length] = { kind: e.kind, v: e.v, in: 0, far: 0, pan: 0 });
+          layer.heardFrom(e.x, e.z, h);
+          h.kind = e.kind;
+          h.v = e.v;
+          h.in = (e.t - s) / pace;
+          blowsHeard.push(h);
+        }
+        if (blowsHeard.length) sound.heard(blowsHeard, pace);
       }
     } else {
       drawn = null;
       shown = scene;
+      village.gunsOf = null;
       village.battleAt(null, there.folk);
     }
     village.streetDowned = there.downed.size ? there.downed : NONE;

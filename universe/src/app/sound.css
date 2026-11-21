@@ -17,8 +17,21 @@
 .sound-button[hidden] {
   display: none !important;
 }
+/* On: lit, as a chosen button is, its speaker's waves drawn; off: the plain button, dimmed, a red cross for the waves. */
+.sound-button.on {
+  color: #032b24;
+  border-color: #0b7a62;
+  background: linear-gradient(180deg, #d9fff5 0%, #6ff0cf 46%, #29cfa6 54%, #8bf5dc 100%);
+}
 .sound-button.off {
-  opacity: 0.72;
+  color: #33406a;
+  opacity: 0.85;
+}
+.sound-button svg {
+  display: block;
+  width: 24px;
+  height: 24px;
+  pointer-events: none;
 }
 .sound-button.free {
   position: fixed;

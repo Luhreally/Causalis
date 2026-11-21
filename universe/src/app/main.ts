@@ -351,6 +351,8 @@ import {
   battleSlowings,
   globeArcsNow,
   RAID_FIRES,
+  BATTLE_DAY,
+  meleeShare,
   raidEye,
   GREAT_LASTS,
   raidFilm,
@@ -406,6 +408,7 @@ import { installNationFilm, type FilmMark, type NationFilm } from "./nation-film
 import { installFarFilm, type FarFilm } from "./far-film.ts";
 import { installJumpFilm, type JumpFilm } from "./jump-film.ts";
 import { SOUND_PARTS, sound, type SoundPart } from "./sound.ts";
+import { Ears, type TownShot } from "./ears.ts";
 import { airOf, airOfWorld } from "./sound-mix.ts";
 // (Anyone's family and body on their card, a war's soldiers named from its roll: Phase 55 wave 5.)
 import { kinLines } from "../ui/index.ts";
@@ -1059,6 +1062,8 @@ type Exposed = {
   seaFilm?: SeaFilm;
   /** What is heard (Sound, first slice): its state and its measures, for a gate. */
   sound?: typeof sound;
+  /** What is heard of arms and blasts where they are seen, and how many so far, by where (app/ears.ts). */
+  ears?: Ears;
   /** Realms among the stars (Phase 72): a realm's coming apart watched, the stars drawn held. */
   nationFilm?: NationFilm;
   nationsShown?: () => number | null;
@@ -6686,6 +6691,8 @@ async function runPlanetPage(): Promise<void> {
     /** The battle before the town asked for (its key), and whether the asking came to nothing. */
     placedAsked = "",
     placedFailed = false;
+  /** The battle before the town as last drawn, for what is heard of it: its second, whether it is being fought, and by whose hand. */
+  const placedHeard = { s: 0, fought: false, hand: false };
   /** The battle before the town let go: no longer drawn, the clock no longer waiting for it. */
   const unplace = () => {
     if (!placed && !placedAsked) return;
@@ -6881,6 +6888,9 @@ async function runPlanetPage(): Promise<void> {
     // The battle at its moment; once over, its fallen where they lie, borne in from noon two days on.
     // (One of its men possessed, or the god fought in it: as his fight has it, Phase 61.)
     let shown: BattleNow | null = handHeld.battleShown(P, seen);
+    placedHeard.hand = !!shown;
+    placedHeard.fought = !!shown || at === "battle";
+    placedHeard.s = battleSecond(seen, P.turn);
     if (shown) {
       // (As the hand has it.)
     } else if (at === "morning" || at === "battle")
@@ -11869,7 +11879,10 @@ async function runPlanetPage(): Promise<void> {
   else if (params.has("watch")) void watchIt();
   // What is heard here (Sound, first slice): read as a person sees it, four times a second and only
   // while someone is listening, and told only as it changes (app/sound.ts). Nothing goes back.
-  const heard = airOf("globe");
+  const heard = airOf("globe"),
+    ears = new Ears(stage, sound, () => rig.target),
+    shotsBetween = (c0: number, c1: number, out: TownShot[]) => village.shotsBetween(c0, c1, out);
+  exposed.ears = ears;
   let heardAt = 0,
     worldAirAsked = false;
   /** How much of the land shown is sea (a sample of its tiles; no list made, nothing kept). */
@@ -11959,9 +11972,77 @@ async function runPlanetPage(): Promise<void> {
       inSpace || weatherCell() < 0 ? 0 : 0.7 * (landSky?.dark?.soot ?? 0),
     );
     heard.held = time.paused && !film && !raidPlaying;
+    // What arms and blasts make where they are seen (app/ears.ts): a battle on its field or before the town, the town's war
+    // in its streets and a siege's guns, a raid over it. Each as its own physics says, from where it is, as late as its sound
+    // takes; and the clash of iron as much as there is fighting by the hand.
+    heard.melee = 1;
+    heard.engines = 0;
+    if (scale === "battle" && fight && battleLayer) {
+      heard.melee = meleeShare(fight.now);
+      if (!fight.hand)
+        ears.battle(
+          fight.field,
+          fight.blows,
+          fight.info,
+          fight.now,
+          fight.s,
+          BATTLE_SPEEDS[fight.speed] ?? 0,
+          battleLayer,
+        );
+    } else if (scale === "village") {
+      const P = placed,
+        layer = village.placedBattle;
+      if (P?.now && layer && placedHeard.fought) {
+        heard.melee = meleeShare(P.now);
+        // (A second of a battle before the town is a minute of the world's: its pace is the world's over that.)
+        if (!placedHeard.hand)
+          ears.battle(
+            P.field,
+            P.blows,
+            P.info,
+            P.now,
+            placedHeard.s,
+            time.lapse ? 0 : time.speed / BATTLE_DAY.second,
+            layer,
+          );
+      }
+      const war = village.warNow()?.war;
+      if (war) ears.town(war, shotsBetween, performance.now() / 1000);
+      const k = plan?.town ? raidOver(plan.town, raidPlaying ? raidPlaying.t : now()) : null;
+      heard.engines = ears.raid(
+        k?.event ?? null,
+        k ? village.raidShown() : null,
+        raidPlaying
+          ? raidPlaying.t < raidPlaying.calm
+            ? raidPlaying.speed
+            : RAID_FIRES
+          : time.speed,
+      );
+    }
     sound.tell(heard);
     thunderHere =
       !inSpace && (heard.place === "town" || heard.place === "land" || heard.place === "shore");
+  });
+  // A soldier's fight under the god's hand (Phase 61), drawn a step at a time: each shot heard as he who fires it is drawn
+  // levelling to fire (read each frame, while someone listens; nothing made).
+  stage.onUpdate(() => {
+    if (!sound.listening) return;
+    if (scale === "battle" && fight?.hand && battleLayer)
+      ears.held(
+        fight.held,
+        fight.now,
+        [fight.info.attacker.host?.arm, fight.info.defender.host?.arm],
+        BATTLE_SPEEDS[fight.speed] ?? 0,
+        battleLayer,
+      );
+    else if (scale === "village" && placed?.now && placedHeard.hand && village.placedBattle)
+      ears.held(
+        placed,
+        placed.now,
+        [placed.info.attacker.host?.arm, placed.info.defender.host?.arm],
+        1,
+        village.placedBattle,
+      );
   });
   // The world's kind (Phase 56): its globe's seas, air and clouds, a land's sea, the sky over its
   // ground, its warmth's legend.

@@ -166,7 +166,7 @@ import { ColonyLayer } from "./colony.ts";
 import { TownLayer } from "./town.ts";
 import { CountryLayer } from "./country.ts";
 import { FeastLayer } from "./feast.ts";
-import { TownWarLayer } from "./townwar.ts";
+import { TownWarLayer, firesBetween } from "./townwar.ts";
 import { BattleLayer } from "./battle.ts";
 import { TradesLayer, type AtWork, type RackAt } from "./trades.ts";
 import { CraftsLayer, type BoardsAt, type ClampAt, type LoomAt, type WheelAt } from "./crafts.ts";
@@ -350,6 +350,11 @@ export class VillageScene {
   warSceneOverride: (() => TownWarScene | null) | null = null;
   /** Those of the town lying fallen in a fight of the underworld watched (2026-11-17; null: none). */
   streetDowned: ReadonlySet<number> | null = null;
+  /**
+   * The soldiers whose guns are drawn firing (and heard: shotsBetween) where another layer draws their bodies (null: the war's
+   * own): a fight of the underworld drawn as a battle's men, its shooters' flashes and smoke at their muzzles all the same.
+   */
+  gunsOf: TownWarScene["soldiers"] | null = null;
   /** A film's own fires over the town, in place of what struck it (Phase 67): null to leave it to the town. */
   blazeOverride: (() => BlazeNow | null) | null = null;
   private warScene: TownWarScene | null = null;
@@ -2539,7 +2544,7 @@ export class VillageScene {
         });
       });
     }
-    this.gunfire(troops, clock);
+    this.gunfire(this.gunsOf ?? troops, clock);
     // What they carry, where they go with it.
     let n = 0;
     // (And those about a town of sets carried in the hand with one, in the hand: signals. Every so many by their place.)
@@ -2852,15 +2857,25 @@ export class VillageScene {
 
   /**
    * The guns fired about the town in its war from `c0` to `c1` of the screen's clock (s), as gunfire() draws them: each who
-   * fires, when, where (metres) and with what; each machine gun's bursts (`gun`). Into `out` (emptied first); for what is heard.
+   * fires, when, where (metres) and with what; each machine gun's bursts (`gun`); the field guns standing off and the shells
+   * landing in its lots, as its war's layer draws them (render/townwar.ts firesBetween). Into `out` (emptied first); for what
+   * is heard.
    */
   shotsBetween(
     c0: number,
     c1: number,
-    out: { t: number; x: number; z: number; arm: string; gun?: true }[],
+    out: {
+      t: number;
+      x: number;
+      z: number;
+      arm: string;
+      gun?: true;
+      kind?: "cannon" | "blast";
+      black?: boolean;
+    }[],
   ): void {
     out.length = 0;
-    const troops = this.warScene?.soldiers,
+    const troops = this.gunsOf ?? this.warScene?.soldiers,
       each = this.soldiersEach;
     if (!troops || c1 <= c0) return;
     for (let i = 0; i < 2 * each; i++) {
@@ -2887,6 +2902,9 @@ export class VillageScene {
       for (let n = Math.floor((c0 + off) / 1.1) + 1; n * 1.1 - off <= c1; n++)
         out.push({ t: n * 1.1 - off, x: g.x, z: g.z, arm: team, gun: true });
     });
+    // (The besiegers' guns: of black powder where their arms smoke as black powder does.)
+    const besiegers = this.kits[0]?.arm;
+    firesBetween(this.warScene, c0, c1, armLook(besiegers).smoke >= 0.5, out);
   }
 
   /** A raid over the town as last drawn (W2; null: none about it), for what is heard of it. */

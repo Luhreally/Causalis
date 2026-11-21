@@ -11,11 +11,24 @@ import {
   BATTLE_SPEEDS,
   SEA_LENGTH,
   SEA_MOMENTS,
+  cannonVoice,
   newSeaFight,
+  seaBlack,
+  seaBroadsides,
   seaTally,
   seaWords,
+  type SeaBroadside,
   type SeaField,
+  type SeaHullNow,
 } from "../view/index.ts";
+
+/** A unit of the sea drawn, in metres: a ship of the line, 2.3 units long, is some 55 m. */
+const SEA_METRE = 24;
+/** The most broadsides told at once (the sound hears the nearest each by itself, the rest together). */
+const SEA_HEARD_MOST = 48;
+/** A ship's gun firing, of black powder and of smokeless (made once). */
+const BLACK = cannonVoice(true),
+  SMOKELESS = cannonVoice(false);
 
 export type SeaFilmDeps = {
   readonly stage: Stage;
@@ -115,6 +128,11 @@ export function installSeaFilm(d: SeaFilmDeps): SeaFilm {
   const rgb = (c: readonly number[]) =>
     `rgb(${c.map((x) => Math.round(Math.min(1, x * 1.25) * 255)).join(",")})`;
 
+  /** The broadsides of a frame, and what is told of them, in slots kept from frame to frame. */
+  const fired: SeaBroadside[] = [],
+    hullAt: SeaHullNow = { x: 0, z: 0, yaw: 0, sunk: 0, tip: 0, fired: -1 },
+    toldSlots: { kind: "cannon"; v: typeof BLACK; in: number; far: number; pan: number }[] = [],
+    told: typeof toldSlots = [];
   let layer: SeaLayer | null = null,
     near: SeaFightNear | null = null,
     field: SeaField | null = null,
@@ -124,9 +142,7 @@ export function installSeaFilm(d: SeaFilmDeps): SeaFilm {
     speed = 2,
     was = 2,
     playing = false,
-    heardSmoke = 0,
     heardGone = 0,
-    cueAt = 0,
     session = 0,
     coveredWas: OrbitRig["covered"] | null = null;
 
@@ -284,9 +300,7 @@ export function installSeaFilm(d: SeaFilmDeps): SeaFilm {
     });
     s = 0;
     wall = 0;
-    heardSmoke = 0;
     heardGone = 0;
-    cueAt = 0;
     setSpeed(2);
     time.hold("sea fight");
     // (The sea is framed in what the caption leaves of the screen: on a short one it stands over a third of it.)
@@ -311,15 +325,35 @@ export function installSeaFilm(d: SeaFilmDeps): SeaFilm {
     s = Math.min(SEA_LENGTH, s + dt * pace);
     draw();
     if (pace <= 0) return;
-    // Its sound: guns as they speak (a few a second at the most), a hull going down.
-    const smoke = layer.shown.smoke,
-      gone = seaTally(field, s).gone.reduce((a, b) => a + b, 0);
-    if (smoke > heardSmoke && wall >= cueAt) {
-      sound.cue("gun", 0.4, undefined, { far: 22, pan: ((wall * 7) % 2) - 1 > 0 ? 0.3 : -0.3 });
-      cueAt = wall + 0.4;
+    // Its sound: each broadside as her guns are drawn speaking, heard from the sea's middle where the eye looks (as late and as
+    // faint as her distance from it makes it), the nearest each by itself and the rest together; a hull going down.
+    const gone = seaTally(field, s).gone.reduce((a, b) => a + b, 0);
+    if (sound.listening && seaBroadsides(field, s - dt * pace, s, fired, hullAt)) {
+      const eye = stage.camera.getPosition(),
+        right = stage.camera.right,
+        t = rig.target;
+      told.length = 0;
+      for (const b of fired) {
+        if (told.length >= SEA_HEARD_MOST) break;
+        const side = field.hulls[b.hull]!.side,
+          kind = field.near.sides[side].rig,
+          h =
+            toldSlots[told.length] ??
+            (toldSlots[told.length] = { kind: "cannon", v: BLACK, in: 0, far: 0, pan: 0 }),
+          x = b.x,
+          z = b.z,
+          dx = x - eye.x,
+          dz = z - eye.z,
+          d = Math.hypot(dx, SEA_UP - eye.y, dz);
+        h.v = seaBlack(kind) ? BLACK : SMOKELESS;
+        h.in = (b.t - s) / pace;
+        h.far = Math.hypot(x - t.x, z - t.z) * SEA_METRE;
+        h.pan = d > 1e-6 ? (dx * right.x + dz * right.z) / d : 0;
+        told.push(h);
+      }
+      if (told.length) sound.heard(told, pace);
     }
     if (gone > heardGone) sound.cue("thud", 0.5, undefined, { far: 18, pan: 0 });
-    heardSmoke = smoke;
     heardGone = gone;
   });
 
