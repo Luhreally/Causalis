@@ -362,38 +362,61 @@ export class RegionScene {
    * as huts; the woods cleared from the towns and their fields.
    */
   setTowns(plan: LandPlan, t: number, spread = false): void {
-    const run = this.townsLaying(plan, t);
-    this.laying = null;
     if (!spread) {
-      runToEnd(run);
+      this.laying = null;
+      this.next = null;
+      runToEnd(this.townsLaying(plan, t));
       return;
     }
-    // (Begun at the next frame, within its budget: not on top of the message that brought the plan.)
-    this.laying = run;
-    this.layingOn = this.ground;
+    // (One under way is laid to its end, the newest plan then: a laying broken off at each plan's coming, the plans coming
+    // faster than one is laid, never came to draw the land anew at all. Begun at the next frame, within its budget.)
+    if (this.laying && this.layingOn === this.ground) {
+      if (this.next) this.layingsPassed++;
+      this.next = { plan, t };
+      return;
+    }
+    this.begin(plan, t);
   }
 
-  /** A land's plan being laid over frames (setTowns spread), and on whose ground. */
+  private begin(plan: LandPlan, t: number): void {
+    this.laying = this.townsLaying(plan, t);
+    this.layingOn = this.ground;
+    this.layingSince = performance.now();
+  }
+
+  /** When the laying under way was begun, and how many plans were passed over for a newer one while it was laid (for a check). */
+  private layingSince = 0;
+  layingsPassed = 0;
+
+  /** A land's plan being laid over frames (setTowns spread), on whose ground, and the newest plan come meanwhile. */
   private laying: Generator<void, void> | null = null;
   private layingOn: unknown = null;
+  private next: { plan: LandPlan; t: number } | null = null;
 
   /**
-   * Each frame: a land's plan being laid (setTowns spread) laid on for a few milliseconds, a step at a time; dropped if its
-   * land is left. Whether any was left to lay.
+   * Each frame: a land's plan being laid (setTowns spread) laid on for a few milliseconds, a step at a time, then the
+   * newest come meanwhile; dropped if its land is left. Whether any was left to lay.
    */
   layOn(budget = LAY_BUDGET): boolean {
     if (!this.laying) return false;
     if (this.layingOn !== this.ground) {
       this.laying = null;
+      this.next = null;
       return false;
     }
     const t0 = performance.now();
-    do {
-      if (this.laying.next().done) {
+    for (let run: Generator<void, void> | null = this.laying; run; run = this.laying) {
+      if (run.next().done) {
+        // (How long a land's plan took to be laid, from its coming: the land's checks read it.)
+        performance.measure("region.laid", { start: this.layingSince });
         this.laying = null;
-        return true;
+        const next = this.next;
+        this.next = null;
+        if (!next) return true;
+        this.begin(next.plan, next.t);
       }
-    } while (performance.now() - t0 < budget);
+      if (performance.now() - t0 >= budget) break;
+    }
     return true;
   }
 
