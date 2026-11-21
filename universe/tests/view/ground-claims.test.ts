@@ -30,6 +30,7 @@ import {
   facetWet,
   landEdge,
   landLaid,
+  heldByGreater,
   landMoment,
   landReach,
   landRoadOut,
@@ -133,7 +134,7 @@ test("a land's map: no field on the water, a lot, a road, a wall or another fiel
         (t) => townMiddle(g, t),
         roads,
       ),
-      clear = roadClear(laid.claims),
+      clear = roadClear(laid.claims, plan.undersea ? undefined : g),
       pieces: Rect[] = roads.flatMap((line) =>
         linePieces(g, line, 0, 0.3)
           .filter(clear)
@@ -142,7 +143,8 @@ test("a land's map: no field on the water, a lot, a road, a wall or another fiel
       lots: { r: Rect; town: string }[] = [],
       walls: Rect[] = [];
     for (const [ref, d] of drawn) {
-      const sc = d.scene;
+      const sc = d.scene,
+        held = heldByGreater(laid, ref);
       for (let p = 0; p < sc.plan.lots; p++) {
         if (sc.states.what[p] === LOT.open) continue;
         const r = {
@@ -154,6 +156,8 @@ test("a land's map: no field on the water, a lot, a road, a wall or another fiel
         };
         // (A lot on the map's water is not drawn: render/land.ts.)
         if (!plan.undersea && facetWet(g, r.x, r.z)) continue;
+        // (Nor one where a greater town holds the ground: the two met there.)
+        if (held?.(r.x, r.z)) continue;
         lots.push({ r, town: ref });
         if (!plan.undersea && rectPoints(r).some((q) => facetWet(g, q.x, q.z))) n["lot-water"]!++;
       }

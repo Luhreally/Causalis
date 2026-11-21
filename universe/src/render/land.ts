@@ -48,6 +48,7 @@ import {
   floorAt,
   wetAt,
   landLaid,
+  heldByGreater,
   landRoadOut,
   roadClear,
   type LandDrawn,
@@ -142,6 +143,8 @@ class GroundBatches {
       gone?: readonly { x: number; z: number; r: number }[];
       /** Whether anything raised may not stand somewhere, `r` about a point (region units). */
       kept?: (x: number, z: number, r: number) => boolean;
+      /** Whether another town holds the ground at a point: none of this one stands there (region units). */
+      held?: (x: number, z: number) => boolean;
     }[],
     g: LandGround,
     /** A people of the water's: it stands on the seabed, none of it ashore. */
@@ -175,6 +178,7 @@ class GroundBatches {
             // (None of a land people's on what the map draws as water; a water people's on its sea alone.)
             if (undersea ? !wetAt(g, x, z) : wetAt(g, x, z) || facetWet(g, x, z)) continue;
             if (t.gone?.some((h) => Math.hypot(x - h.x, z - h.z) < h.r)) continue;
+            if (t.held?.(x, z)) continue;
             const top = d[o + 1]! + d[o + 4]! / 2,
               q = m * 10;
             out[q + 7] = grp.color[0];
@@ -323,6 +327,13 @@ export class LandLayer {
   private fields: { field: LandField; crop: number }[] = [];
   /** The land's ground as last laid (view/land.ts landLaid): what its camps are pitched clear of. */
   private claims: GroundClaims | null = null;
+  /** Each town's place among the land's holders as last laid (the greatest first). */
+  private owners = new Map<string, number>();
+
+  /** Where a greater town holds the ground, none of a lesser one's stands (view/land.ts heldByGreater). */
+  private heldOf(ref: string): ((x: number, z: number) => boolean) | undefined {
+    return heldByGreater(this.claims && { claims: this.claims, owner: this.owners }, ref);
+  }
   /** Whether the land's ground as last laid is free about a point (one for each laying, so its camps are pitched again). */
   private campGround: ((x: number, z: number, r: number) => boolean) | undefined;
   private plan: LandPlan | null = null;
@@ -472,9 +483,29 @@ export class LandLayer {
         );
     }
     if (changed) {
+      // What lies about its towns takes its ground in one reading (view/land.ts landLaid): its water, its towns' built
+      // ground, its roads as they are drawn this year, then the fields, each town's nearest it; none on another.
+      const year = Math.floor(plan.t / YEAR);
+      const laid = landLaid(
+        g,
+        plan,
+        this.drawnOf,
+        (town) => townMiddle(g, town),
+        plan.roads.flatMap((r) => {
+          const out = roadLook(r, year) === "none" ? null : this.roadOut(r);
+          return out ? [out] : [];
+        }),
+      );
+      this.claims = laid.claims;
+      this.owners = laid.owner;
       this.settled.show(
         [
-          ...[...this.towns.values()].map((d) => ({ parts: d.settled, x: d.x, z: d.z })),
+          ...[...this.towns.values()].map((d) => ({
+            parts: d.settled,
+            x: d.x,
+            z: d.z,
+            held: this.heldOf(d.ref),
+          })),
           // (A land built over: what the greatest fire burned is burned, past its town's own lots too.)
           ...(this.built
             ? [
@@ -502,20 +533,6 @@ export class LandLayer {
         g,
         !!plan.undersea,
       );
-      // What lies about its towns takes its ground in one reading (view/land.ts landLaid): its water, its towns' built
-      // ground, its roads as they are drawn this year, then the fields, each town's nearest it; none on another.
-      const year = Math.floor(plan.t / YEAR);
-      const laid = landLaid(
-        g,
-        plan,
-        this.drawnOf,
-        (town) => townMiddle(g, town),
-        plan.roads.flatMap((r) => {
-          const out = roadLook(r, year) === "none" ? null : this.roadOut(r);
-          return out ? [out] : [];
-        }),
-      );
-      this.claims = laid.claims;
       this.campGround = (x, z, r) => laid.claims.freeDisc(x, z, r);
       this.fields = laid.fields.map((field) => ({ field, crop: -1 }));
       this.layFieldTops();
@@ -544,7 +561,12 @@ export class LandLayer {
     if (Math.abs(t - this.drawnAt) >= RISE_EVERY && wall - this.drawnWall >= RISE_WAIT) {
       this.drawnAt = t;
       this.drawnWall = wall;
-      const rising: { parts: TownParts; x: number; z: number }[] = [];
+      const rising: {
+        parts: TownParts;
+        x: number;
+        z: number;
+        held: ((x: number, z: number) => boolean) | undefined;
+      }[] = [];
       for (const d of this.towns.values()) {
         if (!d.busy) continue;
         const parts = new TownParts(),
@@ -552,7 +574,7 @@ export class LandLayer {
         townHomes(d.scene, d.scene.active, moment, parts);
         townCivics(d.scene, moment, parts);
         townWalls(d.scene, moment, parts);
-        rising.push({ parts, x: d.x, z: d.z });
+        rising.push({ parts, x: d.x, z: d.z, held: this.heldOf(d.ref) });
       }
       this.rising.show(rising, g, !!this.plan.undersea);
     }
@@ -684,7 +706,7 @@ export class LandLayer {
     this.roadWays = [];
     this.railWays = [];
     const sites: WorksSite[] = [],
-      clear = roadClear(this.claims);
+      clear = roadClear(this.claims, plan.undersea ? undefined : g);
     plan.roads.forEach((road, k) => {
       const now = nows[k]!,
         look = now.behind,

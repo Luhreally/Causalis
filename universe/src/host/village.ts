@@ -571,28 +571,48 @@ export function villagePlan(
       (m, f) => Math.max(m, Math.hypot(f.x, f.z) + Math.max(f.w, f.d) / 2),
       edge,
     ),
-    pastureR = 90,
-    pastureOut = (way: number) =>
-      apart(way, fieldWay) > 1.9 ? edge + pastureR + 20 : outer + pastureR + 15,
-    // (On free ground: never on the water, the town or a field; turned a step at a time, then on out, till it is.)
-    pastureFree = (way: number, out: number) =>
+    pastureOut = (way: number, r: number) =>
+      apart(way, fieldWay) > 1.9 ? edge + r + 20 : outer + r + 15,
+    // (On free ground: never on the water, the town or a field; turned a step at a time, then on out, then smaller, till it
+    // is. Where no ground is free for even the least of it, as where a great town fills its isle, the least is grazed on
+    // the first dry ground of those tried, its town's commons; on the water never, while any is dry.)
+    pastureFree = (way: number, out: number, r: number) =>
       claims.freeDisc(
-        (pastureOut(way) + out) * Math.cos(way),
-        (pastureOut(way) + out) * Math.sin(way),
-        pastureR,
+        (pastureOut(way, r) + out) * Math.cos(way),
+        (pastureOut(way, r) + out) * Math.sin(way),
+        r,
       ),
-    pastureTry = [0, 60, 140, 260, 420]
-      .flatMap((out) =>
-        [0, 0.6, -0.6, 1.2, -1.2, 1.8, -1.8, 2.4, -2.4].map((t) => ({
+    pastureTries = [90, 60, 40].flatMap((r) =>
+      [0, 60, 140, 260, 420, 640, 900].flatMap((out) =>
+        [0, 0.6, -0.6, 1.2, -1.2, 1.8, -1.8, 2.4, -2.4, Math.PI].map((t) => ({
           way: pastureToward + t,
           out,
+          r,
         })),
-      )
-      .find(
-        (p) => (p.way === pastureToward || offRoad(p.way) > 0.7) && pastureFree(p.way, p.out),
-      ) ?? { way: pastureToward, out: 0 },
+      ),
+    ),
+    pastureDry = (way: number, out: number, r: number) => {
+      const at = pastureOut(way, r) + out,
+        x = at * Math.cos(way),
+        z = at * Math.sin(way);
+      for (let k = -1; k < 8; k++) {
+        const u = k < 0 ? 0 : r * Math.cos((k * Math.PI) / 4),
+          v = k < 0 ? 0 : r * Math.sin((k * Math.PI) / 4);
+        if (claims.kindAt(x + u, z + v) === GROUND.water) return false;
+      }
+      return true;
+    },
+    pastureTry = pastureTries.find(
+      (p) => (p.way === pastureToward || offRoad(p.way) > 0.7) && pastureFree(p.way, p.out, p.r),
+    ) ??
+      pastureTries.find((p) => p.r === 40 && pastureDry(p.way, p.out, p.r)) ?? {
+        way: pastureToward,
+        out: 0,
+        r: 40,
+      },
+    pastureR = pastureTry.r,
     pastureWay = pastureTry.way,
-    pastureAt = pastureOut(pastureWay) + pastureTry.out,
+    pastureAt = pastureOut(pastureWay, pastureR) + pastureTry.out,
     wildAt = Math.round(outer + 60);
   const watched = known().sort((a, b) => a.seq - b.seq),
     people: VillagePlan["people"][number][] = [],

@@ -93,6 +93,12 @@ export class GroundClaims {
     return this.heldKind;
   }
 
+  /** Who laid what lies at a point, the water under it or not (-1: no one). */
+  laidBy(x: number, z: number): number {
+    this.held(Math.floor(x / this.step), Math.floor(z / this.step));
+    return this.heldKind === GROUND.free ? -1 : this.heldOwner;
+  }
+
   /** Whose the ground at a point is (-1: no one's, or the water's). */
   ownerAt(x: number, z: number): number {
     if (this.wet(x, z)) return -1;

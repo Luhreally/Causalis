@@ -270,13 +270,39 @@ export function landFields(
 }
 
 /**
+ * Whether another town holds the ground at a point of a land as laid (landLaid), so that none of this town's stands there:
+ * where two towns' ground meets, the greater holds it, being laid first (undefined: none can hold this one's, it is the greatest).
+ */
+export function heldByGreater(
+  laid: { readonly claims: GroundClaims; readonly owner: ReadonlyMap<string, number> } | null,
+  ref: string,
+): ((x: number, z: number) => boolean) | undefined {
+  const own = laid?.owner.get(ref) ?? -1;
+  if (!laid || own <= 0) return undefined;
+  const claims = laid.claims;
+  return (x, z) => {
+    const by = claims.laidBy(x, z);
+    return by >= 0 && by < own;
+  };
+}
+
+/**
  * Whether a piece of road (linePieces': middle x, y, z, length, heading) is drawn on its land's ground as laid: not where
  * it runs over a town's built ground or its walls, or the water within them, where the town's own streets carry it (its ends,
- * its middle and its middle's sides read).
+ * its middle and its middle's sides read); nor out on the sea or a lake, where a way between two tiles of land drawn as
+ * water ashore of a town would carry it.
  */
-export function roadClear(claims: GroundClaims | null): (piece: readonly number[]) => boolean {
+export function roadClear(
+  claims: GroundClaims | null,
+  /** Its land's ground, for a people of the land's: no piece is drawn whose middle lies on the sea or a lake (a river is bridged). */
+  g?: LandGround,
+): (piece: readonly number[]) => boolean {
   if (!claims) return () => true;
   return (q) => {
+    if (g) {
+      const w = facetWater(g, q[0]!, q[2]!);
+      if (w === 1 || w === 3) return false;
+    }
     const ux = Math.sin(q[4]!),
       uz = Math.cos(q[4]!),
       along = q[3]! / 2,
