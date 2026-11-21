@@ -61,6 +61,8 @@ export type BlocYears = {
   comings(ref: string, y: number): number;
   /** How many times a realm has left it, to a year (this going the last). */
   goings(ref: string, y: number): number;
+  /** How many other realms of its seat's name stood in it before a year (a name comes back, centuries on). */
+  namesakes(ref: string, y: number): number;
   /** The people of every realm in a year, summed (the world's who stand in a realm). */
   peopled(y: number): number;
   /** What its lands held a head at a decade's year, summed over its people (undefined: not kept). */
@@ -361,6 +363,14 @@ export function blocYears(world: World, head: string): BlocYears | null {
     },
     comings: (ref, y) => (passes().came.get(ref) ?? []).filter((t) => t <= y).length,
     goings: (ref, y) => (passes().left.get(ref) ?? []).filter((t) => t <= y).length,
+    namesakes: (ref, y) => {
+      const town = realms.get(ref as Ref)?.town;
+      if (!town) return 0;
+      let n = 0;
+      for (const [r, years] of passes().came)
+        if (r !== ref && years[0]! < y && realms.get(r as Ref)?.town === town) n++;
+      return n;
+    },
     peopled,
     worth,
     prepare,
@@ -568,12 +578,18 @@ export function blocTold(world: World, b: BlocYears, y: number, events: YearEven
   }
   // Who came in, and why.
   const newcomers = joined.filter((r) => r !== h || !(was && was !== h));
+  // (A realm of a name another realm stood in it under before: which of that name it is, "a second Stougyney".)
+  const namesake = (r: string) => {
+    const n = b.namesakes(r, y);
+    return n ? `A ${ordinal(n + 1)} ` : "";
+  };
   // (A whole alliance come in with a new head is one line, said above.)
   if (!(was && was !== h && !inBefore.has(h)))
     for (const r of newcomers.slice(0, 4)) {
       const cause = found(events, y, r, inNow, CAME_BY),
         times = b.comings(r, y);
       add("bloc.joined", big(r) ? 5 : 4, cause?.id ?? `told:${y}:${r}`, () => [
+        namesake(r),
         realmYear(world, r, y),
         ` came into ${name}${times > 1 ? ` for the ${ordinal(times)} time` : ""}`,
         cause ? by(world, cause, r, h) : ", drawn in by those it was bound to",
@@ -587,6 +603,7 @@ export function blocTold(world: World, b: BlocYears, y: number, events: YearEven
     const why = leftWhy(world, b, y, r, inBefore, events),
       times = b.goings(r, y);
     add("bloc.left", 4, why.ref ?? `told:${y}:${r}`, () => [
+      namesake(r),
       realmYear(world, r, y),
       ` left ${name}${times > 1 ? ` for the ${ordinal(times)} time` : ""}: `,
       ...why.line,
