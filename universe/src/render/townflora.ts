@@ -58,6 +58,8 @@ export class TownFloraLayer {
   private needleBase: Rgb = [0.1, 0.4, 0.2];
   private shown: TownFlora | null = null;
   private plan: VillagePlan | null = null;
+  /** What the last laying was laid by (floraKey). */
+  private key = "";
   /** The last building's time (ms). */
   buildMs = 0;
 
@@ -87,11 +89,20 @@ export class TownFloraLayer {
    */
   build(plan: VillagePlan, radius: number, share: number): boolean {
     const t0 = performance.now();
+    // (A town's plan is read again and again as its clock runs: what grows about it is laid again only when what it is
+    // laid by has changed: its ground's reading, its edge, its fields, pasture, road and water, the setting.)
+    const edge = townEdge(plan),
+      key = floraKey(plan, edge, radius, share);
+    if (key === this.key && this.ground) {
+      this.plan = plan;
+      this.buildMs = performance.now() - t0;
+      return true;
+    }
     this.clear();
+    this.key = key;
     this.plan = plan;
     const g = townGroundOf(plan);
     if (!g) return false;
-    const edge = townEdge(plan);
     // The ground: rings closer near the middle, where the eye is.
     const n = (RINGS + 1) * SPOKES + 1,
       positions = new Float32Array(n * 3),
@@ -322,6 +333,7 @@ export class TownFloraLayer {
   }
 
   private clear(): void {
+    this.key = "";
     this.ground?.destroy();
     this.groundMesh?.destroy();
     this.ground = null;
@@ -337,4 +349,14 @@ export class TownFloraLayer {
     for (const b of Object.values(this.batches)) b?.destroy();
     this.root.destroy();
   }
+}
+
+/** What a town's growth is laid by, as a key: its ground's reading, edge, fields, pasture, road, water, and the setting. */
+function floraKey(plan: VillagePlan, edge: number, radius: number, share: number): string {
+  const w = plan.landFlora;
+  let sum = 0;
+  if (w) for (let k = 0; k < w.tiles.length; k++) sum = (sum * 31 + w.tiles[k]!) % 1000000007;
+  for (const f of plan.fields)
+    sum = (sum * 31 + Math.round(f.x * 7 + f.z * 13 + f.w + f.d + f.yaw * 100)) % 1000000007;
+  return `${plan.ref}|${sum}|${plan.fields.length}|${Math.round(edge)}|${plan.pasture.x},${plan.pasture.z},${plan.pasture.r}|${plan.road.x},${plan.road.z}|${plan.water ? `${plan.water.x},${plan.water.z}` : ""}|${plan.landWater?.wet?.cells.length ?? 0}|${!!plan.districts}|${radius}|${share}|${plan.kind}|${plan.lifeLook ?? ""}`;
 }
