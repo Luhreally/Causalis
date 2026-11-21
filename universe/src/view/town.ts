@@ -1770,16 +1770,19 @@ export function* homesSeen(
   detail: TownDetail | null,
   t: number,
   out: TownParts,
+  /** Its own lots' homes, those past them, or both (its own are drawn whole wherever the eye is: drawn once a year). */
+  which: "all" | "own" | "far" = "all",
 ): Generator<void, void> {
   const far = farOf(scene),
     drawn = detail?.drawn,
     STEP = 100;
   // (Its own lots drawn whole as ever.)
-  for (let i = 0; i < scene.settled.length; i += STEP) {
-    townHomes(scene, scene.settled.slice(i, i + STEP), t, out);
-    yield;
-  }
-  if (!far) return;
+  if (which !== "far")
+    for (let i = 0; i < scene.settled.length; i += STEP) {
+      townHomes(scene, scene.settled.slice(i, i + STEP), t, out);
+      yield;
+    }
+  if (!far || which === "own") return;
   const farAt = (p: number) => {
       const k = p - far.from;
       return { x: far.x[k]!, z: far.z[k]!, yaw: far.yaw[k]! };

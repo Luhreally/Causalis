@@ -215,7 +215,14 @@ export class TownLayer {
   private readonly parts = new TownParts();
   /** Its ground as drawn this year, and its homes standing done as drawn from where the eye last chose (townDetail). */
   private readonly ground = new TownParts();
-  private homesSeenParts = new TownParts();
+  /**
+   * Its own lots' homes, drawn once a year (whole wherever the eye is), and those past them as last chosen, and the parts
+   * the next choosing fills (the two kept and filled again in turn: a great city's choosing made all its homes' parts
+   * anew, some 35,000, and the page swept up after it half a second at a time in WebKit; 2026-11-21).
+   */
+  private readonly ownParts = new TownParts();
+  private farParts = new TownParts();
+  private spare = new TownParts();
   /** Where the eye looks (metres from its square), and the choosing its homes are drawn by; one being drawn over frames. */
   private eye = { x: 0, z: 0 };
   private detail: TownDetail | null = null;
@@ -280,12 +287,18 @@ export class TownLayer {
     townGround(this.scene, this.ground);
     if (!same) this.eye = { x: 0, z: 0 };
     this.detail = townDetail(this.scene, this.eye);
-    this.homesSeenParts = new TownParts();
-    const run = homesSeen(this.scene, this.detail, t, this.homesSeenParts);
-    while (!run.next().done);
+    this.ownParts.clear();
+    this.farParts.clear();
+    for (const [out, which] of [
+      [this.ownParts, "own"],
+      [this.farParts, "far"],
+    ] as const) {
+      const run = homesSeen(this.scene, this.detail, t, out, which);
+      while (!run.next().done);
+    }
     this.choosing = null;
     this.seenAt = t;
-    this.settled.show(this.ground, this.homesSeenParts);
+    this.settled.show(this.ground, this.ownParts, this.farParts);
     performance.measure("town.built", { start: t0 });
     this.busy = this.scene.active.length > 0 || civicsActive(plan, t) || !!plan.walls;
     this.drawnAt = -Infinity;
@@ -329,12 +342,13 @@ export class TownLayer {
     const t0 = performance.now(),
       detail = yield* townDetailSteps(scene, eye, undefined, this.detail);
     if (this.scene !== scene) return;
-    const homes = new TownParts();
-    yield* homesSeen(scene, detail, this.seenAt, homes);
+    const homes = this.spare;
+    homes.clear();
+    yield* homesSeen(scene, detail, this.seenAt, homes, "far");
     // (Its year turned meanwhile: the new year's homes are drawn by that year's choosing.)
     if (this.scene !== scene) return;
     // (Worked out over the frames that follow, put in the last of them; the old standing till then.)
-    const show = this.settled.showOver(SHOW_STEP, this.ground, homes);
+    const show = this.settled.showOver(SHOW_STEP, this.ground, this.ownParts, homes);
     let t1 = performance.now();
     for (;;) {
       t1 = performance.now();
@@ -343,7 +357,8 @@ export class TownLayer {
       if (this.scene !== scene) return;
     }
     this.detail = detail;
-    this.homesSeenParts = homes;
+    this.spare = this.farParts;
+    this.farParts = homes;
     // (From its choosing begun to its drawing shown, over frames; and the last step, which puts it.)
     performance.measure("town.chosen", { start: t0 });
     performance.measure("town.shown", { start: t1 });
