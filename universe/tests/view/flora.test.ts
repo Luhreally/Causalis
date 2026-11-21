@@ -183,6 +183,13 @@ test("the ground in its world's colours: woods darker than the steppe's grass, s
     seen = new Set<number>();
   for (let t = 0; t < size * size; t++) if (t % size !== size >> 1) seen.add(all[t * 4 + 1]!);
   assert.ok(seen.size > 8, `${seen.size} greens`);
+  // Each tile's alpha is 255 less how much its woods' crowns cover (the ground drawn with them on it): woods under the steppe.
+  const alpha = (c: Uint8Array) => c[3]!;
+  assert.ok(
+    alpha(regionColors(frame(size, 12, 1100, 9), "land")) <
+      alpha(regionColors(frame(size, 14, 380, 8), "land")),
+    "a wood's ground carries its crowns' cover",
+  );
   // (A map with no reading is painted as before.)
   const plain = frame(size, 12, 1100, 9);
   assert.equal(

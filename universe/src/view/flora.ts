@@ -165,7 +165,9 @@ export function floraColors(frame: FrameMessage, waters: Uint8Array): Uint8Array
     out[t * 4] = Math.max(0, Math.min(255, Math.round(col[0] * 255)));
     out[t * 4 + 1] = Math.max(0, Math.min(255, Math.round(col[1] * 255)));
     out[t * 4 + 2] = Math.max(0, Math.min(255, Math.round(col[2] * 255)));
-    out[t * 4 + 3] = 255;
+    // (Its alpha 255 less how much of it its woods' crowns cover: the ground drawn with their crowns on it, render/stage.ts
+    // groundMaterial, at every distance the same.)
+    out[t * 4 + 3] = 255 - Math.min(255, Math.round(r.canopy[t]! * 1.05));
   }
   return out;
 }

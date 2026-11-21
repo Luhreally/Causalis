@@ -630,6 +630,135 @@ export function fadedMaterial(gloss = 0.25): pc.StandardMaterial {
   m.update();
   return m;
 }
+/**
+ * The land's ground (render/region.ts). A map's lens: each facet its colour, flat (a realm's borders kept). The land as it is
+ * (`uTileMap.w` 1): its tiles' colours read off two textures of them (a texel a tile, at the grid's corners, blended between
+ * the four about each point): the land's (with its woods' cover; carried over the water a texel, so land blends only with
+ * land) and the water's (with how wet: carried over the land a texel). Where the water's share passes a half, wavered by the
+ * land's own grain, the shore, soft over about a pixel, never a polygon's straight side. On the land the grain of the ground
+ * (broad drifts, finer patches, a little warmer and cooler) and, where woods stand, their crowns lit and the shade between
+ * them. All of it fixed to the land (its x and z), never to the eye or the screen; the grain is a texture of noise about its
+ * mean, mipmapped, so a grain finer than a pixel is drawn as its mean: the ground is the same colour near and far and never
+ * shimmers as the eye moves.
+ */
+const GROUND_PS = `
+uniform vec3 material_diffuse;
+uniform sampler2D uLand;
+uniform sampler2D uWater;
+uniform sampler2D uGrain;
+uniform vec4 uTileMap;
+void getAlbedo() {
+	if (uTileMap.w < 0.5) {
+		dAlbedo = material_diffuse.rgb * clamp(vVertexColor.rgb, 0.0, 1.0);
+		return;
+	}
+	vec2 p = vPositionW.xz;
+	vec2 uv = ((p + uTileMap.x) / uTileMap.y + 0.5) / uTileMap.z;
+	vec4 land = texture2D(uLand, uv), water = texture2D(uWater, uv);
+	// (Three grains, four fields each, about 0.5: broad, middling, fine.)
+	vec4 a = texture2D(uGrain, p * 0.031) - 0.5;
+	vec4 b = texture2D(uGrain, mat2(0.8, -0.6, 0.6, 0.8) * p * 0.13 + vec2(0.37, 0.61)) - 0.5;
+	vec4 c = texture2D(uGrain, mat2(0.6, 0.8, -0.8, 0.6) * p * 0.53 + vec2(0.71, 0.13)) - 0.5;
+	float woods = 1.0 - land.a;
+	vec3 g = land.rgb * (1.0 + 0.14 * a.r + (0.09 * b.r + 0.05 * c.r) * (1.0 - woods));
+	g.r *= 1.0 + 0.06 * a.g;
+	g.b *= 1.0 - 0.06 * a.g;
+	g *= 1.0 + woods * (0.42 * (smoothstep(-0.25, 0.25, c.g) - 0.5) + 0.3 * b.g);
+	// (The shore: where the water's share passes a half, wavered by the land's grain; soft over about a pixel.)
+	float s = water.a + 0.17 * a.b + 0.08 * b.b;
+	float e = max(0.5 * fwidth(s), 0.01);
+	dAlbedo = material_diffuse.rgb * mix(g, water.rgb, smoothstep(0.5 - e, 0.5 + e, s));
+}
+`;
+export function groundMaterial(
+  land: pc.Texture,
+  water: pc.Texture,
+  grain: pc.Texture,
+): pc.StandardMaterial {
+  const m = new pc.StandardMaterial();
+  m.diffuseVertexColor = true;
+  m.specular = new pc.Color(0.05, 0.05, 0.06);
+  m.gloss = 0.1;
+  m.getShaderChunks(pc.SHADERLANGUAGE_GLSL).set("diffusePS", GROUND_PS);
+  m.shaderChunksVersion = pc.CHUNKAPI_2_8;
+  m.setParameter("uLand", land);
+  m.setParameter("uWater", water);
+  m.setParameter("uGrain", grain);
+  m.setParameter("uTileMap", [0, 1, 1, 0]);
+  m.update();
+  return m;
+}
+
+/** The grain of a land's ground (stage.ts groundMaterial): four fields of smooth noise about 0.5, tiling, a 128 texels square. */
+export function grainTexture(stage: Stage): pc.Texture {
+  const n = 128,
+    cell = 8,
+    m = n / cell,
+    data = new Uint8Array(n * n * 4);
+  let seed = 0x9e3779b9;
+  const rand = () => {
+    seed = Math.imul(seed ^ (seed >>> 15), 0x2c1b3c6d) >>> 0;
+    seed = (seed + 0x6d2b79f5) >>> 0;
+    return ((seed ^ (seed >>> 13)) >>> 0) / 4294967296;
+  };
+  for (let ch = 0; ch < 4; ch++) {
+    const lattice = Array.from({ length: m * m }, rand),
+      at = (i: number, j: number) => lattice[(((j % m) + m) % m) * m + (((i % m) + m) % m)]!,
+      out = new Float32Array(n * n);
+    let lo = Infinity,
+      hi = -Infinity,
+      sum = 0;
+    for (let y = 0; y < n; y++)
+      for (let x = 0; x < n; x++) {
+        const fx = x / cell,
+          fy = y / cell,
+          i = Math.floor(fx),
+          j = Math.floor(fy),
+          u = fx - i,
+          v = fy - j,
+          su = u * u * (3 - 2 * u),
+          sv = v * v * (3 - 2 * v),
+          // (Two octaves, the second turned a quarter: no grid's lines.)
+          o1 =
+            (at(i, j) * (1 - su) + at(i + 1, j) * su) * (1 - sv) +
+            (at(i, j + 1) * (1 - su) + at(i + 1, j + 1) * su) * sv,
+          gx = (y * 2) / cell,
+          gy = (x * 2) / cell,
+          k = Math.floor(gx),
+          l = Math.floor(gy),
+          p = gx - k,
+          q = gy - l,
+          sp = p * p * (3 - 2 * p),
+          sq = q * q * (3 - 2 * q),
+          o2 =
+            (at(k + 3, l + 5) * (1 - sp) + at(k + 4, l + 5) * sp) * (1 - sq) +
+            (at(k + 3, l + 6) * (1 - sp) + at(k + 4, l + 6) * sp) * sq,
+          f = o1 * 0.7 + o2 * 0.3;
+        out[y * n + x] = f;
+        lo = Math.min(lo, f);
+        hi = Math.max(hi, f);
+        sum += f;
+      }
+    // (About its mean, at 0.5: a grain finer than a pixel, mipmapped away, leaves the ground its own colour.)
+    const mean = sum / (n * n),
+      span = Math.max(hi - mean, mean - lo) || 1;
+    for (let t = 0; t < n * n; t++)
+      data[4 * t + ch] = Math.round(127.5 + (127 * (out[t]! - mean)) / span);
+  }
+  const tex = new pc.Texture(stage.device, {
+    width: n,
+    height: n,
+    format: pc.PIXELFORMAT_RGBA8,
+    mipmaps: true,
+    minFilter: pc.FILTER_LINEAR_MIPMAP_LINEAR,
+    magFilter: pc.FILTER_LINEAR,
+    addressU: pc.ADDRESS_REPEAT,
+    addressV: pc.ADDRESS_REPEAT,
+  });
+  (tex.lock() as Uint8Array).set(data);
+  tex.unlock();
+  return tex;
+}
 /** A colour as a toned material's instance carries it: linear, as the light is reckoned. */
 export function toneOf(c: number): number {
   return Math.pow(Math.max(0, c), 2.2);

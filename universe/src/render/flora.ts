@@ -1,7 +1,7 @@
 // What grows on a land, drawn (view/flora.ts says what and where): one forest, near and far. Each near thing (tree, tuft,
 // stone, patch of ground) has its one place, kind, size, colour and rank, fixed on the land; about the point the eye looks
 // at, all of a kind are drawn within its core, past it fewer (the same ones, by rank: as many on the screen however far),
-// none past its reach. Where the trees end, the far clumps stand instead, each a few tree-sized crowns of the same forms and
+// none past its reach. Where the trees end, the far clumps stand instead, each a stand of crowns of the same forms and
 // colours. All of it is faded by degrees in the shader (stage.ts fadedMaterial) by where each thing stands, so nothing pops
 // and nothing moves as the eye does; pieces of the land are laid (a few milliseconds a frame) only as finely as it needs.
 // The season is laid over a batch as a whole (its leaves turned, fallen, snowed on), never per frame.
@@ -106,15 +106,21 @@ type Piece = { ci: number; cj: number; keep: NearKeep; got: NearFlora };
 
 /** A far clump's crowns about its middle (of its breadth): where each stands, and its height of the tallest's. */
 const SPOTS: readonly [number, number, number][] = [
-  [Math.cos(0.3) * 0.27, Math.sin(0.3) * 0.27, 1],
-  [Math.cos(2.4) * 0.3, Math.sin(2.4) * 0.3, 0.86],
-  [Math.cos(4.4) * 0.25, Math.sin(4.4) * 0.25, 0.78],
+  ...[0.4, 2.0, 3.4, 4.9].map((a, k): [number, number, number] => [
+    Math.cos(a) * (0.22 + 0.08 * (k % 2)),
+    Math.sin(a) * (0.22 + 0.08 * (k % 2)),
+    [1, 0.84, 0.92, 0.78][k]!,
+  ]),
 ];
-/** A clump's crown, of its breadth: as broad as one tree's crown near (FORM_SIZE). */
-const SPOT_W = 0.42;
+/** A clump's crown, of its breadth: as broad as one tree's crown near (FORM_SIZE) at the least. */
+const SPOT_W = 0.27;
+/** How much of a clump's square its crowns cover (seen from above). */
+const SPOTS_COVER = (SPOTS.length * Math.PI * SPOT_W * SPOT_W) / 4;
+/** How much of a wood the far clumps cover, seen from above, as much as its crowns do (the ground under them their shade). */
+const FAR_FILL = 0.3;
 
 /**
- * A far clump's mesh, a unit across and high about its middle: three crowns (needles: cones; broad: balls) or their trunks,
+ * A far clump's mesh, a unit across and high about its middle: four crowns (needles: cones; broad: balls) or their trunks,
  * standing on its foot, each as a near tree's would be drawn in its shape.
  */
 function clumpMesh(stage: Stage, part: "cone" | "ball" | "trunk"): pc.Mesh {
@@ -125,7 +131,7 @@ function clumpMesh(stage: Stage, part: "cone" | "ball" | "trunk"): pc.Mesh {
       foot = -0.5,
       top = -0.5 + hs;
     if (part === "cone") {
-      const n = 6,
+      const n = 5,
         r = SPOT_W / 2;
       positions.push(ox, top, oz);
       for (let k = 0; k < n; k++) {
@@ -134,7 +140,7 @@ function clumpMesh(stage: Stage, part: "cone" | "ball" | "trunk"): pc.Mesh {
       }
       for (let k = 0; k < n; k++) indices.push(base, base + 1 + ((k + 1) % n), base + 1 + k);
     } else if (part === "ball") {
-      const n = 6,
+      const n = 5,
         r = SPOT_W / 2,
         mid = (foot + top) / 2,
         half = (top - foot) / 2;
@@ -311,7 +317,7 @@ export class FloraLayer {
     this.ground++;
   }
 
-  /** The far clumps: a few tree-sized crowns for each, on the ground where it stands. */
+  /** The far clumps: four crowns for each, on the ground where it stands, spread over as much of its tile as its woods cover. */
   plant(trees: readonly RegionTree[]): void {
     this.far = trees;
     this.drawFar();
@@ -356,6 +362,10 @@ export class FloraLayer {
       else if (f.crown === "ball") balls.push(t);
       if (f.trunk > 0) trunks.push(t);
     }
+    // (How many clumps stand on each tile, and how much of it its woods cover: the clumps of a thick wood spread over it.)
+    const onTile = new Map<number, number>(),
+      canopy = this.land?.read.canopy;
+    for (const t of this.far) onTile.set(t.tile, (onTile.get(t.tile) ?? 0) + 1);
     const colorOf = (k: (typeof FAR_KINDS)[number]): Rgb =>
       k.kind === "parched" ? PARCHED : p ? formColor(p, k.form) : lifeTint(k.color, this.look);
     const fill = (
@@ -389,7 +399,14 @@ export class FloraLayer {
           // (Its trees as tall as a near tree of its form, by its own size; its crowns as broad as the stand they stand for, so a
           // wood far off reads as one, and as the eye comes near they give way to the trees of that stand, of the same height.)
           s = 0.75 + 0.5 * Math.max(0, Math.min(1, (t.size - 0.2) / 0.3)),
-          w = Math.max((f.w * s) / SPOT_W, t.size * this.tileKm * 0.6),
+          // (Spread over as much of its tile as its share of the tile's woods covers: a thick wood far off reads as one.)
+          spread = canopy
+            ? Math.sqrt(
+                ((canopy[t.tile]! / 255) * this.tileKm * this.tileKm * FAR_FILL) /
+                  (SPOTS_COVER * (onTile.get(t.tile) ?? 1)),
+              )
+            : t.size * this.tileKm * 0.6,
+          w = Math.max((f.w * s) / SPOT_W, Math.min(spread, this.tileKm * 0.45)),
           trunk = f.trunk * s,
           ch = f.h * s * 1.25,
           x = ((t.tile % this.size) + t.dx) * this.tileKm - half,

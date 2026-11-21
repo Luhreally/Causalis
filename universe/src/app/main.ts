@@ -2501,7 +2501,11 @@ async function runPlanetPage(): Promise<void> {
             )
           : dressed;
     // (What a fire burned, char to brown: on the ground's own colours. N1.)
-    region.paint(regionLens === "land" ? region.fire.scarred(turfed) : turfed);
+    // (The land as it is blended tile into tile; a map's lens keeps its borders.)
+    region.paint(
+      regionLens === "land" ? region.fire.scarred(turfed) : turfed,
+      regionLens === "land",
+    );
     painted = colors.length / 4;
   };
   /** Whether the land view shows the underworld: the 🥷 lens on, the land seen as the map (2026-11-16). */
