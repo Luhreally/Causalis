@@ -331,6 +331,59 @@ export function streetOf(scene: TownScene, b: number, lane: Rgb): Rgb {
   return measuredBlocks(scene.lots.blocks)?.[b] ? mixed(lane, SETTS, 0.45) : lane;
 }
 
+/** A yard trodden to its earth; how much lighter or darker one block's ground is than the next (by its number). */
+const EARTH: Rgb = [0.6, 0.53, 0.4],
+  BLOCK_SHADES = [0.92, 0.97, 1.02, 1.07] as const;
+type GroundTones = { readonly yard: Rgb; readonly yards: Rgb[]; readonly verge: Rgb };
+const groundTones = new WeakMap<TownScene, GroundTones>();
+
+function tonesOf(scene: TownScene, yard: Rgb): GroundTones {
+  const had = groundTones.get(scene);
+  if (had && had.yard === yard) return had;
+  const { plan } = scene,
+    green = plan.form?.green ?? 0.5,
+    lush = lifeTint(GARDEN, plan.lifeLook),
+    shaded = (c: Rgb, k: number): Rgb => [
+      Math.min(1, c[0] * k),
+      Math.min(1, c[1] * k),
+      Math.min(1, c[2] * k),
+    ],
+    // (By tier: trodden by the square, worn between as little grows there, lawns and gardens at the edge as green as its land grows.)
+    byTier: Rgb[] = [
+      mixed(yard, EARTH, 0.45),
+      mixed(yard, EARTH, Math.max(0.08, 0.36 - 0.3 * green)),
+      mixed(yard, lush, 0.15 + 0.4 * green),
+    ],
+    yards: Rgb[] = [];
+  for (const c of byTier) for (const k of BLOCK_SHADES) yards.push(shaded(c, k));
+  const tones = { yard, yards, verge: shaded(mixed(yard, lush, 0.55), 1.1) };
+  groundTones.set(scene, tones);
+  return tones;
+}
+
+/**
+ * The ground of block `b`'s yards, as its plan has it (`yard`, its land's grass): trodden by the square, worn between where
+ * little grows, lawns and gardens at its edge as green as its land grows them; and each block a shade its own of four, so
+ * one block's ground is told from the next even from afar. The same few colours over the whole town (a batch's own tones).
+ */
+export function yardTone(scene: TownScene, b: number, yard: Rgb): Rgb {
+  const form = scene.plan.form,
+    p = b * BLOCK_LOTS,
+    // (Its own lots' tiers know its walls; those past them are out where no wall stood.)
+    tier =
+      scene.tiers && p < scene.tiers.length
+        ? tierOf(scene, p)
+        : form
+          ? lotTier(form, p, scene.plan.whole)
+          : TIER.town;
+  return tonesOf(scene, yard).yards[tier * 4 + Math.floor(share(b, 9) * 4)]!;
+}
+
+/** The grass of the verges a street laid for engines keeps along its blocks (sites.ts StreetsLaid), mown and fresher than a yard. */
+export function vergeTone(scene: TownScene, yard: Rgb): Rgb {
+  return tonesOf(scene, yard).verge;
+}
+
 /** A column: its base, its shaft, its head, and what stands on it. */
 function column(out: TownParts, x: number, z: number, high: number, top: Rgb): void {
   const wide = 1.5 + high / 22;

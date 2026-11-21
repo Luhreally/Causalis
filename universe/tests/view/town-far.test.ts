@@ -22,7 +22,11 @@ import {
 } from "../../src/bridge/index.ts";
 import {
   DETAIL_HYSTERESIS,
+  SHAPE_TONES,
   TownParts,
+  compoundParts,
+  isCompound,
+  type TownGroup,
   farOf,
   homeAt,
   rowAt,
@@ -32,6 +36,7 @@ import {
   townScene,
   type TownScene,
 } from "../../src/view/index.ts";
+import type { CompoundTones } from "../../src/view/compound.ts";
 import { universeWorld } from "../host/worlds.ts";
 
 const world = universeWorld(EARTH, "sorrel 260 ~size small ~sky small", 160),
@@ -335,4 +340,89 @@ test("a row of homes drawn as one far off is the same row: each of its parts at 
       }
   }
   assert.ok(rows >= 20, `${rows} rows looked at`);
+});
+
+test("a home drawn as one is the home drawn part by part: its walls, roof, frames, tar, mast and windows each where, as large and in the colour it stood (a row's tar and bands a hand's breadth longer)", () => {
+  const tones = (g: TownGroup): CompoundTones => [
+      g.color,
+      g.roof ?? g.color,
+      SHAPE_TONES.frame,
+      SHAPE_TONES.tar,
+    ],
+    // (Every part laid out: its mesh, its colour (the windows' own), where, and how large.)
+    laid = (o: TownParts) => {
+      const out: { key: string; at: number[] }[] = [];
+      for (const g of o.groups.values())
+        for (let j = 0, e = 0; j < g.data.length; j += 7, e += 3) {
+          const at = g.data.slice(j, j + 7),
+            colour = (c: readonly number[]) =>
+              g.lamp ? "lamp" : c.map((v) => v.toFixed(3)).join(",");
+          if (isCompound(g.mesh))
+            for (const p of compoundParts(
+              g.mesh,
+              tones(g),
+              at,
+              g.extra ? [g.extra[e]!, g.extra[e + 1]!, g.extra[e + 2]!] : null,
+            ))
+              out.push({ key: `${p.mesh}|${colour(p.color)}`, at: p.at });
+          else out.push({ key: `${g.mesh}|${colour(g.color)}`, at });
+        }
+      return out.sort((a, b) => (a.key + a.at.join()).localeCompare(b.key + b.at.join()));
+    },
+    same = (
+      a: ReturnType<typeof laid>,
+      b: ReturnType<typeof laid>,
+      along: number,
+      what: string,
+    ) => {
+      assert.equal(a.length, b.length, `${what}: ${a.length} parts against ${b.length}`);
+      const left = [...b];
+      for (const p of a) {
+        const i = left.findIndex(
+          (q) =>
+            q.key === p.key &&
+            q.at.every((v, k) =>
+              k === 3
+                ? Math.abs(v - p.at[k]!) <= 0.01 + along * Math.abs(v)
+                : Math.abs(v - p.at[k]!) <= 0.01,
+            ),
+        );
+        assert.ok(
+          i >= 0,
+          `${what}: ${p.key} ${p.at.map((v) => v.toFixed(2)).join(" ")} not drawn as one`,
+        );
+        left.splice(i, 1);
+      }
+    };
+  let looked = 0,
+    shapes = 0;
+  for (const { plan } of great) {
+    const scene = townScene(plan, world.now);
+    for (const look of scene.looks)
+      for (let level = 0; level <= 6; level++)
+        for (const fine of [2, 1, 0, -1])
+          for (const yaw of level === 5 ? [0] : [0, 0.7]) {
+            const parts = new TownParts(),
+              one = new TownParts();
+            one.compound = true;
+            homeAt(parts, look, level, 30, -40, yaw, fine);
+            homeAt(one, look, level, 30, -40, yaw, fine);
+            same(laid(parts), laid(one), 0, `level ${level} fine ${fine}`);
+            shapes += one.count < parts.count ? 1 : 0;
+            looked++;
+          }
+    for (const look of scene.looks)
+      for (let level = 0; level <= 4; level++) {
+        const parts = new TownParts(),
+          one = new TownParts();
+        one.compound = true;
+        rowAt(parts, look, level, 4, 30, -40, 0);
+        rowAt(one, look, level, 4, 30, -40, 0);
+        same(laid(parts), laid(one), 0.02, `a row at level ${level}`);
+      }
+  }
+  assert.ok(
+    looked >= 40 && shapes >= 10,
+    `${looked} homes looked at, ${shapes} drawn in fewer parts`,
+  );
 });

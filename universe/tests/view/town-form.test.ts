@@ -18,7 +18,7 @@ import {
   type TownSite,
 } from "../../src/bridge/index.ts";
 import { TownParts, townGround, townHomes, townScene } from "../../src/view/index.ts";
-import { outlineAt, sprawlFar } from "../../src/view/town.ts";
+import { FAR_LOTS, farOf, outlineAt, sprawlFar } from "../../src/view/town.ts";
 import { heightOf, streetOf } from "../../src/view/townform.ts";
 import { YEAR } from "../../src/kernel/index.ts";
 
@@ -557,28 +557,25 @@ test("a town is no disc: it reaches furthest down its roads in, less between the
 });
 
 test("a great town's sprawl is its own outline grown on: low roofs from its lots' edge each way, none a tower by mistake", () => {
+  // (Past the lots it draws its next FAR_LOTS stand on their own blocks (farOf): the sprawl is what lies past those.)
   const t = 40 * YEAR,
-    plan: TownPlan = { ...planOf(FOOT, 800, 2), whole: 6400 },
+    plan: TownPlan = { ...planOf(FOOT, 800, 2), whole: 800 + FAR_LOTS + 6400 },
     scene = townScene(plan, t),
     parts = new TownParts();
   townGround(scene, parts);
   townHomes(scene, scene.settled, t, parts);
-  // (Its sprawl's roofs are boxes broader than any home: 10 m and more along, none 30 m high.)
+  // (Its sprawl's homes stand past its far lots' outline, each a home's size: none 30 m high, none broader than a block.)
+  const edge = farOf(scene)?.outline ?? scene.outline;
   let roofs = 0,
     high = 0,
     inside = 0;
   for (const [key, g] of parts.groups)
     if (key.startsWith("box|"))
       for (let i = 0; i < g.data.length; i += 7)
-        if (
-          g.data[i + 3]! >= 10 &&
-          g.data[i + 3]! <= 26 &&
-          g.data[i + 4]! > 4 &&
-          g.data[i + 5]! <= 11
-        ) {
+        if (g.data[i + 4]! > 2 && g.data[i + 3]! <= 26 && g.data[i + 5]! <= 26) {
           const a = Math.atan2(g.data[i + 2]!, g.data[i]!),
             r = Math.hypot(g.data[i]!, g.data[i + 2]!);
-          if (r < outlineAt(scene.outline, a)) inside++;
+          if (r < outlineAt(edge, a)) inside++;
           else {
             roofs++;
             high = Math.max(high, g.data[i + 4]!);

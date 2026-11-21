@@ -66,26 +66,55 @@ import { houseLook, type HouseLook } from "./village.ts";
 import { biomeColor } from "./globe.ts";
 import { lifeTint } from "./biochem.ts";
 import { WORN_WIDE, wornOf } from "./worn.ts";
-import { edgeYard, formGround, formLook, formTiers, streetOf, tierOf } from "./townform.ts";
-import { TIER, hasSpires, rectPoints, sprawlOf, streetWide, wallAt } from "../bridge/index.ts";
+import {
+  edgeYard,
+  formGround,
+  formLook,
+  formTiers,
+  streetOf,
+  tierOf,
+  vergeTone,
+  yardTone,
+} from "./townform.ts";
+import {
+  TIER,
+  hasSpires,
+  laidAt,
+  rectPoints,
+  sprawlOf,
+  streetWide,
+  wallAt,
+} from "../bridge/index.ts";
 
 export { hasSpires, sprawlOf };
 
 type Rgb = readonly [number, number, number];
 export type PartMesh = "box" | "gable" | "cone" | "cyl" | "dome";
+import type { CompoundMesh, LampMesh } from "./compound.ts";
 
 /** A window's glass: lit from within from dusk to dawn (the renderer's lamplight). */
 export const LAMP: Rgb = [0.14, 0.18, 0.24];
 
 /**
  * Parts gathered by mesh and colour: seven numbers each (x, y, z, sx, sy, sz, yaw), metres; the
- * windows in a group of their own, lit at night.
+ * windows in a group of their own, lit at night. A home drawn as one (view/compound.ts: `compound`) is a part of a shape's
+ * mesh, its roof's colour with its group and its roof's breadth, height and depth (metres) three numbers more each in `extra`.
  */
+export type TownGroup = {
+  mesh: PartMesh | CompoundMesh | LampMesh;
+  color: Rgb;
+  data: number[];
+  lamp?: boolean;
+  roof?: Rgb;
+  extra?: number[];
+};
 export class TownParts {
-  readonly groups = new Map<
-    string,
-    { mesh: PartMesh; color: Rgb; data: number[]; lamp?: boolean }
-  >();
+  readonly groups = new Map<string, TownGroup>();
+  /**
+   * Whether its homes are drawn each as one (view/compound.ts): the town's own view, where a great city's tens of thousands
+   * of parts went through a phone's GPU each frame (2026-11-21). A land's towns and the checks have them part by part.
+   */
+  compound = false;
   /** A window (a box of glass), lit at night. */
   lamp(x: number, y: number, z: number, sx: number, sy: number, sz: number, yaw: number): void {
     let g = this.groups.get("lamp");
@@ -97,6 +126,52 @@ export class TownParts {
     let g = this.groups.get("lampRound");
     if (!g) this.groups.set("lampRound", (g = { mesh: "cyl", color: LAMP, data: [], lamp: true }));
     g.data.push(x, y, z, wide, high, wide, 0);
+  }
+  /** A home's bands of windows as one (view/compound.ts LAMP_COMPOUNDS), lit at night: the home's middle and size. */
+  lampShape(
+    mesh: LampMesh,
+    x: number,
+    y: number,
+    z: number,
+    sx: number,
+    sy: number,
+    sz: number,
+    yaw: number,
+  ): void {
+    const key = `lamp:${mesh}`;
+    let g = this.groups.get(key);
+    if (!g) this.groups.set(key, (g = { mesh, color: LAMP, data: [], lamp: true }));
+    g.data.push(x, y, z, sx, sy, sz, yaw);
+  }
+  /**
+   * A home as one (view/compound.ts COMPOUNDS): its walls' middle and size; `roof` its roof's colour (null: none), and its
+   * roof's breadth, height and depth, on its walls' top.
+   */
+  shape(
+    mesh: CompoundMesh,
+    color: Rgb,
+    roof: Rgb | null,
+    x: number,
+    y: number,
+    z: number,
+    sx: number,
+    sy: number,
+    sz: number,
+    yaw: number,
+    rw = 0,
+    rh = 0,
+    rd = 0,
+  ): void {
+    if (this.tone) {
+      color = this.tone(color);
+      if (roof) roof = this.tone(roof);
+    }
+    const key = `${partKey(mesh, color)}${roof ? `/${roof[0].toFixed(3)}|${roof[1].toFixed(3)}|${roof[2].toFixed(3)}` : ""}`;
+    let g = this.groups.get(key);
+    if (!g)
+      this.groups.set(key, (g = { mesh, color, data: [], ...(roof ? { roof, extra: [] } : {}) }));
+    g.data.push(x, y, z, sx, sy, sz, yaw);
+    g.extra?.push(rw, rh, rd);
   }
   /** What every colour put is seen as, for a while (a sealed town's buildings, Phase 64). */
   tone: ((c: Rgb) => Rgb) | null = null;
@@ -133,7 +208,10 @@ export class TownParts {
     return n;
   }
   clear(): void {
-    for (const g of this.groups.values()) g.data.length = 0;
+    for (const g of this.groups.values()) {
+      g.data.length = 0;
+      if (g.extra) g.extra.length = 0;
+    }
   }
 }
 
@@ -141,8 +219,8 @@ export class TownParts {
  * A part's group: its mesh and its colour to a thousandth, kept for each colour as made (a city's choosing put some 35,000
  * parts, each its key written out anew: a great deal for the page to sweep up after, as the eye moved; 2026-11-21).
  */
-const PART_KEYS = new WeakMap<Rgb, Partial<Record<PartMesh, string>>>();
-function partKey(mesh: PartMesh, color: Rgb): string {
+const PART_KEYS = new WeakMap<Rgb, Partial<Record<PartMesh | CompoundMesh, string>>>();
+function partKey(mesh: PartMesh | CompoundMesh, color: Rgb): string {
   let kept = PART_KEYS.get(color);
   if (!kept) PART_KEYS.set(color, (kept = {}));
   return (kept[mesh] ??=
@@ -150,7 +228,7 @@ function partKey(mesh: PartMesh, color: Rgb): string {
 }
 
 /** The batch a group of parts is drawn in (TownParts.batches). */
-export function partBatch(key: string, g: { mesh: PartMesh; lamp?: boolean }): string {
+export function partBatch(key: string, g: { mesh: TownGroup["mesh"]; lamp?: boolean }): string {
   return g.lamp ? key : `${g.mesh}|${g.mesh === "gable" || g.mesh === "cone" ? "roof" : "wall"}`;
 }
 
@@ -211,6 +289,8 @@ const BRICK: Rgb = [0.66, 0.32, 0.24],
   GOLD: Rgb = [0.98, 0.8, 0.25],
   WHITE: Rgb = [0.94, 0.93, 0.9],
   DARK: Rgb = [0.32, 0.3, 0.3];
+/** The colours a shape drawn as one (view/compound.ts) gives its tower's frames and its tall homes' tar. */
+export const SHAPE_TONES = { frame: FRAME, tar: TAR } as const;
 
 const darker = (c: Rgb, f: number): Rgb => [c[0] * f, c[1] * f, c[2] * f];
 
@@ -742,8 +822,8 @@ export function townGround(
       plan.kind ? biomeColor(8, plan.kind) : [0.5, 0.6, 0.34],
       plan.lifeLook,
     ),
-    // (A street none has worn is the land's own, a little bared: what has worn it is drawn over it, R1.)
-    street: Rgb = plan.paved ? [0.66, 0.64, 0.6] : mixed(yard, [0.6, 0.53, 0.4], 0.5);
+    // (A street none has worn is the land's own, bared (told from the yards beside it): what has worn it is drawn over it, R1.)
+    street: Rgb = plan.paved ? [0.66, 0.64, 0.6] : mixed(yard, [0.6, 0.53, 0.4], 0.7);
   // In metres, as everything here: the streets stand a hand above the land's ground and the
   // pasture under them, the yards a curb above the streets, so neither sinks out of sight.
   if (ash <= 0)
@@ -782,7 +862,31 @@ export function townGround(
     );
     // (By the square no ground is left to grass: a block's yards are trodden courts.)
     const court = tierOf(scene, b * BLOCK_LOTS) === TIER.heart && !plan.ways;
-    out.put("box", court ? street : yard, x, 0.3, z, BLOCK_W - 0.6, 0.4, BLOCK_D - 0.6, yaw);
+    out.put(
+      "box",
+      court ? street : yardTone(scene, b, yard),
+      x,
+      0.3,
+      z,
+      BLOCK_W - 0.6,
+      0.4,
+      BLOCK_D - 0.6,
+      yaw,
+    );
+    // (A street laid for engines keeps a verge of grass along its blocks, under their yards' curbs and over its tar.)
+    const verge = plan.site?.laid && !court ? laidAt(plan.site, b)?.verge : 0;
+    if (verge)
+      out.put(
+        "box",
+        vergeTone(scene, yard),
+        x,
+        0.34,
+        z,
+        BLOCK_W + 2 * verge,
+        0.16,
+        BLOCK_D + 2 * verge,
+        yaw,
+      );
   }
   // (Its lots past those drawn on their own blocks, their streets and yards with them: farOf.)
   farGround(scene, out, street, yard);
@@ -1700,17 +1804,47 @@ function rowsLod(
       long = w + (n - 1) * LOT_W,
       yaw = a.yaw;
     if (h <= 0.01) continue;
-    out.put(
-      "box",
-      level >= 3 ? tallWall(look, level) : look.wall,
-      x,
-      rise + h / 2,
-      z,
-      long,
-      h,
-      d,
-      yaw,
-    );
+    const flat = look.rise < 0.1;
+    if (out.compound) {
+      // (Drawn as one (view/compound.ts): the row's walls and roof, or tar, and its bands of windows.)
+      if (level >= 3) {
+        out.shape("block", tallWall(look, level), null, x, h / 2, z, long, h, d, yaw);
+        out.lampShape(level === 3 ? "bands2" : "bands5", x, h / 2, z, long, h, d, yaw);
+        continue;
+      }
+      if (level === 2) {
+        out.shape(
+          flat ? "houseFlat" : "house",
+          look.wall,
+          look.roof,
+          x,
+          h / 2,
+          z,
+          long,
+          h,
+          d,
+          yaw,
+          long + L.w * 0.04,
+          roof2(look),
+          L.d * 1.08,
+        );
+        // (Its windows as each of its homes' run, 78% of a row as long less a home's 22%.)
+        out.lampShape("bands3", x, h / 2, z, (long - L.w * 0.22) / 0.78, h, d, yaw);
+        continue;
+      }
+    }
+    if (!out.compound || level >= 2)
+      out.put(
+        "box",
+        level >= 3 ? tallWall(look, level) : look.wall,
+        x,
+        rise + h / 2,
+        z,
+        long,
+        h,
+        d,
+        yaw,
+      );
     if (level >= 3) {
       // (Its storeys' bands and its roof's tar, as each of its homes has them.)
       const bands = towerBands(level);
@@ -1719,7 +1853,6 @@ function rowsLod(
       out.put("box", TAR, x, h + 0.25, z, long + L.w * 0.02, 0.5, L.d * 1.02, yaw);
       continue;
     }
-    const flat = look.rise < 0.1;
     if (level === 2) {
       // (A band of windows for each of its storeys, front and back, as each of its homes has.)
       for (let k = 0; k < L.storeys; k++)
@@ -1746,17 +1879,34 @@ function rowsLod(
         out.lamp(wx, rise + h * up, wz, long * 0.86, Math.min(0.8, h * 0.3), 0.14, yaw);
     }
     const rh = flat ? 0.6 : Math.min(5, look.rise * d * 0.5);
-    out.put(
-      flat ? "box" : "gable",
-      look.roof,
-      x,
-      rise + h + rh / 2,
-      z,
-      long + w * (flat ? 0.02 : 0.15),
-      rh,
-      d * (flat ? 1.02 : 1.15),
-      yaw,
-    );
+    if (out.compound)
+      out.shape(
+        flat ? "houseFlat" : "house",
+        look.wall,
+        look.roof,
+        x,
+        rise + h / 2,
+        z,
+        long,
+        h,
+        d,
+        yaw,
+        long + w * (flat ? 0.02 : 0.15),
+        rh,
+        d * (flat ? 1.02 : 1.15),
+      );
+    else
+      out.put(
+        flat ? "box" : "gable",
+        look.roof,
+        x,
+        rise + h + rh / 2,
+        z,
+        long + w * (flat ? 0.02 : 0.15),
+        rh,
+        d * (flat ? 1.02 : 1.15),
+        yaw,
+      );
   }
 }
 
@@ -1804,7 +1954,7 @@ export function* homesSeen(
       yarded[b] = 1;
       out.put(
         "box",
-        yard,
+        yardTone(scene, b + far.first, yard),
         far.blocks.x[b]!,
         0.3,
         far.blocks.z[b]!,
@@ -2186,8 +2336,28 @@ function home(
   if (level <= 1) {
     // Huts and houses: the land's own, round or square, its roof pitched to the rain.
     const [w, d] = lowFoot(L, look),
-      wall = look.wall;
-    out.put(look.round ? "cyl" : "box", wall, x, look.raised * 10 + h / 2, z, w, h, d, yaw);
+      wall = look.wall,
+      flat = look.rise < 0.1,
+      rh = look.tent ? 7.5 : flat ? 0.6 : Math.min(5, look.rise * d * 0.5),
+      // (Drawn as one, its walls and roof (view/compound.ts): a square home standing whole.)
+      one = out.compound && !look.round && !look.tent && !look.open && roof >= 1 && grow >= 1;
+    if (one)
+      out.shape(
+        flat ? "houseFlat" : "house",
+        wall,
+        look.roof,
+        x,
+        look.raised * 10 + h / 2,
+        z,
+        w,
+        h,
+        d,
+        yaw,
+        w * (flat ? 1.02 : 1.15),
+        rh,
+        d * (flat ? 1.02 : 1.15),
+      );
+    else out.put(look.round ? "cyl" : "box", wall, x, look.raised * 10 + h / 2, z, w, h, d, yaw);
     // Two windows on its front, toward its street (none in a tent, nor where it is open).
     if (!look.tent && !look.open && grow >= 1 && h > 1.4 && fine >= 1)
       for (const side of [-1, 1]) {
@@ -2204,9 +2374,7 @@ function home(
           yaw,
         );
       }
-    if (look.open || roof <= 0) return;
-    const flat = look.rise < 0.1,
-      rh = look.tent ? 7.5 : flat ? 0.6 : Math.min(5, look.rise * d * 0.5);
+    if (one || look.open || roof <= 0) return;
     out.put(
       look.round || look.tent ? "cone" : flat ? "box" : "gable",
       look.roof,
@@ -2222,10 +2390,34 @@ function home(
   }
   if (level === 2) {
     // A townhouse of three storeys, wall to wall along its street, its roof along the street.
-    out.put("box", look.wall, x, h / 2, z, L.w, h, L.d, yaw);
-    if (roof <= 0) return;
     const flat = look.rise < 0.1,
       rh = roof2(look);
+    if (out.compound && roof >= 1 && grow >= 1) {
+      // (Drawn as one: its walls and roof, and its storeys' windows (view/compound.ts).)
+      out.shape(
+        flat ? "houseFlat" : "house",
+        look.wall,
+        look.roof,
+        x,
+        h / 2,
+        z,
+        L.w,
+        h,
+        L.d,
+        yaw,
+        L.w * 1.04,
+        rh,
+        L.d * 1.08,
+      );
+      if (fine >= 0) out.lampShape("bands3", x, h / 2, z, L.w, h, L.d, yaw);
+      if (fine >= 2) {
+        const [cx, cz] = at(x, z, yaw, L.w * 0.3, 0);
+        out.put("box", BRICK, cx, h + 2.6, cz, 0.8, 2.2, 0.8, yaw);
+      }
+      return;
+    }
+    out.put("box", look.wall, x, h / 2, z, L.w, h, L.d, yaw);
+    if (roof <= 0) return;
     out.put(
       flat ? "box" : "gable",
       look.roof,
@@ -2254,6 +2446,22 @@ function home(
       : level === 4
         ? (look.block ?? (look.own ? mixed(look.wall, CONCRETE, 0.5) : CONCRETE))
         : (look.glass ?? GLASS);
+  if (out.compound && roof >= 1 && grow >= 1) {
+    // (Drawn as one (view/compound.ts): a tower its walls, frames, tar and mast, its windows one more; a block or a
+    // tenement its walls and tar, its bands of windows one more; past all its lots drawn, walls and tar alone.)
+    if (level === 5 && fine >= 0) {
+      out.shape("tower", wall, null, x, h / 2, z, L.w, h, L.d, yaw);
+      out.lampShape("bands6", x, h / 2, z, L.w, h, L.d, yaw);
+      return;
+    }
+    out.shape("block", wall, null, x, h / 2, z, L.w, h, L.d, yaw);
+    if (fine >= 0 && level < 5)
+      out.lampShape(level === 3 ? "bands2" : "bands5", x, h / 2, z, L.w, h, L.d, yaw);
+    if (fine < 2 || level === 5) return;
+    if (level === 3) out.put("cyl", TIMBER, x, h + 1.6, z, 2, 2.2, 2, 0);
+    else out.put("box", CONCRETE, x, h + 1.6, z, L.w * 0.4, 2.4, L.d * 0.3, yaw);
+    return;
+  }
   out.put("box", wall, x, h / 2, z, L.w, h, L.d, yaw);
   // Storeys told by bands of windows, lit at night (fewer bands than storeys on the tall ones;
   // a tower's between the frames of its floors).

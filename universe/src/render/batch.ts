@@ -72,6 +72,23 @@ export class InstancedBatch {
     this.instance.material.setParameter("uToneSnow", k);
   }
 
+  /**
+   * Bound it to the box its instances stand in (`lo` … `hi`, in its parent's units), so that it is not drawn at all where
+   * that box is out of the eye's sight (by default an instanced batch is drawn wherever it is).
+   */
+  bound(lo: readonly number[], hi: readonly number[]): void {
+    const box = (this.bounds ??= new pc.BoundingBox());
+    if (!(hi[0]! >= lo[0]!)) {
+      this.instance.cull = false;
+      return;
+    }
+    box.center.set((lo[0]! + hi[0]!) / 2, (lo[1]! + hi[1]!) / 2, (lo[2]! + hi[2]!) / 2);
+    box.halfExtents.set((hi[0]! - lo[0]!) / 2, (hi[1]! - lo[1]!) / 2, (hi[2]! - lo[2]!) / 2);
+    this.instance.setCustomAabb(box);
+    this.instance.cull = true;
+  }
+  private bounds: pc.BoundingBox | null = null;
+
   /** Whether it is drawn at all (what lies under snow: grass). */
   drawn(on: boolean): void {
     if (this.entity.enabled !== on) this.entity.enabled = on;
@@ -371,36 +388,37 @@ export function boxMesh(stage: Stage): pc.Mesh {
 export function gableMesh(stage: Stage): pc.Mesh {
   return shape(stage, "gable", () => gableMade(stage));
 }
+/** The gable's faces, each its corners in order about its outward side (gableMesh; render/compound.ts lays them again). */
+export const GABLE_FACES: readonly (readonly (readonly [number, number, number])[])[] = [
+  // The slopes (+z, −z) and the ends (−x, +x), each outward.
+  [
+    [-0.5, -0.5, 0.5],
+    [0.5, -0.5, 0.5],
+    [0.5, 0.5, 0],
+    [-0.5, 0.5, 0],
+  ],
+  [
+    [0.5, -0.5, -0.5],
+    [-0.5, -0.5, -0.5],
+    [-0.5, 0.5, 0],
+    [0.5, 0.5, 0],
+  ],
+  [
+    [-0.5, -0.5, -0.5],
+    [-0.5, -0.5, 0.5],
+    [-0.5, 0.5, 0],
+  ],
+  [
+    [0.5, -0.5, 0.5],
+    [0.5, -0.5, -0.5],
+    [0.5, 0.5, 0],
+  ],
+];
 function gableMade(stage: Stage): pc.Mesh {
-  const faces: (readonly [number, number, number])[][] = [
-    // The slopes (+z, −z) and the ends (−x, +x), each outward.
-    [
-      [-0.5, -0.5, 0.5],
-      [0.5, -0.5, 0.5],
-      [0.5, 0.5, 0],
-      [-0.5, 0.5, 0],
-    ],
-    [
-      [0.5, -0.5, -0.5],
-      [-0.5, -0.5, -0.5],
-      [-0.5, 0.5, 0],
-      [0.5, 0.5, 0],
-    ],
-    [
-      [-0.5, -0.5, -0.5],
-      [-0.5, -0.5, 0.5],
-      [-0.5, 0.5, 0],
-    ],
-    [
-      [0.5, -0.5, 0.5],
-      [0.5, -0.5, -0.5],
-      [0.5, 0.5, 0],
-    ],
-  ];
   const positions: number[] = [],
     normals: number[] = [],
     indices: number[] = [];
-  for (const f of faces) {
+  for (const f of GABLE_FACES) {
     const [a, b, c] = f as [(typeof f)[0], (typeof f)[0], (typeof f)[0]],
       u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]],
       v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]],

@@ -58,6 +58,7 @@ import {
   type LandGround,
   type PartMesh,
   type TownScene,
+  isCompound,
 } from "../view/index.ts";
 import { InstancedBatch, boxMesh, coneMesh, cylinderMesh, gableMesh, keptMesh } from "./batch.ts";
 import { LandTraffic, type BusyWay, type CarrierKind, type RoadWay } from "./landtraffic.ts";
@@ -168,8 +169,8 @@ class GroundBatches {
     const keys = new Map<string, { mesh: PartMesh; n: number }>();
     for (const t of towns)
       for (const grp of t.parts.groups.values()) {
-        // (No lamps on the land: it is seen by day.)
-        if (grp.lamp || !grp.data.length) continue;
+        // (No lamps on the land: it is seen by day. Its towns' homes are drawn part by part: none drawn as one.)
+        if (grp.lamp || !grp.data.length || isCompound(grp.mesh)) continue;
         const k = keys.get(grp.mesh);
         if (k) k.n += grp.data.length / 7;
         else keys.set(grp.mesh, { mesh: grp.mesh, n: grp.data.length / 7 });

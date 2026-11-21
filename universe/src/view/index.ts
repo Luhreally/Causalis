@@ -313,9 +313,21 @@ export {
   type CivicMotion,
   type Flier,
   type PartMesh,
+  type TownGroup,
+  SHAPE_TONES,
   type TownScene,
   type TownThing,
 } from "./town.ts";
+export {
+  COMPOUNDS,
+  LAMP_COMPOUNDS,
+  TONE,
+  compoundParts,
+  isCompound,
+  type CompoundMesh,
+  type CompoundPiece,
+  type LampMesh,
+} from "./compound.ts";
 export { Streets, streetDoor } from "./streets.ts";
 export {
   MOST_STONE_PARTS,

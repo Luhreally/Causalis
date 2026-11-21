@@ -42,6 +42,11 @@ import {
   strikeSpan,
   strikeTurned,
   partBatch,
+  isCompound,
+  SHAPE_TONES,
+  type CompoundMesh,
+  type LampMesh,
+  type TownGroup,
   type BlazeNow,
   type CivicMotion,
   type PartMesh,
@@ -59,6 +64,7 @@ import {
   placeInstance,
 } from "./batch.ts";
 import { domeMesh } from "./colony.ts";
+import { compoundMeshes, roofCode, shapeLamps, shapeMaterial } from "./compound.ts";
 import { tonedMaterial, type Rgb, type Stage } from "./stage.ts";
 
 const M = 0.1;
@@ -75,17 +81,42 @@ const RISE_EVERY = 6 * 3600,
   /** ... and while what struck it plays out — homes catching, burning, falling in (Phase 42 M201). */
   STRUCK_EVERY = 60;
 
-type Group = { mesh: PartMesh; color: Rgb; data: number[]; lamp?: boolean };
+type Group = TownGroup;
+type AnyMesh = PartMesh | CompoundMesh | LampMesh;
+/** A piece of one kind of part (PartBatches.showOver), where its parts stand: its batch's key, its matrices, its bounds. */
+type Chunk = {
+  key: string;
+  kind: { mesh: AnyMesh; lamp: boolean; roof: boolean; shape: boolean; groups: Group[] };
+  n: number;
+  i: number;
+  m: Float32Array | null;
+  lo: number[];
+  hi: number[];
+};
+/**
+ * How broad a piece of a town's parts is (metres a side), and how many parts of a kind are cut so: a great city some five
+ * kilometres across in a few dozen batches of each kind; a town of fewer parts drawn whole as before.
+ */
+const CHUNK = 1024,
+  CHUNK_MIN = 2048,
+  /** How far a shape drawn as one may stand past its walls' box (metres: a roof, a tower's mast). */
+  SHAPE_OVER = 12;
+/** Which piece a part standing at (x, z) metres from the square is in. */
+function cellOf(x: number, z: number): number {
+  const u = Math.max(0, Math.min(127, Math.floor(x / CHUNK) + 64)),
+    v = Math.max(0, Math.min(127, Math.floor(z / CHUNK) + 64));
+  return u * 128 + v;
+}
 
 /** Batches of parts by mesh, each part in its own colour, kept and refilled (made anew only when one outgrows itself). */
 class PartBatches {
   private readonly batches = new Map<string, InstancedBatch>();
   private readonly stage: Stage;
   private readonly root: pc.Entity;
-  private readonly meshes: Readonly<Record<PartMesh, pc.Mesh>>;
+  private readonly meshes: Readonly<Record<AnyMesh, pc.Mesh>>;
   /** The windows' glass, lit at night (its batch made anew when it changes). */
-  lamps: pc.Material | null = null;
-  private lampsIn: pc.Material | null = null;
+  lamps: pc.StandardMaterial | null = null;
+  private lampsIn: pc.StandardMaterial | null = null;
   /**
    * The walls' material and the roofs' (snow lies on these alone), shared by every batch of them made: one made for each
    * batch first come as the eye moved (a tank once a tenement was drawn whole) was a program built in that frame, half a
@@ -93,7 +124,9 @@ class PartBatches {
    */
   private toned: { wall: pc.StandardMaterial; roof: pc.StandardMaterial } | null = null;
   private snow = 0;
-  constructor(stage: Stage, root: pc.Entity, meshes: Readonly<Record<PartMesh, pc.Mesh>>) {
+  /** Its batches of roofs (snow lies on these). */
+  private readonly roofs = new Set<string>();
+  constructor(stage: Stage, root: pc.Entity, meshes: Readonly<Record<AnyMesh, pc.Mesh>>) {
     this.stage = stage;
     this.root = root;
     this.meshes = meshes;
@@ -113,34 +146,89 @@ class PartBatches {
   *showOver(step: number, ...all: TownParts[]): Generator<void, void> {
     // (One batch to a mesh, its roofs apart for the snow that lies on them: every colour of wall, roof and ground rides in
     // its instance. The windows keep theirs, lit at night.)
-    const sets = new Map<string, { mesh: PartMesh; lamp: boolean; n: number; groups: Group[] }>();
+    const kinds = new Map<
+      string,
+      { mesh: AnyMesh; lamp: boolean; roof: boolean; shape: boolean; n: number; groups: Group[] }
+    >();
     for (const parts of all)
       for (const [key, g] of parts.groups) {
         const n = g.data.length / 7;
         if (n === 0) continue;
         const k = partBatch(key, g);
-        let set = sets.get(k);
-        if (!set) sets.set(k, (set = { mesh: g.mesh, lamp: !!g.lamp, n: 0, groups: [] }));
-        set.n += n;
-        set.groups.push(g);
+        let kind = kinds.get(k);
+        if (!kind)
+          kinds.set(
+            k,
+            (kind = {
+              mesh: g.mesh,
+              lamp: !!g.lamp,
+              roof: k.endsWith("|roof"),
+              shape: isCompound(g.mesh),
+              n: 0,
+              groups: [],
+            }),
+          );
+        kind.n += n;
+        kind.groups.push(g);
       }
+    // (A kind of many parts is cut by where they stand, CHUNK metres a side, each piece its own batch bounded by what it
+    // holds, so a piece out of the eye's sight is not drawn at all: at the owner's look over a great city half of it stands
+    // behind the eye or off to the side, and every part of it went through a phone's GPU each frame (2026-11-21).)
+    const sets: Chunk[] = [],
+      chunkOf = new Map<string, Map<number, Chunk>>();
+    for (const [k, kind] of kinds) {
+      const cut = kind.n >= CHUNK_MIN,
+        byCell = new Map<number, Chunk>();
+      chunkOf.set(k, byCell);
+      for (const g of kind.groups) {
+        const d = g.data;
+        for (let o = 0; o < d.length; o += 7) {
+          const cell = cut ? cellOf(d[o]!, d[o + 2]!) : 0;
+          let c = byCell.get(cell);
+          if (!c) {
+            byCell.set(
+              cell,
+              (c = {
+                key: cut ? `${k}#${cell}` : k,
+                kind,
+                n: 0,
+                i: 0,
+                m: null,
+                lo: [Infinity, Infinity, Infinity],
+                hi: [-Infinity, -Infinity, -Infinity],
+              }),
+            );
+            sets.push(c);
+          }
+          c.n++;
+        }
+      }
+    }
+    for (const c of sets) {
+      let m = this.staged.get(c.key);
+      if (!m || m.length < c.n * 16) {
+        m = new Float32Array(Math.ceil(c.n * 1.3) * 16);
+        this.staged.set(c.key, m);
+      }
+      c.m = m;
+    }
     const t = [0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1];
     let since = 0;
-    for (const [key, set] of sets) {
-      let m = this.staged.get(key);
-      if (!m || m.length < set.n * 16) {
-        m = new Float32Array(Math.ceil(set.n * 1.3) * 16);
-        this.staged.set(key, m);
-      }
-      const toned = !set.lamp;
-      let i = 0;
+    for (const [k, kind] of kinds) {
+      const byCell = chunkOf.get(k)!,
+        cut = kind.n >= CHUNK_MIN,
+        toned = !kind.lamp;
       // (Group by group, in the order they were gathered.)
-      for (const g of set.groups) {
-        const d = g.data;
+      for (const g of kind.groups) {
+        const d = g.data,
+          extra = g.extra,
+          roof = g.roof ? roofCode(g.roof) : 1;
         t[8] = g.color[0];
         t[9] = g.color[1];
         t[10] = g.color[2];
-        for (let o = 0; o < d.length; o += 7, i++) {
+        for (let o = 0, e = 0; o < d.length; o += 7, e += 3) {
+          const c = byCell.get(cut ? cellOf(d[o]!, d[o + 2]!) : 0)!,
+            at = c.i * 16;
           t[0] = d[o]! * M;
           t[1] = d[o + 1]! * M;
           t[2] = d[o + 2]! * M;
@@ -148,7 +236,26 @@ class PartBatches {
           t[4] = d[o + 4]! * M;
           t[5] = d[o + 5]! * M;
           t[6] = d[o + 6]!;
-          placeInstance(m, i * 16, t, toned);
+          placeInstance(c.m!, at, t, toned);
+          c.i++;
+          // (A home drawn as one: its roof's breadth, height and depth and its colour where a plain part's matrix has
+          // nothing (render/compound.ts).)
+          if (extra) {
+            const m = c.m!;
+            m[at + 1] = extra[e]! * M;
+            m[at + 4] = extra[e + 1]! * M;
+            m[at + 9] = extra[e + 2]! * M;
+            m[at + 15] = roof;
+          }
+          // (Its bounds: as far each way as the part could reach, however it is turned; a shape's roof, a tower's mast,
+          // over it.)
+          const r =
+            (Math.abs(t[3]) + Math.abs(t[4]) + Math.abs(t[5])) / 2 +
+            (kind.shape ? SHAPE_OVER * M : 0);
+          for (let a = 0; a < 3; a++) {
+            if (t[a]! - r < c.lo[a]!) c.lo[a] = t[a]! - r;
+            if (t[a]! + r > c.hi[a]!) c.hi[a] = t[a]! + r;
+          }
           if (++since >= step) {
             since = 0;
             yield;
@@ -156,32 +263,39 @@ class PartBatches {
         }
       }
     }
-    for (const [key, set] of sets) {
-      let b = this.batches.get(key);
-      if (!b || b.capacity < set.n || (set.lamp && this.lampsIn !== this.lamps)) {
+    const shown = new Set<string>();
+    for (const c of sets) {
+      const { kind } = c;
+      shown.add(c.key);
+      let b = this.batches.get(c.key);
+      if (!b || b.capacity < c.n || (kind.lamp && this.lampsIn !== this.lamps)) {
         b?.destroy();
-        this.toned ??= { wall: tonedMaterial(), roof: tonedMaterial() };
+        this.toned ??= {
+          wall: shapeMaterial(M, SHAPE_TONES.frame, SHAPE_TONES.tar),
+          roof: tonedMaterial(),
+        };
+        if (kind.lamp && this.lamps) shapeLamps(this.lamps, M);
+        const color = kind.groups[0]!.color;
         b = new InstancedBatch(
           this.stage,
-          this.meshes[set.mesh],
-          [set.groups[0]!.color[0], set.groups[0]!.color[1], set.groups[0]!.color[2]],
-          Math.max(16, Math.ceil(set.n * 1.3)),
+          this.meshes[kind.mesh],
+          [color[0], color[1], color[2]],
+          Math.max(16, Math.ceil(c.n * 1.3)),
           this.root,
-          set.lamp
-            ? (this.lamps ?? undefined)
-            : key.endsWith("|roof")
-              ? this.toned.roof
-              : this.toned.wall,
-          !set.lamp,
+          kind.lamp ? (this.lamps ?? undefined) : kind.roof ? this.toned.roof : this.toned.wall,
+          !kind.lamp,
         );
-        if (set.lamp) this.lampsIn = this.lamps;
-        this.batches.set(key, b);
-        if (this.snow > 0 && key.endsWith("|roof")) b.toneSnow(this.snow * 0.8);
+        if (kind.lamp) this.lampsIn = this.lamps;
+        this.batches.set(c.key, b);
+        if (kind.roof) this.roofs.add(c.key);
+        if (this.snow > 0 && kind.roof) b.toneSnow(this.snow * 0.8);
+        if (this.snow > 0) this.toned.wall.setParameter("uRoofSnow", this.snow * 0.8);
       }
-      const m = this.staged.get(key)!;
-      b.setMatrices(set.n, (out) => out.set(m.subarray(0, set.n * 16)));
+      const m = c.m!;
+      b.setMatrices(c.n, (out) => out.set(m.subarray(0, c.n * 16)));
+      b.bound(c.lo, c.hi);
     }
-    for (const [key, b] of this.batches) if (!sets.has(key)) b.set(0, () => {});
+    for (const [key, b] of this.batches) if (!shown.has(key)) b.set(0, () => {});
   }
   /** How many batches hold anything (for a measure). */
   get drawn(): number {
@@ -199,13 +313,27 @@ class PartBatches {
   season(snow: number): void {
     if (snow === this.snow) return;
     this.snow = snow;
-    for (const [key, b] of this.batches) if (key.endsWith("|roof")) b.toneSnow(snow * 0.8);
+    for (const [key, b] of this.batches) if (this.roofs.has(key)) b.toneSnow(snow * 0.8);
+    // (The roofs of homes drawn as one lie in the walls' batches: render/compound.ts.)
+    this.toned?.wall.setParameter("uRoofSnow", snow * 0.8);
   }
 
   destroy(): void {
     for (const b of this.batches.values()) b.destroy();
     this.batches.clear();
   }
+}
+
+/** The shapes a home is drawn as one in (render/compound.ts), made once a stage and kept. */
+const SHAPES = new WeakMap<Stage, Record<CompoundMesh | LampMesh, pc.Mesh>>();
+function shapesOf(stage: Stage): Record<CompoundMesh | LampMesh, pc.Mesh> {
+  let kept = SHAPES.get(stage);
+  if (!kept) {
+    kept = compoundMeshes(stage.device);
+    for (const m of Object.values(kept)) keptMesh(m);
+    SHAPES.set(stage, kept);
+  }
+  return kept;
 }
 
 export class TownLayer {
@@ -238,7 +366,8 @@ export class TownLayer {
 
   constructor(stage: Stage, parent: pc.Entity) {
     parent.addChild(this.root);
-    const meshes: Record<PartMesh, pc.Mesh> = {
+    const meshes: Record<AnyMesh, pc.Mesh> = {
+      ...shapesOf(stage),
       dome: keptMesh(domeMesh(stage)),
       box: keptMesh(boxMesh(stage)),
       gable: keptMesh(gableMesh(stage)),
@@ -247,6 +376,8 @@ export class TownLayer {
     };
     this.settled = new PartBatches(stage, this.root, meshes);
     this.rising = new PartBatches(stage, this.root, meshes);
+    // (Its homes standing done drawn each as one: view/compound.ts.)
+    this.ownParts.compound = this.farParts.compound = this.spare.compound = true;
   }
 
   get visible(): boolean {
@@ -266,7 +397,12 @@ export class TownLayer {
    * A year's plan of the town (the same town's carried on: its lots are not laid out again), its
    * windows' glass in `lamps` (lit at night).
    */
-  build(plan: TownPlan | null, ref: string, t: number, lamps: pc.Material | null = null): void {
+  build(
+    plan: TownPlan | null,
+    ref: string,
+    t: number,
+    lamps: pc.StandardMaterial | null = null,
+  ): void {
     this.settled.lamps = this.rising.lamps = lamps;
     if (!plan) {
       this.scene = null;
