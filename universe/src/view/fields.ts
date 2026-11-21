@@ -14,6 +14,7 @@
 // field's corner. Pure: the same plan and moment, the same fields.
 import type { VillagePlan } from "../bridge/index.ts";
 import {
+  FURROW,
   ROW_ENDS,
   ROW_GAP,
   cropColor,
@@ -116,7 +117,7 @@ export const CROP_HIGH: Readonly<Record<Crop, number>> = { grain: 2, greens: 1, 
 export const STUBBLE = 0.3,
   WITHERED = 0.5;
 /** When the stubble is turned in, and the greens lifted (shares of the year): bare till the sowing. */
-const TURNED = 0.86,
+export const TURNED = 0.86,
   LIFTED = 0.74;
 
 /** The share of the year gone at t (0 … 1). */
@@ -554,4 +555,57 @@ export function fieldsWords(plan: VillagePlan, t: number): string | null {
   if (!told.length) return null;
   const give = Math.max(0, year.growth);
   return `The fields: ${told.join("; ")} — about ${pct(give)} of a fair year's crop`;
+}
+
+/** An orchard seen from afar: its grass under the crowns of its trees in rows. */
+const ORCHARD_CROWNS: Rgb = [0.24, 0.42, 0.2];
+
+/**
+ * A field seen from afar (its land's map, render/land.ts): as its own view draws it at t (render/village.ts, country.ts),
+ * its rows and the earth between them taken together — the earth bare from the turning of the stubble to the sprouting;
+ * its crop standing in its rows, green, then ripe gold, cut back to stubble through its reaping, withered on the rows a
+ * blight has taken; greens in their rows; the fallow its grass; an orchard its grass under its crowns; a foraging people's
+ * ground its crop all over, unrowed. `size`: its width and depth (metres), what share of it its rows cover.
+ */
+export function fieldLook(
+  plan: Fields,
+  k: number,
+  t: number,
+  year: FieldsNow,
+  size: { readonly w: number; readonly d: number },
+): Rgb {
+  const { orchard, crop } = cropsOf(plan),
+    c = crop[k],
+    grass = grassTint(cropTint("fallow", t, year), year);
+  if (orchard[k] || !c) return blend(grass, ORCHARD_CROWNS, 0.55);
+  if (!mannerOf(plan)) return cropTint(c, t, year);
+  if (c === "fallow") return grass;
+  const soil = soilTint(year),
+    d = yearShare(t),
+    grown = grownAt(c, d),
+    rows = Math.max(0, Math.ceil((size.d - 1) / ROW_GAP) - 1),
+    // (The share of the field its rows cover, seen from above.)
+    cover = clamp01(
+      (rows * (ROW_GAP - FURROW) * Math.max(0, size.w - 2 * ROW_ENDS)) /
+        Math.max(1, size.w * size.d),
+    ),
+    high = CROP_HIGH[c] * grown * standOf(year.growth),
+    // (A row's crop too short to be seen is not drawn: render/country.ts lay.)
+    standing = high >= 0.04 ? 1 : 0,
+    // (Seen slantwise, as the land's eye sees it, rows as tall as their furrows are broad hide the earth between them.)
+    seen = (h: number) => cover + (1 - cover) * clamp01(h / (2 * FURROW));
+  let blighted = 0;
+  for (let j = 0; j < rows; j++) if (blightedRow(plan, k, j, year.blight)) blighted++;
+  const sick = rows ? blighted / rows : 0,
+    crop2 = blend(cropTint(c, t, year), BLIGHTED, sick);
+  if (c === "greens") return blend(soil, crop2, seen(high) * standing);
+  // Grain: cut back and forth through its reaping, stubble till it is turned in.
+  if (d >= TURNED) return soil;
+  const cut = reapedAt(plan, k, t),
+    up = standing * (1 - cut),
+    stubble = cut,
+    total = up + stubble;
+  if (total <= 0) return soil;
+  const rowColor = blend(stubbleTint(year), crop2, up / total);
+  return blend(soil, rowColor, seen(up * high + stubble * STUBBLE) * Math.min(1, total));
 }

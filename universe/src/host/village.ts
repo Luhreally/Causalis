@@ -74,12 +74,13 @@ import {
   progress,
   townLots,
   outlineAt,
-  outlineOf,
+  fieldCount,
+  fieldEdge,
+  fieldsMeant,
   layOn,
   openWater,
   shoreOf,
   townClaims,
-  townReach,
   wetGround,
   type StoreBook,
   type TownPlan,
@@ -236,6 +237,43 @@ export function landHouse(world: World, cell: number): VillagePlan["house"] {
     pitch: roofPitch(roof, ctx.generated.climate.precipitation[cell]!),
     design: design?.ref ?? null,
   };
+}
+
+/**
+ * The year in a land's fields (Phase 44 M206): its rain as the year began, its soil, the vermin in its grain, the warming on
+ * them; the god's hand on its rain and its harvest now, since when. (Its towns' own views read it, and its land's: as the
+ * one sees its crop, so does the other.)
+ */
+export function fieldYearOf(world: World, cell: number): FieldYear {
+  const ctx = populationContext(world),
+    p = ctx.provinces.get(cell),
+    w = wildsOf(ctx, cell),
+    acts = actsOf(world),
+    sending = acts.at(cell, "rain", world.now),
+    giving = acts.at(cell, "harvest", world.now),
+    drought = p?.lastDrought ? world.events.get(p.lastDrought) : undefined;
+  return {
+    rain: (p?.rain ?? 1000) / 1000,
+    sent: sending ? sending.sign : 0,
+    sentFrom: sending?.from ?? 0,
+    gift: giving ? giving.sign : 0,
+    giftFrom: giving?.from ?? 0,
+    soil: w.soil,
+    vermin: grainLost(w),
+    heat: heatYield(ctx, cell),
+    why: [
+      ...(drought && world.now - drought.t < YEAR ? [drought.id] : []),
+      ...(sending ? [sending.event] : []),
+      ...(giving ? [giving.event] : []),
+      ...(w.worn ? [w.worn] : []),
+    ],
+  };
+}
+
+/** The way a settlement's best ground lies from its tile (radians: its fields go toward it). */
+export function fieldWayOf(world: World, cell: number, tile: number): number {
+  const best = [...waysOut(world, cell, tile)].sort((a, b) => b.soil - a.soil || a.angle - b.angle);
+  return best[0]?.angle ?? 0;
 }
 
 /** The eight ways out of a settlement's tile of its land: how good the ground is each way, and whether it is water. */
@@ -501,50 +539,19 @@ export function villagePlan(
       household: null,
     });
   }
-  // Fields in a fan toward the good ground, beyond the homes.
+  // Fields in a fan toward the good ground, beyond the homes (beyond a city's quarters); as its land's map lays them
+  // (bridge/town.ts fieldEdge, fieldsMeant; view/land.ts landFields).
   const fields: { x: number; z: number; w: number; d: number; yaw: number }[] = [],
-    // Fields begin beyond the homes (beyond a city's quarters).
-    edge =
-      fabric && lots && town
-        ? Math.min(
-            past?.spires ? 5200 : 2600,
-            townReach(lots) * Math.sqrt(town.whole / Math.max(1, town.lots)),
-          ) + 30
-        : city
-          ? (BLOCKS * BLOCK_M) / 2 + 60
-          : 16 + 8.5 * Math.sqrt(count) + 30,
-    fieldCount = Math.max(6, Math.min(90, Math.round(count * 0.7))),
-    // (A town's fields come in as near as its ground is taken each way: close in between its fingers, held off down them.
-    // As its land's map lays them: view/land.ts landFields.)
-    outline = fabric && lots && town ? outlineOf(lots, town.lots) : null,
-    edgeAt = (a: number) =>
-      outline && town
-        ? Math.min(
-            edge,
-            Math.max(
-              outlineAt(outline, a - 0.12),
-              outlineAt(outline, a),
-              outlineAt(outline, a + 0.12),
-            ) *
-              Math.sqrt(town.whole / Math.max(1, town.lots)) +
-              30,
-          )
-        : edge;
-  const meant: { x: number; z: number; w: number; d: number; yaw: number }[] = [];
-  for (let k = 0; k < fieldCount; k++) {
-    const ring = Math.floor(k / 12),
-      // (Each row of the fan from where its own way out is open: one row's fields never on the next's.)
-      way = fieldWay + (((k % 12) - 5.5) / 12) * 2.6,
-      a = way + (u(seed, 400 + k) - 0.5) * 0.15,
-      rad = edgeAt(way) + 40 + ring * 45 + u(seed, 500 + k) * 12;
-    meant.push({
-      x: rad * Math.cos(a),
-      z: rad * Math.sin(a),
-      w: 34 + 10 * u(seed, 600 + k),
-      d: 22 + 8 * u(seed, 700 + k),
-      yaw: a,
-    });
-  }
+    { edge, edgeAt, outline } = fieldEdge({
+      lots: fabric && lots && town ? lots : null,
+      drawn: town?.lots ?? 0,
+      whole: town?.whole ?? 0,
+      city: !!city,
+      cityRim: (BLOCKS * BLOCK_M) / 2,
+      count,
+      spires: !!past?.spires,
+    }),
+    meant = fieldsMeant(seed, fieldWay, fieldCount(count), edgeAt);
   // (Its ground as its countryside is laid on it: its land's water, its built ground, its road out; then its fields, each
   // where it was meant to lie if that is free, else on out along its way to the nearest that is, else not sown: none on
   // the water, none on its streets, none on another. bridge/claims.ts.)
@@ -1154,28 +1161,8 @@ export function villagePlan(
           words: `The feast of ${faith}`,
           ref: held,
         });
-    // The year in its fields (Phase 44 M206): its rain as the year began, its soil, the vermin in
-    // its grain, the warming on them; the god's hand on its rain and its harvest now, since when.
-    const acts = actsOf(world),
-      sending = acts.at(cell, "rain", world.now),
-      giving = acts.at(cell, "harvest", world.now),
-      drought = p?.lastDrought ? world.events.get(p.lastDrought) : undefined,
-      fields: FieldYear = {
-        rain,
-        sent: sending ? sending.sign : 0,
-        sentFrom: sending?.from ?? 0,
-        gift: giving ? giving.sign : 0,
-        giftFrom: giving?.from ?? 0,
-        soil: w.soil,
-        vermin: grainLost(w),
-        heat: heatYield(ctx, cell),
-        why: [
-          ...(drought && world.now - drought.t < YEAR ? [drought.id] : []),
-          ...(sending ? [sending.event] : []),
-          ...(giving ? [giving.event] : []),
-          ...(w.worn ? [w.worn] : []),
-        ],
-      };
+    // The year in its fields (Phase 44 M206): fieldYearOf.
+    const fields = fieldYearOf(world, cell);
     return {
       fed,
       growing,

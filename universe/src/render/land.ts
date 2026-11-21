@@ -6,10 +6,9 @@
 // the season; roads trodden, paved and railed; and what goes along them and out on the sea
 // (Phase 26 M153, render/landtraffic.ts).
 import * as pc from "playcanvas";
-import { YEAR, hashString } from "../kernel/index.ts";
+import { DAY, YEAR, hashString } from "../kernel/index.ts";
 import { BLOCK_LOTS, type GroundClaims, type LandPlan } from "../bridge/index.ts";
 import {
-  CROPS,
   LAND_ACROSS,
   campTracks,
   cutLine,
@@ -19,7 +18,10 @@ import {
   TownParts,
   builtOverParts,
   civicsActive,
-  cropAt,
+  fieldsNow,
+  landFieldLook,
+  landSown,
+  type LandSown,
   groundAt,
   tileOf,
   landFields,
@@ -283,13 +285,8 @@ class GroundBatches {
   }
 }
 
-/** The colours of a field at each of its crops: ploughed, green, ripe, stubble. */
-const CROP_COLORS: readonly Rgb[] = [
-  [0.46, 0.34, 0.22],
-  [0.42, 0.62, 0.24],
-  [0.86, 0.72, 0.3],
-  [0.72, 0.66, 0.42],
-];
+/** A field whose town's sowing is not known: grass. */
+const FALLOW: Rgb = [0.5, 0.63, 0.3];
 /** A road's colours and breadths (region units): a track, a paved road, a railway's bed and rails. */
 const TRACK: Rgb = [0.66, 0.55, 0.38],
   PAVED: Rgb = [0.6, 0.6, 0.58],
@@ -316,7 +313,10 @@ export class LandLayer {
   readonly root = new pc.Entity("land-towns");
   private readonly settled: GroundBatches;
   private readonly rising: GroundBatches;
-  private readonly fieldBatches: InstancedBatch[] = [];
+  /** Every field of the land, each in its own colour (a toned batch). */
+  private fieldBatch: InstancedBatch | null = null;
+  /** What each town's fields are sown with, as its own view reads them (landSown). */
+  private sown = new Map<string, LandSown>();
   private readonly roadBatches: Record<
     "track" | "paved" | "rails" | "faint",
     InstancedBatch | null
@@ -435,7 +435,8 @@ export class LandLayer {
       this.settled.show(none, ground);
       this.rising.show(none, ground);
     }
-    for (const b of this.fieldBatches) b.set(0, () => {});
+    this.fieldBatch?.set(0, () => {});
+    this.sown.clear();
     for (const b of Object.values(this.roadBatches)) b?.set(0, () => {});
   }
 
@@ -600,6 +601,16 @@ export class LandLayer {
       );
       this.campGround = (x, z, r) => laid.claims.freeDisc(x, z, r);
       this.fields = laid.fields.map((field) => ({ field, crop: -1 }));
+      {
+        const most = new Map<string, number>();
+        for (const f of laid.fields) most.set(f.ref, Math.max(most.get(f.ref) ?? 0, f.k + 1));
+        this.sown = new Map(
+          plan.towns.flatMap((town) => {
+            const n = most.get(town.ref);
+            return n ? [[town.ref, landSown(plan, town, n)] as const] : [];
+          }),
+        );
+      }
       this.layFieldTops();
       this.wayPieces.clear();
       this.season = -1;
@@ -663,14 +674,13 @@ export class LandLayer {
         this.rising.show(todo.done, g, !!this.plan.undersea);
       }
     }
-    const share = (t % YEAR) / YEAR,
-      season = Math.floor(share * 48);
-    // (A field's crop is looked at again as the season turns, but not oftener than RISE_WAIT: at a year a second the
-    // seasons turned every frame, and every frame sent all its fields to the card again.)
+    // (A field's crop is looked at again each day — its reaping goes row by row over days — but not oftener than
+    // RISE_WAIT: at a year a second the days turned every frame, and every frame sent all its fields to the card again.)
+    const season = Math.floor(t / DAY);
     if (season !== this.season && (this.season < 0 || wall - this.fieldsWall >= RISE_WAIT)) {
       this.season = season;
       this.fieldsWall = wall;
-      this.showFields(share);
+      this.showFields(t);
     }
     // (A road's gang moves on a section at a time, between the year's turns.)
     const look = Math.floor(t / (YEAR / WORKS_LOOKS));
@@ -702,33 +712,49 @@ export class LandLayer {
     this.fieldTops = tops;
   }
 
-  private showFields(share: number): void {
-    const g = this.ground!;
-    const by: LandField[][] = CROPS.map(() => []);
-    for (const f of this.fields) by[cropAt(f.field, share)]!.push(f.field);
-    by.forEach((list, k) => {
-      let b = this.fieldBatches[k];
-      if (!b || b.capacity < list.length) {
-        b?.destroy();
-        b = new InstancedBatch(
-          this.stage,
-          this.meshes.box,
-          [...CROP_COLORS[k]!],
-          Math.max(64, Math.ceil(list.length * 1.3)),
-          this.root,
-        );
-        this.fieldBatches[k] = b;
-      }
-      b.set(list.length, (i, o) => {
-        const f = list[i]!;
-        o[0] = f.x;
-        o[1] = groundAt(g, f.x, f.z) + LIFT * 0.6 - SLAB / 2;
-        o[2] = f.z;
-        o[3] = f.w;
-        o[4] = SLAB;
-        o[5] = f.d;
-        o[6] = f.yaw;
-      });
+  /**
+   * Each field in its colour at t, as its town's own view shows it from afar (view/fields.ts fieldLook; the owner's rule,
+   * 2026-11-21: one field is one thing — the land drew its own brown, green, gold and straw by a calendar of its own).
+   */
+  private showFields(t: number): void {
+    const g = this.ground!,
+      plan = this.plan!,
+      list = this.fields,
+      year = fieldsNow(
+        { life: plan.sowing ? { fields: plan.sowing.year } : undefined } as Parameters<
+          typeof fieldsNow
+        >[0],
+        t,
+      ),
+      life = plan.sowing?.lifeLook;
+    let b = this.fieldBatch;
+    if (!b || b.capacity < list.length) {
+      b?.destroy();
+      b = new InstancedBatch(
+        this.stage,
+        this.meshes.box,
+        [1, 1, 1],
+        Math.max(64, Math.ceil(list.length * 1.3)),
+        this.root,
+        undefined,
+        true,
+      );
+      this.fieldBatch = b;
+    }
+    b.set(list.length, (i, o) => {
+      const f = list[i]!.field,
+        sown = this.sown.get(f.ref),
+        c = sown ? landFieldLook(sown, f, t, year, life) : FALLOW;
+      o[0] = f.x;
+      o[1] = groundAt(g, f.x, f.z) + LIFT * 0.6 - SLAB / 2;
+      o[2] = f.z;
+      o[3] = f.w;
+      o[4] = SLAB;
+      o[5] = f.d;
+      o[6] = f.yaw;
+      o[8] = c[0];
+      o[9] = c[1];
+      o[10] = c[2];
     });
   }
 
@@ -745,6 +771,7 @@ export class LandLayer {
           blocks: d.scene.lots.blocks,
           count: Math.ceil(d.scene.plan.lots / BLOCK_LOTS),
           ...(d.scene.walls?.lengths.length ? { wall: d.scene.walls.line } : {}),
+          lots: { lots: d.scene.lots, drawn: d.scene.plan.lots, whole: d.scene.plan.whole },
         }
       : undefined;
   };
@@ -1115,7 +1142,8 @@ export class LandLayer {
     this.works.destroy();
     this.camps.destroy();
     this.herds.destroy();
-    for (const b of this.fieldBatches) b.destroy();
+    this.fieldBatch?.destroy();
+    this.fieldBatch = null;
     for (const b of Object.values(this.roadBatches)) b?.destroy();
     this.root.destroy();
   }

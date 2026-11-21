@@ -7,7 +7,7 @@
 // about it, more for more people, on the good dry ground, green in spring and gold at harvest;
 // its roads over the land from town to town and out of it, round the water and the steep,
 // trodden, then paved, then railed. Pure: what is drawn, in the region's units (kilometres).
-import { MinHeap, YEAR } from "../kernel/index.ts";
+import { MinHeap, YEAR, hashString } from "../kernel/index.ts";
 import { civic, type CivicKind } from "../rules/index.ts";
 import type {
   LandCamp,
@@ -19,6 +19,8 @@ import type {
 } from "../bridge/index.ts";
 import { REGION_RELIEF, type RegionTree } from "./region.ts";
 import { outlineAt, sprawlFar, sprawlOf, type TownScene } from "./town.ts";
+import { fieldLook, type FieldsNow } from "./fields.ts";
+import { lifeTint } from "./biochem.ts";
 import {
   BLOCK_D,
   BLOCK_W,
@@ -27,10 +29,16 @@ import {
   LAND_SCALE,
   LOT_D,
   LOT_W,
+  fieldCount,
+  fieldEdge,
+  fieldsMeant,
   kindsOf,
+  layOn,
   rectPoints,
+  townClaims,
   townReach,
   wallAt,
+  type TownLots,
 } from "../bridge/index.ts";
 
 export { LAND_SCALE };
@@ -162,29 +170,26 @@ export function landEdge(scene: TownScene): (a: number) => number {
   return (a) => (ring ? sprawlFar(scene, ring, a) : outlineAt(scene.outline, a)) * LAND_ACROSS;
 }
 
-/** A field about a town: its middle, its size and turn, and when in the year it is sown (0–1). */
+/**
+ * A field about a town: its middle, its size and turn (region units), whose it is and which of its fields (as its own view
+ * numbers them: VillagePlan.fields, the crop each is sown with read by that number, view/country.ts cropsOf).
+ */
 export type LandField = {
   readonly x: number;
   readonly z: number;
   readonly w: number;
   readonly d: number;
   readonly yaw: number;
-  readonly sown: number;
+  readonly ref: string;
+  readonly k: number;
 };
 
-/** A whole number's share in [0, 1) (the look's own scatter, not history's). */
-function unit(seed: number, i: number, k: number): number {
-  let h = (seed ^ Math.imul(i + 1, 0x9e3779b1) ^ Math.imul(k + 7, 0x85ebca6b)) >>> 0;
-  h = Math.imul(h ^ (h >>> 16), 0x7feb352d) >>> 0;
-  h = Math.imul(h ^ (h >>> 15), 0x846ca68b) >>> 0;
-  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
-}
-
-/** The most fields drawn about a town; a field's length and breadth, and the hedge between (region units). */
-export const MOST_FIELDS = 120;
-const FIELD_W = 0.5,
-  FIELD_D = 0.34,
-  HEDGE = 0.05;
+/** How far a town's road out is drawn in its own view (metres), at the most (host/village.ts ROAD_OUT). */
+const ROAD_OUT = 1100;
+/** How many of a town's fields are laid between two breaks of its land's laying. */
+const FIELDS_A_STEP = 4;
+/** The most fields drawn about a town (bridge/town.ts fieldCount). */
+export const MOST_FIELDS = 90;
 
 /** The cell a land's ground is read by (region units: 60 m on the map, less than a field or a road is across). */
 export const LAND_STEP = 0.06;
@@ -196,14 +201,42 @@ export function landClaims(g: LandGround, undersea = false): GroundClaims {
   return new GroundClaims(LAND_STEP, undersea ? () => false : (x, z) => facetWet(g, x, z));
 }
 
+/** The way a town's best ground lies from its tile, as its own view reads it (host/village.ts fieldWayOf): the first of the
+ * eight ways out with the best soil that is not water. */
+export function fieldWayOn(g: LandGround, tile: number): number {
+  const i0 = tile % g.size,
+    j0 = Math.floor(tile / g.size);
+  let best = -1,
+    way = 0;
+  for (let k = 0; k < 8; k++) {
+    const angle = (k / 8) * 2 * Math.PI,
+      i = Math.round(i0 + Math.cos(angle)),
+      j = Math.round(j0 + Math.sin(angle));
+    if (i < 0 || j < 0 || i >= g.size || j >= g.size) continue;
+    const t = j * g.size + i,
+      soil = g.water[t] === 0 ? g.fertility[t]! : 0;
+    if (soil > best) {
+      best = soil;
+      way = angle;
+    }
+  }
+  return way;
+}
+
 /**
- * A town's fields (none where its land does not sow): more for more people, a patchwork laid
- * along its streets' way about its edge, the nearest first — each on dry ground of some soil and
- * not up a hillside, on ground no one has taken (`claims`: the land's water, its towns' ground, its roads, and the fields of
- * the towns laid before it, which this town's take their ground in), and only where this town is the nearest that tills it
- * (`others`: the rest of its land's towns, each as far as it reaches): neighbours share the land between them.
+ * A town's fields (none where its land does not sow): the very fields its own view lays (host/village.ts; the owner's rule,
+ * 2026-11-21: one field is one thing, seen from its land or from its streets), as many, as large and where they are meant
+ * to lie — a fan toward its good ground past its edge, twelve to a ring (bridge/town.ts fieldsMeant) — drawn LAND_SCALE
+ * times their size as its streets are; each on ground no one has taken (`claims`: the land's water, its towns' ground, its
+ * roads, and the fields of the towns laid before it), else on out to the nearest free (bridge/claims.ts layOn), else not
+ * sown; and not up a hillside, where a flat plate would stand off the ground.
  */
-export function landFields(
+export function landFields(...args: Parameters<typeof landFieldsLaying>): LandField[] {
+  return runToEnd(landFieldsLaying(...args));
+}
+
+/** landFields a few fields at a time (each `yield` a place the laying may be broken off for a frame). */
+export function* landFieldsLaying(
   g: LandGround,
   town: LandTown,
   x: number,
@@ -211,63 +244,108 @@ export function landFields(
   reach: number,
   others: readonly { x: number; z: number; r: number }[] = [],
   claims: GroundClaims = landClaims(g),
-  /** How far its drawing reaches toward a bearing (region units: landEdge), where its outline is read. */
+  /** How far its drawing reaches toward a bearing (region units: landEdge), where its lots are not given. */
   edge?: (a: number) => number,
-  /** Whose its fields are among the land's holders (its own built ground it may lie beside). */
+  /** Whose its fields are among the land's holders. */
   owner = -1,
-): LandField[] {
+  /** Its lots (metres about its square), how many of them are read and of how many in all: its edge read as its own
+   * view reads it (bridge/town.ts fieldEdge). */
+  lots?: { readonly lots: TownLots; readonly drawn: number; readonly whole: number },
+  spires = false,
+): Generator<void, LandField[]> {
+  void others;
   if (!town.fields || town.population <= 0) return [];
-  const n = Math.max(4, Math.min(MOST_FIELDS, Math.round(Math.sqrt(town.population) * 0.9))),
-    axis = town.plan?.axis ?? 0,
-    seed = town.plan?.seed ?? town.tile,
-    ca = Math.cos(axis),
-    sa = Math.sin(axis),
-    inner = reach + 0.2,
-    // (Its fields come in as near as its ground is taken each way: close between its fingers, held off down them.)
-    innerAt = (du: number, dv: number) =>
-      edge ? edge(Math.atan2(-du * sa + dv * ca, du * ca + dv * sa)) + 0.2 : inner,
-    outer = Math.sqrt((n * FIELD_W * FIELD_D) / Math.PI + inner * inner) * 1.35 + 0.5,
-    ri = Math.ceil(outer / FIELD_W),
-    rj = Math.ceil(outer / FIELD_D),
-    cells: { i: number; j: number; r: number }[] = [];
-  for (let i = -ri; i <= ri; i++)
-    for (let j = -rj; j <= rj; j++) {
-      const r = Math.hypot(i * FIELD_W, j * FIELD_D),
-        from = innerAt(i * FIELD_W, j * FIELD_D);
-      if (r < from || r > outer) continue;
-      cells.push({ i, j, r: r - from + unit(seed, i * 977 + j, 5) * 0.35 });
-    }
-  cells.sort((a, b) => a.r - b.r || a.i - b.i || a.j - b.j);
-  const out: LandField[] = [],
-    // (Its own fields lie side by side on its own lattice, a hedge between: they may lie beside each other.)
-    mine = kindsOf(GROUND.field),
-    // (The towns that could be nearer any of its fields: those whose reach comes within its fields' furthest.)
-    rivals = others.filter(
-      (o) => Math.hypot(o.x - x, o.z - z) - o.r < 2 * (outer + FIELD_W) - reach,
-    );
-  for (const c of cells) {
-    if (out.length >= n) break;
-    const u = c.i * FIELD_W,
-      v = c.j * FIELD_D,
-      fx = x + u * ca + v * sa,
-      fz = z - u * sa + v * ca,
-      t = tileOf(g, fx, fz),
-      w = FIELD_W - HEDGE - 0.05 * unit(seed, c.i, c.j),
-      d = FIELD_D - HEDGE - 0.04 * unit(seed, c.j, c.i);
-    if (g.water[t] !== 0 || g.fertility[t]! < 40) continue;
-    // (Another town nearer, as far as each reaches: its ground to till, not this one's.)
-    const mineBy = Math.hypot(fx - x, fz - z) - reach;
-    if (rivals.some((o) => Math.hypot(fx - o.x, fz - o.z) - o.r < mineBy)) continue;
-    if (!claims.free(fx, fz, w, d, axis, owner, mine)) continue;
-    // (Not up a hillside: the ground about it within a field's length of level.)
-    const y = groundAt(g, fx, fz),
-      steep = [0, 1, 2, 3].some((q) => {
-        const b = (q * Math.PI) / 2;
-        return Math.abs(groundAt(g, fx + 0.3 * Math.cos(b), fz + 0.3 * Math.sin(b)) - y) > 0.12;
-      });
-    if (steep) continue;
-    out.push({ x: fx, z: fz, w, d, yaw: axis, sown: unit(seed, c.i * 31 + c.j, 4) * 0.12 });
+  const count = town.sow?.count ?? Math.max(4, Math.min(160, Math.ceil(town.population / 5))),
+    way = town.sow?.way ?? fieldWayOn(g, town.tile),
+    seed = hashString(`village ${town.ref}`),
+    k = LAND_ACROSS,
+    reading = fieldEdge({
+      lots: lots?.lots ?? null,
+      drawn: lots?.drawn ?? 0,
+      whole: lots?.whole ?? 0,
+      city: town.city,
+      cityRim: 600,
+      count,
+      spires,
+    }),
+    edgeAt =
+      !lots && edge
+        ? (a: number) => Math.max(edge(a - 0.12), edge(a), edge(a + 0.12)) / k + 30
+        : reading.edgeAt,
+    meant = fieldsMeant(seed, way, fieldCount(count), edgeAt),
+    // (Not up a hillside: the ground under its corners and middle within a tenth of a unit of level.)
+    level = (f: { x: number; z: number; w: number; d: number; yaw: number }) => {
+      const y = groundAt(g, f.x, f.z);
+      return rectPoints(f).every((p) => Math.abs(groundAt(g, p.x, p.z) - y) <= 0.1);
+    },
+    // (Its road out, as its own view lays it: along its busiest road in, else a city's axis, else between its fields and
+    // its poorer ground; as far as the dry ground goes that way, to 1100 m: host/village.ts.)
+    roadWay =
+      town.plan?.site?.roads[0]?.bearing ??
+      (town.city ? (town.plan?.axis ?? 0) : way + Math.PI * 0.75),
+    dryOut = (a: number) => {
+      for (let r = 10; r <= ROAD_OUT; r += 10)
+        if (facetWet(g, x + r * Math.cos(a) * k, z + r * Math.sin(a) * k))
+          return Math.max(0, r - 10);
+      return ROAD_OUT;
+    },
+    roadLong = (town.city ? [roadWay, roadWay + Math.PI] : [roadWay]).reduce(
+      (m, a) => Math.min(m, dryOut(a)),
+      ROAD_OUT,
+    ),
+    // (Its own ground read as its own view reads it, in metres on its own cells — its built ground, its road out, its
+    // fields as they are laid — so each is moved where its view moves it, and not where the land's coarser cells would part
+    // two its view lays side by side; the land's own ground read as well: its water, the other towns', its roads.)
+    own = townClaims({
+      ground: null,
+      blocks: lots ? lots.lots.blocks : null,
+      count: lots ? Math.ceil(lots.drawn / 8) : 0,
+      outline: reading.outline,
+      outlineAt,
+      scale: Math.sqrt((lots?.whole ?? 0) / Math.max(1, lots?.drawn ?? 0)),
+      edge: reading.edge,
+      road: { x: roadLong * Math.cos(roadWay), z: roadLong * Math.sin(roadWay) },
+      through: town.city,
+    }),
+    onLand = (f: { x: number; z: number; w: number; d: number; yaw: number }) => ({
+      x: x + f.x * k,
+      z: z + f.z * k,
+      w: f.w * k,
+      d: f.d * k,
+      yaw: f.yaw,
+    }),
+    out: LandField[] = [];
+  void reach;
+  // (Laid one at a time, as its own view lays them: each takes its ground before the next is laid.)
+  const laid: { x: number; z: number; w: number; d: number; yaw: number }[] = [],
+    layOnFields = (some: typeof meant) =>
+      layOn(
+        {
+          free: (fx: number, fz: number, w: number, d: number, yaw: number) => {
+            if (!own.free(fx, fz, w, d, yaw, 0, 0)) return false;
+            const r = onLand({ x: fx, z: fz, w, d, yaw });
+            return claims.free(r.x, r.z, r.w, r.d, r.yaw, owner, kindsOf(GROUND.field));
+          },
+          rect: (fx: number, fz: number, w: number, d: number, yaw: number) =>
+            own.rect(fx, fz, w, d, yaw, GROUND.field, 0),
+        } as unknown as GroundClaims,
+        some,
+        GROUND.field,
+        0,
+        { x: 0, z: 0 },
+        24,
+        12,
+      );
+  // (A few at a time, so that no frame is held long by a town that looks far for free ground.)
+  for (let i = 0; i < meant.length; i += FIELDS_A_STEP) {
+    laid.push(...layOnFields(meant.slice(i, i + FIELDS_A_STEP)));
+    if (i + FIELDS_A_STEP < meant.length) yield;
   }
+  // (Numbered as its own view numbers what it lays, one not drawn here for its hillside too.)
+  laid.forEach((f, n) => {
+    const r = onLand(f);
+    if (level(r)) out.push({ ...r, ref: town.ref, k: n });
+  });
   for (const f of out) claims.rect(f.x, f.z, f.w, f.d, f.yaw, GROUND.field, owner);
   return out;
 }
@@ -405,6 +483,8 @@ export type LandDrawn = {
   readonly count?: number;
   /** Its walls' line as they stand (bridge/wall.ts: metres out toward each bearing; absent: none). */
   readonly wall?: Float32Array;
+  /** Its lots (metres about its square), how many are read and of how many in all: where its fields begin (landFields). */
+  readonly lots?: { readonly lots: TownLots; readonly drawn: number; readonly whole: number };
 };
 
 /**
@@ -496,7 +576,7 @@ export function runToEnd<T>(run: Generator<void, T>): T {
  */
 export function* landLaying(
   g: LandGround,
-  plan: Pick<LandPlan, "towns" | "undersea">,
+  plan: Pick<LandPlan, "towns" | "undersea" | "sowing">,
   drawn: (ref: string) => LandDrawn | undefined,
   middle: (town: LandTown) => { x: number; z: number },
   roads: readonly (readonly { x: number; z: number }[])[],
@@ -539,7 +619,7 @@ export function* landLaying(
   for (let i = 0; i < order.length; i++) {
     const c = circles[i]!;
     fields.push(
-      ...landFields(
+      ...(yield* landFieldsLaying(
         g,
         order[i]!,
         c.x,
@@ -549,18 +629,51 @@ export function* landLaying(
         claims,
         c.edge,
         i,
-      ),
+        drawn(c.ref)?.lots,
+        !!plan.sowing?.spires,
+      )),
     );
     yield;
   }
   return { claims, fields, owner };
 }
 
-/** What a field shows at a share of the year (0 midwinter): ploughed, green, ripe, stubble. */
-export const CROPS = ["ploughed", "green", "ripe", "stubble"] as const;
-export function cropAt(f: LandField, year: number): number {
-  const s = (((year - f.sown) % 1) + 1) % 1;
-  return s < 0.22 ? 0 : s < 0.5 ? 1 : s < 0.68 ? 2 : s < 0.82 ? 3 : 0;
+/** What a town's fields are sown with, as its own view reads them (its VillagePlan's): for landFieldLook. */
+export type LandSown = Parameters<typeof fieldLook>[0];
+
+/** A town of a land's fields as its own view would read them, `n` of them (host/village.ts villagePlan). */
+export function landSown(
+  plan: Pick<LandPlan, "era" | "sowing">,
+  town: LandTown,
+  n: number,
+): LandSown {
+  return {
+    ref: town.ref,
+    era: plan.era,
+    // (Its ground's own; an old plan's: the temperate wood's.)
+    biome: town.sow?.biome ?? 9,
+    house: { walls: plan.sowing?.walls ?? "timber" } as LandSown["house"],
+    seed: hashString(`village ${town.ref}`),
+    // (Only how many, and each deep enough to be sown in rows, are read.)
+    fields: Array.from({ length: n }, () => ({ x: 0, z: 0, w: 40, d: 26, yaw: 0 })),
+  };
+}
+
+/**
+ * A field's colour on its land at t: as its own view shows it from afar (view/fields.ts fieldLook), its crop in its land's
+ * life's colours (Phase 57).
+ */
+export function landFieldLook(
+  sown: LandSown,
+  f: LandField,
+  t: number,
+  year: FieldsNow,
+  lifeLook?: string,
+): readonly [number, number, number] {
+  return lifeTint(
+    fieldLook(sown, f.k, t, year, { w: f.w / LAND_ACROSS, d: f.d / LAND_ACROSS }),
+    lifeLook,
+  );
 }
 
 /** The trees of a land not standing on its towns and fields (cleared for them). */

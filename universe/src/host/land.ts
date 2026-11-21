@@ -40,7 +40,8 @@ import type {
 import { townPlan } from "./town.ts";
 import { realmColor } from "./colors.ts";
 import { envoysIn } from "./inspect/ties.ts";
-import { landEra, townSite } from "./village.ts";
+import { fieldWayOf, fieldYearOf, landEra, landHouse, townSite } from "./village.ts";
+import { worldLook } from "./biochem.ts";
 import { colonyLook } from "./colony.ts";
 import { landPast } from "./past.ts";
 import { getAbout, readRoad } from "./roads.ts";
@@ -95,6 +96,8 @@ export function landPlan(world: World, cell: number, budget = 8000): LandPlan {
     covered = !!landPast(world, cell)?.covered,
     // (Its towns' fields: the same reading their streets are held back by.)
     fields = landSows(world, cell),
+    // (Its map, where its fields' ground is read: host/village.ts.)
+    region = fields ? regionOf(populationContext(world), cell) : null,
     plans = new Map<string, TownPlan | null>(),
     // (Its roads, reckoned once: each town's streets meet them, as its map draws them.)
     ends = landRoadEnds(world, cell);
@@ -129,6 +132,16 @@ export function landPlan(world: World, cell: number, budget = 8000): LandPlan {
       fields,
       plan,
       key: planKey(plan),
+      // (Its fields laid as its own view lays them: view/land.ts landFields.)
+      ...(fields && region
+        ? {
+            sow: {
+              way: fieldWayOf(world, cell, s.tile),
+              biome: region.biome[s.tile]!,
+              count: Math.max(4, Math.min(160, Math.ceil(s.population / 5))),
+            },
+          }
+        : {}),
       ...(() => {
         const ways = plan ? realmWays(world, s.ref, plan.site ?? null) : [];
         return ways.length ? { ways } : {};
@@ -140,9 +153,20 @@ export function landPlan(world: World, cell: number, budget = 8000): LandPlan {
     ? colonyLook(world, cell)
     : null;
   if (colony) return { t: world.now, era, towns, roads: [], lanes: [], camps: [], colony };
+  const past = landPast(world, cell);
   return {
     t: world.now,
     era,
+    ...(fields && !covered
+      ? {
+          sowing: {
+            year: fieldYearOf(world, cell),
+            walls: landHouse(world, cell).walls,
+            ...worldLook(world),
+            ...(past?.spires ? { spires: true as const } : {}),
+          },
+        }
+      : {}),
     towns,
     about: getAbout(world, cell, era),
     roads: landRoads(world, cell, towns, ends),
