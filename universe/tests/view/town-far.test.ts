@@ -8,12 +8,15 @@ import { EARTH } from "../../src/host/planet.ts";
 import { townSite } from "../../src/host/village.ts";
 import { townPlan } from "../../src/host/town.ts";
 import { populationContext, townsOf } from "../../src/sim/index.ts";
+import { MONTH } from "../../src/kernel/index.ts";
 import {
   BLOCK_D,
   BLOCK_LOTS,
   BLOCK_W,
   LOT,
+  beganAt,
   outlineAt,
+  progress,
   townLots,
   wetGround,
 } from "../../src/bridge/index.ts";
@@ -141,17 +144,26 @@ test("a city's lots past those drawn stand on its own blocks grown on, as its ru
       assert.ok(!wetGround(plan.site, far.x[k]!, far.z[k]!), `${s.name}: lot ${p} on the water`);
       if (far.level[k]! >= 0) homes++;
     }
-    // What stands on each is what its runs past the drawn say: a home where they built one, at their level.
+    // What stands on each is what its runs past the drawn say: a home where they built one, at their level, once done by
+    // the moment its plan came (one raised higher a level lower till then; one not yet built, none).
+    let undone = 0;
     for (const run of plan.beyond ?? []) {
       const [kind, lo, hi, , , lv] = run as number[];
       if (kind !== 0 && kind !== 1) continue;
       for (let p = lo!; p < Math.min(hi!, far.from + far.count); p++) {
         const k: number = p - far.from,
-          b = Math.floor(p / BLOCK_LOTS) - far.first;
+          b = Math.floor(p / BLOCK_LOTS) - far.first,
+          done = progress(beganAt(run, p), (plan.months[lv!] ?? 3) * MONTH, world.now) >= 1;
+        if (!done) undone++;
         if (far.laid[b] && p >= (plan.ash ?? 0))
-          assert.equal(far.level[k], lv, `${s.name}: lot ${p}`);
+          assert.equal(
+            far.level[k],
+            done ? lv : kind === 1 ? Math.max(0, lv! - 1) : -1,
+            `${s.name}: lot ${p}`,
+          );
       }
     }
+    assert.ok(undone < far.count, `${s.name}: ${undone} of its lots not yet done`);
     // No roof of its haze among them: each past its lots' farthest toward its bearing.
     const roofs = scene.sprawlRoofs ?? new Float32Array();
     for (let i = 0; i < roofs.length; i += 8) {

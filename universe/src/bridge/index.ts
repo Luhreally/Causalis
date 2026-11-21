@@ -199,6 +199,7 @@ export {
   struckYear,
   footprint,
   lotStates,
+  beganAt,
   progress,
   lotsKey,
   OUTLINE,

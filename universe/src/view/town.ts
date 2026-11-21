@@ -34,6 +34,7 @@ import {
   footprint,
   lotStates,
   progress,
+  beganAt,
   lotsKey,
   shopsBelow,
   townLots,
@@ -262,6 +263,8 @@ export type TownScene = {
   readonly settled: readonly number[];
   /** Each lot's ground as its worth sorts it and how high a tall home stands on it (view/townform.ts; null: no form read). */
   readonly tiers: Uint8Array | null;
+  /** The moment its plan came (seconds). */
+  readonly at: number;
   /** The looks its homes stand in by design, ground and height, made as they are asked for. */
   readonly formLooks: Map<number, HouseLook>;
   /** How far out its lots drawn reach toward each of OUTLINE bearings about its square (metres): its outline. */
@@ -321,6 +324,7 @@ export function townScene(plan: TownPlan, t: number, previous?: TownLots): TownS
       // (Its walls make ground scarce while they stand.)
       tiers: formTiers(plan, !!walls?.lengths.length),
       formLooks: new Map(),
+      at: t,
       outline: outlineOf(lots, plan.lots),
     };
   // (A raid's lots caught as its machines pass over them: W2.)
@@ -1231,8 +1235,12 @@ export function farOf(scene: TownScene): TownFar | null {
       continue;
     }
     if (kind !== 0 && kind !== 1) continue;
+    const takes = (plan.months[lv] ?? 3) * (YEAR_S / 12);
     for (let p = Math.max(from, lo); p < Math.min(hi, from + count); p++) {
-      level[p - from] = lv;
+      // (One not yet done when its plan came stands at the year's turn after: a home raised higher as it stood till then.)
+      const done = progress(beganAt(run, p), takes, scene.at) >= 1;
+      if (!done && kind === 0) continue;
+      level[p - from] = done ? lv : Math.max(0, lv - 1);
       design[p - from] = designOf.get(since) ?? 0;
     }
   }

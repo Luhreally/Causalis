@@ -582,7 +582,7 @@ export const SPREAD = {
  * (the fabric is reckoned at the year's turn), lot by lot through the run; a run of several
  * years spread through them.
  */
-function beganAt(run: readonly number[], p: number): number {
+export function beganAt(run: readonly number[], p: number): number {
   const [what, from, to, start, end] = run as [number, number, number, number, number],
     n = Math.max(1, to - from),
     i = what === 2 ? to - 1 - p : p - from,
