@@ -106,22 +106,21 @@ type Piece = { ci: number; cj: number; keep: NearKeep; got: NearFlora };
 
 /** A far clump's crowns about its middle (of its breadth): where each stands, and its height of the tallest's. */
 const SPOTS: readonly [number, number, number][] = [
-  [0.04, -0.03, 1],
-  ...[0.4, 1.9, 3.3, 4.8].map((a, k): [number, number, number] => [
-    Math.cos(a) * (0.27 + 0.06 * (k % 2)),
-    Math.sin(a) * (0.27 + 0.06 * (k % 2)),
-    0.78 + 0.07 * ((k * 5) % 4),
+  ...[0.4, 2.0, 3.4, 4.9].map((a, k): [number, number, number] => [
+    Math.cos(a) * (0.22 + 0.08 * (k % 2)),
+    Math.sin(a) * (0.22 + 0.08 * (k % 2)),
+    [1, 0.84, 0.92, 0.78][k]!,
   ]),
 ];
 /** A clump's crown, of its breadth: as broad as one tree's crown near (FORM_SIZE) at the least. */
-const SPOT_W = 0.24;
+const SPOT_W = 0.27;
 /** How much of a clump's square its crowns cover (seen from above). */
 const SPOTS_COVER = (SPOTS.length * Math.PI * SPOT_W * SPOT_W) / 4;
 /** How much of a wood the far clumps cover, seen from above, as much as its crowns do (the ground under them their shade). */
 const FAR_FILL = 0.3;
 
 /**
- * A far clump's mesh, a unit across and high about its middle: five crowns (needles: cones; broad: balls) or their trunks,
+ * A far clump's mesh, a unit across and high about its middle: four crowns (needles: cones; broad: balls) or their trunks,
  * standing on its foot, each as a near tree's would be drawn in its shape.
  */
 function clumpMesh(stage: Stage, part: "cone" | "ball" | "trunk"): pc.Mesh {
@@ -132,7 +131,7 @@ function clumpMesh(stage: Stage, part: "cone" | "ball" | "trunk"): pc.Mesh {
       foot = -0.5,
       top = -0.5 + hs;
     if (part === "cone") {
-      const n = 6,
+      const n = 5,
         r = SPOT_W / 2;
       positions.push(ox, top, oz);
       for (let k = 0; k < n; k++) {
@@ -141,7 +140,7 @@ function clumpMesh(stage: Stage, part: "cone" | "ball" | "trunk"): pc.Mesh {
       }
       for (let k = 0; k < n; k++) indices.push(base, base + 1 + ((k + 1) % n), base + 1 + k);
     } else if (part === "ball") {
-      const n = 6,
+      const n = 5,
         r = SPOT_W / 2,
         mid = (foot + top) / 2,
         half = (top - foot) / 2;
@@ -318,7 +317,7 @@ export class FloraLayer {
     this.ground++;
   }
 
-  /** The far clumps: five crowns for each, on the ground where it stands, spread over as much of its tile as its woods cover. */
+  /** The far clumps: four crowns for each, on the ground where it stands, spread over as much of its tile as its woods cover. */
   plant(trees: readonly RegionTree[]): void {
     this.far = trees;
     this.drawFar();
