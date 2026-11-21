@@ -501,6 +501,9 @@ export class LandLayer {
         scene = townScene(town.plan, moment, had?.scene.lots),
         // (Its own, not the one drawn till now: a laying broken off in the midst of a town leaves the town as it was.)
         settled = new TownParts();
+      // (Its lots past those drawn kept in its haze, as the land's eye makes them out: its roads and other towns' ground
+      // are laid about its drawn lots alone, view/land.ts landLaid.)
+      scene.far = null;
       yield;
       // (Of worn ground, what the land's eye can make out.)
       townGround(

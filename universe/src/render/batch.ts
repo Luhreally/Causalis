@@ -103,38 +103,7 @@ export class InstancedBatch {
     for (let i = 0; i < n; i++) {
       t[7] = 0;
       place(i, t);
-      const [x, y, z, sx, sy, sz, yaw, pitch] = t as [
-        number,
-        number,
-        number,
-        number,
-        number,
-        number,
-        number,
-        number,
-      ];
-      const c = Math.cos(yaw),
-        s = Math.sin(yaw),
-        cp = Math.cos(pitch),
-        sp = Math.sin(pitch),
-        o = i * 16;
-      // Turned by yaw after tipped by pitch: the columns of Ry·Rx, each scaled.
-      m[o] = c * sx;
-      m[o + 1] = 0;
-      m[o + 2] = -s * sx;
-      m[o + 3] = toned ? toneOf(t[8]!) : 0;
-      m[o + 4] = s * sp * sy;
-      m[o + 5] = cp * sy;
-      m[o + 6] = c * sp * sy;
-      m[o + 7] = toned ? toneOf(t[9]!) : 0;
-      m[o + 8] = s * cp * sz;
-      m[o + 9] = -sp * sz;
-      m[o + 10] = c * cp * sz;
-      m[o + 11] = toned ? toneOf(t[10]!) : 0;
-      m[o + 12] = x;
-      m[o + 13] = y;
-      m[o + 14] = z;
-      m[o + 15] = 1;
+      placeInstance(m, i * 16, t, toned);
     }
     this.count = n;
     this.upload(n);
@@ -262,6 +231,48 @@ export class InstancedBatch {
     this.entity.destroy();
     this.buffer.destroy();
   }
+}
+
+/**
+ * One instance's matrix written into `m` at `o` from [x, y, z, sx, sy, sz, yaw, pitch, r, g, b], as InstancedBatch.set()
+ * lays it out (its colour only for a batch toned instance by instance): for a layer that works its instances out over
+ * frames and puts them all at once (render/town.ts PartBatches.showOver).
+ */
+export function placeInstance(
+  m: Float32Array,
+  o: number,
+  t: readonly number[],
+  toned: boolean,
+): void {
+  const x = t[0]!,
+    y = t[1]!,
+    z = t[2]!,
+    sx = t[3]!,
+    sy = t[4]!,
+    sz = t[5]!,
+    yaw = t[6]!,
+    pitch = t[7]!;
+  const c = Math.cos(yaw),
+    s = Math.sin(yaw),
+    cp = Math.cos(pitch),
+    sp = Math.sin(pitch);
+  // Turned by yaw after tipped by pitch: the columns of Ry·Rx, each scaled.
+  m[o] = c * sx;
+  m[o + 1] = 0;
+  m[o + 2] = -s * sx;
+  m[o + 3] = toned ? toneOf(t[8]!) : 0;
+  m[o + 4] = s * sp * sy;
+  m[o + 5] = cp * sy;
+  m[o + 6] = c * sp * sy;
+  m[o + 7] = toned ? toneOf(t[9]!) : 0;
+  m[o + 8] = s * cp * sz;
+  m[o + 9] = -sp * sz;
+  m[o + 10] = c * cp * sz;
+  m[o + 11] = toned ? toneOf(t[10]!) : 0;
+  m[o + 12] = x;
+  m[o + 13] = y;
+  m[o + 14] = z;
+  m[o + 15] = 1;
 }
 
 /**

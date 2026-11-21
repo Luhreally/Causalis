@@ -30,6 +30,12 @@ import {
   townGround,
   townHomes,
   townScene,
+  homesSeen,
+  townDetail,
+  townDetailSteps,
+  farOf,
+  DETAIL_HYSTERESIS,
+  type TownDetail,
   townBuildingAt,
   townThingAt,
   townWalls,
@@ -43,11 +49,27 @@ import {
   type TownThing,
   type Burnable,
 } from "../view/index.ts";
-import { InstancedBatch, boxMesh, coneMesh, cylinderMesh, gableMesh, keptMesh } from "./batch.ts";
+import {
+  InstancedBatch,
+  boxMesh,
+  coneMesh,
+  cylinderMesh,
+  gableMesh,
+  keptMesh,
+  placeInstance,
+} from "./batch.ts";
 import { domeMesh } from "./colony.ts";
-import type { Rgb, Stage } from "./stage.ts";
+import { tonedMaterial, type Rgb, type Stage } from "./stage.ts";
 
 const M = 0.1;
+/**
+ * How long a frame draws a new choosing of a town's homes whole (ms: TownLayer.look). At 4 ms, panning over a great city
+ * missed its frame one time in twenty more than standing still (p95 20 ms against 18: 2026-11-21); its steps are each a
+ * millisecond or less.
+ */
+const CHOOSE_BUDGET = 2;
+/** How many parts' matrices a choosing works out between looks at the clock (PartBatches.showOver). */
+const SHOW_STEP = 512;
 /** How often what rises is put again (moments of the sim apart, at the least): a few times a day. */
 const RISE_EVERY = 6 * 3600,
   /** ... and while what struck it plays out — homes catching, burning, falling in (Phase 42 M201). */
@@ -64,64 +86,100 @@ class PartBatches {
   /** The windows' glass, lit at night (its batch made anew when it changes). */
   lamps: pc.Material | null = null;
   private lampsIn: pc.Material | null = null;
+  /**
+   * The walls' material and the roofs' (snow lies on these alone), shared by every batch of them made: one made for each
+   * batch first come as the eye moved (a tank once a tenement was drawn whole) was a program built in that frame, half a
+   * second of WebKit's (2026-11-21).
+   */
+  private toned: { wall: pc.StandardMaterial; roof: pc.StandardMaterial } | null = null;
   private snow = 0;
   constructor(stage: Stage, root: pc.Entity, meshes: Readonly<Record<PartMesh, pc.Mesh>>) {
     this.stage = stage;
     this.root = root;
     this.meshes = meshes;
   }
-  show(parts: TownParts): void {
+  /** Where showOver works its instances out before they are put, kept from one showing to the next. */
+  private readonly staged = new Map<string, Float32Array>();
+  show(...all: TownParts[]): void {
+    const run = this.showOver(Infinity, ...all);
+    while (!run.next().done);
+  }
+  /**
+   * As show(), its instances' matrices worked out a `step` at a time (yielding between), and all put in the one step
+   * at its end: what stands is replaced in one frame, whole, and that frame only copies and sends. (Worked out in the
+   * frame it was shown, a great city's 30,000 parts and more cost that frame 6 ms here and four times that on a phone,
+   * at every choosing of what stands whole near the eye: 2026-11-21.)
+   */
+  *showOver(step: number, ...all: TownParts[]): Generator<void, void> {
     // (One batch to a mesh, its roofs apart for the snow that lies on them: every colour of wall, roof and ground rides in
     // its instance. The windows keep theirs, lit at night.)
     const sets = new Map<string, { mesh: PartMesh; lamp: boolean; n: number; groups: Group[] }>();
-    for (const [key, g] of parts.groups) {
-      const n = g.data.length / 7;
-      if (n === 0) continue;
-      const k = partBatch(key, g);
-      let set = sets.get(k);
-      if (!set) sets.set(k, (set = { mesh: g.mesh, lamp: !!g.lamp, n: 0, groups: [] }));
-      set.n += n;
-      set.groups.push(g);
+    for (const parts of all)
+      for (const [key, g] of parts.groups) {
+        const n = g.data.length / 7;
+        if (n === 0) continue;
+        const k = partBatch(key, g);
+        let set = sets.get(k);
+        if (!set) sets.set(k, (set = { mesh: g.mesh, lamp: !!g.lamp, n: 0, groups: [] }));
+        set.n += n;
+        set.groups.push(g);
+      }
+    const t = [0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1];
+    let since = 0;
+    for (const [key, set] of sets) {
+      let m = this.staged.get(key);
+      if (!m || m.length < set.n * 16) {
+        m = new Float32Array(Math.ceil(set.n * 1.3) * 16);
+        this.staged.set(key, m);
+      }
+      const toned = !set.lamp;
+      let i = 0;
+      // (Group by group, in the order they were gathered.)
+      for (const g of set.groups) {
+        const d = g.data;
+        t[8] = g.color[0];
+        t[9] = g.color[1];
+        t[10] = g.color[2];
+        for (let o = 0; o < d.length; o += 7, i++) {
+          t[0] = d[o]! * M;
+          t[1] = d[o + 1]! * M;
+          t[2] = d[o + 2]! * M;
+          t[3] = d[o + 3]! * M;
+          t[4] = d[o + 4]! * M;
+          t[5] = d[o + 5]! * M;
+          t[6] = d[o + 6]!;
+          placeInstance(m, i * 16, t, toned);
+          if (++since >= step) {
+            since = 0;
+            yield;
+          }
+        }
+      }
     }
     for (const [key, set] of sets) {
       let b = this.batches.get(key);
       if (!b || b.capacity < set.n || (set.lamp && this.lampsIn !== this.lamps)) {
         b?.destroy();
+        this.toned ??= { wall: tonedMaterial(), roof: tonedMaterial() };
         b = new InstancedBatch(
           this.stage,
           this.meshes[set.mesh],
           [set.groups[0]!.color[0], set.groups[0]!.color[1], set.groups[0]!.color[2]],
           Math.max(16, Math.ceil(set.n * 1.3)),
           this.root,
-          set.lamp ? (this.lamps ?? undefined) : undefined,
+          set.lamp
+            ? (this.lamps ?? undefined)
+            : key.endsWith("|roof")
+              ? this.toned.roof
+              : this.toned.wall,
           !set.lamp,
         );
         if (set.lamp) this.lampsIn = this.lamps;
         this.batches.set(key, b);
         if (this.snow > 0 && key.endsWith("|roof")) b.toneSnow(this.snow * 0.8);
       }
-      // (Group by group, in the order they were gathered.)
-      let at = 0,
-        from = 0,
-        g = set.groups[0]!;
-      b.set(set.n, (i, out) => {
-        while (i - from >= g.data.length / 7) {
-          from += g.data.length / 7;
-          g = set.groups[++at]!;
-        }
-        const d = g.data,
-          o = (i - from) * 7;
-        out[0] = d[o]! * M;
-        out[1] = d[o + 1]! * M;
-        out[2] = d[o + 2]! * M;
-        out[3] = d[o + 3]! * M;
-        out[4] = d[o + 4]! * M;
-        out[5] = d[o + 5]! * M;
-        out[6] = d[o + 6]!;
-        out[8] = g.color[0];
-        out[9] = g.color[1];
-        out[10] = g.color[2];
-      });
+      const m = this.staged.get(key)!;
+      b.setMatrices(set.n, (out) => out.set(m.subarray(0, set.n * 16)));
     }
     for (const [key, b] of this.batches) if (!sets.has(key)) b.set(0, () => {});
   }
@@ -129,6 +187,12 @@ class PartBatches {
   get drawn(): number {
     let n = 0;
     for (const b of this.batches.values()) if (b.size) n++;
+    return n;
+  }
+  /** How many parts they hold (for a measure). */
+  get parts(): number {
+    let n = 0;
+    for (const b of this.batches.values()) n += b.size;
     return n;
   }
   /** Snow lying on the roofs (0 … 1). */
@@ -149,6 +213,21 @@ export class TownLayer {
   private readonly settled: PartBatches;
   private readonly rising: PartBatches;
   private readonly parts = new TownParts();
+  /** Its ground as drawn this year, and its homes standing done as drawn from where the eye last chose (townDetail). */
+  private readonly ground = new TownParts();
+  /**
+   * Its own lots' homes, drawn once a year (whole wherever the eye is), and those past them as last chosen, and the parts
+   * the next choosing fills (the two kept and filled again in turn: a great city's choosing made all its homes' parts
+   * anew, some 35,000, and the page swept up after it half a second at a time in WebKit; 2026-11-21).
+   */
+  private readonly ownParts = new TownParts();
+  private farParts = new TownParts();
+  private spare = new TownParts();
+  /** Where the eye looks (metres from its square), and the choosing its homes are drawn by; one being drawn over frames. */
+  private eye = { x: 0, z: 0 };
+  private detail: TownDetail | null = null;
+  private choosing: Generator<void, void> | null = null;
+  private seenAt = 0;
   private scene: TownScene | null = null;
   private key = "";
   private drawnAt = -Infinity;
@@ -198,14 +277,29 @@ export class TownLayer {
       return;
     }
     this.visible = true;
-    const same = this.key === ref && this.scene !== null;
+    const t0 = performance.now(),
+      same = this.key === ref && this.scene !== null;
     this.key = ref;
     this.scene = townScene(plan, t, same ? this.scene!.lots : undefined);
-    // What stands all year: the ground, the homes done, the ruins.
-    this.parts.clear();
-    townGround(this.scene, this.parts);
-    townHomes(this.scene, this.scene.settled, t, this.parts);
-    this.settled.show(this.parts);
+    // What stands all year: the ground, the homes done, the ruins; those nearest the eye whole, the rest as seen from
+    // afar, the city's lots past those drawn on their own blocks (view/town.ts townDetail).
+    this.ground.clear();
+    townGround(this.scene, this.ground);
+    if (!same) this.eye = { x: 0, z: 0 };
+    this.detail = townDetail(this.scene, this.eye);
+    this.ownParts.clear();
+    this.farParts.clear();
+    for (const [out, which] of [
+      [this.ownParts, "own"],
+      [this.farParts, "far"],
+    ] as const) {
+      const run = homesSeen(this.scene, this.detail, t, out, which);
+      while (!run.next().done);
+    }
+    this.choosing = null;
+    this.seenAt = t;
+    this.settled.show(this.ground, this.ownParts, this.farParts);
+    performance.measure("town.built", { start: t0 });
     this.busy = this.scene.active.length > 0 || civicsActive(plan, t) || !!plan.walls;
     this.drawnAt = -Infinity;
     this.update(t);
@@ -221,6 +315,101 @@ export class TownLayer {
       return;
     this.open = open;
     this.drawnAt = -Infinity;
+  }
+
+  /**
+   * Where the eye looks (metres from its square), each frame: once it has moved half DETAIL_HYSTERESIS from where its homes were
+   * last chosen by, they are chosen again and drawn over the frames that follow, a few milliseconds a frame, the old
+   * standing till the new is drawn.
+   */
+  look(x: number, z: number): void {
+    const scene = this.scene;
+    if (!scene) return;
+    this.eye = { x, z };
+    const was = this.detail?.focus;
+    if (!this.choosing && was && Math.hypot(x - was.x, z - was.z) > DETAIL_HYSTERESIS / 2)
+      this.choosing = this.choose(scene, { x, z });
+    if (!this.choosing) return;
+    const t0 = performance.now();
+    while (performance.now() - t0 < CHOOSE_BUDGET)
+      if (this.choosing.next().done) {
+        this.choosing = null;
+        break;
+      }
+  }
+
+  private *choose(scene: TownScene, eye: { x: number; z: number }): Generator<void, void> {
+    const t0 = performance.now(),
+      detail = yield* townDetailSteps(scene, eye, undefined, this.detail);
+    if (this.scene !== scene) return;
+    const homes = this.spare;
+    homes.clear();
+    yield* homesSeen(scene, detail, this.seenAt, homes, "far");
+    // (Its year turned meanwhile: the new year's homes are drawn by that year's choosing.)
+    if (this.scene !== scene) return;
+    // (Worked out over the frames that follow, put in the last of them; the old standing till then.)
+    const show = this.settled.showOver(SHOW_STEP, this.ground, this.ownParts, homes);
+    let t1 = performance.now();
+    for (;;) {
+      t1 = performance.now();
+      if (show.next().done) break;
+      yield;
+      if (this.scene !== scene) return;
+    }
+    this.detail = detail;
+    this.spare = this.farParts;
+    this.farParts = homes;
+    // (From its choosing begun to its drawing shown, over frames; and the last step, which puts it.)
+    performance.measure("town.chosen", { start: t0 });
+    performance.measure("town.shown", { start: t1 });
+  }
+
+  /**
+   * For a check: where each of its lots stands (metres; its own, then those past them), and which way each is drawn as last
+   * chosen (townDetail's: 1 whole, 2 as seen from afar, 3 in its row, 4 not drawn, thinned out; 0 drawn as ever).
+   */
+  lotsDrawn(): { x: Float32Array; z: Float32Array; drawn: Uint8Array; own: number } | null {
+    const scene = this.scene;
+    if (!scene || !this.detail) return null;
+    const far = farOf(scene),
+      n = scene.plan.lots + (far?.count ?? 0),
+      x = new Float32Array(n),
+      z = new Float32Array(n);
+    x.set(scene.lots.x.subarray(0, scene.plan.lots));
+    z.set(scene.lots.z.subarray(0, scene.plan.lots));
+    if (far) {
+      x.set(far.x, far.from);
+      z.set(far.z, far.from);
+    }
+    return { x, z, drawn: this.detail.drawn, own: scene.plan.lots };
+  }
+
+  /** For a check: its homes chosen from a spot (metres) and drawn at once, as the eye there would have them. */
+  chooseNow(x: number, z: number): void {
+    const scene = this.scene;
+    if (!scene) return;
+    this.choosing = null;
+    const run = this.choose(scene, { x, z });
+    while (!run.next().done);
+  }
+
+  /** What it draws (for a check): its parts and batches, all year and rising, and how many of its homes stand whole, and where they were chosen from (metres). */
+  counts(): {
+    parts: number;
+    batches: number;
+    whole: number;
+    focus: { x: number; z: number } | null;
+    choosing: boolean;
+  } {
+    let whole = 0;
+    for (const v of this.detail?.drawn ?? []) if (v === 1) whole++;
+    return {
+      parts: this.settled.parts + this.rising.parts,
+      batches: this.settled.drawn + this.rising.drawn,
+      whole,
+      focus: this.detail?.focus ?? null,
+      choosing: !!this.choosing,
+    };
   }
 
   /** What rises through the year, put again as it climbs. */

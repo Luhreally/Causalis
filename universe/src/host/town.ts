@@ -255,6 +255,19 @@ export function townPlan(
         Math.min(c[2], lots),
         ...c.slice(3),
       ]),
+    // (And those of its lots past the drawn, whose homes the view stands on its own blocks grown on: view/town.ts farOf.)
+    ...(f.next > lots
+      ? {
+          beyond: f.changes
+            .filter((c) => c[2] > lots)
+            .map((c) => [
+              c[0] === CHANGE.burned ? CHANGE.razed : c[0],
+              Math.max(c[1], lots),
+              c[2],
+              ...c.slice(3),
+            ]),
+        }
+      : {}),
     civics: [
       ...f.civics
         .filter((c) => c.at + c.lots <= lots)

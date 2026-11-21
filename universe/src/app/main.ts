@@ -776,6 +776,11 @@ type Exposed = {
   /** A town of the land on screen as drawn from its fabric: its square and reach (region units); and the parts drawn in all (M150). */
   landTown?: (ref: string) => { x: number; z: number; r: number } | null;
   landParts?: () => number;
+  /** What the town's view draws: its parts, batches, homes whole and where they were chosen from (render/town.ts). */
+  townParts?: () => unknown;
+  /** The town's lots, where each stands and how each is drawn; its homes chosen from a spot at once (scene units): checks. */
+  townLotsDrawn?: () => unknown;
+  townChoose?: (x: number, z: number) => void;
   landFire?: () => { flames: number; smoke: number; scar: number; burns: number; bare: number };
   /** Where the flames stand now, on the land (N1). */
   landFront?: () => { x: number; z: number } | null;
@@ -1540,6 +1545,9 @@ type Exposed = {
   ) => { inked: number; edges: number; ms: number };
   pictureTimes?: () => { drawn: number; ms: number };
 };
+/** How far from what the eye looks at toward the ground under it its homes are drawn whole about (a share: TownLayer.look). */
+const EYE_TOWARD = 0.45;
+
 const exposed: Exposed = {
   picture: (p, size) => {
     const c = document.createElement("canvas");
@@ -9612,6 +9620,15 @@ async function runPlanetPage(): Promise<void> {
     // of the town while a battle is fought before it, but for those come out to watch (Phase 55 M227).
     const sky = landSky?.cell === weatherCell() ? landSky : null,
       kept = placed ? battleShelter(placed.turn) : null;
+    // (The homes nearest where the eye looks drawn whole, between what it looks at and the ground under it: what stands
+    // nearest the camera is seen closest: render/town.ts TownLayer.look.)
+    {
+      const cam = stage.camera.getPosition();
+      village.look(
+        rig.target.x + (cam.x - rig.target.x) * EYE_TOWARD,
+        rig.target.z + (cam.z - rig.target.z) * EYE_TOWARD,
+      );
+    }
     village.update(
       seen,
       // (All indoors while raiders are in the streets, Phase 67, or machines are over the town, W2.)
@@ -10469,6 +10486,9 @@ async function runPlanetPage(): Promise<void> {
   exposed.villages = () => villages.length;
   exposed.landTown = (ref: string) => region.land.townAt(ref);
   exposed.landParts = () => region.land.count;
+  exposed.townParts = () => (scale === "village" ? village.townCounts() : null);
+  exposed.townLotsDrawn = () => (scale === "village" ? village.townLotsDrawn() : null);
+  exposed.townChoose = (x: number, z: number) => village.townChooseNow(x, z);
   exposed.landFire = () => region.fire.shown;
   exposed.landTrees = () => region.treesPlanted;
   // What grows on the land as drawn, and how many of the near things stand on ground its towns, roads, fields, camps or water

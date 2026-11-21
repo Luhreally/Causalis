@@ -174,6 +174,11 @@ export type TownPlan = {
    * design was realized (-1 before any). No two share a lot.
    */
   readonly runs: readonly (readonly number[])[];
+  /**
+   * The runs of its lots past those drawn (as `runs`, each begun no lower than `lots`; absent: none past them): what stands
+   * on its sprawl, lot by lot, drawn on its own blocks grown on (view/town.ts farOf).
+   */
+  readonly beyond?: readonly (readonly number[])[];
   readonly civics: readonly TownCivic[];
   readonly walls: {
     readonly start: number;
@@ -577,7 +582,7 @@ export const SPREAD = {
  * (the fabric is reckoned at the year's turn), lot by lot through the run; a run of several
  * years spread through them.
  */
-function beganAt(run: readonly number[], p: number): number {
+export function beganAt(run: readonly number[], p: number): number {
   const [what, from, to, start, end] = run as [number, number, number, number, number],
     n = Math.max(1, to - from),
     i = what === 2 ? to - 1 - p : p - from,
