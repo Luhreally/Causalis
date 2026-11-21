@@ -194,7 +194,7 @@ test("the ground in its world's colours: woods darker than the steppe's grass, s
   );
 });
 
-test("far woods: crowns by the reading, none on the water; near things on a fixed lattice, none where the ground is held", () => {
+test("far woods: crowns by the reading, none on the water; near things on a fixed lattice, groves past them, none where the ground is held", () => {
   const size = 32,
     f = frame(size, 12, 1100, 9),
     land = floraLandOf(f)!,
@@ -226,6 +226,11 @@ test("far woods: crowns by the reading, none on the water; near things on a fixe
     all.every((t) => Math.abs(t.x - riverX) > 1.2 - 0.01),
     "none on the river's tiles",
   );
+  // Past the trees, groves (crowns, no trunks) out to a little more than twice their reach, within the budget.
+  const past = [...a.balls, ...a.cones].filter((t) => Math.hypot(t.x - 5, t.z - 2) > 4);
+  assert.ok(past.length > 100 && past.length <= budget.groves, `${past.length} groves`);
+  assert.ok(past.every((t) => Math.hypot(t.x - 5, t.z - 2) <= 4 * 2.2 + 1e-9));
+  assert.ok(a.trunks.every((t) => Math.hypot(t.x - 5, t.z - 2) <= 4));
   const key = (t: { x: number; z: number }) => `${t.x.toFixed(5)},${t.z.toFixed(5)}`,
     seenA = new Set(a.balls.map(key)),
     both = b.balls.filter((t) => Math.hypot(t.x - 5.3, t.z - 1.85) < 1.5);

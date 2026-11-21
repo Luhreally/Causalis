@@ -403,6 +403,10 @@ export function cellUnit(i: number, j: number, k: number): number {
   return (h >>> 0) / 4294967296;
 }
 
+/** A grove's cell past the near trees (region units), and how far out the groves reach (times the trees' reach). */
+const GROVE_CELL = 0.24,
+  GROVE_OUT = 2.2;
+
 /** Groves and clearings: a smooth number over the land (0 … 1), so a wood stands in stands, not evenly. */
 function groveAt(x: number, z: number): number {
   const S = 0.55,
@@ -428,7 +432,14 @@ const TREE_CELL = 0.085,
   PATCH_CELL = 0.3;
 
 /** How many near things a setting draws, of each kind: trees, tufts, stones, patches. */
-export type NearBudget = { trees: number; tufts: number; stones: number; patches: number };
+export type NearBudget = {
+  trees: number;
+  tufts: number;
+  stones: number;
+  patches: number;
+  /** Groves past the trees (a ring out to GROVE_OUT times their reach): crowns standing for a few trees each. */
+  groves: number;
+};
 
 /** A budget's trees for a setting's far crowns (the quality's `regionTrees`): about as many near as far. */
 export function nearBudget(regionTrees: number): NearBudget {
@@ -438,6 +449,7 @@ export function nearBudget(regionTrees: number): NearBudget {
     tufts: Math.round(trees * 0.6),
     stones: Math.round(trees * 0.12),
     patches: Math.round(trees * 0.2),
+    groves: Math.round(trees * 0.45),
   };
 }
 
@@ -602,6 +614,47 @@ export function* nearFloraSteps(
       put(size.crown === "cone" ? out.cones : out.balls, x, foot, z, size.w * k, ch, yaw, col);
     }
     out.trees++;
+  }
+  // Groves past the trees, out to where the far crowns alone are enough: a crown a cell, standing for a few trees, so
+  // a wood does not end where the trees drawn one by one do (the far crowns are one to a tile or so).
+  const g0 = reach * 0.97,
+    g1 = reach * GROVE_OUT;
+  let groves = 0;
+  for (const [i, j] of rings(cx, cz, GROVE_CELL, g1, g0)) {
+    if (++cells % STEP_CELLS === 0) yield;
+    if (groves >= budget.groves) break;
+    const x = (i + 0.1 + 0.8 * cellUnit(i, j, 61)) * GROVE_CELL,
+      z = (j + 0.1 + 0.8 * cellUnit(i, j, 62)) * GROVE_CELL,
+      d2 = (x - cx) ** 2 + (z - cz) ** 2;
+    if (d2 > g1 * g1 || d2 < g0 * g0) continue;
+    const t = tileAt(land, x, z);
+    if (!grows(t) || bare(t)) continue;
+    const c = r.canopy[t]! / 255;
+    if (cellUnit(i, j, 63) >= c * (0.3 + 1.2 * groveAt(x, z))) continue;
+    const form = formAt(r, t, cellUnit(i, j, 64), warmOf(r, t)),
+      size = FORM_SIZE[form];
+    if (size.crown === "none") continue;
+    const k = (1.5 + 0.9 * cellUnit(i, j, 65)) * (form === "scrub" ? 0.8 : 1),
+      w = size.w * k,
+      h = size.h * k * 0.75;
+    if (!free(x, z, w * 0.5)) continue;
+    const g = facetAt(land, x, z, r.cover[t] === FLORA.reef),
+      tone = 0.8 + 0.25 * cellUnit(i, j, 66),
+      brown = parched && form !== "conifer" && form !== "dead" && cellUnit(i, j, 67) < 0.55,
+      base = brown ? mixRgb(formColor(p, form), p[ROW.straw]!, 0.75) : formColor(p, form),
+      // (A grove's crown stands on the ground: its trunks are under it, too small to be seen from here.)
+      foot = g.y + (size.crown === "cone" ? size.trunk * k * 0.3 : size.trunk * k * 0.5);
+    put(
+      size.crown === "cone" ? out.cones : out.balls,
+      x,
+      foot,
+      z,
+      w,
+      h + (size.crown === "cone" ? 0 : size.trunk * k * 0.3),
+      cellUnit(i, j, 68) * Math.PI * 2,
+      scale(base, tone),
+    );
+    groves++;
   }
   // Tufts of grass and low plants where the ground is open, near only.
   const tuftReach = Math.min(reach, 2.6),
