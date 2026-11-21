@@ -120,11 +120,18 @@ export class BlazeLayer {
               .slice(0, most),
       fires = near(b.fires, MOST_FIRES),
       smoke = near(b.smoke, MOST_SMOKE),
-      dust = near(b.dust, MOST_DUST);
+      dust = near(b.dust, MOST_DUST),
+      // (Where more are alight than are drawn, the farthest drawn shrink toward the last, an eighth of them: none comes or
+      // goes within a frame as the eye's point moves. The owner's rule, 2026-11-21.)
+      rank = (i: number, list: readonly Alight[], all: readonly Alight[]) =>
+        all.length > list.length
+          ? Math.min(1, (list.length - i) / Math.max(1, list.length / 8))
+          : 1;
     this.shown = { fires: fires.length, smoke: smoke.length, dust: dust.length };
     // Tongues of flame: one leaping out of the roof, the rest licking up its walls about it.
     this.flames.set(fires.length * FLAMES, (n, out) => {
       const f = fires[Math.floor(n / FLAMES)]!,
+        r = rank(Math.floor(n / FLAMES), fires, b.fires),
         k = n % FLAMES,
         flick = 0.72 + 0.28 * Math.sin(clock * (6.5 + k * 1.7) + n * 2.3),
         a = f.yaw + k * 2.1 + n * 0.37,
@@ -134,19 +141,20 @@ export class BlazeLayer {
       out[0] = (f.x + Math.cos(a) * round) * M;
       out[1] = (y + tall / 2) * M;
       out[2] = (f.z + Math.sin(a) * round) * M;
-      out[3] = out[5] = (k ? 1.8 : 2.8) * (0.5 + 0.5 * f.k) * Math.min(2, f.size) * M * 2;
-      out[4] = tall * M;
+      out[3] = out[5] = (k ? 1.8 : 2.8) * (0.5 + 0.5 * f.k) * Math.min(2, f.size) * M * 2 * r;
+      out[4] = tall * M * r;
       out[6] = clock * 2 + n;
     });
     this.cores.set(fires.length, (n, out) => {
       const f = fires[n]!,
+        r = rank(n, fires, b.fires),
         flick = 0.8 + 0.2 * Math.sin(clock * 9 + n * 1.3),
         tall = (3 + f.high * 0.35) * f.k * flick;
       out[0] = f.x * M;
       out[1] = (f.high * 0.82 + tall / 2) * M;
       out[2] = f.z * M;
-      out[3] = out[5] = 1.6 * Math.min(2, f.size) * f.k * M * 2;
-      out[4] = tall * M;
+      out[3] = out[5] = 1.6 * Math.min(2, f.size) * f.k * M * 2 * r;
+      out[4] = tall * M * r;
       out[6] = n;
     });
     // Sparks flying up off them.
@@ -157,7 +165,10 @@ export class BlazeLayer {
       out[0] = (f.x + Math.sin(n * 1.7 + rise * 4) * 2.5) * M;
       out[1] = (f.high + 2 + rise * (8 + f.high * 0.3)) * M;
       out[2] = (f.z + Math.cos(n * 2.3 + rise * 3) * 2.5) * M;
-      out[3] = out[4] = out[5] = 0.35 * (1 - rise) * f.k * M * 2;
+      out[3] =
+        out[4] =
+        out[5] =
+          0.35 * (1 - rise) * f.k * M * 2 * rank(Math.floor(n / SPARKS), fires, b.fires);
       out[6] = n + rise * 6;
     });
     // The smoke rolling up and drifting off downwind, as thick as the fire under it is fierce.
@@ -169,7 +180,7 @@ export class BlazeLayer {
         x = f.x + rise * 9,
         y = f.high + 1 + rise * (10 + 26 * f.k),
         z = f.z + rise * 3.5,
-        k = clear(x, y, z, 6 * grow);
+        k = clear(x, y, z, 6 * grow) * rank(Math.floor(n / PUFFS), smoke, b.smoke);
       out[0] = x * M;
       out[1] = y * M;
       out[2] = z * M;
@@ -190,7 +201,7 @@ export class BlazeLayer {
         x = f.x + Math.cos(a) * spread,
         y = 1.2 + gone * 5 + j * 1.3,
         z = f.z + Math.sin(a) * spread,
-        k = clear(x, y, z, wide);
+        k = clear(x, y, z, wide) * rank(Math.floor(n / CLOUDS), dust, b.dust);
       out[0] = x * M;
       out[1] = y * M;
       out[2] = z * M;

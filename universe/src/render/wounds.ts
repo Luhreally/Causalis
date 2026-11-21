@@ -112,14 +112,23 @@ export class WoundsLayer {
     };
   }
 
-  /** Draw what is worn now: of each kind, the nearest the eye first, at most so many. */
+  /**
+   * Draw what is worn now: of each kind, the nearest the eye first, at most so many; where there are more, the farthest
+   * drawn shrink toward the last (an eighth of them), so none comes or goes within a frame as the eye moves (the owner's
+   * rule, 2026-11-21).
+   */
   update(pieces: readonly WornPiece[]): void {
     for (const kind of KINDS) {
       const mine = pieces.filter((p) => p.kind === kind).sort((a, b) => a.d2 - b.d2),
-        n = Math.min(mine.length, WOUND_MOST[kind]);
+        n = Math.min(mine.length, WOUND_MOST[kind]),
+        band = mine.length > n ? Math.max(1, n / 8) : 0;
       this.batches[kind].set(n, (i, out) => {
-        const m = mine[i]!.m;
-        for (let k = 0; k < 8; k++) out[k] = m[k]!;
+        const m = mine[i]!.m,
+          k = band ? Math.min(1, (n - i) / band) : 1;
+        for (let j = 0; j < 8; j++) out[j] = m[j]!;
+        out[3] = m[3]! * k;
+        out[4] = m[4]! * k;
+        out[5] = m[5]! * k;
       });
       this.shown[kind] = n;
     }
