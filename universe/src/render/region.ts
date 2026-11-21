@@ -374,6 +374,8 @@ export class RegionScene {
         g.size,
         blend ? 1 : 0,
       ]);
+      // (The land as it is read off its textures alone: its facets' colours wait for a map's lens.)
+      if (blend) return;
     }
     const tiles = new Uint32Array(colors.buffer, colors.byteOffset, colors.length >> 2),
       out = new Uint32Array(this.colors.buffer),

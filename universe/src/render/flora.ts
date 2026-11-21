@@ -107,21 +107,21 @@ type Piece = { ci: number; cj: number; keep: NearKeep; got: NearFlora };
 /** A far clump's crowns about its middle (of its breadth): where each stands, and its height of the tallest's. */
 const SPOTS: readonly [number, number, number][] = [
   [0.04, -0.03, 1],
-  ...[0.4, 1.3, 2.2, 3.1, 4.0, 4.9, 5.8].map((a, k): [number, number, number] => [
-    Math.cos(a) * (0.24 + 0.13 * (k % 3) * 0.5),
-    Math.sin(a) * (0.24 + 0.13 * (k % 3) * 0.5),
+  ...[0.4, 1.9, 3.3, 4.8].map((a, k): [number, number, number] => [
+    Math.cos(a) * (0.27 + 0.06 * (k % 2)),
+    Math.sin(a) * (0.27 + 0.06 * (k % 2)),
     0.78 + 0.07 * ((k * 5) % 4),
   ]),
 ];
 /** A clump's crown, of its breadth: as broad as one tree's crown near (FORM_SIZE) at the least. */
-const SPOT_W = 0.2;
+const SPOT_W = 0.24;
 /** How much of a clump's square its crowns cover (seen from above). */
 const SPOTS_COVER = (SPOTS.length * Math.PI * SPOT_W * SPOT_W) / 4;
 /** How much of a wood the far clumps cover, seen from above, as much as its crowns do (the ground under them their shade). */
 const FAR_FILL = 0.3;
 
 /**
- * A far clump's mesh, a unit across and high about its middle: eight crowns (needles: cones; broad: balls) or their trunks,
+ * A far clump's mesh, a unit across and high about its middle: five crowns (needles: cones; broad: balls) or their trunks,
  * standing on its foot, each as a near tree's would be drawn in its shape.
  */
 function clumpMesh(stage: Stage, part: "cone" | "ball" | "trunk"): pc.Mesh {
@@ -318,7 +318,7 @@ export class FloraLayer {
     this.ground++;
   }
 
-  /** The far clumps: eight crowns for each, on the ground where it stands, spread over as much of its tile as its woods cover. */
+  /** The far clumps: five crowns for each, on the ground where it stands, spread over as much of its tile as its woods cover. */
   plant(trees: readonly RegionTree[]): void {
     this.far = trees;
     this.drawFar();
