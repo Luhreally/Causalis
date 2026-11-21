@@ -1376,3 +1376,20 @@ export {
   type SiegeState,
   type SiegeWorks,
 } from "./siegeworks.ts";
+export {
+  FORM_SIZE,
+  TRUNK,
+  floraClumps,
+  floraColors,
+  floraLandOf,
+  landFloraOf,
+  formAt,
+  formColor,
+  nearBudget,
+  nearFlora,
+  nearReach,
+  type FloraLand,
+  type NearBudget,
+  type NearFlora,
+  type NearThing,
+} from "./flora.ts";

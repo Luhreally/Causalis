@@ -7,17 +7,17 @@
 import * as pc from "playcanvas";
 import type { LandPlan } from "../bridge/index.ts";
 import {
+  facetWet,
   kindWater,
-  lifeTint,
   seasonKey,
-  seasonLeaf,
-  seasonNeedle,
   treesClear,
+  type FloraLand,
   type GroundSeason,
   type LandGround,
   type RegionTree,
 } from "../view/index.ts";
 import { LandLayer } from "./land.ts";
+import { FloraLayer } from "./flora.ts";
 import { WildfireLayer, wildfireMaterials } from "./wildfire.ts";
 import { InstancedBatch, boxMesh, coneMesh, cylinderMesh, gableMesh } from "./batch.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
@@ -35,13 +35,14 @@ export class RegionScene {
   private heights: Float32Array | null = null;
   private readonly marker: pc.Entity;
   private huts: InstancedBatch | null = null;
-  private woods: InstancedBatch[] = [];
-  /** Each wood's kind and its colour in leaf; the season it was last dressed in (Phase 30 M164). */
-  private woodKinds: { kind: string; color: Rgb }[] = [];
-  private seasonNow: GroundSeason | null = null;
+  /** What grows on it: its woods far off, each tree, tuft and stone near the eye (render/flora.ts). */
+  readonly flora: FloraLayer;
+  private readonly floraRoot = new pc.Entity("flora");
+  /** The ground the flora was last told of (a new one for each laying of the land), and the fire's woods as then. */
+  private floraFree: ((x: number, z: number, r: number) => boolean) | undefined | null = null;
+  private floraFire = "";
+  /** The season it was last dressed in (Phase 30 M164). */
   private seasonSeen = "";
-  /** Its world's life's colours (Phase 57: a pigment's name, none for Earth's green). */
-  private look: string | undefined;
   private villageTiles: number[] = [];
   /** The land's ground as its towns, roads and fields read it; and what is drawn on it. */
   private ground: LandGround | null = null;
@@ -71,6 +72,8 @@ export class RegionScene {
     this.marker.enabled = false;
     this.root.addChild(this.marker);
     this.land = new LandLayer(stage, this.root);
+    this.root.addChild(this.floraRoot);
+    this.flora = new FloraLayer(stage, this.floraRoot);
     // (Under the land's own root: a new land's building leaves it standing, and resets it.)
     this.fire = new WildfireLayer(stage, this.land.root);
     this.root.enabled = false;
@@ -90,17 +93,19 @@ export class RegionScene {
   ): void {
     // (Batches first: their instance buffers go with them.)
     this.huts?.destroy();
-    for (const b of this.woods) b.destroy();
     for (const child of [...this.root.children])
-      if (child !== this.marker && child !== this.land.root) child.destroy();
+      if (child !== this.marker && child !== this.land.root && child !== this.floraRoot)
+        child.destroy();
     this.huts = null;
-    this.woods = [];
     this.villageTiles = [];
     this.trees = [];
     this.cleared = "";
     this.ground = { size, tileKm, heights, water, fertility };
     this.land.reset(this.ground);
     this.fire.reset(this.ground);
+    this.flora.reset(size, tileKm, heights);
+    this.floraFree = null;
+    this.floraFire = "";
     const n = size * size,
       positions = new Float32Array(n * 3),
       half = ((size - 1) * tileKm) / 2;
@@ -264,7 +269,7 @@ export class RegionScene {
 
   /** Its world's life's colours (Phase 57): its woods' leaves, from the next woods planted. */
   lifeLook(look: string | undefined): void {
-    this.look = look;
+    this.flora.lifeLook(look);
   }
 
   /** The land's ground as its roads read it (null: none built), for the ways its hosts go by (M203). */
@@ -369,8 +374,19 @@ export class RegionScene {
       key = `${clearings.map((c) => `${c.x.toFixed(1)},${c.z.toFixed(1)},${c.r.toFixed(1)}`).join(";")}|${this.fire.woodKey}`;
     if (key !== this.cleared) {
       this.cleared = key;
-      this.plantWoods(this.fire.standing(treesClear(this.ground, this.trees, clearings)));
+      this.flora.plant(this.fire.standing(treesClear(this.ground, this.trees, clearings)));
     }
+    this.floraGround();
+  }
+
+  /** What grows near the eye told of the ground as laid (towns, roads, fields, camps, water) and what has burned bare. */
+  private floraGround(): void {
+    const g = this.ground,
+      free = this.land.groundFree;
+    if (!g || (free === this.floraFree && this.fire.woodKey === this.floraFire)) return;
+    this.floraFree = free;
+    this.floraFire = this.fire.woodKey;
+    this.flora.setGround(free ?? ((x, z) => !facetWet(g, x, z)), this.fire.bareAt);
   }
 
   /** The region's woods: a low-poly crown for each tree, on the ground where it stands (none on a town's ground). */
@@ -379,13 +395,15 @@ export class RegionScene {
     return this.trees.length;
   }
 
-  plantTrees(trees: readonly RegionTree[]): void {
+  plantTrees(trees: readonly RegionTree[], land: FloraLand | null = null, parched = false): void {
     this.trees = trees;
-    this.plantWoods(
+    this.flora.setLand(land, parched);
+    this.flora.plant(
       this.fire.standing(
         this.ground ? treesClear(this.ground, trees, this.land.clearings()) : trees,
       ),
     );
+    this.floraGround();
   }
 
   /**
@@ -394,6 +412,8 @@ export class RegionScene {
    */
   burnsNow(t: number, pace: number, distance: number, running: boolean): boolean {
     this.firePace = pace;
+    // (What grows near the eye, laid again only as the eye moves on: render/flora.ts.)
+    this.flora.update(this.stage.camera, distance);
     return this.fire.update(t, pace, distance, running);
   }
 
@@ -402,90 +422,7 @@ export class RegionScene {
     const key = s ? seasonKey(s) : "";
     if (key === this.seasonSeen) return;
     this.seasonSeen = key;
-    this.seasonNow = s;
-    this.dressWoods();
-  }
-
-  private dressWoods(): void {
-    const s = this.seasonNow;
-    this.woods.forEach((b, i) => {
-      const k = this.woodKinds[i]!;
-      b.recolor(
-        !s ? k.color : k.kind === "conifer" ? seasonNeedle(k.color, s) : seasonLeaf(k.color, s),
-      );
-    });
-  }
-
-  private plantWoods(trees: readonly RegionTree[]): void {
-    for (const b of this.woods) b.destroy();
-    this.woods = [];
-    this.woodKinds = [];
-    if (!this.heights || !trees.length) return;
-    const s = this.stage,
-      half = ((this.size - 1) * this.tileKm) / 2,
-      round = pc.Mesh.fromGeometry(
-        s.device,
-        new pc.SphereGeometry({ radius: 0.5, latitudeBands: 3, longitudeBands: 6 }),
-      ),
-      kinds = [
-        {
-          kind: "conifer",
-          mesh: coneMesh(s, 0.5, 1, 6),
-          color: lifeTint([0.06, 0.4, 0.22], this.look),
-          w: 0.5,
-          h: 1.05,
-        },
-        {
-          kind: "broadleaf",
-          mesh: round,
-          color: lifeTint([0.16, 0.56, 0.18], this.look),
-          w: 0.65,
-          h: 0.55,
-        },
-        {
-          kind: "flat",
-          mesh: round,
-          color: lifeTint([0.32, 0.5, 0.15], this.look),
-          w: 0.95,
-          h: 0.3,
-        },
-        {
-          kind: "tall",
-          mesh: round,
-          color: lifeTint([0.05, 0.38, 0.14], this.look),
-          w: 0.55,
-          h: 1.05,
-        },
-        {
-          kind: "parched",
-          mesh: round,
-          color: lifeTint([0.52, 0.37, 0.13], this.look),
-          w: 0.65,
-          h: 0.5,
-        },
-      ];
-    for (const k of kinds) {
-      const list = trees.filter((t) => t.kind === k.kind);
-      if (!list.length) continue;
-      const batch = new InstancedBatch(s, k.mesh, [...k.color], list.length, this.root);
-      batch.set(list.length, (i, out) => {
-        const t = list[i]!,
-          x = t.tile % this.size,
-          z = Math.floor(t.tile / this.size);
-        out[0] = (x + t.dx) * this.tileKm - half;
-        // Sized to the tiles (a tree half a tile across reads as woods at this height).
-        const w = k.w * t.size * this.tileKm,
-          h = k.h * t.size * this.tileKm;
-        out[1] = Math.max(0, this.heights![t.tile]!) + h / 2;
-        out[2] = (z + t.dz) * this.tileKm - half;
-        out[3] = out[5] = w;
-        out[4] = h;
-        out[6] = t.dx * 6;
-      });
-      this.woods.push(batch);
-      this.woodKinds.push({ kind: k.kind, color: k.color });
-    }
-    this.dressWoods();
+    this.flora.season(s);
   }
 
   /** Villages as clusters of huts, more huts for more people — but those `drawn` from their fabric. */

@@ -516,3 +516,20 @@ export {
   type GroundKind,
   type Rect,
 } from "./claims.ts";
+export {
+  FLORA,
+  FLORA_NAMES,
+  TREE_FORMS,
+  floraMix,
+  floraPack,
+  floraRead,
+  floraUnpack,
+  floraWindow,
+  tileUnit,
+  type FloraCover,
+  type FloraFacts,
+  type FloraOptions,
+  type FloraTiles,
+  type FloraWindow,
+  type TreeForm,
+} from "./biome.ts";

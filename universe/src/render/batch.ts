@@ -211,6 +211,24 @@ export class InstancedBatch {
     this.instance.instancingCount = n;
   }
 
+  /**
+   * A toned batch's instances' colours written again (the first `count`, each `colorOf(i)`), where set() writes them: for
+   * instances laid by setBasis, which writes none.
+   */
+  tone(count: number, colorOf: (i: number) => readonly [number, number, number]): void {
+    if (!this.toned) return;
+    const n = Math.min(count, this.count),
+      m = this.matrices;
+    for (let i = 0; i < n; i++) {
+      const c = colorOf(i),
+        o = i * 16;
+      m[o + 3] = toneOf(c[0]);
+      m[o + 7] = toneOf(c[1]);
+      m[o + 11] = toneOf(c[2]);
+    }
+    this.upload(n);
+  }
+
   get size(): number {
     return this.count;
   }

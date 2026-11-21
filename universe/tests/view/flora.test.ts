@@ -1,0 +1,237 @@
+// What grows on a land (bridge/biome.ts, view/flora.ts): read from each tile's warmth, rain, height, water and woods, drawn in
+// its world's colours. A tundra tile bears no broad crowns; a desert is sparse; woods are thick; rock shows on the steep; a
+// bank is greener and a dry land's has its gallery woods; nothing stands on water or on ground the land's towns hold; another
+// chemistry's plants are not Earth's green; the near things are the same however the eye comes to them.
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import {
+  FLORA,
+  floraMix,
+  floraPack,
+  floraRead,
+  TREE_FORMS,
+  type FloraFacts,
+} from "../../src/bridge/index.ts";
+import type { FrameMessage } from "../../src/bridge/index.ts";
+import {
+  floraColors,
+  floraClumps,
+  floraLandOf,
+  formAt,
+  nearBudget,
+  nearFlora,
+  regionColors,
+  regionTrees,
+} from "../../src/view/index.ts";
+
+/** A land of `size` tiles a side, every tile the same (warmth, rain, biome), a river down its middle column. */
+function facts(
+  size: number,
+  warm: number,
+  rain: number,
+  biome: number,
+  over: Partial<FloraFacts> = {},
+): FloraFacts {
+  const n = size * size,
+    water = new Uint8Array(n);
+  for (let j = 0; j < size; j++) water[j * size + (size >> 1)] = 2;
+  return {
+    size,
+    tileKm: 2.4,
+    elevation: new Float32Array(n).fill(200),
+    warm: new Float32Array(n).fill(warm),
+    rain: new Float32Array(n).fill(rain),
+    water,
+    biome: new Uint8Array(n).fill(biome),
+    fertility: new Float32Array(n).fill(0.5),
+    ...over,
+  };
+}
+
+const mean = (a: Uint8Array, keep: (t: number) => boolean = () => true) => {
+  let s = 0,
+    n = 0;
+  for (let t = 0; t < a.length; t++)
+    if (keep(t)) {
+      s += a[t]!;
+      n++;
+    }
+  return s / Math.max(1, n) / 255;
+};
+
+test("each climate its own ground: woods thick, the steppe open, the desert sparse, the tundra scrub with no broad crowns", () => {
+  const size = 24,
+    far = (t: number) => Math.abs((t % size) - (size >> 1)) > 2,
+    temperate = floraRead(facts(size, 12, 1100, 9)),
+    steppe = floraRead(facts(size, 12, 400, 8)),
+    desert = floraRead(facts(size, 26, 120, 11)),
+    tundra = floraRead(facts(size, -3, 300, 5)),
+    taiga = floraRead(facts(size, 3, 700, 6));
+  assert.equal(temperate.cover[0], FLORA.broadleaf);
+  assert.equal(taiga.cover[0], FLORA.taiga);
+  assert.equal(tundra.cover[0], FLORA.tundra);
+  assert.equal(desert.cover[0], FLORA.hotDesert);
+  assert.ok(mean(temperate.canopy, far) > 0.6, `woods ${mean(temperate.canopy, far)}`);
+  assert.ok(mean(steppe.canopy, far) < 0.06, `steppe ${mean(steppe.canopy, far)}`);
+  assert.ok(mean(desert.canopy, far) < 0.04, `desert ${mean(desert.canopy, far)}`);
+  assert.ok(mean(tundra.canopy, far) < 0.12, `tundra ${mean(tundra.canopy, far)}`);
+  // (A desert's grass is straw; a temperate land's green.)
+  assert.ok(mean(desert.lush, far) < 0.2 && mean(temperate.lush, far) > 0.7);
+  // A tundra tile has no broad crowns; neither does any form drawn on it.
+  const mix = floraMix(FLORA.tundra);
+  assert.equal(mix[TREE_FORMS.indexOf("broadleaf")], 0);
+  for (let u = 0; u < 1; u += 0.01) assert.notEqual(formAt(tundra, 0, u), "broadleaf");
+  // The taiga is needles above all.
+  assert.ok(floraMix(FLORA.taiga)[0]! > 0.8);
+});
+
+test("water bears nothing; a bank is wetter, greener, and in a dry land wooded; flat wet ground is marsh", () => {
+  const size = 24,
+    river = (t: number) => t % size === size >> 1,
+    bank = (t: number) => Math.abs((t % size) - (size >> 1)) === 1,
+    far = (t: number) => Math.abs((t % size) - (size >> 1)) > 2,
+    steppe = floraRead(facts(size, 14, 350, 8));
+  for (let t = 0; t < size * size; t++)
+    if (river(t)) assert.equal(steppe.canopy[t], 0, "no trees in the river");
+  assert.ok(mean(steppe.wet, bank) > 0.4 && mean(steppe.wet, far) === 0);
+  assert.ok(
+    mean(steppe.canopy, bank) > 3 * mean(steppe.canopy, far),
+    "gallery woods along the river",
+  );
+  // A hot desert's bank grows palms.
+  const oasis = floraMix(FLORA.hotDesert, true, 26);
+  assert.ok(oasis[TREE_FORMS.indexOf("palm")]! > 0.5);
+  // Flat, low, rainy ground by the river: marsh in places.
+  const wet = floraRead(
+    facts(size, 10, 1200, 9, { elevation: new Float32Array(size * size).fill(30) }),
+  );
+  let marsh = 0;
+  for (let t = 0; t < size * size; t++) if (bank(t) && wet.cover[t] === FLORA.marsh) marsh++;
+  assert.ok(marsh > 0, "some of the flat wet bank is marsh");
+});
+
+test("rock on the steep and above the trees; woods gone are felled ground; fewer trees where the woods have shrunk", () => {
+  const size = 24,
+    n = size * size,
+    steep = new Float32Array(n);
+  for (let t = 0; t < n; t++) steep[t] = (t % size) * 2000 + 200;
+  const hills = floraRead(facts(size, 8, 900, 9, { elevation: steep }));
+  assert.ok(mean(hills.rock) > 0.5, `rock ${mean(hills.rock)}`);
+  assert.ok(mean(hills.canopy) < 0.25, `trees on cliffs ${mean(hills.canopy)}`);
+  const alpine = floraRead(facts(size, -5, 600, 15));
+  assert.ok(mean(alpine.rock) > 0.5 && mean(alpine.canopy) < 0.05);
+  // Woods that stood (its biome as made) and stand no more: stumps and scrub.
+  const felled = floraRead(facts(size, 12, 1000, 8, { wild: new Uint8Array(n).fill(9) }));
+  assert.equal(felled.cover[0], FLORA.cleared);
+  assert.ok(floraMix(FLORA.cleared)[TREE_FORMS.indexOf("dead")]! > 0.2);
+  const full = floraRead(facts(size, 12, 1000, 9)),
+    thinned = floraRead(facts(size, 12, 1000, 9), { stands: 0.3 });
+  assert.ok(mean(thinned.canopy) < 0.8 * mean(full.canopy));
+  // A world where nothing took hold: no woods, no green.
+  const bare = floraRead(facts(size, 12, 1000, 9), { lifeless: true });
+  assert.equal(mean(bare.canopy), 0);
+  assert.equal(mean(bare.lush), 0);
+});
+
+/** A region frame carrying its reading, as host/planet.ts sends it. */
+function frame(
+  size: number,
+  warm: number,
+  rain: number,
+  biome: number,
+  meta: Record<string, unknown> = {},
+): FrameMessage {
+  const f = facts(size, warm, rain, biome),
+    read = floraRead(f);
+  return {
+    kind: "frame",
+    view: "region",
+    seq: 1,
+    t: 0,
+    meta: {
+      ref: "regn:0:1",
+      surfaceKey: `k${warm}${rain}${biome}${JSON.stringify(meta)}`,
+      size,
+      tileKm: 2.4,
+      ...meta,
+    },
+    arrays: {
+      elevation: Float32Array.from(f.elevation as Float32Array),
+      biome: Uint8Array.from(f.biome as Uint8Array),
+      water: Uint8Array.from(f.water as Uint8Array),
+      fertility: new Uint8Array(size * size).fill(128),
+      flora: floraPack(read),
+    },
+  };
+}
+
+test("the ground in its world's colours: woods darker than the steppe's grass, straw in the desert, another chemistry's not green", () => {
+  const size = 16,
+    at = (c: Uint8Array, t = 0) => [c[t * 4]!, c[t * 4 + 1]!, c[t * 4 + 2]!],
+    woods = at(regionColors(frame(size, 12, 1100, 9), "land")),
+    steppe = at(regionColors(frame(size, 14, 380, 8), "land")),
+    desert = at(regionColors(frame(size, 26, 120, 11), "land"));
+  const light = (c: number[]) => c[0]! + c[1]! + c[2]!;
+  assert.ok(light(woods) < light(steppe), `woods ${woods} under the steppe ${steppe}`);
+  assert.ok(woods[1]! > woods[0]! && woods[1]! > woods[2]!, "Earth's woods are green");
+  assert.ok(desert[0]! > desert[2]! && desert[0]! > 150, `desert sand ${desert}`);
+  // Golden life (carotene): the woods are not green.
+  const gold = at(regionColors(frame(size, 12, 1100, 9, { lifeLook: "carotene" }), "land"));
+  assert.ok(gold[0]! >= gold[1]!, `golden woods ${gold}`);
+  // Tile from tile the ground varies a little (no flat single colour).
+  const all = regionColors(frame(size, 12, 1100, 9), "land"),
+    seen = new Set<number>();
+  for (let t = 0; t < size * size; t++) if (t % size !== size >> 1) seen.add(all[t * 4 + 1]!);
+  assert.ok(seen.size > 8, `${seen.size} greens`);
+  // (A map with no reading is painted as before.)
+  const plain = frame(size, 12, 1100, 9);
+  assert.equal(
+    floraColors(
+      { ...plain, arrays: { ...plain.arrays, flora: undefined as never } },
+      new Uint8Array(size * size * 4),
+    ),
+    null,
+  );
+});
+
+test("far woods: crowns by the reading, none on the water; near things on a fixed lattice, none where the ground is held", () => {
+  const size = 32,
+    f = frame(size, 12, 1100, 9),
+    land = floraLandOf(f)!,
+    clumps = floraClumps(land, 4000);
+  assert.ok(clumps.length > 1000);
+  assert.ok(
+    clumps.every((c) => c.tile % size !== size >> 1),
+    "no crown on the river",
+  );
+  assert.deepEqual(regionTrees(f, 4000).length, clumps.length);
+  const tundra = floraClumps(floraLandOf(frame(size, -3, 300, 5))!, 4000);
+  assert.ok(tundra.every((c) => c.kind !== "broadleaf"));
+  // Near the eye: a fixed budget, nothing on the river, nothing on a held disc, the same things wherever the eye comes from.
+  const budget = nearBudget(2400),
+    held = { x: 7, z: 3, r: 1.5 },
+    free = (x: number, z: number, r: number) => Math.hypot(x - held.x, z - held.z) > held.r + r,
+    a = nearFlora(land, 5, 2, 4, budget, free),
+    b = nearFlora(land, 5.6, 1.7, 4, budget, free),
+    half = ((size - 1) * 2.4) / 2,
+    riverX = (size >> 1) * 2.4 - half;
+  assert.ok(a.trees > 200 && a.trees <= budget.trees, `${a.trees} trees`);
+  assert.ok(a.tufts.length <= budget.tufts && a.stones.length <= budget.stones);
+  const all = [...a.trunks, ...a.balls, ...a.cones, ...a.tufts, ...a.stones, ...a.patches];
+  assert.ok(
+    all.every((t) => Math.hypot(t.x - held.x, t.z - held.z) > held.r),
+    "none on held ground",
+  );
+  assert.ok(
+    all.every((t) => Math.abs(t.x - riverX) > 1.2 - 0.01),
+    "none on the river's tiles",
+  );
+  const key = (t: { x: number; z: number }) => `${t.x.toFixed(5)},${t.z.toFixed(5)}`,
+    seenA = new Set(a.balls.map(key)),
+    both = b.balls.filter((t) => Math.hypot(t.x - 5.3, t.z - 1.85) < 1.5);
+  const missing = both.filter((t) => !seenA.has(key(t)));
+  assert.ok(
+    both.length > 20 && !missing.length,
+    `the same trees in the same places: ${both.length}, ${missing.length} not, e.g. ${JSON.stringify(missing[0])}; a ${a.trees}`,
+  );
+});
