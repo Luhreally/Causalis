@@ -266,6 +266,8 @@ export type TownScene = {
   readonly outline: Float32Array;
   /** Its sprawl's roofs as they stand on their ground, each clear of every other and of its blocks (made when first asked). */
   sprawlRoofs?: Float32Array;
+  /** Which of its lots are drawn afresh through the year (`active`, by lot: made when first asked). */
+  activeLots?: Uint8Array;
 };
 
 export { OUTLINE, outlineAt, outlineOf };
@@ -1979,13 +1981,27 @@ function yardWall(
 /** Whether a lot's home stands whole now, of a level. */
 function wholeHome(scene: TownScene, p: number, level: number, t: number): boolean {
   const s = scene.states;
-  return (
+  if (!(
     p >= 0 &&
     p < scene.plan.lots &&
-    s.what[p] === LOT.home &&
     s.level[p] === level &&
+    s.what[p] === LOT.home &&
     progress(s.began[p]!, s.takes[p]!, t) >= 1
-  );
+  ))
+    return false;
+  // (Not being rebuilt: one rising on its lot would stand inside the house across both.)
+  const w = homeWear(scene, p, t);
+  return w.at === null || t >= w.at + s.takes[p]!;
+}
+
+/** Whether a lot is drawn afresh through the year (the scene's `active`), not once for it. */
+function drawnAfresh(scene: TownScene, p: number): boolean {
+  let a = scene.activeLots;
+  if (!a) {
+    a = scene.activeLots = new Uint8Array(scene.plan.lots);
+    for (const q of scene.active) a[q] = 1;
+  }
+  return a[p] === 1;
 }
 
 /**
@@ -2052,7 +2068,11 @@ function rankedHome(
       mate = level <= 1 && !look.round ? p ^ 1 : -1,
       pair =
         mate >= 0 &&
+        // (Both drawn once for the year or both afresh through it, so neither is drawn as one while the other is not.)
+        drawnAfresh(scene, mate) === drawnAfresh(scene, p) &&
         wholeHome(scene, mate, level, t) &&
+        // (Nor one round: its own round house would stand inside the house across both.)
+        !formLook(scene, mate, homeWear(scene, mate, t).look)?.round &&
         !r.halls.has(mate) &&
         !r.marks.has(mate) &&
         seat?.lot !== mate &&
