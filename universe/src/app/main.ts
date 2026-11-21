@@ -4287,7 +4287,8 @@ async function runPlanetPage(): Promise<void> {
         landPlan = plan;
         if (plan.covered) paintRegion();
         const t0 = performance.now();
-        region.setTowns(plan, plan.t);
+        // (A land come to is laid at once; each plan after, as its year turns, over the frames that follow: render/region.ts layOn.)
+        region.setTowns(plan, plan.t, !firstOfIt);
         performance.measure("region.towns", { start: t0 });
         // (A colony's land is its town, in a land of nothing else: the eye goes to it.)
         if (offworld && firstOfIt && plan.towns[0]) {
@@ -6502,6 +6503,7 @@ async function runPlanetPage(): Promise<void> {
           .catch(() => {});
       }
       region.land.herds.eye(rig.distance);
+      region.layOn();
       region.land.update(now(), time.speed > 0);
       if (region.burnsNow(now(), time.pace, rig.distance, time.speed > 0)) paintRegion();
     }

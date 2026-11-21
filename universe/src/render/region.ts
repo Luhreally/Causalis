@@ -12,6 +12,7 @@ import {
   seasonKey,
   seasonLeaf,
   seasonNeedle,
+  runToEnd,
   treesClear,
   type GroundSeason,
   type LandGround,
@@ -22,6 +23,9 @@ import { WildfireLayer, wildfireMaterials } from "./wildfire.ts";
 import { InstancedBatch, boxMesh, coneMesh, cylinderMesh, gableMesh } from "./batch.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 import { windowMaterial } from "./village.ts";
+
+/** How long a frame lays on at a land's plan being laid over frames (ms): the rest of a phone's frame is the drawing's. */
+const LAY_BUDGET = 6;
 
 export class RegionScene {
   private readonly stage: Stage;
@@ -357,14 +361,51 @@ export class RegionScene {
    * A land's towns and roads at moment t (M150): each town with a fabric drawn from it, the rest
    * as huts; the woods cleared from the towns and their fields.
    */
-  setTowns(plan: LandPlan, t: number): void {
+  setTowns(plan: LandPlan, t: number, spread = false): void {
+    const run = this.townsLaying(plan, t);
+    this.laying = null;
+    if (!spread) {
+      runToEnd(run);
+      return;
+    }
+    // (Begun at the next frame, within its budget: not on top of the message that brought the plan.)
+    this.laying = run;
+    this.layingOn = this.ground;
+  }
+
+  /** A land's plan being laid over frames (setTowns spread), and on whose ground. */
+  private laying: Generator<void, void> | null = null;
+  private layingOn: unknown = null;
+
+  /**
+   * Each frame: a land's plan being laid (setTowns spread) laid on for a few milliseconds, a step at a time; dropped if its
+   * land is left. Whether any was left to lay.
+   */
+  layOn(budget = LAY_BUDGET): boolean {
+    if (!this.laying) return false;
+    if (this.layingOn !== this.ground) {
+      this.laying = null;
+      return false;
+    }
+    const t0 = performance.now();
+    do {
+      if (this.laying.next().done) {
+        this.laying = null;
+        return true;
+      }
+    } while (performance.now() - t0 < budget);
+    return true;
+  }
+
+  private *townsLaying(plan: LandPlan, t: number): Generator<void, void> {
     this.clearSea(!!plan.undersea);
     if (!this.ground) return;
-    this.land.set(plan, t);
+    yield* this.land.laying(plan, t);
     const drawn = this.land.drawn();
     this.setVillages(plan.towns, drawn);
     // (What has burned stands bare: at a plan's coming at most, so a fire costs a planting a second while it moves.)
     this.fire.set(plan.burns ?? [], t, this.firePace);
+    yield;
     const clearings = this.land.clearings(),
       key = `${clearings.map((c) => `${c.x.toFixed(1)},${c.z.toFixed(1)},${c.r.toFixed(1)}`).join(";")}|${this.fire.woodKey}`;
     if (key !== this.cleared) {

@@ -475,7 +475,32 @@ export function landLaid(
   drawn: (ref: string) => LandDrawn | undefined,
   middle: (town: LandTown) => { x: number; z: number },
   roads: readonly (readonly { x: number; z: number }[])[],
-): { claims: GroundClaims; fields: LandField[]; owner: Map<string, number> } {
+): LandLaid {
+  return runToEnd(landLaying(g, plan, drawn, middle, roads));
+}
+
+/** A land's ground as laid (landLaid). */
+export type LandLaid = { claims: GroundClaims; fields: LandField[]; owner: Map<string, number> };
+
+/** Run a laying to its end (each `yield` a place it may be broken off for a frame), and what it lays. */
+export function runToEnd<T>(run: Generator<void, T>): T {
+  for (;;) {
+    const r = run.next();
+    if (r.done) return r.value;
+  }
+}
+
+/**
+ * landLaid a town at a time: it yields after each town's ground and each town's fields, so that a land laid again as its
+ * year turns can be laid over several frames (render/land.ts), none of them held long.
+ */
+export function* landLaying(
+  g: LandGround,
+  plan: Pick<LandPlan, "towns" | "undersea">,
+  drawn: (ref: string) => LandDrawn | undefined,
+  middle: (town: LandTown) => { x: number; z: number },
+  roads: readonly (readonly { x: number; z: number }[])[],
+): Generator<void, LandLaid> {
   const claims = landClaims(g, !!plan.undersea),
     order = [...plan.towns].sort((a, b) => b.population - a.population || (a.ref < b.ref ? -1 : 1)),
     owner = new Map(order.map((t, i) => [t.ref, i])),
@@ -486,9 +511,10 @@ export function landLaid(
     });
   // (Each town's built ground, as far out as it is drawn each way: the greatest first, so that where two towns' ground
   // meets, the greater holds it.)
-  circles.forEach((c, i) => {
-    const d = drawn(c.ref);
-    if (!d) return;
+  for (let i = 0; i < circles.length; i++) {
+    const c = circles[i]!,
+      d = drawn(c.ref);
+    if (!d) continue;
     claims.star(c.x, c.z, c.edge ?? (() => c.r), GROUND.built, i);
     // (Its walls' line and what it holds, where they stand out past its lots.)
     const line = d.wall;
@@ -505,22 +531,28 @@ export function landLaid(
         GROUND.built,
         i,
       );
-  });
+    yield;
+  }
   for (const line of roads) claims.line(line, ROAD_TAKES, GROUND.road, -1);
-  const fields = order.flatMap((town, i) => {
+  yield;
+  const fields: LandField[] = [];
+  for (let i = 0; i < order.length; i++) {
     const c = circles[i]!;
-    return landFields(
-      g,
-      town,
-      c.x,
-      c.z,
-      c.r,
-      circles.filter((o) => o.ref !== town.ref),
-      claims,
-      c.edge,
-      i,
+    fields.push(
+      ...landFields(
+        g,
+        order[i]!,
+        c.x,
+        c.z,
+        c.r,
+        circles.filter((o) => o.ref !== c.ref),
+        claims,
+        c.edge,
+        i,
+      ),
     );
-  });
+    yield;
+  }
   return { claims, fields, owner };
 }
 
@@ -538,12 +570,41 @@ export function treesClear(
   clearings: readonly { x: number; z: number; r: number }[],
 ): RegionTree[] {
   if (!clearings.length) return [...trees];
+  // (Each clearing kept in the squares of a grid it reaches into, a tree's own crown with it; each tree read against those
+  // of its own square alone. Read against every clearing, a land of thousands of fields and as many trees took a phone a
+  // quarter of a second each time its fields were laid again: 2026-11-20.)
+  let most = 0;
+  for (const t of trees) most = Math.max(most, 0.35 * t.size * g.tileKm);
+  const step = g.tileKm * 2,
+    cells = new Map<number, number[]>(),
+    keyOf = (i: number, j: number) => (i + 32768) * 65536 + (j + 32768);
+  clearings.forEach((c, k) => {
+    const r = c.r + most;
+    // (One greater than the whole land: read by every tree.)
+    if (r > step * 64) return;
+    for (let i = Math.floor((c.x - r) / step); i <= Math.floor((c.x + r) / step); i++)
+      for (let j = Math.floor((c.z - r) / step); j <= Math.floor((c.z + r) / step); j++) {
+        const key = keyOf(i, j),
+          list = cells.get(key);
+        if (list) list.push(k);
+        else cells.set(key, [k]);
+      }
+  });
+  const every = clearings.filter((c) => c.r + most > step * 64);
   return trees.filter((t) => {
     const m = tileMiddle(g, t.tile),
       x = m.x + t.dx * g.tileKm,
       z = m.z + t.dz * g.tileKm,
-      half = 0.35 * t.size * g.tileKm;
-    return clearings.every((c) => Math.hypot(x - c.x, z - c.z) > c.r + half);
+      half = 0.35 * t.size * g.tileKm,
+      near = cells.get(keyOf(Math.floor(x / step), Math.floor(z / step)));
+    if (every.some((c) => Math.hypot(x - c.x, z - c.z) <= c.r + half)) return false;
+    return (
+      !near ||
+      near.every((k) => {
+        const c = clearings[k]!;
+        return Math.hypot(x - c.x, z - c.z) > c.r + half;
+      })
+    );
   });
 }
 

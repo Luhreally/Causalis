@@ -47,8 +47,9 @@ import {
   wayOf,
   floorAt,
   wetAt,
-  landLaid,
+  landLaying,
   lotsOnLand,
+  runToEnd,
   heldByGreater,
   landRoadOut,
   roadClear,
@@ -135,7 +136,12 @@ class GroundBatches {
     this.meshes = meshes;
   }
 
-  show(
+  show(...args: Parameters<GroundBatches["showing"]>): void {
+    runToEnd(this.showing(...args));
+  }
+
+  /** show, a mesh at a time: it yields after each mesh's batch is sent, so a land laid again can be drawn over several frames. */
+  *showing(
     towns: readonly {
       parts: TownParts;
       x: number;
@@ -150,10 +156,10 @@ class GroundBatches {
     g: LandGround,
     /** A people of the water's: it stands on the seabed, none of it ashore. */
     undersea = false,
-  ): void {
+  ): Generator<void, void> {
     const floor = undersea ? floorAt : groundAt;
-    if (this.tops?.length !== g.size * g.size) this.tops = new Float32Array(g.size * g.size);
-    this.tops.fill(-Infinity);
+    // (Its tops laid afresh, and taken up whole once all is drawn: what reads them meanwhile reads the last.)
+    const tops = new Float32Array(g.size * g.size).fill(-Infinity);
     // (One batch to a mesh for all the land's towns: each part's colour rides in its instance.)
     const keys = new Map<string, { mesh: PartMesh; n: number }>();
     for (const t of towns)
@@ -214,7 +220,7 @@ class GroundBatches {
               const up = ground + top * FLAT_UP;
               out[q + 1] = up - SLAB / 2;
               out[q + 4] = SLAB;
-              if (wide) layTop(this.tops, g, x, z, Math.hypot(sx, sz) / 2, up);
+              if (wide) layTop(tops, g, x, z, Math.hypot(sx, sz) / 2, up);
             } else {
               // (Towers kept from being needles at the land's height: Phase 66.)
               const foot = landHigh(d[o + 1]! - d[o + 4]! / 2),
@@ -223,6 +229,8 @@ class GroundBatches {
               out[q + 4] = (head - foot) * LAND_UP;
             }
             m++;
+            // (A great land's parts of one mesh read a share at a time.)
+            if (m % SHOW_SHARE === 0) yield;
           }
         }
       let b = this.batches.get(key);
@@ -252,8 +260,10 @@ class GroundBatches {
         o[5] = out[q + 5]!;
         o[6] = out[q + 6]!;
       });
+      yield;
     }
     for (const [key, b] of this.batches) if (!keys.has(key)) b.set(0, () => {});
+    this.tops = tops;
   }
 
   get count(): number {
@@ -287,6 +297,8 @@ const FAINT_WIDE = 0.035;
 const WORKS_LOOKS = 8;
 const SECTION = 0.25;
 const CUT_GAP = 0.34;
+/** How many parts of one mesh a land's towns are read for at a time, when drawn over frames (GroundBatches.showing). */
+const SHOW_SHARE = 12_000;
 /** The most pieces of a town's worn ground its land draws. */
 const LAND_WORN = 340;
 /** The most gangs drawn on a land at once. */
@@ -346,6 +358,8 @@ export class LandLayer {
   private drawnAt = -Infinity;
   private drawnWall = 0;
   private season = -1;
+  /** When the fields were last looked at (performance.now()). */
+  private fieldsWall = 0;
   private year = -1;
   /** Whether the clock ran when last drawn (a new plan come while it is held leaves all standing). */
   private running = false;
@@ -431,11 +445,24 @@ export class LandLayer {
 
   /** A land's towns and roads as they stand at moment t (a town whose plan is unchanged kept). */
   set(plan: LandPlan, t: number): void {
+    runToEnd(this.laying(plan, t));
+  }
+
+  /** Whether a town has been drawn afresh, or gone, since the land's ground was last laid (a laying broken off leaves it so). */
+  private unlaid = false;
+
+  /**
+   * set, a step at a time: it yields after each town drawn afresh, each town's ground and fields laid, and each mesh of
+   * its towns sent; so a land laid again as its year turns is laid over several frames, none held long (2026-11-20: a
+   * year's turn on a great city's land held a phone's frame a second and more). One broken off for a newer plan leaves
+   * what it did standing, and the next lays the rest.
+   */
+  *laying(plan: LandPlan, t: number): Generator<void, void> {
     const g = this.ground;
     if (!g) return;
     this.plan = plan;
     const seen = new Set<string>();
-    let changed = false;
+    let changed = this.unlaid;
     for (const town of plan.towns) {
       if (!town.plan || town.plan.lots === 0) continue;
       seen.add(town.ref);
@@ -444,8 +471,9 @@ export class LandLayer {
       const m = townMiddle(g, town),
         moment = landMoment(town.plan, t),
         scene = townScene(town.plan, moment, had?.scene.lots),
-        settled = had?.settled ?? new TownParts();
-      settled.clear();
+        // (Its own, not the one drawn till now: a laying broken off in the midst of a town leaves the town as it was.)
+        settled = new TownParts();
+      yield;
       // (Of worn ground, what the land's eye can make out.)
       townGround(
         scene,
@@ -453,6 +481,7 @@ export class LandLayer {
         !!town.plan.ash,
         Math.min(LAND_WORN, 40 + Math.floor(scene.plan.lots / 6)),
       );
+      yield;
       // (A lot wholly on the land's ground, or none of it: view/land.ts lotsOnLand.)
       townHomes(scene, lotsOnLand(g, m, scene, scene.settled, !!plan.undersea), moment, settled);
       townAsh(scene, moment, settled, true);
@@ -466,12 +495,13 @@ export class LandLayer {
         settled,
         busy: scene.active.length > 0 || civicsActive(town.plan, moment) || !!town.plan.walls,
       });
-      changed = true;
+      changed = this.unlaid = true;
+      yield;
     }
     for (const ref of [...this.towns.keys()])
       if (!seen.has(ref)) {
         this.towns.delete(ref);
-        changed = true;
+        changed = this.unlaid = true;
       }
     // (Built over from edge to edge, past where any town's own fabric reaches: Phase 66.)
     if (!!plan.covered !== !!this.built) {
@@ -488,7 +518,7 @@ export class LandLayer {
       // What lies about its towns takes its ground in one reading (view/land.ts landLaid): its water, its towns' built
       // ground, its roads as they are drawn this year, then the fields, each town's nearest it; none on another.
       const year = Math.floor(plan.t / YEAR);
-      const laid = landLaid(
+      const laid = yield* landLaying(
         g,
         plan,
         this.drawnOf,
@@ -500,7 +530,7 @@ export class LandLayer {
       );
       this.claims = laid.claims;
       this.owners = laid.owner;
-      this.settled.show(
+      yield* this.settled.showing(
         [
           ...[...this.towns.values()].map((d) => ({
             parts: d.settled,
@@ -539,6 +569,8 @@ export class LandLayer {
       this.fields = laid.fields.map((field) => ({ field, crop: -1 }));
       this.layFieldTops();
       this.season = -1;
+      this.unlaid = false;
+      yield;
     }
     // (Its bands' camps last, each on free ground of the land as it is laid: off its towns, roads, fields and water.)
     this.camps.set(plan.camps ?? [], g, this.campGround);
@@ -587,8 +619,11 @@ export class LandLayer {
     }
     const share = (t % YEAR) / YEAR,
       season = Math.floor(share * 48);
-    if (season !== this.season) {
+    // (A field's crop is looked at again as the season turns, but not oftener than RISE_WAIT: at a year a second the
+    // seasons turned every frame, and every frame sent all its fields to the card again.)
+    if (season !== this.season && (this.season < 0 || wall - this.fieldsWall >= RISE_WAIT)) {
       this.season = season;
+      this.fieldsWall = wall;
       this.showFields(share);
     }
     // (A road's gang moves on a section at a time, between the year's turns.)
