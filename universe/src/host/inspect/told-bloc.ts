@@ -414,7 +414,7 @@ function realmsSaid(world: World, refs: readonly string[], y: number, most = 6):
     if (i) out.push(i === shown.length - 1 && refs.length <= most ? " and " : ", ");
     out.push(realmYear(world, r, y));
   });
-  if (refs.length > most) out.push(`, and ${count(refs.length - most)} more`);
+  if (refs.length > most) out.push(`, and ${said(refs.length - most)} more`);
   return out;
 }
 
@@ -619,7 +619,8 @@ export function blocTold(world: World, b: BlocYears, y: number, events: YearEven
       " side by side",
       y === t.since
         ? ` from ${count(y)}`
-        : `, the ${ordinal(y - t.since + 1)} year since ${count(t.since)}`,
+        : // (No comma: a headline cut short drops what stands between its first two.)
+          ` for a ${ordinal(y - t.since + 1)} year since ${count(t.since)}`,
       t.battles ? `: ${said(t.battles)} ${t.battles === 1 ? "battle" : "battles"} in the year` : "",
       t.fallen ? `, ${count(t.fallen)} fallen` : "",
       ".",
