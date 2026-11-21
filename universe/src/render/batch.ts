@@ -59,6 +59,11 @@ export class InstancedBatch {
     this.instance.material.setParameter("uToneSnow", k);
   }
 
+  /** Whether it is drawn at all (what lies under snow: grass). */
+  drawn(on: boolean): void {
+    if (this.entity.enabled !== on) this.entity.enabled = on;
+  }
+
   /** Whether it casts shadows (fire, smoke and dust: not). */
   shadows(on: boolean): this {
     if (this.entity.render) this.entity.render.castShadows = on;

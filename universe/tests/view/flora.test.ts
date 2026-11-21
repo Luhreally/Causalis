@@ -366,3 +366,39 @@ test("a people of the water's: weed beds on the warm shallow shelf, nothing on t
     "none on the deep: on the shelf and ashore",
   );
 });
+
+test("past a town's own ground, its land's: open water, and its heights rising out of the flat it is built on", async () => {
+  const { floraWindow, FLORA_WATER } = await import("../../src/bridge/index.ts");
+  const { townGroundOf, townRiseAt, townWaterAt } = await import("../../src/view/index.ts");
+  const size = 32,
+    n = size * size,
+    elevation = new Float32Array(n),
+    water = new Uint8Array(n);
+  for (let t = 0; t < n; t++) {
+    const i = t % size;
+    // (The sea to the west, the town's land at 100 m, hills rising east to 700 m.)
+    water[t] = i < 8 ? 1 : 0;
+    elevation[t] = i < 8 ? -50 : 100 + Math.max(0, i - 20) * 60;
+  }
+  const read = floraRead(facts(size, 11, 1000, 9, { elevation, water })),
+    w = floraWindow(read, 14, 16, 12, 480, { water, elevation });
+  assert.equal(w.tiles[(12 * 25 + 0) * 5], FLORA_WATER, "the sea's tiles are water");
+  assert.equal(w.rise![12 * 25 + 12], 0, "the town's own tile at its own height");
+  assert.ok(w.rise![12 * 25 + 24]! > 300, "the hills east above it");
+  const plan = {
+    ref: "town:0:2",
+    seed: 1,
+    kind: "terran",
+    homes: [],
+    fields: [],
+    pasture: { x: -300, z: 0, r: 60 },
+    road: { x: 0, z: 900 },
+    landFlora: w,
+  } as unknown as Parameters<typeof townGroundOf>[0];
+  const g = townGroundOf(plan)!;
+  assert.equal(townRiseAt(g, 3000, 0, 1500), townRiseAt(g, 3000, 0, 1500));
+  assert.equal(townRiseAt(g, 1000, 0, 1500), 0, "flat within its own ground");
+  assert.ok(townRiseAt(g, 5700, 0, 1500) > 300, "the hills risen far off");
+  assert.ok(townWaterAt(g, -5000, 0) && !townWaterAt(g, 0, 0));
+  assert.equal(townRiseAt(g, -5000, 0, 1500), 0, "the sea at its own level");
+});

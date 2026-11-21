@@ -519,6 +519,7 @@ export {
 export {
   FLORA,
   FLORA_NAMES,
+  FLORA_WATER,
   TREE_FORMS,
   floraMix,
   floraPack,

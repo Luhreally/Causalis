@@ -48,6 +48,8 @@ const FAR_KINDS: readonly {
 ];
 const PARCHED: Rgb = [0.52, 0.37, 0.13];
 
+/** How deep snow lies (0 … 1) before the grass under it is no longer drawn. */
+export const SNOW_HIDES = 0.35;
 /** How long a frame spends on a laying of the near things, at most (ms): the rest waits for the next frame. */
 const LAY_SLICE = 4;
 /** How much smaller the far crowns are drawn while the near things are (the eye is close: they are groves past them). */
@@ -411,10 +413,15 @@ export class FloraLayer {
     this.near.cones?.recolor(needle);
     this.near.balls?.recolor(leaf);
     this.near.tufts?.recolor(leaf);
-    for (const b of [this.near.cones, this.farCones]) b?.toneSnow(snow * 0.5);
-    for (const b of [this.near.balls, this.farBalls]) b?.toneSnow(snow * 0.45);
-    for (const b of [this.near.tufts, this.near.patches, this.near.stones])
-      b?.toneSnow(snow * 0.85);
+    // (Seen in a winter on a boreal land: needles stay dark under their snow, as a wood in snow reads; a broad crown with its
+    // leaves fallen is twigs, grey and light, not a dark ball; grass is under the snow.)
+    const twigs = s ? (1 - s.leaf) * 0.3 : 0;
+    for (const b of [this.near.cones, this.farCones]) b?.toneSnow(snow * 0.35);
+    for (const b of [this.near.balls, this.farBalls]) b?.toneSnow(Math.min(1, snow * 0.45 + twigs));
+    // (Grass under the snow: drawn whitened, its little cones read dark in their own shade, so not drawn once it lies.)
+    this.near.tufts?.toneSnow(Math.min(1, snow * 1.6));
+    this.near.tufts?.drawn(snow < SNOW_HIDES);
+    for (const b of [this.near.patches, this.near.stones]) b?.toneSnow(snow * 0.85);
   }
 
   /** What the season makes of a form's colour, as a share of it each way (the instances' own tones kept under it). */

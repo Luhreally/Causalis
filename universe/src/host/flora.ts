@@ -49,8 +49,11 @@ export function landFlora(
   return read;
 }
 
-/** How many tiles of its land's map about a town's own its ground's growth is read to (as its water is: sites.ts WET_HALF). */
-export const FLORA_HALF = 6;
+/**
+ * How many tiles of its land's map about a town's own its ground is read to: past its water's window (sites.ts WET_HALF),
+ * out to where the eye no longer sees (its ground runs into its land's beyond its own, render/townflora.ts).
+ */
+export const FLORA_HALF = 22;
 
 /** What grows about a town's tile, on its own ground's scale (`m`: metres a tile there). */
 export function townFlora(
@@ -66,5 +69,6 @@ export function townFlora(
     Math.floor(tile / r.size),
     FLORA_HALF,
     m,
+    { water: r.water, elevation: r.elevation },
   );
 }

@@ -18,6 +18,8 @@ import {
   townGroundAt,
   townGroundOf,
   townHeld,
+  townRiseAt,
+  townWaterAt,
   TOWN_CORE,
   clearAt,
   villageGround,
@@ -26,15 +28,18 @@ import {
   type TownFlora,
 } from "../view/index.ts";
 import { InstancedBatch, coneMesh, cylinderMesh, keptMesh } from "./batch.ts";
+import { SNOW_HIDES } from "./flora.ts";
 import type { Rgb, Stage } from "./stage.ts";
 
 /** Units a metre, as the town's view draws (render/village.ts M). */
 const M = 0.1;
 /** How long a frame spends laying what grows about a town, at most (ms). */
 const LAY_SLICE = 4;
-/** The ground mesh's rings and spokes. */
+/** The ground mesh's rings and spokes; its rings past its own ground, and how far they reach (units: past the eye's far clip). */
 const RINGS = 30,
-  SPOKES = 72;
+  SPOKES = 72,
+  OUTER = 14,
+  FAR = 1400;
 
 export class TownFloraLayer {
   readonly root = new pc.Entity("town-flora");
@@ -49,6 +54,8 @@ export class TownFloraLayer {
   /** Each vertex's own colour, and the colours as last painted. */
   private base: Float32Array | null = null;
   private open: Float32Array | null = null;
+  /** Its vertices on open water: no season nor dry year on them. */
+  private still: Uint8Array | null = null;
   private painted: Uint8Array | null = null;
   private batches: Record<
     "trunks" | "cones" | "balls" | "tufts" | "stones",
@@ -119,27 +126,33 @@ export class TownFloraLayer {
       for (const b of Object.values(this.batches)) b?.set(0, () => {});
       return false;
     }
-    // The ground: rings closer near the middle, where the eye is.
-    const n = (RINGS + 1) * SPOKES + 1,
+    // The ground: rings closer near the middle, where the eye is; and past its own, its land's ground out to where no eye
+    // sees, its heights rising as its land's do (no edge to the world at any zoom the eye may take).
+    const rings = RINGS + 1 + OUTER,
+      n = rings * SPOKES + 1,
+      flat = radius / M,
       positions = new Float32Array(n * 3),
-      normals = new Float32Array(n * 3),
       base = new Float32Array(n * 3),
       open = new Float32Array(n),
+      water = new Uint8Array(n),
       put = (k: number, x: number, z: number) => {
         positions[k * 3] = x;
-        positions[k * 3 + 1] = 0;
+        positions[k * 3 + 1] = townRiseAt(g, x / M, z / M, flat) * M;
         positions[k * 3 + 2] = z;
-        normals[k * 3 + 1] = 1;
         const c = townGroundAt(g, plan, x / M, z / M, edge);
         base[k * 3] = c[0];
         base[k * 3 + 1] = c[1];
         base[k * 3 + 2] = c[2];
-        // (A dry year browns the grass, not the woods' shade: how much of the ground lies open.)
-        open[k] = 1 - 0.92 * townCanopyAt(g, x / M, z / M);
+        water[k] = townWaterAt(g, x / M, z / M) ? 1 : 0;
+        // (A dry year browns the grass, not the woods' shade nor the water: how much of the ground lies open.)
+        open[k] = water[k] ? 0 : 1 - 0.92 * townCanopyAt(g, x / M, z / M);
       };
     put(0, 0, 0);
-    for (let r = 1; r <= RINGS + 1; r++) {
-      const rr = radius * Math.pow((r - 1 + 0.35) / (RINGS + 0.35), 1.7);
+    for (let r = 1; r <= rings; r++) {
+      const rr =
+        r <= RINGS + 1
+          ? radius * Math.pow((r - 1 + 0.35) / (RINGS + 0.35), 1.7)
+          : radius * Math.pow(FAR / radius, (r - RINGS - 1) / OUTER);
       for (let a = 0; a < SPOKES; a++) {
         const an = (a / SPOKES) * Math.PI * 2 + (r % 2) * (Math.PI / SPOKES);
         put(1 + (r - 1) * SPOKES + a, rr * Math.cos(an), rr * Math.sin(an));
@@ -147,7 +160,7 @@ export class TownFloraLayer {
     }
     const indices: number[] = [];
     for (let a = 0; a < SPOKES; a++) indices.push(0, 1 + ((a + 1) % SPOKES), 1 + a);
-    for (let r = 0; r < RINGS; r++)
+    for (let r = 0; r < rings - 1; r++)
       for (let a = 0; a < SPOKES; a++) {
         const i0 = 1 + r * SPOKES + a,
           i1 = 1 + r * SPOKES + ((a + 1) % SPOKES),
@@ -155,6 +168,7 @@ export class TownFloraLayer {
           j1 = 1 + (r + 1) * SPOKES + ((a + 1) % SPOKES);
         indices.push(i0, i1, j0, i1, j1, j0);
       }
+    const normals = pc.calculateNormals([...positions], indices);
     const mesh = new pc.Mesh(this.stage.device);
     mesh.setPositions(positions);
     mesh.setNormals(normals);
@@ -179,6 +193,7 @@ export class TownFloraLayer {
     this.groundMesh = mesh;
     this.base = base;
     this.open = open;
+    this.still = water;
     this.paint(this.told.s, this.told.dry);
     this.leafBase = formColor(g.palette, "broadleaf");
     this.needleBase = formColor(g.palette, "conifer");
@@ -281,9 +296,11 @@ export class TownFloraLayer {
       snow = s?.snow ?? 0;
     this.batches.balls?.recolor(leaf);
     this.batches.cones?.recolor(needle);
-    this.batches.balls?.toneSnow(snow * 0.45);
-    this.batches.cones?.toneSnow(snow * 0.5);
-    this.batches.tufts?.toneSnow(snow * 0.85);
+    // (As on the land, render/flora.ts: needles dark under snow, bare crowns twigs, grass under the snow.)
+    this.batches.balls?.toneSnow(Math.min(1, snow * 0.45 + (s ? (1 - s.leaf) * 0.3 : 0)));
+    this.batches.cones?.toneSnow(snow * 0.35);
+    this.batches.tufts?.toneSnow(Math.min(1, snow * 1.6));
+    this.batches.tufts?.drawn(snow < SNOW_HIDES);
     this.batches.stones?.toneSnow(snow * 0.7);
   }
 
@@ -300,7 +317,7 @@ export class TownFloraLayer {
           o = this.open?.[k] ?? 1;
         c = [c[0] + (d[0] - c[0]) * o, c[1] + (d[1] - c[1]) * o, c[2] + (d[2] - c[2]) * o];
       }
-      if (s) c = seasonGround(c, s);
+      if (s && !this.still?.[k]) c = seasonGround(c, s);
       out[k * 4] = Math.max(0, Math.min(255, Math.round(c[0] * 255)));
       out[k * 4 + 1] = Math.max(0, Math.min(255, Math.round(c[1] * 255)));
       out[k * 4 + 2] = Math.max(0, Math.min(255, Math.round(c[2] * 255)));
@@ -324,7 +341,7 @@ export class TownFloraLayer {
     const w = this.plan?.landFlora,
       mid = w ? (w.half * (2 * w.half + 1) + w.half) * 5 : -1;
     return {
-      cover: w ? `${FLORA_NAMES[w.tiles[mid]!]} canopy ${w.tiles[mid + 1]}` : "",
+      cover: w ? `${FLORA_NAMES[w.tiles[mid]!] ?? "water"} canopy ${w.tiles[mid + 1]}` : "",
       ground: !!this.ground,
       trees: f?.trees ?? 0,
       tufts: f?.tufts.length ?? 0,

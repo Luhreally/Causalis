@@ -1412,6 +1412,8 @@ export {
   townGroundAt,
   townGroundOf,
   townHeld,
+  townRiseAt,
+  townWaterAt,
   TOWN_CORE,
   type TownFlora,
   type TownGround,

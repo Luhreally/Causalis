@@ -5,8 +5,14 @@
 // stones, nearest the square first, as many as the setting's budget (the hedges and walls about its fields are its
 // country's, render/country.ts). Never on its water, its streets, its road out, its fields, its pasture, or what else it
 // keeps on its open ground (townHeld: its graveyard, works, barns, silos, mills, fold). Pure: the same plan, the same ground and trees.
-import { FLORA, wetGround, type FloraTiles, type VillagePlan } from "../bridge/index.ts";
-import { lifePalette } from "./globe.ts";
+import {
+  FLORA,
+  FLORA_WATER,
+  wetGround,
+  type FloraTiles,
+  type VillagePlan,
+} from "../bridge/index.ts";
+import { kindWater, lifePalette } from "./globe.ts";
 import type { Rgb } from "./sandbox.ts";
 import { clearAt, villageGround } from "./ground.ts";
 import { countryOf } from "./country.ts";
@@ -44,8 +50,12 @@ const TRUNK: Rgb = [0.36, 0.27, 0.19];
 export type TownGround = {
   readonly read: FloraTiles;
   readonly palette: readonly Rgb[];
-  /** Each tile's ground colour. */
+  /** Each tile's ground colour (its water's, where it is open water). */
   readonly colors: readonly Rgb[];
+  /** Each tile open water (1) or not. */
+  readonly water: Uint8Array;
+  /** Each tile's ground over the town's own (metres; null: its land's heights not given). */
+  readonly rise: Float32Array | null;
   /** Metres a tile, how many tiles from the middle each way, and where the middle tile's middle is from the square. */
   readonly m: number;
   readonly half: number;
@@ -67,7 +77,13 @@ export function townGroundOf(plan: VillagePlan): TownGround | null {
       wet: new Uint8Array(n),
       lush: new Uint8Array(n),
     };
+  const water = new Uint8Array(n);
   for (let t = 0; t < n; t++) {
+    // (Open water: nothing grows on it, nothing stands on it.)
+    if (w.tiles[t * 5] === FLORA_WATER) {
+      water[t] = 1;
+      continue;
+    }
     read.cover[t] = w.tiles[t * 5]!;
     read.canopy[t] = w.tiles[t * 5 + 1]!;
     read.rock[t] = w.tiles[t * 5 + 2]!;
@@ -76,10 +92,53 @@ export function townGroundOf(plan: VillagePlan): TownGround | null {
   }
   const palette = lifePalette(plan.kind, plan.lifeLook),
     seed = Math.abs(plan.seed | 0),
+    lake = kindWater(plan.kind)?.lake ?? [0.2, 0.4, 0.6],
     colors: Rgb[] = [];
-  for (let t = 0; t < n; t++) colors.push(tileGround(palette, read, t, seed + t));
-  const bank = plan.landWater?.bank;
-  return { read, palette, colors, m: w.m, half: w.half, ox: -(bank?.x ?? 0), oz: -(bank?.z ?? 0) };
+  for (let t = 0; t < n; t++)
+    colors.push(water[t] ? [lake[0], lake[1], lake[2]] : tileGround(palette, read, t, seed + t));
+  const bank = plan.landWater?.bank,
+    rise = w.rise && w.rise.length === n ? Float32Array.from(w.rise) : null;
+  return {
+    read,
+    palette,
+    colors,
+    water,
+    rise,
+    m: w.m,
+    half: w.half,
+    ox: -(bank?.x ?? 0),
+    oz: -(bank?.z ?? 0),
+  };
+}
+
+/**
+ * How high its land's ground stands at a point (metres over the town's), blended between the tiles' middles; nothing within
+ * `flat` metres of the square (its own ground, where it is built and grows, is flat), the whole of it from 1.6 times that.
+ */
+export function townRiseAt(g: TownGround, x: number, z: number, flat: number): number {
+  const rise = g.rise;
+  if (!rise) return 0;
+  const d = Math.hypot(x, z);
+  if (d <= flat) return 0;
+  const s = 2 * g.half + 1,
+    fx = Math.max(0, Math.min(s - 1 - 1e-6, (x - g.ox) / g.m + g.half)),
+    fz = Math.max(0, Math.min(s - 1 - 1e-6, (z - g.oz) / g.m + g.half)),
+    i = Math.floor(fx),
+    j = Math.floor(fz),
+    u = fx - i,
+    v = fz - j,
+    a = rise[j * s + i]!,
+    b = rise[j * s + i + 1]!,
+    c = rise[(j + 1) * s + i]!,
+    e = rise[(j + 1) * s + i + 1]!,
+    h = (a + (b - a) * u) * (1 - v) + (c + (e - c) * u) * v,
+    k = Math.min(1, (d - flat) / (0.6 * flat));
+  return Math.max(0, h) * k * k * (3 - 2 * k);
+}
+
+/** Whether a point (metres from the square) lies on open water of its land's map. */
+export function townWaterAt(g: TownGround, x: number, z: number): boolean {
+  return g.water[tileAt(g, x, z)] === 1;
 }
 
 /** The tile of the reading a point (metres from the square) falls on. */
@@ -377,10 +436,11 @@ export function* townFloraSteps(
     const x = (i + 0.15 + 0.7 * cellUnit(i, j, 1 + salt)) * CELL,
       z = (j + 0.15 + 0.7 * cellUnit(i, j, 2 + salt)) * CELL;
     if (x * x + z * z > r2) continue;
-    const t = tileAt(g, x, z),
-      want =
-        (r.canopy[t]! / 255) *
-        (0.2 + 1.6 * cellUnit(Math.floor(x / 140), Math.floor(z / 140), 900 + salt));
+    const t = tileAt(g, x, z);
+    if (g.water[t]) continue;
+    const want =
+      (r.canopy[t]! / 255) *
+      (0.2 + 1.6 * cellUnit(Math.floor(x / 140), Math.floor(z / 140), 900 + salt));
     if (cellUnit(i, j, 3 + salt) >= want) continue;
     const form = formAt(r, t, cellUnit(i, j, 4 + salt), warmOf(r, t)),
       size = TOWN_FORM[form] ?? TOWN_FORM.broadleaf!,
@@ -400,7 +460,7 @@ export function* townFloraSteps(
     if (x * x + z * z > tuftReach * tuftReach) continue;
     const t = tileAt(g, x, z),
       cover = r.cover[t]!;
-    if (cover === FLORA.ice || cover === FLORA.rock) continue;
+    if (g.water[t] || cover === FLORA.ice || cover === FLORA.rock) continue;
     const open = Math.max(0, 1 - r.canopy[t]! / 255 - r.rock[t]! / 255),
       lush = r.lush[t]! / 255,
       want = open * (0.06 + 0.3 * lush + (cover === FLORA.marsh ? 0.25 : 0));
@@ -428,7 +488,7 @@ export function* townFloraSteps(
     if (x * x + z * z > r2) continue;
     const t = tileAt(g, x, z),
       k = r.rock[t]! / 255;
-    if (cellUnit(i, j, 33 + salt) >= 0.05 + 0.75 * k) continue;
+    if (g.water[t] || cellUnit(i, j, 33 + salt) >= 0.05 + 0.75 * k) continue;
     const sz = 1 + 3.5 * cellUnit(i, j, 34 + salt) * (0.5 + k);
     if (!clear(x, z, sz)) continue;
     put(

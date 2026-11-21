@@ -411,9 +411,14 @@ export function floraUnpack(packed: Uint8Array, size: number): FloraTiles {
 export type FloraWindow = {
   readonly m: number;
   readonly half: number;
-  /** (2 half + 1)² tiles, row by row, five bytes each. */
+  /** (2 half + 1)² tiles, row by row, five bytes each (a cover of FLORA_WATER: open water, nothing growing). */
   readonly tiles: readonly number[];
+  /** Each tile's ground over the town's own (metres; water at its own level, 0), where the land's heights were given. */
+  readonly rise?: readonly number[];
 };
+
+/** A window's cover for open water (no cover of a land's: bridge/biome.ts FLORA stops below it). */
+export const FLORA_WATER = 255;
 
 export function floraWindow(
   r: FloraTiles,
@@ -421,15 +426,20 @@ export function floraWindow(
   j: number,
   half: number,
   m: number,
+  land?: { readonly water: ArrayLike<number>; readonly elevation: ArrayLike<number> },
 ): FloraWindow {
   const tiles: number[] = [],
-    s = r.size;
+    rise: number[] = [],
+    s = r.size,
+    here = land ? Math.max(0, land.elevation[Math.max(0, Math.min(s * s - 1, j * s + i))]!) : 0;
   for (let dj = -half; dj <= half; dj++)
     for (let di = -half; di <= half; di++) {
       const a = Math.max(0, Math.min(s - 1, i + di)),
         b = Math.max(0, Math.min(s - 1, j + dj)),
-        t = b * s + a;
-      tiles.push(r.cover[t]!, r.canopy[t]!, r.rock[t]!, r.wet[t]!, r.lush[t]!);
+        t = b * s + a,
+        wet = !!land && land.water[t] !== 0 && r.cover[t] !== FLORA.reef;
+      tiles.push(wet ? FLORA_WATER : r.cover[t]!, r.canopy[t]!, r.rock[t]!, r.wet[t]!, r.lush[t]!);
+      if (land) rise.push(wet ? 0 : Math.round(Math.max(0, land.elevation[t]!) - here));
     }
-  return { m, half, tiles };
+  return land ? { m, half, tiles, rise } : { m, half, tiles };
 }
