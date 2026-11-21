@@ -114,6 +114,8 @@ export type ToldMap = {
   readonly legend: readonly { readonly kind: string; readonly words: string }[];
   /** Said under it where its borders are remembered only roughly. */
   readonly note?: string;
+  /** What its colours mean (an alliance's: how long each realm has stood in it, and its foes). */
+  readonly key?: readonly { readonly color: Rgb; readonly words: string }[];
 };
 
 export type YearTold = {
@@ -142,6 +144,8 @@ export type YearTold = {
   readonly less: Line | null;
   /** The world its pictures are drawn in the colours of. */
   readonly art: PageArt["world"] | null;
+  /** Other tellings of the same years: a realm's alliance's, an alliance's head realm's. */
+  readonly also?: readonly { readonly words: string; readonly ref: string }[];
   /** Its lead alone: its sections, numbers and map are asked for after it. */
   readonly partial?: boolean;
   /** How long it took to read (ms), for a gate to weigh. */

@@ -266,15 +266,15 @@ export function townPlan(
         })),
       ...rimWorks(f, lots),
     ],
-    walls:
-      f.walls && f.walls.reach <= lots
-        ? {
-            start: f.walls.start,
-            end: f.walls.end,
-            reach: f.walls.reach,
-            ...askedOfWalls(world, ref),
-          }
-        : null,
+    // (Walls raised about more lots than are drawn, a great city's, are drawn out in its sprawl: bridge/town.ts wallsOut.)
+    walls: f.walls
+      ? {
+          start: f.walls.start,
+          end: f.walls.end,
+          reach: f.walls.reach,
+          ...askedOfWalls(world, ref),
+        }
+      : null,
     months: HOME_MONTHS,
     designs,
     paved: !!citiesOf(world).get(ref)?.paved || colonyTownCell(ref) !== null,

@@ -66,7 +66,9 @@ import { biomeColor } from "./globe.ts";
 import { lifeTint } from "./biochem.ts";
 import { WORN_WIDE, wornOf } from "./worn.ts";
 import { edgeYard, formGround, formLook, formTiers, streetOf, tierOf } from "./townform.ts";
-import { TIER, streetWide } from "../bridge/index.ts";
+import { TIER, hasSpires, sprawlOf, streetWide, wallAt } from "../bridge/index.ts";
+
+export { hasSpires, sprawlOf };
 
 type Rgb = readonly [number, number, number];
 export type PartMesh = "box" | "gable" | "cone" | "cyl" | "dome";
@@ -151,8 +153,8 @@ const LEVELS: readonly { w: number; d: number; h: number; storeys: number }[] = 
   { w: 7.8, d: 11, h: 72, storeys: 24 },
   { w: 8.6, d: 12.2, h: 300, storeys: 120 },
 ];
-/** The tallest level drawn. */
-const TOP_LEVEL = LEVELS.length - 1;
+/** The tallest level drawn (bridge/town.ts SPIRE_LEVEL: a town with homes at it has spires). */
+export const TOP_LEVEL = LEVELS.length - 1;
 /**
  * How high a home of a town stands to its roof's top, and how broad it is (metres; Phase 42
  * M201): a hut or a house as its look draws it, its roof as steep as its rain wants.
@@ -892,18 +894,6 @@ export function avenueWay(plan: TownPlan, k: number): number {
 }
 
 /**
- * A great city's sprawl (null: none): from as far as its lots drawn reach out to as far as all its
- * lots would (metres).
- */
-export function sprawlOf(plan: TownPlan, lots: TownLots): { r0: number; r1: number } | null {
-  if (plan.whole <= plan.lots || plan.lots === 0 || !plan.designs.length) return null;
-  const r0 = townReach(lots, plan.lots),
-    // (Built up as spires are, it holds as many on far less: yet it has spread far past any other.)
-    r1 = Math.min(hasSpires(plan) ? 5200 : 2600, r0 * Math.sqrt(plan.whole / plan.lots));
-  return r1 > r0 + 20 ? { r0, r1 } : null;
-}
-
-/**
  * A great city's lots past those drawn: its sprawl, low roofs on its trodden ground out to as far
  * as all its lots would reach, one roof for every few homes, into the haze — its avenues kept
  * clear, and its water.
@@ -1000,6 +990,7 @@ function sprawlLaid(scene: TownScene): Float32Array {
       wet = (x: number, z: number, margin: number) =>
         !!water && Math.hypot(x - water.x, z - water.z) < water.r + margin,
       towers = hasSpires(plan),
+      walls = scene.walls && plan.walls && plan.walls.reach > plan.lots ? scene.walls.line : null,
       sector = (2 * Math.PI) / AVENUES,
       taken = new Footprints(48),
       blocks = scene.lots.blocks;
@@ -1035,6 +1026,8 @@ function sprawlLaid(scene: TownScene): Float32Array {
       if (Math.min(off, sector * r - off) < AVENUE_HALF + w / 2 + 1 || wet(x, z, w / 2 + 4))
         continue;
       if (wetGround(plan.site, x, z)) continue;
+      // (Off the line its walls stand on out in it, or stood on: their ground, or the ring street where they stood, kept clear.)
+      if (walls && Math.abs(r - wallAt(walls, a)) < w / 2 + WALL_THICK + 4) continue;
       // (What it stands on, its eaves with it: a tower's own breadth, a roof's overhang.)
       const across = (wide: number) =>
         towers
@@ -1536,11 +1529,6 @@ export function homesRiseTo(plan: TownPlan): number {
   let top = 0;
   for (const r of plan.runs) if (r[0]! <= 1) top = Math.max(top, r[5]!);
   return LEVELS[Math.min(top, TOP_LEVEL)]!.h * (top >= TOP_LEVEL ? 1.4 : 1);
-}
-
-/** Whether a town has come to raise spires: what its sprawl is then made of. */
-export function hasSpires(plan: TownPlan): boolean {
-  return plan.runs.some((r) => r[0]! <= 1 && r[5]! >= TOP_LEVEL);
 }
 
 /** What the greatest fire left of a home: its lot's whole width in a low black heap, and here and there a stub (W5). */

@@ -162,7 +162,15 @@ import {
 } from "./inspect/index.ts";
 import { linesWere } from "./inspect/townlife.ts";
 import { annalsIndex, annalsRead, runTold } from "./inspect/annals.ts";
-import { toldBase, toldForget, toldGone, toldWarm, toldWays, yearTold } from "./inspect/told.ts";
+import {
+  toldBase,
+  toldForget,
+  toldGone,
+  toldList,
+  toldWarm,
+  toldWays,
+  yearTold,
+} from "./inspect/told.ts";
 import { ANNALS_SEARCH_QUERIES } from "./inspect/annals-search.ts";
 import { askedKey, townOffers } from "./inspect/asks.ts";
 import { MAP_QUERIES } from "./map.ts";
@@ -1774,6 +1782,8 @@ function planetUniverse(name: string, prior: Prior): Universe {
         return toldWarm(world, a.year, a.to);
       },
       "told.base": (world) => toldBase(world),
+      // A realm's or an alliance's last years, each its headline: read when its tab is opened.
+      "told.list": (world, args) => toldList(world, args as { subject: string; most?: number }),
       "told.gone": (world, args) => toldGone(world, (args as { year: number }).year),
       // (Its page shut: what was kept for it is let go.)
       "told.forget": (world) => toldForget(world),

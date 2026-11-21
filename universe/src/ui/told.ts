@@ -274,16 +274,26 @@ export function drawTold(
       el(
         "h3",
         "told-h",
-        t.subject
-          ? "Its lands and those about them"
-          : t.to > t.year
-            ? "Who held what over these years"
-            : "Who held what that year",
+        t.subject?.ref.startsWith("bloc:")
+          ? "Its realms' lands, by when each came in"
+          : t.subject
+            ? "Its lands and those about them"
+            : t.to > t.year
+              ? "Who held what over these years"
+              : "Who held what that year",
       ),
       c,
     );
-    if (map.legend.length) {
+    if (map.legend.length || map.key?.length) {
       const key = el("div", "told-legend");
+      // (What its colours mean: an alliance's realms by how long each has stood in it, and its foes.)
+      for (const k of map.key ?? []) {
+        const one = el("span", "told-legend-one"),
+          sw = el("span", "told-swatch");
+        sw.style.background = `rgb(${k.color.map((c) => Math.round(c * 255)).join(",")})`;
+        one.append(sw, k.words);
+        key.append(one);
+      }
       for (const k of map.legend) {
         const one = el("span", "told-legend-one");
         one.append(markCanvas(k.kind), k.words);
@@ -374,6 +384,7 @@ export function drawTold(
         "years",
         "figures",
         "map",
+        "bloc",
         "power",
         "war",
         "money",
@@ -442,6 +453,8 @@ export function drawTold(
       chip("Century", step === 100, () => void read(...spanOf(t.year, 100), null)),
       goRow,
       ...(t.subject ? [chip("🌍 The world's", false, () => ctx.open(toldRef(t.year, t.to)))] : []),
+      // (A realm's alliance's year, an alliance's head realm's.)
+      ...(t.also ?? []).map((a) => chip(a.words, false, () => ctx.open(a.ref))),
     );
     const parts: (HTMLElement | null)[] = [];
     t.leads.forEach((l, i) => parts.push(leadPart(l, i, t)));
@@ -583,4 +596,67 @@ export function drawTold(
     }
   });
   void read(year, to, null);
+}
+
+/**
+ * A realm's or an alliance's last years, each its headline, newest first: each opens that year told; its decades and its
+ * century below. Read from the host when it is drawn (its tab opened), and at no other time.
+ */
+export function drawToldList(
+  into: HTMLElement,
+  args: Readonly<Record<string, unknown>>,
+  ctx: ToolContext,
+): void {
+  const subject = typeof args.subject === "string" ? args.subject : "",
+    box = el("div", "told told-list"),
+    note = el("p", "muted told-note", "Reading its years…");
+  box.append(note);
+  into.append(box);
+  if (!subject) return;
+  const t0 = performance.now();
+  void ctx.client
+    .query<{
+      years: { year: number; headline: string }[];
+      decades: number[];
+      now: number;
+      first: number;
+    }>({ type: "told.list", args: { subject } })
+    .then((got) => {
+      if (!box.isConnected) return;
+      box.dataset.asked = (performance.now() - t0).toFixed(1);
+      const rows: HTMLElement[] = [];
+      for (const y of got.years) {
+        if (y.headline.startsWith("—")) {
+          rows.push(el("p", "muted told-note", y.headline.replace(/^— | —$/g, "")));
+          continue;
+        }
+        const row = el("button", "told-year-row");
+        row.append(
+          el("span", "told-year-at", String(y.year)),
+          el("span", "told-year-says", y.headline),
+        );
+        row.onclick = () => ctx.open(toldRef(y.year, y.year, subject));
+        rows.push(row);
+      }
+      if (!rows.length) rows.push(el("p", "muted told-note", "No year of it is kept."));
+      const spans = el("div", "told-spans");
+      for (const d of got.decades) {
+        const b = el("button", "told-span", `${d}s`);
+        b.onclick = () => ctx.open(toldRef(d, Math.min(got.now, d + 9), subject));
+        spans.append(b);
+      }
+      const c = Math.floor(got.now / 100) * 100,
+        century = el("button", "told-span", `Its ${c}s, as one`);
+      century.onclick = () => ctx.open(toldRef(c, Math.min(got.now, c + 99), subject));
+      spans.append(century);
+      box.replaceChildren(
+        el("h3", "told-h", "Its last years, the latest first"),
+        ...rows,
+        el("h3", "told-h", "Its decades, and its century"),
+        spans,
+      );
+    })
+    .catch(() => {
+      if (box.isConnected) note.textContent = "Its years could not be read.";
+    });
 }

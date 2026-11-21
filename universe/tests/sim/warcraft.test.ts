@@ -1,6 +1,7 @@
 // On a young peopled world (forty years, no further): the arming and the fleets run their year over its realms. A siege laid
 // at a seat with no walls falls the next year it is won before them. One lost there lifts it. The deaths a siege takes are
-// written into the lands' ledgers. A land behind walls is besieged, not taken at once. A host a peace stands down is the weaker
+// written into the lands' ledgers. A land behind walls is besieged, not taken at once; a land stands behind walls only while its
+// heart has walls done that still ring it. A host a peace stands down is the weaker
 // for it (sim/war/arming.ts, navy.ts, siege.ts).
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -18,9 +19,16 @@ import {
   siegeAt,
   siegeOf,
   siegesOf,
+  townsOf,
+  heartOf,
+  wallsStand,
+  PROVINCE_TILE_KM,
+  REGION_SIZE,
   type War,
 } from "../../src/sim/index.ts";
 import { why } from "../../src/causal/index.ts";
+import { LAND_HEART_KM, WALLS_OUTGROWN } from "../../src/rules/index.ts";
+import { HEART_REACH, WALLS_RING_MOST, heartTown } from "../../src/bridge/index.ts";
 import { peopledWorld } from "../worlds.ts";
 
 const world = peopledWorld("kestrel", 40, { start: "spread" }),
@@ -117,4 +125,48 @@ test("a host a peace stands down is the weaker for it until its term ends; a rea
   assert.equal(armingOf(world)!.of(p.ref)!.disarmUntil, year + 10);
   const might = realmMight(ctx, p);
   assert.ok(Number.isFinite(might) && might >= 0.3, `${might}`);
+});
+
+test("a land stands behind walls while its heart has walls done that still ring it, not once it grew past them", () => {
+  const year = Math.floor(world.now / YEAR),
+    towns = townsOf(world),
+    land = ctx.provinces
+      .all()
+      .map((p) => p.cell)
+      .find((c) => {
+        const h = heartOf(ctx, c);
+        return !!h && !!towns.of(h) && towns.of(h)!.next > 4;
+      })!,
+    heart = heartOf(ctx, land)!,
+    f = towns.of(heart)!,
+    was = f.walls;
+  // (The heart the land is drawn with: the greatest town near its middle.)
+  const half = ((REGION_SIZE - 1) * PROVINCE_TILE_KM) / 2,
+    drawn = heartTown(
+      ctx.settlements
+        .inProvince(land)
+        .filter((s) => s.population > 0)
+        .map((s) => ({
+          ref: s.ref,
+          population: s.population,
+          x: (s.tile % REGION_SIZE) * PROVINCE_TILE_KM - half,
+          z: Math.floor(s.tile / REGION_SIZE) * PROVINCE_TILE_KM - half,
+        })),
+    );
+  assert.equal(drawn?.ref, heart.ref);
+  assert.equal(LAND_HEART_KM, HEART_REACH);
+  try {
+    f.walls = null;
+    assert.equal(wallsStand(ctx, land, year), false, "no walls: none stand");
+    f.walls = { start: year - 5, end: year + 2, reach: f.next };
+    assert.equal(wallsStand(ctx, land, year), false, "walls rising are not yet a ring");
+    f.walls = { start: year - 5, end: year, reach: f.next };
+    assert.equal(wallsStand(ctx, land, year), true, "walls done about the town as it stands");
+    f.walls = { start: year - 5, end: year, reach: Math.floor(f.next / WALLS_OUTGROWN) - 1 };
+    assert.equal(wallsStand(ctx, land, year), false, "grown past them: pulled down");
+    // (As the town is drawn: walls it has grown past so far are pulled down there too.)
+    assert.equal(WALLS_RING_MOST, WALLS_OUTGROWN);
+  } finally {
+    f.walls = was;
+  }
 });

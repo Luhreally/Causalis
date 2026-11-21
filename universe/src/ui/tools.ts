@@ -5,7 +5,7 @@
 import type { HostClient, Leader, MusicVoice } from "../bridge/index.ts";
 import { drawCanPick } from "./can-pick.ts";
 import { drawYears } from "./years.ts";
-import { drawTold } from "./told.ts";
+import { drawTold, drawToldList } from "./told.ts";
 import { drawBarReading } from "./people-bar.ts";
 import { drawLeaderCard, drawWealthCompare } from "./leaders.ts";
 import { el } from "./why.ts";
@@ -300,6 +300,9 @@ export function drawTool(
       return;
     case "told.year":
       drawTold(into, args, ctx);
+      return;
+    case "told.list":
+      drawToldList(into, args, ctx);
       return;
     case "bar.reading":
       drawBarReading(into, args as Parameters<typeof drawBarReading>[1]);

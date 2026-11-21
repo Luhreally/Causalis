@@ -250,6 +250,13 @@ canvas.told-spark {
 canvas.told-key {
   flex: none;
 }
+.told-swatch {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
 .page-window .told-year-row {
   display: flex;
   align-items: baseline;

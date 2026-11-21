@@ -37,6 +37,7 @@ import {
   type Polity,
 } from "../../src/sim/index.ts";
 import { why } from "../../src/causal/index.ts";
+import { FISC, TREASURY_STORE, moneyStore } from "../../src/sim/money/kept.ts";
 import { peopledWorld } from "../worlds.ts";
 
 // Phase 22 M145: the army and its coups. Juniper's realms sixty years on; the greatest of them
@@ -315,4 +316,26 @@ test("restore() gives a protectorate back its rule at once", () => {
   assert.ok(restore(ctx, p, [], at(2)));
   assert.notEqual(p.leadership, GENERAL);
   assert.equal(restore(ctx, p, [], at(3)), null, "nothing to give back now");
+});
+
+test("an army goes unpaid where its treasury cannot pay what it spends on arms, fed or not", () => {
+  const w = fresh(),
+    p = greatest(w),
+    o = orderOf(w)!.of(p.ref)!,
+    purse = moneyStore(w, TREASURY_STORE)!,
+    row = (reserve: number) => {
+      const r = new Array<number>(purse.width).fill(0);
+      r[FISC.arms] = 1000;
+      r[FISC.reserve] = reserve;
+      r[FISC.deficit] = 800;
+      purse.set(p.ref, r);
+    },
+    unpaid = () =>
+      coupDanger(populationContext(w), p, o).factors.find((f) => f.name === "an army unpaid")!;
+  row(0);
+  // (Nothing by it and 800 short, taking nothing in: unpaid, though its seat has not starved. Until 2026-11-20 only a famine at
+  // its seat left an army unpaid.)
+  assert.equal(unpaid().value, 1);
+  row(5000);
+  assert.equal(unpaid().value, 0, "with something by it, its host is paid");
 });
