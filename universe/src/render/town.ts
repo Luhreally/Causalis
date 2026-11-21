@@ -48,13 +48,23 @@ import {
   type TownThing,
   type Burnable,
 } from "../view/index.ts";
-import { InstancedBatch, boxMesh, coneMesh, cylinderMesh, gableMesh, keptMesh } from "./batch.ts";
+import {
+  InstancedBatch,
+  boxMesh,
+  coneMesh,
+  cylinderMesh,
+  gableMesh,
+  keptMesh,
+  placeInstance,
+} from "./batch.ts";
 import { domeMesh } from "./colony.ts";
 import type { Rgb, Stage } from "./stage.ts";
 
 const M = 0.1;
 /** How long a frame draws a new choosing of a town's homes whole (ms: TownLayer.look). */
 const CHOOSE_BUDGET = 4;
+/** How many parts' matrices a choosing works out between looks at the clock (PartBatches.showOver). */
+const SHOW_STEP = 1024;
 /** How often what rises is put again (moments of the sim apart, at the least): a few times a day. */
 const RISE_EVERY = 6 * 3600,
   /** ... and while what struck it plays out — homes catching, burning, falling in (Phase 42 M201). */
@@ -77,7 +87,19 @@ class PartBatches {
     this.root = root;
     this.meshes = meshes;
   }
+  /** Where showOver works its instances out before they are put, kept from one showing to the next. */
+  private readonly staged = new Map<string, Float32Array>();
   show(...all: TownParts[]): void {
+    const run = this.showOver(Infinity, ...all);
+    while (!run.next().done);
+  }
+  /**
+   * As show(), its instances' matrices worked out a `step` at a time (yielding between), and all put in the one step
+   * at its end: what stands is replaced in one frame, whole, and that frame only copies and sends. (Worked out in the
+   * frame it was shown, a great city's 30,000 parts and more cost that frame 6 ms here and four times that on a phone,
+   * at every choosing of what stands whole near the eye: 2026-11-21.)
+   */
+  *showOver(step: number, ...all: TownParts[]): Generator<void, void> {
     // (One batch to a mesh, its roofs apart for the snow that lies on them: every colour of wall, roof and ground rides in
     // its instance. The windows keep theirs, lit at night.)
     const sets = new Map<string, { mesh: PartMesh; lamp: boolean; n: number; groups: Group[] }>();
@@ -91,6 +113,38 @@ class PartBatches {
         set.n += n;
         set.groups.push(g);
       }
+    const t = [0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1];
+    let since = 0;
+    for (const [key, set] of sets) {
+      let m = this.staged.get(key);
+      if (!m || m.length < set.n * 16) {
+        m = new Float32Array(Math.ceil(set.n * 1.3) * 16);
+        this.staged.set(key, m);
+      }
+      const toned = !set.lamp;
+      let i = 0;
+      // (Group by group, in the order they were gathered.)
+      for (const g of set.groups) {
+        const d = g.data;
+        t[8] = g.color[0];
+        t[9] = g.color[1];
+        t[10] = g.color[2];
+        for (let o = 0; o < d.length; o += 7, i++) {
+          t[0] = d[o]! * M;
+          t[1] = d[o + 1]! * M;
+          t[2] = d[o + 2]! * M;
+          t[3] = d[o + 3]! * M;
+          t[4] = d[o + 4]! * M;
+          t[5] = d[o + 5]! * M;
+          t[6] = d[o + 6]!;
+          placeInstance(m, i * 16, t, toned);
+          if (++since >= step) {
+            since = 0;
+            yield;
+          }
+        }
+      }
+    }
     for (const [key, set] of sets) {
       let b = this.batches.get(key);
       if (!b || b.capacity < set.n || (set.lamp && this.lampsIn !== this.lamps)) {
@@ -108,28 +162,8 @@ class PartBatches {
         this.batches.set(key, b);
         if (this.snow > 0 && key.endsWith("|roof")) b.toneSnow(this.snow * 0.8);
       }
-      // (Group by group, in the order they were gathered.)
-      let at = 0,
-        from = 0,
-        g = set.groups[0]!;
-      b.set(set.n, (i, out) => {
-        while (i - from >= g.data.length / 7) {
-          from += g.data.length / 7;
-          g = set.groups[++at]!;
-        }
-        const d = g.data,
-          o = (i - from) * 7;
-        out[0] = d[o]! * M;
-        out[1] = d[o + 1]! * M;
-        out[2] = d[o + 2]! * M;
-        out[3] = d[o + 3]! * M;
-        out[4] = d[o + 4]! * M;
-        out[5] = d[o + 5]! * M;
-        out[6] = d[o + 6]!;
-        out[8] = g.color[0];
-        out[9] = g.color[1];
-        out[10] = g.color[2];
-      });
+      const m = this.staged.get(key)!;
+      b.setMatrices(set.n, (out) => out.set(m.subarray(0, set.n * 16)));
     }
     for (const [key, b] of this.batches) if (!sets.has(key)) b.set(0, () => {});
   }
@@ -283,11 +317,18 @@ export class TownLayer {
     yield* homesSeen(scene, detail, this.seenAt, homes);
     // (Its year turned meanwhile: the new year's homes are drawn by that year's choosing.)
     if (this.scene !== scene) return;
+    // (Worked out over the frames that follow, put in the last of them; the old standing till then.)
+    const show = this.settled.showOver(SHOW_STEP, this.ground, homes);
+    let t1 = performance.now();
+    for (;;) {
+      t1 = performance.now();
+      if (show.next().done) break;
+      yield;
+      if (this.scene !== scene) return;
+    }
     this.detail = detail;
     this.homesSeenParts = homes;
-    const t1 = performance.now();
-    this.settled.show(this.ground, homes);
-    // (From its choosing begun to its drawing shown, over frames; and the one frame it is shown in.)
+    // (From its choosing begun to its drawing shown, over frames; and the last step, which puts it.)
     performance.measure("town.chosen", { start: t0 });
     performance.measure("town.shown", { start: t1 });
   }
