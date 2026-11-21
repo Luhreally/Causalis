@@ -25,6 +25,7 @@ import {
   TownParts,
   farOf,
   homeAt,
+  rowAt,
   townDetail,
   townGround,
   townHomesSeen,
@@ -277,4 +278,38 @@ test("a home seen from afar is the same building, only less of it: every part of
       }
   }
   assert.ok(looked >= 20, `${looked} looked at`);
+});
+
+test("a row of homes drawn as one far off is the same row: each of its parts at the height, size up and depth, and in the colour, of one of its homes whole", () => {
+  let rows = 0;
+  const parts = (o: TownParts) => {
+    const out = new Set<string>();
+    for (const [key, g] of o.groups)
+      for (let j = 0; j < g.data.length; j += 7)
+        out.add(
+          [
+            key,
+            g.data[j + 1]!.toFixed(2),
+            g.data[j + 4]!.toFixed(2),
+            g.data[j + 5]!.toFixed(2),
+          ].join("|"),
+        );
+    return out;
+  };
+  for (const { plan } of great) {
+    const scene = townScene(plan, world.now);
+    for (const look of scene.looks)
+      for (let level = 0; level <= 6; level++) {
+        const whole = new TownParts(),
+          row = new TownParts();
+        // (Along its street: yaw 0 runs along x.)
+        for (let k = 0; k < 4; k++) homeAt(whole, look, level, 30 + k * 9, -40, 0, 2);
+        rowAt(row, look, level, 4, 30, -40, 0);
+        const all = parts(whole);
+        for (const p of parts(row))
+          assert.ok(all.has(p), `level ${level}: ${p} not of its homes whole`);
+        rows++;
+      }
+  }
+  assert.ok(rows >= 20, `${rows} rows looked at`);
 });

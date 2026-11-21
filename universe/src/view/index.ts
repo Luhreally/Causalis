@@ -295,6 +295,7 @@ export {
   homesSeen,
   townHomesSeen,
   homeAt,
+  rowAt,
   townDetail,
   farOf,
   DETAIL_HYSTERESIS,

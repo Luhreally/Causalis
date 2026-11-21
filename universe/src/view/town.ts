@@ -1152,9 +1152,12 @@ export const DETAIL_HYSTERESIS = 60;
  */
 export const FAR_WHOLE = 2500,
   LOD_LOTS = 4000;
-/** About how many parts a home takes by its level, whole and as seen from afar (measured 2026-11-21). */
-const WHOLE_PARTS = [4.5, 4.5, 6.5, 7, 9, 15],
-  LOD_PARTS = [4, 4, 5, 5, 7, 13];
+/**
+ * About how many parts a home takes by its level, whole and as seen from afar (measured 2026-11-21), a spire's (TOP_LEVEL)
+ * with them: without it a city's first spire drawn whole left its count not a number, and no home after it was drawn whole.
+ */
+const WHOLE_PARTS = [4.5, 4.5, 6.5, 7, 9, 15, 15],
+  LOD_PARTS = [4, 4, 5, 5, 7, 15, 15];
 
 /** A town's lots past those its plan draws whole: where each stands on its blocks grown on, and what stands there. */
 export type TownFar = {
@@ -1317,10 +1320,13 @@ function towerBands(level: number): number {
 /** About how many parts a home past a city's lots drawn takes in its row (rowsLod): for FAR_PARTS. */
 function farParts(level: number, look: HouseLook | undefined): number {
   if (!look) return 0;
-  if (level >= TOP_LEVEL) return 4;
+  // (A spire as it stands whole, its masts, bands and caps tall enough to be seen as far as it is drawn.)
+  if (level >= TOP_LEVEL) return 15;
   if (!rowJoins(level, look)) return look.open ? 1 : 2;
-  if (level <= 1) return 0.75;
+  if (level <= 1) return 1;
   if (level === 2) return 1.25;
+  // (A tower's frames with its bands, and its mast each.)
+  if (level === 5) return (2 + 2 * towerBands(level)) / 4 + 1;
   return (2 + towerBands(level)) / 4;
 }
 
@@ -1551,6 +1557,28 @@ export function homeAt(
   home(out, look, level, x, z, yaw, 1, 1, fine);
 }
 
+/** A row of `n` homes of one level and look side by side along their street from (x, z), drawn in their row (rowsLod): for a check. */
+export function rowAt(
+  out: TownParts,
+  look: HouseLook,
+  level: number,
+  n: number,
+  x: number,
+  z: number,
+  yaw: number,
+): void {
+  const list = Array.from({ length: n }, (_, k) => k);
+  rowsLod(
+    out,
+    list,
+    (p) => {
+      const [px, pz] = at(x, z, yaw, p * LOT_W, 0);
+      return { x: px, z: pz, yaw };
+    },
+    () => ({ level, look }),
+  );
+}
+
 /** The walls of a tall home: brick, concrete, glass; where its people have no brick to stack, what its low homes are of. */
 function tallWall(look: HouseLook, level: number): Rgb {
   return level === 3
@@ -1609,6 +1637,7 @@ function rowsLod(
     )
       j++;
     const n = j - i,
+      first = i,
       a = place(p),
       b = place(sorted[j - 1]!);
     i = j;
@@ -1639,9 +1668,18 @@ function rowsLod(
     if (level >= 3) {
       // (Its storeys' bands and its roof's tar, as each of its homes has them.)
       const bands = towerBands(level);
-      for (let k = 0; k < bands; k++)
-        out.lamp(x, ((k + 0.6) / bands) * h, z, long + L.w * 0.01, 0.8, L.d * 1.01, yaw);
+      for (let k = 0; k < bands; k++) {
+        const y = ((k + 0.6) / bands) * h;
+        if (level === 5) towerBand(out, x, y, z, long, L.d, L.w, h / bands, true, yaw);
+        else out.lamp(x, y, z, long + L.w * 0.01, 0.8, L.d * 1.01, yaw);
+      }
       out.put("box", TAR, x, h + 0.25, z, long + L.w * 0.02, 0.5, L.d * 1.02, yaw);
+      // (A tower's mast each, where it stands.)
+      if (level === 5)
+        for (let q = first; q < first + n; q++) {
+          const c = place(sorted[q]!);
+          towerMast(out, c.x, c.z, h);
+        }
       continue;
     }
     const flat = look.rise < 0.1;
@@ -1664,9 +1702,11 @@ function rowsLod(
       continue;
     }
     // (Joined houses: their windows on their front, one band along it; their roof along the row.)
+    // (At the heights of each of its homes' windows: the door's floor and the one above, the one above alone apart.)
     if (h > 1.4) {
       const [wx, wz] = at(x, z, yaw, 0, -d / 2 - 0.06);
-      out.lamp(wx, rise + h * 0.55, wz, long * 0.86, Math.min(0.8, h * 0.3), 0.14, yaw);
+      for (const up of look.apart ? [0.74] : [0.3, 0.74])
+        out.lamp(wx, rise + h * up, wz, long * 0.86, Math.min(0.8, h * 0.3), 0.14, yaw);
     }
     const rh = flat ? 0.6 : Math.min(5, look.rise * d * 0.5);
     out.put(
@@ -2025,7 +2065,10 @@ function spire(
   yaw: number,
   grow: number,
   roof: number,
-  /** As home's: 1 without its mast, 0 its shafts alone. */
+  /**
+   * As home's: its bands, caps and mast at every fineness but the haze's (-1, its shafts alone): a spire's mast and bands are
+   * metres high, seen as far off as it is drawn, and drawn and left off as the eye moved they came and went in its sight.
+   */
   fine = 2,
 ): void {
   const L = LEVELS[TOP_LEVEL]!,
@@ -2063,7 +2106,7 @@ function spire(
       w = L.w * wide!,
       d = L.d * wide!;
     out.put("box", glass, x, from + span / 2, z, w, span, d, yaw);
-    if (fine >= 1) {
+    if (fine >= 0) {
       if (grow >= 1)
         for (let k = 0; k < bands!; k++)
           out.lamp(x, from + ((k + 0.6) / bands!) * span, z, w * 1.008, 1.8, d * 1.008, yaw);
@@ -2071,7 +2114,7 @@ function spire(
     }
     from = top;
   });
-  if (roof >= 1 && fine >= 2) {
+  if (roof >= 1 && fine >= 0) {
     out.put("box", FRAME, x, high + 9, z, 0.6, 18, 0.6, 0);
     out.put("box", NEEDLE, x, high + 18.5, z, 1, 1, 1, 0);
   }
@@ -2178,19 +2221,46 @@ function home(
     fine < 0 ? 0 : Math.min(6, Math.max(1, Math.floor((L.storeys * grow) / (level === 5 ? 4 : 2))));
   for (let k = 0; k < bands; k++) {
     const y = ((k + 0.6) / bands) * h;
-    if (level === 5) {
-      out.put("box", FRAME, x, y, z, L.w * 1.01, 0.5, L.d * 1.01, yaw);
-      if (grow >= 1) out.lamp(x, y - h / bands / 2, z, L.w * 1.005, 1.2, L.d * 1.005, yaw);
-    } else if (grow >= 1) out.lamp(x, y, z, L.w * 1.01, 0.8, L.d * 1.01, yaw);
+    if (level === 5) towerBand(out, x, y, z, L.w, L.d, L.w, h / bands, grow >= 1, yaw);
+    else if (grow >= 1) out.lamp(x, y, z, L.w * 1.01, 0.8, L.d * 1.01, yaw);
     else out.put("box", DARK, x, y, z, L.w * 1.01, 0.8, L.d * 1.01, yaw);
   }
   if (roof <= 0) return;
   out.put("box", TAR, x, h + 0.25, z, L.w * 1.02, 0.5, L.d * 1.02, yaw);
-  // On the roof: a tank on a tenement, a plant-house on a block, a mast on a tower.
+  // On the roof: a tank on a tenement, a plant-house on a block (a couple of metres: left off from afar), a mast on a
+  // tower (ten metres high: seen as far off as the tower is drawn).
+  if (level === 5) {
+    if (fine >= 0) towerMast(out, x, z, h);
+    return;
+  }
   if (fine < 2) return;
   if (level === 3) out.put("cyl", TIMBER, x, h + 1.6, z, 2, 2.2, 2, 0);
   else if (level === 4) out.put("box", CONCRETE, x, h + 1.6, z, L.w * 0.4, 2.4, L.d * 0.3, yaw);
-  else out.put("box", FRAME, x, h + 5, z, 0.4, 10, 0.4, 0);
+}
+
+/** A tower's mast on its roof, its top `h` up. */
+function towerMast(out: TownParts, x: number, z: number, h: number): void {
+  out.put("box", FRAME, x, h + 5, z, 0.4, 10, 0.4, 0);
+}
+
+/**
+ * A tower's frame of a floor at `y` and its windows lit below it (`long` along its street: its own breadth, or a row's;
+ * `w` its own, `apart` how far its bands are apart).
+ */
+function towerBand(
+  out: TownParts,
+  x: number,
+  y: number,
+  z: number,
+  long: number,
+  d: number,
+  w: number,
+  apart: number,
+  lit: boolean,
+  yaw: number,
+): void {
+  out.put("box", FRAME, x, y, z, long + w * 0.01, 0.5, d * 1.01, yaw);
+  if (lit) out.lamp(x, y - apart / 2, z, long + w * 0.005, 1.2, d * 1.005, yaw);
 }
 
 /** A home rising: stakes and a footing, the frame, walls climbing in a scaffold, the roof going on. */
