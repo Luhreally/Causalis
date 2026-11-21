@@ -1970,6 +1970,8 @@ export class VillageScene {
   ): void {
     const plan = this.plan;
     if (!plan) return;
+    // (What grows about it laid over frames, a few milliseconds each: render/townflora.ts.)
+    this.townFlora.update();
     if (this.posed) t = this.posed.at(t);
     const step = t - this.lastT;
     this.lastT = t;

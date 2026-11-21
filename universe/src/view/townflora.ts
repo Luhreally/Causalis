@@ -259,6 +259,28 @@ export function townFlora(
   budget: { trees: number; tufts: number; stones: number; hedges: number },
   edge = townEdge(plan),
 ): TownFlora {
+  const steps = townFloraSteps(g, plan, reach, budget, edge);
+  for (;;) {
+    const r = steps.next();
+    if (r.done) return r.value;
+  }
+}
+
+/** How many cells are read between one pause and the next of a town's laying in steps. */
+const TOWN_STEP = 512;
+
+/**
+ * The same laying (townFlora) in steps, pausing every few hundred cells, so the town's view can carry it over frames (a few
+ * milliseconds each, render/townflora.ts) and a town comes in no slower for it. Its end is what townFlora gives.
+ */
+export function* townFloraSteps(
+  g: TownGround,
+  plan: VillagePlan,
+  reach: number,
+  budget: { trees: number; tufts: number; stones: number; hedges: number },
+  edge = townEdge(plan),
+): Generator<void, TownFlora> {
+  let cells = 0;
   const out: TownFlora = {
       trunks: [],
       cones: [],
@@ -309,6 +331,7 @@ export function townFlora(
   // Trees: a cell's one, by its tile's canopy.
   const CELL = 26;
   for (const [i, j] of rings(0, 0, CELL, reach, edge)) {
+    if (++cells % TOWN_STEP === 0) yield;
     if (out.trees >= budget.trees) break;
     const x = (i + 0.15 + 0.7 * cellUnit(i, j, 1 + salt)) * CELL,
       z = (j + 0.15 + 0.7 * cellUnit(i, j, 2 + salt)) * CELL;
@@ -360,6 +383,7 @@ export function townFlora(
   const TUFT = 6,
     tuftReach = Math.min(reach, edge + 420);
   for (const [i, j] of rings(0, 0, TUFT, tuftReach, edge)) {
+    if (++cells % TOWN_STEP === 0) yield;
     if (out.tufts.length >= budget.tufts) break;
     const x = (i + cellUnit(i, j, 21 + salt)) * TUFT,
       z = (j + cellUnit(i, j, 22 + salt)) * TUFT;
@@ -387,6 +411,7 @@ export function townFlora(
   // Stones where rock shows (and a few anywhere).
   const STONE = 30;
   for (const [i, j] of rings(0, 0, STONE, reach, edge)) {
+    if (++cells % TOWN_STEP === 0) yield;
     if (out.stones.length >= budget.stones) break;
     const x = (i + cellUnit(i, j, 31 + salt)) * STONE,
       z = (j + cellUnit(i, j, 32 + salt)) * STONE;

@@ -14,7 +14,7 @@ import {
   townBudget,
   townCanopyAt,
   townEdge,
-  townFlora,
+  townFloraSteps,
   townGroundAt,
   townGroundOf,
   type GroundSeason,
@@ -26,6 +26,8 @@ import type { Rgb, Stage } from "./stage.ts";
 
 /** Units a metre, as the town's view draws (render/village.ts M). */
 const M = 0.1;
+/** How long a frame spends laying what grows about a town, at most (ms). */
+const LAY_SLICE = 4;
 /** The ground mesh's rings and spokes. */
 const RINGS = 30,
   SPOKES = 72;
@@ -60,8 +62,13 @@ export class TownFloraLayer {
   private plan: VillagePlan | null = null;
   /** What the last laying was laid by (floraKey). */
   private key = "";
-  /** The last building's time (ms). */
+  /** The last building's time (ms): its ground, and the frames' share of laying what grows on it. */
   buildMs = 0;
+  layMs = 0;
+  /** A laying under way (carried a few milliseconds a frame), the time spent on it, and its setting's budget. */
+  private job: { steps: Generator<void, TownFlora>; spent: number } | null = null;
+  /** The season and the dry year last told, laid again over what a laying puts in new batches. */
+  private told: { s: GroundSeason | null; dry: number } = { s: null, dry: 0 };
 
   constructor(stage: Stage, parent: pc.Entity) {
     this.stage = stage;
@@ -102,7 +109,12 @@ export class TownFloraLayer {
     this.key = key;
     this.plan = plan;
     const g = townGroundOf(plan);
-    if (!g) return false;
+    if (!g) {
+      this.job = null;
+      this.shown = null;
+      for (const b of Object.values(this.batches)) b?.set(0, () => {});
+      return false;
+    }
     // The ground: rings closer near the middle, where the eye is.
     const n = (RINGS + 1) * SPOKES + 1,
       positions = new Float32Array(n * 3),
@@ -163,19 +175,48 @@ export class TownFloraLayer {
     this.groundMesh = mesh;
     this.base = base;
     this.open = open;
-    this.paint(null, 0);
-    // What stands on it.
-    const f = townFlora(g, plan, (radius / M) * 0.98, townBudget(share), edge);
-    this.shown = f;
-    this.show("trunks", f.trunks, this.trunk);
-    this.show("cones", f.cones, this.cone);
-    this.show("balls", f.balls, this.ball);
-    this.show("tufts", f.tufts, this.tuft);
-    this.show("stones", f.stones, this.stone);
+    this.paint(this.told.s, this.told.dry);
     this.leafBase = formColor(g.palette, "broadleaf");
     this.needleBase = formColor(g.palette, "conifer");
+    // What stands on it: laid over the next frames (what stood before stands till then), a few milliseconds each.
+    this.job = {
+      steps: townFloraSteps(g, plan, (radius / M) * 0.98, townBudget(share), edge),
+      spent: 0,
+    };
     this.buildMs = performance.now() - t0;
+    this.update();
     return true;
+  }
+
+  /** Each frame: a laying under way carried on, LAY_SLICE ms at most; once done, what it laid shown. */
+  update(): void {
+    const job = this.job;
+    if (!job) return;
+    const t0 = performance.now();
+    for (;;) {
+      const r = job.steps.next();
+      if (r.done) {
+        this.job = null;
+        const f = r.value;
+        this.shown = f;
+        this.show("trunks", f.trunks, this.trunk);
+        this.show("cones", f.cones, this.cone);
+        this.show("balls", f.balls, this.ball);
+        this.show("tufts", f.tufts, this.tuft);
+        this.show("stones", f.stones, this.stone);
+        // (A batch made anew for more has none of the season on it.)
+        this.season(this.told.s, this.told.dry);
+        break;
+      }
+      if (performance.now() - t0 > LAY_SLICE) break;
+    }
+    job.spent += performance.now() - t0;
+    this.layMs = job.spent;
+  }
+
+  /** Whether a laying is under way. */
+  get laying(): boolean {
+    return !!this.job;
   }
 
   private show(
@@ -221,6 +262,7 @@ export class TownFloraLayer {
 
   /** The season and the year in the fields (how dry, 0 … 1) on its ground and what grows on it. */
   season(s: GroundSeason | null, dry: number): void {
+    this.told = { s, dry };
     this.paint(s, dry);
     const ratio = (base: Rgb, c: Rgb): Rgb => [
       c[0] / Math.max(0.02, base[0]),
@@ -272,6 +314,8 @@ export class TownFloraLayer {
     tufts: number;
     stones: number;
     buildMs: number;
+    layMs: number;
+    laying: boolean;
   } {
     const f = this.shown;
     const w = this.plan?.landFlora,
@@ -284,6 +328,8 @@ export class TownFloraLayer {
       tufts: f?.tufts.length ?? 0,
       stones: f?.stones.length ?? 0,
       buildMs: +this.buildMs.toFixed(1),
+      layMs: +this.layMs.toFixed(1),
+      laying: !!this.job,
     };
   }
 
@@ -340,12 +386,12 @@ export class TownFloraLayer {
     this.groundMesh = null;
     this.base = null;
     this.painted = null;
-    this.shown = null;
-    for (const b of Object.values(this.batches)) b?.set(0, () => {});
   }
 
   destroy(): void {
     this.clear();
+    this.job = null;
+    this.shown = null;
     for (const b of Object.values(this.batches)) b?.destroy();
     this.root.destroy();
   }

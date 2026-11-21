@@ -1400,6 +1400,7 @@ export {
   townClear,
   townEdge,
   townFlora,
+  townFloraSteps,
   townGroundAt,
   townGroundOf,
   type TownFlora,
