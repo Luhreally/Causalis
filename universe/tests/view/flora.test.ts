@@ -241,9 +241,9 @@ test("far woods: crowns by the reading, none on the water; near things on a fixe
   );
 });
 
-test("about a town: its ground coloured by its land's reading, trees by its woods, hedges by its fields, nothing on what it holds", async () => {
+test("about a town: its ground coloured by its land's reading, trees by its woods, nothing on what it holds", async () => {
   const { floraWindow } = await import("../../src/bridge/index.ts");
-  const { townBudget, townFlora, townGroundAt, townGroundOf, townEdge } =
+  const { townBudget, townFlora, townGroundAt, townGroundOf, townEdge, townHeld } =
     await import("../../src/view/index.ts");
   const size = 16,
     read = floraRead(facts(size, 11, 1000, 9)),
@@ -275,8 +275,13 @@ test("about a town: its ground coloured by its land's reading, trees by its wood
   const f = townFlora(g, plan, 1200, townBudget(0.7)),
     edge = townEdge(plan);
   assert.ok(f.trees > 300, `${f.trees} trees in a broadleaf land`);
-  assert.ok(f.hedges > 10, `${f.hedges} hedge bushes along the fields`);
-  const all = [...f.trunks, ...f.balls, ...f.cones, ...f.tufts, ...f.stones];
+  const all = [...f.trunks, ...f.balls, ...f.cones, ...f.tufts, ...f.stones],
+    held = townHeld(plan);
+  assert.ok(held.length > 0, "its barns are held");
+  assert.ok(
+    all.every((t) => held.every((h) => Math.hypot(t.x - h.x, t.z - h.z) >= h.r)),
+    "none on its barns, its fold, its graveyard",
+  );
   for (const t of all) {
     assert.ok(Math.hypot(t.x, t.z) >= edge, "none in the town");
     assert.ok(
@@ -292,6 +297,27 @@ test("about a town: its ground coloured by its land's reading, trees by its wood
       assert.ok(!(Math.abs(u) < fl.w / 2 && Math.abs(v) < fl.d / 2), "none on a field");
     }
   }
+  // A long town (its homes in a line 2 km along): its open ground across from them is as wild as any, but nothing stands
+  // within 30 m of a home, nor in its middle.
+  const line = {
+      ...plan,
+      homes: Array.from({ length: 81 }, (_, k) => ({
+        x: -1000 + k * 25,
+        z: 0,
+        yaw: 0,
+        household: `hhold:0:${k}`,
+      })),
+    } as typeof plan,
+    lineEdge = townEdge(line),
+    long = townFlora(townGroundOf(line)!, line, 1200, townBudget(0.7));
+  assert.ok(lineEdge > 990);
+  const inside = long.balls.filter((t) => Math.hypot(t.x, t.z) < lineEdge - 50);
+  assert.ok(inside.length > 50, `${inside.length} trees within its farthest homes, off them`);
+  for (const t of [...long.trunks, ...long.tufts, ...long.stones])
+    assert.ok(
+      Math.abs(t.z) > 30 || Math.abs(t.x) > 1030,
+      `none on its homes' ground: ${t.x.toFixed(0)},${t.z.toFixed(0)}`,
+    );
   // Its ground varies from point to point; a desert land's is sandier than this green one's.
   const a = townGroundAt(g, plan, 600, 600, edge),
     b = townGroundAt(g, plan, -900, 300, edge);

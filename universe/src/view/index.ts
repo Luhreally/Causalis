@@ -1411,6 +1411,8 @@ export {
   townFloraSteps,
   townGroundAt,
   townGroundOf,
+  townHeld,
+  TOWN_CORE,
   type TownFlora,
   type TownGround,
 } from "./townflora.ts";

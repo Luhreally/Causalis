@@ -1,13 +1,16 @@
 // What grows about a town, as its own view sees it (asked 2026-11-20: the ground about a town one flat colour, few trees).
 // Its land's reading about its tile (host/flora.ts townFlora: bridge/biome.ts, a window of its land's map as the town's water
 // is read) gives its ground's colour point by point, blended between the tiles' middles, greener by its water, trodden about
-// its streets; and what stands on it: trees by each tile's canopy and forms, in groves and clearings, hedgerows along its
-// fields where its land keeps them, tufts of grass and stones, nearest the square first, as many as the setting's budget.
-// Never on its water, its streets, its road out, its fields or its pasture. Pure: the same plan, the same ground and trees.
-import { FLORA, tileUnit, wetGround, type FloraTiles, type VillagePlan } from "../bridge/index.ts";
+// its streets; and what stands on it: trees by each tile's canopy and forms, in groves and clearings, tufts of grass and
+// stones, nearest the square first, as many as the setting's budget (the hedges and walls about its fields are its
+// country's, render/country.ts). Never on its water, its streets, its road out, its fields, its pasture, or what else it
+// keeps on its open ground (townHeld: its graveyard, works, barns, silos, mills, fold). Pure: the same plan, the same ground and trees.
+import { FLORA, wetGround, type FloraTiles, type VillagePlan } from "../bridge/index.ts";
 import { lifePalette } from "./globe.ts";
 import type { Rgb } from "./sandbox.ts";
-import { villageGround } from "./ground.ts";
+import { clearAt, villageGround } from "./ground.ts";
+import { countryOf } from "./country.ts";
+import { graveyardFor } from "./village.ts";
 import {
   ROW,
   cellUnit,
@@ -19,7 +22,6 @@ import {
   scale,
   tileGround,
   warmOf,
-  woodsShade,
   type NearThing,
 } from "./flora.ts";
 
@@ -120,13 +122,30 @@ export function townGroundAt(
     }
     if (near) col = mixRgb(col, scale(g.palette[ROW.green]!, 0.95), 0.35);
   }
-  // (Trodden about the town: its soil showing, most at its streets' edge.)
+  // (Trodden about the town: its soil showing, most by its streets and homes, less further off; not across a long town's
+  // open ground, which is no nearer its homes for lying within their farthest.)
   const r = Math.hypot(x, z),
-    worn = r < edge ? 0.3 : Math.max(0, 0.3 * (1 - (r - edge) / 160));
+    worn = r > edge + 160 ? 0 : 0.3 * builtNear(plan, x, z, Math.min(edge, CORE));
   if (worn > 0) col = mixRgb(col, g.palette[ROW.coldSoil]!, worn);
   // (Patches lighter and darker: grass is never one colour.)
   const p = cellUnit(Math.floor(x / 55), Math.floor(z / 55), 77) - 0.5;
   return scale(col, 1 + 0.12 * p);
+}
+
+/** The middle of a town kept clear of what grows whatever lies there (its square, its market, its well), metres at most. */
+export const TOWN_CORE = 150;
+const CORE = TOWN_CORE;
+
+/** How near a point lies to a town's built ground (1: on it or within 40 m, or within its middle; 0: 160 m off or more). */
+function builtNear(plan: VillagePlan, x: number, z: number, core: number): number {
+  const ground = villageGround(plan),
+    d = Math.hypot(x, z);
+  if (d < core) return 1;
+  if (d > Math.max(ground.homesReach, ground.town?.reach ?? 0) + 200) return 0;
+  const p = { x, z };
+  if (!clearAt(ground, p, 40)) return 1;
+  if (!clearAt(ground, p, 100)) return 0.6;
+  return clearAt(ground, p, 160) ? 0 : 0.25;
 }
 
 /** How much of the ground at a point (metres from the square) its woods cover, blended between the tiles' middles (0 … 1). */
@@ -151,14 +170,12 @@ export function townBudget(share: number): {
   trees: number;
   tufts: number;
   stones: number;
-  hedges: number;
 } {
   const trees = Math.round(Math.min(5000, Math.max(900, 3200 * share)));
   return {
     trees,
     tufts: Math.round(trees * 0.9),
     stones: Math.round(trees * 0.12),
-    hedges: Math.round(trees * 0.35),
   };
 }
 
@@ -170,7 +187,6 @@ export type TownFlora = {
   tufts: NearThing[];
   stones: NearThing[];
   trees: number;
-  hedges: number;
 };
 
 /** The town's built ground's edge (metres from the square): its streets' or homes' farthest. */
@@ -181,15 +197,46 @@ export function townEdge(plan: VillagePlan): number {
   return edge;
 }
 
+/**
+ * What else a town has raised or keeps on its open ground, each as a disc (metres from the square): its graveyard, mine,
+ * well and works, and its country's barns, silos, mills and the pasture's fold, trough and rack.
+ */
+export function townHeld(plan: VillagePlan): { x: number; z: number; r: number }[] {
+  const out: { x: number; z: number; r: number }[] = [];
+  const yard = graveyardFor(plan);
+  if (yard) out.push({ x: yard.x, z: yard.z, r: Math.hypot(yard.w, yard.d) / 2 + 4 });
+  const w = plan.works;
+  if (w?.mine) out.push({ x: w.mine.x, z: w.mine.z, r: 30 });
+  if (w?.well) out.push({ x: w.well.x, z: w.well.z, r: 14 });
+  if (w?.factory) out.push({ x: w.factory.x, z: w.factory.z, r: 40 });
+  if (!plan.colony) {
+    const c = countryOf(plan);
+    for (const b of c.barns) out.push({ x: b.x, z: b.z, r: Math.hypot(b.w, b.d) / 2 + 3 });
+    for (const b of c.silos) out.push({ x: b.x, z: b.z, r: b.r + 2 });
+    for (const m of c.mills) out.push({ x: m.x, z: m.z, r: 8 });
+    for (const q of [c.pen.trough, c.pen.rack]) if (q) out.push({ x: q.x, z: q.z, r: 4 });
+    if (c.pen.fold)
+      for (const h of [...c.pen.fold.hurdles, ...c.pen.fold.racks])
+        out.push({ x: h.x, z: h.z, r: 3 });
+  }
+  return out;
+}
+
 /** Whether something `r` across may stand at a point about a town: off its water, its built ground, its road, fields and pasture. */
 export function townClear(
   plan: VillagePlan,
   edge: number,
 ): (x: number, z: number, r: number) => boolean {
-  const roadLen = Math.hypot(plan.road.x, plan.road.z) || 1,
+  const ground = villageGround(plan),
+    core = Math.min(edge, CORE),
+    roadLen = Math.hypot(plan.road.x, plan.road.z) || 1,
     rx = plan.road.x / roadLen,
     rz = plan.road.z / roadLen,
-    fields = plan.fields.map((f) => ({ ...f, c: Math.cos(f.yaw), s: Math.sin(f.yaw) })),
+    // (What it holds besides, each kept as a square about its disc.)
+    fields = [
+      ...plan.fields,
+      ...townHeld(plan).map((h) => ({ x: h.x, z: h.z, w: 2 * h.r, d: 2 * h.r, yaw: 0 })),
+    ].map((f) => ({ ...f, c: Math.cos(f.yaw), s: Math.sin(f.yaw) })),
     // (A great city has hundreds of fields and its growth asks tens of thousands of points: each asks only the fields
     // in its cell of the ground, each field kept in every cell its bounds and a spare reach over.)
     cells = new Map<number, (typeof fields)[number][]>(),
@@ -209,7 +256,11 @@ export function townClear(
       }
   }
   return (x, z, r) => {
-    if (Math.hypot(x, z) < edge + 15 + r) return false;
+    // (Its middle; then, within its farthest homes, only ground well off its homes and blocks: a long town's far shore,
+    // the open ground between its arms, are as wild as any.)
+    const d = Math.hypot(x, z);
+    if (d < core + 15 + r) return false;
+    if (d < edge + 15 + r && !clearAt(ground, { x, z }, r + 30)) return false;
     const along = x * rx + z * rz,
       off = Math.abs(-x * rz + z * rx);
     if (off < 9 + r && (plan.districts ? true : along > 0) && along < roadLen + 10) return false;
@@ -237,26 +288,16 @@ export function townClear(
 const FIELD_CELL = 64,
   FIELD_SPARE = 12;
 
-/** Of the land's covers, those whose farmers keep hedgerows between their fields. */
-const HEDGED = new Set<number>([
-  FLORA.mixed,
-  FLORA.broadleaf,
-  FLORA.meadow,
-  FLORA.temperateRain,
-  FLORA.steppe,
-  FLORA.taiga,
-]);
-
 /**
- * What stands about a town: trees by each tile's canopy (groves and clearings, its forms by the tile's mix), hedgerows along
- * its fields where its land keeps them, tufts where its grass grows, stones where its rock shows; nearest the square first,
+ * What stands about a town: trees by each tile's canopy (groves and clearings, its forms by the tile's mix), tufts where its
+ * grass grows, stones where its rock shows; nearest the square first,
  * out to `reach` metres, as many as the budget; none where `clear` says no.
  */
 export function townFlora(
   g: TownGround,
   plan: VillagePlan,
   reach: number,
-  budget: { trees: number; tufts: number; stones: number; hedges: number },
+  budget: { trees: number; tufts: number; stones: number },
   edge = townEdge(plan),
 ): TownFlora {
   const steps = townFloraSteps(g, plan, reach, budget, edge);
@@ -277,7 +318,7 @@ export function* townFloraSteps(
   g: TownGround,
   plan: VillagePlan,
   reach: number,
-  budget: { trees: number; tufts: number; stones: number; hedges: number },
+  budget: { trees: number; tufts: number; stones: number },
   edge = townEdge(plan),
 ): Generator<void, TownFlora> {
   let cells = 0;
@@ -288,7 +329,6 @@ export function* townFloraSteps(
       tufts: [],
       stones: [],
       trees: 0,
-      hedges: 0,
     },
     clear = townClear(plan, edge),
     r = g.read,
@@ -330,7 +370,8 @@ export function* townFloraSteps(
     };
   // Trees: a cell's one, by its tile's canopy.
   const CELL = 26;
-  for (const [i, j] of rings(0, 0, CELL, reach, edge)) {
+  const core = Math.min(edge, CORE);
+  for (const [i, j] of rings(0, 0, CELL, reach, core)) {
     if (++cells % TOWN_STEP === 0) yield;
     if (out.trees >= budget.trees) break;
     const x = (i + 0.15 + 0.7 * cellUnit(i, j, 1 + salt)) * CELL,
@@ -348,41 +389,10 @@ export function* townFloraSteps(
     tree(x, z, form, k, cellUnit(i, j, 6 + salt), formColor(p, form));
     out.trees++;
   }
-  // Hedgerows: a field's edges a few metres out, a bush every few metres, where its land keeps them.
-  for (const f of plan.fields) {
-    if (out.hedges >= budget.hedges) break;
-    const t = tileAt(g, f.x, f.z);
-    if (!HEDGED.has(r.cover[t]!)) continue;
-    const c = Math.cos(f.yaw),
-      s = Math.sin(f.yaw),
-      hedge = mixRgb(formColor(p, "broadleaf"), woodsShade(p, r.cover[t]!), 0.4);
-    for (const [hu, hv, along] of [
-      [0, -1, f.w],
-      [0, 1, f.w],
-      [-1, 0, f.d],
-      [1, 0, f.d],
-    ] as const) {
-      const steps = Math.floor(along / 7);
-      for (let q = 0; q <= steps && out.hedges < budget.hedges; q++) {
-        const a = -along / 2 + q * 7,
-          u = hu ? (hu * f.w) / 2 + hu * 4.5 : a,
-          v = hv ? (hv * f.d) / 2 + hv * 4.5 : a,
-          x = f.x + u * c + v * s,
-          z = f.z - u * s + v * c,
-          n = tileUnit(Math.floor(x * 7 + 99991 * z) | 0, 5 + salt);
-        if (n < 0.22 || !clear(x, z, 1.5)) continue;
-        // (Now and then a tree standing in the hedge.)
-        if (n > 0.93) tree(x, z, "broadleaf", 0.8, n, formColor(p, "broadleaf"));
-        else
-          put(out.balls, x, -0.4, z, 3.6 + 1.6 * n, 2.4 + n, n * 9, scale(hedge, 0.86 + 0.28 * n));
-        out.hedges++;
-      }
-    }
-  }
   // Tufts where the grass grows, near.
   const TUFT = 6,
     tuftReach = Math.min(reach, edge + 420);
-  for (const [i, j] of rings(0, 0, TUFT, tuftReach, edge)) {
+  for (const [i, j] of rings(0, 0, TUFT, tuftReach, core)) {
     if (++cells % TOWN_STEP === 0) yield;
     if (out.tufts.length >= budget.tufts) break;
     const x = (i + cellUnit(i, j, 21 + salt)) * TUFT,
@@ -410,7 +420,7 @@ export function* townFloraSteps(
   }
   // Stones where rock shows (and a few anywhere).
   const STONE = 30;
-  for (const [i, j] of rings(0, 0, STONE, reach, edge)) {
+  for (const [i, j] of rings(0, 0, STONE, reach, core)) {
     if (++cells % TOWN_STEP === 0) yield;
     if (out.stones.length >= budget.stones) break;
     const x = (i + cellUnit(i, j, 31 + salt)) * STONE,

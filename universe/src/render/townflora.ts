@@ -1,6 +1,6 @@
 // What grows about a town, drawn in its own view (view/townflora.ts says what and where): its ground one mesh, coloured point
 // by point from its land's reading (the tiles' colours blended, greener by its water, trodden about its streets), and its
-// trees, hedgerows, tufts and stones in five toned batches. Built once a plan; the season and a dry year laid over it as its
+// trees, tufts and stones in five toned batches. Built once a plan; the season and a dry year laid over it as its
 // other ground is (its vertex colours made again, its batches' leaves turned), never per frame.
 import * as pc from "playcanvas";
 import { FLORA_NAMES, wetGround, type VillagePlan } from "../bridge/index.ts";
@@ -17,6 +17,10 @@ import {
   townFloraSteps,
   townGroundAt,
   townGroundOf,
+  townHeld,
+  TOWN_CORE,
+  clearAt,
+  villageGround,
   type GroundSeason,
   type NearThing,
   type TownFlora,
@@ -305,12 +309,11 @@ export class TownFloraLayer {
     mesh.update();
   }
 
-  /** What it draws (the look tools): trees, hedge bushes, tufts, stones, and whether its ground is its land's. */
+  /** What it draws (the look tools): trees, tufts, stones, and whether its ground is its land's. */
   info(): {
     cover: string;
     ground: boolean;
     trees: number;
-    hedges: number;
     tufts: number;
     stones: number;
     buildMs: number;
@@ -324,7 +327,6 @@ export class TownFloraLayer {
       cover: w ? `${FLORA_NAMES[w.tiles[mid]!]} canopy ${w.tiles[mid + 1]}` : "",
       ground: !!this.ground,
       trees: f?.trees ?? 0,
-      hedges: f?.hedges ?? 0,
       tufts: f?.tufts.length ?? 0,
       stones: f?.stones.length ?? 0,
       buildMs: +this.buildMs.toFixed(1),
@@ -346,13 +348,15 @@ export class TownFloraLayer {
 
   /**
    * How many things stand where they may not, by what holds the ground (the look tools; must be none): a field, the pasture,
-   * the water, the town's built ground, its road out. Read exactly (no margin), apart from how they were laid.
+   * the water, the town's built ground (its middle, its homes and blocks), its road out, what else it keeps on its open ground (townHeld). Read exactly (no margin), apart from how they were laid.
    */
   onTaken(): Record<string, number> {
     const plan = this.plan,
-      out: Record<string, number> = { field: 0, pasture: 0, water: 0, town: 0, road: 0 };
+      out: Record<string, number> = { field: 0, pasture: 0, water: 0, town: 0, road: 0, held: 0 };
     if (!plan) return out;
     const edge = townEdge(plan),
+      ground = villageGround(plan),
+      held = townHeld(plan),
       len = Math.hypot(plan.road.x, plan.road.z) || 1,
       rx = plan.road.x / len,
       rz = plan.road.z / len;
@@ -370,7 +374,8 @@ export class TownFloraLayer {
         out.field!++;
       if (Math.hypot(x - plan.pasture.x, z - plan.pasture.z) < plan.pasture.r) out.pasture!++;
       if (wetGround(plan.landWater, x, z)) out.water!++;
-      if (Math.hypot(x, z) < edge) out.town!++;
+      if (Math.hypot(x, z) < Math.min(edge, TOWN_CORE) || !clearAt(ground, t, 0.01)) out.town!++;
+      if (held.some((h) => Math.hypot(x - h.x, z - h.z) < h.r)) out.held!++;
       const along = x * rx + z * rz;
       if (Math.abs(-x * rz + z * rx) < 4 && (plan.districts || along > 0) && along < len)
         out.road!++;
