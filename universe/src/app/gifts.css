@@ -92,6 +92,8 @@
 }
 .gifts-sheet {
   position: absolute;
+  /* (Its height to the screen's, its padding and border within it.) */
+  box-sizing: border-box;
   z-index: 2;
   top: calc(env(safe-area-inset-top, 0px) + 258px);
   max-height: calc(

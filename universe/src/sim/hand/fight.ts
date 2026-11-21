@@ -603,7 +603,9 @@ function fieldWonders(
       const k = id === undefined ? -1 : f.bodies.findIndex((b) => b.id === id);
       return k >= 0 ? (h.names[k] ?? "one of the field") : "one of the field";
     },
-    men = (figures: number) => figures * Math.max(1, h.per),
+    // (Those about him who saw it, and those a stroke struck down: the figures on the field, each a man there; not the
+    // many each stands for in the battle's count, for none but those near saw it or were struck.)
+    men = (figures: number) => figures,
     shown = new Map<WonderTenet, { seen: number; what: Set<string> }>();
   for (const w of wonders) {
     if (w.kind === "healed")
