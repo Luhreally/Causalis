@@ -208,6 +208,27 @@ test("a town's war: each shot, each field gun and each shell as its layer draws 
   );
 });
 
+test("the hearing stands a third of the way from what is looked at toward the eye", () => {
+  const high = {
+      camera: { getPosition: () => ({ x: 0, y: 30, z: 0 }), right: { x: 1, y: 0, z: 0 } },
+    } as never,
+    one = (c0: number, c1: number, out: TownShot[]) => {
+      out.length = 0;
+      out.push({ t: (c0 + c1) / 2, x: 0, z: 0, arm: "musket" });
+    },
+    at = (focus: (() => { x: number; y: number; z: number }) | null) => {
+      const l = listener(),
+        ears = new Ears(high, l, focus);
+      ears.town("war", one, 10);
+      return l.told[0]!.far;
+    },
+    eye = at(null),
+    looked = at(() => ({ x: 0, y: 0, z: 0 }));
+  // (The eye 30 units, 300 m, over the shot: heard from 300 m at the eye, from 90 m where the hearing is.)
+  assert.ok(Math.abs(eye - 300 + 1.5) < 1, `from the eye ${eye}`);
+  assert.ok(Math.abs(looked - 0.3 * 300 + 1.5) < 1, `from the hearing ${looked}`);
+});
+
 test("a meeting of fleets: each broadside heard as she is drawn firing", () => {
   const fleet = (name: string): SeaFightSide =>
       ({
@@ -293,7 +314,7 @@ test("every view that draws musket fire tells the sound its shots, through the e
     street = src("app/street-fight.ts"),
     sea = src("app/sea-fight.ts");
   // The battle film, a battle before a town, the town's war and its siege's guns, a raid, and the hand's fight.
-  assert.match(main, /new Ears\(stage, sound\)/);
+  assert.match(main, /new Ears\(stage, sound, \(\) => rig\.target\)/);
   assert.match(main, /ears\.battle\(\s*fight\.field/, "the battle film");
   assert.match(main, /ears\.battle\(\s*P\.field/, "a battle before the town");
   assert.match(

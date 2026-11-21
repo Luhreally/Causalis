@@ -32,6 +32,12 @@ const BLACK = cannonVoice(true),
   SHELL = { mj: BLASTS.shell },
   LOAD_BURST = { mj: BLASTS.load },
   ROCKET_BURST = { mj: BLASTS.rocket };
+/**
+ * Where the hearing is: this share of the way from what the eye looks at toward the eye. Seen from high over a town, a fight
+ * looked at is heard as near as it is looked at, and the farther the eye stands off the farther it is heard; its shots come
+ * as late as their distance from there makes them.
+ */
+const EAR_SHARE = 0.3;
 /** The most sounds one reading tells (the sound hears the nearest each by itself and the rest as a line's fire). */
 export const HEARD_MOST = 384;
 
@@ -79,9 +85,35 @@ export class Ears {
   /** Heard so far, by where (the look tools). */
   readonly told = { battle: 0, town: 0, raid: 0, held: 0 };
 
-  constructor(stage: Stage, sound: Listener) {
+  /** What the eye looks at (the rig's target; none: the hearing is at the eye), and the hearing, kept. */
+  private readonly focus: (() => { x: number; y: number; z: number } | null) | null;
+  private readonly earAt = { x: 0, y: 0, z: 0 };
+
+  constructor(
+    stage: Stage,
+    sound: Listener,
+    focus: (() => { x: number; y: number; z: number } | null) | null = null,
+  ) {
     this.stage = stage;
     this.sound = sound;
+    this.focus = focus;
+  }
+
+  /** Where the hearing is now: EAR_SHARE of the way from what the eye looks at toward the eye. */
+  private ear(): { x: number; y: number; z: number } {
+    const eye = this.stage.camera.getPosition(),
+      t = this.focus?.() ?? null,
+      e = this.earAt;
+    if (!t) {
+      e.x = eye.x;
+      e.y = eye.y;
+      e.z = eye.z;
+    } else {
+      e.x = t.x + EAR_SHARE * (eye.x - t.x);
+      e.y = t.y + EAR_SHARE * (eye.y - t.y);
+      e.z = t.z + EAR_SHARE * (eye.z - t.z);
+    }
+    return e;
   }
 
   /** One more heard, into a kept slot (none past the most a reading tells). */
@@ -97,10 +129,9 @@ export class Ears {
     this.out.push(s);
   }
 
-  /** Where a point of a scene (its units) lies from the eye: how far (m) and to which side. */
-  private from(x: number, y: number, z: number): Way {
+  /** Where a point of a scene (its units) lies from the hearing: how far (m) and to which side. */
+  private from(x: number, y: number, z: number, eye = this.ear()): Way {
     const cam = this.stage.camera,
-      eye = cam.getPosition(),
       right = cam.right,
       dx = x - eye.x,
       dy = y - eye.y,
@@ -152,8 +183,9 @@ export class Ears {
     })) as [object, object];
     battleSounds(field, blows, span.from, span.to, now, sides, this.sounds);
     this.out.length = 0;
+    const ear = this.ear();
     for (const e of this.sounds) {
-      layer.heardFrom(e.x, e.z, this.way);
+      layer.heardFrom(e.x, e.z, this.way, ear);
       this.add(e.kind, e.v, (e.t - s) / pace, this.way.far, this.way.pan);
     }
     this.told.battle += this.out.length;
@@ -186,7 +218,7 @@ export class Ears {
       if (on && !this.loosing[i]) {
         const l = looseVoice(arms[t.side]);
         if (l) {
-          layer.heardFrom(t.x, t.z, this.way);
+          layer.heardFrom(t.x, t.z, this.way, this.ear());
           this.add(l.kind, l.v, 0, this.way.far, this.way.pan);
         }
       }
@@ -210,8 +242,9 @@ export class Ears {
     if (!span) return;
     shotsBetween(span.from, span.to, this.shots);
     this.out.length = 0;
+    const ear = this.ear();
     for (const q of this.shots) {
-      const w = this.from(q.x * M, 0.15, q.z * M),
+      const w = this.from(q.x * M, 0.15, q.z * M, ear),
         at = (q.t - clock) / pace;
       if (q.kind === "cannon")
         this.add("cannon", q.black === false ? SMOKELESS : BLACK, at, w.far, w.pan);

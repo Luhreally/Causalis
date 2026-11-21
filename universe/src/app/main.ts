@@ -11880,7 +11880,7 @@ async function runPlanetPage(): Promise<void> {
   // What is heard here (Sound, first slice): read as a person sees it, four times a second and only
   // while someone is listening, and told only as it changes (app/sound.ts). Nothing goes back.
   const heard = airOf("globe"),
-    ears = new Ears(stage, sound),
+    ears = new Ears(stage, sound, () => rig.target),
     shotsBetween = (c0: number, c1: number, out: TownShot[]) => village.shotsBetween(c0, c1, out);
   exposed.ears = ears;
   let heardAt = 0,

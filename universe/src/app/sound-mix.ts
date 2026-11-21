@@ -414,9 +414,12 @@ export const CUE_RULES = {
   landing: { wait: 2500, most: 1, level: 0.42 },
   thunder: { wait: 2500, most: 1, level: 0.4 },
   fire: { wait: 8000, most: 1, level: 1 },
-  // Arms and blasts (asked 2026-11-12), each by its own physics (view/heard.ts): at the level a near one is heard at.
-  gun: { wait: 45, most: 4, level: 0.3 },
-  cannon: { wait: 260, most: 2, level: 0.36 },
+  // Arms and blasts (asked 2026-11-12), each by its own physics (view/heard.ts): at the level a near one is heard at. A gun is
+  // the loudest thing on a field by tens of decibels (a musket some 155 dB at a metre, a drum 110): at a hundred metres its shot
+  // stands as high as the din's own peaks, and a near one goes to the limiter (2026-11-20, measured: at 0.3 a musket a hundred
+  // metres off peaked 11 dB under a battle's din, and the owner heard none).
+  gun: { wait: 45, most: 4, level: 0.75 },
+  cannon: { wait: 260, most: 2, level: 0.8 },
   bow: { wait: 55, most: 3, level: 0.3 },
   dart: { wait: 55, most: 3, level: 0.26 },
   clash: { wait: 70, most: 3, level: 0.26 },
@@ -426,7 +429,7 @@ export const CUE_RULES = {
   whistle: { wait: 220, most: 2, level: 0.2 },
   blast: { wait: 160, most: 3, level: 0.4 },
   /** Fire too thick to hear shot by shot: the crackle of a whole line's (or a whole flight's) at once. */
-  volley: { wait: 180, most: 2, level: 0.3 },
+  volley: { wait: 180, most: 2, level: 0.7 },
 } as const;
 export type Cue = keyof typeof CUE_RULES;
 /** The cues, each once (the gate and the listening files walk them). */
