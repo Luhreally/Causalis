@@ -5633,6 +5633,21 @@ async function runPlanetPage(): Promise<void> {
   readying.hidden = true;
   swap.className = "swap";
   edgeHint.className = "edge-hint";
+  let edgeHintUp = false;
+  /** How far over the screen's foot the edge's hint stands: clear of what is shown there across its middle. */
+  const edgeHintFoot = (): number => {
+    const h = innerHeight,
+      mid = innerWidth / 2,
+      half = Math.max(120, edgeHint.getBoundingClientRect().width / 2 + 8);
+    let foot = 18;
+    for (const e of hud.querySelectorAll<HTMLElement>(":scope > .palette, :scope > .people-bar")) {
+      if (e.offsetParent === null && getComputedStyle(e).position !== "fixed") continue;
+      const r = e.getBoundingClientRect();
+      if (r.width < 2 || r.height < 2 || r.right < mid - half || r.left > mid + half) continue;
+      foot = Math.max(foot, h - r.top + 8);
+    }
+    return Math.round(foot);
+  };
   edgeHint.style.opacity = "0";
   hud.append(swap, readying, edgeHint);
   const ready = async <T>(what: string, work: () => Promise<T> | T, heavy = false): Promise<T> => {
@@ -5735,6 +5750,10 @@ async function runPlanetPage(): Promise<void> {
     const show = !!next && Math.abs(edge) > 0.97;
     edgeHint.textContent = next ? `${edge > 0 ? "Zoom on out" : "Zoom on in"} to ${next}` : "";
     edgeHint.style.opacity = show ? String(0.55 + 0.45 * rig.pushing) : "0";
+    // (Over whatever stands at the screen's foot where it would be — the god's hand, the people bar: under the hand it was
+    // hidden, behind it. Placed as it comes up, not each frame.)
+    if (show && !edgeHintUp) edgeHint.style.bottom = `${edgeHintFoot()}px`;
+    edgeHintUp = show;
   });
   // Out from the world, the sky's view follows the home world round its orbit while it is
   // close, and eases onto the star as it draws back.
