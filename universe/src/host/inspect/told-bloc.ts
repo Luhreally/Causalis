@@ -59,6 +59,8 @@ export type BlocYears = {
   counted(y: number): number | null;
   /** How many times a realm has come into it, to a year (this coming the last). */
   comings(ref: string, y: number): number;
+  /** How many times a realm has left it, to a year (this going the last). */
+  goings(ref: string, y: number): number;
   /** The people of every realm in a year, summed (the world's who stand in a realm). */
   peopled(y: number): number;
   /** What its lands held a head at a decade's year, summed over its people (undefined: not kept). */
@@ -152,6 +154,27 @@ export function blocYears(world: World, head: string): BlocYears | null {
       return m;
     },
     isIn = (ref: string, y: number) => members(y).includes(ref);
+  // Every coming in and going out, year by year (one realm's place turns on the others too: two make an
+  // alliance, so it can stop standing with no change of its own). Read once, when a coming is first counted.
+  let passMemo: { came: Map<string, number[]>; left: Map<string, number[]> } | null = null;
+  const passes = () => {
+    if (passMemo) return passMemo;
+    const came = new Map<string, number[]>(),
+      left = new Map<string, number[]>(),
+      push = (m: Map<string, number[]>, r: string, y: number) => {
+        const l = m.get(r);
+        if (l) l.push(y);
+        else m.set(r, [y]);
+      };
+    let prev = new Set<string>();
+    for (let y = Math.max(0, log?.first ?? now); y <= now; y++) {
+      const cur = new Set(members(y));
+      for (const r of cur) if (!prev.has(r)) push(came, r, y);
+      for (const r of prev) if (!cur.has(r)) push(left, r, y);
+      prev = cur;
+    }
+    return (passMemo = { came, left });
+  };
   /** The years a realm's place in it could have changed, latest first, to a year. */
   const turns = (ref: string, y: number): number[] => {
     const set = new Set<number>([now]);
@@ -336,14 +359,8 @@ export function blocYears(world: World, head: string): BlocYears | null {
         if (at >= b0 && realmNumbers(at) && headAt(at)) return at;
       return null;
     },
-    comings: (ref, y) => {
-      let n = 0;
-      for (const t of turns(ref, y)) {
-        if (t < first) break;
-        if (isIn(ref, t) && !isIn(ref, t - 1)) n++;
-      }
-      return n;
-    },
+    comings: (ref, y) => (passes().came.get(ref) ?? []).filter((t) => t <= y).length,
+    goings: (ref, y) => (passes().left.get(ref) ?? []).filter((t) => t <= y).length,
     peopled,
     worth,
     prepare,
@@ -558,7 +575,7 @@ export function blocTold(world: World, b: BlocYears, y: number, events: YearEven
         times = b.comings(r, y);
       add("bloc.joined", big(r) ? 5 : 4, cause?.id ?? `told:${y}:${r}`, () => [
         realmYear(world, r, y),
-        times > 1 ? ` came into ${name} again, the ${ordinal(times)} time` : ` came into ${name}`,
+        ` came into ${name}${times > 1 ? ` for the ${ordinal(times)} time` : ""}`,
         cause ? by(world, cause, r, h) : ", drawn in by those it was bound to",
         ".",
       ]);
@@ -568,10 +585,10 @@ export function blocTold(world: World, b: BlocYears, y: number, events: YearEven
     const p = politiesOf(world).get(r as Ref);
     if (p?.ended !== null && p?.ended !== undefined && p.ended <= y) continue;
     const why = leftWhy(world, b, y, r, inBefore, events),
-      times = b.comings(r, y - 1);
+      times = b.goings(r, y);
     add("bloc.left", 4, why.ref ?? `told:${y}:${r}`, () => [
       realmYear(world, r, y),
-      ` left ${name}${times > 1 ? `, the ${ordinal(times)} time it had stood in it` : ""}: `,
+      ` left ${name}${times > 1 ? ` for the ${ordinal(times)} time` : ""}: `,
       ...why.line,
       ".",
     ]);
@@ -812,8 +829,9 @@ export function blocText(
   const cur = b.members(to);
   if (cur.length) {
     out.push(
-      `${sentence(said(cur.length))} realms stood in it as ${run ? "these years" : "the year"} closed, led by `,
-      realmYear(world, h, to),
+      `${sentence(said(cur.length))} realms stood in it as ${run ? "these years" : "the year"} closed`,
+      // (Far back the kept years can have its head standing elsewhere: then it is not said to lead.)
+      ...(cur.includes(h) ? [", led by ", realmYear(world, h, to)] : []),
       ": ",
       ...realmsSaid(world, cur, to, 8),
       ".",
@@ -839,7 +857,7 @@ export function blocText(
     );
   if (moves.length)
     out.push(
-      ` ${sentence(moves.length > 1 ? `${moves.slice(0, -1).join("; ")}; and ${moves.at(-1)}` : moves[0]!)}.`,
+      ` ${sentence(moves.length > 2 ? `${moves.slice(0, -1).join("; ")}; and ${moves.at(-1)}` : moves.join(" and "))}.`,
     );
   // How it stood against the rest.
   const place = standingLine(world, b, to);
