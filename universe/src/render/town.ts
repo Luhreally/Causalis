@@ -138,6 +138,12 @@ class PartBatches {
     for (const b of this.batches.values()) if (b.size) n++;
     return n;
   }
+  /** How many parts they hold (for a measure). */
+  get parts(): number {
+    let n = 0;
+    for (const b of this.batches.values()) n += b.size;
+    return n;
+  }
   /** Snow lying on the roofs (0 … 1). */
   season(snow: number): void {
     if (snow === this.snow) return;
@@ -213,7 +219,8 @@ export class TownLayer {
       return;
     }
     this.visible = true;
-    const same = this.key === ref && this.scene !== null;
+    const t0 = performance.now(),
+      same = this.key === ref && this.scene !== null;
     this.key = ref;
     this.scene = townScene(plan, t, same ? this.scene!.lots : undefined);
     // What stands all year: the ground, the homes done, the ruins; those nearest the eye whole, the rest as seen from
@@ -228,6 +235,7 @@ export class TownLayer {
     this.choosing = null;
     this.seenAt = t;
     this.settled.show(this.ground, this.homesSeenParts);
+    performance.measure("town.built", { start: t0 });
     this.busy = this.scene.active.length > 0 || civicsActive(plan, t) || !!plan.walls;
     this.drawnAt = -Infinity;
     this.update(t);
@@ -267,7 +275,8 @@ export class TownLayer {
   }
 
   private *choose(scene: TownScene, eye: { x: number; z: number }): Generator<void, void> {
-    const detail = townDetail(scene, eye);
+    const t0 = performance.now(),
+      detail = townDetail(scene, eye);
     yield;
     const homes = new TownParts();
     yield* homesSeen(scene, detail, this.seenAt, homes);
@@ -275,12 +284,30 @@ export class TownLayer {
     if (this.scene !== scene) return;
     this.detail = detail;
     this.homesSeenParts = homes;
+    const t1 = performance.now();
     this.settled.show(this.ground, homes);
+    // (From its choosing begun to its drawing shown, over frames; and the one frame it is shown in.)
+    performance.measure("town.chosen", { start: t0 });
+    performance.measure("town.shown", { start: t1 });
   }
 
-  /** Which of its homes are drawn whole as last chosen (for a check). */
-  detailDrawn(): TownDetail | null {
-    return this.detail;
+  /** What it draws (for a check): its parts and batches, all year and rising, and how many of its homes stand whole, and where they were chosen from (metres). */
+  counts(): {
+    parts: number;
+    batches: number;
+    whole: number;
+    focus: { x: number; z: number } | null;
+    choosing: boolean;
+  } {
+    let whole = 0;
+    for (const v of this.detail?.drawn ?? []) if (v === 1) whole++;
+    return {
+      parts: this.settled.parts + this.rising.parts,
+      batches: this.settled.drawn + this.rising.drawn,
+      whole,
+      focus: this.detail?.focus ?? null,
+      choosing: !!this.choosing,
+    };
   }
 
   /** What rises through the year, put again as it climbs. */

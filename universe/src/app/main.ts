@@ -775,6 +775,8 @@ type Exposed = {
   /** A town of the land on screen as drawn from its fabric: its square and reach (region units); and the parts drawn in all (M150). */
   landTown?: (ref: string) => { x: number; z: number; r: number } | null;
   landParts?: () => number;
+  /** What the town's view draws: its parts, batches, homes whole and where they were chosen from (render/town.ts). */
+  townParts?: () => unknown;
   landFire?: () => { flames: number; smoke: number; scar: number; burns: number; bare: number };
   /** Where the flames stand now, on the land (N1). */
   landFront?: () => { x: number; z: number } | null;
@@ -10429,6 +10431,7 @@ async function runPlanetPage(): Promise<void> {
   exposed.villages = () => villages.length;
   exposed.landTown = (ref: string) => region.land.townAt(ref);
   exposed.landParts = () => region.land.count;
+  exposed.townParts = () => (scale === "village" ? village.townCounts() : null);
   exposed.landFire = () => region.fire.shown;
   exposed.landTrees = () => region.treesPlanted;
   exposed.landFront = () => region.fire.front();
