@@ -43,6 +43,8 @@ import {
   townCivics,
   townGround,
   townHomes,
+  townHomesSeen,
+  townDetail,
   townMiddle,
   townScene,
   townWalls,
@@ -307,7 +309,7 @@ function blocksFields(fields: readonly Rect[], block: Rect): Rect[] {
   return fields.filter((f) => rectsOverlap(f, block, 1e-4));
 }
 
-test("a town's own view: no building runs into another, its sprawl's roofs with them; no part in two colours in one place", () => {
+test("a town's own view: no building runs into another, its sprawl's with them, near or far; no part in two colours in one place", () => {
   // (Its greatest towns drawn with few lots, so the rest stand as sprawl: render/town.ts's order.)
   const great = ctx.settlements
     .all()
@@ -323,12 +325,13 @@ test("a town's own view: no building runs into another, its sprawl's roofs with 
       scene = townScene(plan, t),
       parts = new TownParts();
     townGround(scene, parts);
-    townHomes(scene, scene.settled, t, parts);
+    // (Its homes nearest a spot off its square whole, the rest as seen from afar, those past its lots drawn with them.)
+    townHomesSeen(scene, townDetail(scene, { x: 140, z: -90 }), t, parts);
     townHomes(scene, scene.active, t, parts);
     townCivics(scene, t, parts, false);
     townWalls(scene, t, parts);
     townAsh(scene, t, parts);
-    roofs += (scene.sprawlRoofs?.length ?? 0) / 8;
+    roofs += (scene.sprawlRoofs?.length ?? 0) / 8 + (scene.far?.count ?? 0) / 8;
     type Part = Rect & { y: number; h: number; c: string };
     const list: Part[] = [];
     for (const [key, g] of parts.groups) {

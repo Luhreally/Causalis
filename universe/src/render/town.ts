@@ -30,6 +30,10 @@ import {
   townGround,
   townHomes,
   townScene,
+  homesSeen,
+  townDetail,
+  DETAIL_HYSTERESIS,
+  type TownDetail,
   townBuildingAt,
   townThingAt,
   townWalls,
@@ -48,6 +52,8 @@ import { domeMesh } from "./colony.ts";
 import type { Rgb, Stage } from "./stage.ts";
 
 const M = 0.1;
+/** How long a frame draws a new choosing of a town's homes whole (ms: TownLayer.look). */
+const CHOOSE_BUDGET = 4;
 /** How often what rises is put again (moments of the sim apart, at the least): a few times a day. */
 const RISE_EVERY = 6 * 3600,
   /** ... and while what struck it plays out — homes catching, burning, falling in (Phase 42 M201). */
@@ -70,19 +76,20 @@ class PartBatches {
     this.root = root;
     this.meshes = meshes;
   }
-  show(parts: TownParts): void {
+  show(...all: TownParts[]): void {
     // (One batch to a mesh, its roofs apart for the snow that lies on them: every colour of wall, roof and ground rides in
     // its instance. The windows keep theirs, lit at night.)
     const sets = new Map<string, { mesh: PartMesh; lamp: boolean; n: number; groups: Group[] }>();
-    for (const [key, g] of parts.groups) {
-      const n = g.data.length / 7;
-      if (n === 0) continue;
-      const k = partBatch(key, g);
-      let set = sets.get(k);
-      if (!set) sets.set(k, (set = { mesh: g.mesh, lamp: !!g.lamp, n: 0, groups: [] }));
-      set.n += n;
-      set.groups.push(g);
-    }
+    for (const parts of all)
+      for (const [key, g] of parts.groups) {
+        const n = g.data.length / 7;
+        if (n === 0) continue;
+        const k = partBatch(key, g);
+        let set = sets.get(k);
+        if (!set) sets.set(k, (set = { mesh: g.mesh, lamp: !!g.lamp, n: 0, groups: [] }));
+        set.n += n;
+        set.groups.push(g);
+      }
     for (const [key, set] of sets) {
       let b = this.batches.get(key);
       if (!b || b.capacity < set.n || (set.lamp && this.lampsIn !== this.lamps)) {
@@ -149,6 +156,14 @@ export class TownLayer {
   private readonly settled: PartBatches;
   private readonly rising: PartBatches;
   private readonly parts = new TownParts();
+  /** Its ground as drawn this year, and its homes standing done as drawn from where the eye last chose (townDetail). */
+  private readonly ground = new TownParts();
+  private homesSeenParts = new TownParts();
+  /** Where the eye looks (metres from its square), and the choosing its homes are drawn by; one being drawn over frames. */
+  private eye = { x: 0, z: 0 };
+  private detail: TownDetail | null = null;
+  private choosing: Generator<void, void> | null = null;
+  private seenAt = 0;
   private scene: TownScene | null = null;
   private key = "";
   private drawnAt = -Infinity;
@@ -201,11 +216,18 @@ export class TownLayer {
     const same = this.key === ref && this.scene !== null;
     this.key = ref;
     this.scene = townScene(plan, t, same ? this.scene!.lots : undefined);
-    // What stands all year: the ground, the homes done, the ruins.
-    this.parts.clear();
-    townGround(this.scene, this.parts);
-    townHomes(this.scene, this.scene.settled, t, this.parts);
-    this.settled.show(this.parts);
+    // What stands all year: the ground, the homes done, the ruins; those nearest the eye whole, the rest as seen from
+    // afar, the city's lots past those drawn on their own blocks (view/town.ts townDetail).
+    this.ground.clear();
+    townGround(this.scene, this.ground);
+    if (!same) this.eye = { x: 0, z: 0 };
+    this.detail = townDetail(this.scene, this.eye);
+    this.homesSeenParts = new TownParts();
+    const run = homesSeen(this.scene, this.detail, t, this.homesSeenParts);
+    while (!run.next().done);
+    this.choosing = null;
+    this.seenAt = t;
+    this.settled.show(this.ground, this.homesSeenParts);
     this.busy = this.scene.active.length > 0 || civicsActive(plan, t) || !!plan.walls;
     this.drawnAt = -Infinity;
     this.update(t);
@@ -221,6 +243,44 @@ export class TownLayer {
       return;
     this.open = open;
     this.drawnAt = -Infinity;
+  }
+
+  /**
+   * Where the eye looks (metres from its square), each frame: once it has moved half DETAIL_HYSTERESIS from where its homes were
+   * last chosen by, they are chosen again and drawn over the frames that follow, a few milliseconds a frame, the old
+   * standing till the new is drawn.
+   */
+  look(x: number, z: number): void {
+    const scene = this.scene;
+    if (!scene) return;
+    this.eye = { x, z };
+    const was = this.detail?.focus;
+    if (!this.choosing && was && Math.hypot(x - was.x, z - was.z) > DETAIL_HYSTERESIS / 2)
+      this.choosing = this.choose(scene, { x, z });
+    if (!this.choosing) return;
+    const t0 = performance.now();
+    while (performance.now() - t0 < CHOOSE_BUDGET)
+      if (this.choosing.next().done) {
+        this.choosing = null;
+        break;
+      }
+  }
+
+  private *choose(scene: TownScene, eye: { x: number; z: number }): Generator<void, void> {
+    const detail = townDetail(scene, eye);
+    yield;
+    const homes = new TownParts();
+    yield* homesSeen(scene, detail, this.seenAt, homes);
+    // (Its year turned meanwhile: the new year's homes are drawn by that year's choosing.)
+    if (this.scene !== scene) return;
+    this.detail = detail;
+    this.homesSeenParts = homes;
+    this.settled.show(this.ground, homes);
+  }
+
+  /** Which of its homes are drawn whole as last chosen (for a check). */
+  detailDrawn(): TownDetail | null {
+    return this.detail;
   }
 
   /** What rises through the year, put again as it climbs. */

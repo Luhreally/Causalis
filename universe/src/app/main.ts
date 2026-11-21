@@ -9572,6 +9572,8 @@ async function runPlanetPage(): Promise<void> {
     // of the town while a battle is fought before it, but for those come out to watch (Phase 55 M227).
     const sky = landSky?.cell === weatherCell() ? landSky : null,
       kept = placed ? battleShelter(placed.turn) : null;
+    // (The homes nearest where the eye looks drawn whole: render/town.ts TownLayer.look.)
+    village.look(rig.target.x, rig.target.z);
     village.update(
       seen,
       // (All indoors while raiders are in the streets, Phase 67, or machines are over the town, W2.)

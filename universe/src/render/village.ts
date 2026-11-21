@@ -1967,6 +1967,11 @@ export class VillageScene {
    * `fine`: its people at their day's errands (else, a town watched growing, each at their work as
    * it was before Phase 39, walking straight to it).
    */
+  /** Where the eye looks on the town (scene units): its homes nearest it drawn whole (render/town.ts TownLayer.look). */
+  look(x: number, z: number): void {
+    this.town.look(x / M, z / M);
+  }
+
   update(
     t: number,
     downpour: { readonly from: number; readonly to: number; readonly all?: boolean } | null = null,
