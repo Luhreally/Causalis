@@ -89,7 +89,9 @@ test("its realms at each year's end are those the years kept say, and each comin
     for (const item of [...t.leads.flatMap((x) => x.lines), ...sec.items]) {
       const m = /^(.+?) came into the alliance of/.exec(plain(item.line));
       if (!m) continue;
-      const ref = (item.line[0] as { ref?: string }).ref?.split(":").slice(2).join(":");
+      // (Its first link is who came in: "A second Stougyney" begins with words of which of that name it is.)
+      const who = item.line.find((x): x is { text: string; ref: string } => typeof x !== "string"),
+        ref = who?.ref.split(":").slice(2).join(":");
       assert.ok(ref && want.includes(ref), `year ${y}: ${m[1]} is not of it`);
       assert.ok(
         !membersAt(y - 1).includes(ref!) || headAt(y - 1) !== headAt(y),

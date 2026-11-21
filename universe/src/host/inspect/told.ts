@@ -707,6 +707,8 @@ const SAME = new WeakMap<
     /** Where in the log each kind's events lie: read once, from its column of kinds alone. */
     rows: Map<string, number[]>;
     by: Map<string, { t: number; who: string; i: number }[]>;
+    /** Each earlier happening's headline words, once read (the same ones are asked of year after year). */
+    words: Map<number, string>;
   }
 >();
 
@@ -735,7 +737,7 @@ function againWords(world: World, t: Told, said: string): string {
       if (list) list.push(i);
       else rows.set(type, [i]);
     }
-    SAME.set(world, (kept = { stamp, rows, by: new Map() }));
+    SAME.set(world, (kept = { stamp, rows, by: new Map(), words: new Map() }));
   }
   let list = kept.by.get(e.type);
   if (!list) {
@@ -762,8 +764,12 @@ function againWords(world: World, t: Told, said: string): string {
   let same = 0;
   // (The last forty: a council left and joined forty times over is said again past them, and its count would stall.)
   for (const i of like.slice(-40)) {
-    const x = world.events.at(i);
-    if (headWords(world, lineOf(world, x, yearOfMoment(x.t))).startsWith(head)) same++;
+    let words = kept.words.get(i);
+    if (words === undefined) {
+      const x = world.events.at(i);
+      kept.words.set(i, (words = headWords(world, lineOf(world, x, yearOfMoment(x.t)))));
+    }
+    if (words.startsWith(head)) same++;
   }
   if (!same) return "";
   return e.type === "polity.ended"

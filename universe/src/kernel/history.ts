@@ -421,6 +421,13 @@ export class EventLog {
     return this.folded.summaries();
   }
 
+  /** The folded counts of a few types only (what summaries() holds of them, in its order). */
+  countsOf(
+    types: ReadonlySet<string>,
+  ): { place: string; decade: number; type: string; n: number }[] {
+    return this.folded.countsOf(types);
+  }
+
   /** Forget every event `keep` rejects; returns how many were forgotten. */
   sweep(keep: (e: HistoryEvent) => boolean): number {
     const n = this.cold.n,
