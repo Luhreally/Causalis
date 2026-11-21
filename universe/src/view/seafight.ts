@@ -197,6 +197,45 @@ export function seaHullAt(field: SeaField, h: SeaHull, s: number, out: SeaHullNo
   return out;
 }
 
+/** A broadside fired: which hull (of `field.hulls`), when (s), and where she was (units). */
+export type SeaBroadside = { hull: number; t: number; x: number; z: number };
+
+/**
+ * Each broadside fired from `from` to `to` (s; `from` not included), as the hulls are drawn firing (seaHullAt's `fired` begins
+ * again at each): into `out` (emptied first; its entries kept and set in place), each hull's moment read into `at`.
+ */
+export function seaBroadsides(
+  field: SeaField,
+  from: number,
+  to: number,
+  out: SeaBroadside[],
+  at: SeaHullNow,
+): number {
+  let n = 0;
+  for (let i = 0; i < field.hulls.length && to > from; i++) {
+    const h = field.hulls[i]!;
+    if (!field.near.sides[h.side].guns) continue;
+    for (let k = Math.max(0, Math.floor((from - h.fires) / h.every)); ; k++) {
+      const t = h.fires + k * h.every;
+      if (t > to) break;
+      if (t <= from || seaHullAt(field, h, t, at).fired < 0) continue;
+      const b = out[n] ?? (out[n] = { hull: 0, t: 0, x: 0, z: 0 });
+      b.hull = i;
+      b.t = t;
+      b.x = at.x;
+      b.z = at.z;
+      n++;
+    }
+  }
+  out.length = n;
+  return n;
+}
+
+/** Whether a side's guns are of black powder: those of ships under sail and oar; steam's and after, smokeless. */
+export function seaBlack(rig: SeaRig): boolean {
+  return rig === "oared" || rig === "planked" || rig === "tall";
+}
+
 /** The meeting's tally at a moment: each side's hulls gone down, and that as history's tonnes. */
 export function seaTally(
   field: SeaField,

@@ -567,7 +567,8 @@ if (argv.includes("--renders")) {
   const kept = await state();
   check(!kept.on && kept.ctx === "none", `off was not remembered: ${kept.on}, ${kept.ctx}`);
   check(
-    (await k<string>(`document.querySelector(".sound-button").textContent`)) === "🔇",
+    (await k<string>(`document.querySelector(".sound-button").getAttribute("aria-pressed")`)) ===
+      "false",
     "off is not shown as off",
   );
   await press(".sound-button");
