@@ -779,6 +779,19 @@ type Exposed = {
   landFire?: () => { flames: number; smoke: number; scar: number; burns: number; bare: number };
   /** Where the flames stand now, on the land (N1). */
   landFront?: () => { x: number; z: number } | null;
+  /** What grows near the eye on the land, each thing as laid and how much of it is drawn now, and where the eye looks. */
+  landNear?: () => {
+    focus: { x: number; z: number; on: number };
+    things: {
+      kind: string;
+      x: number;
+      z: number;
+      y: number;
+      w: number;
+      h: number;
+      drawn: number;
+    }[];
+  };
   land?: () => {
     towns: number;
     parts: number;
@@ -10467,6 +10480,7 @@ async function runPlanetPage(): Promise<void> {
     return { ...region.flora.info(), on, claims: !!claims };
   };
   exposed.landFront = () => region.fire.front();
+  exposed.landNear = () => ({ focus: region.flora.nearFocus(), things: region.flora.nearLaid() });
   exposed.land = () => region.land.info();
   exposed.landHerds = () => (scale === "region" ? region.land.herds.info() : null);
   exposed.herdsOnScreen = () =>

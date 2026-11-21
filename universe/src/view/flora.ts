@@ -184,7 +184,9 @@ export function tileGround(p: readonly Rgb[], r: FloraTiles, t: number, id: numb
   let g = openGround(p, cover, Math.min(1, lush + 0.3 * wet));
   // (A bank's grass greener and darker: the water's.)
   if (wet > 0 && cover !== FLORA.marsh) g = mixRgb(g, scale(p[ROW.green]!, 0.9), 0.3 * wet);
-  const shade = woodsShade(p, cover),
+  // (A wood seen from above is its crowns, lit and in their own shade, and the shade between them: darker than a crown's
+  // colour, as the near trees standing on it read together; so the ground far off is what stands on it near.)
+  const shade = scale(woodsShade(p, cover), 0.74),
     under = Math.min(0.92, c * 1.05),
     bare = Math.min(1 - under, k),
     col = mixRgb(mixRgb(g, rock, bare / Math.max(1e-6, 1 - under)), shade, under),
@@ -332,6 +334,8 @@ export type NearThing = {
   r: number;
   g: number;
   b: number;
+  /** Its own rank (0 … 1, fixed on the land): the eye far off, those of the lowest ranks are drawn alone. */
+  u?: number;
 };
 
 /** What stands near the eye, by how it is drawn: trunks, cones (needles, weed), balls (broad crowns, scrub), tufts of grass, stones, and patches of the ground's own colour. */
@@ -406,10 +410,6 @@ export function cellUnit(i: number, j: number, k: number): number {
   return (h >>> 0) / 4294967296;
 }
 
-/** A grove's cell past the near trees (region units), and how far out the groves reach (times the trees' reach). */
-const GROVE_CELL = 0.24,
-  GROVE_OUT = 2.2;
-
 /** Groves and clearings: a smooth number over the land (0 … 1), so a wood stands in stands, not evenly. */
 function groveAt(x: number, z: number): number {
   const S = 0.55,
@@ -440,8 +440,6 @@ export type NearBudget = {
   tufts: number;
   stones: number;
   patches: number;
-  /** Groves past the trees (a ring out to GROVE_OUT times their reach): crowns standing for a few trees each. */
-  groves: number;
 };
 
 /** A budget's trees for a setting's far crowns (the quality's `regionTrees`): about as many near as far. */
@@ -452,37 +450,7 @@ export function nearBudget(regionTrees: number): NearBudget {
     tufts: Math.round(trees * 0.6),
     stones: Math.round(trees * 0.12),
     patches: Math.round(trees * 0.2),
-    groves: Math.round(trees * 0.45),
   };
-}
-
-/** How far about the eye the near trees reach (region units), for the canopy about it and a budget. */
-export function nearReach(
-  land: FloraLand,
-  x: number,
-  z: number,
-  budget: number,
-  most: number,
-): number {
-  // (The mean canopy about the point, read on the tiles within a few of it.)
-  const t0 = tileAt(land, x, z),
-    s = land.size,
-    i0 = t0 % s,
-    j0 = (t0 - i0) / s;
-  let sum = 0,
-    count = 0;
-  for (let dj = -3; dj <= 3; dj++)
-    for (let di = -3; di <= 3; di++) {
-      const i = i0 + di,
-        j = j0 + dj;
-      if (i < 0 || j < 0 || i >= s || j >= s) continue;
-      const t = j * s + i;
-      sum += land.read.canopy[t]! / 255;
-      count++;
-    }
-  const mean = Math.max(0.05, sum / Math.max(1, count)),
-    perUnit = mean / (TREE_CELL * TREE_CELL);
-  return Math.max(1.2, Math.min(most, Math.sqrt(budget / (Math.PI * perUnit))));
 }
 
 /** Square rings of lattice cells about a point, nearest first, as far as a reach. */
@@ -508,11 +476,26 @@ export function* rings(
     }
 }
 
+/** The square of land the near things are laid in, a piece at a time (region units: twelve trees' cells), each piece the same
+ * whenever it is laid: what stands in it is the land's, never the eye's. */
+export const NEAR_CHUNK = 12 * 0.085;
+
+/** Of each kind of near thing, the share laid (by each one's own fixed rank: those under it); 0 none, 1 all. */
+export type NearKeep = { trees: number; tufts: number; stones: number; patches: number };
+
+/** A lattice's cells whose corner falls in a piece of land (each cell in one piece only, whatever the lattice). */
+export function* chunkCells(ci: number, cj: number, cell: number): Generator<[number, number]> {
+  const i0 = Math.ceil((ci * NEAR_CHUNK) / cell - 1e-9),
+    i1 = Math.ceil(((ci + 1) * NEAR_CHUNK) / cell - 1e-9),
+    j0 = Math.ceil((cj * NEAR_CHUNK) / cell - 1e-9),
+    j1 = Math.ceil(((cj + 1) * NEAR_CHUNK) / cell - 1e-9);
+  for (let j = j0; j < j1; j++) for (let i = i0; i < i1; i++) yield [i, j];
+}
+
 /**
- * What stands near a point of a land (region units), as far as `reach` and as many as the budget: each lattice cell's tree
- * (by its tile's canopy, in groves and clearings), bush, tuft (by its grass), stone (by its rock) and patch of its ground's
- * own colour, nearest first. `free(x, z, r)`: whether a thing `r` across may stand there (the land's ground claims: never on
- * water, a road, a lot, a field, a camp); `bare(tile)`: burned bare.
+ * Everything that stands near a point of a land (region units), as far as `reach` (tufts not past 2.6), nearest first and no
+ * more than the budget of each: the pieces about it laid whole (nearChunk). `free(x, z, r)`: whether a thing `r` across may
+ * stand there (the land's ground claims: never on water, a road, a lot, a field, a camp); `bare(tile)`: burned bare.
  */
 export function nearFlora(
   land: FloraLand,
@@ -524,31 +507,74 @@ export function nearFlora(
   bare: (tile: number) => boolean = () => false,
   parched = false,
 ): NearFlora {
-  const steps = nearFloraSteps(land, cx, cz, reach, budget, free, bare, parched);
-  for (;;) {
-    const r = steps.next();
-    if (r.done) return r.value;
+  const all: NearFlora = {
+      trunks: [],
+      cones: [],
+      balls: [],
+      tufts: [],
+      stones: [],
+      patches: [],
+      trees: 0,
+    },
+    c0 = Math.floor((cx - reach) / NEAR_CHUNK),
+    c1 = Math.floor((cx + reach) / NEAR_CHUNK),
+    d0 = Math.floor((cz - reach) / NEAR_CHUNK),
+    d1 = Math.floor((cz + reach) / NEAR_CHUNK),
+    keep = { trees: 1, tufts: 1, stones: 1, patches: 1 };
+  for (let cj = d0; cj <= d1; cj++)
+    for (let ci = c0; ci <= c1; ci++) {
+      const n = nearChunk(land, ci, cj, keep, free, bare, parched);
+      all.trunks.push(...n.trunks);
+      all.cones.push(...n.cones);
+      all.balls.push(...n.balls);
+      all.tufts.push(...n.tufts);
+      all.stones.push(...n.stones);
+      all.patches.push(...n.patches);
+    }
+  const d = (t: NearThing) => Math.hypot(t.x - cx, t.z - cz),
+    within = <T extends NearThing>(list: T[], r: number, most: number): T[] =>
+      list
+        .filter((t) => d(t) <= r)
+        .sort((a, b) => d(a) - d(b))
+        .slice(0, most);
+  // (Trees by their trunks and crowns together: the nearest of them, as many as the budget.)
+  const trees = [...all.cones, ...all.balls, ...all.trunks]
+      .filter((t) => d(t) <= reach)
+      .sort((a, b) => d(a) - d(b)),
+    kept = new Set<string>();
+  for (const t of trees) {
+    const key = `${t.x},${t.z}`;
+    if (kept.size >= budget.trees && !kept.has(key)) continue;
+    kept.add(key);
   }
+  const ofTrees = (t: NearThing) => kept.has(`${t.x},${t.z}`);
+  return {
+    trunks: all.trunks.filter(ofTrees),
+    cones: all.cones.filter(ofTrees),
+    balls: all.balls.filter(ofTrees),
+    tufts: within(all.tufts, Math.min(reach, 2.6), budget.tufts),
+    stones: within(all.stones, reach, budget.stones),
+    patches: within(all.patches, reach, budget.patches),
+    trees: kept.size,
+  };
 }
 
-/** How many lattice cells are read between one pause and the next of a laying in steps. */
-const STEP_CELLS = 384;
-
 /**
- * The same laying (nearFlora) in steps: it pauses every few hundred cells, so a laying can be spread over frames (each
- * frame a few milliseconds of it, render/flora.ts) and what stands is not held up by it. Its end is what nearFlora gives.
+ * What stands in one piece of a land (region units, NEAR_CHUNK square, `ci`, `cj` its number): each lattice cell's tree (by its
+ * tile's canopy, in groves and clearings), tuft (by its grass), stone (by its rock) and patch of its ground's own colour, as
+ * many of each kind as `keep` lays by their ranks. The same piece laid again lays the same things, each with its rank (`u`):
+ * the eye far, fewer of them are drawn, the same ones, by that rank (render/flora.ts).
  */
-export function* nearFloraSteps(
+export function nearChunk(
   land: FloraLand,
-  cx: number,
-  cz: number,
-  reach: number,
-  budget: NearBudget,
+  ci: number,
+  cj: number,
+  /** Of each kind, the share of its things laid (by their own fixed rank: those under it): 0 none, 1 all. */
+  keep: NearKeep,
   free: (x: number, z: number, r: number) => boolean,
   bare: (tile: number) => boolean = () => false,
   parched = false,
-): Generator<void, NearFlora> {
-  let cells = 0;
+): NearFlora {
   const out: NearFlora = {
       trunks: [],
       cones: [],
@@ -561,7 +587,6 @@ export function* nearFloraSteps(
     r = land.read,
     p = land.palette,
     seabed = land.undersea,
-    r2 = reach * reach,
     grows = (t: number) => land.water[t] === 0 || (seabed && r.cover[t] === FLORA.reef);
   const put = (
     list: NearThing[],
@@ -572,213 +597,186 @@ export function* nearFloraSteps(
     h: number,
     yaw: number,
     c: Rgb,
-  ) => list.push({ x, y, z, w, h, yaw, r: c[0], g: c[1], b: c[2] });
+    rank: number,
+  ) => list.push({ x, y, z, w, h, yaw, r: c[0], g: c[1], b: c[2], u: rank });
   // Trees: a cell's one, by its tile's canopy, in groves.
-  for (const [i, j] of rings(cx, cz, TREE_CELL, reach)) {
-    if (++cells % STEP_CELLS === 0) yield;
-    if (out.trees >= budget.trees) break;
-    const x = (i + 0.15 + 0.7 * cellUnit(i, j, 1)) * TREE_CELL,
-      z = (j + 0.15 + 0.7 * cellUnit(i, j, 2)) * TREE_CELL;
-    if ((x - cx) ** 2 + (z - cz) ** 2 > r2) continue;
-    const t = tileAt(land, x, z);
-    if (!grows(t)) continue;
-    const c = r.canopy[t]! / 255,
-      want = c * (0.25 + 1.5 * groveAt(x, z));
-    if (cellUnit(i, j, 3) >= want) continue;
-    const form = formAt(r, t, cellUnit(i, j, 4), warmOf(r, t)),
-      size = FORM_SIZE[form],
-      k = 0.75 + 0.5 * cellUnit(i, j, 5);
-    if (!free(x, z, size.w * k * 0.5)) continue;
-    if (bare(t)) {
-      // Burned: what stood is a black snag, its crown gone (a needle tree's a spike, as tall as its trunk and part of its crown),
-      // or fallen, or brush burned to nothing, until the wood grows back (a burned wood seen close was an empty plain).
-      if (size.trunk <= 0 || cellUnit(i, j, 11) < SNAGS_FALLEN) continue;
-      const g = facetAt(land, x, z, false),
-        h = (size.trunk + (size.crown === "cone" ? size.h * 0.55 : size.h * 0.2)) * k,
-        tone = 0.7 + 0.6 * cellUnit(i, j, 6);
-      put(
-        out.trunks,
-        x,
-        g.y,
-        z,
-        Math.max(0.008, size.w * 0.1) * k,
-        h,
-        cellUnit(i, j, 9) * Math.PI * 2,
-        scale(CHARRED, tone),
-      );
+  if (keep.trees > 0)
+    for (const [i, j] of chunkCells(ci, cj, TREE_CELL)) {
+      const rank = cellUnit(i, j, 12);
+      if (rank >= keep.trees) continue;
+      const x = (i + 0.15 + 0.7 * cellUnit(i, j, 1)) * TREE_CELL,
+        z = (j + 0.15 + 0.7 * cellUnit(i, j, 2)) * TREE_CELL;
+      const t = tileAt(land, x, z);
+      if (!grows(t)) continue;
+      const c = r.canopy[t]! / 255,
+        want = c * (0.25 + 1.5 * groveAt(x, z));
+      if (cellUnit(i, j, 3) >= want) continue;
+      const form = formAt(r, t, cellUnit(i, j, 4), warmOf(r, t)),
+        size = FORM_SIZE[form],
+        k = 0.75 + 0.5 * cellUnit(i, j, 5);
+      if (!free(x, z, size.w * k * 0.5)) continue;
+      if (bare(t)) {
+        // Burned: what stood is a black snag, its crown gone (a needle tree's a spike, as tall as its trunk and part of its crown),
+        // or fallen, or brush burned to nothing, until the wood grows back (a burned wood seen close was an empty plain).
+        if (size.trunk <= 0 || cellUnit(i, j, 11) < SNAGS_FALLEN) continue;
+        const g = facetAt(land, x, z, false),
+          h = (size.trunk + (size.crown === "cone" ? size.h * 0.55 : size.h * 0.2)) * k,
+          tone = 0.7 + 0.6 * cellUnit(i, j, 6);
+        put(
+          out.trunks,
+          x,
+          g.y,
+          z,
+          Math.max(0.008, size.w * 0.1) * k,
+          h,
+          cellUnit(i, j, 9) * Math.PI * 2,
+          scale(CHARRED, tone),
+          rank,
+        );
+        out.trees++;
+        continue;
+      }
+      const g = facetAt(land, x, z, r.cover[t] === FLORA.reef),
+        tone = 0.86 + 0.28 * cellUnit(i, j, 6),
+        hue = (cellUnit(i, j, 7) - 0.5) * 0.12,
+        brown = parched && form !== "conifer" && form !== "dead" && cellUnit(i, j, 8) < 0.55,
+        base = brown ? mixRgb(formColor(p, form), p[ROW.straw]!, 0.75) : formColor(p, form),
+        col: Rgb = [base[0] * tone * (1 + hue), base[1] * tone, base[2] * tone * (1 - hue)],
+        yaw = cellUnit(i, j, 9) * Math.PI * 2;
+      // (A stump of what was felled: short; else a snag standing dead.)
+      const trunk =
+        form === "dead" ? size.trunk * (cellUnit(i, j, 10) < 0.7 ? 0.25 : 1) * k : size.trunk * k;
+      if (trunk > 0)
+        put(
+          out.trunks,
+          x,
+          g.y,
+          z,
+          Math.max(0.008, size.w * 0.12) * k,
+          trunk,
+          yaw,
+          form === "dead" ? base : TRUNK,
+          rank,
+        );
+      if (size.crown !== "none") {
+        // (A crown sits on its trunk; scrub low on the ground, a little into it.)
+        const ch = size.h * k,
+          foot = trunk > 0 ? g.y + trunk * 0.85 : g.y - ch * 0.25;
+        put(
+          size.crown === "cone" ? out.cones : out.balls,
+          x,
+          foot,
+          z,
+          size.w * k,
+          ch,
+          yaw,
+          col,
+          rank,
+        );
+      }
       out.trees++;
-      continue;
     }
-    const g = facetAt(land, x, z, r.cover[t] === FLORA.reef),
-      tone = 0.86 + 0.28 * cellUnit(i, j, 6),
-      hue = (cellUnit(i, j, 7) - 0.5) * 0.12,
-      brown = parched && form !== "conifer" && form !== "dead" && cellUnit(i, j, 8) < 0.55,
-      base = brown ? mixRgb(formColor(p, form), p[ROW.straw]!, 0.75) : formColor(p, form),
-      col: Rgb = [base[0] * tone * (1 + hue), base[1] * tone, base[2] * tone * (1 - hue)],
-      yaw = cellUnit(i, j, 9) * Math.PI * 2;
-    // (A stump of what was felled: short; else a snag standing dead.)
-    const trunk =
-      form === "dead" ? size.trunk * (cellUnit(i, j, 10) < 0.7 ? 0.25 : 1) * k : size.trunk * k;
-    if (trunk > 0)
+  // Tufts of grass and low plants where the ground is open, near only.
+  if (keep.tufts > 0)
+    for (const [i, j] of chunkCells(ci, cj, TUFT_CELL)) {
+      const rank = cellUnit(i, j, 27);
+      if (rank >= keep.tufts) continue;
+      const x = (i + cellUnit(i, j, 21)) * TUFT_CELL,
+        z = (j + cellUnit(i, j, 22)) * TUFT_CELL;
+      const t = tileAt(land, x, z);
+      if (land.water[t] !== 0 || bare(t)) continue;
+      const cover = r.cover[t]!;
+      if (cover === FLORA.ice || cover === FLORA.rock) continue;
+      const open = Math.max(0, 1 - r.canopy[t]! / 255 - r.rock[t]! / 255),
+        lush = r.lush[t]! / 255,
+        // (Grass grows in tufts where there is rain for it; a desert's few.)
+        want = open * (0.12 + 0.5 * lush + (cover === FLORA.marsh ? 0.3 : 0));
+      if (cellUnit(i, j, 23) >= want) continue;
+      if (!free(x, z, 0.01)) continue;
+      const g = facetAt(land, x, z, false),
+        grass = openGround(p, cover, Math.min(1, lush + 0.2)),
+        tone = 0.8 + 0.35 * cellUnit(i, j, 24),
+        k = 0.7 + 0.6 * cellUnit(i, j, 25),
+        reed = cover === FLORA.marsh;
       put(
-        out.trunks,
+        out.tufts,
         x,
         g.y,
         z,
-        Math.max(0.008, size.w * 0.12) * k,
-        trunk,
-        yaw,
-        form === "dead" ? base : TRUNK,
+        0.022 * k,
+        (reed ? 0.05 : 0.022) * k,
+        cellUnit(i, j, 26) * 6.28,
+        scale(grass, tone),
+        rank,
       );
-    if (size.crown !== "none") {
-      // (A crown sits on its trunk; scrub low on the ground, a little into it.)
-      const ch = size.h * k,
-        foot = trunk > 0 ? g.y + trunk * 0.85 : g.y - ch * 0.25;
-      put(size.crown === "cone" ? out.cones : out.balls, x, foot, z, size.w * k, ch, yaw, col);
     }
-    out.trees++;
-  }
-  // Groves past the trees, out to where the far crowns alone are enough: a crown a cell, standing for a few trees, so
-  // a wood does not end where the trees drawn one by one do (the far crowns are one to a tile or so).
-  const g0 = reach * 0.97,
-    g1 = reach * GROVE_OUT;
-  let groves = 0;
-  for (const [i, j] of rings(cx, cz, GROVE_CELL, g1, g0)) {
-    if (++cells % STEP_CELLS === 0) yield;
-    if (groves >= budget.groves) break;
-    const x = (i + 0.1 + 0.8 * cellUnit(i, j, 61)) * GROVE_CELL,
-      z = (j + 0.1 + 0.8 * cellUnit(i, j, 62)) * GROVE_CELL,
-      d2 = (x - cx) ** 2 + (z - cz) ** 2;
-    if (d2 > g1 * g1 || d2 < g0 * g0) continue;
-    const t = tileAt(land, x, z);
-    if (!grows(t) || bare(t)) continue;
-    const c = r.canopy[t]! / 255;
-    if (cellUnit(i, j, 63) >= c * (0.3 + 1.2 * groveAt(x, z))) continue;
-    const form = formAt(r, t, cellUnit(i, j, 64), warmOf(r, t)),
-      size = FORM_SIZE[form];
-    if (size.crown === "none") continue;
-    const k = (1.5 + 0.9 * cellUnit(i, j, 65)) * (form === "scrub" ? 0.8 : 1),
-      w = size.w * k,
-      h = size.h * k * 0.75;
-    if (!free(x, z, w * 0.5)) continue;
-    const g = facetAt(land, x, z, r.cover[t] === FLORA.reef),
-      tone = 0.8 + 0.25 * cellUnit(i, j, 66),
-      brown = parched && form !== "conifer" && form !== "dead" && cellUnit(i, j, 67) < 0.55,
-      base = brown ? mixRgb(formColor(p, form), p[ROW.straw]!, 0.75) : formColor(p, form),
-      // (A grove's crown stands on the ground: its trunks are under it, too small to be seen from here.)
-      foot = g.y + (size.crown === "cone" ? size.trunk * k * 0.3 : size.trunk * k * 0.5);
-    put(
-      size.crown === "cone" ? out.cones : out.balls,
-      x,
-      foot,
-      z,
-      w,
-      h + (size.crown === "cone" ? 0 : size.trunk * k * 0.3),
-      cellUnit(i, j, 68) * Math.PI * 2,
-      scale(base, tone),
-    );
-    groves++;
-  }
-  // Tufts of grass and low plants where the ground is open, near only.
-  const tuftReach = Math.min(reach, 2.6),
-    t2 = tuftReach * tuftReach;
-  for (const [i, j] of rings(cx, cz, TUFT_CELL, tuftReach)) {
-    if (++cells % STEP_CELLS === 0) yield;
-    if (out.tufts.length >= budget.tufts) break;
-    const x = (i + cellUnit(i, j, 21)) * TUFT_CELL,
-      z = (j + cellUnit(i, j, 22)) * TUFT_CELL;
-    if ((x - cx) ** 2 + (z - cz) ** 2 > t2) continue;
-    const t = tileAt(land, x, z);
-    if (land.water[t] !== 0 || bare(t)) continue;
-    const cover = r.cover[t]!;
-    if (cover === FLORA.ice || cover === FLORA.rock) continue;
-    const open = Math.max(0, 1 - r.canopy[t]! / 255 - r.rock[t]! / 255),
-      lush = r.lush[t]! / 255,
-      // (Grass grows in tufts where there is rain for it; a desert's few.)
-      want = open * (0.12 + 0.5 * lush + (cover === FLORA.marsh ? 0.3 : 0));
-    if (cellUnit(i, j, 23) >= want) continue;
-    if (!free(x, z, 0.01)) continue;
-    const g = facetAt(land, x, z, false),
-      grass = openGround(p, cover, Math.min(1, lush + 0.2)),
-      tone = 0.8 + 0.35 * cellUnit(i, j, 24),
-      k = 0.7 + 0.6 * cellUnit(i, j, 25),
-      reed = cover === FLORA.marsh;
-    put(
-      out.tufts,
-      x,
-      g.y,
-      z,
-      0.022 * k,
-      (reed ? 0.05 : 0.022) * k,
-      cellUnit(i, j, 26) * 6.28,
-      scale(grass, tone),
-    );
-  }
   // Stones where rock shows.
-  for (const [i, j] of rings(cx, cz, STONE_CELL, reach)) {
-    if (++cells % STEP_CELLS === 0) yield;
-    if (out.stones.length >= budget.stones) break;
-    const x = (i + cellUnit(i, j, 31)) * STONE_CELL,
-      z = (j + cellUnit(i, j, 32)) * STONE_CELL;
-    if ((x - cx) ** 2 + (z - cz) ** 2 > r2) continue;
-    const t = tileAt(land, x, z);
-    if (land.water[t] !== 0) continue;
-    const k = r.rock[t]! / 255;
-    if (cellUnit(i, j, 33) >= 0.04 + 0.7 * k) continue;
-    const s = (0.02 + 0.05 * cellUnit(i, j, 34) * (0.5 + k)) * 1;
-    if (!free(x, z, s * 0.6)) continue;
-    const g = facetAt(land, x, z, false),
-      grey = 0.8 + 0.35 * cellUnit(i, j, 35);
-    put(
-      out.stones,
-      x,
-      g.y,
-      z,
-      s,
-      s * (0.5 + 0.4 * cellUnit(i, j, 36)),
-      cellUnit(i, j, 37) * 6.28,
-      scale(mixRgb(p[ROW.rock]!, p[ROW.coldSoil]!, 0.3), grey),
-    );
-  }
+  if (keep.stones > 0)
+    for (const [i, j] of chunkCells(ci, cj, STONE_CELL)) {
+      const rank = cellUnit(i, j, 38);
+      if (rank >= keep.stones) continue;
+      const x = (i + cellUnit(i, j, 31)) * STONE_CELL,
+        z = (j + cellUnit(i, j, 32)) * STONE_CELL;
+      const t = tileAt(land, x, z);
+      if (land.water[t] !== 0) continue;
+      const k = r.rock[t]! / 255;
+      if (cellUnit(i, j, 33) >= 0.04 + 0.7 * k) continue;
+      const s = (0.02 + 0.05 * cellUnit(i, j, 34) * (0.5 + k)) * 1;
+      if (!free(x, z, s * 0.6)) continue;
+      const g = facetAt(land, x, z, false),
+        grey = 0.8 + 0.35 * cellUnit(i, j, 35);
+      put(
+        out.stones,
+        x,
+        g.y,
+        z,
+        s,
+        s * (0.5 + 0.4 * cellUnit(i, j, 36)),
+        cellUnit(i, j, 37) * 6.28,
+        scale(mixRgb(p[ROW.rock]!, p[ROW.coldSoil]!, 0.3), grey),
+        rank,
+      );
+    }
   // Patches of the ground's own colour, lighter and darker, bare soil and sand, lying on its facets.
-  for (const [i, j] of rings(cx, cz, PATCH_CELL, reach)) {
-    if (++cells % STEP_CELLS === 0) yield;
-    if (out.patches.length >= budget.patches) break;
-    const x = (i + cellUnit(i, j, 41)) * PATCH_CELL,
-      z = (j + cellUnit(i, j, 42)) * PATCH_CELL;
-    if ((x - cx) ** 2 + (z - cz) ** 2 > r2) continue;
-    const t = tileAt(land, x, z);
-    if (land.water[t] !== 0 || bare(t)) continue;
-    if (cellUnit(i, j, 43) >= 0.7) continue;
-    const w = 0.08 + 0.16 * cellUnit(i, j, 44);
-    if (!free(x, z, w * 0.5)) continue;
-    const cover = r.cover[t]!,
-      lush = r.lush[t]! / 255,
-      ground = openGround(p, cover, lush),
-      u = cellUnit(i, j, 45),
-      // (Lighter grass, darker grass, or bare soil showing through.)
-      col =
-        u < 0.4
-          ? scale(ground, 1.1)
-          : u < 0.8
-            ? scale(mixRgb(ground, woodsShade(p, cover), 0.25), 0.92)
-            : mixRgb(ground, cover === FLORA.hotDesert ? p[ROW.sand]! : p[ROW.coldSoil]!, 0.5),
-      g = facetAt(land, x, z, false);
-    out.patches.push({
-      x,
-      y: g.y,
-      z,
-      w,
-      h: w * (0.5 + 0.5 * cellUnit(i, j, 46)),
-      yaw: cellUnit(i, j, 47) * 6.28,
-      r: col[0],
-      g: col[1],
-      b: col[2],
-      nx: g.nx,
-      ny: g.ny,
-      nz: g.nz,
-    });
-  }
+  if (keep.patches > 0)
+    for (const [i, j] of chunkCells(ci, cj, PATCH_CELL)) {
+      const rank = cellUnit(i, j, 48);
+      if (rank >= keep.patches) continue;
+      const x = (i + cellUnit(i, j, 41)) * PATCH_CELL,
+        z = (j + cellUnit(i, j, 42)) * PATCH_CELL;
+      const t = tileAt(land, x, z);
+      if (land.water[t] !== 0 || bare(t)) continue;
+      if (cellUnit(i, j, 43) >= 0.7) continue;
+      const w = 0.08 + 0.16 * cellUnit(i, j, 44);
+      if (!free(x, z, w * 0.5)) continue;
+      const cover = r.cover[t]!,
+        lush = r.lush[t]! / 255,
+        ground = openGround(p, cover, lush),
+        u = cellUnit(i, j, 45),
+        // (Lighter grass, darker grass, or bare soil showing through.)
+        col =
+          u < 0.4
+            ? scale(ground, 1.1)
+            : u < 0.8
+              ? scale(mixRgb(ground, woodsShade(p, cover), 0.25), 0.92)
+              : mixRgb(ground, cover === FLORA.hotDesert ? p[ROW.sand]! : p[ROW.coldSoil]!, 0.5),
+        g = facetAt(land, x, z, false);
+      out.patches.push({
+        x,
+        y: g.y,
+        z,
+        w,
+        h: w * (0.5 + 0.5 * cellUnit(i, j, 46)),
+        yaw: cellUnit(i, j, 47) * 6.28,
+        r: col[0],
+        g: col[1],
+        b: col[2],
+        nx: g.nx,
+        ny: g.ny,
+        nz: g.nz,
+        u: rank,
+      });
+    }
   return out;
 }
 

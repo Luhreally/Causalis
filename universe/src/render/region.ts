@@ -326,10 +326,24 @@ export class RegionScene {
   /** The ground's height (above the sea) at a point of the scene, by its nearest tile. */
   heightAt(x: number, z: number): number {
     if (!this.heights) return 0;
-    const half = ((this.size - 1) * this.tileKm) / 2,
-      i = Math.max(0, Math.min(this.size - 1, Math.round((x + half) / this.tileKm))),
-      j = Math.max(0, Math.min(this.size - 1, Math.round((z + half) / this.tileKm)));
-    return Math.max(0, this.heights[j * this.size + i]!);
+    // (On the facets, as the ground is drawn: read off the nearest tile, an eye set on it stepped up and down as it went.)
+    const s = this.size,
+      h = this.heights,
+      half = ((s - 1) * this.tileKm) / 2,
+      fi = Math.max(0, Math.min(s - 1 - 1e-9, (x + half) / this.tileKm)),
+      fj = Math.max(0, Math.min(s - 1 - 1e-9, (z + half) / this.tileKm)),
+      i = Math.floor(fi),
+      j = Math.floor(fj),
+      u = fi - i,
+      v = fj - j,
+      a = h[j * s + i]!,
+      b = h[j * s + i + 1]!,
+      c = h[(j + 1) * s + i]!,
+      d = h[(j + 1) * s + i + 1]!;
+    return Math.max(
+      0,
+      u + v <= 1 ? a + (b - a) * u + (c - a) * v : d + (c - d) * (1 - u) + (b - d) * (1 - v),
+    );
   }
 
   /** Whether a point of the scene is over the sea (its nearest tile below the sea's level). */

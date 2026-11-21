@@ -560,6 +560,72 @@ export function tonedMaterial(gloss = 0.25): pc.StandardMaterial {
   m.update();
   return m;
 }
+/**
+ * A toned material whose instances are drawn by how near they stand to a point the eye looks at (render/flora.ts: what grows
+ * on a land), each by its own rank, which its matrix's last corner carries (1 + rank: the corner put back to 1 before use).
+ * `uNear`: the point (x, z), the core within which all are drawn, and the outer reach; past the core fewer, by rank, as the
+ * square of the core over the distance (as many on the screen however far), and none past the reach. `uNearK`: x 1 for the
+ * near things, -1 for the far (drawn where the near are not), y how much the near are drawn at all (the eye far: 0). An
+ * instance half drawn is a screen-door's share of its pixels, so it comes and goes by degrees, never at once; one not drawn
+ * is folded to nothing in the vertex shader (no pixels, no shadow).
+ */
+const FADE_VS = `
+attribute vec4 instance_line1;
+attribute vec4 instance_line2;
+attribute vec4 instance_line3;
+attribute vec4 instance_line4;
+uniform vec4 uNear;
+uniform vec4 uNearK;
+varying vec3 vTone;
+varying float vFade;
+mat4 getModelMatrix() {
+	vTone = vec3(instance_line1.w, instance_line2.w, instance_line3.w);
+	vec4 at = matrix_model * vec4(instance_line4.xyz, 1.0);
+	float d = length(at.xz - uNear.xy);
+	float fade;
+	if (uNearK.x > 0.0) {
+		float rank = instance_line4.w - 1.0;
+		float keep = min(1.0, (uNear.z * uNear.z) / max(d * d, 1e-6));
+		fade = clamp((keep - rank) / (0.2 * keep + 1e-4), 0.0, 1.0) * (1.0 - smoothstep(uNear.w * 0.8, uNear.w, d)) * uNearK.y;
+	} else {
+		fade = 1.0 - uNearK.y * (1.0 - smoothstep(uNear.w * 0.72, uNear.w * 0.94, d));
+	}
+	vFade = fade;
+	if (fade <= 0.0) return mat4(0.0);
+	return matrix_model * mat4(vec4(instance_line1.xyz, 0.0), vec4(instance_line2.xyz, 0.0), vec4(instance_line3.xyz, 0.0), vec4(instance_line4.xyz, 1.0));
+}
+`;
+const FADE_PS = `
+uniform vec3 material_diffuse;
+uniform float uToneSnow;
+varying vec3 vTone;
+varying float vFade;
+void getAlbedo() {
+	if (vFade < 0.999) {
+		float n = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+		if (n >= vFade) discard;
+	}
+	dAlbedo = mix(material_diffuse.rgb * vTone, vec3(0.852, 0.893, 0.957), uToneSnow);
+}
+`;
+export function fadedMaterial(gloss = 0.25): pc.StandardMaterial {
+  const m = new pc.StandardMaterial();
+  m.diffuse = new pc.Color(1, 1, 1);
+  m.gloss = gloss;
+  const chunks = m.getShaderChunks(pc.SHADERLANGUAGE_GLSL);
+  chunks.set("transformInstancingVS", FADE_VS);
+  chunks.set("diffusePS", FADE_PS);
+  m.shaderChunksVersion = pc.CHUNKAPI_2_8;
+  m.setAttribute("instance_line1", pc.SEMANTIC_ATTR11);
+  m.setAttribute("instance_line2", pc.SEMANTIC_ATTR12);
+  m.setAttribute("instance_line3", pc.SEMANTIC_ATTR14);
+  m.setAttribute("instance_line4", pc.SEMANTIC_ATTR15);
+  m.setParameter("uToneSnow", 0);
+  m.setParameter("uNear", [0, 0, 1, 1]);
+  m.setParameter("uNearK", [1, 0, 0, 0]);
+  m.update();
+  return m;
+}
 /** A colour as a toned material's instance carries it: linear, as the light is reckoned. */
 export function toneOf(c: number): number {
   return Math.pow(Math.max(0, c), 2.2);

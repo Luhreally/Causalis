@@ -54,6 +54,19 @@ export class InstancedBatch {
     m.update();
   }
 
+  /** Each instance's rank (0 … 1), carried in its matrix's last corner for a faded material (stage.ts fadedMaterial). */
+  rank(count: number, rankOf: (i: number) => number): void {
+    const n = Math.min(count, this.count),
+      m = this.matrices;
+    for (let i = 0; i < n; i++) m[i * 16 + 15] = 1 + rankOf(i);
+    this.upload(n);
+  }
+
+  /** A uniform of its material (a faded material's point and reach). */
+  param(name: string, value: number[]): void {
+    this.instance.material.setParameter(name, value);
+  }
+
   /** How far its instances are whitened (0 … 1: snow on a toned batch of roofs). */
   toneSnow(k: number): void {
     this.instance.material.setParameter("uToneSnow", k);

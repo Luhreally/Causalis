@@ -226,11 +226,10 @@ test("far woods: crowns by the reading, none on the water; near things on a fixe
     all.every((t) => Math.abs(t.x - riverX) > 1.2 - 0.01),
     "none on the river's tiles",
   );
-  // Past the trees, groves (crowns, no trunks) out to a little more than twice their reach, within the budget.
-  const past = [...a.balls, ...a.cones].filter((t) => Math.hypot(t.x - 5, t.z - 2) > 4);
-  assert.ok(past.length > 100 && past.length <= budget.groves, `${past.length} groves`);
-  assert.ok(past.every((t) => Math.hypot(t.x - 5, t.z - 2) <= 4 * 2.2 + 1e-9));
-  assert.ok(a.trunks.every((t) => Math.hypot(t.x - 5, t.z - 2) <= 4));
+  // Nothing past the reach; every tree a crown on its trunk, or a scrub's crown alone.
+  assert.ok(
+    [...a.balls, ...a.cones, ...a.trunks].every((t) => Math.hypot(t.x - 5, t.z - 2) <= 4 + 1e-9),
+  );
   const key = (t: { x: number; z: number }) => `${t.x.toFixed(5)},${t.z.toFixed(5)}`,
     seenA = new Set(a.balls.map(key)),
     both = b.balls.filter((t) => Math.hypot(t.x - 5.3, t.z - 1.85) < 1.5);
@@ -420,4 +419,46 @@ test("a burned wood near the eye: black snags where its trees stood, no crown, n
     burned.trunks.every((t) => t.r < 0.12 && t.g < 0.12 && t.b < 0.12),
     "black",
   );
+});
+
+test("one forest: a piece of land laid again lays the same things; thinner, the same ones by rank, none moved", async () => {
+  const { nearChunk } = await import("../../src/view/index.ts");
+  const size = 32,
+    land = floraLandOf(frame(size, 12, 1100, 9))!,
+    free = () => true,
+    all = { trees: 1, tufts: 1, stones: 1, patches: 1 },
+    quarter = { trees: 0.25, tufts: 0.25, stones: 0.25, patches: 0.25 },
+    key = (t: { x: number; z: number; w: number; h: number; r: number }) =>
+      `${t.x.toFixed(6)},${t.z.toFixed(6)},${t.w.toFixed(6)},${t.h.toFixed(6)},${t.r.toFixed(6)}`;
+  let whole = 0,
+    thin = 0;
+  for (const [ci, cj] of [
+    [3, 1],
+    [-2, 4],
+    [0, 0],
+  ] as const) {
+    const a = nearChunk(land, ci, cj, all, free),
+      again = nearChunk(land, ci, cj, all, free),
+      q = nearChunk(land, ci, cj, quarter, free);
+    for (const k of ["trunks", "cones", "balls", "tufts", "stones", "patches"] as const) {
+      assert.deepEqual(again[k].map(key), a[k].map(key), `${k} laid again`);
+      const had = new Set(a[k].map(key));
+      assert.ok(
+        q[k].every((t) => had.has(key(t))),
+        `${k}: the thinner laying's are the same things`,
+      );
+      assert.ok(
+        q[k].every((t) => (t.u ?? 1) < 0.25),
+        `${k}: by their ranks`,
+      );
+      assert.equal(
+        q[k].length,
+        a[k].filter((t) => (t.u ?? 1) < 0.25).length,
+        `${k}: all of those ranks`,
+      );
+    }
+    whole += a.trees;
+    thin += q.trees;
+  }
+  assert.ok(whole > 100 && thin > whole * 0.15 && thin < whole * 0.35, `${thin} of ${whole}`);
 });
