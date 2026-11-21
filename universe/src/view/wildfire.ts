@@ -314,6 +314,8 @@ export function scarOver(
         own = colors[q + c]!;
       colors[q + c] = Math.max(0, Math.min(255, Math.round(own + (to - own) * a)));
     }
+    // (The crowns burned off it as much as its scar lies on it: the alpha is 255 less the woods' cover.)
+    colors[q + 3] = Math.round(colors[q + 3]! + (255 - colors[q + 3]!) * a);
   }
   return done;
 }

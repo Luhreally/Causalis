@@ -74,6 +74,8 @@ export function builtOverTiles(
     out[q] = grey;
     out[q + 1] = grey;
     out[q + 2] = grey + 6;
+    // (No woods' crowns on a street.)
+    out[q + 3] = 255;
   }
   return out;
 }

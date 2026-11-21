@@ -630,6 +630,80 @@ export function fadedMaterial(gloss = 0.25): pc.StandardMaterial {
   m.update();
   return m;
 }
+/**
+ * The land's ground (render/region.ts). A map's lens: each facet its colour, flat (a realm's borders kept). The land as it is
+ * (`uTileMap.w` 1): its tiles' colours read off a texture of them (one texel a tile, at the grid's corners), blended between
+ * the four about each point, land with land and water with water; where the water's share passes a half, wavered by the
+ * land's own grain, the shore, soft over about a pixel, never a polygon's straight side. On the land the grain of the ground
+ * and, where woods stand (a texel's alpha: 255 less their cover; water's 0), their crowns lit and the shade between them: all
+ * fixed to the land (its x and z), never to the eye or the screen. Each grain is value noise about its mean, and one finer than
+ * three pixels or so is drawn as its mean, so the ground is the same colour near and far and never shimmers as the eye moves.
+ */
+const GROUND_PS = `
+uniform vec3 material_diffuse;
+uniform sampler2D uTiles;
+uniform vec4 uTileMap;
+float gHash(vec2 p) {
+	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+	p3 += dot(p3, p3.yzx + 33.33);
+	return fract((p3.x + p3.y) * p3.z);
+}
+float gNoise(vec2 p) {
+	vec2 i = floor(p), f = fract(p), u = f * f * (3.0 - 2.0 * f);
+	return mix(mix(gHash(i), gHash(i + vec2(1.0, 0.0)), u.x), mix(gHash(i + vec2(0.0, 1.0)), gHash(i + vec2(1.0, 1.0)), u.x), u.y) - 0.5;
+}
+// (A grain of so many to a unit, turned off the grid's lines, about its mean 0; faded to 0 where finer than three pixels or so.)
+float gGrain(vec2 p, float f, float px) {
+	float k = 1.0 - smoothstep(0.12, 0.32, px * f);
+	return k > 0.0 ? k * gNoise(mat2(0.8, -0.6, 0.6, 0.8) * p * f) : 0.0;
+}
+vec4 gTile(vec2 i) {
+	return texture2D(uTiles, (i + 0.5) / uTileMap.z);
+}
+void getAlbedo() {
+	vec4 vc = clamp(vVertexColor, 0.0, 1.0);
+	if (uTileMap.w < 0.5) {
+		dAlbedo = material_diffuse.rgb * vc.rgb;
+		return;
+	}
+	vec2 p = vPositionW.xz;
+	float px = max(length(dFdx(p)), length(dFdy(p)));
+	vec2 f = (p + uTileMap.x) / uTileMap.y, i = floor(f), t = f - i;
+	vec4 a = gTile(i), b = gTile(i + vec2(1.0, 0.0)), c = gTile(i + vec2(0.0, 1.0)), d = gTile(i + vec2(1.0, 1.0));
+	vec4 w = vec4((1.0 - t.x) * (1.0 - t.y), t.x * (1.0 - t.y), (1.0 - t.x) * t.y, t.x * t.y);
+	vec4 al = vec4(a.a, b.a, c.a, d.a), isW = step(al, vec4(0.002)), wl = w * (1.0 - isW), ww = w * isW;
+	float sl = dot(wl, vec4(1.0)), sw = dot(ww, vec4(1.0));
+	vec3 land = (a.rgb * wl.x + b.rgb * wl.y + c.rgb * wl.z + d.rgb * wl.w) / max(sl, 1e-4);
+	vec3 water = (a.rgb * ww.x + b.rgb * ww.y + c.rgb * ww.z + d.rgb * ww.w) / max(sw, 1e-4);
+	float woods = dot(wl, 1.0 - al) / max(sl, 1e-4);
+	float broad = gGrain(p + 17.3, 0.45, px), mid = gGrain(p + 5.1, 1.9, px), fine = gGrain(p, 6.3, px);
+	vec3 g = land * (1.0 + 0.14 * broad + (0.09 * mid + 0.05 * fine) * (1.0 - woods));
+	g.r *= 1.0 + 0.06 * broad;
+	g.b *= 1.0 - 0.06 * broad;
+	if (woods > 0.02) {
+		float k = 1.0 - smoothstep(0.12, 0.32, px * 8.0);
+		float crowns = k > 0.0 ? k * (smoothstep(-0.35, 0.35, gNoise(mat2(0.6, 0.8, -0.8, 0.6) * p * 8.0 + 3.7)) - 0.5) : 0.0;
+		g *= 1.0 + woods * (0.42 * crowns + 0.3 * gGrain(p + 9.1, 2.3, px));
+	}
+	// (The shore: where the water's share passes a half, wavered by the land's grain; soft over about a pixel.)
+	float s = sw + 0.17 * gGrain(p + 2.9, 1.1, px) + 0.08 * gGrain(p + 7.7, 4.1, px);
+	float e = max(0.5 * fwidth(s), 0.01);
+	float wet = sl < 1e-4 ? 1.0 : (sw < 1e-4 ? 0.0 : smoothstep(0.5 - e, 0.5 + e, s));
+	dAlbedo = material_diffuse.rgb * mix(g, water, wet);
+}
+`;
+export function groundMaterial(tiles: pc.Texture): pc.StandardMaterial {
+  const m = new pc.StandardMaterial();
+  m.diffuseVertexColor = true;
+  m.specular = new pc.Color(0.05, 0.05, 0.06);
+  m.gloss = 0.1;
+  m.getShaderChunks(pc.SHADERLANGUAGE_GLSL).set("diffusePS", GROUND_PS);
+  m.shaderChunksVersion = pc.CHUNKAPI_2_8;
+  m.setParameter("uTiles", tiles);
+  m.setParameter("uTileMap", [0, 1, 1, 0]);
+  m.update();
+  return m;
+}
 /** A colour as a toned material's instance carries it: linear, as the light is reckoned. */
 export function toneOf(c: number): number {
   return Math.pow(Math.max(0, c), 2.2);

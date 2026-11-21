@@ -21,7 +21,7 @@ import { LandLayer } from "./land.ts";
 import { FloraLayer } from "./flora.ts";
 import { WildfireLayer, wildfireMaterials } from "./wildfire.ts";
 import { InstancedBatch, boxMesh, coneMesh, cylinderMesh, gableMesh } from "./batch.ts";
-import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
+import { flatMaterial, groundMaterial, type Rgb, type Stage } from "./stage.ts";
 import { windowMaterial } from "./village.ts";
 
 /** How long a frame lays on at a land's plan being laid over frames (ms): the rest of a phone's frame is the drawing's. */
@@ -34,6 +34,9 @@ export class RegionScene {
   /** For each drawn corner, the tile it colours by; and the corners' colours. */
   private corners: Int32Array | null = null;
   private colors: Uint8Array | null = null;
+  /** The land as it is, a texel a tile (its alpha 255 less its woods' cover; water's 0), read by the ground's own shader. */
+  private tiles: pc.Texture | null = null;
+  private groundLook: pc.StandardMaterial | null = null;
   private size = 0;
   private tileKm = 1;
   private heights: Float32Array | null = null;
@@ -228,12 +231,20 @@ export class RegionScene {
     mesh.setIndices(order);
     mesh.update();
     this.corners = corners;
-    const material = new pc.StandardMaterial();
-    material.diffuseVertexColor = true;
-    // Matte facets, as the globe's.
-    material.specular = new pc.Color(0.05, 0.05, 0.06);
-    material.gloss = 0.1;
-    material.update();
+    // Matte facets, as the globe's; the land as it is blended tile into tile on them (stage.ts groundMaterial).
+    this.tiles?.destroy();
+    this.tiles = new pc.Texture(this.stage.device, {
+      width: size,
+      height: size,
+      format: pc.PIXELFORMAT_RGBA8,
+      mipmaps: false,
+      minFilter: pc.FILTER_NEAREST,
+      magFilter: pc.FILTER_NEAREST,
+      addressU: pc.ADDRESS_CLAMP_TO_EDGE,
+      addressV: pc.ADDRESS_CLAMP_TO_EDGE,
+    });
+    const material = groundMaterial(this.tiles);
+    this.groundLook = material;
     const terrain = new pc.Entity("terrain");
     terrain.addComponent("render", { meshInstances: [new pc.MeshInstance(mesh, material)] });
     this.root.addChild(terrain);
@@ -283,10 +294,34 @@ export class RegionScene {
 
   /**
    * Recolour the terrain (RGBA per tile): each facet the colour most of its three tiles have. (A facet with water and land
-   * in it was cut into each tile's share when the mesh was made, and each share's three corners are its one tile.)
+   * in it was cut into each tile's share when the mesh was made, and each share's three corners are its one tile.) `blend`
+   * (the land as it is, its alpha 255 less its woods' cover): the tiles blended into each other on the ground, land with
+   * land and water with water, the shore wavering between, no tile a flat polygon with hard straight sides (stage.ts
+   * groundMaterial); a map's lens keeps its facets, and its borders.
    */
-  paint(colors: Uint8Array): void {
+  paint(colors: Uint8Array, blend = false): void {
     if (!this.mesh || !this.corners || !this.colors) return;
+    const look = this.groundLook,
+      g = this.ground;
+    if (look && this.tiles && g) {
+      if (blend) {
+        const px = this.tiles.lock() as Uint8Array,
+          n = g.size * g.size;
+        for (let t = 0; t < n; t++) {
+          px[4 * t] = colors[4 * t]!;
+          px[4 * t + 1] = colors[4 * t + 1]!;
+          px[4 * t + 2] = colors[4 * t + 2]!;
+          px[4 * t + 3] = g.water[t] ? 0 : Math.max(1, colors[4 * t + 3]!);
+        }
+        this.tiles.unlock();
+      }
+      look.setParameter("uTileMap", [
+        ((g.size - 1) * g.tileKm) / 2,
+        g.tileKm,
+        g.size,
+        blend ? 1 : 0,
+      ]);
+    }
     const tiles = new Uint32Array(colors.buffer, colors.byteOffset, colors.length >> 2),
       out = new Uint32Array(this.colors.buffer),
       k = this.corners;
