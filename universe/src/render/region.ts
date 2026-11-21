@@ -28,7 +28,8 @@ import { windowMaterial } from "./village.ts";
  * A land's tiles as its ground's shader reads them (a texel a tile; stage.ts groundMaterial): `land` the land's colours and its
  * woods' cover (alpha 255 less it, as given), `water` the water's colours and how wet (alpha 255 on water, 0 on land). Each
  * carried a texel past its own tiles (the mean of its neighbours of its kind), so that, blended between the four texels about
- * a point, land is blended only with land and water only with water.
+ * a point, land is blended only with land and water only with water. `crowns` the colour of its woods' crowns seen from above
+ * (`canopy`, a tile's; none given, its ground's darkened), carried over the water as the land is.
  */
 export function groundTexels(
   colors: Uint8Array,
@@ -36,24 +37,32 @@ export function groundTexels(
   size: number,
   land: Uint8Array,
   water: Uint8Array,
+  canopy: Uint8Array | null = null,
+  crowns: Uint8Array | null = null,
 ): void {
-  const n = size * size;
+  const n = size * size,
+    top = canopy ?? colors,
+    dim = canopy ? 1 : 0.7;
   for (let t = 0; t < n; t++) {
     const w = wet[t] !== 0;
     for (let c = 0; c < 3; c++) {
       land[4 * t + c] = colors[4 * t + c]!;
       water[4 * t + c] = colors[4 * t + c]!;
+      if (crowns) crowns[4 * t + c] = Math.round(top[4 * t + c]! * dim);
     }
+    if (crowns) crowns[4 * t + 3] = 255;
     land[4 * t + 3] = w ? 255 : colors[4 * t + 3]!;
     water[4 * t + 3] = w ? 255 : 0;
   }
   // (A tile of the other kind takes its neighbours' of this kind: the shore's colours, either side.)
-  const sum = new Float64Array(4);
+  const sum = new Float64Array(4),
+    over = new Float64Array(3);
   for (let j = 0; j < size; j++)
     for (let i = 0; i < size; i++) {
       const t = j * size + i,
         w = wet[t] !== 0;
       sum[0] = sum[1] = sum[2] = sum[3] = 0;
+      over[0] = over[1] = over[2] = 0;
       let k = 0;
       for (let dj = -1; dj <= 1; dj++)
         for (let di = -1; di <= 1; di++) {
@@ -63,13 +72,18 @@ export function groundTexels(
           const u = y * size + x;
           if ((wet[u] !== 0) === w) continue;
           for (let c = 0; c < 4; c++) sum[c] = sum[c]! + colors[4 * u + c]!;
+          for (let c = 0; c < 3; c++) over[c] = over[c]! + top[4 * u + c]!;
           k++;
         }
       if (!k) continue;
       const to = w ? land : water;
       for (let c = 0; c < 3; c++) to[4 * t + c] = Math.round(sum[c]! / k);
-      // (A wood's cover carried over the water with its colour.)
-      if (w) land[4 * t + 3] = Math.round(sum[3]! / k);
+      // (A wood's cover and its crowns carried over the water with its colour.)
+      if (w) {
+        land[4 * t + 3] = Math.round(sum[3]! / k);
+        if (crowns)
+          for (let c = 0; c < 3; c++) crowns[4 * t + c] = Math.round((over[c]! / k) * dim);
+      }
     }
 }
 
@@ -87,6 +101,8 @@ export class RegionScene {
    * woods' cover (alpha 255 less it), carried a texel over the water; the water's, and how wet (alpha), a texel over the land. */
   private landTex: pc.Texture | null = null;
   private waterTex: pc.Texture | null = null;
+  /** Its woods' crowns seen from above, a texel a tile. */
+  private crownTex: pc.Texture | null = null;
   private grain: pc.Texture | null = null;
   private groundLook: pc.StandardMaterial | null = null;
   private size = 0;
@@ -286,6 +302,7 @@ export class RegionScene {
     // Matte facets, as the globe's; the land as it is blended tile into tile on them (stage.ts groundMaterial).
     this.landTex?.destroy();
     this.waterTex?.destroy();
+    this.crownTex?.destroy();
     const tileTexture = () =>
       new pc.Texture(this.stage.device, {
         width: size,
@@ -299,8 +316,9 @@ export class RegionScene {
       });
     this.landTex = tileTexture();
     this.waterTex = tileTexture();
+    this.crownTex = tileTexture();
     this.grain ??= grainTexture(this.stage);
-    const material = groundMaterial(this.landTex, this.waterTex, this.grain);
+    const material = groundMaterial(this.landTex, this.waterTex, this.crownTex, this.grain);
     this.groundLook = material;
     const terrain = new pc.Entity("terrain");
     terrain.addComponent("render", { meshInstances: [new pc.MeshInstance(mesh, material)] });
@@ -356,17 +374,19 @@ export class RegionScene {
    * land and water with water, the shore wavering between, no tile a flat polygon with hard straight sides (stage.ts
    * groundMaterial); a map's lens keeps its facets, and its borders.
    */
-  paint(colors: Uint8Array, blend = false): void {
+  paint(colors: Uint8Array, blend = false, canopy: Uint8Array | null = null): void {
     if (!this.mesh || !this.corners || !this.colors) return;
     const look = this.groundLook,
       g = this.ground;
-    if (look && this.landTex && this.waterTex && g) {
+    if (look && this.landTex && this.waterTex && this.crownTex && g) {
       if (blend) {
         const land = this.landTex.lock() as Uint8Array,
-          water = this.waterTex.lock() as Uint8Array;
-        groundTexels(colors, g.water, g.size, land, water);
+          water = this.waterTex.lock() as Uint8Array,
+          crowns = this.crownTex.lock() as Uint8Array;
+        groundTexels(colors, g.water, g.size, land, water, canopy, crowns);
         this.landTex.unlock();
         this.waterTex.unlock();
+        this.crownTex.unlock();
       }
       look.setParameter("uTileMap", [
         ((g.size - 1) * g.tileKm) / 2,

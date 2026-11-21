@@ -167,9 +167,43 @@ export function floraColors(frame: FrameMessage, waters: Uint8Array): Uint8Array
     out[t * 4 + 2] = Math.max(0, Math.min(255, Math.round(col[2] * 255)));
     // (Its alpha 255 less how much of it its woods' crowns cover: the ground drawn with their crowns on it, render/stage.ts
     // groundMaterial, at every distance the same.)
-    out[t * 4 + 3] = 255 - Math.min(255, Math.round(r.canopy[t]! * 1.05));
+    out[t * 4 + 3] = 255 - Math.round(255 * woodsUnder(r, t));
   }
   return out;
+}
+
+/**
+ * Each land tile's woods seen from above (RGBA, 0–255, alpha 255): the colour of their crowns and the shade between them, as
+ * mixed into the tile's ground by floraColors over as much of it as they cover; so the ground's shader can draw the crowns
+ * over that share of it and the open ground about them (render/stage.ts groundMaterial). Null: a map with no reading.
+ */
+export function floraCanopy(frame: FrameMessage): Uint8Array | null {
+  const land = floraLandOf(frame);
+  if (!land) return null;
+  const { read: r, palette: p } = land,
+    n = land.size * land.size,
+    out = new Uint8Array(n * 4),
+    fert = frame.arrays.fertility as Uint8Array | undefined;
+  for (let t = 0; t < n; t++) {
+    const col = tileShade(scale(woodsShade(p, r.cover[t]!), 0.74), t, fert ? fert[t]! / 255 : 0);
+    out[t * 4] = Math.max(0, Math.min(255, Math.round(col[0] * 255)));
+    out[t * 4 + 1] = Math.max(0, Math.min(255, Math.round(col[1] * 255)));
+    out[t * 4 + 2] = Math.max(0, Math.min(255, Math.round(col[2] * 255)));
+    out[t * 4 + 3] = 255;
+  }
+  return out;
+}
+
+/** How much of a tile its woods' crowns cover, seen from above (0 … 0.92). */
+function woodsUnder(r: FloraTiles, t: number): number {
+  return Math.min(0.92, (r.canopy[t]! / 255) * 1.05);
+}
+
+/** A tile's colour as tile from tile (`id`: its own number): a little lighter or darker, warmer or cooler; richer soil darker. */
+function tileShade(col: Rgb, id: number, soil: number): Rgb {
+  const j = (0.93 + 0.14 * tileUnit(id, 11)) * (1 - 0.06 * soil),
+    warmth = (tileUnit(id, 12) - 0.5) * 0.04;
+  return [col[0] * j * (1 + warmth), col[1] * j, col[2] * j * (1 - warmth)];
 }
 
 /**
@@ -178,7 +212,6 @@ export function floraColors(frame: FrameMessage, waters: Uint8Array): Uint8Array
  */
 export function tileGround(p: readonly Rgb[], r: FloraTiles, t: number, id: number, soil = 0): Rgb {
   const cover = r.cover[t]!,
-    c = r.canopy[t]! / 255,
     k = r.rock[t]! / 255,
     wet = r.wet[t]! / 255,
     lush = r.lush[t]! / 255,
@@ -189,13 +222,10 @@ export function tileGround(p: readonly Rgb[], r: FloraTiles, t: number, id: numb
   // (A wood seen from above is its crowns, lit and in their own shade, and the shade between them: darker than a crown's
   // colour, as the near trees standing on it read together; so the ground far off is what stands on it near.)
   const shade = scale(woodsShade(p, cover), 0.74),
-    under = Math.min(0.92, c * 1.05),
+    under = woodsUnder(r, t),
     bare = Math.min(1 - under, k),
-    col = mixRgb(mixRgb(g, rock, bare / Math.max(1e-6, 1 - under)), shade, under),
-    // (Tile from tile: a little lighter or darker, a little warmer or cooler; richer soil darker.)
-    j = (0.93 + 0.14 * tileUnit(id, 11)) * (1 - 0.06 * soil),
-    warmth = (tileUnit(id, 12) - 0.5) * 0.04;
-  return [col[0] * j * (1 + warmth), col[1] * j, col[2] * j * (1 - warmth)];
+    col = mixRgb(mixRgb(g, rock, bare / Math.max(1e-6, 1 - under)), shade, under);
+  return tileShade(col, id, soil);
 }
 
 /** The colour a form's crown stands in, in its world's colours (a land's woods browned in a dry run: `parched`). */
@@ -338,6 +368,8 @@ export type NearThing = {
   b: number;
   /** Its own rank (0 … 1, fixed on the land): the eye far off, those of the lowest ranks are drawn alone. */
   u?: number;
+  /** How high its foot stands over the ground (a crown on its trunk): what it shrinks to as it fades, the tree's foot. */
+  lift?: number;
 };
 
 /** What stands near the eye, by how it is drawn: trunks, cones (needles, weed), balls (broad crowns, scrub), tufts of grass, stones, and patches of the ground's own colour. */
@@ -664,18 +696,10 @@ export function nearChunk(
       if (size.crown !== "none") {
         // (A crown sits on its trunk; scrub low on the ground, a little into it.)
         const ch = size.h * k,
-          foot = trunk > 0 ? g.y + trunk * 0.85 : g.y - ch * 0.25;
-        put(
-          size.crown === "cone" ? out.cones : out.balls,
-          x,
-          foot,
-          z,
-          size.w * k,
-          ch,
-          yaw,
-          col,
-          rank,
-        );
+          foot = trunk > 0 ? g.y + trunk * 0.85 : g.y - ch * 0.25,
+          crowns = size.crown === "cone" ? out.cones : out.balls;
+        put(crowns, x, foot, z, size.w * k, ch, yaw, col, rank);
+        if (trunk > 0) crowns[crowns.length - 1]!.lift = trunk * 0.85;
       }
       out.trees++;
     }

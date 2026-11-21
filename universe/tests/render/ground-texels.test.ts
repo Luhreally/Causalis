@@ -26,3 +26,22 @@ test("ground texels: land carried over the water and water over the land; how we
   assert.deepEqual([...water.slice(0, 3)], [20, 90, 200]);
   assert.deepEqual([...land.slice(0, 4)], [40, 160, 30, 100]);
 });
+
+test("ground texels: the woods' crowns seen from above, carried over the water as the land is", () => {
+  const size = 3,
+    colors = new Uint8Array(size * size * 4).fill(120),
+    canopy = new Uint8Array(size * size * 4),
+    wet = new Uint8Array(size * size);
+  for (let t = 0; t < size * size; t++) canopy.set([10 + 2 * t, 70, 20, 255], 4 * t);
+  wet[4] = 1;
+  const land = new Uint8Array(size * size * 4),
+    water = new Uint8Array(size * size * 4),
+    crowns = new Uint8Array(size * size * 4);
+  groundTexels(colors, wet, size, land, water, canopy, crowns);
+  assert.deepEqual([...crowns.slice(0, 3)], [10, 70, 20]);
+  const mean = Math.round([0, 1, 2, 3, 5, 6, 7, 8].reduce((s, t) => s + 10 + 2 * t, 0) / 8);
+  assert.deepEqual([...crowns.slice(16, 19)], [mean, 70, 20]);
+  // (None given: the ground's own, darkened.)
+  groundTexels(colors, wet, size, land, water, null, crowns);
+  assert.equal(crowns[0], Math.round(120 * 0.7));
+});

@@ -221,6 +221,7 @@ import {
   builtOverTiles,
   globeColors,
   regionColors,
+  floraCanopy,
   regionFromGlobe,
   regionHeights,
   regionTrees,
@@ -2419,7 +2420,9 @@ async function runPlanetPage(): Promise<void> {
   let landSky: LandSky | null = null,
     seasonT = 0,
     regionSurfaceKey = "",
-    regionWoodsKey: string | undefined;
+    regionWoodsKey: string | undefined,
+    // (Its woods' crowns as seen from above, read again only when its woods or its land change.)
+    regionCanopy: { key: string; colors: Uint8Array | null } | null = null;
   const paintRegion = () => {
     const frame = client.latestFrame("region");
     if (!frame || scale !== "region") return;
@@ -2510,9 +2513,13 @@ async function runPlanetPage(): Promise<void> {
           : dressed;
     // (What a fire burned, char to brown: on the ground's own colours. N1.)
     // (The land as it is blended tile into tile; a map's lens keeps its borders.)
+    const canopyKey = `${meta.ref}|${regionWoodsKey ?? ""}`;
+    if (regionLens === "land" && regionCanopy?.key !== canopyKey)
+      regionCanopy = { key: canopyKey, colors: floraCanopy(frame) };
     region.paint(
       regionLens === "land" ? region.fire.scarred(turfed) : turfed,
       regionLens === "land",
+      regionLens === "land" ? (regionCanopy?.colors ?? null) : null,
     );
     painted = colors.length / 4;
   };

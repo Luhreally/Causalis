@@ -54,11 +54,17 @@ export class InstancedBatch {
     m.update();
   }
 
-  /** Each instance's rank (0 … 1), carried in its matrix's last corner for a faded material (stage.ts fadedMaterial). */
-  rank(count: number, rankOf: (i: number) => number): void {
+  /**
+   * Each instance's rank (0 … 1), carried in its matrix's last corner for a faded material (stage.ts fadedMaterial), with how
+   * high its foot stands over the ground (`liftOf`, region units: a crown on its trunk), in 256ths, as twice a whole number
+   * over it: 1 + rank + 2 * round(lift * 256).
+   */
+  rank(count: number, rankOf: (i: number) => number, liftOf?: (i: number) => number): void {
     const n = Math.min(count, this.count),
       m = this.matrices;
-    for (let i = 0; i < n; i++) m[i * 16 + 15] = 1 + rankOf(i);
+    for (let i = 0; i < n; i++)
+      m[i * 16 + 15] =
+        1 + Math.min(0.9999, rankOf(i)) + 2 * Math.round(Math.max(0, liftOf?.(i) ?? 0) * 256);
     this.upload(n);
   }
 
