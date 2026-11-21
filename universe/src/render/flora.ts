@@ -23,7 +23,7 @@ import {
   type NearThing,
   type RegionTree,
 } from "../view/index.ts";
-import { InstancedBatch, coneMesh, cylinderMesh, keptMesh } from "./batch.ts";
+import { InstancedBatch, coneMesh, cylinderMesh, keptMesh, sidesMesh } from "./batch.ts";
 import { fadedMaterial, type Rgb, type Stage } from "./stage.ts";
 
 /** Far clumps' kinds: the form whose trees they are, and their colour where no reading gives one. */
@@ -264,8 +264,9 @@ export class FloraLayer {
         new pc.SphereGeometry({ radius: 0.5, latitudeBands: 3, longitudeBands: 6 }),
       ),
     );
-    this.trunk = keptMesh(cylinderMesh(stage, 0.5, 1, 5));
-    this.tuft = keptMesh(coneMesh(stage, 0.5, 1, 4));
+    // (A trunk's ends are in its crown and the ground, a tuft's foot in the ground: their sides alone.)
+    this.trunk = keptMesh(sidesMesh(stage, 0.5, 0.5, 1, 5));
+    this.tuft = keptMesh(sidesMesh(stage, 0.5, 0, 1, 4));
     this.stone = keptMesh(
       pc.Mesh.fromGeometry(
         stage.device,

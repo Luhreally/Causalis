@@ -27,7 +27,7 @@ import {
   type NearThing,
   type TownFlora,
 } from "../view/index.ts";
-import { InstancedBatch, coneMesh, cylinderMesh, keptMesh } from "./batch.ts";
+import { InstancedBatch, coneMesh, keptMesh, sidesMesh } from "./batch.ts";
 import { SNOW_HIDES } from "./flora.ts";
 import type { Rgb, Stage } from "./stage.ts";
 
@@ -40,6 +40,31 @@ const RINGS = 30,
   SPOKES = 72,
   OUTER = 14,
   FAR = 1400;
+/**
+ * What grows about a town drawn in pieces of at most PIECE things each, the ground halved and halved again across its
+ * longer side: each piece its own batch bound to where its things stand, so that those out of the eye's sight (or the
+ * shadows' reach) are not drawn at all.
+ */
+export const PIECE = 360;
+
+/** Things cut into pieces of at most PIECE, each a compact patch of the ground (halved across its longer side, at its middle thing). */
+export function floraPieces(list: readonly NearThing[]): NearThing[][] {
+  if (list.length <= PIECE) return list.length ? [list.slice()] : [];
+  let x0 = Infinity,
+    x1 = -Infinity,
+    z0 = Infinity,
+    z1 = -Infinity;
+  for (const t of list) {
+    x0 = Math.min(x0, t.x);
+    x1 = Math.max(x1, t.x);
+    z0 = Math.min(z0, t.z);
+    z1 = Math.max(z1, t.z);
+  }
+  const along = x1 - x0 >= z1 - z0 ? "x" : "z",
+    sorted = list.slice().sort((a, b) => a[along] - b[along]),
+    half = sorted.length >> 1;
+  return [...floraPieces(sorted.slice(0, half)), ...floraPieces(sorted.slice(half))];
+}
 
 export class TownFloraLayer {
   readonly root = new pc.Entity("town-flora");
@@ -57,15 +82,13 @@ export class TownFloraLayer {
   /** Its vertices on open water: no season nor dry year on them. */
   private still: Uint8Array | null = null;
   private painted: Uint8Array | null = null;
-  private batches: Record<
-    "trunks" | "cones" | "balls" | "tufts" | "stones",
-    InstancedBatch | null
-  > = {
-    trunks: null,
-    cones: null,
-    balls: null,
-    tufts: null,
-    stones: null,
+  /** Each kind's batches, a piece of the ground each (the middle, then the wedges). */
+  private batches: Record<"trunks" | "cones" | "balls" | "tufts" | "stones", InstancedBatch[]> = {
+    trunks: [],
+    cones: [],
+    balls: [],
+    tufts: [],
+    stones: [],
   };
   private leafBase: Rgb = [0.2, 0.5, 0.2];
   private needleBase: Rgb = [0.1, 0.4, 0.2];
@@ -91,8 +114,9 @@ export class TownFloraLayer {
         new pc.SphereGeometry({ radius: 0.5, latitudeBands: 3, longitudeBands: 6 }),
       ),
     );
-    this.trunk = keptMesh(cylinderMesh(stage, 0.5, 1, 5));
-    this.tuft = keptMesh(coneMesh(stage, 0.5, 1, 4));
+    // (A trunk's ends are in its crown and the ground, a tuft's foot in the ground: their sides alone.)
+    this.trunk = keptMesh(sidesMesh(stage, 0.5, 0.5, 1, 5));
+    this.tuft = keptMesh(sidesMesh(stage, 0.5, 0, 1, 4));
     this.stone = keptMesh(
       pc.Mesh.fromGeometry(
         stage.device,
@@ -123,7 +147,7 @@ export class TownFloraLayer {
     if (!g) {
       this.job = null;
       this.shown = null;
-      for (const b of Object.values(this.batches)) b?.set(0, () => {});
+      for (const list of Object.values(this.batches)) for (const b of list) b.set(0, () => {});
       return false;
     }
     // The ground: rings closer near the middle, where the eye is; and past its own, its land's ground out to where no eye
@@ -243,32 +267,49 @@ export class TownFloraLayer {
     list: readonly NearThing[],
     mesh: pc.Mesh,
   ): void {
-    let b = this.batches[key];
-    if (!b || b.capacity < list.length) {
-      b?.destroy();
-      b = new InstancedBatch(
-        this.stage,
-        mesh,
-        [1, 1, 1],
-        Math.max(64, Math.ceil(list.length * 1.3)),
-        this.root,
-        undefined,
-        true,
-      );
-      if (key === "tufts" || key === "stones") b.shadows(false);
-      this.batches[key] = b;
-    }
-    b.set(list.length, (i, out) => {
-      const t = list[i]!;
-      out[0] = t.x * M;
-      out[1] = (t.y + t.h / 2) * M;
-      out[2] = t.z * M;
-      out[3] = out[5] = t.w * M;
-      out[4] = t.h * M;
-      out[6] = t.yaw;
-      out[8] = t.r;
-      out[9] = t.g;
-      out[10] = t.b;
+    const batches = this.batches[key],
+      cut = floraPieces(list);
+    // (Batches past the pieces this laying has, let go.)
+    for (const b of batches.splice(cut.length)) b.destroy();
+    cut.forEach((piece, k) => {
+      let b = batches[k];
+      if (!b || b.capacity < piece.length) {
+        b?.destroy();
+        b = new InstancedBatch(
+          this.stage,
+          mesh,
+          [1, 1, 1],
+          Math.max(64, Math.ceil(piece.length * 1.3)),
+          this.root,
+          undefined,
+          true,
+        );
+        // (Only the crowns cast shadows, as on the land: a trunk's, a tuft's and a stone's are too small to see, and cost a pass.)
+        if (key !== "cones" && key !== "balls") b.shadows(false);
+        batches[k] = b;
+      }
+      const lo = [Infinity, Infinity, Infinity],
+        hi = [-Infinity, -Infinity, -Infinity];
+      b.set(piece.length, (i, out) => {
+        const t = piece[i]!;
+        out[0] = t.x * M;
+        out[1] = (t.y + t.h / 2) * M;
+        out[2] = t.z * M;
+        out[3] = out[5] = t.w * M;
+        out[4] = t.h * M;
+        out[6] = t.yaw;
+        out[8] = t.r;
+        out[9] = t.g;
+        out[10] = t.b;
+        lo[0] = Math.min(lo[0]!, (t.x - t.w) * M);
+        lo[1] = Math.min(lo[1]!, t.y * M);
+        lo[2] = Math.min(lo[2]!, (t.z - t.w) * M);
+        hi[0] = Math.max(hi[0]!, (t.x + t.w) * M);
+        hi[1] = Math.max(hi[1]!, (t.y + t.h) * M);
+        hi[2] = Math.max(hi[2]!, (t.z + t.w) * M);
+      });
+      // (Bound to where its things stand, in the layer's own units: out of the eye's sight, not drawn.)
+      b.bound(lo, hi);
     });
   }
 
@@ -294,14 +335,16 @@ export class TownFloraLayer {
         ? ratio(this.needleBase, seasonNeedle(this.needleBase, bare))
         : ([1, 1, 1] as Rgb),
       snow = s?.snow ?? 0;
-    this.batches.balls?.recolor(leaf);
-    this.batches.cones?.recolor(needle);
+    const each = (key: keyof TownFloraLayer["batches"], f: (b: InstancedBatch) => void) =>
+      this.batches[key].forEach(f);
+    each("balls", (b) => b.recolor(leaf));
+    each("cones", (b) => b.recolor(needle));
     // (As on the land, render/flora.ts: needles dark under snow, bare crowns twigs, grass under the snow.)
-    this.batches.balls?.toneSnow(Math.min(1, snow * 0.45 + (s ? (1 - s.leaf) * 0.3 : 0)));
-    this.batches.cones?.toneSnow(snow * 0.35);
-    this.batches.tufts?.toneSnow(Math.min(1, snow * 1.6));
-    this.batches.tufts?.drawn(snow < SNOW_HIDES);
-    this.batches.stones?.toneSnow(snow * 0.7);
+    each("balls", (b) => b.toneSnow(Math.min(1, snow * 0.45 + (s ? (1 - s.leaf) * 0.3 : 0))));
+    each("cones", (b) => b.toneSnow(snow * 0.35));
+    each("tufts", (b) => b.toneSnow(Math.min(1, snow * 1.6)));
+    each("tufts", (b) => b.drawn(snow < SNOW_HIDES));
+    each("stones", (b) => b.toneSnow(snow * 0.7));
   }
 
   private paint(s: GroundSeason | null, dry: number): void {
@@ -414,7 +457,7 @@ export class TownFloraLayer {
     this.clear();
     this.job = null;
     this.shown = null;
-    for (const b of Object.values(this.batches)) b?.destroy();
+    for (const list of Object.values(this.batches)) for (const b of list) b.destroy();
     this.root.destroy();
   }
 }

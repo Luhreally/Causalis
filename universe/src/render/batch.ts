@@ -353,7 +353,14 @@ export function coneMesh(stage: Stage, radius: number, height: number, sides: nu
   return shape(stage, `cone|${radius}|${height}|${sides}`, () =>
     pc.Mesh.fromGeometry(
       stage.device,
-      new pc.ConeGeometry({ baseRadius: radius, peakRadius: 0, height, capSegments: sides }),
+      // (One band up its side: its sides are straight, so more bands only add faces no one sees.)
+      new pc.ConeGeometry({
+        baseRadius: radius,
+        peakRadius: 0,
+        height,
+        heightSegments: 1,
+        capSegments: sides,
+      }),
     ),
   );
 }
@@ -368,11 +375,57 @@ export function ballMesh(stage: Stage, radius: number, bands = 6): pc.Mesh {
   );
 }
 
+/**
+ * A cone's or a cylinder's sides alone, no caps (`top` 0: a cone's, its faces meeting at its peak), shaded as a cone's or a
+ * cylinder's are: for what stands on the ground with its ends hidden (a trunk in its crown, a tuft of grass), half the faces.
+ */
+export function sidesMesh(
+  stage: Stage,
+  radius: number,
+  top: number,
+  height: number,
+  sides: number,
+): pc.Mesh {
+  return shape(stage, `sides|${radius}|${top}|${height}|${sides}`, () => {
+    const positions: number[] = [],
+      normals: number[] = [],
+      uvs: number[] = [],
+      indices: number[] = [],
+      slope = Math.atan2(radius - top, height);
+    for (let i = 0; i <= 1; i++)
+      for (let j = 0; j <= sides; j++) {
+        // (As PlayCanvas's own cone lays its sides: render/batch.ts coneMesh.)
+        const theta = (j / sides) * 2 * Math.PI - Math.PI,
+          s = Math.sin(theta),
+          c = Math.cos(theta),
+          r = i ? top : radius;
+        positions.push(s * r, i ? height / 2 : -height / 2, c * r);
+        normals.push(s * Math.cos(slope), Math.sin(slope), c * Math.cos(slope));
+        uvs.push(j / sides, 1 - i);
+      }
+    for (let j = 0; j < sides; j++) {
+      const first = j,
+        second = j + 1,
+        third = sides + 1 + j,
+        fourth = sides + 2 + j;
+      indices.push(first, second, third);
+      if (top > 0) indices.push(second, fourth, third);
+    }
+    const mesh = new pc.Mesh(stage.device);
+    mesh.setPositions(positions);
+    mesh.setNormals(normals);
+    mesh.setUvs(0, uvs);
+    mesh.setIndices(indices);
+    mesh.update(pc.PRIMITIVE_TRIANGLES);
+    return mesh;
+  });
+}
+
 export function cylinderMesh(stage: Stage, radius: number, height: number, sides = 24): pc.Mesh {
   return shape(stage, `cylinder|${radius}|${height}|${sides}`, () =>
     pc.Mesh.fromGeometry(
       stage.device,
-      new pc.CylinderGeometry({ radius, height, capSegments: sides }),
+      new pc.CylinderGeometry({ radius, height, heightSegments: 1, capSegments: sides }),
     ),
   );
 }
