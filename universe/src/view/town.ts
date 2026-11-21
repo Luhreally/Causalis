@@ -1582,7 +1582,9 @@ function rowsLod(
       sorted[j] === sorted[j - 1]! + 1 &&
       sorted[j]! % 4 !== 0 &&
       (coarse
-        ? !!of(sorted[j]!) && !h0.look.sealed
+        ? !!of(sorted[j]!) &&
+          !h0.look.sealed &&
+          of(sorted[j]!)!.level >= TOP_LEVEL === h0.level >= TOP_LEVEL
         : h0.level < TOP_LEVEL &&
           of(sorted[j]!)?.level === h0.level &&
           of(sorted[j]!)?.look === h0.look)
@@ -1615,18 +1617,34 @@ function rowsLod(
               ? tallWall(look, level)
               : mixed(look.wall, look.roof, 0.5),
         rise = level <= 1 ? look.raised * 10 : 0;
-      if (high > 0.01)
+      if (high <= 0.01) continue;
+      // (A row of towers as its tallest alone, on a tower's own footprint: a slab as long as the row reads as a wall.)
+      if (level >= TOP_LEVEL) {
+        const L = LEVELS[TOP_LEVEL]!;
         out.put(
           "box",
           colour,
           (a.x + b.x) / 2,
-          rise + high / 2,
+          high / 2,
           (a.z + b.z) / 2,
-          n * LOT_W - 1.2,
+          L.w * 0.8,
           high,
-          deep,
+          L.d * 0.8,
           a.yaw,
         );
+        continue;
+      }
+      out.put(
+        "box",
+        colour,
+        (a.x + b.x) / 2,
+        rise + high / 2,
+        (a.z + b.z) / 2,
+        n * LOT_W - 1.2,
+        high,
+        deep,
+        a.yaw,
+      );
       continue;
     }
     // (A spire, a round hut, a tent stands alone.)
