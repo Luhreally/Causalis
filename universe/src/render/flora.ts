@@ -48,6 +48,8 @@ const FAR_KINDS: readonly {
 ];
 const PARCHED: Rgb = [0.52, 0.37, 0.13];
 
+/** How much smaller the far crowns are drawn while the near things are (the eye is close: they are groves past them). */
+const FAR_NEAR = 0.55;
 /** How close the eye comes before the near things are drawn (its distance, region units), and the most they reach. */
 export const NEAR_ON = 18,
   NEAR_MOST = 9;
@@ -185,6 +187,8 @@ export class FloraLayer {
       }
       (t.kind === "conifer" ? cones : balls).push(t);
     }
+    // (Seen from near, past where each tree is drawn, a far crown is a grove's, not one tree the size of a grove.)
+    const near = hole ? FAR_NEAR : 1;
     const colorOf = (k: (typeof FAR_KINDS)[number]): Rgb =>
       k.kind === "parched" ? PARCHED : p ? formColor(p, k.form) : lifeTint(k.color, this.look);
     const fill = (
@@ -213,8 +217,8 @@ export class FloraLayer {
           k = FAR_KINDS.find((x) => x.kind === t.kind) ?? FAR_KINDS[1]!,
           x = t.tile % this.size,
           z = Math.floor(t.tile / this.size),
-          w = k.w * t.size * this.tileKm,
-          hh = k.h * t.size * this.tileKm,
+          w = k.w * t.size * this.tileKm * near,
+          hh = k.h * t.size * this.tileKm * near,
           c = colorOf(k),
           tone = 0.86 + 0.28 * (t.tone ?? 0.5);
         out[0] = (x + t.dx) * this.tileKm - half;

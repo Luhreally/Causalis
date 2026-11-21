@@ -810,9 +810,13 @@ export class VillageScene {
           true,
           4,
         );
+      // (Its pasture grazed short: its own ground's grass a little lighter, where that is read.)
+      const grazed = flora ? this.townFlora.colourAt(plan.pasture.x, plan.pasture.z) : null;
       disc(
         plan.pasture.r * M,
-        [g[0] * 0.8 + 0.12, g[1] * 0.85 + 0.14, g[2] * 0.7 + 0.05],
+        grazed
+          ? [grazed[0] * 1.08 + 0.03, grazed[1] * 1.1 + 0.04, grazed[2] * 1.02]
+          : [g[0] * 0.8 + 0.12, g[1] * 0.85 + 0.14, g[2] * 0.7 + 0.05],
         plan.pasture.x * M,
         plan.pasture.z * M,
         0.012,

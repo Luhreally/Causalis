@@ -1395,6 +1395,7 @@ export {
 } from "./flora.ts";
 export {
   townBudget,
+  townCanopyAt,
   townClear,
   townEdge,
   townFlora,

@@ -476,12 +476,15 @@ export function* rings(
   cz: number,
   cell: number,
   reach: number,
+  /** How far out the rings begin (the square ring within which nothing is asked). */
+  from = 0,
 ): Generator<[number, number]> {
   const i0 = Math.floor(cx / cell),
     j0 = Math.floor(cz / cell),
-    k = Math.ceil(reach / cell) + 1;
-  yield [i0, j0];
-  for (let r = 1; r <= k; r++)
+    k = Math.ceil(reach / cell) + 1,
+    k0 = Math.max(1, Math.floor(from / cell / Math.SQRT2) - 1);
+  if (k0 <= 1) yield [i0, j0];
+  for (let r = k0; r <= k; r++)
     for (let d = -r; d < r; d++) {
       yield [i0 + d, j0 - r];
       yield [i0 + r, j0 + d];

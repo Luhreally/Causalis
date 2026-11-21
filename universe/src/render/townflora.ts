@@ -3,7 +3,7 @@
 // trees, hedgerows, tufts and stones in five toned batches. Built once a plan; the season and a dry year laid over it as its
 // other ground is (its vertex colours made again, its batches' leaves turned), never per frame.
 import * as pc from "playcanvas";
-import { wetGround, type VillagePlan } from "../bridge/index.ts";
+import { FLORA_NAMES, wetGround, type VillagePlan } from "../bridge/index.ts";
 import {
   FAIR_YEAR,
   formColor,
@@ -12,6 +12,7 @@ import {
   seasonLeaf,
   seasonNeedle,
   townBudget,
+  townCanopyAt,
   townEdge,
   townFlora,
   townGroundAt,
@@ -41,6 +42,7 @@ export class TownFloraLayer {
   private groundMesh: pc.Mesh | null = null;
   /** Each vertex's own colour, and the colours as last painted. */
   private base: Float32Array | null = null;
+  private open: Float32Array | null = null;
   private painted: Uint8Array | null = null;
   private batches: Record<
     "trunks" | "cones" | "balls" | "tufts" | "stones",
@@ -95,6 +97,7 @@ export class TownFloraLayer {
       positions = new Float32Array(n * 3),
       normals = new Float32Array(n * 3),
       base = new Float32Array(n * 3),
+      open = new Float32Array(n),
       put = (k: number, x: number, z: number) => {
         positions[k * 3] = x;
         positions[k * 3 + 1] = 0;
@@ -104,6 +107,8 @@ export class TownFloraLayer {
         base[k * 3] = c[0];
         base[k * 3 + 1] = c[1];
         base[k * 3 + 2] = c[2];
+        // (A dry year browns the grass, not the woods' shade: how much of the ground lies open.)
+        open[k] = 1 - 0.92 * townCanopyAt(g, x / M, z / M);
       };
     put(0, 0, 0);
     for (let r = 1; r <= RINGS + 1; r++) {
@@ -146,6 +151,7 @@ export class TownFloraLayer {
     this.ground = e;
     this.groundMesh = mesh;
     this.base = base;
+    this.open = open;
     this.paint(null, 0);
     // What stands on it.
     const f = townFlora(g, plan, (radius / M) * 0.98, townBudget(share), edge);
@@ -195,6 +201,13 @@ export class TownFloraLayer {
     });
   }
 
+  /** The ground's own colour at a point (metres from the square), as last built (null: none built). */
+  colourAt(x: number, z: number): Rgb | null {
+    const plan = this.plan,
+      g = plan && this.ground ? townGroundOf(plan) : null;
+    return g && plan ? townGroundAt(g, plan, x, z, townEdge(plan)) : null;
+  }
+
   /** The season and the year in the fields (how dry, 0 … 1) on its ground and what grows on it. */
   season(s: GroundSeason | null, dry: number): void {
     this.paint(s, dry);
@@ -225,7 +238,11 @@ export class TownFloraLayer {
     const year = { ...FAIR_YEAR, dry };
     for (let k = 0; k * 3 < base.length; k++) {
       let c: Rgb = [base[k * 3]!, base[k * 3 + 1]!, base[k * 3 + 2]!];
-      if (dry > 0) c = grassTint(c, year);
+      if (dry > 0) {
+        const d = grassTint(c, year),
+          o = this.open?.[k] ?? 1;
+        c = [c[0] + (d[0] - c[0]) * o, c[1] + (d[1] - c[1]) * o, c[2] + (d[2] - c[2]) * o];
+      }
       if (s) c = seasonGround(c, s);
       out[k * 4] = Math.max(0, Math.min(255, Math.round(c[0] * 255)));
       out[k * 4 + 1] = Math.max(0, Math.min(255, Math.round(c[1] * 255)));
@@ -237,6 +254,7 @@ export class TownFloraLayer {
 
   /** What it draws (the look tools): trees, hedge bushes, tufts, stones, and whether its ground is its land's. */
   info(): {
+    cover: string;
     ground: boolean;
     trees: number;
     hedges: number;
@@ -245,7 +263,10 @@ export class TownFloraLayer {
     buildMs: number;
   } {
     const f = this.shown;
+    const w = this.plan?.landFlora,
+      mid = w ? (w.half * (2 * w.half + 1) + w.half) * 5 : -1;
     return {
+      cover: w ? `${FLORA_NAMES[w.tiles[mid]!]} canopy ${w.tiles[mid + 1]}` : "",
       ground: !!this.ground,
       trees: f?.trees ?? 0,
       hedges: f?.hedges ?? 0,

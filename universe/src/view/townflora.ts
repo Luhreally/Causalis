@@ -129,6 +129,23 @@ export function townGroundAt(
   return scale(col, 1 + 0.12 * p);
 }
 
+/** How much of the ground at a point (metres from the square) its woods cover, blended between the tiles' middles (0 … 1). */
+export function townCanopyAt(g: TownGround, x: number, z: number): number {
+  const s = 2 * g.half + 1,
+    fx = Math.max(0, Math.min(s - 1 - 1e-6, (x - g.ox) / g.m + g.half)),
+    fz = Math.max(0, Math.min(s - 1 - 1e-6, (z - g.oz) / g.m + g.half)),
+    i = Math.floor(fx),
+    j = Math.floor(fz),
+    u = fx - i,
+    v = fz - j,
+    c = g.read.canopy,
+    a = c[j * s + i]!,
+    b = c[j * s + i + 1]!,
+    d = c[(j + 1) * s + i]!,
+    e = c[(j + 1) * s + i + 1]!;
+  return ((a + (b - a) * u) * (1 - v) + (d + (e - d) * u) * v) / 255;
+}
+
 /** How many things the town's view draws about it, by the setting (its `villageTrees` share). */
 export function townBudget(share: number): {
   trees: number;
@@ -264,7 +281,7 @@ export function townFlora(
     };
   // Trees: a cell's one, by its tile's canopy.
   const CELL = 26;
-  for (const [i, j] of rings(0, 0, CELL, reach)) {
+  for (const [i, j] of rings(0, 0, CELL, reach, edge)) {
     if (out.trees >= budget.trees) break;
     const x = (i + 0.15 + 0.7 * cellUnit(i, j, 1 + salt)) * CELL,
       z = (j + 0.15 + 0.7 * cellUnit(i, j, 2 + salt)) * CELL;
@@ -314,8 +331,8 @@ export function townFlora(
   }
   // Tufts where the grass grows, near.
   const TUFT = 6,
-    tuftReach = Math.min(reach, 420);
-  for (const [i, j] of rings(0, 0, TUFT, tuftReach)) {
+    tuftReach = Math.min(reach, edge + 420);
+  for (const [i, j] of rings(0, 0, TUFT, tuftReach, edge)) {
     if (out.tufts.length >= budget.tufts) break;
     const x = (i + cellUnit(i, j, 21 + salt)) * TUFT,
       z = (j + cellUnit(i, j, 22 + salt)) * TUFT;
@@ -342,7 +359,7 @@ export function townFlora(
   }
   // Stones where rock shows (and a few anywhere).
   const STONE = 30;
-  for (const [i, j] of rings(0, 0, STONE, reach)) {
+  for (const [i, j] of rings(0, 0, STONE, reach, edge)) {
     if (out.stones.length >= budget.stones) break;
     const x = (i + cellUnit(i, j, 31 + salt)) * STONE,
       z = (j + cellUnit(i, j, 32 + salt)) * STONE;
