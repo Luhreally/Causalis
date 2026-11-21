@@ -218,6 +218,9 @@ export function formColor(p: readonly Rgb[], form: TreeForm): Rgb {
 
 /** A wood's trunk. */
 export const TRUNK: Rgb = [0.36, 0.27, 0.19];
+/** A burned trunk's black; and how many of a burned wood's trees are down (the rest stand as snags). */
+const CHARRED: Rgb = [0.075, 0.062, 0.055];
+const SNAGS_FALLEN = 0.35;
 
 /** How a form stands (region units, at the land's scale beside its towns): crown breadth and height, trunk height, and its crown's shape. */
 export const FORM_SIZE: Readonly<
@@ -578,7 +581,7 @@ export function* nearFloraSteps(
       z = (j + 0.15 + 0.7 * cellUnit(i, j, 2)) * TREE_CELL;
     if ((x - cx) ** 2 + (z - cz) ** 2 > r2) continue;
     const t = tileAt(land, x, z);
-    if (!grows(t) || bare(t)) continue;
+    if (!grows(t)) continue;
     const c = r.canopy[t]! / 255,
       want = c * (0.25 + 1.5 * groveAt(x, z));
     if (cellUnit(i, j, 3) >= want) continue;
@@ -586,6 +589,26 @@ export function* nearFloraSteps(
       size = FORM_SIZE[form],
       k = 0.75 + 0.5 * cellUnit(i, j, 5);
     if (!free(x, z, size.w * k * 0.5)) continue;
+    if (bare(t)) {
+      // Burned: what stood is a black snag, its crown gone (a needle tree's a spike, as tall as its trunk and part of its crown),
+      // or fallen, or brush burned to nothing, until the wood grows back (a burned wood seen close was an empty plain).
+      if (size.trunk <= 0 || cellUnit(i, j, 11) < SNAGS_FALLEN) continue;
+      const g = facetAt(land, x, z, false),
+        h = (size.trunk + (size.crown === "cone" ? size.h * 0.55 : size.h * 0.2)) * k,
+        tone = 0.7 + 0.6 * cellUnit(i, j, 6);
+      put(
+        out.trunks,
+        x,
+        g.y,
+        z,
+        Math.max(0.008, size.w * 0.1) * k,
+        h,
+        cellUnit(i, j, 9) * Math.PI * 2,
+        scale(CHARRED, tone),
+      );
+      out.trees++;
+      continue;
+    }
     const g = facetAt(land, x, z, r.cover[t] === FLORA.reef),
       tone = 0.86 + 0.28 * cellUnit(i, j, 6),
       hue = (cellUnit(i, j, 7) - 0.5) * 0.12,

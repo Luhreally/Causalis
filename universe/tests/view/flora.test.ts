@@ -402,3 +402,22 @@ test("past a town's own ground, its land's: open water, and its heights rising o
   assert.ok(townWaterAt(g, -5000, 0) && !townWaterAt(g, 0, 0));
   assert.equal(townRiseAt(g, -5000, 0, 1500), 0, "the sea at its own level");
 });
+
+test("a burned wood near the eye: black snags where its trees stood, no crown, no grass, until it grows back", () => {
+  const size = 32,
+    land = floraLandOf(frame(size, 12, 1100, 9))!,
+    budget = nearBudget(2400),
+    free = () => true,
+    whole = nearFlora(land, 5, 2, 4, budget, free),
+    burned = nearFlora(land, 5, 2, 4, budget, free, () => true);
+  assert.ok(whole.trunks.length > 100);
+  assert.equal(burned.balls.length + burned.cones.length + burned.tufts.length, 0, "nothing green");
+  assert.ok(
+    burned.trunks.length > 100 && burned.trunks.length <= budget.trees,
+    `${burned.trunks.length} snags of ${whole.trunks.length} trunks`,
+  );
+  assert.ok(
+    burned.trunks.every((t) => t.r < 0.12 && t.g < 0.12 && t.b < 0.12),
+    "black",
+  );
+});
