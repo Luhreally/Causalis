@@ -340,14 +340,14 @@ export function floraRead(f: FloraFacts, o: FloraOptions = {}): FloraTiles {
       // Flat, low ground by water where it rains well enough: marsh.
       const flat = 1 - ramp(slope, 6, 30),
         marsh =
-          (bank ? 1 : coast ? 0.6 : 0) *
+          (bank ? 1 : coast ? 0.35 : 0) *
           flat *
           ramp(P, 450, 900) *
           ramp(T, -2, 3) *
           (1 - ramp(e, 120, 400));
       if (
-        marsh > 0.5 &&
-        tileUnit(t, 3) < marsh &&
+        marsh > 0.55 &&
+        tileUnit(t, 3) < marsh - 0.4 &&
         c !== FLORA.hotDesert &&
         c !== FLORA.coldDesert
       ) {
