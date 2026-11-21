@@ -112,7 +112,7 @@ export class TownParts {
     yaw: number,
   ): void {
     if (this.tone) color = this.tone(color);
-    const key = `${mesh}|${color[0].toFixed(3)}|${color[1].toFixed(3)}|${color[2].toFixed(3)}`;
+    const key = partKey(mesh, color);
     let g = this.groups.get(key);
     if (!g) this.groups.set(key, (g = { mesh, color, data: [] }));
     g.data.push(x, y, z, sx, sy, sz, yaw);
@@ -135,6 +135,18 @@ export class TownParts {
   clear(): void {
     for (const g of this.groups.values()) g.data.length = 0;
   }
+}
+
+/**
+ * A part's group: its mesh and its colour to a thousandth, kept for each colour as made (a city's choosing put some 35,000
+ * parts, each its key written out anew: a great deal for the page to sweep up after, as the eye moved; 2026-11-21).
+ */
+const PART_KEYS = new WeakMap<Rgb, Partial<Record<PartMesh, string>>>();
+function partKey(mesh: PartMesh, color: Rgb): string {
+  let kept = PART_KEYS.get(color);
+  if (!kept) PART_KEYS.set(color, (kept = {}));
+  return (kept[mesh] ??=
+    `${mesh}|${color[0].toFixed(3)}|${color[1].toFixed(3)}|${color[2].toFixed(3)}`);
 }
 
 /** The batch a group of parts is drawn in (TownParts.batches). */
