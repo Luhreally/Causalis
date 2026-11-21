@@ -1412,7 +1412,19 @@ export function townDetail(scene: TownScene, focus: { x: number; z: number }): T
         near.push(p);
         d2[p] = (far.x[k]! - focus.x) ** 2 + (far.z[k]! - focus.z) ** 2;
       }
-  near.sort((a, b) => d2[a]! - d2[b]! || a - b);
+  // (Nearest first, by the metre: counted out, not sorted, so a great city's choosing takes a few milliseconds, not tens.)
+  const byMetre = (() => {
+    let most = 0;
+    for (const p of near) most = Math.max(most, Math.sqrt(d2[p]!));
+    const slots = Math.floor(most) + 2,
+      starts = new Int32Array(slots + 1),
+      out = new Array<number>(near.length);
+    for (const p of near) starts[Math.floor(Math.sqrt(d2[p]!)) + 1]!++;
+    for (let i = 1; i <= slots; i++) starts[i]! += starts[i - 1]!;
+    for (const p of near) out[starts[Math.floor(Math.sqrt(d2[p]!))]!++] = p;
+    return out;
+  })();
+  for (let i = 0; i < byMetre.length; i++) near[i] = byMetre[i]!;
   // (As many drawn whole as the parts its homes and its haze took when only its own lots stood, and those past them were
   // roofs scattered on bare ground, allow: its lots past them, drawn now, are drawn the more lightly the farther out.)
   const all = near.length,
@@ -1667,7 +1679,7 @@ export function* homesSeen(
   const { lots, states } = scene,
     far = farOf(scene),
     drawn = detail?.drawn,
-    STEP = 300;
+    STEP = 100;
   const own = drawn ? scene.settled.filter((p) => (drawn[p] ?? 0) <= 1) : scene.settled;
   for (let i = 0; i < own.length; i += STEP) {
     townHomes(scene, own.slice(i, i + STEP), t, out);
@@ -1729,8 +1741,13 @@ export function* homesSeen(
     };
   let since = 0;
   for (let k = 0; k < far.count; k++) {
-    if (++since >= STEP * 4) {
+    // (A row's worth gathered drawn at the row's end, a few hundred lots a step.)
+    if (++since >= STEP * 4 && (far.from + k) % 4 === 0) {
       since = 0;
+      rowsLod(out, rows, farAt, farOfLot);
+      rowsLod(out, blocks, farAt, farOfLot, true);
+      rows.length = 0;
+      blocks.length = 0;
       yield;
     }
     const p = far.from + k,
