@@ -1135,12 +1135,12 @@ export const FAR_LOTS = 24_000,
    * How many parts its homes past those drawn may take, as far off as the eye is from them all (about what a great city's
    * whole view took before them): out to where they run out the city's lots stand on its blocks, past them its haze.
    */
-  FAR_PARTS = 12_000,
+  FAR_PARTS = 10_000,
   /**
    * How many more its homes past those may take, thinner the farther out (townDetail; with each its block's yard): the
    * city's far part as many roofs as its haze laid scattered had, on its own blocks.
    */
-  THIN_PARTS = 3000;
+  THIN_PARTS = 5000;
 /**
  * How much farther from the eye a lot drawn whole may be than one drawn as seen from afar (metres): which are drawn whole is
  * chosen again once the eye has moved half as far (render/town.ts TownLayer.look; townDetail).
@@ -1479,17 +1479,47 @@ export function townDetail(
   }
   // Past them, thinner the farther out, each in its row (a ruin as ever) or not drawn (4) by a draw of its own that does
   // not change (so as the eye moves only those whose chance passes their draw come or go, few and far off), as many as
-  // THIN_PARTS draw: as thick on the screen as near, the ground each covers growing as the square of how far off it is.
+  // THIN_PARTS draw. All drawn where they begin, then fewer as (edge / far) to the sixth, down to a share of the square
+  // of it: no ring where the city thins at once (a share kept from the edge out read as a second town past it), and the
+  // city on out to its farthest as thick on the screen as near (the ground each covers grows as the square of how far
+  // off it is). The share is as the budget allows, worked out by the metre.
   // (A home drawn alone there brings its block's yard: a part more.)
-  let want = 0;
+  const slot = new Float64Array(slots + 1);
   for (let j = i; j < homes; j++) {
     const k = order[j]!;
-    want += (edge / d[k]!) ** 2 * (cost(k) + (far.ruin[k] ? 0 : 1));
+    slot[Math.floor(d[k]!)]! += cost(k) + (far.ruin[k] ? 0 : 1);
   }
-  const f = Math.min(1, budget.thin / Math.max(1, want));
+  const chance = (r: number, share: number) => {
+      const q = (edge / r) ** 2;
+      return Math.min(1, Math.max(q * q * q, share * q));
+    },
+    // (By the metre: each its square and sixth once.)
+    near2 = new Float64Array(slots + 1),
+    from = Math.floor(edge);
+  for (let m = from; m <= slots; m++) near2[m] = (edge / (m + 0.5)) ** 2;
+  const want = (share: number) => {
+    let n = 0;
+    for (let m = from; m <= slots; m++) {
+      if (!slot[m]) continue;
+      const q = near2[m]!;
+      n += slot[m]! * Math.min(1, Math.max(q * q * q, share * q));
+    }
+    return n;
+  };
+  let share = 1;
+  if (i < homes && want(1) > budget.thin) {
+    let lo = 0,
+      hi = 1;
+    for (let step = 0; step < 14; step++) {
+      share = (lo + hi) / 2;
+      if (want(share) > budget.thin) hi = share;
+      else lo = share;
+    }
+    share = lo;
+  }
   for (let j = i; j < homes; j++) {
     const k = order[j]!,
-      kept = scatter(plan.seed, far.from + k, 41) < f * (edge / d[k]!) ** 2;
+      kept = scatter(plan.seed, far.from + k, 41) < chance(d[k]!, share);
     drawn[far.from + k] = !kept ? 4 : far.ruin[k] ? 0 : 3;
   }
   return { focus: { x: focus.x, z: focus.z }, drawn };
