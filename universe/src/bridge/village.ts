@@ -1,6 +1,7 @@
 // The microscope's plan of a village, as the host sends it (docs/architecture §9,
 // watch mode): what the view needs to draw a village's day. Positions are metres
 // from the village's middle.
+import type { FloraWindow } from "./biome.ts";
 import type { ColonyLook } from "./colony.ts";
 import type { PlanFigure } from "./leaders.ts";
 import type { HostKinds } from "./wars.ts";
@@ -519,6 +520,11 @@ export type VillagePlan = {
     readonly r?: number;
     readonly shore?: { readonly x: number; readonly z: number };
   } | null;
+  /**
+   * What grows about it: its land's reading (bridge/biome.ts) over the tiles about its own, as its water is read (each tile's
+   * middle `m` metres apart from its own's, the square on its bank where `landWater.bank` says so).
+   */
+  readonly landFlora?: FloraWindow;
   /** Its land's water about it, as its land's map draws it and everything laid in its view reads it (TownSite.wet, .bank). */
   readonly landWater?: {
     readonly wet?: { readonly m: number; readonly half: number; readonly cells: string };

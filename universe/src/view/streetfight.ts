@@ -720,26 +720,7 @@ export function streetAt(
   if (plan)
     for (const q of live) if (q.doing === "fight" || q.doing === "stand") standClear(plan, q);
 
-  for (let pass = 0; pass < (moving.length ? 14 : 0); pass++) {
-    for (const q of moving) {
-      for (const o of live) {
-        if (o === q) continue;
-        const dx = q.x - o.x,
-          dz = q.z - o.z,
-          d = Math.hypot(dx, dz);
-        // (Round one who lies there by half as much: he steps by him, not over him.)
-        const room = o.doing === "fallen" ? BODY : 2 * BODY;
-        if (d >= room + 0.04) continue;
-        // (One on the move gives way to one standing; two on the move, each half.)
-        const push = (room + 0.05 - d) * (o.doing === q.doing ? 0.55 : 1),
-          ux = d > 1e-6 ? dx / d : Math.cos(soldiers.indexOf(q)),
-          uz = d > 1e-6 ? dz / d : Math.sin(soldiers.indexOf(q));
-        q.x += ux * push;
-        q.z += uz * push;
-      }
-      if (plan) standClear(plan, q);
-    }
-  }
+  giveWay(live, moving, plan);
   const held = script.posts.filter((p) => p.at <= s);
   return {
     soldiers,
@@ -1209,6 +1190,174 @@ export function standClear(plan: VillagePlan, p: { x: number; z: number }): void
     }
     keepOut(ground, p, REACH);
   }
+}
+
+/** How near one stands another (m): a body's width and a hand; round one who lies there by half as much, he steps by him. */
+const roomOf = (a: Soldier, b: Soldier) =>
+  a.doing === "fallen" || b.doing === "fallen" ? BODY : 2 * BODY;
+/** The most turns the street's men are given way in (a frame's work bounded), and how near counts as apart. */
+const GIVE_TURNS = 24,
+  GIVE_SLACK = 0.03;
+/** The rings of ground a man pinned in a knot looks over for a place of his own (m), and the ways round each. */
+const FREE_RINGS = [0.6, 1, 1.5, 2.1, 2.8, 3.6, 4.6, 5.8, 7.2],
+  FREE_WAYS = 16;
+
+/**
+ * No two people on one piece of ground (2026-11-20: two of a turf's men 0.67 m apart, pinned against the water's edge, each
+ * pushed into the other by the ground every turn). Each pair too near is set apart along the line between them by what they
+ * lack: half each where both are on the move, the whole of it by the one who can where the other stands, lies, or is pinned
+ * against a wall or an edge (the ground gave back what he was pushed). The ground is a hard limit, kept after each turn. Turns
+ * until none is too near (at most GIVE_TURNS); any still in a knot then steps to the nearest free ground about him. The same
+ * men in the same places, the same places after: no clock, no chance.
+ */
+export function giveWay(
+  live: Soldier[],
+  moving: readonly Soldier[],
+  plan: VillagePlan | undefined,
+): void {
+  const n = live.length,
+    can = new Uint8Array(n),
+    pinned = new Uint8Array(n),
+    was = new Float64Array(2 * n),
+    // (Who stands where along the street's x, for the pairs near enough to touch: no knot reckons every pair in the town.)
+    order: number[] = [],
+    widest = 2 * BODY + GIVE_SLACK,
+    mover = new Set(moving);
+  // (Who gives way to whom: one on the move to one standing, one standing to one lying there; the dead lie where they fell.)
+  for (let a = 0; a < n; a++) {
+    order.push(a);
+    const q = live[a]!;
+    can[a] = mover.has(q) ? 2 : q.doing === "stand" ? 1 : 0;
+    // (Off what stands in the street first, as he closes across it.)
+    if (plan && can[a] === 2) clearOfAll(plan, q);
+  }
+  const byX = (a: number, b: number) => live[a]!.x - live[b]!.x || a - b;
+  for (let turn = 0; turn < GIVE_TURNS; turn++) {
+    let near = false;
+    for (let a = 0; a < n; a++) {
+      was[2 * a] = live[a]!.x;
+      was[2 * a + 1] = live[a]!.z;
+    }
+    order.sort(byX);
+    for (let i = 0; i < n; i++)
+      for (let j = i + 1; j < n; j++) {
+        let a = order[i]!,
+          b = order[j]!;
+        if (live[b]!.x - live[a]!.x >= widest) break;
+        if (b < a) [a, b] = [b, a];
+        // (Two both against the ground: each half, as two of a kind; the ground then takes them along it.)
+        // (Two lying on one spot: each is laid half aside, as two of a kind; to the living, the dead do not give way.)
+        const dead = live[a]!.doing === "fallen" && live[b]!.doing === "fallen",
+          both = dead || (can[a]! > 0 && can[b]! > 0 && pinned[a] === 1 && pinned[b] === 1),
+          ma = both ? 1 : pinned[a] ? 0 : can[a]!,
+          mb = both ? 1 : pinned[b] ? 0 : can[b]!,
+          fa = ma > 0 && ma >= mb,
+          fb = mb > 0 && mb >= ma;
+        const p = live[a]!,
+          q = live[b]!,
+          dx = q.x - p.x,
+          dz = q.z - p.z,
+          d = Math.hypot(dx, dz),
+          lack = roomOf(p, q) + GIVE_SLACK - d;
+        if (lack <= 0) continue;
+        // (One pinned against the ground on one who lies there: neither gives way here; he steps clear below.)
+        if (!fa && !fb) continue;
+        near = true;
+        // (Two on one spot: apart the way their places in the street set them, the same each time.)
+        const ux = d > 1e-6 ? dx / d : Math.cos(a + b),
+          uz = d > 1e-6 ? dz / d : Math.sin(a + b),
+          ka = fa ? (fb ? 0.5 : 1) : 0,
+          kb = fb ? (fa ? 0.5 : 1) : 0;
+        p.x -= ux * lack * ka;
+        p.z -= uz * lack * ka;
+        q.x += ux * lack * kb;
+        q.z += uz * lack * kb;
+      }
+    if (!near) break;
+    // (The ground a hard limit: one it sends back most of the way he was pushed stands against it, and gives way no more.)
+    if (plan)
+      for (let a = 0; a < n; a++) {
+        if (!can[a] && live[a]!.doing !== "fallen") continue;
+        const q = live[a]!,
+          mx = q.x - was[2 * a]!,
+          mz = q.z - was[2 * a + 1]!;
+        if (mx === 0 && mz === 0) continue;
+        clearOfAll(plan, q);
+        const bx = q.x - was[2 * a]!,
+          bz = q.z - was[2 * a + 1]!;
+        if (bx * mx + bz * mz < 0.5 * (mx * mx + mz * mz)) pinned[a] = 1;
+      }
+  }
+  // Any still in a knot — too near another, or wedged between a stall and a wall in neither's clear — steps to the nearest free
+  // ground about him. (Who is found first, along the street's x, those near enough to touch only; then each steps, clear of all.)
+  const crowds = (x: number, z: number, a: number, slack: number) => {
+    for (let b = 0; b < n; b++)
+      if (
+        b !== a &&
+        Math.hypot(x - live[b]!.x, z - live[b]!.z) < roomOf(live[a]!, live[b]!) + slack
+      )
+        return true;
+    return false;
+  };
+  order.sort(byX);
+  const knots: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const a = order[i]!,
+      q = live[a]!;
+    if (!can[a]) continue;
+    let knot = plan !== undefined && !standsClear(plan, q, 0.04);
+    for (let j = i - 1; j >= 0 && !knot && q.x - live[order[j]!]!.x < widest; j--) {
+      const o = live[order[j]!]!;
+      knot = Math.hypot(q.x - o.x, q.z - o.z) < roomOf(q, o) - GIVE_SLACK;
+    }
+    for (let j = i + 1; j < n && !knot && live[order[j]!]!.x - q.x < widest; j++) {
+      const o = live[order[j]!]!;
+      knot = Math.hypot(q.x - o.x, q.z - o.z) < roomOf(q, o) - GIVE_SLACK;
+    }
+    if (knot) knots.push(a);
+  }
+  for (const a of knots) {
+    const q = live[a]!;
+    // (Another of his knot may have stepped from him already.)
+    if (!crowds(q.x, q.z, a, -GIVE_SLACK) && (plan === undefined || standsClear(plan, q, 0.04)))
+      continue;
+    const spot = { x: 0, z: 0 };
+    search: for (const r of FREE_RINGS)
+      for (let k = 0; k < FREE_WAYS; k++) {
+        const t = (k / FREE_WAYS) * 2 * Math.PI + a * 0.37;
+        spot.x = q.x + Math.cos(t) * r;
+        spot.z = q.z + Math.sin(t) * r;
+        // (Where the ground would have him: kept only if it is still near where he looked.)
+        if (plan) {
+          const x = spot.x,
+            z = spot.z;
+          if (
+            !clearOfAll(plan, spot) ||
+            Math.hypot(spot.x - x, spot.z - z) > 1 ||
+            !standsClear(plan, spot, 0.04)
+          )
+            continue;
+        }
+        if (crowds(spot.x, spot.z, a, GIVE_SLACK)) continue;
+        q.x = spot.x;
+        q.z = spot.z;
+        break search;
+      }
+  }
+}
+
+/** A place moved off what stands there until nothing more moves it (a corner can take more than one go): whether it came clear. */
+function clearOfAll(plan: VillagePlan, p: { x: number; z: number }): boolean {
+  const town = villageGround(plan).town;
+  for (let go = 0; go < 4; go++) {
+    const x = p.x,
+      z = p.z;
+    standClear(plan, p);
+    // (A town's walls wherever they stand, out past its homes too.)
+    town?.keepOut(p, REACH);
+    if (Math.abs(p.x - x) < 1e-4 && Math.abs(p.z - z) < 1e-4) return true;
+  }
+  return false;
 }
 
 /**

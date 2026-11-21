@@ -54,9 +54,27 @@ export class InstancedBatch {
     m.update();
   }
 
+  /** Each instance's rank (0 … 1), carried in its matrix's last corner for a faded material (stage.ts fadedMaterial). */
+  rank(count: number, rankOf: (i: number) => number): void {
+    const n = Math.min(count, this.count),
+      m = this.matrices;
+    for (let i = 0; i < n; i++) m[i * 16 + 15] = 1 + rankOf(i);
+    this.upload(n);
+  }
+
+  /** A uniform of its material (a faded material's point and reach). */
+  param(name: string, value: number[]): void {
+    this.instance.material.setParameter(name, value);
+  }
+
   /** How far its instances are whitened (0 … 1: snow on a toned batch of roofs). */
   toneSnow(k: number): void {
     this.instance.material.setParameter("uToneSnow", k);
+  }
+
+  /** Whether it is drawn at all (what lies under snow: grass). */
+  drawn(on: boolean): void {
+    if (this.entity.enabled !== on) this.entity.enabled = on;
   }
 
   /** Whether it casts shadows (fire, smoke and dust: not). */
@@ -216,6 +234,24 @@ export class InstancedBatch {
     this.count = n;
     this.upload(n);
     this.instance.instancingCount = n;
+  }
+
+  /**
+   * A toned batch's instances' colours written again (the first `count`, each `colorOf(i)`), where set() writes them: for
+   * instances laid by setBasis, which writes none.
+   */
+  tone(count: number, colorOf: (i: number) => readonly [number, number, number]): void {
+    if (!this.toned) return;
+    const n = Math.min(count, this.count),
+      m = this.matrices;
+    for (let i = 0; i < n; i++) {
+      const c = colorOf(i),
+        o = i * 16;
+      m[o + 3] = toneOf(c[0]);
+      m[o + 7] = toneOf(c[1]);
+      m[o + 11] = toneOf(c[2]);
+    }
+    this.upload(n);
   }
 
   get size(): number {

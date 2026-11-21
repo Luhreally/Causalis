@@ -151,6 +151,9 @@ export class WildfireLayer {
     this.bareCount = mask.reduce((a, b) => a + b, 0);
   }
 
+  /** Whether a tile has burned bare (what grows near the eye stands nowhere on it). */
+  readonly bareAt = (tile: number): boolean => !!this.bare?.[tile];
+
   /** The trees left standing, of those given. */
   standing<T extends { readonly tile: number }>(trees: readonly T[]): T[] {
     const bare = this.bare;

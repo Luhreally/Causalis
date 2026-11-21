@@ -24,6 +24,8 @@ import type { HeardEvent } from "./sound.ts";
 
 /** A scene's units to the metre (the village's and the meadow's). */
 const M = 0.1;
+/** How long before it lands a shell's fall is heard (s): INCOMING's. */
+const COMING = 0.65;
 /** The acts of one a blow has just struck home on: he reels under it, or goes down. */
 const HIT: ReadonlySet<string> = new Set(["stagger", "fall"]);
 /** How long the fighting's din is heard from where its last shots were, when none are heard (ms): a reload and more. */
@@ -36,6 +38,8 @@ const WHISTLE_MOST = 2.4;
 const BLACK = cannonVoice(true),
   SMOKELESS = cannonVoice(false),
   SHELL = { mj: BLASTS.shell },
+  /** A shell's fall heard before it lands (s), and its voice. */
+  INCOMING = { coming: COMING },
   LOAD_BURST = { mj: BLASTS.load },
   ROCKET_BURST = { mj: BLASTS.rocket };
 /**
@@ -81,6 +85,7 @@ export class Ears {
   private readonly battleHeard: Heard = { key: null, to: 0 };
   private readonly townHeard: Heard = { key: null, to: 0 };
   private readonly shots: TownShot[] = [];
+  private readonly coming: TownShot[] = [];
   private raidKey: unknown = null;
   private readonly bursts = new Set<number>();
   private readonly rockets = new Set<number>();
@@ -307,6 +312,14 @@ export class Ears {
         const l = looseVoice(q.arm);
         if (l) this.add(l.kind, l.v, at, w.far, w.pan);
       }
+    }
+    // A shell coming down: its rush and whistle as it falls, high where the burst is low, ending as it lands (those landing
+    // COMING later, read now).
+    shotsBetween(span.from + COMING, span.to + COMING, this.coming);
+    for (const q of this.coming) {
+      if (q.kind !== "blast") continue;
+      const w = this.from(q.x * M, 0.15, q.z * M, ear);
+      this.add("whistle", INCOMING, (q.t - COMING - clock) / pace, w.far, w.pan);
     }
     this.told.town += this.out.length;
     this.tell(pace);

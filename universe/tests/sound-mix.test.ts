@@ -5,6 +5,7 @@ import { test } from "node:test";
 import {
   BED_LEAST,
   BED_NEAR,
+  BED_UNDER,
   bedOf,
   CUES,
   CUE_RULES,
@@ -100,18 +101,21 @@ test("what the greatest fire leaves is quieter, never louder", () => {
   assert.equal(hush.crowd + hush.birds + hush.tinks, 0);
 });
 
-test("a war's din comes from where it is fought, fainter with distance than its guns, never gone", () => {
+test("a war's din comes from where it is fought, fainter with distance than its guns, there while they are", () => {
   const near = mixOf(at("town", { war: true, far: 0 })),
     far = (m: number) => mixOf(at("town", { war: true, far: m })).level;
-  for (const m of [10, 20, 60, 120, 200, 5000]) {
+  for (const m of [10, 20, 60, 120, 200, 330, 5000]) {
     assert.ok(Math.abs(far(m) - near.level * bedOf(m)) < 1e-9, `${m} m`);
-    assert.ok(far(m) >= near.level * BED_LEAST - 1e-12);
     // (A gun from there carries over it: its many small sounds fall away sooner than a report does.)
-    if (bedOf(m) > BED_LEAST) assert.ok(bedOf(m) <= farOf(m).level + 1e-12, `${m} m`);
+    assert.ok(bedOf(m) <= farOf(m).level + 1e-12, `${m} m`);
   }
   assert.equal(far(BED_NEAR), near.level);
-  assert.ok(far(120) < far(60) && far(60) < far(20));
-  assert.equal(far(5000), near.level * BED_LEAST);
+  assert.ok(far(330) < far(120) && far(120) < far(60) && far(60) < far(20));
+  // (Looked at from where a town is looked at, it is there: a sixth of itself near, or what its guns carry under that.)
+  assert.ok(bedOf(120) >= Math.min(BED_LEAST, BED_UNDER * farOf(120).level) - 1e-12);
+  assert.ok(bedOf(120) > 0.15);
+  // (A siege's fighting 330 m off: its guns over its din by what they carry and it does not.)
+  assert.ok(farOf(330).level / bedOf(330) >= 1 / BED_UNDER - 1e-9);
   // (A battle's field the same; a town at peace, its air all about the hearing, not.)
   assert.ok(mixOf(at("battle", { far: 120 })).level < mixOf(at("battle", { far: 0 })).level);
   assert.equal(mixOf(at("town", { far: 120 })).level, mixOf(at("town", { far: 0 })).level);

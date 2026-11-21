@@ -47,7 +47,9 @@ const FADE = 0.55;
 /** The voices at once: the world's small sounds, then cues, then the greatest. Three nodes each at most. */
 const VOICES_SMALL = 10,
   VOICES_CUE = 28,
-  VOICES_ALL = 34;
+  VOICES_ALL = 34,
+  /** Of the cues' voices, those only a field gun or a burst may take (a burst is five). */
+  VOICES_KEPT = 6;
 /** The ways a cue comes from afar: duller at each (lowpass, Hz), and from the left, ahead or the right. */
 const FAR_HZ = [16000, 6000, 2800, 1300],
   FAR_PANS = [-0.6, 0, 0.6];
@@ -952,7 +954,8 @@ class Graph {
     way?: { far: number; pan: number },
   ): boolean {
     const r = this.rand,
-      lim = VOICES_CUE,
+      // (The last of the cues' voices kept for a field gun or a burst: a line's fire never leaves a shell landing unheard.)
+      lim = cue === "cannon" || cue === "blast" ? VOICES_CUE : VOICES_CUE - VOICES_KEPT,
       top = VOICES_ALL,
       n: Voicing & { n?: number } = { ...VOICED[cue], ...v },
       far = way?.far ?? 30,
@@ -971,7 +974,11 @@ class Graph {
           again = { times: Math.max(1, n.rounds ?? 1), every: n.apart ?? 0.09 },
           cracks = mach > 1.02,
           gap = cracks ? Math.max(0.008, Math.min(0.16, far * (1 / SOUND_SPEED - 1 / speed))) : 0,
-          len = 0.12 + 0.3 * Math.pow(s, 0.9) + (black ? 0.06 : 0);
+          // (A burst of rounds: each report as short as the time to the next, so each is heard apart, the burst's end a gap.)
+          len = Math.min(
+            0.12 + 0.3 * Math.pow(s, 0.9) + (black ? 0.06 : 0),
+            again.times > 1 ? 0.8 * again.every : Infinity,
+          );
         if (!this.fits(2 + (cracks ? 1 : 0) + (black ? 1 : 0), lim)) return false;
         if (cracks)
           this.burst(
@@ -1023,7 +1030,7 @@ class Graph {
             f0: 160 / Math.sqrt(s),
             f1: 55 / Math.sqrt(s),
             at: at + gap,
-            len: 0.1 + 0.16 * s,
+            len: Math.min(0.1 + 0.16 * s, again.times > 1 ? 0.7 * again.every : Infinity),
             attack: 0.002,
             gain: G * 0.9,
             to,
@@ -1357,7 +1364,23 @@ class Graph {
         const mj = n.mj ?? 210,
           s = blastScale(mj),
           G = L * Math.max(0.4, Math.min(1, 0.7 + 0.12 * Math.log10(mj / 210)));
-        if (!this.fits(4, lim)) return false;
+        if (!this.fits(5, lim)) return false;
+        // (Its crump: the blow of it in the middle of the ear's range, short, where a phone's speaker gives it and no rumble is.)
+        this.burst(
+          {
+            from: "white",
+            kind: "bandpass",
+            f0: 900 / Math.pow(s, 0.3),
+            f1: 420 / Math.pow(s, 0.3),
+            q: 1.1,
+            at,
+            len: 0.1 + 0.08 * Math.sqrt(s),
+            attack: 0.002,
+            gain: G * 1.1,
+            to,
+          },
+          lim,
+        );
         this.burst(
           {
             from: "white",
@@ -1391,9 +1414,10 @@ class Graph {
             f0: 1000 / Math.pow(s, 0.4),
             f1: 45,
             at,
-            len: 0.6 + 2.4 * Math.pow(s, 0.6),
+            // (The land's answer, as long as the charge is great: a shell's a second, so the next lands clear of it.)
+            len: 0.4 + 1.6 * Math.pow(s, 0.6),
             attack: 0.03,
-            gain: G * 1.1,
+            gain: G * 0.9,
             to,
           },
           lim,

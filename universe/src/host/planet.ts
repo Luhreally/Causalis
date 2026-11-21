@@ -141,6 +141,7 @@ import type {
   StrikeEntry,
   WrittenAsk,
 } from "../bridge/index.ts";
+import { floraPack } from "../bridge/index.ts";
 
 /** The most garrisons the globe shows at the seats of realms at peace (Phase 12 M110). */
 const GARRISONS = 48;
@@ -224,6 +225,7 @@ import { TRAIT_LOOK } from "./inspect/folk.ts";
 import { actsMap, landSky, paletteLand } from "./acts.ts";
 import { fireShadow } from "./inspect/fire.ts";
 import { tilesUnderWoods, woodsMap } from "./inspect/woods.ts";
+import { landFlora } from "./flora.ts";
 import { warmthMap } from "./inspect/warmth.ts";
 import { landHerds } from "./inspect/herds.ts";
 import { FAR_QUERIES } from "./far.ts";
@@ -382,6 +384,8 @@ function regionFrame(world: World, focus: string | null) {
       woods: woods.key,
       woodsRatio: woods.ratio,
       woodsParched: woods.parched,
+      // (A people of the water's: what grows on their land is on its seabed. view/flora.ts.)
+      ...(populationContext(world).medium === "water" ? { floraUndersea: true } : {}),
       center,
       size: r.size,
       tileKm: r.tileKm,
@@ -398,6 +402,8 @@ function regionFrame(world: World, focus: string | null) {
       deposit,
       // Each tile's spot of the globe's grid: what the globe shows there is shown here too (M95).
       parent: Int32Array.from(r.parent),
+      // (What grows on each tile, read from its warmth, rain, height, water, soil and woods: bridge/biome.ts.)
+      flora: floraPack(landFlora(world, center, r, woods)),
     },
   };
 }

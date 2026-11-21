@@ -15,7 +15,8 @@ import {
   type World,
 } from "../kernel/index.ts";
 import type { Feast } from "../bridge/index.ts";
-import { WATER, beastPlanOf, cellRef, livingIn, type Species } from "../gen/index.ts";
+import { LAND_SCALE } from "../bridge/index.ts";
+import { WATER, beastPlanOf, cellRef, livingIn, offworldSite, type Species } from "../gen/index.ts";
 import { AGE_ROWS, G, GOODS, HOME_LIFE, OCC, article, roofPitch } from "../rules/index.ts";
 import {
   actsOf,
@@ -97,6 +98,7 @@ import {
   type Wonder,
 } from "../bridge/index.ts";
 import { strikesOn, townPlan } from "./town.ts";
+import { townFlora } from "./flora.ts";
 import { landWater, realmWays, townSiteOf, townSquareOff } from "./sites.ts";
 import { realmColor } from "./colors.ts";
 import { hostKinds } from "./arms.ts";
@@ -1452,6 +1454,18 @@ export function villagePlan(
       wild: wildAt,
       water: lake ? { x: lake.x, z: lake.z, r: lake.r, shore: shoreOf(ground, lake) } : null,
       ...(ground?.wet ? { landWater: ground } : {}),
+      // (What grows about it, as its land's map reads it: host/flora.ts. None on another body's ground.)
+      ...(offworldSite(homePlanet(world).generated, village.cell)
+        ? {}
+        : {
+            landFlora: townFlora(
+              world,
+              village.cell,
+              r,
+              village.tile,
+              Math.round((r.tileKm * 1000) / LAND_SCALE),
+            ),
+          }),
       house: houseOf(village.cell),
       // (No beast is left on ground built over from edge to edge.)
       ...(past?.covered ? {} : { fauna: faunaOf(village.cell, village.population, village.ref) }),

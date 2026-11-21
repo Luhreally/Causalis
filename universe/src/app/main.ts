@@ -224,6 +224,7 @@ import {
   regionFromGlobe,
   regionHeights,
   regionTrees,
+  landFloraOf,
   SIGNS,
   keepOut,
   orbitOf,
@@ -778,6 +779,19 @@ type Exposed = {
   landFire?: () => { flames: number; smoke: number; scar: number; burns: number; bare: number };
   /** Where the flames stand now, on the land (N1). */
   landFront?: () => { x: number; z: number } | null;
+  /** What grows near the eye on the land, each thing as laid and how much of it is drawn now, and where the eye looks. */
+  landNear?: () => {
+    focus: { x: number; z: number; on: number };
+    things: {
+      kind: string;
+      x: number;
+      z: number;
+      y: number;
+      w: number;
+      h: number;
+      drawn: number;
+    }[];
+  };
   land?: () => {
     towns: number;
     parts: number;
@@ -1149,6 +1163,8 @@ type Exposed = {
   faceLandArc?: () => boolean;
   /** How many trees a land's woods were planted with (E1). */
   landTrees?: () => number;
+  landFlora?: () => unknown;
+  townFlora?: () => unknown;
   streaksOnScreen?: () => { x: number; y: number }[];
   warsInPlace?: () => {
     marks: {
@@ -2179,7 +2195,8 @@ async function runPlanetPage(): Promise<void> {
   stage.onQuality((q) => {
     if (scale === "globe") paintGlobe();
     const frame = client.latestFrame("region");
-    if (scale === "region" && frame) region.plantTrees(regionTrees(frame, q.regionTrees));
+    if (scale === "region" && frame)
+      region.plantTrees(regionTrees(frame, q.regionTrees), ...landFloraOf(frame));
     if (scale === "village" && plan) village.build(plan);
   });
   planetPanel.onQualityChoice = (c) => setChoice(c);
@@ -2422,7 +2439,7 @@ async function runPlanetPage(): Promise<void> {
       performance.measure("region.build", { start: t0 });
       regionPanel.show(meta.center, meta.lat, meta.lon, meta.size * meta.tileKm);
       region.setVillages(villages);
-      region.plantTrees(regionTrees(frame, stage.quality.regionTrees));
+      region.plantTrees(regionTrees(frame, stage.quality.regionTrees), ...landFloraOf(frame));
       if (landPlan) region.setTowns(landPlan, landPlan.t);
       showLandWars();
       // Come down from the globe onto a spot of it: that spot in the middle (M95).
@@ -2449,7 +2466,7 @@ async function runPlanetPage(): Promise<void> {
     const woodsNow = (frame.meta as { woods?: string }).woods;
     if (woodsNow !== regionWoodsKey) {
       regionWoodsKey = woodsNow;
-      region.plantTrees(regionTrees(frame, stage.quality.regionTrees));
+      region.plantTrees(regionTrees(frame, stage.quality.regionTrees), ...landFloraOf(frame));
     }
     const parent = frame.arrays.parent as Int32Array | undefined,
       colors =
@@ -5629,6 +5646,21 @@ async function runPlanetPage(): Promise<void> {
   readying.hidden = true;
   swap.className = "swap";
   edgeHint.className = "edge-hint";
+  let edgeHintUp = false;
+  /** How far over the screen's foot the edge's hint stands: clear of what is shown there across its middle. */
+  const edgeHintFoot = (): number => {
+    const h = innerHeight,
+      mid = innerWidth / 2,
+      half = Math.max(120, edgeHint.getBoundingClientRect().width / 2 + 8);
+    let foot = 18;
+    for (const e of hud.querySelectorAll<HTMLElement>(":scope > .palette, :scope > .people-bar")) {
+      if (e.offsetParent === null && getComputedStyle(e).position !== "fixed") continue;
+      const r = e.getBoundingClientRect();
+      if (r.width < 2 || r.height < 2 || r.right < mid - half || r.left > mid + half) continue;
+      foot = Math.max(foot, h - r.top + 8);
+    }
+    return Math.round(foot);
+  };
   edgeHint.style.opacity = "0";
   hud.append(swap, readying, edgeHint);
   const ready = async <T>(what: string, work: () => Promise<T> | T, heavy = false): Promise<T> => {
@@ -5731,6 +5763,10 @@ async function runPlanetPage(): Promise<void> {
     const show = !!next && Math.abs(edge) > 0.97;
     edgeHint.textContent = next ? `${edge > 0 ? "Zoom on out" : "Zoom on in"} to ${next}` : "";
     edgeHint.style.opacity = show ? String(0.55 + 0.45 * rig.pushing) : "0";
+    // (Over whatever stands at the screen's foot where it would be — the god's hand, the people bar: under the hand it was
+    // hidden, behind it. Placed as it comes up, not each frame.)
+    if (show && !edgeHintUp) edgeHint.style.bottom = `${edgeHintFoot()}px`;
+    edgeHintUp = show;
   });
   // Out from the world, the sky's view follows the home world round its orbit while it is
   // close, and eases onto the star as it draws back.
@@ -9702,6 +9738,8 @@ async function runPlanetPage(): Promise<void> {
   exposed.watch = (ref: string) => void toVillage(ref);
   exposed.watching = () => (scale === "village" && plan ? plan.people.length : 0);
   exposed.townOnScreen = () => (scale === "village" && plan ? village.townOnScreen(now()) : null);
+  // What grows about the town as drawn, and how many of its things stand on its fields, pasture, water, streets or road (none).
+  exposed.townFlora = () => ({ ...village.townFlora.info(), on: village.townFlora.onTaken() });
   exposed.townShown = () =>
     scale === "village" && plan
       ? {
@@ -10429,7 +10467,20 @@ async function runPlanetPage(): Promise<void> {
   exposed.landParts = () => region.land.count;
   exposed.landFire = () => region.fire.shown;
   exposed.landTrees = () => region.treesPlanted;
+  // What grows on the land as drawn, and how many of the near things stand on ground its towns, roads, fields, camps or water
+  // hold, by what holds it (must be none: render/flora.ts).
+  exposed.landFlora = () => {
+    const claims = region.land.groundClaims,
+      on: Record<number, number> = {};
+    if (claims)
+      for (const t of region.flora.nearThings()) {
+        const k = claims.kindAt(t.x, t.z);
+        if (k) on[k] = (on[k] ?? 0) + 1;
+      }
+    return { ...region.flora.info(), on, claims: !!claims };
+  };
   exposed.landFront = () => region.fire.front();
+  exposed.landNear = () => ({ focus: region.flora.nearFocus(), things: region.flora.nearLaid() });
   exposed.land = () => region.land.info();
   exposed.landHerds = () => (scale === "region" ? region.land.herds.info() : null);
   exposed.herdsOnScreen = () =>

@@ -233,6 +233,19 @@ export function cropsOf(plan: Pick<VillagePlan, "ref" | "era" | "biome" | "house
  * 3 the finest): the pasture's second rail from 1.
  */
 export function countryOf(plan: VillagePlan, detail = 1): Country {
+  // (Read by the town's view and by what grows about it (view/townflora.ts): made once a plan and setting.)
+  let made = COUNTRIES.get(plan);
+  if (!made) COUNTRIES.set(plan, (made = new Map()));
+  const known = made.get(detail);
+  if (known) return known;
+  const c = countryMade(plan, detail);
+  made.set(detail, c);
+  return c;
+}
+
+const COUNTRIES = new WeakMap<VillagePlan, Map<number, Country>>();
+
+function countryMade(plan: VillagePlan, detail: number): Country {
   const manner = mannerOf(plan),
     era = plan.era ?? "farm",
     seed = hashText(`country ${plan.ref}`),

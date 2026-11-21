@@ -353,6 +353,14 @@ export class LandLayer {
   }
   /** Whether the land's ground as last laid is free about a point (one for each laying, so its camps are pitched again). */
   private campGround: ((x: number, z: number, r: number) => boolean) | undefined;
+  /** The land's ground as last laid (the look tools count what stands on it). */
+  get groundClaims(): GroundClaims | null {
+    return this.claims;
+  }
+  /** The same, for what grows on it (render/flora.ts): a new one for each laying. */
+  get groundFree(): ((x: number, z: number, r: number) => boolean) | undefined {
+    return this.campGround;
+  }
   private plan: LandPlan | null = null;
   /** What a land built over shows past its towns' own fabric (Phase 66). */
   private built: TownParts | null = null;

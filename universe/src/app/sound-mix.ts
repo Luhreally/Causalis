@@ -553,8 +553,14 @@ export function cueLength(cue: Cue, v?: Voicing): number {
       return Math.min(6, (n.coming ?? 2) + 0.3);
     case "whistle":
       return Math.min(6, (n.coming ?? 1.7) + 0.2);
-    case "blast":
-      return Math.min(9, 0.3 + 2.9 * Math.pow(blastScale(n.mj ?? 210), 0.6));
+    case "blast": {
+      // (Its rumble or what it threw coming down, whichever ends last: app/sound.ts.)
+      const s = blastScale(n.mj ?? 210);
+      return Math.min(
+        9,
+        0.05 + Math.max(0.4 + 1.6 * Math.pow(s, 0.6), 0.52 + 0.2 * Math.sqrt(s) + Math.pow(s, 0.4)),
+      );
+    }
     default:
       return CUE_LASTS[cue];
   }
@@ -569,16 +575,24 @@ export function farOf(metres: number): { level: number; hz: number } {
   return { level: 1 / (1 + Math.max(0, m - 20) / 60), hz: 16000 / (1 + m / 90) };
 }
 
-/** The least of a war's din heard however far off the hearing is (of its level near), and how near it is heard whole (m). */
+/**
+ * The least of a war's din heard (of its level near), and that never more than this share of what a gun carries from as far (its guns
+ * must ring over it: a siege's fighting 300 m off is fainter, din and all); how near it is heard whole (m).
+ */
 export const BED_LEAST = 0.25,
+  BED_UNDER = 0.4,
   BED_NEAR = 20;
 /**
  * How loud a war's or a battle's din is heard from `metres` off, of its level near: as the many small sounds it is made of — voices,
  * drums, bells, iron — each a breath beside a gun's report, are heard, by the spreading of their sound alone (as 1/r past BED_NEAR);
- * where a gun's, a hundred thousand times as strong, carries on far past them (farOf, gentler). Never under BED_LEAST.
+ * where a gun's, a hundred thousand times as strong, carries on far past them (farOf, gentler). Held up to BED_LEAST while the guns
+ * carry over that.
  */
 export function bedOf(metres: number): number {
-  return Math.max(BED_LEAST, Math.min(1, BED_NEAR / Math.max(1, metres)));
+  return Math.max(
+    Math.min(BED_LEAST, BED_UNDER * farOf(metres).level),
+    Math.min(1, BED_NEAR / Math.max(1, metres)),
+  );
 }
 /**
  * How far under a gun's report the din it rings over goes (of its level, for a near shot at its full), and how soon the din comes
