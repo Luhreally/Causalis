@@ -32,6 +32,7 @@ import {
   townScene,
   homesSeen,
   townDetail,
+  townDetailSteps,
   farOf,
   DETAIL_HYSTERESIS,
   type TownDetail,
@@ -315,8 +316,8 @@ export class TownLayer {
 
   private *choose(scene: TownScene, eye: { x: number; z: number }): Generator<void, void> {
     const t0 = performance.now(),
-      detail = townDetail(scene, eye);
-    yield;
+      detail = yield* townDetailSteps(scene, eye);
+    if (this.scene !== scene) return;
     const homes = new TownParts();
     yield* homesSeen(scene, detail, this.seenAt, homes);
     // (Its year turned meanwhile: the new year's homes are drawn by that year's choosing.)
@@ -339,7 +340,7 @@ export class TownLayer {
 
   /**
    * For a check: where each of its lots stands (metres; its own, then those past them), and which way each is drawn as last
-   * chosen (townDetail's: 1 whole, 2 as seen from afar, 3 in its row; 0 drawn as ever).
+   * chosen (townDetail's: 1 whole, 2 as seen from afar, 3 in its row, 4 not drawn, thinned out; 0 drawn as ever).
    */
   lotsDrawn(): { x: Float32Array; z: Float32Array; drawn: Uint8Array; own: number } | null {
     const scene = this.scene;

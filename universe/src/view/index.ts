@@ -297,6 +297,7 @@ export {
   homeAt,
   rowAt,
   townDetail,
+  townDetailSteps,
   farOf,
   DETAIL_HYSTERESIS,
   FAR_LOTS,

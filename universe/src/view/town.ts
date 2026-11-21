@@ -1425,13 +1425,28 @@ export function townDetail(
   scene: TownScene,
   focus: { x: number; z: number },
   /** How many parts each way (for a check to ask fewer). */
-  budget: { whole: number; lod: number; rows: number; thin: number } = {
-    whole: FAR_WHOLE,
-    lod: LOD_LOTS,
-    rows: FAR_PARTS,
-    thin: THIN_PARTS,
-  },
+  budget: { whole: number; lod: number; rows: number; thin: number } = DETAIL_BUDGET,
 ): TownDetail {
+  const run = townDetailSteps(scene, focus, budget);
+  for (;;) {
+    const r = run.next();
+    if (r.done) return r.value;
+  }
+}
+
+const DETAIL_BUDGET = { whole: FAR_WHOLE, lod: LOD_LOTS, rows: FAR_PARTS, thin: THIN_PARTS };
+/** How many of a city's lots townDetailSteps goes through between yields. */
+const DETAIL_STEP = 2048;
+
+/**
+ * townDetail a few thousand lots a step (render/town.ts draws a choosing over frames): in one, a great city's choosing held
+ * a frame of WebKit's half a second and more, its lots gone through before its code was quick (2026-11-21).
+ */
+export function* townDetailSteps(
+  scene: TownScene,
+  focus: { x: number; z: number },
+  budget: { whole: number; lod: number; rows: number; thin: number } = DETAIL_BUDGET,
+): Generator<void, TownDetail> {
   const { plan, states } = scene,
     far = farOf(scene),
     n = plan.lots + (far?.count ?? 0),
@@ -1445,6 +1460,7 @@ export function townDetail(
   let most = 0,
     homes = 0;
   for (let k = 0; k < far.count; k++) {
+    if (k % DETAIL_STEP === 0) yield;
     if (!counted(k)) continue;
     d[k] = Math.hypot(far.x[k]! - focus.x, far.z[k]! - focus.z);
     most = Math.max(most, d[k]!);
@@ -1455,7 +1471,9 @@ export function townDetail(
     order = new Int32Array(homes);
   for (let k = 0; k < far.count; k++) if (counted(k)) starts[Math.floor(d[k]!) + 1]!++;
   for (let i = 1; i <= slots; i++) starts[i]! += starts[i - 1]!;
+  yield;
   for (let k = 0; k < far.count; k++) if (counted(k)) order[starts[Math.floor(d[k]!)]!++] = k;
+  yield;
   // (What each takes drawn in its row, its block's yard and street its share: as a ruin, what stands of a row of them.)
   const cost = (k: number) =>
     (far.ruin[k]
@@ -1469,6 +1487,7 @@ export function townDetail(
     edge = 1,
     i = 0;
   for (; i < homes && rows < budget.rows; i++) {
+    if (i % DETAIL_STEP === 0) yield;
     const k = order[i]!;
     rows += cost(k);
     edge = Math.max(edge, d[k]!);
@@ -1492,6 +1511,7 @@ export function townDetail(
   // (A home drawn alone there brings its block's yard: a part more.)
   const slot = new Float64Array(slots + 1);
   for (let j = i; j < homes; j++) {
+    if (j % DETAIL_STEP === 0) yield;
     const k = order[j]!;
     slot[Math.floor(d[k]!)]! += cost(k) + (far.ruin[k] ? 0 : 1);
   }
@@ -1517,6 +1537,7 @@ export function townDetail(
     let lo = 0,
       hi = 1;
     for (let step = 0; step < 14; step++) {
+      yield;
       share = (lo + hi) / 2;
       if (want(share) > budget.thin) hi = share;
       else lo = share;
@@ -1524,6 +1545,7 @@ export function townDetail(
     share = lo;
   }
   for (let j = i; j < homes; j++) {
+    if (j % DETAIL_STEP === 0) yield;
     const k = order[j]!,
       kept = scatter(plan.seed, far.from + k, 41) < chance(d[k]!, share);
     drawn[far.from + k] = !kept ? 4 : far.ruin[k] ? 0 : 3;
