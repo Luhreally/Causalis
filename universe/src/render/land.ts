@@ -105,6 +105,8 @@ const FLAT_UP = 0.004;
 /** How often what rises is put again: sim moments apart at the least, and real milliseconds. */
 const RISE_EVERY = 6 * 3600;
 const RISE_WAIT = 250;
+/** How long a frame draws what rises on a land's towns while its clock runs (ms). */
+const RISE_BUDGET = 4;
 
 /** How high what stands (m) is drawn on the land: as it is to a block's height, far less past that. */
 const landHigh = (m: number) => (m <= 60 ? m : 60 + (m - 60) * 0.2);
@@ -117,6 +119,8 @@ type Drawn = {
   x: number;
   z: number;
   reach: number;
+  /** How far it is drawn toward each bearing (view/land.ts landEdge), read once. */
+  edge: (a: number) => number;
   settled: TownParts;
   busy: boolean;
 };
@@ -298,7 +302,7 @@ const WORKS_LOOKS = 8;
 const SECTION = 0.25;
 const CUT_GAP = 0.34;
 /** How many parts of one mesh a land's towns are read for at a time, when drawn over frames (GroundBatches.showing). */
-const SHOW_SHARE = 12_000;
+const SHOW_SHARE = 6_000;
 /** The most pieces of a town's worn ground its land draws. */
 const LAND_WORN = 340;
 /** The most gangs drawn on a land at once. */
@@ -358,6 +362,17 @@ export class LandLayer {
   private drawnAt = -Infinity;
   private drawnWall = 0;
   private season = -1;
+  /** What rises on its towns being drawn afresh: the towns still to draw, and those drawn. */
+  private risingTodo: {
+    towns: Drawn[];
+    done: {
+      parts: TownParts;
+      x: number;
+      z: number;
+      held: ((x: number, z: number) => boolean) | undefined;
+    }[];
+    whole: boolean;
+  } | null = null;
   /** When the fields were last looked at (performance.now()). */
   private fieldsWall = 0;
   private year = -1;
@@ -492,6 +507,7 @@ export class LandLayer {
         x: m.x,
         z: m.z,
         reach: landReach(scene),
+        edge: landEdge(scene),
         settled,
         busy: scene.active.length > 0 || civicsActive(town.plan, moment) || !!town.plan.walls,
       });
@@ -574,6 +590,7 @@ export class LandLayer {
     }
     // (Its bands' camps last, each on free ground of the land as it is laid: off its towns, roads, fields and water.)
     this.camps.set(plan.camps ?? [], g, this.campGround);
+    this.risingTodo = null;
     this.drawnAt = -Infinity;
     this.drawnWall = 0;
     this.update(t, this.running);
@@ -592,17 +609,24 @@ export class LandLayer {
     this.camps.update(running);
     this.herds.update(g, this.clearings(), (t % YEAR) / YEAR, running);
     const wall = performance.now();
-    if (Math.abs(t - this.drawnAt) >= RISE_EVERY && wall - this.drawnWall >= RISE_WAIT) {
+    if (
+      !this.risingTodo &&
+      Math.abs(t - this.drawnAt) >= RISE_EVERY &&
+      wall - this.drawnWall >= RISE_WAIT
+    ) {
+      this.risingTodo = {
+        towns: [...this.towns.values()].filter((d) => d.busy),
+        done: [],
+        // (A land just laid draws what rises on it at once; as the clock runs, a few towns a frame.)
+        whole: this.drawnAt === -Infinity,
+      };
       this.drawnAt = t;
       this.drawnWall = wall;
-      const rising: {
-        parts: TownParts;
-        x: number;
-        z: number;
-        held: ((x: number, z: number) => boolean) | undefined;
-      }[] = [];
-      for (const d of this.towns.values()) {
-        if (!d.busy) continue;
+    }
+    const todo = this.risingTodo;
+    if (todo) {
+      const t0 = performance.now();
+      for (let d = todo.towns.pop(); d; d = todo.towns.pop()) {
         const parts = new TownParts(),
           moment = landMoment(d.scene.plan, t);
         townHomes(
@@ -613,9 +637,13 @@ export class LandLayer {
         );
         townCivics(d.scene, moment, parts);
         townWalls(d.scene, moment, parts);
-        rising.push({ parts, x: d.x, z: d.z, held: this.heldOf(d.ref) });
+        todo.done.push({ parts, x: d.x, z: d.z, held: this.heldOf(d.ref) });
+        if (!todo.whole && performance.now() - t0 >= RISE_BUDGET) break;
       }
-      this.rising.show(rising, g, !!this.plan.undersea);
+      if (!todo.towns.length) {
+        this.risingTodo = null;
+        this.rising.show(todo.done, g, !!this.plan.undersea);
+      }
     }
     const share = (t % YEAR) / YEAR,
       season = Math.floor(share * 48);
@@ -694,7 +722,7 @@ export class LandLayer {
           x: d.x,
           z: d.z,
           reach: d.reach,
-          edge: landEdge(d.scene),
+          edge: d.edge,
           site: d.scene.plan.site,
           blocks: d.scene.lots.blocks,
           count: Math.ceil(d.scene.plan.lots / BLOCK_LOTS),
