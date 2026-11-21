@@ -8,7 +8,7 @@ import {
   formColor,
   lifeTint,
   nearBudget,
-  nearFlora,
+  nearFloraSteps,
   nearReach,
   seasonLeaf,
   seasonNeedle,
@@ -48,6 +48,8 @@ const FAR_KINDS: readonly {
 ];
 const PARCHED: Rgb = [0.52, 0.37, 0.13];
 
+/** How long a frame spends on a laying of the near things, at most (ms): the rest waits for the next frame. */
+const LAY_SLICE = 4;
 /** How much smaller the far crowns are drawn while the near things are (the eye is close: they are groves past them). */
 const FAR_NEAR = 0.55;
 /** How close the eye comes before the near things are drawn (its distance, region units), and the most they reach. */
@@ -246,6 +248,7 @@ export class FloraLayer {
     const land = this.land;
     if (!land || !this.heights) return;
     if (distance > NEAR_ON) {
+      this.job = null;
       if (this.laidAt) {
         this.laidAt = null;
         this.nearShown = null;
@@ -261,20 +264,42 @@ export class FloraLayer {
     this.fwd.copy(camera.forward).mulScalar(distance);
     const x = this.at.x + this.fwd.x,
       z = this.at.z + this.fwd.z,
-      budget = this.budgetFor(this.stage.quality.regionTrees),
       most = Math.min(NEAR_MOST, Math.max(2.5, distance * 1.8)),
-      was = this.laidAt;
+      was = this.job?.at ?? this.laidAt;
     if (
-      was &&
-      was.ground === this.ground &&
-      Math.hypot(x - was.x, z - was.z) < was.r / 3 &&
-      Math.abs(most - was.most) < was.most / 3
-    )
-      return;
-    const t0 = performance.now(),
-      reach = nearReach(land, x, z, budget.trees, most),
-      near = nearFlora(land, x, z, reach, budget, this.free, this.bare, this.parched);
-    this.laidAt = { x, z, r: reach, most, ground: this.ground };
+      !was ||
+      was.ground !== this.ground ||
+      Math.hypot(x - was.x, z - was.z) >= was.r / 3 ||
+      Math.abs(most - was.most) >= was.most / 3
+    ) {
+      // A new laying, begun now and carried on a few milliseconds a frame (what stands stays till it is done).
+      const budget = this.budgetFor(this.stage.quality.regionTrees),
+        reach = nearReach(land, x, z, budget.trees, most);
+      this.job = {
+        at: { x, z, r: reach, most, ground: this.ground },
+        steps: nearFloraSteps(land, x, z, reach, budget, this.free, this.bare, this.parched),
+        spent: 0,
+      };
+    }
+    const job = this.job;
+    if (!job) return;
+    const t0 = performance.now();
+    for (;;) {
+      const r = job.steps.next();
+      if (r.done) {
+        this.job = null;
+        this.laidAt = job.at;
+        this.lay(r.value, job.at);
+        break;
+      }
+      if (performance.now() - t0 > LAY_SLICE) break;
+    }
+    job.spent += performance.now() - t0;
+    this.layMs = job.spent;
+  }
+
+  /** What a laying gave, put in the batches; the far crowns where it stands left out. */
+  private lay(near: NearFlora, at: { x: number; z: number; r: number }): void {
     this.nearShown = near;
     this.show("trunks", near.trunks, this.trunk, false);
     this.show("cones", near.cones, this.cone, false);
@@ -282,10 +307,16 @@ export class FloraLayer {
     this.show("tufts", near.tufts, this.tuft, false);
     this.show("stones", near.stones, this.stone, false);
     this.showPatches(near.patches);
-    this.hole = { x, z, r: reach * 0.92 };
+    this.hole = { x: at.x, z: at.z, r: at.r * 0.92 };
     this.drawFar();
-    this.layMs = performance.now() - t0;
   }
+
+  /** A laying under way: where it is for, its steps, and the time spent on it (ms). */
+  private job: {
+    at: { x: number; z: number; r: number; most: number; ground: number };
+    steps: Generator<void, NearFlora>;
+    spent: number;
+  } | null = null;
 
   /** The near budget for a setting's far crowns, kept while the setting is (none made each frame). */
   private budget: { of: number; is: ReturnType<typeof nearBudget> } | null = null;

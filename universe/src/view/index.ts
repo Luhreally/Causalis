@@ -1387,6 +1387,7 @@ export {
   formColor,
   nearBudget,
   nearFlora,
+  nearFloraSteps,
   nearReach,
   type FloraLand,
   type NearBudget,

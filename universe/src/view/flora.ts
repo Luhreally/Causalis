@@ -509,6 +509,31 @@ export function nearFlora(
   bare: (tile: number) => boolean = () => false,
   parched = false,
 ): NearFlora {
+  const steps = nearFloraSteps(land, cx, cz, reach, budget, free, bare, parched);
+  for (;;) {
+    const r = steps.next();
+    if (r.done) return r.value;
+  }
+}
+
+/** How many lattice cells are read between one pause and the next of a laying in steps. */
+const STEP_CELLS = 384;
+
+/**
+ * The same laying (nearFlora) in steps: it pauses every few hundred cells, so a laying can be spread over frames (each
+ * frame a few milliseconds of it, render/flora.ts) and what stands is not held up by it. Its end is what nearFlora gives.
+ */
+export function* nearFloraSteps(
+  land: FloraLand,
+  cx: number,
+  cz: number,
+  reach: number,
+  budget: NearBudget,
+  free: (x: number, z: number, r: number) => boolean,
+  bare: (tile: number) => boolean = () => false,
+  parched = false,
+): Generator<void, NearFlora> {
+  let cells = 0;
   const out: NearFlora = {
       trunks: [],
       cones: [],
@@ -535,6 +560,7 @@ export function nearFlora(
   ) => list.push({ x, y, z, w, h, yaw, r: c[0], g: c[1], b: c[2] });
   // Trees: a cell's one, by its tile's canopy, in groves.
   for (const [i, j] of rings(cx, cz, TREE_CELL, reach)) {
+    if (++cells % STEP_CELLS === 0) yield;
     if (out.trees >= budget.trees) break;
     const x = (i + 0.15 + 0.7 * cellUnit(i, j, 1)) * TREE_CELL,
       z = (j + 0.15 + 0.7 * cellUnit(i, j, 2)) * TREE_CELL;
@@ -581,6 +607,7 @@ export function nearFlora(
   const tuftReach = Math.min(reach, 2.6),
     t2 = tuftReach * tuftReach;
   for (const [i, j] of rings(cx, cz, TUFT_CELL, tuftReach)) {
+    if (++cells % STEP_CELLS === 0) yield;
     if (out.tufts.length >= budget.tufts) break;
     const x = (i + cellUnit(i, j, 21)) * TUFT_CELL,
       z = (j + cellUnit(i, j, 22)) * TUFT_CELL;
@@ -613,6 +640,7 @@ export function nearFlora(
   }
   // Stones where rock shows.
   for (const [i, j] of rings(cx, cz, STONE_CELL, reach)) {
+    if (++cells % STEP_CELLS === 0) yield;
     if (out.stones.length >= budget.stones) break;
     const x = (i + cellUnit(i, j, 31)) * STONE_CELL,
       z = (j + cellUnit(i, j, 32)) * STONE_CELL;
@@ -638,6 +666,7 @@ export function nearFlora(
   }
   // Patches of the ground's own colour, lighter and darker, bare soil and sand, lying on its facets.
   for (const [i, j] of rings(cx, cz, PATCH_CELL, reach)) {
+    if (++cells % STEP_CELLS === 0) yield;
     if (out.patches.length >= budget.patches) break;
     const x = (i + cellUnit(i, j, 41)) * PATCH_CELL,
       z = (j + cellUnit(i, j, 42)) * PATCH_CELL;
