@@ -215,3 +215,33 @@ test("a tap in a town finds one of its buildings, its walls, a lot of it — or 
     "not before they were begun",
   );
 });
+
+test("a land's trees are cleared from its towns and fields as they would be read against every clearing, read only against those near", () => {
+  const size = 64,
+    tileKm = 2.4,
+    g = { size, tileKm } as unknown as Parameters<typeof treesClear>[0],
+    half = ((size - 1) * tileKm) / 2;
+  let seed = 7;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647,
+    trees = Array.from({ length: 6000 }, () => ({
+      tile: Math.floor(rnd() * size * size),
+      dx: rnd() - 0.5,
+      dz: rnd() - 0.5,
+      size: 0.2 + rnd() * 0.8,
+    })) as unknown as Parameters<typeof treesClear>[1],
+    every = (clearings: { x: number; z: number; r: number }[]) =>
+      trees.filter((t) => {
+        const x = (t.tile % size) * tileKm - half + t.dx * tileKm,
+          z = Math.floor(t.tile / size) * tileKm - half + t.dz * tileKm,
+          h = 0.35 * t.size * tileKm;
+        return clearings.every((c) => Math.hypot(x - c.x, z - c.z) > c.r + h);
+      });
+  for (const great of [false, true]) {
+    const clearings = Array.from({ length: 900 }, () => ({
+      x: rnd() * 2 * half - half,
+      z: rnd() * 2 * half - half,
+      r: great && rnd() < 0.01 ? 400 : rnd() * 3,
+    }));
+    assert.deepEqual(treesClear(g, trees, clearings), every(clearings));
+  }
+});

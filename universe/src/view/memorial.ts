@@ -26,6 +26,48 @@ export type MemorialPart = {
   readonly tip?: number;
 };
 
+/**
+ * How light a stone is ever seen, its main stuff and its darker (in the eye's terms, 0 … 1, as the town's colours are): the darkest rock
+ * there is, basalt or obsidian, sends back some twentieth of the light on it, about a quarter of the way up this scale; a stone given as
+ * darker than that by its land's colour is drawn at that, keeping its hue, its darker parts as much below it as they were, so it is seen
+ * standing in the light and shade about it, not as a hole cut in the picture.
+ */
+export const STONE_LEAST = 0.25,
+  STONE_DARK_LEAST = 0.14;
+/** A colour's lightness as the eye takes it (Rec. 709's weights, on the town's own scale). */
+const lightOf = (c: readonly [number, number, number]) =>
+  0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+/** A stone's colour as it is seen (STONE_LEAST): never darker than the darkest rock, its hue kept. */
+export function stoneSeen(
+  c: readonly [number, number, number],
+  least: number,
+): [number, number, number] {
+  const l = lightOf(c);
+  if (l >= least) return [c[0], c[1], c[2]];
+  if (!(l > 0.004)) return [least, least, least];
+  const k = least / l;
+  return [Math.min(1, c[0] * k), Math.min(1, c[1] * k), Math.min(1, c[2] * k)];
+}
+/** A memorial's two colours as they are drawn: its main stuff lifted to as light as stone is seen, its darker as much with it. */
+export function memorialTones(m: Pick<Memorial, "colour" | "dark">): {
+  readonly main: [number, number, number];
+  readonly dark: [number, number, number];
+} {
+  const main = stoneSeen(m.colour, STONE_LEAST),
+    k = lightOf(main) / Math.max(0.004, lightOf(m.colour));
+  return {
+    main,
+    dark: stoneSeen(
+      [m.dark[0] * k, m.dark[1] * k, m.dark[2] * k].map((v) => Math.min(1, v)) as [
+        number,
+        number,
+        number,
+      ],
+      STONE_DARK_LEAST,
+    ),
+  };
+}
+
 /** A thing placed: where it stands, which way it faces (toward the square's middle) and how large it is drawn. */
 export type PlacedMemorial = {
   readonly m: Memorial;

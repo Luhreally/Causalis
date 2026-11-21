@@ -3,9 +3,13 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import {
+  BED_LEAST,
+  BED_NEAR,
+  bedOf,
   CUES,
   CUE_RULES,
   airOf,
+  farOf,
   airOfWorld,
   cueAllowed,
   mixOf,
@@ -94,6 +98,23 @@ test("what the greatest fire leaves is quieter, never louder", () => {
     hush = mixOf(at("town", { hush: 1 }));
   assert.ok(hush.level < was.level);
   assert.equal(hush.crowd + hush.birds + hush.tinks, 0);
+});
+
+test("a war's din comes from where it is fought, fainter with distance than its guns, never gone", () => {
+  const near = mixOf(at("town", { war: true, far: 0 })),
+    far = (m: number) => mixOf(at("town", { war: true, far: m })).level;
+  for (const m of [10, 20, 60, 120, 200, 5000]) {
+    assert.ok(Math.abs(far(m) - near.level * bedOf(m)) < 1e-9, `${m} m`);
+    assert.ok(far(m) >= near.level * BED_LEAST - 1e-12);
+    // (A gun from there carries over it: its many small sounds fall away sooner than a report does.)
+    if (bedOf(m) > BED_LEAST) assert.ok(bedOf(m) <= farOf(m).level + 1e-12, `${m} m`);
+  }
+  assert.equal(far(BED_NEAR), near.level);
+  assert.ok(far(120) < far(60) && far(60) < far(20));
+  assert.equal(far(5000), near.level * BED_LEAST);
+  // (A battle's field the same; a town at peace, its air all about the hearing, not.)
+  assert.ok(mixOf(at("battle", { far: 120 })).level < mixOf(at("battle", { far: 0 })).level);
+  assert.equal(mixOf(at("town", { far: 120 })).level, mixOf(at("town", { far: 0 })).level);
 });
 
 test("a paused world's air stays back, and nothing happens in it", () => {

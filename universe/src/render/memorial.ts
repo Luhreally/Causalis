@@ -4,6 +4,7 @@
 import * as pc from "playcanvas";
 import {
   memorialParts,
+  memorialTones,
   memorialsPlaced,
   partAt,
   type MemorialPart,
@@ -80,9 +81,11 @@ export class MemorialLayer {
       { mesh: StoneMesh; colour: Rgb; list: ReturnType<typeof partAt>[] }
     >();
     for (const p of this.placed) {
-      const key = plan.seed ^ (p.m.year * 2654435761);
+      const key = plan.seed ^ (p.m.year * 2654435761),
+        // (Never darker than the darkest rock: a land's black stone is seen, not a hole in the picture.)
+        tones = memorialTones(p.m);
       for (const q of memorialParts(p.m, key) as readonly MemorialPart[]) {
-        const colour = (q.tone === "dark" ? p.m.dark : p.m.colour) as Rgb,
+        const colour = (q.tone === "dark" ? tones.dark : tones.main) as Rgb,
           id = `${q.mesh}|${colour.join()}`;
         let g = groups.get(id);
         if (!g) groups.set(id, (g = { mesh: q.mesh, colour, list: [] }));

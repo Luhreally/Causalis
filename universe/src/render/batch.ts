@@ -6,6 +6,9 @@ import * as pc from "playcanvas";
 import { flatMaterial, toneOf, tonedMaterial, type Rgb, type Stage } from "./stage.ts";
 import { BEAST_SHAPES } from "../view/index.ts";
 
+/** From how great an upload a batch is given a fresh store first (bytes: a few thousand instances). */
+const ORPHAN_BYTES = 1 << 18;
+
 export class InstancedBatch {
   readonly capacity: number;
   private readonly matrices: Float32Array;
@@ -148,6 +151,10 @@ export class InstancedBatch {
     if (!n) return;
     // (The buffer's store is this very array, so a restored context re-sends it whole.)
     gl.bindBuffer(gl.ARRAY_BUFFER, impl.bufferId);
+    // (A great batch is given a fresh store before it is written: written into the store the frame before is still drawing
+    // from, the driver waits for that frame to be drawn, and a land's towns, laid again as the year turns, held a phone's
+    // frame a second and more so: 2026-11-20. Its old store goes when that frame is done with it.)
+    if (n * 64 >= ORPHAN_BYTES) gl.bufferData(gl.ARRAY_BUFFER, this.capacity * 64, gl.DYNAMIC_DRAW);
     gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.matrices, 0, n * 16);
   }
 
