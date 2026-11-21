@@ -202,6 +202,9 @@ export class FloraLayer {
   private fieldsOf = 0;
   /** How much the near things are drawn (by the eye's distance), and the point it looks at. */
   private nearOn = 0;
+  /** How far the far clumps have given way to the near trees about the point looked at (eased), and when last told. */
+  private farGives = 0;
+  private toldAt = 0;
   private readonly focus = { x: 0, z: 0 };
   /** This frame's laying (ms), for the budgets. */
   layMs = 0;
@@ -537,12 +540,18 @@ export class FloraLayer {
       b.param("uNear", [x, z, f.core, f.out]);
       b.param("uNearK", [1, on, 0, 0]);
     }
+    // (Where the eye looks the far clumps give way to the trees: eased, and not before most of the pieces about it are laid, so
+    // an eye set down somewhere new sees the clumps till the trees stand.)
     const trees = this.fields.trees,
-      // (While no piece is laid, the far clumps stand everywhere.)
-      shown = this.pieces.size ? on : 0;
+      now = performance.now(),
+      dt = Math.min(0.1, Math.max(0, (now - this.toldAt) / 1000)),
+      want = this.pieces.size && this.queue.length < 24 ? on : 0;
+    this.toldAt = now;
+    this.farGives += (want - this.farGives) * Math.min(1, dt * 8);
+    if (Math.abs(want - this.farGives) < 0.002) this.farGives = want;
     for (const b of [this.farCones, this.farBalls, this.farTrunks]) {
       b?.param("uNear", [x, z, trees.core, trees.out]);
-      b?.param("uNearK", [-1, shown, 0, 0]);
+      b?.param("uNearK", [-1, this.farGives, 0, 0]);
     }
   }
 
