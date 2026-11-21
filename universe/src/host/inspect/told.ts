@@ -719,7 +719,9 @@ const SAME = new WeakMap<
 function againWords(world: World, t: Told, said: string): string {
   const e = world.events.get(t.ref as Ref);
   // (A line of many happenings, or a count, is its own; and what a land suffers again says its own numbers.)
-  if (!e || t.key !== e.type || !e.subjects[0]?.startsWith("pol:")) return "";
+  // (Who it is of: its realms, in order; a war's peace names its war first, then its two sides.)
+  const of = (x: HistoryEvent) => x.subjects.filter((s) => s.startsWith("pol:"));
+  if (!e || t.key !== e.type || !of(e)[0]) return "";
   const stamp = stampOf(world);
   let kept = SAME.get(world);
   if (!kept || kept.stamp !== stamp) {
@@ -740,14 +742,15 @@ function againWords(world: World, t: Told, said: string): string {
     list = [];
     for (const i of kept.rows.get(e.type) ?? []) {
       const x = world.events.at(i);
-      if (x.subjects[0]) list.push({ t: x.t, who: x.subjects.join("|"), i });
+      const who = of(x);
+      if (who[0]) list.push({ t: x.t, who: who.join("|"), i });
     }
     kept.by.set(e.type, list);
   }
   // (A realm's seat names it whatever its rule is called from age to age.)
   const seatOf = (ref: string) => politiesOf(world).get(ref as Ref)?.town ?? "",
-    who = e.subjects.join("|"),
-    name = seatOf(e.subjects[0]),
+    who = of(e).join("|"),
+    name = seatOf(of(e)[0]!),
     like: number[] = [];
   for (const x of list) {
     if (x.t >= e.t) break;
@@ -757,7 +760,8 @@ function againWords(world: World, t: Told, said: string): string {
   // (The same up to its first break: what follows a comma is how, or by whom, and may differ.)
   const head = said.split(/, |: |…/)[0]!;
   let same = 0;
-  for (const i of like.slice(-8)) {
+  // (The last forty: a council left and joined forty times over is said again past them, and its count would stall.)
+  for (const i of like.slice(-40)) {
     const x = world.events.at(i);
     if (headWords(world, lineOf(world, x, yearOfMoment(x.t))).startsWith(head)) same++;
   }

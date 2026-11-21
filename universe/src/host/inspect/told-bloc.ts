@@ -55,6 +55,10 @@ export type BlocYears = {
   table(y: number): ReadonlyMap<string, Numbers>;
   /** A realm's own numbers in a year (null: not counted). */
   realm(ref: string, y: number): Numbers | null;
+  /** The year its numbers of a year were last counted in (far back, the decade's; null: none near). */
+  counted(y: number): number | null;
+  /** How many times a realm has come into it, to a year (this coming the last). */
+  comings(ref: string, y: number): number;
   /** The people of every realm in a year, summed (the world's who stand in a realm). */
   peopled(y: number): number;
   /** What its lands held a head at a decade's year, summed over its people (undefined: not kept). */
@@ -161,7 +165,8 @@ export function blocYears(world: World, head: string): BlocYears | null {
     }
     return [...set].filter((t) => t <= y).sort((a, b) => b - a);
   };
-  const first = log?.first ?? now;
+  const first = log?.first ?? now,
+    b0 = Math.max(0, first);
   const sinceMemo = new Map<string, number>();
   const sinceOf = (ref: string, y: number): number => {
     const key = `${ref}|${y}`,
@@ -322,6 +327,19 @@ export function blocYears(world: World, head: string): BlocYears | null {
     numbers,
     table,
     realm: (ref, y) => realmNumbers(y)?.get(ref) ?? null,
+    counted: (y) => {
+      for (const at of [y, Math.floor(y / 10) * 10, Math.floor(y / 100) * 100])
+        if (at >= b0 && realmNumbers(at) && headAt(at)) return at;
+      return null;
+    },
+    comings: (ref, y) => {
+      let n = 0;
+      for (const t of turns(ref, y)) {
+        if (t < first) break;
+        if (isIn(ref, t) && !isIn(ref, t - 1)) n++;
+      }
+      return n;
+    },
     peopled,
     worth,
     prepare,
@@ -527,10 +545,11 @@ export function blocTold(world: World, b: BlocYears, y: number, events: YearEven
   // (A whole alliance come in with a new head is one line, said above.)
   if (!(was && was !== h && !inBefore.has(h)))
     for (const r of newcomers.slice(0, 4)) {
-      const cause = found(events, y, r, inNow, CAME_BY);
+      const cause = found(events, y, r, inNow, CAME_BY),
+        times = b.comings(r, y);
       add("bloc.joined", big(r) ? 5 : 4, cause?.id ?? `told:${y}:${r}`, () => [
         realmYear(world, r, y),
-        ` came into ${name}`,
+        times > 1 ? ` came into ${name} again, the ${ordinal(times)} time` : ` came into ${name}`,
         cause ? by(world, cause, r, h) : ", drawn in by those it was bound to",
         ".",
       ]);
@@ -539,10 +558,11 @@ export function blocTold(world: World, b: BlocYears, y: number, events: YearEven
   for (const r of left.slice(0, 4)) {
     const p = politiesOf(world).get(r as Ref);
     if (p?.ended !== null && p?.ended !== undefined && p.ended <= y) continue;
-    const why = leftWhy(world, b, y, r, inBefore, events);
+    const why = leftWhy(world, b, y, r, inBefore, events),
+      times = b.comings(r, y - 1);
     add("bloc.left", 4, why.ref ?? `told:${y}:${r}`, () => [
       realmYear(world, r, y),
-      ` left ${name}: `,
+      ` left ${name}${times > 1 ? `, the ${ordinal(times)} time it had stood in it` : ""}: `,
       ...why.line,
       ".",
     ]);
@@ -554,6 +574,7 @@ export function blocTold(world: World, b: BlocYears, y: number, events: YearEven
       " fought ",
       realmYear(world, t.foe, y),
       " side by side",
+      `, the ${ordinal(y - t.since + 1)} year of it`,
       t.battles ? `: ${said(t.battles)} ${t.battles === 1 ? "battle" : "battles"} in the year` : "",
       t.fallen ? `, ${count(t.fallen)} fallen` : "",
       ".",
@@ -626,6 +647,7 @@ function leftWhy(
 ): { line: Line; ref: string | null } {
   // (Gone over to another alliance.)
   const other = b.under(r, y);
+  if (other === r) return { line: ["it leads an alliance of its own now"], ref: `bloc:${r}` };
   if (other && other !== b.headAt(y - 1)) {
     const cause = found(events, y, r, new Set([other]), [
       "diplomacy.pact",
@@ -676,12 +698,18 @@ export function together(
   world: World,
   b: BlocYears,
   y: number,
-): { foe: string; sides: string[]; battles: number; fallen: number; ref: string }[] {
+): { foe: string; sides: string[]; battles: number; fallen: number; ref: string; since: number }[] {
   if (!world.hasStore("war.wars")) return [];
   const inIt = new Set(b.members(y)),
     by = new Map<
       string,
-      { sides: Set<string>; battles: number; fallen: number; best: { n: number; ref: string } }
+      {
+        sides: Set<string>;
+        battles: number;
+        fallen: number;
+        best: { n: number; ref: string };
+        since: Map<string, number>;
+      }
     >();
   for (const r of inIt)
     for (const w of warsOf(world).of(r as Ref)) {
@@ -693,8 +721,10 @@ export function together(
         battles: 0,
         fallen: 0,
         best: { n: -1, ref: w.event },
+        since: new Map<string, number>(),
       };
       a.sides.add(r);
+      a.since.set(r, Math.min(a.since.get(r) ?? Infinity, w.declared));
       for (const x of w.battles) {
         if (x.year !== y) continue;
         a.battles++;
@@ -712,6 +742,8 @@ export function together(
       battles: a.battles,
       fallen: a.fallen,
       ref: a.best.ref,
+      // (Since the second of their wars on it began: the year two of it first stood side by side.)
+      since: [...a.since.values()].sort((x, z) => x - z)[1] ?? y,
     }))
     .sort((x, z) => z.fallen - x.fallen || z.sides.length - x.sides.length);
 }
@@ -823,7 +855,10 @@ function landsOf(world: World, b: BlocYears, y: number): Map<string, string> {
 }
 
 /** How an alliance stood among the world's in a year, by its people: its place, and the greatest's (or the next's). */
-export function standingLine(world: World, b: BlocYears, y: number): Line {
+export function standingLine(world: World, b: BlocYears, asked: number): Line {
+  // (Far back, the lands' people are counted by the decade: its place as it was counted last.)
+  const y = b.counted(asked);
+  if (y === null) return [];
   const h = b.headAt(y),
     all = [...b.table(y)].sort((x, z) => z[1].people - x[1].people || (x[0] < z[0] ? -1 : 1)),
     i = all.findIndex(([k]) => k === h);
@@ -833,9 +868,10 @@ export function standingLine(world: World, b: BlocYears, y: number): Line {
     shareOf = world_ ? ` (${Math.round((mine.people / world_) * 100)}% of the world's)` : "",
     other = i === 0 ? all[1] : all[0],
     out: Span[] = [
+      y < asked ? `As counted in ${count(y)}: ` : "",
       i === 0
-        ? `The greatest of ${said(all.length)} ${all.length === 1 ? "alliance" : "alliances"} by its people: ${shortWords(mine.people)}${shareOf}`
-        : `${sentence(ordinal(i + 1))} of ${said(all.length)} alliances by its people: ${shortWords(mine.people)}${shareOf}`,
+        ? `${y < asked ? "the" : "The"} greatest of ${said(all.length)} ${all.length === 1 ? "alliance" : "alliances"} by its people: ${shortWords(mine.people)}${shareOf}`
+        : `${y < asked ? ordinal(i + 1) : sentence(ordinal(i + 1))} of ${said(all.length)} alliances by its people: ${shortWords(mine.people)}${shareOf}`,
     ];
   if (other) {
     out.push(i === 0 ? "; the next, " : "; the greatest, ");
