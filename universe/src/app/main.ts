@@ -1526,6 +1526,9 @@ type Exposed = {
   ) => { inked: number; edges: number; ms: number };
   pictureTimes?: () => { drawn: number; ms: number };
 };
+/** How far from what the eye looks at toward the ground under it its homes are drawn whole about (a share: TownLayer.look). */
+const EYE_TOWARD = 0.45;
+
 const exposed: Exposed = {
   picture: (p, size) => {
     const c = document.createElement("canvas");
@@ -9574,8 +9577,15 @@ async function runPlanetPage(): Promise<void> {
     // of the town while a battle is fought before it, but for those come out to watch (Phase 55 M227).
     const sky = landSky?.cell === weatherCell() ? landSky : null,
       kept = placed ? battleShelter(placed.turn) : null;
-    // (The homes nearest where the eye looks drawn whole: render/town.ts TownLayer.look.)
-    village.look(rig.target.x, rig.target.z);
+    // (The homes nearest where the eye looks drawn whole, between what it looks at and the ground under it: what stands
+    // nearest the camera is seen closest: render/town.ts TownLayer.look.)
+    {
+      const cam = stage.camera.getPosition();
+      village.look(
+        rig.target.x + (cam.x - rig.target.x) * EYE_TOWARD,
+        rig.target.z + (cam.z - rig.target.z) * EYE_TOWARD,
+      );
+    }
     village.update(
       seen,
       // (All indoors while raiders are in the streets, Phase 67, or machines are over the town, W2.)
