@@ -350,3 +350,21 @@ test("a world the gifts were used in replays from its command log, and its save 
   );
   assert.deepEqual(verifyByReplay(saveWorld(world, ruleset), build), { ok: true, problem: null });
 });
+
+test("command: those near follow him, close behind him, and go their ways once it is put off", () => {
+  const { world, smith, folk } = laid();
+  world.runTo(world.submit("possess.take", take(smith, folk)).t);
+  send(world, steps(2 * POSSESS_HZ, go(0, 0)), mask("command"));
+  const following = local(world).bodies.filter((b) => b.doing === "follow");
+  assert.ok(following.length >= 1 && following.length <= 8, `${following.length} follow him`);
+  // Walked off, they come after him.
+  const before = local(world).bodies.find((b) => b.doing === "follow")!;
+  send(world, steps(3 * POSSESS_HZ, go(0, -31)), mask("command"));
+  const after = local(world).bodies.find((b) => b.id === before.id)!,
+    me = local(world).bodies[0]!;
+  assert.ok(Math.hypot(after.x - me.x, after.z - me.z) < 6, "close behind him");
+  // The gift put off: they go their ways again.
+  send(world, steps(POSSESS_HZ, go(0, 0)));
+  assert.equal(local(world).bodies.filter((b) => b.doing === "follow").length, 0);
+  release(world);
+});

@@ -183,3 +183,46 @@ test("flight lifts him out of every blow's reach; unseen, none goes for him", ()
   run(u, 100, () => bid(), mask("unseen"));
   assert.ok(u.bodies.filter((b) => b.side === 0).every((b) => b.foe !== 0));
 });
+
+test("the ground shaken throws the foe off their blows; rain wets their bows; under Command his own go for his foe", () => {
+  const q = field();
+  q.gifts = mask("smite");
+  stepFight(scene, q, bid(), drawOf(4), true, [{ kind: 2, x: -1.2, z: 0 }]);
+  const thrown = q.bodies.filter((b) => b.side === 0 && b.ready >= q.step + 30);
+  assert.ok(thrown.length >= 5, `${thrown.length} thrown off their blows`);
+  // Rain on archers: their next loosing waits two reloads.
+  const archers = {
+      ...scene,
+      sides: [{ ...side(), looses: "arrows" as const, reload: 4 }, side()] as [
+        FightSide,
+        FightSide,
+      ],
+    },
+    r = field();
+  for (const b of r.bodies) if (b.side === 0) b.loaded = 0;
+  r.gifts = mask("smite");
+  stepFight(archers, r, bid(), drawOf(4), true, [{ kind: 3, x: -1.2, z: 0 }]);
+  assert.ok(r.bodies.filter((b) => b.side === 0).every((b) => b.loaded >= r.step + 100));
+  // Command: his own about him take his foe as theirs.
+  const c = field();
+  c.gifts = mask("command");
+  run(c, 30, (k) => bid(k % 12 === 0 ? HAND_ACT.strike : 0), mask("command"));
+  const me = c.bodies[0]!;
+  assert.ok(me.foe >= 0, "he goes for one");
+  const own = c.bodies.filter(
+    (b, i) => i > 0 && b.side === me.side && b.doing !== "down" && b.doing !== "dead",
+  );
+  assert.ok(
+    own.some((b) => b.foe === me.foe),
+    "one of his own goes for whom he goes for",
+  );
+  const left = field();
+  run(left, 30, (k) => bid(k % 12 === 0 ? HAND_ACT.strike : 0));
+  const sharing = (f: FightWorld) =>
+    f.bodies.filter((b, i) => i > 0 && b.side === 1 && b.foe === f.bodies[0]!.foe).length;
+  assert.ok(sharing(c) > sharing(left), `${sharing(c)} with him against ${sharing(left)}`);
+  // Without it, a stroke sent does nothing: their blows as they were.
+  const n = field();
+  stepFight(scene, n, bid(), drawOf(4), true, [{ kind: 2, x: -1.2, z: 0 }]);
+  assert.ok(n.bodies.filter((b) => b.side === 0).every((b) => b.ready < n.step + 30));
+});
