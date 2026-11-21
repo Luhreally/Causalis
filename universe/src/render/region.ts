@@ -25,7 +25,7 @@ import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 import { windowMaterial } from "./village.ts";
 
 /** How long a frame lays on at a land's plan being laid over frames (ms): the rest of a phone's frame is the drawing's. */
-const LAY_BUDGET = 6;
+const LAY_BUDGET = 4;
 
 export class RegionScene {
   private readonly stage: Stage;

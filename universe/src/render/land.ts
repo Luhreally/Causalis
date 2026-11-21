@@ -106,7 +106,7 @@ const FLAT_UP = 0.004;
 const RISE_EVERY = 6 * 3600;
 const RISE_WAIT = 250;
 /** How long a frame draws what rises on a land's towns while its clock runs (ms). */
-const RISE_BUDGET = 4;
+const RISE_BUDGET = 2;
 
 /** How high what stands (m) is drawn on the land: as it is to a block's height, far less past that. */
 const landHigh = (m: number) => (m <= 60 ? m : 60 + (m - 60) * 0.2);
@@ -362,6 +362,11 @@ export class LandLayer {
   private drawnAt = -Infinity;
   private drawnWall = 0;
   private season = -1;
+  /** Each stretch of a road's way as drawn on the land's ground as last laid (showRoads). */
+  private readonly wayPieces = new Map<
+    string,
+    { ground: number[][]; rails: number[][]; side: { x: number; z: number }[] }
+  >();
   /** What rises on its towns being drawn afresh: the towns still to draw, and those drawn. */
   private risingTodo: {
     towns: Drawn[];
@@ -584,6 +589,7 @@ export class LandLayer {
       this.campGround = (x, z, r) => laid.claims.freeDisc(x, z, r);
       this.fields = laid.fields.map((field) => ({ field, crop: -1 }));
       this.layFieldTops();
+      this.wayPieces.clear();
       this.season = -1;
       this.unlaid = false;
       yield;
@@ -790,25 +796,42 @@ export class LandLayer {
           if (as === "none" || line.length < 2) return;
           // (Open at a cut; and not over a town's built ground or walls, where its own streets carry it.)
           const open = (list: number[][]) =>
-            list.filter(
-              (q) => (!gap || Math.hypot(q[0]! - gap.x, q[2]! - gap.z) > CUT_GAP) && clear(q),
-            );
-          pieces[as === "rails" ? "paved" : as].push(
-            ...open(linePieces(g, line, LIFT * 1.4, undefined, onGround)),
-          );
+              list.filter(
+                (q) => (!gap || Math.hypot(q[0]! - gap.x, q[2]! - gap.z) > CUT_GAP) && clear(q),
+              ),
+            // (A way's pieces read once for each stretch of it laid, while the land's ground is as it was laid: the
+            // gangs' sections asked them again eight times a year, every road of the land read again.)
+            a = line[0]!,
+            b = line.at(-1)!,
+            key = `${k}|${as}|${line.length}|${a.x},${a.z}|${b.x},${b.z}|${gap ? `${gap.x},${gap.z}` : ""}`,
+            kept = this.wayPieces.get(key),
+            done =
+              kept ??
+              (() => {
+                const ground = open(linePieces(g, line, LIFT * 1.4, undefined, onGround));
+                let rails: number[][] = [],
+                  side: { x: number; z: number }[] = [];
+                if (as === "rails") {
+                  // The railway beside the road: its bed a little to one side.
+                  const off = ROAD_WIDE.paved * 0.9;
+                  side = line.map((p, i) => {
+                    const q = line[Math.min(line.length - 1, i + 1)]!,
+                      r = line[Math.max(0, i - 1)]!,
+                      dx = q.x - r.x,
+                      dz = q.z - r.z,
+                      n = Math.hypot(dx, dz) || 1;
+                    return { x: p.x - (dz / n) * off, z: p.z + (dx / n) * off };
+                  });
+                  rails = open(linePieces(g, side, LIFT * 1.6, undefined, onGround));
+                }
+                const made = { ground, rails, side };
+                this.wayPieces.set(key, made);
+                return made;
+              })();
+          pieces[as === "rails" ? "paved" : as].push(...done.ground);
           if (as === "rails") {
-            // The railway beside the road: its bed a little to one side.
-            const off = ROAD_WIDE.paved * 0.9,
-              side = line.map((p, i) => {
-                const q = line[Math.min(line.length - 1, i + 1)]!,
-                  r = line[Math.max(0, i - 1)]!,
-                  dx = q.x - r.x,
-                  dz = q.z - r.z,
-                  n = Math.hypot(dx, dz) || 1;
-                return { x: p.x - (dz / n) * off, z: p.z + (dx / n) * off };
-              });
-            pieces.rails.push(...open(linePieces(g, side, LIFT * 1.6, undefined, onGround)));
-            this.railWays.push({ way: wayOf(side), busy: road.traffic });
+            pieces.rails.push(...done.rails);
+            this.railWays.push({ way: wayOf(done.side), busy: road.traffic });
           }
         };
       lay(built, look);
