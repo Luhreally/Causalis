@@ -5973,11 +5973,15 @@ async function runPlanetPage(): Promise<void> {
           k = LAND_ACROSS / VILLAGE_METRE,
           x = (found.at?.x ?? 0) + eye.x * k,
           z = (found.at?.z ?? 0) + eye.z * k;
-        if (found.at) rig.target.set(x, region.heightAt(x, z), z);
         rig.userZoomed = true;
-        rig.distance = Math.max(l.min, Math.min(l.max, eye.d * k));
-        rig.yaw = eye.yaw;
-        rig.pitch = Math.max(l.minPitch, Math.min(l.maxPitch, eye.pitch));
+        // (Out of a people's town on another world, to that world: as before.)
+        if (scaleNow() !== "region") rig.distance = 18;
+        else {
+          if (found.at) rig.target.set(x, region.heightAt(x, z), z);
+          rig.distance = Math.max(l.min, Math.min(l.max, eye.d * k));
+          rig.yaw = eye.yaw;
+          rig.pitch = Math.max(l.minPitch, Math.min(l.maxPitch, eye.pitch));
+        }
       } else if (scale === "region" && onColony()) {
         // (A colony's land: out to its world seen whole, its halls turned to.)
         await fadeOver(() => toColonyWorld(regionCell));
