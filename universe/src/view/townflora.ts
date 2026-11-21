@@ -12,7 +12,7 @@ import {
   type FloraTiles,
   type VillagePlan,
 } from "../bridge/index.ts";
-import { kindWater, lifePalette } from "./globe.ts";
+import { EARTH_WATERS, kindWater, lifePalette } from "./globe.ts";
 import type { Rgb } from "./sandbox.ts";
 import { clearAt, villageGround } from "./ground.ts";
 import { countryOf } from "./country.ts";
@@ -92,7 +92,8 @@ export function townGroundOf(plan: VillagePlan): TownGround | null {
   }
   const palette = lifePalette(plan.kind, plan.lifeLook),
     seed = Math.abs(plan.seed | 0),
-    lake = kindWater(plan.kind)?.lake ?? [0.2, 0.4, 0.6],
+    // (Its land's lakes' colour, as the land shows them: render/village.ts draws its water so.)
+    lake = kindWater(plan.kind)?.lake ?? EARTH_WATERS.lake,
     colors: Rgb[] = [];
   for (let t = 0; t < n; t++)
     colors.push(water[t] ? [lake[0], lake[1], lake[2]] : tileGround(palette, read, t, seed + t));

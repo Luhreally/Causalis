@@ -232,6 +232,11 @@ type Drawn = {
 type Spot = { readonly x: number; readonly y: number; readonly z: number; readonly ref: string };
 
 const NEXT = 0.008;
+/**
+ * How long a beast of the middle size is drawn on the land (region units, ~km): a symbol, as a town is drawn larger than
+ * it is (LAND_SCALE), the same at every zoom: a dozen pixels and more from 40 off, a few from the land's farthest.
+ */
+const BEAST = 0.4;
 
 /** Count a part toward its colour's batch (an alien beast's other shapes toward a batch of their own). */
 function want(
@@ -283,7 +288,6 @@ export class LandHerdsLayer {
   private gone = 0;
   private last = 0;
   private share = -1;
-  private distance = 40;
   private moundBatch: InstancedBatch | null = null;
   private holeBatch: InstancedBatch | null = null;
 
@@ -296,11 +300,6 @@ export class LandHerdsLayer {
     this.root = root;
     this.box = meshes.box;
     this.dome = meshes.dome;
-  }
-
-  /** How far off the eye is: a beast is drawn so as to be told at this far. */
-  eye(distance: number): void {
-    this.distance = distance;
   }
 
   private slot(key: string, rgb: Rgb, n: number, shape = 0): void {
@@ -499,17 +498,11 @@ export class LandHerdsLayer {
     const wall = performance.now() / 1000;
     if (running && this.last) this.gone += Math.min(0.25, wall - this.last);
     this.last = wall;
-    if (
-      !running &&
-      Math.abs(share - this.share) < 1e-5 &&
-      this.spots.length &&
-      this.lastDistance === this.distance
-    )
-      return;
+    if (!running && Math.abs(share - this.share) < 1e-5 && this.spots.length) return;
     this.share = share;
-    this.lastDistance = this.distance;
-    // A beast is drawn this long: a symbol of a dozen or more pixels at any zoom, at the size of its kind.
-    const L = Math.max(0.16, Math.min(9, this.distance * 0.035));
+    // A beast is drawn this long, at the size of its kind: the same at every zoom (it was the eye's distance's share, so
+    // a herd swelled and spread as the eye drew back; the owner's rule, 2026-11-21: nothing drawn changes with the camera).
+    const L = BEAST;
     for (const b of this.batches.values()) b.n = 0;
     this.spots = [];
     const put = (
@@ -638,7 +631,6 @@ export class LandHerdsLayer {
     for (const d of dens) this.spots.push({ x: d.x, y: d.y + R * 0.5, z: d.z, ref: d.ref });
     void towns;
   }
-  private lastDistance = -1;
 
   /** The page of what is nearest a point of the screen, within a finger's reach. */
   pick(cam: pc.CameraComponent, x: number, y: number, reach = 30): string | null {

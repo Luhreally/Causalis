@@ -425,6 +425,7 @@ import {
 } from "../bridge/index.ts";
 import type { WealthBook, WealthMeasure } from "../bridge/index.ts";
 import {
+  LAND_ACROSS,
   LONG_WALK,
   hasSpires,
   longWalks,
@@ -2988,11 +2989,20 @@ async function runPlanetPage(): Promise<void> {
   setInterval(() => {
     if (scale === "globe" && NAMED.includes(lens)) void readNames();
   }, 5000);
-  let namesAt = 0;
+  let namesAt = 0,
+    namesFrame = 0;
+  // Which names fit, and how large (a share of their size), chosen a dozen times a second; each name's place worked out
+  // every frame (it went with the globe in steps, a dozen a second), and each eased in and out and between sizes, never
+  // coming, going or changing size within a frame (the owner's rule, 2026-11-21).
+  let nameFits = new Map<string, number>();
+  const nameShown = new Map<string, { a: number; k: number }>(),
+    NAME_FADE = 0.25;
   stage.onUpdate(() => {
     if (scale !== "globe" || !NAMED.includes(lens)) {
       if (namesAt) {
         mapNames.clear();
+        nameShown.clear();
+        nameFits = new Map();
         namesAt = 0;
       }
       return;
@@ -3002,10 +3012,9 @@ async function runPlanetPage(): Promise<void> {
       namesAt = 1;
       return;
     }
-    // (Laid out a dozen times a second: they move with the globe, not with each frame.)
-    const t = performance.now();
-    if (t - namesAt < 80) return;
-    namesAt = t;
+    const t = performance.now(),
+      dt = Math.min(0.1, Math.max(0, (t - (namesFrame || t)) / 1000));
+    namesFrame = t;
     const points = realmNames.flatMap((r) => {
       const s = r.shape;
       return [
@@ -3030,7 +3039,7 @@ async function runPlanetPage(): Promise<void> {
       if (angle > 90) angle -= 180;
       if (angle < -90) angle += 180;
       const alpha = Math.min(1, (c.facing - 0.25) / 0.3);
-      if (size < 8) return;
+      if (size < 4) return;
       laid.push({
         lands: r.lands,
         name: { key: r.ref, text: r.text, x: c.x, y: c.y, angle, size, alpha },
@@ -3043,26 +3052,52 @@ async function runPlanetPage(): Promise<void> {
                 y: seat.y,
                 angle: 0,
                 size: Math.max(10, Math.min(18, size * 0.7)),
-                alpha,
+                alpha: alpha * Math.min(1, Math.max(0, (seat.facing - 0.25) / 0.3)),
                 seat: true,
               }
             : null,
       });
     });
     // (The largest first; one that would cross another is left out, as such maps do.)
-    const fits = namesThatFit(
-      laid.map((l) => ({ ...l.name, chars: l.name.text.length, rank: l.lands })),
-    );
-    laid.forEach((l, i) => {
-      const k = fits[i]!;
-      if (k) names.push({ ...l.name, size: l.name.size * k });
-    });
-    // A seat's star, where it does not sit on a name's letters.
-    const written = names.map((n) => ({ ...n, chars: n.text.length }));
-    laid.forEach((l, i) => {
-      const s = l.seat;
-      if (s && fits[i] && !written.some((n) => withinName(n, s.x, s.y))) names.push(s);
-    });
+    if (t - namesAt >= 80) {
+      namesAt = t;
+      const fits = namesThatFit(
+          laid.map((l) => ({ ...l.name, chars: l.name.text.length, rank: l.lands })),
+        ),
+        fitNow = new Map<string, number>();
+      laid.forEach((l, i) => {
+        if (fits[i]) fitNow.set(l.name.key, fits[i]!);
+      });
+      // A seat's star, where it does not sit on a name's letters.
+      const written = laid.flatMap((l, i) =>
+        fits[i] ? [{ ...l.name, size: l.name.size * fits[i]!, chars: l.name.text.length }] : [],
+      );
+      laid.forEach((l, i) => {
+        const s = l.seat;
+        if (s && fits[i] && !written.some((n) => withinName(n, s.x, s.y))) fitNow.set(s.key, 1);
+      });
+      nameFits = fitNow;
+    }
+    const ease = 1 - Math.exp(-dt * 10),
+      seen = new Set<string>(),
+      show = (n: MapName) => {
+        seen.add(n.key);
+        const want = nameFits.get(n.key) ?? 0;
+        let st = nameShown.get(n.key);
+        if (!st) {
+          if (!want) return;
+          nameShown.set(n.key, (st = { a: 0, k: want }));
+        }
+        st.a = want ? Math.min(1, st.a + dt / NAME_FADE) : Math.max(0, st.a - dt / NAME_FADE);
+        if (want) st.k += (want - st.k) * ease;
+        if (st.a > 0)
+          names.push({ ...n, size: n.seat ? n.size : n.size * st.k, alpha: n.alpha * st.a });
+      };
+    for (const l of laid) {
+      show(l.name);
+      if (l.seat) show(l.seat);
+    }
+    for (const [key, st] of nameShown) if (!seen.has(key) || st.a <= 0) nameShown.delete(key);
     mapNames.update(names);
   });
   regionPanel.onLens = (l) => {
@@ -3662,7 +3697,7 @@ async function runPlanetPage(): Promise<void> {
     // (While a war is watched unfolding, its marks only: the towns' names stand aside.)
     const named = campaign || warAge ? [] : globeTowns.named(stage.camera.camera!, rig.distance),
       counters = [...visitMarks(), ...siegeMarks(), ...campaignMarks(), ...globeCounters()];
-    if (named.length || counters.length || townsNamed)
+    if (named.length || counters.length || townsNamed || labels.busy)
       labels.update([
         ...counters,
         ...named.map((n) => ({
@@ -4276,6 +4311,7 @@ async function runPlanetPage(): Promise<void> {
   // the labels and the host's interest all move together.
   const toRegion = (cell: number) => {
     scale = "region";
+    labels.clear();
     // (A land of another body shows its own ground, no lens of the home world's.)
     const offworld = isColonyLand(cell);
     // The globe's lens, seen in the land too (M95): its terrain, the land's own; else the map's.
@@ -5333,7 +5369,7 @@ async function runPlanetPage(): Promise<void> {
             : [],
         )
       : [];
-    if (named.length || hallsNamed) labels.update(named);
+    if (named.length || hallsNamed || labels.busy) labels.update(named);
     hallsNamed = named.length > 0;
   });
   // A world's settled ground (Worlds filled): its cells in the order they fill, and how many of them now. Read again every
@@ -5589,7 +5625,7 @@ async function runPlanetPage(): Promise<void> {
     galaxyPlan ??= await client.query<GalaxyPlan>({ type: "galaxy.plan" });
     scale = "galaxy";
     // (The names of the stars around: nothing here draws over them.)
-    labels.update([]);
+    labels.clear();
     stage.backdrop("space");
     globe.visible = false;
     planetPanel.visible = false;
@@ -5703,6 +5739,9 @@ async function runPlanetPage(): Promise<void> {
   const fadeOver = async (swapNow: () => Promise<void> | void) => {
     swap.classList.add("on");
     await new Promise((r) => setTimeout(r, 90));
+    // (The names over the scene left go with it, not fading over the next.)
+    labels.clear();
+    bubbles.clear();
     try {
       await swapNow();
     } finally {
@@ -5902,13 +5941,35 @@ async function runPlanetPage(): Promise<void> {
       if (scale === "camp") await leaveCamp();
       else if (scale === "battle") await leaveBattle();
       else if (scale === "village") {
-        const tile = villages.find((v) => v.ref === plan?.ref)?.tile;
-        await fadeOver(() => villagePanel.onBack?.());
-        // Low over the village, its land about it.
-        const at = tile === undefined ? null : region.groundAt(tile);
-        if (at) rig.target.set(at.x, at.y, at.z);
+        // Over the village as the town's eye was (the owner's rule, 2026-11-21: no step in the eye at a swap): the point
+        // it looked at, as far off as the town drawn on its land stands as large, turned and leaning as it was. (Behind the
+        // swap's shade, the town's place on its land waited for: come to the town straight from the globe, the land had
+        // none of its towns yet, and the eye came out over the land's middle.)
+        const ref = plan?.ref,
+          eye = {
+            x: rig.target.x,
+            z: rig.target.z,
+            d: rig.distance,
+            yaw: rig.yaw,
+            pitch: rig.pitch,
+          };
+        const found: { at: { x: number; z: number } | null } = { at: null };
+        await fadeOver(async () => {
+          villagePanel.onBack?.();
+          for (let i = 0; ref && i < 60 && scaleNow() === "region"; i++) {
+            if ((found.at = region.land.townAt(ref))) break;
+            await new Promise((r) => setTimeout(r, 50));
+          }
+        });
+        const l = rig.limits,
+          k = LAND_ACROSS / VILLAGE_METRE,
+          x = (found.at?.x ?? 0) + eye.x * k,
+          z = (found.at?.z ?? 0) + eye.z * k;
+        if (found.at) rig.target.set(x, region.heightAt(x, z), z);
         rig.userZoomed = true;
-        rig.distance = 18;
+        rig.distance = Math.max(l.min, Math.min(l.max, eye.d * k));
+        rig.yaw = eye.yaw;
+        rig.pitch = Math.max(l.minPitch, Math.min(l.maxPitch, eye.pitch));
       } else if (scale === "region" && onColony()) {
         // (A colony's land: out to its world seen whole, its halls turned to.)
         await fadeOver(() => toColonyWorld(regionCell));
@@ -5921,7 +5982,8 @@ async function runPlanetPage(): Promise<void> {
           looked = parent?.[region.tileAt(rig.target.x, rig.target.z)],
           spot = looked ?? centres.get(regionCell);
         await fadeOver(() => toGlobe());
-        if (spot !== undefined) faceSpot(spot, 1.6);
+        // (As near the globe as it comes: the nearest to the land's farthest eye it can.)
+        if (spot !== undefined) faceSpot(spot, rig.limits.min);
       } else if (scale === "globe") {
         await fadeOver(() => ready("the sky", () => toSystem(), true));
         // Close on the home world (followed round its orbit), the rest of its system about it.
@@ -6145,9 +6207,28 @@ async function runPlanetPage(): Promise<void> {
       }
       if (best < 0 && !battleTown) return;
       if (battleTown) regionCell = land;
-      const ref = battleTown ?? villages[best]!.ref;
+      const ref = battleTown ?? villages[best]!.ref,
+        // (The land's eye, to come into the town as it was: the point it looked at, as far off as the town drawn on the
+        // land stood as large, turned and leaning as it was. The owner's rule, 2026-11-21.)
+        townOn = region.land.townAt(ref),
+        eye = { x: rig.target.x, z: rig.target.z, d: rig.distance, yaw: rig.yaw, pitch: rig.pitch };
       await fadeOver(() => ready("the village", () => toVillage(ref)));
       if (war?.startsWith("ev:")) faceBattle();
+      else if (townOn && scaleNow() === "village" && plan?.ref === ref && !plan.colony) {
+        const l = rig.limits,
+          k = VILLAGE_METRE / LAND_ACROSS,
+          b = rig.bounds,
+          x = (eye.x - townOn.x) * k,
+          z = (eye.z - townOn.z) * k,
+          r = Math.hypot(x, z),
+          s = b && r > b.reach ? b.reach / r : 1;
+        rig.halt();
+        rig.userZoomed = true;
+        rig.target.set(x * s, 0, z * s);
+        rig.distance = Math.max(l.min, Math.min(l.max, eye.d * k));
+        rig.yaw = eye.yaw;
+        rig.pitch = Math.max(l.minPitch, Math.min(l.maxPitch, eye.pitch));
+      }
     } else if (scale === "world") {
       // (Down to the land about its halls, if it has any under or near the pointer, Phase 64;
       // a world with none goes in no further.)
@@ -6472,7 +6553,8 @@ async function runPlanetPage(): Promise<void> {
         stance: followedRefs.has(h.realm) ? "ours" : followedRefs.has(h.enemy) ? "foe" : undefined,
       },
     }));
-    if (counters.length || met.length || fleetsNamed) labels.update([...counters, ...met]);
+    if (counters.length || met.length || fleetsNamed || labels.busy)
+      labels.update([...counters, ...met]);
     fleetsNamed = counters.length + met.length > 0;
   });
   stage.onUpdate(() => {
@@ -6562,7 +6644,6 @@ async function runPlanetPage(): Promise<void> {
           })
           .catch(() => {});
       }
-      region.land.herds.eye(rig.distance);
       region.layOn();
       region.land.update(now(), time.speed > 0);
       if (region.burnsNow(now(), time.pace, rig.distance, time.speed > 0)) paintRegion();

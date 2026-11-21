@@ -40,6 +40,7 @@ import {
   SKIN,
   dressedOn,
   biomeColor,
+  EARTH_WATERS,
   kindWater,
   cropColor,
   FAIR_YEAR,
@@ -849,7 +850,9 @@ export class VillageScene {
     }
     // Its land's water, as its land's map draws it, share by share (bridge/claims.ts wetShares): no lake laid over the
     // land. (A people of the water's keeps its old round of water.)
-    const waterColor = kindWater(plan.kind)?.lake ?? [0.2, 0.4, 0.6];
+    // (In its land's lakes' colour, as the land shows them: the town's water was a darker blue of its own, and changed
+    // colour as the eye came down from the land.)
+    const waterColor = kindWater(plan.kind)?.lake ?? EARTH_WATERS.lake;
     if (plan.landWater?.wet) {
       const shares = wetShares(plan.landWater, 4200);
       if (shares.length) {

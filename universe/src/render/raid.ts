@@ -757,15 +757,13 @@ export class RaidLayer {
       drift = Math.min(110, Math.max(0, s - 30) * 0.25),
       hx = x + WIND_X * drift,
       hz = z + WIND_Z * drift,
-      // (A puff the eye is in, or nearly, is not drawn: it would fill the screen.)
-      clear = (px: number, py: number, pz: number, size: number, out: number[]) => {
-        if (
-          !eye ||
-          (px - eye.x) ** 2 + (py - eye.y) ** 2 + (pz - eye.z) ** 2 > (size * 0.55 + 3) ** 2
-        )
-          return true;
-        none(out);
-        return false;
+      // (A puff the eye is in, or nearly, is not drawn: it would fill the screen. It shrinks away as the eye comes into
+      // it, over half its reach again, not gone within a frame: the owner's rule, 2026-11-21.)
+      clear = (px: number, py: number, pz: number, size: number) => {
+        if (!eye) return 1;
+        const R = size * 0.55 + 3,
+          d = Math.hypot(px - eye.x, py - eye.y, pz - eye.z);
+        return Math.min(1, Math.max(0, (d - R) / (R * 0.5)));
       };
     // White, swelling over the town and gone in moments, rising a little as it goes.
     this.greatHot.set(s < 7 ? 1 : 0, (_, out) => {
@@ -785,12 +783,12 @@ export class RaidLayer {
         px = hx + Math.cos(a) * reach,
         py = H - r * 0.2 + ((n % 3) - 1) * r * 0.25,
         pz = hz + Math.sin(a) * reach;
-      if (!clear(px * M, py * M, pz * M, size * M, out)) return;
+      const seen = clear(px * M, py * M, pz * M, size * M);
       out[0] = px * M;
       out[1] = py * M;
       out[2] = pz * M;
-      out[3] = out[5] = size * M;
-      out[4] = size * 0.85 * M;
+      out[3] = out[5] = size * seen * M;
+      out[4] = size * 0.85 * seen * M;
       out[6] = a;
     });
     // Its head: two rings of puffs rolling about its roll, outward over the top and in under it; a crown over them.
@@ -815,12 +813,12 @@ export class RaidLayer {
         pz = hz + Math.sin(a) * reach;
         size = r * 1.35 * form * (0.6 + 0.4 * thin);
       }
-      if (!clear(px * M, py * M, pz * M, size * M, out)) return;
+      const seen = clear(px * M, py * M, pz * M, size * M);
       out[0] = px * M;
       out[1] = py * M;
       out[2] = pz * M;
-      out[3] = out[5] = size * M;
-      out[4] = size * 0.82 * M;
+      out[3] = out[5] = size * seen * M;
+      out[4] = size * 0.82 * seen * M;
       out[6] = n * 0.7;
     });
     // Its column: drawn up from the ground into its head, broad at the foot and narrowing, leaning as its head drifts.
@@ -834,12 +832,12 @@ export class RaidLayer {
         px = x + WIND_X * drift * lean + Math.cos(a) * wide * 0.12,
         pz = z + WIND_Z * drift * lean + Math.sin(a) * wide * 0.12,
         size = 2 * wide;
-      if (!clear(px * M, py * M, pz * M, size * M, out)) return;
+      const seen = clear(px * M, py * M, pz * M, size * M);
       out[0] = px * M;
       out[1] = py * M;
       out[2] = pz * M;
-      out[3] = out[5] = size * M;
-      out[4] = Math.max(size, ((top - 15) / COLUMN) * 1.6) * M;
+      out[3] = out[5] = size * seen * M;
+      out[4] = Math.max(size, ((top - 15) / COLUMN) * 1.6) * seen * M;
       out[6] = a;
     });
     // About its foot, a ring of dust going out and settling; and before it, the shock going out over the town as it takes it.
@@ -865,12 +863,12 @@ export class RaidLayer {
         py = size * 0.22;
         flat = 0.55;
       }
-      if (!clear(px * M, py * M, pz * M, size * M, out)) return;
+      const seen = clear(px * M, py * M, pz * M, size * M);
       out[0] = px * M;
       out[1] = py * M;
       out[2] = pz * M;
-      out[3] = out[5] = size * M;
-      out[4] = size * flat * M;
+      out[3] = out[5] = size * seen * M;
+      out[4] = size * flat * seen * M;
       out[6] = a;
     });
   }

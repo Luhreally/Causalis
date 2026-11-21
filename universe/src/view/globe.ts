@@ -345,6 +345,13 @@ const KIND_WATERS: Readonly<Record<string, KindWaters>> = {
   },
 };
 
+/** A rocky world's waters as its land shows them: one colour of each in every view (land, town), so a swap changes none. */
+export const EARTH_WATERS: { readonly sea: Rgb; readonly river: Rgb; readonly lake: Rgb } = {
+  sea: [0.05, 0.3, 0.66],
+  river: [0.14, 0.5, 0.88],
+  lake: [0.1, 0.44, 0.8],
+};
+
 /** A world's waters (its liquid, sea, rivers and lakes) by its kind; null for a rocky world's own. */
 export function kindWater(kind: string | undefined): KindWaters | null {
   return (kind && KIND_WATERS[kind]) || null;

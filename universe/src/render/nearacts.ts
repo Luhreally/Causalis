@@ -7,6 +7,7 @@ import * as pc from "playcanvas";
 import type { ActsNear, NearMote } from "../view/index.ts";
 import { InstancedBatch, boxMesh, keptMesh } from "./batch.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
+import { clearOfEye, latticeAt, tiersOf } from "./weather.ts";
 
 /** The most of each kind drawn at once. */
 const MOST = 700;
@@ -49,6 +50,8 @@ export class ActsNearLayer {
   private readonly looks: pc.Material[] = [];
   /** What was drawn last (the look tools). */
   shown = { motes: 0, flames: 0, smoke: 0, light: 0, streak: 0 };
+  /** A mote's place, worked out (kept, so nothing is made each frame). */
+  private readonly place = new Float32Array(3);
 
   constructor(stage: Stage, parent: pc.Entity) {
     const box = keptMesh(boxMesh(stage)),
@@ -89,31 +92,33 @@ export class ActsNearLayer {
     s: number,
     most: number,
   ): void {
-    const d = Math.max(0.5, distance),
-      reach = d * 0.95,
-      clear = (d * 0.35) ** 2,
-      near = (x: number, y: number, z: number) =>
-        (x - eye.x) ** 2 + (y - eye.y) ** 2 + (z - eye.z) ** 2 < clear;
+    const d = Math.max(0.5, distance);
     let motes = 0;
+    const p = this.place;
     for (const kind of MOTE_KINDS) {
       const m = acts?.motes.find((x) => x.kind === kind),
         look = MOTE_LOOK[kind],
-        n = m ? Math.round(Math.min(MOST, most) * m.strength * (kind === "pall" ? 0.25 : 0.6)) : 0;
+        n = m ? Math.round(Math.min(MOST, most) * m.strength * (kind === "pall" ? 0.25 : 0.6)) : 0,
+        // (Each mote at a place of the ground's own, laid at the two powers of two about the eye's distance as the weather
+        // is: render/weather.ts. A pan goes over them, a zoom changes which fall; none moves with the eye.)
+        { t0, n0 } = tiersOf(distance, n);
       motes += n;
       this.motes[kind].set(n, (i, out) => {
         // (Each mote rises or settles through its band and comes round again, drifting as it goes.)
-        const band = m!.low ? d * 0.12 : d * 0.6,
-          speed = Math.abs(m!.rise) * d || d * 0.01,
-          go = (s * speed) / band + rand(i, 0, 1),
+        const tier = i < n0 ? t0 : t0 + 1,
+          id = (i < n0 ? i : i - n0) + tier * 7919,
+          S = 2 ** tier,
+          band = m!.low ? S * 0.12 : S * 0.6,
+          speed = Math.abs(m!.rise) * S || S * 0.01,
+          go = (s * speed) / band + rand(id, 0, 1),
           lap = Math.floor(go),
           f = go - lap,
-          a = rand(i, lap, 2) * Math.PI * 2,
-          r = reach * Math.sqrt(rand(i, lap, 3)),
-          drift = Math.sin(s * 0.7 + rand(i, 0, 4) * 6.28) * d * 0.015,
-          x = at.x + Math.cos(a) * r + drift,
+          drift = Math.sin(s * 0.7 + rand(id, 0, 4) * 6.28) * S * 0.015;
+        latticeAt(at.x, at.z, S, id, lap, 2, p);
+        const x = at.x + p[0]! + drift,
           y = at.y + (m!.rise >= 0 ? f : 1 - f) * band,
-          z = at.z + Math.sin(a) * r - drift * 0.5,
-          k = near(x, y, z) ? 0 : d * look.size * (0.7 + 0.6 * rand(i, 0, 5));
+          z = at.z + p[1]! - drift * 0.5,
+          k = p[2]! * clearOfEye(x, y, z, eye, S) * S * look.size * (0.7 + 0.6 * rand(id, 0, 5));
         out[0] = x;
         out[1] = y;
         out[2] = z;
@@ -134,7 +139,8 @@ export class ActsNearLayer {
     for (const [j, b] of burning.entries()) {
       const nFlames = Math.round(60 * b.strength),
         nSmoke = Math.round(40 * b.strength),
-        size = Math.max(b.r * 0.06, d * 0.006);
+        // (Its town's size, the same at every zoom: the eye's distance's share swelled it as the eye drew back.)
+        size = b.r * 0.06;
       for (let i = 0; i < nFlames; i++) {
         const a = rand(i, j, 6) * Math.PI * 2,
           r = b.r * 0.7 * Math.sqrt(rand(i, j, 7)),

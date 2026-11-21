@@ -605,7 +605,7 @@ export class RegionScene {
     this.firePace = pace;
     // (What grows near the eye, laid again only as the eye moves on: render/flora.ts.)
     this.flora.update(this.stage.camera, distance);
-    return this.fire.update(t, pace, distance, running);
+    return this.fire.update(t, pace, running);
   }
 
   /** The season on the land's woods (null: none told): the broad leaves turned or fallen, snow on them. */

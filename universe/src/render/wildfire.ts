@@ -25,6 +25,8 @@ const FLAMES = { low: 420, high: 700 };
 const PUFFS = { low: 140, high: 220 };
 /** How round a puff of smoke is: few faces, as anything here. */
 const PUFF_BANDS = 3;
+/** The eye's distance a fire's flames and smoke are drawn for (region units): their size on the land, fixed. */
+const FIRE_EYE = 40;
 /** How often the ground is painted again while a fire moves, in real milliseconds at the least. */
 const PAINT_WAIT = 350;
 /** Into how many steps of its tiles and its years a fire's woods are told: each is one planting at most. */
@@ -161,10 +163,10 @@ export class WildfireLayer {
   }
 
   /**
-   * Each frame: the flames and smoke of what burns at moment t, the eye `distance` away. Whether the ground must be painted
-   * again (with `scarred`), a few times a second at most.
+   * Each frame: the flames and smoke of what burns at moment t. Whether the ground must be painted again (with `scarred`), a
+   * few times a second at most.
    */
-  update(t: number, pace: number, distance: number, running: boolean): boolean {
+  update(t: number, pace: number, running: boolean): boolean {
     const wallNow = performance.now();
     if (running) this.seconds += Math.min(0.1, (wallNow - this.wall) / 1000);
     this.wall = wallNow;
@@ -196,8 +198,10 @@ export class WildfireLayer {
     }
     if (flame) this.lookOfFlame(flame);
     if (smoke) this.lookOfSmoke(smoke);
-    const d = Math.max(1, distance),
-      size = Math.max(0.3, Math.min(4, d * 0.013)),
+    // (Their size the land's, the same at every zoom: it was the eye's distance's share, so a fire swelled as the eye drew
+    // back; the owner's rule, 2026-11-21.)
+    const d = FIRE_EYE,
+      size = d * 0.013,
       s = this.seconds;
     if (flames || this.shown.flames)
       this.flames.set(flames, (i, o) => {

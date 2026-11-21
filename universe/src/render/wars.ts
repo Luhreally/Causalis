@@ -30,6 +30,8 @@ const MOST = 700,
 const SKIN: Rgb = [0.9, 0.72, 0.56];
 /** How close the eye comes (the globe's radius 1) before the seats' garrisons show. */
 export const GARRISON_ZOOM = 2.4;
+/** How much nearer than GARRISON_ZOOM a garrison stands whole. */
+const GARRISON_BAND = 0.3;
 
 type V = { x: number; y: number; z: number };
 
@@ -254,7 +256,9 @@ export class GlobeWars {
     const battle = warBattleFigures(paths, s, g),
       fighting = battle.filter((f) => !f.fallen),
       lying = battle.filter((f) => f.fallen),
-      garrison = zoom < GARRISON_ZOOM ? garrisonFigures(paths) : [],
+      // (Grown from their feet as the eye comes in past GARRISON_ZOOM, whole GARRISON_BAND nearer: none comes at once.)
+      grown = Math.min(1, (GARRISON_ZOOM - zoom) / GARRISON_BAND),
+      garrison = grown > 0 ? garrisonFigures(paths, grown) : [],
       standing: Stood[] = [
         ...walkers,
         ...fighting.map((f: BattleFigure) => ({
@@ -706,7 +710,7 @@ export class GlobeWars {
  * Each realm at peace's garrison by its seat: a short line under its banner — two, three for a
  * great realm's — riders if it rides.
  */
-function garrisonFigures(paths: WarPaths): Stood[] {
+function garrisonFigures(paths: WarPaths, grown = 1): Stood[] {
   const out: Stood[] = [];
   for (const g of paths.garrisons) {
     const up = unit(g.at),
@@ -723,7 +727,7 @@ function garrisonFigures(paths: WarPaths): Stood[] {
         up,
         ahead: { x: -t0.x, y: -t0.y, z: -t0.z },
         side: g.side,
-        size: 0.55,
+        size: 0.55 * grown,
         lead: f === Math.floor((files - 1) / 2),
         mounted: g.mounted,
         armoured: g.armoured,

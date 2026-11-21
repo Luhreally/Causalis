@@ -81,9 +81,9 @@ const MOST = 380;
 /**
  * Fought before a town (Phase 55 M227): past how far from the eye (metres, as the scene draws them)
  * a figure is drawn in its larger parts alone (of a tenth of its body's bulk or more), with none of
- * the blows' small marks on it.
+ * the blows' small marks on it; its small parts shrinking to nothing over the last `band` of the way.
  */
-const LOD = { metres: 160, bulk: 0.1 } as const;
+const LOD = { metres: 160, bulk: 0.1, band: 0.25 } as const;
 /**
  * The soldier the god's hand is in seen (Phase 61): the lines from the eye to his feet, his middle
  * and his head (of his height), how near one of them (of his height) one standing between is not
@@ -517,6 +517,8 @@ export class BattleLayer {
   private placed: PlacedFrame | null = null;
   private casting = true;
   private far = new Uint8Array(0);
+  /** Of each one who fought by their id, how large their small parts are drawn (1 near, 0 past LOD; less across its band). */
+  private small = new Float32Array(0);
   private readonly inverse = new pc.Mat4();
   private readonly eyeAt = new pc.Vec3();
   private readonly heardAt = new pc.Vec3();
@@ -898,6 +900,7 @@ export class BattleLayer {
     // (Its ridge's grass its life's own colour: Phase 57.)
     if (g.hill) this.hill = this.ridge(field, lifeTint(grass, body?.folk?.lifeLook));
     this.far = new Uint8Array(field.troopers.length);
+    this.small = new Float32Array(field.troopers.length).fill(1);
     this.cast();
   }
 
@@ -1139,17 +1142,26 @@ export class BattleLayer {
     let shown = 0;
     const limbs = now.limbs ?? [];
     // Before a town (Phase 55 M227): who stands past LOD from the eye.
-    const far = this.far;
+    // (Their small parts shrink to nothing across the last LOD.band of the way, not gone at once: the owner's rule,
+    // 2026-11-21.)
+    const far = this.far,
+      small = this.small;
     if (this.placed) {
       const eye = this.eye(),
-        reach = (LOD.metres * M) / this.placed.scale;
+        reach = (LOD.metres * M) / this.placed.scale,
+        from = reach * (1 - LOD.band);
       for (const t of now.troopers) {
         const dx = t.x * M - eye.x,
           dy = t.y * M - eye.y,
-          dz = t.z * M - eye.z;
-        far[t.id] = dx * dx + dy * dy + dz * dz > reach * reach ? 1 : 0;
+          dz = t.z * M - eye.z,
+          d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        far[t.id] = d > reach ? 1 : 0;
+        small[t.id] = d <= from ? 1 : d >= reach ? 0 : (reach - d) / (reach - from);
       }
-    } else far.fill(0);
+    } else {
+      far.fill(0);
+      small.fill(1);
+    }
     // Each one who fought, in the parts of their figure.
     for (const side of [0, 1] as const) {
       // (The near first: of the far, only their larger parts are drawn.)
@@ -1204,7 +1216,9 @@ export class BattleLayer {
             gone =
               keep === 1 && t.lost !== undefined && (rig.masks[i]! & placeBit(t.lost)) !== 0
                 ? 0
-                : kk;
+                : rig.big[i]
+                  ? kk
+                  : kk * small[t.id]!;
           out[0] = t.x * M + (part.x * c + p.z * sn) * kk;
           out[1] = E.up[j]! + p.y * kk;
           out[2] = t.z * M + (-part.x * sn + p.z * c) * kk;

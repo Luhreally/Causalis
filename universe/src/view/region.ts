@@ -2,7 +2,7 @@
 // terrain mesh. Pure, like every view builder.
 import type { ColonyLook, FrameMessage, LandSky, LandUnderworld } from "../bridge/index.ts";
 import { rockOf } from "../rules/index.ts";
-import { biomeColor, frameKind, frameLook, kindWater } from "./globe.ts";
+import { EARTH_WATERS, biomeColor, frameKind, frameLook, kindWater } from "./globe.ts";
 import type { Rgb } from "./sandbox.ts";
 import { seasonAt, seasonGround, seasonWater, type GroundSeason } from "./weather.ts";
 import { floraClumps, floraColors, floraLandOf } from "./flora.ts";
@@ -114,9 +114,9 @@ function regionColorsOf(frame: FrameMessage, lens: RegionLens): Uint8Array {
   for (let t = 0; t < n; t++) {
     const water = a.water![t]!;
     let c: Rgb;
-    if (water === 1) c = waters?.sea ?? [0.05, 0.3, 0.66];
-    else if (water === 2) c = waters?.river ?? [0.14, 0.5, 0.88];
-    else if (water === 3) c = waters?.lake ?? [0.1, 0.44, 0.8];
+    if (water === 1) c = waters?.sea ?? EARTH_WATERS.sea;
+    else if (water === 2) c = waters?.river ?? EARTH_WATERS.river;
+    else if (water === 3) c = waters?.lake ?? EARTH_WATERS.lake;
     // (The map's lens without the map's colours to hand: the land as it is.)
     else if (colony && lens !== "height" && lens !== "soil") {
       if (a.biome![t] === 4) c = [0.84, 0.89, 0.95];

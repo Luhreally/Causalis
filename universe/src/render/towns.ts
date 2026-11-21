@@ -23,6 +23,8 @@ export type GlobeTown = {
 /** Beyond this distance (the globe's radius is 1) no town is drawn; nearer than NEAR, all are. */
 const FAR = 2.6,
   NEAR = 1.7;
+/** A hut's breadth on the globe (its radius 1), grown in whole. */
+const HUT = 0.006;
 
 export class GlobeTowns {
   readonly root = new pc.Entity("globe-towns");
@@ -78,7 +80,7 @@ export class GlobeTowns {
       return;
     this.grown = k;
     this.lowered = this.low;
-    const s = 0.006 * k,
+    const s = HUT * k,
       huts: [pc.Vec3, pc.Vec3, number][] = [],
       towers: [pc.Vec3, pc.Vec3][] = [];
     if (k > 0)
@@ -88,8 +90,9 @@ export class GlobeTowns {
           east = new pc.Vec3().cross(pc.Vec3.UP, p.up).normalize(),
           north = new pc.Vec3().cross(p.up, east);
         for (let i = 0; i < n; i++) {
+          // (Each hut where it stands, whatever the eye's distance: only its size grows from its foot.)
           const a = i * 2.399963,
-            r = s * 0.9 * Math.sqrt(i + 0.3),
+            r = HUT * 0.9 * Math.sqrt(i + 0.3),
             at = p.at
               .clone()
               .add(east.clone().mulScalar(Math.cos(a) * r))

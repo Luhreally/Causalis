@@ -98,9 +98,16 @@ export class BlazeLayer {
     focus: { x: number; z: number } | null = eye,
   ): void {
     const clock = motion ? s : 0,
-      // (A puff the eye is in, or nearly, is not drawn: it would fill the screen.)
-      clear = (x: number, y: number, z: number, size: number) =>
-        !eye || (x - eye.x) ** 2 + (y - eye.y) ** 2 + (z - eye.z) ** 2 > (size * 0.8 + 4) ** 2,
+      // (A puff the eye is in, or nearly, is not drawn: it would fill the screen. It shrinks away as the eye comes into
+      // it, over half its reach again, not gone within a frame: the owner's rule, 2026-11-21.)
+      clear = (x: number, y: number, z: number, size: number) => {
+        if (!eye) return 1;
+        const R = size * 0.8 + 4;
+        return Math.min(
+          1,
+          Math.max(0, (Math.hypot(x - eye.x, y - eye.y, z - eye.z) - R) / (R * 0.5)),
+        );
+      },
       near = (list: readonly Alight[], most: number): readonly Alight[] =>
         list.length <= most || !focus
           ? list.slice(0, most)
@@ -162,7 +169,7 @@ export class BlazeLayer {
         x = f.x + rise * 9,
         y = f.high + 1 + rise * (10 + 26 * f.k),
         z = f.z + rise * 3.5,
-        k = clear(x, y, z, 6 * grow) ? 1 : 0;
+        k = clear(x, y, z, 6 * grow);
       out[0] = x * M;
       out[1] = y * M;
       out[2] = z * M;
@@ -183,7 +190,7 @@ export class BlazeLayer {
         x = f.x + Math.cos(a) * spread,
         y = 1.2 + gone * 5 + j * 1.3,
         z = f.z + Math.sin(a) * spread,
-        k = clear(x, y, z, wide) ? 1 : 0;
+        k = clear(x, y, z, wide);
       out[0] = x * M;
       out[1] = y * M;
       out[2] = z * M;

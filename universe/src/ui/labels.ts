@@ -23,6 +23,14 @@ const WIDTH_PER_CHAR = 7,
 
 /** How often the panels' places are read again (ms): each read makes the page lay itself out. */
 const READ_EVERY = 200;
+/**
+ * How long a name takes to come or go (s): faded in and out where it stands, never shown or hidden within a frame (the
+ * owner's rule, 2026-11-21: nothing in view pops as the eye moves). A name one that it would overlap keeps it hidden
+ * until clear of it by GIVE px, and one showing keeps showing while it overlaps another by no more than GIVE (no flicker
+ * where two names meet).
+ */
+const FADE = 0.2,
+  GIVE = 3;
 
 export class LabelLayer {
   private readonly root: HTMLElement;
@@ -38,6 +46,11 @@ export class LabelLayer {
   private left = 0;
   private top = 0;
   private readonly shown = new Map<string, { x0: number; x1: number; y0: number; y1: number }>();
+  /** How much each name in the pool shows (0 … 1), and where it was last put (to fade out in place). */
+  private readonly alpha = new Map<string, number>();
+  private readonly lastAt = new Map<string, { x: number; y: number }>();
+  /** When the last update was (performance.now ms). */
+  private lastUpdate = -Infinity;
 
   /**
    * Bars along the top of the scene (each scale's own): a name is kept below the one showing, as
@@ -114,7 +127,10 @@ export class LabelLayer {
           });
     }
     const seen = new Set<string>(),
-      placed = this.blocked.slice();
+      placed = this.blocked.slice(),
+      step = Math.min(0.1, Math.max(0, (now - this.lastUpdate) / 1000)) / FADE;
+    this.lastUpdate = now;
+    const wasShown = new Set(this.shown.keys());
     this.shown.clear();
     const order = [...labels].sort(
       (a, b) => (b.priority ?? 0) - (a.priority ?? 0) || (a.key < b.key ? -1 : 1),
@@ -156,24 +172,60 @@ export class LabelLayer {
           at = { x: Math.max(Math.min(at.x, right - w - EDGE), w + EDGE), y };
         }
       }
+      // (Hidden by another, it fades out where it stands now, still on what it names.)
+      const pos = at;
       if (at) {
-        const box = { x0: at.x - w, x1: at.x + w, y0: at.y - HEIGHT, y1: at.y };
-        if (placed.some((p) => p.x0 < box.x1 && box.x0 < p.x1 && p.y0 < box.y1 && box.y0 < p.y1))
+        const box = { x0: at.x - w, x1: at.x + w, y0: at.y - HEIGHT, y1: at.y },
+          // (Showing: kept while it overlaps by no more than GIVE; hidden: back only once GIVE clear.)
+          g = wasShown.has(l.key) ? -GIVE : GIVE;
+        if (
+          placed.some(
+            (p) => p.x0 < box.x1 + g && box.x0 - g < p.x1 && p.y0 < box.y1 + g && box.y0 - g < p.y1,
+          )
+        )
           at = null;
         else {
           placed.push(box);
           this.shown.set(l.key, box);
         }
       }
-      span.hidden = at === null;
-      if (at)
-        span.style.transform = `translate(${Math.round(at.x)}px, ${Math.round(at.y)}px) translate(-50%, -100%)`;
+      this.fade(l.key, span, pos, at !== null, step);
     }
     for (const [key, span] of this.pool)
       if (!seen.has(key)) {
+        // (Gone from the list: faded out where it last stood, then let go.)
+        if (this.fade(key, span, null, false, step) > 0) continue;
         span.remove();
         this.pool.delete(key);
+        this.alpha.delete(key);
+        this.lastAt.delete(key);
       }
+  }
+
+  /**
+   * A name's showing stepped toward shown or not, put where it stands now (`at`: null, off the screen or gone from the
+   * list: where it last stood); how much it shows now.
+   */
+  private fade(
+    key: string,
+    span: HTMLSpanElement,
+    at: { x: number; y: number } | null,
+    show: boolean,
+    step: number,
+  ): number {
+    const was = this.alpha.get(key) ?? 0,
+      a = show ? Math.min(1, was + step) : Math.max(0, was - step),
+      put = at ?? this.lastAt.get(key);
+    this.alpha.set(key, a);
+    const hide = a <= 0 || !put;
+    if (span.hidden !== hide) span.hidden = hide;
+    if (hide) return 0;
+    if (at) this.lastAt.set(key, at);
+    const o = a >= 1 ? "" : a.toFixed(2);
+    if (span.style.opacity !== o) span.style.opacity = o;
+    if (at && (at.x !== put!.x || at.y !== put!.y || span.style.transform === ""))
+      span.style.transform = `translate(${Math.round(at.x)}px, ${Math.round(at.y)}px) translate(-50%, -100%)`;
+    return a;
   }
 
   /**
@@ -188,7 +240,17 @@ export class LabelLayer {
     return null;
   }
 
+  /** Whether any name is up or fading (its updates must go on, an empty list among them, until none is). */
+  get busy(): boolean {
+    return this.pool.size > 0;
+  }
+
+  /** All names gone at once (the scale they stood over is gone). */
   clear(): void {
-    this.update([]);
+    for (const span of this.pool.values()) span.remove();
+    this.pool.clear();
+    this.alpha.clear();
+    this.lastAt.clear();
+    this.shown.clear();
   }
 }

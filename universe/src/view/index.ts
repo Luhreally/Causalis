@@ -58,6 +58,7 @@ export {
   unknownOverCells,
   warmedFrame,
   woodsOverCells,
+  EARTH_WATERS,
   frameKind,
   frameUndersea,
   globeColors,
