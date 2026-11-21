@@ -273,6 +273,8 @@ export type TownScene = {
   sprawlRoofs?: Float32Array;
   /** Which of its lots are drawn afresh through the year (`active`, by lot: made when first asked). */
   activeLots?: Uint8Array;
+  /** The home its haze stands in (hazeHome: made when first asked). */
+  haze?: { level: number; look: HouseLook };
   /** How many of its sprawl's roofs would stand where its lots past those drawn now do (sprawlLaid: for a budget). */
   sprawlLeft?: number;
   /** The colour of the yards of its blocks past those drawn, and how many pieces their streets were laid in (farGround). */
@@ -1006,6 +1008,10 @@ function sprawlLaid(scene: TownScene): Float32Array {
     const { r0, r1 } = ring,
       far = farOf(scene),
       n = Math.min(3000, Math.round((plan.whole - plan.lots) / 6)),
+      haze = hazeHome(scene),
+      HL = LEVELS[haze.level]!,
+      // (Each the footprint of the home it is: hazeHome.)
+      [footW, footD] = haze.level <= 1 ? lowFoot(HL, haze.look) : [HL.w, HL.d],
       water = plan.water,
       wet = (x: number, z: number, margin: number) =>
         !!water && Math.hypot(x - water.x, z - water.z) < water.r + margin,
@@ -1046,7 +1052,7 @@ function sprawlLaid(scene: TownScene): Float32Array {
         // (By how far out of its sprawl it stands, not by a radius: its sprawl is no ring. A roof read by the old ring's
         // radius stood hundreds of metres high where its outline came in close: 2026-11-20.)
         h = 5 + scatter(plan.seed, i, 2) * 5 + 14 * (1 - out) ** 3,
-        d = 7 + scatter(plan.seed, i, 4) * 4,
+        d = footD,
         x = r * Math.cos(a),
         z = r * Math.sin(a),
         // (Turned as the farthest of its blocks that way are, where they stand: the same streets run on.)
@@ -1054,7 +1060,7 @@ function sprawlLaid(scene: TownScene): Float32Array {
           ? far.turn[Math.floor(((a / (2 * Math.PI) + 1) % 1) * OUTLINE) % OUTLINE]!
           : Math.PI / 2 - a,
         off = ((((a - plan.axis) % sector) + sector) % sector) * r;
-      let w = 10 + scatter(plan.seed, i, 3) * 16;
+      const w = footW;
       // (Off its avenues, and out of its water.)
       if (Math.min(off, sector * r - off) < AVENUE_HALF + w / 2 + 1 || wet(x, z, w / 2 + 4))
         continue;
@@ -1067,16 +1073,9 @@ function sprawlLaid(scene: TownScene): Float32Array {
       // (Off the line its walls stand on out in it, or stood on: their ground, or the ring street where they stood, kept clear.)
       if (walls && Math.abs(r - wallAt(walls, a)) < w / 2 + WALL_THICK + 4) continue;
       // (What it stands on, its eaves with it: a tower's own breadth, a roof's overhang.)
-      const across = (wide: number) =>
-        towers
-          ? { x, z, w: Math.min(wide, 18) + 1, d: Math.min(d * 2, 18) + 1, yaw }
-          : { x, z, w: wide * 1.04 + 1, d: d * 1.1 + 1, yaw };
-      let foot = across(w);
-      if (taken.clashes(foot)) {
-        w = 10;
-        foot = across(w);
-        if (taken.clashes(foot)) continue;
-      }
+      // (What it stands on, its eaves with it.)
+      const foot = { x, z, w: w * 1.15 + 1, d: d * 1.15 + 1, yaw };
+      if (taken.clashes(foot)) continue;
       taken.add(foot);
       rows.push(x, z, w, d, h, yaw, out, i);
     }
@@ -1087,33 +1086,44 @@ function sprawlLaid(scene: TownScene): Float32Array {
 
 /** A great city's roofs past those drawn, between so far and so far from its middle (metres). */
 function sprawlRoofs(scene: TownScene, out: TownParts, from: number, to: number): void {
-  const { plan, looks } = scene,
-    roofs = sprawlLaid(scene),
-    towers = hasSpires(plan);
+  const roofs = sprawlLaid(scene),
+    { level, look } = hazeHome(scene);
   for (let k = 0; k < roofs.length; k += ROOF) {
     const x = roofs[k]!,
       z = roofs[k + 1]!,
-      w = roofs[k + 2]!,
-      d = roofs[k + 3]!,
-      h = roofs[k + 4]!,
-      yaw = roofs[k + 5]!,
-      i = roofs[k + 7]!,
-      r = Math.hypot(x, z),
-      look = looks[i % looks.length]!;
+      r = Math.hypot(x, z);
     if (r < from || r >= to) continue;
-    if (towers) {
-      // Towers and more towers, tallest toward its heart, their floors lit, into the haze.
-      const near = 1 - roofs[k + 6]!,
-        high = 34 + 40 * scatter(plan.seed, i, 5) + 170 * near * near * scatter(plan.seed, i, 6),
-        glass = SPIRE_GLASS[i % SPIRE_GLASS.length]!;
-      out.put("box", glass, x, high / 2, z, Math.min(w, 18), high, Math.min(d * 2, 18), yaw);
-      for (const up of [0.46, 0.8])
-        out.lamp(x, high * up, z, Math.min(w, 18) * 1.01, 1.8, Math.min(d * 2, 18) * 1.01, yaw);
-      continue;
-    }
-    out.put("box", look.wall, x, h / 2, z, w, h, d, yaw);
-    out.put("gable", look.roof, x, h + 1.1, z, w * 1.04, 2.2, d * 1.1, yaw);
+    // (The same homes as those its lots past those drawn stand in at their edge, their walls and roofs alone.)
+    home(out, look, level, x, z, roofs[k + 5]!, 1, 1, -1);
   }
+}
+
+/**
+ * The home its haze stands in: the level and design most of the homes at its edge are of (the last 2,000 of its lots past
+ * those drawn, else of its own lots), so that its haze is more of the same town.
+ */
+function hazeHome(scene: TownScene): { level: number; look: HouseLook } {
+  if (scene.haze) return scene.haze;
+  const far = farOf(scene),
+    count = new Map<number, number>();
+  if (far)
+    for (let k = Math.max(0, far.count - 2000); k < far.count; k++) {
+      if (far.level[k]! < 0) continue;
+      const key = far.level[k]! * 1000 + far.design[k]!;
+      count.set(key, (count.get(key) ?? 0) + 1);
+    }
+  if (!count.size)
+    for (const p of scene.settled.slice(-500)) {
+      if (scene.states.what[p] !== LOT.home) continue;
+      const key = scene.states.level[p]! * 1000 + scene.states.design[p]!;
+      count.set(key, (count.get(key) ?? 0) + 1);
+    }
+  let best = 1000 + scene.looks.length - 1,
+    most = 0;
+  for (const [key, n] of count) if (n > most || (n === most && key < best)) [best, most] = [key, n];
+  const level = Math.max(0, Math.min(TOP_LEVEL, Math.floor(best / 1000))),
+    look = scene.looks[best % 1000] ?? scene.looks[0]!;
+  return (scene.haze = { level, look });
 }
 
 /**
@@ -2010,7 +2020,8 @@ function home(
   roof = 1,
   /**
    * How finely: 2 whole; 1 as seen from afar, its chimney and what stands on its roof left off (homeLod); 0 further off
-   * still, a hut's or a house's two front windows left off too (rowsLod). All else the same building.
+   * still, a hut's or a house's two front windows left off too (rowsLod); -1 in the haze past all its lots drawn, its
+   * walls and roof alone (sprawlRoofs). All else the same building.
    */
   fine = 2,
 ): void {
@@ -2075,7 +2086,7 @@ function home(
       yaw,
     );
     // (A row of windows on each storey, front and back, and a chimney.)
-    if (grow >= 1)
+    if (grow >= 1 && fine >= 0)
       for (let k = 0; k < L.storeys; k++)
         out.lamp(x, ((k + 0.55) / L.storeys) * h, z, L.w * 0.78, 0.9, L.d * 1.02, yaw);
     if (roof >= 1 && fine >= 2) {
@@ -2094,7 +2105,8 @@ function home(
   out.put("box", wall, x, h / 2, z, L.w, h, L.d, yaw);
   // Storeys told by bands of windows, lit at night (fewer bands than storeys on the tall ones;
   // a tower's between the frames of its floors).
-  const bands = Math.min(6, Math.max(1, Math.floor((L.storeys * grow) / (level === 5 ? 4 : 2))));
+  const bands =
+    fine < 0 ? 0 : Math.min(6, Math.max(1, Math.floor((L.storeys * grow) / (level === 5 ? 4 : 2))));
   for (let k = 0; k < bands; k++) {
     const y = ((k + 0.6) / bands) * h;
     if (level === 5) {
