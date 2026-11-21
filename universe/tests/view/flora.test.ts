@@ -432,11 +432,9 @@ test("one forest: a piece of land laid again lays the same things; thinner, the 
       `${t.x.toFixed(6)},${t.z.toFixed(6)},${t.w.toFixed(6)},${t.h.toFixed(6)},${t.r.toFixed(6)}`;
   let whole = 0,
     thin = 0;
-  for (const [ci, cj] of [
-    [3, 1],
-    [-2, 4],
-    [0, 0],
-  ] as const) {
+  const pieces: [number, number][] = [];
+  for (let ci = -3; ci < 3; ci++) for (let cj = -1; cj < 3; cj++) pieces.push([ci * 2 + 1, cj * 2]);
+  for (const [ci, cj] of pieces) {
     const a = nearChunk(land, ci, cj, all, free),
       again = nearChunk(land, ci, cj, all, free),
       q = nearChunk(land, ci, cj, quarter, free);

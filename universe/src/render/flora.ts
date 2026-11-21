@@ -51,7 +51,7 @@ const LAY_SLICE = 4;
 export const NEAR_ON = 18;
 const NEAR_FROM = 0.7;
 /** How far the eye may go before a piece of land is laid finer than it is then drawn (region units). */
-const MARGIN = 0.6;
+const MARGIN = 0.4;
 /** Trees a square unit of a thick wood holds near (the lattice's, in groves), for reckoning how many a core draws. */
 const THICK = 115;
 /** The thinnest share a piece is laid at short of none (its fewest: the lowest ranks). */
@@ -437,7 +437,9 @@ export class FloraLayer {
     this.eye.z = this.at.z;
     this.eyeHeight = Math.max(0.05, this.at.y - this.heightAt(this.at.x, this.at.z));
     const trees = nearBudget(this.stage.quality.regionTrees).trees;
-    this.core = coreFor(trees, this.eyeHeight, FIELD.trees.out, 3.2 * Math.sqrt(trees / 3600));
+    // (About half the setting's trees drawn at once: the pieces about the eye are laid finer than drawn, by as much again, so
+    // what comes in as it moves is there to fade in.)
+    this.core = coreFor(trees / 2, this.eyeHeight, FIELD.trees.out, 2.3 * Math.sqrt(trees / 3600));
     if (distance > NEAR_ON * 1.15) {
       if (this.pieces.size || this.queue.length) this.clearNear();
     } else {
