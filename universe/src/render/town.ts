@@ -59,7 +59,7 @@ import {
   placeInstance,
 } from "./batch.ts";
 import { domeMesh } from "./colony.ts";
-import type { Rgb, Stage } from "./stage.ts";
+import { tonedMaterial, type Rgb, type Stage } from "./stage.ts";
 
 const M = 0.1;
 /**
@@ -86,6 +86,12 @@ class PartBatches {
   /** The windows' glass, lit at night (its batch made anew when it changes). */
   lamps: pc.Material | null = null;
   private lampsIn: pc.Material | null = null;
+  /**
+   * The walls' material and the roofs' (snow lies on these alone), shared by every batch of them made: one made for each
+   * batch first come as the eye moved (a tank once a tenement was drawn whole) was a program built in that frame, half a
+   * second of WebKit's (2026-11-21).
+   */
+  private toned: { wall: pc.StandardMaterial; roof: pc.StandardMaterial } | null = null;
   private snow = 0;
   constructor(stage: Stage, root: pc.Entity, meshes: Readonly<Record<PartMesh, pc.Mesh>>) {
     this.stage = stage;
@@ -154,13 +160,18 @@ class PartBatches {
       let b = this.batches.get(key);
       if (!b || b.capacity < set.n || (set.lamp && this.lampsIn !== this.lamps)) {
         b?.destroy();
+        this.toned ??= { wall: tonedMaterial(), roof: tonedMaterial() };
         b = new InstancedBatch(
           this.stage,
           this.meshes[set.mesh],
           [set.groups[0]!.color[0], set.groups[0]!.color[1], set.groups[0]!.color[2]],
           Math.max(16, Math.ceil(set.n * 1.3)),
           this.root,
-          set.lamp ? (this.lamps ?? undefined) : undefined,
+          set.lamp
+            ? (this.lamps ?? undefined)
+            : key.endsWith("|roof")
+              ? this.toned.roof
+              : this.toned.wall,
           !set.lamp,
         );
         if (set.lamp) this.lampsIn = this.lamps;
