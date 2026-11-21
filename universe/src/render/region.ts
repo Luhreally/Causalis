@@ -389,12 +389,15 @@ export class RegionScene {
     this.flora.setGround(free ?? ((x, z) => !facetWet(g, x, z)), this.fire.bareAt);
   }
 
-  /** The region's woods: a low-poly crown for each tree, on the ground where it stands (none on a town's ground). */
   /** How many trees its woods were planted with, as last told (E1: gate 99 reads this beside the pixels). */
   get treesPlanted(): number {
     return this.trees.length;
   }
 
+  /**
+   * The region's woods: a low-poly crown for each far tree, on the ground where it stands (none in a town's clearing, none
+   * burned), and what grows on the land as read (render/flora.ts draws the near things from it).
+   */
   plantTrees(trees: readonly RegionTree[], land: FloraLand | null = null, parched = false): void {
     this.trees = trees;
     this.flora.setLand(land, parched);
