@@ -50,23 +50,47 @@ const LAY_SLICE = 4;
 /** How close the eye comes before the near things are drawn at all (its distance, region units); from NEAR_FROM of it in, wholly. */
 export const NEAR_ON = 18;
 const NEAR_FROM = 0.7;
-/** How far the point the eye looks at may go before a piece of land is laid finer than it is then drawn (region units). */
+/** How far the eye may go before a piece of land is laid finer than it is then drawn (region units). */
 const MARGIN = 0.6;
+/** Trees a square unit of a thick wood holds near (the lattice's, in groves), for reckoning how many a core draws. */
+const THICK = 115;
 /** The thinnest share a piece is laid at short of none (its fewest: the lowest ranks). */
 const LEAST = 1 / 256;
 
 type Field = keyof NearKeep;
 const FIELDS: readonly Field[] = ["trees", "tufts", "stones", "patches"];
-/** Each kind's core and reach (region units) for a setting's near budget (its trees: 3600 a phone's, 6000 high). */
-function fieldsFor(trees: number): Record<Field, { core: number; out: number }> {
-  const k = Math.sqrt(trees / 3600);
-  return {
-    trees: { core: 0.95 * k, out: 9 },
-    tufts: { core: 0.6 * k, out: 2.6 },
-    stones: { core: 2.2 * k, out: 9 },
-    patches: { core: 2.6 * k, out: 9 },
-  };
+/** Each kind's core, as a share of the trees' (render: the core within which all of a kind are drawn, from the eye), and its
+ * reach about the ground under the eye (region units). */
+const FIELD: Record<Field, { share: number; out: number }> = {
+  trees: { share: 1, out: 9 },
+  tufts: { share: 0.63, out: 2.6 },
+  stones: { share: 2.3, out: 9 },
+  patches: { share: 2.7, out: 9 },
+};
+
+/**
+ * The trees' core for a budget of trees drawn and the eye's height over the ground: drawn by their distance from the eye as
+ * keep = (core / d)^2, a thick wood about it shows about the budget (at the most `most`: the eye high, the land drawn
+ * uniformly simpler, never by where on the screen).
+ */
+export function coreFor(trees: number, height: number, reach: number, most: number): number {
+  const H = Math.max(0.05, height),
+    far = reach * reach + H * H,
+    count = (c: number) =>
+      THICK *
+      Math.PI *
+      (c > H ? c * c - H * H + c * c * Math.log(far / (c * c)) : c * c * Math.log(far / (H * H)));
+  let lo = 0.2,
+    hi = most;
+  if (count(hi) <= trees) return hi;
+  for (let i = 0; i < 30; i++) {
+    const mid = (lo + hi) / 2;
+    if (count(mid) > trees) hi = mid;
+    else lo = mid;
+  }
+  return lo;
 }
+
 const BATCH_FIELD = {
   trunks: "trees",
   cones: "trees",
@@ -196,20 +220,20 @@ export class FloraLayer {
   private dirty = false;
   private framesDirty = 0;
   /** Where the pieces were last asked for, and for which ground. */
-  private askedAt: { x: number; z: number; ground: number } | null = null;
+  private askedAt: { x: number; y: number; z: number; core: number; ground: number } | null = null;
   private ground = 0;
-  private fields = fieldsFor(3600);
-  private fieldsOf = 0;
+  /** The trees' core now (from the eye's height and the setting), and the eye's height over the ground under it. */
+  private core = 1;
+  private eyeHeight = 1;
   /** How much the near things are drawn (by the eye's distance), and the point it looks at. */
   private nearOn = 0;
   /** How far the far clumps have given way to the near trees about the point looked at (eased), and when last told. */
   private farGives = 0;
   private toldAt = 0;
-  private readonly focus = { x: 0, z: 0 };
+  private readonly eye = { x: 0, y: 0, z: 0 };
   /** This frame's laying (ms), for the budgets. */
   layMs = 0;
   private readonly at = new pc.Vec3();
-  private readonly fwd = new pc.Vec3();
   private readonly lists: Record<NearKey, NearThing[]> = {
     trunks: [],
     cones: [],
@@ -397,8 +421,10 @@ export class FloraLayer {
   }
 
   /**
-   * Each frame: where the eye looks and how far it is. The pieces of land about that point laid as finely as they need (a few
-   * milliseconds a frame, nearest first, what stood standing till then); every batch told the point (nothing else moves).
+   * Each frame: where the eye is and how far from what it looks at. The pieces of land about it laid as finely as they need (a
+   * few milliseconds a frame, nearest first, what stood standing till then); every batch told where the eye is (nothing else
+   * moves: as in true perspective, what is farther from the eye is drawn simpler, so moving the eye along at one height
+   * changes nothing on the ground but what comes onto the screen and goes off it).
    */
   update(camera: pc.Entity, distance: number): void {
     const land = this.land;
@@ -406,23 +432,22 @@ export class FloraLayer {
     if (!land || !this.heights) return;
     this.nearOn = 1 - smooth(NEAR_ON * NEAR_FROM, NEAR_ON, distance);
     this.at.copy(camera.getPosition());
-    this.fwd.copy(camera.forward).mulScalar(distance);
-    this.focus.x = this.at.x + this.fwd.x;
-    this.focus.z = this.at.z + this.fwd.z;
+    this.eye.x = this.at.x;
+    this.eye.y = this.at.y;
+    this.eye.z = this.at.z;
+    this.eyeHeight = Math.max(0.05, this.at.y - this.heightAt(this.at.x, this.at.z));
+    const trees = nearBudget(this.stage.quality.regionTrees).trees;
+    this.core = coreFor(trees, this.eyeHeight, FIELD.trees.out, 3.2 * Math.sqrt(trees / 3600));
     if (distance > NEAR_ON * 1.15) {
       if (this.pieces.size || this.queue.length) this.clearNear();
     } else {
-      const trees = nearBudget(this.stage.quality.regionTrees).trees;
-      if (trees !== this.fieldsOf) {
-        this.fieldsOf = trees;
-        this.fields = fieldsFor(trees);
-        this.askedAt = null;
-      }
       const was = this.askedAt;
       if (
         !was ||
         was.ground !== this.ground ||
-        Math.hypot(this.focus.x - was.x, this.focus.z - was.z) > MARGIN / 4
+        Math.hypot(this.eye.x - was.x, this.eye.y - was.y, this.eye.z - was.z) > MARGIN / 4 ||
+        this.core > was.core * 1.05 ||
+        this.core < was.core / 1.3
       )
         this.ask(!!was && was.ground !== this.ground);
       this.layFor(land);
@@ -430,22 +455,32 @@ export class FloraLayer {
     this.tell();
   }
 
-  /** What share of a kind a piece needs laid, its nearest edge `d` from the point the eye looks at (0: none). */
+  /** A kind's core and its reach from the eye, now. */
+  private field(f: Field): { core: number; reach: number } {
+    return {
+      core: this.core * FIELD[f].share,
+      reach: Math.hypot(FIELD[f].out, this.eyeHeight),
+    };
+  }
+
+  /** What share of a kind a piece needs laid, its nearest edge `d` from the eye (0: none). */
   private need(f: Field, d: number): number {
-    const { core, out } = this.fields[f],
+    const { core, reach } = this.field(f),
       at = Math.max(0, d - MARGIN);
-    if (at > out) return 0;
+    if (at > reach) return 0;
     const want = Math.min(1, (1.3 * core * core) / Math.max(1e-6, at * at));
     return want >= 1 ? 1 : Math.max(LEAST, 2 ** Math.ceil(Math.log2(want)));
   }
 
   /**
-   * The pieces about the point the eye looks at, as they must now be laid: those laid too thinly, or not at all, or far more
-   * finely than they need, asked for (`all`: every one, the ground laid anew); those past every reach let go.
+   * The pieces about the eye, as they must now be laid: those laid too thinly, or not at all, or far more finely than they
+   * need, asked for (`all`: every one, the ground laid anew); those past every reach let go.
    */
   private ask(all: boolean): void {
-    const { x, z } = this.focus,
-      reach = Math.max(...FIELDS.map((f) => this.fields[f].out)) + MARGIN + NEAR_CHUNK,
+    const { x, y, z } = this.eye,
+      // (A piece's ground may stand a little over the ground under the eye.)
+      over = Math.max(0, this.eyeHeight - 0.3),
+      reach = Math.max(...FIELDS.map((f) => FIELD[f].out)) + MARGIN + NEAR_CHUNK,
       c0 = Math.floor((x - reach) / NEAR_CHUNK),
       c1 = Math.floor((x + reach) / NEAR_CHUNK),
       d0 = Math.floor((z - reach) / NEAR_CHUNK),
@@ -456,7 +491,7 @@ export class FloraLayer {
       for (let ci = c0; ci <= c1; ci++) {
         const dx = Math.max(ci * NEAR_CHUNK - x, 0, x - (ci + 1) * NEAR_CHUNK),
           dz = Math.max(cj * NEAR_CHUNK - z, 0, z - (cj + 1) * NEAR_CHUNK),
-          d = Math.hypot(dx, dz),
+          d = Math.hypot(dx, dz, over),
           key = (ci + 32768) * 65536 + (cj + 32768),
           keep: NearKeep = {
             trees: this.need("trees", d),
@@ -468,9 +503,9 @@ export class FloraLayer {
         if (FIELDS.every((f) => keep[f] === 0)) continue;
         seen.add(key);
         if (has && !all) {
-          // (Laid finely enough, and not more than four times as finely as it now needs: left as it is.)
+          // (Laid finely enough, and not more than twice as finely as it now needs: left as it is.)
           const fine = FIELDS.every((f) => has.keep[f] >= keep[f]),
-            thick = FIELDS.some((f) => has.keep[f] > Math.max(keep[f], LEAST) * 4);
+            thick = FIELDS.some((f) => has.keep[f] > Math.max(keep[f], LEAST) * 2);
           if (fine && !thick) continue;
         }
         queue.push({ key, ci, cj, keep, d });
@@ -482,7 +517,7 @@ export class FloraLayer {
       }
     queue.sort((a, b) => a.d - b.d);
     this.queue = queue;
-    this.askedAt = { x, z, ground: this.ground };
+    this.askedAt = { x, y, z, core: this.core, ground: this.ground };
   }
 
   /** A few milliseconds of the pieces asked for, laid; the batches made again when the laying is done (or every few frames). */
@@ -529,20 +564,20 @@ export class FloraLayer {
     this.dress();
   }
 
-  /** Every batch told where the eye looks, how near it is, and its kind's core and reach. */
+  /** Every batch told where the eye is, how near it is to what it looks at, and its kind's core and reach. */
   private tell(): void {
-    const { x, z } = this.focus,
+    const { x, y, z } = this.eye,
       on = this.nearOn;
     for (const k of Object.keys(this.near) as NearKey[]) {
       const b = this.near[k];
       if (!b) continue;
-      const f = this.fields[BATCH_FIELD[k]];
-      b.param("uNear", [x, z, f.core, f.out]);
-      b.param("uNearK", [1, on, 0, 0]);
+      const f = this.field(BATCH_FIELD[k]);
+      b.param("uNear", [x, y, z, f.core]);
+      b.param("uNearK", [1, on, f.reach, 0]);
     }
     // (Where the eye looks the far clumps give way to the trees: eased, and not before most of the pieces about it are laid, so
     // an eye set down somewhere new sees the clumps till the trees stand.)
-    const trees = this.fields.trees,
+    const trees = this.field("trees"),
       now = performance.now(),
       dt = Math.min(0.1, Math.max(0, (now - this.toldAt) / 1000)),
       want = this.pieces.size && this.queue.length < 24 ? on : 0;
@@ -550,8 +585,8 @@ export class FloraLayer {
     this.farGives += (want - this.farGives) * Math.min(1, dt * 8);
     if (Math.abs(want - this.farGives) < 0.002) this.farGives = want;
     for (const b of [this.farCones, this.farBalls, this.farTrunks]) {
-      b?.param("uNear", [x, z, trees.core, trees.out]);
-      b?.param("uNearK", [-1, this.farGives, 0, 0]);
+      b?.param("uNear", [x, y, z, trees.core]);
+      b?.param("uNearK", [-1, this.farGives, trees.reach, 0]);
     }
   }
 
@@ -701,7 +736,7 @@ export class FloraLayer {
       tufts,
       stones,
       patches,
-      reach: this.pieces.size ? this.fields.trees.out : 0,
+      reach: this.pieces.size ? FIELD.trees.out : 0,
       layMs: +this.layMs.toFixed(1),
       pieces: this.pieces.size,
       waiting: this.queue.length,
@@ -743,14 +778,16 @@ export class FloraLayer {
     }[] = [];
     for (const p of this.pieces.values())
       for (const k of ["trunks", "cones", "balls", "tufts", "stones", "patches"] as const) {
-        const f = this.fields[BATCH_FIELD[k]];
+        const f = this.field(BATCH_FIELD[k]);
         for (const t of p.got[k]) {
-          const d = Math.hypot(t.x - this.focus.x, t.z - this.focus.z),
+          // (From the instance's middle, as the shader reckons it: a patch lies flat, the rest stand on their foot.)
+          const cy = k === "patches" ? t.y : t.y + t.h / 2,
+            d = Math.hypot(t.x - this.eye.x, cy - this.eye.y, t.z - this.eye.z),
             keep = Math.min(1, (f.core * f.core) / Math.max(d * d, 1e-6)),
             u = t.u ?? 0,
             drawn =
               Math.max(0, Math.min(1, (keep - u) / (0.2 * keep + 1e-4))) *
-              (1 - smooth(f.out * 0.8, f.out, d)) *
+              (1 - smooth(f.reach * 0.8, f.reach, d)) *
               this.nearOn;
           out.push({ kind: k, x: t.x, z: t.z, y: t.y, w: t.w, h: t.h, drawn });
         }
@@ -758,9 +795,16 @@ export class FloraLayer {
     return out;
   }
 
-  /** The point the eye looks at and how much the near things are drawn (the look tools). */
-  nearFocus(): { x: number; z: number; on: number } {
-    return { x: this.focus.x, z: this.focus.z, on: this.nearOn };
+  /** Where the eye is, its height over the ground, the trees' core, and how much the near things are drawn (the look tools). */
+  nearFocus(): { x: number; z: number; y: number; height: number; core: number; on: number } {
+    return {
+      x: this.eye.x,
+      z: this.eye.z,
+      y: this.eye.y,
+      height: this.eyeHeight,
+      core: this.core,
+      on: this.nearOn,
+    };
   }
 
   destroy(): void {
