@@ -257,7 +257,7 @@ export class FloraLayer {
     this.fwd.copy(camera.forward).mulScalar(distance);
     const x = this.at.x + this.fwd.x,
       z = this.at.z + this.fwd.z,
-      budget = nearBudget(this.stage.quality.regionTrees),
+      budget = this.budgetFor(this.stage.quality.regionTrees),
       most = Math.min(NEAR_MOST, Math.max(2.5, distance * 1.8)),
       was = this.laidAt;
     if (
@@ -283,6 +283,13 @@ export class FloraLayer {
     this.layMs = performance.now() - t0;
   }
 
+  /** The near budget for a setting's far crowns, kept while the setting is (none made each frame). */
+  private budget: { of: number; is: ReturnType<typeof nearBudget> } | null = null;
+  private budgetFor(regionTrees: number): ReturnType<typeof nearBudget> {
+    if (this.budget?.of !== regionTrees) this.budget = { of: regionTrees, is: nearBudget(regionTrees) };
+    return this.budget.is;
+  }
+
   private batchFor(key: keyof FloraLayer["near"], mesh: pc.Mesh, n: number): InstancedBatch {
     let b = this.near[key];
     if (!b || b.capacity < n) {
@@ -297,7 +304,8 @@ export class FloraLayer {
         true,
       );
       // (Tufts and patches cast no shadow: too small, and flat.)
-      if (key === "tufts" || key === "patches") b.shadows(false);
+      // (Only the crowns cast shadows: tufts, stones, trunks and patches are too small or flat to, and cost a pass.)
+      if (key !== "cones" && key !== "balls") b.shadows(false);
       this.near[key] = b;
     }
     return b;
