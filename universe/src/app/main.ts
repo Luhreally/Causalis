@@ -224,6 +224,7 @@ import {
   regionFromGlobe,
   regionHeights,
   regionTrees,
+  landFloraOf,
   SIGNS,
   keepOut,
   orbitOf,
@@ -1149,6 +1150,8 @@ type Exposed = {
   faceLandArc?: () => boolean;
   /** How many trees a land's woods were planted with (E1). */
   landTrees?: () => number;
+  landFlora?: () => unknown;
+  townFlora?: () => unknown;
   streaksOnScreen?: () => { x: number; y: number }[];
   warsInPlace?: () => {
     marks: {
@@ -2179,7 +2182,8 @@ async function runPlanetPage(): Promise<void> {
   stage.onQuality((q) => {
     if (scale === "globe") paintGlobe();
     const frame = client.latestFrame("region");
-    if (scale === "region" && frame) region.plantTrees(regionTrees(frame, q.regionTrees));
+    if (scale === "region" && frame)
+      region.plantTrees(regionTrees(frame, q.regionTrees), ...landFloraOf(frame));
     if (scale === "village" && plan) village.build(plan);
   });
   planetPanel.onQualityChoice = (c) => setChoice(c);
@@ -2422,7 +2426,7 @@ async function runPlanetPage(): Promise<void> {
       performance.measure("region.build", { start: t0 });
       regionPanel.show(meta.center, meta.lat, meta.lon, meta.size * meta.tileKm);
       region.setVillages(villages);
-      region.plantTrees(regionTrees(frame, stage.quality.regionTrees));
+      region.plantTrees(regionTrees(frame, stage.quality.regionTrees), ...landFloraOf(frame));
       if (landPlan) region.setTowns(landPlan, landPlan.t);
       showLandWars();
       // Come down from the globe onto a spot of it: that spot in the middle (M95).
@@ -2449,7 +2453,7 @@ async function runPlanetPage(): Promise<void> {
     const woodsNow = (frame.meta as { woods?: string }).woods;
     if (woodsNow !== regionWoodsKey) {
       regionWoodsKey = woodsNow;
-      region.plantTrees(regionTrees(frame, stage.quality.regionTrees));
+      region.plantTrees(regionTrees(frame, stage.quality.regionTrees), ...landFloraOf(frame));
     }
     const parent = frame.arrays.parent as Int32Array | undefined,
       colors =
@@ -9702,6 +9706,8 @@ async function runPlanetPage(): Promise<void> {
   exposed.watch = (ref: string) => void toVillage(ref);
   exposed.watching = () => (scale === "village" && plan ? plan.people.length : 0);
   exposed.townOnScreen = () => (scale === "village" && plan ? village.townOnScreen(now()) : null);
+  // What grows about the town as drawn, and how many of its things stand on its fields, pasture, water, streets or road (none).
+  exposed.townFlora = () => ({ ...village.townFlora.info(), on: village.townFlora.onTaken() });
   exposed.townShown = () =>
     scale === "village" && plan
       ? {
@@ -10429,6 +10435,18 @@ async function runPlanetPage(): Promise<void> {
   exposed.landParts = () => region.land.count;
   exposed.landFire = () => region.fire.shown;
   exposed.landTrees = () => region.treesPlanted;
+  // What grows on the land as drawn, and how many of the near things stand on ground its towns, roads, fields, camps or water
+  // hold, by what holds it (must be none: render/flora.ts).
+  exposed.landFlora = () => {
+    const claims = region.land.groundClaims,
+      on: Record<number, number> = {};
+    if (claims)
+      for (const t of region.flora.nearThings()) {
+        const k = claims.kindAt(t.x, t.z);
+        if (k) on[k] = (on[k] ?? 0) + 1;
+      }
+    return { ...region.flora.info(), on, claims: !!claims };
+  };
   exposed.landFront = () => region.fire.front();
   exposed.land = () => region.land.info();
   exposed.landHerds = () => (scale === "region" ? region.land.herds.info() : null);

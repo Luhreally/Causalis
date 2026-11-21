@@ -5,6 +5,7 @@ import { rockOf } from "../rules/index.ts";
 import { biomeColor, frameKind, frameLook, kindWater } from "./globe.ts";
 import type { Rgb } from "./sandbox.ts";
 import { seasonAt, seasonGround, seasonWater, type GroundSeason } from "./weather.ts";
+import { floraClumps, floraColors, floraLandOf } from "./flora.ts";
 
 /** The land's own lenses; and "world", the globe's lens seen in the land (Phase 10 M95). */
 export const REGION_LENSES = ["land", "height", "soil", "world"] as const;
@@ -78,6 +79,16 @@ export function builtOverTiles(
 }
 
 export function regionColors(frame: FrameMessage, lens: RegionLens): Uint8Array {
+  const out = regionColorsOf(frame, lens);
+  // (The land as what grows on it: each tile's ground by its reading, bridge/biome.ts, view/flora.ts.)
+  if (lens === "land" || lens === "world") {
+    const colony = (frame.meta as { colony?: ColonyLook | null }).colony;
+    if (!colony) return floraColors(frame, out) ?? out;
+  }
+  return out;
+}
+
+function regionColorsOf(frame: FrameMessage, lens: RegionLens): Uint8Array {
   const a = frame.arrays,
     e = a.elevation!,
     n = e.length,
@@ -255,9 +266,11 @@ export type RegionTree = {
   /** Where in the tile, -0.5..0.5 across and along. */
   readonly dx: number;
   readonly dz: number;
-  /** The crown: needles; round; low and flat on the dry tropics' grass; tall and dark in the rainforest; or browned by a drought. */
-  readonly kind: "conifer" | "broadleaf" | "flat" | "tall" | "parched";
+  /** The crown: needles; round; low and flat on the dry tropics' grass; tall and dark in the rainforest; or browned by a drought; palms, scrub, the dead (what grows: view/flora.ts). */
+  readonly kind: "conifer" | "broadleaf" | "flat" | "tall" | "parched" | "palm" | "scrub" | "dead";
   readonly size: number;
+  /** How much lighter or darker this crown is than its kind's (0 … 1; none: as its kind). */
+  readonly tone?: number;
 };
 
 /** Trees in a wooded tile's clump. */
@@ -287,6 +300,10 @@ const WOODED: Readonly<
 export function regionTrees(frame: FrameMessage, cap = 4000): RegionTree[] {
   // (Where no life took hold, no woods: Phase 57.)
   if (frameLook(frame) === "bare") return [];
+  // (A map that carries what grows on it: its woods as the reading has them, bridge/biome.ts.)
+  const flora = floraLandOf(frame);
+  if (flora)
+    return floraClumps(flora, cap, !!(frame.meta as { woodsParched?: boolean }).woodsParched);
   const a = frame.arrays,
     biome = a.biome!,
     water = a.water!,
