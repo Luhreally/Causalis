@@ -2990,7 +2990,9 @@ async function runPlanetPage(): Promise<void> {
     if (scale === "globe" && NAMED.includes(lens)) void readNames();
   }, 5000);
   let namesAt = 0,
-    namesFrame = 0;
+    namesFrame = 0,
+    namePointsOf: typeof realmNames | null = null,
+    namePoints: { x: number; y: number; z: number }[] = [];
   // Which names fit, and how large (a share of their size), chosen a dozen times a second; each name's place worked out
   // every frame (it went with the globe in steps, a dozen a second), and each eased in and out and between sizes, never
   // coming, going or changing size within a frame (the owner's rule, 2026-11-21).
@@ -3015,16 +3017,20 @@ async function runPlanetPage(): Promise<void> {
     const t = performance.now(),
       dt = Math.min(0.1, Math.max(0, (t - (namesFrame || t)) / 1000));
     namesFrame = t;
-    const points = realmNames.flatMap((r) => {
-      const s = r.shape;
-      return [
-        { x: s.x, y: s.y, z: s.z },
-        rim(s, s.half),
-        rim(s, -s.half),
-        ...(r.seat ? [r.seat] : [{ x: s.x, y: s.y, z: s.z }]),
-      ];
-    });
-    const at = globe.screenOf(points),
+    // (Each realm's four points on the globe, worked out once for the names read.)
+    if (namePointsOf !== realmNames) {
+      namePointsOf = realmNames;
+      namePoints = realmNames.flatMap((r) => {
+        const s = r.shape;
+        return [
+          { x: s.x, y: s.y, z: s.z },
+          rim(s, s.half),
+          rim(s, -s.half),
+          ...(r.seat ? [r.seat] : [{ x: s.x, y: s.y, z: s.z }]),
+        ];
+      });
+    }
+    const at = globe.screenOf(namePoints),
       names: MapName[] = [],
       laid: { name: MapName; seat: MapName | null; lands: number }[] = [];
     realmNames.forEach((r, i) => {

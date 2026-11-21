@@ -37,9 +37,13 @@ export class MapLabels {
         this.root.append(span);
       }
       if (span.textContent !== n.text) span.textContent = n.text;
-      span.style.transform = `translate(${n.x.toFixed(1)}px, ${n.y.toFixed(1)}px) translate(-50%, -50%) rotate(${n.angle.toFixed(1)}deg)`;
-      span.style.fontSize = `${n.size.toFixed(1)}px`;
-      span.style.opacity = n.alpha.toFixed(2);
+      // (Laid every frame as the globe turns: written only where it changed.)
+      const transform = `translate(${n.x.toFixed(1)}px, ${n.y.toFixed(1)}px) translate(-50%, -50%) rotate(${n.angle.toFixed(1)}deg)`,
+        size = `${n.size.toFixed(1)}px`,
+        opacity = n.alpha.toFixed(2);
+      if (span.style.transform !== transform) span.style.transform = transform;
+      if (span.style.fontSize !== size) span.style.fontSize = size;
+      if (span.style.opacity !== opacity) span.style.opacity = opacity;
     }
     for (const [key, span] of this.pool)
       if (!seen.has(key)) {

@@ -223,8 +223,10 @@ export class LabelLayer {
     if (at) this.lastAt.set(key, at);
     const o = a >= 1 ? "" : a.toFixed(2);
     if (span.style.opacity !== o) span.style.opacity = o;
-    if (at && (at.x !== put!.x || at.y !== put!.y || span.style.transform === ""))
-      span.style.transform = `translate(${Math.round(at.x)}px, ${Math.round(at.y)}px) translate(-50%, -100%)`;
+    if (at) {
+      const t = `translate(${Math.round(at.x)}px, ${Math.round(at.y)}px) translate(-50%, -100%)`;
+      if (span.style.transform !== t) span.style.transform = t;
+    }
     return a;
   }
 

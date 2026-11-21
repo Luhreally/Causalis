@@ -61,6 +61,10 @@ test("a name comes and goes over a fifth of a second, where it stands", () => {
     seen.push(opacity(span));
   }
   assert.equal(seen.at(-1), 1);
+  // (It goes where its thing is, frame by frame.)
+  step([{ key: "a", text: "Formere", at: { x: 412, y: 296 } }]);
+  assert.ok(span.style.transform!.includes("translate(412px, 296px)"));
+  step(one);
   for (let i = 1; i < seen.length; i++)
     assert.ok(seen[i]! - seen[i - 1]! <= 0.1, `jumped ${seen[i - 1]} -> ${seen[i]}`);
   // Gone from the list: faded out where it stood, then let go.
