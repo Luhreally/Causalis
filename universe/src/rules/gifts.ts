@@ -242,11 +242,13 @@ export const WONDER_TENET: Readonly<Record<string, WonderTenet>> = {
   flew: "presence",
 };
 /**
- * How strongly a wonder seen is a sign (belief.ts omenOf's strength, 1 a god's act on a land): so many who saw it make it as
- * strong as one, no more than `most`; one seen by none is no sign. Wonders of one tenet in one holding are one sign, seen by
- * the most any of them was (they do not add up past what one great one would be).
+ * How strongly a wonder seen is a sign (belief.ts omenOf's strength; 1 the god's open act on a whole land): the more who saw
+ * it, the stronger, to `most` at the most; one seen by none is no sign. Done in one place before a few, it is never as strong
+ * as the god's act on a land, so it may move a people of the old beliefs to found a faith (by its piety, the omen rule's own
+ * chance) but never one out of a faith it holds. Wonders of one tenet in one holding are one sign, seen by the most any of
+ * them was (they do not add up past what one great one would be).
  */
-export const WONDER = { full: 12, most: 1.2 } as const;
+export const WONDER = { full: 12, most: 0.9 } as const;
 export function wonderStrength(seen: number): number {
   return seen > 0 ? Math.min(WONDER.most, seen / WONDER.full) : 0;
 }

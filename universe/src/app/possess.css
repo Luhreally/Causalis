@@ -207,16 +207,17 @@ body.possessing:has(.page-window:not([hidden])) .possess-hint {
   background: linear-gradient(180deg, #fff1d8 0%, #ffc070 46%, #ff8d2e 54%, #ffcf8f 100%);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
 }
+/* (A fingertip each, 44 by 44: under Let go, over Sprint.) */
 .possess-paces {
   position: absolute;
-  top: calc(env(safe-area-inset-top, 0px) + 62px);
+  top: calc(env(safe-area-inset-top, 0px) + 57px);
   right: calc(env(safe-area-inset-right, 0px) + 8px);
   display: flex;
   gap: 4px;
 }
 .possess-pace {
-  min-width: 36px;
-  min-height: 32px;
+  min-width: 44px;
+  min-height: 44px;
   padding: 0 6px;
   border-radius: 8px;
   background: rgba(8, 18, 44, 0.7);
@@ -227,7 +228,7 @@ body.possessing:has(.page-window:not([hidden])) .possess-hint {
 }
 .possess-sprint {
   position: absolute;
-  top: calc(env(safe-area-inset-top, 0px) + 102px);
+  top: calc(env(safe-area-inset-top, 0px) + 105px);
   right: calc(env(safe-area-inset-right, 0px) + 8px);
   width: 116px;
   min-height: 44px;

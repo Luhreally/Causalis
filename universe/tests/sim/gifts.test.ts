@@ -321,7 +321,7 @@ test("gifts and strokes are refused where they are not; a wonder seen by none is
   );
   assert.equal(omenOf("hand.wonder", { tenet: "fire", seen: 0 }), null);
   assert.equal(omenOf("hand.wonder", { tenet: "fire", seen: 6 })!.strength, 0.5);
-  assert.equal(omenOf("hand.wonder", { tenet: "fire", seen: 600 })!.strength, 1.2);
+  assert.equal(omenOf("hand.wonder", { tenet: "fire", seen: 600 })!.strength, 0.9);
   release(world);
 });
 

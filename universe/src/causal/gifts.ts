@@ -61,7 +61,7 @@ const SHOWN: Readonly<Record<string, string>> = {
   rain: "rain called down",
   quake: "the ground shaken",
   warded: "blows that did no harm",
-  felled: "foes felled at a touch",
+  felled: "blows that felled at a touch",
   flew: "one of their own rise into the air",
 };
 registerEventWords(POSSESS_EVENTS.wonder.type, (_, e) => {
@@ -71,5 +71,5 @@ registerEventWords(POSSESS_EVENTS.wonder.type, (_, e) => {
       what.length > 1
         ? `${what.slice(0, -1).join(", ")} and ${what.at(-1)}`
         : (what[0] ?? "a wonder");
-  return `By your hand, through ${first(d?.hand)}: ${count(d?.seen ?? 0)} saw ${list}${d?.town ? ` at ${d.town}` : ""}, a sign of the god among them, year ${yearOfMoment(e.t)}`;
+  return `By your hand, through ${first(d?.hand)}: ${(d?.seen ?? 0) === 1 ? "one" : count(d?.seen ?? 0)} saw ${list}${d?.town ? ` at ${d.town}` : ""}, a sign of the god among them, year ${yearOfMoment(e.t)}`;
 });

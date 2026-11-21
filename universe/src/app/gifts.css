@@ -1,5 +1,5 @@
-/* The god's gifts to a body held (2026-11-21): their button and Rise in the right-hand column under Sprint and Live their
-   day, their sheet over the middle of the screen while it is open (the stick, the acts, what is told and the column's
+/* The god's gifts to a body held (2026-11-21): their button beside 🔊 under Live their day, Rise in the column under
+   them, their sheet over the middle of the screen while it is open (the stick, the acts, what is told and the column's
    other controls waiting under it, none covered), the fifth act (the healing touch) at the head of the arc, the breath
    bar on the strip, and a stroke's flash as it falls. In the era's glossy look, gold for the god's own. */
 .possess-gifts,
@@ -12,7 +12,9 @@
   font-weight: 700;
 }
 .possess-gifts {
-  top: calc(env(safe-area-inset-top, 0px) + 202px);
+  top: calc(env(safe-area-inset-top, 0px) + 206px);
+  right: calc(env(safe-area-inset-right, 0px) + 60px);
+  width: 108px;
   border: 2px solid #9a7400;
   color: #2a1800;
   background: linear-gradient(180deg, #fff8d8 0%, #ffe07a 46%, #f5c02e 54%, #ffe9a0 100%);
@@ -21,7 +23,7 @@
   box-shadow: 0 0 10px rgba(255, 214, 90, 0.85);
 }
 .possess-rise {
-  top: calc(env(safe-area-inset-top, 0px) + 252px);
+  top: calc(env(safe-area-inset-top, 0px) + 258px);
   background: rgba(8, 18, 44, 0.85);
 }
 .possess-rise[aria-pressed="true"],
@@ -91,8 +93,13 @@
 .gifts-sheet {
   position: absolute;
   z-index: 2;
-  top: calc(env(safe-area-inset-top, 0px) + 256px);
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+  top: calc(env(safe-area-inset-top, 0px) + 258px);
+  max-height: calc(
+    100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 270px
+  );
+  max-height: calc(
+    100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 270px
+  );
   left: calc(env(safe-area-inset-left, 0px) + 8px);
   right: calc(env(safe-area-inset-right, 0px) + 8px);
   max-width: 560px;
@@ -118,7 +125,12 @@
 @media (orientation: landscape) and (max-height: 520px) {
   .gifts-sheet {
     top: calc(env(safe-area-inset-top, 0px) + 8px);
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+    max-height: calc(
+      100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 16px
+    );
+    max-height: calc(
+      100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 16px
+    );
     left: calc(env(safe-area-inset-left, 0px) + 30vw + 24px);
     right: calc(env(safe-area-inset-right, 0px) + 256px);
     max-width: none;
@@ -147,7 +159,8 @@
 }
 .gifts-toggle {
   display: grid;
-  grid-template-columns: 30px 1fr auto;
+  /* (Its icon over its state, at the left; its name over its words.) */
+  grid-template-columns: 34px minmax(0, 1fr);
   align-items: center;
   gap: 0 6px;
   min-height: 52px;
@@ -162,21 +175,31 @@
   display: none;
 }
 .gifts-toggle .gifts-icon {
-  grid-row: span 2;
+  grid-column: 1;
+  grid-row: 1;
   font-size: 22px;
   text-align: center;
+}
+.gifts-toggle .gifts-name {
+  grid-column: 2;
+  grid-row: 1;
 }
 .gifts-name {
   font-weight: 700;
 }
 .gifts-state {
-  padding: 0 6px;
+  grid-column: 1;
+  grid-row: 2;
+  justify-self: center;
+  align-self: start;
+  padding: 0 5px;
   border-radius: 6px;
   font-size: 11px;
   background: rgba(255, 255, 255, 0.14);
 }
 .gifts-words {
-  grid-column: 2 / span 2;
+  grid-column: 2;
+  grid-row: 2;
   font-size: 11px;
   line-height: 1.25;
   color: #c9c3e8;

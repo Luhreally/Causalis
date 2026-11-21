@@ -831,6 +831,7 @@ export function installHeld(d: HeldDeps): Held {
           owed: on.owed,
           ending: on.ending,
           live: on.live,
+          gifts: on.gifts,
           me: drawnMe(on),
           eye: { yaw: eye.looking, pitch: eye.pitch, distance: eye.distance, ...eye.stood },
           // (Those between the eye and the body, not drawn; of a battle, those out of the eye's sight, not posed.)
