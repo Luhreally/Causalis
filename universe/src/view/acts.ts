@@ -167,13 +167,14 @@ export function placeActs(
 }
 
 /**
- * Every mark of every act at screen time `s` (seconds), at most `most`; `zoom` the eye's
- * distance from the globe's middle (its radius 1): marks are drawn larger seen from afar, so an
- * act reads from orbit, and not so large that it hides its land seen close.
+ * Every mark of every act at screen time `s` (seconds), at most `most`: each the same size at every distance of the eye
+ * (they were drawn larger seen from afar, and swelled as the eye drew back: the owner's rule, 2026-11-21, nothing drawn
+ * changes with the camera). `zoom` is kept for callers and does nothing.
  */
 export function actBits(acts: readonly PlacedAct[], s: number, zoom = 2.2, most = 1400): ActBit[] {
+  void zoom;
   const out: ActBit[] = [],
-    scale = Math.max(0.7, Math.min(1.6, zoom / 2.2));
+    scale = 1;
   for (const a of acts) {
     bitsOf(a, s, scale, out);
     if (out.length >= most) break;

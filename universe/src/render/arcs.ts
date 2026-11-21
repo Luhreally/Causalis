@@ -41,8 +41,10 @@ export class GlobeArcLayer {
       for (const u of [0.25, 0.5, 0.75])
         this.places.push(r.dots[Math.floor(u * (r.dots.length - 1))]!);
     }
-    // (Its width on the screen held as the eye comes in.)
-    const wide = Math.max(0.0012, 0.0034 * Math.min(1, eye / 2.6));
+    // (Its width the globe's, the same however near the eye: it was held on the screen as the eye came in. The owner's
+    // rule, 2026-11-21.)
+    void eye;
+    const wide = 0.0024;
     this.shown = arcs.length;
     this.lengths.set(parts.length, (i, out) => {
       const { a, b } = parts[i]!,

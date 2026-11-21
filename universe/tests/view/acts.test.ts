@@ -104,11 +104,11 @@ test("an act between two realms is a thread from one seat to the other, arched o
   }
   // Without the other seat, no thread.
   assert.equal(actBits(placeActs([mark("war")], grid, elevation), 2).length, 0);
-  // Marks read larger seen from afar.
+  // Marks the same size however far the eye (nothing drawn changes with the camera).
   const placed = placeActs([mark("plague")], grid, elevation),
     far = actBits(placed, 1, 3.3),
     close = actBits(placed, 1, 1.4);
-  assert.ok(far[0]!.size[0] > close[0]!.size[0]);
+  assert.deepEqual(far, close);
 });
 
 test("the palette lights the lands it reaches, each light its colour; the rest untouched", () => {
