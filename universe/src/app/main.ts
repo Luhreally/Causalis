@@ -1170,6 +1170,8 @@ type Exposed = {
   /** How many trees a land's woods were planted with (E1). */
   landTrees?: () => number;
   landFlora?: () => unknown;
+  /** The land's relief and waters as built (render/region.ts relief). */
+  landRelief?: () => unknown;
   townFlora?: () => unknown;
   streaksOnScreen?: () => { x: number; y: number }[];
   warsInPlace?: () => {
@@ -10513,6 +10515,7 @@ async function runPlanetPage(): Promise<void> {
   exposed.landFront = () => region.fire.front();
   exposed.landNear = () => ({ focus: region.flora.nearFocus(), things: region.flora.nearLaid() });
   exposed.land = () => region.land.info();
+  exposed.landRelief = () => (scale === "region" ? region.relief() : null);
   exposed.landHerds = () => (scale === "region" ? region.land.herds.info() : null);
   exposed.herdsOnScreen = () =>
     scale === "region"

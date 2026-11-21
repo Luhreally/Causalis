@@ -8,6 +8,7 @@ import * as pc from "playcanvas";
 import type { LandPlan } from "../bridge/index.ts";
 import {
   facetWet,
+  REGION_RELIEF,
   kindWater,
   seasonKey,
   runToEnd,
@@ -578,6 +579,58 @@ export class RegionScene {
   }
 
   /** How many trees its woods were planted with, as last told (E1: gate 99 reads this beside the pixels). */
+  /**
+   * The land's relief and waters as built (the look tools): its highest ground (km), its tiles of sea, river and lake, and
+   * where to look at them (x, z): its peak, and the shore of its sea and of a lake nearest its middle (null: none).
+   */
+  relief(): {
+    high: number;
+    sea: number;
+    river: number;
+    lake: number;
+    peak: [number, number];
+    coast: [number, number] | null;
+    lakeShore: [number, number] | null;
+  } | null {
+    const g = this.ground;
+    if (!g) return null;
+    const { size, tileKm, heights, water } = g,
+      half = ((size - 1) * tileKm) / 2,
+      at = (t: number): [number, number] => [
+        (t % size) * tileKm - half,
+        Math.floor(t / size) * tileKm - half,
+      ],
+      wet = [0, 0, 0, 0],
+      shore: (number | null)[] = [null, null, null, null],
+      near = [Infinity, Infinity, Infinity, Infinity];
+    let peak = 0;
+    for (let t = 0; t < heights.length; t++) {
+      if (heights[t]! > heights[peak]!) peak = t;
+      const w = water[t]!;
+      wet[w] = (wet[w] ?? 0) + 1;
+      if (!w) continue;
+      const i = t % size,
+        j = Math.floor(t / size);
+      if (i < 1 || j < 1 || i >= size - 1 || j >= size - 1) continue;
+      if (!water[t - 1] || !water[t + 1] || !water[t - size] || !water[t + size]) {
+        const d = Math.hypot(i - size / 2, j - size / 2);
+        if (d < near[w]!) {
+          near[w] = d;
+          shore[w] = t;
+        }
+      }
+    }
+    return {
+      high: heights[peak]! / REGION_RELIEF,
+      sea: wet[1]!,
+      river: wet[2]!,
+      lake: wet[3]!,
+      peak: at(peak),
+      coast: shore[1] === null ? null : at(shore[1]!),
+      lakeShore: shore[3] === null ? null : at(shore[3]!),
+    };
+  }
+
   get treesPlanted(): number {
     return this.trees.length;
   }
