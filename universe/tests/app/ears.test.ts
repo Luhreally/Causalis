@@ -245,17 +245,24 @@ test("a town's war: each shot, each field gun and each shell as its layer draws 
     };
   for (let c = 100; c < 110; c += 0.25) ears.town("war", fire, c);
   const kinds = new Set(l.told.map((e) => e.kind));
-  assert.deepEqual([...kinds].sort(), ["blast", "cannon", "gun"]);
+  assert.deepEqual([...kinds].sort(), ["blast", "cannon", "gun", "whistle"]);
+  // (Each shell heard coming down before it lands: a whistle for every burst, those landing past the last reading's end aside.)
+  const whistles = l.told.filter((e) => e.kind === "whistle").length,
+    blasts = l.told.filter((e) => e.kind === "blast").length;
+  assert.ok(whistles >= blasts && whistles <= blasts + 3, `${whistles} whistles, ${blasts} blasts`);
   assert.equal(
     l.told.filter((e) => e.kind === "gun").length,
     10,
     "a shot a second for ten seconds",
   );
   // (Its din heard from where its fighting is: as far as the nearest of what was last heard of it.)
-  assert.ok(
-    Math.abs(ears.far - Math.min(...l.told.slice(-3).map((e) => e.far))) < 1e-6,
-    `${ears.far}`,
-  );
+  {
+    const before = l.told.length;
+    ears.town("war", fire, 110);
+    const last = l.told.slice(before);
+    assert.ok(last.length > 0);
+    assert.ok(Math.abs(ears.far - Math.min(...last.map((e) => e.far))) < 1e-6, `${ears.far}`);
+  }
   // The field guns standing off: heard as their flash begins, each turn of it.
   const scene = {
       battery: [
