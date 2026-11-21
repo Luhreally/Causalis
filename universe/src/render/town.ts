@@ -61,10 +61,14 @@ import { domeMesh } from "./colony.ts";
 import type { Rgb, Stage } from "./stage.ts";
 
 const M = 0.1;
-/** How long a frame draws a new choosing of a town's homes whole (ms: TownLayer.look). */
-const CHOOSE_BUDGET = 4;
+/**
+ * How long a frame draws a new choosing of a town's homes whole (ms: TownLayer.look). At 4 ms, panning over a great city
+ * missed its frame one time in twenty more than standing still (p95 20 ms against 18: 2026-11-21); its steps are each a
+ * millisecond or less.
+ */
+const CHOOSE_BUDGET = 2;
 /** How many parts' matrices a choosing works out between looks at the clock (PartBatches.showOver). */
-const SHOW_STEP = 1024;
+const SHOW_STEP = 512;
 /** How often what rises is put again (moments of the sim apart, at the least): a few times a day. */
 const RISE_EVERY = 6 * 3600,
   /** ... and while what struck it plays out — homes catching, burning, falling in (Phase 42 M201). */
