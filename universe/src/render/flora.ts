@@ -437,9 +437,14 @@ export class FloraLayer {
     this.eye.z = this.at.z;
     this.eyeHeight = Math.max(0.05, this.at.y - this.heightAt(this.at.x, this.at.z));
     const trees = nearBudget(this.stage.quality.regionTrees).trees;
-    // (About half the setting's trees drawn at once: the pieces about the eye are laid finer than drawn, by as much again, so
-    // what comes in as it moves is there to fade in.)
-    this.core = coreFor(trees / 2, this.eyeHeight, FIELD.trees.out, 2.3 * Math.sqrt(trees / 3600));
+    // (About three eighths of the setting's trees drawn at once, as many as the land close drew before: the pieces about the eye
+    // are laid finer than drawn, so what comes in as it moves is there to fade in.)
+    this.core = coreFor(
+      trees * 0.375,
+      this.eyeHeight,
+      FIELD.trees.out,
+      2.3 * Math.sqrt(trees / 3600),
+    );
     if (distance > NEAR_ON * 1.15) {
       if (this.pieces.size || this.queue.length) this.clearNear();
     } else {
