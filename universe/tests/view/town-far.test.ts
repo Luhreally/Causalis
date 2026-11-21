@@ -24,6 +24,7 @@ import {
   DETAIL_HYSTERESIS,
   TownParts,
   farOf,
+  homeAt,
   townDetail,
   townGround,
   townHomesSeen,
@@ -55,7 +56,7 @@ function where(scene: TownScene, p: number): { x: number; z: number } {
     : { x: far!.x[p - far!.from]!, z: far!.z[p - far!.from]! };
 }
 
-test("no home drawn whole stands farther from the eye than one drawn lightly, by more than the eye may move unchosen", () => {
+test("no home past a city's lots drawn stands whole farther from the eye than one drawn lightly, by more than the eye may move unchosen; its own all whole", () => {
   assert.ok(great.length >= 3, `${great.length} towns`);
   let checked = 0;
   for (const { s, plan } of great) {
@@ -76,8 +77,9 @@ test("no home drawn whole stands farther from the eye than one drawn lightly, by
           light = Infinity,
           wholes = 0,
           lights = 0;
+        // (Its own lots drawn stand whole as ever: those past them are chosen by the eye.)
         detail.drawn.forEach((how, p) => {
-          if (!how) return;
+          if (!how || p < plan.lots) return;
           const at = where(scene, p),
             d = Math.hypot(at.x - ex, at.z - ez);
           if (how === 1) {
@@ -198,4 +200,34 @@ test("a city's lots past those drawn stand on its own blocks grown on, as its ru
     farLots > 2000 && homes > 500,
     `${farLots} lots past those drawn, ${homes} homes on them`,
   );
+});
+
+test("a home seen from afar is the same building, only less of it: every part of it as it stands whole, in the same place and colour", () => {
+  let looked = 0;
+  for (const { plan } of great) {
+    const scene = townScene(plan, world.now);
+    for (const [i, look] of scene.looks.entries())
+      for (let level = 0; level <= 6; level++) {
+        const whole = new TownParts(),
+          parts = (o: TownParts) => {
+            const out = new Set<string>();
+            for (const [key, g] of o.groups)
+              for (let j = 0; j < g.data.length; j += 7)
+                out.add([key, ...g.data.slice(j, j + 7).map((v) => v.toFixed(3))].join("|"));
+            return out;
+          };
+        homeAt(whole, look, level, 30 + i, -40, 0.7, 2);
+        const all = parts(whole);
+        for (const fine of [1, 0]) {
+          const lighter = new TownParts();
+          homeAt(lighter, look, level, 30 + i, -40, 0.7, fine);
+          const some = parts(lighter);
+          assert.ok(some.size > 0, `level ${level}: nothing as seen from afar`);
+          for (const p of some)
+            assert.ok(all.has(p), `level ${level} fine ${fine}: ${p} not of it whole`);
+          looked++;
+        }
+      }
+  }
+  assert.ok(looked >= 20, `${looked} looked at`);
 });

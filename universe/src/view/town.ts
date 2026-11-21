@@ -1120,33 +1120,26 @@ function sprawlRoofs(scene: TownScene, out: TownParts, from: number, to: number)
  * How many of a great city's lots past those drawn stand on its own blocks grown on, each as what its runs say stands there
  * (farOf); the rest, kilometres out, in the haze (sprawl).
  */
-export const FAR_LOTS = 24_000;
+export const FAR_LOTS = 24_000,
+  /**
+   * How many parts its homes past those drawn may take, as far off as the eye is from them all (about what a great city's
+   * whole view took before them): out to where they run out the city's lots stand on its blocks, past them its haze.
+   */
+  FAR_PARTS = 12_000;
 /**
  * How much farther from the eye a lot drawn whole may be than one drawn as seen from afar (metres): which are drawn whole is
  * chosen again once the eye has moved half as far (render/town.ts TownLayer.look; townDetail).
  */
 export const DETAIL_HYSTERESIS = 60;
 /**
- * How many lots past those drawn whole are drawn each as its own body and roof (homeLod); how many past them a row's alike
- * as one (rowsLod); past them, kilometres out, a row's homes as one body (rowsLod coarse).
+ * How many parts a great city's homes past its lots drawn nearest the eye take whole, and the next as seen from afar
+ * (homeLod: the same building, its chimney and what stands on its roof left off); past them its rows (rowsLod).
  */
-export const LOD_LOTS = 1200,
-  ROW_LOTS = 4000;
-/**
- * About how many parts a home takes by its level, drawn whole, as seen from afar, in a row (measured on four great cities,
- * 2026-11-21); a roof of the haze, and the share of the haze's roofs that found ground (for the drawing's budget:
- * townDetail); and the fewest drawn whole, however great the city.
- */
-const COST = {
-    whole: [4.5, 4.5, 6.5, 7, 7, 15],
-    lod: [2, 2, 3, 2, 2, 1],
-    row: [0.6, 0.6, 0.6, 0.3, 0.3, 1],
-    block: [0.3, 0.3, 0.3, 0.3, 0.3, 0.3],
-    haze: 2,
-  },
-  FEWEST_WHOLE = 250,
-  /** (Its costs are reckoned roughly: a twelfth kept in hand.) */
-  IN_HAND = 0.92;
+export const FAR_WHOLE = 2500,
+  LOD_LOTS = 4000;
+/** About how many parts a home takes by its level, whole and as seen from afar (measured 2026-11-21). */
+const WHOLE_PARTS = [4.5, 4.5, 6.5, 7, 9, 15],
+  LOD_PARTS = [4, 4, 5, 5, 7, 13];
 
 /** A town's lots past those its plan draws whole: where each stands on its blocks grown on, and what stands there. */
 export type TownFar = {
@@ -1209,13 +1202,11 @@ export function farOf(scene: TownScene): TownFar | null {
   // (Where its ground runs out, its blocks do: none past the last laid.)
   count = Math.max(0, Math.min(count, lots.blocks.x.length * BLOCK_LOTS - from));
   if (count <= 0) return (scene.far = null);
-  const first = Math.floor(from / BLOCK_LOTS),
-    nb = Math.ceil((from + count) / BLOCK_LOTS) - first,
-    level = new Int8Array(count).fill(-1),
+  const first = Math.floor(from / BLOCK_LOTS);
+  let level = new Int8Array(count).fill(-1),
     design = new Int16Array(count),
-    ruin = new Uint8Array(count),
-    laid = new Uint8Array(nb).fill(1),
-    designOf = new Map(plan.designs.map((d, i) => [d.since, i])),
+    ruin = new Uint8Array(count);
+  const designOf = new Map(plan.designs.map((d, i) => [d.since, i])),
     ash = plan.ash ?? 0;
   for (const run of plan.beyond) {
     const [kind, lo, hi, , , lv, since] = run as [
@@ -1244,6 +1235,23 @@ export function farOf(scene: TownScene): TownFar | null {
       design[p - from] = designOf.get(since) ?? 0;
     }
   }
+  // (As many as FAR_PARTS draw in their rows, block by block outward: farParts.)
+  let parts = 0;
+  for (let k = 0; k < count; k++) {
+    if ((from + k) % BLOCK_LOTS === 0 && parts > FAR_PARTS) {
+      count = k;
+      level = level.subarray(0, count);
+      design = design.subarray(0, count);
+      ruin = ruin.subarray(0, count);
+      break;
+    }
+    parts +=
+      (ruin[k] ? 0.4 : level[k]! < 0 ? 0 : farParts(level[k]!, scene.looks[design[k]!])) +
+      1 / BLOCK_LOTS;
+  }
+  if (count <= 0) return (scene.far = null);
+  const nb = Math.ceil((from + count) / BLOCK_LOTS) - first,
+    laid = new Uint8Array(nb).fill(1);
   // (Its walls' line out in it, or where they stood: no block of it there.)
   const line = scene.walls && plan.walls && plan.walls.reach > plan.lots ? scene.walls.line : null,
     half = Math.hypot(BLOCK_W, BLOCK_D) / 2 + WALL_THICK + 2;
@@ -1298,6 +1306,21 @@ export function farOf(scene: TownScene): TownFar | null {
     outline: outlineOf(lots, from + count),
     turn,
   });
+}
+
+/** How many bands of windows a tall home's storeys are told by (home: fewer than its storeys on the tall ones). */
+function towerBands(level: number): number {
+  return Math.min(6, Math.max(1, Math.floor(LEVELS[level]!.storeys / (level === 5 ? 4 : 2))));
+}
+
+/** About how many parts a home past a city's lots drawn takes in its row (rowsLod): for FAR_PARTS. */
+function farParts(level: number, look: HouseLook | undefined): number {
+  if (!look) return 0;
+  if (level >= TOP_LEVEL) return 4;
+  if (!rowJoins(level, look)) return look.open ? 1 : 2;
+  if (level <= 1) return 0.75;
+  if (level === 2) return 1.25;
+  return (2 + towerBands(level)) / 4;
 }
 
 /** How far out a town's lots reach toward a bearing (metres): those drawn, and those past them on their own blocks (farOf). */
@@ -1383,108 +1406,55 @@ function farGround(scene: TownScene, out: TownParts, street: Rgb, yard: Rgb): vo
 }
 
 /**
- * Which of a town's lots are drawn whole, from where the eye looks (`focus`, metres from its square): of its homes standing
- * done, its own and those past its lots drawn, the nearest as many as the parts the town's view took before allow; the
- * next LOD_LOTS each as its own body and roof (homeLod); the next ROW_LOTS a row's alike as one, the rest a row as one body.
- * By lot (its own at p, those past at far.from + k): 1 whole, 2 its body and roof, 3 in its row, 4 its row one body; 0 drawn
- * as ever (rising, a ruin, not a home). Chosen again only once the eye has
- * moved half DETAIL_HYSTERESIS (render/town.ts).
+ * Which of a city's homes past its lots drawn are drawn whole, from where the eye looks (`focus`, metres from its square):
+ * the nearest whole as FAR_WHOLE parts allow, the next as seen from afar as LOD_LOTS allow (homeLod), the rest in their rows (rowsLod), each the same
+ * building, only less of it. Its own lots drawn stand whole as ever. By lot (its own at p, those past at far.from + k): 1
+ * whole, 2 as seen from afar, 3 in its row; 0 drawn as ever (its own, rising, a ruin, not a home). Chosen again only once
+ * the eye has moved half DETAIL_HYSTERESIS (render/town.ts), drawn over frames.
  */
 export type TownDetail = { readonly focus: { x: number; z: number }; readonly drawn: Uint8Array };
 export function townDetail(scene: TownScene, focus: { x: number; z: number }): TownDetail {
-  const { plan, lots, states } = scene,
+  const { plan, states } = scene,
     far = farOf(scene),
     n = plan.lots + (far?.count ?? 0),
-    drawn = new Uint8Array(n),
-    near: number[] = [],
-    d2 = new Float64Array(n);
-  let own = 0;
-  for (const p of scene.settled)
-    if (states.what[p] === LOT.home) {
-      near.push(p);
-      d2[p] = (lots.x[p]! - focus.x) ** 2 + (lots.z[p]! - focus.z) ** 2;
-      own++;
-    }
-  if (far)
-    for (let k = 0; k < far.count; k++)
-      if (far.level[k]! >= 0) {
-        const p = far.from + k;
-        near.push(p);
-        d2[p] = (far.x[k]! - focus.x) ** 2 + (far.z[k]! - focus.z) ** 2;
-      }
-  // (Nearest first, by the metre: counted out, not sorted, so a great city's choosing takes a few milliseconds, not tens.)
-  const byMetre = (() => {
-    let most = 0;
-    for (const p of near) most = Math.max(most, Math.sqrt(d2[p]!));
-    const slots = Math.floor(most) + 2,
-      starts = new Int32Array(slots + 1),
-      out = new Array<number>(near.length);
-    for (const p of near) starts[Math.floor(Math.sqrt(d2[p]!)) + 1]!++;
-    for (let i = 1; i <= slots; i++) starts[i]! += starts[i - 1]!;
-    for (const p of near) out[starts[Math.floor(Math.sqrt(d2[p]!))]!++] = p;
-    return out;
-  })();
-  for (let i = 0; i < byMetre.length; i++) near[i] = byMetre[i]!;
-  // (As many drawn whole as the parts its homes and its haze took when only its own lots stood, and those past them were
-  // roofs scattered on bare ground, allow: its lots past them, drawn now, are drawn the more lightly the farther out.)
-  const all = near.length,
-    levelOf = (p: number) =>
-      Math.max(
-        0,
-        Math.min(TOP_LEVEL, p < plan.lots ? states.level[p]! : far!.level[p - plan.lots]!),
-      ),
-    // (What each would take drawn each way, summed from the nearest.)
-    sums = (of: readonly number[]) => {
-      const out = new Float64Array(all + 1);
-      for (let i = 0; i < all; i++) out[i + 1] = out[i]! + of[levelOf(near[i]!)]!;
-      return out;
-    },
-    whole1 = sums(COST.whole),
-    lod1 = sums(COST.lod),
-    row1 = sums(COST.row),
-    block1 = sums(COST.block);
-  let was = 0;
-  for (const p of scene.settled) if (states.what[p] === LOT.home) was += COST.whole[levelOf(p)]!;
-  const hazeNow = (scene.sprawlRoofs?.length ?? 0) / 8,
-    // (Of those it laid before, those of them where its lots past those drawn now stand: sprawlLaid.)
-    hazeWas = hazeNow + (scene.sprawlLeft ?? 0),
-    budget =
-      IN_HAND * was +
-      (hasSpires(plan) ? COST.haze + 1 : COST.haze) * (hazeWas - hazeNow) -
-      (far ? (scene.farPlate ?? 0) + far.ruins : 0),
-    // (Each drawn whole, as seen from afar, in its row, its row one body; a block's yards where any is drawn nearer.)
-    cost = (w: number, l: number, r: number) => {
-      const lod = Math.min(all, w + l),
-        row = Math.min(all, lod + r);
-      return (
-        whole1[w]! +
-        lod1[lod]! -
-        lod1[w]! +
-        row1[row]! -
-        row1[lod]! +
-        block1[all]! -
-        block1[row]! +
-        (far ? Math.max(0, row - own) / BLOCK_LOTS : 0)
-      );
-    };
-  // (Fewer whole down to the fewest; then, in a city of towers, fewer in rows and as seen from afar.)
-  let whole = Math.min(own, all),
-    lod = LOD_LOTS,
-    rows = ROW_LOTS;
-  while (cost(whole, lod, rows) > budget)
-    if (whole > FEWEST_WHOLE) whole = Math.max(FEWEST_WHOLE, whole - 25);
-    else if (rows > 0) rows = Math.max(0, rows - 200);
-    else if (lod > FEWEST_WHOLE) lod = Math.max(FEWEST_WHOLE, lod - 100);
-    else break;
-  for (let i = 0; i < all; i++)
-    drawn[near[i]!] = i < whole ? 1 : i < whole + lod ? 2 : i < whole + lod + rows ? 3 : 4;
+    drawn = new Uint8Array(n);
+  for (const p of scene.settled) if (states.what[p] === LOT.home) drawn[p] = 1;
+  if (!far) return { focus: { x: focus.x, z: focus.z }, drawn };
+  // (Nearest first, by the metre: counted out, not sorted, so a great city's choosing takes a few milliseconds.)
+  const d = new Float64Array(far.count);
+  let most = 0,
+    homes = 0;
+  for (let k = 0; k < far.count; k++) {
+    if (far.level[k]! < 0) continue;
+    d[k] = Math.hypot(far.x[k]! - focus.x, far.z[k]! - focus.z);
+    most = Math.max(most, d[k]!);
+    homes++;
+  }
+  const slots = Math.floor(most) + 2,
+    starts = new Int32Array(slots + 1),
+    order = new Int32Array(homes);
+  for (let k = 0; k < far.count; k++) if (far.level[k]! >= 0) starts[Math.floor(d[k]!) + 1]!++;
+  for (let i = 1; i <= slots; i++) starts[i]! += starts[i - 1]!;
+  for (let k = 0; k < far.count; k++)
+    if (far.level[k]! >= 0) order[starts[Math.floor(d[k]!)]!++] = k;
+  // (By the parts they take: fewer towers whole than houses.)
+  let whole = 0,
+    lod = 0;
+  for (let i = 0; i < homes; i++) {
+    const k = order[i]!,
+      lv = Math.max(0, Math.min(TOP_LEVEL, far.level[k]!));
+    if (whole < FAR_WHOLE) {
+      whole += WHOLE_PARTS[lv]!;
+      drawn[far.from + k] = 1;
+    } else if (lod < LOD_LOTS) {
+      lod += LOD_PARTS[lv]!;
+      drawn[far.from + k] = 2;
+    } else drawn[far.from + k] = 3;
+  }
   return { focus: { x: focus.x, z: focus.z }, drawn };
 }
 
-/**
- * A home seen from afar: its body and roof at its level and in its design, on its own footprint, as `home` stands it, but
- * no windows but a band on the tall, nothing on its roof.
- */
+/** A home seen from afar: the same building as `home` stands, its chimney and what stands on its roof left off (`fine`: home's). */
 function homeLod(
   out: TownParts,
   look: HouseLook,
@@ -1492,58 +1462,22 @@ function homeLod(
   x: number,
   z: number,
   yaw: number,
+  fine = 1,
 ): void {
-  if (look.sealed) return sealedHome(out, look, level, x, z, yaw, 1, 1);
-  if (level >= TOP_LEVEL) {
-    const L = LEVELS[TOP_LEVEL]!,
-      share = spireShare(x, z),
-      h = L.h * share;
-    out.put(
-      "box",
-      SPIRE_GLASS[Math.floor(share * 53) % SPIRE_GLASS.length]!,
-      x,
-      h / 2,
-      z,
-      L.w * 0.8,
-      h,
-      L.d * 0.8,
-      yaw,
-    );
-    return;
-  }
-  const L = LEVELS[Math.max(0, level)]!,
-    h = L.h * tallOf(look, level);
-  if (h <= 0.01) return;
-  if (level <= 1) {
-    const [w, d] = lowFoot(L, look);
-    out.put(look.round ? "cyl" : "box", look.wall, x, look.raised * 10 + h / 2, z, w, h, d, yaw);
-    if (look.open) return;
-    const flat = look.rise < 0.1,
-      rh = look.tent ? 7.5 : flat ? 0.6 : Math.min(5, look.rise * d * 0.5);
-    out.put(
-      look.round || look.tent ? "cone" : flat ? "box" : "gable",
-      look.roof,
-      x,
-      look.raised * 10 + h + rh / 2,
-      z,
-      w * (flat ? 1.02 : 1.15),
-      rh,
-      d * (flat ? 1.02 : 1.15),
-      yaw,
-    );
-    return;
-  }
-  if (level === 2) {
-    out.put("box", look.wall, x, h / 2, z, L.w, h, L.d, yaw);
-    const flat = look.rise < 0.1,
-      rh = roof2(look);
-    out.put(flat ? "box" : "gable", look.roof, x, h + rh / 2, z, L.w * 1.04, rh, L.d * 1.08, yaw);
-    // (A band of windows, front and back.)
-    out.lamp(x, h * 0.55, z, L.w * 0.78, 0.9, L.d * 1.02, yaw);
-    return;
-  }
-  out.put("box", tallWall(look, level), x, h / 2, z, L.w, h, L.d, yaw);
-  out.lamp(x, h * 0.55, z, L.w * 1.01, 0.8, L.d * 1.01, yaw);
+  home(out, look, level, x, z, yaw, 1, 1, fine);
+}
+
+/** A home standing done at a level and look, as finely as asked (home's `fine`: 2 whole, 1 as seen from afar, 0 further off): for a check. */
+export function homeAt(
+  out: TownParts,
+  look: HouseLook,
+  level: number,
+  x: number,
+  z: number,
+  yaw: number,
+  fine: number,
+): void {
+  home(out, look, level, x, z, yaw, 1, 1, fine);
 }
 
 /** The walls of a tall home: brick, concrete, glass; where its people have no brick to stack, what its low homes are of. */
@@ -1556,16 +1490,27 @@ function tallWall(look: HouseLook, level: number): Rgb {
 }
 
 /**
- * Homes far from the eye, a row's alike as one (`at(p)` where lot p stands; `of(p)` its level and look, null: none): each run
- * of lots of one row of a block, side by side, of one level and look, one body as long as they and as high, in its walls'
- * colour toward its roof's. A spire stands alone.
+ * Whether a row of homes of one level and look stands wall to wall, so that drawn as one it is the same row (gaps between
+ * them under a metre: townhouses, tenements, blocks; a land's joined houses).
+ */
+function rowJoins(level: number, look: HouseLook): boolean {
+  if (look.sealed || look.open || look.tent || look.round || level >= TOP_LEVEL) return false;
+  if (level <= 1) return look.joined === true;
+  // (Towers of flats a little apart, a metre and more: from as far off as their rows are drawn, one face.)
+  return LOT_W - LEVELS[level]!.w <= (level >= 3 ? 1.25 : 0.6);
+}
+
+/**
+ * Homes far from the eye in their rows (`place(p)` where lot p stands; `of(p)` its level and look, null: none): each run of
+ * lots of one row of a block, side by side, of one level and look and standing wall to wall, one body as long as they, its
+ * roof along it and a band of windows on it, the same row with the hand's breadth between its homes closed; any other home
+ * as seen from afar (homeLod), each where it stands.
  */
 function rowsLod(
   out: TownParts,
   list: readonly number[],
-  at: (p: number) => { x: number; z: number; yaw: number },
+  place: (p: number) => { x: number; z: number; yaw: number },
   of: (p: number) => { level: number; look: HouseLook } | null,
-  coarse = false,
 ): void {
   const sorted = [...list].sort((a, b) => a - b);
   for (let i = 0; i < sorted.length;) {
@@ -1575,110 +1520,94 @@ function rowsLod(
       i++;
       continue;
     }
+    const { level, look } = h0;
+    if (!rowJoins(level, look)) {
+      const c = place(p);
+      homeLod(out, look, level, c.x, c.z, c.yaw, 0);
+      i++;
+      continue;
+    }
     // (The run: the same row of four, lot after lot, alike.)
     let j = i + 1;
     while (
       j < sorted.length &&
       sorted[j] === sorted[j - 1]! + 1 &&
       sorted[j]! % 4 !== 0 &&
-      (coarse
-        ? !!of(sorted[j]!) &&
-          !h0.look.sealed &&
-          of(sorted[j]!)!.level >= TOP_LEVEL === h0.level >= TOP_LEVEL
-        : h0.level < TOP_LEVEL &&
-          of(sorted[j]!)?.level === h0.level &&
-          of(sorted[j]!)?.look === h0.look)
+      of(sorted[j]!)?.level === level &&
+      of(sorted[j]!)?.look === look
     )
       j++;
     const n = j - i,
-      a = at(p),
-      b = at(sorted[j - 1]!),
-      { level, look } = h0;
+      a = place(p),
+      b = place(sorted[j - 1]!);
     i = j;
-    if (coarse && !look.sealed) {
-      // (Kilometres out, the row one body as high as its highest, on its homes' footprint, in its walls' colour toward its
-      // roofs' as seen from above; a row of towers in their glass.)
-      let high = 0,
-        deep = 0;
-      for (let q = i - n; q < i; q++) {
-        const o = of(sorted[q]!)!,
-          c = at(sorted[q]!),
-          L = LEVELS[Math.max(0, Math.min(TOP_LEVEL, o.level))]!;
-        high = Math.max(
-          high,
-          o.level >= TOP_LEVEL ? L.h * spireShare(c.x, c.z) : L.h * tallOf(o.look, o.level),
-        );
-        deep = Math.max(deep, o.level <= 1 ? lowFoot(L, o.look)[1] : L.d);
-      }
-      const colour =
-          level >= TOP_LEVEL
-            ? SPIRE_GLASS[Math.floor(spireShare(a.x, a.z) * 53) % SPIRE_GLASS.length]!
-            : level >= 3
-              ? tallWall(look, level)
-              : mixed(look.wall, look.roof, 0.5),
-        rise = level <= 1 ? look.raised * 10 : 0;
-      if (high <= 0.01) continue;
-      // (A row of towers as its tallest alone, on a tower's own footprint: a slab as long as the row reads as a wall.)
-      if (level >= TOP_LEVEL) {
-        const L = LEVELS[TOP_LEVEL]!;
-        out.put(
-          "box",
-          colour,
-          (a.x + b.x) / 2,
-          high / 2,
-          (a.z + b.z) / 2,
-          L.w * 0.8,
-          high,
-          L.d * 0.8,
-          a.yaw,
-        );
-        continue;
-      }
-      out.put(
-        "box",
-        colour,
-        (a.x + b.x) / 2,
-        rise + high / 2,
-        (a.z + b.z) / 2,
-        n * LOT_W - 1.2,
-        high,
-        deep,
-        a.yaw,
-      );
+    if (n === 1) {
+      homeLod(out, look, level, a.x, a.z, a.yaw, 0);
       continue;
     }
-    // (A spire, a round hut, a tent stands alone.)
-    if (look.sealed || level >= TOP_LEVEL || (level <= 1 && (look.round || look.tent))) {
-      for (let q = i - n; q < i; q++) {
-        const c = at(sorted[q]!);
-        homeLod(out, look, level, c.x, c.z, c.yaw);
-      }
-      continue;
-    }
-    const L = LEVELS[Math.max(0, level)]!,
+    const L = LEVELS[level]!,
       [w, d] = level <= 1 ? lowFoot(L, look) : [L.w, L.d],
-      wall = level >= 3 ? tallWall(look, level) : look.wall,
+      h = L.h * tallOf(look, level),
       rise = level <= 1 ? look.raised * 10 : 0,
       x = (a.x + b.x) / 2,
       z = (a.z + b.z) / 2,
-      long = w + (n - 1) * LOT_W;
-    const h = L.h * tallOf(look, level);
+      long = w + (n - 1) * LOT_W,
+      yaw = a.yaw;
     if (h <= 0.01) continue;
-    out.put("box", wall, x, rise + h / 2, z, long, h, d, a.yaw);
-    // (Its roof along the row: pitched as its homes', the tall ones' flat with them.)
-    if (level >= 3 || look.open) continue;
-    const flat = look.rise < 0.1,
-      rh = level === 2 ? roof2(look) : flat ? 0.6 : Math.min(5, look.rise * d * 0.5);
+    out.put(
+      "box",
+      level >= 3 ? tallWall(look, level) : look.wall,
+      x,
+      rise + h / 2,
+      z,
+      long,
+      h,
+      d,
+      yaw,
+    );
+    if (level >= 3) {
+      // (Its storeys' bands and its roof's tar, as each of its homes has them.)
+      const bands = towerBands(level);
+      for (let k = 0; k < bands; k++)
+        out.lamp(x, ((k + 0.6) / bands) * h, z, long + L.w * 0.01, 0.8, L.d * 1.01, yaw);
+      out.put("box", TAR, x, h + 0.25, z, long + L.w * 0.02, 0.5, L.d * 1.02, yaw);
+      continue;
+    }
+    const flat = look.rise < 0.1;
+    if (level === 2) {
+      // (A band of windows for each of its storeys, front and back, as each of its homes has.)
+      for (let k = 0; k < L.storeys; k++)
+        out.lamp(x, ((k + 0.55) / L.storeys) * h, z, long - L.w * 0.22, 0.9, L.d * 1.02, yaw);
+      const rh = roof2(look);
+      out.put(
+        flat ? "box" : "gable",
+        look.roof,
+        x,
+        h + rh / 2,
+        z,
+        long + L.w * 0.04,
+        rh,
+        L.d * 1.08,
+        yaw,
+      );
+      continue;
+    }
+    // (Joined houses: their windows on their front, one band along it; their roof along the row.)
+    if (h > 1.4) {
+      const [wx, wz] = at(x, z, yaw, 0, -d / 2 - 0.06);
+      out.lamp(wx, rise + h * 0.55, wz, long * 0.86, Math.min(0.8, h * 0.3), 0.14, yaw);
+    }
+    const rh = flat ? 0.6 : Math.min(5, look.rise * d * 0.5);
     out.put(
       flat ? "box" : "gable",
       look.roof,
       x,
       rise + h + rh / 2,
       z,
-      long * 1.02,
+      long + w * (flat ? 0.02 : 0.15),
       rh,
-      d * 1.1,
-      a.yaw,
+      d * (flat ? 1.02 : 1.15),
+      yaw,
     );
   }
 }
@@ -1694,35 +1623,14 @@ export function* homesSeen(
   t: number,
   out: TownParts,
 ): Generator<void, void> {
-  const { lots, states } = scene,
-    far = farOf(scene),
+  const far = farOf(scene),
     drawn = detail?.drawn,
     STEP = 100;
-  const own = drawn ? scene.settled.filter((p) => (drawn[p] ?? 0) <= 1) : scene.settled;
-  for (let i = 0; i < own.length; i += STEP) {
-    townHomes(scene, own.slice(i, i + STEP), t, out);
+  // (Its own lots drawn whole as ever.)
+  for (let i = 0; i < scene.settled.length; i += STEP) {
+    townHomes(scene, scene.settled.slice(i, i + STEP), t, out);
     yield;
   }
-  const lodOwn: number[] = [],
-    rowOwn: number[] = [],
-    blockOwn: number[] = [];
-  if (drawn)
-    for (const p of scene.settled)
-      if (drawn[p] === 2) lodOwn.push(p);
-      else if (drawn[p] === 3) rowOwn.push(p);
-      else if (drawn[p] === 4) blockOwn.push(p);
-  const ownAt = (p: number) => ({ x: lots.x[p]!, z: lots.z[p]!, yaw: lots.yaw[p]! }),
-    ownOf = (p: number) => {
-      const look = formLook(scene, p, states.design[p]!);
-      return look ? { level: states.level[p]!, look } : null;
-    };
-  for (const p of lodOwn) {
-    const h = ownOf(p);
-    if (h) homeLod(out, h.look, h.level, lots.x[p]!, lots.z[p]!, lots.yaw[p]!);
-  }
-  rowsLod(out, rowOwn, ownAt, ownOf);
-  rowsLod(out, blockOwn, ownAt, ownOf, true);
-  yield;
   if (!far) return;
   const farAt = (p: number) => {
       const k = p - far.from;
@@ -1735,11 +1643,9 @@ export function* homesSeen(
       return level >= 0 && look ? { level, look } : null;
     },
     rows: number[] = [],
-    blocks: number[] = [],
     yard = scene.farYard,
     yarded = new Uint8Array(far.laid.length),
-    // (A block's yards, once, where any of its lots is drawn nearer than kilometres out; a block begun among those drawn has
-    // them with its ground.)
+    // (A block's yards, once, where any of its homes stands; a block begun among those drawn has them with its ground.)
     yardOf = (k: number) => {
       const p = far.from + k,
         b = Math.floor(p / BLOCK_LOTS) - far.first;
@@ -1763,9 +1669,7 @@ export function* homesSeen(
     if (++since >= STEP * 4 && (far.from + k) % 4 === 0) {
       since = 0;
       rowsLod(out, rows, farAt, farOfLot);
-      rowsLod(out, blocks, farAt, farOfLot, true);
       rows.length = 0;
-      blocks.length = 0;
       yield;
     }
     const p = far.from + k,
@@ -1792,15 +1696,13 @@ export function* homesSeen(
       continue;
     }
     if (!h) continue;
+    yardOf(k);
     const how = drawn ? drawn[p]! : 3;
-    if (how >= 1 && how <= 3) yardOf(k);
     if (how === 1) home(out, h.look, h.level, far.x[k]!, far.z[k]!, far.yaw[k]!);
     else if (how === 2) homeLod(out, h.look, h.level, far.x[k]!, far.z[k]!, far.yaw[k]!);
-    else if (how === 3) rows.push(p);
-    else if (how === 4) blocks.push(p);
+    else rows.push(p);
   }
   rowsLod(out, rows, farAt, farOfLot);
-  rowsLod(out, blocks, farAt, farOfLot, true);
 }
 
 /** homesSeen at once. */
@@ -2044,6 +1946,8 @@ function spire(
   yaw: number,
   grow: number,
   roof: number,
+  /** As home's: 1 without its mast, 0 its shafts alone. */
+  fine = 2,
 ): void {
   const L = LEVELS[TOP_LEVEL]!,
     share = spireShare(x, z),
@@ -2080,13 +1984,15 @@ function spire(
       w = L.w * wide!,
       d = L.d * wide!;
     out.put("box", glass, x, from + span / 2, z, w, span, d, yaw);
-    if (grow >= 1)
-      for (let k = 0; k < bands!; k++)
-        out.lamp(x, from + ((k + 0.6) / bands!) * span, z, w * 1.008, 1.8, d * 1.008, yaw);
-    out.put("box", CARBON, x, top + 0.4, z, w * 1.05, 0.9, d * 1.05, yaw);
+    if (fine >= 1) {
+      if (grow >= 1)
+        for (let k = 0; k < bands!; k++)
+          out.lamp(x, from + ((k + 0.6) / bands!) * span, z, w * 1.008, 1.8, d * 1.008, yaw);
+      out.put("box", CARBON, x, top + 0.4, z, w * 1.05, 0.9, d * 1.05, yaw);
+    }
     from = top;
   });
-  if (roof >= 1) {
+  if (roof >= 1 && fine >= 2) {
     out.put("box", FRAME, x, high + 9, z, 0.6, 18, 0.6, 0);
     out.put("box", NEEDLE, x, high + 18.5, z, 1, 1, 1, 0);
   }
@@ -2102,10 +2008,15 @@ function home(
   yaw: number,
   grow = 1,
   roof = 1,
+  /**
+   * How finely: 2 whole; 1 as seen from afar, its chimney and what stands on its roof left off (homeLod); 0 further off
+   * still, a hut's or a house's two front windows left off too (rowsLod). All else the same building.
+   */
+  fine = 2,
 ): void {
   // (Halls on another body: Phase 64.)
   if (look.sealed) return sealedHome(out, look, level, x, z, yaw, grow, roof);
-  if (level >= TOP_LEVEL) return spire(out, look, x, z, yaw, grow, roof);
+  if (level >= TOP_LEVEL) return spire(out, look, x, z, yaw, grow, roof, fine);
   const L = LEVELS[Math.max(0, Math.min(TOP_LEVEL, level))]!,
     h = L.h * tallOf(look, level) * grow;
   if (h <= 0.01) return;
@@ -2115,7 +2026,7 @@ function home(
       wall = look.wall;
     out.put(look.round ? "cyl" : "box", wall, x, look.raised * 10 + h / 2, z, w, h, d, yaw);
     // Two windows on its front, toward its street (none in a tent, nor where it is open).
-    if (!look.tent && !look.open && grow >= 1 && h > 1.4)
+    if (!look.tent && !look.open && grow >= 1 && h > 1.4 && fine >= 1)
       for (const side of [-1, 1]) {
         // (Apart at the edge, a cottage of one window; by the square a floor higher, a window to each floor.)
         if (look.apart && side < 0) continue;
@@ -2167,7 +2078,7 @@ function home(
     if (grow >= 1)
       for (let k = 0; k < L.storeys; k++)
         out.lamp(x, ((k + 0.55) / L.storeys) * h, z, L.w * 0.78, 0.9, L.d * 1.02, yaw);
-    if (roof >= 1) {
+    if (roof >= 1 && fine >= 2) {
       const [cx, cz] = at(x, z, yaw, L.w * 0.3, 0);
       out.put("box", BRICK, cx, h + 2.6, cz, 0.8, 2.2, 0.8, yaw);
     }
@@ -2195,6 +2106,7 @@ function home(
   if (roof <= 0) return;
   out.put("box", TAR, x, h + 0.25, z, L.w * 1.02, 0.5, L.d * 1.02, yaw);
   // On the roof: a tank on a tenement, a plant-house on a block, a mast on a tower.
+  if (fine < 2) return;
   if (level === 3) out.put("cyl", TIMBER, x, h + 1.6, z, 2, 2.2, 2, 0);
   else if (level === 4) out.put("box", CONCRETE, x, h + 1.6, z, L.w * 0.4, 2.4, L.d * 0.3, yaw);
   else out.put("box", FRAME, x, h + 5, z, 0.4, 10, 0.4, 0);
