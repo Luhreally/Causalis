@@ -266,17 +266,21 @@ export function blocYears(world: World, head: string): BlocYears | null {
     if (hit) return hit;
     const out = new Map<string, Numbers>(),
       m = realmNumbers(y);
-    if (m)
-      for (const [ref, a] of m) {
-        const h = at(store.realms.get(ref), ref, y);
-        if (!h) continue;
-        const s = out.get(h) ?? { realms: 0, people: 0, lands: 0, host: 0 };
+    // (Every realm by the alliance it stood in, counted whether or not its lands were: an alliance is its realms.)
+    if (m) {
+      const add = (ref: string, h: string) => {
+        if (!h) return;
+        const a = m.get(ref),
+          s = out.get(h) ?? { realms: 0, people: 0, lands: 0, host: 0 };
         s.realms++;
-        s.people += a.people;
-        s.lands += a.lands;
-        s.host += a.host;
+        s.people += a?.people ?? 0;
+        s.lands += a?.lands ?? 0;
+        s.host += a?.host ?? 0;
         out.set(h, s);
-      }
+      };
+      if (y >= now) for (const [h, list] of live.blocs) for (const r of list) add(r, h);
+      else for (const [ref, l] of store.realms) add(ref, at(l, ref, y));
+    }
     // (Two or more stand in an alliance: a head alone is none.)
     for (const [h, s] of out) if (s.realms < 2) out.delete(h);
     tables.set(y, out);
@@ -525,7 +529,12 @@ export function blocTold(world: World, b: BlocYears, y: number, events: YearEven
     return out;
   }
   if (!h) return out;
-  // A new head: one stronger came in, or the one at its head fell or left.
+  // A new head: one stronger came in, or the one at its head fell or left (and how many times this one has led it).
+  const again = (lead: string) => {
+    let n = 0;
+    for (let x = y; x > b.first; x--) if (b.headAt(x) === lead && b.headAt(x - 1) !== lead) n++;
+    return n;
+  };
   if (was && was !== h) {
     const came = !inBefore.has(h),
       cause = came ? found(events, y, h, inBefore, CAME_BY) : null;
@@ -533,7 +542,7 @@ export function blocTold(world: World, b: BlocYears, y: number, events: YearEven
       realmYear(world, h, y),
       came
         ? ` came in${cause ? by(world, cause, h) : ""}, and leads it now: it fields more than any of them`
-        : ` leads it now, in place of ${townOf(world, was)}`,
+        : ` leads it ${again(h) > 1 ? `again, the ${ordinal(again(h))} time` : "now"}, in place of ${townOf(world, was)}`,
       came && joined.length > 1
         ? `, and ${said(joined.length - 1)} of its own came in with it`
         : "",
@@ -574,7 +583,9 @@ export function blocTold(world: World, b: BlocYears, y: number, events: YearEven
       " fought ",
       realmYear(world, t.foe, y),
       " side by side",
-      `, the ${ordinal(y - t.since + 1)} year of it`,
+      y === t.since
+        ? ` from ${count(y)}`
+        : `, the ${ordinal(y - t.since + 1)} year since ${count(t.since)}`,
       t.battles ? `: ${said(t.battles)} ${t.battles === 1 ? "battle" : "battles"} in the year` : "",
       t.fallen ? `, ${count(t.fallen)} fallen` : "",
       ".",
