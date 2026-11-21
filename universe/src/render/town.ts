@@ -32,6 +32,7 @@ import {
   townScene,
   homesSeen,
   townDetail,
+  farOf,
   DETAIL_HYSTERESIS,
   type TownDetail,
   townBuildingAt,
@@ -289,6 +290,35 @@ export class TownLayer {
     // (From its choosing begun to its drawing shown, over frames; and the one frame it is shown in.)
     performance.measure("town.chosen", { start: t0 });
     performance.measure("town.shown", { start: t1 });
+  }
+
+  /**
+   * For a check: where each of its lots stands (metres; its own, then those past them), and which way each is drawn as last
+   * chosen (townDetail's: 1 whole, 2 as seen from afar, 3 in its row; 0 drawn as ever).
+   */
+  lotsDrawn(): { x: Float32Array; z: Float32Array; drawn: Uint8Array; own: number } | null {
+    const scene = this.scene;
+    if (!scene || !this.detail) return null;
+    const far = farOf(scene),
+      n = scene.plan.lots + (far?.count ?? 0),
+      x = new Float32Array(n),
+      z = new Float32Array(n);
+    x.set(scene.lots.x.subarray(0, scene.plan.lots));
+    z.set(scene.lots.z.subarray(0, scene.plan.lots));
+    if (far) {
+      x.set(far.x, far.from);
+      z.set(far.z, far.from);
+    }
+    return { x, z, drawn: this.detail.drawn, own: scene.plan.lots };
+  }
+
+  /** For a check: its homes chosen from a spot (metres) and drawn at once, as the eye there would have them. */
+  chooseNow(x: number, z: number): void {
+    const scene = this.scene;
+    if (!scene) return;
+    this.choosing = null;
+    const run = this.choose(scene, { x, z });
+    while (!run.next().done);
   }
 
   /** What it draws (for a check): its parts and batches, all year and rising, and how many of its homes stand whole, and where they were chosen from (metres). */

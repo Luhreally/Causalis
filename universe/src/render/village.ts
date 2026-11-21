@@ -1967,6 +1967,14 @@ export class VillageScene {
    * `fine`: its people at their day's errands (else, a town watched growing, each at their work as
    * it was before Phase 39, walking straight to it).
    */
+  /** Its town's lots and how each is drawn; its homes chosen from a spot at once (for a check: render/town.ts). */
+  townLotsDrawn(): ReturnType<TownLayer["lotsDrawn"]> {
+    return this.town.lotsDrawn();
+  }
+  townChooseNow(x: number, z: number): void {
+    this.town.chooseNow(x / M, z / M);
+  }
+
   /** What its town draws (for a check: render/town.ts TownLayer.counts). */
   townCounts(): ReturnType<TownLayer["counts"]> {
     return this.town.counts();
