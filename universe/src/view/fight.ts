@@ -281,7 +281,8 @@ export function heldFightNow(
       id: t.id,
       side: t.side,
       x: b.x,
-      y: standY(field, t.side, b.x, b.z),
+      // (The one held, flying on the god's wings: rules/gifts.ts.)
+      y: standY(field, t.side, b.x, b.z) + (b.lift ?? 0),
       z: b.z,
       yaw: b.yaw,
       act,

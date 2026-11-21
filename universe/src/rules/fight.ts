@@ -838,12 +838,12 @@ function hand(scene: FightScene, f: FightWorld, bid: HandBid, draw: LocalDraw): 
       face(b, foe.x, foe.z);
       b.yaw = dmath.atan2(foe.x - b.x, foe.z - b.z);
       b.doing = "fight";
-      strike(scene, f, 0, fi, false, draw, true);
+      strike(scene, f, 0, fi, false, draw, true, true);
       b.ready = s + FIGHT_TAKES.hand;
     } else if (foe && b.loaded >= 0 && b.loaded <= s && d <= FIGHT_RANGE[own.looses]) {
       b.yaw = dmath.atan2(foe.x - b.x, foe.z - b.z);
       b.doing = "loose";
-      strike(scene, f, 0, fi, true, draw, true);
+      strike(scene, f, 0, fi, true, draw, true, true);
       b.loaded = s + Math.round(own.reload * POSSESS_HZ);
       if (f.told[1] !== s) told(f, "loosed", foe.id);
     } else told(f, "nothing", -1, foe ? 1 : 0);

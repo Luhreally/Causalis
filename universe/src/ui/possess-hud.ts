@@ -11,7 +11,12 @@
 // and R the four acts, Esc to let go, a drag of the mouse to look and its wheel to stand off.
 // A soldier or a beast possessed (Phase 61) the same, with what he bears and the battle's tally
 // under the strip: each side's men standing and fallen, the last struck down named.
+// The god's gifts (2026-11-21, rules/gifts.ts): ✨ Gifts opens their sheet (G), each put on or off with a press (1 … 9);
+// held, 🏃 Sprint (or Shift) runs as the body can, its breath a bar on the strip while it is spent; with wings, ⤴ Rise
+// (or Q) held flies up; with healing, a fifth act (H); a stroke chosen on the sheet falls where the world is next touched.
 import type { HeldTally, PossessLive } from "../bridge/index.ts";
+import { GIFTS, type Gift } from "../view/index.ts";
+import { GiftsSheet } from "./gifts-sheet.ts";
 import { el } from "./why.ts";
 
 /** How far the stick reaches from where the thumb came down (CSS px); pushed this far out of it, a run. */
@@ -22,8 +27,8 @@ const DOUBLE_MS = 330,
   DOUBLE_PX = 44,
   TAP_PX = 10,
   TAP_MS = 350;
-/** The keys of the four acts, in their places. */
-const ACT_KEYS = ["Space", "KeyE", "KeyF", "KeyR"];
+/** The keys of the acts, in their places (the fifth the healing touch's, while the gift is on). */
+const ACT_KEYS = ["Space", "KeyE", "KeyF", "KeyR", "KeyH"];
 const AHEAD: Readonly<Record<string, readonly [number, number]>> = {
   KeyW: [0, 1],
   ArrowUp: [0, 1],
@@ -86,8 +91,19 @@ export class PossessHud {
   private push = { x: 0, y: 0 };
   private readonly keys = new Set<string>();
   private shift = false;
-  private sprinting = false;
+  /** The sprint held down (by its button: each finger on it), and Rise (its button, or Q). */
+  private readonly sprintHeld = new Set<number>();
   private readonly sprint = el("button", "possess-sprint", "🏃 Sprint");
+  private readonly riseHeld = new Set<number>();
+  private riseKey = false;
+  private readonly rise = el("button", "possess-rise", "⤴ Rise");
+  /** The god's gifts: their button, their sheet, the stroke waiting for a touch (-1: none). */
+  private readonly giftsButton = el("button", "possess-gifts", "✨ Gifts");
+  readonly sheet: GiftsSheet;
+  private stroke = -1;
+  /** His breath for a sprint, on the strip while it is spent. */
+  private readonly wind = el("span", "possess-wind");
+  private readonly windLeft = el("span", "possess-wind-left");
   private pressed: number[] = [];
   private tapped = { t: -1e9, x: 0, y: 0 };
   private pinch = 0;
@@ -107,12 +123,18 @@ export class PossessHud {
   onPace: (pace: number) => void = () => {};
   /** A finger put down and lifted on one spot of the world (screen px): what stands there, touched. */
   onTap: (x: number, y: number) => void = () => {};
+  /** The gifts put on or off (all of them now); a stroke called down at a spot of the world touched (screen px). */
+  onGifts: (gifts: number) => void = () => {};
+  onSmite: (kind: number, x: number, y: number) => void = () => {};
 
   constructor(parent: HTMLElement) {
     this.element.hidden = true;
     this.left.append(this.strength);
+    this.wind.append(this.windLeft);
+    this.wind.hidden = true;
+    this.wind.title = "Breath for a sprint";
     const line = el("div", "possess-line");
-    line.append(this.what, this.left, this.carries, this.body);
+    line.append(this.what, this.left, this.wind, this.carries, this.body);
     this.strip.append(this.who, line);
     this.balance.append(this.share);
     const sides = el("div", "possess-sides");
@@ -142,13 +164,23 @@ export class PossessHud {
     }
     this.setPace(1);
     this.sprint.setAttribute("aria-pressed", "false");
-    this.sprint.title = "Toggle sprint; Shift or the stick's outer rim also runs";
-    this.press(this.sprint, () => {
-      this.sprinting = !this.sprinting;
-      this.sprint.setAttribute("aria-pressed", String(this.sprinting));
-      this.sprint.textContent = this.sprinting ? "🏃 Sprint on" : "🏃 Sprint";
-    });
-    for (let slot = 0; slot < 4; slot++) {
+    this.sprint.title = "Hold to sprint (Shift; the stick pushed to its rim also runs)";
+    this.hold(this.sprint, this.sprintHeld);
+    this.rise.setAttribute("aria-pressed", "false");
+    this.rise.title = "Hold to fly up (Q); let go to glide down";
+    this.rise.hidden = true;
+    this.hold(this.rise, this.riseHeld);
+    this.giftsButton.title = "The god's gifts (G)";
+    this.giftsButton.setAttribute("aria-expanded", "false");
+    this.sheet = new GiftsSheet((b, act) => this.press(b, act));
+    this.press(this.giftsButton, () => this.toggleSheet());
+    this.sheet.onClose = () => this.toggleSheet(false);
+    this.sheet.onChange = (g) => this.giftsChanged(g);
+    this.sheet.onStroke = (kind) => {
+      this.arm(kind);
+      this.toggleSheet(false);
+    };
+    for (let slot = 0; slot < 5; slot++) {
       const b = el("button", `possess-act possess-act-${slot}`);
       b.append(el("span", "possess-icon"), el("span", "possess-label"));
       this.press(b, () => {
@@ -160,6 +192,7 @@ export class PossessHud {
       this.acts.push(b);
       this.actsBox.append(b);
     }
+    this.acts[4]!.hidden = true;
     this.press(this.letGo, () => this.onLetGo());
     this.press(this.liveDay, () => this.onLive());
     this.element.append(
@@ -168,8 +201,11 @@ export class PossessHud {
       this.told,
       this.paces,
       this.sprint,
+      this.rise,
+      this.giftsButton,
       this.letGo,
       this.liveDay,
+      this.sheet.element,
       this.base,
       this.hint,
       this.actsBox,
@@ -191,6 +227,60 @@ export class PossessHud {
     root.addEventListener("contextmenu", (e) => e.preventDefault());
     root.addEventListener("gesturestart", (e) => e.preventDefault());
     parent.append(root);
+  }
+
+  /** A control held down (each finger on it, by its pointer), and let go as the finger lifts or leaves it. */
+  private hold(b: HTMLButtonElement, held: Set<number>): void {
+    const lit = () => b.setAttribute("aria-pressed", String(held.size > 0));
+    b.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      held.add(e.pointerId);
+      lit();
+    });
+    for (const end of ["pointerup", "pointercancel", "pointerleave"])
+      b.addEventListener(end, (e) => {
+        e.stopPropagation();
+        held.delete((e as PointerEvent).pointerId);
+        lit();
+      });
+  }
+
+  /** The gifts' sheet opened or closed (`open` absent: the other way); the acts and the stick wait under it. */
+  private toggleSheet(open = !this.sheet.open): void {
+    if (open) this.sheet.show();
+    else this.sheet.hide();
+    this.element.classList.toggle("gifting", open);
+    this.giftsButton.setAttribute("aria-expanded", String(open));
+  }
+
+  /** The gifts now: Rise shown with wings, the healing touch with healing; a stroke waits no more without Smite. */
+  private giftsChanged(gifts: number): void {
+    const on = GIFTS.filter((g) => this.sheet.has(g));
+    this.giftsButton.textContent = on.length ? `✨ Gifts ${on.length}` : "✨ Gifts";
+    this.element.classList.toggle("gifted", on.length > 0);
+    this.rise.hidden = !this.sheet.has("wings");
+    if (this.rise.hidden) this.riseHeld.clear();
+    if (!this.sheet.has("smite")) this.arm(-1);
+    this.onGifts(gifts);
+  }
+
+  /** A stroke waiting for a touch on the world (-1: none). */
+  private arm(kind: number): void {
+    this.stroke = kind;
+    this.sheet.armed(kind);
+    this.element.classList.toggle("smiting", kind >= 0);
+    if (kind >= 0) this.say("Touch the world where it is to fall (Esc: not now)");
+  }
+
+  /** The gifts on now (rules/gifts.ts GIFT_BIT), and those this body may be given (a beast none). */
+  get gifts(): number {
+    return this.sheet.on;
+  }
+  giftable(gifts: readonly Gift[]): void {
+    this.sheet.offer(gifts);
+    this.giftsButton.hidden = gifts.length === 0;
+    if (!gifts.length && this.sheet.open) this.toggleSheet(false);
   }
 
   /** A control that acts as the press comes down, not on its release (no tap's wait). */
@@ -237,13 +327,19 @@ export class PossessHud {
     this.told.textContent = "";
     this.setTally(null);
     this.carriesIcon = "🎒";
+    // (Each body taken comes to the hand without gifts.)
+    this.toggleSheet(false);
+    this.sheet.set(0);
+    this.giftsChanged(0);
   }
 
   /** Every touch let go (the phone turned: laid out again from nothing held). */
   private release(): void {
-    this.sprinting = false;
+    this.sprintHeld.clear();
+    this.riseHeld.clear();
+    this.riseKey = false;
     this.sprint.setAttribute("aria-pressed", "false");
-    this.sprint.textContent = "🏃 Sprint";
+    this.rise.setAttribute("aria-pressed", "false");
     this.held.clear();
     this.push = { x: 0, y: 0 };
     this.base.hidden = true;
@@ -256,7 +352,7 @@ export class PossessHud {
   }
 
   /** The stick's push now (x to the right, y ahead, each -1 … 1) and whether at a run: the thumb's, else the keys'. */
-  stick(): { x: number; y: number; run: boolean } {
+  stick(): { x: number; y: number; run: boolean; rise: boolean } {
     let { x, y } = this.push;
     if (!x && !y)
       for (const k of this.keys) {
@@ -274,7 +370,8 @@ export class PossessHud {
     return {
       x,
       y,
-      run: this.sprinting || this.shift || Math.hypot(this.push.x, this.push.y) >= RUN_AT,
+      run: this.sprintHeld.size > 0 || this.shift || Math.hypot(this.push.x, this.push.y) >= RUN_AT,
+      rise: !this.rise.hidden && (this.riseHeld.size > 0 || this.riseKey),
     };
   }
 
@@ -294,17 +391,29 @@ export class PossessHud {
     if (this.strength.style.width !== strength) this.strength.style.width = strength;
     titled(this.left, `Strength left: ${strength}`);
     this.left.classList.toggle("low", s.strength < 0.35);
+    // (His breath, shown only while a sprint has spent some of it.)
+    const spent = s.wind !== undefined && s.wind < 0.995;
+    if (this.wind.hidden === spent) this.wind.hidden = !spent;
+    if (spent) {
+      const w = `${Math.round(s.wind! * 100)}%`;
+      if (this.windLeft.style.width !== w) this.windLeft.style.width = w;
+      titled(this.wind, `Breath for a sprint: ${w}`);
+      this.wind.classList.toggle("low", s.wind! < 0.25);
+    }
+    this.element.classList.toggle("aloft", (s.lift ?? 0) > 0.5);
     put(
       this.carries,
       s.carries === "empty-handed" ? "🤲 empty-handed" : `${this.carriesIcon} ${s.carries}`,
     );
     put(this.body, `🫀 ${s.body}`);
+    const fifth = this.acts[4]!;
+    if (fifth.hidden !== !live.offers[4]) fifth.hidden = !live.offers[4];
     live.offers.forEach((o, i) => {
       const b = this.acts[i];
       if (!b) return;
       put(b.firstElementChild as HTMLElement, o.icon);
       put(b.lastElementChild as HTMLElement, o.label);
-      titled(b, `${o.words} (${ACT_KEYS[i] === "Space" ? "Space" : ACT_KEYS[i]!.slice(3)})`);
+      titled(b, `${o.words} (${ACT_KEYS[i] === "Space" ? "Space" : (ACT_KEYS[i] ?? "").slice(3)})`);
       if (b.getAttribute("aria-label") !== `${o.label}: ${o.words}`)
         b.setAttribute("aria-label", `${o.label}: ${o.words}`);
       b.classList.toggle("cannot", !o.can);
@@ -451,12 +560,21 @@ export class PossessHud {
       this.knob.style.transform = "";
       // (A thumb lit and lifted on one spot meant what stands there: it did not mean to walk.)
       if (brief && Math.hypot(e.clientX - h.fromX, e.clientY - h.fromY) < TAP_PX)
-        this.onTap(e.clientX, e.clientY);
+        this.touched(e.clientX, e.clientY);
     } else if (Math.hypot(e.clientX - h.x0, e.clientY - h.y0) < TAP_PX) {
       this.tapped = { t: e.timeStamp, x: e.clientX, y: e.clientY };
-      if (brief) this.onTap(e.clientX, e.clientY);
+      if (brief) this.touched(e.clientX, e.clientY);
     }
     this.pinch = this.spread();
+  }
+
+  /** A spot of the world touched: a stroke waiting falls there; else what stands there is touched. */
+  private touched(x: number, y: number): void {
+    if (this.stroke >= 0) {
+      const kind = this.stroke;
+      this.arm(-1);
+      this.onSmite(kind, x, y);
+    } else this.onTap(x, y);
   }
 
   /** The stick pushed by the thumb at (x, y). */
@@ -484,14 +602,27 @@ export class PossessHud {
     e.stopImmediatePropagation();
     e.preventDefault();
     this.shift = e.shiftKey;
+    if (e.code === "KeyQ") this.riseKey = e.type === "keydown";
     if (e.type === "keyup") {
       this.keys.delete(e.code);
       return;
     }
     if (e.repeat) return;
-    if (e.code === "Escape") return this.onLetGo();
+    // (Esc: the sheet closed, or a stroke not called; else let go.)
+    if (e.code === "Escape") {
+      if (this.sheet.open) return this.toggleSheet(false);
+      if (this.stroke >= 0) return this.arm(-1);
+      return this.onLetGo();
+    }
+    if (e.code === "KeyG" && !this.giftsButton.hidden) return this.toggleSheet();
+    const digit = /^Digit([1-9])$/.exec(e.code);
+    if (digit && !this.giftsButton.hidden) {
+      const g = GIFTS[Number(digit[1]) - 1];
+      if (g) this.sheet.toggle(g);
+      return;
+    }
     const slot = ACT_KEYS.indexOf(e.code);
-    if (slot >= 0) {
+    if (slot >= 0 && !this.acts[slot]?.hidden) {
       this.pressed.push(slot);
       return;
     }

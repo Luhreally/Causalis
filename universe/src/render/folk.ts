@@ -286,7 +286,7 @@ export class FolkPoses {
         keep[o + 10] = c * cp * sz;
         keep[o + 11] = 0;
         keep[o + 12] = mx + (px * c + pz * sn) * size;
-        keep[o + 13] = (part.y + lift + dy + bob + limp) * size;
+        keep[o + 13] = (part.y + lift + dy + bob + limp) * size + (m.lift ?? 0) * M;
         keep[o + 14] = mz + (-px * sn + pz * c) * size;
         keep[o + 15] = 1;
       }
@@ -313,7 +313,8 @@ export class FolkPoses {
         (sizes[i] ?? 1) < 1 ||
         gear[i] ||
         f.kept?.has(i) ||
-        downed?.has(i)
+        downed?.has(i) ||
+        m.lift
       ) {
         poseOne(i, m);
         this.now[i] = 1;
@@ -384,7 +385,7 @@ export class FolkPoses {
         pz = part.z + dz,
         limp = g && m.activity === ACTIVITY.walking ? woundBob(g, strides[i]!, i) : 0;
       o[0] = m.x * M + (px * c + pz * sn) * size;
-      o[1] = (part.y + lift + dy + bobOf(m.task, clock, i) + limp) * size;
+      o[1] = (part.y + lift + dy + bobOf(m.task, clock, i) + limp) * size + (m.lift ?? 0) * M;
       o[2] = m.z * M + (-px * sn + pz * c) * size;
       o[3] = k > 0 ? part.sx * size : 0;
       o[4] = part.sy * size * k;

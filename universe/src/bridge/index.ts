@@ -457,6 +457,7 @@ export type {
   PossessOffer,
   PossessPlace,
   PossessStrip,
+  PossessSmite,
   PossessTakeArgs,
 } from "./possess.ts";
 export type { LifeCard, LifeChoice, LifeKin, LifeNow, LifeOfferNow, LifeWindow } from "./life.ts";

@@ -14,9 +14,11 @@ import type {
   PossessJoin,
   PossessLive,
   PossessNow,
+  PossessSmite,
   PossessTakeArgs,
   VillagePlan,
 } from "../bridge/index.ts";
+import { smiteFlash, smiteAct, SLOW_PACE } from "./gifts.ts";
 import {
   PossessEye,
   VILLAGE_METRE,
@@ -26,6 +28,8 @@ import {
 } from "../render/index.ts";
 import { PossessHud, type GodPalette, type PageWindow, type TimeBar } from "../ui/index.ts";
 import {
+  GIFTS,
+  GIFT_BIT,
   PosedBodies,
   STEPS_PER_SECOND,
   STILL_BID,
@@ -75,6 +79,9 @@ type On = {
   /** The bids of the second being filled (from `sent`), and those joining it. */
   bids: HandBid[];
   joins: PossessJoin[];
+  /** The god's gifts on him (rules/gifts.ts GIFT_BIT), the strokes called down in the second being filled. */
+  gifts: number;
+  smites: PossessSmite[];
   /** For each body of the small world, the step its way given runs to. */
   readonly ways: Map<number, number>;
   /** The possession's clock (steps since the taking), and its pace (1, ½, 0 held). */
@@ -149,6 +156,38 @@ export function installPossession(d: PossessionDeps): Possession {
   hud.onPace = (pace) => {
     if (on) on.pace = pace;
   };
+  /** Strokes called down, each waiting for the next step bid (where, on the small world's ground: m). */
+  const strokes: { kind: number; x: number; z: number }[] = [];
+  // The god's gifts put on or off: sent with each second from the next asked; slow time, the clock at a quarter.
+  hud.onGifts = (gifts) => {
+    const o = on;
+    if (!o) return;
+    const slow = (gifts & GIFT_BIT.slow) !== 0,
+      was = (o.gifts & GIFT_BIT.slow) !== 0;
+    o.gifts = gifts;
+    if (slow !== was) {
+      o.pace = slow ? SLOW_PACE : 1;
+      hud.setPace(o.pace);
+    }
+    void ask(o);
+  };
+  // A stroke called down where the world was touched: in the small world at its step; fire, the ground shaken and
+  // rain the god's own acts on the town and its land as well, through him (sim/acts).
+  hud.onSmite = (kind, x, y) => {
+    const o = on;
+    if (!o) return;
+    const r = d.canvas.getBoundingClientRect(),
+      at = eye.groundAt(x - r.left, y - r.top);
+    if (!at) return hud.say("Touch the ground where it is to fall", false);
+    strokes.push({ kind, x: at.x, z: at.z });
+    smiteFlash(hud.element, kind);
+    const plan = o.plan,
+      act = smiteAct(kind, plan, at, d.village.lotAt(at.x, at.z), o.now.name);
+    if (act)
+      void d.client
+        .command(act.type, act.args)
+        .catch((error: Error) => hud.say(`The god's hand: ${error.message}`, false));
+  };
   hud.onLetGo = () => void letGo();
   // What a town raised, read as anywhere in the town, by one near enough to read it (T1). The body stands on while it is read.
   hud.onTap = (x, y) => {
@@ -200,8 +239,10 @@ export function installPossession(d: PossessionDeps): Possession {
       d.toOrbit();
       d.time.hold("possess");
       // As the town is drawn at the moment the taking takes hold: the next of the clock held.
+      // (How high its homes stand: a flier over them is not held by its walls.)
       const { t } = await d.client.query<{ t: number }>({ type: "now" }),
-        args = takeOf(plan, index, t + 1, stand);
+        found = takeOf(plan, index, t + 1, stand),
+        args = found && plan.town ? { ...found, roofs: homesRiseTo(plan.town) } : found;
       if (!args)
         throw new Error(`${plan.people[index]!.name} is not one of those your hand rests on`);
       await d.client.command("possess.take", args);
@@ -228,6 +269,8 @@ export function installPossession(d: PossessionDeps): Possession {
       sent: now.step,
       bids: [],
       joins: [],
+      gifts: 0,
+      smites: [],
       ways,
       clock: now.step,
       pace: 1,
@@ -239,10 +282,12 @@ export function installPossession(d: PossessionDeps): Possession {
     };
     on = o;
     presses.length = 0;
+    strokes.length = 0;
     o.posed.step = now.step;
     d.village.posed = o.posed;
     d.rig.enabled = false;
     hud.show();
+    hud.giftable(GIFTS);
     hud.setPace(1);
     hud.say(`You walk among them as ${now.name}`);
     eye.height = drawnHeight(plan);
@@ -271,7 +316,11 @@ export function installPossession(d: PossessionDeps): Possession {
     const live = await d.client
       .query<PossessLive | null>({
         type: "possess.live",
-        args: { steps: lettersOf(o.bids), ...(o.joins.length ? { joins: o.joins } : {}) },
+        args: {
+          steps: lettersOf(o.bids),
+          ...(o.joins.length ? { joins: o.joins } : {}),
+          ...giftsOf(o),
+        },
       })
       .catch(() => null);
     o.asking = false;
@@ -298,6 +347,12 @@ export function installPossession(d: PossessionDeps): Possession {
     }
   };
 
+  /** The gifts and the strokes of the second being filled, as sent and asked with it (none: nothing). */
+  const giftsOf = (o: On) => ({
+    ...(o.gifts ? { gifts: o.gifts } : {}),
+    ...(o.smites.length ? { smites: o.smites } : {}),
+  });
+
   /** Taken up again from where the host stands (bids refused: out of step with what it keeps). */
   const resync = (o: On, now: PossessNow) => {
     o.run++;
@@ -305,6 +360,7 @@ export function installPossession(d: PossessionDeps): Possession {
     o.sent = now.step;
     o.bids = [];
     o.joins = [];
+    o.smites = [];
     o.clock = now.step;
     o.posed.step = now.step;
     for (const id of o.ways.keys()) o.ways.set(id, now.step);
@@ -317,11 +373,13 @@ export function installPossession(d: PossessionDeps): Possession {
         step: o.sent,
         steps: lettersOf(o.bids),
         ...(o.joins.length ? { joins: o.joins } : {}),
+        ...giftsOf(o),
       },
       run = o.run;
     o.sent += STEPS_PER_SECOND;
     o.bids = [];
     o.joins = [];
+    o.smites = [];
     o.owed++;
     return d.client.command("possess.input", args).then(
       () => {
@@ -357,6 +415,7 @@ export function installPossession(d: PossessionDeps): Possession {
           step: o.sent,
           steps: lettersOf(o.bids),
           ...(o.joins.length ? { joins: o.joins } : {}),
+          ...giftsOf(o),
         })
         .catch(() => undefined);
     await finish(o);
@@ -409,8 +468,11 @@ export function installPossession(d: PossessionDeps): Possession {
     presses.push(...hud.takePressed());
     const slot = presses.shift(),
       act = slot !== undefined ? (o.posed.live?.offers[slot]?.act ?? 0) : 0,
-      s = hud.stick();
-    return bidOf(s, eye.looking, s.run, act);
+      s = hud.stick(),
+      stroke = strokes.shift();
+    // (A stroke called down falls at this step: the next of the second.)
+    if (stroke) o.smites.push({ when: o.bids.length, ...stroke });
+    return { ...bidOf(s, eye.looking, s.run, act), ...(s.rise ? { rise: true } : {}) };
   };
 
   /** Those to join the second begun: near him and not in it, or in it with their way running out. */
@@ -475,7 +537,7 @@ export function installPossession(d: PossessionDeps): Possession {
     o.posed.step = o.clock;
     // The eye behind him as he is drawn; words over those who say something.
     const me = o.posed.drawnAt(o.now.agent);
-    if (me) eye.update(me.x, me.z, villageSolids(o.plan), dt);
+    if (me) eye.update(me.x, me.z, villageSolids(o.plan), dt, me.lift ?? 0);
     const said: { text: string; x: number; y: number }[] = [];
     for (const b of o.posed.live?.bodies ?? []) {
       if (!b.say) continue;
@@ -539,6 +601,7 @@ export function installPossession(d: PossessionDeps): Possession {
           owed: on.owed,
           ending: on.ending,
           live: on.posed.live,
+          gifts: on.gifts,
           eye: { yaw: eye.looking, pitch: eye.pitch, distance: eye.distance, ...eye.stood },
         },
       /** A body of the small world as drawn now (metres; null: not in it). */

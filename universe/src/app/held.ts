@@ -13,6 +13,7 @@
 // borne in; a beast's flock without the one it lost. Leaving the town (or the battle laid again)
 // lets go; a body found held with none taken here is let go at once.
 import { softenBodies } from "./held-motion.ts";
+import { SLOW_PACE, smiteAct, smiteFlash } from "./gifts.ts";
 import type {
   FoughtNow,
   HeldBeastNow,
@@ -21,6 +22,7 @@ import type {
   HeldNow,
   HeldSoldierNow,
   HostClient,
+  PossessSmite,
   BattleNear,
   BattleRoll,
   RollEntry,
@@ -37,6 +39,9 @@ import {
 } from "../render/index.ts";
 import { PossessHud, type GodPalette, type TimeBar } from "../ui/index.ts";
 import {
+  GIFTS,
+  GIFT_BIT,
+  fieldPoint,
   BATTLE_DAY,
   BATTLE_LENGTH,
   STEPS_PER_SECOND,
@@ -139,6 +144,9 @@ type Clock = {
   ending: string | null;
   /** The small world as last answered. */
   live: HeldLive | null;
+  /** The god's gifts on the body (a soldier's; rules/gifts.ts GIFT_BIT), the strokes called down in the second being filled. */
+  gifts: number;
+  smites: PossessSmite[];
 };
 type OnSoldier = Clock & {
   readonly kind: "soldier";
@@ -257,6 +265,36 @@ export function installHeld(d: HeldDeps): Held {
     if (on) on.pace = pace;
   };
   hud.onLetGo = () => void letGo();
+  /** Strokes called down on the field, each waiting for the next step bid (the field's metres). */
+  const strokes: { kind: number; x: number; z: number }[] = [];
+  // The god's gifts on a soldier: sent with each second from the next asked; slow time, the clock at a quarter.
+  hud.onGifts = (gifts) => {
+    const o = on;
+    if (!o) return;
+    const slow = (gifts & GIFT_BIT.slow) !== 0;
+    if (slow !== ((o.gifts & GIFT_BIT.slow) !== 0)) {
+      o.pace = slow ? SLOW_PACE : 1;
+      hud.setPace(o.pace);
+    }
+    o.gifts = gifts;
+    void ask(o);
+  };
+  // A stroke called down on the field where it was touched; the ground shaken and rain the god's own acts on its land too.
+  hud.onSmite = (kind, x, y) => {
+    const o = on;
+    if (!o || o.kind !== "soldier") return;
+    const r = d.canvas.getBoundingClientRect(),
+      at = eye.groundAt(x - r.left, y - r.top);
+    if (!at) return hud.say("Touch the ground where it is to fall", false);
+    strokes.push({ kind, ...fieldPoint(o.frame, at.x, at.z) });
+    smiteFlash(hud.element, kind);
+    const plan = d.plan(),
+      act = plan && kind >= 2 ? smiteAct(kind, plan, at, -1, o.now.name) : null;
+    if (act)
+      void d.client
+        .command(act.type, act.args)
+        .catch((error: Error) => hud.say(`The god's hand: ${error.message}`, false));
+  };
 
   /** How far the small world is drawn on from its last answer (s of its own). */
   const ahead = (o: On) =>
@@ -365,6 +403,8 @@ export function installHeld(d: HeldDeps): Held {
     again: false,
     ending: null,
     live: null,
+    gifts: 0,
+    smites: [],
   });
 
   /** A soldier taken: the eye behind him, the controls up, his figure marked. */
@@ -383,6 +423,8 @@ export function installHeld(d: HeldDeps): Held {
     d.rig.enabled = false;
     hud.carriesIcon = "⚔️";
     showHud();
+    strokes.length = 0;
+    hud.giftable(GIFTS);
     hud.setPace(1);
     hud.say(`You fight as ${now.name}${now.town ? ` of ${now.town}` : ""}`);
     const plan = d.plan();
@@ -409,6 +451,8 @@ export function installHeld(d: HeldDeps): Held {
     };
     hud.carriesIcon = "🐾";
     showHud();
+    // (A beast runs as it runs: the gifts are for a man's body.)
+    hud.giftable([]);
     hud.setPace(1);
     hud.say(`You run as ${now.name}`);
     eye.height = height;
@@ -426,7 +470,10 @@ export function installHeld(d: HeldDeps): Held {
     }
     o.asking = true;
     const live = await d.client
-      .query<HeldLive | null>({ type: "held.live", args: { steps: lettersOf(o.bids) } })
+      .query<HeldLive | null>({
+        type: "held.live",
+        args: { steps: lettersOf(o.bids), ...giftsOf(o) },
+      })
       .catch(() => null);
     o.asking = false;
     if (on !== o) return;
@@ -449,22 +496,30 @@ export function installHeld(d: HeldDeps): Held {
     }
   };
 
+  /** The gifts and strokes of the second being filled, as sent and asked with it (none: nothing). */
+  const giftsOf = (o: On) => ({
+    ...(o.gifts ? { gifts: o.gifts } : {}),
+    ...(o.smites.length ? { smites: o.smites } : {}),
+  });
+
   /** Taken up again from where the host stands (bids refused: out of step with what it keeps). */
   const resync = (o: On, step: number) => {
     o.run++;
     o.owed = 0;
     o.sent = step;
     o.bids = [];
+    o.smites = [];
     o.clock = step;
     void ask(o);
   };
 
   /** A second's bids sent: the host keeps them (a soldier's world carried on to the second's end first). */
   const send = (o: On): Promise<void> => {
-    const args = { step: o.sent, steps: lettersOf(o.bids) },
+    const args = { step: o.sent, steps: lettersOf(o.bids), ...giftsOf(o) },
       run = o.run;
     o.sent += STEPS_PER_SECOND;
     o.bids = [];
+    o.smites = [];
     o.owed++;
     if (o.kind === "soldier") void d.client.advance(worldAt(o, o.sent) - 1).catch(() => undefined);
     return d.client.command("possess.held", args).then(
@@ -497,7 +552,7 @@ export function installHeld(d: HeldDeps): Held {
       if (o.kind === "soldier")
         await d.client.advance(worldAt(o, o.sent + o.bids.length) - 1).catch(() => undefined);
       await d.client
-        .command("possess.leave", { step: o.sent, steps: lettersOf(o.bids) })
+        .command("possess.leave", { step: o.sent, steps: lettersOf(o.bids), ...giftsOf(o) })
         .catch(() => undefined);
     }
     await finish(o);
@@ -556,7 +611,10 @@ export function installHeld(d: HeldDeps): Held {
     const slot = presses.shift(),
       act = slot !== undefined ? (o.live?.offers[slot]?.act ?? 0) : 0,
       s = hud.stick(),
-      bid = bidOf(s, eye.looking, s.run, act);
+      stroke = strokes.shift(),
+      bid = { ...bidOf(s, eye.looking, s.run, act), ...(s.rise ? { rise: true } : {}) };
+    // (A stroke called down falls at this step: the next of the second.)
+    if (stroke) o.smites.push({ when: o.bids.length, ...stroke });
     return o.kind === "soldier" ? fieldBid(o.frame, bid) : bid;
   };
 
@@ -727,7 +785,7 @@ export function installHeld(d: HeldDeps): Held {
     shownFor = o;
     // The eye behind the body as it is drawn.
     const me = drawnMe(o);
-    if (me && plan) eye.update(me.x, me.z, villageSolids(plan), dt);
+    if (me && plan) eye.update(me.x, me.z, villageSolids(plan), dt, o.live?.bodies[0]?.lift ?? 0);
     if (o.kind === "soldier") d.village.placedBattle?.mark(o.now.figure);
   });
 

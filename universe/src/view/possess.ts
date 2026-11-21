@@ -68,6 +68,8 @@ export const STEPS_PER_SECOND = POSSESS_HZ;
 /** A step's bid of nothing: still, nothing done. */
 export const STILL_BID: HandBid = NO_HAND_BID;
 export type { HandBid };
+/** The god's gifts to a body held, and the strokes called down (rules/gifts.ts), for the page's sheet. */
+export { GIFTS, GIFT_BIT, SMITES, type Gift } from "../rules/index.ts";
 
 /** Bids in letters, as the host takes them (three to a step). */
 export function lettersOf(bids: readonly HandBid[]): string {
@@ -469,6 +471,7 @@ export function bodyMoment(
     tiredness: 0,
     carry: (b.carry as Carry | null) ?? null,
     why: DOING_WORDS[b.doing] ?? null,
+    ...(b.lift ? { lift: b.lift } : {}),
   };
 }
 

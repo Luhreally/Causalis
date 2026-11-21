@@ -239,6 +239,8 @@ export type Moment = {
   why: string | null;
   /** The larger thing what they are about belongs to (a group, a family, the soldiers sent in): its page and what it is called. */
   of?: { readonly ref: string; readonly name: string } | null;
+  /** How high above the ground they are drawn (m: one held flying on the god's wings; absent: on it). */
+  lift?: number;
 };
 
 const DAY = 86_400,

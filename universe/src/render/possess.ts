@@ -194,6 +194,19 @@ export class PossessEye {
     }
   }
 
+  /** Where on the ground (m, at its height 0) a point of the screen falls (canvas CSS px; null: above the horizon). */
+  groundAt(sx: number, sy: number): { x: number; z: number } | null {
+    const cam = this.stage.camera.camera!,
+      from = cam.screenToWorld(sx, sy, cam.nearClip),
+      to = cam.screenToWorld(sx, sy, cam.farClip),
+      dy = to.y - from.y;
+    if (Math.abs(dy) < 1e-9) return null;
+    const k = -from.y / dy;
+    return k < 0 || k > 1
+      ? null
+      : { x: (from.x + (to.x - from.x) * k) / M, z: (from.z + (to.z - from.z) * k) / M };
+  }
+
   /** Where a point of the town (m) is on the screen (CSS pixels; null: behind the eye). */
   toScreen(x: number, y: number, z: number): { x: number; y: number } | null {
     const p = this.stage.camera.camera!.worldToScreen(
