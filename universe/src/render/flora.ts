@@ -178,6 +178,11 @@ function clumpMesh(stage: Stage, part: "cone" | "ball" | "trunk"): pc.Mesh {
   return mesh;
 }
 
+/** A far clump's trees' size, of a near tree of their form's (by its own size). */
+function farScale(t: RegionTree): number {
+  return 0.75 + 0.5 * Math.max(0, Math.min(1, (t.size - 0.2) / 0.3));
+}
+
 /** 0 below a, 1 above b, eased between. */
 function smooth(a: number, b: number, x: number): number {
   const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
@@ -398,7 +403,7 @@ export class FloraLayer {
           f = FORM_SIZE[k.form],
           // (Its trees as tall as a near tree of its form, by its own size; its crowns as broad as the stand they stand for, so a
           // wood far off reads as one, and as the eye comes near they give way to the trees of that stand, of the same height.)
-          s = 0.75 + 0.5 * Math.max(0, Math.min(1, (t.size - 0.2) / 0.3)),
+          s = farScale(t),
           // (Spread over as much of its tile as its share of the tile's woods covers: a thick wood far off reads as one.)
           spread = canopy
             ? Math.sqrt(
@@ -431,9 +436,18 @@ export class FloraLayer {
       });
       return b;
     };
+    // (A clump's crowns shrink as they fade to their trees' foot, with their trunks.)
+    const lift = (list: RegionTree[], b: InstancedBatch | null, crown: boolean) =>
+      b?.rank(
+        list.length,
+        () => 0,
+        (i) => (crown ? FORM_SIZE[kindOf(list[i]!).form].trunk * 0.85 * farScale(list[i]!) : 0),
+      );
     this.farCones = fill(cones, this.farCones, this.clump.cone, "crown");
     this.farBalls = fill(balls, this.farBalls, this.clump.ball, "crown");
     this.farTrunks = fill(trunks, this.farTrunks, this.clump.trunk, "trunk");
+    lift(cones, this.farCones, true);
+    lift(balls, this.farBalls, true);
     this.dress();
   }
 
@@ -652,7 +666,12 @@ export class FloraLayer {
       out[9] = t.g;
       out[10] = t.b;
     });
-    b.rank(list.length, (i) => list[i]!.u ?? 0);
+    // (A crown shrinks as it fades to its tree's foot, not its own: with its trunk, the tree whole.)
+    b.rank(
+      list.length,
+      (i) => list[i]!.u ?? 0,
+      (i) => list[i]!.lift ?? 0,
+    );
   }
 
   private showPatches(list: NearFlora["patches"]): void {

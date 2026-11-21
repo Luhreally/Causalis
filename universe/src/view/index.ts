@@ -1416,6 +1416,7 @@ export {
   FORM_SIZE,
   TRUNK,
   floraClumps,
+  floraCanopy,
   floraColors,
   floraLandOf,
   landFloraOf,
