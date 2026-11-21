@@ -851,8 +851,10 @@ export class VillageScene {
     // Its land's water, as its land's map draws it, share by share (bridge/claims.ts wetShares): no lake laid over the
     // land. (A people of the water's keeps its old round of water.)
     // (In its land's lakes' colour, as the land shows them: the town's water was a darker blue of its own, and changed
-    // colour as the eye came down from the land.)
-    const waterColor = kindWater(plan.kind)?.lake ?? EARTH_WATERS.lake;
+    // colour as the eye came down from the land. The land's colours are its ground's texels, read as they are; a
+    // material's colour is read as the screen's, so it is given here raised by the screen's gamma to come out the same.)
+    const lake = kindWater(plan.kind)?.lake ?? EARTH_WATERS.lake,
+      waterColor: Rgb = [lake[0] ** (1 / 2.2), lake[1] ** (1 / 2.2), lake[2] ** (1 / 2.2)];
     if (plan.landWater?.wet) {
       const shares = wetShares(plan.landWater, 4200);
       if (shares.length) {
