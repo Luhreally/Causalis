@@ -11,6 +11,7 @@ import "./sound.css";
 import {
   ARMS_CUES,
   CUES,
+  DUCK,
   CUE_RULES,
   KIND_CUE,
   NODE_BOUND,
@@ -348,6 +349,8 @@ class Graph {
   private readonly amb: GainNode;
   private readonly water: BiquadFilterNode;
   private readonly level: GainNode;
+  /** The din under the arms: ducked as each gun, volley, field gun or blast rings (DUCK). */
+  private readonly bed: GainNode;
   private readonly dry: GainNode;
   private readonly cueBus: GainNode;
   /** The sea's own level, under the places' (Settings). */
@@ -411,7 +414,9 @@ class Graph {
     this.out = gainOf(1);
     this.master.connect(comp).connect(clip).connect(this.out).connect(ctx.destination);
     this.level = gainOf(1);
-    this.level.connect(this.master);
+    // (The places' din ducked under the arms as they ring: what fires is what is heard most.)
+    this.bed = gainOf(1);
+    this.level.connect(this.bed).connect(this.master);
     this.water = this.n(ctx.createBiquadFilter());
     this.water.type = "lowpass";
     this.water.frequency.value = 16000;
@@ -921,6 +926,25 @@ class Graph {
    * so far off and that side (its level by the distance, and duller). Whether it was played (no room: none of it).
    */
   cue(
+    cue: Cue,
+    at: number,
+    level: number,
+    v?: Voicing & { n?: number },
+    way?: { far: number; pan: number },
+  ): boolean {
+    if (!this.make(cue, at, level, v, way)) return false;
+    // The din ducked under a gun's report as it rings, as deep as the shot is loud where it is heard; back after it.
+    if (cue === "gun" || cue === "volley" || cue === "cannon" || cue === "blast") {
+      const loud = Math.min(1, (level * (way ? farOf(way.far).level : 1)) / 0.5),
+        g = this.bed.gain;
+      g.setTargetAtTime(1 - DUCK.depth * loud, Math.max(0, at - 0.005), 0.006);
+      g.setTargetAtTime(1, at + Math.min(0.6, cueLength(cue, v)), DUCK.back);
+    }
+    return true;
+  }
+
+  /** A short sound made (cue() says what of it). */
+  private make(
     cue: Cue,
     at: number,
     level: number,
@@ -2112,7 +2136,7 @@ export class Sound {
 
   /** What is about now: taken up only if it has changed by enough to hear. */
   tell(a: Air): void {
-    const key = `${a.place}|${a.night}|${Math.round(a.rain * 12)}|${a.market}|${a.feast}|${a.war}|${a.strife ? 1 : 0}|${a.under}|${a.alive}|${Math.round(a.thin * 12)}|${Math.round(a.wind * 12)}|${Math.round(a.hush * 12)}|${a.held}|${Math.round(a.melee * 12)}|${Math.round(a.engines * 12)}|${a.jet}|${Math.round(a.ring)}`;
+    const key = `${a.place}|${a.night}|${Math.round(a.rain * 12)}|${a.market}|${a.feast}|${a.war}|${a.strife ? 1 : 0}|${a.under}|${a.alive}|${Math.round(a.thin * 12)}|${Math.round(a.wind * 12)}|${Math.round(a.hush * 12)}|${a.held}|${Math.round(a.melee * 12)}|${Math.round(a.engines * 12)}|${a.jet}|${Math.round(a.ring)}|${Math.round(4 * Math.log2(Math.max(20, a.far)))}`;
     if (key === this.airKey) return;
     this.airKey = key;
     this.air = { ...a };

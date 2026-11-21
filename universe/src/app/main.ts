@@ -11977,6 +11977,8 @@ async function runPlanetPage(): Promise<void> {
     // takes; and the clash of iron as much as there is fighting by the hand.
     heard.melee = 1;
     heard.engines = 0;
+    // (A war's din comes from where it is fought, which is what the eye is on: as far as the hearing is from it.)
+    heard.far = scale === "village" || scale === "battle" ? ears.far : 0;
     if (scale === "battle" && fight && battleLayer) {
       heard.melee = meleeShare(fight.now);
       if (!fight.hand)
@@ -12034,6 +12036,7 @@ async function runPlanetPage(): Promise<void> {
         [fight.info.attacker.host?.arm, fight.info.defender.host?.arm],
         BATTLE_SPEEDS[fight.speed] ?? 0,
         battleLayer,
+        [fight.info.attacker.host?.guard, fight.info.defender.host?.guard],
       );
     else if (scale === "village" && placed?.now && placedHeard.hand && village.placedBattle)
       ears.held(
@@ -12042,6 +12045,7 @@ async function runPlanetPage(): Promise<void> {
         [placed.info.attacker.host?.arm, placed.info.defender.host?.arm],
         1,
         village.placedBattle,
+        [placed.info.attacker.host?.guard, placed.info.defender.host?.guard],
       );
   });
   // The world's kind (Phase 56): its globe's seas, air and clouds, a land's sea, the sky over its

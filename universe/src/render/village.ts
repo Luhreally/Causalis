@@ -263,6 +263,28 @@ const TOWN_FIRE: Readonly<
 };
 /** A gun with no row of its own above. */
 const TOWN_FIRE_ELSE = { every: 3, volley: false, smoke: 1.2, thick: 0.5 };
+/** How many men fire together as one platoon of a line that fires by platoons. */
+const PLATOON = 8;
+/** The golden ratio's part: platoons' turns stepped by it fall evenly over the reload, however many of them are at it. */
+const GOLDEN = 0.6180339887;
+/**
+ * When soldier i of a side `each` strong fires in his turn (s into it): one who fires at will, when he is loaded; one of a line that
+ * fires together, with his platoon, the platoons each in its turn and the two sides' between them, so that some part of each line is
+ * always loaded and firing (firing by platoons, the drill of the age: a line fired all at once is empty for a whole reload), a
+ * platoon's men a little ragged. (Whichever platoons are at it, a few beside each other or all, their turns lie evenly apart.)
+ */
+export const fireLead = (
+  f: { every: number; volley: boolean },
+  i: number,
+  side: number,
+  each: number,
+) => {
+  if (!f.volley) return hashUnit(i) * f.every;
+  const platoons = Math.max(1, Math.ceil(each / PLATOON)),
+    p = Math.floor((i - side * each) / PLATOON),
+    turn = (p * GOLDEN + side * 0.5) % 1;
+  return turn * f.every + hashUnit(i) * Math.min(0.3, f.every / (4 * platoons));
+};
 /** A machine gun's burst: so many rounds, so far apart (s); the earth a round throws up hangs so long (s). */
 const BURST = { rounds: 5, apart: 0.09 },
   KICK_S = 0.5;
@@ -2887,9 +2909,7 @@ export class VillageScene {
       if (look.beam) continue;
       const arm = look.rest ?? kit.arm,
         f = TOWN_FIRE[arm] ?? TOWN_FIRE_ELSE,
-        lead = f.volley
-          ? q.side * 1.7 + Math.floor((i - q.side * each) / 8) * 0.18 + hashUnit(i) * 0.3
-          : hashUnit(i) * f.every;
+        lead = fireLead(f, i, q.side, each);
       // (Each round fires as its clock plus its lead comes to a whole number of its turns.)
       for (let n = Math.floor((c0 + lead) / f.every) + 1; n * f.every - lead <= c1; n++)
         out.push({ t: n * f.every - lead, x: q.x, z: q.z, arm });
@@ -2930,9 +2950,7 @@ export class VillageScene {
       const look = armLook(kit.arm);
       if (look.beam) continue;
       const f = TOWN_FIRE[look.rest ?? kit.arm] ?? TOWN_FIRE_ELSE,
-        lead = f.volley
-          ? q.side * 1.7 + Math.floor((i - q.side * each) / 8) * 0.18 + hashUnit(i) * 0.3
-          : hashUnit(i) * f.every,
+        lead = fireLead(f, i, q.side, each),
         t = clock + lead,
         n = Math.floor(t / f.every),
         age = t - n * f.every;

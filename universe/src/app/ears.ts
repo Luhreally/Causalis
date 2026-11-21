@@ -10,7 +10,9 @@ import {
   BLASTS,
   battleSounds,
   cannonVoice,
+  guardVoice,
   looseVoice,
+  strikeVoice,
   type BattleField,
   type BattleNow,
   type BattleSound,
@@ -22,6 +24,10 @@ import type { HeardEvent } from "./sound.ts";
 
 /** A scene's units to the metre (the village's and the meadow's). */
 const M = 0.1;
+/** The acts of one a blow has just struck home on: he reels under it, or goes down. */
+const HIT: ReadonlySet<string> = new Set(["stagger", "fall"]);
+/** How long the fighting's din is heard from where its last shots were, when none are heard (ms): a reload and more. */
+const DIN_KEPT_MS = 12_000;
 /** How far ahead of now each reading hears (s of the wall's clock): past the next reading, so nothing falls between two. */
 const AHEAD = 0.32;
 /** A load's whistle is heard for at most this much of its fall (s of the wall's clock). */
@@ -81,7 +87,13 @@ export class Ears {
   private falling = 0;
   /** The hand's fight: each figure's act as last drawn (1: loosing), and the fight it is of. */
   private loosing = new Uint8Array(64);
+  /** And whether each was reeling or down under a blow. */
+  private struck = new Uint8Array(64);
+
   private heldKey: unknown = null;
+  /** The nearest of the fighting last heard (m), and when (performance.now ms): where the din of it is made. */
+  private dinFar = Infinity;
+  private dinAt = 0;
   /** Heard so far, by where (the look tools). */
   readonly told = { battle: 0, town: 0, raid: 0, held: 0 };
 
@@ -97,6 +109,29 @@ export class Ears {
     this.stage = stage;
     this.sound = sound;
     this.focus = focus;
+  }
+
+  /**
+   * How far the hearing is from where the fighting is (m): what a war's din comes over. Its armies' din is where they fire, so as far as
+   * the nearest of their shots last heard, for a while after (they are there still between their volleys); else as far as what the eye
+   * looks at.
+   */
+  get far(): number {
+    if (this.dinFar < Infinity && performance.now() - this.dinAt < DIN_KEPT_MS) return this.dinFar;
+    const eye = this.stage.camera.getPosition(),
+      t = this.focus?.() ?? null;
+    return t ? (EAR_SHARE * Math.hypot(eye.x - t.x, eye.y - t.y, eye.z - t.z)) / M : 0;
+  }
+
+  /** What was read told the sound, and where the nearest of it was kept, for the din (far). */
+  private tell(pace: number): void {
+    const n = this.out.length;
+    if (!n) return;
+    let near = Infinity;
+    for (let i = 0; i < n; i++) near = Math.min(near, this.out[i]!.far);
+    this.dinFar = near;
+    this.dinAt = performance.now();
+    this.sound.heard(this.out, pace);
   }
 
   /** Where the hearing is now: EAR_SHARE of the way from what the eye looks at toward the eye. */
@@ -189,7 +224,7 @@ export class Ears {
       this.add(e.kind, e.v, (e.t - s) / pace, this.way.far, this.way.pan);
     }
     this.told.battle += this.out.length;
-    if (this.out.length) this.sound.heard(this.out, pace);
+    this.tell(pace);
   }
 
   /**
@@ -202,19 +237,27 @@ export class Ears {
     arms: readonly [string | undefined, string | undefined],
     pace: number,
     layer: BattleLayer,
+    guards: readonly [string | undefined, string | undefined] = [undefined, undefined],
   ): void {
     const ts = now.troopers;
     if (key !== this.heldKey || this.loosing.length < ts.length) {
       this.heldKey = key;
-      if (this.loosing.length < ts.length) this.loosing = new Uint8Array(ts.length * 2);
-      // (Those loosing as the hand's fight is first seen were caught mid-shot: not heard again.)
-      for (let i = 0; i < ts.length; i++) this.loosing[i] = ts[i]!.act === "loose" ? 1 : 0;
+      if (this.loosing.length < ts.length) {
+        this.loosing = new Uint8Array(ts.length * 2);
+        this.struck = new Uint8Array(ts.length * 2);
+      }
+      // (Those loosing or struck down as the hand's fight is first seen were caught mid-act: not heard again.)
+      for (let i = 0; i < ts.length; i++) {
+        this.loosing[i] = ts[i]!.act === "loose" ? 1 : 0;
+        this.struck[i] = HIT.has(ts[i]!.act) ? 1 : 0;
+      }
       return;
     }
     this.out.length = 0;
     for (let i = 0; i < ts.length; i++) {
       const t = ts[i]!,
-        on = t.act === "loose" && t.size > 0.3 ? 1 : 0;
+        on = t.act === "loose" && t.size > 0.3 ? 1 : 0,
+        hit = HIT.has(t.act) && t.size > 0.3 ? 1 : 0;
       if (on && !this.loosing[i]) {
         const l = looseVoice(arms[t.side]);
         if (l) {
@@ -222,10 +265,21 @@ export class Ears {
           this.add(l.kind, l.v, 0, this.way.far, this.way.pan);
         }
       }
+      // A blow struck home by hand, as one reels or goes down under it: the striker's arm ringing on what the struck one wears
+      // (where his foe's arm fires, he went down to its shot, heard as it fired).
+      if (hit && !this.struck[i]) {
+        const by = arms[t.side === 0 ? 1 : 0];
+        if (!looseVoice(by)) {
+          layer.heardFrom(t.x, t.z, this.way, this.ear());
+          this.add("clash", strikeVoice(by, undefined), 0, this.way.far, this.way.pan);
+          this.add("thud", guardVoice(guards[t.side], undefined), 0.02, this.way.far, this.way.pan);
+        }
+      }
       this.loosing[i] = on;
+      this.struck[i] = hit;
     }
     this.told.held += this.out.length;
-    if (this.out.length) this.sound.heard(this.out, Math.max(0.05, pace));
+    this.tell(Math.max(0.05, pace));
   }
 
   /**
@@ -255,7 +309,7 @@ export class Ears {
       }
     }
     this.told.town += this.out.length;
-    if (this.out.length) this.sound.heard(this.out, pace);
+    this.tell(pace);
   }
 
   /**
