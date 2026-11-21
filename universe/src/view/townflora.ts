@@ -125,7 +125,7 @@ export function townGroundAt(
   // (Trodden about the town: its soil showing, most by its streets and homes, less further off; not across a long town's
   // open ground, which is no nearer its homes for lying within their farthest.)
   const r = Math.hypot(x, z),
-    worn = r > edge + 160 ? 0 : 0.3 * builtNear(plan, x, z, Math.min(edge, CORE));
+    worn = r > edge + 110 ? 0 : 0.3 * builtNear(plan, x, z, Math.min(edge, CORE));
   if (worn > 0) col = mixRgb(col, g.palette[ROW.coldSoil]!, worn);
   // (Patches lighter and darker: grass is never one colour.)
   const p = cellUnit(Math.floor(x / 55), Math.floor(z / 55), 77) - 0.5;
@@ -136,16 +136,16 @@ export function townGroundAt(
 export const TOWN_CORE = 150;
 const CORE = TOWN_CORE;
 
-/** How near a point lies to a town's built ground (1: on it or within 40 m, or within its middle; 0: 160 m off or more). */
+/** How near a point lies to a town's built ground (1: on it or within 45 m, or within its middle; 0: 110 m off or more). */
 function builtNear(plan: VillagePlan, x: number, z: number, core: number): number {
   const ground = villageGround(plan),
     d = Math.hypot(x, z);
   if (d < core) return 1;
-  if (d > Math.max(ground.homesReach, ground.town?.reach ?? 0) + 200) return 0;
+  if (d > Math.max(ground.homesReach, ground.town?.reach ?? 0) + 150) return 0;
   const p = { x, z };
-  if (!clearAt(ground, p, 40)) return 1;
-  if (!clearAt(ground, p, 100)) return 0.6;
-  return clearAt(ground, p, 160) ? 0 : 0.25;
+  // (Two looks, the near one first: the ground mesh's colours blend between its points.)
+  if (!clearAt(ground, p, 45)) return 1;
+  return clearAt(ground, p, 110) ? 0 : 0.45;
 }
 
 /** How much of the ground at a point (metres from the square) its woods cover, blended between the tiles' middles (0 … 1). */
