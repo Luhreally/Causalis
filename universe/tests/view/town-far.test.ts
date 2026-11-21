@@ -167,7 +167,10 @@ test("which of a city's homes past those drawn are drawn at all is chosen by the
       if (thin(c.drawn[p]!) && a.drawn[p] !== c.drawn[p]) held++;
     }
   }
-  assert.ok(afresh > 0 && held < afresh * 0.75, `${held} came or went held, ${afresh} chosen afresh`);
+  assert.ok(
+    afresh > 0 && held < afresh * 0.75,
+    `${held} came or went held, ${afresh} chosen afresh`,
+  );
 });
 
 test("a city's lots past those drawn stand on its own blocks grown on, as its runs say, with no scattered roof among them", () => {
