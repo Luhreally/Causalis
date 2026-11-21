@@ -1135,7 +1135,12 @@ export const FAR_LOTS = 24_000,
    * How many parts its homes past those drawn may take, as far off as the eye is from them all (about what a great city's
    * whole view took before them): out to where they run out the city's lots stand on its blocks, past them its haze.
    */
-  FAR_PARTS = 12_000;
+  FAR_PARTS = 12_000,
+  /**
+   * How many more its homes past those may take, thinner the farther out (townDetail; with each its block's yard): the
+   * city's far part as many roofs as its haze laid scattered had, on its own blocks.
+   */
+  THIN_PARTS = 3000;
 /**
  * How much farther from the eye a lot drawn whole may be than one drawn as seen from afar (metres): which are drawn whole is
  * chosen again once the eye has moved half as far (render/town.ts TownLayer.look; townDetail).
@@ -1213,7 +1218,7 @@ export function farOf(scene: TownScene): TownFar | null {
   count = Math.max(0, Math.min(count, lots.blocks.x.length * BLOCK_LOTS - from));
   if (count <= 0) return (scene.far = null);
   const first = Math.floor(from / BLOCK_LOTS);
-  let level = new Int8Array(count).fill(-1),
+  const level = new Int8Array(count).fill(-1),
     design = new Int16Array(count),
     ruin = new Uint8Array(count);
   const designOf = new Map(plan.designs.map((d, i) => [d.since, i])),
@@ -1245,21 +1250,7 @@ export function farOf(scene: TownScene): TownFar | null {
       design[p - from] = designOf.get(since) ?? 0;
     }
   }
-  // (As many as FAR_PARTS draw in their rows, block by block outward: farParts.)
-  let parts = 0;
-  for (let k = 0; k < count; k++) {
-    if ((from + k) % BLOCK_LOTS === 0 && parts > FAR_PARTS) {
-      count = k;
-      level = level.subarray(0, count);
-      design = design.subarray(0, count);
-      ruin = ruin.subarray(0, count);
-      break;
-    }
-    parts +=
-      (ruin[k] ? 0.4 : level[k]! < 0 ? 0 : farParts(level[k]!, scene.looks[design[k]!])) +
-      1 / BLOCK_LOTS;
-  }
-  if (count <= 0) return (scene.far = null);
+  // (All of them, however many draw: which do, and how, is chosen by where the eye is: townDetail.)
   const nb = Math.ceil((from + count) / BLOCK_LOTS) - first,
     laid = new Uint8Array(nb).fill(1);
   // (Its walls' line out in it, or where they stood: no block of it there.)
@@ -1418,24 +1409,37 @@ function farGround(scene: TownScene, out: TownParts, street: Rgb, yard: Rgb): vo
 /**
  * Which of a city's homes past its lots drawn are drawn whole, from where the eye looks (`focus`, metres from its square):
  * the nearest whole as FAR_WHOLE parts allow, the next as seen from afar as LOD_LOTS allow (homeLod), the rest in their rows (rowsLod), each the same
- * building, only less of it. Its own lots drawn stand whole as ever. By lot (its own at p, those past at far.from + k): 1
- * whole, 2 as seen from afar, 3 in its row; 0 drawn as ever (its own, rising, a ruin, not a home). Chosen again only once
+ * building, only less of it; past all those FAR_PARTS draws, thinner the farther out (THIN_PARTS). Its own lots drawn stand
+ * whole as ever. By lot (its own at p, those past at far.from + k): 1 whole, 2 as seen from afar, 3 in its row, 4 not drawn
+ * (thinned out); 0 drawn as ever (its own, rising, a ruin, not a home). Chosen again only once
  * the eye has moved half DETAIL_HYSTERESIS (render/town.ts), drawn over frames.
  */
 export type TownDetail = { readonly focus: { x: number; z: number }; readonly drawn: Uint8Array };
-export function townDetail(scene: TownScene, focus: { x: number; z: number }): TownDetail {
+export function townDetail(
+  scene: TownScene,
+  focus: { x: number; z: number },
+  /** How many parts each way (for a check to ask fewer). */
+  budget: { whole: number; lod: number; rows: number; thin: number } = {
+    whole: FAR_WHOLE,
+    lod: LOD_LOTS,
+    rows: FAR_PARTS,
+    thin: THIN_PARTS,
+  },
+): TownDetail {
   const { plan, states } = scene,
     far = farOf(scene),
     n = plan.lots + (far?.count ?? 0),
     drawn = new Uint8Array(n);
   for (const p of scene.settled) if (states.what[p] === LOT.home) drawn[p] = 1;
   if (!far) return { focus: { x: focus.x, z: focus.z }, drawn };
-  // (Nearest first, by the metre: counted out, not sorted, so a great city's choosing takes a few milliseconds.)
-  const d = new Float64Array(far.count);
+  // (Nearest first, by the metre: counted out, not sorted, so a great city's choosing takes a few milliseconds. Its homes
+  // and its ruins.)
+  const d = new Float64Array(far.count),
+    counted = (k: number) => far.level[k]! >= 0 || far.ruin[k]! > 0;
   let most = 0,
     homes = 0;
   for (let k = 0; k < far.count; k++) {
-    if (far.level[k]! < 0) continue;
+    if (!counted(k)) continue;
     d[k] = Math.hypot(far.x[k]! - focus.x, far.z[k]! - focus.z);
     most = Math.max(most, d[k]!);
     homes++;
@@ -1443,23 +1447,50 @@ export function townDetail(scene: TownScene, focus: { x: number; z: number }): T
   const slots = Math.floor(most) + 2,
     starts = new Int32Array(slots + 1),
     order = new Int32Array(homes);
-  for (let k = 0; k < far.count; k++) if (far.level[k]! >= 0) starts[Math.floor(d[k]!) + 1]!++;
+  for (let k = 0; k < far.count; k++) if (counted(k)) starts[Math.floor(d[k]!) + 1]!++;
   for (let i = 1; i <= slots; i++) starts[i]! += starts[i - 1]!;
-  for (let k = 0; k < far.count; k++)
-    if (far.level[k]! >= 0) order[starts[Math.floor(d[k]!)]!++] = k;
-  // (By the parts they take: fewer towers whole than houses.)
+  for (let k = 0; k < far.count; k++) if (counted(k)) order[starts[Math.floor(d[k]!)]!++] = k;
+  // (What each takes drawn in its row, its block's yard and street its share: as a ruin, what stands of a row of them.)
+  const cost = (k: number) =>
+    (far.ruin[k]
+      ? 0.4
+      : farParts(Math.max(0, Math.min(TOP_LEVEL, far.level[k]!)), scene.looks[far.design[k]!])) +
+    1 / BLOCK_LOTS;
+  // (By the parts they take: fewer towers whole than houses. All of them, as many as FAR_PARTS would draw in their rows.)
   let whole = 0,
-    lod = 0;
-  for (let i = 0; i < homes; i++) {
-    const k = order[i]!,
-      lv = Math.max(0, Math.min(TOP_LEVEL, far.level[k]!));
-    if (whole < FAR_WHOLE) {
+    lod = 0,
+    rows = 0,
+    edge = 1,
+    i = 0;
+  for (; i < homes && rows < budget.rows; i++) {
+    const k = order[i]!;
+    rows += cost(k);
+    edge = Math.max(edge, d[k]!);
+    // (A ruin drawn as ever.)
+    if (far.ruin[k]) continue;
+    const lv = Math.max(0, Math.min(TOP_LEVEL, far.level[k]!));
+    if (whole < budget.whole) {
       whole += WHOLE_PARTS[lv]!;
       drawn[far.from + k] = 1;
-    } else if (lod < LOD_LOTS) {
+    } else if (lod < budget.lod) {
       lod += LOD_PARTS[lv]!;
       drawn[far.from + k] = 2;
     } else drawn[far.from + k] = 3;
+  }
+  // Past them, thinner the farther out, each in its row (a ruin as ever) or not drawn (4) by a draw of its own that does
+  // not change (so as the eye moves only those whose chance passes their draw come or go, few and far off), as many as
+  // THIN_PARTS draw: as thick on the screen as near, the ground each covers growing as the square of how far off it is.
+  // (A home drawn alone there brings its block's yard: a part more.)
+  let want = 0;
+  for (let j = i; j < homes; j++) {
+    const k = order[j]!;
+    want += (edge / d[k]!) ** 2 * (cost(k) + (far.ruin[k] ? 0 : 1));
+  }
+  const f = Math.min(1, budget.thin / Math.max(1, want));
+  for (let j = i; j < homes; j++) {
+    const k = order[j]!,
+      kept = scatter(plan.seed, far.from + k, 41) < f * (edge / d[k]!) ** 2;
+    drawn[far.from + k] = !kept ? 4 : far.ruin[k] ? 0 : 3;
   }
   return { focus: { x: focus.x, z: focus.z }, drawn };
 }
@@ -1685,11 +1716,19 @@ export function* homesSeen(
     const p = far.from + k,
       h = farOfLot(p);
     // (Ruins as seen from afar: their floors and what stands of their walls, low, a row's alike as one.)
+    // (Not drawn, thinned out far off: townDetail.)
+    if (drawn?.[p] === 4) continue;
     if (far.ruin[k]) {
       const kind = far.ruin[k]!,
         razed = kind === 1;
       let n = 1;
-      while (k + n < far.count && (far.from + k + n) % 4 !== 0 && far.ruin[k + n] === kind) n++;
+      while (
+        k + n < far.count &&
+        (far.from + k + n) % 4 !== 0 &&
+        far.ruin[k + n] === kind &&
+        drawn?.[far.from + k + n] !== 4
+      )
+        n++;
       const e = k + n - 1;
       out.put(
         "box",

@@ -102,6 +102,53 @@ test("no home past a city's lots drawn stands whole farther from the eye than on
   assert.ok(checked >= 8, `${checked} looks checked`);
 });
 
+test("which of a city's homes past those drawn are drawn at all is chosen by the eye too: none left out nearer than one drawn whole or lightly, and thinner the farther out", () => {
+  let thinned = 0;
+  for (const { s, plan } of great) {
+    const scene = townScene(plan, world.now);
+    townGround(scene, new TownParts());
+    const far = farOf(scene);
+    if (!far) continue;
+    for (const [fx, fz] of [
+      [0, 0],
+      [180, -60],
+    ] as const) {
+      // (Few parts, so that a small world's cities run past them.)
+      const detail = townDetail(
+          scene,
+          { x: fx, z: fz },
+          { whole: 60, lod: 80, rows: 150, thin: 40 },
+        ),
+        dist = (k: number) => Math.hypot(far.x[k]! - fx, far.z[k]! - fz);
+      let near = 0,
+        out = Infinity;
+      const past: { r: number; on: boolean }[] = [];
+      for (let k = 0; k < far.count; k++) {
+        if (far.level[k]! < 0) continue;
+        const how = detail.drawn[far.from + k]!;
+        if (how === 1 || how === 2) near = Math.max(near, dist(k));
+        if (how === 4) out = Math.min(out, dist(k));
+        if (how >= 3) past.push({ r: dist(k), on: how === 3 });
+      }
+      assert.ok(
+        out >= near,
+        `${s.name}: a home left out at ${out.toFixed(0)} m, one drawn finely at ${near.toFixed(0)} m`,
+      );
+      if (out === Infinity) continue;
+      thinned++;
+      // (Of those past where they begin to be left out: more drawn of the nearer half than of the farther.)
+      const beyond = past.filter((q) => q.r >= out).sort((a, b) => a.r - b.r),
+        half = Math.floor(beyond.length / 2),
+        drawnOf = (qs: typeof beyond) => qs.filter((q) => q.on).length / Math.max(1, qs.length);
+      assert.ok(
+        drawnOf(beyond.slice(0, half)) >= drawnOf(beyond.slice(half)),
+        `${s.name}: ${drawnOf(beyond.slice(0, half)).toFixed(2)} drawn nearer, ${drawnOf(beyond.slice(half)).toFixed(2)} farther`,
+      );
+    }
+  }
+  assert.ok(thinned >= 4, `${thinned} looks thinned far out`);
+});
+
 test("a city's lots past those drawn stand on its own blocks grown on, as its runs say, with no scattered roof among them", () => {
   let farLots = 0,
     homes = 0;
