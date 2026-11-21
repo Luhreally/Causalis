@@ -4336,7 +4336,9 @@ async function runPlanetPage(): Promise<void> {
     time.at("region", regionPanel.timeSlot);
     rig.configure({
       distance: regionFit(),
-      minDistance: 12,
+      // (As near as a town's eye at its farthest, the town drawn on its land as large: a land's nearest eye and a town's
+      // farthest are one, so a zoom through between them steps nowhere. render/village.ts VILLAGE_METRE, LAND_ACROSS.)
+      minDistance: 7,
       maxDistance: 260,
       pitch: -48,
       minPitch: -85,
