@@ -88,7 +88,7 @@ export class FloraLayer {
   private heights: Float32Array | null = null;
   private hole: { x: number; z: number; r: number } | null = null;
   /** Where the near things were last laid about, how far, and for which ground. */
-  private laidAt: { x: number; z: number; r: number; ground: number } | null = null;
+  private laidAt: { x: number; z: number; r: number; most: number; ground: number } | null = null;
   private ground = 0;
   private free: (x: number, z: number, r: number) => boolean = () => true;
   private bare: (tile: number) => boolean = () => false;
@@ -264,13 +264,13 @@ export class FloraLayer {
       was &&
       was.ground === this.ground &&
       Math.hypot(x - was.x, z - was.z) < was.r / 3 &&
-      Math.abs(most - was.r) < was.r / 3
+      Math.abs(most - was.most) < was.most / 3
     )
       return;
     const t0 = performance.now(),
       reach = nearReach(land, x, z, budget.trees, most),
       near = nearFlora(land, x, z, reach, budget, this.free, this.bare, this.parched);
-    this.laidAt = { x, z, r: most, ground: this.ground };
+    this.laidAt = { x, z, r: reach, most, ground: this.ground };
     this.nearShown = near;
     this.show("trunks", near.trunks, this.trunk, false);
     this.show("cones", near.cones, this.cone, false);
@@ -286,7 +286,8 @@ export class FloraLayer {
   /** The near budget for a setting's far crowns, kept while the setting is (none made each frame). */
   private budget: { of: number; is: ReturnType<typeof nearBudget> } | null = null;
   private budgetFor(regionTrees: number): ReturnType<typeof nearBudget> {
-    if (this.budget?.of !== regionTrees) this.budget = { of: regionTrees, is: nearBudget(regionTrees) };
+    if (this.budget?.of !== regionTrees)
+      this.budget = { of: regionTrees, is: nearBudget(regionTrees) };
     return this.budget.is;
   }
 
