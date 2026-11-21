@@ -996,13 +996,18 @@ export function streetView(
 ): { yaw: number; pitch: number; clear: boolean } {
   const town = villageGround(plan).town;
   if (!town) return { yaw: across !== undefined ? across + 90 : 30, pitch: -34, clear: true };
-  // (Nothing under the line from the place to where the eye stands: no block or wall, nor the square's hall.)
+  // (Nothing under the line from the place to where the eye stands: no block or wall, nor the square's hall, nor what the town
+  // raised: a tomb stands as high as a house, and a film looked at its fight through two of them.)
+  const stones = memorialsPlaced(plan);
   const open = (a: Point, b: Point): boolean => {
     if (!town.clear(a, b, 1.6)) return false;
     const d = Math.hypot(b.x - a.x, b.z - a.z);
-    for (let t = 3; t < d; t += 2)
-      if (!clearOfHall(plan, a.x + ((b.x - a.x) * t) / d, a.z + ((b.z - a.z) * t) / d, 1.5))
-        return false;
+    for (let t = 3; t < d; t += 2) {
+      const x = a.x + ((b.x - a.x) * t) / d,
+        z = a.z + ((b.z - a.z) * t) / d;
+      if (!clearOfHall(plan, x, z, 1.5)) return false;
+      for (const m of stones) if (Math.hypot(x - m.x, z - m.z) < m.across + 1) return false;
+    }
     return true;
   };
   // (`across`: the way the two sides face each other, in degrees. The eye to one side of that first, a quarter turn off it or

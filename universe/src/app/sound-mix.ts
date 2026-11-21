@@ -41,6 +41,11 @@ export type Air = {
   /** Machines' engines overhead, as loud as they are near and many (0 … 1), and whether they are jets. */
   engines: number;
   jet: boolean;
+  /**
+   * How far the hearing is from what is looked at (m; app/ears.ts): a war's or a battle's din is made where it is fought, and is
+   * heard as faint from there as so many small sounds are (bedOf).
+   */
+  far: number;
 };
 
 /** A place with nothing about it. */
@@ -62,6 +67,7 @@ export function airOf(place: Place): Air {
     ring: 0,
     engines: 0,
     jet: false,
+    far: 0,
   };
 }
 
@@ -383,6 +389,9 @@ export function mixOf(a: Air): Mix {
     m.engines = 0;
   }
   if (a.under) m.engines *= 0.3;
+  // A war's or a battle's din, heard from where the hearing is (the guns are heard each from where it is, app/ears.ts): so what is
+  // seen firing is what is heard most; never gone while no one fires.
+  if (a.war || a.place === "battle") m.level *= bedOf(a.far);
   return m;
 }
 
@@ -559,6 +568,23 @@ export function farOf(metres: number): { level: number; hz: number } {
   const m = Math.max(0, metres);
   return { level: 1 / (1 + Math.max(0, m - 20) / 60), hz: 16000 / (1 + m / 90) };
 }
+
+/** The least of a war's din heard however far off the hearing is (of its level near), and how near it is heard whole (m). */
+export const BED_LEAST = 0.25,
+  BED_NEAR = 20;
+/**
+ * How loud a war's or a battle's din is heard from `metres` off, of its level near: as the many small sounds it is made of — voices,
+ * drums, bells, iron — each a breath beside a gun's report, are heard, by the spreading of their sound alone (as 1/r past BED_NEAR);
+ * where a gun's, a hundred thousand times as strong, carries on far past them (farOf, gentler). Never under BED_LEAST.
+ */
+export function bedOf(metres: number): number {
+  return Math.max(BED_LEAST, Math.min(1, BED_NEAR / Math.max(1, metres)));
+}
+/**
+ * How far under a gun's report the din it rings over goes (of its level, for a near shot at its full), and how soon the din comes
+ * back after it (s): what a battle's own roar does to all else in the ear.
+ */
+export const DUCK = { depth: 0.55, back: 0.3 } as const;
 
 /** A line's fire, too thick to hear shot by shot: as loud as so many at once would be, but never a wall. */
 export function massOf(n: number): number {

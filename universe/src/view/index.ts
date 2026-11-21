@@ -308,6 +308,10 @@ export { Streets, streetDoor } from "./streets.ts";
 export {
   MOST_STONE_PARTS,
   memorialParts,
+  memorialTones,
+  stoneSeen,
+  STONE_LEAST,
+  STONE_DARK_LEAST,
   memorialsPlaced,
   partAt,
   partsOf,

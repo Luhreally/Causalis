@@ -27,6 +27,7 @@ import {
   type TownWarScene,
 } from "../../src/view/index.ts";
 import { batteryFlashing, firesBetween } from "../../src/render/townwar.ts";
+import { fireLead } from "../../src/render/village.ts";
 import { Ears, type TownShot } from "../../src/app/ears.ts";
 import type { HeardEvent, Sound as SoundClass } from "../../src/app/sound.ts";
 import { CUE_RULES } from "../../src/app/sound-mix.ts";
@@ -163,6 +164,74 @@ test("a soldier's fight under the hand: each who levels to fire is heard once as
   ears.held("k", drawn(new Set([2])), arms, 1, layer);
   assert.equal(l.told.length, 3, "levelled again: heard again");
   assert.ok(l.told.every((e) => e.kind === "gun"));
+  // (One reeling or going down to a shot: heard as the shot was, nothing more.)
+  const shotDown = (down: Set<number>): BattleNow => ({
+    ...base,
+    troopers: base.troopers.map((t) => ({ ...t, act: down.has(t.id) ? "fall" : "stand", size: 1 })),
+  });
+  ears.held("k", shotDown(new Set([5])), arms, 1, layer);
+  assert.equal(l.told.length, 3);
+});
+
+test("a fight of blades under the hand: each blow struck home heard as one reels or goes down under it, once", () => {
+  const field = newBattle(muskets(), 40),
+    base = battleAt(field, 30),
+    l = listener(),
+    ears = new Ears(stage, l),
+    drawn = (hit: ReadonlyMap<number, "stagger" | "fall">): BattleNow => ({
+      ...base,
+      troopers: base.troopers.map((t) => ({ ...t, act: hit.get(t.id) ?? "fight", size: 1 })),
+    }),
+    arms = ["sword", "sword"] as const,
+    guards = ["mail", "shield"] as const;
+  ears.held("b", drawn(new Map([[1, "fall"]])), arms, 1, layer, guards);
+  assert.equal(l.told.length, 0, "one down as the fight is first seen is not heard again");
+  ears.held(
+    "b",
+    drawn(
+      new Map([
+        [1, "fall"],
+        [2, "stagger"],
+      ]),
+    ),
+    arms,
+    1,
+    layer,
+    guards,
+  );
+  ears.held(
+    "b",
+    drawn(
+      new Map([
+        [1, "fall"],
+        [2, "fall"],
+      ]),
+    ),
+    arms,
+    1,
+    layer,
+    guards,
+  );
+  assert.deepEqual(
+    l.told.map((e) => e.kind),
+    ["clash", "thud"],
+    "a blow: the blade's ring and what it lands on, once though he reels then falls",
+  );
+  ears.held("b", drawn(new Map([[1, "fall"]])), arms, 1, layer, guards);
+  ears.held(
+    "b",
+    drawn(
+      new Map([
+        [1, "fall"],
+        [2, "stagger"],
+      ]),
+    ),
+    arms,
+    1,
+    layer,
+    guards,
+  );
+  assert.equal(l.told.length, 4, "struck again once up: heard again");
 });
 
 test("a town's war: each shot, each field gun and each shell as its layer draws them", () => {
@@ -181,6 +250,11 @@ test("a town's war: each shot, each field gun and each shell as its layer draws 
     l.told.filter((e) => e.kind === "gun").length,
     10,
     "a shot a second for ten seconds",
+  );
+  // (Its din heard from where its fighting is: as far as the nearest of what was last heard of it.)
+  assert.ok(
+    Math.abs(ears.far - Math.min(...l.told.slice(-3).map((e) => e.far))) < 1e-6,
+    `${ears.far}`,
   );
   // The field guns standing off: heard as their flash begins, each turn of it.
   const scene = {
@@ -206,6 +280,47 @@ test("a town's war: each shot, each field gun and each shell as its layer draws 
     out.filter((q) => q.kind === "blast").length,
     Math.floor(40 / 0.7) - Math.floor(10 / 0.7),
   );
+});
+
+test("a line in a town's fight fires by platoons in turn: always some of it firing, each platoon heard as its own volley", () => {
+  const musket = { every: 7, volley: true },
+    each = 88,
+    platoons = Math.ceil(each / 8);
+  /** When platoon p of a side fires in a turn of the line: its men's times, and the first of them. */
+  const volley = (side: number, p: number) => {
+    const men: number[] = [];
+    for (let j = p * 8; j < Math.min(each, (p + 1) * 8); j++) {
+      const lead = fireLead(musket, side * each + j, side, each);
+      men.push(((-lead % musket.every) + musket.every) % musket.every);
+    }
+    // (A platoon's men within a moment of each other: one volley.)
+    assert.ok(Math.max(...men) - Math.min(...men) <= 0.3 + 1e-9, `${side}:${p}`);
+    return Math.min(...men);
+  };
+  /** The longest the line is silent in a turn, of those platoons. */
+  const silent = (at: number[]) => {
+    const t = [...at].sort((a, b) => a - b);
+    let most = musket.every - t[t.length - 1]! + t[0]!;
+    for (let i = 1; i < t.length; i++) most = Math.max(most, t[i]! - t[i - 1]!);
+    return most;
+  };
+  // (Whichever platoons beside each other are at it, two or all, their volleys fall evenly over the reload.)
+  for (const side of [0, 1])
+    for (let k = 2; k <= platoons; k++)
+      for (let from = 0; from + k <= platoons; from++) {
+        const at = Array.from({ length: k }, (_, q) => volley(side, from + q));
+        assert.ok(
+          silent(at) <= (musket.every * 1.75) / k,
+          `${side}: ${k} from ${from}: ${silent(at)}`,
+        );
+      }
+  // (And both lines together: never all silent for long.)
+  const all = [0, 1].flatMap((side) => Array.from({ length: platoons }, (_, p) => volley(side, p)));
+  assert.ok(silent(all) <= (1.2 * musket.every) / platoons, `both: ${silent(all)}`);
+  // One who fires at will: when he is loaded, in his own time.
+  const free = { every: 1.5, volley: false };
+  for (let i = 0; i < 20; i++)
+    assert.ok(fireLead(free, i, 0, 20) >= 0 && fireLead(free, i, 0, 20) < 1.5);
 });
 
 test("the hearing stands a third of the way from what is looked at toward the eye", () => {
