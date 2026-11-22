@@ -130,8 +130,20 @@ export function townHolds(
         threats: pressed(),
         now,
         walls,
-        // (A realm pays from its seat land's spare and from its lands.)
-        means: Math.min(1, 0.5 * spare + 0.5 * Math.min(1, realm.members.length / 8)),
+        // (A realm pays from its seat land's spare, and from its lands or its seat's people, whichever is the more: a city
+        // of a million can pay for what eight lands can.)
+        means: Math.min(
+          1,
+          0.5 * spare +
+            0.5 *
+              Math.min(
+                1,
+                Math.max(
+                  realm.members.length / 8,
+                  Math.log10(Math.max(1, ctx.settlements.get(ref)?.population ?? 1)) / 6,
+                ),
+              ),
+        ),
         reach,
         holds: true,
       },
