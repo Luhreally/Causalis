@@ -735,7 +735,8 @@ export class FloraLayer {
     const line = this.snowAt;
     for (const b of [this.near.cones, this.farCones]) b?.snowLine(line, 0.35);
     for (const b of [this.near.balls, this.farBalls]) b?.snowLine(line, 0.45);
-    for (const b of [this.near.patches, this.near.stones]) b?.snowLine(line, 0.85);
+    // (Patches and stones under the snow where it lies, as tufts: not white blots on a face whose rock shows.)
+    for (const b of [this.near.patches, this.near.stones]) b?.snowLine(line, 0.85, true);
     this.near.tufts?.snowLine(line, 1, true);
     this.near.trunks?.snowLine(null, 0);
   }

@@ -5,6 +5,8 @@
 // put in a town that builds in stone: a colonnade about its square, a column in it, steps under its temple and a way kept
 // broad to it between pillars. The same parts every home is drawn in, a few more of them: no mesh or batch of its own.
 import {
+  holdPlaces,
+  onHeld,
   BLOCK_LOTS,
   LOT_D,
   LOT_W,
@@ -20,10 +22,15 @@ import {
   measuredBlocks,
   quarterOf,
   tallShare,
+  DISTRICT,
+  districtFrom,
+  nearLine,
+  type District,
   type MainStreet,
   type MarketPlace,
   type TownPlan,
 } from "../bridge/index.ts";
+import { PLOT, compoundParts } from "./compound.ts";
 import { lifeTint } from "./biochem.ts";
 import type { HouseLook } from "./village.ts";
 import type { TownParts, TownScene } from "./town.ts";
@@ -124,6 +131,16 @@ export function formTiers(plan: TownPlan, walled: boolean): Uint8Array | null {
   return out;
 }
 
+/** A lot's ground and height code (as formTiers) past those its plan draws: its walls' as they still stand about it. */
+function farCode(scene: TownScene, p: number): number {
+  const { plan } = scene,
+    form = plan.form!,
+    within = scene.walls?.lengths.length && plan.walls ? plan.walls.reach : 0,
+    tall = tallShare(form, p, plan.whole) * (0.86 + 0.28 * share(p, 1)),
+    step = Math.max(0, Math.min(TALL_STEPS - 1, Math.round((tall - TALL_LOW) / TALL_STEP)));
+  return lotTier(form, p, plan.whole, within) | (step << 2);
+}
+
 /** A lot's tier (TIER.town where the plan carries no form). */
 export function tierOf(scene: TownScene, p: number): number {
   return scene.tiers ? scene.tiers[p]! & 3 : TIER.town;
@@ -140,7 +157,8 @@ export function tierOf(scene: TownScene, p: number): number {
 export function formLook(scene: TownScene, p: number, index: number): HouseLook | undefined {
   const base = scene.looks[index] ?? scene.looks[0];
   if (!base || !scene.tiers) return base;
-  const code = scene.tiers[p]!,
+  // (A lot past those drawn, on a great city's blocks grown on: its ground read as theirs is. farOf.)
+  const code = p < scene.tiers.length ? scene.tiers[p]! : farCode(scene, p),
     form = scene.plan.form!,
     // (Two washes: one front in three painted, the rest in its land's own stuff. Each wash is a batch more to a design.)
     wash = form.spare >= PAINTED_FROM && share(p, 7) < 0.34 ? 1 : 0,
@@ -208,7 +226,12 @@ export function formLook(scene: TownScene, p: number, index: number): HouseLook 
                 height: base.height * storey * (form.winged ? 2.1 : 1.55),
               }
           : tier === TIER.edge
-            ? { apart: true, height: base.height * storey }
+            ? {
+                apart: true,
+                height: base.height * storey,
+                // (Where its people ride, a house at the edge stands back from its street, its drive before it.)
+                ...(form.engines >= 0 && !form.over ? { width: Math.min(base.width, 0.6) } : {}),
+              }
             : { height: base.height * storey }),
     };
     scene.formLooks.set(key, look);
@@ -223,7 +246,87 @@ function at(x: number, z: number, yaw: number, u: number, v: number): [number, n
   return [x + u * c + v * s, z - u * s + v * c];
 }
 
+/** A lot's district (bridge/districts.ts), from its tier as its scene reads it and how its people get about. */
+export function districtAt(scene: TownScene, p: number): District {
+  const form = scene.plan.form;
+  if (!form || scene.plan.sealed) return DISTRICT.inner;
+  const roads = scene.plan.site?.roads,
+    line =
+      form.engines >= 0 &&
+      !form.drive &&
+      !!roads?.some((r) => r.rails) &&
+      nearLine(roads, scene.lots.x[p]!, scene.lots.z[p]!);
+  return districtFrom(form, tierOf(scene, p), line);
+}
+
+/** What bounds a home's plot: a hedge where its land's rain grows one, a low stone wall where it builds in stone, else a fence. */
+const FENCE: Rgb = [0.74, 0.66, 0.52],
+  HEDGE: Rgb = [0.2, 0.4, 0.2];
+function plotBound(scene: TownScene): Rgb {
+  const form = scene.plan.form!;
+  return form.green >= 0.3
+    ? lifeTint(HEDGE, scene.plan.lifeLook)
+    : form.stone
+      ? mixed(STONE, [0.5, 0.48, 0.44], 0.3)
+      : FENCE;
+}
+
+/** The tones a plot is drawn in as parts (its bound's; its drive's tar; its engine's paint), as view/compound.ts lays them. */
+const PLOT_TAR: Rgb = [0.3, 0.3, 0.32],
+  PLOT_CAR: Rgb = [0.86, 0.88, 0.9];
+
 /**
+ * A home's own plot where its town sprawls or is strung along its line (bridge/districts.ts): a hedge or fence down its sides
+ * and across its back, its drive before it, the engine on it for as many as ride; a tree in its garden where rain grows
+ * them, most gardens. One instance in the town's own view (view/compound.ts PLOT), its parts on the land's map.
+ */
+function plotYard(
+  scene: TownScene,
+  out: TownParts,
+  p: number,
+  x: number,
+  z: number,
+  yaw: number,
+  district: District,
+  walled: boolean,
+): void {
+  // (A well-off home's yard is walled, gardened and treed already: view/town.ts rankedHome.)
+  if (walled) return;
+  const form = scene.plan.form!,
+    car = district === DISTRICT.sprawl && share(p, 5) < form.rides,
+    mesh = car ? "plotCar" : "plot",
+    bound = plotBound(scene),
+    y = 0.5 + PLOT.h / 2;
+  if (out.compound) out.shape(mesh, bound, null, x, y, z, PLOT.w, PLOT.h, PLOT.d, yaw);
+  else if (car) {
+    // (Part by part, on the land's map, where a hedge is less than a stroke: the engine on its drive alone.)
+    const q = compoundParts(
+      "plotCar",
+      [bound, bound, PLOT_CAR, PLOT_TAR],
+      [x, y, z, PLOT.w, PLOT.h, PLOT.d, yaw],
+    )[4]!;
+    out.put("box", q.color, q.at[0]!, q.at[1]!, q.at[2]!, q.at[3]!, q.at[4]!, q.at[5]!, q.at[6]!);
+  }
+  // (A tree in most gardens where rain grows them: the fewer the drier.)
+  if (share(p, 3) < 0.1 + 0.45 * form.green) {
+    const [tx, tz] = at(x, z, yaw, -2.6, 4.6),
+      high = 4.6 + 3 * share(p, 4);
+    out.put(
+      "cone",
+      lifeTint(LEAF, scene.plan.lifeLook),
+      tx,
+      high / 2 + 0.5,
+      tz,
+      high * 0.5,
+      high,
+      high * 0.5,
+      0,
+    );
+  }
+}
+
+/**
+ * What stands in a home's yard. At the edge:/**
  * What stands in a home's yard. At the edge: a garden behind it and a tree where its land's rain grows them (the
  * drier the fewer), a shed and a drive beside it where the household keeps an engine (as many as do).
  */
@@ -235,9 +338,17 @@ export function edgeYard(
   z: number,
   yaw: number,
   deep: number,
+  /** Its yard is walled already (a well-off home's: view/town.ts rankedHome). */
+  walled = false,
 ): void {
   const form = scene.plan.form;
   if (!form) return;
+  // (Sprawl and the villas along a line: each home on its own plot, view/townform.ts plotYard.)
+  if (tierOf(scene, p) === TIER.edge && (form.drive || form.engines >= 0)) {
+    const d = districtAt(scene, p);
+    if (d === DISTRICT.sprawl || d === DISTRICT.line)
+      return plotYard(scene, out, p, x, z, yaw, d, walled);
+  }
   if (tierOf(scene, p) !== TIER.edge) {
     // Between the heart and the edge a yard is small, and smaller the nearer the square: a tree in some, more of them
     // the further out (as the ground grows cheaper).
@@ -475,13 +586,16 @@ export function heightOf(
   const { plan } = scene,
     ring = scene.walls;
   if (!plan.site || !ring || !plan.walls || plan.sealed) return null;
-  return heightHeld(
+  const h = heightHeld(
     plan.site,
     ring.line,
     plan.water,
-    !!plan.rank?.seat,
+    // (Whoever rules here holds the height with a keep only where no stronghold of theirs stands about it: view/strongholds.ts.)
+    !!plan.rank?.seat && !plan.rank.holds?.some((h) => h.holder === "realm" && h.hold.form),
     plan.civics.some((c) => c.kind === "temple" && c.fell === null && c.end <= plan.year),
   );
+  // (None where a stronghold stands on the height already: view/strongholds.ts.)
+  return h && onHeld(holdPlaces(plan), h.x, h.z, 21) ? null : h;
 }
 
 /** The height a town holds: a keep in the realm's colours where one rules from here, else a shrine; on a mound, towers at its corners. */
@@ -569,8 +683,11 @@ export function formGround(scene: TownScene, out: TownParts, ash: number): void 
       c = form.engines >= 0 ? TARMAC : plan.paved ? SETTS : TRACK,
       leaf = lifeTint(LEAF, plan.lifeLook),
       wet = wallWet(plan.water, plan.site);
+    const held = holdPlaces(plan);
     for (const l of wallWalk(ring.line, n)) {
       if (wet && wet(l.x, l.z)) continue;
+      // (Where a stronghold stands on its line, the street goes about it: it is the stronghold's ground.)
+      if (held.length && onHeld(held, l.x, l.z, l.len / 2 + 4.5)) continue;
       out.put("box", c, l.x, 0.34, l.z, l.len + 0.6, 0.06, 9, l.yaw);
       if (form.green >= 0.2 && l.k % 8 === 0) {
         // (A tree on its inner side.)

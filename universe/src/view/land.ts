@@ -26,6 +26,7 @@ import {
   BLOCK_W,
   GROUND,
   GroundClaims,
+  holdPlaces,
   LAND_SCALE,
   LOT_D,
   LOT_W,
@@ -315,6 +316,9 @@ export function* landFieldsLaying(
       yaw: f.yaw,
     }),
     out: LandField[] = [];
+  // (Its strongholds' and seats' ground, as its own view lays them: no field on it. bridge/holdplaces.ts.)
+  if (town.plan && lots)
+    for (const p of holdPlaces(town.plan, lots.lots)) own.disc(p.x, p.z, p.r, GROUND.works, 0);
   void reach;
   // (Laid one at a time, as its own view lays them: each takes its ground before the next is laid.)
   const laid: { x: number; z: number; w: number; d: number; yaw: number }[] = [],
@@ -355,6 +359,28 @@ export function* landFieldsLaying(
  * sides' middles off the water the map draws (a people of the water's: all, on its sea), and none on ground a greater town
  * holds (heldByGreater). A lot is drawn whole or not at all, so no house of it stands half in the water.
  */
+/**
+ * Whether a town's stronghold stands on its land's dry ground (its middle and eight points about it at nine tenths of its
+ * reach, metres about the town's square): one that would stand in its land's water is not drawn there.
+ */
+export function discOnLand(
+  g: LandGround,
+  town: { readonly x: number; readonly z: number },
+  x: number,
+  z: number,
+  r: number,
+): boolean {
+  const cx = town.x + x * LAND_ACROSS,
+    cz = town.z + z * LAND_ACROSS,
+    rr = 0.9 * r * LAND_ACROSS;
+  for (let k = -1; k < 8; k++) {
+    const px = k < 0 ? cx : cx + rr * Math.cos((k * Math.PI) / 4),
+      pz = k < 0 ? cz : cz + rr * Math.sin((k * Math.PI) / 4);
+    if (wetAt(g, px, pz) || facetWet(g, px, pz)) return false;
+  }
+  return true;
+}
+
 export function lotsOnLand(
   g: LandGround,
   town: { readonly x: number; readonly z: number },
@@ -600,6 +626,17 @@ export function* landLaying(
     const line = d.wall;
     if (line)
       claims.star(c.x, c.z, (a) => wallAt(line, a) * LAND_ACROSS + ROAD_TAKES, GROUND.wall, i);
+    // (Its strongholds' and seats' ground: no field, road or other town's ground on it.)
+    const tp = order[i]!.plan;
+    if (tp)
+      for (const p of holdPlaces(tp))
+        claims.disc(
+          c.x + p.x * LAND_ACROSS,
+          c.z + p.z * LAND_ACROSS,
+          p.r * LAND_ACROSS,
+          GROUND.built,
+          i,
+        );
     // (And every block it draws, where its outline between two bearings comes in past one.)
     for (let b = 0; d.blocks && b < (d.count ?? 0); b++)
       claims.rect(

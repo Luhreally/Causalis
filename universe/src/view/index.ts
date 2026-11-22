@@ -402,6 +402,7 @@ export {
   runToEnd,
   type LandLaid,
   lotsOnLand,
+  discOnLand,
   heldByGreater,
   landRoadOut,
   campSpot,

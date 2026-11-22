@@ -25,6 +25,12 @@ import { foldOf, foldReach } from "./flock.ts";
 const DAY = 86_400,
   YEAR = 365 * DAY;
 
+/** Whether a point lies on (or within `room` of) the ground a town's strongholds and seats hold (VillagePlan.held). */
+function onHeldGround(plan: VillagePlan, x: number, z: number, room: number): boolean {
+  for (const h of plan.held ?? []) if (Math.hypot(h.x - x, h.z - z) < h.r + room) return true;
+  return false;
+}
+
 /** How a land bounds its fields. */
 export type Manner = "hedge" | "wall" | "fence" | "hurdle" | "bank" | "ridge";
 
@@ -75,6 +81,12 @@ export type Country = {
   readonly trees: readonly { readonly x: number; readonly z: number; readonly size: number }[];
   /** Barns by the outermost fields, and sheds by the far ones. */
   readonly barns: readonly (Spot & {
+    readonly w: number;
+    readonly d: number;
+    readonly h: number;
+  })[];
+  /** A farm's house by its barn, where those who work its land hold it (none on a great house's estate). */
+  readonly farmhouses: readonly (Spot & {
     readonly w: number;
     readonly d: number;
     readonly h: number;
@@ -260,6 +272,7 @@ function countryMade(plan: VillagePlan, detail: number): Country {
       rows: [],
       trees: [],
       barns: [],
+      farmhouses: [],
       silos: [],
       hay: [],
       bales: false,
@@ -400,10 +413,14 @@ function countryMade(plan: VillagePlan, detail: number): Country {
     outermost = fields.length ? Math.max(...fields.map(radius)) : 0,
     middle = [...fields.map(radius)].sort((a, c) => a - c)[Math.floor(fields.length / 2)] ?? 0,
     barns: Country["barns"][number][] = [],
+    farmhouses: Country["farmhouses"][number][] = [],
+    // (Whether its land is a great house's estate: bridge/rank.ts TownHold.hamlet.)
+    estate = !!plan.town?.rank?.holds?.some((h) => h.hamlet),
     silos: Country["silos"][number][] = [],
     // (A barn, a shed or a silo stands on dry ground and on no field: bridge/claims.ts.)
     standsFree = (x: number, z: number, across: number) =>
       !wetGround(plan.landWater, x, z) &&
+      !onHeldGround(plan, x, z, across) &&
       fields.every((o) => !rectsOverlap({ x, z, w: across, d: across, yaw: 0 }, o));
   fields.forEach((f, k) => {
     if (orchard[k]) return;
@@ -430,6 +447,13 @@ function countryMade(plan: VillagePlan, detail: number): Country {
       z = f.z + (f.z / r) * out;
     if (!standsFree(x, z, 13.6)) return;
     barns.push({ x, z, yaw, w: 11, d: 8, h: 4.2 });
+    // (Where its land is worked by those who hold it, each farm's house stands by its barn, out among its fields; where a
+    // great house holds it as an estate, its tenants live in the hamlet by their lord's seat: view/strongholds.ts.)
+    if (!estate) {
+      const fx = x - Math.cos(yaw) * 11,
+        fz = z + Math.sin(yaw) * 11;
+      if (standsFree(fx, fz, 10)) farmhouses.push({ x: fx, z: fz, yaw, w: 7.5, d: 6, h: 4.6 });
+    }
     if (
       engines &&
       draw(k, 8) < SILO_SHARE &&
@@ -461,6 +485,7 @@ function countryMade(plan: VillagePlan, detail: number): Country {
       !wetGround(plan.landWater, x, z) &&
       Math.hypot(x - plan.pasture.x, z - plan.pasture.z) > plan.pasture.r + room &&
       apart(Math.atan2(z, x), roadWay) * Math.hypot(x, z) > 24 &&
+      !onHeldGround(plan, x, z, room) &&
       (!plan.districts || apart(Math.atan2(z, x), roadWay + Math.PI) * Math.hypot(x, z) > 24),
     wind = draw(0, 10) * 2 * Math.PI,
     mills: Country["mills"][number][] = [],
@@ -634,6 +659,7 @@ function countryMade(plan: VillagePlan, detail: number): Country {
     rows,
     trees,
     barns,
+    farmhouses,
     silos,
     hay,
     bales: engines,

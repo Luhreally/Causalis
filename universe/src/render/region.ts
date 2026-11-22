@@ -41,6 +41,7 @@ export function groundRelief(
     shade = new Float32Array(n).fill(1),
     depth = new Float32Array(n),
     rock = new Float32Array(n),
+    bare = new Float32Array(n),
     far = new Int32Array(n).fill(-1),
     queue = new Int32Array(n);
   let head = 0,
@@ -106,7 +107,28 @@ export function groundRelief(
       const r = clamp01((slope - ROCK_FROM) / (ROCK_TO - ROCK_FROM)),
         up = clamp01((here - ROCK_LOW) / (ROCK_HIGH - ROCK_LOW));
       rock[t] = r * r * (3 - 2 * r) * up;
+      // (Bare: where a mountain's stone may show through what lies on it, its steep faces and its ridges, as high.)
+      bare[t] = Math.max(rock[t]!, clamp01(-hollow / RIDGE_HIGH) * up);
     }
+  // (Never by the sea nor at the land's edge: its sheet reads the same texels, and past the edge the edge's, groundTexels.)
+  for (let t = 0; t < n; t++) {
+    if (!bare[t]) continue;
+    const i = t % size,
+      j = (t - i) / size;
+    if (i === 0 || j === 0 || i === size - 1 || j === size - 1) {
+      bare[t] = 0;
+      continue;
+    }
+    for (let dj = -1; dj <= 1 && bare[t]; dj++)
+      for (let di = -1; di <= 1; di++) {
+        const x = i + di,
+          y = j + dj;
+        if (x >= 0 && y >= 0 && x < size && y < size && water[y * size + x] === 1) {
+          bare[t] = 0;
+          break;
+        }
+      }
+  }
   // (Scree: what a face sheds lies at its foot, a dry tile below a neighbour whose rock shows, as much as its rock, less its own.)
   const scree = new Float32Array(n);
   for (let j = 0; j < size; j++)
@@ -124,7 +146,7 @@ export function groundRelief(
         }
       scree[t] = SCREE_MOST * foot * (1 - rock[t]!);
     }
-  return { shade, depth, rock, scree };
+  return { shade, depth, rock, scree, bare };
 }
 
 /** How a land's ground lies (groundRelief). */
@@ -133,6 +155,7 @@ export type Relief = {
   readonly depth: Float32Array;
   readonly rock: Float32Array;
   readonly scree: Float32Array;
+  readonly bare: Float32Array;
 };
 
 /**
@@ -188,6 +211,8 @@ const ROCK_LOW = 4,
 /** The rock itself is drawn facet by facet by the ground's shader (stage.ts groundMaterial, the same steepness and height); its
  * scree here: how far below the face's tile (scene units) a tile lies at its foot, how much of it at most, and its colour, a pale
  * stony grey with a little of the tile's own (0 … 255; not over snow, which lies on it). */
+/** How far a crest stands above its neighbours' mean (scene units) to be bare as a ridge whole. */
+const RIDGE_HIGH = 1.5;
 const SCREE_BELOW = 0.5,
   SCREE_MOST = 0.7;
 const SCREE: Rgb = [132, 127, 118],
@@ -331,7 +356,15 @@ export function groundTexels(
       if (crowns) crowns[4 * t + c] = Math.round(top[4 * t + c]! * dim);
     }
     // (Over the water, how deep it reads: the sea's sheet comes in by it, nothing where the shore is; over the sea alone, the one under it.)
-    if (crowns) crowns[4 * t + 3] = wet[t] === 1 && relief ? Math.round(255 * relief.depth[t]!) : 0;
+    // (Over dry ground, how bare it lies: where a mountain's rock may show, the ground's shader.)
+    if (crowns)
+      crowns[4 * t + 3] = !relief
+        ? 0
+        : wet[t] === 1
+          ? Math.round(255 * relief.depth[t]!)
+          : wet[t]
+            ? 0
+            : Math.round(255 * relief.bare[t]!);
     land[4 * t + 3] = w ? 255 : src[4 * t + 3]!;
     water[4 * t + 3] = w ? 255 : 0;
   }

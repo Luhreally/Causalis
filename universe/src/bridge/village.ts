@@ -468,6 +468,8 @@ export type GetAbout = {
 };
 
 export type VillagePlan = {
+  /** The ground its strongholds and seats hold (bridge/holdplaces.ts; absent: none): no barn, mill or field on it. */
+  readonly held?: readonly { readonly x: number; readonly z: number; readonly r: number }[];
   /** How its people get about (R1; absent: on foot, as an old save's). */
   readonly about?: GetAbout;
   readonly ref: string;

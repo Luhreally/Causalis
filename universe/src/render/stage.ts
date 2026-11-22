@@ -680,21 +680,34 @@ void getAlbedo() {
 	vec3 top = crown.rgb * (1.0 + 0.55 * (smoothstep(-0.25, 0.25, c.g) - 0.5) + 0.35 * b.g);
 	// (Where they stand: as much of the ground as they cover, in stands; finer than a pixel or so, their share's mean.)
 	float n = b.a + 0.5, e = max(0.7 * fwidth(n), 0.04);
-	float m = mix(woods, smoothstep(n - e, n + e, woods), 1.0 - smoothstep(0.05, 0.14, fwidth(p.x) + fwidth(p.y)));
+	float near = 1.0 - smoothstep(0.05, 0.14, fwidth(p.x) + fwidth(p.y));
+	float m = mix(woods, smoothstep(n - e, n + e, woods), near);
 	vec3 ground = mix(g, top, m);
-	// (Rock: a facet steep as drawn and high (as high as render/region.ts groundRelief's rock, the steepest of its slopes), its slope
-	// off the screen's own steps (exact on a flat facet), showing through its snow or soil in patches by the grain, their share's
-	// mean when finer than a pixel. Dark, cool stone in beds along the slope, wavered and a little tilted, each bed as much as its
-	// pixel shows of it: seen from far off, their mean.)
-	vec3 fn = normalize(cross(dFdx(vPositionW), dFdy(vPositionW)));
-	float rock = (1.0 - smoothstep(0.6, 0.7, abs(fn.y))) * clamp((vPositionW.y - 4.0) / 6.0, 0.0, 1.0);
-	float rn = b.a + 0.5, re = max(0.7 * fwidth(rn), 0.1);
-	rock = mix(rock, smoothstep(rn - re, rn + re, rock), 1.0 - smoothstep(0.05, 0.14, fwidth(p.x) + fwidth(p.y)));
-	float bed = vPositionW.y * 1.2 + 0.12 * dot(p, vec2(0.6, 0.8)) + 0.8 * a.r + 0.3 * b.g, bw = fwidth(bed);
-	if (rock > 0.001) {
-		float beds = sin(6.2832 * bed) * (1.0 - smoothstep(0.15, 0.4, bw)) + 0.6 * sin(15.08 * bed + 1.3) * (1.0 - smoothstep(0.06, 0.17, bw));
-		vec3 stone = (vec3(0.15, 0.16, 0.185) + 0.05 * g) * (1.0 + 0.2 * beds + 0.1 * c.r);
-		ground = mix(ground, stone, rock);
+	// (Rock: where a mountain lies bare (its steep faces and ridges, the tiles' share in crown.a, render/region.ts groundRelief)
+	// and as steep a facet (its slope off the screen's own steps, exact on a flat facet), high: past a threshold wavered by the
+	// grain, so it shows along the steepest parts and the ridges with a ragged edge; finer than a pixel, its share's mean.)
+	// (The screen's steps taken here, outside the branch: only high ground works the rest out.)
+	vec3 dx = dFdx(vPositionW), dy = dFdy(vPositionW);
+	float fs = 0.6 * fwidth(b.a) + 0.4 * fwidth(c.a), fb = 1.6 * fwidth(a.r) + 0.6 * fwidth(b.g);
+	if (vPositionW.y > 4.0) {
+		vec3 fn = cross(dx, dy);
+		float up = min((vPositionW.y - 4.0) / 6.0, 1.0);
+		float s0 = 0.75 * (1.0 - smoothstep(0.55, 0.8, abs(fn.y) * inversesqrt(dot(fn, fn)))) + 0.6 * crown.a - 0.55;
+		if (s0 > -0.2) {
+			float sc = s0 + 0.35 * (0.6 * b.a + 0.4 * c.a), se = max(0.25 * fs, 0.02);
+			float rock = up * mix(clamp(s0 / 0.35 + 0.5, 0.0, 1.0), smoothstep(-se, se, sc), near);
+			// (Its beds: uneven in width and spacing, pinched out along the face, faint, none on some of it; each as much as its
+			// pixel shows of it, so seen from far off their mean, the stone's own. The stone cool grey to warm brown-grey across a
+			// range.)
+			float ph = vPositionW.y * 0.8 + 0.1 * dot(p, vec2(0.6, 0.8)) + 1.6 * a.r + 0.6 * b.g;
+			float pw = 0.8 * (abs(dx.y) + abs(dy.y)) + 0.1 * (abs(dx.x) + abs(dy.x) + abs(dx.z) + abs(dy.z)) + fb;
+			float wid = clamp(0.14 + 0.35 * b.b, 0.0, 0.32) * smoothstep(-0.05, 0.15, c.g);
+			float bed = 1.0 - smoothstep(wid - pw, wid + pw, abs(fract(ph) - 0.5));
+			float beds = (bed - 2.0 * wid) * clamp(6.0 * a.a, -1.0, 1.0) * smoothstep(-0.1, 0.15, a.g) * (1.0 - smoothstep(0.15, 0.35, pw));
+			vec3 stone = mix(vec3(0.12, 0.13, 0.15), vec3(0.165, 0.14, 0.12), smoothstep(-0.25, 0.25, a.b + 0.5 * b.r));
+			stone = (stone + 0.04 * g) * (1.0 + 0.26 * beds + 0.08 * c.r + 0.06 * b.r);
+			ground = mix(ground, stone, rock);
+		}
 	}
 	// (The shore: where the water's share passes a half, wavered by the land's grain; soft over about a pixel.)
 	float s = water.a + 0.17 * a.b + 0.08 * b.b;

@@ -30,6 +30,18 @@ test("ground relief: a hollow darker than a crest, a cliff's rock, flat ground a
   assert.equal(r.scree[1 * size + 6], 0);
   assert.equal(r.scree[7 * size + 1], 0);
   assert.equal(lr.scree[2 * size + 6], 0);
+  // (Bare where the rock is, and on a high ridge however gentle; never by the sea nor at the land's edge, the sea's sheet
+  // reading the same texels.)
+  assert.ok(r.rock[1 * size + 5]! > 0.5 && r.bare[1 * size + 5]! >= r.rock[1 * size + 5]!);
+  assert.equal(r.bare[0 * size + 5], 0);
+  assert.equal(r.bare[7 * size + 1], 0);
+  const ridge = new Float32Array(size * size).fill(8);
+  for (let i = 0; i < size; i++) ridge[4 * size + i] = 10;
+  const rr = groundRelief(size, 2.4, ridge, water);
+  assert.ok(rr.bare[4 * size + 4]! > 0.5 && rr.rock[4 * size + 4]! < rr.bare[4 * size + 4]!);
+  const sea = new Uint8Array(size * size);
+  sea[4 * size + 5] = 1;
+  assert.equal(groundRelief(size, 2.4, ridge, sea).bare[4 * size + 4], 0);
 });
 
 test("ground bend: rolling ground lit smooth, as it rolls; a mountain by its facets", () => {
@@ -95,6 +107,7 @@ test("ground texels: the lie of the ground on them, and the water's depth in the
     depth: new Float32Array(n),
     rock: new Float32Array(n),
     scree: new Float32Array(n),
+    bare: new Float32Array(n),
   };
   relief.shade[0] = 0.8;
   relief.depth[8] = 1;
@@ -105,6 +118,10 @@ test("ground texels: the lie of the ground on them, and the water's depth in the
   assert.ok(water[32]! < 20 + 90 + 200 && water[34]! < 200);
   assert.equal(crowns[35], 255);
   assert.equal(crowns[3], 0);
+  // (Over dry ground, how bare it lies.)
+  relief.bare[4] = 0.5;
+  groundTexels(colors, wet, size, land, water, null, crowns, relief);
+  assert.equal(crowns[19], 128);
 });
 
 test("ground texels: scree over woods' crowns as over their ground, so the open ground taken out from under them stays ground", () => {
@@ -126,6 +143,7 @@ test("ground texels: scree over woods' crowns as over their ground, so the open 
     depth: new Float32Array(n),
     rock: new Float32Array(n),
     scree: new Float32Array(n).fill(0.8),
+    bare: new Float32Array(n),
   };
   groundTexels(colors, wet, size, land, water, canopy, crowns, relief);
   const woods = 1 - land[3]! / 255;

@@ -3976,6 +3976,7 @@ async function runPlanetPage(): Promise<void> {
           : `bldg:${plan.ref}:${thing.at}:${thing.start}`;
       }
       if (thing.kind === "walls") return `walls:${plan.ref}`;
+      if (thing.kind === "hold") return `hold:${plan.ref}:${thing.k}`;
       const lot = village.townLot(thing.lot),
         theirs = lot
           ? plan.homes.find((h) => h.household && Math.hypot(h.x - lot.x, h.z - lot.z) < 1)
@@ -3999,6 +4000,8 @@ async function runPlanetPage(): Promise<void> {
     // The square itself: what is for sale there (Markets, first slice).
     if (!plan.native && Math.hypot(mx, mz) < SQUARE_REACH * squareScale(plan))
       return `board:${plan.ref}`;
+    // (A farm's house: its town's page says whose its land is, and why the house stands out by its barn.)
+    if (village.farmhouseAt(mx, mz)) return plan.ref;
     for (const f of plan.fields) {
       const c = Math.cos(-f.yaw),
         s = Math.sin(-f.yaw),
