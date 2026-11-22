@@ -45,7 +45,7 @@ export function groundRelief(
     queue = new Int32Array(n);
   let head = 0,
     tail = 0;
-  // (How far each wet tile is from the nearest dry one, in tiles: a walk out from every shore.)
+  // (How far each wet tile is from the nearest dry one, in steps of a tile either way or across: a walk out from every shore.)
   for (let t = 0; t < n; t++)
     if (!water[t]) {
       far[t] = 0;
@@ -107,7 +107,24 @@ export function groundRelief(
         up = clamp01((here - ROCK_LOW) / (ROCK_HIGH - ROCK_LOW));
       rock[t] = r * r * (3 - 2 * r) * up;
     }
-  return { shade, depth, rock };
+  // (Scree: what a face sheds lies at its foot, a dry tile below a neighbour whose rock shows, as much as its rock, less its own.)
+  const scree = new Float32Array(n);
+  for (let j = 0; j < size; j++)
+    for (let i = 0; i < size; i++) {
+      const t = j * size + i;
+      if (water[t] || rock[t]! >= 1) continue;
+      let foot = 0;
+      for (let dj = -1; dj <= 1; dj++)
+        for (let di = -1; di <= 1; di++) {
+          const x = i + di,
+            y = j + dj;
+          if ((!di && !dj) || x < 0 || y < 0 || x >= size || y >= size) continue;
+          const u = y * size + x;
+          if (heights[u]! > heights[t]! + SCREE_BELOW) foot = Math.max(foot, rock[u]!);
+        }
+      scree[t] = SCREE_MOST * foot * (1 - rock[t]!);
+    }
+  return { shade, depth, rock, scree };
 }
 
 /** How a land's ground lies (groundRelief). */
@@ -115,27 +132,78 @@ export type Relief = {
   readonly shade: Float32Array;
   readonly depth: Float32Array;
   readonly rock: Float32Array;
+  readonly scree: Float32Array;
 };
+
+/**
+ * How a land's ground takes the light at each tile's corner of its facets: `normal`, the ground's smooth bend there (x, y, z a
+ * tile, off its neighbours' heights), and `facet`, how much a mountain's it is (0 … 1), by how much its heights rise and fall
+ * about it (BEND_FROM … BEND_TO, scene units): rolling ground lit as it rolls, not facet by facet, a mountain by its facets.
+ */
+export function groundBend(
+  size: number,
+  tileKm: number,
+  heights: Float32Array,
+): { normal: Float32Array; facet: Float32Array } {
+  const n = size * size,
+    normal = new Float32Array(n * 3),
+    facet = new Float32Array(n),
+    h = (i: number, j: number) =>
+      heights[Math.min(size - 1, Math.max(0, j)) * size + Math.min(size - 1, Math.max(0, i))]!;
+  for (let j = 0; j < size; j++)
+    for (let i = 0; i < size; i++) {
+      const t = j * size + i,
+        dx = (h(i + 1, j) - h(i - 1, j)) / (2 * tileKm),
+        dz = (h(i, j + 1) - h(i, j - 1)) / (2 * tileKm),
+        l = Math.hypot(dx, 1, dz);
+      normal[3 * t] = -dx / l;
+      normal[3 * t + 1] = 1 / l;
+      normal[3 * t + 2] = -dz / l;
+      let lo = Infinity,
+        hi = -Infinity;
+      for (let dj = -BEND_REACH; dj <= BEND_REACH; dj++)
+        for (let di = -BEND_REACH; di <= BEND_REACH; di++) {
+          const v = h(i + di, j + dj);
+          if (v < lo) lo = v;
+          if (v > hi) hi = v;
+        }
+      const f = clamp01((hi - lo - BEND_FROM) / (BEND_TO - BEND_FROM));
+      facet[t] = f * f * (3 - 2 * f);
+    }
+  return { normal, facet };
+}
+/** How far about a tile (tiles) its rise and fall is read, and how much of it (scene units) is rolling ground's at most, and a
+ * mountain's at least. */
+const BEND_REACH = 2,
+  BEND_FROM = 4,
+  BEND_TO = 8;
 
 /** How steep (rise over run, as drawn) a face begins to show its rock, and shows it whole. */
 const ROCK_FROM = 0.45,
   ROCK_TO = 1.3;
 /** How high (scene units: 9 to a km, view/region.ts REGION_RELIEF) a face begins to show its rock, and shows it whole. */
-const ROCK_LOW = 2,
-  ROCK_HIGH = 7;
+const ROCK_LOW = 4,
+  ROCK_HIGH = 10;
 
-/** A tile's colour where its rock shows: its own light and a little of its own hue, greyed and darker (any world's rock), as
- * ROCK_FACE × its light + ROCK_TINT × its own + ROCK_LIFT (0 … 255). */
-const ROCK_FACE = [0.2, 0.19, 0.18],
-  ROCK_TINT = [0.08, 0.07, 0.07],
-  ROCK_LIFT = [20, 19, 18];
+/** The rock itself is drawn facet by facet by the ground's shader (stage.ts groundMaterial, the same steepness and height); its
+ * scree here: how far below the face's tile (scene units) a tile lies at its foot, how much of it at most, and its colour, a pale
+ * stony grey with a little of the tile's own (0 … 255; not over snow, which lies on it). */
+const SCREE_BELOW = 0.5,
+  SCREE_MOST = 0.7;
+const SCREE: Rgb = [132, 127, 118],
+  SCREE_OWN = 0.2;
 
-/** The four ways from a tile to its neighbours. */
+/** The eight ways from a tile to its neighbours: a wet tile's corner on dry ground is at the shore, as its sides are (a facet
+ * of the ground that touches dry ground touches it at no more than a tile's step, so the sea's sheet never comes in across one). */
 const STEPS = [
   [1, 0],
   [-1, 0],
   [0, 1],
   [0, -1],
+  [1, 1],
+  [1, -1],
+  [-1, 1],
+  [-1, -1],
 ] as const;
 /** How much darker a hollow (lighter a crest) reads at most, and how deep a hollow is for most of that (scene units); and a
  * steep face's darkening at most. */
@@ -218,7 +286,7 @@ export function groundTexels(
       litTop = canopy ? scratch(1, canopy.length) : lit;
     lit.set(colors);
     if (canopy) litTop.set(canopy);
-    const { shade, rock, depth } = relief;
+    const { shade, scree, depth } = relief;
     for (let t = 0; t < n; t++) {
       const q = 4 * t;
       if (wet[t] !== 0) {
@@ -234,13 +302,15 @@ export function groundTexels(
         continue;
       }
       const k = shade[t]!,
-        r = rock[t]!;
+        // (No scree seen where snow lies.)
+        r =
+          scree[t]! *
+          (1 - clamp01((Math.min(colors[q]!, colors[q + 1]!, colors[q + 2]!) - 160) / 50));
       if (r > 0) {
-        // (Its crowns the same: rock over them as over the ground, so the ground the shader takes out from under them stays
+        // (Its crowns the same: scree over them as over the ground, so the ground the shader takes out from under them stays
         // the ground's, stage.ts groundMaterial.)
-        const l = 0.3 * colors[q]! + 0.59 * colors[q + 1]! + 0.11 * colors[q + 2]!;
         for (let c = 0; c < 3; c++) {
-          const face = ROCK_FACE[c]! * l + ROCK_TINT[c]! * colors[q + c]! + ROCK_LIFT[c]!;
+          const face = (1 - SCREE_OWN) * SCREE[c]! + SCREE_OWN * colors[q + c]!;
           lit[q + c] = (colors[q + c]! + (face - colors[q + c]!) * r) * k;
           if (canopy) litTop[q + c] = (canopy[q + c]! + (face - canopy[q + c]!) * r) * k;
         }
@@ -260,8 +330,8 @@ export function groundTexels(
       water[4 * t + c] = src[4 * t + c]!;
       if (crowns) crowns[4 * t + c] = Math.round(top[4 * t + c]! * dim);
     }
-    // (Over the water, how deep it reads: the sea's sheet comes in by it, nothing where the shore is.)
-    if (crowns) crowns[4 * t + 3] = w && relief ? Math.round(255 * relief.depth[t]!) : 0;
+    // (Over the water, how deep it reads: the sea's sheet comes in by it, nothing where the shore is; over the sea alone, the one under it.)
+    if (crowns) crowns[4 * t + 3] = wet[t] === 1 && relief ? Math.round(255 * relief.depth[t]!) : 0;
     land[4 * t + 3] = w ? 255 : src[4 * t + 3]!;
     water[4 * t + 3] = w ? 255 : 0;
   }
@@ -389,7 +459,7 @@ export class RegionScene {
     this.trees = [];
     this.cleared = "";
     this.ground = { size, tileKm, heights, water, fertility };
-    this.lie = groundRelief(size, tileKm, heights, water);
+    const lie = (this.lie = groundRelief(size, tileKm, heights, water));
     this.land.reset(this.ground);
     this.fire.reset(this.ground);
     this.flora.reset(size, tileKm, heights);
@@ -402,7 +472,13 @@ export class RegionScene {
       for (let i = 0; i < size; i++) {
         const t = j * size + i;
         positions[t * 3] = i * tileKm - half;
-        positions[t * 3 + 1] = heights[t]!;
+        // (The sea's floor drawn below its sheet, the deeper the farther out, so the sheet is never cut by a bed at or above it
+        // where it shows: where it comes in by how deep the water reads, nothing else draws it a line. Its heights as they are
+        // for all else, heightAt.)
+        positions[t * 3 + 1] =
+          water[t] === 1
+            ? Math.min(heights[t]!, -SEA_FLOOR - SEA_FLOOR_DEEP * lie.depth[t]!)
+            : heights[t]!;
         positions[t * 3 + 2] = j * tileKm - half;
       }
     const indices = new Uint32Array((size - 1) * (size - 1) * 6);
@@ -436,7 +512,12 @@ export class RegionScene {
       at = new Float32Array(tris * 9),
       normals = new Float32Array(tris * 9),
       order = new Uint32Array(tris * 3),
-      P = new Float64Array(21);
+      P = new Float64Array(21),
+      // (Each corner's light: the ground's smooth bend there and how much a mountain's it is, groundBend; its sides' and own
+      // middles' the means of theirs.)
+      bend = groundBend(size, tileKm, heights),
+      B = new Float64Array(21),
+      M = new Float64Array(7);
     let n3 = 0;
     const emit = (
       owner: readonly [number, number, number],
@@ -449,13 +530,19 @@ export class RegionScene {
     ) => {
       const o = 9 * n3;
       for (let q = 0; q < 3; q++) {
-        const from = (q === 0 ? a : q === 1 ? b : c) * 3;
+        const e = q === 0 ? a : q === 1 ? b : c,
+          from = e * 3,
+          f = M[e]!,
+          x = B[from]! + (nx - B[from]!) * f,
+          y = B[from + 1]! + (ny - B[from + 1]!) * f,
+          z = B[from + 2]! + (nz - B[from + 2]!) * f,
+          l = Math.hypot(x, y, z) || 1;
         at[o + 3 * q] = P[from]!;
         at[o + 3 * q + 1] = P[from + 1]!;
         at[o + 3 * q + 2] = P[from + 2]!;
-        normals[o + 3 * q] = nx;
-        normals[o + 3 * q + 1] = ny;
-        normals[o + 3 * q + 2] = nz;
+        normals[o + 3 * q] = x / l;
+        normals[o + 3 * q + 1] = y / l;
+        normals[o + 3 * q + 2] = z / l;
         corners[3 * n3 + q] = owner[q]!;
         order[3 * n3 + q] = 3 * n3 + q;
       }
@@ -471,13 +558,25 @@ export class RegionScene {
         P[3 * q] = positions[3 * v]!;
         P[3 * q + 1] = positions[3 * v + 1]!;
         P[3 * q + 2] = positions[3 * v + 2]!;
+        B[3 * q] = bend.normal[3 * v]!;
+        B[3 * q + 1] = bend.normal[3 * v + 1]!;
+        B[3 * q + 2] = bend.normal[3 * v + 2]!;
+        M[q] = bend.facet[v]!;
       }
       for (let d = 0; d < 3; d++) {
         P[9 + d] = (P[d]! + P[3 + d]!) / 2;
         P[12 + d] = (P[3 + d]! + P[6 + d]!) / 2;
         P[15 + d] = (P[6 + d]! + P[d]!) / 2;
         P[18 + d] = (P[d]! + P[3 + d]! + P[6 + d]!) / 3;
+        B[9 + d] = (B[d]! + B[3 + d]!) / 2;
+        B[12 + d] = (B[3 + d]! + B[6 + d]!) / 2;
+        B[15 + d] = (B[6 + d]! + B[d]!) / 2;
+        B[18 + d] = (B[d]! + B[3 + d]! + B[6 + d]!) / 3;
       }
+      M[3] = (M[0]! + M[1]!) / 2;
+      M[4] = (M[1]! + M[2]!) / 2;
+      M[5] = (M[2]! + M[0]!) / 2;
+      M[6] = (M[0]! + M[1]! + M[2]!) / 3;
       const ux = P[3]! - P[0]!,
         uy = P[4]! - P[1]!,
         uz = P[5]! - P[2]!,
@@ -1036,19 +1135,23 @@ void getOpacity() {
 	dAlpha = material_opacity;
 	if (uTileMap.w > 0.5) {
 		vec2 uv = ((vPositionW.xz + uTileMap.x) / uTileMap.y + 0.5) / uTileMap.z;
-		dAlpha *= smoothstep(0.0, 0.45, texture2D(uCrowns, uv).a);
+		dAlpha *= smoothstep(0.08, 0.5, texture2D(uCrowns, uv).a);
 	}
 }
 `;
 
+/** How far below the sea's sheet its floor is drawn at least at its shore, and more far out (scene units, by its depth as read). */
+const SEA_FLOOR = 0.06,
+  SEA_FLOOR_DEEP = 0.5;
 /** How much of what lies under it a land's sea hides: as a rule, and over a people of the water's towns. */
 const SEA_OPACITY = 0.62,
   CLEAR_SEA = 0.3;
 
 /**
  * The sea over a region: a glossy sheet (blue, or its kind's), clear enough to show the shallows. Over the land as it is
- * (`uTileMap.w` 1) it comes in from the shore by how deep the water reads (`crowns`' alpha over the water, groundTexels): none at
- * the shore, where the ground's own shallows show, its whole a little way out; never a line where it meets the land.
+ * (`uTileMap.w` 1) it comes in from the shore by how deep the water reads (`crowns`' alpha over the sea, groundTexels): none
+ * within a step of the shore, where the ground's own shallows show and a steep shore's facet passes under it, its whole a
+ * little way out; never a line where it meets the land.
  */
 function seaMaterial(colour: Rgb = SEA, crowns: pc.Texture | null = null): pc.StandardMaterial {
   const m = new pc.StandardMaterial();
