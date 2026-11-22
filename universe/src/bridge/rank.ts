@@ -5,6 +5,8 @@
 // square, sized by its share of the houses' wealth), and the homes of its key figures. Read by the host from what history
 // keeps (host/rank.ts); nothing here is saved, and both views draw from it.
 import { HEART_BLOCKS, QUARTER, quarterOf } from "./sites.ts";
+import type { Hold } from "./strongholds.ts";
+import type { HoldSpotOf } from "./holdplaces.ts";
 
 type Rgb = readonly [number, number, number];
 
@@ -50,6 +52,24 @@ export type TownRank = {
   readonly marks?: readonly RankMark[];
   /** What its land's well-off and its halls build in, past its own way of building (absent: that way). */
   readonly stuff?: "stone" | "brick" | "concrete";
+  /** Its strongholds and seats about it (bridge/strongholds.ts; absent: none): its realm's, and its land's great houses'. */
+  readonly holds?: readonly TownHold[];
+};
+
+/** A stronghold or seat about a town: whose (and their page and colour), what stands, why, and its tenants' hamlet. */
+export type TownHold = {
+  readonly holder: "realm" | "house";
+  readonly name: string;
+  readonly ref: string;
+  readonly color: Rgb;
+  readonly hold: Hold;
+  readonly whys: readonly string[];
+  /** The cottages of its tenants about it, where its land is an estate (absent: none). */
+  readonly hamlet?: number;
+  /** Which of its town's it is (its page: `hold:<town>:<k>`). */
+  readonly k: number;
+  /** Where what it holds stands about its town (bridge/holdplaces.ts holdLay; absent: not laid yet). */
+  readonly places?: readonly HoldSpotOf[];
 };
 
 /** From what Gini a town's pages say who holds which ground (its homes are drawn apart from RANK_SORTS, a little). */

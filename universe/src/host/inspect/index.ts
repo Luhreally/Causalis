@@ -2,6 +2,7 @@
 // ref, and the few names that are not refs (a far star, another star's world, one under
 // the god's hand) — to its page, and its place for "go to it". Pure reads of the world as
 // it stands (the observer ledger aside, which history never reads): asking never moves it.
+import { holdPage } from "./strongholds.ts";
 import { notablePage } from "./notables.ts";
 import { toldPage } from "./told.ts";
 import { schoolPage } from "./ideas.ts";
@@ -183,6 +184,8 @@ function build(
   // A town's healer (Phase 55 M229).
   if (ref.startsWith("heal:")) return healerPage(world, ref);
   if (ref.startsWith("walls:")) return wallsPage(world, ref);
+  // A town's stronghold or seat (asked 2026-11-21).
+  if (ref.startsWith("hold:")) return holdPage(world, ref);
   // A band's camp on its land (Phase 28 M159).
   if (ref.startsWith("camp:")) return campPage(world, ref);
   // A land's creatures, and a beast people know (Z1).

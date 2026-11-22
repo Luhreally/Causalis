@@ -65,6 +65,7 @@ import {
   BLOCK_D,
   BLOCK_W,
   GROUND,
+  holdPlaces,
   GroundClaims,
   LAKE_R,
   LOT,
@@ -573,6 +574,9 @@ export function villagePlan(
       road: roadOut,
       through: !!city,
     });
+  // (Its strongholds' and seats' ground, as its own view lays them: no field or pasture on it. bridge/holdplaces.ts.)
+  const held = town && lots ? holdPlaces(town, lots).map((p) => ({ x: p.x, z: p.z, r: p.r })) : [];
+  for (const p of held) claims.disc(p.x, p.z, p.r, GROUND.works, 0);
   fields.push(...layOn(claims, meant, GROUND.field, 0, { x: 0, z: 0 }, 24, 12));
   // The pasture lies toward the poorer ground, near the homes where that is clear of the
   // fields' fan (else just past them); the wild begins beyond the last fields.
@@ -1441,6 +1445,7 @@ export function villagePlan(
       wild: wildAt,
       water: lake ? { x: lake.x, z: lake.z, r: lake.r, shore: shoreOf(ground, lake) } : null,
       ...(ground?.wet ? { landWater: ground } : {}),
+      ...(held.length ? { held } : {}),
       // (What grows about it, as its land's map reads it: host/flora.ts. None on another body's ground.)
       ...(offworldSite(homePlanet(world).generated, village.cell)
         ? {}

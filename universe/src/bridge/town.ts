@@ -1000,7 +1000,9 @@ export function wallRing(plan: TownPlan, lots: TownLots, held: Uint8Array): Wall
     bx = lots.blocks.x,
     bz = lots.blocks.z,
     near: number[] = [],
-    wet = wallWet(plan.water, plan.site ?? null);
+    wet = wallWet(plan.water, plan.site ?? null),
+    // (Its strongholds' ground, as its host laid it (bridge/holdplaces.ts): the wall meets a stronghold and runs on past it.)
+    holds = plan.rank?.holds?.flatMap((h) => h.places ?? []) ?? [];
   // (The blocks held about its line, which it may have been pulled down for.)
   for (let b = 0; b < Math.min(held.length, bx.length); b++)
     if (held[b] && Math.abs(wallOff(line, bx[b]!, bz[b]!)) < BLOCK_REACH + len) near.push(b);
@@ -1028,7 +1030,8 @@ export function wallRing(plan: TownPlan, lots: TownLots, held: Uint8Array): Wall
     for (let f = -0.5; f <= 0.5 && !built_; f += 0.25)
       built_ = built(l.x + ux * f * len, l.z + uz * f * len);
     if (built_) over++;
-    else standing.push(l);
+    else if (!holds.some((p) => Math.hypot(p.x - l.x, p.z - l.z) < p.r + len / 2 + WALL_THICK))
+      standing.push(l);
   }
   if (over * 3 > dry) return { r, line, n, lengths: [] };
   // (Grown out past them to three times what they rang, its streets grown about their line: they are pulled down, a ring street

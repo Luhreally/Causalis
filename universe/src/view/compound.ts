@@ -8,7 +8,7 @@
 type Rgb = readonly [number, number, number];
 
 /** The shapes drawn as one instance: a home's walls and pitched roof, or flat; a tall home's walls and tar; a tower whole. */
-export type CompoundMesh = "house" | "houseFlat" | "block" | "tower";
+export type CompoundMesh = "house" | "houseFlat" | "block" | "tower" | "plot" | "plotCar";
 /** The windows drawn as one instance, lit at night: a townhouse's storeys, a tenement's and a block's bands, a tower's. */
 export type LampMesh = "bands3" | "bands2" | "bands5" | "bands6";
 
@@ -49,6 +49,49 @@ const TAR_PIECE = piece("box", TONE.tar, [0, 0.5, 0], [1.02, 0, 1.02], 0.25, 0.5
 /** A tower's bands (view/town.ts towerBand): six, each a frame and under it its windows. */
 const TOWER_BANDS = 6;
 
+/**
+ * A home's own plot where its town sprawls (bridge/districts.ts): a hedge or fence down each side and across its back, its
+ * drive paved before it; and the engine its household rides, standing on its drive. Laid on a lot (PLOT: its breadth,
+ * the hedge's height, its depth, metres), its pieces in shares of those.
+ */
+export const PLOT = { w: 9, h: 1.1, d: 14 } as const;
+const PLOT_PIECES: readonly CompoundPiece[] = [
+  piece("box", TONE.own, [-4.2 / PLOT.w, 0, 0], [0.6 / PLOT.w, 1, 13.2 / PLOT.d], 0, 0, ["bottom"]),
+  piece("box", TONE.own, [4.2 / PLOT.w, 0, 0], [0.6 / PLOT.w, 1, 13.2 / PLOT.d], 0, 0, ["bottom"]),
+  piece("box", TONE.own, [0, 0, 6.7 / PLOT.d], [7.8 / PLOT.w, 1, 0.6 / PLOT.d], 0, 0, ["bottom"]),
+  // (Its drive: before the house, the street side, a hand thick on the ground.)
+  piece(
+    "box",
+    TONE.tar,
+    [1.5 / PLOT.w, -0.5, -5.15 / PLOT.d],
+    [5 / PLOT.w, 0, 3.5 / PLOT.d],
+    0.04,
+    0.08,
+    ["bottom"],
+  ),
+];
+const CAR_PIECES: readonly CompoundPiece[] = [
+  // (Its body along the street on its drive, and its cabin on it.)
+  piece(
+    "box",
+    TONE.frame,
+    [1.5 / PLOT.w, -0.5, -5.15 / PLOT.d],
+    [4.2 / PLOT.w, 0, 1.8 / PLOT.d],
+    0.58,
+    0.8,
+    ["bottom"],
+  ),
+  piece(
+    "box",
+    TONE.frame,
+    [1.3 / PLOT.w, -0.5, -5.15 / PLOT.d],
+    [2.2 / PLOT.w, 0, 1.6 / PLOT.d],
+    1.28,
+    0.6,
+    ["bottom"],
+  ),
+];
+
 export const COMPOUNDS: Readonly<Record<CompoundMesh, readonly CompoundPiece[]>> = {
   house: [WALLS, piece("gable", TONE.roof, [0, 0, 0], [1, 1, 1], 0, 0, [], true)],
   houseFlat: [WALLS, piece("box", TONE.roof, [0, 0, 0], [1, 1, 1], 0, 0, ["bottom"], true)],
@@ -65,6 +108,8 @@ export const COMPOUNDS: Readonly<Record<CompoundMesh, readonly CompoundPiece[]>>
     // (Its mast: 0.4 m square on a tower's 7.8 by 11, ten metres up from its roof.)
     piece("box", TONE.frame, [0, 0.5, 0], [0.4 / 7.8, 0, 0.4 / 11], 5, 10, ["bottom"]),
   ],
+  plot: PLOT_PIECES,
+  plotCar: [...PLOT_PIECES, ...CAR_PIECES],
 };
 
 /** Bands of windows, a share of the home's height apart, each `high` metres, `wide` and `deep` of the home. */
