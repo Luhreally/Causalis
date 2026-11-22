@@ -7,6 +7,7 @@
 // every distance, on both the town's view and its land's map.
 import { HAMLET_RING, holdPlaces, type HoldPlace, type TownPlan } from "../bridge/index.ts";
 import { lifeTint } from "./biochem.ts";
+import { biomeColor } from "./globe.ts";
 import type { HouseLook } from "./village.ts";
 import type { PartMesh, TownParts, TownScene } from "./town.ts";
 
@@ -311,13 +312,18 @@ function placeDrawn(
     // (Up the rise an attacker would climb to it: its ground raised as high as the climb, a little.)
     lift = Math.max(0, Math.min(8, p.climb * 0.45)),
     land = look?.wall ?? STONE,
+    grass: Rgb = plan.kind ? mixed(biomeColor(8, plan.kind), GRASS, 0.3) : GRASS,
     stone = h.hold.stone,
     wall = stone ? mixed(land, STONE, 0.45) : TIMBER,
     s: Stuff = {
       wall: ruin ? mixed(wall, [0.35, 0.34, 0.32], 0.35) : wall,
       keep: ruin ? mixed(wall, [0.35, 0.34, 0.32], 0.4) : mixed(wall, [0.95, 0.94, 0.9], 0.12),
       roof: look?.roof ? mixed(look.roof, SLATE, 0.4) : ROOF,
-      grass: lifeTint(ruin ? mixed(GRASS, EARTH, 0.3) : kept ? LAWN : GRASS, plan.lifeLook),
+      // (Its grass the world's own grassland, as its town's yards are: view/town.ts townGround.)
+      grass: lifeTint(
+        ruin ? mixed(grass, EARTH, 0.3) : kept ? mixed(grass, LAWN, 0.5) : grass,
+        plan.lifeLook,
+      ),
       leaf: lifeTint(LEAF, plan.lifeLook),
     },
     cos = Math.cos(p.yaw),
