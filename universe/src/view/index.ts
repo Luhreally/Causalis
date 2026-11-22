@@ -90,6 +90,7 @@ export {
   regionFromGlobe,
   regionHeights,
   seasonTiles,
+  snowLine,
   regionTrees,
   type RegionTree,
   type RegionLens,

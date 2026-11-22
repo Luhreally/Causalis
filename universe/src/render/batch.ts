@@ -73,6 +73,17 @@ export class InstancedBatch {
     this.instance.material.setParameter(name, value);
   }
 
+  /**
+   * The snow's line on a faded batch (stage.ts fadedMaterial): from `from` to `to` up (its parent's units) an instance's foot
+   * comes under it, whitened by `k` there, or, `hide`, drawn smaller till not at all (grass). Null: no snow lies by height.
+   */
+  snowLine(line: readonly [number, number] | null, k: number, hide = false): void {
+    this.instance.material.setParameter(
+      "uSnowLine",
+      line ? [line[0], line[1], k, hide ? 1 : 0] : [1e6, 2e6, 0, 0],
+    );
+  }
+
   /** How far its instances are whitened (0 … 1: snow on a toned batch of roofs). */
   toneSnow(k: number): void {
     this.instance.material.setParameter("uToneSnow", k);

@@ -723,7 +723,25 @@ export class FloraLayer {
     this.near.tufts?.toneSnow(Math.min(1, snow * 1.6));
     this.near.tufts?.drawn(snow < SNOW_HIDES);
     for (const b of [this.near.patches, this.near.stones]) b?.toneSnow(snow * 0.85);
+    // (And on its heights, over the snow's line, the same as the season's whole snow would leave them: view/region.ts snowLine.)
+    const line = this.snowAt;
+    for (const b of [this.near.cones, this.farCones]) b?.snowLine(line, 0.35);
+    for (const b of [this.near.balls, this.farBalls]) b?.snowLine(line, 0.45);
+    for (const b of [this.near.patches, this.near.stones]) b?.snowLine(line, 0.85);
+    this.near.tufts?.snowLine(line, 1, true);
+    this.near.trunks?.snowLine(null, 0);
   }
+
+  /** Where snow lies on the land's heights (from … to, the scene's units; null: nowhere): what stands over it under it. */
+  snowLine(line: readonly [number, number] | null): void {
+    const key = line ? `${line[0].toFixed(3)}|${line[1].toFixed(3)}` : "";
+    if (key === this.snowKey) return;
+    this.snowKey = key;
+    this.snowAt = line;
+    this.dress();
+  }
+  private snowAt: readonly [number, number] | null = null;
+  private snowKey = "";
 
   /** What the season makes of a form's colour, as a share of it each way (the instances' own tones kept under it). */
   private factor(form: "broadleaf" | "conifer", s: GroundSeason | null, needles: boolean): Rgb {
