@@ -66,6 +66,8 @@ export type Hold = {
   readonly form: HoldForm | null;
   /** The year it was raised to that form (or first raised), and the threats it answers (the last few). */
   readonly raised: number;
+  /** The battle that raised it to that form (its foe and what it brought). */
+  readonly by: HoldThreat | null;
   readonly answers: readonly HoldThreat[];
   /** Manned; kept up and lived in, its threat gone; or a ruin. */
   readonly state: HoldState;
@@ -131,6 +133,7 @@ export function holdOf(f: HoldFacts): Hold {
     privateOk = f.holder === "realm" || f.reach < PRIVATE_REACH;
   let form: HoldForm | null = null,
     raised = 0,
+    by: HoldThreat | null = null,
     worst = 0,
     lastMatter = -Infinity;
   const answers: HoldThreat[] = [];
@@ -147,6 +150,7 @@ export function holdOf(f: HoldFacts): Hold {
     if (rankOf(want) > rankOf(form)) {
       form = want;
       raised = t.year;
+      by = t;
       answers.push(t);
     } else if (form) answers.push(t);
   }
@@ -172,6 +176,7 @@ export function holdOf(f: HoldFacts): Hold {
   return {
     form,
     raised,
+    by,
     answers: answers.slice(-4),
     state: form ? state : "held",
     gone,
@@ -295,8 +300,8 @@ export function holdWhys(h: Hold, f: HoldFacts, holder: string, land: string): s
         `No war pressed ${land} hard enough for ${holder} to fortify it: ${h.worst > 0 ? "a battle or so beside it, never one on it within a generation" : "no battle was fought on it or beside it"}.`,
       );
   } else {
-    const last = h.answers[h.answers.length - 1],
-      brought = Math.max(...h.answers.map((t) => t.brought));
+    const last = h.by,
+      brought = h.by?.brought ?? BROUGHT.hands;
     out.push(
       `${Holder} raised ${HOLD_WORDS[h.form]} in year ${h.raised}, against ${BROUGHT_WORDS[brought] ?? "hands and ladders"} brought on ${land}${last?.foe ? ` by ${last.foe}` : ""}.`,
     );
