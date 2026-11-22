@@ -684,15 +684,15 @@ void getAlbedo() {
 	float m = mix(woods, smoothstep(n - e, n + e, woods), near);
 	vec3 ground = mix(g, top, m);
 	// (Rock: where a mountain lies bare (its steep faces and ridges, the tiles' share in crown.a, render/region.ts groundRelief)
-	// and as steep a facet (its slope off the screen's own steps, exact on a flat facet), high: past a threshold wavered by the
-	// grain, so it shows along the steepest parts and the ridges with a ragged edge; finer than a pixel, its share's mean.)
+	// and as steep as the ground takes the light there (a mountain's facet its own; rolling ground's smooth bend, so a hill's
+	// outcrop has no facet's edge, region.ts groundBend), high: past a threshold wavered by the grain, so it shows along the
+	// steepest parts and the ridges with a ragged edge; finer than a pixel, its share's mean.)
 	// (The screen's steps taken here, outside the branch: only high ground works the rest out.)
 	vec3 dx = dFdx(vPositionW), dy = dFdy(vPositionW);
 	float fs = 0.6 * fwidth(b.a) + 0.4 * fwidth(c.a), fb = 1.6 * fwidth(a.r) + 0.6 * fwidth(b.g);
 	if (vPositionW.y > 4.0) {
-		vec3 fn = cross(dx, dy);
 		float up = min((vPositionW.y - 4.0) / 6.0, 1.0);
-		float s0 = 0.75 * (1.0 - smoothstep(0.55, 0.8, abs(fn.y) * inversesqrt(dot(fn, fn)))) + 0.6 * crown.a - 0.55;
+		float s0 = 0.6 * (1.0 - smoothstep(0.55, 0.8, normalize(vNormalW).y)) + 0.6 * crown.a - 0.55;
 		if (s0 > -0.2) {
 			float sc = s0 + 0.35 * (0.6 * b.a + 0.4 * c.a), se = max(0.25 * fs, 0.02);
 			float rock = up * mix(clamp(s0 / 0.35 + 0.5, 0.0, 1.0), smoothstep(-se, se, sc), near);
