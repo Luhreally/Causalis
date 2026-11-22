@@ -47,6 +47,11 @@ export class InstancedBatch {
     (parent ?? stage.root).addChild(this.entity);
   }
 
+  /** Its one drawing (another eye's copy of it draws the same instances: render/farland.ts). */
+  get drawing(): pc.MeshInstance {
+    return this.instance;
+  }
+
   /** Change the colour of every instance. */
   recolor(color: Rgb): void {
     const m = this.instance.material as pc.StandardMaterial;

@@ -770,6 +770,7 @@ export class VillageScene {
         });
         e.setLocalPosition(x, y, z);
         this.root.addChild(e);
+        if (inner) this.farRing = e;
         this.dressed.push({
           kind,
           base: color,
@@ -833,6 +834,8 @@ export class VillageScene {
       s.quality.villageTrees,
     );
     const near = Math.min(390, Math.max(140, (reach + 300) * M));
+    this.groundNear = near;
+    this.farRing = null;
     if (plan.past?.covered) {
       // (Built over from edge to edge: its ground, street and roof to the haze. Phase 66.)
       disc(900, [0.27, 0.28, 0.31], 0, 0, 0, "ground", false);
@@ -1706,6 +1709,18 @@ export class VillageScene {
   /** How far out the town's lots reach (metres; 0 for a village drawn without its fabric). */
   townReach(): number {
     return this.town.visible ? this.town.reach() : 0;
+  }
+
+  /** How far its own ground is drawn about it (units: render/townflora.ts), and the plain ring past it (TOWN_FAR). */
+  private groundNear = 0;
+  private farRing: pc.Entity | null = null;
+  get groundReach(): number {
+    return this.groundNear;
+  }
+  /** Its plain ring shown, or not where its land is drawn about it instead (render/farland.ts). */
+  plainBeyond(on: boolean): void {
+    if (this.farRing && this.farRing.enabled !== on) this.farRing.enabled = on;
+    this.townFlora.ownOnly(!on);
   }
 
   /** How far out its countryside reaches (metres): its farthest fields and its pasture. */

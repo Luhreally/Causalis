@@ -64,6 +64,7 @@ import {
   galaxyMaterial,
   skyMaterials,
   VillageScene,
+  FarLand,
   AutoQuality,
   QUALITIES,
   QUALITY_NAMES,
@@ -1728,6 +1729,8 @@ async function runPlanetPage(): Promise<void> {
     globe = new GlobeScene(stage),
     region = new RegionScene(stage),
     village = new VillageScene(stage),
+    // (A town's land about it, past its own ground: render/farland.ts.)
+    farLand = new FarLand(stage),
     skyScene = new SystemScene(stage),
     starScene = new ClusterScene(stage),
     // Another world of the system, seen whole (M81); the whole galaxy (M80).
@@ -5865,8 +5868,11 @@ async function runPlanetPage(): Promise<void> {
   // village.ts TOWN_FAR. Elsewhere 400 units, as the stage is made.)
   stage.onUpdate(() => {
     const cam = stage.camera.camera!,
-      far = scale === "village" && !plan?.colony ? (400 * VILLAGE_METRE) / LAND_ACROSS : 400;
+      town = scale === "village" && !plan?.colony,
+      far = town ? (400 * VILLAGE_METRE) / LAND_ACROSS : 400;
     if (cam.farClip !== far) cam.farClip = far;
+    farLand.visible = town;
+    village.plainBeyond(!farLand.visible);
   });
   // Out from the world, the sky's view follows the home world round its orbit while it is
   // close, and eases onto the star as it draws back.
@@ -7418,6 +7424,22 @@ async function runPlanetPage(): Promise<void> {
     village.mark(null);
     shown = 0;
     await loadPlan(ref);
+    // (Its land about it, as its land view draws it, where that view has its land and it on it: render/farland.ts.)
+    {
+      const on = colonyRef(ref) ? null : region.land.townAt(ref);
+      farLand.show(
+        on
+          ? {
+              x: on.x,
+              y: region.heightAt(on.x, on.z),
+              z: on.z,
+              reach: village.groundReach,
+              k: LAND_ACROSS / VILLAGE_METRE,
+              woods: region.flora,
+            }
+          : null,
+      );
+    }
     village.visible = true;
     villagePanel.visible = true;
     time.at("village", villagePanel.timeSlot);

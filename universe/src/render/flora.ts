@@ -206,6 +206,8 @@ export class FloraLayer {
   private farCones: InstancedBatch | null = null;
   private farBalls: InstancedBatch | null = null;
   private farTrunks: InstancedBatch | null = null;
+  /** How many times its far clumps' batches have been made anew or let go (render/farland.ts draws them about a town). */
+  farMade = 0;
   private near: Record<NearKey, InstancedBatch | null> = {
     trunks: null,
     cones: null,
@@ -329,6 +331,11 @@ export class FloraLayer {
     this.drawFar();
   }
 
+  /** Its far clumps' batches (needles, broad crowns, trunks), each null where none is made. */
+  get farClumps(): readonly (InstancedBatch | null)[] {
+    return [this.farCones, this.farBalls, this.farTrunks];
+  }
+
   get planted(): number {
     return this.far.length;
   }
@@ -386,6 +393,7 @@ export class FloraLayer {
       }
       if (!b || b.capacity < list.length) {
         b?.destroy();
+        this.farMade++;
         b = new InstancedBatch(
           this.stage,
           mesh,
@@ -873,6 +881,7 @@ export class FloraLayer {
     this.farCones?.destroy();
     this.farBalls?.destroy();
     this.farTrunks?.destroy();
+    this.farMade++;
     for (const b of Object.values(this.near)) b?.destroy();
   }
 }

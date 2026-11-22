@@ -82,6 +82,22 @@ export class TownFloraLayer {
   /** Its vertices on open water: no season nor dry year on them. */
   private still: Uint8Array | null = null;
   private painted: Uint8Array | null = null;
+  /** Its ground's facets in all, and those of its own (out to its radius, before its rings to the far clip). */
+  private allOf = 0;
+  private ownOf = 0;
+  private onlyOwn = false;
+
+  /**
+   * Its ground drawn out to its own edge alone, where its land is drawn past it (render/farland.ts), or out to the far clip as
+   * its land's heights and colours read about it (not one drawn over the other).
+   */
+  ownOnly(on: boolean): void {
+    this.onlyOwn = on;
+    const p = this.groundMesh?.primitive[0];
+    if (!p) return;
+    const count = on ? this.ownOf : this.allOf;
+    if (p.count !== count) p.count = count;
+  }
   /** Each kind's batches, a piece of the ground each (the middle, then the wedges). */
   private batches: Record<"trunks" | "cones" | "balls" | "tufts" | "stones", InstancedBatch[]> = {
     trunks: [],
@@ -215,6 +231,9 @@ export class TownFloraLayer {
     this.root.addChild(e);
     this.ground = e;
     this.groundMesh = mesh;
+    this.allOf = indices.length;
+    this.ownOf = SPOKES * 3 + RINGS * SPOKES * 6;
+    this.ownOnly(this.onlyOwn);
     this.base = base;
     this.open = open;
     this.still = water;
