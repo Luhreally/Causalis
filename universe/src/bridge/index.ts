@@ -569,8 +569,16 @@ export type {
   HoldThreat,
   ShowForm,
 } from "./strongholds.ts";
-export { HAMLET_RING, HOLD_OUT, holdPlaces, onHeld, holdReach } from "./holdplaces.ts";
-export type { HoldPlace } from "./holdplaces.ts";
+export {
+  HAMLET_RING,
+  HOLD_LOTS,
+  HOLD_OUT,
+  holdLay,
+  holdPlaces,
+  onHeld,
+  holdReach,
+} from "./holdplaces.ts";
+export type { HoldPlace, HoldSpotOf } from "./holdplaces.ts";
 export {
   DISTRICT,
   DISTRICT_WORDS,

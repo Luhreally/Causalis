@@ -25,24 +25,33 @@ export function holdReach(what: HoldForm | ShowForm, hamlet: boolean): number {
   return HOLD_FOOT[what] + (hamlet ? HAMLET_RING : 0);
 }
 
-const KEPT = new WeakMap<TownPlan, { lots: TownLots; places: HoldPlace[] }>();
+/** How many of a town's lots its strongholds' places are laid about: the same on every device and view, whatever each draws. */
+export const HOLD_LOTS = 2000;
 
-/** A town's strongholds and seats, where each stands (none where no dry ground is free). */
-export function holdPlaces(plan: TownPlan, lots: TownLots): readonly HoldPlace[] {
-  const holds = plan.rank?.holds;
-  if (!holds?.length || plan.sealed) return [];
-  const had = KEPT.get(plan);
-  if (had && had.lots === lots) return had.places;
-  const n = Math.min(plan.lots, lots.x.length),
-    civics = plan.civics
-      .filter((c) => c.fell === null && c.at + c.lots <= n)
-      .map((c) => footprint(lots, c.at, c.lots)),
+/** Where one of a holder's things stands (TownHold.places): its spot, what it is, and whether it is the seat of display. */
+export type HoldSpotOf = HoldSpot & { readonly what: HoldForm | ShowForm; readonly show: boolean };
+
+/**
+ * Where each of a town's strongholds and seats stands (none where no dry ground is free): read by the host once for every view
+ * (host/town.ts), off its first HOLD_LOTS lots (`lots`) and the buildings among them (`civics`), so that its own view on any
+ * device, its land's map and its fields all read one place. Off its buildings, its market place, its main streets, its walls'
+ * line, and each other.
+ */
+export function holdLay(
+  plan: Pick<TownPlan, "site" | "water" | "sealed">,
+  holds: readonly TownHold[],
+  lots: TownLots,
+  civics: readonly { readonly at: number; readonly lots: number }[],
+): TownHold[] {
+  if (plan.sealed) return [...holds];
+  const n = lots.x.length,
+    feet = civics.filter((c) => c.at + c.lots <= n).map((c) => footprint(lots, c.at, c.lots)),
     place = lots.blocks.place,
     mains = lots.blocks.mains ?? [],
     line = lots.blocks.wall?.line ?? null,
-    out: HoldPlace[] = [];
+    taken: HoldSpot[] = [];
   const free = (x: number, z: number, r: number) => {
-    for (const f of civics)
+    for (const f of feet)
       if (Math.hypot(f.x - x, f.z - z) < r + Math.hypot(f.w, f.d) / 2 + 4) return false;
     if (place && Math.hypot(place.x - x, place.z - z) < r + Math.hypot(place.w, place.d) / 2)
       return false;
@@ -58,23 +67,40 @@ export function holdPlaces(plan: TownPlan, lots: TownLots): readonly HoldPlace[]
         w = wallAt(line, Math.atan2(z, x));
       if (Math.abs(d - w) < r + 8) return false;
     }
-    for (const p of out) if (Math.hypot(p.x - x, p.z - z) < r + p.r + 12) return false;
+    for (const p of taken) if (Math.hypot(p.x - x, p.z - z) < r + p.r + 12) return false;
     return true;
   };
   let houses = 0;
-  for (const h of holds) {
+  return holds.map((h) => {
     const base =
         h.holder === "realm" ? HOLD_OUT.realm : HOLD_OUT.house + HOLD_OUT.houseStep * houses++,
       things: { what: HoldForm | ShowForm; show: boolean }[] = [];
     if (h.hold.form) things.push({ what: h.hold.form, show: false });
     if (h.hold.show) things.push({ what: h.hold.show, show: true });
+    const places: HoldSpotOf[] = [];
     for (const t of things) {
       const r = holdReach(t.what, !!h.hamlet && t === things[things.length - 1]),
         spot = holdSpot(plan.site, plan.water, base + r, r, free);
-      if (spot) out.push({ ...spot, hold: h, what: t.what, show: t.show });
+      if (!spot) continue;
+      taken.push(spot);
+      places.push({ ...spot, what: t.what, show: t.show });
     }
+    return { ...h, places };
+  });
+}
+
+const KEPT = new WeakMap<TownPlan, HoldPlace[]>();
+
+/** A town's strongholds and seats, where each stands, as its plan carries them (holdLay). `lots`: unused, as of old. */
+export function holdPlaces(plan: TownPlan, lots?: TownLots): readonly HoldPlace[] {
+  void lots;
+  const holds = plan.rank?.holds;
+  if (!holds?.length || plan.sealed) return [];
+  let out = KEPT.get(plan);
+  if (!out) {
+    out = holds.flatMap((h) => (h.places ?? []).map((p) => ({ ...p, hold: h })));
+    KEPT.set(plan, out);
   }
-  KEPT.set(plan, { lots, places: out });
   return out;
 }
 

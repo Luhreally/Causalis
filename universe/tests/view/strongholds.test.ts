@@ -8,6 +8,7 @@ import {
   districtOf,
   districtWhys,
   districtShares,
+  holdLay,
   holdOf,
   holdPlaces,
   holdSpot,
@@ -184,6 +185,12 @@ test("households with engines of their own spread the town into sprawl; walking 
 
 /** A seat with a stronghold about it. */
 function seatPlan(facts: FormFacts, hold: TownHold["hold"]): TownPlan {
+  const plan = seatPlanBare(facts, hold),
+    lots = townLots(plan.family, plan.seed, plan.axis, plan.lots, plan.water, plan.site ?? null);
+  // (Laid as the host lays them: host/town.ts.)
+  return { ...plan, rank: { ...plan.rank!, holds: holdLay(plan, plan.rank!.holds!, lots, []) } };
+}
+function seatPlanBare(facts: FormFacts, hold: TownHold["hold"]): TownPlan {
   const laid = streetsLaid(facts),
     lots = 1200;
   return {

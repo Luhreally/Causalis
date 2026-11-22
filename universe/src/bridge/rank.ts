@@ -6,6 +6,7 @@
 // keeps (host/rank.ts); nothing here is saved, and both views draw from it.
 import { HEART_BLOCKS, QUARTER, quarterOf } from "./sites.ts";
 import type { Hold } from "./strongholds.ts";
+import type { HoldSpotOf } from "./holdplaces.ts";
 
 type Rgb = readonly [number, number, number];
 
@@ -67,6 +68,8 @@ export type TownHold = {
   readonly hamlet?: number;
   /** Which of its town's it is (its page: `hold:<town>:<k>`). */
   readonly k: number;
+  /** Where what it holds stands about its town (bridge/holdplaces.ts holdLay; absent: not laid yet). */
+  readonly places?: readonly HoldSpotOf[];
 };
 
 /** From what Gini a town's pages say who holds which ground (its homes are drawn apart from RANK_SORTS, a little). */
