@@ -202,13 +202,16 @@ function bastions(put: Put, s: Stuff, r: number, c: Rgb, kept: boolean): void {
         mx = (px + fx) / 2,
         mz = (pz + fz) / 2,
         long = Math.hypot(px - fx, pz - fz);
-      put("box", s.wall, mx, 2.6, mz, long, 4.4, 5, -Math.atan2(pz - fz, px - fx), true);
+      // (A face of masonry, the earth of its rampart behind it, grassed: it is low and thick, to take shot.)
+      put("box", s.wall, mx, 3, mz, long, 6, 6, -Math.atan2(pz - fz, px - fx), true);
+      put("box", s.grass, mx, 6.15, mz, long * 0.94, 0.3, 4.4, -Math.atan2(pz - fz, px - fx));
     }
     // (The curtain between two bastions.)
     const cx = inner * 0.95 * Math.cos(b),
       cz = inner * 0.95 * Math.sin(b),
       side = 2 * inner * 0.95 * Math.sin(Math.PI / n) * 0.62;
-    put("box", s.wall, cx, 2.4, cz, side, 4, 5, -b + Math.PI / 2, true);
+    put("box", s.wall, cx, 2.8, cz, side, 5.6, 6, -b + Math.PI / 2, true);
+    put("box", s.grass, cx, 5.75, cz, side * 0.94, 0.3, 4.4, -b + Math.PI / 2);
   }
   // (Within: barracks, a magazine, the flag.)
   for (const side of [-1, 1])
