@@ -21,7 +21,10 @@ import {
   type Fabric,
 } from "../sim/index.ts";
 import {
+  HOLD_LOTS,
   SPREAD,
+  holdLay,
+  townLots,
   struckYear,
   type TownCivic,
   type TownDesign,
@@ -233,16 +236,27 @@ export function townPlan(
       const k = fell === null ? undefined : greats.find((g) => struckYear(g) === fell);
       return k ? { thrown: k.at + (k.raid!.rocket ? SPREAD.rocketFrom : SPREAD.raidFrom) } : {};
     };
+  // (Where its strongholds and seats stand, laid once here off its first HOLD_LOTS lots, so that every view of it on every
+  // device reads one place: bridge/holdplaces.ts.)
+  const seed = hashString(`town ${ref}`),
+    holds = rank?.holds?.length
+      ? holdLay(
+          { site: site ?? undefined, water },
+          rank.holds,
+          townLots(f.family, seed, axis, Math.min(f.next, HOLD_LOTS), water, site),
+          f.civics.filter((c) => c.fell === null),
+        )
+      : null;
   return {
     family: f.family,
     ...(site ? { site } : {}),
-    ...(rank ? { rank } : {}),
+    ...(rank ? { rank: holds ? { ...rank, holds } : rank } : {}),
     // (Its form: what moving, building and holding ground cost its people here.)
     ...(() => {
       const form = site ? townFormOf(world, ref, f, rank)?.form : undefined;
       return form ? { form } : {};
     })(),
-    seed: hashString(`town ${ref}`),
+    seed,
     axis,
     lots,
     whole: f.next,

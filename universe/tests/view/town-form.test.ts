@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import {
   BLOCK_D,
   BLOCK_W,
+  DISTRICT,
   TIER,
+  districtShares,
   formWhys,
   grownBlocks,
   reachToward,
@@ -257,7 +259,11 @@ test("a town's form draws a few parts more, in the batches it had, and says itse
     bare: TownPlan = { ...plan, form: undefined, site: SITE },
     a = count(plan),
     b = count(bare);
-  assert.ok(a.parts < b.parts * 1.06, `${a.parts} parts against ${b.parts}`);
+  // (Its sprawl's homes each on a plot of their own, a tree in some, the engine on the drive for as many as ride: two parts
+  // at most a home, over the few the form draws: bridge/districts.ts.)
+  const plotted =
+    2 * plan.lots * districtShares(plan.form!, plan.whole, 0, () => false)[DISTRICT.sprawl]!;
+  assert.ok(a.parts < b.parts * 1.06 + plotted, `${a.parts} parts against ${b.parts} + ${plotted}`);
   // (A colour is no batch: only a mesh the bare town never drew is one more. A cone for a tree, a cylinder for a column.)
   assert.ok(a.batches <= b.batches + 2, `${a.batches} batches against ${b.batches}`);
   const whys = formWhys(plan.form!, plan.site!.laid, false);
@@ -518,7 +524,14 @@ test("all of it within a few parts and batches of the town drawn with no form", 
       bare: TownPlan = { ...plan, form: undefined, site: SITE, walls: null },
       a = count(plan),
       b = count(bare);
-    assert.ok(a.parts < b.parts * 1.08, `level ${level}: ${a.parts} parts against ${b.parts}`);
+    const plotted =
+      level <= 1
+        ? 2 * plan.lots * districtShares(plan.form!, plan.whole, 320, () => false)[DISTRICT.sprawl]!
+        : 0;
+    assert.ok(
+      a.parts < b.parts * 1.08 + plotted,
+      `level ${level}: ${a.parts} parts against ${b.parts} + ${plotted}`,
+    );
     assert.ok(
       // (A colour rides in its part's instance: only a mesh the bare town never drew is a batch more.)
       a.batches <= b.batches + 3,

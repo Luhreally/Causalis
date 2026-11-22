@@ -51,6 +51,7 @@ import {
   wetAt,
   landLaying,
   lotsOnLand,
+  discOnLand,
   runToEnd,
   heldByGreater,
   landRoadOut,
@@ -506,6 +507,8 @@ export class LandLayer {
       // (Its lots past those drawn kept in its haze, as the land's eye makes them out: its roads and other towns' ground
       // are laid about its drawn lots alone, view/land.ts landLaid.)
       scene.far = null;
+      // (A stronghold in the land's water is not drawn here: its own view does not know that water.)
+      if (!plan.undersea) scene.holdOn = (x, z, r) => discOnLand(g, m, x, z, r);
       yield;
       // (Of worn ground, what the land's eye can make out.)
       townGround(
