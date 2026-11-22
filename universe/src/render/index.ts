@@ -41,7 +41,7 @@ export { SandboxScene } from "./sandbox.ts";
 export { SystemScene, skyMaterials } from "./system.ts";
 export { ClusterScene } from "./cluster.ts";
 export { GalaxyScene, galaxyMaterial } from "./galaxy.ts";
-export { VILLAGE_METRE, VillageScene } from "./village.ts";
+export { TOWN_FAR, VILLAGE_METRE, VillageScene } from "./village.ts";
 export { Stage, flatMaterial, type DeviceTier, type Rgb } from "./stage.ts";
 export {
   BEAST_EYE,

@@ -5834,6 +5834,13 @@ async function runPlanetPage(): Promise<void> {
     if (show && !edgeHintUp) edgeHint.style.bottom = `${edgeHintFoot()}px`;
     edgeHintUp = show;
   });
+  // (A town's eye sees as far as its land's nearest eye does, its plain ground out to there under its land's haze: render/
+  // village.ts TOWN_FAR. Elsewhere 400 units, as the stage is made.)
+  stage.onUpdate(() => {
+    const cam = stage.camera.camera!,
+      far = scale === "village" && !plan?.colony ? (400 * VILLAGE_METRE) / LAND_ACROSS : 400;
+    if (cam.farClip !== far) cam.farClip = far;
+  });
   // Out from the world, the sky's view follows the home world round its orbit while it is
   // close, and eases onto the star as it draws back.
   let followHome = false;
@@ -7366,7 +7373,11 @@ async function runPlanetPage(): Promise<void> {
   };
   const toVillage = async (ref: string) => {
     scale = "village";
-    stage.backdrop("ground", 40, true);
+    // (Its haze as far off as its land's, a land's unit LAND_SCALE times its metre: the land's nearest eye and the town's
+    // farthest are one, and the horizon there was the town's own haze at a kilometre, its land's clear for tens of them.
+    // The owner's rule, 2026-11-21. A colony's halls keep their own sky's.)
+    const haze = colonyRef(ref) ? undefined : (regionFit() * VILLAGE_METRE) / LAND_ACROSS;
+    stage.backdrop("ground", 40, true, haze);
     // (A town of a colony's halls under its own sky: Phase 64.)
     if (!colonyRef(ref)) stage.colonySky(null);
     labels.clear();
@@ -7401,7 +7412,8 @@ async function runPlanetPage(): Promise<void> {
     const facing = village.visitorsFacing();
     if (facing !== null) rig.yaw = facing;
     // (And its haze starts as far off.)
-    if (reach > 0 || plan?.districts) stage.backdrop("ground", Math.max(110, far * 2.2), true);
+    if (reach > 0 || plan?.districts)
+      stage.backdrop("ground", Math.max(110, far * 2.2), true, haze ?? Math.max(110, far * 2.2));
     if (plan?.colony) {
       stage.colonySky(colonySky(plan.colony));
       colonyFrom = now();

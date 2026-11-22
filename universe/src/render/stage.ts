@@ -202,7 +202,11 @@ export class Stage {
     light.normalOffsetBias = 0.05;
   }
 
-  backdrop(kind: "space" | "ground", reach = 100, shadows = false): void {
+  /**
+   * The scene's backdrop: space (no haze), or ground lit by the sun, its shadows cast as far as `reach` reaches, its haze from
+   * as far (or from `haze`: a town's is its land's, 2026-11-21).
+   */
+  backdrop(kind: "space" | "ground", reach = 100, shadows = false, haze = reach): void {
     // (Out in space no colony's sky is over anything.)
     if (kind === "space") this.colonySky(null);
     this.shadowsWanted = kind === "ground" && shadows;
@@ -225,8 +229,8 @@ export class Stage {
     }
     this.sun.setEulerAngles(50, 35, 0);
     fog.color = new pc.Color(this.air[0], this.air[1], this.air[2]);
-    fog.start = reach * 1.1;
-    fog.end = reach * 3.2;
+    fog.start = haze * 1.1;
+    fog.end = haze * 3.2;
     this.clear = {
       sun: 1.25,
       ambient: [0.34, 0.38, 0.5],

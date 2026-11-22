@@ -338,6 +338,32 @@ function shape(stage: Stage, key: string, make: () => pc.Mesh): pc.Mesh {
   return mesh;
 }
 /** How many plain shapes a stage keeps (for a gate to weigh). */
+/** A flat ring about the middle, from `inner` out to `outer` (units), facing up. */
+export function ringMesh(stage: Stage, inner: number, outer: number, sides = 48): pc.Mesh {
+  return shape(stage, `ring|${inner}|${outer}|${sides}`, () => {
+    const positions: number[] = [],
+      normals: number[] = [],
+      indices: number[] = [];
+    for (let k = 0; k <= sides; k++) {
+      const a = (k / sides) * 2 * Math.PI,
+        c = Math.cos(a),
+        sn = Math.sin(a);
+      positions.push(inner * c, 0, inner * sn, outer * c, 0, outer * sn);
+      normals.push(0, 1, 0, 0, 1, 0);
+    }
+    for (let k = 0; k < sides; k++) {
+      const i = 2 * k;
+      indices.push(i, i + 2, i + 1, i + 1, i + 2, i + 3);
+    }
+    const mesh = new pc.Mesh(stage.device);
+    mesh.setPositions(positions);
+    mesh.setNormals(normals);
+    mesh.setIndices(indices);
+    mesh.update();
+    return mesh;
+  });
+}
+
 export function shapesKept(stage: Stage): number {
   return SHAPES.get(stage)?.size ?? 0;
 }
