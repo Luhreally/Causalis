@@ -3,7 +3,7 @@
 // deepest in its middle, a river shallow; shallows lighter and deeps darker, ice as it is.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { groundRelief, groundTexels, waterAtDepth } from "../../src/render/region.ts";
+import { groundBend, groundRelief, groundTexels, waterAtDepth } from "../../src/render/region.ts";
 
 test("ground relief: a hollow darker than a crest, a cliff's rock, flat ground as it is", () => {
   const size = 9,
@@ -25,6 +25,28 @@ test("ground relief: a hollow darker than a crest, a cliff's rock, flat ground a
     lr = groundRelief(size, 2.4, low, water);
   assert.equal(lr.rock[0 * size + 5], 0);
   assert.equal(r.rock[7 * size + 1], 0);
+  // (Scree at the cliff's foot, none on the face nor on flat ground far from it, nor below a low bank.)
+  assert.ok(r.scree[2 * size + 6]! > 0.3, `scree at the foot ${r.scree[2 * size + 6]}`);
+  assert.equal(r.scree[1 * size + 6], 0);
+  assert.equal(r.scree[7 * size + 1], 0);
+  assert.equal(lr.scree[2 * size + 6], 0);
+});
+
+test("ground bend: rolling ground lit smooth, as it rolls; a mountain by its facets", () => {
+  const size = 12,
+    heights = new Float32Array(size * size);
+  // A gentle slope rising along x on the left; a tall peak on the right.
+  for (let j = 0; j < size; j++) for (let i = 0; i < 5; i++) heights[j * size + i] = 0.2 * i;
+  heights[6 * size + 9] = 40;
+  const { normal, facet } = groundBend(size, 2.4, heights);
+  const t = 6 * size + 2;
+  // (Its bend leans away from the rise, its length 1.)
+  assert.ok(normal[3 * t]! < 0 && Math.abs(normal[3 * t + 2]!) < 1e-6);
+  assert.ok(
+    Math.abs(Math.hypot(normal[3 * t]!, normal[3 * t + 1]!, normal[3 * t + 2]!) - 1) < 1e-6,
+  );
+  assert.equal(facet[t], 0);
+  assert.equal(facet[6 * size + 9], 1);
 });
 
 test("ground relief: the sea deeper the farther out, a lake deepest in its middle, a river shallow", () => {
@@ -72,6 +94,7 @@ test("ground texels: the lie of the ground on them, and the water's depth in the
     shade: new Float32Array(n).fill(1),
     depth: new Float32Array(n),
     rock: new Float32Array(n),
+    scree: new Float32Array(n),
   };
   relief.shade[0] = 0.8;
   relief.depth[8] = 1;
@@ -84,7 +107,7 @@ test("ground texels: the lie of the ground on them, and the water's depth in the
   assert.equal(crowns[3], 0);
 });
 
-test("ground texels: rock over woods' crowns as over their ground, so the open ground taken out from under them stays ground", () => {
+test("ground texels: scree over woods' crowns as over their ground, so the open ground taken out from under them stays ground", () => {
   const size = 3,
     n = size * size,
     colors = new Uint8Array(n * 4),
@@ -101,7 +124,8 @@ test("ground texels: rock over woods' crowns as over their ground, so the open g
   const relief = {
     shade: new Float32Array(n).fill(1),
     depth: new Float32Array(n),
-    rock: new Float32Array(n).fill(0.8),
+    rock: new Float32Array(n),
+    scree: new Float32Array(n).fill(0.8),
   };
   groundTexels(colors, wet, size, land, water, canopy, crowns, relief);
   const woods = 1 - land[3]! / 255;
@@ -109,4 +133,9 @@ test("ground texels: rock over woods' crowns as over their ground, so the open g
     const open = (land[c]! - woods * crowns[c]!) / (1 - woods);
     assert.ok(open > 20 && open < 255, `channel ${c}: the open ground ${open}`);
   }
+  // (Greyer than the grass it lies on; none over snow.)
+  assert.ok(Math.abs(land[1]! - land[0]!) < 160 - 110);
+  colors.fill(230);
+  groundTexels(colors, wet, size, land, water, canopy, crowns, relief);
+  assert.equal(land[0], 230);
 });
