@@ -148,8 +148,9 @@ export class FarLand {
       }
       this.shown = { source: ground.mesh, cut, collar, ground: g, sea: s };
       this.holeAt = { x: o.x, y: o.y, z: o.z, r: reach };
-      this.tones = tonesAbout(ground.material, o.x, o.z, reach);
     }
+    // (Read each time it is shown: the land's tiles are painted after it is first laid, and again with the season.)
+    this.tones = tonesAbout(ground.material, o.x, o.z, reach);
     this.at = { x: o.x, y: o.y, z: o.z, k: o.k };
     this.woods = o.woods ?? null;
     this.towns = o.towns ?? null;
@@ -163,6 +164,26 @@ export class FarLand {
    * mean and its water's, within the town's own ground (null: none there). What the town's own are toned to (render/village.ts).
    */
   tones: { readonly ground: Rgb | null; readonly water: Rgb | null } | null = null;
+
+  /** What it draws (the look tools): whether, its land's facets kept and lifted about the town, its copies, the tones read. */
+  info(): {
+    on: boolean;
+    facets: number;
+    collar: number;
+    copies: number;
+    instances: number;
+    tones: FarLand["tones"];
+  } {
+    const s = this.shown;
+    return {
+      on: this.on,
+      facets: s ? s.cut.primitive[0]!.count / 3 : 0,
+      collar: s?.collar ? s.collar.vertexBuffer.numVertices / 3 : 0,
+      copies: this.copies.length,
+      instances: this.copies.reduce((n, c) => n + c.drawn.instancingCount, 0),
+      tones: this.tones,
+    };
+  }
 
   /** Whether it is drawn now (a town shown with its land about it). */
   set visible(on: boolean) {

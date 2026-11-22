@@ -890,7 +890,8 @@ export class VillageScene {
     const lake = kindWater(plan.kind)?.lake ?? EARTH_WATERS.lake,
       waterColor: Rgb = [lake[0] ** (1 / 2.2), lake[1] ** (1 / 2.2), lake[2] ** (1 / 2.2)];
     if (plan.landWater?.wet) {
-      const shares = wetShares(plan.landWater, 4200);
+      // (Out to its own ground's edge: its land's own water past it, as its land draws it, render/farland.ts.)
+      const shares = wetShares(plan.landWater, plan.colony ? 4200 : Math.min(4200, near / M));
       if (shares.length) {
         const mesh = sharesMesh(s, shares, M, 0.024),
           m = flatMaterial(waterColor),
