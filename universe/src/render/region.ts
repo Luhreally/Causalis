@@ -26,6 +26,171 @@ import { flatMaterial, grainTexture, groundMaterial, type Rgb, type Stage } from
 import { windowMaterial } from "./village.ts";
 
 /**
+ * How a land's ground lies, tile by tile, read off its heights and waters alone (no light: the sun moves, this does not), worked
+ * out once a land: `shade`, how much of the sky a dry tile sees (a hollow or a valley's floor darker, a ridge or a crest lighter,
+ * a steep face a little darker), a factor about 1; `depth`, how deep a wet tile reads (0 at the shore … 1 far out): the sea by how
+ * far below its sheet its bed lies and how far it is from any shore, a lake by how far from its shores, a river shallow.
+ */
+export function groundRelief(
+  size: number,
+  tileKm: number,
+  heights: Float32Array,
+  water: Uint8Array,
+): Relief {
+  const n = size * size,
+    shade = new Float32Array(n).fill(1),
+    depth = new Float32Array(n),
+    rock = new Float32Array(n),
+    far = new Int32Array(n).fill(-1),
+    queue = new Int32Array(n);
+  let head = 0,
+    tail = 0;
+  // (How far each wet tile is from the nearest dry one, in tiles: a walk out from every shore.)
+  for (let t = 0; t < n; t++)
+    if (!water[t]) {
+      far[t] = 0;
+      queue[tail++] = t;
+    }
+  while (head < tail) {
+    const t = queue[head++]!,
+      i = t % size,
+      j = (t - i) / size;
+    for (const [di, dj] of STEPS) {
+      const x = i + di,
+        y = j + dj;
+      if (x < 0 || y < 0 || x >= size || y >= size) continue;
+      const u = y * size + x;
+      if (far[u]! >= 0) continue;
+      far[u] = far[t]! + 1;
+      queue[tail++] = u;
+    }
+  }
+  const h = (i: number, j: number) =>
+    heights[Math.min(size - 1, Math.max(0, j)) * size + Math.min(size - 1, Math.max(0, i))]!;
+  for (let j = 0; j < size; j++)
+    for (let i = 0; i < size; i++) {
+      const t = j * size + i,
+        w = water[t]!;
+      if (w) {
+        // (A land with no shore at all reads as open water.)
+        const d = far[t]! < 0 ? 8 : far[t]!;
+        // (The sea's bed is drawn no deeper than its sheet's 60 metres below, view/region.ts regionHeights, so all of it
+        // as deep: how far out it lies is its depth as seen.)
+        depth[t] =
+          w === 1
+            ? clamp01((d - 0.5) / 5)
+            : w === 3
+              ? 0.85 * clamp01((d - 0.5) / 3)
+              : 0.45 * clamp01((d - 1) / 3);
+        continue;
+      }
+      // (How far it stands below its neighbours' mean, and how steep: in the scene's units, its relief as drawn.)
+      const here = heights[t]!,
+        mean =
+          (h(i - 1, j - 1) +
+            h(i, j - 1) +
+            h(i + 1, j - 1) +
+            h(i - 1, j) +
+            h(i + 1, j) +
+            h(i - 1, j + 1) +
+            h(i, j + 1) +
+            h(i + 1, j + 1)) /
+          8,
+        hollow = mean - here,
+        slope = Math.hypot(h(i + 1, j) - h(i - 1, j), h(i, j + 1) - h(i, j - 1)) / (2 * tileKm);
+      shade[t] =
+        (1 - SKY_HOLLOW * Math.tanh(hollow / SKY_DEPTH)) *
+        (1 - SKY_STEEP * Math.min(1, slope / 1.5));
+      // (A face as steep as it stands drawn holds no snow nor soil: its rock shows.)
+      // (As steep as drawn, and high: a mountain's face, not a low hill's, whose slope as drawn is the same.)
+      const r = clamp01((slope - ROCK_FROM) / (ROCK_TO - ROCK_FROM)),
+        up = clamp01((here - ROCK_LOW) / (ROCK_HIGH - ROCK_LOW));
+      rock[t] = r * r * (3 - 2 * r) * up;
+    }
+  return { shade, depth, rock };
+}
+
+/** How a land's ground lies (groundRelief). */
+export type Relief = {
+  readonly shade: Float32Array;
+  readonly depth: Float32Array;
+  readonly rock: Float32Array;
+};
+
+/** How steep (rise over run, as drawn) a face begins to show its rock, and shows it whole. */
+const ROCK_FROM = 0.45,
+  ROCK_TO = 1.3;
+/** How high (scene units: 9 to a km, view/region.ts REGION_RELIEF) a face begins to show its rock, and shows it whole. */
+const ROCK_LOW = 2,
+  ROCK_HIGH = 7;
+
+/** A tile's colour where its rock shows: its own light and a little of its own hue, greyed and darker (any world's rock), as
+ * ROCK_FACE × its light + ROCK_TINT × its own + ROCK_LIFT (0 … 255). */
+const ROCK_FACE = [0.2, 0.19, 0.18],
+  ROCK_TINT = [0.08, 0.07, 0.07],
+  ROCK_LIFT = [20, 19, 18];
+
+/** The four ways from a tile to its neighbours. */
+const STEPS = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+] as const;
+/** How much darker a hollow (lighter a crest) reads at most, and how deep a hollow is for most of that (scene units); and a
+ * steep face's darkening at most. */
+const SKY_HOLLOW = 0.22,
+  SKY_DEPTH = 0.7,
+  SKY_STEEP = 0.1;
+const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
+
+/** A sand a shallow's bed shows through it. */
+const BED: Rgb = [0.77, 0.71, 0.52];
+/** Scratch texels for groundTexels' lie of the ground, kept between paints (two: the land's and its crowns'). */
+const SCRATCH: Uint8ClampedArray[] = [];
+function scratch(k: number, length: number): Uint8ClampedArray {
+  let a = SCRATCH[k];
+  if (!a || a.length !== length) SCRATCH[k] = a = new Uint8ClampedArray(length);
+  return a;
+}
+/** A shallow's light, a little greener. */
+const SHOAL: Rgb = [0, 0.06, 0.02];
+
+/**
+ * A wet tile's colour by how deep it reads (0 … 1, groundRelief): its shallows lighter, their bed showing through, its deeps
+ * darker; ice (a pale water) as it is.
+ */
+export function waterAtDepth(c: Rgb, depth: number): Rgb {
+  const out: [number, number, number] = [0, 0, 0];
+  waterInto(c[0], c[1], c[2], depth, out, 0, 1);
+  return out;
+}
+
+/** waterAtDepth's colour (0 … 1 each way in) written into `out` from `at`, scaled by `scale` (255: a texel's). */
+function waterInto(
+  r: number,
+  g: number,
+  b: number,
+  depth: number,
+  out: { [k: number]: number },
+  at: number,
+  scale: number,
+): void {
+  const ice = Math.min(1, Math.max(0, (Math.min(r, g, b) - 0.45) / 0.3));
+  for (let k = 0; k < 3; k++) {
+    const c = k === 0 ? r : k === 1 ? g : b,
+      shallow = c + (BED[k]! - c) * 0.15 + SHOAL[k]!,
+      deep = c * 0.55,
+      v =
+        depth < 0.3
+          ? shallow + (c - shallow) * (depth / 0.3)
+          : c + (deep - c) * ((depth - 0.3) / 0.7),
+      w = c + (v - c) * (1 - ice);
+    out[at + k] = scale === 1 ? w : Math.round(Math.min(1, w) * scale);
+  }
+}
+
+/**
  * A land's tiles as its ground's shader reads them (a texel a tile; stage.ts groundMaterial): `land` the land's colours and its
  * woods' cover (alpha 255 less it, as given), `water` the water's colours and how wet (alpha 255 on water, 0 on land). Each
  * carried a texel past its own tiles (the mean of its neighbours of its kind), so that, blended between the four texels about
@@ -40,19 +205,64 @@ export function groundTexels(
   water: Uint8Array,
   canopy: Uint8Array | null = null,
   crowns: Uint8Array | null = null,
+  relief: Relief | null = null,
 ): void {
   const n = size * size,
-    top = canopy ?? colors,
     dim = canopy ? 1 : 0.7;
+  let src: Uint8Array | Uint8ClampedArray = colors,
+    top: Uint8Array | Uint8ClampedArray = canopy ?? colors;
+  // (The lie of the ground on its colours first: a dry tile as much of the sky as it sees, a wet one its depth. Clamped and
+  // rounded as written.)
+  if (relief) {
+    const lit = scratch(0, colors.length),
+      litTop = canopy ? scratch(1, canopy.length) : lit;
+    lit.set(colors);
+    if (canopy) litTop.set(canopy);
+    const { shade, rock, depth } = relief;
+    for (let t = 0; t < n; t++) {
+      const q = 4 * t;
+      if (wet[t] !== 0) {
+        waterInto(
+          colors[q]! / 255,
+          colors[q + 1]! / 255,
+          colors[q + 2]! / 255,
+          depth[t]!,
+          lit,
+          q,
+          255,
+        );
+        continue;
+      }
+      const k = shade[t]!,
+        r = rock[t]!;
+      if (r > 0) {
+        // (Its crowns the same: rock over them as over the ground, so the ground the shader takes out from under them stays
+        // the ground's, stage.ts groundMaterial.)
+        const l = 0.3 * colors[q]! + 0.59 * colors[q + 1]! + 0.11 * colors[q + 2]!;
+        for (let c = 0; c < 3; c++) {
+          const face = ROCK_FACE[c]! * l + ROCK_TINT[c]! * colors[q + c]! + ROCK_LIFT[c]!;
+          lit[q + c] = (colors[q + c]! + (face - colors[q + c]!) * r) * k;
+          if (canopy) litTop[q + c] = (canopy[q + c]! + (face - canopy[q + c]!) * r) * k;
+        }
+      } else
+        for (let c = 0; c < 3; c++) {
+          lit[q + c] = colors[q + c]! * k;
+          if (canopy) litTop[q + c] = canopy[q + c]! * k;
+        }
+    }
+    src = lit;
+    top = litTop;
+  }
   for (let t = 0; t < n; t++) {
     const w = wet[t] !== 0;
     for (let c = 0; c < 3; c++) {
-      land[4 * t + c] = colors[4 * t + c]!;
-      water[4 * t + c] = colors[4 * t + c]!;
+      land[4 * t + c] = src[4 * t + c]!;
+      water[4 * t + c] = src[4 * t + c]!;
       if (crowns) crowns[4 * t + c] = Math.round(top[4 * t + c]! * dim);
     }
-    if (crowns) crowns[4 * t + 3] = 255;
-    land[4 * t + 3] = w ? 255 : colors[4 * t + 3]!;
+    // (Over the water, how deep it reads: the sea's sheet comes in by it, nothing where the shore is.)
+    if (crowns) crowns[4 * t + 3] = w && relief ? Math.round(255 * relief.depth[t]!) : 0;
+    land[4 * t + 3] = w ? 255 : src[4 * t + 3]!;
     water[4 * t + 3] = w ? 255 : 0;
   }
   // (A tile of the other kind takes its neighbours' of this kind: the shore's colours, either side.)
@@ -72,7 +282,7 @@ export function groundTexels(
           if ((di === 0 && dj === 0) || x < 0 || y < 0 || x >= size || y >= size) continue;
           const u = y * size + x;
           if ((wet[u] !== 0) === w) continue;
-          for (let c = 0; c < 4; c++) sum[c] = sum[c]! + colors[4 * u + c]!;
+          for (let c = 0; c < 4; c++) sum[c] = sum[c]! + src[4 * u + c]!;
           for (let c = 0; c < 3; c++) over[c] = over[c]! + top[4 * u + c]!;
           k++;
         }
@@ -122,6 +332,8 @@ export class RegionScene {
   private villageTiles: number[] = [];
   /** The land's ground as its towns, roads and fields read it; and what is drawn on it. */
   private ground: LandGround | null = null;
+  /** How its ground lies (groundRelief), worked out once a land. */
+  private lie: Relief | null = null;
   readonly land: LandLayer;
   /** What burns on it, and its scars (N1). */
   readonly fire: WildfireLayer;
@@ -177,6 +389,7 @@ export class RegionScene {
     this.trees = [];
     this.cleared = "";
     this.ground = { size, tileKm, heights, water, fertility };
+    this.lie = groundRelief(size, tileKm, heights, water);
     this.land.reset(this.ground);
     this.fire.reset(this.ground);
     this.flora.reset(size, tileKm, heights);
@@ -329,7 +542,7 @@ export class RegionScene {
       meshInstances: [
         new pc.MeshInstance(
           cylinderMesh(this.stage, half * 1.42, 0.02, 48),
-          seaMaterial(this.seaColour),
+          seaMaterial(this.seaColour, this.crownTex),
         ),
       ],
     });
@@ -384,17 +597,15 @@ export class RegionScene {
         const land = this.landTex.lock() as Uint8Array,
           water = this.waterTex.lock() as Uint8Array,
           crowns = this.crownTex.lock() as Uint8Array;
-        groundTexels(colors, g.water, g.size, land, water, canopy, crowns);
+        groundTexels(colors, g.water, g.size, land, water, canopy, crowns, this.lie);
         this.landTex.unlock();
         this.waterTex.unlock();
         this.crownTex.unlock();
       }
-      look.setParameter("uTileMap", [
-        ((g.size - 1) * g.tileKm) / 2,
-        g.tileKm,
-        g.size,
-        blend ? 1 : 0,
-      ]);
+      const map = [((g.size - 1) * g.tileKm) / 2, g.tileKm, g.size, blend ? 1 : 0];
+      look.setParameter("uTileMap", map);
+      look.setParameter("uTileMapLie", map);
+      this.seaSheet?.render!.meshInstances[0]!.material.setParameter("uTileMap", map);
       // (The land as it is read off its textures alone: its facets' colours wait for a map's lens.)
       if (blend) return;
     }
@@ -584,6 +795,8 @@ export class RegionScene {
    * where to look at them (x, z): its peak, and the shore of its sea and of a lake nearest its middle (null: none).
    */
   relief(): {
+    rocky: number;
+    shade: [number, number];
     high: number;
     sea: number;
     river: number;
@@ -620,7 +833,23 @@ export class RegionScene {
         }
       }
     }
+    // (How its ground's lie came out: the share of its dry tiles showing rock, and its darkest and lightest shade.)
+    const lie = this.lie;
+    let rocky = 0,
+      dry = 0,
+      dark = 1,
+      light = 1;
+    if (lie)
+      for (let t = 0; t < heights.length; t++)
+        if (!water[t]) {
+          dry++;
+          rocky += lie.rock[t]!;
+          dark = Math.min(dark, lie.shade[t]!);
+          light = Math.max(light, lie.shade[t]!);
+        }
     return {
+      rocky: dry ? rocky / dry : 0,
+      shade: [dark, light],
       high: heights[peak]! / REGION_RELIEF,
       sea: wet[1]!,
       river: wet[2]!,
@@ -659,6 +888,11 @@ export class RegionScene {
     // (What grows near the eye, laid again only as the eye moves on: render/flora.ts.)
     this.flora.update(this.stage.camera, distance);
     return this.fire.update(t, pace, distance, running);
+  }
+
+  /** Where snow lies on the land's heights (view/region.ts snowLine; null: nowhere): what grows over it under it. */
+  snowLine(line: readonly [number, number] | null): void {
+    this.flora.snowLine(line);
   }
 
   /** The season on the land's woods (null: none told): the broad leaves turned or fallen, snow on them. */
@@ -794,13 +1028,36 @@ export function regionMaterials(
 /** A rocky world's sea over a region. */
 const SEA: Rgb = [0.08, 0.3, 0.66];
 
+const SEA_OPACITY_PS = `
+uniform float material_opacity;
+uniform sampler2D uCrowns;
+uniform vec4 uTileMap;
+void getOpacity() {
+	dAlpha = material_opacity;
+	if (uTileMap.w > 0.5) {
+		vec2 uv = ((vPositionW.xz + uTileMap.x) / uTileMap.y + 0.5) / uTileMap.z;
+		dAlpha *= smoothstep(0.0, 0.45, texture2D(uCrowns, uv).a);
+	}
+}
+`;
+
 /** How much of what lies under it a land's sea hides: as a rule, and over a people of the water's towns. */
 const SEA_OPACITY = 0.62,
   CLEAR_SEA = 0.3;
 
-/** The sea over a region: a glossy sheet (blue, or its kind's), clear enough to show the shallows. */
-function seaMaterial(colour: Rgb = SEA): pc.StandardMaterial {
+/**
+ * The sea over a region: a glossy sheet (blue, or its kind's), clear enough to show the shallows. Over the land as it is
+ * (`uTileMap.w` 1) it comes in from the shore by how deep the water reads (`crowns`' alpha over the water, groundTexels): none at
+ * the shore, where the ground's own shallows show, its whole a little way out; never a line where it meets the land.
+ */
+function seaMaterial(colour: Rgb = SEA, crowns: pc.Texture | null = null): pc.StandardMaterial {
   const m = new pc.StandardMaterial();
+  if (crowns) {
+    m.getShaderChunks(pc.SHADERLANGUAGE_GLSL).set("opacityPS", SEA_OPACITY_PS);
+    m.shaderChunksVersion = pc.CHUNKAPI_2_8;
+    m.setParameter("uCrowns", crowns);
+    m.setParameter("uTileMap", [0, 1, 1, 0]);
+  }
   m.diffuse = new pc.Color(colour[0], colour[1], colour[2]);
   m.specular = new pc.Color(0.85, 0.92, 1);
   m.gloss = 0.84;

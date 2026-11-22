@@ -578,10 +578,15 @@ attribute vec4 instance_line3;
 attribute vec4 instance_line4;
 uniform vec4 uNear;
 uniform vec4 uNearK;
+uniform vec4 uSnowLine;
 varying vec3 vTone;
+varying float vSnow;
 mat4 getModelMatrix() {
 	vTone = vec3(instance_line1.w, instance_line2.w, instance_line3.w);
 	vec4 at = matrix_model * vec4(instance_line4.xyz, 1.0);
+	// (Over the snow's line, as the land's season lies on its heights: whitened as the season whitens it, or, grass, under it.)
+	float lying = uSnowLine.z + uSnowLine.w > 0.0 ? smoothstep(uSnowLine.x, uSnowLine.y, at.y - 0.5 * instance_line2.y) : 0.0;
+	vSnow = uSnowLine.z * lying;
 	float d = length(at.xyz - uNear.xyz);
 	float fade;
 	float packed = instance_line4.w - 1.0, liftQ = floor(packed * 0.5), lift = liftQ / 256.0;
@@ -592,6 +597,7 @@ mat4 getModelMatrix() {
 	} else {
 		fade = 1.0 - uNearK.y * (1.0 - smoothstep(uNearK.z * 0.72, uNearK.z * 0.94, d));
 	}
+	fade *= 1.0 - uSnowLine.w * lying;
 	if (fade <= 0.0) return mat4(0.0);
 	// (Shrunk to the tree's foot: its own foot, less how high that stands over the ground.)
 	vec3 base = instance_line4.xyz - 0.5 * instance_line2.xyz - vec3(0.0, lift, 0.0);
@@ -603,8 +609,9 @@ const FADE_PS = `
 uniform vec3 material_diffuse;
 uniform float uToneSnow;
 varying vec3 vTone;
+varying float vSnow;
 void getAlbedo() {
-	dAlbedo = mix(material_diffuse.rgb * vTone, vec3(0.852, 0.893, 0.957), uToneSnow);
+	dAlbedo = mix(material_diffuse.rgb * vTone, vec3(0.852, 0.893, 0.957), max(uToneSnow, vSnow));
 }
 `;
 export function fadedMaterial(gloss = 0.25): pc.StandardMaterial {
@@ -622,6 +629,7 @@ export function fadedMaterial(gloss = 0.25): pc.StandardMaterial {
   m.setParameter("uToneSnow", 0);
   m.setParameter("uNear", [0, 0, 0, 1]);
   m.setParameter("uNearK", [1, 0, 1, 0]);
+  m.setParameter("uSnowLine", [1e6, 2e6, 0, 0]);
   m.update();
   return m;
 }
@@ -638,6 +646,8 @@ export function fadedMaterial(gloss = 0.25): pc.StandardMaterial {
  * ground's mixed by the woods' share): the ground is the same colour near and far and never shimmers as the eye moves.
  */
 const GROUND_PS = `
+#define SAND 0.07
+#define FOAM 0.025
 uniform vec3 material_diffuse;
 uniform sampler2D uLand;
 uniform sampler2D uWater;
@@ -671,7 +681,35 @@ void getAlbedo() {
 	// (The shore: where the water's share passes a half, wavered by the land's grain; soft over about a pixel.)
 	float s = water.a + 0.17 * a.b + 0.08 * b.b;
 	float f = max(0.5 * fwidth(s), 0.01);
-	dAlbedo = material_diffuse.rgb * mix(ground, water.rgb, smoothstep(0.5 - f, 0.5 + f, s));
+	float wet = smoothstep(0.5 - f, 0.5 + f, s);
+	// (The water a little lighter and darker in broad swells and finer ripples, fixed to the land; about its own colour.)
+	vec3 sea = water.rgb * (1.0 + 0.07 * b.r + 0.05 * c.r);
+	// (A band of wet sand along it on the land's side, and a line of foam on the water's, broken by the water's grain: each as
+	// much of a pixel as it covers, so seen from far off it is their mean, never a line that comes and goes. Only near it.)
+	if (abs(s - 0.5) < SAND + FOAM + 2.0 * f) {
+		float sand = smoothstep(0.5 - SAND - f, 0.5 - SAND + f, s) - wet;
+		float foam = wet - smoothstep(0.5 + FOAM - f, 0.5 + FOAM + f, s);
+		ground = mix(ground, ground * vec3(0.74, 0.72, 0.68), sand);
+		sea = mix(sea, mix(sea, vec3(0.9, 0.94, 0.95), 0.4), foam * smoothstep(-0.2, 0.2, c.b));
+	}
+	dAlbedo = material_diffuse.rgb * mix(ground, sea, wet);
+}
+`;
+/**
+ * The land's ground lit as it lies, but its water as a level sheet: where its water is painted (the water's share past a half,
+ * as the albedo draws it, a little softer), its light that of a flat surface, so no facet of the ground under a lake or the sea
+ * shows its edge across it.
+ */
+const GROUND_NORMAL_PS = `
+uniform sampler2D uWaterLie;
+uniform vec4 uTileMapLie;
+void getNormal() {
+	dNormalW = dVertexNormalW;
+	if (uTileMapLie.w > 0.5) {
+		vec2 uv = ((vPositionW.xz + uTileMapLie.x) / uTileMapLie.y + 0.5) / uTileMapLie.z;
+		float level = smoothstep(0.35, 0.6, texture2D(uWaterLie, uv).a);
+		dNormalW = normalize(mix(dVertexNormalW, vec3(0.0, 1.0, 0.0), level));
+	}
 }
 `;
 export function groundMaterial(
@@ -685,12 +723,15 @@ export function groundMaterial(
   m.specular = new pc.Color(0.05, 0.05, 0.06);
   m.gloss = 0.1;
   m.getShaderChunks(pc.SHADERLANGUAGE_GLSL).set("diffusePS", GROUND_PS);
+  m.getShaderChunks(pc.SHADERLANGUAGE_GLSL).set("normalMapPS", GROUND_NORMAL_PS);
   m.shaderChunksVersion = pc.CHUNKAPI_2_8;
   m.setParameter("uLand", land);
   m.setParameter("uWater", water);
   m.setParameter("uCrowns", crowns);
   m.setParameter("uGrain", grain);
   m.setParameter("uTileMap", [0, 1, 1, 0]);
+  m.setParameter("uWaterLie", water);
+  m.setParameter("uTileMapLie", [0, 1, 1, 0]);
   m.update();
   return m;
 }

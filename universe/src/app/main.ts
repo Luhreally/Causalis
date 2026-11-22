@@ -148,6 +148,7 @@ import type {
   ClusterPlan,
   LandPlan,
   LandSky,
+  FrameMessage,
   SkyState,
   NationMap,
   StarLens,
@@ -263,6 +264,7 @@ import {
   seasonAt,
   seasonKey,
   seasonTiles,
+  snowLine,
   actsNear,
   type ActsNear,
   type GroundSeason,
@@ -2491,6 +2493,12 @@ async function runPlanetPage(): Promise<void> {
       regionLens === "land" && landSky?.cell === regionCell
         ? seasonTiles(colors, frame, landSky, seasonT)
         : colors;
+    // (What grows on its heights under the snow the season lays there.)
+    region.snowLine(
+      regionLens === "land" && landSky?.cell === regionCell
+        ? snowLine(frame, landSky, seasonT)
+        : null,
+    );
     // (A land built over: streets and roofs from shore to shore. Phase 66.)
     const dressed =
       regionLens === "land" && landPlan?.covered
@@ -2521,10 +2529,27 @@ async function runPlanetPage(): Promise<void> {
     region.paint(
       regionLens === "land" ? region.fire.scarred(turfed) : turfed,
       regionLens === "land",
-      regionLens === "land" ? (regionCanopy?.colors ?? null) : null,
+      regionLens === "land" && regionCanopy?.colors
+        ? landSky?.cell === regionCell
+          ? seasonedCanopy(regionCanopy, frame, landSky, seasonT)
+          : regionCanopy.colors
+        : null,
     );
     painted = colors.length / 4;
   };
+  /** The woods' crowns under the season's snow as it lies on the land's heights, worked out again only when the season moves. */
+  function seasonedCanopy(
+    canopy: { key: string; colors: Uint8Array | null },
+    frame: FrameMessage,
+    sky: LandSky,
+    t: number,
+  ): Uint8Array {
+    const key = `${canopy.key}|${sky.cell}|${t}`;
+    if (canopySeasoned?.key !== key)
+      canopySeasoned = { key, colors: seasonTiles(canopy.colors!, frame, sky, t, true) };
+    return canopySeasoned.colors;
+  }
+  let canopySeasoned: { key: string; colors: Uint8Array } | null = null;
   /** Whether the land view shows the underworld: the 🥷 lens on, the land seen as the map (2026-11-16). */
   function underworldInLand(): boolean {
     return scale === "region" && regionLens === "world" && lens === "underworld";

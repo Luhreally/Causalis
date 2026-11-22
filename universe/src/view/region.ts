@@ -4,7 +4,7 @@ import type { ColonyLook, FrameMessage, LandSky, LandUnderworld } from "../bridg
 import { rockOf } from "../rules/index.ts";
 import { biomeColor, frameKind, frameLook, kindWater } from "./globe.ts";
 import type { Rgb } from "./sandbox.ts";
-import { seasonAt, seasonGround, seasonWater, type GroundSeason } from "./weather.ts";
+import { seasonAt, seasonGround, seasonNeedle, seasonWater, type GroundSeason } from "./weather.ts";
 import { floraClumps, floraColors, floraLandOf } from "./flora.ts";
 
 /** The land's own lenses; and "world", the globe's lens seen in the land (Phase 10 M95). */
@@ -353,11 +353,42 @@ export function regionTrees(frame: FrameMessage, cap = 4000): RegionTree[] {
  * cold enough for it — on the hills first, the lowlands after — and ice on its lakes and rivers;
  * the sea stays open. A new array; the colours given are left as they were.
  */
+/**
+ * Where snow lies on a land's heights as its season lays it on its tiles (seasonTiles): from where its first lies (a fifth of
+ * the whole) to where it lies whole (four fifths), in the scene's units up (regionHeights); null where none lies on any of it.
+ */
+export function snowLine(frame: FrameMessage, sky: LandSky, t: number): [number, number] | null {
+  const e = frame.arrays.elevation as Float32Array | undefined;
+  if (!e) return null;
+  let mean = 0,
+    n = 0,
+    high = 0;
+  for (let i = 0; i < e.length; i++)
+    if (e[i]! > 0) {
+      mean += e[i]!;
+      n++;
+      high = Math.max(high, e[i]!);
+    }
+  mean = n ? mean / n : 0;
+  let from: number | null = null;
+  for (let h = 0; h <= high + 100; h += 50) {
+    const snow = seasonAt(sky, t, Math.round((h - mean) / 100) * 100).snow;
+    if (from === null && snow >= 0.2) from = h;
+    if (from !== null && snow >= 0.8)
+      return [(from / 1000) * REGION_RELIEF, (Math.max(h, from + 50) / 1000) * REGION_RELIEF];
+  }
+  return from === null
+    ? null
+    : [(from / 1000) * REGION_RELIEF, ((from + 400) / 1000) * REGION_RELIEF];
+}
+
 export function seasonTiles(
   colors: Uint8Array,
   frame: FrameMessage,
   sky: LandSky,
   t: number,
+  /** The woods' crowns seen from above (view/flora.ts floraCanopy): snow on them as on needles, under their own. */
+  crowns = false,
 ): Uint8Array {
   const e = frame.arrays.elevation as Float32Array | undefined,
     water = frame.arrays.water as Uint8Array | undefined;
@@ -381,7 +412,12 @@ export function seasonTiles(
     if (!season) steps.set(step, (season = seasonAt(sky, t, step * 100)));
     if (w === 0 ? season.snow <= 0 : season.ice <= 0) continue;
     const c: Rgb = [out[i * 4]! / 255, out[i * 4 + 1]! / 255, out[i * 4 + 2]! / 255],
-      d = w === 0 ? seasonGround(c, season) : seasonWater(c, season);
+      d =
+        w === 0
+          ? crowns
+            ? seasonNeedle(c, season)
+            : seasonGround(c, season)
+          : seasonWater(c, season);
     out[i * 4] = Math.round(d[0] * 255);
     out[i * 4 + 1] = Math.round(d[1] * 255);
     out[i * 4 + 2] = Math.round(d[2] * 255);
