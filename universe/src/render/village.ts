@@ -158,6 +158,7 @@ import {
   capsuleMesh,
   coneMesh,
   cylinderMesh,
+  ringMesh,
   gableMesh,
 } from "./batch.ts";
 import { FlierLayer } from "./fliers.ts";
@@ -197,6 +198,14 @@ const CROWNS = {
 } as const;
 /** A village scene's units per metre (its plans are in metres). */
 export const VILLAGE_METRE = M;
+/**
+ * How far a town's plain ground runs out under all else (units): as far as a land's own ground runs from its middle, seen
+ * through the town (a land of 128 tiles of 2.4 km is 152 of its units from middle to edge, LAND_SCALE times a town's metre:
+ * some 3000 of these), into its haze as its land's is (app/main.ts), so that the horizon is ground going into the same haze
+ * on both sides of the swap: neither the town's own haze a kilometre off, nor a band of haze past the end of its ground.
+ * Past what grows about it and its water, its ground is its land's plain colour.
+ */
+export const TOWN_FAR = 3000;
 
 /**
  * One flat mesh of four-cornered pieces lying at height `y` (each piece four (x, z) corners in metres, scaled by `scale`
@@ -742,9 +751,12 @@ export class VillageScene {
         kind: "ground" | "water" = "ground",
         grass = false,
         under = 0,
+        /** (A ring from here out, not a disc: what lies under another disc is not drawn twice.) */
+        inner = 0,
       ) => {
         const e = new pc.Entity("disc"),
           m = flatMaterial(color);
+        if (inner) m.cull = pc.CULLFACE_NONE;
         // (What lies under all else is set back in depth, so what lies on it never flickers with it seen from high
         // above: a few metres apart are less than the depth can tell kilometres off.)
         if (under) {
@@ -752,7 +764,9 @@ export class VillageScene {
           m.slopeDepthBias = under;
         }
         e.addComponent("render", {
-          meshInstances: [new pc.MeshInstance(cylinderMesh(s, r, 0.02, 48), m)],
+          meshInstances: [
+            new pc.MeshInstance(inner ? ringMesh(s, inner, r) : cylinderMesh(s, r, 0.02, 48), m),
+          ],
         });
         e.setLocalPosition(x, y, z);
         this.root.addChild(e);
@@ -818,10 +832,25 @@ export class VillageScene {
       Math.min(390, Math.max(140, (reach + 300) * M)),
       s.quality.villageTrees,
     );
-    if (plan.past?.covered)
+    const near = Math.min(390, Math.max(140, (reach + 300) * M));
+    if (plan.past?.covered) {
       // (Built over from edge to edge: its ground, street and roof to the haze. Phase 66.)
       disc(900, [0.27, 0.28, 0.31], 0, 0, 0, "ground", false);
-    else if (!plan.colony) {
+      disc(TOWN_FAR, [0.27, 0.28, 0.31], 0, 0, -0.06, "ground", false, 8, 880);
+    } else if (!plan.colony) {
+      // (Its plain ground out as far as its land runs, from a little inside where its own is drawn, set back under all else:
+      // TOWN_FAR.)
+      disc(
+        TOWN_FAR,
+        [g[0] * 0.95 + 0.03, g[1] * 0.95 + 0.05, g[2] * 0.9],
+        0,
+        0,
+        -0.06,
+        "ground",
+        true,
+        8,
+        Math.floor((near * 0.9) / 10) * 10,
+      );
       if (!flora)
         disc(
           Math.min(390, Math.max(140, (reach + 300) * M)),

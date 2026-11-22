@@ -1,9 +1,21 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { LandRoad, LandTown, TownPlan } from "../../src/bridge/index.ts";
-import { rectsOverlap } from "../../src/bridge/index.ts";
 import {
-  cropAt,
+  GROUND,
+  GroundClaims,
+  TOWN_STEP,
+  fieldCount,
+  fieldEdge,
+  fieldsMeant,
+  layOn,
+  rectsOverlap,
+} from "../../src/bridge/index.ts";
+import { hashString } from "../../src/kernel/index.ts";
+import {
+  FAIR_YEAR,
+  LAND_ACROSS,
+  fieldLook,
   groundAt,
   landClaims,
   landFields,
@@ -130,9 +142,44 @@ test("a town's fields: more for more people, on dry ground, none on another town
     assert.ok(Math.hypot(f.x - at.x, f.z - at.z) > 0.6, "outside the town");
   }
   assert.equal(landFields(g, town(5000, false), at.x, at.z, 0.6).length, 0);
-  const other = { x: at.x + 1.5, z: at.z, r: 0.8 },
-    beside = landFields(g, town(5000), at.x, at.z, 0.6, [other]);
-  assert.ok(beside.every((f) => Math.hypot(f.x - other.x, f.z - other.z) > other.r));
+  // The very fields its own view lays (host/village.ts), drawn LAND_SCALE times over: where nothing is in their way, each
+  // where its view has it, as large and as turned, numbered as its view numbers them.
+  const t = town(150),
+    count = Math.ceil(150 / 5),
+    edge = fieldEdge({
+      lots: null,
+      drawn: 0,
+      whole: 0,
+      city: false,
+      cityRim: 600,
+      count,
+      spires: false,
+    }),
+    meant = layOn(
+      new GroundClaims(TOWN_STEP, () => false),
+      fieldsMeant(hashString(`village ${t.ref}`), 0, fieldCount(count), edge.edgeAt),
+      GROUND.field,
+      0,
+      { x: 0, z: 0 },
+      24,
+      12,
+    );
+  assert.ok(meant.length >= 18, `${meant.length} laid by its own view`);
+  let same = 0;
+  for (const f of small) {
+    const m = meant[f.k]!;
+    if (
+      Math.abs(at.x + m.x * LAND_ACROSS - f.x) < 1e-9 &&
+      Math.abs(at.z + m.z * LAND_ACROSS - f.z) < 1e-9 &&
+      Math.abs(m.w * LAND_ACROSS - f.w) < 1e-9 &&
+      m.yaw === f.yaw
+    )
+      same++;
+  }
+  assert.ok(
+    same >= small.length - 2,
+    `${same} of ${small.length} where the town's own view lays them`,
+  );
   // Laid once, its ground is taken: the next town's fields lie on none of it.
   const laid = landClaims(g),
     first = landFields(g, town(3000), at.x, at.z, 0.4, [], laid, undefined, 0),
@@ -143,12 +190,33 @@ test("a town's fields: more for more people, on dry ground, none on another town
       first.every((e) => !rectsOverlap(e, f)),
       "no field on a field",
     );
-  // Through the year: ploughed, green, ripe, stubble.
-  const f = small[0]!;
-  assert.deepEqual(
-    [0.05, 0.35, 0.6, 0.75, 0.95].map((y) => cropAt({ ...f, sown: 0 }, y)),
-    [0, 1, 2, 3, 0],
-  );
+});
+
+test("a field of grain seen from afar through its year: bare earth, green, ripe gold, stubble, bare", () => {
+  const plan = {
+      ref: "town:0:7",
+      era: "farm" as const,
+      biome: 9,
+      house: { walls: "timber" },
+      seed: 7,
+      fields: Array.from({ length: 30 }, () => ({ x: 0, z: 0, w: 40, d: 26, yaw: 0 })),
+    } as unknown as Parameters<typeof fieldLook>[0],
+    Y = 365 * 86_400,
+    // (A field of grain: the town's own draw, view/country.ts cropsOf.)
+    k = [...Array(30).keys()].find((i) => {
+      const c = fieldLook(plan, i, 0.55 * Y, FAIR_YEAR, { w: 40, d: 26 });
+      return c[1] > c[0] + 0.05;
+    })!,
+    at = (share: number) => fieldLook(plan, k, share * Y, FAIR_YEAR, { w: 40, d: 26 }),
+    winter = at(0.05),
+    summer = at(0.45),
+    ripe = at(0.66),
+    turned = at(0.9);
+  assert.ok(k !== undefined, "a field of grain");
+  assert.ok(winter[0] > winter[1] && winter[1] > winter[2], `bare earth in winter ${winter}`);
+  assert.ok(summer[1] > summer[0] + 0.05, `green in summer ${summer}`);
+  assert.ok(ripe[0] > 0.6 && ripe[1] > 0.5 && ripe[2] < 0.4, `ripe gold ${ripe}`);
+  assert.deepEqual(turned, winter, "turned in after the harvest");
 });
 
 test("the woods are cleared from a town's ground", () => {

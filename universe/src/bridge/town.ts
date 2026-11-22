@@ -8,9 +8,9 @@
 // fallen or burnt; its other buildings rising, standing, fallen; its walls. Shared by the host
 // (its people's homes, where its fields begin) and the view (what is drawn).
 import type { ColonyLook } from "./colony.ts";
-import { MONTH, YEAR, mix } from "../kernel/index.ts";
+import { MONTH, YEAR, finish, mix } from "../kernel/index.ts";
 import type { GenesisPlan, MeadowPlan } from "./genesis.ts";
-import type { GetAbout } from "./village.ts";
+import type { FieldYear, GetAbout, VillagePlan } from "./village.ts";
 import {
   grownBlocks,
   wetGround,
@@ -521,6 +521,83 @@ export function outlineAt(outline: Float32Array, a: number): number {
   return outline[(k + OUTLINE) % OUTLINE]! * (1 - t) + outline[(k + 1 + OUTLINE) % OUTLINE]! * t;
 }
 
+/**
+ * How far out a town's fields begin (metres from its square), and toward each bearing (`edgeAt`): past its lots as far as
+ * all of them would reach (its lots read are `drawn` of `whole`), close in between its fingers and held off down them; past
+ * a city's quarters without a fabric; past a village's ring of homes. One reading for its own view (host/village.ts) and its
+ * land's (view/land.ts), so that each lays the same fields in the same places (the owner's rule, 2026-11-21: one field is
+ * one thing, seen near or far).
+ */
+export function fieldEdge(o: {
+  readonly lots: TownLots | null;
+  readonly drawn: number;
+  readonly whole: number;
+  readonly city: boolean;
+  readonly cityRim: number;
+  readonly count: number;
+  readonly spires: boolean;
+}): { edge: number; edgeAt: (a: number) => number; outline: Float32Array | null } {
+  const { lots } = o,
+    scale = Math.sqrt(o.whole / Math.max(1, o.drawn)),
+    edge = lots
+      ? Math.min(o.spires ? 5200 : 2600, townReach(lots) * scale) + 30
+      : o.city
+        ? o.cityRim + 60
+        : 16 + 8.5 * Math.sqrt(o.count) + 30,
+    outline = lots ? outlineOf(lots, o.drawn) : null;
+  return {
+    edge,
+    outline,
+    edgeAt: (a) =>
+      outline
+        ? Math.min(
+            edge,
+            Math.max(
+              outlineAt(outline, a - 0.12),
+              outlineAt(outline, a),
+              outlineAt(outline, a + 0.12),
+            ) *
+              scale +
+              30,
+          )
+        : edge,
+  };
+}
+
+/** How many fields a town of so many homes' worth of people sows (`count`: its people by fives, 4 … 160). */
+export function fieldCount(count: number): number {
+  return Math.max(6, Math.min(90, Math.round(count * 0.7)));
+}
+
+/**
+ * A town's fields as they are meant to lie, before its ground is read (metres from its square, the nearest first): a fan
+ * toward its good ground (`way`), twelve to a ring, each ring further out from its edge that way.
+ */
+export function fieldsMeant(
+  seed: number,
+  way: number,
+  n: number,
+  edgeAt: (a: number) => number,
+): { x: number; z: number; w: number; d: number; yaw: number }[] {
+  const u = (k: number) => finish(mix(seed, k), 13) / 4294967296,
+    meant: { x: number; z: number; w: number; d: number; yaw: number }[] = [];
+  for (let k = 0; k < n; k++) {
+    const ring = Math.floor(k / 12),
+      // (Each row of the fan from where its own way out is open: one row's fields never on the next's.)
+      w = way + (((k % 12) - 5.5) / 12) * 2.6,
+      a = w + (u(400 + k) - 0.5) * 0.15,
+      rad = edgeAt(w) + 40 + ring * 45 + u(500 + k) * 12;
+    meant.push({
+      x: rad * Math.cos(a),
+      z: rad * Math.sin(a),
+      w: 34 + 10 * u(600 + k),
+      d: 22 + 8 * u(700 + k),
+      yaw: a,
+    });
+  }
+  return meant;
+}
+
 /** What a lot holds. */
 export const LOT = {
   /** Never taken, or open ground (cleared, weathered away). */
@@ -1020,6 +1097,11 @@ export type LandTown = {
     readonly bearing: number;
     readonly own?: true;
   }[];
+  /**
+   * What its fields are laid and sown by, as its own view's (VillagePlan): the way its good ground lies (radians), its
+   * ground's biome, its people by fives. Absent: an old plan's, or a land that does not sow.
+   */
+  readonly sow?: { readonly way: number; readonly biome: number; readonly count: number };
 };
 
 /**
@@ -1136,6 +1218,17 @@ export type LandCamp = {
 export type LandPlan = {
   readonly t: number;
   readonly era: LandEra;
+  /**
+   * How its fields' crop stands, as its towns' own views see it (VillagePlan.life.fields, .house, .lifeLook, .past): the
+   * year in them, what its people build with (how they bound their fields), its life's colours, its spires. Absent: none
+   * sown, or an old plan's.
+   */
+  readonly sowing?: {
+    readonly year: FieldYear;
+    readonly walls: VillagePlan["house"]["walls"];
+    readonly lifeLook?: string;
+    readonly spires?: true;
+  };
   /** How its people get about (R1; absent: as an old plan's, carts behind a beast). */
   readonly about?: GetAbout;
   readonly towns: readonly LandTown[];
