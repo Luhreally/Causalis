@@ -40,7 +40,11 @@ export class FarLand {
   private madeTowns = -2;
   private copies: {
     readonly of: InstancedBatch;
+    /** The land's own instances it was copied from, and how many there were. */
     readonly buffer: pc.VertexBuffer;
+    readonly count: number;
+    /** Its own: those of them that can be seen from the town. */
+    readonly mine: pc.VertexBuffer | null;
     readonly drawn: pc.MeshInstance;
   }[] = [];
   private readonly copiesAt = new pc.Entity("far woods and towns");
@@ -235,12 +239,18 @@ export class FarLand {
     let stale = this.madeWoods !== madeWoods || this.madeTowns !== madeTowns;
     for (const c of this.copies) {
       const src = c.of.drawing;
-      if (src.instancingData?.vertexBuffer !== c.buffer) stale = true;
-      else if (c.drawn.instancingCount !== src.instancingCount)
-        c.drawn.instancingCount = src.instancingCount;
+      if (src.instancingData?.vertexBuffer !== c.buffer || src.instancingCount !== c.count)
+        stale = true;
     }
     if (stale) this.copy(madeWoods, madeTowns);
     const p = main.getPosition();
+    // (Not drawn at all where the eye sees none of it: all it sees on the town's own ground.)
+    const seen = this.inSight(main, lens, p, (this.holeAt?.r ?? 0) / at.k);
+    if (this.eye.enabled !== seen) {
+      this.eye.enabled = seen;
+      this.sun.enabled = seen;
+    }
+    if (!seen) return;
     this.eye.setPosition(at.x + p.x * at.k, at.y + p.y * at.k + DROP, at.z + p.z * at.k);
     this.eye.setRotation(main.getRotation());
     if (mine.fov !== lens.fov) mine.fov = lens.fov;
@@ -267,6 +277,35 @@ export class FarLand {
   }
 
   /**
+   * Whether the town's eye sees past its own ground (`own`: how far that reaches, its units): its eye over its own ground and
+   * every corner of its sight coming down on it within that (the ground it sees lies within those corners), or not.
+   */
+  private inSight(main: pc.Entity, lens: pc.CameraComponent, p: pc.Vec3, own: number): boolean {
+    const r = own;
+    if (p.x * p.x + p.z * p.z >= r * r) return true;
+    const t = Math.tan((lens.fov * Math.PI) / 360),
+      aspect = lens.aspectRatio || 1,
+      tv = lens.horizontalFov ? t / aspect : t,
+      th = lens.horizontalFov ? t : t * aspect,
+      f = main.forward,
+      u = main.up,
+      x = main.right;
+    for (let c = 0; c < 4; c++) {
+      const sx = c & 1 ? th : -th,
+        sy = c & 2 ? tv : -tv,
+        dx = f.x + x.x * sx + u.x * sy,
+        dy = f.y + x.y * sx + u.y * sy,
+        dz = f.z + x.z * sx + u.z * sy;
+      if (dy >= -1e-6) return true;
+      const k = -p.y / dy,
+        gx = p.x + dx * k,
+        gz = p.z + dz * k;
+      if (gx * gx + gz * gz >= r * r) return true;
+    }
+    return false;
+  }
+
+  /**
    * The land's far clumps, its towns' standing parts and its fields drawn for this eye: the land's own batches' instances (its
    * clumps in their own material, the towns' and fields' toned as theirs are), each given the town's square and a reach for
    * its fade (stage.ts fadedMaterial), so they stand only past where the town's own ground comes up to its land (RISEN of its
@@ -281,16 +320,34 @@ export class FarLand {
     if (!at || !hole) return;
     const reach = (hole.r * RISEN) / 0.94,
       near = [at.x, at.y, at.z, 0],
-      fade = [-1, 1, reach, 0];
+      fade = [-1, 1, reach, 0],
+      // (Those wholly faded about the town, and those past where its haze hides all, never drawn: only the rest are copied,
+      // into a store of this eye's own. The haze's end is the town's, in the land's units, from anywhere the eye may be.)
+      hidden = reach * 0.72,
+      hazed = this.stage.app.scene.fog.end * at.k + 2 * hole.r;
     this.townLook.setParameter("uNear", near);
     this.townLook.setParameter("uNearK", fade);
     const put = (of: InstancedBatch | null, look: pc.Material | null) => {
       const src = of?.drawing,
         buffer = src?.instancingData?.vertexBuffer;
       if (!of || !src || !buffer) return;
+      const all = of.placed,
+        count = src.instancingCount,
+        keep: number[] = [];
+      for (let i = 0; i < count; i++) {
+        const d = Math.hypot(all[i * 16 + 12]! - at.x, all[i * 16 + 14]! - at.z);
+        if (d > hidden && d < hazed) keep.push(i);
+      }
+      if (!keep.length) return;
+      const data = new Float32Array(keep.length * 16);
+      keep.forEach((i, j) => data.set(all.subarray(i * 16, i * 16 + 16), j * 16));
+      const mine = new pc.VertexBuffer(this.stage.device, buffer.format, keep.length, {
+        usage: pc.BUFFER_STATIC,
+        data,
+      });
       const drawn = new pc.MeshInstance(src.mesh, look ?? src.material);
-      drawn.setInstancing(buffer);
-      drawn.instancingCount = src.instancingCount;
+      drawn.setInstancing(mine);
+      drawn.instancingCount = keep.length;
       if (!look) {
         drawn.setParameter("uNear", near);
         drawn.setParameter("uNearK", fade);
@@ -304,14 +361,17 @@ export class FarLand {
         receiveShadows: false,
       });
       this.copiesAt.addChild(e);
-      this.copies.push({ of, buffer, drawn });
+      this.copies.push({ of, buffer, count, mine, drawn });
     };
     for (const of of this.woods?.farClumps ?? []) put(of, null);
     for (const of of this.towns?.farBatches() ?? []) put(of, this.townLook);
   }
 
   private dropCopies(): void {
-    for (const c of this.copies) c.drawn.node?.destroy();
+    for (const c of this.copies) {
+      c.drawn.node?.destroy();
+      c.mine?.destroy();
+    }
     this.copies = [];
   }
 

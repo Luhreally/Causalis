@@ -266,6 +266,11 @@ export class InstancedBatch {
     return this.count;
   }
 
+  /** Its instances' matrices as laid (the first `size` of them; render/farland.ts copies those it needs). */
+  get placed(): Float32Array {
+    return this.matrices;
+  }
+
   destroy(): void {
     this.entity.destroy();
     this.buffer.destroy();
