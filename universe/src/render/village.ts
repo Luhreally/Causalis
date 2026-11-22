@@ -1875,6 +1875,10 @@ export class VillageScene {
   townThingAt(x: number, z: number, t: number): TownThing | null {
     return this.town.thingAt(x, z, t);
   }
+  /** Whether a point (metres from its middle) lies within one of its countryside's farmhouses. */
+  farmhouseAt(x: number, z: number): boolean {
+    return this.country.farmhouseAt(x, z);
+  }
   /** The building of a town a point lies within (metres from its middle): for the eye set on one who is in it. */
   townBuildingAt(x: number, z: number, t: number): ReturnType<TownLayer["buildingAt"]> {
     return this.town.buildingAt(x, z, t);

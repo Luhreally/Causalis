@@ -578,6 +578,19 @@ export class CountryLayer {
 
   private crownsAs = "";
 
+  /** Whether a point (metres from the town's middle) lies within one of its farms' houses (a tap: the town's page says why). */
+  farmhouseAt(x: number, z: number): boolean {
+    for (const f of this.country?.farmhouses ?? []) {
+      const c = Math.cos(f.yaw),
+        s = Math.sin(f.yaw),
+        dx = x - f.x,
+        dz = z - f.z;
+      if (Math.abs(dx * c - dz * s) < f.w / 2 + 1 && Math.abs(dx * s + dz * c) < f.d / 2 + 1)
+        return true;
+    }
+    return false;
+  }
+
   /** What each of the plan's fields grows (null: an orchard, drawn here). */
   get crop(): readonly (Crop | null)[] {
     return this.country?.crop ?? [];
