@@ -37,7 +37,7 @@ import {
   blocksHeld,
   formWhys,
   districtWhys,
-  HOLD_WORDS,
+  HOLD_NAMES,
   heightHeld,
   wallLine,
   lotStates,
@@ -598,7 +598,7 @@ function townFormWhys(world: World, town: Ref, f: Fabric): string[] {
         return {
           name: h.name,
           ...(h.hamlet ? { hamlet: h.hamlet } : {}),
-          words: `${HOLD_WORDS[what].split(",")[0]}${state}`,
+          words: `${what === "offices" ? "" : "a "}${HOLD_NAMES[what].toLowerCase()}${state}`,
         };
       }),
     ),

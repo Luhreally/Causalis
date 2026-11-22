@@ -279,6 +279,23 @@ export const HOLD_WORDS: Readonly<Record<HoldForm | ShowForm, string>> = {
   house: "a country house in its park, an avenue of trees to its door",
   offices: "offices of state",
 };
+/** What answers what was brought, in words (holdFor). */
+const BROUGHT_ANSWER = [
+  "height and a ditch hold off those who come on foot with ladders",
+  "against engines a wall must be thick, and flanked by towers that shoot along its face",
+  "against shot only low, thick, earth-backed walls hold",
+  "",
+] as const;
+/** Each form's short name, as its page is titled. */
+export const HOLD_NAMES: Readonly<Record<HoldForm | ShowForm, string>> = {
+  mound: "Motte and palisade",
+  keep: "Keep",
+  towers: "Castle",
+  rings: "Concentric castle",
+  bastions: "Star fort",
+  house: "Country house",
+  offices: "Offices of state",
+};
 const BROUGHT_WORDS = [
   "hands and ladders",
   "siege engines",
@@ -303,7 +320,7 @@ export function holdWhys(h: Hold, f: HoldFacts, holder: string, land: string): s
     const last = h.by,
       brought = h.by?.brought ?? BROUGHT.hands;
     out.push(
-      `${Holder} raised ${HOLD_WORDS[h.form]} in year ${h.raised}, against ${BROUGHT_WORDS[brought] ?? "hands and ladders"} brought on ${land}${last?.foe ? ` by ${last.foe}` : ""}.`,
+      `In year ${h.raised} ${holder} raised ${HOLD_WORDS[h.form]}: ${BROUGHT_WORDS[brought] ?? "hands and ladders"} had been brought against ${land}${last?.foe ? ` by ${last.foe}` : ""}${h.form === "mound" && brought > BROUGHT.hands ? "" : `, and ${BROUGHT_ANSWER[brought] ?? ""}`}.`,
     );
     if (h.form === "mound")
       out.push(

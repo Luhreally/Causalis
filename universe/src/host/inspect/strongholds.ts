@@ -3,6 +3,7 @@
 import type { Ref, World } from "../../kernel/index.ts";
 import { populationContext, townsOf } from "../../sim/index.ts";
 import {
+  HOLD_NAMES,
   HOLD_WORDS,
   holdPlaces,
   townLots,
@@ -33,7 +34,7 @@ export function holdPage(world: World, ref: string): PageModel {
   if (!at || !s || !h) return unknown(world, ref, at?.town ?? null, year);
   const hold = h.hold,
     what = hold.form ?? hold.show!,
-    title = `${cap(HOLD_WORDS[what].split(",")[0]!)}`,
+    title = HOLD_NAMES[what],
     // (Where it stands, as its town's view lays it: bridge/holdplaces.ts.)
     site = townSite(world, at.town as Ref),
     plan = site ? townPlan(world, at.town as Ref, site.axis, f!.next, site.water) : null,
@@ -52,7 +53,8 @@ export function holdPage(world: World, ref: string): PageModel {
             stat("Answers", many(hold.answers.length, "battle", "battles")),
           ]
         : []),
-      ...(hold.show ? [stat("Seat", HOLD_WORDS[hold.show].split(",")[0]!)] : []),
+      ...(hold.show ? [stat("Seat", HOLD_NAMES[hold.show])] : []),
+      stat("What it is", HOLD_WORDS[what]),
     ],
     lines: Line[] = h.whys.map((w) => [w]);
   if (spot)
