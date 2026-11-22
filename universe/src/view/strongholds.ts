@@ -312,7 +312,7 @@ function placeDrawn(
     // (Up the rise an attacker would climb to it: its ground raised as high as the climb, a little.)
     lift = Math.max(0, Math.min(8, p.climb * 0.45)),
     land = look?.wall ?? STONE,
-    grass: Rgb = plan.kind ? mixed(biomeColor(8, plan.kind), GRASS, 0.3) : GRASS,
+    grass: Rgb = plan.kind ? biomeColor(8, plan.kind) : GRASS,
     stone = h.hold.stone,
     wall = stone ? mixed(land, STONE, 0.45) : TIMBER,
     s: Stuff = {
@@ -321,7 +321,13 @@ function placeDrawn(
       roof: look?.roof ? mixed(look.roof, SLATE, 0.4) : ROOF,
       // (Its grass the world's own grassland, as its town's yards are: view/town.ts townGround.)
       grass: lifeTint(
-        ruin ? mixed(grass, EARTH, 0.3) : kept ? mixed(grass, LAWN, 0.5) : grass,
+        ruin
+          ? mixed(grass, EARTH, 0.3)
+          : kept
+            ? plan.kind
+              ? mixed(grass, [1, 1, 1], 0.12)
+              : LAWN
+            : grass,
         plan.lifeLook,
       ),
       leaf: lifeTint(LEAF, plan.lifeLook),
