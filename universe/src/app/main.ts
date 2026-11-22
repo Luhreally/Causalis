@@ -557,6 +557,7 @@ type Exposed = {
   client?: HostClient;
   /** The land drawn about a town (render/farland.ts): whether it is, what it draws, and the land's tones the town took. */
   farLand?: () => ReturnType<FarLand["info"]>;
+  farLandParts?: (o: Parameters<FarLand["parts"]>[0]) => void;
   /** A world's life on one sheet over the screen, each picture's outline read off its pixels (B1, gate 108); and away. */
   lifeSheet?: (most?: number) => Promise<LifeSheet>;
   closeLifeSheet?: () => void;
@@ -7447,6 +7448,7 @@ async function runPlanetPage(): Promise<void> {
       );
       village.toneToLand(landShown ? farLand.tones : null);
       exposed.farLand = () => farLand.info();
+      exposed.farLandParts = (o) => farLand.parts(o);
     }
     village.visible = true;
     villagePanel.visible = true;

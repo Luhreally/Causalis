@@ -185,6 +185,19 @@ export class FarLand {
     };
   }
 
+  /** Which of its parts are drawn (the look tools, to time each): its ground and sea, its land's woods, towns and fields. */
+  parts(o: { ground?: boolean; copies?: boolean; clumps?: boolean }): void {
+    const s = this.shown;
+    if (s && o.ground !== undefined) {
+      s.ground.enabled = o.ground;
+      if (s.sea) s.sea.enabled = o.ground;
+    }
+    if (o.copies !== undefined) this.copiesAt.enabled = o.copies;
+    if (o.clumps !== undefined)
+      for (const c of this.copies)
+        if (c.drawn.material !== this.townLook && c.drawn.node) c.drawn.node.enabled = o.clumps;
+  }
+
   /** Whether it is drawn now (a town shown with its land about it). */
   set visible(on: boolean) {
     on &&= !!this.shown;
