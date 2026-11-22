@@ -1622,7 +1622,10 @@ export function* townDetailSteps(
   const cost = (k: number) =>
     (far.ruin[k]
       ? 0.4
-      : farParts(Math.max(0, Math.min(TOP_LEVEL, far.level[k]!)), scene.looks[far.design[k]!])) +
+      : farParts(
+          Math.max(0, Math.min(TOP_LEVEL, far.level[k]!)),
+          formLook(scene, far.from + k, far.design[k]!),
+        )) +
     1 / BLOCK_LOTS;
   // (By the parts they take: fewer towers whole than houses. All of them, as many as FAR_PARTS would draw in their rows.)
   let whole = 0,
@@ -1960,7 +1963,8 @@ export function* homesSeen(
     farOfLot = (p: number) => {
       const k = p - far.from,
         level = far.level[k]!,
-        look = scene.looks[far.design[k]!] ?? scene.looks[0];
+        // (In its district's look, as the town's own lots are: apart at the edge, close by the square. townform.ts.)
+        look = formLook(scene, p, far.design[k]!) ?? scene.looks[0];
       return level >= 0 && look ? { level, look } : null;
     },
     rows: number[] = [],

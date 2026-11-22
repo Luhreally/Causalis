@@ -129,6 +129,16 @@ export function formTiers(plan: TownPlan, walled: boolean): Uint8Array | null {
   return out;
 }
 
+/** A lot's ground and height code (as formTiers) past those its plan draws: its walls' as they still stand about it. */
+function farCode(scene: TownScene, p: number): number {
+  const { plan } = scene,
+    form = plan.form!,
+    within = scene.walls?.lengths.length && plan.walls ? plan.walls.reach : 0,
+    tall = tallShare(form, p, plan.whole) * (0.86 + 0.28 * share(p, 1)),
+    step = Math.max(0, Math.min(TALL_STEPS - 1, Math.round((tall - TALL_LOW) / TALL_STEP)));
+  return lotTier(form, p, plan.whole, within) | (step << 2);
+}
+
 /** A lot's tier (TIER.town where the plan carries no form). */
 export function tierOf(scene: TownScene, p: number): number {
   return scene.tiers ? scene.tiers[p]! & 3 : TIER.town;
@@ -145,7 +155,8 @@ export function tierOf(scene: TownScene, p: number): number {
 export function formLook(scene: TownScene, p: number, index: number): HouseLook | undefined {
   const base = scene.looks[index] ?? scene.looks[0];
   if (!base || !scene.tiers) return base;
-  const code = scene.tiers[p]!,
+  // (A lot past those drawn, on a great city's blocks grown on: its ground read as theirs is. farOf.)
+  const code = p < scene.tiers.length ? scene.tiers[p]! : farCode(scene, p),
     form = scene.plan.form!,
     // (Two washes: one front in three painted, the rest in its land's own stuff. Each wash is a batch more to a design.)
     wash = form.spare >= PAINTED_FROM && share(p, 7) < 0.34 ? 1 : 0,

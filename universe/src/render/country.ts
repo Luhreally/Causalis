@@ -400,6 +400,17 @@ export class CountryLayer {
         [0.24, 0.16, 0.1],
         c.barns.map((b) => at(b, 0, 1.6, b.d / 2 + 0.08, 3.2, 3.2, 0.16)),
       );
+    // A farm's house by its barn, in its land's own way of building.
+    this.placed(
+      this.box,
+      [...look.wall],
+      c.farmhouses.map((b) => at(b, 0, b.h / 2, 0, b.w, b.h, b.d)),
+    );
+    this.placed(
+      this.gable,
+      [...look.roof],
+      c.farmhouses.map((b) => at(b, 0, b.h + 1.1, 0, b.w * 1.08, 2.2, b.d * 1.12)),
+    );
     for (const blue of [false, true]) {
       const silos = c.silos.filter((s) => s.blue === blue);
       this.placed(

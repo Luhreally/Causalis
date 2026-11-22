@@ -82,3 +82,29 @@ export const DISTRICT_WORDS = [
   "villas strung along the line, each in its hedged garden",
   "sprawl: every home apart on its own plot behind a hedge or fence, its drive",
 ] as const;
+
+/** What a town's districts, strongholds and land-holding come to, in plain lines for its page. */
+export function districtWhys(
+  form: TownForm,
+  roads: readonly TownRoad[],
+  holds: readonly { readonly name: string; readonly hamlet?: number; readonly words: string }[],
+): string[] {
+  const out: string[] = [];
+  if (form.drive)
+    out.push(
+      `${Math.round(form.rides * 10)} in 10 of its households ride engines of their own, so its edge has spread into sprawl: each home stands apart on its own plot behind a hedge or a fence, its drive before it, the engine standing on it.`,
+    );
+  else if (form.engines >= 0 && !form.over && roads.some((r) => r.rails))
+    out.push(
+      "Its people ride a line they all share: along the roads it runs down, villas stand strung out in hedged gardens a short walk from its stops; between them, its old edge.",
+    );
+  for (const h of holds) out.push(`By it stands ${h.words}, the seat of ${h.name}.`);
+  const estate = holds.find((h) => h.hamlet);
+  if (!form.over || estate)
+    out.push(
+      estate
+        ? `Its land is the estate of ${estate.name}: those who work its fields are its tenants, and live in a hamlet by their lord's seat.`
+        : "Its land is worked by those who hold it: each farm's house stands by its barn, out among its fields.",
+    );
+  return out;
+}

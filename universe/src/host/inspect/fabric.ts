@@ -36,6 +36,8 @@ import {
   WALLS_RING_MOST,
   blocksHeld,
   formWhys,
+  districtWhys,
+  HOLD_WORDS,
   heightHeld,
   wallLine,
   lotStates,
@@ -556,7 +558,8 @@ function townFormWhys(world: World, town: Ref, f: Fabric): string[] {
             site,
           ),
           at.water,
-          !!rank?.seat,
+          // (Whoever rules here holds the height only where no stronghold of theirs stands about it: bridge/strongholds.ts.)
+          !!rank?.seat && !rank.holds?.some((h) => h.holder === "realm" && h.hold.form),
           temple,
         )
       : null,
@@ -564,7 +567,7 @@ function townFormWhys(world: World, town: Ref, f: Fabric): string[] {
     ctx = populationContext(world),
     home = ctx.settlements.get(town),
     walls = home ? houseFor(ctx, home.cell).find((p) => p.role === "walls")?.id : undefined;
-  return formWhys(read.form, read.laid, {
+  const lines = formWhys(read.form, read.laid, {
     walled,
     kept: f.engines >= 0,
     ...(site.surveys ? { surveys: site.surveys } : {}),
@@ -578,6 +581,28 @@ function townFormWhys(world: World, town: Ref, f: Fabric): string[] {
     // (Its own tile is water on its land's map: it stands on the bank, host/sites.ts landWater.)
     bank: site.bank && home ? bankWater(regionOf(ctx, home.cell).water[home.tile]) : null,
   });
+  // Its districts, its strongholds and seats, and how its land is held (bridge/districts.ts).
+  return [
+    ...lines,
+    ...districtWhys(
+      read.form,
+      site.roads,
+      (rank?.holds ?? []).map((h) => {
+        const what = h.hold.form ?? h.hold.show!,
+          state =
+            h.hold.form && h.hold.state !== "held"
+              ? h.hold.state === "ruin"
+                ? ", fallen to a ruin"
+                : ", lived in now"
+              : "";
+        return {
+          name: h.name,
+          ...(h.hamlet ? { hamlet: h.hamlet } : {}),
+          words: `${HOLD_WORDS[what].split(",")[0]}${state}`,
+        };
+      }),
+    ),
+  ];
 }
 
 /** Which water a town's tile is, as its page names what it stands on the bank of. */

@@ -578,6 +578,7 @@ export {
   districtFrom,
   districtOf,
   districtShares,
+  districtWhys,
   nearLine,
 } from "./districts.ts";
 export type { District } from "./districts.ts";

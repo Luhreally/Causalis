@@ -6,6 +6,7 @@ import {
   GONE_YEARS,
   HOLD_FOOT,
   districtOf,
+  districtWhys,
   districtShares,
   holdOf,
   holdPlaces,
@@ -286,4 +287,23 @@ test("sprawl is drawn as homes on their own plots, hedged, with their drives; a 
   assert.ok(a.n > 300, `plots in sprawl ${a.n}`);
   assert.equal(b.n, 0);
   assert.equal(districtAt(a.scene, 1100), DISTRICT.sprawl);
+});
+
+test("how its land is held is said: a great house's estate, its tenants in a hamlet; or farms held by those who work them", () => {
+  const form = townForm(FOOT),
+    estate = districtWhys(form, SITE.roads, [
+      { name: "the house of Ard", hamlet: 5, words: "a stone keep in a curtain wall" },
+    ]),
+    free = districtWhys(form, SITE.roads, []);
+  assert.match(estate.join(" "), /estate of the house of Ard/);
+  assert.match(free.join(" "), /each farm's house stands by its barn/);
+  for (const w of [...estate, ...free]) assert.doesNotMatch(w, /undefined|NaN|null/);
+  assert.match(
+    districtWhys(
+      townForm({ ...FOOT, how: "wheels", share: 0.6, engines: 30 }),
+      SITE.roads,
+      [],
+    ).join(" "),
+    /sprawl/,
+  );
 });
