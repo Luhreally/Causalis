@@ -11,7 +11,8 @@
 import * as pc from "playcanvas";
 import type { InstancedBatch } from "./batch.ts";
 import type { FloraLayer } from "./flora.ts";
-import type { Stage } from "./stage.ts";
+import type { LandLayer } from "./land.ts";
+import { fadedMaterial, type Rgb, type Stage } from "./stage.ts";
 
 /** How much lower the land is set than the town's own ground (its units: a few metres, under all the town's ground). */
 const DROP = 0.02;
@@ -31,12 +32,21 @@ export class FarLand {
     readonly sea: pc.Entity | null;
   } | null = null;
   private at: { x: number; y: number; z: number; k: number } | null = null;
-  /** The land's woods far off (its far clumps: render/flora.ts), drawn again for this eye where they stand past the town's
-   * own trees; and as which making of them. */
+  /** The land's woods far off (its far clumps: render/flora.ts) and its other towns and their fields (render/land.ts), drawn
+   * again for this eye where they stand past the town's own ground; and as which making of them. */
   private woods: FloraLayer | null = null;
-  private woodsMade = -1;
-  private clumps: { readonly of: InstancedBatch; readonly drawn: pc.MeshInstance }[] = [];
-  private readonly clumpsAt = new pc.Entity("far woods");
+  private towns: LandLayer | null = null;
+  private madeWoods = -2;
+  private madeTowns = -2;
+  private copies: {
+    readonly of: InstancedBatch;
+    readonly buffer: pc.VertexBuffer;
+    readonly drawn: pc.MeshInstance;
+  }[] = [];
+  private readonly copiesAt = new pc.Entity("far woods and towns");
+  /** The land's towns' and fields' parts drawn for this eye (toned as the land's, faded about the town: stage.ts). */
+  private readonly townLook = fadedMaterial();
+  private sunOf: pc.Entity | null = null;
   private on = false;
 
   private readonly stage: Stage;
@@ -69,7 +79,7 @@ export class FarLand {
     app.root.addChild(this.sun);
     this.holder = new pc.Entity("far land");
     app.root.addChild(this.holder);
-    this.holder.addChild(this.clumpsAt);
+    this.holder.addChild(this.copiesAt);
     // (Placed as the frame is drawn, after all else has moved the town's eye.)
     app.on("prerender", () => {
       if (this.on) this.follow();
@@ -89,6 +99,7 @@ export class FarLand {
       readonly reach: number;
       readonly k: number;
       readonly woods?: FloraLayer | null;
+      readonly towns?: LandLayer | null;
     } | null,
   ): boolean {
     const land = this.stage.root.findByName("region"),
@@ -137,13 +148,21 @@ export class FarLand {
       }
       this.shown = { source: ground.mesh, cut, collar, ground: g, sea: s };
       this.holeAt = { x: o.x, y: o.y, z: o.z, r: reach };
+      this.tones = tonesAbout(ground.material, o.x, o.z, reach);
     }
     this.at = { x: o.x, y: o.y, z: o.z, k: o.k };
     this.woods = o.woods ?? null;
-    this.woodsMade = -1;
+    this.towns = o.towns ?? null;
+    this.madeWoods = -2;
+    this.madeTowns = -2;
     return true;
   }
   private holeAt: { x: number; y: number; z: number; r: number } | null = null;
+  /**
+   * The land's own colours about the town as its ground's shader reads them (its tiles' texels, linear): its dry ground's
+   * mean and its water's, within the town's own ground (null: none there). What the town's own are toned to (render/village.ts).
+   */
+  tones: { readonly ground: Rgb | null; readonly water: Rgb | null } | null = null;
 
   /** Whether it is drawn now (a town shown with its land about it). */
   set visible(on: boolean) {
@@ -176,12 +195,17 @@ export class FarLand {
         return;
       }
     }
-    const woods = this.woods;
-    if (woods && woods.farMade !== this.woodsMade) this.plantClumps(woods);
-    for (const c of this.clumps) {
-      const n = c.of.drawing.instancingCount;
-      if (c.drawn.instancingCount !== n) c.drawn.instancingCount = n;
+    // (The land's batches made anew, or one let go: drawn again from those it has now.)
+    const madeWoods = this.woods?.farMade ?? -1,
+      madeTowns = this.towns?.farMade ?? -1;
+    let stale = this.madeWoods !== madeWoods || this.madeTowns !== madeTowns;
+    for (const c of this.copies) {
+      const src = c.of.drawing;
+      if (src.instancingData?.vertexBuffer !== c.buffer) stale = true;
+      else if (c.drawn.instancingCount !== src.instancingCount)
+        c.drawn.instancingCount = src.instancingCount;
     }
+    if (stale) this.copy(madeWoods, madeTowns);
     const p = main.getPosition();
     this.eye.setPosition(at.x + p.x * at.k, at.y + p.y * at.k + DROP, at.z + p.z * at.k);
     this.eye.setRotation(main.getRotation());
@@ -198,7 +222,7 @@ export class FarLand {
     fog.density = scene.density / at.k;
     fog.start = scene.start * at.k;
     fog.end = scene.end * at.k;
-    const sun = this.stage.app.root.findByName("sun") as pc.Entity | null,
+    const sun = (this.sunOf ??= this.stage.app.root.findByName("sun") as pc.Entity | null),
       light = sun?.light;
     if (sun && light) {
       this.sun.setRotation(sun.getRotation());
@@ -209,48 +233,58 @@ export class FarLand {
   }
 
   /**
-   * The far clumps drawn for this eye: the land's own batches' instances and materials, each drawing given the town's square
-   * and reach for its fade (stage.ts fadedMaterial), so they stand only past where the town's own trees and ground come up to
-   * its land (RISEN of its reach), shrinking to their feet nearer, as the land's give way to the trees where its eye looks.
+   * The land's far clumps, its towns' standing parts and its fields drawn for this eye: the land's own batches' instances (its
+   * clumps in their own material, the towns' and fields' toned as theirs are), each given the town's square and a reach for
+   * its fade (stage.ts fadedMaterial), so they stand only past where the town's own ground comes up to its land (RISEN of its
+   * reach), shrinking to their feet nearer; the town itself, as its land draws it, within that and never drawn twice.
    */
-  private plantClumps(woods: FloraLayer): void {
-    this.dropClumps();
-    this.woodsMade = woods.farMade;
+  private copy(madeWoods: number, madeTowns: number): void {
+    this.dropCopies();
+    this.madeWoods = madeWoods;
+    this.madeTowns = madeTowns;
     const at = this.at,
       hole = this.holeAt;
     if (!at || !hole) return;
-    const reach = (hole.r * RISEN) / 0.94;
-    for (const of of woods.farClumps) {
-      if (!of) continue;
-      const src = of.drawing,
-        buffer = src.instancingData?.vertexBuffer;
-      if (!buffer) continue;
-      const drawn = new pc.MeshInstance(src.mesh, src.material);
+    const reach = (hole.r * RISEN) / 0.94,
+      near = [at.x, at.y, at.z, 0],
+      fade = [-1, 1, reach, 0];
+    this.townLook.setParameter("uNear", near);
+    this.townLook.setParameter("uNearK", fade);
+    const put = (of: InstancedBatch | null, look: pc.Material | null) => {
+      const src = of?.drawing,
+        buffer = src?.instancingData?.vertexBuffer;
+      if (!of || !src || !buffer) return;
+      const drawn = new pc.MeshInstance(src.mesh, look ?? src.material);
       drawn.setInstancing(buffer);
       drawn.instancingCount = src.instancingCount;
-      drawn.setParameter("uNear", [at.x, at.y, at.z, 0]);
-      drawn.setParameter("uNearK", [-1, 1, reach, 0]);
+      if (!look) {
+        drawn.setParameter("uNear", near);
+        drawn.setParameter("uNearK", fade);
+      }
       drawn.cull = false;
-      const e = new pc.Entity("far clumps");
+      const e = new pc.Entity("far copy");
       e.addComponent("render", {
         meshInstances: [drawn],
         layers: [this.layer.id],
         castShadows: false,
         receiveShadows: false,
       });
-      this.clumpsAt.addChild(e);
-      this.clumps.push({ of, drawn });
-    }
+      this.copiesAt.addChild(e);
+      this.copies.push({ of, buffer, drawn });
+    };
+    for (const of of this.woods?.farClumps ?? []) put(of, null);
+    for (const of of this.towns?.farBatches() ?? []) put(of, this.townLook);
   }
 
-  private dropClumps(): void {
-    for (const c of this.clumps) c.drawn.node?.destroy();
-    this.clumps = [];
+  private dropCopies(): void {
+    for (const c of this.copies) c.drawn.node?.destroy();
+    this.copies = [];
   }
 
   private clear(): void {
-    this.dropClumps();
-    this.woodsMade = -1;
+    this.dropCopies();
+    this.madeWoods = -2;
+    this.madeTowns = -2;
     const s = this.shown;
     if (s) {
       // (Its cut alone, let go before its drawing is, which would let go of its mesh and with it its vertices: the land's own
@@ -261,6 +295,7 @@ export class FarLand {
     }
     this.shown = null;
     this.holeAt = null;
+    this.tones = null;
     this.at = null;
     this.visible = false;
   }
@@ -368,4 +403,52 @@ function cutAbout(
   collar.setColors32(col);
   collar.update();
   return { cut: mesh, collar };
+}
+
+/**
+ * The land's own colours within `reach` of a point (land units), off its ground material's tiles (stage.ts groundMaterial: a
+ * texel a tile, `uTileMap` placing them; the land's alpha 255 less its woods' cover, the water's 255 where it is water): the
+ * mean of its dry tiles' colours (the woods' crowns over them as much as they cover, as the shader draws them on average)
+ * and of its water's, each linear (0 ... 1). None read: null.
+ */
+function tonesAbout(
+  material: pc.Material,
+  x: number,
+  z: number,
+  reach: number,
+): { ground: Rgb | null; water: Rgb | null } | null {
+  const levels = (t: pc.Texture | undefined) =>
+    (t as { _levels?: (Uint8Array | null)[] } | undefined)?._levels?.[0] ?? null;
+  const param = (name: string) =>
+    (material.getParameter(name) as { data?: unknown } | undefined)?.data;
+  const landTex = param("uLand") as pc.Texture | undefined,
+    waterTex = param("uWater") as pc.Texture | undefined,
+    map = param("uTileMap") as number[] | undefined,
+    land = levels(landTex),
+    water = levels(waterTex);
+  if (!landTex || !land || !water || !map || !(map[3]! > 0.5)) return null;
+  const size = landTex.width,
+    // (Texel i, j lies at (i, j) times uTileMap.y less uTileMap.x: stage.ts GROUND_PS.)
+    step = map[1]!,
+    off = map[0]!,
+    g = new Float64Array(4),
+    w = new Float64Array(4),
+    lo = (v: number) => Math.max(0, Math.floor((v - reach + off) / step)),
+    hi = (v: number) => Math.min(size - 1, Math.ceil((v + reach + off) / step));
+  for (let j = lo(z); j <= hi(z); j++)
+    for (let i = lo(x); i <= hi(x); i++) {
+      const px = i * step - off,
+        pz = j * step - off;
+      if ((px - x) ** 2 + (pz - z) ** 2 > reach * reach) continue;
+      const q = 4 * (j * size + i),
+        into = water[q + 3]! > 127 ? w : g,
+        from = into === w ? water : land;
+      into[0]! += from[q]! / 255;
+      into[1]! += from[q + 1]! / 255;
+      into[2]! += from[q + 2]! / 255;
+      into[3]!++;
+    }
+  const mean = (a: Float64Array): Rgb | null =>
+    a[3]! ? [a[0]! / a[3]!, a[1]! / a[3]!, a[2]! / a[3]!] : null;
+  return { ground: mean(g), water: mean(w) };
 }

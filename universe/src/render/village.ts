@@ -646,6 +646,8 @@ export class VillageScene {
     kind: "ground" | "water" | "leaf" | "needle" | "roof";
     base: Rgb;
     paint: (c: Rgb) => void;
+    /** Its colour as built, before it was toned to its land's (toneToLand). */
+    toned?: Rgb;
     /** Grass (the ground about the town, its pasture): browning in a dry year (Phase 44 M206). */
     grass?: boolean;
   }[] = [];
@@ -1432,7 +1434,8 @@ export class VillageScene {
       "leaf",
     );
     this.plant(null);
-    // (In the season the land is in, from the first frame.)
+    // (Toned to its land's as last told, and in the season the land is in, from the first frame.)
+    this.toneDressed();
     this.dress();
     // A door on each home, facing out from its front (a town draws its own homes).
     if (!look.tent && !look.open && !town) {
@@ -1717,6 +1720,40 @@ export class VillageScene {
   get groundReach(): number {
     return this.groundNear;
   }
+  /**
+   * Its own ground and water toned to its land's as its land view shows them about it (render/farland.ts tones: linear), so
+   * no colour changes where the two meet or as the eye comes down from the land: its ground's colours each taken by its land's
+   * mean over its own (its pasture's with it), its water its land's. Null: as its own reading has them.
+   */
+  toneToLand(tones: { readonly ground: Rgb | null; readonly water: Rgb | null } | null): void {
+    this.landTones = tones;
+    this.toneDressed();
+    this.dress();
+  }
+  private landTones: { readonly ground: Rgb | null; readonly water: Rgb | null } | null = null;
+  /** Its ground's and water's colours as toned to its land's (toneToLand), for a building of it as for one built. */
+  private toneDressed(): void {
+    const tones = this.landTones,
+      own = tones?.ground ? this.townFlora.groundMean() : null,
+      by: Rgb =
+        own && tones?.ground
+          ? ([0, 1, 2].map((c) =>
+              Math.min(1.6, Math.max(0.6, tones.ground![c]! / Math.max(0.02, own[c]!))),
+            ) as unknown as Rgb)
+          : [1, 1, 1];
+    this.townFlora.tint(by);
+    const lift = (c: number) => c ** (1 / 2.2);
+    for (const d of this.dressed) {
+      d.toned ??= d.base;
+      if (d.kind === "water")
+        d.base = tones?.water
+          ? [lift(tones.water[0]), lift(tones.water[1]), lift(tones.water[2])]
+          : d.toned;
+      else if (d.kind === "ground")
+        d.base = [d.toned[0] * lift(by[0]), d.toned[1] * lift(by[1]), d.toned[2] * lift(by[2])];
+    }
+  }
+
   /** Its plain ring shown, or not where its land is drawn about it instead (render/farland.ts). */
   plainBeyond(on: boolean): void {
     if (this.farRing && this.farRing.enabled !== on) this.farRing.enabled = on;

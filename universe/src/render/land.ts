@@ -131,6 +131,8 @@ type Drawn = {
 /** Batches by mesh and colour for all a land's towns, each part set on the ground where it falls. */
 class GroundBatches {
   private readonly batches = new Map<string, InstancedBatch>();
+  /** How many times one of its batches has been made anew or let go. */
+  made = 0;
   private scratch = new Float32Array(0);
   /** The top of the wide slabs over each tile, as last shown. */
   tops: Float32Array | null = null;
@@ -243,6 +245,7 @@ class GroundBatches {
       let b = this.batches.get(key);
       if (!b || b.capacity < m) {
         b?.destroy();
+        this.made++;
         b = new InstancedBatch(
           this.stage,
           this.meshes[k.mesh],
@@ -279,9 +282,15 @@ class GroundBatches {
     return n;
   }
 
+  /** Its batches as now made. */
+  get all(): IterableIterator<InstancedBatch> {
+    return this.batches.values();
+  }
+
   destroy(): void {
     for (const b of this.batches.values()) b.destroy();
     this.batches.clear();
+    this.made++;
   }
 }
 
@@ -315,6 +324,7 @@ export class LandLayer {
   private readonly rising: GroundBatches;
   /** Every field of the land, each in its own colour (a toned batch). */
   private fieldBatch: InstancedBatch | null = null;
+  private fieldMade = 0;
   /** What each town's fields are sown with, as its own view reads them (landSown). */
   private sown = new Map<string, LandSown>();
   private readonly roadBatches: Record<
@@ -354,6 +364,17 @@ export class LandLayer {
   }
   /** Whether the land's ground as last laid is free about a point (one for each laying, so its camps are pitched again). */
   private campGround: ((x: number, z: number, r: number) => boolean) | undefined;
+  /**
+   * Its towns' standing parts' batches and its fields' (each toned instance by instance), as now made: what a town's own eye
+   * draws of its land past it (render/farland.ts); and how many times they have been made anew or let go.
+   */
+  farBatches(): InstancedBatch[] {
+    return [...this.settled.all, ...(this.fieldBatch ? [this.fieldBatch] : [])];
+  }
+  get farMade(): number {
+    return this.settled.made + this.fieldMade;
+  }
+
   /** The land's ground as last laid (the look tools count what stands on it). */
   get groundClaims(): GroundClaims | null {
     return this.claims;
@@ -730,6 +751,7 @@ export class LandLayer {
     let b = this.fieldBatch;
     if (!b || b.capacity < list.length) {
       b?.destroy();
+      this.fieldMade++;
       b = new InstancedBatch(
         this.stage,
         this.meshes.box,

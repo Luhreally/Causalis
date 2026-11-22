@@ -234,6 +234,7 @@ export class TownFloraLayer {
     this.allOf = indices.length;
     this.ownOf = SPOKES * 3 + RINGS * SPOKES * 6;
     this.ownOnly(this.onlyOwn);
+    this.tint(this.tintBy);
     this.base = base;
     this.open = open;
     this.still = water;
@@ -338,6 +339,42 @@ export class TownFloraLayer {
       g = plan && this.ground ? townGroundOf(plan) : null;
     return g && plan ? townGroundAt(g, plan, x, z, townEdge(plan)) : null;
   }
+
+  /**
+   * Its own ground's colour on average (out to its own edge, each point as much as the ground about it; not its water), as
+   * read off its land, before the season: null where none is drawn.
+   */
+  groundMean(): Rgb | null {
+    const base = this.base,
+      still = this.still;
+    if (!base) return null;
+    const sum = new Float64Array(4),
+      ring = (r: number) => (r <= 0 ? 0 : Math.pow((r - 1 + 0.35) / (RINGS + 0.35), 1.7));
+    for (let r = 1; r <= RINGS + 1; r++) {
+      // (Each ring as much as the band about it, a ring's share of the disc.)
+      const band = ring(r) * (ring(Math.min(RINGS + 1, r + 1)) - ring(r - 1));
+      for (let a = 0; a < SPOKES; a++) {
+        const k = 1 + (r - 1) * SPOKES + a;
+        if (still?.[k]) continue;
+        sum[0]! += base[k * 3]! * band;
+        sum[1]! += base[k * 3 + 1]! * band;
+        sum[2]! += base[k * 3 + 2]! * band;
+        sum[3]! += band;
+      }
+    }
+    return sum[3]! > 0 ? [sum[0]! / sum[3]!, sum[1]! / sum[3]!, sum[2]! / sum[3]!] : null;
+  }
+
+  /** Its ground's colours each taken by so much (linear, 1: as read), as its land's own are shown about it. */
+  tint(by: Rgb): void {
+    const m = this.ground?.render?.meshInstances[0]?.material as pc.StandardMaterial | undefined;
+    this.tintBy = by;
+    if (!m) return;
+    // (A material's colour is read as the screen's: raised by its gamma, to come out as given.)
+    m.diffuse.set(by[0] ** (1 / 2.2), by[1] ** (1 / 2.2), by[2] ** (1 / 2.2));
+    m.update();
+  }
+  private tintBy: Rgb = [1, 1, 1];
 
   /** The season and the year in the fields (how dry, 0 … 1) on its ground and what grows on it. */
   season(s: GroundSeason | null, dry: number): void {

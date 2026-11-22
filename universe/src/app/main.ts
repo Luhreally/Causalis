@@ -7427,7 +7427,7 @@ async function runPlanetPage(): Promise<void> {
     // (Its land about it, as its land view draws it, where that view has its land and it on it: render/farland.ts.)
     {
       const on = colonyRef(ref) ? null : region.land.townAt(ref);
-      farLand.show(
+      const landShown = farLand.show(
         on
           ? {
               x: on.x,
@@ -7436,9 +7436,11 @@ async function runPlanetPage(): Promise<void> {
               reach: village.groundReach,
               k: LAND_ACROSS / VILLAGE_METRE,
               woods: region.flora,
+              towns: region.land,
             }
           : null,
       );
+      village.toneToLand(landShown ? farLand.tones : null);
     }
     village.visible = true;
     villagePanel.visible = true;
