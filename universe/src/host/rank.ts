@@ -29,6 +29,7 @@ import { realmColor } from "./colors.ts";
 import { houseRef } from "./family.ts";
 import { groupRef, underName } from "./underworld.ts";
 import { orgName, orgRef } from "./groups.ts";
+import { townHolds } from "./strongholds.ts";
 
 /** A boss's roof, a meeting house's, the temple's head's. */
 const BOSS_COLOR = [0.5, 0.08, 0.12] as const,
@@ -198,9 +199,12 @@ export function townRank(world: World, ref: Ref, f: Fabric, lots = f.next): Town
         : lore.get(s.cell, "masonry")
           ? "stone"
           : undefined;
+  // Its strongholds and seats: its realm's where it is seated here, its land's great houses' where it is the land's greatest.
+  const holds = townHolds(world, ref, realm, s.cell, !!seated, greatest());
   return {
     gini,
     drives: drivesIn(world, s.cell),
+    ...(holds.length ? { holds } : {}),
     ...(seat ? { seat } : {}),
     ...(halls.length ? { halls } : {}),
     ...(marks.length ? { marks } : {}),

@@ -26,6 +26,7 @@ import {
   BLOCK_W,
   GROUND,
   GroundClaims,
+  holdPlaces,
   LAND_SCALE,
   LOT_D,
   LOT_W,
@@ -315,6 +316,9 @@ export function* landFieldsLaying(
       yaw: f.yaw,
     }),
     out: LandField[] = [];
+  // (Its strongholds' and seats' ground, as its own view lays them: no field on it. bridge/holdplaces.ts.)
+  if (town.plan && lots)
+    for (const p of holdPlaces(town.plan, lots.lots)) own.disc(p.x, p.z, p.r, GROUND.works, 0);
   void reach;
   // (Laid one at a time, as its own view lays them: each takes its ground before the next is laid.)
   const laid: { x: number; z: number; w: number; d: number; yaw: number }[] = [],

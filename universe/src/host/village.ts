@@ -65,6 +65,7 @@ import {
   BLOCK_D,
   BLOCK_W,
   GROUND,
+  holdPlaces,
   GroundClaims,
   LAKE_R,
   LOT,
@@ -573,6 +574,9 @@ export function villagePlan(
       road: roadOut,
       through: !!city,
     });
+  // (Its strongholds' and seats' ground, as its own view lays them: no field or pasture on it. bridge/holdplaces.ts.)
+  if (town && lots)
+    for (const p of holdPlaces(town, lots)) claims.disc(p.x, p.z, p.r, GROUND.works, 0);
   fields.push(...layOn(claims, meant, GROUND.field, 0, { x: 0, z: 0 }, 24, 12));
   // The pasture lies toward the poorer ground, near the homes where that is clear of the
   // fields' fan (else just past them); the wild begins beyond the last fields.

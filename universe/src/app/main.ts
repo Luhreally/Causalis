@@ -3971,6 +3971,7 @@ async function runPlanetPage(): Promise<void> {
           : `bldg:${plan.ref}:${thing.at}:${thing.start}`;
       }
       if (thing.kind === "walls") return `walls:${plan.ref}`;
+      if (thing.kind === "hold") return `hold:${plan.ref}:${thing.k}`;
       const lot = village.townLot(thing.lot),
         theirs = lot
           ? plan.homes.find((h) => h.household && Math.hypot(h.x - lot.x, h.z - lot.z) < 1)

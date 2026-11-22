@@ -86,7 +86,13 @@ import {
   wallAt,
 } from "../bridge/index.ts";
 
+import { holdPlaces, onHeld } from "../bridge/index.ts";
+import { townHolds } from "./strongholds.ts";
+
 export { hasSpires, sprawlOf };
+
+/** How far about a stronghold's ground a block of a town yields it: a block's half breadth across its corners. */
+export const HELD_PAD = Math.hypot(BLOCK_W, BLOCK_D) / 2;
 
 type Rgb = readonly [number, number, number];
 export type PartMesh = "box" | "gable" | "cone" | "cyl" | "dome";
@@ -838,12 +844,15 @@ export function townGround(
       SQUARE * 2,
       0,
     );
-  const blocks = Math.ceil(plan.lots / BLOCK_LOTS);
+  const blocks = Math.ceil(plan.lots / BLOCK_LOTS),
+    // (Its strongholds' and seats' ground: no block of it there, bridge/holdplaces.ts.)
+    held = holdPlaces(plan, lots);
   for (let b = 0; b < blocks; b++) {
     if (b * BLOCK_LOTS < ash) continue;
     const x = lots.blocks.x[b]!,
       z = lots.blocks.z[b]!,
       yaw = lots.blocks.yaw[b]!;
+    if (held.length && onHeld(held, x, z, HELD_PAD)) continue;
     // (As broad as its part of the town was laid: bridge/form.ts. Its ground tells its age: a lane as it was trodden, a
     // street measured out set evener and paler, one laid for engines tarred.)
     const wide = plan.site?.laid ? streetWide(plan.site, b) : STREET,
@@ -892,6 +901,8 @@ export function townGround(
   farGround(scene, out, street, yard);
   // Its form on its ground: its main streets, its market's cover, its column, its temple's steps (view/townform.ts).
   formGround(scene, out, ash);
+  // Its strongholds and seats about it (view/strongholds.ts), in its land's way of building.
+  if (held.length && ash <= 0) townHolds(scene, out, scene.looks[scene.looks.length - 1]);
   // Where its people have gone (R1), over the streets and under the yards' curbs.
   // (Bared to the ground under it, in its land's own colours: dark enough to be told from a street none walks, from as far as a person's eye goes.)
   const wornEarth: Rgb =
@@ -1135,7 +1146,8 @@ function sprawlLaid(scene: TownScene): Float32Array {
       walls = scene.walls && plan.walls && plan.walls.reach > plan.lots ? scene.walls.line : null,
       sector = (2 * Math.PI) / AVENUES,
       taken = new Footprints(48),
-      blocks = scene.lots.blocks;
+      blocks = scene.lots.blocks,
+      held = holdPlaces(plan, scene.lots);
     // (Its blocks drawn, their streets' edge with them.)
     for (let b = 0; b < Math.ceil(plan.lots / BLOCK_LOTS) && b < blocks.x.length; b++)
       taken.add({
@@ -1181,6 +1193,7 @@ function sprawlLaid(scene: TownScene): Float32Array {
       if (Math.min(off, sector * r - off) < AVENUE_HALF + w / 2 + 1 || wet(x, z, w / 2 + 4))
         continue;
       if (wetGround(plan.site, x, z)) continue;
+      if (held.length && onHeld(held, x, z, w)) continue;
       // (None where its lots past those drawn stand on their own blocks: as thick as ever past them: farOf.)
       if (far && r < edgeAt(scene, a) + SPRAWL_GAP) {
         left++;
@@ -1375,7 +1388,9 @@ export function farOf(scene: TownScene): TownFar | null {
     laid = new Uint8Array(nb).fill(1);
   // (Its walls' line out in it, or where they stood: no block of it there.)
   const line = scene.walls && plan.walls && plan.walls.reach > plan.lots ? scene.walls.line : null,
-    half = Math.hypot(BLOCK_W, BLOCK_D) / 2 + WALL_THICK + 2;
+    half = Math.hypot(BLOCK_W, BLOCK_D) / 2 + WALL_THICK + 2,
+    // (A stronghold's ground: no block of it there.)
+    holds = holdPlaces(plan, scene.lots);
   let reach = 0;
   const turn = new Float32Array(OUTLINE),
     farthest = new Float32Array(OUTLINE);
@@ -1386,6 +1401,11 @@ export function farOf(scene: TownScene): TownFar | null {
       const bx = lots.blocks.x[b + first]!,
         bz = lots.blocks.z[b + first]!;
       if (Math.abs(Math.hypot(bx, bz) - wallAt(line, Math.atan2(bz, bx))) < half) laid[b] = 0;
+    }
+    if (holds.length && (p % BLOCK_LOTS === 0 || k === 0)) {
+      const bx = lots.blocks.x[b + first]!,
+        bz = lots.blocks.z[b + first]!;
+      if (onHeld(holds, bx, bz, HELD_PAD)) laid[b] = 0;
     }
     if (!laid[b] || p < ash) {
       level[k] = -1;
@@ -2850,8 +2870,12 @@ export function townHomes(
   t: number,
   out: TownParts,
 ): void {
-  const { lots, states, looks } = scene;
+  const { lots, states, looks } = scene,
+    held = holdPlaces(scene.plan, lots);
   for (const p of which) {
+    // (Its block yields a stronghold's ground: bridge/holdplaces.ts.)
+    if (held.length && onHeld(held, lots.blocks.x[p >> 3]!, lots.blocks.z[p >> 3]!, HELD_PAD))
+      continue;
     const what = states.what[p]!,
       x = lots.x[p]!,
       z = lots.z[p]!,
@@ -2870,7 +2894,8 @@ export function townHomes(
         else {
           rankedHome(scene, out, now, level, p, x, z, yaw, t);
           // (At the edge, what stands in its yard: view/townform.ts.)
-          if (level <= 1 && !now.joined) edgeYard(scene, out, p, x, z, yaw, LEVELS[level]!.d);
+          if (level <= 1 && !now.joined)
+            edgeYard(scene, out, p, x, z, yaw, LEVELS[level]!.d, yardWalled);
           // (Shops on the ground floor of a tall home near the square: asked 2026-11-16.)
           if (shopsBelow(p, scene.plan.whole, level)) shopfront(out, level, x, z, yaw, p);
           // (Framed against the shaking, as many as its people have learned to frame: the lessons.)
@@ -3048,6 +3073,8 @@ function drawnAfresh(scene: TownScene, p: number): boolean {
  * roofs of dull colours, a second hovel crowded into each yard. The more so the steeper the land: an even land's homes stand
  * all alike.
  */
+/** Whether the home rankedHome drew last walled its own yard (a well-off home's; its plot is not hedged again: townform.ts). */
+let yardWalled = false;
 function rankedHome(
   scene: TownScene,
   out: TownParts,
@@ -3060,6 +3087,7 @@ function rankedHome(
   t: number,
 ): void {
   const r = rankedOf(scene.plan);
+  yardWalled = false;
   if (!r || look.sealed || look.tent || level > 2) return home(out, look, level, x, z, yaw);
   const rank = scene.plan.rank!,
     hall = r.halls.get(p),
@@ -3117,6 +3145,7 @@ function rankedHome(
         ) > 0 &&
         Math.abs(Math.hypot(scene.lots.x[mate]! - x, scene.lots.z[mate]! - z) - LOT_W) < 0.6;
     if (pair) {
+      yardWalled = true;
       const mx = (x + scene.lots.x[mate]!) / 2,
         mz = (z + scene.lots.z[mate]!) / 2;
       if (p % 2 === 0) {
@@ -3161,6 +3190,7 @@ function rankedHome(
     if (level <= 1) {
       tree(out, tx, tz, 3.6 + 2 * k);
       yardWall(out, x, z, yaw, LOT_W - 0.6, LOT_D - 0.8, 1.1, 0.35);
+      yardWalled = true;
     }
     out.put("box", DRESSED, px, base + 1.2, pz, Math.min(2.2, w * 0.36), 2.4, 0.6, yaw);
     out.lamp(px, base + 2.1, pz, 0.5, 0.5, 0.7, yaw);
@@ -3844,6 +3874,7 @@ export function townWalls(
 /** What of a town is at a point (metres from its middle), for a tap: one of its buildings, its walls, a lot. */
 export type TownThing =
   | { readonly kind: "civic"; readonly at: number; readonly start: number }
+  | { readonly kind: "hold"; readonly k: number }
   | { readonly kind: "walls" }
   | { readonly kind: "lot"; readonly lot: number };
 
@@ -3868,6 +3899,9 @@ function inside(
  */
 export function townThingAt(scene: TownScene, x: number, z: number, t: number): TownThing | null {
   const { plan, lots } = scene;
+  // (A stronghold or seat: its page says whose, why and of what: bridge/strongholds.ts.)
+  for (const h of holdPlaces(plan, lots))
+    if (Math.hypot(h.x - x, h.z - z) < h.r) return { kind: "hold", k: h.hold.k };
   for (const c of plan.civics) {
     if (c.at + c.lots > lots.x.length) continue;
     const m = civicMoments(c);

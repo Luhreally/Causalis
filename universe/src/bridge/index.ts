@@ -304,6 +304,7 @@ export {
   type RankMark,
   type RankSeat,
   type TownRank,
+  type TownHold,
 } from "./rank.ts";
 export {
   TIER,
@@ -539,3 +540,44 @@ export {
   type FloraWindow,
   type TreeForm,
 } from "./biome.ts";
+export {
+  BROUGHT,
+  GONE_YEARS,
+  HOLD_COST,
+  HOLD_FOOT,
+  HOLD_FORMS,
+  HOLD_WORDS,
+  KEEP_MEANS,
+  OFFICE_REACH,
+  PRESS_RAISE,
+  PRESS_RINGS,
+  PRESS_YEARS,
+  PRIVATE_REACH,
+  SHOW_MEANS,
+  holdFor,
+  holdOf,
+  holdSpot,
+  holdWhys,
+} from "./strongholds.ts";
+export type {
+  Brought,
+  Hold,
+  HoldFacts,
+  HoldForm,
+  HoldSpot,
+  HoldState,
+  HoldThreat,
+  ShowForm,
+} from "./strongholds.ts";
+export { HAMLET_RING, HOLD_OUT, holdPlaces, onHeld, holdReach } from "./holdplaces.ts";
+export type { HoldPlace } from "./holdplaces.ts";
+export {
+  DISTRICT,
+  DISTRICT_WORDS,
+  LINE_WALK,
+  districtFrom,
+  districtOf,
+  districtShares,
+  nearLine,
+} from "./districts.ts";
+export type { District } from "./districts.ts";
