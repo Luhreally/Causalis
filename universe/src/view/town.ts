@@ -962,9 +962,12 @@ export function townSignals(
   if (!s?.wire || plan.ways === "swim") return drawn;
   const blocks = Math.min(WIRED_BLOCKS, Math.ceil(plan.lots / BLOCK_LOTS)),
     high = 7,
-    tops: [number, number][] = [];
+    tops: [number, number][] = [],
+    held = holdPlaces(plan);
   for (let b = 0; b < blocks; b++) {
     if (b * BLOCK_LOTS < ash) continue;
+    // (A block yielded to a stronghold has no pole: townHomes.)
+    if (held.length && onHeld(held, lots.blocks.x[b]!, lots.blocks.z[b]!, HELD_PAD)) continue;
     const [x, z] = at(
       lots.blocks.x[b]!,
       lots.blocks.z[b]!,

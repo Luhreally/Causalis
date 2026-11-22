@@ -5,6 +5,8 @@
 // put in a town that builds in stone: a colonnade about its square, a column in it, steps under its temple and a way kept
 // broad to it between pillars. The same parts every home is drawn in, a few more of them: no mesh or batch of its own.
 import {
+  holdPlaces,
+  onHeld,
   BLOCK_LOTS,
   LOT_D,
   LOT_W,
@@ -584,7 +586,7 @@ export function heightOf(
   const { plan } = scene,
     ring = scene.walls;
   if (!plan.site || !ring || !plan.walls || plan.sealed) return null;
-  return heightHeld(
+  const h = heightHeld(
     plan.site,
     ring.line,
     plan.water,
@@ -592,6 +594,8 @@ export function heightOf(
     !!plan.rank?.seat && !plan.rank.holds?.some((h) => h.holder === "realm" && h.hold.form),
     plan.civics.some((c) => c.kind === "temple" && c.fell === null && c.end <= plan.year),
   );
+  // (None where a stronghold stands on the height already: view/strongholds.ts.)
+  return h && onHeld(holdPlaces(plan), h.x, h.z, 21) ? null : h;
 }
 
 /** The height a town holds: a keep in the realm's colours where one rules from here, else a shrine; on a mound, towers at its corners. */
@@ -679,8 +683,11 @@ export function formGround(scene: TownScene, out: TownParts, ash: number): void 
       c = form.engines >= 0 ? TARMAC : plan.paved ? SETTS : TRACK,
       leaf = lifeTint(LEAF, plan.lifeLook),
       wet = wallWet(plan.water, plan.site);
+    const held = holdPlaces(plan);
     for (const l of wallWalk(ring.line, n)) {
       if (wet && wet(l.x, l.z)) continue;
+      // (Where a stronghold stands on its line, the street goes about it: it is the stronghold's ground.)
+      if (held.length && onHeld(held, l.x, l.z, l.len / 2 + 4.5)) continue;
       out.put("box", c, l.x, 0.34, l.z, l.len + 0.6, 0.06, 9, l.yaw);
       if (form.green >= 0.2 && l.k % 8 === 0) {
         // (A tree on its inner side.)

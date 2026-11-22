@@ -26,7 +26,7 @@ export function holdReach(what: HoldForm | ShowForm, hamlet: boolean): number {
 }
 
 /** How many of a town's lots its strongholds' places are laid about: the same on every device and view, whatever each draws. */
-export const HOLD_LOTS = 2000;
+export const HOLD_LOTS = 8000;
 
 /** Where one of a holder's things stands (TownHold.places): its spot, what it is, and whether it is the seat of display. */
 export type HoldSpotOf = HoldSpot & { readonly what: HoldForm | ShowForm; readonly show: boolean };
