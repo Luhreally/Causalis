@@ -380,6 +380,11 @@ export type TownScene = {
   farPlate?: number;
   /** A great city's lots past those drawn, on its own blocks grown on (farOf: null, none; made when first asked). */
   far?: TownFar | null;
+  /**
+   * Whether a stronghold may stand on a disc of ground (metres about its square): its land's map sets it, which draws water
+   * the town's own view does not know (render/land.ts). Absent: every one stands.
+   */
+  holdOn?: (x: number, z: number, r: number) => boolean;
 };
 
 export { OUTLINE, outlineAt, outlineOf };

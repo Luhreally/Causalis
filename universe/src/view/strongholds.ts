@@ -419,7 +419,9 @@ function lastOf(scene: TownScene, h: HoldPlace["hold"]): HoldPlace | undefined {
 /** A town's strongholds and seats, each where it stands, as they stand now. */
 export function townHolds(scene: TownScene, out: TownParts, look: HouseLook | undefined): void {
   const places = holdPlaces(scene.plan, scene.lots);
-  places.forEach((p, k) => placeDrawn(scene, out, p, look, k));
+  places.forEach((p, k) => {
+    if (!scene.holdOn || scene.holdOn(p.x, p.z, p.r)) placeDrawn(scene, out, p, look, k);
+  });
 }
 
 /** Whether a plan has strongholds or seats about it. */
