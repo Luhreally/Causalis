@@ -44,7 +44,7 @@ export const SENTENCE = {
    * A realm's courts reckon their lands once in so many years, for each of those years (what a court does changes slowly, and its
    * many are counted, not followed). Then how many years of a land's dead are kept for its people (host/roster.ts reads who).
    */
-  every: 3,
+  every: 5,
   deadKept: 46,
 } as const;
 

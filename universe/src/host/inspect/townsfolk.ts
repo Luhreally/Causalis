@@ -166,7 +166,9 @@ export function townsfolkPage(world: World, ref: string): PageModel {
     rows.push(
       stat(
         "Held",
-        `${courtHeld.labour ? "At labour for" : "In the prison of"} ${courtNameIn(world, s.cell) ?? "their land's court"}, sentenced in year ${courtHeld.year}, until year ${courtHeld.until}`,
+        courtHeld.labour
+          ? `At labour at the realm's works, sentenced by ${courtNameIn(world, s.cell) ?? "their land's court"} in year ${courtHeld.year}, until year ${courtHeld.until}`
+          : `In the prison of ${courtNameIn(world, s.cell) ?? "their land's court"}, sentenced in year ${courtHeld.year}, until year ${courtHeld.until}`,
         { why: `${s.ref}#law` },
       ),
     );

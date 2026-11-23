@@ -1454,21 +1454,26 @@ function courtYearBlocks(world: World, town: string, year: number): Block[] {
           {
             type: "list" as const,
             title: "Of the town's own, held by it now",
-            items: named.map((h) =>
-              item(
-                [
-                  link(h.name, h.holder.ref),
-                  `: ${h.labour ? "at labour" : "held"} since year ${h.year}, until year ${h.until}`,
-                ],
-                h.holder.ref,
-                h.year,
+            items: named
+              .slice(0, COURT_NAMED)
+              .map((h) =>
+                item(
+                  [
+                    link(h.name, h.holder.ref),
+                    `: ${h.labour ? "at labour" : "held"} since year ${h.year}, until year ${h.until}`,
+                  ],
+                  h.holder.ref,
+                  h.year,
+                ),
               ),
-            ),
+            ...(named.length > COURT_NAMED ? { more: named.length - COURT_NAMED } : {}),
           },
         ]
       : []),
   ];
 }
+
+const COURT_NAMED = 24;
 
 /** A town's year before its court: once for each, as long as the god's hand rests where it did. */
 export function docketOf(world: World, town: string, year: number): Docket {
