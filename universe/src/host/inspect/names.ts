@@ -6,6 +6,7 @@ import {
   homePlanet,
   languagesOf,
   nationsOf,
+  notablesOf,
   politiesOf,
   populationContext,
   realmName,
@@ -155,6 +156,9 @@ export function nameOf(world: World, ref: string): string {
         const h = observer(world).household(ref as Ref);
         return h ? `the ${h.surname} household` : "a household";
       }
+      // (One of name, an event's subject: as the world keeps them, living or gone. sim/notable/kept.ts.)
+      case "nota":
+        return notableKept(world, n)?.name ?? "one of name";
       case "plnt":
       case "moon":
         return (
@@ -172,5 +176,17 @@ export function nameOf(world: World, ref: string): string {
 
 /** Any ref as a link, by its short name. */
 export function refLink(world: World, ref: string): Span {
+  // (One of name is found on their own page, where the world still keeps them; else only named.)
+  if (ref.startsWith("nota:")) {
+    const id = Number(ref.split(":")[2]),
+      kept = notableKept(world, id);
+    return kept ? link(kept.name, `note:named:${id}`) : nameOf(world, ref);
+  }
   return link(nameOf(world, ref), ref);
+}
+
+/** One of name as the world keeps them, living or gone (none: let go, nothing kept). */
+function notableKept(world: World, id: number): { readonly name: string } | undefined {
+  const store = notablesOf(world);
+  return store?.get(id) ?? store?.goneOf(id);
 }

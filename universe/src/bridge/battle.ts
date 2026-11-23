@@ -55,6 +55,8 @@ export type BattleSideNear = {
   readonly armed?: number;
   /** Whether its realm knows black powder: it brings cannon to the field (Phase 37 M188). */
   readonly cannon?: boolean;
+  /** Who led it, by name, and their page where the world keeps them (sim/notable/roll.ts; absent: none told). */
+  readonly led?: { readonly name: string; readonly ref?: string };
   /** The hired company that stood with it under its own banner, and its men (sim/war/companies.ts; absent: none). */
   readonly company?: {
     readonly name: string;

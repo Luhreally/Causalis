@@ -31,6 +31,7 @@ import {
   potencyStore,
   groupsIn,
   kindOfGroup,
+  languagesOf,
   politiesOf,
   underworldOf,
   type CrimeGroup,
@@ -673,9 +674,12 @@ export function federationPage(world: World, ref: string): PageModel {
     rival = rec?.rival !== undefined ? v?.feds.find((x) => x.id === rec.rival) : undefined,
     supplier =
       rec?.supplier !== undefined ? v?.groups.find((g) => g.id === rec.supplier) : undefined,
+    // (The gangs of a people abroad: who they are, by their tongue. sim/order/underworld.ts, a set-apart quarter's people.)
+    folk = fedPeople(world, rec?.identity, f.event),
     facts: Stat[] = [
       stat("Realm", [realmLink(world, r.ref)]),
       stat("Since", `year ${since}`, { why: f.event }),
+      ...(folk ? [stat("Their people", [folk, " abroad, in its towns"])] : []),
     ];
   if (rec) {
     facts.push(
@@ -1086,4 +1090,18 @@ function gearBlocks(world: World, r: Polity, g: CrimeGroup): Block[] {
     );
   out.push({ type: "facts", title: "Its means", rows });
   return out;
+}
+
+/** A federation's people, where it is the gangs of a people abroad: a link to their tongue, or its name as told (null: none). */
+function fedPeople(
+  world: World,
+  identity: string | undefined,
+  event: Ref,
+): Item["line"][number] | null {
+  if (identity?.startsWith("folk:") && world.hasStore("culture.languages")) {
+    const l = languagesOf(world).at(Number(identity.slice(5)));
+    if (l) return link(`the ${l.name}`, l.ref);
+  }
+  const told = (world.events.get(event)?.data as { people?: string } | null)?.people;
+  return told ? `the ${told}` : null;
 }

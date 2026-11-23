@@ -26,9 +26,9 @@ export const FAITH_FORM_WORDS: Readonly<Record<string, string>> = {
 };
 /** What a ruler presses a faith for. */
 export const CLASH_WHAT_WORDS: Readonly<Record<string, string>> = {
-  offices: "who names its priests in his lands",
-  tithes: "what his people give it",
-  word: "whose word his people keep",
+  offices: "who names its priests in their lands",
+  tithes: "what their people give it",
+  word: "whose word their people keep",
 };
 
 registerEventWords(FAITH_HEAD_EVENTS.head.type, (_, e) => {
@@ -103,5 +103,5 @@ registerEventWords(HELD_EVENTS.chief.type, (_, e) => {
 
 registerDecisionWords(
   "faith.clash",
-  () => "A ruler weighed pressing the head of a faith held in his realm",
+  () => "A ruler weighed pressing the head of a faith held in their realm",
 );

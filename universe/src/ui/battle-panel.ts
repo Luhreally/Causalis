@@ -212,10 +212,12 @@ export class BattlePanel {
       c.fielded = Math.max(1, s.fielded);
       c.name.textContent = `${i === 0 ? "⚔️" : "🛡️"} ${s.name[0]!.toUpperCase()}${s.name.slice(1)}`;
       // (A host not all armed so, its kit worn out and not made good: Phase 52 M217.)
-      c.kit.textContent =
+      // (Led by whom, first: the line is cut short where the box is narrow.)
+      c.kit.textContent = `${s.led ? `led by ${s.led.name} · ` : ""}${
         s.armed !== undefined && s.armed < 0.995
           ? `${s.kit} · ${Math.round(s.armed * 100)}% so armed`
-          : s.kit;
+          : s.kit
+      }`;
       // (The men who rose with it, where more fell than its host had in the field.)
       const risen = s.risen ?? 0,
         rose = i === 0 ? "levies sent after it" : "of its land's men, risen with it";
@@ -228,9 +230,10 @@ export class BattlePanel {
       c.hurt.textContent = `${c.wounded.toLocaleString("en-US")} wounded${maimed}`;
       c.hurt.hidden = true;
       c.box.style.setProperty("--side", rgb);
+      const by = s.led ? `, led by ${s.led.name}` : "";
       c.box.title = risen
-        ? `${s.name}: ${(s.fielded - risen).toLocaleString("en-US")} in its host, ${risen.toLocaleString("en-US")} ${rose} — their realm's page`
-        : `${s.name}: ${s.fielded.toLocaleString("en-US")} in the field — their realm's page`;
+        ? `${s.name}${by}: ${(s.fielded - risen).toLocaleString("en-US")} in its host, ${risen.toLocaleString("en-US")} ${rose} — their realm's page`
+        : `${s.name}${by}: ${s.fielded.toLocaleString("en-US")} in the field — their realm's page`;
     });
     this.each.textContent =
       per > 1

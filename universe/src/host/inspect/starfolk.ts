@@ -16,7 +16,7 @@ import {
   type Meeting,
 } from "../../sim/index.ts";
 import type { Civilization } from "../../gen/index.ts";
-import type { World } from "../../kernel/index.ts";
+import { yearOfMoment, type Ref, type World } from "../../kernel/index.ts";
 import type { Item, PageModel, Stat } from "../../bridge/index.ts";
 import { PEOPLE_COLORS, metName } from "../peoples.ts";
 import { figureBody, starFolk } from "../folk.ts";
@@ -218,11 +218,9 @@ export function civilizationPage(world: World, ref: string): PageModel {
         // (What their signals last told of their seat: sim/space/far-reigns.ts.)
         ...(heardOf?.event
           ? [
-              stat(
-                "Last heard of their seat",
-                `the house of ${heardOf.house}, the ${ordinal(heardOf.reign + 1)} reign`,
-                { why: heardOf.event },
-              ),
+              stat("Last heard of their seat", lastHeard(world, heardOf.event, heardOf), {
+                why: heardOf.event,
+              }),
             ]
           : []),
       ]
@@ -364,4 +362,26 @@ export function civilizationPage(world: World, ref: string): PageModel {
     followable: false,
     year,
   };
+}
+
+/**
+ * What the home world last heard of a far people's seat, as its light brought it: who held it and of what house, the reign,
+ * and the year it was so and the year its light came (sim/space/far-reigns.ts).
+ */
+function lastHeard(
+  world: World,
+  event: Ref,
+  r: { readonly house: string; readonly reign: number },
+): string {
+  const e = world.events.get(event),
+    d = e?.data as { ruler?: string; then?: number } | null | undefined,
+    who =
+      d?.ruler && d.ruler !== r.house
+        ? `${d.ruler}, of the house of ${r.house}`
+        : `the house of ${r.house}`,
+    when =
+      typeof d?.then === "number" && e
+        ? `: as it stood in year ${count(d.then)}, its light come in year ${count(yearOfMoment(e.t))}`
+        : "";
+  return `${who}, the ${ordinal(r.reign + 1)} reign${when}`;
 }

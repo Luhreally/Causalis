@@ -15,9 +15,10 @@
 import { hashString, type Ref, type World } from "../../kernel/index.ts";
 import { cradleTongue, personName, tonguePersonName } from "../../gen/index.ts";
 import { ACTS, DOES, DOMAIN, DOMAINS, NOTE, OCC, commandTerm, satOf } from "../../rules/index.ts";
-import { NOTABLE_ENDS, deedLine, notableTitle } from "../../causal/index.ts";
+import { NOTABLE_ENDS, deedLine, notableTitle, why } from "../../causal/index.ts";
 import {
   GANG_ROW,
+  HELD_EVENTS,
   beliefOf,
   courtOf,
   cultureOf,
@@ -51,7 +52,7 @@ import { doesWords } from "../../causal/index.ts";
 import { boardRef } from "./board.ts";
 import { courtFormOf } from "./justice.ts";
 import { faithLink, landLink, landTitle, realmLink, townLink } from "./names.ts";
-import { item, link, stat, yearNow } from "./words.ts";
+import { item, link, stat, yearAt, yearNow } from "./words.ts";
 
 export type NotableKind =
   | "house"
@@ -895,7 +896,7 @@ function keptBlocks(world: World, n: Named): Block[] {
                 { why: n.held.event },
               ),
             ]
-          : []),
+          : heldOnce(world, n.id, n.since)),
         // (The faith they head: sim/belief/heads.ts.)
         ...(n.post?.kind === "faith" ? [stat("Head of", [faithLink(world, n.post.of)])] : []),
       ],
@@ -1134,4 +1135,20 @@ export function realmNotables(world: World, r: Polity): Notable[] {
           .filter((n): n is Notable => n !== null)
       : [];
   return [...own, ...named];
+}
+
+/**
+ * One once taken in battle and held, now home: what became of their captivity (given up, exchanged, bought back), the latest
+ * told since they were known (sim/war/held.ts HELD_EVENTS.chief).
+ */
+function heldOnce(world: World, id: number, since: number): Stat[] {
+  const all = world.events.all();
+  for (let i = all.length - 1; i >= 0; i--) {
+    const e = all[i]!;
+    if (yearAt(e.t) < since) break;
+    if (e.type !== HELD_EVENTS.chief.type || (e.data as { id?: number } | null)?.id !== id)
+      continue;
+    return [stat("Once held", [why(world, e.id).claim], { why: e.id })];
+  }
+  return [];
 }

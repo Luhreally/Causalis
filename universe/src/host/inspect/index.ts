@@ -215,6 +215,8 @@ function build(
   if (ref.startsWith("boss:")) return bossPage(world, ref);
   // (One who holds an office or heads a great thing of a town, as read: host/inspect/notables.ts.)
   if (ref.startsWith("note:")) return notablePage(world, ref);
+  // (One of name as an event's subject: their own page. sim/notable/kept.ts.)
+  if (ref.startsWith("nota:")) return notablePage(world, `note:named:${ref.split(":")[2]}`);
   // (A work someone of name made: sim/ideas.)
   if (ref.startsWith("work:")) return workPage(world, ref);
   // (A realm's made minds, spoken of as one: sim/frontier/minds.ts.)

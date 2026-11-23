@@ -8,11 +8,13 @@ import { BIOME } from "../gen/index.ts";
 import {
   RISEN_KEPT,
   WAR_EVENTS,
+  battleCommanders,
   handOf,
   homePlanet,
   hostFor,
   lateOf,
   loreOf,
+  notablesOf,
   politiesOf,
   populationContext,
   realmName,
@@ -178,6 +180,20 @@ export function battleNear(world: World, ref: string): BattleNear | null {
       coMen?: [number, number];
       coPage?: [string | null, string | null];
       coHow?: [string | null, string | null];
+      led?: (string | null)[];
+    },
+    // (Who led each host: the roll kept beside the world, or the battle's own telling. sim/notable/roll.ts.)
+    led =
+      e.subjects.length >= 3
+        ? battleCommanders(world, e.t, [e.subjects[1]!, e.subjects[2]!])
+        : [undefined, undefined],
+    kept = notablesOf(world),
+    ledBy = (at: 0 | 1) => {
+      const x = led[at],
+        name = x?.name ?? data.led?.[at] ?? null;
+      if (!name) return {};
+      const known = x && (kept?.get(x.id) || kept?.goneOf(x.id));
+      return { led: { name, ...(known ? { ref: `note:named:${x.id}` } : {}) } };
     },
     colors = sideColors(realmColor(war.attacker), realmColor(war.defender)),
     // (Its hosts as they were in the field, with the men who rose with them: as the roll counts them.)
@@ -225,6 +241,7 @@ export function battleNear(world: World, ref: string): BattleNear | null {
               },
             }
           : {}),
+        ...ledBy(at),
       } satisfies BattleSideNear;
     },
     land = b.land,
