@@ -3,13 +3,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  AVULSION,
   CARBON_CYCLE,
+  avulsionChance,
   companionOf,
   coverOf,
   cycloneChance,
   cycloneSpin,
   cyclesOf,
   fieldNeeds,
+  heatGrowth,
   landUseOf,
   lifeCarried,
   lightGrowth,
@@ -113,4 +116,22 @@ test("a way of farming gives as much as what it lifts held a land back", () => {
 test("life crosses between worlds only where the two lives can eat each other", () => {
   assert.equal(lifeCarried(false, true), 0);
   assert.ok(lifeCarried(true, true) > lifeCarried(true, false));
+});
+
+test("a river leaves its bed only in a great flood on a flat plain, the likelier the more silt it lays", () => {
+  assert.equal(avulsionChance(AVULSION.size - 0.1, 0, 0.05), 0);
+  assert.equal(avulsionChance(4, AVULSION.flat, 0.05), 0);
+  const silted = avulsionChance(4, 0.002, AVULSION.silt),
+    bare = avulsionChance(4, 0.002, 0),
+    greater = avulsionChance(6, 0.002, AVULSION.silt);
+  assert.ok(silted > bare && bare > 0, `${silted} ${bare}`);
+  assert.ok(greater > silted && greater <= 0.25);
+});
+
+test("heat past a land's best takes its growth back; Earth's lands are untouched", () => {
+  assert.equal(heatGrowth(27), 1);
+  assert.ok(heatGrowth(50) < 0.7 && heatGrowth(50) > 0.5);
+  const hot = coverOf(48, 1200, 2),
+    warm = coverOf(26, 1200, 2);
+  assert.ok(hot.growth < warm.growth, `${hot.growth} ${warm.growth}`);
 });

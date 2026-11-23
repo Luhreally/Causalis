@@ -1782,3 +1782,4 @@ export * from "./carbon.ts";
 export * from "./cycles.ts";
 export * from "./storms.ts";
 export * from "./tillage.ts";
+export * from "./rivers.ts";

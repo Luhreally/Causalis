@@ -2137,3 +2137,12 @@ export { coverAt, skyOf } from "./population/model.ts";
 export { landSlope } from "./ecology/ground.ts";
 export { tillageAt } from "./ecology/farmed.ts";
 export { standGame } from "./ecology/stands.ts";
+export {
+  RIVER_EVENTS,
+  RiverStore,
+  installRivers,
+  riverAfterFlood,
+  riverMovesOn,
+  riversOf,
+  type RiverMove,
+} from "./planet/rivers.ts";

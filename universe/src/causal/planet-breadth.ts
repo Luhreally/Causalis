@@ -2,7 +2,7 @@
 // wet year, with the woods left to hold them; the seas soured by the carbon they took up; the frozen ground thawing and its
 // carbon rotting into the air.
 import { yearOfMoment } from "../kernel/index.ts";
-import { AIR_EVENTS, STORM_EVENTS } from "../sim/index.ts";
+import { AIR_EVENTS, RIVER_EVENTS, STORM_EVENTS } from "../sim/index.ts";
 import { landWords } from "./generated.ts";
 import { registerEventWords } from "./why.ts";
 import { count } from "./words.ts";
@@ -34,4 +34,8 @@ registerEventWords(AIR_EVENTS.thawing.type, (_world, e) => {
   const rotted = num(e.data, "rotted"),
     warming = num(e.data, "warming");
   return `The frozen ground was thawing${warming === null ? "" : ` under a world ${warming} °C warmer`}, ${year(e.t)}${rotted === null ? "" : `: ${rotted} parts in a million of its old carbon rotted into the air`}`;
+});
+registerEventWords(RIVER_EVENTS.moved.type, (world, e) => {
+  const drop = num(e.data, "drop");
+  return `The river of ${landWords(world, e.place)} broke out of its bed in a great flood and kept the lower way across its plain${drop === null || drop <= 0 ? "" : `, ${count(drop)} m below its old bed`}, ${year(e.t)}`;
 });

@@ -20,6 +20,7 @@ import {
   homePlanet,
   landSlope,
   populationContext,
+  riverMovesOn,
   skyOf,
   struckOn,
 } from "../../sim/index.ts";
@@ -91,6 +92,13 @@ export function landBreadthBlocks(world: World, cell: number): Block[] {
         );
     }
   }
+  for (const m of riverMovesOn(world, cell).slice(0, 2))
+    rows.push(
+      stat(
+        `River moved, year ${m.year}`,
+        "a great flood broke it out of its bed for a lower way across the plain",
+      ),
+    );
   const struck = struckOn(world, cell).slice(0, 3);
   for (const s of struck)
     rows.push(
@@ -99,7 +107,7 @@ export function landBreadthBlocks(world: World, cell: number): Block[] {
         `${count(s.dead)} dead, ${Math.round(s.fields / 10)}% of the harvest`,
       ),
     );
-  if (rows.length) blocks.push({ type: "facts", title: "Its storms and slopes", rows });
+  if (rows.length) blocks.push({ type: "facts", title: "Its storms, slopes and rivers", rows });
   return blocks;
 }
 
