@@ -6,6 +6,7 @@ import { cellRef } from "../gen/index.ts";
 import { PROPULSION, STAR_DRIVES } from "../rules/index.ts";
 import {
   CONTACT_EVENTS,
+  FAR_REIGN_EVENTS,
   GREAT_ACT_EVENTS,
   FILLED_EVENTS,
   LANE_EVENTS,
@@ -230,6 +231,23 @@ registerEventWords(
 registerEventWords(LATE_EVENTS.covered.type, (_world, e) => {
   const d = (e.data ?? {}) as { built?: number; lands?: number };
   return `${d.built ?? "Half"} of the world's ${d.lands ?? ""} peopled lands came to be built on from edge to edge, more towers than fields, year ${yearOfMoment(e.t)}`;
+});
+
+// A far people's seat passed, as their signals told it (sim/space/far-reigns.ts).
+registerEventWords(FAR_REIGN_EVENTS.reign.type, (_world, e) => {
+  const d = (e.data ?? {}) as {
+    people?: string;
+    ruler?: string;
+    house?: string;
+    fell?: string;
+    many?: number;
+    then?: number;
+  };
+  const who = d.many ? `the line of ${d.ruler ?? "another"}` : (d.ruler ?? "another");
+  const then = d.then !== undefined ? ` (in their year ${d.then}, as its light came)` : "";
+  return d.fell
+    ? `The house of ${d.fell} fell from the seat of the ${d.people ?? "far people"}; ${who} of the house of ${d.house ?? "another"} took it${then}, heard year ${yearOfMoment(e.t)}`
+    : `The seat of the ${d.people ?? "far people"} passed within the house of ${d.house ?? "its rulers"} to ${who}${then}, heard year ${yearOfMoment(e.t)}`;
 });
 
 registerEventWords(CONTACT_EVENTS.heard.type, (_world, e) => {
