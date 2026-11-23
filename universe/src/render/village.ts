@@ -2703,6 +2703,11 @@ export class VillageScene {
       M,
       (this.posed as { lived?: number } | null)?.lived ?? null,
     );
+    // (Carts, cars and beasts near the eye of a possession faded as its people are: view/possess.ts nearSight.)
+    const sight = this.posed?.sight ?? null,
+      near = sight ? (x: number, z: number) => sight({ x, z }) : null;
+    this.rides.fadeNear(near);
+    this.fauna.fadeNear(near);
     // The town's trades at their buildings (Phase 41 M199): who tends each kiln now (or throws
     // pots by it), and who strikes at each smithy's anvil.
     if (this.trades.works.length) {

@@ -19,26 +19,17 @@ import {
   type BeastNow,
   type BeastPart,
   type BirdNow,
-  type Built,
   type Fauna,
   type FishNow,
   type Pose,
+  nearSight,
 } from "../view/index.ts";
 import { InstancedBatch, beastMeshes, boxMesh, cylinderMesh, keptMesh } from "./batch.ts";
+import { nearFadeMaterial } from "./nearfade.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
 const M = 0.1; // units per metre, as the village's
 const FLOATS = 8;
-
-/**
- * Points along a beast's spine (drawn units ahead of its middle, and of its height up): its rump,
- * middle and shoulders, and its head on its neck — with its feet first, for the one held (Phase 61).
- */
-function spineOf(b: Built, feet: boolean): (readonly [number, number])[] {
-  const half = b.length * b.k * 0.45,
-    head = b.length * b.k * 0.5 + (b.neck * 0.7 + b.head * 0.5) * b.k;
-  return [...(feet ? [[0, 0.1] as const] : []), [-half, 0.7], [0, 0.6], [half, 0.8], [head, 1]];
-}
 
 /** A beast looked at: its lineage (ref and name), what it is doing, whether it is of the flocks, and which it is. */
 export type PickedBeast = {
@@ -112,6 +103,12 @@ export class FaunaLayer {
     this.root.addChild(this.ring);
   }
 
+  /** Its beasts, birds and fish near the eye of a possession faded (`drawn(x, z)`, metres: render/nearfade.ts; null: whole). */
+  fadeNear(drawn: ((x: number, z: number) => number) | null): void {
+    const by = drawn ?? this.heldSight;
+    for (const b of this.batches) b.fadeBy(by, M);
+  }
+
   /** Light a beast (its place in the herds as laid out), or none. */
   mark(index: number | null): void {
     this.lit = index;
@@ -140,7 +137,14 @@ export class FaunaLayer {
   }
 
   private gathered(color: Rgb, capacity: number, mesh: pc.Mesh = this.box): Gathered {
-    const batch = new InstancedBatch(this.stage, mesh, color, Math.max(1, capacity), this.root);
+    const batch = new InstancedBatch(
+      this.stage,
+      mesh,
+      color,
+      Math.max(1, capacity),
+      this.root,
+      nearFadeMaterial(color),
+    );
     this.batches.push(batch);
     return { batch, data: new Float32Array(Math.max(1, capacity) * FLOATS), count: 0 };
   }
@@ -232,60 +236,21 @@ export class FaunaLayer {
     return this.frustum.containsSphere(sphere) > 0;
   }
 
-  /**
-   * Whether a beast stands between the eye and the one the hand is in: a point along its spine (its
-   * rump, middle, shoulders and head) within half its height (and a third of the held one's) of a
-   * line from the eye to the held one's feet, middle, rump, shoulders or head, between them.
-   */
-  private between(me: BeastNow): (b: BeastNow) => boolean {
-    const species = this.fauna!.species,
-      mb = species[me.species]!.body,
+  /** The eye's sight about the beast held (metres: view/possess.ts nearSight, by its height). */
+  private sightOf(me: BeastNow): (m: { x: number; z: number }) => number {
+    const mb = this.fauna!.species[me.species]!.body,
       eye = this.inverse
         .copy(this.root.getWorldTransform())
         .invert()
-        .transformPoint(this.stage.camera.getPosition(), this.eyeAt),
-      ex = eye.x,
-      ey = eye.y,
-      ez = eye.z,
-      high = mb.height * mb.k,
-      margin = high * 0.3,
-      lines: { dx: number; dy: number; dz: number; dd: number }[] = [],
-      // (Each kind's spine, worked out once a frame.)
-      spines = new Map<number, (readonly [number, number])[]>();
-    for (const [along, up] of spineOf(mb, true)) {
-      const dx = me.x * M + Math.sin(me.yaw) * along - ex,
-        dy = up * high - ey,
-        dz = me.z * M + Math.cos(me.yaw) * along - ez,
-        dd = dx * dx + dy * dy + dz * dz;
-      if (dd > 1e-9) lines.push({ dx, dy, dz, dd });
-    }
-    return (b) => {
-      if (b.dead) return false;
-      const bb = species[b.species]!.body,
-        bh = bb.height * bb.k,
-        r = bh * 0.5 + margin,
-        fx = Math.sin(b.yaw),
-        fz = Math.cos(b.yaw);
-      let spine = spines.get(b.species);
-      if (!spine) spines.set(b.species, (spine = spineOf(bb, false)));
-      for (const [along, up] of spine) {
-        const px = b.x * M + fx * along - ex,
-          py = up * bh - ey,
-          pz = b.z * M + fz * along - ez;
-        for (const l of lines) {
-          const u = (px * l.dx + py * l.dy + pz * l.dz) / l.dd;
-          if (u <= 0 || u >= 1) continue;
-          const qx = px - u * l.dx,
-            qy = py - u * l.dy,
-            qz = pz - u * l.dz;
-          if (qx * qx + qy * qy + qz * qz < r * r) return true;
-        }
-      }
-      return false;
-    };
+        .transformPoint(this.stage.camera.getPosition(), this.eyeAt);
+    return nearSight(
+      { x: eye.x / M, y: eye.y / M, z: eye.z / M, tall: Math.max(0.3, (mb.height * mb.k) / M) },
+      { x: me.x, z: me.z },
+    );
   }
+  private heldSight: ((x: number, z: number) => number) | null = null;
 
-  /** How many beasts stood between the eye and the one held this frame, not drawn (the look tools). */
+  /** How many beasts stood near the eye or between it and the one held this frame, faded past half (the look tools). */
   get cleared(): number {
     return this.hidden;
   }
@@ -303,18 +268,27 @@ export class FaunaLayer {
     const n = beastsAt(fauna, s, this.beasts, t);
     this.over?.(this.beasts, n);
     // (The beast the hand is in seen: those of its herd between the eye and it not drawn — Phase 61.)
+    // (Those near the eye or between it and the beast held faded by degrees, as a town's people are about one possessed:
+    // view/possess.ts nearSight, by his height; written over the batches as they are laid, fadeNear.)
     const held =
         this.heldId === null ? -1 : this.beasts.slice(0, n).findIndex((b) => b.id === this.heldId),
-      between = held >= 0 ? this.between(this.beasts[held]!) : null;
+      sight = held >= 0 ? this.sightOf(this.beasts[held]!) : null;
+    if (sight) {
+      // (Its own parts, about it as far as it is long, whole: only others fade.)
+      const me = this.beasts[held]!,
+        mb = fauna.species[me.species]!.body,
+        own = Math.max(0.3, (mb.length * mb.k) / M) * 0.6;
+      this.heldSight = (x, z) => {
+        const d = Math.hypot(x - me.x, z - me.z);
+        return Math.max(sight({ x, z }), 1 - Math.max(0, Math.min(1, (d - own) / (0.3 * own))));
+      };
+    } else this.heldSight = null;
     this.hidden = 0;
     for (let i = 0; i < n; i++) {
       const b = this.beasts[i]!;
       // (Out of sight, not posed: most of a village's beasts are, looking into it.)
       if (!this.inSight(b.species, b.x, 0, b.z)) continue;
-      if (between && i !== held && between(b)) {
-        this.hidden++;
-        continue;
-      }
+      if (sight && i !== held && sight(b) < 0.5) this.hidden++;
       this.draw(b.species, b.x, 0, b.z, b.yaw, b.dead ? 0.35 : 0, b.pose, b.size);
     }
     // The fliers, on their wings; the swimmers, leaping.

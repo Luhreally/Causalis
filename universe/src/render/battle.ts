@@ -42,6 +42,7 @@ import {
   armLook,
   isGun,
   frameYaw,
+  nearSight,
   type PlacedFrame,
 } from "../view/index.ts";
 import { InstancedBatch, boxMesh, capsuleMesh, coneMesh, cylinderMesh, keptMesh } from "./batch.ts";
@@ -59,6 +60,7 @@ import {
   type LooseLook,
   type Stump,
 } from "./blows.ts";
+import { fading } from "./nearfade.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 import { VehicleLayer } from "./vehicles.ts";
 
@@ -85,13 +87,14 @@ const MOST = 380;
  */
 const LOD = { metres: 160, bulk: 0.1, band: 0.25 } as const;
 /**
- * The soldier the god's hand is in seen (Phase 61): the lines from the eye to his feet, his middle
- * and his head (of his height), how near one of them (of his height) one standing between is not
- * drawn, tried at their middles and heads; and, the eye being near him with most of the field out
- * of its sight, how far past its edges (of his height: a low sun's shadow's length and more) those
- * out of it are still posed.
+ * The soldier the god's hand is in seen (Phase 61): the eye being near him with most of the field out of its sight, how far
+ * past its edges (of his height: a low sun's shadow's length and more) those out of it are still posed; and how far about
+ * him (of his height; mounted, with his horse) his own parts stand, kept whole while those near the eye or between it and
+ * him fade (view/possess.ts nearSight, 2026-11-23: they were not drawn at all, and came and went at once).
  */
-const SEEN = { to: [0.1, 0.55, 0.95], clear: 0.4, ups: [0.55, 0.95], reach: 3.5 } as const;
+const SEEN = { reach: 3.5, own: 0.3, ownMounted: 0.75 } as const;
+/** The materials already made to fade (render/nearfade.ts fading), each once. */
+const FADING = new WeakSet<pc.Material>();
 /** The rungs of a ladder. */
 const RUNGS = 6;
 /** The pieces the defenders' trench is cut into along the field. */
@@ -739,6 +742,11 @@ export class BattleLayer {
         ),
       };
     });
+    // (Its men and what they bear made to fade near a held man's eye: render/nearfade.ts.)
+    for (const b of this.fadingBatches()) {
+      const m = b.drawing.material as pc.StandardMaterial;
+      if (!FADING.has(m)) FADING.add(fading(m));
+    }
     this.tents.recolor(darker(field.near.attacker.color as Rgb, 0.9));
     for (const side of [0, 1] as const) {
       const look = armLook((side === 0 ? field.near.attacker : field.near.defender).host?.arm);
@@ -1028,17 +1036,16 @@ export class BattleLayer {
   }
 
   /**
-   * The battle as the eye behind the soldier the hand is in sees it (Phase 61): those standing
-   * between the eye and him not drawn, so he is seen however close his ranks stand about him; and
+   * The battle as the eye behind the soldier the hand is in sees it (Phase 61): those near the eye or standing between it
+   * and him faded (heldFade, laid over the batches at the frame's end), so he is seen however close his ranks stand; and
    * those out of its sight not posed — the eye stands near him, and most of the field is out of it.
    */
-  private heldView(now: BattleNow, me: TrooperNow, tall: number): BattleNow {
+  private heldView(now: BattleNow, me: TrooperNow, tall: number, mounted: boolean): BattleNow {
     const eye = this.eye(),
       cam = this.stage.camera,
       ex = eye.x,
       ey = eye.y,
       ez = eye.z,
-      r2 = (SEEN.clear * tall) ** 2,
       sphere = this.sphere,
       frustum = this.frustum;
     // (The eye's sight in the field's units, through its root: laid before a town.)
@@ -1047,14 +1054,21 @@ export class BattleLayer {
       .mul2(cam.camera!.projectionMatrix, this.sightView)
       .mul(this.root.getWorldTransform());
     frustum.setFromMat4(this.sight);
-    const lines: { dx: number; dy: number; dz: number; dd: number }[] = [];
-    for (const at of SEEN.to) {
-      const dx = me.x * M - ex,
-        dy = me.y * M + at * tall * me.size - ey,
-        dz = me.z * M - ez,
-        dd = dx * dx + dy * dy + dz * dz;
-      if (dd > 1e-9) lines.push({ dx, dy, dz, dd });
-    }
+    // (Those near the eye, or between it and him, faded by degrees as a town's people are about one possessed: view/possess.ts
+    // nearSight, by his height, in the field's metres; his own parts, and his horse's, whole.)
+    const tallM = (tall * Math.max(0.3, me.size)) / M,
+      look = nearSight(
+        { x: ex / M, y: ey / M, z: ez / M, tall: tallM },
+        { x: me.x, z: me.z, lift: me.y },
+      ),
+      own = tallM * (mounted ? SEEN.ownMounted : SEEN.own);
+    this.heldFade = (x, z) => {
+      const d = Math.hypot(x - me.x, z - me.z);
+      return Math.max(
+        look({ x, z, lift: me.y }),
+        1 - Math.max(0, Math.min(1, (d - own) / (0.3 * own))),
+      );
+    };
     let hid = 0,
       out = 0;
     const troopers = now.troopers.filter((t) => {
@@ -1065,23 +1079,7 @@ export class BattleLayer {
         out++;
         return false;
       }
-      if (t.act === "fall") return true;
-      const px = t.x * M - ex,
-        pz = t.z * M - ez;
-      for (const up of SEEN.ups) {
-        const py = t.y * M + up * tall * t.size - ey;
-        for (const l of lines) {
-          const u = (px * l.dx + py * l.dy + pz * l.dz) / l.dd;
-          if (u <= 0 || u >= 1) continue;
-          const qx = px - u * l.dx,
-            qy = py - u * l.dy,
-            qz = pz - u * l.dz;
-          if (qx * qx + qy * qy + qz * qz < r2) {
-            hid++;
-            return false;
-          }
-        }
-      }
+      if (this.heldFade!(t.x, t.z) < 0.5) hid++;
       return true;
     });
     this.hidden = hid;
@@ -1110,12 +1108,19 @@ export class BattleLayer {
     this.root.enabled = true;
     this.hidden = 0;
     this.unseen = 0;
+    this.heldFade = null;
     if (this.held !== null) {
       const me = now.troopers.find((x) => x.id === this.held);
       this.heldDisc.enabled = !!me && me.size > 0.01;
       if (me) {
         this.heldDisc.setLocalPosition(me.x * M, me.y * M + 0.004, me.z * M);
-        if (me.size > 0.01) now = this.heldView(now, me, rig.high * SOLDIER * rig.f.scale);
+        if (me.size > 0.01)
+          now = this.heldView(
+            now,
+            me,
+            rig.high * SOLDIER * rig.f.scale,
+            !!field.hosts[me.side]?.mounted,
+          );
       }
     }
     const f = rig.f,
@@ -1940,7 +1945,45 @@ export class BattleLayer {
     // The armoured cars, and the smoke and fire off the wrecks.
     this.vehicles.update(now.vehicles ?? [], now.fumes ?? [], now.flames ?? [], metre);
     this.shown = shown;
+    // (The men and what they bear near the eye behind the one held faded by where each part stands: heldView.)
+    for (const b of this.fadingBatches()) b.fadeBy(this.heldFade, M);
   }
+
+  /** The batches of the men, their horses and carts, their arms and their wounds: those that fade near a held man's eye. */
+  private fadingBatches(): InstancedBatch[] {
+    return [
+      ...this.sides.flatMap((s) => [
+        ...s.parts,
+        s.shields,
+        s.flags,
+        s.coFlags,
+        s.stripes,
+        s.armor,
+        s.helmet,
+      ]),
+      this.shafts,
+      this.blades,
+      this.helmets,
+      this.steelHelmets,
+      this.poles,
+      this.horses,
+      this.necks,
+      this.legs,
+      this.cars,
+      this.wheels,
+      this.arrows,
+      this.spray,
+      this.woundWet,
+      this.woundDry,
+      this.woundCore,
+      this.flesh,
+      this.bone,
+      this.stuckShafts,
+      this.fletches,
+    ];
+  }
+  /** How much of what stands at a place of the field (m) is drawn, about a man held (null: all whole). */
+  private heldFade: ((x: number, z: number) => number) | null = null;
 
   /**
    * Phase 55: the marks of the blows laid out ahead for their batches — about each wound its blood

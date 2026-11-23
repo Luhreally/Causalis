@@ -28,7 +28,14 @@ void getOpacity() {
 
 /** A figure's flat colour (stage.ts flatMaterial) whose instances each carry their opacity in their matrix's last corner. */
 export function nearFadeMaterial(color: Rgb): pc.StandardMaterial {
-  const m = flatMaterial(color);
+  return fading(flatMaterial(color));
+}
+
+/**
+ * An opaque instanced material (its own sheen and colour kept) made to fade so, instance by instance: for what a layer
+ * already made, a battle's arms and its men's parts (render/battle.ts).
+ */
+export function fading(m: pc.StandardMaterial): pc.StandardMaterial {
   const chunks = m.getShaderChunks(pc.SHADERLANGUAGE_GLSL);
   chunks.set("transformInstancingVS", NEAR_FADE_VS);
   chunks.set("opacityPS", NEAR_FADE_OPACITY_PS);
