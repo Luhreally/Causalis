@@ -52,12 +52,22 @@ test("a town's potters throw at their wheels, set each pot on the boards to dry,
   let working = 0,
     dawns = 0,
     sample: { index: number; n: number; form: string; day: number } | undefined;
+  // (One the town's goings take for the day — a round with its watch, say — is not at the wheel: at most at the kiln at noon.
+  // Until 2026-11-23 none of first light's potters at 300 walked with a watch; now one does, on a day scanned.)
+  const goingsDoing = new Set((potting.goings ?? []).map((g) => g.doing)),
+    taken = (i: number, day: number) =>
+      legsTold(potting, i, day).some((l) => l.why !== null && goingsDoing.has(l.why));
+  let away = 0,
+    kilnDays = 0;
   for (const day of days) {
     const roles: readonly Role[] = townDay(potting, day, ground).roles,
-      potters: number[] = roles.flatMap((r, i) => (r.kind === "kiln" ? [i] : [])),
+      atKiln: number[] = roles.flatMap((r, i) => (r.kind === "kiln" ? [i] : [])),
+      potters = atKiln.filter((i) => !taken(i, day)),
       kilns: number[] = [
-        ...new Set(roles.flatMap((r) => (r.kind === "kiln" && r.place >= 0 ? [r.place] : []))),
+        ...new Set(potters.flatMap((i) => (roles[i]!.place >= 0 ? [roles[i]!.place] : []))),
       ];
+    away += atKiln.length - potters.length;
+    kilnDays += atKiln.length;
     if (!potters.length) continue;
     working++;
     for (const i of potters) {
@@ -122,6 +132,8 @@ test("a town's potters throw at their wheels, set each pot on the boards to dry,
     assert.ok(turning, `${day}: a wheel turning with its pot part thrown`);
   }
   assert.ok(working >= 4, `${working} working days`);
+  // (And most of a potter's days are at the wheel: on first light at 300 the watch takes 7 of 42.)
+  assert.ok(2 * away < kilnDays, `${away} of ${kilnDays} potters' days taken by the town's goings`);
   assert.ok(dawns > 0, "a kiln whose potters threw the day before, seen at dawn");
   // A pot on the boards at 16h: its made page, named for its potter and its clay.
   assert.ok(sample, "a pot on the boards at 16h");

@@ -95,7 +95,8 @@ const mirroredCarbon = (w: World): boolean => {
   return l.family === "ammonia" && l.hand === "right" && l.backbone === undefined;
 };
 let found: World | undefined;
-for (const s of AMMONIA) if (mirroredCarbon((found = ALIEN.build(seedFromText(keptLife(s)))))) break;
+for (const s of AMMONIA)
+  if (mirroredCarbon((found = ALIEN.build(seedFromText(keptLife(s)))))) break;
 assert.ok(found && mirroredCarbon(found), "one of AMMONIA is a mirrored ammonia world of carbon");
 const ammonia = found;
 ammonia.runTo(30 * YEAR);
