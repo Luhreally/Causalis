@@ -1154,10 +1154,11 @@ function keptChiefs(ctx: PopulationContext, t: SimTime): { ending: Ref[]; chiefs
   const wars = warsOf(ctx.world),
     realms = politiesOf(ctx.world),
     year = yearOfMoment(t);
-  for (const n of kept.all()) {
-    const h = n.held;
-    if (!h) continue;
-    chiefs.push(n);
+  for (const n of kept.each()) if (n.held) chiefs.push(n);
+  // (Each in the order they were named, so the same after a save as before it.)
+  chiefs.sort((a, b) => a.id - b.id);
+  for (const n of chiefs) {
+    const h = n.held!;
     const w = wars.get(h.war);
     // (Their war goes on, or settles this year: settle() tells what becomes of them.)
     if (w && w.ended !== null && w.ended >= year && !ending.includes(w.ref)) ending.push(w.ref);

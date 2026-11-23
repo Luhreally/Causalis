@@ -133,21 +133,24 @@ export function faithHeadsYear(ctx: PopulationContext, t: SimTime): void {
       }
       return n;
     };
-  for (const [cell, f] of belief.landsWhere(due)) {
-    const n = ctx.provinces.get(cell)?.total() ?? 0;
-    if (!(n > 0)) continue;
-    const realm = realms.of(cell)?.ref ?? null;
-    let h = held.get(f);
-    if (!h) held.set(f, (h = { lands: [], people: 0, realms: new Map() }));
-    h.lands.push(cell);
-    h.people += n;
-    if (realm) {
-      let r = h.realms.get(realm);
-      if (!r) h.realms.set(realm, (r = { people: 0, lands: [] }));
-      r.people += n;
-      r.lands.push(cell);
+  const dueFaiths: Ref[] = [];
+  for (const f of belief.faithsHeld()) if (due(f)) dueFaiths.push(f);
+  for (const f of dueFaiths.sort((a, b) => serialOf(a) - serialOf(b)))
+    for (const cell of belief.lands(f)) {
+      const n = ctx.provinces.get(cell)?.total() ?? 0;
+      if (!(n > 0)) continue;
+      const realm = realms.of(cell)?.ref ?? null;
+      let h = held.get(f);
+      if (!h) held.set(f, (h = { lands: [], people: 0, realms: new Map() }));
+      h.lands.push(cell);
+      h.people += n;
+      if (realm) {
+        let r = h.realms.get(realm);
+        if (!r) h.realms.set(realm, (r = { people: 0, lands: [] }));
+        r.people += n;
+        r.lands.push(cell);
+      }
     }
-  }
   // (A faith no one holds keeps no head: whoever headed it is themselves again.)
   for (const rec of store.all())
     if (due(rec.faith) && !held.has(rec.faith)) {

@@ -159,6 +159,10 @@ export class NotablesStore implements StateStore {
   all(): Notable[] {
     return [...this.living.values()];
   }
+  /** Those living, in no set order, without a copy (for a walk whose result does not hang on the order). */
+  each(): IterableIterator<Notable> {
+    return this.living.values();
+  }
   get count(): number {
     return this.living.size;
   }
