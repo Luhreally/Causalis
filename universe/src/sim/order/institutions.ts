@@ -797,6 +797,11 @@ function higherStep(f: Facts, g: Body, home: Land, least: number, guarded: boole
       g.raised = g.since;
       g.founder ??= g.leader.name;
       g.founderBorn ??= g.leader.born;
+      // (And one grown rich in its land who gives for it, where only those taught pay for it.)
+      if (g.fund !== FUND.patron && g.fund !== FUND.treasury && g.fund !== FUND.tithes) {
+        const rich = patronIn(f, home.cell);
+        if (rich) g.patron = rich.id;
+      }
     }
     if (guarded || g.since >= year) return;
     const shut = shutBy(f, g, home);
