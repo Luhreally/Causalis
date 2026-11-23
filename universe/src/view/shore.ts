@@ -77,6 +77,8 @@ export type Shore = {
   readonly s: (x: number, z: number) => number;
   /** Whether the land's view draws a point of the town's ground as water. */
   readonly wet: (x: number, z: number) => boolean;
+  /** The tiles' share of water alone at a point (its grain aside): the look tools hold it to the land's own textures. */
+  readonly tiles: (x: number, z: number) => number;
   /** The squares of its land's tiles about it: their side (metres), how many each way from its own, its square off its tile's middle. */
   readonly m: number;
   readonly half: number;
@@ -128,7 +130,20 @@ export function shoreOf(
       lz + z * ACROSS,
     );
   };
-  const shore: Shore = { s, wet: (x, z) => s(x, z) > 0.5, m, half, bx, bz, cells, lx, lz };
+  const tiles = (x: number, z: number): number => {
+    const fx = (x + bx) / m + half,
+      fz = (z + bz) / m + half,
+      i = Math.floor(fx),
+      j = Math.floor(fz),
+      bits = i < 0 || j < 0 || i >= n || j >= n ? 0 : cells.charCodeAt(j * n + i) - 48,
+      u = fx - i,
+      v = fz - j;
+    return (
+      ((bits & 1) * (1 - u) + ((bits >> 1) & 1) * u) * (1 - v) +
+      (((bits >> 2) & 1) * (1 - u) + ((bits >> 3) & 1) * u) * v
+    );
+  };
+  const shore: Shore = { s, wet: (x, z) => s(x, z) > 0.5, tiles, m, half, bx, bz, cells, lx, lz };
   if (!land) KNOWN.set(site, shore);
   return shore;
 }

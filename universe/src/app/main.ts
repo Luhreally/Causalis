@@ -386,6 +386,7 @@ import {
   slowingBegun,
   type Slowing,
   type OrbitView,
+  villageShore,
 } from "../view/index.ts";
 
 /** A point along a name's line: `d` radians from its centre, on the unit sphere. */
@@ -557,6 +558,8 @@ type Exposed = {
   client?: HostClient;
   /** The land drawn about a town (render/farland.ts): whether it is, what it draws, and the land's tones the town took. */
   farLand?: () => ReturnType<FarLand["info"]>;
+  /** A town's shore as drawn, held to its land's own water there (view/shore.ts; the look tools). */
+  townShore?: () => unknown;
   farLandParts?: (o: Parameters<FarLand["parts"]>[0]) => void;
   townLook?: (o: { far?: number; land?: boolean; ring?: boolean }) => void;
   /** A world's life on one sheet over the screen, each picture's outline read off its pixels (B1, gate 108); and away. */
@@ -7459,6 +7462,34 @@ async function runPlanetPage(): Promise<void> {
       );
       village.toneToLand(landShown ? farLand.tones : null);
       exposed.farLand = () => farLand.info();
+      exposed.townShore = () => {
+        const shore = scale === "village" && plan ? villageShore(plan) : null,
+          drawn = village.shoreDrawn;
+        if (!shore || !plan) return null;
+        // (The town's tiles' share of water against its land's own texels, at points over its ground.)
+        let n = 0,
+          worst = 0,
+          sum = 0;
+        for (let q = 0; q < 600; q++) {
+          const a = q * 2.399963,
+            r = Math.sqrt((q + 0.5) / 600) * Math.min(3000, village.groundReach / VILLAGE_METRE),
+            x = r * Math.cos(a),
+            z = r * Math.sin(a),
+            land = farLand.waterRead(shore.lx + x * LAND_ACROSS, shore.lz + z * LAND_ACROSS);
+          if (land === null) continue;
+          const d = Math.abs(land - shore.tiles(x, z));
+          n++;
+          sum += d;
+          worst = Math.max(worst, d);
+        }
+        return {
+          landAt: plan.landAt ?? null,
+          tris: drawn ? drawn.tris.length / 6 : 0,
+          leaves: drawn?.leaves ?? 0,
+          squares: drawn?.squares ?? 0,
+          held: { n, worst: +worst.toFixed(4), mean: n ? +(sum / n).toFixed(5) : null },
+        };
+      };
       exposed.farLandParts = (o) => farLand.parts(o);
     }
     village.visible = true;

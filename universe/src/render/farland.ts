@@ -173,6 +173,7 @@ export class FarLand {
     }
     // (Read each time it is shown: the land's tiles are painted after it is first laid, and again with the season.)
     this.tones = tonesAbout(ground.material, o.x, o.z, reach);
+    this.shownMaterial = ground.material;
     this.at = { x: o.x, y: o.y, z: o.z, k: o.k };
     this.woods = o.woods ?? null;
     this.towns = o.towns ?? null;
@@ -188,6 +189,34 @@ export class FarLand {
    * mean and its water's, within the town's own ground (null: none there). What the town's own are toned to (render/village.ts).
    */
   tones: { readonly ground: Rgb | null; readonly water: Rgb | null } | null = null;
+
+  /**
+   * The land's tiles' share of water at a point of it (land units) as its ground's shader reads it (its water's texels,
+   * blended between the four about the point), or null where its land is not shown: the look tools hold a town's shore to it.
+   */
+  waterRead(x: number, z: number): number | null {
+    const material = this.shownMaterial;
+    if (!material) return null;
+    const param = (name: string) =>
+        (material.getParameter(name) as { data?: unknown } | undefined)?.data,
+      tex = param("uWater") as pc.Texture | undefined,
+      map = param("uTileMap") as number[] | undefined,
+      water = (tex as { _levels?: (Uint8Array | null)[] } | undefined)?._levels?.[0] ?? null;
+    if (!tex || !water || !map || !(map[3]! > 0.5)) return null;
+    const size = tex.width,
+      fx = (x + map[0]!) / map[1]!,
+      fz = (z + map[0]!) / map[1]!,
+      i = Math.max(0, Math.min(size - 2, Math.floor(fx))),
+      j = Math.max(0, Math.min(size - 2, Math.floor(fz))),
+      u = Math.max(0, Math.min(1, fx - i)),
+      v = Math.max(0, Math.min(1, fz - j)),
+      a = (p: number, q: number) => water[4 * (q * size + p) + 3]! / 255;
+    return (
+      (a(i, j) * (1 - u) + a(i + 1, j) * u) * (1 - v) +
+      (a(i, j + 1) * (1 - u) + a(i + 1, j + 1) * u) * v
+    );
+  }
+  private shownMaterial: pc.Material | null = null;
 
   /** What it draws (the look tools): whether, its land's facets kept and lifted about the town, its copies, the tones read. */
   info(): {
@@ -476,6 +505,7 @@ export class FarLand {
       s.sea?.destroy();
     }
     this.shown = null;
+    this.shownMaterial = null;
     this.holeAt = null;
     this.tones = null;
     this.at = null;
