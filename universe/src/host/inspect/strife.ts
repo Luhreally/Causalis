@@ -8,7 +8,9 @@ import type { Ref, World } from "../../kernel/index.ts";
 import {
   STRIFE,
   armyOf,
+  chartersOf,
   coupDanger,
+  temperOfRuler,
   farLands,
   interestsOf,
   orderOf,
@@ -215,6 +217,69 @@ export function realmStrifeBlocks(world: World, r: Polity): Block[] {
     ),
     concept: "military-rule",
   });
+  // (What it has written down of its rule and done with it, and its ruler's temper: the breadth round, sim/order/charter.ts.)
+  const ch = chartersOf(world)?.of(r.ref),
+    of = (concept: string, x: Stat): Stat => ({ ...x, concept });
+  if (ch?.written)
+    rows.push(
+      of(
+        "charter",
+        stat(
+          "Charter",
+          `written in year ${ch.written}; changed only with ${ch.bar} in a hundred of its people's say`,
+          { why: ch.writ },
+        ),
+      ),
+    );
+  if (ch?.emergency)
+    rows.push(
+      of(
+        "charter",
+        stat("Emergency powers", `held past its people's say since year ${ch.emergency.since}`, {
+          why: ch.emergency.event,
+        }),
+      ),
+    );
+  if (ch && ch.local > 0)
+    rows.push(
+      of(
+        "charter",
+        stat("Far towns' own councils", `${ch.local} in a hundred of its lands rule themselves`, {
+          why: ch.localEvent,
+        }),
+      ),
+    );
+  if (ch && ch.heard < 100)
+    rows.push(
+      of(
+        "charter",
+        stat(
+          "Who is heard",
+          `${ch.heard} in a hundred of its grown: those who bear as far as their people's roles give them a seat`,
+          { why: ch.heardEvent },
+        ),
+      ),
+    );
+  if (living) {
+    const tm = temperOfRuler(world, r);
+    rows.push(
+      of(
+        "ruler-temper",
+        stat(
+          "Its ruler's temper",
+          `${tm.bold >= 0.5 ? "bold" : "cautious"}, ${tm.grasping >= 0.5 ? "grasping" : "sparing"}, ${tm.zealous >= 0.5 ? "zealous" : "lukewarm"}`,
+          {
+            why: r.ruler.event,
+            parts: [
+              part("bold", share(tm.bold)),
+              part("grasping", share(tm.grasping)),
+              part("zealous", share(tm.zealous)),
+            ],
+          },
+        ),
+      ),
+    );
+  }
   if (coups.length)
     rows.push({
       ...stat(

@@ -34,6 +34,8 @@ import {
 import type { PopulationContext } from "../population/systems.ts";
 import { cutOff, politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import { cultureOf } from "../culture/culture.ts";
+import { identityOf } from "../culture/folk.ts";
+import { kinToSeat } from "../../rules/index.ts";
 import { beliefOf } from "../belief/belief.ts";
 import { holdsOf } from "../order/holds.ts";
 import { STRIFE } from "../strife/strife.ts";
@@ -61,6 +63,16 @@ export const OCCUPYING = {
   free: 0.95,
   /** Years without resisting after which a land is held, not occupied. */
   settled: 30,
+  /**
+   * What being torn from a realm it shares all with (speech and faith, against its holder's none) adds to its grievance, at an
+   * "us" that reaches a whole people: wholly aggrieved at the most.
+   */
+  torn: 0.8,
+  /**
+   * How far a people wholly aggrieved, whose "us" reaches all of them, stands past a host's cowing (2026-11-23: a fortieth of
+   * first light's lands taken after 1500 rose; their grievance was whole, and the host posted cowed every waverer every year).
+   */
+  sworn: 0.6,
 } as const;
 
 export type Occupied = {
@@ -178,6 +190,7 @@ export function occupationYear(ctx: PopulationContext, t: SimTime): void {
     culture = cultureOf(world),
     faiths = beliefOf(world),
     relief = reliefOf(ctx.generated),
+    span = ctx.generated.life.people?.body.span ?? 70,
     hosts = new Map<Ref, number>(),
     kits = new Map<Ref, ReturnType<typeof armsOf>>(),
     lore = loreOf(world),
@@ -232,7 +245,39 @@ export function occupationYear(ctx: PopulationContext, t: SimTime): void {
       strange = here && seat ? 1 - tongueLikeness(here.tongue, seat.tongue) : 0,
       faith = faiths.of(c).faith,
       unbelief = faith && faith !== faiths.of(holder.seat).faith ? 1 : 0,
-      grievance = Math.min(1, realms.discontent(c).level * (0.5 + 0.5 * strange + 0.3 * unbelief)),
+      // (And torn from its own: how far it counts the realm it was taken from its own (its speech, its faith and the lot it
+      // shared under it: rules/folk.ts kinToSeat) past its holder, the more as its "us" reaches past its valley (a nation taken
+      // from its own wants back; a valley passed from lord to lord does not), and while that realm stands to go back to.
+      // 2026-11-23: before, a land taken from a realm it counted its own chafed only by its holder's tithe and distance, and late
+      // in history, when realms had come to count their own as nations, three of forty-four lands taken a century on first light
+      // ever rose.)
+      from = realms.get(o.from),
+      fromWays = from && from.ended === null ? culture.get(from.seat) : undefined,
+      kinTo = (w: NonNullable<typeof seat>, seatFaith: Ref | null, years: number) =>
+        kinToSeat({
+          like: tongueLikeness(here!.tongue, w.tongue),
+          sameFaith: faith !== null && faith === seatFaith,
+          waysGap:
+            here!.traits.reduce((x, v, k) => x + Math.abs(v - w.traits[k]!), 0) /
+            Math.max(1, here!.traits.length),
+          years,
+          span,
+        }),
+      torn =
+        fromWays && here && seat
+          ? Math.max(
+              0,
+              kinTo(fromWays, faiths.of(from!.seat).faith, o.since - from!.founded) -
+                kinTo(seat, faiths.of(holder.seat).faith, year - o.since),
+            )
+          : 0,
+      us =
+        identityOf(world, c)?.nation ?? identityOf(world, from?.seat ?? holder.seat)?.nation ?? 0,
+      grievance = Math.min(
+        1,
+        realms.discontent(c).level * (0.5 + 0.5 * strange + 0.3 * unbelief) +
+          OCCUPYING.torn * torn * us,
+      ),
       // (Halls on another world have no ground of their own to hide in: none, not a number that is none. Unread, a land
       // taken there had a resistance that was no number, which no save keeps: the world saved then did not load back.)
       ground = Math.min(1, (relief[c] ?? 0) / OCCUPYING.relief),
@@ -244,7 +289,12 @@ export function occupationYear(ctx: PopulationContext, t: SimTime): void {
         dmath.clamp(
           was +
             OCCUPYING.grow * grievance * (0.5 + ground) * (0.5 + armed) -
-            OCCUPYING.quell * garrison * (1 - 0.5 * ground) * (1 - was),
+            // (A host cows those who waver; a people who count themselves one, aggrieved as one, waver the less: rules/folk.ts.)
+            OCCUPYING.quell *
+              garrison *
+              (1 - 0.5 * ground) *
+              (1 - was) *
+              (1 - OCCUPYING.sworn * grievance * us),
           0,
           1,
         ) * 1000,

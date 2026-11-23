@@ -57,6 +57,11 @@ import {
   HOLDING,
   levyShare,
   MOBILISE,
+  TEMPER,
+  TRAINING,
+  temperCarries,
+  temperWords,
+  trainedTerm,
 } from "../../rules/index.ts";
 import { designsOf } from "../design/design.ts";
 import { grieve } from "../acts/disasters.ts";
@@ -103,7 +108,14 @@ import { COLS, row } from "../population/model.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { marketGoodRef, type MarketStore } from "../economy/market.ts";
 import { WAY, cultureOf } from "../culture/culture.ts";
-import { cutOff, endRealm, politiesOf, realmName, type Polity } from "../polity/polity.ts";
+import {
+  cutOff,
+  endRealm,
+  politiesOf,
+  realmName,
+  temperOfRuler,
+  type Polity,
+} from "../polity/polity.ts";
 import { interestsOf, pressure } from "../polity/interests.ts";
 import { loreOf } from "../lore/lore.ts";
 import { lessonAdds } from "../lore/lessons-store.ts";
@@ -114,7 +126,7 @@ import { asksOf } from "../town/asks.ts";
 import { RIVALRY, diplomacyOf, relationRef } from "../diplomacy/diplomacy.ts";
 import { fearFields, warBonds } from "../finance/finance.ts";
 import { CREDIT, warChest } from "../credit/credit.ts";
-import { STRIFE, settleCivil } from "../strife/strife.ts";
+import { STRIFE, battlesOf, settleCivil } from "../strife/strife.ts";
 import { driveHerds } from "../ecology/herds.ts";
 import { GENERAL } from "../polity/polity.ts";
 import {
@@ -1286,17 +1298,14 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
     if (bonds.between(r.a, r.b)) continue;
     // (Nor do those of one league make war on each other while the fear holds: D1.)
     if (ties.sameLeague(r.a, r.b)) continue;
-    const covets = r.terms.find((x) => /for their stores$/.test(x.name));
+    // (A hunger for the other's stores is told by the term itself: which realm hungers, not a reading of its words.)
+    const covets = r.terms.find((x) => x.hungry !== undefined);
     // Without hatred or hunger there is no will to war, whatever else holds.
     if (!covets && -r.opinion - -RIVALRY <= 0) continue;
     const a0 = realms.get(r.a)!,
       b0 = realms.get(r.b)!;
     // The one who resents more, or hungers, attacks: the stronger of the two by default.
-    const hungry = covets
-        ? covets.name === `the hunger of ${realmName(a0)} for their stores`
-          ? a0
-          : b0
-        : null,
+    const hungry = covets ? (covets.hungry === a0.ref ? a0 : b0) : null,
       [sa, sb] = [strength(a0), strength(b0)],
       attacker = hungry ?? (sa >= sb ? a0 : b0),
       defender = attacker === a0 ? b0 : a0,
@@ -1310,11 +1319,18 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       hatred = Math.max(0, -r.opinion - (covets ? 0 : -RIVALRY)),
       last = lastPeace.get(attacker.ref),
       rested = last ? Math.min(1, (year - last.ended!) / WEARY_YEARS) : 1,
+      // (Its ruler's temper, as far as its choices are carried by few: a bold one seeks the war, a cautious one holds back;
+      // a zealous one presses a holy war the harder. rules/temper.ts.)
+      temper = temperOfRuler(world, attacker),
+      carries = temperCarries(holdOf(world, attacker.ref, HOLD.voice)),
+      daring = 1 + TEMPER.war * 2 * (temper.bold - 0.5) * carries,
       base =
         Math.min(
           0.5,
           (hatred * 0.12 + (covets ? 0.08 : 0)) * Math.min(2, thought) * (0.5 + valour),
-        ) * rested,
+        ) *
+        rested *
+        daring,
       draw = world.rng.real(DECLARE, Number(attacker.ref.split(":")[2]), t, 0),
       // (A god's whisper to its ruler: to war, the chance doubled; to hold from war, none. Exactly 1 where none: sim/acts/person.ts.)
       whisper = whisperOn(world, attacker.ref, attacker.ruler.event, year);
@@ -1328,7 +1344,10 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
     const voices = interestsOf(ctx, attacker, t),
       peace = pressure(voices, "peace", defender.ref),
       holy = pressure(voices, "war", defender.ref),
-      swayed = (1 - 0.7 * Math.min(1, 2 * peace.total)) * (1 + Math.min(1, 2 * holy.total)),
+      swayed =
+        (1 - 0.7 * Math.min(1, 2 * peace.total)) *
+        (1 +
+          Math.min(1, 2 * holy.total) * (1 + TEMPER.zeal * 2 * (temper.zealous - 0.5) * carries)),
       // (What their answer would cost, W5: exactly 1 where the other holds no great fire.)
       answer = holdBack(ctx, attacker, defender, year),
       // (A league stands behind its members: D1.)
@@ -1377,6 +1396,12 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         contribution: valour - 0.5,
         source: null,
       },
+      {
+        name: temperWords("bold", temper.bold),
+        value: temper.bold,
+        contribution: daring - 1,
+        source: { ref: attacker.ruler.event, role: "pressure", weight: 1 },
+      },
     ];
     if (aimName)
       factors.push({
@@ -1387,7 +1412,7 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       });
     // The rivalry's own reasons, as they stood — so the war's why holds when the realms are gone.
     for (const term of r.terms
-      .filter((x) => x.value < 0 && x.source && !/for their stores$/.test(x.name))
+      .filter((x) => x.value < 0 && x.source && x.hungry === undefined)
       .sort((x, y) => x.value - y.value || (x.name < y.name ? -1 : 1))
       .slice(0, 2))
       factors.push({
@@ -1608,7 +1633,9 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         // (Its ruler blessed, its host fights as two; cursed, as half: exactly 1 where none holds, sim/acts/person.ts.)
         rulerLuck(world, a.ref, a.ruler.event, year) *
         // (And under the one who commands it, by their standing: sim/notable. Exactly 1 where no one is kept.)
-        notableCommands(world, a.ref, year),
+        notableCommands(world, a.ref, year) *
+        // (And as its men are drilled and seasoned: rules/arming.ts trainedTerm.)
+        trainedOf(ctx, a, year),
       // (The ground favours those who hold it as far as it is broken, watered and wooded: sim/war/ground.ts.)
       ground = groundOf(ctx, land).factor,
       // (And what its towns were asked to raise and see to, H1: exactly 1 on a land never asked.)
@@ -1639,7 +1666,8 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         (1 / Math.max(1, wars.fighting(b.ref).length)) *
         sightTerm(fleetB?.flyers ?? 0, fleetA?.flyers ?? 0) *
         rulerLuck(world, b.ref, b.ruler.event, year) *
-        notableCommands(world, b.ref, year);
+        notableCommands(world, b.ref, year) *
+        trainedOf(ctx, b, year);
     // (Each side's hired company as it chose the day, by its pay and its prospects: sim/war/companies.ts. As before where none is hired.)
     const partA = hiredPart(ctx, a),
       partB = hiredPart(ctx, b),
@@ -1942,6 +1970,21 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
   // (And those long over go out of the way, a little at a time: see coldwars.ts.)
   wars.proveSome(PROVED_A_YEAR);
   if (year % FREEZE_EVERY === 0) wars.freeze(year - FELL_TOWN_YEARS, bodySize(ctx));
+}
+
+/**
+ * How drilled and seasoned a realm's host is (rules/arming.ts trainedTerm): of those it fields, the share kept under arms the
+ * year round (all of them where it keeps a standing army, else its guard at peace), drilled as its arms are learned; and the
+ * battles it has fought these five years.
+ */
+export function trainedOf(ctx: PopulationContext, p: Polity, year: number): number {
+  const lore = loreOf(ctx.world),
+    standing = !!lore.get(p.seat, "standing-army"),
+    // (Of what it fields, its guard at peace is at most MOBILISE.standingMost of its fighting men: fieldedAtPeace over fieldedOf.)
+    share = standing ? 1 : fieldShare(ctx, p),
+    kept = standing ? 1 : share > 0 ? Math.min(1, MOBILISE.standingMost / share) : 0,
+    fought = battlesOf(ctx.world, p, year);
+  return trainedTerm(kept, 1 + lore.effect(p.seat, "arms"), fought.won + fought.lost);
 }
 
 /** Teach a peopled world its wars. */

@@ -184,6 +184,9 @@ test("a coup leaves a general, holding as the army and those behind it would", (
     stood = (g: string) => (g === "the army" ? 1 : g === "the court" ? 0 : 0.5),
     wants = wantsOfRisen(interestsOf(ctx, p, at(1)), stood, ofRealm(w, p.ref))!;
   w.runTo(at(1));
+  // (Its arms kept to its host: there a coup leaves its army ruling, sim/strife coupKindOf.)
+  const o = orderOf(w)!.of(p.ref)!;
+  if (o.held) o.held[HOLD.force] = Math.max(o.held[HOLD.force]!, 80);
   seize(ctx, p, [], at(1));
   assert.equal(p.leadership, GENERAL);
   const after = holdsOf(w, p.ref);

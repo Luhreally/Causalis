@@ -1,13 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { type Ref } from "../../src/kernel/index.ts";
+import { foundingHolds } from "../../src/rules/index.ts";
 import {
   LEDGER,
   POLITY_EVENTS,
   SEA_CROSSING,
   WAY,
   WAY_TRAITS,
-  institutionsOf,
+  formFromPowers,
   loreOf,
   marketsOf,
   politiesOf,
@@ -63,36 +64,46 @@ test("realms gather around market towns, and hold their lands joined to the seat
   assert.ok(within >= held * 0.8, `${within} of ${held} lands within their seat's reach`);
 });
 
-test("how a realm is ruled comes from its people's ways, and holds against small drifts", () => {
-  const ways = (set: Partial<Record<(typeof WAY_TRAITS)[number], number>>): Ways => ({
-    cell: 0,
-    traits: WAY_TRAITS.map((t) => set[t] ?? 0.5),
-    base: WAY_TRAITS.map(() => 0.5),
-    tongue: { onsets: 1, vowels: 1, codas: 1, endings: 1, seed: 1 },
-    nudges: [],
-    from: null,
+test("how a realm is founded is read off who holds force and voice among its people, not off a line on its ways", () => {
+  const read = (set: Partial<Record<"hierarchy" | "valour", number>>) => ({
+    hierarchy: set.hierarchy ?? 0.5,
+    openness: 0.5,
+    tradition: 0.5,
+    valour: set.valour ?? 0.5,
+    piety: 0.5,
+    trade: 0.5,
+    thrift: 0.5,
   });
+  // Rank leaves the choice to fewer; many who lead carry it wider; valour keeps arms in every household.
+  const [, rankedVoice] = foundingHolds(read({ hierarchy: 0.8 }), null, 3),
+    [, evenVoice] = foundingHolds(read({ hierarchy: 0.3 }), null, 3),
+    [, manyVoice] = foundingHolds(read({ hierarchy: 0.5 }), null, 6),
+    [, fewVoice] = foundingHolds(read({ hierarchy: 0.5 }), null, 1),
+    [bold] = foundingHolds(read({ valour: 0.9 }), null, 3),
+    [meek] = foundingHolds(read({ valour: 0.1 }), null, 3);
+  assert.ok(rankedVoice < evenVoice, `${rankedVoice} < ${evenVoice}`);
+  assert.ok(fewVoice < manyVoice, `${fewVoice} < ${manyVoice}`);
+  assert.ok(bold < meek, "valour keeps the arms among the people");
+  const none = { leadership: -1, succession: -1, law: -1 },
+    court = { "the court": 0.5, "the temple": 0, "the army": 0 };
   assert.equal(
-    institutionsOf(ways({ piety: 0.7, hierarchy: 0.6 })).leadership,
+    formFromPowers([0.5, 0.15], court, none, true).leadership,
+    0,
+    "few carry it: a chief",
+  );
+  assert.equal(formFromPowers([0.5, 0.45], court, none, true).leadership, 1, "more: elders");
+  assert.equal(formFromPowers([0.5, 0.75], court, none, true).leadership, 2, "many: an assembly");
+  assert.equal(
+    formFromPowers([0.5, 0.15], { "the court": 0.3, "the temple": 0.5, "the army": 0 }, none, true)
+      .leadership,
     3,
-    "devout and ranked: a priest-king",
+    "the temple outweighing those who lead: a priest-king",
   );
-  assert.equal(institutionsOf(ways({ hierarchy: 0.6 })).leadership, 0, "ranked: a chief");
-  assert.equal(
-    institutionsOf(ways({ hierarchy: 0.4, kinship: 0.6 })).leadership,
-    1,
-    "kin: a council of elders",
-  );
-  assert.equal(
-    institutionsOf(ways({ hierarchy: 0.4, kinship: 0.4 })).leadership,
-    2,
-    "neither: an assembly",
-  );
-  // A chiefdom whose rank has eased a little stays a chiefdom; eased a lot, it does not.
-  const chief = { leadership: 0, succession: 0, law: 0 };
-  assert.equal(institutionsOf(ways({ hierarchy: 0.51 }), chief).leadership, 0);
-  assert.notEqual(institutionsOf(ways({ hierarchy: 0.45 }), chief).leadership, 0);
+  // Every realm of the world was founded under a rule read so: its founding decision cites the force and voice.
+  const formed = world.decisions.all().filter((d) => d.rule === "polity.form");
+  assert.ok(formed.length >= 3, `${formed.length} foundings`);
   void WAY;
+  void ({} as Ways);
 });
 
 test("a realm explains itself back through its founding to the land and the star", () => {

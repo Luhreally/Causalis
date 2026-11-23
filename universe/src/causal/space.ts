@@ -408,6 +408,16 @@ registerEventWords(FARLIFE_EVENTS.fell.type, (_world, e) => {
   const d = (e.data ?? {}) as FarLifeData;
   return `${cap(farName(d))} fell. ${d.why ?? ""} Year ${yearOfMoment(e.t)}`;
 });
+registerEventWords(FARLIFE_EVENTS.sickened.type, (_world, e) => {
+  const d = (e.data ?? {}) as FarLifeData & { from?: string; how?: string; life?: string };
+  const by =
+    d.how === "raid"
+      ? "in a raid"
+      : d.how === "lesson"
+        ? "with what they were taught"
+        : "with their trade";
+  return `A sickness of ${d.from ? (d.from.startsWith("the ") ? d.from : `the ${d.from}`) : "another world"} crossed to ${farName(d)} ${by}, a life of ${d.life ?? "the same liquid"} as theirs: it took ${pct(d.sick)} of them, year ${yearOfMoment(e.t)}`;
+});
 registerEventWords(FARLIFE_EVENTS.struck.type, (_world, e) => {
   const d = (e.data ?? {}) as FarLifeData;
   return `A landing struck ${farName(d)}: ${(d.sick ?? 0) > 0 ? `a sickness they had never met took ${pct(d.sick)} of those near where it came down, ` : ""}${count(d.dead ?? 0)} fell fighting${d.won ? " and the comers held the ground" : " and the comers were thrown back"}; of all of them, ${pct(d.lost)} were lost, year ${yearOfMoment(e.t)}`;

@@ -38,6 +38,7 @@ export {
   landfallFight,
   nativeHost,
   sicknessCrossed,
+  sicknessMet,
   shipForce,
   standOff,
   type ComerNumbers,
@@ -1571,6 +1572,7 @@ export {
   changeOf,
   changeWords,
   firstHolds,
+  foundingHolds,
   formOf,
   heldWords,
   holdWords,
@@ -1775,3 +1777,17 @@ export * from "./gifts.ts";
 // The gaps of 2026-11-22: a faith's head and the faith against a ruler; townsfolk sentenced and held; commanders held.
 export * from "./faithheads.ts";
 export * from "./sentences.ts";
+// (A ruler's temper, and what a realm writes down of its rule: the breadth round, 2026-11-23.)
+export * from "./temper.ts";
+export {
+  BORDERS,
+  entryBar,
+  entryParts,
+  exitBar,
+  exitParts,
+  gateBand,
+  gateWords,
+  gatesOpen,
+  type GateRead,
+} from "./borders.ts";
+export { CIRCLE, bodyLikeness, circleLeans, circleWords, moralCircle } from "./circle.ts";

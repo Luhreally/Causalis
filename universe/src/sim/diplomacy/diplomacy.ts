@@ -8,6 +8,7 @@
 // pact; when their opinion sours, the pact breaks, naming the term that soured it.
 // Realms who think ill are rivals — what war (M22) will read.
 import { SpyStore, spiesYear } from "../war/spies.ts";
+import { warsOf } from "../war/war.ts";
 import { COUNCILS, CouncilStore, councilsYear, sitTogether } from "./councils.ts";
 import {
   YEAR,
@@ -47,6 +48,8 @@ export type Term = {
   readonly name: string;
   readonly value: number;
   readonly source: Ref | null;
+  /** The realm that covets the other's stores, where this term is that hunger (war.ts reads who would march for them). */
+  readonly hungry?: Ref;
 };
 
 /** A remembered wrong (or kindness): it fades with a half-life of thirty years. */
@@ -69,9 +72,31 @@ export type Relation = {
 const FORGOTTEN = 0.02;
 const faded = (m: Memory, year: number) => m.value * dmath.pow(0.5, (year - m.year) / 30);
 
-/** Above this, realms swear a pact; below zero it breaks; below the negative, they are rivals. */
-export const PACT = 0.4;
+/** Below this, two realms are rivals. */
 export const RIVALRY = -0.4;
+/**
+ * What a pact is worth to each of two realms (the breadth round), and so whether it is sworn or kept: what each thinks of the
+ * other; a foe they share, by how far it outweighs the two of them together (a pact is first a bulwark: the balance of power);
+ * against what binding itself costs it, the wars the other is fighting now, into which it would be called. Sworn where it is
+ * worth more than PACT to both; broken where it is worth less than nothing to either.
+ */
+export const PACT = 0.4;
+export const ALLY = {
+  /** A shared foe as strong as the two together adds this much. */
+  foe: 0.35,
+  /** Each war the other fights costs this much, up to `drawnMost`. */
+  drawn: 0.12,
+  drawnMost: 0.36,
+} as const;
+
+/** What a pact is worth to one side: its regard, a shared foe's weight (0 … 1), the other's wars. */
+export function pactWorth(opinion: number, sharedFoe: number, otherWars: number): number {
+  return (
+    opinion +
+    ALLY.foe * Math.max(0, Math.min(1, sharedFoe)) -
+    Math.min(ALLY.drawnMost, ALLY.drawn * Math.max(0, otherWars))
+  );
+}
 
 /** More realms than a year's reckoning ever numbers: two realms' numbers as one. */
 const REALM_SPAN = 2 ** 24;
@@ -359,7 +384,44 @@ export function diplomacyYear(ctx: PopulationContext, t: SimTime): void {
     famine: HistoryEvent | undefined;
     trust: number;
     blamed: ReturnType<typeof blamesOutsiders>;
+    /** Its people, and the wars it fights now (what a pact with it would draw one into). */
+    might: number;
+    wars: number;
   };
+  // (Whom each realm counts its rivals, as last year's regard stood: a foe two of them share is a reason to bind.)
+  const rivals = new Map<Ref, Ref[]>();
+  for (const r of store.all())
+    if (r.opinion < RIVALRY) {
+      (rivals.get(r.a) ?? rivals.set(r.a, []).get(r.a)!).push(r.b);
+      (rivals.get(r.b) ?? rivals.set(r.b, []).get(r.b)!).push(r.a);
+    }
+  const wars = world.hasStore("war.wars") ? warsOf(world) : null,
+    mights = new Map<Ref, number>(),
+    mightOf = (ref: Ref): number => {
+      let m = mights.get(ref);
+      if (m === undefined) {
+        m = 0;
+        const q = realms.get(ref);
+        if (q && q.ended === null)
+          for (const c of q.members) m += ctx.provinces.get(c)?.total() ?? 0;
+        mights.set(ref, m);
+      }
+      return m;
+    },
+    /** The greatest foe two realms share, by its people over theirs together (0 … 1), and who. */
+    sharedFoe = (a: Polity, b: Polity): { weight: number; foe: Ref | null } => {
+      const ra = rivals.get(a.ref),
+        rb = rivals.get(b.ref);
+      if (!ra || !rb) return { weight: 0, foe: null };
+      let best = 0,
+        foe: Ref | null = null;
+      for (const c of ra)
+        if (rb.includes(c)) {
+          const w = mightOf(c) / Math.max(1, mightOf(a.ref) + mightOf(b.ref));
+          if (w > best || (w === best && foe !== null && c < foe)) [best, foe] = [w, c];
+        }
+      return { weight: Math.min(1, best), foe };
+    };
   const sides = new Map<Polity, Side>(),
     sideOf = (p: Polity): Side => {
       let s = sides.get(p);
@@ -377,6 +439,8 @@ export function diplomacyYear(ctx: PopulationContext, t: SimTime): void {
           famine,
           trust: holdOf(world, p.ref, HOLD.trust),
           blamed: blamesOutsiders(world, p.ref, year),
+          might: mightOf(p.ref),
+          wars: wars ? wars.fighting(p.ref).length : 0,
         };
         sides.set(p, s);
       }
@@ -439,6 +503,7 @@ export function diplomacyYear(ctx: PopulationContext, t: SimTime): void {
           name: `the hunger of ${realmName(hungry)} for their stores`,
           value: -0.25,
           source: famine.id,
+          hungry: hungry.ref,
         });
     }
     // A people who prize valour are feared by a neighbour who prizes it less: by how far past the neighbour's own (rules
@@ -530,17 +595,27 @@ export function diplomacyYear(ctx: PopulationContext, t: SimTime): void {
     );
     const before = store.keyed(key),
       relation: Relation = { a: a.ref, b: b.ref, opinion, terms, pact: before?.pact ?? null };
-    // Pacts sworn and broken.
-    if (!relation.pact && opinion > PACT) {
-      const best = [...terms].sort((x, y) => y.value - x.value)[0]!;
+    // Pacts sworn and broken, by what one is worth to each (pactWorth): their regard, a foe they share, the wars each would be
+    // drawn into.
+    const shared = sharedFoe(a, b),
+      worth = Math.min(
+        pactWorth(opinion, shared.weight, sb.wars),
+        pactWorth(opinion, shared.weight, sa.wars),
+      );
+    if (!relation.pact && worth > PACT) {
+      const foe =
+          shared.foe && shared.weight * ALLY.foe >= 0.1 ? realms.get(shared.foe) : undefined,
+        best = [...terms].sort((x, y) => y.value - x.value)[0]!,
+        reason = foe ? `a foe they share, ${realmName(foe)}` : best.name,
+        source = foe ? foe.event : best.source;
       relation.pact = world.events.emit({
         type: DIPLOMACY_EVENTS.pact.type,
         subjects: [a.ref, b.ref],
         place: ctx.provinces.get(a.seat)?.ref ?? null,
-        causes: best.source ? [{ ref: best.source, role: "enabler", weight: 1 }] : [],
-        data: { a: realmName(a), b: realmName(b), reason: best.name },
+        causes: source ? [{ ref: source, role: "enabler", weight: 1 }] : [],
+        data: { a: realmName(a), b: realmName(b), reason },
       });
-    } else if (relation.pact && opinion < 0) {
+    } else if (relation.pact && worth < 0) {
       const worst = [...terms].sort((x, y) => x.value - y.value)[0]!;
       const broken = world.events.emit({
         type: DIPLOMACY_EVENTS.broken.type,

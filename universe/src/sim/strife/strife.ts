@@ -28,7 +28,8 @@ import {
   revenueOf,
   unionOf,
 } from "../money/kept.ts";
-import { housesRead } from "../order/houses.ts";
+import { houseOfGroup, housesRead } from "../order/houses.ts";
+import { charterAgainstCoup, charterTorn } from "../order/charter.ts";
 import { risingOrganised } from "../order/groups-kept.ts";
 import {
   YEAR,
@@ -55,7 +56,7 @@ import {
   crown,
   cutOff,
   endRealm,
-  institutionsOf,
+  formFromPowers,
   politiesOf,
   raiseRealm,
   reach,
@@ -141,7 +142,8 @@ export const STRIFE = {
   /** How much more of its men a protectorate fields. */
   fields: 0.04,
   /** A split at a ruler's death is fought for, by how rule passes: by birth, by choice, by acclaim (M146). */
-  contested: [0.7, 0.45, 0.3],
+  /** A split throne is fought for by this times the claimant's share of the two hosts' strength (a half: this over two). */
+  contest: 1.4,
   /** A foiled general flees to the far lands and raises them, at least this often, more with the army's weight. */
   flees: 0.25,
   /** A rising is put down, at a civil war's end, this often at the least; the more if it was beaten back, the more
@@ -426,6 +428,8 @@ const learnedOf =
   (world: World, realm: Ref) =>
   (group: string): readonly number[] =>
     wantsOf(world)?.wantOf(realm, group) ?? holdsOf(world, realm);
+/** Those who give a realm back its rule from its army: all but the army. */
+const notArmy = (group: string): number => (group === "the army" ? 0 : 1);
 /** Who rises with the many: those who are not the seat's few; twice over those who till and herd, where the land is what they rose for. */
 const manyRose =
   (cause: Movement["cause"]) =>
@@ -435,6 +439,9 @@ const manyRose =
       : cause === "land" && (group === "farmers" || group === "herders")
         ? 2
         : 1;
+/** Who stands with a great house: the court, and the army half as much. */
+const houseRose = (group: string): number =>
+  group === "the court" ? 1 : group === "the army" ? 0.5 : 0;
 /** Who stands with a general: the army, and half as much whoever else is not the court he overthrows. */
 const armyRose = (group: string): number =>
   group === "the army" ? 1 : group === "the court" ? 0 : 0.5;
@@ -630,6 +637,8 @@ export function coupDanger(
     },
     // (A lodge sworn against the seat, sim/order/groups.ts: told only where one is kept, so a realm without is as it was.)
     ...plotters(world, p.ref),
+    // (A charter its people wrote: sim/order/charter.ts. Told only where one is.)
+    ...charterAgainstCoup(world, p.ref),
   ];
   return {
     score: factors.reduce((s, f) => s + f.contribution, 0),
@@ -670,8 +679,29 @@ function generalOf(
 }
 
 /**
- * A general seizes a realm's seat: it becomes a protectorate, ruled by its army (rule chosen by
- * the army, its law as it was); the old court's skimmers are purged. Returns the coup.
+ * What a coup won leaves a realm, by who carried it and who holds force after (the breadth round): where a great house that
+ * outweighs the crown carried it more than the army's own weight did (the court's sway by the house's), its head takes the
+ * throne and the realm is ruled as the court would have it ("palace"); where the arms are kept to the host (force at
+ * HOLDING.forceMid or more), the army rules as an army ("junta": a protectorate, until its rule is restored); else the general
+ * takes the throne and rules through the realm's own forms, read off the wants of those who stood with them ("crowned"), for
+ * the arms lie in too many hands for an army to hold the seat alone.
+ */
+export type CoupKind = "palace" | "junta" | "crowned";
+export function coupKindOf(
+  interests: readonly Interest[],
+  force: number,
+  rival: number,
+  commander: boolean,
+): CoupKind {
+  const sway = (g: string) => interests.find((i) => i.group === g)?.sway ?? 0,
+    army = sway("the army") * (0.5 + force) + (commander ? 0.1 : 0),
+    court = 2 * sway("the court") * rival;
+  return court > army ? "palace" : force >= HOLDING.forceMid ? "junta" : "crowned";
+}
+
+/**
+ * A coup seizes a realm's seat (coupKindOf says what follows): under its army, a protectorate (rule chosen by the army, its law
+ * as it was); the old court's skimmers are purged. Returns the coup.
  */
 export function seize(ctx: PopulationContext, p: Polity, causes: CauseRef[], t: SimTime): Ref {
   const { world } = ctx,
@@ -680,13 +710,49 @@ export function seize(ctx: PopulationContext, p: Polity, causes: CauseRef[], t: 
     o = orderOf(world)?.of(p.ref),
     year = yearOfMoment(t),
     was = realmName(p),
+    interests = interestsOf(ctx, p, t),
+    held = holdsOf(world, p.ref),
     // (Named before the event that crowns them, so the event can say who: a commander whose victories are their own, or the one
     // who holds the army's voice at court, if any does.)
     man = generalOf(world, p, year),
-    general = man?.name ?? newRuler(ctx, p, t, p.event, 1).name,
+    // (A coup among generals keeps the army's rule: the first of them made it a junta.)
+    kind: CoupKind = s.junta
+      ? "junta"
+      : coupKindOf(interests, held[HOLD.force]!, housesRead(world, p.ref)?.rival ?? 0, !!man?.cmd),
+    house = kind === "palace" ? houseOfGroup(world, p.ref, "the court") : null,
+    // (Who stood with it, by their sway: the court, and the army half as much, for a house; the army, and half as much whoever
+    // else is not the court it overthrew, for a general. What they want of the realm's numbers is what it is held to after.)
+    wants =
+      wantsOfRisen(interests, kind === "palace" ? houseRose : armyRose, learnedOf(world, p.ref)) ??
+      ([...held] as [number, number, number, number]),
+    sway: Record<string, number> = {};
+  for (const i of interests) sway[i.group] = i.sway;
+  const form =
+      kind === "junta"
+        ? null
+        : formFromPowers(
+            [wants[HOLD.force]!, Math.min(held[HOLD.voice]!, wants[HOLD.voice]!)],
+            sway,
+            p,
+            loreOf(world).effect(p.seat, "writing") > 0,
+          ),
+    seated =
+      kind === "palace"
+        ? crown(
+            world,
+            cultureOf(world).get(p.seat)!,
+            p.seat + 7 * 1_000_003,
+            t,
+            p.event,
+            house,
+            ctx.life.adulthood,
+          )
+        : null,
+    general = seated?.name ?? man?.name ?? newRuler(ctx, p, t, p.event, 1).name,
+    to = form ? realmName({ leadership: form.leadership, town: p.town }) : null,
     event = world.events.emit({
       type: STRIFE_EVENTS.coup.type,
-      subjects: man?.cmd ? [p.ref, notableRef(man.cmd)] : [p.ref],
+      subjects: man?.cmd && kind !== "palace" ? [p.ref, notableRef(man.cmd)] : [p.ref],
       place: ctx.provinces.get(p.seat)?.ref ?? null,
       causes: man?.last
         ? [...causes.slice(0, 5), { ref: man.last, role: "enabler", weight: 0.5 }]
@@ -695,36 +761,43 @@ export function seize(ctx: PopulationContext, p: Polity, causes: CauseRef[], t: 
         realm: was,
         general,
         from: LEADERSHIP[p.leadership],
-        ...(man?.fig !== undefined ? { fig: man.fig } : {}),
-        ...(man?.cmd ? { cmd: man.cmd } : {}),
+        ...(kind !== "junta" ? { how: kind, to } : {}),
+        ...(house ? { house } : {}),
+        ...(man?.fig !== undefined && kind !== "palace" ? { fig: man.fig } : {}),
+        ...(man?.cmd && kind !== "palace" ? { cmd: man.cmd } : {}),
       },
     });
-  // (A coup among generals keeps the rule the first of them overthrew; the new general's own men
-  // hold every post for a while.)
-  s.junta ??= { since: year, event, was: [p.leadership, p.succession, p.law] };
   s.purged = year + STRIFE.grip;
-  p.leadership = GENERAL;
-  p.succession = 1;
+  if (kind === "junta") {
+    // (The new general's own men hold every post for a while.)
+    s.junta ??= { since: year, event, was: [p.leadership, p.succession, p.law] };
+    p.leadership = GENERAL;
+    p.succession = 1;
+  } else {
+    p.leadership = form!.leadership;
+    p.succession = form!.succession;
+    p.law = form!.law;
+  }
   ordersChanged(world, p);
-  p.ruler = man
-    ? { name: man.name, sex: man.sex, born: man.born, since: year, event }
-    : { ...newRuler(ctx, p, t, event, 1), event };
+  p.ruler = seated
+    ? { ...seated, event }
+    : man
+      ? { name: man.name, sex: man.sex, born: man.born, since: year, event }
+      : { ...newRuler(ctx, p, t, event, 1), event };
   if (o) {
     o.corruption *= 0.6;
     o.crisis = null;
-    // (Its choices, its arms and its word as those who rose would have them: the army, and half as much whoever
-    // else is not the court he overthrew, by their sway. So a general raised with traders at his back leaves word
-    // freer than one the temple stood behind. Never more of a voice than a seat taken by the sword can give, nor
-    // fewer arms kept to the host: rules/holds.ts.)
-    const wants =
-      wantsOfRisen(interestsOf(ctx, p, t), armyRose, learnedOf(ctx.world, p.ref)) ??
-      ([...holdsOf(ctx.world, p.ref)] as [number, number, number, number]);
+    // (Its choices, its arms and its word as those who stood with it would have them, by their sway. So a general raised with
+    // traders at his back leaves word freer than one the temple stood behind. Never more of a voice than a seat taken by force
+    // can give; under an army, never fewer arms kept to the host: rules/holds.ts.)
     setHeld(o, "voice", Math.min(0.3, wants[HOLD.voice]!), "most", event);
-    setHeld(o, "force", Math.max(0.6, wants[HOLD.force]!), "least", event);
+    if (kind === "junta") setHeld(o, "force", Math.max(0.6, wants[HOLD.force]!), "least", event);
     setHeld(o, "word", Math.min(0.5, wants[HOLD.word]!), "most", event);
   }
   store.coups.push({ realm: p.ref, year, event, won: true, was, general });
-  armyDone(world, p, event, true);
+  // (An army or a general made master tears what its people wrote: a house that takes the throne rules under it.)
+  if (kind !== "palace") charterTorn(ctx, p, event);
+  armyDone(world, p, event, kind !== "palace");
   return event;
 }
 
@@ -1323,8 +1396,22 @@ export function restore(
     s = store?.of(p.ref),
     ways = cultureOf(world).get(p.seat);
   if (!store || !s?.junta || !ways) return null;
-  const year = yearOfMoment(t),
-    inst = institutionsOf(ways, undefined, loreOf(world).effect(p.seat, "writing") > 0),
+  // (The rule given back is read off what those who are not the army want of its numbers, by their sway: the many, the court,
+  // the temple; and whose sway is greatest without the army's. The rule it had before the army is what is eased toward.)
+  const interests = interestsOf(ctx, p, t),
+    wants =
+      wantsOfRisen(interests, notArmy, learnedOf(world, p.ref)) ??
+      ([...holdsOf(world, p.ref)] as [number, number, number, number]),
+    sway: Record<string, number> = {};
+  for (const i of interests) if (i.group !== "the army") sway[i.group] = i.sway;
+  const [l0, s0, w0] = s.junta.was,
+    year = yearOfMoment(t),
+    inst = formFromPowers(
+      [wants[HOLD.force]!, wants[HOLD.voice]!],
+      sway,
+      { leadership: l0 ?? 0, succession: s0 ?? 0, law: w0 ?? 0 },
+      loreOf(world).effect(p.seat, "writing") > 0,
+    ),
     was = realmName(p),
     event = world.events.emit({
       type: STRIFE_EVENTS.restored.type,
@@ -1344,6 +1431,9 @@ export function restore(
   p.law = inst.law;
   p.ruler = { ...newRuler(ctx, p, t, event, 2), event };
   s.junta = null;
+  // (Its people's say given back as far as those who restored it want it.)
+  const o = orderOf(world)?.of(p.ref);
+  if (o) setHeld(o, "voice", wants[HOLD.voice]!, "least", event);
   return event;
 }
 
@@ -1367,7 +1457,14 @@ export function strifeYear(ctx: PopulationContext, t: SimTime): void {
     if (!old || old.ended !== null || !why) continue;
     const key = parseRef(q.ref).b >>> 0;
     if (why.type === POLITY_EVENTS.split.type) {
-      const chance = STRIFE.contested[old.succession] ?? 0.45;
+      // (A split throne is fought for as far as the claimant's host can hope to take it: its strength against the realm's, and
+      // the more by a people who prize valour.)
+      const share = strengthOf(ctx, q) / Math.max(1, strengthOf(ctx, q) + strengthOf(ctx, old)),
+        chance = clamp(
+          0.05,
+          0.9,
+          STRIFE.contest * share + 0.3 * (trait(cultureOf(world).get(q.seat), WAY.valour) - 0.5),
+        );
       if (!(world.rng.real(COUP, key, t, 8) < chance)) continue;
       const decision = world.decisions.record({
         rule: "strife.civil",
@@ -1379,13 +1476,13 @@ export function strifeYear(ctx: PopulationContext, t: SimTime): void {
           {
             name: "a throne contested",
             value: old.succession,
-            contribution: chance,
+            contribution: 0,
             source: { ref: why.id, role: "trigger", weight: 1 },
           },
           {
             name: "the claimant's host against the realm's",
-            value: strengthOf(ctx, q) / Math.max(1, strengthOf(ctx, old)),
-            contribution: 0,
+            value: share,
+            contribution: STRIFE.contest * share,
             source: null,
           },
         ],

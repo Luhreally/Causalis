@@ -86,6 +86,8 @@ import "./town.ts";
 import "./lessons.ts";
 // A faith's head, a commander held (2026-11-22).
 import "./gaps.ts";
+// (Who may leave a realm and who may come in, 2026-11-23.)
+import "./borders.ts";
 export { CLASH_WHAT_WORDS, FAITH_FORM_WORDS } from "./gaps.ts";
 export { priceWords } from "./economy.ts";
 export { ROUTE_WORDS, SOURCE_WORDS, VIA_WORDS, oneIn, sparedWords, strangersOf } from "./health.ts";
@@ -117,3 +119,5 @@ export {
   eventHasWords,
 } from "./why.ts";
 export { heldPhrase } from "./uprooted.ts";
+// (What a realm writes down of its rule: the breadth round, 2026-11-23.)
+import "./charter.ts";

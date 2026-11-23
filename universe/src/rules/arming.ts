@@ -180,3 +180,25 @@ export function levyShare(e: {
     (1 - dmath.clamp(e.disarm, 0, 1))
   );
 }
+
+/**
+ * How much better a host fights for being drilled and seasoned (the breadth round): men kept under arms the year round learn
+ * their drill (as far as their realm has learned of arms), and men who have fought keep what the field taught them. A raw
+ * levy fights as it is.
+ */
+export const TRAINING = {
+  /** A host all kept under arms, its arms learned once over, fights this much the better. */
+  drill: 0.2,
+  /** A host that has fought `seasonedAt` battles these five years fights this much the better, and no more for more. */
+  seasoned: 0.15,
+  seasonedAt: 6,
+} as const;
+
+/** A host's term in battle (1: a raw levy): `kept` the share of it kept under arms the year round, `arms` its arms learned (1 …), `fought` its battles of late. */
+export function trainedTerm(kept: number, arms: number, fought: number): number {
+  return (
+    1 +
+    TRAINING.drill * dmath.clamp(kept, 0, 1) * Math.min(2, Math.max(1, arms)) * 0.5 +
+    TRAINING.seasoned * Math.min(1, Math.max(0, fought) / TRAINING.seasonedAt)
+  );
+}

@@ -103,7 +103,12 @@ export const rungOfStage = (stage: FolkStage): number => {
 };
 
 /** What a people's life steps by, from what is read of it on its world (natives.ts' reading). */
-export function folkFacts(seed: string, s: GalaxyStar, p: ForeignPlanet, f: Folk): FarFacts {
+export function folkFacts(
+  seed: string,
+  s: GalaxyStar,
+  p: ForeignPlanet,
+  f: Pick<Folk, "ref" | "body" | "oxygen" | "means" | "ceiling" | "bodiesAgo">,
+): FarFacts {
   const key = `${seed} farlife ${f.ref}`,
     base = worldFacts(key, s, p, f.body, f.oxygen),
     heat = hottest(f.means).heat,
@@ -125,8 +130,40 @@ export function folkFacts(seed: string, s: GalaxyStar, p: ForeignPlanet, f: Folk
   };
 }
 
-/** What a followed people's life steps by: its world, and its body (gen/civilizations.ts' own). Its rungs are history's. */
-export function civFacts(world: World, civ: Civilization): FarFacts | null {
+type FollowedFacts = (world: World, civ: Civilization, ceiling: number) => FarFacts | null;
+/** natives.ts gives its reading of a followed people's facts here as it loads (it reads this module; held on the function). */
+export function factsOfFollowed(read: FollowedFacts): void {
+  (factsOfFollowed as { read?: FollowedFacts }).read = read;
+}
+
+/**
+ * The highest rung a followed people's own world lets it come to, as the years read of it say: a road its world shuts to it
+ * (natives.ts followedRead) puts the years past it at never.
+ */
+export function civCeiling(civ: Pick<Civilization, "electronics" | "orbit" | "stars">): number {
+  return Number.isFinite(civ.stars)
+    ? STARS_RUNG
+    : Number.isFinite(civ.orbit)
+      ? 6
+      : Number.isFinite(civ.electronics)
+        ? 5
+        : 4;
+}
+
+/**
+ * What a followed people's life steps by: its world, and its body (gen/civilizations.ts' own), as far as its world lets it come
+ * (`ceiling`; left out, as its years say: civCeiling). Its rungs are its own, as any people's are (round F; until 2026-11-23 its
+ * rungs were history's clock, CLIMB_YEARS times a drawn pace, and it could not fall).
+ */
+export function civFacts(
+  world: World,
+  civ: Civilization,
+  ceiling: number = civCeiling(civ),
+): FarFacts | null {
+  // (Read as any people's is, off what its world's matter lets it make (natives.ts gives the reading here as it loads); the
+  // coarse reading below only where that finds nothing.)
+  const read = (factsOfFollowed as { read?: FollowedFacts }).read?.(world, civ, ceiling);
+  if (read) return read;
   const s = clusterOf(world).find((x) => civ.star.endsWith(`:${x.sector}:${x.k}`)),
     p = s
       ? foreignPlanets(new Rng(world.seed), s, worldLaws(world)?.gravity)[civ.planet]
@@ -148,11 +185,15 @@ export function civFacts(world: World, civ: Civilization): FarFacts | null {
     fire: burns,
     grips: a.dexterity >= 0.5,
     fuelMJ: burns && !base.sea ? FUEL_MJ_KM2 * Math.min(2.5, Math.max(0.3, ashore / 0.45)) : 0,
-    ceiling: STARS_RUNG,
+    ceiling,
   };
 }
 
-/** The rung history holds a followed people at in a year: its climb, then its signals, orbit and stars (gen/civilizations.ts). */
+/**
+ * The rung the clock of before held a followed people at in a year (its climb at CLIMB_YEARS times its drawn pace, then its
+ * signals, orbit and stars at gen/civilizations.ts' HOME_PACE): no longer read by history, which reads its own numbers
+ * (civLived); kept for a people whose body is not read, and for the pages that set the two side by side.
+ */
 const CLIMB_YEARS = [0, 130, 300, 500, 720];
 export function clockRung(civ: Civilization, year: number): number {
   if (year >= civ.stars) return 7;
@@ -164,7 +205,45 @@ export function clockRung(civ: Civilization, year: number): number {
   return r;
 }
 
-/** A followed people's step: its own numbers lived, its rung history's; it does not fall from history's view, but breaks. */
+/**
+ * A followed people's step as history steps it: its own numbers lived, and no rung past what the years read of it have come to
+ * (its world's shut roads, and the slower climb of works driven by other roads than fuel: natives.ts). It may fall.
+ */
+export function heldBy(next: FarState, civ: Civilization, year: number): FarState {
+  if (next.fell !== null) return next;
+  const most =
+    year >= civ.stars ? STARS_RUNG : year >= civ.orbit ? 6 : year >= civ.electronics ? 5 : 4;
+  return next.rung > most ? { ...next, rung: most } : next;
+}
+
+/** The first year a reading's rungs came to a rung (Infinity: never, within what was read). */
+export function firstAtRung(rungs: readonly number[], rung: number): number {
+  for (let i = 0; i < rungs.length; i += 2) if (rungs[i + 1]! >= rung) return rungs[i]!;
+  return Infinity;
+}
+
+/**
+ * A followed people as its own numbers read it (round F's rules, rules/farlife.ts farStep, the same as every people's): the years
+ * it comes to its signals, its orbit and the stars are the years its life first stands on those rungs, and the year it fell, where
+ * it fell first. Before 2026-11-23 the years were its drawn pace times the home world's (HOME_PACE), and it never fell. A people
+ * whose body is not read keeps the years it was made with. Pure: the same world always reads the same.
+ */
+export function civLived(world: World, civ: Civilization): Civilization {
+  const facts = civFacts(world, civ, STARS_RUNG);
+  if (!facts) return civ;
+  const r = readingKept(`${lawlessSeed(world.seed.text)} civ ${civ.ref} ${STARS_RUNG}`, () =>
+    beginReading(facts, civ.offset, null),
+  );
+  readOn(r, civ.offset + READ_AHEAD);
+  const fell = r.state.fell,
+    at = (rung: number) => {
+      const y = firstAtRung(r.rungs, rung);
+      return fell !== null && y >= fell ? Infinity : y;
+    };
+  return { ...civ, electronics: at(5), orbit: at(6), stars: at(7), fell };
+}
+
+/** A followed people's step under the clock of before: its own numbers lived, its rung history's; it did not fall, but broke. */
 export function heldTo(s: FarState, next: FarState, rung: number): FarState {
   // (Held by history where its own numbers fell, a people stands at a fifth of the most it was, once: the most it was is then
   // what it stands at, so that a people its ground cannot feed is not stood up again at that fifth step after step, its rung
@@ -377,12 +456,12 @@ export function livedFolk(
 
 // —— A followed people's life, as history holds it or as read ——————————————————————————————————————
 
-/** A followed people's life as read from its first year (its rungs history's). */
+/** A followed people's life as read from its first year, as far as its world lets it come (its rungs its own). */
 export function civReading(world: World, civ: Civilization): FarReading | null {
   const facts = civFacts(world, civ);
   if (!facts) return null;
-  return readingKept(`${lawlessSeed(world.seed.text)} civ ${civ.ref}`, () =>
-    beginReading(facts, civ.offset, (y) => clockRung(civ, y)),
+  return readingKept(`${lawlessSeed(world.seed.text)} civ ${civ.ref} ${facts.ceiling}`, () =>
+    beginReading(facts, civ.offset, null),
   );
 }
 
@@ -419,7 +498,12 @@ export function livedStrength(world: World, civ: Civilization, year: number): nu
  * from then is history's, and whether and when it fell (natives.ts folkOf gives every people it reads through this).
  */
 export function heldFolk(world: World, f: Folk | null): Folk | null {
-  if (!f || f.followed || !f.lived) return f;
+  // (A followed people fallen as history holds it, after history took its life up: ruins from then.)
+  if (f?.followed) {
+    const row = farLifeOf(world)?.get(f.ref);
+    return row?.fell != null && f.fell === null ? { ...f, fell: row.fell, fellWhy: row.why } : f;
+  }
+  if (!f || !f.lived) return f;
   const row = farLifeOf(world)?.get(f.ref);
   if (!row) return f;
   return { ...f, held: row, fell: row.fell, fellWhy: row.fell !== null ? row.why : null };

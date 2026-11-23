@@ -16,7 +16,9 @@ import {
 } from "../../rules/index.ts";
 import {
   civilizationsEver,
+  civilizationsMade,
   civilizationsNear,
+  councilsOf,
   farNow,
   farReadAt,
   folkByRef,
@@ -29,7 +31,7 @@ import {
   type FarRow,
   type FarSample,
 } from "../../sim/index.ts";
-import type { World } from "../../kernel/index.ts";
+import type { Ref, World } from "../../kernel/index.ts";
 import type { Block, Item, Row, Stat, Tab } from "../../bridge/index.ts";
 import { claimOf, count, item, link, stat, yearNow } from "./words.ts";
 
@@ -146,6 +148,8 @@ function toldItems(world: World, row: FarRow): Item[] {
     );
 }
 
+const yearWords = (y: number) => (Number.isFinite(y) ? `in year ${Math.round(y)}` : "never");
+
 /** A far people's life: its numbers now, through the years, and what was done to it. */
 export function farLifeBlocks(world: World, ref: string, color?: Rgb): Block[] {
   const year = yearNow(world),
@@ -205,6 +209,30 @@ export function farLifeBlocks(world: World, ref: string, color?: Rgb): Block[] {
       ...(s.rung >= 5
         ? [stat("Strength among the stars", `${farStrength(s).toFixed(1)} of 5`)]
         : []),
+      // (A followed people's years are its own numbers': once a clock, its drawn pace times the home world's.)
+      ...((civ, made) =>
+        civ && made
+          ? [
+              stat(
+                "Their years",
+                `By their own numbers: their signals ${yearWords(civ.electronics)}, orbit ${yearWords(civ.orbit)}, the stars ${yearWords(civ.stars)}${civ.fell != null ? `; they fell in year ${civ.fell} before they came further` : ""}. The clock of before had them ${yearWords(made.electronics)}, ${yearWords(made.orbit)} and ${yearWords(made.stars)}.`,
+              ),
+            ]
+          : [])(
+        civilizationsNear(world).find((c) => c.ref === ref),
+        civilizationsMade(world).find((c) => c.ref === ref),
+      ),
+      // (A concord of worlds they sit in: sim/diplomacy/councils.ts.)
+      ...((c) =>
+        c
+          ? [
+              stat(
+                "Sits in",
+                `${cap(c.name)}, with ${c.members.length - 1} other${c.members.length === 2 ? "" : "s"}, since year ${c.founded}`,
+                { why: c.event },
+              ),
+            ]
+          : [])(councilsOf(world)?.councilOf(ref as Ref) ?? null),
       ...(s.rung >= 4
         ? [
             stat(

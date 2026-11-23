@@ -28,6 +28,7 @@ import { skyOf } from "../../rules/index.ts";
 import { homePlanet } from "../planet/store.ts";
 import { lawlessSeed } from "./lanes.ts";
 import { FarReadStore } from "./far-read.ts";
+import { civLived } from "./farlife-read.ts";
 import type { GalaxyStar } from "../../gen/index.ts";
 
 /**
@@ -58,8 +59,23 @@ export const CONTACT_EVENTS = {
 
 /** The civilizations of a world's cluster, kept while the world is the same. */
 const CIVS = new Map<string, Civilization[]>();
-/** Every people there ever was about these stars, those whose world is gone among them: what they were called outlives them. */
+const LIVED = new Map<string, Civilization[]>();
+/**
+ * Every people there ever was about these stars, those whose world is gone among them: what they were called outlives them. The
+ * years each comes to its signals, its orbit and the stars, and whether it fell first, are its own numbers' (farlife-read.ts
+ * civLived: its world's food, power, knowledge and holding together, as every far people's are read), not a clock.
+ */
 export function civilizationsEver(world: World): Civilization[] {
+  const key = world.seed.text;
+  let civs = LIVED.get(key);
+  if (!civs) {
+    if (LIVED.size > 8) LIVED.clear();
+    LIVED.set(key, (civs = civilizationsMade(world).map((c) => civLived(world, c))));
+  }
+  return civs;
+}
+/** The followed peoples as first made (gen/civilizations.ts: their years a drawn pace times the home world's): for a page's comparison. */
+export function civilizationsMade(world: World): Civilization[] {
   const key = world.seed.text;
   let civs = CIVS.get(key);
   if (!civs) {

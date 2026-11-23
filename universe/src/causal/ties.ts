@@ -39,9 +39,13 @@ export const CALL_WHY: Readonly<Record<string, string>> = {
 registerEventWords(COUNCIL_EVENTS.council.type, (_, e) => {
   const c = text(e.data, "council", "a council of realms"),
     who = text(e.data, "realm"),
-    kind = (e.data as { kind?: string } | null)?.kind;
+    kind = (e.data as { kind?: string } | null)?.kind,
+    // (A concord of worlds: peoples of more than one world among its members, bound by trade, teaching and peace among the stars.)
+    among = !!(e.data as { among?: boolean } | null)?.among;
   return kind === "founded"
-    ? `${cap(c)} first sat, its realms bound by treaty after treaty, ${year(e.t)}`
+    ? among
+      ? `${cap(c)} first sat, peoples of more than one world bound by trade, teaching and peace among the stars, ${year(e.t)}`
+      : `${cap(c)} first sat, its realms bound by treaty after treaty, ${year(e.t)}`
     : kind === "joined"
       ? `${cap(who)} came to sit in ${c}, bound by treaty to half of it, ${year(e.t)}`
       : kind === "left"

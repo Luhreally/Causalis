@@ -31,7 +31,8 @@ import {
 } from "../../src/sim/space/farlife-store.ts";
 import {
   beginReading,
-  heldTo,
+  firstAtRung,
+  heldBy,
   readAt,
   readOn,
   stageByRungs,
@@ -311,11 +312,19 @@ test("a reading asked of a past year reads what it read going on to it", () => {
   assert.ok(r.rungs.length >= 4, "it climbed");
 });
 
-test("a followed people's rung is history's, and it breaks rather than falls", () => {
-  const s = { ...farBegins(EARTH, 1e9), peak: 1e9, top: 5 },
-    fallen = { ...s, people: 0, fell: 900 },
-    held = heldTo(s, fallen, 6);
-  assert.equal(held.fell, null);
-  assert.equal(held.rung, 6);
-  assert.ok(held.people >= 0.2 * s.peak);
+test("a followed people's rung is its own, no further than its years have come, and it may fall", () => {
+  const s = { ...farBegins(EARTH, 1e9), peak: 1e9, top: 5, rung: 7 },
+    civ = { electronics: 800, orbit: 990, stars: Infinity } as never,
+    capped = heldBy(s, civ, 1000),
+    early = heldBy({ ...s, rung: 5 }, civ, 700),
+    fallen = heldBy({ ...s, people: 0, fell: 900 }, civ, 1000);
+  assert.equal(capped.rung, 6, "no rung past what its years have come to");
+  assert.equal(early.rung, 4);
+  assert.equal(fallen.fell, 900, "it falls");
+  assert.equal(fallen.people, 0);
+  // (Its years are the first its own reading stands on each rung.)
+  const r = beginReading(EARTH, 0, null);
+  readOn(r, 3000);
+  assert.ok(firstAtRung(r.rungs, 5) > firstAtRung(r.rungs, 4));
+  assert.equal(firstAtRung([0, 0, 100, 1], 3), Infinity);
 });

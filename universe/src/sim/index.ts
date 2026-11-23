@@ -329,7 +329,9 @@ export {
   endRealm,
   governmentKey,
   formFromPowers,
-  institutionsOf,
+  foundingForm,
+  temperOfRuler,
+  FOUNDING,
   installPolities,
   politiesOf,
   polityYear,
@@ -1263,7 +1265,7 @@ export {
   type FarCeiling,
   type FarRead,
 } from "./space/far-read.ts";
-export { civilizationOf, farReadAll, farReadNext } from "./space/contact.ts";
+export { civilizationOf, civilizationsMade, farReadAll, farReadNext } from "./space/contact.ts";
 export { FarReadStore } from "./space/far-read.ts";
 export { folkPeopleAt, followedRead } from "./space/natives.ts";
 export { WANTS_LEARN, WantsStore, learnWants, wantsOf, type GroupWants } from "./order/wants.ts";
@@ -2073,7 +2075,18 @@ export { peopleTemper } from "./space/peoples.ts";
 // A far people's reigns as news, for the peoples heard (2026-11-22): sim/space/far-reigns.ts.
 export { FAR_REIGN_EVENTS, FarReignStore, farReignsOf, type FarReign } from "./space/far-reigns.ts";
 // Why a land's people leave it, past hunger (2026-11-22): sim/population/flight.ts.
-export { FLIGHT, FlightYear, WAR_FLIGHT, flightYear, weighsWages } from "./population/flight.ts";
+export {
+  BORDER_EVENTS,
+  BorderStore,
+  FLIGHT,
+  FlightYear,
+  WAR_FLIGHT,
+  bordersOf,
+  flightYear,
+  gateRead,
+  gatesOf,
+  weighsWages,
+} from "./population/flight.ts";
 // A realm's own word on its groups (2026-11-22): sim/order/grouphand.ts.
 export { DECREE, namedBite, realmDecrees } from "./order/grouphand.ts";
 // A land's woods against its tillable ground (sim/ecology/ecology.ts).
@@ -2121,3 +2134,19 @@ export {
   type Led,
 } from "./notable/roll.ts";
 export { victoriousCommander } from "./notable/kept.ts";
+// What a realm writes down of its rule, and does with it (the breadth round, 2026-11-23).
+export {
+  BEARERS,
+  CHARTER,
+  CHARTER_EVENTS,
+  CharterStore,
+  EMERGENCY,
+  LOCAL,
+  REFERENDUM,
+  chartersOf,
+  localOf,
+  type Charter,
+} from "./order/charter.ts";
+export { coupKindOf, type CoupKind } from "./strife/strife.ts";
+export { trainedOf } from "./war/war.ts";
+export { ALLY, pactWorth } from "./diplomacy/diplomacy.ts";

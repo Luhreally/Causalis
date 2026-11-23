@@ -30,6 +30,14 @@ import {
   farThreat,
   landed,
   meetingLeans,
+  sicknessMet,
+  CIRCLE,
+  FOLK,
+  TENET_POWERS,
+  bodyLikeness,
+  circleLeans,
+  moralCircle,
+  nationTarget,
   starDriveFor,
   taught,
   warAim,
@@ -40,16 +48,17 @@ import {
   type FarThreat,
 } from "../../rules/index.ts";
 import { WAY, cultureOf } from "../culture/culture.ts";
+import { identityOf } from "../culture/folk.ts";
+import { beliefOf } from "../belief/belief.ts";
 import { knows } from "../lore/lore.ts";
-import { politiesOf, type Polity } from "../polity/polity.ts";
+import { politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import { homePlanet } from "../planet/store.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { civilizationsNear } from "./contact.ts";
 import {
   civReading,
-  clockRung,
   fellWords,
-  heldTo,
+  heldBy,
   livedState,
   readAt,
   type FarReading,
@@ -90,6 +99,8 @@ export const FARLIFE_EVENTS = {
   struck: defineEventType("farlife.struck", 5),
   /** A far people's own star ended (the sweep, Nature lane). */
   starEnded: defineEventType("farlife.star-ended", 6),
+  /** A sickness of another world crossed to a far people as they met: by trade, a lesson, a raid (2026-11-23). */
+  sickened: defineEventType("farlife.sickened", 4),
 };
 
 const FARLIFE = defineStream("space.farlife");
@@ -139,7 +150,8 @@ export function farNow(
 /** Whether a followed people is broken now (strife: no ship of it sails). */
 export function heldBroken(world: World, ref: string): boolean {
   const row = farLifeOf(world)?.get(ref);
-  return !!row && row.s[15] === 1;
+  // (A people fallen sends no ship again.)
+  return !!row && (row.s[15] === 1 || row.fell !== null);
 }
 
 // —— What the home world is, as a far people reads it ——————————————————————————————————————————
@@ -273,6 +285,7 @@ export function meetingWeights(
   readonly threat: FarThreat;
   readonly gain: FarGain;
   readonly leaning: { curious: number; wary: number; bold: number; trading: number };
+  readonly circle: number;
 } {
   const world = ctx.world,
     read = meetingReading(ctx, me, them, year, me.kind === "home" || r.omen ? 1 : 0.8);
@@ -288,15 +301,67 @@ export function meetingWeights(
       trading: 0.8 * t("trade") + 0.2 * t("openness"),
     };
   }
-  const weights = meetingLeans({
-    threat: read.threat,
-    gain: read.gain,
-    ...leaning,
-    speak: r.speak,
-    pressed: r.pressed,
-    omen: r.omen,
+  // (How far its "us" reaches toward beings like the others: rules/circle.ts. It leans the meeting toward wonder and trade.)
+  const circle = circleOf(ctx, me, them, year),
+    weights = circleLeans(
+      meetingLeans({
+        threat: read.threat,
+        gain: read.gain,
+        ...leaning,
+        speak: r.speak,
+        pressed: r.pressed,
+        omen: r.omen,
+      }),
+      circle,
+    );
+  return { weights, threat: read.threat, gain: read.gain, leaning, circle };
+}
+
+/** A side's body, and the life it is of: a people's as read, the home world's people's. */
+function bodyOfSide(ctx: PopulationContext, side: FarSide) {
+  if (side.kind === "people") return folkByRef(ctx.world, side.civ.ref)?.body ?? null;
+  return ctx.generated.life.people?.body ?? null;
+}
+const sideRefOf = (side: FarSide): string =>
+  side.kind === "people" ? side.civ.ref : (side.realm?.ref ?? "");
+
+/**
+ * How far `me`'s circle reaches toward `them` (rules/circle.ts moralCircle): its "us" (a land of the home world, as far as its people
+ * imagine themselves one, sim/culture/folk.ts; a far people as its readers and its holding together reach, rules/folk.ts
+ * nationTarget), the other's likeness to it, and its faith's powers. 0 where a body is not read.
+ */
+export function circleOf(ctx: PopulationContext, me: FarSide, them: FarSide, year: number): number {
+  const world = ctx.world,
+    a = bodyOfSide(ctx, me),
+    b = bodyOfSide(ctx, them);
+  if (!a || !b) return 0;
+  const la = lifeOfSide(ctx, sideRefOf(me)),
+    lb = lifeOfSide(ctx, sideRefOf(them)),
+    same =
+      !!la && !!lb
+        ? la.life === lb.life
+        : me.kind === "home" || them.kind === "home"
+          ? false
+          : true,
+    likeness = bodyLikeness(a, b, same);
+  let reach: number = FOLK.least,
+    powers: Partial<Record<string, number>> = {};
+  if (me.kind === "home") {
+    reach = identityOf(world, me.cell)?.nation ?? FOLK.least;
+    const faith = beliefOf(world).of(me.cell).faith,
+      tenet = faith ? beliefOf(world).get(faith)?.tenet : undefined;
+    powers = (tenet && TENET_POWERS[tenet]) || {};
+  } else {
+    const s = livedState(world, me.civ, year);
+    if (s) reach = nationTarget(s.letters, s.cohesion, s.war);
+  }
+  return moralCircle({
+    reach,
+    likeness,
+    harms: powers.harms ?? 0,
+    gives: powers.gives ?? 0,
+    knows: powers.knows ?? 0,
   });
-  return { weights, threat: read.threat, gain: read.gain, leaning };
 }
 
 /**
@@ -316,13 +381,15 @@ export function fleetWill(
   const read = meetingReading(ctx, me, them, year, 1),
     b = sideNumbers(ctx, them, year),
     a = sideNumbers(ctx, me, year);
-  return warAim({
+  const aim = warAim({
     mine: s,
     crowded,
     threat: read.threat.level,
     gain: read.gain.level,
     theirLivable: couldLive(a, b),
   });
+  // (A people sends its fleets the less against beings its circle reaches: rules/circle.ts.)
+  return { aim: aim.aim, will: aim.will * (1 - CIRCLE.war * circleOf(ctx, me, them, year)) };
 }
 
 /** How far a people's weariness of war and another's pull them to peace (a people's own; a realm's, none kept). */
@@ -377,12 +444,19 @@ function setState(store: FarLifeStore, row: FarRow, s: FarState, year: number): 
   store.set(row);
 }
 
-/** What raids among the peoples did this year: each side wearied by its losses, a hold taken taking its people. */
-function raidsYear(world: World, store: FarLifeStore, year: number): void {
-  const peoples = peoplesOf(world);
+/** What raids among the peoples did this year: each side wearied by its losses, a hold taken taking its people; a sickness may cross. */
+function raidsYear(ctx: PopulationContext, store: FarLifeStore, year: number, t: SimTime): void {
+  const world = ctx.world,
+    peoples = peoplesOf(world);
   if (!peoples) return;
-  for (const r of peoples.raids) {
+  for (const [i, r] of peoples.raids.entries()) {
     if (r.year !== year) continue;
+    {
+      const by = store.get(r.civ),
+        on = store.get(r.other);
+      if (on) sicknessCrosses(ctx, store, on, r.civ, "raid", r.event, year, t, 1000 + i);
+      if (by) sicknessCrosses(ctx, store, by, r.other, "raid", r.event, year, t, 1500 + i);
+    }
     const by = store.get(r.civ);
     if (by) {
       const s = unpack(by);
@@ -444,12 +518,131 @@ function battlesYear(world: World, store: FarLifeStore, year: number): void {
   }
 }
 
-/** What passed between peoples this year: a lesson moves the taker's knowledge, goods its power or its food. */
-function exchangesYear(world: World, store: FarLifeStore, year: number): void {
-  const peoples = peoplesOf(world);
+/** The life a side is of (its liquid and its backbone: what a sickness of it could live in), and its name. */
+function lifeOfSide(ctx: PopulationContext, ref: string): { life: string; name: string } | null {
+  if (ref.startsWith("civ:")) {
+    const f = folkByRef(ctx.world, ref);
+    return f ? { life: `${f.life.family}/${f.life.backbone ?? "carbon"}`, name: f.name } : null;
+  }
+  const p = politiesOf(ctx.world).get(ref as Ref);
+  if (!p) return null;
+  const l = worldLife(ctx.generated);
+  return { life: `${l.family}/${l.backbone ?? "carbon"}`, name: realmName(p) };
+}
+
+/**
+ * A sickness crossing to a far people from another it met this year (rules/landfall.ts sicknessMet): by a trade, a lesson, a raid.
+ * `giver` a people's row or a realm of the home world. Its share of them taken, its sickness kept, told on its row and as an event.
+ */
+function sicknessCrosses(
+  ctx: PopulationContext,
+  store: FarLifeStore,
+  taker: FarRow,
+  giverRef: string,
+  how: "trade" | "lesson" | "raid",
+  cause: Ref,
+  year: number,
+  t: SimTime,
+  salt: number,
+): void {
+  const world = ctx.world,
+    a = lifeOfSide(ctx, taker.ref),
+    b = lifeOfSide(ctx, giverRef);
+  if (!a || !b || taker.fell !== null) return;
+  const giverRow = store.get(giverRef),
+    g = giverRow ? unpack(giverRow) : null,
+    realm = giverRow ? null : (politiesOf(world).get(giverRef as Ref) ?? null),
+    s = unpack(taker),
+    key = refKey(taker.ref),
+    share = sicknessMet({
+      same: a.life === b.life,
+      giverRung: g ? g.rung : homeRung(ctx, realm),
+      giverSick: g ? g.sick : 0,
+      met: taker.told.some((x) => x.what === "sickness" && x.by === giverRef),
+      takerRung: s.rung,
+      u: world.rng.real(FARLIFE, key, t, 40 + 2 * salt),
+      v: world.rng.real(FARLIFE, key, t, 41 + 2 * salt),
+    });
+  if (!(share > 0)) return;
+  const event = world.events.emit({
+    type: FARLIFE_EVENTS.sickened.type,
+    place: null,
+    subjects: [taker.ref as Ref, giverRef as Ref],
+    causes: [{ ref: cause, role: "trigger", weight: 1 }],
+    data: {
+      name: a.name,
+      from: b.name,
+      how,
+      sick: Math.round(share * 100) / 100,
+      life: a.life.split("/")[0],
+      year,
+    },
+  });
+  setState(
+    store,
+    taker,
+    { ...s, people: s.people * (1 - share), sick: Math.max(s.sick, share) },
+    year,
+  );
+  tellOn(taker, { year, what: "sickness", by: giverRef as Ref, amount: share, event });
+}
+
+/** What passed between peoples this year: a lesson moves the taker's knowledge, goods its power or its food; a sickness may cross. */
+function exchangesYear(
+  ctx: PopulationContext,
+  store: FarLifeStore,
+  year: number,
+  at: SimTime,
+): void {
+  const world = ctx.world,
+    peoples = peoplesOf(world);
   if (!peoples) return;
-  for (const x of peoples.exchanges) {
-    if (x.year !== year || x.what === "ways" || !x.detail) continue;
+  for (const [i, x] of peoples.exchanges.entries()) {
+    if (x.year !== year) continue;
+    // (Whoever met, a sickness may go each way with them: a people's from the other, a realm's to the people.)
+    if (x.other.startsWith("civ:")) {
+      const ra = store.get(x.civ),
+        rb = store.get(x.other);
+      if (ra)
+        sicknessCrosses(
+          ctx,
+          store,
+          ra,
+          x.other,
+          x.what === "knowledge" ? "lesson" : "trade",
+          x.event,
+          year,
+          at,
+          i,
+        );
+      if (rb)
+        sicknessCrosses(
+          ctx,
+          store,
+          rb,
+          x.civ,
+          x.what === "knowledge" ? "lesson" : "trade",
+          x.event,
+          year,
+          at,
+          i + 500,
+        );
+    } else {
+      const ra = store.get(x.civ);
+      if (ra)
+        sicknessCrosses(
+          ctx,
+          store,
+          ra,
+          x.other,
+          x.what === "knowledge" ? "lesson" : "trade",
+          x.event,
+          year,
+          at,
+          i,
+        );
+    }
+    if (x.what === "ways" || !x.detail) continue;
     // (Between two peoples the detail names who took; to a realm, the people gave.)
     const taker = store.get(x.detail),
       giver = store.get(x.detail === x.civ ? x.other : x.civ);
@@ -648,7 +841,8 @@ function stepRow(
     });
     tellOn(row, { year, what: "star", by: sky.own.star, amount: 1, event });
   }
-  let next = civ ? heldTo(s, lived, clockRung(civ, year)) : lived;
+  // (A followed people's numbers are its own: it climbs as they let it, no further than its years have come, and it may fall.)
+  let next = civ ? heldBy(lived, civ, year) : lived;
   if (civ) {
     const f = fearOf(ctx, civ, year);
     next = { ...next, fear: Math.max(next.fear, f.level) };
@@ -711,9 +905,9 @@ export function farLifeYear(ctx: PopulationContext, t: SimTime): void {
   // (A landing takes up the life of those it came down on, whether or not any other is held yet.)
   landingsYear(ctx, store, year);
   if (store.dormant()) return;
-  raidsYear(world, store, year);
+  raidsYear(ctx, store, year, t);
   battlesYear(world, store, year);
-  exchangesYear(world, store, year);
+  exchangesYear(ctx, store, year, t);
   // Each in its year of ten steps on.
   for (const row of store.all()) {
     if (row.fell !== null || row.last >= year) continue;

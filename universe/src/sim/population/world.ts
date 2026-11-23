@@ -104,6 +104,7 @@ import { installFrontier } from "../frontier/install.ts";
 import { installCredit, installCreditActs } from "../credit/credit.ts";
 import { installFinance } from "../finance/finance.ts";
 import { installStrife, installStrifeActs } from "../strife/strife.ts";
+import { installCharters } from "../order/charter.ts";
 import { installCourts } from "../court/court.ts";
 import { installDesigns } from "../design/design.ts";
 import { installEcology } from "../ecology/ecology.ts";
@@ -488,6 +489,8 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   // (Peoples abroad: who of another people lives in a land, sim/culture/abroad.ts.)
   installAbroad(world, () => populationContext(world));
   installStrife(world, () => populationContext(world));
+  // (What a realm writes down of its rule, and does with it: sim/order/charter.ts.)
+  installCharters(world, () => populationContext(world));
   installCourts(world, () => populationContext(world));
   installCities(world, () => populationContext(world));
   installTowns(world, () => populationContext(world));

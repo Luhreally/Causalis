@@ -20,7 +20,12 @@ type Data = {
 } | null;
 
 registerEventWords(STRIFE_EVENTS.coup.type, (_world, e) => {
-  const d = e.data as Data;
+  const d = e.data as (Data & { how?: string; house?: string }) | null;
+  // (What followed was read off who carried it and who held the arms after: sim/strife/strife.ts coupKindOf.)
+  if (d?.how === "palace")
+    return `${d.general ?? "A great house"}${d.house ? ` of the house of ${d.house}` : ""} seized the seat of ${d.realm ?? "a realm"} in a palace coup, the court behind them: it is ${d.to ?? "theirs"} now, ${year(e.t)}`;
+  if (d?.how === "crowned")
+    return `${d.general ?? "A general"} seized the seat of ${d.realm ?? "a realm"} in a coup and took the throne, its arms in too many hands for an army to rule it: it is ${d.to ?? "theirs"} now, ${year(e.t)}`;
   return `${d?.general ?? "A general"} seized the seat of ${d?.realm ?? "a realm"} in a coup, and its army took the rule, ${year(e.t)}`;
 });
 registerEventWords(STRIFE_EVENTS.foiled.type, (_world, e) => {

@@ -5,6 +5,10 @@
 // a member that goes to war on another, or whose bonds to the rest fade below half a treaty, leaves; and a council of fewer than
 // three ends. Those who sit in one council think the better of each other (a term of their regard, sim/diplomacy). No table of
 // bodies: who sits where is what their treaties made. A few numbers a pair of realms that made a treaty, at most sixteen councils.
+// Among the stars the same (the breadth round, 2026-11-23; galactic bodies were a word only): a people of another world binds itself
+// to a realm or another people as they trade and teach (sim/space/peoples.ts exchanges) and make peace after a war among the stars
+// (sim/space/starwar.ts), and three so bound sit in one body, a concord of worlds; a raid or a star war among its members parts them,
+// and those who sit together raid each other no more (sim/space/peoples.ts).
 import {
   defineEventType,
   dmath,
@@ -19,6 +23,10 @@ import type { PopulationContext } from "../population/systems.ts";
 import { politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import { warsOf } from "../war/war.ts";
 import { diplomacyOf } from "./diplomacy.ts";
+import { civilizationsNear } from "../space/contact.ts";
+import { farLifeOf } from "../space/farlife-store.ts";
+import { peopleWords, peoplesOf } from "../space/peoples.ts";
+import { starWarsOf } from "../space/starwar.ts";
 
 export const COUNCIL_EVENTS = {
   /** A council of realms founded, joined, left or ended. */
@@ -35,6 +43,12 @@ export const COUNCILS = {
   most: 16,
   /** How much better two who sit in one council think of each other (a term of their regard). */
   regard: 0.15,
+  /**
+   * Among the stars, where word is years on the way and treaties few: what a year of two peoples (or a people and a realm) speaking
+   * well of each other binds them by, at a regard of 1 (est.: a tenth of a treaty; at a trader's regard it comes to a treaty and a
+   * half in some thirty years, if it holds).
+   */
+  spoken: 0.1,
 } as const;
 
 type Bond = { w: number; last: number; pact: Ref | null };
@@ -65,14 +79,14 @@ export class CouncilStore implements StateStore {
     const x = this.bonds.get(pairKey(a, b));
     return x ? x.w * dmath.pow(0.5, (year - x.last) / COUNCILS.fade) : 0;
   }
-  bond(a: Ref, b: Ref, year: number, pact: Ref | null = null): void {
+  bond(a: Ref, b: Ref, year: number, pact: Ref | null = null, by = 1): void {
     const key = pairKey(a, b),
       x = this.bonds.get(key);
     if (!x) {
-      this.bonds.set(key, { w: 1, last: year, pact });
+      this.bonds.set(key, { w: by, last: year, pact });
       return;
     }
-    x.w = x.w * dmath.pow(0.5, (year - x.last) / COUNCILS.fade) + 1;
+    x.w = x.w * dmath.pow(0.5, (year - x.last) / COUNCILS.fade) + by;
     x.last = year;
     if (pact) x.pact = pact;
   }
@@ -170,7 +184,10 @@ export function councilsYear(ctx: PopulationContext, t: SimTime): void {
   if (!store) return;
   const year = yearOfMoment(t),
     realms = politiesOf(world),
-    alive = (r: Ref) => realms.get(r)?.ended === null;
+    // (A people of the stars sits as long as it stands: neither fallen nor gone from the peoples followed.)
+    peoples = new Map(civilizationsNear(world, year).map((c) => [c.ref as string, c])),
+    standing = (r: Ref) => peoples.has(r) && farLifeOf(world)?.get(r)?.fell == null,
+    alive = (r: Ref) => (r.startsWith("civ:") ? standing(r) : realms.get(r)?.ended === null);
   // 1. The treaties of the year: each pact newly sworn, each peace made at a war's end.
   for (const rel of diplomacyOf(world).all())
     if (rel.pact && rel.pact !== store.pactSeen(rel.a, rel.b))
@@ -178,32 +195,72 @@ export function councilsYear(ctx: PopulationContext, t: SimTime): void {
   for (const w of warsOf(world).hot())
     if (w.ended === year && alive(w.attacker) && alive(w.defender))
       store.bond(w.attacker, w.defender, year);
+  // (Among the stars: goods traded and lessons taught between peoples of two worlds, and a peace made after a star war.)
+  const among = peoplesOf(world),
+    starWars = world.hasStore("space.starwars") ? starWarsOf(world).all() : [];
+  if (among) {
+    for (const x of among.exchanges)
+      if (x.year === year && x.civ !== x.other && alive(x.civ) && alive(x.other))
+        store.bond(x.civ, x.other, year);
+    // (And each year two who can speak across the dark, and think well of each other, are bound a little: COUNCILS.spoken.)
+    for (const m of among.meetings)
+      if (m.talking && m.regard > 0 && m.with !== "land" && alive(m.civ) && alive(m.other))
+        store.bond(m.civ, m.other, year, null, COUNCILS.spoken * Math.min(1, m.regard));
+  }
+  for (const w of starWars) {
+    const ended = w.ended ? world.events.get(w.ended) : undefined;
+    if (ended && yearOfMoment(ended.t) === year && alive(w.realm) && alive(w.enemy))
+      store.bond(w.realm, w.enemy, year);
+  }
+  /** Whether one of a council fights another of it among the stars this year: a raid between peoples, a star war under way. */
+  const starFight = (m: Ref, members: readonly Ref[]) =>
+    (among?.raids.some((r) => r.year === year && r.civ === m && members.includes(r.other)) ??
+      false) ||
+    starWars.some(
+      (w) =>
+        w.ended === null &&
+        ((w.realm === m && members.includes(w.enemy)) ||
+          (w.enemy === m && members.includes(w.realm))),
+    );
   // (A pair faded to nothing, or of a realm gone, is let go.)
   for (const [a, b] of store.pairs())
     if (!alive(a) || !alive(b) || store.bondOf(a, b, year) < 0.05) store.drop(a, b);
   const bondOf = (a: Ref, b: Ref) => store.bondOf(a, b, year),
-    tell = (c: Council, kind: "founded" | "joined" | "left" | "ended", who: Polity | null) =>
+    tell = (c: Council, kind: "founded" | "joined" | "left" | "ended", who: Member | null) =>
       world.events.emit({
         type: COUNCIL_EVENTS.council.type,
         // (An event names four at the most: who came or went, and the first of those who sit.)
         subjects: who
           ? [who.ref, ...c.members.filter((m) => m !== who.ref)].slice(0, 4)
           : c.members.slice(0, 4),
-        place: who ? (ctx.provinces.get(who.seat)?.ref ?? null) : null,
+        place: who && who.seat !== null ? (ctx.provinces.get(who.seat)?.ref ?? null) : null,
         causes: [{ ref: c.event, role: "enabler", weight: 1 }],
-        data: { council: c.name, kind, realm: who ? realmNameOf(who) : null },
-      });
+        data: {
+          council: c.name,
+          kind,
+          realm: who ? who.name : null,
+          ...(c.members.some((m) => m.startsWith("civ:")) ? { among: true } : {}),
+        },
+      }),
+    memberOf = (r: Ref): Member | null => {
+      const civ = peoples.get(r);
+      if (civ) return { ref: r, name: peopleWords(world, civ).name, seat: null, town: null };
+      const p = realms.get(r);
+      return p ? { ref: r, name: realmNameOf(p), seat: p.seat, town: p.town } : null;
+    };
   // 2. Members leave: one gone, one at war on another member, one whose bonds to the rest have faded.
   for (const c of store.sitting()) {
     for (const m of [...c.members]) {
-      const p = realms.get(m);
-      const warring = warsOf(world)
-          .hotOf(m)
-          .some((w) => w.ended === null && w.attacker === m && c.members.includes(w.defender)),
+      const p = memberOf(m);
+      const warring =
+          warsOf(world)
+            .hotOf(m)
+            .some((w) => w.ended === null && w.attacker === m && c.members.includes(w.defender)) ||
+          starFight(m, c.members),
         bound = c.members.reduce((s, o) => s + (o === m ? 0 : bondOf(m, o)), 0);
-      if (!p || p.ended !== null || warring || bound < COUNCILS.drift) {
+      if (!p || !alive(m) || warring || bound < COUNCILS.drift) {
         c.members = c.members.filter((x) => x !== m);
-        if (p && p.ended === null) tell(c, "left", p);
+        if (p && alive(m)) tell(c, "left", p);
       }
     }
     if (c.members.length < 3) {
@@ -214,7 +271,10 @@ export function councilsYear(ctx: PopulationContext, t: SimTime): void {
   // 3. Realms join: bound to half its members or more, two at the least.
   // (Asked only of those a realm is bound to at all, which nothing here changes: every realm in no council was asked its bond
   // to every member of every council, a pair's key spelt and looked for each time, and nearly none of them is bound to any.)
-  const free = realms.living().filter((p) => !store.councilOf(p.ref)),
+  const free: Member[] = [
+      ...realms.living().map((p) => memberOf(p.ref)!),
+      ...[...peoples.keys()].filter((r) => alive(r as Ref)).map((r) => memberOf(r as Ref)!),
+    ].filter((p) => !store.councilOf(p.ref)),
     partners = store.partners();
   for (const c of store.sitting())
     for (const p of free) {
@@ -243,27 +303,42 @@ export function councilsYear(ctx: PopulationContext, t: SimTime): void {
       for (let j = i + 1; j < near.length && !three; j++)
         if (bondOf(near[i]!, near[j]!) > COUNCILS.bound) three = [a, near[i]!, near[j]!];
     if (!three) continue;
-    const ps = three.map((r) => realms.get(r)!),
-      most = [...ps].sort(
+    const ps = three.map((r) => memberOf(r)).filter((x): x is Member => x !== null);
+    if (ps.length < 3) continue;
+    const most = [...ps].sort(
         (x, y) =>
           three!.reduce((s, o) => s + bondOf(y.ref, o), 0) -
             three!.reduce((s, o) => s + bondOf(x.ref, o), 0) || (x.ref < y.ref ? -1 : 1),
       )[0]!,
-      name = `the council of ${most.town}`,
+      // (A body of more than one world is a concord, called after the one most bound: a realm by its seat, a people by its name.)
+      worlds = three.some((r) => r.startsWith("civ:")),
+      name = worlds ? `the concord of ${most.town ?? most.name}` : `the council of ${most.town}`,
       event = world.events.emit({
         type: COUNCIL_EVENTS.council.type,
         subjects: [...three].sort(order),
-        place: ctx.provinces.get(most.seat)?.ref ?? null,
+        place: most.seat !== null ? (ctx.provinces.get(most.seat)?.ref ?? null) : null,
         causes: [
           ...three.flatMap((r) => {
             const rel = diplomacyOf(world).get(r, r === three![0] ? three![1]! : three![0]!);
             return rel?.pact ? [{ ref: rel.pact, role: "enabler" as const, weight: 0.5 }] : [];
           }),
         ],
-        data: { council: name, kind: "founded", realm: realmNameOf(most) },
+        data: {
+          council: name,
+          kind: "founded",
+          realm: most.name,
+          ...(worlds ? { among: true } : {}),
+        },
       });
     store.found(name, year, event, [...three].sort(order));
   }
 }
 
 const realmNameOf = (p: Polity) => realmName(p);
+/** One who may sit: a realm (its seat and town) or a people of the stars (neither). */
+type Member = {
+  readonly ref: Ref;
+  readonly name: string;
+  readonly seat: number | null;
+  readonly town: string | null;
+};

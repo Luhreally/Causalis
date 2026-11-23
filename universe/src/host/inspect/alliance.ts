@@ -1302,7 +1302,7 @@ function withinTab(world: World, r: AllianceRead): Tab {
     for (const x of livingMatches(world, m.ref, year)) if (inIt.has(x.with)) kin.add(x.event);
   holds.unshift(
     item(
-      `Its bonds: ${many(r.ties.filter((t) => t.kind === "pact").length, "pact", "pacts")} (sworn when two think better than ${PACT.toFixed(2)} of each other), ${many(oaths, "oath", "oaths")} of vassals${r.a.compact ? ", and the compact" : ""}. Each called answers by its bond: an overlord most surely, then a vassal, a compact, a pact, kin least.`,
+      `Its bonds: ${many(r.ties.filter((t) => t.kind === "pact").length, "pact", "pacts")} (sworn where one is worth more than ${PACT.toFixed(2)} to both: their regard, a foe they share by how far it outweighs the two of them, less the wars each would be drawn into), ${many(oaths, "oath", "oaths")} of vassals${r.a.compact ? ", and the compact" : ""}. Each called answers by its bond: an overlord most surely, then a vassal, a compact, a pact, kin least.`,
     ),
   );
   if (kin.size)
@@ -1443,7 +1443,7 @@ function withinTab(world: World, r: AllianceRead): Tab {
           [
             mean === null
               ? "None of its realms meet another at a border or down a road, so none has a regard for another to weigh: they stand together by their bonds alone."
-              : `Its realms' regard for each other, where they meet: ${sign(mean)} on the average over ${many(pairs.length, "pair", "pairs")}. A regard is the sum of the terms below; above ${PACT.toFixed(2)} two swear a pact, below zero a pact breaks, below ${sign(RIVALRY)} they are rivals.`,
+              : `Its realms' regard for each other, where they meet: ${sign(mean)} on the average over ${many(pairs.length, "pair", "pairs")}. A regard is the sum of the terms below; two swear a pact where it is worth more than ${PACT.toFixed(2)} to both (that regard, a foe they share, less the wars each would be drawn into) and break it where it is worth less than nothing to either; below ${sign(RIVALRY)} they are rivals.`,
           ],
         ],
       },

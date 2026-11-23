@@ -14,6 +14,7 @@
 // piece of evidence, how that realm stood on these numbers against how it then fared, measured; what a realm believes of each number
 // is what its evidence supports, and pulls that number. The outcomes listed here only say which of history's events are great enough
 // to be looked at, whom each befell, and what it is called. Pure tables and functions.
+import { dmath } from "../kernel/index.ts";
 import type { BodyPlan } from "./bodies.ts";
 
 /** The four, in the order a realm keeps them. */
@@ -39,6 +40,10 @@ export const HOLDING = {
   voiceOne: 0.15,
   /** Where arms in the people's hands neither stir nor quiet a rising: where a realm with a host kept standing comes to hold them. */
   forceMid: 0.55,
+  /** Of every hundred grown, those who lead in a middling people (founding: foundingHolds). */
+  leadersMid: 3,
+  /** How much narrower a choice is carried at founding for each tenfold of a people's grown past a thousand (two tenfolds at most). */
+  gathered: 0.06,
 } as const;
 
 // (What each interest group wants of each number is no table: it is learned from how the group fared, sim/order/wants.ts.)
@@ -90,6 +95,32 @@ export function firstHolds(
     0.5 + 0.5 * (w.openness - 0.5) - 0.35 * (w.hierarchy - 0.5) + lean[2],
     0.45 + 0.5 * (w.trade - 0.5) + 0.25 * (w.openness - 0.5) + lean[3],
   ].map(unit);
+}
+
+/**
+ * A people's force and voice before any seat is raised over them (the breadth round): what its rule will be is read off these,
+ * as a realm's reform reads its kept numbers (sim/polity/polity.ts formFromPowers). Force: the share of the means of violence
+ * those who would lead keep from the rest, as firstHolds reads it without a rule (rank gathers it, valour keeps it in every
+ * household, a body may make it its own). Voice: how widely a choice must be carried, by how many lead for each head (those
+ * whose say a choice needs: `leaders` of every hundred grown, a band's elders being many to its few), how many there are to
+ * gather to a choice (`grown`), rank leaving it to fewer, and a body that lives as one deciding as one. Each 0 … 1.
+ */
+export function foundingHolds(
+  w: WaysRead,
+  body: BodyPlan | null | undefined,
+  leaders: number,
+  grown = 1000,
+): [number, number] {
+  const lean = bodyLean(body),
+    // (Three of every hundred grown leading is a middling share: as many as a council of a people's elders.)
+    many = Math.min(2, Math.max(0, leaders) / HOLDING.leadersMid),
+    // (A choice is carried by fewer the more there are to carry it: all of a thousand can gather to it, not all of a
+    // hundred thousand. HOLDING.gathered a tenfold.)
+    numbers = HOLDING.gathered * Math.min(2, Math.max(0, dmath.log10(Math.max(1, grown) / 1000)));
+  return [
+    unit(0.35 + 0.5 * (w.hierarchy - 0.5) - 0.4 * (w.valour - 0.5) + lean[0]),
+    unit(0.32 + 0.1 * (many - 1) + (0.5 - w.hierarchy) - numbers + lean[1]),
+  ];
 }
 
 /** A number kept as a whole hundredth (a realm's numbers are saved so: 0 … 100). */
