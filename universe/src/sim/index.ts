@@ -2072,5 +2072,7 @@ export {
 export { peopleTemper } from "./space/peoples.ts";
 // Why a land's people leave it, past hunger (2026-11-22): sim/population/flight.ts.
 export { FLIGHT, FlightYear, flightYear, weighsWages } from "./population/flight.ts";
+// A realm's own word on its groups (2026-11-22): sim/order/grouphand.ts.
+export { DECREE, namedBite, realmDecrees } from "./order/grouphand.ts";
 // A land's woods against its tillable ground (sim/ecology/ecology.ts).
 export { WOODS_GONE_EVERY, fieldsTake } from "./ecology/ecology.ts";

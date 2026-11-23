@@ -98,6 +98,9 @@ type Handed = {
   to?: string;
   until?: number;
   cost?: number;
+  /** A realm's own word (not the god's or a player's): whose want weighed most. */
+  own?: number;
+  for?: string;
 } | null;
 registerEventWords(GROUP_HAND_EVENTS.act.type, (world, e) => {
   const x = e.data as Handed,
@@ -122,8 +125,12 @@ registerEventWords(GROUP_HAND_EVENTS.charter.type, (world, e) => {
         : x?.to === "outlaw"
           ? `outlawed ${it}`
           : `let ${it} be again`;
-  return `${x?.by ?? "The ruler"} of ${x?.realm ?? realmOf(world, e.subjects[0] ?? "")} ${did}${x?.cost ? ", and was held the less rightful for it" : ""}, ${year(e.t)}`;
+  return `${x?.by ?? "The ruler"} of ${x?.realm ?? realmOf(world, e.subjects[0] ?? "")} ${did}${x?.own && x.for ? `, as ${x.for} would have it` : ""}${x?.cost ? ", and was held the less rightful for it" : ""}, ${year(e.t)}`;
 });
+registerDecisionWords(
+  "reign.decree",
+  () => "A ruler weighed a group of the realm by what its powerful want of what it does",
+);
 registerCommandWords("act.group", (_, c) => {
   const a = c.args as { act?: string };
   return `Your act: you laid your hand on a group (${a.act ?? "an act"}), ${year(c.t)}`;

@@ -132,6 +132,7 @@ import { housesRead } from "./houses.ts";
 import { killedOf, protectedOf, underworldOf } from "./underworld-kept.ts";
 import { creditOf } from "../credit/credit.ts";
 import { interestsOf } from "../polity/interests.ts";
+import { namedBite, realmDecrees } from "./grouphand.ts";
 import { reliefOf } from "../war/occupation.ts";
 import { templeTeachingIn } from "../belief/temple.ts";
 import { inquiresMore } from "../lore/lore.ts";
@@ -1163,6 +1164,16 @@ function stepRealm(
     stays = 1 - fade,
     lands = new Map(r.lands.map((l) => [l.cell, l]));
   weighStakes(ctx, p, r, v);
+  // (Its own word on a group by name, from what its interests want of it: ./grouphand.ts. Read below as any decree is.)
+  realmDecrees(ctx, p, v.orgs, r, t);
+  // (How far its hand bites on a group outlawed by name: its capacity by its reach over the group's lands.)
+  const biteOf = (g: Org) =>
+    g.decree === 0
+      ? namedBite(
+          r.capacity,
+          g.lands.map((c) => lands.get(c)?.reach ?? 0),
+        )
+      : 0;
 
   // 1. Each group's aims move toward the stakes in its reach; its kind is read again; its men move toward what its stake keeps.
   const harmBefore =
@@ -1300,6 +1311,8 @@ function stepRealm(
     // (Blessed, a fifth more come to it; cursed, a fifth fewer.)
     if (g.hand === 1) aimMen *= 1.2;
     else if (g.hand === -1) aimMen *= 0.8;
+    // (Outlawed by name, those its realm's hand reaches stay away for fear.)
+    if (g.standing === 0 && g.decree === 0) aimMen *= 1 - ORG.fears * biteOf(g);
     g.members = Math.max(0, Math.round(g.members + (aimMen - g.members) * stepped(ORG.grow, span)));
     g.income = Math.round(income);
     g.takes = Math.round(
@@ -1400,7 +1413,11 @@ function stepRealm(
         taken =
           1 -
           dmath.pow(
-            1 - ORG.taken * suppression * (1 - Math.min(0.7, (coh - 1) / 4)) * (1 - hidden),
+            1 -
+              ORG.taken *
+                Math.max(suppression, biteOf(g)) *
+                (1 - Math.min(0.7, (coh - 1) / 4)) *
+                (1 - hidden),
             span,
           );
       // (Its leader blessed, the realm's hand takes half as many of it; cursed, twice. Exactly as ever where none holds.)
