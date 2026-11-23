@@ -1731,6 +1731,8 @@ export class VillageScene {
       water = shoreWater(shore, { near, laid, open });
     performance.measure("town.shore", { start: t0 });
     this.shoreWater = water;
+    // (Its jetty out over the water as drawn, so no boat ties up on what its town has laid at the shore.)
+    this.country.keepAfloat(water.on);
     if (!water.tris.length) return;
     const mesh = trisMesh(this.stage, water.tris, M, 0.024),
       m = flatMaterial(color),

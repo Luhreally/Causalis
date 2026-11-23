@@ -1149,6 +1149,8 @@ export {
 } from "./director.ts";
 export {
   blossomOf,
+  BOAT_LONG,
+  jettyAfloat,
   boatAt,
   countryOf,
   cropColor,
@@ -1456,6 +1458,7 @@ export {
   type TownGround,
 } from "./townflora.ts";
 export {
+  drawnWater,
   laidGround,
   layCountry,
   layTown,

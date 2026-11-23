@@ -1,8 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { VillagePlan } from "../../src/bridge/index.ts";
+import { waterR, type VillagePlan } from "../../src/bridge/index.ts";
 import {
+  BOAT_LONG,
+  jettyAfloat,
   boatAt,
+  drawnWater,
   blossomOf,
   countryOf,
   fruitHangs,
@@ -277,4 +280,110 @@ test("as many boats as its fishers crew, and those its sea has failed tied up at
   const out = idle.water!.boats.map((_, k) => boatAt(idle, k, noon, 40).out);
   assert.deepEqual(out, [true, true, false, false, false, false]);
   assert.ok(six.water!.boats.every((_, k) => boatAt(six, k, noon, 40).out));
+});
+
+test("the boats row out from the jetty in the morning and back in the evening, never there and gone at once", () => {
+  const c = countryOf({ ...town("metal"), water: { x: 0, z: -700, boats: 6 } }),
+    day = 3 * YEAR + 100 * DAY,
+    turn = (a: number, b: number) =>
+      Math.abs(((((b - a) % (2 * Math.PI)) + 3 * Math.PI) % (2 * Math.PI)) - Math.PI);
+  for (let k = 0; k < c.water!.boats.length; k++) {
+    // (Minute by minute across the morning's and the evening's way, the screen's clock running a second a minute: a few
+    // hundred metres over half an hour, never a leap.)
+    for (const [from, to] of [
+      [6.4, 7.1],
+      [17.9, 18.6],
+    ] as const) {
+      let was = boatAt(c, k, day + from * 3600, from * 60);
+      for (let h = from + 1 / 60; h <= to; h += 1 / 60) {
+        const now = boatAt(c, k, day + h * 3600, h * 60);
+        assert.ok(
+          Math.hypot(now.x - was.x, now.z - was.z) < 30,
+          `boat ${k} at ${h.toFixed(2)} jumped`,
+        );
+        assert.ok(turn(was.yaw, now.yaw) < 0.5, `boat ${k} at ${h.toFixed(2)} spun`);
+        was = now;
+      }
+    }
+    const moored = boatAt(c, k, day + 3 * 3600, 0),
+      off = boatAt(c, k, day + 6.5 * 3600, 390);
+    assert.deepEqual(
+      [off.x, off.z, off.yaw],
+      [moored.x, moored.z, moored.yaw],
+      "it leaves from where it lay",
+    );
+  }
+});
+
+test("its jetty stands out from the shore its view draws, every boat tied up along it afloat", () => {
+  // (A land whose north half is water, about a town whose plan has its lake's shore well up on the land.)
+  const site = {
+    m: 400,
+    half: 1,
+    cells: [3, 3, 0, 0].map((b) => String.fromCharCode(48 + b)).join(""),
+  };
+  for (const era of ["farm", "metal", "industry", "modern"] as const)
+    for (const at of [
+      { x: 3.7, z: -1.2 },
+      { x: 0.4, z: 2.9 },
+    ]) {
+      const plan = {
+          ...town(era),
+          landWater: { wet: site },
+          landAt: at,
+          water: { x: 0, z: -300, shore: { x: 0, z: 60 }, boats: 6 },
+        } as VillagePlan,
+        c = countryOf(plan),
+        long = BOAT_LONG[c.water!.boat];
+      for (const [k, b] of c.water!.boats.entries()) {
+        const m = b.mooring,
+          ax = Math.cos(m.yaw),
+          az = -Math.sin(m.yaw);
+        for (const u of [-0.5, 0.5])
+          for (const v of [-1.3, 1.3])
+            assert.ok(
+              drawnWater(plan, m.x + u * long * ax + v * az, m.z + u * long * az - v * ax),
+              `${era} boat ${k} tied up on the ground`,
+            );
+        // (No two tied up over one another: those along the one side of the jetty a hull's length apart and more.)
+        for (const o of c.water!.boats.slice(0, k).filter((_, j) => j % 2 === k % 2))
+          assert.ok(
+            Math.hypot(o.mooring.x - m.x, o.mooring.z - m.z) > long,
+            `${era} boats ${k} on another`,
+          );
+      }
+    }
+});
+
+test("where its town has laid something at the shore, the jetty is brought out till every boat tied up along it is afloat", () => {
+  const plan = { ...town("industry"), water: { x: 0, z: -700, boats: 6 } } as VillagePlan,
+    c = countryOf(plan),
+    // (Water as drawn: the lake's round, but for a quay 40 m out into it before the town.)
+    R = waterR(plan.water!),
+    on = (x: number, z: number) =>
+      Math.hypot(x, z + 700) < R && !(Math.abs(x) < 30 && z > -700 + R - 40),
+    w = jettyAfloat(plan, c, on)!,
+    long = BOAT_LONG[w.boat];
+  assert.notEqual(w, c.water, "it moved");
+  for (const [k, b] of w.boats.entries()) {
+    const m = b.mooring,
+      ax = Math.cos(m.yaw),
+      az = -Math.sin(m.yaw);
+    for (const u of [-0.5, 0.5])
+      for (const v of [-1.3, 1.3])
+        assert.ok(
+          on(m.x + u * long * ax + v * az, m.z + u * long * az - v * ax),
+          `boat ${k} aground`,
+        );
+  }
+  assert.equal(
+    jettyAfloat(plan, c, () => true),
+    c.water,
+    "where all are afloat, as it stood",
+  );
+  assert.deepEqual(
+    w.boats.map((b) => b.out),
+    c.water!.boats.map((b) => b.out),
+    "their stretches of water the same",
+  );
 });

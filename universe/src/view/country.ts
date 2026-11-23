@@ -17,7 +17,7 @@
 // steam launches, motor boats — out on the water by day, tied up at the jetty by night and while
 // the water is frozen. Pure: the same plan, the same countryside; what moves (a tractor, the
 // sails, the boats) by the moment and the screen's clock.
-import { wetForLaying } from "./shore.ts";
+import { drawnWater, wetForLaying } from "./shore.ts";
 import { rectsOverlap, waterR, wetGround, type VillagePlan } from "../bridge/index.ts";
 import { hashText, unitOf } from "./draws.ts";
 import { HARVEST, SOWING } from "./seasons.ts";
@@ -118,6 +118,8 @@ export type Country = {
    */
   readonly water: {
     readonly pier: readonly Piece[];
+    /** Where its jetty stands out from (its land's end). */
+    readonly shore: { readonly x: number; readonly z: number };
     readonly boat: Boat;
     readonly boats: readonly {
       readonly mooring: Spot;
@@ -585,57 +587,22 @@ function countryMade(plan: VillagePlan, detail: number): Country {
       fleeces: side(toward + 0.85, r * 0.7),
     };
   }
-  // By its water: a jetty out from the shore nearest the town, a boat for every few hundred of
-  // its people (five at most), each tied up along it and going about its own stretch of water.
+  // By its water: a jetty out from the shore nearest the town, a boat for as many as its fishers
+  // crew, each tied up along it and going about its own stretch of water.
   let water: Country["water"] = null;
   if (plan.water) {
     const w = plan.water,
-      from = Math.hypot(w.x, w.z) || 1,
-      // (Into the water: from the town toward the lake's middle, out from its shore.)
-      ix = w.x / from,
-      iz = w.z / from,
-      shore = w.shore ?? { x: w.x - ix * waterR(w), z: w.z - iz * waterR(w) },
-      yaw = Math.atan2(ix, iz),
-      pier: Piece[] = [
-        {
-          x: shore.x + ix * (PIER / 2 - 2),
-          y: 0.7,
-          z: shore.z + iz * (PIER / 2 - 2),
-          sx: 3,
-          sy: 0.3,
-          sz: PIER,
-          yaw,
-        },
-      ];
-    for (let s = 4; s <= PIER - 2; s += 5)
-      for (const side of [-1, 1])
-        pier.push({
-          x: shore.x + ix * s + iz * side * 1.4,
-          y: 0.3,
-          z: shore.z + iz * s - ix * side * 1.4,
-          sx: 0.35,
-          sy: 1.6,
-          sz: 0.35,
-          yaw,
-        });
-    // (As many as its fishers crew, where its land's reading gives them, and those its sea has failed tied up: host/boats.ts.)
-    const count =
-        w.boats !== undefined
-          ? Math.max(1, w.boats)
-          : Math.max(1, Math.min(5, 1 + Math.floor(plan.population / 400))),
+      { ix, iz, count, long } = jettyWays(plan),
+      boat = boatOf(era),
+      // (Its shore where its view draws it, the berths all afloat; else where its plan has it.)
+      shore = drawnShore(plan, (x, z) => drawnWater(plan, x, z)) ??
+        w.shore ?? { x: w.x - ix * waterR(w), z: w.z - iz * waterR(w) },
       boats: NonNullable<Country["water"]>["boats"][number][] = [];
     for (let i = 0; i < count; i++) {
-      const along = 9 + Math.floor(i / 2) * 8,
-        side = i % 2 ? 1 : -1,
-        a = Math.atan2(-iz, -ix) + Math.PI + (i - (count - 1) / 2) * 0.9 + draw(i, 16) * 0.3,
+      const a = Math.atan2(-iz, -ix) + Math.PI + (i - (count - 1) / 2) * 0.9 + draw(i, 16) * 0.3,
         far = waterR(w) * (0.35 + 0.25 * draw(i, 17));
       boats.push({
-        // (Alongside the jetty, bow out over the water.)
-        mooring: {
-          x: shore.x + ix * along + iz * side * 4,
-          z: shore.z + iz * along - ix * side * 4,
-          yaw: Math.atan2(-iz, ix),
-        },
+        mooring: { x: 0, z: 0, yaw: 0 },
         // (Going about within its water: never so far round as to come ashore.)
         out: {
           x: w.x + Math.cos(a) * far,
@@ -644,19 +611,23 @@ function countryMade(plan: VillagePlan, detail: number): Country {
         },
       });
     }
-    water = {
-      pier,
-      boat:
-        era === "modern"
-          ? "motor"
-          : era === "industry"
-            ? "steam"
-            : era === "metal"
-              ? "sail"
-              : "row",
-      boats,
+    // (Each its own stretch: no two rounds so wide that two boats going about them could meet, a hull's length kept
+    // between them.)
+    const rounds = boats.map((b, i) => {
+      let r = b.out.r;
+      for (let j = 0; j < boats.length; j++)
+        if (j !== i)
+          r = Math.min(
+            r,
+            (Math.hypot(b.out.x - boats[j]!.out.x, b.out.z - boats[j]!.out.z) - long) / 2 - 1,
+          );
+      return { ...b, out: { ...b.out, r: Math.max(3, r) } };
+    });
+    water = jettyAt(plan, shore, {
+      boat,
+      boats: rounds,
       ...(w.laid ? { laid: Math.min(count, w.laid) } : {}),
-    };
+    });
   }
   return {
     orchard,
@@ -789,16 +760,188 @@ export function boatAt(
 ): Spot & { readonly out: boolean } {
   const b = c.water!.boats[k]!,
     hour = (((t % DAY) + DAY) % DAY) / 3600;
-  if (frozen || hour < 6.5 || hour >= 18.5 || k >= c.water!.boats.length - (c.water!.laid ?? 0))
+  if (
+    frozen ||
+    hour < BOAT_OUT ||
+    hour >= BOAT_IN ||
+    k >= c.water!.boats.length - (c.water!.laid ?? 0)
+  )
     return { ...b.mooring, out: false };
-  const turn = (clock * BOAT_PACE) / b.out.r + k * 2.3;
+  const turn = (clock * BOAT_PACE) / b.out.r + k * 2.3,
+    round = {
+      x: b.out.x + Math.cos(turn) * b.out.r,
+      z: b.out.z + Math.sin(turn) * b.out.r,
+      // (Going round, bow ahead: along the circle's turning.)
+      yaw: Math.atan2(-Math.cos(turn), -Math.sin(turn)),
+      out: true,
+    },
+    // (Rowed out from the jetty in the first of the morning and back in the last of the evening, straight across its
+    // water: the jetty and its stretch both lie within the lake's round, so the way between does too. Never there and
+    // gone at once.)
+    way = Math.min(1, (hour - BOAT_OUT) / BOAT_WAY, (BOAT_IN - hour) / BOAT_WAY);
+  if (way >= 1) return round;
+  const f = way * way * (3 - 2 * way),
+    leaving = hour < 12,
+    dx = round.x - b.mooring.x,
+    dz = round.z - b.mooring.z,
+    // (Bow ahead along the way it goes, its length along x as render/stage.ts turns boxes; swung round from how it lay
+    // at the jetty, and onto its round, over the way's ends.)
+    heading = leaving ? Math.atan2(-dz, dx) : Math.atan2(dz, -dx),
+    [from, to] = leaving ? [b.mooring.yaw, round.yaw] : [round.yaw, b.mooring.yaw],
+    // (Going out: from the jetty's lie to the heading, then the heading to the round; coming in the other way about.)
+    s = leaving ? way : 1 - way,
+    yaw =
+      s < 0.25
+        ? turnTo(from, heading, s / 0.25)
+        : s > 0.75
+          ? turnTo(heading, to, (s - 0.75) / 0.25)
+          : heading;
+  return { x: b.mooring.x + dx * f, z: b.mooring.z + dz * f, yaw, out: true };
+}
+
+/** The boats of an age. */
+const boatOf = (era: VillagePlan["era"]): Boat =>
+  era === "modern" ? "motor" : era === "industry" ? "steam" : era === "metal" ? "sail" : "row";
+
+/**
+ * A town's jetty's ways: into the water from the town toward its lake's middle; as many boats as its fishers crew (where
+ * its land's reading gives them, and those its sea has failed tied up: host/boats.ts), else by its size; two to a berth,
+ * one each side, a hull's length and a little apart along it; the jetty as long as its berths need.
+ */
+function jettyWays(plan: VillagePlan) {
+  const w = plan.water!,
+    from = Math.hypot(w.x, w.z) || 1,
+    long = BOAT_LONG[boatOf(plan.era)],
+    count =
+      w.boats !== undefined
+        ? Math.max(1, w.boats)
+        : Math.max(1, Math.min(5, 1 + Math.floor(plan.population / 400))),
+    first = 4 + long / 2,
+    step = long + 1.5;
   return {
-    x: b.out.x + Math.cos(turn) * b.out.r,
-    z: b.out.z + Math.sin(turn) * b.out.r,
-    // (Going round, bow ahead: along the circle's turning.)
-    yaw: Math.atan2(-Math.cos(turn), -Math.sin(turn)),
-    out: true,
+    ix: w.x / from,
+    iz: w.z / from,
+    count,
+    long,
+    first,
+    step,
+    reach: Math.max(PIER, first + Math.floor((count - 1) / 2) * step + long / 2 + 2),
   };
+}
+
+/** Where berth `i` of a town's jetty from `shore` ties its boat up (alongside the jetty, bow out over the water). */
+function berthAt(plan: VillagePlan, shore: { x: number; z: number }, i: number): Spot {
+  const { ix, iz, first, step } = jettyWays(plan),
+    along = first + Math.floor(i / 2) * step,
+    side = i % 2 ? 1 : -1;
+  return {
+    x: shore.x + ix * along + iz * side * 4,
+    z: shore.z + iz * along - ix * side * 4,
+    yaw: Math.atan2(-iz, ix),
+  };
+}
+
+/** A town's jetty from `shore` out over its water (its deck and piles), its boats tied up along it. */
+function jettyAt(
+  plan: VillagePlan,
+  shore: { x: number; z: number },
+  water: Omit<NonNullable<Country["water"]>, "pier" | "shore">,
+): NonNullable<Country["water"]> {
+  const { ix, iz, reach } = jettyWays(plan),
+    yaw = Math.atan2(ix, iz),
+    pier: Piece[] = [
+      {
+        x: shore.x + ix * (reach / 2 - 2),
+        y: 0.7,
+        z: shore.z + iz * (reach / 2 - 2),
+        sx: 3,
+        sy: 0.3,
+        sz: reach,
+        yaw,
+      },
+    ];
+  for (let s = 4; s <= reach - 2; s += 5)
+    for (const side of [-1, 1])
+      pier.push({
+        x: shore.x + ix * s + iz * side * 1.4,
+        y: 0.3,
+        z: shore.z + iz * s - ix * side * 1.4,
+        sx: 0.35,
+        sy: 1.6,
+        sz: 0.35,
+        yaw,
+      });
+  return {
+    ...water,
+    pier,
+    shore: { x: shore.x, z: shore.z },
+    boats: water.boats.map((b, i) => ({ ...b, mooring: berthAt(plan, shore, i) })),
+  };
+}
+
+/**
+ * A town's jetty brought out over its water till every boat tied up along it lies on water as `on` has it (its water as
+ * drawn, kept off what stands on its ground: view/shore.ts shoreWater): as it stands where all are afloat already.
+ */
+export function jettyAfloat(
+  plan: VillagePlan,
+  c: Country,
+  on: (x: number, z: number) => boolean,
+): Country["water"] {
+  const w = c.water;
+  if (!w || !plan.water) return w;
+  const at = drawnShore(plan, on, w.shore);
+  return at && (at.x !== w.shore.x || at.z !== w.shore.z) ? jettyAt(plan, at, w) : w;
+}
+
+/** Each kind of boat's length, and half the broadest's beam (metres: render/country.ts BOAT_PARTS, their hulls). */
+export const BOAT_LONG: Readonly<Record<Boat, number>> = { row: 4.6, sail: 7, steam: 9, motor: 7 };
+const BOAT_BEAM = 1.3;
+
+/**
+ * A town's shore as `wet` has its water, on the line from its lake's middle toward the town: the first ground going out
+ * from the middle (or from `from`, a shore already found); then, where a boat tied up at the jetty from there would lie
+ * on ground (its hull's corners), the jetty brought out over the water a metre at a time till all are afloat (half its
+ * lake's round in at most). Null where its view draws its water off no land view (`wet` reads null).
+ */
+function drawnShore(
+  plan: VillagePlan,
+  wet: (x: number, z: number) => boolean | null,
+  from?: { x: number; z: number },
+): { x: number; z: number } | null {
+  const w = plan.water!,
+    { ix, iz, count, long } = jettyWays(plan),
+    R = waterR(w);
+  if (wet(w.x, w.z) === null) return null;
+  const town = Math.hypot(w.x, w.z);
+  let d = 0;
+  if (from) d = Math.hypot(from.x - w.x, from.z - w.z);
+  else while (d < town && wet(w.x - ix * d, w.z - iz * d)) d += 1;
+  for (; d > R * 0.5; d -= 1) {
+    const at = { x: w.x - ix * d, z: w.z - iz * d };
+    let dry = false;
+    for (let i = 0; i < count && !dry; i++) {
+      const m = berthAt(plan, at, i),
+        ax = Math.cos(m.yaw),
+        az = -Math.sin(m.yaw);
+      for (const u of [-0.5, 0.5])
+        for (const v of [-BOAT_BEAM, BOAT_BEAM])
+          dry ||= !wet(m.x + u * long * ax + v * az, m.z + u * long * az - v * ax);
+    }
+    if (!dry) return at;
+  }
+  return { x: w.x - ix * d, z: w.z - iz * d };
+}
+
+/** The hours the boats go out and come in, and how long the way from the jetty to their stretch of water takes (hours). */
+const BOAT_OUT = 6.5,
+  BOAT_IN = 18.5,
+  BOAT_WAY = 0.5;
+
+/** An angle turned from `a` toward `b` the short way round by `f` of the way. */
+function turnTo(a: number, b: number, f: number): number {
+  const d = ((((b - a) % (2 * Math.PI)) + 3 * Math.PI) % (2 * Math.PI)) - Math.PI;
+  return a + d * f;
 }
 
 /** How far round a mill's sails (or a turbine's blades) have turned, by the screen's clock. */
