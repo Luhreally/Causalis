@@ -29,6 +29,7 @@ import {
   GIFT_ACT,
   GIFT_BIT,
   HAND_ACT,
+  HAND_MARK,
   POSSESS_HZ,
   ageShare,
   bidLetters,
@@ -367,4 +368,47 @@ test("command: those near follow him, close behind him, and go their ways once i
   send(world, steps(POSSESS_HZ, go(0, 0)));
   assert.equal(local(world).bodies.filter((b) => b.doing === "follow").length, 0);
   release(world);
+});
+
+test("unseen: a blow in a town is seen by none, and the one struck, not knowing by whom, does not answer it", () => {
+  /** Blows at whoever stood nearest, a second at a time: those who saw one, those who came for him or fought him at any second. */
+  const after = (gifts: number) => {
+    const { world, smith, folk } = laid();
+    world.runTo(world.submit("possess.take", take(smith, folk)).t);
+    let most = 0,
+      blows = 0;
+    for (let k = 0; k < 10 && handOf(world).resting!.possessed; k++) {
+      const l = local(world),
+        a = l.bodies[0]!,
+        b = l.bodies
+          .filter((x) => x !== a && x.doing !== "down" && x.doing !== "dead")
+          .sort((p, q) => Math.hypot(p.x - a.x, p.z - a.z) - Math.hypot(q.x - a.x, q.z - a.z))[0];
+      if (!b) break;
+      const dx = b.x - a.x,
+        dz = b.z - a.z,
+        d = Math.hypot(dx, dz) || 1,
+        m = (v: number) => (v / d) * 31;
+      if (d < 1.4) blows++;
+      send(
+        world,
+        [go(m(dx), m(dz), d < 1.4 ? HAND_ACT.strike : 0), ...steps(POSSESS_HZ - 1, go(0, 0))],
+        gifts,
+      );
+      most = Math.max(
+        most,
+        local(world).bodies.filter(
+          (x) => x.foe === a.id && (x.doing === "fight" || x.doing === "come"),
+        ).length,
+      );
+    }
+    const saw = local(world).bodies.filter((x) => x.marks & HAND_MARK.saw).length;
+    release(world);
+    return { most, blows, saw };
+  };
+  const seen = after(mask("unbreakable")),
+    unseen = after(mask("unbreakable", "unseen"));
+  assert.ok(seen.blows >= 1 && unseen.blows >= 1, `${seen.blows}, ${unseen.blows} blows`);
+  assert.ok(seen.saw >= 1, `struck in sight, ${seen.saw} saw it`);
+  assert.equal(unseen.saw, 0, "unseen, none saw it");
+  assert.equal(unseen.most, 0, "none came for him");
 });

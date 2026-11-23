@@ -475,6 +475,43 @@ export function bodyMoment(
   };
 }
 
+/** Where on a body the eye's lines to the one held are drawn, and where on another its stand is read (of its height). */
+const SIGHT = { to: [0.15, 0.5, 0.9], at: [0.3, 0.6, 0.9], hide: 0.3, show: 0.4 } as const;
+
+/**
+ * Whether one drawn stands between the eye and the one held (`me`): a point up its body within SIGHT.hide of its height
+ * (SIGHT.show, for one already not drawn) of a line from the eye to his feet, middle or head, between them.
+ */
+export function inTheWay(
+  eye: { readonly x: number; readonly y: number; readonly z: number; readonly tall: number },
+  me: Pick<Moment, "x" | "z" | "lift">,
+): (m: Pick<Moment, "x" | "z" | "lift">, was: boolean) => boolean {
+  const lines = SIGHT.to.flatMap((up) => {
+    const dx = me.x - eye.x,
+      dy = (me.lift ?? 0) + up * eye.tall - eye.y,
+      dz = me.z - eye.z,
+      dd = dx * dx + dy * dy + dz * dz;
+    return dd > 1e-9 ? [{ dx, dy, dz, dd }] : [];
+  });
+  return (m, was) => {
+    const r = (was ? SIGHT.show : SIGHT.hide) * eye.tall,
+      px = m.x - eye.x,
+      pz = m.z - eye.z;
+    for (const up of SIGHT.at) {
+      const py = (m.lift ?? 0) + up * eye.tall - eye.y;
+      for (const l of lines) {
+        const u = (px * l.dx + py * l.dy + pz * l.dz) / l.dd;
+        if (u <= 0 || u >= 1) continue;
+        const ox = px - u * l.dx,
+          oy = py - u * l.dy,
+          oz = pz - u * l.dz;
+        if (ox * ox + oy * oy + oz * oz < r * r) return true;
+      }
+    }
+    return false;
+  };
+}
+
 /** What the town drawn wants of one of its people possessed (render/village.ts). */
 export type PosedHook = {
   /** The moment the town is drawn at, given the clock's. */
@@ -523,6 +560,21 @@ export class PosedBodies implements PosedHook {
     this.refs = plan.people.map((p) => p.ref);
   }
 
+  /**
+   * Where the eye behind him stands and how tall a body is drawn (m; null: no eye behind him): those standing between it
+   * and him not drawn, so he is seen however close those following him by his Command keep behind him (as a soldier's
+   * ranks are on the field, render/battle.ts, and a beast's herd, render/fauna.ts).
+   */
+  eye: {
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
+    readonly tall: number;
+  } | null = null;
+  /** How many stood between the eye and him this frame, not drawn (the look tools). */
+  hid = 0;
+  private readonly between = new Set<number>();
+
   /** Which of those drawn a body is (-1: not drawn). */
   indexOf(id: number): number {
     return this.index.get(id) ?? -1;
@@ -552,15 +604,30 @@ export class PosedBodies implements PosedHook {
     const dt = Math.max(0, Math.min(0.25, (this.step - this.posedAt) / POSSESS_HZ)),
       ahead = this.ahead();
     this.posedAt = this.step;
+    const me = live.bodies.find((b) => b.id === this.agent),
+      inWay =
+        this.eye && me
+          ? inTheWay(this.eye, bodyMoment(me, ahead, this.trade, this.form, true))
+          : null;
+    this.hid = 0;
     for (const b of live.bodies) {
       const i = this.index.get(b.id);
       if (i === undefined || !drawn[i]) continue;
-      const m = bodyMoment(b, ahead, this.trade, this.form, b.id === this.agent),
-        speed = Math.hypot(b.vx, b.vz),
+      let m = bodyMoment(b, ahead, this.trade, this.form, b.id === this.agent);
+      const speed = Math.hypot(b.vx, b.vz),
         // (The legs at a walk's pace a stride a second; quicker as they go faster.)
         stride = (this.strides.get(b.id) ?? drawn[i].stride) + dt * Math.max(1, speed / 1.3);
       this.strides.set(b.id, stride);
       if (lying(b)) this.downed.add(i);
+      // (One between the eye and him not drawn; drawn again once a little clear of the line, not at its edge.)
+      const near =
+        b.id !== this.agent && !lying(b) && inWay ? inWay(m, this.between.has(b.id)) : false;
+      if (near) this.between.add(b.id);
+      else this.between.delete(b.id);
+      if (near && !m.hidden) {
+        m = { ...m, hidden: true };
+        this.hid++;
+      }
       drawn[i] = { moment: m, size: m.hidden ? 0 : 1, stride };
       const p = presence.get(this.refs[i]!);
       if (p) {
