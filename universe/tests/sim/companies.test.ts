@@ -10,6 +10,8 @@ const world = { hasStore: () => false, peek: () => undefined } as unknown as Wor
   sides = [{ ref: "pol:0:1" }, { ref: "pol:0:2" }] as unknown as [Polity, Polity],
   co = (unpaid: boolean, share = 0.2): CompanyAt => ({
     org: { id: 1, name: "Varn", kind: 0, members: 400, leader: { name: "X" } } as CompanyAt["org"],
+    page: "org:pol:0:1:ev:0:9",
+    reserve: unpaid ? 0 : 100,
     men: 400,
     share,
     unpaid,
@@ -36,6 +38,11 @@ test("the battle is told with each side's company by name, or not at all", () =>
   assert.equal(told.co[0], null);
   assert.match(told.co[1]!, /^the Varn /);
   assert.deepEqual(told.coMen, [0, 400]);
+  // (Its page and what it did, so the battle's page links it and the company's page lists its fields.)
+  assert.deepEqual(told.coPage, [null, "org:pol:0:1:ev:0:9"]);
+  assert.deepEqual(told.coHow, [null, "fought"]);
+  const left = companiesTold(companiesField(world, sides, [co(true), null], [10, 100]).days)!;
+  assert.deepEqual(left.coHow, ["left", null]);
 });
 
 // An unpaid company leaves its payer's pay the year its treasury has nothing by it (sim/order/groups.ts unpaidLeave).

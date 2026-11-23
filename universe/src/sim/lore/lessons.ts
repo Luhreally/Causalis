@@ -40,6 +40,7 @@ import { politiesOf, realmName } from "../polity/polity.ts";
 import { farFromSeat, hostHungry, warsOf } from "../war/war.ts";
 import { designsOf, hostBest } from "../design/design.ts";
 import { knows, loreOf } from "./lore.ts";
+import { seasOf } from "../ecology/seas.ts";
 import { LessonStore, lessonAdds, lessonsOf, useIn, type Holder } from "./lessons-store.ts";
 import { HOLD_READ, fortunesYear, readOutcomes, stoodYear } from "../order/holds.ts";
 
@@ -296,6 +297,29 @@ const READINGS: Readonly<Record<string, Reading>> = {
   "ecology.woods-gone": (_, e) => ownUse(e, "woods-lost", 1.5),
   "ecology.wild-thinned": (_, e) => ownUse(e, "wild-lost", 1.5),
   "ecology.hunted-out": (_, e) => ownUse(e, "wild-lost", 1),
+  // (Their sea fished poor, and failed, by the land that pressed it most: sim/ecology/seas.ts. Its waters are its wild too.)
+  "ecology.sea-few": (_, e) => ownUse(e, "wild-lost", 1),
+  // (A reach failed is felt by every land that goes out on it, not the one that pressed it most alone: all may close their waters.)
+  "ecology.sea-collapsed": (ctx, e) => {
+    const cell = cellOf(e.place);
+    if (cell === null) return null;
+    const water = ctx.medium === "water",
+      of = seasOf(ctx.world)?.reachesOf(ctx.generated, water).of,
+      reach = of?.[cell] ?? -1;
+    if (!of || reach < 0) return ownUse(e, "wild-lost", 1.5);
+    const lore = loreOf(ctx.world),
+      struck: Strike[] = [];
+    for (const p of ctx.provinces.all())
+      if (of[p.cell] === reach && p.total() > 0 && (water || lore.get(p.cell, "fishing")))
+        struck.push({
+          holder: cellRef(0, p.cell),
+          cause: "wild-lost",
+          share: LESSON.presses * 1.5,
+          lost: 1,
+          dead: 0,
+        });
+    return { struck };
+  },
   "ecology.herds-gone": (_, e) =>
     (e.data as { why?: string } | null)?.why === "hunted" ? ownUse(e, "wild-lost", 2) : null,
   // A sickness come to a land (sim/health/health.ts): its dead.
@@ -490,7 +514,7 @@ export function strike(
       // How it has gone since they took it up, and so how far it moves them now.
       u.strikes++;
       u.since += s.share;
-      const now = faded(u.w, year - u.at, LESSON.keep),
+      const now = faded(u.w, year - u.at, r.keep ?? LESSON.keep),
         trust = trustOf(u.before, u.since / u.strikes, u.strikes);
       u.w = useAfter(now, press, r.asks, trust);
       u.at = year;

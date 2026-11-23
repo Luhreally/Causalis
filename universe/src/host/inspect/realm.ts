@@ -942,8 +942,21 @@ export function battlePage(world: World, ref: string): PageModel {
         const d = e.data as {
           co?: [string | null, string | null];
           coMen?: [number, number];
+          coPage?: [string | null, string | null];
+          coHow?: [string | null, string | null];
         } | null;
         if (!d?.co || !w) return [];
+        // (Its page, where the battle's telling keeps it, and what it did that day: a battle of an older save says neither.)
+        const named = (s: number) => {
+            const name = d.co![s]!,
+              page = d.coPage?.[s];
+            return page ? link(name, page) : name;
+          },
+          did: Readonly<Record<string, string>> = {
+            fought: "fought",
+            left: "left the field unpaid",
+            turned: "went over to the foe unpaid",
+          };
         return [
           stat(
             "Hired companies",
@@ -956,8 +969,8 @@ export function battlePage(world: World, ref: string): PageModel {
                 d.co![s]
                   ? [
                       part(
-                        [`${d.co![s]}, for `, realmLink(world, s === 0 ? w.attacker : w.defender)],
-                        `${count(d.coMen?.[s] ?? 0)} men`,
+                        [named(s), ", for ", realmLink(world, s === 0 ? w.attacker : w.defender)],
+                        `${count(d.coMen?.[s] ?? 0)} men${d.coHow?.[s] ? `, ${did[d.coHow[s]!] ?? "fought"}` : ""}`,
                       ),
                     ]
                   : [],

@@ -78,3 +78,78 @@ test("a reach pressed past what it gives falls, feeds those who go out on it the
   }
   assert.ok(last > SEA.least, "it never grew back");
 });
+
+// (2026-11-22) A reach fished on past poor fails, and is told again when it grows well; a land's boats lie idle as it fails.
+test("a reach fished past poor is told failed once, and well again once, with the poor turn its cause", async () => {
+  const { SEA_EVENTS, OCC } = {
+      ...(await import("../../src/sim/index.ts")),
+      ...(await import("../../src/rules/index.ts")),
+    },
+    store = seasOf(world)!,
+    lore = loreOf(world),
+    p = ctx.provinces
+      .all()
+      .find(
+        (x) =>
+          x.total() > 0 &&
+          x.occupation(OCC.forager) > 0 &&
+          seaOf(ctx, x.cell).reach >= 0 &&
+          (ctx.medium === "water" || lore.get(x.cell, "fishing")),
+      );
+  if (!p) return;
+  const reach = seaOf(ctx, p.cell).reach,
+    few = world.events.emit({ type: SEA_EVENTS.few.type, place: p.ref, causes: [], data: {} }),
+    told = (type: string) => world.events.all().filter((e) => e.type === type).length,
+    year = (y: number) => ((Math.floor(world.now / YEAR) + y) * YEAR) as SimTime,
+    was = told(SEA_EVENTS.collapsed.type);
+  store.set({ reach, stock: 0.05, pressed: 2, lands: 1, most: p.cell, few });
+  seasYear(ctx, year(1));
+  const row = store.get(reach)!;
+  assert.ok(row.stock < SEA.collapse, `stock ${row.stock}`);
+  assert.ok(row.gone, "not told failed");
+  assert.equal(told(SEA_EVENTS.collapsed.type), was + 1);
+  assert.equal(world.events.get(row.gone!)!.causes[0]!.ref, few);
+  // (Kept in a save with its failing; a save from before, with none, loads as it did.)
+  const copy = new SeaStore();
+  copy.load(JSON.parse(JSON.stringify(store.save())));
+  assert.equal(copy.get(reach)!.gone, row.gone);
+  seasYear(ctx, year(2));
+  assert.equal(told(SEA_EVENTS.collapsed.type), was + 1, "told again while it stays failed");
+  // (Well again: told once, and its turns let go.)
+  const back = told(SEA_EVENTS.recovered.type);
+  store.set({ ...store.get(reach)!, stock: 0.9 });
+  seasYear(ctx, year(3));
+  assert.equal(told(SEA_EVENTS.recovered.type), back + 1);
+  assert.equal(store.get(reach)?.few ?? null, null);
+  assert.equal(store.get(reach)?.gone ?? null, null);
+});
+
+test("a town's boats are as many as its fishers crew, and lie idle as its sea fails", async () => {
+  const { fishingBoats, BOATS_MOST } = await import("../../src/host/boats.ts"),
+    lore = loreOf(world),
+    store = seasOf(world)!,
+    p = ctx.provinces
+      .all()
+      .find(
+        (x) =>
+          x.total() > 0 &&
+          seaOf(ctx, x.cell).reach >= 0 &&
+          (ctx.medium === "water" || lore.get(x.cell, "fishing")),
+      );
+  if (!p) return;
+  const reach = seaOf(ctx, p.cell).reach;
+  store.set({ reach, stock: 1, pressed: 0, lands: 1, most: p.cell, few: null });
+  const whole = fishingBoats(world, p.cell, p.total())!;
+  assert.ok(whole.boats >= 1 && whole.boats <= BOATS_MOST);
+  assert.equal(whole.laid, 0);
+  // (As many tied up as the sea's own reckoning keeps in: sea.out.)
+  store.set({ reach, stock: SEA.least, pressed: 2, lands: 1, most: p.cell, few: null, out: 0 });
+  const failed = fishingBoats(world, p.cell, p.total())!;
+  assert.equal(failed.boats, whole.boats);
+  assert.equal(failed.laid, failed.boats, "a failed sea's boats all tied up");
+  // (And the sea's year empties the jetties as it fails, a part of the way a year.)
+  store.set({ reach, stock: 0.05, pressed: 2, lands: 1, most: p.cell, few: null });
+  seasYear(ctx, ((Math.floor(world.now / YEAR) + 9) * YEAR) as SimTime);
+  const out = store.get(reach)!.out ?? 1;
+  assert.ok(out < 1 && out > 1 - SEA.follows - 1e-9, `out ${out}`);
+});

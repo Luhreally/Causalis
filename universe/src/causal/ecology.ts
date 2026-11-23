@@ -204,3 +204,24 @@ registerEventWords(
   (world, e) =>
     `The woods of ${landWords(world, e.place)} were still gone, a generation after they were cleared, year ${yearOfMoment(e.t)}`,
 );
+
+// Conservation (sim/ecology/ecology.ts keptTurns): what a people set aside come back, and what hunger broke.
+registerEventWords(ECOLOGY_EVENTS.keptBack.type, (world, e) => {
+  const d = e.data as { what?: string; kept?: number; stands?: number } | null,
+    kept = d?.kept
+      ? `, ${Math.max(1, Math.round(d.kept / 10))} in a hundred of it kept from use`
+      : "";
+  return d?.what === "wild"
+    ? `The game of ${landWords(world, e.place)} came back where its people had closed their hunting grounds${kept}, ${year(e.t)}`
+    : `The woods of ${landWords(world, e.place)} stood again where its people had kept them from the axe${kept}${d?.stands ? `: ${d.stands} parts in a hundred of its woods stand` : ""}, ${year(e.t)}`;
+});
+registerEventWords(ECOLOGY_EVENTS.keptBroken.type, (world, e) => {
+  const d = e.data as { what?: string; was?: number; now?: number } | null,
+    from =
+      d?.was !== undefined && d.now !== undefined
+        ? `: of ${Math.max(1, Math.round(d.was / 10))} in a hundred kept, ${Math.round(d.now / 10)} still kept`
+        : "";
+  return d?.what === "wild"
+    ? `Hungry, the people of ${landWords(world, e.place)} hunted the grounds they had closed${from}, ${year(e.t)}`
+    : `Hungry, the people of ${landWords(world, e.place)} cleared the woods they had kept from the axe${from}, ${year(e.t)}`;
+});

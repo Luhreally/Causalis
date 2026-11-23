@@ -253,3 +253,28 @@ test("by the water: a jetty out from the shore nearest the town, boats by the ag
     assert.deepEqual(iced, moored);
   }
 });
+
+test("as many boats as its fishers crew, and those its sea has failed tied up at the jetty by day", () => {
+  const plan = (boats?: number, laid?: number) => ({
+      ...town("metal"),
+      water: {
+        x: 0,
+        z: -700,
+        ...(boats !== undefined ? { boats } : {}),
+        ...(laid !== undefined ? { laid } : {}),
+      },
+    }),
+    noon = 3 * YEAR + 100 * DAY + 12 * 3600;
+  // (No reading: by its size, as before.)
+  assert.equal(
+    countryOf(plan()).water!.boats.length,
+    countryOf({ ...town("metal"), water: { x: 0, z: -700 } }).water!.boats.length,
+  );
+  const six = countryOf(plan(6));
+  assert.equal(six.water!.boats.length, 6);
+  const idle = countryOf(plan(6, 4));
+  assert.equal(idle.water!.boats.length, 6, "the same boats, drawn in the same batches");
+  const out = idle.water!.boats.map((_, k) => boatAt(idle, k, noon, 40).out);
+  assert.deepEqual(out, [true, true, false, false, false, false]);
+  assert.ok(six.water!.boats.every((_, k) => boatAt(six, k, noon, 40).out));
+});

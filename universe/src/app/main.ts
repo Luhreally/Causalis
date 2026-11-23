@@ -8725,7 +8725,7 @@ async function runPlanetPage(): Promise<void> {
           ? [
               {
                 key: `host:${i}`,
-                text: `${i === 0 ? "⚔️" : "🛡️"} ${side.name}${side.company ? ` 🚩 ${side.company.name}` : ""} · ${men.standing[i]!.toLocaleString("en-US")}`,
+                text: `${i === 0 ? "⚔️" : "🛡️"} ${side.name}${side.company ? ` 🚩 ${side.company.name}${side.company.how === "left" ? " (gone home unpaid)" : side.company.how === "turned" ? " (gone over)" : ""}` : ""} · ${men.standing[i]!.toLocaleString("en-US")}`,
                 at: over[i],
                 priority: 2,
                 badge: { realm: side.ref },

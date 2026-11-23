@@ -33,7 +33,15 @@ import {
 } from "../../sim/index.ts";
 import { ORG_IS, grainSum, orgWords } from "../../causal/index.ts";
 import { realmColor } from "../colors.ts";
-import { orgFedNews, orgFedOf, orgFedRef, orgNews, orgOf, orgRef } from "../groups.ts";
+import {
+  companyFields,
+  orgFedNews,
+  orgFedOf,
+  orgFedRef,
+  orgNews,
+  orgOf,
+  orgRef,
+} from "../groups.ts";
 import {
   claimUnder,
   count,
@@ -480,6 +488,26 @@ export function orgPage(world: World, ref: string): PageModel {
         ],
       });
   }
+  // (A company's fields: each battle it stood in, for whom, how many and what it did. sim/war/companies.ts)
+  if (g.kind === "free company" || g.kind === "sea company") {
+    const fields = companyFields(world, g.ref, since, yearAt);
+    if (fields.length)
+      blocks.push({
+        type: "list",
+        title: "Its fields",
+        items: fields.map((f) =>
+          item(
+            [
+              `Year ${f.year}: `,
+              link("a battle", f.battle),
+              `, ${count(f.men)} men for ${f.payer} against ${f.foe}: ${FIELD_HOW[f.how] ?? "stood and fought"}${f.how === "fought" ? (f.won ? ", and won" : ", and lost") : ""}`,
+            ],
+            f.battle,
+            f.year,
+          ),
+        ),
+      });
+  }
   const passed = passedItems(world, orgNews(g), since);
   blocks.push(
     passed.length
@@ -512,6 +540,13 @@ export function orgPage(world: World, ref: string): PageModel {
     year,
   };
 }
+
+/** What a company did on a field, in words. */
+const FIELD_HOW: Readonly<Record<string, string>> = {
+  fought: "stood and fought",
+  left: "left the field unpaid before the day",
+  turned: "went over to the foe unpaid",
+};
 
 const ICONS: Readonly<Record<string, string>> = {
   brigands: "🏴",
