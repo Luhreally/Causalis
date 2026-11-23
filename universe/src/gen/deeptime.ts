@@ -191,6 +191,8 @@ export function buryCarbon(
   t: Tectonics,
   deep: DeepTime,
   producers: Producers,
+  /** As made before this round (a world kept so: rules/carbon.ts groundKept): the old swamp-forest and warm-sea thresholds. */
+  kept = false,
 ): void {
   const { ages, coal, oil, coalAge, oilAge } = deep,
     light = lightGrowth(planet.insolation),
@@ -201,7 +203,7 @@ export function buryCarbon(
   for (const age of ages) {
     const mid = (age.from + age.to) / 2,
       // The older the age, the more of what it buried has since been worn away or cooked.
-      kept = 0.6 + (0.4 * age.index) / (AGES - 1),
+      keptShare = 0.6 + (0.4 * age.index) / (AGES - 1),
       landGrew = age.forests && producers.land !== null && age.index >= producers.land,
       seaGrew = producers.sea !== null && age.index >= producers.sea;
     if (!landGrew && !seaGrew) continue;
@@ -220,9 +222,15 @@ export function buryCarbon(
       // draws off: a warm swamp's or a cold bog's. rules/biomes.ts.)
       const moist = rain / demandMm(warm, demand),
         logged = dmath.clamp((moist - BURY.logged) / BURY.loggedSpan, 0, 1);
-      if (landGrew && high > 0 && high < 250 && logged > 0) {
+      if (
+        kept
+          ? landGrew && high > 0 && high < 250 && warm > 14 && rain > 1200
+          : landGrew && high > 0 && high < 250 && logged > 0
+      ) {
         const grew = Math.min(warmGrowth(warm), wetGrowth(rain / demand)) * light,
-          g = BURY.coal * grew * logged * sinks * kept;
+          g = kept
+            ? Math.min(1, (rain - 1200) / 1000) * Math.min(1, (warm - 14) / 10) * sinks * keptShare
+            : BURY.coal * grew * logged * sinks * keptShare;
         coal[c] = coal[c]! + g;
         if (g > coalBest[c]!) {
           coalBest[c] = g;
@@ -231,8 +239,10 @@ export function buryCarbon(
       }
       // (Oil: the bloom of its shallow seas, as warm as their growth is and as bright as its sky, buried where they lay still.)
       const bloom = dmath.clamp((warmGrowth(warm) - BURY.bloomFrom) / (1 - BURY.bloomFrom), 0, 1);
-      if (seaGrew && high <= 0 && high > -200 && bloom > 0) {
-        const g = BURY.oil * bloom * light * sinks * kept;
+      if (seaGrew && high <= 0 && high > -200 && (kept ? warm > 16 : bloom > 0)) {
+        const g = kept
+          ? Math.min(1, (warm - 16) / 10) * 0.8 * sinks * keptShare
+          : BURY.oil * bloom * light * sinks * keptShare;
         oil[c] = oil[c]! + g;
         if (g > oilBest[c]!) {
           oilBest[c] = g;

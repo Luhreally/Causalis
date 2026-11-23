@@ -17,6 +17,7 @@ import {
   agesMade,
   dawnMade,
   farMade,
+  groundKept,
   kindBurns,
   kindLives,
   lifeDraw,
@@ -231,7 +232,16 @@ export function generateHomeWorld(
       ? seatPeople(own, far.body, { grid, climate, water, elevation: tectonics.elevation })
       : own,
     // (What its ages buried, by what grew in them: none where nothing lived, coal only since its land first grew.)
-    buried = buryCarbon(grid, planet, tectonics, deep, producersOf(life)),
+    // (A world kept as made before this round: its burial by the old law, its deposits as Earth's: rules/carbon.ts groundKept.)
+    oldGround = groundKept(seed.text),
+    buried = buryCarbon(
+      grid,
+      planet,
+      tectonics,
+      deep,
+      oldGround ? EARTH_PRODUCERS : producersOf(life),
+      oldGround,
+    ),
     deposits = makeDeposits(
       grid,
       rng,
@@ -240,15 +250,17 @@ export function generateHomeWorld(
       water,
       tectonics.elevation,
       deep,
-      life,
-      worldChemistry({
-        prior: prior.name,
-        star,
-        planet,
-        ground: groundHash,
-        ...(far ? { far } : {}),
-      } as unknown as HomeWorld),
-      kindBurns(kind),
+      oldGround ? undefined : life,
+      oldGround
+        ? undefined
+        : worldChemistry({
+            prior: prior.name,
+            star,
+            planet,
+            ground: groundHash,
+            ...(far ? { far } : {}),
+          } as unknown as HomeWorld),
+      oldGround || kindBurns(kind),
     );
   void buried;
   const h = new Hasher().string(prior.name).int(frequency).value(star).value(planet);

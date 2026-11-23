@@ -6,7 +6,7 @@
 // shell-builders build the worse). Its frozen ground holds the carbon of ten thousand summers' growth that never rotted; a
 // warming that thaws it lets it rot, and that carbon goes into the air too. Only a liquid that dissolves rock as water does
 // carries carbon down as stone: on a world of another liquid its air rests where it was made, and nothing weathers it away.
-import { dmath } from "../kernel/index.ts";
+import { dmath, seedActs, seedWithAct } from "../kernel/index.ts";
 
 /** The numbers (est.: an Earth as this world-model makes it is first light's, its land 0.29 of its face, 16.5 degrees, 930 mm). */
 export const CARBON_CYCLE = {
@@ -97,4 +97,21 @@ export function shellsLeft(soured: number): number {
   const C = CARBON_CYCLE,
     harm = Math.max(0, Math.min(1, (soured - C.sourFrom) / C.sourSpan));
   return 1 - C.reef * C.shellsLost * harm;
+}
+
+/**
+ * The act that keeps a world's buried fuels and its ores as they were made before they were read from its life and its chemistry
+ * (breadth round, 2026-11-23): a world saved before is kept so, its seed's text marked ("first light ~ground kept"), and its deep
+ * ages bury by the old swamp-forest law, every age after the first with land growth, its deposits counted as Earth's.
+ */
+export const GROUND_KEPT = "ground kept";
+
+/** Whether a seed's text keeps its world's buried fuels and ores as they were made before this round. */
+export function groundKept(text: string): boolean {
+  return seedActs(text).includes(GROUND_KEPT);
+}
+
+/** A seed's text marked to keep its buried fuels and ores as they were made. */
+export function keptGround(text: string): string {
+  return groundKept(text) ? text : seedWithAct(text, GROUND_KEPT);
 }

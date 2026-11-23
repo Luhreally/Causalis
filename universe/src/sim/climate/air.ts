@@ -424,9 +424,12 @@ export function airYear(ctx: PopulationContext, t: SimTime): void {
     rotted = (air.rotted ?? 0) + rotting;
   air.thawed = thawed;
   air.rotted = rotted;
-  // What has been put in and not yet worn away by its rock; its seas take all but a share of that back within decades.
+  // What has been put in from outside the living world (fuel dug and burned, old frozen carbon rotted) and not yet worn away by
+  // its rock: its seas take all but a share of that back within decades. (A wood cleared is the living world's own carbon, and
+  // the seas and the woods coming back take it all back, as they always did.)
   const put = burned + cleared + rotting,
-    added = Math.max(0, (air.added ?? 0) + put - wornShare(cw.facts) * (air.added ?? 0)),
+    old = burned + rotting,
+    added = Math.max(0, (air.added ?? 0) + old - wornShare(cw.facts) * (air.added ?? 0)),
     floor = rest + tailShare(added, rest) * added;
   air.added = added;
   air.carbon = Math.max(rest, air.carbon + put - SINK * (air.carbon - floor));
