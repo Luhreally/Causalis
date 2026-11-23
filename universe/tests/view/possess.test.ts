@@ -290,9 +290,9 @@ test("looking down from high on one held, those nearer the eye along the ground 
   assert.equal(up(0.6 * h, -2.3 * h, 0, 2.2 * h), 0, "read up it to its top by the eye: gone");
 });
 
-test("the eye stands off by the body's height as the town draws it (larger than life)", () => {
+test("the eye stands off by the body's height as the town draws it (its true height: view/stature.ts)", () => {
   const h = drawnHeight(plan);
-  assert.ok(h > 4 && h < 7, `${h}`);
+  assert.ok(h > 1.7 && h < 1.8, `${h}`);
   assert.ok(drawnHeight({ body: null }) === h);
 });
 

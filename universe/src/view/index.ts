@@ -952,6 +952,16 @@ export {
   type PartShape,
 } from "./figure.ts";
 export {
+  FIGURE_METRES,
+  HOUSEHOLD,
+  OUR_STATURE,
+  figureExtent,
+  growth,
+  lifeFigure,
+  measuresOf,
+  type Measures,
+} from "./stature.ts";
+export {
   HOME_DISTANCE,
   STAR_SIZE,
   bodyColor,

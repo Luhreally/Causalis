@@ -47,7 +47,8 @@ import {
   townDay,
   wheelOf,
 } from "./errands.ts";
-import { figureOf, paceOf, partExtent } from "./figure.ts";
+import { paceOf } from "./figure.ts";
+import { measuresOf } from "./stature.ts";
 import { clearOf, type Ground, type Solid } from "./ground.ts";
 import type { Presence } from "./presence.ts";
 import type { Carry } from "./work.ts";
@@ -80,14 +81,11 @@ type Point = { readonly x: number; readonly z: number };
 type Person = VillagePlan["people"][number];
 
 /**
- * How tall one of a town's people is drawn (m): their figure's top, as large as the town draws its
- * people (larger than life, as their things are) — what the eye behind one possessed stands off by.
+ * How tall one of a town's people is drawn (m): their true height, as the town draws its people beside their homes
+ * (view/stature.ts) — what the eye behind one possessed stands off by.
  */
 export function drawnHeight(plan: Pick<VillagePlan, "body">): number {
-  const f = figureOf(plan.body);
-  let top = 0;
-  for (const p of f.parts) top = Math.max(top, p.y + partExtent(p)[1] / 2);
-  return Math.round(((top * f.scale) / 0.1) * 100) / 100;
+  return Math.round(measuresOf(plan.body).stature * 100) / 100;
 }
 
 /** The hand's person a drawn one is (Agent.id; null: not one of the hand's). */

@@ -33,6 +33,7 @@ import {
 import { PLOT, compoundParts } from "./compound.ts";
 import { lifeTint } from "./biochem.ts";
 import type { HouseLook } from "./village.ts";
+import { measuresOf } from "./stature.ts";
 import type { TownParts, TownScene } from "./town.ts";
 
 type Rgb = readonly [number, number, number];
@@ -154,6 +155,11 @@ export function tierOf(scene: TownScene, p: number): number {
  * tall homes in what its land stacks (stone, brick, sun-dried brick), in fired brick where it builds in what cannot be
  * stacked. One look to each design, tier, step and wash, made once for the scene.
  */
+/** The floor of a hut in a design's look at our measure (m²: view/town.ts LEVELS[0], 5 by 4.4, drawn as lowFoot has it; a round one's a disc). */
+function hutFloor(look: HouseLook): number {
+  return 5 * (look.length / 0.7) * 4.4 * (look.width / 0.55) * (look.round ? Math.PI / 4 : 1);
+}
+
 export function formLook(scene: TownScene, p: number, index: number): HouseLook | undefined {
   const base = scene.looks[index] ?? scene.looks[0];
   if (!base || !scene.tiers) return base;
@@ -175,8 +181,13 @@ export function formLook(scene: TownScene, p: number, index: number): HouseLook 
     key = (((scene.looks[index] ? index : 0) * 64 + code) * 4 + wash) * 32 + aged * 8 + quarter;
   let look = scene.formLooks.get(key);
   if (!look) {
+    // (Its people's measure, view/stature.ts: its doors clear them standing, its floors are their height and head room and a
+    // floor's depth, and a hut's or a house's floor holds its household lying down. No bounds but its lot's: a people twice our
+    // height build twice as high, and a small one low.)
     const tier = code & 3,
-      storey = Math.max(0.75, Math.min(1.5, form.body)),
+      measure = form.figure !== undefined ? measuresOf(form.figure) : null,
+      storey = measure ? measure.rise : form.body,
+      spread = measure ? Math.max(measure.rise, Math.sqrt(measure.home / hutFloor(base))) : 1,
       tall = (TALL_LOW + (code >> 2) * TALL_STEP) * storey,
       plain = base.tent || base.open || base.raised > 0,
       walls = scene.plan.designs[scene.looks[index] ? index : 0]?.walls ?? "",
@@ -198,6 +209,9 @@ export function formLook(scene: TownScene, p: number, index: number): HouseLook 
       steep = base.rise >= 0.1 ? form.steep : 1;
     look = {
       ...base,
+      length: base.length * spread,
+      width: base.width * spread,
+      ...(measure ? { door: [measure.doorWide, measure.door] as const } : {}),
       wall,
       roof: roofed,
       glass: toned(roofing === 1 ? GLASS_GREEN : roofing === 2 ? GLASS_GREY : GLASS_BLUE),
@@ -216,13 +230,13 @@ export function formLook(scene: TownScene, p: number, index: number): HouseLook 
         : {}),
       ...(form.own ? { own: true } : {}),
       ...(plain
-        ? {}
+        ? { height: base.height * storey }
         : tier === TIER.heart
           ? base.round
             ? { height: base.height * storey * (form.winged ? 1.9 : 1.35) }
             : {
                 joined: true,
-                length: Math.max(base.length, 0.9),
+                length: Math.max(base.length * spread, 0.9),
                 height: base.height * storey * (form.winged ? 2.1 : 1.55),
               }
           : tier === TIER.edge
@@ -230,7 +244,9 @@ export function formLook(scene: TownScene, p: number, index: number): HouseLook 
                 apart: true,
                 height: base.height * storey,
                 // (Where its people ride, a house at the edge stands back from its street, its drive before it.)
-                ...(form.engines >= 0 && !form.over ? { width: Math.min(base.width, 0.6) } : {}),
+                ...(form.engines >= 0 && !form.over
+                  ? { width: Math.min(base.width, 0.6) * spread }
+                  : {}),
               }
             : { height: base.height * storey }),
     };

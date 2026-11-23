@@ -6769,6 +6769,8 @@ export type HouseLook = {
   readonly own?: boolean;
   /** How high its floors are against ours (its people's measure), and how much steeper than its roofing asks its roof is pitched. */
   readonly storey?: number;
+  /** Its door, to its people's measure (m: breadth, clear height; view/stature.ts; absent: ours, 1 by 2). */
+  readonly door?: readonly [number, number];
   readonly steep?: number;
   /** What its tenements are raised in, and its blocks (absent: brick, concrete). */
   readonly stuff?: Rgb;

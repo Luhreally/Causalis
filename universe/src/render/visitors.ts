@@ -9,7 +9,14 @@
 // opens facing them. A handful of draw calls a group.
 import * as pc from "playcanvas";
 import type { VillagePlan, Visitor } from "../bridge/index.ts";
-import { figureOf, figurePaint, limbPitch, type Figure, type PartShape } from "../view/index.ts";
+import {
+  figureOf,
+  figurePaint,
+  lifeFigure,
+  limbPitch,
+  type Figure,
+  type PartShape,
+} from "../view/index.ts";
 import { InstancedBatch, boxMesh, capsuleMesh, coneMesh, cylinderMesh, keptMesh } from "./batch.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
@@ -174,7 +181,7 @@ export class VisitorsLayer {
           ? null
           : new InstancedBatch(this.stage, this.dome, v.color, LIGHTS, this.root, glowing(v.color));
       // Their people, in their own colours a little aglow (as things from the stars are).
-      const figure = figureOf(v.body, detail),
+      const figure = lifeFigure(figureOf(v.body, detail), v.body),
         [r, g, b] = v.color,
         body: Rgb = [0.25 + 0.5 * r, 0.25 + 0.5 * g, 0.25 + 0.5 * b],
         dark: Rgb = [0.15 + 0.35 * r, 0.15 + 0.35 * g, 0.15 + 0.35 * b],

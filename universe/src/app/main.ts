@@ -7630,7 +7630,9 @@ async function runPlanetPage(): Promise<void> {
       far = reach > 0 ? Math.min(170, Math.max(26, reach * 1.4)) : plan?.districts ? 78 : 26;
     rig.configure({
       distance: far,
-      minDistance: 3,
+      // (Down to twelve metres off: its people are drawn their true height beside their homes, view/stature.ts, and are
+      // seen as near as that.)
+      minDistance: 1.2,
       maxDistance: Math.max(140, far * 1.6),
       pitch: -38,
       minPitch: -85,

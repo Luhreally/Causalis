@@ -242,7 +242,16 @@ export function partBatch(key: string, g: { mesh: TownGroup["mesh"]; lamp?: bool
 
 const YEAR_S = 365 * 86_400;
 
-/** The look of each level: footprint (along the street, deep), walls' height, storeys; metres. */
+/** A door at our measure (m: breadth, clear height; view/stature.ts gives a people's own), and what it is made of. */
+const DOOR: readonly [number, number] = [1, 2],
+  DOOR_WOOD: Rgb = [0.3, 0.2, 0.13],
+  /** The deepest a hut or a house may be and leave its lot a yard behind it (m: a shed, a tree, a drive; view/townform.ts edgeYard). */
+  YARD_LEFT = 6.4;
+/**
+ * The look of each level at our measure: footprint (along the street, deep), walls' height, storeys; metres. A people's own
+ * measure (view/townform.ts formLook, view/stature.ts) raises a hut's and a house's walls and floor with their height and
+ * household, and a tall home's storeys with their height; its lot bounds its footprint.
+ */
 const LEVELS: readonly { w: number; d: number; h: number; storeys: number }[] = [
   { w: 5, d: 4.4, h: 2.4, storeys: 1 },
   { w: 7.2, d: 6, h: 3.4, storeys: 1 },
@@ -2417,8 +2426,24 @@ function home(
         d * (flat ? 1.02 : 1.15),
       );
     else out.put(look.round ? "cyl" : "box", wall, x, look.raised * 10 + h / 2, z, w, h, d, yaw);
-    // Two windows on its front, toward its street (none in a tent, nor where it is open).
-    if (!look.tent && !look.open && grow >= 1 && h > 1.4 && fine >= 1)
+    // Its door in the middle of its front, toward its street, to its people's measure (view/stature.ts): they go in under it
+    // standing. Two windows either side of it (none in a tent, nor where it is open).
+    const [doorWide, doorHigh] = look.door ?? DOOR;
+    if (!look.tent && !look.open && grow >= 1 && fine >= 1 && h > doorHigh) {
+      const [dx, dz] = at(x, z, yaw, 0, (-d / 2) * (look.round ? 0.97 : 1) - 0.04);
+      out.put(
+        "box",
+        DOOR_WOOD,
+        dx,
+        look.raised * 10 + doorHigh / 2,
+        dz,
+        doorWide,
+        doorHigh,
+        0.1,
+        yaw,
+      );
+    }
+    if (!look.tent && !look.open && grow >= 1 && h > doorHigh * 0.7 && fine >= 1)
       for (const side of [-1, 1]) {
         // (Apart at the edge, a cottage of one window; by the square a floor higher, a window to each floor.)
         if (look.apart && side < 0) continue;
@@ -2957,9 +2982,10 @@ export function townHomes(
           rising(out, now, level, x, z, yaw, (t - w.at) / states.takes[p]!);
         else {
           rankedHome(scene, out, now, level, p, x, z, yaw, t);
-          // (At the edge, what stands in its yard: view/townform.ts.)
-          if (level <= 1 && !now.joined)
-            edgeYard(scene, out, p, x, z, yaw, LEVELS[level]!.d, yardWalled);
+          // (At the edge, what stands in its yard: view/townform.ts. A big people's home fills its lot: no yard is left.)
+          const deep = level <= 1 ? lowFoot(LEVELS[level]!, now)[1] : LEVELS[level]!.d;
+          if (level <= 1 && !now.joined && deep <= YARD_LEFT)
+            edgeYard(scene, out, p, x, z, yaw, deep, yardWalled);
           // (Shops on the ground floor of a tall home near the square: asked 2026-11-16.)
           if (shopsBelow(p, scene.plan.whole, level)) shopfront(out, level, x, z, yaw, p);
           // (Framed against the shaking, as many as its people have learned to frame: the lessons.)
@@ -3250,14 +3276,28 @@ function rankedHome(
     const [gx, gz] = at(x, z, yaw, 0, d / 2 + 1.5),
       [tx, tz] = at(x, z, yaw, w * 0.3, d / 2 + 1.6),
       [px, pz] = at(x, z, yaw, 0, -d / 2 - 0.35);
-    out.put("box", GARDEN, gx, 0.2, gz, Math.min(LOT_W - 0.6, w * 1.2), 0.4, 2.6, yaw);
+    // (Behind it while its lot leaves the room: a big people's house fills its lot.)
+    const behind = d / 2 + 2.8 <= LOT_D / 2,
+      [doorWide, doorHigh] = look.door ?? DOOR;
+    if (behind) out.put("box", GARDEN, gx, 0.2, gz, Math.min(LOT_W - 0.6, w * 1.2), 0.4, 2.6, yaw);
     if (level <= 1) {
-      tree(out, tx, tz, 3.6 + 2 * k);
+      if (behind) tree(out, tx, tz, 3.6 + 2 * k);
       yardWall(out, x, z, yaw, LOT_W - 0.6, LOT_D - 0.8, 1.1, 0.35);
       yardWalled = true;
     }
-    out.put("box", DRESSED, px, base + 1.2, pz, Math.min(2.2, w * 0.36), 2.4, 0.6, yaw);
-    out.lamp(px, base + 2.1, pz, 0.5, 0.5, 0.7, yaw);
+    // (A porch about its door, to its people's measure.)
+    out.put(
+      "box",
+      DRESSED,
+      px,
+      base + doorHigh * 0.6,
+      pz,
+      Math.min(w * 0.45, doorWide * 2.2),
+      doorHigh * 1.2,
+      0.6,
+      yaw,
+    );
+    out.lamp(px, base + doorHigh * 1.05, pz, 0.5, 0.5, 0.7, yaw);
   } else if (wealth < 0) {
     // Low and small under a patched roof of a dull colour of its own, a second hovel crowded into its yard.
     const tone = POOR_ROOFS[(Math.imul(p + 7, 0x9e3779b1) >>> 28) % POOR_ROOFS.length]!,
@@ -3271,13 +3311,15 @@ function rankedHome(
       },
       [qx, qz] = at(x, z, yaw, w * 0.12, 0.3);
     home(out, poor, level, x, z, yaw);
-    if (level <= 1) {
+    // (A hovel at their measure, behind while its lot leaves the room.)
+    const hm = (look.door ?? DOOR)[1] / DOOR[1];
+    if (level <= 1 && d / 2 + 2.2 + 1.3 * hm <= LOT_D / 2) {
       const top = base + L.h * poor.height + 1.1,
         [sx, sz] = at(x, z, yaw, ((p % 3) - 1) * 1.6, d / 2 + 2.2),
         other = POOR_ROOFS[(p + 1) % POOR_ROOFS.length]!;
       out.put("box", PATCH, qx, top, qz, 1.5, 0.16, 1.3, yaw + 0.3);
-      out.put("box", poor.wall, sx, 0.9, sz, 3, 1.8, 2.6, yaw);
-      out.put("box", other, sx, 1.9, sz, 3.4, 0.2, 3, yaw + 0.08);
+      out.put("box", poor.wall, sx, 0.9 * hm, sz, 3 * hm, 1.8 * hm, 2.6 * hm, yaw);
+      out.put("box", other, sx, 1.9 * hm, sz, 3.4 * hm, 0.2, 3 * hm, yaw + 0.08);
     }
   } else home(out, look, level, x, z, yaw);
 }

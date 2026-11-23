@@ -64,6 +64,8 @@ import {
   bobOf,
   FIGURE_CAPSULE,
   figureOf,
+  lifeFigure,
+  measuresOf,
   figureAnatomy,
   fallenLost,
   BLOW_PLACES,
@@ -1758,9 +1760,9 @@ export class VillageScene {
     };
     this.squareHall.put((this.squareHall.shown = true));
     yield;
-    // People: drawn three times their size, so a phone can see them — as their body is
-    // built (one figure for a people, part by part, each part a batch per colour group).
-    this.figure = figureOf(plan.body, s.quality.detail);
+    // People: drawn at their true height, as their homes are (view/stature.ts: no one taller than the door they live behind) —
+    // as their body is built (one figure for a people, part by part, each part a batch per colour group).
+    this.figure = lifeFigure(figureOf(plan.body, s.quality.detail), plan.body);
     // (A new figure, new gear: Phase 55 M226.)
     this.gears.clear();
     this.gearAt = Number.NaN;
@@ -4902,7 +4904,7 @@ function streetsHeld(plan: VillagePlan, t: number): { x: number; z: number; r: n
     out.push({ x: s.door.x, z: s.door.z, r: 2 });
   }
   // (A store heaped in the open, piece by piece at the most it is ever laid: its sacks, its log piles, its stones, its ore behind.)
-  const k = figureOf(plan.body).scale,
+  const k = measuresOf(plan.body).drawn,
     most = storeHeaps(
       stores,
       heapCounts(stores, { grain: 1e9, wood: 1e9, stone: 1e9, ore: 1e9 }),

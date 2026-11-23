@@ -26,6 +26,7 @@
 // Pure: facts in (read by the host from what the world keeps, host/form.ts), a few numbers out; the view draws from them and
 // the town's page says them. Nothing here is kept, and no world's history turns on it.
 import { wallAt } from "./wall.ts";
+import type { VillagePlan } from "./village.ts";
 import {
   SURVEYED,
   STRAIGHT,
@@ -61,12 +62,16 @@ export type FormFacts = {
   readonly people: number;
   /** Its world is not of rock and water as ours, or its people's own stuff is not clay: its tall homes are of what its low ones are. */
   readonly own: boolean;
+  /** Their body as their figure is built of it (null: ours): what their doors, floors and homes are made to (view/stature.ts). */
+  readonly figure?: VillagePlan["body"];
 };
 
 /** A town's form, as its view draws it and its page says it. */
 export type TownForm = {
   /** Its people's breadth against ours (1). */
   readonly body: number;
+  /** Their body as their figure is built of it (null: ours; absent: an old plan's): its homes are made to its measure (view/stature.ts). */
+  readonly figure?: VillagePlan["body"];
   /** They pass over their town (they swim, or fly): its lanes need let no one by. */
   readonly over: boolean;
   /** They fly: nothing is lost by living high. */
@@ -182,6 +187,7 @@ export function townForm(f: FormFacts): TownForm {
     green = f.water ? 0 : clamp(f.rain / 900, 0, 1) * (f.warm < -4 ? 0.3 : 1);
   return {
     body,
+    ...(f.figure !== undefined ? { figure: f.figure } : {}),
     over,
     winged: f.winged,
     drive,
@@ -439,7 +445,7 @@ export function formWhys(
     );
   if (Math.abs(form.body - 1) > 0.08 && !form.over)
     out.push(
-      `Its floors are ${(3 * Math.max(0.75, Math.min(1.5, form.body))).toFixed(1)} m high: its people stand ${form.body > 1 ? "broader and taller" : "smaller"} than ours.`,
+      `Its doors and floors are made to its people's measure: they stand ${form.body > 1 ? "broader and taller" : "smaller"} than ours, and their homes stand as much ${form.body > 1 ? "higher and wider" : "lower"}.`,
     );
   if (!form.over)
     out.push(

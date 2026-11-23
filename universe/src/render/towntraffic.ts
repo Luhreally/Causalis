@@ -35,8 +35,8 @@ const TYRE: Rgb = [0.06, 0.06, 0.07],
   DRIFT: Rgb = [0.66, 0.92, 0.86],
   HAULER: Rgb = [0.5, 0.42, 0.3];
 
-/** Larger than life by this, as the town's figures are large: seen from the eye a town lets you have. */
-const LARGE = 1.5;
+/** At their true size, as the town's figures and homes are (view/stature.ts). */
+const LARGE = 1;
 /** A car's size and a line's vehicle's (metres). */
 const CAR = { long: 4.2 * LARGE, wide: 1.9 * LARGE, tall: 1.05 * LARGE, top: 0.7 * LARGE };
 const COACH = { long: 10 * LARGE, wide: 2.5 * LARGE, tall: 2.3 * LARGE };

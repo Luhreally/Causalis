@@ -24,6 +24,7 @@ import { getAbout, machinesYear } from "./roads.ts";
 import { kindOf } from "./kinds.ts";
 import { landEra } from "./village.ts";
 import { landMadeHead } from "./home.ts";
+import { peopleFigure } from "./folk.ts";
 
 /**
  * The first block of a town laid for engines (-1: they are not come to its land). A town founded since they came is laid for
@@ -102,6 +103,7 @@ export function formFacts(
     seat: rank?.seat ? 1 + rank.seat.grade : 0,
     people: s.population,
     own: water || kindOf(world) !== "rocky",
+    figure: peopleFigure(g),
   };
 }
 
