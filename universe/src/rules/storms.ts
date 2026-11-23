@@ -99,9 +99,10 @@ export const SLIDE = {
   rainPower: 3,
   /** The share of the chance its woods' roots take away, wholly wooded. */
   woods: 0.6,
-  /** Of its people, the share a slide kills at its usual greatness, the most; of its harvest, the share it buries. */
-  dead: 0.0004,
-  deadMost: 0.01,
+  /** Of its people, the share a slide kills at its usual greatness, the most (est: a slide falls on a valley, not a land: some ten in
+   * a hundred thousand); of its harvest, the share it buries. */
+  dead: 0.0001,
+  deadMost: 0.003,
   fields: 0.04,
   fieldsMost: 0.25,
 } as const;
