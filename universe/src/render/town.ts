@@ -372,6 +372,8 @@ export class TownLayer {
   readonly nets: TownNetsLayer;
   /** The places the village holds in its streets (its memorials, court, works, doors), for its networks to keep off. */
   netsKeep: NetsClear["keep"] = [];
+  /** Its civics and walls as they stood when it was built, for its networks to keep off. */
+  private standing = new TownParts();
 
   constructor(stage: Stage, parent: pc.Entity) {
     parent.addChild(this.root);
@@ -447,17 +449,22 @@ export class TownLayer {
     this.seenAt = t;
     this.settled.show(this.ground, this.ownParts, this.farParts);
     // (Its networks keep off what else stands in its streets: its ground as laid, its civics and walls as they stand now.)
-    const standing = new TownParts();
+    const standing = (this.standing = new TownParts());
     townCivics(this.scene, t, standing, false);
     townWalls(this.scene, t, standing, this.open);
-    this.nets.build(this.scene, this.eye, {
-      parts: [this.ground, this.ownParts, this.farParts, standing],
-      keep: this.netsKeep,
-    });
+    this.nets.build(this.scene, this.eye, this.netsClear());
     performance.measure("town.built", { start: t0 });
     this.busy = this.scene.active.length > 0 || civicsActive(plan, t) || !!plan.walls;
     this.drawnAt = -Infinity;
     this.update(t);
+  }
+
+  /** What its networks keep off: its ground as laid, its homes as drawn, its civics and walls, the places the village holds. */
+  private netsClear(): NetsClear {
+    return {
+      parts: [this.ground, this.ownParts, this.farParts, this.standing],
+      keep: this.netsKeep,
+    };
   }
 
   /** Where a siege has opened its walls (null: whole): those lengths are put again only when the breach changes. */
@@ -515,6 +522,8 @@ export class TownLayer {
     this.detail = detail;
     this.spare = this.farParts;
     this.farParts = homes;
+    // (Its networks keep off the homes as now drawn: those drawn before are drawn over by the next choosing.)
+    this.nets.keepOff(this.netsClear());
     // (From its choosing begun to its drawing shown, over frames; and the last step, which puts it.)
     performance.measure("town.chosen", { start: t0 });
     performance.measure("town.shown", { start: t1 });

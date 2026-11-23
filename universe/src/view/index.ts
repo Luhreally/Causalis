@@ -1477,6 +1477,7 @@ export {
   NET_TONES,
   POLE_HIGH,
   townNets,
+  townNetsSteps,
   type NetPart,
   type NetsClear,
   type TownNets,
