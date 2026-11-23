@@ -155,6 +155,7 @@ const RULES: Readonly<Record<string, readonly [number, number]>> = {
   "life.kind-new": [FIRSTS, 5],
   "life.kind-gone": [SORROWS, 5],
   "life.tamed": [FIRSTS, 4],
+  "life.kind-changed": [FIRSTS, 3],
   "act.flood": [SORROWS, 5],
   "act.fire": [SORROWS, 5],
   "act.meteor": [SORROWS, 6],

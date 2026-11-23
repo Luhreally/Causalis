@@ -118,6 +118,7 @@ export function heldBeastsOver(out: BeastNow[], n: number, bodies: readonly Held
         : b.doing === "flee" || b.doing === "hunt"
           ? 0
           : 0.3;
-    o.pose.crouch = o.dead || b.doing === "hunt" ? 1 : 0;
+    // (A beast resting lies down; one stalking goes low.)
+    o.pose.crouch = o.dead || b.doing === "hunt" ? 1 : b.doing === "rest" ? 0.6 : 0;
   }
 }

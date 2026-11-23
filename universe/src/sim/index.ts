@@ -1442,9 +1442,13 @@ export {
   LINEAGE_EVENTS,
   LINEAGE_STEP,
   LineageStore,
+  fitHere,
   kindsInPlayOf,
   lineageYear,
   partnersOf,
+  traitsAt,
+  type Isolate,
+  type KindTraits,
   type Partners,
 } from "./ecology/lineage.ts";
 export {

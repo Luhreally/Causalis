@@ -159,6 +159,12 @@ export type HeldLive = {
   /** A soldier's battle as it stands (null: a beast's). */
   readonly tally: HeldTally | null;
   readonly ended: string;
+  /**
+   * A beast's needs (rules/wild.ts WILD_NEEDS: hunger, thirst, fear, weariness, the urge to breed; 0 … 1 each) and the
+   * drive the most pressing of them is (WILD_DRIVES); absent for a soldier.
+   */
+  readonly needs?: Readonly<Record<string, number>>;
+  readonly drive?: string;
 };
 
 /**

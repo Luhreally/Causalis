@@ -50,6 +50,7 @@ import type { PopulationContext } from "../population/systems.ts";
 import { homePlanet } from "../planet/store.ts";
 import { ecologyOf } from "./ecology.ts";
 import { woodsRead } from "./woods.ts";
+import { fitHere } from "./lineage.ts";
 
 export const HERD_EVENTS = {
   /** A land's creatures gone from it, by fields, towns, flocks or the green's going. */
@@ -568,19 +569,19 @@ function holdsHere(
       p && people > 0 && idx.pasture[c]! > 0
         ? (p.occupation(OCC.herder) * PRODUCTIVITY[OCC.herder]! * ctx.life.appetite) /
           idx.pasture[c]!
-        : 0;
-  return {
-    ...herdHolds({
+        : 0,
+    // (What its kind has become: its coat and size against the warmth now, its wariness against the hunt; exactly as made where nothing has been selected.)
+    kin = fitHere(ctx, idx.kind[c]!, c),
+    held = herdHolds({
       green: idx.green[c]!,
       niche: s.niche,
       woods: woodsRead(ctx, c).now,
       rain: rainShift(ctx, c) * longRain(ctx, c, year),
-      wild: w ? w.wild : 1,
+      wild: w ? (w.wild < 1 ? 1 - (1 - w.wild) * (1 - kin.escape) : w.wild) : 1,
       density: idx.area[c]! > 0 ? people / idx.area[c]! : 0,
       flocks,
-    }),
-    flocks,
-  };
+    });
+  return { holds: kin.fit === 1 ? held.holds : held.holds * kin.fit, why: held.why, flocks };
 }
 
 /** What goes on the people's ground that could be known: a hunter, a great beast, or in the water what swims there. */
