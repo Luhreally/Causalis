@@ -2009,7 +2009,9 @@ export class TownBuilder {
       if ((def.market && !s.market) || (def.city && !city) || RISING[i] || people < LEAST_EVER[i]!)
         continue;
       if (!this.meets(def, i, k)) continue;
-      // (As many as their use pays for, in this town: rules/civicworth.ts.)
+      // (As many as their use pays for, in this town: rules/civicworth.ts; never more than one past those its people fill.)
+      if (HAVE[i]! >= (def.per ? Math.min(def.most ?? 99, Math.floor(people / def.per) + 1) : 1))
+        continue;
       use ??= townUseOf(this.ctx, s);
       const want =
         people >= payingPeople(def, CIVIC_LOTS[def.kind], use)

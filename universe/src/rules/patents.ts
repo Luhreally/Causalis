@@ -122,6 +122,21 @@ function shared(p: Principle, q: Principle): { mine: number; theirs: number } {
   return { mine, theirs };
 }
 
+/** Each principle's rivals with what each way gains of the effects they share (RIVALS, `shared`): read once. */
+const RIVAL_GAINS = new Map<string, { q: Principle; mine: number; theirs: number }[]>(
+  [...RIVALS].map(([id, list]) => {
+    const p = PRINCIPLES.find((x) => x.id === id)!;
+    return [id, list.map((q) => ({ q, ...shared(p, q) }))];
+  }),
+);
+/** What still stands of a rival's gain, a whole year at a time since it was taken up (exp(-age / BUILT_LIFE)). */
+const WORN = Float64Array.from({ length: 30 * BUILT_LIFE + 1 }, (_, a) =>
+  dmath.exp(-a / BUILT_LIFE),
+);
+function worn(age: number): number {
+  return Number.isInteger(age) && age < WORN.length ? WORN[age]! : dmath.exp(-age / BUILT_LIFE);
+}
+
 /**
  * How readily a land takes up a principle against what it built on its rivals (1: nothing holds it): the new way's gain against
  * that gain and the gain still standing of the rival it built on most, worn out over BUILT_LIFE since the land took it up. `since(id)`: the year it
@@ -132,19 +147,36 @@ export function lockedIn(
   year: number,
   since: (id: string) => number | undefined,
 ): { hold: number; by: Principle | null } {
-  const rivals = RIVALS.get(p.id);
+  const rivals = RIVAL_GAINS.get(p.id);
   if (!rivals) return { hold: 1, by: null };
   let gain = 0,
-    built = 0,
     by: Principle | null = null,
     most = 0;
-  for (const q of rivals) {
-    const y = since(q.id);
+  for (const r of rivals) {
+    const y = since(r.q.id);
     if (y === undefined) continue;
-    const s = shared(p, q),
-      standing = s.theirs * dmath.exp(-Math.max(0, year - y) / BUILT_LIFE);
+    const standing = r.theirs * worn(Math.max(0, year - y));
     // (The rival it built on most is what holds it: one works, one host's arms, replaced at a time.)
-    if (standing > most) [most, by, gain, built] = [standing, q, s.mine, standing];
+    if (standing > most) [most, by, gain] = [standing, r.q, r.mine];
   }
-  return built > 0 && gain > 0 ? { hold: gain / (gain + built), by } : { hold: 1, by: null };
+  return most > 0 && gain > 0 ? { hold: gain / (gain + most), by } : { hold: 1, by: null };
+}
+
+/** lockedIn's hold alone. */
+export function lockHold(
+  p: Principle,
+  year: number,
+  since: (id: string) => number | undefined,
+): number {
+  const rivals = RIVAL_GAINS.get(p.id);
+  if (!rivals) return 1;
+  let gain = 0,
+    most = 0;
+  for (const r of rivals) {
+    const y = since(r.q.id);
+    if (y === undefined) continue;
+    const standing = r.theirs * worn(Math.max(0, year - y));
+    if (standing > most) [most, gain] = [standing, r.mine];
+  }
+  return most > 0 && gain > 0 ? gain / (gain + most) : 1;
 }

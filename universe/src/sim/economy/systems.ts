@@ -1211,6 +1211,8 @@ export function economyYear(ctx: PopulationContext, t: SimTime): void {
   const markets = marketsOf(ctx.world),
     wanted = new Map<number, number[]>(),
     provinces = ctx.provinces.all();
+  // (What each land was brought of the kinds its senders worked, as the year opens: rules/variety.ts.)
+  markets.primeBrought();
   for (const p of provinces) {
     const m = markets.of(p.cell),
       want = new Array<number>(GOOD_COUNT).fill(0);

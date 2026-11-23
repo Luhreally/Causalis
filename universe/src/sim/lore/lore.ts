@@ -56,7 +56,7 @@ import {
   GRANT_HOLD,
   adultHazard,
   grantPull,
-  lockedIn,
+  lockHold,
   timePreference,
   PRINCIPLE_DEPTH,
   WAY,
@@ -700,8 +700,8 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
         answers = pressed ? ANSWERS.get(p.id)! : null,
         push = answers?.length ? pushOf(answers, pressed!) : 1,
         // (What it built on a rival way holds it back while it stands; its realm's grants pull its finders on: rules/patents.ts.)
-        locked = lockedIn(p, year, sinceHere),
-        chance = p.rate * (0.2 + drive) * LORE_PACE * finding * push * locked.hold * pulled;
+        locked = lockHold(p, year, sinceHere),
+        chance = p.rate * (0.2 + drive) * LORE_PACE * finding * push * locked * pulled;
       if (!(world.rng.real(FIND, cell, t, PRINCIPLE_INDEX.get(p.id)!) < chance)) continue;
       const factors: Factor[] = terms
         .filter(([, w, v]) => w * v > 0)
@@ -799,7 +799,7 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
             (kin > 1 ? 1 : heard) *
             ties *
             granted *
-            lockedIn(p, year, sinceHere).hold;
+            lockHold(p, year, sinceHere);
         if (!best || chance > best.chance || (chance === best.chance && n < best.from))
           best = { p, from: n, chance };
       }

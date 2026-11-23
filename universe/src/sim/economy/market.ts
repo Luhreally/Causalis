@@ -604,14 +604,29 @@ export class MarketStore implements StateStore {
    * sent it goods in the year's flows worked of those goods. A mask over RECIPES' places.
    */
   kindsHad(m: Market): number {
-    let mask = m.kinds;
-    for (const i of this.flowsAt([m.cell])) {
-      const f = this.flows[i]!;
-      if (f.to !== m.cell || f.from === m.cell) continue;
-      const from = this.map.get(f.from);
-      if (from) mask |= from.kinds & CLASS_WAYS[f.good]!;
+    return m.kinds | (this.broughtAt().get(m.cell) ?? 0);
+  }
+
+  /**
+   * What each land was brought in the year's flows of the kinds their senders worked (kindsHad), read once at the year's start,
+   * before any land's crafters work anew: one pass over the flows. A reading of what is saved, never saved itself.
+   */
+  primeBrought(): void {
+    if (this.brought?.flows === this.flows && this.brought.length === this.flows.length) return;
+    const at = new Map<number, number>();
+    for (const f of this.flows) {
+      if (f.to === f.from) continue;
+      const from = this.map.get(f.from),
+        k = from ? from.kinds & CLASS_WAYS[f.good]! : 0;
+      if (k) at.set(f.to, (at.get(f.to) ?? 0) | k);
     }
-    return mask;
+    this.brought = { flows: this.flows, length: this.flows.length, at };
+  }
+  private brought: { flows: readonly TradeFlow[]; length: number; at: Map<number, number> } | null =
+    null;
+  private broughtAt(): Map<number, number> {
+    if (!this.brought) this.primeBrought();
+    return this.brought!.at;
   }
   flowsOf(cells: readonly number[]): TradeFlow[] {
     return this.flowsAt(cells).map((i) => this.flows[i]!);

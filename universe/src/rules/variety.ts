@@ -34,13 +34,23 @@ export function kindsIn(mask: number, g: number): number {
 
 /** What v kinds of a class are worth to its users against one kind (v^(1/(σ-1)); 1 for one kind or none). */
 export function varietyGain(kinds: number): number {
-  return kinds <= 1 ? 1 : dmath.pow(kinds, 1 / (SUBSTITUTION - 1));
+  return kinds <= 1
+    ? 1
+    : kinds < GAINS.length && Number.isInteger(kinds)
+      ? GAINS[kinds]!
+      : gainOf(kinds);
 }
 
 /** The class's price index against one kind's price: what its households reckon it costs (v^(1/(1-σ))). */
 export function varietyIndex(kinds: number): number {
   return 1 / varietyGain(kinds);
 }
+
+function gainOf(kinds: number): number {
+  return dmath.pow(kinds, 1 / (SUBSTITUTION - 1));
+}
+/** (A class's gain at each whole number of kinds up to more than any class has ways: read once.) */
+const GAINS = Float64Array.from({ length: 33 }, (_, k) => (k <= 1 ? 1 : gainOf(k)));
 
 /** The kinds a mask holds of a class, by name, in RECIPES' order (a page's one tap down). */
 export function kindNames(mask: number, g: number): string[] {
