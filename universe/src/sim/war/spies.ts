@@ -20,7 +20,7 @@ import type { PopulationContext } from "../population/systems.ts";
 import { politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import { capacityOf } from "../order/order.ts";
 import { holdsOf } from "../order/holds.ts";
-import { giveLore, knows, loreOf, openTo } from "../lore/lore.ts";
+import { LEARNING, giveLore, knows, loreOf, openTo } from "../lore/lore.ts";
 import { RIGHTS_EVENTS, grantOf } from "../lore/rights.ts";
 import { RIVALRY, diplomacyOf } from "../diplomacy/diplomacy.ts";
 import { topFear } from "../finance/finance.ts";
@@ -40,10 +40,13 @@ export const SPYING = {
   /** How ill the one it was caught in thinks of the one who sent it, at first (fading as a remembered wrong does). */
   wrong: 0.2,
   /**
-   * A spy's best chance a year of carrying home a craft its own seat lacks, where the realm it is in lets every word pass (est: a
-   * spy at a court or a port sees a craft worked openly within a few years).
+   * A spy's best chance a year of carrying home a craft its own seat lacks, against a land's of learning one from a neighbour
+   * (lore.ts LEARNING): one who watches it worked learns it as a land does, and carries home only what is written where it is
+   * (its seat's records, lore effect "learning") and only as far as the realm it is in lets word pass. (At 0.2 a year a spy,
+   * a tenth of a world's realms took a craft a year from the farthest and first: first light knew fixing nitrogen from the air
+   * in 402 lands at 760 against 5, and its fields wore in a quarter as many lands.)
    */
-  carries: 0.2,
+  carries: 1,
 } as const;
 
 const STREAM = defineStream("war.spies");
@@ -182,7 +185,11 @@ export function spiesYear(ctx: PopulationContext, t: SimTime): void {
       const host = realms.get(s.in);
       if (!host || host.ended !== null) continue;
       const word = holdsOf(world, host.ref)[2] ?? 0.5,
-        chance = SPYING.carries * word,
+        chance =
+          SPYING.carries *
+          LEARNING *
+          word *
+          Math.min(1, Math.max(0, lore.effect(host.seat, "learning"))),
         u = world.rng.real(STREAM, parseRef(r).b, year, 2_000_000 + parseRef(s.in).b);
       if (u >= chance) continue;
       const seen = lore.knownOf(host.seat);
