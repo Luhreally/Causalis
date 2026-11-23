@@ -71,7 +71,10 @@ export type CivicDef = {
   readonly name: string;
   /** What its land must know, every one ("a|b": either). */
   readonly needs: readonly string[];
-  /** The fewest the town must hold. */
+  /**
+   * The fewest a town held when it first raised one, in the history this was read from: no longer what decides (rules/civicworth.ts:
+   * a building rises where its use pays for its cost in that town). Kept as a reading for the pages; Infinity, never planned.
+   */
   readonly people: number;
   /** Only a market town (or a city) builds it. */
   readonly market?: true;
@@ -87,7 +90,7 @@ export type CivicDef = {
   readonly place: "core" | "edge";
   /** Years to build. */
   readonly years: number;
-  /** One for every so many of the town's people (else one), up to `most`. */
+  /** One for every so many of the town's people (else one for them all): the many one serves, up to `most` (rules/civicworth.ts). */
   readonly per?: number;
   readonly most?: number;
   /** What it takes the place of (a temple, the shrine it was). */

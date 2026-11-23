@@ -67,6 +67,7 @@ import {
   roofGain,
   lerner,
   naturalPrices,
+  kindsIn,
   priceTarget,
   WORKED,
   SIGNAL,
@@ -105,6 +106,7 @@ import { rearmYear } from "../war/arms.ts";
 import {
   GOODS_STORE,
   dutyOf,
+  exchangeCostOf,
   guildOf,
   insuredGainOf,
   intoxLost,
@@ -147,6 +149,13 @@ const SAIL_PER_100KM = 0.02,
 const SEA_PARTNERS = 4;
 /** A province keeps this many months of its people's food before it sells any. */
 const FOOD_RESERVE_MONTHS = 3;
+/** How many kinds of each class a mask of ways of making holds (rules/variety.ts). */
+function kindsOfEach(mask: number): number[] {
+  const out = new Array<number>(GOOD_COUNT);
+  for (let g = 0; g < GOOD_COUNT; g++) out[g] = Math.max(1, kindsIn(mask, g));
+  return out;
+}
+
 /** How far toward where supply and demand would put it a price moves in a year. */
 const PRICE_STEP = 0.35;
 
@@ -373,6 +382,8 @@ function makeAndUse(
     ),
     // The tools its crafters made this year, by the metal they were headed with.
     made = new Map<ToolMetal, number>();
+  // (The ways of making its crafters worked this year: the kinds of each class it made, rules/variety.ts.)
+  let worked = 0;
   if (crafters > 0 && open.length) {
     const weights = open.map(({ r }) => {
       const w = Math.max(0, worth(m, r));
@@ -466,6 +477,7 @@ function makeAndUse(
           ),
         ),
         metal = TOOL_RECIPE_METAL[r.id];
+      if (out > 0) worked |= 1 << i;
       if (metal && out > 0) made.set(metal, (made.get(metal) ?? 0) + out);
       // (What it took of the lode it came from: E1.)
       if (r.needs?.ore) digOre(ctx, p.cell, r.needs.ore, out, n);
@@ -484,6 +496,7 @@ function makeAndUse(
           )
         : 1000;
   } else m.craftsWorked = hands > 0 ? 0 : 1000;
+  m.kinds = worked;
   toolsOfYear(ctx, p, m, made, t);
 
   // What its households buy of what they need, by what they earn and what it costs, within their means (sim/trade/demand.ts, p87):
@@ -777,7 +790,10 @@ function trade(
       ta = realms.of(e.a)?.ref,
       tb = realms.of(e.b)?.ref,
       apart = !!ta && !!tb && ta !== tb,
-      barred = apart ? sanctionBetween(ctx.world, ta!, tb!) : 0;
+      barred = apart ? sanctionBetween(ctx.world, ta!, tb!) : 0,
+      // (What changing one realm's money for the other's costs a trader over the journey, as the two moved against each other
+      // last year: rules/thrift.ts. Nothing where either reckons in goods.)
+      changed = apart ? exchangeCostOf(ctx.world, ta!, tb!) : 0;
     const ma = markets.of(e.a),
       mb = markets.of(e.b),
       // (What both ends' signals put on the line: traders see the far price as it moves, so move more and on a narrower
@@ -812,7 +828,11 @@ function trade(
         duty = apart && buyer ? dutyOf(ctx.world, buyer) : 0,
         cartel = apart && seller ? cartels.get(g) : undefined,
         asked = cartel && cartel.members.has(refNumber(seller!)) ? cartel.markup * s.price[g]! : 0,
-        margin = d.price[g]! * (1 - duty) - s.price[g]! - asked - e.cost * dealt * GOODS[g]!.bulk,
+        margin =
+          d.price[g]! * (1 - duty - changed) -
+          s.price[g]! -
+          asked -
+          e.cost * dealt * GOODS[g]!.bulk,
         insured = e.sea && seller ? insuredGainOf(ctx.world, seller) : 0;
       if (margin <= 0) continue;
       const people = ctx.provinces.get(s.cell)!.total(),
@@ -1058,6 +1078,8 @@ function reprice(
     // (As its people's deaths unclothed read the cold: sim/population.)
     cold: dmath.clamp((10 - ctx.generated.climate.temperature[p.cell]!) / 10, 0, 1),
     work,
+    // (The kinds of each class it has to hand: rules/variety.ts.)
+    kinds: kindsOfEach(marketsOf(ctx.world).kindsHad(m)),
   });
   // Who could make each crafted good: every shop of the land's crafters, of a master's few or a works' floor.
   const lore = loreOf(ctx.world),

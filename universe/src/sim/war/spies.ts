@@ -20,7 +20,8 @@ import type { PopulationContext } from "../population/systems.ts";
 import { politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import { capacityOf } from "../order/order.ts";
 import { holdsOf } from "../order/holds.ts";
-import { knows } from "../lore/lore.ts";
+import { giveLore, knows, loreOf, openTo } from "../lore/lore.ts";
+import { RIGHTS_EVENTS, grantOf } from "../lore/rights.ts";
 import { RIVALRY, diplomacyOf } from "../diplomacy/diplomacy.ts";
 import { topFear } from "../finance/finance.ts";
 import { warsOf } from "./war.ts";
@@ -38,6 +39,11 @@ export const SPYING = {
   caught: 0.3,
   /** How ill the one it was caught in thinks of the one who sent it, at first (fading as a remembered wrong does). */
   wrong: 0.2,
+  /**
+   * A spy's best chance a year of carrying home a craft its own seat lacks, where the realm it is in lets every word pass (est: a
+   * spy at a court or a port sees a craft worked openly within a few years).
+   */
+  carries: 0.2,
 } as const;
 
 const STREAM = defineStream("war.spies");
@@ -100,7 +106,8 @@ export function spiesYear(ctx: PopulationContext, t: SimTime): void {
     store = spiesOf(world);
   if (!store) return;
   const year = yearOfMoment(t),
-    realms = politiesOf(world);
+    realms = politiesOf(world),
+    lore = loreOf(world);
   // 1. Caught, or gone with the realm they were in or the one that sent them. (A realm whose spy was caught this year
   // sends none back in the year it was caught: the one it was in is watching for the next.)
   const caught = new Set<string>();
@@ -164,5 +171,53 @@ export function spiesYear(ctx: PopulationContext, t: SimTime): void {
       if (u < chance) have.push({ in: target, since: year });
     }
     store.set(p.ref, have);
+  }
+  // 3. What a spy carries home (rules/patents.ts): a craft the realm it is in works and its own seat lacks and could hold, the
+  // first such by the tree, as the realm it is in lets word pass. A craft under that realm's grant is a wrong it remembers.
+  for (const r of store.realms()) {
+    const sender = realms.get(r);
+    if (!sender || sender.ended !== null) continue;
+    for (const s of store.of(r)) {
+      if (s.since === year) continue;
+      const host = realms.get(s.in);
+      if (!host || host.ended !== null) continue;
+      const word = holdsOf(world, host.ref)[2] ?? 0.5,
+        chance = SPYING.carries * word,
+        u = world.rng.real(STREAM, parseRef(r).b, year, 2_000_000 + parseRef(s.in).b);
+      if (u >= chance) continue;
+      const seen = lore.knownOf(host.seat);
+      if (!seen) continue;
+      const ours = (id: string) => knows(ctx, sender.seat, id),
+        took = openTo(ctx, sender.seat, ours).find((pr) => !pr.seen && seen.has(pr.id));
+      if (!took) continue;
+      const grant = grantOf(world, host.ref),
+        under = !!grant && year - seen.get(took.id)!.year < grant.term,
+        event = world.events.emit({
+          type: RIGHTS_EVENTS.stolen.type,
+          subjects: [sender.ref, host.ref],
+          place: ctx.provinces.get(sender.seat)?.ref ?? null,
+          causes: [
+            { ref: seen.get(took.id)!.event, role: "enabler", weight: 1 },
+            ...(under && grant!.event
+              ? [{ ref: grant!.event, role: "constraint" as const, weight: 0.5 }]
+              : []),
+          ],
+          data: {
+            principle: took.id,
+            a: realmName(sender),
+            b: realmName(host),
+            since: s.since,
+            ...(under ? { granted: true } : {}),
+          },
+        });
+      giveLore(ctx, sender.seat, took, event);
+      if (under)
+        diplomacyOf(world).remember(host.ref, sender.ref, {
+          name: `a craft under its grant carried off by ${realmName(sender)}`,
+          value: -SPYING.wrong,
+          year,
+          source: event,
+        });
+    }
   }
 }

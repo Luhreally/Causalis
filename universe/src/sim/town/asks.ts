@@ -14,7 +14,17 @@ import {
   type StateStore,
   type World,
 } from "../../kernel/index.ts";
-import { CIVICS, FOODS, G, civic, needsMet, wallYears, type CivicKind } from "../../rules/index.ts";
+import {
+  CIVICS,
+  FOODS,
+  G,
+  civic,
+  civicsPaying,
+  needsMet,
+  payingPeople,
+  wallYears,
+  type CivicKind,
+} from "../../rules/index.ts";
 import { meansOfWorld } from "../../gen/index.ts";
 import { WAY, cultureOf } from "../culture/culture.ts";
 import { beliefOf } from "../belief/belief.ts";
@@ -29,7 +39,7 @@ import { lawOf } from "../order/laws.ts";
 import { orderOf } from "../order/order.ts";
 import { politiesOf } from "../polity/polity.ts";
 import { warsOf } from "../war/war.ts";
-import { CIVIC_LOTS, TownBuilder, housingOf, townsOf, type Fabric } from "./fabric.ts";
+import { CIVIC_LOTS, TownBuilder, housingOf, townUseOf, townsOf, type Fabric } from "./fabric.ts";
 
 export const ASK_EVENTS = {
   asked: defineEventType("town.asked", 5),
@@ -377,13 +387,18 @@ export function raiseProblem(ctx: PopulationContext, s: Settlement, what: AskRai
     if (watersOf(ctx.generated, cell)) return "it has water at hand";
     if (knows(ctx, cell, "electricity")) return "its water comes by pipe";
   }
-  const floor = what === "well" ? FEWEST : Math.max(FEWEST, Math.floor(def.people / 2));
+  // (Asked for, a building rises where its use would pay for half its cost: rules/civicworth.ts.)
+  const use = townUseOf(ctx, s),
+    floor =
+      what === "well"
+        ? FEWEST
+        : Math.max(FEWEST, Math.floor(payingPeople(def, CIVIC_LOTS[what], use) / 2));
   if (people < floor) return "there are too few of them";
   if (
     f.civics.some((c) => c.fell === null && c.kind === what && c.end > yearOfMoment(ctx.world.now))
   )
     return "one is rising already";
-  const planned = def.per ? Math.max(1, Math.min(def.most ?? 99, Math.floor(people / def.per))) : 1,
+  const planned = Math.max(1, civicsPaying(def, CIVIC_LOTS[what], use)),
     more = ASK_MORE[what],
     want = Math.max(planned, more ? 1 + Math.min(5, Math.floor(people / more)) : 1),
     // (What took a building's place stands for it: a temple is the town's shrine.)

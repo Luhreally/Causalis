@@ -28,7 +28,17 @@ import {
   type World,
 } from "../../kernel/index.ts";
 import { cellRef, tonguePersonName } from "../../gen/index.ts";
-import { FOODS, G, OCC } from "../../rules/index.ts";
+import {
+  FOODS,
+  G,
+  OCC,
+  SAVING_PACE,
+  adultHazard,
+  loanRate,
+  lossShare,
+  savedShare,
+  timePreference,
+} from "../../rules/index.ts";
 import { marketsOf, mouths, type PopulationContext } from "../population/systems.ts";
 import type { Market } from "../economy/market.ts";
 import { loreOf } from "../lore/lore.ts";
@@ -161,6 +171,8 @@ export type House = {
   drawn: number;
   /** Grain lent, ever. */
   lentEver: number;
+  /** What its land's savers have put by with it (grain's worth; in its capital, never its family's to draw): rules/thrift.ts. */
+  saved: number;
   failed: number | null;
   failedEvent: Ref | null;
 };
@@ -261,7 +273,7 @@ export class CreditStore implements StateStore {
       defaults?: { realm: Ref; year: number; event: Ref }[];
       jubilees?: { realm: Ref; year: number; event: Ref }[];
     };
-    this.houses = s.houses.map((h) => ({ ...h }));
+    this.houses = s.houses.map((h) => ({ ...h, saved: h.saved ?? 0 }));
     this.loans = s.loans.map((l) => ({ ...l }));
     this.count = s.count;
     this.crisis = s.crisis ? { ...s.crisis } : null;
@@ -316,11 +328,36 @@ export function rateFor(
   cell: number,
   year: number,
   realm: Ref | null = null,
+  base: number = CREDIT.rate,
 ): number {
   const lost = store.loans.filter((l) => l.cell === cell && BORNE.has(l.end)).length,
     faithless = realm && store.faithless(realm, year) ? 2 : 0,
     crisis = store.crisis && year - store.crisis.year < CREDIT.crisis;
-  return CREDIT.rate + CREDIT.risk * Math.min(3, lost + faithless) + (crisis ? CREDIT.dearer : 0);
+  return base + CREDIT.risk * Math.min(3, lost + faithless) + (crisis ? CREDIT.dearer : 0);
+}
+
+/**
+ * What waiting is worth to a house's land (rules/thrift.ts timePreference): its people's hazard, by their body, the higher as its
+ * leanest month this year was short.
+ */
+export function preferenceAt(ctx: PopulationContext, cell: number): number {
+  const prov = ctx.provinces.get(cell);
+  return timePreference(adultHazard(ctx.life), prov ? prov.leanest / 1000 : 1);
+}
+
+/**
+ * The rate a house lends at before a borrower's own record (rules/thrift.ts loanRate): what its land's savers ask to wait, made
+ * good for what its loans have cost it, as its own books of the kept years tell.
+ */
+export function houseRate(ctx: PopulationContext, store: CreditStore, h: House): number {
+  let loans = 0,
+    lost = 0;
+  for (const l of store.loans)
+    if (l.house === h.ref) {
+      loans++;
+      if (BORNE.has(l.end)) lost++;
+    }
+  return loanRate(preferenceAt(ctx, h.cell), lossShare(lost, loans, adultHazard(ctx.life)));
 }
 
 /** A realm's war chest for a war (M144): the event of the loan it took to pay its host, if any. */
@@ -650,6 +687,7 @@ export function creditYear(ctx: PopulationContext, t: SimTime): void {
         lost: 0,
         drawn: 0,
         lentEver: 0,
+        saved: 0,
         failed: null,
         failedEvent: null,
       });
@@ -706,7 +744,8 @@ export function creditYear(ctx: PopulationContext, t: SimTime): void {
       const lender = realms.of(best.cell)!,
         hm = markets.get(best.cell)!,
         risk = !abroad ? 0 : realm ? CREDIT.abroad : CREDIT.unruled,
-        rate = rateFor(store, prov.cell, year, realm?.ref ?? null) + risk,
+        rate =
+          rateFor(store, prov.cell, year, realm?.ref ?? null, houseRate(ctx, store, best)) + risk,
         owing = store.owedBy(prov.cell),
         crisis = store.crisis && year - store.crisis.year < CREDIT.crisis ? store.crisis : null,
         hunger = Math.min(1, need / Math.max(1, CREDIT.months * mouths(prov, ctx.life))),
@@ -845,7 +884,7 @@ export function creditYear(ctx: PopulationContext, t: SimTime): void {
           lender = realms.of(best.cell)!,
           hm = markets.get(best.cell)!,
           risk = CREDIT.war + (abroad ? CREDIT.abroad : 0),
-          rate = rateFor(store, p.seat, year, p.ref) + risk,
+          rate = rateFor(store, p.seat, year, p.ref, houseRate(ctx, store, best)) + risk,
           owing = store.owedBy(p.seat),
           decision = world.decisions.record({
             rule: "credit.war",
@@ -913,9 +952,21 @@ export function creditYear(ctx: PopulationContext, t: SimTime): void {
         lentNow += amount;
       }
     }
-  // 8. The houses' families draw on what each holds above a cushion of its stake.
+  // 8. Its land's savers put by with each house, or take back, as far as what it pays beats their impatience (rules/thrift.ts);
+  // the houses' families draw on what each holds of its own above a cushion of its stake, never on what was put by with it.
   for (const h of store.standing()) {
-    const over = Math.floor(CREDIT.drawn * (h.capital - CREDIT.cushion * h.stake));
+    const m = markets.get(h.cell),
+      prov = ctx.provinces.get(h.cell);
+    if (m && prov) {
+      const spare = Math.max(0, m.stock[G.grain]! - 12 * mouths(prov, ctx.life)),
+        want = savedShare(houseRate(ctx, store, h), preferenceAt(ctx, h.cell)) * spare,
+        put = Math.round(SAVING_PACE * (want - (h.saved ?? 0)));
+      if (put !== 0) {
+        h.saved = Math.max(0, (h.saved ?? 0) + put);
+        h.capital = Math.max(0, h.capital + put);
+      }
+    }
+    const over = Math.floor(CREDIT.drawn * (h.capital - (h.saved ?? 0) - CREDIT.cushion * h.stake));
     if (over <= 0) continue;
     h.capital -= over;
     h.drawn += over;

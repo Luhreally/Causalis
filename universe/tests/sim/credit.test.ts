@@ -24,6 +24,7 @@ import {
   creditOf,
   creditYear,
   cultureOf,
+  houseRate,
   debtBurden,
   legitimacyFactors,
   loreOf,
@@ -151,7 +152,8 @@ test("a house of lending rises in a market town that knows lending, with traders
   assert.equal(house!.town, s.ref);
   assert.equal(house!.cell, first);
   assert.match(house!.name, /^the house of /);
-  assert.ok(house!.capital > 0 && house!.capital === house!.stake);
+  // (Its stake, and what its land's savers put by with it: rules/thrift.ts.)
+  assert.ok(house!.capital > 0 && house!.capital === house!.stake + house!.saved);
   // (A stake of its land's grain above a year's food.)
   const ctx = populationContext(w);
   assert.ok(house!.stake <= CREDIT.stake * marketsOf(w).of(first!).stock[G.grain]!);
@@ -196,7 +198,9 @@ test("a hungry land of its realm borrows grain, carried from the house's town, a
     // (The loans already standing held still, so the grain counted is this loan's alone: since the rounds merged, the house
     // has lent 6,143 on its way to this year, paid back into its town in the same year with its interest, 6,844.)
     older = standingStill(w, k!),
-    lentBefore = house!.lentEver;
+    lentBefore = house!.lentEver,
+    // (What it lends at before a borrower's own record: its savers' patience and its own books' losses, rules/thrift.ts.)
+    asked = houseRate(ctx, creditOf(w)!, house!);
   creditYear(ctx, at(k! + 1));
   const store = creditOf(w)!,
     loan = store.loans.find((l) => !older.has(l) && l.cell === borrower)!;
@@ -205,7 +209,7 @@ test("a hungry land of its realm borrows grain, carried from the house's town, a
   assert.equal(loan.lent, need, "enough to bring its food to three months");
   assert.equal(to.stock[G.grain], need, "the grain came to its stores");
   assert.equal(from.stock[G.grain], had - need, "from the house's town");
-  assert.equal(loan.rate, CREDIT.rate);
+  assert.equal(loan.rate, asked);
   assert.equal(house!.lentEver, lentBefore + need);
   const event = w.events.get(loan.event)!,
     decision = w.decisions.get(event.causes[0]!.ref)!;
@@ -218,7 +222,7 @@ test("a hungry land of its realm borrows grain, carried from the house's town, a
   );
   assert.match(
     why(w, loan.event).claim,
-    /lent .+ grain against its famine, at 8 in a hundred a year/,
+    new RegExp(`lent .+ grain against its famine, at ${Math.round(asked * 100)} in a hundred a year`),
   );
   // A land already fed is not lent to: its famine answered, no second loan.
   creditYear(ctx, at(k! + 2));
@@ -236,7 +240,8 @@ test("a debt is paid from the harvests: interest on what is owed, at most a shar
   m.closeYear(60);
   const owed = loan.owed,
     had = hm.stock[G.grain]!,
-    capital = house.capital;
+    capital = house.capital,
+    saved = house.saved;
   creditYear(ctx, at(k + 1));
   const pay = Math.floor(CREDIT.repay * 10000);
   assert.equal(loan.paid, pay, "a share of the food made");
@@ -245,7 +250,11 @@ test("a debt is paid from the harvests: interest on what is owed, at most a shar
     "interest on what was owed",
   );
   assert.equal(hm.stock[G.grain], had + pay, "carried back to the house's town");
-  assert.ok(Math.abs(house.capital - (capital + owed * loan.rate)) < 1e-6, "the house earned it");
+  // (Less what its savers put by or took back in the year: theirs, not its earnings.)
+  assert.ok(
+    Math.abs(house.capital - house.saved - (capital - saved + owed * loan.rate)) < 1e-6,
+    "the house earned it",
+  );
   // Its stores at three months and a little: it pays only the little.
   const keep = Math.ceil(CREDIT.keep * mouths(ctx.provinces.get(borrower)!, ctx.life));
   for (const g of FOODS) m.take("used", g, m.stock[g]!);
@@ -396,13 +405,14 @@ test("a realm at war borrows to pay its host — a war chest, never from its ene
     had = seat.stock[G.grain]!;
   // (As above: the grain counted is the chest's alone.)
   standingStill(w, k);
+  const asked = houseRate(populationContext(w), store, house!);
   creditYear(populationContext(w), at(k + 1));
   const chest = store.chest(p.ref, war.ref)!;
   assert.ok(chest, "the realm borrowed for its war");
   assert.equal(chest.house, house!.ref);
   assert.equal(chest.cell, p.seat);
   assert.equal(chest.realm, p.ref);
-  assert.ok(Math.abs(chest.rate - (CREDIT.rate + CREDIT.war)) < 1e-9, "dearer for war's risk");
+  assert.ok(Math.abs(chest.rate - (asked + CREDIT.war)) < 1e-9, "dearer for war's risk");
   assert.equal(
     seat.stock[G.grain],
     had + (house!.cell === p.seat ? 0 : chest.lent),

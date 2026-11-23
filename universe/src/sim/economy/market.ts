@@ -5,7 +5,15 @@
 // to a stock goes through the ledger, so a year always balances.
 import { Hasher, defineKind, makeRef, type Ref, type StateStore } from "../../kernel/index.ts";
 import { cellRef } from "../../gen/index.ts";
-import { G, GLUT_YEARS, GOODS, OCCUPATIONS, type ToolMetal } from "../../rules/index.ts";
+import {
+  CLASS_WAYS,
+  G,
+  GLUT_YEARS,
+  GOODS,
+  OCCUPATIONS,
+  type FuelKind,
+  type ToolMetal,
+} from "../../rules/index.ts";
 
 export const GOOD_COUNT = GOODS.length;
 /** More than any land's number: two lands as one number (MarketStore.route). */
@@ -135,6 +143,16 @@ export class Market {
    * wages), and its hands without work are who the underworld's idle are (sim/order/underworld.ts).
    */
   craftsWorked = 1000;
+  /**
+   * The ways of making its crafters worked last year, as a mask over RECIPES' places (rules/variety.ts): the kinds of each class it
+   * made itself. With what it was brought (MarketStore.kindsHad), the variety its households see.
+   */
+  kinds = 0;
+  /**
+   * What it drew of each fuel this year, in its class's units (sim/economy/energy.ts drawFuels): how its account reads its fuel
+   * stocks by kind. Set each year before it is read; never saved.
+   */
+  readonly drew: Record<FuelKind, number> = { coal: 0, oil: 0, gas: 0, haze: 0, sulphur: 0 };
   /** Fuel its engines burned last year (units of coal and oil), for its power. */
   burned = 0;
   /** The year its works can run again after a rocket's fall (W3; 0: they do). */
@@ -320,6 +338,7 @@ export class Market {
       .int(this.machineCover)
       .int(this.powerCover)
       .int(this.craftsWorked)
+      .int(this.kinds)
       .int(this.burned)
       .string(this.mine ?? "")
       .string(this.well ?? "")
@@ -354,6 +373,7 @@ export class Market {
       machineCover: this.machineCover,
       powerCover: this.powerCover,
       craftsWorked: this.craftsWorked,
+      ...(this.kinds ? { kinds: this.kinds } : {}),
       burned: this.burned,
       mine: this.mine,
       well: this.well,
@@ -395,6 +415,7 @@ export class Market {
     m.machineCover = (s.machineCover as number | undefined) ?? 0;
     m.powerCover = (s.powerCover as number | undefined) ?? 0;
     m.craftsWorked = (s.craftsWorked as number | undefined) ?? 1000;
+    m.kinds = (s.kinds as number | undefined) ?? 0;
     m.burned = (s.burned as number | undefined) ?? 0;
     m.mine = (s.mine as Ref | null | undefined) ?? null;
     m.well = (s.well as Ref | null | undefined) ?? null;
@@ -573,6 +594,20 @@ export class MarketStore implements StateStore {
     const seen = new Set<number>();
     for (const cell of cells) for (const i of index.at.get(cell) ?? []) seen.add(i);
     return [...seen].sort((a, b) => a - b);
+  }
+  /**
+   * The kinds of each class a land has to hand (rules/variety.ts): what its own crafters worked last year, and what the lands that
+   * sent it goods in the year's flows worked of those goods. A mask over RECIPES' places.
+   */
+  kindsHad(m: Market): number {
+    let mask = m.kinds;
+    for (const i of this.flowsAt([m.cell])) {
+      const f = this.flows[i]!;
+      if (f.to !== m.cell || f.from === m.cell) continue;
+      const from = this.map.get(f.from);
+      if (from) mask |= from.kinds & CLASS_WAYS[f.good]!;
+    }
+    return mask;
   }
   flowsOf(cells: readonly number[]): TradeFlow[] {
     return this.flowsAt(cells).map((i) => this.flows[i]!);

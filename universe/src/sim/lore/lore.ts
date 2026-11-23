@@ -53,6 +53,11 @@ import {
   type Effect,
   type Principle,
   HOLD,
+  GRANT_HOLD,
+  adultHazard,
+  grantPull,
+  lockedIn,
+  timePreference,
   PRINCIPLE_DEPTH,
   WAY,
   inquiryOf,
@@ -76,6 +81,7 @@ import { laneLawOf } from "../space/lanes.ts";
 import { holdOf } from "../order/holds.ts";
 import { holdsAgain, lostOf, RETAKE_AFTER } from "./lost-store.ts";
 import { lettersOf } from "./letters.ts";
+import { grantOf, tallyLore } from "./rights.ts";
 import type { MaterialsStore } from "./materials.ts";
 
 export const LORE_EVENTS = {
@@ -554,6 +560,7 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
     factors: Factor[];
     causes: CauseRef[];
     by?: number;
+    within?: boolean;
   };
   const plans: Plan[] = [];
   for (const prov of ctx.provinces.all()) {
@@ -644,7 +651,10 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
         ) * INQUIRES.reduce((k, f) => k * f(world, cell), 1));
     };
     // (What has cost it presses it toward what would answer that: exactly 1 where nothing has.)
-    const pressed = pressesOn(world, cell, realms.of(cell)?.ref ?? null, year);
+    const pressed = pressesOn(world, cell, realms.of(cell)?.ref ?? null, year),
+      sinceHere = (id: string) => knownHere?.get(id)?.year,
+      grant = grantOf(world, realms.of(cell)?.ref ?? null),
+      pulled = grant ? grantPull(preferenceHere(ctx, cell)) : 1;
     for (const p of open) {
       // (What only being there teaches is taught by those who were: lost.ts.)
       if (p.seen) continue;
@@ -689,7 +699,9 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
         finding = (1 - asked) * many + asked * inquiry,
         answers = pressed ? ANSWERS.get(p.id)! : null,
         push = answers?.length ? pushOf(answers, pressed!) : 1,
-        chance = p.rate * (0.2 + drive) * LORE_PACE * finding * push;
+        // (What it built on a rival way holds it back while it stands; its realm's grants pull its finders on: rules/patents.ts.)
+        locked = lockedIn(p, year, sinceHere),
+        chance = p.rate * (0.2 + drive) * LORE_PACE * finding * push * locked.hold * pulled;
       if (!(world.rng.real(FIND, cell, t, PRINCIPLE_INDEX.get(p.id)!) < chance)) continue;
       const factors: Factor[] = terms
         .filter(([, w, v]) => w * v > 0)
@@ -772,8 +784,22 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
         behind = carried ? 1 + CARRIED_BEHIND * lacks(n) : 1;
       for (const p of open) {
         if (!store.get(n, p.id)) continue;
-        const chance =
-          LEARNING * like * like * road * kin * written * behind * (kin > 1 ? 1 : heard) * ties;
+        // (What it built on a rival way holds it back; within a realm that grants, what is under a grant's term is taken up by
+        // those who pay its holder only: rules/patents.ts.)
+        const granted =
+            kin > 1 && grant && year - store.get(n, p.id)!.year < grant.term ? 1 - GRANT_HOLD : 1,
+          chance =
+            LEARNING *
+            like *
+            like *
+            road *
+            kin *
+            written *
+            behind *
+            (kin > 1 ? 1 : heard) *
+            ties *
+            granted *
+            lockedIn(p, year, sinceHere).hold;
         if (!best || chance > best.chance || (chance === best.chance && n < best.from))
           best = { p, from: n, chance };
       }
@@ -784,6 +810,7 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
         cell,
         p: best.p,
         found: false,
+        within: !!realms.of(cell) && realms.of(cell) === realms.of(best.from),
         factors: [],
         causes: [
           { ref: store.get(best.from, best.p.id)!.event, role: "trigger", weight: 0.7 },
@@ -794,6 +821,8 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
   }
   for (const plan of plans) {
     const place = cellRef(0, plan.cell);
+    // (Each realm's finding and learning from its own, for its grants: rights.ts.)
+    tallyLore(world, realms.of(plan.cell)?.ref ?? null, plan.found, !!plan.within);
     let causes = plan.causes;
     if (plan.found) {
       const decision = world.decisions.record({
@@ -852,6 +881,12 @@ export function openTo(
       matterAllows(g, p) &&
       lawAllows(world, p),
   );
+}
+
+/** What waiting is worth to a land's people (rules/thrift.ts). */
+function preferenceHere(ctx: PopulationContext, cell: number): number {
+  const prov = ctx.provinces.get(cell);
+  return timePreference(adultHazard(ctx.life), prov ? prov.leanest / 1000 : 1);
 }
 
 /** A principle given a land outright, as learning it would (the god's gift): known from this year, by this event. */

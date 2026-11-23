@@ -15,11 +15,13 @@ import {
   OCC,
   OCCUPATIONS,
   demandFactor,
+  kindsIn,
   takings,
+  varietyIndex,
   withinMeans,
 } from "../../rules/index.ts";
 import type { Province } from "../population/model.ts";
-import { mouths, type PopulationContext } from "../population/systems.ts";
+import { marketsOf, mouths, type PopulationContext } from "../population/systems.ts";
 import type { Market } from "../economy/market.ts";
 import { loreOf } from "../lore/lore.ts";
 import { GOODS_STORE, moneyStore } from "../money/kept.ts";
@@ -92,10 +94,18 @@ export function boughtOf(
     asked = new Array<number>(GOODS.length).fill(0),
     byIncome = new Array<number>(GOODS.length).fill(0);
   let spend = 0;
+  // (The kinds of each ware it has to hand, its own and those brought it: its price index falls as they are more, rules/variety.ts.
+  // Exactly the ware's own price where it has one kind or none.)
+  const had = marketsOf(world).kindsHad(m);
   for (const [g, need] of needs) {
     if (!(BOUGHT_WARES as readonly number[]).includes(g) || need <= 0) continue;
     const use = GOOD_USE[GOODS[g]!.id]!,
-      f = demandFactor(use, income, m.price[g]! / worthOf(g), ELASTICITY[use]);
+      f = demandFactor(
+        use,
+        income,
+        (m.price[g]! / worthOf(g)) * varietyIndex(kindsIn(had, g)),
+        ELASTICITY[use],
+      );
     factor[g] = f;
     asked[g] = need * f;
     byIncome[g] = need * demandFactor(use, income, 1, 0);

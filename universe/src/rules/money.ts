@@ -16,6 +16,7 @@
 // Pure tables and functions.
 import { dmath } from "../kernel/index.ts";
 import { G, GOODS, RECIPES, TOOL_GAIN, MACHINE_GAIN, WANTS, FOODS } from "./goods.ts";
+import { varietyGain } from "./variety.ts";
 
 // —— 1. Goods by what they are and what they do ————————————————————————————————————————————————————————
 
@@ -111,6 +112,8 @@ export type PriceRead = {
    * work a unit of its staple takes.
    */
   readonly work: readonly number[];
+  /** How many kinds of each good it has to hand (rules/variety.ts; by good, 1 where not given): a varied class serves the more. */
+  readonly kinds?: readonly number[];
 };
 
 /**
@@ -125,7 +128,12 @@ export const STORE_MONTHS = 3;
 const FOOD_SPOIL = FOODS.reduce((s, g) => s + GOODS[g]!.spoil, 0) / FOODS.length;
 
 /** A unit's worth to its user, where what it does can be counted (units of food; NaN: it cannot). */
-export function useWorth(g: number, wage: number, cold = 0): number {
+export function useWorth(g: number, wage: number, cold = 0, kinds = 1): number {
+  const use = GOOD_USE[GOODS[g]!.id];
+  // (Of a class whose use is counted, v kinds serve as v^(1/(σ-1)) of one would: rules/variety.ts. Food is what feeds, of any kind.)
+  return use === "feeds" ? 1 : usedFor(g, wage, cold) * varietyGain(kinds);
+}
+function usedFor(g: number, wage: number, cold: number): number {
   switch (GOOD_USE[GOODS[g]!.id]) {
     // (A unit of clothing wears for 1 / clothingPerPerson years of one wearer; each month of it saves, in the cold, the food a body
     // would burn to keep warm. In the warm it keeps its wearer dry: a tenth of that.)
@@ -188,7 +196,7 @@ export function naturalPrices(r: PriceRead): { worth: number[]; basis: PriceBasi
       for (const [g, k] of rec.inputs)
         cost += k * (Number.isFinite(worth[g]!) ? worth[g]! : r.price[g]!);
       // (No one pays more for it than what it does for them, where that can be counted.)
-      const use = useWorth(out, wage, r.cold),
+      const use = useWorth(out, wage, r.cold, r.kinds?.[out] ?? 1),
         each = Number.isFinite(use) ? Math.min(cost / per, use) : cost / per;
       if (!Number.isFinite(worth[out]!) || basis[out] !== "made" || each < worth[out]!) {
         worth[out] = each;
@@ -198,7 +206,7 @@ export function naturalPrices(r: PriceRead): { worth: number[]; basis: PriceBasi
   // What it cannot make: by its use; or as an input, by what is made of it.
   for (let g = 0; g < n; g++) {
     if (Number.isFinite(worth[g]!)) continue;
-    const use = useWorth(g, wage, r.cold);
+    const use = useWorth(g, wage, r.cold, r.kinds?.[g] ?? 1);
     if (Number.isFinite(use)) {
       worth[g] = Math.min(use, Math.max(r.price[g]!, use / 4));
       basis[g] = "used";
@@ -213,7 +221,7 @@ export function naturalPrices(r: PriceRead): { worth: number[]; basis: PriceBasi
       // (Its product is worth, for this, what it would be had WITHOUT this good: by its use, or made the cheapest other way.
       // Reckoned at its worth as made, where this very recipe was the cheapest that worth was read off this good's own price,
       // and the good's worth off it: a worth resting on itself, that any year's fall took down for good.)
-      let fetches = useWorth(out, wage, r.cold);
+      let fetches = useWorth(out, wage, r.cold, r.kinds?.[out] ?? 1);
       for (const j of r.recipes) {
         const other = RECIPES[j]!;
         if (other.output[0] !== out || other.inputs.some(([x]) => x === g)) continue;

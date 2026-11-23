@@ -46,6 +46,7 @@ import "./held.ts";
 export { WAYS, WAY_WORDS, kept, waysRef, waysWords } from "./culture.ts";
 export { governmentWords } from "./polity.ts";
 import "./belief.ts";
+import "./rights.ts";
 export { principleName } from "./lore.ts";
 export { standingWords } from "./diplomacy.ts";
 import "./war.ts";

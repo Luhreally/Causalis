@@ -40,11 +40,18 @@ import {
   seatSite,
   wallYears,
   ZONING_NEEDS,
+  OCC,
+  adultHazard,
+  civicsPaying,
+  payingPeople,
+  timePreference,
   type CivicDef,
   type CivicKind,
   type CivicSite,
+  type TownUse,
 } from "../../rules/index.ts";
 import { Civics, NO_FALL, Runs, type Change, type Civic } from "./packed.ts";
+import type { MarketStore } from "../economy/market.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import type { Settlement } from "../population/stores.ts";
 import { knows, loreOf } from "../lore/lore.ts";
@@ -1943,10 +1950,12 @@ export class TownBuilder {
     faith: () => boolean,
     water: () => boolean,
   ): void {
-    const people = s.population;
+    const people = s.population,
+      // (What its buildings are worth to it: who works in it, what they earn, how patient they are. rules/civicworth.ts.)
+      use = townUseOf(this.ctx, s);
     // What stands of each kind (what took a building's place stands for it: a temple is the
-    // town's shrine), and what is rising; one fallen out of use a year, its town emptied to
-    // below a third of what it asks.
+    // town's shrine), and what is rising; one fallen out of use a year, its use under a third of
+    // what it costs to keep.
     HAVE.fill(0);
     RISING.fill(0);
     let emptied = false;
@@ -1955,7 +1964,11 @@ export class TownBuilder {
     for (let j = 0; j < cs.length; j++) {
       if (cs.fellAt(j) !== NO_FALL) continue;
       const i = cs.kindAt(j);
-      if (!emptied && cs.endAt(j) <= this.year && people < EMPTIED_BELOW[i]!) {
+      if (
+        !emptied &&
+        cs.endAt(j) <= this.year &&
+        people < Math.max(30, payingPeople(CIVICS[i]!, CIVIC_LOTS[CIVICS[i]!.kind], use)) / 3
+      ) {
         this.fall(f, cs.get(j)!, FOLD.fell);
         emptied = true;
         continue;
@@ -1967,10 +1980,10 @@ export class TownBuilder {
     let begun = 0;
     for (let i = 0; i < CIVICS.length && begun < (city ? 2 : 1); i++) {
       const def = CIVICS[i]!;
-      if (people < def.people || (def.market && !s.market) || (def.city && !city)) continue;
-      const want = def.per
-        ? Math.max(1, Math.min(def.most ?? 99, Math.floor(people / def.per)))
-        : 1;
+      if ((def.market && !s.market) || (def.city && !city)) continue;
+      // (As many as their use pays for, in this town: rules/civicworth.ts.)
+      const want = civicsPaying(def, CIVIC_LOTS[def.kind], use);
+      if (want < 1) continue;
       if (HAVE[i]! >= want || RISING[i]) continue;
       if ((def.faith && !faith()) || (def.water && !water()) || !this.meets(def, i, k)) continue;
       // (A prison only where its land's court holds people.)
@@ -2182,11 +2195,53 @@ export class TownBuilder {
 /** Past so many lots, what a town is asked to raise rises near its heart, not at its edge. */
 const ASKED_EDGE_LOTS = 300;
 
+/**
+ * A town as its buildings are weighed (rules/civicworth.ts TownUse): its people; the share of them each kind of building serves (its
+ * land's crafters, traders and learned shared among its land's towns by their size, all of them in the town at most; its people's
+ * young); what each earns against those who build (its land's wages); and what waiting is worth to its people (rules/thrift.ts).
+ */
+export function townUseOf(ctx: PopulationContext, s: Settlement): TownUse {
+  const prov = ctx.provinces.get(s.cell),
+    m = ctx.world.store<MarketStore>("economy.markets").get(s.cell),
+    people = Math.max(0, s.population),
+    total = prov ? prov.total() : 0;
+  if (!prov || total <= 0 || people <= 0)
+    return { people, share: [1, 0, 0, 0, 0], worth: [1, 1, 1, 1, 1], preference: 0.05 };
+  let towns = 0;
+  for (const o of ctx.settlements.inProvince(s.cell)) towns += Math.max(0, o.population);
+  const inTown = (occ: number) =>
+      Math.min(1, (prov.occupation(occ) * (people / Math.max(people, towns))) / people),
+    w = m?.wage,
+    builder = w && w[OCC.crafter]! > 0 ? w[OCC.crafter]! : 0,
+    against = (x: number) => (builder > 0 && x > 0 ? x / builder : 1),
+    workers = total - prov.occupation(OCC.dependent);
+  let paid = 0;
+  if (w) for (let o = 1; o < w.length; o++) paid += w[o]! * prov.occupation(o);
+  const mean = workers > 0 ? paid / workers : 0;
+  return {
+    people,
+    share: [
+      1,
+      inTown(OCC.crafter),
+      inTown(OCC.trader),
+      inTown(OCC.leader),
+      prov.occupation(OCC.dependent) / total,
+    ],
+    worth: [
+      against(mean),
+      1,
+      against(w?.[OCC.trader] ?? 0),
+      against(w?.[OCC.leader] ?? 0),
+      against(mean),
+    ],
+    preference: timePreference(adultHazard(ctx.life), prov.leanest / 1000),
+  };
+}
+
 /** Scratch for a town's buildings by kind: how many stand, whether one is rising. */
 const HAVE = new Int32Array(CIVICS.length),
   RISING = new Uint8Array(CIVICS.length),
   /** Each kind's: the people below which one long built falls out of use, and the kind it takes the place of (-1: none). */
-  EMPTIED_BELOW = Float64Array.from(CIVICS, (d) => Math.max(30, d.people) / 3),
   REPLACES = Int8Array.from(CIVICS, (d) => (d.replaces ? CIVIC_INDEX.get(d.replaces)! : -1));
 
 /** A town's fabric begun: its family of streets from its people, and nothing built. */

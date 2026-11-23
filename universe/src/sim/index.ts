@@ -2121,3 +2121,13 @@ export {
   type Led,
 } from "./notable/roll.ts";
 export { victoriousCommander } from "./notable/kept.ts";
+export {
+  RIGHTS_EVENTS,
+  RightsStore,
+  grantOf,
+  rightsOf,
+  installRights,
+  type Rights,
+} from "./lore/rights.ts";
+export { townUseOf } from "./town/fabric.ts";
+export { houseRate, preferenceAt } from "./credit/credit.ts";

@@ -20,8 +20,12 @@ import {
   EDGE_HEAT,
   FISSILE_LEAST,
   FISSION_METALS,
+  FUEL_CLASS,
+  FUEL_KINDS,
   FUEL_MAKEUP,
   FUEL_UNIT_KWY,
+  GLUT_YEARS,
+  fuelMix,
   G,
   GROUND_DRAWN,
   GROUND_WM2,
@@ -447,7 +451,12 @@ export function energyInputs(
     spared =
       wilds?.asideWoods && wilds.forest > 0 ? Math.max(0, 1 - wilds.asideWoods / wilds.forest) : 1,
     standing = woodsRead(ctx, p.cell).now * site.areaKm2 * spared,
-    own = k.engine ? ownFuel(ctx, p.cell, n.airHolds, k) : null;
+    // (Its fuel classes' stocks by kind: what it drew of each this year, else the class's own first kind, rules/variety.ts.)
+    drew = m.drew,
+    solid = fuelMix(drew, G.coal, "coal"),
+    fluid = fuelMix(drew, G.oil, "oil"),
+    coalStock = m.stock[G.coal]! * FUEL_UNIT_KWY,
+    oilStock = m.stock[G.oil]! * FUEL_UNIT_KWY;
   return {
     people,
     workers: people - p.occupation(OCC.dependent),
@@ -481,10 +490,10 @@ export function energyInputs(
     ventC: VENT_C,
     lightWm2: site.lightWm2,
     mirrorC: mirrorHeat(n, 2000),
-    coalKwy: m.stock[G.coal]! * FUEL_UNIT_KWY,
-    oilKwy: m.stock[G.oil]! * FUEL_UNIT_KWY,
-    gasKwy: k.oilKnown ? m.line("made", G.oil) * GAS_A_UNIT : 0,
-    ownKwy: own ? p.occupation(OCC.crafter) * OWN_KWY : 0,
+    coalKwy: coalStock * (solid.coal ?? 0),
+    oilKwy: oilStock * (fluid.oil ?? 0),
+    gasKwy: oilStock * (fluid.gas ?? 0),
+    ownKwy: coalStock * (solid.sulphur ?? 0) + oilStock * (fluid.haze ?? 0),
     fireC: fire ? furnaceHeat(ctx, p.cell) : joinedHeat(n),
     coldK: n.kelvin,
     fitMm: k.fitMm,
@@ -550,12 +559,14 @@ export function energyYear(
   want: number[],
   smelted: number,
 ): EnergyAccount {
-  const store = energyBooks(ctx.world)!,
-    inputs = energyInputs(ctx, p, m, smelted),
+  const store = energyBooks(ctx.world)!;
+  drawFuels(ctx, p, m, store.get(p.cell));
+  const inputs = energyInputs(ctx, p, m, smelted),
     a = energyAccount(inputs);
-  // What it burned of its market's buried fuel, in the units the market keeps.
-  const coal = m.take("used", G.coal, Math.round(a.coal / FUEL_UNIT_KWY)),
-    oil = m.take("used", G.oil, Math.round(a.oil / FUEL_UNIT_KWY));
+  // What it burned of its market's fuel, in the units the market keeps: each class's, its own fuel by the class it lies in.
+  const ownSolid = inputs.ownKwy > 0 ? a.own * solidOwnShare(inputs, m) : 0,
+    coal = m.take("used", G.coal, Math.round((a.coal + ownSolid) / FUEL_UNIT_KWY)),
+    oil = m.take("used", G.oil, Math.round((a.oil + a.gas + a.own - ownSolid) / FUEL_UNIT_KWY));
   // (What it wants: all the buried fuel its hearths and engines would have burned, as coal, the fuel a market first digs.)
   want[G.coal] = want[G.coal]! + Math.round(a.fuelWanted / FUEL_UNIT_KWY);
   if (a.felled > 0) fellWoods(ctx, p.cell, a.felled);
@@ -565,14 +576,16 @@ export function energyYear(
   // What it sent to the air: the carbon and sulphur of the buried fuel burned; its works' smoke, faded by half a year.
   const was = store.get(p.cell),
     gasUnits = a.gas / FUEL_UNIT_KWY,
+    coalUnits = Math.min(coal, a.coal / FUEL_UNIT_KWY),
+    oilUnits = Math.min(oil, a.oil / FUEL_UNIT_KWY),
     carbon =
-      coal * fuelTonnes("coal").carbon +
-      oil * fuelTonnes("oil").carbon +
+      coalUnits * fuelTonnes("coal").carbon +
+      oilUnits * fuelTonnes("oil").carbon +
       gasUnits * fuelTonnes("gas").carbon,
-    sulphur = coal * fuelTonnes("coal").sulphur + oil * fuelTonnes("oil").sulphur,
+    sulphur = coalUnits * fuelTonnes("coal").sulphur + oilUnits * fuelTonnes("oil").sulphur,
     smoke =
-      SMOKES.coal * coal * FUEL_UNIT_KWY +
-      SMOKES.oil * oil * FUEL_UNIT_KWY +
+      SMOKES.coal * coalUnits * FUEL_UNIT_KWY +
+      SMOKES.oil * oilUnits * FUEL_UNIT_KWY +
       SMOKES.gas * a.gas +
       SMOKES.own * a.own +
       SMOKES.wood * a.engineWood;
@@ -587,8 +600,8 @@ export function energyYear(
     heatWanted: Math.round(a.heatWanted),
     heatHad: Math.round(a.heatHad),
     share: Math.round(a.share * 1000),
-    coal: coal * FUEL_UNIT_KWY,
-    oil: oil * FUEL_UNIT_KWY,
+    coal: Math.round(coalUnits * FUEL_UNIT_KWY),
+    oil: Math.round(oilUnits * FUEL_UNIT_KWY),
     gas: Math.round(a.gas),
     own: Math.round(a.own),
     felled: Math.round(a.felled),
@@ -598,6 +611,44 @@ export function energyYear(
     fume: Math.round(0.5 * (was?.fume ?? 0) + 0.5 * smoke),
   });
   return a;
+}
+
+/**
+ * The fuels a land draws this year that are not dug from a seam, put in its market as the class they trade as (rules/variety.ts):
+ * the gas that comes with its oil, and its world's own fuel its crafters gather where it lies. Each was burned where it was drawn
+ * and never sold; now it is sold like coal and oil, and what its land does not burn its traders carry to lands that would. Gathered
+ * no further than its market has use for: GLUT_YEARS of what it burned of the class, or wanted of fuel, last year. What it drew of
+ * each kind is kept on the market (Market.drew) for the account to read its stock by.
+ */
+function drawFuels(
+  ctx: PopulationContext,
+  p: Province,
+  m: Market,
+  was: EnergyLand | undefined,
+): void {
+  const k = knowingOf(ctx, p.cell),
+    drew = m.drew;
+  for (const kind of FUEL_KINDS) drew[kind] = 0;
+  drew.coal = m.line("made", G.coal);
+  drew.oil = m.line("made", G.oil);
+  if (k.oilKnown && drew.oil > 0) {
+    const gas = m.move("made", G.oil, Math.round((drew.oil * GAS_A_UNIT) / FUEL_UNIT_KWY));
+    drew.gas = gas;
+  }
+  const own = k.engine ? ownFuel(ctx, p.cell, meansNumbers(ctx.generated).airHolds, k) : null;
+  if (own) {
+    const cls = FUEL_CLASS[own],
+      gathered = (p.occupation(OCC.crafter) * OWN_KWY) / FUEL_UNIT_KWY,
+      used = was ? (was.fuelWanted + was.own) / FUEL_UNIT_KWY : gathered,
+      room = GLUT_YEARS * (Math.max(m.went(cls), used) + 1) - m.stock[cls]!;
+    drew[own] = m.move("made", cls, Math.max(0, Math.round(Math.min(gathered, room))));
+  }
+}
+
+/** Of the own fuel a land burned, the share that lay in its solid class (sulphur), against its fluid one (haze). */
+function solidOwnShare(i: EnergyInputs, m: Market): number {
+  const solid = m.stock[G.coal]! * FUEL_UNIT_KWY * (fuelMix(m.drew, G.coal, "coal").sulphur ?? 0);
+  return i.ownKwy > 0 ? Math.min(1, solid / i.ownKwy) : 0;
 }
 
 /** Wood felled past what a land's woods give (kW·yr): the share of what stands it was, taken from them. */

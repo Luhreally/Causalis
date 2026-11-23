@@ -275,9 +275,15 @@ export function airYear(ctx: PopulationContext, t: SimTime): void {
   for (const m of markets.all()) {
     const used = m.years.at(-1)?.ledger[1];
     if (!used) continue;
-    const gas = (energy?.get(m.cell)?.gas ?? 0) / 4,
-      carbon =
-        used[G.coal]! * perCoal + used[G.oil]! * perOil + gas * carbonPerFuel(ctx.generated, "gas");
+    // (Gas and a world's own fuel are sold in the fluid and solid classes, rules/variety.ts: what was burned of each is taken out of
+    // its class's use and reckoned as itself. A world's own fuel was never reckoned carbon here, and is not now.)
+    const row = energy?.get(m.cell),
+      gas = (row?.gas ?? 0) / 4,
+      own = (row?.own ?? 0) / 4,
+      ownFluid = own > 0 && meansNumbers(ctx.generated).airHolds.includes("hydrogen"),
+      coalUsed = Math.max(0, used[G.coal]! - (ownFluid ? 0 : own)),
+      oilUsed = Math.max(0, used[G.oil]! - gas - (ownFluid ? own : 0)),
+      carbon = coalUsed * perCoal + oilUsed * perOil + gas * carbonPerFuel(ctx.generated, "gas");
     if (carbon <= 0) continue;
     burned += carbon;
     burners.push({ cell: m.cell, carbon });

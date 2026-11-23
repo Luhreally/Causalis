@@ -3,7 +3,7 @@
 // row set and dormant while it holds nothing. This file reaches only the kernel, so the economy, the realms and the order can read
 // it without a circle.
 import { Hasher, dmath, type StateStore, type World } from "../../kernel/index.ts";
-import { TREASURY, insuredGain } from "../../rules/index.ts";
+import { TREASURY, exchangeRate, exchangeRisk, insuredGain } from "../../rules/index.ts";
 
 /** A realm's ref as a whole number a row can hold (its serial: refs are "kind:space:serial"). */
 export function refNumber(ref: string): number {
@@ -380,6 +380,31 @@ export function insuredGainOf(world: World, realm: string): number {
 /** A realm's price rise last year (a share; 0 where it keeps none). */
 export function inflationOf(world: World, realm: string): number {
   return (moneyStore(world, COIN_STORE)?.at(realm, COIN.inflation) ?? 0) / 10_000;
+}
+/** Whether a realm reckons in a money of its own (coin, notes or the lenders' claims), not goods for goods. */
+export function hasMoney(world: World, realm: string): boolean {
+  const row = moneyStore(world, COIN_STORE)?.get(realm);
+  return !!row && row[COIN.form]! > 0;
+}
+/** A realm's price of a grain's worth in its own money (1 where it keeps none, or reckons in grain). */
+export function levelOf(world: World, realm: string): number {
+  const row = moneyStore(world, COIN_STORE)?.get(realm);
+  return row && row[COIN.form]! > 0 ? Math.max(1e-6, row[COIN.level]! / 1e6) : 1;
+}
+/** What a unit of realm a's money fetches of realm b's (rules/thrift.ts exchangeRate): b's price of a grain's worth against a's. */
+export function exchangeOf(world: World, a: string, b: string): number {
+  return exchangeRate(levelOf(world, a), levelOf(world, b));
+}
+/**
+ * What changing money costs a trader between two realms, as a share of the goods' worth (rules/thrift.ts exchangeRisk): how far
+ * the two moneys moved against each other last year, over a journey. Nothing where either reckons in goods.
+ */
+export function exchangeCostOf(world: World, a: string, b: string): number {
+  return exchangeRisk(
+    inflationOf(world, a),
+    inflationOf(world, b),
+    hasMoney(world, a) && hasMoney(world, b),
+  );
 }
 /** What a realm's treasury takes beyond the harvest's tithe, as a share of what its people make (0 … 1). */
 export function taxBurden(world: World, realm: string): number {
