@@ -115,6 +115,7 @@ export class PossessEye {
     this.fov = null;
     this.shown = null;
     this.pressTo = this.pressed = 0;
+    this.stage.lookedAt = null;
   }
 
   /**
@@ -200,6 +201,12 @@ export class PossessEye {
     this.stood = at;
     cam.setPosition(at.x * M, at.y * M, at.z * M);
     cam.lookAt(new pc.Vec3(x * M, look * M, z * M));
+    this.stage.lookedAt = {
+      x: x * M,
+      y: look * M,
+      z: z * M,
+      distance: Math.max(0.05, Math.hypot(at.x - x, at.y - look, at.z - z) * M),
+    };
     // Hemmed in, in a city, what stands between the eye and the body is cut away, as the rig does among spires:
     // the near plane held short of where the ground meets the foot of the screen, so no gap opens there, and
     // short of the body's head.

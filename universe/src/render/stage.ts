@@ -70,6 +70,13 @@ export class Stage {
   readonly camera: pc.Entity;
   readonly root: pc.Entity;
   readonly device: pc.GraphicsDevice;
+  /**
+   * What an eye of its own looks at, where the orbiting rig is let go (an eye behind one possessed or held,
+   * render/possess.ts): the point (scene units) and its distance from the eye; null: the rig's own. For what is laid about
+   * the point looked at, the weather (2026-11-23: a possession's rain fell about where the town had been looked at from
+   * high, sized for that eye: 12 of 973 drops on the screen).
+   */
+  lookedAt: { x: number; y: number; z: number; distance: number } | null = null;
   private readonly updaters = new Set<(dt: number) => void>();
   private readonly sun: pc.Entity;
   /**
