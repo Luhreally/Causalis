@@ -243,7 +243,7 @@ export type TownPlan = {
 };
 
 /** The most blocks of a town its networks are laid on in its view (view/networks.ts): those nearest where the eye looks. */
-export const NET_BLOCKS = 480;
+export const NET_BLOCKS = 320;
 
 /** A small hash of whole numbers, for the plan's wanderings (not history's). */
 function hash(a: number, b: number, c = 0): number {

@@ -13,9 +13,9 @@ import { fadedMaterial, type Stage } from "./stage.ts";
 const M = 0.1;
 /** Within the core (units) all are drawn; past the reach none. */
 export const NETS_CORE = 10;
-export const NETS_REACH = 34;
+export const NETS_REACH = 26;
 /** How far the eye's mark on the ground may go from where the networks were laid about before they are laid again (metres). */
-const RELAY = 160;
+const RELAY = 100;
 
 export class TownNetsLayer {
   readonly root = new pc.Entity("town-nets");
@@ -32,7 +32,7 @@ export class TownNetsLayer {
   constructor(stage: Stage, parent: pc.Entity) {
     this.stage = stage;
     this.box = keptMesh(boxMesh(stage));
-    this.cyl = keptMesh(cylinderMesh(stage, 0.5, 1, 8));
+    this.cyl = keptMesh(cylinderMesh(stage, 0.5, 1, 6));
     parent.addChild(this.root);
   }
 
