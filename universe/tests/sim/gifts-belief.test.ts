@@ -1,8 +1,8 @@
 // A wonder done through a body by the god's gifts is an omen as the world's other signs are (sim/belief/belief.ts omenOf,
 // "hand.wonder"): whether a faith comes of it is the omen rule's own chance, by how many saw it and how pious the land is.
 // Asked 2026-11-21: "are they gonna start religion over … unless the first principles emerge". On "first light" at year
-// 120, when a dozen of its lands hold no faith yet: wonders seen by a dozen found one in some of them, not all; seen by two,
-// fewer; in lands that hold a faith (of the wonder's sign or another), none.
+// 120 or earlier, when eight of its lands or more hold no faith yet (AT): wonders seen by a dozen found one in some of them,
+// not all; seen by two, fewer; in lands that hold a faith (of the wonder's sign or another), none.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { YEAR, type Ref, type World } from "../../src/kernel/index.ts";
@@ -19,10 +19,27 @@ function placesOf(world: World): Map<number, Ref> {
   return at;
 }
 
+/** A world's lands of a people where events stand, and those of them that hold no faith. */
+function landsOf(world: World): { cells: number[]; none: number[] } {
+  const faiths = beliefOf(world),
+    cells = [...placesOf(world).keys()].filter((c) => cultureOf(world).get(c));
+  return { cells, none: cells.filter((c) => !faiths.of(c).faith) };
+}
+
+const START = { start: "spread" } as const;
+// The year the trials start from: the latest of these whose world holds eight lands of no faith or more, so that six trials
+// do some twenty wonders in such lands. (At 120 it held a dozen until a faith had a head (sim/belief/heads.ts), whose raising
+// of those of name who speak for a faith spread its faiths the further: 120 holds four now, 100 a dozen. The history moved,
+// as any rule's change moves it; no faith came to a faithless land but by the faiths' own conversion and founding.)
+const AT =
+  [120, 110, 100, 90, 80].find(
+    (y) => landsOf(peopledWorld("first light", y, START)).none.length >= 8,
+  ) ?? 80;
+
 type Wonder = { cell: number; tenet: string; seen: number; times: number };
 
 /**
- * The world at 120 a few years on (`day`: each trial's own year, so the omen's draws differ), wonders done in lands as `plan`
+ * The world at AT a few years on (`day`: each trial's own year, so the omen's draws differ), wonders done in lands as `plan`
  * says, the year run out: the lands where a faith was founded of one, and each land's faith before and after.
  */
 function trial(
@@ -30,15 +47,19 @@ function trial(
   plan: (world: World, cells: number[]) => Wonder[],
 ): {
   founded: Set<number>;
+  /** The lands a faith came to that year from its neighbours (sim/belief/belief.ts: by contact and trade). */
+  converted: Set<number>;
+  /** The lands where anything of belief that year came of a wonder. */
+  ofWonder: Set<number>;
   faithOf: (cell: number) => Ref | null;
   /** The faith a faith split from (null: none). */
   fromOf: (faith: Ref) => Ref | null;
   before: Map<number, Ref | null>;
 } {
-  const world = peopledWorld("first light", 120, { start: "spread" }),
+  const world = peopledWorld("first light", AT, START),
     faiths = beliefOf(world),
     places = placesOf(world),
-    cells = [...places.keys()].filter((c) => cultureOf(world).get(c));
+    { cells } = landsOf(world);
   // (Each trial a year on from the last: the omen draws by the year's turn and the event's place in the record, and a few days'
   // difference moved neither, so every trial drew the same.)
   world.runTo(world.now + day * YEAR + 86_400);
@@ -55,15 +76,22 @@ function trial(
       });
   const from = world.events.count;
   world.runTo((Math.floor(world.now / YEAR) + 1) * YEAR + 86_400);
-  const founded = new Set<number>();
+  const founded = new Set<number>(),
+    converted = new Set<number>(),
+    ofWonder = new Set<number>();
   for (let i = from; i < world.events.count; i++) {
     const e = world.events.at(i);
-    if (e.type !== BELIEF_EVENTS.founded.type) continue;
-    if (world.events.get(e.causes[0]!.ref)?.type === "hand.wonder")
-      founded.add(Number(e.place!.split(":")[2]));
+    if (!e.type.startsWith("belief.") || e.place?.split(":").length !== 3) continue;
+    const cell = Number(e.place.split(":")[2]),
+      wonder = e.causes.some((c) => world.events.get(c.ref)?.type === "hand.wonder");
+    if (wonder) ofWonder.add(cell);
+    if (e.type === BELIEF_EVENTS.founded.type && wonder) founded.add(cell);
+    if (e.type === BELIEF_EVENTS.converted.type) converted.add(cell);
   }
   return {
     founded,
+    converted,
+    ofWonder,
     faithOf: (c) => faiths.of(c).faith,
     fromOf: (f) => faiths.get(f)?.from ?? null,
     before,
@@ -105,9 +133,14 @@ test("wonders found a faith in some pious lands of no faith, by the omen rule's 
       if (was) {
         faithful++;
         assert.ok(!r.founded.has(cell), "a land that holds a faith founds none of a wonder");
-        // (Or its realm's lands broke from it that year, as a ruler cast out by its head may lead them: sim/belief/heads.ts.)
+        assert.ok(!r.ofWonder.has(cell), "nor is moved in its faith by one");
+        // (Or its realm's lands broke from it that year, as a ruler cast out by its head may lead them: sim/belief/heads.ts;
+        // or a neighbour's faith came to it that year, as any year it may, by contact and trade and of no wonder.)
         const now = r.faithOf(cell);
-        assert.ok(now === was || (now && r.fromOf(now) === was), "and keeps its own");
+        assert.ok(
+          now === was || (now && r.fromOf(now) === was) || r.converted.has(cell),
+          "and keeps its own",
+        );
       } else if (r.founded.has(cell)) many++;
     // The same lands of no faith, each wonder seen by two.
     const s = trial(day, (world, cells) => {
@@ -119,7 +152,7 @@ test("wonders found a faith in some pious lands of no faith, by the omen rule's 
     few += s.founded.size;
   }
   console.log(
-    `  seen by a dozen: ${many} faiths founded of ${chances} wonders in lands of no faith; seen by two: ${few}; lands of a faith given wonders: ${faithful}, none founded one`,
+    `  first light at ${AT}: seen by a dozen: ${many} faiths founded of ${chances} wonders in lands of no faith; seen by two: ${few}; lands of a faith given wonders: ${faithful}, none founded one`,
   );
   assert.ok(chances >= 20, `${chances} wonders done in lands of no faith`);
   assert.ok(many >= 1, "a wonder seen by many can found a faith");
