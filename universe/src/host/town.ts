@@ -80,13 +80,20 @@ export const WIRED_LORE = [
   "polymer-wire",
 ] as const;
 
+/** From how many people a town of the modern age lays its wires under its streets rather than on poles. */
+export const BURIED_FROM = 200_000;
+
 /**
  * A town's networks (2026-11-22: TownPlan.nets): water led under its streets and drains beside it where its land knows sanitation
  * and its townspeople are drained (sim/society/care.ts drained); its power on wires where its land knows a wired source of it, on
- * poles, or under its streets once its land is of the modern age. None for a people of the water: the sea about them is their
+ * poles, or under its streets in a great town of the modern age (BURIED_FROM). None for a people of the water: the sea about them is their
  * water and carries off what they cast out.
  */
-export function netsOfTown(world: World, cell: number): { nets?: NonNullable<TownPlan["nets"]> } {
+export function netsOfTown(
+  world: World,
+  cell: number,
+  population: number,
+): { nets?: NonNullable<TownPlan["nets"]> } {
   const body = homePlanet(world).generated.life.people?.body;
   if (body?.medium === "water") return {};
   const lore = loreOf(world),
@@ -99,7 +106,12 @@ export function netsOfTown(world: World, cell: number): { nets?: NonNullable<Tow
     nets: {
       mains,
       drains: mains,
-      power: wired ? (landEra(world, cell) === "modern" ? "buried" : "lines") : null,
+      // (Laid under the street where ground is dear enough to pay for the digging: a great town of the modern age.)
+      power: wired
+        ? landEra(world, cell) === "modern" && population >= BURIED_FROM
+          ? "buried"
+          : "lines"
+        : null,
     },
   };
 }
@@ -354,7 +366,7 @@ export function townPlan(
     ...firstOfPlan(world, ref),
     // (What its land's signals put in it: signals.)
     ...signalsOfTown(world, cell),
-    ...netsOfTown(world, cell),
+    ...netsOfTown(world, cell, s?.population ?? 0),
     // (Its reach, past what is drawn: what the eye has to clear of its sprawl.)
     ...(() => {
       const ash = f.changes.reduce(

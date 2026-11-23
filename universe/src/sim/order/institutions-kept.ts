@@ -55,6 +55,9 @@ export type Body = {
    */
   raised?: number;
   raisedBy?: Ref;
+  /** Its founder as such: its head when it was raised, by name and birth (a notable too, where the world keeps them by name). */
+  founder?: string;
+  founderBorn?: number;
   patron?: string;
   society?: string;
   shut?: number;

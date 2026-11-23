@@ -7,6 +7,7 @@ import type { Block, Item, Stat } from "../../bridge/index.ts";
 import { DOMAIN, FUND, INST, NOTE } from "../../rules/index.ts";
 import {
   beliefOf,
+  housesOf,
   higherIn,
   loreOf,
   notablesOf,
@@ -16,11 +17,17 @@ import {
 } from "../../sim/index.ts";
 import { item, link, part, share, stat } from "./words.ts";
 import { faithLink, landLink, realmLink, townLink } from "./names.ts";
+import { notableOf } from "./notables.ts";
 
-/** Who gives for a house of higher learning beyond those taught, as a page's line. */
+/** Who gives for a house of higher learning beyond those taught, as a page's line: the person where one gives, by name. */
 function giverOf(world: World, r: Polity | null, g: Readonly<Body>): Stat {
   if (g.fund === FUND.treasury && r)
-    return stat("Who gives for it", ["its seat, ", realmLink(world, r.ref)]);
+    return stat("Who gives for it", [
+      "its seat: ",
+      link(r.ruler.name, `rule:${r.ref}`),
+      ", who rules ",
+      realmLink(world, r.ref),
+    ]);
   if (g.fund === FUND.tithes && g.keeper) {
     const faith = beliefOf(world).get(g.keeper as Ref);
     return stat(
@@ -28,8 +35,24 @@ function giverOf(world: World, r: Polity | null, g: Readonly<Body>): Stat {
       faith ? ["the faithful of ", faithLink(world, faith.ref)] : "its faith's tithes",
     );
   }
-  if (g.fund === FUND.patron)
-    return stat("Who gives for it", g.keeper ? `the house of ${g.keeper}` : "a great house");
+  if (g.fund === FUND.patron) {
+    // (The house that keeps it, and its head by name, where the house is seated where they can be found.)
+    const h = r
+        ? housesOf(world)
+            ?.of(r.ref)
+            ?.houses.find((x) => x.name === g.keeper)
+        : undefined,
+      ref = h && r ? `note:house:${r.ref}:${h.event}` : null,
+      head = ref ? notableOf(world, ref) : null;
+    return stat(
+      "Who gives for it",
+      head
+        ? [link(head.name, ref), `, who heads the house of ${g.keeper}`]
+        : g.keeper
+          ? `the house of ${g.keeper}`
+          : "a great house",
+    );
+  }
   const n = g.patron ? /^note:named:(\d+)$/.exec(g.patron) : null,
     one = n ? notablesOf(world)?.get(Number(n[1])) : undefined;
   return stat(
@@ -55,8 +78,15 @@ function founderLine(
         kept?.all().find((x) => x.deeds.some((d) => d.e === g.raisedBy)))
       : undefined;
   if (n) return [link(n.name, `note:named:${n.id}`), `, born year ${n.born}`];
-  const name = data?.leader ?? g.leader.name;
-  return [data?.head ? link(name, data.head) : name];
+  // (Else by name as it keeps them: its head still, with their page; or gone from its head, as its records keep them.)
+  const name = g.founder ?? data?.leader ?? g.leader.name,
+    born = g.founderBorn,
+    heads = name === g.leader.name && (born === undefined || born === g.leader.born);
+  return [
+    data?.head ? link(name, data.head) : heads ? link(name, `note:head:${g.event}`) : name,
+    born !== undefined ? `, born year ${born}` : "",
+    heads ? ", at its head still" : "",
+  ];
 }
 
 /** Its scholars of name: the living notables of learning in its lands, the most known first. */

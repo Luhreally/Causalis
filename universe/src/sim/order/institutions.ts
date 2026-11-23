@@ -80,7 +80,7 @@ import {
 } from "../../rules/index.ts";
 import { marketsOf, type PopulationContext } from "../population/systems.ts";
 import { WAY, cultureOf } from "../culture/culture.ts";
-import { beliefOf } from "../belief/belief.ts";
+import { beliefOf, type Faith } from "../belief/belief.ts";
 import { loreOf, inquiresMore } from "../lore/lore.ts";
 import { readersOf, teachesAsSchool } from "../lore/letters.ts";
 import { learnedOf } from "../lore/academy.ts";
@@ -741,6 +741,31 @@ function patronIn(f: Facts, cell: number): { id: string; name: string } | null {
 }
 
 /**
+ * Who would shut a house of higher learning now (null: none would): its seat, where it lets no word be free and rules by arms, and
+ * the house is not its own; else the faith of its land where that faith has the seat's ear (the seat's own), fears the power
+ * behind the world (rules/faith.ts: a creed of harm, against inquiry), holds the land strongly through its clergy and its people
+ * keep to their old ways, and the house is not that faith's.
+ */
+function shutBy(
+  f: Facts,
+  g: Body,
+  home: Land,
+): { by: "seat" | "faith"; faith?: Faith; fears: number; clergy: number } | null {
+  const { r } = f,
+    world = f.ctx.world;
+  if (g.answers !== ANSWERS.seat && r.word < INST.shuts && r.force >= HIGHER.force)
+    return { by: "seat", fears: 0, clergy: 0 };
+  const faith = home.faith ? beliefOf(world).get(home.faith) : undefined;
+  if (!faith || faith.ref !== r.seatFaith || g.keeper === faith.ref) return null;
+  const fears = TENET_POWERS[faith.tenet]?.harms ?? 0;
+  if (fears < HIGHER.fears) return null;
+  const clergy = clergyIn(world, home.cell);
+  if (clergy < HIGHER.clergy) return null;
+  const old = cultureOf(world).get(home.cell)?.traits[WAY.tradition] ?? 0.5;
+  return old >= HIGHER.tradition ? { by: "faith", faith, fears, clergy } : null;
+}
+
+/**
  * A house of teaching as a house of higher learning (asked 2026-11-22: "universities as institutions ... founded where learning,
  * wealth and a patron meet, closed by the seat or a faith, and it feeds learning"). It is raised where its land is learned enough
  * (less where a learned society already holds there: its fellows are the first who teach in it), what is paid keeps twice the
@@ -766,18 +791,19 @@ function higherStep(f: Facts, g: Body, home: Land, least: number, guarded: boole
       delete g.higher;
       return;
     }
+    // (One raised before its raisings were kept, from an older save: raised with its founding, its head then unknown, so its
+    // head now is the first it is known by.)
+    if (g.raised === undefined) {
+      g.raised = g.since;
+      g.founder ??= g.leader.name;
+      g.founderBorn ??= g.leader.born;
+    }
     if (guarded || g.since >= year) return;
-    const faith = home.faith ? beliefOf(world).get(home.faith) : undefined,
-      fears = faith ? (TENET_POWERS[faith.tenet]?.harms ?? 0) : 0,
-      clergy = clergyIn(world, home.cell),
-      bySeat = g.answers !== ANSWERS.seat && r.word < INST.shuts && r.force >= HIGHER.force,
-      byFaith =
-        !bySeat &&
-        !!faith &&
-        fears >= HIGHER.fears &&
-        clergy >= HIGHER.clergy &&
-        g.keeper !== faith.ref;
-    if (!bySeat && !byFaith) return;
+    const shut = shutBy(f, g, home);
+    if (!shut) return;
+    const { faith, fears, clergy } = shut,
+      bySeat = shut.by === "seat",
+      byFaith = shut.by === "faith";
     const was = titleOf(g, home);
     delete g.higher;
     g.shut = year + HIGHER.shutYears;
@@ -811,6 +837,8 @@ function higherStep(f: Facts, g: Body, home: Land, least: number, guarded: boole
   }
   if (g.shut !== undefined && g.shut >= year) return;
   if (g.shut !== undefined) delete g.shut;
+  // (Not raised again while what would shut it holds.)
+  if (shutBy(f, g, home)) return;
   const society = societyIn(f, home.cell),
     learned = home.learned >= (society ? HIGHER.society : HIGHER.learned),
     paid = g.staff >= HIGHER.staff * least;
@@ -822,6 +850,8 @@ function higherStep(f: Facts, g: Body, home: Land, least: number, guarded: boole
   const was = titleOf(g, home);
   g.higher = 1;
   g.raised = year;
+  g.founder = g.leader.name;
+  g.founderBorn = g.leader.born;
   if (rich) g.patron = rich.id;
   else delete g.patron;
   if (society) g.society = society.name;

@@ -136,7 +136,7 @@ export function townNetworksBlocks(
       );
   }
   // What the town's view lays of them along its streets (the same reading its plan is laid by).
-  const nets = netsOfTown(world, town.cell).nets,
+  const nets = netsOfTown(world, town.cell, town.population).nets,
     blocks = fabric ? Math.ceil(fabric.next / 8) : 0,
     seen: Stat[] = [];
   if (nets?.mains)
