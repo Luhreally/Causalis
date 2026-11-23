@@ -676,3 +676,34 @@ test("a peopled world's towns are housed, lot by lot, and build what their lands
   assert.ok(built.large.length >= 5 && built.small.length >= 5);
   assert.ok(mean(built.large) > mean(built.small), "a larger town has more buildings");
 });
+
+test("a stretch let go goes in among a town's open runs as sorting them all made them", () => {
+  let s = 11;
+  const roll = (n: number) => {
+    s = (Math.imul(s, 1103515245) + 12345) >>> 0;
+    return (s >>> 8) % n;
+  };
+  for (let k = 0; k < 2000; k++) {
+    const { ctx, f } = bare(),
+      g = { ...bare().f },
+      b = new TownBuilder(ctx, 0);
+    // (Open runs in the order of their lots, none touching another, as a town keeps them.)
+    const open: number[] = [];
+    for (let p = roll(4); open.length < 2 * roll(12);) {
+      const n = 1 + roll(roll(3) === 0 ? 60 : 4);
+      open.push(p, p + n);
+      p += n + 1 + roll(roll(3) === 0 ? 40 : 3);
+    }
+    for (let i = 0; i < 6; i++) {
+      const from = roll(open.at(-1) ?? 20) + (roll(3) === 0 ? 30 : 0),
+        to = from + roll(roll(4) === 0 ? 80 : 5);
+      f.open = i === 0 ? open.slice() : f.open;
+      g.open = i === 0 ? open.slice() : g.open;
+      const was = f.open;
+      b.release(f, from, to);
+      b.releaseBySort(g, from, to);
+      assert.deepEqual(f.open, g.open, `${JSON.stringify(open)} with [${from}, ${to})`);
+      if (to > from) assert.notEqual(f.open, was, "a list made anew");
+    }
+  }
+});
