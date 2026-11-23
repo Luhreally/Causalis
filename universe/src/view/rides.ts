@@ -257,6 +257,11 @@ function carDays(plan: VillagePlan, day: number): Map<number, CarDay> {
   return cars;
 }
 
+/** Where a town's cars stand through the day of `t`, worked out ahead and kept (render/village.ts prepare). */
+export function carsAhead(plan: VillagePlan, t: number): void {
+  carDays(plan, Math.floor(t / 86_400));
+}
+
 /** Where each owner's car stands or goes at t, given where their day has them. */
 export function carNow(plan: VillagePlan, o: Owner, t: number, fine: boolean): CarNow {
   const day = Math.floor(t / 86_400),

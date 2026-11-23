@@ -80,6 +80,7 @@ import {
   villageGround,
   daysAhead,
   ridesSteps,
+  carsAhead,
   RIDES_REACHES,
   PERSON_REACH,
   courtSolids,
@@ -629,7 +630,13 @@ export class VillageScene {
     this.root.enabled = false;
   }
 
+  /** Whether it is shown (a building of it while it is, at once: main.ts loadPlanNow). */
+  get visible(): boolean {
+    return this.root.enabled;
+  }
   set visible(on: boolean) {
+    // (The frame it is first shown draws all of it for the first time: its networks' laying waits that frame and the next.)
+    if (on && !this.root.enabled) this.town.nets.hold(2);
     this.root.enabled = on;
     this.colony.visible = on && !!this.plan?.colony;
   }
@@ -776,6 +783,9 @@ export class VillageScene {
     if (!fine) yield* daysAhead(plan, t, false);
     // (Its foundry's days since its moulds were last cast, each one's legs kept as its people's are.)
     foundryNow(plan, villageSolids(plan), t);
+    yield;
+    // (Where its cars stand through the day.)
+    carsAhead(plan, t);
     yield;
     // (Its ground as what grows on it reads it: render/townflora.ts.)
     yield* this.townFlora.prepareSteps(

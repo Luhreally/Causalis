@@ -20,6 +20,7 @@ export {
 } from "./catalogue.ts";
 export { SandboxPanel } from "./panel.ts";
 export { LabelLayer, type Label } from "./labels.ts";
+export { FALLEN, hudGlyphs, layOutUnseen, warmGlyphs } from "./glyphs.ts";
 export { PlanetPanel, type ChipKind, type PeopleEntry, type WorldStats } from "./planet-panel.ts";
 export { RegionPanel } from "./region-panel.ts";
 export { SystemPanel } from "./system-panel.ts";

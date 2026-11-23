@@ -105,9 +105,16 @@ export class TownNetsLayer {
     this.rounds = this.put(this.rounds, this.cyl, nets?.rounds ?? []);
   }
 
+  /** A laying under way put off for the next `frames` frames (render/village.ts: the frame the town is first shown, and the next). */
+  hold(frames: number): void {
+    this.held = Math.max(this.held, frames);
+  }
+  private held = 0;
+
   /** Each frame: where the eye is (world units); a laying under way carried on. */
   update(eye: pc.Vec3): void {
-    if (this.laying) {
+    if (this.held > 0) this.held--;
+    else if (this.laying) {
       const t0 = performance.now();
       for (;;) {
         const step = this.laying.next();
