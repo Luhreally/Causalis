@@ -40,7 +40,7 @@ export class FarReignStore implements StateStore {
     this.by.set(civ, r);
   }
   private keys(): string[] {
-    return [...this.by.keys()].sort();
+    return [...this.by.keys()].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
   }
   pinned(): Ref[] {
     const out: Ref[] = [];
