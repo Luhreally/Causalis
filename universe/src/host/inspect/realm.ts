@@ -27,10 +27,13 @@ import {
   starWarsOf,
   WAR_EVENTS,
   warsOf,
+  battleCommanders,
+  notablesOf,
   WAY_TRAITS,
   type War,
 } from "../../sim/index.ts";
 import { hostWords } from "../chain.ts";
+import type { HistoryEvent } from "../../kernel/index.ts";
 import {
   governmentWords,
   grainSum,
@@ -873,6 +876,29 @@ function fallenBlocks(world: World, w: War, b: War["battles"][number]): Block[] 
   ];
 }
 
+/** Who led each host at a battle, as stats: a link to them where the world still keeps them. */
+function battleLedStats(world: World, e: HistoryEvent): Stat[] {
+  if (e.subjects.length < 3) return [];
+  const sides = [e.subjects[1]!, e.subjects[2]!] as const,
+    led = battleCommanders(world, e.t, sides),
+    told = (e.data as { led?: (string | null)[] } | null)?.led,
+    kept = notablesOf(world);
+  return [0, 1].flatMap((i) => {
+    const x = led[i],
+      name = x?.name ?? told?.[i] ?? null;
+    if (!name) return [];
+    const known = x && (kept?.get(x.id) || kept?.goneOf(x.id));
+    return [
+      stat(i === 0 ? "Led the attack" : "Led the defence", [
+        known ? link(name, `note:named:${x.id}`) : name,
+        ", for ",
+        realmLink(world, sides[i]),
+        ...(x ? [`: ${x.won} won and ${x.lost} lost under them`] : []),
+      ]),
+    ];
+  });
+}
+
 /** A battle (an event of the war's): where, who won, the fallen, and the war it was of. */
 /** A battle's war's allies, for its stats (D1). */
 const alliesStats = (world: World, w: War): Stat[] =>
@@ -994,6 +1020,8 @@ export function battlePage(world: World, ref: string): PageModel {
                     stat("Defender", [realmLink(world, w.defender)]),
                   ]
                 : []),
+              // (Who led each host: the roll kept beside the world, or the battle's own telling. sim/notable/roll.ts.)
+              ...battleLedStats(world, e),
               ...(w && b?.power ? [battleArms(world, w, b)] : []),
               ...(b?.combat
                 ? [

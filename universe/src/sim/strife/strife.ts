@@ -83,13 +83,14 @@ import {
   type RealmOrder,
 } from "../order/order.ts";
 import { LAW_OF } from "../order/laws.ts";
-import { FEW_RULE, HOLD, HOLDING, ORG, TREASURY } from "../../rules/index.ts";
+import { DOMAIN, FEW_RULE, HOLD, HOLDING, ORG, TREASURY, satOf } from "../../rules/index.ts";
 import { holdOf, holdsOf, setHeld } from "../order/holds.ts";
 import { wantsOf } from "../order/wants.ts";
 import { financeOf } from "../finance/finance.ts";
 import { grieve, strike } from "../acts/disasters.ts";
 import { armyDone, armyMoves, armyVoice, ordersChanged } from "../court/court.ts";
 import { commandLeft } from "../notable/notables.ts";
+import { notableRef, victoriousCommander } from "../notable/kept.ts";
 import { rulerHazard } from "../acts/person.ts";
 
 export const STRIFE_EVENTS = {
@@ -518,12 +519,23 @@ export function coupDanger(
       contribution: 0.35 * defeats,
       source: fought.last ? { ref: fought.last, role: "pressure", weight: 1 } : null,
     },
-    {
-      name: "a victorious general",
-      value: fought.won,
-      contribution: fought.won >= 2 && !junta ? 0.12 * Math.min(1, fought.won / 4) : 0,
-      source: fought.lastWon ? { ref: fought.lastWon, role: "pressure", weight: 1 } : null,
-    },
+    // (The one who won them, where the world keeps who commands its host: the more for a name made in the field. sim/notable.)
+    ...((led) => [
+      {
+        name: led ? "a victorious commander" : "a victorious general",
+        value: fought.won,
+        contribution:
+          fought.won >= 2 && !junta
+            ? 0.12 *
+              Math.min(1, fought.won / 4) *
+              (led ? 0.5 + satOf(led.n.by[DOMAIN.war] ?? 0) : 1)
+            : 0,
+        source:
+          (led?.last ?? fought.lastWon)
+            ? { ref: (led?.last ?? fought.lastWon)!, role: "pressure" as const, weight: 1 }
+            : null,
+      },
+    ])(victoriousCommander(world, p.ref, year)),
     {
       name: "an army unpaid",
       value: unpaid ? 1 : 0,
@@ -636,6 +648,28 @@ function newRuler(ctx: PopulationContext, p: Polity, t: SimTime, event: Ref, sal
 }
 
 /**
+ * Who reaches for a realm's seat: its commander, where the world keeps one who has won of late (their victories their own:
+ * sim/notable), else the one who holds the army's voice at court.
+ */
+function generalOf(
+  world: World,
+  p: Polity,
+  year: number,
+): {
+  name: string;
+  sex: number;
+  born: number;
+  fig?: number;
+  cmd?: number;
+  last?: Ref | null;
+} | null {
+  const led = victoriousCommander(world, p.ref, year);
+  if (led)
+    return { name: led.n.name, sex: led.n.sex, born: led.n.born, cmd: led.n.id, last: led.last };
+  return armyVoice(world, p);
+}
+
+/**
  * A general seizes a realm's seat: it becomes a protectorate, ruled by its army (rule chosen by
  * the army, its law as it was); the old court's skimmers are purged. Returns the coup.
  */
@@ -646,19 +680,23 @@ export function seize(ctx: PopulationContext, p: Polity, causes: CauseRef[], t: 
     o = orderOf(world)?.of(p.ref),
     year = yearOfMoment(t),
     was = realmName(p),
-    // (Named before the event that crowns them, so the event can say who: the one who holds the army's voice at court, if any does.)
-    man = armyVoice(world, p),
+    // (Named before the event that crowns them, so the event can say who: a commander whose victories are their own, or the one
+    // who holds the army's voice at court, if any does.)
+    man = generalOf(world, p, year),
     general = man?.name ?? newRuler(ctx, p, t, p.event, 1).name,
     event = world.events.emit({
       type: STRIFE_EVENTS.coup.type,
-      subjects: [p.ref],
+      subjects: man?.cmd ? [p.ref, notableRef(man.cmd)] : [p.ref],
       place: ctx.provinces.get(p.seat)?.ref ?? null,
-      causes,
+      causes: man?.last
+        ? [...causes.slice(0, 5), { ref: man.last, role: "enabler", weight: 0.5 }]
+        : causes,
       data: {
         realm: was,
         general,
         from: LEADERSHIP[p.leadership],
-        ...(man ? { fig: man.fig } : {}),
+        ...(man?.fig !== undefined ? { fig: man.fig } : {}),
+        ...(man?.cmd ? { cmd: man.cmd } : {}),
       },
     });
   // (A coup among generals keeps the rule the first of them overthrew; the new general's own men
@@ -702,14 +740,19 @@ export function foil(
     store = strifeOf(world)!,
     o = orderOf(world)?.of(p.ref),
     year = yearOfMoment(t),
-    man = armyVoice(world, p),
+    man = generalOf(world, p, year),
     general = man?.name ?? newRuler(ctx, p, t, p.event, 3).name,
     event = world.events.emit({
       type: STRIFE_EVENTS.foiled.type,
-      subjects: [p.ref],
+      subjects: man?.cmd ? [p.ref, notableRef(man.cmd)] : [p.ref],
       place: ctx.provinces.get(p.seat)?.ref ?? null,
       causes,
-      data: { realm: realmName(p), general, ...(man ? { fig: man.fig } : {}) },
+      data: {
+        realm: realmName(p),
+        general,
+        ...(man?.fig !== undefined ? { fig: man.fig } : {}),
+        ...(man?.cmd ? { cmd: man.cmd } : {}),
+      },
     });
   store.ensure(p.ref).purged = year + STRIFE.purged;
   if (o) o.legitimacy = clamp(0.02, 0.98, o.legitimacy + 0.03);

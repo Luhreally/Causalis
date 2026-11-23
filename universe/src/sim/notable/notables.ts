@@ -50,6 +50,7 @@ import {
   DOMAIN,
   DOMAINS,
   FIELD,
+  HELD,
   NOTE,
   ACTS,
   OCC,
@@ -86,6 +87,7 @@ import {
   type Gone,
   type Notable,
 } from "./kept.ts";
+import { CommandRollStore, commandRollOf } from "./roll.ts";
 
 export const NOTABLE_EVENTS = {
   /** Someone's people came to know them by name. */
@@ -271,6 +273,8 @@ function keptAs(
 ): Notable | undefined {
   const is = (n: Notable | undefined): n is Notable =>
       !!n &&
+      // (One held by the foe commands no one and seizes nothing: sim/war/held.ts.)
+      !n.held &&
       n.name === given.name &&
       ((given.born !== undefined && n.born === given.born) ||
         (!!given.as && given.as !== "rule" && n.as === given.as)),
@@ -790,8 +794,14 @@ export function notablesYear(ctx: PopulationContext, t: SimTime): void {
       );
       continue;
     }
-    // (A post is held of a living realm: a commander of a realm that ended commands no one.)
-    if (n.post && !(realms?.get(n.post.of)?.ended === null)) {
+    // (One held by the foe wastes as those held with them do: sim/war/held.ts tells what became of the rest.)
+    if (n.held && !guarded && u(4) < HELD.wasted) {
+      end(r, n, "captivity", n.held.event);
+      continue;
+    }
+    // (A post is held of a living realm: a commander of a realm that ended commands no one. A faith's head is its faith's,
+    // and sim/belief/heads.ts keeps it.)
+    if (n.post && n.post.kind !== "faith" && !(realms?.get(n.post.of)?.ended === null)) {
       delete n.post;
       store.moved();
     }
@@ -804,6 +814,7 @@ export function notablesYear(ctx: PopulationContext, t: SimTime): void {
     }
   }
   store.settle(year);
+  if (year % 10 === 0) commandRollOf(world)?.prune(world);
   cull(r);
   // 4. The year's telling: the greatest first.
   r.tell.sort((a, b) => b.standing - a.standing || a.id - b.id);
@@ -983,12 +994,15 @@ export function commandAfter(
     store = notablesOf(world);
   if (!store) return;
   const year = yearOfMoment(t),
-    key = serialOf(battle);
+    key = serialOf(battle),
+    roll = commandRollOf(world);
   for (let s = 0; s < 2; s++) {
     const n = sides[s] ? store.get(sides[s]!.id) : undefined;
     if (!n) continue;
-    const victor = s === 0 ? won : !won,
-      foe = sides[1 - s] ? store.get(sides[1 - s]!.id) : undefined,
+    const victor = s === 0 ? won : !won;
+    // (Kept beside the world: whoever led each host at each battle, for its telling and its page.)
+    roll?.note(n.id, n.name, realms[s]!.ref, battle, t, victor);
+    const foe = sides[1 - s] ? store.get(sides[1 - s]!.id) : undefined,
       gain = fieldGain(n.by[DOMAIN.war] ?? 0, fielded[s]!, fielded[1 - s]!, victor);
     addDeed(n, {
       y: year,
@@ -1004,10 +1018,21 @@ export function commandAfter(
       falls = victor ? FIELD.fallsWon : FIELD.fallsLost;
     if (guarded) continue;
     if (u < falls || (!victor && u < falls + FIELD.taken)) {
-      const r: Run = { ctx, world, store, t, year, many: n.many, tell: [], bar: 0 };
-      end(r, n, u < falls ? "battle" : "taken", battle);
-      // (Told at once: the year's own telling is the notables' year's, and a commander's fall is the battle's news.)
-      for (const x of r.tell) x.run();
+      const war = world.events.get(battle)?.subjects[0];
+      // (Taken, one body: held by the foe until a peace or a price brings them home, or they die held (sim/war/held.ts). A
+      // line of a people who keep no one apart is not one body to hold: it ends with the host it led.)
+      if (u >= falls && !n.many && war) {
+        n.held = { by: realms[1 - s]!.ref, war, since: year, event: battle };
+        if (n.post) {
+          delete n.post;
+          store.moved();
+        }
+      } else {
+        const r: Run = { ctx, world, store, t, year, many: n.many, tell: [], bar: 0 };
+        end(r, n, u < falls ? "battle" : "taken", battle);
+        // (Told at once: the year's own telling is the notables' year's, and a commander's fall is the battle's news.)
+        for (const x of r.tell) x.run();
+      }
       store.shake(realms[s]!.ref, year + 1);
     }
   }
@@ -1040,7 +1065,7 @@ export function commandLeft(world: World, realm: Ref, name: string): void {
 export function strikeNotable(
   ctx: PopulationContext,
   id: number,
-  how: "struck" | "killed" | "executed",
+  how: "struck" | "killed" | "executed" | "captivity",
   event: Ref,
   t: SimTime,
 ): boolean {
@@ -1090,8 +1115,70 @@ export function favourNotable(
   return true;
 }
 
+/**
+ * One the day makes for a post that is no realm's own (a faith's head: sim/belief/heads.ts), of a land, by a key of the caller's:
+ * someone new, of the standing given, with their first deed, or given a name (an heir of a line). Null where no one is kept.
+ */
+export function raiseNotable(
+  ctx: PopulationContext,
+  cell: number,
+  key: number,
+  deed: Deed,
+  t: SimTime,
+  given?: { name: string; sex: number; born?: number },
+): Notable | null {
+  const { world } = ctx,
+    store = notablesOf(world);
+  if (!store) return null;
+  const r: Run = {
+    ctx,
+    world,
+    store,
+    t,
+    year: yearOfMoment(t),
+    many: !keepsPersons(ctx.generated.life.people?.body.social),
+    tell: [],
+    bar: 0,
+  };
+  return arise(r, cell, key, deed.g, deed, given);
+}
+
+/** A name drawn for one of a land, as a notable's is (an heir's given name: sim/belief/heads.ts keeps the family's). */
+export function nameOfLand(
+  ctx: PopulationContext,
+  cell: number,
+  key: number,
+  t: SimTime,
+): { name: string; sex: number } {
+  const { world } = ctx,
+    store = notablesOf(world)!;
+  return nameIn(
+    {
+      ctx,
+      world,
+      store,
+      t,
+      year: yearOfMoment(t),
+      many: !keepsPersons(ctx.generated.life.people?.body.social),
+      tell: [],
+      bar: 0,
+    },
+    cell,
+    key,
+  );
+}
+
+/** One held by the foe is free again (sent home at a peace, bought back, given up in an exchange): no longer held. */
+export function freeHeld(world: World, id: number): boolean {
+  const n = notablesOf(world)?.get(id);
+  if (!n?.held) return false;
+  delete n.held;
+  return true;
+}
+
 export function installNotables(world: World, ctx: () => PopulationContext): NotablesStore {
   const store = world.register(new NotablesStore());
+  world.register(new CommandRollStore());
   world.addPinner(() => store.pinned());
   world.system({ key: "197.people.notables", every: YEAR, run: (t) => notablesYear(ctx(), t) });
   // (A land with the learned of name inquires the more readily: exactly 1 where none is kept.)

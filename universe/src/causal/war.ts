@@ -10,6 +10,7 @@ import {
   FIRE_EVENTS,
   WAR,
   WAR_EVENTS,
+  battleCommanders,
   politiesOf,
   realmName,
   warsOf,
@@ -172,8 +173,15 @@ registerEventWords(WAR_EVENTS.battle.type, (world, e) => {
       tip?: boolean;
       led?: (string | null)[];
     } | null,
-    // (Who led each host, where the world keeps them: sim/notable.)
-    under = (i: number) => (d?.led?.[i] ? `, led by ${d.led[i]},` : "");
+    // (Who led each host, where the world keeps them: sim/notable; an untried one by the roll kept beside the world.)
+    roll =
+      e.subjects.length >= 3
+        ? battleCommanders(world, e.t, [e.subjects[1]!, e.subjects[2]!])
+        : [undefined, undefined],
+    under = (i: number) => {
+      const who = d?.led?.[i] ?? roll[i]?.name;
+      return who ? `, led by ${who},` : "";
+    };
   // (Where arms decided it, Phase 52 M217: the winner's.)
   return `${cap(text(e.data, "a"))}${under(0)} ${d?.won ? "won" : "lost"} a battle against ${text(e.data, "b")}${under(1)} in ${landWords(world, e.place)}${d?.tip ? `, ${text(e.data, d.won ? "a" : "b")}'s arms deciding it` : ""}; ${count(d?.fallen ?? 0)} fell, ${year(e.t)}`;
 });

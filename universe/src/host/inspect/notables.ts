@@ -886,6 +886,18 @@ function keptBlocks(world: World, n: Named): Block[] {
         ...(n.favour
           ? [stat("Under the god's hand", `${FAVOUR[n.favour.kind]} until year ${n.favour.until}`)]
           : []),
+        // (Taken in battle and held by the foe: sim/war/held.ts tells what becomes of them.)
+        ...(n.held
+          ? [
+              stat(
+                "Held",
+                ["by ", realmLink(world, n.held.by), `, taken in battle in year ${n.held.since}`],
+                { why: n.held.event },
+              ),
+            ]
+          : []),
+        // (The faith they head: sim/belief/heads.ts.)
+        ...(n.post?.kind === "faith" ? [stat("Head of", [faithLink(world, n.post.of)])] : []),
       ],
     },
     {

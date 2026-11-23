@@ -49,6 +49,19 @@ export const HELD = {
   censure: 0.5,
   answeredOwn: 0.15,
   answeredFaith: 0.05,
+  /** What a wrong pardoned by the one's own ruler is remembered as between the realms. */
+  pardoned: -0.1,
+  /**
+   * No quarter, 2026-11-22: a war grown bitter is one whose victors have lost this share of their people in it (its fallen
+   * against all its people): their hate is then at its full.
+   */
+  bitter: 0.03,
+  /**
+   * A commander taken in battle is bought back at the price of so many of their host's men for each line they stand (a quarter
+   * line at the least: the price is as great as their name); and what holding one, or sending them home, is remembered as.
+   */
+  ransom: 150,
+  chiefKept: -0.1,
 } as const;
 
 /** What weighs on a people's answering, itself, for a wrong done in its name that no peace made it answer for (each 0 … 1). */
@@ -167,6 +180,10 @@ export type QuarterRead = {
   /** How far its people have a say in its rule, and whether its law counts strangers its own. */
   readonly voice: number;
   readonly citizens: number;
+  /** How bitter the war has grown for it: its own fallen in it against its people, at HELD.bitter the whole (absent: 0). */
+  readonly bitter?: number;
+  /** How far the one who commands it is known for such deeds already (their infamy, saturating; absent: 0). */
+  readonly infamy?: number;
 };
 
 /** The parts of a host's refusing quarter, in the order told: name, value, what it adds. */
@@ -184,6 +201,12 @@ export function quarterParts(r: QuarterRead): { name: string; value: number; by:
       by: -0.2 * r.voice,
     },
     { name: "a law that counts strangers its own", value: r.citizens, by: -0.25 * r.citizens },
+    { name: "a war grown bitter", value: r.bitter ?? 0, by: 0.15 * (r.bitter ?? 0) },
+    {
+      name: "a commander known for giving none",
+      value: r.infamy ?? 0,
+      by: 0.15 * (r.infamy ?? 0),
+    },
   ];
 }
 
