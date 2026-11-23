@@ -982,8 +982,10 @@ function bondsMade(ctx: PopulationContext, t: SimTime): void {
     among = new Map<Ref, number>(),
     // (A house makes as many matches at once as it has children grown to give, a generation's heirs.)
     most = Math.max(1, Math.round(kinFacts.heirs)),
+    // (Wars still fought: the warm list keeps a war ended this year until its year is sealed, and a save keeps none of that.)
+    fighting = (p: Polity): War[] => wars.hotOf(p.ref).filter((w) => w.ended === null),
     foesOf = (p: Polity): Ref[] =>
-      wars.hotOf(p.ref).map((w) => (w.attacker === p.ref ? w.defender : w.attacker));
+      fighting(p).map((w) => (w.attacker === p.ref ? w.defender : w.attacker));
   for (const r of diplomacy.all())
     if (r.opinion >= TIES.matchAt || r.pact) {
       among.set(r.a, (among.get(r.a) ?? 0) + 1);
@@ -1047,11 +1049,9 @@ function bondsMade(ctx: PopulationContext, t: SimTime): void {
           ...(foeShared
             ? [
                 {
-                  ref: wars
-                    .hotOf(a.ref)
-                    .find((w) =>
-                      foesOf(b).includes(w.attacker === a.ref ? w.defender : w.attacker),
-                    )!.event,
+                  ref: fighting(a).find((w) =>
+                    foesOf(b).includes(w.attacker === a.ref ? w.defender : w.attacker),
+                  )!.event,
                   role: "trigger" as const,
                   weight: 0.8,
                 },

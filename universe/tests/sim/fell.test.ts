@@ -30,7 +30,9 @@ import {
 import { fellFromLast } from "../../src/sim/war/coldwars.ts";
 import { peopledWorld } from "../worlds.ts";
 
-const world = peopledWorld("first light", 100, { start: "spread" });
+// (Six score years: the thin air of the heights slows the first peoples on high ground until they have taken to it, rules/demography.ts
+// heightsToll, and their first wars come later: at a century only 17 battles were old enough to let go.)
+const world = peopledWorld("first light", 120, { start: "spread" });
 const ctx = populationContext(world),
   store = warsOf(world),
   battles = store.all().flatMap((w) => w.battles),
@@ -101,7 +103,7 @@ test("a battle's town tallies are kept for FELL_TOWN_YEARS, its lands' for good"
       assert.ok(lands.every((l) => l.length === 4));
     }
   }
-  // (Enough of each to read the rule by: first light's first century fought 46 battles old enough to let go after round "peoples".)
+  // (Enough of each to read the rule by: first light's first six score years fight forty and more old enough to let go.)
   assert.ok(recents >= 40 && olds >= 40, `${recents} recent, ${olds} old battles`);
 });
 
