@@ -43,6 +43,7 @@ import {
   fighting,
   politiesOf,
   populationContext,
+  sentencesOf,
   underworldOf,
   warsOf,
   type LandKilling,
@@ -137,6 +138,8 @@ export type Holder = {
   readonly died: number | null;
   /** The killing of their land's underworld they died of: what it was of, whose they were, who did it (absent: none). */
   readonly slain?: Slain;
+  /** The year their land's court put them to death (sim/order/sentences.ts; absent: it did not). */
+  readonly executed?: number;
 };
 /** A year's killings by its land's underworld as the town's lines tell them: its dead among the town, those of its lines among them. */
 export type RosterKilling = {
@@ -212,6 +215,8 @@ export type Roster = {
   fallen(battle: RosterBattle): number;
   /** Their name in the land's tongue (memoized). */
   nameOf(h: Holder): string;
+  /** The years its land's court put any of its lines to death, and the lines, oldest first (sim/order/sentences.ts). */
+  readonly executions?: readonly { readonly year: number; readonly lines: readonly number[] }[];
   /** The lines that share a home and a family's name, as their kind pairs (four, as upright apes live). */
   readonly perHome: number;
 };
@@ -764,6 +769,16 @@ type Step =
       /** The lines one of the town's many killed is drawn from: its first so many, a power of two. */
       readonly among: number;
       readonly year: number;
+    }
+  | {
+      readonly t: number;
+      readonly event: string;
+      readonly seq: number;
+      readonly count: number;
+      /** Those of the town's lines its land's court put to death that year (sim/order/sentences.ts), and the lines drawn from. */
+      readonly executed: number;
+      readonly among: number;
+      readonly year: number;
     };
 /** A battle or a strike as the fold keeps it: the lines it fell on, by line, and what it did. */
 type Kept = {
@@ -1159,6 +1174,34 @@ function foldRoster(
       }
     }
   }
+  // Those its land's court put to death, as the court's year kept them (sim/order/sentences.ts): of the town's people by its
+  // lines as a round number, as its killings are, so who died in a year gone by stays who died.
+  const sentenced = cell >= 0 ? sentencesOf(world) : null;
+  if (sentenced && population > 0) {
+    const lines = linesOf(population);
+    let whole = 1;
+    while (whole * 2 <= lines) whole *= 2;
+    const about = lines >= 1.5 * whole ? 1.5 * whole : whole;
+    for (let y = first; y < year; y++) {
+      const per = sentenced.deathAt(cell, y);
+      if (!(per > 0)) continue;
+      const dead = Math.min(
+        lines,
+        keyedRound((per / 1e6) * about, hashString(`executed ${town} ${y}`)),
+      );
+      if (dead > 0)
+        steps.push({
+          // (Through the year, after its killings.)
+          t: y * YEAR + (3 * YEAR) / 4,
+          event: `executed ${y}`,
+          seq: steps.length,
+          count: Math.min(SLOT - 1, lines),
+          executed: dead,
+          among: whole,
+          year: y,
+        });
+    }
+  }
   steps.sort(
     (p, q) => p.t - q.t || (p.event < q.event ? -1 : p.event > q.event ? 1 : p.seq - q.seq),
   );
@@ -1232,6 +1275,8 @@ function foldRoster(
     warKeys = new Map<string, number>(),
     struck: KeptStrike[] = [],
     slayings: KeptKilling[] = [],
+    /** The lines its court's sentences put to death, by year. */
+    hanged: { readonly year: number; readonly lines: Int32Array }[] = [],
     battles: RosterBattle[] = [],
     strikes: RosterStrike[] = [],
     killings: RosterKilling[] = [];
@@ -1253,6 +1298,43 @@ function foldRoster(
   for (let at_ = 0; at_ < steps.length; at_++) {
     const step = steps[at_]!,
       { count } = step;
+    if ("executed" in step) {
+      // One of the town's grown for each, the first of a few lines by the year's key whose holder lives and is grown.
+      const { executed, year: at, among } = step,
+        grown = life.adulthood,
+        q = Math.floor(at / term),
+        edge = (q + 1) * term - at,
+        hk = hashString(`executed ${town} ${at}`) >>> 0,
+        taken: number[] = [];
+      for (let j = 0; j < executed; j++)
+        for (let i = 0; i < 12; i++) {
+          const k = finish(mix(hk, 100 + 16 * j + i), 7) % among;
+          if (taken.includes(k)) continue;
+          let phi = phis[k]!;
+          if (phi < 0) phi = seenLine(shape, k);
+          let n: number, key: number, born: number;
+          if (mourned[k] === 1) {
+            const h = tenureAt(k, at, phi, at_);
+            if (h === null || h.dead) continue;
+            n = h.n;
+            key = keyIn(k, n);
+            born = h.from - took(key);
+          } else {
+            const tau = phi >= edge ? q + 1 : q;
+            if (natTau[k] !== tau) natural(shape, k, tau, phi);
+            n = numberOf(tau, 0);
+            key = natKey[k]!;
+            born = tau * term - phi - took(key);
+          }
+          if (at - born < grown) continue;
+          taken.push(k);
+          die(k, n, key, at, at_);
+          break;
+        }
+      if (taken.length)
+        hanged.push({ year: at, lines: Int32Array.from(taken.sort((a, b) => a - b)) });
+      continue;
+    }
     if ("killing" in step) {
       const { killing, realm, dead, year: at, ousted } = step,
         f = factsOf(killing, realm),
@@ -1640,6 +1722,12 @@ function foldRoster(
       const i = placeOf(x.lines, k);
       if (i >= 0) slain = x.slain[i];
     }
+    // (Put to death by their land's court while they held it.)
+    let executed: number | undefined;
+    for (const x of hanged) {
+      if (x.year < from || x.year >= end) continue;
+      if (placeOf(x.lines, k) >= 0) executed = x.year;
+    }
     const h: Holder = {
       ref: townsfolkRef(town, k, n),
       line: k,
@@ -1653,6 +1741,7 @@ function foldRoster(
       struck: hit,
       died,
       ...(slain ? { slain } : {}),
+      ...(executed !== undefined ? { executed } : {}),
     };
     list.push(h);
     weigh(240 + 64 * (fates.length + hit.length));
@@ -1784,6 +1873,7 @@ function foldRoster(
     fallen,
     nameOf,
     perHome: kin.perHome,
+    executions: hanged.map((x) => ({ year: x.year, lines: [...x.lines] })),
   };
   INNER.set(roster, inner);
   return roster;

@@ -64,6 +64,8 @@ import {
   type PersonKind,
   type Polity,
 } from "../sim/index.ts";
+import { sentencesOf } from "../sim/index.ts";
+import { courtNameIn } from "./sentenced.ts";
 import { spine } from "../causal/index.ts";
 import {
   parseLevyManRef,
@@ -156,6 +158,7 @@ export type Cause =
   | "battle"
   | "strike"
   | "killing"
+  | "sentence"
   | "seized"
   | "struck"
   | "blow"
@@ -352,6 +355,27 @@ export function rulerDeath(world: World, e: HistoryEvent): Account | null {
         noPath: null,
         changed: [],
       };
+    // (Struck down by a group of their realm, at a blow it aimed at the seat: sim/order/deeds.ts. No draw of age took them.)
+    const blow = e.causes
+      .map((c) => world.events.get(c.ref))
+      .find((x) => x?.type === "groups.struck");
+    if (blow) {
+      const g = (blow.data ?? {}) as { group?: string };
+      return {
+        short: `struck down by ${g.group ?? "a group of their realm"}`,
+        year,
+        age,
+        event: blow.id,
+        cause: "killing",
+        rule: "A group of a realm that strikes at those who stand in its way reaches the ruler where they stand within its reach, unguarded: the blow fell, and they died of it.",
+        draw: null,
+        parts: [{ name: "The blow", words: claimOf(world, blow.id), source: blow.id }],
+        decided: [["The blow alone: not their age or their health."]],
+        from: blow.id,
+        noPath: null,
+        changed: [],
+      };
+    }
     if (age === null || seat === null) return null;
     const band = bandOf(age, life),
       base = life.mortality[band]!,
@@ -786,6 +810,40 @@ function holderDeath(world: World, ref: string): Account | null {
       noPath: event
         ? null
         : "What the land's underworld was that year: who held it, its street's gangs, who hunted whom.",
+      changed: [],
+    };
+  }
+  // (Put to death by their land's court, as its year's sentences kept it: sim/order/sentences.ts.)
+  if (h.executed !== undefined) {
+    const y = h.executed,
+      cell = ctx.settlements.get(town as Ref)?.cell ?? -1,
+      per = cell >= 0 ? (sentencesOf(world)?.deathAt(cell, y) ?? 0) : 0,
+      court = cell >= 0 ? courtNameIn(world, cell) : null;
+    return {
+      short: `was put to death by ${court ?? "their land's court"} in year ${y}`,
+      year: y,
+      age: y - h.born,
+      event: null,
+      cause: "sentence",
+      rule: "A land's court sentences those brought before it by how grave their wrong was and by its realm's law: fined, held, put to labour, or put to death. Of a town's people its court put to death that year, as many of its named lines as the lines are of its people; who of them, by the year's key among its grown.",
+      draw: per
+        ? `Its court put to death some ${Math.round(per) / 10} in ten thousand of its land's people that year: ${Math.max(1, roster.executions?.find((x) => x.year === y)?.lines.length ?? 1)} of the town's named lines among them.`
+        : null,
+      parts: [
+        {
+          name: "Their land's court",
+          words: court
+            ? `${court}, by its realm's law`
+            : "the court of their land, by its realm's law",
+          source: null,
+        },
+      ],
+      decided: [
+        ["The court's sentence: by how grave the wrong, and how harsh its realm's justice."],
+      ],
+      from: null,
+      noPath:
+        "What they were brought for is not kept: the court keeps a count of those it sentences, not each case.",
       changed: [],
     };
   }

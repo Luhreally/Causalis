@@ -47,6 +47,7 @@ import {
   ownScore,
   quarterParts,
   quarterScore,
+  satOf,
   settleHeld,
   type FledKind,
 } from "../../rules/index.ts";
@@ -61,8 +62,14 @@ import { LAW_OF } from "../order/laws.ts";
 import { bindCarried, bindsTaken, orderOf } from "../order/order.ts";
 import { grieve } from "../acts/disasters.ts";
 import { handOf } from "../hand/hand.ts";
-import { notablesOf } from "../notable/kept.ts";
-import { commandLeft, notableDeed, strikeNotable, type Command } from "../notable/notables.ts";
+import { notableRef, notablesOf, type Notable } from "../notable/kept.ts";
+import {
+  commandLeft,
+  freeHeld,
+  notableDeed,
+  strikeNotable,
+  type Command,
+} from "../notable/notables.ts";
 import { landSpare } from "./bonds.ts";
 import { poolOf, type Levy } from "./levy.ts";
 import type { Take } from "./fell.ts";
@@ -77,6 +84,8 @@ export const HELD_EVENTS = {
   reckoned: defineEventType("held.reckoned", 4),
   /** Many who fled what struck their land came over a border. */
   fled: defineEventType("held.fled", 3),
+  /** A commander taken in battle: exchanged, bought back, given up at the peace, kept, or dead in captivity. */
+  chief: defineEventType("held.chief", 4),
 };
 
 const STREAM = defineStream("war.held");
@@ -140,7 +149,8 @@ export type Crime = {
   };
 };
 
-export type Reckoned = "tried" | "dead" | "unanswered" | "own" | "cast" | "censured" | "disowned";
+export type Reckoned =
+  "tried" | "dead" | "unanswered" | "own" | "cast" | "censured" | "disowned" | "pardoned";
 
 const campKey = (at: number, from: number) => at * 131072 + from;
 
@@ -444,6 +454,8 @@ export function killOf(
 }
 
 const serial = (r: Ref): number => Number(r.split(":").at(-1)) || 0;
+const realmPeople = (ctx: PopulationContext, p: Polity): number =>
+  p.members.reduce((n, c) => n + (ctx.provinces.get(c)?.total() ?? 0), 0);
 
 // —— After a battle (sim/war/war.ts) ————————————————————————————————————————————————————————————————————
 
@@ -471,6 +483,8 @@ function quarter(
   b: Polity,
   hungry: boolean,
   year: number,
+  bitter = 0,
+  infamy = 0,
 ): { score: number; factors: Factor[] } {
   const { world } = ctx,
     culture = cultureOf(world),
@@ -501,6 +515,8 @@ function quarter(
       grudge: grudge ? 1 : 0,
       voice: holdOf(world, v.ref, HOLD.voice),
       citizens: orderOf(world)?.realms.get(v.ref)?.laws[LAW_OF.strangers] === 2 ? 1 : 0,
+      bitter,
+      infamy,
     };
   return {
     score: quarterScore(read),
@@ -540,7 +556,8 @@ function wrong(
     event = world.events.emit({
       type: HELD_EVENTS.crime.type,
       importance: dead >= 2000 ? 5 : 4,
-      subjects: [w.ref, v.ref, b.ref],
+      // (Who ordered it is its subject too: their page tells it.)
+      subjects: led ? [w.ref, v.ref, b.ref, notableRef(led.id)] : [w.ref, v.ref, b.ref],
       place: cellRef(0, land),
       causes: [
         { ref: decision, role: "trigger", weight: 1 },
@@ -607,8 +624,14 @@ export function heldAfter(
     key = serial(w.ref) * 4 + s,
     led = f.led[1 - s]!;
   let q: ReturnType<typeof quarter> | null = null;
+  // (How bitter the war has grown for the victors: their own fallen in it against their people; and how far the one who leads
+  // them is known for giving no quarter already.)
+  const side = victor === a ? 0 : 1,
+    bitter = Math.min(1, w.fallen[side]! / Math.max(1, realmPeople(ctx, victor)) / HELD.bitter),
+    leader = led ? notablesOf(ctx.world)?.get(led.id) : undefined,
+    infamy = leader ? satOf(leader.by[DOMAIN.infamy] ?? 0) : 0;
   if (caught > 0) {
-    q = quarter(ctx, store, victor, beaten, f.hungry && victor === a, year);
+    q = quarter(ctx, store, victor, beaten, f.hungry && victor === a, year, bitter, infamy);
     const each = apportionCapped(caught, living, living),
       none = q.score >= HELD.line;
     let n = 0;
@@ -626,7 +649,7 @@ export function heldAfter(
   }
   // A town stormed: its people at the mercy of those who lost their own before its walls.
   if (f.stormed && f.won) {
-    q ??= quarter(ctx, store, a, b, f.hungry, year);
+    q ??= quarter(ctx, store, a, b, f.hungry, year, bitter, infamy);
     const score = q.score + HELD.storm;
     if (score >= HELD.line) {
       const people = ctx.provinces.get(f.land)?.total() ?? 0,
@@ -836,20 +859,26 @@ function settle(ctx: PopulationContext, store: DisplacedStore, w: War, t: SimTim
     y.freed += out.freed[0] + out.freed[1];
     store.release(w.ref);
   }
-  // The wrongs done in it: the beaten side's doer is handed over; the victors' goes unanswered.
+  // The wrongs done in it: the beaten side's doer is handed over, where the war or its terms beat their realm (they pay what the
+  // peace asks); the victors' is theirs to answer for, at home (below).
+  const terms = (peace?.data as { terms?: { payer?: string } } | undefined)?.terms;
   for (const c of store.crimesOf(w.ref)) {
     if (c.reckoned) continue;
     const side = c.by === w.attacker ? 0 : 1,
       by = sides[side],
       on = sides[1 - side],
       living = c.doer ? notablesOf(world)?.get(c.doer) : undefined,
-      how: NonNullable<Crime["reckoned"]>["how"] =
-        victor === 1 - side && alive[1 - side]
-          ? living
-            ? "tried"
-            : c.doer
-              ? "dead"
-              : "unanswered"
+      beaten =
+        alive[1 - side] &&
+        (victor === 1 - side || (!!by && !!terms?.payer && terms.payer === realmName(by))),
+      how: NonNullable<Crime["reckoned"]>["how"] = beaten
+        ? living
+          ? "tried"
+          : c.doer
+            ? "dead"
+            : "unanswered"
+        : c.doer && !living
+          ? "dead"
           : "unanswered",
       event = world.events.emit({
         type: HELD_EVENTS.reckoned.type,
@@ -882,9 +911,257 @@ function settle(ctx: PopulationContext, store: DisplacedStore, w: War, t: SimTim
           source: event,
         });
     }
-    // (No peace made it answer: its own people may, now or in a later year.)
-    else if (how === "unanswered" && alive[side]) answerAtHome(ctx, c, victor === side, t);
+    // (No peace made it answer: its own people may, now or in a later year; and the one who ordered it, where they live and their
+    // own will not try them, is pardoned by their ruler.)
+    else if (how === "unanswered" && alive[side] && !answerAtHome(ctx, c, victor === side, t))
+      pardon(ctx, c, victor === side, cause, t);
   }
+  // Its commanders taken in battle (sim/notable/notables.ts commandAfter): exchanged, given up, bought back, or kept.
+  chiefsAt(ctx, w, sides, alive, victor, terms?.payer ?? null, cause, t);
+}
+
+/**
+ * A wrong whose doer lives and whom their own people did not try at the peace: their ruler pardons them (the realm stands by
+ * the one who ordered it), told with what weighed: the one who ordered it stands high, the war was won, a people with no say.
+ * A later ruler or a people come to a say may yet answer it (answerAtHome reads a pardon again).
+ */
+function pardon(ctx: PopulationContext, c: Crime, won: boolean, cause: Ref, t: SimTime): void {
+  const { world } = ctx,
+    realms = politiesOf(world),
+    by = realms.get(c.by),
+    doer = c.doer ? notablesOf(world)?.get(c.doer) : undefined;
+  if (!by || !doer) return;
+  const year = yearOfMoment(t),
+    on = realms.get(c.on),
+    read = {
+      voice: holdOf(world, by.ref, HOLD.voice),
+      citizens: orderOf(world)?.realms.get(by.ref)?.laws[LAW_OF.strangers] === 2 ? 1 : 0,
+      kin: 0,
+      later: by.ruler.since > c.year ? 1 : 0,
+      standing: Math.max(
+        0,
+        Math.min(1, (doer.standing - (doer.by[DOMAIN.infamy] ?? 0)) / (3 * NOTE.line)),
+      ),
+      won: won ? 1 : 0,
+    },
+    decision = world.decisions.record({
+      rule: "held.own",
+      subject: by.ref,
+      outcome: { how: "pardoned", land: cellRef(0, c.land) },
+      score: ownScore(read),
+      threshold: HELD.own,
+      factors: ownParts(read)
+        .filter((p) => p.by !== 0)
+        .map((p) => ({ name: p.name, value: p.value, contribution: p.by, source: null })),
+    }),
+    event = world.events.emit({
+      type: HELD_EVENTS.reckoned.type,
+      importance: 3,
+      subjects: [c.war, c.by, c.on, notableRef(doer.id)],
+      place: cellRef(0, c.land),
+      causes: [
+        { ref: decision, role: "trigger", weight: 1 },
+        { ref: c.event, role: "enabler", weight: 1 },
+        { ref: cause, role: "enabler", weight: 0.5 },
+      ],
+      data: {
+        a: realmName(by),
+        b: on ? realmName(on) : "a realm that is no more",
+        how: "pardoned",
+        by: c.name,
+        doer: c.doer,
+        ruler: by.ruler.name,
+        kind: c.kind,
+        dead: c.dead,
+        year: c.year,
+      },
+    });
+  c.reckoned = { year, how: "pardoned", event };
+  if (on && on.ended === null)
+    diplomacyOf(world).remember(by.ref, on.ref, {
+      name: "a wrong pardoned",
+      value: HELD.pardoned,
+      year,
+      source: event,
+    });
+}
+
+/**
+ * The commanders a war's sides took in battle, at its peace: two held by each other are exchanged; one whose holder was beaten
+ * (in the field, or as the terms' payer) is given up; else their realm buys them back where its seat can spare the price (that
+ * grain moves), or they are kept. Those kept are asked for again each year (keptChiefs) and may die held (sim/notable).
+ */
+function chiefsAt(
+  ctx: PopulationContext,
+  w: War,
+  sides: readonly [Polity | undefined, Polity | undefined],
+  alive: readonly [boolean, boolean],
+  victor: 0 | 1 | null,
+  payer: string | null,
+  cause: Ref,
+  t: SimTime,
+): void {
+  const kept = notablesOf(ctx.world);
+  if (!kept) return;
+  const held = kept
+    .all()
+    .filter((n) => n.held?.war === w.ref)
+    .sort((a, b) => a.id - b.id);
+  if (!held.length) return;
+  // (Two held by each other are changed one for the other, the highest for the highest.)
+  const by = (s: 0 | 1) =>
+      held
+        .filter((n) => n.held!.by === (s === 0 ? w.attacker : w.defender))
+        .sort((a, b) => b.standing - a.standing || a.id - b.id),
+    mine = [by(0), by(1)] as const,
+    pairs = Math.min(mine[0].length, mine[1].length);
+  for (let i = 0; i < pairs; i++) {
+    chiefHome(ctx, mine[0][i]!, "exchanged", cause, t, mine[1][i]!.name);
+    chiefHome(ctx, mine[1][i]!, "exchanged", cause, t, mine[0][i]!.name);
+  }
+  for (const s of [0, 1] as const)
+    for (const n of mine[s].slice(pairs)) {
+      const holder = sides[s],
+        beaten =
+          !holder || !alive[s] || victor === 1 - s || (!!payer && payer === realmName(holder));
+      if (beaten) chiefHome(ctx, n, "given up", cause, t);
+      else if (!ransom(ctx, n, cause, t)) chiefKept(ctx, n, cause, t);
+    }
+}
+
+/** A held commander's realm buys them back where its seat can spare the price: true where it did. */
+function ransom(ctx: PopulationContext, n: Notable, cause: Ref, t: SimTime): boolean {
+  const { world } = ctx,
+    realms = politiesOf(world),
+    holder = realms.get(n.held!.by),
+    home = n.realm ? realms.get(n.realm) : undefined;
+  if (!holder || holder.ended !== null || !home || home.ended !== null) return false;
+  const price = Math.round(
+      HELD.price * 12 * ctx.life.appetite * HELD.ransom * Math.max(0.25, n.standing / NOTE.line),
+    ),
+    spare = HELD.gives * landSpare(ctx, home.seat);
+  if (spare < price) return false;
+  const markets = marketsOf(world),
+    from = markets.get(home.seat),
+    into = markets.get(holder.seat),
+    grain =
+      from && into
+        ? Math.round(
+            into.move(
+              "in",
+              G.grain,
+              from.move("out", G.grain, Math.min(price, Math.floor(from.stock[G.grain] ?? 0))),
+            ),
+          )
+        : 0;
+  chiefHome(ctx, n, "ransomed", cause, t, undefined, grain);
+  return true;
+}
+
+/** A held commander goes home (or is let go where their realm is no more), told. */
+function chiefHome(
+  ctx: PopulationContext,
+  n: Notable,
+  how: "exchanged" | "given up" | "ransomed" | "freed",
+  cause: Ref,
+  t: SimTime,
+  withWhom?: string,
+  grain?: number,
+): void {
+  const { world } = ctx,
+    realms = politiesOf(world),
+    h = n.held!,
+    holder = realms.get(h.by),
+    home = n.realm ? realms.get(n.realm) : undefined;
+  freeHeld(world, n.id);
+  const event = tellChief(ctx, n, h, how, cause, t, {
+    ...(withWhom ? { with: withWhom } : {}),
+    ...(grain ? { grain } : {}),
+  });
+  if (holder && home && holder.ended === null && home.ended === null && how !== "exchanged")
+    diplomacyOf(world).remember(holder.ref, home.ref, {
+      name: how === "ransomed" ? "their commander bought back" : "their commander sent home",
+      value: how === "ransomed" ? 0 : HELD.home,
+      year: yearOfMoment(t),
+      source: event,
+    });
+}
+
+/** A held commander kept past the peace: told once, remembered between the realms. */
+function chiefKept(ctx: PopulationContext, n: Notable, cause: Ref, t: SimTime): void {
+  const { world } = ctx,
+    realms = politiesOf(world),
+    h = n.held!,
+    holder = realms.get(h.by),
+    home = n.realm ? realms.get(n.realm) : undefined,
+    event = tellChief(ctx, n, h, "kept", cause, t, {});
+  if (holder && home && holder.ended === null && home.ended === null)
+    diplomacyOf(world).remember(home.ref, holder.ref, {
+      name: "their commander kept",
+      value: HELD.chiefKept,
+      year: yearOfMoment(t),
+      source: event,
+    });
+}
+
+function tellChief(
+  ctx: PopulationContext,
+  n: Notable,
+  h: NonNullable<Notable["held"]>,
+  how: string,
+  cause: Ref,
+  t: SimTime,
+  more: Record<string, string | number>,
+): Ref {
+  const { world } = ctx,
+    realms = politiesOf(world),
+    holder = realms.get(h.by),
+    home = n.realm ? realms.get(n.realm) : undefined;
+  return world.events.emit({
+    type: HELD_EVENTS.chief.type,
+    importance: n.standing >= 3 * NOTE.line ? 4 : 3,
+    subjects: [h.war, notableRef(n.id), h.by, ...(home ? [home.ref] : [])],
+    place: holder ? cellRef(0, holder.seat) : null,
+    causes: [
+      { ref: cause, role: "trigger", weight: 1 },
+      { ref: h.event, role: "enabler", weight: 1 },
+    ],
+    data: {
+      name: n.name,
+      id: n.id,
+      a: holder ? realmName(holder) : "a realm that is no more",
+      b: home ? realmName(home) : "a realm that is no more",
+      how,
+      since: h.since,
+      ...more,
+    },
+  });
+}
+
+/**
+ * Those kept past their war's peace, each year: bought back where their realm can now spare the price; let go where their holder
+ * or their realm is no more, or their war is forgotten. A few a world.
+ */
+function keptChiefs(ctx: PopulationContext, t: SimTime): Ref[] {
+  const kept = notablesOf(ctx.world),
+    ending: Ref[] = [];
+  if (!kept) return ending;
+  const wars = warsOf(ctx.world),
+    realms = politiesOf(ctx.world),
+    year = yearOfMoment(t);
+  for (const n of kept.all()) {
+    const h = n.held;
+    if (!h) continue;
+    const w = wars.get(h.war);
+    // (Their war goes on, or settles this year: settle() tells what becomes of them.)
+    if (w && w.ended !== null && w.ended >= year && !ending.includes(w.ref)) ending.push(w.ref);
+    if (w && (w.ended === null || w.ended >= year)) continue;
+    const holder = realms.get(h.by);
+    if (!w || !holder || holder.ended !== null || !n.realm || realms.get(n.realm)?.ended !== null)
+      chiefHome(ctx, n, "freed", w?.peace ?? h.event, t);
+    else ransom(ctx, n, w.peace ?? h.event, t);
+  }
+  return ending;
 }
 
 /**
@@ -898,7 +1175,12 @@ function answerAtHome(ctx: PopulationContext, c: Crime, won: boolean, t: SimTime
     realms = politiesOf(world),
     by = realms.get(c.by),
     was = c.reckoned;
-  if (!by || by.ended !== null || !was || (was.how !== "unanswered" && was.how !== "censured"))
+  if (
+    !by ||
+    by.ended !== null ||
+    !was ||
+    (was.how !== "unanswered" && was.how !== "censured" && was.how !== "pardoned")
+  )
     return false;
   const year = yearOfMoment(t),
     kept = notablesOf(world),
@@ -996,12 +1278,14 @@ function answerAtHome(ctx: PopulationContext, c: Crime, won: boolean, t: SimTime
 export function displacedYear(ctx: PopulationContext, t: SimTime): void {
   const { world } = ctx,
     store = displacedOf(world);
-  if (!store || store.dormant()) return;
+  // (Commanders kept past their peace are the notables' to keep: asked for again whether or not anyone else is held.)
+  const ending = store ? keptChiefs(ctx, t) : [];
+  if (!store || (store.dormant() && !ending.length)) return;
   const year = yearOfMoment(t),
     wars = warsOf(world),
     realms = politiesOf(world);
   // 1. The wars that are over (with those held in them, or a wrong not yet reckoned).
-  const over = new Set<Ref>();
+  const over = new Set<Ref>(ending);
   for (const r of store.wars()) {
     const w = wars.get(r);
     if (!w) store.release(r);
@@ -1027,7 +1311,9 @@ export function displacedYear(ctx: PopulationContext, t: SimTime): void {
     if (
       c.reckoned &&
       c.reckoned.year < year &&
-      (c.reckoned.how === "unanswered" || c.reckoned.how === "censured") &&
+      (c.reckoned.how === "unanswered" ||
+        c.reckoned.how === "censured" ||
+        c.reckoned.how === "pardoned") &&
       !over.has(c.war)
     )
       answerAtHome(ctx, c, false, t);

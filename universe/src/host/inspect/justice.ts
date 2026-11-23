@@ -67,6 +67,7 @@ import { streetInTownOf } from "../../sim/index.ts";
 import { JUDGED, ROOF } from "../../rules/index.ts";
 import { cellRef } from "../../gen/index.ts";
 import { townUnderworldBlocks } from "./mobs.ts";
+import { courtNameIn, townHeld, townPrison, townSentences } from "../sentenced.ts";
 import { townRolesOf } from "./townlife.ts";
 import {
   GRAVE_KIND,
@@ -1421,6 +1422,54 @@ const NO_DOCKET: Docket = { cases: [], open: [], killed: 0, answered: 0, running
 const SPAN = 14;
 const spanBase = (year: number): number => (Math.floor(year / SPAN) - 2) * SPAN;
 
+/**
+ * The court's own count of a town's people (sim/order/sentences.ts): last year's sentences, those it holds now, and of the town's
+ * named lines those it holds (host/sentenced.ts). What, who, cost and effect. None where no sentences are kept for its land.
+ */
+function courtYearBlocks(world: World, town: string, year: number): Block[] {
+  const s = populationContext(world).settlements.get(town as Ref),
+    last = townSentences(world, town, year - 1),
+    here = townPrison(world, town);
+  if (!s || (!last && !here)) return [];
+  const court = courtNameIn(world, s.cell) ?? "its land's court",
+    rows = [
+      stat("Court", court),
+      ...(last
+        ? [
+            stat("Brought last year", count(last.brought)),
+            stat("Fined", count(last.fined)),
+            stat("Held", count(last.held)),
+            stat("Put to labour", count(last.labour)),
+            stat("Put to death", count(last.death)),
+            ...(last.acquitted ? [stat("Found not guilty", count(last.acquitted))] : []),
+          ]
+        : []),
+      ...(here ? [stat("Held now", count(here.inside))] : []),
+    ],
+    named = townHeld(world, town);
+  return [
+    { type: "facts", title: "The court's own count", rows },
+    ...(named.length
+      ? [
+          {
+            type: "list" as const,
+            title: "Of the town's own, held by it now",
+            items: named.map((h) =>
+              item(
+                [
+                  link(h.name, h.holder.ref),
+                  `: ${h.labour ? "at labour" : "held"} since year ${h.year}, until year ${h.until}`,
+                ],
+                h.holder.ref,
+                h.year,
+              ),
+            ),
+          },
+        ]
+      : []),
+  ];
+}
+
 /** A town's year before its court: once for each, as long as the god's hand rests where it did. */
 export function docketOf(world: World, town: string, year: number): Docket {
   const s = populationContext(world).settlements.get(town as Ref);
@@ -2257,6 +2306,8 @@ export function townLawTab(world: World, ref: string): Tab | null {
     ];
   if (compare)
     blocks.push({ type: "text", title: "Beside its land's other towns", lines: [compare] });
+  // (What its land's court did with the town's people, as the world keeps it: sim/order/sentences.ts, host/sentenced.ts.)
+  blocks.push(...courtYearBlocks(world, ref, year));
   // (Who holds its land outside the law, its street's gangs, its enforcers turned crew: sim/order/underworld.ts.)
   blocks.push(...townUnderworldBlocks(world, s));
   if (held.length)

@@ -170,9 +170,19 @@ test("the same whatever is asked first, and the same a year on", () => {
           ),
         ),
     );
-  // (But one whose year has passed out of what a town's lines are read back by.)
+  // (But one whose year has passed out of what a town's lines are read back by, or of a town whose lines' round number moved
+  // in the year: its count is the same while the town grows or shrinks by less than that, host/roster.ts.)
+  const round = (people: number) => {
+      const lines = linesOf(people);
+      let whole = 1;
+      while (whole * 2 <= lines) whole *= 2;
+      return lines >= 1.5 * whole ? 1.5 * whole : whole;
+    },
+    laterCtx = populationContext(later),
+    same = (t: (typeof towns)[number]) =>
+      round(t.population) === round(laterCtx.settlements.get(t.ref)?.population ?? 0);
   for (const s of slainOf())
-    if (s.year > yearNow(later) - 39)
+    if (s.year > yearNow(later) - 39 && same(s.town))
       assert.ok(
         then.has(`${s.holder.ref}|${s.year}|${s.slain.words}|${s.slain.role}`),
         `${s.holder.ref}, killed in ${s.year}, is not told so a year on`,

@@ -16,6 +16,7 @@ import { bodiesIn, bodyRef } from "../bodies.ts";
 import { bodyWords } from "../../causal/index.ts";
 import { count, item, link, yearNow } from "./words.ts";
 import { lockedNow, type Case } from "./justice.ts";
+import { townHeld, townPrison, townSentences } from "../sentenced.ts";
 
 /** Those a court holds by name now, as list items: who, what they were, since and until. */
 export function inmateItems(world: World, court: Readonly<Body>): Item[] {
@@ -41,6 +42,9 @@ export function inmateItems(world: World, court: Readonly<Body>): Item[] {
  * works (host/inspect/justice.ts: the town's cases are the few of the court's many that are told one by one).
  */
 export function prisonLines(world: World, cell: number, town: number, townRef?: string): Line[] {
+  // (Where its land's court's sentences are kept, the prison holds its own count, and names its own: host/sentenced.ts.)
+  const kept = townRef ? sentencedLines(world, cell, townRef) : null;
+  if (kept) return kept;
   const court = bodiesIn(world, cell).find((x) => x.g.does === DOES.judge)?.g,
     row = bodyLandsStore(world)?.get(cell),
     held = row ? row[BODY_ROW.held]! : 0,
@@ -89,6 +93,56 @@ export function prisonLines(world: World, cell: number, town: number, townRef?: 
   ];
   for (const x of named) lines.push(["Held by name: ", ...x.line]);
   for (const c of own) lines.push(ownLine(c));
+  return lines;
+}
+
+/**
+ * A town's prison as its land's court's sentences fill it (sim/order/sentences.ts): those it holds of the town (the town's share of
+ * the land's count, by its people), how many at the works, what the court did this year past, and those of the town's own lines
+ * it holds by name (host/sentenced.ts), and the few the world keeps by name. Null where no sentences are kept for the land.
+ */
+function sentencedLines(world: World, cell: number, townRef: string): Line[] | null {
+  const here = townPrison(world, townRef);
+  if (!here) return null;
+  const court = bodiesIn(world, cell).find((x) => x.g.does === DOES.judge)?.g,
+    year = yearNow(world),
+    last = townSentences(world, townRef, year - 1),
+    held = townHeld(world, townRef),
+    named = court ? inmateItems(world, court) : [],
+    courtLink = court
+      ? link(
+          bodyWords(court.name, bodyTitle(populationContext(world), court as Body)),
+          bodyRef(court.event),
+        )
+      : "its land's court",
+    lines: Line[] = [
+      here.inside > 0
+        ? [
+            `It holds some ${count(here.inside)} of this town's people whom `,
+            courtLink,
+            ` sentenced${here.labour > 0 ? `, ${count(here.labour)} of them put to labour at the realm's works` : ""}: they leave as their terms run out.`,
+          ]
+        : ["It stands empty, or nearly: no one of this town is held by its court now."],
+    ];
+  if (last && last.brought > 0)
+    lines.push([
+      `Last year the court heard some ${count(last.brought)} of the town's people: ${[
+        last.fined ? `${count(last.fined)} fined` : "",
+        last.held ? `${count(last.held)} held` : "",
+        last.labour ? `${count(last.labour)} put to labour` : "",
+        last.death ? `${count(last.death)} put to death` : "",
+        last.acquitted ? `${count(last.acquitted)} found not guilty` : "",
+      ]
+        .filter(Boolean)
+        .join(", ")}.`,
+    ]);
+  for (const x of named) lines.push(["Held by name: ", ...x.line]);
+  for (const h of held)
+    lines.push([
+      "Of the town: ",
+      link(h.name, h.holder.ref),
+      `, ${h.labour ? "at labour" : "held"} since year ${h.year}, until year ${h.until}`,
+    ]);
   return lines;
 }
 

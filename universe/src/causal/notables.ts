@@ -112,6 +112,13 @@ function did(world: World, d: Deed, land: string): string | null {
       return `was named by their faith for a killing of those of ${n || "another realm"}`;
     case "houses.grifter":
       return `bought a way into the great of ${land} by fraud`;
+    // (A faith's head, and what they did as its head: sim/belief/heads.ts.)
+    case "faith.head":
+      return `came to head ${n || "their faith"}`;
+    case "faith.cast":
+      return `cast the ruler of ${n || "a realm"} out of their faith`;
+    case "led a faith out":
+      return `led the lands of ${n || land} out of their faith`;
     default:
       return null;
   }
@@ -201,6 +208,7 @@ export const NOTABLE_ENDS: Readonly<Record<string, string>> = {
   struck: "was struck down by a hand no one saw",
   killed: "was killed",
   executed: "was put to death by a court",
+  captivity: "died held by the foe who took them in battle",
 };
 
 type Told = {

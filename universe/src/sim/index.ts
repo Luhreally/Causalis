@@ -2087,3 +2087,37 @@ export {
   strainRow,
 } from "./society/strain-kept.ts";
 export { strainYear } from "./society/strain.ts";
+// The gaps of 2026-11-22: a faith's head and the faith against a ruler (sim/belief/heads.ts); those a court sentences and holds
+// (sim/order/sentences.ts); who commanded each host (sim/notable/roll.ts).
+export { FAITH_HEAD_EVENTS, faithHeadsYear, installFaithHeads } from "./belief/heads.ts";
+export {
+  CLASH_STATES,
+  CLASH_WHAT,
+  FAITH_HEADS_STORE,
+  FaithHeadsStore,
+  castOutOf,
+  faithHeadsOf,
+  investedIn,
+  type Clash,
+  type FaithHead,
+} from "./belief/heads-kept.ts";
+export { splitFaith } from "./belief/belief.ts";
+export { installSentences, sentencesYear } from "./order/sentences.ts";
+export {
+  SENTENCES_STORE,
+  SENT_ROW,
+  SENT_YEAR,
+  SentencesStore,
+  gangHeldShareIn,
+  prisonIn,
+  sentencesOf,
+  type SentYear,
+} from "./order/sentences-kept.ts";
+export {
+  COMMAND_ROLL_STORE,
+  CommandRollStore,
+  battleCommanders,
+  commandRollOf,
+  type Led,
+} from "./notable/roll.ts";
+export { victoriousCommander } from "./notable/kept.ts";

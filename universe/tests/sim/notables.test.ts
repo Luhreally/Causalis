@@ -106,6 +106,7 @@ test("a rising told has its causes, and the dead are kept as short records", () 
         "struck",
         "killed",
         "executed",
+        "captivity",
       ].includes(g.how),
     );
   }

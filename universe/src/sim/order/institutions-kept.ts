@@ -7,6 +7,7 @@ import { Hasher, type Ref, type StateStore, type World } from "../../kernel/inde
 import { ANSWERS, DOES, INST } from "../../rules/index.ts";
 import { RowStore } from "../money/kept.ts";
 import type { OrgLeader } from "./groups-kept.ts";
+import { prisonIn } from "./sentences-kept.ts";
 
 /** One body. Shares in thousandths; heads whole; grain's worth a year. */
 export type Body = {
@@ -374,6 +375,9 @@ export function watchOf(world: World, realm: Ref): { honest: number; staff: numb
  * land's bound are reckoned (sim/order/order.ts: the condemned).
  */
 export function courtLabourIn(world: World, cell: number, people: number, part: number): number {
+  // (Those its sentences put to labour, where they are kept: sim/order/sentences.ts.)
+  const kept = prisonIn(world, cell);
+  if (kept) return people > 0 ? kept.labour / people : 0;
   const row = bodyLandsStore(world)?.get(cell);
   return row && row[BODY_ROW.held]! > 0 && people > 0 ? (row[BODY_ROW.held]! * part) / people : 0;
 }

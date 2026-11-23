@@ -44,9 +44,9 @@ export type Deed = {
   readonly n?: string;
 };
 
-/** A post one of them holds: a realm's host commanded, its fleet commanded, a group of a realm spoken for. */
+/** A post one of them holds: a realm's host commanded, its fleet commanded, a group of a realm spoken for, a faith headed (`of`: the faith). */
 export type Post = {
-  readonly kind: "command" | "speaks" | "fleet";
+  readonly kind: "command" | "speaks" | "fleet" | "faith";
   readonly of: Ref;
   readonly group?: string;
 };
@@ -79,6 +79,8 @@ export type Notable = {
   as?: string;
   /** The event their rising was told by, where it was. */
   event?: Ref;
+  /** Taken in battle and held by the foe (sim/war/held.ts): by whom, in which war, since when, the battle. */
+  held?: { readonly by: Ref; readonly war: Ref; readonly since: number; readonly event: Ref };
   /** Under the god's hand: blessed or cursed until a year (acts on a person reach them through this). */
   favour?: {
     readonly kind: "bless" | "curse" | "protect";
@@ -390,4 +392,26 @@ export function notableTargets(world: World, lands: readonly number[], most = 3)
   const out: Notable[] = [];
   for (const c of lands) for (const n of store.in(c)) out.push(n);
   return out.sort((a, b) => b.standing - a.standing || a.id - b.id).slice(0, most);
+}
+
+/**
+ * A realm's commander who has won of late (at least `least` battles in the last five years), with how many, their last won
+ * battle and their standing in war: the one who may turn on the seat (sim/strife). Null where none is kept, or none has won.
+ */
+export function victoriousCommander(
+  world: World,
+  realm: Ref,
+  year: number,
+  least = 2,
+): { n: Notable; won: number; last: Ref | null } | null {
+  const n = notablesOf(world)?.holder("command", realm);
+  if (!n || n.held) return null;
+  let won = 0,
+    last: Ref | null = null;
+  for (const d of n.deeds)
+    if (d.w === "war.battle won" && d.y >= year - 5) {
+      won++;
+      last = d.e;
+    }
+  return won >= least ? { n, won, last } : null;
 }

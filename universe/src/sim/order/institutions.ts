@@ -131,6 +131,8 @@ import {
   type Body,
   type RealmBodies,
 } from "./institutions-kept.ts";
+import { prisonIn } from "./sentences-kept.ts";
+import { investedIn } from "../belief/heads-kept.ts";
 
 export const INST_EVENTS = {
   /** A body founded where what is paid for a thing wanted keeps the hands it takes. */
@@ -1105,8 +1107,12 @@ function stepRealm(
         how = "sold back";
       }
     }
+    // (And a seat that took the naming of a faith's priests from its head holds them as a priest-king does: sim/belief/heads.ts.)
     if (g.does === DOES.worship)
-      g.answers = r.priest ? ANSWERS.seat : ANSWERS[answersTo(INST_FUNDS[g.fund]!)];
+      g.answers =
+        r.priest || investedIn(world, p.ref)
+          ? ANSWERS.seat
+          : ANSWERS[answersTo(INST_FUNDS[g.fund]!)];
     // (Outlawed, the seat's hand takes of its people each year as far as it reaches.)
     if (g.standing === 0) g.staff = Math.round(g.staff * dmath.pow(1 - 0.15 * r.capacity, span));
     else g.staff = Math.max(0, Math.round(g.staff + (target - g.staff) * stepped(INST.grow, span)));
@@ -1141,15 +1147,28 @@ function stepRealm(
       // answers to no voice, and where its land is killed in. Rules heldBy.)
       const manned = Math.min(1, g.staff / Math.max(1, (home.people * INST.courtFull) / 1e5)),
         harsh = harshOf(r.force, r.voice);
-      g.held = Math.round(
-        heldBy(
-          g.lands.reduce((s, c) => s + (lands.get(c)?.people ?? 0), 0),
-          INST.held,
-          manned,
-          harsh,
-          killedOf(world, g.home),
-        ),
-      );
+      // (Where its lands' sentences are kept, those it holds are those its sentences put in its prison and at its works and
+      // their terms have not let out: sim/order/sentences.ts. Else as many as its reach would hold.)
+      let inside = 0,
+        kept = false;
+      for (const c of g.lands) {
+        const x = prisonIn(world, c);
+        if (x) {
+          kept = true;
+          inside += x.inside;
+        }
+      }
+      g.held = kept
+        ? inside
+        : Math.round(
+            heldBy(
+              g.lands.reduce((s, c) => s + (lands.get(c)?.people ?? 0), 0),
+              INST.held,
+              manned,
+              harsh,
+              killedOf(world, g.home),
+            ),
+          );
       if (g.inmates) {
         g.inmates = g.inmates.filter((x) => x.u > year);
         if (!g.inmates.length) delete g.inmates;

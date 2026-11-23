@@ -41,6 +41,10 @@ registerEventWords(
 registerEventWords(BELIEF_EVENTS.schism.type, (world, e) => {
   const from = text(e.data, "from");
   const by = text(e.data, "by");
+  const realm = text(e.data, "realm");
+  // (A realm's lands breaking from a faith whose head cast its ruler out: sim/belief/heads.ts.)
+  if (realm)
+    return `The lands of ${realm} broke from ${from ?? "their faith"} as ${text(e.data, "name") ?? "a faith of their own"}${by ? `, led out by ${by}` : ""}, ${year(e.t)}`;
   return `${cap(text(e.data, "name") ?? "A faith")} broke from ${from ?? "its elders"} in ${landWords(world, e.place)}${by ? `, led out by ${by}` : ""}, ${year(e.t)}`;
 });
 

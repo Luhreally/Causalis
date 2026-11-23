@@ -87,9 +87,11 @@ registerEventWords(HELD_EVENTS.reckoned.type, (world, e) => {
           ? `${cap(who)} was tried by ${text(e.data, "a")}, their own, for ${what}, and cast down, ${year(e.t)}`
           : d?.how === "censured"
             ? `The faith ${text(e.data, "a")} shares with ${text(e.data, "b")} named ${what} a wrong, and ${who} with it, ${year(e.t)}`
-            : d?.how === "disowned"
-              ? `${cap(text(e.data, "a"))}, under a later ruler, disowned ${what}, done by the order of ${who}, ${year(e.t)}`
-              : `No one answered for ${what}: ${text(e.data, "a")} was not beaten, and ${text(e.data, "b")} remembers it, ${year(e.t)}`;
+            : d?.how === "pardoned"
+              ? `${cap(text(e.data, "a"))} would not try ${who} for ${what}: ${text(e.data, "ruler", "its ruler")} pardoned them, ${year(e.t)}`
+              : d?.how === "disowned"
+                ? `${cap(text(e.data, "a"))}, under a later ruler, disowned ${what}, done by the order of ${who}, ${year(e.t)}`
+                : `No one answered for ${what}: ${text(e.data, "a")} was not beaten, and ${text(e.data, "b")} remembers it, ${year(e.t)}`;
 });
 
 registerEventWords(HELD_EVENTS.fled.type, (world, e) => {
