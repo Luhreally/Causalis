@@ -8717,7 +8717,7 @@ async function runPlanetPage(): Promise<void> {
     stage.daylight((9 + (7 * fight.s) / BATTLE_LENGTH) / 24);
     const men = menAt(fight.field, fight.now);
     battlePanel.tally(fight.s, men.standing, men.fallen, fight.now.words, fight.speed);
-    // Each host's name over it, with how many of it stand; the one followed, marked over them.
+    // Each host's name over it, who leads it, and how many of it stand; the one followed, marked over them.
     const sides = [fight.info.attacker, fight.info.defender] as const,
       over = battleLayer.hostsOnScreen(fight.now),
       followed = fight.followed >= 0 ? fight.now.troopers[fight.followed] : undefined;
@@ -8727,7 +8727,7 @@ async function runPlanetPage(): Promise<void> {
           ? [
               {
                 key: `host:${i}`,
-                text: `${i === 0 ? "⚔️" : "🛡️"} ${side.name}${side.company ? ` 🚩 ${side.company.name}${side.company.how === "left" ? " (gone home unpaid)" : side.company.how === "turned" ? " (gone over)" : ""}` : ""} · ${men.standing[i]!.toLocaleString("en-US")}`,
+                text: `${i === 0 ? "⚔️" : "🛡️"} ${side.name}${side.company ? ` 🚩 ${side.company.name}${side.company.how === "left" ? " (gone home unpaid)" : side.company.how === "turned" ? " (gone over)" : ""}` : ""}${side.led ? ` under ${side.led.name}` : ""} · ${men.standing[i]!.toLocaleString("en-US")}`,
                 at: over[i],
                 priority: 2,
                 badge: { realm: side.ref },

@@ -6,7 +6,8 @@ import { townNets, townScene } from "../../src/view/index.ts";
 
 // 2026-11-22, the audit's "infrastructure as networks": a town's water, drains and power laid along the streets about its
 // blocks, from what its plan says its land has; never on a block's own ground, never two on one spot, a line of wire grown from
-// one pole to the nearest before it; none for a people of the water.
+// one pole to the nearest before it it can reach down the streets (2026-11-23: never over a block); none for a people of the
+// water.
 
 const YEAR_S = 365 * 86_400;
 
@@ -74,6 +75,23 @@ test("mains, drains and wires are laid by block, each on the street and none on 
         Math.hypot(a.x - c.x, a.z - c.z) > 0.9,
         `two parts at ${a.x.toFixed(1)}, ${a.z.toFixed(1)}`,
       );
+    }
+  // No wire over a block's own ground (its yards and homes): each strung down the streets, turning at a corner where it must.
+  for (const w of n.boxes.filter((x) => x.sz >= 5))
+    for (let f = 0; f <= 1; f += 0.5 / w.sz) {
+      const px = w.x + (f - 0.5) * w.sz * Math.sin(w.yaw),
+        pz = w.z + (f - 0.5) * w.sz * Math.cos(w.yaw);
+      for (let k = 0; k < blocks; k++) {
+        const c = Math.cos(b.yaw[k]!),
+          s = Math.sin(b.yaw[k]!),
+          dx = px - b.x[k]!,
+          dz = pz - b.z[k]!;
+        assert.ok(
+          Math.abs(dx * c - dz * s) >= BLOCK_W / 2 - 0.01 ||
+            Math.abs(dx * s + dz * c) >= BLOCK_D / 2 - 0.01,
+          `a wire over block ${k} at ${px.toFixed(1)}, ${pz.toFixed(1)}`,
+        );
+      }
     }
   // Every rank under the most the fade draws whole near the eye.
   for (const t of [...n.boxes, ...n.rounds]) assert.ok(t.rank >= 0 && t.rank < 0.8);

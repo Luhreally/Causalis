@@ -88,6 +88,7 @@ import {
 
 import { holdPlaces, onHeld } from "../bridge/index.ts";
 import { townHolds } from "./strongholds.ts";
+import { blockGround, lineOver } from "./streetline.ts";
 
 export { hasSpires, sprawlOf };
 
@@ -980,19 +981,24 @@ export function townSignals(
     tops.push([x, z]);
     drawn.poles++;
   }
-  // (The wire from each pole to the nearest strung before it: a line through the town that branches, never a web.)
+  // (The wire from each pole to the nearest strung before it that it reaches over no block's ground, no stronghold's: a line
+  // through the town that branches, never a web, and never through a house. view/streetline.ts.)
+  const over =
+    tops.length > 1
+      ? lineOver(blockGround(lots, Math.ceil(plan.lots / BLOCK_LOTS), ash, held, HELD_PAD), held)
+      : null;
   for (let i = 1; i < tops.length; i++) {
-    const [x1, z1] = tops[i]!;
-    let j = 0;
-    for (let m = 1; m < i; m++)
-      if (
-        Math.hypot(tops[m]![0] - x1, tops[m]![1] - z1) <
-        Math.hypot(tops[j]![0] - x1, tops[j]![1] - z1)
-      )
-        j = m;
+    const [x1, z1] = tops[i]!,
+      near: [number, number][] = [];
+    for (let m = 0; m < i; m++) {
+      const dd = Math.hypot(tops[m]![0] - x1, tops[m]![1] - z1);
+      if (dd >= 1 && dd <= 90) near.push([dd, m]);
+    }
+    near.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const j = near.find(([, m]) => !over!(tops[m]![0], tops[m]![1], x1, z1))?.[1];
+    if (j === undefined) continue;
     const [x0, z0] = tops[j]!,
       len = Math.hypot(x1 - x0, z1 - z0);
-    if (len < 1 || len > 90) continue;
     out.put(
       "box",
       WIRE,

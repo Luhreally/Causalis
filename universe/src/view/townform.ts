@@ -636,6 +636,87 @@ function height(
   }
 }
 
+/** The temple its form raises on steps where its land builds in stone (none: no such temple standing). */
+function steppedTemple(plan: TownPlan): TownPlan["civics"][number] | undefined {
+  return plan.form?.stone
+    ? plan.civics.find(
+        (c) =>
+          c.kind === "temple" &&
+          c.fell === null &&
+          c.end <= plan.year &&
+          c.at + c.lots <= plan.lots,
+      )
+    : undefined;
+}
+
+/**
+ * The ground a stepped temple takes past its lots (formGround): its steps, broadest 7 m over its footprint, and the two tall
+ * stones before its doors, as a box (its middle, turn, length and depth; null: no such temple). What else is laid on the
+ * town's streets keeps off it (view/networks.ts).
+ */
+export function templeGround(
+  scene: TownScene,
+): { x: number; z: number; yaw: number; w: number; d: number } | null {
+  const { plan, lots } = scene,
+    temple = plan.sealed ? undefined : steppedTemple(plan);
+  if (!temple) return null;
+  const f = footprint(lots, temple.at, temple.lots),
+    [x, z] = at(f.x, f.z, f.yaw, 0, -(7 - 1.6) / 2);
+  return { x, z, yaw: f.yaw, w: f.w + 7, d: f.d + 7 };
+}
+
+/**
+ * The ring street where a town's walls stood, once they are down, in lengths as long as the walls' were (a longer one would
+ * cut the line's corners), along the line they stood on as its later blocks kept clear of it (bridge/wall.ts); none where
+ * the water lies or a stronghold stands on it. Each length's tree on its inner side, where its land's rain grows them (one a
+ * length in eight; null: none). Empty: no ring street.
+ */
+export function ringStreet(
+  scene: TownScene,
+): { x: number; z: number; len: number; yaw: number; tree: readonly [number, number] | null }[] {
+  const { plan } = scene,
+    form = plan.form,
+    ring = scene.walls,
+    walls = plan.walls;
+  if (
+    !form ||
+    plan.sealed ||
+    !ring ||
+    !walls ||
+    ring.lengths.length ||
+    plan.whole < 3 * walls.reach ||
+    !plan.site ||
+    form.over
+  )
+    return [];
+  const wet = wallWet(plan.water, plan.site),
+    held = holdPlaces(plan),
+    out: {
+      x: number;
+      z: number;
+      len: number;
+      yaw: number;
+      tree: readonly [number, number] | null;
+    }[] = [];
+  for (const l of wallWalk(ring.line, ring.n)) {
+    if (wet && wet(l.x, l.z)) continue;
+    // (Where a stronghold stands on its line, the street goes about it: it is the stronghold's ground.)
+    if (held.length && onHeld(held, l.x, l.z, l.len / 2 + 4.5)) continue;
+    const d = Math.max(1e-6, Math.hypot(l.x, l.z));
+    out.push({
+      x: l.x,
+      z: l.z,
+      len: l.len,
+      yaw: l.yaw,
+      tree: form.green >= 0.2 && l.k % 8 === 0 ? [l.x * (1 - 6.5 / d), l.z * (1 - 6.5 / d)] : null,
+    });
+  }
+  return out;
+}
+
+/** How broad a tree on the ring street stands (its crown's foot, metres). */
+export const RING_TREE = 4.4;
+
 /**
  * A town's form on its ground: its main streets; the ring street where its walls stood; its market place (about its square,
  * where no ground was kept for one), the column of the realm seated in it, steps under its temple and the way to it, and
@@ -667,34 +748,11 @@ export function formGround(scene: TownScene, out: TownParts, ash: number): void 
   if (ash > 0) return;
   // The ring street where its walls stood, once they are down: as broad as the ground they kept clear, a tree to each
   // length where its land's rain grows them.
-  const ring = scene.walls,
-    walls = plan.walls;
-  if (
-    ring &&
-    walls &&
-    !ring.lengths.length &&
-    plan.whole >= 3 * walls.reach &&
-    plan.site &&
-    !form.over
-  ) {
-    // (Along the line they stood on, as its later blocks kept clear of it: bridge/wall.ts.)
-    // (In lengths as long as the walls' were: a longer one would cut the line's corners.)
-    const n = ring.n,
-      c = form.engines >= 0 ? TARMAC : plan.paved ? SETTS : TRACK,
-      leaf = lifeTint(LEAF, plan.lifeLook),
-      wet = wallWet(plan.water, plan.site);
-    const held = holdPlaces(plan);
-    for (const l of wallWalk(ring.line, n)) {
-      if (wet && wet(l.x, l.z)) continue;
-      // (Where a stronghold stands on its line, the street goes about it: it is the stronghold's ground.)
-      if (held.length && onHeld(held, l.x, l.z, l.len / 2 + 4.5)) continue;
-      out.put("box", c, l.x, 0.34, l.z, l.len + 0.6, 0.06, 9, l.yaw);
-      if (form.green >= 0.2 && l.k % 8 === 0) {
-        // (A tree on its inner side.)
-        const d = Math.max(1e-6, Math.hypot(l.x, l.z));
-        out.put("cone", leaf, l.x * (1 - 6.5 / d), 3.9, l.z * (1 - 6.5 / d), 4.4, 7, 4.4, 0);
-      }
-    }
+  const c = form.engines >= 0 ? TARMAC : plan.paved ? SETTS : TRACK,
+    leaf = lifeTint(LEAF, plan.lifeLook);
+  for (const l of ringStreet(scene)) {
+    out.put("box", c, l.x, 0.34, l.z, l.len + 0.6, 0.06, 9, l.yaw);
+    if (l.tree) out.put("cone", leaf, l.tree[0], 3.9, l.tree[1], RING_TREE, 7, RING_TREE, 0);
   }
   const mouths = (mains ?? []).filter((m) => m.x.length).map((m) => Math.atan2(m.z[0]!, m.x[0]!)),
     place = lots.blocks.place;
@@ -748,15 +806,7 @@ export function formGround(scene: TownScene, out: TownParts, ash: number): void 
     column(out, -6.5, 5.5, form.column, plan.rank?.seat?.color ?? GOLD);
   // Steps under its temple, broad toward its street, and the way kept to it from the square: pillars along the main street
   // of its quarter, as far as it lies, as high as its market's cover.
-  const temple = form.stone
-    ? plan.civics.find(
-        (c) =>
-          c.kind === "temple" &&
-          c.fell === null &&
-          c.end <= plan.year &&
-          c.at + c.lots <= plan.lots,
-      )
-    : undefined;
+  const temple = steppedTemple(plan);
   if (temple) {
     const f = footprint(lots, temple.at, temple.lots);
     for (const [more, high] of [
