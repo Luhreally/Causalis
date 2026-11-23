@@ -61,6 +61,8 @@ export const ORG_BASES = [
   "poor",
   "fled",
   "interest",
+  // (A realm's made minds gone their own way: one of its groups, not of its people. rules/beyond.ts mindAims.)
+  "minds",
 ] as const;
 export type OrgBasis = (typeof ORG_BASES)[number];
 
@@ -101,6 +103,7 @@ export const ORG_KINDS = [
   "maroon community",
   "monastic order",
   "learned society",
+  "made minds",
 ] as const;
 export type OrgKind = (typeof ORG_KINDS)[number];
 
@@ -577,6 +580,8 @@ export type OrgKindFacts = {
 
 /** A group's kind, read off what it does (see ORG_KINDS: each a reading, not a choice). */
 export function orgKind(f: OrgKindFacts): OrgKind {
+  // (Its made minds are what they are, whatever they do.)
+  if (f.basis === "minds") return "made minds";
   switch (f.aim) {
     case "prey":
       return f.sea ? (f.patron ? "privateers" : "pirates") : f.patron ? "raiders" : "brigands";

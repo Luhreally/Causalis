@@ -42,6 +42,7 @@ import {
   orgOf,
   orgRef,
 } from "../groups.ts";
+import { mindLink } from "./minds.ts";
 import {
   claimUnder,
   count,
@@ -329,23 +330,34 @@ export function orgPage(world: World, ref: string): PageModel {
   if (rec) {
     const payer = rec.patron ? politiesOf(world).get(rec.patron) : undefined,
       fed = rec.fed !== undefined ? v?.feds.find((x) => x.id === rec.fed) : undefined;
+    const minds = ORG_BASES[rec.basis] === "minds";
     facts.push(
-      stat(
-        "Its head",
-        [
-          bossLink(r.ref, g.event, rec.leader.name),
-          `, born year ${rec.leader.born}, at its head since year ${rec.leader.since}`,
-        ],
-        { parts: [part("its heads so far", count(rec.leaders))] },
-      ),
+      // (Made minds are their own head: their page, not a person's.)
+      minds
+        ? stat("Its head", [
+            mindLink(world, r.ref) ?? rec.leader.name,
+            `: its made minds themselves, designing minds since year ${rec.leader.born}`,
+          ])
+        : stat(
+            "Its head",
+            [
+              bossLink(r.ref, g.event, rec.leader.name),
+              `, born year ${rec.leader.born}, at its head since year ${rec.leader.since}`,
+            ],
+            { parts: [part("its heads so far", count(rec.leaders))] },
+          ),
       stat(
         "Its lands",
         rec.lands.flatMap((c, i) => (i ? [", ", landLink(world, c)] : [landLink(world, c)])),
       ),
       stat("What it does", doesOf(rec) || "little yet"),
-      stat("Bound first by", ORG_BASES[rec.basis] ?? "its stake", {
-        parts: [part("how its realm holds it", ORG_STANDING[rec.standing] ?? "let be")],
-      }),
+      stat(
+        "Bound first by",
+        minds ? "their pay: made minds gone their own way" : (ORG_BASES[rec.basis] ?? "its stake"),
+        {
+          parts: [part("how its realm holds it", ORG_STANDING[rec.standing] ?? "let be")],
+        },
+      ),
     );
     if (payer) facts.push(stat("Paid by", [realmLink(world, payer.ref)]));
     // (A party's interest, how far it holds its votes, the house that leads it.)

@@ -92,7 +92,11 @@ import {
   type OrgKind,
   BANDS,
   MALE,
+  MIND_GROUP,
+  mindAims,
+  mindReach,
 } from "../../rules/index.ts";
+import { mindsHeld, mindsOf, mindsPastOf, type MindsRow } from "../frontier/minds.ts";
 import { marketsOf, type PopulationContext } from "../population/systems.ts";
 import { row } from "../population/model.ts";
 import { WAY, cultureOf } from "../culture/culture.ts";
@@ -201,6 +205,17 @@ export const kindName = (g: { readonly kind: number }): OrgKind =>
   ORG_KINDS[g.kind] ?? "brotherhood";
 export const orgAimOf = (g: { readonly aim: number }): OrgAim => ORG_AIMS[g.aim] ?? "aid";
 const KIND = (k: OrgKind) => ORG_KINDS.indexOf(k);
+/** A realm's made minds gone their own way, as one of its groups (rules/beyond.ts mindAims). */
+const MINDS_BASIS = ORG_BASES.indexOf("minds");
+const isMinds = (g: { readonly basis: number }) => g.basis === MINDS_BASIS;
+function mindAimArray(past: number, held: number): number[] {
+  const a = mindAims(past, held),
+    out = new Array<number>(AIMS).fill(0);
+  out[AIM.inquire] = a.inquire;
+  out[AIM.trade] = a.trade;
+  out[AIM.conspire] = a.conspire;
+  return out;
+}
 
 const factor = (name: string, value: number, contribution: number): Factor => ({
   name,
@@ -1037,6 +1052,61 @@ function rise(
   return g;
 }
 
+/** A realm's made minds, gone their own way, as one of its groups: by their own name, at its seat, their own head. */
+function riseMinds(
+  f: Facts,
+  row: Readonly<MindsRow>,
+  past: number,
+  held: number,
+  hands: number,
+): Org | null {
+  const { v, r, year, p } = f,
+    name = row.name!;
+  if (v.orgs.some((g) => g.name === name)) return null;
+  const aims = mindAimArray(past, held),
+    aim = firstAim(aims),
+    standing = outlawedAim(aim, false) ? 0 : 1,
+    g: Org = {
+      id: v.next++,
+      name,
+      kind: 0,
+      aim: AIM[aim],
+      aims,
+      since: year,
+      event: "" as Ref,
+      home: p.seat,
+      lands: [p.seat],
+      basis: MINDS_BASIS,
+      identity: "",
+      means: meansBit("purse") | (standing === 0 ? meansBit("secret") : 0),
+      standing,
+      leader: { name, born: row.begun, since: year },
+      leaders: 1,
+      members: hands,
+      wealth: 0,
+      income: 0,
+      takes: 0,
+      gives: 0,
+      violence: 0,
+      power: 0,
+    };
+  g.kind = KIND(readKind(g, r.lands, false));
+  (g as { event: Ref }).event = tell(
+    f,
+    ORG_EVENTS.rose.type,
+    p.seat,
+    { group: name, kind: kindName(g), aim, gids: [g.id], leader: name, minds: 1 },
+    row.free ? [{ ref: row.free, role: "trigger", weight: 1 }] : [],
+    [
+      factor("how far past their makers they think", past, mindReach(past)),
+      factor("how tightly their makers would hold them", held, held),
+      factor("those of its people in their pay", hands, hands / ORG.small),
+    ],
+  );
+  v.orgs.push(g);
+  return g;
+}
+
 function ended(f: Facts, g: Org, how: OrgEnd, factors: Factor[], into?: Org): void {
   const { v, year } = f,
     event = tell(
@@ -1164,6 +1234,12 @@ function stepRealm(
     stays = 1 - fade,
     lands = new Map(r.lands.map((l) => [l.cell, l]));
   weighStakes(ctx, p, r, v);
+  // (Its made minds, where they went their own way: how far past their makers they think, and those of its people in their pay.)
+  const mindRow = mindsOf(world)?.rows.get(p.ref),
+    freeMinds = mindRow?.free && mindRow.name ? mindRow : null,
+    mindPast = freeMinds ? mindsPastOf(world, p.ref) : 0,
+    mindHold = freeMinds ? mindsHeld(world, p.ref) : 0,
+    mindHands = freeMinds ? Math.round(r.people * MIND_GROUP.hands * mindReach(mindPast)) : 0;
   // (Its own word on a group by name, from what its interests want of it: ./grouphand.ts. Read below as any decree is.)
   // (Every other reckoning: once in ten years, as its laws are weighed.)
   if ((year + refNumber(p.ref)) % (2 * ORG.every) < ORG.every) realmDecrees(ctx, p, v.orgs, r, t);
@@ -1212,7 +1288,10 @@ function stepRealm(
     }
     g.means = meansOf(g, r.lands);
     sharingOf(sharing, g, -1);
-    g.aims = aimsToward(g.aims, worth, g.means, stepped(ORG.turn, span));
+    // (Made minds do what they would, as far past their makers as they think, not what a land's stakes draw them to.)
+    g.aims = isMinds(g)
+      ? mindAimArray(mindPast, mindHold)
+      : aimsToward(g.aims, worth, g.means, stepped(ORG.turn, span));
     sharingOf(sharing, g, 1);
     const was = kindName(g),
       aim = keptFirstAim(g.aims, g.aim);
@@ -1304,6 +1383,8 @@ function stepRealm(
       // (A rent kept full-time is its income; a common aim's, what its members pay in.)
       income += FULL_TIME.has(ORG_AIMS[k]!) ? a * s.worth : a * g.members * r.wage * ORG.cost;
     }
+    // (Made minds: those of its people in their pay, whatever its lands' stakes would gather.)
+    if (isMinds(g)) aimMen = mindHands;
     // (Blessed, a fifth more come to it; cursed, a fifth fewer.)
     if (g.hand === 1) aimMen *= 1.2;
     else if (g.hand === -1) aimMen *= 0.8;
@@ -1398,6 +1479,17 @@ function stepRealm(
     else risen++;
   }
 
+  // (Its made minds, gone their own way, one of its groups once enough of its people are in their pay: by their own name, at
+  // its seat. Not again within twenty years of their last ending.)
+  if (
+    freeMinds &&
+    mindHands >= ORG.crew &&
+    seatLand &&
+    !v.orgs.some(isMinds) &&
+    !v.gone.some((x) => ORG_KINDS[x.kind] === "made minds" && year - x.year < 4 * ORG.every)
+  )
+    riseMinds(f, freeMinds, mindPast, mindHold, mindHands);
+
   // 3. Its realm's answer, leaders gone, holds ended.
   const gone: [Org, OrgEnd, Factor[], Org?][] = [];
   const revolution = revolutionHolds(world, p.ref, year);
@@ -1423,78 +1515,82 @@ function stepRealm(
         g.members = Math.round(g.members * (1 - (by === 1 ? taken : Math.min(1, taken * by))));
     }
     if (g.since >= year) continue;
-    // (Its head gone: dead of his years, or taken where it is outlawed. The god's acts on them as sim/acts/person.ts lays them.)
-    const age = year - g.leader.born,
-      head = bossRef(p.ref, g.event),
-      by = hazardBy(world, head, g.leader.name, year),
-      smite = actOn(world, head, g.leader.name, year, "smite"),
-      years = diesWithin(ctx.life, age, 1),
-      lost = leaderLost(years, g.standing === 0 ? suppression : 0, span),
-      chance = by === 1 ? lost : Math.min(1, lost * by),
-      drawn = f.u(100 + g.id * 8),
-      // (Protected, a draw that fell past their years' own chance, in the realm's taking, spares them.)
-      guard = !smite && drawn < chance ? actOn(world, head, g.leader.name, year, "protect") : null,
-      spared = !!guard && drawn >= leaderLost(years, 0, span);
-    if (guard && spared)
-      sparedBy(world, guard, p.ref, f.ctx.provinces.get(g.home)?.ref ?? null, { group: g.name });
-    if ((drawn < chance && !spared) || smite) {
-      const before = g.leader.name,
-        bornWas = g.leader.born,
-        struck = smite
-          ? struckBy(world, smite, p.ref, f.ctx.provinces.get(g.home)?.ref ?? null, {
-              group: g.name,
-            })
-          : null;
-      g.leader = newLeader(f, g.home, g.id * 37 + g.leaders);
-      g.leaders++;
-      // (How they went, for their page: a reading beside the world, sim/hand/deaths.ts.)
-      const told = tell(
-        f,
-        ORG_EVENTS.leader.type,
-        g.home,
-        { group: g.name, kind: kindName(g), gids: [g.id], leader: g.leader.name, before },
-        [
-          { ref: g.event, role: "enabler", weight: 1 },
-          ...(struck ? [{ ref: struck, role: "trigger" as const, weight: 1 }] : []),
-        ],
-      );
-      deathNotesOf(world)?.addHead({
-        ref: head,
-        name: before,
-        year,
-        age: year - bornWas,
-        how: struck ? "struck" : drawn < leaderLost(years, 0, span) ? "years" : "taken",
-        years: leaderLost(years, 0, span),
-        chance,
-        draw: drawn,
-        event: struck ?? told,
-      });
-      // (Taken by the realm's hand: brought before the court of their land, where it keeps one. sim/order/deeds.ts.)
-      if (!struck && drawn >= leaderLost(years, 0, span)) {
-        const aim = orgAimOf(g);
-        sentence(
-          ctx,
-          p,
+    // (Made minds have no head to lose: they are their own.)
+    if (!isMinds(g)) {
+      // (Its head gone: dead of his years, or taken where it is outlawed. The god's acts on them as sim/acts/person.ts lays them.)
+      const age = year - g.leader.born,
+        head = bossRef(p.ref, g.event),
+        by = hazardBy(world, head, g.leader.name, year),
+        smite = actOn(world, head, g.leader.name, year, "smite"),
+        years = diesWithin(ctx.life, age, 1),
+        lost = leaderLost(years, g.standing === 0 ? suppression : 0, span),
+        chance = by === 1 ? lost : Math.min(1, lost * by),
+        drawn = f.u(100 + g.id * 8),
+        // (Protected, a draw that fell past their years' own chance, in the realm's taking, spares them.)
+        guard =
+          !smite && drawn < chance ? actOn(world, head, g.leader.name, year, "protect") : null,
+        spared = !!guard && drawn >= leaderLost(years, 0, span);
+      if (guard && spared)
+        sparedBy(world, guard, p.ref, f.ctx.provinces.get(g.home)?.ref ?? null, { group: g.name });
+      if ((drawn < chance && !spared) || smite) {
+        const before = g.leader.name,
+          bornWas = g.leader.born,
+          struck = smite
+            ? struckBy(world, smite, p.ref, f.ctx.provinces.get(g.home)?.ref ?? null, {
+                group: g.name,
+              })
+            : null;
+        g.leader = newLeader(f, g.home, g.id * 37 + g.leaders);
+        g.leaders++;
+        // (How they went, for their page: a reading beside the world, sim/hand/deaths.ts.)
+        const told = tell(
+          f,
+          ORG_EVENTS.leader.type,
           g.home,
-          {
-            name: before,
-            what: `head of the ${g.name} ${kindName(g)}`,
-            ref: head,
-            charge:
-              aim === "rebel" || aim === "conspire"
-                ? "rising against the seat"
-                : aim === "prey" || aim === "smuggle"
-                  ? "what was taken on its roads and seas"
-                  : aim === "worship"
-                    ? "keeping a faith the seat forbids"
-                    : "holding to what the seat outlaws",
-            grave: aim === "rebel" || aim === "conspire" ? 0.8 : aim === "prey" ? 0.6 : 0.3,
-            purse: g.wealth > 20 * r.wage,
-          },
-          told,
-          t,
-          g.id,
+          { group: g.name, kind: kindName(g), gids: [g.id], leader: g.leader.name, before },
+          [
+            { ref: g.event, role: "enabler", weight: 1 },
+            ...(struck ? [{ ref: struck, role: "trigger" as const, weight: 1 }] : []),
+          ],
         );
+        deathNotesOf(world)?.addHead({
+          ref: head,
+          name: before,
+          year,
+          age: year - bornWas,
+          how: struck ? "struck" : drawn < leaderLost(years, 0, span) ? "years" : "taken",
+          years: leaderLost(years, 0, span),
+          chance,
+          draw: drawn,
+          event: struck ?? told,
+        });
+        // (Taken by the realm's hand: brought before the court of their land, where it keeps one. sim/order/deeds.ts.)
+        if (!struck && drawn >= leaderLost(years, 0, span)) {
+          const aim = orgAimOf(g);
+          sentence(
+            ctx,
+            p,
+            g.home,
+            {
+              name: before,
+              what: `head of the ${g.name} ${kindName(g)}`,
+              ref: head,
+              charge:
+                aim === "rebel" || aim === "conspire"
+                  ? "rising against the seat"
+                  : aim === "prey" || aim === "smuggle"
+                    ? "what was taken on its roads and seas"
+                    : aim === "worship"
+                      ? "keeping a faith the seat forbids"
+                      : "holding to what the seat outlaws",
+              grave: aim === "rebel" || aim === "conspire" ? 0.8 : aim === "prey" ? 0.6 : 0.3,
+              purse: g.wealth > 20 * r.wage,
+            },
+            told,
+            t,
+            g.id,
+          );
+        }
       }
     }
     if (orgAimOf(g) === "rebel" && revolution) {
@@ -1518,11 +1614,12 @@ function stepRealm(
   // (Two of one aim at one home: the lesser taken into the greater, once their men are reckoned; one taken in takes in no other.)
   const ending = new Set(gone.map(([g]) => g));
   for (const g of [...v.orgs].sort((a, b) => a.members - b.members || b.id - a.id)) {
-    if (ending.has(g) || g.since >= year) continue;
+    if (ending.has(g) || g.since >= year || isMinds(g)) continue;
     const twin = v.orgs.find(
       (x) =>
         x !== g &&
         !ending.has(x) &&
+        !isMinds(x) &&
         x.aim === g.aim &&
         x.home === g.home &&
         // (Parties of two interests at one seat are two parties, not one.)
