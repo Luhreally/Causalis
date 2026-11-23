@@ -41,6 +41,7 @@ import { PossessHud, type GodPalette, type TimeBar } from "../ui/index.ts";
 import {
   GIFTS,
   GIFT_BIT,
+  HANDED,
   fieldPoint,
   BATTLE_DAY,
   BATTLE_LENGTH,
@@ -60,7 +61,6 @@ import {
   heldBeastsOver,
   heldFightNow,
   goreAt,
-  homesRiseTo,
   lettersOf,
   nearSight,
   placedPoint,
@@ -564,8 +564,11 @@ export function installHeld(d: HeldDeps): Held {
     hideHud();
     presses.length = 0;
     // (Handed back to the orbit from where the eye stood, flown out to the town's own look over where the body stood.)
-    const town = d.plan()?.town;
-    eye.handTo(d.rig, me ? { x: me.x, z: me.z } : null, town ? homesRiseTo(town) : 0);
+    eye.handTo(
+      d.rig,
+      me ? { x: me.x, z: me.z } : null,
+      me ? d.village.homesRiseNear(me.x, me.z, HANDED.near) : 0,
+    );
     // (What was faded about the eye, read from the camera as it stands, stays so as it flies out, let in by degrees as it
     // leaves them; whole once it lands, or once another is taken: nothing near the eye stands whole at once on its first
     // frame.)

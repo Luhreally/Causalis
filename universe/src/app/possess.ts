@@ -30,6 +30,7 @@ import { PossessHud, type GodPalette, type PageWindow, type TimeBar } from "../u
 import {
   GIFTS,
   GIFT_BIT,
+  HANDED,
   PosedBodies,
   STEPS_PER_SECOND,
   STILL_BID,
@@ -425,7 +426,11 @@ export function installPossession(d: PossessionDeps): Possession {
     hud.hide();
     presses.length = 0;
     // (Handed back to the orbit from where the eye stood, flown out to the town's own look over where the body stood.)
-    eye.handTo(d.rig, me ? { x: me.x, z: me.z } : null);
+    eye.handTo(
+      d.rig,
+      me ? { x: me.x, z: me.z } : null,
+      me ? d.village.homesRiseNear(me.x, me.z, HANDED.near) : 0,
+    );
     // (Those faded about the eye stay so as the camera flies out, read from where it stands each frame, let in as it leaves
     // them, all whole once it lands: none near the eye stands whole on the flight's first frame.)
     const tall = eye.height,

@@ -130,13 +130,22 @@ export function flightAt(from: OrbitView, to: OrbitView, t: number): OrbitView {
  * body stood, at its usual tilt, near enough that the streets about him read: `metres` off on a desk's screen, as much
  * further on a narrower one as it is narrower (a phone held upright sees a third as much across), at most `farthest`; in a
  * city of towers, far enough that the eye stands `over` (a share) higher than its tallest homes, and `clear` metres more.
+ * Where the homes within `near` metres of him stand `tall` or taller, it looks down on his street more steeply
+ * (`tallPitch`), between the towers about him and not at their walls (2026-11-23: let go in Nemath's tower district at
+ * -38, he stood between two walls); at a field's edge of the same city, as anywhere low, at the usual tilt.
  */
 export const HANDED = {
   pitch: -38,
+  near: 40,
+  tall: 30,
+  tallPitch: -70,
   metres: 60,
   farthest: 90,
   aspect: 1.6,
   seconds: 1,
+  /** Of the way, by when the camera has risen to its height, and from when it is drawn across (climbAt). */
+  climb: 0.6,
+  across: 0.3,
   over: 1.15,
   clear: 10,
 } as const;
@@ -161,10 +170,9 @@ export function handedViews(
     across = Math.hypot(dx, dz),
     yaw = across > 1e-9 ? (Math.atan2(dx, dz) * 180) / Math.PI : 0,
     narrower = Math.max(1, HANDED.aspect / Math.max(0.3, aspect)),
+    pitch = roofs >= HANDED.tall ? HANDED.tallPitch : HANDED.pitch,
     above =
-      roofs > 0
-        ? (roofs * HANDED.over + HANDED.clear) / Math.sin((-HANDED.pitch * Math.PI) / 180)
-        : 0;
+      roofs > 0 ? (roofs * HANDED.over + HANDED.clear) / Math.sin((-pitch * Math.PI) / 180) : 0;
   return {
     from: {
       target: { x: seen.x, y: seen.y, z: seen.z },
@@ -175,8 +183,50 @@ export function handedViews(
     to: {
       target: { x: over.x, y: 0, z: over.z },
       yaw,
-      pitch: HANDED.pitch,
+      pitch,
       distance: Math.max(above, Math.min(HANDED.farthest, HANDED.metres * narrower)) * metre,
     },
+  };
+}
+
+/**
+ * A hand-back's view at `t` (0 … 1) of the way (handedViews' `from` to `to`, turned alike): the camera rising first, from
+ * where the held eye stood, and only then drawn across to where it lands, so it climbs clear of what stands about the
+ * street before it moves sideways through it; what it looks at eased from the eye's mark to the ground under him.
+ */
+export function climbAt(from: OrbitView, to: OrbitView, t: number): OrbitView {
+  const smooth = (x: number) => {
+      const u = Math.max(0, Math.min(1, x));
+      return u * u * (3 - 2 * u);
+    },
+    at = (v: OrbitView) => {
+      const y = (v.yaw * Math.PI) / 180,
+        p = (v.pitch * Math.PI) / 180;
+      return {
+        x: v.target.x + v.distance * Math.cos(p) * Math.sin(y),
+        y: v.target.y - v.distance * Math.sin(p),
+        z: v.target.z + v.distance * Math.cos(p) * Math.cos(y),
+      };
+    },
+    a = at(from),
+    b = at(to),
+    up = smooth(t / HANDED.climb),
+    side = smooth((t - HANDED.across) / (1 - HANDED.across)),
+    look = smooth(t),
+    eye = { x: a.x + (b.x - a.x) * side, y: a.y + (b.y - a.y) * up, z: a.z + (b.z - a.z) * side },
+    target = {
+      x: from.target.x + (to.target.x - from.target.x) * look,
+      y: from.target.y + (to.target.y - from.target.y) * look,
+      z: from.target.z + (to.target.z - from.target.z) * look,
+    },
+    dx = eye.x - target.x,
+    dy = eye.y - target.y,
+    dz = eye.z - target.z,
+    across = Math.hypot(dx, dz);
+  return {
+    target,
+    yaw: across > 1e-6 ? (Math.atan2(dx, dz) * 180) / Math.PI : from.yaw,
+    pitch: (-Math.atan2(dy, across) * 180) / Math.PI,
+    distance: Math.hypot(across, dy),
   };
 }

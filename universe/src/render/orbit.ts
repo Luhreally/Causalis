@@ -10,8 +10,10 @@
 import * as pc from "playcanvas";
 import {
   BEYOND,
+  HANDED,
   STILL,
   asked,
+  climbAt,
   ease,
   eyeAmongSpires,
   flightAt,
@@ -141,12 +143,24 @@ export class OrbitRig {
   bounds: { readonly x: number; readonly z: number; readonly reach: number } | null = null;
   /** Whether it looks into a town of spires: it comes in over them, what stands in its way cut (Phase 66). */
   spires = false;
+  /**
+   * Landed by a take-back among tall homes (takeBack's `tall`): what stands between the eye and the street cut away as
+   * among spires, till the scale is left; a town of spires has it anyway.
+   */
+  private tallHere = false;
   /** Whether it has the camera (free roam takes it, Phase 10 M98: then it neither moves nor listens). */
   enabled = true;
   /** Something kept in the middle as it moves (a person followed, M94); null: nothing. */
   follow: (() => Point | null) | null = null;
   /** A flight under way (M94): from where to where, how far along, how long it takes. */
-  private flight: { from: OrbitView; to: OrbitView; t: number; seconds: number } | null = null;
+  private flight: {
+    from: OrbitView;
+    to: OrbitView;
+    t: number;
+    seconds: number;
+    /** Taken back from an eye (takeBack): it climbs first, then is drawn across (view/zoom.ts climbAt). */
+    climb?: boolean;
+  } | null = null;
   /**
    * Taken back from an eye that held the camera (takeBack): its field of view eased back to the rig's, and the framing
    * below what covers the top let in, over the flight's time; a touch that ends the flight does not end these.
@@ -154,6 +168,8 @@ export class OrbitRig {
   private settling: {
     t: number;
     k: number;
+    /** How much of the eye's cut is held still: all while it climbs, let go as it is drawn across. */
+    held: number;
     seconds: number;
     fov: { from: number; to: number } | null;
     near: number;
@@ -465,6 +481,7 @@ export class OrbitRig {
     this.pointer = null;
     // (A flight of the scale left behind ends with it.)
     this.flight = null;
+    this.tallHere = false;
   }
 
   /** End a flight under way (the view is being set outright). */
@@ -597,14 +614,17 @@ export class OrbitRig {
     seconds: number,
     fov: { from: number; to: number } | null,
     near = NEAR,
+    tall = false,
   ): void {
+    this.tallHere = tall;
     this.enabled = true;
     this.target.set(from.target.x, from.target.y, from.target.z);
     this.yaw = from.yaw;
     this.pitch = from.pitch;
     this.distance = from.distance;
     this.flyTo(to, seconds);
-    this.settling = { t: 0, k: 0, seconds, fov, near };
+    this.flight!.climb = true;
+    this.settling = { t: 0, k: 0, held: 1, seconds, fov, near };
     this.framing = 0;
   }
 
@@ -639,9 +659,11 @@ export class OrbitRig {
     if (!s) return;
     s.t = Math.min(1, t);
     const k = (s.k = s.t * s.t * (3 - 2 * s.t)),
+      u = Math.max(0, Math.min(1, (s.t - HANDED.climb) / (1 - HANDED.climb))),
       lens = stage.camera.camera;
     if (s.fov && lens) lens.fov = s.fov.from + (s.fov.to - s.fov.from) * k;
     this.framing = k;
+    s.held = 1 - u * u * (3 - 2 * u);
     if (s.t >= 1) this.settling = null;
   }
 
@@ -662,14 +684,16 @@ export class OrbitRig {
     if (this.settling) this.settled(stage, this.settling.t + dt / this.settling.seconds);
     const f = this.flight;
     if (f) {
+      // (One taken back from an eye shows where it is before it goes on: its first frame is the eye's own.)
+      const shown = f.climb ? f.t : Math.min(1, f.t + dt / f.seconds);
       f.t = Math.min(1, f.t + dt / f.seconds);
-      const v = flightAt(f.from, f.to, f.t);
+      const v = f.climb ? climbAt(f.from, f.to, shown) : flightAt(f.from, f.to, shown);
       this.target.set(v.target.x, v.target.y, v.target.z);
       this.yaw = v.yaw;
       this.pitch = v.pitch;
       this.distance = v.distance;
       this.idle = 0;
-      if (f.t >= 1) this.flight = null;
+      if (shown >= 1) this.flight = null;
     } else if (this.follow) {
       // Kept in the middle: the view eases after it, a little behind, as a camera follows.
       const p = this.follow();
@@ -704,12 +728,12 @@ export class OrbitRig {
     // (A push past the edge let go of eases off.)
     this.beyond *= Math.exp(-dt * 1.5);
     if (this.idle > 4 && this.pointers.size === 0) this.yaw += dt * (this.options.drift ?? 2.5);
-    const among = this.spires ? eyeAmongSpires(this.distance, this.pitch) : null,
+    const among = this.spires || this.tallHere ? eyeAmongSpires(this.distance, this.pitch) : null,
       yaw = (this.yaw * Math.PI) / 180,
       pitch = ((among?.pitch ?? this.pitch) * Math.PI) / 180,
       d = this.distance;
     // (Taken back from an eye: what it cut away still cut as the flight sets out, let in as it goes.)
-    const held = this.settling ? this.settling.near * (1 - this.settling.k) : 0;
+    const held = this.settling ? this.settling.near * this.settling.held : 0;
     this.nearAt(stage, Math.max(among?.near ?? NEAR, held));
     stage.camera.setPosition(
       this.target.x + d * Math.cos(pitch) * Math.sin(yaw),

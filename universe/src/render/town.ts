@@ -38,6 +38,7 @@ import {
   DETAIL_HYSTERESIS,
   type TownDetail,
   townBuildingAt,
+  homesRiseNear,
   townThingAt,
   townWalls,
   strikeSpan,
@@ -816,6 +817,11 @@ export class TownLayer {
   }
 
   /** The building of it a point lies within (view/town.ts townBuildingAt; null: none, or no town drawn). */
+  /** How high its homes within `reach` metres of a point rise at moment t (metres; 0: none, or no town drawn). */
+  riseNear(x: number, z: number, reach: number, t: number): number {
+    return this.scene && this.visible ? homesRiseNear(this.scene, x, z, reach, t) : 0;
+  }
+
   buildingAt(x: number, z: number, t: number): ReturnType<typeof townBuildingAt> {
     return this.scene && this.visible ? townBuildingAt(this.scene, x, z, t) : null;
   }

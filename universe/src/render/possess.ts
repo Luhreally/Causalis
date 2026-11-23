@@ -149,6 +149,7 @@ export class PossessEye {
       HANDED.seconds,
       fov !== null && lens ? { from: fov, to: lens.fov } : null,
       near,
+      roofs >= HANDED.tall,
     );
   }
 

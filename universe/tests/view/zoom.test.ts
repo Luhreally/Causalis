@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   BEYOND,
   HANDED,
+  climbAt,
   flightAt,
   handedViews,
   towardOnFlat,
@@ -136,4 +137,47 @@ test("let go in a city of towers, the orbit flies out over its tallest homes, no
   // Its eye over the tallest (100 m) by a share and some metres more; a village's low roofs leave the usual distance.
   assert.ok(high / M >= 100 * HANDED.over + HANDED.clear - 1e-9);
   assert.equal(handedViews(eye, seen, { x: 0, z: 0 }, M, 430 / 932, 9).to.distance, 90 * M);
+});
+
+test("let go, the camera climbs first and only then is drawn across: from the eye's own view to the landing", () => {
+  const M = 0.1,
+    { from, to } = handedViews(
+      { x: 0.3, y: 0.25, z: 0.4 },
+      { x: 0, y: 0.136, z: 0 },
+      { x: 0, z: 0 },
+      M,
+      430 / 932,
+      72,
+    ),
+    at = (v: typeof from) => {
+      const y = (v.yaw * Math.PI) / 180,
+        p = (v.pitch * Math.PI) / 180;
+      return {
+        x: v.target.x + v.distance * Math.cos(p) * Math.sin(y),
+        y: v.target.y - v.distance * Math.sin(p),
+        z: v.target.z + v.distance * Math.cos(p) * Math.cos(y),
+      };
+    },
+    near = (a: number, b: number) => assert.ok(Math.abs(a - b) < 1e-9, `${a} vs ${b}`);
+  // A tall town (72 m homes): looked down on steeply.
+  near(to.pitch, HANDED.tallPitch);
+  // Its ends are the eye's view and the landing's.
+  for (const [t, v] of [
+    [0, from],
+    [1, to],
+  ] as const) {
+    const c = climbAt(from, to, t);
+    near(c.distance, v.distance);
+    near(c.pitch, v.pitch);
+    for (const k of ["x", "y", "z"] as const) near(c.target[k], v.target[k]);
+  }
+  const start = at(from);
+  let was = start.y;
+  for (let i = 1; i <= 100; i++) {
+    const c = at(climbAt(from, to, i / 100));
+    // Never down; and not across before it has climbed a while.
+    assert.ok(c.y >= was - 1e-9);
+    was = c.y;
+    if (i / 100 <= HANDED.across) near(Math.hypot(c.x - start.x, c.z - start.z), 0);
+  }
 });

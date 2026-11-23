@@ -285,6 +285,7 @@ export {
   civicsActive,
   homeWear,
   homeSize,
+  homesRiseNear,
   homesRiseTo,
   lotNear,
   roofTop,
@@ -561,6 +562,7 @@ export { BLINK, DASH, FAR, SMOOTH, present, type Presence } from "./presence.ts"
 export {
   BEYOND,
   HANDED,
+  climbAt,
   flightAt,
   handedViews,
   towardOnFlat,

@@ -2363,6 +2363,10 @@ export class VillageScene {
   farmhouseAt(x: number, z: number): boolean {
     return this.country.farmhouseAt(x, z);
   }
+  /** How high its town's homes within `reach` metres of a point (metres from its middle) rise now (metres; 0: none). */
+  homesRiseNear(x: number, z: number, reach: number): number {
+    return this.town.riseNear(x, z, reach, this.lastT);
+  }
   /** The building of a town a point lies within (metres from its middle): for the eye set on one who is in it. */
   townBuildingAt(x: number, z: number, t: number): ReturnType<TownLayer["buildingAt"]> {
     return this.town.buildingAt(x, z, t);
