@@ -19,7 +19,13 @@ import type {
   VillagePlan,
 } from "../bridge/index.ts";
 import { smiteFlash, smiteAct, SLOW_PACE } from "./gifts.ts";
-import { PossessEye, type OrbitRig, type Stage, type VillageScene } from "../render/index.ts";
+import {
+  PossessEye,
+  VILLAGE_METRE,
+  type OrbitRig,
+  type Stage,
+  type VillageScene,
+} from "../render/index.ts";
 import { PossessHud, type GodPalette, type PageWindow, type TimeBar } from "../ui/index.ts";
 import {
   GIFTS,
@@ -33,6 +39,7 @@ import {
   homesRiseTo,
   joinsAt,
   lettersOf,
+  nearSight,
   takeOf,
   tradeOf,
   villageSolids,
@@ -419,6 +426,22 @@ export function installPossession(d: PossessionDeps): Possession {
     presses.length = 0;
     // (Handed back to the orbit from where the eye stood, flown out to the town's own look over where the body stood.)
     eye.handTo(d.rig, me ? { x: me.x, z: me.z } : null);
+    // (Those faded about the eye stay so as the camera flies out, read from where it stands each frame, let in as it leaves
+    // them, all whole once it lands: none near the eye stands whole on the flight's first frame.)
+    const tall = eye.height,
+      fade = () => {
+        if (on !== null || !me || !d.rig.flying) return void (d.village.lettingGo = null);
+        const c = d.stage.camera.getPosition();
+        d.village.lettingGo = {
+          sight: nearSight(
+            { x: c.x / VILLAGE_METRE, y: c.y / VILLAGE_METRE, z: c.z / VILLAGE_METRE, tall },
+            { x: me.x, z: me.z },
+          ),
+          ref: `agent:${o.now.agent}`,
+        };
+        requestAnimationFrame(fade);
+      };
+    fade();
     d.time.release("possess");
     if (d.scale() === "village" && d.plan()?.ref === o.now.town) await d.reload(o.now.town);
     ended(o.now.town);

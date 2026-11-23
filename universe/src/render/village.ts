@@ -599,6 +599,14 @@ export class VillageScene {
    * the town's metres; null: none held), for what grows about the town to fade near it as about one of its own possessed.
    */
   heldSight: NearSight | null = null;
+  /**
+   * One of its own let go (app/possess.ts, each frame of the camera's flight out: view/possess.ts nearSight from the camera
+   * as it stands to where he stood, in the town's metres): its people, rides, beasts and what grows near the camera or
+   * between it and him faded as while he was held, let in by degrees as it flies out; he himself whole. Null: none.
+   */
+  lettingGo: { readonly sight: NearSight; readonly ref: string } | null = null;
+  /** Each one's share drawn while one let go is flown out from (lettingGo). */
+  private goneAlpha = new Float32Array(0);
 
   constructor(stage: Stage) {
     this.stage = stage;
@@ -2719,6 +2727,15 @@ export class VillageScene {
     const unposed = this.posed ? drawn.slice() : null;
     this.posed?.pose(drawn, this.presence);
     this.moments = drawn.map((d) => d.moment);
+    // (One let go, the camera flying out from where his eye stood: those about it faded as they were, by its sight now.)
+    const gone = this.posed ? null : this.lettingGo;
+    if (gone) {
+      if (this.goneAlpha.length !== drawn.length) this.goneAlpha = new Float32Array(drawn.length);
+      for (let i = 0; i < drawn.length; i++) {
+        this.goneAlpha[i] = plan.people[i]?.ref === gone.ref ? 1 : gone.sight(drawn[i]!.moment);
+      }
+    }
+    const alpha = this.posed?.alpha ?? (gone ? this.goneAlpha : null);
     // (Carried to where their day has them and kept apart, none is drawn nearer a block than their body as it strides and plays
     // and a street piece's depth (view/networks.ts): no one walks through a hydrant or a box by its kerb.)
     if (plan.town) {
@@ -2737,7 +2754,7 @@ export class VillageScene {
       (this.posed as { lived?: number } | null)?.lived ?? null,
     );
     // (Carts, cars and beasts near the eye of a possession faded as its people are: view/possess.ts nearSight.)
-    const sight = this.posed?.sight ?? null,
+    const sight = this.posed?.sight ?? gone?.sight ?? null,
       near = sight ? (x: number, z: number) => sight({ x, z }) : null;
     this.rides.fadeNear(near);
     this.fauna.fadeNear(near);
@@ -2856,7 +2873,7 @@ export class VillageScene {
       dt,
       downed: this.posed?.downed ?? this.streetDowned,
       kept: unposed ? redrawn(unposed, drawn) : null,
-      alpha: this.posed?.alpha ?? null,
+      alpha,
       people: this.people,
       hair: this.hair,
       eye: { x: at.x / M, y: at.y / M, z: at.z / M },
@@ -3143,7 +3160,7 @@ export class VillageScene {
     let n = 0;
     // (And those about a town of sets carried in the hand with one, in the hand: signals. Every so many by their place.)
     const phones = Math.round(20 * (plan.town?.signals?.phones ?? 0)),
-      faded = this.posed?.alpha ?? null;
+      faded = this.posed?.alpha ?? (this.lettingGo ? this.goneAlpha : null);
     plan.people.forEach((p, i) => {
       const m = this.moments[i]!,
         carry = m.carry ?? (phones && !p.child && (i * 7) % 20 < phones ? "phone" : null),
