@@ -26,9 +26,11 @@ export const CYCLONE = {
    * once in 12 years). */
   yearly: 0.08,
   /** Of its people, the share it kills at its usual greatness (est: most flee or shelter; a land here is a whole coast and its
-   * hinterland, so a great storm's hundred thousand dead are a few in ten thousand of it), and the most. */
-  dead: 0.0003,
-  deadMost: 0.005,
+   * hinterland, and the sea comes in on its low shore only), and the most. Measured on first light from 1500 to 1800 (lands of
+   * some forty million): at 0.0003 its great storms' dead had a median of 40,000 and the worst 385,000; now some 13,000 and the
+   * worst near 230,000, as Bengal's (1737, 1876, 1970: 300,000 to 500,000 of a far more crowded shore) and most far fewer. */
+  dead: 0.0001,
+  deadMost: 0.003,
   /** Of its harvest, the share it drowns and flattens at its usual greatness (est), and the most; of its stores, the share wetted. */
   fields: 0.2,
   fieldsMost: 0.7,
@@ -100,10 +102,11 @@ export const SLIDE = {
   rainPower: 3,
   /** The share of the chance its woods' roots take away, wholly wooded. */
   woods: 0.6,
-  /** Of its people, the share a slide kills at its usual greatness, the most (est: a slide falls on a valley, not a land: some ten in
-   * a hundred thousand); of its harvest, the share it buries. */
-  dead: 0.0001,
-  deadMost: 0.003,
+  /** Of its people, the share a slide kills at its usual greatness, the most (est: a slide falls on a valley, not a land: some three
+   * in a hundred thousand; the worst a rain has brought down, Vargas in 1999, killed ten to thirty thousand); of its harvest, the
+   * share it buries. At 0.0001 first light's slides from 1500 had a median of 8,300 dead and the worst 114,000. */
+  dead: 0.00003,
+  deadMost: 0.0005,
   fields: 0.04,
   fieldsMost: 0.25,
 } as const;
