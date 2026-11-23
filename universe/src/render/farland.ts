@@ -9,10 +9,17 @@
 // about it the land comes up from the town's level to its own as the town's own ground would (cutAbout), so the town's flat
 // ground runs on into its land with no step.
 import * as pc from "playcanvas";
-import type { InstancedBatch } from "./batch.ts";
+import { boxMesh, placeInstance, type InstancedBatch } from "./batch.ts";
 import type { FloraLayer } from "./flora.ts";
 import type { LandLayer } from "./land.ts";
 import { fadedMaterial, type Rgb, type Stage } from "./stage.ts";
+
+/** A far town's mark: its roofs and walls as they read from far off, in one tone (linear), and how high it stands of its spread. */
+const MARK: Rgb = [0.62, 0.34, 0.24];
+const MARK_HIGH = 0.06;
+/** The far clumps' core (region units from the town): within it all drawn, past it fewer by rank, as the square of the core over
+ * the distance (render/flora.ts draws its near things so): the woods far off read by the ground's own crowns under them. */
+const CLUMP_CORE = 40;
 
 /** How much lower the land is set than the town's own ground (its units: a few metres, under all the town's ground). */
 const DROP = 0.02;
@@ -51,6 +58,8 @@ export class FarLand {
   /** The land's towns' and fields' parts drawn for this eye (toned as the land's, faded about the town: stage.ts). */
   private readonly townLook = fadedMaterial();
   private sunOf: pc.Entity | null = null;
+  private heightAt: ((x: number, z: number) => number) | null = null;
+  private ref: string | null = null;
   private on = false;
 
   private readonly stage: Stage;
@@ -104,6 +113,10 @@ export class FarLand {
       readonly k: number;
       readonly woods?: FloraLayer | null;
       readonly towns?: LandLayer | null;
+      /** The land's height at a point (region units), for its other towns' marks. */
+      readonly heightAt?: (x: number, z: number) => number;
+      /** The town's own key, never marked. */
+      readonly ref?: string;
     } | null,
   ): boolean {
     const land = this.stage.root.findByName("region"),
@@ -158,6 +171,8 @@ export class FarLand {
     this.at = { x: o.x, y: o.y, z: o.z, k: o.k };
     this.woods = o.woods ?? null;
     this.towns = o.towns ?? null;
+    this.heightAt = o.heightAt ?? null;
+    this.ref = o.ref ?? null;
     this.madeWoods = -2;
     this.madeTowns = -2;
     return true;
@@ -184,22 +199,27 @@ export class FarLand {
       facets: s ? s.cut.primitive[0]!.count / 3 : 0,
       collar: s?.collar ? s.collar.vertexBuffer.numVertices / 3 : 0,
       copies: this.copies.length,
-      instances: this.copies.reduce((n, c) => n + c.drawn.instancingCount, 0),
+      instances:
+        this.copies.reduce((n, c) => n + c.drawn.instancingCount, 0) +
+        (this.marks?.drawn.instancingCount ?? 0),
       tones: this.tones,
     };
   }
 
   /** Which of its parts are drawn (the look tools, to time each): its ground and sea, its land's woods, towns and fields. */
-  parts(o: { ground?: boolean; copies?: boolean; clumps?: boolean }): void {
+  parts(o: { ground?: boolean; copies?: boolean; clumps?: boolean; towns?: boolean }): void {
     const s = this.shown;
     if (s && o.ground !== undefined) {
       s.ground.enabled = o.ground;
       if (s.sea) s.sea.enabled = o.ground;
     }
     if (o.copies !== undefined) this.copiesAt.enabled = o.copies;
-    if (o.clumps !== undefined)
-      for (const c of this.copies)
-        if (c.drawn.material !== this.townLook && c.drawn.node) c.drawn.node.enabled = o.clumps;
+    for (const c of this.copies) {
+      const town = c.drawn.material === this.townLook,
+        on = town ? o.towns : o.clumps;
+      if (on !== undefined && c.drawn.node) c.drawn.node.enabled = on;
+    }
+    if (o.towns !== undefined && this.marks?.drawn.node) this.marks.drawn.node.enabled = o.towns;
   }
 
   /** Whether it is drawn now (a town shown with its land about it). */
@@ -336,7 +356,11 @@ export class FarLand {
         keep: number[] = [];
       for (let i = 0; i < count; i++) {
         const d = Math.hypot(all[i * 16 + 12]! - at.x, all[i * 16 + 14]! - at.z);
-        if (d > hidden && d < hazed) keep.push(i);
+        if (d <= hidden || d >= hazed) continue;
+        // (Its rank, carried in its matrix's last corner with its lift: render/batch.ts rank.)
+        const packed = all[i * 16 + 15]! - 1,
+          rank = packed - 2 * Math.floor(packed * 0.5);
+        if (rank < Math.min(1, (CLUMP_CORE / d) ** 2)) keep.push(i);
       }
       if (!keep.length) return;
       const data = new Float32Array(keep.length * 16);
@@ -364,8 +388,48 @@ export class FarLand {
       this.copies.push({ of, buffer, count, mine, drawn });
     };
     for (const of of this.woods?.farClumps ?? []) put(of, null);
-    for (const of of this.towns?.farBatches() ?? []) put(of, this.townLook);
+    // (Its other towns as marks: each a low block of its roofs' tone over as much ground as it spreads, as a town reads from
+    // far off; its own never.)
+    const towns = (this.towns?.farTowns() ?? []).filter((t) => {
+      const d = Math.hypot(t.x - at.x, t.z - at.z);
+      return t.ref !== this.ref && d > hidden && d < hazed;
+    });
+    if (towns.length && this.heightAt) {
+      const data = new Float32Array(towns.length * 16),
+        t = [0, 0, 0, 1, 1, 1, 0, 0, MARK[0], MARK[1], MARK[2]];
+      towns.forEach((town, i) => {
+        const w = Math.max(0.05, town.r * 1.2),
+          h = w * MARK_HIGH;
+        t[0] = town.x;
+        t[1] = this.heightAt!(town.x, town.z) + h / 2;
+        t[2] = town.z;
+        t[3] = w;
+        t[4] = h;
+        t[5] = w;
+        placeInstance(data, i * 16, t, true);
+      });
+      const format = pc.VertexFormat.getDefaultInstancingFormat(this.stage.device),
+        mine = new pc.VertexBuffer(this.stage.device, format, towns.length, {
+          usage: pc.BUFFER_STATIC,
+          data,
+        }),
+        drawn = new pc.MeshInstance((this.markMesh ??= boxMesh(this.stage)), this.townLook);
+      drawn.setInstancing(mine);
+      drawn.instancingCount = towns.length;
+      drawn.cull = false;
+      const e = new pc.Entity("far marks");
+      e.addComponent("render", {
+        meshInstances: [drawn],
+        layers: [this.layer.id],
+        castShadows: false,
+        receiveShadows: false,
+      });
+      this.copiesAt.addChild(e);
+      this.marks = { drawn, mine };
+    }
   }
+  private markMesh: pc.Mesh | null = null;
+  private marks: { drawn: pc.MeshInstance; mine: pc.VertexBuffer } | null = null;
 
   private dropCopies(): void {
     for (const c of this.copies) {
@@ -373,6 +437,11 @@ export class FarLand {
       c.mine?.destroy();
     }
     this.copies = [];
+    if (this.marks) {
+      this.marks.drawn.node?.destroy();
+      this.marks.mine.destroy();
+      this.marks = null;
+    }
   }
 
   private clear(): void {

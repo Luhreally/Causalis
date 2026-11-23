@@ -558,6 +558,7 @@ type Exposed = {
   /** The land drawn about a town (render/farland.ts): whether it is, what it draws, and the land's tones the town took. */
   farLand?: () => ReturnType<FarLand["info"]>;
   farLandParts?: (o: Parameters<FarLand["parts"]>[0]) => void;
+  townLook?: (o: { far?: number; land?: boolean; ring?: boolean }) => void;
   /** A world's life on one sheet over the screen, each picture's outline read off its pixels (B1, gate 108); and away. */
   lifeSheet?: (most?: number) => Promise<LifeSheet>;
   closeLifeSheet?: () => void;
@@ -5872,13 +5873,16 @@ async function runPlanetPage(): Promise<void> {
   });
   // (A town's eye sees as far as its land's nearest eye does, its plain ground out to there under its land's haze: render/
   // village.ts TOWN_FAR. Elsewhere 400 units, as the stage is made.)
+  // (What a town's eye sees as far off, each to be told off in turn by the look tools, to time it: causalis.townLook.)
+  const townLook: { far?: number; land?: boolean; ring?: boolean } = {};
+  exposed.townLook = (o) => Object.assign(townLook, o);
   stage.onUpdate(() => {
     const cam = stage.camera.camera!,
       town = scale === "village" && !plan?.colony,
-      far = town ? (400 * VILLAGE_METRE) / LAND_ACROSS : 400;
+      far = town ? (townLook.far ?? (400 * VILLAGE_METRE) / LAND_ACROSS) : 400;
     if (cam.farClip !== far) cam.farClip = far;
-    farLand.visible = town;
-    village.plainBeyond(!farLand.visible);
+    farLand.visible = town && townLook.land !== false;
+    village.plainBeyond(!farLand.visible && townLook.ring !== false);
   });
   // Out from the world, the sky's view follows the home world round its orbit while it is
   // close, and eases onto the star as it draws back.
@@ -7443,6 +7447,8 @@ async function runPlanetPage(): Promise<void> {
               k: LAND_ACROSS / VILLAGE_METRE,
               woods: region.flora,
               towns: region.land,
+              heightAt: (x, z) => region.heightAt(x, z),
+              ref,
             }
           : null,
       );
