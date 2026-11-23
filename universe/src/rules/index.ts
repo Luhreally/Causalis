@@ -659,8 +659,18 @@ export {
   type WorldMetal,
 } from "./chem-ores.ts";
 export {
+  ARM_JOULES,
+  BLOW_JOULES,
   BLOW_OF,
   CARE_PRINCIPLES,
+  COLD_BLEEDS,
+  DOSE,
+  OWN_GUARD,
+  REACHES,
+  armJoules,
+  doseOf,
+  guardWith,
+  harmOf,
   DIED_OF_WOUNDS,
   LETHAL,
   MAIM,
@@ -1802,4 +1812,6 @@ export * from "./gifts.ts";
 // The gaps of 2026-11-22: a faith's head and the faith against a ruler; townsfolk sentenced and held; commanders held.
 export * from "./faithheads.ts";
 export * from "./sentences.ts";
+// Where sicknesses arise (2026-11-23): a land's forces, herds, wild, crowds and warm water, and the people's kin among the beasts.
+export * from "./spillover.ts";
 export * from "./demography.ts";

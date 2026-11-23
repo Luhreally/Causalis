@@ -58,9 +58,13 @@ test("a recent battle's page tells its wounded and its fallen by place", () => {
   assert.ok(wounded, "a Wounded stat");
   assert.deepEqual(wounded.value, [count(w0 + w1)]);
   assert.deepEqual(
-    wounded.parts?.map((x) => x.value),
+    wounded.parts?.slice(0, 3).map((x) => x.value),
     [count(w0), count(w1), count(m0 + m1)],
   );
+  // (And what struck each side that bore an arm against it: the arm's energy a blow, on their bodies.)
+  const struck = wounded.parts!.slice(3);
+  assert.equal(struck.length, [b.bore?.[1]?.[0], b.bore?.[0]?.[0]].filter(Boolean).length);
+  for (const x of struck) assert.match(x.value, /^[0-9,]+ J a blow, on bodies of [0-9,]+ kg/);
   assert.equal(tabOf(p, "fallen")?.name, "The fallen");
   const table = tableOf(tabOf(p, "fallen"));
   assert.deepEqual(table.columns, ["From", "Side", "Sent", "Fell", "Wounded"]);

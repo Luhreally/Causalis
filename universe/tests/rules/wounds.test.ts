@@ -5,8 +5,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  BLOW_JOULES,
+  armJoules,
   blowOf,
+  doseOf,
   fallenShare,
+  guardWith,
   maimedShare,
   sideWounds,
   strikeHurt,
@@ -275,4 +279,63 @@ test("maimedShare stays in [0.02, 0.25] and never rises with care", () => {
     }
     monotone(SHARES, (care) => maimedShare(blow, care), -1, `maimed share, ${blow}`);
   }
+});
+
+// The breadth round (2026-11-23): a blow's harm from the energy its arm delivers, its wielder's body, the struck body's own
+// covering and blood. Earth's arms on Earth's people stay near the tables; another body or arm differs for its facts.
+const MUSKET: Struck = { blow: "shot", shock: 0.96, protection: 0.3, care: 0.4, size: 60 };
+
+test("energy: a gun's is its ball's; a muscle-driven arm's goes with its wielder; a blow without an arm is its reference", () => {
+  assert.equal(armJoules("musket", "shot", 60), BLOW_JOULES.shot);
+  assert.ok(armJoules("automatic", "shot", 60) > armJoules("rifle", "shot", 60));
+  assert.equal(armJoules("sword", "edge", 120), 2 * armJoules("sword", "edge", 60));
+  assert.equal(armJoules("musket", "shot", 200), armJoules("musket", "shot", 60));
+  assert.equal(doseOf(MUSKET), 1);
+  assert.equal(doseOf({ ...MUSKET, arm: "musket" }), 1);
+});
+
+test("Earth's arms on Earth's people: a musket's ball as the table, every gun's ball through the body alike, each within a tenth of the musket's W:F", () => {
+  assert.equal(fallenShare({ ...MUSKET, arm: "musket" }), fallenShare(MUSKET));
+  const wf = (arm: string) => woundedPerFallen({ ...MUSKET, arm });
+  assert.ok(wf("automatic") <= wf("musket"), "the heavier ball kills no fewer of those it strikes");
+  for (const arm of ["rifle", "repeater", "autoloader", "automatic"])
+    assert.ok(
+      Math.abs(wf(arm) / wf("musket") - 1) <= 0.25,
+      `${arm}: ${wf(arm)} against ${wf("musket")}`,
+    );
+  assert.ok(
+    Math.abs(
+      fallenShare({
+        blow: "edge",
+        shock: 0.8,
+        protection: 0.3,
+        care: 0.25,
+        size: 60,
+        arm: "sword",
+      }) - fallenShare({ blow: "edge", shock: 0.8, protection: 0.3, care: 0.25, size: 60 }),
+    ) < 1e-12,
+  );
+});
+
+test("a great body takes a ball better than a small one; its own blows strike as hard on its own kind", () => {
+  const small = fallenShare({ ...MUSKET, arm: "musket", size: 25 }),
+    great = fallenShare({ ...MUSKET, arm: "musket", size: 240 });
+  assert.ok(great < fallenShare({ ...MUSKET, arm: "musket" }) && small > great);
+  // (A sword in a 240 kg hand on a 240 kg body: four times the energy against a deeper body.)
+  const sword = { blow: "edge" as const, shock: 0.8, protection: 0.3, care: 0.25, arm: "sword" };
+  assert.ok(
+    Math.abs(fallenShare({ ...sword, size: 240 }) - fallenShare({ ...sword, size: 60 })) < 0.05,
+  );
+});
+
+test("a cold-blooded body dies less of its wounds after; care still cuts only those deaths", () => {
+  assert.ok(fallenShare({ ...MUSKET, cold: true }) < fallenShare(MUSKET));
+  assert.ok(woundedPerFallen({ ...MUSKET, cold: true }) > woundedPerFallen(MUSKET));
+});
+
+test("a body's own shell guards it under what it wears, once where what it wears is its shell", () => {
+  assert.equal(guardWith(0.3, "skin", false), 0.3);
+  assert.ok(Math.abs(guardWith(0.3, "shell", false) - (1 - 0.7 * 0.4)) < 1e-12);
+  assert.equal(guardWith(0.6, "shell", true), 0.6);
+  assert.ok(guardWith(0.85, "scales", false) > 0.85 && guardWith(0.85, "scales", false) < 1);
 });

@@ -12,8 +12,17 @@
 // Lister's antisepsis, 1867, which cut amputation deaths from 45% to 15%) shows that care cuts the
 // deaths that follow a wound, never the deaths on the field. The strikes of the world follow Coburn
 // and Spence (2002), the NFPA's home fire counts and Jonkman and Kelman (2005) on floods; the
-// meteor's figure has no source and sits between fire and quake. Pure tables and functions.
+// meteor's figure has no source and sits between fire and quake.
+// The shares are what a blow of a reference energy does to a body of sixty kilograms (the breadth round, 2026-11-23): a blow's
+// harm is read off the energy it delivers against what the arms the tables stand for deliver (a musket's ball, a sword's cut),
+// to a power under one (wound ballistics: a wound deepens with energy, but the vital share is soon reached); a muscle-driven
+// arm delivers as its wielder's body is heavy (Hill 1950: a muscle's work in a stroke goes as its mass), a gun or a beam its
+// own; armour turns the less of a blow the more energy it carries; a body's own shell or scales guard it under what it wears
+// (sim/war/fell.ts hostTerms), a bigger body has more between skin and organs, and a cold-blooded body, whose flesh asks less of
+// its blood, dies less of its wounds after (bleeding and shock kill more slowly). Earth's people and arms come out as the
+// sources have them; another body or arm differs by these facts. Pure tables and functions.
 import { dmath } from "../kernel/index.ts";
+import { ballOf } from "./means.ts";
 
 /**
  * How a blow harms: by an edge (a cut), a point (a thrust), a blunt weight, a ball, a crushing
@@ -133,14 +142,108 @@ export function woundCare(known: (principle: string) => boolean): number {
   return Math.min(1, care);
 }
 
-/** What struck a side: the foe's blow and shock; the side's protection, care and body (kg). */
+/**
+ * What struck a side: the foe's blow and shock; the side's protection, care and body (kg). Where the foe's arm is named, the
+ * energy it delivers is read off it (a muscle-driven arm's by the size of the body that wields it: the struck's own people's,
+ * as a home world's battles are fought, unless its wielder is named); else the blow strikes at its reference energy. Cold: the struck
+ * body is cold-blooded.
+ */
 export type Struck = {
   readonly blow: Blow;
   readonly shock: number;
   readonly protection: number;
   readonly care: number;
   readonly size: number;
+  readonly arm?: string | null;
+  readonly wielder?: number;
+  readonly cold?: boolean;
 };
+
+/**
+ * The energy each blow's shares stand for (J): a sword's cut (60 to 130 J), a spear's thrust, a club's swing, a musket's ball
+ * (rules/means.ts ballOf, 2,480 J), a jaw's crushing bite, a beam's pulse (est.).
+ */
+export const BLOW_JOULES: Readonly<Record<Blow, number>> = {
+  edge: 100,
+  point: 80,
+  blunt: 120,
+  shot: 2480,
+  crush: 200,
+  fire: 3000,
+};
+
+/**
+ * The energy each arm not a gun delivers (J), for a wielder of sixty kilograms where its own muscle drives it (est. from
+ * reconstructions: a self bow's arrow 40 to 80 J, a war bow's about 100 J; an axe's swing; a spear's thrust; a bite, a tusk's
+ * thrust, a grip). A gun's is its ball's (rules/means.ts ballOf). An arm not named strikes at its blow's reference.
+ */
+export const ARM_JOULES: Readonly<Record<string, number>> = {
+  club: 120,
+  spear: 80,
+  axe: 130,
+  sword: 100,
+  bow: 60,
+  "horn-bow": 90,
+  claws: 60,
+  mandibles: 200,
+  tusks: 400,
+  grapple: 150,
+  "shell-darts": 40,
+  "gas-dart": 200,
+  "sound-lance": 800,
+  "beam-rifle": 3000,
+  "beam-lance": 5000,
+};
+
+/** The arms whose energy is not their wielder's muscle: guns, beams, a dart driven by gas, a lance of sound. */
+const NOT_MUSCLE: ReadonlySet<string> = new Set([
+  "gas-dart",
+  "sound-lance",
+  "beam-rifle",
+  "beam-lance",
+]);
+
+/**
+ * How a blow's harm goes with its energy (J): a blow kills once it carries enough to reach what lies under the skin, and past
+ * that more energy adds less (1 − e^(−E/E0), against the same at the blow's reference). E0 is the energy that reaches the vital
+ * organs most of the time (est.: a cut or a bite about its reference, a ball long past it — every gun's ball goes through a body,
+ * so Earth's guns from the musket to the automatic kill alike of those they strike, as the sources find). And the share of a blow
+ * armour turns falls as the blow's energy rises past its reference, to a fourth power.
+ */
+export const REACHES: Readonly<Record<Blow, number>> = {
+  edge: 100,
+  point: 60,
+  blunt: 150,
+  shot: 400,
+  crush: 200,
+  fire: 1500,
+};
+export const DOSE = { least: 0.3, most: 2, through: 0.25 } as const;
+/** How much less a cold-blooded body dies of its wounds after. */
+export const COLD_BLEEDS = 0.7;
+
+/** The energy an arm delivers (J), wielded by a body of so many kilograms: its ball's, its own, or its muscle's for its size. */
+export function armJoules(arm: string | null | undefined, blow: Blow, wielder: number): number {
+  if (arm === null || arm === undefined) return BLOW_JOULES[blow];
+  const ball = ballOf(arm);
+  if (ball) return ball.joules;
+  const own = Object.hasOwn(ARM_JOULES, arm) ? ARM_JOULES[arm]! : BLOW_JOULES[blow];
+  return NOT_MUSCLE.has(arm) ? own : own * dmath.clamp(wielder / WOUNDS.size, 0.2, 5);
+}
+
+/** A blow's harm against its reference's, from its energy against its reference (REACHES): 1 at the reference. */
+export function harmOf(blow: Blow, dose: number): number {
+  if (dose === 1) return 1;
+  const e0 = REACHES[blow] / BLOW_JOULES[blow],
+    reached = (x: number) => 1 - dmath.exp(-x / e0);
+  return dmath.clamp(reached(Math.max(0, dose)) / reached(1), DOSE.least, DOSE.most);
+}
+
+/** A blow's energy against its reference: 1 at the reference, where no arm is named. */
+export function doseOf(s: Struck): number {
+  if (s.arm === null || s.arm === undefined) return 1;
+  return armJoules(s.arm, s.blow, s.wielder ?? s.size) / BLOW_JOULES[s.blow];
+}
 
 /**
  * The blow an arm strikes with, by its realization id. No arm, or an arm not listed, strikes
@@ -161,19 +264,25 @@ function bodyFactor(size: number): number {
   return dmath.clamp(dmath.cbrt(WOUNDS.size / Math.max(1, size)), 0.6, 1.5);
 }
 
-/** Of the struck, the share killed outright on the field. */
+/** Of the struck, the share killed outright on the field: the more the energy, the more, and the less armour turns of it. */
 function killedOutright(s: Struck): number {
-  const turned = 1 - TURN[s.blow] * dmath.clamp(s.protection, 0, 1);
+  const dose = doseOf(s),
+    harm = harmOf(s.blow, dose),
+    through = dose === 1 ? 1 : dmath.clamp(dmath.pow(dose, -DOSE.through), 0.6, 1.4),
+    turned = 1 - Math.min(0.95, TURN[s.blow] * dmath.clamp(s.protection, 0, 1) * through);
   return Math.min(
     1,
-    WOUNDS.vital * LETHAL[s.blow] * bodyFactor(s.size) * turned * shockFactor(s.shock),
+    WOUNDS.vital * LETHAL[s.blow] * harm * bodyFactor(s.size) * turned * shockFactor(s.shock),
   );
 }
 
 /** Of the struck (killed or wounded), the share killed: on the field and of their wounds after. */
 export function fallenShare(s: Struck): number {
   const killed = killedOutright(s),
-    later = DIED_OF_WOUNDS[s.blow] * (1 - WOUNDS.save * dmath.clamp(s.care, 0, 1));
+    later =
+      DIED_OF_WOUNDS[s.blow] *
+      (1 - WOUNDS.save * dmath.clamp(s.care, 0, 1)) *
+      (s.cold ? COLD_BLEEDS : 1);
   return dmath.clamp(killed + (1 - killed) * later, WOUNDS.least, WOUNDS.most);
 }
 
@@ -183,10 +292,16 @@ export function woundedPerFallen(s: Struck): number {
   return (1 - f) / f;
 }
 
-/** Of the wounded who live, the share maimed. */
-export function maimedShare(blow: Blow, care: number): number {
-  const [least, most] = MAIMED_BOUNDS;
-  return dmath.clamp(MAIM[blow] * (1 - SALVAGE[blow] * dmath.clamp(care, 0, 1)), least, most);
+/** Of the wounded who live, the share maimed: by the blow, its energy against its reference (`dose`), and care. */
+export function maimedShare(blow: Blow, care: number, dose = 1): number {
+  const [least, most] = MAIMED_BOUNDS,
+    // (A blow of more energy shatters more of a limb than can be saved: as its harm, to the same power.)
+    harm = harmOf(blow, dose);
+  return dmath.clamp(
+    MAIM[blow] * harm * (1 - SALVAGE[blow] * dmath.clamp(care, 0, 1)),
+    least,
+    most,
+  );
 }
 
 /**
@@ -201,10 +316,30 @@ export function sideWounds(
     fallen > 0
       ? Math.max(0, Math.min(field - fallen, Math.round(fallen * woundedPerFallen(s))))
       : 0;
-  return { wounded, maimed: Math.round(wounded * maimedShare(s.blow, s.care)) };
+  return { wounded, maimed: Math.round(wounded * maimedShare(s.blow, s.care, doseOf(s))) };
 }
 
 /** The wounded a strike leaves: its dead times the strike's ratio, rounded. */
 export function strikeHurt(kind: keyof typeof STRIKE_HURT, dead: number): number {
   return Math.round(dead * STRIKE_HURT[kind]);
+}
+
+/**
+ * How much of a blow a body's own covering turns, worn under whatever it wears (as rules/designs.ts's own-shell and own-scales
+ * guard a host that wears nothing else; fur and feathers a little).
+ */
+export const OWN_GUARD: Readonly<Record<string, number>> = {
+  shell: 0.6,
+  scales: 0.35,
+  fur: 0.05,
+  feathers: 0.05,
+};
+
+/**
+ * A side's guard with its body's own covering under what it wears: each turns its share of what the other lets through. Where
+ * what it wears is its own covering (its guard part is of its body), that is counted once.
+ */
+export function guardWith(worn: number, skin: string, ownWorn: boolean): number {
+  const own = ownWorn || !Object.hasOwn(OWN_GUARD, skin) ? 0 : OWN_GUARD[skin]!;
+  return own > 0 ? 1 - (1 - dmath.clamp(worn, 0, 1)) * (1 - own) : worn;
 }

@@ -12,6 +12,9 @@ export type CombatSide = {
   readonly range: number;
   readonly care: number;
   readonly blow: Blow;
+  /** The arm it strikes with (rules/designs.ts id: its energy, rules/wounds.ts), and whether its own body is cold-blooded. */
+  readonly arm?: string | null;
+  readonly cold?: boolean;
   /**
    * What its host has learned of the field (rules/lessons.ts; absent, nothing): a screen ahead of its line, which takes so much off
    * what the foe looses at it before the lines close (that fire over 1 + screen); and close order, which takes so much off what the
@@ -51,6 +54,8 @@ export function resolveCombat(
         protection: own.protection,
         care: own.care,
         size,
+        arm: sides[1 - k]!.arm ?? null,
+        ...(own.cold ? { cold: true } : {}),
       }),
     ),
     hurt = [0, 0],

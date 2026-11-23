@@ -18,6 +18,7 @@ import { workBySex } from "../society/work.ts";
 import { rooflessColdOf } from "../society/kept.ts";
 import { youngKilledOf } from "../order/underworld-kept.ts";
 import { orgSparedOf, orgYoungKilledOf } from "../order/groups-kept.ts";
+import { endemicOf } from "../health/health.ts";
 import {
   CountDeltas,
   MONTH,
@@ -962,7 +963,9 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
       want = dietDeaths(world, p.cell),
       // (And its young killed by the underworld: sim/order/underworld.ts. Exactly 1 where none is kept.)
       // (And by its other groups, its brigands' and pirates' killing and its risings': sim/order/groups.ts. Nothing where none.)
-      killed = youngKilledOf(world, p.cell) + orgYoungKilledOf(world, p.cell),
+      // (And the sicknesses settled among its young: health/health.ts settle. Nothing where none.)
+      killed =
+        youngKilledOf(world, p.cell) + orgYoungKilledOf(world, p.cell) + endemicOf(world, p.cell),
       pressOn = (b: number, sex: number) =>
         mortality *
         (b < 2 ? want.young : want.grown) *

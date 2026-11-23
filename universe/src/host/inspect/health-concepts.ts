@@ -11,10 +11,10 @@ export const HEALTH_CONCEPTS: Readonly<Record<string, Concept>> = {
     title: "Sickness",
     what: [
       "A sickness is a thing of its own, with a name and a nature: how it passes — on the breath, in foul water, by vermin, by touch — how many of those it reaches take it, how many of those die, and how long the survivors are spared it.",
-      "It rises where life crowds: among herds kept close, in great crowded towns, in hot wet marshes. Most sicknesses are mild; a few of those whose survivors are spared for life are terrible — one that spares them only for some years kills few. Unseen for a generation it sleeps where it rose, and wakes there now and then; unseen for two centuries, it is gone.",
+      "A new one crosses into a people where the forces that bring one weigh most: herds kept close, the nearer kin their bodies the more; wild beasts hunted and butchered; a town and the towns its roads reach crowded past the size a sickness needs to go on; warm standing water, which breeds what carries it. Trade roads carry a crossing on before it can go out. Most sicknesses are mild; a few of those whose survivors are spared for life are terrible — one that spares them only for some years kills few. Unseen for a generation it sleeps where it rose, and wakes there now and then; unseen for two centuries, it is gone.",
     ],
     drives: [
-      "Herds, great towns and hot marshes, and many people among them.",
+      "Herds kept close and wild beasts hunted, the nearer kin to the people the more; great towns and their roads; warm standing water; and many people among them.",
       "Strangers come down from the stars, with the sicknesses of their own world.",
       "The god may loose one, or make a new one.",
     ],
