@@ -139,17 +139,23 @@ export function townNets(
       ...(temple ? [temple] : []),
     ],
     // (Round things standing on its ground past its blocks: the height it holds, its mound 34 m across; the ring street's trees.)
+    // (Of those, and of its strongholds, only those within reach of the blocks laid about the eye.)
     height = heightOf(scene),
+    laid =
+      Math.sqrt(order.reduce((m, b) => Math.max(m, d2(b)), 0)) + BLOCK_W + WIRE_MOST + KEEP_OFF,
+    near = <T extends { x: number; z: number }>(p: T, r: number): boolean =>
+      Math.hypot(p.x - focus.x, p.z - focus.z) - r < laid,
     rounds = [
       ...(height ? [{ x: height.x, z: height.z, r: HEIGHT_R }] : []),
       ...ringStreet(scene).flatMap((l) =>
         l.tree ? [{ x: l.tree[0], z: l.tree[1], r: RING_TREE / 2 }] : [],
       ),
-    ],
+    ].filter((p) => near(p, p.r)),
+    heldNear = held.filter((p) => near(p, p.r * HELD_DRAWN)),
     free = (x: number, z: number): boolean => {
       for (const p of rounds) if (Math.hypot(p.x - x, p.z - z) < p.r + KEEP_OFF) return false;
       // (A stronghold's ground is drawn raised a little past its round: view/strongholds.ts.)
-      for (const p of held)
+      for (const p of heldNear)
         if (Math.hypot(p.x - x, p.z - z) < p.r * HELD_DRAWN + KEEP_OFF) return false;
       for (const k of kept) {
         const c = Math.cos(k.yaw),
@@ -297,7 +303,21 @@ export function townNets(
   // stronghold's, no temple's steps: a line through the town that branches, never a web, and never through a house.)
   const over =
       tops.length > 1
-        ? lineOver([...kept, ...blockGround(lots, all, ash, held, HELD_PAD)], held, rounds)
+        ? lineOver(
+            [
+              ...kept,
+              // (Only the blocks a wire from a pole laid here could pass over.)
+              ...blockGround(lots, all, ash, held, HELD_PAD, {
+                ...focus,
+                r:
+                  Math.max(...tops.map(([x, z]) => Math.hypot(x - focus.x, z - focus.z))) +
+                  WIRE_MOST +
+                  BLOCK_W,
+              }),
+            ],
+            heldNear,
+            rounds,
+          )
         : null,
     strung: boolean[] = [],
     // (The nearest pole of those asked that a wire from pole i can reach; -1: none.)

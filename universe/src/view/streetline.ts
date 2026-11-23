@@ -35,11 +35,14 @@ export function blockGround(
   ash: number,
   held: readonly HoldPlace[],
   pad: number,
+  /** Only those whose middle lies within this round (none: all). */
+  within?: { readonly x: number; readonly z: number; readonly r: number },
 ): KeptGround[] {
   const b = lots.blocks,
     out: KeptGround[] = [];
   for (let k = 0; k < blocks; k++) {
     if (k * BLOCK_LOTS < ash || !(b.x[k]! === b.x[k]!)) continue;
+    if (within && Math.hypot(b.x[k]! - within.x, b.z[k]! - within.z) > within.r) continue;
     if (held.length && onHeld(held, b.x[k]!, b.z[k]!, pad)) continue;
     out.push({ x: b.x[k]!, z: b.z[k]!, yaw: b.yaw[k]!, w: BLOCK_W, d: BLOCK_D });
   }
