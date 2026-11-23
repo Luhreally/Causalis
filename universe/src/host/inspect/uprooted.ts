@@ -23,7 +23,12 @@ import { heldPhrase } from "../../causal/index.ts";
 import { count, item, link, part, stat } from "./words.ts";
 import { landLink, realmLink } from "./names.ts";
 
-const FLED_WHY = ["a war in their land", "the ruin of their land", "hunger"] as const;
+const FLED_WHY = [
+  "a war in their land",
+  "the ruin of their land",
+  "hunger",
+  "a law against their faith",
+] as const;
 
 const spanText = (s: Span): string => (typeof s === "string" ? s : s.text);
 

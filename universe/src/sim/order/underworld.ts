@@ -29,7 +29,8 @@
 // urban); its officers bought (sim/order corruption) and its reach thinned (capacityOf); its standing lowered by open killing and a
 // crew found out (legitimacy); the forbidden trade's organisation (sim/money/intox.ts BAR.cartel), and with it its smuggling.
 // One record a realm, one row a land; a realm's record goes with it.
-import { strangersIn } from "../culture/abroad-kept.ts";
+import { abroadOf, strangersIn } from "../culture/abroad-kept.ts";
+import { languagesOf } from "../culture/languages.ts";
 import { ABROAD } from "../../rules/index.ts";
 import {
   MAX_CAUSES,
@@ -720,15 +721,19 @@ function streetTowns(ctx: PopulationContext, p: Polity, r: Read): Town[] {
       members = Math.round(townYoung * pull * 0.3),
       gangs = Math.floor(members / 40);
     if (gangs <= 0) continue;
-    // (Who its gangs are: its own faith's, or where its quarters are set apart, the others' too.)
-    const other =
-      apart >= 0.3
-        ? faith !== seatFaith
-          ? seatFaith
-          : ([...faiths.entries()]
-              .filter(([x]) => x !== faith)
-              .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))[0]?.[0] ?? "strangers")
-        : null;
+    // (Who its gangs are: its own faith's, or where its quarters are set apart, the others' too: a people abroad in it many
+    // enough to be a quarter of their own, else those of another faith. A people abroad is told by its language: "folk:<n>".)
+    const abroad = apart >= 0.3 ? abroadOf(world)?.of(c)?.[0] : undefined,
+      other =
+        apart >= 0.3
+          ? abroad && abroad[1] >= ABROAD.quarter
+            ? `folk:${abroad[0]}`
+            : faith !== seatFaith
+              ? seatFaith
+              : ([...faiths.entries()]
+                  .filter(([x]) => x !== faith)
+                  .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))[0]?.[0] ?? "strangers")
+          : null;
     out.push({
       cell: c,
       people: n,
@@ -812,6 +817,10 @@ function stepFederations(f: Facts, towns: Town[], jails: boolean): void {
           fids: [fid],
           towns: towns.length,
           ...(first ? { against: first.name } : {}),
+          // (The gangs of a people abroad, allied across the realm's towns where their kin live.)
+          ...(id.startsWith("folk:") && f.ctx.world.hasStore("culture.languages")
+            ? { people: languagesOf(f.ctx.world).at(Number(id.slice(5))).name }
+            : {}),
         },
         first ? [{ ref: first.event, role: "pressure", weight: 1 }] : [],
         [

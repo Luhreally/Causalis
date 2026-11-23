@@ -2070,5 +2070,7 @@ export {
   type FarRuler,
 } from "./space/far-rulers.ts";
 export { peopleTemper } from "./space/peoples.ts";
+// Why a land's people leave it, past hunger (2026-11-22): sim/population/flight.ts.
+export { FLIGHT, FlightYear, flightYear, weighsWages } from "./population/flight.ts";
 // A land's woods against its tillable ground (sim/ecology/ecology.ts).
 export { WOODS_GONE_EVERY, fieldsTake } from "./ecology/ecology.ts";

@@ -28,6 +28,9 @@ export const ABROAD = {
   apart: 0.5,
   /** What strangers in a town add to how far its quarters are set apart, at the most (sim/order/underworld.ts). */
   street: 0.5,
+  /** A people abroad this share of a town's people (thousandths) is who the gangs of its set-apart quarters are: their gangs
+   * ally with their kin's in the realm's other towns (sim/order/underworld.ts federations). */
+  quarter: 120,
 } as const;
 
 /** What is left of a share `years` on: halved in ABROAD.halves generations, sooner the more alike their speech and the land's (0 … 1). */

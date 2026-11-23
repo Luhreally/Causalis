@@ -100,7 +100,9 @@ registerEventWords(HELD_EVENTS.fled.type, (world, e) => {
         ? "the war in their land"
         : d?.kind === "hunger"
           ? "hunger"
-          : "the ruin of their land";
+          : d?.kind === "faith"
+            ? "a law against their faith"
+            : "the ruin of their land";
   return `${n ? cap(count(n)) : "Many"} who fled ${why} came over the border from ${text(e.data, "b")} into ${landWords(world, e.place)}, ${year(e.t)}`;
 });
 
@@ -115,7 +117,13 @@ registerDecisionWords(
 
 // Those who fight their holder falling on the soldiers posted in their land (sim/war/raids.ts).
 registerEventWords(RAID_EVENTS.raid.type, (world, e) => {
-  const d = e.data as { group?: string; kind?: string; leader?: string; won?: boolean } | null,
+  const d = e.data as {
+      group?: string;
+      kind?: string;
+      leader?: string;
+      won?: boolean;
+      fire?: number;
+    } | null,
     dead = pair(e.data, "dead"),
     who = d?.group
       ? `The ${d.group} ${d.kind ?? "resistance"}${d.leader ? ` under ${d.leader}` : ""}`
@@ -124,7 +132,7 @@ registerEventWords(RAID_EVENTS.raid.type, (world, e) => {
       dead[0] + dead[1] > 0
         ? `: ${count(dead[0])} of the posted and ${count(dead[1])} of their own died`
         : "";
-  return `${who} fell on the soldiers of ${text(e.data, "a")} posted in ${landWords(world, e.place)}${d?.won === false ? " and were beaten off" : ""}${cost}, ${year(e.t)}`;
+  return `${who} fell on the soldiers of ${text(e.data, "a")} posted in ${landWords(world, e.place)}${d?.fire ? ", striking first from cover with the arms of their age" : ""}${d?.won === false ? " and were beaten off" : ""}${cost}, ${year(e.t)}`;
 });
 
 // A hired company on a battle's day (sim/war/companies.ts): gone home unpaid, gone over, or paid from a land's stores.
