@@ -70,9 +70,9 @@ test("a far people's seat passing is told once a reign, as a succession or a fal
 });
 
 test("an outlawing by name bites as far as its realm can act and reaches the group's lands", () => {
-  assert.equal(namedBite(0.8, []), 0);
-  assert.equal(namedBite(0, [1, 1]), 0);
-  assert.ok(Math.abs(namedBite(0.8, [1, 0.5]) - 0.6) < 1e-9);
-  assert.ok(namedBite(0.8, [0.2, 0.2]) < namedBite(0.8, [0.9, 0.9]), "far lands, less bite");
-  assert.equal(namedBite(2, [1]), 1);
+  assert.equal(namedBite([]), 0);
+  assert.equal(namedBite([0, 0]), 0);
+  assert.ok(Math.abs(namedBite([1, 0.5]) - 0.75) < 1e-9);
+  assert.ok(namedBite([0.2, 0.2]) < namedBite([0.9, 0.9]), "far lands, less bite");
+  assert.equal(namedBite([2]), 1);
 });

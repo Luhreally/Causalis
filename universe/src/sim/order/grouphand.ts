@@ -111,17 +111,17 @@ export const OUTLAW_COSTS = 0.04;
 // —— A realm's own word on its groups, and how far an outlawing by name bites ————————————————————————————————
 
 /**
- * How far a realm's hand bites on a group it outlawed by name (0 … 1): its capacity to act, by how far its seat reaches the
- * group's lands (the mean of them). ORG.fears of what its stakes would gather stay away at a full bite, and its crackdown takes
+ * How far a realm's hand bites on a group it outlawed by name (0 … 1): how far its will is done in the group's lands (its
+ * capacity as it reaches each, sim/order/order.ts reachOver: the mean of them). ORG.fears of what its stakes would gather stay away at a full bite, and its crackdown takes
  * of it at least the bite (sim/order/groups.ts). (Before 2026-11-22 an outlawing by name was the same as any outlawing: a
  * crackdown of a few in a hundred a year against stakes that drew men back at a third a year, and of seven groups the god
  * outlawed on tide at 1000, four were larger fifteen years on than in the same world unhanded, one three times.)
  */
-export function namedBite(capacity: number, reach: readonly number[]): number {
+export function namedBite(reach: readonly number[]): number {
   if (!reach.length) return 0;
   let s = 0;
   for (const x of reach) s += x;
-  return Math.min(1, Math.max(0, capacity) * (s / reach.length));
+  return Math.min(1, Math.max(0, s / reach.length));
 }
 
 /**

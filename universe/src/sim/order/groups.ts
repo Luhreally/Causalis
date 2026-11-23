@@ -1167,14 +1167,9 @@ function stepRealm(
   // (Its own word on a group by name, from what its interests want of it: ./grouphand.ts. Read below as any decree is.)
   // (Every other reckoning: once in ten years, as its laws are weighed.)
   if ((year + refNumber(p.ref)) % (2 * ORG.every) < ORG.every) realmDecrees(ctx, p, v.orgs, r, t);
-  // (How far its hand bites on a group outlawed by name: its capacity by its reach over the group's lands.)
+  // (How far its hand bites on a group outlawed by name: how far its will is done in the group's lands.)
   const biteOf = (g: Org) =>
-    g.decree === 0
-      ? namedBite(
-          r.capacity,
-          g.lands.map((c) => lands.get(c)?.reach ?? 0),
-        )
-      : 0;
+    g.decree === 0 ? namedBite(g.lands.map((c) => lands.get(c)?.reach ?? 0)) : 0;
 
   // 1. Each group's aims move toward the stakes in its reach; its kind is read again; its men move toward what its stake keeps.
   const harmBefore =

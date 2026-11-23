@@ -184,7 +184,7 @@ export const ORG = {
   taken: 0.15,
   /**
    * A group outlawed by name (a decree: the god's, its ruler's, its realm's own) has its realm's hand turned on it as far as the
-   * realm reaches it and can act (its capacity by its seat's reach over the group's lands: sim/order/grouphand.ts namedBite): of
+   * realm reaches it and can act (how far its will is done in the group's lands: sim/order/grouphand.ts namedBite): of
    * those its stakes would gather, this share at a full bite stay away for fear, and its crackdown takes of it at the least the
    * bite itself. An outlawing the realm cannot carry where the group is does little.
    */
