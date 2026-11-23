@@ -43,6 +43,9 @@ import {
   OCC,
   adultHazard,
   civicsPaying,
+  keptFixed,
+  keptPeople,
+  leastEver,
   payingPeople,
   timePreference,
   type CivicDef,
@@ -1210,10 +1213,12 @@ export class TownBuilder {
       // (Runs as kept: a run let go, or joined into another, is told gone.)
       beside: number[] = [],
       R = f.changes;
-    let next = Infinity;
+    let next = Infinity,
+      dueNow = false;
     if (ruins.next <= year) {
       const weathered = ruins.list.filter((h) => R.alive(h) && R.v(R.slotOf(h), 4) < gone);
       if (weathered.length) {
+        dueNow = true;
         R.keep((b) => isHome(R.v(b, 0)) || R.v(b, 4) >= gone);
         // (A ruin let go keeps its numbers till its slot is taken again: none is taken here.)
         for (const h of weathered) {
@@ -1232,26 +1237,38 @@ export class TownBuilder {
         }
       list.length = w;
     }
-    // (Kept in place: those still young.)
+    // (Only a year a run comes to be history, or a ruin weathers away, joins anything, as settleAll: a year brought near by a
+    // change since let go brings nothing due, and a run parted that was history already, or a building raised since, waits
+    // for one that does. Joined in any other year, a town that went on joined across a building where one loaded from a
+    // save, going over all its runs, did not: juniper, Noubuey and Vigramenford.)
+    if (!dueNow)
+      for (const h of young)
+        if (R.alive(h) && R.v(R.slotOf(h), 4) === old) {
+          dueNow = true;
+          break;
+        }
+    // (Kept in place: those still young, and those waiting.)
     let w = 0;
     for (const h of young) {
       if (!R.alive(h)) continue;
-      const c = R.slotOf(h);
-      if (R.v(c, 4) <= old) {
+      const c = R.slotOf(h),
+        end = R.v(c, 4);
+      if (dueNow && end <= old) {
         if (isHome(R.v(c, 0))) R.w(c, 0, CHANGE.built);
         beside.push(h);
       } else {
         young[w++] = h;
-        next = Math.min(next, R.v(c, 4) + SETTLED);
+        if (end > old) next = Math.min(next, end + SETTLED);
       }
     }
     young.length = w;
     const cs = f.civics;
-    for (let k = last.buildings; k < cs.length; k++) {
-      if (cs.fellAt(k) !== NO_FALL) continue;
-      const i = runAfter(R, cs.lotAt(k));
-      if (i > 0) beside.push(R.handle(R.slot(i - 1)));
-    }
+    if (dueNow)
+      for (let k = last.buildings; k < cs.length; k++) {
+        if (cs.fellAt(k) !== NO_FALL) continue;
+        const i = runAfter(R, cs.lotAt(k));
+        if (i > 0) beside.push(R.handle(R.slot(i - 1)));
+      }
     if (beside.length) this.joinAbout(f, beside, old);
     let fallen = false;
     for (let k = 0, cs = f.civics; k < cs.length; k++) {
@@ -1267,7 +1284,8 @@ export class TownBuilder {
       due: next,
       asked: year,
       civics: f.civics.version,
-      buildings: f.civics.length,
+      // (Not due, those raised since wait; where fallen ones were let go, their places shift, and all are gone over then.)
+      buildings: dueNow ? f.civics.length : fallen ? 0 : last.buildings,
     });
   }
 
@@ -1315,12 +1333,16 @@ export class TownBuilder {
     }
     this.store.young.set(f, young);
     this.store.ruins.set(f, { list, next: ruinsNext });
+    // (Where nothing came due, nothing was joined: the runs on either side of a building raised before now, history both,
+    // stand apart until something comes due, when every one of them is gone over as if raised since. Told it was gone over,
+    // a world loaded from a save, whose first settling is this one, never joined a run across a building raised before it
+    // was saved that the world that went on joined when its next run came to be history: juniper, a kiln at Stethisen.)
     this.store.settled.set(f, {
       year,
       due: next,
       asked: year,
       civics: f.civics.version,
-      buildings: f.civics.length,
+      buildings: due ? f.civics.length : 0,
     });
   }
 
@@ -1955,11 +1977,8 @@ export class TownBuilder {
     // once a weighing, and only once a kind it lacks is open to it: most of a world's towns, weighed, want nothing new.)
     let use: TownUse | null = null;
     // What stands of each kind (what took a building's place stands for it: a temple is the
-    // town's shrine), and what is rising; one fallen out of use a year, its town emptied to below
-    // a third of the people it first rose among in history (CivicDef.people). (Falling where its use is
-    // under a third of its charge, as rising is weighed, makes many more falls, and a town with a
-    // fallen building loaded from a save settles its runs apart from the one that went on: tests/sim/
-    // town.test.ts, juniper, year 107. Left for the fabric's ruin settling to be made whole first.)
+    // town's shrine), and what is rising; one fallen out of use a year, its use no longer worth
+    // what keeping it up costs (rules/civicworth.ts keptPeople).
     HAVE.fill(0);
     RISING.fill(0);
     let emptied = false;
@@ -1968,7 +1987,14 @@ export class TownBuilder {
     for (let j = 0; j < cs.length; j++) {
       if (cs.fellAt(j) !== NO_FALL) continue;
       const i = cs.kindAt(j);
-      if (!emptied && cs.endAt(j) <= this.year && people < Math.max(30, CIVICS[i]!.people) / 3) {
+      if (
+        !emptied &&
+        cs.endAt(j) <= this.year &&
+        people <
+          (Number.isNaN(KEPT_FIXED[i]!)
+            ? keptPeople(CIVICS[i]!, CIVIC_LOTS[CIVICS[i]!.kind], (use ??= townUseOf(this.ctx, s)))
+            : KEPT_FIXED[i]!)
+      ) {
         this.fall(f, cs.get(j)!, FOLD.fell);
         emptied = true;
         continue;
@@ -1980,7 +2006,8 @@ export class TownBuilder {
     let begun = 0;
     for (let i = 0; i < CIVICS.length && begun < (city ? 2 : 1); i++) {
       const def = CIVICS[i]!;
-      if ((def.market && !s.market) || (def.city && !city) || RISING[i]) continue;
+      if ((def.market && !s.market) || (def.city && !city) || RISING[i] || people < LEAST_EVER[i]!)
+        continue;
       if (!this.meets(def, i, k)) continue;
       // (As many as their use pays for, in this town: rules/civicworth.ts.)
       use ??= townUseOf(this.ctx, s);
@@ -2247,6 +2274,9 @@ export function townUseOf(ctx: PopulationContext, s: Settlement): TownUse {
 
 /** Scratch for a town's buildings by kind: how many stand, whether one is rising. */
 const HAVE = new Int32Array(CIVICS.length),
+  /** Each kind's fewest people to pay in any town, and what keeps it where that rests on its people alone (rules/civicworth.ts). */
+  LEAST_EVER = Float64Array.from(CIVICS, (d) => leastEver(d, CIVIC_LOTS[d.kind])),
+  KEPT_FIXED = Float64Array.from(CIVICS, (d) => keptFixed(d, CIVIC_LOTS[d.kind])),
   RISING = new Uint8Array(CIVICS.length),
   /** Each kind's: the people below which one long built falls out of use, and the kind it takes the place of (-1: none). */
   REPLACES = Int8Array.from(CIVICS, (d) => (d.replaces ? CIVIC_INDEX.get(d.replaces)! : -1));

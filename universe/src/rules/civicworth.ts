@@ -4,7 +4,7 @@
 // upkeep. Its use is what it adds to, or saves of, the year of each of those it serves (all its people, or its crafters, traders,
 // learned or young) at their own work's worth. The first of a kind rises once those it serves are enough for its use to carry its
 // charge; more rise as each, serving the next of them (up to the many one building serves, rules/buildings.ts `per`), still pays;
-// it falls, as before, once its town has emptied to a third of the people it first rose among. What a building does is written here, a share of a year; where, when
+// one stands while its use carries what keeping it up costs (its raising is spent). What a building does is written here, a share of a year; where, when
 // and how many is each town's: its size, who works in it, what they earn against its builders, how patient its people are.
 // Pure tables and functions.
 import type { CivicDef, CivicKind } from "./buildings.ts";
@@ -105,6 +105,34 @@ export function payingPeople(def: CivicDef, lots: number, town: TownUse): number
   const u = USER_AT[CIVIC_USE[def.kind].users],
     each = eachGains(def, town) * Math.max(0, town.share[u] ?? 0);
   return each > 0 ? civicCharge(def, lots, town.preference) / each : Infinity;
+}
+
+/**
+ * The fewest people at which one standing pays its upkeep in a town like this one (Infinity: it never does): what was spent
+ * raising it is spent, and it stands while its use carries what keeping it up costs.
+ */
+export function keptPeople(def: CivicDef, lots: number, town: TownUse): number {
+  const u = USER_AT[CIVIC_USE[def.kind].users],
+    each = eachGains(def, town) * Math.max(0, town.share[u] ?? 0);
+  return each > 0 ? (def.years * lots * BUILDERS_A_LOT * CIVIC_UPKEEP) / each : Infinity;
+}
+
+/**
+ * The fewest people at which a kind could pay in any town (Infinity: never): its charge at the most patient people's preference,
+ * against its gain where all its people are those it serves, earning the most against the going wage that any can (four times it;
+ * all its people and its young earn the going wage itself). A town below it need not be read.
+ */
+export function leastEver(def: CivicDef, lots: number): number {
+  const use = CIVIC_USE[def.kind],
+    most = use.users === "people" || use.users === "young" ? 1 : 4;
+  return use.gain > 0 ? civicCharge(def, lots, 0.001) / (use.gain * most) : Infinity;
+}
+
+/** Where it rests on nothing of the town but its people (a building for all of them): keptPeople, read without the town; else NaN. */
+export function keptFixed(def: CivicDef, lots: number): number {
+  const use = CIVIC_USE[def.kind];
+  if (use.users !== "people") return NaN;
+  return use.gain > 0 ? (def.years * lots * BUILDERS_A_LOT * CIVIC_UPKEEP) / use.gain : Infinity;
 }
 
 /**
