@@ -146,8 +146,25 @@ registerEventWords(INST_EVENTS.hand.type, (world, e) => {
   return `The god ${act === "bless" ? "blessed" : act === "curse" ? "cursed" : act === "charter" ? "granted its charter to" : act === "outlaw" ? "outlawed" : "took under its hand"} ${body(x)} of ${realmOf(world, e.subjects[0] ?? "")}, ${year(e.t)}`;
 });
 
+// A house of higher learning (2026-11-22: sim/order/institutions.ts higherStep): raised where learning, what is paid and one who
+// gives for it meet; shut by its seat or the faith that holds its land.
+registerEventWords(INST_EVENTS.raised.type, (world, e) => {
+  const x = d(e.data) as (Data & { patron?: string; society?: string }) | null;
+  return `${cap(bodyWords(x?.body, x?.was ?? "school"))} of ${realmOf(world, e.subjects[0] ?? "")} was raised to a house of higher learning, ${bodyWords(x?.body, x?.title ?? "academy")}${x?.patron ? `, ${x.patron} giving for it` : ""}${x?.society ? `, the ${x.society} learned society its first fellows` : ""}${x?.leader ? `, ${x.leader} at its head` : ""}, ${year(e.t)}`;
+});
+registerEventWords(INST_EVENTS.closed.type, (world, e) => {
+  const x = d(e.data) as (Data & { by?: string; faith?: string }) | null,
+    by =
+      x?.by === "faith"
+        ? `the ${x?.faith ?? "faith that holds its land"} faithful, who hold that inquiry angers the power behind the world`
+        : `its seat, which lets no word be free`;
+  return `${cap(bodyWords(x?.body, x?.was ?? "academy"))} of ${realmOf(world, e.subjects[0] ?? "")} was shut as a house of higher learning by ${by}; it teaches on as ${bodyWords(x?.body, x?.title ?? "school")}, ${year(e.t)}`;
+});
+
 for (const [type, words] of [
   [INST_EVENTS.founded.type, "A body was founded in"],
+  [INST_EVENTS.raised.type, "A house of teaching was raised to higher learning in"],
+  [INST_EVENTS.closed.type, "A house of higher learning was shut in"],
   [INST_EVENTS.standing.type, "A body's standing changed in"],
   [INST_EVENTS.strike.type, "Workers struck in"],
   [INST_EVENTS.told.type, "A voice told of a body that was bought in"],

@@ -716,3 +716,21 @@ export function basisOfCrime(kind: "protection" | "cartel" | "badge"): Basis {
         { does: "order", fund: "plunder", answers: "no one", standing: 0 }
       : { does: "order", fund: "plunder", answers: "no one", standing: 0 };
 }
+
+/**
+ * A house of higher learning (2026-11-22: sim/order/institutions.ts higherStep). Raised where its land is this learned (less where
+ * a learned society holds there), what is paid keeps this many times the fewest hands teaching takes, and one who gives for it
+ * meets them; it falls back to a school where its land's learning falls under `falls`. Its seat shuts it where word is not free
+ * (INST.shuts) and the seat rules by arms past `force`; a faith shuts it where its creed fears past `fears` and its clergy hold
+ * past `clergy`; shut, it is not raised again for `shutYears`.
+ */
+export const HIGHER = {
+  learned: 0.5,
+  society: 0.4,
+  falls: 0.25,
+  staff: 2,
+  force: 0.6,
+  fears: 0.6,
+  clergy: 0.5,
+  shutYears: 25,
+} as const;

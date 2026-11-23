@@ -48,6 +48,11 @@ import {
   G,
   HOLD,
   INST,
+  HIGHER,
+  DOMAIN,
+  NOTE,
+  ORG_KINDS,
+  TENET_POWERS,
   INST_ANSWERS,
   INST_DOES,
   INST_FORMED,
@@ -108,7 +113,8 @@ import { addsReach, addsStanding, capacityOf, orderOf } from "./order.ts";
 import { holdOf } from "./holds.ts";
 import { housesOf } from "./houses.ts";
 import { collusionIn, killedOf } from "./underworld-kept.ts";
-import { orgInquiryOf } from "./groups-kept.ts";
+import { orgInquiryOf, orgsOf } from "./groups-kept.ts";
+import { notablesOf } from "../notable/kept.ts";
 import { trials } from "./deeds.ts";
 import { grieve } from "../acts/disasters.ts";
 import {
@@ -119,6 +125,7 @@ import {
   bodiesOf,
   bodyLandsStore,
   healedIn,
+  clergyIn,
   higherIn,
   taughtIn,
   type Body,
@@ -142,6 +149,10 @@ export const INST_EVENTS = {
   told: defineEventType("bodies.told", 3),
   /** The god's hand laid on it. */
   hand: defineEventType("act.body", 4),
+  /** A house of teaching raised to higher learning where learning, what is paid and one who gives for it meet (2026-11-22). */
+  raised: defineEventType("bodies.raised", 3),
+  /** A house of higher learning shut by its seat, or by the faith that holds its land. */
+  closed: defineEventType("bodies.closed", 3),
 };
 
 const DRAW = defineStream("order.bodies");
@@ -706,6 +717,150 @@ function ended(f: Facts, g: Body, how: InstEnd, factors: Factor[], into?: Body):
   ].slice(-INST.gone);
 }
 
+// —— Houses of higher learning ——————————————————————————————————————————————————————————————————————————————
+
+/** The learned society that holds in a land, where one does (its name and its rising), of a realm's groups. */
+function societyIn(f: Facts, cell: number): { name: string; event: Ref } | null {
+  if (orgInquiryOf(f.ctx.world, cell) <= 0) return null;
+  const kind = ORG_KINDS.indexOf("learned society");
+  for (const o of orgsOf(f.ctx.world)?.of(f.p.ref)?.orgs ?? [])
+    if (o.kind === kind && o.lands.includes(cell)) return { name: o.name, event: o.event };
+  return null;
+}
+
+/** Of a land's living of name, the one who stands highest for their wealth, where one stands past half the line. */
+function patronIn(f: Facts, cell: number): { id: string; name: string } | null {
+  let best: { id: number; name: string; by: number } | null = null;
+  for (const n of notablesOf(f.ctx.world)?.in(cell) ?? []) {
+    const by = n.by[DOMAIN.wealth] ?? 0;
+    if (n.many || by < NOTE.line / 2) continue;
+    if (!best || by > best.by || (by === best.by && n.id < best.id))
+      best = { id: n.id, name: n.name, by };
+  }
+  return best ? { id: `note:named:${best.id}`, name: best.name } : null;
+}
+
+/**
+ * A house of teaching as a house of higher learning (asked 2026-11-22: "universities as institutions ... founded where learning,
+ * wealth and a patron meet, closed by the seat or a faith, and it feeds learning"). It is raised where its land is learned enough
+ * (less where a learned society already holds there: its fellows are the first who teach in it), what is paid keeps twice the
+ * fewest hands its work takes, and someone gives for it beyond those taught: a house, the seat, a faith's tithes, or one of name
+ * grown rich in its land. Its seat shuts it where it lets no word be free and rules by arms, unless it is the seat's own; a faith
+ * that holds its land strongly and fears the power behind the world (rules/faith.ts: a creed of harm, against inquiry) shuts one
+ * it does not keep itself. Shut, it is not raised again for a generation. As before, it falls back to a school untold where its
+ * land's learning fails. What flows back is the old hook: its land inquires the more (higherIn), and its learned of name arise
+ * the more readily there (sim/notable/notables.ts).
+ */
+function higherStep(f: Facts, g: Body, home: Land, least: number, guarded: boolean): void {
+  const { r, year } = f,
+    world = f.ctx.world;
+  if (g.higher === 1) {
+    // (Its founder, known by name since its raising (sim/notable/notables.ts), heads it while they live and head it.)
+    if (!g.headId && g.raised !== undefined && g.leader.since <= g.raised) {
+      const n = notablesOf(world)
+        ?.in(home.cell)
+        .find((x) => x.name === g.leader.name && x.deeds.some((d) => d.e === g.raisedBy));
+      if (n) g.headId = g.founderId = `note:named:${n.id}`;
+    }
+    if (home.learned < HIGHER.falls) {
+      delete g.higher;
+      return;
+    }
+    if (guarded || g.since >= year) return;
+    const faith = home.faith ? beliefOf(world).get(home.faith) : undefined,
+      fears = faith ? (TENET_POWERS[faith.tenet]?.harms ?? 0) : 0,
+      clergy = clergyIn(world, home.cell),
+      bySeat = g.answers !== ANSWERS.seat && r.word < INST.shuts && r.force >= HIGHER.force,
+      byFaith =
+        !bySeat &&
+        !!faith &&
+        fears >= HIGHER.fears &&
+        clergy >= HIGHER.clergy &&
+        g.keeper !== faith.ref;
+    if (!bySeat && !byFaith) return;
+    const was = titleOf(g, home);
+    delete g.higher;
+    g.shut = year + HIGHER.shutYears;
+    tell(
+      f,
+      INST_EVENTS.closed.type,
+      home.cell,
+      {
+        body: g.name,
+        title: titleOf(g, home),
+        was,
+        by: bySeat ? "seat" : "faith",
+        ...(byFaith ? { faith: faith!.name } : {}),
+        since: g.raised ?? g.since,
+      },
+      [
+        { ref: g.raisedBy ?? g.event, role: "enabler", weight: 1 },
+        ...(byFaith ? [{ ref: faith!.event, role: "pressure" as const, weight: 1 }] : []),
+      ],
+      bySeat
+        ? [
+            factor("how free its realm lets word be", r2(r.word), -1),
+            factor("how far its seat rules by arms", r2(r.force), 1),
+          ]
+        : [
+            factor("how far its faith fears the power behind the world", r2(fears), 1),
+            factor("its clergy's hold on its land", r2(clergy), 1),
+          ],
+    );
+    return;
+  }
+  if (g.shut !== undefined && g.shut >= year) return;
+  if (g.shut !== undefined) delete g.shut;
+  const society = societyIn(f, home.cell),
+    learned = home.learned >= (society ? HIGHER.society : HIGHER.learned),
+    paid = g.staff >= HIGHER.staff * least;
+  if (!learned || !paid) return;
+  // (One who gives beyond those taught: whoever keeps it, where it is not kept by their fees; else one grown rich there.)
+  const gives = g.fund === FUND.patron || g.fund === FUND.treasury || g.fund === FUND.tithes,
+    rich = gives ? null : patronIn(f, home.cell);
+  if (!gives && !rich) return;
+  const was = titleOf(g, home);
+  g.higher = 1;
+  g.raised = year;
+  if (rich) g.patron = rich.id;
+  else delete g.patron;
+  if (society) g.society = society.name;
+  else delete g.society;
+  const keptBy =
+    g.fund === FUND.patron
+      ? g.keeper || "a great house"
+      : g.fund === FUND.treasury
+        ? "the seat"
+        : g.fund === FUND.tithes
+          ? (beliefOf(world).get(g.keeper as Ref)?.name ?? "its faith")
+          : rich!.name;
+  g.raisedBy = tell(
+    f,
+    INST_EVENTS.raised.type,
+    home.cell,
+    {
+      body: g.name,
+      title: titleOf(g, home),
+      was,
+      leader: g.leader.name,
+      born: g.leader.born,
+      ...(g.headId ? { head: g.headId } : {}),
+      patron: keptBy,
+      ...(rich ? { patronId: rich.id } : {}),
+      ...(society ? { society: society.name } : {}),
+    },
+    [
+      { ref: g.event, role: "enabler", weight: 1 },
+      ...(society ? [{ ref: society.event, role: "enabler" as const, weight: 1 }] : []),
+    ],
+    [
+      factor("how learned its land is", r2(home.learned), 1),
+      factor("the hands what is paid for it keeps", g.staff, 1),
+      ...(society ? [factor("a learned society holding there", 1, 0.5)] : []),
+    ],
+  );
+}
+
 // —— One realm's bodies, stepped `span` years ————————————————————————————————————————————————————————————
 
 function fresh(year: number): RealmBodies {
@@ -944,10 +1099,7 @@ function stepRealm(
           (g.watched !== undefined && g.watched >= year ? INST.watchedHonest : 0),
       );
     if (g.watched !== undefined && g.watched < year) delete g.watched;
-    if (g.does === DOES.teach) {
-      if (home.learned >= 0.5 && g.staff >= 2 * rowOf.least) g.higher = 1;
-      else if (home.learned < 0.25) delete g.higher;
-    }
+    if (g.does === DOES.teach) higherStep(f, g, home, rowOf.least, guarded);
     if (g.does === DOES.judge) {
       // (Those it holds: for the people its reach covers, as it is manned, the more under a seat that holds by arms and
       // answers to no voice, and where its land is killed in. Rules heldBy.)

@@ -48,6 +48,16 @@ export type Body = {
   share: number;
   /** 1: a house of higher learning (it inquires as well as teaches). */
   higher?: number;
+  /**
+   * As a house of higher learning (2026-11-22: universities as named bodies, sim/order/institutions.ts higherStep): the year it
+   * was raised to it, and the event that told it; the one of name who gave for it, where one did (a notable's page ref); the
+   * learned society of its land it rose among (its name), where one held; the year until which its seat or a faith keeps it shut.
+   */
+  raised?: number;
+  raisedBy?: Ref;
+  patron?: string;
+  society?: string;
+  shut?: number;
   /** Those a court holds (heads). */
   held?: number;
   /** Those it holds by name (sim/order/deeds.ts: at most JUSTICE.inmates, the latest): who, their page, since and until, what they were. */

@@ -77,6 +77,7 @@ import { politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import { courtOf } from "../court/court.ts";
 import { bearerOddsOf } from "../society/kept.ts";
 import { organisedIn } from "../order/groups-kept.ts";
+import { higherIn } from "../order/institutions-kept.ts";
 import {
   NotablesStore,
   notableInquires,
@@ -128,6 +129,8 @@ const OCCASIONS: Readonly<Record<string, Occasion>> = {
   "order.law": { d: DOMAIN.law, share: 0.6, note: "realm" },
   "society.written": { d: DOMAIN.law, share: 1, note: "realm" },
   "credit.founded": { d: DOMAIN.wealth, share: 0.8, note: "name" },
+  // (A house of teaching raised to higher learning: its head then is its founder, known by name from then. 2026-11-22.)
+  "bodies.raised": { d: DOMAIN.knowledge, share: 1, note: "body" },
   "trade.sea-route": { d: DOMAIN.exploration, share: 0.6, note: "good" },
   "province.peopled": { d: DOMAIN.exploration, share: 0.4 },
   "space.crew": { d: DOMAIN.exploration, share: 1 },
@@ -429,12 +432,19 @@ function occasion(r: Run, e: HistoryEvent, o: Occasion, inspired: Map<number, nu
   };
   // (One the god inspired this year is the one who found what their land then found.)
   // (And one who led a faith out is named by the faith's own telling: sim/belief.)
-  const led = e.type.startsWith("lore.")
+  // (A house raised to higher learning: by the one of name at its head, where it is one.)
+  const raised = e.type === "bodies.raised",
+    headed = raised && typeof data.head === "string" ? /^note:named:(\d+)$/.exec(data.head) : null,
+    led = e.type.startsWith("lore.")
       ? inspired.get(cell)
-      : typeof data.by === "string"
-        ? store.in(cell).find((n) => n.name === data.by)?.id
-        : undefined,
-    standing = led !== undefined ? store.get(led) : standingIn(store, cell, o.d),
+      : headed && store.get(Number(headed[1]))
+        ? Number(headed[1])
+        : typeof data.by === "string"
+          ? store.in(cell).find((n) => n.name === data.by)?.id
+          : undefined,
+    // (Its founder is its head, and no other of the land's learned.)
+    standing =
+      led !== undefined ? store.get(led) : raised ? undefined : standingIn(store, cell, o.d),
     // (One who founds a faith or leads one out speaks for the new one from then on.)
     spoken = e.type.startsWith("belief.")
       ? e.subjects.find((s) => kindCodeOf(s) === "faith")
@@ -502,16 +512,19 @@ function occasion(r: Run, e: HistoryEvent, o: Occasion, inspired: Map<number, nu
           read *
           (e.type === "order.elected" ? 0.5 : 1) *
           (r.many ? NOTE.hiveShare : 1);
-  if (!noticed && !e.type.startsWith("act.inspire") && e.type !== INSPIRED) return;
-  // (One a people chose by name, a party's head: the one who arises is that person, of that name and birth.)
-  const chosen =
-    e.type === "order.elected" && typeof data.by === "string" && data.by
-      ? {
-          name: data.by,
-          sex: u(3) < 0.5 ? 1 : 0,
-          ...(typeof data.born === "number" ? { born: data.born } : {}),
-        }
-      : undefined;
+  // (A house of higher learning's founder is always known by name: they head what outlives them.)
+  if (!noticed && !raised && !e.type.startsWith("act.inspire") && e.type !== INSPIRED) return;
+  // (One a people chose by name, a party's head: the one who arises is that person, of that name and birth. And a house of
+  // higher learning's head at its raising.)
+  const named = e.type === "order.elected" ? data.by : raised ? data.leader : undefined,
+    chosen =
+      typeof named === "string" && named
+        ? {
+            name: named,
+            sex: u(3) < 0.5 ? 1 : 0,
+            ...(typeof data.born === "number" ? { born: data.born } : {}),
+          }
+        : undefined;
   const n = arise(r, cell, key, Math.max(NOTE.line, made), deed, general ?? chosen);
   if (e.type.startsWith("act.inspire") || e.type === INSPIRED) inspired.set(cell, n.id);
   if (spoken) n.faith = spoken;
@@ -544,7 +557,11 @@ function doersOf(
     dev = new Array<number>(D).fill(0);
   // (Those who keep what is known where few read are few; where many are learned, the learned.)
   doers[DOMAIN.knowledge] = people * Math.max(0.0005, learned, 0.01 * readers);
-  dev[DOMAIN.knowledge] = known * (0.3 + 0.7 * Math.min(1, readers * 2));
+  // (A house of higher learning keeps its scholars at it: the learned there come to be known the more readily. 2026-11-22.)
+  dev[DOMAIN.knowledge] = Math.min(
+    1,
+    known * (0.3 + 0.7 * Math.min(1, readers * 2)) * (1 + 0.5 * higherIn(world, cell)),
+  );
   doers[DOMAIN.making] = m.makers;
   dev[DOMAIN.making] = Math.min(1, 0.4 * known + 0.6 * Math.min(1, art?.renown ?? 0));
   doers[DOMAIN.faith] = m.clergy + people * 0.001 * piety;
