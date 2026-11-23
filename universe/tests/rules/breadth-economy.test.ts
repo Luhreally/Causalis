@@ -2,8 +2,14 @@
 // saving, exchange between moneys, what a town's building is worth, grants of sole use, lock-in.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { CIVIC_LOTS } from "../../src/sim/town/fabric.ts";
 import {
   CIVICS,
+  FIRM_CREW,
+  FIRM_SAVING,
+  firmPays,
+  keptPeople,
+  leastEver,
   G,
   HUMANLIKE,
   PRINCIPLES,
@@ -13,7 +19,9 @@ import {
   civicsPaying,
   exchangeRate,
   exchangeRisk,
-  fuelMix,
+  BLEND_WHOLE,
+  blendIn,
+  blendMix,
   grantPull,
   grantTerm,
   grantsPay,
@@ -51,9 +59,16 @@ test("more kinds serve more, and lower the price index; one kind changes nothing
 });
 
 test("a fuel class's stock is read by what the land drew of each kind, else its first kind", () => {
-  assert.deepEqual(fuelMix({ oil: 30, gas: 10 }, G.oil, "oil"), { oil: 0.75, gas: 0.25 });
-  assert.deepEqual(fuelMix({}, G.coal, "coal"), { coal: 1 });
-  assert.deepEqual(fuelMix({ sulphur: 5 }, G.coal, "coal"), { sulphur: 1 });
+  // (A stock's kinds as they came into it: 30 oil, then 10 gas; and carried at the shares it left at.)
+  const here = [0, 0, 0];
+  blendIn(here, G.oil, 30, 30, null);
+  blendIn(here, G.oil, 40, 10, "gas");
+  assert.deepEqual(blendMix(here, G.oil, "oil"), { gas: 0.25, oil: 0.75 });
+  assert.deepEqual(blendMix(here, G.coal, "coal"), { coal: 1 });
+  const there = [0, 0, 0];
+  blendIn(there, G.coal, 5, 5, "sulphur");
+  blendIn(there, G.coal, 10, 5, null, [0, 0, BLEND_WHOLE]);
+  assert.deepEqual(blendMix(there, G.coal, "coal"), { sulphur: 1, coal: 0 });
 });
 
 test("time preference is the body's hazard, the higher in a hungry year; interest makes good the losses", () => {
@@ -118,5 +133,29 @@ test("lock-in: a rival way built on holds back a new one while what was built st
   for (const [pid, list] of RIVALS) {
     const pp = PRINCIPLES.find((x) => x.id === pid)!;
     for (const r of list) assert.ok(!pp.needs.some((n) => n.split("|").includes(r.id)));
+  }
+});
+
+test("a firm stands where a road's bulk at what it saves pays a crew's year; a building is kept below where it rose", () => {
+  const wage = 10,
+    haul = 2,
+    least = (FIRM_CREW * wage) / (haul * FIRM_SAVING);
+  assert.equal(firmPays(least * 0.99, haul, wage), false);
+  assert.equal(firmPays(least, haul, wage), true);
+  assert.equal(firmPays(least * 10, 0, wage), false);
+  const town = {
+    people: 1000,
+    share: [1, 0.1, 0.1, 0.02, 0.3],
+    worth: [1, 1.5, 2, 3, 1],
+    preference: 0.02,
+  };
+  for (const def of CIVICS) {
+    const lots = CIVIC_LOTS[def.kind],
+      rise = payingPeople(def, lots, town),
+      kept = keptPeople(def, lots, town);
+    if (!Number.isFinite(rise)) continue;
+    // (Its upkeep is part of what raising it must pay: kept below the people it rose among, and none rises below the least.)
+    assert.ok(kept < rise, def.kind);
+    assert.ok(leastEver(def, lots) <= rise + 1e-9, def.kind);
   }
 });

@@ -73,21 +73,48 @@ export const FUEL_WORDS: Readonly<Record<FuelKind, string>> = {
   sulphur: "sulphur gathered by the vents",
 };
 
+/** The kinds a fuel class's stock may hold that are not its first (rules above): their shares of it, in millionths, kept by a market. */
+export const BLENDED: readonly FuelKind[] = ["gas", "haze", "sulphur"];
+/** A share's whole (millionths). */
+export const BLEND_WHOLE = 1_000_000;
+
 /**
- * What a land's stock of a fuel class is, by kind: what it drew of each this year, as shares; where it drew none of the class,
- * all of the class's first kind its world holds (`primary`). What it was brought is reckoned as what it draws itself, or as its
- * world's first: a unit's kind is not carried with it.
+ * A class's stock with `n` units of a kind just come into it (`from`: the shares those units came at, as when they were carried
+ * from another land; else all of `kind`, or of the class's first kind when null): every share as it now stands. `stock` is the
+ * class's stock with them in. A burning or a sale takes of every kind alike, and leaves its shares as they were.
  */
-export function fuelMix(
-  drew: Readonly<Partial<Record<FuelKind, number>>>,
+export function blendIn(
+  blend: number[],
+  cls: number,
+  stock: number,
+  n: number,
+  kind: FuelKind | null,
+  from?: readonly number[],
+): void {
+  if (!(n > 0) || !(stock > 0)) return;
+  const kept = Math.max(0, stock - n) / stock;
+  for (let i = 0; i < BLENDED.length; i++) {
+    const k = BLENDED[i]!;
+    if (FUEL_CLASS[k] !== cls) continue;
+    const came = from ? from[i]! : k === kind ? BLEND_WHOLE : 0;
+    blend[i] = Math.round(blend[i]! * kept + (came * n) / stock);
+  }
+}
+
+/** A class's stock by kind as shares of one, from a market's blend. */
+export function blendMix(
+  blend: readonly number[],
   cls: number,
   primary: FuelKind,
 ): Partial<Record<FuelKind, number>> {
-  let all = 0;
-  for (const k of FUEL_KINDS) if (FUEL_CLASS[k] === cls) all += Math.max(0, drew[k] ?? 0);
-  if (!(all > 0)) return { [primary]: 1 };
   const out: Partial<Record<FuelKind, number>> = {};
-  for (const k of FUEL_KINDS)
-    if (FUEL_CLASS[k] === cls && (drew[k] ?? 0) > 0) out[k] = drew[k]! / all;
+  let rest = 1;
+  for (let i = 0; i < BLENDED.length; i++) {
+    const k = BLENDED[i]!;
+    if (FUEL_CLASS[k] !== cls || !blend[i]) continue;
+    out[k] = Math.min(rest, blend[i]! / BLEND_WHOLE);
+    rest -= out[k]!;
+  }
+  out[primary] = Math.max(0, rest);
   return out;
 }

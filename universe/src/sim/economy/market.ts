@@ -147,6 +147,11 @@ export class Market {
    * made itself. With what it was brought (MarketStore.kindsHad), the variety its households see.
    */
   kinds = 0;
+  /**
+   * What its fuel classes' stocks hold of the kinds that are not each class's first, in millionths (rules/variety.ts BLENDED: gas
+   * and haze among the oil, sulphur among the coal): what it drew, and what it was brought at the shares it left its land at.
+   */
+  blend: number[] = [0, 0, 0];
   /** Fuel its engines burned last year (units of coal and oil), for its power. */
   burned = 0;
   /** The year its works can run again after a rocket's fall (W3; 0: they do). */
@@ -333,6 +338,7 @@ export class Market {
       .int(this.powerCover)
       .int(this.craftsWorked)
       .int(this.kinds)
+      .value(this.blend)
       .int(this.burned)
       .string(this.mine ?? "")
       .string(this.well ?? "")
@@ -368,6 +374,7 @@ export class Market {
       powerCover: this.powerCover,
       craftsWorked: this.craftsWorked,
       kinds: this.kinds,
+      blend: this.blend,
       burned: this.burned,
       mine: this.mine,
       well: this.well,
@@ -410,6 +417,7 @@ export class Market {
     m.powerCover = (s.powerCover as number | undefined) ?? 0;
     m.craftsWorked = (s.craftsWorked as number | undefined) ?? 1000;
     m.kinds = (s.kinds as number | undefined) ?? 0;
+    if (s.blend) fill(m.blend, s.blend);
     m.burned = (s.burned as number | undefined) ?? 0;
     m.mine = (s.mine as Ref | null | undefined) ?? null;
     m.well = (s.well as Ref | null | undefined) ?? null;
@@ -486,6 +494,8 @@ export class MarketStore implements StateStore {
   private readonly partners = new Map<number, number[]>();
   /** Last year's trade, in canonical order. */
   flows: TradeFlow[] = [];
+  /** The roads carriers' firms ran in the year's trade (rules/firms.ts): a reading, never saved. */
+  firms = 0;
   /** What keepers outside the markets took and gave, in each year the markets keep (KEEPERS). */
   apart: ApartYear[] = [];
   /** The same of the year whose books are open, by keeper and good (keeper x GOOD_COUNT + good). */

@@ -1779,3 +1779,4 @@ export * from "./variety.ts";
 export * from "./thrift.ts";
 export * from "./civicworth.ts";
 export * from "./patents.ts";
+export * from "./firms.ts";

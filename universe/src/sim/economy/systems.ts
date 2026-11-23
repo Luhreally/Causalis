@@ -68,6 +68,9 @@ import {
   lerner,
   naturalPrices,
   kindsIn,
+  FIRM_SAVING,
+  blendIn,
+  firmPays,
   priceTarget,
   WORKED,
   SIGNAL,
@@ -149,6 +152,9 @@ const SAIL_PER_100KM = 0.02,
 const SEA_PARTNERS = 4;
 /** A province keeps this many months of its people's food before it sells any. */
 const FOOD_RESERVE_MONTHS = 3;
+/** More than any land's number: two lands as one number (a road's key). */
+const ROAD_SPAN = 2 ** 24;
+
 /** How many kinds of each class a mask of ways of making holds (rules/variety.ts). */
 function kindsOfEach(mask: number): number[] {
   const out = new Array<number>(GOOD_COUNT);
@@ -774,6 +780,13 @@ function trade(
     preyRows = orgLandsStore(ctx.world),
     preyedAt = (c: number, sea: boolean) =>
       preyRows ? preyRows.at(c, sea ? ORG_ROW.seaPrey : ORG_ROW.prey) / 1000 : 0;
+  // (What passed each road last year, both ways, in bulk: where it pays a crew's year, a carriers' firm runs it, rules/firms.ts.)
+  const passed = new Map<number, number>();
+  for (const f of markets.flows) {
+    const k = f.from < f.to ? f.from * ROAD_SPAN + f.to : f.to * ROAD_SPAN + f.from;
+    passed.set(k, (passed.get(k) ?? 0) + f.count * GOODS[f.good]!.bulk);
+  }
+  markets.firms = 0;
   for (const e of edges(ctx)) {
     const war = open.length ? between(e.a, e.b) : null;
     if (war) {
@@ -819,8 +832,16 @@ function trade(
         // (Kin on both ends of a road carry more down it: sim/culture/abroad.ts. Exactly 1 where neither end keeps any.)
         kinAcross(ctx.world, e.a, e.b),
       keen = 2 * (1 + SIGNAL.tradeMargin * linked),
-      // (And what a journey cost in waiting on word and finding a buyer: the haul itself is what it was.)
-      dealt = 1 - SIGNAL.tradeCost * linked;
+      // (And what a journey cost in waiting on word and finding a buyer: the haul itself is what it was. Less where a firm runs
+      // the road: what passed it last year pays its crew's year at what it saves, rules/firms.ts.)
+      crewWage = Math.max(ma.wage[OCC.trader]!, mb.wage[OCC.trader]!),
+      firm = firmPays(
+        passed.get(e.a < e.b ? e.a * ROAD_SPAN + e.b : e.b * ROAD_SPAN + e.a) ?? 0,
+        e.cost * (1 - SIGNAL.tradeCost * linked),
+        crewWage,
+      ),
+      dealt = (1 - SIGNAL.tradeCost * linked) * (firm ? 1 - FIRM_SAVING : 1);
+    if (firm) markets.firms++;
     for (let g = 0; g < GOOD_COUNT; g++) {
       const [s, d] = ma.price[g]! <= mb.price[g]! ? [ma, mb] : [mb, ma],
         buyer = s === ma ? tb : ta,
@@ -894,7 +915,11 @@ function trade(
     const from = markets.of(pl.from),
       n = from.take("out", pl.good, pl.count);
     if (!n) continue;
-    markets.of(pl.to).move("in", pl.good, n);
+    const to = markets.of(pl.to);
+    to.move("in", pl.good, n);
+    // (A fuel's kinds go as they lay in the stock it left: sulphur sold as coal is burned as sulphur where it goes.)
+    if (pl.good === G.coal || pl.good === G.oil)
+      blendIn(to.blend, pl.good, to.stock[pl.good]!, n, null, from.blend);
     from.tradeMargin += n * (pl.margin + (pl.asked ?? 0));
     flows.push({ from: pl.from, to: pl.to, good: pl.good, count: n });
     if (!markets.route(pl.from, pl.to)) openRoute(ctx, markets, pl, n, t);

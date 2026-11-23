@@ -24,7 +24,8 @@ import {
   FUEL_MAKEUP,
   FUEL_UNIT_KWY,
   GLUT_YEARS,
-  fuelMix,
+  blendIn,
+  blendMix,
   G,
   GROUND_DRAWN,
   GROUND_WM2,
@@ -438,11 +439,6 @@ export function energyInputs(
   p: Province,
   m: Market,
   smelted: number,
-  /** What it drew of each fuel this year (drawFuels); where not given, what its seams gave. */
-  drew: Readonly<Partial<Record<FuelKind, number>>> = {
-    coal: m.line("made", G.coal),
-    oil: m.line("made", G.oil),
-  },
 ): EnergyInputs {
   const g = ctx.generated,
     n = meansNumbers(g),
@@ -456,9 +452,9 @@ export function energyInputs(
     spared =
       wilds?.asideWoods && wilds.forest > 0 ? Math.max(0, 1 - wilds.asideWoods / wilds.forest) : 1,
     standing = woodsRead(ctx, p.cell).now * site.areaKm2 * spared,
-    // (Its fuel classes' stocks by kind: what it drew of each this year, else the class's own first kind, rules/variety.ts.)
-    solid = fuelMix(drew, G.coal, "coal"),
-    fluid = fuelMix(drew, G.oil, "oil"),
+    // (Its fuel classes' stocks by kind: what it drew of each, and was brought, rules/variety.ts blendIn.)
+    solid = blendMix(m.blend, G.coal, "coal"),
+    fluid = blendMix(m.blend, G.oil, "oil"),
     coalStock = m.stock[G.coal]! * FUEL_UNIT_KWY,
     oilStock = m.stock[G.oil]! * FUEL_UNIT_KWY;
   return {
@@ -564,11 +560,11 @@ export function energyYear(
   smelted: number,
 ): EnergyAccount {
   const store = energyBooks(ctx.world)!;
-  const drew = drawFuels(ctx, p, m, store.get(p.cell)),
-    inputs = energyInputs(ctx, p, m, smelted, drew),
+  drawFuels(ctx, p, m, store.get(p.cell));
+  const inputs = energyInputs(ctx, p, m, smelted),
     a = energyAccount(inputs);
   // What it burned of its market's fuel, in the units the market keeps: each class's, its own fuel by the class it lies in.
-  const ownSolid = inputs.ownKwy > 0 ? a.own * solidOwnShare(inputs, m, drew) : 0,
+  const ownSolid = inputs.ownKwy > 0 ? a.own * solidOwnShare(inputs, m) : 0,
     coal = m.take("used", G.coal, Math.round((a.coal + ownSolid) / FUEL_UNIT_KWY)),
     oil = m.take("used", G.oil, Math.round((a.oil + a.gas + a.own - ownSolid) / FUEL_UNIT_KWY));
   // (What it wants: all the buried fuel its hearths and engines would have burned, as coal, the fuel a market first digs.)
@@ -622,7 +618,7 @@ export function energyYear(
  * the gas that comes with its oil, and its world's own fuel its crafters gather where it lies. Each was burned where it was drawn
  * and never sold; now it is sold like coal and oil, and what its land does not burn its traders carry to lands that would. Gathered
  * no further than its market has use for: GLUT_YEARS of what it burned of the class, or wanted of fuel, last year. What it drew of
- * each kind, for the account to read its stocks by.
+ * each kind, as it came into its stocks (Market.blend).
  */
 function drawFuels(
   ctx: PopulationContext,
@@ -634,9 +630,13 @@ function drawFuels(
     drew: Record<FuelKind, number> = { coal: 0, oil: 0, gas: 0, haze: 0, sulphur: 0 };
   drew.coal = m.line("made", G.coal);
   drew.oil = m.line("made", G.oil);
+  // (What its seams gave this year is of each class's first kind.)
+  blendIn(m.blend, G.coal, m.stock[G.coal]!, drew.coal, null);
+  blendIn(m.blend, G.oil, m.stock[G.oil]!, drew.oil, null);
   if (k.oilKnown && drew.oil > 0) {
     const gas = m.move("made", G.oil, Math.round((drew.oil * GAS_A_UNIT) / FUEL_UNIT_KWY));
     drew.gas = gas;
+    blendIn(m.blend, G.oil, m.stock[G.oil]!, gas, "gas");
   }
   const own = k.engine ? ownFuel(ctx, p.cell, meansNumbers(ctx.generated).airHolds, k) : null;
   if (own) {
@@ -645,17 +645,14 @@ function drawFuels(
       used = was ? (was.fuelWanted + was.own) / FUEL_UNIT_KWY : gathered,
       room = GLUT_YEARS * (Math.max(m.went(cls), used) + 1) - m.stock[cls]!;
     drew[own] = m.move("made", cls, Math.max(0, Math.round(Math.min(gathered, room))));
+    blendIn(m.blend, cls, m.stock[cls]!, drew[own], own);
   }
   return drew;
 }
 
 /** Of the own fuel a land burned, the share that lay in its solid class (sulphur), against its fluid one (haze). */
-function solidOwnShare(
-  i: EnergyInputs,
-  m: Market,
-  drew: Readonly<Partial<Record<FuelKind, number>>>,
-): number {
-  const solid = m.stock[G.coal]! * FUEL_UNIT_KWY * (fuelMix(drew, G.coal, "coal").sulphur ?? 0);
+function solidOwnShare(i: EnergyInputs, m: Market): number {
+  const solid = m.stock[G.coal]! * FUEL_UNIT_KWY * (blendMix(m.blend, G.coal, "coal").sulphur ?? 0);
   return i.ownKwy > 0 ? Math.min(1, solid / i.ownKwy) : 0;
 }
 
