@@ -170,9 +170,18 @@ registerEventWords(SEA_EVENTS.collapsed.type, (world, e) => {
     : `The fish of the sea off ${landWords(world, e.place)} failed, taken down to a remnant${lands > 1 ? ` by the boats of ${count(lands)} lands` : " by its boats"}${lean}, ${year(e.t)}`;
 });
 registerEventWords(SEA_EVENTS.recovered.type, (world, e) => {
-  const d = e.data as { years?: number; collapsed?: boolean; water?: boolean } | null,
+  const d = e.data as {
+      years?: number;
+      collapsed?: boolean;
+      poor?: boolean;
+      water?: boolean;
+    } | null,
     after = d?.years ? ` after ${count(d.years)} ${d.years === 1 ? "year" : "years"}` : "",
-    from = d?.collapsed ? "came back from a remnant" : "grew well again";
+    from = d?.collapsed
+      ? d.poor
+        ? "came back from a remnant, though still poor"
+        : "came back from a remnant"
+      : "grew well again";
   return d?.water
     ? `The waters the people of ${landWords(world, e.place)} live in ${from}${after}, as less was taken of them, ${year(e.t)}`
     : `The sea off ${landWords(world, e.place)} ${from}${after}, as its boats took less of it, ${year(e.t)}`;

@@ -370,9 +370,11 @@ export function seasYear(ctx: PopulationContext, t: SimTime): void {
           year: yearOfMoment(t),
         },
       });
-    } else if (s.stock > SEA.well && (s.few || s.gone)) {
-      // (Well again: told where it had been poor, with how long and what it came back from.)
+    } else if ((s.stock > SEA.well && (s.few || s.gone)) || (s.gone && s.stock > SEA.poor)) {
+      // (Come back: from a remnant past poor (it may fail again, and be told again), or well again where it had been poor;
+      // told with how long and what it came back from.)
       const fell = s.gone ?? s.few!,
+        well = s.stock > SEA.well,
         since = world.events.get(fell)?.t,
         prov = ctx.provinces.get(r.most);
       world.events.emit({
@@ -385,12 +387,13 @@ export function seasYear(ctx: PopulationContext, t: SimTime): void {
           pressed: s.pressed,
           water,
           collapsed: !!s.gone,
+          ...(well ? {} : { poor: true }),
           ...(since !== undefined
             ? { years: Math.max(1, yearOfMoment(t) - yearOfMoment(since)) }
             : {}),
         },
       });
-      s.few = null;
+      if (well) s.few = null;
       s.gone = null;
     }
     // (Fished on past poor to a remnant: the shore's lean years, told with the part of their wild food the land that pressed
