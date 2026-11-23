@@ -274,7 +274,7 @@ test("on a real world: a blow at one who heads a body falls, some of the time, o
   for (const p of politiesOf(world).living()) {
     const watch = store.of(p.ref)?.bodies.find((b) => b.does === DOES.order && b.since < 255);
     if (!watch) continue;
-    for (let id = 1; id <= 12 && razed < 3; id++) {
+    for (let id = 1; id <= 12 && (razed < 3 || tried < 10); id++) {
       const before = store.of(p.ref)!.bodies.find((b) => b.event === watch.event)!.staff,
         g: Striker = {
           crime: false,
@@ -306,7 +306,7 @@ test("on a real world: a blow at one who heads a body falls, some of the time, o
       assert.ok(!/\(t=\d+\)/.test(words), words);
       assert.ok(store.of(p.ref)!.bodies.find((b) => b.event === watch.event)!.staff <= before);
     }
-    if (razed >= 3) break;
+    if (razed >= 3 && tried >= 10) break;
   }
   assert.ok(tried >= 10, `${tried} blows`);
   assert.ok(razed >= 1, `${razed} houses struck of ${tried} blows`);

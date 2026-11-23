@@ -1768,8 +1768,9 @@ function writeLands(
       l.ground.readers *
       (INST.praises * kept * r.legitimacy - INST.tells * free * l.grievance * r.word);
   }
-  v.reach = Math.round(dmath.clamp(reach, -1, 1) * INST.reach * 10000);
-  v.told = Math.round(told * 10000);
+  v.reach = Math.round(dmath.clamp(reach, -1, 1) * INST.reach * 10000) || 0;
+  // (Never a negative zero: a save written as text reads it back as zero, and the record no longer matches itself.)
+  v.told = Math.round(told * 10000) || 0;
   // (How far its voices reach those of its people who read: sim/order/voice.ts reads it where the seat's word is weighed.)
   if (reading > 0 && voiced > 0) v.voice = Math.round((1000 * voiced) / reading);
   else delete v.voice;
