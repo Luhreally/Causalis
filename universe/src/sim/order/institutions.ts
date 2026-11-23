@@ -32,6 +32,7 @@ import {
   dmath,
   parseRef,
   yearOfMoment,
+  hashString,
   type Factor,
   type Ref,
   type SimTime,
@@ -153,6 +154,7 @@ export const INST_EVENTS = {
   raised: defineEventType("bodies.raised", 3),
   /** A house of higher learning shut by its seat, or by the faith that holds its land. */
   closed: defineEventType("bodies.closed", 3),
+  reopened: defineEventType("bodies.reopened", 3),
 };
 
 const DRAW = defineStream("order.bodies");
@@ -740,29 +742,67 @@ function patronIn(f: Facts, cell: number): { id: string; name: string } | null {
   return best ? { id: `note:named:${best.id}`, name: best.name } : null;
 }
 
+/** The ways a seat comes to rule by force: seized, overthrown, won in a war for the throne. */
+const SEIZED: ReadonlySet<string> = new Set(["strife.coup", "strife.revolution", "strife.throne"]);
+
+/** Whether its seat holds it bound: the house is not the seat's own, its realm lets no word be free and is ruled by arms. */
+function seatBinds(f: Facts, g: Body): boolean {
+  return g.answers !== ANSWERS.seat && f.r.word < INST.shuts && f.r.force >= HIGHER.force;
+}
+
 /**
- * Who would shut a house of higher learning now (null: none would): its seat, where it lets no word be free and rules by arms, and
- * the house is not its own; else the faith of its land where that faith has the seat's ear (the seat's own), fears the power
- * behind the world (rules/faith.ts: a creed of harm, against inquiry), holds the land strongly through its clergy and its people
- * keep to their old ways, and the house is not that faith's.
+ * The faith that would act against it: its land's, where that is the seat's own, fears the power behind the world (rules/faith.ts:
+ * a creed of harm, against inquiry), holds the land through its clergy among a people of old ways, and does not keep the house.
  */
-function shutBy(
+function creedAgainst(
   f: Facts,
   g: Body,
   home: Land,
-): { by: "seat" | "faith"; faith?: Faith; fears: number; clergy: number } | null {
-  const { r } = f,
-    world = f.ctx.world;
-  if (g.answers !== ANSWERS.seat && r.word < INST.shuts && r.force >= HIGHER.force)
-    return { by: "seat", fears: 0, clergy: 0 };
-  const faith = home.faith ? beliefOf(world).get(home.faith) : undefined;
-  if (!faith || faith.ref !== r.seatFaith || g.keeper === faith.ref) return null;
+): { faith: Faith; fears: number; clergy: number } | null {
+  const world = f.ctx.world,
+    faith = home.faith ? beliefOf(world).get(home.faith) : undefined;
+  if (!faith || faith.ref !== f.r.seatFaith || g.keeper === faith.ref) return null;
   const fears = TENET_POWERS[faith.tenet]?.harms ?? 0;
   if (fears < HIGHER.fears) return null;
   const clergy = clergyIn(world, home.cell);
   if (clergy < HIGHER.clergy) return null;
   const old = cultureOf(world).get(home.cell)?.traits[WAY.tradition] ?? 0.5;
-  return old >= HIGHER.tradition ? { by: "faith", faith, fears, clergy } : null;
+  return old >= HIGHER.tradition ? { faith, fears, clergy } : null;
+}
+
+type Clash =
+  | { by: "seat"; cause: Ref; odds: number }
+  | { by: "faith"; cause: Ref; odds: number; faith: Faith; fears: number; clergy: number };
+
+/**
+ * What happened since its last reckoning that sets its seat or a faith against a house of higher learning (null: nothing did). A
+ * standing state shuts nothing: one who took the seat by force since, and holds it bound (a purge); or what was found in its land
+ * since, where the faith that would act against it holds (inquiry that crossed the creed). How likely they act: the seat as far
+ * as it rules by arms, the faith as far as it fears and its clergy hold.
+ */
+function clashWith(f: Facts, g: Body, home: Land): Clash | null {
+  const world = f.ctx.world,
+    since = f.year - INST.every,
+    ruler = f.p.ruler;
+  if (
+    ruler.since > since &&
+    seatBinds(f, g) &&
+    SEIZED.has(world.events.get(ruler.event)?.type ?? "")
+  )
+    return { by: "seat", cause: ruler.event, odds: f.r.force };
+  const creed = creedAgainst(f, g, home);
+  if (!creed) return null;
+  for (const [, k] of loreOf(world).entries(home.cell))
+    if (k.year > since && world.events.get(k.event)?.type === "lore.found")
+      return { by: "faith", cause: k.event, odds: creed.fears * creed.clergy, ...creed };
+  return null;
+}
+
+/** Whether what shut it has passed: the one who purged it no longer holds the seat or no longer binds it; the faith no longer would. */
+function eased(f: Facts, g: Body, home: Land): boolean {
+  if (g.shutBy === 1) return f.p.ruler.event !== g.shutFor || !seatBinds(f, g);
+  if (g.shutBy === 2) return creedAgainst(f, g, home)?.faith.ref !== g.shutFor;
+  return true;
 }
 
 /**
@@ -787,7 +827,9 @@ function higherStep(f: Facts, g: Body, home: Land, least: number, guarded: boole
         .find((x) => x.name === g.leader.name && x.deeds.some((d) => d.e === g.raisedBy));
       if (n) g.headId = g.founderId = `note:named:${n.id}`;
     }
-    if (home.learned < HIGHER.falls) {
+    // (It falls back to a school only where its land no longer keeps it in learning nor what is paid in teachers: a house that
+    // is paid for outlasts a lean age of letters.)
+    if (home.learned < HIGHER.falls && g.staff < HIGHER.staff * least) {
       delete g.higher;
       return;
     }
@@ -805,14 +847,16 @@ function higherStep(f: Facts, g: Body, home: Land, least: number, guarded: boole
       }
     }
     if (guarded || g.since >= year) return;
-    const shut = shutBy(f, g, home);
-    if (!shut) return;
-    const { faith, fears, clergy } = shut,
-      bySeat = shut.by === "seat",
-      byFaith = shut.by === "faith";
+    const clash = clashWith(f, g, home);
+    if (!clash || world.rng.real(DRAW, f.key ^ hashString(g.event), f.t, 9101) >= clash.odds)
+      return;
+    const bySeat = clash.by === "seat",
+      faith = clash.by === "faith" ? clash : null;
     const was = titleOf(g, home);
     delete g.higher;
-    g.shut = year + HIGHER.shutYears;
+    g.shut = year;
+    g.shutBy = bySeat ? 1 : 2;
+    g.shutFor = faith ? faith.faith.ref : clash.cause;
     tell(
       f,
       INST_EVENTS.closed.type,
@@ -822,29 +866,53 @@ function higherStep(f: Facts, g: Body, home: Land, least: number, guarded: boole
         title: titleOf(g, home),
         was,
         by: bySeat ? "seat" : "faith",
-        ...(byFaith ? { faith: faith!.name } : {}),
+        ...(faith ? { faith: faith.faith.name } : { ruler: f.p.ruler.name }),
         since: g.raised ?? g.since,
       },
       [
+        { ref: clash.cause, role: "trigger", weight: 1 },
         { ref: g.raisedBy ?? g.event, role: "enabler", weight: 1 },
-        ...(byFaith ? [{ ref: faith!.event, role: "pressure" as const, weight: 1 }] : []),
+        ...(faith ? [{ ref: faith.faith.event, role: "pressure" as const, weight: 1 }] : []),
       ],
-      bySeat
+      faith
         ? [
-            factor("how free its realm lets word be", r2(r.word), -1),
-            factor("how far its seat rules by arms", r2(r.force), 1),
+            factor("how far its faith fears the power behind the world", r2(faith.fears), 1),
+            factor("its clergy's hold on its land", r2(faith.clergy), 1),
           ]
         : [
-            factor("how far its faith fears the power behind the world", r2(fears), 1),
-            factor("its clergy's hold on its land", r2(clergy), 1),
+            factor("how free its realm lets word be", r2(r.word), -1),
+            factor("how far its seat rules by arms", r2(r.force), 1),
           ],
     );
     return;
   }
-  if (g.shut !== undefined && g.shut >= year) return;
-  if (g.shut !== undefined) delete g.shut;
-  // (Not raised again while what would shut it holds.)
-  if (shutBy(f, g, home)) return;
+  // (Shut: open again once what shut it has passed, where its land's learning still keeps it; until then a school.)
+  if (g.shut !== undefined) {
+    if (g.shut >= year || !eased(f, g, home)) return;
+    const shutAt = g.shut,
+      by = g.shutBy;
+    delete g.shut;
+    delete g.shutBy;
+    delete g.shutFor;
+    if (home.learned < HIGHER.falls || guarded) return;
+    const was = titleOf(g, home);
+    g.higher = 1;
+    tell(
+      f,
+      INST_EVENTS.reopened.type,
+      home.cell,
+      {
+        body: g.name,
+        title: titleOf(g, home),
+        was,
+        shut: shutAt,
+        by: by === 1 ? "seat" : by === 2 ? "faith" : "",
+      },
+      [{ ref: g.raisedBy ?? g.event, role: "enabler", weight: 1 }],
+      [factor("how learned its land is", r2(home.learned), 1)],
+    );
+    return;
+  }
   const society = societyIn(f, home.cell),
     learned = home.learned >= (society ? HIGHER.society : HIGHER.learned),
     paid = g.staff >= HIGHER.staff * least;

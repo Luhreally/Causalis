@@ -148,6 +148,7 @@ const TITLES: Readonly<Record<string, string>> = {
   "bodies.ended": "A body's hold ended",
   "bodies.raised": "A house of higher learning raised",
   "bodies.closed": "A house of higher learning shut",
+  "bodies.reopened": "A house of higher learning opened again",
   "act.body": "The god's hand on a body",
   "act.group": "The god's hand on a group",
   "reign.charter": "A ruler's word on a group",

@@ -153,11 +153,21 @@ export function higherBlocks(world: World, r: Polity | null, g: Readonly<Body>):
         },
       ),
     );
-  } else if (g.shut !== undefined && g.shut >= year)
+  } else if (g.shut !== undefined)
     rows.push(
       stat(
         "Shut as a house of higher learning",
-        `until year ${g.shut} at the soonest: it teaches letters`,
+        g.shutBy === 1
+          ? `since year ${g.shut}, by the seat taken by force, until that seat no longer holds it bound: it teaches letters`
+          : g.shutBy === 2
+            ? [
+                `since year ${g.shut}, by `,
+                ...(g.shutFor && beliefOf(world).get(g.shutFor)
+                  ? [faithLink(world, g.shutFor), " "]
+                  : ["a faith "]),
+                "after what its land found crossed its creed, until that faith no longer holds against it: it teaches letters",
+              ]
+            : `since year ${g.shut}: it teaches letters`,
       ),
     );
   else

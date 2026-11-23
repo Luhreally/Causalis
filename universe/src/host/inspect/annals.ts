@@ -239,6 +239,7 @@ const RULES: Readonly<Record<string, readonly [number, number]>> = {
   "bodies.ended": [PEOPLE, 2],
   "bodies.raised": [PEOPLE, 2],
   "bodies.closed": [PEOPLE, 2],
+  "bodies.reopened": [PEOPLE, 2],
   "act.body": [PEOPLE, 3],
   "act.group": [PEOPLE, 3],
   "reign.charter": [PEOPLE, 3],

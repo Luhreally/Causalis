@@ -51,7 +51,7 @@ export type Body = {
   /**
    * As a house of higher learning (2026-11-22: universities as named bodies, sim/order/institutions.ts higherStep): the year it
    * was raised to it, and the event that told it; the one of name who gave for it, where one did (a notable's page ref); the
-   * learned society of its land it rose among (its name), where one held; the year until which its seat or a faith keeps it shut.
+   * learned society of its land it rose among (its name), where one held.
    */
   raised?: number;
   raisedBy?: Ref;
@@ -60,7 +60,10 @@ export type Body = {
   founderBorn?: number;
   patron?: string;
   society?: string;
+  /** Shut (the year it was), by whom (1 its seat, 2 a faith), and what shut it: the event of the one who purged it, or the faith. */
   shut?: number;
+  shutBy?: number;
+  shutFor?: Ref;
   /** Those a court holds (heads). */
   held?: number;
   /** Those it holds by name (sim/order/deeds.ts: at most JUSTICE.inmates, the latest): who, their page, since and until, what they were. */
