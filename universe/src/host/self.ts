@@ -40,6 +40,7 @@ import {
   type SelfTraits,
   type SelfWays,
   type Want,
+  mindShowsOf,
 } from "../rules/index.ts";
 import {
   WAY,
@@ -50,12 +51,14 @@ import {
   cultureOf,
   handOf,
   homePlanet,
+  idleOf,
   lawOf,
   lifeOf,
   marketsOf,
   orderOf,
   politiesOf,
   populationContext,
+  streetOf,
   wayOf,
   type Settlement,
 } from "../sim/index.ts";
@@ -67,6 +70,7 @@ import { familyOf, pairingOfWorld, seatHolder } from "./kin.ts";
 import { seatTownOf } from "./leaders.ts";
 import { landEra } from "./village.ts";
 import { memoryOf } from "./inspect/memory.ts";
+import { holderWounds, metWounds } from "./wounds.ts";
 
 /** What someone is to their world: one of a town's many, a maker at a seat, a ruler, one of a court, one under the hand, one met. */
 export type Station = "many" | "maker" | "ruler" | "court" | "hand" | "met";
@@ -160,6 +164,18 @@ export type SelfRead = {
   readonly rent: number;
   /** How they bear what they have lived (rules/self.ts mindOf): what weighs on them, what holds them up. */
   readonly mind: Mind;
+  /**
+   * What of the world's doing they carry besides (2026-11-22), each as their land's share and their own key read it: the worst
+   * wound on them (0 … 1), whether they are held in bondage, have no roof of their own, or their work stands idle.
+   */
+  readonly carried: {
+    readonly wounds: number;
+    readonly bound: boolean;
+    readonly roofless: boolean;
+    readonly idle: boolean;
+  };
+  /** How it shows in what they do (rules/self.ts mindShowsOf): 0 not at all, 1 they keep to themselves, 2 they cannot settle. */
+  readonly bearing: 0 | 1 | 2;
 };
 
 const u = (seed: number, n: number): number => finish(mix(seed, n), 13) / 4294967296;
@@ -719,6 +735,7 @@ function readSelf(world: World, who: Who, deep: boolean): SelfRead {
       ? family.children.filter((k) => !alive(k)).length +
         (family.spouse && !alive(family.spouse) ? 1 : 0)
       : 0,
+    carried = carriedBy(world, who, land, child, drawn),
     mind = mindOf({
       nature: land.nature,
       traits,
@@ -740,6 +757,7 @@ function readSelf(world: World, who: Who, deep: boolean): SelfRead {
       parents,
       faith: land.faith,
       piety: land.ways.piety,
+      ...carried,
     });
   return {
     who,
@@ -759,7 +777,85 @@ function readSelf(world: World, who: Who, deep: boolean): SelfRead {
     left: day.left,
     rent: day.rent,
     mind,
+    carried,
+    bearing: who.alive ? mindShowsOf(mind, traits) : 0,
   };
+}
+
+/** A wound's weight as carried (rules/self.ts MindFacts.wounds): a member lost the most; an old cut that healed the least. */
+const WOUND_WEIGHT: Readonly<Record<string, number>> = {
+  lost: 1,
+  lame: 0.7,
+  scarred: 0.35,
+  healed: 0.15,
+};
+
+/**
+ * What of the world's doing someone carries besides what their land's years did to all of it: their own wounds as history dealt
+ * them (host/wounds.ts: one of a town's many, one met); and, for one of a town's many, as their land's shares fall to their key
+ * (the same each time they are read: one of so many of their land), whether they are held in bondage, without a roof of their
+ * own (one whose home the town draws has one), or at a craft that stands idle. A ruler, a court, a maker at a seat: none of these.
+ */
+function carriedBy(
+  world: World,
+  who: Who,
+  land: LandSelf,
+  child: boolean,
+  drawn: boolean,
+): SelfRead["carried"] {
+  let wounds = 0;
+  try {
+    const ws =
+      who.ref.startsWith("folk:town:") && who.town
+        ? (() => {
+            const at = parseTownsfolkRef(who.ref),
+              roster = townRoster(world, who.town as Ref),
+              h = at
+                ? at.n === null
+                  ? roster.holder(at.line)
+                  : roster.holderOf(at.line, at.n)
+                : null;
+            return h ? holderWounds(world, who.town, h) : [];
+          })()
+        : who.station === "met"
+          ? (() => {
+              const p = observer(world).person(who.ref as Ref);
+              return p ? metWounds(world, p) : [];
+            })()
+          : [];
+    for (const w of ws) {
+      if (w.year > who.year) continue;
+      // (An old wound that healed weighs the less as the years go: gone in a generation.)
+      const k = WOUND_WEIGHT[w.outcome] ?? 0,
+        fades =
+          w.outcome === "lost" || w.outcome === "lame"
+            ? 1
+            : Math.max(0, 1 - (who.year - w.year) / 25);
+      wounds = Math.max(wounds, k * fades);
+    }
+  } catch {
+    wounds = 0;
+  }
+  if (who.station !== "many" && who.station !== "met")
+    return { wounds, bound: false, roofless: false, idle: false };
+  const order = orderOf(world),
+    bound = !child && u(who.key, 47) < (order?.bound(who.cell) ?? 0),
+    roofless = !drawn && u(who.key, 48) < streetOf(world, who.cell),
+    idle =
+      !child &&
+      !bound &&
+      who.occupation === OCC.crafter &&
+      u(who.key, 49) < idleOf(world, land.realm);
+  return { wounds, bound, roofless, idle };
+}
+
+/**
+ * How it shows in what one of a town's many does about the town (rules/self.ts mindShowsOf), as their page reads it: 0 not at
+ * all, 1 they keep to themselves, 2 they cannot settle. Read the same way the town's plan reads it (by their key, their home not
+ * looked for), so what their page says and what is seen of them agree.
+ */
+export function bearingIn(world: World, ref: string): 0 | 1 | 2 {
+  return selfOf(world, ref, false)?.bearing ?? 0;
 }
 
 /** Those of a town the game names, for a reading of them all: its first lines' holders (the ones any device draws first). */

@@ -5,6 +5,7 @@ import type { World } from "../../kernel/index.ts";
 import { automationGain, abateCost } from "../../rules/index.ts";
 import { RowStore, refNumber } from "../money/kept.ts";
 import { politiesOf } from "../polity/polity.ts";
+import { strainKept } from "../society/strain-kept.ts";
 
 /** 1. A realm's years of plenty and want: its idle crafts (thousandths), its usual harvest and this year's (food's units), what its
  * lands owe against a year's food (thousandths), the fall's parts (thousandths; the multiplier in hundredths), the year last told;
@@ -143,14 +144,15 @@ export function idleChafesOf(world: World, realm: string | null | undefined): nu
   return IDLE_CUSTOM * slack + (1 - IDLE_CUSTOM) * Math.max(0, slack - usual);
 }
 
-/** The share of what a land's crafts would make that they make, for idle hands, a plan's errors and lost effort, and smoke cut. */
+/** The share of what a land's crafts would make that they make, for idle hands, a plan's errors and lost effort, smoke cut, and strain. */
 export function craftsKept(world: World, cell: number): number {
   const realm = politiesOf(world).of(cell)?.ref;
   if (!realm) return 1;
   const idle = idleOf(world, realm),
     plan = (tradeStore(world, PLAN_STORE)?.at(realm, PL.loss) ?? 0) / 1000,
     smoke = abateCost((tradeStore(world, SMOKE_STORE)?.at(realm, SM.abated) ?? 0) / 1000);
-  return (1 - idle) * (1 - plan) * (1 - smoke);
+  // (And hands worn by what their land has lived do less: sim/society/strain.ts. 1 where none is reckoned.)
+  return (1 - idle) * (1 - plan) * (1 - smoke) * strainKept(world, cell);
 }
 
 /** How much more a land's crafters make with machines at their tasks (1: none). */

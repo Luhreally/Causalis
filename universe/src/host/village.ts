@@ -111,6 +111,7 @@ import { planKind } from "./kinds.ts";
 import { isMachineFolk, landPast } from "./past.ts";
 import { getAbout } from "./roads.ts";
 import { worldLook } from "./biochem.ts";
+import { bearingIn } from "./self.ts";
 import {
   LINE,
   ROSTER_YEARS,
@@ -1497,7 +1498,7 @@ export function villagePlan(
       })(),
       // (One come from another seat, at its court: D1.)
       ...envoyAtCourt(world, ref as Ref),
-      people,
+      people: withBearings(world, people),
       ...(stores ? { stores } : {}),
       ...(trade ? { trade } : {}),
     };
@@ -1569,4 +1570,25 @@ function risingAt(town: TownPlan | null, t: number): number {
     Math.round(n) +
     3 * town.civics.filter((c) => c.start <= t / YEAR && c.end >= t / YEAR - 1).length
   );
+}
+
+/** The most of a town's drawn many whose bearing is read (each a reading of their life: host/self.ts). */
+const BEARINGS_READ = 120;
+
+/**
+ * Those of a town's many drawn whose years wear on them so that it shows (2026-11-22: rules/self.ts mindShowsOf): the first so many
+ * of its lines' holders drawn, each read as their own page reads them, so the one seen keeping to their door of an evening is the
+ * one whose page says so. The hand's people and those not of the town are as they were.
+ */
+function withBearings(
+  world: World,
+  people: VillagePlan["people"][number][],
+): VillagePlan["people"][number][] {
+  let read = 0;
+  return people.map((p) => {
+    if (!p.folk || p.child || p.machine || p.outsider || !p.ref.startsWith("folk:town:")) return p;
+    if (read++ >= BEARINGS_READ) return p;
+    const b = bearingIn(world, p.ref);
+    return b ? { ...p, bearing: b } : p;
+  });
 }

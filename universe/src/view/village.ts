@@ -2854,7 +2854,9 @@ function dayBase(plan: VillagePlan, index: number, day: number, fine: boolean): 
   const pace = paceOf(plan.body);
   // (Their own walk, as a wound slows it — on a crutch, a leg lost, a limp, a wound bound: Phase
   // 55 M226; walking in step with others, theirs.)
-  const ownPace = pace * woundPace(plan, index, day);
+  // (And as their years have laid on them: slow in the streets drawn in, quick unsettled. rules/self.ts mindShowsOf.)
+  const bearing = plan.people[index]!.bearing ?? 0,
+    ownPace = pace * woundPace(plan, index, day) * (bearing === 1 ? 0.88 : bearing === 2 ? 1.1 : 1);
   const p = plan.people[index]!,
     draw = dayDraw(p.ref, day),
     home = plan.homes[p.home]!,
@@ -2868,7 +2870,8 @@ function dayBase(plan: VillagePlan, index: number, day: number, fine: boolean): 
     work = workplace(plan, p, draw, day),
     rest = restDay(plan, day),
     rise = (5.5 + draw(7) * 1.5) * HOUR,
-    bed = (21 + draw(8) * 1.5) * HOUR,
+    // (One who cannot settle is late to bed.)
+    bed = (21 + draw(8) * 1.5 + (bearing === 2 ? 1.25 : 0)) * HOUR,
     // In the square, a place in one of its rings of talk, facing the ring's middle.
     ring = Math.floor(draw(9) * RINGS),
     ringAt = {
@@ -3009,6 +3012,12 @@ function dayBase(plan: VillagePlan, index: number, day: number, fine: boolean): 
     seatU = draw(23),
     ringU = draw(24);
   const feasting = (from: number): number => {
+    // (One who keeps to themselves keeps away from the feast, most feast days.)
+    if (bearing === 1 && draw(28) < 0.6) {
+      const until = Math.max(from, 19 * HOUR);
+      stay(from, until, at, ACTIVITY.home, null, null, null, "At home, away from the feast");
+      return until;
+    }
     const until = (p.child ? 21 : p.age >= 62 ? 21.5 : FEAST_HOURS.over) * HOUR,
       swap = 19.75 * HOUR,
       first = feastPlace(plan, dancesFirst, dancesFirst ? ringU : seatU),
@@ -3053,6 +3062,41 @@ function dayBase(plan: VillagePlan, index: number, day: number, fine: boolean): 
   };
   /** An evening in the square: talk in the rings (or blows), or the drill while at war. */
   const evening = (t: number, until: number): number => {
+    // (As their years have laid on them: most evenings one drawn in stays at their door, and one who cannot settle walks about
+    // the town, to the far side of it and back by another way. rules/self.ts mindShowsOf; their page says why.)
+    if (bearing === 1 && !drills && draw(26) < 0.8) {
+      stay(
+        t,
+        until,
+        at,
+        ACTIVITY.home,
+        null,
+        null,
+        null,
+        "Keeping to themselves at home of an evening",
+      );
+      return until;
+    }
+    if (bearing === 2 && !drills && plan.homes.length > 1) {
+      const spot = (u: number): Point => {
+        const h = plan.homes[Math.floor(u * plan.homes.length) % plan.homes.length]!,
+          k = plan.homes.indexOf(h);
+        return plan.town
+          ? clearSpot(ground, streetDoor(h, (u - 0.5) * 5))
+          : doorstep(
+              ground,
+              h,
+              h.yaw + (u - 0.5) * 1.2,
+              Math.max(7, (ground.homes[k]?.r ?? 5) + PERSON_REACH + 0.8),
+            );
+      };
+      const why = "Walking about the town of an evening: they cannot settle",
+        a = spot(draw(27)),
+        b = spot(draw(29));
+      t = go(t, at, a, null, why);
+      t = go(t, a, b, null, why);
+      return go(t, b, at, null, "Home again, late");
+    }
     if (drills) {
       t = go(t, at, rank, "spear", "To the drill, for the war");
       stay(t, until, rank, ACTIVITY.gathering, "spear", "drill", 0, "Drilling for the war");
@@ -3162,7 +3206,8 @@ function dayBase(plan: VillagePlan, index: number, day: number, fine: boolean): 
     s = errands(Math.max(s.t, 12.75 * HOUR), stop, s.at, role, town, 100);
     t = homeward(s.t, s.at, s.carry, role, town);
     if (feast) t = feasting(t);
-    else if ((drills || draw(11) < 0.3) && t < 19 * HOUR) t = evening(t, 20 * HOUR);
+    else if ((drills || bearing === 2 || draw(11) < 0.3) && t < 19 * HOUR)
+      t = evening(t, 20 * HOUR);
   } else {
     told.words = role ? ROLE_WORDS[role.kind] : null;
     const doing = p.child ? ACTIVITY.playing : ACTIVITY.working,
@@ -3205,7 +3250,8 @@ function dayBase(plan: VillagePlan, index: number, day: number, fine: boolean): 
     }
     // The feast, or some evenings in the square (every evening, for those who drill).
     if (feast) t = feasting(t);
-    else if ((drills || draw(11) < 0.3) && t < 19 * HOUR) t = evening(t, 20 * HOUR);
+    else if ((drills || bearing === 2 || draw(11) < 0.3) && t < 19 * HOUR)
+      t = evening(t, 20 * HOUR);
   }
   stay(
     t,

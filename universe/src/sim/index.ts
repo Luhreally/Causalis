@@ -2072,3 +2072,12 @@ export {
 export { peopleTemper } from "./space/peoples.ts";
 // A land's woods against its tillable ground (sim/ecology/ecology.ts).
 export { WOODS_GONE_EVERY, fieldsTake } from "./ecology/ecology.ts";
+// How a land bears its years (2026-11-22: sim/society/strain.ts).
+export {
+  STRAIN_ROW,
+  STRAIN_STORE,
+  strainIn,
+  strainKept,
+  strainRow,
+} from "./society/strain-kept.ts";
+export { strainYear } from "./society/strain.ts";
