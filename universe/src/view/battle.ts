@@ -818,8 +818,12 @@ export function newBattle(told: BattleNear, most: number, placed = false): Battl
     const h = hosts[side],
       gap = gapOf(h).file,
       // (A hired company: the files at its host's flank, as many as its men are of the host, at least two; a host of few
-      // files has none of its own to give.)
-      co = (side === 0 ? a : d).company,
+      // files has none of its own to give. One that left the field unpaid is not on it; one that went over stands at the
+      // flank of the host it went over to, under its own banner: sim/war/companies.ts.)
+      own = (side === 0 ? a : d).company,
+      over = (side === 0 ? d : a).company,
+      co =
+        own && (own.how ?? "fought") === "fought" ? own : over?.how === "turned" ? over : undefined,
       coFiles =
         co && co.men > 0 && h.files >= 6
           ? Math.max(

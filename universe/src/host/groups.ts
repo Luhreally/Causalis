@@ -91,6 +91,8 @@ export function orgNews(g: OrgRead): (e: HistoryEvent) => boolean {
   const realm = g.realm.ref,
     id = g.record?.id;
   return (e) => {
+    // (A company's turn, leaving or sack on a field, wherever it was paid: sim/war/companies.ts names its page.)
+    if (e.type === "war.company") return (e.data as { page?: string } | null)?.page === g.ref;
     // (And a choice its realm's people made of its head: sim/order/elections.ts names the party.)
     if (e.type === "order.elected")
       return (
@@ -105,6 +107,57 @@ export function orgNews(g: OrgRead): (e: HistoryEvent) => boolean {
     if (id !== undefined && d.gids?.includes(id)) return true;
     return d.group === g.name || d.into === g.name;
   };
+}
+
+/** A field a company stood on (sim/war/companies.ts): the battle, its year, the side it stood with, its men and what it did. */
+export type CompanyField = {
+  readonly battle: Ref;
+  readonly year: number;
+  readonly side: 0 | 1;
+  readonly payer: string;
+  readonly foe: string;
+  readonly men: number;
+  readonly how: string;
+  readonly won: boolean;
+};
+
+/** The fields a company stood on, the latest first, back to `since` (at most `most`): read off the battles' own telling. */
+export function companyFields(
+  world: World,
+  page: string,
+  since: number,
+  yearAt: (t: number) => number,
+  most = 12,
+): CompanyField[] {
+  const all = world.events.all(),
+    out: CompanyField[] = [];
+  for (let i = all.length - 1; i >= 0 && out.length < most; i--) {
+    const e = all[i]!;
+    if (e.type !== "war.battle") continue;
+    const y = yearAt(e.t);
+    if (y < since) break;
+    const d = e.data as {
+      a?: string;
+      b?: string;
+      won?: boolean;
+      coPage?: [string | null, string | null];
+      coMen?: [number, number];
+      coHow?: [string | null, string | null];
+    } | null;
+    const side = d?.coPage?.[0] === page ? 0 : d?.coPage?.[1] === page ? 1 : -1;
+    if (side < 0) continue;
+    out.push({
+      battle: e.id,
+      year: y,
+      side,
+      payer: (side === 0 ? d!.a : d!.b) ?? "a realm",
+      foe: (side === 0 ? d!.b : d!.a) ?? "a realm",
+      men: d!.coMen?.[side] ?? 0,
+      how: d!.coHow?.[side] ?? "fought",
+      won: side === 0 ? !!d!.won : !d!.won,
+    });
+  }
+  return out;
 }
 
 /** Whether an event is news of a federation. */

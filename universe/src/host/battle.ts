@@ -176,6 +176,8 @@ export function battleNear(world: World, ref: string): BattleNear | null {
       b?: string;
       co?: [string | null, string | null];
       coMen?: [number, number];
+      coPage?: [string | null, string | null];
+      coHow?: [string | null, string | null];
     },
     colors = sideColors(realmColor(war.attacker), realmColor(war.defender)),
     // (Its hosts as they were in the field, with the men who rose with them: as the roll counts them.)
@@ -213,7 +215,16 @@ export function battleNear(world: World, ref: string): BattleNear | null {
         ...(r && (lore.get(r.seat, "gunpowder")?.year ?? Infinity) <= b.year
           ? { cannon: true }
           : {}),
-        ...(data?.co?.[at] ? { company: { name: data.co[at]!, men: data.coMen?.[at] ?? 0 } } : {}),
+        ...(data?.co?.[at]
+          ? {
+              company: {
+                name: data.co[at]!,
+                men: data.coMen?.[at] ?? 0,
+                ...(data.coPage?.[at] ? { ref: data.coPage[at]! } : {}),
+                ...(data.coHow?.[at] ? { how: data.coHow[at]! } : {}),
+              },
+            }
+          : {}),
       } satisfies BattleSideNear;
     },
     land = b.land,

@@ -148,19 +148,29 @@ export class OrgsStore implements StateStore {
   }
   /** The groups a realm pays or licenses, whichever realm they are of (a memo, made again after any record is set). */
   private hiredLists: Map<Ref, Org[]> | null = null;
+  /** The realm whose group each hired one is (made with the lists, and only read after them). */
+  private hiredHomes = new Map<Org, Ref>();
   hiredList(realm: Ref): readonly Org[] {
     if (!this.hiredLists) {
       const m = new Map<Ref, Org[]>();
-      for (const v of this.realms.values())
+      this.hiredHomes = new Map();
+      for (const [r, v] of this.realms)
         for (const g of v.orgs)
           if (g.patron) {
             const l = m.get(g.patron);
             if (l) l.push(g);
             else m.set(g.patron, [g]);
+            this.hiredHomes.set(g, r);
           }
       this.hiredLists = m;
     }
     return this.hiredLists.get(realm) ?? [];
+  }
+  /** The realm a hired group is of (undefined: no realm pays it). */
+  hiredHome(g: Org): Ref | undefined {
+    if (!g.patron) return undefined;
+    this.hiredList(g.patron);
+    return this.hiredHomes.get(g);
   }
   pinned(): Ref[] {
     const out: Ref[] = [];
