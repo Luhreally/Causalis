@@ -42,7 +42,7 @@ import {
 import { villagePlan } from "../../src/host/village.ts";
 import { leadersOf, leadersOfTown, seatTownOf, withFigures } from "../../src/host/leaders.ts";
 import { yearNow } from "../../src/host/inspect/words.ts";
-import { momentOf, villageSolids, goingsOn } from "../../src/view/index.ts";
+import { marketDay, momentOf, villageSolids, goingsOn } from "../../src/view/index.ts";
 import { peopledWorld } from "../worlds.ts";
 
 const world = peopledWorld("juniper", 60, { start: "spread" });
@@ -591,17 +591,26 @@ test("a group's head is one of their town's key figures: the same one their page
     leadersOf(world, realm.ref)!.leaders.some((x) => x.ref === boss),
     "on its realm's leaders",
   );
-  // The guards are at that same house in the town's day, and the head before its door.
+  // The guards are at that same house in the town's day, and the head before its door: at 13h whatever the day, and on a market
+  // day out at the market from 10h to 11h30, the first guard beside them. (Until 2026-11-18 the head kept the door all day; this
+  // read them at 11h, and the next day is a market day.)
   const head = plan.people.findIndex((p) => p.figure === boss),
     guard = plan.people.findIndex(
       (p) => p.ref === plan.goings!.find((g) => g.kind === "guard")!.who[0],
     ),
     day = Math.floor(world.now / 86_400) + 1,
-    a = momentOf(plan, head, day * 86_400 + 11 * 3600),
-    b = momentOf(plan, guard, day * 86_400 + 11 * 3600),
+    a = momentOf(plan, head, day * 86_400 + 13 * 3600),
+    b = momentOf(plan, guard, day * 86_400 + 13 * 3600),
     house = plan.homes[plan.people[head]!.home]!;
   assert.match(a.why ?? "", /^At home, where the Varro family is headed from/);
   assert.ok(Math.hypot(a.x - house.x, a.z - house.z) < 20 && Math.hypot(a.x - b.x, a.z - b.z) < 10);
+  if (plan.market && marketDay(plan, day)) {
+    const am = momentOf(plan, head, day * 86_400 + 11 * 3600),
+      bm = momentOf(plan, guard, day * 86_400 + 11 * 3600);
+    assert.equal(am.why, "At the market, a guard beside them");
+    assert.ok(Math.hypot(am.x - house.x, am.z - house.z) > 20, "away from the door");
+    assert.ok(Math.hypot(am.x - bm.x, am.z - bm.z) < 10, "the guard beside them");
+  }
   // Another heads it: the same page, the same body, another name; no second figure.
   const rec = record();
   under.put(realm.ref, {
