@@ -1718,8 +1718,10 @@ export class VillageScene {
     const laid = laidGround();
     this.town.laidOn(laid);
     this.country.laidOn(laid);
-    const open = plan.water ? { x: plan.water.x, z: plan.water.z, r: waterR(plan.water) } : null,
+    const t0 = performance.now(),
+      open = plan.water ? { x: plan.water.x, z: plan.water.z, r: waterR(plan.water) } : null,
       water = shoreWater(shore, { near, laid, open });
+    performance.measure("town.shore", { start: t0 });
     this.shoreWater = water;
     if (!water.tris.length) return;
     const mesh = trisMesh(this.stage, water.tris, M, 0.024),
