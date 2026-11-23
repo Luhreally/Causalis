@@ -9,12 +9,13 @@ import {
   growthOf,
   bodyOf,
   lifeHistoryOf,
+  plentyPace,
   type LifeHistory,
 } from "../../src/rules/index.ts";
 import { ALIEN } from "../../src/host/planet.ts";
 import { adults, lifeOf, populationContext } from "../../src/sim/index.ts";
 
-test("a people's life table is the upright apes' stretched to its span, growing at plenty no faster than they do", () => {
+test("a people's life table is the upright apes' stretched to its span, growing at plenty at its own size's pace", () => {
   const cond = { warmth: 18, rain: 800, gravity: 1, ocean: 0.7 },
     apes = growthOf(HUMANLIKE);
   assert.equal(lifeHistoryOf(CLADES.find((c) => c.id === "ape")!.body), HUMANLIKE);
@@ -24,9 +25,11 @@ test("a people's life table is the upright apes' stretched to its span, growing 
       k = body.span / 70,
       g = growthOf(life);
     // However many young at a birth, the first years take their share, so a people grows
-    // at the chronicle's pace, the apes' (a long life with few young, a little slower).
-    assert.ok(g <= 1.02 * apes, `${clade.id}: ${g} against ${apes}`);
-    if (k <= 1) assert.ok(Math.abs(g - apes) < 0.05 * apes, `${clade.id}: ${g} against ${apes}`);
+    // at its own body's pace: the apes' by its size to the minus quarter (a long life with few
+    // young, a little slower).
+    const pace = apes * plentyPace(body.size);
+    assert.ok(g <= 1.02 * pace, `${clade.id}: ${g} against ${pace}`);
+    if (k <= 1) assert.ok(Math.abs(g - pace) < 0.05 * pace, `${clade.id}: ${g} against ${pace}`);
     assert.equal(life.adulthood, Math.max(1, Math.round(15 * k)));
     // A body eats by its size (to the three-quarters), half as much with cold blood.
     assert.ok(

@@ -11,6 +11,7 @@ import {
   childCost,
   childrenKept,
   childrenWanted,
+  girlsOf,
   lifeHistoryOf,
   livingToBear,
   type BodyPlan,
@@ -67,7 +68,11 @@ test("a spawning people of the sea comes to the same end by the same rule: as ma
   for (const life of [HUMANLIKE, spawner]) {
     const kept = childrenKept(life, 0.7, full),
       alive = bearingOf(life).born * kept * livingToBear(life, 0.7);
-    assert.ok(Math.abs(alive - childrenWanted(full)) < 1e-9, `${life.name}: ${alive}`);
+    // (As many as replace its mothers: by the share of its born who bear, rules/species.ts girlsOf.)
+    assert.ok(
+      Math.abs(alive - childrenWanted(full, 0, girlsOf(life))) < 1e-9,
+      `${life.name}: ${alive}`,
+    );
   }
 });
 

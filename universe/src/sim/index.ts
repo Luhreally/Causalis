@@ -74,6 +74,7 @@ export {
   machineShare,
   raisingCost,
   slowDeaths,
+  landDemography,
   putBy,
   transition,
   type PopulationContext,
@@ -296,7 +297,7 @@ export {
   languagesYear,
   type Language,
 } from "./culture/languages.ts";
-export { lifeOf, peopleLife } from "./population/life.ts";
+export { familySizeOf, lifeOf, peopleKin, peopleLife } from "./population/life.ts";
 export { MOST_SEA_STEPS, SEA_STEPS, seaRange, seaReach, seaSteps } from "./economy/sea.ts";
 export {
   AIR_EVENTS,

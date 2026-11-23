@@ -34,6 +34,9 @@ import {
   callOdds,
   claimEnd,
   isFeared,
+  allianceWorth,
+  matchChanceOf,
+  sexesMustDiffer,
   type CallWhy,
   type ClaimEnd,
   type TieBond,
@@ -972,7 +975,20 @@ function bondsMade(ctx: PopulationContext, t: SimTime): void {
     }
   }
   const diplomacy = diplomacyOf(world),
-    culture = cultureOf(world);
+    culture = cultureOf(world),
+    kinFacts = kinFactsOf(world),
+    wars = warsOf(world),
+    // (Those a realm thinks well enough of, or is sworn to: what it might give its own to, the year's match shared among them.)
+    among = new Map<Ref, number>(),
+    // (A house makes as many matches at once as it has children grown to give, a generation's heirs.)
+    most = Math.max(1, Math.round(kinFacts.heirs)),
+    foesOf = (p: Polity): Ref[] =>
+      wars.hotOf(p.ref).map((w) => (w.attacker === p.ref ? w.defender : w.attacker));
+  for (const r of diplomacy.all())
+    if (r.opinion >= TIES.matchAt || r.pact) {
+      among.set(r.a, (among.get(r.a) ?? 0) + 1);
+      among.set(r.b, (among.get(r.b) ?? 0) + 1);
+    }
   for (const r of diplomacy.all()) {
     if (r.opinion < TIES.matchAt && !r.pact) continue;
     const a = realms.get(r.a),
@@ -991,7 +1007,17 @@ function bondsMade(ctx: PopulationContext, t: SimTime): void {
       store.embassiesOf(b.ref).length < TIES.embassiesMost
     )
       openEmbassy(ctx, a, b, r.pact, t);
-    if (!(world.rng.real(STREAM, key, t, 2) < TIES.matchChance)) continue;
+    // A match as often as the house has children grown to give, by what this alliance is worth to it now, as far as its people
+    // bind by kin, shared among all it thinks well of (rules/demography.ts matchChanceOf). The draw is the pair's and the
+    // year's; the most it could be is tried first.
+    const draw = world.rng.real(STREAM, key, t, 2),
+      given = among.get(a.ref) ?? 1;
+    if (!(draw < matchChanceOf(kinFacts.heirs, kinFacts.generation, 1, 1, given))) continue;
+    const foeA = foesOf(a),
+      foeShared = foeA.length > 0 && foesOf(b).some((f) => foeA.includes(f)),
+      worth = allianceWorth(r.opinion, !!r.pact, foeShared),
+      kin = culture.get(a.seat)?.traits[WAY.kinship] ?? 0.5;
+    if (!(draw < matchChanceOf(kinFacts.heirs, kinFacts.generation, kin, worth, given))) continue;
     const oa = realmOrder(
         orders,
         a,
@@ -1001,11 +1027,14 @@ function bondsMade(ctx: PopulationContext, t: SimTime): void {
       ob = realmOrder(orders, b, culture.get(b.seat), beliefOf(world).of(b.seat).faith !== null),
       liveA = livingMatches(world, a.ref, year),
       liveB = livingMatches(world, b.ref, year);
-    if (liveA.length >= TIES.matchesMost || liveB.length >= TIES.matchesMost) continue;
+    if (liveA.length >= most || liveB.length >= most) continue;
     if (liveA.some((m) => m.with === b.ref)) continue;
     const form = tieFormBetween(world, a, b),
       who = ofTheHouse(ctx, a, t, null, 60),
-      to = who ? ofTheHouse(ctx, b, t, form === "wed" ? 1 - who.sex : null, 70) : null;
+      // (The two of the two sexes only where the tie's claim passes by their children: rules/demography.ts sexesMustDiffer.)
+      to = who
+        ? ofTheHouse(ctx, b, t, sexesMustDiffer(form === "wed", true) ? 1 - who.sex : null, 70)
+        : null;
     if (!who || !to) continue;
     if (who.tie === "self" && liveA.some((m) => m.who === who.name)) continue;
     if (to.tie === "self" && liveB.some((m) => m.who === to.name)) continue;
@@ -1013,13 +1042,30 @@ function bondsMade(ctx: PopulationContext, t: SimTime): void {
         type: TIE_EVENTS.match.type,
         subjects: [a.ref, b.ref],
         place: ctx.provinces.get(a.seat)?.ref ?? null,
-        causes: [{ ref: r.pact ?? a.event, role: "enabler", weight: 1 }],
+        causes: [
+          { ref: r.pact ?? a.event, role: "enabler", weight: 1 },
+          ...(foeShared
+            ? [
+                {
+                  ref: wars
+                    .hotOf(a.ref)
+                    .find((w) =>
+                      foesOf(b).includes(w.attacker === a.ref ? w.defender : w.attacker),
+                    )!.event,
+                  role: "trigger" as const,
+                  weight: 0.8,
+                },
+              ]
+            : []),
+        ],
         data: {
           realm: realmName(a),
           other: realmName(b),
           who: who.name,
           to: to.name,
           form,
+          worth: Math.round(worth * 100) / 100,
+          ...(foeShared ? { foe: true } : {}),
           whoTown: a.town,
           toTown: b.town,
         },
