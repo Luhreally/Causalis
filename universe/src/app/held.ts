@@ -41,6 +41,7 @@ import { PossessHud, type GodPalette, type TimeBar } from "../ui/index.ts";
 import {
   GIFTS,
   GIFT_BIT,
+  HANDED,
   fieldPoint,
   BATTLE_DAY,
   BATTLE_LENGTH,
@@ -182,13 +183,6 @@ type Fought = {
 const OWED_MOST = 2;
 /** At most this far (s) a body is drawn on along its way between the host's answers. */
 const AHEAD_MOST = 0.25;
-/**
- * The orbit handed back over where the body stood (as app/possess.ts hands it back): at least so far
- * off (scene units), looking down so steeply (degrees), further off on a narrower screen.
- */
-const HANDED_NEAREST = 4,
-  HANDED_PITCH = -38,
-  HANDED_ASPECT = 1.6;
 
 /** Bodies drawn `dt` seconds on along their way (the struck down and the gone where they are). */
 function onward(bodies: readonly HeldBody[], dt: number): readonly HeldBody[] {
@@ -569,40 +563,26 @@ export function installHeld(d: HeldDeps): Held {
     lastLive = o.live;
     hideHud();
     presses.length = 0;
-    eye.release();
-    d.village.heldSight = null;
-    d.rig.enabled = true;
-    if (o.kind === "soldier") d.village.placedBattle?.mark(null);
-    else {
-      d.village.faunaLayer.hold(null);
-      d.village.faunaLayer.over = null;
-    }
-    if (me) {
-      // (Handed back to the orbit turning about where the body stood, looking the way the eye looked.)
-      const at = eye.stood,
-        dx = at.x - me.x,
-        dz = at.z - me.z,
-        across = Math.hypot(dx, dz),
-        l = d.rig.limits,
-        narrower = Math.max(
-          1,
-          HANDED_ASPECT / Math.max(0.3, innerWidth / Math.max(1, innerHeight)),
-        );
-      d.rig.target.set(me.x * VILLAGE_METRE, 0, me.z * VILLAGE_METRE);
-      d.rig.yaw = (Math.atan2(dx, dz) * 180) / Math.PI;
-      d.rig.pitch = Math.max(
-        l.minPitch,
-        Math.min(l.maxPitch, HANDED_PITCH, (-Math.atan2(at.y, across) * 180) / Math.PI),
-      );
-      d.rig.distance = Math.max(
-        l.min,
-        Math.min(
-          l.max,
-          Math.max(HANDED_NEAREST * narrower, Math.hypot(across, at.y) * VILLAGE_METRE),
-        ),
-      );
-      d.rig.userZoomed = true;
-    }
+    // (Handed back to the orbit from where the eye stood, flown out to the town's own look over where the body stood.)
+    eye.handTo(
+      d.rig,
+      me ? { x: me.x, z: me.z } : null,
+      me ? d.village.homesRiseNear(me.x, me.z, HANDED.near) : 0,
+    );
+    // (What was faded about the eye, read from the camera as it stands, stays so as it flies out, let in by degrees as it
+    // leaves them; whole once it lands, or once another is taken: nothing near the eye stands whole at once on its first
+    // frame.)
+    const whole = () => {
+      if (on !== null) return;
+      if (d.rig.flying) return void requestAnimationFrame(whole);
+      d.village.heldSight = null;
+      if (o.kind === "soldier") d.village.placedBattle?.mark(null);
+      else {
+        d.village.faunaLayer.hold(null);
+        d.village.faunaLayer.over = null;
+      }
+    };
+    whole();
     d.time.release("held");
     if (o.kind === "soldier") d.relay();
     else if (d.scale() === "village" && d.plan()?.ref === o.now.village)

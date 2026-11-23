@@ -30,6 +30,7 @@ import { PossessHud, type GodPalette, type PageWindow, type TimeBar } from "../u
 import {
   GIFTS,
   GIFT_BIT,
+  HANDED,
   PosedBodies,
   STEPS_PER_SECOND,
   STILL_BID,
@@ -39,6 +40,7 @@ import {
   homesRiseTo,
   joinsAt,
   lettersOf,
+  nearSight,
   takeOf,
   tradeOf,
   villageSolids,
@@ -99,15 +101,6 @@ type On = {
 
 /** Seconds sent unanswered before the possession's clock waits for the host. */
 const OWED_MOST = 2;
-/**
- * The orbit handed back over where he stood, at least so far off (scene units) and looking down so
- * steeply (degrees), as the town is first looked down on: over its roofs, never in one. On a screen
- * narrower than a desk's (its width to its height), as much further off as it is narrower, so as
- * much of the town shows across it: a phone held upright was handed back a single roof.
- */
-const HANDED_NEAREST = 4,
-  HANDED_PITCH = -38,
-  HANDED_ASPECT = 1.6;
 
 export type Possession = {
   /** One of those drawn taken (their index in the plan), standing where `stand` says if given: why not (null: taken). */
@@ -432,34 +425,28 @@ export function installPossession(d: PossessionDeps): Possession {
     d.village.posed = null;
     hud.hide();
     presses.length = 0;
-    eye.release();
-    d.rig.enabled = true;
-    if (me) {
-      // (Handed back to the orbit turning about where he stood, looking the way the eye looked.)
-      const at = eye.stood,
-        dx = at.x - me.x,
-        dz = at.z - me.z,
-        across = Math.hypot(dx, dz),
-        l = d.rig.limits,
-        narrower = Math.max(
-          1,
-          HANDED_ASPECT / Math.max(0.3, innerWidth / Math.max(1, innerHeight)),
-        );
-      d.rig.target.set(me.x * VILLAGE_METRE, 0, me.z * VILLAGE_METRE);
-      d.rig.yaw = (Math.atan2(dx, dz) * 180) / Math.PI;
-      d.rig.pitch = Math.max(
-        l.minPitch,
-        Math.min(l.maxPitch, HANDED_PITCH, (-Math.atan2(at.y, across) * 180) / Math.PI),
-      );
-      d.rig.distance = Math.max(
-        l.min,
-        Math.min(
-          l.max,
-          Math.max(HANDED_NEAREST * narrower, Math.hypot(across, at.y) * VILLAGE_METRE),
-        ),
-      );
-      d.rig.userZoomed = true;
-    }
+    // (Handed back to the orbit from where the eye stood, flown out to the town's own look over where the body stood.)
+    eye.handTo(
+      d.rig,
+      me ? { x: me.x, z: me.z } : null,
+      me ? d.village.homesRiseNear(me.x, me.z, HANDED.near) : 0,
+    );
+    // (Those faded about the eye stay so as the camera flies out, read from where it stands each frame, let in as it leaves
+    // them, all whole once it lands: none near the eye stands whole on the flight's first frame.)
+    const tall = eye.height,
+      fade = () => {
+        if (on !== null || !me || !d.rig.flying) return void (d.village.lettingGo = null);
+        const c = d.stage.camera.getPosition();
+        d.village.lettingGo = {
+          sight: nearSight(
+            { x: c.x / VILLAGE_METRE, y: c.y / VILLAGE_METRE, z: c.z / VILLAGE_METRE, tall },
+            { x: me.x, z: me.z },
+          ),
+          ref: `agent:${o.now.agent}`,
+        };
+        requestAnimationFrame(fade);
+      };
+    fade();
     d.time.release("possess");
     if (d.scale() === "village" && d.plan()?.ref === o.now.town) await d.reload(o.now.town);
     ended(o.now.town);

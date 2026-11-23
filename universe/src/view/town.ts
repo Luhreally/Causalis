@@ -2639,6 +2639,30 @@ export function homesRiseTo(plan: TownPlan): number {
   return LEVELS[Math.min(top, TOP_LEVEL)]!.h * (top >= TOP_LEVEL ? 1.4 : 1);
 }
 
+/**
+ * How high the homes standing within `reach` metres of a point (metres from the town's middle) rise at moment `t` (metres,
+ * to their roofs' tops; 0: none): the street about one let go, not the whole town's tallest (app/possess.ts, view/zoom.ts
+ * handedViews).
+ */
+export function homesRiseNear(
+  scene: TownScene,
+  x: number,
+  z: number,
+  reach: number,
+  t: number,
+): number {
+  const { plan, lots, states } = scene,
+    far = (reach + LOT_D) ** 2;
+  let top = 0;
+  for (let p = 0; p < plan.lots; p++) {
+    const dx = lots.x[p]! - x,
+      dz = lots.z[p]! - z;
+    if (dx * dx + dz * dz >= far || states.what[p] !== LOT.home || t < states.began[p]!) continue;
+    top = Math.max(top, homeSize(scene, p).high);
+  }
+  return top;
+}
+
 /** What the greatest fire left of a home: its lot's whole width in a low black heap, and here and there a stub (W5). */
 function flatRubble(out: TownParts, x: number, z: number, yaw: number): void {
   const v = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453,

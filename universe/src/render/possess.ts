@@ -7,7 +7,8 @@
 // life, as their things are), and it sees wider on a phone held upright, so the street beside him
 // is seen too. And a body struck down drawn on its back where it fell, as a fallen soldier lies.
 import * as pc from "playcanvas";
-import { clearAt, type FigurePart, type Ground } from "../view/index.ts";
+import { HANDED, clearAt, handedViews, type FigurePart, type Ground } from "../view/index.ts";
+import type { OrbitRig } from "./orbit.ts";
 import type { Stage } from "./stage.ts";
 
 /** Units to a metre, as the village's. */
@@ -116,6 +117,40 @@ export class PossessEye {
     this.shown = null;
     this.pressTo = this.pressed = 0;
     this.stage.lookedAt = null;
+  }
+
+  /**
+   * Let go: the stage's eye given back (release) and the orbit handed the camera exactly where this eye had it, flown out
+   * over `over` (where the body stood, m) to the town's own look (view/zoom.ts handedViews), over its tallest homes
+   * (`roofs`, m); what the eye cut away between it and the body still cut as the flight sets out. Never drawn: the orbit
+   * as it is.
+   */
+  handTo(rig: OrbitRig, over: { x: number; z: number } | null, roofs = this.roofs): void {
+    const lens = this.stage.camera.camera,
+      seen = this.stage.lookedAt,
+      fov = lens?.fov ?? null,
+      near = lens?.nearClip ?? EYE_NEAR,
+      eye = this.stood,
+      drawn = this.shown !== null;
+    this.release();
+    rig.enabled = true;
+    if (!seen || !over || !drawn) return;
+    const { from, to } = handedViews(
+      { x: eye.x * M, y: eye.y * M, z: eye.z * M },
+      seen,
+      { x: over.x * M, z: over.z * M },
+      M,
+      innerWidth / Math.max(1, innerHeight),
+      roofs,
+    );
+    rig.takeBack(
+      from,
+      to,
+      HANDED.seconds,
+      fov !== null && lens ? { from: fov, to: lens.fov } : null,
+      near,
+      roofs >= HANDED.tall,
+    );
   }
 
   /**
