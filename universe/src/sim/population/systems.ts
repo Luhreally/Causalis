@@ -1551,12 +1551,13 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
       // once: ./flight.ts.)
       season = weighsWages(p.cell, year),
       faith = season ? flight.persecuted(p.cell) : null,
+      // (Those a law against their faith drives go only to a haven: their push is their own, not the land's.)
       persecuted = faith ? faith.push * FLIGHT.every : 0,
-      pushed = 0.6 * hunger + crowd + leaving + fleeing + persecuted,
+      pushed = 0.6 * hunger + crowd + leaving + fleeing,
       pressure = pushed + budding,
       own = season ? flight.wageOf(p.cell) : 0,
       war = fought.has(p.cell);
-    if (pressure < 0.05 && !(own > 0)) continue;
+    if (pressure < 0.05 && !(own > 0) && !(persecuted > 0)) continue;
     const driven = pressure >= 0.05;
     // Budding goes only to empty land; those pushed by hunger or crowding go anywhere better.
     const buddingOnly = pushed < 0.05;
@@ -1612,18 +1613,23 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
     // to the one land that pays best where nothing else drives them.)
     const drawn = options.reduce((m, o) => Math.max(m, o.wage), 0),
       hope = FLIGHT.wage * FLIGHT.every * drawn,
-      drive = (driven ? pressure : 0) + hope / 0.08,
+      // (And those a law against their faith drives, where a haven is near.)
+      fled = persecuted > 0 && options.some((o) => o.refuge) ? persecuted * 0.08 : 0,
+      drive = (driven ? pressure : 0) + (hope + fled) / 0.08,
       key = refHash(p.ref),
       movers = Math.min(
         pop - held,
-        Math.floor(pop * Math.min(0.06, (driven ? pressure * 0.08 : 0) + hope)),
+        Math.floor(pop * Math.min(0.06, (driven ? pressure * 0.08 : 0) + hope + fled)),
       );
     if (movers < MIN_GROUP) continue;
     if (leaving > 0) lodesOf(world)!.tally.left += Math.round((movers * leaving) / pressure);
     // A band that sets out is at least MIN_GROUP strong: a small exodus goes one way.
+    // (Those the hope of wages takes, more than all else, go together to the one land that pays best.)
     const best = options.slice(
       0,
-      driven ? Math.max(1, Math.min(3, Math.floor(movers / MIN_GROUP))) : 1,
+      driven && hope + fled < pressure * 0.08
+        ? Math.max(1, Math.min(3, Math.floor(movers / MIN_GROUP)))
+        : 1,
     );
     const split = apportion(
       movers,

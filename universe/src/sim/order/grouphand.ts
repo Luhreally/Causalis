@@ -150,7 +150,9 @@ const AIM_WANTS: Readonly<Record<Group, Readonly<Partial<Record<OrgAim, number>>
 
 /** A realm decrees on a group by name past this much want, either way, of its interests by their sway. */
 export const DECREE = {
-  line: 0.15,
+  line: 0.2,
+  /** A realm's own word holds so long (years), and is weighed again when it lapses. */
+  years: 50,
   /** Only on a group this strong among the realm's groups (thousandths). */
   strong: 200,
   /** A realm outlaws by name only as far as it can carry it (its capacity), and either way only where its rule stands. */
@@ -193,7 +195,7 @@ function wantOf(
 /**
  * A realm's own word on its groups, in its groups' reckoning (sim/order/groups.ts), before its rule reads how it holds each:
  * of its groups let be, not in another's pay or under the god's hand, the strong one its interests by their sway want most
- * gone or most kept, past DECREE.line, is outlawed or chartered by name for GROUP_ACT_YEARS, by its ruler, as a ruler the god
+ * gone or most kept, past DECREE.line, is outlawed or chartered by name for DECREE.years, by its ruler, as a ruler the god
  * rules through would; at a cost to the ruler's standing where what is outlawed is strong. One a reckoning at most. A realm
  * outlaws so only as far as it can carry it (its capacity), and either way only where its rule stands. Decided with its
  * factors (rule "reign.decree") and told as any ruler's word (`reign.charter`, its data's `own` set).
@@ -233,7 +235,7 @@ export function realmDecrees(
   if (!best) return;
   const { g, want } = best,
     outlaw = want < 0,
-    until = year + GROUP_ACT_YEARS,
+    until = year + DECREE.years,
     cost = outlaw ? OUTLAW_COSTS * (g.power / 1000) : 0;
   g.decree = outlaw ? 0 : 2;
   g.decreeUntil = until;

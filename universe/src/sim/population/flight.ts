@@ -15,7 +15,7 @@
 //   Persecution and wages are weighed in each land's own year of FLIGHT.every, that many years' leaving setting out together
 //   (first light at 1500 has 600 peopled lands: 330 with a neighbour paying twice theirs, 256 three times, and 130 under a
 //   law against their faith: weighed yearly from twice, they were three hundred moves a year; every twentieth year from
-//   twice, thirty-five).
+//   twice, thirty-five; every twentieth from three times, twenty-five).
 // What moves is people, as every migration moves them: a people abroad is who came into a land of another tongue
 // (sim/culture/abroad.ts), and those who fled are kept by where they came to (sim/war/held.ts), by what drove them. Nothing is
 // kept here: each realm's faith law and seat's faith are read once a year, lazily, and a land's wage when it is weighed.
@@ -31,19 +31,19 @@ import type { MarketStore } from "../economy/market.ts";
 export const FLIGHT = {
   /** How hard a law of one faith pushes a land of another faith to leave a year, at a full grievance (one that bears others:
    * a quarter of it), weighed FLIGHT.every years at once; hunger at its worst pushes 0.6 a year, war 0.5. */
-  faith: 0.025,
+  faith: 0.02,
   /** How much worse fed a land those who flee ruin or persecution will take (as `attraction`, food a mouth against their own). */
   refuge: 0.3,
   /** A land's going wage must pass their own by this share before it draws anyone; and those it draws a year at most, of
    * a land's people, at five times their wage and more. */
   wageLeast: 2,
-  wage: 0.003,
+  wage: 0.002,
   /** Over a border, among strangers, the hope draws this share as many. */
   border: 0.5,
   /** Those who go for wages take no land hungrier than their own by more than this. */
   hungrier: 0.05,
-  /** Each land weighs persecution and the hope of wages once in so many years, in its own year. */
-  every: 20,
+  /** Each land weighs persecution and the hope of wages once in so many years (about a generation), in its own year. */
+  every: 30,
 } as const;
 
 /** What fought in a land drives its people to whatever land is safe (the rest of ruin, only to a better: systems.ts FLED_FROM). */
