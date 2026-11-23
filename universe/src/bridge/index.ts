@@ -212,6 +212,7 @@ export {
   measuredBlocks,
   townBlocks,
   townLots,
+  townLotsAhead,
   townReach,
   hasSpires,
   sprawlOf,

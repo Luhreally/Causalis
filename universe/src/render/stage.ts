@@ -55,6 +55,9 @@ export function vertexArraysKept(device: pc.GraphicsDevice): number {
 }
 
 /** Each kind's clear air by day (Phase 56): the haze its far land fades into. */
+/** How long a frame may take while shaders are made ahead (ms: Stage.warmOver), a phone at four times the desk well under a tenth of a second. */
+const WARM_FRAME = 60;
+
 const KIND_HAZE: Readonly<Record<string, Rgb>> = {
   carbon: [0.74, 0.68, 0.58],
   sulfur: [0.92, 0.9, 0.7],
@@ -498,6 +501,85 @@ export class Stage {
         this.shadowReach = reach;
         this.applyShadows();
       }
+    });
+  }
+
+  /**
+   * The shaders `parts` are drawn with made over the frames that follow, `perFrame` a frame to begin with (more while the
+   * frames keep under WARM_FRAME ms, fewer past it), each drawn as warm() draws them (too small to see, before the eye) in the
+   * light as it is now: what a scale about to be shown draws, readied behind its loading, so its first frame makes none
+   * (2026-11-23: a great city's first frame made 27, a third of a second on a phone).
+   */
+  warmOver(
+    parts: readonly {
+      material: pc.Material;
+      instanced?: boolean;
+      mesh?: pc.Mesh;
+      cast?: boolean;
+      receive?: boolean;
+    }[],
+    perFrame = 6,
+  ): Promise<void> {
+    const tri = new pc.Mesh(this.device);
+    tri.setPositions([0, 0, 0, 1e-4, 0, 0, 0, 1e-4, 0]);
+    tri.setNormals([0, 0, 1, 0, 0, 1, 0, 0, 1]);
+    tri.setIndices([0, 1, 2]);
+    tri.update();
+    const identity = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+    let at = 0,
+      holders: pc.Entity[] = [],
+      buffers: pc.VertexBuffer[] = [];
+    return new Promise((done) => {
+      let first = true;
+      const off = this.onUpdate((dt) => {
+        // (The frame before drew the last few: as many again, or more or fewer by how long it took.)
+        if (!first) {
+          const ms = dt * 1000;
+          if (ms < WARM_FRAME / 2) perFrame = Math.min(16, perFrame * 2);
+          else if (ms > WARM_FRAME) perFrame = Math.max(1, Math.floor(perFrame / 2));
+        }
+        first = false;
+        for (const h of holders) h.destroy();
+        for (const b of buffers) b.destroy();
+        holders = [];
+        buffers = [];
+        if (at >= parts.length) {
+          off();
+          tri.destroy();
+          done();
+          return;
+        }
+        // (Those that cast shadows drawn casting, so the shadow pass's shader is made too.)
+        for (const cast of [false, true]) {
+          const chunk = parts.slice(at, at + perFrame).filter((x) => !!x.cast === cast);
+          if (!chunk.length) continue;
+          const holder = new pc.Entity("warm");
+          holder.addComponent("render", {
+            meshInstances: chunk.map(({ material, instanced, mesh, receive }) => {
+              const mi = new pc.MeshInstance(mesh ?? tri, material);
+              if (receive === false) mi.receiveShadow = false;
+              if (instanced) {
+                const vb = new pc.VertexBuffer(
+                  this.device,
+                  pc.VertexFormat.getDefaultInstancingFormat(this.device),
+                  1,
+                  { data: identity },
+                );
+                buffers.push(vb);
+                mi.setInstancing(vb);
+                mi.instancingCount = 1;
+              }
+              return mi;
+            }),
+            castShadows: cast,
+          });
+          this.camera.addChild(holder);
+          holder.setLocalPosition(0, 0, -1);
+          holder.setLocalScale(1e-4, 1e-4, 1e-4);
+          holders.push(holder);
+        }
+        at += perFrame;
+      });
     });
   }
 

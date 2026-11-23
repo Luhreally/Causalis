@@ -331,6 +331,21 @@ export function shoreWater(
   shore: Shore,
   o: { near: number; laid: Laid; open?: { x: number; z: number; r: number } | null },
 ): ShoreWater {
+  const run = shoreWaterSteps(shore, o);
+  for (;;) {
+    const step = run.next();
+    if (step.done) return step.value;
+  }
+}
+
+/**
+ * shoreWater() worked out a square of its land's tiles at a time, between which it may be put off (render/village.ts: a great
+ * city's shore was a twentieth of a second at once on the desk); the same water.
+ */
+export function* shoreWaterSteps(
+  shore: Shore,
+  o: { near: number; laid: Laid; open?: { x: number; z: number; r: number } | null },
+): Generator<void, ShoreWater, void> {
   const { m, half, bx, bz, cells } = shore,
     n = 2 * half,
     depth = Math.max(0, Math.ceil(Math.log2(m / LEAF))),
@@ -684,6 +699,7 @@ export function shoreWater(
       const whole = part(0, 0, side, [true, true, true]);
       bands.forEach(([into], k) => whole[k] === 1 && quad(into, 0, 0, side));
       if (out.length > from) bySquare.set(j * n + i, { from, to: out.length });
+      yield;
     }
   const tris = Float32Array.from(out);
   const on = (x: number, z: number): boolean => {

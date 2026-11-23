@@ -38,6 +38,7 @@ import {
   lotsKey,
   shopsBelow,
   townLots,
+  townLotsAhead,
   townReach,
   OUTLINE,
   outlineAt,
@@ -1344,6 +1345,26 @@ let farKept: { key: string; count: number; lots: TownLots } | null = null;
  * other?"): its own blocks grown on past those drawn (bridge/town.ts townLots, the same blocks first), as many as FAR_LOTS,
  * each lot's home as its runs past the drawn say (TownPlan.beyond). Kept on its scene.
  */
+/** farOf(), its blocks grown ahead over steps first (bridge/town.ts townLotsAhead); the same lots. */
+export function* farSteps(scene: TownScene): Generator<void, TownFar | null, void> {
+  if (scene.far !== undefined) return scene.far;
+  const { plan } = scene,
+    from = plan.lots,
+    count = Math.min(FAR_LOTS, Math.max(0, plan.whole - from));
+  if (count > 0 && !plan.sealed && plan.designs.length && plan.beyond) {
+    const key = lotsKey(plan);
+    if (farKept?.key !== key || farKept.count < from + count)
+      yield* townLotsAhead(
+        plan.seed,
+        plan.axis,
+        from + Math.min(FAR_LOTS, Math.ceil(count * 1.25)),
+        plan.water,
+        plan.site ?? null,
+      );
+  }
+  return farOf(scene);
+}
+
 export function farOf(scene: TownScene): TownFar | null {
   if (scene.far !== undefined) return scene.far;
   const { plan } = scene,

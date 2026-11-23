@@ -13,6 +13,7 @@ import {
   LOT_D,
   LOT_W,
   townLots,
+  townLotsAhead,
   townReach,
   waterR,
   woundStage,
@@ -76,6 +77,11 @@ import {
   ringTurn,
   keepOut,
   villageSolids,
+  villageGround,
+  daysAhead,
+  ridesSteps,
+  RIDES_REACHES,
+  PERSON_REACH,
   courtSolids,
   memorialsPlaced,
   memorialParts,
@@ -194,10 +200,27 @@ import { WoundsLayer, bandageOn, propAt, type WornPiece } from "./wounds.ts";
 import { LittersLayer, litterApart, litterHeld } from "./litters.ts";
 import { FolkPoses, nearReach, redrawn } from "./folk.ts";
 import type { PosedHook } from "../view/index.ts";
-import { laidGround, shoreWater, villageShore, type ShoreWater } from "../view/index.ts";
+import { laidGround, shoreWaterSteps, villageShore, type ShoreWater } from "../view/index.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
 const M = 0.1; // units per metre
+/**
+ * How far a village's own ground runs out (metres): past its farthest fields and pasture, and the mills on their rim (a great
+ * city's lie kilometres out).
+ */
+function reachOf(plan: VillagePlan): number {
+  return Math.max(
+    plan.fields.reduce((m, f) => Math.max(m, Math.hypot(f.x, f.z) + Math.max(f.w, f.d)), 0),
+    Math.hypot(plan.pasture.x, plan.pasture.z) + plan.pasture.r,
+  );
+}
+/**
+ * How long a frame gives to working out a plan ahead of its drawing (ms: prepare), and its water: what a town shows is
+ * worked out behind its loading, the frames kept going (a phone, four times as long a step, well under a tenth of a second).
+ */
+const PREP_SLICE = 20;
+/** As much, while the town drawn before is seen (its plan read again as the years turn): a frame kept smooth. */
+const SEEN_SLICE = 4;
 /** The most trees drawn coming down or lying at once (Phase 41 M200). */
 const FELLING = 16;
 /** A crown's place up its tree, its breadth and its height (units at a tree's size: as they are grown). */
@@ -711,8 +734,191 @@ export class VillageScene {
     return b;
   }
 
+  /** Whether the frames last told it fine weather (update): a day's legs are worked out for it ahead (prepare). */
+  private lastFine = true;
+
+  /**
+   * What drawing a plan works out on its own, worked out ahead over the frames that follow (PREP_SLICE ms each), the village
+   * drawn as it was till then: its ground's reading, its people's ways and their day's legs, kept where build() and the frames
+   * after it read them. Then build(plan, t) lays out the same as without, sooner (2026-11-23: a great city's build was 2.3 s
+   * in one frame on a phone, at four times the desk's time).
+   */
+  prepare(plan: VillagePlan, t: number): Promise<void> {
+    const run = this.prepareSteps(plan, t, this.lastFine),
+      budget = this.root.enabled ? SEEN_SLICE : PREP_SLICE;
+    return new Promise((done) => {
+      const slice = () => {
+        const t0 = performance.now();
+        for (;;) {
+          if (run.next().done) return done();
+          if (performance.now() - t0 > budget) break;
+        }
+        requestAnimationFrame(slice);
+      };
+      slice();
+    });
+  }
+
+  private *prepareSteps(plan: VillagePlan, t: number, fine: boolean): Generator<void, void, void> {
+    // (Its streets' blocks grown first, a few score a step, as its streets' reading asks them: view/streets.ts.)
+    const tp = plan.town;
+    if (tp) yield* townLotsAhead(tp.seed, tp.axis, tp.lots, tp.water, tp.site ?? null);
+    villageGround(plan);
+    yield;
+    const streets = villageSolids(plan).town;
+    yield;
+    // (Its streets' ways for its cars and its walkers, made a few blocks at a time: view/streets.ts.)
+    if (streets)
+      for (const reach of [...RIDES_REACHES, PERSON_REACH]) yield* streets.waysAhead(reach);
+    yield* ridesSteps(plan);
+    // (The day it is drawn on, as the frames will ask it and as its trades are read: in fine weather and as told.)
+    yield* daysAhead(plan, t, true);
+    if (!fine) yield* daysAhead(plan, t, false);
+    // (Its foundry's days since its moulds were last cast, each one's legs kept as its people's are.)
+    foundryNow(plan, villageSolids(plan), t);
+    yield;
+    // (Its ground as what grows on it reads it: render/townflora.ts.)
+    yield* this.townFlora.prepareSteps(
+      plan,
+      Math.min(390, Math.max(140, (reachOf(plan) + 300) * M)),
+      this.stage.quality.villageTrees,
+    );
+    // (Its town's parts, into those its last building drew before it: render/town.ts.)
+    if (plan.town) {
+      const keep = streetsHeld(plan, t);
+      this.keptFor = { plan, t, keep };
+      yield;
+      yield* this.town.prepareSteps(plan.town, plan.ref, t, true, keep);
+    }
+  }
+  /** The places its streets hold, as prepare read them for a plan at a time (streetsHeld). */
+  private keptFor: {
+    plan: VillagePlan;
+    t: number;
+    keep: { x: number; z: number; r: number }[];
+  } | null = null;
+
+  /**
+   * What it draws, as a shader tells them apart (its material's own, its mesh's vertices, whether instanced, whether it casts):
+   * one of each, for the stage to make their shaders ahead of its first frame (Stage.warmOver). (Each material of it drawn
+   * so too, its own shaders looked up ahead, took half a second of the desk's and gained its first frame nothing: 2026-11-23.)
+   */
+  drawnParts(): {
+    material: pc.Material;
+    instanced: boolean;
+    mesh: pc.Mesh;
+    cast: boolean;
+    receive: boolean;
+  }[] {
+    const tone = (c: pc.Color | undefined) =>
+      !c
+        ? ""
+        : c.r === 0 && c.g === 0 && c.b === 0
+          ? "0"
+          : c.r === 1 && c.g === 1 && c.b === 1
+            ? "1"
+            : "c";
+    const seen = new Map<
+      string,
+      { material: pc.Material; instanced: boolean; mesh: pc.Mesh; cast: boolean; receive: boolean }
+    >();
+    for (const r of this.root.findComponents("render") as pc.RenderComponent[])
+      for (const mi of r.meshInstances) {
+        const m = mi.material as pc.StandardMaterial,
+          format = mi.mesh.vertexBuffer?.format.elements.map((e) => e.name).join(",") ?? "",
+          instanced = !!mi.instancingData,
+          key = [
+            m.diffuseVertexColor,
+            m.useLighting,
+            m.useFog,
+            m.blendType,
+            !!m.emissiveMap,
+            !!m.diffuseMap,
+            m.opacity < 1,
+            Object.keys(m.chunks ?? {}).join("+"),
+            format,
+            instanced,
+            r.castShadows,
+            m.cull,
+            // (What else a material's shader is told apart by: its sheen black, white or tinted, metal, its glow.)
+            tone(m.specular),
+            tone(m.emissive),
+            m.useMetalness,
+            m.emissiveIntensity !== 1,
+            m.alphaTest > 0,
+            m.twoSidedLighting,
+            !!m.normalMap,
+            !!m.opacityMap,
+            m.emissiveVertexColor,
+            m.opacityVertexColor,
+            mi.receiveShadow,
+          ].join("|");
+        if (!seen.has(key))
+          seen.set(key, {
+            material: m,
+            instanced,
+            mesh: mi.mesh,
+            cast: r.castShadows,
+            receive: mi.receiveShadow,
+          });
+      }
+    return [...seen.values()];
+  }
+
+  /** A hash of all its town lays as drawn (the look tools): its parts, its networks, its water. */
+  partsHash(): { town: string; water: string } {
+    let h = 2166136261;
+    const w = this.shoreWater?.tris;
+    if (w)
+      for (let i = 0; i < w.length; i++) h = Math.imul(h ^ Math.round(w[i]! * 1e4), 16777619) >>> 0;
+    return {
+      town: this.town.partsHash(),
+      water: `${h.toString(16)} ${w?.length ?? 0}`,
+    };
+  }
+
+  /** Its town built afresh at the next building, as on coming to it (the look tools: render/town.ts forget). */
+  forgetTown(): void {
+    this.town.forget();
+  }
+
   /** Lay out a village from its plan. */
   build(plan: VillagePlan, t = this.lastT): void {
+    this.building = null;
+    const run = this.buildSteps(plan, t);
+    while (!run.next().done);
+  }
+
+  /**
+   * Lay out a village from its plan over the frames that follow, PREP_SLICE ms a frame, while it is not seen (a great city's
+   * building was a quarter of a second at once on a phone, 2026-11-23); the same village. Built at once meanwhile (build),
+   * this one is let go: false.
+   */
+  buildOver(plan: VillagePlan, t: number): Promise<boolean> {
+    const run = this.buildSteps(plan, t);
+    this.building = run;
+    return new Promise((done) => {
+      const slice = () => {
+        if (this.building !== run) return done(false);
+        const t0 = performance.now();
+        for (;;) {
+          if (run.next().done) {
+            this.building = null;
+            return done(true);
+          }
+          if (performance.now() - t0 > PREP_SLICE) break;
+        }
+        requestAnimationFrame(slice);
+      };
+      slice();
+    });
+  }
+  /** Its building under way over frames (buildOver): until it is done, nothing of it is moved or drawn on. */
+  private building: Generator<void, void, void> | null = null;
+
+  private *buildSteps(plan: VillagePlan, t: number): Generator<void, void, void> {
+    // (Another town's water let go at once: only the same town's stands till its new is, drawLandWater.)
+    if (this.key !== plan.ref) this.dropWater();
     // (Batches first: an entity destroyed does not free the instance buffer it was given.)
     for (const b of this.batches) b.destroy();
     this.batches = [];
@@ -740,13 +946,11 @@ export class VillageScene {
         child !== this.litters.root &&
         child !== this.moneyLayer.root &&
         child !== this.placedLayer?.root &&
-        child !== this.townFlora.root
+        child !== this.townFlora.root &&
+        // (Its water as drawn stands till the new is: drawLandWater.)
+        !this.waterParts.includes(child as pc.Entity)
       )
         child.destroy();
-    this.waterMesh?.destroy();
-    this.waterMesh = null;
-    for (const mesh of this.shoreMeshes) mesh.destroy();
-    this.shoreMeshes = [];
     this.stacks = [];
     this.dressed = [];
     this.plan = plan;
@@ -801,10 +1005,7 @@ export class VillageScene {
     const g = biomeColor(plan.biome, plan.kind, plan.lifeLook),
       // (The ground runs out past its farthest fields and pasture, and the mills on their rim — a
       // great city's lie kilometres out — to the horizon's edge.)
-      reach = Math.max(
-        plan.fields.reduce((m, f) => Math.max(m, Math.hypot(f.x, f.z) + Math.max(f.w, f.d)), 0),
-        Math.hypot(plan.pasture.x, plan.pasture.z) + plan.pasture.r,
-      );
+      reach = reachOf(plan);
     this.reach = reach;
     // (A colony's ground is its own world's: Phase 64.)
     this.colony.visible = !!plan.colony && this.root.enabled;
@@ -850,6 +1051,7 @@ export class VillageScene {
       Math.min(390, Math.max(140, (reach + 300) * M)),
       s.quality.villageTrees,
     );
+    yield;
     const near = Math.min(390, Math.max(140, (reach + 300) * M));
     this.groundNear = near;
     this.farRing = null;
@@ -929,13 +1131,20 @@ export class VillageScene {
       out[5] = quarters ? 2 * len : len;
       out[6] = Math.atan2(plan.road.x, plan.road.z);
     });
+    yield;
     // A town built lot by lot draws its own streets, homes and buildings (Phase 23).
     const town = plan.town ?? null;
     // (Its windows' glass, lit from dusk to dawn as the village's are.)
     if (town) this.townLamps ??= windowMaterial();
     // (Its networks keep off what the village holds in its streets: its memorials, its court, its works, the doors cars stand at.)
-    if (town) this.town.netsKeep = streetsHeld(plan, t);
-    this.town.build(town, plan.ref, t, town ? this.townLamps : null);
+    if (town)
+      this.town.netsKeep =
+        this.keptFor?.plan === plan && this.keptFor.t === t
+          ? this.keptFor.keep
+          : streetsHeld(plan, t);
+    this.keptFor = null;
+    yield* this.town.buildSteps(town, plan.ref, t, town ? this.townLamps : null);
+    yield;
     this.screens = town?.signals?.screens ?? 0;
     this.lit = -1;
     // (The furnace by the diggings and the smithy's rack, where its people smelt and smith: Phase
@@ -952,6 +1161,7 @@ export class VillageScene {
     );
     this.furnaceStand = furnace?.stand ?? null;
     this.rackKept = null;
+    yield;
     // (The potters' wheels and boards, the weavers' looms and the charcoal clamp, each as many as the
     // town has now and a few more, as its kilns and workshops go up: Phase 51 M214.)
     const solids = villageSolids(plan),
@@ -975,6 +1185,7 @@ export class VillageScene {
     this.foundryLayer.build(!!foundry, foundry?.moulds.length ?? 0);
     this.floorLayer.build(floorNow(plan, solids, t)?.machines.length ?? 0);
     this.craftsKept = null;
+    yield;
     // Its graveyard, just past its homes (Phase 43 M205).
     this.graveyard.build(graveyardFor(plan), plan.lifeLook);
     // What it raised to what happened in it, on its square's rim (T1).
@@ -1019,6 +1230,7 @@ export class VillageScene {
         out[6] = Math.PI / 2;
       });
     }
+    yield;
     // The god's wonders in it (Phase 42 M201): a spring's pool brimming in a basin of stone where
     // it welled up (above a square's paving), stones about its rim, its water rising in the
     // middle; a shrine where it was raised — a stone, a white stele and its gold flame.
@@ -1082,6 +1294,7 @@ export class VillageScene {
         });
       }
     }
+    yield;
     // A city's quarters: each block's ground coloured by its use, and a hall at its heart.
     if (quarters && !town) {
       const patch = boxMesh(s),
@@ -1176,10 +1389,14 @@ export class VillageScene {
       pieces(crowns, [0.98, 0.8, 0.25]);
     }
     if (!town) disc(2.2, [0.66, 0.6, 0.48], 0, 0, 0.016);
+    yield;
     // Its countryside (Phase 32): the orchards drawn there under their trees; the rest sown here,
     // a batch to each crop.
     this.country.build(plan, houseLook(plan.house, plan.lifeLook), s.quality);
-    this.drawLandWater(plan, waterColor, waterNear);
+    yield;
+    // (Worked out over the frames that follow, the water drawn before standing till then: drawLandWater.)
+    this.water = this.drawLandWater(plan, waterColor, waterNear);
+    this.water.next();
     this.feast.build(plan);
     const crop = this.country.crop;
     this.crops = (["grain", "greens", "fallow"] as const).flatMap((kind) => {
@@ -1198,6 +1415,7 @@ export class VillageScene {
       });
       return [{ crop: kind, batch, shown: "" }];
     });
+    yield;
     // Homes, as the land builds them (its design): walls of its material, four-square
     // or round, long or wide; roofs pitched to the rain, flat, or conical; tents whole
     // cones of hide. The watched homes lighter.
@@ -1256,6 +1474,7 @@ export class VillageScene {
       out[5] = look.width * (flat ? 1.02 : 1.15);
       out[6] = h.yaw;
     });
+    yield;
     // The next home rising (M86): its footing, its walls as far built as the families it
     // will house have come, the scaffold about them, the timber waiting, and its roof going
     // on at the last.
@@ -1317,6 +1536,7 @@ export class VillageScene {
         });
       }
     }
+    yield;
     // Trees about the village, as its land grows them: dark cones of pine, round crowns,
     // palms, low scrub — facets in a handful of batches.
     // (Where the land built over has its fields: halls of vats, those who tend them inside. Phase 66.)
@@ -1345,6 +1565,7 @@ export class VillageScene {
         out[6] = f.yaw;
       });
     }
+    yield;
     const trees =
         (plan.colony && (plan.colony.remade ?? 0) < 0.8) || plan.past?.covered
           ? []
@@ -1436,6 +1657,7 @@ export class VillageScene {
       "leaf",
     );
     this.plant(null);
+    yield;
     // (Toned to its land's as last told, and in the season the land is in, from the first frame.)
     this.toneDressed();
     this.dress();
@@ -1455,6 +1677,7 @@ export class VillageScene {
         out[6] = h.yaw;
       });
     }
+    yield;
     // The market hall, or the well in the square.
     const hall = this.batch(
       s,
@@ -1477,6 +1700,7 @@ export class VillageScene {
         }),
     };
     this.squareHall.put((this.squareHall.shown = true));
+    yield;
     // People: drawn three times their size, so a phone can see them — as their body is
     // built (one figure for a people, part by part, each part a batch per colour group).
     this.figure = figureOf(plan.body, s.quality.detail);
@@ -1513,6 +1737,7 @@ export class VillageScene {
             )),
       );
     });
+    yield;
     // (Those of made limbs, in a group of their own, whoever they are: Phase 66.)
     // (And the realm's soldiers posted in it, in its colour over what its age wears, a group past the machines': theirs is
     // made too where it has soldiers and none of made limbs, so each group keeps its place.)
@@ -1577,6 +1802,7 @@ export class VillageScene {
     this.soldierArmorParts = [];
     this.soldierBands = [];
     this.arm(this.townWar?.sides ?? null);
+    yield;
     // Homes built more finely (M79): windows lit at night, chimneys, porches, fences.
     this.windows = town ? this.townLamps : null;
     this.lit = -1;
@@ -1619,11 +1845,13 @@ export class VillageScene {
       detailed(byRole("post"), [0.45, 0.3, 0.18]);
       detailed(byRole("fence"), [0.58, 0.42, 0.26]);
     }
+    yield;
     this.moments = [];
     // Beasts about it, as many as the setting draws; birds and fish where small motions are drawn.
     this.fauna.build(plan, s.quality.wildlife, s.quality.detail, s.quality.motion);
     this.fliers.build(fliersOf(plan));
     this.visitors.build(plan, s.quality.detail);
+    yield;
     // Its work: what its people carry, its mine and works, its road's traffic, its smoke
     // (the watched homes' hearths first).
     this.hearths = town
@@ -1665,6 +1893,7 @@ export class VillageScene {
       this.stacks = [];
       if (plan.era !== "modern") this.windows = null;
     }
+    yield;
     this.work.build(
       plan,
       s.quality,
@@ -1730,18 +1959,23 @@ export class VillageScene {
    * Its land's water (its land's view's shore: view/shore.ts), out to `near` metres, kept off what its town and its
    * countryside have laid on its ground; its own round of open water always water.
    */
-  private drawLandWater(plan: VillagePlan, color: Rgb, near: number): void {
-    this.shoreWater = null;
-    const shore = villageShore(plan);
-    if (!shore) return;
-    const laid = laidGround();
-    this.town.laidOn(laid);
-    this.country.laidOn(laid);
-    const t0 = performance.now(),
-      open = plan.water ? { x: plan.water.x, z: plan.water.z, r: waterR(plan.water) } : null,
-      water = shoreWater(shore, { near, laid, open });
-    performance.measure("town.shore", { start: t0 });
+  private *drawLandWater(plan: VillagePlan, color: Rgb, near: number): Generator<void, void, void> {
+    const shore = villageShore(plan),
+      laid = laidGround(),
+      t0 = performance.now();
+    if (shore) {
+      this.town.laidOn(laid);
+      this.country.laidOn(laid);
+    }
+    // (What stands on its ground read as it was built; its water from it, a square of its land's tiles a step.)
+    yield;
+    const open = plan.water ? { x: plan.water.x, z: plan.water.z, r: waterR(plan.water) } : null,
+      water = shore ? yield* shoreWaterSteps(shore, { near, laid, open }) : null;
+    // (The water drawn before let go, the new put in its place.)
+    this.dropWater();
     this.shoreWater = water;
+    if (!water) return;
+    performance.measure("town.shore", { start: t0 });
     // (Its jetty out over the water as drawn, so no boat ties up on what its town has laid at the shore.)
     this.country.keepAfloat(water.on);
     if (!water.tris.length) return;
@@ -1751,6 +1985,7 @@ export class VillageScene {
     this.waterMesh = mesh;
     e.addComponent("render", { meshInstances: [new pc.MeshInstance(mesh, m)] });
     this.root.addChild(e);
+    this.waterParts.push(e);
     this.dressed.push({
       kind: "water",
       base: color,
@@ -1811,7 +2046,53 @@ export class VillageScene {
         castShadows: false,
       });
       this.root.addChild(b);
+      this.waterParts.push(b);
     }
+    // (Dressed as all else is: toned to its land's, in the season.)
+    this.toneDressed();
+    this.dress();
+  }
+
+  /** Its water as drawn let go. */
+  private dropWater(): void {
+    for (const e of this.waterParts) e.destroy();
+    this.waterParts = [];
+    this.waterMesh?.destroy();
+    this.waterMesh = null;
+    for (const mesh of this.shoreMeshes) mesh.destroy();
+    this.shoreMeshes = [];
+    this.shoreWater = null;
+  }
+
+  /** Its water being worked out (drawLandWater), and what stands of it drawn. */
+  private water: Generator<void, void, void> | null = null;
+  private waterParts: pc.Entity[] = [];
+
+  /** Its water carried on, `budget` ms at most (Infinity: to its end); whether it is done. */
+  private carryWater(budget: number): boolean {
+    const job = this.water;
+    if (!job) return true;
+    const t0 = performance.now();
+    for (;;) {
+      if (job.next().done) {
+        if (this.water === job) this.water = null;
+        return true;
+      }
+      if (performance.now() - t0 > budget) return false;
+    }
+  }
+
+  /** Its water drawn whole now (the look tools, and a building asked at once). */
+  waterNow(): void {
+    this.carryWater(Infinity);
+  }
+
+  /** Once its water is drawn (carried a few milliseconds a frame: update). */
+  waterReady(): Promise<void> {
+    return new Promise((done) => {
+      const wait = () => (this.water ? requestAnimationFrame(wait) : done());
+      wait();
+    });
   }
   get groundReach(): number {
     return this.groundNear;
@@ -2186,6 +2467,7 @@ export class VillageScene {
 
   /** Where the eye looks on the town (scene units): its homes nearest it drawn whole (render/town.ts TownLayer.look). */
   look(x: number, z: number): void {
+    if (this.building) return;
     this.town.look(x / M, z / M);
   }
 
@@ -2195,7 +2477,9 @@ export class VillageScene {
     fine = true,
   ): void {
     const plan = this.plan;
-    if (!plan) return;
+    if (!plan || this.building) return;
+    this.lastFine = fine;
+    const began = performance.now();
     // (What grows about it laid over frames, a few milliseconds each: render/townflora.ts.)
     this.townFlora.update();
     if (this.posed) t = this.posed.at(t);
@@ -2828,7 +3112,15 @@ export class VillageScene {
       this.marker.enabled = !!m && !m.hidden;
       if (m) this.marker.setLocalPosition(m.x * M, 0.03, m.z * M);
     }
+    // (Its water worked out over frames, in what is left of a few milliseconds each once the rest is moved: drawLandWater. A
+    // frame the rest took all of, none, but never two such running: it goes on.)
+    const left = (this.root.enabled ? SEEN_SLICE : PREP_SLICE) - (performance.now() - began);
+    if (left > 0 || this.waterHeld) {
+      this.waterHeld = false;
+      this.carryWater(Math.max(1, left));
+    } else this.waterHeld = !!this.water;
   }
+  private waterHeld = false;
 
   /**
    * A war's two hosts armed (M87; Phase 40 M204: as a war comes to the town): each side in its

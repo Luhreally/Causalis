@@ -46,6 +46,8 @@ const PIECE_CLEAR = 4;
 const LINE_PIECE = 8.2;
 /** How far a line's way keeps off the blocks (metres): its car's half breadth, a corner piece's reach off the block, a little more. */
 const LINE_REACH = 2.5;
+/** The reaches a town's rides are routed by: its lines' cars, and its own (Streets ways made ahead for them, render/village.ts). */
+export const RIDES_REACHES: readonly number[] = [LINE_REACH, CAR_REACH];
 
 /** A town's own who go in something: its owners (by person, their home), its riders. */
 export type Rides = {
@@ -102,6 +104,20 @@ function lineRoute(ground: Ground, a: Point, b: Point): Point[] {
 export function ridesOf(plan: VillagePlan): Rides {
   const had = KEPT.get(plan);
   if (had) return had;
+  const run = ridesSteps(plan);
+  for (;;) {
+    const step = run.next();
+    if (step.done) return step.value;
+  }
+}
+
+/**
+ * ridesOf() worked out a way at a time, between which it may be put off (render/village.ts prepare: a great city's lines are
+ * a tenth of a second of finding ways on a phone); kept as ridesOf's, the same.
+ */
+export function* ridesSteps(plan: VillagePlan): Generator<void, Rides, void> {
+  const had = KEPT.get(plan);
+  if (had) return had;
   const about = plan.about,
     owners = new Map<number, Owner>(),
     riders = new Set<number>(),
@@ -147,8 +163,9 @@ export function ridesOf(plan: VillagePlan): Rides {
             { x: 0, z: 0 },
             { x: -Math.cos(a) * r, z: -Math.sin(a) * r },
           ].map((e) => parkNear(ground, e)),
-          there = lineRoute(ground, ends[0]!, ends[1]!),
-          on = lineRoute(ground, ends[1]!, ends[2]!),
+          there = lineRoute(ground, ends[0]!, ends[1]!);
+        yield;
+        const on = lineRoute(ground, ends[1]!, ends[2]!),
           // (Its turns taken wide of where a block's hydrant and its box stand: a line's car is long.)
           way = [...there, ...on.slice(1)].map((p) => {
             if (!ground.town) return p;
@@ -161,6 +178,7 @@ export function ridesOf(plan: VillagePlan): Rides {
         for (let k = 0; k + 1 < way.length; k++)
           long += Math.hypot(way[k + 1]!.x - way[k]!.x, way[k + 1]!.z - way[k]!.z);
         if (long > 60) lines.push({ n, way, long });
+        yield;
       }
     }
   }

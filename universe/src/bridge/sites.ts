@@ -487,6 +487,27 @@ export function grownBlocks(
   water: { readonly x: number; readonly z: number; readonly r: number } | null,
   axis: number,
 ): GrownBlocks {
+  const run = grownBlocksSteps(seed, site, count, water, axis);
+  for (;;) {
+    const step = run.next();
+    if (step.done) return step.value;
+  }
+}
+
+/** How many blocks grownBlocksSteps grows between the steps it may be put off at. */
+const GROW_STEP = 128;
+
+/**
+ * grownBlocks() grown GROW_STEP blocks a step, between which it may be put off (a great city's far blocks were a twentieth of
+ * a second at once on the desk: render/town.ts prepareSteps); the same blocks.
+ */
+export function* grownBlocksSteps(
+  seed: number,
+  site: TownSite,
+  count: number,
+  water: { readonly x: number; readonly z: number; readonly r: number } | null,
+  axis: number,
+): Generator<void, GrownBlocks, void> {
   // (Past the blocks asked, the ground kept open for its market place: four blocks' at the most.)
   const HELD = 4,
     x = new Float32Array(count + HELD),
@@ -990,6 +1011,7 @@ export function grownBlocks(
   };
 
   for (let b = 0; b < count; b++) {
+    if (b % GROW_STEP === GROW_STEP - 1) yield;
     const q = quarterOf(seed, b);
     // (Engines come: no field holds it now, and every front is reckoned again.)
     if (site.tilled && b === site.tilled.until && b > 0 && !over) {

@@ -17,6 +17,7 @@ import {
   townFloraSteps,
   townGroundAt,
   townGroundOf,
+  type TownGround,
   townHeld,
   townRiseAt,
   townWaterAt,
@@ -170,34 +171,12 @@ export class TownFloraLayer {
     // sees, its heights rising as its land's do (no edge to the world at any zoom the eye may take).
     const rings = RINGS + 1 + OUTER,
       n = rings * SPOKES + 1,
-      flat = radius / M,
-      positions = new Float32Array(n * 3),
-      base = new Float32Array(n * 3),
-      open = new Float32Array(n),
-      water = new Uint8Array(n),
-      put = (k: number, x: number, z: number) => {
-        positions[k * 3] = x;
-        positions[k * 3 + 1] = townRiseAt(g, x / M, z / M, flat) * M;
-        positions[k * 3 + 2] = z;
-        const c = townGroundAt(g, plan, x / M, z / M, edge);
-        base[k * 3] = c[0];
-        base[k * 3 + 1] = c[1];
-        base[k * 3 + 2] = c[2];
-        water[k] = townWaterAt(g, x / M, z / M) ? 1 : 0;
-        // (A dry year browns the grass, not the woods' shade nor the water: how much of the ground lies open.)
-        open[k] = water[k] ? 0 : 1 - 0.92 * townCanopyAt(g, x / M, z / M);
-      };
-    put(0, 0, 0);
-    for (let r = 1; r <= rings; r++) {
-      const rr =
-        r <= RINGS + 1
-          ? radius * Math.pow((r - 1 + 0.35) / (RINGS + 0.35), 1.7)
-          : radius * Math.pow(FAR / radius, (r - RINGS - 1) / OUTER);
-      for (let a = 0; a < SPOKES; a++) {
-        const an = (a / SPOKES) * Math.PI * 2 + (r % 2) * (Math.PI / SPOKES);
-        put(1 + (r - 1) * SPOKES + a, rr * Math.cos(an), rr * Math.sin(an));
-      }
-    }
+      read =
+        this.ahead?.key === key && this.ahead.plan === plan
+          ? this.ahead.read
+          : run(groundRead(g, plan, radius, edge));
+    this.ahead = null;
+    const { positions, base, open, water } = read;
     const indices: number[] = [];
     for (let a = 0; a < SPOKES; a++) indices.push(0, 1 + ((a + 1) % SPOKES), 1 + a);
     for (let r = 0; r < rings - 1; r++)
@@ -249,6 +228,24 @@ export class TownFloraLayer {
     this.buildMs = performance.now() - t0;
     this.update();
     return true;
+  }
+
+  /** A plan's ground read ahead of its building (prepare), by what it is laid by (floraKey). */
+  private ahead: { key: string; plan: VillagePlan; read: GroundRead } | null = null;
+
+  /**
+   * A plan's ground read ahead of its building, a ring at a time (render/village.ts prepare: a great city's ground was a
+   * tenth of a second to read on a phone); build() takes it for the same plan, what it would read.
+   */
+  *prepareSteps(plan: VillagePlan, radius: number, share: number): Generator<void, void, void> {
+    const edge = townEdge(plan),
+      key = floraKey(plan, edge, radius, share);
+    if (key === this.key && this.ground) return;
+    const g = townGroundOf(plan);
+    yield;
+    if (!g) return;
+    const read = yield* groundRead(g, plan, radius, edge);
+    this.ahead = { key, plan, read };
   }
 
   /** Each frame: a laying under way carried on, LAY_SLICE ms at most; once done, what it laid shown. */
@@ -526,4 +523,61 @@ function floraKey(plan: VillagePlan, edge: number, radius: number, share: number
   for (const f of plan.fields)
     sum = (sum * 31 + Math.round(f.x * 7 + f.z * 13 + f.w + f.d + f.yaw * 100)) % 1000000007;
   return `${plan.ref}|${sum}|${plan.fields.length}|${Math.round(edge)}|${plan.pasture.x},${plan.pasture.z},${plan.pasture.r}|${plan.road.x},${plan.road.z}|${plan.water ? `${plan.water.x},${plan.water.z}` : ""}|${plan.landWater?.wet?.cells.length ?? 0}|${!!plan.districts}|${radius}|${share}|${plan.kind}|${plan.lifeLook ?? ""}`;
+}
+
+/** A town's ground read at its mesh's points (TownFloraLayer.build): where each stands, its colour, its water, how open. */
+type GroundRead = {
+  readonly positions: Float32Array;
+  readonly base: Float32Array;
+  readonly open: Float32Array;
+  readonly water: Uint8Array;
+};
+
+/** A generator run to its end. */
+function run<T>(steps: Generator<void, T, void>): T {
+  for (;;) {
+    const r = steps.next();
+    if (r.done) return r.value;
+  }
+}
+
+/** A town's ground read at its mesh's points, its rings closer near the middle (`radius`: units), a ring a step. */
+function* groundRead(
+  g: TownGround,
+  plan: VillagePlan,
+  radius: number,
+  edge: number,
+): Generator<void, GroundRead, void> {
+  const rings = RINGS + 1 + OUTER,
+    n = rings * SPOKES + 1,
+    flat = radius / M,
+    positions = new Float32Array(n * 3),
+    base = new Float32Array(n * 3),
+    open = new Float32Array(n),
+    water = new Uint8Array(n),
+    put = (k: number, x: number, z: number) => {
+      positions[k * 3] = x;
+      positions[k * 3 + 1] = townRiseAt(g, x / M, z / M, flat) * M;
+      positions[k * 3 + 2] = z;
+      const c = townGroundAt(g, plan, x / M, z / M, edge);
+      base[k * 3] = c[0];
+      base[k * 3 + 1] = c[1];
+      base[k * 3 + 2] = c[2];
+      water[k] = townWaterAt(g, x / M, z / M) ? 1 : 0;
+      // (A dry year browns the grass, not the woods' shade nor the water: how much of the ground lies open.)
+      open[k] = water[k] ? 0 : 1 - 0.92 * townCanopyAt(g, x / M, z / M);
+    };
+  put(0, 0, 0);
+  for (let r = 1; r <= rings; r++) {
+    const rr =
+      r <= RINGS + 1
+        ? radius * Math.pow((r - 1 + 0.35) / (RINGS + 0.35), 1.7)
+        : radius * Math.pow(FAR / radius, (r - RINGS - 1) / OUTER);
+    for (let a = 0; a < SPOKES; a++) {
+      const an = (a / SPOKES) * Math.PI * 2 + (r % 2) * (Math.PI / SPOKES);
+      put(1 + (r - 1) * SPOKES + a, rr * Math.cos(an), rr * Math.sin(an));
+    }
+    yield;
+  }
+  return { positions, base, open, water };
 }

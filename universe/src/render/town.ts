@@ -34,6 +34,7 @@ import {
   townDetail,
   townDetailSteps,
   farOf,
+  farSteps,
   DETAIL_HYSTERESIS,
   type TownDetail,
   townBuildingAt,
@@ -69,7 +70,7 @@ import { domeMesh } from "./colony.ts";
 import { compoundMeshes, roofCode, shapeLamps, shapeMaterial } from "./compound.ts";
 import { tonedMaterial, type Rgb, type Stage } from "./stage.ts";
 import { TownNetsLayer } from "./townnets.ts";
-import type { NetsClear } from "../view/index.ts";
+import { townNetsSteps, wornOf, type NetsClear, type TownNets } from "../view/index.ts";
 
 const M = 0.1;
 /**
@@ -346,13 +347,13 @@ export class TownLayer {
   private readonly rising: PartBatches;
   private readonly parts = new TownParts();
   /** Its ground as drawn this year, and its homes standing done as drawn from where the eye last chose (townDetail). */
-  private readonly ground = new TownParts();
+  private ground = new TownParts();
   /**
    * Its own lots' homes, drawn once a year (whole wherever the eye is), and those past them as last chosen, and the parts
    * the next choosing fills (the two kept and filled again in turn: a great city's choosing made all its homes' parts
    * anew, some 35,000, and the page swept up after it half a second at a time in WebKit; 2026-11-21).
    */
-  private readonly ownParts = new TownParts();
+  private ownParts = new TownParts();
   private farParts = new TownParts();
   private spare = new TownParts();
   /** Where the eye looks (metres from its square), and the choosing its homes are drawn by; one being drawn over frames. */
@@ -374,6 +375,27 @@ export class TownLayer {
   netsKeep: NetsClear["keep"] = [];
   /** Its civics and walls as they stood when it was built, for its networks to keep off. */
   private standing = new TownParts();
+  /**
+   * A year's plan worked out ahead of its building (prepare), into parts of its own (`ground`, `own`, `far`: those the last
+   * building drew, kept to be filled again): its scene, its ground, its homes as the eye would choose them, its civics and
+   * walls, its networks. build() puts them in place of what it would work out, the same.
+   */
+  private prepared: {
+    plan: TownPlan;
+    ref: string;
+    t: number;
+    scene: TownScene;
+    eye: { x: number; z: number };
+    detail: TownDetail;
+    ground: TownParts;
+    own: TownParts;
+    far: TownParts;
+    standing: TownParts;
+    nets: TownNets | null;
+  } | null = null;
+  private prepGround = new TownParts();
+  private prepOwn = new TownParts();
+  private prepFar = new TownParts();
 
   constructor(stage: Stage, parent: pc.Entity) {
     parent.addChild(this.root);
@@ -390,6 +412,7 @@ export class TownLayer {
     this.rising = new PartBatches(stage, this.root, meshes);
     // (Its homes standing done drawn each as one: view/compound.ts.)
     this.ownParts.compound = this.farParts.compound = this.spare.compound = true;
+    this.prepOwn.compound = this.prepFar.compound = true;
   }
 
   get visible(): boolean {
@@ -415,6 +438,17 @@ export class TownLayer {
     t: number,
     lamps: pc.StandardMaterial | null = null,
   ): void {
+    const run = this.buildSteps(plan, ref, t, lamps);
+    while (!run.next().done);
+  }
+
+  /** build() a few hundred parts at a step, between which it may be put off (render/village.ts buildOver); the same town. */
+  *buildSteps(
+    plan: TownPlan | null,
+    ref: string,
+    t: number,
+    lamps: pc.StandardMaterial | null = null,
+  ): Generator<void, void, void> {
     this.settled.lamps = this.rising.lamps = lamps;
     if (!plan) {
       this.scene = null;
@@ -427,36 +461,114 @@ export class TownLayer {
     }
     this.visible = true;
     const t0 = performance.now(),
-      same = this.key === ref && this.scene !== null;
-    this.key = ref;
-    this.scene = townScene(plan, t, same ? this.scene!.lots : undefined);
-    // What stands all year: the ground, the homes done, the ruins; those nearest the eye whole, the rest as seen from
-    // afar, the city's lots past those drawn on their own blocks (view/town.ts townDetail).
-    this.ground.clear();
-    townGround(this.scene, this.ground);
-    if (!same) this.eye = { x: 0, z: 0 };
-    this.detail = townDetail(this.scene, this.eye);
-    this.ownParts.clear();
-    this.farParts.clear();
-    for (const [out, which] of [
-      [this.ownParts, "own"],
-      [this.farParts, "far"],
-    ] as const) {
-      const run = homesSeen(this.scene, this.detail, t, out, which);
+      ready = this.prepared,
+      p = ready && ready.plan === plan && ready.ref === ref && ready.t === t ? ready : null;
+    this.prepared = null;
+    if (!p) {
+      const run = this.prepareSteps(plan, ref, t, false);
       while (!run.next().done);
     }
+    const made = p ?? this.prepared!;
+    this.prepared = null;
+    // What stands all year: the ground, the homes done, the ruins; those nearest the eye whole, the rest as seen from
+    // afar, the city's lots past those drawn on their own blocks (view/town.ts townDetail): as worked out (prepareSteps),
+    // the parts drawn before kept to be filled again.
+    this.key = ref;
+    this.scene = made.scene;
+    this.eye = made.eye;
+    this.detail = made.detail;
+    if (made.ground !== this.ground) {
+      [this.ground, this.prepGround] = [made.ground, this.ground];
+      [this.ownParts, this.prepOwn] = [made.own, this.ownParts];
+      [this.farParts, this.prepFar] = [made.far, this.farParts];
+    }
+    this.standing = made.standing;
     this.choosing = null;
     this.seenAt = t;
-    this.settled.show(this.ground, this.ownParts, this.farParts);
+    yield* this.settled.showOver(SHOW_STEP, this.ground, this.ownParts, this.farParts);
     // (Its networks keep off what else stands in its streets: its ground as laid, its civics and walls as they stand now.)
-    const standing = (this.standing = new TownParts());
-    townCivics(this.scene, t, standing, false);
-    townWalls(this.scene, t, standing, this.open);
-    this.nets.build(this.scene, this.eye, this.netsClear());
+    this.nets.build(this.scene!, this.eye, this.netsClear(), made.nets);
     performance.measure("town.built", { start: t0 });
+    yield;
     this.busy = this.scene.active.length > 0 || civicsActive(plan, t) || !!plan.walls;
     this.drawnAt = -Infinity;
     this.update(t);
+  }
+
+  /**
+   * A year's plan worked out ahead of its building, a step at a time (render/village.ts prepare), into the parts the last
+   * building drew before it (kept to be filled again); `ahead`: while that building still stands, so its spare parts are
+   * filled, not those drawn. build() takes what this leaves, or works it out whole.
+   */
+  *prepareSteps(
+    plan: TownPlan,
+    ref: string,
+    t: number,
+    ahead = true,
+    /** The places the village holds in its streets as that plan has them (netsKeep). */
+    keep: NetsClear["keep"] = this.netsKeep,
+  ): Generator<void, void, void> {
+    const same = this.key === ref && this.scene !== null,
+      scene = townScene(plan, t, same ? this.scene!.lots : undefined);
+    yield;
+    // (Its lots past those drawn, and its worn ways: each read once, kept for the plan; its far blocks grown a step at a time.)
+    yield* farSteps(scene);
+    yield;
+    wornOf(scene);
+    yield;
+    const ground = ahead ? this.prepGround : this.ground;
+    ground.clear();
+    townGround(scene, ground);
+    yield;
+    const eye = same ? { ...this.eye } : { x: 0, z: 0 },
+      detail = yield* townDetailSteps(scene, eye);
+    const own = ahead ? this.prepOwn : this.ownParts,
+      far = ahead ? this.prepFar : this.farParts;
+    own.clear();
+    far.clear();
+    yield* homesSeen(scene, detail, t, own, "own");
+    yield* homesSeen(scene, detail, t, far, "far");
+    const standing = new TownParts();
+    townCivics(scene, t, standing, false);
+    townWalls(scene, t, standing, this.open);
+    yield;
+    const nets = yield* townNetsSteps(scene, eye, {
+      parts: [ground, own, far, standing],
+      keep,
+    });
+    this.prepared = { plan, ref, t, scene, eye, detail, ground, own, far, standing, nets };
+  }
+
+  /** Built afresh at the next building, as a town come to (its lots, the eye at its square). */
+  forget(): void {
+    this.key = "";
+    this.scene = null;
+  }
+
+  /** A hash (FNV) of each of its parts as drawn (ground, own, far, civics and walls) and its networks as laid (the look tools). */
+  partsHash(): string {
+    const hashOf = (each: (mix: (v: number) => void) => void) => {
+      let h = 2166136261;
+      each((v) => (h = Math.imul(h ^ Math.round(v * 1e4), 16777619) >>> 0));
+      return h.toString(16);
+    };
+    const ofParts = (parts: TownParts) =>
+      hashOf((mix) => {
+        for (const [key, g] of [...parts.groups].sort((a, b) => (a[0] < b[0] ? -1 : 1))) {
+          if (!g.data.length) continue;
+          for (let i = 0; i < key.length; i++) mix(key.charCodeAt(i));
+          for (const v of g.data) mix(v);
+        }
+      });
+    return [
+      ofParts(this.ground),
+      ofParts(this.ownParts),
+      ofParts(this.farParts),
+      ofParts(this.standing),
+      hashOf((mix) => {
+        for (const v of this.nets.laidHash()) mix(v);
+      }),
+    ].join(".");
   }
 
   /** What its networks keep off: its ground as laid, its homes as drawn, its civics and walls, the places the village holds. */

@@ -1014,6 +1014,18 @@ function alongWay(way: readonly Point[], u: number): Point {
  * nearest able dig in the rubble of the first four for those under it, three hours.
  */
 function fightsOn(plan: VillagePlan, day: number): ReadonlyMap<number, readonly Stint[]> {
+  const run = fightsSteps(plan, day);
+  for (;;) {
+    const step = run.next();
+    if (step.done) return step.value;
+  }
+}
+
+/** fightsOn() a funeral, a homecoming at a step, between which it may be put off (render/village.ts prepare); the same day. */
+function* fightsSteps(
+  plan: VillagePlan,
+  day: number,
+): Generator<void, ReadonlyMap<number, readonly Stint[]>, void> {
   const struck = plan.town?.struck ?? [],
     // (And its funerals: Phase 43 M205.)
     rites = funeralsOn(plan, day),
@@ -1290,11 +1302,19 @@ function fightsOn(plan: VillagePlan, day: number): ReadonlyMap<number, readonly 
   // and filled after.
   const yard = rites.length ? graveyardFor(plan) : null,
     told: Rite[] = [];
-  if (yard) for (const f of rites) bury(f, yard);
+  yield;
+  if (yard)
+    for (const f of rites) {
+      bury(f, yard);
+      yield;
+    }
   // The levy home (Phase 55 M226, M229): its litters borne in from the road's end, kin waiting at
   // their doors, the town out by the road into the square to see its columns come in.
   const borne: Litter[] = [];
-  for (const h of comings) comeHome(h);
+  for (const h of comings) {
+    comeHome(h);
+    yield;
+  }
   if (comings.length) cheer(comings);
   let litDay = LITTERS.get(plan);
   if (!litDay) LITTERS.set(plan, (litDay = new Map()));
@@ -5140,6 +5160,28 @@ function legsOf(plan: VillagePlan, index: number, day: number, fine: boolean): L
     days.set(key, (legs = dayOf(plan, index, day, fine)));
   }
   return legs;
+}
+
+/**
+ * Each one drawn's day's legs for the day of `t`, worked out ahead one by one, between which it may be put off (render/village.ts
+ * prepare: a great city's people's days were a quarter of a second at once on a phone, the first frame it was drawn); kept as
+ * legsOf keeps them, so what the frames ask after is what they would have worked out.
+ */
+export function* daysAhead(plan: VillagePlan, t: number, fine = true): Generator<void, void, void> {
+  const day = Math.floor(t / DAY);
+  // (What every one's day reads first, each worked out once a day: who fights where, the town's day, the hunt.)
+  if (fine) {
+    yield* fightsSteps(plan, day);
+    yield;
+    townDay(plan, day, groundFor(plan));
+    yield;
+  }
+  huntOn(plan, day);
+  yield;
+  for (let i = 0; i < plan.people.length; i++) {
+    legsOf(plan, i, day, fine);
+    yield;
+  }
 }
 
 /** A long walk of a person's day (R1): when, from where to where, how long. */

@@ -564,6 +564,13 @@ type Exposed = {
   townShore?: () => unknown;
   /** The town drawn again with what its view lays kept off its land view's shore or not (view/shore.ts shoreLaying; to time it). */
   townLaying?: (on: boolean) => boolean;
+  /**
+   * A hash of all the town drawn lays (its ground, homes, civics and walls, networks, water): as drawn, and as built again at
+   * once from the same plan at the same time (a check that a plan worked out ahead over frames is drawn the same).
+   */
+  townHash?: (
+    again?: boolean,
+  ) => { town: string; water: string; built: { town: string; water: string } | null } | null;
   farLandParts?: (o: Parameters<FarLand["parts"]>[0]) => void;
   townLook?: (o: { far?: number; land?: boolean; ring?: boolean }) => void;
   /** A world's life on one sheet over the screen, each picture's outline read off its pixels (B1, gate 108); and away. */
@@ -6747,7 +6754,16 @@ async function runPlanetPage(): Promise<void> {
   let moneyPlan: (() => void) | null = null;
   /** The moment the plan was last asked for, by the host's own word: what struck the town after that, it hasn't heard of. */
   let planAsked = 0;
-  const loadPlan = async (ref: string) => {
+  /**
+   * Plans asked for (loadPlan), so that one answered after a later one was asked is not drawn: its asker waits on the later,
+   * the last asked (`lastLoad`).
+   */
+  let builtHash: { town: string; water: string } | null = null,
+    builtAt = 0,
+    plansAsked = 0,
+    lastLoad: Promise<void> = Promise.resolve();
+  const loadPlan = (ref: string): Promise<void> => (lastLoad = loadPlanNow(ref));
+  const loadPlanNow = async (ref: string): Promise<void> => {
     // Asked once a year: the year is marked before the answer comes.
     planYear = Math.floor(clock.t / YEAR);
     planAsked = client.status?.t ?? clock.t;
@@ -6755,8 +6771,9 @@ async function runPlanetPage(): Promise<void> {
     const fresh = plan?.ref !== ref,
       // (The one looked at, by who they are: the town read again draws its people afresh, and their place among them moves.)
       looked = !fresh && watched !== null ? plan?.people[watched] : undefined;
-    const q0 = performance.now();
-    plan = await client.query<VillagePlan>({
+    const q0 = performance.now(),
+      asked = ++plansAsked;
+    let next = await client.query<VillagePlan>({
       type: "village.plan",
       args: {
         ref,
@@ -6767,20 +6784,47 @@ async function runPlanetPage(): Promise<void> {
       },
     });
     // (`?nolife`, for measuring: the town drawn without its goings and those not of it, as it was before them.)
-    if (plan && params.has("nolife")) {
-      const { goings: _, ...bare } = plan;
-      plan = { ...bare, people: plan.people.filter((p) => !p.outsider) };
+    if (next && params.has("nolife")) {
+      const { goings: _, ...bare } = next;
+      next = { ...bare, people: next.people.filter((p) => !p.outsider) };
     }
     // (Where it stands on its land, as its land's view has it: its shore read there, view/shore.ts.)
     {
       const on = colonyRef(ref) ? null : region.land.townAt(ref);
-      if (on) plan = { ...plan, landAt: { x: on.x, z: on.z } };
+      if (on) next = { ...next, landAt: { x: on.x, z: on.z } };
     }
-    spires = !!plan.town && hasSpires(plan.town);
     performance.measure("village.plan", { start: q0 });
-    const t0 = performance.now();
-    village.build(plan, now());
+    // (What its drawing works out on its own, over the frames that follow, the village as it was drawn till then: a great
+    // city's was seconds in one frame on a phone. A plan asked again meanwhile is the one drawn.)
+    const at = now(),
+      p0 = performance.now();
+    await village.prepare(next, at);
+    performance.measure("village.prepare", { start: p0 });
+    if (asked !== plansAsked) return lastLoad;
+    const t0 = performance.now(),
+      hidden = !village.visible;
+    builtAt = at;
+    // (Not yet seen, built over frames too, the plan drawn before kept till it is done; seen, at once.)
+    // (One built at once meanwhile, of the plan drawn before, this one built after it at once.)
+    if (hidden) {
+      const whole = await village.buildOver(next, at);
+      if (asked !== plansAsked) return lastLoad;
+      if (!whole) village.build(next, at);
+    } else village.build(next, at);
     performance.measure("village.build", { start: t0 });
+    plan = next;
+    spires = !!plan.town && hasSpires(plan.town);
+    // (For the look tools: what was drawn, before any frame after it changed it.)
+    builtHash = params.has("hashes") ? village.partsHash() : null;
+    // (Its water drawn, and its shaders made, over the frames before it is shown, while it is not: its first frame makes
+    // none. Seen already, its water drawn before stands till the new is.)
+    if (hidden) {
+      await village.waterReady();
+      if (builtHash) builtHash = { ...builtHash, water: village.partsHash().water };
+      const w0 = performance.now();
+      await stage.warmOver(village.drawnParts(), 2);
+      performance.measure("village.warmed", { start: w0 });
+    }
     // One looked at who is no longer among the town drawn (asked 2026-11-17: one dead "keeps running"): the eye leaves
     // them, never passing to whoever stands at their number now; one under the hand, to their page, which tells their death.
     if (looked) {
@@ -7488,7 +7532,18 @@ async function runPlanetPage(): Promise<void> {
         shoreLaying.on = on;
         if (scale !== "village" || !plan) return false;
         village.build(plan, now());
+        village.waterNow();
         return true;
+      };
+      exposed.townHash = (again = false) => {
+        if (scale !== "village" || !plan) return null;
+        const was = builtHash;
+        if (again) {
+          village.forgetTown();
+          village.build(plan, builtAt);
+          village.waterNow();
+        }
+        return { ...village.partsHash(), built: was };
       };
       exposed.townShore = () => {
         const shore = scale === "village" && plan ? villageShore(plan) : null,

@@ -12,7 +12,7 @@ import { MONTH, YEAR, finish, mix } from "../kernel/index.ts";
 import type { GenesisPlan, MeadowPlan } from "./genesis.ts";
 import type { FieldYear, GetAbout, VillagePlan } from "./village.ts";
 import {
-  grownBlocks,
+  grownBlocksSteps,
   wetGround,
   type GrownBlocks,
   type MainStreet,
@@ -291,11 +291,24 @@ function grownOf(
   water: TownWater | null,
   axis: number,
 ): TownBlocks {
+  const run = grownSteps(seed, site, count, water, axis);
+  for (;;) {
+    const step = run.next();
+    if (step.done) return step.value;
+  }
+}
+function* grownSteps(
+  seed: number,
+  site: TownSite,
+  count: number,
+  water: TownWater | null,
+  axis: number,
+): Generator<void, TownBlocks, void> {
   const key = layoutKey("", seed, axis, water, site);
   let kept = GROWN.get(key);
   if (!kept || kept.x.length < count) {
     // (Grown a little past what is asked: a town asked of again is asked of a little larger.)
-    kept = grownBlocks(
+    kept = yield* grownBlocksSteps(
       seed,
       site,
       Math.max(count, Math.ceil((kept?.x.length ?? 0) * 1.25)),
@@ -434,6 +447,20 @@ export type TownLots = {
  * The first `count` lots of a town's plan: lot j of a block, its column j mod 4, its row j div 4
  * (none in its water).
  */
+/**
+ * What townLots() of the same asks grows of its blocks grown ahead, a few score at a step (bridge/sites.ts grownBlocksSteps), and
+ * kept as it keeps them: townLots then finds them grown (render/town.ts, a great city's far lots worked out over frames).
+ */
+export function* townLotsAhead(
+  seed: number,
+  axis: number,
+  count: number,
+  water: TownWater | null = null,
+  site: TownSite | null = null,
+): Generator<void, void, void> {
+  if (site) yield* grownSteps(seed, site, Math.ceil(count / BLOCK_LOTS), water, axis);
+}
+
 export function townLots(
   family: TownFamily,
   seed: number,

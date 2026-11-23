@@ -43,6 +43,8 @@ const OUTS = 32;
 const AVENUE_STEP = 60;
 /** The walks kept (between two ways), before they are forgotten. */
 const KEPT = 20_000;
+/** How many blocks (or ways) a step of making the ways reads (waysAhead). */
+const WAYS_STEP = 32;
 
 const cellKey = (i: number, j: number) => (i + 2048) * 4096 + (j + 2048);
 
@@ -610,6 +612,23 @@ export class Streets {
   private waysFor(reach: number): Ways {
     const known = this.ways.get(reach);
     if (known) return known;
+    const run = this.waysSteps(reach);
+    for (;;) {
+      const step = run.next();
+      if (step.done) return step.value;
+    }
+  }
+
+  /**
+   * The ways for walks keeping `reach` off every wall made ahead, a few blocks' at a time, between which it may be put off
+   * (render/village.ts prepare: a great city's were a tenth of a second at once on a phone); kept as waysFor keeps them.
+   */
+  *waysAhead(reach: number): Generator<void, void, void> {
+    if (!this.ways.has(reach)) yield* this.waysSteps(reach);
+  }
+
+  /** waysFor(), worked out a few blocks' at a time (WAYS_STEP). */
+  private *waysSteps(reach: number): Generator<void, Ways, void> {
     const xs: number[] = [],
       zs: number[] = [],
       links: [number, number][] = [];
@@ -622,7 +641,9 @@ export class Streets {
       return xs.length - 1;
     };
     // Each block's corners, out in its streets.
+    let step = 0;
     for (const b of this.blocks) {
+      if (++step % WAYS_STEP === 0) yield;
       const c = Math.cos(b.t),
         s = Math.sin(b.t);
       for (const u of [-1, 1])
@@ -728,6 +749,7 @@ export class Streets {
     for (const [i, j] of links) if (sees(i, j)) link(i, j);
     // Each joined to those it sees near it (each pair weighed once, from its lower).
     for (let i = 0; i < n; i++) {
+      if (i % WAYS_STEP === WAYS_STEP - 1) yield;
       const x = xs[i]!,
         z = zs[i]!,
         ci = Math.floor(x / WAY_CELL),
@@ -743,6 +765,7 @@ export class Streets {
     // The ways out, the square's and the walls' (few, standing apart from the blocks' corners):
     // each joined besides to the nearest few it sees further off.
     for (const i of special) {
+      yield;
       const seen: { j: number; d: number }[] = [];
       this.waysNear(w0, { x: xs[i]!, z: zs[i]! }, SEES_FAR, (j, d) => {
         if (j !== i && d > SEES) seen.push({ j, d });
@@ -763,6 +786,7 @@ export class Streets {
     let main = -1;
     for (const [r, c] of size) if (main < 0 || c > size.get(main)!) main = r;
     for (let i = 0; i < n; i++) {
+      if (i % WAYS_STEP === WAYS_STEP - 1) yield;
       if (top(i) === top(main)) continue;
       for (const span of [SEES * 2.5, SEES * 6]) {
         const seen: { j: number; d: number }[] = [];

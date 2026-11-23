@@ -58,12 +58,18 @@ export class TownNetsLayer {
    * A town's scene to lay its networks on (null: none), about where the eye looks (metres from its square), off what else holds
    * its streets (view/networks.ts NetsClear: what the town's view lays, and the places the village holds).
    */
-  build(scene: TownScene | null, focus = { x: 0, z: 0 }, clear?: NetsClear): void {
+  build(
+    scene: TownScene | null,
+    focus = { x: 0, z: 0 },
+    clear?: NetsClear,
+    /** What townNets() laid of these already (render/town.ts prepareSteps). */
+    laid?: TownNets | null,
+  ): void {
     this.scene = scene;
     if (clear) this.clear = clear;
     this.laidAt = { ...focus };
     this.laying = null;
-    this.lay(scene ? townNets(scene, focus, this.clear) : null);
+    this.lay(scene ? (laid ?? townNets(scene, focus, this.clear)) : null);
   }
 
   /**
@@ -83,7 +89,17 @@ export class TownNetsLayer {
     this.layingFrom = performance.now();
   }
 
+  /** Every number of what was laid last (its boxes then its rounds: where, how large, turned), for a check's hash. */
+  laidHash(): number[] {
+    const out: number[] = [];
+    for (const list of [this.lastLaid?.boxes ?? [], this.lastLaid?.rounds ?? []])
+      for (const p of list) out.push(p.x, p.y, p.z, p.sx, p.sy, p.sz, p.yaw);
+    return out;
+  }
+  private lastLaid: TownNets | null = null;
+
   private lay(nets: TownNets | null): void {
+    this.lastLaid = nets;
     this.laid = nets?.counts ?? null;
     this.boxes = this.put(this.boxes, this.box, nets?.boxes ?? []);
     this.rounds = this.put(this.rounds, this.cyl, nets?.rounds ?? []);
