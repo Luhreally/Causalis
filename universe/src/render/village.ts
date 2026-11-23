@@ -5,6 +5,7 @@
 // so a phone can see them. Instanced throughout: a village is a handful of draw calls. A battle
 // fought before it in its own scene (Phase 55 M227): its field laid along its road (render/battle.ts),
 // its people indoors while it is fought but for those come out to its edge to watch.
+import { nearFadeMaterial } from "./nearfade.ts";
 import { TownTraffic } from "./towntraffic.ts";
 import * as pc from "playcanvas";
 import { TownFloraLayer } from "./townflora.ts";
@@ -1744,6 +1745,7 @@ export class VillageScene {
               paint.tones[part.tone],
               each(pi),
               this.root,
+              nearFadeMaterial(paint.tones[part.tone]),
             )),
       );
     });
@@ -1765,6 +1767,7 @@ export class VillageScene {
                 MACHINE_TONES[part.tone]!,
                 each(pi),
                 this.root,
+                nearFadeMaterial(MACHINE_TONES[part.tone]!),
               )),
         ),
       );
@@ -1786,6 +1789,7 @@ export class VillageScene {
                 tones[part.tone]!,
                 each(pi),
                 this.root,
+                nearFadeMaterial(tones[part.tone]!),
               )),
         ),
       );
@@ -1799,7 +1803,7 @@ export class VillageScene {
     this.hair = figured.map((part, pi) =>
       part.tone === 3
         ? (haired[alike[pi]!] ??= hairs.map((c) =>
-            this.batch(s, meshes[part.shape], c, each(pi), this.root),
+            this.batch(s, meshes[part.shape], c, each(pi), this.root, nearFadeMaterial(c)),
           ))
         : null,
     );
@@ -2812,6 +2816,7 @@ export class VillageScene {
       dt,
       downed: this.posed?.downed ?? this.streetDowned,
       kept: unposed ? redrawn(unposed, drawn) : null,
+      alpha: this.posed?.alpha ?? null,
       people: this.people,
       hair: this.hair,
       eye: { x: at.x / M, y: at.y / M, z: at.z / M },
@@ -3097,18 +3102,21 @@ export class VillageScene {
     // What they carry, where they go with it.
     let n = 0;
     // (And those about a town of sets carried in the hand with one, in the hand: signals. Every so many by their place.)
-    const phones = Math.round(20 * (plan.town?.signals?.phones ?? 0));
+    const phones = Math.round(20 * (plan.town?.signals?.phones ?? 0)),
+      faded = this.posed?.alpha ?? null;
     plan.people.forEach((p, i) => {
       const m = this.moments[i]!,
-        carry = m.carry ?? (phones && !p.child && (i * 7) % 20 < phones ? "phone" : null);
-      if (m.hidden || !carry) return;
+        carry = m.carry ?? (phones && !p.child && (i * 7) % 20 < phones ? "phone" : null),
+        // (One fading near the eye of a possession: what they carry dwindles with them.)
+        whole = faded?.[i] ?? 1;
+      if (m.hidden || !carry || whole <= 0) return;
       const c =
         this.carriers[n] ?? (this.carriers[n] = { x: 0, z: 0, yaw: 0, carry: "tool", size: 1 });
       c.x = m.x * M;
       c.z = m.z * M;
       c.yaw = m.yaw;
       c.carry = carry;
-      c.size = (p.child ? 0.7 : 1) * this.figure.scale * (this.sizes[i] ?? 1);
+      c.size = (p.child ? 0.7 : 1) * this.figure.scale * (this.sizes[i] ?? 1) * whole;
       n++;
     });
     this.carriers.length = n;

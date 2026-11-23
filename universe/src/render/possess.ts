@@ -12,6 +12,11 @@ import type { Stage } from "./stage.ts";
 
 /** Units to a metre, as the village's. */
 const M = 0.1;
+/** A body held as the screen shows it (CSS px). */
+export type BodyOnScreen = { top: number; bottom: number; left: number; right: number };
+/** Of his height: the top of his head, his hips (the foot of his head and body), and half his breadth with his arms. */
+const BODY_SEEN = { top: 1.04, hips: 0.45, half: 0.3 } as const;
+
 /** Where on the body the eye looks (of its height: about the shoulders). */
 const LOOK_AT = 0.8;
 /** How near and how far the eye stands off (the body's heights); how far it looks down, and up (radians). */
@@ -205,6 +210,24 @@ export class PossessEye {
     return k < 0 || k > 1
       ? null
       : { x: (from.x + (to.x - from.x) * k) / M, z: (from.z + (to.z - from.z) * k) / M };
+  }
+
+  /**
+   * Where the one held stands on the screen, his head and his body down to his hips (CSS pixels: the top of his head, the
+   * foot of his body, its sides with his arms; null: not before the eye), for what the HUD lays over the world to keep off.
+   */
+  bodyOnScreen(x: number, z: number, lift = 0): BodyOnScreen | null {
+    const h = this.height,
+      top = this.toScreen(x, lift + BODY_SEEN.top * h, z),
+      foot = this.toScreen(x, lift + BODY_SEEN.hips * h, z);
+    if (!top || !foot) return null;
+    const half = (Math.abs(foot.y - top.y) * BODY_SEEN.half) / (BODY_SEEN.top - BODY_SEEN.hips);
+    return {
+      top: Math.min(top.y, foot.y),
+      bottom: Math.max(top.y, foot.y),
+      left: Math.min(top.x, foot.x) - half,
+      right: Math.max(top.x, foot.x) + half,
+    };
   }
 
   /** Where a point of the town (m) is on the screen (CSS pixels; null: behind the eye). */

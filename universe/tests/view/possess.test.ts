@@ -12,7 +12,7 @@ import {
   bidOf,
   bodyMoment,
   drawnHeight,
-  inTheWay,
+  nearSight,
   joinsAt,
   lettersOf,
   momentOf,
@@ -265,21 +265,58 @@ test("the eye stands off by the body's height as the town draws it (larger than 
   assert.ok(drawnHeight({ body: null }) === h);
 });
 
-test("one standing between the eye behind him and the one held is not drawn, and is again once clear of the line", () => {
+test("those near the eye behind him, or between it and him, fade out by degrees, never at once", () => {
   const h = drawnHeight(plan),
-    eye = { x: 10, y: 6, z: 0, tall: h },
-    way = inTheWay(eye, { x: 10, z: 10 });
-  assert.equal(way({ x: 10, z: 7 }, false), true, "close behind him, in the eye's line");
-  assert.equal(way({ x: 10 + 0.35 * h, z: 7 }, false), false, "a little off it, drawn");
-  assert.equal(way({ x: 10 + 0.35 * h, z: 7 }, true), true, "not drawn till a little more clear");
-  assert.equal(way({ x: 13 + h, z: 7 }, true), false);
-  assert.equal(way({ x: 10, z: 12 }, false), false, "beyond him");
-  assert.equal(way({ x: 10, z: -2 }, false), false, "behind the eye");
+    eye = { x: 10, y: 0.9 * h, z: 10 - 2.6 * h, tall: h },
+    sight = nearSight(eye, { x: 10, z: 10 });
+  // (Between: on the line from the eye to him, gone; a little off it, fading; clear of it, whole.)
+  assert.equal(sight({ x: 10, z: 10 - 0.6 * h }), 0, "close behind him, in the eye's line");
+  const off = [0.15, 0.3, 0.4, 0.5, 0.75].map((k) => sight({ x: 10 + k * h, z: 10 - 0.6 * h }));
+  assert.ok(
+    off.every((a, i) => i === 0 || a >= off[i - 1]!),
+    `${off}: more drawn the farther off it`,
+  );
+  assert.ok(
+    off.some((a) => a > 0.05 && a < 0.95),
+    `${off}: by degrees`,
+  );
+  assert.equal(off.at(-1), 1);
+  // (Near the eye, nearer than he is: whole past a body and a half from it, gone within one, by degrees between.)
+  const by = [0.3, 0.8, 1, 1.2, 1.5].map((k) => sight({ x: 10 + 0.7 * h, z: eye.z + k * h }));
+  assert.ok(
+    by.every((a, i) => i === 0 || a >= by[i - 1]!),
+    `${by}`,
+  );
+  assert.equal(by[0], 0);
+  assert.equal(by.at(-1), 1);
+  assert.ok(
+    by.some((a) => a > 0.05 && a < 0.95),
+    `${by}: by degrees`,
+  );
+  assert.equal(sight({ x: 10, z: 10 + 0.8 * h }), 1, "beyond him");
+  // (Walked along the eye's line and past him, and across it, with the eye far and near: never more than a little at a step.)
+  for (const back of [2.6, 0.6]) {
+    const e = { ...eye, z: 10 - back * h },
+      look = nearSight(e, { x: 10, z: 10 });
+    for (const across of [0, 0.1, 0.3]) {
+      let was = look({ x: 10 + across * h, z: e.z - h });
+      for (let z = e.z - h; z < 10 + 2 * h; z += 0.01 * h) {
+        const a = look({ x: 10 + across * h, z });
+        assert.ok(
+          Math.abs(a - was) < 0.15,
+          `eye ${back} back, ${across} across, at ${(z - 10) / h}: ${was} to ${a}`,
+        );
+        was = a;
+      }
+    }
+  }
+  assert.equal(sight({ x: 10 + 4 * h, z: 10 }), 1, "beside him, far off the line");
+  // In the town drawn: those of the small world and the town's own alike, he never.
   const posed = new PosedBodies(plan, t, "smith", "sickle", 101),
     live = {
       step: 30,
       kept: 20,
-      bodies: [body({ x: 10, z: 10 }), body({ id: 104, doing: "follow", x: 10, z: 7 })],
+      bodies: [body({ x: 10, z: 10 }), body({ id: 104, doing: "follow", x: 10, z: 10 - 0.6 * h })],
       lying: [],
       offers: [],
       told: null,
@@ -293,13 +330,15 @@ test("one standing between the eye behind him and the one held is not drawn, and
     plan.people.map((_, i) => ({ moment: momentOf(plan, i, posed.at()), size: 1, stride: 0 }));
   let d = drawn();
   posed.pose(d, new Map());
-  assert.equal(d[4]!.size, 1, "no eye behind him: all drawn");
+  assert.ok(
+    posed.alpha.every((a) => a === 1),
+    "no eye behind him: all whole",
+  );
   posed.eye = eye;
   d = drawn();
   posed.pose(d, new Map());
-  assert.equal(d[4]!.size, 0);
-  assert.equal(d[4]!.moment.hidden, true);
-  assert.equal(d[1]!.size, 1, "he is drawn");
-  assert.equal(posed.hid, 1);
-  assert.equal(posed.drawnAt(104)!.hidden, false, "only not drawn: where it is is still told");
+  assert.equal(posed.alpha[4], 0, "the one in the line");
+  assert.equal(posed.alpha[1], 1, "he is whole");
+  assert.equal(d[4]!.size, 1, "faded, not shrunk or hidden");
+  assert.ok(posed.hid >= 1);
 });

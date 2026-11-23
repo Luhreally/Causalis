@@ -475,40 +475,73 @@ export function bodyMoment(
   };
 }
 
-/** Where on a body the eye's lines to the one held are drawn, and where on another its stand is read (of its height). */
-const SIGHT = { to: [0.15, 0.5, 0.9], at: [0.3, 0.6, 0.9], hide: 0.3, show: 0.4 } as const;
+/**
+ * How those near the eye behind one held are faded (of a body's height): along the lines from the eye to him, where on him they
+ * end and where up another its stand is read; how near those lines one is faded wholly out and from how far it fades, and how
+ * much more of both near him (where his breadth on the screen is the more of the line's own: one beside him, a little nearer
+ * the eye, stands over him), and over
+ * how much of the line's length at the eye's end and at his it comes to that; how near the eye itself one nearer it than he is
+ * is gone, and from how far it fades; and by how much nearer the eye than he it must stand to be faded so wholly.
+ */
+export const SIGHT = {
+  to: [0.15, 0.5, 0.9],
+  at: [0.3, 0.6, 0.9],
+  line: [0.22, 0.4],
+  widen: [0.15, 0.25],
+  ends: [0.2, 0.35],
+  eye: [0.9, 1.5],
+  ahead: 0.4,
+} as const;
+
+const smooth = (lo: number, hi: number, v: number) => {
+  const k = Math.max(0, Math.min(1, (v - lo) / (hi - lo)));
+  return k * k * (3 - 2 * k);
+};
 
 /**
- * Whether one drawn stands between the eye and the one held (`me`): a point up its body within SIGHT.hide of its height
- * (SIGHT.show, for one already not drawn) of a line from the eye to his feet, middle or head, between them.
+ * How much of one drawn is drawn, near the eye behind the one held (`me`): 1 whole … 0 gone. Nearer the eye than he is and
+ * within SIGHT.eye of it, faded out as it comes nearer; and standing between the eye and him, a point up its body within
+ * SIGHT.line of a line from the eye to his feet, middle or head, faded out as it comes onto the line. By degrees, never a pop.
  */
-export function inTheWay(
+export function nearSight(
   eye: { readonly x: number; readonly y: number; readonly z: number; readonly tall: number },
   me: Pick<Moment, "x" | "z" | "lift">,
-): (m: Pick<Moment, "x" | "z" | "lift">, was: boolean) => boolean {
-  const lines = SIGHT.to.flatMap((up) => {
-    const dx = me.x - eye.x,
-      dy = (me.lift ?? 0) + up * eye.tall - eye.y,
-      dz = me.z - eye.z,
-      dd = dx * dx + dy * dy + dz * dz;
-    return dd > 1e-9 ? [{ dx, dy, dz, dd }] : [];
-  });
-  return (m, was) => {
-    const r = (was ? SIGHT.show : SIGHT.hide) * eye.tall,
-      px = m.x - eye.x,
-      pz = m.z - eye.z;
+): (m: Pick<Moment, "x" | "z" | "lift">) => number {
+  const h = eye.tall,
+    lines = SIGHT.to.flatMap((up) => {
+      const dx = me.x - eye.x,
+        dy = (me.lift ?? 0) + up * h - eye.y,
+        dz = me.z - eye.z,
+        dd = dx * dx + dy * dy + dz * dz;
+      return dd > 1e-9 ? [{ dx, dy, dz, dd }] : [];
+    }),
+    mine = Math.hypot(me.x - eye.x, (me.lift ?? 0) + 0.5 * h - eye.y, me.z - eye.z);
+  return (m) => {
+    const px = m.x - eye.x,
+      pz = m.z - eye.z,
+      far = Math.hypot(px, (m.lift ?? 0) + 0.5 * h - eye.y, pz),
+      // (Near the eye, as far as it stands nearer it than he does: none faded at his distance or past it, so none comes
+      // whole at once as it passes him.)
+      nearer = smooth(0, SIGHT.ahead * h, mine - far);
+    let drawn = 1 - (1 - smooth(SIGHT.eye[0] * h, SIGHT.eye[1] * h, far)) * nearer;
     for (const up of SIGHT.at) {
-      const py = (m.lift ?? 0) + up * eye.tall - eye.y;
+      const py = (m.lift ?? 0) + up * h - eye.y;
       for (const l of lines) {
-        const u = (px * l.dx + py * l.dy + pz * l.dz) / l.dd;
-        if (u <= 0 || u >= 1) continue;
-        const ox = px - u * l.dx,
-          oy = py - u * l.dy,
-          oz = pz - u * l.dz;
-        if (ox * ox + oy * oy + oz * oz < r * r) return true;
+        // (Along the line, as far as it stands between the eye and him: none faded at either end of it or past them.)
+        const length = Math.sqrt(l.dd),
+          u = Math.max(0, Math.min(1, (px * l.dx + py * l.dy + pz * l.dz) / l.dd)),
+          along = u * length,
+          between =
+            smooth(0, SIGHT.ends[0] * h, along) * smooth(0, SIGHT.ends[1] * h, length - along);
+        if (between <= 0) continue;
+        // (Off the line as far as the two stand broad on the screen there: his breadth, as near him the more of it.)
+        const gap = Math.hypot(px - u * l.dx, py - u * l.dy, pz - u * l.dz),
+          lo = (SIGHT.line[0] + SIGHT.widen[0] * u) * h,
+          hi = (SIGHT.line[1] + SIGHT.widen[1] * u) * h;
+        drawn = Math.min(drawn, 1 - (1 - smooth(lo, hi, gap)) * between);
       }
     }
-    return false;
+    return drawn;
   };
 }
 
@@ -523,6 +556,8 @@ export type PosedHook = {
   ): void;
   /** Those drawn lying struck down (the plan's indices). */
   readonly downed: ReadonlySet<number>;
+  /** How much of each one is drawn (the plan's indices: 1 whole … 0 gone; absent: all whole). */
+  readonly alpha?: ArrayLike<number> | null;
 };
 
 /**
@@ -558,12 +593,13 @@ export class PosedBodies implements PosedHook {
     });
     this.index = index;
     this.refs = plan.people.map((p) => p.ref);
+    this.alpha = new Float32Array(plan.people.length).fill(1);
   }
 
   /**
-   * Where the eye behind him stands and how tall a body is drawn (m; null: no eye behind him): those standing between it
-   * and him not drawn, so he is seen however close those following him by his Command keep behind him (as a soldier's
-   * ranks are on the field, render/battle.ts, and a beast's herd, render/fauna.ts).
+   * Where the eye behind him stands and how tall a body is drawn (m; null: no eye behind him): those near it, nearer than he
+   * is, and those standing between it and him, faded out by degrees (nearSight), so he is seen however close those following
+   * him by his Command keep about him, and none fills the eye.
    */
   eye: {
     readonly x: number;
@@ -571,9 +607,10 @@ export class PosedBodies implements PosedHook {
     readonly z: number;
     readonly tall: number;
   } | null = null;
-  /** How many stood between the eye and him this frame, not drawn (the look tools). */
+  /** How much of each one drawn is drawn (the plan's indices), and how many were faded at all, and past half, this frame. */
+  alpha: Float32Array;
+  faded = 0;
   hid = 0;
-  private readonly between = new Set<number>();
 
   /** Which of those drawn a body is (-1: not drawn). */
   indexOf(id: number): number {
@@ -604,30 +641,15 @@ export class PosedBodies implements PosedHook {
     const dt = Math.max(0, Math.min(0.25, (this.step - this.posedAt) / POSSESS_HZ)),
       ahead = this.ahead();
     this.posedAt = this.step;
-    const me = live.bodies.find((b) => b.id === this.agent),
-      inWay =
-        this.eye && me
-          ? inTheWay(this.eye, bodyMoment(me, ahead, this.trade, this.form, true))
-          : null;
-    this.hid = 0;
     for (const b of live.bodies) {
       const i = this.index.get(b.id);
       if (i === undefined || !drawn[i]) continue;
-      let m = bodyMoment(b, ahead, this.trade, this.form, b.id === this.agent);
-      const speed = Math.hypot(b.vx, b.vz),
+      const m = bodyMoment(b, ahead, this.trade, this.form, b.id === this.agent),
+        speed = Math.hypot(b.vx, b.vz),
         // (The legs at a walk's pace a stride a second; quicker as they go faster.)
         stride = (this.strides.get(b.id) ?? drawn[i].stride) + dt * Math.max(1, speed / 1.3);
       this.strides.set(b.id, stride);
       if (lying(b)) this.downed.add(i);
-      // (One between the eye and him not drawn; drawn again once a little clear of the line, not at its edge.)
-      const near =
-        b.id !== this.agent && !lying(b) && inWay ? inWay(m, this.between.has(b.id)) : false;
-      if (near) this.between.add(b.id);
-      else this.between.delete(b.id);
-      if (near && !m.hidden) {
-        m = { ...m, hidden: true };
-        this.hid++;
-      }
       drawn[i] = { moment: m, size: m.hidden ? 0 : 1, stride };
       const p = presence.get(this.refs[i]!);
       if (p) {
@@ -640,6 +662,21 @@ export class PosedBodies implements PosedHook {
         p.blinking = false;
         p.stride = stride;
       }
+    }
+    // Everyone drawn near the eye behind him, nearer it than he is, or between it and him, faded by degrees: those of the
+    // small world and the town's own about it alike.
+    const mine = this.index.get(this.agent),
+      sight =
+        this.eye && mine !== undefined && drawn[mine]
+          ? nearSight(this.eye, drawn[mine].moment)
+          : null;
+    this.faded = this.hid = 0;
+    for (let i = 0; i < this.alpha.length; i++) {
+      const d = drawn[i],
+        a = sight && d && i !== mine ? sight(d.moment) : 1;
+      this.alpha[i] = a;
+      if (d && !d.moment.hidden && a < 1) this.faded++;
+      if (d && !d.moment.hidden && a < 0.5) this.hid++;
     }
   }
 }

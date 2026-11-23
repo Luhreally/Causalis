@@ -541,6 +541,7 @@ export function installPossession(d: PossessionDeps): Possession {
     const me = o.posed.drawnAt(o.now.agent);
     if (me) eye.update(me.x, me.z, villageSolids(o.plan), dt, me.lift ?? 0);
     o.posed.eye = me ? { ...eye.stood, tall: eye.height } : null;
+    hud.clearOf(me ? eye.bodyOnScreen(me.x, me.z, me.lift ?? 0) : null);
     const said: { text: string; x: number; y: number }[] = [];
     for (const b of o.posed.live?.bodies ?? []) {
       if (!b.say) continue;
@@ -606,8 +607,15 @@ export function installPossession(d: PossessionDeps): Possession {
           live: on.posed.live,
           gifts: on.gifts,
           inTheWay: on.posed.hid,
+          faded: on.posed.faded,
+          body: (() => {
+            const m = on.posed.drawnAt(on.now.agent);
+            return m ? eye.bodyOnScreen(m.x, m.z, m.lift ?? 0) : null;
+          })(),
           eye: { yaw: eye.looking, pitch: eye.pitch, distance: eye.distance, ...eye.stood },
         },
+      /** How much of each one drawn is drawn now (the plan's indices: 1 whole … 0 gone; null: no possession). */
+      alpha: () => (on ? Array.from(on.posed.alpha) : null),
       /** A body of the small world as drawn now (metres; null: not in it). */
       drawn: (id: number) => on?.posed.drawnAt(id) ?? null,
       /** Where a body of the small world is on the screen (CSS px; null: not in it, or behind the eye). */

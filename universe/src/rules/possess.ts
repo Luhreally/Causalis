@@ -1174,7 +1174,14 @@ function command(l: LocalWorld): void {
   }
 }
 
-/** One following him: after whoever fights him, else whom he last struck at; else close behind him. */
+/**
+ * Where those following him fall in (m): at his side so far off, each rank so much farther out, so far back and more. As far
+ * apart as the town draws its people broad (larger than life: view/possess.ts drawnHeight, about 5 m tall), so each stands
+ * clear of him and of the next as the eye behind him sees them.
+ */
+const FALL_IN = { side: 3.2, step: 2.8, back: 0.4, behind: 1 } as const;
+
+/** One following him: after whoever fights him, else whom he last struck at; else fallen in at his side. */
 function follow(l: LocalWorld, b: LocalBody, s: number): void {
   const a = l.bodies[0]!;
   if (!gifted(l.gifts, "command") || !standing(a)) {
@@ -1203,12 +1210,15 @@ function follow(l: LocalWorld, b: LocalBody, s: number): void {
     b.sayUntil = s + HAND_TAKES.say;
     return;
   }
-  const k = (b.id % 5) - 2,
-    back = 2 + (b.id % 3) * 0.8,
+  // (Fallen in at his sides, a little back, rank on rank outward: none on the line behind him, where the eye that follows
+  // him stands, 2026-11-23.)
+  const rank = Math.floor(b.id / 2) % 3,
+    k = (b.id % 2 ? 1 : -1) * (FALL_IN.side + rank * FALL_IN.step),
+    back = FALL_IN.back + rank * FALL_IN.behind,
     fx = dmath.sin(a.yaw),
     fz = dmath.cos(a.yaw),
-    tx = a.x - fx * back + fz * k * 0.9,
-    tz = a.z - fz * back - fx * k * 0.9,
+    tx = a.x - fx * back + fz * k,
+    tz = a.z - fz * back - fx * k,
     d = dmath.sqrt((tx - b.x) * (tx - b.x) + (tz - b.z) * (tz - b.z));
   if (d < 0.3) {
     stand(b);

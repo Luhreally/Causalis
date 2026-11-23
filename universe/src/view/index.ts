@@ -1289,7 +1289,7 @@ export {
   OUT_OF_SIGHT,
   PosedBodies,
   STEPS_PER_SECOND,
-  inTheWay,
+  nearSight,
   STILL_BID,
   GIFTS,
   GIFT_BIT,

@@ -69,6 +69,11 @@ export type FolkFrame = {
    */
   readonly eye: { readonly x: number; readonly y: number; readonly z: number };
   readonly near: number;
+  /**
+   * How much of each one is drawn (1 whole … 0 gone; absent: all whole), written into their parts' matrices' last corner for
+   * their batches' fading material (render/nearfade.ts): those near the eye behind one possessed, faded by degrees.
+   */
+  readonly alpha?: ArrayLike<number> | null;
 };
 
 /** A part's place now, as the village lays it out ([x, y, z, sx, sy, sz, yaw, pitch]). */
@@ -338,7 +343,8 @@ export class FolkPoses {
       const hi = groups + this.hairs[i]!;
       if (hi < lists) this.members[hi]![this.counts[hi]!++] = i;
     }
-    const keep = this.posed;
+    const keep = this.posed,
+      alpha = f.alpha ?? null;
     /** The members of a list, the parts `pis` of each one after another, written into a batch. */
     const write = (batch: FolkBatch, list: number, pis: readonly number[]) => {
       const who = this.members[list]!,
@@ -352,6 +358,7 @@ export class FolkPoses {
             const from = (i * P + pis[q]!) * 16,
               to = (k * each + q) * 16;
             for (let r = 0; r < 16; r++) m[to + r] = keep[from + r]!;
+            if (alpha) m[to + 15] = alpha[i] ?? 1;
             // (Carried: moved as far as they have gone since they were posed.)
             if (carried) {
               m[to + 12] = keep[from + 12]! + (moments[i]!.x * M - this.atX[i]!);
