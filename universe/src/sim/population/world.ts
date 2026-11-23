@@ -45,6 +45,8 @@ import { installGroups } from "../order/groups.ts";
 import { installInstitutions } from "../order/institutions.ts";
 import { installGroupHand } from "../order/grouphand.ts";
 import { installNotables } from "../notable/notables.ts";
+import { installFaithHeads } from "../belief/heads.ts";
+import { installSentences } from "../order/sentences.ts";
 import { installIdeas } from "../ideas/ideas.ts";
 import { installWorks } from "../ideas/works.ts";
 import { installPilgrims } from "../ideas/pilgrims.ts";
@@ -476,6 +478,9 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installInstitutions(world, () => populationContext(world));
   // (Notable people: who a people notice, their kind read off what they did, sim/notable/notables.ts.)
   installNotables(world, () => populationContext(world));
+  // (A faith's head and the faith against a ruler; those a court sentences and holds: 2026-11-22.)
+  installFaithHeads(world, () => populationContext(world));
+  installSentences(world, () => populationContext(world));
   // (Things of the mind: schools of thought, sim/ideas.)
   installIdeas(world, () => populationContext(world));
   installWorks(world, () => populationContext(world));
