@@ -28,6 +28,7 @@ import {
 import { keptKey, offworldSite, type HomeWorld } from "../../gen/index.ts";
 import { OCC, PRODUCTIVITY } from "../../rules/index.ts";
 import { provinceCapacity, type PopulationContext } from "../population/systems.ts";
+import { seaShells } from "../climate/air.ts";
 import { politiesOf } from "../polity/polity.ts";
 import { loreOf } from "../lore/lore.ts";
 import { wildsOf } from "./ecology.ts";
@@ -258,8 +259,12 @@ function goesOut(ctx: PopulationContext, cell: number): boolean {
  * boats bring in goes with the stock; a water people's wild, most of it. sim/population reads it where the year's food is made.
  */
 export function seaYield(ctx: PopulationContext, cell: number): number {
-  const store = seasOf(ctx.world);
-  return store && !store.dormant() ? store.yieldOf(cell) : 1;
+  const store = seasOf(ctx.world),
+    base = store && !store.dormant() ? store.yieldOf(cell) : 1,
+    // (And as its seas have soured with the carbon they took up: their shells and reefs build the worse. climate/air.ts.)
+    shells = seaShells(ctx.world);
+  if (shells >= 1 || !goesOut(ctx, cell)) return base;
+  return Math.max(0, base - (ctx.medium === "water" ? SEA.lives : SEA.boats) * (1 - shells));
 }
 
 /** The same as it is reckoned from its reach's stock (the year sets what the months read). */

@@ -2121,3 +2121,19 @@ export {
   type Led,
 } from "./notable/roll.ts";
 export { victoriousCommander } from "./notable/kept.ts";
+export {
+  STORM_EVENTS,
+  STRUCK_KEPT,
+  StormStore,
+  installStorms,
+  stormsOf,
+  stormsYear,
+  struckOn,
+  type Struck,
+} from "./planet/storms.ts";
+export { carbonWorld, seaShells, thawedPpm } from "./climate/air.ts";
+export { homeCycles } from "./planet/motion.ts";
+export { coverAt, skyOf } from "./population/model.ts";
+export { landSlope } from "./ecology/ground.ts";
+export { tillageAt } from "./ecology/farmed.ts";
+export { standGame } from "./ecology/stands.ts";

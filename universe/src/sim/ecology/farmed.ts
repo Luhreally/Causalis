@@ -1,6 +1,19 @@
-// How much of a land's farmland its fields use: what its farmers would bring in, against what its farmland gives at full use.
-import { MACHINE_GAIN, OCC, PRODUCTIVITY, TOOL_GAIN } from "../../rules/index.ts";
-import type { Province } from "../population/model.ts";
+// How much of a land's farmland its fields use: what its farmers would bring in, against what its farmland gives at full use. And
+// what the ways of farming it knows do there (rules/tillage.ts): each lifts what holds its own fields back.
+import {
+  MACHINE_GAIN,
+  OCC,
+  PRINCIPLES,
+  PRINCIPLE_INDEX,
+  PRODUCTIVITY,
+  TILLAGE_IDS,
+  TOOL_GAIN,
+  fieldNeeds,
+  tillageOf,
+} from "../../rules/index.ts";
+import { coverAt, skyOf, type Province } from "../population/model.ts";
+import { loreOf } from "../lore/lore.ts";
+import { landSlope } from "./ground.ts";
 import {
   hallsShare,
   marketsOf,
@@ -27,9 +40,35 @@ export function farmedOf(ctx: PopulationContext, p: Province): number {
     tools = m
       ? (1 + (TOOL_GAIN * m.toolCover) / 1000) * (1 + (MACHINE_GAIN * m.machineCover) / 1000)
       : 1,
-    gathers = ctx.life.appetite * (1 - hallsShare(ctx, p.cell));
+    gathers = ctx.life.appetite * (1 - hallsShare(ctx, p.cell)) * tillageAt(ctx, p.cell).work;
   return Math.min(
     1,
     (p.occupation(OCC.farmer) * PRODUCTIVITY[OCC.farmer]! * tools * gathers) / Math.max(1, farm),
   );
+}
+
+/**
+ * What the ways of farming a land knows do there: its fields' yield (1 + each way's gain by the land's own need of it) and its
+ * farmers' work (1 + the plough's, the share's and the mill's), and anything else a principle gives its fields, flat as it was.
+ * Read once while the land knows what it knows (lore.readOff).
+ */
+export function tillageAt(ctx: PopulationContext, cell: number): { yields: number; work: number } {
+  const lore = loreOf(ctx.world);
+  return lore.readOff(cell, "tillage", () => {
+    const g = ctx.generated,
+      cover = coverAt(g, cell),
+      needs = fieldNeeds(
+        cover.moist,
+        g.climate.seasonality[cell]!,
+        landSlope(ctx, cell),
+        cover.woody,
+        skyOf(g).rock,
+      ),
+      t = tillageOf((id) => !!lore.get(cell, id), needs);
+    // (Any other principle's flat gain to its fields, as it always was.)
+    let flat = 0;
+    for (const id of TILLAGE_IDS)
+      if (lore.get(cell, id)) flat += PRINCIPLES[PRINCIPLE_INDEX.get(id)!]!.effects.farmYield ?? 0;
+    return { yields: t.yields + Math.max(0, lore.effect(cell, "farmYield") - flat), work: t.work };
+  });
 }

@@ -17,6 +17,8 @@ import type { Climate } from "./climate.ts";
 import type { Hydrology } from "./hydrology.ts";
 import type { DeepTime } from "./deeptime.ts";
 import { depositRef } from "./kinds.ts";
+import type { Biosphere } from "./biosphere.ts";
+import { crustMultiplier, type Chemistry } from "../rules/index.ts";
 
 const DEPOSITS = defineStream("gen.deposits");
 
@@ -29,8 +31,11 @@ export type Process =
   | "orogenic veins"
   | "collision granites"
   | "banded iron of an ancient craton"
+  | "iron of layered intrusions"
   | "buried swamp forests"
+  | "buried growth of its land's swamps"
   | "plankton buried under a shallow sea"
+  | "the bloom of its shallow seas buried"
   | "evaporites in a closed basin";
 
 export type Deposit = {
@@ -61,7 +66,21 @@ export function makeDeposits(
   water: Hydrology,
   elevation: Float32Array,
   deep: DeepTime,
+  /** Its life (absent: as Earth's always was) and its chemistry (absent: the Sun's). */
+  life?: Biosphere,
+  chem?: Chemistry,
+  /** Whether its air holds an oxidant its first growth could have made (rules/kinds.ts `burns`; absent: as Earth's). */
+  oxidant = true,
 ): Deposit[] {
+  // (How many of each a world holds, against Earth's: as much of its element as its crust holds against Earth's (rules/crust.ts),
+  // the "tin" its hardener's; and its rusted iron only where its first seas' growth made the oxygen that dropped it.)
+  const scale = (symbol: string) => (chem ? crustMultiplier(chem, symbol) : 1),
+    hardener = chem?.hardener === "arsenic" ? "As" : chem?.hardener === "nickel" ? "Ni" : "Sn",
+    physical = !!life?.species.some((s) => s.place !== undefined),
+    lived = !life || life.species.length > 0,
+    rusted = lived && oxidant,
+    counted = (base: number, symbol: string) =>
+      Math.max(1, Math.min(2 * base, Math.round(base * scale(symbol))));
   const land = (c: number) => elevation[c]! > 0,
     across = (c: number) => t.across[c]!,
     oceanic = (p: number) => p >= 0 && !t.plates[p]!.continental,
@@ -70,7 +89,7 @@ export function makeDeposits(
   const rules: Rule[] = [
     {
       kind: "copper",
-      count: 14,
+      count: counted(14, "Cu"),
       process: "arc magmatism",
       weight: (c) =>
         land(c) &&
@@ -83,14 +102,14 @@ export function makeDeposits(
     },
     {
       kind: "gold",
-      count: 10,
+      count: counted(10, "Au"),
       process: "orogenic veins",
       weight: (c) =>
         land(c) && t.boundary[c] === BOUNDARY.convergent && d(c) <= 4 ? 0.6 / (1 + d(c)) : 0,
     },
     {
       kind: "tin",
-      count: 8,
+      count: counted(8, hardener),
       process: "collision granites",
       weight: (c) =>
         land(c) &&
@@ -101,24 +120,41 @@ export function makeDeposits(
           ? 1 / (1 + d(c))
           : 0,
     },
-    {
-      kind: "iron",
-      count: 14,
-      process: "banded iron of an ancient craton",
-      weight: (c) => (land(c) && t.crust[c] && d(c) >= 6 ? Math.min(d(c), 14) / 14 : 0),
-    },
+    rusted
+      ? {
+          kind: "iron",
+          count: counted(14, "Fe"),
+          process: "banded iron of an ancient craton",
+          weight: (c) => (land(c) && t.crust[c] && d(c) >= 6 ? Math.min(d(c), 14) / 14 : 0),
+        }
+      : {
+          // (No growth made oxygen in its first seas to drop their iron as rust: its iron is the magma's, settled out where a
+          // plume or a rift fed great sills.)
+          kind: "iron",
+          count: counted(14, "Fe"),
+          process: "iron of layered intrusions",
+          weight: (c) =>
+            land(c) &&
+            (t.hotspots.includes(c) || (t.boundary[c] === BOUNDARY.divergent && d(c) <= 3))
+              ? t.hotspots.includes(c)
+                ? 1
+                : 1 / (1 + d(c))
+              : 0,
+        },
     {
       // Coal lies under land now where deep time buried swamp forests.
       kind: "coal",
       count: 14,
-      process: "buried swamp forests",
+      process: physical ? "buried growth of its land's swamps" : "buried swamp forests",
       weight: (c) => (land(c) && deep.coal[c]! > 0 ? Math.min(2, deep.coal[c]!) : 0),
     },
     {
       // Oil, under land or a shelf, where it buried the plankton of warm shallow seas.
       kind: "oil",
       count: 12,
-      process: "plankton buried under a shallow sea",
+      process: physical
+        ? "the bloom of its shallow seas buried"
+        : "plankton buried under a shallow sea",
       weight: (c) => (elevation[c]! > -250 && deep.oil[c]! > 0 ? Math.min(2, deep.oil[c]!) : 0),
     },
     {

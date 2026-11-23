@@ -17,6 +17,7 @@ import {
   agesMade,
   dawnMade,
   farMade,
+  kindBurns,
   kindLives,
   lifeDraw,
   lifeKept,
@@ -26,6 +27,7 @@ import {
   peoplingMade,
   showingScale,
   worldKind,
+  wetPlace,
   type FarMade,
   type Prior,
 } from "../rules/index.ts";
@@ -44,7 +46,15 @@ import { makeClimate, type Climate } from "./climate.ts";
 import { makeDeposits, type Deposit } from "./deposits.ts";
 import { ageRef } from "./kinds.ts";
 import { makeHydrology, type Hydrology } from "./hydrology.ts";
-import { AGES, makeDeepTime, type AgeKind, type DeepTime } from "./deeptime.ts";
+import {
+  AGES,
+  EARTH_PRODUCERS,
+  buryCarbon,
+  makeDeepTime,
+  type AgeKind,
+  type DeepTime,
+  type Producers,
+} from "./deeptime.ts";
 import { barrenBiosphere, makeBiosphere, type Biosphere } from "./biosphere.ts";
 import { BOUNDARY, makeTectonics, type Tectonics } from "./plates.ts";
 import { nativeIronLands, worldChemistry } from "./chemistry.ts";
@@ -163,6 +173,8 @@ export function generateHomeWorld(
       planet,
       tectonics,
       agesMade(seed.text, AGES) as ReadonlyMap<number, AgeKind>,
+      // (Its ages alone: what they buried waits on what lived in them, below.)
+      null,
     ),
     // (The ground's digest: of the star, the planet, its plates and relief, as below.)
     groundHash = groundDigest(prior.name, frequency, star, planet, tectonics),
@@ -218,7 +230,27 @@ export function generateHomeWorld(
     life = far
       ? seatPeople(own, far.body, { grid, climate, water, elevation: tectonics.elevation })
       : own,
-    deposits = makeDeposits(grid, rng, tectonics, climate, water, tectonics.elevation, deep);
+    // (What its ages buried, by what grew in them: none where nothing lived, coal only since its land first grew.)
+    buried = buryCarbon(grid, planet, tectonics, deep, producersOf(life)),
+    deposits = makeDeposits(
+      grid,
+      rng,
+      tectonics,
+      climate,
+      water,
+      tectonics.elevation,
+      deep,
+      life,
+      worldChemistry({
+        prior: prior.name,
+        star,
+        planet,
+        ground: groundHash,
+        ...(far ? { far } : {}),
+      } as unknown as HomeWorld),
+      kindBurns(kind),
+    );
+  void buried;
   const h = new Hasher().string(prior.name).int(frequency).value(star).value(planet);
   for (const p of tectonics.plates) h.value(p);
   hashArray(h, tectonics.plate);
@@ -257,6 +289,25 @@ export function generateHomeWorld(
     // (Its universe's laws, where they are not ours: rules/laws.ts.)
     ...(made.laws ? { laws: made.laws } : {}),
   };
+}
+
+/**
+ * What grew in each of a world's ages, read off its life (gen/deeptime.ts buryCarbon): nothing where nothing lived; on a world whose
+ * life was read from its physics, the first age a light-eater stood on its land and the first one grew in its seas; on one made
+ * by the old tables, as they always had it (its seas alive from the first age, its land from the second).
+ */
+export function producersOf(life: Biosphere): Producers {
+  if (!life.species.length) return { land: null, sea: null };
+  if (!life.species.some((s) => s.place !== undefined)) return EARTH_PRODUCERS;
+  let land: number | null = null,
+    sea: number | null = null;
+  for (const s of life.species) {
+    if (s.level !== 1 || s.place === undefined) continue;
+    if (wetPlace(s.place)) sea = sea === null ? s.arose : Math.min(sea, s.arose);
+    else land = land === null ? s.arose : Math.min(land, s.arose);
+  }
+  // (A world whose first growth was read on its land alone still had its seas' first cells: they came first, as everywhere.)
+  return { land, sea: sea ?? (land !== null ? 0 : null) };
 }
 
 /**

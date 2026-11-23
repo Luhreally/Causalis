@@ -35,7 +35,9 @@ export {
 } from "./nature.ts";
 export { resolveCombat, type CombatSide, type CombatFrame, type CombatRecord } from "./combat.ts";
 export {
+  LIFE_CARRIED,
   landfallFight,
+  lifeCarried,
   nativeHost,
   sicknessCrossed,
   shipForce,
@@ -1775,3 +1777,8 @@ export * from "./gifts.ts";
 // The gaps of 2026-11-22: a faith's head and the faith against a ruler; townsfolk sentenced and held; commanders held.
 export * from "./faithheads.ts";
 export * from "./sentences.ts";
+export * from "./biomes.ts";
+export * from "./carbon.ts";
+export * from "./cycles.ts";
+export * from "./storms.ts";
+export * from "./tillage.ts";

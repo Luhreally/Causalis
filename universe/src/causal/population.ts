@@ -100,8 +100,10 @@ registerEventWords(E.spread.type, (world, e) => {
   return `In the ages before the chronicle, the people spread from ${landWords(world, e.place)} across ${lands === null ? "the land" : `${count(lands)} lands`}${folk === null ? "" : `, ${count(folk)} of them in wandering bands`}`;
 });
 registerEventWords(E.drought.type, (world, e) => {
-  const rain = num(e.data, "rain");
-  return `A dry year in ${landWords(world, e.place)}, year ${yearOfMoment(e.t)}${rain === null ? "" : `: ${Math.round(rain / 10)}% of the usual rain`}`;
+  const rain = num(e.data, "rain"),
+    // (A land its monsoon waters: the season that brings its rain failed. sim/population/systems.ts weatherYear.)
+    monsoon = num(e.data, "monsoon") !== null;
+  return `${monsoon ? "The monsoon failed" : "A dry year"} in ${landWords(world, e.place)}, year ${yearOfMoment(e.t)}${rain === null ? "" : `: ${Math.round(rain / 10)}% of the usual rain`}`;
 });
 registerEventWords(E.famine.type, (world, e) => {
   const fed = num(e.data, "fed");

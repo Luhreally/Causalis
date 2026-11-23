@@ -11,6 +11,7 @@
 import { defineStream, dmath, type Rng, type SphereGrid } from "../kernel/index.ts";
 import { climateMean, type Planet } from "./bodies.ts";
 import { BOUNDARY, type Tectonics } from "./plates.ts";
+import { demandMm, demandOf, lightGrowth, warmGrowth, wetGrowth } from "../rules/index.ts";
 
 const DEEP = defineStream("gen.deeptime");
 
@@ -105,6 +106,8 @@ export function makeDeepTime(
   planet: Planet,
   t: Tectonics,
   made: ReadonlyMap<number, AgeKind> = new Map(),
+  /** What grew in each age, for what it buried (null: bury nothing yet: buryCarbon is called once its life is known). */
+  producers: Producers | null = EARTH_PRODUCERS,
 ): DeepTime {
   // The ages: warmth wanders (a keyed walk that ends near today's climate); the seas
   // rise with warmth; some ages are marked by great events.
@@ -143,18 +146,65 @@ export function makeDeepTime(
     });
   }
 
-  // What each age buried, cell by cell.
   const n = grid.count,
-    coal = new Float32Array(n),
-    oil = new Float32Array(n),
-    coalAge = new Uint8Array(n).fill(255),
-    oilAge = new Uint8Array(n).fill(255),
+    deep: DeepTime = {
+      ages,
+      coal: new Float32Array(n),
+      oil: new Float32Array(n),
+      coalAge: new Uint8Array(n).fill(255),
+      oilAge: new Uint8Array(n).fill(255),
+    };
+  if (producers) buryCarbon(grid, planet, t, deep, producers);
+  return deep;
+}
+
+/**
+ * What grew in each age, for what it buried (breadth round, 2026-11-23): the first age that had growth on its land (null: none
+ * ever did), and the first that had it in its seas. Coal is the buried growth of a land's swamps, oil the buried bloom of its
+ * warm shallow seas; a world where nothing lived buried neither, and one whose land was bare till late buried coal only since.
+ */
+export type Producers = { readonly land: number | null; readonly sea: number | null };
+
+/**
+ * What a swamp and a sea's bloom bury (est., set so first light's ages bury as much coal and oil in all as they did by the old
+ * swamp-forest thresholds): a land is waterlogged past this rain against its demand, wholly so this much past it; a sea blooms
+ * past this share of its warmth's growth.
+ */
+export const BURY = {
+  coal: 1.54,
+  oil: 1.08,
+  logged: 1.2,
+  loggedSpan: 1.5,
+  bloomFrom: 0.6,
+} as const;
+
+/** As the old ages always had it: the seas alive from the first, the land from the second (land plants after the first age). */
+export const EARTH_PRODUCERS: Producers = { land: 1, sea: 0 };
+
+/**
+ * What each age buried, cell by cell, into `deep`'s arrays (they start empty): only where that age had growth to bury (its
+ * producers), only on sinking ground, the older the less kept.
+ */
+export function buryCarbon(
+  grid: SphereGrid,
+  planet: Planet,
+  t: Tectonics,
+  deep: DeepTime,
+  producers: Producers,
+): void {
+  const { ages, coal, oil, coalAge, oilAge } = deep,
+    light = lightGrowth(planet.insolation),
+    demand = demandOf(planet.insolation),
+    n = grid.count,
     coalBest = new Float32Array(n),
     oilBest = new Float32Array(n);
   for (const age of ages) {
     const mid = (age.from + age.to) / 2,
       // The older the age, the more of what it buried has since been worn away or cooked.
-      kept = 0.6 + (0.4 * age.index) / (AGES - 1);
+      kept = 0.6 + (0.4 * age.index) / (AGES - 1),
+      landGrew = age.forests && producers.land !== null && age.index >= producers.land,
+      seaGrew = producers.sea !== null && age.index >= producers.sea;
+    if (!landGrew && !seaGrew) continue;
     for (let c = 0; c < n; c++) {
       // Only sinking ground keeps what it buries: continental crust off the rising belts
       // (rifts most of all); ocean floor is carried down and lost.
@@ -166,16 +216,23 @@ export function makeDeepTime(
         high = t.elevation[c]! - age.seaLevel,
         warm = zonal(planet, lat, age.warmth) - 6.5 * (Math.max(0, high) / 1000),
         rain = zonalRain(lat, age.warmth);
-      if (age.forests && high > 0 && high < 250 && warm > 14 && rain > 1200) {
-        const g = Math.min(1, (rain - 1200) / 1000) * Math.min(1, (warm - 14) / 10) * sinks * kept;
+      // (Coal: what its swamps grew, kept from rotting where the ground stood waterlogged, its rain far past what its warmth
+      // draws off: a warm swamp's or a cold bog's. rules/biomes.ts.)
+      const moist = rain / demandMm(warm, demand),
+        logged = dmath.clamp((moist - BURY.logged) / BURY.loggedSpan, 0, 1);
+      if (landGrew && high > 0 && high < 250 && logged > 0) {
+        const grew = Math.min(warmGrowth(warm), wetGrowth(rain / demand)) * light,
+          g = BURY.coal * grew * logged * sinks * kept;
         coal[c] = coal[c]! + g;
         if (g > coalBest[c]!) {
           coalBest[c] = g;
           coalAge[c] = age.index;
         }
       }
-      if (high <= 0 && high > -200 && warm > 16) {
-        const g = Math.min(1, (warm - 16) / 10) * 0.8 * sinks * kept;
+      // (Oil: the bloom of its shallow seas, as warm as their growth is and as bright as its sky, buried where they lay still.)
+      const bloom = dmath.clamp((warmGrowth(warm) - BURY.bloomFrom) / (1 - BURY.bloomFrom), 0, 1);
+      if (seaGrew && high <= 0 && high > -200 && bloom > 0) {
+        const g = BURY.oil * bloom * light * sinks * kept;
         oil[c] = oil[c]! + g;
         if (g > oilBest[c]!) {
           oilBest[c] = g;
@@ -184,5 +241,4 @@ export function makeDeepTime(
       }
     }
   }
-  return { ages, coal, oil, coalAge, oilAge };
 }

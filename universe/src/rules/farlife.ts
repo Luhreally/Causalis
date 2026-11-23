@@ -745,6 +745,11 @@ export function landed(
     /** The comers' rung (what is there to learn of them). */
     readonly comersKnow: number;
     readonly comersStrength: number;
+    /**
+     * The share of their food the weeds, pests and beasts the comers brought took, where the two worlds' lives can eat each
+     * other (rules/landfall.ts lifeCarried; absent or 0: none could take hold).
+     */
+    readonly lifeLost?: number;
   },
 ): FarState {
   if (s.fell !== null) return s;
@@ -752,7 +757,7 @@ export function landed(
   const reach = [0.08, 0.35, 0.6, 0.8, 0.9, 0.95, 1, 1][Math.max(0, Math.min(STARS_RUNG, s.rung))]!,
     sickLost = clamp01(r.sickShare) * reach,
     fightLost = clamp01(r.fieldDead) * clamp01(r.fielded),
-    people = s.people * (1 - sickLost) * (1 - fightLost),
+    people = s.people * (1 - sickLost) * (1 - fightLost) * (1 - clamp01(r.lifeLost ?? 0)),
     gap = Math.max(0, r.comersKnow - s.know),
     // (Those who stay among them are learned from, as a land learns what its neighbour knows: a share of the gap.)
     know = r.stay
