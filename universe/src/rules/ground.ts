@@ -22,20 +22,26 @@ export const EARTH_CRUST_PPM: Readonly<Record<Exclude<Nutrient, "N">, number>> =
 };
 
 /**
- * What a year of full farming takes of each, as a share of what the virgin ground held (est): a harvest's grain and straw carry
- * off nitrogen (some 2% of grain's weight) and the ploughed ground loses more of it to the rain; phosphorus (0.35%) and potassium
- * (0.5%) are held tighter, and the rock below gives them back under the fields. Without rest or manure a field's nitrogen is worn
- * to a third in a century.
+ * What a year of full farming at its virgin ground's harvest takes of each, as a share of what the virgin ground held (est): a
+ * harvest's grain and straw carry off nitrogen (some 2% of grain's weight) and the ploughed ground loses more of it to the rain;
+ * phosphorus (0.35%) and potassium (0.5%) are held tighter, and the rock below gives them back under the fields. A smaller harvest
+ * carries off the less (nutrientYear's `crop`). Calibrated against Broadbalk at Rothamsted, wheat on the same ground every year
+ * since 1843: unmanured, its yield fell to some two-fifths of the dunged plot's within three or four decades and has held there
+ * since, on what the rain and the soil's free-living life give back. Here a field fully farmed without rest or manure gives 0.71
+ * of its first yield at 30 years, 0.53 at 50 and 0.44 from 80 on; with beans in a rotation 0.97 at 30 and 0.88 at 200; with
+ * rotation and dung, its first yield. (Until 2026-11-23 it took 0.012 of the nitrogen, its harvest's size apart, and gave back
+ * half its healing under fields: such a field gave 0.86 at 50 years and was still falling at 200, and no land's soil wore thin
+ * in a world's history.)
  */
-export const TAKEN: Readonly<Record<Nutrient, number>> = { N: 0.012, P: 0.003, K: 0.004 };
+export const TAKEN: Readonly<Record<Nutrient, number>> = { N: 0.03, P: 0.003, K: 0.004 };
 /**
  * The share of the way back to its virgin store a ground goes in a year (est): its nitrogen fully while it lies unfarmed (the
  * wild's own litter and what its life fixes) and half as fast under fields (what the rain brings down and what lives free in the
  * soil fixes: UNDER_FIELDS), its phosphorus and potassium under fields too (the rock below weathering).
  */
 export const HEALING = 0.02;
-/** How much of its nitrogen's healing a ground keeps under fields (est). */
-export const UNDER_FIELDS = 0.5;
+/** How much of its nitrogen's healing a ground loses under fields (est: TAKEN's calibration; what the rain brings and the soil's free-living fixers keep the rest). */
+export const UNDER_FIELDS = 0.2;
 /**
  * How a field's yield answers its scarcest nutrient (Mitscherlich's law of diminishing returns, 1909): each step short of its
  * virgin store costs more than the one before it, so a ground worn by a fifth gives some 6% less, worn by half a fifth less.
@@ -86,7 +92,7 @@ export function limiting(stock: Readonly<Record<Nutrient, number>>): Nutrient {
   return least;
 }
 
-/** A nutrient's year: what a harvest at `farmed` takes, what rest, beans, dung and fertiliser give back, what healing does. */
+/** A nutrient's year: what a harvest at `farmed` takes (as large as `crop`), what rest, beans, dung and fertiliser give back, what healing does. */
 export function nutrientYear(
   s: number,
   n: Nutrient,
@@ -98,9 +104,11 @@ export function nutrientYear(
     readonly fertiliser: number;
     /** Phosphorus and potassium rock spread, as far as it goes (0 … 1). */
     readonly rock?: number;
+    /** The harvest, as a share of its virgin ground's (its soil's strength: sim/ecology/ground.ts soilOf): what it carries off is as large. */
+    readonly crop?: number;
   },
 ): number {
-  const taken = TAKEN[n] * i.farmed * (i.rotation ? 1 - FALLOW_SPARES : 1),
+  const taken = TAKEN[n] * i.farmed * (i.crop ?? 1) * (i.rotation ? 1 - FALLOW_SPARES : 1),
     beans = n === "N" && i.rotation ? BEANS_GIVE * taken : 0,
     dung = MANURE_GIVES[n] * Math.min(1, i.manure) * taken,
     made =

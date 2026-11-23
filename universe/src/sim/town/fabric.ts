@@ -1613,8 +1613,16 @@ export class TownBuilder {
     if ((f.lean += years) < 3) return;
     // (Gone over from the highest lot a home stands on: a town long lean has let its last lots
     // fall already, and would go over them every year.)
-    const from = Math.max(0, f.next - 512),
+    let from = Math.max(0, f.next - 512),
       high = highestHome(f, from, f.next);
+    // (And where its last 512 lots have all fallen and homes stand below them, from the highest of those. Until 2026-11-23 such a
+    // town shrank no further: on first light at 1,500, 13,472 of its 24,451 towns held no one, 5,640 of them lean fifty years
+    // and more, and 115 were forsaken; their 475,000 runs and 288,000 buildings were over half its towns' save. Let fall, 20,732
+    // of 25,057 are forsaken there, 184 lean so long, and its towns keep 206,000 runs and 108,000 buildings: 3.2 MB, not 11.1.)
+    if (high < 0) {
+      high = highestHome(f, 0, from);
+      from = Math.max(0, high - 511);
+    }
     if (high < 0) return;
     let excess = housing - Math.ceil(people / 0.8),
       count = Math.max(

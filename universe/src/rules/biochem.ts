@@ -136,6 +136,19 @@ export const PIGMENT_EDGES = { carotene: 6300, chlorophyll: 5300, phycocyanin: 3
 /** Below this mean warmth (°C) a water world's blood is copper's: oxygen dissolves freely in the cold. */
 export const COLD_BLOOD = 0;
 
+/**
+ * The share of its liquid's weight that is water, by the liquid a life is dissolved in (rules/matter.ts: ammonia water is
+ * NH₃·2H₂O, 36 of its 53 parts water; oil and liquid methane hold none: water is ice and does not mix in them).
+ */
+export const SOLVENT_WATER: Readonly<Record<LifeFamily, number>> = {
+  water: 1,
+  ammonia: 36 / 53,
+  oil: 0,
+  methane: 0,
+};
+/** The most water (a share of its liquid's weight) silicon's chains of hydrogen or nitrogen stand in (est: a trace; they hydrolyse in moist air). */
+export const DRY_SOLVENT = 0.01;
+
 const FAMILY_OF: Readonly<Record<WorldKind, LifeFamily>> = {
   rocky: "water",
   sulfur: "water",
@@ -193,6 +206,13 @@ const PIGMENT_SUBST: Readonly<Record<Pigment, string>> = {
  * dry, oxygen-free liquid: in liquid methane, cold enough that silicon's chains hold as well as carbon's and react
  * faster where carbon's barely move; in ammonia, where silicon binds to nitrogen (silazanes) and holds. Of the two, the
  * one its world holds more of wins: a rock rich in silica (its magnesium short against its silicon) and poor in carbon.
+ *
+ * Silanes and silazanes stand only where their liquid truly holds no water (past DRY_SOLVENT of it): water breaks their
+ * silicon-hydrogen and silicon-nitrogen bonds (to silica and siloxanes, giving off hydrogen or ammonia), at a trace of it and in
+ * the cold. An ammonia world's seas are ammonia water, two-thirds water by weight (rules/matter.ts ammonia-water), so its life
+ * keeps carbon's chains. (Until 2026-11-23 silazanes stood in it, the very water the rule gives as what breaks them: 17 of the 20
+ * ammonia worlds among aliens 1-300 were of them.) Siloxanes are another matter: their chains of silicon and oxygen are what
+ * water leaves of silicon's, and hold in it.
  */
 export function backboneOf(i: Pick<LifeInputs, "kind" | "carbon" | "silica" | "mean">): {
   readonly backbone: Backbone;
@@ -203,7 +223,7 @@ export function backboneOf(i: Pick<LifeInputs, "kind" | "carbon" | "silica" | "m
     holds =
       i.kind === "methane" && i.mean < -150
         ? 1.2
-        : i.kind === "ammonia" && i.mean < -30
+        : i.kind === "ammonia" && i.mean < -30 && SOLVENT_WATER[FAMILY_OF[i.kind]] <= DRY_SOLVENT
           ? 0.9
           : i.kind === "sulfur" && i.mean > HOT_SILICON
             ? 1.1

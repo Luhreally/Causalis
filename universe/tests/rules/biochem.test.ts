@@ -241,10 +241,11 @@ test("silicon's chains stand only in a dry, oxygen-free cold liquid on a world r
     backboneOf({ kind: "methane", carbon: "oxide", silica: "high", mean: -180 }).backbone,
     "silane",
   );
-  assert.equal(
-    backboneOf({ kind: "ammonia", carbon: "oxide", silica: "high", mean: -60 }).backbone,
-    "silazane",
-  );
+  // (Not in ammonia water: two-thirds of it is water, which breaks silicon's bonds to nitrogen. Until 2026-11-23 silazanes
+  // stood in it.)
+  const wet = backboneOf({ kind: "ammonia", carbon: "oxide", silica: "high", mean: -60 });
+  assert.equal(wet.backbone, "carbon");
+  assert.match(wet.why, /fall apart in its water/);
   assert.equal(
     backboneOf({ kind: "methane", carbon: "carbon-rich", silica: "high", mean: -180 }).backbone,
     "carbon",

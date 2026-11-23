@@ -17,6 +17,7 @@ import {
 import { isProvinceWorld, meansNumbers, offworldSite } from "../../gen/index.ts";
 import {
   ACID_TAKEN,
+  TAKEN,
   AQUIFER_YEARS,
   DRAWN_OFF,
   FALLS_HOME,
@@ -372,11 +373,11 @@ function stepGround(
       ? ctx.world.store<EnergyStore>("economy.energy").get(cell)
       : undefined,
     cover = energy && energy.workWanted > 0 ? Math.min(1, energy.workHad / energy.workWanted) : 1,
-    fert = fixing && fieldsKm2 > 0 ? Math.min(lackN + 0.012 * farmed, 0.05) * cover : 0;
+    fert = fixing && fieldsKm2 > 0 ? Math.min(lackN + TAKEN.N * farmed, 0.05) * cover : 0;
   g.fixed = Math.round(fert * N_T_KM2 * fieldsKm2);
   g.fixKw = Math.round(
     fixing && fieldsKm2 > 0
-      ? Math.min(lackN + 0.012 * farmed, 0.05) * N_T_KM2 * fieldsKm2 * FIX_KWY
+      ? Math.min(lackN + TAKEN.N * farmed, 0.05) * N_T_KM2 * fieldsKm2 * FIX_KWY
       : 0,
   );
   const coalDug = made?.[G.coal] ?? 0,
@@ -388,8 +389,10 @@ function stepGround(
   let laid = 0,
     sent = 0;
   // (Its years since it was last stepped, each as a year would be, its people's ways and its fields held as they stand now.)
+  const watered = knows("irrigation");
   for (let year = 0; year < years; year++) {
-    // The nutrients: what the harvest took, what came back.
+    // The nutrients: what the harvest took (as large as it was), what came back.
+    const crop = soilOf(g, watered);
     NUTRIENTS.forEach((nu, i) => {
       let s = (g.nut[i] ?? SHARE) / SHARE;
       s = nutrientYear(s, nu, {
@@ -399,6 +402,7 @@ function stepGround(
         manure: knows("manuring") ? manure : 0,
         fertiliser: nu === "N" ? fert : 0,
         rock,
+        crop,
       });
       g.nut[i] = Math.round(SHARE * s);
     });

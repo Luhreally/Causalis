@@ -7,6 +7,7 @@ import {
   homePlanet,
   landMaterials,
   living,
+  loreOf,
   makePopulationWorld,
   marketsOf,
   populationContext,
@@ -20,7 +21,7 @@ import {
 } from "../../src/sim/index.ts";
 import type { Province } from "../../src/sim/population/model.ts";
 import { why } from "../../src/causal/index.ts";
-import { G, MALE, OCC } from "../../src/rules/index.ts";
+import { FEMALE, G, MALE, OCC, PRODUCTIVITY } from "../../src/rules/index.ts";
 import { farmedOf } from "../../src/sim/ecology/farmed.ts";
 import { peopledWorld } from "../worlds.ts";
 
@@ -187,9 +188,41 @@ test("ground no plough can turn has no fields on it, whoever there is called a f
 });
 
 test("where people press the land hard, its turns for the worse enter history", () => {
-  // Kestrel's dry steppe fills with farmers: game grows scarce and soils wear.
-  const world = peopledWorld("kestrel", 300, { start: "spread" });
-  const told = (type: string) => world.events.all().filter((e) => e.type === type);
+  // Kestrel's dry steppe fills with farmers who know neither rotation nor manuring: game grows scarce and soils wear. (Until
+  // 2026-11-23 kestrel at 300 was read as filled; it farms a twentieth of its farmland at most there, its people some 1 in 100
+  // of what its fields could feed, and a land that does fill comes to know rotation first. So four of its lands at 40 that till
+  // without either are filled here, three times over what their farmland takes, and live forty years on.)
+  const AT = 40,
+    world = peopledWorld("kestrel", AT, { start: "spread" }),
+    ctx = populationContext(world),
+    lore = loreOf(world);
+  const lands = ctx.provinces
+    .all()
+    .filter(
+      (p) =>
+        p.cultivation &&
+        !lore.get(p.cell, "rotation") &&
+        !lore.get(p.cell, "manuring") &&
+        provinceCapacity(ctx, p.cell).farm > 0,
+    )
+    .sort(
+      (a, b) =>
+        provinceCapacity(ctx, b.cell).farm - provinceCapacity(ctx, a.cell).farm || a.cell - b.cell,
+    )
+    .slice(0, 4);
+  assert.equal(lands.length, 4);
+  for (const p of lands) {
+    // (Three times the hands its farmland takes at a digging stick's day, over ten rows of young men and women.)
+    const each = Math.round(
+      (3 * provinceCapacity(ctx, p.cell).farm) / PRODUCTIVITY[OCC.farmer]! / 10,
+    );
+    for (const sex of [MALE, FEMALE])
+      for (let b = 1; b < 6; b++) p.counts.add(row(sex, b), OCC.farmer, each);
+    assert.equal(farmedOf(ctx, p), 1, "its farmland under fields");
+  }
+  world.runTo((AT + 40) * YEAR);
+  const told = (type: string) =>
+    world.events.all().filter((e) => e.type === type && lands.some((p) => e.place === p.ref));
   const thinned = told(ECOLOGY_EVENTS.thinned.type),
     worn = told(ECOLOGY_EVENTS.worn.type);
   assert.ok(
