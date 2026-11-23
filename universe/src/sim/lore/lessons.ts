@@ -296,6 +296,9 @@ const READINGS: Readonly<Record<string, Reading>> = {
   "ecology.woods-gone": (_, e) => ownUse(e, "woods-lost", 1.5),
   "ecology.wild-thinned": (_, e) => ownUse(e, "wild-lost", 1.5),
   "ecology.hunted-out": (_, e) => ownUse(e, "wild-lost", 1),
+  // (Their sea fished poor, and failed, by the land that pressed it most: sim/ecology/seas.ts. Its waters are its wild too.)
+  "ecology.sea-few": (_, e) => ownUse(e, "wild-lost", 1),
+  "ecology.sea-collapsed": (_, e) => ownUse(e, "wild-lost", 1.5),
   "ecology.herds-gone": (_, e) =>
     (e.data as { why?: string } | null)?.why === "hunted" ? ownUse(e, "wild-lost", 2) : null,
   // A sickness come to a land (sim/health/health.ts): its dead.

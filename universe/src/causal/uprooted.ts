@@ -157,6 +157,30 @@ registerEventWords(SEA_EVENTS.few.type, (world, e) => {
     : `The sea off ${landWords(world, e.place)} was fished poor${lands > 1 ? ` by the boats of ${count(lands)} lands` : " by its boats"}${left}, ${year(e.t)}`;
 });
 
+// A reach fished past poor to a remnant, and a reach once poor grown well again (sim/ecology/seas.ts).
+registerEventWords(SEA_EVENTS.collapsed.type, (world, e) => {
+  const d = e.data as { lands?: number; water?: boolean; lean?: number } | null,
+    lands = d?.lands ?? 0,
+    lean = d?.lean
+      ? `; ${Math.max(1, Math.round(d.lean / 10))} in a hundred of their wild food went with it`
+      : "";
+  return d?.water
+    ? `The waters the people of ${landWords(world, e.place)} live in were taken down to a remnant${lands > 1 ? ` by the ${count(lands)} lands that draw on them` : ""}${lean}, ${year(e.t)}`
+    : `The fish of the sea off ${landWords(world, e.place)} failed, taken down to a remnant${lands > 1 ? ` by the boats of ${count(lands)} lands` : " by its boats"}${lean}, ${year(e.t)}`;
+});
+registerEventWords(SEA_EVENTS.recovered.type, (world, e) => {
+  const d = e.data as { years?: number; collapsed?: boolean; water?: boolean } | null,
+    after = d?.years ? ` after ${count(d.years)} ${d.years === 1 ? "year" : "years"}` : "",
+    from = d?.collapsed ? "came back from a remnant" : "grew well again";
+  return d?.water
+    ? `The waters the people of ${landWords(world, e.place)} live in ${from}${after}, as less was taken of them, ${year(e.t)}`
+    : `The sea off ${landWords(world, e.place)} ${from}${after}, as its boats took less of it, ${year(e.t)}`;
+});
+registerDecisionWords(
+  COMPANY_EVENTS.company.type,
+  () => "A hired company weighed its pay against the day",
+);
+
 // Two fleets met at sea in a war (sim/war/fleets.ts).
 registerEventWords(FLEET_EVENTS.met.type, (world, e) => {
   const d = e.data as {

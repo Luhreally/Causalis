@@ -142,7 +142,7 @@ import { homeSky, shiftNow, starEnded } from "../planet/motion.ts";
 import { actOn, hazardBy, luckBy } from "../acts/person.ts";
 import { KILLING, handDeath, type DeathPart } from "../hand/deaths.ts";
 import { fledKind, noteFled } from "../war/held.ts";
-import { seaYield } from "../ecology/seas.ts";
+import { seaOf, seaYield } from "../ecology/seas.ts";
 import { capacity, COLS, livable, Province, row, ROWS, type Capacity } from "./model.ts";
 import {
   HistoryStore,
@@ -812,6 +812,10 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
         drier = airOf(world).shiftOf(p.cell);
       if (stocks?.worn) causes.push({ ref: stocks.worn, role: "pressure", weight: 0.2 });
       else if (stocks?.thinned) causes.push({ ref: stocks.thinned, role: "pressure", weight: 0.2 });
+      // (Its sea fished down, where its boats bring in less for it: sim/ecology/seas.ts.)
+      const sea = seaYield(ctx, p.cell) < 0.97 ? seaOf(ctx, p.cell).sea : undefined,
+        fishedOut = sea ? (sea.gone ?? sea.few) : null;
+      if (fishedOut) causes.push({ ref: fishedOut, role: "pressure", weight: 0.3 });
       if (drier && rainShift(ctx, p.cell) < 1)
         causes.push({ ref: drier, role: "pressure", weight: 0.2 });
       // Without a dry year, they had grown to more than their land gives: the fields that

@@ -59,7 +59,19 @@ import { cell as spotFacts, market, province } from "../planet.ts";
 import { landTimeTab } from "./time.ts";
 import { realmColor } from "../colors.ts";
 import { rulerStat } from "./leaders.ts";
-import { count, eventsAbout, item, link, many, part, share, stat, yearNow } from "./words.ts";
+import {
+  count,
+  eventsAbout,
+  item,
+  link,
+  many,
+  part,
+  share,
+  stat,
+  yearAt,
+  yearNow,
+} from "./words.ts";
+
 import { richWords } from "./life.ts";
 import { landPast } from "../past.ts";
 import { prinRef } from "./matter.ts";
@@ -90,6 +102,12 @@ import {
   spotOfLand,
   townLink,
 } from "./names.ts";
+import { asideBlocks } from "./aside.ts";
+/** "year N", linked to the event of that year ("years past" where it is forgotten). */
+const eventYearLink = (world: World, ref: Ref) => {
+  const e = world.events.get(ref);
+  return link(e ? "year " + yearAt(e.t) : "years past", ref);
+};
 
 const OCCUPATION_WORDS: Readonly<Record<string, string>> = {
   dependent: "children and the old",
@@ -420,6 +438,8 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
     const blocks: Block[] = [];
     // What its woods were, what they came to and what did it, whoever lives there (E1).
     for (const b of [woodsBlock(world, cell), woodsTurnsBlock(world, cell)]) if (b) blocks.push(b);
+    // (What its people keep of it from their own use, and what has come of it: conservation, host/inspect/aside.ts.)
+    blocks.push(...asideBlocks(world, cell));
     // What goes on it, when, and what has become of them (Z1).
     const herds = herdBlock(world, cell);
     if (herds) blocks.push(herds);
@@ -460,8 +480,20 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
       if (sea)
         rows.push(
           stat("Its sea", `${share(sea.stock)} of what it held`, {
-            ...(sea.few ? { why: sea.few } : {}),
+            ...(sea.gone || sea.few ? { why: (sea.gone ?? sea.few)! } : {}),
             parts: [
+              // (Its turns for the worse while they stand: fished poor, then failed. sim/ecology/seas.ts)
+              ...(sea.few
+                ? [part(["fished poor in ", eventYearLink(world, sea.few)], "")]
+                : []),
+              ...(sea.gone
+                ? [
+                    part(
+                      ["its fish failed in ", eventYearLink(world, sea.gone)],
+                      "its boats lie idle at the jetties",
+                    ),
+                  ]
+                : []),
               part("fished by", `${sea.lands} ${sea.lands === 1 ? "land" : "lands"} on it`),
               part(
                 "pressed",

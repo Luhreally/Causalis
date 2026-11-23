@@ -139,6 +139,8 @@ const RULES: Readonly<Record<string, readonly [number, number]>> = {
   "climate.drier": [SORROWS, 3],
   "climate.wetter": [SORROWS, 2],
   "ecology.hunted-out": [SORROWS, 2],
+  "ecology.sea-collapsed": [SORROWS, 2],
+  "ecology.kept-broken": [SORROWS, 3],
   "ecology.woods-turn": [SORROWS, 5],
   "industry.lode-out": [SORROWS, 5],
   "industry.lode-deeper": [FIRSTS, 5],

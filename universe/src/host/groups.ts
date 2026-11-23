@@ -144,8 +144,9 @@ export function companyFields(
       coMen?: [number, number];
       coHow?: [string | null, string | null];
     } | null;
-    const side = d?.coPage?.[0] === page ? 0 : d?.coPage?.[1] === page ? 1 : -1;
-    if (side < 0) continue;
+    const at = d?.coPage?.[0] === page ? 0 : d?.coPage?.[1] === page ? 1 : -1;
+    if (at < 0) continue;
+    const side = at as 0 | 1;
     out.push({
       battle: e.id,
       year: y,

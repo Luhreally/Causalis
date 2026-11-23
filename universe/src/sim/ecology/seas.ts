@@ -11,6 +11,9 @@
 // (their flocks are the sea's own), their take presses it far less, and all their wild food goes with its stock.
 // A reach is read off the world as made: the sea cut into stretches of some SEA.cells cells, in cell order. One row a reach
 // that anyone fishes; none on a world with no boats. Level: a number a reach of sea, shared by the lands on it.
+// (2026-11-22) Fished on past poor to a remnant (SEA.collapse) it has failed: told with the part of the shore's wild food gone
+// with it, cited by the famines of the lands whose boats bring in less for it, read by their lessons as their wild lost (so a
+// land may close its waters: kept-wild takes as much off its boats' catch); and told again when it grows well.
 import {
   YEAR,
   defineEventType,
@@ -32,6 +35,10 @@ import { wildsOf } from "./ecology.ts";
 export const SEA_EVENTS = {
   /** A reach of sea fished poor by the lands on it. */
   few: defineEventType("ecology.sea-few", 4),
+  /** A reach fished past poor to a remnant: its boats bring in next to nothing, and the shore's wild food falls with it. */
+  collapsed: defineEventType("ecology.sea-collapsed", 4),
+  /** A reach once poor grown well again: those who fished it took less (fewer, or hungry, or gone elsewhere). */
+  recovered: defineEventType("ecology.sea-recovered", 3),
 };
 
 export const SEA = {
@@ -51,6 +58,8 @@ export const SEA = {
   poor: 0.35,
   well: 0.7,
   least: 0.03,
+  /** Fished down to this, it has collapsed: a remnant that grows back only slowly however little it is pressed. */
+  collapse: 0.12,
 } as const;
 
 /** A reach of sea that is fished. */
@@ -63,6 +72,8 @@ export type Sea = {
   most: number;
   /** The event of its growing poor (null: not poor). */
   few: Ref | null;
+  /** The event of its collapse (null: not collapsed since it was last well). Absent in a save from before: none. */
+  gone?: Ref | null;
 };
 
 export class SeaStore implements StateStore {
@@ -141,7 +152,10 @@ export class SeaStore implements StateStore {
   }
   pinned(): Ref[] {
     const out: Ref[] = [];
-    for (const s of this.rows.values()) if (s.few) out.push(s.few);
+    for (const s of this.rows.values()) {
+      if (s.few) out.push(s.few);
+      if (s.gone) out.push(s.gone);
+    }
     return out;
   }
   hashInto(h: Hasher): void {
@@ -152,7 +166,8 @@ export class SeaStore implements StateStore {
       const s = this.rows.get(id)!;
       h.int(id)
         .int(Math.round(s.stock * 1e6))
-        .string(s.few ?? "");
+        .string(s.few ?? "")
+        .string(s.gone ?? "");
     }
     let sum = 0;
     for (const [c, y] of this.yields) sum += c * 1009 + y;
@@ -164,7 +179,10 @@ export class SeaStore implements StateStore {
         .sort((a, b) => a - b)
         .map((id) => {
           const s = this.rows.get(id)!;
-          return [s.reach, s.stock, s.pressed, s.lands, s.most, s.few];
+          // (Its collapse only where there is one: a save from before reads as it did.)
+          return s.gone
+            ? [s.reach, s.stock, s.pressed, s.lands, s.most, s.few, s.gone]
+            : [s.reach, s.stock, s.pressed, s.lands, s.most, s.few];
         }),
       yields: [...this.yields].sort((a, b) => a[0] - b[0]),
     };
@@ -173,11 +191,11 @@ export class SeaStore implements StateStore {
     this.rows.clear();
     this.yields.clear();
     const t = state as {
-      rows?: [number, number, number, number, number, Ref | null][];
+      rows?: [number, number, number, number, number, Ref | null, (Ref | null)?][];
       yields?: [number, number][];
     } | null;
-    for (const [reach, stock, pressed, lands, most, few] of t?.rows ?? [])
-      this.rows.set(reach, { reach, stock, pressed, lands, most, few });
+    for (const [reach, stock, pressed, lands, most, few, gone] of t?.rows ?? [])
+      this.rows.set(reach, { reach, stock, pressed, lands, most, few, ...(gone ? { gone } : {}) });
     for (const [c, y] of t?.yields ?? []) this.yields.set(c, y);
   }
 }
@@ -247,7 +265,9 @@ export function seasYear(ctx: PopulationContext, t: SimTime): void {
         c.forage *
         w.wild *
         (water ? SEA.lives : SEA.boats) *
-        (water && p.herding !== null ? SEA.tended : 1),
+        (water && p.herding !== null ? SEA.tended : 1) *
+        // (Less what they keep of their waters from their own taking: rules/lessons.ts kept-wild. As before where none is.)
+        (1 - (w.asideWild ?? 0)),
       row = pressed.get(reach);
     if (!(by > 0)) continue;
     if (!row) pressed.set(reach, { p: by, lands: 1, most: p.cell, mostBy: by });
@@ -278,7 +298,7 @@ export function seasYear(ctx: PopulationContext, t: SimTime): void {
     s.lands = r.lands;
     s.most = r.most;
     if (!was && s.stock >= 1) continue;
-    if (s.stock >= 1 && !r.lands && !s.few) {
+    if (s.stock >= 1 && !r.lands && !s.few && !s.gone) {
       // (Whole and left alone: no row.)
       store.drop(reach);
       continue;
@@ -304,7 +324,49 @@ export function seasYear(ctx: PopulationContext, t: SimTime): void {
           year: yearOfMoment(t),
         },
       });
-    } else if (s.stock > SEA.well && s.few) s.few = null;
+    } else if (s.stock > SEA.well && (s.few || s.gone)) {
+      // (Well again: told where it had been poor, with how long and what it came back from.)
+      const fell = s.gone ?? s.few!,
+        since = world.events.get(fell)?.t,
+        prov = ctx.provinces.get(r.most);
+      world.events.emit({
+        type: SEA_EVENTS.recovered.type,
+        place: prov?.ref ?? null,
+        causes: [{ ref: fell, role: "trigger" as const, weight: 1 }],
+        data: {
+          stock: Math.round(s.stock * 100),
+          lands: r.lands,
+          pressed: s.pressed,
+          water,
+          collapsed: !!s.gone,
+          ...(since !== undefined ? { years: Math.max(1, yearOfMoment(t) - yearOfMoment(since)) } : {}),
+        },
+      });
+      s.few = null;
+      s.gone = null;
+    }
+    // (Fished on past poor to a remnant: the shore's lean years, told with the part of their wild food the land that pressed
+    // it most has lost to it.)
+    if (s.stock < SEA.collapse && s.few && !s.gone && r.lands) {
+      const realm = politiesOf(world).of(r.most),
+        prov = ctx.provinces.get(r.most);
+      s.gone = world.events.emit({
+        type: SEA_EVENTS.collapsed.type,
+        importance: r.lands >= 4 ? 4 : 3,
+        subjects: realm ? [realm.ref] : [],
+        place: prov?.ref ?? null,
+        causes: [{ ref: s.few, role: "trigger" as const, weight: 1 }],
+        data: {
+          stock: Math.round(s.stock * 100),
+          lands: r.lands,
+          pressed: s.pressed,
+          water,
+          // (Of the wild food of its lands, the part gone with it: thousandths.)
+          lean: Math.round((1 - yieldNow(ctx, s, r.most)) * 1000),
+          year: yearOfMoment(t),
+        },
+      });
+    }
     store.set(s);
   }
   // What each land that goes out on a reach less than whole eats of it, until next year.

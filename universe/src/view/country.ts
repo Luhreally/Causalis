@@ -123,6 +123,8 @@ export type Country = {
       readonly mooring: Spot;
       readonly out: { readonly x: number; readonly z: number; readonly r: number };
     }[];
+    /** Of its boats, the last so many stay tied up at the jetty by day: its sea has failed them (absent: none). */
+    readonly laid?: number;
   } | null;
   /** The pasture's fence (its rails and posts, a gap toward the town); its trough; its rack of hay if no flock grazes. */
   readonly pen: {
@@ -616,7 +618,11 @@ function countryMade(plan: VillagePlan, detail: number): Country {
           sz: 0.35,
           yaw,
         });
-    const count = Math.max(1, Math.min(5, 1 + Math.floor(plan.population / 400))),
+    // (As many as its fishers crew, where its land's reading gives them, and those its sea has failed tied up: host/boats.ts.)
+    const count =
+        w.boats !== undefined
+          ? Math.max(1, w.boats)
+          : Math.max(1, Math.min(5, 1 + Math.floor(plan.population / 400))),
       boats: NonNullable<Country["water"]>["boats"][number][] = [];
     for (let i = 0; i < count; i++) {
       const along = 9 + Math.floor(i / 2) * 8,
@@ -649,6 +655,7 @@ function countryMade(plan: VillagePlan, detail: number): Country {
               ? "sail"
               : "row",
       boats,
+      ...(w.laid ? { laid: Math.min(count, w.laid) } : {}),
     };
   }
   return {
@@ -782,7 +789,8 @@ export function boatAt(
 ): Spot & { readonly out: boolean } {
   const b = c.water!.boats[k]!,
     hour = (((t % DAY) + DAY) % DAY) / 3600;
-  if (frozen || hour < 6.5 || hour >= 18.5) return { ...b.mooring, out: false };
+  if (frozen || hour < 6.5 || hour >= 18.5 || k >= c.water!.boats.length - (c.water!.laid ?? 0))
+    return { ...b.mooring, out: false };
   const turn = (clock * BOAT_PACE) / b.out.r + k * 2.3;
   return {
     x: b.out.x + Math.cos(turn) * b.out.r,

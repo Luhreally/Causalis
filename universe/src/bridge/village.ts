@@ -521,6 +521,9 @@ export type VillagePlan = {
     z: number;
     readonly r?: number;
     readonly shore?: { readonly x: number; readonly z: number };
+    /** Its fishing boats, as its fishers crew them, and of them those tied up for want of a catch (host/boats.ts; absent: by its size). */
+    readonly boats?: number;
+    readonly laid?: number;
   } | null;
   /**
    * What grows about it: its land's reading (bridge/biome.ts) over the tiles about its own, as its water is read (each tile's

@@ -108,6 +108,7 @@ import { visitorsAt } from "./peoples.ts";
 import { flockBeast, makerAt, seatsOf, townStuff, workshopOf, type Maker } from "./chain.ts";
 import { peopleFigure } from "./folk.ts";
 import { planKind } from "./kinds.ts";
+import { planBoats } from "./boats.ts";
 import { isMachineFolk, landPast } from "./past.ts";
 import { getAbout } from "./roads.ts";
 import { worldLook } from "./biochem.ts";
@@ -1443,7 +1444,15 @@ export function villagePlan(
         r: pastureR,
       },
       wild: wildAt,
-      water: lake ? { x: lake.x, z: lake.z, r: lake.r, shore: shoreOf(ground, lake) } : null,
+      water: lake
+        ? {
+            x: lake.x,
+            z: lake.z,
+            r: lake.r,
+            shore: shoreOf(ground, lake),
+            ...planBoats(world, village.cell, village.population),
+          }
+        : null,
       ...(ground?.wet ? { landWater: ground } : {}),
       ...(held.length ? { held } : {}),
       // (What grows about it, as its land's map reads it: host/flora.ts. None on another body's ground.)

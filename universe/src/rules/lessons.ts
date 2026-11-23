@@ -212,8 +212,8 @@ export const LESSON_CAUSES: readonly LessonCause[] = [
   {
     id: "wild-lost",
     scope: "land",
-    words: "their game and herds hunted away",
-    lost: "times their wild was hunted thin or a kind of beast lost",
+    words: "their game, fish and herds taken away",
+    lost: "times their wild was hunted thin, their sea fished out or a kind of beast lost",
     each: ["loss", "losses"],
     answers: ["herdYield", "forageYield"],
   },
