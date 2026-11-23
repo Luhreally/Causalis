@@ -15,6 +15,7 @@ import {
   defineKind,
   defineStream,
   yearOfMoment,
+  type CauseRef,
   type Hasher,
   type Ref,
   type SimTime,
@@ -393,36 +394,64 @@ export function beliefYear(ctx: PopulationContext, t: SimTime): void {
       // before where no one is kept: three lands, a hundred years.)
       const reformer = far.length >= ACTS.reformLands ? notableReformer(world, f.ref, far) : null;
       if (!reformer && (far.length < 3 || year - store.lastSplit(f.ref) < 100)) continue;
-      const first = reformer?.cell ?? far[0]!,
-        there = culture.get(first)!,
-        ref = world.minter.mint(FAITH),
-        name = faithName(
-          f.tenet,
-          tongueName({ ...there.tongue, seed: there.tongue.seed ^ 0xfa17 }, first),
-        );
-      store.markSplit(f.ref, year);
-      const event = world.events.emit({
-        type: BELIEF_EVENTS.schism.type,
-        subjects: [ref, f.ref],
-        place: ctx.provinces.get(first)!.ref,
-        causes: [{ ref: f.event, role: "enabler", weight: 1 }],
-        data: { name, from: f.name, ...(reformer ? { by: reformer.name } : {}) },
-      });
-      // (A schism keeps its tenet, and hallows what marks those who broke away.)
-      store.add({
-        ref,
-        name,
-        tenet: f.tenet,
-        founded: year,
-        event,
-        seat: first,
-        from: f.ref,
-        creed: creedAt(f.tenet, there.traits),
-      });
-      for (const c of far) store.set(c, { faith: ref, since: year, event });
+      splitFaith(
+        ctx,
+        f,
+        far,
+        reformer?.cell ?? far[0]!,
+        [{ ref: f.event, role: "enabler", weight: 1 }],
+        reformer ? { by: reformer.name } : {},
+        t,
+      );
     }
   // (A faith held for generations becomes part of who a people are: its creed draws their ways, `heldCreed`, read where their
   // ways are drawn: sim/culture/culture.ts waysTarget.)
+}
+
+/**
+ * A faith's lands break from it under a new name (a schism): kept its tenet, hallowing what marks those who broke away, seated at
+ * `first`, its lands given over. Told with its causes and what the caller adds (`by`: who led it out; `realm`: the realm that
+ * broke). The faiths' own split far from a seat, and a realm's breaking from a faith's head (sim/belief/heads.ts).
+ */
+export function splitFaith(
+  ctx: PopulationContext,
+  f: Faith,
+  lands: readonly number[],
+  first: number,
+  causes: CauseRef[],
+  data: Readonly<Record<string, string | number>>,
+  t: SimTime,
+): { ref: Ref; event: Ref } {
+  const { world } = ctx,
+    store = beliefOf(world),
+    year = yearOfMoment(t),
+    there = cultureOf(world).get(first)!,
+    ref = world.minter.mint(FAITH),
+    name = faithName(
+      f.tenet,
+      tongueName({ ...there.tongue, seed: there.tongue.seed ^ 0xfa17 }, first),
+    );
+  store.markSplit(f.ref, year);
+  const event = world.events.emit({
+    type: BELIEF_EVENTS.schism.type,
+    subjects: [ref, f.ref],
+    place: ctx.provinces.get(first)!.ref,
+    causes,
+    data: { name, from: f.name, ...data },
+  });
+  // (A schism keeps its tenet, and hallows what marks those who broke away.)
+  store.add({
+    ref,
+    name,
+    tenet: f.tenet,
+    founded: year,
+    event,
+    seat: first,
+    from: f.ref,
+    creed: creedAt(f.tenet, there.traits),
+  });
+  for (const c of lands) store.set(c, { faith: ref, since: year, event });
+  return { ref, event };
 }
 
 /** How far a land's faith draws each of its ways now (its creed, as long as the land has held it), or nothing. Only reads. */

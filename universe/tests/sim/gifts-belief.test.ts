@@ -22,7 +22,7 @@ function placesOf(world: World): Map<number, Ref> {
 type Wonder = { cell: number; tenet: string; seen: number; times: number };
 
 /**
- * The world at 120 a few days on (`day`: each trial's own day, so the omen's draws differ), wonders done in lands as `plan`
+ * The world at 120 a few years on (`day`: each trial's own year, so the omen's draws differ), wonders done in lands as `plan`
  * says, the year run out: the lands where a faith was founded of one, and each land's faith before and after.
  */
 function trial(
@@ -31,13 +31,17 @@ function trial(
 ): {
   founded: Set<number>;
   faithOf: (cell: number) => Ref | null;
+  /** The faith a faith split from (null: none). */
+  fromOf: (faith: Ref) => Ref | null;
   before: Map<number, Ref | null>;
 } {
   const world = peopledWorld("first light", 120, { start: "spread" }),
     faiths = beliefOf(world),
     places = placesOf(world),
     cells = [...places.keys()].filter((c) => cultureOf(world).get(c));
-  world.runTo(world.now + (1 + day) * 86_400);
+  // (Each trial a year on from the last: the omen draws by the year's turn and the event's place in the record, and a few days'
+  // difference moved neither, so every trial drew the same.)
+  world.runTo(world.now + day * YEAR + 86_400);
   const wonders = plan(world, cells),
     before = new Map(wonders.map((w) => [w.cell, faiths.of(w.cell).faith]));
   for (const w of wonders)
@@ -58,7 +62,12 @@ function trial(
     if (world.events.get(e.causes[0]!.ref)?.type === "hand.wonder")
       founded.add(Number(e.place!.split(":")[2]));
   }
-  return { founded, faithOf: (c) => faiths.of(c).faith, before };
+  return {
+    founded,
+    faithOf: (c) => faiths.of(c).faith,
+    fromOf: (f) => faiths.get(f)?.from ?? null,
+    before,
+  };
 }
 
 test("a wonder's sign is as strong as how many saw it, never as strong as the god's act on a land", () => {
@@ -72,7 +81,7 @@ test("wonders found a faith in some pious lands of no faith, by the omen rule's 
     many = 0,
     few = 0,
     faithful = 0;
-  for (let day = 0; day < 4; day++) {
+  for (let day = 0; day < 6; day++) {
     // In each land of no faith a healing seen by a dozen; in a few lands of a faith, three wonders of its sign and three
     // of another, each seen by thirty.
     const r = trial(day, (world, cells) => {
@@ -96,7 +105,9 @@ test("wonders found a faith in some pious lands of no faith, by the omen rule's 
       if (was) {
         faithful++;
         assert.ok(!r.founded.has(cell), "a land that holds a faith founds none of a wonder");
-        assert.equal(r.faithOf(cell), was, "and keeps its own");
+        // (Or its realm's lands broke from it that year, as a ruler cast out by its head may lead them: sim/belief/heads.ts.)
+        const now = r.faithOf(cell);
+        assert.ok(now === was || (now && r.fromOf(now) === was), "and keeps its own");
       } else if (r.founded.has(cell)) many++;
     // The same lands of no faith, each wonder seen by two.
     const s = trial(day, (world, cells) => {

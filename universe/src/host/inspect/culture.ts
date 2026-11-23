@@ -3,6 +3,7 @@
 // market.
 import { faithHousesBlock } from "./folkways.ts";
 import { pilgrimageBlock } from "./ideas.ts";
+import { faithHeadBlocks } from "./faithhead.ts";
 import {
   cellRef,
   tongueName,
@@ -94,6 +95,8 @@ export function faithPage(world: World, ref: string): PageModel {
           ],
         },
         creedBlock(f),
+        // (Its head, and the rulers who press it: sim/belief/heads.ts.)
+        ...faithHeadBlocks(world, f),
         ...(() => {
           const houses = faithHousesBlock(world, f);
           return houses ? [houses] : [];
