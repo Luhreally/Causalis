@@ -17,6 +17,7 @@
 // steam launches, motor boats — out on the water by day, tied up at the jetty by night and while
 // the water is frozen. Pure: the same plan, the same countryside; what moves (a tractor, the
 // sails, the boats) by the moment and the screen's clock.
+import { wetForLaying } from "./shore.ts";
 import { rectsOverlap, waterR, wetGround, type VillagePlan } from "../bridge/index.ts";
 import { hashText, unitOf } from "./draws.ts";
 import { HARVEST, SOWING } from "./seasons.ts";
@@ -419,7 +420,7 @@ function countryMade(plan: VillagePlan, detail: number): Country {
     silos: Country["silos"][number][] = [],
     // (A barn, a shed or a silo stands on dry ground and on no field: bridge/claims.ts.)
     standsFree = (x: number, z: number, across: number) =>
-      !wetGround(plan.landWater, x, z) &&
+      !wetForLaying(plan, x, z) &&
       !onHeldGround(plan, x, z, across) &&
       fields.every((o) => !rectsOverlap({ x, z, w: across, d: across, yaw: 0 }, o));
   fields.forEach((f, k) => {
@@ -482,7 +483,7 @@ function countryMade(plan: VillagePlan, detail: number): Country {
       Math.abs(((((a - c) % (2 * Math.PI)) + 3 * Math.PI) % (2 * Math.PI)) - Math.PI),
     clear = (x: number, z: number, room: number) =>
       (!plan.water || Math.hypot(x - plan.water.x, z - plan.water.z) > waterR(plan.water) + room) &&
-      !wetGround(plan.landWater, x, z) &&
+      !wetForLaying(plan, x, z) &&
       Math.hypot(x - plan.pasture.x, z - plan.pasture.z) > plan.pasture.r + room &&
       apart(Math.atan2(z, x), roadWay) * Math.hypot(x, z) > 24 &&
       !onHeldGround(plan, x, z, room) &&

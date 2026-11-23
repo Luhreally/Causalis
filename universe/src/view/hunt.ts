@@ -6,6 +6,7 @@
 // it home across the shoulders, the rest after with their spears. The herd runs at the rush and
 // comes back to its grazing over the days after. Pure: the same town and moment, the same hunt,
 // wherever it is looked at from.
+import { wetForLaying } from "./shore.ts";
 import { waterR, wetGround, type VillagePlan } from "../bridge/index.ts";
 import { OCC } from "../rules/index.ts";
 import { hashText, unitOf } from "./draws.ts";
@@ -83,7 +84,7 @@ export function huntGround(plan: VillagePlan): Point | null {
       clear = (x: number, z: number) =>
         Math.hypot(x - p.x, z - p.z) > p.r + 60 &&
         (!w || Math.hypot(x - w.x, z - w.z) > waterR(w) + 150) &&
-        !wetGround(plan.landWater, x, z);
+        !wetForLaying(plan, x, z);
     // (Away from the fields, turned this way and that, wider each time, until clear.)
     for (let turn = 0; turn < 24 && !spot; turn++) {
       const a = fieldWay + Math.PI + (turn % 2 ? 1 : -1) * 0.3 * Math.ceil(turn / 2),

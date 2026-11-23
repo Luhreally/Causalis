@@ -14,7 +14,7 @@ import {
   LOT_W,
   townLots,
   townReach,
-  wetShares,
+  waterR,
   woundStage,
   type ColonyLook,
   type HomeMoney,
@@ -185,6 +185,7 @@ import { WoundsLayer, bandageOn, propAt, type WornPiece } from "./wounds.ts";
 import { LittersLayer, litterApart, litterHeld } from "./litters.ts";
 import { FolkPoses, nearReach, redrawn } from "./folk.ts";
 import type { PosedHook } from "../view/index.ts";
+import { laidGround, shoreWater, villageShore, type ShoreWater } from "../view/index.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
 const M = 0.1; // units per metre
@@ -211,28 +212,27 @@ export const TOWN_FAR = 3000;
  * One flat mesh of four-cornered pieces lying at height `y` (each piece four (x, z) corners in metres, scaled by `scale`
  * to the scene's units), each turned to face up: a land's water shares as a town's view draws them.
  */
-function sharesMesh(stage: Stage, quads: Float32Array, scale: number, y: number): pc.Mesh {
-  const positions: number[] = [],
-    normals: number[] = [],
-    indices: number[] = [];
-  for (let q = 0; q + 7 < quads.length; q += 8) {
-    const base = positions.length / 3;
-    for (let k = 0; k < 4; k++) {
-      positions.push(quads[q + 2 * k]! * scale, y, quads[q + 2 * k + 1]! * scale);
-      normals.push(0, 1, 0);
-    }
-    for (const [a, b, c] of [
-      [0, 1, 2],
-      [0, 2, 3],
-    ] as const) {
-      const ax = quads[q + 2 * a]!,
-        az = quads[q + 2 * a + 1]!,
-        up =
-          (quads[q + 2 * b + 1]! - az) * (quads[q + 2 * c]! - ax) -
-          (quads[q + 2 * b]! - ax) * (quads[q + 2 * c + 1]! - az);
-      if (up >= 0) indices.push(base + a, base + b, base + c);
-      else indices.push(base + a, base + c, base + b);
-    }
+/** Triangles laid flat (x, z, three a triangle), facing up, `scale` to a unit, at `y`. */
+function trisMesh(stage: Stage, tris: Float32Array, scale: number, y: number): pc.Mesh {
+  const n = tris.length / 2,
+    positions = new Float32Array(n * 3),
+    normals = new Float32Array(n * 3),
+    indices = new Uint32Array(n);
+  for (let v = 0; v < n; v++) {
+    positions[3 * v] = tris[2 * v]! * scale;
+    positions[3 * v + 1] = y;
+    positions[3 * v + 2] = tris[2 * v + 1]! * scale;
+    normals[3 * v + 1] = 1;
+  }
+  for (let t = 0; t < n; t += 3) {
+    const ax = tris[2 * t]!,
+      az = tris[2 * t + 1]!,
+      up =
+        (tris[2 * t + 3]! - az) * (tris[2 * t + 4]! - ax) -
+        (tris[2 * t + 2]! - ax) * (tris[2 * t + 5]! - az);
+    indices[t] = t;
+    indices[t + 1] = up >= 0 ? t + 1 : t + 2;
+    indices[t + 2] = up >= 0 ? t + 2 : t + 1;
   }
   const mesh = new pc.Mesh(stage.device);
   mesh.setPositions(positions);
@@ -882,34 +882,17 @@ export class VillageScene {
         2,
       );
     }
-    // Its land's water, as its land's map draws it, share by share (bridge/claims.ts wetShares): no lake laid over the
-    // land. (A people of the water's keeps its old round of water.)
+    // Its land's water, as its land's view draws it, its shore curving as the land's does (view/shore.ts), kept off all it
+    // has laid on its ground: drawn once its town and countryside are (drawLandWater). (A people of the water's keeps its old
+    // round of water.)
     // (In its land's lakes' colour, as the land shows them: the town's water was a darker blue of its own, and changed
     // colour as the eye came down from the land. The land's colours are its ground's texels, read as they are; a
     // material's colour is read as the screen's, so it is given here raised by the screen's gamma to come out the same.)
     const lake = kindWater(plan.kind)?.lake ?? EARTH_WATERS.lake,
       waterColor: Rgb = [lake[0] ** (1 / 2.2), lake[1] ** (1 / 2.2), lake[2] ** (1 / 2.2)];
-    if (plan.landWater?.wet) {
-      // (Out to its own ground's edge: its land's own water past it, as its land draws it, render/farland.ts.)
-      const shares = wetShares(plan.landWater, plan.colony ? 4200 : Math.min(4200, near / M));
-      if (shares.length) {
-        const mesh = sharesMesh(s, shares, M, 0.024),
-          m = flatMaterial(waterColor),
-          e = new pc.Entity("land water");
-        this.waterMesh = mesh;
-        e.addComponent("render", { meshInstances: [new pc.MeshInstance(mesh, m)] });
-        this.root.addChild(e);
-        this.dressed.push({
-          kind: "water",
-          base: waterColor,
-          paint: (c) => {
-            m.diffuse.set(c[0], c[1], c[2]);
-            m.update();
-          },
-          grass: false,
-        });
-      }
-    } else if (plan.water)
+    // (Out to its own ground's edge: its land's own water past it, as its land draws it, render/farland.ts.)
+    const waterNear = plan.colony ? 4200 : Math.min(4200, near / M);
+    if (!plan.landWater?.wet && plan.water)
       disc(LAKE_R * M, waterColor, plan.water.x * M, plan.water.z * M, 0.014, "water");
     // The road out (through a city, both ways; paved stone once it is paved), and the square.
     const quarters = plan.districts,
@@ -1179,6 +1162,7 @@ export class VillageScene {
     // Its countryside (Phase 32): the orchards drawn there under their trees; the rest sown here,
     // a batch to each crop.
     this.country.build(plan, houseLook(plan.house, plan.lifeLook), s.quality);
+    this.drawLandWater(plan, waterColor, waterNear);
     this.feast.build(plan);
     const crop = this.country.crop;
     this.crops = (["grain", "greens", "fallow"] as const).flatMap((kind) => {
@@ -1718,6 +1702,42 @@ export class VillageScene {
   /** How far its own ground is drawn about it (units: render/townflora.ts), and the plain ring past it (TOWN_FAR). */
   private groundNear = 0;
   private farRing: pc.Entity | null = null;
+  /** Its land's water as drawn (view/shore.ts; null: none): the look tools ask what stands on it. */
+  get shoreDrawn(): ShoreWater | null {
+    return this.shoreWater;
+  }
+  private shoreWater: ShoreWater | null = null;
+  /**
+   * Its land's water (its land's view's shore: view/shore.ts), out to `near` metres, kept off what its town and its
+   * countryside have laid on its ground; its own round of open water always water.
+   */
+  private drawLandWater(plan: VillagePlan, color: Rgb, near: number): void {
+    this.shoreWater = null;
+    const shore = villageShore(plan);
+    if (!shore) return;
+    const laid = laidGround();
+    this.town.laidOn(laid);
+    this.country.laidOn(laid);
+    const open = plan.water ? { x: plan.water.x, z: plan.water.z, r: waterR(plan.water) } : null,
+      water = shoreWater(shore, { near, laid, open });
+    this.shoreWater = water;
+    if (!water.tris.length) return;
+    const mesh = trisMesh(this.stage, water.tris, M, 0.024),
+      m = flatMaterial(color),
+      e = new pc.Entity("land water");
+    this.waterMesh = mesh;
+    e.addComponent("render", { meshInstances: [new pc.MeshInstance(mesh, m)] });
+    this.root.addChild(e);
+    this.dressed.push({
+      kind: "water",
+      base: color,
+      paint: (c) => {
+        m.diffuse.set(c[0], c[1], c[2]);
+        m.update();
+      },
+      grass: false,
+    });
+  }
   get groundReach(): number {
     return this.groundNear;
   }

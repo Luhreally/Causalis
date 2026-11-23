@@ -6746,6 +6746,11 @@ async function runPlanetPage(): Promise<void> {
       const { goings: _, ...bare } = plan;
       plan = { ...bare, people: plan.people.filter((p) => !p.outsider) };
     }
+    // (Where it stands on its land, as its land's view has it: its shore read there, view/shore.ts.)
+    {
+      const on = colonyRef(ref) ? null : region.land.townAt(ref);
+      if (on) plan = { ...plan, landAt: { x: on.x, z: on.z } };
+    }
     spires = !!plan.town && hasSpires(plan.town);
     performance.measure("village.plan", { start: q0 });
     const t0 = performance.now();

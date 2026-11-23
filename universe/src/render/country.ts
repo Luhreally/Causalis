@@ -33,6 +33,8 @@ import {
   tractorAt,
   type Boat,
   type Country,
+  layCountry,
+  type Laid,
   type CountryPiece,
   type Crop,
   type GroundSeason,
@@ -825,6 +827,15 @@ export class CountryLayer {
   }
 
   /** How many of each thing the countryside shows now (the look tools). */
+  /**
+   * What it has laid on the town's ground (metres from its square), into `laid` (view/shore.ts: the town's water keeps off
+   * it): its plan's fields and pasture and its road out, and the countryside's bounds, rows, barns, farmhouses, silos, mills,
+   * ricks and scarecrows, the pasture's fence and fold. Its jetty and boats are on the water and are not.
+   */
+  laidOn(laid: Laid): void {
+    if (this.plan) layCountry(laid, this.plan, this.country);
+  }
+
   counts(): Record<string, number> {
     const c = this.country;
     if (!c) return {};

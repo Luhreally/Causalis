@@ -15,6 +15,7 @@
 // the sheaves in to the granary and the seed out of it, beams and stone from the yard to every
 // home and building rising, timber felled and ore dug for the yard, the household's bread
 // fetched home — each moving the town's stores, history's own, copied in each day.
+import { wetForLaying } from "./shore.ts";
 import { finish, hashString, mix } from "../kernel/index.ts";
 import {
   LOT,
@@ -6778,7 +6779,7 @@ export function treesOf(plan: VillagePlan, share = 1): Tree[] {
       if (Math.hypot(x - plan.pasture.x, z - plan.pasture.z) < plan.pasture.r + 8) return false;
       if (plan.water && Math.hypot(x - plan.water.x, z - plan.water.z) < waterR(plan.water) + 10)
         return false;
-      if (wetGround(plan.landWater, x, z)) return false;
+      if (wetForLaying(plan, x, z)) return false;
       for (const f of plan.fields) {
         const dx = x - f.x,
           dz = z - f.z,

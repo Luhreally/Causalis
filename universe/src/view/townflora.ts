@@ -5,6 +5,7 @@
 // stones, nearest the square first, as many as the setting's budget (the hedges and walls about its fields are its
 // country's, render/country.ts). Never on its water, its streets, its road out, its fields, its pasture, or what else it
 // keeps on its open ground (townHeld: its graveyard, works, barns, silos, mills, fold). Pure: the same plan, the same ground and trees.
+import { wetForLaying } from "./shore.ts";
 import {
   FLORA,
   FLORA_WATER,
@@ -327,7 +328,7 @@ export function townClear(
     if (Math.hypot(x - plan.pasture.x, z - plan.pasture.z) < plan.pasture.r + 4 + r) return false;
     if (plan.water && Math.hypot(x - plan.water.x, z - plan.water.z) < (plan.water.r ?? 0) + 6 + r)
       return false;
-    if (wetGround(plan.landWater, x, z)) return false;
+    if (wetForLaying(plan, x, z)) return false;
     const near =
       r <= FIELD_SPARE
         ? cells.get(cellOf(Math.floor(x / FIELD_CELL), Math.floor(z / FIELD_CELL)))

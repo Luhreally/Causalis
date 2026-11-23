@@ -533,6 +533,11 @@ export type VillagePlan = {
     readonly bank?: { readonly x: number; readonly z: number };
   };
   /**
+   * Where its square stands on its land (land units), as its land's view has it: given by the view that shows it where that
+   * view has its land and it on it (render/land.ts townAt), never by the history. Its shore is read there (view/shore.ts).
+   */
+  readonly landAt?: { readonly x: number; readonly z: number };
+  /**
    * How its houses are built (the land's design): walls, roof and shape by
    * realization id ("mudbrick", "flat", "court"), the roof's pitch in degrees, and
    * the design's ref for its why.

@@ -1455,3 +1455,16 @@ export {
   type TownFlora,
   type TownGround,
 } from "./townflora.ts";
+export {
+  laidGround,
+  layCountry,
+  layTown,
+  shoreOf,
+  shoreWater,
+  villageShore,
+  wetForLaying,
+  type Laid,
+  type Shore,
+  type ShoreWater,
+} from "./shore.ts";
+export { GRAIN_SIZE, grainData } from "./grain.ts";

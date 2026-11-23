@@ -50,6 +50,8 @@ import {
   type BlazeNow,
   type CivicMotion,
   type PartMesh,
+  layTown,
+  type Laid,
   type TownScene,
   type TownThing,
   type Burnable,
@@ -717,6 +719,16 @@ export class TownLayer {
   /** A home's box as it stands at moment t (metres), for what is laid over it; null: no such lot. */
   homeBox(p: number, t: number): ReturnType<typeof homeBox> {
     return this.scene ? homeBox(this.scene, p, t) : null;
+  }
+
+  /**
+   * What it has laid on its ground (metres from its square), into `laid` (view/shore.ts: its water keeps off it): each of its
+   * blocks, drawn or not (its lots past those drawn stand on them), its ground's parts (yards, streets, its square, its sprawl's
+   * ground and roofs, its ways), its strongholds' ground and its walls' line.
+   */
+  laidOn(laid: Laid): void {
+    if (this.scene)
+      layTown(laid, this.scene, [this.ground, this.ownParts, this.farParts, this.parts]);
   }
 
   /** How far out its lots reach (metres), for the eye. */
