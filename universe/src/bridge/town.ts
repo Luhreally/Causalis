@@ -230,7 +230,20 @@ export type TownPlan = {
     /** The share of its people about the town with a set in the hand. */
     readonly phones: number;
   };
+  /**
+   * Its water, drains and power as networks along its streets (2026-11-22; view/networks.ts; absent: none): water led under
+   * them and drains beside it, where its land knows how and its townspeople are drained (sim/society/care.ts); its power on
+   * wires, strung on poles or, in the modern age, laid under the street (null: none goes by wire).
+   */
+  readonly nets?: {
+    readonly mains: boolean;
+    readonly drains: boolean;
+    readonly power: "lines" | "buried" | null;
+  };
 };
+
+/** The most blocks of a town its networks are laid on in its view (view/networks.ts): those nearest where the eye looks. */
+export const NET_BLOCKS = 320;
 
 /** A small hash of whole numbers, for the plan's wanderings (not history's). */
 function hash(a: number, b: number, c = 0): number {

@@ -843,6 +843,14 @@ export type MindFacts = {
   readonly parents: boolean;
   readonly faith: boolean;
   readonly piety: number;
+  /**
+   * (Asked 2026-11-22: what the world did to them, all of it.) The worst wound they carry (0 none … 1 a member lost); whether
+   * they are held in bondage; whether they have no roof of their own; whether their work is idle. Absent: none of these.
+   */
+  readonly wounds?: number;
+  readonly bound?: boolean;
+  readonly roofless?: boolean;
+  readonly idle?: boolean;
 };
 
 export type Mind = {
@@ -868,14 +876,24 @@ export function mindOf(f: MindFacts): Mind {
       0.35 * f.dangerYoung,
       0.3 * f.dangerGrown * (1 - 0.5 * t.boldness),
       0.25 * f.dangerNow * (1 - 0.5 * t.boldness),
+      // (A wound carried is the war carried: a member lost the most.)
+      0.35 * c01(f.wounds ?? 0),
     ),
     want = either(
       0.25 * f.hungerYoung,
       0.25 * f.hungerGrown,
       0.5 * c01(1 - f.fed),
       f.left < 0 && !f.child ? 0.2 : 0,
+      // (Hands with no work to put them to: the want, and the day with nothing in it.)
+      f.idle && !f.child ? 0.2 : 0,
     ),
-    place = either(0.35 * f.caste * (1 - f.standing), f.barred ? 0.25 : 0),
+    place = either(
+      0.35 * f.caste * (1 - f.standing),
+      f.barred ? 0.25 : 0,
+      // (Held against their will; turned out of a home, or never given one.)
+      f.bound ? 0.4 : 0,
+      f.roofless ? 0.3 : 0,
+    ),
     weights = { loss, war, want, place },
     weight = either(loss, war, want, place),
     kin =
@@ -897,6 +915,81 @@ export function mindOf(f: MindFacts): Mind {
 export const MIND_STATES = ["at ease", "carrying it", "worn by it", "bowed under it"] as const;
 export function mindState(burden: number): number {
   return burden < 0.12 ? 0 : burden < 0.3 ? 1 : burden < 0.5 ? 2 : 3;
+}
+
+/**
+ * How what they carry shows in what they do (asked 2026-11-22: "it shows in what they do in the town"), once it wears on them
+ * (mindState 2 and past): no name of an ill, only what anyone about them would see. Some draw in (they keep to their home of
+ * an evening, are slow about the streets and stay away from the feast); some cannot settle (out walking of an evening, late
+ * to bed, quick in the streets). Which is their own temper and what weighs: the quick to anger and the bold are driven out,
+ * the warm drawn in; war and want, dangers met, rouse; a death and a place that shuts them out bow.
+ * 0: it does not show; 1: they draw in; 2: they cannot settle.
+ */
+export const MIND_SHOWS = ["", "keeps to themselves", "cannot settle"] as const;
+export function mindShowsOf(m: Mind, t: SelfTraits): 0 | 1 | 2 {
+  if (mindState(m.burden) < 2) return 0;
+  const w = m.weights,
+    lean =
+      t.temper -
+      0.5 +
+      0.6 * (t.boldness - 0.5) -
+      0.4 * (t.warmth - 0.5) +
+      0.8 * (w.war - w.loss) +
+      0.4 * (w.want - w.place);
+  return lean > 0 ? 2 : 1;
+}
+
+// —— How a land bears its years (asked 2026-11-22: "a per-land number, if it can feed something real") —————————————————
+// The same reckoning as one person's, over a land's people: what weighs on them as shares of them (the dead beyond what its
+// people are used to, each death felt by those near the dead; its land held by a foe; its leanest months and its idle hands;
+// those of it held in bondage or on the street) against what holds them up (healers who reach them, a clergy that keeps them,
+// how closely their kind lives). A land worn so works the less at its crafts: hands that have buried their own, or wait on the
+// foe, do less in a day (STRAIN.work at the full). Pure.
+
+export const STRAIN = {
+  /** Each death beyond the usual weighs on so many of the living (their near kin, about a household). */
+  kin: 4,
+  /** How far a land's usual deaths follow its deaths in a reckoning (five years): a generation to grow used to more. */
+  usual: 0.15,
+  /** Of a land's crafts, the share lost at the full of its strain. */
+  work: 0.08,
+} as const;
+
+export type LandStrainFacts = {
+  readonly nature: Nature;
+  /** Its deaths a year, a head, these years and as its people are used to them. */
+  readonly deaths: number;
+  readonly usual: number;
+  /** Held by a foe. */
+  readonly occupied: boolean;
+  /** Its leanest month's share of what it needed last year; its realm's idle crafts (0 … 1). */
+  readonly fed: number;
+  readonly idle: number;
+  /** The shares of its people held in bondage and on the street. */
+  readonly bound: number;
+  readonly street: number;
+  /** How far its healers reach its people (0 … 1), and its clergy hold as a body (0 … 1). */
+  readonly care: number;
+  readonly clergy: number;
+};
+export type LandStrain = {
+  readonly weights: Readonly<Record<MindWeight, number>>;
+  readonly held: number;
+  /** How bowed its people are by their years, as one number (0 … 1). */
+  readonly strain: number;
+};
+
+export function landStrainOf(f: LandStrainFacts): LandStrain {
+  const bond = f.nature.hive ? 0.2 : 1 - 0.4 * c01(f.nature.social - 0.5) * 2,
+    // (Each death past the usual, a year, felt by its near kin: a reckoning's five years of it.)
+    loss = c01(STRAIN.kin * bond * Math.max(0, f.deaths - f.usual) * 5),
+    war = f.occupied ? 0.35 : 0,
+    want = either(0.5 * c01(1 - f.fed), 0.2 * c01(f.idle)),
+    place = c01(0.4 * c01(f.bound) + 0.3 * c01(f.street)),
+    weights = { loss, war, want, place },
+    held = either(0.3 * c01(f.care), 0.2 * c01(f.clergy), 0.3 * c01(f.nature.social)),
+    strain = c01(either(loss, war, want, place) * (1 - 0.6 * held));
+  return { weights, held, strain };
 }
 export const MIND_WEIGHT_WORDS: Readonly<Record<MindWeight, { icon: string; label: string }>> = {
   loss: { icon: "🕯️", label: "Those they have lost" },

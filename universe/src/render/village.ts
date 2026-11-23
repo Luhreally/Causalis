@@ -2189,6 +2189,8 @@ export class VillageScene {
     const step = t - this.lastT;
     this.lastT = t;
     this.town.update(t);
+    // (Its networks told where the eye is, for their fade: render/townnets.ts.)
+    if (this.town.visible) this.town.nets.update(this.stage.camera.getPosition());
     // The fields as the year in them has it (Phase 44 M206): their crop's colour now — parched,
     // lush, sallow — the earth between their rows where the crop stands in rows, snow lying on
     // them in a cold land's winter (set only as it changes); the grass browning in a dry year.

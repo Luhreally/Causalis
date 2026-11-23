@@ -1469,3 +1469,4 @@ export {
   type ShoreWater,
 } from "./shore.ts";
 export { GRAIN_SIZE, grainData } from "./grain.ts";
+export { NET_TONES, POLE_HIGH, townNets, type NetPart, type TownNets } from "./networks.ts";

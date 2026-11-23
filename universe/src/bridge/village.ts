@@ -670,6 +670,12 @@ export type VillagePlan = {
     host?: true;
     /** The page that tells of them, where it is not their own (an outsider's: the soldiers', the group's, its head's). */
     page?: string;
+    /**
+     * How what their years have laid on them shows (2026-11-22: rules/self.ts mindShowsOf; absent: it does not): 1 they keep to
+     * themselves (at their door of an evening, away from the feast, slow in the streets), 2 they cannot settle (out walking of an
+     * evening, late to bed, quick in the streets). Their page says why.
+     */
+    bearing?: 1 | 2;
   }[];
   /**
    * How far past our ages its land has come (Phase 66; absent: not at all): the share of its folk of made

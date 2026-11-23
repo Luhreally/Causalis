@@ -2,9 +2,11 @@
 // own and owe, how their kind pairs, and what could lead them wrong before their town's court. Read from their land and their own
 // key (host/self.ts, rules/self.ts): nothing here is kept, and nothing flows back. Phone first: facts and short lists, a bar to a want.
 import type { Ref, World } from "../../kernel/index.ts";
-import { populationContext } from "../../sim/index.ts";
+import { STRAIN_ROW, populationContext, strainRow } from "../../sim/index.ts";
 import {
+  MIND_SHOWS,
   CAREER_WHY,
+  STRAIN,
   GOODS,
   MIND_HOLDS,
   MIND_HOLD_WORDS,
@@ -25,7 +27,7 @@ import {
   type Want,
 } from "../../rules/index.ts";
 import type { Block, Item, Line, PageModel, Stat, Tab } from "../../bridge/index.ts";
-import { landMind, selfOf, townSelves, type SelfRead } from "../self.ts";
+import { bearingIn, landMind, selfOf, townSelves, type SelfRead } from "../self.ts";
 import { coinWords } from "./living.ts";
 import { item, link, many, share, stat, yearNow } from "./words.ts";
 import { landLink } from "./names.ts";
@@ -180,8 +182,11 @@ function characterBlocks(p: SelfRead): Block[] {
 // —— How they bear what they have lived ——————————————————————————————————————————————————————————————————————————
 
 /** What weighs on them and what holds them up (rules/self.ts mindOf): a reading of their own life, kept nowhere. */
-function mindBlocks(p: SelfRead): Block[] {
+function mindBlocks(world: World, p: SelfRead): Block[] {
   const m = p.mind,
+    c = p.carried,
+    // (How it shows, as the town's plan reads them: host/self.ts bearingIn.)
+    bearing = p.who.alive ? bearingIn(world, p.who.ref) : 0,
     first = p.who.name.split(" ")[0]!,
     state = MIND_STATES[mindState(m.burden)]!,
     weighs = MIND_WEIGHTS.filter((k) => m.weights[k] >= 0.05).sort(
@@ -192,9 +197,13 @@ function mindBlocks(p: SelfRead): Block[] {
       loss: p.land.nature.hive
         ? "a hive bears a death as one, and one of it is little bowed"
         : "those of their near kin who have died, the latest the heaviest",
-      war: "the war, fire and raiding of their young years, their grown years and their land now; the bold carry it lighter",
-      want: "the hungry years they have known, how their land ate last year, and a day that leaves nothing over",
-      place: "a low place where rank has set hard, or a faith their realm forbids",
+      war: `the war, fire and raiding of their young years, their grown years and their land now${c.wounds >= 0.3 ? ", and the wound they carry from it" : ""}; the bold carry it lighter`,
+      want: `the hungry years they have known, how their land ate last year, and a day that leaves nothing over${c.idle ? "; and work that stands idle" : ""}`,
+      place: c.bound
+        ? "they are held in bondage, one of those of their land who are"
+        : c.roofless
+          ? "they have no roof of their own, one of those of their land on the street"
+          : "a low place where rank has set hard, or a faith their realm forbids",
     };
   return [
     {
@@ -211,6 +220,37 @@ function mindBlocks(p: SelfRead): Block[] {
             },
           ],
         }),
+        ...(c.wounds >= 0.3
+          ? [
+              stat(
+                "A wound they carry",
+                c.wounds >= 0.9
+                  ? "a member lost"
+                  : c.wounds >= 0.6
+                    ? "one that left them lame"
+                    : "one that scarred them",
+              ),
+            ]
+          : []),
+        ...(c.bound ? [stat("Held", "in bondage, as some of their land are")] : []),
+        ...(c.roofless ? [stat("Their roof", "none of their own: on the street")] : []),
+        ...(c.idle ? [stat("Their work", "idle: their realm's crafts stand slack")] : []),
+        ...(bearing
+          ? [
+              stat("How it shows", MIND_SHOWS[bearing], {
+                parts: [
+                  {
+                    label: [
+                      bearing === 1
+                        ? "of an evening they stay at their door, away from the square and the feast, and go slowly about the streets"
+                        : "of an evening they walk about the town, late to bed, and go quickly about the streets",
+                    ],
+                    value: MIND_STATES[mindState(m.burden)]!,
+                  },
+                ],
+              }),
+            ]
+          : []),
       ],
     },
     ...(weighs.length
@@ -256,9 +296,13 @@ function mindBlocks(p: SelfRead): Block[] {
   ];
 }
 
-/** How one of the middle of a land's people bears their years, for the land's page: a reading of the land's own numbers. */
+/**
+ * How a land's people bear their years, for the land's page: the world's own reckoning of it where one is kept (sim/society/
+ * strain.ts: a number a land that costs its crafts), and one of the middle of them read off the land's numbers.
+ */
 export function landMindBlock(world: World, cell: number): Block {
-  const m = landMind(world, cell, yearNow(world)),
+  const row = strainRow(world, cell),
+    m = landMind(world, cell, yearNow(world)),
     weighs = MIND_WEIGHTS.filter((k) => m.weights[k] >= 0.05).sort(
       (a, b) => m.weights[b] - m.weights[a],
     );
@@ -266,6 +310,32 @@ export function landMindBlock(world: World, cell: number): Block {
     type: "facts",
     title: "How its people bear their years",
     rows: [
+      ...(row
+        ? [
+            stat("Their strain, as the world keeps it", share(row[STRAIN_ROW.strain]! / 1000), {
+              parts: [
+                {
+                  label: ["🕯️ the dead past what they are used to"],
+                  value: share(row[STRAIN_ROW.loss]! / 1000),
+                },
+                { label: ["🔥 a foe holding the land"], value: share(row[STRAIN_ROW.war]! / 1000) },
+                { label: ["🥣 want and idle hands"], value: share(row[STRAIN_ROW.want]! / 1000) },
+                {
+                  label: ["⛓️ bondage and the street"],
+                  value: share(row[STRAIN_ROW.place]! / 1000),
+                },
+                {
+                  label: ["🫂 what holds them up: healers, clergy, their kind's company"],
+                  value: share(row[STRAIN_ROW.held]! / 1000),
+                },
+              ],
+            }),
+            stat(
+              "What it costs",
+              `${((STRAIN.work * row[STRAIN_ROW.strain]!) / 10).toFixed(1)} in a hundred of its crafts' work`,
+            ),
+          ]
+        : []),
       stat("One of the middle of them is", MIND_STATES[mindState(m.burden)]!, {
         parts: [
           { label: ["what weighs on them"], value: share(m.weight) },
@@ -408,7 +478,7 @@ export function selfTab(world: World, ref: string, more: readonly Block[] = []):
   const blocks: Block[] = [
     ...(p.who.alive ? wantsBlocks(p) : []),
     ...characterBlocks(p),
-    ...mindBlocks(p),
+    ...mindBlocks(world, p),
     kinBlock(p),
     ...careerBlocks(p),
     ...(p.who.alive && !p.child ? wealthBlocks(world, p) : []),

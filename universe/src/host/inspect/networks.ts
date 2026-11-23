@@ -1,11 +1,11 @@
 // A town's water, drains and power as networks, on its page (the audit's "infrastructure as networks", page side): where each
 // comes from, what carries it, whom it reaches and where it falls short. It reads, it never touches: its buildings as the town's
 // fabric keeps them, what its land knows, the share of its land's townspeople whose water is drained and kept clean
-// (sim/society/care.ts), and what drives its land's work (sim/economy/energy.ts). Nothing is kept and nothing is drawn in the
-// town: a number a land and the buildings standing, told as the network they make. A people of the water has no wells and no
-// drains to dig: its water is the sea about it, said as that.
+// (sim/society/care.ts), and what drives its land's work (sim/economy/energy.ts). Nothing is kept: a number a land and the
+// buildings standing, told as the network they make; and what of it the town's view lays along its streets (2026-11-22: host/
+// town.ts netsOfTown, view/networks.ts). A people of the water has no wells and no drains to dig: its water is the sea about it.
 import type { Ref, World } from "../../kernel/index.ts";
-import type { Block, Stat } from "../../bridge/index.ts";
+import { NET_BLOCKS, type Block, type Stat } from "../../bridge/index.ts";
 import { CARRIERS, CARRIER_WORDS, SOURCE_WORDS } from "../../rules/index.ts";
 import {
   CARE_ROW,
@@ -17,14 +17,9 @@ import {
   townsOf,
 } from "../../sim/index.ts";
 import { count, share, stat } from "./words.ts";
+import { WIRED_LORE, netsOfTown } from "../town.ts";
 
-const WIRED = [
-  "electricity",
-  "sea-electricity",
-  "graphite-dynamos",
-  "ground-dynamos",
-  "polymer-wire",
-];
+const WIRED: readonly string[] = WIRED_LORE;
 
 /** A town's networks: its water, its drains, its power (null: an empty town). */
 export function townNetworksBlocks(
@@ -140,15 +135,41 @@ export function townNetworksBlocks(
         ),
       );
   }
+  // What the town's view lays of them along its streets (the same reading its plan is laid by).
+  const nets = netsOfTown(world, town.cell, town.population).nets,
+    blocks = fabric ? Math.ceil(fabric.next / 8) : 0,
+    seen: Stat[] = [];
+  if (nets?.mains)
+    seen.push(
+      stat("Over its mains", "a cover in the street beside each block, a hydrant at its corner"),
+      stat("Over its drains", "a grate at the kerb on two sides of each block"),
+    );
+  if (nets?.power)
+    seen.push(
+      stat(
+        "Its wires",
+        nets.power === "lines"
+          ? "on a pole by each block, strung to the nearest pole before it: a line through the town grown from its power house"
+          : "laid under its streets: a box at the kerb by each block where they come up",
+      ),
+    );
+  if (seen.length)
+    seen.push(
+      stat(
+        "How far they are drawn",
+        `about the ${count(Math.min(blocks, NET_BLOCKS))} of its ${count(blocks)} blocks nearest where you look, each fading with distance`,
+      ),
+    );
   return [
     { type: "facts", title: "Its water", rows: waterRows },
     { type: "facts", title: "Its drains", rows: drainRows },
     ...(powerRows.length ? [{ type: "facts" as const, title: "Its power", rows: powerRows }] : []),
+    ...(seen.length ? [{ type: "facts" as const, title: "Seen in its streets", rows: seen }] : []),
     {
       type: "text",
       lines: [
         [
-          "Read off what its land knows, the buildings standing in it and its land's own numbers: the water and the drains are a share of its land's townspeople, the power its land's a head. Its pipes and wires are not laid lot by lot.",
+          `Read off what its land knows, the buildings standing in it and its land's own numbers: the water and the drains are a share of its land's townspeople, the power its land's a head. ${seen.length ? "What its streets show is laid by block, from the same reading: the pipes themselves are under the street." : "Nothing of it runs under or over its streets yet."}`,
         ],
       ],
     },

@@ -56,6 +56,7 @@ import {
 } from "./words.ts";
 import { faithLink, landLink, realmLink } from "./names.ts";
 import { listedOf } from "./ledger-kit.ts";
+import { higherBlocks } from "./higher.ts";
 
 const th = (n: number) => share(n / 1000),
   grain = (n: number) => `${grainSum(Math.max(0, Math.round(n)))} grain's worth`,
@@ -510,6 +511,8 @@ export function institutionPage(world: World, ref: string): PageModel {
           rec.higher ? "it inquires as well as teaches" : "it teaches letters",
         ),
       );
+    // (A house of higher learning: raised by whom, who gives for it, its seat, its scholars. host/inspect/higher.ts.)
+    const higher = rec.does === DOES.teach ? higherBlocks(world, r, rec) : [];
     if (rec.does === DOES.bargain) {
       if (rec.struck !== undefined) rows.push(stat("Last struck", `year ${rec.struck}`));
       if (rec.won) rows.push(stat("Won by striking", `${th(rec.won)} more of its trade's rent`));
@@ -523,6 +526,7 @@ export function institutionPage(world: World, ref: string): PageModel {
         ),
       );
     blocks.push({ type: "facts", title: "What it holds", rows });
+    blocks.push(...higher);
     blocks.push({ type: "text", lines: [[ABOUT[does] ?? ""]] });
     // (A court: those it holds by name. sim/order/deeds.ts.)
     if (rec.does === DOES.judge) {

@@ -18,6 +18,9 @@ import {
   siteGround,
   townsOf,
   plainCivic,
+  CARE_ROW,
+  CARE_STORE,
+  societyStore,
   type Fabric,
 } from "../sim/index.ts";
 import {
@@ -37,6 +40,7 @@ import { homePlanet, lessonUse } from "../sim/index.ts";
 import { townSiteOf, type RoadEnd } from "./sites.ts";
 import { townRank } from "./rank.ts";
 import { townFormOf } from "./form.ts";
+import { landEra } from "./village.ts";
 
 /** How a people pass over their ground, where it isn't on foot (R1): as their law and homes read them. */
 function waysOf(world: World): { ways?: "swim" | "tunnel" } {
@@ -65,6 +69,51 @@ function signalsOfTown(world: World, cell: number): { signals?: NonNullable<Town
         : 0;
   const phones = knows("pocket-machines") ? 0.35 : knows("hand-sets") ? 0.04 : 0;
   return { signals: { wire: true, mast: knows("radio"), screens, phones } };
+}
+
+/** What carries a land's power by wire (rules/energy.ts carriers): the wired sources a world's people may come to know. */
+export const WIRED_LORE = [
+  "electricity",
+  "sea-electricity",
+  "graphite-dynamos",
+  "ground-dynamos",
+  "polymer-wire",
+] as const;
+
+/** From how many people a town of the modern age lays its wires under its streets rather than on poles. */
+export const BURIED_FROM = 200_000;
+
+/**
+ * A town's networks (2026-11-22: TownPlan.nets): water led under its streets and drains beside it where its land knows sanitation
+ * and its townspeople are drained (sim/society/care.ts drained); its power on wires where its land knows a wired source of it, on
+ * poles, or under its streets in a great town of the modern age (BURIED_FROM). None for a people of the water: the sea about them is their
+ * water and carries off what they cast out.
+ */
+export function netsOfTown(
+  world: World,
+  cell: number,
+  population: number,
+): { nets?: NonNullable<TownPlan["nets"]> } {
+  const body = homePlanet(world).generated.life.people?.body;
+  if (body?.medium === "water") return {};
+  const lore = loreOf(world),
+    knows = (id: string) => !!lore.get(cell, id),
+    drained = (societyStore(world, CARE_STORE)?.at(cell, CARE_ROW.drained) ?? 0) > 0,
+    wired = WIRED_LORE.some(knows),
+    mains = knows("sanitation") && drained;
+  if (!mains && !wired) return {};
+  return {
+    nets: {
+      mains,
+      drains: mains,
+      // (Laid under the street where ground is dear enough to pay for the digging: a great town of the modern age.)
+      power: wired
+        ? landEra(world, cell) === "modern" && population >= BURIED_FROM
+          ? "buried"
+          : "lines"
+        : null,
+    },
+  };
 }
 
 /** How long what struck a town is told to its plan: its homes burn a day, and lie in ruin years. */
@@ -317,6 +366,7 @@ export function townPlan(
     ...firstOfPlan(world, ref),
     // (What its land's signals put in it: signals.)
     ...signalsOfTown(world, cell),
+    ...netsOfTown(world, cell, s?.population ?? 0),
     // (Its reach, past what is drawn: what the eye has to clear of its sprawl.)
     ...(() => {
       const ash = f.changes.reduce(
