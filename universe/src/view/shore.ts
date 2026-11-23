@@ -162,12 +162,16 @@ export function villageShore(plan: Pick<VillagePlan, "landWater" | "landAt">): S
  * barns and farmhouses, its beasts): water by its land's map's facets (what its plan was laid off), by the shore its land's
  * view draws (and a little short of it: SHORE_CLEAR), or its own round of open water. Nothing laid by its view stands on any.
  */
+/** Whether what a village's view lays keeps off its land view's shore as well as its map's facets (the look tools turn it off, to time it). */
+export const shoreLaying = { on: true };
+
 export function wetForLaying(
   plan: Pick<VillagePlan, "landWater" | "landAt" | "water">,
   x: number,
   z: number,
 ): boolean {
   if (wetGround(plan.landWater, x, z)) return true;
+  if (!shoreLaying.on) return false;
   const w = plan.water;
   if (w && Math.hypot(x - w.x, z - w.z) < waterR(w) + 2) return true;
   const s = villageShore(plan);

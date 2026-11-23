@@ -1459,6 +1459,7 @@ export {
   laidGround,
   layCountry,
   layTown,
+  shoreLaying,
   shoreOf,
   shoreWater,
   villageShore,

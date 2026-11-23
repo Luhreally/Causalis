@@ -386,6 +386,7 @@ import {
   slowingBegun,
   type Slowing,
   type OrbitView,
+  shoreLaying,
   villageShore,
 } from "../view/index.ts";
 
@@ -560,6 +561,8 @@ type Exposed = {
   farLand?: () => ReturnType<FarLand["info"]>;
   /** A town's shore as drawn, held to its land's own water there (view/shore.ts; the look tools). */
   townShore?: () => unknown;
+  /** The town drawn again with what its view lays kept off its land view's shore or not (view/shore.ts shoreLaying; to time it). */
+  townLaying?: (on: boolean) => boolean;
   farLandParts?: (o: Parameters<FarLand["parts"]>[0]) => void;
   townLook?: (o: { far?: number; land?: boolean; ring?: boolean }) => void;
   /** A world's life on one sheet over the screen, each picture's outline read off its pixels (B1, gate 108); and away. */
@@ -7462,6 +7465,12 @@ async function runPlanetPage(): Promise<void> {
       );
       village.toneToLand(landShown ? farLand.tones : null);
       exposed.farLand = () => farLand.info();
+      exposed.townLaying = (on) => {
+        shoreLaying.on = on;
+        if (scale !== "village" || !plan) return false;
+        village.build(plan, now());
+        return true;
+      };
       exposed.townShore = () => {
         const shore = scale === "village" && plan ? villageShore(plan) : null,
           drawn = village.shoreDrawn;
