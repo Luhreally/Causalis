@@ -10373,6 +10373,27 @@ async function runPlanetPage(): Promise<void> {
     }
     return false;
   };
+  /**
+   * The land view of `cell` laid, out of sight under the fade, till it holds the town `ref` on its ground (a minute at the
+   * most), then left as the land view is left for a town: what the town's view draws of its land about it is read from it.
+   */
+  const landFor = async (cell: number, ref: string): Promise<void> => {
+    toRegion(cell);
+    const until = performance.now() + 60_000;
+    await new Promise<void>((done) => {
+      const wait = () => {
+        const frame = client.latestFrame("region"),
+          built = !!frame && region.key === (frame.meta as { ref: string }).ref;
+        if ((built && region.land.townAt(ref)) || performance.now() > until || scale !== "region")
+          return done();
+        requestAnimationFrame(wait);
+      };
+      wait();
+    });
+    if (scale !== "region") return;
+    leaveScale();
+    toGlobe();
+  };
   const goTo = async (place: Place) => {
     walk.saw("scale");
     // Where it is already in the scene shown: a flight there, not a fade (M94).
@@ -10467,6 +10488,11 @@ async function runPlanetPage(): Promise<void> {
           return;
         }
         case "village": {
+          // (Its land laid first where the land view has not got it, as when it is come to from there: the town's land about
+          // it is drawn from that view's ground, woods and towns, render/farland.ts. Come to from the globe, its plain ring
+          // stood there instead, 2026-11-23.)
+          if (!colonyRef(place.town) && !region.land.townAt(place.town))
+            await ready("the land", () => landFor(town!.cell, place.town));
           regionCell = town!.cell;
           await ready("the village", () => toVillage(place.town));
           const who = place.person;
