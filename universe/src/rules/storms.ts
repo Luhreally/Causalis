@@ -25,9 +25,10 @@ export const CYCLONE = {
   /** A coastal land beside a sea at full strength is struck this often a year (est: a 100-km coast of the Gulf of Mexico some
    * once in 12 years). */
   yearly: 0.08,
-  /** Of its people, the share it kills at its usual greatness (est: most flee or shelter), and the most. */
-  dead: 0.0015,
-  deadMost: 0.03,
+  /** Of its people, the share it kills at its usual greatness (est: most flee or shelter; a land here is a whole coast and its
+   * hinterland, so a great storm's hundred thousand dead are a few in ten thousand of it), and the most. */
+  dead: 0.0003,
+  deadMost: 0.005,
   /** Of its harvest, the share it drowns and flattens at its usual greatness (est), and the most; of its stores, the share wetted. */
   fields: 0.2,
   fieldsMost: 0.7,

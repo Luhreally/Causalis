@@ -33,6 +33,7 @@ import { deathsIn, grieve, spill } from "../acts/disasters.ts";
 import { landSlope } from "../ecology/ground.ts";
 import { ecologyOf } from "../ecology/ecology.ts";
 import { floodsOf } from "./floods.ts";
+import { lessened } from "../lore/lessons-store.ts";
 
 const STORMS = defineStream("planet.storms");
 
@@ -142,7 +143,9 @@ function strike(
   const { world } = ctx,
     p = ctx.provinces.get(cell)!,
     year = yearOfMoment(t),
-    dead = deathsIn(ctx, cell, Math.round(p.total() * harm.dead), t);
+    // (Fewer where they have learned to raise their floors and flee the water, as from a flood: lore/lessons.ts.)
+    spared = lessened(world, cellRef(0, cell), "flood", year),
+    dead = deathsIn(ctx, cell, Math.round(p.total() * harm.dead * spared), t);
   if (harm.stores) spill(ctx, cell, harm.stores);
   // (Its harvest drowned or buried, kept with the floods' so the year's food and the pages read it: planet/floods.ts.)
   const floods = floodsOf(world);
