@@ -86,7 +86,18 @@ sulfur.runTo(30 * YEAR);
 // (What every read below must leave as it was: Earth's and alien 84's histories.)
 const earthBefore = JSON.stringify(earth.domainHashes()),
   sulfurBefore = JSON.stringify(sulfur.domainHashes());
-const ammonia = ALIEN.build(seedFromText(keptLife("alien 218")));
+// A world of mirrored ammonia-water life built on carbon's chains: the first of these that is one. (Alien 218 was, until
+// silicon's chains came to stand in cold ammonia where its rock is rich in silica (rules/biochem.ts backboneOf, 2026-11-16):
+// its life is of silazanes now, as 17 of the 20 ammonia worlds among aliens 1-300 are; of the other three, 186 alone is mirrored.)
+const AMMONIA = ["alien 218", "alien 186"];
+const mirroredCarbon = (w: World): boolean => {
+  const l = lifeHere(w);
+  return l.family === "ammonia" && l.hand === "right" && l.backbone === undefined;
+};
+let found: World | undefined;
+for (const s of AMMONIA) if (mirroredCarbon((found = ALIEN.build(seedFromText(keptLife(s)))))) break;
+assert.ok(found && mirroredCarbon(found), "one of AMMONIA is a mirrored ammonia world of carbon");
+const ammonia = found;
 ammonia.runTo(30 * YEAR);
 
 test("Earth's life is Earth's own: told as Earth's, without why, and nothing of it added to Earth's things", () => {
@@ -222,7 +233,7 @@ test("alien 16: a shelled people's Body tab tells their shell, of lime, and thei
   assert.equal(JSON.stringify(shelled.domainHashes()), before);
 });
 
-test("alien 218: its goods, stores, things and bodies of its own mirrored ammonia-water life", () => {
+test("a mirrored ammonia world: its goods, stores, things and bodies of its own mirrored ammonia-water life", () => {
   const l = lifeHere(ammonia),
     cell = mostPeopled(ammonia);
   assert.equal(l.family, "ammonia");
@@ -289,9 +300,21 @@ test("the chain: cloth of its own fibre and why, dyed where its land knows dyein
   );
   const dyed = clothLife(ammonia, cell, cloth);
   assert.equal(dyed.lines.length, 2);
-  assert.match(words(dyed.lines[1]!), /^Dyed golden with carotene pressed from its own plants/);
+  // (Its plants' own pigment, as its star's light favours: carotene's gold under alien 218's, bacteriochlorophyll's black
+  // under alien 186's dim red star.)
+  const life = lifeHere(ammonia),
+    dye = findSubstance(life.dye)!,
+    hue = ({ carotene: "golden", bacteriochlorophyll: "black" } as Record<string, string>)[
+      life.pigment
+    ];
+  assert.ok(hue, `a pigment told here: ${life.pigment}`);
+  assert.ok(
+    words(dyed.lines[1]!).startsWith(`Dyed ${hue} with ${dye.name} pressed from its own plants`),
+    words(dyed.lines[1]!),
+  );
   assert.notDeepEqual(dyed.colour, undyed.colour);
-  assert.ok(dyed.colour[0] > dyed.colour[2], "golden");
+  const far = (c: readonly number[]) => c.reduce((s, v, i) => s + (v - dye.colour[i]!) ** 2, 0);
+  assert.ok(far(dyed.colour) < far(undyed.colour), "dyed toward its dye's own colour");
   assert.match(
     words(ropeLines(ammonia, "nettle")[0]!),
     /^Their rope and cord are twisted of nettle, whose fibre is mirror chitosan/,
