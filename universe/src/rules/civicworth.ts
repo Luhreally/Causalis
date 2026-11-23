@@ -62,6 +62,15 @@ export const CIVIC_USE: Readonly<
   prison: { users: "people", gain: 0.0006 },
 };
 
+/** Each of those served, by its place in CIVIC_USERS. */
+const USER_AT: Readonly<Record<CivicUsers, number>> = {
+  people: 0,
+  crafters: 1,
+  traders: 2,
+  learned: 3,
+  young: 4,
+};
+
 /** Builders a lot keeps at work a year while it rises (est: a crew of six). */
 export const BUILDERS_A_LOT = 6;
 /** Years a building serves before it is worn out (est), and what keeping it up costs a year, as a share of raising it. */
@@ -87,13 +96,13 @@ export function civicCharge(def: CivicDef, lots: number, preference: number): nu
 /** What one of those a building serves gains by it a year, in builders' years. */
 function eachGains(def: CivicDef, town: TownUse): number {
   const use = CIVIC_USE[def.kind],
-    u = CIVIC_USERS.indexOf(use.users);
+    u = USER_AT[use.users];
   return use.gain * Math.max(0, town.worth[u] ?? 1);
 }
 
 /** The fewest people at which a first building of a kind pays in a town like this one (Infinity: it never does). */
 export function payingPeople(def: CivicDef, lots: number, town: TownUse): number {
-  const u = CIVIC_USERS.indexOf(CIVIC_USE[def.kind].users),
+  const u = USER_AT[CIVIC_USE[def.kind].users],
     each = eachGains(def, town) * Math.max(0, town.share[u] ?? 0);
   return each > 0 ? civicCharge(def, lots, town.preference) / each : Infinity;
 }

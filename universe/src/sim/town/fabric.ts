@@ -1950,12 +1950,10 @@ export class TownBuilder {
     faith: () => boolean,
     water: () => boolean,
   ): void {
-    const people = s.population,
-      // (What its buildings are worth to it: who works in it, what they earn, how patient they are. rules/civicworth.ts.)
-      use = townUseOf(this.ctx, s);
-    // (The fewest people at which each kind pays here, once for the town's weighing.)
-    for (let i = 0; i < CIVICS.length; i++)
-      LEAST[i] = payingPeople(CIVICS[i]!, CIVIC_LOTS[CIVICS[i]!.kind], use);
+    const people = s.population;
+    // (What its buildings are worth to it: who works in it, what they earn, how patient they are, rules/civicworth.ts. Read
+    // once a weighing, and only once a kind it lacks is open to it: most of a world's towns, weighed, want nothing new.)
+    let use: TownUse | null = null;
     // What stands of each kind (what took a building's place stands for it: a temple is the
     // town's shrine), and what is rising; one fallen out of use a year, its town emptied to below
     // a third of the people it first rose among in history (CivicDef.people). (Falling where its use is
@@ -1982,12 +1980,16 @@ export class TownBuilder {
     let begun = 0;
     for (let i = 0; i < CIVICS.length && begun < (city ? 2 : 1); i++) {
       const def = CIVICS[i]!;
-      if ((def.market && !s.market) || (def.city && !city)) continue;
+      if ((def.market && !s.market) || (def.city && !city) || RISING[i]) continue;
+      if (!this.meets(def, i, k)) continue;
       // (As many as their use pays for, in this town: rules/civicworth.ts.)
-      const want = people >= LEAST[i]! ? civicsPaying(def, CIVIC_LOTS[def.kind], use) : 0;
-      if (want < 1) continue;
-      if (HAVE[i]! >= want || RISING[i]) continue;
-      if ((def.faith && !faith()) || (def.water && !water()) || !this.meets(def, i, k)) continue;
+      use ??= townUseOf(this.ctx, s);
+      const want =
+        people >= payingPeople(def, CIVIC_LOTS[def.kind], use)
+          ? civicsPaying(def, CIVIC_LOTS[def.kind], use)
+          : 0;
+      if (want < 1 || HAVE[i]! >= want) continue;
+      if ((def.faith && !faith()) || (def.water && !water())) continue;
       // (A prison only where its land's court holds people.)
       if (def.held && !(courtIn(this.ctx.world, s.cell).held > 0)) continue;
       // (What it takes the place of comes down first: it may rise where that stood.)
@@ -2245,8 +2247,6 @@ export function townUseOf(ctx: PopulationContext, s: Settlement): TownUse {
 
 /** Scratch for a town's buildings by kind: how many stand, whether one is rising. */
 const HAVE = new Int32Array(CIVICS.length),
-  /** Each kind's fewest people to pay, in the town being weighed. */
-  LEAST = new Float64Array(CIVICS.length),
   RISING = new Uint8Array(CIVICS.length),
   /** Each kind's: the people below which one long built falls out of use, and the kind it takes the place of (-1: none). */
   REPLACES = Int8Array.from(CIVICS, (d) => (d.replaces ? CIVIC_INDEX.get(d.replaces)! : -1));
