@@ -80,7 +80,7 @@ function at(x: number, z: number, yaw: number, u: number, v: number): [number, n
   return [x + u * c + v * s, z - u * s + v * c];
 }
 
-/** Ground held by something else of the town's networks already, a cell of SPACING a side (one thing a cell). */
+/** How near another of the town's networks one may stand (metres): one thing a spot. */
 const SPACING = 2.5;
 /** How far out from a block's edge what stands of its networks stands (metres): inside the strip no walker or car comes into. */
 /** How far a corner piece's near sides stand off its block (metres): clear of its walls and fences by more than KEEP_OFF. */
@@ -349,7 +349,7 @@ export function townNets(
   // (One thing a cell of ground: a block turned against its neighbour may bring two of theirs together. None on ground the
   // town keeps for something else, read off its plan: a stronghold's or seat's as drawn, its market place, its temple's steps,
   // the height it holds, the ring street's trees; only those within reach of the blocks laid about the eye.)
-  const taken = new Set<number>(),
+  const taken = new Map<number, [number, number][]>(),
     market = lots.blocks.place,
     temple = templeGround(scene),
     kept = [
@@ -387,9 +387,18 @@ export function townNets(
     },
     free = (x: number, z: number): boolean => {
       if (!keptOff(x, z)) return false;
-      const k = Math.round(x / SPACING) * 65536 + Math.round(z / SPACING);
-      if (taken.has(k)) return false;
-      taken.add(k);
+      // (Within SPACING of one laid already, by its cell and the cells about it: two on either side of a cell's edge, a
+      // hair apart, stood in one another.)
+      const a = Math.floor(x / SPACING),
+        b = Math.floor(z / SPACING);
+      for (let i = a - 1; i <= a + 1; i++)
+        for (let j = b - 1; j <= b + 1; j++)
+          for (const [px, pz] of taken.get(i * 65536 + j) ?? [])
+            if (Math.hypot(px - x, pz - z) < SPACING) return false;
+      const k = a * 65536 + b,
+        list = taken.get(k);
+      if (list) list.push([x, z]);
+      else taken.set(k, [[x, z]]);
       return true;
     };
   // (The signals' poles are where they are: at each of its first blocks' far corners. view/town.ts townSignals.)

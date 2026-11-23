@@ -66,6 +66,8 @@ export class LabelLayer {
   walls: () => Iterable<HTMLElement> = () => [];
   /** Where each stood when last read, about this layer: its left edge, and from where to where down the screen. */
   private walled: { x: number; y0: number; y1: number }[] = [];
+  /** And those standing down its left edge (a scale's rail), their right edge. */
+  private leftWalled: { x: number; y0: number; y1: number }[] = [];
 
   /**
    * The rest of what stands over the scene, read as it is placed (its rails' buttons, its cards, its palettes; they come and
@@ -124,14 +126,22 @@ export class LabelLayer {
           });
       }
       this.blocked = [];
+      this.leftWalled = [];
       for (const b of [...this.blocking, ...this.obstacles()])
-        for (const r of b.getClientRects())
-          this.blocked.push({
-            x0: r.left - origin.left,
-            x1: r.right - origin.left,
-            y0: r.top - origin.top,
-            y1: r.bottom - origin.top,
-          });
+        for (const r of b.getClientRects()) {
+          const x0 = r.left - origin.left,
+            x1 = r.right - origin.left,
+            y0 = r.top - origin.top,
+            y1 = r.bottom - origin.top;
+          if (x1 <= x0 || y1 <= y0) continue;
+          this.blocked.push({ x0, x1, y0, y1 });
+          // (One against the screen's left edge, narrow, a rail's button: a name level with it is kept to its right, as a
+          // name at the right is kept to the left of the corner's rail; against the right edge, to its left.)
+          if (x1 - x0 < origin.width / 3) {
+            if (x0 < 12) this.leftWalled.push({ x: x1, y0, y1 });
+            else if (x1 > origin.width - 12) this.walled.push({ x: x0, y0, y1 });
+          }
+        }
     }
     const seen = new Set<string>(),
       placed = this.blocked.slice(),
@@ -173,10 +183,13 @@ export class LabelLayer {
         else {
           const y = Math.max(at.y, this.ceiling + HEIGHT + EDGE);
           // (The right edge it keeps within: the screen's, or a rail button's it is level with.)
-          let right = this.width;
+          let right = this.width,
+            left = 0;
           for (const wall of this.walled)
             if (wall.y0 < y && y - HEIGHT < wall.y1) right = Math.min(right, wall.x);
-          at = { x: Math.max(Math.min(at.x, right - w - EDGE), w + EDGE), y };
+          for (const wall of this.leftWalled)
+            if (wall.y0 < y && y - HEIGHT < wall.y1) left = Math.max(left, wall.x);
+          at = { x: Math.max(Math.min(at.x, right - w - EDGE), left + w + EDGE), y };
         }
       }
       // (Hidden by another, it fades out where it stands now, still on what it names.)
