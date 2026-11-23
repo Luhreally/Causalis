@@ -86,9 +86,9 @@ sulfur.runTo(30 * YEAR);
 // (What every read below must leave as it was: Earth's and alien 84's histories.)
 const earthBefore = JSON.stringify(earth.domainHashes()),
   sulfurBefore = JSON.stringify(sulfur.domainHashes());
-// A world of mirrored ammonia-water life built on carbon's chains: the first of these that is one. (Alien 218 was, until
-// silicon's chains came to stand in cold ammonia where its rock is rich in silica (rules/biochem.ts backboneOf, 2026-11-16):
-// its life is of silazanes now, as 17 of the 20 ammonia worlds among aliens 1-300 are; of the other three, 186 alone is mirrored.)
+// A world of mirrored ammonia-water life built on carbon's chains: the first of these that is one. (Alien 218 is. From
+// 2026-11-16 to 11-23 silicon's chains stood in its cold ammonia water, and 17 of the 20 ammonia worlds among aliens 1-300 were
+// of silazanes; of the other three, 186 alone is mirrored. Water breaks silazanes now: rules/biochem.ts backboneOf.)
 const AMMONIA = ["alien 218", "alien 186"];
 const mirroredCarbon = (w: World): boolean => {
   const l = lifeHere(w);
