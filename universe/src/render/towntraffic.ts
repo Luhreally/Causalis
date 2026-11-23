@@ -2,6 +2,7 @@
 // what goes a line through the town with those on their way aboard, seen at its windows. Drawn in a few batches by colour, put again each frame: no new mesh.
 import * as pc from "playcanvas";
 import { InstancedBatch, boxMesh, keptMesh } from "./batch.ts";
+import { nearFadeMaterial } from "./nearfade.ts";
 import type { VillagePlan } from "../bridge/index.ts";
 import {
   MOST_ABOARD,
@@ -68,6 +69,11 @@ export class TownTraffic {
   private buses: { n: number; x: number; z: number; yaw: number; aboard: number }[] = [];
   private scale = 1;
 
+  /** Its cars, carts and riders near the eye of a possession faded (`drawn(x, z)`, metres: render/nearfade.ts; null: whole). */
+  fadeNear(drawn: ((x: number, z: number) => number) | null): void {
+    for (const s of this.slots.values()) s.batch.fadeBy(drawn, this.scale);
+  }
+
   constructor(stage: Stage, root: pc.Entity) {
     this.stage = stage;
     this.root = new pc.Entity("town-traffic");
@@ -89,7 +95,14 @@ export class TownTraffic {
     let s = this.slots.get(k);
     if (!s) {
       s = {
-        batch: new InstancedBatch(this.stage, this.box, [c[0], c[1], c[2]], 48, this.root),
+        batch: new InstancedBatch(
+          this.stage,
+          this.box,
+          [c[0], c[1], c[2]],
+          48,
+          this.root,
+          nearFadeMaterial([c[0], c[1], c[2]]),
+        ),
         data: [],
       };
       this.slots.set(k, s);
@@ -169,7 +182,14 @@ export class TownTraffic {
             .split("|")
             .map(Number) as [number, number, number];
         old.destroy();
-        s.batch = new InstancedBatch(this.stage, this.box, key, Math.ceil(n * 1.4), this.root);
+        s.batch = new InstancedBatch(
+          this.stage,
+          this.box,
+          key,
+          Math.ceil(n * 1.4),
+          this.root,
+          nearFadeMaterial(key),
+        );
       }
       const d = s.data;
       s.batch.set(n, (i, o) => {

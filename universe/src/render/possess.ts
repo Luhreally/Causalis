@@ -20,7 +20,7 @@ const BODY_SEEN = { top: 1.04, hips: 0.45, half: 0.3 } as const;
 /** Where on the body the eye looks (of its height: about the shoulders). */
 const LOOK_AT = 0.8;
 /** How near and how far the eye stands off (the body's heights); how far it looks down, and up (radians). */
-export const EYE_NEAREST = 0.45,
+export const EYE_NEAREST = 1,
   EYE_FARTHEST = 6;
 /**
  * How the eye first stands behind a soldier (Phase 61): looking down (radians) over the heads of the

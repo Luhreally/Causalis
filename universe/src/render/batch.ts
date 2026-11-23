@@ -266,6 +266,27 @@ export class InstancedBatch {
     return this.count;
   }
 
+  /**
+   * Each instance's share drawn by where it stands (`drawn(x, z)`, its place in its parent's units over `per`: 1 whole … 0
+   * gone), into its matrix's last corner, for a batch of a fading material (render/nearfade.ts); null: all whole again.
+   * Written over whatever set() last laid, each frame it is asked.
+   */
+  fadeBy(drawn: ((x: number, z: number) => number) | null, per = 1): void {
+    const n = this.count,
+      m = this.matrices;
+    if (!drawn) {
+      if (!this.faded) return;
+      for (let i = 0; i < n; i++) m[i * 16 + 15] = 1;
+      this.faded = false;
+    } else {
+      for (let i = 0; i < n; i++)
+        m[i * 16 + 15] = drawn(m[i * 16 + 12]! / per, m[i * 16 + 14]! / per);
+      this.faded = true;
+    }
+    this.upload(n);
+  }
+  private faded = false;
+
   /** Its instances' matrices as laid (the first `size` of them; render/farland.ts copies those it needs). */
   get placed(): Float32Array {
     return this.matrices;

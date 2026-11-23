@@ -159,11 +159,13 @@ body.possessing:has(.page-window:not([hidden])) .possess-hint {
   pointer-events: none;
 }
 /* (On a phone, between the left edge and the right's column of paces, sprint and "Live their day",
-   centred in what they leave: it no longer runs under them.) */
+   centred in what they leave: it no longer runs under them. Clear of the gifts' button too, the
+   widest of the column (gifts.css: 108px wide, 60px in), which a soldier's taller head brings the
+   told down beside.) */
 @media (max-width: 640px), (max-height: 520px) {
   .possess-told {
     left: calc(env(safe-area-inset-left, 0px) + 8px);
-    right: calc(env(safe-area-inset-right, 0px) + 150px);
+    right: calc(env(safe-area-inset-right, 0px) + 176px);
     width: fit-content;
     max-width: none;
     margin-inline: auto;

@@ -558,6 +558,8 @@ export type PosedHook = {
   readonly downed: ReadonlySet<number>;
   /** How much of each one is drawn (the plan's indices: 1 whole … 0 gone; absent: all whole). */
   readonly alpha?: ArrayLike<number> | null;
+  /** How much of anything standing at a place (m) is drawn, by the same measure (null: all whole): carts, beasts. */
+  readonly sight?: ((m: Pick<Moment, "x" | "z" | "lift">) => number) | null;
 };
 
 /**
@@ -609,6 +611,7 @@ export class PosedBodies implements PosedHook {
   } | null = null;
   /** How much of each one drawn is drawn (the plan's indices), and how many were faded at all, and past half, this frame. */
   alpha: Float32Array;
+  sight: ((m: Pick<Moment, "x" | "z" | "lift">) => number) | null = null;
   faded = 0;
   hid = 0;
 
@@ -670,6 +673,7 @@ export class PosedBodies implements PosedHook {
         this.eye && mine !== undefined && drawn[mine]
           ? nearSight(this.eye, drawn[mine].moment)
           : null;
+    this.sight = sight;
     this.faded = this.hid = 0;
     for (let i = 0; i < this.alpha.length; i++) {
       const d = drawn[i],
