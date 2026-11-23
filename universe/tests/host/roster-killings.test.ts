@@ -5,7 +5,13 @@
 // First light, 257 years on: one land's underworld kills.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { deathNotesOf, groupsIn, populationContext } from "../../src/sim/index.ts";
+import {
+  GANG_ROW,
+  deathNotesOf,
+  gangsStore,
+  groupsIn,
+  populationContext,
+} from "../../src/sim/index.ts";
 import { forgetTownLife, townRolesOf } from "../../src/host/inspect/townlife.ts";
 import {
   clearRosters,
@@ -23,7 +29,11 @@ import { casesOf, forgetDockets, openOf } from "../../src/host/inspect/justice.t
 import { yearNow } from "../../src/host/inspect/words.ts";
 import { peopledWorld } from "../worlds.ts";
 
-const world = peopledWorld("first light", 257),
+// (A world whose lands keep killings by this year: first light kept none by 300 once its people moved for war, ruin and wages
+// and its realm's crews stood half as many, too few to kill a whole one a year; kestrel at 250 keeps seven lands' reckonings.)
+const SEED = "kestrel",
+  AT = 250;
+const world = peopledWorld(SEED, AT),
   ctx = populationContext(world),
   year = yearNow(world),
   towns = ctx.settlements.all().filter((t) => t.population > 0),
@@ -159,7 +169,7 @@ test("the same whatever is asked first, and the same a year on", () => {
     );
   assert.deepEqual([...again].sort(), [...first].sort());
   // A year on, every one killed in a year gone by is still the one killed then.
-  const later = peopledWorld("first light", 258),
+  const later = peopledWorld(SEED, AT + 1),
     then = new Set(
       populationContext(later)
         .settlements.all()
@@ -225,38 +235,47 @@ test("the reckonings kept are beside the world: no part of its hash", () => {
 });
 
 test("of a street's killings, those of its gangs die first, and they are the ones the town's days named at its corner", () => {
-  // A town whose street has gangs, with its land's killing kept high for five years gone by (set by hand, as nothing else is).
-  const town = towns
-      .filter(
-        (t) =>
-          t.population >= 5000 && townRolesOf(world, t.ref).goings.some((g) => g.kind === "corner"),
-      )
-      .sort((a, b) => b.population - a.population)[0]!,
-    notes = deathNotesOf(world)!;
-  assert.ok(town, "a town with a corner kept");
-  const row = groupsIn(world, town.cell)!,
-    saved = JSON.parse(JSON.stringify(notes.save()));
-  for (let y = year - 6; y <= year - 2; y++)
-    notes.addKilling({
-      year: y,
-      years: 1,
-      cell: town.cell,
-      per: 6000,
-      control: 0,
-      gangs: row.gangs,
-      street: row.street * 1000,
-      badge: 0,
-      racket: false,
-      squad: false,
-      war: null,
-      holder: null,
-      crew: null,
-      feds: [null, null],
-    });
-  clearRosters();
+  // A town whose street has gangs, with its land's killing kept high for five years gone by: both set by hand, as nothing
+  // else is (a world's streets have gangs only once it has grown great towns, and none of a test's worlds has by 300).
+  const town = [...towns].sort(
+      (a, b) => b.population - a.population || (a.ref < b.ref ? -1 : 1),
+    )[0]!,
+    notes = deathNotesOf(world)!,
+    gangRows = gangsStore(world)!,
+    gangRow = gangRows.get(town.cell),
+    wasGangs = gangRow ? [...gangRow] : null,
+    hand = wasGangs ? [...wasGangs] : new Array<number>(15).fill(0);
+  hand[GANG_ROW.gangs] = 4;
+  hand[GANG_ROW.street] = 300;
+  gangRows.set(town.cell, hand);
   forgetTownLife(world);
-  forgetDockets(world);
+  const saved = JSON.parse(JSON.stringify(notes.save()));
   try {
+    assert.ok(
+      townRolesOf(world, town.ref).goings.some((g) => g.kind === "corner"),
+      "a town with a corner kept",
+    );
+    const row = groupsIn(world, town.cell)!;
+    for (let y = year - 6; y <= year - 2; y++)
+      notes.addKilling({
+        year: y,
+        years: 1,
+        cell: town.cell,
+        per: 6000,
+        control: 0,
+        gangs: row.gangs,
+        street: row.street * 1000,
+        badge: 0,
+        racket: false,
+        squad: false,
+        war: null,
+        holder: null,
+        crew: null,
+        feds: [null, null],
+      });
+    clearRosters();
+    forgetTownLife(world);
+    forgetDockets(world);
     const r = townRoster(world, town.ref),
       seen = new Set<string>();
     let own = 0,
@@ -299,6 +318,8 @@ test("of a street's killings, those of its gangs die first, and they are the one
     for (const who of now?.who ?? []) assert.ok(!seen.has(who), `${who} is dead and at the corner`);
   } finally {
     notes.load(saved);
+    if (wasGangs) gangRows.set(town.cell, wasGangs);
+    else gangRows.drop(town.cell);
     clearRosters();
     forgetTownLife(world);
     forgetDockets(world);
