@@ -1290,6 +1290,8 @@ export {
   PosedBodies,
   STEPS_PER_SECOND,
   nearSight,
+  sightUp,
+  type NearSight,
   STILL_BID,
   GIFTS,
   GIFT_BIT,

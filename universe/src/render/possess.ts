@@ -32,6 +32,12 @@ export const SOLDIER_EYE = { pitch: -0.55, distance: 2.6 } as const,
   BEAST_EYE = { pitch: -0.5, distance: 3.6 } as const;
 const DOWNMOST = -1.25,
   UPMOST = 0.12;
+/**
+ * In a press about the one held (a soldier among his ranks: render/battle.ts crowd), the eye looks down on him the more, so
+ * he reads from above over the heads about him (2026-11-23: in a dense rank he was lost among them): from so many standing
+ * about him to so many, by so much more (radians), eased over so long (s), never at once.
+ */
+export const PRESS = { from: 3, full: 10, most: 0.3, ease: 0.8 } as const;
 /** Below this the eye keeps out of the walls and the roofs (m: the village's free roam's; a city's stand higher). */
 const ROOFS = 9;
 /** The near plane the eye keeps otherwise (the stage's: in its units). */
@@ -66,6 +72,9 @@ export class PossessEye {
   private fov: number | null = null;
   /** Where the eye stood last (m), for the look tools. */
   stood = { x: 0, y: 0, z: 0 };
+  /** How much farther down it looks in a press (radians): as asked (press), and as eased to. */
+  private pressTo = 0;
+  pressed = 0;
 
   constructor(stage: Stage) {
     this.stage = stage;
@@ -88,6 +97,12 @@ export class PossessEye {
     this.distance = clamp(this.distance / factor, EYE_NEAREST, EYE_FARTHEST);
   }
 
+  /** So many standing about the one held: the more, the more the eye looks down on him (PRESS). */
+  press(about: number): void {
+    const u = clamp((about - PRESS.from) / (PRESS.full - PRESS.from), 0, 1);
+    this.pressTo = PRESS.most * u * u * (3 - 2 * u);
+  }
+
   /** The way the eye looks now (the stick's frame: ahead is where it looks). */
   get looking(): number {
     return this.shown?.yaw ?? this.yaw;
@@ -99,6 +114,7 @@ export class PossessEye {
     if (cam && this.fov !== null) cam.fov = this.fov;
     this.fov = null;
     this.shown = null;
+    this.pressTo = this.pressed = 0;
   }
 
   /**
@@ -148,7 +164,9 @@ export class PossessEye {
     // (A city's walls stand higher than any eye: over them it cannot go. Hemmed in there it stands off as far as
     // it would, steeply, and what stands between it and the body is cut away, below.)
     const city = this.roofs > ROOFS;
-    let pitch = this.shown.pitch,
+    this.pressed +=
+      (this.pressTo - this.pressed) * (fresh ? 1 : 1 - Math.exp(-Math.min(0.1, dt) / PRESS.ease));
+    let pitch = clamp(this.shown.pitch - this.pressed, DOWNMOST, UPMOST),
       reach = arm(pitch, Math.max(ROOFS, this.roofs));
     const hemmed = city && reach < distance * 0.75;
     if (hemmed) {

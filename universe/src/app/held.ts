@@ -61,6 +61,7 @@ import {
   heldFightNow,
   goreAt,
   lettersOf,
+  nearSight,
   placedPoint,
   soldierTakeOf,
   villageSolids,
@@ -569,6 +570,7 @@ export function installHeld(d: HeldDeps): Held {
     hideHud();
     presses.length = 0;
     eye.release();
+    d.village.heldSight = null;
     d.rig.enabled = true;
     if (o.kind === "soldier") d.village.placedBattle?.mark(null);
     else {
@@ -787,7 +789,15 @@ export function installHeld(d: HeldDeps): Held {
     shownFor = o;
     // The eye behind the body as it is drawn.
     const me = drawnMe(o);
-    if (me && plan) eye.update(me.x, me.z, villageSolids(plan), dt, o.live?.bodies[0]?.lift ?? 0);
+    // (In a press of his ranks, the eye looks down on him the more: render/possess.ts PRESS.)
+    eye.press(o.kind === "soldier" ? (d.village.placedBattle?.crowd ?? 0) : 0);
+    const lift = o.live?.bodies[0]?.lift ?? 0;
+    if (me && plan) eye.update(me.x, me.z, villageSolids(plan), dt, lift);
+    // (What grows about the town faded near the eye, as the field's men and the herd are: render/townflora.ts fadeNear.)
+    d.village.heldSight =
+      me && plan
+        ? nearSight({ ...eye.stood, tall: eye.height }, { x: me.x, z: me.z, lift }, true)
+        : null;
     hud.clearOf(me && plan ? eye.bodyOnScreen(me.x, me.z, o.live?.bodies[0]?.lift ?? 0) : null);
     if (o.kind === "soldier") d.village.placedBattle?.mark(o.now.figure);
   });
@@ -836,7 +846,16 @@ export function installHeld(d: HeldDeps): Held {
           live: on.live,
           gifts: on.gifts,
           me: drawnMe(on),
-          eye: { yaw: eye.looking, pitch: eye.pitch, distance: eye.distance, ...eye.stood },
+          eye: {
+            yaw: eye.looking,
+            pitch: eye.pitch,
+            pressed: eye.pressed,
+            distance: eye.distance,
+            height: eye.height,
+            ...eye.stood,
+          },
+          // (How many stood about a soldier held in a press: the eye looks down on him the more.)
+          crowd: on.kind === "soldier" ? (d.village.placedBattle?.crowd ?? 0) : 0,
           // (Those between the eye and the body, not drawn; of a battle, those out of the eye's sight, not posed.)
           cleared:
             on.kind === "soldier"

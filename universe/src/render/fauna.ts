@@ -236,7 +236,12 @@ export class FaunaLayer {
     return this.frustum.containsSphere(sphere) > 0;
   }
 
-  /** The eye's sight about the beast held (metres: view/possess.ts nearSight, by its height). */
+  /**
+   * The eye's sight about the beast held (metres: view/possess.ts nearSight, by its height as the eye stands off by it, its
+   * legs and body: app/held.ts), looking down on it from high over its herd's backs, so what stands nearer the eye along the
+   * ground than the beast fades (nearSight `flat`; 2026-11-23: a tapir of the herd 4 m off the eye along the ground, the held
+   * one 12, stood whole over a third of the screen).
+   */
   private sightOf(me: BeastNow): (m: { x: number; z: number }) => number {
     const mb = this.fauna!.species[me.species]!.body,
       eye = this.inverse
@@ -244,8 +249,14 @@ export class FaunaLayer {
         .invert()
         .transformPoint(this.stage.camera.getPosition(), this.eyeAt);
     return nearSight(
-      { x: eye.x / M, y: eye.y / M, z: eye.z / M, tall: Math.max(0.3, (mb.height * mb.k) / M) },
+      {
+        x: eye.x / M,
+        y: eye.y / M,
+        z: eye.z / M,
+        tall: Math.max(0.3, ((mb.leg + mb.height) * mb.k) / M),
+      },
       { x: me.x, z: me.z },
+      true,
     );
   }
   private heldSight: ((x: number, z: number) => number) | null = null;
