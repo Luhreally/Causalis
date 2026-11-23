@@ -1275,13 +1275,19 @@ function stepRealm(
       leaves = idleBasis ? 0.2 : 0.9,
       // (Another's stake is no pull where a group of that first aim already holds its home: turned to it, it would only be the
       // lesser of two there, taken into the greater, and its own stake left to be gathered again.)
-      atHome = v.orgs.filter((x) => x !== g && x.lands.includes(g.home)),
+      minds = isMinds(g),
+      atHome = minds ? [] : v.orgs.filter((x) => x !== g && x.lands.includes(g.home)),
       taken = (k: number) => k !== g.aim && atHome.some((x) => x.aim === k),
-      worth = ORG_AIMS.map((a, k) =>
-        taken(k) ? 0 : stake(g, k).worth * (FULL_TIME.has(a) ? 1 - leaves : 1),
-      ),
+      // (Made minds weigh no land's stakes: what they do is their own.)
+      worth = minds
+        ? []
+        : ORG_AIMS.map((a, k) =>
+            taken(k) ? 0 : stake(g, k).worth * (FULL_TIME.has(a) ? 1 - leaves : 1),
+          ),
       // (A god's whisper to its leader: the aim whispered weighs twice what it would. Nothing where none: sim/acts/person.ts.)
-      whispered = whisperIn(world, bossRef(p.ref, g.event), g.leader.name, year, "aim");
+      whispered = minds
+        ? null
+        : whisperIn(world, bossRef(p.ref, g.event), g.leader.name, year, "aim");
     if (whispered) {
       const k = ORG_AIMS.indexOf(whispered.aim!.slice(4) as (typeof ORG_AIMS)[number]);
       if (k >= 0) worth[k] = 2 * Math.max(worth[k]!, 1);
@@ -1289,7 +1295,7 @@ function stepRealm(
     g.means = meansOf(g, r.lands);
     sharingOf(sharing, g, -1);
     // (Made minds do what they would, as far past their makers as they think, not what a land's stakes draw them to.)
-    g.aims = isMinds(g)
+    g.aims = minds
       ? mindAimArray(mindPast, mindHold)
       : aimsToward(g.aims, worth, g.means, stepped(ORG.turn, span));
     sharingOf(sharing, g, 1);
@@ -1653,7 +1659,8 @@ function stepRealm(
     g.power = per(0.6 * (g.members / allMen) + 0.4 * (g.wealth / allWealth));
     // (It reaches the lands where its first aim's stake is greatest, its home first, more as it grows.)
     // (A party, a refuge and an order's house hold one land and no more: the seat, the hard land, the land granted.)
-    const one = ONE_LAND.has(orgAimOf(g)) || cloistered(g, r.lands),
+    // (Made minds hold their seat: their crystal and the power they burn are there.)
+    const one = ONE_LAND.has(orgAimOf(g)) || cloistered(g, r.lands) || isMinds(g),
       n = one ? 1 : Math.max(1, Math.min(ORG.lands, 1 + Math.floor(g.members / 300))),
       k = g.aim;
     // (The lands worth most to an aim, greatest first: ranked once for all its groups of that aim.)
