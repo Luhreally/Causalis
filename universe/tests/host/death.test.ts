@@ -28,6 +28,11 @@ test("every ruler's death, drawn again from the world's seed at its moment, fell
     if (e.type !== "polity.succession") continue;
     const a = rulerDeath(world, e);
     assert.ok(a, `${e.id}: the draw rebuilt falls under the chance`);
+    // (One a group of their realm struck down is told by the blow: no draw of age took them.)
+    if (a.cause === "killing") {
+      assert.ok(a.event && world.events.get(a.event as Ref)?.type === "groups.struck");
+      continue;
+    }
     assert.equal(a.cause, "age");
     assert.match(a.draw ?? "", /chance of dying \(\d/);
     told++;

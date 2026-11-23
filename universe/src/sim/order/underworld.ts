@@ -165,6 +165,7 @@ import { RowStore } from "../money/kept.ts";
 import { actOn, bossRef, hazardBy, sparedBy, struckBy } from "../acts/person.ts";
 import { sentence, strikes } from "./deeds.ts";
 import { BODY_ROW, bodyLandsStore, courtJailsIn, watchOf } from "./institutions-kept.ts";
+import { gangHeldShareIn } from "./sentences-kept.ts";
 import { KILLINGS_KEPT, deathNotesOf } from "../hand/deaths.ts";
 
 /** The causes of contraband whose rent the underworld's groups carry beside the tariff's and the ban's (money/contraband.ts). */
@@ -1023,7 +1024,12 @@ function stepRealm(
       : 0;
   // (Ties made inside: those jailed come out bound to their gangs the more.)
   for (const tw of towns)
-    if (tw.jailed > 0) tw.pull = Math.min(1, tw.pull * (1 + tw.jailed / Math.max(1, tw.members)));
+    // (Those its court held of them, not fined or let go: sim/order/sentences.ts. All, where no court's sentences are kept.)
+    if (tw.jailed > 0)
+      tw.pull = Math.min(
+        1,
+        tw.pull * (1 + (tw.jailed * gangHeldShareIn(world, tw.cell)) / Math.max(1, tw.members)),
+      );
   stepFederations(f, towns, jails);
   let streetKilled = 0;
   for (const tw of towns) {

@@ -4,6 +4,7 @@
 // ref alone (`lv:<battle>:<side>:<j>`). Read from the roster and the battle's record, never drawn, so
 // looking moves nothing; a line that stands empty or the town never had, a number that holds no one,
 // or a levy man out of his battle's places gives the router's unknown page, since these throw.
+import { courtNameIn, heldOneOf } from "../sentenced.ts";
 import { partOfStats } from "./townlife.ts";
 import type { Ref, World } from "../../kernel/index.ts";
 import { parseTownsfolkRef, type Block, type PageModel, type Stat } from "../../bridge/index.ts";
@@ -151,7 +152,25 @@ export function townsfolkPage(world: World, ref: string): PageModel {
       ),
     );
   }
-  if (!fell && !died && !slain && !holds)
+  // (Put to death by their land's court, or held by it now: sim/order/sentences.ts, host/sentenced.ts.)
+  if (h.executed !== undefined)
+    rows.push(
+      stat(
+        "Fate",
+        `Put to death by ${courtNameIn(world, s.cell) ?? "their land's court"} in year ${h.executed}`,
+        { why: `${s.ref}#law` },
+      ),
+    );
+  const courtHeld = holds && h.executed === undefined ? heldOneOf(world, h.ref) : null;
+  if (courtHeld)
+    rows.push(
+      stat(
+        "Held",
+        `${courtHeld.labour ? "At labour for" : "In the prison of"} ${courtNameIn(world, s.cell) ?? "their land's court"}, sentenced in year ${courtHeld.year}, until year ${courtHeld.until}`,
+        { why: `${s.ref}#law` },
+      ),
+    );
+  if (!fell && !died && !slain && !holds && h.executed === undefined)
     rows.push(stat("Now", "no longer among the town's people"));
 
   // What came of them before their town's court (J1).
