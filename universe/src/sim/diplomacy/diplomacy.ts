@@ -83,7 +83,7 @@ export const RIVALRY = -0.4;
 export const PACT = 0.4;
 export const ALLY = {
   /** A shared foe as strong as the two together adds this much. */
-  foe: 0.35,
+  foe: 0.25,
   /** Each war the other fights costs this much, up to `drawnMost`. */
   drawn: 0.12,
   drawnMost: 0.36,

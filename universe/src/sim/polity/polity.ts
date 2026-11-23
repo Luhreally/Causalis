@@ -448,7 +448,7 @@ export function temperOfRuler(world: World, p: Polity): Temper {
 export const FOUNDING = {
   /** The share of the year's grain a new seat asks (its first tribute). */
   tithe: 0.05,
-  rate: 0.015,
+  rate: 0.009,
   /** A land that keeps its leaders more than this many times over is no readier for it. */
   most: 2,
   /**
