@@ -6995,17 +6995,25 @@ async function runPlanetPage(): Promise<void> {
     } | null = null,
     /** The battle before the town asked for (its key), and whether the asking came to nothing. */
     placedAsked = "",
-    placedFailed = false;
+    placedFailed = false,
+    /** Laid again (a soldier let go): the battle as drawn kept drawn till it is, no frame without it. */
+    relaying = false;
   /** The battle before the town as last drawn, for what is heard of it: its second, whether it is being fought, and by whose hand. */
   const placedHeard = { s: 0, fought: false, hand: false };
-  /** The battle before the town let go: no longer drawn, the clock no longer waiting for it. */
-  const unplace = () => {
-    if (!placed && !placedAsked) return;
+  /**
+   * The battle before the town let go: no longer drawn, the clock no longer waiting for it. `again`: to be laid again at
+   * once (a soldier let go, the battle as he fought it), the battle as drawn kept till it is.
+   */
+  const unplace = (again = false) => {
+    if (!placed && !placedAsked && !(relaying && !again)) return;
     placed = null;
     placedAsked = "";
     placedFailed = false;
-    village.placeBattle(null);
-    village.battleAt(null);
+    relaying = again;
+    if (!again) {
+      village.placeBattle(null);
+      village.battleAt(null);
+    }
     time.release("battle-roll");
   };
   /**
@@ -7176,7 +7184,8 @@ async function runPlanetPage(): Promise<void> {
     if (placed && placed.detail !== stage.quality.detail && !handHeld.holds(placed.info.event))
       unplace();
     if (placedAsked !== key) {
-      unplace();
+      // (Laid again as a soldier let go asked: what is drawn kept till it is.)
+      unplace(relaying);
       placedAsked = key;
       void layBattle(plan, p.event, p.turn, key);
     }
@@ -7187,9 +7196,13 @@ async function runPlanetPage(): Promise<void> {
     if (!P) {
       // (Not laid yet as it is about to begin: the world waits for it.)
       if (!placedFailed && battleCapAt(seen, p.turn) === "battle") time.hold("battle-roll");
-      village.battleAt(null);
+      if (!relaying || placedFailed) {
+        relaying = false;
+        village.battleAt(null);
+      }
       return;
     }
+    relaying = false;
     // The battle at its moment; once over, its fallen where they lie, borne in from noon two days on.
     // (One of its men possessed, or the god fought in it: as his fight has it, Phase 61.)
     let shown: BattleNow | null = handHeld.battleShown(P, seen);
@@ -7974,7 +7987,7 @@ async function runPlanetPage(): Promise<void> {
     placed: () => (scale === "village" ? placed : null),
     drawnAt: (s) =>
       placed ? blowsAt(placed.field, placed.blows, battleAt(placed.field, s), "full") : null,
-    relay: () => unplace(),
+    relay: () => unplace(true),
     reload: loadPlan,
     toOrbit: () => setRoam("orbit"),
   });

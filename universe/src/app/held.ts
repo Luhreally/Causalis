@@ -563,15 +563,23 @@ export function installHeld(d: HeldDeps): Held {
     lastLive = o.live;
     hideHud();
     presses.length = 0;
-    d.village.heldSight = null;
-    if (o.kind === "soldier") d.village.placedBattle?.mark(null);
-    else {
-      d.village.faunaLayer.hold(null);
-      d.village.faunaLayer.over = null;
-    }
     // (Handed back to the orbit from where the eye stood, flown out to the town's own look over where the body stood.)
     const town = d.plan()?.town;
     eye.handTo(d.rig, me ? { x: me.x, z: me.z } : null, town ? homesRiseTo(town) : 0);
+    // (What was faded about the eye, read from the camera as it stands, stays so as it flies out, let in by degrees as it
+    // leaves them; whole once it lands, or once another is taken: nothing near the eye stands whole at once on its first
+    // frame.)
+    const whole = () => {
+      if (on !== null) return;
+      if (d.rig.flying) return void requestAnimationFrame(whole);
+      d.village.heldSight = null;
+      if (o.kind === "soldier") d.village.placedBattle?.mark(null);
+      else {
+        d.village.faunaLayer.hold(null);
+        d.village.faunaLayer.over = null;
+      }
+    };
+    whole();
     d.time.release("held");
     if (o.kind === "soldier") d.relay();
     else if (d.scale() === "village" && d.plan()?.ref === o.now.village)
