@@ -2,14 +2,19 @@
 // refugees and peoples abroad were read only off migration, and migration was all hunger: first light moved 12,265 times a
 // century at 1000 and 58 at 1500, once its famines ended, and those who fled a battle went only where they would eat better).
 // Read by sim/population migrateYear, which makes every move:
-//   - ruin: a battle, a siege, a raid on the posted, a sack, a quake, a flood, an eruption, a fire struck the land the year
-//     gone. Those who flee it take a land not struck even where it feeds them worse than their own (FLIGHT.refuge): safety
-//     first, food after.
+//   - war: a battle, a siege, a raid on the posted fought in the land the year gone. Those who flee it take a land not struck
+//     even where it feeds them worse than their own (FLIGHT.refuge): safety first, food after. (Ruin that is over once it has
+//     struck, a quake, a flood, a fire, a strike from the air, drives them only to a land that feeds them better, as before:
+//     taken as war is, a world of 1500 moved five hundred times as often, its ten thousand fires and floods a century each
+//     sending four in a hundred of a land's people over a border.)
 //   - persecution: their land's faith is not their realm's seat's, under a law that asks one faith or only bears others
 //     (sim/order/laws.ts, as lawGrievance reads it), the more as the land is aggrieved. They go only to a haven: a land of
 //     another realm, or none, whose seat keeps their faith or whose law lets them keep it.
-//   - the hope of wages: a neighbouring land's going wage well past their own draws a few of them (fewer over a border, where
-//     they are strangers), weighed in each land's own year of FLIGHT.every, that many years' hopeful setting out together.
+//   - the hope of wages: a neighbouring land whose going wage is more than twice their own draws a few of them (half as many
+//     over a border, where they are strangers), to the one that pays best.
+//   Persecution and wages are weighed in each land's own year of FLIGHT.every, that many years' leaving setting out together
+//   (a world of six hundred lands has a few hundred with a neighbour paying twice theirs, and a hundred under a law against
+//   their faith: weighed yearly, they were three hundred moves a year).
 // What moves is people, as every migration moves them: a people abroad is who came into a land of another tongue
 // (sim/culture/abroad.ts), and those who fled are kept by where they came to (sim/war/held.ts), by what drove them. Nothing is
 // kept here: each realm's faith law and seat's faith are read once a year, lazily, and a land's wage when it is weighed.
@@ -23,22 +28,25 @@ import { LAW_OF } from "../order/laws.ts";
 import type { MarketStore } from "../economy/market.ts";
 
 export const FLIGHT = {
-  /** How hard a law of one faith pushes a land of another faith to leave, at a full grievance (one that bears others: a
-   * quarter of it); hunger at its worst pushes 0.6, ruin 0.5. */
-  faith: 0.12,
+  /** How hard a law of one faith pushes a land of another faith to leave a year, at a full grievance (one that bears others:
+   * a quarter of it), weighed FLIGHT.every years at once; hunger at its worst pushes 0.6 a year, war 0.5. */
+  faith: 0.025,
   /** How much worse fed a land those who flee ruin or persecution will take (as `attraction`, food a mouth against their own). */
   refuge: 0.3,
   /** A land's going wage must pass their own by this share before it draws anyone; and those it draws a year at most, of
    * a land's people, at twice their wage and more. */
-  wageLeast: 0.3,
-  wage: 0.004,
+  wageLeast: 1,
+  wage: 0.003,
   /** Over a border, among strangers, the hope draws this share as many. */
   border: 0.5,
   /** Those who go for wages take no land hungrier than their own by more than this. */
   hungrier: 0.05,
-  /** Each land weighs the hope of wages once in so many years, in its own year. */
-  every: 5,
+  /** Each land weighs persecution and the hope of wages once in so many years, in its own year. */
+  every: 20,
 } as const;
+
+/** What fought in a land drives its people to whatever land is safe (the rest of ruin, only to a better: systems.ts FLED_FROM). */
+export const WAR_FLIGHT: ReadonlySet<string> = new Set(["war.battle", "war.siege", "war.raid"]);
 
 /** What drives a land's people to leave it and what of it may be cited. */
 export type Persecuted = { push: number; faith: Ref | null; cause: Ref | null };
@@ -105,17 +113,17 @@ export class FlightYear {
     return w ? Math.max(w[OCC.farmer] ?? 0, w[OCC.crafter] ?? 0) : 0;
   }
 
-  /** How far a neighbouring land's wage draws a land's people (0 … 1: past FLIGHT.wageLeast, to twice it and more). */
+  /** How far a neighbouring land's wage draws a land's people (0 … 1: from past twice their own, wholly at four times). */
   drawn(from: number, to: number, own: number): number {
     if (!(own > 0)) return 0;
     const gap = this.wageOf(to) / own - 1 - FLIGHT.wageLeast;
     if (!(gap > 0)) return 0;
     const over = this.polities.of(to) !== this.polities.of(from);
-    return Math.min(1, gap / (1 - FLIGHT.wageLeast)) * (over ? FLIGHT.border : 1);
+    return Math.min(1, gap / 2) * (over ? FLIGHT.border : 1);
   }
 }
 
-/** Whether a land weighs the hope of wages this year (its own year of FLIGHT.every). */
+/** Whether a land weighs persecution and the hope of wages this year (its own year of FLIGHT.every). */
 export function weighsWages(cell: number, year: number): boolean {
   return (year + cell) % FLIGHT.every === 0;
 }

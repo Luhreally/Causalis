@@ -108,8 +108,18 @@ registerEventWords(E.famine.type, (world, e) => {
   return `Famine in ${landWords(world, e.place)}, year ${yearOfMoment(e.t)}${fed === null ? "" : `: food for ${Math.round(fed / 10)}% of ${people(num(e.data, "people"), "them")}`}`;
 });
 registerEventWords(E.migration.type, (world, e) => {
-  const to = e.subjects[1] ?? null;
-  return `${people(num(e.data, "count"), "People")} set out from ${landWords(world, e.place)}${to ? ` for ${landWords(world, to)}` : " for new land"}, year ${yearOfMoment(e.t)}`;
+  const to = e.subjects[1] ?? null,
+    why = (e.data as { why?: string } | null)?.why,
+    // (What drove them, where it was not hunger or better land: sim/population/flight.ts.)
+    driven =
+      why === "war"
+        ? ", fleeing the war in their land"
+        : why === "faith"
+          ? ", fleeing a law against their faith"
+          : why === "wages"
+            ? ", drawn by its wages"
+            : "";
+  return `${people(num(e.data, "count"), "People")} set out from ${landWords(world, e.place)}${to ? ` for ${landWords(world, to)}` : " for new land"}${driven}, year ${yearOfMoment(e.t)}`;
 });
 registerEventWords(E.peopled.type, (world, e) => {
   const land = landWords(world, e.place),

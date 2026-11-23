@@ -2073,7 +2073,7 @@ export { peopleTemper } from "./space/peoples.ts";
 // A far people's reigns as news, for the peoples heard (2026-11-22): sim/space/far-reigns.ts.
 export { FAR_REIGN_EVENTS, FarReignStore, farReignsOf, type FarReign } from "./space/far-reigns.ts";
 // Why a land's people leave it, past hunger (2026-11-22): sim/population/flight.ts.
-export { FLIGHT, FlightYear, flightYear, weighsWages } from "./population/flight.ts";
+export { FLIGHT, FlightYear, WAR_FLIGHT, flightYear, weighsWages } from "./population/flight.ts";
 // A realm's own word on its groups (2026-11-22): sim/order/grouphand.ts.
 export { DECREE, namedBite, realmDecrees } from "./order/grouphand.ts";
 // A land's woods against its tillable ground (sim/ecology/ecology.ts).

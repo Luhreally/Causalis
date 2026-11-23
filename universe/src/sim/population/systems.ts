@@ -142,7 +142,7 @@ import { homeSky, shiftNow, starEnded } from "../planet/motion.ts";
 import { actOn, hazardBy, luckBy } from "../acts/person.ts";
 import { KILLING, handDeath, type DeathPart } from "../hand/deaths.ts";
 import { fledKind, noteFled } from "../war/held.ts";
-import { FLIGHT, flightYear, weighsWages } from "./flight.ts";
+import { FLIGHT, WAR_FLIGHT, flightYear, weighsWages } from "./flight.ts";
 import { seaYield } from "../ecology/seas.ts";
 import { capacity, COLS, livable, Province, row, ROWS, type Capacity } from "./model.ts";
 import {
@@ -1479,6 +1479,7 @@ type PlannedFlow = {
   moved: number[];
   factors: Factor[];
   pressure: number;
+  why?: "war" | "faith" | "wages" | undefined;
 };
 /**
  * A move's factors, at most six (the kernel's limit): as they always were where neither a law against their faith nor wages
@@ -1513,12 +1514,16 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
   const appetite = ctx.life.appetite;
   // The lands a battle, a sack, a quake, a fire or a stone from the sky struck in the year gone: their people flee it, as
   // well as hunger (round "peoples": refugees). The year's events, read back from the latest.
-  const struck = new Map<number, Ref>();
+  const struck = new Map<number, Ref>(),
+    // (Of them, the lands fought over: a battle, a siege, a raid on the posted. Those who flee war take what land is safe.)
+    fought = new Set<number>();
   for (let i = world.events.count - 1; i >= 0; i--) {
     const e = world.events.at(i);
     if (e.t < t - YEAR) break;
-    if (e.place && FLED_FROM.has(e.type) && !struck.has(placeCell(e.place)))
-      struck.set(placeCell(e.place), e.id);
+    if (!e.place || !FLED_FROM.has(e.type)) continue;
+    const c = placeCell(e.place);
+    if (WAR_FLIGHT.has(e.type)) fought.add(c);
+    if (!struck.has(c)) struck.set(c, e.id);
   }
   for (const p of ctx.provinces.all()) {
     // (A stream that went last year can go on this one; one that did not has ended.)
@@ -1542,14 +1547,15 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
       // (And what struck it: war, a sack, the ground's shaking, fire.)
       ruin = struck.get(p.cell) ?? null,
       fleeing = ruin ? FLEE : 0,
-      // (And a law against their faith: ./flight.ts.)
-      faith = flight.persecuted(p.cell),
-      persecuted = faith.push,
+      // (And in its own year of FLIGHT.every, a law against their faith and the hope of a neighbour's wages, the years' at
+      // once: ./flight.ts.)
+      season = weighsWages(p.cell, year),
+      faith = season ? flight.persecuted(p.cell) : null,
+      persecuted = faith ? faith.push * FLIGHT.every : 0,
       pushed = 0.6 * hunger + crowd + leaving + fleeing + persecuted,
       pressure = pushed + budding,
-      // (And in its own year, the hope of a neighbour's wages.)
-      hopes = weighsWages(p.cell, year),
-      own = hopes ? flight.wageOf(p.cell) : 0;
+      own = season ? flight.wageOf(p.cell) : 0,
+      war = fought.has(p.cell);
     if (pressure < 0.05 && !(own > 0)) continue;
     const driven = pressure >= 0.05;
     // Budding goes only to empty land; those pushed by hunger or crowding go anywhere better.
@@ -1580,10 +1586,10 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
       // (Fleeing ruin or a law against their faith, safety first: a land not struck, a haven for their faith, even one that
       // feeds them worse. Hoping for wages, a peopled land that pays well past their own and feeds them no worse.)
       const refuge =
-          (fleeing > 0 || persecuted > 0) &&
+          (war || persecuted > 0) &&
           attraction > -FLIGHT.refuge &&
           !struck.has(m) &&
-          (persecuted <= 0 || (faith.faith !== null && flight.haven(p.cell, m, faith.faith))),
+          (persecuted <= 0 || (faith?.faith != null && flight.haven(p.cell, m, faith.faith))),
         wage =
           own > 0 && attraction > -FLIGHT.hungrier && peopled(m) ? flight.drawn(p.cell, m, own) : 0,
         better = driven && attraction > 0.05 - leaving && (!buddingOnly || !peopled(m));
@@ -1602,7 +1608,8 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
     // Those under the hand stay: movers come from the rest.
     const windowed = handOf(world).composition(p.cell, Math.floor(t / YEAR), ctx.life),
       held = windowed ? windowed.reduce((a, b) => a + b, 0) : 0;
-    // (Those the hope of wages draws: of the land's people, FLIGHT.wage a year as the best of them pays, the years' at once.)
+    // (Those the hope of wages draws: of the land's people, FLIGHT.wage a year as the best of them pays, the years' at once,
+    // to the one land that pays best where nothing else drives them.)
     const drawn = options.reduce((m, o) => Math.max(m, o.wage), 0),
       hope = FLIGHT.wage * FLIGHT.every * drawn,
       drive = (driven ? pressure : 0) + hope / 0.08,
@@ -1614,7 +1621,10 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
     if (movers < MIN_GROUP) continue;
     if (leaving > 0) lodesOf(world)!.tally.left += Math.round((movers * leaving) / pressure);
     // A band that sets out is at least MIN_GROUP strong: a small exodus goes one way.
-    const best = options.slice(0, Math.max(1, Math.min(3, Math.floor(movers / MIN_GROUP))));
+    const best = options.slice(
+      0,
+      driven ? Math.max(1, Math.min(3, Math.floor(movers / MIN_GROUP))) : 1,
+    );
     const split = apportion(
       movers,
       // (Those leaving a worked-out land take a land no better than their own: E1.)
@@ -1654,7 +1664,7 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
       else if (famine && t - famine.t < 2 * YEAR && hunger > 0.3)
         noteFled(world, p.cell, o.cell, (count * 0.6 * hunger) / drive, "hunger", famine.id, year);
       // (And those who fled a law against their faith, where they found a haven.)
-      if (persecuted > 0 && o.refuge && faith.cause)
+      if (persecuted > 0 && o.refuge && faith?.cause)
         noteFled(world, p.cell, o.cell, (count * persecuted) / drive, "faith", faith.cause, year);
       planned.push({
         from: p,
@@ -1662,6 +1672,15 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
         count,
         moved,
         pressure: drive,
+        // (What a page tells them by, where it is not hunger or better land: war, a law against their faith, wages.)
+        why:
+          o.refuge && war
+            ? "war"
+            : o.refuge && persecuted > 0
+              ? "faith"
+              : o.wage > 0 && !driven
+                ? "wages"
+                : undefined,
         factors: sixOf([
           {
             name: "hunger",
@@ -1708,7 +1727,7 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
             value: persecuted,
             contribution: persecuted,
             source:
-              persecuted > 0 && faith.cause
+              persecuted > 0 && faith?.cause
                 ? { ref: faith.cause, role: "pressure", weight: 1 }
                 : null,
           },
@@ -1757,7 +1776,7 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
         subjects: [f.from.ref, cellRef(0, f.to)],
         place: f.from.ref,
         causes: [{ ref: decision, role: "trigger", weight: 1 }],
-        data: { count: f.count },
+        data: { count: f.count, ...(f.why ? { why: f.why } : {}) },
       });
       f.from.going = [
         ...f.from.going.filter((s) => s.to !== f.to && s.year >= year - 1),
