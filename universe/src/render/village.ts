@@ -74,7 +74,16 @@ import {
   partExtent,
   present,
   ringTurn,
+  keepOut,
   villageSolids,
+  courtSolids,
+  memorialsPlaced,
+  memorialParts,
+  partAt,
+  ridesOf,
+  storeSpots,
+  storeHeaps,
+  heapCounts,
   type Presence,
   homeDetail,
   lamplight,
@@ -924,6 +933,8 @@ export class VillageScene {
     const town = plan.town ?? null;
     // (Its windows' glass, lit from dusk to dawn as the village's are.)
     if (town) this.townLamps ??= windowMaterial();
+    // (Its networks keep off what the village holds in its streets: its memorials, its court, its works, the doors cars stand at.)
+    if (town) this.town.netsKeep = streetsHeld(plan, t);
     this.town.build(town, plan.ref, t, town ? this.townLamps : null);
     this.screens = town?.signals?.screens ?? 0;
     this.lit = -1;
@@ -2375,6 +2386,13 @@ export class VillageScene {
     const unposed = this.posed ? drawn.slice() : null;
     this.posed?.pose(drawn, this.presence);
     this.moments = drawn.map((d) => d.moment);
+    // (Carried to where their day has them and kept apart, none is drawn nearer a block than their body as it strides and plays
+    // and a street piece's depth (view/networks.ts): no one walks through a hydrant or a box by its kerb.)
+    if (plan.town) {
+      const ground = villageSolids(plan),
+        off = 1.2 * this.figure.scale + 0.5;
+      for (const m of this.moments) if (!m.hidden && !m.lift) keepOut(ground, m, off);
+    }
     this.rides.update(
       plan,
       // (Where their day has them, not as drawn: one hidden in what they ride is drawn standing where they got in.)
@@ -4464,4 +4482,55 @@ export class VillageScene {
         return { household: h.household!, at: p.z > 0 ? { x: p.x, y: p.y } : null };
       });
   }
+}
+
+/**
+ * What a village holds in a town's streets apart from what the town's view lays (2026-11-22, for its networks to keep off): its
+ * solid ground's places that are not homes (a court's benches, a memorial, a life's site), its works (a mine, a well, a factory,
+ * with the ground they work about them), and the doors its cars stand at (a car's length about each).
+ */
+function streetsHeld(plan: VillagePlan, t: number): { x: number; z: number; r: number }[] {
+  const out: { x: number; z: number; r: number }[] = [];
+  // (A memorial part by part, as view/memorial.ts lays it: its steps, its rails, its stones about it.)
+  for (const m of memorialsPlaced(plan))
+    for (const q of memorialParts(m.m, plan.seed ^ (m.m.year * 2654435761))) {
+      const a = partAt(m, q);
+      out.push({ x: a.x, z: a.z, r: Math.hypot(a.sx, a.sz) / 2 + 0.3 });
+    }
+  // (The road's traffic, out and back on either side of the road's line from the square and about at its ends: view/work.ts
+  // travellerAt, three metres off its middle, a beast and its load across.)
+  const len = Math.hypot(plan.road.x, plan.road.z);
+  if (len > 1)
+    for (let d = 14; d <= len * 0.9 + 6; d += 3)
+      out.push({ x: (plan.road.x * d) / len, z: (plan.road.z * d) / len, r: 5.5 });
+  const site = plan.life?.site;
+  if (site) out.push({ x: site.x, z: site.z, r: 5.5 });
+  // (Its works as their pieces lie about them: view/work.ts, a factory's sheds forty metres out from its middle.)
+  const w = plan.works;
+  if (w?.mine) out.push({ x: w.mine.x, z: w.mine.z, r: 30 });
+  if (w?.well) out.push({ x: w.well.x, z: w.well.z, r: 15 });
+  if (w?.factory) out.push({ x: w.factory.x, z: w.factory.z, r: 48 });
+  // (Its stores' heaps, and where those who bring and fetch stand at them: view/errands.ts.)
+  const stores = storeSpots(plan, villageSolids(plan), t);
+  for (const s of [stores.granary, stores.yard, stores.smithy]) {
+    out.push({ x: s.x, z: s.z, r: 6 });
+    out.push({ x: s.door.x, z: s.door.z, r: 2 });
+  }
+  // (A store heaped in the open, piece by piece at the most it is ever laid: its sacks, its log piles, its stones, its ore behind.)
+  const k = figureOf(plan.body).scale,
+    most = storeHeaps(
+      stores,
+      heapCounts(stores, { grain: 1e9, wood: 1e9, stone: 1e9, ore: 1e9 }),
+      k,
+    );
+  for (const list of [most.sacks, most.logs, most.stones, most.ore])
+    for (const p of list)
+      out.push({
+        x: p.x,
+        z: p.z,
+        r: Math.hypot(p.sx, p.sz, p.sy * Math.abs(Math.sin(p.pitch ?? 0))) / 2 + 0.3,
+      });
+  for (const b of courtSolids(plan)) out.push({ x: b.x, z: b.z, r: b.r + b.half + 0.5 });
+  for (const o of ridesOf(plan).owners.values()) out.push({ x: o.door.x, z: o.door.z, r: 3 });
+  return out;
 }

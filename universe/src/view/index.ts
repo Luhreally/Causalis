@@ -353,6 +353,7 @@ export {
   courtParts,
   courtPlaced,
   courtSitting,
+  courtSolids,
   judgeSeat,
   type CourtPlaced,
 } from "./court.ts";
@@ -1469,4 +1470,11 @@ export {
   type ShoreWater,
 } from "./shore.ts";
 export { GRAIN_SIZE, grainData } from "./grain.ts";
-export { NET_TONES, POLE_HIGH, townNets, type NetPart, type TownNets } from "./networks.ts";
+export {
+  NET_TONES,
+  POLE_HIGH,
+  townNets,
+  type NetPart,
+  type NetsClear,
+  type TownNets,
+} from "./networks.ts";
