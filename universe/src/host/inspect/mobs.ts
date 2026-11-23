@@ -1102,6 +1102,13 @@ function fedPeople(
     const l = languagesOf(world).at(Number(identity.slice(5)));
     if (l) return link(`the ${l.name}`, l.ref);
   }
+  // (Its groups gone apart: the people as its alliance told them, their tongue's page where one bears that name.)
   const told = (world.events.get(event)?.data as { people?: string } | null)?.people;
-  return told ? `the ${told}` : null;
+  if (!told) return null;
+  const l = world.hasStore("culture.languages")
+    ? languagesOf(world)
+        .all()
+        .find((x) => x.name === told)
+    : undefined;
+  return l ? link(`the ${told}`, l.ref) : `the ${told}`;
 }

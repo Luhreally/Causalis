@@ -48,7 +48,7 @@ registerEventWords(FAITH_HEAD_EVENTS.head.type, (_, e) => {
 });
 
 registerEventWords(FAITH_HEAD_EVENTS.clash.type, (_, e) => {
-  const what = CLASH_WHAT_WORDS[text(e.data, "what")] ?? "what it holds in his lands";
+  const what = CLASH_WHAT_WORDS[text(e.data, "what")] ?? "what it holds in their lands";
   return `The ruler of ${text(e.data, "realm", "a realm")} pressed ${text(e.data, "head", "the head")} of ${text(e.data, "faith", "a faith")} over ${what}, ${year(e.t)}`;
 });
 
