@@ -829,9 +829,18 @@ function jettyWays(plan: VillagePlan) {
   };
 }
 
+/** Into the water from a town's jetty's shore: toward its lake's middle (from the town, where it stands there). */
+function intoWater(plan: VillagePlan, shore: { x: number; z: number }) {
+  const w = plan.water!,
+    d = Math.hypot(w.x - shore.x, w.z - shore.z);
+  if (d < 1) return jettyWays(plan);
+  return { ix: (w.x - shore.x) / d, iz: (w.z - shore.z) / d };
+}
+
 /** Where berth `i` of a town's jetty from `shore` ties its boat up (alongside the jetty, bow out over the water). */
 function berthAt(plan: VillagePlan, shore: { x: number; z: number }, i: number): Spot {
-  const { ix, iz, first, step } = jettyWays(plan),
+  const { first, step } = jettyWays(plan),
+    { ix, iz } = intoWater(plan, shore),
     along = first + Math.floor(i / 2) * step,
     side = i % 2 ? 1 : -1;
   return {
@@ -847,7 +856,8 @@ function jettyAt(
   shore: { x: number; z: number },
   water: Omit<NonNullable<Country["water"]>, "pier" | "shore">,
 ): NonNullable<Country["water"]> {
-  const { ix, iz, reach } = jettyWays(plan),
+  const { reach } = jettyWays(plan),
+    { ix, iz } = intoWater(plan, shore),
     yaw = Math.atan2(ix, iz),
     pier: Piece[] = [
       {
@@ -881,7 +891,9 @@ function jettyAt(
 
 /**
  * A town's jetty brought out over its water till every boat tied up along it lies on water as `on` has it (its water as
- * drawn, kept off what stands on its ground: view/shore.ts shoreWater): as it stands where all are afloat already.
+ * drawn, kept off what stands on its ground: view/shore.ts shoreWater), and each boat's stretch of water drawn in, then
+ * brought toward the lake's middle, till going about it the boat is afloat all the way round: as they stand where all
+ * are afloat already.
  */
 export function jettyAfloat(
   plan: VillagePlan,
@@ -890,8 +902,52 @@ export function jettyAfloat(
 ): Country["water"] {
   const w = c.water;
   if (!w || !plan.water) return w;
-  const at = drawnShore(plan, on, w.shore);
-  return at && (at.x !== w.shore.x || at.z !== w.shore.z) ? jettyAt(plan, at, w) : w;
+  const lake = plan.water,
+    long = BOAT_LONG[w.boat],
+    // (A boat going about a round, its hull's corners and sides' middles at each of 24 steps round it.)
+    round = (o: { x: number; z: number; r: number }) => {
+      for (let k = 0; k < 24; k++) {
+        const a = (k / 24) * 2 * Math.PI,
+          x = o.x + Math.cos(a) * o.r,
+          z = o.z + Math.sin(a) * o.r;
+        if (!hullAfloat(x, z, Math.atan2(-Math.cos(a), -Math.sin(a)), long, on)) return false;
+      }
+      return true;
+    };
+  let moved = false;
+  const boats = w.boats.map((b) => {
+    if (round(b.out)) return b;
+    moved = true;
+    for (let step = 0; step <= 10; step++) {
+      const f = step / 10,
+        x = b.out.x + (lake.x - b.out.x) * f,
+        z = b.out.z + (lake.z - b.out.z) * f;
+      for (let r = b.out.r; r >= 3; r -= 2)
+        if (round({ x, z, r })) return { ...b, out: { x, z, r } };
+    }
+    return { ...b, out: { x: lake.x, z: lake.z, r: 3 } };
+  });
+  const out = moved ? { ...w, boats } : w;
+  if (w.boats.every((b) => hullAfloat(b.mooring.x, b.mooring.z, b.mooring.yaw, long, on)))
+    return out;
+  const at = drawnShore(plan, on);
+  return at ? jettyAt(plan, at, out) : out;
+}
+
+/** Whether a hull of `long` metres at (x, z), turned `yaw`, lies on water as `wet` has it: its corners and sides' middles. */
+function hullAfloat(
+  x: number,
+  z: number,
+  yaw: number,
+  long: number,
+  wet: (x: number, z: number) => boolean | null,
+): boolean {
+  const ax = Math.cos(yaw),
+    az = -Math.sin(yaw);
+  for (const u of [-0.5, 0, 0.5])
+    for (const v of [-BOAT_BEAM, BOAT_BEAM])
+      if (!wet(x + u * long * ax + v * az, z + u * long * az - v * ax)) return false;
+  return true;
 }
 
 /** Each kind of boat's length, and half the broadest's beam (metres: render/country.ts BOAT_PARTS, their hulls). */
@@ -900,38 +956,45 @@ const BOAT_BEAM = 1.3;
 
 /**
  * A town's shore as `wet` has its water, on the line from its lake's middle toward the town: the first ground going out
- * from the middle (or from `from`, a shore already found); then, where a boat tied up at the jetty from there would lie
- * on ground (its hull's corners), the jetty brought out over the water a metre at a time till all are afloat (half its
- * lake's round in at most). Null where its view draws its water off no land view (`wet` reads null).
+ * from the middle; then, where a boat tied up at the jetty from there would lie on ground (its hull's corners and sides),
+ * the jetty brought out over the water a metre at a time till all are afloat (half its lake's round in at most). Where
+ * none on that line will do (a road, a quay, run out along it), the line turned about the lake's middle a little each
+ * way in turn. Null where its view draws its water off no land view (`wet` reads null).
  */
 function drawnShore(
   plan: VillagePlan,
   wet: (x: number, z: number) => boolean | null,
-  from?: { x: number; z: number },
 ): { x: number; z: number } | null {
   const w = plan.water!,
     { ix, iz, count, long } = jettyWays(plan),
     R = waterR(w);
   if (wet(w.x, w.z) === null) return null;
   const town = Math.hypot(w.x, w.z);
-  let d = 0;
-  if (from) d = Math.hypot(from.x - w.x, from.z - w.z);
-  else while (d < town && wet(w.x - ix * d, w.z - iz * d)) d += 1;
-  for (; d > R * 0.5; d -= 1) {
-    const at = { x: w.x - ix * d, z: w.z - iz * d };
-    let dry = false;
-    for (let i = 0; i < count && !dry; i++) {
-      const m = berthAt(plan, at, i),
-        ax = Math.cos(m.yaw),
-        az = -Math.sin(m.yaw);
-      for (const u of [-0.5, 0.5])
-        for (const v of [-BOAT_BEAM, BOAT_BEAM])
-          dry ||= !wet(m.x + u * long * ax + v * az, m.z + u * long * az - v * ax);
+  let last: { x: number; z: number } | null = null;
+  for (const turn of JETTY_TURNS) {
+    const c = Math.cos(turn),
+      sn = Math.sin(turn),
+      // (From the middle toward the town, turned.)
+      ox = -ix * c + iz * sn,
+      oz = -iz * c - ix * sn;
+    let d = 0;
+    while (d < town && wet(w.x + ox * d, w.z + oz * d)) d += 1;
+    for (; d > R * 0.5; d -= 1) {
+      const at = { x: w.x + ox * d, z: w.z + oz * d };
+      let dry = false;
+      for (let i = 0; i < count && !dry; i++) {
+        const m = berthAt(plan, at, i);
+        dry = !hullAfloat(m.x, m.z, m.yaw, long, wet);
+      }
+      if (!dry) return at;
     }
-    if (!dry) return at;
+    last ??= { x: w.x + ox * d, z: w.z + oz * d };
   }
-  return { x: w.x - ix * d, z: w.z - iz * d };
+  return last;
 }
+
+/** How far the line a jetty is sought on turns about its lake's middle each way, in turn (radians). */
+const JETTY_TURNS = [0, 0.12, -0.12, 0.24, -0.24, 0.36, -0.36, 0.5, -0.5];
 
 /** The hours the boats go out and come in, and how long the way from the jetty to their stretch of water takes (hours). */
 const BOAT_OUT = 6.5,
