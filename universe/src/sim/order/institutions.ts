@@ -793,8 +793,9 @@ function higherStep(f: Facts, g: Body, home: Land, least: number, guarded: boole
     }
     // (One raised before its raisings were kept, from an older save: raised with its founding, its head then unknown, so its
     // head now is the first it is known by.)
+    // (Raised no later than its present head took it: that head, not one long dead, is the first it is known by.)
     if (g.raised === undefined) {
-      g.raised = g.since;
+      g.raised = Math.max(g.since, g.leader.since);
       g.founder ??= g.leader.name;
       g.founderBorn ??= g.leader.born;
       // (And one grown rich in its land who gives for it, where only those taught pay for it.)
