@@ -27,6 +27,14 @@ export type Cover = {
 export function warmGrowth(t: number): number {
   return 1 / (1 + dmath.exp(1.315 - 0.119 * t));
 }
+/**
+ * What heat takes back (1 below FORM.hot degrees): past it, what a leaf breathes off rises faster than what it fixes, by a fiftieth a
+ * degree. Lieth's warmth term was fitted to Earth's lands, none of which is hotter than about thirty degrees the year through; a
+ * world whose lowlands stand at fifty grows a third less than its warmth alone would say.
+ */
+export function heatGrowth(t: number): number {
+  return dmath.clamp(1 - (t - FORM.hot) / 50, 0.3, 1);
+}
 /** The Miami model's rain term: growth by a year's rain (mm). */
 export function wetGrowth(p: number): number {
   return 1 - dmath.exp(-0.000664 * Math.max(0, p));
@@ -78,7 +86,14 @@ export function coverOf(t: number, p: number, swing: number, light = 1, rock = 1
   const demand = demandOf(light),
     moist = p / demandMm(t, demand),
     season = dmath.pow(growingShare(t, swing), FORM.season),
-    growth = Math.min(warmGrowth(t), wetGrowth(p / demand)) * season * lightGrowth(light) * rock,
+    // (Lieth's rain term holds for the warmth of Earth's lands, up to its tropics' FORM.hot less seven; a hotter land's air draws off
+    // more of the same rain, and its plants get the less of it.)
+    kept = Math.min(1, demandMm(FORM.hot - 7) / demandMm(t)),
+    growth =
+      Math.min(warmGrowth(t) * heatGrowth(t), wetGrowth((p * kept) / demand)) *
+      season *
+      lightGrowth(light) *
+      rock,
     woody =
       dmath.clamp((moist - FORM.woods) / FORM.woodsSpan, 0, 1) * dmath.clamp((t + 1) / 5, 0, 1),
     open = (1 - woody) * dmath.clamp((moist - FORM.grass) / FORM.grassSpan, 0, 1);
@@ -124,6 +139,7 @@ export function landUseOf(c: Cover, t: number): LandUse {
  * 0.35), pasture within a fifth but the temperate rainforest's (none against 0.1).
  */
 export const FORM = {
+  hot: 32,
   demand0: 200,
   demandPerDegree: 35,
   grows: 1.685,
