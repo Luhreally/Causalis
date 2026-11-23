@@ -67,7 +67,7 @@ import {
   placeInstance,
 } from "./batch.ts";
 import { domeMesh } from "./colony.ts";
-import { compoundMeshes, roofCode, shapeLamps, shapeMaterial } from "./compound.ts";
+import { WET, compoundMeshes, roofCode, shapeLamps, shapeMaterial } from "./compound.ts";
 import { tonedMaterial, type Rgb, type Stage } from "./stage.ts";
 import { TownNetsLayer } from "./townnets.ts";
 import { townNetsSteps, wornOf, type NetsClear, type TownNets } from "../view/index.ts";
@@ -129,6 +129,8 @@ class PartBatches {
    */
   private toned: { wall: pc.StandardMaterial; roof: pc.StandardMaterial } | null = null;
   private snow = 0;
+  /** How wet the rain has left it (0 … 1): its roofs, streets and flat tops darkened, its walls a little. */
+  private wetAs = 0;
   /** Its batches of roofs (snow lies on these). */
   private readonly roofs = new Set<string>();
   constructor(stage: Stage, root: pc.Entity, meshes: Readonly<Record<AnyMesh, pc.Mesh>>) {
@@ -295,6 +297,7 @@ class PartBatches {
         if (kind.roof) this.roofs.add(c.key);
         if (this.snow > 0 && kind.roof) b.toneSnow(this.snow * 0.8);
         if (this.snow > 0) this.toned.wall.setParameter("uRoofSnow", this.snow * 0.8);
+        if (this.wetAs > 0) this.wetten(this.wetAs);
       }
       const m = c.m!;
       b.setMatrices(c.n, (out) => out.set(m.subarray(0, c.n * 16)));
@@ -314,6 +317,21 @@ class PartBatches {
     for (const b of this.batches.values()) n += b.size;
     return n;
   }
+  /** How wet the rain has left it (0 … 1): the walls' material told, the roofs' darkened by its colour (one each, shared). */
+  wet(w: number): void {
+    if (w === this.wetAs) return;
+    this.wetten(w);
+  }
+  private wetten(w: number): void {
+    this.wetAs = w;
+    const t = this.toned;
+    if (!t) return;
+    t.wall.setParameter("uWet", w);
+    const k = 1 - WET.up * w;
+    t.roof.diffuse.set(k, k, k);
+    t.roof.update();
+  }
+
   /** Snow lying on the roofs (0 … 1). */
   season(snow: number): void {
     if (snow === this.snow) return;
@@ -423,6 +441,11 @@ export class TownLayer {
   season(snow: number): void {
     this.settled.season(snow);
     this.rising.season(snow);
+  }
+  /** How wet the rain has left it (0 … 1). */
+  wet(w: number): void {
+    this.settled.wet(w);
+    this.rising.wet(w);
   }
   set visible(on: boolean) {
     this.root.enabled = on;

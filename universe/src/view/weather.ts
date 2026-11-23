@@ -81,6 +81,30 @@ export function weatherGrain(pace: number): "spell" | "day" | "season" {
 }
 
 /**
+ * A town wetted by the rain (2026-11-23: its ground, streets and roofs darkened while it rains and a while after): wetted over
+ * `in` of the game's seconds, dried over `out` after, never faster than `rate` a second of the viewer's (a fast clock eased
+ * too); read off the rain of `back` ten-minute spells before where a town is come to, or the clock leaps.
+ */
+export const WETTING = { in: 600, out: 2700, rate: 0.5, back: 24 } as const;
+
+/** A town's wetness (0 … 1) carried on by `dGame` s of the game's clock under rain `rain`, and `dReal` of the viewer's (null: no limit). */
+export function wetStep(was: number, rain: number, dGame: number, dReal: number | null): number {
+  const g = Math.max(0, dGame),
+    to = was + (rain - was) * (1 - Math.exp(-g / (rain > was ? WETTING.in : WETTING.out)));
+  if (dReal === null) return to;
+  const most = WETTING.rate * Math.min(0.25, Math.max(0, dReal));
+  return was + Math.max(-most, Math.min(most, to - was));
+}
+
+/** How wet a land's town stands at `t`, read off the rain of the hours before it at a pace of the clock (weatherAt). */
+export function wetBy(land: LandSky, t: number, pace = 0): number {
+  let w = 0;
+  for (let k = WETTING.back; k >= 0; k--)
+    w = wetStep(w, weatherAt(land, t - k * 600, pace).rain, 600, null);
+  return w;
+}
+
+/**
  * A land's weather at moment t, at a pace of the clock (world seconds a second; told finely or by
  * the day or the season, weatherGrain). `wall`: seconds of the viewer's own time while the
  * clock runs (a storm's lightning), else null.

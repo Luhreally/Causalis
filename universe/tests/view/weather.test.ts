@@ -8,7 +8,10 @@ import {
   warmthAt,
   weatherAt,
   weatherGrain,
+  wetBy,
   wetShare,
+  wetStep,
+  WETTING,
 } from "../../src/view/index.ts";
 import type { FrameMessage, LandSky } from "../../src/bridge/index.ts";
 
@@ -223,4 +226,30 @@ test("a downpour's span: heavy rain all through it, none heavy outside it; the g
     0,
   );
   assert.equal(downpourAt(land(), 5 * DAY, 30 * DAY), null, "by the season, only the god's rain");
+});
+
+test("a town wets under the rain by its amount over minutes of the game's clock, dries over longer after, never at once", () => {
+  // (A minute a second, 60 frames a second: a game second a frame.)
+  let w = 0,
+    most = 0;
+  const steps: number[] = [];
+  for (let f = 0; f < 60 * 60 * 3; f++) {
+    const rain = f < 60 * 60 ? 0.8 : 0,
+      was = w;
+    w = wetStep(w, rain, 1, 1 / 60);
+    most = Math.max(most, Math.abs(w - was));
+    if (f % 600 === 0) steps.push(+w.toFixed(3));
+  }
+  assert.ok(most <= WETTING.rate / 60 + 1e-9, `${most} in a frame`);
+  assert.ok(steps[1]! > 0.4 && steps[1]! < 0.8, `${steps}: wetting over ten minutes`);
+  assert.ok(steps[6]! > 0.78, `${steps}: as wet as it rains, an hour on`);
+  assert.ok(steps[10]! > 0.2 && steps[10]! < 0.6, `${steps}: drying still, forty minutes after`);
+  assert.ok(steps.at(-1)! < 0.15, `${steps}: nearly dry two hours after`);
+  // (A fast clock: a day a second eases it no faster than the viewer's own rate.)
+  assert.ok(wetStep(0, 1, 1440, 1 / 60) <= WETTING.rate / 60 + 1e-9);
+  // (A town come to: read off the hours before, as wet as the rain has left it; none where none fell.)
+  const dry = land({ wet: 1, year: 0.3 }),
+    soaked = land({ sent: 1, wet: 2400 });
+  assert.equal(wetBy(dry, 10 * DAY + 12 * 3600, 60), 0);
+  assert.ok(wetBy(soaked, 10 * DAY + 12 * 3600, 60) > 0);
 });

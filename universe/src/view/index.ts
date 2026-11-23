@@ -1120,6 +1120,9 @@ export {
   weatherAt,
   weatherGrain,
   wetShare,
+  wetBy,
+  wetStep,
+  WETTING,
   type GroundSeason,
   type Weather,
 } from "./weather.ts";

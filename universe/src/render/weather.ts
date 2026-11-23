@@ -138,7 +138,7 @@ export class WeatherLayer {
   /**
    * The weather about a point the eye looks at from `distance` away (the eye itself at `eye`),
    * at `s` seconds of the viewer's time (held while the clock is): at most `most` drops or
-   * flakes, as many as it falls; none so near the eye that it would fill the view.
+   * flakes, as many as it falls; none so near the eye that it would fill the view; the flakes drawn `flakes` times their size.
    *
    * Each drop falls at a place of the ground's own (the owner's rule, 2026-11-21: nothing drawn moves with the camera): its
    * place is fixed on a lattice of the world the size of the shower, wrapped about the point looked at, so a pan goes over
@@ -153,6 +153,7 @@ export class WeatherLayer {
     distance: number,
     s: number,
     most: number,
+    flakes = 1,
   ): void {
     // (A breath of wind: the rain slants a little, the snow drifts.)
     const lean = 0.18;
@@ -210,7 +211,7 @@ export class WeatherLayer {
         fall = Math.floor(go),
         sway = Math.sin(s * 1.3 + rand(id, 0, 5) * 6.28) * 2 ** tier * 0.02;
       place(tier, id, fall, go - fall, 3, sway);
-      const size = p[3]! * Math.min(1, snowF - i) * (0.0028 + 0.0022 * rand(id, 0, 6));
+      const size = p[3]! * flakes * Math.min(1, snowF - i) * (0.0028 + 0.0022 * rand(id, 0, 6));
       out[0] = p[0]!;
       out[1] = p[1]!;
       out[2] = p[2]!;

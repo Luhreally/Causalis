@@ -31,6 +31,7 @@ import {
   type TownFlora,
 } from "../view/index.ts";
 import { InstancedBatch, coneMesh, keptMesh, sidesMesh } from "./batch.ts";
+import { WET } from "./compound.ts";
 import { ditherNear, fadingToned } from "./nearfade.ts";
 import { SNOW_HIDES } from "./flora.ts";
 import type { Rgb, Stage } from "./stage.ts";
@@ -123,6 +124,8 @@ export class TownFloraLayer {
   private job: { steps: Generator<void, TownFlora>; spent: number } | null = null;
   /** The season and the dry year last told, laid again over what a laying puts in new batches. */
   private told: { s: GroundSeason | null; dry: number } = { s: null, dry: 0 };
+  /** How wet the rain has left its ground (0 … 1): darkened by so much (compound.ts WET), its water not. */
+  private wetAs = 0;
 
   constructor(stage: Stage, parent: pc.Entity) {
     this.stage = stage;
@@ -432,7 +435,8 @@ export class TownFloraLayer {
       out = this.painted,
       mesh = this.groundMesh;
     if (!base || !out || !mesh) return;
-    const year = { ...FAIR_YEAR, dry };
+    const year = { ...FAIR_YEAR, dry },
+      wet = 1 - WET.ground * this.wetAs;
     for (let k = 0; k * 3 < base.length; k++) {
       let c: Rgb = [base[k * 3]!, base[k * 3 + 1]!, base[k * 3 + 2]!];
       if (dry > 0) {
@@ -441,12 +445,20 @@ export class TownFloraLayer {
         c = [c[0] + (d[0] - c[0]) * o, c[1] + (d[1] - c[1]) * o, c[2] + (d[2] - c[2]) * o];
       }
       if (s && !this.still?.[k]) c = seasonGround(c, s);
+      if (wet < 1 && !this.still?.[k]) c = [c[0] * wet, c[1] * wet, c[2] * wet];
       out[k * 4] = Math.max(0, Math.min(255, Math.round(c[0] * 255)));
       out[k * 4 + 1] = Math.max(0, Math.min(255, Math.round(c[1] * 255)));
       out[k * 4 + 2] = Math.max(0, Math.min(255, Math.round(c[2] * 255)));
     }
     mesh.setColors32(out);
     mesh.update();
+  }
+
+  /** How wet the rain has left its ground (0 … 1): its colours painted again (not its water's). */
+  wet(w: number): void {
+    if (w === this.wetAs) return;
+    this.wetAs = w;
+    this.paint(this.told.s, this.told.dry);
   }
 
   /** What it draws (the look tools): trees, tufts, stones, and whether its ground is its land's. */
