@@ -57,6 +57,9 @@ type SideCard = {
   maimed: number;
 };
 
+/** Where the battle's bar is laid for a phone and sets a side's arms aside (styles.css, the same query). */
+export const NARROW_BAR = "(max-width: 640px), (max-height: 520px)";
+
 export class BattlePanel {
   readonly element = el("div", "panel battle-panel");
   private readonly title = el("span", "clock battle-title");

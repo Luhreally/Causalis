@@ -2600,13 +2600,14 @@ function rising(
     for (let y = 3; y < top; y += level >= TOP_LEVEL ? 30 : level >= 3 ? 6 : 3)
       out.put("box", TIMBER, bx, y, bz, w + 1.2, 0.15, 0.5, yaw);
   }
-  // A crane over the tall ones: its mast beside them, its jib over them.
+  // A crane over the tall ones: its mast at a front corner in its own yard, against its face, its jib over them. (Beside
+  // them it stood in the next lot's house, or out in the street at a row's end, 2026-11-23.)
   if (level >= 3) {
-    const [mx, mz] = at(x, z, yaw, w / 2 + 3, 0),
+    const [mx, mz] = at(x, z, yaw, w / 2 - 0.5, -(d / 2 + 0.45)),
       mast = h + 12;
-    out.put("box", CRANE, mx, mast / 2, mz, 1, mast, 1, 0);
-    const [jx, jz] = at(x, z, yaw, w / 2 - 6, 0);
-    out.put("box", CRANE, jx, mast, jz, 22, 0.8, 0.8, yaw);
+    out.put("box", CRANE, mx, mast / 2, mz, 0.8, mast, 0.8, yaw);
+    const [jx, jz] = at(x, z, yaw, w / 2 - 0.5, -(d / 2 + 0.45) + 8);
+    out.put("box", CRANE, jx, mast, jz, 0.8, 0.8, 22, yaw);
   }
 }
 

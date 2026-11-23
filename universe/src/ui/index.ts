@@ -25,7 +25,7 @@ export { RegionPanel } from "./region-panel.ts";
 export { SystemPanel } from "./system-panel.ts";
 export { WorldPanel } from "./world-panel.ts";
 export { CampPanel } from "./camp-panel.ts";
-export { BattlePanel, boreWords, type ManCard } from "./battle-panel.ts";
+export { BattlePanel, NARROW_BAR, boreWords, type ManCard } from "./battle-panel.ts";
 export { WarViews } from "./war-views.ts";
 export { BattleSlowCaption } from "./battle-slow.ts";
 export { WarAgePanel, WarPanel } from "./war-panel.ts";

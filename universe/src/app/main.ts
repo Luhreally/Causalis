@@ -94,6 +94,7 @@ import {
   WorldPanel,
   CampPanel,
   BattlePanel,
+  NARROW_BAR,
   BattleSlowCaption,
   WarAgePanel,
   WarPanel,
@@ -8718,7 +8719,9 @@ async function runPlanetPage(): Promise<void> {
     const men = menAt(fight.field, fight.now);
     battlePanel.tally(fight.s, men.standing, men.fallen, fight.now.words, fight.speed);
     // Each host's name over it, who leads it, and how many of it stand; the one followed, marked over them.
+    // (On a phone, where the bar sets a side's arms aside, who leads it names the host: its realm's arms are on its badge.)
     const sides = [fight.info.attacker, fight.info.defender] as const,
+      narrow = matchMedia(NARROW_BAR).matches,
       over = battleLayer.hostsOnScreen(fight.now),
       followed = fight.followed >= 0 ? fight.now.troopers[fight.followed] : undefined;
     labels.update([
@@ -8727,7 +8730,7 @@ async function runPlanetPage(): Promise<void> {
           ? [
               {
                 key: `host:${i}`,
-                text: `${i === 0 ? "⚔️" : "🛡️"} ${side.name}${side.company ? ` 🚩 ${side.company.name}${side.company.how === "left" ? " (gone home unpaid)" : side.company.how === "turned" ? " (gone over)" : ""}` : ""}${side.led ? ` under ${side.led.name}` : ""} · ${men.standing[i]!.toLocaleString("en-US")}`,
+                text: `${i === 0 ? "⚔️" : "🛡️"} ${side.led && narrow ? `${side.led.name}'s host` : side.name}${side.company ? ` 🚩 ${side.company.name}${side.company.how === "left" ? " (gone home unpaid)" : side.company.how === "turned" ? " (gone over)" : ""}` : ""}${side.led && !narrow ? ` under ${side.led.name}` : ""} · ${men.standing[i]!.toLocaleString("en-US")}`,
                 at: over[i],
                 priority: 2,
                 badge: { realm: side.ref },
