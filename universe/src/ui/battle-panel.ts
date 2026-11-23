@@ -69,6 +69,7 @@ export class BattlePanel {
   private readonly course = el("div", "battle-course");
   private readonly fill = el("div", "battle-fill");
   private readonly told = el("div", "battle-told");
+  private readonly bar: HTMLElement;
   private readonly each = el("div", "battle-each");
   /** The one followed, told (empty: none), with the button that traces their weapon beside it. */
   private readonly followed = el("div", "battle-followed");
@@ -83,6 +84,13 @@ export class BattlePanel {
   private near: BattleNear | null = null;
   onBack: () => void = () => {};
   onPage: () => void = () => {};
+  /**
+   * Its bar has taken another line or given one back (what is told now, the one followed): what stands under it goes
+   * down or up with it in the frame it does, never left under it for a moment (a page, the corner's tools).
+   */
+  onGrow: () => void = () => {};
+  /** The bar's height as last told (onGrow). */
+  private high = 0;
   onAgain: () => void = () => {};
   /** A speed chosen (its index among BATTLE_SPEEDS). */
   onSpeed: (i: number) => void = () => {};
@@ -181,6 +189,7 @@ export class BattlePanel {
     const sheet = el("div", "battle-sheet");
     sheet.append(this.sides[0].box, middle, this.sides[1].box);
     bar.append(this.back, this.title, this.speeds, this.again, this.page, sheet);
+    this.bar = bar;
     this.element.append(bar);
     root.append(this.element);
     this.visible = false;
@@ -239,9 +248,23 @@ export class BattlePanel {
 
   /** The one followed, told (empty: the hosts again); its side's weapon traced (null: none). */
   follow(words: string, side: 0 | 1 | null): void {
-    if (this.followedWords.textContent !== words) this.followedWords.textContent = words;
+    const was = this.followed.hidden;
+    if (this.followedWords.textContent !== words) {
+      this.followedWords.textContent = words;
+      this.grown();
+    }
     this.followed.hidden = !words;
     this.weapon.hidden = !words || side === null || !this.traceable[side];
+    if (was !== this.followed.hidden) this.grown();
+  }
+
+  /** Whether its bar has another height now than it had: told (onGrow). */
+  private grown(): void {
+    if (this.element.hidden) return;
+    const h = this.bar.offsetHeight;
+    if (h === this.high) return;
+    this.high = h;
+    this.onGrow();
   }
 
   /**
@@ -298,7 +321,10 @@ export class BattlePanel {
     this.shown = key;
     this.fill.style.width = `${(s / BATTLE_LENGTH) * 100}%`;
     this.course.setAttribute("aria-valuenow", `${Math.round(s)}`);
-    if (this.told.textContent !== words) this.told.textContent = words;
+    if (this.told.textContent !== words) {
+      this.told.textContent = words;
+      this.grown();
+    }
     this.sides.forEach((c, i) => {
       const combat = this.near && !this.near.hand && combatAt(this.near, s),
         record = this.near?.combat;
