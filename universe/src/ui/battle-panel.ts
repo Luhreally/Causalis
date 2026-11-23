@@ -321,10 +321,7 @@ export class BattlePanel {
     this.shown = key;
     this.fill.style.width = `${(s / BATTLE_LENGTH) * 100}%`;
     this.course.setAttribute("aria-valuenow", `${Math.round(s)}`);
-    if (this.told.textContent !== words) {
-      this.told.textContent = words;
-      this.grown();
-    }
+    if (this.told.textContent !== words) this.told.textContent = words;
     this.sides.forEach((c, i) => {
       const combat = this.near && !this.near.hand && combatAt(this.near, s),
         record = this.near?.combat;
@@ -344,5 +341,7 @@ export class BattlePanel {
       c.hurt.hidden = !(combat ? wounded > 0 : c.wounded > 0 && over);
     });
     this.buttons.forEach((b, i) => b.classList.toggle("on", i === speed));
+    // (Its words, a side's wounded or its morale may have taken another line.)
+    this.grown();
   }
 }
