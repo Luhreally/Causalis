@@ -15,6 +15,7 @@ import { idleChafesOf } from "../trade/kept.ts";
 import { feastReliefOf } from "../society/kept.ts";
 import { bearerOddsOf } from "../society/kept.ts";
 import { streetGrievanceOf } from "../society/kept.ts";
+import { strainIn } from "../society/strain-kept.ts";
 import {
   YEAR,
   defineEventType,
@@ -30,7 +31,7 @@ import {
   type World,
 } from "../../kernel/index.ts";
 import { tongueLikeness, tongueName, tonguePersonName } from "../../gen/index.ts";
-import { FOODS, G, HOLDING, OCC, slipsAway } from "../../rules/index.ts";
+import { FOODS, G, HOLDING, OCC, STRAIN, slipsAway } from "../../rules/index.ts";
 import { mouths, spaceSteps, type PopulationContext } from "../population/systems.ts";
 import type { MarketStore } from "../economy/market.ts";
 import { WAY, cultureOf, type Ways } from "../culture/culture.ts";
@@ -733,6 +734,8 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
           0.08 * Math.max(0, far - rules) +
           // (Its people on the street, left there by the realm: the society sweep, society/roofless.ts. Exactly 0 where none is kept.)
           streetGrievanceOf(world, c) +
+          // (A land worn by its years blames its seat the more: its strain, sim/society/strain.ts. Exactly 0 where none is kept.)
+          STRAIN.grieves * strainIn(world, c) +
           apartOf(world, c, foreign) +
           0.02 * crossing -
           // (A people who feast together hold together: the society sweep, society/everyday.ts. Exactly 0 where none is kept; never

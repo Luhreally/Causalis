@@ -24,6 +24,7 @@
 // and effect: never how any crime is done.
 import { dmath } from "../kernel/index.ts";
 import type { LifeHistory } from "./species.ts";
+import { STRAIN } from "./self.ts";
 
 const clamp01 = (x: number): number => dmath.clamp(x, 0, 1);
 
@@ -522,13 +523,20 @@ export type StreetFacts = {
   readonly informal: number;
   /** Who need what they take, a share of its people (the street's market). */
   readonly dependent: number;
+  /** How worn its land is by its years (sim/society/strain.ts; 0 … 1): its young the looser from what holds them. Absent: none. */
+  readonly strain?: number;
 };
 
 /** The pull of the street (0 … 1): young men without openings, beyond the hold of kin and police, in quarters set apart. */
 export function streetPull(f: StreetFacts): number {
   const young = clamp01(f.young / 0.09),
     openings = 0.2 + 0.5 * clamp01(f.idle) + 0.5 * clamp01(f.poor),
-    loose = 0.3 + 2 * clamp01(f.street) + clamp01(f.newcomers) + clamp01(f.apart),
+    loose =
+      0.3 +
+      2 * clamp01(f.street) +
+      clamp01(f.newcomers) +
+      clamp01(f.apart) +
+      STRAIN.loose * clamp01(f.strain ?? 0),
     market = 1 + 4 * clamp01(f.dependent);
   return clamp01(
     young *

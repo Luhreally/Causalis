@@ -61,6 +61,7 @@ import {
   streetOf,
   wayOf,
   type Settlement,
+  strainIn,
 } from "../sim/index.ts";
 import { observer } from "../causal/index.ts";
 import { parseSeatRef, parseTownsfolkRef } from "../bridge/index.ts";
@@ -558,6 +559,7 @@ export function landMind(world: World, cell: number, year: number): Mind {
     dangerNow: land.danger,
     hungerYoung: young.hunger,
     hungerGrown: grown.hunger,
+    landStrain: strainIn(world, cell),
     fed: land.fed,
     left: land.fed >= 0.95 ? 1 : -1,
     standing: 0.5,
@@ -757,6 +759,7 @@ function readSelf(world: World, who: Who, deep: boolean): SelfRead {
       parents,
       faith: land.faith,
       piety: land.ways.piety,
+      landStrain: strainIn(world, who.cell),
       ...carried,
     });
   return {
