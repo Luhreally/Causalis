@@ -35,7 +35,7 @@ export class FarLand {
   /** What is shown: the land's ground and sea (their meshes, the ground's cut about the town), and where the town is. */
   private shown: {
     readonly source: pc.Mesh;
-    readonly cut: pc.Mesh;
+    readonly cuts: readonly pc.Mesh[];
     readonly collar: pc.Mesh | null;
     readonly ground: pc.Entity;
     readonly sea: pc.Entity | null;
@@ -142,11 +142,11 @@ export class FarLand {
       this.holeAt.r !== reach
     ) {
       this.clear();
-      const { cut, collar } = cutAbout(this.stage, ground.mesh, o.x, o.y, o.z, reach),
+      const { cuts, collar } = cutAbout(this.stage, ground.mesh, o.x, o.y, o.z, reach),
         g = new pc.Entity("far ground");
       g.addComponent("render", {
         meshInstances: [
-          new pc.MeshInstance(cut, ground.material),
+          ...cuts.map((cut) => new pc.MeshInstance(cut, ground.material)),
           ...(collar ? [new pc.MeshInstance(collar, ground.material)] : []),
         ],
         layers: [this.layer.id],
@@ -166,7 +166,7 @@ export class FarLand {
         s.setLocalPosition(seaSheet!.getLocalPosition());
         this.holder.addChild(s);
       }
-      this.shown = { source: ground.mesh, cut, collar, ground: g, sea: s };
+      this.shown = { source: ground.mesh, cuts, collar, ground: g, sea: s };
       this.holeAt = { x: o.x, y: o.y, z: o.z, r: reach };
     }
     // (Read each time it is shown: the land's tiles are painted after it is first laid, and again with the season.)
@@ -199,7 +199,7 @@ export class FarLand {
     const s = this.shown;
     return {
       on: this.on,
-      facets: s ? s.cut.primitive[0]!.count / 3 : 0,
+      facets: s ? s.cuts.reduce((n, cut) => n + cut.primitive[0]!.count / 3, 0) : 0,
       collar: s?.collar ? s.collar.vertexBuffer.numVertices / 3 : 0,
       copies: this.copies.length,
       instances:
@@ -251,10 +251,11 @@ export class FarLand {
     if (!at) return;
     // (The land's vertices made anew under it, as many: drawn from those; the land let go of: none drawn.)
     const shown = this.shown;
-    if (shown && shown.cut.vertexBuffer !== shown.source.vertexBuffer) {
+    const was = shown?.cuts[0]?.vertexBuffer;
+    if (shown && was && was !== shown.source.vertexBuffer) {
       const now = shown.source.vertexBuffer as pc.VertexBuffer | null;
-      if (now && now.numVertices === shown.cut.vertexBuffer.numVertices)
-        shown.cut.vertexBuffer = now;
+      if (now && now.numVertices === was.numVertices)
+        for (const cut of shown.cuts) cut.vertexBuffer = now;
       else {
         this.clear();
         return;
@@ -459,9 +460,10 @@ export class FarLand {
     this.madeTowns = -2;
     const s = this.shown;
     if (s) {
-      // (Its cut alone, let go before its drawing is, which would let go of its mesh and with it its vertices: the land's own
-      // vertices stay the land's.)
-      (s.cut as { vertexBuffer: pc.VertexBuffer | null }).vertexBuffer = null;
+      // (Its cuts alone, let go before their drawings are, which would let go of their meshes and with them their vertices:
+      // the land's own vertices stay the land's.)
+      for (const cut of s.cuts)
+        (cut as { vertexBuffer: pc.VertexBuffer | null }).vertexBuffer = null;
       s.ground.destroy();
       s.sea?.destroy();
     }
@@ -476,7 +478,9 @@ export class FarLand {
 /** Where the land is cut away under a town's own ground (of how far that reaches), and how far out it comes up from the town's
  * level to its own (as the town's own ground rises to its land's: view/townflora.ts townRiseAt). */
 const HOLE = 0.85,
-  RISEN = 1.6;
+  RISEN = 1.6,
+  /** Into how many wedges about the town the land past its rise is cut (cutAbout). */
+  WEDGES = 12;
 
 /**
  * A land's ground mesh about a town (each facet three vertices of its own, in order: render/region.ts build): the facets
@@ -492,7 +496,7 @@ function cutAbout(
   y: number,
   z: number,
   reach: number,
-): { cut: pc.Mesh; collar: pc.Mesh | null } {
+): { cuts: pc.Mesh[]; collar: pc.Mesh | null } {
   const count = source.vertexBuffer.numVertices,
     at = new Float32Array(count * 3);
   source.getPositions(at);
@@ -513,34 +517,56 @@ function cutAbout(
       far.push(a + b + c);
     }
   }
-  // (Nearest the town first: the eye stands about it, so what is nearer is drawn first and hides what lies behind it before
-  // that is shaded. Seen low across the land, its hills hid much of what was shaded after them.)
-  const byNear = kept.map((_, i) => i).sort((i, j) => far[i]! - far[j]!),
-    order = new Uint32Array(kept.length * 3);
-  byNear.forEach((i, n) => {
-    const v = kept[i]!;
-    order[3 * n] = v;
-    order[3 * n + 1] = v + 1;
-    order[3 * n + 2] = v + 2;
+  // (Kept in wedges about the town, each drawn alone, so that those out of its eye's sight are not drawn at all: seen about the
+  // town, the eye's sight takes in a few. Each nearest the town first: the eye stands about it, so what is nearer is drawn
+  // first and hides what lies behind it before that is shaded.)
+  const wedges: number[][] = Array.from({ length: WEDGES }, () => []);
+  kept.forEach((v, i) => {
+    const cx = at[3 * v]! + at[3 * v + 3]! + at[3 * v + 6]! - 3 * x,
+      cz = at[3 * v + 2]! + at[3 * v + 5]! + at[3 * v + 8]! - 3 * z,
+      w = Math.floor(((Math.atan2(cz, cx) / (2 * Math.PI) + 1) % 1) * WEDGES) % WEDGES;
+    wedges[w]!.push(i);
   });
-  const mesh = new pc.Mesh(stage.device);
-  mesh.vertexBuffer = source.vertexBuffer;
-  mesh.indexBuffer[0] = new pc.IndexBuffer(
-    stage.device,
-    pc.INDEXFORMAT_UINT32,
-    order.length,
-    pc.BUFFER_STATIC,
-    order,
-  );
-  mesh.primitive[0] = {
-    type: pc.PRIMITIVE_TRIANGLES,
-    base: 0,
-    baseVertex: 0,
-    count: order.length,
-    indexed: true,
-  };
-  mesh.aabb = source.aabb;
-  if (!near.length) return { cut: mesh, collar: null };
+  const cuts: pc.Mesh[] = [];
+  for (const wedge of wedges) {
+    if (!wedge.length) continue;
+    wedge.sort((i, j) => far[i]! - far[j]!);
+    const order = new Uint32Array(wedge.length * 3),
+      lo = [Infinity, Infinity, Infinity],
+      hi = [-Infinity, -Infinity, -Infinity];
+    wedge.forEach((i, n) => {
+      const v = kept[i]!;
+      for (let q = 0; q < 3; q++) {
+        order[3 * n + q] = v + q;
+        for (let c = 0; c < 3; c++) {
+          const p = at[3 * (v + q) + c]!;
+          if (p < lo[c]!) lo[c] = p;
+          if (p > hi[c]!) hi[c] = p;
+        }
+      }
+    });
+    const mesh = new pc.Mesh(stage.device);
+    mesh.vertexBuffer = source.vertexBuffer;
+    mesh.indexBuffer[0] = new pc.IndexBuffer(
+      stage.device,
+      pc.INDEXFORMAT_UINT32,
+      order.length,
+      pc.BUFFER_STATIC,
+      order,
+    );
+    mesh.primitive[0] = {
+      type: pc.PRIMITIVE_TRIANGLES,
+      base: 0,
+      baseVertex: 0,
+      count: order.length,
+      indexed: true,
+    };
+    const box = new pc.BoundingBox();
+    box.setMinMax(new pc.Vec3(lo[0], lo[1], lo[2]), new pc.Vec3(hi[0], hi[1], hi[2]));
+    mesh.aabb = box;
+    cuts.push(mesh);
+  }
+  if (!near.length) return { cuts, collar: null };
   const colours = new Uint8Array(count * 4);
   source.getColors(colours);
   const n = near.length * 3,
@@ -587,7 +613,7 @@ function cutAbout(
   collar.setNormals(nor);
   collar.setColors32(col);
   collar.update();
-  return { cut: mesh, collar };
+  return { cuts, collar };
 }
 
 /**
