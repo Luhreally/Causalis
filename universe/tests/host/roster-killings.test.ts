@@ -29,10 +29,24 @@ import { casesOf, forgetDockets, openOf } from "../../src/host/inspect/justice.t
 import { yearNow } from "../../src/host/inspect/words.ts";
 import { peopledWorld } from "../worlds.ts";
 
-// (A world whose lands keep killings by this year: first light kept none by 300 once its people moved for war, ruin and wages
-// and its realm's crews stood half as many, too few to kill a whole one a year; kestrel at 250 keeps seven lands' reckonings.)
-const SEED = "kestrel",
-  AT = 250;
+// (The first of a few worlds whose towns' lines hold someone killed: a killing kept of a land is a matter of how its people and
+// its crews have moved, and any change to the world can move it from one world or year to another. Each is grown only if
+// the one before it holds none, so a world that keeps its killings costs no more than itself; each one a year short of
+// 300, as the year after is read too.)
+const WORLDS: readonly (readonly [seed: string, year: number])[] = [
+  ["kestrel", 250],
+  ["kestrel", 290],
+  ["willow", 299],
+  ["juniper", 299],
+  ["first light", 299],
+];
+const holdsKillings = (w: ReturnType<typeof peopledWorld>): boolean =>
+  (deathNotesOf(w)?.killings ?? 0) > 0 &&
+  populationContext(w)
+    .settlements.all()
+    .some((t) => t.population > 0 && townRoster(w, t.ref).killings.some((k) => k.men.length > 0));
+const [SEED, AT] = WORLDS.find(([s, y]) => holdsKillings(peopledWorld(s, y))) ?? WORLDS[0]!;
+clearRosters();
 const world = peopledWorld(SEED, AT),
   ctx = populationContext(world),
   year = yearNow(world),
@@ -79,7 +93,11 @@ test("towns whose land keeps no killing are folded exactly as before", () => {
     for (let k = 0; k < Math.min(linesOf(t.population), 60); k++)
       assert.equal(r.holder(k)?.slain, undefined);
   }
-  assert.ok(quiet >= 200 && moved >= 1, `${quiet} quiet towns as before; ${moved} with killings`);
+  // (Most of its towns keep no killing, and each of those is as it was: a share of the world's own towns, not a count.)
+  assert.ok(
+    quiet >= towns.length / 2 && moved >= 1,
+    `${quiet} of ${towns.length} towns quiet as before; ${moved} with killings`,
+  );
 });
 
 test("one killed reads dead everywhere: their line, their page, of what, their kin's telling, the case of it", () => {
