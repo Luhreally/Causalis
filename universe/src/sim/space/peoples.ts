@@ -36,6 +36,7 @@ import {
   G,
   PRINCIPLES,
   affordsPrinciple,
+  circleWords,
   habitability,
   type HomeGround,
   needsMet,
@@ -62,6 +63,7 @@ import { machinesOfRealm, spaceOf } from "./space.ts";
 import { starSitesOf } from "./stars.ts";
 import { livedState, livedStrength } from "./farlife-read.ts";
 import { fleetWill, heldBroken, homeRung, meetingWeights, warWeary } from "./farlife.ts";
+import { sitTogether } from "../diplomacy/councils.ts";
 
 export const PEOPLES_EVENTS = {
   sailed: defineEventType("peoples.sailed", 3),
@@ -614,6 +616,13 @@ function react(
         source: null,
       },
       { name: `${theirs} boldness`, value: n.bold, contribution: weights[3], source: null },
+      // (How far their "us" reaches toward beings like these: rules/circle.ts. It leaned the meeting to wonder and trade.)
+      {
+        name: `how far ${me.kind === "people" ? "their" : "its people's"} "us" reaches to beings like these: ${circleWords(read.circle)}`,
+        value: Math.round(read.circle * 100) / 100,
+        contribution: 0,
+        source: null,
+      },
       ...(pressed > 0
         ? [
             {
@@ -1314,6 +1323,9 @@ export function peoplesYear(ctx: PopulationContext, t: SimTime): void {
       year >= civ.stars &&
       year - m.lastRaid >= FLEET_GAP &&
       !store.ships.some((s) => s.kind === "fleet" && s.civ === civ.ref && !s.arrived) &&
+      // (None from a people fallen or broken, nor against one it sits with in a concord of worlds: sim/diplomacy/councils.ts.)
+      !heldBroken(world, civ.ref) &&
+      !((realm || other) && sitTogether(world, civ.ref, (realm?.ref ?? other!.ref) as Ref)) &&
       // (As far as it has an aim worth a fleet: ground it lacks, a threat it would end, goods; none while weary or broken. Round F.)
       world.rng.real(RAID, keyOf(civ.ref), year, index) <
         fleetChance(n.bold, m.regard, (intent = willOf(civ, other, realm, m.cell)).will)

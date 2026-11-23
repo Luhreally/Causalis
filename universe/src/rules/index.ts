@@ -38,6 +38,7 @@ export {
   landfallFight,
   nativeHost,
   sicknessCrossed,
+  sicknessMet,
   shipForce,
   standOff,
   type ComerNumbers,
@@ -1571,6 +1572,7 @@ export {
   changeOf,
   changeWords,
   firstHolds,
+  foundingHolds,
   formOf,
   heldWords,
   holdWords,
@@ -1780,3 +1782,17 @@ export * from "./thrift.ts";
 export * from "./civicworth.ts";
 export * from "./patents.ts";
 export * from "./firms.ts";
+// (A ruler's temper, and what a realm writes down of its rule: the breadth round, 2026-11-23.)
+export * from "./temper.ts";
+export {
+  BORDERS,
+  entryBar,
+  entryParts,
+  exitBar,
+  exitParts,
+  gateBand,
+  gateWords,
+  gatesOpen,
+  type GateRead,
+} from "./borders.ts";
+export { CIRCLE, bodyLikeness, circleLeans, circleWords, moralCircle } from "./circle.ts";

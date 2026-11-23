@@ -217,6 +217,35 @@ export function sicknessCrossed(
   };
 }
 
+/**
+ * What a sickness takes of a people when it meets another of another world in any way but a landing (their goods traded, a lesson
+ * carried, a raid: the sweep's breadth round, 2026-11-23; until then a sickness crossed between worlds only where ships came down):
+ * none between lives of another liquid or another backbone, for a sickness is a life that lives on its host; else as far as the
+ * giver carries one (a sickness of its own now, or one a crowded people breeds: SICK_CROWDED by its rung, cities and after the most),
+ * a share of those who met it, all that SICK_NEVER_MET takes of a people that never met theirs and a fifth of it after, less what
+ * the taker's care spares (a people with works keeps its sick apart). `u` is the meeting's own draw, `v` how far it ran.
+ */
+export function sicknessMet(r: {
+  readonly same: boolean;
+  /** The giver's rung (rules/farlife.ts FAR_RUNGS; the home world's realms by what they know) and its sickness now (0 … 1). */
+  readonly giverRung: number;
+  readonly giverSick: number;
+  /** Whether theirs has crossed to this people before. */
+  readonly met: boolean;
+  /** The taker's rung. */
+  readonly takerRung: number;
+  readonly u: number;
+  readonly v: number;
+}): number {
+  if (!r.same) return 0;
+  const crowded = SICK_CROWDED[CROWD_STAGES[Math.min(4, Math.max(0, r.giverRung))]!] ?? 0,
+    carries = Math.max(Math.min(1, r.giverSick), crowded);
+  if (!(r.u < carries)) return 0;
+  const care = Math.min(0.75, 0.15 * Math.max(0, r.takerRung - 3));
+  return SICK_NEVER_MET * (r.met ? 0.2 : 1) * (0.5 + 0.5 * r.v) * (1 - care);
+}
+const CROWD_STAGES = ["camps", "villages", "towns", "cities", "works"] as const;
+
 /** A landing, by both sides' numbers: the same numbers and draws, always the same fight. */
 export function landfallFight(
   c: ComerNumbers,

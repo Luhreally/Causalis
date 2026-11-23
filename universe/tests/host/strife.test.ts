@@ -10,6 +10,7 @@ import {
   seize,
   strifeOf,
   type Polity,
+  orderOf,
 } from "../../src/sim/index.ts";
 import type { Block, PageModel } from "../../src/bridge/index.ts";
 import { STRIFE_CONCEPTS } from "../../src/host/inspect/strife-concepts.ts";
@@ -57,6 +58,9 @@ test("a realm's strife: its army under arms and its sway, how near a coup is and
 });
 
 test("a coup won: the realm a protectorate, its rule its army's; the ledger, the chronicle and the history tell it", () => {
+  // (Its arms kept to its host: there a coup leaves its army ruling, sim/strife coupKindOf.)
+  const held = orderOf(ctx.world)!.of(realm.ref)!.held;
+  if (held) held[0] = Math.max(held[0]!, 80);
   const event = seize(ctx, realm, [], at(1));
   const p = page(realm.ref);
   assert.match(p.title, /^The protectorate of /);

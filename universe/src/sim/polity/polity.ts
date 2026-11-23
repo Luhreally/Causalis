@@ -1,15 +1,16 @@
 // Polities (docs/architecture §21): realms gathered around market towns. A realm
-// forms where a people keep to rank or have leaders enough, around their market
-// town; neighbours join it, the more readily the more alike their speech, the
-// closer the road and the stronger the realm. Its institutions come from its
-// founders' ways — who leads (a chief, a council of elders, an assembly, a
-// priest-king), how rule passes (by birth, by choice, by acclaim), what law holds
-// (custom, decree, the sacred) — and thereafter are read off who holds which powers (its
-// force and voice, and whose sway is greatest: formFromPowers), changing as those move.
-// Members send a tithe of grain to the seat. Discontent gathers from famine,
-// tribute, distance and foreign speech; lands secede when it runs high. Rulers
-// grow old and die; their successions follow the realm's rule, and sometimes
-// break it. Every step is a decision whose factors cite what drove it.
+// forms where what the land spares can keep those who would lead, the likelier as its people
+// keep to rank (FOUNDING); neighbours join it, the more readily the more alike their speech, the
+// closer the road and the stronger the realm. Its institutions — who leads (a chief, a council
+// of elders, an assembly, a priest-king), how rule passes (by birth, by choice, by acclaim),
+// what law holds (custom, decree, the sacred) — are read off who holds which powers: at its
+// founding, the force and voice of its people before any seat (foundingForm), thereafter its
+// kept numbers and whose sway is greatest (formFromPowers), changing as those move.
+// Members send a tithe of grain to the seat, as its interests and its ruler's temper ask.
+// Discontent gathers from famine, tribute, distance and foreign speech; lands secede when it
+// runs high. Rulers grow old and die; their successions follow the realm's rule, and break it
+// where no choice binds the losers and arms lie in many hands (CONTEST). Every step is a
+// decision whose factors cite what drove it.
 import { inflationOf, intoxDependent, taxGrievance } from "../money/kept.ts";
 import { idleChafesOf } from "../trade/kept.ts";
 import { feastReliefOf } from "../society/kept.ts";
@@ -21,6 +22,7 @@ import {
   defineEventType,
   defineKind,
   defineStream,
+  parseRef,
   yearOfMoment,
   type CauseRef,
   type Factor,
@@ -31,7 +33,22 @@ import {
   type World,
 } from "../../kernel/index.ts";
 import { tongueLikeness, tongueName, tonguePersonName } from "../../gen/index.ts";
-import { FOODS, G, HOLDING, OCC, STRAIN, slipsAway } from "../../rules/index.ts";
+import {
+  FOODS,
+  G,
+  HOLD,
+  HOLDING,
+  OCC,
+  STRAIN,
+  TEMPER,
+  foundingHolds,
+  slipsAway,
+  temperCarries,
+  temperOf,
+  temperWords,
+  type Temper,
+} from "../../rules/index.ts";
+import { pulpitIn } from "../belief/temple.ts";
 import { mouths, spaceSteps, type PopulationContext } from "../population/systems.ts";
 import type { MarketStore } from "../economy/market.ts";
 import { WAY, cultureOf, type Ways } from "../culture/culture.ts";
@@ -40,10 +57,18 @@ import type { BeliefStore } from "../belief/belief.ts";
 import type { LoreStore } from "../lore/lore.ts";
 import { interestsOf, pressure } from "./interests.ts";
 import { revolutionHolds } from "../strife/strife.ts";
-import { holdsOf } from "../order/holds.ts";
+import { holdOf, holdsOf, waysRead } from "../order/holds.ts";
 import { courtClaimant, courtFollows } from "../court/court.ts";
 import { claimAtDeath } from "../war/ties.ts";
 import { heldAmongStars } from "../space/nation-store.ts";
+import {
+  LOCAL,
+  localOf,
+  localYear,
+  putToPeople,
+  setLocal,
+  underEmergency,
+} from "../order/charter.ts";
 import { actOn, hazardBy, struckBy } from "../acts/person.ts";
 
 export const POLITY = defineKind("pol", "realm", "minted");
@@ -324,43 +349,11 @@ export function politiesOf(world: World): PolityStore {
   return world.store<PolityStore>("polity.states");
 }
 
-/** Institutions from a people's ways: who leads, how rule passes, what law holds. */
-type Institutions = { leadership: number; succession: number; law: number };
+/** Institutions: who leads, how rule passes, what law holds. */
+export type Institutions = { leadership: number; succession: number; law: number };
 
 /** How far ways must move past a threshold before a realm's institutions change. */
 const SLACK = 0.05;
-
-/**
- * Institutions from a people's ways: who leads, how rule passes, what law holds.
- * Given the institutions a realm has, they hold unless the ways have moved clearly
- * past what gave them (by SLACK), so a realm does not reform at every flicker.
- */
-export function institutionsOf(w: Ways, current?: Institutions, canWrite = true): Institutions {
-  const t = w.traits,
-    // A threshold eased in favour of what is.
-    over = (trait: number, at: number, keeps: boolean) => t[trait]! > at - (keeps ? SLACK : 0),
-    priestly = current?.leadership === 3,
-    leadership =
-      over(WAY.piety, 0.58, priestly) && over(WAY.hierarchy, 0.5, priestly)
-        ? 3
-        : over(WAY.hierarchy, 0.54, current?.leadership === 0)
-          ? 0
-          : over(WAY.kinship, 0.52, current?.leadership === 1)
-            ? 1
-            : 2,
-    succession = over(WAY.kinship, 0.52, current?.succession === 0)
-      ? 0
-      : over(WAY.openness, 0.5, current?.succession === 1)
-        ? 1
-        : 2,
-    // Decree is written law: without writing, what is not sacred is custom.
-    law = over(WAY.piety, 0.58, current?.law === 2)
-      ? 2
-      : over(WAY.tradition, 0.5, current?.law === 0) || !canWrite
-        ? 0
-        : 1;
-  return { leadership, succession, law };
-}
 
 /**
  * A realm's rule read off who holds which powers (rules/holds.ts: force, voice), and whose sway is greatest among those who
@@ -404,6 +397,69 @@ export function formFromPowers(
         : 0;
   return { leadership, succession, law };
 }
+
+/** No rule yet: no line is eased in favour of what is. */
+const UNRULED: Institutions = { leadership: -1, succession: -1, law: -1 };
+
+/**
+ * The rule a people raises at a seat (a realm founded, or raised of a split or a rising): read off who holds force and voice
+ * among them (rules/holds.ts foundingHolds: how many lead for each head, rank, valour, their body), and whose word weighs most
+ * among those who do not choose by numbers — those who lead, as far as their people keep to rank, against the temple, as far
+ * as they are devout and their faith has clergy among them to speak for it (sim/belief/temple.ts pulpitIn) — by the same
+ * reading a realm's reform makes of its kept numbers (formFromPowers). No line on its ways decides it.
+ */
+export function foundingForm(
+  ctx: PopulationContext,
+  cell: number,
+  ways: Ways,
+): Institutions & { readonly held: readonly [number, number] } {
+  const world = ctx.world,
+    prov = ctx.provinces.get(cell),
+    grown = prov ? prov.total() - prov.occupation(OCC.dependent) : 0,
+    leaders = prov && grown > 0 ? (100 * prov.occupation(OCC.leader)) / grown : HOLDING.leadersMid,
+    held = foundingHolds(waysRead(ways), ctx.generated.life.people?.body, leaders, grown),
+    faith = world.peek<BeliefStore>("belief.faiths")?.of(cell).faith ?? null,
+    sway = {
+      "the court": ways.traits[WAY.hierarchy]!,
+      "the temple": faith ? FOUNDING.temple * ways.traits[WAY.piety]! * pulpitIn(world, cell) : 0,
+      "the army": 0,
+    };
+  return {
+    ...formFromPowers(held, sway, UNRULED, loreOf(world).effect(cell, "writing") > 0),
+    held,
+  };
+}
+
+/** A ruler's temper (rules/temper.ts): who they are, and their people's ways. Read, never kept. */
+export function temperOfRuler(world: World, p: Polity): Temper {
+  const w = cultureOf(world).get(p.seat);
+  return temperOf(parseRef(p.ruler.event).b, p.ruler.born, {
+    valour: w?.traits[WAY.valour] ?? 0.5,
+    thrift: w?.traits[WAY.thrift] ?? 0.5,
+    piety: w?.traits[WAY.piety] ?? 0.5,
+  });
+}
+
+/**
+ * How a realm comes to be at a market town (band to state): where those who would lead can be kept by what the land spares
+ * (the first tithe of its grain, never below three months of its food, against a year's food for each who leads), and where its
+ * people keep to rank. FOUNDING.rate a year where the tithe keeps its leaders once over at middling rank.
+ */
+export const FOUNDING = {
+  /** The share of the year's grain a new seat asks (its first tribute). */
+  tithe: 0.05,
+  rate: 0.009,
+  /** A land that keeps its leaders more than this many times over is no readier for it. */
+  most: 2,
+  /**
+   * How far a devout people's piety weighs at a founding against its rank, where its faith has clergy among them (a priest's word
+   * is heard by its flock as a chief's by his following, but the arms are the chief's).
+   */
+  temple: 0.85,
+} as const;
+
+/** At a ruler's death, how readily the throne is contested where no choice binds the losers and arms are in many hands. */
+export const CONTEST = 0.1;
 
 /** A government as a key: two realms with the same key are governed alike. */
 export function governmentKey(p: Polity): string {
@@ -509,11 +565,20 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
       ways = culture.get(p.cell);
     if (!town || !ways) continue;
     const rank = ways.traits[WAY.hierarchy]!,
-      leaders = p.occupation(OCC.leader),
-      pull = Math.max(0, rank - 0.45) * 2 + Math.min(1, leaders / 60);
-    const chance = 0.02 * pull;
-    if (!(world.rng.real(FORM, p.cell, t, 0) < chance)) continue;
-    const inst = institutionsOf(ways, undefined, loreOf(world).effect(p.cell, "writing") > 0);
+      leaders = p.occupation(OCC.leader);
+    if (leaders <= 0) continue;
+    // (What the land spares a seat: its first tithe of the year's grain, never below three months of its food, against a year's
+    // food for each who would lead.)
+    const m = markets.get(p.cell),
+      made = m?.years.at(-1)?.ledger[0]?.[G.grain] ?? 0,
+      spare = m ? Math.max(0, m.food(FOODS) - mouths(p, ctx.life) * 3) : 0,
+      keeps = Math.min(
+        FOUNDING.most,
+        Math.min(spare, made * FOUNDING.tithe) / Math.max(1, leaders * 12 * ctx.life.appetite),
+      ),
+      chance = FOUNDING.rate * keeps * (0.5 + rank);
+    if (!(chance > 0) || !(world.rng.real(FORM, p.cell, t, 0) < chance)) continue;
+    const inst = foundingForm(ctx, p.cell, ways);
     const decision = world.decisions.record({
       rule: "polity.form",
       subject: p.ref,
@@ -528,9 +593,15 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
           source: { ref: town.market!, role: "enabler", weight: 1 },
         },
         {
+          name: "what the land spares a seat",
+          value: keeps,
+          contribution: keeps,
+          source: null,
+        },
+        {
           name: "a people who keep to rank",
           value: rank,
-          contribution: Math.max(0, rank - 0.45) * 2,
+          contribution: 0.5 + rank,
           source: ways.nudges.find((n) => n.trait === WAY.hierarchy)
             ? {
                 ref: ways.nudges.find((n) => n.trait === WAY.hierarchy)!.event,
@@ -539,7 +610,10 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
               }
             : null,
         },
-        { name: "leaders", value: leaders, contribution: Math.min(1, leaders / 60), source: null },
+        { name: "leaders", value: leaders, contribution: 0, source: null },
+        // (Who holds force and voice among them, which their rule is read off: foundingForm.)
+        { name: "arms kept by those who lead", value: inst.held[0], contribution: 0, source: null },
+        { name: "a choice carried by many", value: inst.held[1], contribution: 0, source: null },
       ],
     });
     const ref = world.minter.mint(POLITY),
@@ -558,7 +632,9 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
       founded: year,
       event,
       members: [p.cell],
-      ...inst,
+      leadership: inst.leadership,
+      succession: inst.succession,
+      law: inst.law,
       ruler: crown(world, ways, p.cell, t, event, null, ctx.life.adulthood),
       tribute: 0.05,
       ended: null,
@@ -649,8 +725,15 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
         up = pressure(interests, "more tribute"),
         down = pressure(interests, "lighter tribute"),
         now = Math.round(p.tribute * 100),
+        // (And what its ruler would have, as far as its choices are carried by few: rules/temper.ts.)
+        temper = temperOfRuler(world, p),
+        greed =
+          2 *
+          TEMPER.tithe *
+          (temper.grasping - 0.5) *
+          temperCarries(holdOf(world, p.ref, HOLD.voice)),
         want = Math.round(
-          100 * Math.min(0.15, Math.max(0.02, 0.05 + 0.2 * (up.total - down.total))),
+          100 * Math.min(0.15, Math.max(0.02, 0.05 + 0.2 * (up.total - down.total) + greed)),
         );
       // Only a real shift in what they want moves it (two parts in a hundred, or more).
       if (Math.abs(want - now) < 2) continue;
@@ -666,11 +749,18 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
           contribution: d.want === "more tribute" ? weight : -weight,
           source: d.source ? { ref: d.source, role: "pressure" as const, weight: 1 } : null,
         }));
+      if (Math.abs(greed) >= 0.005)
+        factors.push({
+          name: temperWords("grasping", temper.grasping),
+          value: temper.grasping,
+          contribution: greed / 0.2,
+          source: { ref: p.ruler.event, role: "pressure", weight: 1 },
+        });
       const decision = world.decisions.record({
         rule: "polity.tithe",
         subject: p.ref,
         outcome: { from: now, to: want },
-        score: up.total - down.total,
+        score: up.total - down.total + greed / 0.2,
         threshold: 0,
         factors,
       });
@@ -697,7 +787,12 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
       seatWays = culture.get(p.seat)!,
       steps = reach(ctx, p),
       // How far the seat can rule from: three steps, and further with writing, clerks and roads.
-      rules = 3 + loreOf(world).effect(p.seat, "reach");
+      rules = 3 + loreOf(world).effect(p.seat, "reach"),
+      // (Far lands whose towns rule themselves chafe the less at a far seat: sim/order/charter.ts. Exactly 1 where none do.)
+      near = 1 - LOCAL.eases * localOf(world, p.ref),
+      // (This its year to read which far lands have towns to rule themselves: sim/order/charter.ts setLocal.)
+      reading = localYear(p.ref, year);
+    let farTowns = 0;
     for (const c of p.members) {
       // (A world of another star is held or not by the rule of the stars: Phase 72.)
       if (c === p.seat || heldAmongStars(world, c)) continue;
@@ -705,6 +800,11 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
         m = markets.get(c),
         ways = culture.get(c);
       if (!prov || !m || !ways) continue;
+      if (reading && (steps.get(c) ?? 0) >= LOCAL.steps) {
+        let town = 0;
+        for (const st of ctx.settlements.inProvince(c)) town = Math.max(town, st.population);
+        if (town >= LOCAL.town) farTowns++;
+      }
       // The tithe: a share of the year's grain, never below three months of their food.
       const made = m.years.at(-1)?.ledger[0]?.[G.grain] ?? 0,
         spare = Math.max(0, m.food(FOODS) - mouths(prov, ctx.life) * 3),
@@ -729,9 +829,9 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
           intoxDependent(world, c) * 0.5 +
           Math.min(0.3, dearer * 0.5) +
           idle * 0.6 +
-          0.02 * far +
+          near * 0.02 * far +
           // A land held beyond the seat's reach is ruled by force alone, and chafes.
-          0.08 * Math.max(0, far - rules) +
+          near * 0.08 * Math.max(0, far - rules) +
           // (Its people on the street, left there by the realm: the society sweep, society/roofless.ts. Exactly 0 where none is kept.)
           streetGrievanceOf(world, c) +
           // (A land worn by its years blames its seat the more: its strain, sim/society/strain.ts. Exactly 0 where none is kept.)
@@ -746,6 +846,7 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
         cause: famine ?? (crossing && prov.arrival ? prov.arrival : before.cause),
       });
     }
+    if (reading) setLocal(ctx, p, farTowns);
   }
 
   // 4. Lands whose discontent runs high secede: the likelier the higher it runs, and as far as the seat's hand is not in the land
@@ -812,6 +913,8 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
   if (year % 10 === 0)
     for (const p of store.living()) {
       if (p.leadership === GENERAL || revolutionHolds(world, p.ref, year)) continue;
+      // (Powers taken past its people's say suspend its rule; they do not remake it: sim/order/charter.ts.)
+      if (underEmergency(world, p.ref)) continue;
       const ways = culture.get(p.seat)!,
         sway: Record<string, number> = {};
       for (const i of interestsOf(ctx, p, t)) sway[i.group] = i.sway;
@@ -827,10 +930,14 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
         want.law === p.law
       )
         continue;
+      // (Under a charter, where its choices are carried by many, the change is put to its people: sim/order/charter.ts.)
+      const asked = putToPeople(ctx, p, want, t);
+      if (asked && !asked.passed) continue;
       const causes: CauseRef[] = ways.nudges
         .slice(0, 3)
         .map((n) => ({ ref: n.event, role: "pressure", weight: 0.3 }));
       causes.push({ ref: p.event, role: "enabler", weight: 0.1 });
+      if (asked) causes.unshift({ ref: asked.event, role: "trigger", weight: 1 });
       world.events.emit({
         type: POLITY_EVENTS.reformed.type,
         subjects: [p.ref],
@@ -879,10 +986,18 @@ export function rulerDies(ctx: PopulationContext, p: Polity, t: SimTime, struck:
     unrest = edge.length
       ? edge.reduce((s, c) => s + store.discontent(c).level, 0) / edge.length
       : 0,
+    // (A throne is contested where no choice binds those who lose it (its voice), where arms lie in many hands to back a rival
+    // (its force), and, where rule passes by birth, the more as its people count kin first: many kin, many claims. Then by the
+    // grievance of its far lands, and how far they lie.)
+    held = holdsOf(world, p.ref),
+    contest =
+      CONTEST *
+      (1 - held[HOLD.voice]!) *
+      (0.5 + (1 - held[HOLD.force]!)) *
+      (p.succession === 0 ? 0.5 + (ways.traits[WAY.kinship] ?? 0.5) : 1),
     crisis =
       !!steps &&
-      world.rng.real(RULE, p.seat, t, 21) <
-        (p.succession === 0 ? 0.08 : 0.03) + 0.25 * unrest + 0.02 * Math.max(0, far - 2),
+      world.rng.real(RULE, p.seat, t, 21) < contest + 0.25 * unrest + 0.02 * Math.max(0, far - 2),
     // (Whoever the court names takes the seat, unless a claim made at this hour carries it: Lives L5.)
     next = courtFollows(ctx, p, t);
   const event = world.events.emit({
@@ -973,7 +1088,7 @@ export function raiseRealm(
     store = politiesOf(world),
     seatWays = cultureOf(world).get(town.cell);
   if (!seatWays) return null;
-  const inst = institutionsOf(seatWays, undefined, loreOf(world).effect(town.cell, "writing") > 0),
+  const inst = foundingForm(ctx, town.cell, seatWays),
     ref = world.minter.mint(POLITY),
     name = realmName({ ...inst, town: town.name }),
     formed = world.events.emit({
@@ -990,7 +1105,9 @@ export function raiseRealm(
     founded: yearOfMoment(t),
     event: formed,
     members: [],
-    ...inst,
+    leadership: inst.leadership,
+    succession: inst.succession,
+    law: inst.law,
     ruler: crown(world, seatWays, town.cell, t, formed, null, ctx.life.adulthood),
     tribute: 0.05,
     ended: null,

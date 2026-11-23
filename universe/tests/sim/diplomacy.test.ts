@@ -2,7 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { type Ref } from "../../src/kernel/index.ts";
 import {
+  ALLY,
   DIPLOMACY_EVENTS,
+  pactWorth,
   POLITY_EVENTS,
   diplomacyOf,
   marketsOf,
@@ -78,10 +80,17 @@ test("trade binds two realms as far as it is of the lesser's living, whatever th
         assert.ok(t.value > 0 && t.value <= TRADE_TIE.most, `${t.value}`);
 });
 
-test("pacts are sworn and kept only while realms think well enough of each other", () => {
+test("pacts are sworn and kept only while they are worth something to both: regard, and a foe they share", () => {
   const sworn = world.events.all().filter((e) => e.type === DIPLOMACY_EVENTS.pact.type);
   assert.ok(sworn.length >= 1, "some realms swore friendship");
-  for (const r of relations) if (r.pact) assert.ok(r.opinion >= 0, "a standing pact is not soured");
+  // (A shared foe may hold a pact up past a cooling regard, by at most ALLY.foe; never past that.)
+  for (const r of relations)
+    if (r.pact)
+      assert.ok(
+        r.opinion + ALLY.foe >= 0,
+        "a standing pact is not soured past what a shared foe holds up",
+      );
+  assert.ok(pactWorth(0.3, 1, 0) > pactWorth(0.3, 0, 0), "a shared foe is a reason to bind");
 });
 
 test("a regard explains itself, reason by reason, from what each reason rests on", () => {

@@ -189,11 +189,9 @@ test("a rising beaten back is put down and its lands returned, or the realm is p
   assert.match(why(w, second.settled!)!.claim, /took the seat of .* and its throne/);
 });
 
-test("a split at a ruler's death is fought for — the most often where rule passes by birth", () => {
-  assert.ok(
-    STRIFE.contested[0] > STRIFE.contested[1] && STRIFE.contested[1] > STRIFE.contested[2],
-    "by birth, then by choice, then by acclaim",
-  );
+test("a split at a ruler's death is fought for, as far as the claimant's host can hope to take the seat", () => {
+  // (By the claimant's share of the two hosts' strength: an even match is fought for more often than not.)
+  assert.ok(STRIFE.contest * 0.5 > 0.5, "an even match: fought for more often than not");
   let fought = false;
   for (let k = 1; k < 12 && !fought; k++) {
     const w = fresh(),

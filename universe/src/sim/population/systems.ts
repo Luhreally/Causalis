@@ -143,7 +143,14 @@ import { actOn, hazardBy, luckBy } from "../acts/person.ts";
 import { KILLING, handDeath, type DeathPart } from "../hand/deaths.ts";
 import { fledKind, noteFled } from "../war/held.ts";
 import { seaOf, seaYield } from "../ecology/seas.ts";
-import { FLIGHT, WAR_FLIGHT, flightYear, weighsWages } from "./flight.ts";
+import {
+  FLIGHT,
+  WAR_FLIGHT,
+  flightYear,
+  installBorders,
+  throughGates,
+  weighsWages,
+} from "./flight.ts";
 import { capacity, COLS, livable, Province, row, ROWS, type Capacity } from "./model.ts";
 import {
   HistoryStore,
@@ -1507,7 +1514,15 @@ function sixOf(fs: Factor[]): Factor[] {
   return kept;
 }
 /** A land a land's people may go to: how much better it feeds them, what it is worth to them all told, its wage's draw. */
-type Option = { cell: number; attraction: number; score: number; wage: number; refuge: boolean };
+type Option = {
+  cell: number;
+  attraction: number;
+  score: number;
+  wage: number;
+  refuge: boolean;
+  /** How far its gates let them through (./flight.ts throughGates; 1 within the realm). */
+  open: number;
+};
 
 /** Migration, yearly: every move is planned from the year's opening state, then made. */
 export function migrateYear(ctx: PopulationContext, t: SimTime): void {
@@ -1601,15 +1616,19 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
         wage =
           own > 0 && attraction > -FLIGHT.hungrier && peopled(m) ? flight.drawn(p.cell, m, own) : 0,
         better = driven && attraction > 0.05 - leaving && (!buddingOnly || !peopled(m));
-      if (better || refuge || wage > 0)
-        options.push({
-          cell: m,
-          attraction,
-          // (As before where only food draws them.)
-          score: attraction + (refuge && !better ? FLIGHT.refuge : 0) + wage,
-          wage,
-          refuge,
-        });
+      if (!(better || refuge || wage > 0)) continue;
+      // (Over a border, as far as the gates of the realm they leave and the realm they come to let them: ./flight.ts.)
+      const open = throughGates(world, p.cell, m, refuge && war);
+      if (open < 0.05) continue;
+      options.push({
+        cell: m,
+        attraction,
+        // (As before where only food draws them, and no gate bars them.)
+        score: (attraction + (refuge && !better ? FLIGHT.refuge : 0) + wage) * open,
+        wage,
+        refuge,
+        open,
+      });
     }
     if (!options.length) continue;
     options.sort((a, b) => (b.score !== a.score ? b.score - a.score : a.cell - b.cell));
@@ -1624,9 +1643,11 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
       fled = persecuted > 0 && options.some((o) => o.refuge) ? persecuted * 0.08 : 0,
       drive = (driven ? pressure : 0) + (hope + fled) / 0.08,
       key = refHash(p.ref),
+      // (As many as the gates let through the most open way they have: all of them where one is within their realm.)
+      opened = options.reduce((m, o) => Math.max(m, o.open), 0),
       movers = Math.min(
         pop - held,
-        Math.floor(pop * Math.min(0.06, (driven ? pressure * 0.08 : 0) + hope + fled)),
+        Math.floor(pop * Math.min(0.06, (driven ? pressure * 0.08 : 0) + hope + fled) * opened),
       );
     if (movers < MIN_GROUP) continue;
     if (leaving > 0) lodesOf(world)!.tally.left += Math.round((movers * leaving) / pressure);
@@ -2521,6 +2542,8 @@ export function installPopulation(world: World): void {
   world.system({ key: "105.weather.rain", every: YEAR, run: (t) => weatherYear(ctx(), t) });
   world.system({ key: "110.population.age", every: YEAR, run: (t) => ageYear(ctx(), t) });
   world.system({ key: "120.population.work", every: YEAR, run: (t) => workYear(ctx(), t) });
+  // (Who may leave a realm and who may come in, weighed before the year's moves: ./flight.ts.)
+  installBorders(world, ctx);
   world.system({ key: "130.population.migrate", every: YEAR, run: (t) => migrateYear(ctx(), t) });
   world.system({ key: "140.population.settle", every: YEAR, run: (t) => settleYear(ctx(), t) });
   world.system({

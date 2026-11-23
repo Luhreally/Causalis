@@ -21,7 +21,7 @@ import {
   cultureOf,
   fieldedOf,
   foil,
-  institutionsOf,
+  coupKindOf,
   interestsOf,
   legitimacyFactors,
   loreOf,
@@ -79,6 +79,14 @@ function doubted(w: World, p: Polity): void {
   orderOf(w)!.of(p.ref)!.legitimacy = 0.05;
 }
 /** The year of strife, drawn again and again, its rule held doubted, until its army reaches for its seat. */
+/**
+ * Its arms kept to its host (force eight-tenths): a coup won there leaves its army ruling it, a protectorate (coupKindOf); where
+ * the arms lie in many hands a general is crowned instead, tested below.
+ */
+function armsKept(w: World, p: Polity): void {
+  const o = orderOf(w)!.of(p.ref)!;
+  if (o.held) o.held[HOLD.force] = Math.max(o.held[HOLD.force]!, 80);
+}
 function untilACoup(w: World, p: Polity, from = 1, won = true): number {
   const ctx = populationContext(w),
     store = strifeOf(w)!;
@@ -104,6 +112,7 @@ test("the army is one of a realm's voices: heard the more with a standing army, 
   const standing = armySway(w, p);
   assert.ok(standing.people > before.people, "a standing army: every man it fields under arms");
   assert.ok(standing.sway > before.sway, "and the more heard");
+  armsKept(w, p);
   seize(ctx, p, [], at(1));
   const general = armySway(w, p),
     pay = (x: typeof general) =>
@@ -130,6 +139,7 @@ test("a coup: a doubted rule and a heard army — the seat seized, the realm a p
     coupDanger(populationContext(w), p, o).score < danger.score,
     "a rule held rightful: the less danger",
   );
+  armsKept(w, p);
   const k = untilACoup(w, p);
   assert.ok(k > 0, "its army reached for its seat");
   const coup = strifeOf(w)!.coups.find((c) => c.realm === p.ref && c.won)!;
@@ -170,6 +180,7 @@ test("a protectorate's general compels as far as he keeps the arms, its rule sei
     };
   assert.ok(fieldedAt(0.05) < fieldedAt(0.9), "a rule doubted calls out fewer of its men");
   const led = p.leadership;
+  armsKept(w, p);
   seize(ctx, p, [], at(1));
   const kept = o.held![HOLD.force]! / 100;
   assert.ok(kept >= 0.6, `a general keeps six-tenths of the arms and more (${kept})`);
@@ -195,6 +206,7 @@ test("rule given back, the likelier as its standing returns: of its people's way
     p = greatest(w),
     ctx = populationContext(w),
     o = orderOf(w)!.of(p.ref)!;
+  armsKept(w, p);
   seize(ctx, p, [], at(1));
   let k = 2;
   for (; k < 600 && p.leadership === GENERAL; k++) {
@@ -204,8 +216,13 @@ test("rule given back, the likelier as its standing returns: of its people's way
   assert.notEqual(p.leadership, GENERAL, "its own rule given back");
   const back = strifeOf(w)!.restorations.find((x) => x.realm === p.ref)!;
   assert.ok(back && back.years >= 1, "after years of its army's");
-  const inst = institutionsOf(cultureOf(w).get(p.seat)!, undefined, true);
-  assert.equal(p.leadership, inst.leadership, "who leads, of its ways");
+  // (Read off what those who are not the army want of its numbers: told by the restoration as the rule it is again.)
+  assert.ok([0, 1, 2, 3].includes(p.leadership), "a rule of its own, not the army's");
+  assert.equal(
+    (w.events.get(back.event)!.data as { to?: string }).to,
+    realmName(p),
+    "the restoration tells the rule given back",
+  );
   assert.equal(strifeOf(w)!.junta(p.ref), null);
   const d = w.decisions.get(w.events.get(back.event)!.causes[0]!.ref)!;
   assert.equal(d.rule, "strife.restore");
@@ -218,6 +235,7 @@ test("at a general's death, with none chosen to follow, rule is given back the m
     p = greatest(w),
     ctx = populationContext(w),
     o = orderOf(w)!.of(p.ref)!;
+  armsKept(w, p);
   seize(ctx, p, [], at(1));
   let heirless = 0;
   for (let k = 2; k < 200 && p.leadership === GENERAL; k++) {
@@ -270,6 +288,7 @@ test("the god stirs an army against its seat, and gives a realm back its rule; a
     p = greatest(w);
   assert.throws(() => w.submit("act.restore", { cell: p.seat }), /its army does not rule it/);
   let tries = 0;
+  armsKept(w, p);
   while (p.leadership !== GENERAL && tries++ < 12) {
     w.submit("act.incite", { cell: p.seat });
     w.runTo(w.now + 3);
@@ -293,6 +312,7 @@ test("strife is kept whole by a save, goes on alike after it, and the world repl
   const w = fresh(),
     p = greatest(w),
     ctx = populationContext(w);
+  armsKept(w, p);
   seize(ctx, p, [], at(1));
   foil(ctx, greatest(w), [], at(2));
   const again = loadWorld(saveWorld(w, RULESET), build, RULESET).world;
@@ -312,6 +332,7 @@ test("restore() gives a protectorate back its rule at once", () => {
   const w = fresh(),
     p = greatest(w),
     ctx = populationContext(w);
+  armsKept(w, p);
   seize(ctx, p, [], at(1));
   assert.ok(restore(ctx, p, [], at(2)));
   assert.notEqual(p.leadership, GENERAL);
@@ -338,4 +359,39 @@ test("an army goes unpaid where its treasury cannot pay what it spends on arms, 
   assert.equal(unpaid().value, 1);
   row(5000);
   assert.equal(unpaid().value, 0, "with something by it, its host is paid");
+});
+
+test("what a coup leaves is read off who carried it and who holds the arms after", () => {
+  const groups = (army: number, courtSway: number) =>
+    [
+      { group: "the army", sway: army, people: 1, demands: [] },
+      { group: "the court", sway: courtSway, people: 1, demands: [] },
+    ] as unknown as Parameters<typeof coupKindOf>[0];
+  assert.equal(
+    coupKindOf(groups(0.3, 0.3), 0.8, 0, false),
+    "junta",
+    "arms kept to the host: the army rules",
+  );
+  assert.equal(
+    coupKindOf(groups(0.3, 0.3), 0.3, 0, false),
+    "crowned",
+    "arms in many hands: a general crowned",
+  );
+  assert.equal(coupKindOf(groups(0.1, 0.3), 0.6, 0.6, false), "palace", "a great house carries it");
+  assert.equal(
+    coupKindOf(groups(0.3, 0.3), 0.6, 0.6, true),
+    "junta",
+    "a victorious commander outweighs it",
+  );
+  // On the world: a coup where the arms lie in many hands crowns its general, who rules through the realm's own forms.
+  const w = fresh(),
+    p = greatest(w),
+    o = orderOf(w)!.of(p.ref)!;
+  if (o.held) o.held[HOLD.force] = 20;
+  const coup = seize(populationContext(w), p, [], at(1)),
+    data = w.events.get(coup)!.data as { how?: string };
+  assert.notEqual(p.leadership, GENERAL, "no protectorate");
+  assert.equal(strifeOf(w)!.junta(p.ref), null);
+  assert.ok(data.how === "crowned" || data.how === "palace", String(data.how));
+  assert.match(why(w, coup)!.claim, /coup/);
 });

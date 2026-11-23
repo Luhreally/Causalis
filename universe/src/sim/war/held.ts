@@ -1186,14 +1186,22 @@ function answerAtHome(ctx: PopulationContext, c: Crime, won: boolean, t: SimTime
     !by ||
     by.ended !== null ||
     !was ||
-    (was.how !== "unanswered" && was.how !== "censured" && was.how !== "pardoned")
+    (was.how !== "unanswered" &&
+      was.how !== "censured" &&
+      was.how !== "pardoned" &&
+      was.how !== "dead")
   )
     return false;
   const year = yearOfMoment(t),
     kept = notablesOf(world),
-    doer = c.doer ? kept?.get(c.doer) : undefined;
-  // (Whoever ordered it is dead, or no longer of this realm: there is no one to try. A ruler's own is the realm's.)
-  if (c.doer && (!doer || (doer.realm !== null && doer.realm !== by.ref))) return false;
+    found0 = c.doer ? kept?.get(c.doer) : undefined,
+    // (Whoever ordered it is dead, or no longer of this realm: there is no one to try, and no one standing high to shield it. The
+    // wrong is then the realm's own, as a ruler's is: a later ruler, or its faith, may own it for what it was. Until 2026-11-23 a
+    // wrong whose doer died unanswered was never read again, and 32 of 35 wrongs a century stayed unanswered for ever.)
+    gone = !!c.doer && (!found0 || (found0.realm !== null && found0.realm !== by.ref)),
+    doer = gone ? undefined : found0;
+  // (A doer who died before any reckoning is answered only so: as the realm's own.)
+  if (was.how === "dead" && !gone) return false;
   const faiths = beliefOf(world),
     on = realms.get(c.on),
     ours = faiths.of(by.seat).faith,
@@ -1208,8 +1216,8 @@ function answerAtHome(ctx: PopulationContext, c: Crime, won: boolean, t: SimTime
             0,
             Math.min(1, (doer.standing - (doer.by[DOMAIN.infamy] ?? 0)) / (3 * NOTE.line)),
           )
-        : // (Its ruler ordered it: none stands higher while they rule; a later ruler owes them nothing.)
-          by.ruler.since > c.year
+        : // (Its ruler ordered it: none stands higher while they rule; a later ruler owes them nothing. A doer gone shields no one.)
+          gone || by.ruler.since > c.year
           ? 0
           : 1,
       won: won ? 1 : 0,
@@ -1219,7 +1227,7 @@ function answerAtHome(ctx: PopulationContext, c: Crime, won: boolean, t: SimTime
     how: Reckoned | null =
       found === null
         ? null
-        : c.doer
+        : c.doer && !gone
           ? found
           : found === "censured"
             ? "censured"
@@ -1320,7 +1328,8 @@ export function displacedYear(ctx: PopulationContext, t: SimTime): void {
       c.reckoned.year < year &&
       (c.reckoned.how === "unanswered" ||
         c.reckoned.how === "censured" ||
-        c.reckoned.how === "pardoned") &&
+        c.reckoned.how === "pardoned" ||
+        c.reckoned.how === "dead") &&
       !over.has(c.war)
     )
       answerAtHome(ctx, c, false, t);

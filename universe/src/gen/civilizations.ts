@@ -53,6 +53,12 @@ export type Civilization = {
   readonly electronics: number;
   readonly orbit: number;
   readonly stars: number;
+  /**
+   * The year it fell, where its own numbers read it fallen (sim/space/farlife-read.ts civLived; absent or null: it stands). The
+   * years above are then its own numbers' too, never where they never came to it; as first made they are its drawn pace times
+   * HOME_PACE, which history reads only for a people whose body is not read.
+   */
+  readonly fell?: number | null;
 };
 
 /** The key a far world's own life is read by (B4): the home seed's text and the world's place. */

@@ -182,6 +182,8 @@ export const FAR_LIFE = {
   mends: 0.32,
   /** Fallen: its people down to this share of the most it ever was, where it once had towns. */
   falls: 0.15,
+  /** Fewer than this of them left is no people at all: a band's worth cannot keep its young (est.). */
+  band: 50,
   /** A generation of a 70-year body (years). */
   generation: 25,
 } as const;
@@ -539,8 +541,12 @@ export function farStep(
     now = { ...mid, cohesion, broken, know, peak },
     r = rungOf(f, now),
     top = Math.max(s.top, r),
-    // —— Fallen: down to a few of the most they were, where they once had towns.
-    fell = s.top >= 2 && people < FAR_LIFE.falls * peak ? year : null;
+    // —— Fallen: down to a few of the most they were, where they once had towns; or, where they once had villages, to fewer than a
+    // band's worth (until 2026-11-23 a people of villages could dwindle to one and stand). A people of camps leaves no ruins.
+    fell =
+      (s.top >= 2 && people < FAR_LIFE.falls * peak) || (s.top >= 1 && people < FAR_LIFE.band)
+        ? year
+        : null;
   return { ...now, rung: fell === null ? r : 0, top, fell, people: fell === null ? people : 0 };
 }
 

@@ -23,15 +23,43 @@ export const STRIFE_CONCEPTS: Readonly<Record<string, Concept>> = {
     title: "A coup",
     what: [
       "Where a realm's rule is doubted, a general may reach for its seat. The army weighs it by its own sway, the battles lost (it blames the court) or won (a victorious general has a following), an army unpaid in a hungry year, what is skimmed and a people who prize valour — and against it a seat that reaches its lands, an army of citizens under an assembly, a sacred throne, an old rule. Above the line, it is the likelier each year the further above.",
-      "A coup tried is won the more often the more the army is heard and the more the rule is doubted. Won, the general takes the seat and the realm becomes a protectorate, ruled by its army; the old court's skimmers are purged. Foiled, the plotters are purged, the army cowed for twenty years, and the court stands the firmer for a while.",
+      "A coup tried is won the more often the more the army is heard and the more the rule is doubted. Won, what follows is read off who carried it and who holds the arms after: where a great house that outweighs the crown carried it more than the army did, its head takes the throne and the realm is ruled as its court would have it (a palace coup); where the seat keeps the arms to its host, the general takes the seat and the realm becomes a protectorate, ruled by its army; where the arms lie in too many hands for an army to hold it, the general takes the throne and rules through the realm's own forms. The old court's skimmers are purged; a charter its people wrote is torn up by a general, kept by a house. Foiled, the plotters are purged, the army cowed for twenty years, and the court stands the firmer for a while.",
     ],
     drives: [
       "A rule doubted; the army's sway; battles lost or won; hunger at the seat; corruption; valour.",
       "Against it: a seat's reach, an assembly, a priest-king, an old rule.",
     ],
-    leads: ["A protectorate, ruled by its army — or plotters purged."],
+    leads: [
+      "A protectorate, ruled by its army; a general crowned; a great house on the throne — or plotters purged.",
+    ],
     see: [LEDGER],
     related: ["army-sway", "military-rule", "legitimacy", "corruption"],
+  },
+  charter: {
+    icon: "📜",
+    title: "A realm's charter, and what it does with it",
+    what: [
+      "A realm that can write, whose choices are carried by more than its great and which binds itself, may write down its rule in a charter, the sooner after its people's say was widened. It is entrenched as far as the realm binds itself: a change of its rule then needs from a half to eight in ten of its people's say. Where its choices are carried by many, a change of rule is put to them all: each group's heads vote by whether the change moves the realm's say the way that group has learned to want it moved. A charter makes a coup the harder; a general who seizes the seat tears it up.",
+      "In danger — a war going against it, its seat starving — a realm whose people have a say may take powers past it for a time, the readier the more its seat keeps the arms; they lapse when the danger has passed, or are kept for good where the seat keeps the arms and no charter binds it. Its rule is not remade while they last.",
+      "A seat leaves far lands that have towns to councils of their own, the more as its choices are carried by many; a land that rules itself chafes the less at a far seat. And of its grown, those of the sex that bears are heard as far as their people's roles give them a seat (from how unlike the sexes' bodies are and the people's own norm); a realm's say is never wider than those it hears.",
+    ],
+    drives: ["Writing, a wide voice, trust; danger; distance and towns; the people's roles."],
+    leads: [
+      "Changes of rule put to the people; coups the harder; powers taken and given back; far lands the quieter.",
+    ],
+    see: [LEDGER],
+    related: ["coup", "military-rule", "legitimacy", "realms"],
+  },
+  "ruler-temper": {
+    icon: "🎭",
+    title: "A ruler's temper",
+    what: [
+      "A ruler is raised among their people and is also their own: how bold, how grasping and how zealous they are is half their people's ways (valour, thrift, piety) and half their own nature, the same at every reading. A bold ruler seeks a war the readier, a cautious one holds back; a grasping one asks the more tithe of the lands; a zealous one presses a holy war the harder. A ruler's temper carries the seat as far as its choices are carried by few: an assembly's speaker is no king.",
+    ],
+    drives: ["Their people's ways; who they are; how few carry the realm's choices."],
+    leads: ["Wars sought or held back; the tithe; holy wars."],
+    see: [LEDGER],
+    related: ["tithe", "war", "realms"],
   },
   "military-rule": {
     icon: "🎖️",
@@ -52,12 +80,12 @@ export const STRIFE_CONCEPTS: Readonly<Record<string, Concept>> = {
     icon: "⚔️",
     title: "A civil war",
     what: [
-      "A realm may go to war with itself. When a ruler dies in a crisis and its far lands break away under a rival claimant, the claimant fights for the throne — seven times in ten where rule passes by birth (kin's claims are the hardest to set aside), less where it passes by choice or by acclaim. A general whose coup was foiled may flee to the far lands and raise them; a revolution's old court may do the same; the god may raise a pretender. And where the bound rose and won a realm of their own, their old masters — where they still hold the bound, keep to rank and are the stronger — may march on them to take them back.",
+      "A realm may go to war with itself. When a ruler dies in a crisis and its far lands break away under a rival claimant, the claimant fights for the throne as far as their host can hope to take it: by its strength against the realm's, and the more among a people who prize valour. A throne is contested at a death where no choice binds those who lose it, where arms lie in many hands to back a rival, and, where rule passes by birth, the more as its people count kin first. A general whose coup was foiled may flee to the far lands and raise them; a revolution's old court may do the same; the god may raise a pretender. And where the bound rose and won a realm of their own, their old masters — where they still hold the bound, keep to rank and are the stronger — may march on them to take them back.",
       "Its host marches on the realm's seat, battle by battle, as in any war. If it takes the seat, the throne is the claimant's: the old realm falls and its lands pass to the new. When peace comes short of that, whether the rising is put down is weighed: the likelier if it was beaten back, the more the realm's host outweighs its own, and the less the farther the realm's seat is from reaching those lands — a realm that broke because it could not hold its far lands seldom wins them back. Put down, its realm ends and its lands return, aggrieved; else the realm stays parted for good. The freed, taken back, are bound again.",
     ],
     drives: [
       "A succession in crisis; a foiled coup; a revolution; the god's hand; the freed.",
-      "Rule by birth, for a throne contested.",
+      "For a throne contested: a narrow voice, arms in many hands, many kin; the claimant's host against the realm's.",
     ],
     leads: ["A throne taken, a rising put down, or a realm parted; the fallen of both sides."],
     see: [LEDGER],
@@ -89,6 +117,11 @@ export const STRIFE_CONCEPT_OF: Readonly<Record<string, string>> = {
   "Its army's sway": "army-sway",
   "A coup": "coup",
   Coups: "coup",
+  Charter: "charter",
+  "Emergency powers": "charter",
+  "Far towns' own councils": "charter",
+  "Who is heard": "charter",
+  "Its ruler's temper": "ruler-temper",
   "Ruled by their armies now": "military-rule",
   "Rule restored": "military-rule",
   "A civil war": "civil-war",

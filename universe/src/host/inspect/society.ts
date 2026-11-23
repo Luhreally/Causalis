@@ -13,6 +13,9 @@ import {
   KEEPING_MEANS,
   gamesIn,
   tableWords,
+  entryParts,
+  exitParts,
+  gateWords,
   type KeepingMean,
 } from "../../rules/index.ts";
 import {
@@ -36,6 +39,8 @@ import {
   TABLE_STORE,
   ROOFLESS_STORE,
   ROOF_ROW,
+  bordersOf,
+  gateRead,
   populationContext,
   societyStore,
   type Polity,
@@ -334,6 +339,27 @@ export function realmLawBlocks(world: World, r: Polity): Block[] {
       stat("A tiller keeps of what he puts into his land", per(law[LAW_ROW.tenure]!)),
     ];
     blocks.push({ type: "facts", title: "Its law", rows });
+  }
+  // (Who may leave it and who may come in: sim/population/flight.ts, rules/borders.ts. Told where it has ever barred either.)
+  const gates = bordersOf(world)?.of(r.ref);
+  if (gates) {
+    const read = gateRead(populationContext(world), r),
+      parts = (xs: { name: string; by: number }[]) =>
+        xs.filter((x) => x.by !== 0).map((x) => part(x.name, pc(x.by)));
+    blocks.push({
+      type: "facts",
+      title: "Its gates",
+      rows: [
+        stat("Its people", gateWords("exit", gates.exit / 100), {
+          why: gates.exitEvent,
+          parts: parts(exitParts(read)),
+        }),
+        stat("Strangers", gateWords("entry", gates.entry / 100), {
+          why: gates.entryEvent,
+          parts: parts(entryParts(read)),
+        }),
+      ],
+    });
   }
   const pro = societyStore(world, PROVISION_STORE)?.get(r.ref);
   if (pro)
