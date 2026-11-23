@@ -8,8 +8,18 @@
 // fewer, its realm's hand takes none of it, its standing is what was set. Nothing is kept and nothing is hashed while no one
 // has acted: a world no one touches runs exactly as before. A faith's clergy are a body that keeps worship, a lending circle a
 // group, a paper a body: each is reached as one of these (a house of lending has its own acts: sim/credit).
-import { defineEventType, yearOfMoment, type Ref, type World } from "../../kernel/index.ts";
-import { ORG_KINDS, ORG_STANDING } from "../../rules/index.ts";
+import {
+  defineEventType,
+  yearOfMoment,
+  type Factor,
+  type Ref,
+  type SimTime,
+  type World,
+} from "../../kernel/index.ts";
+import { ORG_AIMS, ORG_BASES, ORG_KINDS, ORG_STANDING, type OrgAim } from "../../rules/index.ts";
+import { interestsOf, type Group } from "../polity/interests.ts";
+import type { Polity } from "../polity/polity.ts";
+import { beliefOf } from "../belief/belief.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { politiesOf, realmName } from "../polity/polity.ts";
 import { orgsOf, type Org, type RealmOrgs } from "./groups-kept.ts";
@@ -97,6 +107,201 @@ export type CharterAct = (typeof CHARTER_ACTS)[number];
 export const GROUP_ACT_YEARS = 20;
 /** What outlawing the strongest of a realm's groups costs its ruler's standing (a share of how strong it is among them). */
 export const OUTLAW_COSTS = 0.04;
+
+// —— A realm's own word on its groups, and how far an outlawing by name bites ————————————————————————————————
+
+/**
+ * How far a realm's hand bites on a group it outlawed by name (0 … 1): how far its will is done in the group's lands (its
+ * capacity as it reaches each, sim/order/order.ts reachOver: the mean of them). ORG.fears of what its stakes would gather stay away at a full bite, and its crackdown takes
+ * of it at least the bite (sim/order/groups.ts). (Before 2026-11-22 an outlawing by name was the same as any outlawing: a
+ * crackdown of a few in a hundred a year against stakes that drew men back at a third a year, and of seven groups the god
+ * outlawed on tide at 1000, four were larger fifteen years on than in the same world unhanded, one three times.)
+ */
+export function namedBite(reach: readonly number[]): number {
+  if (!reach.length) return 0;
+  let s = 0;
+  for (const x of reach) s += x;
+  return Math.min(1, Math.max(0, s / reach.length));
+}
+
+/**
+ * What each of a realm's interests wants of a group, by what it does (-1 … 1), as sim/order/laws.ts weighs a law: the court
+ * wants no rival rule, justice, party or free word, and cheap guards; the army no rival arms; the temple its own faith kept and
+ * no inquiry; traders their leagues, their lending and guards on their roads; crafters and farmers what aids and lends to them.
+ * What preys, smuggles, rises, plots or harbours the fled is outlawed by the realm's rule already (rules/groups.ts outlawedAim).
+ */
+const AIM_WANTS: Readonly<Record<Group, Readonly<Partial<Record<OrgAim, number>>>>> = {
+  farmers: { aid: 0.6, lend: -0.3, guard: 0.3, office: 0.2 },
+  herders: { aid: 0.3, guard: 0.4 },
+  crafters: { aid: 0.4, lend: 0.3, trade: -0.3, office: 0.3, inquire: 0.3 },
+  traders: { trade: 1, lend: 0.6, guard: 0.4, hire: 0.2, inquire: 0.3 },
+  "the court": {
+    rule: -1,
+    enforce: -0.6,
+    office: -0.4,
+    inquire: -0.4,
+    guard: 0.2,
+    hire: 0.2,
+    trade: 0.2,
+  },
+  "the temple": { worship: 0.5, inquire: -0.6, aid: 0.4 },
+  "the army": { rule: -0.6, hire: -0.6, guard: -0.4, enforce: -0.3 },
+};
+
+/** A realm decrees on a group by name past this much want, either way, of its interests by their sway. */
+export const DECREE = {
+  line: 0.2,
+  /** A realm's own word holds so long (years), and is weighed again when it lapses. */
+  years: 50,
+  /** Only on a group this strong among the realm's groups (thousandths). */
+  strong: 200,
+  /** A realm outlaws by name only as far as it can carry it (its capacity), and either way only where its rule stands. */
+  reach: 0.35,
+  rule: 0.45,
+} as const;
+
+/** A realm's want of a group (-1 … 1): its interests' wants of what the group does, by their sway; and whose want is most. */
+function wantOf(
+  g: Org,
+  sway: ReadonlyMap<Group, number>,
+  seatFaith: Ref | null,
+): { want: number; most: Group | null; mostWant: number } {
+  let want = 0,
+    most: Group | null = null,
+    mostWant = 0;
+  const party = ORG_BASES[g.basis] === "interest" ? g.identity : null;
+  for (const [i, s] of sway) {
+    if (!(s > 0)) continue;
+    let w = 0;
+    for (let k = 0; k < ORG_AIMS.length; k++) {
+      const a = (g.aims[k] ?? 0) / 1000;
+      if (a <= 0) continue;
+      const aim = ORG_AIMS[k]!;
+      let x = AIM_WANTS[i][aim] ?? 0;
+      // (A faith kept: the temple's own, or another's; a party: its own interest's, or a rival's.)
+      if (aim === "worship" && i === "the temple" && g.identity && g.identity !== seatFaith) x = -1;
+      if (aim === "office" && party) x = party === i ? 1 : -0.3;
+      w += a * x;
+    }
+    want += s * w;
+    if (Math.abs(s * w) > Math.abs(mostWant)) {
+      mostWant = s * w;
+      most = i;
+    }
+  }
+  return { want, most, mostWant };
+}
+
+/**
+ * A realm's own word on its groups, in its groups' reckoning (sim/order/groups.ts), before its rule reads how it holds each:
+ * of its groups let be, not in another's pay or under the god's hand, the strong one its interests by their sway want most
+ * gone or most kept, past DECREE.line, is outlawed or chartered by name for DECREE.years, by its ruler, as a ruler the god
+ * rules through would; at a cost to the ruler's standing where what is outlawed is strong. One a reckoning at most. A realm
+ * outlaws so only as far as it can carry it (its capacity), and either way only where its rule stands. Decided with its
+ * factors (rule "reign.decree") and told as any ruler's word (`reign.charter`, its data's `own` set).
+ */
+export function realmDecrees(
+  ctx: PopulationContext,
+  p: Polity,
+  orgs: readonly Org[],
+  read: { readonly capacity: number; readonly legitimacy: number },
+  t: SimTime,
+): void {
+  if (read.legitimacy < DECREE.rule || !orgs.length) return;
+  const { world } = ctx,
+    year = yearOfMoment(t),
+    // (Its interests are read only where a group could be decreed on: most reckonings have none.)
+    can = orgs.filter(
+      (g) =>
+        g.standing === 1 &&
+        g.decree === undefined &&
+        !g.patron &&
+        g.hand !== 2 &&
+        g.power >= DECREE.strong &&
+        g.since < year,
+    );
+  if (!can.length) return;
+  const sway = new Map<Group, number>(interestsOf(ctx, p, t).map((i) => [i.group, i.sway])),
+    seatFaith = world.hasStore("belief.faiths") ? beliefOf(world).of(p.seat).faith : null;
+  let best: { g: Org; want: number; most: Group | null; mostWant: number } | null = null;
+  for (const g of can) {
+    const w = wantOf(g, sway, seatFaith),
+      size = Math.abs(w.want) * g.power;
+    if (Math.abs(w.want) < DECREE.line) continue;
+    if (w.want < 0 && read.capacity < DECREE.reach) continue;
+    const bestSize = best ? Math.abs(best.want) * best.g.power : -1;
+    if (size > bestSize || (size === bestSize && best && g.id < best.g.id)) best = { g, ...w };
+  }
+  if (!best) return;
+  const { g, want } = best,
+    outlaw = want < 0,
+    until = year + DECREE.years,
+    cost = outlaw ? OUTLAW_COSTS * (g.power / 1000) : 0;
+  g.decree = outlaw ? 0 : 2;
+  g.decreeUntil = until;
+  const o = orderOf(world)?.of(p.ref);
+  if (o && cost > 0) o.legitimacy = Math.max(0.02, o.legitimacy - cost);
+  const factors: Factor[] = [
+      {
+        name: outlaw ? "what its powerful lose by it" : "what its powerful gain by it",
+        value: want,
+        contribution: Math.abs(want),
+        source: null,
+      },
+      ...(best.most
+        ? [
+            {
+              name: `the sway of ${best.most}`,
+              value: sway.get(best.most) ?? 0,
+              contribution: Math.abs(best.mostWant),
+              source: null,
+            },
+          ]
+        : []),
+      {
+        name: "its strength among the realm's groups",
+        value: g.power / 1000,
+        contribution: g.power / 1000,
+        source: { ref: g.event, role: "enabler", weight: 1 },
+      },
+      {
+        name: outlaw ? "a seat that can carry it" : "a rule that stands",
+        value: outlaw ? read.capacity : read.legitimacy,
+        contribution: 0.2,
+        source: null,
+      },
+    ],
+    decision = world.decisions.record({
+      rule: "reign.decree",
+      subject: p.ref,
+      outcome: { group: g.name, to: outlaw ? "outlaw" : "charter" },
+      score: Math.abs(want),
+      threshold: DECREE.line,
+      factors,
+    });
+  world.events.emit({
+    type: GROUP_HAND_EVENTS.charter.type,
+    subjects: [p.ref],
+    place: ctx.provinces.get(g.home)?.ref ?? null,
+    causes: [
+      { ref: decision, role: "trigger", weight: 1 },
+      { ref: g.event, role: "enabler", weight: 1 },
+    ],
+    data: {
+      realm: realmName(p),
+      by: p.ruler.name,
+      name: g.name,
+      what: ORG_KINDS[g.kind] ?? "group",
+      to: outlaw ? "outlaw" : "charter",
+      was: ORG_STANDING[g.standing] ?? "let be",
+      until,
+      gids: [g.id],
+      own: 1,
+      ...(best.most ? { for: best.most } : {}),
+      ...(cost > 0 ? { cost: Math.round(cost * 1000) / 1000 } : {}),
+    },
+  });
+}
 
 /** A group by the event it rose by, with its realm's record (null: none stands so). */
 function findOrg(

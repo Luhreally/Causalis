@@ -7,6 +7,13 @@
 // an insurgency, told; at its height, where no realm of their own is near to take them back, the land throws off its holder
 // and goes its own way. A land that has borne its holder a generation without resisting is held, not occupied, and let go.
 // A few numbers a land taken, kept only while it is held so.
+// (2026-11-22, the audit's item 12: raids stopped late in history. Two readings were wrong. The host a holder keeps in a land
+// was its whole war levy where it kept a standing army, at peace as at war, so every land of a great realm held three to
+// five times the soldiers it can keep under arms at peace, and resistance never grew: first light had 566 raids a century
+// at 300, 3 at 1000 and none at 1500. A holder's host in a land is now what it keeps under arms at home (its standing army,
+// or its guard), shared over its lands, less what its wars have called to the field. And a host's presence cows those who
+// waver, not those already sworn: it puts down resistance the less, the more of the land stands with those who fight;
+// raids beaten off are what cow the sworn (sim/war/raids.ts). Those who fight bear the arms of their age within their reach.)
 import {
   defineEventType,
   dmath,
@@ -29,8 +36,11 @@ import { cutOff, politiesOf, realmName, type Polity } from "../polity/polity.ts"
 import { cultureOf } from "../culture/culture.ts";
 import { beliefOf } from "../belief/belief.ts";
 import { holdsOf } from "../order/holds.ts";
-import { armyOf } from "../strife/strife.ts";
-import { raidIn } from "./raids.ts";
+import { STRIFE } from "../strife/strife.ts";
+import { loreOf } from "../lore/lore.ts";
+import { armsKept, fieldedAtPeace, warsOf } from "./war.ts";
+import { armsOf } from "./arms.ts";
+import { raidIn, type RaidArms } from "./raids.ts";
 
 export const OCCUPATION_EVENTS = {
   /** Those of a land held by force took up arms against its holder, or were put down, or threw it off. */
@@ -168,13 +178,40 @@ export function occupationYear(ctx: PopulationContext, t: SimTime): void {
     culture = cultureOf(world),
     faiths = beliefOf(world),
     relief = reliefOf(ctx.generated),
-    hosts = new Map<Ref, number>();
-  // (A holder's host, a land: what it keeps under arms over the lands it holds, the nearer its seat the more.)
+    hosts = new Map<Ref, number>(),
+    kits = new Map<Ref, ReturnType<typeof armsOf>>(),
+    lore = loreOf(world),
+    wars = world.hasStore("war.wars") ? warsOf(world) : null;
+  // (A holder's host, a land: what it keeps under arms at home, its standing army or else its guard, shared over its lands;
+  // of it, what its wars have called to the field is not posted.)
   const hostOf = (p: Polity) => {
     let h = hosts.get(p.ref);
-    if (h === undefined)
-      hosts.set(p.ref, (h = armyOf(ctx, p).people / Math.max(1, p.members.length)));
+    if (h === undefined) {
+      const kept = lore.get(p.seat, "standing-army")
+          ? armsKept(ctx, p).standing
+          : fieldedAtPeace(ctx, p) * STRIFE.guard,
+        away = wars && wars.fighting(p.ref).length > 0 ? STRIFE.levy : 0;
+      hosts.set(p.ref, (h = (kept * (1 - away)) / Math.max(1, p.members.length)));
+    }
     return h;
+  };
+  const kitOf = (p: Polity) => {
+    let k = kits.get(p.ref);
+    if (!k) kits.set(p.ref, (k = armsOf(ctx, p)));
+    return k;
+  };
+  // (What those who fight bear: the arms of their age as far as their arms were left in their hands, taken from the posted or
+  // bought; or the kit of the realm they were taken from, where it still stands to send it. Their fire against the posted's.)
+  const armsFor = (holder: Polity, from: Polity | undefined, armed: number): RaidArms => {
+    const h = kitOf(holder),
+      f = from && from.ended === null && from !== holder ? kitOf(from) : null,
+      own = h.bare + armed * Math.max(0, h.power - h.bare),
+      power = Math.max(own, f?.power ?? 0),
+      fire = Math.max(armed * h.fire, f?.fire ?? 0);
+    return {
+      ratio: Math.min(1.5, power / Math.max(1e-9, h.power)),
+      fire: Math.min(1, fire / Math.max(1e-9, h.power + h.fire)),
+    };
   };
   for (const c of store.cells()) {
     const o = store.held(c)!,
@@ -207,7 +244,7 @@ export function occupationYear(ctx: PopulationContext, t: SimTime): void {
         dmath.clamp(
           was +
             OCCUPYING.grow * grievance * (0.5 + ground) * (0.5 + armed) -
-            OCCUPYING.quell * garrison * (1 - 0.5 * ground),
+            OCCUPYING.quell * garrison * (1 - 0.5 * ground) * (1 - was),
           0,
           1,
         ) * 1000,
@@ -251,6 +288,7 @@ export function occupationYear(ctx: PopulationContext, t: SimTime): void {
         o.resistance,
         ground,
         hostOf(holder),
+        armsFor(holder, realms.get(o.from), armed),
         o.event,
         t,
       );

@@ -182,6 +182,13 @@ export const ORG = {
   thins: 0.1,
   /** A realm cracks down on what it outlaws: the share of an outlawed group's men taken a year at a full crackdown. */
   taken: 0.15,
+  /**
+   * A group outlawed by name (a decree: the god's, its ruler's, its realm's own) has its realm's hand turned on it as far as the
+   * realm reaches it and can act (how far its will is done in the group's lands: sim/order/grouphand.ts namedBite): of
+   * those its stakes would gather, this share at a full bite stay away for fear, and its crackdown takes of it at the least the
+   * bite itself. An outlawing the realm cannot carry where the group is does little.
+   */
+  fears: 0.6,
   /** A federation forms of this many groups of one first aim. */
   fedOf: 2,
   /** How far a party's organisation holds its interest's votes to its own candidate, and adds to what is given him. */

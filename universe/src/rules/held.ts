@@ -105,8 +105,8 @@ export const FLED = {
   strainMost: 0.04,
 } as const;
 
-/** What put the fled on the road. */
-export const FLED_KINDS = ["war", "ruin", "hunger"] as const;
+/** What put the fled on the road (a law against their faith: sim/population/flight.ts). */
+export const FLED_KINDS = ["war", "ruin", "hunger", "faith"] as const;
 export type FledKind = (typeof FLED_KINDS)[number];
 
 /**

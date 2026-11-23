@@ -2,7 +2,7 @@
 // is, drawn in its own body; when it came to signals, to orbit and to the stars; its nature;
 // the stars it holds and how it came by each; its ships under way; whom it met, how each met
 // the other and how they stand now; what has passed between them; its wars.
-import { farHouseOf, farRulerOf, peopleTemper } from "../../sim/index.ts";
+import { farHouseOf, farReignsOf, farRulerOf, peopleTemper } from "../../sim/index.ts";
 import { civBody } from "../../gen/index.ts";
 import {
   civilizationsEver,
@@ -196,6 +196,7 @@ export function civilizationPage(world: World, ref: string): PageModel {
     stat("Bold", `${Math.round(n.bold * 100)}%`, under(n.bold, own.bold)),
     stat("Given to trade", `${Math.round(n.trading * 100)}%`, under(n.trading, own.trading)),
   ];
+  const heardOf = farReignsOf(world)?.of(c.ref);
   const leadRows: Stat[] = ruler
     ? [
         stat(
@@ -214,6 +215,16 @@ export function civilizationPage(world: World, ref: string): PageModel {
             ]
           : []),
         stat("Against their people", bents.length ? bents.join(", ") : "much as their people are"),
+        // (What their signals last told of their seat: sim/space/far-reigns.ts.)
+        ...(heardOf?.event
+          ? [
+              stat(
+                "Last heard of their seat",
+                `the house of ${heardOf.house}, the ${ordinal(heardOf.reign + 1)} reign`,
+                { why: heardOf.event },
+              ),
+            ]
+          : []),
       ]
     : [];
   const holdItems: Item[] = holds.map((h) =>

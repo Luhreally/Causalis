@@ -1320,12 +1320,21 @@ function stepRealm(
     }
   }
   // (A governed trade closes itself against a works that makes its good in its land with hands the trade does not hold: the
-  // same thing from the masters' side. The seat upholds a charter it gave, and the works is held to what the trade allows; or
-  // it sides with the works, and the trade's hold is broken.)
+  // same thing from the masters' side. What moves it is its members' rent: what its good fetches in its land, by how far the
+  // trade still holds its crafters as one (the labour's numbers), against what it was as they have known it; where it slips
+  // and a works' roof holds the hands of its good, the trade asks its seat to close the craft to the works. The seat upholds a
+  // charter it gave, and the works is held to what the trade allows; or it sides with the works, and the trade's hold is
+  // broken. Before 2026-11-22 it was weighed by the share of all its land's crafters the trade held, a few in a thousand of
+  // them in every world, and in six worlds' runs none ever closed.)
+  const prices = marketsOf(world);
   for (const g of v.bodies) {
     if (g.does !== DOES.craft || g.since >= year || g.standing === 0) continue;
+    const l = lands.get(g.home)!,
+      price = g.of >= 0 ? (prices.get(g.home)?.price[g.of] ?? 0) : 1,
+      rent = price * (0.5 + 0.5 * l.guild),
+      was = (g.mark ?? 0) / 1000;
+    g.mark = Math.round(1000 * (was > 0 ? 0.5 * was + 0.5 * rent : rent));
     if (g.struck !== undefined && year - g.struck < INST.strikeGap) continue;
-    const l = lands.get(g.home)!;
     // (The works of its own good first; else the greatest of its land, whose roof takes the hands its crafts would have:
     // over a world's thousand years no works of a trade's own good stood beside it with both strong, and none was closed against.)
     let works: Body | undefined;
@@ -1336,10 +1345,11 @@ function stepRealm(
       if (mine > best || (mine === best && x.staff > works!.staff)) works = x;
     }
     if (!works || l.crafters <= 0) continue;
-    const under = works.staff / l.crafters,
-      held = g.staff / l.crafters;
-    // (A works of another good must hold twice the hands to be the trade's quarrel.)
-    if (under < INST.strikeLeast * (works.of === g.of ? 1 : 2) || held < INST.strikeLeast) continue;
+    // (Its rent slipped; of the hands of its good, those under the works' roof: a works of another good counts half.)
+    const slipped = was > 0 ? dmath.clamp(1 - rent / was, 0, 1) : 0,
+      under = (works.staff / (works.staff + g.staff)) * (works.of === g.of ? 1 : 0.5),
+      threat = slipped * under;
+    if (threat < INST.closeLeast) continue;
     if (f.u(310 + g.id * 4) >= 1 - dmath.pow(0.5, span / 10)) continue;
     const upheld =
       g.standing === 2 && f.u(311 + g.id * 4) < 0.35 + 0.5 * r.legitimacy - 0.4 * r.force;
@@ -1355,6 +1365,7 @@ function stepRealm(
         title: titleOf(g, l),
         outcome: upheld ? "upheld" : "overruled",
         closed: 1,
+        slipped: Math.round(slipped * 100),
         out: Math.round(g.staff),
         leader: g.leader.name,
         works: works.name,
@@ -1365,8 +1376,9 @@ function stepRealm(
         { ref: works.event, role: "pressure", weight: 1 },
       ],
       [
-        factor("of its land's crafters, under the works' roof", under, under),
-        factor("of them, held by their trade", held, held),
+        factor("its members' rent, slipped", slipped, slipped),
+        factor("of the hands of its good, under the works' roof", under, under),
+        factor("of its land's crafters, held by their trade", l.guild, 0.2 * l.guild),
         factor(
           upheld ? "a charter the seat upholds" : "a seat that sides with the works",
           r.legitimacy,
@@ -1944,8 +1956,9 @@ function writeLands(
       l.ground.readers *
       (INST.praises * kept * r.legitimacy - INST.tells * free * l.grievance * r.word);
   }
-  v.reach = Math.round(dmath.clamp(reach, -1, 1) * INST.reach * 10000);
-  v.told = Math.round(told * 10000);
+  v.reach = Math.round(dmath.clamp(reach, -1, 1) * INST.reach * 10000) || 0;
+  // (Never a negative zero: a save written as text reads it back as zero, and the record no longer matches itself.)
+  v.told = Math.round(told * 10000) || 0;
   // (How far its voices reach those of its people who read: sim/order/voice.ts reads it where the seat's word is weighed.)
   if (reading > 0 && voiced > 0) v.voice = Math.round((1000 * voiced) / reading);
   else delete v.voice;

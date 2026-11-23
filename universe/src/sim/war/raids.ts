@@ -4,7 +4,11 @@
 // none has, they are the land's own, unnamed. While a land is risen they fall on the soldiers posted there once a year: as
 // many as its resistance draws of its fighting people, as its ground hides them, against the host its holder keeps in it.
 // Both sides' dead are real (drawn from the land, and from the holder's seat that sent its host) and written. A raid that
-// costs the posted more than the raiders hardens the land; one beaten off cows it. No draw decides it. Level: an event a
+// costs the posted more than the raiders hardens the land; one beaten off cows it. No draw decides it. Each side fights with
+// the arms of its age: those who fight with what their holder's arms law left them, taken from the posted or bought, or with
+// what the realm they were taken from sends; where those arms are fire, a few strike from cover before the posted can answer,
+// and are gone before the rest come up (2026-11-22: as if the posted and their foes bore the same spears, no raid on first
+// light from 1000 on cost the posted more than the raiders, and none on tide ever did). Level: an event a
 // risen land a year, with a group and a named leader where one exists. Told, and watched in the town's streets
 // (host/inspect/streetfight.ts).
 import { defineEventType, yearOfMoment, type Ref, type SimTime } from "../../kernel/index.ts";
@@ -31,7 +35,15 @@ export const RAID = {
   cows: 0.08,
   /** No raid of fewer than this. */
   least: 15,
+  /** How far fire in their hands, at its fullest, multiplies what those who choose their hour do to the posted. */
+  fire: 2,
 } as const;
+
+/**
+ * What those who fight bear against the posted: their kit's power against the posted's (`ratio`, 0 … 1.5), and how far the
+ * arms in their hands are fire (`fire`, 0 … 1: none on a world of spears).
+ */
+export type RaidArms = { readonly ratio: number; readonly fire: number };
 
 /** The group of a realm's that fights its holder in a land (null: the land's own, unnamed). */
 export function fightersOf(
@@ -73,6 +85,7 @@ export function raidIn(
   resistance: number,
   ground: number,
   posted: number,
+  arms: RaidArms,
   cause: Ref | null,
   t: SimTime,
 ): { by: number; event: Ref } | null {
@@ -86,14 +99,16 @@ export function raidIn(
     ),
     garrison = Math.round(posted);
   if (out < RAID.least || garrison < 1) return null;
-  // (Hidden by their ground they choose their hour: they count for more than their number; the posted for their own.)
-  const weight = out * (0.5 + ground),
+  // (Hidden by their ground they choose their hour: they count for more than their number, as their arms are against the
+  // posted's, the more where they strike first with fire from cover; the posted count for their own.)
+  const weight = out * (0.5 + ground) * arms.ratio * (1 + RAID.fire * arms.fire),
     met = Math.min(weight, garrison),
     lostPosted = Math.min(garrison, Math.round(RAID.bite * met * Math.min(2, weight / garrison))),
-    // (Those who choose their hour and their ground lose the fewer for it.)
+    // (Those who choose their hour and their ground, or strike from afar and are gone, lose the fewer for it.)
+    hide = Math.max(ground, 0.5 * arms.fire),
     lostRaiders = Math.min(
       out,
-      Math.round(RAID.bite * met * Math.min(2, garrison / weight) * (1 - 0.6 * ground)),
+      Math.round(RAID.bite * met * Math.min(2, garrison / weight) * (1 - 0.6 * hide)),
     ),
     key = cell * 2,
     deadRaiders = killOf(ctx, cell, pool.rows, lostRaiders, t, key, 20),
@@ -119,6 +134,7 @@ export function raidIn(
         posted: garrison,
         dead: [deadPosted, deadRaiders],
         won,
+        ...(arms.fire > 0.05 ? { fire: Math.round(arms.fire * 100) } : {}),
         ...(group
           ? { group: group.name, kind: group.kind, leader: group.leader, gid: group.id }
           : {}),

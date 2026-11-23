@@ -235,7 +235,7 @@ function landBurns(world: World, cell: number): { burns?: readonly LandBurn[] } 
 
 /** The first id of a camp of the fled among a land's camps (a band's are numbered from 0). */
 export const FLED_CAMP = 900;
-const FLED_WHY = ["a war", "a ruin", "hunger"] as const;
+const FLED_WHY = ["a war", "a ruin", "hunger", "a law against their faith"] as const;
 
 /**
  * The camps of those who fled to a land and have not yet settled into it (sim/war/held.ts): the three greatest, each of

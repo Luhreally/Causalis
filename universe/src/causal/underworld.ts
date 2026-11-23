@@ -22,6 +22,8 @@ type Data = {
   share?: number;
   house?: string;
   federation?: string;
+  /** A federation of a people abroad's gangs: that people. */
+  people?: string;
   towns?: number;
   fallen?: number;
   pact?: number;
@@ -165,7 +167,7 @@ registerEventWords(UNDERWORLD_EVENTS.ended.type, (_, e) => {
 registerEventWords(
   UNDERWORLD_EVENTS.federation.type,
   (_, e) =>
-    `The street gangs of ${d(e.data)?.towns ?? "several"} of ${realm(e.data)}'s towns allied as the ${d(e.data)?.federation ?? "one"} federation${d(e.data)?.against ? `, against the ${d(e.data)!.against}` : ""}, ${year(e.t)}`,
+    `The street gangs ${d(e.data)?.people ? `of the ${d(e.data)!.people} abroad in` : "of"} ${d(e.data)?.towns ?? "several"} of ${realm(e.data)}'s towns allied as the ${d(e.data)?.federation ?? "one"} federation${d(e.data)?.against ? `, against the ${d(e.data)!.against}` : ""}, ${year(e.t)}`,
 );
 registerEventWords(
   UNDERWORLD_EVENTS.feud.type,
