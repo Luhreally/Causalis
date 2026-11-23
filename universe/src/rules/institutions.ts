@@ -722,7 +722,7 @@ export function basisOfCrime(kind: "protection" | "cartel" | "badge"): Basis {
  * a learned society holds there), what is paid keeps this many times the fewest hands teaching takes, and one who gives for it
  * meets them; it falls back to a school where its land's learning falls under `falls` and what is paid no longer keeps those
  * `staff` times. It is shut only after a clash: one who
- * took its seat by force holds it bound (word not free, INST.shuts; rule by arms past `force`), or what its land found crossed
+ * took its seat by force holds it bound (word kept under `word`, rule by arms past `force`), or what its land found crossed
  * the creed of the seat's own faith (fears past `fears`, clergy past `clergy`, a people of old ways past `tradition`). It opens
  * again once that has passed.
  */
@@ -732,6 +732,7 @@ export const HIGHER = {
   falls: 0.25,
   staff: 2,
   force: 0.6,
+  word: 0.45,
   fears: 0.8,
   clergy: 0.6,
   tradition: 0.6,

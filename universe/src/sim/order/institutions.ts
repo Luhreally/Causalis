@@ -745,9 +745,9 @@ function patronIn(f: Facts, cell: number): { id: string; name: string } | null {
 /** The ways a seat comes to rule by force: seized, overthrown, won in a war for the throne. */
 const SEIZED: ReadonlySet<string> = new Set(["strife.coup", "strife.revolution", "strife.throne"]);
 
-/** Whether its seat holds it bound: the house is not the seat's own, its realm lets no word be free and is ruled by arms. */
+/** Whether its seat holds it bound: the house is not the seat's own, its realm keeps word close and is ruled by arms. */
 function seatBinds(f: Facts, g: Body): boolean {
-  return g.answers !== ANSWERS.seat && f.r.word < INST.shuts && f.r.force >= HIGHER.force;
+  return g.answers !== ANSWERS.seat && f.r.word < HIGHER.word && f.r.force >= HIGHER.force;
 }
 
 /**
