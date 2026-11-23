@@ -20,6 +20,8 @@ const MARK_HIGH = 0.06;
 /** The far clumps' core (region units from the town): within it all drawn, past it fewer by rank, as the square of the core over
  * the distance (render/flora.ts draws its near things so): the woods far off read by the ground's own crowns under them. */
 const CLUMP_CORE = 40;
+/** Whether the land's far clumps are drawn about a town at all (they are not: what they cost). */
+const FAR_CLUMPS = false;
 
 /** How much lower the land is set than the town's own ground (its units: a few metres, under all the town's ground). */
 const DROP = 0.02;
@@ -207,12 +209,16 @@ export class FarLand {
   }
 
   /** Which of its parts are drawn (the look tools, to time each): its ground and sea, its land's woods, towns and fields. */
-  parts(o: { ground?: boolean; copies?: boolean; clumps?: boolean; towns?: boolean }): void {
+  parts(o: {
+    ground?: boolean;
+    sea?: boolean;
+    copies?: boolean;
+    clumps?: boolean;
+    towns?: boolean;
+  }): void {
     const s = this.shown;
-    if (s && o.ground !== undefined) {
-      s.ground.enabled = o.ground;
-      if (s.sea) s.sea.enabled = o.ground;
-    }
+    if (s && o.ground !== undefined) s.ground.enabled = o.ground;
+    if (s?.sea && (o.sea ?? o.ground) !== undefined) s.sea.enabled = (o.sea ?? o.ground)!;
     if (o.copies !== undefined) this.copiesAt.enabled = o.copies;
     for (const c of this.copies) {
       const town = c.drawn.material === this.townLook,
@@ -387,7 +393,9 @@ export class FarLand {
       this.copiesAt.addChild(e);
       this.copies.push({ of, buffer, count, mine, drawn });
     };
-    for (const of of this.woods?.farClumps ?? []) put(of, null);
+    // (Its far woods by the ground's own crowns alone: their clumps drawn again here cost a phone 0.85 ms of the town view's
+    // frame on sorrel and saffron, timed in the same page, even thinned to a tenth.)
+    if (FAR_CLUMPS) for (const of of this.woods?.farClumps ?? []) put(of, null);
     // (Its other towns as marks: each a low block of its roofs' tone over as much ground as it spreads, as a town reads from
     // far off; its own never.)
     const towns = (this.towns?.farTowns() ?? []).filter((t) => {
