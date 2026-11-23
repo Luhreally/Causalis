@@ -686,7 +686,7 @@ export function installEcology(world: World, ctx: () => PopulationContext): Ecol
  * of what it kept (asideIn: a people going hungry clears and hunts what it had spared). Causes: the lesson's taking up, the
  * loss it answered, the land's last famine.
  */
-function keptTurns(
+export function keptTurns(
   world: World,
   place: Ref,
   kept: Holder,

@@ -36,29 +36,47 @@ export function asideBlocks(world: World, cell: number): Block[] {
     rows: Stat[] = [];
   if (woodsUse)
     rows.push(
-      stat("Woods kept from the axe", woods > 0 ? `${share(woods)} of its farming ground` : "none now", {
-        ...(woodsUse.ref ? { why: woodsUse.ref } : {}),
-        parts: [
-          part("kept since", `year ${woodsUse.taken}`),
-          part("its woods stand at", share(w.forest)),
-          ...(c && woods > 0
-            ? [part("what it forgoes", `the harvest of some ${count(c.farm * woods)} people a year`)]
-            : []),
-        ],
-      }),
+      stat(
+        "Woods kept from the axe",
+        woods > 0 ? `${share(woods)} of its farming ground` : "none now",
+        {
+          ...(woodsUse.ref ? { why: woodsUse.ref } : {}),
+          parts: [
+            part("kept since", `year ${woodsUse.taken}`),
+            part("its woods stand at", share(w.forest)),
+            ...(c && woods > 0
+              ? [
+                  part(
+                    "what it forgoes",
+                    `the harvest of some ${count(c.farm * woods)} people a year`,
+                  ),
+                ]
+              : []),
+          ],
+        },
+      ),
     );
   if (wildUse)
     rows.push(
-      stat("Hunting grounds closed", wild > 0 ? `${share(wild)} of what its wild yields` : "none now", {
-        ...(wildUse.ref ? { why: wildUse.ref } : {}),
-        parts: [
-          part("closed since", `year ${wildUse.taken}`),
-          part("its game stands at", share(w.wild)),
-          ...(c && wild > 0
-            ? [part("what it forgoes", `the wild food of some ${count(c.forage * w.wild * wild)} people a year`)]
-            : []),
-        ],
-      }),
+      stat(
+        "Hunting grounds closed",
+        wild > 0 ? `${share(wild)} of what its wild yields` : "none now",
+        {
+          ...(wildUse.ref ? { why: wildUse.ref } : {}),
+          parts: [
+            part("closed since", `year ${wildUse.taken}`),
+            part("its game stands at", share(w.wild)),
+            ...(c && wild > 0
+              ? [
+                  part(
+                    "what it forgoes",
+                    `the wild food of some ${count(c.forage * w.wild * wild)} people a year`,
+                  ),
+                ]
+              : []),
+          ],
+        },
+      ),
     );
   if (hunger > 0.02)
     rows.push(

@@ -483,9 +483,7 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
             ...(sea.gone || sea.few ? { why: (sea.gone ?? sea.few)! } : {}),
             parts: [
               // (Its turns for the worse while they stand: fished poor, then failed. sim/ecology/seas.ts)
-              ...(sea.few
-                ? [part(["fished poor in ", eventYearLink(world, sea.few)], "")]
-                : []),
+              ...(sea.few ? [part(["fished poor in ", eventYearLink(world, sea.few)], "")] : []),
               ...(sea.gone
                 ? [
                     part(

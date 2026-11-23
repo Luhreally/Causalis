@@ -339,7 +339,9 @@ export function seasYear(ctx: PopulationContext, t: SimTime): void {
           pressed: s.pressed,
           water,
           collapsed: !!s.gone,
-          ...(since !== undefined ? { years: Math.max(1, yearOfMoment(t) - yearOfMoment(since)) } : {}),
+          ...(since !== undefined
+            ? { years: Math.max(1, yearOfMoment(t) - yearOfMoment(since)) }
+            : {}),
         },
       });
       s.few = null;

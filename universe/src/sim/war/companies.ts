@@ -173,7 +173,8 @@ export function companiesAfter(
         {
           name: "its side's strength against the foe's",
           value: r2(d.odds),
-          contribution: how === "sacked" ? r2(Math.min(1, d.odds - 1)) : r2(1 - Math.min(1, d.odds)),
+          contribution:
+            how === "sacked" ? r2(Math.min(1, d.odds - 1)) : r2(1 - Math.min(1, d.odds)),
           source: null,
         },
         ...(how === "turned"
