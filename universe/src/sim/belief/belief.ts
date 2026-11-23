@@ -220,6 +220,13 @@ export class BeliefStore implements StateStore {
     this.held.set(cell, b);
   }
 
+  /** The lands that hold a faith `which` asks for, lowest first, each with its faith: one walk of the lands held (sim/belief/heads.ts). */
+  landsWhere(which: (faith: Ref) => boolean): [cell: number, faith: Ref][] {
+    const out: [number, Ref][] = [];
+    for (const [c, b] of this.held) if (b.faith && which(b.faith)) out.push([c, b.faith]);
+    return out.sort((a, b) => a[0] - b[0]);
+  }
+
   /** The lands that hold a faith. */
   lands(faith: Ref): number[] {
     return [...this.held.entries()]

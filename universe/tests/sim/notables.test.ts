@@ -123,13 +123,18 @@ test("a host has a commander when it fights; the day moves their standing; one w
   const na = store.get(ledA.id)!,
     nb = store.get(ledB.id)!,
     before = [na.by[DOMAIN.war]!, nb.by[DOMAIN.war]!],
+    // (What the host was worth under them before the day: a realm shaken by a commander lost of late is worth less either way.)
+    commandsBefore = notableCommands(world, a.ref, year),
     battle = world.events.emit({ type: "war.battle", subjects: [a.ref, b.ref], place: null });
   commandAfter(ctx, [ledA, ledB], [a, b], true, [4000, 6000], battle, "Somewhere", t);
   const wa = store.get(ledA.id),
     wb = store.get(ledB.id);
   if (wa) {
     assert.ok(wa.by[DOMAIN.war]! > before[0]!);
-    assert.ok(notableCommands(world, a.ref, year) > 1);
+    assert.ok(
+      notableCommands(world, a.ref, year) > commandsBefore,
+      `the victor's host is worth more under them: ${notableCommands(world, a.ref, year)} after, ${commandsBefore} before`,
+    );
     assert.match(notableTitle(world, wa, "the realm"), /victor of .*battle/);
   } else assert.ok(store.goneOf(ledA.id), "fell, and is kept among the dead");
   if (wb) {

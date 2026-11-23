@@ -59,21 +59,37 @@ export function faithHeadBlocks(world: World, f: Faith): Block[] {
         c.since,
       ),
     );
-  const items: Item[] = rec.clashes
-    .filter((c) => c.state !== 0)
-    .map((c) => {
+  // (The longest quarrels first; the rest counted.)
+  const against = rec.clashes
+      .filter((c) => c.state !== 0)
+      .sort((a, b) => a.since - b.since || (a.realm < b.realm ? -1 : 1)),
+    items: Item[] = against.slice(0, AGAINST_NAMED).map((c) => {
       const state = CLASH_STATES[c.state] ?? "",
         what = CLASH_WHAT_WORDS[CLASH_WHAT[c.what] ?? ""] ?? "what it holds there";
       return item(
         [
           realmLink(world, c.realm),
-          `: ${STATE_WORDS[state] ?? "presses it over"} ${state === "invested" ? "the naming of its priests" : what}, since year ${c.since}; ${Math.round(c.share / 10)} in a hundred of its people keep the faith`,
+          `: ${STATE_WORDS[state] ?? "presses it over"} ${state === "invested" ? "the naming of its priests" : what}, since year ${c.since}; ${keepWords(c.share)}`,
         ],
         c.event,
         c.since,
       );
     });
-  if (items.length) out.push({ type: "list", title: "Rulers against it", items });
+  if (items.length)
+    out.push({
+      type: "list",
+      title: "Rulers against it",
+      items,
+      ...(against.length > AGAINST_NAMED ? { more: against.length - AGAINST_NAMED } : {}),
+    });
   if (concords.length) out.push({ type: "list", title: "Concords with rulers", items: concords });
   return out;
+}
+
+const AGAINST_NAMED = 12;
+
+/** How many of a realm's people keep the faith (`share` in a thousand), in words. */
+function keepWords(share: number): string {
+  if (share >= 995) return "all its people keep the faith";
+  return `${Math.max(1, Math.round(share / 10))} in a hundred of its people keep the faith`;
 }

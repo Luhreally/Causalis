@@ -78,6 +78,10 @@ export class SentencesStore implements StateStore {
   cells(): number[] {
     return [...this.rows.keys()].sort((a, b) => a - b);
   }
+  /** Each land's row, in no set order (for work whose result does not hang on the order: each row its own). */
+  eachRow(fn: (cell: number, row: number[]) => void): void {
+    for (const [c, r] of this.rows) fn(c, r);
+  }
   /** A land's reckoning of `span` years from y.year, each a year as y (the one before it kept as the last), and its dead where any. */
   noteSpan(cell: number, span: number, y: SentYear): void {
     const r = this.ensure(cell),
@@ -139,12 +143,14 @@ export class SentencesStore implements StateStore {
       if (!d.length) this.dead.delete(c);
     }
   }
-  fold(year: number): void {
+  /** The year folded into the digest: the rows it wrote (`changed`, lowest first so the same after a save), the rest as they were. */
+  fold(year: number, changed: readonly number[]): void {
     const h = new Hasher().string(this.digest).int(year).int(this.rows.size);
-    // (By land, lowest first: the same after a save as before it.)
-    for (const c of this.cells()) {
-      const r = this.rows.get(c)!;
-      h.int(c).int(r[SENT_ROW.inside]!).int(r[SENT_ROW.labour]!);
+    for (const c of [...changed].sort((a, b) => a - b)) {
+      const r = this.rows.get(c);
+      h.int(c)
+        .int(r ? r[SENT_ROW.inside]! : -1)
+        .int(r ? r[SENT_ROW.labour]! : -1);
     }
     this.digest = h.hex();
   }

@@ -1,6 +1,7 @@
 // A faith's head, and the faith against a ruler (the rules are rules/faithheads.ts; what is kept ./heads-kept.ts). Once a year,
 // after the year's notable people (sim/notable) have lived and died:
-//   1. each faith a people holds is found with its lands, and by the realms that hold them (one pass over the lands);
+//   1. each faith in its year of FAITH_HEAD.every (a fifth of them a year) is found with its lands, and by the realms that
+//      hold them (one walk of the lands that hold those faiths);
 //   2. a faith without a living head finds one, as its facts say (rules faithForm): a line's heir of its family, the one its
 //      clergy raise (the highest in the faith among its faithful of name), the eldest of its council, or the most learned. Where
 //      none of its faithful is kept by name, someone of its seat is raised (sim/notable raiseNotable). The head is a notable who
@@ -12,8 +13,8 @@
 // What it does flows back: a ruler cast out loses standing with those of his people who keep the faith (sim/order/order.ts
 // addsStanding), and his faithful grieve; a seat that names a faith's priests holds its clergy as a priest-king does
 // (sim/order/institutions.ts reads investedIn). A head's deeds are their own (their standing in the faith).
-// Bounded: one record a faith held, its clashes one a realm that holds it. The yearly pass is one walk of the lands; the
-// weighing is a faith's realms in its year.
+// Bounded: one record a faith held, its clashes one a realm that holds it. The yearly pass walks the lands of a fifth of the
+// faiths; the weighing is a faith's realms in its year.
 import {
   YEAR,
   defineEventType,
@@ -90,10 +91,18 @@ export function faithHeadsYear(ctx: PopulationContext, t: SimTime): void {
   if (!store || !kept || !world.hasStore("belief.faiths")) return;
   const year = yearOfMoment(t),
     belief = beliefOf(world),
-    realms = politiesOf(world);
-  // (Between the years it weighs them all, only a faith whose head is gone finds another: no walk of the lands.)
-  if (year % FAITH_HEAD.every !== 0) {
+    realms = politiesOf(world),
+    // (Each faith is weighed in its own year of FAITH_HEAD.every, a fifth of them a year: the walk of their lands is a fifth's.)
+    serials = new Map<Ref, number>(),
+    due = (ref: Ref): boolean => {
+      let s = serials.get(ref);
+      if (s === undefined) serials.set(ref, (s = serialOf(ref)));
+      return (year + s) % FAITH_HEAD.every === 0;
+    };
+  // (A faith not weighed this year finds a head only where its own is gone.)
+  {
     for (const rec of store.all()) {
+      if (due(rec.faith)) continue;
       const n = rec.id ? kept.get(rec.id) : undefined;
       if (n && n.post?.kind === "faith" && n.post.of === rec.faith) continue;
       const f = belief.get(rec.faith);
@@ -111,33 +120,37 @@ export function faithHeadsYear(ctx: PopulationContext, t: SimTime): void {
         t,
       );
     }
-    store.fold(year);
-    return;
   }
-  // 1. The faiths held, their lands, and the realms that hold them.
+  // 1. The lands of the faiths whose year it is, and the realms that hold them (each realm's people read once, when asked).
   const held = new Map<Ref, Held>(),
-    realmPeople = new Map<Ref, number>();
-  for (const p of ctx.provinces.all()) {
-    const n = p.total();
+    realmPeople = new Map<Ref, number>(),
+    peopleOf = (ref: Ref): number => {
+      let n = realmPeople.get(ref);
+      if (n === undefined) {
+        n = 0;
+        for (const c of realms.get(ref)?.members ?? []) n += ctx.provinces.get(c)?.total() ?? 0;
+        realmPeople.set(ref, n);
+      }
+      return n;
+    };
+  for (const [cell, f] of belief.landsWhere(due)) {
+    const n = ctx.provinces.get(cell)?.total() ?? 0;
     if (!(n > 0)) continue;
-    const f = belief.of(p.cell).faith,
-      realm = realms.of(p.cell)?.ref ?? null;
-    if (realm) realmPeople.set(realm, (realmPeople.get(realm) ?? 0) + n);
-    if (!f) continue;
+    const realm = realms.of(cell)?.ref ?? null;
     let h = held.get(f);
     if (!h) held.set(f, (h = { lands: [], people: 0, realms: new Map() }));
-    h.lands.push(p.cell);
+    h.lands.push(cell);
     h.people += n;
     if (realm) {
       let r = h.realms.get(realm);
       if (!r) h.realms.set(realm, (r = { people: 0, lands: [] }));
       r.people += n;
-      r.lands.push(p.cell);
+      r.lands.push(cell);
     }
   }
   // (A faith no one holds keeps no head: whoever headed it is themselves again.)
   for (const rec of store.all())
-    if (!held.has(rec.faith)) {
+    if (due(rec.faith) && !held.has(rec.faith)) {
       const n = rec.id ? kept.get(rec.id) : undefined;
       if (n?.post?.kind === "faith") {
         delete n.post;
@@ -161,7 +174,7 @@ export function faithHeadsYear(ctx: PopulationContext, t: SimTime): void {
       );
     if (!rec) continue;
     rec.lands = h.lands.length;
-    reckon(ctx, store, f, rec, h, realmPeople, t);
+    reckon(ctx, store, f, rec, h, peopleOf, t);
   }
   store.fold(year);
 }
@@ -308,7 +321,7 @@ function reckon(
   f: Faith,
   rec: FaithHead,
   h: Held,
-  realmPeople: ReadonlyMap<Ref, number>,
+  realmPeople: (realm: Ref) => number,
   t: SimTime,
 ): void {
   const { world } = ctx,
@@ -326,17 +339,24 @@ function reckon(
     wars = warsOf(world),
     keep: Clash[] = [];
   if (!head) return;
-  const headRealm = head.realm;
-  for (const [realmRef, r] of [...h.realms].sort((a, b) => serialOf(a[0]) - serialOf(b[0]))) {
+  const headRealm = head.realm,
+    // (The realms the head's own is at war with, read once for the faith.)
+    foes = new Set<Ref>(),
+    byFounding = [...h.realms].map((e) => [serialOf(e[0]), e] as const).sort((a, b) => a[0] - b[0]);
+  if (headRealm)
+    for (const w of wars.fighting(headRealm))
+      foes.add(w.attacker === headRealm ? w.defender : w.attacker);
+  for (const [, [realmRef, r]] of byFounding) {
     const p = realms.get(realmRef),
       was = rec.clashes.find((c) => c.realm === realmRef);
     if (!p || p.ended !== null) continue;
-    const all = Math.max(1, realmPeople.get(realmRef) ?? 0),
-      share = r.people / all,
+    // (Of the realm's people, those who keep the faith: read only where it is asked, the realm's people being a walk of its lands.)
+    let shareOf: number | null = null;
+    const share = (): number => (shareOf ??= r.people / Math.max(1, realmPeople(realmRef))),
       seatHolds = belief.of(p.seat).faith === f.ref;
     // (A priest-king of the faith is its own; and a realm the head rules is theirs.)
     const own = (p.leadership === 3 && seatHolds) || (head.as === "rule" && headRealm === realmRef);
-    if (own || (share < FAITH_HEAD.least && !seatHolds)) {
+    if (own || (!seatHolds && share() < FAITH_HEAD.least)) {
       if (was && was.state !== 0) settle(ctx, f, rec, was, p, "its own", t, null);
       continue;
     }
@@ -349,7 +369,7 @@ function reckon(
         claims,
         clergy: lands.reduce((s, c) => s + clergyIn(world, c), 0) / Math.max(1, lands.length),
         standing: satOf(head.standing),
-        war: headRealm && headRealm !== realmRef && wars.between(realmRef, headRealm) ? 1 : 0,
+        war: headRealm && headRealm !== realmRef && foes.has(realmRef) ? 1 : 0,
         doubt: Math.max(0, Math.min(1, (0.7 - legitimacy) * 2)),
         concord: was?.state === 0 ? 1 : 0,
       },
@@ -412,12 +432,12 @@ function reckon(
         event,
         what,
         ruler: p.ruler.since,
-        share: Math.round(share * 1000),
+        share: Math.round(share() * 1000),
         opened: year,
       });
       continue;
     }
-    was.share = Math.round(share * 1000);
+    was.share = Math.round(share() * 1000);
     // (A ruler cast out: reconciled by a new ruler, or by his yielding; or his realm breaks from the faith.)
     if (was.state === 3) {
       if (p.ruler.since > was.ruler) {

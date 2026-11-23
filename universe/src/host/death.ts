@@ -825,9 +825,9 @@ function holderDeath(world: World, ref: string): Account | null {
       age: y - h.born,
       event: null,
       cause: "sentence",
-      rule: "A land's court sentences those brought before it by how grave their wrong was and by its realm's law: fined, held, put to labour, or put to death. Of a town's people its court put to death that year, as many of its named lines as the lines are of its people; who of them, by the year's key among its grown.",
+      rule: "A land's court sentences those brought before it by how grave their wrong was and by its realm's law: fined, held, put to labour, or put to death.",
       draw: per
-        ? `Its court put to death some ${Math.round(per) / 10} in ten thousand of its land's people that year: ${Math.max(1, roster.executions?.find((x) => x.year === y)?.lines.length ?? 1)} of the town's named lines among them.`
+        ? `Its court put to death some ${Math.max(1, Math.round(per))} in a million of its land's people a year then: ${Math.max(1, roster.executions?.find((x) => x.year === y)?.lines.length ?? 1)} of the town's named lines among them.`
         : null,
       parts: [
         {
