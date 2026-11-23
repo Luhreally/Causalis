@@ -273,8 +273,8 @@ export function installHeld(d: HeldDeps): Held {
     if (!o) return;
     const slow = (gifts & GIFT_BIT.slow) !== 0;
     if (slow !== ((o.gifts & GIFT_BIT.slow) !== 0)) {
-      o.pace = slow ? SLOW_PACE : 1;
-      hud.setPace(o.pace);
+      hud.slowBy(slow ? SLOW_PACE : 1);
+      o.pace = hud.pace;
     }
     o.gifts = gifts;
     void ask(o);
@@ -426,6 +426,7 @@ export function installHeld(d: HeldDeps): Held {
     strokes.length = 0;
     hud.giftable(GIFTS);
     hud.setPace(1);
+    hud.slowBy(1);
     hud.say(`You fight as ${now.name}${now.town ? ` of ${now.town}` : ""}`);
     const plan = d.plan();
     eye.height = plan ? drawnHeight(plan) : 1.7;
@@ -454,6 +455,7 @@ export function installHeld(d: HeldDeps): Held {
     // (A beast runs as it runs: the gifts are for a man's body.)
     hud.giftable([]);
     hud.setPace(1);
+    hud.slowBy(1);
     hud.say(`You run as ${now.name}`);
     eye.height = height;
     eye.pitch = BEAST_EYE.pitch;

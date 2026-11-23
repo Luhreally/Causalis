@@ -153,6 +153,7 @@ export function installPossession(d: PossessionDeps): Possession {
     const m = on?.posed.drawnAt(on.now.agent);
     if (m) eye.behind(m.yaw);
   };
+  // (The pace pressed, under Slow time's quarter while it is on.)
   hud.onPace = (pace) => {
     if (on) on.pace = pace;
   };
@@ -166,8 +167,8 @@ export function installPossession(d: PossessionDeps): Possession {
       was = (o.gifts & GIFT_BIT.slow) !== 0;
     o.gifts = gifts;
     if (slow !== was) {
-      o.pace = slow ? SLOW_PACE : 1;
-      hud.setPace(o.pace);
+      hud.slowBy(slow ? SLOW_PACE : 1);
+      o.pace = hud.pace;
     }
     void ask(o);
   };
@@ -289,6 +290,7 @@ export function installPossession(d: PossessionDeps): Possession {
     hud.show();
     hud.giftable(GIFTS);
     hud.setPace(1);
+    hud.slowBy(1);
     hud.say(`You walk among them as ${now.name}`);
     eye.height = drawnHeight(plan);
     eye.roofs = plan.town ? homesRiseTo(plan.town) : 0;
@@ -538,6 +540,7 @@ export function installPossession(d: PossessionDeps): Possession {
     // The eye behind him as he is drawn; words over those who say something.
     const me = o.posed.drawnAt(o.now.agent);
     if (me) eye.update(me.x, me.z, villageSolids(o.plan), dt, me.lift ?? 0);
+    o.posed.eye = me ? { ...eye.stood, tall: eye.height } : null;
     const said: { text: string; x: number; y: number }[] = [];
     for (const b of o.posed.live?.bodies ?? []) {
       if (!b.say) continue;
@@ -602,6 +605,7 @@ export function installPossession(d: PossessionDeps): Possession {
           ending: on.ending,
           live: on.posed.live,
           gifts: on.gifts,
+          inTheWay: on.posed.hid,
           eye: { yaw: eye.looking, pitch: eye.pitch, distance: eye.distance, ...eye.stood },
         },
       /** A body of the small world as drawn now (metres; null: not in it). */

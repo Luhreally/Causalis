@@ -12,6 +12,7 @@ import {
   bidOf,
   bodyMoment,
   drawnHeight,
+  inTheWay,
   joinsAt,
   lettersOf,
   momentOf,
@@ -262,4 +263,43 @@ test("the eye stands off by the body's height as the town draws it (larger than 
   const h = drawnHeight(plan);
   assert.ok(h > 4 && h < 7, `${h}`);
   assert.ok(drawnHeight({ body: null }) === h);
+});
+
+test("one standing between the eye behind him and the one held is not drawn, and is again once clear of the line", () => {
+  const h = drawnHeight(plan),
+    eye = { x: 10, y: 6, z: 0, tall: h },
+    way = inTheWay(eye, { x: 10, z: 10 });
+  assert.equal(way({ x: 10, z: 7 }, false), true, "close behind him, in the eye's line");
+  assert.equal(way({ x: 10 + 0.35 * h, z: 7 }, false), false, "a little off it, drawn");
+  assert.equal(way({ x: 10 + 0.35 * h, z: 7 }, true), true, "not drawn till a little more clear");
+  assert.equal(way({ x: 13 + h, z: 7 }, true), false);
+  assert.equal(way({ x: 10, z: 12 }, false), false, "beyond him");
+  assert.equal(way({ x: 10, z: -2 }, false), false, "behind the eye");
+  const posed = new PosedBodies(plan, t, "smith", "sickle", 101),
+    live = {
+      step: 30,
+      kept: 20,
+      bodies: [body({ x: 10, z: 10 }), body({ id: 104, doing: "follow", x: 10, z: 7 })],
+      lying: [],
+      offers: [],
+      told: null,
+      strip: { name: "P1", what: "a smith", strength: 1, carries: "empty-handed", body: "whole" },
+      deeds: { made: 0, struck: 0, spoke: 0, took: 0 },
+      ended: "",
+    } satisfies PossessLive;
+  posed.step = 30;
+  posed.live = live;
+  const drawn = () =>
+    plan.people.map((_, i) => ({ moment: momentOf(plan, i, posed.at()), size: 1, stride: 0 }));
+  let d = drawn();
+  posed.pose(d, new Map());
+  assert.equal(d[4]!.size, 1, "no eye behind him: all drawn");
+  posed.eye = eye;
+  d = drawn();
+  posed.pose(d, new Map());
+  assert.equal(d[4]!.size, 0);
+  assert.equal(d[4]!.moment.hidden, true);
+  assert.equal(d[1]!.size, 1, "he is drawn");
+  assert.equal(posed.hid, 1);
+  assert.equal(posed.drawnAt(104)!.hidden, false, "only not drawn: where it is is still told");
 });

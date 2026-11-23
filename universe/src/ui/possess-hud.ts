@@ -40,6 +40,15 @@ const AHEAD: Readonly<Record<string, readonly [number, number]>> = {
   ArrowRight: [1, 0],
 };
 
+/** Each pace the world about him can be at: what its button says, and its title. */
+const PACE_WORDS: readonly (readonly [number, string, string])[] = [
+  [1, "1×", "The world at its own pace"],
+  [0.5, "½×", "Slowed to half"],
+  [0.25, "¼×", "Slow time: the world at a quarter, you at your own pace"],
+  [0.125, "⅛×", "Slow time, and slowed to half again: the world at an eighth"],
+  [0, "❚❚", "Held still"],
+];
+
 /**
  * Words, a title or a width set only where they change: the controls are set at every step of the
  * possession's clock, and a write the same as before still has the page laid out again before the
@@ -82,6 +91,9 @@ export class PossessHud {
   /** Live their day (Lives L3): from a body held to their life. */
   private readonly liveDay = el("button", "possess-live", "🏠 Live their day");
   private readonly paces = el("div", "possess-paces");
+  /** The pace pressed (1, ½, 0), and what the god's Slow time slows the world by (1: not). */
+  private chosen = 1;
+  private factor = 1;
   private readonly base = el("div", "possess-stick");
   private readonly knob = el("span", "possess-knob");
   private readonly actsBox = el("div", "possess-acts");
@@ -148,20 +160,16 @@ export class PossessHud {
     this.base.append(this.knob);
     this.base.hidden = true;
     this.letGo.title = "Let go of them (Esc)";
-    for (const [label, pace, title] of [
-      ["1×", 1, "The world at its own pace"],
-      ["½×", 0.5, "Slowed to half"],
-      ["❚❚", 0, "Held still"],
-    ] as const) {
-      const b = el("button", "possess-pace", label);
-      b.title = title;
+    for (const pace of [1, 0.5, 0]) {
+      const b = el("button", "possess-pace");
       b.dataset.pace = `${pace}`;
       this.press(b, () => {
         this.setPace(pace);
-        this.onPace(pace);
+        this.onPace(this.pace);
       });
       this.paces.append(b);
     }
+    this.slowBy(1);
     this.setPace(1);
     this.sprint.setAttribute("aria-pressed", "false");
     this.sprint.title = "Hold to sprint (Shift; the stick pushed to its rim also runs)";
@@ -331,6 +339,7 @@ export class PossessHud {
     this.toggleSheet(false);
     this.sheet.set(0);
     this.giftsChanged(0);
+    this.slowBy(1);
   }
 
   /** Every touch let go (the phone turned: laid out again from nothing held). */
@@ -346,9 +355,30 @@ export class PossessHud {
     this.pinch = 0;
   }
 
+  /** The pace pressed (1, ½, 0 held), lit; the world's is it under Slow time's (`pace`). */
   setPace(pace: number): void {
+    this.chosen = pace;
     for (const b of this.paces.children)
       (b as HTMLElement).classList.toggle("on", (b as HTMLElement).dataset.pace === `${pace}`);
+  }
+
+  /**
+   * The world slowed under the god's Slow time (1: not): the paces then say the world's own, a quarter and an eighth,
+   * and the one pressed stays lit — what is pressed is kept as the gift is put on and off.
+   */
+  slowBy(factor: number): void {
+    this.factor = factor;
+    for (const b of this.paces.children as HTMLCollectionOf<HTMLElement>) {
+      const at = Number(b.dataset.pace) * factor,
+        words = PACE_WORDS.find(([p]) => p === at);
+      b.textContent = words?.[1] ?? `${at}×`;
+      b.title = words?.[2] ?? "";
+    }
+  }
+
+  /** The world's pace about him now: the one pressed, under Slow time's. */
+  get pace(): number {
+    return this.chosen * this.factor;
   }
 
   /** The stick's push now (x to the right, y ahead, each -1 … 1) and whether at a run: the thumb's, else the keys'. */
