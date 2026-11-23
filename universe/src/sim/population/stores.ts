@@ -204,8 +204,15 @@ export type Flow = {
   readonly count: number;
   /** Movers by occupation. */
   readonly byOccupation: readonly number[];
-  readonly decision: Ref;
+  /** Absent for a move the hope of wages made: its event tells what drew them (sim/population/systems.ts). */
+  readonly decision?: Ref;
   readonly event: Ref;
+  /**
+   * A move war, a law against their faith or wages made: its line is kept for living memory as any, its event only as long as
+   * ordinary events are (the world's window), not for living memory. (At 1,500 such moves are thirty a year: pinned for
+   * LIVING_MEMORY, a hundred and twenty years, they were thousands of events held for ever more.)
+   */
+  readonly brief?: 1;
 };
 
 /** A province's year in numbers. */
@@ -361,7 +368,9 @@ export class HistoryStore implements StateStore {
 
   /** Every event the ledgers hold on to: they must never be forgotten. */
   pinned(): Ref[] {
-    return this.flowList.flatMap((f) => [f.decision, f.event]);
+    return this.flowList.flatMap((f) =>
+      f.brief ? [] : f.decision ? [f.decision, f.event] : [f.event],
+    );
   }
 
   /**
