@@ -315,16 +315,36 @@ function shrinkByLot(b: TownBuilder, f: Fabric, people: number): void {
   let excess = housing - Math.ceil(people / 0.8),
     count = Math.max(1, Math.ceil(homesOf(f) * 0.05)),
     top = -1;
-  const from = Math.max(0, f.next - 512),
-    levels = levelsOf(f, from, f.next),
-    under = civicMask(f, from, f.next),
+  // (From its last 512 lots; where every home in them has fallen, from the highest home below them.)
+  let from = Math.max(0, f.next - 512),
+    to = f.next;
+  const stands = (l: ArrayLike<number>, u: ArrayLike<unknown>, lo: number, p: number) =>
+    l[p - lo]! >= 0 && !u[p - lo];
+  {
+    const l = levelsOf(f, from, to),
+      u = civicMask(f, from, to);
+    let any = false;
+    for (let p = from; p < to && !any; p++) any = stands(l, u, from, p);
+    if (!any && from > 0) {
+      const all = levelsOf(f, 0, from),
+        allUnder = civicMask(f, 0, from);
+      let high = -1;
+      for (let p = from - 1; p >= 0 && high < 0; p--) if (stands(all, allUnder, 0, p)) high = p;
+      if (high >= 0) {
+        to = high + 1;
+        from = Math.max(0, high - 511);
+      }
+    }
+  }
+  const levels = levelsOf(f, from, to),
+    under = civicMask(f, from, to),
     fall = (lo: number) => {
       if (top < 0) return;
       b.change(f, CHANGE.fell, lo, top + 1, 0, 0);
       b.release(f, lo, top + 1);
       top = -1;
     };
-  for (let p = f.next - 1; p >= from && excess > 0 && count > 0; p--) {
+  for (let p = to - 1; p >= from && excess > 0 && count > 0; p--) {
     const was = levels[p - from]!;
     if (was < 0 || under[p - from]) {
       fall(p + 1);
@@ -420,9 +440,10 @@ test("homes fall and burn run by run as they did lot by lot: the same lots, runs
     if (f.changes.some((c) => c[0] === CHANGE.fell && c[4] === y)) fell++;
     else if (f.lean >= 3) idle++;
   }
-  // (Lean years that let homes fall, and those with none left to fall in its last lots.)
+  // (Every lean year lets homes fall, those with none left to fall in its last lots among them: until 2026-11-23 a dozen
+  // and more of its lean years let none fall, its homes below its last 512 lots standing however long it stood empty.)
   assert.ok(
-    fell > 10 && idle > 10,
+    fell > 10 && idle === 0,
     `${fell} years let homes fall, ${idle} none (of ${towns[0]!.f.next} lots)`,
   );
 });
