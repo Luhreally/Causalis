@@ -728,7 +728,7 @@ export class TownLayer {
    */
   laidOn(laid: Laid): void {
     if (this.scene)
-      layTown(laid, this.scene, [this.ground, this.ownParts, this.farParts, this.parts]);
+      layTown(laid, this.scene, this.ground, [this.ownParts, this.farParts, this.parts]);
   }
 
   /** How far out its lots reach (metres), for the eye. */

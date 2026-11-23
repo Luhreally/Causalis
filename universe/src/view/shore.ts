@@ -12,6 +12,7 @@ import {
   holdPlaces,
   wallAt,
   waterR,
+  wallWet,
   wetGround,
   type VillagePlan,
 } from "../bridge/index.ts";
@@ -189,37 +190,47 @@ export function laidGround(): Laid {
 
 /**
  * What a town has laid on its ground, into `laid`: each of its blocks, drawn or not (its lots past those drawn stand on them),
- * what of its parts stands on the ground (`parts`: its ground's — view/town.ts townGround: yards, streets, its square, its
- * sprawl's ground and roofs, its ways — and its homes', civics' and walls' as drawn), its strongholds' ground and its walls' line.
+ * its ground's parts (`ground`: view/town.ts townGround — yards, streets, its square, its sprawl's ground and roofs, its ways),
+ * what of its homes', civics' and walls' parts as drawn comes down to the ground (`standing`), its strongholds' ground and its
+ * walls' line where they could stand.
  */
-export function layTown(laid: Laid, scene: TownScene, parts: readonly TownParts[]): void {
+export function layTown(
+  laid: Laid,
+  scene: TownScene,
+  ground: TownParts,
+  standing: readonly TownParts[],
+): void {
   const b = scene.lots.blocks;
   for (let k = 0; k < b.x.length; k++)
     laid.rects.push(b.x[k]!, b.z[k]!, BLOCK_W, BLOCK_D, b.yaw[k]!);
-  // (Of its parts, what stands on the ground: as low as a home's walls come down.)
-  for (const ground of parts)
-    for (const [, g] of ground.groups) {
+  const put = (parts: TownParts, low: boolean) => {
+    for (const [, g] of parts.groups) {
       if (g.lamp) continue;
       const d = g.data;
       for (let i = 0; i + 6 < d.length; i += 7)
-        if (d[i + 1]! - d[i + 4]! / 2 < 1.5)
+        if (!low || d[i + 1]! - d[i + 4]! / 2 < 1.5)
           laid.rects.push(d[i]!, d[i + 2]!, d[i + 3]!, d[i + 5]!, d[i + 6]!);
     }
+  };
+  // (All its ground's; of the rest, what comes down to the ground.)
+  put(ground, false);
+  for (const parts of standing) put(parts, true);
   for (const p of holdPlaces(scene.plan, scene.lots)) laid.rounds.push(p.x, p.z, p.r);
+  // (Its walls' line, and the ring street where they stood, where they could stand: never over the water: bridge/town.ts wallWet.)
   if (scene.walls) {
-    const n = 96;
+    const n = 96,
+      wet = wallWet(scene.plan.water, scene.plan.site ?? null);
     for (let k = 0; k < n; k++) {
       const a0 = (k / n) * 2 * Math.PI,
         a1 = ((k + 1) / n) * 2 * Math.PI,
         r0 = wallAt(scene.walls.line, a0),
-        r1 = wallAt(scene.walls.line, a1);
-      laid.strips.push(
-        r0 * Math.cos(a0),
-        r0 * Math.sin(a0),
-        r1 * Math.cos(a1),
-        r1 * Math.sin(a1),
-        4,
-      );
+        r1 = wallAt(scene.walls.line, a1),
+        x0 = r0 * Math.cos(a0),
+        z0 = r0 * Math.sin(a0),
+        x1 = r1 * Math.cos(a1),
+        z1 = r1 * Math.sin(a1);
+      if (wet && (wet(x0, z0) || wet(x1, z1) || wet((x0 + x1) / 2, (z0 + z1) / 2))) continue;
+      laid.strips.push(x0, z0, x1, z1, 4);
     }
   }
 }
