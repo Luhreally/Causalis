@@ -173,7 +173,7 @@ export function lessonsOf(world: World): LessonStore | null {
 export function useIn(h: Holder | undefined, response: string, year: number): number {
   const u = h?.uses.get(response);
   if (!u) return 0;
-  const w = faded(u.w, year - u.at, LESSON.keep);
+  const w = faded(u.w, year - u.at, LESSON_RESPONSE.get(response)?.keep ?? LESSON.keep);
   return w < LESSON.least ? 0 : w;
 }
 

@@ -63,6 +63,8 @@ export const ECOLOGY_EVENTS = {
 
 /** What a land kept aside must have been, and how far below half of it hunger must take it, to be told broken. */
 const KEPT_TOLD = 0.05;
+/** Woods cleared that stand again past this share, while kept, are told come back (whole again is past 0.6). */
+const KEPT_STANDS = 0.4;
 
 /** The event a land's people took up keeping its woods or its wild by (null: none kept, or forgotten). */
 function keptBy(kept: Holder | undefined, what: "woods" | "wild"): Ref | null {
@@ -561,7 +563,16 @@ export function ecologyYear(ctx: PopulationContext, t: SimTime): void {
     // Conservation (rules/lessons.ts kept-woods, kept-wild): what was set aside come back while it was kept, and what hunger broke.
     if (kept && (wasWoods > 0 || wasWild > 0 || asideWoods > 0 || asideWild > 0))
       keptTurns(world, p.ref, kept, year, p.lastFamine, [
-        ["woods", wasWoods, asideWoods, wasCleared && !w.cleared ? wasCleared : null, w.forest],
+        [
+          "woods",
+          wasWoods,
+          asideWoods,
+          // (Come back: no longer cleared, or standing again past KEPT_STANDS while still short of whole.)
+          wasCleared && (!w.cleared || (before < KEPT_STANDS && w.forest >= KEPT_STANDS))
+            ? wasCleared
+            : null,
+          w.forest,
+        ],
         ["wild", wasWild, asideWild, wasThinned && !w.thinned ? wasThinned : null, w.wild],
       ]);
     // Hunters pressed below a tithe of their number leave the land to its people.

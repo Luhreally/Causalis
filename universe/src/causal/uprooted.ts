@@ -135,6 +135,7 @@ registerEventWords(COMPANY_EVENTS.company.type, (world, e) => {
       leader?: string;
       how?: string;
       grain?: number;
+      own?: boolean;
     } | null,
     who = d?.group ? `The ${d.group} ${d.kind ?? "free company"}` : "A hired company",
     led = d?.leader ? ` under ${d.leader}` : "",
@@ -144,7 +145,7 @@ registerEventWords(COMPANY_EVENTS.company.type, (world, e) => {
     ? `${who}${led}, unpaid by ${a}, went over to ${b} before the battle in ${landWords(world, e.place)}, ${year(e.t)}`
     : d?.how === "left"
       ? `${who}${led}, unpaid by ${a}, left the field before a battle it did not expect to win in ${landWords(world, e.place)}, ${year(e.t)}`
-      : `${who}${led}, unpaid by ${a}, took its pay from the stores of ${landWords(world, e.place)}${d?.grain ? `: ${grainSum(d.grain)} grain` : ""}, ${year(e.t)}`;
+      : `${who}${led}, short of its pay from ${a}, took its pay from the stores of ${d?.own ? "its own payer's land of " : ""}${landWords(world, e.place)}${d?.grain ? `: ${grainSum(d.grain)} grain` : ""}, ${year(e.t)}`;
 });
 
 // A reach of sea fished poor by the lands on it (sim/ecology/seas.ts).

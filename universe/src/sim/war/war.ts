@@ -1796,11 +1796,9 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       w.fallen = [w.fallen[0] + sieged.dead[0], w.fallen[1] + sieged.dead[1]];
     // (A host come for grain carries it off; come for tribute, or to be free, it leaves the land where it lies: W7.)
     const hauled = won && aim === "stores" ? sack(ctx, a, b, land, battle) : 0;
-    // (A company that left the field or went over is told; one unpaid that won takes its pay from the land's stores.)
+    // (A company that left the field or went over is told; one short of its pay that won takes it from the land's stores.)
     if (hiredField?.days.length)
-      companiesAfter(ctx, w.ref, [a, b], hiredField.days, won, land, battle, () =>
-        hauled > 0 ? 0 : sack(ctx, a, b, land, battle),
-      );
+      companiesAfter(ctx, w.ref, [a, b], hiredField.days, won, land, battle);
     // (Or starved or stormed in a year its sally failed to break the lines.)
     if (((won && !besieged) || sieged?.falls) && takesLand(aim))
       takeLand(ctx, a, b, land, battle, t);

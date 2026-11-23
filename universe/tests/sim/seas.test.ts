@@ -142,8 +142,14 @@ test("a town's boats are as many as its fishers crew, and lie idle as its sea fa
   const whole = fishingBoats(world, p.cell, p.total())!;
   assert.ok(whole.boats >= 1 && whole.boats <= BOATS_MOST);
   assert.equal(whole.laid, 0);
-  store.set({ reach, stock: SEA.least, pressed: 2, lands: 1, most: p.cell, few: null });
+  // (As many tied up as the sea's own reckoning keeps in: sea.out.)
+  store.set({ reach, stock: SEA.least, pressed: 2, lands: 1, most: p.cell, few: null, out: 0 });
   const failed = fishingBoats(world, p.cell, p.total())!;
   assert.equal(failed.boats, whole.boats);
   assert.equal(failed.laid, failed.boats, "a failed sea's boats all tied up");
+  // (And the sea's year empties the jetties as it fails, a part of the way a year.)
+  store.set({ reach, stock: 0.05, pressed: 2, lands: 1, most: p.cell, few: null });
+  seasYear(ctx, ((Math.floor(world.now / YEAR) + 9) * YEAR) as SimTime);
+  const out = store.get(reach)!.out ?? 1;
+  assert.ok(out < 1 && out > 1 - SEA.follows - 1e-9, `out ${out}`);
 });

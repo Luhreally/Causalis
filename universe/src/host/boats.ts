@@ -32,9 +32,12 @@ export function fishingBoats(
     sea = seaOf(ctx, cell).sea,
     own = ecologyOf(world).get(cell)?.fish,
     stock = sea ? sea.stock : own !== undefined && own >= 0 ? own : 1,
-    // (Not worth going out for: tied up as the stock falls from well to poor and below.)
-    idle = stock >= SEA.well ? 0 : Math.min(1, (SEA.well - stock) / (SEA.well - SEA.least)),
-    laid = Math.min(boats - (stock > SEA.collapse ? 1 : 0), Math.round(boats * idle));
+    // (Not worth going out for: on its reach, those the sea's own reckoning keeps in (sea.out); on its own waters, as they
+    // fall below poor.)
+    idle = sea
+      ? 1 - (sea.out ?? 1)
+      : Math.min(1, Math.max(0, (SEA.poor - stock) / (SEA.poor - SEA.least))),
+    laid = Math.round(boats * idle);
   return { boats, laid: Math.max(0, laid), stock };
 }
 

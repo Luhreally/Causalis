@@ -493,7 +493,7 @@ export function strike(
       // How it has gone since they took it up, and so how far it moves them now.
       u.strikes++;
       u.since += s.share;
-      const now = faded(u.w, year - u.at, LESSON.keep),
+      const now = faded(u.w, year - u.at, r.keep ?? LESSON.keep),
         trust = trustOf(u.before, u.since / u.strikes, u.strikes);
       u.w = useAfter(now, press, r.asks, trust);
       u.at = year;

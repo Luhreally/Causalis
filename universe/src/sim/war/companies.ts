@@ -17,7 +17,8 @@ import {
   type World,
 } from "../../kernel/index.ts";
 import { cellRef } from "../../gen/index.ts";
-import { ORG_KINDS } from "../../rules/index.ts";
+import { G, ORG_KINDS } from "../../rules/index.ts";
+import type { MarketStore } from "../economy/market.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { realmName, type Polity } from "../polity/polity.ts";
 import { orgsOf, type Org } from "../order/groups-kept.ts";
@@ -33,6 +34,12 @@ export const COMPANY = {
   leaves: 0.7,
   /** Unpaid, with a foe that can pay, it goes over unless its side has the better of the day by this. */
   turns: 1,
+  /**
+   * Short of its pay (its payer's treasury holds less than a year of what it pays its hired), a company that stood and won takes
+   * this share of the grain of the land it stood on, wherever it is (its payer's own land, where it held it), carried to its own
+   * home: its pay in kind.
+   */
+  takes: 0.25,
 } as const;
 
 /** The company a side brings: who, how many, the share of its side's strength that is theirs, whether they are paid. */
@@ -65,14 +72,16 @@ export function companyOf(world: World, p: Polity, paid: number, all: number): C
     men += g.members;
     if (g.members > org.members || (g.members === org.members && g.id < org.id)) org = g;
   }
-  const reserve = reserveOf(world, p.ref);
+  const reserve = reserveOf(world, p.ref),
+    // (A year of what it pays its hired: short of that, its companies are short of their pay.)
+    owed = orgs!.of(p.ref)?.pays ?? 0;
   return {
     org,
     page: `org:${orgs!.hiredHome(org) ?? p.ref}:${org.event}`,
     reserve,
     men,
     share: paid / Math.max(1e-9, all),
-    unpaid: reserve !== null && reserve <= 0,
+    unpaid: reserve !== null && reserve < Math.max(1, owed),
   };
 }
 
@@ -142,9 +151,19 @@ export function companiesTold(days: readonly CompanyDay[]):
 
 const r2 = (x: number) => Math.round(x * 100) / 100;
 
+/** A company's pay taken in kind: a share of the grain of the land it stood on, carried to its own home land. The grain moved. */
+function takePay(ctx: PopulationContext, co: CompanyAt, land: number): number {
+  const markets = ctx.world.store<MarketStore>("economy.markets"),
+    from = markets.get(land),
+    into = co.org.home !== land ? markets.get(co.org.home) : undefined;
+  if (!from || !into) return 0;
+  const n = Math.floor((from.stock[G.grain] ?? 0) * COMPANY.takes);
+  return n > 0 ? into.move("in", G.grain, from.move("out", G.grain, n)) : 0;
+}
+
 /**
- * After the battle: a company that left or went over is told, with why; an unpaid one that fought and won on the foe's land
- * takes its pay from it (`sack`: the war's own carrying off, which tells what was taken). Returns nothing.
+ * After the battle: a company that left or went over is told, with why; one short of its pay that stood and won takes its pay in
+ * kind from the land it stood on (the foe's, or its payer's own where it held it). Returns nothing.
  */
 export function companiesAfter(
   ctx: PopulationContext,
@@ -154,10 +173,10 @@ export function companiesAfter(
   won: boolean,
   land: number,
   battle: Ref,
-  sack: () => number,
 ): void {
   for (const d of days) {
-    const sacked = d.how === "fought" && d.co.unpaid && d.side === 0 && won ? sack() : 0;
+    const stood = d.how === "fought" && (d.side === 0) === won,
+      sacked = stood && d.co.unpaid ? takePay(ctx, d.co, land) : 0;
     if (d.how === "fought" && sacked <= 0) continue;
     const payer = sides[d.side]!,
       foe = sides[1 - d.side]!,
@@ -216,7 +235,7 @@ export function companiesAfter(
         page: d.co.page,
         men: d.co.men,
         how,
-        ...(sacked > 0 ? { grain: sacked } : {}),
+        ...(sacked > 0 ? { grain: sacked, ...(d.side === 1 ? { own: true } : {}) } : {}),
       },
     });
   }

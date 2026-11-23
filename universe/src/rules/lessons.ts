@@ -70,6 +70,11 @@ export type LessonResponse = {
    * leans on it (a raised floor asks little; a levy of more of the men asks much).
    */
   readonly asks: number;
+  /**
+   * Years for it to be half let go once nothing presses it, where not LESSON.keep: ground set aside that has done its work
+   * (the woods stand, the game is back) is kept as custom, under wardens and a rule, long after the loss is out of mind.
+   */
+  readonly keep?: number;
   /** What they do now, in words: "build braced frames". `{means}` stands for what it is made of now (`means`, or `arms`). */
   readonly does: string;
   /** What it is made of, by what they know (the first row has no needs: what anyone has). */
@@ -426,15 +431,17 @@ export const LESSON_RESPONSES: readonly LessonResponse[] = [
     ],
     name: "supply trains and depots",
   },
-  // Conservation: ground set aside from a people's own use, at the cost of what it would have given them. At full use three
-  // tenths of its farming ground is left as woods, or three tenths of what its wild yields is left untaken; a people pressed
-  // by hunger breaks it (sim/lore/lessons-store.ts asideIn), and it fades like any practice once the loss is out of mind.
+  // Conservation: ground set aside from a people's own use, at the cost of what it would have given them. At full use half
+  // its farming ground is left as woods, or two fifths of what its wild yields (its waters too) left untaken; a people pressed
+  // by hunger breaks it (sim/lore/lessons-store.ts asideIn); once kept, it is custom, let go four times slower than a practice.
   {
     id: "kept-woods",
     cause: "woods-lost",
     how: "aside:woods",
-    most: 0.3,
+    // (Half its farming ground at the most: a third was too little for woods cleared to stand again on any land fully tilled.)
+    most: 0.5,
     asks: 0.45,
+    keep: 240,
     does: "keep woods no one may clear, watched by {means}",
     means: [
       { needs: [], words: "those who live beside them" },
@@ -446,8 +453,9 @@ export const LESSON_RESPONSES: readonly LessonResponse[] = [
     id: "kept-wild",
     cause: "wild-lost",
     how: "aside:wild",
-    most: 0.3,
+    most: 0.4,
     asks: 0.4,
+    keep: 240,
     does: "close part of their hunting grounds and waters, by place and by season, under {means}",
     means: [
       { needs: [], words: "a ban their elders keep" },
