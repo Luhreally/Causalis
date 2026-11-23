@@ -1165,7 +1165,8 @@ function stepRealm(
     lands = new Map(r.lands.map((l) => [l.cell, l]));
   weighStakes(ctx, p, r, v);
   // (Its own word on a group by name, from what its interests want of it: ./grouphand.ts. Read below as any decree is.)
-  realmDecrees(ctx, p, v.orgs, r, t);
+  // (Every other reckoning: once in ten years, as its laws are weighed.)
+  if ((year + refNumber(p.ref)) % (2 * ORG.every) < ORG.every) realmDecrees(ctx, p, v.orgs, r, t);
   // (How far its hand bites on a group outlawed by name: its capacity by its reach over the group's lands.)
   const biteOf = (g: Org) =>
     g.decree === 0

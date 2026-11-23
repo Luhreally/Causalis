@@ -25,7 +25,13 @@ export const FAR_REIGN_EVENTS = {
 };
 
 /** What the home world knows of a far people's seat: the reign, the house, the event that told it. */
-export type FarReign = { reign: number; house: string; event: Ref | null };
+export type FarReign = {
+  reign: number;
+  house: string;
+  event: Ref | null;
+  /** The home year its next reign can first be heard (its end, and its light's years): nothing is read before. */
+  next: number;
+};
 
 export class FarReignStore implements StateStore {
   readonly name = "space.farreigns";
@@ -55,19 +61,26 @@ export class FarReignStore implements StateStore {
       h.string(k)
         .int(r.reign)
         .string(r.house)
-        .string(r.event ?? "");
+        .string(r.event ?? "")
+        .int(r.next);
     }
   }
   save(): unknown {
     return this.keys().map((k) => {
       const r = this.by.get(k)!;
-      return [k, r.reign, r.house, r.event];
+      return [k, r.reign, r.house, r.event, r.next];
     });
   }
   load(state: unknown): void {
     this.by.clear();
-    for (const [k, reign, house, event] of (state as [string, number, string, Ref | null][]) ?? [])
-      this.by.set(k, { reign, house, event });
+    for (const [k, reign, house, event, next] of (state as [
+      string,
+      number,
+      string,
+      Ref | null,
+      number?,
+    ][]) ?? [])
+      this.by.set(k, { reign, house, event, next: next ?? 0 });
   }
 }
 
@@ -82,18 +95,25 @@ export function farReignsYear(ctx: PopulationContext, t: SimTime): void {
   if (!store || !world.hasStore("space.contact")) return;
   const year = yearOfMoment(t);
   for (const c of contactsOf(world).all()) {
+    // (Nothing new can be heard before the reign known has ended and its end's light come.)
+    const known = store.of(c.civ);
+    if (known && year < known.next) continue;
     const civ = civilizationOf(world, c.civ);
     if (!civ) continue;
     // (What is heard of them now left them as many years ago as their light takes.)
     const seen = year - Math.ceil(civ.distance),
       ruler = farRulerOf(world, civ, seen);
     if (!ruler) continue;
-    const kept = store.of(civ.ref);
-    if (kept && kept.reign === ruler.reign) continue;
+    const kept = store.of(civ.ref),
+      next = ruler.until + Math.ceil(civ.distance);
+    if (kept && kept.reign === ruler.reign) {
+      store.set(civ.ref, { ...kept, next });
+      continue;
+    }
     const house = farHouseOf(world, civ, seen);
     if (!house) continue;
     if (!kept) {
-      store.set(civ.ref, { reign: ruler.reign, house: house.name, event: null });
+      store.set(civ.ref, { reign: ruler.reign, house: house.name, event: null, next });
       continue;
     }
     const fell = house.name !== kept.house,
@@ -114,7 +134,7 @@ export function farReignsYear(ctx: PopulationContext, t: SimTime): void {
           then: seen,
         },
       });
-    store.set(civ.ref, { reign: ruler.reign, house: house.name, event });
+    store.set(civ.ref, { reign: ruler.reign, house: house.name, event, next });
   }
 }
 

@@ -10,11 +10,12 @@
 //   - persecution: their land's faith is not their realm's seat's, under a law that asks one faith or only bears others
 //     (sim/order/laws.ts, as lawGrievance reads it), the more as the land is aggrieved. They go only to a haven: a land of
 //     another realm, or none, whose seat keeps their faith or whose law lets them keep it.
-//   - the hope of wages: a neighbouring land whose going wage is more than twice their own draws a few of them (half as many
+//   - the hope of wages: a neighbouring land whose going wage is more than three times their own draws a few of them (half as many
 //     over a border, where they are strangers), to the one that pays best.
 //   Persecution and wages are weighed in each land's own year of FLIGHT.every, that many years' leaving setting out together
-//   (a world of six hundred lands has a few hundred with a neighbour paying twice theirs, and a hundred under a law against
-//   their faith: weighed yearly, they were three hundred moves a year).
+//   (first light at 1500 has 600 peopled lands: 330 with a neighbour paying twice theirs, 256 three times, and 130 under a
+//   law against their faith: weighed yearly from twice, they were three hundred moves a year; every twentieth year from
+//   twice, thirty-five).
 // What moves is people, as every migration moves them: a people abroad is who came into a land of another tongue
 // (sim/culture/abroad.ts), and those who fled are kept by where they came to (sim/war/held.ts), by what drove them. Nothing is
 // kept here: each realm's faith law and seat's faith are read once a year, lazily, and a land's wage when it is weighed.
@@ -34,8 +35,8 @@ export const FLIGHT = {
   /** How much worse fed a land those who flee ruin or persecution will take (as `attraction`, food a mouth against their own). */
   refuge: 0.3,
   /** A land's going wage must pass their own by this share before it draws anyone; and those it draws a year at most, of
-   * a land's people, at twice their wage and more. */
-  wageLeast: 1,
+   * a land's people, at five times their wage and more. */
+  wageLeast: 2,
   wage: 0.003,
   /** Over a border, among strangers, the hope draws this share as many. */
   border: 0.5,
@@ -113,7 +114,7 @@ export class FlightYear {
     return w ? Math.max(w[OCC.farmer] ?? 0, w[OCC.crafter] ?? 0) : 0;
   }
 
-  /** How far a neighbouring land's wage draws a land's people (0 … 1: from past twice their own, wholly at four times). */
+  /** How far a neighbouring land's wage draws a land's people (0 … 1: from past three times their own, wholly at five). */
   drawn(from: number, to: number, own: number): number {
     if (!(own > 0)) return 0;
     const gap = this.wageOf(to) / own - 1 - FLIGHT.wageLeast;

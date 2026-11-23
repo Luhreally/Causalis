@@ -1678,7 +1678,7 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
             ? "war"
             : o.refuge && persecuted > 0
               ? "faith"
-              : o.wage > 0 && !driven
+              : o.wage > 0
                 ? "wages"
                 : undefined,
         factors: sixOf([
