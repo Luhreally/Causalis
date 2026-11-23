@@ -68,6 +68,7 @@ import {
 import { domeMesh } from "./colony.ts";
 import { compoundMeshes, roofCode, shapeLamps, shapeMaterial } from "./compound.ts";
 import { tonedMaterial, type Rgb, type Stage } from "./stage.ts";
+import { TownNetsLayer } from "./townnets.ts";
 
 const M = 0.1;
 /**
@@ -366,8 +367,12 @@ export class TownLayer {
   /** Where a siege has its walls open (view/siegeworks.ts SiegeWorks.open; null: they stand whole). */
   private open: { readonly mid: number; readonly wide: number } | null = null;
 
+  /** Its water, drains and power laid along its streets (render/townnets.ts; 2026-11-22). */
+  readonly nets: TownNetsLayer;
+
   constructor(stage: Stage, parent: pc.Entity) {
     parent.addChild(this.root);
+    this.nets = new TownNetsLayer(stage, this.root);
     const meshes: Record<AnyMesh, pc.Mesh> = {
       ...shapesOf(stage),
       dome: keptMesh(domeMesh(stage)),
@@ -408,6 +413,7 @@ export class TownLayer {
     this.settled.lamps = this.rising.lamps = lamps;
     if (!plan) {
       this.scene = null;
+      this.nets.build(null);
       this.parts.clear();
       this.settled.show(this.parts);
       this.rising.show(this.parts);
@@ -437,6 +443,7 @@ export class TownLayer {
     this.choosing = null;
     this.seenAt = t;
     this.settled.show(this.ground, this.ownParts, this.farParts);
+    this.nets.build(this.scene, this.eye);
     performance.measure("town.built", { start: t0 });
     this.busy = this.scene.active.length > 0 || civicsActive(plan, t) || !!plan.walls;
     this.drawnAt = -Infinity;
@@ -464,6 +471,7 @@ export class TownLayer {
     const scene = this.scene;
     if (!scene) return;
     this.eye = { x, z };
+    this.nets.look(x, z);
     const was = this.detail?.focus;
     if (!this.choosing && was && Math.hypot(x - was.x, z - was.z) > DETAIL_HYSTERESIS / 2)
       this.choosing = this.choose(scene, { x, z });

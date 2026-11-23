@@ -198,6 +198,7 @@ export {
   civicMoments,
   struckYear,
   footprint,
+  NET_BLOCKS,
   lotStates,
   beganAt,
   progress,
