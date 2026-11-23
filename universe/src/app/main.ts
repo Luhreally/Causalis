@@ -36,7 +36,15 @@ import {
   momentOf,
   villageSolids,
 } from "../view/index.ts";
-import { PeopleBar, barPins, setWrittenHold, yearsWorld } from "../ui/index.ts";
+import {
+  FALLEN,
+  PeopleBar,
+  barPins,
+  layOutUnseen,
+  setWrittenHold,
+  warmGlyphs,
+  yearsWorld,
+} from "../ui/index.ts";
 import { CornerRail, phoneSized } from "../ui/index.ts";
 import { closeLifeSheet, showLifeSheet, type LifeSheet } from "../ui/index.ts";
 import { THUMB_TIMES, bannerMs, drawPortrait, forgetBanners, paintThumb } from "../ui/index.ts";
@@ -1776,6 +1784,8 @@ async function runPlanetPage(): Promise<void> {
     true,
   );
   const { client, mode } = await connect();
+  // (And the fonts the screen's words fall back to found, while nothing else is asked: src/ui/glyphs.ts.)
+  const glyphsWarmed = warmGlyphs(hud);
   let painted = 0,
     scale:
       | "globe"
@@ -6816,15 +6826,6 @@ async function runPlanetPage(): Promise<void> {
     spires = !!plan.town && hasSpires(plan.town);
     // (For the look tools: what was drawn, before any frame after it changed it.)
     builtHash = params.has("hashes") ? village.partsHash() : null;
-    // (Its water drawn, and its shaders made, over the frames before it is shown, while it is not: its first frame makes
-    // none. Seen already, its water drawn before stands till the new is.)
-    if (hidden) {
-      await village.waterReady();
-      if (builtHash) builtHash = { ...builtHash, water: village.partsHash().water };
-      const w0 = performance.now();
-      await stage.warmOver(village.drawnParts(), 2);
-      performance.measure("village.warmed", { start: w0 });
-    }
     // One looked at who is no longer among the town drawn (asked 2026-11-17: one dead "keeps running"): the eye leaves
     // them, never passing to whoever stands at their number now; one under the hand, to their page, which tells their death.
     if (looked) {
@@ -6848,6 +6849,18 @@ async function runPlanetPage(): Promise<void> {
       ...(plan.metal ? { metal: plan.metal } : {}),
       ...(plan.stuff ? { stuff: plan.stuff } : {}),
     };
+    // (Its water drawn, and its shaders made, over the frames before it is shown, while it is not: its first frame makes
+    // none. Seen already, its water drawn before stands till the new is.)
+    if (hidden) {
+      await village.waterReady();
+      // (Its panel, filled, laid out out of sight a frame of its own: the frame it is shown does not.)
+      await new Promise<void>((r) => setTimeout(r, 0));
+      layOutUnseen(villagePanel.element);
+      if (builtHash) builtHash = { ...builtHash, water: village.partsHash().water };
+      const w0 = performance.now();
+      await stage.warmOver(village.drawnParts(), 2);
+      performance.measure("village.warmed", { start: w0 });
+    }
   };
   // The war about the town (Phase 40 M204): of the world's wars, the one its year brings to it now —
   // its men mustering and marching out; before its land's heart, the hosts drawn up and fighting,
@@ -7575,9 +7588,12 @@ async function runPlanetPage(): Promise<void> {
       };
       exposed.farLandParts = (o) => farLand.parts(o);
     }
-    village.visible = true;
+    // (Its panel shown, and laid out, the frame before the town is: the frame it is first drawn draws it alone.)
     villagePanel.visible = true;
     time.at("village", villagePanel.timeSlot);
+    await new Promise<void>((r) => requestAnimationFrame(() => r()));
+    if (scale !== "village") return;
+    village.visible = true;
     // A town is seen from as far off as it spreads (Phase 23); a city's quarters from further off.
     const reach = village.townReach() * 0.1,
       far = reach > 0 ? Math.min(170, Math.max(26, reach * 1.4)) : plan?.districts ? 78 : 26;
@@ -11157,6 +11173,8 @@ async function runPlanetPage(): Promise<void> {
       importance: 5,
     });
   takeUp.push(() => peopleBar.fresh());
+  // (Laid out once out of sight, its signs read, before a town first shows it.)
+  void glyphsWarmed.then(() => peopleBar.rehearse(FALLEN));
   exposed.peopleBar = peopleBar;
   exposed.barPins = barPins;
   // (A file all of one year: the clock held while it is read.)

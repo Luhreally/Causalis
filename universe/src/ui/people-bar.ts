@@ -21,6 +21,8 @@ const LOOK_MS = 800,
   YEARS_MS = 4000;
 /** The most a viewer keeps on the bar. */
 export const MOST_PINS = 8;
+/** How many chips are first made in a frame (draw): the rest in the frames after. */
+const NEW_A_FRAME = 1;
 const FACE_W = 34,
   FACE_H = 54,
   FOLDED_KEY = "causalis.bar.folded",
@@ -284,6 +286,37 @@ export class PeopleBar {
     this.draw(this.last);
   }
 
+  /**
+   * Laid out once out of sight before it is first shown, a chip of signs in it (2026-11-23): its words and signs are read at
+   * their sizes then, not in the frame a town is come to (a fortieth of a second at four times the desk). Nothing of it moves.
+   */
+  rehearse(signs: string): void {
+    if (!this.element.hidden || this.chips.size) return;
+    const reading = (tone: string) => ({ glyph: signs, label: "", short: "", words: "", tone }),
+      person = {
+        key: "rehearse|",
+        kind: "here",
+        ref: "",
+        name: signs,
+        why: signs,
+        gone: false,
+        pinned: true,
+        portrait: null,
+        readings: { mood: reading("good"), doing: reading("plain"), health: reading("bad") },
+      } as unknown as BarPerson,
+      chip = this.made(person, "rehearse"),
+      kept = [...this.row.children];
+    this.chips.delete("rehearse");
+    this.fill(chip, person);
+    this.row.replaceChildren(chip.box);
+    this.element.style.visibility = "hidden";
+    this.element.hidden = false;
+    void this.element.getBoundingClientRect();
+    this.element.hidden = true;
+    this.element.style.visibility = "";
+    this.row.replaceChildren(...kept);
+  }
+
   /** Forget what was read: a world taken up again. */
   fresh(): void {
     this.dirty = true;
@@ -380,9 +413,20 @@ export class PeopleBar {
         c.box.remove();
         this.chips.delete(k);
       }
-    for (const p of people) this.fill(this.chips.get(keyOf(p)) ?? this.made(p, keyOf(p)), p);
+    // (One new chip a frame, the rest the frames after: a chip first laid out reads its signs' fonts at its sizes, a thirtieth of
+    // a second at four times the desk a chip, all of a town's at once the frame it was come to.)
+    let fresh = 0,
+      more = false;
+    const shown = people.filter((p) => {
+      if (this.chips.has(keyOf(p))) return true;
+      if (fresh >= NEW_A_FRAME) return !(more = true);
+      fresh++;
+      return true;
+    });
+    for (const p of shown) this.fill(this.chips.get(keyOf(p)) ?? this.made(p, keyOf(p)), p);
+    if (more) requestAnimationFrame(() => this.last === all && this.draw(all));
     // (Set in their order only when it changes: a chip moved loses the finger on it.)
-    const order: HTMLElement[] = people.map((p) => this.chips.get(keyOf(p))!.box);
+    const order: HTMLElement[] = shown.map((p) => this.chips.get(keyOf(p))!.box);
     if (!order.length) {
       put(this.empty, EMPTY_WORDS[this.tab]);
       order.push(this.empty);

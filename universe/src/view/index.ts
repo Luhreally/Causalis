@@ -14,6 +14,7 @@ export {
   rideMoments,
   ridesOf,
   ridesSteps,
+  carsAhead,
   type BusLine,
   type CarNow,
   type Owner,
