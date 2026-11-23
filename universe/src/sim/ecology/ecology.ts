@@ -574,17 +574,17 @@ export function ecologyYear(ctx: PopulationContext, t: SimTime): void {
         year,
         p.lastFamine,
         [
-        [
-          "woods",
-          wasWoods,
-          asideWoods,
-          // (Come back: no longer cleared, or standing again past KEPT_STANDS while still short of whole.)
-          wasCleared && (!w.cleared || (before < KEPT_STANDS && w.forest >= KEPT_STANDS))
-            ? wasCleared
-            : null,
-          w.forest,
-        ],
-        ["wild", wasWild, asideWild, wasThinned && !w.thinned ? wasThinned : null, w.wild],
+          [
+            "woods",
+            wasWoods,
+            asideWoods,
+            // (Come back: no longer cleared, or standing again past KEPT_STANDS while still short of whole.)
+            wasCleared && (!w.cleared || (before < KEPT_STANDS && w.forest >= KEPT_STANDS))
+              ? wasCleared
+              : null,
+            w.forest,
+          ],
+          ["wild", wasWild, asideWild, wasThinned && !w.thinned ? wasThinned : null, w.wild],
         ],
         w,
       );

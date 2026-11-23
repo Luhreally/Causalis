@@ -67,3 +67,27 @@ test("ground set aside broken by hunger is told where hunger took it below half;
   h.causes.delete("famine");
   if (hunger) h.causes.set("famine", hunger);
 });
+
+test("a coming back is told once a loss: not again while the stand wavers above its line, again after it falls below", () => {
+  const h = lessonsOf(world)!.holder(p.ref),
+    taken = world.events.emit({ type: "lessons.taken", place: p.ref, causes: [], data: {} }),
+    cleared = world.events.emit({
+      type: ECOLOGY_EVENTS.cleared.type,
+      place: p.ref,
+      causes: [],
+      data: {},
+    }),
+    had = h.uses.get("kept-woods"),
+    marks = { keptBack: 0 },
+    n = () => told(ECOLOGY_EVENTS.keptBack.type).length;
+  h.uses.set("kept-woods", { w: 1, at: year, taken: year - 30, from: null, ref: taken } as never);
+  const before = n();
+  keptTurns(world, p.ref, h, year, null, [["woods", 0.2, 0.2, cleared, 0.42]], marks);
+  keptTurns(world, p.ref, h, year, null, [["woods", 0.2, 0.2, cleared, 0.41]], marks);
+  assert.equal(n(), before + 1);
+  keptTurns(world, p.ref, h, year, null, [["woods", 0.2, 0.2, null, 0.25]], marks);
+  keptTurns(world, p.ref, h, year, null, [["woods", 0.2, 0.2, cleared, 0.42]], marks);
+  assert.equal(n(), before + 2);
+  if (had) h.uses.set("kept-woods", had);
+  else h.uses.delete("kept-woods");
+});
