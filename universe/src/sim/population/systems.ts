@@ -18,6 +18,7 @@ import { workBySex } from "../society/work.ts";
 import { rooflessColdOf } from "../society/kept.ts";
 import { youngKilledOf } from "../order/underworld-kept.ts";
 import { orgSparedOf, orgYoungKilledOf } from "../order/groups-kept.ts";
+import { endemicOf } from "../health/health.ts";
 import {
   CountDeltas,
   MONTH,
@@ -64,7 +65,7 @@ import {
   waterYield,
   wildsOf,
 } from "../ecology/ecology.ts";
-import { peopleAffords, peopleLife } from "./life.ts";
+import { peopleAffords, peopleKin, peopleLife } from "./life.ts";
 import {
   airOf,
   darkCause,
@@ -130,6 +131,12 @@ import {
   coatOf,
   childrenKept,
   youngBand,
+  adaptedOf,
+  coldFelt,
+  girlsOf,
+  heightsToll,
+  longerLived,
+  matedShare,
 } from "../../rules/index.ts";
 import { homePlanet } from "../planet/store.ts";
 import { lightSteps, starSitesOf } from "../space/stars.ts";
@@ -874,7 +881,12 @@ const STAR_DARK = 3;
 export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
   const { world, history } = ctx,
     year = yearOfMoment(t),
-    life = ctx.life;
+    life = ctx.life,
+    // (How its kind pairs, and what its sexes and its old are by its body: rules/demography.ts, sim/population/life.ts.)
+    kin = peopleKin(ctx.generated),
+    girlsBorn = girlsOf(life),
+    boyRisk = life.boyRisk ?? 1,
+    lore = loreOf(world);
   const markets = marketsOf(world),
     acts = actsOf(world),
     month = periodIndex(t, MONTH),
@@ -919,6 +931,13 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
       cold = dmath.clamp((10 - ctx.generated.climate.temperature[p.cell]!) / 10, 0, 1),
       // (As far as their own coat leaves them to clothes: the society sweep, rules/dress.ts. A bare skin's, 1.)
       bare = (1 - (markets.get(p.cell)?.clothingCover ?? 1000) / 1000) * bodyCoat(ctx),
+      // (As far as its people have taken to their land, by the generations they have lived in it, the cold and the heights
+      // press the less: rules/demography.ts adaptedOf. A land of the sea's people has no thin air.)
+      adapted = adaptedOf(year - p.settledYear, kin.generation),
+      heights =
+        ctx.medium === "land"
+          ? heightsToll(ctx.generated.tectonics.elevation[p.cell]!, adapted)
+          : 1,
       // Herb-lore and medicine: fewer die (as far as its healers reach them: society/care.ts).
       healed = healedIn(world, p.cell),
       // Where much is burned among few, smoke fouls the air.
@@ -931,60 +950,81 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
       intox = 1 + 25 * intoxDeaths(world, p.cell),
       // (Less what its mutual-aid societies spare: sim/order/groups.ts. Exactly 1 where none is kept.)
       aided = 1 - orgSparedOf(world, p.cell),
-      mortality = pressure * (1 + 0.25 * cold * bare) * healed * smoke * roofless * intox * aided,
+      mortality =
+        pressure *
+        (1 + 0.25 * cold * bare * coldFelt(adapted)) *
+        heights *
+        healed *
+        smoke *
+        roofless *
+        intox *
+        aided,
+      // (And its old wear the slower as far as it knows the body past what its care uses: rules/demography.ts longerLived.)
+      long = longerLived(lore.effect(p.cell, "health")),
       // (Its frail die the more for those no one keeps: society/care.ts. Exactly as before where none is reckoned.)
       old = oldPressOf(world, p.cell),
       // A band's chance of dying within the months, the same for every one of it (reckoned once).
       dying: number[] = [],
+      dyingBoys: number[] = [],
       // (And what its diet goes short of: its young die the more, rules/nutrition.ts. Exactly 1 where it goes short of nothing.)
       want = dietDeaths(world, p.cell),
       // (And its young killed by the underworld: sim/order/underworld.ts. Exactly 1 where none is kept.)
       // (And by its other groups, its brigands' and pirates' killing and its risings': sim/order/groups.ts. Nothing where none.)
-      killed = youngKilledOf(world, p.cell) + orgYoungKilledOf(world, p.cell),
-      dyingIn = (b: number) =>
-        (dying[b] ??= deathWithin(
-          riskUnder(
-            life.mortality[b]!,
-            mortality *
-              (b < 2 ? want.young : want.grown) *
-              (old && b >= old.band ? old.press : 1) *
-              (killed > 0 && youngBand(life, b)
-                ? 1 + killed / Math.max(1e-4, life.mortality[b]!)
-                : 1),
-          ),
-          months,
-        )),
+      // (And the sicknesses settled among its young: health/health.ts settle. Nothing where none.)
+      killed =
+        youngKilledOf(world, p.cell) + orgYoungKilledOf(world, p.cell) + endemicOf(world, p.cell),
+      pressOn = (b: number, sex: number) =>
+        mortality *
+        (b < 2 ? want.young : want.grown) *
+        (old && b >= old.band ? old.press : 1) *
+        (b >= kin.oldBand ? long : 1) *
+        // (The young of those who sire die the more as the sexes' bodies differ: rules/species.ts boyRiskOf.)
+        (sex === MALE && life.bands[b]! < life.adulthood ? boyRisk : 1) *
+        (killed > 0 && youngBand(life, b) ? 1 + killed / Math.max(1e-4, life.mortality[b]!) : 1),
+      dyingIn = (b: number, sex = FEMALE) =>
+        sex === MALE && life.bands[b]! < life.adulthood && boyRisk !== 1
+          ? (dyingBoys[b] ??= deathWithin(riskUnder(life.mortality[b]!, pressOn(b, MALE)), months))
+          : (dying[b] ??= deathWithin(riskUnder(life.mortality[b]!, pressOn(b, FEMALE)), months)),
       d = new CountDeltas(p.counts),
       key = refHash(p.ref),
       // Under the hand, a village's people are born and die one by one; the rest by rates.
       windowed = handOf(world).composition(p.cell, year, ctx.life),
       rest = (r: number, o: number) =>
         p.counts.get(r, o) - (windowed ? windowed[r * COLS + o]! : 0);
-    let expected = 0;
+    let expected = 0,
+      bearers = 0,
+      sires = 0;
     for (let b = 0; b < BANDS; b++) {
+      if (!(life.fertility[b]! > 0)) continue;
       let women = p.counts.rowSum(row(FEMALE, b));
       if (windowed) for (let o = 0; o < COLS; o++) women -= windowed[row(FEMALE, b) * COLS + o]!;
       expected += women * life.fertility[b]!;
+      bearers += women;
+      sires += p.counts.rowSum(row(MALE, b));
     }
-    const births = roundKeyed((expected * fertility) / 12, world.rng.real(BIRTHS, key, t));
+    // (A land short of grown sires bears the less, as far as its births wait on a mate: rules/demography.ts matedShare.)
+    const mated = matedShare(kin.pairing, sires, bearers, kin.even),
+      births = roundKeyed((expected * fertility * mated) / 12, world.rng.real(BIRTHS, key, t));
     if (births) {
-      const [girls, boys] = multinomial(births, [0.488, 0.512], (i) =>
+      const [girls, boys] = multinomial(births, [girlsBorn, 1 - girlsBorn], (i) =>
         world.rng.real(BIRTHS, key, t, SEX, i),
       );
       // The months' newborns were born through them: those of them who died within them, by
-      // the first years' chance spread over the months.
-      const infants = Math.min(
-          births,
-          roundKeyed(births * diedInBirthYear(dyingIn(0)), world.rng.real(DEATHS, key, t, 1, 0)),
+      // the first years' chance spread over the months (the sires' young the more).
+      const lostGirls = Math.min(
+          girls!,
+          roundKeyed(girls! * diedInBirthYear(dyingIn(0)), world.rng.real(DEATHS, key, t, 1, 0)),
         ),
-        // Who of the newborns they were: drawn from the girls and boys born, never more of either.
-        [lostGirls] = infants
-          ? drawWithoutReplacement(infants, [girls!, boys!], (i) =>
-              world.rng.real(DEATHS, key, t, 2, i),
-            )
-          : [0];
-      d.add(row(FEMALE, 0), OCC.dependent, girls! - lostGirls!);
-      d.add(row(MALE, 0), OCC.dependent, boys! - (infants - lostGirls!));
+        lostBoys = Math.min(
+          boys!,
+          roundKeyed(
+            boys! * diedInBirthYear(dyingIn(0, MALE)),
+            world.rng.real(DEATHS, key, t, 2, 0),
+          ),
+        ),
+        infants = lostGirls + lostBoys;
+      d.add(row(FEMALE, 0), OCC.dependent, girls! - lostGirls);
+      d.add(row(MALE, 0), OCC.dependent, boys! - lostBoys);
       history.addBirths(p.cell, year, births);
       if (infants) history.addDeaths(p.cell, year, 0, infants);
     }
@@ -995,7 +1035,7 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
           if (!n) continue;
           const dead = Math.min(
             n,
-            roundKeyed(n * dyingIn(b), world.rng.real(DEATHS, key, t, 0, row(s, b) * COLS + o)),
+            roundKeyed(n * dyingIn(b, s), world.rng.real(DEATHS, key, t, 0, row(s, b) * COLS + o)),
           );
           if (!dead) continue;
           d.add(row(s, b), o, -dead);
@@ -1282,8 +1322,53 @@ export function slowDeaths(ctx: PopulationContext, cell: number): number {
   const cold = dmath.clamp((10 - ctx.generated.climate.temperature[cell]!) / 10, 0, 1),
     bare = (1 - (marketsOf(ctx.world).get(cell)?.clothingCover ?? 1000) / 1000) * bodyCoat(ctx),
     healed = healedIn(ctx.world, cell),
-    smoke = 1 + 0.3 * smokeIn(ctx, cell);
-  return (1 + 0.25 * cold * bare) * healed * smoke;
+    smoke = 1 + 0.3 * smokeIn(ctx, cell),
+    p = ctx.provinces.get(cell),
+    adapted = p
+      ? adaptedOf(yearOfMoment(ctx.world.now) - p.settledYear, peopleKin(ctx.generated).generation)
+      : 1,
+    heights =
+      ctx.medium === "land" ? heightsToll(ctx.generated.tectonics.elevation[cell]!, adapted) : 1;
+  return (1 + 0.25 * cold * bare * coldFelt(adapted)) * heights * healed * smoke;
+}
+
+/**
+ * A land's numbers by its people's body, as vitalMonth reads them (rules/demography.ts): its grown sires to a bearer of bearing
+ * age and the share of its births that leaves, how far it has taken to its land and what the heights and the cold still cost it,
+ * and what knowing the body spares its old.
+ */
+export function landDemography(
+  ctx: PopulationContext,
+  cell: number,
+): {
+  sires: number;
+  mated: number;
+  adapted: number;
+  heights: number;
+  cold: number;
+  long: number;
+} | null {
+  const p = ctx.provinces.get(cell);
+  if (!p) return null;
+  const life = ctx.life,
+    kin = peopleKin(ctx.generated);
+  let bearers = 0,
+    sires = 0;
+  for (let b = 0; b < BANDS; b++)
+    if (life.fertility[b]! > 0) {
+      bearers += p.counts.rowSum(row(FEMALE, b));
+      sires += p.counts.rowSum(row(MALE, b));
+    }
+  const adapted = adaptedOf(yearOfMoment(ctx.world.now) - p.settledYear, kin.generation);
+  return {
+    sires: bearers > 0 ? sires / bearers : 1,
+    mated: matedShare(kin.pairing, sires, bearers, kin.even),
+    adapted,
+    heights:
+      ctx.medium === "land" ? heightsToll(ctx.generated.tectonics.elevation[cell]!, adapted) : 1,
+    cold: coldFelt(adapted),
+    long: longerLived(loreOf(ctx.world).effect(cell, "health")),
+  };
 }
 
 /** Below this share of the food it needs (in thousandths), a land's month is a famine. */

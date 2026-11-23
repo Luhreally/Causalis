@@ -8,6 +8,7 @@
 import {
   WOUNDS,
   blowOf,
+  guardWith,
   hurtOfLands,
   packTowns,
   performanceOf,
@@ -53,6 +54,9 @@ export type HostTerms = {
   readonly care: number;
   /** Its arm part's id and material (null: no arm part). */
   readonly bore: Bore | null;
+  /** Its arm part's id (the energy its blows deliver: rules/wounds.ts), and whether its people are cold-blooded. */
+  readonly arm?: string | null;
+  readonly cold?: boolean;
   /** What its hosts have learned of the field (rules/combat.ts CombatSide): absent where nothing. */
   readonly screen?: number;
   readonly steady?: number;
@@ -66,22 +70,31 @@ export type SideInBattle = {
   readonly takes: readonly Take[];
 };
 
-/** What a realm's host fights with: its full kit as borne (not scaled by how armed it is), its care. */
+/**
+ * What a realm's host fights with: its full kit as borne (not scaled by how armed it is), its body's own covering under it
+ * (rules/wounds.ts guardWith), its care, and its blood.
+ */
 export function hostTerms(ctx: PopulationContext, p: Polity, arms: Arms): HostTerms {
   const does = performanceOf(arms.parts),
     arm = arms.parts.find((x) => x.role === "arm"),
+    guard = arms.parts.find((x) => x.role === "guard"),
+    body = ctx.generated.life.people?.body,
     lore = loreOf(ctx.world),
     year = yearOfMoment(ctx.world.now),
     screen = lessonAdds(ctx.world, p.ref, "screen", year),
     steady = lessonAdds(ctx.world, p.ref, "steady", year);
   return {
     shock: does.shock ?? 0,
-    protection: does.protection ?? 0,
+    protection: body
+      ? guardWith(does.protection ?? 0, body.skin, !!guard?.id.startsWith("own-"))
+      : (does.protection ?? 0),
     range: does.range ?? 0,
     fire: arms.fire,
     blow: blowOf(arm?.id),
     care: woundCare((id) => !!lore.get(p.seat, id)),
     bore: arm ? [arm.id, arm.material] : null,
+    arm: arm?.id ?? null,
+    ...(body && !body.warm ? { cold: true } : {}),
     ...(screen > 0 ? { screen } : {}),
     ...(steady > 0 ? { steady } : {}),
   };
@@ -146,6 +159,8 @@ export function battleRecord(
         protection: own.terms.protection,
         care: own.terms.care,
         size,
+        arm: foe.terms.bore?.[0] ?? null,
+        ...(own.terms.cold ? { cold: true } : {}),
       }),
     [s0, s1] = sides,
     w0 = struck(s0, s1),

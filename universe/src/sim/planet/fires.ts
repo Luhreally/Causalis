@@ -51,6 +51,7 @@ import {
 import type { PopulationContext } from "../population/systems.ts";
 import { deathsIn, grieve, spill } from "../acts/disasters.ts";
 import { groundOf } from "../ecology/ground.ts";
+import { switchedOff } from "../acts/switches.ts";
 
 export const ERUPTION_EVENTS = {
   /** A volcano erupted (its importance by its size). */
@@ -241,7 +242,8 @@ export function firesYear(ctx: PopulationContext, t: SimTime): void {
   // (The ash of years past is weathered in.)
   if (store.ash.length) store.ash = store.ash.filter((a) => a[1] > t);
   const vents = ventsOfWorld(g);
-  if (vents.total > 0) {
+  // (The world's own disasters turned off by the player: no vent wakes. sim/acts/switches.ts.)
+  if (vents.total > 0 && !switchedOff(world, "disasters")) {
     const n = poissonCount(vents.total, world.rng.real(ERUPTIONS, 0, t, 0));
     for (let i = 0; i < n; i++) {
       const at = world.rng.real(ERUPTIONS, 1, t, i) * vents.total;

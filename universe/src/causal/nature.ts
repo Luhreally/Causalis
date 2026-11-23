@@ -89,6 +89,34 @@ registerEventWords(
   (world, e) =>
     `The flocks of ${landWords(world, e.place)}, kept close, grew heavy with parasites${inHundred(num(e.data, "toll"), "what they gave was lost")}, ${year(e.t)}`,
 );
+registerEventWords(LINEAGE_EVENTS.changed.type, (world, e) => {
+  const beast = word(e.data, "beast") ?? "beasts",
+    trait = word(e.data, "trait"),
+    more = word(e.data, "way") !== "less",
+    why = word(e.data, "why"),
+    what = !trait
+      ? "changed"
+      : trait === "size"
+        ? more
+          ? "grown larger"
+          : "grown smaller"
+        : trait === "coat"
+          ? more
+            ? "grown thicker coats"
+            : "grown thinner coats"
+          : more
+            ? "grown warier"
+            : "grown bolder",
+    // (Its facts forgotten, what bred it so is not said: never a cause it did not have.)
+    because = !why
+      ? ""
+      : why === "hunted"
+        ? `hunted hard${num(e.data, "hunted") !== null ? ` (${num(e.data, "hunted")} in a hundred of the game taken)` : ""}, the boldest and the greatest taken first while the rest bred`
+        : why === "warmer"
+          ? "the ground grown warmer than they were made for"
+          : "the ground grown colder than they were made for";
+  return `The ${beast} of ${landWords(world, e.place)} and the lands about had ${what} over their generations${because ? `, ${because}` : ""}, ${year(e.t)}`;
+});
 registerEventWords(
   DIET_EVENTS.poor.type,
   (world, e) =>

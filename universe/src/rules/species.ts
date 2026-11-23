@@ -24,6 +24,13 @@ export type LifeHistory = {
   readonly oldest: number;
   /** What the young of the first band eat, against the grown (the smaller the more are born). */
   readonly young: number;
+  /**
+   * Of those born, the share who will bear (Fisher's balance, `girlsAtBirth`): a little under half where the young of those who
+   * sire die the more before they are grown. Absent on a table made by hand: 0.488.
+   */
+  readonly girls?: number;
+  /** How much more the young of those who sire die before they are grown than those who will bear (`boyRiskOf`; 1 where absent). */
+  readonly boyRisk?: number;
 };
 
 export const HUMANLIKE: LifeHistory = {
@@ -35,6 +42,10 @@ export const HUMANLIKE: LifeHistory = {
   appetite: 1,
   oldest: 10,
   young: 1,
+  // (Fisher's balance on the table itself, the apes pairing for life and their bodies differing a quarter: `girlsAtBirth(HUMANLIKE,
+  // boyRiskOf(0.25))`, held by a test.)
+  girls: 0.488,
+  boyRisk: 1.094,
 };
 
 export const BANDS = HUMANLIKE.bands.length;
@@ -105,13 +116,17 @@ export function bandOf(age: number, life: LifeHistory = HUMANLIKE): number {
  * A people's life table from its body: the upright apes' table stretched to the body's
  * span (bands, coming of age and yearly rates alike); fertility by its fecundity, with
  * the young's first years the more perilous as more are born, so that a people at
- * plenty grows at the chronicle's pace, the apes', whatever its span (a short life
- * bears more and loses more of its young; it does not outbreed the chronicle — a
- * pace doubled for a half-long life compounds over centuries into billions); appetite by its
- * size (three-quarters of a power, as life's metabolism scales) and halved for cold
- * blood. The canonical upright ape's is Earth's table itself.
+ * plenty grows at its own body's pace (`plentyPace`: the apes' by its size to the minus
+ * quarter power, as life's fastest growth scales; a short life bears more and loses more
+ * of its young, it does not outbreed its size: a pace doubled for a half-long life
+ * compounds over centuries into billions); appetite by its size (three-quarters of a
+ * power, as life's metabolism scales) and halved for cold blood; its sexes born as
+ * Fisher's balance says (`girlsAtBirth`), the young of those who sire dying the more as
+ * the sexes' bodies differ (`boyRisk`: `boyRiskOf` by how the kind pairs, read where the
+ * pairing is: sim/population/life.ts peopleLife; `paired`, how far it needs two). The canonical upright
+ * ape's is Earth's table itself.
  */
-export function lifeHistoryOf(body: BodyPlan): LifeHistory {
+export function lifeHistoryOf(body: BodyPlan, boyRisk = 1, paired = 1): LifeHistory {
   if (body.clade === "ape" && body.span === 70 && body.size === 60 && body.young === 1)
     return HUMANLIKE;
   const k = body.span / 70,
@@ -119,20 +134,24 @@ export function lifeHistoryOf(body: BodyPlan): LifeHistory {
     bands: number[] = [];
   for (const b of HUMANLIKE.bands)
     bands.push(Math.max(bands.length ? bands.at(-1)! + 1 : 0, Math.round(b * k)));
-  // The first years as perilous as they must be for the people to grow at the apes'
-  // pace: solved on the simulation's own reckoning (`growthOf`).
-  const shaped = (infant: number): LifeHistory => ({
-      name: body.clade,
-      bands,
-      fertility: HUMANLIKE.fertility.map((x) => (x * f) / k),
-      mortality: HUMANLIKE.mortality.map((x, i) => (i === 0 ? infant : Math.min(0.95, x / k))),
-      adulthood: Math.max(1, Math.round(HUMANLIKE.adulthood * k)),
-      appetite: dmath.pow(body.size / 60, 0.75) * (body.warm ? 1 : 0.5),
-      oldest: Math.max(1, Math.round(10 * k)),
-      // Born many at a time, the young are born small: they eat the less.
-      young: Math.min(1, 1 / Math.max(1, f)),
-    }),
-    target = apesGrowth();
+  const adulthood = Math.max(1, Math.round(HUMANLIKE.adulthood * k));
+  // The first years as perilous as they must be for the people to grow at its own pace:
+  // solved on the simulation's own reckoning (`growthOf`).
+  const shaped = (infant: number): LifeHistory => {
+      const life: LifeHistory = {
+        name: body.clade,
+        bands,
+        fertility: HUMANLIKE.fertility.map((x) => (x * f) / k),
+        mortality: HUMANLIKE.mortality.map((x, i) => (i === 0 ? infant : Math.min(0.95, x / k))),
+        adulthood,
+        appetite: dmath.pow(body.size / 60, 0.75) * (body.warm ? 1 : 0.5),
+        oldest: Math.max(1, Math.round(10 * k)),
+        // Born many at a time, the young are born small: they eat the less.
+        young: Math.min(1, 1 / Math.max(1, f)),
+      };
+      return { ...life, girls: girlsAtBirth(life, boyRisk, paired), boyRisk };
+    },
+    target = apesGrowth() * plentyPace(body.size);
   let lo = Math.min(0.95, HUMANLIKE.mortality[0]! / k),
     hi = 0.995;
   if (growthOf(shaped(lo)) <= target) return shaped(lo);
@@ -142,6 +161,57 @@ export function lifeHistoryOf(body: BodyPlan): LifeHistory {
     else hi = mid;
   }
   return shaped((lo + hi) / 2);
+}
+
+/**
+ * How fast a body's people can grow at plenty, against the upright apes' (Fenchel 1974: life's fastest growth falls as its
+ * size to the minus quarter power, from a mite to a whale). Held within 0.6 … 1.6 of the apes': the chronicle's pace is the
+ * apes', and a people far faster or slower would not keep it.
+ */
+export function plentyPace(size: number): number {
+  return dmath.clamp(dmath.pow(Math.max(1, size) / 60, -0.25), 0.6, 1.6);
+}
+
+/**
+ * How much more the young of those who sire die before they are grown, by how far the sexes' bodies differ (rules/roles.ts
+ * DIMORPHISM): the larger sex grows the faster and the riskier, and dies the more (Clutton-Brock, Albon and Guinness 1985), by
+ * three-eighths of the difference (the apes, who differ a quarter, lose about a tenth more of their boys: Coale and Demeny's
+ * West tables at a life of twenty-five years, boys 0.43 dead before fifteen to girls' 0.40).
+ */
+export function boyRiskOf(dimorphism: number): number {
+  return 1 + 0.375 * dmath.clamp(dimorphism, 0, 1);
+}
+
+/** Of those born to a life table, the share who die before they are grown, at plenty, with deaths `m` times as pressing. */
+export function youngLost(life: LifeHistory, m = 1): number {
+  let live = 1 - diedInBirthYear(riskUnder(life.mortality[0]!, m));
+  for (let b = 0; b < life.bands.length && life.bands[b]! < life.adulthood; b++) {
+    const w = Math.min(bandWidth(b, life), life.adulthood - life.bands[b]!);
+    live *= dmath.pow(
+      1 - Math.min(0.999, riskUnder(life.mortality[b]!, m)),
+      b === 0 ? Math.max(0, w - 1) : w,
+    );
+  }
+  return dmath.clamp(1 - live, 0, 1);
+}
+
+/**
+ * Of those born, the share who will bear (Fisher 1930). Where two must raise the young (`paired`, 1 for those who pair for life:
+ * rules/self.ts twoNeeded's pairing), a parent who bore the sex that dies the less before it is grown would leave it short of
+ * mates: the sexes are born so as to be even when grown, more of the sex that dies the more. Where none pairs, each sex costs its
+ * parents alike and the balance is half and half whoever dies after. Between, by how far the young need two.
+ */
+export function girlsAtBirth(life: LifeHistory, boyRisk: number, paired = 1): number {
+  const sf = 1 - youngLost(life),
+    sm = 1 - youngLost(life, boyRisk),
+    even = sf + sm > 0 ? sm / (sf + sm) : 0.5,
+    p = dmath.clamp(paired, 0, 1);
+  return p * even + (1 - p) * 0.5;
+}
+
+/** The share of a life table's born who will bear (0.488 on a table that does not say). */
+export function girlsOf(life: LifeHistory): number {
+  return life.girls ?? 0.488;
 }
 
 /**
@@ -160,7 +230,7 @@ export function growthOf(life: LifeHistory, years = 300): number {
     let births = 0;
     for (let b = 0; b < bands; b++) births += n[b]! * life.fertility[b]!;
     n = n.map((x, b) => x * (1 - Math.min(1, life.mortality[b]!)));
-    n[0] = n[0]! + births * 0.488 * newborn;
+    n[0] = n[0]! + births * girlsOf(life) * newborn;
     const moved = n.map((x, b) => (b < bands - 1 ? x / bandWidth(b, life) : 0));
     for (let b = 0; b < bands; b++) {
       n[b] = n[b]! - moved[b]!;

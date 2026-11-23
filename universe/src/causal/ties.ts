@@ -123,7 +123,9 @@ const FORM_WED: Readonly<Record<string, (w: string, t: string, a: string, b: str
 registerEventWords(TIE_EVENTS.match.type, (_, e) => {
   const d = e.data as { form?: string } | null,
     say = FORM_WED[d?.form ?? "wed"] ?? FORM_WED.wed!;
-  return `${cap(say(text(e.data, "who", "one of them"), text(e.data, "to", "another"), text(e.data, "realm"), text(e.data, "other")))}, ${year(e.t)}`;
+  // (A match made against a foe both fought: rules/demography.ts allianceWorth.)
+  const foe = (e.data as { foe?: boolean } | null)?.foe ? ", against the foe they both fought" : "";
+  return `${cap(say(text(e.data, "who", "one of them"), text(e.data, "to", "another"), text(e.data, "realm"), text(e.data, "other")))}${foe}, ${year(e.t)}`;
 });
 
 registerEventWords(TIE_EVENTS.claim.type, (_, e) => {

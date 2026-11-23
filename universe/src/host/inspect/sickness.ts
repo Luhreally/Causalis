@@ -268,11 +268,16 @@ export function sicknessPage(world: World, ref: string): PageModel {
             },
           ]
         : []),
-      s.ended !== null
-        ? stat("Gone", `unseen since year ${s.last}`)
-        : year - s.last >= SICK.sleeps
-          ? stat("Sleeping", `unseen since year ${s.last}, where it rose`)
-          : stat("Last seen", `year ${s.last}`),
+      s.settled !== null && s.settled !== undefined
+        ? stat(
+            "Settled among the young",
+            `since year ${s.settled}, in ${count(s.settledIn)} lands: every child meets it once, and some die of it`,
+          )
+        : s.ended !== null
+          ? stat("Gone", `unseen since year ${s.last}`)
+          : year - s.last >= SICK.sleeps
+            ? stat("Sleeping", `unseen since year ${s.last}, where it rose`)
+            : stat("Last seen", `year ${s.last}`),
     ];
   const nowRows: Row[] = now.map((l) => ({
       ref: cellRef(0, l.cell),
@@ -524,7 +529,13 @@ export function sicknessLedger(world: World): Block[] {
           [oneIn(s.deadliness)],
           [count(s.struck)],
           [count(s.dead)],
-          [s.ended !== null ? `gone (${s.last})` : `year ${s.last}`],
+          [
+            s.settled !== null && s.settled !== undefined
+              ? `settled (${s.settled})`
+              : s.ended !== null
+                ? `gone (${s.last})`
+                : `year ${s.last}`,
+          ],
         ],
         keys: [s.name, s.year, s.route, s.deadliness, s.struck, s.dead, s.last],
       })),

@@ -53,7 +53,10 @@ export const LEVEL_ROOMS: readonly { readonly rooms: number; readonly floors: nu
 ];
 /** A room's floor (square metres): the first holds what one room must, the rest are smaller. */
 export const ROOM_AREA = 17;
-/** How many families a home of each level holds: its share of a tall home is one flat. */
+/**
+ * The mouths of a home the host draws where it has no people to count (a home's own reading). The simulation's hearth is the
+ * people's own, from its life table and how it pairs (rules/demography.ts hearthOf; sim/population/life.ts familySizeOf).
+ */
 export const FAMILY_SIZE = 4.5;
 
 export type DwellingStuff =

@@ -2,7 +2,8 @@
 // epidemics, sanitation, medicine, public health, healthcare inequality"). A sickness is a thing
 // of its own, with a name and a nature: how it passes (on the breath, in foul water, by vermin, by
 // touch), how many of those it reaches take it, how many of those die, how long the survivors are
-// spared it. It rises where life crowds — among herds, in great towns, in hot marshes — and is
+// spared it. It crosses into a people where the forces that bring one weigh most (rules/spillover.ts: herds kept close and
+// wild beasts hunted, the nearer kin the more; towns crowded past what it needs to go on; warm standing water) and is
 // carried along the ways people go: to the lands next door, down the trade roads, over the sea,
 // with armies. Where it comes it takes those who never had it, the old and the small the most, the
 // hungry and the bound the more (crowded, ill-fed and untended); herb-lore and medicine spare
@@ -29,14 +30,28 @@ import {
   type World,
 } from "../../kernel/index.ts";
 import {
+  SPECIES_WORDS,
   cellRef,
   offworldSite,
   tongueLikeness,
   worldLife,
   type HomeWorld,
 } from "../../gen/index.ts";
-import { BANDS } from "../../rules/index.ts";
-import { COLS } from "../population/model.ts";
+import {
+  ARISE,
+  BANDS,
+  ariseForces,
+  bodyKin,
+  leadingForce,
+  type BodyPlan,
+  type CreatureBody,
+  type Exposure,
+  type Force,
+  type Forces,
+  type KinBody,
+} from "../../rules/index.ts";
+import { watersOf, wildsOf } from "../ecology/ecology.ts";
+import { COLS, type Province } from "../population/model.ts";
 import { marketsOf, roundKeyed, type PopulationContext } from "../population/systems.ts";
 import { handOf } from "../hand/hand.ts";
 import { loreOf } from "../lore/lore.ts";
@@ -56,9 +71,9 @@ export const SICKNESS = defineKind("sick", "sickness", "minted");
 /** How a sickness passes from one to another. */
 export const ROUTES = ["breath", "water", "vermin", "touch"] as const;
 export type Route = (typeof ROUTES)[number];
-/** Where a sickness rose: among herds, in crowds, in hot marshes, by the god's hand — or it came
- * down from the stars with strangers. */
-export const SOURCES = ["herds", "crowds", "marsh", "the god", "the stars"] as const;
+/** Where a sickness rose: among herds, in crowds, in hot marshes, among the wild beasts hunted (the force that led its
+ * rising, rules/spillover.ts), by the god's hand — or it came down from the stars with strangers. */
+export const SOURCES = ["herds", "crowds", "marsh", "the god", "the stars", "wild"] as const;
 export type Source = (typeof SOURCES)[number];
 /** What carried a sickness to a land: its neighbours, a trade road, a sea route, an army, the
  * god's hand, strangers come down from the stars. */
@@ -78,11 +93,20 @@ export const HEALTH_EVENTS = {
 
 /** How sickness rises, travels and kills (each a share or a chance a year). */
 export const SICK = {
-  /** A land's yearly chance of a new sickness rising: among its herds, its crowds, its marshes. */
-  rise: { herds: 0.00005, crowds: 0.0001, marsh: 0.00006 },
-  /** No new sickness within so many years of the last, nor while so many are about. */
-  gap: 15,
+  /**
+   * No new sickness rises while so many are about: come to some land within the years it sleeps after (a sickness asleep, or
+   * settled among the young, is not about). Where and how often one rises is rules/spillover.ts: a land's forces.
+   */
   most: 8,
+  /** The most kept awake or asleep at once: past it, the longest unseen is gone (the memory's bound). */
+  kept: 24,
+  /**
+   * A sickness about so long has met all born since it came, in every land it holds: it settles among them, a sickness of the
+   * young, and is no longer followed land by land. Each child of those lands meets it once before grown (its reach), and dies of
+   * it as often as it kills: that, over the years of growing up, is the land's burden of it a year, the most of all of them this.
+   */
+  settles: 60,
+  endemicMost: 0.02,
   /** The chance a carrier brings a sickness, before how many it reaches and who is spared. */
   carry: { near: 0.22, road: 0.35, sea: 0.45, army: 0.55, god: 1, stars: 0.6 } as Record<
     Via,
@@ -160,6 +184,9 @@ export type Sickness = {
   byDecade: number[];
   /** The year it was gone for good (unseen too long), or null. */
   ended: number | null;
+  /** The year it settled among the young of the lands it held (and was followed no longer), and in how many lands; or null. */
+  settled: number | null;
+  settledIn: number;
 };
 
 /** A sickness come to a land. */
@@ -186,6 +213,8 @@ export type LandHealth = {
   dead: number;
   /** The god's ward on it: the year and the act. */
   ward: { year: number; event: Ref } | null;
+  /** Of its young, the share dying a year of the sicknesses settled among them (SICK.settles; 0 where none). */
+  endemic: number;
 };
 
 /** A sickness of the home world gone home to the stars with a people who came down. */
@@ -210,6 +239,8 @@ export class HealthStore implements StateStore {
   greats = 0;
   /** Sicknesses of ours gone home to the stars, each with a people once. */
   went: Went[] = [];
+  /** What the world's beasts are to its people as kin (riseHazards): made of generation alone, never saved. */
+  kin: KinIndex | null = null;
 
   get(ref: Ref | string): Sickness | undefined {
     return this.sicknesses.find((s) => s.ref === ref);
@@ -224,6 +255,12 @@ export class HealthStore implements StateStore {
   /** The sicknesses not gone for good. */
   living(): Sickness[] {
     return this.sicknesses.filter((s) => s.ended === null);
+  }
+  /** The sicknesses about in a year: come to some land within the years one sleeps after (SICK.most counts these). */
+  about(year: number): number {
+    let n = 0;
+    for (const s of this.sicknesses) if (s.ended === null && year - s.last < SICK.sleeps) n++;
+    return n;
   }
   pinned(): Ref[] {
     const out: Ref[] = this.sicknesses.map((s) => s.event);
@@ -261,11 +298,17 @@ export class HealthStore implements StateStore {
       ...x,
       people: x.people ?? null,
       byDecade: [...x.byDecade],
+      settled: x.settled ?? null,
+      settledIn: x.settledIn ?? 0,
     }));
     this.lands = new Map(
       s.lands.map((l) => [
         l.cell,
-        { ...l, immune: l.immune.map(([r, v]) => [r, v] as [Ref, number]) },
+        {
+          ...l,
+          immune: l.immune.map(([r, v]) => [r, v] as [Ref, number]),
+          endemic: l.endemic ?? 0,
+        },
       ]),
     );
     this.lastRose = s.lastRose;
@@ -291,7 +334,10 @@ const clamp = (lo: number, hi: number, x: number) => Math.max(lo, Math.min(hi, x
 function landHealth(store: HealthStore, cell: number): LandHealth {
   let l = store.lands.get(cell);
   if (!l)
-    store.lands.set(cell, (l = { cell, immune: [], last: null, struck: 0, dead: 0, ward: null }));
+    store.lands.set(
+      cell,
+      (l = { cell, immune: [], last: null, struck: 0, dead: 0, ward: null, endemic: 0 }),
+    );
   return l;
 }
 
@@ -369,6 +415,13 @@ function natureOf(
       marsh: [
         ["vermin", 0.75],
         ["water", 0.25],
+      ],
+      // (Of the blood of beasts hunted and butchered, or their breath: touch the most.)
+      wild: [
+        ["touch", 0.45],
+        ["breath", 0.35],
+        ["vermin", 0.1],
+        ["water", 0.1],
       ],
       "the god": [
         ["breath", 0.4],
@@ -800,6 +853,8 @@ export function riseSickness(
     last: year,
     byDecade: [],
     ended: null,
+    settled: null,
+    settledIn: 0,
   };
   store.sicknesses.push(s);
   // (One come down from the stars keeps no pace with those that rise here.)
@@ -866,6 +921,8 @@ export function branchSickness(
     last: year,
     byDecade: [],
     ended: null,
+    settled: null,
+    settledIn: 0,
   };
   store.sicknesses.push(s);
   // (Of those spared its parent, a share are spared it too.)
@@ -1022,6 +1079,32 @@ function goHome(
     if (m.civ === c.civ && m.star === home) m.regard = Math.max(-1, m.regard - fear);
 }
 
+/**
+ * A sickness settles among the young of the lands it holds (those with any spared it now, and where it rose): each land's burden
+ * of it a year is the young it reaches, dying as often as it kills, over the years of growing up (SICK.settles). Its spared are
+ * kept no longer.
+ */
+function settle(ctx: PopulationContext, store: HealthStore, s: Sickness, year: number): void {
+  const grown = Math.max(1, ctx.life.adulthood),
+    burden = (s.reach * s.deadliness) / grown;
+  let lands = 0;
+  for (const l of [...store.lands.values()].sort((a, b) => a.cell - b.cell)) {
+    const i = l.immune.findIndex(([r]) => r === s.ref);
+    if (i < 0 && l.cell !== s.cell) continue;
+    if (i >= 0) l.immune.splice(i, 1);
+    l.endemic = Math.min(SICK.endemicMost, l.endemic + burden);
+    lands++;
+  }
+  s.settled = year;
+  s.settledIn = lands;
+  s.ended = year;
+}
+
+/** Of a land's young, the share dying a year of the sicknesses settled among them (0 where none). */
+export function endemicOf(world: World, cell: number): number {
+  return healthOf(world)?.land(cell)?.endemic ?? 0;
+}
+
 /** The yearly work of sickness: the spared forget, it spreads, sleeps and wakes, and new ones rise. */
 export function healthYear(ctx: PopulationContext, t: SimTime): void {
   const { world, generated: g } = ctx,
@@ -1047,9 +1130,17 @@ export function healthYear(ctx: PopulationContext, t: SimTime): void {
         if (v < SICK.vaccinated) setImmune(l, s.ref, v + SICK.vaccinating * (SICK.vaccinated - v));
       }
     }
+  // (Where they give the young what they are spared, the sicknesses settled among them take the fewer: SICK.vaccinated.)
+  for (const l of store.lands.values())
+    if (l.endemic > 0 && lore.get(l.cell, "vaccines")) l.endemic *= 1 - SICK.vaccinating;
   // (Plagues turned off by the player: none spreads, wakes, comes from the stars or rises; those
   // spared still forget, so a world switched on again meets them as a generation that never had them.)
   if (switchedOff(world, "plagues")) return;
+  // 1b. A sickness about so long that it has met all born since it came settles among the young of the lands it holds: their
+  // burden of it a year, followed land by land no longer (SICK.settles). It is not about, and makes room for a new one.
+  for (const s of living)
+    if (year - s.year >= SICK.settles && year - s.last < SICK.sleeps) settle(ctx, store, s, year);
+  const following = living.filter((s) => s.ended === null);
   // 2. It spreads: from every land it came to last year, by what carries it, one coming a land.
   const burning = new Map<Ref, Set<number>>();
   for (const l of store.lands.values())
@@ -1060,7 +1151,7 @@ export function healthYear(ctx: PopulationContext, t: SimTime): void {
     }
   const struck = new Set<number>(),
     ways = burning.size ? waysOf(ctx, year) : null;
-  for (const s of living) {
+  for (const s of following) {
     const from = burning.get(s.ref);
     if (!from || !ways) continue;
     // (Each land reached once: by the carrier likeliest to bring it, in a fixed order.)
@@ -1082,7 +1173,7 @@ export function healthYear(ctx: PopulationContext, t: SimTime): void {
   }
   // 3. Sleeping and waking: a sickness unseen a while wakes now and then where it rose; unseen
   // long, it is gone.
-  for (const s of living) {
+  for (const s of following) {
     const unseen = year - s.last;
     if (unseen >= SICK.gone) {
       s.ended = year;
@@ -1130,32 +1221,18 @@ export function healthYear(ctx: PopulationContext, t: SimTime): void {
   // 4. Strangers from the stars, come down last year: a sickness of theirs may come with them, and
   // one of ours go home with them.
   fromTheStars(ctx, store, struck, t);
-  // 5. A new sickness rises where life crowds: among herds, in great towns, in hot marshes.
-  if (
-    (store.lastRose !== null && year - store.lastRose < SICK.gap) ||
-    store.living().length >= SICK.most
-  )
-    return;
-  const weights: { cell: number; source: Source; w: number; parts: [number, number, number] }[] =
-    [];
-  let total = 0;
-  for (const p of ctx.provinces.all()) {
-    const people = p.total();
-    if (people < 1500 || offworldSite(g, p.cell) || struck.has(p.cell)) continue;
-    const town = Math.max(0, ...ctx.settlements.inProvince(p.cell).map((v) => v.population)),
-      herds = p.herding ? SICK.rise.herds * Math.min(3, people / 5000) : 0,
-      crowds = town >= 6000 ? SICK.rise.crowds * Math.min(3, town / 12000) : 0,
-      marsh =
-        g.climate.temperature[p.cell]! >= 22 && g.climate.precipitation[p.cell]! >= 1600
-          ? SICK.rise.marsh * Math.min(2, people / 4000)
-          : 0,
-      w = herds + crowds + marsh;
-    if (w <= 0) continue;
-    const source: Source =
-      herds >= crowds && herds >= marsh ? "herds" : crowds >= marsh ? "crowds" : "marsh";
-    weights.push({ cell: p.cell, source, w, parts: [herds, crowds, marsh] });
-    total += w;
+  // 5. A new sickness rises where the forces that bring one to a people weigh most (rules/spillover.ts): drawn on the summed
+  // hazard of the world's lands, named for the force that led in the land it rose in. (While so many are about: SICK.most.
+  // And of those kept, awake or asleep, the longest unseen goes first past SICK.kept.)
+  const kept = store.living();
+  if (kept.length >= SICK.kept) {
+    const longest = kept.reduce((a, b) => (b.last < a.last ? b : a));
+    longest.ended = year;
   }
+  if (store.about(year) >= SICK.most) return;
+  const weights = riseHazards(ctx, struck);
+  let total = 0;
+  for (const x of weights) total += x.w;
   if (!weights.length || world.rng.real(RISE, 0, t, 0) >= total) return;
   let pick = world.rng.real(RISE, 0, t, 1) * total,
     chosen = weights[weights.length - 1]!;
@@ -1166,55 +1243,241 @@ export function healthYear(ctx: PopulationContext, t: SimTime): void {
     }
     pick -= x.w;
   }
-  const p = ctx.provinces.get(chosen.cell)!,
-    [herds, crowds, marsh] = chosen.parts,
-    biggest = ctx.settlements
-      .inProvince(chosen.cell)
-      .sort((a, b) => b.population - a.population || a.founded - b.founded)[0];
-  riseSickness(
-    ctx,
-    chosen.cell,
-    chosen.source,
-    [
-      ...(herds > 0
-        ? [
-            {
-              name: "herds kept close",
-              value: herds,
-              contribution: herds,
-              source: p.herding ? { ref: p.herding, role: "enabler" as const, weight: 1 } : null,
-            },
-          ]
-        : []),
-      ...(crowds > 0
-        ? [
-            {
-              name: "a great town crowded",
-              value: biggest?.population ?? 0,
-              contribution: crowds,
-              source: biggest ? { ref: biggest.event, role: "enabler" as const, weight: 1 } : null,
-            },
-          ]
-        : []),
-      ...(marsh > 0
-        ? [
-            {
-              name: "hot, wet land",
-              value: g.climate.precipitation[chosen.cell]!,
-              contribution: marsh,
-              source: { ref: cellRef(0, chosen.cell), role: "enabler" as const, weight: 1 },
-            },
-          ]
-        : []),
-      {
-        name: "many people",
-        value: p.total(),
-        contribution: 0,
-        source: p.arrival ? { ref: p.arrival, role: "enabler", weight: 1 } : null,
+  riseSickness(ctx, chosen.cell, chosen.source, riseFactors(ctx, chosen), t);
+}
+
+/** A land's weight in where a new sickness rises: its forces, the one that leads, and what they read. */
+export type RiseHazard = {
+  readonly cell: number;
+  readonly source: Force;
+  readonly w: number;
+  readonly forces: Forces;
+  readonly exposure: Exposure;
+};
+
+/** A people's body as kinship reads it (rules/spillover.ts bodyKin). */
+function peopleKin(b: BodyPlan): KinBody {
+  return { warm: b.warm, symmetry: b.symmetry, skin: b.skin, water: b.medium === "water" };
+}
+/** A beast's body as kinship reads it: it lives in the water where its place is the sea, or it swims on fins and no legs. */
+function beastKin(b: CreatureBody): KinBody {
+  return {
+    warm: b.warm,
+    symmetry: b.symmetry,
+    skin: b.covering,
+    water: b.place ? /sea|deep|reef|shallows|water/.test(b.place) : b.fins > 0 && b.legs === 0,
+  };
+}
+
+/**
+ * What a world's beasts are to its people as kin (generation alone decides it, so it is made once and kept beside the health
+ * store, never saved): each lineage's kinship, a land's nearest kin among the wild kinds about it (filled as asked), and the kin
+ * of the herd beast most lands have, for a land that keeps herds it learned of others.
+ */
+export type KinIndex = {
+  readonly key: string;
+  readonly bySpecies: Float32Array;
+  readonly nearest: Float32Array;
+  readonly herdsAt: number;
+  /** The kinds that swim the sea (fins, no legs), and the nearest kin among them: the wild of a land under the sea. */
+  readonly seaKinds: number;
+  readonly seaKin: number;
+  /** Scratch rows by land for the year's reading: its greatest town (-1: not read), its roads, the towns they reach. */
+  readonly town: Float64Array;
+  readonly roads: Float64Array;
+  readonly linked: Float64Array;
+};
+function kinIndex(ctx: PopulationContext, store: HealthStore): KinIndex | null {
+  const g = ctx.generated,
+    people = g.life.people;
+  if (!people) return null;
+  if (store.kin?.key === g.digest) return store.kin;
+  const me = peopleKin(people.body),
+    bySpecies = new Float32Array(g.life.species.length);
+  let seaKinds = 0,
+    seaKin = 0;
+  for (const sp of g.life.species) {
+    const k = sp.body && sp.died === null ? bodyKin(me, beastKin(sp.body)) : 0;
+    bySpecies[sp.index] = k;
+    if (k > 0 && beastKin(sp.body!).water) {
+      seaKinds++;
+      seaKin = Math.max(seaKin, k);
+    }
+  }
+  const counts = new Map<number, number>();
+  for (const h of g.life.herdBeast) if (h >= 0) counts.set(h, (counts.get(h) ?? 0) + 1);
+  let most = -1,
+    n = 0;
+  for (const [h, c] of [...counts].sort((x, y) => x[0] - y[0]))
+    if (c > n) {
+      most = h;
+      n = c;
+    }
+  return (store.kin = {
+    key: g.digest,
+    bySpecies,
+    nearest: new Float32Array(g.life.diversity.length).fill(-1),
+    herdsAt: most >= 0 ? bySpecies[most]! : 0.5,
+    seaKinds,
+    seaKin,
+    town: new Float64Array(g.life.diversity.length),
+    roads: new Float64Array(g.life.diversity.length),
+    linked: new Float64Array(g.life.diversity.length),
+  });
+}
+/** A land's nearest kin among the wild kinds that live about it (0: none). */
+function wildKinAt(ctx: PopulationContext, k: KinIndex, cell: number): number {
+  const was = k.nearest[cell]!;
+  if (was >= 0) return was;
+  const life = ctx.generated.life;
+  let best = 0;
+  for (let word = 0; word < SPECIES_WORDS; word++) {
+    let bits = life.present[SPECIES_WORDS * cell + word]! >>> 0;
+    while (bits) {
+      const low = (bits & -bits) >>> 0,
+        i = 32 * word + 31 - Math.clz32(low);
+      bits = (bits ^ low) >>> 0;
+      if (i < k.bySpecies.length && k.bySpecies[i]! > best) best = k.bySpecies[i]!;
+    }
+  }
+  k.nearest[cell] = best;
+  return best;
+}
+
+/**
+ * Every peopled land's yearly hazard of a new sickness (rules/spillover.ts ariseForces), read off its facts: its people, its
+ * greatest town and the towns its trade roads reach, its herds and how near kin they are, its hunters and the wild about it,
+ * its warmth, rain and standing water (a people of the water live in theirs), and its drains. Lands of fewer than 1,500, off
+ * the world, or struck this year carry none.
+ */
+export function riseHazards(ctx: PopulationContext, struck: ReadonlySet<number>): RiseHazard[] {
+  const { generated: g, world } = ctx,
+    store = healthOf(world),
+    kin = store ? kinIndex(ctx, store) : null;
+  if (!kin) return [];
+  // (Each peopled land's greatest town; then the roads, each adding the town at its other end to a land's linked. Kept in the
+  // kin index's scratch rows, by land, so that the year's reading makes nothing that grows.)
+  const { town, roads, linked } = kin,
+    lands: Province[] = [],
+    people: number[] = [];
+  town.fill(-1);
+  roads.fill(0);
+  linked.fill(0);
+  const greatest = (c: number) => {
+    let most = 0;
+    for (const v of ctx.settlements.inProvince(c)) if (v.population > most) most = v.population;
+    return most;
+  };
+  for (const p of ctx.provinces.all()) {
+    const n = p.total();
+    if (n < 1500 || struck.has(p.cell) || offworldSite(g, p.cell)) continue;
+    lands.push(p);
+    people.push(n);
+    town[p.cell] = greatest(p.cell);
+  }
+  if (!lands.length) return [];
+  for (const [key] of marketsOf(world).allRoutes()) {
+    const at = key.indexOf(":"),
+      a = Number(key.slice(0, at)),
+      b = Number(key.slice(at + 1));
+    if (!(a < town.length && b < town.length)) continue;
+    roads[a] = roads[a]! + 1;
+    roads[b] = roads[b]! + 1;
+    if (town[a]! >= 0) linked[a] = linked[a]! + (town[b]! >= 0 ? town[b]! : greatest(b));
+    if (town[b]! >= 0) linked[b] = linked[b]! + (town[a]! >= 0 ? town[a]! : greatest(a));
+  }
+  const lore = loreOf(world),
+    inWater = ctx.medium === "water",
+    out: RiseHazard[] = [];
+  for (let i = 0; i < lands.length; i++) {
+    const p = lands[i]!,
+      cell = p.cell,
+      herdBeast = g.life.herdBeast[cell]!,
+      // (A land under the sea keeps no count of the kinds about it: its wild is the world's swimmers.)
+      sea = g.tectonics.elevation[cell]! <= 0 && !g.life.diversity[cell],
+      exposure: Exposure = {
+        people: people[i]!,
+        town: town[cell]!,
+        linked: linked[cell]!,
+        roads: roads[cell]!,
+        herds: p.herding !== null,
+        herdKin: herdBeast >= 0 ? kin.bySpecies[herdBeast]! : kin.herdsAt,
+        hunt: p.knowsCultivation ? ARISE.hunt : 1,
+        wild: wildsOf(ctx, cell).wild,
+        kinds: sea ? kin.seaKinds : g.life.diversity[cell]!,
+        wildKin: sea ? kin.seaKin : wildKinAt(ctx, kin, cell),
+        warmth: g.climate.temperature[cell]!,
+        rain: g.climate.precipitation[cell]!,
+        standing: inWater || watersOf(g, cell) ? 1 : 0.4,
+        inWater,
+        clean: !!lore.get(cell, "sanitation"),
       },
-    ],
-    t,
-  );
+      forces = ariseForces(exposure);
+    if (forces.total > 0)
+      out.push({ cell, source: leadingForce(forces), w: forces.total, forces, exposure });
+  }
+  return out;
+}
+
+/** Why a sickness rose where it did: each force that weighed there, the roads that carried it on, and its many people. */
+function riseFactors(ctx: PopulationContext, h: RiseHazard): Factor[] {
+  const p = ctx.provinces.get(h.cell)!,
+    { forces: f, exposure: e } = h,
+    land = cellRef(0, h.cell),
+    biggest = ctx.settlements
+      .inProvince(h.cell)
+      .sort((a, b) => b.population - a.population || a.founded - b.founded)[0],
+    // (Each force's part before the roads; the roads' part after.)
+    of = (x: number) => x / f.carried,
+    weighed: Factor[] = [];
+  if (f.herds > 0)
+    weighed.push({
+      name: "herds kept close",
+      value: Math.round(e.herdKin * 100) / 100,
+      contribution: of(f.herds),
+      source: p.herding ? { ref: p.herding, role: "enabler", weight: 1 } : null,
+    });
+  if (f.wild > 0)
+    weighed.push({
+      name: "wild beasts hunted",
+      value: Math.round(e.wildKin * 100) / 100,
+      contribution: of(f.wild),
+      source: { ref: land, role: "enabler", weight: 1 },
+    });
+  if (f.crowds > 0)
+    weighed.push({
+      name: "a great town crowded",
+      value: Math.round(e.town + ARISE.linked * e.linked),
+      contribution: of(f.crowds),
+      source: biggest ? { ref: biggest.event, role: "enabler", weight: 1 } : null,
+    });
+  if (f.marsh > 0)
+    weighed.push({
+      name: "hot, wet land",
+      value: Math.round(e.warmth * 10) / 10,
+      contribution: of(f.marsh),
+      source: { ref: land, role: "enabler", weight: 1 },
+    });
+  weighed.sort((a, b) => b.contribution - a.contribution);
+  return [
+    ...weighed,
+    ...(e.roads > 0
+      ? [
+          {
+            name: "trade roads to carry it on",
+            value: e.roads,
+            contribution: h.w - h.w / f.carried,
+            source: null,
+          },
+        ]
+      : []),
+    {
+      name: "many people",
+      value: p.total(),
+      contribution: 0,
+      source: p.arrival ? { ref: p.arrival, role: "enabler" as const, weight: 1 } : null,
+    },
+  ];
 }
 
 /** Teach a peopled world sickness. */

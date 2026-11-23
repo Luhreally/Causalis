@@ -112,7 +112,10 @@ export function strainsYear(ctx: PopulationContext, t: SimTime): void {
   if (!health || !store) return;
   const year = yearOfMoment(t),
     // (A sickness gone this year may yet live on in the herds: tried below.)
-    living = health.sicknesses.filter((s) => s.ended === null || s.ended === year);
+    // (One settled among the young is followed no longer: health.ts settle.)
+    living = health.sicknesses.filter(
+      (s) => s.settled === null && (s.ended === null || s.ended === year),
+    );
   if (!living.length && !store.lines.length) return;
   // The lands each burned in this year: how many it took there, how crowded they were, how many there are spared it.
   const burned = new Map<
@@ -164,7 +167,7 @@ export function strainsYear(ctx: PopulationContext, t: SimTime): void {
       if (
         !off &&
         chance > 0 &&
-        health.living().length < SICK.most &&
+        health.about(year) < SICK.most &&
         world.rng.real(STRAIN, health.sicknesses.indexOf(s), t, 0) < chance
       ) {
         const u = (k: number) => world.rng.real(STRAIN, health.sicknesses.indexOf(s), t, k),

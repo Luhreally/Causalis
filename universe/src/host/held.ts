@@ -11,12 +11,15 @@ import {
   BLOW_PLACES,
   FIGHT_TOLD,
   POSSESS_HZ,
+  WILD_DRIVES,
   WILD_TOLD,
   fieldHealTarget,
   fightOffers,
   fightHeart,
   herdMiddle,
   strayed,
+  wildDrives,
+  wildNeeds,
   wildOffers,
   type FightBody,
   type FightScene,
@@ -419,6 +422,23 @@ function tallyOf(
 const brokeSecond = (scene: FightScene, f: FightWorld): number =>
   f.broke >= 0 ? scene.from + f.brokeAt / POSSESS_HZ : -1;
 
+/** A beast's needs that press (past six in ten), in words: " · hungry, thirsty" ("" where none does). */
+const NEED_WORDS = {
+  hunger: "hungry",
+  thirst: "thirsty",
+  fear: "afraid",
+  tired: "weary",
+  urge: "in season",
+} as const;
+function pressing(b: WildWorld["bodies"][number]): string {
+  if (b.hunger === undefined) return "";
+  const n = wildNeeds(b),
+    out = (Object.keys(NEED_WORDS) as (keyof typeof NEED_WORDS)[])
+      .filter((k) => n[k] >= 0.6)
+      .map((k) => NEED_WORDS[k]);
+  return out.length ? ` · ${out.join(", ")}` : "";
+}
+
 /** WILD_TOLD in words for a beast held. */
 function beastLive(world: World, h: HeldBeast, w: WildWorld): HeldLive {
   const ctx = populationContext(world),
@@ -517,15 +537,25 @@ function beastLive(world: World, h: HeldBeast, w: WildWorld): HeldLive {
           : `of the wild about ${v?.name ?? "the town"}`,
       strength: Math.max(0, Math.min(1, w.fed)),
       carries: `${k.frame.hunts ? "hunts" : k.frame.eats === "seeds" ? "pecks" : "grazes"} · runs ${Math.round(k.frame.run)} m/s · ${Math.round(k.frame.size)} kg`,
-      body:
+      body: `${
         far === null
           ? "No herd"
           : strayed(scene, w)
             ? `Strayed ${far} m from its herd: lost to it if let go here`
-            : `${far} m from its herd`,
+            : `${far} m from its herd`
+      }${pressing(me)}`,
     },
     tally: null,
     ended: w.ended,
+    // (What it wants, and how badly: the needs its body keeps, the most pressing of them.)
+    ...(me.hunger === undefined
+      ? {}
+      : (() => {
+          const sc = wildDrives(scene, w, 0);
+          let best = 0;
+          for (let d = 1; d < sc.length; d++) if (sc[d]! > sc[best]!) best = d;
+          return { needs: wildNeeds(me), drive: WILD_DRIVES[best]! };
+        })()),
   };
 }
 

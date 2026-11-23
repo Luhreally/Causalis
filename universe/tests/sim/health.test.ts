@@ -37,6 +37,7 @@ import {
   type Sickness,
 } from "../../src/sim/index.ts";
 import { why } from "../../src/causal/index.ts";
+import { careEffectiveOf } from "../../src/sim/society/kept.ts";
 import { peopledWorld } from "../worlds.ts";
 
 // Phase 20 M140: sickness. Juniper's realms sixty years on, a sickness made in the most peopled
@@ -138,18 +139,20 @@ test("a sickness goes on by what carries it, each coming a decision citing its c
   // A sickness that reaches most of those near the sick, so that it surely goes on.
   (s as { reach: number }).reach = 0.95;
   // Half its neighbours spared it wholly, year after year (the spared forget, so they are spared
-  // anew): it never comes to them. (Where it rose it burns on, year after year, so it is carried
-  // out again and again.)
-  const spared = [...next].sort((a, b) => a - b).filter((_, i) => i % 2 === 0);
+  // anew, by as much as the year's forgetting takes before it spreads): it never comes to them.
+  // (Where it rose it burns on, year after year, so it is carried out again and again.)
+  const spared = [...next].sort((a, b) => a - b).filter((_, i) => i % 2 === 0),
+    wholly = 1 / ((1 - 1 / s.lasting) * 0.975);
   for (let y = 61; y <= 72; y++) {
     for (const c of spared)
       store.lands.set(c, {
         cell: c,
-        immune: [[s.ref, 1]],
+        immune: [[s.ref, wholly]],
         last: null,
         struck: 0,
         dead: 0,
         ward: null,
+        endemic: 0,
       });
     const home = store.land(cell)!;
     home.last = { ...home.last!, year: y - 1 };
@@ -208,7 +211,8 @@ test("who dies of it: the bound half again as often as the free, the hungry the 
         { year: 60, event: s.event },
         PRINCIPLES.find((x) => x.id === id)!,
       );
-  const healed = Math.min(0.6, 2 * lore.effect(cell, "health"));
+  // (As far as they reach the land's people: kin's tending where they do not, society/care.ts.)
+  const healed = Math.min(0.6, 2 * lore.effect(cell, "health")) * careEffectiveOf(w, cell);
   assert.ok(healed > 0);
   assert.ok(
     Math.abs(tollOf(ctx, s, cell).share - free * (1 - healed)) < 1e-9,
@@ -401,9 +405,10 @@ test("strangers from the stars bring down a sickness of their world, named for t
       (f) => f.name === "carried down from the stars" && f.source?.ref === p.event,
     ),
   );
-  // Those it came to turn from strangers.
-  const ways = cultureOf(w).get(theirs.cell);
-  if (ways && first.data && ((first.data as { dead: number }).dead ?? 0) > 0)
+  // Those it came to turn from strangers (where it took as many as moves a people's ways: health.ts strike).
+  const ways = cultureOf(w).get(theirs.cell),
+    toll = first.data as { dead?: number; people?: number } | undefined;
+  if (ways && toll && (toll.dead ?? 0) >= 0.03 * (toll.people ?? Infinity))
     assert.ok(ways.nudges.some((n) => n.event === first.id));
 });
 
@@ -427,6 +432,7 @@ test("ours go home with them to the stars, each of ours once with each people; t
       struck: 1,
       dead: 0,
       ward: null,
+      endemic: 0,
     });
   peoples.meetings.push({
     civ: civ.ref,

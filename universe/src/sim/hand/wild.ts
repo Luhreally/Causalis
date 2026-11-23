@@ -12,6 +12,7 @@ import {
   YEAR,
   defineEventType,
   defineStream,
+  dmath,
   type Ref,
   type SimTime,
   type World,
@@ -19,6 +20,7 @@ import {
 import { cellRef, type Species } from "../../gen/index.ts";
 import {
   POSSESS_HZ,
+  SELECTION,
   WILD_MOST,
   WILD_PACKED,
   bidsOf,
@@ -27,6 +29,7 @@ import {
   strayed,
   unpackWild,
   wildFrame,
+  wildTemper,
   wildWorld,
   type LocalDraw,
   type WildScene,
@@ -35,6 +38,7 @@ import {
 import type { PopulationContext } from "../population/systems.ts";
 import { ecologyOf, wildsOf, type Wilds } from "../ecology/ecology.ts";
 import { handOf, type HeldBeast } from "./hand.ts";
+import { traitsAt } from "../ecology/lineage.ts";
 
 export const WILD_EVENTS = {
   beast: defineEventType("hand.beast", 4),
@@ -168,9 +172,16 @@ export function installWild(world: World, ctx: () => PopulationContext): void {
       const c = ctx(),
         a = command.args as BeastArgs,
         v = c.settlements.get(a.village as Ref)!,
+        // (Each moves as its kind has become on this land: its size, its wariness, its coat against the warmth; as made where nothing has been selected.)
         kinds = a.kinds.map((ref) => {
-          const s = beastOf(c, ref)!;
-          return { frame: wildFrame(s.body!, s.niche), niche: s.niche };
+          const s = beastOf(c, ref)!,
+            tr = traitsAt(c, s.index, v.cell);
+          if (!tr) return { frame: wildFrame(s.body!, s.niche), niche: s.niche };
+          const frame = wildFrame(
+            { ...s.body!, size: s.body!.size * dmath.exp(SELECTION.sizePerSpread * tr.size) },
+            s.niche,
+          );
+          return { frame, niche: s.niche, temper: wildTemper(frame, tr.wary, tr.heat) };
         }),
         herds: { x: number; z: number; flock: boolean }[] = [];
       for (let i = 0; i < a.herds.length; i += 3)

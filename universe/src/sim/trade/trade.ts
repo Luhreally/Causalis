@@ -32,7 +32,6 @@ import {
   CYCLE,
   ELASTICITY,
   EXCHANGE,
-  FAMILY_SIZE,
   FOODS,
   FUEL_UNIT_KWY,
   G,
@@ -70,6 +69,7 @@ import {
 } from "../../rules/index.ts";
 import type { Province } from "../population/model.ts";
 import { marketsOf, type PopulationContext } from "../population/systems.ts";
+import { familySizeOf } from "../population/life.ts";
 import type { Market } from "../economy/market.ts";
 import { energyPerHead } from "../economy/energy.ts";
 import { loreOf } from "../lore/lore.ts";
@@ -579,7 +579,7 @@ export function rentYear(ctx: PopulationContext, t: SimTime): void {
       heart = heartRent(people, HOLDS[level]!),
       // (A worker-year is what the land's work fetches at its best: its crafters' or its tillers'.)
       wage = Math.max(m.wage[OCC.crafter]!, m.wage[OCC.farmer]!, m.wage[OCC.forager]!),
-      rent = townRent(people, HOLDS[level]!, FAMILY_SIZE) * wage;
+      rent = townRent(people, HOLDS[level]!, familySizeOf(world)) * wage;
     store.set(c, [heart * 10_000, level, people, rent, rent / HEART.carry]);
   }
 }
