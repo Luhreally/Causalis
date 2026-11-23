@@ -66,6 +66,11 @@ export const DEED_EVENTS = {
 const DRAW = defineStream("order.deeds");
 const keyOf = (r: Ref) => parseRef(r).b >>> 0;
 const r2 = (x: number) => Math.round(x * 100) / 100;
+/** A count made whole by a draw for its part: `x` on the whole, as likely. */
+const wholeBy = (x: number, u: number): number => {
+  const f = Math.floor(Math.max(0, x));
+  return f + (u < Math.max(0, x) - f ? 1 : 0);
+};
 const factor = (name: string, value: number, contribution: number): Factor => ({
   name,
   value: r2(value),
@@ -347,7 +352,8 @@ export function strikes(
     drawn = strikeOutcome(reach, guard, u(2)),
     outcome: StrikeOutcome =
       drawn === "killed" && (target.guarded || target.kept) ? "spared" : drawn,
-    lost = Math.min(g.members, Math.round(g.members * strikeCost(outcome, facts.capacity))),
+    // (Its men lost in the blow, whole: the part of one is lost by a draw as likely, so a small group's blow costs it someone.)
+    lost = Math.min(g.members, wholeBy(g.members * strikeCost(outcome, facts.capacity), u(4))),
     // (At the house, not the head: an armed group's blow at one who heads a body, some of the time.)
     atHouse = !!target.house && g.armed && drawn !== "foiled" && u(3) < DEED.atPlace,
     place = ctx.provinces.get(target.cell)?.ref ?? null,

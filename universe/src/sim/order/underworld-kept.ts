@@ -41,6 +41,14 @@ export type CrimeGroup = {
   /** Those it killed and lost a year, last reckoned (heads); what it pays officers and judges a year. */
   violence: number;
   bribes: number;
+  /**
+   * The parts of a whole carried from one reckoning to the next (thousandths; absent: none): of a man of its men, of one killed
+   * of its killing, of one of its own lost in its wars (sim/order/whole.ts).
+   */
+  menPart?: number;
+  owed?: number;
+  lostOwed?: number;
+
   /** The great house that shelters it (round H), by name; the group it split from. */
   house?: string;
   readonly of?: number;

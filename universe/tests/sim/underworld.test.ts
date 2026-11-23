@@ -883,14 +883,16 @@ test("soldiers that break a group to what its police can meet put it down where 
     const { realm, year, a, names } = atWar(world, [60, 0], [1000, 0], null),
       store = underworldOf(world)!,
       v = structuredClone(store.of(realm)!) as RealmUnderworld,
-      g = v.groups.find((x) => x.id === a)!,
-      sent = world.events.emit({
-        type: "underworld.operation",
-        subjects: [realm],
-        place: null,
-        causes: [],
-        data: { realm: "a realm", group: g.name, kind: "protection", gids: [a], soldiers: 100 },
-      });
+      g = v.groups.find((x) => x.id === a)!;
+    // (Its home alone: a group the earlier days spread to a second land would draw twice the men there, not many times fewer.)
+    g.lands = [g.home];
+    const sent = world.events.emit({
+      type: "underworld.operation",
+      subjects: [realm],
+      place: null,
+      causes: [],
+      data: { realm: "a realm", group: g.name, kind: "protection", gids: [a], soldiers: 150 },
+    });
     // (Soldiers many times its men, and a reckoning that stands for a generation of raids: all but a few of its men taken.)
     v.ops = [
       {
@@ -901,7 +903,7 @@ test("soldiers that break a group to what its police can meet put it down where 
         lands: [...g.lands],
         since: year - 1,
         event: sent,
-        soldiers: 100,
+        soldiers: 150,
         fallen: 0,
         taken: 0,
         bystanders: 0,

@@ -13,6 +13,9 @@ export type OrgLeader = { name: string; born: number; since: number };
 
 /** One group. Shares in thousandths; heads whole; grain's worth a year. */
 export type Org = {
+  /** The parts of a whole carried from one reckoning to the next (thousandths): of a man of its men, of one it killed (sim/order/whole.ts). */
+  menPart?: number;
+  owed?: number;
   readonly id: number;
   /** Its name, the proper word only (its kind says the rest: the X pirates, the X sect). */
   readonly name: string;

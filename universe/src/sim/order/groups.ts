@@ -137,6 +137,7 @@ import { killedOf, protectedOf, underworldOf } from "./underworld-kept.ts";
 import { creditOf } from "../credit/credit.ts";
 import { interestsOf } from "../polity/interests.ts";
 import { namedBite, realmDecrees } from "./grouphand.ts";
+import { menOf, setMen, wholeOver } from "./whole.ts";
 import { reliefOf } from "../war/occupation.ts";
 import { templeTeachingIn } from "../belief/temple.ts";
 import { inquiresMore } from "../lore/lore.ts";
@@ -1396,7 +1397,7 @@ function stepRealm(
     else if (g.hand === -1) aimMen *= 0.8;
     // (Outlawed by name, those its realm's hand reaches stay away for fear.)
     if (g.standing === 0 && g.decree === 0) aimMen *= 1 - ORG.fears * biteOf(g);
-    g.members = Math.max(0, Math.round(g.members + (aimMen - g.members) * stepped(ORG.grow, span)));
+    setMen(g, menOf(g) + (aimMen - menOf(g)) * stepped(ORG.grow, span));
     g.income = Math.round(income);
     g.takes = Math.round(
       ((g.aims[AIM.prey]! + g.aims[AIM.smuggle]!) / 1000) *
@@ -1517,8 +1518,7 @@ function stepRealm(
       // (Its leader blessed, the realm's hand takes half as many of it; cursed, twice. Exactly as ever where none holds.)
       const by = hazardBy(world, bossRef(p.ref, g.event), g.leader.name, year);
       // (Kept from its realm's hand, none of it are taken.)
-      if (g.hand !== 2)
-        g.members = Math.round(g.members * (1 - (by === 1 ? taken : Math.min(1, taken * by))));
+      if (g.hand !== 2) setMen(g, menOf(g) * (1 - (by === 1 ? taken : Math.min(1, taken * by))));
     }
     if (g.since >= year) continue;
     // (Made minds have no head to lose: they are their own.)
@@ -1686,14 +1686,19 @@ function stepRealm(
     taken = 0;
   for (const g of v.orgs) {
     const a = (k: number) => (g.aims[k] ?? 0) / 1000;
-    g.violence = Math.round(
+    // (In whole people through the span, the part of one carried on: ./whole.ts.)
+    const made = wholeOver(
       g.members *
         (ORG.preyKills * a(AIM.prey) +
           ORG.fightKills *
             (a(AIM.rebel) * (g.means & meansBit("arms") ? 1 : 0.1) * (0.3 + suppression) +
               a(AIM.enforce) * 0.5 +
               a(AIM.guard) * 0.2 * (r.atWar ? 1 : 0.3))),
+      span,
+      g.owed,
     );
+    g.owed = made.owed;
+    g.violence = made.whole / span;
     killings += g.violence;
     taken += g.takes;
   }
