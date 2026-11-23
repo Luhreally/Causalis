@@ -117,8 +117,18 @@ export class FaunaLayer {
 
   /** Light the beast the god's hand is in, by its id, wherever it goes (null: none). */
   hold(id: number | null): void {
+    if (id !== this.heldId) this.ringShown = true;
     this.heldId = id;
     this.ring.enabled = false;
+  }
+
+  /** Whether the beast held wears its ring (one let go: the village's mark is on it, render/letgomark.ts). */
+  ringShown = true;
+
+  /** Where a beast stands as last laid out, by its id (metres; null: none such). */
+  beastAt(id: number): { x: number; z: number } | null {
+    const b = this.beasts.slice(0, this.beastCount).find((x) => x.id === id);
+    return b ? { x: b.x, z: b.z } : null;
   }
 
   /** The beasts as last laid out, for a taking (view/wild.ts beastTakeOf; null: none laid). */
@@ -327,7 +337,7 @@ export class FaunaLayer {
           ? this.beasts.slice(0, n).findIndex((b) => b.id === this.heldId)
           : (this.lit ?? -1),
       lit = at < 0 ? undefined : this.beasts[at];
-    this.ring.enabled = !!lit && at < n;
+    this.ring.enabled = !!lit && at < n && (this.heldId === null || this.ringShown);
     if (lit && this.ring.enabled) {
       const b = fauna.species[lit.species]!.body,
         r = Math.max(0.12, b.length * b.k * 0.8);

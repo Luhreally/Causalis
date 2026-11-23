@@ -431,6 +431,19 @@ export function installPossession(d: PossessionDeps): Possession {
       me ? { x: me.x, z: me.z } : null,
       me ? d.village.homesRiseNear(me.x, me.z, HANDED.near) : 0,
     );
+    // (Marked as it flies out, a gold ring and a point of light where he goes, faded once it lands: from as high as the camera
+    // lands, at night, he was hard to pick out.)
+    const ref = `agent:${o.now.agent}`;
+    d.village.letGoMark.show(
+      me
+        ? () => {
+            const p = d.village.personAt(ref);
+            return p ? { ...p, tall: eye.height } : null;
+          }
+        : null,
+      () => d.rig.flying,
+      me ? { x: me.x, z: me.z, tall: eye.height } : null,
+    );
     // (Those faded about the eye stay so as the camera flies out, read from where it stands each frame, let in as it leaves
     // them, all whole once it lands: none near the eye stands whole on the flight's first frame.)
     const tall = eye.height,
