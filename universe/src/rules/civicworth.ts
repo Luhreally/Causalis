@@ -4,7 +4,7 @@
 // upkeep. Its use is what it adds to, or saves of, the year of each of those it serves (all its people, or its crafters, traders,
 // learned or young) at their own work's worth. The first of a kind rises once those it serves are enough for its use to carry its
 // charge; more rise as each, serving the next of them (up to the many one building serves, rules/buildings.ts `per`), still pays;
-// one stands until its use falls under a third of its charge. What a building does is written here, a share of a year; where, when
+// it falls, as before, once its town has emptied to a third of the people it first rose among. What a building does is written here, a share of a year; where, when
 // and how many is each town's: its size, who works in it, what they earn against its builders, how patient its people are.
 // Pure tables and functions.
 import type { CivicDef, CivicKind } from "./buildings.ts";
@@ -27,39 +27,39 @@ export const USERS_WORDS: Readonly<Record<CivicUsers, string>> = {
 export const CIVIC_USE: Readonly<
   Record<CivicKind, { readonly users: CivicUsers; readonly gain: number }>
 > = {
-  // (Offerings and rites brought to one place: four or five days of each one's year.)
-  shrine: { users: "people", gain: 0.012 },
-  // (The harvest kept dry and counted against a lean year: a week of each one's food.)
-  granary: { users: "people", gain: 0.016 },
-  // (Pots fired hot and many at once: a twentieth more of a crafter's work, of what is fired.)
-  kiln: { users: "crafters", gain: 0.04 },
-  smithy: { users: "crafters", gain: 0.03 },
-  market: { users: "traders", gain: 0.5 },
-  // (Grain ground by water or wind: two or three days of each one's grinding by hand.)
-  mill: { users: "people", gain: 0.007 },
-  temple: { users: "people", gain: 0.016 },
-  // (Quarrels heard and settled in a day, not fought out: three days of each one's year.)
-  hall: { users: "people", gain: 0.0075 },
-  // (Letters learned: a sixtieth more of each child's later work, each year.)
-  school: { users: "young", gain: 0.013 },
-  workshop: { users: "crafters", gain: 0.03 },
-  docks: { users: "traders", gain: 0.6 },
-  academy: { users: "learned", gain: 0.4 },
+  // (Offerings and rites brought to one place: two or three days of each one's year.)
+  shrine: { users: "people", gain: 0.0072 },
+  // (The harvest kept dry and counted against a lean year: three or four days of each one's food.)
+  granary: { users: "people", gain: 0.0096 },
+  // (Pots fired hot and many at once: a fortieth more of a crafter's work, of what is fired.)
+  kiln: { users: "crafters", gain: 0.024 },
+  smithy: { users: "crafters", gain: 0.018 },
+  market: { users: "traders", gain: 0.3 },
+  // (Grain ground by water or wind: a day or two of each one's grinding by hand.)
+  mill: { users: "people", gain: 0.0042 },
+  temple: { users: "people", gain: 0.0096 },
+  // (Quarrels heard and settled in a day, not fought out: a day or two of each one's year.)
+  hall: { users: "people", gain: 0.0045 },
+  // (Letters learned: a hundredth more of each child's later work, each year.)
+  school: { users: "young", gain: 0.0078 },
+  workshop: { users: "crafters", gain: 0.018 },
+  docks: { users: "traders", gain: 0.36 },
+  academy: { users: "learned", gain: 0.24 },
   // (Washing, and the sickness it keeps off.)
-  baths: { users: "people", gain: 0.004 },
-  observatory: { users: "learned", gain: 0.2 },
-  // (The sick tended: a day or so of each one's year not lost.)
-  hospital: { users: "people", gain: 0.002 },
-  // (Engines under one roof: a tenth more of each crafter's work.)
-  factory: { users: "crafters", gain: 0.1 },
-  station: { users: "traders", gain: 0.2 },
-  power: { users: "people", gain: 0.002 },
-  offices: { users: "traders", gain: 0.009 },
-  fusion: { users: "people", gain: 0.0008 },
-  minds: { users: "people", gain: 0.0002 },
-  vats: { users: "people", gain: 0.00024 },
+  baths: { users: "people", gain: 0.0024 },
+  observatory: { users: "learned", gain: 0.12 },
+  // (The sick tended: half a day of each one's year not lost.)
+  hospital: { users: "people", gain: 0.0012 },
+  // (Engines under one roof: a sixteenth more of each crafter's work.)
+  factory: { users: "crafters", gain: 0.06 },
+  station: { users: "traders", gain: 0.12 },
+  power: { users: "people", gain: 0.0012 },
+  offices: { users: "traders", gain: 0.0054 },
+  fusion: { users: "people", gain: 0.00048 },
+  minds: { users: "people", gain: 0.00012 },
+  vats: { users: "people", gain: 0.000144 },
   well: { users: "people", gain: 0 },
-  prison: { users: "people", gain: 0.001 },
+  prison: { users: "people", gain: 0.0006 },
 };
 
 /** Builders a lot keeps at work a year while it rises (est: a crew of six). */

@@ -1953,9 +1953,15 @@ export class TownBuilder {
     const people = s.population,
       // (What its buildings are worth to it: who works in it, what they earn, how patient they are. rules/civicworth.ts.)
       use = townUseOf(this.ctx, s);
+    // (The fewest people at which each kind pays here, once for the town's weighing.)
+    for (let i = 0; i < CIVICS.length; i++)
+      LEAST[i] = payingPeople(CIVICS[i]!, CIVIC_LOTS[CIVICS[i]!.kind], use);
     // What stands of each kind (what took a building's place stands for it: a temple is the
-    // town's shrine), and what is rising; one fallen out of use a year, its use under a third of
-    // what it costs to keep.
+    // town's shrine), and what is rising; one fallen out of use a year, its town emptied to below
+    // a third of the people it first rose among in history (CivicDef.people). (Falling where its use is
+    // under a third of its charge, as rising is weighed, makes many more falls, and a town with a
+    // fallen building loaded from a save settles its runs apart from the one that went on: tests/sim/
+    // town.test.ts, juniper, year 107. Left for the fabric's ruin settling to be made whole first.)
     HAVE.fill(0);
     RISING.fill(0);
     let emptied = false;
@@ -1964,11 +1970,7 @@ export class TownBuilder {
     for (let j = 0; j < cs.length; j++) {
       if (cs.fellAt(j) !== NO_FALL) continue;
       const i = cs.kindAt(j);
-      if (
-        !emptied &&
-        cs.endAt(j) <= this.year &&
-        people < Math.max(30, payingPeople(CIVICS[i]!, CIVIC_LOTS[CIVICS[i]!.kind], use)) / 3
-      ) {
+      if (!emptied && cs.endAt(j) <= this.year && people < Math.max(30, CIVICS[i]!.people) / 3) {
         this.fall(f, cs.get(j)!, FOLD.fell);
         emptied = true;
         continue;
@@ -1982,7 +1984,7 @@ export class TownBuilder {
       const def = CIVICS[i]!;
       if ((def.market && !s.market) || (def.city && !city)) continue;
       // (As many as their use pays for, in this town: rules/civicworth.ts.)
-      const want = civicsPaying(def, CIVIC_LOTS[def.kind], use);
+      const want = people >= LEAST[i]! ? civicsPaying(def, CIVIC_LOTS[def.kind], use) : 0;
       if (want < 1) continue;
       if (HAVE[i]! >= want || RISING[i]) continue;
       if ((def.faith && !faith()) || (def.water && !water()) || !this.meets(def, i, k)) continue;
@@ -2198,26 +2200,29 @@ const ASKED_EDGE_LOTS = 300;
 /**
  * A town as its buildings are weighed (rules/civicworth.ts TownUse): its people; the share of them each kind of building serves (its
  * land's crafters, traders and learned shared among its land's towns by their size, all of them in the town at most; its people's
- * young); what each earns against those who build (its land's wages); and what waiting is worth to its people (rules/thrift.ts).
+ * young); what each earns against those who build, paid the going wage (its land's wages); and what waiting is worth to its people
+ * (rules/thrift.ts).
  */
 export function townUseOf(ctx: PopulationContext, s: Settlement): TownUse {
-  const prov = ctx.provinces.get(s.cell),
-    m = ctx.world.store<MarketStore>("economy.markets").get(s.cell),
+  // (A town weighed apart from a world, as a plan is drawn alone, reads as a town of no trades: its people's buildings only.)
+  const prov = ctx.provinces?.get(s.cell),
+    m = ctx.world?.peek<MarketStore>("economy.markets")?.get(s.cell),
     people = Math.max(0, s.population),
     total = prov ? prov.total() : 0;
   if (!prov || total <= 0 || people <= 0)
     return { people, share: [1, 0, 0, 0, 0], worth: [1, 1, 1, 1, 1], preference: 0.05 };
   let towns = 0;
-  for (const o of ctx.settlements.inProvince(s.cell)) towns += Math.max(0, o.population);
+  for (const o of ctx.settlements?.inProvince(s.cell) ?? [s]) towns += Math.max(0, o.population);
   const inTown = (occ: number) =>
       Math.min(1, (prov.occupation(occ) * (people / Math.max(people, towns))) / people),
     w = m?.wage,
-    builder = w && w[OCC.crafter]! > 0 ? w[OCC.crafter]! : 0,
-    against = (x: number) => (builder > 0 && x > 0 ? x / builder : 1),
     workers = total - prov.occupation(OCC.dependent);
+  // (Its builders are paid the going wage, what a worker's year fetches on the mean: a building's cost and use are both in it.
+  // What one of those it serves earns is held within a quarter and four times it: a trade idle one year earns next to nothing.)
   let paid = 0;
   if (w) for (let o = 1; o < w.length; o++) paid += w[o]! * prov.occupation(o);
-  const mean = workers > 0 ? paid / workers : 0;
+  const mean = workers > 0 ? paid / workers : 0,
+    against = (x: number) => (mean > 0 && x > 0 ? Math.min(4, Math.max(0.25, x / mean)) : 1);
   return {
     people,
     share: [
@@ -2228,11 +2233,11 @@ export function townUseOf(ctx: PopulationContext, s: Settlement): TownUse {
       prov.occupation(OCC.dependent) / total,
     ],
     worth: [
-      against(mean),
       1,
+      against(w?.[OCC.crafter] ?? 0),
       against(w?.[OCC.trader] ?? 0),
       against(w?.[OCC.leader] ?? 0),
-      against(mean),
+      1,
     ],
     preference: timePreference(adultHazard(ctx.life), prov.leanest / 1000),
   };
@@ -2240,6 +2245,8 @@ export function townUseOf(ctx: PopulationContext, s: Settlement): TownUse {
 
 /** Scratch for a town's buildings by kind: how many stand, whether one is rising. */
 const HAVE = new Int32Array(CIVICS.length),
+  /** Each kind's fewest people to pay, in the town being weighed. */
+  LEAST = new Float64Array(CIVICS.length),
   RISING = new Uint8Array(CIVICS.length),
   /** Each kind's: the people below which one long built falls out of use, and the kind it takes the place of (-1: none). */
   REPLACES = Int8Array.from(CIVICS, (d) => (d.replaces ? CIVIC_INDEX.get(d.replaces)! : -1));

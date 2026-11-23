@@ -11,7 +11,6 @@ import {
   GLUT_YEARS,
   GOODS,
   OCCUPATIONS,
-  type FuelKind,
   type ToolMetal,
 } from "../../rules/index.ts";
 
@@ -148,11 +147,6 @@ export class Market {
    * made itself. With what it was brought (MarketStore.kindsHad), the variety its households see.
    */
   kinds = 0;
-  /**
-   * What it drew of each fuel this year, in its class's units (sim/economy/energy.ts drawFuels): how its account reads its fuel
-   * stocks by kind. Set each year before it is read; never saved.
-   */
-  readonly drew: Record<FuelKind, number> = { coal: 0, oil: 0, gas: 0, haze: 0, sulphur: 0 };
   /** Fuel its engines burned last year (units of coal and oil), for its power. */
   burned = 0;
   /** The year its works can run again after a rocket's fall (W3; 0: they do). */
@@ -373,7 +367,7 @@ export class Market {
       machineCover: this.machineCover,
       powerCover: this.powerCover,
       craftsWorked: this.craftsWorked,
-      ...(this.kinds ? { kinds: this.kinds } : {}),
+      kinds: this.kinds,
       burned: this.burned,
       mine: this.mine,
       well: this.well,
