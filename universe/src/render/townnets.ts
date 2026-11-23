@@ -3,10 +3,12 @@
 // what grows on a land is): within the core all are drawn, past it fewer as the square of the core over the distance, none past
 // the reach; one half drawn is drawn at half its size, shrunk to its foot, so a run comes and goes by degrees and nothing moves
 // with the eye. Laid once a plan, and again only when the eye has gone far from where it was laid about (its farthest are past
-// the reach then, so nothing is seen to come or go); each frame only the eye is told. No shadows: thin and flat, and a pass.
+// the reach then, so nothing is seen to come or go), over the frames that follow, a few milliseconds a frame, the old standing
+// till the new is laid; each frame only the eye is told. No shadows: thin and flat, and a pass.
 import * as pc from "playcanvas";
 import {
   townNets,
+  townNetsSteps,
   type NetPart,
   type NetsClear,
   type TownNets,
@@ -22,6 +24,11 @@ export const NETS_CORE = 10;
 export const NETS_REACH = 26;
 /** How far the eye's mark on the ground may go from where the networks were laid about before they are laid again (metres). */
 const RELAY = 100;
+/**
+ * How long a frame may give to laying them again (ms): a great city's laying (7 ms on the desk, 2026-11-23) over three or
+ * four frames, never a stall as the eye goes.
+ */
+const LAY_BUDGET = 2;
 
 export class TownNetsLayer {
   readonly root = new pc.Entity("town-nets");
@@ -33,6 +40,10 @@ export class TownNetsLayer {
   private scene: TownScene | null = null;
   private clear: NetsClear = { parts: [], keep: [] };
   private laidAt = { x: 0, z: 0 };
+  /** A laying again under way, about where the eye went (null: none). */
+  private laying: Generator<void, TownNets, void> | null = null;
+  /** When that laying began (for the page's measure, "nets.laid": from its first step to its last). */
+  private layingFrom = 0;
   /** What was laid last (for the checks and the town's page). */
   laid: TownNets["counts"] | null = null;
 
@@ -51,20 +62,48 @@ export class TownNetsLayer {
     this.scene = scene;
     if (clear) this.clear = clear;
     this.laidAt = { ...focus };
-    const nets = scene ? townNets(scene, focus, this.clear) : null;
+    this.laying = null;
+    this.lay(scene ? townNets(scene, focus, this.clear) : null);
+  }
+
+  /**
+   * What else holds its streets now (view/networks.ts NetsClear), when the town's view has drawn its homes again (render/town.ts
+   * choose): laid off from the next laying; a laying under way begun again, what it read being drawn over.
+   */
+  keepOff(clear: NetsClear): void {
+    this.clear = clear;
+    if (this.laying && this.scene) this.laying = townNetsSteps(this.scene, this.laidAt, clear);
+  }
+
+  /** Where the eye looks on the town (metres from its square): laid again about it once it has gone far, over frames. */
+  look(x: number, z: number): void {
+    if (!this.scene || Math.hypot(x - this.laidAt.x, z - this.laidAt.z) < RELAY) return;
+    this.laidAt = { x, z };
+    this.laying = townNetsSteps(this.scene, this.laidAt, this.clear);
+    this.layingFrom = performance.now();
+  }
+
+  private lay(nets: TownNets | null): void {
     this.laid = nets?.counts ?? null;
     this.boxes = this.put(this.boxes, this.box, nets?.boxes ?? []);
     this.rounds = this.put(this.rounds, this.cyl, nets?.rounds ?? []);
   }
 
-  /** Where the eye looks on the town (metres from its square): laid again about it once it has gone far. */
-  look(x: number, z: number): void {
-    if (!this.scene || Math.hypot(x - this.laidAt.x, z - this.laidAt.z) < RELAY) return;
-    this.build(this.scene, { x, z });
-  }
-
-  /** Each frame: where the eye is (world units). */
+  /** Each frame: where the eye is (world units); a laying under way carried on. */
   update(eye: pc.Vec3): void {
+    if (this.laying) {
+      const t0 = performance.now();
+      for (;;) {
+        const step = this.laying.next();
+        if (step.done) {
+          this.laying = null;
+          this.lay(step.value);
+          performance.measure("nets.laid", { start: this.layingFrom });
+          break;
+        }
+        if (performance.now() - t0 > LAY_BUDGET) break;
+      }
+    }
     const near = [eye.x, eye.y, eye.z, NETS_CORE],
       k = [1, 1, NETS_REACH, 0];
     for (const b of [this.boxes, this.rounds]) {

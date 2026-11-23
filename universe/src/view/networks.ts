@@ -80,6 +80,8 @@ function at(x: number, z: number, yaw: number, u: number, v: number): [number, n
   return [x + u * c + v * s, z - u * s + v * c];
 }
 
+/** How many blocks (or poles strung) townNetsSteps() lays a step: a few tenths of a millisecond on the desk. */
+const STEP_BLOCKS = 8;
 /** How near another of the town's networks one may stand (metres): one thing a spot. */
 const SPACING = 2.5;
 /** How far out from a block's edge what stands of its networks stands (metres): inside the strip no walker or car comes into. */
@@ -521,6 +523,22 @@ export function townNets(
   focus: { x: number; z: number } = { x: 0, z: 0 },
   clear: NetsClear = { parts: [], keep: [] },
 ): TownNets {
+  const run = townNetsSteps(scene, focus, clear);
+  for (;;) {
+    const step = run.next();
+    if (step.done) return step.value;
+  }
+}
+
+/**
+ * townNets() laid a few blocks at a time, between which it may be put off (render/townnets.ts lays them again over the frames
+ * that follow as the eye goes about a city, a few milliseconds a frame; what it lays is townNets()'s, whatever the steps).
+ */
+export function* townNetsSteps(
+  scene: TownScene,
+  focus: { x: number; z: number } = { x: 0, z: 0 },
+  clear: NetsClear = { parts: [], keep: [] },
+): Generator<void, TownNets, void> {
   const { plan, lots } = scene,
     out: TownNets = {
       boxes: [],
@@ -797,6 +815,7 @@ export function townNets(
         }
       }
     }
+    if (out.counts.blocks % STEP_BLOCKS === 0) yield;
   }
   // (The wire from each pole to the nearest strung before it that it can reach: down the streets, over no block's ground, no
   // stronghold's, no temple's steps (view/streetline.ts), and where its way is clear at its height, through nothing standing:
@@ -865,15 +884,18 @@ export function townNets(
   for (let i = 1; i < tops.length; i++) {
     const j = reach(i, i);
     if (j >= 0) wire(i, j);
+    if (i % STEP_BLOCKS === 0) yield;
   }
   const poles = tops.length;
   for (let i = 0; i < poles; i++) {
     if (strung[i]) continue;
     const j = reach(i, poles);
     if (j >= 0) wire(i, j);
+    if (i % STEP_BLOCKS === 0) yield;
   }
   for (let i = 0; i < poles; i++) {
     if (strung[i]) continue;
+    if (i % STEP_BLOCKS === 0) yield;
     const [x1, z1] = tops[i]!,
       corners = turns
         .map((c) => [(c[0] - x1) ** 2 + (c[1] - z1) ** 2, c] as const)
