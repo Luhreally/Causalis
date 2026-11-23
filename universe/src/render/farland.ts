@@ -36,6 +36,8 @@ export class FarLand {
   private shown: {
     readonly source: pc.Mesh;
     readonly cuts: readonly pc.Mesh[];
+    /** Those of its cuts furthest from the town (past the last of BANDS). */
+    readonly beyond: readonly pc.Mesh[];
     readonly collar: pc.Mesh | null;
     readonly ground: pc.Entity;
     readonly sea: pc.Entity | null;
@@ -142,7 +144,7 @@ export class FarLand {
       this.holeAt.r !== reach
     ) {
       this.clear();
-      const { cuts, collar } = cutAbout(this.stage, ground.mesh, o.x, o.y, o.z, reach),
+      const { cuts, beyond, collar } = cutAbout(this.stage, ground.mesh, o.x, o.y, o.z, reach),
         g = new pc.Entity("far ground");
       g.addComponent("render", {
         meshInstances: [
@@ -166,7 +168,7 @@ export class FarLand {
         s.setLocalPosition(seaSheet!.getLocalPosition());
         this.holder.addChild(s);
       }
-      this.shown = { source: ground.mesh, cuts, collar, ground: g, sea: s };
+      this.shown = { source: ground.mesh, cuts, beyond, collar, ground: g, sea: s };
       this.holeAt = { x: o.x, y: o.y, z: o.z, r: reach };
     }
     // (Read each time it is shown: the land's tiles are painted after it is first laid, and again with the season.)
@@ -192,6 +194,7 @@ export class FarLand {
     on: boolean;
     facets: number;
     collar: number;
+    beyond: number;
     copies: number;
     instances: number;
     tones: FarLand["tones"];
@@ -201,6 +204,7 @@ export class FarLand {
       on: this.on,
       facets: s ? s.cuts.reduce((n, cut) => n + cut.primitive[0]!.count / 3, 0) : 0,
       collar: s?.collar ? s.collar.vertexBuffer.numVertices / 3 : 0,
+      beyond: s ? s.beyond.reduce((n, cut) => n + cut.primitive[0]!.count / 3, 0) : 0,
       copies: this.copies.length,
       instances:
         this.copies.reduce((n, c) => n + c.drawn.instancingCount, 0) +
@@ -212,6 +216,7 @@ export class FarLand {
   /** Which of its parts are drawn (the look tools, to time each): its ground and sea, its land's woods, towns and fields. */
   parts(o: {
     ground?: boolean;
+    beyond?: boolean;
     sea?: boolean;
     copies?: boolean;
     clumps?: boolean;
@@ -219,6 +224,9 @@ export class FarLand {
   }): void {
     const s = this.shown;
     if (s && o.ground !== undefined) s.ground.enabled = o.ground;
+    if (s && o.beyond !== undefined)
+      for (const m of s.ground.render!.meshInstances)
+        if (s.beyond.includes(m.mesh)) m.visible = o.beyond;
     if (s?.sea && (o.sea ?? o.ground) !== undefined) s.sea.enabled = (o.sea ?? o.ground)!;
     if (o.copies !== undefined) this.copiesAt.enabled = o.copies;
     for (const c of this.copies) {
@@ -480,7 +488,9 @@ export class FarLand {
 const HOLE = 0.85,
   RISEN = 1.6,
   /** Into how many wedges about the town the land past its rise is cut (cutAbout). */
-  WEDGES = 12;
+  WEDGES = 16,
+  /** And at what distances from it (land units) each wedge is cut again: a far wedge's box takes in less of the eye's sight. */
+  BANDS = [40, 100];
 
 /**
  * A land's ground mesh about a town (each facet three vertices of its own, in order: render/region.ts build): the facets
@@ -496,7 +506,7 @@ function cutAbout(
   y: number,
   z: number,
   reach: number,
-): { cuts: pc.Mesh[]; collar: pc.Mesh | null } {
+): { cuts: pc.Mesh[]; beyond: pc.Mesh[]; collar: pc.Mesh | null } {
   const count = source.vertexBuffer.numVertices,
     at = new Float32Array(count * 3);
   source.getPositions(at);
@@ -520,15 +530,19 @@ function cutAbout(
   // (Kept in wedges about the town, each drawn alone, so that those out of its eye's sight are not drawn at all: seen about the
   // town, the eye's sight takes in a few. Each nearest the town first: the eye stands about it, so what is nearer is drawn
   // first and hides what lies behind it before that is shaded.)
-  const wedges: number[][] = Array.from({ length: WEDGES }, () => []);
+  const wedges: number[][] = Array.from({ length: WEDGES * (BANDS.length + 1) }, () => []);
   kept.forEach((v, i) => {
     const cx = at[3 * v]! + at[3 * v + 3]! + at[3 * v + 6]! - 3 * x,
       cz = at[3 * v + 2]! + at[3 * v + 5]! + at[3 * v + 8]! - 3 * z,
-      w = Math.floor(((Math.atan2(cz, cx) / (2 * Math.PI) + 1) % 1) * WEDGES) % WEDGES;
-    wedges[w]!.push(i);
+      w = Math.floor(((Math.atan2(cz, cx) / (2 * Math.PI) + 1) % 1) * WEDGES) % WEDGES,
+      r = Math.hypot(cx, cz) / 3;
+    let band = 0;
+    while (band < BANDS.length && r >= BANDS[band]!) band++;
+    wedges[band * WEDGES + w]!.push(i);
   });
-  const cuts: pc.Mesh[] = [];
-  for (const wedge of wedges) {
+  const cuts: pc.Mesh[] = [],
+    beyond: pc.Mesh[] = [];
+  for (const [b, wedge] of wedges.entries()) {
     if (!wedge.length) continue;
     wedge.sort((i, j) => far[i]! - far[j]!);
     const order = new Uint32Array(wedge.length * 3),
@@ -565,8 +579,9 @@ function cutAbout(
     box.setMinMax(new pc.Vec3(lo[0], lo[1], lo[2]), new pc.Vec3(hi[0], hi[1], hi[2]));
     mesh.aabb = box;
     cuts.push(mesh);
+    if (b >= WEDGES * BANDS.length) beyond.push(mesh);
   }
-  if (!near.length) return { cuts, collar: null };
+  if (!near.length) return { cuts, beyond, collar: null };
   const colours = new Uint8Array(count * 4);
   source.getColors(colours);
   const n = near.length * 3,
@@ -613,7 +628,7 @@ function cutAbout(
   collar.setNormals(nor);
   collar.setColors32(col);
   collar.update();
-  return { cuts, collar };
+  return { cuts, beyond, collar };
 }
 
 /**
