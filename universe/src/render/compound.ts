@@ -186,14 +186,25 @@ ${toned ? "\tif (tone > 2.5) vTone = uTarTone;\n\telse if (tone > 1.5) vTone = u
 `;
 }
 
+/**
+ * How much darker the rain leaves what it falls on, wholly wet (of its colour): a wall, what faces the sky (a roof, a street, a
+ * flat top), the bare ground.
+ */
+export const WET = { wall: 0.12, up: 0.38, ground: 0.3 } as const;
+// (What faces the sky, a roof or the top of a flat-roofed block, a street, a yard: wetted the darker by the rain, `uWet`, its
+// walls a little; and the snow lying on it as on a roof, where it lay on pitched roofs alone and a city's flat tops stood
+// black in it. 2026-11-23.)
 const TONED_PS = `
 uniform vec3 material_diffuse;
 uniform float uToneSnow;
 uniform float uRoofSnow;
+uniform float uWet;
 varying vec3 vTone;
 varying float vRoof;
 void getAlbedo() {
-	dAlbedo = mix(material_diffuse.rgb * vTone, vec3(0.852, 0.893, 0.957), vRoof > 0.5 ? uRoofSnow : uToneSnow);
+	float up = vRoof > 0.5 ? 1.0 : smoothstep(0.7, 0.95, normalize(vNormalW).y);
+	vec3 own = material_diffuse.rgb * vTone * (1.0 - uWet * mix(${WET.wall.toFixed(3)}, ${WET.up.toFixed(3)}, up));
+	dAlbedo = mix(own, vec3(0.852, 0.893, 0.957), vRoof > 0.5 ? uRoofSnow : max(uToneSnow, uRoofSnow * up));
 }
 `;
 
@@ -221,6 +232,7 @@ export function shapeMaterial(
   m.setAttribute("instance_line4", pc.SEMANTIC_ATTR15);
   m.setParameter("uToneSnow", 0);
   m.setParameter("uRoofSnow", 0);
+  m.setParameter("uWet", 0);
   m.setParameter("uMetre", metre);
   m.setParameter("uFrameTone", [toneOf(frame[0]), toneOf(frame[1]), toneOf(frame[2])]);
   m.setParameter("uTarTone", [toneOf(tar[0]), toneOf(tar[1]), toneOf(tar[2])]);

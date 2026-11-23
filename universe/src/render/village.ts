@@ -178,6 +178,7 @@ import {
   ringMesh,
   gableMesh,
 } from "./batch.ts";
+import { WET } from "./compound.ts";
 import { FlierLayer } from "./fliers.ts";
 import { FaunaLayer, type PickedBeast } from "./fauna.ts";
 import { VisitorsLayer } from "./visitors.ts";
@@ -705,6 +706,21 @@ export class VillageScene {
   private yearNow: FieldsNow = FAIR_YEAR;
   private seasonNow: GroundSeason | null = null;
   private seasonSeen = "";
+  /** How wet the rain has left the town (0 … 1, in fiftieths: each step too small to see), as last dressed. */
+  private wetAs = 0;
+
+  /**
+   * How wet the rain has left the town (0 … 1; app/main.ts eases it over the game's minutes, by the rain's own amount): its
+   * ground, streets and roofs darkened (render/compound.ts WET), its walls a little; never its water.
+   */
+  wet(w: number): void {
+    const q = Math.round(Math.max(0, Math.min(1, w)) * 50) / 50;
+    if (q === this.wetAs) return;
+    this.wetAs = q;
+    this.town.wet(q);
+    this.townFlora.wet(q);
+    this.dress();
+  }
 
   /** The season on the ground (null: none told): snow lying, the leaves turned or fallen, the lake frozen. */
   season(s: GroundSeason | null): void {
@@ -716,29 +732,41 @@ export class VillageScene {
   }
 
   private dress(): void {
-    const s = this.seasonNow;
+    const s = this.seasonNow,
+      wet = (d: { kind: string }, c: Rgb): Rgb => {
+        const k =
+          d.kind === "ground"
+            ? 1 - WET.ground * this.wetAs
+            : d.kind === "roof"
+              ? 1 - WET.up * this.wetAs
+              : 1;
+        return k === 1 ? c : [c[0] * k, c[1] * k, c[2] * k];
+      };
     this.town.season(s?.snow ?? 0);
     this.graveyard.season(s?.snow ?? 0);
     this.country.season(s);
     this.townFlora.season(s, this.dryAs);
     for (const d of this.dressed)
       d.paint(
-        !s
-          ? d.grass
-            ? grassTint(d.base, { ...FAIR_YEAR, dry: this.dryAs })
-            : d.base
-          : d.kind === "ground"
-            ? seasonGround(
-                d.grass ? grassTint(d.base, { ...FAIR_YEAR, dry: this.dryAs }) : d.base,
-                s,
-              )
-            : d.kind === "roof"
-              ? seasonGround(d.base, { ...s, snow: s.snow * 0.87 })
-              : d.kind === "water"
-                ? seasonWater(d.base, s)
-                : d.kind === "needle"
-                  ? seasonNeedle(d.base, s)
-                  : seasonLeaf(d.base, s),
+        wet(
+          d,
+          !s
+            ? d.grass
+              ? grassTint(d.base, { ...FAIR_YEAR, dry: this.dryAs })
+              : d.base
+            : d.kind === "ground"
+              ? seasonGround(
+                  d.grass ? grassTint(d.base, { ...FAIR_YEAR, dry: this.dryAs }) : d.base,
+                  s,
+                )
+              : d.kind === "roof"
+                ? seasonGround(d.base, { ...s, snow: s.snow * 0.87 })
+                : d.kind === "water"
+                  ? seasonWater(d.base, s)
+                  : d.kind === "needle"
+                    ? seasonNeedle(d.base, s)
+                    : seasonLeaf(d.base, s),
+        ),
       );
   }
   private batch(...args: ConstructorParameters<typeof InstancedBatch>): InstancedBatch {

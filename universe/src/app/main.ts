@@ -268,6 +268,9 @@ import {
   figurePaint,
   folkLook,
   weatherAt,
+  wetBy,
+  wetStep,
+  WETTING,
   squareNow,
   squareScale,
   downpourAt,
@@ -451,6 +454,8 @@ import {
 } from "../view/index.ts";
 
 const DAY = 86_400;
+/** How much larger the snow's flakes are drawn behind one possessed or held. */
+const FLAKES_HELD = 1.5;
 /** What the hand's people do, in words. */
 const WORK_WORDS = [
   "a child",
@@ -961,8 +966,9 @@ type Exposed = {
     drops: number;
     flakes: number;
     sky: string;
-    /** In a town: how many are in out of a downpour. */
+    /** In a town: how many are in out of a downpour; how wet the rain has left it (0 … 1). */
     sheltered: number;
+    wetGround: number;
     /** The god's acts on the land seen near (M163): told, and what is drawn of them. */
     hand: {
       told: string[];
@@ -4395,6 +4401,18 @@ async function runPlanetPage(): Promise<void> {
   // Down to a region, and back up to the world: the camera, the scene, the panel,
   // the labels and the host's interest all move together.
   const toRegion = (cell: number) => {
+    // (Left by any way, not its own page's alone: what the view left showed goes with it, so no town's header stays up over
+    // the land's. 2026-11-23: a jump to the land from a town left its header standing.)
+    if (
+      scale === "village"
+        ? village.visible || villagePanel.visible
+        : scale === "camp"
+          ? campPanel.visible
+          : scale === "battle"
+            ? battlePanel.visible
+            : false
+    )
+      leaveScale();
     scale = "region";
     labels.clear();
     // (A land of another body shows its own ground, no lens of the home world's.)
@@ -9696,7 +9714,11 @@ async function runPlanetPage(): Promise<void> {
     seasonNow: GroundSeason | null = null,
     /** The view the weather was last drawn in, and its sky as drawn (eased to the weather's: a grey sky comes and goes). */
     weatherScale = "",
-    skyShown = { cloud: 0, wet: 0, haze: 0 };
+    skyShown = { cloud: 0, wet: 0, haze: 0 },
+    /** How wet the rain has left the town seen (0 … 1), at what moment last reckoned, and whether to reckon it afresh. */
+    wetGround = 0,
+    wetMoment = 0,
+    wetFresh = true;
   /** The sky drawn eased toward `want` (null: clear) over `dt` s; the flash as it is. */
   const skyTo = (
     want: { cloud: number; wet: number; haze: number; flash: number } | null,
@@ -9766,6 +9788,7 @@ async function runPlanetPage(): Promise<void> {
     // (The view itself changed: the weather it showed let go with it, at once; the next comes on by degrees.)
     if (scale !== weatherScale) {
       weatherScale = scale;
+      wetFresh = true;
       weather.cut();
       skyShown = { cloud: 0, wet: 0, haze: 0 };
       stage.weather(null);
@@ -9815,6 +9838,11 @@ async function runPlanetPage(): Promise<void> {
         weather.update(null, v.at, stage.camera.getPosition(), v.distance, weatherSeconds, 1100);
       }
       if (skyShown.cloud || skyShown.wet || skyShown.haze) skyTo(null, dt);
+      // (A town under the sea, or its sky not yet read: what wet it dries by the viewer's time.)
+      if (scale === "village" && wetGround > 0) {
+        wetGround = wetStep(wetGround, 0, dt * WETTING.out, dt);
+        village.wet(wetGround);
+      }
       return;
     }
     const running = time.speed > 0;
@@ -9833,8 +9861,21 @@ async function runPlanetPage(): Promise<void> {
     // (A flash is over in a moment, so its thunder is read here, as it is drawn.)
     if (w.flash > 0.3 && flashWas <= 0.3 && thunderHere) sound.cue("thunder");
     flashWas = w.flash;
-    const v = viewed();
-    weather.update(w, v.at, eye, v.distance, weatherSeconds, 1100);
+    const v = viewed(),
+      // (Behind one possessed the flakes nearer, so larger, as a phone shows them: they were specks of 2 px.)
+      held = !!stage.lookedAt && !rig.enabled;
+    weather.update(w, v.at, eye, v.distance, weatherSeconds, 1100, held ? FLAKES_HELD : 1);
+    // The town wetted by the rain, by its own amount, over the game's minutes, and drying after (render/village.ts wet).
+    if (scale === "village") {
+      const dGame = t - wetMoment;
+      wetGround =
+        wetFresh || dGame < 0 || dGame > 3600
+          ? wetBy(sky, t, time.pace)
+          : wetStep(wetGround, w.rain, dGame, dt);
+      wetFresh = false;
+      wetMoment = t;
+      village.wet(wetGround);
+    }
     // The season on the ground (M164): snow lying, the leaves turned or fallen, ice on still water.
     const ground = seasonAt(sky, t);
     if (scale === "camp") meadowScene?.season(ground);
@@ -9924,6 +9965,7 @@ async function runPlanetPage(): Promise<void> {
           },
           sky: document.body.dataset.sky ?? "",
           sheltered: scale === "village" ? village.shelteredNow() : 0,
+          wetGround: scale === "village" ? wetGround : 0,
           seconds: weatherSeconds,
           season: seasonNow ?? { snow: 0, leaf: 1, turned: 0, ice: 0 },
           ground:
