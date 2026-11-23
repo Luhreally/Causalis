@@ -7,7 +7,9 @@ import {
   MOST_ABOARD,
   aboardNow,
   carNow,
+  keepOut,
   ridesOf,
+  villageSolids,
   type BusLine,
   type Moment,
   type Owner,
@@ -37,6 +39,13 @@ const LARGE = 1.5;
 /** A car's size and a line's vehicle's (metres). */
 const CAR = { long: 4.2 * LARGE, wide: 1.9 * LARGE, tall: 1.05 * LARGE, top: 0.7 * LARGE };
 const COACH = { long: 10 * LARGE, wide: 2.5 * LARGE, tall: 2.3 * LARGE };
+/**
+ * How far a car on its way keeps off the blocks (metres, to its middle): its half breadth, its wheels' reach past its side, and a
+ * street piece's depth off the block (view/networks.ts).
+ */
+const DRIVEN_OFF = CAR.wide / 2 + 0.7;
+/** Within this of a block's side (metres, to its middle), a car stands and goes along the street: half a street and a little. */
+const KERB_NEAR = 4.5;
 /** How fast a line's vehicle goes, metres a real second while the clock runs: at a pace the eye can follow. */
 const PACE = 42;
 /** How far outside what is drawn a finger still counts as on it, and as near it (screen pixels). */
@@ -113,12 +122,20 @@ export class TownTraffic {
       own = about?.how === "sled" ? SLED : null,
       wheeled = about?.how === "wheels" || about?.how === "line" || about?.how === "hauler",
       lift = about?.how === "sled" ? 0.55 : 0.34;
+    const ground = rides.owners.size ? villageSolids(plan) : null;
     for (const o of rides.owners.values() as Iterable<Owner>) {
       const now = carNow(plan, o, t, fine),
         m = moments[o.index],
-        x = now.riding && m ? m.x : now.x,
-        z = now.riding && m ? m.z : now.z,
-        yaw = now.riding && m ? m.yaw : now.yaw,
+        // (On the way, where its driver's day has them, but kept its half breadth and a corner piece's depth off the blocks:
+        // a car keeps to the street, by its hydrants and boxes and the houses, as its driver did on foot.)
+        on = now.riding && m ? { x: m.x, z: m.z } : null;
+      if (on && ground) keepOut(ground, on, DRIVEN_OFF);
+      const x = on ? on.x : now.x,
+        z = on ? on.z : now.z,
+        // (Beside a block, along its street, the way nearer the one it had: a car is longer than the street is wide.)
+        had = now.riding && m ? m.yaw : now.yaw,
+        side = ground?.town?.sideNear({ x, z }, KERB_NEAR) ?? null,
+        yaw = side === null ? had : Math.cos(had - side) >= 0 ? side : side + Math.PI,
         body = own ?? TONES[o.tone % TONES.length]!;
       if (wheeled) this.wheels(x, z, yaw, CAR.wide, CAR.long, lift);
       this.put(body, x, lift, z, CAR.wide, CAR.tall * 0.6, CAR.long, yaw);

@@ -69,6 +69,7 @@ import { domeMesh } from "./colony.ts";
 import { compoundMeshes, roofCode, shapeLamps, shapeMaterial } from "./compound.ts";
 import { tonedMaterial, type Rgb, type Stage } from "./stage.ts";
 import { TownNetsLayer } from "./townnets.ts";
+import type { NetsClear } from "../view/index.ts";
 
 const M = 0.1;
 /**
@@ -369,6 +370,8 @@ export class TownLayer {
 
   /** Its water, drains and power laid along its streets (render/townnets.ts; 2026-11-22). */
   readonly nets: TownNetsLayer;
+  /** The places the village holds in its streets (its memorials, court, works, doors), for its networks to keep off. */
+  netsKeep: NetsClear["keep"] = [];
 
   constructor(stage: Stage, parent: pc.Entity) {
     parent.addChild(this.root);
@@ -443,7 +446,14 @@ export class TownLayer {
     this.choosing = null;
     this.seenAt = t;
     this.settled.show(this.ground, this.ownParts, this.farParts);
-    this.nets.build(this.scene, this.eye);
+    // (Its networks keep off what else stands in its streets: its ground as laid, its civics and walls as they stand now.)
+    const standing = new TownParts();
+    townCivics(this.scene, t, standing, false);
+    townWalls(this.scene, t, standing, this.open);
+    this.nets.build(this.scene, this.eye, {
+      parts: [this.ground, this.ownParts, this.farParts, standing],
+      keep: this.netsKeep,
+    });
     performance.measure("town.built", { start: t0 });
     this.busy = this.scene.active.length > 0 || civicsActive(plan, t) || !!plan.walls;
     this.drawnAt = -Infinity;

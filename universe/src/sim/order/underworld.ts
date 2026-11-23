@@ -131,6 +131,7 @@ import {
 } from "../money/kept.ts";
 import { RISK } from "../money/intox.ts";
 import { idleOf } from "../trade/kept.ts";
+import { strainIn } from "../society/strain-kept.ts";
 import { takingsOf } from "../trade/demand.ts";
 import {
   LAW_ROW,
@@ -716,6 +717,7 @@ function streetTowns(ctx: PopulationContext, p: Polity, r: Read): Town[] {
         reach: r.capacity * reachLaw * (1 - (o?.corruption ?? 0)),
         informal,
         dependent: intoxDependent(world, c),
+        strain: strainIn(world, c),
       }),
       // (Of the town's young men, a share as great as the pull at most a third run with its gangs: some forty to a gang.)
       townYoung = (young * town.population) / n,

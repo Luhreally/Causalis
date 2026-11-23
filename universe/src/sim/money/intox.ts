@@ -38,12 +38,14 @@ import {
   intoxWant,
   fungalVisions,
   INTOX_HOLD,
+  STRAIN,
   lawKeeps,
   prohibits,
   type IntoxKind,
 } from "../../rules/index.ts";
 import { marketsOf, mouths, type PopulationContext } from "../population/systems.ts";
 import { loreOf } from "../lore/lore.ts";
+import { strainIn } from "../society/strain-kept.ts";
 import { woodsRead } from "../ecology/woods.ts";
 import { longRain } from "../climate/long.ts";
 import { beliefOf } from "../belief/belief.ts";
@@ -209,7 +211,8 @@ export function intoxYear(ctx: PopulationContext, t: SimTime): void {
           1,
         ),
         pain: dmath.clamp(0.2 + (realm && wars.fighting(realm.ref).length ? 0.4 : 0), 0, 1),
-        hardship: dmath.clamp(1 - prov.leanest / 1000, 0, 1),
+        // (Lean months, and a land worn by its years: what calms is taken to forget both. sim/society/strain.ts.)
+        hardship: dmath.clamp(1 - prov.leanest / 1000 + STRAIN.drink * strainIn(world, c), 0, 1),
       };
     if (fungal) own.visions = Math.max(own.visions, fungal.reach);
     INTOX_KINDS.forEach((k, i) => {
