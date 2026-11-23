@@ -293,7 +293,8 @@ function land(w: HomeWorld, cell: number, areaKm2: number, biome: number, heat =
 export type Going = {
   readonly to: number;
   readonly event: Ref;
-  readonly decision: Ref;
+  /** Absent for a move the hope of wages made: its event tells it (sim/population/systems.ts). */
+  readonly decision?: Ref;
   year: number;
   readonly count: number;
 };
@@ -371,7 +372,11 @@ export class Province {
       .string(this.lastDrought ?? "")
       .int(this.famineMonth);
     for (const g of this.going)
-      h.int(g.to).string(g.event).string(g.decision).int(g.year).int(g.count);
+      h.int(g.to)
+        .string(g.event)
+        .string(g.decision ?? "")
+        .int(g.year)
+        .int(g.count);
   }
 
   save(): unknown {

@@ -1457,15 +1457,16 @@ export function workYear(ctx: PopulationContext, t: SimTime): void {
   }
 }
 
-/** What drives a land's people from it, past hunger: a battle fought there, a siege, a raid on the posted, a sack, a quake, a
- * flood, an eruption, a fire, a stone from the sky (the rest of flight's causes: ./flight.ts). */
+/** What drives a land's people from it, past hunger: a battle fought there, a siege, a raid on the posted, a sack, a quake, an
+ * eruption, a fire, a stone from the sky (the rest of flight's causes: ./flight.ts). Not a flood: its people go back as the
+ * waters fall. (Taken as a land's ruin, floods sent first light's cradle into its empty lands at ten times the pace: 205 moves
+ * in its first sixty years where there had been 22, and 36 lands peopled where there had been 15.) */
 const FLED_FROM: ReadonlySet<string> = new Set([
   "war.battle",
   "war.strike",
   "war.siege",
   "war.raid",
   "act.quake",
-  "act.flood",
   "act.fire",
   "act.meteor",
   "wild.fire",
@@ -1484,6 +1485,8 @@ type PlannedFlow = {
   factors: Factor[];
   pressure: number;
   why?: "war" | "faith" | "wages" | undefined;
+  /** How strongly the wages drew them (0 … 1), told on the event where no decision is kept. */
+  pull?: number;
 };
 /**
  * A move's factors, at most six (the kernel's limit): as they always were where neither a law against their faith nor wages
@@ -1691,6 +1694,7 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
               : o.wage > 0
                 ? "wages"
                 : undefined,
+        ...(o.wage > 0 ? { pull: o.wage } : {}),
         factors: sixOf([
           {
             name: "hunger",
@@ -1766,31 +1770,42 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
         stream.year === year - 1 &&
         2 * f.count >= stream.count &&
         f.count <= 2 * stream.count;
-    let decision: Ref, event: Ref;
+    let decision: Ref | undefined, event: Ref;
     if (goesOn) {
       stream.year = year;
       event = stream.event;
       decision = stream.decision;
     } else {
-      decision = world.decisions.record({
-        rule: "population.migrate",
-        subject: f.from.ref,
-        outcome: { to: cellRef(0, f.to), count: f.count },
-        score: f.pressure,
-        threshold: 0.05,
-        factors: f.factors,
-      });
+      // (A move the hope of wages made (a land weighs its neighbours' wages once in a generation, and sends one band to the land
+      // that pays best) is told by its event alone, how strongly the wages drew them folded into it: a decision for each, at
+      // 1,500 half of the moves the ledger holds for living memory, was some megabytes of the world. Those that war, a law
+      // against their faith, hunger or crowding drove keep their decision and its factors.)
+      decision =
+        f.why === "wages"
+          ? undefined
+          : world.decisions.record({
+              rule: "population.migrate",
+              subject: f.from.ref,
+              outcome: { to: cellRef(0, f.to), count: f.count },
+              score: f.pressure,
+              threshold: 0.05,
+              factors: f.factors,
+            });
       event = world.events.emit({
         type: POPULATION_EVENTS.migration.type,
         importance: f.count >= 200 ? 3 : 2,
         subjects: [f.from.ref, cellRef(0, f.to)],
         place: f.from.ref,
-        causes: [{ ref: decision, role: "trigger", weight: 1 }],
-        data: { count: f.count, ...(f.why ? { why: f.why } : {}) },
+        causes: decision ? [{ ref: decision, role: "trigger", weight: 1 }] : [],
+        data: {
+          count: f.count,
+          ...(f.why ? { why: f.why } : {}),
+          ...(!decision && f.pull ? { pull: Math.round(f.pull * 100) } : {}),
+        },
       });
       f.from.going = [
         ...f.from.going.filter((s) => s.to !== f.to && s.year >= year - 1),
-        { to: f.to, event, decision, year, count: f.count },
+        { to: f.to, event, ...(decision ? { decision } : {}), year, count: f.count },
       ];
     }
     let dest = ctx.provinces.get(f.to);
@@ -1835,8 +1850,9 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
       year,
       count: f.count,
       byOccupation,
-      decision,
+      ...(decision ? { decision } : {}),
       event,
+      ...(f.why ? { brief: 1 as const } : {}),
     });
   }
 }
