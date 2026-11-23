@@ -811,7 +811,7 @@ export function householdOf(p: Pairing, partners: number, young: number): number
 // is their own: the quick to anger and the tender of conscience carry more of the same weight, the bold less.
 
 /** What weighs on someone, by kind. */
-export const MIND_WEIGHTS = ["loss", "war", "want", "place"] as const;
+export const MIND_WEIGHTS = ["loss", "war", "want", "place", "about"] as const;
 export type MindWeight = (typeof MIND_WEIGHTS)[number];
 /** What holds them up, by kind. */
 export const MIND_HOLDS = ["kin", "faith", "standing", "plenty", "company"] as const;
@@ -847,6 +847,8 @@ export type MindFacts = {
    * (Asked 2026-11-22: what the world did to them, all of it.) The worst wound they carry (0 none … 1 a member lost); whether
    * they are held in bondage; whether they have no roof of their own; whether their work is idle. Absent: none of these.
    */
+  /** Their land's strain (sim/society/strain.ts; 0 … 1). Absent: none. */
+  readonly landStrain?: number;
   readonly wounds?: number;
   readonly bound?: boolean;
   readonly roofless?: boolean;
@@ -894,8 +896,10 @@ export function mindOf(f: MindFacts): Mind {
       f.bound ? 0.4 : 0,
       f.roofless ? 0.3 : 0,
     ),
-    weights = { loss, war, want, place },
-    weight = either(loss, war, want, place),
+    // (What weighs on their land weighs on them too: its strain, as the world keeps it, sim/society/strain.ts.)
+    about = STRAIN.about * c01(f.landStrain ?? 0),
+    weights = { loss, war, want, place, about },
+    weight = either(loss, war, want, place, about),
     kin =
       either(f.partners > 0 ? 0.2 : 0, 0.08 * Math.min(4, f.young), f.parents ? 0.12 : 0) *
       (0.6 + 0.8 * t.warmth),
@@ -953,6 +957,16 @@ export const STRAIN = {
   usual: 0.15,
   /** Of a land's crafts, the share lost at the full of its strain. */
   work: 0.08,
+  /**
+   * What else a land worn so does (2026-11-23, asked: "let it feed what it truly drives"): its grievance against its seat a year at
+   * the full of its strain (sim/polity, the yearly turn); how far its hardship reaches for what calms, at the full (sim/money/
+   * intox.ts); how loose its young are from what holds them, toward its street's gangs (sim/order/underworld.ts streetPull).
+   */
+  grieves: 0.2,
+  drink: 0.8,
+  loose: 1,
+  /** How much of what weighs on their land weighs on one of its people (mindOf `about`). */
+  about: 0.4,
 } as const;
 
 export type LandStrainFacts = {
@@ -986,7 +1000,7 @@ export function landStrainOf(f: LandStrainFacts): LandStrain {
     war = f.occupied ? 0.35 : 0,
     want = either(0.5 * c01(1 - f.fed), 0.2 * c01(f.idle)),
     place = c01(0.4 * c01(f.bound) + 0.3 * c01(f.street)),
-    weights = { loss, war, want, place },
+    weights = { loss, war, want, place, about: 0 },
     held = either(0.3 * c01(f.care), 0.2 * c01(f.clergy), 0.3 * c01(f.nature.social)),
     strain = c01(either(loss, war, want, place) * (1 - 0.6 * held));
   return { weights, held, strain };
@@ -996,6 +1010,7 @@ export const MIND_WEIGHT_WORDS: Readonly<Record<MindWeight, { icon: string; labe
   war: { icon: "🔥", label: "War, fire and raiding lived through" },
   want: { icon: "🥣", label: "Want, known and now" },
   place: { icon: "⛓️", label: "A place that shuts them out" },
+  about: { icon: "🏘️", label: "What weighs on those about them" },
 };
 export const MIND_HOLD_WORDS: Readonly<Record<MindHold, { icon: string; label: string }>> = {
   kin: { icon: "🫂", label: "Their kin about them" },

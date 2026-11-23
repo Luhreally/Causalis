@@ -11,6 +11,7 @@ import {
   BLOCK_W,
   GATE_TOWER,
   LOT_D,
+  LOT_W,
   SQUARE,
   WALL_THICK,
   WALL_TOWER,
@@ -265,6 +266,64 @@ export class Streets {
     if (p.x * p.x + p.z * p.z > (this.reach + reach) ** 2) return;
     const at = { x: p.x, z: p.z };
     this.about(at, reach, (s) => pushOut(s, p, reach));
+  }
+
+  /**
+   * A point moved out to `reach` from where each block's street pieces stand about it, a hydrant or a box just off the block
+   * (view/networks.ts PIECE_U: on its long sides, where its corner lots meet the next), so what is left in the street keeps clear
+   * of them as well as of the block.
+   */
+  offPieces(p: { x: number; z: number }, reach: number): void {
+    if (p.x * p.x + p.z * p.z > (this.reach + reach) ** 2) return;
+    this.about({ x: p.x, z: p.z }, reach, (s) => {
+      if (s.r !== 0 || s.half !== BLOCK_W / 2 || s.across !== BLOCK_D / 2) return;
+      for (const a of [-1, 1])
+        for (const b of [-1, 1]) {
+          const ax = s.ax ?? 1,
+            az = s.az ?? 0,
+            cx = s.x + a * ax * (BLOCK_W / 2 - LOT_W) + b * az * (BLOCK_D / 2),
+            cz = s.z + a * az * (BLOCK_W / 2 - LOT_W) - b * ax * (BLOCK_D / 2),
+            dx = p.x - cx,
+            dz = p.z - cz,
+            d = Math.hypot(dx, dz);
+          if (d >= reach) continue;
+          // (Out the way it lay from the corner; out from the block's middle where it lay on it.)
+          const ux = d > 0.01 ? dx / d : cx - s.x,
+            uz = d > 0.01 ? dz / d : cz - s.z,
+            l = Math.hypot(ux, uz) || 1;
+          p.x = cx + (ux / l) * reach;
+          p.z = cz + (uz / l) * reach;
+        }
+    });
+  }
+
+  /**
+   * The way the street runs beside a point within `reach` of a block's side (a turn, as a thing drawn faces: atan2 of its way's
+   * x and z), the nearest such side; null where none is near, or where it is out past a block's corner, in the crossing.
+   */
+  sideNear(p: Point, reach: number): number | null {
+    if (p.x * p.x + p.z * p.z > (this.reach + reach) ** 2) return null;
+    let best = Infinity,
+      way: number | null = null;
+    this.about(p, reach, (s) => {
+      if (s.r !== 0 || s.half !== BLOCK_W / 2 || s.across !== BLOCK_D / 2) return;
+      const ax = s.ax ?? 1,
+        az = s.az ?? 0,
+        ex = p.x - s.x,
+        ez = p.z - s.z,
+        t = ex * ax + ez * az,
+        n = -ex * az + ez * ax,
+        ou = Math.abs(t) - BLOCK_W / 2,
+        ov = Math.abs(n) - BLOCK_D / 2;
+      if (ou <= 0 && ov > 0 && ov <= reach && ov < best) {
+        best = ov;
+        way = Math.atan2(ax, az);
+      } else if (ov <= 0 && ou > 0 && ou <= reach && ou < best) {
+        best = ou;
+        way = Math.atan2(-az, ax);
+      }
+    });
+    return way;
   }
 
   /** Whether a point stands `reach` clear of the blocks and walls. */

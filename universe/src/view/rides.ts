@@ -32,6 +32,20 @@ const ONE_FOR_A_HOME = 0.65;
 const KERB = 2.2;
 /** A car's reach, as the solids read it (metres). */
 export const CAR_REACH = 1.4;
+/**
+ * How far a car left standing keeps its middle off what stands (metres): half its length and a little, so that turned any way it
+ * stands clear of a block's edge and what stands at its corners (view/networks.ts).
+ */
+const CAR_PARK = 2.6;
+/**
+ * How far a car is left from where a block's street pieces stand (metres): its half length and breadth (render/towntraffic.ts CAR,
+ * 6.3 by 2.85), and how far a piece reaches from its spot on the block's edge (its half breadth, its depth off the block).
+ */
+const PIECE_CLEAR = 4;
+/** And a line's car's turns (COACH, 15 by 3.75): its half length and breadth, and theirs. */
+const LINE_PIECE = 8.2;
+/** How far a line's way keeps off the blocks (metres): its car's half breadth, a corner piece's reach off the block, a little more. */
+const LINE_REACH = 2.5;
 
 /** A town's own who go in something: its owners (by person, their home), its riders. */
 export type Rides = {
@@ -63,8 +77,25 @@ function goesToWork(plan: VillagePlan, p: VillagePlan["people"][number]): boolea
 /** A spot of the street clear of a town's solids, near a point. */
 export function parkNear(ground: Ground, p: Point): Point {
   const q = { x: p.x, z: p.z };
-  keepOut(ground, q, CAR_REACH);
+  keepOut(ground, q, CAR_PARK);
+  // (Nor where a block's hydrant and its box stand: a car's half length and theirs.)
+  if (ground.town) {
+    ground.town.offPieces(q, PIECE_CLEAR);
+    keepOut(ground, q, CAR_PARK);
+  }
   return q;
+}
+
+/**
+ * A line's way between two points: kept a line's car's half breadth and a corner piece's reach off the blocks where its streets are
+ * wide enough (LINE_REACH), else as near as a car keeps.
+ */
+function lineRoute(ground: Ground, a: Point, b: Point): Point[] {
+  const wide = route(ground, a, b, LINE_REACH);
+  for (let k = 0; k + 1 < wide.length; k++)
+    if (ground.town && !ground.town.clear(wide[k]!, wide[k + 1]!, LINE_REACH))
+      return route(ground, a, b, CAR_REACH);
+  return wide;
 }
 
 /** What a town's people keep and ride, read off its plan. */
@@ -116,9 +147,16 @@ export function ridesOf(plan: VillagePlan): Rides {
             { x: 0, z: 0 },
             { x: -Math.cos(a) * r, z: -Math.sin(a) * r },
           ].map((e) => parkNear(ground, e)),
-          there = route(ground, ends[0]!, ends[1]!, CAR_REACH),
-          on = route(ground, ends[1]!, ends[2]!, CAR_REACH),
-          way = [...there, ...on.slice(1)];
+          there = lineRoute(ground, ends[0]!, ends[1]!),
+          on = lineRoute(ground, ends[1]!, ends[2]!),
+          // (Its turns taken wide of where a block's hydrant and its box stand: a line's car is long.)
+          way = [...there, ...on.slice(1)].map((p) => {
+            if (!ground.town) return p;
+            const q = { x: p.x, z: p.z };
+            ground.town.offPieces(q, LINE_PIECE);
+            // (Where the street is too narrow to swing wide, as it went.)
+            return clearAt(ground, q, CAR_REACH) ? q : p;
+          });
         let long = 0;
         for (let k = 0; k + 1 < way.length; k++)
           long += Math.hypot(way[k + 1]!.x - way[k]!.x, way[k + 1]!.z - way[k]!.z);

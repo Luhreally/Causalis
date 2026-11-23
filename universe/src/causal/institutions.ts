@@ -154,18 +154,29 @@ registerEventWords(INST_EVENTS.raised.type, (world, e) => {
   return `${cap(bodyWords(x?.body, x?.was ?? "school"))} of ${realmOf(world, e.subjects[0] ?? "")} was raised to a house of higher learning, ${bodyWords(x?.body, x?.title ?? "academy")}${x?.patron ? `, ${x.patron} giving for it` : ""}${x?.society ? `, the ${x.society} learned society its first fellows` : ""}${x?.leader ? `, ${x.leader} at its head` : ""}, ${year(e.t)}`;
 });
 registerEventWords(INST_EVENTS.closed.type, (world, e) => {
-  const x = d(e.data) as (Data & { by?: string; faith?: string }) | null,
+  const x = d(e.data) as (Data & { by?: string; faith?: string; ruler?: string }) | null,
     by =
       x?.by === "faith"
-        ? `the ${x?.faith ?? "faith that holds its land"} faithful, who hold that inquiry angers the power behind the world`
-        : `its seat, which lets no word be free`;
+        ? `the ${x?.faith ?? "faith that holds its land"} faithful, after what was found in its land crossed their creed that inquiry angers the power behind the world`
+        : `${x?.ruler ? `${x.ruler}, who took its seat by force and lets no word be free` : "its seat, taken by force, which lets no word be free"}`;
   return `${cap(bodyWords(x?.body, x?.was ?? "academy"))} of ${realmOf(world, e.subjects[0] ?? "")} was shut as a house of higher learning by ${by}; it teaches on as ${bodyWords(x?.body, x?.title ?? "school")}, ${year(e.t)}`;
+});
+registerEventWords(INST_EVENTS.reopened.type, (world, e) => {
+  const x = d(e.data) as (Data & { by?: string; shut?: number }) | null,
+    after =
+      x?.by === "seat"
+        ? "the seat that shut it no longer holding it bound"
+        : x?.by === "faith"
+          ? "the faith that shut it no longer set against it"
+          : "what shut it passed";
+  return `${cap(bodyWords(x?.body, x?.was ?? "school"))} of ${realmOf(world, e.subjects[0] ?? "")} opened again as ${bodyWords(x?.body, x?.title ?? "academy")}${x?.shut !== undefined ? `, shut since year ${x.shut}` : ""}, ${after}, ${year(e.t)}`;
 });
 
 for (const [type, words] of [
   [INST_EVENTS.founded.type, "A body was founded in"],
   [INST_EVENTS.raised.type, "A house of teaching was raised to higher learning in"],
   [INST_EVENTS.closed.type, "A house of higher learning was shut in"],
+  [INST_EVENTS.reopened.type, "A house of higher learning opened again in"],
   [INST_EVENTS.standing.type, "A body's standing changed in"],
   [INST_EVENTS.strike.type, "Workers struck in"],
   [INST_EVENTS.told.type, "A voice told of a body that was bought in"],

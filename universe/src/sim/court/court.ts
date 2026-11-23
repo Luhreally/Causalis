@@ -78,9 +78,13 @@ export type CourtSeat = "house" | "the army" | "the court" | "the temple" | "tra
 /**
  * A realm's made minds at its court (sim/frontier/minds.ts sets it): once they are spoken of as one and while they are kept,
  * they sit among its figures by their name, from the year they came to be. They neither age nor die as a body does, are no
- * one's heir, rival or regent, and leave when they go their own way. Nothing where a realm has none.
+ * one's heir, rival or regent, and leave when they go their own way. Their sway is as far as they think past their makers
+ * (rules/beyond.ts mindSway). Nothing where a realm has none.
  */
-let mindAt: (world: World, realm: Ref) => { name: string; since: number } | null = () => null;
+let mindAt: (
+  world: World,
+  realm: Ref,
+) => { name: string; since: number; sway: number } | null = () => null;
 export function mindsSitAtCourt(f: typeof mindAt): void {
   mindAt = f;
 }
@@ -362,9 +366,10 @@ function reckon(ctx: PopulationContext, p: Polity, c: Court, t: SimTime): void {
         seat: "minds",
         tie: null,
         since: year,
-        sway: 0,
+        sway: mind.sway,
       });
     else if (!mind && sits) letGo(c, sits, year, "stood down", null);
+    else if (mind && sits) sits.sway = mind.sway;
   }
   // The house, where the seat passes by blood.
   const blood = byBlood(p, ways),

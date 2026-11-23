@@ -184,6 +184,8 @@ export class BeliefStore implements StateStore {
   readonly packed = true;
   private list: Faith[] = [];
   private readonly held = new Map<number, Belief>();
+  /** The lands each faith holds, as `held` says (made again on load; no part of the save or the hash). */
+  private readonly byFaith = new Map<Ref, Set<number>>();
   private readonly splits = new Map<string, number>();
 
   /** The year a faith last split (−∞ if never). */
@@ -217,15 +219,35 @@ export class BeliefStore implements StateStore {
   }
 
   set(cell: number, b: Belief): void {
+    const was = this.held.get(cell)?.faith ?? null;
     this.held.set(cell, b);
+    if (was !== b.faith) {
+      if (was) this.unindex(was, cell);
+      if (b.faith) this.index(b.faith, cell);
+    }
   }
 
-  /** The lands that hold a faith. */
+  private index(faith: Ref, cell: number): void {
+    let s = this.byFaith.get(faith);
+    if (!s) this.byFaith.set(faith, (s = new Set()));
+    s.add(cell);
+  }
+
+  private unindex(faith: Ref, cell: number): void {
+    const s = this.byFaith.get(faith);
+    if (!s) return;
+    s.delete(cell);
+    if (!s.size) this.byFaith.delete(faith);
+  }
+
+  /** The faiths some land holds now, in no set order. */
+  faithsHeld(): IterableIterator<Ref> {
+    return this.byFaith.keys();
+  }
+
+  /** The lands that hold a faith, lowest first. */
   lands(faith: Ref): number[] {
-    return [...this.held.entries()]
-      .filter(([, b]) => b.faith === faith)
-      .map(([c]) => c)
-      .sort((a, b) => a - b);
+    return [...(this.byFaith.get(faith) ?? [])].sort((a, b) => a - b);
   }
 
   pinned(): Ref[] {
@@ -254,7 +276,11 @@ export class BeliefStore implements StateStore {
     this.byRef.clear();
     for (const f of this.list) this.byRef.set(f.ref, f);
     this.held.clear();
-    for (const [c, b] of s.held) this.held.set(c, { ...b });
+    this.byFaith.clear();
+    for (const [c, b] of s.held) {
+      this.held.set(c, { ...b });
+      if (b.faith) this.index(b.faith, c);
+    }
     this.splits.clear();
     for (const [f, y] of s.splits) this.splits.set(f, y);
   }

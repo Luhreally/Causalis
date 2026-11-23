@@ -750,7 +750,13 @@ export function fledKind(world: World, cause: Ref): FledKind {
 // —— The year ——————————————————————————————————————————————————————————————————————————————————————
 
 /** A war over: what becomes of those its sides hold, and of the wrongs done in it. */
-function settle(ctx: PopulationContext, store: DisplacedStore, w: War, t: SimTime): void {
+function settle(
+  ctx: PopulationContext,
+  store: DisplacedStore,
+  w: War,
+  chiefs: readonly Notable[],
+  t: SimTime,
+): void {
   const { world } = ctx,
     realms = politiesOf(world),
     year = yearOfMoment(t),
@@ -917,7 +923,7 @@ function settle(ctx: PopulationContext, store: DisplacedStore, w: War, t: SimTim
       pardon(ctx, c, victor === side, cause, t);
   }
   // Its commanders taken in battle (sim/notable/notables.ts commandAfter): exchanged, given up, bought back, or kept.
-  chiefsAt(ctx, w, sides, alive, victor, terms?.payer ?? null, cause, t);
+  chiefsAt(ctx, w, chiefs, sides, alive, victor, terms?.payer ?? null, cause, t);
 }
 
 /**
@@ -994,6 +1000,7 @@ function pardon(ctx: PopulationContext, c: Crime, won: boolean, cause: Ref, t: S
 function chiefsAt(
   ctx: PopulationContext,
   w: War,
+  chiefs: readonly Notable[],
   sides: readonly [Polity | undefined, Polity | undefined],
   alive: readonly [boolean, boolean],
   victor: 0 | 1 | null,
@@ -1001,12 +1008,8 @@ function chiefsAt(
   cause: Ref,
   t: SimTime,
 ): void {
-  const kept = notablesOf(ctx.world);
-  if (!kept) return;
-  const held = kept
-    .all()
-    .filter((n) => n.held?.war === w.ref)
-    .sort((a, b) => a.id - b.id);
+  // (Of those held this year, the ones held in this war still.)
+  const held = chiefs.filter((n) => n.held?.war === w.ref).sort((a, b) => a.id - b.id);
   if (!held.length) return;
   // (Two held by each other are changed one for the other, the highest for the highest.)
   const by = (s: 0 | 1) =>
@@ -1142,16 +1145,20 @@ function tellChief(
  * Those kept past their war's peace, each year: bought back where their realm can now spare the price; let go where their holder
  * or their realm is no more, or their war is forgotten. A few a world.
  */
-function keptChiefs(ctx: PopulationContext, t: SimTime): Ref[] {
+function keptChiefs(ctx: PopulationContext, t: SimTime): { ending: Ref[]; chiefs: Notable[] } {
   const kept = notablesOf(ctx.world),
-    ending: Ref[] = [];
-  if (!kept) return ending;
+    ending: Ref[] = [],
+    // (Those held as the year begins: the wars that end this year read theirs from these, not every notable again.)
+    chiefs: Notable[] = [];
+  if (!kept) return { ending, chiefs };
   const wars = warsOf(ctx.world),
     realms = politiesOf(ctx.world),
     year = yearOfMoment(t);
-  for (const n of kept.all()) {
-    const h = n.held;
-    if (!h) continue;
+  for (const n of kept.each()) if (n.held) chiefs.push(n);
+  // (Each in the order they were named, so the same after a save as before it.)
+  chiefs.sort((a, b) => a.id - b.id);
+  for (const n of chiefs) {
+    const h = n.held!;
     const w = wars.get(h.war);
     // (Their war goes on, or settles this year: settle() tells what becomes of them.)
     if (w && w.ended !== null && w.ended >= year && !ending.includes(w.ref)) ending.push(w.ref);
@@ -1161,7 +1168,7 @@ function keptChiefs(ctx: PopulationContext, t: SimTime): Ref[] {
       chiefHome(ctx, n, "freed", w?.peace ?? h.event, t);
     else ransom(ctx, n, w.peace ?? h.event, t);
   }
-  return ending;
+  return { ending, chiefs };
 }
 
 /**
@@ -1279,7 +1286,7 @@ export function displacedYear(ctx: PopulationContext, t: SimTime): void {
   const { world } = ctx,
     store = displacedOf(world);
   // (Commanders kept past their peace are the notables' to keep: asked for again whether or not anyone else is held.)
-  const ending = store ? keptChiefs(ctx, t) : [];
+  const { ending, chiefs } = store ? keptChiefs(ctx, t) : { ending: [], chiefs: [] };
   if (!store || (store.dormant() && !ending.length)) return;
   const year = yearOfMoment(t),
     wars = warsOf(world),
@@ -1304,7 +1311,7 @@ export function displacedYear(ctx: PopulationContext, t: SimTime): void {
     if (w && w.ended !== null) over.add(c.war);
   }
   for (const r of [...over].sort((x, y) => serial(x) - serial(y)))
-    settle(ctx, store, wars.get(r)!, t);
+    settle(ctx, store, wars.get(r)!, chiefs, t);
   store.forgetCrimes(year - HELD.years);
   // 1b. Wrongs no peace answered: read again by their own people while there is someone to answer (a few records a world).
   for (const c of store.allCrimes())

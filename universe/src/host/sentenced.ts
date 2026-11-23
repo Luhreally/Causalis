@@ -98,7 +98,8 @@ export function townHeld(world: World, town: string, now = yearOfMoment(world.no
         for (let i = 0; i < 12; i++) {
           const k = finish(mix(hk, 100 + 16 * j + i), 7) % Math.max(1, whole);
           const h = roster.holderAt(k, y);
-          if (!h || y - h.born < grown || (h.died !== null && h.died <= y)) continue;
+          // (Grown then, and living now: one dead since is no longer held.)
+          if (!h || y - h.born < grown || (h.died !== null && h.died <= now)) continue;
           if (out.some((o) => o.holder.ref === h.ref)) continue;
           // (Their own term about the court's mean: one in so many leave each year.)
           const term = Math.max(1, Math.round(-Math.log(Math.max(1e-6, u(h.key ^ hk, 3))) * mean));

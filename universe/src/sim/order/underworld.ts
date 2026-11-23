@@ -131,6 +131,7 @@ import {
 } from "../money/kept.ts";
 import { RISK } from "../money/intox.ts";
 import { idleOf } from "../trade/kept.ts";
+import { strainIn } from "../society/strain-kept.ts";
 import { takingsOf } from "../trade/demand.ts";
 import {
   LAW_ROW,
@@ -168,6 +169,7 @@ import { sentence, strikes } from "./deeds.ts";
 import { BODY_ROW, bodyLandsStore, courtJailsIn, watchOf } from "./institutions-kept.ts";
 import { gangHeldShareIn } from "./sentences-kept.ts";
 import { KILLINGS_KEPT, deathNotesOf } from "../hand/deaths.ts";
+import { menOf, setMen, wholeOver } from "./whole.ts";
 
 /** The causes of contraband whose rent the underworld's groups carry beside the tariff's and the ban's (money/contraband.ts). */
 const WARE_RENT_CAUSES: ReadonlySet<string> = new Set(["war", "licence", "harm"]);
@@ -716,25 +718,28 @@ function streetTowns(ctx: PopulationContext, p: Polity, r: Read): Town[] {
         reach: r.capacity * reachLaw * (1 - (o?.corruption ?? 0)),
         informal,
         dependent: intoxDependent(world, c),
+        strain: strainIn(world, c),
       }),
       // (Of the town's young men, a share as great as the pull at most a third run with its gangs: some forty to a gang.)
       townYoung = (young * town.population) / n,
       members = Math.round(townYoung * pull * 0.3),
       gangs = Math.floor(members / 40);
     if (gangs <= 0) continue;
-    // (Who its gangs are: its own faith's, or where its quarters are set apart, the others' too: a people abroad in it many
-    // enough to be a quarter of their own, else those of another faith. A people abroad is told by its language: "folk:<n>".)
-    const abroad = apart >= 0.3 ? abroadOf(world)?.of(c)?.[0] : undefined,
+    // (Who its gangs are: its own faith's, and a people abroad in it many enough to be a quarter of their own (set apart by
+    // their speech, however the rest of the town is), else where its quarters are set apart, those of another faith. A people
+    // abroad is told by its language: "folk:<n>". Before 2026-11-23 a people abroad was a quarter only where the town was
+    // already set apart, and at 1,500 first light's diaspora never once federated.)
+    const abroad = abroadOf(world)?.of(c)?.[0],
       other =
-        apart >= 0.3
-          ? abroad && abroad[1] >= ABROAD.quarter
-            ? `folk:${abroad[0]}`
-            : faith !== seatFaith
+        abroad && abroad[1] >= ABROAD.quarter
+          ? `folk:${abroad[0]}`
+          : apart >= 0.3
+            ? faith !== seatFaith
               ? seatFaith
               : ([...faiths.entries()]
                   .filter(([x]) => x !== faith)
                   .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))[0]?.[0] ?? "strangers")
-          : null;
+            : null;
     out.push({
       cell: c,
       people: n,
@@ -791,7 +796,10 @@ function stepFederations(f: Facts, towns: Town[], jails: boolean): void {
     .map(([id, ts]) => [id, ts, sum(ts)] as const)
     .sort((a, b) => b[2] - a[2] || (a[0] < b[0] ? -1 : 1));
   for (const [id, ts, n] of ranked) {
-    if (v.feds.length >= UNDER.feds) break;
+    // (A people abroad's gangs ally with their kin's apart from the realm's own blocs, and take none of their room: UNDER.kinFeds.)
+    const kin = id.startsWith("folk:"),
+      ofKin = v.feds.reduce((s, x) => s + (x.identity.startsWith("folk:") ? 1 : 0), 0);
+    if (kin ? ofKin >= UNDER.kinFeds : v.feds.length - ofKin >= UNDER.feds) continue;
     const has = v.feds.filter((x) => x.identity === id);
     // (Where one identity's gangs are many, they come to stand in two blocs, each against the other: the second takes the
     // towns where the first is weakest, and the greatest town is fought over by both.)
@@ -1220,7 +1228,7 @@ function stepRealm(
         room = UNDER.thick * g.lands.reduce((n, c) => n + (ctx.provinces.get(c)?.total() ?? 0), 0),
         // (A road no longer worth a group: its want or its rent fallen well below what one would rise for, its men drift away.)
         aim = pull < line * UNDER.withers ? 0 : Math.min(keepMen, canMen, room);
-      g.members = Math.max(0, Math.round(g.members + (aim - g.members) * stepped(0.4, span)));
+      setMen(g, menOf(g) + (aim - menOf(g)) * stepped(0.4, span));
       g.income = Math.round(income);
     }
   }
@@ -1435,10 +1443,15 @@ function stepRealm(
         rivals = Math.min(met, g.members * UNDER.warMost),
         peace = killingsOf(g.members, 0) * calm,
         war = (killingsOf(rivals, level) - killingsOf(rivals, 0)) * calm,
-        dead = Math.min(g.members, Math.round((war / (1 + UNDER.bystanders)) * span));
-      g.violence = Math.round(peace + war);
+        // (Its own fallen and its killing through the span, in whole people, the part of one carried on: ./whole.ts.)
+        lost = wholeOver(war / (1 + UNDER.bystanders), span, g.lostOwed),
+        dead = Math.min(g.members, lost.whole),
+        killed = wholeOver(peace + war, span, g.owed);
+      g.lostOwed = lost.owed;
+      g.owed = killed.owed;
+      g.violence = killed.whole / span;
       killings += g.violence;
-      warring.set(g.id, g.violence - Math.min(g.violence, Math.round(peace)));
+      warring.set(g.id, peace + war > 0 ? (g.violence * war) / (peace + war) : 0);
       if (dead > 0) {
         g.wealth = Math.round(g.wealth * (1 - dead / g.members));
         g.members -= dead;
@@ -1641,8 +1654,16 @@ function stepRealm(
       );
     }
   }
-  v.badge = badge ? Math.round(badge.members * (badge.squad ? 0.25 * crackdown : 0.01)) : 0;
-  if (badge) badge.violence = v.badge;
+  if (badge) {
+    const made = wholeOver(
+      badge.members * (badge.squad ? 0.25 * crackdown : 0.01),
+      span,
+      badge.owed,
+    );
+    badge.owed = made.owed;
+    v.badge = made.whole / span;
+    badge.violence = v.badge;
+  } else v.badge = 0;
   // 7b. Escalation: soldiers sent against the strongest group, a pact, or leaving it be; and what each operation does.
   const opBite = stepOps(f, r, span, killings + v.street + v.badge, collusion);
   for (const g of v.groups) if (opBite.has(g.id)) killings += opBite.get(g.id)!.dead;
@@ -1671,7 +1692,7 @@ function stepRealm(
       // (Its boss blessed, the crackdown takes half as much of it; cursed, twice. Exactly as ever where none holds.)
       const by = hazardBy(world, bossRef(p.ref, g.event), g.boss.name, year),
         bit = by === 1 ? taken : Math.min(1, taken * by);
-      g.members = Math.round(g.members * (1 - bit));
+      setMen(g, menOf(g) * (1 - bit));
       const lost = g.wealth * 0.4 * bit;
       seized += lost;
       g.wealth = Math.round(g.wealth - lost);
@@ -2162,7 +2183,7 @@ function stepOps(f: Facts, r: Read, span: number, killedNow: number, collusion: 
       lost = o.soldiers * (1 - dmath.pow(1 - odds.lost, span)),
       by = taken * ESCALATE.killed * ESCALATE.bystanders,
       dead = taken * ESCALATE.killed + lost + by;
-    g.members = Math.max(0, Math.round(g.members - taken));
+    setMen(g, menOf(g) - taken);
     o.taken += taken;
     o.fallen += lost;
     o.bystanders += by;
@@ -2183,7 +2204,9 @@ function stepOps(f: Facts, r: Read, span: number, killedNow: number, collusion: 
       }
     }
     o.displaced += displaced;
-    g.violence += Math.round(dead / span);
+    const struck = wholeOver(dead / span, span, g.owed);
+    g.owed = struck.owed;
+    g.violence += struck.whole / span;
     out.set(g.id, { op: o, dead: dead / span });
     // (A group broken to what its police can meet is no longer the soldiers' to fight: they go home.)
     const broken = armedOf(g) <= policeOf(r);

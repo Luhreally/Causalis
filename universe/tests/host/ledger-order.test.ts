@@ -240,7 +240,10 @@ test("a crime group and a gang war written by hand show in the Underworld tab's 
       assert.equal(words(wars.rows[0]!.cells[2]!), "35, still fought");
       assert.match(text(blocks), /Most smuggled past its borders: /);
       const ended = table(blocks, "Groups whose hold ended");
-      assert.deepEqual(ended.rows[0]!.cells.map(words), [
+      // (Of the world's own ended groups too: the one written by hand, wherever it falls among them.)
+      const morrow = ended.rows.find((x) => words(x.cells[0]!) === "The Morrow family");
+      assert.ok(morrow, "the group written by hand is among those whose hold ended");
+      assert.deepEqual(morrow.cells.map(words), [
         "The Morrow family",
         realm.town,
         "12–33",

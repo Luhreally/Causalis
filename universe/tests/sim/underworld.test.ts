@@ -308,7 +308,7 @@ test("where holdings are unsafe, trade rich and men idle, a protection family ri
     assert.ok(g.members >= 0 && g.share >= 0 && g.share <= 1000);
     assert.ok(world.events.get(g.event)?.type.startsWith("underworld."));
   }
-  assert.ok(v.groups.length <= UNDER.most && v.feds.length <= UNDER.feds);
+  assert.ok(v.groups.length <= UNDER.most && v.feds.length <= UNDER.feds + UNDER.kinFeds);
   // (The lens's reading of its lands, and the ban's organisation fed by its groups.)
   const held = v.groups.flatMap((g) => g.lands);
   assert.ok(held.length > 0);
@@ -402,7 +402,7 @@ test("towns with poor quarters grow small gangs; many of one people ally into a 
   if (several < UNDER.fedTowns) assert.equal(v.feds.length, 0, "one town's gangs do not federate");
   else if (all >= UNDER.fedForm && v.feds.length) {
     assert.ok(
-      v.feds.length > 0 && v.feds.length <= UNDER.feds,
+      v.feds.length > 0 && v.feds.length <= UNDER.feds + UNDER.kinFeds,
       `${all} gangs, ${v.feds.length} federations`,
     );
     const f = v.feds[0]!,
@@ -883,14 +883,16 @@ test("soldiers that break a group to what its police can meet put it down where 
     const { realm, year, a, names } = atWar(world, [60, 0], [1000, 0], null),
       store = underworldOf(world)!,
       v = structuredClone(store.of(realm)!) as RealmUnderworld,
-      g = v.groups.find((x) => x.id === a)!,
-      sent = world.events.emit({
-        type: "underworld.operation",
-        subjects: [realm],
-        place: null,
-        causes: [],
-        data: { realm: "a realm", group: g.name, kind: "protection", gids: [a], soldiers: 100 },
-      });
+      g = v.groups.find((x) => x.id === a)!;
+    // (Its home alone: a group the earlier days spread to a second land would draw twice the men there, not many times fewer.)
+    g.lands = [g.home];
+    const sent = world.events.emit({
+      type: "underworld.operation",
+      subjects: [realm],
+      place: null,
+      causes: [],
+      data: { realm: "a realm", group: g.name, kind: "protection", gids: [a], soldiers: 150 },
+    });
     // (Soldiers many times its men, and a reckoning that stands for a generation of raids: all but a few of its men taken.)
     v.ops = [
       {
@@ -901,7 +903,7 @@ test("soldiers that break a group to what its police can meet put it down where 
         lands: [...g.lands],
         since: year - 1,
         event: sent,
-        soldiers: 100,
+        soldiers: 150,
         fallen: 0,
         taken: 0,
         bystanders: 0,

@@ -333,6 +333,22 @@ export function landMindBlock(world: World, cell: number): Block {
             stat(
               "What it costs",
               `${((STRAIN.work * row[STRAIN_ROW.strain]!) / 10).toFixed(1)} in a hundred of its crafts' work`,
+              {
+                parts: [
+                  {
+                    label: ["😠 its grievance against its seat, more a year"],
+                    value: share((STRAIN.grieves * row[STRAIN_ROW.strain]!) / 1000),
+                  },
+                  {
+                    label: ["🍺 its hardship, toward what calms where its land has it"],
+                    value: `+${share((STRAIN.drink * row[STRAIN_ROW.strain]!) / 1000)}`,
+                  },
+                  {
+                    label: ["🏚️ its young loosed toward the street's gangs"],
+                    value: `+${share((STRAIN.loose * row[STRAIN_ROW.strain]!) / 1000)}`,
+                  },
+                ],
+              },
             ),
           ]
         : []),

@@ -37,6 +37,17 @@ import { SENT_ROW, SentencesStore, sentencesOf } from "./sentences-kept.ts";
 
 const DRAW = defineStream("order.sentences");
 
+/** Σ stay^j for j < span: of a year's intake each year of a span, how many years' worth are still in at its end. */
+function keptOf(stay: number, span: number): number {
+  let s = 0,
+    k = 1;
+  for (let j = 0; j < span; j++) {
+    s += k;
+    k *= stay;
+  }
+  return s;
+}
+
 /** A count, its remainder whole by a draw. */
 const whole = (x: number, u: number): number => {
   const f = Math.floor(Math.max(0, x));
@@ -55,7 +66,9 @@ export function sentencesYear(ctx: PopulationContext, t: SimTime): void {
     realms = politiesOf(world),
     hive = !keepsPersons(ctx.generated.life.people?.body.social),
     gangs = gangsStore(world),
-    seen = new Set<number>();
+    seen = new Set<number>(),
+    /** The lands whose rows the year wrote, for the year's fold (no other row moved). */
+    changed: number[] = [];
   for (const p of realms.living()) {
     if ((year + serialOf(p.ref)) % SENTENCE.every !== 0) continue;
     const v = bodies.of(p.ref);
@@ -72,24 +85,28 @@ export function sentencesYear(ctx: PopulationContext, t: SimTime): void {
         seen.add(c);
         // (A land reckoned already for these years, by the realm that held it then, waits for them to run out.)
         if ((store.row(c)?.[SENT_ROW.until] ?? 0) > year) continue;
-        landYear(ctx, store, p, g, c, { harsh, justice, hive, gangs: !!gangs }, t, year);
+        if (landYear(ctx, store, p, g, c, { harsh, justice, hive, gangs: !!gangs }, t, year))
+          changed.push(c);
       }
   }
   // (A land no court holds any more: those it held serve out their terms, and its row goes once it is empty.)
-  for (const c of store.cells()) {
-    if (seen.has(c) || store.row(c)![SENT_ROW.until]! > year) continue;
-    const r = store.ensure(c),
-      leave = 1 / Math.max(1, r[SENT_ROW.term]! / 10);
+  // (Each row its own, so in no set order; the fold reads those it changed lowest first. Emptied rows go after the walk.)
+  const empty: number[] = [];
+  store.eachRow((c, r) => {
+    if (r[SENT_ROW.until]! > year || seen.has(c)) return;
+    const leave = 1 / Math.max(1, r[SENT_ROW.term]! / 10);
     r[SENT_ROW.inside] = Math.floor(r[SENT_ROW.inside]! * (1 - leave));
     r[SENT_ROW.labour] = Math.min(
       r[SENT_ROW.inside]!,
       Math.floor(r[SENT_ROW.labour]! * (1 - leave)),
     );
     r[SENT_ROW.gangHeld] = 0;
-    if (r[SENT_ROW.inside]! <= 0 && !store.yearOf(c, year - 1)) store.drop(c);
-  }
+    changed.push(c);
+    if (r[SENT_ROW.inside]! <= 0 && !store.yearOf(c, year - 1)) empty.push(c);
+  });
+  for (const c of empty) store.drop(c);
   if (year % 10 === 0) store.forget(year);
-  store.fold(year);
+  store.fold(year, changed);
 }
 
 function landYear(
@@ -101,13 +118,13 @@ function landYear(
   law: { harsh: number; justice: number; hive: boolean; gangs: boolean },
   t: SimTime,
   year: number,
-): void {
+): boolean {
   const { world } = ctx,
     prov = ctx.provinces.get(c),
     people = prov?.total() ?? 0,
     // (The years this reckoning stands for: its own and those to its realm's next.)
     span = SENTENCE.every;
-  if (!prov || people <= 0) return;
+  if (!prov || people <= 0) return false;
   const row = courtIn(world, c),
     watch = watchIn(world, c),
     bought = Math.max(row.bought, 1 - court.quality / 1000),
@@ -153,22 +170,26 @@ function landYear(
     held = whole(out[3]!, u(3)),
     acquitted = whole(out[4]!, u(4)),
     brought = fined + death + labour + held + acquitted;
-  // 3. Its prison: those whose terms run out leave, the newly held come in.
+  // 3. Its prison: those whose terms run out leave, the newly held come in, a span's year by year: of those who came in each
+  // year, the ones whose terms have not run out by its end (one in `term` leaves a year; products, the same on any machine).
   const r = store.ensure(c),
     was = r[SENT_ROW.inside]!,
     term = r[SENT_ROW.term]! > 0 ? r[SENT_ROW.term]! / 10 : SENTENCE.pettyTerm,
-    // (One in `term` leaves a year, for each year of the span: products, so the same on any machine.)
-    leave =
-      1 - Array.from({ length: span }).reduce<number>((k) => k * (1 - 1 / Math.max(1, term)), 1),
-    stays = Math.floor(was * (1 - leave)),
-    labourStays = Math.min(stays, Math.floor(r[SENT_ROW.labour]! * (1 - leave))),
     newTerm = terms[1]! > 0 ? terms[0]! / terms[1]! : term,
-    inside = stays + held + labour;
+    stay = 1 - 1 / Math.max(1, term),
+    stayNew = 1 - 1 / Math.max(1, newTerm);
+  let left = 1;
+  for (let j = 0; j < span; j++) left *= stay;
+  const stays = Math.floor(was * left),
+    labourStays = Math.min(stays, Math.floor(r[SENT_ROW.labour]! * left)),
+    // (Of each year's newly held, those still in at the span's end: Σ stayNew^j, j < span.)
+    still = keptOf(stayNew, span),
+    heldNow = Math.round(((held + labour) / span) * still),
+    labourNow = Math.round((labour / span) * still),
+    inside = stays + heldNow;
   r[SENT_ROW.inside] = inside;
-  r[SENT_ROW.labour] = labourStays + labour;
-  r[SENT_ROW.term] = Math.round(
-    (10 * (stays * term + (held + labour) * newTerm)) / Math.max(1, inside),
-  );
+  r[SENT_ROW.labour] = labourStays + labourNow;
+  r[SENT_ROW.term] = Math.round((10 * (stays * term + heldNow * newTerm)) / Math.max(1, inside));
   r[SENT_ROW.gangHeld] = Math.round((g[2]! + g[3]!) / span);
   r[SENT_ROW.gangShare] = gang > 0 ? Math.round((1000 * (g[2]! + g[3]!)) / (gang * span)) : 1000;
   const pm = 1e6 / people / span;
@@ -195,37 +216,25 @@ function landYear(
     (SENTENCE.griefDeath * death + SENTENCE.griefLabour * labour) / people,
   );
   if (grief >= 0.001) grieve(world, c, grief, court.event);
+  return true;
 }
 
 /**
  * Those a court puts to death, of its land's grown who could bear arms (as a levy reads them: sim/war/levy.ts): each kind of them
- * by its share, the remainders to the largest parts (no draw, so a land's many dead cost no more than its few).
+ * by its share, as a running count falls (whole numbers, no draw and no sorting, so a land's many dead cost no more than its few).
  */
 function putToDeath(ctx: PopulationContext, c: number, n: number, year: number): void {
   const prov = ctx.provinces.get(c),
     pool = poolOf(ctx, c, year);
   if (!prov || !(pool.men > 0)) return;
-  const k = Math.min(n, pool.men),
-    whole: number[] = [],
-    order: number[] = [];
-  let left = k;
-  for (let i = 0; i < pool.counts.length; i++) {
-    const w = Math.floor((pool.counts[i]! * k) / pool.men);
-    whole.push(w);
-    order.push(i);
-    left -= w;
-  }
-  const frac = (i: number) => (pool.counts[i]! * k) / pool.men - whole[i]!;
-  order.sort((a, b) => frac(b) - frac(a) || a - b);
-  for (let j = 0; left > 0 && j < order.length; j++) {
-    const i = order[j]!;
-    if (whole[i]! < pool.counts[i]!) {
-      whole[i]!++;
-      left--;
-    }
-  }
-  for (let i = 0; i < whole.length; i++) {
-    const d = whole[i]!;
+  const k = Math.min(Math.round(n), pool.men);
+  let run = 0,
+    given = 0;
+  for (let i = 0; i < pool.counts.length && given < k; i++) {
+    run += pool.counts[i]!;
+    const upto = Math.floor((run * k) / pool.men),
+      d = upto - given;
+    given = upto;
     if (!d) continue;
     const at = pool.rows[i]!,
       r = Math.floor(at / COLS);

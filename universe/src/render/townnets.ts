@@ -5,7 +5,13 @@
 // with the eye. Laid once a plan, and again only when the eye has gone far from where it was laid about (its farthest are past
 // the reach then, so nothing is seen to come or go); each frame only the eye is told. No shadows: thin and flat, and a pass.
 import * as pc from "playcanvas";
-import { townNets, type NetPart, type TownNets, type TownScene } from "../view/index.ts";
+import {
+  townNets,
+  type NetPart,
+  type NetsClear,
+  type TownNets,
+  type TownScene,
+} from "../view/index.ts";
 import { InstancedBatch, boxMesh, cylinderMesh, keptMesh } from "./batch.ts";
 import { fadedMaterial, type Stage } from "./stage.ts";
 
@@ -25,6 +31,7 @@ export class TownNetsLayer {
   private boxes: InstancedBatch | null = null;
   private rounds: InstancedBatch | null = null;
   private scene: TownScene | null = null;
+  private clear: NetsClear = { parts: [], keep: [] };
   private laidAt = { x: 0, z: 0 };
   /** What was laid last (for the checks and the town's page). */
   laid: TownNets["counts"] | null = null;
@@ -36,11 +43,15 @@ export class TownNetsLayer {
     parent.addChild(this.root);
   }
 
-  /** A town's scene to lay its networks on (null: none), about where the eye looks (metres from its square). */
-  build(scene: TownScene | null, focus = { x: 0, z: 0 }): void {
+  /**
+   * A town's scene to lay its networks on (null: none), about where the eye looks (metres from its square), off what else holds
+   * its streets (view/networks.ts NetsClear: what the town's view lays, and the places the village holds).
+   */
+  build(scene: TownScene | null, focus = { x: 0, z: 0 }, clear?: NetsClear): void {
     this.scene = scene;
+    if (clear) this.clear = clear;
     this.laidAt = { ...focus };
-    const nets = scene ? townNets(scene, focus) : null;
+    const nets = scene ? townNets(scene, focus, this.clear) : null;
     this.laid = nets?.counts ?? null;
     this.boxes = this.put(this.boxes, this.box, nets?.boxes ?? []);
     this.rounds = this.put(this.rounds, this.cyl, nets?.rounds ?? []);

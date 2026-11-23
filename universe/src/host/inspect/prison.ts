@@ -96,6 +96,9 @@ export function prisonLines(world: World, cell: number, town: number, townRef?: 
   return lines;
 }
 
+/** A town's share of a land's count, said as a round number where it is one ("some 1,200"), and as it is where few. */
+const about = (n: number): string => (n >= 20 ? `some ${count(n)}` : count(n));
+
 /**
  * A town's prison as its land's court's sentences fill it (sim/order/sentences.ts): those it holds of the town (the town's share of
  * the land's count, by its people), how many at the works, what the court did this year past, and those of the town's own lines
@@ -118,15 +121,15 @@ function sentencedLines(world: World, cell: number, townRef: string): Line[] | n
     lines: Line[] = [
       here.inside > 0
         ? [
-            `It holds some ${count(here.inside)} of this town's people whom `,
+            `It holds ${about(here.inside)} of this town's people whom `,
             courtLink,
-            ` sentenced${here.labour > 0 ? `, ${count(here.labour)} of them put to labour at the realm's works` : ""}: they leave as their terms run out.`,
+            ` sentenced${here.labour > 0 ? `, ${count(here.labour)} of them put to labour at the realm's works` : ""}.`,
           ]
         : ["It stands empty, or nearly: no one of this town is held by its court now."],
     ];
   if (last && last.brought > 0)
     lines.push([
-      `Last year the court heard some ${count(last.brought)} of the town's people: ${[
+      `Last year the court heard ${about(last.brought)} of the town's people: ${[
         last.fined ? `${count(last.fined)} fined` : "",
         last.held ? `${count(last.held)} held` : "",
         last.labour ? `${count(last.labour)} put to labour` : "",
@@ -137,14 +140,18 @@ function sentencedLines(world: World, cell: number, townRef: string): Line[] | n
         .join(", ")}.`,
     ]);
   for (const x of named) lines.push(["Held by name: ", ...x.line]);
-  for (const h of held)
+  // (The first few by name; the town's page lists them all.)
+  for (const h of held.slice(0, PRISON_NAMED))
     lines.push([
       "Of the town: ",
       link(h.name, h.holder.ref),
       `, ${h.labour ? "at labour" : "held"} since year ${h.year}, until year ${h.until}`,
     ]);
+  if (held.length > PRISON_NAMED)
+    lines.push([`And ${count(held.length - PRISON_NAMED)} more of the town's own named.`]);
   return lines;
 }
+const PRISON_NAMED = 6;
 
 /** One of the town's own held by a case: who, what they do, since when, and what for (their case's page). */
 function ownLine(c: Case): Line {

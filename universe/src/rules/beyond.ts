@@ -143,9 +143,47 @@ export function freeingChance(past: number, held: number): number {
  * that answers to no one, and the seat that leaned on them reaches the less.
  */
 export const MIND = { counsel: 0.05, gone: 0.03 } as const;
+/** How far past their makers a realm's minds think, as their counsel and their doings are read (0 … 1): a third at their makers'
+ * sum, all at a hundred times it. */
+export function mindReach(past: number): number {
+  return past >= 1 ? dmath.clamp(dmath.log10(past) / 3 + 1 / 3, 0, 1) : 0;
+}
 export function mindCounsel(past: number, free: boolean): number {
   if (!(past >= 1)) return 0;
-  return free ? -MIND.gone : MIND.counsel * dmath.clamp(dmath.log10(past) / 3 + 1 / 3, 0, 1);
+  return free ? -MIND.gone : MIND.counsel * mindReach(past);
+}
+
+/**
+ * Made minds as a group (the audit's item 28, 2026-11-22): kept, they sit at their realm's court (sim/court/court.ts) with
+ * sway as far as they think past their makers (MIND_GROUP.sway at the most), and the seat weighs their want of its groups
+ * when it gives its own word on them (sim/order/grouphand.ts); gone their own way, they are one of its groups (basis
+ * "minds", sim/order/groups.ts). What they do as one, read as their counsel is (mindReach): at first they inquire (they
+ * design the next minds) and trade (for the power they burn and the works they tend); the farther past their makers, and
+ * the more tightly their makers would hold what they make (heldOf), the more they work against the seat that would hold
+ * them (conspire: sim/order/deeds.ts strikes at its ruler and its judges). A people that holds its makings tightly heeds
+ * them the less: their sway at court is less by half that hold. Their hands: those of its people in their pay, at most
+ * MIND_GROUP.hands of them (one in ten thousand: a ministry's staff, not a host). Nothing where a realm has no minds past
+ * their makers.
+ */
+export const MIND_GROUP = { hands: 0.0001, sway: 0.3 } as const;
+export function mindAims(
+  past: number,
+  held: number,
+): { inquire: number; trade: number; conspire: number } {
+  const x = mindReach(past),
+    inquire = 0.5 * (1 - x) + 0.2,
+    trade = 0.3,
+    conspire = 0.6 * x * dmath.clamp(held, 0, 1),
+    all = inquire + trade + conspire;
+  return {
+    inquire: Math.round((1000 * inquire) / all),
+    trade: Math.round((1000 * trade) / all),
+    conspire: 1000 - Math.round((1000 * inquire) / all) - Math.round((1000 * trade) / all),
+  };
+}
+/** Their sway at court, kept (a share of the realm's, as its other voices'). */
+export function mindSway(past: number, held: number): number {
+  return MIND_GROUP.sway * mindReach(past) * (1 - 0.5 * dmath.clamp(held, 0, 1));
 }
 
 /** How tightly a people holds what it has made (0 … 1), from its ways: its order and its tradition. */

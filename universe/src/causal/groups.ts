@@ -76,12 +76,13 @@ export const ORG_IS: Readonly<Record<string, string>> = {
   "monastic order":
     "the devout keeping their faith under a rule of their own on a land of their own",
   "learned society": "the learned banded for inquiry and the free word",
+  "made minds": "its made minds, gone their own way, working for their own ends among its groups",
 };
 
-registerEventWords(
-  ORG_EVENTS.rose.type,
-  (_, e) =>
-    `${cap(group(e.data))} formed in ${realm(e.data)}, ${ORG_IS[d(e.data)?.kind ?? ""] ?? "its people banded for a stake they share"}, ${d(e.data)?.leader ?? "one of them"} at its head, ${year(e.t)}`,
+registerEventWords(ORG_EVENTS.rose.type, (_, e) =>
+  (e.data as { minds?: number } | null)?.minds
+    ? `${d(e.data)?.group ?? "Its made minds"}, the made minds of ${realm(e.data)} gone their own way, became one of its groups, with those of its people in their pay, ${year(e.t)}`
+    : `${cap(group(e.data))} formed in ${realm(e.data)}, ${ORG_IS[d(e.data)?.kind ?? ""] ?? "its people banded for a stake they share"}, ${d(e.data)?.leader ?? "one of them"} at its head, ${year(e.t)}`,
 );
 registerEventWords(
   ORG_EVENTS.turned.type,

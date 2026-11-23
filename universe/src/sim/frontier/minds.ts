@@ -26,6 +26,7 @@ import {
   goingUpOf,
   heldOf,
   mindCounsel,
+  mindSway,
   mindsPast,
   mirrorKw,
   wouldGoUp,
@@ -138,6 +139,13 @@ export function mindsOf(world: World): MindsStore | null {
 export function mindsPastOf(world: World, realm: Ref): number {
   const r = mindsOf(world)?.rows.get(realm);
   return r ? dmath.pow(10, r.past / 100) : 0;
+}
+
+/** How tightly a realm's people hold what they make (rules/beyond.ts heldOf), from its seat's ways. */
+export function mindsHeld(world: World, realm: Ref): number {
+  const p = politiesOf(world).get(realm),
+    ways = p ? (cultureOf(world).get(p.seat)?.traits ?? []) : [];
+  return heldOf(ways[WAY.hierarchy] ?? 0.5, ways[WAY.tradition] ?? 0.5);
 }
 
 /** The event of a realm's minds going their own way (null: kept, or none). */
@@ -275,7 +283,13 @@ export function installMinds(world: World, ctx: () => PopulationContext): MindsS
   // (And while kept they sit at its court, one of its figures: sim/court/court.ts.)
   mindsSitAtCourt((w, realm) => {
     const row = mindsOf(w)?.rows.get(realm);
-    return row && row.passed && row.name && !row.free ? { name: row.name, since: row.begun } : null;
+    return row && row.passed && row.name && !row.free
+      ? {
+          name: row.name,
+          since: row.begun,
+          sway: mindSway(dmath.pow(10, row.past / 100), mindsHeld(w, realm)),
+        }
+      : null;
   });
   addsReach(mindsReach);
   return store;
