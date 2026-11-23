@@ -189,6 +189,7 @@ import { CountryLayer } from "./country.ts";
 import { FeastLayer } from "./feast.ts";
 import { TownWarLayer, firesBetween } from "./townwar.ts";
 import { BattleLayer } from "./battle.ts";
+import { LetGoMark, type LetGoAt } from "./letgomark.ts";
 import { TradesLayer, type AtWork, type RackAt } from "./trades.ts";
 import { CraftsLayer, type BoardsAt, type ClampAt, type LoomAt, type WheelAt } from "./crafts.ts";
 import { FoundryLayer, type FoundryAt } from "./foundry.ts";
@@ -607,6 +608,8 @@ export class VillageScene {
   lettingGo: { readonly sight: NearSight; readonly ref: string } | null = null;
   /** Each one's share drawn while one let go is flown out from (lettingGo). */
   private goneAlpha = new Float32Array(0);
+  /** The one let go marked, a gold ring and a point of light, till a while after the camera lands (render/letgomark.ts). */
+  readonly letGoMark: LetGoMark;
 
   constructor(stage: Stage) {
     this.stage = stage;
@@ -619,6 +622,7 @@ export class VillageScene {
     });
     this.marker.enabled = false;
     this.root.addChild(this.marker);
+    this.letGoMark = new LetGoMark(stage, this.root, M);
     this.fauna = new FaunaLayer(stage, this.root);
     this.fliers = new FlierLayer(stage, this.root);
     this.work = new WorkLayer(stage, this.root);
@@ -977,6 +981,7 @@ export class VillageScene {
     for (const child of [...this.root.children])
       if (
         child !== this.marker &&
+        child !== this.letGoMark.root &&
         child !== this.fauna.root &&
         child !== this.work.root &&
         child !== this.visitors.root &&
@@ -2363,6 +2368,13 @@ export class VillageScene {
   farmhouseAt(x: number, z: number): boolean {
     return this.country.farmhouseAt(x, z);
   }
+  /** Where one of its people stands as drawn now, by their ref (metres from its middle; null: not drawn, or within). */
+  personAt(ref: string): Omit<LetGoAt, "tall"> | null {
+    const i = this.plan?.people.findIndex((p) => p.ref === ref) ?? -1,
+      m = i >= 0 ? this.moments[i] : undefined;
+    return m && !m.hidden ? { x: m.x, z: m.z, ...(m.lift ? { lift: m.lift } : {}) } : null;
+  }
+
   /** How high its town's homes within `reach` metres of a point (metres from its middle) rise now (metres; 0: none). */
   homesRiseNear(x: number, z: number, reach: number): number {
     return this.town.riseNear(x, z, reach, this.lastT);

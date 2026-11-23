@@ -569,6 +569,24 @@ export function installHeld(d: HeldDeps): Held {
       me ? { x: me.x, z: me.z } : null,
       me ? d.village.homesRiseNear(me.x, me.z, HANDED.near) : 0,
     );
+    // (Marked as it flies out, a gold ring and a point of light, faded once it lands: a beast where it goes, a soldier where
+    // he stood; the ring each wore while held given over to it.)
+    const tall = eye.height,
+      beast = o.kind === "beast" ? (o.now.bodies[0] ?? null) : null;
+    if (d.village.placedBattle) d.village.placedBattle.markShown = false;
+    d.village.faunaLayer.ringShown = false;
+    d.village.letGoMark.show(
+      me
+        ? () => {
+            const b = beast !== null ? d.village.faunaLayer.beastAt(beast) : null;
+            return b ? { ...b, tall } : null;
+          }
+        : null,
+      () => d.rig.flying,
+      me ? { x: me.x, z: me.z, tall } : null,
+      // (A soldier wore his while held: it goes on as it was. A beast's own ring was another: this one comes on by degrees.)
+      o.kind !== "soldier",
+    );
     // (What was faded about the eye, read from the camera as it stands, stays so as it flies out, let in by degrees as it
     // leaves them; whole once it lands, or once another is taken: nothing near the eye stands whole at once on its first
     // frame.)

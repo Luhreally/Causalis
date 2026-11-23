@@ -110,9 +110,9 @@ const SEEN = { reach: 3.5, own: 0.3, ownMounted: 0.75, press: 1.7 } as const;
  * his feet (its inner and outer radius, of his height), and a point of light over his head (how far over its top, how wide
  * and how tall, of his height), drawn over all that stands before it.
  */
-const MARKED = { inner: 0.32, outer: 0.46, over: 0.16, wide: 0.08, tall: 0.12 } as const;
+export const MARKED = { inner: 0.32, outer: 0.46, over: 0.16, wide: 0.08, tall: 0.12 } as const;
 /** The mark's light. */
-const MARK_LIGHT: Rgb = [1, 0.84, 0.28];
+export const MARK_LIGHT: Rgb = [1, 0.84, 0.28];
 /** How much of what stands at a place of the field (m), from its foot to its top (absent: a man's height), is drawn. */
 type Fade = (x: number, z: number, foot?: number, top?: number) => number;
 /** The materials already made to fade (render/nearfade.ts fading), each once. */
@@ -1071,8 +1071,15 @@ export class BattleLayer {
     return e;
   }
 
+  /**
+   * Whether the soldier held wears his ring and point of light (a soldier let go: the mark is the village's then, render/
+   * letgomark.ts, while he is still held for what fades about the eye).
+   */
+  markShown = true;
+
   /** Mark the soldier the god's hand is in (his figure; null: none). */
   mark(id: number | null): void {
+    if (id !== this.held) this.markShown = true;
     this.held = id;
     if (id === null) this.heldDisc.enabled = this.heldRing.enabled = this.heldMark.enabled = false;
   }
@@ -1218,7 +1225,7 @@ export class BattleLayer {
         );
       };
     // The man held marked: a ring of light about his feet, a point of light over his head (MARKED).
-    this.heldRing.enabled = this.heldMark.enabled = !!marked;
+    this.heldRing.enabled = this.heldMark.enabled = !!marked && this.markShown;
     if (marked) {
       const tall = rig.high * k * marked.size;
       this.heldRing.setLocalPosition(marked.x * M, marked.y * M + 0.006, marked.z * M);
