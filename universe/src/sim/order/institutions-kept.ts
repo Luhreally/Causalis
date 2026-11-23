@@ -55,7 +55,8 @@ export type Body = {
   /** A workers' body: the year it last struck, and the share of their trade's rent it has won (thousandths). */
   struck?: number;
   won?: number;
-  /** A workers' body: what a year of its land's craft was worth as it has known it (hundredths of grain's worth), faded in. */
+  /** A workers' body: what a year of its land's craft was worth as it has known it (hundredths of grain's worth), faded in. A
+   * governed trade's: its members' rent as it has known it (thousandths: its good's price there by its hold on its trade). */
   mark?: number;
   /** A workers' body: what its land's staple cost as it has known it (thousandths), faded in. */
   bread?: number;

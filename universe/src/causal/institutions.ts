@@ -95,13 +95,14 @@ registerEventWords(INST_EVENTS.strike.type, (world, e) => {
       by?: string;
       killed?: number;
       closed?: number;
+      slipped?: number;
       masters?: number;
     },
     realm = realmOf(world, e.subjects[0] ?? ""),
     works = x.works ? bodyWords(x.works, x.worksTitle) : null;
   // (A governed trade closed against a works.)
   if (x.closed)
-    return `${cap(body(x))} of ${realm} closed its trade against ${works ?? "a works"}: ${x.outcome === "upheld" ? "the seat upheld its charter, and the works was held to what the trade allows" : "the seat sided with the works, and many left the trade's hold"}, ${year(e.t)}`;
+    return `${cap(body(x))} of ${realm} closed its trade against ${works ?? "a works"}${x.slipped ? `, its members' rent ${x.slipped} in a hundred short of what it was` : ""}: ${x.outcome === "upheld" ? "the seat upheld its charter, and the works was held to what the trade allows" : "the seat sided with the works, and many left the trade's hold"}, ${year(e.t)}`;
   const ended =
     x.outcome === "won"
       ? `${x.masters ? "its masters" : "the works"} gave, and its wage rose`

@@ -267,6 +267,9 @@ export const INST = {
   /** A strike: the least of a land's crafters organised that can stop its works; the most of a year's work it costs them; the
    * share of their trade's rent it wins where it is not broken; the most ever won so; how fast what was won wears a year. */
   strikeLeast: 0.15,
+  /** A governed trade closes against a works where its members' rent has slipped this far (its good's price, its hold on its
+   * trade, against what it was), as far as the works' roof holds the hands of its good (sim/order/institutions.ts). */
+  closeLeast: 0.04,
   strikeGap: 20,
   strikeCosts: 0.3,
   strikeWins: 0.04,
