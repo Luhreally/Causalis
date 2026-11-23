@@ -80,3 +80,23 @@ test("what a village's view lays keeps off both waters", () => {
   assert.equal(wetForLaying(plan, -200, -390), true);
   assert.equal(wetForLaying(plan, -200, 390), false);
 });
+
+test("its shore's bands: foam on the water's side, wet sand on the land's, as wide as the read runs over them", () => {
+  const shore = shoreOf(site([3, 3, 0, 0]), { x: 3.7, z: -1.2 })!;
+  const w = shoreWater(shore, { near: 5000, laid: laidGround() });
+  // (The read runs a four-hundredth a metre across the shore here: foam some 10 m wide, sand some 28 m, along 800 m.)
+  assert.ok(Math.abs(area(w.foam) - 800 * 10) < 0.35 * 800 * 10, `${area(w.foam)}`);
+  assert.ok(Math.abs(area(w.sand) - 800 * 28) < 0.35 * 800 * 28, `${area(w.sand)}`);
+  // (Foam lies on the water; sand off it.)
+  const centres = (tris: Float32Array) => {
+    const out: [number, number][] = [];
+    for (let k = 0; k < tris.length; k += 6)
+      out.push([
+        (tris[k]! + tris[k + 2]! + tris[k + 4]!) / 3,
+        (tris[k + 1]! + tris[k + 3]! + tris[k + 5]!) / 3,
+      ]);
+    return out;
+  };
+  assert.ok(centres(w.foam).every(([x, z]) => w.on(x, z)));
+  assert.ok(centres(w.sand).every(([x, z]) => !w.on(x, z)));
+});

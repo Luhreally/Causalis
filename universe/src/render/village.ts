@@ -212,6 +212,10 @@ export const TOWN_FAR = 3000;
  * One flat mesh of four-cornered pieces lying at height `y` (each piece four (x, z) corners in metres, scaled by `scale`
  * to the scene's units), each turned to face up: a land's water shares as a town's view draws them.
  */
+/** The foam's white and how much of it the water takes on along its shore; the wet sand's darkening (render/stage.ts GROUND_PS). */
+const FOAM_WHITE: Rgb = [0.9, 0.94, 0.95],
+  FOAM_SHARE = 0.2,
+  WET_SAND: Rgb = [0.74, 0.72, 0.68];
 /** Triangles laid flat (x, z, three a triangle), facing up, `scale` to a unit, at `y`. */
 function trisMesh(stage: Stage, tris: Float32Array, scale: number, y: number): pc.Mesh {
   const n = tris.length / 2,
@@ -732,6 +736,8 @@ export class VillageScene {
         child.destroy();
     this.waterMesh?.destroy();
     this.waterMesh = null;
+    for (const mesh of this.shoreMeshes) mesh.destroy();
+    this.shoreMeshes = [];
     this.stacks = [];
     this.dressed = [];
     this.plan = plan;
@@ -1707,6 +1713,8 @@ export class VillageScene {
     return this.shoreWater;
   }
   private shoreWater: ShoreWater | null = null;
+  /** Its shore's foam and wet sand (drawLandWater), let go with it. */
+  private shoreMeshes: pc.Mesh[] = [];
   /**
    * Its land's water (its land's view's shore: view/shore.ts), out to `near` metres, kept off what its town and its
    * countryside have laid on its ground; its own round of open water always water.
@@ -1739,6 +1747,54 @@ export class VillageScene {
       },
       grass: false,
     });
+    // (Its shore as its land's view draws it, render/stage.ts GROUND_PS: a line of foam on the water's side, broken by the
+    // water's grain, so seen from off it the water a fifth of the way to the foam's white; a band of wet sand on the land's,
+    // the ground under it darkened by as much. Each over what it lies on, never fighting it for the screen.)
+    const bands: [Float32Array, string, pc.StandardMaterial][] = [];
+    if (water.foam.length) {
+      const fm = flatMaterial(color);
+      fm.depthBias = -1;
+      fm.slopeDepthBias = -1;
+      fm.update();
+      bands.push([water.foam, "shore foam", fm]);
+      this.dressed.push({
+        kind: "water",
+        base: color,
+        paint: (c) => {
+          fm.diffuse.set(
+            c[0] + (FOAM_WHITE[0] - c[0]) * FOAM_SHARE,
+            c[1] + (FOAM_WHITE[1] - c[1]) * FOAM_SHARE,
+            c[2] + (FOAM_WHITE[2] - c[2]) * FOAM_SHARE,
+          );
+          fm.update();
+        },
+        grass: false,
+      });
+    }
+    if (water.sand.length) {
+      const sm = new pc.StandardMaterial();
+      sm.useLighting = false;
+      sm.useFog = false;
+      sm.useSkybox = false;
+      sm.diffuse = new pc.Color(0, 0, 0);
+      sm.emissive = new pc.Color(WET_SAND[0], WET_SAND[1], WET_SAND[2]);
+      sm.blendType = pc.BLEND_MULTIPLICATIVE;
+      sm.depthWrite = false;
+      sm.depthBias = -1;
+      sm.slopeDepthBias = -1;
+      sm.update();
+      bands.push([water.sand, "shore sand", sm]);
+    }
+    for (const [tris, name, material] of bands) {
+      const band = trisMesh(this.stage, tris, M, tris === water.foam ? 0.024 : 0.02),
+        b = new pc.Entity(name);
+      this.shoreMeshes.push(band);
+      b.addComponent("render", {
+        meshInstances: [new pc.MeshInstance(band, material)],
+        castShadows: false,
+      });
+      this.root.addChild(b);
+    }
   }
   get groundReach(): number {
     return this.groundNear;

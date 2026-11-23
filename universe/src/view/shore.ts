@@ -276,6 +276,9 @@ export function layCountry(laid: Laid, plan: VillagePlan, c: Country | null): vo
 
 /** The leaf of the shore's squares (metres at most): the curve is drawn by steps no longer. */
 const LEAF = 8;
+/** How far past its shore the read runs under its line of foam, and short of it under its wet sand (render/stage.ts GROUND_PS FOAM, SAND). */
+export const FOAM = 0.025,
+  SAND = 0.07;
 /** How far (metres) its water keeps from what stands on its ground, past that ground's own edge. */
 const KEEP = 1.5;
 /**
@@ -288,6 +291,13 @@ const GRAIN_STEEP = 0.003;
 export type ShoreWater = {
   /** Its triangles (x, z, three a triangle, metres from the square), facing up. */
   readonly tris: Float32Array;
+  /**
+   * Its shore's bands as its land's view draws them (render/stage.ts GROUND_PS): the line of foam on the water's side, where
+   * the read is past a half by up to FOAM, and the wet sand on the land's, short of it by up to SAND (none on what stands on
+   * the ground). Triangles as `tris`.
+   */
+  readonly foam: Float32Array;
+  readonly sand: Float32Array;
   /** Whether a point (metres) lies on it. */
   readonly on: (x: number, z: number) => boolean;
   /** Squares of its land's tiles it was worked out on; leaves met (the look tools). */
@@ -314,6 +324,8 @@ export function shoreWater(
     // (Every point of a leaf lies within three quarters of its side of a corner: a leaf's water keeps so far from what is laid.)
     keep = KEEP + 0.75 * leaf,
     out: number[] = [],
+    foam: number[] = [],
+    sand: number[] = [],
     open = o.open ?? null,
     bySquare = new Map<number, { from: number; to: number }>();
   // (What stands on the ground, by the squares it comes into.)
@@ -493,11 +505,11 @@ export function shoreWater(
         return Math.max(readS[p]! + readG[p]! - 0.5, openAt(x, z));
       };
       const from = out.length;
-      const quad = (a: number, b: number, size: number) => {
+      const quad = (into: number[], a: number, b: number, size: number) => {
         const ox0 = x0 + a * leaf,
           oz0 = z0 + b * leaf,
           h = size * leaf;
-        out.push(
+        into.push(
           ox0,
           oz0,
           ox0,
@@ -512,49 +524,68 @@ export function shoreWater(
           oz0,
         );
       };
-      // (A part of the square: none of it water (0), all of it (1, left for the part it is in to draw with its others, as one
-      // where all four are), or some, drawn (2).)
-      const part = (a: number, b: number, size: number): 0 | 1 | 2 => {
-        const a1 = a + size,
-          b1 = b + size,
-          h = size * leaf;
-        const heldHere = heldIn(a, b, a1, b1);
-        // (All of it held: dry.)
-        if (heldHere === (size + 1) * (size + 1)) return 0;
-        const ps = [read(a, b), read(a1, b), read(a, b1), read(a1, b1)];
+      // (How low and high the read may run over a part: the tiles' share is least and most at its corners, the grain within
+      // its own span and its steepness, the open water's round by how near and far the part lies from its middle; and
+      // whether anything stands on it.)
+      const span = (a: number, b: number, size: number) => {
+        const h = size * leaf;
         let sLo = Infinity,
           sHi = -Infinity,
           gLo = Infinity,
           gHi = -Infinity;
-        for (const p of ps) {
+        for (const p of [
+          read(a, b),
+          read(a + size, b),
+          read(a, b + size),
+          read(a + size, b + size),
+        ]) {
           sLo = Math.min(sLo, readS[p]!);
           sHi = Math.max(sHi, readS[p]!);
           gLo = Math.min(gLo, readG[p]!);
           gHi = Math.max(gHi, readG[p]!);
         }
-        // (The tiles' share is least and most at a part's corners; the grain within its own span, and within its steepness.)
-        const lo = sLo + Math.max(-0.125, gLo - GRAIN_STEEP * h) - 0.5,
+        let lo = sLo + Math.max(-0.125, gLo - GRAIN_STEEP * h) - 0.5,
           hi = sHi + Math.min(0.125, gHi + GRAIN_STEEP * h) - 0.5;
-        const ox0 = x0 + a * leaf,
-          oz0 = z0 + b * leaf,
-          // (The open water's round: how near and far the part's ground lies from its middle.)
-          dNear = open
-            ? Math.hypot(
-                Math.max(ox0, Math.min(open.x, ox0 + h)) - open.x,
-                Math.max(oz0, Math.min(open.z, oz0 + h)) - open.z,
-              )
-            : Infinity,
-          dFar = open
-            ? Math.hypot(
-                Math.max(Math.abs(ox0 - open.x), Math.abs(ox0 + h - open.x)),
-                Math.max(Math.abs(oz0 - open.z), Math.abs(oz0 + h - open.z)),
-              )
-            : Infinity,
-          openAll = !!open && dFar < open.r + 2,
-          openNone = !open || dNear > open.r + 2;
-        // (None of it water, whatever stands there: nothing drawn.)
-        if (hi < 0 && openNone) return 0;
-        if (!heldHere && (lo > 0 || openAll)) return 1;
+        if (open) {
+          const ox0 = x0 + a * leaf,
+            oz0 = z0 + b * leaf,
+            dNear = Math.hypot(
+              Math.max(ox0, Math.min(open.x, ox0 + h)) - open.x,
+              Math.max(oz0, Math.min(open.z, oz0 + h)) - open.z,
+            ),
+            dFar = Math.hypot(
+              Math.max(Math.abs(ox0 - open.x), Math.abs(ox0 + h - open.x)),
+              Math.max(Math.abs(oz0 - open.z), Math.abs(oz0 + h - open.z)),
+            );
+          lo = Math.max(lo, (open.r + 2 - dFar) / m);
+          hi = Math.max(hi, (open.r + 2 - dNear) / m);
+        }
+        const held = heldIn(a, b, a + size, b + size);
+        return {
+          lo: held ? Math.min(lo, -1) : lo,
+          hi,
+          held,
+          all: held === (size + 1) * (size + 1),
+        };
+      };
+      // (A part of the square, for each band of the read (its water, its foam, its sand: BANDS) still asked after (`ask`): none
+      // of the band in it (0), all of it (1, left for the part it is in to draw with its others, as one where all four are), or
+      // some, drawn (2). Each part read once for all the bands.)
+      const bands = [
+        [out, 0, Infinity],
+        [foam, 0, FOAM],
+        [sand, -SAND, 0],
+      ] as const;
+      const part = (a: number, b: number, size: number, ask: readonly boolean[]): number[] => {
+        const r = span(a, b, size),
+          got: number[] = bands.map(([, b0, b1], k) =>
+            !ask[k] || r.all || r.hi <= b0 || r.lo >= b1
+              ? 0
+              : !r.held && r.lo > b0 && r.hi < b1
+                ? 1
+                : -1,
+          );
+        if (!got.includes(-1)) return got;
         if (size > 1) {
           const q = size >> 1,
             kids: [number, number][] = [
@@ -563,46 +594,79 @@ export function shoreWater(
               [a, b + q],
               [a + q, b + q],
             ],
-            got = kids.map(([p, r]) => part(p, r, q));
-          if (got.every((g) => g === 1)) return 1;
-          got.forEach((g, k) => g === 1 && quad(kids[k]![0], kids[k]![1], q));
-          return got.some((g) => g) ? 2 : 0;
+            open = got.map((g) => g === -1),
+            under = kids.map(([p, t]) => part(p, t, q, open));
+          bands.forEach(([into], k) => {
+            if (!open[k]) return;
+            if (under.every((u) => u[k] === 1)) {
+              got[k] = 1;
+              return;
+            }
+            under.forEach((u, c) => u[k] === 1 && quad(into, kids[c]![0], kids[c]![1], q));
+            got[k] = under.some((u) => u[k]) ? 2 : 0;
+          });
+          return got;
         }
         leaves++;
-        // (A leaf: its corners in turn about it, and where its sides cross the shore; the water's side kept.)
-        const corners: [number, number][] = [
-            [a, b],
-            [a, b + 1],
-            [a + 1, b + 1],
-            [a + 1, b],
-          ],
-          f = corners.map(([p, q]) => value(p, q)),
-          poly: number[] = [];
-        if (f.every((v) => v > 0)) return 1;
-        if (f.every((v) => v <= 0)) return 0;
-        for (let c = 0; c < 4; c++) {
-          const [p, q] = corners[c]!,
-            [p2, q2] = corners[(c + 1) % 4]!,
-            v0 = f[c]!,
-            v1 = f[(c + 1) % 4]!;
-          if (v0 > 0) poly.push(x0 + p * leaf, z0 + q * leaf);
-          if (v0 > 0 !== v1 > 0) {
-            const t = v0 / (v0 - v1);
-            poly.push(x0 + (p + (p2 - p) * t) * leaf, z0 + (q + (q2 - q) * t) * leaf);
+        // (A leaf: its corners in turn about it, cut where its sides read a band's bounds; what reads between kept.)
+        const corners: number[] = [];
+        for (const [p, q] of [
+          [a, b],
+          [a, b + 1],
+          [a + 1, b + 1],
+          [a + 1, b],
+        ] as const)
+          corners.push(x0 + p * leaf, z0 + q * leaf, value(p, q));
+        bands.forEach(([into, b0, b1], k) => {
+          if (got[k] !== -1) return;
+          if (corners.every((v, c) => c % 3 !== 2 || (v > b0 && v < b1))) {
+            got[k] = 1;
+            return;
           }
-        }
-        for (let k = 1; 2 * k + 3 < poly.length; k++)
-          out.push(
-            poly[0]!,
-            poly[1]!,
-            poly[2 * k]!,
-            poly[2 * k + 1]!,
-            poly[2 * k + 2]!,
-            poly[2 * k + 3]!,
-          );
-        return 2;
+          let poly = corners;
+          for (const [edge, above] of [
+            [b0, true],
+            [b1, false],
+          ] as const) {
+            if (!Number.isFinite(edge)) continue;
+            const kept: number[] = [],
+              n3 = poly.length / 3,
+              inside = (v: number) => (above ? v > edge : v < edge);
+            for (let c = 0; c < n3; c++) {
+              const d = (c + 1) % n3,
+                v0 = poly[3 * c + 2]!,
+                v1 = poly[3 * d + 2]!;
+              if (inside(v0)) kept.push(poly[3 * c]!, poly[3 * c + 1]!, v0);
+              if (inside(v0) !== inside(v1)) {
+                const t = (edge - v0) / (v1 - v0);
+                kept.push(
+                  poly[3 * c]! + (poly[3 * d]! - poly[3 * c]!) * t,
+                  poly[3 * c + 1]! + (poly[3 * d + 1]! - poly[3 * c + 1]!) * t,
+                  edge,
+                );
+              }
+            }
+            poly = kept;
+          }
+          if (poly.length < 9) {
+            got[k] = 0;
+            return;
+          }
+          for (let t = 1; 3 * t + 5 < poly.length; t++)
+            into.push(
+              poly[0]!,
+              poly[1]!,
+              poly[3 * t]!,
+              poly[3 * t + 1]!,
+              poly[3 * t + 3]!,
+              poly[3 * t + 4]!,
+            );
+          got[k] = 2;
+        });
+        return got;
       };
-      if (part(0, 0, side) === 1) quad(0, 0, side);
+      const whole = part(0, 0, side, [true, true, true]);
+      bands.forEach(([into], k) => whole[k] === 1 && quad(into, 0, 0, side));
       if (out.length > from) bySquare.set(j * n + i, { from, to: out.length });
     }
   const tris = Float32Array.from(out);
@@ -629,5 +693,12 @@ export function shoreWater(
     }
     return false;
   };
-  return { tris, on, squares, leaves };
+  return {
+    tris,
+    foam: Float32Array.from(foam),
+    sand: Float32Array.from(sand),
+    on,
+    squares,
+    leaves,
+  };
 }
