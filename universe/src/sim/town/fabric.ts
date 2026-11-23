@@ -2236,20 +2236,22 @@ export function townUseOf(ctx: PopulationContext, s: Settlement): TownUse {
   // (A town weighed apart from a world, as a plan is drawn alone, reads as a town of no trades: its people's buildings only.)
   const prov = ctx.provinces?.get(s.cell),
     m = ctx.world?.peek<MarketStore>("economy.markets")?.get(s.cell),
-    people = Math.max(0, s.population),
-    total = prov ? prov.total() : 0;
+    people = Math.max(0, s.population);
+  // (Its land's people by what they do, each counted once.)
+  let total = 0;
+  if (prov) for (let o = 0; o < USE_OCC.length; o++) total += USE_OCC[o] = prov.occupation(o);
   if (!prov || total <= 0 || people <= 0)
     return { people, share: [1, 0, 0, 0, 0], worth: [1, 1, 1, 1, 1], preference: 0.05 };
   let towns = 0;
   for (const o of ctx.settlements?.inProvince(s.cell) ?? [s]) towns += Math.max(0, o.population);
   const inTown = (occ: number) =>
-      Math.min(1, (prov.occupation(occ) * (people / Math.max(people, towns))) / people),
+      Math.min(1, (USE_OCC[occ]! * (people / Math.max(people, towns))) / people),
     w = m?.wage,
-    workers = total - prov.occupation(OCC.dependent);
+    workers = total - USE_OCC[OCC.dependent]!;
   // (Its builders are paid the going wage, what a worker's year fetches on the mean: a building's cost and use are both in it.
   // What one of those it serves earns is held within a quarter and four times it: a trade idle one year earns next to nothing.)
   let paid = 0;
-  if (w) for (let o = 1; o < w.length; o++) paid += w[o]! * prov.occupation(o);
+  if (w) for (let o = 1; o < w.length && o < USE_OCC.length; o++) paid += w[o]! * USE_OCC[o]!;
   const mean = workers > 0 ? paid / workers : 0,
     against = (x: number) => (mean > 0 && x > 0 ? Math.min(4, Math.max(0.25, x / mean)) : 1);
   return {
@@ -2259,7 +2261,7 @@ export function townUseOf(ctx: PopulationContext, s: Settlement): TownUse {
       inTown(OCC.crafter),
       inTown(OCC.trader),
       inTown(OCC.leader),
-      prov.occupation(OCC.dependent) / total,
+      USE_OCC[OCC.dependent]! / total,
     ],
     worth: [
       1,
@@ -2271,6 +2273,8 @@ export function townUseOf(ctx: PopulationContext, s: Settlement): TownUse {
     preference: timePreference(adultHazard(ctx.life), prov.leanest / 1000),
   };
 }
+/** (townUseOf's own numbers, a land's people by occupation: filled anew each reading.) */
+const USE_OCC = new Float64Array(Object.keys(OCC).length);
 
 /** Scratch for a town's buildings by kind: how many stand, whether one is rising. */
 const HAVE = new Int32Array(CIVICS.length),
