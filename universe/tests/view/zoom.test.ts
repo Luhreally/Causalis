@@ -2,7 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   BEYOND,
+  HANDED,
   flightAt,
+  handedViews,
   towardOnFlat,
   towardOnGlobe,
   zoomStep,
@@ -89,4 +91,49 @@ test("a flight goes to where it is sent, the short way round, drawn back on a lo
   );
   assert.ok(far.distance > 20, `drawn back on the way (${far.distance.toFixed(1)})`);
   assert.ok(far.target.x > 50 && far.target.x < 150, "halfway there");
+});
+
+test("a body let go: the orbit starts exactly where the held eye stood and flies out to the town's own look over him", () => {
+  const M = 0.1,
+    eye = { x: 1.23, y: 0.31, z: -0.84 },
+    seen = { x: 1.5, y: 0.136, z: -0.6 },
+    near = (a: number, b: number) => assert.ok(Math.abs(a - b) < 1e-9, `${a} vs ${b}`);
+  for (const aspect of [430 / 932, 1366 / 800]) {
+    const { from, to } = handedViews(eye, seen, { x: 1.5, z: -0.6 }, M, aspect),
+      at = (v: typeof from) => {
+        const y = (v.yaw * Math.PI) / 180,
+          p = (v.pitch * Math.PI) / 180;
+        return {
+          x: v.target.x + v.distance * Math.cos(p) * Math.sin(y),
+          y: v.target.y - v.distance * Math.sin(p),
+          z: v.target.z + v.distance * Math.cos(p) * Math.cos(y),
+        };
+      },
+      first = flightAt(from, to, 0),
+      last = flightAt(from, to, 1);
+    // The first frame is the eye's: the camera where it stood, looking at what it looked at.
+    for (const k of ["x", "y", "z"] as const) {
+      near(at(first)[k], eye[k]);
+      near(first.target[k], seen[k]);
+    }
+    // The last: over where he stood, on the ground, at the town's tilt, the way the eye looked.
+    near(last.target.x, 1.5);
+    near(last.target.y, 0);
+    near(last.target.z, -0.6);
+    near(last.pitch, HANDED.pitch);
+    near(last.yaw, from.yaw);
+    // As near as the streets about him read: 60 m on a desk, 90 on a phone held upright (narrower, so further).
+    near(last.distance, (aspect < 1 ? 90 : 60) * M);
+  }
+});
+
+test("let go in a city of towers, the orbit flies out over its tallest homes, not among them", () => {
+  const M = 0.1,
+    eye = { x: 0.3, y: 0.2, z: 0.4 },
+    seen = { x: 0, y: 0.136, z: 0 },
+    { to } = handedViews(eye, seen, { x: 0, z: 0 }, M, 430 / 932, 100),
+    high = to.distance * Math.sin((-to.pitch * Math.PI) / 180);
+  // Its eye over the tallest (100 m) by a share and some metres more; a village's low roofs leave the usual distance.
+  assert.ok(high / M >= 100 * HANDED.over + HANDED.clear - 1e-9);
+  assert.equal(handedViews(eye, seen, { x: 0, z: 0 }, M, 430 / 932, 9).to.distance, 90 * M);
 });

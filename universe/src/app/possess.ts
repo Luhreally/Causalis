@@ -19,13 +19,7 @@ import type {
   VillagePlan,
 } from "../bridge/index.ts";
 import { smiteFlash, smiteAct, SLOW_PACE } from "./gifts.ts";
-import {
-  PossessEye,
-  VILLAGE_METRE,
-  type OrbitRig,
-  type Stage,
-  type VillageScene,
-} from "../render/index.ts";
+import { PossessEye, type OrbitRig, type Stage, type VillageScene } from "../render/index.ts";
 import { PossessHud, type GodPalette, type PageWindow, type TimeBar } from "../ui/index.ts";
 import {
   GIFTS,
@@ -99,15 +93,6 @@ type On = {
 
 /** Seconds sent unanswered before the possession's clock waits for the host. */
 const OWED_MOST = 2;
-/**
- * The orbit handed back over where he stood, at least so far off (scene units) and looking down so
- * steeply (degrees), as the town is first looked down on: over its roofs, never in one. On a screen
- * narrower than a desk's (its width to its height), as much further off as it is narrower, so as
- * much of the town shows across it: a phone held upright was handed back a single roof.
- */
-const HANDED_NEAREST = 4,
-  HANDED_PITCH = -38,
-  HANDED_ASPECT = 1.6;
 
 export type Possession = {
   /** One of those drawn taken (their index in the plan), standing where `stand` says if given: why not (null: taken). */
@@ -432,34 +417,8 @@ export function installPossession(d: PossessionDeps): Possession {
     d.village.posed = null;
     hud.hide();
     presses.length = 0;
-    eye.release();
-    d.rig.enabled = true;
-    if (me) {
-      // (Handed back to the orbit turning about where he stood, looking the way the eye looked.)
-      const at = eye.stood,
-        dx = at.x - me.x,
-        dz = at.z - me.z,
-        across = Math.hypot(dx, dz),
-        l = d.rig.limits,
-        narrower = Math.max(
-          1,
-          HANDED_ASPECT / Math.max(0.3, innerWidth / Math.max(1, innerHeight)),
-        );
-      d.rig.target.set(me.x * VILLAGE_METRE, 0, me.z * VILLAGE_METRE);
-      d.rig.yaw = (Math.atan2(dx, dz) * 180) / Math.PI;
-      d.rig.pitch = Math.max(
-        l.minPitch,
-        Math.min(l.maxPitch, HANDED_PITCH, (-Math.atan2(at.y, across) * 180) / Math.PI),
-      );
-      d.rig.distance = Math.max(
-        l.min,
-        Math.min(
-          l.max,
-          Math.max(HANDED_NEAREST * narrower, Math.hypot(across, at.y) * VILLAGE_METRE),
-        ),
-      );
-      d.rig.userZoomed = true;
-    }
+    // (Handed back to the orbit from where the eye stood, flown out to the town's own look over where the body stood.)
+    eye.handTo(d.rig, me ? { x: me.x, z: me.z } : null);
     d.time.release("possess");
     if (d.scale() === "village" && d.plan()?.ref === o.now.town) await d.reload(o.now.town);
     ended(o.now.town);

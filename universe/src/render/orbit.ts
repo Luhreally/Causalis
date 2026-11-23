@@ -148,6 +148,19 @@ export class OrbitRig {
   /** A flight under way (M94): from where to where, how far along, how long it takes. */
   private flight: { from: OrbitView; to: OrbitView; t: number; seconds: number } | null = null;
   /**
+   * Taken back from an eye that held the camera (takeBack): its field of view eased back to the rig's, and the framing
+   * below what covers the top let in, over the flight's time; a touch that ends the flight does not end these.
+   */
+  private settling: {
+    t: number;
+    k: number;
+    seconds: number;
+    fov: { from: number; to: number } | null;
+    near: number;
+  } | null = null;
+  /** How much of the framing below what covers the top is let in (1: all; less while settling). */
+  private framing = 1;
+  /**
    * Until when (performance.now(), ms) the wheel goes unheeded: a zoom carried through to the next
    * scale goes no further in it — what is left of the turn of the wheel is spent.
    */
@@ -573,6 +586,28 @@ export class OrbitRig {
     this.idle = 0;
   }
 
+  /**
+   * The camera taken back from an eye that held it (a body let go): first exactly as that eye had it (`from`, its field of
+   * view `fov.from`, what it cut away nearer than `near` still cut, let in as the flight goes), then flown to `to` over
+   * `seconds`. The viewer's touch ends the flight at once, as any flight's.
+   */
+  takeBack(
+    from: OrbitView,
+    to: Partial<OrbitView>,
+    seconds: number,
+    fov: { from: number; to: number } | null,
+    near = NEAR,
+  ): void {
+    this.enabled = true;
+    this.target.set(from.target.x, from.target.y, from.target.z);
+    this.yaw = from.yaw;
+    this.pitch = from.pitch;
+    this.distance = from.distance;
+    this.flyTo(to, seconds);
+    this.settling = { t: 0, k: 0, seconds, fov, near };
+    this.framing = 0;
+  }
+
   /** Whether the keys are steering it now (or it is coming to rest from them). */
   get steering(): boolean {
     return !still(this.velocity);
@@ -598,6 +633,18 @@ export class OrbitRig {
     };
   }
 
+  /** Settling after a take-back, `t` of the way (eased): its field of view and its framing; done at 1. */
+  private settled(stage: Stage, t: number): void {
+    const s = this.settling;
+    if (!s) return;
+    s.t = Math.min(1, t);
+    const k = (s.k = s.t * s.t * (3 - 2 * s.t)),
+      lens = stage.camera.camera;
+    if (s.fov && lens) lens.fov = s.fov.from + (s.fov.to - s.fov.from) * k;
+    this.framing = k;
+    if (s.t >= 1) this.settling = null;
+  }
+
   private nearAt(stage: Stage, near: number): void {
     const camera = stage.camera.camera!;
     if (camera.nearClip !== near) camera.nearClip = near;
@@ -607,10 +654,12 @@ export class OrbitRig {
     // (Its camera taken, a flight under way ends: it would fly on from where it was, later.)
     if (!this.enabled) {
       this.flight = null;
+      this.settled(stage, 1);
       this.nearAt(stage, NEAR);
       return;
     }
     this.idle += dt;
+    if (this.settling) this.settled(stage, this.settling.t + dt / this.settling.seconds);
     const f = this.flight;
     if (f) {
       f.t = Math.min(1, f.t + dt / f.seconds);
@@ -659,7 +708,9 @@ export class OrbitRig {
       yaw = (this.yaw * Math.PI) / 180,
       pitch = ((among?.pitch ?? this.pitch) * Math.PI) / 180,
       d = this.distance;
-    this.nearAt(stage, among?.near ?? NEAR);
+    // (Taken back from an eye: what it cut away still cut as the flight sets out, let in as it goes.)
+    const held = this.settling ? this.settling.near * (1 - this.settling.k) : 0;
+    this.nearAt(stage, Math.max(among?.near ?? NEAR, held));
     stage.camera.setPosition(
       this.target.x + d * Math.cos(pitch) * Math.sin(yaw),
       this.target.y - d * Math.sin(pitch),
@@ -713,7 +764,7 @@ export class OrbitRig {
     // Framed below what covers the top: the camera lifted, looking on, so the subject sits
     // in the middle of what is left (the camera itself moves, so picking stays true).
     const c = this.covered(),
-      shift = Math.max(-0.6, Math.min(0.6, c.top - c.bottom));
+      shift = Math.max(-0.6, Math.min(0.6, c.top - c.bottom)) * this.framing;
     if (shift) {
       const half = Math.tan(((stage.camera.camera!.fov / 2) * Math.PI) / 180) * d;
       stage.camera.translateLocal(0, half * shift, 0);

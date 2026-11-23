@@ -123,3 +123,60 @@ export function flightAt(from: OrbitView, to: OrbitView, t: number): OrbitView {
     distance: from.distance * Math.pow(to.distance / from.distance, k) * hop,
   };
 }
+
+/**
+ * A held body let go (a townsman, a soldier, a beast; asked 2026-11-23: "looking straight down at a dark field" was a poor
+ * landing): the orbit flies out over `seconds` from exactly where the held eye stood to the town's own look over where the
+ * body stood, at its usual tilt, near enough that the streets about him read: `metres` off on a desk's screen, as much
+ * further on a narrower one as it is narrower (a phone held upright sees a third as much across), at most `farthest`; in a
+ * city of towers, far enough that the eye stands `over` (a share) higher than its tallest homes, and `clear` metres more.
+ */
+export const HANDED = {
+  pitch: -38,
+  metres: 60,
+  farthest: 90,
+  aspect: 1.6,
+  seconds: 1,
+  over: 1.15,
+  clear: 10,
+} as const;
+
+/**
+ * The orbit's views for a hand-back (all in scene units): `from`, the held eye's own (the camera at `eye` looking at
+ * `seen`, so the first frame is the eye's); `to`, over `over` on the ground, at HANDED's tilt and distance, turned as the eye
+ * was. `metre`: the scene's units per metre; `aspect`: the screen's width over its height; `roofs`: how high the town's
+ * homes stand at their tallest (m).
+ */
+export function handedViews(
+  eye: Point,
+  seen: Point,
+  over: { readonly x: number; readonly z: number },
+  metre: number,
+  aspect: number,
+  roofs = 0,
+): { from: OrbitView; to: OrbitView } {
+  const dx = eye.x - seen.x,
+    dy = eye.y - seen.y,
+    dz = eye.z - seen.z,
+    across = Math.hypot(dx, dz),
+    yaw = across > 1e-9 ? (Math.atan2(dx, dz) * 180) / Math.PI : 0,
+    narrower = Math.max(1, HANDED.aspect / Math.max(0.3, aspect)),
+    above =
+      roofs > 0
+        ? (roofs * HANDED.over + HANDED.clear) / Math.sin((-HANDED.pitch * Math.PI) / 180)
+        : 0;
+  return {
+    from: {
+      target: { x: seen.x, y: seen.y, z: seen.z },
+      yaw,
+      pitch: (-Math.atan2(dy, across) * 180) / Math.PI,
+      distance: Math.hypot(across, dy),
+    },
+    to: {
+      target: { x: over.x, y: 0, z: over.z },
+      yaw,
+      pitch: HANDED.pitch,
+      distance: Math.max(above, Math.min(HANDED.farthest, HANDED.metres * narrower)) * metre,
+    },
+  };
+}

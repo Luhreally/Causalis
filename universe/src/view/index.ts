@@ -560,7 +560,9 @@ export {
 export { BLINK, DASH, FAR, SMOOTH, present, type Presence } from "./presence.ts";
 export {
   BEYOND,
+  HANDED,
   flightAt,
+  handedViews,
   towardOnFlat,
   towardOnGlobe,
   zoomStep,
