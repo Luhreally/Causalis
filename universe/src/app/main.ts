@@ -2244,6 +2244,24 @@ async function runPlanetPage(): Promise<void> {
   exposed.setQuality = (c: string) => setChoice(c as QualityName | "auto");
   labels.blockers = [regionPanel.inspector, villagePanel.inspector, pageWindow.inspector];
   bubbles.blockers = labels.blockers;
+  // (And every other thing of the HUD: its buttons wherever they stand, and each of its own boxes short of one that spans
+  // the screen, the names' own layers aside. Read as the names are placed: rails and cards come and go with the scale.)
+  labels.obstacles = () => {
+    const out: HTMLElement[] = [...hud.querySelectorAll<HTMLElement>("button")],
+      most = 0.4 * innerWidth * innerHeight;
+    for (const e of hud.children) {
+      if (
+        !(e instanceof HTMLElement) ||
+        e.classList.contains("labels") ||
+        e.classList.contains("bubbles")
+      )
+        continue;
+      const r = e.getBoundingClientRect();
+      if (r.width * r.height < most) out.push(e);
+    }
+    return out;
+  };
+  bubbles.obstacles = labels.obstacles;
   // (Names and words kept below the scale's bar: a camp's name came under it, on CI's screen.)
   // (Read as the names are placed: the scales' panels come one by one, some later on.)
   labels.ceilings = () => document.querySelectorAll<HTMLElement>(".panel > header.bar");

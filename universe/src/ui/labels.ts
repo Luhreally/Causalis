@@ -67,6 +67,13 @@ export class LabelLayer {
   /** Where each stood when last read, about this layer: its left edge, and from where to where down the screen. */
   private walled: { x: number; y0: number; y1: number }[] = [];
 
+  /**
+   * The rest of what stands over the scene, read as it is placed (its rails' buttons, its cards, its palettes; they come and
+   * go with the scale): a label that would fall under one is hidden, as under a panel (the owner's rule, 2026-11-23: nothing
+   * of the HUD over anything; a host's name went under the field's rail on a phone).
+   */
+  obstacles: () => Iterable<HTMLElement> = () => [];
+
   /** Panels over the scene: a label that would fall under one is hidden. */
   get blockers(): HTMLElement[] {
     return this.blocking;
@@ -117,7 +124,7 @@ export class LabelLayer {
           });
       }
       this.blocked = [];
-      for (const b of this.blocking)
+      for (const b of [...this.blocking, ...this.obstacles()])
         for (const r of b.getClientRects())
           this.blocked.push({
             x0: r.left - origin.left,
