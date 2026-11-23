@@ -9,11 +9,13 @@ import {
   courtOf,
   cultureOf,
   mindsOf,
+  orgsOf,
   politiesOf,
   realmName,
   type Polity,
 } from "../../sim/index.ts";
 import { realmColor } from "../colors.ts";
+import { orgRef } from "../groups.ts";
 import { count, eventsAbout, link, sentence, stat, yearNow } from "./words.ts";
 import { landLink, spotOfLand } from "./names.ts";
 
@@ -108,9 +110,34 @@ export function mindPage(world: World, ref: string): PageModel {
         },
       ),
     ],
+    // (Gone their own way, one of its groups once enough of its people are in their pay: sim/order/groups.ts.)
+    group = row.free
+      ? orgsOf(world)
+          ?.of(r.ref)
+          ?.orgs.find((g) => g.name === row.name)
+      : undefined,
     does: Stat[] = row.free
       ? [
           stat("In the realm", "a power that answers to no one"),
+          ...(group
+            ? [
+                stat("As one of its groups", [link(row.name, orgRef(r.ref, group.event))], {
+                  why: group.event,
+                  parts: [
+                    { label: ["those of its people in their pay"], value: count(group.members) },
+                    {
+                      label: ["how its realm holds them"],
+                      value:
+                        group.standing === 0
+                          ? "outlawed"
+                          : group.standing === 2
+                            ? "chartered"
+                            : "let be",
+                    },
+                  ],
+                }),
+              ]
+            : []),
           stat("The works in the sky they tended", "send nothing down"),
           stat("Its seat's reach, which leaned on them", `${Math.round(reach * 100)}%`, {
             parts: [{ label: ["at the most"], value: `-${Math.round(MIND.gone * 100)}%` }],
@@ -121,6 +148,20 @@ export function mindPage(world: World, ref: string): PageModel {
             "they counsel it, one of its court",
             ...(sits ? [": ", link(row.name, `court:${r.ref}:${sits.id}`)] : []),
           ]),
+          ...(sits
+            ? [
+                stat("Their sway at court", `${Math.round(sits.sway * 100)} in a hundred`, {
+                  parts: [
+                    {
+                      label: [
+                        "as far as they think past their makers, less as its people hold what they make tightly; the seat weighs what they want of its groups when it gives its word on them",
+                      ],
+                      value: "",
+                    },
+                  ],
+                }),
+              ]
+            : []),
           stat("Its seat's reach", `+${Math.round(reach * 100)}%`, {
             parts: [{ label: ["at the most"], value: `+${Math.round(MIND.counsel * 100)}%` }],
           }),

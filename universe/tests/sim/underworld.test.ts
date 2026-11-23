@@ -308,7 +308,7 @@ test("where holdings are unsafe, trade rich and men idle, a protection family ri
     assert.ok(g.members >= 0 && g.share >= 0 && g.share <= 1000);
     assert.ok(world.events.get(g.event)?.type.startsWith("underworld."));
   }
-  assert.ok(v.groups.length <= UNDER.most && v.feds.length <= UNDER.feds);
+  assert.ok(v.groups.length <= UNDER.most && v.feds.length <= UNDER.feds + UNDER.kinFeds);
   // (The lens's reading of its lands, and the ban's organisation fed by its groups.)
   const held = v.groups.flatMap((g) => g.lands);
   assert.ok(held.length > 0);
@@ -402,7 +402,7 @@ test("towns with poor quarters grow small gangs; many of one people ally into a 
   if (several < UNDER.fedTowns) assert.equal(v.feds.length, 0, "one town's gangs do not federate");
   else if (all >= UNDER.fedForm && v.feds.length) {
     assert.ok(
-      v.feds.length > 0 && v.feds.length <= UNDER.feds,
+      v.feds.length > 0 && v.feds.length <= UNDER.feds + UNDER.kinFeds,
       `${all} gangs, ${v.feds.length} federations`,
     );
     const f = v.feds[0]!,

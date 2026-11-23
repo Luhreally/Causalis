@@ -16,7 +16,15 @@ import {
   type SimTime,
   type World,
 } from "../../kernel/index.ts";
-import { ORG_AIMS, ORG_BASES, ORG_KINDS, ORG_STANDING, type OrgAim } from "../../rules/index.ts";
+import {
+  ORG_AIMS,
+  ORG_BASES,
+  ORG_KINDS,
+  ORG_STANDING,
+  mindSway,
+  type OrgAim,
+} from "../../rules/index.ts";
+import { mindsHeld, mindsOf, mindsPastOf } from "../frontier/minds.ts";
 import { interestsOf, type Group } from "../polity/interests.ts";
 import type { Polity } from "../polity/polity.ts";
 import { beliefOf } from "../belief/belief.ts";
@@ -148,6 +156,13 @@ const AIM_WANTS: Readonly<Record<Group, Readonly<Partial<Record<OrgAim, number>>
   "the army": { rule: -0.6, hire: -0.6, guard: -0.4, enforce: -0.3 },
 };
 
+/** What a realm's made minds, kept and sitting at its court, want of a group: inquiry and trade free, no rival rule. */
+const MIND_WANTS: Readonly<Partial<Record<OrgAim, number>>> = {
+  inquire: 0.6,
+  trade: 0.4,
+  rule: -0.3,
+};
+
 /** A realm decrees on a group by name past this much want, either way, of its interests by their sway. */
 export const DECREE = {
   line: 0.2,
@@ -165,10 +180,22 @@ function wantOf(
   g: Org,
   sway: ReadonlyMap<Group, number>,
   seatFaith: Ref | null,
-): { want: number; most: Group | null; mostWant: number } {
+  mind: { readonly name: string; readonly sway: number } | null,
+): { want: number; most: string | null; mostWant: number } {
   let want = 0,
-    most: Group | null = null,
+    most: string | null = null,
     mostWant = 0;
+  // (Its made minds at its court, where they sit: their sway, as far as they think past their makers.)
+  if (mind && mind.sway > 0) {
+    let w = 0;
+    for (let k = 0; k < ORG_AIMS.length; k++) {
+      const a = (g.aims[k] ?? 0) / 1000;
+      if (a > 0) w += a * (MIND_WANTS[ORG_AIMS[k]!] ?? 0);
+    }
+    want += mind.sway * w;
+    most = mind.name;
+    mostWant = mind.sway * w;
+  }
   const party = ORG_BASES[g.basis] === "interest" ? g.identity : null;
   for (const [i, s] of sway) {
     if (!(s > 0)) continue;
@@ -222,10 +249,15 @@ export function realmDecrees(
     );
   if (!can.length) return;
   const sway = new Map<Group, number>(interestsOf(ctx, p, t).map((i) => [i.group, i.sway])),
-    seatFaith = world.hasStore("belief.faiths") ? beliefOf(world).of(p.seat).faith : null;
-  let best: { g: Org; want: number; most: Group | null; mostWant: number } | null = null;
+    seatFaith = world.hasStore("belief.faiths") ? beliefOf(world).of(p.seat).faith : null,
+    row = mindsOf(world)?.rows.get(p.ref),
+    mind =
+      row?.passed && row.name && !row.free
+        ? { name: row.name, sway: mindSway(mindsPastOf(world, p.ref), mindsHeld(world, p.ref)) }
+        : null;
+  let best: { g: Org; want: number; most: string | null; mostWant: number } | null = null;
   for (const g of can) {
-    const w = wantOf(g, sway, seatFaith),
+    const w = wantOf(g, sway, seatFaith, mind),
       size = Math.abs(w.want) * g.power;
     if (Math.abs(w.want) < DECREE.line) continue;
     if (w.want < 0 && read.capacity < DECREE.reach) continue;
@@ -251,8 +283,12 @@ export function realmDecrees(
       ...(best.most
         ? [
             {
-              name: `the sway of ${best.most}`,
-              value: sway.get(best.most) ?? 0,
+              name:
+                mind && best.most === mind.name
+                  ? `the counsel of ${best.most}, its made minds`
+                  : `the sway of ${best.most}`,
+              value:
+                mind && best.most === mind.name ? mind.sway : (sway.get(best.most as Group) ?? 0),
               contribution: Math.abs(best.mostWant),
               source: null,
             },
@@ -298,6 +334,7 @@ export function realmDecrees(
       gids: [g.id],
       own: 1,
       ...(best.most ? { for: best.most } : {}),
+      ...(mind && best.most === mind.name ? { minds: 1 } : {}),
       ...(cost > 0 ? { cost: Math.round(cost * 1000) / 1000 } : {}),
     },
   });

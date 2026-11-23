@@ -11,7 +11,9 @@ import { dmath } from "../kernel/index.ts";
 export const ABROAD = {
   /** A land keeps so many peoples abroad in it, each at least this share of its people (thousandths). */
   keep: 3,
-  least: 25,
+  /** (25 until 2026-11-23: at 1,500, where a land holds tens of millions, no people abroad under some hundreds of thousands was
+   * kept, and first light kept peoples abroad in some fifty of its lands.) */
+  least: 10,
   /** All of them together are never counted more than this share (thousandths). */
   most: 900,
   /**
@@ -20,6 +22,12 @@ export const ABROAD = {
    * its speech and it is sooner: half as long where all do.
    */
   halves: 1,
+  /**
+   * Where all of a land's people read, so much the sooner (their young taught its speech at school): a quarter, as the
+   * three-generation shift of immigrant speech under schooling (the first speaks its own, the second both, the third the land's
+   * alone) has it. (A half until 2026-11-23: under schooling a people abroad halved in some twelve years.)
+   */
+  taught: 0.25,
   /** Read again, and aged, once in so many years. */
   every: 5,
   /** What kin across a road add to what passes down it, at the most (a land half of whose people are the other end's). */
@@ -29,8 +37,9 @@ export const ABROAD = {
   /** What strangers in a town add to how far its quarters are set apart, at the most (sim/order/underworld.ts). */
   street: 0.5,
   /** A people abroad this share of a town's people (thousandths) is who the gangs of its set-apart quarters are: their gangs
-   * ally with their kin's in the realm's other towns (sim/order/underworld.ts federations). */
-  quarter: 120,
+   * ally with their kin's in the realm's other towns (sim/order/underworld.ts federations). (120 until 2026-11-23: a people
+   * abroad is a quarter of its own long before it is an eighth of a town.) */
+  quarter: 60,
 } as const;
 
 /** What is left of a share `years` on: halved in ABROAD.halves generations, sooner the more alike their speech and the land's (0 … 1). */
@@ -46,7 +55,7 @@ export function abroadAfter(
     ABROAD.halves *
       generation *
       (1 - 0.6 * dmath.clamp(like, 0, 1)) *
-      (1 - 0.5 * dmath.clamp(readers, 0, 1)),
+      (1 - ABROAD.taught * dmath.clamp(readers, 0, 1)),
   );
   return share * dmath.pow(0.5, Math.max(0, years) / half);
 }

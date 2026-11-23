@@ -722,19 +722,21 @@ function streetTowns(ctx: PopulationContext, p: Polity, r: Read): Town[] {
       members = Math.round(townYoung * pull * 0.3),
       gangs = Math.floor(members / 40);
     if (gangs <= 0) continue;
-    // (Who its gangs are: its own faith's, or where its quarters are set apart, the others' too: a people abroad in it many
-    // enough to be a quarter of their own, else those of another faith. A people abroad is told by its language: "folk:<n>".)
-    const abroad = apart >= 0.3 ? abroadOf(world)?.of(c)?.[0] : undefined,
+    // (Who its gangs are: its own faith's, and a people abroad in it many enough to be a quarter of their own (set apart by
+    // their speech, however the rest of the town is), else where its quarters are set apart, those of another faith. A people
+    // abroad is told by its language: "folk:<n>". Before 2026-11-23 a people abroad was a quarter only where the town was
+    // already set apart, and at 1,500 first light's diaspora never once federated.)
+    const abroad = abroadOf(world)?.of(c)?.[0],
       other =
-        apart >= 0.3
-          ? abroad && abroad[1] >= ABROAD.quarter
-            ? `folk:${abroad[0]}`
-            : faith !== seatFaith
+        abroad && abroad[1] >= ABROAD.quarter
+          ? `folk:${abroad[0]}`
+          : apart >= 0.3
+            ? faith !== seatFaith
               ? seatFaith
               : ([...faiths.entries()]
                   .filter(([x]) => x !== faith)
                   .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))[0]?.[0] ?? "strangers")
-          : null;
+            : null;
     out.push({
       cell: c,
       people: n,
@@ -791,7 +793,10 @@ function stepFederations(f: Facts, towns: Town[], jails: boolean): void {
     .map(([id, ts]) => [id, ts, sum(ts)] as const)
     .sort((a, b) => b[2] - a[2] || (a[0] < b[0] ? -1 : 1));
   for (const [id, ts, n] of ranked) {
-    if (v.feds.length >= UNDER.feds) break;
+    // (A people abroad's gangs ally with their kin's apart from the realm's own blocs, and take none of their room: UNDER.kinFeds.)
+    const kin = id.startsWith("folk:"),
+      ofKin = v.feds.reduce((s, x) => s + (x.identity.startsWith("folk:") ? 1 : 0), 0);
+    if (kin ? ofKin >= UNDER.kinFeds : v.feds.length - ofKin >= UNDER.feds) continue;
     const has = v.feds.filter((x) => x.identity === id);
     // (Where one identity's gangs are many, they come to stand in two blocs, each against the other: the second takes the
     // towns where the first is weakest, and the greatest town is fought over by both.)
