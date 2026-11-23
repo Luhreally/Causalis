@@ -1457,15 +1457,16 @@ export function workYear(ctx: PopulationContext, t: SimTime): void {
   }
 }
 
-/** What drives a land's people from it, past hunger: a battle fought there, a siege, a raid on the posted, a sack, a quake, a
- * flood, an eruption, a fire, a stone from the sky (the rest of flight's causes: ./flight.ts). */
+/** What drives a land's people from it, past hunger: a battle fought there, a siege, a raid on the posted, a sack, a quake, an
+ * eruption, a fire, a stone from the sky (the rest of flight's causes: ./flight.ts). Not a flood: its people go back as the
+ * waters fall. (Taken as a land's ruin, floods sent first light's cradle into its empty lands at ten times the pace: 205 moves
+ * in its first sixty years where there had been 22, and 36 lands peopled where there had been 15.) */
 const FLED_FROM: ReadonlySet<string> = new Set([
   "war.battle",
   "war.strike",
   "war.siege",
   "war.raid",
   "act.quake",
-  "act.flood",
   "act.fire",
   "act.meteor",
   "wild.fire",
