@@ -37,6 +37,8 @@ import { REAPERS_AT, fieldsNow, pulledOn, reapingOn, stookedOn, wateredOn } from
 import { HUNT_PARTY, huntOn } from "./hunt.ts";
 import { traderSeat, tripOn } from "./trade.ts";
 import { furnaceOf } from "./work.ts";
+import { keepsWoods } from "./village.ts";
+import { courtRole } from "./court.ts";
 import { fitOn } from "./wounds.ts";
 
 const DAY = 86_400,
@@ -337,16 +339,19 @@ export function rackOf(store: Store): { x: number; z: number; yaw: number; stand
 
 /**
  * Whether a town burns charcoal (Phase 51 M214): where its works smelt their own ore, or its own
- * smiths forge its metal — its collier at the clamp in the woodlot.
+ * smiths forge its metal — its collier at the clamp in the woodlot. Only where it keeps woods about
+ * it (view/village.ts keepsWoods): a great city grown out past its woods has its charcoal brought
+ * in, and no clamp stands in it.
  */
 export function burnsCharcoal(plan: VillagePlan): boolean {
   // (Where nothing burns, none is: Phase 56.)
   if (plan.fireless) return false;
   return (
-    (!!plan.stuff?.ore && !!furnaceOf(plan.works?.mine)) ||
-    (plan.metal !== undefined &&
-      plan.metal !== "stone" &&
-      plan.people.some((p) => p.trade?.kind === "smith"))
+    ((!!plan.stuff?.ore && !!furnaceOf(plan.works?.mine)) ||
+      (plan.metal !== undefined &&
+        plan.metal !== "stone" &&
+        plan.people.some((p) => p.trade?.kind === "smith"))) &&
+    keepsWoods(plan)
   );
 }
 
@@ -1205,10 +1210,13 @@ export function townDay(plan: VillagePlan, day: number, ground: Ground): TownDay
     if (smelter >= 0) kinds[smelter] = "smelt";
   }
   // One of its fellers at the charcoal clamp in the woodlot, where it smelts its own ore or its own
-  // smiths forge (Phase 51 M214): the one the day draws (none felling, a crafter).
+  // smiths forge (Phase 51 M214): the one the day draws (none felling, a crafter). Not one the court
+  // has that day: their day goes to it, and the clamp would stand untended.
   if (!lean && !rest && burnsCharcoal(plan)) {
     const first = (from: readonly number[]) =>
-      from.reduce((a, i) => (a < 0 || draws[i]!(44) < draws[a]!(44) ? i : a), -1);
+      from
+        .filter((i) => !courtRole(plan, i, day))
+        .reduce((a, i) => (a < 0 || draws[i]!(44) < draws[a]!(44) ? i : a), -1);
     let collier = first(kinds.flatMap((k, i) => (k === "cut" ? [i] : [])));
     if (collier < 0) {
       collier = first(crafters);

@@ -13,6 +13,7 @@ import {
   clampStage,
   dayTold,
   legsTold,
+  lifeParts,
   loomsNow,
   townDay,
   villageSolids,
@@ -179,7 +180,8 @@ test("a town's weavers cut the day before's length from their looms and weave th
   const weaving: VillagePlan = found;
   const ground: Ground = villageSolids(weaving),
     weavers: number[] = weaving.people.flatMap((p, i) => (p.trade?.kind === "weaver" ? [i] : []));
-  let working = 0;
+  let working = 0,
+    heldDays = 0;
   for (const day of days) {
     const roles: readonly Role[] = townDay(weaving, day, ground).roles,
       looms = loomsNow(weaving, ground, at(day, 5));
@@ -187,7 +189,6 @@ test("a town's weavers cut the day before's length from their looms and weave th
     assert.equal(looms.length, weavers.length, `${day}: a loom for each weaver`);
     for (const l of looms) assert.equal(l.woven, 1, `${day}: loom ${l.index} at 5h`);
     for (const i of weavers.filter((w) => roles[w]!.kind === "workshop")) {
-      working++;
       const name = weaving.people[i]!.name,
         told = dayTold(weaving, i, day)
           .map((l) => l.words)
@@ -202,6 +203,26 @@ test("a town's weavers cut the day before's length from their looms and weave th
         legs.find((l) => l.why?.startsWith("Cutting the finished length"))?.to ??
         legs.find((l) => l.task === "weave")?.from;
       assert.ok(cut !== undefined, `${name} on day ${day}: no cut, nor weaving`);
+      // (A weaver a going holds through the working day — a hand at a works, there from 7h30 to
+      // 16h — cuts the length before they go, or on coming to the loom from it where it took them
+      // first: told either way (above), the loom whole until then and just cut after. The whole
+      // day's weaving looked at below is the others'.)
+      const held = lifeParts(weaving, i, day, ground).some((part) =>
+        part.stays.some((st) => !st.own && st.from < 10 * HOUR && st.to > 15 * HOUR),
+      );
+      if (held) {
+        heldDays++;
+        assert.ok(
+          legs.some((l) => l.why?.startsWith("Cutting the finished length")),
+          `${name} on day ${day}: cut, though held: ${told}`,
+        );
+        const was = loomsNow(weaving, ground, day * DAY + cut - 60).find((x) => x.index === i)!,
+          now = loomsNow(weaving, ground, day * DAY + cut + 60).find((x) => x.index === i)!;
+        assert.equal(was.woven, 1, `${name} on day ${day}: loom whole before the cut`);
+        assert.ok(now.woven < 0.5, `${name} on day ${day}: loom just cut is below half`);
+        continue;
+      }
+      working++;
       // From 6h in ten minutes: whole until the cut, then first below half, growing to above eight in ten by 17h.
       const seen: { s: number; woven: number; weaving: boolean }[] = [];
       for (let s = 6 * HOUR; s <= 17 * HOUR; s += 600) {
@@ -252,7 +273,7 @@ test("a town's weavers cut the day before's length from their looms and weave th
       assert.ok(clist?.type === "list" && clist.items.length > 0, "its fibre's chain");
     }
   }
-  assert.ok(working >= 4, `${working} working weaver-days`);
+  assert.ok(working >= 4, `${working} working weaver-days (and ${heldDays} held by a going)`);
 });
 
 test("a town that burns charcoal keeps its clamp through a round of working days: its collier stacks, turfs, lights, watches and opens it, and a day of rest leaves it as it was", () => {

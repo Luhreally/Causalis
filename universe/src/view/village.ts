@@ -681,7 +681,8 @@ const CLAMPS = new WeakMap<VillagePlan, { at: (Point & { toward: Point }) | null
 /**
  * Where a town's charcoal clamp stands in its woodlot (Phase 51 M214): on open ground a few steps
  * out of its trees nearest the yard, toward the yard, clear of every wall and trunk; and which way
- * from it the yard lies (null: no woods to burn).
+ * from it the yard lies (null: no woods to burn). Where none of the sixteen nearest has open ground
+ * eight steps out, the rest of its trees are looked to, and further out from them.
  */
 export function clampOf(plan: VillagePlan): (Point & { toward: Point }) | null {
   const kept = CLAMPS.get(plan);
@@ -689,19 +690,40 @@ export function clampOf(plan: VillagePlan): (Point & { toward: Point }) | null {
   const w = woodlotOf(plan),
     ground = groundFor(plan),
     yard = storeSpots(plan, ground, 0).yard.door;
-  let at: (Point & { toward: Point }) | null = null;
-  for (const k of w.order.slice(0, 16)) {
+  const site = (k: number, out: number): (Point & { toward: Point }) | null => {
     const t = w.trees[k]!,
       d = Math.hypot(yard.x - t.x, yard.z - t.z) || 1,
       toward = { x: (yard.x - t.x) / d, z: (yard.z - t.z) / d },
-      p = { x: t.x + toward.x * 8, z: t.z + toward.z * 8 };
-    if (w.trees.some((o) => Math.hypot(o.x - p.x, o.z - p.z) < 5.5)) continue;
-    if (!clearAt(ground, p, 5)) continue;
-    at = { ...p, toward };
-    break;
+      p = { x: t.x + toward.x * out, z: t.z + toward.z * out };
+    if (w.trees.some((o) => Math.hypot(o.x - p.x, o.z - p.z) < 5.5)) return null;
+    // (Clear of every wall and of the water, and off the wet of its shore.)
+    if (!clearAt(ground, p, 5) || wetForLaying(plan, p.x, p.z)) return null;
+    return { ...p, toward };
+  };
+  let at: (Point & { toward: Point }) | null = null;
+  for (const k of w.order.slice(0, 16)) if ((at = site(k, 8))) break;
+  for (const out of [8, 12, 16, 24]) {
+    if (at) break;
+    for (const k of w.order) if ((at = site(k, out))) break;
   }
   CLAMPS.set(plan, { at });
   return at;
+}
+
+const WOODED = new WeakMap<VillagePlan, boolean>();
+
+/**
+ * Whether a town keeps woods about it to fell and burn (Phase 51 M214): trees, not scrub, in the
+ * ring its woodlot is drawn in. A great city whose streets run out past that ring has its woods
+ * beyond what is drawn of it, and its charcoal comes in from them.
+ */
+export function keepsWoods(plan: VillagePlan): boolean {
+  let known = WOODED.get(plan);
+  if (known === undefined) {
+    known = treesOf(plan, 0.35).some((t) => t.kind !== "shrub");
+    WOODED.set(plan, known);
+  }
+  return known;
 }
 
 /** A feller's tree of the day (its place in the woodlot's trees), and their place about it (0: on the yard's side). */
@@ -2683,13 +2705,33 @@ function withLife(
     done = until;
     const says = part.going.quiet ?? part.going.doing;
     if (part.of && !said.includes(says)) said.push(says);
+    // A weaver kept from their loom through the morning's cutting (Phase 51 M214): come to it after, the day before's length
+    // is cut from it then and taken to the market, as it would have been of a morning, before they weave on.
+    let here: Point = spot;
+    const cut = legs.find((l) => l.why?.startsWith(CUT));
+    if (cut && cut.from >= leave && cut.from < t && !out.some((l) => l.why?.startsWith(CUT))) {
+      const loom = legs.find((l) => l.task === "weave" && l.from >= cut.to),
+        trip = loom ? cutLegs(legs, cut.from, loom.from) : [],
+        path = route(ground, spot, cut.at, PERSON_REACH),
+        fast = rides && lengthOf(path) >= RIDE_LEAST ? pace * RIDE_FAST : pace,
+        span = lengthOf(path) / fast + (loom ? loom.from - cut.from : 0);
+      // (Only where there is weaving left to do once it is cut.)
+      if (loom && trip.length && legs.some((l) => l.task === "weave" && l.to > t + span + 60)) {
+        walk(path, null, null);
+        const shift = t - cut.from;
+        for (const l of trip) out.push({ ...l, from: l.from + shift, to: l.to + shift });
+        const end = out[out.length - 1]!;
+        t = end.to;
+        here = end.next ?? end.at;
+      }
+    }
     // Back to their day where it has got to by the time they are there.
     if (t < DAY - 60) {
       const back = whereAt(
         legs,
-        Math.min(DAY - 1, t + over(Math.hypot(spot.x - near.x, spot.z - near.z))),
+        Math.min(DAY - 1, t + over(Math.hypot(here.x - near.x, here.z - near.z))),
       );
-      walk(route(ground, spot, back, PERSON_REACH), null, null);
+      walk(route(ground, here, back, PERSON_REACH), null, null);
       if (t < DAY) out.push(...cutLegs(legs, t, DAY));
     }
     const last = out[out.length - 1]!;
