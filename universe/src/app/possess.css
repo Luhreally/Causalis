@@ -348,6 +348,8 @@ body.possessing:has(.page-window:not([hidden])) .possess-hint {
   font-size: 12px;
   text-align: right;
   pointer-events: none;
+  /* (Kept off the one held by the page: moved by a transform, or let go from sight while nowhere is clear of him.) */
+  transition: opacity 0.2s;
 }
 .possess-hint:empty {
   display: none;

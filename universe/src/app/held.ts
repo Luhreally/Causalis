@@ -788,6 +788,7 @@ export function installHeld(d: HeldDeps): Held {
     // The eye behind the body as it is drawn.
     const me = drawnMe(o);
     if (me && plan) eye.update(me.x, me.z, villageSolids(plan), dt, o.live?.bodies[0]?.lift ?? 0);
+    hud.clearOf(me && plan ? eye.bodyOnScreen(me.x, me.z, o.live?.bodies[0]?.lift ?? 0) : null);
     if (o.kind === "soldier") d.village.placedBattle?.mark(o.now.figure);
   });
 

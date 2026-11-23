@@ -40,6 +40,9 @@ const AHEAD: Readonly<Record<string, readonly [number, number]>> = {
   ArrowRight: [1, 0],
 };
 
+/** How far from the screen's edges the words under the thumb stand when sent to its corner (CSS px). */
+const HINT_EDGE = 14;
+
 /** Each pace the world about him can be at: what its button says, and its title. */
 const PACE_WORDS: readonly (readonly [number, string, string])[] = [
   [1, "1×", "The world at its own pace"],
@@ -354,6 +357,78 @@ export class PossessHud {
     this.base.hidden = true;
     this.pinch = 0;
   }
+
+  /**
+   * The words under the thumb kept off the one held, his head and body (CSS px; null: not seen): where they stand if clear of
+   * him, else over his head, else down in the corner under the stick's side; moved by a transform, not laid out again. Their
+   * size and the acts' place are read as the words change and the screen turns, not each frame.
+   */
+  clearOf(him: { top: number; bottom: number; left: number; right: number } | null): void {
+    const e = this.hint;
+    if (!e.textContent) return;
+    if (
+      this.hintAt?.text !== e.textContent ||
+      this.hintAt.w !== innerWidth ||
+      this.hintAt.h !== innerHeight
+    ) {
+      const r = e.getBoundingClientRect(),
+        acts = this.actsBox.getBoundingClientRect(),
+        // (What stands over the screen's top: the head, what is told under it, the paces and the buttons under them.)
+        above = [this.head, this.told, this.paces, this.sprint, this.liveDay, this.giftsButton]
+          .filter((x) => x.offsetParent !== null && x.textContent !== "")
+          .map((x) => x.getBoundingClientRect().bottom);
+      this.hintAt = {
+        text: e.textContent,
+        w: innerWidth,
+        h: innerHeight,
+        top: r.top - this.hintShift.y,
+        bottom: r.bottom - this.hintShift.y,
+        left: r.left - this.hintShift.x,
+        right: r.right - this.hintShift.x,
+        ceiling: Math.max(0, ...above) + 8,
+        actsLeft: acts.left - 8,
+      };
+    }
+    const at = this.hintAt,
+      over = (dx: number, dy: number) =>
+        !!him &&
+        at.left + dx < him.right &&
+        at.right + dx > him.left &&
+        at.top + dy < him.bottom &&
+        at.bottom + dy > him.top,
+      high = him ? him.top - 6 - at.bottom : 0,
+      corner = { x: HINT_EDGE - at.left, y: innerHeight - HINT_EDGE - at.bottom },
+      // (Where they may go, in turn: where they stand; over his head, under what stands over the screen's top; down in the
+      // corner beside the acts, if they fit there. Nowhere clear of him, as when the eye is drawn in so close he fills the
+      // screen: not shown till there is.)
+      shift = !over(0, 0)
+        ? { x: 0, y: 0 }
+        : at.top + high >= at.ceiling && !over(0, high)
+          ? { x: 0, y: high }
+          : at.right - at.left + HINT_EDGE <= at.actsLeft && !over(corner.x, corner.y)
+            ? corner
+            : null;
+    const shown = shift !== null;
+    if (shown !== (e.style.opacity !== "0")) e.style.opacity = shown ? "" : "0";
+    if (!shift) return;
+    // (Moved only past a few pixels: not shaken each frame by the body's bob.)
+    if (Math.abs(shift.x - this.hintShift.x) + Math.abs(shift.y - this.hintShift.y) < 3) return;
+    this.hintShift = shift;
+    e.style.transform =
+      shift.x || shift.y ? `translate(${Math.round(shift.x)}px, ${Math.round(shift.y)}px)` : "";
+  }
+  private hintAt: {
+    text: string;
+    w: number;
+    h: number;
+    top: number;
+    bottom: number;
+    left: number;
+    right: number;
+    ceiling: number;
+    actsLeft: number;
+  } | null = null;
+  private hintShift = { x: 0, y: 0 };
 
   /** The pace pressed (1, ½, 0 held), lit; the world's is it under Slow time's (`pace`). */
   setPace(pace: number): void {
