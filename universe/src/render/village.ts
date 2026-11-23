@@ -1760,12 +1760,11 @@ export class VillageScene {
       this.dressed.push({
         kind: "water",
         base: color,
+        // (Mixed as the screen has them: a material's colour is the screen's raised by its gamma, as the water's is given.)
         paint: (c) => {
-          fm.diffuse.set(
-            c[0] + (FOAM_WHITE[0] - c[0]) * FOAM_SHARE,
-            c[1] + (FOAM_WHITE[1] - c[1]) * FOAM_SHARE,
-            c[2] + (FOAM_WHITE[2] - c[2]) * FOAM_SHARE,
-          );
+          const mix = (k: number) =>
+            (c[k]! ** 2.2 + (FOAM_WHITE[k]! - c[k]! ** 2.2) * FOAM_SHARE) ** (1 / 2.2);
+          fm.diffuse.set(mix(0), mix(1), mix(2));
           fm.update();
         },
         grass: false,
@@ -1777,7 +1776,12 @@ export class VillageScene {
       sm.useFog = false;
       sm.useSkybox = false;
       sm.diffuse = new pc.Color(0, 0, 0);
-      sm.emissive = new pc.Color(WET_SAND[0], WET_SAND[1], WET_SAND[2]);
+      // (Raised by the screen's gamma, as a material's colour is given, so the ground under it is darkened by WET_SAND itself.)
+      sm.emissive = new pc.Color(
+        WET_SAND[0] ** (1 / 2.2),
+        WET_SAND[1] ** (1 / 2.2),
+        WET_SAND[2] ** (1 / 2.2),
+      );
       sm.blendType = pc.BLEND_MULTIPLICATIVE;
       sm.depthWrite = false;
       sm.depthBias = -1;
