@@ -65,9 +65,7 @@ test("by the age of engines some lands' works run on burned fuel, and what they 
   for (const e of engines.slice(0, 20)) {
     const m = markets.get(e.cell)!,
       r = energyPerHead(late, e.cell)!;
-    // (A real engine's share of Carnot's bound: well under it. By 760 the best of first light's reach 0.41 since the breadth
-    // round's grants and spies carry the engine's crafts sooner; Earth's own of that age, a fifth to two fifths.)
-    assert.ok(r.share > 0.01 && r.share < 0.6, `its engines' share of Carnot: ${r.share}`);
+    assert.ok(r.share > 0.01 && r.share < 0.3, `its engines' share of Carnot: ${r.share}`);
     assert.ok(r.primary > 0.3, `${r.primary} kW a head`);
     const cover = e.workWanted > 0 ? (1000 * e.workHad) / e.workWanted : 0;
     assert.ok(
@@ -94,11 +92,9 @@ test("each land's soil is what its ground's stocks give", () => {
   const ground = groundOf(late)!,
     eco = ecologyOf(late),
     ctx = populationContext(late);
-  let worn = 0,
-    peopled = 0;
+  let worn = 0;
   for (const p of ctx.provinces.all()) {
     if (!p.total()) continue;
-    peopled++;
     const g = ground.get(p.cell),
       w = eco.get(p.cell);
     if (!g || !w) continue;
@@ -114,6 +110,5 @@ test("each land's soil is what its ground's stocks give", () => {
       `land ${p.cell}: its soil ${w.soil} against its ground's`,
     );
   }
-  // (As a share of its peopled lands: 44 of 550 since the breadth round, 130-158 before; a twentieth at the least.)
-  assert.ok(worn > 0.05 * peopled, `${worn} of ${peopled} lands' fields worn`);
+  assert.ok(worn > 50, `${worn} lands' fields worn`);
 });
