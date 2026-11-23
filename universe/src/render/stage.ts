@@ -378,9 +378,11 @@ export class Stage {
     if (document.body.dataset.daylight !== phase) document.body.dataset.daylight = phase;
     const up = Math.max(0, high),
       warm = phase === "dawn" || phase === "dusk";
-    // Up to seventy degrees at noon; turning from east to west through the day.
-    this.sun.setEulerAngles(12 + 58 * up, 90 - 180 * ((day - 0.25) / 0.5), 0);
-    this.sun.light!.intensity = phase === "night" ? 0.28 : 0.35 + 0.95 * Math.min(1, up * 1.6);
+    // Up to forty degrees over the land at noon, as high and as strong as its land's sun stands (backdrop): the town and
+    // its land lit alike across the swap between them; turning from east to west through the day. (A light's tilt is from
+    // straight down: the sun stood high at dawn and low at noon, and the town read darker and bluer than its land.)
+    this.sun.setEulerAngles(90 - (12 + 28 * up), 90 - 180 * ((day - 0.25) / 0.5), 0);
+    this.sun.light!.intensity = phase === "night" ? 0.28 : 0.35 + 0.9 * Math.min(1, up * 1.6);
     this.sun.light!.color =
       phase === "night"
         ? new pc.Color(0.55, 0.64, 1)
