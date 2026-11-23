@@ -1985,18 +1985,22 @@ export class TownBuilder {
     // once a weighing, and only once a kind it lacks is open to it: most of a world's towns, weighed, want nothing new.)
     let use: TownUse | null = null;
     // What stands of each kind (what took a building's place stands for it: a temple is the
-    // town's shrine), and what is rising; one fallen out of use a year, its use no longer worth
+    // town's shrine), and what is rising; one fallen out of use a weighing at most, its use no longer worth
     // what keeping it up costs (rules/civicworth.ts keptPeople).
     HAVE.fill(0);
     RISING.fill(0);
-    let emptied = false;
-    // (Each kind asked of once: a great town has a hundred and fifty buildings, weighed one year in three.)
+    // (Each kind asked of once: a great town has a hundred and fifty buildings, weighed one year in three. Of those standing,
+    // one is asked whether its use still pays its upkeep each weighing, in turn: the one the year's turn comes to, counted
+    // among those standing.)
     const cs = f.civics;
-    for (let j = 0; j < cs.length; j++) {
+    let standing = 0;
+    for (let j = 0; j < cs.length; j++) if (cs.fellAt(j) === NO_FALL) standing++;
+    const asked = standing > 0 ? Math.floor(this.year / CIVIC_EVERY) % standing : -1;
+    for (let j = 0, at = -1; j < cs.length; j++) {
       if (cs.fellAt(j) !== NO_FALL) continue;
       const i = cs.kindAt(j);
       if (
-        !emptied &&
+        ++at === asked &&
         cs.endAt(j) <= this.year &&
         people <
           (Number.isNaN(KEPT_FIXED[i]!)
@@ -2004,7 +2008,6 @@ export class TownBuilder {
             : KEPT_FIXED[i]!)
       ) {
         this.fall(f, cs.get(j)!, FOLD.fell);
-        emptied = true;
         continue;
       }
       HAVE[i]!++;
