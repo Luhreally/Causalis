@@ -8,7 +8,8 @@
 // the groups' own reckoning of who pays. Level: a named group (with its leader) in a battle of realms.
 // (2026-11-22) Each day it stood is kept in the battle's own telling with its page and what it did, so its page can list its
 // fields; and each turn, leaving or sack records why (its pay owed, its side's odds, the foe's silver) as a decision the
-// chronicle cites.
+// chronicle cites. Short of its pay (its payer's treasury holds less than a year of what it pays its hired), a company takes it
+// in kind from the land it stands on, having won the day or leaving the field before it: grain carried to its own home.
 import {
   MAX_CAUSES,
   defineEventType,
@@ -176,7 +177,8 @@ export function companiesAfter(
 ): void {
   for (const d of days) {
     const stood = d.how === "fought" && (d.side === 0) === won,
-      sacked = stood && d.co.unpaid ? takePay(ctx, d.co, land) : 0;
+      // (Short of its pay, it takes it where it stands: having won the day, or leaving the field before it, as it goes.)
+      sacked = (stood || d.how === "left") && d.co.unpaid ? takePay(ctx, d.co, land) : 0;
     if (d.how === "fought" && sacked <= 0) continue;
     const payer = sides[d.side]!,
       foe = sides[1 - d.side]!,

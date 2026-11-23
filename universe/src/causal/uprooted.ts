@@ -144,7 +144,7 @@ registerEventWords(COMPANY_EVENTS.company.type, (world, e) => {
   return d?.how === "turned"
     ? `${who}${led}, unpaid by ${a}, went over to ${b} before the battle in ${landWords(world, e.place)}, ${year(e.t)}`
     : d?.how === "left"
-      ? `${who}${led}, unpaid by ${a}, left the field before a battle it did not expect to win in ${landWords(world, e.place)}, ${year(e.t)}`
+      ? `${who}${led}, unpaid by ${a}, left the field before a battle it did not expect to win in ${landWords(world, e.place)}${d?.grain ? `, taking its pay from ${d.own ? "its own payer's" : "the"} stores as it went: ${grainSum(d.grain)} grain` : ""}, ${year(e.t)}`
       : `${who}${led}, short of its pay from ${a}, took its pay from the stores of ${d?.own ? "its own payer's land of " : ""}${landWords(world, e.place)}${d?.grain ? `: ${grainSum(d.grain)} grain` : ""}, ${year(e.t)}`;
 });
 

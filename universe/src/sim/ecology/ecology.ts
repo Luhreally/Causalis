@@ -115,6 +115,8 @@ export type Wilds = {
    */
   asideWild?: number;
   asideWoods?: number;
+  /** Conservation's marks: told come back (bits: 1 its woods, 2 its wild) since last below the line of its loss. */
+  keptBack?: number;
 };
 
 export class EcologyStore implements StateStore {
@@ -173,10 +175,11 @@ export class EcologyStore implements StateStore {
         .string(w.fishFew ?? "");
     // (What is set aside, only where anything is: a world that keeps nothing hashes as it did.)
     for (const w of this.all())
-      if (w.asideWild || w.asideWoods)
+      if (w.asideWild || w.asideWoods || w.keptBack)
         h.int(w.cell)
           .float(w.asideWild ?? 0)
-          .float(w.asideWoods ?? 0);
+          .float(w.asideWoods ?? 0)
+          .int(w.keptBack ?? 0);
   }
   save(): unknown {
     return { lands: this.all() };
@@ -203,6 +206,7 @@ export class EcologyStore implements StateStore {
         grainEaten: w.grainEaten ?? null,
         fishFew: w.fishFew ?? null,
         asideWild: w.asideWild ?? 0,
+        keptBack: w.keptBack ?? 0,
         asideWoods: w.asideWoods ?? 0,
       });
   }
@@ -275,6 +279,7 @@ export function wildsOf(ctx: PopulationContext, cell: number): Wilds {
     cleared: null,
     worn: null,
     asideWild: 0,
+    keptBack: 0,
     asideWoods: 0,
     hunter,
     hunters: hunter >= 0 ? 1 : 0,
@@ -562,7 +567,13 @@ export function ecologyYear(ctx: PopulationContext, t: SimTime): void {
     else if (w.soil > 0.9 && w.worn) w.worn = null;
     // Conservation (rules/lessons.ts kept-woods, kept-wild): what was set aside come back while it was kept, and what hunger broke.
     if (kept && (wasWoods > 0 || wasWild > 0 || asideWoods > 0 || asideWild > 0))
-      keptTurns(world, p.ref, kept, year, p.lastFamine, [
+      keptTurns(
+        world,
+        p.ref,
+        kept,
+        year,
+        p.lastFamine,
+        [
         [
           "woods",
           wasWoods,
@@ -574,7 +585,9 @@ export function ecologyYear(ctx: PopulationContext, t: SimTime): void {
           w.forest,
         ],
         ["wild", wasWild, asideWild, wasThinned && !w.thinned ? wasThinned : null, w.wild],
-      ]);
+        ],
+        w,
+      );
     // Hunters pressed below a tithe of their number leave the land to its people.
     if (w.hunter >= 0 && !w.lost.includes(w.hunter) && w.hunters < 0.08) {
       const s = g.life.species[w.hunter]!;
@@ -704,10 +717,17 @@ export function keptTurns(
   year: number,
   famine: Ref | null,
   turns: readonly (readonly ["woods" | "wild", number, number, Ref | null, number])[],
+  /** The land's own marks of having been told come back (Wilds.keptBack), so a stand wavering about the line is told once. */
+  marks?: { keptBack?: number },
 ): void {
   for (const [what, was, now, back, stands] of turns) {
-    const by = keptBy(kept, what);
-    if (back && now > 0 && by)
+    const by = keptBy(kept, what),
+      bit = what === "woods" ? 1 : 2,
+      told = ((marks?.keptBack ?? 0) & bit) !== 0;
+    // (Fallen back below the line of its loss: a coming back is told again.)
+    if (marks && told && stands < (what === "woods" ? 0.3 : 0.4)) marks.keptBack! &= ~bit;
+    if (back && now > 0 && by && !told) {
+      if (marks) marks.keptBack = (marks.keptBack ?? 0) | bit;
       world.events.emit({
         type: ECOLOGY_EVENTS.keptBack.type,
         place,
@@ -717,6 +737,7 @@ export function keptTurns(
         ],
         data: { what, kept: Math.round(now * 1000), stands: Math.round(stands * 100), year },
       });
+    }
     if (was >= KEPT_TOLD && now < was / 2) {
       const hunger = pressIn(kept, "famine", year);
       if (hunger < 0.25) continue;
