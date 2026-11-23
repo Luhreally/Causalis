@@ -69,7 +69,8 @@ export class FarLand {
   constructor(stage: Stage) {
     this.stage = stage;
     const app = stage.app;
-    this.layer = new pc.Layer({ name: "far land" });
+    // (Its things drawn nearest first, the nearer hiding the farther before they are shaded.)
+    this.layer = new pc.Layer({ name: "far land", opaqueSortMode: pc.SORTMODE_FRONT2BACK });
     app.scene.layers.push(this.layer);
     this.eye = new pc.Entity("far land eye");
     this.eye.addComponent("camera", {
@@ -496,6 +497,7 @@ function cutAbout(
     at = new Float32Array(count * 3);
   source.getPositions(at);
   const kept: number[] = [],
+    far: number[] = [],
     near: number[] = [],
     hole2 = (reach * HOLE) ** 2,
     risen2 = (reach * RISEN) ** 2,
@@ -506,10 +508,22 @@ function cutAbout(
       c = d2(v + 2);
     if (a < hole2 && b < hole2 && c < hole2) continue;
     if (a < risen2 || b < risen2 || c < risen2) near.push(v);
-    else kept.push(v, v + 1, v + 2);
+    else {
+      kept.push(v);
+      far.push(a + b + c);
+    }
   }
-  const order = new Uint32Array(kept),
-    mesh = new pc.Mesh(stage.device);
+  // (Nearest the town first: the eye stands about it, so what is nearer is drawn first and hides what lies behind it before
+  // that is shaded. Seen low across the land, its hills hid much of what was shaded after them.)
+  const byNear = kept.map((_, i) => i).sort((i, j) => far[i]! - far[j]!),
+    order = new Uint32Array(kept.length * 3);
+  byNear.forEach((i, n) => {
+    const v = kept[i]!;
+    order[3 * n] = v;
+    order[3 * n + 1] = v + 1;
+    order[3 * n + 2] = v + 2;
+  });
+  const mesh = new pc.Mesh(stage.device);
   mesh.vertexBuffer = source.vertexBuffer;
   mesh.indexBuffer[0] = new pc.IndexBuffer(
     stage.device,
