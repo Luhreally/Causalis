@@ -66,6 +66,8 @@ export const UNDER = {
   /** The groups a realm keeps account of, the federations, the ended ones it remembers, a group's lands, the wars it remembers. */
   most: 6,
   feds: 3,
+  /** And the federations of peoples abroad, beside the realm's own blocs (their gangs ally with their kin's, not with these). */
+  kinFeds: 1,
   gone: 4,
   lands: 8,
   wars: 4,
