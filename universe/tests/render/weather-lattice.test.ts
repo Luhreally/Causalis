@@ -2,7 +2,7 @@
 // with the camera): a pan goes over them, a zoom shares them out between two scales, never moving one.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { clearOfEye, latticeAt, tiersOf } from "../../src/render/weather.ts";
+import { clearOfEye, latticeAt, moteOf, tiersOf } from "../../src/render/weather.ts";
 
 test("a drop stands at the same place of the world as the point looked at moves, until it wraps at the shower's edge", () => {
   const out = new Float32Array(3),
@@ -63,5 +63,22 @@ test("a zoom shares the drops out between the two powers of two about the eye's 
     else assert.ok(was.n0 <= 20 && now.n0 >= 980, `${was.n0} -> ${now.n0} at ${d}`);
     was = now;
   }
-  assert.deepEqual(tiersOf(16, 100), { t0: 4, n0: 100 });
+  assert.deepEqual(tiersOf(16, 100), { t0: 4, n0: 100, low: 1 });
+});
+
+test("a drop keeps its scale and its place as more or fewer fall, and as the eye draws in, only a few change scale", () => {
+  // (Shared out by its draw, not by its index against the count: a shower coming on adds drops, moving none.)
+  const { t0, low } = tiersOf(5.3, 0),
+    first = Array.from({ length: 400 }, (_, i) => moteOf(i, t0, low));
+  for (let i = 0; i < 400; i++) assert.deepEqual(moteOf(i, t0, low), first[i]);
+  const lower = first.filter((m) => m.tier === t0).length;
+  assert.ok(
+    Math.abs(lower / 400 - low) < 0.08,
+    `${lower} of 400 at the lower scale, its share ${low}`,
+  );
+  // (Drawn in a little: a few go to the lower scale, none the other way.)
+  const nearer = tiersOf(5.1, 0),
+    moved = first.filter((m, i) => moteOf(i, nearer.t0, nearer.low).tier !== m.tier);
+  assert.ok(moved.length > 0 && moved.length < 40, `${moved.length} changed scale`);
+  assert.ok(moved.every((m) => m.tier === t0 + 1));
 });

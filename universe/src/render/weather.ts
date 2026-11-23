@@ -13,6 +13,12 @@ const MOST = 1600;
 const RAIN_FALL = 0.85,
   SNOW_FALL = 7;
 const RAIN: Rgb = [0.72, 0.8, 0.94];
+/**
+ * How long a shower takes to come on or go (s of the viewer's own time, to within a third of the way): what it shows is eased
+ * to what the weather asks, never at once (2026-11-23: a view's sky read a moment after it was come to, a spell ended, the
+ * clock's pace changed — each put a shower in or out whole in a frame).
+ */
+const EASE = 0.9;
 const SNOW: Rgb = [0.97, 0.98, 1];
 
 /** Seen by its own light a little, so a night's rain is not lost in the dark. */
@@ -57,10 +63,20 @@ export function latticeAt(
 }
 
 /** The two powers of two about the eye's distance a shower is laid at, and the lower's share of its motes (`n` of them). */
-export function tiersOf(distance: number, n: number): { t0: number; n0: number } {
+export function tiersOf(distance: number, n: number): { t0: number; n0: number; low: number } {
   const level = Math.log2(Math.max(0.5, distance)),
-    t0 = Math.floor(level);
-  return { t0, n0: Math.round(n * (1 - (level - t0))) };
+    t0 = Math.floor(level),
+    low = 1 - (level - t0);
+  return { t0, n0: Math.round(n * low), low };
+}
+
+/**
+ * Which of the two scales mote `i` falls at (its own draw against the lower's share: a mote keeps its scale, and its place,
+ * as more or fewer fall, where shared out by its index each one's place leapt as the count did), and its id there.
+ */
+export function moteOf(i: number, t0: number, low: number): { tier: number; id: number } {
+  const tier = rand(i, 0, 11) < low ? t0 : t0 + 1;
+  return { tier, id: i + tier * 7919 };
 }
 
 /** How much of a mote shows by the eye: none within 0.4 of its shower's breadth `S`, all from 0.6. */
@@ -85,6 +101,24 @@ export class WeatherLayer {
   shown = { drops: 0, flakes: 0 };
   /** A drop's place, worked out (kept, so nothing is made each frame). */
   private readonly at = new Float32Array(4);
+  /** How hard it rains and snows as drawn (eased to the weather's: EASE), and when last drawn (the viewer's seconds). */
+  private rainShown = 0;
+  private snowShown = 0;
+  private drawnAt = -1;
+
+  /** None drawn from now: the view itself changed, where a shower is let go of at once with all else it showed. */
+  cut(): void {
+    this.rainShown = this.snowShown = 0;
+    this.drawnAt = -1;
+    this.drops.set(0, () => {});
+    this.flakes.set(0, () => {});
+    this.shown = { drops: 0, flakes: 0 };
+  }
+
+  /** Whether any rain or snow is still drawn (going, after the weather has let go of it). */
+  get showing(): boolean {
+    return this.rainShown > 0 || this.snowShown > 0;
+  }
 
   constructor(stage: Stage, parent: pc.Entity) {
     const box = keptMesh(boxMesh(stage));
@@ -122,10 +156,24 @@ export class WeatherLayer {
   ): void {
     // (A breath of wind: the rain slants a little, the snow drifts.)
     const lean = 0.18;
-    const nRain = w ? Math.round(Math.min(MOST, most) * Math.min(1, w.rain)) : 0,
-      nSnow = w ? Math.round(Math.min(MOST, most) * 0.7 * Math.min(1, w.snow)) : 0,
-      { t0, n0: rain0 } = tiersOf(distance, nRain),
-      snow0 = tiersOf(distance, nSnow).n0;
+    // (Eased to the weather asked, by the viewer's own time: a shower comes on and goes by degrees, more motes or fewer,
+    // the last of them growing or dwindling, none leaping.)
+    const wall = performance.now() / 1000,
+      dt = this.drawnAt < 0 ? 0 : Math.min(0.25, Math.max(0, wall - this.drawnAt)),
+      ease = 1 - Math.exp(-dt / EASE),
+      settle = (shown: number, want: number) => {
+        const v = shown + (want - shown) * ease;
+        return Math.abs(v - want) < 0.002 ? want : v;
+      };
+    this.drawnAt = wall;
+    this.rainShown = settle(this.rainShown, w ? Math.min(1, w.rain) : 0);
+    this.snowShown = settle(this.snowShown, w ? Math.min(1, w.snow) : 0);
+    const room = Math.min(MOST, most),
+      rainF = room * this.rainShown,
+      snowF = room * 0.7 * this.snowShown,
+      nRain = Math.min(room, Math.ceil(rainF)),
+      nSnow = Math.min(room, Math.ceil(snowF)),
+      { t0, low } = tiersOf(distance, 0);
     /** Where drop `j` of scale `tier` falls (out: x, y, z, how much of it shows, its scale), `f` through its fall. */
     const p = this.at,
       place = (tier: number, id: number, fall: number, f: number, k: number, sway: number) => {
@@ -141,12 +189,12 @@ export class WeatherLayer {
         p[2] = z;
       };
     this.drops.set(nRain, (i, out) => {
-      const tier = i < rain0 ? t0 : t0 + 1,
-        id = (i < rain0 ? i : i - rain0) + tier * 7919,
+      const { tier, id } = moteOf(i, t0, low),
         go = s / RAIN_FALL + rand(id, 0, 9),
         fall = Math.floor(go);
       place(tier, id, fall, go - fall, 1, 0);
-      const k = p[3]!;
+      // (The last of them as much of it as the count asks: grown in, dwindled out.)
+      const k = p[3]! * Math.min(1, rainF - i);
       out[0] = p[0]!;
       out[1] = p[1]!;
       out[2] = p[2]!;
@@ -157,13 +205,12 @@ export class WeatherLayer {
       out[7] = 0;
     });
     this.flakes.set(nSnow, (i, out) => {
-      const tier = i < snow0 ? t0 : t0 + 1,
-        id = (i < snow0 ? i : i - snow0) + tier * 7919,
+      const { tier, id } = moteOf(i, t0, low),
         go = s / SNOW_FALL + rand(id, 0, 7),
         fall = Math.floor(go),
         sway = Math.sin(s * 1.3 + rand(id, 0, 5) * 6.28) * 2 ** tier * 0.02;
       place(tier, id, fall, go - fall, 3, sway);
-      const size = p[3]! * (0.0028 + 0.0022 * rand(id, 0, 6));
+      const size = p[3]! * Math.min(1, snowF - i) * (0.0028 + 0.0022 * rand(id, 0, 6));
       out[0] = p[0]!;
       out[1] = p[1]!;
       out[2] = p[2]!;

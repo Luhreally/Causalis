@@ -9693,7 +9693,31 @@ async function runPlanetPage(): Promise<void> {
     thunderHere = false,
     flashWas = 0,
     handNow: ActsNear | null = null,
-    seasonNow: GroundSeason | null = null;
+    seasonNow: GroundSeason | null = null,
+    /** The view the weather was last drawn in, and its sky as drawn (eased to the weather's: a grey sky comes and goes). */
+    weatherScale = "",
+    skyShown = { cloud: 0, wet: 0, haze: 0 };
+  /** The sky drawn eased toward `want` (null: clear) over `dt` s; the flash as it is. */
+  const skyTo = (
+    want: { cloud: number; wet: number; haze: number; flash: number } | null,
+    dt: number,
+  ) => {
+    const k = 1 - Math.exp(-Math.min(0.25, dt) / 0.9),
+      to = want ?? { cloud: 0, wet: 0, haze: 0, flash: 0 },
+      step = (a: number, b: number) => (Math.abs(b - a) < 0.003 ? b : a + (b - a) * k);
+    skyShown = {
+      cloud: step(skyShown.cloud, to.cloud),
+      wet: step(skyShown.wet, to.wet),
+      haze: step(skyShown.haze, to.haze),
+    };
+    const clear = !skyShown.cloud && !skyShown.wet && !skyShown.haze && !to.flash;
+    stage.weather(clear && !want ? null : { ...skyShown, flash: to.flash });
+  };
+  /** What the eye looks at, and from how far: the orbiting rig's, or an eye's own behind one possessed or held. */
+  const viewed = () =>
+    stage.lookedAt && !rig.enabled
+      ? { at: stage.lookedAt, distance: stage.lookedAt.distance }
+      : { at: rig.target, distance: rig.distance };
   /** The land's middle where the eye is (an inspiration's light, a stone's fall): a band's fire, a land's middle, a town's square. */
   const landMiddle = (): { x: number; y: number; z: number } | null => {
     if (scale === "camp" && near)
@@ -9739,6 +9763,13 @@ async function runPlanetPage(): Promise<void> {
     skyAsked.at = -Infinity;
   };
   stage.onUpdate((dt) => {
+    // (The view itself changed: the weather it showed let go with it, at once; the next comes on by degrees.)
+    if (scale !== weatherScale) {
+      weatherScale = scale;
+      weather.cut();
+      skyShown = { cloud: 0, wet: 0, haze: 0 };
+      stage.weather(null);
+    }
     const cell = weatherCell(),
       sky = cell >= 0 && landSky?.cell === cell ? landSky : null;
     if (cell >= 0) {
@@ -9775,11 +9806,15 @@ async function runPlanetPage(): Promise<void> {
       if (weatherNow) {
         weatherNow = null;
         handNow = null;
-        weather.update(null, rig.target, rig.target, rig.distance, weatherSeconds, 0);
         handNear.update(null, rig.target, rig.target, null, () => null, rig.distance, 0, 0);
-        stage.weather(null);
         time.weather("", null, "");
       }
+      // (What was falling goes by degrees where it fell, the sky clearing with it.)
+      if (weather.showing) {
+        const v = viewed();
+        weather.update(null, v.at, stage.camera.getPosition(), v.distance, weatherSeconds, 1100);
+      }
+      if (skyShown.cloud || skyShown.wet || skyShown.haze) skyTo(null, dt);
       return;
     }
     const running = time.speed > 0;
@@ -9798,7 +9833,8 @@ async function runPlanetPage(): Promise<void> {
     // (A flash is over in a moment, so its thunder is read here, as it is drawn.)
     if (w.flash > 0.3 && flashWas <= 0.3 && thunderHere) sound.cue("thunder");
     flashWas = w.flash;
-    weather.update(w, rig.target, eye, rig.distance, weatherSeconds, 1100);
+    const v = viewed();
+    weather.update(w, v.at, eye, v.distance, weatherSeconds, 1100);
     // The season on the ground (M164): snow lying, the leaves turned or fallen, ice on still water.
     const ground = seasonAt(sky, t);
     if (scale === "camp") meadowScene?.season(ground);
@@ -9834,12 +9870,15 @@ async function runPlanetPage(): Promise<void> {
         near.meadow.lush = Math.max(near.meadow.lush, 1);
       if (hand.motes.some((m) => m.kind === "dust")) near.meadow.dry = Math.max(near.meadow.dry, 1);
     }
-    stage.weather({
-      cloud: w.cloud,
-      wet: Math.max(w.rain, w.snow),
-      haze: w.haze,
-      flash: Math.max(w.flash, hand.strike?.flash ?? 0),
-    });
+    skyTo(
+      {
+        cloud: w.cloud,
+        wet: Math.max(w.rain, w.snow),
+        haze: w.haze,
+        flash: Math.max(w.flash, hand.strike?.flash ?? 0),
+      },
+      dt,
+    );
     // The ground shakes while the clock runs (after the rig has set the eye: a jolt, not a drift).
     if (hand.shake > 0 && running) {
       const k = hand.shake * rig.distance * 0.012,
