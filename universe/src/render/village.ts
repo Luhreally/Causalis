@@ -201,7 +201,7 @@ import { DIVE_SEEN, courtCaseAt, courtSitting, diveAt, type RaidNow } from "../v
 import { WoundsLayer, bandageOn, propAt, type WornPiece } from "./wounds.ts";
 import { LittersLayer, litterApart, litterHeld } from "./litters.ts";
 import { FolkPoses, nearReach, redrawn } from "./folk.ts";
-import type { PosedHook } from "../view/index.ts";
+import type { NearSight, PosedHook } from "../view/index.ts";
 import { laidGround, shoreWaterSteps, villageShore, type ShoreWater } from "../view/index.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
@@ -593,6 +593,11 @@ export class VillageScene {
   posed: PosedHook | null = null;
   /** What grows about it, and its ground as its land's reading colours it (render/townflora.ts). */
   readonly townFlora: TownFloraLayer;
+  /**
+   * The eye's sight behind a soldier or a beast the god's hand is in (app/held.ts, each frame: view/possess.ts nearSight in
+   * the town's metres; null: none held), for what grows about the town to fade near it as about one of its own possessed.
+   */
+  heldSight: NearSight | null = null;
 
   constructor(stage: Stage) {
     this.stage = stage;
@@ -2708,6 +2713,8 @@ export class VillageScene {
       near = sight ? (x: number, z: number) => sight({ x, z }) : null;
     this.rides.fadeNear(near);
     this.fauna.fadeNear(near);
+    // (And what grows about the town, its trunks read up to their crowns, about a soldier or a beast held too: heldSight.)
+    this.townFlora.fadeNear(sight ?? this.heldSight);
     // The town's trades at their buildings (Phase 41 M199): who tends each kiln now (or throws
     // pots by it), and who strikes at each smithy's anvil.
     if (this.trades.works.length) {

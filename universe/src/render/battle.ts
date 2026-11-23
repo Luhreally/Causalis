@@ -43,9 +43,18 @@ import {
   isGun,
   frameYaw,
   nearSight,
+  sightUp,
   type PlacedFrame,
 } from "../view/index.ts";
-import { InstancedBatch, boxMesh, capsuleMesh, coneMesh, cylinderMesh, keptMesh } from "./batch.ts";
+import {
+  InstancedBatch,
+  boxMesh,
+  capsuleMesh,
+  coneMesh,
+  cylinderMesh,
+  keptMesh,
+  ringMesh,
+} from "./batch.ts";
 import {
   blowPose,
   limbOfPose,
@@ -90,9 +99,22 @@ const LOD = { metres: 160, bulk: 0.1, band: 0.25 } as const;
  * The soldier the god's hand is in seen (Phase 61): the eye being near him with most of the field out of its sight, how far
  * past its edges (of his height: a low sun's shadow's length and more) those out of it are still posed; and how far about
  * him (of his height; mounted, with his horse) his own parts stand, kept whole while those near the eye or between it and
- * him fade (view/possess.ts nearSight, 2026-11-23: they were not drawn at all, and came and went at once).
+ * him fade (view/possess.ts nearSight, 2026-11-23: they were not drawn at all, and came and went at once), and those nearer
+ * the eye along the ground than he stands, the eye looking down on him from high (nearSight `flat`); and how far about
+ * him (of his height: some three true metres) those standing make a press, for the eye to look down on him the more
+ * (render/possess.ts PRESS).
  */
-const SEEN = { reach: 3.5, own: 0.3, ownMounted: 0.75 } as const;
+const SEEN = { reach: 3.5, own: 0.3, ownMounted: 0.75, press: 1.7 } as const;
+/**
+ * The soldier held marked (2026-11-23: in a press of his own side's men, alike, he was hard to find): a ring of light about
+ * his feet (its inner and outer radius, of his height), and a point of light over his head (how far over its top, how wide
+ * and how tall, of his height), drawn over all that stands before it.
+ */
+const MARKED = { inner: 0.32, outer: 0.46, over: 0.16, wide: 0.08, tall: 0.12 } as const;
+/** The mark's light. */
+const MARK_LIGHT: Rgb = [1, 0.84, 0.28];
+/** How much of what stands at a place of the field (m), from its foot to its top (absent: a man's height), is drawn. */
+type Fade = (x: number, z: number, foot?: number, top?: number) => number;
 /** The materials already made to fade (render/nearfade.ts fading), each once. */
 const FADING = new WeakSet<pc.Material>();
 /** The rungs of a ladder. */
@@ -444,7 +466,14 @@ export class BattleLayer {
   private readonly stage: Stage;
   /** The soldier the god's hand is in (Phase 61): a disc on the ground under him, as one of a town's possessed is marked. */
   private readonly heldDisc: pc.Entity;
+  /** Over his head, a point of light (MARKED); a ring of light about his feet is the disc's own. */
+  private readonly heldMark: pc.Entity;
+  private readonly heldRing: pc.Entity;
   private held: number | null = null;
+  /** How many stood about him in a press this frame (SEEN.press: the eye looks down the more on him, app/held.ts). */
+  private crowded = 0;
+  /** Of the batches of what the men bear, whose each instance is (for those to fade as their bearers do). */
+  private readonly borne = new Map<InstancedBatch, (i: number) => TrooperNow | undefined>();
   /**
    * Of those, how many stood between the eye and him this frame, not drawn, and how many were out
    * of its sight, not posed.
@@ -587,6 +616,37 @@ export class BattleLayer {
     });
     this.heldDisc.enabled = false;
     this.root.addChild(this.heldDisc);
+    // (Lit by nothing but itself, the mark: as bright in the shade as in the sun.)
+    const light = (over: boolean) => {
+      const m = new pc.StandardMaterial();
+      m.useLighting = false;
+      m.diffuse = new pc.Color(0, 0, 0);
+      m.emissive = new pc.Color(...MARK_LIGHT);
+      if (over) {
+        // (Drawn after all that is solid, and over it.)
+        m.blendType = pc.BLEND_NORMAL;
+        m.depthTest = false;
+        m.depthWrite = false;
+      }
+      m.update();
+      return m;
+    };
+    this.heldRing = new pc.Entity("held-ring");
+    this.heldRing.addComponent("render", {
+      meshInstances: [
+        new pc.MeshInstance(ringMesh(stage, MARKED.inner, MARKED.outer), light(false)),
+      ],
+      castShadows: false,
+    });
+    this.heldRing.enabled = false;
+    this.root.addChild(this.heldRing);
+    this.heldMark = new pc.Entity("held-mark");
+    this.heldMark.addComponent("render", {
+      meshInstances: [new pc.MeshInstance(coneMesh(stage, 0.5, 1, 4), light(true))],
+      castShadows: false,
+    });
+    this.heldMark.enabled = false;
+    this.root.addChild(this.heldMark);
     this.box = keptMesh(boxMesh(stage));
     this.cone = keptMesh(coneMesh(stage, 0.5, 1, 8));
     this.cyl = keptMesh(cylinderMesh(stage, 0.5, 1, 8));
@@ -1014,12 +1074,17 @@ export class BattleLayer {
   /** Mark the soldier the god's hand is in (his figure; null: none). */
   mark(id: number | null): void {
     this.held = id;
-    if (id === null) this.heldDisc.enabled = false;
+    if (id === null) this.heldDisc.enabled = this.heldRing.enabled = this.heldMark.enabled = false;
+  }
+
+  /** How many stood about the soldier held in a press this frame (SEEN.press; 0: none held). */
+  get crowd(): number {
+    return this.crowded;
   }
 
   /** The field let go. */
   clear(): void {
-    this.heldDisc.enabled = false;
+    this.heldDisc.enabled = this.heldRing.enabled = this.heldMark.enabled = false;
     for (const s of this.sides) {
       for (const b of s.parts) b.destroy();
       s.shields.destroy();
@@ -1060,19 +1125,22 @@ export class BattleLayer {
       look = nearSight(
         { x: ex / M, y: ey / M, z: ez / M, tall: tallM },
         { x: me.x, z: me.z, lift: me.y },
+        true,
       ),
-      own = tallM * (mounted ? SEEN.ownMounted : SEEN.own);
-    this.heldFade = (x, z) => {
+      own = tallM * (mounted ? SEEN.ownMounted : SEEN.own),
+      // (What stands taller than a man, a palisade's stake, a tower, a house, read up it to its top: view/possess.ts sightUp.)
+      up = sightUp(look, me.y);
+    this.heldFade = (x, z, foot = me.y, top = foot) => {
       const d = Math.hypot(x - me.x, z - me.z);
-      return Math.max(
-        look({ x, z, lift: me.y }),
-        1 - Math.max(0, Math.min(1, (d - own) / (0.3 * own))),
-      );
+      return Math.max(up(x, z, foot, top), 1 - Math.max(0, Math.min(1, (d - own) / (0.3 * own))));
     };
     let hid = 0,
-      out = 0;
+      out = 0,
+      press = 0;
+    const about = SEEN.press * tallM;
     const troopers = now.troopers.filter((t) => {
       if (t.id === me.id || t.size <= 0.01) return true;
+      if (t.act !== "fall" && Math.hypot(t.x - me.x, t.z - me.z) < about) press++;
       sphere.center.set(t.x * M, t.y * M + 0.5 * tall * t.size, t.z * M);
       sphere.radius = SEEN.reach * tall * Math.max(1, t.size);
       if (frustum.containsSphere(sphere) === 0) {
@@ -1084,6 +1152,7 @@ export class BattleLayer {
     });
     this.hidden = hid;
     this.unseen = out;
+    this.crowded = press;
     return hid + out ? { ...now, troopers } : now;
   }
 
@@ -1108,10 +1177,14 @@ export class BattleLayer {
     this.root.enabled = true;
     this.hidden = 0;
     this.unseen = 0;
+    this.crowded = 0;
     this.heldFade = null;
+    this.borne.clear();
+    let marked: TrooperNow | null = null;
     if (this.held !== null) {
       const me = now.troopers.find((x) => x.id === this.held);
       this.heldDisc.enabled = !!me && me.size > 0.01;
+      marked = me && me.size > 0.01 ? me : null;
       if (me) {
         this.heldDisc.setLocalPosition(me.x * M, me.y * M + 0.004, me.z * M);
         if (me.size > 0.01)
@@ -1144,6 +1217,24 @@ export class BattleLayer {
                 : 0) - sink
         );
       };
+    // The man held marked: a ring of light about his feet, a point of light over his head (MARKED).
+    this.heldRing.enabled = this.heldMark.enabled = !!marked;
+    if (marked) {
+      const tall = rig.high * k * marked.size;
+      this.heldRing.setLocalPosition(marked.x * M, marked.y * M + 0.006, marked.z * M);
+      this.heldRing.setLocalScale(tall, 1, tall);
+      this.heldMark.setLocalPosition(
+        marked.x * M,
+        marked.y * M + lift(marked) + tall * (1 + MARKED.over + MARKED.tall / 2),
+        marked.z * M,
+      );
+      this.heldMark.setLocalEulerAngles(180, 0, 0);
+      this.heldMark.setLocalScale(
+        2 * MARKED.wide * tall,
+        MARKED.tall * tall,
+        2 * MARKED.wide * tall,
+      );
+    }
     let shown = 0;
     const limbs = now.limbs ?? [];
     // Before a town (Phase 55 M227): who stands past LOD from the eye.
@@ -1268,6 +1359,7 @@ export class BattleLayer {
       const bearers = shielded
         ? list.filter((t) => t.act !== "flee" && t.lost !== "arm-l" && t.lost !== "hand-l")
         : [];
+      this.borne.set(s.shields, (i) => bearers[i]);
       s.shields.set(bearers.length, (j, out) => {
         const t = bearers[j]!,
           arm = rig.off ?? rig.hand,
@@ -1310,6 +1402,9 @@ export class BattleLayer {
             }
           : { x: t.x * M + hx * c, y: t.y * M + lift(t), z: t.z * M - hx * sn, fall, pole };
       };
+      this.borne.set(s.flags, (i) => banners[i]);
+      this.borne.set(s.stripes, (i) => banners[i]);
+      this.borne.set(s.coFlags, (i) => coBanners[i]);
       s.flags.set(banners.length, (j, out) => {
         const t = banners[j]!,
           a = flagAt(t),
@@ -1352,6 +1447,7 @@ export class BattleLayer {
     }
     // The banners' poles, of both sides.
     const bearers = now.troopers.filter((t) => t.bearer && t.act !== "flee" && t.size > 0.01);
+    this.borne.set(this.poles, (i) => bearers[i]);
     this.poles.set(bearers.length, (j, out) => {
       const t = bearers[j]!,
         fall = t.act === "fall",
@@ -1449,6 +1545,9 @@ export class BattleLayer {
         long,
       };
     };
+    this.borne.set(this.shafts, (i) => armed[i]?.t);
+    this.borne.set(this.blades, (i) => armed[i]?.t);
+    this.borne.set(this.beamBodies, (i) => beamed[i]?.t);
     this.shafts.set(armed.length, (j, out) => {
       const { t, arm } = armed[j]!,
         h = hold(t, arm),
@@ -1945,11 +2044,36 @@ export class BattleLayer {
     // The armoured cars, and the smoke and fire off the wrecks.
     this.vehicles.update(now.vehicles ?? [], now.fumes ?? [], now.flames ?? [], metre);
     this.shown = shown;
-    // (The men and what they bear near the eye behind the one held faded by where each part stands: heldView.)
-    for (const b of this.fadingBatches()) b.fadeBy(this.heldFade, M);
+    // (The men and what they bear near the eye behind the one held faded by where each part stands: heldView. What one
+    // bears fades with him too, a spear or a banner's pole standing out over the eye from one faded; his own whole.)
+    // (Laid by heldView: read so, not as this frame's start left it.)
+    const fade = this.heldFade as Fade | null,
+      held = this.held;
+    for (const b of this.fadingBatches()) {
+      const by = fade && this.borne.get(b);
+      b.fadeBy(
+        !fade
+          ? null
+          : by
+            ? (x, z, i, foot, top) => {
+                const t = by(i);
+                return !t
+                  ? fade(x, z, foot, top)
+                  : t.id === held
+                    ? 1
+                    : Math.min(fade(x, z, foot, top), fade(t.x, t.z));
+              }
+            : (x, z, _i, foot, top) => fade(x, z, foot, top),
+        M,
+      );
+    }
   }
 
-  /** The batches of the men, their horses and carts, their arms and their wounds: those that fade near a held man's eye. */
+  /**
+   * The batches of the men, their horses and carts, their arms and their wounds, and of what stands on the field (its walls
+   * and their stakes, its town, its tents, its guns, its trench): those that fade near a held man's eye (2026-11-23: a
+   * palisade's stakes beside the eye stood whole over him, and their shadows over the ground at the screen's foot).
+   */
   private fadingBatches(): InstancedBatch[] {
     return [
       ...this.sides.flatMap((s) => [
@@ -1980,10 +2104,27 @@ export class BattleLayer {
       this.bone,
       this.stuckShafts,
       this.fletches,
+      this.beamBodies,
+      this.walls,
+      this.tops,
+      this.gates,
+      this.ladders,
+      this.houses,
+      this.roofs,
+      this.tents,
+      this.towers,
+      this.barrels,
+      this.carriages,
+      this.cannonWheels,
+      this.gunBodies,
+      this.gunTubes,
+      this.tripods,
+      this.trenches,
+      this.parapets,
     ];
   }
   /** How much of what stands at a place of the field (m) is drawn, about a man held (null: all whole). */
-  private heldFade: ((x: number, z: number) => number) | null = null;
+  private heldFade: Fade | null = null;
 
   /**
    * Phase 55: the marks of the blows laid out ahead for their batches — about each wound its blood

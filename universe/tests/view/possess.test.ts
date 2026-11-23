@@ -13,6 +13,7 @@ import {
   bodyMoment,
   drawnHeight,
   nearSight,
+  sightUp,
   joinsAt,
   lettersOf,
   momentOf,
@@ -257,6 +258,36 @@ test("the town drawn at the possession's clock, the small world's bodies posed o
   assert.equal(presence.get("agent:104")!.vx, 0);
   assert.equal(posed.drawnAt(101)!.x, 10);
   assert.equal(posed.drawnAt(105), null, "not in the small world");
+});
+
+test("looking down from high on one held, those nearer the eye along the ground than he fade, by degrees; a tall thing read to its top", () => {
+  // (A soldier's eye: well over him, looking down; those behind him along the ground stand at the screen's foot.)
+  const h = 1.75,
+    eye = { x: 0, y: 3.2 * h, z: -2 * h, tall: h },
+    flat = nearSight(eye, { x: 0, z: 0 }, true);
+  assert.equal(flat({ x: 0, z: -1.2 * h }), 0, "a rank and more behind him, under the eye");
+  assert.equal(flat({ x: 0.8 * h, z: -1.8 * h }), 0, "behind him and aside, at the screen's foot");
+  assert.equal(flat({ x: 0.8 * h, z: 0 }), 1, "beside him");
+  assert.equal(flat({ x: 0, z: 1.5 * h }), 1, "before him");
+  assert.equal(flat({ x: 0.8 * h, z: -0.3 * h }), 1, "close behind him, aside: whole");
+  // (Walked from under the eye to past him, and across: never more than a little at a step.)
+  for (const across of [0, 0.5, 1.5]) {
+    let was = flat({ x: across * h, z: -2 * h });
+    for (let z = -2 * h; z < 2 * h; z += 0.01 * h) {
+      const a = flat({ x: across * h, z });
+      assert.ok(Math.abs(a - was) < 0.15, `${across} across, at ${z / h}: ${was} to ${a}`);
+      was = a;
+    }
+  }
+  // (A stake as tall as the eye beside it, its foot beside him: read at its foot whole, read to its top gone.)
+  const low = nearSight({ x: 0, y: 2 * h, z: -2.6 * h, tall: h }, { x: 0, z: 0 }),
+    up = sightUp(low);
+  assert.equal(up(1.2 * h, -1.8 * h, 0, 0.5 * h), low({ x: 1.2 * h, z: -1.8 * h, lift: 0 }));
+  assert.ok(
+    low({ x: 0.6 * h, z: -2.3 * h, lift: 0 }) > 0.5,
+    "its foot alone, by the eye: much of it drawn",
+  );
+  assert.equal(up(0.6 * h, -2.3 * h, 0, 2.2 * h), 0, "read up it to its top by the eye: gone");
 });
 
 test("the eye stands off by the body's height as the town draws it (larger than life)", () => {

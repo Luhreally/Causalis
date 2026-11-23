@@ -26,9 +26,12 @@ import {
   villageGround,
   type GroundSeason,
   type NearThing,
+  type NearSight,
+  sightUp,
   type TownFlora,
 } from "../view/index.ts";
 import { InstancedBatch, coneMesh, keptMesh, sidesMesh } from "./batch.ts";
+import { ditherNear, fadingToned } from "./nearfade.ts";
 import { SNOW_HIDES } from "./flora.ts";
 import type { Rgb, Stage } from "./stage.ts";
 
@@ -298,7 +301,8 @@ export class TownFloraLayer {
           [1, 1, 1],
           Math.max(64, Math.ceil(piece.length * 1.3)),
           this.root,
-          undefined,
+          // (Its own colours each, and able to fade near a possession's eye: fadeNear.)
+          fadingToned(),
           true,
         );
         // (Only the crowns cast shadows, as on the land: a trunk's, a tuft's and a stone's are too small to see, and cost a pass.)
@@ -328,6 +332,29 @@ export class TownFloraLayer {
       // (Bound to where its things stand, in the layer's own units: out of the eye's sight, not drawn.)
       b.bound(lo, hi);
     });
+  }
+
+  /**
+   * What grows near the eye behind one possessed (a townsman, a soldier, a beast: view/possess.ts nearSight, in metres) faded
+   * as its people are, a trunk read up to its crown (sightUp); null: all whole, the screen door shut. Only the pieces within
+   * the sight's reach are read (2026-11-23: the trunks beside the eye behind a held soldier stood whole over him).
+   */
+  fadeNear(sight: NearSight | null): void {
+    const up = sight && sightUp(sight);
+    for (const list of Object.values(this.batches))
+      for (const b of list) {
+        const m = b.drawing.material as pc.StandardMaterial,
+          box = b.box,
+          near =
+            !!up &&
+            (!box ||
+              Math.hypot(
+                Math.max(0, Math.abs(box.center.x / M - sight.x) - box.halfExtents.x / M),
+                Math.max(0, Math.abs(box.center.z / M - sight.z) - box.halfExtents.z / M),
+              ) < sight.reach);
+        ditherNear(m, near);
+        b.fadeBy(near ? (x, z, _i, foot, top) => up(x, z, foot, top) : null, M);
+      }
   }
 
   /** The ground's own colour at a point (metres from the square), as last built (null: none built). */

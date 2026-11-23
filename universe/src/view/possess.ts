@@ -481,7 +481,9 @@ export function bodyMoment(
  * much more of both near him (where his breadth on the screen is the more of the line's own: one beside him, a little nearer
  * the eye, stands over him), and over
  * how much of the line's length at the eye's end and at his it comes to that; how near the eye itself one nearer it than he is
- * is gone, and from how far it fades; and by how much nearer the eye than he it must stand to be faded so wholly.
+ * is gone, and from how far it fades; and by how much nearer the eye than he it must stand to be faded so wholly; and, the
+ * eye looking down on him from high (a soldier's, a beast's: `flat`), how much nearer it along the ground than he one stands
+ * drawn whole, and gone.
  */
 export const SIGHT = {
   to: [0.15, 0.5, 0.9],
@@ -491,6 +493,7 @@ export const SIGHT = {
   ends: [0.2, 0.35],
   eye: [0.9, 1.5],
   ahead: 0.4,
+  flat: [0.5, 1],
 } as const;
 
 const smooth = (lo: number, hi: number, v: number) => {
@@ -502,11 +505,16 @@ const smooth = (lo: number, hi: number, v: number) => {
  * How much of one drawn is drawn, near the eye behind the one held (`me`): 1 whole … 0 gone. Nearer the eye than he is and
  * within SIGHT.eye of it, faded out as it comes nearer; and standing between the eye and him, a point up its body within
  * SIGHT.line of a line from the eye to his feet, middle or head, faded out as it comes onto the line. By degrees, never a pop.
+ * `flat`: the eye looking down on him from high over the heads about him (a soldier in his ranks, a beast in its herd),
+ * where those between it and him along the ground stand at the screen's foot as near it as he is: not those near the eye
+ * faded, but those nearer it along the ground than he is by SIGHT.flat, all of them, the ranks behind him (2026-11-23:
+ * the men behind a soldier held and a tapir behind a tapir held stood whole over the screen's foot, a third of it).
  */
 export function nearSight(
   eye: { readonly x: number; readonly y: number; readonly z: number; readonly tall: number },
   me: Pick<Moment, "x" | "z" | "lift">,
-): (m: Pick<Moment, "x" | "z" | "lift">) => number {
+  flat = false,
+): NearSight {
   const h = eye.tall,
     lines = SIGHT.to.flatMap((up) => {
       const dx = me.x - eye.x,
@@ -515,15 +523,18 @@ export function nearSight(
         dd = dx * dx + dy * dy + dz * dz;
       return dd > 1e-9 ? [{ dx, dy, dz, dd }] : [];
     }),
-    mine = Math.hypot(me.x - eye.x, (me.lift ?? 0) + 0.5 * h - eye.y, me.z - eye.z);
-  return (m) => {
+    mine = Math.hypot(me.x - eye.x, (me.lift ?? 0) + 0.5 * h - eye.y, me.z - eye.z),
+    along = Math.hypot(me.x - eye.x, me.z - eye.z);
+  const sight = (m: Pick<Moment, "x" | "z" | "lift">) => {
     const px = m.x - eye.x,
       pz = m.z - eye.z,
       far = Math.hypot(px, (m.lift ?? 0) + 0.5 * h - eye.y, pz),
       // (Near the eye, as far as it stands nearer it than he does: none faded at his distance or past it, so none comes
       // whole at once as it passes him.)
       nearer = smooth(0, SIGHT.ahead * h, mine - far);
-    let drawn = 1 - (1 - smooth(SIGHT.eye[0] * h, SIGHT.eye[1] * h, far)) * nearer;
+    let drawn = flat
+      ? smooth(along - SIGHT.flat[1] * h, along - SIGHT.flat[0] * h, Math.hypot(px, pz))
+      : 1 - (1 - smooth(SIGHT.eye[0] * h, SIGHT.eye[1] * h, far)) * nearer;
     for (const up of SIGHT.at) {
       const py = (m.lift ?? 0) + up * h - eye.y;
       for (const l of lines) {
@@ -543,6 +554,43 @@ export function nearSight(
     }
     return drawn;
   };
+  // (Past his distance from the eye and his height again, none is faded: nearer only than he is, or on lines ending at him.)
+  return Object.assign(sight, { x: eye.x, z: eye.z, reach: mine + h, tall: h });
+}
+
+/**
+ * How much of one drawn is drawn near the eye behind one held (nearSight), where the eye sees, and how far from it (along
+ * the ground, as nearSight's own units) any may be faded at all: past `reach`, all whole.
+ */
+export type NearSight = ((m: Pick<Moment, "x" | "z" | "lift">) => number) & {
+  readonly x: number;
+  readonly z: number;
+  readonly reach: number;
+  /** The height it is reckoned by. */
+  readonly tall: number;
+};
+
+/**
+ * A sight read over what stands from `foot` to `top` (nearSight's units): what stands no taller than a man as one standing at
+ * `base` (absent: at its foot), and what stands taller, a stake, a tower, a tree, up it a half of his height at a time to its
+ * top, the least drawn of it all: its top may stand by the eye, over his head, its foot far below it (2026-11-23: the stakes
+ * of a palisade and the trunks of the trees beside the eye stood whole over a held soldier).
+ */
+export function sightUp(
+  sight: NearSight,
+  base?: number,
+): (x: number, z: number, foot: number, top: number) => number {
+  const h = sight.tall;
+  return (x, z, foot, top) => {
+    if (top - foot <= 1.2 * h) return sight({ x, z, lift: base ?? foot });
+    let drawn = 1;
+    for (let lift = foot; ; lift += 0.5 * h) {
+      const at = Math.min(lift, top - 0.9 * h);
+      drawn = Math.min(drawn, sight({ x, z, lift: at }));
+      if (at >= top - 0.9 * h || drawn <= 0) break;
+    }
+    return drawn;
+  };
 }
 
 /** What the town drawn wants of one of its people possessed (render/village.ts). */
@@ -559,7 +607,7 @@ export type PosedHook = {
   /** How much of each one is drawn (the plan's indices: 1 whole … 0 gone; absent: all whole). */
   readonly alpha?: ArrayLike<number> | null;
   /** How much of anything standing at a place (m) is drawn, by the same measure (null: all whole): carts, beasts. */
-  readonly sight?: ((m: Pick<Moment, "x" | "z" | "lift">) => number) | null;
+  readonly sight?: NearSight | null;
 };
 
 /**
@@ -611,7 +659,7 @@ export class PosedBodies implements PosedHook {
   } | null = null;
   /** How much of each one drawn is drawn (the plan's indices), and how many were faded at all, and past half, this frame. */
   alpha: Float32Array;
-  sight: ((m: Pick<Moment, "x" | "z" | "lift">) => number) | null = null;
+  sight: NearSight | null = null;
   faded = 0;
   hid = 0;
 

@@ -46,6 +46,7 @@ export { FarLand } from "./farland.ts";
 export { Stage, flatMaterial, type DeviceTier, type Rgb } from "./stage.ts";
 export {
   BEAST_EYE,
+  PRESS,
   EYE_FARTHEST,
   EYE_NEAREST,
   PossessEye,

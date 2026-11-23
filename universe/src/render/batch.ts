@@ -110,6 +110,10 @@ export class InstancedBatch {
     this.instance.cull = true;
   }
   private bounds: pc.BoundingBox | null = null;
+  /** Where its instances stand, as last bound (its parent's units; null: not bound). */
+  get box(): pc.BoundingBox | null {
+    return this.bounds;
+  }
 
   /** Whether it is drawn at all (what lies under snow: grass). */
   drawn(on: boolean): void {
@@ -267,11 +271,15 @@ export class InstancedBatch {
   }
 
   /**
-   * Each instance's share drawn by where it stands (`drawn(x, z)`, its place in its parent's units over `per`: 1 whole … 0
-   * gone), into its matrix's last corner, for a batch of a fading material (render/nearfade.ts); null: all whole again.
+   * Each instance's share drawn by where it stands (`drawn(x, z, i, foot, top)`, its place in its parent's units over `per`,
+   * its index as laid, and how low and how high it reaches, of a shape a unit across about its middle: 1 whole … 0 gone),
+   * into its matrix's last corner, for a batch of a fading material (render/nearfade.ts); null: all whole again.
    * Written over whatever set() last laid, each frame it is asked.
    */
-  fadeBy(drawn: ((x: number, z: number) => number) | null, per = 1): void {
+  fadeBy(
+    drawn: ((x: number, z: number, i: number, foot: number, top: number) => number) | null,
+    per = 1,
+  ): void {
     const n = this.count,
       m = this.matrices;
     if (!drawn) {
@@ -279,8 +287,12 @@ export class InstancedBatch {
       for (let i = 0; i < n; i++) m[i * 16 + 15] = 1;
       this.faded = false;
     } else {
-      for (let i = 0; i < n; i++)
-        m[i * 16 + 15] = drawn(m[i * 16 + 12]! / per, m[i * 16 + 14]! / per);
+      for (let i = 0; i < n; i++) {
+        const o = i * 16,
+          y = m[o + 13]! / per,
+          half = (Math.abs(m[o + 1]!) + Math.abs(m[o + 5]!) + Math.abs(m[o + 9]!)) / (2 * per);
+        m[o + 15] = drawn(m[o + 12]! / per, m[o + 14]! / per, i, y - half, y + half);
+      }
       this.faded = true;
     }
     this.upload(n);
