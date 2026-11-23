@@ -182,6 +182,22 @@ export function wetForLaying(
 const SHORE_CLEAR = 0.01;
 
 /**
+ * Whether a point of a village's ground is water as its view draws it, a little within (what floats keeps to it: its boats
+ * and their jetty's berths): its own round of open water, or past its land view's shore. Null where it draws its water
+ * off no land view (its round alone).
+ */
+export function drawnWater(
+  plan: Pick<VillagePlan, "landWater" | "landAt" | "water">,
+  x: number,
+  z: number,
+): boolean | null {
+  const s = villageShore(plan),
+    w = plan.water;
+  if (!s) return null;
+  return (!!w && Math.hypot(x - w.x, z - w.z) < waterR(w)) || s.s(x, z) > 0.5 + SHORE_CLEAR;
+}
+
+/**
  * What stands on a town's ground (metres from its square), which its water keeps off: rectangles (x, z, w, d, yaw: the
  * yaw turning its x side about the up, as render/stage.ts boxes are turned), rounds (x, z, r) and strips (x0, z0, x1, z1,
  * half its breadth).

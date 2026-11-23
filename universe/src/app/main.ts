@@ -8627,6 +8627,8 @@ async function runPlanetPage(): Promise<void> {
     );
   };
   battlePanel.onBack = () => void leaveBattle();
+  // (What stands under the battle's bar goes down with it in the frame it takes another line: its words grow as it goes.)
+  battlePanel.onGrow = markBarBottom;
   battlePanel.onPage = () => {
     if (fight) void pageWindow.open(fight.info.event);
   };

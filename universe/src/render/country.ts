@@ -33,6 +33,7 @@ import {
   tractorAt,
   type Boat,
   type Country,
+  jettyAfloat,
   layCountry,
   type Laid,
   type CountryPiece,
@@ -286,6 +287,7 @@ export class CountryLayer {
     this.sails = null;
     this.tractors = null;
     this.boats = [];
+    this.pier = null;
     this.plan = plan;
     this.motion = q.motion;
     // (Its hedges, orchard grass and crowns in its life's own colours: Phase 57.)
@@ -506,7 +508,7 @@ export class CountryLayer {
     }
     // The jetty and the boats.
     if (c.water) {
-      this.placed(this.box, [0.5, 0.38, 0.24], c.water.pier);
+      this.pier = this.placed(this.box, [0.5, 0.38, 0.24], c.water.pier);
       this.boats = BOAT_PARTS[c.water.boat].map((part) =>
         this.batch(part.mesh === "cyl" ? this.cyl : this.box, part.color, c.water!.boats.length),
       );
@@ -834,6 +836,22 @@ export class CountryLayer {
    */
   laidOn(laid: Laid): void {
     if (this.plan) layCountry(laid, this.plan, this.country);
+  }
+
+  /** Its jetty's deck and piles, as placed. */
+  private pier: InstancedBatch | null = null;
+
+  /**
+   * Its jetty brought out over its water as drawn (`on`: kept off what stands on its ground, view/shore.ts shoreWater)
+   * till every boat tied up along it is afloat (view/country.ts jettyAfloat).
+   */
+  keepAfloat(on: (x: number, z: number) => boolean): void {
+    const c = this.country;
+    if (!c?.water || !this.plan) return;
+    const w = jettyAfloat(this.plan, c, on);
+    if (!w || w === c.water) return;
+    this.country = { ...c, water: w };
+    this.pier?.set(w.pier.length, (i, out) => put(out, w.pier[i]!, 0));
   }
 
   counts(): Record<string, number> {

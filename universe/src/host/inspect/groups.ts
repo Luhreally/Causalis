@@ -488,8 +488,9 @@ export function orgPage(world: World, ref: string): PageModel {
         ],
       });
   }
-  // (A company's fields: each battle it stood in, for whom, how many and what it did. sim/war/companies.ts)
-  if (g.kind === "free company" || g.kind === "sea company") {
+  // (A company's fields: each battle it stood in, for whom, how many and what it did. Any group a realm hires stands on the
+  // field so, privateers as a free company: sim/war/companies.ts.)
+  {
     const fields = companyFields(world, g.ref, since, yearAt);
     if (fields.length)
       blocks.push({
