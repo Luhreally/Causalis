@@ -48,6 +48,8 @@ export function lifeInputs(g: HomeWorld): LifeInputs {
     star: g.star.temperature,
     mean: g.planet.meanTemperature,
     hand: handDraw(g.ground),
+    // (Its seas acid itself, where its numbers make them so: rules/solvent.ts.)
+    ...(g.planet.liquid === "sulfuric-acid" ? { vitriol: true } : {}),
   };
 }
 

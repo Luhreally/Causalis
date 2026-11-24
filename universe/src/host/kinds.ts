@@ -18,7 +18,8 @@ import {
   KINDS,
   KIND_AGES,
   KIND_AIR,
-  KIND_SEAS,
+  kindFacts,
+  kindSeas,
   OWN_ENGINES,
   affordsPrinciple,
   burnlessName,
@@ -37,6 +38,7 @@ import {
   type Ore,
   type Principle,
   type Recipe,
+  type KindLike,
   type WorldKind,
 } from "../rules/index.ts";
 import { homePlanet, loreOf, populationContext } from "../sim/index.ts";
@@ -64,19 +66,29 @@ export function kindOn(g: { readonly planet: Planet }): WorldKind {
   return worldKindOf(g);
 }
 
+/** The liquid of a generated world's seas, where its numbers make it another than its kind's own (its frames say it). */
+export function liquidOn(g: { readonly planet: Planet }): { liquid?: string } {
+  return g.planet.liquid ? { liquid: g.planet.liquid } : {};
+}
+
+/** A world's planet, for its liquid's degrees and words (rocky for a world with no home planet). */
+function likeOf(world: World): Planet | "rocky" {
+  return world.hasStore("planet.home") ? homePlanet(world).generated.planet : "rocky";
+}
+
 /** A spot's warmth, as its climate keeps it (degrees of its liquid's band), in true °C. */
 export function spotWarmth(g: { readonly planet: Planet }, degrees: number): number {
-  return trueCelsius(worldKindOf(g), degrees);
+  return trueCelsius(g.planet, degrees);
 }
 
 /** A spot's swing of warmth through its year, as its climate keeps it, in true degrees. */
 export function spotSwing(g: { readonly planet: Planet }, degrees: number): number {
-  return degrees * kelvinPerDegree(worldKindOf(g));
+  return degrees * kelvinPerDegree(g.planet);
 }
 
 /** A biome's name where its world's seas are its liquid's ("ocean": "methane sea"). */
 export function spotBiome(g: { readonly planet: Planet }, name: string): string {
-  return kindBiomeName(worldKindOf(g), name);
+  return kindBiomeName(g.planet, name);
 }
 
 /**
@@ -89,18 +101,19 @@ export function lifelessWhy(g: HomeWorld): string {
     // (A true minus sign, as everywhere else a temperature is told.)
     t = Math.round(g.planet.meanTemperature).toString().replace("-", "−"),
     at = Math.round(climateMean(g.planet)),
-    seas = kind === "rocky" ? "seas" : `${KIND_SEAS[kind].sea}s`;
+    seas = kind === "rocky" ? "seas" : `${kindSeas(g.planet)!.sea}s`;
   if (at < -15) return `its ${seas} froze over before life took hold (${t} °C on average)`;
   // (Hot for its own liquid: a methane sea at −160 °C is near its boiling.)
   if (at > 60)
     return `its ${seas} ran too near their boiling for life to take hold (${t} °C on average)`;
-  return kind === "rocky" ? "no life took hold in its first seas" : KINDS[kind].life.barren;
+  return kind === "rocky" ? "no life took hold in its first seas" : kindFacts(g.planet).life.barren;
 }
 
 /** A home world's kind, for the title's words of the world a seed makes (none for a rocky one). */
 export function seedKind(g: HomeWorld): { kind?: string } {
   const kind = worldKindOf(g);
-  return kind === "rocky" ? {} : { kind: `${KINDS[kind].icon} ${KINDS[kind].name}` };
+  const k = kindFacts(g.planet);
+  return kind === "rocky" ? {} : { kind: `${k.icon} ${k.name}` };
 }
 
 /**
@@ -118,12 +131,12 @@ export function planKind(world: World, cell?: number): { kind?: string; fireless
 
 /** A warmth of its climate (degrees of its liquid's band) in true °C. */
 export function realWarmth(world: World, degrees: number): number {
-  return trueCelsius(kindOf(world), degrees);
+  return trueCelsius(likeOf(world), degrees);
 }
 
 /** How many true degrees one degree of its climate is (a season's swing, a spread). */
 export function warmthScale(world: World): number {
-  return kelvinPerDegree(kindOf(world));
+  return kelvinPerDegree(likeOf(world));
 }
 
 /**
@@ -131,7 +144,7 @@ export function warmthScale(world: World): number {
  * (none where they are Earth's): true °C at its liquid's 0, and for each degree.
  */
 export function skyDegrees(world: World): { degrees?: { at0: number; per: number } } {
-  const kind = kindOf(world);
+  const kind = likeOf(world);
   return earthDegrees(kind)
     ? {}
     : { degrees: { at0: trueCelsius(kind, 0), per: kelvinPerDegree(kind) } };
@@ -139,7 +152,7 @@ export function skyDegrees(world: World): { degrees?: { at0: number; per: number
 
 /** A biome's name on this world: its seas its liquid's ("ocean": "methane sea"). */
 export function biomeWords(world: World, name: string): string {
-  return kindBiomeName(kindOf(world), name);
+  return kindBiomeName(likeOf(world), name);
 }
 
 /** A warmth in words, with a true minus sign: "−182 °C". */
@@ -154,8 +167,8 @@ function signed(n: number): string {
 }
 
 /** The warmth its liquid is liquid between, in words. */
-function band(kind: WorldKind): string {
-  const l = KINDS[kind].liquid;
+function band(kind: KindLike): string {
+  const l = kindFacts(kind).liquid;
   return `liquid from ${celsius(l.freezeK - 273.15)} to ${celsius(l.boilK - 273.15)} under its air`;
 }
 
@@ -370,11 +383,11 @@ export function kindVessel(world: World, cell?: number): Vessel | null {
 export function kindBlocks(world: World): Block[] {
   const kind = kindOf(world);
   if (kind === "rocky") return [];
-  const k = KINDS[kind],
-    g = homePlanet(world).generated,
+  const g = homePlanet(world).generated,
+    k = kindFacts(g.planet),
     mean = celsius(g.planet.meanTemperature),
     // (Read in its liquid's degrees as Earth's warmth is in water's, where the two are not one.)
-    warmth = earthDegrees(kind)
+    warmth = earthDegrees(g.planet)
       ? `${mean} on average`
       : `${mean} on average: ${signed(climateMean(g.planet))} on its liquid's scale (0 where it freezes, 100 where it boils under its air), as Earth's is 15 on water's`,
     life = g.life.species.length ? k.life.words : `${k.life.words}; but ${k.life.barren}`,
@@ -390,7 +403,7 @@ export function kindBlocks(world: World): Block[] {
         stat("What made it", sentence(k.why)),
         stat("Its seas", [
           link(sentence(k.liquid.name), `subst:${k.liquid.subst}`),
-          `, ${band(kind)}`,
+          `, ${band(g.planet)}`,
         ]),
         stat("Its warmth", warmth),
         stat("Its bedrock", sentence(k.bedrock)),

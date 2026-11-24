@@ -9,6 +9,15 @@
 // world does instead.
 import { finish, hashString, mix, seedActs, seedName, seedWithAct } from "../kernel/index.ts";
 import { MAKINGS, makingsOf } from "./making.ts";
+import {
+  SOLVENTS,
+  boilAt,
+  groundGiving,
+  homeHolds,
+  stableLiquid,
+  type SolventId,
+  type Stable,
+} from "./solvent.ts";
 
 /** What kind of world it is. */
 export type WorldKind = "rocky" | "carbon" | "sulfur" | "ammonia" | "methane";
@@ -189,6 +198,118 @@ export const KINDS: Readonly<Record<WorldKind, KindFacts>> = {
   },
 };
 
+/**
+ * A world's kind as its pages and its climate read it: its kind alone (its ground's family, whose own liquid fills
+ * its seas), or its planet, which says its liquid where its numbers make it another (rules/solvent.ts).
+ */
+export type KindLike =
+  WorldKind | { readonly kind?: NovelKind | undefined; readonly liquid?: SolventId | undefined };
+
+/** The liquid each kind's own seas are of, as rules/solvent.ts names it. */
+export const KIND_SOLVENT: Readonly<Record<WorldKind, SolventId>> = {
+  rocky: "water",
+  carbon: "crude",
+  sulfur: "acid-water",
+  ammonia: "ammonia-water",
+  methane: "methane",
+};
+
+/** The kind each liquid's world is: its ground's family. A liquid no home world's seas are of has none. */
+export const SOLVENT_KIND: Readonly<Partial<Record<SolventId, WorldKind>>> = {
+  water: "rocky",
+  crude: "carbon",
+  "acid-water": "sulfur",
+  "ammonia-water": "ammonia",
+  methane: "methane",
+  ethane: "methane",
+  "sulfuric-acid": "sulfur",
+};
+
+/** What a world of a liquid not its family's own is called, and its seas. */
+const DERIVED: Readonly<
+  Partial<
+    Record<
+      SolventId,
+      {
+        readonly name: string;
+        readonly icon: string;
+        readonly why: string;
+        readonly sea: string;
+        readonly frozen: string;
+        readonly life: KindFacts["life"];
+      }
+    >
+  >
+> = {
+  "sulfuric-acid": {
+    name: "a sulfuric-acid world",
+    icon: "🟡",
+    why: "its rock is kept molten by tides from a near red star, or by its youth, and its volcanoes pour out more sulfur than it has water to thin: its water is all bound into the acid, which lies in seas from 10 °C to some 340 °C and does not boil away",
+    sea: "acid sea",
+    frozen: "frozen acid",
+    life: {
+      solvent: "sulfuric-acid",
+      words:
+        "in hot sulfuric acid, which chars carbon's long chains: of chains of silicon and oxygen where its rock gives them, else of the few rings and chains of carbon the acid leaves whole",
+      odds: 0.5,
+      barren: "its hot acid seas broke the first films of life down before they could take hold",
+    },
+  },
+  ethane: {
+    name: "an ethane world",
+    icon: "🟤",
+    why: "it is cold and far out, past the snow line, under a thick nitrogen air, but a few degrees too warm for methane to lie: most of its methane stays in its air as vapour, and its seas are the ethane its star's light makes of it (which boils some seventy degrees above methane, and does not dry away)",
+    sea: "ethane sea",
+    frozen: "frozen ethane",
+    life: {
+      solvent: "ethane",
+      words: "in liquid ethane near −165 °C: cells of films that hold together in it, if any can",
+      odds: 0.4,
+      barren:
+        "near −165 °C life's chemistry runs untold times slower than in warm water, and none took hold in its ethane seas",
+    },
+  },
+};
+
+const FACTS = new Map<string, KindFacts>();
+
+/**
+ * A world's facts: its kind's, with its liquid, its name, what made it and its life's words its own where its
+ * numbers make its seas of another liquid than its family's. Its band is the liquid's under its family's air.
+ */
+export function kindFacts(k: KindLike): KindFacts {
+  if (typeof k === "string") return KINDS[k];
+  const kind = k.kind ?? "rocky",
+    base = KINDS[kind];
+  if (!k.liquid || k.liquid === KIND_SOLVENT[kind]) return base;
+  const key = `${kind} ${k.liquid}`,
+    had = FACTS.get(key);
+  if (had) return had;
+  const s = SOLVENTS[k.liquid],
+    d = DERIVED[k.liquid],
+    made: KindFacts = {
+      ...base,
+      name: d?.name ?? `a world of ${s.name}`,
+      icon: d?.icon ?? base.icon,
+      why: d?.why ?? base.why,
+      liquid: {
+        // (rules/matter.ts knows sulfuric acid as oil of vitriol.)
+        subst: k.liquid === "sulfuric-acid" ? "vitriol" : k.liquid,
+        name: s.name,
+        freezeK: s.freezeK,
+        boilK: Math.round(boilAt(k.liquid, base.body.pressure)),
+      },
+      life: d?.life ?? { ...base.life, solvent: k.liquid, words: `in ${s.name}` },
+    };
+  FACTS.set(key, made);
+  return made;
+}
+
+/** A world's kind: its ground's family. */
+export function kindIn(k: KindLike): WorldKind {
+  return typeof k === "string" ? k : (k.kind ?? "rocky");
+}
+
 /** Whether anything burns on a world of this kind. */
 export function kindBurns(kind: WorldKind): boolean {
   return KINDS[kind].burns;
@@ -234,6 +355,15 @@ export type KindInputs = {
   readonly text: string;
   readonly mass: number;
   readonly ageGyr: number;
+  /**
+   * Its planet as its seed draws it, in water's zone: its pull (g), its mean warmth (°C) and the share of its face
+   * its liquid would cover. Left out: Earth's.
+   */
+  readonly planet?: {
+    readonly gravity: number;
+    readonly celsius: number;
+    readonly seas: number;
+  };
 };
 
 /**
@@ -246,18 +376,14 @@ function kindFrom(carbonDisk: boolean, volatile: Volatile | undefined): NovelKin
   return volatile === "sulfur" ? "sulfur" : null;
 }
 
-/**
- * A world's kind. Each input is as the hand made it ("~carbon carbon", "~volatiles methane") or as
- * its seed falls; a made input outranks a drawn one, so a dial makes the kind it says. Between
- * inputs alike made or alike drawn, the cold liquid comes first (it lies over all), then a carbon
- * disk, then sulfur.
- */
-export function worldKind(i: KindInputs): WorldKind {
+/** What a world gathered and the disk it formed in: as the hand made each, or as its seed falls. */
+function makingOf(i: KindInputs): { readonly carbonDisk: boolean; readonly gathered: Volatile } {
   const made = makingsOf(i.text),
     madeCarbon = made.carbon === undefined ? undefined : made.carbon === "carbon",
-    madeVolatile = made.volatiles as Volatile | undefined,
-    byHand = kindFrom(madeCarbon === true, madeVolatile);
-  if (byHand) return byHand;
+    madeVolatile = made.volatiles as Volatile | undefined;
+  // (A made input outranks a drawn one, so a dial makes the kind it says.)
+  if (kindFrom(madeCarbon === true, madeVolatile))
+    return { carbonDisk: madeCarbon === true, gathered: madeVolatile ?? "water" };
   const name = seedName(i.text),
     age = Math.min(i.ageGyr, 12.6),
     tides = clamp01((0.6 - i.mass) / 0.25),
@@ -275,7 +401,64 @@ export function worldKind(i: KindInputs): WorldKind {
             ? "sulfur"
             : "water",
     disk = kindDraw(name, 2) < KIND_ODDS.carbon * clamp01((cO - 0.5) / 0.3);
-  return kindFrom(madeCarbon ?? disk, madeVolatile ?? drawn) ?? "rocky";
+  return { carbonDisk: madeCarbon ?? disk, gathered: madeVolatile ?? drawn };
+}
+
+/** A world's kind and the liquid of its seas, with what its numbers were and why. */
+export type WorldSolvent = {
+  readonly kind: WorldKind;
+  /** The liquid of its seas. */
+  readonly liquid: SolventId;
+  /** Whether its numbers alone gave it (false: nothing it holds lies liquid there as drawn, and its kind is by what it gathered). */
+  readonly stable: boolean;
+  /** Where it stands as it was weighed (K), under what air (bar). */
+  readonly kelvin: number;
+  readonly bar: number;
+  readonly read: Stable;
+};
+
+/**
+ * A world's kind, from its numbers: what it holds (what it gathered and the disk it formed in, each as the hand
+ * made it or as its seed falls; its seas; what its ground still gives up), where it stands and under what air. A
+ * world that gathered ammonia or methane formed past its star's snow line and stands there, as cold as those ices
+ * ask; any other stands where its seed draws it. The liquid it holds most of, of those liquid there, fills its
+ * seas (rules/solvent.ts), and its kind is that liquid's. Water on rock, oil on a carbon world, sour water under
+ * sulfur volcanoes, ammonia water and methane are five cases of it; ethane on a methane world's ground and
+ * sulfuric acid on a sulfur world's are two more.
+ */
+export function worldSolvent(i: KindInputs): WorldSolvent {
+  const m = makingOf(i),
+    p = i.planet ?? { gravity: 1, celsius: 15, seas: 0.7 },
+    byMaking = kindFrom(m.carbonDisk, m.gathered) ?? "rocky",
+    // (Past the snow line it stands in its gathered ice's own band as its twin stands in water's: gen/bodies.ts.)
+    cold = m.gathered === "methane" || m.gathered === "ammonia" ? KINDS[m.gathered].liquid : null,
+    kelvin = cold
+      ? cold.freezeK + ((cold.boilK - cold.freezeK) / 100) * p.celsius
+      : p.celsius + 273.15,
+    bar = KINDS[byMaking].body.pressure,
+    read = stableLiquid({
+      kelvin,
+      bar,
+      holds: homeHolds({
+        gathered: m.gathered,
+        carbonDisk: m.carbonDisk,
+        seas: p.seas,
+        giving: groundGiving(p.gravity, Math.min(i.ageGyr, 12.6)),
+        kelvin,
+        bar,
+      }),
+    }),
+    kind = read.liquid ? SOLVENT_KIND[read.liquid] : undefined;
+  // (Nothing it holds lies liquid as it was drawn, a frozen or a boiled twin; or a liquid no home's ground is
+  // told for: its kind by what it gathered, its liquid that kind's own, and its climate says the rest.)
+  if (!read.liquid || !kind)
+    return { kind: byMaking, liquid: KIND_SOLVENT[byMaking], stable: false, kelvin, bar, read };
+  return { kind, liquid: read.liquid, stable: true, kelvin, bar, read };
+}
+
+/** A world's kind (its ground's family): worldSolvent's. */
+export function worldKind(i: KindInputs): WorldKind {
+  return worldSolvent(i).kind;
 }
 
 /**
@@ -340,8 +523,8 @@ function scale(l: Liquid): number {
 }
 
 /** Whether a kind's warmth is read as Earth's (its liquid's band is water's). */
-export function earthDegrees(kind: WorldKind): boolean {
-  const l = KINDS[kind].liquid;
+export function earthDegrees(kind: KindLike): boolean {
+  const l = kindFacts(kind).liquid;
   return l.freezeK === WATER.freezeK && l.boilK === WATER.boilK;
 }
 
@@ -349,22 +532,22 @@ export function earthDegrees(kind: WorldKind): boolean {
  * A warmth of its climate (degrees of its liquid's band, as Earth's °C are of water's) in true
  * degrees Celsius. A world of Earth's degrees, as it is.
  */
-export function trueCelsius(kind: WorldKind, degrees: number): number {
+export function trueCelsius(kind: KindLike, degrees: number): number {
   if (earthDegrees(kind)) return degrees;
-  const l = KINDS[kind].liquid;
+  const l = kindFacts(kind).liquid;
   return l.freezeK + scale(l) * degrees - 273.15;
 }
 
 /** A true warmth (°C) as its climate reads it: degrees of its liquid's band. */
-export function liquidDegrees(kind: WorldKind, celsius: number): number {
+export function liquidDegrees(kind: KindLike, celsius: number): number {
   if (earthDegrees(kind)) return celsius;
-  const l = KINDS[kind].liquid;
+  const l = kindFacts(kind).liquid;
   return (celsius + 273.15 - l.freezeK) / scale(l);
 }
 
 /** How many true kelvin a degree of a kind's climate is (1 where its degrees are Earth's). */
-export function kelvinPerDegree(kind: WorldKind): number {
-  return earthDegrees(kind) ? 1 : scale(KINDS[kind].liquid);
+export function kelvinPerDegree(kind: KindLike): number {
+  return earthDegrees(kind) ? 1 : scale(kindFacts(kind).liquid);
 }
 
 // —— Its seas and its ages, in words ———————————————————————————————————————————————————
@@ -379,10 +562,21 @@ export const KIND_SEAS: Readonly<
   methane: { sea: "methane sea", frozen: "frozen methane" },
 };
 
+/** A world's words for its seas and its frozen sea: its derived liquid's, else its kind's; null on a rocky world. */
+export function kindSeas(k: KindLike): { readonly sea: string; readonly frozen: string } | null {
+  const kind = kindIn(k);
+  if (kind === "rocky") return null;
+  const d =
+    typeof k === "string" || !k.liquid || k.liquid === KIND_SOLVENT[kind]
+      ? undefined
+      : DERIVED[k.liquid];
+  return d ? { sea: d.sea, frozen: d.frozen } : KIND_SEAS[kind];
+}
+
 /** A biome's name on a world of a kind: its seas are its liquid's ("ocean": "methane sea"). */
-export function kindBiomeName(kind: WorldKind, name: string): string {
-  if (kind === "rocky") return name;
-  const s = KIND_SEAS[kind];
+export function kindBiomeName(kind: KindLike, name: string): string {
+  const s = kindSeas(kind);
+  if (!s) return name;
   if (name === "deep ocean") return `deep ${s.sea}`;
   if (name === "ocean") return s.sea;
   if (name === "shallow sea") return `shallow ${s.sea}`;

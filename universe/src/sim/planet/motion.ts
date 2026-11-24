@@ -444,7 +444,7 @@ export function homeCycles(g: HomeWorld): Cycles {
 }
 
 /** The kelvin a degree of a world's climate is. */
-const kOf = (g: HomeWorld) => kelvinPerDegree(worldKindOf(g));
+const kOf = (g: HomeWorld) => kelvinPerDegree(g.planet);
 
 /** The air's warming (degrees), read by name: the planet does not lean on the climate's module. */
 function airWarming(world: World): { warm: number; event: Ref | null } {

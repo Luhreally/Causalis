@@ -26,7 +26,7 @@ import {
 } from "../../gen/index.ts";
 import {
   EARTHLIKE,
-  KINDS,
+  kindFacts,
   OPEN,
   PIGMENT_WORDS,
   PLACES,
@@ -108,7 +108,7 @@ function homeRead(g: HomeWorld, name: string): LifeRead {
     origin = originOfHome(fine),
     tree = treeOfLife(fine),
     at = (id: string) => tree.rungs.find((r) => r.id === id)?.at ?? null,
-    k = KINDS[worldKindOf(fine)],
+    k = kindFacts(fine.planet),
     lives = fine.life.species.length > 0;
   return {
     name,

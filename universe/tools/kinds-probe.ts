@@ -9,7 +9,7 @@ import { ALIEN } from "../src/host/planet.ts";
 import { landEra } from "../src/host/village.ts";
 import { stageOf, worldFirstsNow } from "../src/host/inspect/stage.ts";
 import { climateMean, worldKindOf } from "../src/gen/index.ts";
-import { KINDS, makingsOf } from "../src/rules/index.ts";
+import { kindFacts, makingsOf } from "../src/rules/index.ts";
 import { homePlanet, populationContext } from "../src/sim/index.ts";
 
 const seed = process.argv[2] ?? "alien 20",
@@ -19,7 +19,7 @@ const seed = process.argv[2] ?? "alien 20",
   world = ALIEN.build(seedFromText(seed)),
   g = homePlanet(world).generated,
   kind = worldKindOf(g),
-  facts = KINDS[kind],
+  facts = kindFacts(g.planet),
   made = makingsOf(seed),
   ctx = populationContext(world),
   l = facts.liquid;

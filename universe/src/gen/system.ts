@@ -11,6 +11,7 @@ import { defineStream, dmath, type Ref, type Rng } from "../kernel/index.ts";
 import {
   AU_KM,
   KINDS,
+  kindFacts,
   orbitXY,
   bodyPull,
   companionOf,
@@ -302,7 +303,7 @@ export function makeSystem(rng: Rng, prior: Prior, star: Star, home: Planet): St
         radiation: 1,
         because: [
           home.kind
-            ? `the world the people arose on: ${KINDS[home.kind].name}, for ${KINDS[home.kind].why}`
+            ? `the world the people arose on: ${kindFacts(home).name}, for ${kindFacts(home).why}`
             : "the world the people arose on, its air made breathable by its life",
         ],
       },

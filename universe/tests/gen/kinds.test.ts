@@ -6,11 +6,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { seedFromText } from "../../src/kernel/index.ts";
-import { climateMean, generateHomeWorld, worldKindOf } from "../../src/gen/index.ts";
+import { climateMean, generateHomeWorld, worldKindOf, worldLife } from "../../src/gen/index.ts";
 import {
   EARTHLIKE,
   KINDS,
   OPEN,
+  kindFacts,
   keptLife,
   keptRocky,
   liquidDegrees,
@@ -80,16 +81,18 @@ test("an ice world is its twin read through its liquid: the same climate, its or
   ] as const) {
     const g = alien(seed),
       twin = alien(keptRocky(seed)),
-      l = KINDS[kind].liquid;
+      l = kindFacts(g.planet).liquid;
     assert.equal(worldKindOf(g), kind);
+    assert.equal(g.planet.liquid, undefined, "its seas its kind's own");
     // Its climate is built on its twin's warmth, read in its liquid's degrees.
     assert.equal(g.planet.climate, twin.planet.meanTemperature);
     assert.deepEqual(g.climate.temperature, twin.climate.temperature);
     assert.deepEqual(g.tectonics.elevation, twin.tectonics.elevation);
     // Its true warmth is that warmth on its liquid's scale, where the liquid stays liquid.
-    assert.ok(Math.abs(g.planet.meanTemperature - trueCelsius(kind, g.planet.climate!)) < 1e-9);
+    assert.ok(Math.abs(g.planet.meanTemperature - trueCelsius(g.planet, g.planet.climate!)) < 1e-9);
     assert.ok(
-      Math.abs(liquidDegrees(kind, g.planet.meanTemperature) - twin.planet.meanTemperature) < 1e-9,
+      Math.abs(liquidDegrees(g.planet, g.planet.meanTemperature) - twin.planet.meanTemperature) <
+        1e-9,
     );
     const mean = g.planet.meanTemperature + 273.15;
     assert.ok(mean > l.freezeK - 30 && mean < l.boilK, `${seed}: ${mean} K`);
@@ -113,4 +116,27 @@ test("where life never takes hold in a kind's liquid, the world is barren from t
   assert.ok(g.life.diversity.every((d) => d === 0));
   // Its twin's climate would have let life take hold.
   assert.ok(alien(keptRocky("alien 34")).life.species.length > 0);
+});
+
+test("a sulfur world whose volcanoes give more acid than it has water has seas of sulfuric acid, and lives", () => {
+  // (alien 1045: a young star's world, its seas over a third of its face. rules/solvent.ts.)
+  const g = alien("alien 1045"),
+    twin = alien(keptRocky("alien 1045")),
+    f = kindFacts(g.planet);
+  assert.equal(worldKindOf(g), "sulfur");
+  assert.equal(g.planet.liquid, "sulfuric-acid");
+  assert.equal(f.name, "a sulfuric-acid world");
+  assert.equal(f.liquid.subst, "vitriol");
+  // Its climate is its twin's, read in its acid's degrees; it stands hotter and nearer its star.
+  assert.equal(g.planet.climate, twin.planet.meanTemperature);
+  assert.ok(g.planet.meanTemperature > twin.planet.meanTemperature + 20);
+  assert.ok(g.planet.orbitAu < twin.planet.orbitAu);
+  const mean = g.planet.meanTemperature + 273.15;
+  assert.ok(mean > f.liquid.freezeK && mean < f.liquid.boilK, `${mean} K`);
+  // Life took hold in it, of chains the acid leaves whole, and a people rose.
+  assert.ok(g.life.species.length > 0);
+  assert.ok(g.life.people);
+  assert.equal(worldLife(g).backbone, "siloxane");
+  assert.equal(worldLife(g).liquid, "vitriol");
+  assert.match(g.system.bodies[0]!.because[0]!, /a sulfuric-acid world/);
 });

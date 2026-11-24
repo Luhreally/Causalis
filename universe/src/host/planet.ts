@@ -236,7 +236,15 @@ import { foreignGlobe, foreignSystem, galaxyPlan, starPage, starsNear } from "./
 import { peoplesSky, visitsNow } from "./peoples.ts";
 import { mirrorsOfSky } from "./past.ts";
 import { peopleFigure } from "./folk.ts";
-import { kindOn, lifelessWhy, seedKind, spotBiome, spotSwing, spotWarmth } from "./kinds.ts";
+import {
+  kindOn,
+  liquidOn,
+  lifelessWhy,
+  seedKind,
+  spotBiome,
+  spotSwing,
+  spotWarmth,
+} from "./kinds.ts";
 import { lookMeta } from "./biochem.ts";
 import { knownWorld, unknownCells } from "./known.ts";
 
@@ -297,6 +305,7 @@ function globeFrame(world: World) {
       biomeNames: BIOME_NAMES,
       // (Its kind, for the colours of its seas and land: Phase 56.)
       kind: kindOn(g),
+      ...liquidOn(g),
       // (Its life's colours, where they are not Earth's green: Phase 57.)
       ...lookMeta(g),
       // (A people of the water's lands are its sea, not its ground: what their lenses paint.)
@@ -392,6 +401,7 @@ function regionFrame(world: World, focus: string | null) {
       lat: (g.grid.lat[middle]! * 180) / Math.PI,
       lon: (g.grid.lon[middle]! * 180) / Math.PI,
       kind: kindOn(g),
+      ...liquidOn(g),
       ...lookMeta(g),
     },
     arrays: {

@@ -7,11 +7,12 @@ import type { Rgb } from "./sandbox.ts";
 import { LIFE_WORDS, lifeTint } from "./biochem.ts";
 import {
   GOODS,
-  KIND_SEAS,
+  kindSeas,
   ROCKS,
   WORLD_KINDS,
   trueCelsius,
-  type NovelKind,
+  type KindLike,
+  type SolventId,
   type WorldKind,
 } from "../rules/index.ts";
 
@@ -909,10 +910,15 @@ export function biomeColor(biome: number, kind = "rocky", look?: string): Rgb {
   return lifePalette(kind, look)[biome] ?? [0.5, 0.6, 0.35];
 }
 
+/** A kind with the liquid its frame says, as the rules read it. */
+function likeOf(kind: WorldKind, liquid?: string): KindLike {
+  return kind === "rocky" || !liquid ? kind : { kind, liquid: liquid as SolventId };
+}
+
 /** A warmth on a lens's ramp (degrees of its world's liquid) in true °C, in words. */
-function warmthWords(kind: string, degrees: number): string {
+function warmthWords(kind: string, degrees: number, liquid?: string): string {
   const k = WORLD_KINDS.find((x) => x === kind);
-  return `${Math.round(k ? trueCelsius(k as WorldKind, degrees) : degrees)}`;
+  return `${Math.round(k ? trueCelsius(likeOf(k, liquid), degrees) : degrees)}`;
 }
 
 /**
@@ -1301,11 +1307,17 @@ const KIND_ICE: Readonly<Record<string, string>> = {
  * life's colour and words ("golden woods"), or bare ground where nothing took hold (Phase 57). A
  * rocky world green with chlorophyll's as ever.
  */
-function kindLegend(kind: string, look?: string): Legend {
+function kindLegend(kind: string, look?: string, liquid?: string): Legend {
   const colour = (biome: number) => biomeColor(biome, kind, look),
     life = look ? LIFE_WORDS[look] : undefined,
-    ice: [Rgb, string] = [colour(4), KIND_ICE[kind] ?? "ice"],
-    sea: [Rgb, string] = [colour(1), kind === "rocky" ? "sea" : KIND_SEAS[kind as NovelKind].sea];
+    seas = WORLD_KINDS.includes(kind as WorldKind)
+      ? kindSeas(likeOf(kind as WorldKind, liquid))
+      : null,
+    ice: [Rgb, string] = [
+      colour(4),
+      liquid && seas && kind === "methane" ? seas.frozen : (KIND_ICE[kind] ?? "ice"),
+    ],
+    sea: [Rgb, string] = [colour(1), seas?.sea ?? "sea"];
   return {
     kind: "keys",
     keys:
@@ -1321,7 +1333,14 @@ function kindLegend(kind: string, look?: string): Legend {
   };
 }
 
-export function lensLegend(lens: Lens, kind = "rocky", look?: string, choice?: string): Legend {
+export function lensLegend(
+  lens: Lens,
+  kind = "rocky",
+  look?: string,
+  choice?: string,
+  /** The liquid of its seas, where it is not its kind's own (rules/solvent.ts). */
+  liquid?: string,
+): Legend {
   const stops = (list: readonly Stop[]) => list.map(([, c]) => c);
   switch (lens) {
     case "people":
@@ -1337,8 +1356,8 @@ export function lensLegend(lens: Lens, kind = "rocky", look?: string, choice?: s
       return {
         kind: "ramp",
         stops: stops(WARMTH),
-        low: `${warmthWords(kind, -40)} °C`,
-        high: `${warmthWords(kind, 30)} °C`,
+        low: `${warmthWords(kind, -40, liquid)} °C`,
+        high: `${warmthWords(kind, 30, liquid)} °C`,
       };
     case "rain":
       return { kind: "ramp", stops: stops(RAIN), low: "desert", high: "3 m a year" };
@@ -1485,7 +1504,7 @@ export function lensLegend(lens: Lens, kind = "rocky", look?: string, choice?: s
     default:
       // (A world of another kind: its own ground and seas, named for its liquid — Phase 56; its
       // woods its life's — Phase 57. A rocky world green with chlorophyll's as ever.)
-      return kindLegend(kind, look);
+      return kindLegend(kind, look, liquid);
   }
 }
 

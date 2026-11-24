@@ -12579,6 +12579,7 @@ async function runPlanetPage(): Promise<void> {
     region.kind(kind);
     stage.worldKind(kind);
     mapModes.kind = kind;
+    mapModes.liquid = (frame.meta as { liquid?: string }).liquid;
     // (And its life's colours: a land's woods, the map's legend — Phase 57.)
     const look = (frame.meta as { lifeLook?: string }).lifeLook;
     region.lifeLook(look);

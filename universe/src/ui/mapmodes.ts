@@ -38,6 +38,7 @@ export class MapModes {
   private built = false;
   /** Its world's life's colours (Phase 57): the land legend's woods in its own words. */
   private look: string | undefined = undefined;
+  private seas: string | undefined = undefined;
   /** The alliances the alliances lens keys, and what a press on one does (D1). */
   private allied: readonly AllianceKey[] | null = null;
   private alliedKey = "";
@@ -78,6 +79,13 @@ export class MapModes {
   set kind(kind: string) {
     if (kind === this.world) return;
     this.world = kind;
+    this.drawLegend();
+  }
+
+  /** The liquid of its world's seas, where it is not its kind's own, for its legends. */
+  set liquid(liquid: string | undefined) {
+    if (liquid === this.seas) return;
+    this.seas = liquid;
     this.drawLegend();
   }
 
@@ -159,7 +167,7 @@ export class MapModes {
   }
 
   private drawLegend(): void {
-    const l = lensLegend(this.current, this.world, this.look, this.chosen),
+    const l = lensLegend(this.current, this.world, this.look, this.chosen, this.seas),
       // (A lens of several ways names the one shown: "Underworld: Crime".)
       way = this.current === "underworld" ? this.choiceWords.get(this.chosen) : undefined,
       title = el(

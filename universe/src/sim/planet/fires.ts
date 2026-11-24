@@ -221,7 +221,7 @@ export function veilYield(ctx: PopulationContext, cell: number): number {
     k *= cooledYield(
       g.climate.temperature[cell]!,
       g.climate.seasonality[cell]!,
-      cool / kelvinPerDegree(worldKindOf(g)),
+      cool / kelvinPerDegree(g.planet),
     );
   }
   return k;
