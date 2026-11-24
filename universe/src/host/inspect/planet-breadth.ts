@@ -25,6 +25,7 @@ import {
   struckOn,
 } from "../../sim/index.ts";
 import type { Block } from "../../bridge/index.ts";
+import { galaxyAdrift } from "../galaxy.ts";
 import { count, stat } from "./words.ts";
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
@@ -157,5 +158,20 @@ export function worldBreadthBlock(world: World): Block {
         `a star of ${companion.mass.toFixed(2)} Suns ${count(Math.round(companion.a))} times Earth's distance out, ${companion.moons >= 1 ? `${count(Math.round(companion.moons))} times as bright as a full moon` : "a bright star"} in its sky`,
       ),
     );
+  for (const b of g.system.bodies)
+    if (b.ring)
+      rows.push(
+        stat(
+          `The ring of ${b.designation}`,
+          `of ${b.ring.ice ? "ice" : "rock and dust"}, out to ${b.ring.outer.toFixed(1)} of its radii: a moon that came to ${b.ring.at.toFixed(1)}, inside where its tide tears one apart`,
+        ),
+      );
+  const adrift = galaxyAdrift(world);
+  rows.push(
+    stat(
+      "Worlds without a star",
+      `some ${(adrift.rogues / 1e9).toFixed(1)} billion adrift in its galaxy of ${Math.round(adrift.stars / 1e9)} billion stars, thrown out by their stars' giants when their systems were young`,
+    ),
+  );
   return { type: "facts", title: "Its planet's slow work", rows };
 }

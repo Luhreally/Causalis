@@ -186,6 +186,8 @@ export {
   armAt,
   clusterStars,
   densityAt,
+  galaxyRogues,
+  galaxyStars,
   imfMass,
   makeGalaxy,
   sectorId,
