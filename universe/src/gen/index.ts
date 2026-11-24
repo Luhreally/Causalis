@@ -66,7 +66,7 @@ export {
   worldChemistry,
   worldGroundStone,
 } from "./chemistry.ts";
-export { civLife, handDraw, lifeInputs, worldLife } from "./life.ts";
+export { civLife, depositMaking, handDraw, lifeInputs, worldLife } from "./life.ts";
 export {
   beastLookOf,
   beastPlanOf,

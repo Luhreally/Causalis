@@ -570,6 +570,17 @@ export {
   type WorldKind,
 } from "./kinds.ts";
 export {
+  WORKABLE,
+  depositElement,
+  fossilOrigin,
+  oreEase,
+  oreGenesis,
+  oreWords,
+  otherOres,
+  type FossilOrigin,
+  type OreGenesis,
+} from "./genesis.ts";
+export {
   SOLVENTS,
   SOLVENT_IDS,
   FACE_SPREAD,

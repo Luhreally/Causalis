@@ -97,6 +97,7 @@ import {
   starAgeGyr,
   type ProvinceWorld,
   worldChemistry,
+  depositMaking,
 } from "../gen/index.ts";
 import { EARTHLIKE, OPEN, landsOf, makingsOf, skyOf, type Prior } from "../rules/index.ts";
 import {
@@ -858,7 +859,7 @@ export function cell(pw: ProvinceWorld, c: number) {
           ref: d.ref,
           kind: roleWord(chem, d.kind),
           richness: d.richness,
-          process: depositProcessOn(chem, d.kind) ?? d.process,
+          process: depositMaking(g, d),
         }
       : null,
   };

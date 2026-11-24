@@ -10,6 +10,7 @@ import {
   isProvinceWorld,
   lives,
   worldChemistry,
+  depositMaking,
 } from "../../gen/index.ts";
 import { homePlanet, lineageNature, populationContext, tameNow, wildsOf } from "../../sim/index.ts";
 import { why } from "../../causal/index.ts";
@@ -292,7 +293,7 @@ export function depositPageModel(world: World, ref: string): PageModel {
     grade = oreGradeOn(chem, d.kind) ?? ORE_GRADE[d.kind],
     minerals = depositMineralsOn(chem, d.kind) ?? DEPOSIT_MINERALS[d.kind],
     turns = reactionsOn(chem).filter((r) => r.inputs.some(([x]) => minerals?.includes(x))),
-    process = depositProcessOn(chem, d.kind) ?? d.process,
+    process = depositMaking(homePlanet(world).generated, d),
     // (Its picture: the first of its minerals, as a specimen; none where that is no substance.)
     firstMineral = minerals?.[0],
     first = firstMineral === undefined ? undefined : findSubstance(firstMineral);

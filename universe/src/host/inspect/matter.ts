@@ -48,6 +48,8 @@ import {
   arsenicalFallback,
   chemistryKey,
   crustOf,
+  oreGenesis,
+  otherOres,
   depositMineralsOn,
   elementShares,
   findElement,
@@ -261,6 +263,8 @@ const signed = (x: number): string => {
 const edge = (x: number): string => String(Math.round(x * 100) / 100);
 
 /** A quantity in parts a million: whole where it is large, two figures where it is small. */
+const gatherWords = (x: number): string =>
+  x >= 100 ? count(Math.round(x / 10) * 10) : x >= 10 ? String(Math.round(x)) : x.toFixed(1);
 const ppmWords = (x: number): string => (x >= 10 ? count(x) : String(Number(x.toPrecision(2))));
 
 const substanceMemo = new Map<string, readonly Substance[]>(),
@@ -1174,6 +1178,41 @@ function worldBlocks(world: World, chem: Chemistry): Block[] {
         keys: [r.name, r.ppm, r.earth],
       })),
     },
+    // (Its ores from its own crust: how far its ground must gather each metal, and what else it could be worked for.)
+    ...(chem.solar
+      ? []
+      : [
+          {
+            type: "table" as const,
+            title: "Its ores, from what its crust holds",
+            columns: ["Metal", "Gathered here", "On Earth"],
+            rows: oreGenesis(chem).map((r) => ({
+              cells: [
+                [`${cap(r.name)} (${r.symbol})`],
+                [`${gatherWords(r.gather)} times over`],
+                [`${gatherWords(r.earth)} times over`],
+              ],
+              keys: [r.name, r.gather, r.earth],
+            })),
+          },
+          ...(otherOres(chem).length
+            ? [
+                {
+                  type: "text" as const,
+                  title: "What else its ground could be worked for",
+                  lines: [
+                    [
+                      `No deposit is told of these, but its ground need gather them no further than the hardest of its ores: ${otherOres(
+                        chem,
+                      )
+                        .map((r) => r.name)
+                        .join(", ")}.`,
+                    ],
+                  ],
+                },
+              ]
+            : []),
+        ]),
     {
       type: "list",
       title: "Its rocks",

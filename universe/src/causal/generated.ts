@@ -29,6 +29,7 @@ import {
   surfaceCopper,
   starAgeGyr,
   treeOfLife,
+  depositMaking,
   worldChemistry,
   worldKindOf,
   type HomeWorld,
@@ -135,7 +136,7 @@ registerExplainer(DEPOSIT.code, (world, ref) => {
       lat = pastLatitude(g.grid, g.tectonics, d.cell, (a.from + a.to) / 2);
     return generated(
       ref,
-      `${d.richness} units of ${d.kind}, laid down by ${d.process} in the ${ordinal(age + 1)} age, ${a.from}–${a.to} million years ago, when this land lay at ${deg(lat)}${lat >= 0 ? "N" : "S"}`,
+      `${d.richness} units of ${d.kind}, laid down by ${depositMaking(g, d)} in the ${ordinal(age + 1)} age, ${a.from}–${a.to} million years ago, when this land lay at ${deg(lat)}${lat >= 0 ? "N" : "S"}`,
       edges(world, [
         { ref: ageRef(0, age), role: "trigger", weight: 0.6 },
         { ref: g.tectonics.plates[own!]!.ref as Ref, role: "enabler", weight: 0.3 },
@@ -156,7 +157,7 @@ registerExplainer(DEPOSIT.code, (world, ref) => {
   ];
   return generated(
     ref,
-    `${d.richness} units of ${d.kind}, laid down by ${d.process}`,
+    `${d.richness} units of ${d.kind}, laid down by ${depositMaking(g, d)}`,
     edges(world, causes),
   );
 });
