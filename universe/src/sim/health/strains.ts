@@ -26,6 +26,7 @@ import {
 import type { PopulationContext } from "../population/systems.ts";
 import { switchedOff } from "../acts/switches.ts";
 import { loreOf } from "../lore/lore.ts";
+import { herdKept } from "../belief/taboo.ts";
 import { HEALTH_EVENTS, SICK, branchSickness, healthOf, strike, type Sickness } from "./health.ts";
 
 const STRAIN = defineStream("health.strain");
@@ -189,7 +190,8 @@ export function strainsYear(ctx: PopulationContext, t: SimTime): void {
     if (!home?.herding || home.total() <= 0) continue;
     if (s.ended === year) s.ended = null;
     const imm = health.immune(s.cell, s.ref),
-      chance = EVOLVE.spill * l.range * (1 - imm);
+      // (Less as far as their creed keeps them off the herd: sim/belief/taboo.ts. Exactly as before where it forbids none.)
+      chance = EVOLVE.spill * l.range * (1 - imm) * (1 - herdKept(world, s.cell));
     if (world.rng.real(SPILL, health.sicknesses.indexOf(s), t, 0) >= chance) continue;
     const event = world.events.emit({
       type: HEALTH_EVENTS.spilled.type,

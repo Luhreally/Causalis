@@ -2194,3 +2194,4 @@ export {
   riversOf,
   type RiverMove,
 } from "./planet/rivers.ts";
+export { TABOO_EVENTS, TabooStore, herdKept, taboosOf, type FaithTaboo } from "./belief/taboo.ts";

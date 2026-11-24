@@ -4,7 +4,15 @@
 // the roads it travelled.
 import { yearOfMoment, type CauseRef } from "../kernel/index.ts";
 import { cellRef } from "../gen/index.ts";
-import { BELIEF_EVENTS, DEITIES, FAITH, beliefOf, type Tenet } from "../sim/index.ts";
+import {
+  BELIEF_EVENTS,
+  DEITIES,
+  FAITH,
+  TABOO_EVENTS,
+  beliefOf,
+  taboosOf,
+  type Tenet,
+} from "../sim/index.ts";
 import { landWords } from "./generated.ts";
 import { count } from "./words.ts";
 import { edges, registerEventWords, registerExplainer } from "./why.ts";
@@ -15,9 +23,12 @@ registerExplainer(FAITH.code, (world, ref) => {
     f = store.get(ref);
   if (!f) return null;
   const lands = store.lands(f.ref).length;
-  const claim = `${cap(f.name)}: they worship ${DEITIES[f.tenet]}; the faith began in ${landWords(world, cellRef(0, f.seat))} in year ${f.founded}, and ${lands ? `${count(lands)} land${lands === 1 ? "" : "s"} hold it` : "no land holds it now"}`;
+  // (And the herd its creed forbids them, where its herds' sicknesses taught it to: sim/belief/taboo.ts.)
+  const ban = taboosOf(world)?.of(f.ref)?.forbids,
+    claim = `${cap(f.name)}: they worship ${DEITIES[f.tenet]}; the faith began in ${landWords(world, cellRef(0, f.seat))} in year ${f.founded}, and ${lands ? `${count(lands)} land${lands === 1 ? "" : "s"} hold it` : "no land holds it now"}${ban ? `; since year ${ban.since} their creed forbids them the ${ban.beast}, its flesh and its touch` : ""}`;
   const causes: CauseRef[] = [{ ref: f.event, role: "trigger", weight: 0.8 }];
   if (f.from) causes.push({ ref: f.from, role: "enabler", weight: 0.2 });
+  if (ban) causes.push({ ref: ban.event, role: "enabler", weight: 0.2 });
   return { ref, claim, basis: "recorded", t: null, causes: edges(world, causes) };
 });
 
@@ -51,3 +62,15 @@ registerEventWords(BELIEF_EVENTS.schism.type, (world, e) => {
 function cap(s: string): string {
   return s ? s[0]!.toUpperCase() + s.slice(1) : s;
 }
+
+// A creed's taboo (sim/belief/taboo.ts): the herd its believers' deaths taught them to keep off, or the ban let go.
+registerEventWords(TABOO_EVENTS.taboo.type, (_world, e) => {
+  const d = e.data as Data,
+    faith = text(d, "faith") ?? "a faith",
+    beast = text(d, "beast") ?? "the herd",
+    dead = typeof d?.["dead"] === "number" ? (d["dead"] as number) : null,
+    food = typeof d?.["food"] === "number" ? (d["food"] as number) : null;
+  return d?.["lifted"]
+    ? `${cap(faith)} let go their creed's ban on the ${beast}: the sickness it brought long forgotten, and ${food ?? "some"} parts in a hundred of their food in it, ${year(e.t)}`
+    : `${cap(faith)} came to forbid the ${beast}, its flesh and its touch: those of them who lived off it died the more of the sickness it brought${dead === null ? "" : `, ${dead} in a thousand of them who need not have`}, against ${food ?? "a share"} parts in a hundred of their food it gave, ${year(e.t)}`;
+});

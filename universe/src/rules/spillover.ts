@@ -71,6 +71,8 @@ export type Exposure = {
   /** Whether its people keep herds, and how near kin those beasts are to them (0 … 1). */
   readonly herds: boolean;
   readonly herdKin: number;
+  /** How far its people keep off their herds, their creed forbidding them (0 … 1; rules/taboo.ts). Absent: not at all. */
+  readonly keptOff?: number;
   /** The share of its people who hunt (0 … 1), how full its wild is (1 as it was), how many kinds about, the nearest kin. */
   readonly hunt: number;
   readonly wild: number;
@@ -111,7 +113,14 @@ export function ariseForces(e: Exposure): Forces {
     community = Math.max(0, e.town) + ARISE.linked * Math.max(0, e.linked),
     breeds = dmath.clamp((e.warmth - ARISE.breeds) / ARISE.full, 0, 1.5),
     wet = e.inWater ? 1.5 : dmath.clamp((2 * e.rain) / (e.rain + ARISE.wet), 0, 1.5),
-    herds = e.herds ? ARISE.herds * e.herdKin * e.herdKin * hosts * dmath.sqrt(pace) : 0,
+    herds = e.herds
+      ? ARISE.herds *
+        e.herdKin *
+        e.herdKin *
+        hosts *
+        dmath.sqrt(pace) *
+        (1 - dmath.clamp(e.keptOff ?? 0, 0, 1))
+      : 0,
     wild =
       ARISE.wild *
       dmath.clamp(e.hunt, 0, 1) *
