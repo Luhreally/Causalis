@@ -5,6 +5,7 @@ import {
   GALACTIC_EVENTS,
   IMPACT_EVENTS,
   MINDS_EVENTS,
+  MIX_EVENTS,
   ORBITAL_EVENTS,
   UPLIFT_EVENTS,
   WEATHER_EVENTS,
@@ -87,6 +88,15 @@ registerEventWords(ORBITAL_EVENTS.habitats.type, (_world, e) => {
 registerEventWords(UPLIFT_EVENTS.raised.type, (world, e) => {
   const d = data(e);
   return `The realm of ${realm(d)} raised ${count(num(d.founders))} of the ${String(d.beast ?? "beasts")} to thought, their young written a mind and taught its speech, and set them down in ${landWords(world, e.place)}, year ${yearOfMoment(e.t)}`;
+});
+// More than one people on a world (sim/population/mix.ts).
+registerEventWords(MIX_EVENTS.outgrew.type, (world, e) => {
+  const d = data(e);
+  return `${String(d.most ?? "Another people")} became the most of ${landWords(world, e.place)}'s people, ${num(d.share)} in a hundred of them, where ${String(d.were ?? "its first people")} had been: by their own births and deaths, year ${yearOfMoment(e.t)}`;
+});
+registerEventWords(MIX_EVENTS.born.type, (world, e) => {
+  const d = data(e);
+  return `In ${landWords(world, e.place)} ${String(d.a ?? "one people")} and ${String(d.b ?? "another")} had young together, a people of both: their lines stand near enough in their world's tree of life that ${num(d.bear)} in a hundred of their crossings bear, year ${yearOfMoment(e.t)}`;
 });
 registerEventWords(WRITTEN_EVENTS.begun.type, (world, e) => {
   const d = data(e);

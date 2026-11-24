@@ -297,7 +297,21 @@ export {
   languagesYear,
   type Language,
 } from "./culture/languages.ts";
-export { familySizeOf, lifeOf, peopleKin, peopleLife } from "./population/life.ts";
+export { familySizeOf, lifeOf, lifeOfBody, peopleKin, peopleLife } from "./population/life.ts";
+export {
+  MIX_EVENTS,
+  MixStore,
+  addKind,
+  installMix,
+  kindBody,
+  kinshipOf,
+  peopleNameOf,
+  mixFactors,
+  mixOf,
+  mixYear,
+  setDown,
+  type MixKind,
+} from "./population/mix.ts";
 export { MOST_SEA_STEPS, SEA_STEPS, seaRange, seaReach, seaSteps } from "./economy/sea.ts";
 export {
   AIR_EVENTS,

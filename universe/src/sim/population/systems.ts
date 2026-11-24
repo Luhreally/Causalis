@@ -68,6 +68,7 @@ import {
 import { standGame } from "../ecology/stands.ts";
 import { tillageAt } from "../ecology/farmed.ts";
 import { peopleAffords, peopleKin, peopleLife } from "./life.ts";
+import { mixAppetite, mixFactors, mixMoved, mixOf } from "./mix.ts";
 import {
   airOf,
   darkCause,
@@ -663,6 +664,8 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
     markets = marketsOf(world),
     acts = actsOf(world),
     asks = asksOf(world),
+    // (A world of more than one people: a mixed land's mouths are its peoples' own, sim/population/mix.ts. None on any other.)
+    mixed = mixOf(world),
     offworldFrom = isProvinceWorld(ctx.generated) ? ctx.generated.offworld.base : Infinity;
   // (The month's work on what towns were asked to raise, H1: here, as an old save's agenda holds no new system.)
   asksMonth(ctx, t);
@@ -685,7 +688,7 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
       // grazing is a giant's meal), so a worker feeds as many as an upright ape's does —
       // less the share of every hand that keeps another world's halls alive.
       gathers =
-        ctx.life.appetite *
+        (mixed ? ctx.life.appetite * mixAppetite(world, p.cell) : ctx.life.appetite) *
         (1 - hallsShare(ctx, p.cell)) *
         // (As many days as its people work against the reference year, its rest days the fewer: the society sweep, rules/leisure.ts.
         // 1 where none is kept.)
@@ -811,7 +814,9 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
     if (rot > 0)
       for (const g of FOODS) m.move("spoiled", g, Math.floor(Math.max(0, m.stock[g]!) * rot));
     // What they eat: their people by the appetite of their body (an upright ape's, one unit a month).
-    const need = Math.round(mouths(p, ctx.life));
+    const need = Math.round(
+      mixed ? mouths(p, ctx.life) * mixAppetite(world, p.cell) : mouths(p, ctx.life),
+    );
     let eaten = 0;
     for (const g of FOODS) eaten += m.take("used", g, need - eaten);
     let over = m.food(FOODS) - need * (12 + 12 * pots + stored);
@@ -940,7 +945,9 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
     // (Read once a month: the sicknesses settled among each land's young, health/health.ts endemicOf.)
     health = healthOf(world),
     boyRisk = life.boyRisk ?? 1,
-    lore = loreOf(world);
+    lore = loreOf(world),
+    // (A world of more than one people: sim/population/mix.ts. Null on any other, and nothing below reads it.)
+    mixed = mixOf(world);
   const markets = marketsOf(world),
     acts = actsOf(world),
     month = periodIndex(t, MONTH),
@@ -980,7 +987,13 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
     // A people grown wealthy with power have fewer children (the demographic transition).
     // And one that has not put by what will feed it to the reaping has fewer still (rules/seasons.ts):
     // by the months of eating in its land's store, against those it needs by the share of its food it reaps.
-    const fertility = fedSquared * transition(ctx, p.cell) * putBy(ctx, p, markets.get(p.cell)),
+    // (A mixed land's births and each band's deaths are its peoples' own bodies', weighed by their shares: rules/peoples.ts.)
+    const mix = mixed ? mixFactors(world, p.cell) : null,
+      fertility =
+        fedSquared *
+        transition(ctx, p.cell) *
+        putBy(ctx, p, markets.get(p.cell)) *
+        (mix ? mix.births : 1),
       // In cold lands, those without warm clothing die more easily.
       cold = dmath.clamp((10 - ctx.generated.climate.temperature[p.cell]!) / 10, 0, 1),
       // (As far as their own coat leaves them to clothes: the society sweep, rules/dress.ts. A bare skin's, 1.)
@@ -1032,6 +1045,7 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
         (b < 2 ? want.young : want.grown) *
         (old && b >= old.band ? old.press : 1) *
         (b >= kin.oldBand ? long : 1) *
+        (mix ? mix.deaths[b]! : 1) *
         // (The young of those who sire die the more as the sexes' bodies differ: rules/species.ts boyRiskOf.)
         (sex === MALE && life.bands[b]! < life.adulthood ? boyRisk : 1) *
         (killed > 0 && youngBand(life, b) ? 1 + killed / Math.max(1e-4, life.mortality[b]!) : 1),
@@ -2002,6 +2016,8 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
         from.move("carriedOut", g, Math.floor((from.stock[g]! * f.count) / people)),
       );
     if (from.metalworking && !to.metalworking) to.metalworking = from.metalworking;
+    // (Those who leave a land of more than one people take its shares with them: sim/population/mix.ts. Nothing on any other.)
+    mixMoved(world, f.from.cell, f.to, f.count, dest.total());
     const byOccupation = new Array<number>(COLS).fill(0);
     f.moved.forEach((m, i) => {
       if (!m) return;
