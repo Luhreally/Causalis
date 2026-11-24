@@ -41,6 +41,7 @@ import {
   type HomeWorld,
 } from "../../gen/index.ts";
 import { divineWarming } from "../acts/great.ts";
+import { homeAirKept } from "../planet/motion.ts";
 import { provinceCapacity, type PopulationContext } from "../population/systems.ts";
 import type { MarketStore } from "../economy/market.ts";
 import { ecologyOf } from "../ecology/ecology.ts";
@@ -71,7 +72,10 @@ export const TONNES_A_PPM = 2.13e9;
  */
 export function carbonPerFuel(g: HomeWorld, fuel: "coal" | "oil" | "gas"): number {
   const n = meansNumbers(g),
-    air = (n.airBar * n.radius * n.radius) / Math.max(0.01, n.pull);
+    // (Of the air it was made with, what its star's wind has left it: planet/motion.ts homeAirKept.)
+    air =
+      (n.airBar * homeAirKept(isProvinceWorld(g) ? g.fine : g).kept * n.radius * n.radius) /
+      Math.max(0.01, n.pull);
   return fuelTonnes(fuel).carbon / TONNES_A_PPM / Math.max(1e-6, air);
 }
 /** Carbon a unit of coal burned puts in Earth's air (ppm). */

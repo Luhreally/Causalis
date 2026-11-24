@@ -5,6 +5,8 @@ import assert from "node:assert/strict";
 import {
   LOCKED,
   RING,
+  airKept,
+  airLoss,
   lockedRising,
   lockedWarmth,
   ringOf,
@@ -43,4 +45,21 @@ test("a world locked to its star has a day side and a night side", () => {
   // Thick air carries more of the warmth round; the rain falls under the star.
   assert.ok(lockedWarmth(1, 4) < lockedWarmth(1, 1) && LOCKED.contrast === 50);
   assert.ok(lockedRising(1) === 1 && lockedRising(-0.5) === 0);
+});
+
+test("a world's air is lost to its star's wind where no field holds it off", () => {
+  const earth = { wind: 1, shelter: 0.989, mass: 1, radius: 1, pressure: 1 },
+    mars = { wind: 0.43, shelter: 0, mass: 0.107, radius: 0.532, pressure: 1 };
+  // Earth behind its field keeps its air: what it loses in its whole age is under a hundredth, and is not reckoned.
+  assert.equal(airKept(airLoss(earth), 4.6), 1);
+  // A world of Mars's size and place with no field is left some three quarters; nearer a windier star, far less.
+  const left = airKept(airLoss(mars), 4.6);
+  assert.ok(left > 0.6 && left < 0.9, `${left}`);
+  // Its fire below breathes some back: it thins toward a balance, lower where no plates turn, never to nothing.
+  const windy = airLoss({ ...mars, wind: 16 });
+  assert.ok(airKept(windy, 4.6) < 0.2 && airKept(windy, 4.6) > 0.02);
+  assert.ok(airKept(windy, 4.6, 0.3) < airKept(windy, 4.6));
+  // A heavier world, or one under a deeper air, loses a smaller share.
+  assert.ok(airLoss({ ...mars, mass: 1, radius: 1 }) < airLoss(mars));
+  assert.ok(airLoss({ ...mars, pressure: 90 }) < airLoss(mars) / 50);
 });

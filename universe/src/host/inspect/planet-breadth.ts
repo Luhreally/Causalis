@@ -18,7 +18,9 @@ import {
   airOf,
   carbonWorld,
   coverAt,
+  homeAirKept,
   homeCycles,
+  homeField,
   homePlanet,
   landSlope,
   populationContext,
@@ -119,6 +121,7 @@ export function landBreadthBlocks(world: World, cell: number): Block[] {
 /** The world's air at rest, its seas, its frozen ground, its slow swings and its star's companion. */
 export function worldBreadthBlock(world: World): Block {
   const g = homePlanet(world).generated,
+    fine = isProvinceWorld(g) ? g.fine : g,
     cw = carbonWorld(g),
     air = world.hasStore("climate.air") ? airOf(world).air : null,
     rest = air?.rest,
@@ -162,6 +165,15 @@ export function worldBreadthBlock(world: World): Block {
         `a star of ${companion.mass.toFixed(2)} Suns ${count(Math.round(companion.a))} times Earth's distance out, ${companion.moons >= 1 ? `${count(Math.round(companion.moons))} times as bright as a full moon` : "a bright star"} in its sky`,
       ),
     );
+  const kept = homeAirKept(fine);
+  rows.push(
+    stat(
+      "Its air against its star's wind",
+      kept.kept < 1
+        ? `${pct(1 - kept.kept)} of the air it was made with is gone, ${pct(kept.loss)} of it a billion years: its field keeps off ${pct(homeField(fine).shelter)} of a wind ${homeField(fine).wind.toFixed(1)} times the Sun's at Earth. What it burns fills a thinner air the faster, and more of the sky's particles reach its ground`
+        : `kept: it loses ${(100 * kept.loss).toFixed(2)}% a billion years, its field keeping off ${pct(homeField(fine).shelter)} of its star's wind`,
+    ),
+  );
   if (g.planet.locked)
     rows.push(
       stat(

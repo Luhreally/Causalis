@@ -1417,6 +1417,7 @@ export {
   MOTION_EVENTS,
   MotionStore,
   STEP as MOTION_STEP,
+  homeAirKept,
   homeField,
   homeSky,
   homeStarLife,

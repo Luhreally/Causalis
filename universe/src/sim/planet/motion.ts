@@ -38,6 +38,8 @@ import {
   DEEP_WARMS,
   ICE,
   KINDS,
+  airKept,
+  airLoss,
   OVERTURN,
   STAR_LIFE,
   albedoWarming,
@@ -340,6 +342,26 @@ export function homeField(g: HomeWorld): Magnetosphere {
   return f;
 }
 
+/**
+ * What the home world has kept of its air against its star's wind over its age (rules/skies.ts): the share it loses a billion
+ * years, by its field, its size and its air's weight, and what is left of the air it was made with (1: all but a hundredth).
+ */
+export function homeAirKept(g: HomeWorld): { readonly loss: number; readonly kept: number } {
+  const f = homeField(g),
+    kind = worldKindOf(g),
+    loss = airLoss({
+      wind: f.wind,
+      shelter: f.shelter,
+      mass: g.planet.mass,
+      radius: g.planet.radius,
+      pressure: KINDS[kind].body.pressure,
+    });
+  return {
+    loss,
+    kept: airKept(loss, Math.min(g.star.ageGyr, 12.6), g.planet.plateCount > 1 ? 1 : 0.3),
+  };
+}
+
 /** The home star's life, `years` into the chronicle. */
 export function homeStarLife(g: HomeWorld, years: number): StarLife {
   return starLifeOf(g.star.mass, g.star.ageGyr, g.star.lifetimeGyr, Math.max(0, years));
@@ -354,7 +376,9 @@ export function homeSky(world: World): number {
     field = homeField(g),
     flare = starHazard(world, g.star.ref as Ref).factor,
     store = motionOf(world);
-  let k = (1 + DOSE_DEATHS * (field.dose - 1)) * flareThrough(flare, field.shelter);
+  // (What its air stops of the sky's particles goes with what is left of its air: rules/skies.ts.)
+  let k =
+    (1 + DOSE_DEATHS * (field.dose / homeAirKept(g).kept - 1)) * flareThrough(flare, field.shelter);
   if (store?.ends.length) {
     const year = yearOfMoment(world.now);
     for (const e of store.ends)
