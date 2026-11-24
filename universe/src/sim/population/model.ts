@@ -10,6 +10,7 @@ import {
   currentsOf,
   isProvinceWorld,
   offworldSite,
+  originGround,
   worldChemistry,
   type HomeWorld,
 } from "../../gen/index.ts";
@@ -20,7 +21,11 @@ import {
   coverOf,
   crustMultiplier,
   landUseOf,
+  growthUnderHard,
+  hardAtGround,
+  hardLight,
   lightGrowth,
+  ozoneColumn,
   lockedLight,
   rockGrowth,
   seasonOf,
@@ -47,15 +52,35 @@ export type Capacity = {
  * What a world's sky and rock give its growth (rules/biomes.ts): its star's light at its orbit (Earth's 1) and the phosphorus and
  * potash of its crust against Earth's. A pure reading of the world as made, kept by its digest.
  */
-type Sky = { readonly light: number; readonly rock: number };
+type Sky = {
+  readonly light: number;
+  readonly rock: number;
+  /**
+   * Its shield against its star's hard light (rules/skies.ts): its ozone against Earth's (from the free oxygen its life has put
+   * in its air), whether a haze shields it too, the hard light at its ground against Earth's, and what that leaves of growth in
+   * the open.
+   */
+  readonly ozone: number;
+  readonly haze: boolean;
+  readonly hard: number;
+  readonly open: number;
+};
 const SKIES = new Map<string, Sky>();
 export function skyOf(w: HomeWorld): Sky {
   let s = SKIES.get(w.digest);
   if (s) return s;
-  const chem = worldChemistry(w);
+  const chem = worldChemistry(w),
+    ground = originGround(w),
+    // (Free oxygen is its light-eaters' making: a world none lives on has none, and no ozone.)
+    ozone = ozoneColumn(ground.oxygen && ground.eatsLight ? ground.o2 * ground.pressure : 0),
+    hard = hardAtGround(hardLight(w.star.temperature), ozone, ground.haze);
   s = {
     light: w.planet.insolation,
     rock: rockGrowth(crustMultiplier(chem, "P"), crustMultiplier(chem, "K")),
+    ozone,
+    haze: ground.haze,
+    hard,
+    open: growthUnderHard(hard),
   };
   SKIES.set(w.digest, s);
   if (SKIES.size > 16) SKIES.delete(SKIES.keys().next().value!);
@@ -74,7 +99,8 @@ export function coverAt(w: HomeWorld, cell: number, heat = 0): Cover {
     t = w.climate.temperature[cell]! + heat,
     p0 = w.climate.precipitation[cell]!,
     p = heat ? p0 * rainUnderWarmth(w.grid.lat[cell]!, p0, heat) : p0;
-  return coverOf(t, p, w.climate.seasonality[cell]!, landLight(w, cell), sky.rock);
+  // (Growth in the open under what its shield lets through of its star's hard light: the sea shields its own.)
+  return coverOf(t, p, w.climate.seasonality[cell]!, landLight(w, cell), sky.rock * sky.open);
 }
 
 /**

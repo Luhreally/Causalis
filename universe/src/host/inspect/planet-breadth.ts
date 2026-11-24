@@ -25,6 +25,7 @@ import {
   landSlope,
   populationContext,
   riverMovesOn,
+  shieldNow,
   skyOf,
   struckOn,
 } from "../../sim/index.ts";
@@ -172,6 +173,14 @@ export function worldBreadthBlock(world: World): Block {
       kept.kept < 1
         ? `${pct(1 - kept.kept)} of the air it was made with is gone, ${pct(kept.loss)} of it a billion years: its field keeps off ${pct(homeField(fine).shelter)} of a wind ${homeField(fine).wind.toFixed(1)} times the Sun's at Earth. What it burns fills a thinner air the faster, and more of the sky's particles reach its ground`
         : `kept: it loses ${(100 * kept.loss).toFixed(2)}% a billion years, its field keeping off ${pct(homeField(fine).shelter)} of its star's wind`,
+    ),
+  );
+  const sky = skyOf(fine),
+    shield = shieldNow(world);
+  rows.push(
+    stat(
+      "Its shield against its star's hard light",
+      `${sky.ozone > 0 ? `ozone ${sky.ozone.toFixed(2)} of Earth's, from the oxygen its life put in its air` : "no ozone: its air holds no free oxygen"}${sky.haze ? ", and a haze that stops it too" : ""}; ${sky.hard < 10 ? sky.hard.toFixed(2) : Math.round(sky.hard)} times Earth's hard light reaches its ground${sky.open < 0.995 ? `, and what grows in the open gives ${pct(sky.open)} of what it would under Earth's shield` : ""}${shield.left < 1 ? `. Now stripped to ${pct(shield.left)}: its open fields give ${pct(shield.fields)}` : ""}`,
     ),
   );
   if (g.planet.locked)

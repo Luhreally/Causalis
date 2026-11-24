@@ -7,6 +7,11 @@ import {
   RING,
   airKept,
   airLoss,
+  growthUnderHard,
+  hardAtGround,
+  hardLight,
+  ozoneColumn,
+  ozoneStripped,
   lockedRising,
   lockedWarmth,
   ringOf,
@@ -62,4 +67,24 @@ test("a world's air is lost to its star's wind where no field holds it off", () 
   // A heavier world, or one under a deeper air, loses a smaller share.
   assert.ok(airLoss({ ...mars, mass: 1, radius: 1 }) < airLoss(mars));
   assert.ok(airLoss({ ...mars, pressure: 90 }) < airLoss(mars) / 50);
+});
+
+test("ozone from an air's oxygen shields the ground from its star's hard light", () => {
+  // Earth's is 1; a tenth of the oxygen still makes half the shield; no oxygen, none.
+  assert.equal(ozoneColumn(0.2095), 1);
+  assert.ok(ozoneColumn(0.02095) > 0.45 && ozoneColumn(0.02095) < 0.55);
+  assert.equal(ozoneColumn(0), 0);
+  // A cool red star gives little hard light, a hotter one more.
+  assert.equal(hardLight(5778), 1);
+  assert.ok(hardLight(3500) < 0.05 && hardLight(7000) > 1.5);
+  // Earth's ground gets 1; with no ozone some thirty times that, unless a haze stops it; open growth gives less.
+  assert.equal(hardAtGround(1, 1, false), 1);
+  const bare = hardAtGround(1, 0, false);
+  assert.ok(bare > 25 && bare < 40 && hardAtGround(1, 0, true) === 1);
+  assert.equal(growthUnderHard(0.2), 1);
+  assert.ok(growthUnderHard(bare) > 0.55 && growthUnderHard(bare) < 0.7);
+  // A supernova 26 light-years off (a fifth more deaths) strips half; the fields under it lose about a tenth.
+  assert.ok(Math.abs(ozoneStripped(1.21) - 0.5) < 0.01 && ozoneStripped(1) === 0);
+  const under = growthUnderHard(hardAtGround(1, 0.5, false));
+  assert.ok(under > 0.88 && under < 0.94);
 });

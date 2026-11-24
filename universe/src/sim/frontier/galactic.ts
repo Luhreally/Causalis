@@ -35,6 +35,7 @@ import { homePlanet } from "../planet/store.ts";
 import { homeField } from "../planet/motion.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { fold } from "./common.ts";
+import { shieldUnder, tellShield } from "./shield.ts";
 
 export const GALACTIC_EVENTS = {
   /** A great star died, or a white dwarf blew up, near enough to harm the world. */
@@ -243,6 +244,7 @@ export function galacticYear(ctx: PopulationContext, t: SimTime): void {
     event,
   };
   store.note([year, Math.round(distance), Math.round(harm * 1000)]);
+  tellShield(world, shieldUnder(world, harm, 1), event, store.burst.years);
 }
 
 /** How many more stones fall on the home world for a rogue's pass, in a year (1: none presses). */
