@@ -8,6 +8,7 @@ export {
   kindPlanet,
   makePlanet,
   makeStar,
+  spinHours,
   starAgeGyr,
   worldKindOf,
   type Planet,

@@ -29,6 +29,7 @@ import {
   BIOME,
   cellRef,
   planetRef,
+  spinHours,
   worldChemistry,
   worldKindOf,
   type HomeWorld,
@@ -325,7 +326,7 @@ export function homeField(g: HomeWorld): Magnetosphere {
     f = magnetosphereOf({
       mass: g.planet.mass,
       radius: g.planet.radius,
-      dayHours: g.planet.dayHours,
+      dayHours: spinHours(g.planet),
       ageGyr: Math.min(g.star.ageGyr, 12.6),
       plates: g.planet.plateCount,
       feH: chem.feH,
@@ -430,7 +431,7 @@ export function homeCycles(g: HomeWorld): Cycles {
   c = cyclesOf({
     starMass: g.star.mass,
     orbitAu: g.planet.orbitAu,
-    dayHours: g.planet.dayHours,
+    dayHours: spinHours(g.planet),
     ecc: home.orbit.e,
     moons: bodies
       .filter((b) => b.kind === "moon" && b.orbit.around === home.ref)

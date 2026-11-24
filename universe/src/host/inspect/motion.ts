@@ -353,7 +353,9 @@ export function landSkyRows(world: World, cell: number): Stat[] {
       stat("Lean season", `${months(season.lean)} months its stores must last`),
       stat(
         "Its day",
-        `${Math.round(p.dayHours)} hours: ${day.midnightSun ? "a summer sun that never sets" : `${Math.round(day.summerLight)} of light at midsummer`}, ${day.polarNight ? "a winter night that never ends" : `${Math.round(day.winterLight)} at midwinter`}; its people sleep ${day.sleeps === 1 ? "once" : day.sleeps === 2 ? "twice" : "three times"} a day`,
+        p.locked
+          ? `none: one face of its world is held to its star. Here the star stands ${g.grid.positions[3 * cell]! > 0.02 ? "always in the sky" : g.grid.positions[3 * cell]! < -0.02 ? "never in the sky" : "always at the sky's edge"}; its people sleep by their own need`
+          : `${Math.round(p.dayHours)} hours: ${day.midnightSun ? "a summer sun that never sets" : `${Math.round(day.summerLight)} of light at midsummer`}, ${day.polarNight ? "a winter night that never ends" : `${Math.round(day.winterLight)} at midwinter`}; its people sleep ${day.sleeps === 1 ? "once" : day.sleeps === 2 ? "twice" : "three times"} a day`,
       ),
     ];
   // Its coast's current, and its sea.

@@ -104,7 +104,7 @@ registerExplainer(PLANET.code, (world, ref) => {
   const world0 = p.kind ? KINDS[p.kind].name.replace(/^an? /, (a) => a.toUpperCase()) : "A world";
   return generated(
     ref,
-    `${world0} of ${p.mass.toFixed(2)} Earth masses (gravity ${p.gravity.toFixed(2)} g) ${p.orbitAu.toFixed(2)} AU from its star, a year of ${Math.round(p.yearDays)} days and a day of ${p.dayHours.toFixed(1)} hours, tilted ${p.tilt.toFixed(1)}°`,
+    `${world0} of ${p.mass.toFixed(2)} Earth masses (gravity ${p.gravity.toFixed(2)} g) ${p.orbitAu.toFixed(2)} AU from its star, a year of ${Math.round(p.yearDays)} days and ${p.locked ? "no day: its star's tide holds one face of it to the star, in light for good, and the other in the dark" : `a day of ${p.dayHours.toFixed(1)} hours`}, tilted ${p.tilt.toFixed(1)}°`,
     edges(world, [{ ref: star.ref as Ref, role: "enabler", weight: 1 }]),
   );
 });

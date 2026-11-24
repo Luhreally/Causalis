@@ -1881,3 +1881,4 @@ export {
 } from "./stature.ts";
 export * from "./taboo.ts";
 export * from "./rings.ts";
+export * from "./locked.ts";

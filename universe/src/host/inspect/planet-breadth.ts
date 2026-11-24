@@ -2,9 +2,11 @@
 // stands (rules/biomes.ts); its monsoon, the great storms its seas breed and its slopes' failing, with the last that struck it;
 // and the world's air at rest, its seas' souring, its frozen ground's thaw, its slow swings and its star's companion.
 import type { World } from "../../kernel/index.ts";
-import { isProvinceWorld } from "../../gen/index.ts";
+import { isProvinceWorld, spinHours } from "../../gen/index.ts";
 import {
   CARBON_CYCLE,
+  KINDS,
+  lockedWarmth,
   cycloneChance,
   cycloneSpin,
   monsoonOf,
@@ -28,6 +30,8 @@ import type { Block } from "../../bridge/index.ts";
 import { galaxyAdrift } from "../galaxy.ts";
 import { count, stat } from "./words.ts";
 
+const lockedAir = (g: { planet: { kind?: keyof typeof KINDS } }) =>
+  g.planet.kind ? KINDS[g.planet.kind].body.pressure : 1;
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 
 /** What a land grows, and the storms, monsoon and slides it is open to. */
@@ -73,7 +77,7 @@ export function landBreadthBlocks(world: World, cell: number): Block[] {
       const m = g.grid.neighbours[k]!;
       if (g.tectonics.elevation[m]! <= 0) sea = Math.max(sea, g.climate.temperature[m]!);
     }
-    const storm = cycloneChance(sea, cycloneSpin(lat, g.planet.dayHours));
+    const storm = cycloneChance(sea, cycloneSpin(lat, spinHours(g.planet)));
     if (storm > 0)
       rows.push(
         stat(
@@ -156,6 +160,13 @@ export function worldBreadthBlock(world: World): Block {
       stat(
         "Its star's companion",
         `a star of ${companion.mass.toFixed(2)} Suns ${count(Math.round(companion.a))} times Earth's distance out, ${companion.moons >= 1 ? `${count(Math.round(companion.moons))} times as bright as a full moon` : "a bright star"} in its sky`,
+      ),
+    );
+  if (g.planet.locked)
+    rows.push(
+      stat(
+        "Its two sides",
+        `its star's tide holds one face to the star: ${lockedWarmth(1, lockedAir(g)).toFixed(0)} degrees over its mean under the star, ${Math.abs(lockedWarmth(0, lockedAir(g))).toFixed(0)} under it from the edge of the light across the whole dark side, where nothing grows`,
       ),
     );
   for (const b of g.system.bodies)

@@ -21,6 +21,7 @@ import {
   crustMultiplier,
   landUseOf,
   lightGrowth,
+  lockedLight,
   rockGrowth,
   seasonOf,
   type Cover,
@@ -61,13 +62,19 @@ export function skyOf(w: HomeWorld): Sky {
   return s;
 }
 
+/** The light a land gets against Earth's: its sky's, and on a world locked to its star by how high the star stands there. */
+export function landLight(w: HomeWorld, cell: number): number {
+  const light = skyOf(w).light;
+  return w.planet.locked ? Math.max(1e-6, light * lockedLight(w.grid.positions[3 * cell]!)) : light;
+}
+
 /** A fine land's cover, its warmth turned `heat` degrees and its rain moved as that warmth moves it (rules/biomes.ts coverOf). */
 export function coverAt(w: HomeWorld, cell: number, heat = 0): Cover {
   const sky = skyOf(w),
     t = w.climate.temperature[cell]! + heat,
     p0 = w.climate.precipitation[cell]!,
     p = heat ? p0 * rainUnderWarmth(w.grid.lat[cell]!, p0, heat) : p0;
-  return coverOf(t, p, w.climate.seasonality[cell]!, sky.light, sky.rock);
+  return coverOf(t, p, w.climate.seasonality[cell]!, landLight(w, cell), sky.rock);
 }
 
 /**
@@ -234,7 +241,7 @@ function sea(
     ),
     // (And as its light and the rock its waters wash give the sea's growth: rules/biomes.ts. 1 under Earth's sun, on Earth's rock.)
     sky = skyOf(w),
-    k = areaKm2 * warm * share * lightGrowth(sky.light) * sky.rock;
+    k = areaKm2 * warm * share * lightGrowth(landLight(w, cell)) * sky.rock;
   return {
     forage: k * (SEA_FORAGE[biome] ?? 0),
     farm: k * (SEA_ARABLE[biome] ?? 0) * FARM_YIELD,

@@ -13,6 +13,7 @@
 // currents at their made strength; what moves in play is their strength (sim/planet/motion.ts), and with it a share
 // of the warmth they bring each coast.
 import { dmath } from "../kernel/index.ts";
+import { spinHours } from "./bodies.ts";
 import { windAt } from "./climate.ts";
 import type { HomeWorld } from "./homeworld.ts";
 
@@ -121,7 +122,7 @@ export function currentsOf(w: HomeWorld): Currents {
     bands = w.climate.bands,
     tilt = w.planet.tilt,
     spread = 60 * (1 - (0.9 * tilt) / 90),
-    spin = dmath.clamp(Math.sqrt(w.planet.dayHours / 24), 0.6, 1.6),
+    spin = dmath.clamp(Math.sqrt(spinHours(w.planet) / 24), 0.6, 1.6),
     radiusKm = 6371 * w.planet.radius,
     warmth = new Float32Array(n),
     flow = new Int8Array(n),
