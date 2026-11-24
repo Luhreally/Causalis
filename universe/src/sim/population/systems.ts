@@ -59,6 +59,8 @@ import { ACT_REACH, ACT_STRENGTH, actFactor, actsOf, blightRot, watered } from "
 import { lineageNature, tameNow } from "../acts/natures.ts";
 import {
   FLOCK_LOSS,
+  carriedFields,
+  carriedWild,
   ecologyOf,
   grainLost,
   living,
@@ -495,6 +497,8 @@ export function farmingShare(ctx: PopulationContext, p: Province): number {
       // (Its crop, as tame and as fitted to it as it is; the world's veil, and its own ash and flood: exactly 1 on a land
       // sowing its own, tamed, under a clear sky, its river in its banks.)
       cropsGive(ctx.world, p.cell) *
+      // (Its gardens' fruit by its carriers' numbers: ecology.ts carriedFields. Exactly 1 where they stand as they did.)
+      carriedFields(ctx, p.cell) *
       // (Less what weeds and pests carried in take: exactly 1 where none came.)
       pestsLeft(ctx.world, p.cell) *
       veilYield(ctx, p.cell) *
@@ -703,6 +707,7 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
         // (Its crop, as tame and as fitted to it as it is; the world's veil, and its own ash and flood: exactly 1 on a land
         // sowing its own, tamed, under a clear sky, its river in its banks.)
         cropsGive(world, p.cell) *
+        carriedFields(ctx, p.cell) *
         pestsLeft(world, p.cell) *
         veilYield(ctx, p.cell) *
         floodYield(world, p.cell) *
@@ -721,7 +726,8 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
       flocksLost = herdLoss(world, p.cell, t),
       // (What lives off its flocks and its wild, and what its seed carriers give: ecology/lineage.ts. Exactly 1 where none stand.)
       partners = partnersOf(world, p.cell),
-      wilds = 1 + lore.effect(p.cell, "forageYield"),
+      // (The wild's fruit by its carriers' numbers: ecology.ts carriedWild. Exactly 1 where its small game stands as it did.)
+      wilds = (1 + lore.effect(p.cell, "forageYield")) * carriedWild(ctx, p.cell, alive),
       keeping = Math.min(0.8, lore.effect(p.cell, "keeping")),
       // (And what its own air, coast, woods and brewing keep: society/everyday.ts. Exactly 0 where none is kept.)
       keptByLand = tableKeptOf(world, p.cell),

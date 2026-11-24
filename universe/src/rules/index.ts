@@ -569,6 +569,7 @@ export {
   type Volatile,
   type WorldKind,
 } from "./kinds.ts";
+export { CARRIED, carriedYield, fruitSet } from "./crops.ts";
 export {
   WORKABLE,
   depositElement,
