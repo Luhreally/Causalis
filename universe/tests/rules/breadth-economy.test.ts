@@ -108,7 +108,10 @@ test("a building rises where its use pays for its cost: bigger towns, more patie
   assert.ok(payingPeople(mill, 2, town(1000, 0.1, 0.01)) < least);
   assert.ok(payingPeople(kiln, 1, town(1000, 0.3)) < payingPeople(kiln, 1, town(1000, 0.05)));
   // More rise as each serves the next of its people, never past `most`.
-  assert.ok(civicsPaying(mill, 2, town(20_000)) > 1);
+  assert.equal(
+    civicsPaying(mill, 2, town(20_000)),
+    Math.min(mill.most ?? 99, Math.floor(20_000 / mill.per!)),
+  );
   assert.ok(civicsPaying(mill, 2, town(10_000_000)) <= (mill.most ?? 99));
   const well = CIVICS.find((c) => c.kind === "well")!;
   assert.equal(civicsPaying(well, 1, town(1e9)), 0);

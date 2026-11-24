@@ -136,15 +136,17 @@ export function keptFixed(def: CivicDef, lots: number): number {
 }
 
 /**
- * How many of a kind pay in a town: each serving up to `per` of its people (all of them where it has no `per`), the next rising
- * while those it would serve make its use worth its charge; never more than `most`.
+ * How many of a kind a town keeps: none where a first would not pay its charge; else one for each `per` of its people (one where it
+ * has no `per`, and one at the least), never more than `most`. (Counted as a town did before its use was weighed: one more for
+ * the people past the last full `per`, wherever those would pay its charge, raised half again as many buildings on kestrel 500
+ * in forty years, 14,418 against 9,236, and a town's year cost a world more than it did.)
  */
 export function civicsPaying(def: CivicDef, lots: number, town: TownUse): number {
-  const least = payingPeople(def, lots, town);
-  if (!(town.people >= least)) return 0;
-  if (!def.per) return 1;
-  const full = Math.floor(town.people / def.per),
-    rest = town.people - full * def.per,
-    n = (def.per >= least ? full : 0) + (rest >= least ? 1 : 0);
-  return Math.max(1, Math.min(def.most ?? 99, n));
+  if (!(town.people >= payingPeople(def, lots, town))) return 0;
+  return civicsHeld(def, town.people);
+}
+
+/** How many of a kind its people hold, a first paying: one for each `per` of them, one at the least, never more than `most`. */
+export function civicsHeld(def: CivicDef, people: number): number {
+  return def.per ? Math.max(1, Math.min(def.most ?? 99, Math.floor(people / def.per))) : 1;
 }
