@@ -44,6 +44,7 @@ import {
   type Interest,
   type Polity,
 } from "../../src/sim/index.ts";
+import { housesOf } from "../../src/sim/order/houses.ts";
 import { peopledWorld } from "../worlds.ts";
 
 const seed = seedFromText("juniper"),
@@ -184,9 +185,12 @@ test("a coup leaves a general, holding as the army and those behind it would", (
     stood = (g: string) => (g === "the army" ? 1 : g === "the court" ? 0 : 0.5),
     wants = wantsOfRisen(interestsOf(ctx, p, at(1)), stood, ofRealm(w, p.ref))!;
   w.runTo(at(1));
-  // (Its arms kept to its host: there a coup leaves its army ruling, sim/strife coupKindOf.)
+  // (Its arms kept to its host, and no great house outweighing its crown: there a coup leaves its army ruling, sim/strife
+  // coupKindOf. Since the breadth round's foundings this realm's court house outweighed its crown.)
   const o = orderOf(w)!.of(p.ref)!;
   if (o.held) o.held[HOLD.force] = Math.max(o.held[HOLD.force]!, 80);
+  const h = housesOf(w)?.of(p.ref);
+  if (h) (h as { rival: number }).rival = 0;
   seize(ctx, p, [], at(1));
   assert.equal(p.leadership, GENERAL);
   const after = holdsOf(w, p.ref);

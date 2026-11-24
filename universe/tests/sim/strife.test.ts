@@ -37,6 +37,7 @@ import {
   type Polity,
 } from "../../src/sim/index.ts";
 import { why } from "../../src/causal/index.ts";
+import { housesOf } from "../../src/sim/order/houses.ts";
 import { FISC, TREASURY_STORE, moneyStore } from "../../src/sim/money/kept.ts";
 import { peopledWorld } from "../worlds.ts";
 
@@ -86,14 +87,21 @@ function doubted(w: World, p: Polity): void {
 function armsKept(w: World, p: Polity): void {
   const o = orderOf(w)!.of(p.ref)!;
   if (o.held) o.held[HOLD.force] = Math.max(o.held[HOLD.force]!, 80);
+  // (And no great house outweighing its crown: where one does, a coup there is its head's, not the army's (coupKindOf). Since
+  // the breadth round's foundings juniper's greatest realm at sixty has a court house thrice its crown's power.)
+  const h = housesOf(w)?.of(p.ref);
+  if (h) (h as { rival: number }).rival = 0;
 }
 function untilACoup(w: World, p: Polity, from = 1, won = true): number {
   const ctx = populationContext(w),
     store = strifeOf(w)!;
+  // (Only a coup after the first year asked: since the breadth round's foundings juniper's greatest realm had one of its own
+  // before sixty, its court's house crowned.)
+  const had = store.coups.length;
   for (let k = from; k < from + 600; k++) {
     doubted(w, p);
     strifeYear(ctx, at(k * YEAR));
-    if (store.coups.some((c) => c.realm === p.ref && (!won || c.won))) return k;
+    if (store.coups.slice(had).some((c) => c.realm === p.ref && (!won || c.won))) return k;
   }
   return -1;
 }
@@ -142,7 +150,7 @@ test("a coup: a doubted rule and a heard army — the seat seized, the realm a p
   armsKept(w, p);
   const k = untilACoup(w, p);
   assert.ok(k > 0, "its army reached for its seat");
-  const coup = strifeOf(w)!.coups.find((c) => c.realm === p.ref && c.won)!;
+  const coup = strifeOf(w)!.coups.findLast((c) => c.realm === p.ref && c.won)!;
   assert.equal(p.leadership, GENERAL, "a general rules it");
   assert.equal(p.succession, 1, "its rulers chosen by its army");
   assert.ok(realmName(p).startsWith("the protectorate of"), realmName(p));
