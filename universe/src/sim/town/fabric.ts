@@ -46,6 +46,8 @@ import {
   civicsPaying,
   keptFixed,
   keptPeople,
+  keptPeopleBy,
+  civicUserAt,
   leastEver,
   payingPeople,
   timePreference,
@@ -1242,27 +1244,31 @@ export class TownBuilder {
     // change since let go brings nothing due, and a run parted that was history already, or a building raised since, waits
     // for one that does. Joined in any other year, a town that went on joined across a building where one loaded from a
     // save, going over all its runs, did not: juniper, Noubuey and Vigramenford.)
-    if (!dueNow)
-      for (const h of young)
-        if (R.alive(h) && R.v(R.slotOf(h), 4) === old) {
-          dueNow = true;
-          break;
-        }
-    // (Kept in place: those still young, and those waiting.)
+    // (Kept in place: those still young; those history now, joined in a year one comes to be, else kept to wait. One pass:
+    // where each stands in the list is never read, the joins going by their lots.)
     let w = 0;
+    const waiting = WAITING;
+    waiting.length = 0;
     for (const h of young) {
       if (!R.alive(h)) continue;
-      const c = R.slotOf(h),
-        end = R.v(c, 4);
-      if (dueNow && end <= old) {
-        if (isHome(R.v(c, 0))) R.w(c, 0, CHANGE.built);
-        beside.push(h);
+      const end = R.v(R.slotOf(h), 4);
+      if (end <= old) {
+        if (end === old) dueNow = true;
+        waiting.push(h);
       } else {
         young[w++] = h;
-        if (end > old) next = Math.min(next, end + SETTLED);
+        next = Math.min(next, end + SETTLED);
       }
     }
     young.length = w;
+    for (const h of waiting)
+      if (!dueNow) young.push(h);
+      else {
+        const c = R.slotOf(h);
+        if (isHome(R.v(c, 0))) R.w(c, 0, CHANGE.built);
+        beside.push(h);
+      }
+    waiting.length = 0;
     const cs = f.civics;
     if (dueNow)
       for (let k = last.buildings; k < cs.length; k++) {
@@ -2035,9 +2041,7 @@ export class TownBuilder {
         ++at === asked &&
         cs.endAt(j) <= this.year &&
         people <
-          (Number.isNaN(KEPT_FIXED[i]!)
-            ? keptPeople(CIVICS[i]!, CIVIC_LOTS[CIVICS[i]!.kind], (use ??= townUseOf(this.ctx, s)))
-            : KEPT_FIXED[i]!)
+          (Number.isNaN(KEPT_FIXED[i]!) ? keptBy(this.ctx, s, CIVICS[i]!, use) : KEPT_FIXED[i]!)
       ) {
         this.fall(f, cs.get(j)!, FOLD.fell);
         continue;
@@ -2318,6 +2322,37 @@ export function townUseOf(ctx: PopulationContext, s: Settlement): TownUse {
     preference: timePreference(adultHazard(ctx.life), prov.leanest / 1000),
   };
 }
+/**
+ * keptPeople for one building in a town, reading of the town only what its own users are and earn: the same numbers as townUseOf
+ * gives them (its share and worth), without the rest (`use`, where the town's use was read already).
+ */
+function keptBy(ctx: PopulationContext, s: Settlement, def: CivicDef, use: TownUse | null): number {
+  const lots = CIVIC_LOTS[def.kind];
+  if (use) return keptPeople(def, lots, use);
+  const u = civicUserAt(def.kind),
+    prov = ctx.provinces?.get(s.cell),
+    people = Math.max(0, s.population);
+  let total = 0;
+  if (prov) for (let o = 0; o < USE_OCC.length; o++) total += USE_OCC[o] = prov.occupation(o);
+  // (As townUseOf reads a town apart from a world: its people's buildings only.)
+  if (!prov || total <= 0 || people <= 0) return keptPeopleBy(def, lots, u === 0 ? 1 : 0, 1);
+  if (u === 0) return keptPeopleBy(def, lots, 1, 1);
+  if (u === 4) return keptPeopleBy(def, lots, USE_OCC[OCC.dependent]! / total, 1);
+  const occ = u === 1 ? OCC.crafter : u === 2 ? OCC.trader : OCC.leader;
+  let towns = 0;
+  for (const o of ctx.settlements?.inProvince(s.cell) ?? [s]) towns += Math.max(0, o.population);
+  const share = Math.min(1, (USE_OCC[occ]! * (people / Math.max(people, towns))) / people),
+    w = ctx.world?.peek<MarketStore>("economy.markets")?.get(s.cell)?.wage,
+    workers = total - USE_OCC[OCC.dependent]!;
+  let paid = 0;
+  if (w) for (let o = 1; o < w.length && o < USE_OCC.length; o++) paid += w[o]! * USE_OCC[o]!;
+  const mean = workers > 0 ? paid / workers : 0,
+    x = w?.[occ] ?? 0,
+    worth = mean > 0 && x > 0 ? Math.min(4, Math.max(0.25, x / mean)) : 1;
+  return keptPeopleBy(def, lots, share, worth);
+}
+/** (settleYoung's own list of the runs come to be history, filled anew each settling.) */
+const WAITING: number[] = [];
 /** (townUseOf's own numbers, a land's people by occupation: filled anew each reading.) */
 const USE_OCC = new Float64Array(Object.keys(OCC).length);
 
