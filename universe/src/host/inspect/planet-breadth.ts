@@ -6,6 +6,7 @@ import { isProvinceWorld, spinHours } from "../../gen/index.ts";
 import {
   CARBON_CYCLE,
   KINDS,
+  hazeFields,
   lockedWarmth,
   cycloneChance,
   cycloneSpin,
@@ -143,6 +144,13 @@ export function worldBreadthBlock(world: World): Block {
         stat(
           "Its seas",
           `${sour.toFixed(2)} of a pH more acid than at rest; their shells and reefs give ${pct(shellsLeft(sour))}`,
+        ),
+      );
+    if ((air.masked ?? 0) >= 0.02)
+      rows.push(
+        stat(
+          "The haze of its burning",
+          `hides ${(air.masked ?? 0).toFixed(2)} degrees of the warming its carbon is storing up, and dims its fields by ${(100 * (1 - hazeFields(air.masked ?? 0))).toFixed(1)}%: it lasts only while the burning does`,
         ),
       );
     if ((air.thawed ?? 0) > 0)

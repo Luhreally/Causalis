@@ -3,6 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  HAZE,
   LOCKED,
   RING,
   airKept,
@@ -11,6 +12,8 @@ import {
   growthUnderHard,
   hardAtGround,
   hardLight,
+  hazeFields,
+  hazeMasks,
   ozoneColumn,
   ozoneStripped,
   lockedRising,
@@ -108,4 +111,15 @@ test("sea ice follows the seas' warmth and salt, and feeds the light kept and th
   assert.ok(Math.abs(brineOf(0) - 0.8) < 1e-9);
   assert.ok(Math.abs(overturnOf(0, 0, 1, brineOf(0)) - 0.8) < 1e-9);
   assert.ok(overturnOf(0.25, 0, 2) > overturnOf(0.25, 0) && overturnOf(0.25, 0) === 0.5);
+});
+
+test("the haze of what is burned dims and cools, hiding part of the warming", () => {
+  // Earth's burning at its haze's thickest hid half a degree and dimmed its fields' light by a twenty-fifth.
+  assert.equal(hazeMasks(0), 0);
+  assert.ok(Math.abs(hazeMasks(HAZE.earthBurn) - HAZE.earthMask) < 1e-9);
+  assert.ok(Math.abs(hazeFields(HAZE.earthMask) - 0.98) < 1e-9);
+  // Twice the smoke hides less than twice as much; gas makes a twentieth of coal's haze for its carbon.
+  assert.ok(hazeMasks(2 * HAZE.earthBurn) < 2 * HAZE.earthMask);
+  assert.ok(HAZE.gas < HAZE.oil && HAZE.oil < HAZE.coal);
+  assert.equal(hazeFields(0), 1);
 });

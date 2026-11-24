@@ -45,3 +45,10 @@ registerEventWords(SHIELD_EVENTS.thinned.type, (_world, e) => {
     fields = num(e.data, "fields");
   return `The world's shield against its star's hard light was stripped${left === null ? "" : ` to ${left} in a hundred of its ozone`}${hard === null ? "" : `: ${hard} times the hard light at its ground`}${fields === null ? "" : `, its open fields giving ${fields} in a hundred of what they gave`}, ${year(e.t)}`;
 });
+registerEventWords(AIR_EVENTS.dimmed.type, (_world, e) => {
+  const masked = num(e.data, "masked"),
+    cleared = (e.data as { cleared?: boolean } | null)?.cleared ?? false;
+  return cleared
+    ? `The haze of what the world burned thinned${masked === null ? "" : ` to hide ${masked} °C`}, and the warming it had hidden began to show, ${year(e.t)}`
+    : `The haze of what the world burned dimmed its sky${masked === null ? "" : `, hiding ${masked} °C of the warming its carbon was storing up`}, ${year(e.t)}`;
+});

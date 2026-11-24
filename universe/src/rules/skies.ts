@@ -103,3 +103,34 @@ export function growthUnderHard(uv: number): number {
 export function ozoneStripped(harm: number, flare = false): number {
   return dmath.clamp((flare ? SHIELD.flare : SHIELD.strip) * (harm - 1), 0, SHIELD.most);
 }
+
+// - The haze of what is burned: smoke and the sulphur in it hang in the air for weeks as a bright haze that throws back some of
+//   the star's light and seeds brighter cloud. It dims the ground and cools the world while the burning goes on, hiding part of
+//   the warming the same burning's carbon is storing up; cleaned out of the smoke, the hidden warming shows within years.
+
+export const HAZE = {
+  /** The carbon Earth burned a year (ppm of its air) when its haze hid about half a degree, most of it coal and oil. */
+  earthBurn: 2.5,
+  earthMask: 0.5,
+  /** How much haze a fuel's burning makes for its carbon, coal's 1 (its ash and sulphur). */
+  coal: 1,
+  oil: 0.4,
+  gas: 0.05,
+  /** The share of the ground's light lost under Earth's haze at its thickest (the dimming measured from the 1950s to the 1980s). */
+  dim: 0.04,
+  /** The share of a field's yield lost for each share of its light (a leaf's light half saturates). */
+  fields: 0.5,
+} as const;
+
+/**
+ * The degrees a year's haze hides, by the smoke its burning made (ppm of carbon a year, each fuel's weighed by how it smokes):
+ * as its logarithm, since the more haze there is the less each part more adds.
+ */
+export function hazeMasks(smoke: number): number {
+  return smoke > 0 ? HAZE.earthMask * dmath.log2(1 + smoke / HAZE.earthBurn) : 0;
+}
+
+/** What that haze leaves of the fields' yields under its dimmed light (1: a clear sky). */
+export function hazeFields(masked: number): number {
+  return 1 - HAZE.fields * HAZE.dim * Math.max(0, masked / HAZE.earthMask);
+}
