@@ -3,7 +3,9 @@
 // fires the night before a battle before it (Phase 55 M227). Its soldiers
 // are the village's own figures in their sides' colours (render/village.ts). Units as the
 // village's: a tenth of a unit to the metre; tents and camp fires laid for a person drawn three times life and drawn by the
-// folk's drawn size (`folk`: view/village.ts folkOf), as is what stands past the line (FOLK_METRE); flames sized to houses.
+// folk's drawn size (`folk`: view/village.ts folkOf), as are what stands past the line (FOLK_METRE), a group's carriers and
+// the siege's works, each made by and for its folk's bodies (a man's at true size); flames sized to houses, a shell's burst
+// to its charge.
 import * as pc from "playcanvas";
 import { InstancedBatch, boxMesh, coneMesh, cylinderMesh } from "./batch.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
@@ -193,15 +195,15 @@ export class TownWarLayer {
   }
 
   /** A group's carriers: each a plated box on wheels, a cab before it or a cart's shaft, its side's colour round it. */
-  private carriers(scene: TownWarScene | null): void {
+  private carriers(scene: TownWarScene | null, folk: number): void {
     const list = (scene?.carriers ?? []).slice(0, CARRIERS);
     if (this.banded !== this.colored) {
       this.banded = this.colored;
       this.bands[0].recolor(this.colored[0]);
       this.bands[1].recolor(this.colored[1]);
     }
-    /** A box of a carrier: so far forward and aside of its middle, so high, so large (metres, as the town draws: K larger). */
-    const K = 1.5,
+    /** A box of a carrier: so far forward and aside of its middle, so high, so large (metres of a man's; K of them to its folk's). */
+    const K = (folk * FOLK_METRE) / M,
       box = (
         out: number[],
         c: (typeof list)[number],
@@ -416,7 +418,7 @@ export class TownWarLayer {
       lines = [...(scene?.camp ?? []), ...camp],
       nc = Math.min(MOST_CAMP, lines.length);
     this.shown = { ...this.shown, tents: nt, fires: nf, camp: nc };
-    this.works.update(scene?.works ?? null);
+    this.works.update(scene?.works ?? null, (folk * FOLK_METRE) / M);
     this.past(scene, s, folk);
     this.tents.set(nt, (i, out) => {
       const t = tents[i]!;
@@ -430,7 +432,7 @@ export class TownWarLayer {
     });
     // (A fire before every third tent; then the hosts' fires.)
     const byTents = Math.ceil(nt / 3);
-    this.carriers(scene);
+    this.carriers(scene, folk);
     // (Its light on the ground about it, breathing with the flame.)
     this.glows.set(nc, (j, out) => {
       const c = lines[j]!,

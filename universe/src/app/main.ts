@@ -1338,6 +1338,8 @@ type Exposed = {
   /** The god's wonders in a town seen near as drawn (M201): each, where it stands (metres). */
   wonders?: () => { kind: string; x: number; z: number }[];
   raidersOnScreen?: () => { x: number; y: number }[];
+  /** Where a raid's machines are now, in the village's units (the look tools). */
+  raidersAt?: () => { x: number; y: number; z: number }[];
   watchRaid?: (event: string) => Promise<boolean>;
   raidFilming?: () => number | null;
   stopRaidFilm?: () => void;
@@ -7497,6 +7499,7 @@ async function runPlanetPage(): Promise<void> {
           return s.z > 0 ? [{ x: s.x, y: s.y }] : [];
         })
       : [];
+  exposed.raidersAt = () => (scale === "village" ? village.raidersShown() : []);
   exposed.wonders = () => (scale === "village" ? village.wonders : []);
   exposed.townWar = () => {
     const w = scale === "village" ? village.warNow() : null;
