@@ -244,6 +244,11 @@ export {
   type LaunchWorld,
   type Launcher,
   type Propulsion,
+  CLEAR_SKY,
+  DEBRIS,
+  aloftYears,
+  debrisOf,
+  type Debris,
 } from "./launch.ts";
 export {
   MOST_UPKEEP,

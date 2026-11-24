@@ -912,6 +912,8 @@ export {
   launcherOfRealm,
   prospects,
   spaceOf,
+  debrisNow,
+  liftsOf,
   spaceYear,
   type Program,
 } from "./space/space.ts";

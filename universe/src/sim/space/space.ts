@@ -20,6 +20,7 @@ import {
 } from "../../kernel/index.ts";
 import {
   cellRef,
+  worldKindOf,
   isProvinceWorld,
   offworldSite,
   worldLife,
@@ -27,8 +28,11 @@ import {
 } from "../../gen/index.ts";
 import {
   BANDS,
+  CLEAR_SKY,
   G,
   GOODS,
+  KINDS,
+  debrisOf,
   delivered,
   habitability,
   launcherFor,
@@ -36,6 +40,7 @@ import {
   routeTo,
   toOrbit,
   type Bodylike,
+  type Debris,
   type Launcher,
 } from "../../rules/index.ts";
 import { homePlanet } from "../planet/store.ts";
@@ -53,6 +58,10 @@ export const SPACE_EVENTS = {
   crew: defineEventType("space.crew", 5),
   station: defineEventType("space.station", 4),
   colony: defineEventType("space.colony", 6),
+  /** A launch program's craft lost to what earlier launches left aloft. */
+  lost: defineEventType("space.launch-lost", 4),
+  /** The dead things aloft begin to strike each other faster than the air clears them. */
+  cascade: defineEventType("space.debris-cascade", 5),
 };
 
 /** The settlers of a first colony, grown people all. */
@@ -89,6 +98,8 @@ export type Program = {
   crew: Ref | null;
   station: Ref | null;
   launches: number;
+  /** Its programs lost to what was aloft: each its year and the tonnes it lifted (absent where none was). */
+  lost?: [number, number][];
   /** The colonies it founded: each its land, and the event. */
   colonies: { cell: number; event: Ref; year: number }[];
 };
@@ -139,7 +150,11 @@ export class SpaceStore implements StateStore {
     s.first.colony ??= null;
     this.programs.clear();
     for (const p of s.programs)
-      this.programs.set(p.realm, { ...p, colonies: (p.colonies ?? []).map((c) => ({ ...c })) });
+      this.programs.set(p.realm, {
+        ...p,
+        colonies: (p.colonies ?? []).map((c) => ({ ...c })),
+        ...(p.lost?.length ? { lost: p.lost.map((l) => [l[0], l[1]] as [number, number]) } : {}),
+      });
     this.first = { ...s.first };
   }
 }
@@ -220,13 +235,71 @@ function flightFactors(
   ].slice(0, 6);
 }
 
+/** Every launch the world has made, with its year and the tonnes it lifted (a program's firsts, its colonies' settlers). */
+export function liftsOf(world: World): { year: number; tonnes: number; event: Ref }[] {
+  const out: { year: number; tonnes: number; event: Ref }[] = [],
+    at = (ref: Ref | null, tonnes: number) => {
+      const e = ref ? world.events.get(ref) : undefined;
+      if (e) out.push({ year: yearOfMoment(e.t), tonnes, event: ref! });
+    };
+  for (const p of spaceOf(world).all()) {
+    at(p.satellite, SATELLITE_TONNES);
+    at(p.crew, CREW_TONNES);
+    at(p.station, STATION_TONNES);
+    for (const c of p.colonies)
+      out.push({ year: c.year, tonnes: COLONISTS * SETTLER_TONNES, event: c.event });
+    // (Programs lost on the way up left their tonnes aloft too: told by `lost`, each its year.)
+    for (const l of p.lost ?? []) out.push({ year: l[0], tonnes: l[1], event: p.realm });
+  }
+  return out;
+}
+
+/** The weight of the home world's air (bar), which drags down what is left aloft. */
+function homeAir(ctx: PopulationContext): number {
+  const g = ctx.generated,
+    home = g.system.bodies.find((b) => b.kind === "home");
+  return home?.pressure ?? KINDS[worldKindOf(g)].body.pressure;
+}
+
+/** What the world's launches have left aloft in a year (rules/launch.ts debrisOf): a reading, never stored. */
+export function debrisNow(ctx: PopulationContext, year: number): Debris {
+  const lifts = liftsOf(ctx.world);
+  return lifts.length ? debrisOf(lifts, year, homeAir(ctx)) : CLEAR_SKY;
+}
+
 /** The year's flights: each realm able to fly may send up its first, then more. */
 export function spaceYear(ctx: PopulationContext, t: SimTime): void {
   const { world } = ctx,
     store = spaceOf(world),
     lore = loreOf(world),
     year = yearOfMoment(t),
-    wars = warsOf(world);
+    wars = warsOf(world),
+    // (What earlier launches left aloft: read once for the year, and only where anything has flown.)
+    lifts = liftsOf(world),
+    air = lifts.length ? homeAir(ctx) : 1,
+    debris = lifts.length ? debrisOf(lifts, year, air) : CLEAR_SKY;
+  // The year the strikes first outrun the air: told once, by the launches that left the most.
+  if (debris.cascade && !debrisOf(lifts, year - 1, air).cascade) {
+    const most = [...lifts].sort((a, b) => b.tonnes - a.tonnes || a.year - b.year).slice(0, 3);
+    world.events.emit({
+      type: SPACE_EVENTS.cascade.type,
+      importance: 5,
+      subjects: [],
+      place: null,
+      causes: most.map((l, i) => ({
+        ref: l.event,
+        role: i === 0 ? ("trigger" as const) : ("enabler" as const),
+        weight: i === 0 ? 0.5 : 0.25,
+      })),
+      data: {
+        left: Math.round(debris.left),
+        critical: Math.round(debris.critical),
+        launches: lifts.length,
+        loss: Math.round(debris.loss * 100),
+        year,
+      },
+    });
+  }
   for (const p of politiesOf(world).living()) {
     const seat = p.seat;
     if (!knows(ctx, seat, "orbital-flight")) continue;
@@ -250,7 +323,8 @@ export function spaceYear(ctx: PopulationContext, t: SimTime): void {
     if (!next) continue;
     const tonnes =
         next === "satellite" ? SATELLITE_TONNES : next === "crew" ? CREW_TONNES : STATION_TONNES,
-      cost = launcher.cost * tonnes * MACHINES_PER_COST,
+      // (Dearer by the armour, watching and dodging a littered sky asks: exactly as it was under a clear one.)
+      cost = launcher.cost * tonnes * MACHINES_PER_COST * debris.costs,
       machines = machinesOfRealm(ctx, p);
     if (machines * PROGRAM_SHARE < cost) continue;
     // Its reasons: a rival already in the sky, a war, and its rulers' will.
@@ -280,6 +354,28 @@ export function spaceYear(ctx: PopulationContext, t: SimTime): void {
     )
       continue;
     spendMachines(ctx, p, cost);
+    // Its craft lost to what is aloft: the machines are spent, its tonnes join the litter, and it must try again.
+    if (debris.loss > 0 && world.rng.real(FLIGHT, seat, t, 7) < debris.loss) {
+      const worst = [...lifts].sort((a, b) => b.tonnes - a.tonnes || a.year - b.year)[0]!;
+      world.events.emit({
+        type: SPACE_EVENTS.lost.type,
+        importance: 4,
+        place: `cell:0:${seat}` as Ref,
+        subjects: [p.ref],
+        causes: [{ ref: worst.event, role: "trigger", weight: 1 }],
+        data: {
+          realm: p.town,
+          what: next,
+          cost: Math.round(cost),
+          loss: Math.round(debris.loss * 100),
+          aloft: Math.round(debris.fragments),
+          year,
+        },
+      });
+      (prog.lost ??= []).push([year, tonnes]);
+      prog.launches++;
+      continue;
+    }
     const known = lore.get(
       seat,
       next === "satellite" ? "orbital-flight" : next === "crew" ? "life-support" : "stations",

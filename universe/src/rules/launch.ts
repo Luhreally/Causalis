@@ -190,3 +190,90 @@ export function delivered(
   // Every tonne set down took 1/fraction tonnes lifted to orbit, and the ship's own cost.
   return { lift, ship, cost: lift.cost / ship.fraction + ship.cost };
 }
+
+// —— What launches leave aloft ——————————————————————————————————————————————————————————————————————
+
+/**
+ * Orbital debris (the breadth round). Of every tonne lifted a share stays up dead: spent stages, shrouds, craft
+ * past their work (`left`, est: a twentieth). The thin air at the heights flown drags it down in time: at Earth in
+ * some sixty years (`earthYears`, est for the crowded heights of 600 to 900 km), sooner under a heavier air and all
+ * but never over an airless world. Dead things also strike each other, and each strike makes more: the fragments
+ * aloft F obey dF/dt = what launches leave + c·F² − F/τ, which settles only while what is left aloft is under a
+ * critical mass D* = 1/(4cτ) (Kessler and Cour-Palais 1978). `critical`: that mass at Earth's τ (tonnes, est).
+ * Past it the strikes outrun the air: a cascade. `felt`: under this share of the critical mass no one flying
+ * notices. `lossTonnes`: the fragments aloft at which a launch program has lost 63 in 100 of its craft (est).
+ * `shield`: what armour, watching and dodging add to a launch's cost at the critical mass.
+ */
+export const DEBRIS = {
+  left: 0.05,
+  earthYears: 60,
+  mostYears: 10000,
+  critical: 1000,
+  felt: 0.25,
+  lossTonnes: 20000,
+  shield: 0.25,
+} as const;
+
+/** Years a dead thing stays aloft over a world: Earth's by its air's weight (the heavier, the sooner down). */
+export function aloftYears(airBar: number): number {
+  return airBar <= 0
+    ? DEBRIS.mostYears
+    : Math.min(DEBRIS.mostYears, DEBRIS.earthYears / Math.max(1e-6, airBar));
+}
+
+/** What a world's launches have left aloft, and what it does to the next. */
+export type Debris = {
+  /** Dead mass left by launches and not yet fallen (tonnes), and the fragments aloft once they have struck each other. */
+  readonly left: number;
+  readonly fragments: number;
+  /** The dead mass past which strikes outrun the air here (tonnes), and how far toward it this stands. */
+  readonly critical: number;
+  readonly load: number;
+  /** Whether the strikes outrun the air: a cascade. */
+  readonly cascade: boolean;
+  /** What a launch costs against a clear sky's (1: nothing more), and the chance a program's craft are lost. */
+  readonly costs: number;
+  readonly loss: number;
+};
+
+export const CLEAR_SKY: Debris = Object.freeze({
+  left: 0,
+  fragments: 0,
+  critical: DEBRIS.critical,
+  load: 0,
+  cascade: false,
+  costs: 1,
+  loss: 0,
+});
+
+/**
+ * A world's debris in a year, from every launch it has made: each a year and the tonnes it lifted. A reading of
+ * the launches alone: nothing is kept.
+ */
+export function debrisOf(
+  lifts: readonly { readonly year: number; readonly tonnes: number }[],
+  year: number,
+  airBar: number,
+): Debris {
+  if (!lifts.length) return CLEAR_SKY;
+  const tau = aloftYears(airBar);
+  let left = 0;
+  for (const l of lifts)
+    if (l.year <= year) left += DEBRIS.left * l.tonnes * dmath.exp(-(year - l.year) / tau);
+  // (The critical mass goes as 1/τ: where the air clears slowly, less starts a cascade.)
+  const critical = (DEBRIS.critical * DEBRIS.earthYears) / tau,
+    load = left / critical,
+    cascade = load >= 1,
+    // (The settled root of the balance while there is one; past it, growing with the overload.)
+    fragments = cascade ? 2 * left * load : (2 * left) / (1 + Math.sqrt(1 - load)),
+    felt = load >= DEBRIS.felt;
+  return {
+    left,
+    fragments,
+    critical,
+    load,
+    cascade,
+    costs: felt ? 1 + DEBRIS.shield * Math.min(4, fragments / (2 * critical)) : 1,
+    loss: felt ? 1 - dmath.exp(-fragments / DEBRIS.lossTonnes) : 0,
+  };
+}
