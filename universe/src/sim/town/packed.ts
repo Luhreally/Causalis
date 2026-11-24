@@ -72,9 +72,22 @@ export class Civics implements Iterable<Civic> {
   /** Counted up each time buildings are let go (those after them move up). */
   version = 0;
   private d: Int32Array;
+  /**
+   * How many stand and the earliest year one fell (Infinity: none has), counted when asked and again after any change: a
+   * town's year asks both of every town, and most change in no year.
+   */
+  // (Not its own to be read, compared or walked: set unseen, below.)
+  declare private counted: boolean;
+  declare private standingN: number;
+  declare private leastFell: number;
 
   constructor(room = 0) {
     this.d = room ? new Int32Array(room * CIVIC) : NONE;
+    Object.defineProperties(this, {
+      counted: { value: false, writable: true, enumerable: false },
+      standingN: { value: 0, writable: true, enumerable: false },
+      leastFell: { value: Infinity, writable: true, enumerable: false },
+    });
   }
 
   /** Buildings given as objects, kept as numbers. */
@@ -111,6 +124,30 @@ export class Civics implements Iterable<Civic> {
   /** Set the year it fell (NO_FALL: it stands). */
   setFell(i: number, year: number): void {
     this.d[i * CIVIC + 5] = year;
+    this.counted = false;
+  }
+
+  /** How many stand. */
+  standingCount(): number {
+    if (!this.counted) this.count();
+    return this.standingN;
+  }
+  /** The earliest year one of them fell (Infinity: none has). */
+  fallenLeast(): number {
+    if (!this.counted) this.count();
+    return this.leastFell;
+  }
+  private count(): void {
+    let n = 0,
+      least = Infinity;
+    for (let i = 0; i < this.length; i++) {
+      const x = this.d[i * CIVIC + 5]!;
+      if (x === NO_FALL) n++;
+      else if (x < least) least = x;
+    }
+    this.standingN = n;
+    this.leastFell = least;
+    this.counted = true;
   }
 
   private room(n: number): void {
@@ -140,6 +177,7 @@ export class Civics implements Iterable<Civic> {
     d[o + 3] = start;
     d[o + 4] = end;
     d[o + 5] = fell === null ? NO_FALL : fell;
+    this.counted = false;
     return (this.length = i + 1);
   }
 
@@ -172,6 +210,7 @@ export class Civics implements Iterable<Civic> {
     if (w === this.length) return false;
     this.length = w;
     this.version++;
+    this.counted = false;
     return true;
   }
 

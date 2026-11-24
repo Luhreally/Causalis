@@ -281,7 +281,7 @@ type Saved = [
  * (see TownBuilder.settle).
  */
 type Settled = {
-  readonly year: number;
+  year: number;
   due: number;
   /** The last year it was asked to settle, due or not; its buildings as it last went over them. */
   asked: number;
@@ -300,6 +300,9 @@ export class TownStore implements StateStore {
   private readonly map = new Map<string, Fabric>();
   /** (Each town's fabric by the settlement itself, for the year's walk over them: a cache, let go on loading.) */
   private readonly bySettlement = new Map<Settlement, Fabric>();
+  /** (ofAt's: by a settlement's place in its store's list. Never saved.) */
+  private readonly atSettlement: Settlement[] = [];
+  private readonly atFabric: Fabric[] = [];
   /** (Each town as its settling last went over it: a cache, let go on loading.) */
   readonly settled = new Map<Fabric, Settled>();
   /**
@@ -334,6 +337,19 @@ export class TownStore implements StateStore {
     if (!f) {
       f = this.map.get(s.ref);
       if (f) this.bySettlement.set(s, f);
+    }
+    return f;
+  }
+  /**
+   * As of, for the settlement `i`th in its store's list (the towns' year goes over them in that order): kept by that place,
+   * held to the settlement itself, where a Map by settlement was a fifth of a late world's town year's own work.
+   */
+  ofAt(i: number, s: Settlement): Fabric | undefined {
+    if (this.atSettlement[i] === s) return this.atFabric[i];
+    const f = this.of(s);
+    if (f) {
+      this.atSettlement[i] = s;
+      this.atFabric[i] = f;
     }
     return f;
   }
@@ -390,6 +406,8 @@ export class TownStore implements StateStore {
     const s = state as { digest: [number, number]; fabrics?: Saved[]; towns?: SavedColumns };
     this.map.clear();
     this.bySettlement.clear();
+    this.atSettlement.length = 0;
+    this.atFabric.length = 0;
     this.settled.clear();
     this.young.clear();
     this.ruins.clear();
@@ -1359,23 +1377,27 @@ export class TownBuilder {
         if (i > 0) beside.push(R.handle(R.slot(i - 1)));
       }
     if (beside.length) this.joinAbout(f, beside, old);
+    // (Its buildings gone over only where one fallen weathers away this year; else the earliest fallen is the next due.)
     let fallen = false;
-    for (let k = 0, cs = f.civics; k < cs.length; k++) {
-      const x = cs.fellAt(k);
-      if (x === NO_FALL) continue;
-      else if (x < gone) fallen = true;
-      else next = Math.min(next, x + RUIN_YEARS + 1);
-    }
+    const least = f.civics.fallenLeast();
+    if (least < gone) {
+      for (let k = 0, cs = f.civics; k < cs.length; k++) {
+        const x = cs.fellAt(k);
+        if (x === NO_FALL) continue;
+        else if (x < gone) fallen = true;
+        else next = Math.min(next, x + RUIN_YEARS + 1);
+      }
+    } else if (least !== Infinity) next = Math.min(next, least + RUIN_YEARS + 1);
     if (fallen) f.civics.keep((k) => f.civics.fellAt(k) === NO_FALL || f.civics.fellAt(k) >= gone);
     next = Math.min(next, ruins.next);
-    store.settled.set(f, {
-      year,
-      due: next,
-      asked: year,
-      civics: f.civics.version,
-      // (Not due, those raised since wait; where fallen ones were let go, their places shift, and all are gone over then.)
-      buildings: dueNow ? f.civics.length : fallen ? 0 : last.buildings,
-    });
+    // (Its record kept in place, as comesDue keeps it (only settleAll makes one anew): one a town a year was made anew.)
+    const buildings = dueNow ? f.civics.length : fallen ? 0 : last.buildings;
+    last.year = year;
+    last.due = next;
+    last.asked = year;
+    last.civics = f.civics.version;
+    // (Not due, those raised since wait; where fallen ones were let go, their places shift, and all are gone over then.)
+    last.buildings = buildings;
   }
 
   /** Every run of a town gone over: see settle. */
@@ -2153,8 +2175,7 @@ export class TownBuilder {
     // one is asked whether its use still pays its upkeep each weighing, in turn: the one the year's turn comes to, counted
     // among those standing.)
     const cs = f.civics;
-    let standing = 0;
-    for (let j = 0; j < cs.length; j++) if (cs.fellAt(j) === NO_FALL) standing++;
+    const standing = cs.standingCount();
     const asked = standing > 0 ? Math.floor(this.year / CIVIC_EVERY) % standing : -1;
     for (let j = 0, at = -1; j < cs.length; j++) {
       if (cs.fellAt(j) !== NO_FALL) continue;
@@ -2587,10 +2608,12 @@ export function townYear(ctx: PopulationContext, t: SimTime): void {
       knowers.set(cell, k);
       return k;
     };
-  for (const s of ctx.settlements.all()) {
-    let f = store.of(s);
+  // (Each town's year its own function, asked of each in turn: as one loop's body, a late world's town year was compiled
+  // and let go again within the loop, a hundred milliseconds of one year.)
+  const one = (at: number, s: Settlement): void => {
+    let f = store.ofAt(at, s);
     if (!f) {
-      if (s.population <= 0) continue;
+      if (s.population <= 0) return;
       f = found(ctx, s);
       builder.orderSet(f, ORDER_AT.founded, s.cell);
     }
@@ -2675,7 +2698,9 @@ export function townYear(ctx: PopulationContext, t: SimTime): void {
       f.forsaken = null;
       store.fold(f.town, FOLD.livedIn);
     }
-  }
+  };
+  const settlements = ctx.settlements.all();
+  for (let at = 0; at < settlements.length; at++) one(at, settlements[at]!);
 }
 
 /** The learning a building waited on: of what it needs, the one its land came to last (its event). */
