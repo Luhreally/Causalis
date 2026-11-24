@@ -3,21 +3,27 @@
 // ample; the seasons reckoned where they swing; slopes terraced where the ground is steep; the soil's goodness kept by resting and
 // dunging where it is worked thin or washed out; heavy wet clay turned where it lies. The plough, the iron share and the mill do
 // not make a field give more: they let a farmer work more of it, so they give where hands are short of the ground, and little
-// where the ground is all worked already (population/systems.ts saturate). Every land reads its own; on the whole of an Earth's
-// farmed lands each gives about what its flat bonus gave (TILL.earth: their mean needs on first light's farmed lands).
+// where the ground is all worked already (population/systems.ts saturate); but the plough also turns grass sod that no hoe breaks,
+// and so gives a grassland's fields more. Every land reads its own; on the whole of an Earth's farmed lands each gives about what
+// its flat bonus gave (TILL.earth: their mean needs on first light's farmed lands). Where a world's people live on wet flat ground,
+// watering and terracing give them little: first light at 1000, every way known, had 0.08 of its people's need for water against
+// the farmlands' 0.25 and 0.02 of its slopes' against the hills' 0.46, and fed some 980 million where the flat gains fed 1,190.
 
 /** What a way lifts. */
-export type Limit = "water" | "season" | "slope" | "nutrient" | "heavy" | "labour";
+export type Limit = "water" | "season" | "slope" | "nutrient" | "heavy" | "sod" | "labour";
 
 /** Each way of farming (rules/principles.ts, its old flat `farmYield`), what it lifts and the gain it gave at an Earth's mean need. */
-export const TILLAGE: Readonly<Record<string, { readonly limit: Limit; readonly gain: number }>> = {
+export const TILLAGE: Readonly<
+  Record<string, { readonly limit: Limit; readonly gain: number; readonly work?: number }>
+> = {
   irrigation: { limit: "water", gain: 0.2 },
   calendar: { limit: "season", gain: 0.05 },
   terracing: { limit: "slope", gain: 0.12 },
   rotation: { limit: "nutrient", gain: 0.15 },
   manuring: { limit: "nutrient", gain: 0.1 },
   "heavy-plough": { limit: "heavy", gain: 0.2 },
-  plough: { limit: "labour", gain: 0.25 },
+  // (The plough turns grass sod no digging stick breaks, and lets one farmer work more ground besides.)
+  plough: { limit: "sod", gain: 0.25, work: 0.25 },
   mills: { limit: "labour", gain: 0.08 },
   iron: { limit: "labour", gain: 0.05 },
 };
@@ -32,7 +38,14 @@ export const TILL = {
    * the need is this. Terracing's is of its hill lands (where it is found), watering's between all its farmland's (0.13) and its
    * river lands' (where it is found, and where the river already waters a dry valley's fields: population/model.ts).
    */
-  earth: { water: 0.25, season: 0.27, slope: 0.46, nutrient: 0.45, heavy: 0.43 } as FieldNeeds,
+  earth: {
+    water: 0.25,
+    season: 0.27,
+    slope: 0.46,
+    nutrient: 0.45,
+    heavy: 0.43,
+    sod: 0.41,
+  } as FieldNeeds,
   /** The most a way gives against its old gain, where its need is greatest. */
   most: 2.5,
 } as const;
@@ -47,6 +60,7 @@ export function fieldNeeds(
   slope: number,
   woody: number,
   rock: number,
+  open = 0,
 ): FieldNeeds {
   const clamp = (x: number) => Math.max(0, Math.min(1, x));
   return {
@@ -60,6 +74,8 @@ export function fieldNeeds(
     nutrient: clamp(0.35 + 0.3 * clamp(moist - 1) + 0.3 * clamp(1 - rock)),
     // (Wet clays under woods, too heavy for a scratch plough.)
     heavy: clamp(woody * clamp(moist - 0.7)),
+    // (Grass sod, its roots matted too deep for a hoe: its open ground's share.)
+    sod: clamp(open),
   };
 }
 
@@ -75,6 +91,7 @@ export function tillageOf(
     const t = TILLAGE[id]!;
     if (t.limit === "labour") work += t.gain;
     else yields += t.gain * Math.min(TILL.most, needs[t.limit] / TILL.earth[t.limit]);
+    work += t.work ?? 0;
   }
   return { yields, work };
 }
