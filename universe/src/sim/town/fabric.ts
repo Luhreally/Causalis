@@ -1433,6 +1433,37 @@ export class TownBuilder {
   /** Lots [from, to) open again. */
   release(f: Fabric, from: number, to: number): void {
     if (to <= from) return;
+    // (Its open runs are in the order of their lots, and none touches another: the stretch goes in where it falls, made one with
+    // those it touches, as openMerged would make them over all of them. Sorting them all for each stretch let go was most of the
+    // time a town emptying took, its homes falling a few lots a year: tests/sim/town.test.ts holds the two the same.)
+    const open = f.open,
+      runs = open.length >> 1;
+    let lo = 0,
+      hi = runs;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (open[2 * mid + 1]! < from) lo = mid + 1;
+      else hi = mid;
+    }
+    let a = from,
+      b = to,
+      j = lo;
+    for (; j < runs && open[2 * j]! <= b; j++) {
+      a = Math.min(a, open[2 * j]!);
+      b = Math.max(b, open[2 * j + 1]!);
+    }
+    // (A list made anew, as openMerged makes it: what keeps a town's open runs by their list knows them changed.)
+    const out = new Array<number>(open.length - 2 * (j - lo) + 2);
+    for (let i = 0; i < 2 * lo; i++) out[i] = open[i]!;
+    out[2 * lo] = a;
+    out[2 * lo + 1] = b;
+    for (let i = 2 * j, k = 2 * lo + 2; i < open.length; i++, k++) out[k] = open[i]!;
+    f.open = out;
+  }
+
+  /** release as it was: the stretch put with the rest and all of them sorted and made one (for tests/sim/town.test.ts). */
+  releaseBySort(f: Fabric, from: number, to: number): void {
+    if (to <= from) return;
     f.open.push(from, to);
     this.openMerged(f);
   }
@@ -1659,8 +1690,8 @@ export class TownBuilder {
         Math.ceil(homesOf(f) * (years === 1 ? 0.05 : 1 - dmath.pow(0.95, years))),
       ),
       top = -1;
+    // (What stands on its lots, a building's lots none of its homes': levelsInto tells those -1, as it tells a lot with none.)
     const levels = scratchLevels(f, from, high + 1),
-      under = scratchMask(f, from, high + 1),
       fall = (lo: number) => {
         if (top < 0) return;
         this.change(f, CHANGE.fell, lo, top + 1, 0, 0);
@@ -1669,7 +1700,7 @@ export class TownBuilder {
       };
     for (let p = high; p >= from && excess > 0 && count > 0; p--) {
       const was = levels[p - from]!;
-      if (was < 0 || under[p - from]) {
+      if (was < 0) {
         fall(p + 1);
         continue;
       }

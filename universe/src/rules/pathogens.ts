@@ -57,6 +57,8 @@ export const EVOLVE = {
 export const FIRST_RANGE: Readonly<Record<string, number>> = {
   herds: 0.6,
   marsh: 0.45,
+  // (Of wild beasts hunted: of another kind, as the herds' are, but met only in the hunt.)
+  wild: 0.5,
   crowds: 0.1,
   "the god": 0.3,
   "the stars": 0.15,

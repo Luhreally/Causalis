@@ -37,9 +37,10 @@ export const ROUTE_WORDS: Readonly<Record<Route, string>> = {
 export const SOURCE_WORDS: Readonly<Record<Source, string>> = {
   herds: "among the herds",
   crowds: "in the crowds",
-  marsh: "in the hot marshes",
+  marsh: "in the warm standing water",
   "the god": "by the god's hand",
   "the stars": "come down from the stars",
+  wild: "among the wild beasts they hunt",
 };
 /** What carried a sickness, in words. */
 export const VIA_WORDS: Readonly<Record<Via, string>> = {
@@ -152,11 +153,12 @@ registerCommandWords("act.loose", (world, c) => {
   return `Your act: you loosed ${s ? s.name : "a new sickness"} on ${landWords(world, cellRef(0, a.cell))}, year ${yearOfMoment(c.t)}`;
 });
 
-registerDecisionWords("health.rise", (world, d) =>
-  (d.outcome as { source?: Source } | null)?.source === "the stars"
+registerDecisionWords("health.rise", (world, d) => {
+  const source = (d.outcome as { source?: Source } | null)?.source;
+  return source === "the stars"
     ? `A sickness of another world came down in ${landWords(world, d.subject)}`
-    : `A new sickness rose in ${landWords(world, d.subject)}`,
-);
+    : `A new sickness rose ${SOURCE_WORDS[source ?? "herds"]} of ${landWords(world, d.subject)}`;
+});
 registerDecisionWords("health.spread", (world, d) => {
   const s = healthOf(world)?.get(d.subject),
     o = d.outcome as { land?: Ref; via?: Via } | null;

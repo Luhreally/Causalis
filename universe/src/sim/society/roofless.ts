@@ -10,16 +10,9 @@
 // Nothing is drawn.
 import { YEAR, yearOfMoment, type SimTime } from "../../kernel/index.ts";
 import { cellRef } from "../../gen/index.ts";
-import {
-  FAMILY_SIZE,
-  ROOF,
-  almsOf,
-  roofCost,
-  rooflessAll,
-  shutOut,
-  takenIn,
-} from "../../rules/index.ts";
+import { ROOF, almsOf, roofCost, rooflessAll, shutOut, takenIn } from "../../rules/index.ts";
 import { marketsOf, type PopulationContext } from "../population/systems.ts";
+import { familySizeOf } from "../population/life.ts";
 import { WAY, cultureOf } from "../culture/culture.ts";
 import { politiesOf } from "../polity/polity.ts";
 import { housingOf, townsOf } from "../town/fabric.ts";
@@ -87,8 +80,9 @@ export function rooflessYear(ctx: PopulationContext, t: SimTime): void {
       store.drop(c);
       continue;
     }
-    const hhWorkers = FAMILY_SIZE * means.workers,
-      households = Math.max(1, town / FAMILY_SIZE),
+    const family = familySizeOf(world),
+      hhWorkers = family * means.workers,
+      households = Math.max(1, town / family),
       beyond = housing > 0 ? Math.max(0, town - housing) / town : 0,
       waits = waiting / town,
       ground = rent ? (rowAt(rent, c, TRADE_RENT.rent) ?? 0) / households : 0,
@@ -133,7 +127,7 @@ export function rooflessYear(ctx: PopulationContext, t: SimTime): void {
       need = (dress?.get(c)?.[DRESS_ROW.need] ?? 0) / 1000,
       cold = 1 + ROOF.cold * need * streetLand,
       sick = 1 + ROOF.sick * (streetLand + ROOF.doubled * doubledLand),
-      sheltered = (roofless * taken.realm * town) / FAMILY_SIZE;
+      sheltered = (roofless * taken.realm * town) / familySizeOf(world);
     store.set(c, [
       roof,
       shut * 1000,

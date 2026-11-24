@@ -24,6 +24,7 @@ import { DISASTER_EVENTS, deathsIn, grieve, spill } from "../acts/disasters.ts";
 import { groundOf, landSlope } from "../ecology/ground.ts";
 import { ecologyOf } from "../ecology/ecology.ts";
 import { lessened } from "../lore/lessons-store.ts";
+import { switchedOff } from "../acts/switches.ts";
 
 const FLOODS = defineStream("planet.floods");
 
@@ -147,6 +148,8 @@ export function floodsYear(ctx: PopulationContext, t: SimTime): void {
   const { world } = ctx,
     year = yearOfMoment(t);
   if (store.drowned.length) store.drowned = store.drowned.filter((d) => d[1] > t);
+  // (The world's own disasters turned off by the player: no river rises past its banks. sim/acts/switches.ts.)
+  if (switchedOff(world, "disasters")) return;
   const eco = ecologyOf(world);
   for (const cell of floodplains(ctx)) {
     const p = ctx.provinces.get(cell);

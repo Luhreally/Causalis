@@ -20,7 +20,9 @@ import {
   herdStock,
   herdsOf,
   homePlanet,
+  kindsInPlayOf,
   populationContext,
+  traitsAt,
   wildsOf,
   woodsRead,
   type KnownBeast,
@@ -481,6 +483,7 @@ export function herdPage(world: World, ref: string): PageModel {
       stat("What it eats", eatsLine(world, s, cell)),
       stat("What eats it", eatenLine(world, s, cell)),
       stat("Where it lives", livesLine(world, s, cell)),
+      ...becomeStats(world, s, cell),
     ],
     fate = fateItems(world, cell),
     tabs: Tab[] = [
@@ -509,6 +512,66 @@ export function herdPage(world: World, ref: string): PageModel {
     followable: false,
     year,
   };
+}
+
+/** What barrier words say of the ground parting a stock (sim/ecology/lineage.ts barrierOf). */
+const PARTED_BY: Readonly<Record<string, string>> = {
+  heights: "heights it cannot cross",
+  dry: "dry ground it cannot feed on",
+  cold: "frozen ground it cannot feed on",
+  river: "a great river",
+  sea: "the sea",
+  far: "the length of its range alone, this far end bred mostly of its own",
+};
+
+/**
+ * What a kind has become on a land, by what its lands have selected (sim/ecology/lineage.ts traitsAt): its size, its
+ * coat and its wariness against where they stood when first seen, how its coat sits with the warmth now, and whether the
+ * stock here is parted from the rest of its kind and how near it is to a kind of its own. Nothing where nothing has been
+ * selected.
+ */
+function becomeStats(world: World, s: Species, cell: number): Stat[] {
+  const ctx = populationContext(world),
+    tr = traitsAt(ctx, s.index, cell);
+  if (!tr) return [];
+  const spread = (x: number, more: string, less: string) =>
+      Math.abs(x) < 0.1 ? null : `${Math.abs(x).toFixed(1)} spreads ${x > 0 ? more : less}`,
+    moved = [
+      spread(tr.size, "larger", "smaller"),
+      spread(tr.coat, "thicker-coated", "thinner-coated"),
+      spread(tr.wary, "warier", "bolder"),
+    ].filter((x): x is string => !!x),
+    out: Stat[] = [
+      stat(
+        "What it has become",
+        moved.length
+          ? `${moved.join(", ")} than its kind as first seen, bred so by what its lands ask of it${
+              tr.heat > 0.5
+                ? `; its coat too thick for the warmth now`
+                : tr.heat < -0.5
+                  ? `; its coat too thin for the cold now`
+                  : ""
+            }`
+          : "As its kind was first seen: nothing here has asked it to change",
+      ),
+    ],
+    store = kindsInPlayOf(world),
+    site = store?.sites?.at.get(cell),
+    iso = site && site.kind === s.index ? store!.isolates.get(site.cell) : undefined;
+  if (site && iso) {
+    const toward = Math.min(99, Math.round(iso.drift / 10));
+    out.push(
+      stat(
+        "Parted from its kind",
+        `Here and on ${site.lands.length - 1} lands about, by ${
+          ctx.medium === "water" && site.barrier === "sea"
+            ? "land between the waters"
+            : (PARTED_BY[site.barrier] ?? "ground it cannot cross")
+        }: ${toward} in a hundred of the way to a kind of its own`,
+      ),
+    );
+  }
+  return out;
 }
 
 /** A beast people know: its page, its deeds, its end. */

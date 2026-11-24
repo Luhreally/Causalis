@@ -33,6 +33,7 @@ import {
   type War,
 } from "../../sim/index.ts";
 import { hostWords } from "../chain.ts";
+import { WOUNDS, armJoules, blowOf } from "../../rules/index.ts";
 import type { HistoryEvent } from "../../kernel/index.ts";
 import {
   governmentWords,
@@ -959,6 +960,20 @@ export function battlePage(world: World, ref: string): PageModel {
                 part([realmLink(world, w.attacker)], count(b.wounded[0])),
                 part([realmLink(world, w.defender)], count(b.wounded[1])),
                 part(["of them maimed"], count((b.maimed?.[0] ?? 0) + (b.maimed?.[1] ?? 0))),
+                // (What struck each side: its foe's arm's energy a blow, against a body of their people's weight; rules/wounds.ts.)
+                ...([0, 1] as const).flatMap((k) => {
+                  const arm = b.bore?.[1 - k]?.[0],
+                    body = homePlanet(world).generated.life.people?.body,
+                    kg = body?.size ?? WOUNDS.size;
+                  return arm
+                    ? [
+                        part(
+                          [realmLink(world, k ? w.defender : w.attacker), " struck at"],
+                          `${count(Math.round(armJoules(arm, blowOf(arm), kg)))} J a blow, on bodies of ${count(Math.round(kg))} kg${body && !body.warm ? ", cold-blooded: fewer die of their wounds after" : ""}`,
+                        ),
+                      ]
+                    : [];
+                }),
               ],
             }),
           ]

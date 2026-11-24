@@ -61,12 +61,16 @@ export type Terms = readonly [
   /** What its host had learned of the field (rules/combat.ts): kept only where it had learned any. */
   screen?: number,
   steady?: number,
+  /** 1: its people are cold-blooded (rules/wounds.ts: they die less of their wounds after); kept only where they are. */
+  cold?: number,
 ];
 
 export function termsOf(t: HostTerms): Terms {
-  return t.screen || t.steady
-    ? [t.shock, t.protection, t.range, t.fire, t.care, t.screen ?? 0, t.steady ?? 0]
-    : [t.shock, t.protection, t.range, t.fire, t.care];
+  return t.cold
+    ? [t.shock, t.protection, t.range, t.fire, t.care, t.screen ?? 0, t.steady ?? 0, 1]
+    : t.screen || t.steady
+      ? [t.shock, t.protection, t.range, t.fire, t.care, t.screen ?? 0, t.steady ?? 0]
+      : [t.shock, t.protection, t.range, t.fire, t.care];
 }
 
 /** A battle's draws: the stream of its war, at the moment it was fought. */
@@ -241,8 +245,10 @@ function fought(
         fire: t[3],
         care: t[4],
         blow: blowOf(bore?.[k]?.[0]),
+        arm: bore?.[k]?.[0] ?? null,
         ...(t[5] ? { screen: t[5] } : {}),
         ...(t[6] ? { steady: t[6] } : {}),
+        ...(t[7] ? { cold: true } : {}),
       };
     },
     // (History fights a year's battles at its end: the moment of the turn.)
@@ -341,6 +347,8 @@ function woundsOf(
     protection: terms[k][1],
     care: terms[k][4],
     size,
+    arm: bore?.[foe]?.[0] ?? null,
+    ...(terms[k][7] ? { cold: true } : {}),
   });
 }
 

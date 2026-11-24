@@ -87,3 +87,129 @@ export function parasiteLoad(density: number, threshold: number, cleaned: number
 export function parasiteToll(load: number, crowded: number): number {
   return dmath.clamp(load * 2 * bestDeadliness("touch", crowded), 0, 0.6);
 }
+
+// Selection in play (2026-11-23): a kind's stock carries heritable traits, each measured in its own spread (one standard
+// deviation of the kind as made): its body's size, its coat (how much cold it is made for), its wariness. Each land asks
+// something of them (its warmth against what the kind was made for, how hard its people hunt it), and the stock's mean
+// moves toward what its lands ask a generation at a time by the breeder's equation, R = h²S: the response is the
+// heritable share of the selection differential, S = (θ − z)/(1 + ω²) under fitness falling away about the best as a
+// bell of width ω (Lande's). A stock behind a barrier moves toward what its own lands ask, while what crosses the barrier
+// pulls it back (migration, m a generation); gone far enough apart, by drift and by what each side was selected for, it
+// is a kind of its own.
+
+/** The traits, in their order in every list of them. */
+export const TRAITS = ["size", "coat", "wary"] as const;
+export type Trait = (typeof TRAITS)[number];
+
+export const SELECTION = {
+  /** How much of each trait's spread is passed on (h²): the body's size the most, behaviour the least. */
+  heritability: [0.45, 0.35, 0.25],
+  /** The width of fitness about the best (ω², in spreads squared): the wider, the weaker selection. */
+  width: 8,
+  /** Degrees of warmth below what a kind was made for that ask a spread more coat, and a spread more size (Bergmann's rule). */
+  coatDegrees: 4,
+  sizeDegrees: 8,
+  /** Spreads of wariness a stock hunted to nothing is pressed toward, and of size it is pressed down (the hunt takes the largest). */
+  waryHunted: 2.5,
+  sizeHunted: 1.2,
+  /** The most a trait goes from the kind as made, in spreads. */
+  most: 3,
+  /** A spread of size is so much of the body's weight (on its log). */
+  sizePerSpread: 0.1,
+  /** What of a hunt the warier escape, at three spreads. */
+  escape: 0.4,
+  /** A kind's trait gone this many spreads from where it was first seen is told. */
+  told: 1,
+} as const;
+
+/** What a land asks of a kind's traits (spreads): `colder` its warmth below what the kind was made for (°C), `hunted` 0 … 1. */
+export function traitsAsked(colder: number, hunted: number): [number, number, number] {
+  const h = dmath.clamp(hunted, 0, 1),
+    m = SELECTION.most;
+  return [
+    dmath.clamp(colder / SELECTION.sizeDegrees - SELECTION.sizeHunted * h, -m, m),
+    dmath.clamp(colder / SELECTION.coatDegrees, -m, m),
+    dmath.clamp(SELECTION.waryHunted * h, -m, m),
+  ];
+}
+
+/** A trait's mean after so many generations of selection toward `asked` (the breeder's equation, step on step). */
+export function selected(z: number, asked: number, generations: number, trait: number): number {
+  const k = SELECTION.heritability[trait]! / (1 + SELECTION.width);
+  return asked + (z - asked) * dmath.pow(1 - k, Math.max(0, generations));
+}
+
+/** A stock's mean pulled toward the stock beyond its barrier by what crosses it (`m` a generation). */
+export function migrated(z: number, other: number, m: number, generations: number): number {
+  return other + (z - other) * dmath.pow(1 - dmath.clamp(m, 0, 1), Math.max(0, generations));
+}
+
+/**
+ * How a stock fares against how it fared as made, for its traits against what its land asks now (`gap`) and asked as made
+ * (`gap0`), both in spreads: mean fitness under the bell falls as the square of the gap (Lande's load).
+ */
+export function traitFit(gap: number, gap0: number): number {
+  return dmath.clamp(
+    dmath.exp(-(gap * gap - gap0 * gap0) / (2 * (SELECTION.width + 1))),
+    0.3,
+    1.15,
+  );
+}
+
+/** What of a hunt a stock of this wariness escapes (spreads; none for the unwary). */
+export function waryEscape(wary: number): number {
+  return SELECTION.escape * dmath.clamp(wary / SELECTION.most, 0, 1);
+}
+
+/**
+ * What lies between a stock and the rest of its kind, and what crosses it a generation (the share of a stock's breeders
+ * come from beyond): heights a body must climb; dry or frozen ground it cannot feed on; a great river; the sea; and, with
+ * nothing between, the length of a range itself, its far end bred mostly of its own (Wright's isolation by distance).
+ * Read off the ground between, never its name.
+ */
+export const BARRIERS = {
+  heights: 0.004,
+  dry: 0.006,
+  cold: 0.005,
+  river: 0.01,
+  sea: 0.002,
+  far: 0.02,
+} as const;
+export type Barrier = keyof typeof BARRIERS;
+
+export const ISOLATES = {
+  /** Ground this high (m) is heights to a beast. */
+  heights: 2200,
+  /** A river carrying this much (of its world's greatest, by the root) parts what lives on either bank. */
+  river: 0.25,
+  /** A stock behind a barrier must hold at least so many lands of its kind to be one. */
+  least: 2,
+  /**
+   * How much faster a parted stock grows apart for each spread (squared, over its traits as a distance) selection holds
+   * it from the rest: what each side is bred for, it is bred away from the other (isolation as a by-product of selection).
+   */
+  press: 7,
+  /** How much of an island's drift a stock behind a barrier keeps (what crosses it mixes some back). */
+  drift: 0.5,
+  /** The most stocks behind barriers a world keeps track of. */
+  most: 48,
+  /**
+   * A range of at least so many lands has far ends: its lands whose warmth asks a coat at least `cline` spreads from what
+   * the range as a whole asks, so many of them together at the least, are a stock of their own by distance.
+   */
+  span: 30,
+  cline: 1,
+  endLeast: 4,
+} as const;
+
+/**
+ * How far a stock behind a barrier goes toward a kind of its own a year (a share of the way): its drift, as an island's
+ * (`divergence`) but for what crosses, and the faster the further selection holds it from the rest (`gap`, spreads),
+ * a generation at a time.
+ */
+export function apartness(kg: number, gap: number, hunted: number, turnedDegrees: number): number {
+  return (
+    ISOLATES.drift * divergence(kg, hunted, turnedDegrees) +
+    (ISOLATES.press * gap * gap) / (generationYears(kg) * SPECIATION.generations)
+  );
+}

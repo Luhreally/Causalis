@@ -11,10 +11,11 @@
 //   the sea, most of whose young die, comes to the same end by the same rule as an ape.
 // A people at the end of it replaces itself and a little over: it levels off, as far as its food allows. Pure functions.
 import { dmath } from "../kernel/index.ts";
-import { bandWidth, diedInBirthYear, riskUnder, type LifeHistory } from "./species.ts";
+import { bandWidth, diedInBirthYear, girlsOf, riskUnder, type LifeHistory } from "./species.ts";
 
 export const CHILDREN = {
-  /** Children living to bear that replace a people: a mother for each mother (a girl is 0.488 of those born). */
+  /** Children living to bear that replace a people: a mother for each mother (a girl is 0.488 of those an ape bears; a people's own
+   * share where it is known, rules/species.ts girlsOf). */
   replace: 1 / 0.488,
   /** What a people at the end of its transition wants past replacing itself (a twentieth more). */
   over: 0.05,
@@ -48,9 +49,9 @@ export function childCost(readers: number, machines: number, forgone = 0): numbe
  * Children living to bear a people wants, a mother, at a cost of raising them; and `age` more where only her children would keep
  * her when she is old (the society sweep, rules/care.ts keptOld).
  */
-export function childrenWanted(cost: number, age = 0): number {
+export function childrenWanted(cost: number, age = 0, girls = 0.488): number {
   return (
-    CHILDREN.replace * (1 + CHILDREN.over) +
+    (1 / Math.max(0.05, girls)) * (1 + CHILDREN.over) +
     CHILDREN.free * dmath.exp(-CHILDREN.cost * cost) +
     Math.max(0, age)
   );
@@ -105,7 +106,7 @@ export function livingToBear(life: LifeHistory, m: number): number {
 export function childrenKept(life: LifeHistory, m: number, cost: number, age = 0): number {
   const b = bearingOf(life),
     could = b.born * livingToBear(life, m);
-  return could > 0 ? Math.min(1, childrenWanted(cost, age) / could) : 1;
+  return could > 0 ? Math.min(1, childrenWanted(cost, age, girlsOf(life)) / could) : 1;
 }
 
 // Who of a people can be spared to fight (asked of round "peoples": reproduction and kin by species, where a levy took the

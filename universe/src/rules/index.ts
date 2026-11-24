@@ -144,6 +144,11 @@ export {
   growthOf,
   bandWidth,
   lifeHistoryOf,
+  boyRiskOf,
+  girlsAtBirth,
+  girlsOf,
+  plentyPace,
+  youngLost,
   type LifeHistory,
   type Occupation,
 } from "./species.ts";
@@ -655,8 +660,18 @@ export {
   type WorldMetal,
 } from "./chem-ores.ts";
 export {
+  ARM_JOULES,
+  BLOW_JOULES,
   BLOW_OF,
   CARE_PRINCIPLES,
+  COLD_BLEEDS,
+  DOSE,
+  OWN_GUARD,
+  REACHES,
+  armJoules,
+  doseOf,
+  guardWith,
+  harmOf,
   DIED_OF_WOUNDS,
   LETHAL,
   MAIM,
@@ -939,6 +954,10 @@ export {
   WILD_BOUNDS,
   WILD_DOINGS,
   WILD_DRAWN,
+  WILD_DRIVES,
+  WILD_NEEDS,
+  WILD_PACE,
+  WILD_WEIGH,
   WILD_FILL,
   WILD_GAIT,
   WILD_MOST,
@@ -954,10 +973,16 @@ export {
   strayed,
   unpackWild,
   wildBody,
+  wildDrives,
   wildFrame,
+  wildNeeds,
   wildOffers,
+  wildTemper,
   wildWorld,
   type WildBody,
+  type WildDrive,
+  type WildNeed,
+  type WildTemper,
   type WildDeed,
   type WildDoing,
   type WildFrame,
@@ -1711,13 +1736,25 @@ export {
   strainChance,
 } from "./pathogens.ts";
 export {
+  BARRIERS,
+  ISOLATES,
   PARASITES,
+  SELECTION,
   SPECIATION,
+  TRAITS,
+  apartness,
   divergence,
   generationYears,
   islandSize,
+  migrated,
   parasiteLoad,
   parasiteToll,
+  selected,
+  traitFit,
+  traitsAsked,
+  waryEscape,
+  type Barrier,
+  type Trait,
 } from "./lineage.ts";
 export * from "./self.ts";
 export * from "./farlife.ts";
@@ -1796,3 +1833,6 @@ export {
   type GateRead,
 } from "./borders.ts";
 export { CIRCLE, bodyLikeness, circleLeans, circleWords, moralCircle } from "./circle.ts";
+// Where sicknesses arise (2026-11-23): a land's forces, herds, wild, crowds and warm water, and the people's kin among the beasts.
+export * from "./spillover.ts";
+export * from "./demography.ts";

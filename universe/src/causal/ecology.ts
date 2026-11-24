@@ -87,8 +87,37 @@ registerEventWords(HERD_EVENTS.driven.type, (world, e) => {
     who = d?.a ?? "A host";
   return `${who.charAt(0).toUpperCase()}${who.slice(1)} drove off ${head}${what} from ${landWords(world, e.place)}, ${d?.share ?? "many"} in a hundred of what ${d?.b ?? "its people"} kept there, and the land ate the less for it, ${year(e.t)}`;
 });
+/** What parted a stock from its kind (sim/ecology/lineage.ts barrierOf): read off the ground between. */
+const PARTED: Readonly<Record<string, string>> = {
+  heights: "heights they could not cross",
+  dry: "dry ground they could not feed on",
+  cold: "frozen ground they could not feed on",
+  river: "a great river",
+  sea: "the sea",
+  far: "the length of their range alone, their far end bred mostly of its own",
+};
+const SET_APART: Readonly<Record<string, string>> = {
+  size: "their size",
+  coat: "their coats",
+  wary: "their wariness",
+};
 registerEventWords(HERD_EVENTS.kindNew.type, (world, e) => {
-  const d = e.data as { name?: string; parent?: string; how?: string } | null;
+  const d = e.data as {
+    name?: string;
+    parent?: string;
+    how?: string;
+    barrier?: string;
+    trait?: string;
+    water?: boolean;
+  } | null;
+  // (Parted on the land by a barrier, and set apart by what their own lands selected.)
+  if (d?.barrier) {
+    const by =
+      d.barrier === "sea" && d.water
+        ? "land between the waters"
+        : (PARTED[d.barrier] ?? "ground they could not cross");
+    return `Parted from the rest of their kind by ${by}, the ${d.parent ?? "beasts"} of ${landWords(world, e.place)} had grown ${d.how ?? "apart"}, ${SET_APART[d.trait ?? ""] ?? "their ways"} set apart by what their own lands asked of them, and stood apart as a kind of their own, the ${d.name ?? "new kind"}, ${year(e.t)}`;
+  }
   return `Cut off on ${landWords(world, e.place)}, the ${d?.parent ?? "beasts"} there had grown ${d?.how ?? "apart"} and stood apart as a kind of their own, the ${d?.name ?? "new kind"}, ${year(e.t)}`;
 });
 registerEventWords(HERD_EVENTS.kindGone.type, (world, e) => {
