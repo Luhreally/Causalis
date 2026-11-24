@@ -92,6 +92,8 @@ export const HEALTH_EVENTS = {
   strain: defineEventType("health.strain", 5),
   /** A sickness held in herds come back to those who keep them (Round D). */
   spilled: defineEventType("health.spilled", 4),
+  /** A people's bodies have answered a sickness: twice as many of them resist it as before it tried them (rules/heredity.ts). */
+  resisted: defineEventType("health.resisted", 4),
 };
 
 /** How sickness rises, travels and kills (each a share or a chance a year). */
