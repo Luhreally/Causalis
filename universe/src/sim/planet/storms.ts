@@ -34,6 +34,7 @@ import { landSlope } from "../ecology/ground.ts";
 import { ecologyOf } from "../ecology/ecology.ts";
 import { floodsOf } from "./floods.ts";
 import { lessened } from "../lore/lessons-store.ts";
+import { switchedOff } from "../acts/switches.ts";
 
 const STORMS = defineStream("planet.storms");
 
@@ -182,7 +183,7 @@ function strike(
 /** The year's great storms and landslides (107.planet.storms, as the year's rain is known). */
 export function stormsYear(ctx: PopulationContext, t: SimTime): void {
   const store = stormsOf(ctx.world);
-  if (!store || !isProvinceWorld(ctx.generated)) return;
+  if (!store || !isProvinceWorld(ctx.generated) || switchedOff(ctx.world, "disasters")) return;
   const { world } = ctx,
     x = exposedOf(ctx),
     eco = ecologyOf(world);

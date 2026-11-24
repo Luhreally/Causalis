@@ -54,11 +54,18 @@ test("disasters and plagues turned off stop, are kept in a save, and come back w
   off.runTo(off.submit("world.switch", { what: "disasters", on: false }).t);
   off.runTo(off.submit("world.switch", { what: "plagues", on: false }).t);
   assert.ok(switchedOff(off, "disasters") && switchedOff(off, "plagues"));
-  on.runTo(from + 80 * YEAR);
-  off.runTo(from + 80 * YEAR);
-  const was = since(on, from),
-    now = since(off, from);
-  // (The world left alone has some of each in eighty years, or this proves nothing.)
+  // (The world left alone must have some of each, or this proves nothing: it runs on forty years at
+  // a time, up to two hundred, till it has. Since the breadth round a young world's first sickness
+  // may wait past eighty years: sicknesses arise from herds, crowds and warm water, not on a clock.)
+  let span = 0,
+    was = since(on, from);
+  while ((was.disasters === 0 || was.plagues === 0) && span < 200) {
+    span += 40;
+    on.runTo(from + span * YEAR);
+    was = since(on, from);
+  }
+  off.runTo(from + span * YEAR);
+  const now = since(off, from);
   assert.ok(was.disasters > 0 && was.plagues > 0, JSON.stringify(was));
   assert.deepEqual(now, { disasters: 0, plagues: 0 });
   // Kept in a save.
