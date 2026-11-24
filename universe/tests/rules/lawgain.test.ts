@@ -1,6 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { LAW_GROUPS, lawGains, type LawFacts, type LawGroup } from "../../src/rules/index.ts";
+import {
+  LAW_GROUPS,
+  clerkGains,
+  lawGains,
+  type LawFacts,
+  type LawGroup,
+} from "../../src/rules/index.ts";
 
 // What each group gains by each position of each law, reckoned from its realm's numbers (rules/lawgain.ts): a realm of tillers
 // with a few crafters and traders, a court, a temple and an army.
@@ -124,4 +130,21 @@ test("a group with no heads in the realm gains nothing by any law", () => {
     assert.deepEqual(law.traders, [0, 0, 0]);
     assert.deepEqual(law["the army"], [0, 0, 0]);
   }
+});
+
+test("the clerks gain by what there is to assess and judge: leases, rolls of strangers, courts; and by one law only where little is skimmed", () => {
+  const paid = 30 * 20 * 1.5,
+    g = clerkGains(realm({ foreign: 0.3, unbelief: 0.1 }), paid);
+  assert.equal(best(g[LAND]!), 1, `land ${g[LAND]}`);
+  assert.equal(best(g[STRANGERS]!), 0, `strangers ${g[STRANGERS]}`);
+  // (A realm of one people keeps no roll of strangers: nothing to them; the tithe is the temple's unless its law is sacred.)
+  assert.deepEqual(clerkGains(realm(), paid)[STRANGERS], [0, 0, 0]);
+  assert.deepEqual(g[FAITH], [0, 0, 0]);
+  assert.equal(best(clerkGains(realm({ sacred: true }), paid)[FAITH]!), 0);
+  // (Courts that reach further keep more offices; where much is skimmed, what sticks to the pens is more than the fees.)
+  assert.equal(best(clerkGains(realm({ corruption: 0 }), paid)[JUSTICE]!), 2);
+  assert.equal(best(clerkGains(realm({ corruption: 0.6, tribute: 0.4 }), paid)[JUSTICE]!), 0);
+  // (None paid, no group.)
+  assert.deepEqual(clerkGains(realm(), 0)[LAND], [0, 0, 0]);
+  for (const law of g) for (const x of law) assert.ok(x > -1 && x < 1);
 });

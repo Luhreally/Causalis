@@ -188,6 +188,17 @@ registerEventWords(LAW_EVENTS.changed.type, (_, e) => {
   return `${d?.by ? `By your hand, at the word of ${d.by}, ${realm(e.data)}` : cap(realm(e.data))} changed its law of ${LAW_NAMES[law]}: from ${from} to ${to}, ${year(e.t)}`;
 });
 
+// A reform its clerks held back (sim/order/laws.ts: its clerks a group of their own, rules/lawgain.ts clerkGains).
+registerEventWords(LAW_EVENTS.held.type, (_, e) => {
+  const d = e.data as { law?: Law; from?: number; to?: number } | null,
+    law = d?.law ?? "land";
+  return `The clerks of ${realm(e.data)} held back a change of its law of ${LAW_NAMES[law]}, from ${LAW_POSITIONS[law][d?.from ?? 0]} to ${LAW_POSITIONS[law][d?.to ?? 0]}: its groups would have carried it, and the offices the clerks live by would have closed with it, ${year(e.t)}`;
+});
+registerDecisionWords(
+  "order.clerks",
+  (world, d) => `The clerks of ${realmOf(world, d.subject)} stood against a change of law`,
+);
+
 // The god's hand on bonds and freedoms (M138).
 registerEventWords(
   ORDER_ACTS.unchain.type,
