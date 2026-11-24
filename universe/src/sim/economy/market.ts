@@ -613,17 +613,30 @@ export class MarketStore implements StateStore {
    */
   primeBrought(): void {
     if (this.brought?.flows === this.flows && this.brought.length === this.flows.length) return;
-    const at = new Map<number, number>();
+    const at = new Map<number, number>(),
+      roads = new Map<number, number>();
     for (const f of this.flows) {
+      // (And what passed each road, both ways, in bulk: rules/firms.ts.)
+      const road = f.from < f.to ? f.from * ROUTE_SPAN + f.to : f.to * ROUTE_SPAN + f.from;
+      roads.set(road, (roads.get(road) ?? 0) + f.count * GOODS[f.good]!.bulk);
       if (f.to === f.from) continue;
       const from = this.map.get(f.from),
         k = from ? from.kinds & CLASS_WAYS[f.good]! : 0;
       if (k) at.set(f.to, (at.get(f.to) ?? 0) | k);
     }
-    this.brought = { flows: this.flows, length: this.flows.length, at };
+    this.brought = { flows: this.flows, length: this.flows.length, at, roads };
   }
-  private brought: { flows: readonly TradeFlow[]; length: number; at: Map<number, number> } | null =
-    null;
+  private brought: {
+    flows: readonly TradeFlow[];
+    length: number;
+    at: Map<number, number>;
+    roads: Map<number, number>;
+  } | null = null;
+  /** What passed the road between two lands in the year's flows, both ways, in bulk (read as the year opens: primeBrought). */
+  roadBulk(a: number, b: number): number {
+    if (this.brought?.flows !== this.flows) this.primeBrought();
+    return this.brought!.roads.get(a < b ? a * ROUTE_SPAN + b : b * ROUTE_SPAN + a) ?? 0;
+  }
   private broughtAt(): Map<number, number> {
     if (!this.brought) this.primeBrought();
     return this.brought!.at;

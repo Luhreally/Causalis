@@ -70,6 +70,7 @@ import {
   kindsIn,
   FIRM_SAVING,
   blendIn,
+  exchangeRiskOf,
   firmPays,
   priceTarget,
   WORKED,
@@ -109,7 +110,7 @@ import { rearmYear } from "../war/arms.ts";
 import {
   GOODS_STORE,
   dutyOf,
-  exchangeCostOf,
+  moneyDriftOf,
   guildOf,
   insuredGainOf,
   intoxLost,
@@ -152,9 +153,6 @@ const SAIL_PER_100KM = 0.02,
 const SEA_PARTNERS = 4;
 /** A province keeps this many months of its people's food before it sells any. */
 const FOOD_RESERVE_MONTHS = 3;
-/** More than any land's number: two lands as one number (a road's key). */
-const ROAD_SPAN = 2 ** 24;
-
 /** How many kinds of each class a mask of ways of making holds (rules/variety.ts). */
 function kindsOfEach(mask: number): number[] {
   const out = new Array<number>(GOOD_COUNT);
@@ -780,12 +778,18 @@ function trade(
     preyRows = orgLandsStore(ctx.world),
     preyedAt = (c: number, sea: boolean) =>
       preyRows ? preyRows.at(c, sea ? ORG_ROW.seaPrey : ORG_ROW.prey) / 1000 : 0;
-  // (What passed each road last year, both ways, in bulk: where it pays a crew's year, a carriers' firm runs it, rules/firms.ts.)
-  const passed = new Map<number, number>();
-  for (const f of markets.flows) {
-    const k = f.from < f.to ? f.from * ROAD_SPAN + f.to : f.to * ROAD_SPAN + f.from;
-    passed.set(k, (passed.get(k) ?? 0) + f.count * GOODS[f.good]!.bulk);
-  }
+  // (Each realm's money's drift, read once a realm: exchangeCostOf, sim/money/kept.ts.)
+  const drifts = new Map<string, number>(),
+    driftOf = (r: string) => {
+      let d = drifts.get(r);
+      if (d === undefined) drifts.set(r, (d = moneyDriftOf(ctx.world, r)));
+      return d;
+    },
+    exchangeBetween = (a: string, b: string) => {
+      const da = driftOf(a),
+        db = driftOf(b);
+      return Number.isNaN(da) || Number.isNaN(db) ? 0 : exchangeRiskOf(da, db);
+    };
   markets.firms = 0;
   for (const e of edges(ctx)) {
     const war = open.length ? between(e.a, e.b) : null;
@@ -806,7 +810,7 @@ function trade(
       barred = apart ? sanctionBetween(ctx.world, ta!, tb!) : 0,
       // (What changing one realm's money for the other's costs a trader over the journey, as the two moved against each other
       // last year: rules/thrift.ts. Nothing where either reckons in goods.)
-      changed = apart ? exchangeCostOf(ctx.world, ta!, tb!) : 0;
+      changed = apart ? exchangeBetween(ta!, tb!) : 0;
     const ma = markets.of(e.a),
       mb = markets.of(e.b),
       // (What both ends' signals put on the line: traders see the far price as it moves, so move more and on a narrower
@@ -836,7 +840,7 @@ function trade(
       // the road: what passed it last year pays its crew's year at what it saves, rules/firms.ts.)
       crewWage = Math.max(ma.wage[OCC.trader]!, mb.wage[OCC.trader]!),
       firm = firmPays(
-        passed.get(e.a < e.b ? e.a * ROAD_SPAN + e.b : e.b * ROAD_SPAN + e.a) ?? 0,
+        markets.roadBulk(e.a, e.b),
         e.cost * (1 - SIGNAL.tradeCost * linked),
         crewWage,
       ),

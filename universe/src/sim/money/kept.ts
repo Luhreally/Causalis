@@ -3,7 +3,13 @@
 // row set and dormant while it holds nothing. This file reaches only the kernel, so the economy, the realms and the order can read
 // it without a circle.
 import { Hasher, dmath, type StateStore, type World } from "../../kernel/index.ts";
-import { TREASURY, exchangeRate, exchangeRisk, insuredGain } from "../../rules/index.ts";
+import {
+  TREASURY,
+  exchangeRate,
+  exchangeRisk,
+  insuredGain,
+  moneyDrift,
+} from "../../rules/index.ts";
 
 /** A realm's ref as a whole number a row can hold (its serial: refs are "kind:space:serial"). */
 export function refNumber(ref: string): number {
@@ -405,6 +411,10 @@ export function exchangeCostOf(world: World, a: string, b: string): number {
     inflationOf(world, b),
     hasMoney(world, a) && hasMoney(world, b),
   );
+}
+/** A realm's money's drift last year (rules/thrift.ts moneyDrift), or NaN where it reckons in goods: exchangeCostOf, a realm at a time. */
+export function moneyDriftOf(world: World, realm: string): number {
+  return hasMoney(world, realm) ? moneyDrift(inflationOf(world, realm)) : NaN;
 }
 /** What a realm's treasury takes beyond the harvest's tithe, as a share of what its people make (0 … 1). */
 export function taxBurden(world: World, realm: string): number {

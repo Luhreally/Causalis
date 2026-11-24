@@ -2051,9 +2051,10 @@ export class TownBuilder {
       const def = CIVICS[i]!;
       if ((def.market && !s.market) || (def.city && !city) || RISING[i] || people < LEAST_EVER[i]!)
         continue;
-      if (!this.meets(def, i, k)) continue;
-      // (As many as its people hold, where a first pays in this town: rules/civicworth.ts. Its use read only where it holds fewer.)
+      // (As many as its people hold, where a first pays in this town: rules/civicworth.ts. What it needs known, and its use, read
+      // only where it holds fewer.)
       if (HAVE[i]! >= civicsHeld(def, people)) continue;
+      if (!this.meets(def, i, k)) continue;
       use ??= townUseOf(this.ctx, s);
       const want =
         people >= payingPeople(def, CIVIC_LOTS[def.kind], use)

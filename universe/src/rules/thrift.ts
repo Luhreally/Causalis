@@ -78,10 +78,15 @@ export function exchangeRate(levelA: number, levelB: number): number {
  */
 export function exchangeRisk(riseA: number, riseB: number, bothMoney: boolean): number {
   if (!bothMoney) return 0;
-  const moved = Math.abs(
-    dmath.log1p(dmath.clamp(riseA, -0.9, 9)) - dmath.log1p(dmath.clamp(riseB, -0.9, 9)),
-  );
-  return Math.min(EXCHANGE_MOST, moved * JOURNEY_YEARS);
+  return exchangeRiskOf(moneyDrift(riseA), moneyDrift(riseB));
+}
+/** How far a money moved in a year, as exchangeRisk weighs it (log1p of its rise). */
+export function moneyDrift(rise: number): number {
+  return dmath.log1p(dmath.clamp(rise, -0.9, 9));
+}
+/** exchangeRisk from the two moneys' drifts (moneyDrift), both reckoned in money. */
+export function exchangeRiskOf(driftA: number, driftB: number): number {
+  return Math.min(EXCHANGE_MOST, Math.abs(driftA - driftB) * JOURNEY_YEARS);
 }
 /** A trade's journey, from buying to selling, as a share of a year (est: a season on the road or at sea). */
 export const JOURNEY_YEARS = 0.25;
