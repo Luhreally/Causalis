@@ -36,6 +36,7 @@ import {
   starDriveFor,
   STAR_DRIVES,
   survives,
+  crossingClocks,
   type Offer,
   type Crossing,
   type Load,
@@ -325,7 +326,17 @@ function comeIn(
   const { world } = ctx;
   let worth = 0;
   for (const [good, count, margin] of c.cargo) {
-    const landed = Math.floor(count * survives(good, c.arrives - c.sailed));
+    // (It keeps by the years it lay in the hold, which the ship's clock counts: fewer than passed at home at a drive's
+    // speed, rules/crossing.ts; a lane's throw keeps no such speed.)
+    const landed = Math.floor(
+      count *
+        survives(
+          good,
+          r.hops || !(r.ly > 0)
+            ? c.arrives - c.sailed
+            : crossingClocks(r.ly, c.arrives - c.sailed).aboard,
+        ),
+    );
     // (Out of a hold, or a far people's own: the markets' store keeps what each such keeper gave, sim/economy/market.ts.)
     marketsOf(world).bringFromApart(r.civ ? "far" : "holds", to, good, landed);
     r.landed[good] = r.landed[good]! + landed;

@@ -100,8 +100,19 @@ registerEventWords(LANE_EVENTS.came.type, (_world, e) => {
   return `A ship of the realm of ${d.realm ?? "a people"}, sent through the lanes in ${d.sailed ?? "?"}, came to a people it had seen living in ${d.seen ?? "their own places"}, year ${yearOfMoment(e.t)}`;
 });
 registerEventWords(VOYAGE_EVENTS.arrived.type, (_world, e) => {
-  const d = (e.data ?? {}) as { distance?: number; people?: number };
-  return `A ship came to its star ${d.distance?.toFixed(1) ?? "?"} light-years from home, and its ${d.people ?? ""} people went down into halls on a world there, year ${yearOfMoment(e.t)}`;
+  const d = (e.data ?? {}) as {
+      distance?: number;
+      people?: number;
+      home?: number;
+      aboard?: number;
+      word?: number;
+    },
+    clocks =
+      d.home && d.aboard && d.home - d.aboard >= 0.1
+        ? `; ${d.home} years had gone at home and ${d.aboard} aboard, its clocks slow at its speed`
+        : "",
+    word = d.word ? `; home hears of it in year ${d.word}, when its light gets there` : "";
+  return `A ship came to its star ${d.distance?.toFixed(1) ?? "?"} light-years from home, and its ${d.people ?? ""} people went down into halls on a world there${clocks}${word}, year ${yearOfMoment(e.t)}`;
 });
 
 const cargoWords = (goods: unknown): string =>

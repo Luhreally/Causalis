@@ -146,6 +146,8 @@ import {
   matedShare,
   MONSOON,
   monsoonOf,
+  clockSlips,
+  crossingClocks,
 } from "../../rules/index.ts";
 import { homePlanet } from "../planet/store.ts";
 import { lightSteps, starSitesOf } from "../space/stars.ts";
@@ -1489,8 +1491,25 @@ export function weatherYear(ctx: PopulationContext, t: SimTime): void {
 /** Ageing and coming of age, yearly. */
 export function ageYear(ctx: PopulationContext, t: SimTime): void {
   const { world } = ctx,
-    life = ctx.life;
+    life = ctx.life,
+    // (Ships between the stars, where any sail: their people age by their own slow clock, rules/crossing.ts.)
+    ships = starSitesOf(world),
+    sailing = ships?.sailing() ? ships : null;
   for (const p of ctx.provinces.all()) {
+    if (sailing) {
+      const ship = sailing.get(p.cell);
+      // (A year its clock lets go by unlived: no one aboard grows a year older. By its drive's speed, not a lane's throw.)
+      if (ship && !ship.arrived && !ship.lane) {
+        const year = yearOfMoment(t),
+          home = ship.arrives - ship.departed;
+        if (
+          year > ship.departed &&
+          year <= ship.arrives &&
+          clockSlips(year - ship.departed, crossingClocks(ship.distance, home).v)
+        )
+          continue;
+      }
+    }
     const d = new CountDeltas(p.counts),
       key = refHash(p.ref),
       targets = occupationTargets(

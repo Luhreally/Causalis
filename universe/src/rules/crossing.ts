@@ -32,6 +32,34 @@ export function lorentz(v: number): number {
 export const yearsAboard = (homeYears: number, v: number): number => homeYears / lorentz(v);
 
 /**
+ * Whether a ship's clock lets a home year go by unlived: the n-th year of its crossing (1 the first) is one in which
+ * no one aboard grows a year older, where the years its slow clock has fallen behind home's first come to a whole
+ * one more. At three-tenths of light's speed one year in some twenty-two; at a twentieth, one in eight hundred.
+ */
+export function clockSlips(n: number, v: number): boolean {
+  if (!(v > 0) || n < 1) return false;
+  const behind = 1 - 1 / lorentz(v);
+  return Math.floor(n * behind) > Math.floor((n - 1) * behind);
+}
+
+/**
+ * A crossing as each end knows it: the years gone at home, the years lived (and its cargo aged) aboard at the
+ * speed it kept, and the years after its coming before its word, at light's speed, reaches home.
+ */
+export function crossingClocks(
+  ly: number,
+  homeYears: number,
+): { readonly home: number; readonly aboard: number; readonly word: number; readonly v: number } {
+  const v = homeYears > 0 ? Math.min(0.999, Math.max(0, ly) / homeYears) : 0;
+  return {
+    home: homeYears,
+    aboard: yearsAboard(homeYears, v),
+    word: Math.ceil(Math.max(0, ly)),
+    v,
+  };
+}
+
+/**
  * How much likelier death is aboard a ship crossing at this speed than at rest, by the home's year: the galaxy's rays
  * through its walls, the dust's blows at its speed, the whole slowed by its clock. Exactly 1 at rest in a star's wind.
  */
