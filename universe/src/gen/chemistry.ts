@@ -26,7 +26,7 @@ import {
 } from "../rules/index.ts";
 import { starAgeGyr, worldKindOf } from "./bodies.ts";
 import { SOUGHT, groundOf, groundStone, landBedrock } from "./bedrock.ts";
-import type { HomeWorld } from "./homeworld.ts";
+import { keptKey, type HomeWorld } from "./homeworld.ts";
 import { isProvinceWorld } from "./provinces.ts";
 
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
@@ -132,7 +132,9 @@ const NATIVE = new Map<string, ReadonlySet<number>>();
  */
 export function nativeIronLands(g: HomeWorld): ReadonlySet<number> {
   if (worldChemistry(g).redox !== "reduced") return NONE;
-  const kept = NATIVE.get(g.digest);
+  // (By its ground as it now stands: which lands are land at all is read off its heights, which a change of its ground writes.)
+  const key = keptKey(g),
+    kept = NATIVE.get(key);
   if (kept) return kept;
   const fine = isProvinceWorld(g) ? g.fine : g,
     landOf = (s: number) => (isProvinceWorld(g) ? g.provinceOf[s]! : s),
@@ -147,7 +149,7 @@ export function nativeIronLands(g: HomeWorld): ReadonlySet<number> {
   for (const land of [...basalt].sort((a, b) => a - b))
     if (g.tectonics.elevation[land]! > 0 && (g.deep.coal[land]! > 0 || g.deep.oil[land]! > 0))
       lands.add(land);
-  NATIVE.set(g.digest, lands);
+  NATIVE.set(key, lands);
   if (NATIVE.size > 8) NATIVE.delete(NATIVE.keys().next().value!);
   return lands;
 }

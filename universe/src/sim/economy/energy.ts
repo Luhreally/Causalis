@@ -7,6 +7,7 @@
 // engines drove it. A land keeps only last year's account and a faded measure of its smoke: one row a land, never a log.
 import { Hasher, type SimTime, type StateStore, type World } from "../../kernel/index.ts";
 import {
+  keptKey,
   meansNumbers,
   meansOfWorld,
   originGround,
@@ -311,7 +312,8 @@ type Origin = { readonly tides: number; readonly heat: number; readonly ground: 
 const ORIGINS = new Map<string, Origin>();
 /** A world's tides (Earth's 1), its ground's heat (Earth's 1) and the share of its light its haze lets down: read once a world. */
 function originOf(ctx: PopulationContext): Origin {
-  const key = ctx.generated.digest,
+  // (By its ground as it now stands: originGround counts its frozen ground off its warmth, which a change of its ground writes.)
+  const key = keptKey(ctx.generated),
     kept = ORIGINS.get(key);
   if (kept) return kept;
   if (ORIGINS.size >= 8) ORIGINS.delete(ORIGINS.keys().next().value!);

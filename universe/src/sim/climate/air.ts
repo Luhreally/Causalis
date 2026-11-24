@@ -33,6 +33,7 @@ import {
 } from "../../rules/index.ts";
 import {
   isProvinceWorld,
+  keptKey,
   meansNumbers,
   planetRef,
   starAgeGyr,
@@ -301,7 +302,10 @@ export type CarbonRead = {
 };
 const CARBON_READ = new Map<string, CarbonRead>();
 export function carbonWorld(g0: HomeWorld): CarbonRead {
-  let r = CARBON_READ.get(g0.digest);
+  // (By its ground as it now stands: its lands' warmth and rain are read off it, and a change of its ground writes them. Kept
+  // by its digest alone, a world that went on read them as they first were, one loaded from its save as they are.)
+  const key = keptKey(g0);
+  let r = CARBON_READ.get(key);
   if (r) return r;
   const g = isProvinceWorld(g0) ? g0.fine : g0,
     radius = 6371 * g.planet.radius,
@@ -345,7 +349,7 @@ export function carbonWorld(g0: HomeWorld): CarbonRead {
     frozenWarmth,
     frozenPpm,
   };
-  CARBON_READ.set(g0.digest, r);
+  CARBON_READ.set(key, r);
   if (CARBON_READ.size > 8) CARBON_READ.delete(CARBON_READ.keys().next().value!);
   return r;
 }
