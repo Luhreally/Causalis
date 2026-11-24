@@ -93,7 +93,7 @@ const drawn = (key: string, k: number, n: number): number =>
 function beforeHome(plan: VillagePlan, h: number, along = 0, out = 0): Point & { face: number } {
   const home = plan.homes[h] ?? plan.homes[0] ?? { x: 0, z: 0, yaw: 0 };
   if (plan.town) {
-    const d = streetDoor(home, along),
+    const d = streetDoor(home, along, undefined, plan.town?.lotSize),
       n = Math.hypot(d.x - home.x, d.z - home.z) || 1,
       p = { x: d.x + ((d.x - home.x) / n) * out, z: d.z + ((d.z - home.z) / n) * out };
     return { ...p, face: toward(p, home) };

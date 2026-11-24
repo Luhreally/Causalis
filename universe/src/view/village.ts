@@ -19,7 +19,7 @@ import { wetForLaying } from "./shore.ts";
 import { finish, hashString, mix } from "../kernel/index.ts";
 import {
   LOT,
-  SQUARE,
+  planMeasure,
   STORE_KINDS,
   shoreOut,
   waterR,
@@ -31,6 +31,16 @@ import {
 } from "../bridge/index.ts";
 import { OCC, article } from "../rules/index.ts";
 import { paceOf } from "./figure.ts";
+import { measuresOf } from "./stature.ts";
+
+/**
+ * How large a town's folk are drawn against a person drawn three times life (rules/stature.ts Measures.drawn: ours 0.32, a
+ * great body's more): what its crafts, its trades' racks, its feasts' bunting and its biers were first drawn for, and are
+ * drawn by now, true to the folk who work them.
+ */
+export function folkOf(plan: Pick<VillagePlan, "body">): number {
+  return measuresOf(plan.body).drawn;
+}
 import { clearAt, clearOf, keepOut, route, villageGround, type Ground } from "./ground.ts";
 import { memorialsPlaced } from "./memorial.ts";
 import { COURT_HOURS, courtRole, courtSolids, sittingOn, type CourtRole } from "./court.ts";
@@ -328,12 +338,15 @@ function workplace(
       why: string | null = null,
     ): Work => ({
       ...(plan.town
-        ? clearSpot(ground, streetDoor(home, (draw(21) - 0.5) * Math.min(12, out)))
+        ? clearSpot(
+            ground,
+            streetDoor(home, (draw(21) - 0.5) * Math.min(12, out), undefined, plan.town?.lotSize),
+          )
         : doorstep(
             ground,
             home,
             angle,
-            Math.max(out, (ground.homes[p.home]?.r ?? 5) + PERSON_REACH + 0.8),
+            Math.max(out, (ground.homes[p.home]?.r ?? 5) + reachOn(ground) + 0.8),
           )),
       to,
       back,
@@ -864,7 +877,7 @@ const TAKE_UP = 6;
 
 /** A way for a bier from a to b: as its town's walkers go (its bearers about it kept off the walls as they are). */
 function bierWay(ground: Ground, a: Point, b: Point): Point[] {
-  return route(ground, a, b, PERSON_REACH);
+  return route(ground, a, b, reachOn(ground));
 }
 
 /** A way's straight runs, each with its start, end, length and direction (none of no length). */
@@ -1156,7 +1169,7 @@ function* fightsSteps(
                     x: T.x + ((w.x - T.x) / d) * 7,
                     z: T.z + ((w.z - T.z) / d) * 7,
                   }),
-                  PERSON_REACH,
+                  reachOn(ground),
                 ),
               );
             },
@@ -1198,7 +1211,7 @@ function* fightsSteps(
                   ? "the fire the raid left"
                   : "the fire",
             crew = nearest(T, able, LINE_MOST, from, until),
-            way = route(ground, water, stand, PERSON_REACH),
+            way = route(ground, water, stand, reachOn(ground)),
             line = lengthOf(way) <= LINE_REACH && crew.length > THROWERS + 1;
           crew.forEach((i, j) => {
             // (They come as they hear: a little apart.)
@@ -1405,10 +1418,12 @@ function* fightsSteps(
         two = nearest(edge, (i) => able(i) && !column.has(i), 2, wait, done, Infinity);
       if (two.length < 2) continue;
       const head = runsOf(way)[0]?.d ?? { x: -dir.x, z: -dir.z },
-        laid = stepWay(way, HOMECOMING.along + 1),
+        // (Its bearers at its poles' ends, as long as its folk are drawn: folkOf.)
+        bear = HOMECOMING.along * folkOf(plan),
+        laid = stepWay(way, bear + 1),
         whose = first(q.index);
       two.forEach((i, j) => {
-        const along = j === 0 ? HOMECOMING.along : -HOMECOMING.along,
+        const along = j === 0 ? bear : -bear,
           by = clearSpot(ground, offWay(edge, head, along * 1.3, 1.8)),
           there = stepAt(laid, laid.long + along, 0);
         put(i, {
@@ -1478,7 +1493,10 @@ function* fightsSteps(
   function cheer(hs: readonly Homecoming[]): void {
     const long = Math.hypot(plan.road.x, plan.road.z) || 1,
       dir = { x: plan.road.x / long, z: plan.road.z / long },
-      into = { x: dir.x * (SQUARE + 6), z: dir.z * (SQUARE + 6) },
+      into = {
+        x: dir.x * (planMeasure(plan.town).SQUARE + 6),
+        z: dir.z * (planMeasure(plan.town).SQUARE + 6),
+      },
       columns = new Set(hs.flatMap((h) => h.people.map((q) => q.index))),
       last = hs[hs.length - 1]!,
       from = hs[0]!.at - HOMECOMING.gather,
@@ -1515,10 +1533,14 @@ function* fightsSteps(
         home >= 0
           ? doorOfHome(plan, ground, home)
           : lot
-            ? clearSpot(ground, streetDoor(lot, 0))
+            ? clearSpot(ground, streetDoor(lot, 0, undefined, plan.town?.lotSize))
             : clearSpot(ground, {
-                x: (yard.gate.x / (Math.hypot(yard.gate.x, yard.gate.z) || 1)) * (SQUARE - 4),
-                z: (yard.gate.z / (Math.hypot(yard.gate.x, yard.gate.z) || 1)) * (SQUARE - 4),
+                x:
+                  (yard.gate.x / (Math.hypot(yard.gate.x, yard.gate.z) || 1)) *
+                  (planMeasure(plan.town).SQUARE - 4),
+                z:
+                  (yard.gate.z / (Math.hypot(yard.gate.x, yard.gate.z) || 1)) *
+                  (planMeasure(plan.town).SQUARE - 4),
               }),
       gather = f.leaves - FUNERAL.gather,
       // (Facing as the day's stays do: along x = sin, z = cos.)
@@ -1573,8 +1595,9 @@ function* fightsSteps(
     bearers.forEach((i, n) => {
       const b = Math.floor(n / 4),
         j = n % 4,
-        along = j < 2 ? 2.4 : -2.4,
-        across = j % 2 ? 1.3 : -1.3,
+        // (At its poles' ends, as long and broad as its folk are drawn: folkOf.)
+        along = (j < 2 ? 2.4 : -2.4) * folkOf(plan),
+        across = (j % 2 ? 1.3 : -1.3) * folkOf(plan),
         sets = f.leaves + b * BIER_APART,
         way = ways[b]!,
         end = way.at(-1)!,
@@ -1830,7 +1853,7 @@ export function graveyardFor(plan: VillagePlan): Graveyard | null {
     const ground = groundFor(plan),
       out = ground.homesReach + 26,
       // (Its size, wherever it lies: what it must keep clear of, as far as its corners.)
-      size = graveyardAt({ x: 0, z: 0 }, 0, rest.graves, rest.perYear),
+      size = graveyardAt({ x: 0, z: 0 }, 0, rest.graves, rest.perYear, folkOf(plan)),
       wide = Math.hypot(size.w, size.d) / 2,
       apart = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b))),
       fx = plan.fields.reduce((a, q) => a + q.x, 0),
@@ -1894,7 +1917,7 @@ export function graveyardFor(plan: VillagePlan): Graveyard | null {
       }
     }
     const gate = clearSpot(ground, { x: out * Math.cos(best), z: out * Math.sin(best) });
-    yard = graveyardAt(gate, best, rest.graves, rest.perYear);
+    yard = graveyardAt(gate, best, rest.graves, rest.perYear, folkOf(plan));
   }
   YARDS.set(plan, yard);
   return yard;
@@ -2490,7 +2513,10 @@ function hospitalDoor(plan: VillagePlan, t: number): Point & { face: number } {
   if (d) return { x: d.x, z: d.z, face: d.yaw };
   const k = plan.people.findIndex((q) => !!q.healer);
   if (k >= 0) return careDoor(plan, groundFor(plan), plan.people[k]!.home, t);
-  return { ...clearSpot(groundFor(plan), { x: SQUARE - 4, z: 0 }), face: -Math.PI / 2 };
+  return {
+    ...clearSpot(groundFor(plan), { x: planMeasure(plan.town).SQUARE - 4, z: 0 }),
+    face: -Math.PI / 2,
+  };
 }
 
 /** Where one calls on the wounded (Phase 55 M229): before a home's door, facing it; or the hospital's. */
@@ -2655,7 +2681,7 @@ function withLife(
       over = (long: number) => long / (rides && long >= RIDE_LEAST ? pace * RIDE_FAST : pace),
       near = whereAt(legs, st.from),
       guess = Math.max(done, st.from - over(Math.hypot(spot.x - near.x, spot.z - near.z) * 1.4)),
-      first = route(ground, whereAt(legs, guess), spot, PERSON_REACH),
+      first = route(ground, whereAt(legs, guess), spot, reachOn(ground)),
       leave = Math.max(done, Math.min(guess, st.from - over(lengthOf(first)))),
       out: Leg[] = cutLegs(legs, 0, leave);
     let t = leave;
@@ -2681,7 +2707,7 @@ function withLife(
         t = to;
       }
     };
-    walk(route(ground, whereAt(legs, leave), spot, PERSON_REACH), st.why, st.carry);
+    walk(route(ground, whereAt(legs, leave), spot, reachOn(ground)), st.why, st.carry);
     const until = Math.max(t + 60, st.to);
     out.push({
       from: t,
@@ -2712,7 +2738,7 @@ function withLife(
     if (cut && cut.from >= leave && cut.from < t && !out.some((l) => l.why?.startsWith(CUT))) {
       const loom = legs.find((l) => l.task === "weave" && l.from >= cut.to),
         trip = loom ? cutLegs(legs, cut.from, loom.from) : [],
-        path = route(ground, spot, cut.at, PERSON_REACH),
+        path = route(ground, spot, cut.at, reachOn(ground)),
         fast = rides && lengthOf(path) >= RIDE_LEAST ? pace * RIDE_FAST : pace,
         span = lengthOf(path) / fast + (loom ? loom.from - cut.from : 0);
       // (Only where there is weaving left to do once it is cut.)
@@ -2731,7 +2757,7 @@ function withLife(
         legs,
         Math.min(DAY - 1, t + over(Math.hypot(here.x - near.x, here.z - near.z))),
       );
-      walk(route(ground, here, back, PERSON_REACH), null, null);
+      walk(route(ground, here, back, reachOn(ground)), null, null);
       if (t < DAY) out.push(...cutLegs(legs, t, DAY));
     }
     const last = out[out.length - 1]!;
@@ -2793,7 +2819,7 @@ function outsiderDay(plan: VillagePlan, index: number, day: number, fine: boolea
       of?: Leg["of"],
     ) => {
       let t = from;
-      const way = fine ? route(ground, a, b, PERSON_REACH) : [a, b];
+      const way = fine ? route(ground, a, b, reachOn(ground)) : [a, b];
       for (let k = 0; k + 1 < way.length; k++) {
         const to = t + walkTime(way[k]!, way[k + 1]!, pace);
         legs.push({
@@ -2830,7 +2856,7 @@ function outsiderDay(plan: VillagePlan, index: number, day: number, fine: boolea
       const spot = clearSpot(ground, c.at),
         start = Math.max(
           0,
-          COURT_HOURS.gather * HOUR - lengthOf(route(ground, edge, spot, PERSON_REACH)) / pace,
+          COURT_HOURS.gather * HOUR - lengthOf(route(ground, edge, spot, reachOn(ground))) / pace,
         );
       away(0, start);
       const there = go(
@@ -2925,9 +2951,9 @@ function dayBase(plan: VillagePlan, index: number, day: number, fine: boolean): 
     ground = groundFor(plan),
     // At home means at the doorstep, where they can be seen: outside the walls (on a side
     // clear of the neighbours' too; in a town, on its street before its door).
-    doorOut = Math.max(7, (ground.homes[p.home]?.r ?? 5) + PERSON_REACH + 0.8),
+    doorOut = Math.max(7, (ground.homes[p.home]?.r ?? 5) + reachOn(ground) + 0.8),
     at = plan.town
-      ? clearSpot(ground, streetDoor(home, (draw(20) - 0.5) * 5))
+      ? clearSpot(ground, streetDoor(home, (draw(20) - 0.5) * 5, undefined, plan.town?.lotSize))
       : doorstep(ground, home, home.yaw + (draw(20) - 0.5) * 1.2, doorOut),
     work = workplace(plan, p, draw, day),
     rest = restDay(plan, day),
@@ -2993,7 +3019,7 @@ function dayBase(plan: VillagePlan, index: number, day: number, fine: boolean): 
   // A walk goes round the homes, the water and the rising walls, turning beside each (straight
   // across, in a town watched growing).
   const wayOf = (a: Point, b: Point): Point[] =>
-    fine ? route(ground, a, b, PERSON_REACH) : [a, b];
+    fine ? route(ground, a, b, reachOn(ground)) : [a, b];
   const along = (
     from: number,
     way: readonly Point[],
@@ -3144,12 +3170,12 @@ function dayBase(plan: VillagePlan, index: number, day: number, fine: boolean): 
         const h = plan.homes[Math.floor(u * plan.homes.length) % plan.homes.length]!,
           k = plan.homes.indexOf(h);
         return plan.town
-          ? clearSpot(ground, streetDoor(h, (u - 0.5) * 5))
+          ? clearSpot(ground, streetDoor(h, (u - 0.5) * 5, undefined, plan.town?.lotSize))
           : doorstep(
               ground,
               h,
               h.yaw + (u - 0.5) * 1.2,
-              Math.max(7, (ground.homes[k]?.r ?? 5) + PERSON_REACH + 0.8),
+              Math.max(7, (ground.homes[k]?.r ?? 5) + reachOn(ground) + 0.8),
             );
       };
       const why = "Walking about the town of an evening: they cannot settle",
@@ -4374,7 +4400,10 @@ function dayBase(plan: VillagePlan, index: number, day: number, fine: boolean): 
           what = mine.what === "coal" ? "coal" : (ore?.name ?? "ore"),
           [u, v] = at2(8000, 9000),
           // (One of them at the furnace by the diggings today: the ore heaped by it, for it.)
-          furnace = ore && town.roles.some((r) => r.kind === "smelt") ? furnaceOf(mine) : null;
+          furnace =
+            ore && town.roles.some((r) => r.kind === "smelt")
+              ? furnaceOf(mine, folkOf(plan))
+              : null;
         if (!stone && furnace)
           return [
             {
@@ -4430,7 +4459,7 @@ function dayBase(plan: VillagePlan, index: number, day: number, fine: boolean): 
       // At the furnace by the diggings (Phase 51 M213): charged with the ore its diggers heap by it
       // and charcoal, the bellows worked all morning, the copper drawn and carried to the yard.
       case "smelt": {
-        const f = furnaceOf(plan.works?.mine),
+        const f = furnaceOf(plan.works?.mine, folkOf(plan)),
           ore = plan.stuff?.ore;
         if (!f || !ore) return errandOf({ ...role, kind: "mine" }, town, k);
         const stand = clearSpot(ground, f.stand);
@@ -4549,7 +4578,7 @@ function dayBase(plan: VillagePlan, index: number, day: number, fine: boolean): 
             },
           ];
         // (To the furnace by the diggings, where the town smelts its own ore; else to the forge.)
-        const f = plan.stuff?.ore ? furnaceOf(plan.works?.mine) : null,
+        const f = plan.stuff?.ore ? furnaceOf(plan.works?.mine, folkOf(plan)) : null,
           heap = f ? clearSpot(ground, f.coal) : spots.smithy.door,
           where = f ? "the furnace by the diggings" : spots.smithy.words;
         return [
@@ -4752,7 +4781,7 @@ function dayBase(plan: VillagePlan, index: number, day: number, fine: boolean): 
           metal = plan.stuff?.metal?.name ?? null,
           // (On a world of its own chemistry, what its smiths melt: Phase 54.)
           from = plan.stuff?.metal?.from,
-          rack = rackOf(spots.smithy);
+          rack = rackOf(spots.smithy, folkOf(plan));
         return [
           { to: yard.door, carry: null, why: `To ${yard.words} for ${metalIn(metal, from)}` },
           {
@@ -4800,7 +4829,7 @@ function dayBase(plan: VillagePlan, index: number, day: number, fine: boolean): 
           weaver = role.kind === "workshop" && p.trade?.kind === "weaver" ? p.trade : null,
           loomShop = weaver && role.place >= 0 ? shops[role.place] : undefined;
         if (weaver && loomShop) {
-          const loom = loomOf(loomShop, Math.floor(weaver.seat / shops.length)),
+          const loom = loomOf(loomShop, Math.floor(weaver.seat / shops.length), folkOf(plan)),
             stand = clearSpot(ground, loom.stand),
             cloth = plan.stuff?.cloth.name ?? "cloth",
             market = doors.get("market")?.[0] ?? granary,
@@ -4880,9 +4909,9 @@ function dayBase(plan: VillagePlan, index: number, day: number, fine: boolean): 
         if (!kiln) return errandOf({ ...role, kind: "workshop", place: -1 }, town, k);
         const spot = clearSpot(ground, beside(kiln, role.seat)),
           market = doors.get("market")?.[0] ?? granary,
-          boards = boardsOf(kiln),
+          boards = boardsOf(kiln, folkOf(plan)),
           board = clearSpot(ground, boards.stand),
-          wheel = wheelOf(kiln, wheelSeat(p, role, kilns.length));
+          wheel = wheelOf(kiln, wheelSeat(p, role, kilns.length), folkOf(plan));
         if (first)
           return [
             { to: board, carry: null, why: `To the boards by ${kiln.words}` },
@@ -5535,12 +5564,12 @@ function momentIn(
   } else {
     const where = { x, z },
       ground = groundFor(plan);
-    keepOut(ground, where, PERSON_REACH);
+    keepOut(ground, where, reachOn(ground));
     // (Moving about in a way too narrow for it, walls either side pushing them to and fro: where they stood to begin with.)
-    if (moving && !clearAt(ground, where, PERSON_REACH - 1e-3)) {
+    if (moving && !clearAt(ground, where, reachOn(ground) - 1e-3)) {
       where.x = leg.at.x;
       where.z = leg.at.z;
-      keepOut(ground, where, PERSON_REACH);
+      keepOut(ground, where, reachOn(ground));
     }
     if (today) {
       today.from[2 * index] = x;
@@ -5796,7 +5825,7 @@ export function rackNow(
         hung.push({ at: leg.to, index: i, n: n++, form: smithedOn(plan, i, day) });
   });
   hung.sort((a, b) => a.at - b.at || a.index - b.index);
-  const rack = rackOf(storeSpots(plan, ground, day * DAY).smithy);
+  const rack = rackOf(storeSpots(plan, ground, day * DAY).smithy, folkOf(plan));
   return {
     x: rack.x,
     z: rack.z,
@@ -5861,7 +5890,7 @@ export function boardsNow(
   const today = townDay(plan, day, ground).roles,
     before = townDay(plan, day - 1, ground).roles;
   return kilns.map((kiln, k) => {
-    const b = boardsOf(kiln),
+    const b = boardsOf(kiln, folkOf(plan)),
       fired = today.some(
         (r, i) =>
           r.kind === "kiln" &&
@@ -5885,8 +5914,9 @@ export function boardsNow(
 export function boardSlot(
   board: { readonly x: number; readonly z: number; readonly yaw: number },
   k: number,
+  folk = 1,
 ): Point {
-  const along = (k - (BOARD_MOST - 1) / 2) * BOARD_GAP;
+  const along = (k - (BOARD_MOST - 1) / 2) * BOARD_GAP * folk;
   return { x: board.x + Math.cos(board.yaw) * along, z: board.z - Math.sin(board.yaw) * along };
 }
 
@@ -5920,7 +5950,11 @@ export function wheelsNow(
     key = (kiln: number, w: number) => `${kiln}:${w}`,
     put = (kiln: number, w: number) => {
       if (!wheels.has(key(kiln, w)))
-        wheels.set(key(kiln, w), { ...wheelOf(kilns[kiln]!, w), turning: false, pot: null });
+        wheels.set(key(kiln, w), {
+          ...wheelOf(kilns[kiln]!, w, folkOf(plan)),
+          turning: false,
+          pot: null,
+        });
     };
   if (potters.length)
     for (const i of potters) {
@@ -5972,7 +6006,7 @@ export function loomsNow(
   return plan.people.flatMap((p, i) => {
     if (p.trade?.kind !== "weaver") return [];
     const seat = p.trade.seat,
-      loom = loomOf(shops[seat % shops.length]!, Math.floor(seat / shops.length)),
+      loom = loomOf(shops[seat % shops.length]!, Math.floor(seat / shops.length), folkOf(plan)),
       legs = roles[i]?.kind === "workshop" ? legsOf(plan, i, day, fine) : [],
       // (Cut of a morning; where a rite broke into the day in the cutting's place, cut before
       // they first weave.)
@@ -6220,12 +6254,13 @@ export function floorNow(
   };
 }
 
-/** Where the k-th tool hangs on a rack (metres), along its bar from its left. */
+/** Where the k-th tool hangs on a rack (metres), along its bar from its left; `folk`: the folk's drawn size (folkOf). */
 export function rackSlot(
   rack: { readonly x: number; readonly z: number; readonly yaw: number },
   k: number,
+  folk = 1,
 ): Point {
-  const along = (k - (RACK_MOST - 1) / 2) * RACK_GAP;
+  const along = (k - (RACK_MOST - 1) / 2) * RACK_GAP * folk;
   return { x: rack.x + Math.cos(rack.yaw) * along, z: rack.z - Math.sin(rack.yaw) * along };
 }
 
@@ -6303,7 +6338,7 @@ export function storesNow(plan: VillagePlan, t: number, fine = true): StoresNow 
 
 /** The nearest place to `p` clear of every wall (itself, if it is), a few steps about it. */
 function clearSpot(ground: Ground, p: Point): Point {
-  const clear = (q: Point) => clearAt(ground, q, PERSON_REACH);
+  const clear = (q: Point) => clearAt(ground, q, reachOn(ground));
   if (clear(p)) return p;
   for (let r = 2; r <= 12; r += 2)
     for (let k = 0; k < 8; k++) {
@@ -6319,7 +6354,7 @@ function clearSpot(ground: Ground, p: Point): Point {
       if (clear(q)) return q;
     }
   const q = { ...p };
-  keepOut(ground, q, PERSON_REACH);
+  keepOut(ground, q, reachOn(ground));
   return q;
 }
 
@@ -6365,8 +6400,13 @@ export function drillGround(plan: VillagePlan): Point {
 function doorOfHome(plan: VillagePlan, ground: Ground, h: number): Point {
   const home = plan.homes[h]!;
   return plan.town
-    ? clearSpot(ground, streetDoor(home, 0))
-    : doorstep(ground, home, home.yaw, Math.max(7, (ground.homes[h]?.r ?? 5) + PERSON_REACH + 0.8));
+    ? clearSpot(ground, streetDoor(home, 0, undefined, plan.town?.lotSize))
+    : doorstep(
+        ground,
+        home,
+        home.yaw,
+        Math.max(7, (ground.homes[h]?.r ?? 5) + reachOn(ground) + 0.8),
+      );
 }
 
 /** A doorstep `out` metres from a home toward `way`, turned to the first side clear of every wall. */
@@ -6374,13 +6414,22 @@ function doorstep(ground: Ground, home: Point, way: number, out: number): Point 
   for (let k = 0; k < 12; k++) {
     const a = way + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 0.55,
       p = { x: home.x + out * Math.cos(a), z: home.z + out * Math.sin(a) };
-    if (ground.homes.every((h) => clearOf(h, p) >= PERSON_REACH)) return p;
+    if (ground.homes.every((h) => clearOf(h, p) >= reachOn(ground))) return p;
   }
   return { x: home.x + out * Math.cos(way), z: home.z + out * Math.sin(way) };
 }
 
-/** How far a person keeps off a wall (metres: half a figure's breadth as drawn, and a step). */
+/** How far a person keeps off a wall (metres: half a figure's breadth as drawn, and a step): ours, and the least of any. */
 export const PERSON_REACH = 1.2;
+
+/** How far a town's folk keep off a wall: half their breadth as drawn true and a step, no nearer than ours (Ground.reach). */
+export function personReach(plan: Pick<VillagePlan, "body">): number {
+  const m = measuresOf(plan.body);
+  return Math.max(PERSON_REACH, Math.max(m.breadth, m.length) / 2 + 0.6 * m.rise);
+}
+
+/** How far those on a ground keep off its walls (Ground.reach; absent: ours). */
+const reachOn = (ground: Ground): number => ground.reach ?? PERSON_REACH;
 
 // A village's solid ground for its people: its homes, its water, and its rising walls.
 const GROUNDS = new WeakMap<VillagePlan, Ground>();
@@ -6418,6 +6467,9 @@ function groundFor(plan: VillagePlan): Ground {
           }),
         ],
       };
+    // (Its folk keep as far off its walls as they are broad.)
+    const reach = personReach(plan);
+    if (reach !== PERSON_REACH) g = { ...g, reach };
     GROUNDS.set(plan, g);
   }
   return g;
@@ -6428,8 +6480,18 @@ export function villageSolids(plan: VillagePlan): Ground {
   return groundFor(plan);
 }
 
-/** Half a body's breadth: two people's middles come no nearer than twice it (metres). */
+/** Half a body's breadth: two people's middles come no nearer than twice it (metres): ours, and the least of any. */
 export const BODY_R = 0.35;
+
+/**
+ * Half a town's folk's breadth as they are drawn true (rules/stature.ts Measures: across their shoulders or their flanks,
+ * whichever is the more, and a little room): ours BODY_R, a greater body's as much more as it is broader, so a crowd of
+ * them stands no more into one another than ours do.
+ */
+export function bodyR(plan: Pick<VillagePlan, "body">): number {
+  const m = measuresOf(plan.body);
+  return Math.max(BODY_R, Math.max(m.breadth, m.length) * 0.55);
+}
 
 /** No one in a cell: what a cell no one stands in holds. */
 const NO_ONE: readonly number[] = [];
@@ -6451,7 +6513,7 @@ export function keepApart(
   fixed: readonly { readonly x: number; readonly z: number }[] = [],
 ): void {
   const ground = groundFor(plan),
-    gap = 2 * BODY_R,
+    gap = 2 * bodyR(plan),
     // (Each steps a little past the breadth, so a knot settles without creeping.)
     want = gap * 1.06,
     live: number[] = [];
@@ -6559,7 +6621,7 @@ export function keepApart(
       if (!moved[i]) continue;
       moved[i] = 0;
       const m = moments[i]!;
-      keepOut(ground, m, PERSON_REACH);
+      keepOut(ground, m, reachOn(ground));
       // (Into another cell: out of the one it stood in, into the new one in its order.)
       const cx = Math.floor(m.x / gap),
         cz = Math.floor(m.z / gap),
@@ -6742,6 +6804,8 @@ type Rgb = readonly [number, number, number];
 
 /** How a house looks, from its design: wall and roof colours, its shape, and its roof's rise. */
 export type HouseLook = {
+  /** The lots its homes stand on, as many times ours (bridge/town.ts TownPlan.lotSize; absent: ours). */
+  readonly lot?: number;
   /** Halls on another body (Phase 64): drawn sealed, whatever it is built of. */
   readonly sealed?: boolean;
   readonly wall: Rgb;

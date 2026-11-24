@@ -4,7 +4,7 @@
 // town is barely marked; what its fallen homes wore goes green again as the years pass, so a shrunken town's old ways fade. Pure: a town's plan in, flat
 // pieces of ground out, kept while the plan stands.
 import { MinHeap, YEAR } from "../kernel/index.ts";
-import { BLOCK_D, BLOCK_LOTS, BLOCK_REACH, BLOCK_W, LOT, SQUARE, STREET } from "../bridge/index.ts";
+import { BLOCK_LOTS, LOT } from "../bridge/index.ts";
 import type { TownScene } from "./town.ts";
 
 /** A stretch of worn ground: its middle, length and turn, how worn (0 to 4), and how far gone back to green (0 to 1). */
@@ -85,6 +85,9 @@ function readWorn(scene: TownScene, most: number): Worn {
     build: Build = { x: [0], z: [0], a: [], b: [] },
     year = plan.year;
   if (!blocks) return { pieces: [], ways: 0, worn: 0, homes: 0 };
+  // (Its blocks and streets as its people lay them: TownPlan.lotSize; their crossings as much further apart.)
+  const { BLOCK_W, BLOCK_D, STREET, SQUARE, BLOCK_REACH, k: lotSize } = lots.m,
+    crossing = CROSSING * lotSize;
   const halfW = (BLOCK_W + STREET) / 2,
     halfD = (BLOCK_D + STREET) / 2,
     /** A point's way, one to each spot of ground. */
@@ -131,7 +134,7 @@ function readWorn(scene: TownScene, most: number): Worn {
     reach = Math.max(reach, Math.hypot(bx, bz) + BLOCK_REACH);
   }
   // Blocks laid slightly apart: their corners one crossing. And the square, and the ways out.
-  const CELL = CROSSING,
+  const CELL = crossing,
     near = new Map<number, number[]>(),
     keyOf = (x: number, z: number) =>
       Math.floor(x / CELL + 4096) * 16384 + Math.floor(z / CELL + 4096);
@@ -153,12 +156,12 @@ function readWorn(scene: TownScene, most: number): Worn {
   };
   const blockNodes = build.x.length;
   for (let n = 1; n < blockNodes; n++)
-    around(build.x[n]!, build.z[n]!, CROSSING, (q) => {
+    around(build.x[n]!, build.z[n]!, crossing, (q) => {
       if (q > n) join(n, q);
     });
   // (The square, from its nearest corners: that's its corners worn.)
   const toSquare: { n: number; d: number }[] = [];
-  around(0, 0, SQUARE + 46, (n, d) => toSquare.push({ n, d }));
+  around(0, 0, SQUARE + 46 * lotSize, (n, d) => toSquare.push({ n, d }));
   toSquare
     .sort((p, q) => p.d - q.d || p.n - q.n)
     .slice(0, 10)

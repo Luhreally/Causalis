@@ -9,8 +9,8 @@ import { LAKE_R, type VillagePlan } from "../../src/bridge/index.ts";
 import { clearAt, keepOut, villageGround } from "../../src/view/ground.ts";
 import {
   ACTIVITY,
-  BODY_R,
   PERSON_REACH,
+  bodyR,
   keepApart,
   momentOf,
   type Moment,
@@ -27,7 +27,7 @@ function keepApartBefore(
   fixed: readonly { readonly x: number; readonly z: number }[] = [],
 ): void {
   const ground = villageGround(plan),
-    gap = 2 * BODY_R,
+    gap = 2 * bodyR(plan),
     want = gap * 1.06,
     live: number[] = [];
   moments.forEach((m, i) => {
@@ -130,7 +130,8 @@ function settled(
   const now = crowd.map((m) => ({ ...m })),
     before = crowd.map((m) => ({ ...m })),
     ground = villageGround(plan),
-    cell = (m: Moment) => `${Math.floor(m.x / (2 * BODY_R))},${Math.floor(m.z / (2 * BODY_R))}`;
+    cell = (m: Moment) =>
+      `${Math.floor(m.x / (2 * bodyR(plan)))},${Math.floor(m.z / (2 * bodyR(plan)))}`;
   keepApart(plan, now, fixed);
   keepApartBefore(plan, before, fixed);
   let stepped = 0,
@@ -188,7 +189,7 @@ test("crowds knotted on one spot, by the walls and the water, settle as before",
               : where === 1
                 ? plan.water!.x + shore * Math.cos(way)
                 : where === 2
-                  ? Math.round((u() - 0.5) * 300) * 2 * BODY_R
+                  ? Math.round((u() - 0.5) * 300) * 2 * bodyR(plan)
                   : (u() - 0.5) * 600,
           cz =
             where === 0
@@ -196,7 +197,7 @@ test("crowds knotted on one spot, by the walls and the water, settle as before",
               : where === 1
                 ? plan.water!.z + shore * Math.sin(way)
                 : where === 2
-                  ? Math.round((u() - 0.5) * 300) * 2 * BODY_R
+                  ? Math.round((u() - 0.5) * 300) * 2 * bodyR(plan)
                   : (u() - 0.5) * 600,
           many = 2 + Math.floor(u() * 30),
           spread = [0, 0.2, 0.6, 1.5][Math.floor(u() * 4)]!;
@@ -254,13 +255,13 @@ test("a crowd drawn together frame after frame settles as before every frame", (
 
 test("far out, across the cells' small keys and past them, they settle as before", () => {
   // (Within 16 384 cells of the middle a cell is keyed by a small whole number; past it, as before.)
-  const edge = 16_384 * 2 * BODY_R;
+  const edge = 16_384 * 2 * bodyR(town);
   for (const [cx, cz] of [
     [edge, 0],
     [-edge, 40],
     [30, -edge],
     [edge, edge],
-    [-edge - 0.35, edge + 0.35],
+    [-edge - bodyR(town), edge + bodyR(town)],
     [23_000, 22_937.6],
     [-23_000, -22_937.6],
   ] as const) {

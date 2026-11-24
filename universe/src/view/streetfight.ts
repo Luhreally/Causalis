@@ -197,7 +197,9 @@ export function fightSpots(plan: VillagePlan, quarter: number): FightSpot[] {
       [...cross].sort(
         (a, b) => Math.hypot(a.x - p.x, a.z - p.z) - Math.hypot(b.x - p.x, b.z - p.z),
       )[0],
-    lots = town ? townLots(town.family, town.seed, town.axis, town.lots, town.water) : null,
+    lots = town
+      ? townLots(town.family, town.seed, town.axis, town.lots, town.water, null, town.lotSize ?? 1)
+      : null,
     civic = (kind: string): Point | undefined => {
       const c = town?.civics.find((x) => x.kind === kind && x.fell === null && x.at < town.lots);
       if (!c || !lots) return undefined;

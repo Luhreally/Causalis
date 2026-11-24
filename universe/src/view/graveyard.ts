@@ -23,10 +23,30 @@ type Point = { readonly x: number; readonly z: number };
  * How a graveyard's plots lie (metres): so many across a section of it, each so wide and deep; a
  * path up each section's middle and along its front, inside its gate; its rim inside its wall.
  */
-// (Sized as the town's folk are drawn, a head taller than its houses' doors.)
+// (Laid for a person drawn three times life: a yard's own are drawn by its folk's drawn size, Graveyard.k, plotOf.)
 export const PLOT = { across: 12, wide: 3.4, deep: 5, path: 3, rim: 3 } as const;
 /** How wide a section of plots is, its path up its middle with it. */
 export const SECTION_W = PLOT.across * PLOT.wide + PLOT.path;
+
+/** A yard's plots as its folk lie in them (Graveyard.k: their drawn size, view/village.ts folkOf). */
+export function plotOf(g: { readonly k?: number }): {
+  readonly across: number;
+  readonly wide: number;
+  readonly deep: number;
+  readonly path: number;
+  readonly rim: number;
+  readonly section: number;
+} {
+  const k = g.k ?? 1;
+  return {
+    across: PLOT.across,
+    wide: PLOT.wide * k,
+    deep: PLOT.deep * k,
+    path: PLOT.path * k,
+    rim: PLOT.rim * k,
+    section: SECTION_W * k,
+  };
+}
 /** The most rows a graveyard runs back, and the most sections side by side: full, the oldest graves are dug again. */
 export const MOST_ROWS = 24;
 export const MOST_SECTIONS = 4;
@@ -63,6 +83,8 @@ export type Graveyard = {
   readonly d: number;
   readonly x: number;
   readonly z: number;
+  /** Its folk's drawn size (view/village.ts folkOf; absent: 1): its plots, its graves and its biers are drawn by it. */
+  readonly k?: number;
 };
 
 /**
@@ -70,8 +92,16 @@ export type Graveyard = {
  * a year's more at `perYear` — no more than its dead of KEPT_YEARS years, a section's rows at
  * least — in sections side by side, as near square as they go.
  */
-export function graveyardAt(gate: Point, way: number, graves: number, perYear = 0): Graveyard {
-  const room = Math.max(
+export function graveyardAt(
+  gate: Point,
+  way: number,
+  graves: number,
+  perYear = 0,
+  k = 1,
+): Graveyard {
+  const PLOT = plotOf({ k }),
+    SECTION_W = PLOT.section,
+    room = Math.max(
       1,
       Math.min(graves + perYear + 8, Math.max(MOST_ROWS * PLOT.across, perYear * KEPT_YEARS)),
     ),
@@ -93,6 +123,7 @@ export function graveyardAt(gate: Point, way: number, graves: number, perYear = 
     d,
     x: gate.x + (Math.cos(way) * d) / 2,
     z: gate.z + (Math.sin(way) * d) / 2,
+    ...(k !== 1 ? { k } : {}),
   };
 }
 
@@ -110,7 +141,10 @@ export function plotsOf(g: Graveyard): number {
 
 /** The middle of each section of a graveyard, across its frame (metres from its middle line): its path runs back there. */
 export function sectionsOf(g: Graveyard): number[] {
-  return Array.from({ length: g.sections }, (_, s) => (s - (g.sections - 1) / 2) * SECTION_W);
+  return Array.from(
+    { length: g.sections },
+    (_, s) => (s - (g.sections - 1) / 2) * plotOf(g).section,
+  );
 }
 
 /**
@@ -119,7 +153,9 @@ export function sectionsOf(g: Graveyard): number[] {
  * middle.
  */
 export function plotAt(g: Graveyard, k: number): Point {
-  const per = g.sections * PLOT.across,
+  const PLOT = plotOf(g),
+    SECTION_W = PLOT.section,
+    per = g.sections * PLOT.across,
     cap = g.rows * per,
     slot = ((k % cap) + cap) % cap,
     row = Math.floor(slot / per),

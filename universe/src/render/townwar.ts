@@ -2,8 +2,8 @@
 // fires, and its houses burning when it is stormed — flames and the smoke over them; the hosts'
 // fires the night before a battle before it (Phase 55 M227). Its soldiers
 // are the village's own figures in their sides' colours (render/village.ts). Units as the
-// village's: a tenth of a unit to the metre; tents and flames sized to its folk, drawn three times
-// a person's size.
+// village's: a tenth of a unit to the metre; tents and camp fires laid for a person drawn three times life and drawn by the
+// folk's drawn size (`folk`: view/village.ts folkOf), as is what stands past the line (FOLK_METRE); flames sized to houses.
 import * as pc from "playcanvas";
 import { InstancedBatch, boxMesh, coneMesh, cylinderMesh } from "./batch.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
@@ -78,7 +78,7 @@ export function firesBetween(
       out.push({ t: b * LANDS_S, x: at.x, z: at.z, arm: "", kind: "blast" });
     }
 }
-/** Units to a true metre of what stands among its folk, who are drawn three times a person's size. */
+/** Units to a true metre of what stands among its folk, for a person drawn three times life (times the folk's drawn size: true). */
 const FOLK_METRE = 0.55 / 1.75;
 
 export class TownWarLayer {
@@ -421,11 +421,11 @@ export class TownWarLayer {
     this.tents.set(nt, (i, out) => {
       const t = tents[i]!;
       out[0] = t.x * M;
-      out[1] = 0.32;
+      out[1] = 0.32 * folk;
       out[2] = t.z * M;
-      out[3] = 0.95;
-      out[4] = 0.64;
-      out[5] = 0.95;
+      out[3] = 0.95 * folk;
+      out[4] = 0.64 * folk;
+      out[5] = 0.95 * folk;
       out[6] = t.yaw + Math.PI / 4;
     });
     // (A fire before every third tent; then the hosts' fires.)
@@ -434,7 +434,7 @@ export class TownWarLayer {
     // (Its light on the ground about it, breathing with the flame.)
     this.glows.set(nc, (j, out) => {
       const c = lines[j]!,
-        r = (c.lamp ? 0.7 : 1.1) * (0.92 + 0.08 * Math.sin(s * 7 + j * 1.3));
+        r = (c.lamp ? 0.7 : 1.1) * (0.92 + 0.08 * Math.sin(s * 7 + j * 1.3)) * folk;
       out[0] = c.x * M;
       out[1] = 0.012;
       out[2] = c.z * M;
@@ -447,7 +447,7 @@ export class TownWarLayer {
       if (j >= byTents) {
         const c = lines[j - byTents]!,
           flick = 0.85 + 0.15 * Math.sin(s * 9 + j * 2.1);
-        const k = c.lamp ? 0.45 : 1;
+        const k = (c.lamp ? 0.45 : 1) * folk;
         out[0] = c.x * M;
         out[1] = 0.1 * flick * k;
         out[2] = c.z * M;
@@ -460,12 +460,12 @@ export class TownWarLayer {
       const t = tents[j * 3]!,
         a = Math.atan2(t.z, t.x),
         flick = 0.85 + 0.15 * Math.sin(s * 9 + j * 2.1);
-      out[0] = (t.x - Math.cos(a) * 9) * M;
-      out[1] = 0.1 * flick;
-      out[2] = (t.z - Math.sin(a) * 9) * M;
-      out[3] = 0.16;
-      out[4] = 0.22 * flick;
-      out[5] = 0.16;
+      out[0] = (t.x - Math.cos(a) * 9 * folk) * M;
+      out[1] = 0.1 * flick * folk;
+      out[2] = (t.z - Math.sin(a) * 9 * folk) * M;
+      out[3] = 0.16 * folk;
+      out[4] = 0.22 * flick * folk;
+      out[5] = 0.16 * folk;
       out[6] = s * 2 + j;
     });
     // Its houses alight: tongues of flame leaping, and their smoke rolling up and away.

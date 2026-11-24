@@ -15,17 +15,11 @@
 // moment, in parts (metres from the square's middle), for the renderer to put in its batches.
 import { greatGone, timeRaids } from "./raid.ts";
 import {
-  BLOCK_D,
   BLOCK_LOTS,
-  BLOCK_W,
   Footprints,
   GATE_TOWER,
   LOT,
-  LOT_D,
-  LOT_W,
   SPREAD,
-  SQUARE,
-  STREET,
   WALL_THICK,
   WALL_TOWER,
   blocksHeld,
@@ -52,6 +46,8 @@ import {
   type TownPlan,
   type WallLength,
   type VillagePlan,
+  lotMeasure,
+  type LotMeasure,
 } from "../bridge/index.ts";
 import { HOME_LIFE } from "../rules/index.ts";
 import {
@@ -94,7 +90,7 @@ import { blockGround, lineOver } from "./streetline.ts";
 export { hasSpires, sprawlOf };
 
 /** How far about a stronghold's ground a block of a town yields it: a block's half breadth across its corners. */
-export const HELD_PAD = Math.hypot(BLOCK_W, BLOCK_D) / 2;
+export const heldPad = (m: LotMeasure): number => Math.hypot(m.BLOCK_W, m.BLOCK_D) / 2;
 
 type Rgb = readonly [number, number, number];
 export type PartMesh = "box" | "gable" | "cone" | "cyl" | "dome";
@@ -315,14 +311,20 @@ const darker = (c: Rgb, f: number): Rgb => [c[0] * f, c[1] * f, c[2] * f];
  * A hut's or a house's footprint in its land's look (along its street, deep) — as long as its
  * look, but no longer than its lot holds, its eaves clear of its neighbours'.
  */
-const lowFoot = (L: { w: number; d: number }, look: HouseLook): [number, number] => [
-  Math.min(
-    look.joined ? LOT_W - 0.1 : look.apart ? LOT_W - 3 : LOT_W - 1.2,
-    L.w * (look.length / 0.7),
-  ),
-  // (By the square a house is built back to its lot's end: no ground there is left for a yard.)
-  look.joined ? LOT_D - 1 : Math.min(LOT_D - 1.6, L.d * (look.width / 0.55)),
-];
+const lowFoot = (L: { w: number; d: number }, look: HouseLook): [number, number] => {
+  const { LOT_W, LOT_D } = lookLot(look);
+  return [
+    Math.min(
+      look.joined ? LOT_W - 0.1 : look.apart ? LOT_W - 3 : LOT_W - 1.2,
+      L.w * (look.length / 0.7),
+    ),
+    // (By the square a house is built back to its lot's end: no ground there is left for a yard.)
+    look.joined ? LOT_D - 1 : Math.min(LOT_D - 1.6, L.d * (look.width / 0.55)),
+  ];
+};
+
+/** The lots a look's homes stand on, as its people lay them (HouseLook.lot: TownPlan.lotSize). */
+const lookLot = (look: HouseLook): LotMeasure => lotMeasure(look.lot ?? 1);
 
 /**
  * How high a home's walls stand against its level's own: a hut's or a house's as its look has it; a tenement's, a block's and
@@ -413,7 +415,15 @@ export function townScene(plan: TownPlan, t: number, previous?: TownLots): TownS
       previous.x.length >= plan.lots &&
       previous.blocks.x.length >= Math.ceil(plan.lots / BLOCK_LOTS)
         ? previous
-        : townLots(plan.family, plan.seed, plan.axis, plan.lots, plan.water, plan.site ?? null),
+        : townLots(
+            plan.family,
+            plan.seed,
+            plan.axis,
+            plan.lots,
+            plan.water,
+            plan.site ?? null,
+            plan.lotSize ?? 1,
+          ),
     states = lotStates(plan),
     held = blocksHeld(plan, states),
     looks = plan.designs.map((d: TownDesign) => {
@@ -421,7 +431,9 @@ export function townScene(plan: TownPlan, t: number, previous?: TownLots): TownS
         { walls: d.walls, roof: d.roof, form: d.form, pitch: d.pitch, design: null },
         plan.lifeLook,
       );
-      return plan.sealed ? { ...look, sealed: true } : look;
+      // (Its homes stand on lots laid to its people's measure: TownPlan.lotSize.)
+      const laid = plan.lotSize && plan.lotSize !== 1 ? { ...look, lot: plan.lotSize } : look;
+      return plan.sealed ? { ...laid, sealed: true } : laid;
     }),
     active: number[] = [],
     settled: number[] = [],
@@ -660,6 +672,7 @@ export function townSurface(scene: TownScene, x: number, z: number, t: number): 
 
 /** How high a lot's home reaches over a point at moment t (metres; 0: the point is not under it). */
 function lotTop(scene: TownScene, p: number, x: number, z: number, t: number): number {
+  const { LOT_D, LOT_W } = scene.lots.m;
   const { states, lots, looks } = scene,
     what = states.what[p];
   let level = states.level[p]!,
@@ -725,6 +738,7 @@ function shapeTop(
   x: number,
   z: number,
 ): number {
+  const { LOT_W } = lookLot(look);
   const dx = x - hx,
     dz = z - hz,
     c = Math.cos(yaw),
@@ -792,6 +806,7 @@ const SPIRE_SHAFTS: readonly (readonly [number, number])[] = [
  * blocks' plates of rock levelled and swept, a covered way down each with the pressure kept in it.
  */
 function sealedGround(scene: TownScene, out: TownParts): void {
+  const { BLOCK_D, BLOCK_W, SQUARE, STREET } = scene.lots.m;
   const { plan, lots } = scene,
     rock = plan.sealed!.rock,
     plate: Rgb = [rock[0] * 0.7 + 0.12, rock[1] * 0.7 + 0.12, rock[2] * 0.7 + 0.12],
@@ -836,6 +851,8 @@ export function townGround(
   /** The most pieces of worn ground drawn (R1). */
   mostWorn = 1500,
 ): void {
+  const { BLOCK_D, BLOCK_W, SQUARE, STREET } = scene.lots.m;
+  const HELD_PAD = heldPad(scene.lots.m);
   const { plan, lots } = scene;
   if (plan.sealed) return sealedGround(scene, out);
   const ash = burned ? (plan.ash ?? 0) : 0;
@@ -967,6 +984,8 @@ export function townSignals(
   out: TownParts,
   ash = 0,
 ): { poles: number; wires: number; mast: boolean } {
+  const { BLOCK_D, BLOCK_W, SQUARE, STREET } = scene.lots.m;
+  const HELD_PAD = heldPad(scene.lots.m);
   const { plan, lots } = scene,
     s = plan.signals,
     drawn = { poles: 0, wires: 0, mast: false };
@@ -1150,6 +1169,7 @@ const ROOF = 8;
  * them again draws the same.
  */
 function sprawlLaid(scene: TownScene): Float32Array {
+  const { BLOCK_D, BLOCK_W } = scene.lots.m;
   if (scene.sprawlRoofs) return scene.sprawlRoofs;
   const { plan } = scene,
     ring = sprawlOf(plan, scene.lots),
@@ -1369,12 +1389,15 @@ export function* farSteps(scene: TownScene): Generator<void, TownFar | null, voi
         from + Math.min(FAR_LOTS, Math.ceil(count * 1.25)),
         plan.water,
         plan.site ?? null,
+        plan.lotSize ?? 1,
       );
   }
   return farOf(scene);
 }
 
 export function farOf(scene: TownScene): TownFar | null {
+  const { BLOCK_D, BLOCK_W, LOT_D } = scene.lots.m;
+  const HELD_PAD = heldPad(scene.lots.m);
   if (scene.far !== undefined) return scene.far;
   const { plan } = scene,
     from = plan.lots;
@@ -1387,7 +1410,15 @@ export function farOf(scene: TownScene): TownFar | null {
     farKept = {
       key,
       count: more,
-      lots: townLots(plan.family, plan.seed, plan.axis, more, plan.water, plan.site ?? null),
+      lots: townLots(
+        plan.family,
+        plan.seed,
+        plan.axis,
+        more,
+        plan.water,
+        plan.site ?? null,
+        plan.lotSize ?? 1,
+      ),
     };
   }
   const lots = farKept.lots;
@@ -1523,6 +1554,7 @@ function edgeAt(scene: TownScene, a: number): number {
  * them.
  */
 function farGround(scene: TownScene, out: TownParts, street: Rgb, yard: Rgb): void {
+  const { LOT_D, STREET } = scene.lots.m;
   const far = farOf(scene);
   if (!far) return;
   let plate = 0;
@@ -1784,6 +1816,7 @@ export function rowAt(
   z: number,
   yaw: number,
 ): void {
+  const { LOT_W } = lookLot(look);
   const list = Array.from({ length: n }, (_, k) => k);
   rowsLod(
     out,
@@ -1810,6 +1843,7 @@ function tallWall(look: HouseLook, level: number): Rgb {
  * them under a metre: townhouses, tenements, blocks; a land's joined houses).
  */
 function rowJoins(level: number, look: HouseLook): boolean {
+  const { LOT_W } = lookLot(look);
   if (look.sealed || look.open || look.tent || look.round || level >= TOP_LEVEL) return false;
   if (level <= 1) return look.joined === true;
   // (Not towers a metre and more apart: drawn as one, the gaps between them closed and opened as the eye moved, near
@@ -1868,7 +1902,7 @@ function rowsLod(
       rise = level <= 1 ? look.raised * 10 : 0,
       x = (a.x + b.x) / 2,
       z = (a.z + b.z) / 2,
-      long = w + (n - 1) * LOT_W,
+      long = w + (n - 1) * lookLot(look).LOT_W,
       yaw = a.yaw;
     if (h <= 0.01) continue;
     const flat = look.rise < 0.1;
@@ -1990,6 +2024,7 @@ export function* homesSeen(
   /** Its own lots' homes, those past them, or both (its own are drawn whole wherever the eye is: drawn once a year). */
   which: "all" | "own" | "far" = "all",
 ): Generator<void, void> {
+  const { BLOCK_D, BLOCK_W, LOT_D, LOT_W } = scene.lots.m;
   const far = farOf(scene),
     drawn = detail?.drawn,
     STEP = 100;
@@ -2229,6 +2264,7 @@ function sealedHome(
   grow: number,
   roof: number,
 ): void {
+  const { LOT_W } = lookLot(look);
   const hull: Rgb = [
       HULL[0] + (look.wall[0] - HULL[0]) * 0.1,
       HULL[1] + (look.wall[1] - HULL[1]) * 0.1,
@@ -2677,6 +2713,7 @@ export function homesRiseNear(
   reach: number,
   t: number,
 ): number {
+  const { LOT_D } = scene.lots.m;
   const { plan, lots, states } = scene,
     far = (reach + LOT_D) ** 2;
   let top = 0;
@@ -2690,7 +2727,8 @@ export function homesRiseNear(
 }
 
 /** What the greatest fire left of a home: its lot's whole width in a low black heap, and here and there a stub (W5). */
-function flatRubble(out: TownParts, x: number, z: number, yaw: number): void {
+function flatRubble(out: TownParts, x: number, z: number, yaw: number, m: LotMeasure): void {
+  const { LOT_D, LOT_W } = m;
   const v = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453,
     r = v - Math.floor(v),
     // (Over the ash that lies about it.)
@@ -2927,7 +2965,7 @@ function struckHome(
     return;
   }
   if (flat) {
-    flatRubble(out, x, z, yaw);
+    flatRubble(out, x, z, yaw, lookLot(look));
     return;
   }
   // (Thrown down: its rubble, burning there a while if it caught.)
@@ -2960,6 +2998,7 @@ export function townHomes(
   t: number,
   out: TownParts,
 ): void {
+  const HELD_PAD = heldPad(scene.lots.m);
   const { lots, states, looks } = scene,
     held = holdPlaces(scene.plan, lots);
   for (const p of which) {
@@ -3016,7 +3055,8 @@ export function townHomes(
     else if (what === LOT.fallen || what === LOT.razed) {
       const years = (t - states.began[p]!) / YEAR_S;
       if (years >= 0)
-        if (what === LOT.razed && p < (scene.plan.ash ?? 0)) flatRubble(out, x, z, yaw);
+        if (what === LOT.razed && p < (scene.plan.ash ?? 0))
+          flatRubble(out, x, z, yaw, lookLot(look));
         else ruin(out, look, x, z, yaw, years, what === LOT.razed);
     }
   }
@@ -3177,6 +3217,7 @@ function rankedHome(
   yaw: number,
   t: number,
 ): void {
+  const { LOT_D, LOT_W } = scene.lots.m;
   const r = rankedOf(scene.plan);
   yardWalled = false;
   if (!r || look.sealed || look.tent || level > 2) return home(out, look, level, x, z, yaw);
@@ -3339,6 +3380,7 @@ function greatHall(
   share: number,
   stuff: Rgb | undefined,
 ): void {
+  const { LOT_D, LOT_W } = lookLot(look);
   const big = Math.min(1, share * 2),
     wall = stuff ?? mixed(look.wall, DRESSED, 0.5),
     w = LOT_W - 2,
@@ -4005,6 +4047,7 @@ function inside(
  * a length of its walls or a gate, else the lot under it (null: a street, the square, past its edge).
  */
 export function townThingAt(scene: TownScene, x: number, z: number, t: number): TownThing | null {
+  const { LOT_W } = scene.lots.m;
   const { plan, lots } = scene;
   // (A stronghold or seat: its page says whose, why and of what: bridge/strongholds.ts.)
   for (const h of holdPlaces(plan, lots))
@@ -4070,6 +4113,7 @@ export function townBuildingAt(
   t: number,
   pad = 6,
 ): { x: number; z: number; yaw: number; w: number; d: number } | null {
+  const { LOT_D, LOT_W } = scene.lots.m;
   const { plan, lots, states } = scene;
   let best: { x: number; z: number; yaw: number; w: number; d: number } | null = null,
     near = pad;
@@ -4100,7 +4144,12 @@ export function townBuildingAt(
 }
 
 /** The lot nearest a point (metres from the middle), for a tap (-1 if none near). */
-export function lotNear(scene: TownScene, x: number, z: number, reach = LOT_W): number {
+export function lotNear(
+  scene: TownScene,
+  x: number,
+  z: number,
+  reach = scene.lots.m.LOT_W,
+): number {
   let best = -1,
     d = reach * reach;
   const { lots, plan } = scene;

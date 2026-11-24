@@ -2,8 +2,8 @@
 // and the pot rising on the head as it is thrown; its kilns' boards, with the day's pots drying on
 // them unfired; its weavers' looms, the cloth growing down them and the heddle working while the
 // weaver works; and the charcoal clamp at each stage of its round, smoking while it smoulders.
-// Units as the village's: a tenth of a unit to the metre; the sizes are the folk's, drawn three
-// times a person's size.
+// Units as the village's: a tenth of a unit to the metre; the sizes below are as they were drawn for a person drawn three
+// times life, and are drawn by the folk's own drawn size (view/village.ts folkOf): true to those who work them.
 import * as pc from "playcanvas";
 import { BOARD_GAP, BOARD_MOST, boardSlot } from "../view/index.ts";
 import { InstancedBatch, boxMesh, coneMesh, cylinderMesh, keptMesh } from "./batch.ts";
@@ -112,7 +112,7 @@ type Clamp = {
 type ClampShape = { wood: Mound | null; earth: Mound | null; charcoal: Mound | null; top: number };
 
 /** Write one part into a batch's slot: its middle at (x, y, z), its size and its turn (metres). */
-function put(
+function putM(
   out: number[],
   x: number,
   y: number,
@@ -170,10 +170,16 @@ function clampShape(c: ClampAt | null): ClampShape {
 }
 
 /** One cone standing on the ground at (x, z), or none (its middle at half its height). */
-function standOn(batch: InstancedBatch, cone: Mound | null, x: number, z: number): void {
-  const high = cone?.high ?? 0,
-    across = cone?.across ?? 0;
-  batch.set(cone ? 1 : 0, (_, out) => put(out, x, high / 2, z, across, high, across, 0));
+function standOn(
+  batch: InstancedBatch,
+  cone: Mound | null,
+  x: number,
+  z: number,
+  folk: number,
+): void {
+  const high = (cone?.high ?? 0) * folk,
+    across = (cone?.across ?? 0) * folk;
+  batch.set(cone ? 1 : 0, (_, out) => putM(out, x, high / 2, z, across, high, across, 0));
 }
 
 export class CraftsLayer {
@@ -191,6 +197,8 @@ export class CraftsLayer {
   private clamp: Clamp | null = null;
   /** The most of each the batches hold (the town's, as last laid out). */
   private most = { wheels: 0, boards: 0, looms: 0 };
+  /** The folk's drawn size (view/village.ts folkOf): what every part here is drawn by. */
+  private folk = 1;
   /**
    * What was last drawn (the look tools): the wheels, and how many turn; the pots on the boards; the
    * looms, and how many are woven at; the clamp, its stage and whether it smokes.
@@ -222,7 +230,9 @@ export class CraftsLayer {
   build(
     counts: { wheels: number; boards: number; looms: number; clamp: boolean },
     colours: { raw: Rgb; fired: Rgb; cloth: Rgb },
+    folk = 1,
   ): void {
+    this.folk = folk;
     for (const b of this.batches) b.destroy();
     this.batches = [];
     const W = counts.wheels,
@@ -291,6 +301,18 @@ export class CraftsLayer {
       clamp: ClampAt | null;
     },
   ): void {
+    // (Each part drawn by the folk's size about where it stands: its heights and sizes here, its offsets along it below.)
+    const k = this.folk,
+      put = (
+        out: number[],
+        x: number,
+        y: number,
+        z: number,
+        sx: number,
+        sy: number,
+        sz: number,
+        yaw: number,
+      ) => putM(out, x, y * k, z, sx * k, sy * k, sz * k, yaw);
     const c = now.clamp,
       wheels = now.wheels.slice(0, this.most.wheels),
       boards = now.boards.slice(0, this.most.boards),
@@ -300,7 +322,7 @@ export class CraftsLayer {
       dried = boards.flatMap((b) =>
         b.pots
           .slice(0, BOARD_MOST)
-          .map((p, k) => ({ at: boardSlot(b, k), yaw: b.yaw, form: p.form })),
+          .map((p, j) => ({ at: boardSlot(b, j, k), yaw: b.yaw, form: p.form })),
       ),
       necks = dried.filter((p) => hasNeck(p.form));
     this.shown.wheels = wheels.length;
@@ -348,7 +370,7 @@ export class CraftsLayer {
       trestle.set(2 * boards.length, (i, out) => {
         const b = boards[Math.floor(i / 2)]!,
           // (One under each end, its outer face flush with the plank's.)
-          along = (i % 2 ? 1 : -1) * (length / 2 - 0.15);
+          along = (i % 2 ? 1 : -1) * (length / 2 - 0.15) * k;
         put(
           out,
           b.x + Math.cos(b.yaw) * along,
@@ -396,7 +418,7 @@ export class CraftsLayer {
         woven = looms.filter((l) => l.woven >= 0.02);
       post.set(2 * looms.length, (i, out) => {
         const l = looms[Math.floor(i / 2)]!,
-          along = (i % 2 ? 1 : -1) * 2.2;
+          along = (i % 2 ? 1 : -1) * 2.2 * k;
         put(
           out,
           l.x + Math.cos(l.yaw) * along,
@@ -427,7 +449,7 @@ export class CraftsLayer {
       heddle.set(looms.length, (i, out) => {
         const l = looms[i]!,
           // (Shifted along the loom while it is woven at.)
-          along = motion && l.weaving ? 0.25 * Math.sin(s * 3) : 0;
+          along = motion && l.weaving ? 0.25 * k * Math.sin(s * 3) : 0;
         put(
           out,
           l.x + Math.sin(l.yaw) * along,
@@ -441,7 +463,7 @@ export class CraftsLayer {
       });
       weight.set(WEIGHTS * looms.length, (i, out) => {
         const l = looms[Math.floor(i / WEIGHTS)]!,
-          along = -1.9 + ((i % WEIGHTS) * 3.8) / (WEIGHTS - 1);
+          along = (-1.9 + ((i % WEIGHTS) * 3.8) / (WEIGHTS - 1)) * k;
         put(
           out,
           l.x + Math.cos(l.yaw) * along,
@@ -460,9 +482,9 @@ export class CraftsLayer {
         shape = clampShape(c),
         x = c?.x ?? 0,
         z = c?.z ?? 0;
-      standOn(wood, shape.wood, x, z);
-      standOn(earth, shape.earth, x, z);
-      standOn(charcoal, shape.charcoal, x, z);
+      standOn(wood, shape.wood, x, z, k);
+      standOn(earth, shape.earth, x, z, k);
+      standOn(charcoal, shape.charcoal, x, z, k);
       smoke.set(c?.lit ? PUFFS : 0, (j, out) => {
         // (Each puff climbs from the top and spreads as it goes; held still where small motions
         // are not drawn.)
@@ -470,9 +492,9 @@ export class CraftsLayer {
           size = 1.1 + age * 3.4;
         put(
           out,
-          x + age * age * 4,
+          x + age * age * 4 * k,
           shape.top + age * 14,
-          z + age * age * 1.5,
+          z + age * age * 1.5 * k,
           size,
           0.8 * size,
           size,

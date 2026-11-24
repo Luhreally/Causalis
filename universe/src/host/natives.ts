@@ -22,7 +22,15 @@ import {
   type GalaxyStar,
   type Sketched,
 } from "../gen/index.ts";
-import { CLADES, HOLDS, OCC, pigmentOverride, roofPitch, type BodyPlan } from "../rules/index.ts";
+import {
+  CLADES,
+  HOLDS,
+  OCC,
+  lotScale,
+  pigmentOverride,
+  roofPitch,
+  type BodyPlan,
+} from "../rules/index.ts";
 import {
   CHANGE,
   STAGE_WORDS,
@@ -500,6 +508,8 @@ export function folkTownPlan(
         };
         return {
           ...rest,
+          // (Its lots laid to its own people's measure, not the world's it is read on: rules/stature.ts lotScale.)
+          lotSize: lotScale(folkFigure(f, star)),
           ...(f.life.pigment === "chlorophyll" ? {} : { lifeLook: f.life.pigment }),
           designs: (built.designs.length
             ? built.designs
@@ -526,6 +536,7 @@ export function folkTownPlan(
         town.lots,
         town.water,
         town.site ?? null,
+        town.lotSize ?? 1,
       ),
       states = lotStates(town);
     for (let p = 0; p < town.lots && homes.length < count; p++)

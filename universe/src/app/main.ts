@@ -262,7 +262,7 @@ import {
   bandKitWords,
   bandPersonWords,
   bandWords,
-  campFigure,
+  lifeFigure,
   campRoom,
   figureOf,
   figurePaint,
@@ -8074,9 +8074,9 @@ async function runPlanetPage(): Promise<void> {
     const meadow = newMeadow(info.plan, 0, info.plan.seed, true);
     // (Their own flock grazes among the land's beasts: the hunters leave it be.)
     for (const k of meadow.kinds) if (info.flocks.includes(k.lineage)) k.tame = true;
-    // (As far apart about their fire as their figures are drawn large; their things made of the
-    // ground their camp stands on, Phase 49 M211.)
-    const drawn = campFigure(figureOf(info.figure, detail)),
+    // (Drawn true to life, as their towns' folk are, as far apart about their fire as they are large; their things made of
+    // the ground their camp stands on, Phase 49 M211.)
+    const drawn = lifeFigure(figureOf(info.figure, detail), info.figure),
       room = campRoom(drawn),
       band = newBand(
         meadow,
@@ -8112,11 +8112,12 @@ async function runPlanetPage(): Promise<void> {
     );
     campPanel.visible = true;
     time.at("camp", campPanel.timeSlot);
-    // (A great people's camp is seen from as much further off as they stand taller: Phase 69.)
-    const campFar = Math.max(7, 3.4 * room);
+    // (A great people's camp is seen from as much further off as they stand taller: Phase 69; ours, drawn true to life,
+    // from some twenty metres.)
+    const campFar = Math.max(2.2, 7 * room);
     rig.configure({
       distance: campFar,
-      minDistance: 2,
+      minDistance: 0.6,
       maxDistance: Math.max(30, campFar * 1.6),
       pitch: -26,
       minPitch: -85,

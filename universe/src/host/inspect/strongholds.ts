@@ -39,7 +39,15 @@ export function holdPage(world: World, ref: string): PageModel {
     site = townSite(world, at.town as Ref),
     plan = site ? townPlan(world, at.town as Ref, site.axis, f!.next, site.water) : null,
     lots = plan
-      ? townLots(plan.family, plan.seed, plan.axis, plan.lots, plan.water, plan.site ?? null)
+      ? townLots(
+          plan.family,
+          plan.seed,
+          plan.axis,
+          plan.lots,
+          plan.water,
+          plan.site ?? null,
+          plan.lotSize ?? 1,
+        )
       : null,
     places = plan && lots ? holdPlaces(plan, lots).filter((p) => p.hold.k === h.k) : [],
     spot = places[0],

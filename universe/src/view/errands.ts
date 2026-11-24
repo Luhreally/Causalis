@@ -12,7 +12,6 @@
 import { finish, hashString, mix } from "../kernel/index.ts";
 import {
   LOT,
-  LOT_D,
   askedGrown,
   civicMoments,
   footprint,
@@ -326,7 +325,11 @@ export function beside(store: Store, seat: number, gap = 1.4, back = 0.6, row = 
  * are hung (Phase 51 M213): its middle and which way its bar runs (its front's), and where one
  * stands to hang a tool on it (metres from the town's middle).
  */
-export function rackOf(store: Store): { x: number; z: number; yaw: number; stand: Point } {
+export function rackOf(
+  store: Store,
+  /** The folk's drawn size (rules/stature.ts Measures.drawn: 1, a person drawn three times life, as the crafts were drawn). */
+  folk = 1,
+): { x: number; z: number; yaw: number; stand: Point } {
   const c = Math.cos(store.yaw),
     s = Math.sin(store.yaw),
     across = 9.5,
@@ -334,7 +337,7 @@ export function rackOf(store: Store): { x: number; z: number; yaw: number; stand
       x: store.door.x + c * across - s * out,
       z: store.door.z - s * across - c * out,
     });
-  return { ...at(-1), yaw: store.yaw, stand: at(1.2) };
+  return { ...at(-folk), yaw: store.yaw, stand: at(1.2 * folk) };
 }
 
 /**
@@ -447,24 +450,29 @@ const WHEEL_OUT = 3.4,
 export function wheelOf(
   kiln: Store,
   w: number,
+  /** The folk's drawn size (rackOf). */
+  folk = 1,
 ): { x: number; z: number; yaw: number; stand: Point } {
   const c = Math.cos(kiln.yaw),
     s = Math.sin(kiln.yaw),
-    across = ((w % 3) - 1) * WHEEL_GAP,
-    out = WHEEL_OUT + Math.floor(w / 3) * WHEEL_ROW,
+    across = ((w % 3) - 1) * WHEEL_GAP * folk,
+    out = (WHEEL_OUT + Math.floor(w / 3) * WHEEL_ROW) * folk,
     at = (o: number): Point => ({
       x: kiln.door.x + c * across - s * o,
       z: kiln.door.z - s * across - c * o,
     });
-  return { ...at(out), yaw: kiln.yaw, stand: at(out + 1.6) };
+  return { ...at(out), yaw: kiln.yaw, stand: at(out + 1.6 * folk) };
 }
 
 /**
  * The boards against a kiln's front, past its wheels, where the pots thrown are set to dry
  * before their firing (Phase 51 M214): their middle, which way they run, where one stands at them.
  */
-export function boardsOf(kiln: Store): { x: number; z: number; yaw: number; stand: Point } {
-  return rackOf(kiln);
+export function boardsOf(
+  kiln: Store,
+  folk = 1,
+): { x: number; z: number; yaw: number; stand: Point } {
+  return rackOf(kiln, folk);
 }
 
 /**
@@ -475,15 +483,17 @@ export function boardsOf(kiln: Store): { x: number; z: number; yaw: number; stan
 export function loomOf(
   shop: Store,
   w: number,
+  /** The folk's drawn size (rackOf). */
+  folk = 1,
 ): { x: number; z: number; yaw: number; stand: Point } {
   const c = Math.cos(shop.yaw),
     s = Math.sin(shop.yaw),
-    across = (w % 2 ? -1 : 1) * (6.5 + Math.floor(w / 2) * 5.6),
+    across = (w % 2 ? -1 : 1) * (6.5 + Math.floor(w / 2) * 5.6 * folk),
     at = (o: number): Point => ({
       x: shop.door.x + c * across - s * o,
       z: shop.door.z - s * across - c * o,
     });
-  return { ...at(1.4), yaw: shop.yaw, stand: at(3.6) };
+  return { ...at(1.4 * folk), yaw: shop.yaw, stand: at(3.6 * folk) };
 }
 
 /** A piece of a store's heap: its middle (metres from the town's), its size (metres), how it lies. */
@@ -728,7 +738,7 @@ export function sitesOn(plan: VillagePlan, day: number, ground: Ground): Site[] 
       const at = { x: lots.x[p]!, z: lots.z[p]!, yaw: lots.yaw[p]! };
       out.push({
         ...at,
-        spots: front(at, LOT_D / 2 + 1.9, [-3, 0, 3, -1.5, 1.5, 4.5]),
+        spots: front(at, lots.m.LOT_D / 2 + 1.9, [-3, 0, 3, -1.5, 1.5, 4.5]),
         hands: HANDS[level] ?? 2,
         name,
         words,

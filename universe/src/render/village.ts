@@ -11,8 +11,6 @@ import * as pc from "playcanvas";
 import { TownFloraLayer } from "./townflora.ts";
 import {
   LAKE_R,
-  LOT_D,
-  LOT_W,
   townLots,
   townLotsAhead,
   townReach,
@@ -23,6 +21,7 @@ import {
   type TradeGood,
   type VillagePlan,
   type Visitor,
+  planMeasure,
 } from "../bridge/index.ts";
 import { TownMoneyLayer, type MoneyHome } from "./townmoney.ts";
 import {
@@ -85,7 +84,7 @@ import {
   ridesSteps,
   carsAhead,
   RIDES_REACHES,
-  PERSON_REACH,
+  personReach,
   courtSolids,
   memorialsPlaced,
   memorialParts,
@@ -170,6 +169,7 @@ import {
   type PlacedFrame,
   type Watcher,
   PORT_ROOM,
+  folkOf,
 } from "../view/index.ts";
 import {
   InstancedBatch,
@@ -817,14 +817,15 @@ export class VillageScene {
   private *prepareSteps(plan: VillagePlan, t: number, fine: boolean): Generator<void, void, void> {
     // (Its streets' blocks grown first, a few score a step, as its streets' reading asks them: view/streets.ts.)
     const tp = plan.town;
-    if (tp) yield* townLotsAhead(tp.seed, tp.axis, tp.lots, tp.water, tp.site ?? null);
+    if (tp)
+      yield* townLotsAhead(tp.seed, tp.axis, tp.lots, tp.water, tp.site ?? null, tp.lotSize ?? 1);
     villageGround(plan);
     yield;
     const streets = villageSolids(plan).town;
     yield;
     // (Its streets' ways for its cars and its walkers, made a few blocks at a time: view/streets.ts.)
     if (streets)
-      for (const reach of [...RIDES_REACHES, PERSON_REACH]) yield* streets.waysAhead(reach);
+      for (const reach of [...RIDES_REACHES, personReach(plan)]) yield* streets.waysAhead(reach);
     yield* ridesSteps(plan);
     // (The day it is drawn on, as the frames will ask it and as its trades are read: in fine weather and as told.)
     yield* daysAhead(plan, t, true);
@@ -1081,6 +1082,7 @@ export class VillageScene {
             plan.town.whole,
             null,
             plan.town.site ?? null,
+            plan.town.lotSize ?? 1,
           ),
         ) *
           M *
@@ -1209,7 +1211,8 @@ export class VillageScene {
     // (The furnace by the diggings and the smithy's rack, where its people smelt and smith: Phase
     // 51 M213.)
     // (None where nothing burns, and no kiln glows or anvil sparks there: Phase 56.)
-    const furnace = plan.stuff?.ore && !plan.fireless ? furnaceOf(plan.works?.mine) : null,
+    const furnace =
+        plan.stuff?.ore && !plan.fireless ? furnaceOf(plan.works?.mine, folkOf(plan)) : null,
       smiths = plan.people.some((p) => p.trade?.kind === "smith");
     this.trades.build(
       town ? this.town.motions(t).filter((m) => !plan.fireless || m.kind === "mill") : [],
@@ -1217,6 +1220,7 @@ export class VillageScene {
         ? { x: furnace.mouth.x, z: furnace.mouth.z, yaw: furnace.yaw, top: furnace.top }
         : null,
       smiths ? (plan.stuff?.metal?.colour ?? plan.stuff?.tool.colour ?? null) : null,
+      folkOf(plan),
     );
     this.furnaceStand = furnace?.stand ?? null;
     this.rackKept = null;
@@ -1239,6 +1243,7 @@ export class VillageScene {
         fired: plan.stuff?.clay.fired ?? [0.74, 0.42, 0.26],
         cloth: plan.stuff?.cloth.colour ?? [0.78, 0.7, 0.54],
       },
+      folkOf(plan),
     );
     const foundry = foundryNow(plan, solids, t);
     this.foundryLayer.build(!!foundry, foundry?.moulds.length ?? 0);
@@ -2468,8 +2473,8 @@ export class VillageScene {
         w: box?.w ?? ringW,
         d: box?.d ?? ringD,
         h: box?.h ?? ringH,
-        pw: box ? LOT_W - 0.6 : ringW * 1.5,
-        pd: box ? LOT_D - 0.6 : ringD * 1.5,
+        pw: box ? planMeasure(plan.town).LOT_W - 0.6 : ringW * 1.5,
+        pd: box ? planMeasure(plan.town).LOT_D - 0.6 : ringD * 1.5,
         colour,
         let: data.tenure === "mixed" && data.lets[i] === 1,
       });
@@ -2943,7 +2948,12 @@ export class VillageScene {
         ? { ...q, ...bierBetween(ms) }
         : q;
     });
-    this.litters.update(this.littersShown, litterHeld(this.figure), litterApart(this.figure));
+    this.litters.update(
+      this.littersShown,
+      litterHeld(this.figure),
+      litterApart(this.figure),
+      this.figure.scale,
+    );
     // The war about the town: its hosts mustering, marching, drawn up, closing, fighting, falling,
     // in flight; its fallen where they fell.
     if (this.soldiers.length && troops.length) {
@@ -4225,8 +4235,8 @@ export class VillageScene {
   potsOnScreen(): { x: number; y: number; depth: number; form: string; kiln: number }[] {
     return (this.craftsKept?.boards ?? []).flatMap((b, kiln) =>
       b.pots.map((pot, k) => {
-        const at = boardSlot(b, k);
-        return { ...this.onScreen(at.x, 2.6, at.z), form: pot.form, kiln };
+        const at = boardSlot(b, k, this.figure.scale);
+        return { ...this.onScreen(at.x, 2.6 * this.figure.scale, at.z), form: pot.form, kiln };
       }),
     );
   }
@@ -4267,7 +4277,7 @@ export class VillageScene {
   /** Where the middle of each loom's cloth hangs on the screen now (the look tools, Phase 51 M214). */
   loomsOnScreen(): { x: number; y: number; depth: number; woven: number; index: number }[] {
     return (this.craftsKept?.looms ?? []).map((l) => ({
-      ...this.onScreen(l.x, 5.75 - Math.max(0.3, l.woven) * 1.8, l.z),
+      ...this.onScreen(l.x, (5.75 - Math.max(0.3, l.woven) * 1.8) * this.figure.scale, l.z),
       woven: l.woven,
       index: l.index,
     }));
@@ -4424,9 +4434,11 @@ export class VillageScene {
     const rack = this.rackKept?.rack;
     if (!rack) return [];
     return rack.hung.map((h, k) => {
-      const at = rackSlot(rack, k),
+      const at = rackSlot(rack, k, this.figure.scale),
         // (Halfway down its haft, where a tap on it lands; behind the eye, nowhere.)
-        p = this.stage.camera.camera!.worldToScreen(new pc.Vec3(at.x * M, 3 * M, at.z * M));
+        p = this.stage.camera.camera!.worldToScreen(
+          new pc.Vec3(at.x * M, 3 * this.figure.scale * M, at.z * M),
+        );
       return p.z > 0
         ? { x: p.x, y: p.y, depth: p.z, form: h.form }
         : { x: -1e6, y: -1e6, depth: Infinity, form: h.form };

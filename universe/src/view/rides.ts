@@ -134,7 +134,7 @@ export function* ridesSteps(plan: VillagePlan): Generator<void, Rides, void> {
         const k = atDoor.get(p.home) ?? 0;
         atDoor.set(p.home, k + 1);
         // (A second at one door stands along the street from the first.)
-        const out = streetDoor(home, 0, undefined),
+        const out = streetDoor(home, 0, undefined, plan.town?.lotSize),
           s = Math.sin(home.yaw),
           c = Math.cos(home.yaw),
           door = parkNear(ground, {

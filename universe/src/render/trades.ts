@@ -3,8 +3,8 @@
 // smithy at each blow of the hammer. And things seen being made (Phase 51 M213): the furnace by
 // the diggings aglow while its smelter works the bellows, and the rack before the smithy with the
 // day's new tools hung on it, each in its own stuff. Units as the village's: a tenth of a unit to
-// the metre; the sparks, the glow and the rack sized to its folk, drawn three times a person's
-// size.
+// the metre; the sparks, the furnace's glow and the rack sized below as for a person drawn three times life, and drawn by
+// the folk's own drawn size (view/village.ts folkOf): true to those who work them.
 import * as pc from "playcanvas";
 import { RACK_MOST, rackSlot, type CivicMotion, type Hung } from "../view/index.ts";
 import { InstancedBatch, boxMesh, keptMesh } from "./batch.ts";
@@ -76,6 +76,8 @@ export class TradesLayer {
     null;
   /** The mills, kilns and smithies drawn (the town's, as last laid out). */
   works: readonly CivicMotion[] = [];
+  /** The folk's drawn size (view/village.ts folkOf): the rack, the sparks and the furnace's glow are drawn by it. */
+  private folk = 1;
   /**
    * What was last drawn (the look tools): the first mill's sails' turn, the kilns aglow, the sparks
    * flying; the furnace aglow (Phase 51 M213), the tools on the rack.
@@ -115,10 +117,12 @@ export class TradesLayer {
     works: readonly CivicMotion[],
     furnace: FurnaceAt | null = null,
     tool: Rgb | null = null,
+    folk = 1,
   ): void {
     for (const b of this.batches) b.destroy();
     this.batches = [];
     this.works = works;
+    this.folk = folk;
     this.furnace = furnace;
     const count = (k: CivicMotion["kind"]) => works.filter((w) => w.kind === k).length,
       make = (color: Rgb, n: number, material?: pc.Material) => {
@@ -143,7 +147,8 @@ export class TradesLayer {
    * smelter works the bellows; the rack standing, the day's tools hung on it as they are made.
    */
   making(s: number, smelting: boolean, rack: RackAt | null): void {
-    const f = this.furnace;
+    const f = this.furnace,
+      k = this.folk;
     if (this.furnaceGlow) {
       this.shown.smelting = smelting && !!f;
       // (Its mouth, toward the town; and the charcoal burning at its top, seen from every side.)
@@ -151,17 +156,17 @@ export class TradesLayer {
         const flick = 0.8 + 0.2 * Math.sin(s * 13 + i * 2) * Math.sin(s * 4.1 + 1 + i);
         if (i === 0) {
           out[0] = f!.x * M;
-          out[1] = 1.1 * flick * M;
+          out[1] = 1.1 * flick * k * M;
           out[2] = f!.z * M;
-          out[3] = 2.3 * M;
-          out[4] = 1.9 * flick * M;
-          out[5] = 0.3 * M;
+          out[3] = 2.3 * k * M;
+          out[4] = 1.9 * flick * k * M;
+          out[5] = 0.3 * k * M;
         } else {
           out[0] = f!.top.x * M;
-          out[1] = (f!.top.y + 0.2 * flick) * M;
+          out[1] = (f!.top.y + 0.2 * flick * k) * M;
           out[2] = f!.top.z * M;
-          out[3] = out[5] = 3.6 * M;
-          out[4] = 0.5 * flick * M;
+          out[3] = out[5] = 3.6 * k * M;
+          out[4] = 0.5 * flick * k * M;
         }
         out[6] = f!.yaw + s * (i ? 0.7 : 0);
       });
@@ -178,42 +183,43 @@ export class TradesLayer {
     }
     this.shown.rack = { x: rack.x, z: rack.z };
     // Its two posts and the bar between them, along its front.
-    const half = (RACK_MOST / 2) * 0.75 + 0.5,
+    const half = ((RACK_MOST / 2) * 0.75 + 0.5) * k,
+      high = RACK_HIGH * k,
       c = Math.cos(rack.yaw),
       sn = Math.sin(rack.yaw);
     frame.set(3, (i, out) => {
       const along = i === 2 ? 0 : i === 0 ? -half : half;
       out[0] = (rack.x + c * along) * M;
-      out[1] = (i === 2 ? RACK_HIGH : RACK_HIGH / 2) * M;
+      out[1] = (i === 2 ? high : high / 2) * M;
       out[2] = (rack.z - sn * along) * M;
-      out[3] = (i === 2 ? half * 2 + 0.3 : 0.3) * M;
-      out[4] = (i === 2 ? 0.25 : RACK_HIGH) * M;
-      out[5] = (i === 2 ? 0.25 : 0.3) * M;
+      out[3] = (i === 2 ? half * 2 + 0.3 * k : 0.3 * k) * M;
+      out[4] = (i === 2 ? 0.25 * k : high) * M;
+      out[5] = (i === 2 ? 0.25 : 0.3) * k * M;
       out[6] = rack.yaw;
     });
     // Each tool hung by its haft from the bar, its head down, in the order made.
     const n = Math.min(RACK_MOST, rack.hung.length);
     this.shown.hung = n;
-    const shape = (k: number) => HUNG_SHAPE[rack.hung[k]!.form] ?? HUNG_TOOL;
-    hafts.set(n, (k, out) => {
-      const at = rackSlot(rack, k),
-        [haft] = shape(k);
+    const shape = (j: number) => HUNG_SHAPE[rack.hung[j]!.form] ?? HUNG_TOOL;
+    hafts.set(n, (j, out) => {
+      const at = rackSlot(rack, j, k),
+        [haft] = shape(j);
       out[0] = at.x * M;
-      out[1] = (RACK_HIGH - haft / 2) * M;
+      out[1] = (RACK_HIGH - haft / 2) * k * M;
       out[2] = at.z * M;
-      out[3] = out[5] = (haft < 1 ? 0.06 : 0.12) * M;
-      out[4] = haft * M;
+      out[3] = out[5] = (haft < 1 ? 0.06 : 0.12) * k * M;
+      out[4] = haft * k * M;
       out[6] = rack.yaw;
     });
-    heads.set(n, (k, out) => {
-      const at = rackSlot(rack, k),
-        [haft, across, down, outward] = shape(k);
+    heads.set(n, (j, out) => {
+      const at = rackSlot(rack, j, k),
+        [haft, across, down, outward] = shape(j);
       out[0] = at.x * M;
-      out[1] = (RACK_HIGH - haft - down / 2) * M;
+      out[1] = (RACK_HIGH - haft - down / 2) * k * M;
       out[2] = at.z * M;
-      out[3] = across * M;
-      out[4] = down * M;
-      out[5] = outward * M;
+      out[3] = across * k * M;
+      out[4] = down * k * M;
+      out[5] = outward * k * M;
       out[6] = rack.yaw;
     });
   }
@@ -269,11 +275,16 @@ export class TradesLayer {
     }
     // At each smithy where one strikes: sparks off the anvil before them, flung up and falling.
     if (this.sparks) {
-      const anvils: { x: number; z: number; k: number }[] = [];
+      const anvils: { x: number; z: number; k: number }[] = [],
+        f = this.folk;
       works.forEach((w, k) => {
         const at = busy[k];
         if (w.kind !== "smithy" || !at) return;
-        anvils.push({ x: at.x + Math.sin(at.yaw) * 2.2, z: at.z + Math.cos(at.yaw) * 2.2, k });
+        anvils.push({
+          x: at.x + Math.sin(at.yaw) * 2.2 * f,
+          z: at.z + Math.cos(at.yaw) * 2.2 * f,
+          k,
+        });
       });
       const n = anvils.length * SPARKS;
       this.shown.sparks = n;
@@ -283,10 +294,10 @@ export class TradesLayer {
           blow = Math.floor(s / BLOW),
           q = (s / BLOW) % 1,
           turn = j * 2.1 + blow * 1.3 + a.k,
-          far = (0.6 + 0.5 * ((j * 7 + blow) % 3)) * q * 2.4,
-          size = 0.28 * (1 - q) + 0.05;
+          far = (0.6 + 0.5 * ((j * 7 + blow) % 3)) * q * 2.4 * f,
+          size = (0.28 * (1 - q) + 0.05) * f;
         out[0] = (a.x + Math.cos(turn) * far) * M;
-        out[1] = (2.6 + q * 3.2 - q * q * 4.4) * M;
+        out[1] = (2.6 + q * 3.2 - q * q * 4.4) * f * M;
         out[2] = (a.z + Math.sin(turn) * far) * M;
         out[3] = out[4] = out[5] = size * M;
         out[6] = turn;

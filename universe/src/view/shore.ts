@@ -6,8 +6,6 @@
 // was laid off the facets' water (bridge/sites.ts wetGround), and stays where it was laid: where the curving shore would come
 // over any of it, the shore keeps off it. Its own round of open water, where its boats go about, is water as ever.
 import {
-  BLOCK_D,
-  BLOCK_W,
   LAND_SCALE,
   holdPlaces,
   wallAt,
@@ -220,7 +218,8 @@ export function layTown(
   ground: TownParts,
   standing: readonly TownParts[],
 ): void {
-  const b = scene.lots.blocks;
+  const b = scene.lots.blocks,
+    { BLOCK_W, BLOCK_D } = scene.lots.m;
   for (let k = 0; k < b.x.length; k++)
     laid.rects.push(b.x[k]!, b.z[k]!, BLOCK_W, BLOCK_D, b.yaw[k]!);
   const put = (parts: TownParts, low: boolean) => {

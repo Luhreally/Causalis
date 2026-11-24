@@ -116,6 +116,8 @@ export {
   longWalks,
   momentsOf,
   PERSON_REACH,
+  personReach,
+  bodyR,
   daysAhead,
   dayTold,
   legsTold,
@@ -124,6 +126,7 @@ export {
   RACK_MOST,
   rackNow,
   rackSlot,
+  folkOf,
   smithedOn,
   type Hung,
   BOARD_GAP,
@@ -253,6 +256,7 @@ export {
   MOST_SECTIONS,
   PLOT,
   SECTION_W,
+  plotOf,
   funeralsOf,
   funeralsOn,
   graveyardAt,
@@ -941,7 +945,6 @@ export {
 } from "./creature.ts";
 export {
   FIGURE_CAPSULE,
-  campFigure,
   campRoom,
   figureOf,
   paceOf,

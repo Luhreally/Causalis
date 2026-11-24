@@ -6,7 +6,7 @@
 // reach off them (a beast's half-length as drawn), so its body does not pass into a wall.
 // In a town built lot by lot (Phase 23), every block that holds anything and the lengths of its
 // walls stand solid too, and a walk goes by its streets (streets.ts).
-import { LOT_D, LOT_W, waterR, type VillagePlan } from "../bridge/index.ts";
+import { waterR, type VillagePlan, planMeasure } from "../bridge/index.ts";
 import { houseLook } from "./village.ts";
 import { streetsOf, type Streets } from "./streets.ts";
 
@@ -32,6 +32,8 @@ export type Ground = {
   readonly homesReach: number;
   /** A town's blocks, walls and streets (Phase 23; null: a village's open ground). */
   readonly town?: Streets | null;
+  /** How far its folk keep off its walls (view/village.ts personReach; absent: ours, PERSON_REACH). */
+  readonly reach?: number;
 };
 
 type Point = { readonly x: number; readonly z: number };
@@ -53,7 +55,8 @@ function groundOf(plan: VillagePlan): Ground {
     // A town's: its blocks and walls, and the watched homes each its lot's whole footprint (as
     // much as any home on it is built to, wall to wall along its street); what it reaches out
     // to, the town's edge.
-    const town = streetsOf(plan.town, lake);
+    const town = streetsOf(plan.town, lake),
+      { LOT_W, LOT_D } = planMeasure(plan.town);
     return {
       lake,
       homes: plan.homes.map((h) => ({

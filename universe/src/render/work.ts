@@ -252,7 +252,7 @@ export class WorkLayer {
     const facing = (p: { x: number; z: number }) => Math.atan2(-p.x, -p.z);
     if (works?.mine)
       this.place(
-        minePieces(works.mine),
+        minePieces(works.mine, figure.scale),
         works.mine,
         facing(works.mine),
         engines,
@@ -318,11 +318,12 @@ export class WorkLayer {
         });
       };
       if (works?.mine?.kind === "shaft")
-        for (const p of minePieces(works.mine)) if (p.role === "chimney") tall(works.mine, p);
+        for (const p of minePieces(works.mine, figure.scale))
+          if (p.role === "chimney") tall(works.mine, p);
       if (works?.factory)
         for (const p of factoryPieces()) if (p.role === "chimney") tall(works.factory, p);
       // (The furnace by the diggings, where its works smelt their own ore: Phase 51 M213.)
-      const furnace = plan.stuff?.ore ? furnaceOf(works?.mine) : null;
+      const furnace = plan.stuff?.ore ? furnaceOf(works?.mine, figure.scale) : null;
       if (furnace) sources.push({ ...furnace.top, dark: 1 });
       if (sources.length) {
         const count = sources.reduce((a, s) => a + (s.dark > 0.5 ? 6 : 4), 0);

@@ -122,9 +122,10 @@ const WALK_MINUTES = 15,
  * How many blocks of a town lie within a household's walk of its square, for a people of a body's weight (they walk as fast
  * as the root of their breadth): the blocks of the round that far out, three quarters of it built, each with its street.
  */
-export function walkBlocks(mass: number): number {
+export function walkBlocks(mass: number, lotSize = 1): number {
   const r = WALK_MINUTES * WALK_PACE * Math.sqrt(bodyBreadth(mass));
-  return Math.round((Math.PI * r * r * 0.75) / ((36 + 7) * (28 + 7)));
+  // (A block and its street, as its people lay them: TownPlan.lotSize times ours.)
+  return Math.round((Math.PI * r * r * 0.75) / ((36 + 7) * (28 + 7) * lotSize * lotSize));
 }
 
 /** How broad what goes down a street is (metres): a walker with a load, a beast with panniers, a cart, an engine. */

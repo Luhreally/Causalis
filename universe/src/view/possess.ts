@@ -28,6 +28,7 @@ import type {
 import {
   ACTIVITY,
   TASKS,
+  folkOf,
   momentOf,
   smithedOn,
   thrownOn,
@@ -220,20 +221,20 @@ export function placesNear(
       out.push({ kind, x: round(p.x), z: round(p.z), yaw: round(yaw, 1000) });
   for (const s of nearest(smithies, NEAREST_OF_KIND)) {
     for (let seat = 0; seat < 5; seat++) put("forge", beside(s, seat, 2.2), s.yaw);
-    const rack = rackOf(s);
+    const rack = rackOf(s, folkOf(plan));
     put("rack", rack.stand, rack.yaw);
   }
   for (const k of nearest(kilns, NEAREST_OF_KIND)) {
     for (let w = 0; w < POTTERS; w++) {
-      const wheel = wheelOf(k, w);
+      const wheel = wheelOf(k, w, folkOf(plan));
       put("wheel", wheel.stand, wheel.yaw);
     }
-    const boards = boardsOf(k);
+    const boards = boardsOf(k, folkOf(plan));
     put("boards", boards.stand, boards.yaw);
   }
   for (const s of nearest(shops, NEAREST_OF_KIND)) {
     for (let w = 0; w < 4; w++) {
-      const loom = loomOf(s, w);
+      const loom = loomOf(s, w, folkOf(plan));
       put("loom", loom.stand, loom.yaw);
     }
     put("shop", s.door, s.yaw);

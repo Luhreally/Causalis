@@ -2,14 +2,7 @@
 // (2026-11-23: the networks' and the signals' wires were strung to the nearest pole as the crow flies, and half of them ran
 // through the houses of the block between). A line may not cross a block's own ground (its yards and homes), a stronghold's
 // round as drawn, or a place kept (a market place, a temple's steps). Pure; built once a town's plan, then each line asked.
-import {
-  BLOCK_D,
-  BLOCK_LOTS,
-  BLOCK_W,
-  onHeld,
-  type HoldPlace,
-  type TownLots,
-} from "../bridge/index.ts";
+import { BLOCK_LOTS, onHeld, type HoldPlace, type TownLots } from "../bridge/index.ts";
 
 /** Ground kept: its middle, its turn (as a block's: u along, v across), its length along and depth (metres). */
 export type KeptGround = {
@@ -39,6 +32,7 @@ export function blockGround(
   within?: { readonly x: number; readonly z: number; readonly r: number },
 ): KeptGround[] {
   const b = lots.blocks,
+    { BLOCK_W, BLOCK_D } = lots.m,
     out: KeptGround[] = [];
   for (let k = 0; k < blocks; k++) {
     if (k * BLOCK_LOTS < ash || !(b.x[k]! === b.x[k]!)) continue;

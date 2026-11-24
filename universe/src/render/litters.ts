@@ -1,8 +1,8 @@
 // The levy's wounded borne home on litters (Phase 55 M229; asked for 2026-10-26: "Healers tending
 // the wounded"): two poles and a canvas slung between them, borne at their bearers' hands between
 // them — or set down, at the road's end as the column comes and at the door a while — the wounded on
-// it under a blanket, hooded head to the front. In scene metres to match the folk, who are drawn
-// about three times life (as the biers are: render/graveyard.ts).
+// it under a blanket, hooded head to the front. LITTER is in metres for a person drawn three times life, and a litter is
+// drawn by its folk's drawn size (view/village.ts folkOf), as the biers are (render/graveyard.ts).
 import * as pc from "playcanvas";
 import { MOST_LITTERS, partExtent, type Figure, type LitterNow } from "../view/index.ts";
 import { InstancedBatch, boxMesh, keptMesh } from "./batch.ts";
@@ -42,8 +42,15 @@ export function litterApart(figure: Figure): number {
 }
 
 /** A litter's pieces where it is now: borne, its canvas at `held` metres (else set down), its poles `apart` metres from each other. */
-export function litterPieces(l: LitterNow, held: number, apart: number): LitterPiece[] {
-  const y = l.borne ? held : LITTER.rest,
+export function litterPieces(
+  l: LitterNow,
+  held: number,
+  apart: number,
+  /** The folk's drawn size (view/village.ts folkOf). */
+  folk = 1,
+): LitterPiece[] {
+  const k = folk,
+    y = l.borne ? held : LITTER.rest * k,
     s = Math.sin(l.face),
     c = Math.cos(l.face),
     // (So far along it toward its head, across it to its right, and up.)
@@ -68,24 +75,18 @@ export function litterPieces(l: LitterNow, held: number, apart: number): LitterP
         0,
       ],
     }),
-    top = y + LITTER.canvas[1] / 2,
-    [cw, ch, cd] = LITTER.canvas,
-    [bw, bh, bd] = LITTER.blanket,
-    { long, thick } = LITTER.pole;
+    top = y + (LITTER.canvas[1] * k) / 2,
+    [cw, ch, cd] = LITTER.canvas.map((v) => v * k) as [number, number, number],
+    [bw, bh, bd] = LITTER.blanket.map((v) => v * k) as [number, number, number],
+    long = LITTER.pole.long * k,
+    thick = LITTER.pole.thick * k,
+    head = LITTER.head * k;
   return [
     at("canvas", 0, 0, y, cw, ch, cd),
-    at("pole", 0, -apart / 2, y + 0.05, thick, thick, long),
-    at("pole", 0, apart / 2, y + 0.05, thick, thick, long),
-    at("blanket", -0.35, 0, top + bh / 2, bw, bh, bd),
-    at(
-      "hood",
-      cd / 2 - LITTER.head / 2 - 0.1,
-      0,
-      top + LITTER.head / 2,
-      LITTER.head,
-      LITTER.head,
-      LITTER.head,
-    ),
+    at("pole", 0, -apart / 2, y + 0.05 * k, thick, thick, long),
+    at("pole", 0, apart / 2, y + 0.05 * k, thick, thick, long),
+    at("blanket", -0.35 * k, 0, top + bh / 2, bw, bh, bd),
+    at("hood", cd / 2 - head / 2 - 0.1 * k, 0, top + head / 2, head, head, head),
   ];
 }
 
@@ -110,9 +111,9 @@ export class LittersLayer {
   }
 
   /** Draw the litters now. */
-  update(litters: readonly LitterNow[], held: number, apart: number): void {
+  update(litters: readonly LitterNow[], held: number, apart: number, folk = 1): void {
     const drawn = litters.slice(0, MOST_LITTERS),
-      pieces = drawn.flatMap((l) => litterPieces(l, held, apart));
+      pieces = drawn.flatMap((l) => litterPieces(l, held, apart, folk));
     for (const part of ["canvas", "pole", "blanket", "hood"] as const) {
       const mine = pieces.filter((p) => p.part === part);
       this.batches[part].set(mine.length, (i, out) => {

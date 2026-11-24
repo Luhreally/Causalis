@@ -4,7 +4,7 @@
 // raise, and whether its streets are paved. Looked at, never lived.
 import { YEAR, hashString, yearOfMoment, type Ref, type World } from "../kernel/index.ts";
 import { COVER } from "../gen/index.ts";
-import { HOME_MONTHS, rockOf, roofPitch, strikeHurt } from "../rules/index.ts";
+import { HOME_MONTHS, lotScale, rockOf, roofPitch, strikeHurt } from "../rules/index.ts";
 import {
   CHANGE,
   DISASTER_EVENTS,
@@ -54,6 +54,7 @@ import { worldLook } from "./biochem.ts";
 import { askedOfCivic, askedOfWalls, firstOfPlan } from "./inspect/asks.ts";
 import { shutFor } from "./inspect/lost.ts";
 import { colonyRemade, colonyTownCell } from "./colony.ts";
+import { peopleFigure } from "./folk.ts";
 
 /** What a land's signals put in its towns (signals: rules/signals.ts): a wire, a mast, and screens lit in its windows. */
 function signalsOfTown(world: World, cell: number): { signals?: NonNullable<TownPlan["signals"]> } {
@@ -224,6 +225,11 @@ export function rimWorks(f: Fabric, lots: number): TownCivic[] {
   return out;
 }
 
+/** How many times ours a world's people lay their towns' lots (rules/stature.ts lotScale: TownPlan.lotSize). */
+export function townLotSize(world: World): number {
+  return lotScale(peopleFigure(populationContext(world).generated));
+}
+
 export function townPlan(
   world: World,
   ref: Ref,
@@ -288,11 +294,13 @@ export function townPlan(
   // (Where its strongholds and seats stand, laid once here off its first HOLD_LOTS lots, so that every view of it on every
   // device reads one place: bridge/holdplaces.ts.)
   const seed = hashString(`town ${ref}`),
+    // (Its lots laid to its people's measure: rules/stature.ts lotScale.)
+    lotSize = townLotSize(world),
     holds = rank?.holds?.length
       ? holdLay(
           { site: site ?? undefined, water },
           rank.holds,
-          townLots(f.family, seed, axis, Math.min(f.next, HOLD_LOTS), water, site),
+          townLots(f.family, seed, axis, Math.min(f.next, HOLD_LOTS), water, site, lotSize),
           f.civics.filter((c) => c.fell === null),
         )
       : null;
@@ -305,6 +313,7 @@ export function townPlan(
       const form = site ? townFormOf(world, ref, f, rank)?.form : undefined;
       return form ? { form } : {};
     })(),
+    ...(lotSize !== 1 ? { lotSize } : {}),
     seed,
     axis,
     lots,

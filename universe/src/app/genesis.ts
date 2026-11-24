@@ -75,7 +75,7 @@ import {
   familiesReached,
   familyColor,
   familyWords,
-  campFigure,
+  lifeFigure,
   campRoom,
   figureOf,
   follow,
@@ -797,7 +797,7 @@ export async function runGenesis(o: {
     if (!plan.people) return;
     bandLand = newMeadow(plan, Math.max(0, plan.ages.length - 1), seed);
     const age = plan.acts.peopling.age,
-      drawn = campFigure(figureOf(plan.people.figure, detail));
+      drawn = lifeFigure(figureOf(plan.people.figure, detail), plan.people.figure);
     band = newBand(
       bandLand,
       age === "kind" ? 18 : age === "hard" ? 10 : 14,
@@ -851,9 +851,10 @@ export async function runGenesis(o: {
       bandLayer.root.enabled = true;
       if (!band) freshBand();
       const c = band ? band.camp : { x: 0, z: 0 };
+      // (Its people drawn true to life: seen from as near as they are large, rules/figure.ts campRoom.)
       rig.configure({
-        distance: 7,
-        minDistance: 2,
+        distance: Math.max(2.2, 7 * (band?.spread ?? 1)),
+        minDistance: 0.6,
         maxDistance: 30,
         pitch: -26,
         minPitch: -85,
@@ -1089,12 +1090,13 @@ export async function runGenesis(o: {
         }
         stage.backdrop("ground", 40);
         meadowScene.visible = true;
+        // (Its beasts drawn true to life: seen from as much nearer as they were once drawn larger, view/meadow.ts DRAWN.)
         rig.configure({
-          distance: 13,
-          minDistance: 3,
+          distance: 4.5,
+          minDistance: 1,
           maxDistance: 30,
           pitch: -30,
-          target: [0, 0.2, 0],
+          target: [0, 0.07, 0],
           drift: 1.5,
         });
       },
