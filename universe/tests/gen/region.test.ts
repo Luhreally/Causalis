@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { seedFromText } from "../../src/kernel/index.ts";
 import { EARTHLIKE } from "../../src/rules/index.ts";
-import { WATER, generateHomeWorld, refineRegion } from "../../src/gen/index.ts";
+import { WATER, generateHomeWorld, refineRegion, regionCells } from "../../src/gen/index.ts";
 
 const world = generateHomeWorld(seedFromText("first light"), EARTHLIKE);
 
@@ -84,4 +84,17 @@ test("deposits lie in their own cell's tiles, and soil is best on wet lowland", 
     assert.ok(r.fertility[t]! >= 0 && r.fertility[t]! <= 1);
     if (r.water[t] === WATER.sea) assert.equal(r.fertility[t], 0);
   }
+});
+
+test("regionCells finds the cells a region is drawn from, as refineRegion does", () => {
+  // (The towns' check on a river's move reads it to know which maps a stretch can enter: sim/planet/rivers.ts townsDry.)
+  for (const c of landCells((c) => world.tectonics.elevation[c]! > 0, 8))
+    for (const [size, km] of [
+      [128, 0.8],
+      [64, 2],
+    ] as const)
+      assert.deepEqual(
+        regionCells(world, c, size, km),
+        new Set(refineRegion(world, c, size, km).parent),
+      );
 });

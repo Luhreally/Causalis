@@ -20,7 +20,14 @@ import {
   type StateStore,
   type World,
 } from "../../kernel/index.ts";
-import { WATER, cellRef, refineRegion, type ProvinceWorld, type Region } from "../../gen/index.ts";
+import {
+  WATER,
+  cellRef,
+  refineRegion,
+  regionCells,
+  type ProvinceWorld,
+  type Region,
+} from "../../gen/index.ts";
 import { PROVINCE_TILE_KM, REGION_SIZE, regionOf, regionReady } from "../population/systems.ts";
 import { AVULSION, avulsionChance } from "../../rules/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
@@ -128,8 +135,18 @@ function townsDry(ctx: PopulationContext, from: number, to: number): boolean {
     );
     if (may && ctx.settlements.inProvince(l).length) lands.push(l);
   }
-  if (!lands.length) return true;
-  const before = lands.map((l) =>
+  // (Where a map is drawn afresh, before as after, and neither stretch is a river that could enter it (a cell outside it
+  // flowing into one of its own), its water is the same after as before, tile for tile: it is not drawn, either time. A map
+  // already made is read as it stands, and drawn afresh after.)
+  const enters = (inside: Set<number>, u: number) =>
+      !inside.has(u) && down[u]! >= 0 && inside.has(down[u]!),
+    read = lands.filter((l) => {
+      if (regionReady(ctx, l)) return true;
+      const inside = regionCells(f, g.centre[l]!, REGION_SIZE, PROVINCE_TILE_KM);
+      return enters(inside, from) || enters(inside, to);
+    });
+  if (!read.length) return true;
+  const before = read.map((l) =>
       townGround(
         ctx,
         l,
@@ -146,7 +163,7 @@ function townsDry(ctx: PopulationContext, from: number, to: number): boolean {
   flow[from] = was[3];
   flow[to] = was[2];
   try {
-    return lands.every(
+    return read.every(
       (l, i) =>
         townGround(ctx, l, refineRegion(f, g.centre[l]!, REGION_SIZE, PROVINCE_TILE_KM)) ===
         before[i],

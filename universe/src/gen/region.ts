@@ -117,6 +117,59 @@ export function regionPoint(
   return [px / pl, py / pl, pz / pl];
 }
 
+/**
+ * The planet cells a map of `size` tiles about `center` is drawn from (each tile's nearest, refineRegion's `parent`), found
+ * as refineRegion finds them and without the rest of its work: what of the planet's water a map can read (a river enters it
+ * from a cell outside these that flows into one of them). Kept step for step with refineRegion's own walk
+ * (tests/gen/region.test.ts holds them together).
+ */
+export function regionCells(w: HomeWorld, center: number, size = 128, tileKm = 0.8): Set<number> {
+  const g = w.grid,
+    R = EARTH_RADIUS_KM * w.planet.radius,
+    P = g.positions,
+    out = new Set<number>();
+  const ox = P[center * 3]!,
+    oy = P[center * 3 + 1]!,
+    oz = P[center * 3 + 2]!;
+  let ex = oz,
+    ez = -ox;
+  const el = Math.sqrt(ex * ex + ez * ez) || 1;
+  ex /= el;
+  ez /= el;
+  const nx = oy * ez,
+    ny = oz * ex - ox * ez,
+    nz = -oy * ex;
+  let near = center;
+  for (let j = 0; j < size; j++)
+    for (let i = 0; i < size; i++) {
+      const x = (i - (size - 1) / 2) * tileKm,
+        y = ((size - 1) / 2 - j) * tileKm;
+      let px = ox + (x / R) * ex + (y / R) * nx,
+        py = oy + (y / R) * ny,
+        pz = oz + (x / R) * ez + (y / R) * nz;
+      const pl = Math.sqrt(px * px + py * py + pz * pz);
+      px /= pl;
+      py /= pl;
+      pz /= pl;
+      for (;;) {
+        let best = near,
+          bestDot = P[near * 3]! * px + P[near * 3 + 1]! * py + P[near * 3 + 2]! * pz;
+        for (let k = g.offsets[near]!; k < g.offsets[near + 1]!; k++) {
+          const m = g.neighbours[k]!,
+            d = P[m * 3]! * px + P[m * 3 + 1]! * py + P[m * 3 + 2]! * pz;
+          if (d > bestDot) {
+            bestDot = d;
+            best = m;
+          }
+        }
+        if (best === near) break;
+        near = best;
+      }
+      out.add(near);
+    }
+  return out;
+}
+
 export function refineRegion(w: HomeWorld, center: number, size = 128, tileKm = 0.8): Region {
   const g = w.grid,
     n = size * size,

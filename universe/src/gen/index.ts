@@ -129,7 +129,15 @@ export {
   type Plate,
   type Tectonics,
 } from "./plates.ts";
-export { REGION, WATER, refineRegion, regionPoint, regionRef, type Region } from "./region.ts";
+export {
+  REGION,
+  WATER,
+  refineRegion,
+  regionCells,
+  regionPoint,
+  regionRef,
+  type Region,
+} from "./region.ts";
 export {
   borrowSound,
   commonTongue,
