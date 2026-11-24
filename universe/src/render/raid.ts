@@ -10,6 +10,7 @@
 import * as pc from "playcanvas";
 import { InstancedBatch, ballMesh, boxMesh, coneMesh, cylinderMesh } from "./batch.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
+import { fading } from "./nearfade.ts";
 import {
   BIT,
   DIVE_SEEN,
@@ -36,10 +37,24 @@ const HULL: Rgb = [0.16, 0.17, 0.2],
   FLASH: Rgb = [1, 0.62, 0.18],
   DIRT: Rgb = [0.3, 0.26, 0.21],
   HEAD: Rgb = [1, 0.86, 0.5];
-/** How much larger than life a machine, a load and a rocket are drawn, as a town's folk are: at their height or their distance each would be a speck. */
-const SEEN = 2.2,
-  LOAD_SEEN = 2.6,
-  ROCKET_SEEN = 2.4;
+/**
+ * A machine, a load and a rocket drawn as built, as a town's folk are (asked 2026-11-23: one scale everywhere): at their height
+ * or their distance one may be a speck, and a machine is then marked (MARK_*), never drawn larger.
+ */
+const SEEN = 1,
+  LOAD_SEEN = 1,
+  ROCKET_SEEN = 1;
+/**
+ * A machine's mark (as the one let go is marked: render/letgomark.ts): a point of light over it where it flies, as wide and as
+ * tall as these shares of its distance from the eye, so that it reads the same on the screen however far off it is; none while
+ * the machine's own span is wider than MARK_NONE of that distance, whole once it is narrower than MARK_WHOLE, by degrees between
+ * (the machine itself drawn throughout: the mark takes up where its own shape gives out, never in place of it).
+ */
+const MARK_WIDE = 0.011,
+  MARK_TALL = 0.015,
+  MARK_NONE = 0.035,
+  MARK_WHOLE = 0.014,
+  MARK_LIGHT: Rgb = [0.97, 0.95, 0.9];
 /** Which way the wind takes smoke over a town (as its fires' smoke goes, render/blaze.ts), and how fast (m/s). */
 const WIND_X = 0.932,
   WIND_Z = 0.362,
@@ -200,8 +215,8 @@ const ROLL = 14,
   SURGE = 16,
   SHOCK = 40;
 
-/** How much larger than life a hit is drawn, as a machine is: from where the eye watches a raid a house's width is a few pixels. */
-const BLAST_SEEN = 1.3;
+/** A hit drawn as great as it was, as a machine is (its flash and its fire are many times a house's width). */
+const BLAST_SEEN = 1;
 /** How large a hit is drawn by how great it was (a bomb's 1, a rocket's more); how much longer its fire and dust last. */
 function blastSize(b: { readonly size?: number }): number {
   return Math.pow(b.size ?? 1, 0.8) * BLAST_SEEN;
@@ -252,6 +267,9 @@ export class RaidLayer {
   private readonly dust: InstancedBatch;
   private readonly bits: InstancedBatch;
   private readonly scorch: InstancedBatch;
+  /** Each machine's mark, and how much of each is drawn now (0 … 1). */
+  private readonly marked: InstancedBatch;
+  private readonly markShare: number[] = [];
   /** The greatest fire (W5): what it is seen as, each lit but its heart, so that it stands up as a thing and not a sticker. */
   private readonly greatHot: InstancedBatch;
   private readonly greatFire: InstancedBatch;
@@ -262,7 +280,7 @@ export class RaidLayer {
   private age: keyof typeof LOOKS = "first";
   private readonly d = [0, 0, 0];
   /** What was last drawn (the look tools). */
-  shown = { flyers: 0, falling: 0, bursts: 0, streaks: 0, great: 0, marks: 0 };
+  shown = { flyers: 0, falling: 0, bursts: 0, streaks: 0, great: 0, marks: 0, markedNow: 0 };
   /** The greatest fire now (the look tools; the page's flash reads it too). */
   greatNow: GreatNow | null = null;
 
@@ -357,6 +375,14 @@ export class RaidLayer {
     this.scorch = new InstancedBatch(stage, drum, [0.09, 0.08, 0.08], MOST_MARKS, root).shadows(
       false,
     );
+    this.marked = new InstancedBatch(
+      stage,
+      coneMesh(stage, 0.5, 1, 4),
+      MARK_LIGHT,
+      most,
+      root,
+      fading(glowing(MARK_LIGHT, 1, 1)),
+    ).shadows(false);
     this.greatHot = new InstancedBatch(
       stage,
       round,
@@ -431,6 +457,7 @@ export class RaidLayer {
       streaks: nr,
       great: now.great ? 1 : 0,
       marks: nm,
+      markedNow: 0,
     };
     // A machine's part, set in its frame: across, up and ahead of where it flies, at its drawn size.
     const part = (parts: readonly Part[], i: number, out: number[]) => {
@@ -451,6 +478,37 @@ export class RaidLayer {
       out[7] = q[7];
     };
     this.bodies.set(n * look.body.length, (i, out) => part(look.body, i, out));
+    // Each machine's mark: fixed where it flies, as big as it must be to be seen from the eye, by degrees as it grows small.
+    const drawnShare = this.markShare;
+    this.marked.set(eye ? n : 0, (i, out) => {
+      const f = flyers[i]!,
+        x = f.x * M,
+        y = f.y * M,
+        z = f.z * M,
+        far = Math.hypot(x - eye!.x, y - eye!.y, z - eye!.z),
+        u = Math.min(
+          1,
+          Math.max(0, (MARK_NONE - (f.span * M) / Math.max(far, 1e-6)) / (MARK_NONE - MARK_WHOLE)),
+        ),
+        a = u * u * (3 - 2 * u);
+      drawnShare[i] = a;
+      if (a <= 0) return none(out);
+      const w = far * MARK_WIDE,
+        h = far * MARK_TALL;
+      out[0] = x;
+      out[1] = y + f.span * 0.2 * M + h * 0.6;
+      out[2] = z;
+      out[3] = out[5] = w;
+      out[4] = h;
+      out[6] = f.yaw;
+      // (Its point down at the machine.)
+      out[7] = Math.PI;
+    });
+    if (eye && n) this.marked.fadeBy((_x, _z, i) => drawnShare[i] ?? 0);
+    this.shown = {
+      ...this.shown,
+      markedNow: drawnShare.slice(0, eye ? n : 0).filter((a) => a > 0).length,
+    };
     this.hulls.set(n * look.hull.length, (i, out) => part(look.hull, i, out));
     this.wings.set(n * look.wing.length, (i, out) => part(look.wing, i, out));
     // (Screws turning: a disc that shivers a little by the screen's clock.)

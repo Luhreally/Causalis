@@ -22,6 +22,7 @@ export class SiegeWorksLayer {
   private readonly rubble: InstancedBatch;
   private drawn: SiegeWorks | null = null;
   private key = "";
+  private body = 1;
   /** What was last drawn (the look tools). */
   shown = { banks: 0, saps: 0, engines: 0, rubble: 0 };
 
@@ -34,13 +35,15 @@ export class SiegeWorksLayer {
     this.rubble = new InstancedBatch(stage, box, STONE, W.rubble, root);
   }
 
-  update(works: SiegeWorks | null): void {
-    if (works === this.drawn) return;
+  /** The works now (null: none), `body` times a man's size: what its folk dug and built for their own bodies. */
+  update(works: SiegeWorks | null, body = 1): void {
+    if (works === this.drawn && body === this.body) return;
     this.drawn = works;
+    this.body = body;
     // (The scene is made anew each frame: drawn again only when what it says has changed.)
     const s = works?.state,
       key = works
-        ? `${works.banks.length} ${works.banks[0]?.x} ${works.saps.length} ${works.rubble.length} ${works.guns} ${s!.breach} ${s!.years}`
+        ? `${works.banks.length} ${works.banks[0]?.x} ${works.saps.length} ${works.rubble.length} ${works.guns} ${s!.breach} ${s!.years} ${body}`
         : "";
     if (key === this.key) return;
     this.key = key;
@@ -57,10 +60,10 @@ export class SiegeWorksLayer {
     this.banks.set(banks.length, (i, o) => {
       const b = banks[i]!;
       o[0] = b.x * M;
-      o[1] = 0.07;
+      o[1] = 0.07 * body;
       o[2] = b.z * M;
-      o[3] = 2.6 * M;
-      o[4] = 0.14;
+      o[3] = 2.6 * body * M;
+      o[4] = 0.14 * body;
       o[5] = b.long * M;
       o[6] = b.yaw;
     });
@@ -69,8 +72,8 @@ export class SiegeWorksLayer {
       o[0] = b.x * M;
       o[1] = 0.012;
       o[2] = b.z * M;
-      o[3] = 1.5 * M;
-      o[4] = 0.024;
+      o[3] = 1.5 * body * M;
+      o[4] = 0.024 * body;
       o[5] = b.long * M;
       o[6] = b.yaw;
     });
@@ -83,12 +86,13 @@ export class SiegeWorksLayer {
         sn = Math.sin(e.yaw),
         // (Across it, up, along it, in metres; then its size; then its tip.)
         at = (dx: number, dy: number, dz: number, sx: number, sy: number, sz: number, tip = 0) => {
-          o[0] = (e.x + dx * c + dz * sn) * M;
-          o[1] = dy * M;
-          o[2] = (e.z - dx * sn + dz * c) * M;
-          o[3] = sx * M;
-          o[4] = sy * M;
-          o[5] = sz * M;
+          const u = body * M;
+          o[0] = e.x * M + (dx * c + dz * sn) * u;
+          o[1] = dy * u;
+          o[2] = e.z * M + (-dx * sn + dz * c) * u;
+          o[3] = sx * u;
+          o[4] = sy * u;
+          o[5] = sz * u;
           o[6] = e.yaw;
           o[7] = tip;
         };
