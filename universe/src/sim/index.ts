@@ -2200,3 +2200,12 @@ export {
   type RiverMove,
 } from "./planet/rivers.ts";
 export { TABOO_EVENTS, TabooStore, herdKept, taboosOf, type FaithTaboo } from "./belief/taboo.ts";
+export {
+  CANAL_EVENTS,
+  CanalStore,
+  canalYear,
+  canalsOf,
+  canalsWeighed,
+  type Canal,
+  type CanalReading,
+} from "./economy/canals.ts";

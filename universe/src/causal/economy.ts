@@ -7,6 +7,7 @@ import { parseRef, yearOfMoment, type CauseRef, type Ref, type World } from "../
 import { cellRef, worldChemistry } from "../gen/index.ts";
 import { FOODS, G, GOODS, SMELTING, WORKED, metalOf, type Metal } from "../rules/index.ts";
 import {
+  CANAL_EVENTS,
   ECONOMY_EVENTS,
   MARKET_GOOD,
   POPULATION_EVENTS,
@@ -102,6 +103,19 @@ const year = (t: number) => `year ${yearOfMoment(t)}`;
 registerEventWords(ECONOMY_EVENTS.route.type, (world, e) => {
   const to = e.subjects[1] ?? null;
   return `The first ${goodName(text(e.data, "good"))} went from ${landWords(world, e.place)} to ${landWords(world, to)}, ${year(e.t)}`;
+});
+registerEventWords(CANAL_EVENTS.dug.type, (world, e) => {
+  const to = e.subjects[2] ?? null,
+    km = num(e.data, "km"),
+    climb = num(e.data, "climb"),
+    work = num(e.data, "work"),
+    years = num(e.data, "years"),
+    saves = num(e.data, "saves");
+  return `The realm of ${text(e.data, "realm") ?? "a people"} dug a canal from ${landWords(world, e.place)} to ${landWords(world, to)}: ${km ?? "?"} km of cut${climb ? ` and locks up ${count(climb)} m` : ""}, ${count(work ?? 0)} person-years over ${years ?? "some"} years, for the ${count(saves ?? 0)} in grain a year its trade saves in carrying, ${year(e.t)}`;
+});
+registerDecisionWords("economy.canal", (world, d) => {
+  const o = d.outcome as { a?: number; b?: number } | null;
+  return `A realm weighed a canal${o?.a === undefined || o.b === undefined ? "" : ` between ${landWords(world, cellRef(0, o.a) as Ref)} and ${landWords(world, cellRef(0, o.b) as Ref)}`}: what its trade would save against the work of digging`;
 });
 registerEventWords(ECONOMY_EVENTS.embargo.type, (_world, e) => {
   const ties = num(e.data, "ties");

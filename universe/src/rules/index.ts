@@ -583,6 +583,7 @@ export {
   type TurnRate,
 } from "./planet.ts";
 export { CARRIED, carriedYield, fruitSet } from "./crops.ts";
+export { CANAL, canalSaves, canalWork, weighCanal, type CanalWeighed } from "./canals.ts";
 export {
   WORKABLE,
   depositElement,
