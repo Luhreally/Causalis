@@ -1423,6 +1423,8 @@ export {
   homeStarLife,
   motionOf,
   motionYear,
+  seaIceKm2,
+  seaRead,
   shiftNow,
   starDeathAt,
   starEnded,

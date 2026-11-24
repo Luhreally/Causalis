@@ -1883,3 +1883,4 @@ export * from "./taboo.ts";
 export * from "./rings.ts";
 export * from "./locked.ts";
 export * from "./skies.ts";
+export * from "./seaice.ts";

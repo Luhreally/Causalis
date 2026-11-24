@@ -42,6 +42,7 @@ test("the kinds given words say what happened, and still do with their facts for
       "planet.ice-gone": { km2: 120000 },
       "planet.ice-come": { km2: 90000 },
       "planet.seas-moved": { metres: -3, fromIce: -2.4, swell: -0.6 },
+      "planet.sea-ice": { left: 74, gone: true, overturn: 93 },
       "frontier.shield-thinned": { left: 50, hard: 5.8, fields: 91, years: 20 },
       "planet.land-drowned": { share: 14, metres: 6 },
       "planet.land-bared": { share: 11, metres: 4 },

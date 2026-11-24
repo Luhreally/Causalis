@@ -170,6 +170,11 @@ registerEventWords(MOTION_EVENTS.bared.type, (world, e) => {
   const share = num(e.data, "share");
   return `The fallen sea bared new shore along ${landWords(world, e.place)}${share === null ? "" : `, ${share} in a hundred more land than it had`}, ${year(e.t)}`;
 });
+registerEventWords(MOTION_EVENTS.floes.type, (_world, e) => {
+  const gone = (e.data as { gone?: boolean } | null)?.gone ?? true,
+    left = num(e.data, "left");
+  return `The ice on the world's seas ${gone ? "drew back" : "spread"}${left === null ? "" : ` to ${left} in a hundred of what it was`}: ${gone ? "dark water where it lay keeps more of the star's light, and less cold brine sinks" : "bright ice where water lay throws back more of the star's light"}, ${year(e.t)}`;
+});
 registerEventWords(MOTION_EVENTS.overturn.type, (_world, e) => {
   const weak = (e.data as { weak?: boolean } | null)?.weak ?? true,
     left = num(e.data, "overturn");

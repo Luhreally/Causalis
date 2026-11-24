@@ -9,6 +9,7 @@ import {
   homePlanet,
   homeStarLife,
   motionOf,
+  seaRead,
   populationContext,
   starEnded,
 } from "../../sim/index.ts";
@@ -166,6 +167,10 @@ export function motionBlocks(world: World): Block[] {
           stat("Its ground", `${signed(s.ground, "degrees")} against as it was made`),
           stat("From its air", signed(s.ground - s.albedo - s.star, "degrees")),
           stat("From its ice's light", signed(s.albedo, "degrees")),
+          stat(
+            "Its sea ice",
+            `${Math.round(s.floes * 100)} in a hundred of what it was made with, on seas of ${seaRead(store, g.fine).salt.toFixed(0)} parts salt in a thousand that freeze at ${seaRead(store, g.fine).freezes.toFixed(1)} degrees`,
+          ),
           stat("From its star", signed(s.star, "degrees")),
         ],
       },

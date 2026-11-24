@@ -7,6 +7,7 @@ import {
   RING,
   airKept,
   airLoss,
+  brineOf,
   growthUnderHard,
   hardAtGround,
   hardLight,
@@ -17,6 +18,10 @@ import {
   ringOf,
   rocheLimit,
   roguesAStar,
+  seaFreezes,
+  seaIceWarming,
+  seaSalt,
+  overturnOf,
   tideLocked,
 } from "../../src/rules/index.ts";
 
@@ -87,4 +92,20 @@ test("ozone from an air's oxygen shields the ground from its star's hard light",
   assert.ok(Math.abs(ozoneStripped(1.21) - 0.5) < 0.01 && ozoneStripped(1) === 0);
   const under = growthUnderHard(hardAtGround(1, 0.5, false));
   assert.ok(under > 0.88 && under < 0.94);
+});
+
+test("sea ice follows the seas' warmth and salt, and feeds the light kept and the overturning", () => {
+  // Earth's seas: thirty-five parts in a thousand, freezing near two below; a world of more land and less sea is salter.
+  assert.ok(Math.abs(seaSalt(0.29, 0.71) - 35) < 1e-9);
+  assert.ok(Math.abs(seaFreezes(35) + 1.89) < 0.01);
+  assert.ok(seaSalt(0.6, 0.4) > 100 && seaSalt(0.05, 0.95) < 10);
+  // All of Earth's sea ice gone (some 4% of its face) warms it about a degree; ice come cools.
+  const all = seaIceWarming(0.04, 1);
+  assert.ok(all > 0.6 && all < 1.6, `${all}`);
+  assert.equal(seaIceWarming(-0.04, 1), -all);
+  // Without its ice's brine the overturning is a fifth weaker; a salter sea is harder to freshen.
+  assert.equal(brineOf(1), 1);
+  assert.ok(Math.abs(brineOf(0) - 0.8) < 1e-9);
+  assert.ok(Math.abs(overturnOf(0, 0, 1, brineOf(0)) - 0.8) < 1e-9);
+  assert.ok(overturnOf(0.25, 0, 2) > overturnOf(0.25, 0) && overturnOf(0.25, 0) === 0.5);
 });
