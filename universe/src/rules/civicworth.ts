@@ -112,9 +112,19 @@ export function payingPeople(def: CivicDef, lots: number, town: TownUse): number
  * raising it is spent, and it stands while its use carries what keeping it up costs.
  */
 export function keptPeople(def: CivicDef, lots: number, town: TownUse): number {
-  const u = USER_AT[CIVIC_USE[def.kind].users],
-    each = eachGains(def, town) * Math.max(0, town.share[u] ?? 0);
+  const u = USER_AT[CIVIC_USE[def.kind].users];
+  return keptPeopleBy(def, lots, town.share[u] ?? 0, town.worth[u] ?? 1);
+}
+
+/** keptPeople from what its own users are of the town (`share`) and earn against the going wage (`worth`) alone. */
+export function keptPeopleBy(def: CivicDef, lots: number, share: number, worth: number): number {
+  const each = CIVIC_USE[def.kind].gain * Math.max(0, worth) * Math.max(0, share);
   return each > 0 ? (def.years * lots * BUILDERS_A_LOT * CIVIC_UPKEEP) / each : Infinity;
+}
+
+/** Where in a town's use (TownUse share and worth) the users of a kind stand. */
+export function civicUserAt(kind: CivicKind): number {
+  return USER_AT[CIVIC_USE[kind].users];
 }
 
 /**
