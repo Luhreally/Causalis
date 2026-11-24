@@ -15,11 +15,20 @@ import {
   type World,
 } from "../../kernel/index.ts";
 import { cellRef, offworldSite, worldLife } from "../../gen/index.ts";
-import { habitability, writableShare, writtenAfter, type Ground } from "../../rules/index.ts";
+import {
+  habitability,
+  replaceable,
+  rewritable,
+  writableShare,
+  writtenAfter,
+  type Ground,
+} from "../../rules/index.ts";
 import { knows, loreOf } from "../lore/lore.ts";
 import { politiesOf } from "../polity/polity.ts";
 import { homePlanet } from "../planet/store.ts";
 import type { PopulationContext } from "../population/systems.ts";
+import { peopleKin } from "../population/life.ts";
+import { sparedWork } from "./engineered.ts";
 import { clusterOf, starSitesOf } from "../space/stars.ts";
 import { worldsOf } from "../space/voyages.ts";
 import { fold, homeLands, refNumber } from "./common.ts";
@@ -90,13 +99,38 @@ function groundOf(world: World, cell: number): Ground | null {
   return (star && worldsOf(world, star)[ship.planet]) ?? null;
 }
 
-/** The share of a land's halls' upkeep a written body bears, with machine limbs or not (kept by the world's surface). */
+/**
+ * How far a realm's settlers are written now, and the share of them who carry limbs of machines (0 … 1 each): a share of
+ * their children a generation of their own, what the realm's seat knows of the body by what its engines spare
+ * (rules/beyond.ts rewritable, replaceable); the limbs to a twentieth.
+ */
+export function writtenSoFar(world: World, row: WrittenRow): { written: number; limbs: number } {
+  const p = politiesOf(world).get(row.realm),
+    year = yearOfMoment(world.now);
+  if (!p) return { written: 0, limbs: 0 };
+  const lore = loreOf(world),
+    pays = sparedWork(world, p.seat),
+    generation = peopleKin(homePlanet(world).generated).generation,
+    minds = row.limbs ? lore.get(p.seat, "machine-minds") : undefined;
+  return {
+    written: writtenAfter(
+      year - row.year,
+      rewritable(lore.effect(p.seat, "health"), pays),
+      generation,
+    ),
+    limbs: minds
+      ? Math.round(20 * writtenAfter(year - minds.year, replaceable(true, pays), generation)) / 20
+      : 0,
+  };
+}
+
+/** The share of a land's halls' upkeep a written body bears, so many of them with machine limbs (kept by the world's surface). */
 const WRITABLE = new Map<string, number>();
-export function writableOf(world: World, cell: number, limbs: boolean): number {
+export function writableOf(world: World, cell: number, limbs: number): number {
   const planet = homePlanet(world),
     site = offworldSite(planet.generated, cell),
     ship = site && site.body < 0 ? starSitesOf(world)?.get(cell) : null,
-    key = `${planet.surfaceKey}:${cell}:${limbs ? 1 : 0}:${ship ? `${ship.star}/${ship.planet}` : ""}`;
+    key = `${planet.surfaceKey}:${cell}:${Math.round(limbs * 20)}:${ship ? `${ship.star}/${ship.planet}` : ""}`;
   let share = WRITABLE.get(key);
   if (share === undefined) {
     const ground = groundOf(world, cell),
@@ -125,7 +159,8 @@ export function writtenCut(world: World, cell: number): number {
   if (!row) return 0;
   const years = yearOfMoment(world.now) - row.year;
   if (years <= 0) return 0;
-  return writableOf(world, cell, !!row.limbs) * writtenAfter(years);
+  const so = writtenSoFar(world, row);
+  return so.written > 0 ? writableOf(world, cell, so.limbs) * so.written : 0;
 }
 
 /** The year's writing: a realm able to begins; one that comes to make minds gives its settlers machine limbs. */
@@ -151,7 +186,7 @@ export function writtenYear(ctx: PopulationContext, t: SimTime): void {
           place: cellRef(0, far),
           subjects: [p.ref],
           causes: known ? [{ ref: known.event, role: "enabler", weight: 1 }] : [],
-          data: { realm: p.town, share: Math.round(writableOf(world, far, false) * 100) },
+          data: { realm: p.town, share: Math.round(writableOf(world, far, 0) * 100) },
         }),
         limbs: null,
       };

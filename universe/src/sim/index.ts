@@ -299,6 +299,7 @@ export {
   type Language,
 } from "./culture/languages.ts";
 export { familySizeOf, lifeOf, lifeOfBody, peopleKin, peopleLife } from "./population/life.ts";
+export { engineeredOf, sparedWork, type Engineered } from "./frontier/engineered.ts";
 export {
   HEREDITY_EVENTS,
   heredityOf,
@@ -1742,6 +1743,7 @@ export {
   WrittenStore,
   writableOf,
   writtenCut,
+  writtenSoFar,
   writtenOf,
   writtenYear,
   type WrittenRow,

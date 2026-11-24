@@ -5,6 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   BEYOND,
+  HUMANLIKE,
   HABITAT,
   ROGUE,
   UPLIFT,
@@ -52,6 +53,11 @@ import {
   worksMachines,
   worksNextYear,
   wouldGoUp,
+  bodyLimits,
+  engineeredDeaths,
+  engineeredYears,
+  replaceable,
+  rewritable,
   writableShare,
   writtenAfter,
   yearsAboard,
@@ -219,14 +225,44 @@ test("a written body bears the heat and cold it can bend to and the rays a share
     { id: "heat", upkeep: 2 },
     { id: "shelter", upkeep: 1 },
   ];
-  const s = writableShare(needs, 40, false);
+  const s = writableShare(needs, 40, 0);
   assert.ok(near(s, (2 + 0.5) / 4, 1e-9), `${s}`);
-  assert.ok(writableShare(needs, 120, false) < s);
-  assert.ok(writableShare(needs, 120, true) > writableShare(needs, 120, false));
-  assert.equal(writableShare([{ id: "air", upkeep: 1 }], 0, true), 0);
-  assert.equal(writtenAfter(0), 0);
-  assert.ok(near(writtenAfter(BEYOND.generationYears), BEYOND.writtenShare, 1e-9));
-  assert.ok(writtenAfter(500) > 0.99);
+  assert.ok(writableShare(needs, 120, 0) < s);
+  // (The more of them carry limbs of machines, the more is borne.)
+  assert.ok(writableShare(needs, 120, 0.25) > writableShare(needs, 120, 0));
+  assert.ok(writableShare(needs, 120, 1) > writableShare(needs, 120, 0.25));
+  assert.equal(writableShare([{ id: "air", upkeep: 1 }], 0, 1), 0);
+  assert.equal(writtenAfter(0, 0.3, 25), 0);
+  assert.ok(near(writtenAfter(25, 0.3, 25), 0.3, 1e-9));
+  assert.ok(writtenAfter(500, 0.3, 25) > 0.99);
+  // A people of longer generations is written the slower; one that knows or can pay nothing, never.
+  assert.ok(writtenAfter(100, 0.3, 50) < writtenAfter(100, 0.3, 25));
+  assert.equal(writtenAfter(500, 0, 25), 0);
+});
+
+test("what a people writes and mends follows from what it knows and can pay; its gain from its body's own limits", () => {
+  assert.equal(rewritable(1, 0), 0);
+  assert.equal(rewritable(0, 1), 0);
+  assert.ok(near(rewritable(0.6, 0.5), 0.3, 1e-9));
+  assert.equal(replaceable(false, 1), 0);
+  assert.equal(replaceable(true, 0.4), 0.4);
+  const limits = bodyLimits(HUMANLIKE);
+  // The apes' first years: most of their deaths are their being the first. Their grown at the least wear nothing; their oldest, most.
+  assert.ok(limits.frail > 0.7 && limits.frail < 0.9, `${limits.frail}`);
+  assert.equal(limits.worn[3], 0);
+  assert.ok(limits.worn[9]! > 0.9 && limits.worn[6]! > 0.3 && limits.worn[6]! < limits.worn[9]!);
+  assert.ok(limits.unworn > 90 && limits.unworn < 110, `${limits.unworn}`);
+  // Neither written nor mended, nothing; written, the first years and the old; mended alone, the old only.
+  assert.ok(engineeredDeaths(HUMANLIKE, 0, 0).every((x) => x === 1));
+  const w = engineeredDeaths(HUMANLIKE, 1, 0),
+    m = engineeredDeaths(HUMANLIKE, 0, 1);
+  assert.ok(w[0]! < 0.3 && w[9]! < 0.1 && w[3] === 1);
+  assert.ok(m[0] === 1 && near(m[9]!, w[9]!, 1e-9));
+  // Their years from their coming of age: the longer, toward what a body that does not wear lives.
+  assert.equal(engineeredYears(HUMANLIKE, 0, 0), 1);
+  const half = engineeredYears(HUMANLIKE, 0.5, 0),
+    whole = engineeredYears(HUMANLIKE, 1, 0);
+  assert.ok(half > 1.1 && whole > half && whole < 3.5, `${half} ${whole}`);
 });
 
 test("made minds pass their makers some forty years on where the power lets them, never where it does not", () => {

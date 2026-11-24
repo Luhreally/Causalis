@@ -99,6 +99,12 @@ registerEventWords(MIX_EVENTS.born.type, (world, e) => {
   const d = data(e);
   return `In ${landWords(world, e.place)} ${String(d.a ?? "one people")} and ${String(d.b ?? "another")} had young together, a people of both: their lines stand near enough in their world's tree of life that ${num(d.bear)} in a hundred of their crossings bear, year ${yearOfMoment(e.t)}`;
 });
+registerEventWords(HEREDITY_EVENTS.engineered.type, (world, e) => {
+  const d = data(e);
+  return d.what === "mended"
+    ? `Half the people of ${landWords(world, e.place)} carried parts of their bodies made, not grown, as many as its engines' work could pay for: ${num(d.old)} in a hundred fewer of their oldest died of age, year ${yearOfMoment(e.t)}`
+    : `Half the people of ${landWords(world, e.place)} were born written, as far as it knew the body and could pay for it: ${num(d.young)} in a hundred fewer of them died in their first years and ${num(d.old)} in a hundred fewer of their oldest of age, year ${yearOfMoment(e.t)}`;
+});
 registerEventWords(HEREDITY_EVENTS.taken.type, (world, e) => {
   const d = data(e),
     what =

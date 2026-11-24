@@ -156,6 +156,7 @@ import { lightSteps, starSitesOf } from "../space/stars.ts";
 import { lateOf, remakeKey } from "../space/late-store.ts";
 import { frontierFields, frontierRain, frontierSky } from "../frontier/hooks.ts";
 import { writtenCut } from "../frontier/written.ts";
+import { engineeredOf } from "../frontier/engineered.ts";
 import { siteRegion } from "../space/ground.ts";
 import { starHazard } from "../acts/great.ts";
 import { homeSky, shiftNow, starEnded } from "../planet/motion.ts";
@@ -1038,7 +1039,10 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
     // And one that has not put by what will feed it to the reaping has fewer still (rules/seasons.ts):
     // by the months of eating in its land's store, against those it needs by the share of its food it reaps.
     // (A mixed land's births and each band's deaths are its peoples' own bodies', weighed by their shares: rules/peoples.ts.)
+    // (And where its people write their bodies or carry made parts, what that spares them, read off their own life table:
+    // sim/frontier/engineered.ts. Null on every land that does neither.)
     const mix = mixed ? mixFactors(world, p.cell) : null,
+      made = engineeredOf(world, p.cell, life, kin.generation),
       fertility =
         fedSquared *
         transition(ctx, p.cell) *
@@ -1100,6 +1104,7 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
         (old && b >= old.band ? old.press : 1) *
         (b >= kin.oldBand ? long : 1) *
         (mix ? mix.deaths[b]! : 1) *
+        (made ? made.deaths[b]! : 1) *
         // (The young of those who sire die the more as the sexes' bodies differ: rules/species.ts boyRiskOf.)
         (sex === MALE && life.bands[b]! < life.adulthood ? boyRisk : 1) *
         (killed > 0 && youngBand(life, b) ? 1 + killed / Math.max(1e-4, life.mortality[b]!) : 1),
@@ -1394,17 +1399,28 @@ export function transition(ctx: PopulationContext, cell: number): number {
     ),
     lore = loreOf(ctx.world);
   // Past our ages (Phase 66): nothing here runs short any more, and what a people then does is its choice.
-  if (lore.get(cell, "made-bodies")) return Math.max(keeps, WRITTEN_KEEPS);
-  return lore.get(cell, "fusion-power") ? Math.max(keeps, FLAME_KEEPS) : keeps;
+  // (Where it writes and grows its children, as far as it does: one grown, not borne, costs no mother her work, and lives
+  // as its written body lives; as many are made as are wanted, by the same rule as any people's. sim/frontier/engineered.ts.)
+  // (The held flame's floor is of those who bear as their bodies do: the written are made as they are wanted.)
+  const made = engineeredOf(ctx.world, cell, ctx.life, peopleKin(ctx.generated).generation),
+    borne = lore.get(cell, "fusion-power") ? Math.max(keeps, FLAME_KEEPS) : keeps;
+  return made && made.written > 0
+    ? borne +
+        made.written *
+          (childrenKept(
+            made.life,
+            slowDeaths(ctx, cell),
+            childCost(readersOf(ctx.world, cell), machineShare(ctx, cell), 0),
+            oldAgeWantOf(ctx.world, cell),
+          ) -
+            borne)
+    : borne;
 }
 /**
  * What a people with a held flame keeps of its fertility: a little more than replaces it. Fuel no longer
  * thins it out; nothing yet makes more of it than it would have of its own.
  */
 const FLAME_KEEPS = 0.72;
-
-/** What a people that writes and grows its children keeps: each one wanted is made, whatever it can bear. */
-const WRITTEN_KEEPS = 0.95;
 
 /**
  * What a land's young cost to raise (rules/children.ts childCost): those of its people who read, its machines' share of its work,
