@@ -30,6 +30,7 @@ import type { Block, Item } from "../../bridge/index.ts";
 import { count, item, link, stat } from "./words.ts";
 import { DEPOSIT_MINERALS, makeUpBlock, substRef, weight } from "./matter.ts";
 import { lifeMaterial } from "../biochem.ts";
+import { landBreadthBlocks, worldBreadthBlock } from "./planet-breadth.ts";
 
 const BIOME_SOIL: Readonly<Record<number, string>> = {
   [BIOME.tundra]: "tundra",
@@ -208,6 +209,8 @@ export function groundBlocks(world: World, cell: number): Block[] {
     ],
   });
   blocks.push(airBlock(world));
+  // (What it grows, its storms and slopes, and the planet's slow work: host/inspect/planet-breadth.ts.)
+  blocks.push(...landBreadthBlocks(world, cell), worldBreadthBlock(world));
   return blocks;
 }
 
@@ -240,7 +243,7 @@ export function airBlock(world: World): Block {
       ? "Carbon dioxide: none in its air: in its cold it lies frozen on the ground as frost."
       : chem.kind && !kindBurns(chem.kind)
         ? `Carbon dioxide: ${count(ppm)} parts in a million: nothing burns in its air to add to it.`
-        : `Carbon dioxide: ${count(ppm)} parts in a million (280 before any fire of coal or oil).`,
+        : `Carbon dioxide: ${count(ppm)} parts in a million (${count(Math.round(airOf(world).air.rest ?? 280))} at rest, before any fire of coal or oil).`,
   );
 }
 

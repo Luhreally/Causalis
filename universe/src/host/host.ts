@@ -18,7 +18,7 @@ import {
   type World,
 } from "../kernel/index.ts";
 import { spine, why, type Explanation } from "../causal/index.ts";
-import { keptLife, keptRocky } from "../rules/index.ts";
+import { keptGround, keptLife, keptRocky } from "../rules/index.ts";
 import {
   frameTransfer,
   type FrameArray,
@@ -90,9 +90,11 @@ export function loadKept(
     const moved = (e: unknown) =>
       e instanceof Error && e.message.startsWith("this game regenerates");
     if (!moved(error)) throw error;
-    const tries = [keptLife(doc.seed), keptRocky(doc.seed), keptLife(keptRocky(doc.seed))].filter(
-      (t, i, all) => t !== doc.seed && all.indexOf(t) === i,
-    );
+    // (And one saved before its buried fuels and ores were read from its life and chemistry, kept with them as made: "~ground kept".)
+    const once = [doc.seed, keptLife(doc.seed), keptRocky(doc.seed), keptLife(keptRocky(doc.seed))],
+      tries = [...once.slice(1), ...once.map(keptGround)].filter(
+        (t, i, all) => t !== doc.seed && all.indexOf(t) === i,
+      );
     for (const seed of tries)
       try {
         return loadWorld({ ...doc, seed }, build, ruleset, { allowRulesetChange: true });

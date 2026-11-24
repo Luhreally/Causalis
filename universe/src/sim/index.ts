@@ -2165,3 +2165,28 @@ export {
 export { coupKindOf, type CoupKind } from "./strife/strife.ts";
 export { trainedOf } from "./war/war.ts";
 export { ALLY, pactWorth } from "./diplomacy/diplomacy.ts";
+export {
+  STORM_EVENTS,
+  STRUCK_KEPT,
+  StormStore,
+  installStorms,
+  stormsOf,
+  stormsYear,
+  struckOn,
+  type Struck,
+} from "./planet/storms.ts";
+export { carbonWorld, seaShells, thawedPpm } from "./climate/air.ts";
+export { homeCycles } from "./planet/motion.ts";
+export { coverAt, skyOf } from "./population/model.ts";
+export { landSlope } from "./ecology/ground.ts";
+export { tillageAt } from "./ecology/farmed.ts";
+export { standGame } from "./ecology/stands.ts";
+export {
+  RIVER_EVENTS,
+  RiverStore,
+  installRivers,
+  riverAfterFlood,
+  riverMovesOn,
+  riversOf,
+  type RiverMove,
+} from "./planet/rivers.ts";

@@ -9,6 +9,8 @@ import { installStands } from "../ecology/stands.ts";
 import { installDiet } from "./diet.ts";
 import { installFires } from "../planet/fires.ts";
 import { installFloods } from "../planet/floods.ts";
+import { installStorms } from "../planet/storms.ts";
+import { installRivers } from "../planet/rivers.ts";
 import { installStrains } from "../health/strains.ts";
 import { installLineage } from "../ecology/lineage.ts";
 import {
@@ -534,6 +536,8 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installDiet(world, () => populationContext(world));
   installFires(world, () => populationContext(world));
   installFloods(world, () => populationContext(world));
+  installStorms(world, () => populationContext(world));
+  installRivers(world);
   installSpace(world, () => populationContext(world));
   installSummon(world, () => populationContext(world));
   installFrontier(world, () => populationContext(world));

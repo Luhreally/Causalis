@@ -65,6 +65,8 @@ import {
   waterYield,
   wildsOf,
 } from "../ecology/ecology.ts";
+import { standGame } from "../ecology/stands.ts";
+import { tillageAt } from "../ecology/farmed.ts";
 import { peopleAffords, peopleKin, peopleLife } from "./life.ts";
 import {
   airOf,
@@ -137,6 +139,8 @@ import {
   heightsToll,
   longerLived,
   matedShare,
+  MONSOON,
+  monsoonOf,
 } from "../../rules/index.ts";
 import { homePlanet } from "../planet/store.ts";
 import { lightSteps, starSitesOf } from "../space/stars.ts";
@@ -479,8 +483,10 @@ export function farmingShare(ctx: PopulationContext, p: Province): number {
       (1 - hallsShare(ctx, p.cell)) *
       // (As many days as its people work against the reference year: the society sweep, rules/leisure.ts. 1 where none is kept.)
       daysWorkedOf(ctx.world, p.cell),
+    till = tillageAt(ctx, p.cell),
     fields =
-      (1 + lore.effect(p.cell, "farmYield")) *
+      // (What the ways of farming it knows lift of what holds its own fields back: ecology/farmed.ts, rules/tillage.ts.)
+      till.yields *
       heatYield(ctx, p.cell) *
       darkFields(ctx.world, p.cell) *
       // (Its crop, as tame and as fitted to it as it is; the world's veil, and its own ash and flood: exactly 1 on a land
@@ -499,7 +505,7 @@ export function farmingShare(ctx: PopulationContext, p: Province): number {
     // (The hands the old ways set to its fields: all but its herders of 0.77 of its grown, as occupationTargets has it.)
     old = adults(p, ctx.life) * (0.77 - (c.pasture > 0 && p.herding ? 0.07 : 0));
   if (!(most > 0) || need >= most * 0.95 || !(old > 0)) return 1;
-  const per = PRODUCTIVITY[OCC.farmer]! * tools * gathers,
+  const per = PRODUCTIVITY[OCC.farmer]! * tools * gathers * till.work,
     farmers = (-c.farm / per) * dmath.log(1 - need / most);
   return dmath.clamp(farmers / old, FARM_FLOOR, 1);
 }
@@ -685,8 +691,9 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
       // What the land's people know: better fields, flocks and hunting, stores that keep.
       lore = loreOf(world),
       // Hot fields yield less as the world warms; cold ones a little more.
+      till = tillageAt(ctx, p.cell),
       fields =
-        (1 + lore.effect(p.cell, "farmYield")) *
+        till.yields *
         heatYield(ctx, p.cell) *
         // (Under the soot of a great fire, W5: exactly 1 under a clear sky.)
         darkFields(world, p.cell) *
@@ -743,6 +750,8 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
           waterYield(alive) *
           // (And as the reach of sea its boats go out on stands, fished by all on it: sim/ecology/seas.ts. Exactly 1 where untouched.)
           seaYield(ctx, p.cell) *
+          // (And young woods' browse: sim/ecology/stands.ts. Exactly 1 where its woods are untouched.)
+          standGame(world, p.cell, ecologyOf(world).get(p.cell)?.forest ?? 1) *
           partners.wild,
       ],
       [
@@ -752,7 +761,8 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
               // (Less the ground they keep as woods: rules/lessons.ts kept-woods. As before where none is.)
               asideWoods > 0 ? c.farm * (1 - asideWoods) : c.farm,
               p.occupation(OCC.farmer),
-              PRODUCTIVITY[OCC.farmer]! * tools * gathers,
+              // (The plough, the share and the mill let each farmer work more ground: rules/tillage.ts.)
+              PRODUCTIVITY[OCC.farmer]! * tools * gathers * till.work,
             ) *
               rain *
               fields *
@@ -1395,7 +1405,13 @@ export function weatherYear(ctx: PopulationContext, t: SimTime): void {
         darkRain(world) *
         frontierRain(world) *
         longRain(ctx, p.cell, yearOfMoment(t)),
-      natural = dmath.clamp(moved * (1 + 0.22 * g), 0.35, 1.6),
+      // (A land its monsoon waters gets its year's rain in one season, and the season fails some years: rules/storms.ts.)
+      monsoon = monsoonOf(
+        ctx.generated.climate.seasonality[p.cell]!,
+        (ctx.generated.grid.lat[p.cell]! * 180) / Math.PI,
+        ctx.generated.climate.inland[p.cell]!,
+      ),
+      natural = dmath.clamp(moved * (1 + 0.22 * (1 + MONSOON.swings * monsoon) * g), 0.35, 1.6),
       rain = act ? natural * actFactor(act.sign > 0, ACT_STRENGTH.rain, act.strength) : natural;
     p.rain = Math.round(rain * 1000);
     if (rain < 0.72) {
@@ -1413,7 +1429,8 @@ export function weatherYear(ctx: PopulationContext, t: SimTime): void {
         importance: rain < 0.55 ? 4 : 3,
         place: p.ref,
         causes,
-        data: { rain: p.rain },
+        data:
+          monsoon >= 0.3 ? { rain: p.rain, monsoon: Math.round(monsoon * 100) } : { rain: p.rain },
       });
     }
   }

@@ -29,6 +29,7 @@ import {
   farStrength,
   farThreat,
   landed,
+  lifeCarried,
   meetingLeans,
   sicknessMet,
   CIRCLE,
@@ -716,6 +717,8 @@ function landingsYear(ctx: PopulationContext, store: FarLifeStore, year: number)
           stay: l.stay,
           comersKnow,
           comersStrength: comers ? farStrength(comers) : 1,
+          // (And the life they brought, where the two worlds' lives can eat each other: rules/landfall.ts lifeCarried.)
+          lifeLost: lifeCarried(l.reading.sickness.can, l.stay),
         }),
         lostShare = 1 - after.people / Math.max(1, before.people),
         event = world.events.emit({
@@ -729,6 +732,7 @@ function landingsYear(ctx: PopulationContext, store: FarLifeStore, year: number)
             lost: Math.round(lostShare * 1000) / 1000,
             dead: l.fight.dead[1],
             won: l.fight.won,
+            life: Math.round(lifeCarried(l.reading.sickness.can, l.stay) * 1000) / 1000,
             year,
           },
         });

@@ -1,11 +1,12 @@
 // The woods' age (the sweep, Nature lane; the rule is rules/succession.ts standStep). Each peopled land whose woods have been cut
 // or have come back keeps their mean age; a land whose woods no one has touched keeps none, and its woods are old growth, at
-// their climax. Stepped with the ecology's year (ecology.ts ecologyYear), off the forest it held before and after. A reading
-// for the land's page: no rule reads it yet.
+// their climax. Stepped with the ecology's year (ecology.ts ecologyYear), off the forest it held before and after. Young woods
+// feed browsers and their hunters the more (rules/succession.ts youngGame): the year's food reads it for a land's game
+// (population/systems.ts foodMonth: standGame, exactly 1 on a land whose woods no one has touched).
 //
 // One number a touched land (tenths of a year). No draw.
 import { type Hasher, type StateStore, type World } from "../../kernel/index.ts";
-import { STAND, standStep } from "../../rules/index.ts";
+import { STAND, standStep, youngGame } from "../../rules/index.ts";
 
 function fold(d: [number, number], xs: readonly number[]): void {
   let a = d[0],
@@ -74,6 +75,12 @@ export function standsOf(world: World): StandStore | null {
 /** A land's woods' mean age (years; old growth where untouched or where the world keeps no stands). */
 export function standAge(world: World, cell: number): number {
   return standsOf(world)?.age(cell) ?? STAND.climax;
+}
+
+/** What a land's woods' age adds to its game: exactly 1 where they are untouched, more where they are young and wide. */
+export function standGame(world: World, cell: number, forest: number): number {
+  const store = standsOf(world);
+  return store?.touched(cell) ? youngGame(store.age(cell), forest) : 1;
 }
 
 /** A year of a land's woods: their share of the land from `before` to `after` (kept only once they have been touched). */

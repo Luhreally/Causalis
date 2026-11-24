@@ -10,9 +10,22 @@ import {
   currentsOf,
   isProvinceWorld,
   offworldSite,
+  worldChemistry,
   type HomeWorld,
 } from "../../gen/index.ts";
-import { BANDS, OCCUPATIONS, SEXES, seasonOf, type Medium } from "../../rules/index.ts";
+import {
+  BANDS,
+  OCCUPATIONS,
+  SEXES,
+  coverOf,
+  crustMultiplier,
+  landUseOf,
+  lightGrowth,
+  rockGrowth,
+  seasonOf,
+  type Cover,
+  type Medium,
+} from "../../rules/index.ts";
 
 export const ROWS = SEXES * BANDS;
 export const COLS = OCCUPATIONS.length;
@@ -29,16 +42,34 @@ export type Capacity = {
   readonly areaKm2: number;
 };
 
-// Food a square kilometre gives foragers, herders and early farmers in a year, by biome.
-const FORAGE: readonly number[] = [
-  0, 0, 0, 0, 0, 0.03, 0.08, 0.02, 0.3, 0.25, 0.28, 0.02, 0.35, 0.35, 0.4, 0.02,
-];
-const ARABLE: readonly number[] = [
-  0, 0, 0, 0, 0, 0, 0.05, 0.02, 0.45, 0.35, 0.25, 0.02, 0.3, 0.28, 0.2, 0.01,
-];
-const PASTURE: readonly number[] = [
-  0, 0, 0, 0, 0, 0.3, 0.1, 0.2, 0.6, 0.2, 0.1, 0.1, 0.5, 0.25, 0.05, 0.2,
-];
+/**
+ * What a world's sky and rock give its growth (rules/biomes.ts): its star's light at its orbit (Earth's 1) and the phosphorus and
+ * potash of its crust against Earth's. A pure reading of the world as made, kept by its digest.
+ */
+type Sky = { readonly light: number; readonly rock: number };
+const SKIES = new Map<string, Sky>();
+export function skyOf(w: HomeWorld): Sky {
+  let s = SKIES.get(w.digest);
+  if (s) return s;
+  const chem = worldChemistry(w);
+  s = {
+    light: w.planet.insolation,
+    rock: rockGrowth(crustMultiplier(chem, "P"), crustMultiplier(chem, "K")),
+  };
+  SKIES.set(w.digest, s);
+  if (SKIES.size > 16) SKIES.delete(SKIES.keys().next().value!);
+  return s;
+}
+
+/** A fine land's cover, its warmth turned `heat` degrees and its rain moved as that warmth moves it (rules/biomes.ts coverOf). */
+export function coverAt(w: HomeWorld, cell: number, heat = 0): Cover {
+  const sky = skyOf(w),
+    t = w.climate.temperature[cell]! + heat,
+    p0 = w.climate.precipitation[cell]!,
+    p = heat ? p0 * rainUnderWarmth(w.grid.lat[cell]!, p0, heat) : p0;
+  return coverOf(t, p, w.climate.seasonality[cell]!, sky.light, sky.rock);
+}
+
 /**
  * What the sea gives a people of the water, a square kilometre, by biome: the shallow
  * shelf is as rich as a tropical forest (reefs, kelp, shellfish beds), the open ocean
@@ -201,7 +232,9 @@ function sea(
       1,
       Math.max(0.3, 0.3 + (0.7 * (w.climate.temperature[cell]! + warmer)) / 18),
     ),
-    k = areaKm2 * warm * share;
+    // (And as its light and the rock its waters wash give the sea's growth: rules/biomes.ts. 1 under Earth's sun, on Earth's rock.)
+    sky = skyOf(w),
+    k = areaKm2 * warm * share * lightGrowth(sky.light) * sky.rock;
   return {
     forage: k * (SEA_FORAGE[biome] ?? 0),
     farm: k * (SEA_ARABLE[biome] ?? 0) * FARM_YIELD,
@@ -271,20 +304,22 @@ export function seasonFactor(w: HomeWorld, cell: number, heat = 0): number {
 }
 
 function land(w: HomeWorld, cell: number, areaKm2: number, biome: number, heat = 0): Capacity {
+  // (Ice gives nothing; a sea's biome on land is a drowned land's, read above.)
+  if (biome <= BIOME.ice || biome === BIOME.halls)
+    return { forage: 0, farm: 0, pasture: 0, areaKm2 };
   const river = w.water.river[cell] === 1,
     // Its seasons against Earth's sky: its fields by the whole of it, its wild and its grass by its root.
     season = seasonFactor(w, cell, heat),
     wild = Math.sqrt(season),
-    // A river greens a dry valley and waters its fields.
-    wet = river
-      ? biome === BIOME.hotDesert || biome === BIOME.coldDesert || biome === BIOME.steppe
-        ? 2.5
-        : 1.3
-      : 1;
+    // What its warmth, rain, seasons, light and rock grow, and how that stands (rules/biomes.ts).
+    cover = coverAt(w, cell, heat),
+    use = landUseOf(cover, w.climate.temperature[cell]! + heat),
+    // A river greens a dry valley and waters its fields: the drier the land, the more (as a desert's, a steppe's).
+    wet = river ? 1.3 + 1.2 * Math.max(0, Math.min(1, (0.7 - cover.moist) / 0.4)) : 1;
   return {
-    forage: areaKm2 * (FORAGE[biome] ?? 0) * wet * wild,
-    farm: areaKm2 * Math.min(0.6, (ARABLE[biome] ?? 0) * wet) * FARM_YIELD * season,
-    pasture: areaKm2 * (PASTURE[biome] ?? 0) * HERD_YIELD * wild,
+    forage: areaKm2 * use.forage * wet * wild,
+    farm: areaKm2 * Math.min(0.6, use.arable * wet) * FARM_YIELD * season,
+    pasture: areaKm2 * use.pasture * HERD_YIELD * wild,
     areaKm2,
   };
 }

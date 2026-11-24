@@ -25,6 +25,7 @@ import { groundOf, landSlope } from "../ecology/ground.ts";
 import { ecologyOf } from "../ecology/ecology.ts";
 import { lessened } from "../lore/lessons-store.ts";
 import { switchedOff } from "../acts/switches.ts";
+import { riverAfterFlood } from "./rivers.ts";
 
 const FLOODS = defineStream("planet.floods");
 
@@ -186,6 +187,8 @@ export function floodsYear(ctx: PopulationContext, t: SimTime): void {
       },
     });
     grieve(world, cell, 0.05 * Math.min(3, size), event);
+    // (A great flood on a flat plain may leave its river in a new bed: planet/rivers.ts.)
+    riverAfterFlood(ctx, cell, size, landSlope(ctx, cell), event, t);
     store.floods.push({
       cell,
       year,

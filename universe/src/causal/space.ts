@@ -391,6 +391,7 @@ type FarLifeData = {
   dead?: number;
   won?: boolean;
   why?: string;
+  life?: number;
 };
 const farName = (d: FarLifeData) => `the ${d.name ?? "far people"}`;
 const pct = (x: number | undefined) => `${Math.round((x ?? 0) * 100)}%`;
@@ -420,5 +421,5 @@ registerEventWords(FARLIFE_EVENTS.sickened.type, (_world, e) => {
 });
 registerEventWords(FARLIFE_EVENTS.struck.type, (_world, e) => {
   const d = (e.data ?? {}) as FarLifeData;
-  return `A landing struck ${farName(d)}: ${(d.sick ?? 0) > 0 ? `a sickness they had never met took ${pct(d.sick)} of those near where it came down, ` : ""}${count(d.dead ?? 0)} fell fighting${d.won ? " and the comers held the ground" : " and the comers were thrown back"}; of all of them, ${pct(d.lost)} were lost, year ${yearOfMoment(e.t)}`;
+  return `A landing struck ${farName(d)}: ${(d.sick ?? 0) > 0 ? `a sickness they had never met took ${pct(d.sick)} of those near where it came down, ` : ""}${count(d.dead ?? 0)} fell fighting${d.won ? " and the comers held the ground" : " and the comers were thrown back"}${(d.life ?? 0) > 0 ? `; the seeds, weeds and vermin they brought took hold, and ${pct(d.life)} of their food went short` : ""}; of all of them, ${pct(d.lost)} were lost, year ${yearOfMoment(e.t)}`;
 });

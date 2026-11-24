@@ -19,8 +19,26 @@ import {
   type StateStore,
   type World,
 } from "../../kernel/index.ts";
-import { G, fieldsUnder, rainUnder } from "../../rules/index.ts";
-import { meansNumbers, planetRef, type HomeWorld } from "../../gen/index.ts";
+import {
+  CARBON_CYCLE,
+  G,
+  fieldsUnder,
+  rainUnder,
+  restingCarbon,
+  seasSoured,
+  shellsLeft,
+  tailShare,
+  wornShare,
+  type CarbonWorld,
+} from "../../rules/index.ts";
+import {
+  isProvinceWorld,
+  meansNumbers,
+  planetRef,
+  starAgeGyr,
+  worldKindOf,
+  type HomeWorld,
+} from "../../gen/index.ts";
 import { divineWarming } from "../acts/great.ts";
 import { provinceCapacity, type PopulationContext } from "../population/systems.ts";
 import type { MarketStore } from "../economy/market.ts";
@@ -34,6 +52,10 @@ export const AIR_EVENTS = {
   drier: defineEventType("climate.drier", 4),
   wetter: defineEventType("climate.wetter", 4),
   smoke: defineEventType("people.smoke", 3),
+  /** The seas grown another tenth of a pH more acid with the carbon they took up. */
+  soured: defineEventType("climate.seas-soured", 4),
+  /** The frozen ground thawing: another ten parts in a million of its carbon rotted into the air. */
+  thawing: defineEventType("climate.ground-thawing", 4),
 };
 
 /** Carbon in the air before anyone burned or cleared, in parts per million. */
@@ -83,6 +105,19 @@ export type Air = {
   /** Last year's carbon from fuel and from clearing (ppm). */
   burned: number;
   cleared: number;
+  /**
+   * Where its air rests (ppm: its weathering against its fire below, rules/carbon.ts), what has been put in it that its rock has
+   * not yet worn away (ppm), how much of its frozen ground's carbon has thawed and how much of that has rotted into the air (ppm),
+   * and the tenths of a pH its seas' souring and the tens of ppm its thaw have been told at. Absent on a save from before: it
+   * rests where it is first read and none of these has begun.
+   */
+  rest?: number;
+  added?: number;
+  thawed?: number;
+  rotted?: number;
+  sourTold?: number;
+  thawTold?: number;
+  lastSoured?: Ref | null;
 };
 
 export class AirStore implements StateStore {
@@ -257,6 +292,86 @@ export function rawSmoke(ctx: PopulationContext, cell: number): number {
   return Math.min(1, (SMOKE_PER_FUEL * fuel) / n / people);
 }
 
+/** What a world's weathering and frozen ground are, read once off its ground as made (kept by its digest: a pure reading). */
+export type CarbonRead = {
+  readonly facts: CarbonWorld;
+  /** Its frozen ground's lands' warmth, warmest first, and the carbon of the frozen ground as warm as each or warmer (ppm). */
+  readonly frozenWarmth: Float32Array;
+  readonly frozenPpm: Float64Array;
+};
+const CARBON_READ = new Map<string, CarbonRead>();
+export function carbonWorld(g0: HomeWorld): CarbonRead {
+  let r = CARBON_READ.get(g0.digest);
+  if (r) return r;
+  const g = isProvinceWorld(g0) ? g0.fine : g0,
+    radius = 6371 * g.planet.radius,
+    frozen: [number, number][] = [];
+  let face = 0,
+    land = 0,
+    warmth = 0,
+    rain = 0;
+  for (let c = 0; c < g.grid.count; c++) {
+    const a = g.grid.areas[c]!;
+    face += a;
+    if (g.tectonics.elevation[c]! <= 0) continue;
+    const t = g.climate.temperature[c]!;
+    land += a;
+    warmth += a * t;
+    rain += a * g.climate.precipitation[c]!;
+    if (t < CARBON_CYCLE.frozen && t > CARBON_CYCLE.frozenCold)
+      frozen.push([t, a * radius * radius * CARBON_CYCLE.frozenPpmKm2]);
+  }
+  frozen.sort((x, y) => y[0] - x[0]);
+  const frozenWarmth = new Float32Array(frozen.length),
+    frozenPpm = new Float64Array(frozen.length);
+  let sum = 0;
+  frozen.forEach(([t, ppm], i) => {
+    sum += ppm;
+    frozenWarmth[i] = t;
+    frozenPpm[i] = sum;
+  });
+  // (Its fire below: as its plates carry its mantle's heat up, waning with its age as its interior cools.)
+  const plates = g.tectonics.plates.length > 1 ? 1 : 0.3,
+    age = Math.max(0.5, starAgeGyr(g.star));
+  r = {
+    facts: {
+      land: land / Math.max(1e-9, face),
+      warmth: land > 0 ? warmth / land : 0,
+      rain: land > 0 ? rain / land : 0,
+      outgas: plates * dmath.clamp(dmath.pow(4.6 / age, 0.5), 0.5, 2),
+      // (Only water weathers rock to stone: the rocky world's liquid, rules/kinds.ts.)
+      weathers: worldKindOf(g) === "rocky",
+    },
+    frozenWarmth,
+    frozenPpm,
+  };
+  CARBON_READ.set(g0.digest, r);
+  if (CARBON_READ.size > 8) CARBON_READ.delete(CARBON_READ.keys().next().value!);
+  return r;
+}
+
+/** The carbon of a world's frozen ground a warming has thawed (ppm): its high latitudes warm the faster (CARBON_CYCLE.polar). */
+export function thawedPpm(r: CarbonRead, warming: number): number {
+  if (!(warming > 0) || !r.frozenWarmth.length) return 0;
+  const line = CARBON_CYCLE.frozen - CARBON_CYCLE.polar * warming;
+  let lo = 0,
+    hi = r.frozenWarmth.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (r.frozenWarmth[mid]! >= line) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo ? r.frozenPpm[lo - 1]! : 0;
+}
+
+/** What its seas' souring leaves of a sea's food (1 at rest, and on a world whose liquid weathers no rock). */
+export function seaShells(world: World): number {
+  if (!world.hasStore("climate.air")) return 1;
+  const air = airOf(world).air;
+  if (air.rest === undefined || air.carbon <= air.rest * 1.07) return 1;
+  return shellsLeft(seasSoured(air.carbon, air.rest));
+}
+
 /** The air's year: what was burned and cleared, what was taken back, how far the world warmed, and what that did. */
 export function airYear(ctx: PopulationContext, t: SimTime): void {
   const { world } = ctx,
@@ -302,11 +417,29 @@ export function airYear(ctx: PopulationContext, t: SimTime): void {
   }
   air.burned = burned;
   air.cleared = cleared;
-  air.carbon = Math.max(
-    FIRST_CARBON,
-    air.carbon + burned + cleared - SINK * (air.carbon - FIRST_CARBON),
-  );
-  const toward = SENSITIVITY * dmath.log2(air.carbon / FIRST_CARBON);
+  // (Where its air rests, read once, and its carbon moved with it: rules/carbon.ts.)
+  const cw = carbonWorld(ctx.generated);
+  if (air.rest === undefined) {
+    air.rest = restingCarbon(cw.facts);
+    air.carbon += air.rest - FIRST_CARBON;
+  }
+  const rest = air.rest,
+    // What its frozen ground gives up: the carbon of the ground a warming has thawed rots a little each year.
+    thawed = Math.max(air.thawed ?? 0, thawedPpm(cw, air.warming)),
+    rotting = CARBON_CYCLE.rots * (thawed - (air.rotted ?? 0)),
+    rotted = (air.rotted ?? 0) + rotting;
+  air.thawed = thawed;
+  air.rotted = rotted;
+  // What has been put in from outside the living world (fuel dug and burned, old frozen carbon rotted) and not yet worn away by
+  // its rock: its seas take all but a share of that back within decades. (A wood cleared is the living world's own carbon, and
+  // the seas and the woods coming back take it all back, as they always did.)
+  const put = burned + cleared + rotting,
+    old = burned + rotting,
+    added = Math.max(0, (air.added ?? 0) + old - wornShare(cw.facts) * (air.added ?? 0)),
+    floor = rest + tailShare(added, rest) * added;
+  air.added = added;
+  air.carbon = Math.max(rest, air.carbon + put - SINK * (air.carbon - floor));
+  const toward = SENSITIVITY * dmath.log2(air.carbon / rest);
   air.warming += WARMING_PACE * (toward - air.warming);
 
   // Each half degree is told, with the lands that burned (three) and cleared (two) most
@@ -332,6 +465,37 @@ export function airYear(ctx: PopulationContext, t: SimTime): void {
       data: {
         warming: Math.round(air.warming * 10) / 10,
         carbon: Math.round(air.carbon),
+      },
+    });
+  }
+
+  // Its seas soured by each tenth of a pH, and its frozen ground's carbon told by each ten parts in a million rotted.
+  if (cw.facts.weathers && air.lastWarmer) {
+    const sour = seasSoured(air.carbon, rest);
+    if (sour >= ((air.sourTold ?? 0) + 1) * 0.1) {
+      air.sourTold = Math.floor(sour * 10);
+      const causes: CauseRef[] = [{ ref: air.lastWarmer, role: "trigger", weight: 0.7 }];
+      if (air.lastSoured) causes.push({ ref: air.lastSoured, role: "enabler", weight: 0.3 });
+      air.lastSoured = world.events.emit({
+        type: AIR_EVENTS.soured.type,
+        causes,
+        data: {
+          ph: Math.round(sour * 100) / 100,
+          carbon: Math.round(air.carbon),
+          shells: Math.round(100 * shellsLeft(sour)),
+        },
+      });
+    }
+  }
+  if (rotted >= ((air.thawTold ?? 0) + 1) * 10 && air.lastWarmer) {
+    air.thawTold = Math.floor(rotted / 10);
+    world.events.emit({
+      type: AIR_EVENTS.thawing.type,
+      causes: [{ ref: air.lastWarmer, role: "trigger", weight: 1 }],
+      data: {
+        rotted: Math.round(rotted),
+        thawed: Math.round(thawed),
+        warming: Math.round(air.warming * 10) / 10,
       },
     });
   }

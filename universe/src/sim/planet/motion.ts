@@ -13,6 +13,9 @@ import {
   YEAR,
   Hasher,
   dmath,
+  finish,
+  hashString,
+  mix,
   defineEventType,
   yearOfMoment,
   type CauseRef,
@@ -50,6 +53,9 @@ import {
   starLifetime,
   swellOf,
   DOSE_DEATHS,
+  cyclesOf,
+  summerWarmth,
+  type Cycles,
   type Magnetosphere,
   type StarLife,
 } from "../../rules/index.ts";
@@ -406,6 +412,37 @@ export function starEnded(world: World, star: Ref): StarEnd | null {
 
 // —— The year ———————————————————————————————————————————————————————————————————————————————————————
 
+// (A world's slow swings, read once off its star, its orbit, its moons and the planets and companion that tug it: kept by digest.)
+const CYCLES = new Map<string, Cycles>();
+/** A home world's slow swings (rules/cycles.ts): its tilt's nod, its ellipse's breathing, its precession. */
+export function homeCycles(g: HomeWorld): Cycles {
+  let c = CYCLES.get(g.digest);
+  if (c) return c;
+  const bodies = g.system.bodies,
+    home = bodies[0]!,
+    key = hashString(`cycles ${g.ground}`),
+    phase = (k: number) => (finish(mix(key, k), 11) / 4294967296) * 2 * Math.PI,
+    // (An Earth mass is some three millionths of the Sun's.)
+    tuggers = bodies
+      .filter((b) => b.index > 0 && b.kind !== "moon")
+      .map((b) => ({ mass: b.mass * 3.003e-6, a: b.orbit.a }));
+  if (g.system.companion) tuggers.push({ mass: g.system.companion.mass, a: g.system.companion.a });
+  c = cyclesOf({
+    starMass: g.star.mass,
+    orbitAu: g.planet.orbitAu,
+    dayHours: g.planet.dayHours,
+    ecc: home.orbit.e,
+    moons: bodies
+      .filter((b) => b.kind === "moon" && b.orbit.around === home.ref)
+      .map((b) => ({ mass: b.mass, a: b.orbit.a })),
+    tuggers,
+    phases: [phase(1), phase(2), phase(3)],
+  });
+  CYCLES.set(g.digest, c);
+  if (CYCLES.size > 8) CYCLES.delete(CYCLES.keys().next().value!);
+  return c;
+}
+
 /** The kelvin a degree of a world's climate is. */
 const kOf = (g: HomeWorld) => kelvinPerDegree(worldKindOf(g));
 
@@ -535,11 +572,17 @@ export function motionYear(world: World, t: SimTime, years = 1): void {
     stepped: number[] = [];
   let melt = 0,
     flips = 0;
+  // (Its slow swings: the summers of its high latitudes, each hemisphere's, against the year its chronicle opened. rules/cycles.ts.)
+  const cycles = homeCycles(g),
+    summerN = summerWarmth(cycles, year, true),
+    summerS = summerWarmth(cycles, year, false);
   for (let i = 0; i < store.cells.length; i++) {
     const c = store.cells[i]!;
     if ((c + year) % ICE_STEP !== 0 && years < ICE_STEP) continue;
-    const span = years < ICE_STEP ? ICE_STEP : years,
-      mean = g.climate.temperature[c]! + warm,
+    const lat = g.grid.lat[c]!,
+      swung = (lat >= 0 ? summerN : summerS) * Math.abs(dmath.sin(lat)),
+      span = years < ICE_STEP ? ICE_STEP : years,
+      mean = g.climate.temperature[c]! + warm + swung,
       balance = iceBalance(mean, g.climate.seasonality[c]!, g.climate.precipitation[c]! * rainK, k),
       // (Below the line a sheet grows as its snow lets it; above, it only wastes.)
       b = mean < ICE.line ? Math.max(0, balance) : Math.min(0, balance),

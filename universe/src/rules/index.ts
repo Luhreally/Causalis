@@ -35,7 +35,9 @@ export {
 } from "./nature.ts";
 export { resolveCombat, type CombatSide, type CombatFrame, type CombatRecord } from "./combat.ts";
 export {
+  LIFE_CARRIED,
   landfallFight,
+  lifeCarried,
   nativeHost,
   sicknessCrossed,
   sicknessMet,
@@ -1836,3 +1838,9 @@ export { CIRCLE, bodyLikeness, circleLeans, circleWords, moralCircle } from "./c
 // Where sicknesses arise (2026-11-23): a land's forces, herds, wild, crowds and warm water, and the people's kin among the beasts.
 export * from "./spillover.ts";
 export * from "./demography.ts";
+export * from "./biomes.ts";
+export * from "./carbon.ts";
+export * from "./cycles.ts";
+export * from "./storms.ts";
+export * from "./tillage.ts";
+export * from "./rivers.ts";

@@ -60,6 +60,7 @@ import "./ecology.ts";
 import "./languages.ts";
 import "./climate.ts";
 import "./nature.ts";
+import "./planet-breadth.ts";
 import "./space.ts";
 import "./frontier.ts";
 import "./order.ts";

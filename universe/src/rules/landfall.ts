@@ -408,3 +408,17 @@ export function landfallFight(
     terms,
   };
 }
+
+/**
+ * Life carried between worlds (breadth round, 2026-11-23): those who come down bring their world's seeds, weeds, vermin and beasts
+ * in their holds and on their bodies. Where the two worlds' lives are of one liquid and one make, so that each can eat the other
+ * (the same test a sickness crosses by), what came takes hold in the natives' fields and wilds as any life does on ground with
+ * nothing fitted to resist it (rules/exchange.ts: pests on fields that never met them), and their food goes short; where they
+ * cannot eat each other, nothing of it takes hold. Those who stay bring the most.
+ */
+export const LIFE_CARRIED = { stay: 0.08, passing: 0.015 } as const;
+
+/** The share of a native people's food the life the comers brought takes (0 where the lives cannot eat each other). */
+export function lifeCarried(canCross: boolean, stay: boolean): number {
+  return canCross ? (stay ? LIFE_CARRIED.stay : LIFE_CARRIED.passing) : 0;
+}

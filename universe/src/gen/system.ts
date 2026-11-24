@@ -13,6 +13,8 @@ import {
   KINDS,
   orbitXY,
   bodyPull,
+  companionOf,
+  type Companion,
   yearUnder,
   type Prior,
   type Range,
@@ -72,6 +74,8 @@ export type StarSystem = {
   readonly frostLine: number;
   /** Every body: the home world first, the other planets outward, then the moons. */
   readonly bodies: readonly SystemBody[];
+  /** Its star's companion, where it was born with one far enough off to leave the home world its orbit (rules/cycles.ts). */
+  readonly companion?: Companion;
 };
 
 /** The thermal speed of nitrogen at 300 K, km/s: a body must hold six times its air's to keep it. */
@@ -395,7 +399,15 @@ export function makeSystem(rng: Rng, prior: Prior, star: Star, home: Planet): St
       m++;
     }
   }
-  return { frostLine, bodies };
+  // (Its star's companion, on keyed draws of their own: the bodies above are drawn as they always were.)
+  const companion = companionOf(star, home.orbitAu, [
+    rng.real(SYSTEM, 7777, 0, 0, 0),
+    rng.real(SYSTEM, 7777, 0, 0, 1),
+    rng.real(SYSTEM, 7777, 0, 0, 2),
+    rng.real(SYSTEM, 7777, 0, 0, 3),
+    rng.real(SYSTEM, 7777, 0, 0, 4),
+  ]);
+  return companion ? { frostLine, bodies, companion } : { frostLine, bodies };
 }
 
 /** Where a body is at sim time t (seconds): about the star, in AU, in the plane of the system. */

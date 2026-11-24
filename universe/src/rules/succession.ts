@@ -46,7 +46,21 @@ export function regrowthPace(base: number, warm: number, rainMm: number): number
 export const STAND = {
   /** The mean age of old woods let alone (years, est: temperate and tropical old growth, trees of 100 to 400 years). */
   climax: 250,
+  /**
+   * What young woods add to a land's game, wholly young and wholly wooded (est: a cut or burned wood's first decades of shoots,
+   * shrubs and edges feed browsers and their hunters some half again over a closed old canopy), and the years over which the
+   * gain fades by e as the canopy closes.
+   */
+  young: 0.5,
+  youngYears: 20,
 } as const;
+
+/** What a land's woods' age adds to its game (1 at old growth): young regrowth browses the more, by its share of the land. */
+export function youngGame(age: number, forest: number): number {
+  return (
+    1 + STAND.young * dmath.clamp(forest, 0, 1) * dmath.exp(-Math.max(0, age) / STAND.youngYears)
+  );
+}
 
 /** A land's woods' mean age after `years`, their share of the land going from `before` to `after`. */
 export function standStep(age: number, before: number, after: number, years = 1): number {
