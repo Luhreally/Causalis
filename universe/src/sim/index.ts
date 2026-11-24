@@ -125,6 +125,7 @@ export {
   SMOKES,
   energyInputs,
   energyBooks,
+  richestFuelMj,
   energyPerHead,
   engineCarried,
   fuelTonnes,

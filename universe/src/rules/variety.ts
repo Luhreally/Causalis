@@ -114,6 +114,40 @@ export function blendIn(
   }
 }
 
+/**
+ * A class's stock with `took` units just burned from it, `ofKind` of them of one blended kind chosen before the rest (wood
+ * from a market is burned by hearths before coal: rules/energy.ts): every share as it now stands. `stock` is the class's stock
+ * with them gone. The rest of what was taken came of the other kinds alike.
+ */
+export function blendOut(
+  blend: number[],
+  cls: number,
+  stock: number,
+  took: number,
+  kind: FuelKind,
+  ofKind: number,
+): void {
+  const at = BLENDED.indexOf(kind);
+  if (at < 0 || FUEL_CLASS[kind] !== cls || !(took > 0)) return;
+  if (!(stock > 0)) {
+    for (let i = 0; i < BLENDED.length; i++) if (FUEL_CLASS[BLENDED[i]!] === cls) blend[i] = 0;
+    return;
+  }
+  const before = stock + took,
+    kindBefore = (blend[at]! / BLEND_WHOLE) * before,
+    kindAfter = Math.min(stock, Math.max(0, kindBefore - Math.min(took, ofKind))),
+    restBefore = before - kindBefore,
+    kept = restBefore > 0 ? (stock - kindAfter) / restBefore : 0;
+  for (let i = 0; i < BLENDED.length; i++) {
+    if (FUEL_CLASS[BLENDED[i]!] !== cls) continue;
+    blend[i] = Math.round(
+      i === at
+        ? (kindAfter / stock) * BLEND_WHOLE
+        : (((blend[i]! / BLEND_WHOLE) * before * kept) / stock) * BLEND_WHOLE,
+    );
+  }
+}
+
 /** A class's stock by kind as shares of one, from a market's blend. */
 export function blendMix(
   blend: readonly number[],

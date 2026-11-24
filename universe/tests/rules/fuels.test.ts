@@ -10,6 +10,7 @@ import {
   GOODS,
   RECIPES,
   blendBulk,
+  blendOut,
   coldOf,
   hearthAt,
   energyAccount,
@@ -159,4 +160,20 @@ test("the need for warmth is the body's: a people is cold below the warmth it wa
   assert.equal(coldOf(30), 0);
   assert.equal(coldOf(0, hearthAt(5, true)), 0);
   assert.ok(coldOf(0) > 0.5);
+});
+
+test("wood burned from a mixed stock leaves less wood in it: its share falls by what was chosen first", () => {
+  const at = BLENDED.indexOf("wood"),
+    blend = BLENDED.map((k) => (k === "wood" ? BLEND_WHOLE / 2 : 0));
+  // 100 units, half wood; 40 burned, 30 of them wood: 20 wood left in 60.
+  blendOut(blend, G.coal, 60, 40, "wood", 30);
+  assert.ok(Math.abs(blend[at]! / BLEND_WHOLE - 20 / 60) < 1e-5, `${blend[at]}`);
+  // All of it burned: none left.
+  blendOut(blend, G.coal, 40, 20, "wood", 20);
+  assert.equal(blend[at], 0);
+  // Sulphur beside it keeps its weight among what is not wood.
+  const mixed = BLENDED.map((k) => (k === "wood" ? 400_000 : k === "sulphur" ? 300_000 : 0));
+  blendOut(mixed, G.coal, 80, 20, "wood", 20);
+  assert.ok(Math.abs(mixed[at]! / BLEND_WHOLE - 20 / 80) < 1e-5);
+  assert.ok(Math.abs(mixed[BLENDED.indexOf("sulphur")]! / BLEND_WHOLE - 30 / 80) < 1e-5);
 });

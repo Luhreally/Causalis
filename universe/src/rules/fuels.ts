@@ -61,11 +61,21 @@ export type FuelHere = {
 
 /** A fuel on a world whose air holds these to burn with (null: it gives no heat there, and is no fuel). */
 export function fuelHere(kind: FuelKind, oxidants: readonly Oxidant[]): FuelHere | null {
-  const h = bestHeat(FUEL_MAKEUP[kind]!, oxidants);
-  if (!h.by || !(h.mj > 0)) return null;
-  const unitKg = FUEL_UNIT_MJ / h.mj;
-  return { kind, cls: FUEL_CLASS[kind], mj: h.mj, by: h.by, unitKg, won: WON_KG[kind] / unitKg };
+  const key = `${kind}:${oxidants.join("+")}`;
+  let f = HERE.get(key);
+  if (f === undefined) {
+    const h = bestHeat(FUEL_MAKEUP[kind]!, oxidants);
+    if (!h.by || !(h.mj > 0)) f = null;
+    else {
+      const unitKg = FUEL_UNIT_MJ / h.mj;
+      f = { kind, cls: FUEL_CLASS[kind], mj: h.mj, by: h.by, unitKg, won: WON_KG[kind] / unitKg };
+    }
+    HERE.set(key, f);
+  }
+  return f;
 }
+/** (Each fuel in each air, read once: a few kinds, a few airs.) */
+const HERE = new Map<string, FuelHere | null>();
 
 /** Every fuel a world's air burns, the richest a kilogram first: what its fuel slot can hold at all. */
 export function fuelsHere(oxidants: readonly Oxidant[]): FuelHere[] {

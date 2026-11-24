@@ -18,6 +18,17 @@ const world = U.build(k.seedFromText(seed)),
   first = new Map<string, number>(),
   pops: [number, number][] = [],
   started = performance.now();
+const FORCES = [
+    "its ore in its own ground",
+    "its ore from a neighbour or a road",
+    "a heat well past what it asks",
+    "the heat in the fuel at hand",
+    "no fuel at hand",
+    "hands its food leaves free",
+    "the sickness it has met and set down",
+  ],
+  forces = new Map<string, { n: number; up: number; down: number }>();
+let finds = 0;
 const fuels: Record<string, number>[] = [];
 /** The fuel slot as it stood in a year: who cut or gathered, what was burned of it, what crossed a border, what it fetched. */
 function fuelLine(y: number): void {
@@ -95,6 +106,21 @@ for (let y = 10; y <= to; y += 10) {
       for (const c of lore.knowers(p.id)) at = Math.min(at, lore.get(c, p.id)!.year);
       first.set(p.id, at);
     }
+  // (Each finding of the decade: which forces of what it had to find things with bent it, rules/substrate.ts.)
+  const kept = world.decisions.all();
+  for (let i = kept.length - 1; i >= 0 && kept[i]!.t > (y - 10) * k.YEAR; i--) {
+    const d = kept[i]!;
+    if (d.rule !== "lore.find") continue;
+    finds++;
+    for (const f of d.factors)
+      if (FORCES.includes(f.name)) {
+        const row = forces.get(f.name) ?? { n: 0, up: 0, down: 0 };
+        row.n++;
+        if (f.contribution > 0) row.up++;
+        else row.down++;
+        forces.set(f.name, row);
+      }
+  }
   if (y % 100 === 0) fuelLine(y);
   if (y % 100 === 0)
     console.log(
@@ -119,6 +145,9 @@ console.log(`${seedArg} to ${to}: take-off ${takeoff}, doubled since 600 by ${do
 console.log(
   `  healing: ${["herbalism", "medicine", "sanitation", "germs", "vaccines", "quarantine"].map((id) => `${id} ${first.get(id) ?? "-"}`).join(", ")}`,
 );
+console.log(
+  `  findings ${finds}; bent by: ${[...forces].map(([n, r]) => `${n} ${r.n} (${r.up} up, ${r.down} down)`).join("; ")}`,
+);
 console.log(`  order: ${order.map(([id, y]) => `${id}@${y}`).join(" ")}`);
 if (out)
   writeFileSync(
@@ -131,5 +160,7 @@ if (out)
       first: Object.fromEntries(first),
       pops,
       fuels,
+      finds,
+      forces: Object.fromEntries(forces),
     }),
   );

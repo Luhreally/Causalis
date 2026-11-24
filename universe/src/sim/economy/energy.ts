@@ -27,9 +27,12 @@ import {
   FUEL_UNIT_KWY,
   GLUT_YEARS,
   BLENDED,
+  BLEND_WHOLE,
+  FUEL_KINDS,
   GOODS,
   blendIn,
   blendMix,
+  blendOut,
   fuelHere,
   hearthAt,
   G,
@@ -87,7 +90,7 @@ import { ecologyOf } from "../ecology/ecology.ts";
 import { woodsRead } from "../ecology/woods.ts";
 import { groundOf } from "../ecology/ground.ts";
 import { furnaceHeat } from "./heat.ts";
-import type { Market } from "./market.ts";
+import type { Market, MarketStore } from "./market.ts";
 
 /** A land's last year of energy, as kept: kW and kW·yr, whole; a share in thousandths. */
 export type EnergyLand = {
@@ -265,6 +268,32 @@ export function fuelWonOf(ctx: PopulationContext, m: Market): readonly number[] 
 }
 const WON: number[] = new Array<number>(GOODS.length).fill(0),
   WOOD_BLEND = BLENDED.indexOf("wood");
+
+/**
+ * The heat a kilogram of the richest fuel a land has at hand gives in its world's air (MJ/kg; rules/fuels.ts): of what its
+ * market's fuel classes hold, by kind, and its own standing woods. 0: none at hand; -1: nothing burns on its world. What a
+ * people has to find engines with (rules/substrate.ts).
+ */
+export function richestFuelMj(ctx: PopulationContext, cell: number): number {
+  const oxidants = oxidantsOf(meansNumbers(ctx.generated));
+  if (!oxidants.length) return -1;
+  let best = 0;
+  const m = ctx.world.store<MarketStore>("economy.markets").get(cell);
+  if (m)
+    for (const k of FUEL_KINDS) {
+      const cls = FUEL_CLASS[k];
+      if (!(m.stock[cls]! > 0)) continue;
+      // (A class's first kind is what its blend leaves; the others, their own shares.)
+      const at = BLENDED.indexOf(k);
+      let share = at >= 0 ? m.blend[at]! : BLEND_WHOLE;
+      if (at < 0)
+        for (let i = 0; i < BLENDED.length; i++)
+          if (FUEL_CLASS[BLENDED[i]!] === cls) share -= m.blend[i]!;
+      if (share > 0) best = Math.max(best, fuelHere(k, oxidants)?.mj ?? 0);
+    }
+  if (best < 20 && woodsRead(ctx, cell).now > 0) best = Math.max(best, siteOf(ctx, cell).woodMj);
+  return best;
+}
 
 /** Wood's place among the carriers. */
 const WOOD_AT = CARRIERS.indexOf("wood");
@@ -632,6 +661,9 @@ export function energyYear(
   const ownSolid = inputs.ownKwy > 0 ? a.own * solidOwnShare(inputs, m) : 0,
     coal = m.take("used", G.coal, Math.round((a.coal + ownSolid + a.cut) / FUEL_UNIT_KWY)),
     oil = m.take("used", G.oil, Math.round((a.oil + a.gas + a.own - ownSolid) / FUEL_UNIT_KWY));
+  // (The wood it burned was chosen before the rest of its solid class: its share of what is left falls by it.)
+  if (a.cut > 0 && coal > 0)
+    blendOut(m.blend, G.coal, m.stock[G.coal]!, coal, "wood", a.cut / FUEL_UNIT_KWY);
   // (What it wants: all the buried fuel its hearths and engines would have burned, as coal, the fuel a market first digs.)
   want[G.coal] = want[G.coal]! + Math.round(a.fuelWanted / FUEL_UNIT_KWY);
   if (a.felled > 0) fellWoods(ctx, p.cell, a.felled);

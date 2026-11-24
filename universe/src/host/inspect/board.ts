@@ -4,12 +4,18 @@
 // land reads one price for a good; what differs town by town is what it is known for, each from its own tile of its land.
 import { landTastesBlocks } from "./tastes.ts";
 import { priceWords } from "../../causal/index.ts";
-import { BIOME, meansNumbers, surfaceOre, worldChemistry, WATER } from "../../gen/index.ts";
+import {
+  BIOME,
+  meansNumbers,
+  meansOfWorld,
+  surfaceOre,
+  worldChemistry,
+  WATER,
+} from "../../gen/index.ts";
 import type { Block, BoardRow, Line, PageModel, Span, Stat, Tab } from "../../bridge/index.ts";
 import type { Ref, World } from "../../kernel/index.ts";
 import {
   COIN_A_UNIT,
-  FUEL_CLASS,
   FUEL_NOUNS,
   G,
   GOODS,
@@ -18,6 +24,7 @@ import {
   fuelsHere,
   oxidantsOf,
   roleWord,
+  type FuelHere,
   type FuelKind,
 } from "../../rules/index.ts";
 import {
@@ -92,6 +99,27 @@ export function goodName(world: World, good: number, m?: Market | null): string 
     : g.name;
 }
 
+/**
+ * The fuels a world can have at all (rules/fuels.ts): what its air burns, of what its ground, its air or its life holds, the
+ * richest a kilogram first.
+ */
+export function worldFuels(world: World): FuelHere[] {
+  const g = populationContext(world).generated,
+    n = meansNumbers(g),
+    holds = (k: FuelKind) =>
+      k === "coal" || k === "oil"
+        ? g.deep[k].some((x) => x > 0)
+        : k === "gas"
+          ? g.deep.oil.some((x) => x > 0)
+          : k === "haze"
+            ? n.airHolds.includes("hydrogen")
+            : k === "sulphur"
+              ? n.airHolds.includes("so2")
+              : // (Wood, where its people keep a fire at all: sim/economy/energy.ts cuts none elsewhere.)
+                g.life.species.length > 0 && meansOfWorld(g).burns;
+  return fuelsHere(oxidantsOf(n)).filter((f) => holds(f.kind));
+}
+
 /** (A world's fuel classes' names as its markets stood in a year: read once a year a world.) */
 const FUEL_NAMES = new WeakMap<World, { year: number; names: Map<number, string> }>();
 const firstKind = (cls: number): FuelKind => (cls === G.oil ? "oil" : "coal");
@@ -117,20 +145,9 @@ function fuelName(world: World, cls: number, m: Market | null): string {
       for (const k in mix) mix[k as FuelKind] = mix[k as FuelKind]! / all;
       name = fillingName(mix, cls);
     } else {
-      // None anywhere yet: the richest of what this world's air burns and its ground or life holds of the class.
-      const g = populationContext(world).generated,
-        n = meansNumbers(g),
-        holds = (k: FuelKind) =>
-          k === "coal" || k === "oil"
-            ? g.deep[k].some((x) => x > 0)
-            : k === "gas"
-              ? g.deep.oil.some((x) => x > 0)
-              : k === "haze"
-                ? n.airHolds.includes("hydrogen")
-                : k === "sulphur"
-                  ? n.airHolds.includes("so2")
-                  : g.life.species.length > 0,
-        first = fuelsHere(oxidantsOf(n)).find((f) => FUEL_CLASS[f.kind] === cls && holds(f.kind));
+      // None anywhere yet: the richest of what this world's air burns and its ground or life holds of the class (one that
+      // only comes up with another, last).
+      const first = worldFuels(world).find((f) => f.cls === cls && Number.isFinite(f.won));
       name = first ? FUEL_NOUNS[first.kind] : GOODS[cls]!.name;
     }
     kept.names.set(cls, name);
