@@ -43,7 +43,6 @@ import {
   OCC,
   adultHazard,
   civicsHeld,
-  civicsPaying,
   keptFixed,
   keptPeople,
   keptPeopleBy,
@@ -314,6 +313,10 @@ export class TownStore implements StateStore {
   readonly ashen = new Set<Fabric>();
   /** (Of towns wary of floods, their open runs that hold only flood ground: a cache, never saved. homeOpen) */
   readonly flooded = new Map<Ref, Flooded>();
+  /** (Of towns let fall from the top, the lot from which up no home stands: shrink's reading, a cache, never saved. bareFrom) */
+  readonly bare = new Map<Fabric, number>();
+  /** (Each town's name as the digest folds it, hashed once: a cache, never saved.) */
+  private readonly named = new Map<Ref, number>();
   /** Every change folded in as it is made, for the checkpoints: two lanes of the kernel's absorber. */
   private a = 0x2545f491 | 0;
   private b = 0x6a09e667 | 0;
@@ -345,7 +348,8 @@ export class TownStore implements StateStore {
   fold(town: Ref, ...values: number[]): void {
     let a = this.a,
       b = this.b;
-    const t = hashString(town);
+    let t = this.named.get(town);
+    if (t === undefined) this.named.set(town, (t = hashString(town)));
     a = mix(a, t);
     b = mix(b, t ^ 0x5bd1e995);
     for (const v of values) {
@@ -391,6 +395,7 @@ export class TownStore implements StateStore {
     this.whole.clear();
     this.ashen.clear();
     this.flooded.clear();
+    this.bare.clear();
     [this.a, this.b] = s.digest;
     for (const saved of s.fabrics ?? fromColumns(s.towns!)) {
       const f = unpack(saved);
@@ -776,17 +781,13 @@ export function levelsOf(f: Fabric, from: number, to: number): Int8Array {
 /** Scratch for the year's builder: what stands on a stretch of lots, and which of them a building takes. */
 let LEVELS = new Int8Array(1024),
   UNDER = new Uint8Array(1024);
-function scratchLevels(f: Fabric, from: number, to: number): Int8Array {
+/** (With `mask`, the buildings' lots also into UNDER, as maskInto would make them, in the one pass over the buildings.) */
+function scratchLevels(f: Fabric, from: number, to: number, mask = false): Int8Array {
   const n = Math.max(0, to - from);
   if (LEVELS.length < n) LEVELS = new Int8Array(n * 2);
-  return levelsInto(f, from, to, LEVELS.subarray(0, n));
+  if (mask && UNDER.length < n) UNDER = new Uint8Array(n * 2);
+  return levelsInto(f, from, to, LEVELS.subarray(0, n), mask ? UNDER.subarray(0, n) : null);
 }
-function scratchMask(f: Fabric, from: number, to: number): Uint8Array {
-  const n = Math.max(0, to - from);
-  if (UNDER.length < n) UNDER = new Uint8Array(n * 2);
-  return maskInto(f, from, to, UNDER.subarray(0, n));
-}
-
 /** (homePieces' stretches: three numbers each, first lot, end lot, level.) */
 let PIECES = new Int32Array(96);
 /** (homePieces' standing buildings over the stretch: first lot, end lot, in the order of their first lots.) */
@@ -856,8 +857,15 @@ function homePieces(f: Fabric, from: number, to: number): number {
 }
 
 /** levelsOf, into `out` (of to - from). */
-function levelsInto(f: Fabric, from: number, to: number, out: Int8Array): Int8Array {
+function levelsInto(
+  f: Fabric,
+  from: number,
+  to: number,
+  out: Int8Array,
+  under: Uint8Array | null = null,
+): Int8Array {
   out.fill(-1);
+  under?.fill(0);
   // (Only the runs over the stretch, found by halving: a great town's runs are many, and asked of every year it builds.)
   const runs = f.changes;
   for (let r = runAfter(runs, from); r < runs.length; r++) {
@@ -874,7 +882,10 @@ function levelsInto(f: Fabric, from: number, to: number, out: Int8Array): Int8Ar
     if (cs.fellAt(j) !== NO_FALL) continue;
     const lo = Math.max(cs.lotAt(j), from),
       hi = Math.min(cs.lotAt(j) + cs.lotsAt(j), to);
-    if (lo < hi) out.fill(-1, lo - from, hi - from);
+    if (lo < hi) {
+      out.fill(-1, lo - from, hi - from);
+      under?.fill(1, lo - from, hi - from);
+    }
   }
   return out;
 }
@@ -1163,6 +1174,8 @@ export class TownBuilder {
     level: number,
     design: number,
   ): void {
+    // (Homes laid: shrink's bound on where none stands is let go.)
+    if (isHome(what)) this.store.bare.delete(f);
     const year = this.year,
       R = f.changes,
       run = this.made(f, what, from, to, level, design),
@@ -1617,8 +1630,8 @@ export class TownBuilder {
     if (f.passed < 0) {
       const from = f.raise,
         span = Math.min(n, from + 512),
-        levels = scratchLevels(f, from, span),
-        under = scratchMask(f, from, span);
+        levels = scratchLevels(f, from, span, true),
+        under = UNDER.subarray(0, Math.max(0, span - from));
       let run = -1,
         level = -1,
         p = from;
@@ -1748,28 +1761,37 @@ export class TownBuilder {
     if ((f.lean += years) < 3) return;
     // (Gone over from the highest lot a home stands on: a town long lean has let its last lots
     // fall already, and would go over them every year.)
+    // (No home stands from `bare` up, where an earlier shrink let them fall from the top and none has been laid since, nor a
+    // building fallen: highestHome need not go over the runs fallen above it.)
+    const bare = Math.min(f.next, this.store.bare.get(f) ?? f.next);
     let from = Math.max(0, f.next - 512),
-      high = highestHome(f, from, f.next);
+      high = highestHome(f, from, Math.max(from, bare));
     // (And where its last 512 lots have all fallen and homes stand below them, from the highest of those. Until 2026-11-23 such a
     // town shrank no further: on first light at 1,500, 13,472 of its 24,451 towns held no one, 5,640 of them lean fifty years
     // and more, and 115 were forsaken; their 475,000 runs and 288,000 buildings were over half its towns' save. Let fall, 20,732
     // of 25,057 are forsaken there, 184 lean so long, and its towns keep 206,000 runs and 108,000 buildings: 3.2 MB, not 11.1.)
     if (high < 0) {
-      high = highestHome(f, 0, from);
+      high = highestHome(f, 0, Math.min(from, bare));
       from = Math.max(0, high - 511);
     }
-    if (high < 0) return;
+    if (high < 0) {
+      this.store.bare.set(f, 0);
+      return;
+    }
     let excess = housing - Math.ceil(people / 0.8),
       count = Math.max(
         1,
         Math.ceil(homesOf(f) * (years === 1 ? 0.05 : 1 - dmath.pow(0.95, years))),
       ),
       top = -1;
+    // (The lowest lot let fall: none stands from it up after, every home over it having fallen, or none being there.)
+    let low = high + 1;
     const fall = (lo: number) => {
       if (top < 0) return;
       this.change(f, CHANGE.fell, lo, top + 1, 0, 0);
       this.release(f, lo, top + 1);
       top = -1;
+      low = lo;
     };
     // (Gone over stretch by stretch of the homes standing, from the highest down, as the lots one by one would be: homes side
     // by side fall together, whatever their levels; a lot with none, or under a building, ends a falling stretch. Many lean
@@ -1795,6 +1817,7 @@ export class TownBuilder {
         }
       }
       fall(below);
+      this.store.bare.set(f, low);
       return;
     }
     // (Lot by lot where two runs of homes share a lot: there the later stands, as levelsInto tells it. What stands on its lots, a
@@ -1813,6 +1836,7 @@ export class TownBuilder {
       if (excess <= 0 || count <= 0) fall(p);
     }
     fall(from);
+    this.store.bare.set(f, low);
   }
 
   /** A share of a town's homes razed: its heart first, or its edge for a town sacked. */
@@ -1945,6 +1969,7 @@ export class TownBuilder {
       if (c.at >= reach) break;
       reach = Math.max(reach, c.at + c.lots);
       c.fell = this.year;
+      this.store.bare.delete(f);
       this.comesDue(f, this.year + RUIN_YEARS + 1);
       this.store.fold(f.town, FOLD.fell, CIVIC_INDEX.get(c.kind)!, c.at);
     }
@@ -2094,6 +2119,7 @@ export class TownBuilder {
   /** A building gone: fallen out of use or taken the place of, its lots open again. */
   private fall(f: Fabric, c: Civic, why: number): void {
     c.fell = this.year;
+    this.store.bare.delete(f);
     this.comesDue(f, this.year + RUIN_YEARS + 1);
     this.cut(f, c.at, c.at + c.lots);
     this.release(f, c.at, c.at + c.lots);
@@ -2155,10 +2181,9 @@ export class TownBuilder {
       if (HAVE[i]! >= civicsHeld(def, people)) continue;
       if (!this.meets(def, i, k)) continue;
       use ??= townUseOf(this.ctx, s);
+      // (civicsPaying, its first's paying size read once: where it pays, its people are the town's use's own.)
       const want =
-        people >= payingPeople(def, CIVIC_LOTS[def.kind], use)
-          ? civicsPaying(def, CIVIC_LOTS[def.kind], use)
-          : 0;
+        people >= payingPeople(def, CIVIC_LOTS[def.kind], use) ? civicsHeld(def, use.people) : 0;
       if (want < 1 || HAVE[i]! >= want) continue;
       if ((def.faith && !faith()) || (def.water && !water())) continue;
       // (A prison only where its land's court holds people.)
