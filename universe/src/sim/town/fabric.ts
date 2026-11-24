@@ -1527,18 +1527,13 @@ export class TownBuilder {
       a = Math.min(a, open[2 * j]!);
       b = Math.max(b, open[2 * j + 1]!);
     }
-    // (In place; what keeps a town's open runs by their list, homeOpen's, is told they changed, as a list made anew told it.)
-    // (Where it joins none, a list made anew of its own length: spliced in, a list grows by half again, and a town emptying
-    // lets its homes fall a stretch at a time over thousands of runs.)
-    if (j === lo) {
-      const out = new Array<number>(open.length + 2);
-      for (let i = 0; i < 2 * lo; i++) out[i] = open[i]!;
-      out[2 * lo] = a;
-      out[2 * lo + 1] = b;
-      for (let i = 2 * lo; i < open.length; i++) out[i + 2] = open[i]!;
-      f.open = out;
-    } else open.splice(2 * lo, 2 * (j - lo), a, b);
-    this.store.flooded.delete(f.town);
+    // (A list made anew, as openMerged makes it: what keeps a town's open runs by their list knows them changed.)
+    const out = new Array<number>(open.length - 2 * (j - lo) + 2);
+    for (let i = 0; i < 2 * lo; i++) out[i] = open[i]!;
+    out[2 * lo] = a;
+    out[2 * lo + 1] = b;
+    for (let i = 2 * j, k = 2 * lo + 2; i < open.length; i++, k++) out[k] = open[i]!;
+    f.open = out;
   }
 
   /** release as it was: the stretch put with the rest and all of them sorted and made one (for tests/sim/town.test.ts). */

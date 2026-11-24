@@ -699,13 +699,11 @@ test("a stretch let go goes in among a town's open runs as sorting them all made
         to = from + roll(roll(4) === 0 ? 80 : 5);
       f.open = i === 0 ? open.slice() : f.open;
       g.open = i === 0 ? open.slice() : g.open;
-      // (What keeps a town's open runs by their list, homeOpen's, is told they changed: it reads them again.)
-      const flooded = townsOf(ctx.world).flooded;
-      flooded.set(f.town, { open: f.open, last: f.open[0] ?? 0, n: 1 });
+      const was = f.open;
       b.release(f, from, to);
       b.releaseBySort(g, from, to);
       assert.deepEqual(f.open, g.open, `${JSON.stringify(open)} with [${from}, ${to})`);
-      if (to > from) assert.ok(!flooded.has(f.town), "the open runs told changed");
+      if (to > from) assert.notEqual(f.open, was, "a list made anew");
     }
   }
 });
