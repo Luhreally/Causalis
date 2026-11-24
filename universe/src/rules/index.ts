@@ -569,6 +569,14 @@ export {
   type Volatile,
   type WorldKind,
 } from "./kinds.ts";
+export {
+  REVERSAL,
+  fieldTurn,
+  turnBegun,
+  turnRate,
+  type FieldTurn,
+  type TurnRate,
+} from "./planet.ts";
 export { CARRIED, carriedYield, fruitSet } from "./crops.ts";
 export {
   WORKABLE,

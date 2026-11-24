@@ -32,7 +32,7 @@ import {
   supernovaRate,
 } from "../../rules/index.ts";
 import { homePlanet } from "../planet/store.ts";
-import { homeField } from "../planet/motion.ts";
+import { homeFieldAt } from "../planet/motion.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { fold } from "./common.ts";
 
@@ -199,7 +199,7 @@ export function galacticYear(ctx: PopulationContext, t: SimTime): void {
   const rates = galacticRates(world),
     u = (n: number) => world.rng.real(GALAXY_STREAM, year, n, 0),
     g = homePlanet(world).generated,
-    field = homeField(g);
+    field = homeFieldAt(g, yearOfMoment(world.now));
   // New stars seen by eye: one a span at most is told.
   if (u(0) < 1 - dmath.exp(-rates.guest * span)) {
     const event = world.events.emit({

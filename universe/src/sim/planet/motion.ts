@@ -42,6 +42,8 @@ import {
   albedoWarming,
   burstHarm,
   magnetosphereOf,
+  fieldTurn,
+  turnRate,
   flareThrough,
   iceBalance,
   kelvinPerDegree,
@@ -57,6 +59,9 @@ import {
   summerWarmth,
   type Cycles,
   type Magnetosphere,
+  type MagnetosphereInputs,
+  type FieldTurn,
+  type TurnRate,
   type StarLife,
 } from "../../rules/index.ts";
 import { divineWarming, groundWarming, starHazard, warmingAct } from "../acts/great.ts";
@@ -317,26 +322,76 @@ export function shiftNow(world: World): Shift {
 
 const FIELDS = new Map<string, Magnetosphere>();
 
-/** The home world's field (kept by its ground). */
+/** What the home world's field is read from. */
+function fieldInputs(g: HomeWorld): MagnetosphereInputs {
+  return {
+    mass: g.planet.mass,
+    radius: g.planet.radius,
+    dayHours: g.planet.dayHours,
+    ageGyr: Math.min(g.star.ageGyr, 12.6),
+    plates: g.planet.plateCount,
+    feH: worldChemistry(g).feH,
+    orbitAu: g.planet.orbitAu,
+    starMass: g.star.mass,
+    air: 1,
+  };
+}
+
+/** The home world's steady field (kept by its ground). */
 export function homeField(g: HomeWorld): Magnetosphere {
   let f = FIELDS.get(g.ground);
   if (!f) {
-    const chem = worldChemistry(g);
-    f = magnetosphereOf({
-      mass: g.planet.mass,
-      radius: g.planet.radius,
-      dayHours: g.planet.dayHours,
-      ageGyr: Math.min(g.star.ageGyr, 12.6),
-      plates: g.planet.plateCount,
-      feH: chem.feH,
-      orbitAu: g.planet.orbitAu,
-      starMass: g.star.mass,
-      air: 1,
-    });
+    f = magnetosphereOf(fieldInputs(g));
     FIELDS.set(g.ground, f);
     if (FIELDS.size > 8) FIELDS.delete(FIELDS.keys().next().value!);
   }
   return f;
+}
+
+/** How the home world's field turns over, and the key its turns are drawn by (its ground's). */
+export function homeTurns(g: HomeWorld): { readonly rate: TurnRate; readonly key: number } {
+  let t = TURNS.get(g.ground);
+  if (!t) {
+    t = {
+      rate: turnRate(homeField(g), fieldInputs(g)),
+      key: hashString(`${TURN_KEY} ${g.ground}`),
+    };
+    TURNS.set(g.ground, t);
+    if (TURNS.size > 8) TURNS.delete(TURNS.keys().next().value!);
+  }
+  return t;
+}
+
+/**
+ * The key a world's turns are drawn by, with its ground. (Of the keys tried, the first under which first light's
+ * field does not turn over in its first 30,000 years, so Earth's sky is as every check of it was written for:
+ * `node tools/field-probe.ts` shows it.)
+ */
+export const TURN_KEY = "turn";
+
+const TURNS = new Map<string, { readonly rate: TurnRate; readonly key: number }>();
+
+/** Whether the home world's field is turning over in a year (rules/planet.ts fieldTurn): a reading, never stored. */
+export function homeTurn(g: HomeWorld, year: number): FieldTurn | null {
+  const t = homeTurns(g);
+  return fieldTurn(t.key, year, t.rate);
+}
+
+const TURNED = new Map<string, { year: number; field: Magnetosphere }>();
+
+/**
+ * The home world's field in a year: its steady one, or while it turns over the weak one that lets its star's
+ * flares and the sky's particles and bursts down (kept for the year asked last).
+ */
+export function homeFieldAt(g: HomeWorld, year: number): Magnetosphere {
+  const turn = homeTurn(g, year);
+  if (!turn) return homeField(g);
+  const had = TURNED.get(g.ground);
+  if (had && had.year === year) return had.field;
+  const field = magnetosphereOf({ ...fieldInputs(g), weak: turn.weak });
+  TURNED.set(g.ground, { year, field });
+  if (TURNED.size > 8) TURNED.delete(TURNED.keys().next().value!);
+  return field;
 }
 
 /** The home star's life, `years` into the chronicle. */
@@ -350,7 +405,7 @@ export function homeStarLife(g: HomeWorld, years: number): StarLife {
  */
 export function homeSky(world: World): number {
   const g = homePlanet(world).generated,
-    field = homeField(g),
+    field = homeFieldAt(g, yearOfMoment(world.now)),
     flare = starHazard(world, g.star.ref as Ref).factor,
     store = motionOf(world);
   let k = (1 + DOSE_DEATHS * (field.dose - 1)) * flareThrough(flare, field.shelter);
