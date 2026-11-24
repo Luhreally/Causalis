@@ -2172,6 +2172,9 @@ export class TownBuilder {
       if (cs.endAt(j) > this.year) RISING[i] = 1;
       if (REPLACES[i]! >= 0) HAVE[REPLACES[i]!]!++;
     }
+    // (Fewer than any kind ever needs: every kind below is passed over for its people. Most of a late world's towns are
+    // empty, and were weighed kind by kind.)
+    if (people < LEAST_ANY) return;
     let begun = 0;
     for (let i = 0; i < CIVICS.length && begun < (city ? 2 : 1); i++) {
       const def = CIVICS[i]!;
@@ -2482,6 +2485,8 @@ const USE_OCC = new Float64Array(Object.keys(OCC).length);
 const HAVE = new Int32Array(CIVICS.length),
   /** Each kind's fewest people to pay in any town, and what keeps it where that rests on its people alone (rules/civicworth.ts). */
   LEAST_EVER = Float64Array.from(CIVICS, (d) => leastEver(d, CIVIC_LOTS[d.kind])),
+  /** (The least of those: a town of fewer people begins none. NaN, where one is, begins nothing being skipped.) */
+  LEAST_ANY = LEAST_EVER.reduce((a, b) => Math.min(a, b), Infinity),
   KEPT_FIXED = Float64Array.from(CIVICS, (d) => keptFixed(d, CIVIC_LOTS[d.kind])),
   RISING = new Uint8Array(CIVICS.length),
   /** Each kind's: the people below which one long built falls out of use, and the kind it takes the place of (-1: none). */
@@ -2618,7 +2623,8 @@ export function townYear(ctx: PopulationContext, t: SimTime): void {
         () => !!beliefs.of(cell).faith,
         () => watersOf(ctx.generated, cell),
       );
-    if (people > housingOf(f)) {
+    // (No one in it, and never fewer homes than none: an emptied town's homes are not counted.)
+    if (people > 0 && people > housingOf(f)) {
       const top = topLevel(k, people, city);
       f.lean = 0;
       let dry = wary.get(cell);
