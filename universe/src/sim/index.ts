@@ -1771,6 +1771,8 @@ export {
   provisionYear,
   type LandMeans,
 } from "./society/care.ts";
+export { UNABLE_EVENTS, unableYear } from "./society/unable.ts";
+export { UNABLE_ROW, UNABLE_STORE, unableOf } from "./society/unable-kept.ts";
 export { rolesYear } from "./society/roles.ts";
 export { HOLDING_EVENTS, holdingsYear, lawYear } from "./society/holding.ts";
 export { dressYear, leisureYear, tableYear } from "./society/everyday.ts";

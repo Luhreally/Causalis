@@ -12,6 +12,8 @@ import { holdingsYear, lawYear } from "./holding.ts";
 import { dressYear, leisureYear, tableYear } from "./everyday.ts";
 import { rooflessYear } from "./roofless.ts";
 import { strainYear } from "./strain.ts";
+import { unableYear } from "./unable.ts";
+import { UNABLE_STORE, UNABLE_WIDTH } from "./unable-kept.ts";
 import { STRAIN_STORE, STRAIN_WIDTH } from "./strain-kept.ts";
 
 /** Register the society sweep's stores and systems on a peopled world. */
@@ -32,6 +34,9 @@ export function installSociety(world: World, ctx: () => PopulationContext): void
   world.system({ key: "187.society.leisure", every: YEAR, run: (t) => leisureYear(ctx(), t) });
   world.system({ key: "187.society.roofless", every: YEAR, run: (t) => rooflessYear(ctx(), t) });
   // (How a land bears its years: after its roofless are reckoned. 2026-11-22.)
+  // (Its unable, by its care's and its old's rows: after both. 2026-11-24.)
+  world.register(new RowStore(UNABLE_STORE, UNABLE_WIDTH));
+  world.system({ key: "187.society.unable", every: YEAR, run: (t) => unableYear(ctx(), t) });
   world.register(new RowStore(STRAIN_STORE, STRAIN_WIDTH));
   world.system({ key: "187.society.strain", every: YEAR, run: (t) => strainYear(ctx(), t) });
 }

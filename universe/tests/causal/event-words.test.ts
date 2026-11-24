@@ -43,6 +43,7 @@ test("the kinds given words say what happened, and still do with their facts for
       "planet.ice-come": { km2: 90000 },
       "planet.seas-moved": { metres: -3, fromIce: -2.4, swell: -0.6 },
       "planet.sea-ice": { left: 74, gone: true, overturn: 93 },
+      "society.many-unable": { share: 6.1, war: 3.2, sick: 1, smoke: 0.4, mishap: 1.5, kept: 72 },
       "climate.dimmed": { masked: 0.4, cleared: false, light: 1.6, warming: 0.8 },
       "frontier.shield-thinned": { left: 50, hard: 5.8, fields: 91, years: 20 },
       "planet.land-drowned": { share: 14, metres: 6 },

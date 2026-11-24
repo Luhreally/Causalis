@@ -3,12 +3,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  DISABLED,
   HAZE,
   LOCKED,
   RING,
   airKept,
   airLoss,
   brineOf,
+  disabledOf,
   growthUnderHard,
   hardAtGround,
   hardLight,
@@ -18,6 +20,7 @@ import {
   ozoneStripped,
   lockedRising,
   lockedWarmth,
+  maimedLiving,
   ringOf,
   rocheLimit,
   roguesAStar,
@@ -122,4 +125,35 @@ test("the haze of what is burned dims and cools, hiding part of the warming", ()
   assert.ok(hazeMasks(2 * HAZE.earthBurn) < 2 * HAZE.earthMask);
   assert.ok(HAZE.gas < HAZE.oil && HAZE.oil < HAZE.coal);
   assert.equal(hazeFields(0), 1);
+});
+
+test("the maimed and the sick leave a land's workers, more of them living where they are kept", () => {
+  const land = {
+      hazard: 0.01,
+      endemic: 0,
+      smoke: 0,
+      maimed: 0,
+      years: 22,
+      spared: 0,
+      neglected: 0,
+    },
+    quiet = disabledOf(land);
+  // A quiet land of upright apes: some three in a hundred of its grown, all hurt at their work, all kept.
+  assert.ok(quiet.share > 0.02 && quiet.share < 0.045 && quiet.share === quiet.mishap);
+  assert.equal(quiet.kept, 1);
+  // A war's maimed, a settled sickness and foul air each add their own.
+  const hard = disabledOf({ ...land, endemic: 0.02, smoke: 1, maimed: 0.03 });
+  assert.ok(hard.war === 0.03 && hard.sick > 0.03 && hard.smoke > 0.03);
+  assert.ok(Math.abs(hard.share - (hard.mishap + hard.sick + hard.smoke + hard.war)) < 1e-12);
+  // Where no one keeps them they die the sooner, so fewer are living; care that heals leaves fewer unable.
+  const unkept = disabledOf({ ...land, neglected: 1 });
+  assert.ok(
+    Math.abs(unkept.share / quiet.share - 1 / (1 + DISABLED.neglect)) < 1e-9 && unkept.kept === 0,
+  );
+  assert.ok(disabledOf({ ...land, spared: 0.3 }).share < quiet.share);
+  // Never more than a quarter; a war's maimed die off over the years a grown one has left.
+  assert.equal(disabledOf({ ...land, maimed: 0.9 }).share, DISABLED.most);
+  assert.equal(maimedLiving(0, 22), 1);
+  assert.equal(maimedLiving(11, 22), 0.5);
+  assert.equal(maimedLiving(30, 22), 0);
 });

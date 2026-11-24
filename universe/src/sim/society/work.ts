@@ -65,9 +65,12 @@ export function workBySex(
         world.rng.u32(WORK_BY_SEX, key, t, base, k),
       ),
       current = new Array<number>(COLS).fill(0);
-    for (const r of adultRows) for (let o = 1; o < COLS; o++) current[o] = current[o]! + rest(r, o);
-    const surplus = current.map((c, o) => (o === 0 ? 0 : Math.max(0, c - desired[o]!))),
-      deficit = current.map((c, o) => (o === 0 ? 0 : Math.max(0, desired[o]! - c))),
+    // (Its unable are moved among those it keeps and back only where any are reckoned: population/systems.ts withUnable.)
+    const first = targets[0]! > 0 ? 0 : 1;
+    for (const r of adultRows)
+      for (let o = first; o < COLS; o++) current[o] = current[o]! + rest(r, o);
+    const surplus = current.map((c, o) => (o < first ? 0 : Math.max(0, c - desired[o]!))),
+      deficit = current.map((c, o) => (o < first ? 0 : Math.max(0, desired[o]! - c))),
       totalSurplus = surplus.reduce((a, b) => a + b, 0),
       totalDeficit = deficit.reduce((a, b) => a + b, 0),
       moving = Math.min(totalSurplus, totalDeficit, Math.ceil(n * 0.1));
