@@ -1878,3 +1878,4 @@ export {
   measuresOf as bodyMeasures,
   type Measures,
 } from "./stature.ts";
+export * from "./taboo.ts";
