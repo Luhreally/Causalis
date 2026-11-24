@@ -14,6 +14,7 @@ import {
 import { coverAt, skyOf, type Province } from "../population/model.ts";
 import { loreOf } from "../lore/lore.ts";
 import { landSlope } from "./ground.ts";
+import { homePlanet } from "../planet/store.ts";
 import {
   hallsShare,
   marketsOf,
@@ -50,26 +51,37 @@ export function farmedOf(ctx: PopulationContext, p: Province): number {
 /**
  * What the ways of farming a land knows do there: its fields' yield (1 + each way's gain by the land's own need of it) and its
  * farmers' work (1 + the plough's, the share's and the mill's), and anything else a principle gives its fields, flat as it was.
- * Read once while the land knows what it knows (lore.readOff).
+ * Read once while the land knows what it knows and its ground stands as it does (lore.readOff): its cover, seasons and slope
+ * are its ground's as it now is. (Until 2026-11-24 kept past a change of its ground: first light from 1,300, saved at 1,315 and
+ * loaded, went another way from the world that went on in its first month, at land 1810.)
  */
 export function tillageAt(ctx: PopulationContext, cell: number): { yields: number; work: number } {
   const lore = loreOf(ctx.world);
-  return lore.readOff(cell, "tillage", () => {
-    const g = ctx.generated,
-      cover = coverAt(g, cell),
-      needs = fieldNeeds(
-        cover.moist,
-        g.climate.seasonality[cell]!,
-        landSlope(ctx, cell),
-        cover.woody,
-        skyOf(g).rock,
-        cover.open,
-      ),
-      t = tillageOf((id) => !!lore.get(cell, id), needs);
-    // (Any other principle's flat gain to its fields, as it always was.)
-    let flat = 0;
-    for (const id of TILLAGE_IDS)
-      if (lore.get(cell, id)) flat += PRINCIPLES[PRINCIPLE_INDEX.get(id)!]!.effects.farmYield ?? 0;
-    return { yields: t.yields + Math.max(0, lore.effect(cell, "farmYield") - flat), work: t.work };
-  });
+  return lore.readOff(
+    cell,
+    "tillage",
+    () => {
+      const g = ctx.generated,
+        cover = coverAt(g, cell),
+        needs = fieldNeeds(
+          cover.moist,
+          g.climate.seasonality[cell]!,
+          landSlope(ctx, cell),
+          cover.woody,
+          skyOf(g).rock,
+          cover.open,
+        ),
+        t = tillageOf((id) => !!lore.get(cell, id), needs);
+      // (Any other principle's flat gain to its fields, as it always was.)
+      let flat = 0;
+      for (const id of TILLAGE_IDS)
+        if (lore.get(cell, id))
+          flat += PRINCIPLES[PRINCIPLE_INDEX.get(id)!]!.effects.farmYield ?? 0;
+      return {
+        yields: t.yields + Math.max(0, lore.effect(cell, "farmYield") - flat),
+        work: t.work,
+      };
+    },
+    homePlanet(ctx.world).surfaceKey,
+  );
 }

@@ -210,22 +210,30 @@ export class LoreStore implements StateStore {
     string,
     Map<
       number,
-      { readonly known: ReadonlyMap<string, Known>; readonly size: number; readonly value: unknown }
+      {
+        readonly known: ReadonlyMap<string, Known>;
+        readonly size: number;
+        readonly stamp: string;
+        readonly value: unknown;
+      }
     >
   >();
   /**
    * What `make` gives for a land, kept while the land knows what it knows (its map and that map's size, as `openKept`): for a
-   * reading of nothing but what it knows and its world as made. A land that knows nothing is read each time.
+   * reading of nothing but what it knows and its world as made. A land that knows nothing is read each time. `stamp`: what
+   * else it reads, as a key that changes with it (a reading of the land's ground as it now stands gives the ground's key:
+   * kept past a change of its ground, a world that went on read its fields as they were, one loaded from a save as they are).
    */
-  readOff<T>(cell: number, name: string, make: () => T): T {
+  readOff<T>(cell: number, name: string, make: () => T, stamp = ""): T {
     const known = this.known.get(cell);
     if (!known) return make();
     let by = this.read.get(name);
     if (!by) this.read.set(name, (by = new Map()));
     const had = by.get(cell);
-    if (had && had.known === known && had.size === known.size) return had.value as T;
+    if (had && had.known === known && had.size === known.size && had.stamp === stamp)
+      return had.value as T;
     const value = make();
-    by.set(cell, { known, size: known.size, value });
+    by.set(cell, { known, size: known.size, stamp, value });
     return value;
   }
   learn(cell: number, id: string, k: Known, p: Principle): void {

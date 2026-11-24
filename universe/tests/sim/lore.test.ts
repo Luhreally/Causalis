@@ -152,3 +152,17 @@ test("no realm rules by decree without writing at its seat", () => {
     if (p.law === 1)
       assert.ok(lore.effect(p.seat, "writing") > 0, `${p.town} decrees without writing`);
 });
+
+test("a reading kept off what a land knows is read again when what else it reads changes (its stamp)", () => {
+  // (Fields are read off a land's ground as it stands: kept past a change of its ground, a world that went on and one loaded
+  // from its save went two ways. sim/ecology/farmed.ts tillageAt.)
+  const lore = new LoreStore(),
+    p = PRINCIPLES[0]!;
+  lore.learn(3, p.id, { year: 1, event: "event:1" as Ref }, p);
+  let made = 0;
+  const read = (stamp: string) => lore.readOff(3, "test", () => ++made, stamp);
+  assert.equal(read("ground a"), 1);
+  assert.equal(read("ground a"), 1, "kept while nothing changes");
+  assert.equal(read("ground b"), 2, "read again on new ground");
+  assert.equal(read("ground b"), 2);
+});
