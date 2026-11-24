@@ -2452,8 +2452,9 @@ function home(
           wx,
           look.raised * 10 + h * (look.joined ? (side < 0 ? 0.3 : 0.74) : 0.55),
           wz,
-          Math.min(1, w / 5),
-          Math.min(0.8, h * 0.3),
+          // (As broad as their door and two fifths as high: a window to its people's measure.)
+          Math.min(doorWide * 1.04, w / 5),
+          Math.min(doorHigh * 0.4, h * 0.3),
           0.14,
           yaw,
         );
