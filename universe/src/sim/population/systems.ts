@@ -135,10 +135,15 @@ import {
   coatOf,
   childrenKept,
   youngBand,
-  adaptedOf,
+  DEMOGRAPHY,
+  HEREDITY,
   coldFelt,
   girlsOf,
   heightsToll,
+  landPressure,
+  statureAsked,
+  takenTo,
+  youngHazard,
   heightsLost,
   heightsTollOf,
   longerLived,
@@ -900,18 +905,63 @@ const STAR_DARK = 3;
  * A death's chance compounds by the sum of the months' pressures, so a reckoning of many
  * months at their mean pressure is the months reckoned one by one.
  */
-/** (adaptedOf by whole years settled, for one length of a generation: vitalMonth reads it of every land every month.) */
-let ADAPTED_GENERATION = NaN,
-  ADAPTED = new Float64Array(0);
-function adaptedAt(years: number, generation: number): number {
-  if (!(Number.isInteger(years) && years >= 0 && years < 4096)) return adaptedOf(years, generation);
-  if (generation !== ADAPTED_GENERATION) {
-    ADAPTED_GENERATION = generation;
-    ADAPTED = new Float64Array(4096).fill(NaN);
+/** (The hazard a young one of a life table lives through to bear: what a land's toll selects through. Read once a table.) */
+let YOUNG_HAZARD_OF: LifeHistory | null = null,
+  YOUNG_HAZARD = 0;
+function youngHazardOf(life: LifeHistory): number {
+  if (YOUNG_HAZARD_OF !== life) {
+    YOUNG_HAZARD_OF = life;
+    YOUNG_HAZARD = youngHazard(life);
   }
-  let a = ADAPTED[years]!;
-  if (Number.isNaN(a)) ADAPTED[years] = a = adaptedOf(years, generation);
-  return a;
+  return YOUNG_HAZARD;
+}
+/**
+ * What a land's warmth costs a body past what it sheds (0 … 1; the cold's mirror, about a body's ease at 20 degrees: est),
+ * as far as its skin does not shed it of itself (rules/bodies.ts affordancesOf heat). Nothing under 30 degrees.
+ */
+function hotOf(ctx: PopulationContext, cell: number): number {
+  const over = ctx.generated.climate.temperature[cell]! - 30;
+  return over > 0 ? Math.min(1, over / 10) * (1 - ctx.affords.heat) : 0;
+}
+/** The cold's toll on the unclothed, and the heat's, at their most (a quarter more deaths). */
+const WARMTH_TOLL = 0.25;
+/**
+ * How far a land's people have taken to what it asks of their bodies (0 … 1 each: its cold, its heat, its thin air), by the
+ * generations their lines have lived there and how hard each kills those who have not (rules/heredity.ts takenTo: the
+ * breeder's equation, the selection each toll lays on a life table's young). The lands a chronicle opens on were lived in
+ * for ages before it: their people are of them.
+ */
+export function takenIn(
+  ctx: PopulationContext,
+  p: Province,
+  year: number,
+  generation: number,
+): { cold: number; heat: number; air: number } {
+  const cell = p.cell,
+    gens = p.settledYear <= 0 ? Infinity : (year - p.settledYear) / Math.max(1, generation),
+    hazard = youngHazardOf(ctx.life),
+    h2 = HEREDITY.heritability,
+    cold = dmath.clamp((10 - ctx.generated.climate.temperature[cell]!) / 10, 0, 1),
+    hot = hotOf(ctx, cell),
+    e = ctx.medium === "land" ? ctx.generated.tectonics.elevation[cell]! : 0;
+  return {
+    cold:
+      cold > 0
+        ? takenTo(
+            gens,
+            h2.cold,
+            landPressure(hazard, WARMTH_TOLL * cold * bodyCoat(ctx), DEMOGRAPHY.cold),
+          )
+        : 1,
+    heat:
+      hot > 0
+        ? takenTo(gens, h2.heat, landPressure(hazard, WARMTH_TOLL * hot, DEMOGRAPHY.cold))
+        : 1,
+    air:
+      e > 0
+        ? takenTo(gens, h2.air, landPressure(hazard, DEMOGRAPHY.heights * heightsLost(e), 1))
+        : 1,
+  };
 }
 /**
  * (heightsToll, the share of its air lost read once a land for the height it stands at: read again only where its ground was
@@ -998,11 +1048,13 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
       cold = dmath.clamp((10 - ctx.generated.climate.temperature[p.cell]!) / 10, 0, 1),
       // (As far as their own coat leaves them to clothes: the society sweep, rules/dress.ts. A bare skin's, 1.)
       bare = (1 - (markets.get(p.cell)?.clothingCover ?? 1000) / 1000) * bodyCoat(ctx),
-      // (As far as its people have taken to their land, by the generations they have lived in it, the cold and the heights
-      // press the less: rules/demography.ts adaptedOf. A land of the sea's people has no thin air.)
-      adapted = adaptedAt(year - p.settledYear, kin.generation),
+      // (As far as its people have taken to their land, by the generations they have lived in it and how hard it kills those
+      // who have not, the cold, the heat and the heights press the less: rules/heredity.ts takenTo. A land of the sea's people
+      // has no thin air.)
+      taken = takenIn(ctx, p, year, kin.generation),
+      hot = hotOf(ctx, p.cell),
       heights =
-        ctx.medium === "land" ? heightsAt(ctx.generated.tectonics.elevation, p.cell, adapted) : 1,
+        ctx.medium === "land" ? heightsAt(ctx.generated.tectonics.elevation, p.cell, taken.air) : 1,
       // Herb-lore and medicine: fewer die (as far as its healers reach them: society/care.ts).
       healed = healedIn(world, p.cell),
       // Where much is burned among few, smoke fouls the air.
@@ -1017,7 +1069,9 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
       aided = 1 - orgSparedOf(world, p.cell),
       mortality =
         pressure *
-        (1 + 0.25 * cold * bare * coldFelt(adapted)) *
+        (1 + WARMTH_TOLL * cold * bare * coldFelt(taken.cold)) *
+        // (And the heat past what a body sheds, on a land past 30 degrees. Exactly 1 on any cooler.)
+        (hot > 0 ? 1 + WARMTH_TOLL * hot * coldFelt(taken.heat) : 1) *
         heights *
         healed *
         smoke *
@@ -1348,6 +1402,7 @@ export function transition(ctx: PopulationContext, cell: number): number {
  * thins it out; nothing yet makes more of it than it would have of its own.
  */
 const FLAME_KEEPS = 0.72;
+
 /** What a people that writes and grows its children keeps: each one wanted is made, whatever it can bear. */
 const WRITTEN_KEEPS = 0.95;
 
@@ -1392,12 +1447,19 @@ export function slowDeaths(ctx: PopulationContext, cell: number): number {
     healed = healedIn(ctx.world, cell),
     smoke = 1 + 0.3 * smokeIn(ctx, cell),
     p = ctx.provinces.get(cell),
-    adapted = p
-      ? adaptedOf(yearOfMoment(ctx.world.now) - p.settledYear, peopleKin(ctx.generated).generation)
-      : 1,
+    taken = p
+      ? takenIn(ctx, p, yearOfMoment(ctx.world.now), peopleKin(ctx.generated).generation)
+      : { cold: 1, heat: 1, air: 1 },
+    hot = hotOf(ctx, cell),
     heights =
-      ctx.medium === "land" ? heightsToll(ctx.generated.tectonics.elevation[cell]!, adapted) : 1;
-  return (1 + 0.25 * cold * bare * coldFelt(adapted)) * heights * healed * smoke;
+      ctx.medium === "land" ? heightsToll(ctx.generated.tectonics.elevation[cell]!, taken.air) : 1;
+  return (
+    (1 + WARMTH_TOLL * cold * bare * coldFelt(taken.cold)) *
+    (hot > 0 ? 1 + WARMTH_TOLL * hot * coldFelt(taken.heat) : 1) *
+    heights *
+    healed *
+    smoke
+  );
 }
 
 /**
@@ -1415,6 +1477,8 @@ export function landDemography(
   heights: number;
   cold: number;
   long: number;
+  /** The spreads of stature its cold has moved its people by (rules/heredity.ts statureAsked: the colder the larger). */
+  stature: number;
 } | null {
   const p = ctx.provinces.get(cell);
   if (!p) return null;
@@ -1427,15 +1491,35 @@ export function landDemography(
       bearers += p.counts.rowSum(row(FEMALE, b));
       sires += p.counts.rowSum(row(MALE, b));
     }
-  const adapted = adaptedOf(yearOfMoment(ctx.world.now) - p.settledYear, kin.generation);
+  const taken = takenIn(ctx, p, yearOfMoment(ctx.world.now), kin.generation),
+    // (Of what its land asks of a body, what its people have taken to the least.)
+    adapted = Math.min(taken.cold, taken.heat, taken.air),
+    made = ctx.generated.life.people
+      ? ctx.generated.climate.temperature[ctx.generated.life.people.cell]!
+      : ctx.generated.climate.temperature[cell]!;
   return {
     sires: bearers > 0 ? sires / bearers : 1,
     mated: matedShare(kin.pairing, sires, bearers, kin.even),
     adapted,
     heights:
-      ctx.medium === "land" ? heightsToll(ctx.generated.tectonics.elevation[cell]!, adapted) : 1,
-    cold: coldFelt(adapted),
+      ctx.medium === "land" ? heightsToll(ctx.generated.tectonics.elevation[cell]!, taken.air) : 1,
+    cold: coldFelt(taken.cold),
     long: longerLived(loreOf(ctx.world).effect(cell, "health")),
+    stature: statureAsked(
+      made - ctx.generated.climate.temperature[cell]!,
+      p.settledYear <= 0
+        ? 1
+        : takenTo(
+            (yearOfMoment(ctx.world.now) - p.settledYear) / Math.max(1, kin.generation),
+            HEREDITY.heritability.stature,
+            landPressure(
+              youngHazardOf(ctx.life),
+              WARMTH_TOLL *
+                Math.min(1, Math.abs(made - ctx.generated.climate.temperature[cell]!) / 10),
+              DEMOGRAPHY.cold,
+            ),
+          ),
+    ),
   };
 }
 

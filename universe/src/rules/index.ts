@@ -1840,6 +1840,7 @@ export { CIRCLE, bodyLikeness, circleLeans, circleWords, moralCircle } from "./c
 export * from "./spillover.ts";
 export * from "./demography.ts";
 export * from "./peoples.ts";
+export * from "./heredity.ts";
 export * from "./biomes.ts";
 export * from "./carbon.ts";
 export * from "./cycles.ts";

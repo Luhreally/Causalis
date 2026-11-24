@@ -106,6 +106,7 @@ import { installHealth, installHealthActs } from "../health/health.ts";
 import { installSummon } from "../space/summon.ts";
 import { installFrontier } from "../frontier/install.ts";
 import { installMix } from "./mix.ts";
+import { installHeredity } from "./heredity.ts";
 import { installCredit, installCreditActs } from "../credit/credit.ts";
 import { installFinance } from "../finance/finance.ts";
 import { installStrife, installStrifeActs } from "../strife/strife.ts";
@@ -546,6 +547,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installFrontier(world, () => populationContext(world));
   // (More than one people on a world: shares by people on the lands that hold them. Nothing on a world of one.)
   installMix(world, () => populationContext(world));
+  installHeredity(world, () => populationContext(world));
 
   const g = homePlanet(world).generated;
   if (!g.life.people) {

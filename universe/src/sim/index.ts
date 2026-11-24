@@ -75,6 +75,7 @@ export {
   raisingCost,
   slowDeaths,
   landDemography,
+  takenIn,
   putBy,
   transition,
   type PopulationContext,
@@ -298,6 +299,12 @@ export {
   type Language,
 } from "./culture/languages.ts";
 export { familySizeOf, lifeOf, lifeOfBody, peopleKin, peopleLife } from "./population/life.ts";
+export {
+  HEREDITY_EVENTS,
+  heredityOf,
+  heredityYear,
+  installHeredity,
+} from "./population/heredity.ts";
 export {
   MIX_EVENTS,
   MixStore,

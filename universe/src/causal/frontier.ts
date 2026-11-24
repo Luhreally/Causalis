@@ -3,6 +3,7 @@
 import { yearOfMoment } from "../kernel/index.ts";
 import {
   GALACTIC_EVENTS,
+  HEREDITY_EVENTS,
   IMPACT_EVENTS,
   MINDS_EVENTS,
   MIX_EVENTS,
@@ -97,6 +98,16 @@ registerEventWords(MIX_EVENTS.outgrew.type, (world, e) => {
 registerEventWords(MIX_EVENTS.born.type, (world, e) => {
   const d = data(e);
   return `In ${landWords(world, e.place)} ${String(d.a ?? "one people")} and ${String(d.b ?? "another")} had young together, a people of both: their lines stand near enough in their world's tree of life that ${num(d.bear)} in a hundred of their crossings bear, year ${yearOfMoment(e.t)}`;
+});
+registerEventWords(HEREDITY_EVENTS.taken.type, (world, e) => {
+  const d = data(e),
+    what =
+      d.what === "air"
+        ? "the thin air of its heights"
+        : d.what === "heat"
+          ? "its heat"
+          : "its cold";
+  return `The people of ${landWords(world, e.place)}, ${count(num(d.generations))} generations there, had half taken to ${what}: those of them it killed young left none, and the rest bore it the better, year ${yearOfMoment(e.t)}`;
 });
 registerEventWords(WRITTEN_EVENTS.begun.type, (world, e) => {
   const d = data(e);
