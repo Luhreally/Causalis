@@ -5,7 +5,7 @@ import type { World } from "../../kernel/index.ts";
 import { worldKindOf, type HomeWorld } from "../../gen/index.ts";
 import {
   CLADES,
-  DIMORPHISM,
+  dimorphismOf,
   HUMANLIKE,
   PAIRED,
   affordancesOf,
@@ -35,7 +35,11 @@ export function peopleLife(g: HomeWorld): LifeHistory {
     const pairing = body ? pairingOf(body, Math.max(1, Math.round((15 * body.span) / 70))) : null;
     life =
       body && pairing
-        ? lifeHistoryOf(body, boyRiskOf(DIMORPHISM[pairing]), PAIRED[pairing])
+        ? lifeHistoryOf(
+            body,
+            boyRiskOf(dimorphismOf(body, Math.max(1, Math.round((15 * body.span) / 70)))),
+            PAIRED[pairing],
+          )
         : HUMANLIKE;
     if (LIVES.size > 64) LIVES.clear();
     LIVES.set(g.digest, life);

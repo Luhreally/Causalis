@@ -10,7 +10,7 @@
 import { dmath, yearOfMoment, type SimTime } from "../../kernel/index.ts";
 import { offworldSite, worldLife } from "../../gen/index.ts";
 import {
-  DIMORPHISM,
+  dimorphismOf,
   G,
   KEEPING_MEANS,
   OCC,
@@ -148,7 +148,7 @@ export function leisureYear(ctx: PopulationContext, t: SimTime): void {
   const year = yearOfMoment(t),
     body = ctx.generated.life.people?.body,
     shape = body ? bodyFunction(body) : null,
-    dimorphism = DIMORPHISM[pairingOf(body, ctx.life.adulthood)] ?? 0.25,
+    dimorphism = dimorphismOf(body, ctx.life.adulthood),
     water = ctx.medium === "water",
     markets = marketsOf(world),
     lore = loreOf(world),
