@@ -108,9 +108,11 @@ test("a way of farming gives as much as what it lifts held a land back", () => {
     dry = tillageOf(knows, fieldNeeds(0.3, 6, 0.001, 0, 1)),
     wet = tillageOf(knows, fieldNeeds(1.4, 6, 0.001, 0.8, 1));
   assert.ok(dry.yields > wet.yields + 0.2);
-  // The plough lets a farmer work more ground; it does not make a field give more.
+  // The plough lets a farmer work more ground, and breaks the sod only where there is grass.
   assert.equal(dry.work, 1.25);
   assert.equal(wet.yields, 1);
+  const grass = tillageOf(knows, fieldNeeds(1.4, 6, 0.001, 0, 1, 0.8));
+  assert.ok(grass.yields > 1.4 && grass.work === 1.25, `${grass.yields}`);
 });
 
 test("life crosses between worlds only where the two lives can eat each other", () => {

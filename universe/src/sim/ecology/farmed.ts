@@ -63,6 +63,7 @@ export function tillageAt(ctx: PopulationContext, cell: number): { yields: numbe
         landSlope(ctx, cell),
         cover.woody,
         skyOf(g).rock,
+        cover.open,
       ),
       t = tillageOf((id) => !!lore.get(cell, id), needs);
     // (Any other principle's flat gain to its fields, as it always was.)
