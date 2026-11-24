@@ -787,6 +787,74 @@ function scratchMask(f: Fabric, from: number, to: number): Uint8Array {
   return maskInto(f, from, to, UNDER.subarray(0, n));
 }
 
+/** (homePieces' stretches: three numbers each, first lot, end lot, level.) */
+let PIECES = new Int32Array(96);
+/** (homePieces' standing buildings over the stretch: first lot, end lot, in the order of their first lots.) */
+const SPANS: number[] = [];
+/**
+ * The lots of [from, to) homes stand on now, as levelsInto tells them, told as stretches of one run each, in the order of their lots
+ * (into PIECES), the lots of a standing building left out; how many (-1 where two runs of homes share a lot: levelsInto then).
+ */
+function homePieces(f: Fabric, from: number, to: number): number {
+  const cs = f.civics;
+  SPANS.length = 0;
+  for (let j = 0; j < cs.length; j++) {
+    if (cs.fellAt(j) !== NO_FALL) continue;
+    const lo = Math.max(cs.lotAt(j), from),
+      hi = Math.min(cs.lotAt(j) + cs.lotsAt(j), to);
+    if (lo < hi) SPANS.push(lo, hi);
+  }
+  for (let i = 2; i < SPANS.length; i += 2) {
+    const a = SPANS[i]!,
+      b = SPANS[i + 1]!;
+    let k = i - 2;
+    for (; k >= 0 && SPANS[k]! > a; k -= 2) {
+      SPANS[k + 2] = SPANS[k]!;
+      SPANS[k + 3] = SPANS[k + 1]!;
+    }
+    SPANS[k + 2] = a;
+    SPANS[k + 3] = b;
+  }
+  const runs = f.changes;
+  let n = 0,
+    end = -1;
+  const piece = (lo: number, hi: number, level: number) => {
+    if (PIECES.length < 3 * (n + 1)) {
+      const more = new Int32Array(PIECES.length * 2);
+      more.set(PIECES);
+      PIECES = more;
+    }
+    PIECES[3 * n] = lo;
+    PIECES[3 * n + 1] = hi;
+    PIECES[3 * n + 2] = level;
+    n++;
+  };
+  for (let r = runAfter(runs, from); r < runs.length; r++) {
+    const c = runs.slot(r),
+      a = runs.v(c, 1);
+    if (a >= to) break;
+    if (!isHome(runs.v(c, 0))) continue;
+    const lo = Math.max(a, from),
+      hi = Math.min(runs.v(c, 2), to);
+    if (lo >= hi) continue;
+    if (lo < end) return -1;
+    end = hi;
+    const level = runs.v(c, 5);
+    if (level < 0) continue;
+    let at = lo;
+    for (let s = 0; s < SPANS.length && at < hi; s += 2) {
+      const cl = SPANS[s]!,
+        ch = SPANS[s + 1]!;
+      if (ch <= at) continue;
+      if (cl >= hi) break;
+      if (cl > at) piece(at, cl, level);
+      at = ch;
+    }
+    if (at < hi) piece(at, hi, level);
+  }
+  return n;
+}
+
 /** levelsOf, into `out` (of to - from). */
 function levelsInto(f: Fabric, from: number, to: number, out: Int8Array): Int8Array {
   out.fill(-1);
@@ -1697,14 +1765,41 @@ export class TownBuilder {
         Math.ceil(homesOf(f) * (years === 1 ? 0.05 : 1 - dmath.pow(0.95, years))),
       ),
       top = -1;
-    // (What stands on its lots, a building's lots none of its homes': levelsInto tells those -1, as it tells a lot with none.)
-    const levels = scratchLevels(f, from, high + 1),
-      fall = (lo: number) => {
-        if (top < 0) return;
-        this.change(f, CHANGE.fell, lo, top + 1, 0, 0);
-        this.release(f, lo, top + 1);
-        top = -1;
-      };
+    const fall = (lo: number) => {
+      if (top < 0) return;
+      this.change(f, CHANGE.fell, lo, top + 1, 0, 0);
+      this.release(f, lo, top + 1);
+      top = -1;
+    };
+    // (Gone over stretch by stretch of the homes standing, from the highest down, as the lots one by one would be: homes side
+    // by side fall together, whatever their levels; a lot with none, or under a building, ends a falling stretch. Many lean
+    // towns have their homes few and far between in the lots gone over, and went over every one of them each time.)
+    const pieces = homePieces(f, from, high + 1);
+    if (pieces >= 0) {
+      let below = -1;
+      for (let i = pieces - 1; i >= 0 && excess > 0 && count > 0; i--) {
+        const lo = PIECES[3 * i]!,
+          hi = PIECES[3 * i + 1]!,
+          level = PIECES[3 * i + 2]!,
+          hold = HOLDS[level]!;
+        if (hi !== below) fall(below);
+        if (top < 0) top = hi - 1;
+        const n = Math.min(hi - lo, count, Math.ceil(excess / hold));
+        f.homes[level] = f.homes[level]! - n;
+        excess -= n * hold;
+        count -= n;
+        below = lo;
+        if (excess <= 0 || count <= 0) {
+          fall(hi - n);
+          break;
+        }
+      }
+      fall(below);
+      return;
+    }
+    // (Lot by lot where two runs of homes share a lot: there the later stands, as levelsInto tells it. What stands on its lots, a
+    // building's lots none of its homes': levelsInto tells those -1, as it tells a lot with none.)
+    const levels = scratchLevels(f, from, high + 1);
     for (let p = high; p >= from && excess > 0 && count > 0; p--) {
       const was = levels[p - from]!;
       if (was < 0) {
