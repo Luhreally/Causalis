@@ -137,6 +137,8 @@ import {
   coldFelt,
   girlsOf,
   heightsToll,
+  heightsLost,
+  heightsTollOf,
   longerLived,
   matedShare,
   MONSOON,
@@ -888,6 +890,41 @@ const STAR_DARK = 3;
  * A death's chance compounds by the sum of the months' pressures, so a reckoning of many
  * months at their mean pressure is the months reckoned one by one.
  */
+/** (adaptedOf by whole years settled, for one length of a generation: vitalMonth reads it of every land every month.) */
+let ADAPTED_GENERATION = NaN,
+  ADAPTED = new Float64Array(0);
+function adaptedAt(years: number, generation: number): number {
+  if (!(Number.isInteger(years) && years >= 0 && years < 4096)) return adaptedOf(years, generation);
+  if (generation !== ADAPTED_GENERATION) {
+    ADAPTED_GENERATION = generation;
+    ADAPTED = new Float64Array(4096).fill(NaN);
+  }
+  let a = ADAPTED[years]!;
+  if (Number.isNaN(a)) ADAPTED[years] = a = adaptedOf(years, generation);
+  return a;
+}
+/**
+ * (heightsToll, the share of its air lost read once a land for the height it stands at: read again only where its ground was
+ * changed under it, sim/planet/surface.ts.)
+ */
+let HEIGHTS_OF: ArrayLike<number> | null = null,
+  HEIGHTS_AT = new Float64Array(0),
+  HEIGHTS_LOST = new Float64Array(0);
+function heightsAt(elevation: ArrayLike<number>, cell: number, adapted: number): number {
+  const e = elevation[cell]!;
+  if (!(e > 0)) return 1;
+  if (HEIGHTS_OF !== elevation) {
+    HEIGHTS_OF = elevation;
+    HEIGHTS_AT = new Float64Array(elevation.length).fill(NaN);
+    HEIGHTS_LOST = new Float64Array(elevation.length);
+  }
+  if (HEIGHTS_AT[cell] !== e) {
+    HEIGHTS_AT[cell] = e;
+    HEIGHTS_LOST[cell] = heightsLost(e);
+  }
+  return heightsTollOf(HEIGHTS_LOST[cell]!, adapted);
+}
+
 export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
   const { world, history } = ctx,
     year = yearOfMoment(t),
@@ -945,11 +982,9 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
       bare = (1 - (markets.get(p.cell)?.clothingCover ?? 1000) / 1000) * bodyCoat(ctx),
       // (As far as its people have taken to their land, by the generations they have lived in it, the cold and the heights
       // press the less: rules/demography.ts adaptedOf. A land of the sea's people has no thin air.)
-      adapted = adaptedOf(year - p.settledYear, kin.generation),
+      adapted = adaptedAt(year - p.settledYear, kin.generation),
       heights =
-        ctx.medium === "land"
-          ? heightsToll(ctx.generated.tectonics.elevation[p.cell]!, adapted)
-          : 1,
+        ctx.medium === "land" ? heightsAt(ctx.generated.tectonics.elevation, p.cell, adapted) : 1,
       // Herb-lore and medicine: fewer die (as far as its healers reach them: society/care.ts).
       healed = healedIn(world, p.cell),
       // Where much is burned among few, smoke fouls the air.

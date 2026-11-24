@@ -126,7 +126,14 @@ export function adaptedOf(years: number, generation: number): number {
 /** What the thin air of a height does to the deaths of a people of the air not taken to it (1 at the sea's height). */
 export function heightsToll(elevation: number, adapted: number): number {
   if (!(elevation > 0)) return 1;
-  const lost = 1 - dmath.exp(-elevation / DEMOGRAPHY.airScale);
+  return heightsTollOf(heightsLost(elevation), adapted);
+}
+/** Of a height's air, the share lost against the sea's (0 at the sea's height and below): heightsToll's own reading of it. */
+export function heightsLost(elevation: number): number {
+  return elevation > 0 ? 1 - dmath.exp(-elevation / DEMOGRAPHY.airScale) : 0;
+}
+/** heightsToll of a land above the sea, from the share of its air lost (heightsLost). */
+export function heightsTollOf(lost: number, adapted: number): number {
   return 1 + DEMOGRAPHY.heights * lost * (1 - clamp01(adapted));
 }
 
