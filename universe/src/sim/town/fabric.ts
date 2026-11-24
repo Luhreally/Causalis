@@ -1174,8 +1174,6 @@ export class TownBuilder {
     level: number,
     design: number,
   ): void {
-    // (Homes laid: shrink's bound on where none stands is let go.)
-    if (isHome(what)) this.store.bare.delete(f);
     const year = this.year,
       R = f.changes,
       run = this.made(f, what, from, to, level, design),
@@ -1212,6 +1210,8 @@ export class TownBuilder {
     level: number,
     design: number,
   ): number {
+    // (Homes laid, here or rising from ash: shrink's bound on where none stands is let go.)
+    if (isHome(what)) this.store.bare.delete(f);
     const year = this.year;
     this.comesDue(f, year + SETTLED);
     this.store.fold(f.town, FOLD.change, what, from, to, year, level, design);
