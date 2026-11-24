@@ -4,6 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   DISABLED,
+  HUMANLIKE,
   HAZE,
   LOCKED,
   RING,
@@ -11,11 +12,13 @@ import {
   airLoss,
   brineOf,
   disabledOf,
+  grownMortality,
   growthUnderHard,
   hardAtGround,
   hardLight,
   hazeFields,
   hazeMasks,
+  livingPace,
   ozoneColumn,
   ozoneStripped,
   lockedRising,
@@ -156,4 +159,27 @@ test("the maimed and the sick leave a land's workers, more of them living where 
   assert.equal(maimedLiving(0, 22), 1);
   assert.equal(maimedLiving(11, 22), 0.5);
   assert.equal(maimedLiving(30, 22), 0);
+});
+
+test("how the grown die follows the body's size and its pace of living", () => {
+  // The apes' own pace is 1; a small warm body lives faster, a cold-blooded one at half its size's pace.
+  assert.equal(livingPace(60, true), 1);
+  assert.ok(livingPace(4, true) > 1.9 && livingPace(60, false) === 0.5);
+  // Reckoned for the apes' own body, the curve is near their table: within a third at every grown band.
+  const ape = grownMortality({ size: 60, warm: true, span: 70 }, HUMANLIKE.bands, 15);
+  HUMANLIKE.bands.forEach((at, b) => {
+    if (at < 15) assert.equal(ape[b], 0);
+    else if (b < HUMANLIKE.bands.length - 1)
+      assert.ok(Math.abs(ape[b]! / HUMANLIKE.mortality[b]! - 1) < 0.4, `${at}: ${ape[b]}`);
+  });
+  // A small warm body of the same span dies mostly of hazard, at every age nearly alike; a great cold one late and together.
+  const small = grownMortality({ size: 2, warm: true, span: 70 }, HUMANLIKE.bands, 15),
+    great = grownMortality({ size: 900, warm: false, span: 70 }, HUMANLIKE.bands, 15),
+    steep = (m: number[]) => m[8]! / m[3]!;
+  assert.ok(small[3]! > 2 * great[3]!);
+  assert.ok(steep(great) > 2 * steep(small), `${steep(great)} ${steep(small)}`);
+  // As many reach their span either way: the deaths from grown to the span sum alike.
+  const sum = (m: number[]) =>
+    m.reduce((s, x, b) => s + (b >= 3 && b < 9 ? x * (b === 3 ? 5 : 10) : 0), 0);
+  assert.ok(Math.abs(sum(small) - sum(great)) < 1e-9);
 });
