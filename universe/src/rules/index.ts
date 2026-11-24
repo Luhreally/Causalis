@@ -1818,6 +1818,7 @@ export * from "./gifts.ts";
 // The gaps of 2026-11-22: a faith's head and the faith against a ruler; townsfolk sentenced and held; commanders held.
 export * from "./faithheads.ts";
 export * from "./sentences.ts";
+export * from "./substrate.ts";
 export * from "./variety.ts";
 export * from "./thrift.ts";
 export * from "./civicworth.ts";

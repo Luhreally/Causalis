@@ -65,6 +65,8 @@ import {
   joinedBy,
   measuresOf,
   wordPace,
+  substrateOf,
+  type SubstrateFacts,
 } from "../../rules/index.ts";
 import { ORG } from "../../rules/index.ts";
 import { orgInquiryOf } from "../order/groups-kept.ts";
@@ -83,6 +85,8 @@ import { holdsAgain, lostOf, RETAKE_AFTER } from "./lost-store.ts";
 import { lettersOf } from "./letters.ts";
 import { grantOf, tallyLore } from "./rights.ts";
 import type { MaterialsStore } from "./materials.ts";
+import type { HealthStore } from "../health/health.ts";
+import { richestFuelMj } from "../economy/energy.ts";
 
 export const LORE_EVENTS = {
   found: defineEventType("lore.found", 5),
@@ -539,6 +543,7 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
     gone = lostOf(world),
     made = world.peek<MaterialsStore>("lore.materials") ?? null,
     letters = lettersOf(world),
+    health = world.peek<HealthStore>("health.sickness") ?? null,
     // (Each realm's readers, and how much of them its seat's fastest word joins each of its lands to: rules/letters.ts.)
     realmReaders = new Map<string, number>(),
     realmJoin = new Map<string, number>(),
@@ -663,6 +668,21 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
       sinceHere = (id: string) => knownHere?.get(id)?.year,
       grant = grantOf(world, realms.of(cell)?.ref ?? null),
       pulled = grant ? grantPull(preferenceHere(ctx, cell)) : 1;
+    // (What it has to find things with, read once a land and only where something is open to it: rules/substrate.ts.)
+    let facts: SubstrateFacts | null = null;
+    const factsHere = (): SubstrateFacts => {
+      if (facts) return facts;
+      const working = prov.total() - prov.occupation(OCC.dependent),
+        food =
+          prov.occupation(OCC.forager) + prov.occupation(OCC.farmer) + prov.occupation(OCC.herder);
+      return (facts = {
+        reach: reachIn(means, here),
+        fuelMj: richestFuelMj(ctx, cell),
+        spare: working > 0 ? Math.max(0, working - food) / working : 0,
+        sickDead: health?.land(cell)?.dead ?? 0,
+        readers: letters ? letters.of(cell) : 0,
+      });
+    };
     for (const p of open) {
       // (What only being there teaches is taught by those who were: lost.ts.)
       if (p.seen) continue;
@@ -709,7 +729,14 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
         push = answers?.length ? pushOf(answers, pressed!) : 1,
         // (What it built on a rival way holds it back while it stands; its realm's grants pull its finders on: rules/patents.ts.)
         locked = lockHold(p, year, sinceHere),
-        chance = p.rate * (0.2 + drive) * LORE_PACE * finding * push * locked * pulled;
+        // (And by what it has to find it with: its ore's nearness, its fuel's heat, its spared hands, the sickness it has met.)
+        sub = substrateOf(
+          p,
+          factsHere(),
+          ore ? ore.value : null,
+          p.body?.heat === undefined ? undefined : (means.wants[p.id] ?? p.body.heat),
+        ),
+        chance = p.rate * (0.2 + drive) * LORE_PACE * finding * push * locked * pulled * sub.k;
       if (!(world.rng.real(FIND, cell, t, PRINCIPLE_INDEX.get(p.id)!) < chance)) continue;
       const factors: Factor[] = terms
         .filter(([, w, v]) => w * v > 0)
@@ -727,6 +754,13 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
           name: "readers at their measures",
           value: Math.round(readers),
           contribution: asked * inquiry,
+          source: null,
+        });
+      for (const part of sub.parts)
+        factors.push({
+          name: part.name,
+          value: part.value,
+          contribution: part.k - 1,
           source: null,
         });
       if (ore !== null)
