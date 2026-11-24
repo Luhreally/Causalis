@@ -452,9 +452,25 @@ export const WARM_AT = 14,
 export const SMELT_KWY = (200 * 5) / MJ_A_KWY,
   BLAST_KWY = (40 * 5) / MJ_A_KWY;
 
-/** How cold a land is for its people: 0 where no one heats a home, 1 at the coldest. */
-export function coldOf(celsius: number): number {
-  return Math.min(1, Math.max(0, (WARM_AT - celsius) / COLD_SPAN));
+/**
+ * How far below the warmth its body was shaped in a people is at ease without a hearth (°C; gaps round, 2026-11-24: the need
+ * for warmth is the body's, not Earth's): a body that makes its own heat, with a coat or clothes over it, carries the first
+ * twelve degrees (est: an upright ape of a 26 °C cradle lights a hearth for warmth below 14 °C, WARM_AT); one that takes its
+ * heat from its surroundings carries half of that.
+ */
+export const BODY_CARRIES = { warm: 12, cold: 6 } as const;
+
+/** Below what warmth a people wants a hearth for warmth (°C): its cradle's, less what its body carries. */
+export function hearthAt(cradleC: number, warmBlooded: boolean): number {
+  return cradleC - (warmBlooded ? BODY_CARRIES.warm : BODY_CARRIES.cold);
+}
+
+/**
+ * How cold a land is for its people: 0 where no one heats a home, 1 at the coldest. `warmAt`: below what warmth this people
+ * wants a hearth (hearthAt; an upright ape's where none is given).
+ */
+export function coldOf(celsius: number, warmAt: number = WARM_AT): number {
+  return Math.min(1, Math.max(0, (warmAt - celsius) / COLD_SPAN));
 }
 
 // —— The carriers ——————————————————————————————————————————————————————————————————————————————————
@@ -629,6 +645,8 @@ export type EnergyInputs = {
   readonly oilKwy: number;
   readonly gasKwy: number;
   readonly ownKwy: number;
+  /** Wood cut and sold at hand in its market this year (kW·yr; rules/fuels.ts): its own cut for sale, and what it was brought. */
+  readonly cutKwy?: number;
   /** How hot a fire it holds (°C), the cold its engines shed to (K), its finest fit (mm), its strongest stuff (MPa). */
   readonly fireC: number;
   readonly coldK: number;
@@ -663,6 +681,8 @@ export type EnergyAccount = {
   readonly oil: number;
   readonly gas: number;
   readonly own: number;
+  /** Of the wood in its market, what its hearths and engines burned (kW·yr). */
+  readonly cut: number;
   readonly engineFuel: number;
   /** Wood its engines burned (kW·yr), and wood felled past what its woods give (kW·yr). */
   readonly engineWood: number;
@@ -717,6 +737,8 @@ export function energyAccount(i: EnergyInputs): EnergyAccount {
     oilLeft = i.oilKwy,
     gasLeft = i.gasKwy,
     ownLeft = i.ownKwy,
+    cutLeft = i.fire ? (i.cutKwy ?? 0) : 0,
+    cut = 0,
     coal = 0,
     oil = 0,
     gas = 0,
@@ -734,7 +756,14 @@ export function energyAccount(i: EnergyInputs): EnergyAccount {
     dung -= x;
     drawn.dung += x;
     heat -= x;
-    if (i.coalKnown || i.oilKnown) fuelWanted += heat;
+    // (Wood from its market, cut for sale here or brought: any people that keeps a fire burns it.)
+    x = take(cutLeft);
+    cutLeft -= x;
+    cut += x;
+    drawn.wood += x;
+    heat -= x;
+    // (What its hearths still lack it wants of its market, whatever fuel that holds: wood before any seam is dug.)
+    if (i.fire) fuelWanted += heat;
     if (i.coalKnown) {
       x = take(coalLeft);
       coalLeft -= x;
@@ -842,6 +871,12 @@ export function energyAccount(i: EnergyInputs): EnergyAccount {
       let x = burn(ownLeft);
       own += x;
       engineFuel += x;
+      if (i.taps.has("burned")) {
+        x = burn(cutLeft);
+        cut += x;
+        engineWood += x;
+        drawn.wood += x;
+      }
       x = burn(wood);
       engineWood += x;
       drawn.wood += x;
@@ -873,6 +908,7 @@ export function energyAccount(i: EnergyInputs): EnergyAccount {
     oil,
     gas,
     own,
+    cut,
     engineFuel,
     engineWood,
     felled,

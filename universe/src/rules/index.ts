@@ -1662,6 +1662,7 @@ export {
 } from "./far.ts";
 export { HARVEST, LEAN_MONTHS, SOWING, THRIFT, storeNeeded, thrift } from "./seasons.ts";
 export * from "./energy.ts";
+export * from "./fuels.ts";
 export * from "./ground.ts";
 export {
   BEARING,

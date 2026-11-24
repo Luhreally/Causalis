@@ -400,7 +400,8 @@ export function airYear(ctx: PopulationContext, t: SimTime): void {
       gas = (row?.gas ?? 0) / 4,
       own = (row?.own ?? 0) / 4,
       ownFluid = own > 0 && meansNumbers(ctx.generated).airHolds.includes("hydrogen"),
-      coalUsed = Math.max(0, used[G.coal]! - (ownFluid ? 0 : own)),
+      // (Wood cut and sold lies in the solid class too: burned within what its woods grow, its carbon is the air's own.)
+      coalUsed = Math.max(0, used[G.coal]! - (ownFluid ? 0 : own) - (row?.cut ?? 0) / 4),
       oilUsed = Math.max(0, used[G.oil]! - gas - (ownFluid ? own : 0)),
       carbon = coalUsed * perCoal + oilUsed * perOil + gas * carbonPerFuel(ctx.generated, "gas");
     if (carbon <= 0) continue;

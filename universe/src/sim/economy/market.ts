@@ -151,7 +151,7 @@ export class Market {
    * What its fuel classes' stocks hold of the kinds that are not each class's first, in millionths (rules/variety.ts BLENDED: gas
    * and haze among the oil, sulphur among the coal): what it drew, and what it was brought at the shares it left its land at.
    */
-  blend: number[] = [0, 0, 0];
+  blend: number[] = [0, 0, 0, 0];
   /** Fuel its engines burned last year (units of coal and oil), for its power. */
   burned = 0;
   /** The year its works can run again after a rocket's fall (W3; 0: they do). */
