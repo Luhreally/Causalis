@@ -41,6 +41,7 @@ import {
   ARISE,
   BANDS,
   ariseForces,
+  herdContact,
   bodyKin,
   leadingForce,
   type BodyPlan,
@@ -55,6 +56,8 @@ import { COLS, type Province } from "../population/model.ts";
 import { marketsOf, roundKeyed, type PopulationContext } from "../population/systems.ts";
 import { handOf } from "../hand/hand.ts";
 import { loreOf } from "../lore/lore.ts";
+import { herdFoodOf, herdKept, noteHerdOutbreak } from "../belief/taboo.ts";
+import type { StrainStore } from "./strains.ts";
 import { lessened } from "../lore/lessons-store.ts";
 import { WAY, cultureOf, pushWays } from "../culture/culture.ts";
 import { politiesOf } from "../polity/polity.ts";
@@ -500,6 +503,13 @@ function sicken(ctx: PopulationContext, cell: number, share: number, t: SimTime)
   return dead;
 }
 
+/** How far a sickness still lives in herds (its strain line's range: sim/health/strains.ts), or its first where none is kept. */
+function herdRange(world: World, ref: Ref): number {
+  return world.hasStore("health.strains")
+    ? (world.store<StrainStore>("health.strains").get(ref)?.range ?? 0.6)
+    : 0.6;
+}
+
 /** What a coming of a sickness to a land does: how many die, and who of the rest are spared. */
 export function tollOf(
   ctx: PopulationContext,
@@ -521,7 +531,11 @@ export function tollOf(
         rooflessSickOf(ctx.world, cell) *
         (1 + (SICK.bound - 1) * bound) *
         // (Fewer where its people have learned to keep the sick apart: exactly 1 where they have learned nothing.)
-        lessened(ctx.world, cellRef(0, cell), "sickness", yearOfMoment(ctx.world.now)),
+        lessened(ctx.world, cellRef(0, cell), "sickness", yearOfMoment(ctx.world.now)) *
+        // (A herd's sickness takes the more the more they live off its herd, as far as it still lives in herds: rules/taboo.ts.)
+        (s.source === "herds"
+          ? herdContact(herdRange(ctx.world, s.ref), herdFoodOf(ctx.world, cell))
+          : 1),
     );
   // (The survivors who took it are spared it: the spared among the living after.)
   const immuneAfter = share >= 1 ? 1 : clamp(0, 1, (imm + takers - share) / (1 - share));
@@ -570,6 +584,8 @@ export function strike(
       boundDead = Math.round((dead * SICK.bound * b) / (1 + (SICK.bound - 1) * b));
     boundGone(order, cell, Math.min(boundDead, dead), before);
   }
+  // (A herd's sickness remembered by the land's faith, with what it cost them: sim/belief/taboo.ts.)
+  if (s.source === "herds") noteHerdOutbreak(ctx, cell, s.ref, s.cell, before, share, event, year);
   const l = landHealth(store, cell),
     outbreak: Outbreak = {
       sickness: s.ref,
@@ -1424,6 +1440,8 @@ export function riseHazards(
         roads: roads[cell]!,
         herds: p.herding !== null,
         herdKin: herdBeast >= 0 ? kin.bySpecies[herdBeast]! : kin.herdsAt,
+        // (How far its creed keeps them off their herd: sim/belief/taboo.ts. Exactly 0 where it forbids none.)
+        keptOff: herdKept(world, cell),
         hunt: p.knowsCultivation ? ARISE.hunt : 1,
         wild: wildsOf(ctx, cell).wild,
         kinds: sea ? kin.seaKinds : g.life.diversity[cell]!,

@@ -86,6 +86,7 @@ import { herdLoss, pensLeft } from "../ecology/herds.ts";
 import { partnersOf } from "../ecology/lineage.ts";
 import { cropsGive } from "../ecology/crops.ts";
 import { herdGives, pestsLeft } from "../ecology/exchange.ts";
+import { herdKept } from "../belief/taboo.ts";
 import { veilYield } from "../planet/fires.ts";
 import { floodBehind, floodYield } from "../planet/floods.ts";
 import { dietDeaths } from "./diet.ts";
@@ -711,7 +712,11 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
         // (And what its holders have put into them, as far as it is safe and theirs: society/holding.ts. Exactly 1 where none is kept.)
         (1 + improvedOf(world, p.cell)),
       // (And its herd beast against the one it first kept: exactly 1 until it takes up another: ecology/exchange.ts.)
-      flocks = (1 + lore.effect(p.cell, "herdYield")) * herdGives(world, p.cell),
+      flocks =
+        (1 + lore.effect(p.cell, "herdYield")) *
+        herdGives(world, p.cell) *
+        // (Less as far as their creed forbids them its flesh and milk: sim/belief/taboo.ts. Exactly 1 where it forbids none.)
+        (1 - herdKept(world, p.cell)),
       // (What war has driven off of its herds and a beast at large takes: Z1. Exactly 0 where neither has.)
       flocksLost = herdLoss(world, p.cell, t),
       // (What lives off its flocks and its wild, and what its seed carriers give: ecology/lineage.ts. Exactly 1 where none stand.)

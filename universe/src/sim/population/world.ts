@@ -12,6 +12,7 @@ import { installFloods } from "../planet/floods.ts";
 import { installStorms } from "../planet/storms.ts";
 import { installRivers } from "../planet/rivers.ts";
 import { installStrains } from "../health/strains.ts";
+import { installTaboos } from "../belief/taboo.ts";
 import { installLineage } from "../ecology/lineage.ts";
 import {
   World,
@@ -470,6 +471,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installWar(world, () => populationContext(world));
   installOrder(world, () => populationContext(world));
   installHealth(world, () => populationContext(world));
+  installTaboos(world, () => populationContext(world));
   installStrains(world, () => populationContext(world));
   installCredit(world, () => populationContext(world));
   installFinance(world, () => populationContext(world));
