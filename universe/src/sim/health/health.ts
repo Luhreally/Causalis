@@ -106,6 +106,8 @@ export const SICK = {
    * it as often as it kills: that, over the years of growing up, is the land's burden of it a year, the most of all of them this.
    */
   settles: 60,
+  /** Each year the forces of one land in so many are read for where a sickness rises (by its cell), weighed for as many years. */
+  readEvery: 5,
   endemicMost: 0.02,
   /** The chance a carrier brings a sickness, before how many it reaches and who is spared. */
   carry: { near: 0.22, road: 0.35, sea: 0.45, army: 0.55, god: 1, stars: 0.6 } as Record<
@@ -621,7 +623,9 @@ function waysOf(ctx: PopulationContext, year: number): Ways {
   const markets = marketsOf(ctx.world);
   return {
     roads: markets.allRoutes().map(([key, opened]) => {
-      const [a, b] = key.split(":").map(Number) as [number, number];
+      const colon = key.indexOf(":"),
+        a = Number(key.slice(0, colon)),
+        b = Number(key.slice(colon + 1));
       return { a, b, via: markets.bySea(a, b) ? ("sea" as const) : ("road" as const), opened };
     }),
     battles: warsOf(ctx.world)
@@ -1113,12 +1117,17 @@ export function healthYear(ctx: PopulationContext, t: SimTime): void {
     living = store.living();
   // 1. The spared forget, as their children are born never having had it — but where they know
   // vaccination, the young are given the sicknesses the spared are spared for life.
-  for (const l of [...store.lands.values()].sort((a, b) => a.cell - b.cell)) {
-    for (const [ref, v] of [...l.immune]) {
-      const s = store.get(ref);
-      setImmune(l, ref, s ? v * (1 - 1 / s.lasting) * 0.975 : 0);
+  // (Each land on its own, so in any order; each sickness found once a year, not once a land.)
+  const byRef = new Map<Ref, Sickness>();
+  for (const s of store.sicknesses) if (!byRef.has(s.ref)) byRef.set(s.ref, s);
+  for (const l of store.lands.values())
+    for (let i = l.immune.length - 1; i >= 0; i--) {
+      const e = l.immune[i]!,
+        s = byRef.get(e[0]),
+        v = s ? e[1] * (1 - 1 / s.lasting) * 0.975 : 0;
+      if (v < 0.01) l.immune.splice(i, 1);
+      else e[1] = v;
     }
-  }
   const lore = loreOf(world),
     lifelong = living.filter((s) => s.lasting >= 60);
   if (lifelong.length)
@@ -1230,10 +1239,13 @@ export function healthYear(ctx: PopulationContext, t: SimTime): void {
     longest.ended = year;
   }
   if (store.about(year) >= SICK.most) return;
-  const weights = riseHazards(ctx, struck);
+  // (A land's forces move slowly: each year a fifth of the lands is read, by its cell, weighed for the five years until it is
+  // read again, SICK.readEvery. As often as before on the mean; a fifth of the reading.)
+  const every = SICK.readEvery,
+    weights = riseHazards(ctx, struck, every, year % every);
   let total = 0;
   for (const x of weights) total += x.w;
-  if (!weights.length || world.rng.real(RISE, 0, t, 0) >= total) return;
+  if (!weights.length || world.rng.real(RISE, 0, t, 0) >= every * total) return;
   let pick = world.rng.real(RISE, 0, t, 1) * total,
     chosen = weights[weights.length - 1]!;
   for (const x of weights) {
@@ -1286,6 +1298,7 @@ export type KinIndex = {
   readonly town: Float64Array;
   readonly roads: Float64Array;
   readonly linked: Float64Array;
+  readonly biggest: Float64Array;
 };
 function kinIndex(ctx: PopulationContext, store: HealthStore): KinIndex | null {
   const g = ctx.generated,
@@ -1323,6 +1336,7 @@ function kinIndex(ctx: PopulationContext, store: HealthStore): KinIndex | null {
     town: new Float64Array(g.life.diversity.length),
     roads: new Float64Array(g.life.diversity.length),
     linked: new Float64Array(g.life.diversity.length),
+    biggest: new Float64Array(g.life.diversity.length),
   });
 }
 /** A land's nearest kin among the wild kinds that live about it (0: none). */
@@ -1350,36 +1364,44 @@ function wildKinAt(ctx: PopulationContext, k: KinIndex, cell: number): number {
  * its warmth, rain and standing water (a people of the water live in theirs), and its drains. Lands of fewer than 1,500, off
  * the world, or struck this year carry none.
  */
-export function riseHazards(ctx: PopulationContext, struck: ReadonlySet<number>): RiseHazard[] {
+export function riseHazards(
+  ctx: PopulationContext,
+  struck: ReadonlySet<number>,
+  /** Only the lands whose cell is `at` of every `every` (all where 1). */
+  every = 1,
+  at = 0,
+): RiseHazard[] {
   const { generated: g, world } = ctx,
     store = healthOf(world),
     kin = store ? kinIndex(ctx, store) : null;
   if (!kin) return [];
   // (Each peopled land's greatest town; then the roads, each adding the town at its other end to a land's linked. Kept in the
   // kin index's scratch rows, by land, so that the year's reading makes nothing that grows.)
-  const { town, roads, linked } = kin,
+  const { town, roads, linked, biggest } = kin,
     lands: Province[] = [],
     people: number[] = [];
   town.fill(-1);
   roads.fill(0);
   linked.fill(0);
-  const greatest = (c: number) => {
-    let most = 0;
-    for (const v of ctx.settlements.inProvince(c)) if (v.population > most) most = v.population;
-    return most;
-  };
+  // (Every land's greatest town, in one pass over the towns.)
+  biggest.fill(0);
+  for (const v of ctx.settlements.all())
+    if (v.cell < biggest.length && v.population > biggest[v.cell]!) biggest[v.cell] = v.population;
+  const greatest = (c: number) => biggest[c] ?? 0;
   for (const p of ctx.provinces.all()) {
     const n = p.total();
-    if (n < 1500 || struck.has(p.cell) || offworldSite(g, p.cell)) continue;
+    if (n < 1500 || p.cell % every !== at || struck.has(p.cell) || offworldSite(g, p.cell))
+      continue;
     lands.push(p);
     people.push(n);
     town[p.cell] = greatest(p.cell);
   }
   if (!lands.length) return [];
-  for (const [key] of marketsOf(world).allRoutes()) {
-    const at = key.indexOf(":"),
-      a = Number(key.slice(0, at)),
-      b = Number(key.slice(at + 1));
+  // (Counts and whole numbers of people summed: in any order the same.)
+  for (const key of marketsOf(world).routeKeys()) {
+    const colon = key.indexOf(":"),
+      a = Number(key.slice(0, colon)),
+      b = Number(key.slice(colon + 1));
     if (!(a < town.length && b < town.length)) continue;
     roads[a] = roads[a]! + 1;
     roads[b] = roads[b]! + 1;

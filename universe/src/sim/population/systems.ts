@@ -18,7 +18,7 @@ import { workBySex } from "../society/work.ts";
 import { rooflessColdOf } from "../society/kept.ts";
 import { youngKilledOf } from "../order/underworld-kept.ts";
 import { orgSparedOf, orgYoungKilledOf } from "../order/groups-kept.ts";
-import { endemicOf } from "../health/health.ts";
+import { healthOf } from "../health/health.ts";
 import {
   CountDeltas,
   MONTH,
@@ -885,6 +885,8 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
     // (How its kind pairs, and what its sexes and its old are by its body: rules/demography.ts, sim/population/life.ts.)
     kin = peopleKin(ctx.generated),
     girlsBorn = girlsOf(life),
+    // (Read once a month: the sicknesses settled among each land's young, health/health.ts endemicOf.)
+    health = healthOf(world),
     boyRisk = life.boyRisk ?? 1,
     lore = loreOf(world);
   const markets = marketsOf(world),
@@ -972,7 +974,9 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
       // (And by its other groups, its brigands' and pirates' killing and its risings': sim/order/groups.ts. Nothing where none.)
       // (And the sicknesses settled among its young: health/health.ts settle. Nothing where none.)
       killed =
-        youngKilledOf(world, p.cell) + orgYoungKilledOf(world, p.cell) + endemicOf(world, p.cell),
+        youngKilledOf(world, p.cell) +
+        orgYoungKilledOf(world, p.cell) +
+        (health?.land(p.cell)?.endemic ?? 0),
       pressOn = (b: number, sex: number) =>
         mortality *
         (b < 2 ? want.young : want.grown) *

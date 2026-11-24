@@ -679,6 +679,11 @@ export class MarketStore implements StateStore {
     return this.partners.get(cell) ?? [];
   }
 
+  /** Every road's key, in no set order (for a reading that sums over them, the order not mattering): no copy, no sort. */
+  routeKeys(): IterableIterator<string> {
+    return this.routes.keys();
+  }
+
   allRoutes(): [string, Ref][] {
     return [...this.routes.entries()].sort((x, y) => (x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : 0));
   }
