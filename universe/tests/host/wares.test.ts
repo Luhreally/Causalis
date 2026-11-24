@@ -27,8 +27,10 @@ import { universeWorld } from "./worlds.ts";
 
 // What is sold under each good (asked 2026-11-12): each of a market's broad goods split into the few named things a land makes or is
 // brought, with shares; a land's trade said as those things; companies and an exchange late in a world. The first light's world in its
-// age of works and lending (700), read whole: every land, every good.
-const world = universeWorld(EARTH, "first light", 700);
+// age of works and lending (790), read whole: every land, every good. (Its first engines and works are found by a few lands'
+// draws, and since the breadth round's foundings and laws they came at 720 to 775, not 670 to 700: at 700 nothing was made by
+// machines yet.)
+const world = universeWorld(EARTH, "first light", 790);
 const words = (l: Line) => l.map((s) => (typeof s === "string" ? s : s.text)).join("");
 const ctx = populationContext(world),
   lands = ctx.provinces.all().filter((p) => p.total() > 0 && marketsOf(world).get(p.cell));
@@ -79,7 +81,7 @@ test("tools name their metal and machines name their kind, by what a land knows"
     `machines by kind: ${[...machines].join("; ")}`,
   );
   // (Nothing named that no land of the world could make: no phones before anyone has machines in the pocket.)
-  assert.ok(![...machines].includes("phones"), "no phones at 700");
+  assert.ok(![...machines].includes("phones"), "no phones at 790");
 });
 
 test("a good's page opens on what is sold under it", () => {
@@ -119,7 +121,7 @@ test("a land's trade is said as the things themselves, a few partners at most", 
 
 test("companies are a land's works with lending, named for its town and what it makes; an exchange lists them with an index", () => {
   const all = lands.flatMap((p) => companiesOf(world, p.cell));
-  assert.ok(all.length > 0, "companies by 700");
+  assert.ok(all.length > 0, "companies by 790");
   for (const c of all) {
     assert.ok(c.town && c.name.startsWith(c.town.name), c.name);
     assert.ok(c.share > 0 && c.share < 20_000, `${c.name}: ${c.share} coin a share`);
@@ -129,7 +131,7 @@ test("companies are a land's works with lending, named for its town and what it 
     .living()
     .map((r) => exchangeOf(world, r.ref))
     .find((e) => !!e);
-  assert.ok(ex, "an exchange by 700");
+  assert.ok(ex, "an exchange by 790");
   assert.ok(ex.companies.length >= 2 && ex.index.length >= 2 && ex.index[0]!.value === 100);
   const page = exchangePage(world, `exchange:${ex.realm}`),
     blocks = page.tabs[0]!.blocks;

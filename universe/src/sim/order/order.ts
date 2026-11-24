@@ -58,7 +58,7 @@ import { warsOf, type War } from "../war/war.ts";
 import { holdCarried, holdsCarried } from "../war/held.ts";
 import { grieve, strike } from "../acts/disasters.ts";
 import { handOf } from "../hand/hand.ts";
-import { LAW_OF, firstLaws, lawGrievance, weighLaws } from "./laws.ts";
+import { LAW_OF, firstLaws, lawGrievance, lawsFounded, weighLaws } from "./laws.ts";
 import {
   HOLD,
   HOLDING,
@@ -432,15 +432,19 @@ export function landOf(store: OrderStore, cell: number): LandBonds {
   return l;
 }
 
-/** A realm's order, begun with its rule rightful enough and nothing skimmed yet. */
+/**
+ * A realm's order, begun with its rule rightful enough and nothing skimmed yet. Its first laws are those its groups gain most by
+ * (sim/order/laws.ts lawsFounded) where its lands can be read (`at`); else of its people's ways (firstLaws).
+ */
 export function realmOrder(
   store: OrderStore,
   p: Polity,
   ways: Ways | undefined,
   faith = false,
+  at?: { readonly ctx: PopulationContext; readonly t: SimTime },
 ): RealmOrder {
   let o = store.realms.get(p.ref);
-  if (!o)
+  if (!o) {
     store.realms.set(
       p.ref,
       (o = {
@@ -461,6 +465,8 @@ export function realmOrder(
         approval: 0,
       }),
     );
+    if (at) o.laws = lawsFounded(at.ctx, p, o, at.t);
+  }
   return o;
 }
 
@@ -1835,7 +1841,10 @@ export function orderYear(ctx: PopulationContext, t: SimTime): void {
     heldOf(
       ctx,
       p,
-      realmOrder(store, p, culture.get(p.seat), beliefOf(world).of(p.seat).faith !== null),
+      realmOrder(store, p, culture.get(p.seat), beliefOf(world).of(p.seat).faith !== null, {
+        ctx,
+        t,
+      }),
     );
 
   // 1. Captives from the lands taken this year.

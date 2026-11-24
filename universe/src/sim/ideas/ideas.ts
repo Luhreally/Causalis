@@ -44,7 +44,7 @@ import { readersOf } from "../lore/letters.ts";
 import { politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import { GROUPS, type Group } from "../polity/interests.ts";
 import { orderOf } from "../order/order.ts";
-import { LAWS, lawWanted } from "../order/laws.ts";
+import { LAWS, lawGainsOf, lawWanted } from "../order/laws.ts";
 import { wantsOf } from "../order/wants.ts";
 import { higherIn, taughtIn } from "../order/institutions-kept.ts";
 import { notablesOf, type Notable } from "../notable/kept.ts";
@@ -97,11 +97,13 @@ function schoolName(
 
 /** What the group of a realm whose wants go furthest unmet would have a school teach, or null where none wants enough. */
 function teachingOf(
-  world: World,
+  ctx: PopulationContext,
   realm: Polity,
   holy: boolean,
+  t: SimTime,
 ): { group: Group; gap: number; sway: number; creed: number[]; stands: number[] } | null {
-  const o = orderOf(world)?.of(realm.ref),
+  const { world } = ctx,
+    o = orderOf(world)?.of(realm.ref),
     wants = wantsOf(world)?.of(realm.ref);
   if (!o?.held || !wants) return null;
   const held = o.held;
@@ -125,7 +127,9 @@ function teachingOf(
     }
   }
   if (!best) return null;
-  const w = wants.get(best)!;
+  const w = wants.get(best)!,
+    // (What the group gains by each position of each law, its realm's own reckoning: sim/order/laws.ts.)
+    gains = lawGainsOf(ctx, realm, o, t);
   return {
     group: best,
     gap: bestGap,
@@ -133,7 +137,7 @@ function teachingOf(
     creed: ideaCreed(
       w.want.map((x) => x / 100),
       held.map((x) => x / 100),
-      LAWS.map((law) => lawWanted(best, law)),
+      LAWS.map((law) => lawWanted(gains, best, law)),
       o.laws,
     ),
     // (Where it would have each number stand: what that group wants, as it wants it now.)
@@ -185,9 +189,10 @@ function found(
   u: number,
   standing: number,
   holy: boolean,
+  t: SimTime,
 ): void {
   const { world } = ctx,
-    teaching = teachingOf(world, realm, holy);
+    teaching = teachingOf(ctx, realm, holy, t);
   if (!teaching) return;
   const unmet = ideaUnmet(teaching.gap),
     chance = IDEA.every * IDEA.found * satOf(standing) * unmet;
@@ -324,7 +329,7 @@ export function ideasYear(ctx: PopulationContext, t: SimTime): void {
     if (!taughtIn(world, n.home) && !(readersOf(world, n.home) > 0)) continue;
     const realm = polities.of(n.home);
     if (!realm || realm.ended !== null) continue;
-    found(ctx, store, n, realm, year, u, standing, f > k);
+    found(ctx, store, n, realm, year, u, standing, f > k, t);
   }
   if (!store.holding) return;
 
@@ -424,7 +429,7 @@ export function ideasYear(ctx: PopulationContext, t: SimTime): void {
       if (!leader && (lands.length < IDEA.splitLands || since < IDEA.splitYears)) continue;
       const first = leader?.home ?? lands[0]!,
         realm = polities.of(first),
-        teaching = realm && realm.ended === null ? teachingOf(world, realm, false) : null;
+        teaching = realm && realm.ended === null ? teachingOf(ctx, realm, false, t) : null;
       // (Far speech alone breaks no school: it breaks where those far lands' own realm wants otherwise than it teaches, by
       // as much as would found a school of its own. Then it teaches half its elder's leanings, half what that realm lacks.)
       if (

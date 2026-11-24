@@ -228,11 +228,14 @@ registerEventWords(ECOLOGY_EVENTS.worn.type, (world, e) => {
   return `The soils of ${landWords(world, e.place)} wore thin under the plough${left === null ? "" : `: ${left} parts in a hundred of their strength`}, ${year(e.t)}`;
 });
 
-registerEventWords(
-  "ecology.woods-gone",
-  (world, e) =>
-    `The woods of ${landWords(world, e.place)} were still gone, a generation after they were cleared, year ${yearOfMoment(e.t)}`,
-);
+registerEventWords("ecology.woods-gone", (world, e) => {
+  // (Felled for fuel past what they give, sim/ecology WOODS_FELT; else still cleared a generation on.)
+  const felled = num(e.data, "felled"),
+    left = num(e.data, "forest");
+  return felled !== null
+    ? `The woods of ${landWords(world, e.place)} were going under the axe faster than they grew, ${felled} parts in a hundred of its fires fed from them${left === null ? "" : `, ${left} in a hundred of them left`}, year ${yearOfMoment(e.t)}`
+    : `The woods of ${landWords(world, e.place)} were still gone, a generation after they were cleared, year ${yearOfMoment(e.t)}`;
+});
 
 // Conservation (sim/ecology/ecology.ts keptTurns): what a people set aside come back, and what hunger broke.
 registerEventWords(ECOLOGY_EVENTS.keptBack.type, (world, e) => {
