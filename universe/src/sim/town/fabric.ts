@@ -318,8 +318,11 @@ type Falling = {
   emptied: number;
   lean: number;
   at: number;
-  /** The year each stretch standing falls, by its first lot and design (lot × 65536 + design + 1). */
-  drawn: Map<number, number>;
+  /**
+   * The year each stretch standing falls, by its first lot and design (lot × 65536 + design + 1, then the year: two numbers
+   * each, in the order of their lots; null: none. Most towns emptied by 1,500 have none, and a map each was 12 MB there).
+   */
+  drawn: Float64Array | null;
 };
 /** TownStore.sleep's: asleep, and asleep while its land has yet to come to engines. */
 const ASLEEP_DONE = 1,
@@ -953,20 +956,13 @@ function homePieces(f: Fabric, from: number, to: number): number {
     SPANS[k + 2] = a;
     SPANS[k + 3] = b;
   }
-  const runs = f.changes;
+  const runs = f.changes,
+    spans = SPANS.length;
   let n = 0,
-    end = -1;
-  const piece = (lo: number, hi: number, level: number) => {
-    if (PIECES.length < 3 * (n + 1)) {
-      const more = new Int32Array(PIECES.length * 2);
-      more.set(PIECES);
-      PIECES = more;
-    }
-    PIECES[3 * n] = lo;
-    PIECES[3 * n + 1] = hi;
-    PIECES[3 * n + 2] = level;
-    n++;
-  };
+    end = -1,
+    // (The first building not yet passed: the runs are in the order of their lots and none shares a lot with another,
+    // so one ending at or before a run's first lot ends before every run after it.)
+    first = 0;
   for (let r = runAfter(runs, from); r < runs.length; r++) {
     const c = runs.slot(r),
       a = runs.v(c, 1);
@@ -979,18 +975,31 @@ function homePieces(f: Fabric, from: number, to: number): number {
     end = hi;
     const level = runs.v(c, 5);
     if (level < 0) continue;
+    while (first < spans && SPANS[first + 1]! <= lo) first += 2;
     let at = lo;
-    for (let s = 0; s < SPANS.length && at < hi; s += 2) {
+    for (let s = first; s < spans && at < hi; s += 2) {
       const cl = SPANS[s]!,
         ch = SPANS[s + 1]!;
       if (ch <= at) continue;
       if (cl >= hi) break;
-      if (cl > at) piece(at, cl, level);
+      if (cl > at) putPiece(n++, at, cl, level);
       at = ch;
     }
-    if (at < hi) piece(at, hi, level);
+    if (at < hi) putPiece(n++, at, hi, level);
   }
   return n;
+}
+
+/** (homePieces' n'th stretch.) */
+function putPiece(n: number, lo: number, hi: number, level: number): void {
+  if (PIECES.length < 3 * (n + 1)) {
+    const more = new Int32Array(PIECES.length * 2);
+    more.set(PIECES);
+    PIECES = more;
+  }
+  PIECES[3 * n] = lo;
+  PIECES[3 * n + 1] = hi;
+  PIECES[3 * n + 2] = level;
 }
 
 /** levelsOf, into `out` (of to - from). */
@@ -1937,15 +1946,18 @@ export class TownBuilder {
         kept && kept.ground === ground && kept.emptied === f.emptied && kept.lean === f.lean
           ? kept.drawn
           : null,
-      drawn = new Map<number, number>(),
+      drawn: number[] = [],
       due: number[] = [];
-    let first = Infinity;
+    let first = Infinity,
+      w = 0;
     for (let i = 0; i < pieces; i++) {
       const lo = PIECES[3 * i]!,
         run = runAfter(R, lo),
         design = run < R.length ? R.v(R.slot(run), 6) : -1,
         which = lo * 65536 + design + 1;
-      let at = was?.get(which);
+      // (Its stretches come in the order of their lots, as they were kept.)
+      if (was) while (w < was.length && was[w]! < which) w += 2;
+      let at = was && w < was.length && was[w] === which ? was[w + 1]! : undefined;
       if (at === undefined) {
         const u = rng.real(DECAY_DRAW, key, f.emptied, lo);
         // (Its homes untended already for the years it has been lean, as a town that held far more homes than people:
@@ -1954,7 +1966,7 @@ export class TownBuilder {
           f.emptied +
           Math.max(1, Math.ceil(yearsLeftDrawn(this.homeYearsOf(cell, design), u, f.lean)));
       }
-      if (at > year) drawn.set(which, at);
+      if (at > year) drawn.push(which, at);
       if (at <= year) due.push(lo, PIECES[3 * i + 1]!, PIECES[3 * i + 2]!);
       else if (at < first) first = at;
     }
@@ -1976,7 +1988,7 @@ export class TownBuilder {
       emptied: f.emptied,
       lean: f.lean,
       at,
-      drawn,
+      drawn: drawn.length ? Float64Array.from(drawn) : null,
     });
     return at;
   }
@@ -2893,9 +2905,13 @@ export function townYear(ctx: PopulationContext, t: SimTime): void {
         f.emptied = year;
         store.fold(f.town, FOLD.emptied, year);
       }
-      if (f.emptied >= 0) falls = builder.decay(f, cell);
+      // (One with no home left has none to fall: what decay kept of it let go.)
+      if (f.emptied >= 0)
+        if (homesOf(f) > 0) falls = builder.decay(f, cell);
+        else store.falling.delete(f);
     } else if (f.emptied >= 0) {
       f.emptied = -1;
+      store.falling.delete(f);
       store.fold(f.town, FOLD.emptied, -1);
     }
     if (people > 0 && people > housingOf(f)) {
