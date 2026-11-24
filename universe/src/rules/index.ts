@@ -1844,3 +1844,36 @@ export * from "./cycles.ts";
 export * from "./storms.ts";
 export * from "./tillage.ts";
 export * from "./rivers.ts";
+// A people's figure as the views draw it, and their measure from it (once view/figure.ts, view/folk.ts, view/biochem.ts and
+// view/stature.ts: the host lays their towns' lots to it, so it is read here, where both reach it).
+export {
+  FIGURE_CAPSULE,
+  campRoom,
+  figureOf,
+  paceOf,
+  partExtent,
+  type Figure,
+  type FigureBody,
+  type FigurePart,
+  type PartShape,
+} from "./figure.ts";
+export {
+  MARK_SHADES,
+  folkLook,
+  hsl,
+  type FolkFacts as FigureFolkFacts,
+  type FolkLook,
+  type Stance as FolkStance,
+} from "./figlook.ts";
+export { BLOOD_TONES, LIFE_WORDS, bloodTones, lifeTint, type BloodTones } from "./figtone.ts";
+export {
+  FIGURE_METRES,
+  HOUSEHOLD,
+  OUR_STATURE,
+  figureExtent,
+  growth,
+  lifeFigure,
+  lotScale,
+  measuresOf as bodyMeasures,
+  type Measures,
+} from "./stature.ts";

@@ -23,8 +23,8 @@ const COLS = Math.round(MEADOW_W / CELL);
 const ROWS = Math.round(MEADOW_H / CELL);
 /** One step of its time, seconds. */
 export const MEADOW_STEP = 1 / 20;
-/** A drawn beast's metres to the sim's (the village draws its beasts a little larger than life). */
-const DRAWN = 3.2;
+/** A drawn beast's metres to the sim's: true to life, as its town's beasts, its people and their shelters are (2026-11-23). */
+const DRAWN = 1;
 
 /** How a beast of the meadow lives: by its niche. */
 export type Feed = "graze" | "peck" | "browse" | "great" | "hunt" | "small" | "scavenge" | "swim";

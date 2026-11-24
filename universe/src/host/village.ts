@@ -62,8 +62,6 @@ import { townCustoms, townLifeOf, townPosted } from "./inspect/townlife.ts";
 import { fullName, herdPass, townWild } from "./inspect/herds.ts";
 import { envoyAtCourt } from "./inspect/ties.ts";
 import {
-  BLOCK_D,
-  BLOCK_W,
   GROUND,
   holdPlaces,
   GroundClaims,
@@ -467,7 +465,15 @@ export function villagePlan(
       lake,
     ),
     lots = town
-      ? townLots(town.family, town.seed, town.axis, town.lots, town.water, town.site ?? null)
+      ? townLots(
+          town.family,
+          town.seed,
+          town.axis,
+          town.lots,
+          town.water,
+          town.site ?? null,
+          town.lotSize ?? 1,
+        )
       : null;
   if (town && lots) {
     const states = lotStates(town);
@@ -1066,6 +1072,7 @@ export function villagePlan(
               town.whole + 1,
               town.water,
               town.site ?? null,
+              town.lotSize ?? 1,
             )
           : null,
       site = building

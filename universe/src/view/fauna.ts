@@ -278,7 +278,8 @@ export function faunaOf(plan: VillagePlan, cap: number, detail: number, ambient:
         (s.body as (CreatureBody & { look?: BeastLook }) | null | undefined) ??
         defaultBody(s.niche, s.size, s.wool),
       coat = coatOf(s.kind ?? s.name, s.wool, (plan as { look?: BeastLook }).look),
-      body = buildBody(plan, detail, coat.pattern, hashString(s.ref));
+      // (At their true size, as the town's people and homes are drawn: view/stature.ts.)
+      body: Built = { ...buildBody(plan, detail, coat.pattern, hashString(s.ref)), k: M };
     species.push({
       ref: s.ref,
       name: s.name,

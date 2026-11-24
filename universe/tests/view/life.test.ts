@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import type { VillageLife, VillagePlan } from "../../src/bridge/index.ts";
 import {
   ACTIVITY,
-  BODY_R,
+  bodyR,
   SIGNS,
   clearOf,
   figureOf,
@@ -207,7 +207,7 @@ test("no one stands in anyone else: each steps aside, and never into a wall", ()
       site: { x: 30, z: 30, yaw: 0, progress: 0.4 },
     }),
     ground = villageGround(busy),
-    gap = 2 * BODY_R;
+    gap = 2 * bodyR(busy);
   const knotted = (now: Moment[]) => {
     const live = now.filter((m) => !m.hidden);
     let n = 0;

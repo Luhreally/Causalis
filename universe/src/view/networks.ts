@@ -7,18 +7,8 @@
 // line through the town grown from its power house, never a web. Each thing is fixed to its block, its size and colour the
 // world's; the renderer fades each by how far it stands from the eye, by a rank of its own (render/townnets.ts), so a run comes
 // and goes by degrees and nothing moves with the eye. Pure: built once with the scene.
-import {
-  BLOCK_D,
-  BLOCK_LOTS,
-  BLOCK_W,
-  LOT_W,
-  NET_BLOCKS,
-  holdPlaces,
-  laidAt,
-  onHeld,
-  streetWide,
-} from "../bridge/index.ts";
-import { HELD_PAD, type TownParts, type TownScene } from "./town.ts";
+import { BLOCK_LOTS, NET_BLOCKS, holdPlaces, laidAt, onHeld, streetWide } from "../bridge/index.ts";
+import { heldPad, type TownParts, type TownScene } from "./town.ts";
 import { RING_TREE, heightOf, ringStreet, templeGround } from "./townform.ts";
 import { HELD_DRAWN, blockGround, lineOver } from "./streetline.ts";
 
@@ -87,8 +77,6 @@ const SPACING = 2.5;
 /** How far out from a block's edge what stands of its networks stands (metres): inside the strip no walker or car comes into. */
 /** How far a corner piece's near sides stand off its block (metres): clear of its walls and fences by more than KEEP_OFF. */
 const EDGE = 0.1;
-/** Where along its block's long side a corner piece stands (metres from its middle): where its corner lot meets the next. */
-export const PIECE_U = BLOCK_W / 2 - LOT_W;
 /** A power box's breadth, height and depth (metres): small enough at its corner to keep within a walker's reach of the block. */
 const BOX = [0.44, 0.9, 0.34] as const;
 /** What stands thinner than this is ground to stand on (a street, a yard, a verge); thicker stands in the way (metres). */
@@ -540,6 +528,11 @@ export function* townNetsSteps(
   clear: NetsClear = { parts: [], keep: [] },
 ): Generator<void, TownNets, void> {
   const { plan, lots } = scene,
+    // (Its blocks as its people lay them: TownPlan.lotSize.)
+    { LOT_W, BLOCK_W, BLOCK_D } = lots.m,
+    HELD_PAD = heldPad(lots.m),
+    /** Where along its block's long side a corner piece stands (metres from its middle): where its corner lot meets the next. */
+    PIECE_U = BLOCK_W / 2 - LOT_W,
     out: TownNets = {
       boxes: [],
       rounds: [],

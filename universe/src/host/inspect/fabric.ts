@@ -65,7 +65,7 @@ import {
 import { townRank } from "../rank.ts";
 import { townFormOf } from "../form.ts";
 import { colonyTownCell } from "../colony.ts";
-import { townPlan } from "../town.ts";
+import { townLotSize, townPlan } from "../town.ts";
 import { workshopBlocks } from "../chain.ts";
 import { townSite } from "../village.ts";
 import { count, eventsAbout, item, link, many, sentence, stat, yearNow } from "./words.ts";
@@ -139,6 +139,7 @@ function wallsStanding(world: World, town: Ref, f: Fabric): boolean {
       plan.lots,
       plan.water,
       plan.site ?? null,
+      plan.lotSize ?? 1,
     ),
     ring = wallRing(plan, lots, blocksHeld(plan, lotStates(plan)));
   return !!ring && ring.lengths.length > 0;
@@ -521,6 +522,7 @@ function townStreets(world: World, town: Ref, f: Fabric): Line | null {
     Math.min(1000, Math.ceil(f.next / BLOCK_LOTS)),
     at.water,
     site,
+    townLotSize(world),
   );
   return streetsLine(site, measuredBlocks(blocks));
 }
@@ -546,6 +548,7 @@ function townFormWhys(world: World, town: Ref, f: Fabric): string[] {
       Math.min(1000, Math.ceil(f.next / BLOCK_LOTS)),
       at.water,
       site,
+      townLotSize(world),
     ),
     temple = f.civics.some((c) => c.kind === "temple" && c.fell === null && c.end <= year),
     held = f.walls
@@ -553,7 +556,7 @@ function townFormWhys(world: World, town: Ref, f: Fabric): string[] {
           site,
           wallLine(
             f.walls.reach,
-            townLots(f.family, seed, axis, f.walls.reach, at.water, site),
+            townLots(f.family, seed, axis, f.walls.reach, at.water, site, townLotSize(world)),
             at.water,
             site,
           ),

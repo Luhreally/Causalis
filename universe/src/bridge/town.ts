@@ -46,6 +46,46 @@ export const BLOCK_REACH = Math.hypot(BLOCK_W / 2, BLOCK_D / 2);
 /** How far a town's blocks keep from its water's edge (metres): a shore to walk along. */
 export const SHORE = 10;
 
+/**
+ * A people's lots, streets, square and shore as they are laid to their measure (TownPlan.lotSize: rules/stature.ts lotScale):
+ * ours above, `k` times over. Named as ours are, so a reader of one town says `const { LOT_W, LOT_D } = lots.m`.
+ */
+export type LotMeasure = {
+  readonly k: number;
+  readonly LOT_W: number;
+  readonly LOT_D: number;
+  readonly STREET: number;
+  readonly SQUARE: number;
+  readonly BLOCK_W: number;
+  readonly BLOCK_D: number;
+  readonly BLOCK_REACH: number;
+  readonly SHORE: number;
+};
+const MEASURED = new Map<number, LotMeasure>();
+/** The lots laid `k` times ours (1: ours). */
+export function lotMeasure(k = 1): LotMeasure {
+  let m = MEASURED.get(k);
+  if (!m)
+    MEASURED.set(
+      k,
+      (m = {
+        k,
+        LOT_W: LOT_W * k,
+        LOT_D: LOT_D * k,
+        STREET: STREET * k,
+        SQUARE: SQUARE * k,
+        BLOCK_W: BLOCK_W * k,
+        BLOCK_D: BLOCK_D * k,
+        BLOCK_REACH: BLOCK_REACH * k,
+        SHORE: SHORE * k,
+      }),
+    );
+  return m;
+}
+/** A town's lots as its people lay them. */
+export const planMeasure = (plan: { readonly lotSize?: number } | null | undefined): LotMeasure =>
+  lotMeasure(plan?.lotSize ?? 1);
+
 export type TownFamily = "lanes" | "grid" | "rings";
 
 /** A town's water — a lake, the sea's edge — beside it: its middle and reach (metres from its square). */
@@ -160,6 +200,11 @@ export type TownPlan = {
   readonly rank?: TownRank;
   /** What moving, building and holding ground cost its people here, as its form shows it (bridge/form.ts; absent: not read). */
   readonly form?: TownForm;
+  /**
+   * How many times ours its lots, streets and square are laid (rules/stature.ts lotScale: so that a home apart on one holds
+   * its household lying down; absent: 1, ours). Its blocks are laid as much further apart: a big people's town spreads.
+   */
+  readonly lotSize?: number;
   /** For the plan's own turns and wanderings. */
   readonly seed: number;
   /** The heading of its streets (a grid's runs along its road). */
@@ -290,8 +335,9 @@ function grownOf(
   count: number,
   water: TownWater | null,
   axis: number,
+  k = 1,
 ): TownBlocks {
-  const run = grownSteps(seed, site, count, water, axis);
+  const run = grownSteps(seed, site, count, water, axis, k);
   for (;;) {
     const step = run.next();
     if (step.done) return step.value;
@@ -303,18 +349,22 @@ function* grownSteps(
   count: number,
   water: TownWater | null,
   axis: number,
+  k = 1,
 ): Generator<void, TownBlocks, void> {
-  const key = layoutKey("", seed, axis, water, site);
+  const key = layoutKey("", seed, axis, water, site, k);
   let kept = GROWN.get(key);
   if (!kept || kept.x.length < count) {
-    // (Grown a little past what is asked: a town asked of again is asked of a little larger.)
+    // (Grown a little past what is asked: a town asked of again is asked of a little larger. A people's lots laid k times
+    // ours are grown as ours are on their ground taken k times smaller, and laid out again k times over: every measure of
+    // the grower's is then theirs.)
     kept = yield* grownBlocksSteps(
       seed,
-      site,
+      k === 1 ? site : siteShrunk(site, 1 / k),
       Math.max(count, Math.ceil((kept?.x.length ?? 0) * 1.25)),
-      water,
+      water && k !== 1 ? { x: water.x / k, z: water.z / k, r: water.r / k } : water,
       axis,
     );
+    if (k !== 1) kept = grownSpread(kept, k);
     GROWN.delete(key);
     GROWN.set(key, kept);
     if (GROWN.size > 96) GROWN.delete(GROWN.keys().next().value!);
@@ -333,6 +383,54 @@ function* grownSteps(
       } as TownBlocks);
 }
 
+/** A town's ground as a people's grower reads it for lots laid 1/f times ours: its water's map and its bank f times nearer, its streets f times as broad. */
+function siteShrunk(site: TownSite, f: number): TownSite {
+  return {
+    ...site,
+    ...(site.wet ? { wet: { ...site.wet, m: site.wet.m * f } } : {}),
+    ...(site.bank ? { bank: { x: site.bank.x * f, z: site.bank.z * f } } : {}),
+    ...(site.laid
+      ? {
+          laid: site.laid.map((l) => ({
+            ...l,
+            lane: l.lane * f,
+            street: l.street * f,
+            verge: l.verge * f,
+          })),
+        }
+      : {}),
+  };
+}
+
+/** Blocks grown on a ground taken k times smaller, laid out k times over. */
+function grownSpread(g: GrownBlocks, k: number): GrownBlocks {
+  const times = (a: Float32Array) => a.map((v) => v * k);
+  return {
+    ...g,
+    x: times(g.x),
+    z: times(g.z),
+    mains: g.mains.map((m) => ({
+      ...m,
+      half: m.half * k,
+      x: times(m.x),
+      z: times(m.z),
+      len: times(m.len),
+    })),
+    ...(g.place
+      ? {
+          place: {
+            ...g.place,
+            x: g.place.x * k,
+            z: g.place.z * k,
+            w: g.place.w * k,
+            d: g.place.d * k,
+          },
+        }
+      : {}),
+    ...(g.wall ? { wall: { ...g.wall, line: times(g.wall.line) } } : {}),
+  };
+}
+
 /** What a town's lots are laid by: the same for two plans whose lots stand in the same places. */
 function layoutKey(
   family: string,
@@ -340,12 +438,20 @@ function layoutKey(
   axis: number,
   water: TownWater | null,
   site: TownSite | null,
+  k = 1,
 ): string {
-  return `${site ? "" : family}|${seed}|${axis}|${water ? `${water.x},${water.z},${water.r}` : ""}|${site ? JSON.stringify(site) : ""}`;
+  return `${site ? "" : family}|${seed}|${axis}|${water ? `${water.x},${water.z},${water.r}` : ""}|${site ? JSON.stringify(site) : ""}${k === 1 ? "" : `|${k}`}`;
 }
 /** What a plan's lots are laid by (TownLots.key): a scene may keep the lots it had while this is the same. */
 export function lotsKey(plan: TownPlan): string {
-  return layoutKey(plan.family, plan.seed, plan.axis, plan.water, plan.site ?? null);
+  return layoutKey(
+    plan.family,
+    plan.seed,
+    plan.axis,
+    plan.water,
+    plan.site ?? null,
+    plan.lotSize ?? 1,
+  );
 }
 
 /** Which of a town's blocks were measured out straight before they were built (null: laid by its family, as of old). */
@@ -364,8 +470,10 @@ export function townBlocks(
   count: number,
   water: TownWater | null = null,
   site: TownSite | null = null,
+  k = 1,
 ): TownBlocks {
-  if (site) return grownOf(seed, site, count, water, axis);
+  if (site) return grownOf(seed, site, count, water, axis, k);
+  const { STREET, SQUARE, BLOCK_W, BLOCK_D, BLOCK_REACH, SHORE } = lotMeasure(k);
   const x = new Float32Array(count),
     z = new Float32Array(count),
     yaw = new Float32Array(count),
@@ -441,6 +549,8 @@ export type TownLots = {
   readonly z: Float32Array;
   readonly yaw: Float32Array;
   readonly blocks: TownBlocks;
+  /** Their measure: how many times ours they are laid (TownPlan.lotSize). */
+  readonly m: LotMeasure;
 };
 
 /**
@@ -457,8 +567,9 @@ export function* townLotsAhead(
   count: number,
   water: TownWater | null = null,
   site: TownSite | null = null,
+  k = 1,
 ): Generator<void, void, void> {
-  if (site) yield* grownSteps(seed, site, Math.ceil(count / BLOCK_LOTS), water, axis);
+  if (site) yield* grownSteps(seed, site, Math.ceil(count / BLOCK_LOTS), water, axis, k);
 }
 
 export function townLots(
@@ -468,8 +579,11 @@ export function townLots(
   count: number,
   water: TownWater | null = null,
   site: TownSite | null = null,
+  k = 1,
 ): TownLots {
-  const blocks = townBlocks(family, seed, axis, Math.ceil(count / BLOCK_LOTS), water, site),
+  const m = lotMeasure(k),
+    { LOT_W, LOT_D } = m,
+    blocks = townBlocks(family, seed, axis, Math.ceil(count / BLOCK_LOTS), water, site, k),
     x = new Float32Array(count),
     z = new Float32Array(count),
     yaw = new Float32Array(count);
@@ -486,7 +600,7 @@ export function townLots(
     // (The back row faces the other street.)
     yaw[p] = j < 4 ? t : t + Math.PI;
   }
-  return { key: layoutKey(family, seed, axis, water, site), x, z, yaw, blocks };
+  return { key: layoutKey(family, seed, axis, water, site, k), x, z, yaw, blocks, m };
 }
 
 /**
@@ -498,7 +612,8 @@ export function footprint(
   at: number,
   count: number,
 ): { x: number; z: number; yaw: number; w: number; d: number } {
-  const b = Math.floor(at / BLOCK_LOTS),
+  const { LOT_W, LOT_D } = lots.m,
+    b = Math.floor(at / BLOCK_LOTS),
     j = at % BLOCK_LOTS,
     rows = count > 4 ? 2 : 1,
     cols = Math.min(4, count),
@@ -520,6 +635,7 @@ export function footprint(
 
 /** How far out a town's lots reach (to their far edge). */
 export function townReach(lots: TownLots, count = lots.x.length): number {
+  const { SQUARE, LOT_D } = lots.m;
   let r = SQUARE;
   for (let p = 0; p < count; p++) r = Math.max(r, Math.hypot(lots.x[p]!, lots.z[p]!) + LOT_D);
   return r;
@@ -534,7 +650,8 @@ export const OUTLINE = 72;
  * no ring of one radius about it.
  */
 export function outlineOf(lots: TownLots, count: number): Float32Array {
-  const out = new Float32Array(OUTLINE);
+  const { SQUARE, LOT_D } = lots.m,
+    out = new Float32Array(OUTLINE);
   for (let p = 0; p < count; p++) {
     const x = lots.x[p]!,
       z = lots.z[p]!,
@@ -968,7 +1085,8 @@ export function wallLine(
   water: TownWater | null = null,
   site: TownSite | null = null,
 ): Float32Array {
-  const blocks = Math.min(Math.ceil(walled / BLOCK_LOTS), Math.ceil(lots.x.length / BLOCK_LOTS)),
+  const { BLOCK_W, BLOCK_D, SQUARE } = lots.m,
+    blocks = Math.min(Math.ceil(walled / BLOCK_LOTS), Math.ceil(lots.x.length / BLOCK_LOTS)),
     grown = lots.blocks.wall;
   if (grown && grown.blocks === blocks) return grown.line;
   const place = lots.blocks.place;
@@ -1024,6 +1142,7 @@ export const TOWER_TURN = Math.PI / 6,
 export function wallRing(plan: TownPlan, lots: TownLots, held: Uint8Array): WallRing | null {
   const w = plan.walls;
   if (!w) return null;
+  const { BLOCK_W, BLOCK_D, BLOCK_REACH } = lots.m;
   // (Raised about more lots than are drawn, a great city's: about all those drawn, out into its sprawl: wallsOut.)
   const about = wallLine(Math.min(w.reach, plan.lots), lots, plan.water, plan.site ?? null),
     out = wallsOut(plan, lots),

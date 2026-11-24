@@ -320,6 +320,15 @@ const FURNACE = {
   coal: { x: 19, z: 20 },
 };
 
+/**
+ * A point of the furnace's ground about the mine as it is drawn for its folk (`folk`: their drawn size, view/village.ts
+ * folkOf; FURNACE is laid for a person drawn three times life): about the shaft's middle, as many times nearer.
+ */
+const furnaceAt = (u: number, v: number, folk: number): readonly [number, number] => [
+  FURNACE.x + (u - FURNACE.x) * folk,
+  FURNACE.z + (v - FURNACE.z) * folk,
+];
+
 /** A point about the mine (metres, its front toward the town) in the town's metres. */
 function aboutMine(mine: { x: number; z: number }, u: number, v: number): { x: number; z: number } {
   const yaw = Math.atan2(-mine.x, -mine.z),
@@ -333,7 +342,11 @@ function aboutMine(mine: { x: number; z: number }, u: number, v: number): { x: n
  * where its smelter stands (facing it), the top of its shaft (where it smokes), the ore heaped by
  * it — in the town's metres. Null: a mine that digs no ore.
  */
-export function furnaceOf(mine: Mine | null | undefined): {
+export function furnaceOf(
+  mine: Mine | null | undefined,
+  /** The folk's drawn size (view/village.ts folkOf): the furnace is drawn true to them. */
+  folk = 1,
+): {
   readonly mouth: { readonly x: number; readonly z: number };
   readonly stand: { readonly x: number; readonly z: number };
   readonly ore: { readonly x: number; readonly z: number };
@@ -343,19 +356,20 @@ export function furnaceOf(mine: Mine | null | undefined): {
   readonly yaw: number;
 } | null {
   if (!mine || mine.what !== "ore" || mine.kind === "quarry") return null;
-  const top = aboutMine(mine, FURNACE.x, FURNACE.z);
+  const top = aboutMine(mine, FURNACE.x, FURNACE.z),
+    about = (u: number, v: number) => aboutMine(mine, ...furnaceAt(u, v, folk));
   return {
-    mouth: aboutMine(mine, FURNACE.x, FURNACE.mouth),
-    stand: aboutMine(mine, FURNACE.x, FURNACE.stand),
-    ore: aboutMine(mine, FURNACE.ore.x, FURNACE.ore.z + 1.5),
-    coal: aboutMine(mine, FURNACE.coal.x, FURNACE.coal.z + 1.5),
-    top: { ...top, y: 11.4 },
+    mouth: about(FURNACE.x, FURNACE.mouth),
+    stand: about(FURNACE.x, FURNACE.stand),
+    ore: about(FURNACE.ore.x, FURNACE.ore.z + 1.5),
+    coal: about(FURNACE.coal.x, FURNACE.coal.z + 1.5),
+    top: { ...top, y: 11.4 * folk },
     // (Facing the furnace from where they stand: back toward the mine.)
     yaw: Math.atan2(mine.x, mine.z),
   };
 }
 
-export function minePieces(mine: Mine): MinePiece[] {
+export function minePieces(mine: Mine, folk = 1): MinePiece[] {
   const out: MinePiece[] = [],
     add = (
       role: MinePiece["role"],
@@ -406,15 +420,28 @@ export function minePieces(mine: Mine): MinePiece[] {
     add("track", 10, 0.15, -3, 22, 0.3, 1.6, 0.27);
   }
   if (furnaceOf(mine)) {
-    // The bloomery, at the size of its folk (drawn three times a person's): a clay shaft narrowing
-    // to its top, its mouth at its foot toward the town, the bellows by it; the charcoal heaped on
-    // one side, the ore on the other.
-    add("furnace", FURNACE.x, 3.6, FURNACE.z, 6.8, 7.2, 6.8);
-    add("furnace", FURNACE.x, 9.2, FURNACE.z, 4.8, 4, 4.8);
-    add("mouth", FURNACE.x, 1.1, FURNACE.z + 3.44, 2.4, 2, 0.2);
-    add("bellows", FURNACE.x - 3.8, 0.9, FURNACE.mouth + 0.6, 1.8, 1.2, 2.6);
-    add("charcoal", FURNACE.coal.x, 1.4, FURNACE.coal.z, 7.2, 2.8, 7.2);
-    add("orepile", FURNACE.ore.x, 1.2, FURNACE.ore.z, 6.4, 2.4, 6.4);
+    // The bloomery, true to its folk (laid below for a person drawn three times life, and drawn by their own drawn size): a
+    // clay shaft narrowing to its top, its mouth at its foot toward the town, the bellows by it; the charcoal heaped on one
+    // side, the ore on the other.
+    const k = folk,
+      folkAdd = (
+        role: MinePiece["role"],
+        u: number,
+        y: number,
+        v: number,
+        sx: number,
+        sy: number,
+        sz: number,
+      ) => {
+        const [x, z] = furnaceAt(u, v, k);
+        add(role, x, y * k, z, sx * k, sy * k, sz * k);
+      };
+    folkAdd("furnace", FURNACE.x, 3.6, FURNACE.z, 6.8, 7.2, 6.8);
+    folkAdd("furnace", FURNACE.x, 9.2, FURNACE.z, 4.8, 4, 4.8);
+    folkAdd("mouth", FURNACE.x, 1.1, FURNACE.z + 3.44, 2.4, 2, 0.2);
+    folkAdd("bellows", FURNACE.x - 3.8, 0.9, FURNACE.mouth + 0.6, 1.8, 1.2, 2.6);
+    folkAdd("charcoal", FURNACE.coal.x, 1.4, FURNACE.coal.z, 7.2, 2.8, 7.2);
+    folkAdd("orepile", FURNACE.ore.x, 1.2, FURNACE.ore.z, 6.4, 2.4, 6.4);
   }
   return out;
 }

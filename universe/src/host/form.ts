@@ -2,7 +2,7 @@
 // what their body is, the first of its blocks laid since engines came to its land (read off its fabric's own years), its
 // land's rain and warmth, whether it builds in stone, whether it holds a market, the realm seated in it. Nothing kept.
 import { YEAR, type Ref, type World } from "../kernel/index.ts";
-import { bodyFunction } from "../rules/index.ts";
+import { bodyFunction, lotScale } from "../rules/index.ts";
 import {
   KEPT_NOT,
   landReach,
@@ -24,6 +24,7 @@ import { getAbout, machinesYear } from "./roads.ts";
 import { kindOf } from "./kinds.ts";
 import { landEra } from "./village.ts";
 import { landMadeHead } from "./home.ts";
+import { peopleFigure } from "./folk.ts";
 
 /**
  * The first block of a town laid for engines (-1: they are not come to its land). A town founded since they came is laid for
@@ -38,9 +39,10 @@ export function laidForEngines(
   year: number | null,
   now: number,
   mass: number,
+  lotSize = 1,
 ): number {
   if (year === null || year > now) return -1;
-  return founded >= year ? 0 : walkBlocks(mass);
+  return founded >= year ? 0 : walkBlocks(mass, lotSize);
 }
 
 /**
@@ -89,6 +91,7 @@ export function formFacts(
             machinesYear(world, s.cell),
             Math.floor(world.now / YEAR),
             body?.size ?? 70,
+            lotScale(peopleFigure(g)),
           )
         : f.engines < 0
           ? -1
@@ -102,6 +105,7 @@ export function formFacts(
     seat: rank?.seat ? 1 + rank.seat.grade : 0,
     people: s.population,
     own: water || kindOf(world) !== "rocky",
+    figure: peopleFigure(g),
   };
 }
 

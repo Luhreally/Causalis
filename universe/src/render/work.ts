@@ -9,7 +9,6 @@
 import * as pc from "playcanvas";
 import type { VillagePlan } from "../bridge/index.ts";
 import {
-  BEAST_SCALE,
   HEAP_MOST,
   MATERIALS,
   SHEEN,
@@ -17,6 +16,7 @@ import {
   cartAt,
   factoryPieces,
   figureOf,
+  lifeFigure,
   furnaceOf,
   dressedOn,
   heapCounts,
@@ -214,7 +214,7 @@ export class WorkLayer {
     this.batches = [];
     this.items.clear();
     this.plan = plan;
-    const figure = figureOf(plan.body),
+    const figure = lifeFigure(figureOf(plan.body), plan.body),
       paint = dressedOn(plan.body, plan.era, 0, plan.colony),
       high = Math.max(...figure.parts.map((p) => p.y + partExtent(p)[1] / 2));
     this.lift = high / 0.55;
@@ -252,7 +252,7 @@ export class WorkLayer {
     const facing = (p: { x: number; z: number }) => Math.atan2(-p.x, -p.z);
     if (works?.mine)
       this.place(
-        minePieces(works.mine),
+        minePieces(works.mine, figure.scale),
         works.mine,
         facing(works.mine),
         engines,
@@ -318,11 +318,12 @@ export class WorkLayer {
         });
       };
       if (works?.mine?.kind === "shaft")
-        for (const p of minePieces(works.mine)) if (p.role === "chimney") tall(works.mine, p);
+        for (const p of minePieces(works.mine, figure.scale))
+          if (p.role === "chimney") tall(works.mine, p);
       if (works?.factory)
         for (const p of factoryPieces()) if (p.role === "chimney") tall(works.factory, p);
       // (The furnace by the diggings, where its works smelt their own ore: Phase 51 M213.)
-      const furnace = plan.stuff?.ore ? furnaceOf(works?.mine) : null;
+      const furnace = plan.stuff?.ore ? furnaceOf(works?.mine, figure.scale) : null;
       if (furnace) sources.push({ ...furnace.top, dark: 1 });
       if (sources.length) {
         const count = sources.reduce((a, s) => a + (s.dark > 0.5 ? 6 : 4), 0);
@@ -559,8 +560,9 @@ export class WorkLayer {
       }
       if (onCart) {
         // A cart behind its beast: its box, its load, two wheels.
+        // (At its true size, as the folk who drive it are: view/stature.ts.)
         const box = rel(0, 0),
-          k = BEAST_SCALE;
+          k = M;
         put(r.bodies, box.x, 0.9 * k, box.z, 1.5 * k, 0.6 * k, 2.2 * k, t.yaw, 0);
         put(r.loads, box.x, 1.35 * k, box.z, 1.2 * k, 0.4 * k, 1.8 * k, t.yaw, 0);
         for (const a of [-1, 1]) {

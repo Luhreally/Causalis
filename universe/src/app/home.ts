@@ -54,7 +54,7 @@ export function homeNumber(plan: VillagePlan, k: number): number {
   const t = plan.town,
     h = plan.homes[k];
   if (!t || !h) return RING_HOME + k;
-  const lots = townLots(t.family, t.seed, t.axis, t.lots, t.water, t.site ?? null);
+  const lots = townLots(t.family, t.seed, t.axis, t.lots, t.water, t.site ?? null, t.lotSize ?? 1);
   for (let p = 0; p < t.lots; p++)
     if (Math.hypot(lots.x[p]! - h.x, lots.z[p]! - h.z) < 0.5) return p;
   return RING_HOME + k;

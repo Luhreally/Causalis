@@ -20,9 +20,9 @@ const RISE = 6.5,
 const WALK = 2.6,
   RUN = 6.2;
 /**
- * A body's room on a ring about the fire, and how far each ring lies past the one inside it (m):
- * drawn larger than life, as the meadow's beasts are, a band many to a fire stands in rings, not
- * shoulder to shoulder in one.
+ * A body's room on a ring about the fire, and how far each ring lies past the one inside it (m), for a person drawn three
+ * times life: a band's own are its spread times these (BandState.spread: its figures' drawn size, rules/figure.ts
+ * campRoom). A band many to a fire stands in rings, not shoulder to shoulder in one.
  */
 const ROOM = 2.1,
   ROW = 2.6;
@@ -374,7 +374,7 @@ export function newBand(
       hidesOf: [],
       made: 0,
       t: 0,
-      spread: Math.max(1, spread),
+      spread,
       rnd,
     };
   b.camp = campGround(m, rnd, b.camp, 0, 18);

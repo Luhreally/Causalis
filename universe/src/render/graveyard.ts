@@ -5,12 +5,13 @@
 // a few fallen, wooden crosses among them that lean and rot away; a mound of bare earth and a
 // new cross on each of this year's; the graves open today, their earth heaped beside them, and
 // the dead on their biers — before their door, on their bearers' shoulders, set by the grave.
-// Units as the village's: a tenth of a unit to the metre; sized as its folk are drawn.
+// Units as the village's: a tenth of a unit to the metre; its wall, gate and yews as they stand, its plots, graves, open
+// graves and biers laid for a person drawn three times life and drawn by its folk's drawn size (Graveyard.k).
 import * as pc from "playcanvas";
 import {
-  PLOT,
   lifeTint,
   plotAt,
+  plotOf,
   plotsOf,
   sectionsOf,
   yardPoint,
@@ -199,6 +200,7 @@ export class GraveyardLayer {
       vYaw = -way,
       uYaw = Math.atan2(-Math.cos(way), -Math.sin(way)),
       at = (u: number, v: number) => yardPoint(yard, u, v),
+      PLOT = plotOf(yard),
       /** A box laid along the rows: its middle at (u, v), so long back, so wide across, so high, from `y` up. */
       slab = (
         out: number[],
@@ -313,6 +315,7 @@ export class GraveyardLayer {
       this.lay(yard, b);
     }
     const vYaw = -yard.way,
+      k = yard.k ?? 1,
       U = { x: -Math.sin(yard.way), z: Math.cos(yard.way) },
       open = b.open.slice(0, MOST_OPEN),
       dug = open.filter((o) => o.deep > 0.02);
@@ -321,67 +324,67 @@ export class GraveyardLayer {
       out[0] = o.x * M;
       out[1] = (GRASS_TOP + 0.03) * M;
       out[2] = o.z * M;
-      out[3] = 4.4 * M;
+      out[3] = 4.4 * k * M;
       out[4] = 0.04 * M;
-      out[5] = 2.2 * M;
+      out[5] = 2.2 * k * M;
       out[6] = vYaw;
     });
     this.heaps!.set(dug.length, (i, out) => {
       const o = dug[i]!,
-        high = 0.2 + 1.7 * o.deep;
-      out[0] = (o.x + U.x * 3.6) * M;
+        high = (0.2 + 1.7 * o.deep) * k;
+      out[0] = (o.x + U.x * 3.6 * k) * M;
       out[1] = (GRASS_TOP + high / 2) * M;
-      out[2] = (o.z + U.z * 3.6) * M;
-      out[3] = 4.2 * M;
+      out[2] = (o.z + U.z * 3.6 * k) * M;
+      out[3] = 4.2 * k * M;
       out[4] = high * M;
-      out[5] = 2.6 * M;
+      out[5] = 2.6 * k * M;
       out[6] = vYaw;
     });
     const biers = b.biers.slice(0, MOST_BIERS),
-      top = (q: (typeof biers)[number]) => (q.borne ? held : 1.0);
+      top = (q: (typeof biers)[number]) => (q.borne ? held : 1.0 * k);
     this.planks!.set(biers.length, (i, out) => {
       const q = biers[i]!;
       out[0] = q.x * M;
       out[1] = top(q) * M;
       out[2] = q.z * M;
-      out[3] = 1.8 * M;
-      out[4] = 0.25 * M;
-      out[5] = 6 * M;
+      out[3] = 1.8 * k * M;
+      out[4] = 0.25 * k * M;
+      out[5] = 6 * k * M;
       out[6] = q.face;
     });
     this.shrouds!.set(biers.length, (i, out) => {
       const q = biers[i]!;
       out[0] = q.x * M;
-      out[1] = (top(q) + 0.5) * M;
+      out[1] = (top(q) + 0.5 * k) * M;
       out[2] = q.z * M;
-      out[3] = 1.4 * M;
-      out[4] = 0.75 * M;
-      out[5] = 5 * M;
+      out[3] = 1.4 * k * M;
+      out[4] = 0.75 * k * M;
+      out[5] = 5 * k * M;
       out[6] = q.face;
     });
     this.poles!.set(biers.length * 2, (i, out) => {
       const q = biers[i >> 1]!,
-        side = i % 2 ? 1.05 : -1.05;
+        side = (i % 2 ? 1.05 : -1.05) * k;
       out[0] = (q.x + Math.cos(q.face) * side) * M;
-      out[1] = (top(q) - 0.12) * M;
+      out[1] = (top(q) - 0.12 * k) * M;
       out[2] = (q.z - Math.sin(q.face) * side) * M;
-      out[3] = out[4] = 0.2 * M;
-      out[5] = 7.6 * M;
+      out[3] = out[4] = 0.2 * k * M;
+      out[5] = 7.6 * k * M;
       out[6] = q.face;
     });
     const resting = biers.filter((q) => !q.borne);
     this.legs!.set(resting.length * 4, (i, out) => {
       const q = resting[i >> 2]!,
         j = i % 4,
-        along = j < 2 ? 2.3 : -2.3,
-        across = j % 2 ? 0.65 : -0.65,
+        along = (j < 2 ? 2.3 : -2.3) * k,
+        across = (j % 2 ? 0.65 : -0.65) * k,
         s = Math.sin(q.face),
         c = Math.cos(q.face);
       out[0] = (q.x + s * along + c * across) * M;
-      out[1] = 0.45 * M;
+      out[1] = 0.45 * k * M;
       out[2] = (q.z + c * along - s * across) * M;
-      out[3] = out[5] = 0.2 * M;
-      out[4] = 0.9 * M;
+      out[3] = out[5] = 0.2 * k * M;
+      out[4] = 0.9 * k * M;
     });
     this.shown.open = dug.length;
     this.shown.heaps = dug.length;
@@ -398,6 +401,8 @@ export class GraveyardLayer {
       from = Math.max(0, b.graves + b.open.length - cap),
       per = Math.max(0.05, b.perYear),
       way = yard.way,
+      k = yard.k ?? 1,
+      PLOT = plotOf(yard),
       uYaw = Math.atan2(-Math.cos(way), -Math.sin(way)),
       vYaw = -way,
       V = { x: Math.cos(way), z: Math.sin(way) },
@@ -416,15 +421,18 @@ export class GraveyardLayer {
         age = (b.graves - 1 - k) / per,
         fresh = k >= b.freshFrom,
         // (The stone or cross at its head, the far end from the gate; the mound before it.)
-        head = { x: p.x + V.x * (PLOT.deep / 2 - 0.6), z: p.z + V.z * (PLOT.deep / 2 - 0.6) },
-        mid = { x: p.x - V.x * 0.3, z: p.z - V.z * 0.3 };
+        head = {
+          x: p.x + V.x * (PLOT.deep / 2 - 0.6 * k),
+          z: p.z + V.z * (PLOT.deep / 2 - 0.6 * k),
+        },
+        mid = { x: p.x - V.x * 0.3 * k, z: p.z - V.z * 0.3 * k };
       if (fresh) {
-        mounds[0]!.push({ ...mid, high: 0.5 });
+        mounds[0]!.push({ ...mid, high: 0.5 * k });
         crosses[0]!.push({ ...head, tip: (draw(k, 1) - 0.5) * 0.06 });
         continue;
       }
       if (age < MOUND_SINKS)
-        mounds[1]!.push({ ...mid, high: Math.max(0.1, 0.32 * (1 - age / MOUND_SINKS)) });
+        mounds[1]!.push({ ...mid, high: Math.max(0.1, 0.32 * (1 - age / MOUND_SINKS)) * k });
       if (draw(k, 2) < 0.35) {
         // A wooden cross: leaning more as it ages, rotted away at last.
         if (age < CROSS_ROTS)
@@ -444,7 +452,7 @@ export class GraveyardLayer {
         tip: fallen
           ? (draw(k, 6) < 0.5 ? 1 : -1) * (Math.PI / 2 - 0.04)
           : (draw(k, 6) - 0.5) * (0.06 + Math.min(0.4, age / 250)),
-        high: (arch ? 1.5 : 2) * sink,
+        high: (arch ? 1.5 : 2) * sink * k,
         arch,
         fallen,
       });
@@ -462,25 +470,25 @@ export class GraveyardLayer {
       fell += list.filter((q) => q.fallen).length;
       this.stones[s]!.set(list.length, (i, out) => {
         const q = list[i]!,
-          c = tipped(q, q.high / 2 + (q.fallen ? 0.35 : 0));
+          c = tipped(q, q.high / 2 + (q.fallen ? 0.35 * k : 0));
         out[0] = c.x * M;
         out[1] = c.y * M;
         out[2] = c.z * M;
-        out[3] = 1.5 * M;
+        out[3] = 1.5 * k * M;
         out[4] = q.high * M;
-        out[5] = 0.35 * M;
+        out[5] = 0.35 * k * M;
         out[6] = uYaw;
         out[7] = q.tip;
       });
       const arched = list.filter((q) => q.arch);
       this.arches[s]!.set(arched.length, (i, out) => {
         const q = arched[i]!,
-          c = tipped(q, q.high + (q.fallen ? 0.35 : 0));
+          c = tipped(q, q.high + (q.fallen ? 0.35 * k : 0));
         out[0] = c.x * M;
         out[1] = c.y * M;
         out[2] = c.z * M;
-        out[3] = out[5] = 1.5 * M;
-        out[4] = 0.35 * M;
+        out[3] = out[5] = 1.5 * k * M;
+        out[4] = 0.35 * k * M;
         out[6] = uYaw;
         out[7] = Math.PI / 2 + q.tip;
       });
@@ -489,13 +497,13 @@ export class GraveyardLayer {
       this.crosses![s]!.set(list.length * 2, (i, out) => {
         const q = list[i >> 1]!,
           bar = i % 2 === 1,
-          c = tipped(q, bar ? 1.85 : 1.3);
+          c = tipped(q, (bar ? 1.85 : 1.3) * k);
         out[0] = c.x * M;
         out[1] = c.y * M;
         out[2] = c.z * M;
-        out[3] = (bar ? 1.5 : 0.3) * M;
-        out[4] = (bar ? 0.28 : 2.6) * M;
-        out[5] = 0.28 * M;
+        out[3] = (bar ? 1.5 : 0.3) * k * M;
+        out[4] = (bar ? 0.28 : 2.6) * k * M;
+        out[5] = 0.28 * k * M;
         out[6] = uYaw;
         out[7] = q.tip;
       });
@@ -506,9 +514,9 @@ export class GraveyardLayer {
         out[0] = q.x * M;
         out[1] = (GRASS_TOP + q.high / 2 - 0.02) * M;
         out[2] = q.z * M;
-        out[3] = 4 * M;
+        out[3] = 4 * k * M;
         out[4] = q.high * M;
-        out[5] = 2 * M;
+        out[5] = 2 * k * M;
         out[6] = vYaw;
       });
     });

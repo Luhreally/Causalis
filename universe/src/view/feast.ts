@@ -9,6 +9,15 @@
 // them is their day's (village.ts).
 import type { Feast, TownSong, VillagePlan } from "../bridge/index.ts";
 import { buryingDay } from "./graveyard.ts";
+import { measuresOf } from "./stature.ts";
+
+/**
+ * How large the townsfolk are drawn against a person drawn three times life (rules/stature.ts Measures.drawn), what the
+ * square's dressing below was first laid for: its bunting's height, its tables, its stalls and its fire are drawn by it,
+ * over the folk's heads and at their hands as they stand now.
+ */
+type Folk = { readonly body?: VillagePlan["body"] };
+const folkSize = (plan: Folk): number => measuresOf(plan.body).drawn;
 
 const DAY = 86_400,
   HOUR = 3_600;
@@ -30,7 +39,7 @@ type Spot = { readonly x: number; readonly z: number; readonly yaw: number };
 /**
  * Where the feast is laid out: its fire and the ring danced about it, its tables (a town's
  * square's two; an old village's one, nearer in), its bunting's poles about the square and how
- * high it is strung — over the townsfolk's heads, as they are drawn (three times their size).
+ * high it is strung — over the townsfolk's heads, laid for a person drawn three times life and drawn by the folk's size (folkSize).
  */
 export const FEAST = {
   fire: { x: -9, z: -2 },
@@ -47,12 +56,12 @@ export const FEAST = {
 } as const;
 
 /**
- * A table and a market stall at the townsfolk's own size as drawn: a table's breadth, the height
+ * A table and a market stall for a person drawn three times life (drawn by folkSize): a table's breadth, the height
  * of its board and the board's thickness; a stall's counter (its breadth, height and depth) and
  * the height of its awning.
  */
 const TABLE = { w: 2.6, top: 2, board: 0.26 } as const,
-  STALL = { w: 4.4, h: 2.2, d: 2.4, roof: 6.4 } as const;
+  STALL_OURS = { w: 4.4, h: 2.2, d: 2.4, roof: 6.4 } as const;
 
 /**
  * How near the square's middle its dressing is drawn: a town's square is forty metres across; an
@@ -60,7 +69,8 @@ const TABLE = { w: 2.6, top: 2, board: 0.26 } as const,
  * of its streets, so there the fire, the ring, the poles and the stalls are drawn in.
  */
 export function squareScale(plan: Pick<VillagePlan, "town">): number {
-  return plan.town ? 1 : 0.65;
+  // (A town's square is laid as its lots are, to its people's measure: TownPlan.lotSize.)
+  return plan.town ? (plan.town.lotSize ?? 1) : 0.65;
 }
 
 /** When the feast is kept: the square dressed from the morning, the fire lit at dusk, all over late. */
@@ -178,7 +188,7 @@ export const FLAG_COLORS: readonly (readonly [number, number, number])[] = [
  * strung pole to pole, sagging between), the tables on their trestles and what is set on them,
  * and the bonfire's logs. Pure: the same plan, the same square.
  */
-export function feastScene(plan: Pick<VillagePlan, "market" | "town">): {
+export function feastScene(plan: Pick<VillagePlan, "market" | "town"> & Folk): {
   readonly poles: readonly SquarePiece[];
   readonly flags: readonly (readonly SquarePiece[])[];
   readonly tables: readonly SquarePiece[];
@@ -187,6 +197,9 @@ export function feastScene(plan: Pick<VillagePlan, "market" | "town">): {
   readonly logs: SquarePiece;
 } {
   const k0 = squareScale(plan),
+    f = folkSize(plan),
+    high = FEAST.high * f,
+    T = { w: TABLE.w * f, top: TABLE.top * f, board: TABLE.board * f },
     at = poles(plan),
     flags: SquarePiece[][] = FLAG_COLORS.map(() => []);
   let n = 0;
@@ -196,16 +209,16 @@ export function feastScene(plan: Pick<VillagePlan, "market" | "town">): {
       len = Math.hypot(q.x - p.x, q.z - p.z);
     if (at.length < 2 || len > FEAST.reach * k0 * 1.2) return;
     const yaw = Math.atan2(q.x - p.x, q.z - p.z);
-    for (let d = 1; d < len - 0.6; d += 1.5) {
+    for (let d = f; d < len - 0.6 * f; d += 1.5 * f) {
       const k2 = d / len,
-        sag = 4 * FEAST.sag * k2 * (1 - k2);
+        sag = 4 * FEAST.sag * f * k2 * (1 - k2);
       flags[n++ % FLAG_COLORS.length]!.push({
         x: p.x + (q.x - p.x) * k2,
-        y: FEAST.high - sag - 0.45,
+        y: high - sag - 0.45 * f,
         z: p.z + (q.z - p.z) * k2,
-        sx: 0.06,
-        sy: 0.85,
-        sz: 0.75,
+        sx: 0.06 * f,
+        sy: 0.85 * f,
+        sz: 0.75 * f,
         yaw,
       });
     }
@@ -217,49 +230,49 @@ export function feastScene(plan: Pick<VillagePlan, "market" | "town">): {
     // (Along the square's x, as the places about them are.)
     tables.push({
       x: t.x,
-      y: TABLE.top - TABLE.board / 2,
+      y: T.top - T.board / 2,
       z: t.z,
       sx: t.len,
-      sy: TABLE.board,
-      sz: TABLE.w,
+      sy: T.board,
+      sz: T.w,
       yaw: 0,
     });
     for (const end of [-1, 1])
       trestles.push({
-        x: t.x + end * (t.len / 2 - 0.9),
-        y: (TABLE.top - TABLE.board) / 2,
+        x: t.x + end * (t.len / 2 - 0.9 * f),
+        y: (T.top - T.board) / 2,
         z: t.z,
-        sx: 0.36,
-        sy: TABLE.top - TABLE.board,
-        sz: TABLE.w * 0.85,
+        sx: 0.36 * f,
+        sy: T.top - T.board,
+        sz: T.w * 0.85,
         yaw: 0,
       });
     for (let i = 0; i < 8; i++)
       food.push({
-        x: t.x - t.len / 2 + 1.4 + i * ((t.len - 2.8) / 7),
-        y: TABLE.top + 0.27,
-        z: t.z + (i % 2 ? 0.5 : -0.5),
-        sx: 1.2,
-        sy: 0.55,
-        sz: 0.85,
+        x: t.x - t.len / 2 + 1.4 * f + i * ((t.len - 2.8 * f) / 7),
+        y: T.top + 0.27 * f,
+        z: t.z + (i % 2 ? 0.5 : -0.5) * f,
+        sx: 1.2 * f,
+        sy: 0.55 * f,
+        sz: 0.85 * f,
         yaw: i * 0.7,
       });
   }
   return {
     poles: at.map((p) => ({
       x: p.x,
-      y: FEAST.high / 2,
+      y: high / 2,
       z: p.z,
-      sx: 0.26,
-      sy: FEAST.high + 0.3,
-      sz: 0.26,
+      sx: 0.26 * f,
+      sy: high + 0.3 * f,
+      sz: 0.26 * f,
       yaw: 0,
     })),
     flags,
     tables,
     trestles,
     food,
-    logs: { ...fireOf(plan), y: 1.2, sx: 4, sy: 2.4, sz: 4, yaw: 0 },
+    logs: { ...fireOf(plan), y: 1.2 * f, sx: 4 * f, sy: 2.4 * f, sz: 4 * f, yaw: 0 },
   };
 }
 
@@ -273,20 +286,21 @@ export function fireOf(plan: Pick<VillagePlan, "town">): {
 }
 
 /** The fire's flames now (by the screen's clock): a few tongues, each its height flickering. */
-export function flamesAt(plan: Pick<VillagePlan, "town">, clock: number): SquarePiece[] {
-  const fire = fireOf(plan);
+export function flamesAt(plan: Pick<VillagePlan, "town"> & Folk, clock: number): SquarePiece[] {
+  const fire = fireOf(plan),
+    f = folkSize(plan);
   return [0, 1, 2, 3].map((k) => {
     const flick = 0.75 + 0.25 * Math.sin(clock * (7 + k * 2.3) + k * 1.9),
       a = k * 1.7 + clock * 0.4,
-      r = k ? 1 : 0;
+      r = k ? f : 0;
     return {
       x: fire.x + Math.cos(a) * r,
       // (Rising out of the pile of logs.)
-      y: 1.2 + (k ? 1.6 : 2.3) * flick,
+      y: (1.2 + (k ? 1.6 : 2.3) * flick) * f,
       z: fire.z + Math.sin(a) * r,
-      sx: k ? 1.6 : 2.6,
-      sy: (k ? 3.2 : 4.6) * flick,
-      sz: k ? 1.6 : 2.6,
+      sx: (k ? 1.6 : 2.6) * f,
+      sy: (k ? 3.2 : 4.6) * flick * f,
+      sz: (k ? 1.6 : 2.6) * f,
       yaw: a,
     };
   });
@@ -297,7 +311,7 @@ export function flamesAt(plan: Pick<VillagePlan, "town">, clock: number): Square
  * in turn) on four posts — clear of the hall; where a buyer stands before each, facing it, and
  * where its trader stands behind, facing the square.
  */
-export function marketScene(plan: Pick<VillagePlan, "market" | "town">): {
+export function marketScene(plan: Pick<VillagePlan, "market" | "town"> & Folk): {
   readonly stalls: readonly SquarePiece[];
   readonly awnings: readonly (readonly SquarePiece[])[];
   readonly posts: readonly SquarePiece[];
@@ -312,7 +326,14 @@ export function marketScene(plan: Pick<VillagePlan, "market" | "town">): {
     fronts: Spot[] = [],
     backs: Spot[] = [];
   const count = plan.town ? 10 : 7,
-    R = plan.town ? 11.5 : 7.4;
+    R = (plan.town ? 11.5 : 7.4) * (plan.town ? squareScale(plan) : 1),
+    f = folkSize(plan),
+    STALL = {
+      w: STALL_OURS.w * f,
+      h: STALL_OURS.h * f,
+      d: STALL_OURS.d * f,
+      roof: STALL_OURS.roof * f,
+    };
   for (let k = 0; k < count; k++) {
     const a = (k / count) * 2 * Math.PI + 0.3,
       x = R * Math.cos(a),
@@ -331,9 +352,9 @@ export function marketScene(plan: Pick<VillagePlan, "market" | "town">): {
       x,
       y: STALL.roof,
       z,
-      sx: STALL.w + 0.6,
-      sy: 0.25,
-      sz: STALL.d + 1.2,
+      sx: STALL.w + 0.6 * f,
+      sy: 0.25 * f,
+      sz: STALL.d + 1.2 * f,
       yaw,
     });
     for (const along of [-1, 1])
@@ -341,15 +362,24 @@ export function marketScene(plan: Pick<VillagePlan, "market" | "town">): {
         posts.push({
           ...local((along * STALL.w) / 2, (ahead * STALL.d) / 2),
           y: STALL.roof / 2,
-          sx: 0.22,
+          sx: 0.22 * f,
           sy: STALL.roof,
-          sz: 0.22,
+          sz: 0.22 * f,
           yaw,
         });
     for (const along of [-1.3, 0, 1.3])
-      goods.push({ ...local(along, 0.3), y: STALL.h + 0.25, sx: 1.1, sy: 0.5, sz: 0.9, yaw });
-    fronts.push({ ...local(0, STALL.d / 2 + 1), yaw: Math.atan2(x, z) });
-    backs.push({ ...local(0, -(STALL.d / 2 + 0.9)), yaw });
+      goods.push({
+        ...local(along * f, 0.3 * f),
+        y: STALL.h + 0.25 * f,
+        sx: 1.1 * f,
+        sy: 0.5 * f,
+        sz: 0.9 * f,
+        yaw,
+      });
+    // (Where buyer and trader stand: as far off the counter as they are deep, ours or a greater body's.)
+    const stand = Math.max(f, measuresOf(plan.body).breadth / 2 + 0.2);
+    fronts.push({ ...local(0, STALL.d / 2 + stand), yaw: Math.atan2(x, z) });
+    backs.push({ ...local(0, -(STALL.d / 2 + stand * 0.9)), yaw });
   }
   return { stalls, awnings, posts, goods, fronts, backs };
 }

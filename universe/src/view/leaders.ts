@@ -111,7 +111,15 @@ export function figureEye(
   let level = 1;
   const t = plan.town;
   if (t) {
-    const lots = townLots(t.family, t.seed, t.axis, t.lots, t.water, t.site ?? null),
+    const lots = townLots(
+        t.family,
+        t.seed,
+        t.axis,
+        t.lots,
+        t.water,
+        t.site ?? null,
+        t.lotSize ?? 1,
+      ),
       states = lotStates(t);
     for (let p = 0; p < lots.x.length; p++) {
       if (lots.x[p] !== h.x || lots.z[p] !== h.z) continue;

@@ -11,6 +11,20 @@ import type {
 } from "../bridge/index.ts";
 import { biomeColor } from "./globe.ts";
 import { ACTIVITY, houseLook, momentOf, type Task } from "./village.ts";
+import { figureOf } from "./figure.ts";
+import { OUR_STATURE, figureExtent, measuresOf } from "./stature.ts";
+
+/**
+ * A home's insides made to its people's measure (view/stature.ts): its rooms and what stands in them are laid at our measure
+ * (rules/dwelling.ts), and drawn as much larger or smaller as its people stand taller or smaller than we do, in the units its
+ * figures are drawn in (their figure's own scale) — not by their weight alone, so a people slight and tall have the head room
+ * and the beds a heavy and low one of their weight would not.
+ */
+export function fittedInside(inside: HomeInside, plan: Pick<VillagePlan, "body">): HomeInside {
+  const f = figureOf(plan.body),
+    scale = (figureExtent(f).top * f.scale) / OUR_STATURE;
+  return Math.abs(scale - inside.scale) < 1e-9 ? inside : { ...inside, scale };
+}
 
 type Rgb = readonly [number, number, number];
 export type HomeMesh = "box" | "cyl" | "cone";
@@ -146,8 +160,9 @@ const unitOf = (key: number, i: number): number => {
 };
 
 /** Those who live there, each in or out at moment t, as their day has them: in, where they are placed in its rooms. */
-export function homeFolk(inside: HomeInside, plan: VillagePlan, t: number): HomeFolk[] {
-  const U = inside.scale,
+export function homeFolk(given: HomeInside, plan: VillagePlan, t: number): HomeFolk[] {
+  const inside = fittedInside(given, plan),
+    U = inside.scale,
     d = inside.dwelling,
     home = plan.homes[inside.home],
     beds = d.things.filter((x) => x.need === "sleep"),
@@ -598,8 +613,12 @@ function wallRun(
 }
 
 /** A home's insides, as parts: built once when it is opened. */
-export function homeDrawn(inside: HomeInside, plan: VillagePlan, t: number): HomeDrawn {
-  const parts = new HomeParts(),
+export function homeDrawn(given: HomeInside, plan: VillagePlan, t: number): HomeDrawn {
+  const inside = fittedInside(given, plan),
+    // (Its door as broad as they are, at our measure: the rooms are drawn to theirs.)
+    m = measuresOf(plan.body),
+    doorHalf = Math.max(0.55, m.doorWide / 2 / m.rise),
+    parts = new HomeParts(),
     lid = new HomeParts(),
     U = inside.scale,
     d = inside.dwelling,
@@ -791,8 +810,10 @@ export function homeDrawn(inside: HomeInside, plan: VillagePlan, t: number): Hom
     wallRun(parts, inside, f.lo, f.far, f.lo, f.near, wallOut, CUT, ruin, run++);
     wallRun(parts, inside, f.hi, f.far, f.hi, f.near, wallOut, CUT, ruin, run++);
     if (level === 0 && !high) {
-      wallRun(parts, inside, f.lo, f.near, doorX - 0.55, f.near, wallOut, CUT_NEAR, ruin, run++);
-      wallRun(parts, inside, doorX + 0.55, f.near, f.hi, f.near, wallOut, CUT_NEAR, ruin, run++);
+      const a = Math.max(f.lo, doorX - doorHalf),
+        b = Math.min(f.hi, doorX + doorHalf);
+      if (a > f.lo) wallRun(parts, inside, f.lo, f.near, a, f.near, wallOut, CUT_NEAR, ruin, run++);
+      if (b < f.hi) wallRun(parts, inside, b, f.near, f.hi, f.near, wallOut, CUT_NEAR, ruin, run++);
     } else wallRun(parts, inside, f.lo, f.near, f.hi, f.near, wallOut, CUT_NEAR, ruin, run++);
     // Its roof, or what is above it, comes off as it opens.
     if (!ruin) {

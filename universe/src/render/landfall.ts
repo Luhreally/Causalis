@@ -8,6 +8,7 @@ import {
   TOWN_FRAME,
   armLook,
   figureOf,
+  lifeFigure,
   figurePaint,
   flameGeometry,
   fleetLooks,
@@ -230,9 +231,17 @@ export class LandfallLayer {
       landers: this.lane(meshOf(stage, shipGeometry(look, "lander")), hullMaterial(), 4),
       flames: this.lane(meshOf(stage, flameGeometry()), lightMaterial(look.engine), 4),
       ramps: this.lane(boxMesh(stage), flatMaterial(look.dark), 4),
-      flesh: this.host(figureOf(plan.figure, detail), capC, toneC, 0.3),
-      made: plan.made > 0 ? this.host(figureOf(null, detail), capC, toneM, 0.25) : null,
-      natives: this.host(figureOf(plan.nativeFigure, detail), capN, toneN, 0.16),
+      flesh: this.host(lifeFigure(figureOf(plan.figure, detail), plan.figure), capC, toneC, 0.3),
+      made:
+        plan.made > 0
+          ? this.host(lifeFigure(figureOf(null, detail), null), capC, toneM, 0.25)
+          : null,
+      natives: this.host(
+        lifeFigure(figureOf(plan.nativeFigure, detail), plan.nativeFigure),
+        capN,
+        toneN,
+        0.16,
+      ),
       guns: this.lane(boxMesh(stage), flatMaterial([0.16, 0.16, 0.2]), capC),
       spears: plan.nativeHolds
         ? this.lane(boxMesh(stage), flatMaterial([0.55, 0.42, 0.26]), capN)

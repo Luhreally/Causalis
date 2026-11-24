@@ -6,13 +6,7 @@
 // straight wherever the way is clear — down the streets, round the blocks, out at the gates,
 // never through a home — found once for each pair of ways and kept while the plan stands.
 import {
-  BLOCK_D,
-  BLOCK_REACH,
-  BLOCK_W,
   GATE_TOWER,
-  LOT_D,
-  LOT_W,
-  SQUARE,
   WALL_THICK,
   WALL_TOWER,
   blocksHeld,
@@ -20,6 +14,9 @@ import {
   townLots,
   wallRing,
   type TownPlan,
+  lotMeasure,
+  planMeasure,
+  type LotMeasure,
 } from "../bridge/index.ts";
 import { clearOf, pushOut, route, wayClear, type Solid } from "./ground.ts";
 import { AVENUES, AVENUE_HALF, SPRAWL_GAP, avenueWay, sprawlOf } from "./town.ts";
@@ -57,12 +54,14 @@ function nearMiddle(p: Point, q: Point): number {
   return Math.hypot(p.x + dx * t, p.z + dz * t);
 }
 
-/** The door of a lot's home on its street (its front, a lot's −v side), `along` it (metres). */
+/** The door of a lot's home on its street (its front, a lot's −v side), `along` it (metres); `lotSize`: its town's TownPlan.lotSize. */
 export function streetDoor(
   home: { readonly x: number; readonly z: number; readonly yaw: number },
   along: number,
-  out = LOT_D / 2 + 1.9,
+  out?: number,
+  lotSize = 1,
 ): Point {
+  out ??= lotMeasure(lotSize).LOT_D / 2 + 1.9;
   const s = Math.sin(home.yaw),
     c = Math.cos(home.yaw);
   return { x: home.x - s * out + c * along, z: home.z - c * out - s * along };
@@ -97,6 +96,8 @@ export class Streets {
     readonly standing: boolean;
   } | null;
   private readonly plan: TownPlan;
+  /** Its lots as its people lay them (TownPlan.lotSize). */
+  private readonly m: LotMeasure;
   private readonly lake: Solid | null;
   private readonly sprawl: { r0: number; r1: number } | null;
   private readonly blocks: { x: number; z: number; t: number }[] = [];
@@ -121,6 +122,8 @@ export class Streets {
   constructor(plan: TownPlan, lake: Solid | null) {
     this.plan = plan;
     this.lake = lake;
+    this.m = planMeasure(plan);
+    const { SQUARE, BLOCK_W, BLOCK_D, BLOCK_REACH } = this.m;
     const lots = townLots(
         plan.family,
         plan.seed,
@@ -128,6 +131,7 @@ export class Streets {
         plan.lots,
         plan.water,
         plan.site ?? null,
+        plan.lotSize ?? 1,
       ),
       held = blocksHeld(plan, lotStates(plan)),
       walls = wallRing(plan, lots, held);
@@ -272,11 +276,12 @@ export class Streets {
 
   /**
    * A point moved out to `reach` from where each block's street pieces stand about it, a hydrant or a box just off the block
-   * (view/networks.ts PIECE_U: on its long sides, where its corner lots meet the next), so what is left in the street keeps clear
+   * (view/networks.ts townNetsSteps PIECE_U: on its long sides, where its corner lots meet the next), so what is left in the street keeps clear
    * of them as well as of the block.
    */
   offPieces(p: { x: number; z: number }, reach: number): void {
     if (p.x * p.x + p.z * p.z > (this.reach + reach) ** 2) return;
+    const { BLOCK_W, BLOCK_D, LOT_W } = this.m;
     this.about({ x: p.x, z: p.z }, reach, (s) => {
       if (s.r !== 0 || s.half !== BLOCK_W / 2 || s.across !== BLOCK_D / 2) return;
       for (const a of [-1, 1])
@@ -305,6 +310,7 @@ export class Streets {
    */
   sideNear(p: Point, reach: number): number | null {
     if (p.x * p.x + p.z * p.z > (this.reach + reach) ** 2) return null;
+    const { BLOCK_W, BLOCK_D } = this.m;
     let best = Infinity,
       way: number | null = null;
     this.about(p, reach, (s) => {
@@ -641,6 +647,7 @@ export class Streets {
       return xs.length - 1;
     };
     // Each block's corners, out in its streets.
+    const { BLOCK_W, BLOCK_D, SQUARE } = this.m;
     let step = 0;
     for (const b of this.blocks) {
       if (++step % WAYS_STEP === 0) yield;

@@ -46,8 +46,8 @@ export const WILD_GAIT: Readonly<Record<string, number>> = {
   swim: 0.4,
   fly: 1.35,
 };
-/** The beasts of a town are drawn so many times larger than life (view/creature.ts's), their paces with them. */
-export const WILD_DRAWN = 3.2;
+/** The beasts of a town are drawn so many times larger than life (view/fauna.ts's: true, as its people are), their paces with them. */
+export const WILD_DRAWN = 1;
 
 /** What a beast's body gives it to move and act by. */
 export type WildFrame = {

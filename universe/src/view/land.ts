@@ -22,14 +22,10 @@ import { outlineAt, sprawlFar, sprawlOf, type TownScene } from "./town.ts";
 import { fieldLook, type FieldsNow } from "./fields.ts";
 import { lifeTint } from "./biochem.ts";
 import {
-  BLOCK_D,
-  BLOCK_W,
   GROUND,
   GroundClaims,
   holdPlaces,
   LAND_SCALE,
-  LOT_D,
-  LOT_W,
   fieldCount,
   fieldEdge,
   fieldsMeant,
@@ -40,6 +36,7 @@ import {
   townReach,
   wallAt,
   type TownLots,
+  planMeasure,
 } from "../bridge/index.ts";
 
 export { LAND_SCALE };
@@ -390,7 +387,8 @@ export function lotsOnLand(
   held?: (x: number, z: number) => boolean,
 ): readonly number[] {
   if (undersea && !held) return which;
-  const lots = scene.lots;
+  const lots = scene.lots,
+    { LOT_W, LOT_D } = lots.m;
   return which.filter((p) => {
     const x = town.x + lots.x[p]! * LAND_ACROSS,
       z = town.z + lots.z[p]! * LAND_ACROSS;
@@ -642,8 +640,8 @@ export function* landLaying(
       claims.rect(
         c.x + d.blocks.x[b]! * LAND_ACROSS,
         c.z + d.blocks.z[b]! * LAND_ACROSS,
-        BLOCK_W * LAND_ACROSS,
-        BLOCK_D * LAND_ACROSS,
+        planMeasure(tp).BLOCK_W * LAND_ACROSS,
+        planMeasure(tp).BLOCK_D * LAND_ACROSS,
         d.blocks.yaw[b]!,
         GROUND.built,
         i,

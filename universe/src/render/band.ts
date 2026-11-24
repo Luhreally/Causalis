@@ -39,7 +39,7 @@ const TONES: readonly Rgb[] = [
   [0.18, 0.12, 0.08],
   [0.07, 0.06, 0.06],
 ];
-/** How tall a grown one stands, in units: as large against life as the meadow draws its beasts (3.2 times). */
+/** How tall a grown upright ape stands at a figure's scale 1, in units (a person drawn three times life): a band's figures are drawn true (rules/stature.ts lifeFigure), as the meadow's beasts are. */
 const STANDS = 0.55;
 const KIN_SCALE = { grown: 1, old: 0.94, child: 0.66 } as const;
 
@@ -316,9 +316,9 @@ export class BandLayer {
       hour = bandHour(b),
       night = hour >= 19.5 || hour < 6.5 ? 1 : hour >= 18 || hour < 7.5 ? 0.5 : 0;
     this.shelters.set(b.shelters.length, (j, out) => {
-      // (A big body's are made to its measure.)
+      // (Made to its people's measure: as large as they are drawn, against an upright ape drawn three times life.)
       const h = b.shelters[j]!,
-        big = Math.max(1, fig.f.scale * 0.8);
+        big = fig.f.scale;
       out[0] = h.x * M;
       out[1] = 0.4 * big;
       out[2] = h.z * M;
@@ -420,8 +420,8 @@ export class BandLayer {
       this.stoneTone = stoneTone;
       this.flakes.recolor(cr.stone.colour as Rgb);
     }
-    // (Drawn larger than life, as the figures are, to be seen among them: the stone they work on
-    // and the flakes struck off about it, under where they sit.)
+    // (Drawn at the figures' size, true to them: the stone they work on and the flakes struck off about it, under where
+    // they sit.)
     this.workStone.set(camp ? 1 : 0, (_, out) => {
       out[0] = w.x * M;
       out[1] = 0.11 * u;
