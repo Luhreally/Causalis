@@ -424,9 +424,18 @@ export function giniOf(world: World, cell: number): number | null {
   return row ? row[SHARE.gini]! / 1000 : null;
 }
 /** The share of a land's people its holders bind as Domar weighs it, and how far the realm's arms hold the bound (null: none kept). */
-export function bindOf(world: World, cell: number): { share: number; hold: number } | null {
+export function bindOf(
+  world: World,
+  cell: number,
+): { share: number; hold: number; open: number } | null {
   const row = moneyStore(world, BIND_STORE)?.get(cell);
-  return row ? { share: row[BIND.share]! / 1000, hold: row[BIND.hold]! / 1000 } : null;
+  return row
+    ? {
+        share: row[BIND.share]! / 1000,
+        hold: row[BIND.hold]! / 1000,
+        open: row[BIND.open]! / 1000,
+      }
+    : null;
 }
 
 /** A land's work lost to what its people take (a share of its crafts' work; below nothing where what wakes gives more than is lost). */

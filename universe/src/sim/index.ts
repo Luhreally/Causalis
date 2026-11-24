@@ -479,10 +479,14 @@ export {
   LAW_POSITIONS,
   REFORM_LINE,
   firstLaws,
+  lawFactsOf,
+  lawGainsOf,
   lawGrievance,
   lawOf,
+  lawsFounded,
   weighLaws,
   type Law,
+  type LawGainsTable,
 } from "./order/laws.ts";
 export {
   HOLD_EVENTS,
