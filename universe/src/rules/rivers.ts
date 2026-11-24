@@ -8,8 +8,9 @@ export const AVULSION = {
   /** A flood this great or more (its usual 1: planet/floods.ts) can break out for good (est: some one in twelve of them). */
   size: 2.5,
   /** Of such floods on a plain as flat as can be and laying silt fast, the share that move the river (est: a great river's lower
-   * course moves some once in five hundred to a thousand years). */
-  chance: 0.06,
+   * course moves some once in five hundred to a thousand years; the Yellow River's some once a century at its most restless).
+   * At 0.06 first light's rivers moved some four times a century, a world of a few dozen great rivers; now some one. */
+  chance: 0.015,
   /** Slopes (rise over run) past which a river keeps its valley (FLOOD.plain's). */
   flat: 0.02,
   /** The year's silt (a share of the topsoil) at which a bed builds up at its fastest. */

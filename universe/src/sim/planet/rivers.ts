@@ -10,6 +10,7 @@
 //
 // What is kept: the last few dozen moves, a tally for ever; the beds themselves in the planet's own departures.
 import {
+  dmath,
   defineEventType,
   defineStream,
   yearOfMoment,
@@ -19,8 +20,8 @@ import {
   type StateStore,
   type World,
 } from "../../kernel/index.ts";
-import { WATER, cellRef, type ProvinceWorld } from "../../gen/index.ts";
-import { regionOf } from "../population/systems.ts";
+import { WATER, cellRef, refineRegion, type ProvinceWorld, type Region } from "../../gen/index.ts";
+import { PROVINCE_TILE_KM, REGION_SIZE, regionOf, regionReady } from "../population/systems.ts";
 import { AVULSION, avulsionChance } from "../../rules/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { homePlanet } from "./store.ts";
@@ -74,24 +75,88 @@ export function riverMovesOn(world: World, land: number): RiverMove[] {
   return (riversOf(world)?.moves ?? []).filter((m) => m.land === land).reverse();
 }
 
-/** The ground about each town and village of `lands` (WATER of their maps' tiles within AVULSION.clear of each), in one string. */
-function townGround(ctx: PopulationContext, lands: readonly number[]): string {
+/** The ground about each town and village of `land` on its map `r` (WATER of the tiles within AVULSION.clear of each). */
+function townGround(ctx: PopulationContext, land: number, r: Region): string {
   let out = "";
-  for (const land of lands) {
-    const towns = ctx.settlements.inProvince(land);
-    if (!towns.length) continue;
-    const r = regionOf(ctx, land),
-      n = r.size,
-      d = AVULSION.clear;
-    for (const v of towns) {
-      const x = v.tile % n,
-        y = Math.floor(v.tile / n);
-      for (let j = Math.max(0, y - d); j <= Math.min(n - 1, y + d); j++)
-        for (let i = Math.max(0, x - d); i <= Math.min(n - 1, x + d); i++)
-          out += r.water[j * n + i] === WATER.land ? "." : "~";
-    }
+  const n = r.size,
+    d = AVULSION.clear;
+  for (const v of ctx.settlements.inProvince(land)) {
+    const x = v.tile % n,
+      y = Math.floor(v.tile / n);
+    for (let j = Math.max(0, y - d); j <= Math.min(n - 1, y + d); j++)
+      for (let i = Math.max(0, x - d); i <= Math.min(n - 1, x + d); i++)
+        out += r.water[j * n + i] === WATER.land ? "." : "~";
   }
   return out;
+}
+
+/**
+ * Whether moving the river from `from` to `to` would leave every town and village dry: read on the maps of the lands with towns
+ * whose maps could change (a map reaches some 0.71 of its side from its land's centre, and a river entering it from beyond its
+ * edge is led in by the stretch it flows from), with the stretches set as they would be and then put back as they were.
+ * Nothing of the world's ground is changed, and nothing kept.
+ */
+function townsDry(ctx: PopulationContext, from: number, to: number): boolean {
+  const g = ctx.generated as ProvinceWorld,
+    f = g.fine,
+    P = f.grid.positions,
+    R = 6371 * f.planet.radius,
+    dot = (a: number, b: number) =>
+      P[3 * a]! * P[3 * b]! + P[3 * a + 1]! * P[3 * b + 1]! + P[3 * a + 2]! * P[3 * b + 2]!,
+    // (The farthest a neighbour of either stretch stands, as an angle.)
+    step = Math.max(
+      ...[from, to].flatMap((c) => {
+        const out: number[] = [];
+        for (let k = f.grid.offsets[c]!; k < f.grid.offsets[c + 1]!; k++)
+          out.push(dmath.acos(dmath.clamp(dot(c, f.grid.neighbours[k]!), -1, 1)));
+        return out;
+      }),
+    ),
+    // (A cell this near a map's centre surely has tiles of it; this far, surely none.)
+    inner = (0.5 * REGION_SIZE * PROVINCE_TILE_KM) / R - step,
+    outer = (0.71 * REGION_SIZE * PROVINCE_TILE_KM) / R + step,
+    angle = (a: number, b: number) => dmath.acos(dmath.clamp(dot(a, b), -1, 1)),
+    down = f.water.flowTo,
+    lands: number[] = [];
+  // A map's water is read off its own tiles' heights, and off the rivers that enter it from beyond its edge: a stretch outside
+  // it that flows into it. Only a map where either stretch may be such can change, and only a map with a town is read.
+  for (let l = 0; l < g.offworld.base; l++) {
+    const c = g.centre[l]!;
+    if (angle(c, from) > outer + step && angle(c, to) > outer + step) continue;
+    const may = [from, to].some(
+      (u) => angle(c, u) >= inner && down[u]! >= 0 && angle(c, down[u]!) <= outer,
+    );
+    if (may && ctx.settlements.inProvince(l).length) lands.push(l);
+  }
+  if (!lands.length) return true;
+  const before = lands.map((l) =>
+      townGround(
+        ctx,
+        l,
+        regionReady(ctx, l)
+          ? regionOf(ctx, l)
+          : refineRegion(f, g.centre[l]!, REGION_SIZE, PROVINCE_TILE_KM),
+      ),
+    ),
+    river = f.water.river,
+    flow = f.water.discharge,
+    was = [river[from]!, river[to]!, flow[from]!, flow[to]!] as const;
+  river[from] = 0;
+  river[to] = 1;
+  flow[from] = was[3];
+  flow[to] = was[2];
+  try {
+    return lands.every(
+      (l, i) =>
+        townGround(ctx, l, refineRegion(f, g.centre[l]!, REGION_SIZE, PROVINCE_TILE_KM)) ===
+        before[i],
+    );
+  } finally {
+    river[from] = was[0];
+    river[to] = was[1];
+    flow[from] = was[2];
+    flow[to] = was[3];
+  }
 }
 
 /**
@@ -148,19 +213,11 @@ export function riverAfterFlood(
     }
   }
   if (!best) return null;
-  // (The lands whose maps may hold either stretch: theirs and those about them. A river entering a map from beyond its edge is
-  // led in by the planet's river, so the ground of a map beside the move may change too.)
-  const near = new Set<number>();
-  for (const c of [best.from, best.to]) {
-    const l = g.provinceOf[c]!;
-    near.add(l);
-    for (let k = g.grid.offsets[l]!; k < g.grid.offsets[l + 1]!; k++)
-      near.add(g.grid.neighbours[k]!);
+  // Nothing built stands in water afterwards: where the new way would run through a town or village, its banks held.
+  if (!townsDry(ctx, best.from, best.to)) {
+    return null;
   }
-  const lands = [...near].filter((l) => l < g.offworld.base).sort((a, b) => a - b),
-    before = townGround(ctx, lands),
-    home = homePlanet(world),
-    was = [home.surface(best.from), home.surface(best.to)],
+  const home = homePlanet(world),
     left = home.surface(best.from),
     taken = home.surface(best.to),
     carried = left.discharge;
@@ -169,11 +226,6 @@ export function riverAfterFlood(
   taken.river = 1;
   taken.discharge = carried;
   home.changeSurface([left, taken]);
-  // Nothing built stands in water afterwards: where the new way would run through a town or village, its banks held.
-  if (townGround(ctx, lands) !== before) {
-    home.changeSurface(was);
-    return null;
-  }
   const p = ctx.provinces.get(land),
     event = world.events.emit({
       type: RIVER_EVENTS.moved.type,
