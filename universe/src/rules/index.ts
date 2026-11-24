@@ -1844,6 +1844,7 @@ export * from "./carbon.ts";
 export * from "./cycles.ts";
 export * from "./storms.ts";
 export * from "./tillage.ts";
+export * from "./decay.ts";
 export * from "./rivers.ts";
 // A people's figure as the views draw it, and their measure from it (once view/figure.ts, view/folk.ts, view/biochem.ts and
 // view/stature.ts: the host lays their towns' lots to it, so it is read here, where both reach it).

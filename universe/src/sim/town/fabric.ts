@@ -16,6 +16,7 @@ import { courtIn } from "../order/institutions-kept.ts";
 import {
   YEAR,
   defineEventType,
+  defineStream,
   dmath,
   type Hasher,
   hashString,
@@ -55,8 +56,18 @@ import {
   type CivicKind,
   type CivicSite,
   type TownUse,
+  homeYears,
+  yearsDrawn,
+  type Material,
 } from "../../rules/index.ts";
 import { Civics, NO_FALL, Runs, type Change, type Civic } from "./packed.ts";
+import { homePlanet } from "../planet/store.ts";
+
+/** The draw of the year each home of an emptied town falls (see TownBuilder.decay). */
+const DECAY_DRAW = defineStream("town.decay");
+/** What a home is taken to be built of where its land had no house design when it was raised. */
+const FIRST_WALLS: Material = "wood",
+  FIRST_ROOF: Material = "reed";
 import type { MarketStore } from "../economy/market.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import type { Settlement } from "../population/stores.ts";
@@ -156,6 +167,11 @@ export type Fabric = {
   /** The event of its forsaking, while every home of it is fallen. */
   forsaken: Ref | null;
   /**
+   * The year its last people left it, while it holds no one and homes of it stand (-1: lived in, or none stands): each
+   * home then falls in a year drawn for it once, from what it is built of and its land's weather (TownBuilder.decay).
+   */
+  emptied: number;
+  /**
    * What its form turns on (bridge/form.ts), each set down the year it happened and never changed after, so no block of it
    * ever moves for the years gone by:
    *  `engines`: the lots it had taken when engines came to its land (-1: they are not come); what it has taken since was
@@ -247,6 +263,8 @@ const FOLD = {
   livedIn: 7,
   /** What its form turns on, set down: which (0 its reach when founded, 1 when walled, 2 when engines came, 3 its market place, 4 the lots it had when engines came), and the number. */
   form: 8,
+  /** The year its last people left it (-1: people came back to it). */
+  emptied: 9,
 } as const;
 
 /**
@@ -274,12 +292,29 @@ type Saved = [
   fallen: number[],
   /** (Absent in a save from before they were kept.) */
   form?: [engines: number, order: number, place: number],
+  /** (Absent in a save from before it was kept: -1.) */
+  emptied?: number,
 ];
 
 /**
  * A town as its settling last went over it: the year, and the first year after it that anything of it comes due
  * (see TownBuilder.settle).
  */
+/** A town's name's hash (for the digest), and its place in its settlements' list + 1 while it sleeps (0: awake). */
+type Named = { h: number; asleep: number; folds: number };
+/**
+ * An emptied town's homes as decay last read them (never saved): each stretch's first lot, end, level and the year it falls,
+ * four numbers each, the latest to fall first; kept while nothing else is done to it (`folds`, the town's), none of its runs
+ * is joined or weathered away (`runs`, how many it has: its settling does both unfolded, and two runs of homes joined are one
+ * stretch), its ground stands and it is emptied from the same year.
+ */
+type Falling = { folds: number; runs: number; ground: string; emptied: number; list: number[] };
+/** TownStore.sleep's: asleep, and asleep while its land has yet to come to engines. */
+const ASLEEP_DONE = 1,
+  ASLEEP_ENGINES = 2,
+  /** A sleeping town's settling's last asked: asked every year (settle reads it as the year before). */
+  ASKED_ASLEEP = -2;
+
 type Settled = {
   year: number;
   due: number;
@@ -303,6 +338,12 @@ export class TownStore implements StateStore {
   /** (ofAt's: by a settlement's place in its store's list. Never saved.) */
   private readonly atSettlement: Settlement[] = [];
   private readonly atFabric: Fabric[] = [];
+  /** (By the same place: 0 awake, ASLEEP_DONE asleep, ASLEEP_ENGINES asleep till its land comes to engines. See sleep.) */
+  private readonly atAsleep: number[] = [];
+  /** (And the year it wakes of itself: something of it comes due, a weighing of what stands, its shrinking's turn.) */
+  private readonly atWake: number[] = [];
+  /** (The ground's key as the towns asleep slept on it.) */
+  private ground = "";
   /** (Each town as its settling last went over it: a cache, let go on loading.) */
   readonly settled = new Map<Fabric, Settled>();
   /**
@@ -320,7 +361,7 @@ export class TownStore implements StateStore {
   /** (Of towns let fall from the top, the lot from which up no home stands: shrink's reading, a cache, never saved. bareFrom) */
   readonly bare = new Map<Fabric, number>();
   /** (Each town's name as the digest folds it, hashed once: a cache, never saved.) */
-  private readonly named = new Map<Ref, number>();
+  private readonly named = new Map<Ref, Named>();
   /** Every change folded in as it is made, for the checkpoints: two lanes of the kernel's absorber. */
   private a = 0x2545f491 | 0;
   private b = 0x6a09e667 | 0;
@@ -350,8 +391,58 @@ export class TownStore implements StateStore {
     if (f) {
       this.atSettlement[i] = s;
       this.atFabric[i] = f;
+      this.atAsleep[i] = 0;
     }
     return f;
+  }
+
+  /**
+   * Whether the town of the settlement `i`th in its store's list sleeps (see sleep): ASLEEP_DONE, ASLEEP_ENGINES, or 0 (and
+   * 0 where that place holds another, its list having moved: a town woken that slept is a town whose year changes nothing).
+   */
+  asleepAt(i: number, s: Settlement): number {
+    return this.atSettlement[i] === s ? this.atAsleep[i]! : 0;
+  }
+  /** The year a town asleep wakes of itself (see sleep). */
+  wakesAt(i: number): number {
+    return this.atWake[i]!;
+  }
+
+  /**
+   * Set a town aside from the towns' year: one whose year changes nothing, nor will until something is done to it (every
+   * such thing is folded in, and folding wakes it), its people come back, it becomes its land's market, its land is
+   * sacked, or (ASLEEP_ENGINES) its land comes to engines (see townYear). Its fabric is as it was; its settling's record
+   * stands for the years asked it would have had (ASKED_ASLEEP). Never saved: a world loaded has every town awake, and a
+   * sleeping town's year, gone over, changes nothing.
+   */
+  sleep(i: number, f: Fabric, engines: boolean, wakes: number): void {
+    let n = this.named.get(f.town);
+    if (n === undefined)
+      this.named.set(f.town, (n = { h: hashString(f.town), asleep: 0, folds: 0 }));
+    n.asleep = i + 1;
+    this.atAsleep[i] = engines ? ASLEEP_ENGINES : ASLEEP_DONE;
+    this.atWake[i] = wakes;
+    const last = this.settled.get(f);
+    if (last) last.asked = ASKED_ASLEEP;
+  }
+
+  /** How many things have been folded into a town (since this store was made or loaded). */
+  foldsOf(town: Ref): number {
+    return this.named.get(town)?.folds ?? 0;
+  }
+  /** (decay's: see Falling.) */
+  readonly falling = new Map<Fabric, Falling>();
+  /** Wake every town asleep where the ground has changed since they slept (see townYear). */
+  wakeOnGround(key: string): void {
+    if (key === this.ground) return;
+    this.ground = key;
+    this.atAsleep.fill(0);
+  }
+  /** Wake the town `i`th in its store's list (see sleep). */
+  wakeAt(i: number): void {
+    const n = this.named.get(this.atFabric[i]!.town);
+    if (n) n.asleep = 0;
+    this.atAsleep[i] = 0;
   }
   all(): Fabric[] {
     return [...this.map.values()].sort((a, b) => (a.town < b.town ? -1 : 1));
@@ -365,8 +456,15 @@ export class TownStore implements StateStore {
   fold(town: Ref, ...values: number[]): void {
     let a = this.a,
       b = this.b;
-    let t = this.named.get(town);
-    if (t === undefined) this.named.set(town, (t = hashString(town)));
+    let n = this.named.get(town);
+    if (n === undefined) this.named.set(town, (n = { h: hashString(town), asleep: 0, folds: 0 }));
+    n.folds++;
+    // (Whatever is done to a town is folded in: one asleep wakes.)
+    if (n.asleep) {
+      this.atAsleep[n.asleep - 1] = 0;
+      n.asleep = 0;
+    }
+    const t = n.h;
     a = mix(a, t);
     b = mix(b, t ^ 0x5bd1e995);
     for (const v of values) {
@@ -408,6 +506,11 @@ export class TownStore implements StateStore {
     this.bySettlement.clear();
     this.atSettlement.length = 0;
     this.atFabric.length = 0;
+    this.atAsleep.length = 0;
+    this.atWake.length = 0;
+    this.ground = "";
+    this.named.clear();
+    this.falling.clear();
     this.settled.clear();
     this.young.clear();
     this.ruins.clear();
@@ -440,7 +543,7 @@ type SavedColumns = {
   readonly fallen: readonly number[];
   readonly fallenOf: readonly number[];
 };
-const HEADS = 12,
+const HEADS = 13,
   /** (The heads of a save from before a town's form's numbers were kept.) */
   HEADS_OLD = 9,
   RUN_COLUMNS = 7,
@@ -490,6 +593,7 @@ function intoColumns(c: Columns, f: Fabric): void {
   h[9]!.push(f.engines);
   h[10]!.push(f.order);
   h[11]!.push(f.place);
+  h[12]!.push(f.emptied);
   const R = f.changes,
     designs: number[] = [],
     runs = c.runs;
@@ -567,6 +671,7 @@ function fromColumns(c: SavedColumns): Saved[] {
       civics,
       c.fallen.slice(f, f + c.fallenOf[n]!),
       ...(c.heads.length > HEADS_OLD ? [[c.heads[9]![n], c.heads[10]![n], c.heads[11]![n]]] : []),
+      ...(c.heads.length > 12 ? [c.heads[12]![n]] : []),
     ] as Saved);
     d += c.designsOf[n]!;
     f += c.fallenOf[n]!;
@@ -633,6 +738,7 @@ function unpack(s: Saved): Fabric {
     engines: s[13]?.[0] ?? KEPT_NOT,
     order: s[13]?.[1] ?? KEPT_NOT,
     place: s[13]?.[2] ?? KEPT_NOT,
+    emptied: s[14] ?? -1,
   };
   readStanding(f);
   return f;
@@ -1167,6 +1273,8 @@ export class TownBuilder {
   private readonly store: TownStore;
   /** Whether what a land knows meets each building's needs, by the land's own test of it (see meets). */
   private readonly met = new Map<(id: string) => boolean, boolean[]>();
+  /** (homeYearsOf's: by land and design, a builder's year.) */
+  private readonly untended = new Map<number, number>();
   /** (`store`: another store than the world's, for a fabric the eye reckons apart from history's: Phase 64.) */
   constructor(ctx: PopulationContext, year: number, store: TownStore = townsOf(ctx.world)) {
     this.ctx = ctx;
@@ -1292,7 +1400,7 @@ export class TownBuilder {
       !last ||
       !young ||
       !ruins ||
-      asked !== year - 1 ||
+      (asked !== year - 1 && asked !== ASKED_ASLEEP) ||
       last.civics !== f.civics.version ||
       f.civics.length < last.buildings ||
       store.whole.delete(f)
@@ -1775,6 +1883,86 @@ export class TownBuilder {
   }
 
   /** Homes let fall from the edge, a few a year, where the town has long had far more than it needs. */
+  /**
+   * An emptied town's homes falling (see Fabric.emptied): each stretch of homes standing side by side (as shrink goes over
+   * them) falls in a year drawn for it once, by the town, the year it emptied and the stretch's first lot, about the years
+   * its kind stands untended in its land (rules/decay.ts: its walls and roof, by its land's house design it was raised to,
+   * against its land's rain and frost). Every stretch due falls; the first year one standing falls is given back (Infinity:
+   * none stands). (Where two of its home runs share a lot, its homes fall as shrink lets them, in its turn.)
+   */
+  decay(f: Fabric, cell: number): number {
+    const year = this.year,
+      store = this.store,
+      ground = homePlanet(this.ctx.world).surfaceKey;
+    let kept = store.falling.get(f);
+    // (Read again where anything else was done to it since: a stretch falling takes nothing from those beside it, so what
+    // is kept of the others is what reading them again would give.)
+    if (
+      !kept ||
+      kept.folds !== store.foldsOf(f.town) ||
+      kept.runs !== f.changes.length ||
+      kept.ground !== ground ||
+      kept.emptied !== f.emptied
+    ) {
+      const pieces = homePieces(f, 0, f.next);
+      if (pieces < 0) {
+        store.falling.delete(f);
+        if ((year + f.phase) % SHRINK_EVERY === 0) this.shrink(f, 0, SHRINK_EVERY);
+        return year + 1;
+      }
+      const R = f.changes,
+        key = hashString(f.town),
+        rng = this.ctx.world.rng,
+        order: number[] = [],
+        at: number[] = [];
+      for (let i = 0; i < pieces; i++) {
+        const lo = PIECES[3 * i]!,
+          run = runAfter(R, lo),
+          design = run < R.length ? R.v(R.slot(run), 6) : -1,
+          u = rng.real(DECAY_DRAW, key, f.emptied, lo);
+        at.push(f.emptied + Math.max(1, Math.ceil(yearsDrawn(this.homeYearsOf(cell, design), u))));
+        order.push(i);
+      }
+      // (The latest to fall first, and of a year, the lowest lot first: those due come off the end, highest lot first.)
+      order.sort((a, b) => at[b]! - at[a]! || a - b);
+      const list: number[] = [];
+      for (const i of order)
+        list.push(PIECES[3 * i]!, PIECES[3 * i + 1]!, PIECES[3 * i + 2]!, at[i]!);
+      kept = { folds: 0, runs: 0, ground, emptied: f.emptied, list };
+      store.falling.set(f, kept);
+    }
+    const list = kept.list;
+    while (list.length && list[list.length - 1]! <= year) {
+      const level = list[list.length - 2]!,
+        hi = list[list.length - 3]!,
+        lo = list[list.length - 4]!;
+      list.length -= 4;
+      f.homes[level] = f.homes[level]! - (hi - lo);
+      this.change(f, CHANGE.fell, lo, hi, 0, 0);
+      this.release(f, lo, hi);
+    }
+    kept.folds = store.foldsOf(f.town);
+    kept.runs = f.changes.length;
+    if (!list.length) store.falling.delete(f);
+    return list.length ? list[list.length - 1]! : Infinity;
+  }
+
+  /** The mean years a home of a land raised to its house design of `design` (its year; -1: none) stands untended there. */
+  private homeYearsOf(cell: number, design: number): number {
+    const k = cell * 65536 + design + 1;
+    let years = this.untended.get(k);
+    if (years === undefined) {
+      const p = design >= 0 ? this.ctx.provinces.get(cell) : undefined,
+        d = p ? designsOf(this.ctx.world).houseAt(p.ref, design) : undefined,
+        walls = d?.parts.find((x) => x.role === "walls")?.material ?? FIRST_WALLS,
+        roof = d?.parts.find((x) => x.role === "roof")?.material ?? FIRST_ROOF,
+        g = this.ctx.generated;
+      years = homeYears(walls, roof, g.climate.precipitation[cell]!, g.climate.temperature[cell]!);
+      this.untended.set(k, years);
+    }
+    return years;
+  }
+
   shrink(f: Fabric, people: number, years = 1): void {
     const housing = housingOf(f);
     if (housing === 0 || housing <= people / 0.6) {
@@ -2530,6 +2718,7 @@ function found(ctx: PopulationContext, s: Settlement): Fabric {
     walls: null,
     lean: 0,
     forsaken: null,
+    emptied: -1,
     engines: -1,
     order: ORDER_NEW,
     place: -1,
@@ -2610,7 +2799,23 @@ export function townYear(ctx: PopulationContext, t: SimTime): void {
     };
   // (Each town's year its own function, asked of each in turn: as one loop's body, a late world's town year was compiled
   // and let go again within the loop, a hundred milliseconds of one year.)
+  // (A change of the ground wakes every town asleep: the years its homes fall are its land's weather's.)
+  store.wakeOnGround(homePlanet(world).surfaceKey);
   const one = (at: number, s: Settlement): void => {
+    // (A town asleep, its year changing nothing: woken, and its year gone over, where its people come back, it becomes its
+    // land's market, its land is sacked, or its land comes to engines it waited for. See TownStore.sleep.)
+    const asleep = store.asleepAt(at, s);
+    if (asleep) {
+      if (
+        year < store.wakesAt(at) &&
+        s.population <= 0 &&
+        !s.market &&
+        !(sacked.size && sacked.has(s.cell)) &&
+        !(asleep === ASLEEP_ENGINES && (knowers.get(s.cell) ?? knowerOf(s.cell))(ENGINES))
+      )
+        return;
+      store.wakeAt(at);
+    }
     let f = store.ofAt(at, s);
     if (!f) {
       if (s.population <= 0) return;
@@ -2646,7 +2851,19 @@ export function townYear(ctx: PopulationContext, t: SimTime): void {
         () => !!beliefs.of(cell).faith,
         () => watersOf(ctx.generated, cell),
       );
-    // (No one in it, and never fewer homes than none: an emptied town's homes are not counted.)
+    // (No one left in it: its homes fall each in the year drawn for it, from the year the last of its people left; any who
+    // come back find those standing theirs, and the years drawn are let go. See decay.)
+    let falls = Infinity;
+    if (people <= 0) {
+      if (f.emptied < 0 && homesOf(f) > 0) {
+        f.emptied = year;
+        store.fold(f.town, FOLD.emptied, year);
+      }
+      if (f.emptied >= 0) falls = builder.decay(f, cell);
+    } else if (f.emptied >= 0) {
+      f.emptied = -1;
+      store.fold(f.town, FOLD.emptied, -1);
+    }
     if (people > 0 && people > housingOf(f)) {
       const top = topLevel(k, people, city);
       f.lean = 0;
@@ -2663,7 +2880,8 @@ export function townYear(ctx: PopulationContext, t: SimTime): void {
     }
     // (A town with homes to spare lets them fall in its turn, once in SHRINK_EVERY years and as many years' worth at once: its
     // empty homes are gone over lot by lot, and most towns of an old world have some.)
-    else if ((year + f.phase) % SHRINK_EVERY === 0) builder.shrink(f, people, SHRINK_EVERY);
+    else if (people > 0 && (year + f.phase) % SHRINK_EVERY === 0)
+      builder.shrink(f, people, SHRINK_EVERY);
     if (
       weighs &&
       !f.walls &&
@@ -2698,9 +2916,29 @@ export function townYear(ctx: PopulationContext, t: SimTime): void {
       f.forsaken = null;
       store.fold(f.town, FOLD.livedIn);
     }
+    // (Asleep from now where its years can change nothing till one it wakes in: no one, no ash, not its land's market, and
+    // either no home and told forsaken, or its homes falling each in its year; awake again the year something of it comes due
+    // (its settling), a home of it falls, or a weighing of a building that stands comes (one falls out of use). Only these
+    // years' sacks, people, markets, engines and a change of its ground reach it else.)
+    if (people <= 0 && !s.market && !store.ashen.has(f)) {
+      const homes = homesOf(f);
+      if (homes > 0 ? f.emptied >= 0 : f.forsaken !== null || f.next === 0) {
+        let wakes = Math.min(store.settled.get(f)?.due ?? year, falls);
+        if (f.civics.standingCount() > 0) wakes = Math.min(wakes, nextWeighing(year, f));
+        if (wakes > year + 1) store.sleep(at, f, f.engines === -1, wakes);
+      }
+    }
   };
   const settlements = ctx.settlements.all();
   for (let at = 0; at < settlements.length; at++) one(at, settlements[at]!);
+}
+
+/** The first year after `year` its buildings are weighed (as townYear reckons it: every year where a town has no lots). */
+function nextWeighing(year: number, f: Fabric): number {
+  if (f.next === 0) return year + 1;
+  let y = year + 1;
+  while ((y + f.phase) % CIVIC_EVERY !== 0) y++;
+  return y;
 }
 
 /** The learning a building waited on: of what it needs, the one its land came to last (its event). */

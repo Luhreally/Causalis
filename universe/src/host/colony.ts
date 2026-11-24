@@ -141,6 +141,7 @@ function afresh(world: World, cell: number): Kept {
       walls: null,
       lean: 0,
       forsaken: null,
+      emptied: -1,
       engines: KEPT_NOT,
       order: KEPT_NOT,
       place: KEPT_NOT,

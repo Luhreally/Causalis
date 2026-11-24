@@ -88,6 +88,8 @@ export class DesignStore implements StateStore {
   /** Every design ever realized, by ref (old ones stay, for the whys that cite them). */
   private readonly all = new Map<string, Design>();
   private readonly current = new Map<string, Ref>();
+  /** (houseAt's: each land's house designs, by owner, read again after any is made. Never saved.) */
+  private houses: Map<string, Design[]> | null = null;
 
   get(ref: Ref): Design | undefined {
     return this.all.get(ref);
@@ -118,6 +120,26 @@ export class DesignStore implements StateStore {
         best = d;
     return best;
   }
+  /** As at(owner, year, "house"), from a land's own house designs (an emptied town reads what each of its homes was built to). */
+  houseAt(owner: Ref, year: number): Design | undefined {
+    if (!this.houses) {
+      this.houses = new Map();
+      for (const d of this.all.values())
+        if (d.kind === "house") {
+          const list = this.houses.get(d.owner);
+          if (list) list.push(d);
+          else this.houses.set(d.owner, [d]);
+        }
+    }
+    let best: Design | undefined;
+    for (const d of this.houses.get(owner) ?? [])
+      if (
+        d.since <= year &&
+        (!best || d.since > best.since || (d.since === best.since && d.ref > best.ref))
+      )
+        best = d;
+    return best;
+  }
   /**
    * The design its owner had of the same kind before this one (Phase 53 M219: what a realm re-armed
    * in place of), if any. (Old designs stay, so this is exact.)
@@ -142,6 +164,7 @@ export class DesignStore implements StateStore {
 
   set(d: Design): void {
     this.all.set(d.ref, d);
+    this.houses = null;
     this.current.set(d.kind === "works" ? `works|${d.owner}` : d.owner, d.ref);
     this.digest = new Hasher().string(this.digest).value(d).hex();
   }
@@ -166,6 +189,7 @@ export class DesignStore implements StateStore {
     const s = state as { designs: Design[]; current: [string, Ref][]; digest?: string };
     this.digest = s.digest ?? "";
     this.all.clear();
+    this.houses = null;
     this.current.clear();
     for (const d of s.designs) this.all.set(d.ref, { ...d, parts: [...d.parts] });
     for (const [owner, ref] of s.current) this.current.set(owner, ref);
