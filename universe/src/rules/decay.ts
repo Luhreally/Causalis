@@ -82,3 +82,14 @@ export function homeYears(
 export function yearsDrawn(mean: number, u: number): number {
   return (mean / SHAPE_MEAN) * dmath.pow(-dmath.log1p(-u), 1 / DECAY_SHAPE);
 }
+
+/**
+ * The years more one home of a mean of `mean` stands that has stood `age` years untended already, from a uniform draw u in
+ * [0, 1): its wear's draw given that it has lasted so long (age 0: yearsDrawn).
+ */
+export function yearsLeftDrawn(mean: number, u: number, age: number): number {
+  if (!(age > 0)) return yearsDrawn(mean, u);
+  const scale = mean / SHAPE_MEAN,
+    worn = dmath.pow(age / scale, DECAY_SHAPE);
+  return scale * dmath.pow(worn - dmath.log1p(-u), 1 / DECAY_SHAPE) - age;
+}
