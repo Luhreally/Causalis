@@ -43,6 +43,7 @@ import {
   OCC,
   adultHazard,
   civicsHeld,
+  civicsPaying,
   keptFixed,
   keptPeople,
   keptPeopleBy,
@@ -2181,9 +2182,10 @@ export class TownBuilder {
       if (HAVE[i]! >= civicsHeld(def, people)) continue;
       if (!this.meets(def, i, k)) continue;
       use ??= townUseOf(this.ctx, s);
-      // (civicsPaying, its first's paying size read once: where it pays, its people are the town's use's own.)
       const want =
-        people >= payingPeople(def, CIVIC_LOTS[def.kind], use) ? civicsHeld(def, use.people) : 0;
+        people >= payingPeople(def, CIVIC_LOTS[def.kind], use)
+          ? civicsPaying(def, CIVIC_LOTS[def.kind], use)
+          : 0;
       if (want < 1 || HAVE[i]! >= want) continue;
       if ((def.faith && !faith()) || (def.water && !water())) continue;
       // (A prison only where its land's court holds people.)
