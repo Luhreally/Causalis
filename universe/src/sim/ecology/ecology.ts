@@ -30,6 +30,7 @@ import {
   type StateStore,
   type World,
 } from "../../kernel/index.ts";
+import type { EnergyStore } from "../economy/energy.ts";
 import { BIOME, isProvinceWorld, lives, offworldSite, type HomeWorld } from "../../gen/index.ts";
 import { OCC, PRODUCTIVITY, regrowthPace } from "../../rules/index.ts";
 import { shiftNow } from "../planet/motion.ts";
@@ -307,6 +308,20 @@ export function grainLost(w: Wilds): number {
 
 /** A land whose woods stay cleared is told so again once in so many years. */
 export const WOODS_GONE_EVERY = 20;
+/**
+ * Woods going under the axe for fuel (the breadth round, 2026-11-23): a land that draws this share of the heat its hearths and
+ * works want from wood felled past what its woods give (sim/economy/energy.ts `felled`), its woods standing below `below` of
+ * what they were, sees them go and is told so, in its year of WOODS_GONE_EVERY, as a land whose woods stay cleared is: the
+ * timber famine that set the first woods aside (Venice's, Tokugawa Japan's, the German states'). Fields alone take at most what
+ * a land's tillable ground can hold, so a wooded land was seldom cleared below three-tenths, and its people never felt the loss.
+ */
+export const WOODS_FELT = { felled: 0.1, below: 0.8 } as const;
+
+/** The share of the heat a land's hearths and works wanted that was wood felled past what its woods give, last year (0 … 1). */
+function felledShare(world: World, cell: number): number {
+  const a = world.peek<EnergyStore>("economy.energy")?.get(cell);
+  return a && a.felled > 0 && a.heatWanted > 0 ? Math.min(1, a.felled / a.heatWanted) : 0;
+}
 
 /** The most of a land's woods its fields can take: its tillable ground against the ground its woods stood on (0 … 1). */
 export function fieldsTake(c: Capacity, firstForest: number): number {
@@ -516,14 +531,29 @@ export function ecologyYear(ctx: PopulationContext, t: SimTime): void {
       regrowth,
       fieldsTake(c, w.firstForest),
     );
-    // (Its woods still gone a generation on, told again in the land's own year of twenty: a loss that stays is felt again.)
-    if (w.cleared && (year + p.cell) % WOODS_GONE_EVERY === 0 && w.forest < 0.3)
-      world.events.emit({
-        type: ECOLOGY_EVENTS.woodsGone.type,
-        place: p.ref,
-        causes: [{ ref: w.cleared, role: "trigger", weight: 1 }],
-        data: { forest: Math.round(w.forest * 100) },
-      });
+    // (Its woods still gone a generation on, told again in the land's own year of twenty: a loss that stays is felt again. And
+    // woods felled for fuel past what they give, going as its people watch: WOODS_FELT.)
+    if ((year + p.cell) % WOODS_GONE_EVERY === 0) {
+      const gone = !!w.cleared && w.forest < 0.3,
+        felled =
+          !gone && w.firstForest > 0.2 && w.forest < WOODS_FELT.below
+            ? felledShare(world, p.cell)
+            : 0;
+      if (gone || felled >= WOODS_FELT.felled)
+        world.events.emit({
+          type: ECOLOGY_EVENTS.woodsGone.type,
+          place: p.ref,
+          causes: gone
+            ? [{ ref: w.cleared!, role: "trigger", weight: 1 }]
+            : p.cultivation
+              ? [{ ref: p.cultivation, role: "enabler", weight: 1 }]
+              : [],
+          data: {
+            forest: Math.round(w.forest * 100),
+            ...(gone ? {} : { felled: Math.round(felled * 100) }),
+          },
+        });
+    }
     store.set(w);
     // (And its woods' age, where it has woods: stands.ts.)
     if (w.firstForest > 0) stepStand(world, p.cell, before, w.forest);

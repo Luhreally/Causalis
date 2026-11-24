@@ -70,6 +70,7 @@ import {
   LAW_OF,
   LAW_POSITIONS,
   approvalOf,
+  lawGainsOf,
   stepVoices,
   swayOnLaws,
   type Law,
@@ -186,7 +187,13 @@ export function lawVoices(
   to: number,
   t: SimTime,
 ): Voices {
-  const v = stepVoices(swayOnLaws(ctx, r, o, t), law, o.laws[LAW_OF[law]]!, to);
+  const v = stepVoices(
+    swayOnLaws(ctx, r, o, t),
+    lawGainsOf(ctx, r, o, t),
+    law,
+    o.laws[LAW_OF[law]]!,
+    to,
+  );
   return voicesOf(v.forIt, v.against, namesOf(v.groups));
 }
 
@@ -269,7 +276,7 @@ export function decreeProblem(
   if (!st.written && (l === "justice" || l === "faith") && step === 2)
     return `"${LAW_POSITIONS[l][2]}" has to be written, and nothing is written at your seat.`;
   if (channel) return null;
-  const v = stepVoices(swayOnLaws(ctx, r, o, t), l, now, step);
+  const v = stepVoices(swayOnLaws(ctx, r, o, t), lawGainsOf(ctx, r, o, t), l, now, step);
   // (Under the sacred, the temple's word on a law is the law's.)
   if (
     r.law === LAW.indexOf("the sacred") &&
@@ -680,7 +687,8 @@ export function applyDecree(
   const k = LAW_OF[law],
     from = o.laws[k]!,
     sway = swayOnLaws(c, r, o, t),
-    v = stepVoices(sway, law, from, to),
+    gains = lawGainsOf(c, r, o, t),
+    v = stepVoices(sway, gains, law, from, to),
     voices = voicesOf(v.forIt, v.against, namesOf(v.groups)),
     decision = world.decisions.record({
       rule: "order.law",
@@ -706,7 +714,7 @@ export function applyDecree(
     });
   o.laws[k] = to;
   o.lawEvents[k] = event;
-  o.approval = approvalOf(o.laws, sway);
+  o.approval = approvalOf(o.laws, sway, gains);
   pay(world, c, r, o, decreeCost(v.against), v.against, event);
   return event;
 }

@@ -2,10 +2,12 @@
 // groups … ideologies … imperialism"): who owns the land — its lord, those who lease it, those
 // who till it; what strangers are under it — subjects, the faithful, citizens; what its faith
 // asks of other faiths — one faith, others tolerated, free conscience; and its justice — custom
-// and vengeance, the ruler's courts, one law for all. A realm's first laws come of its people's
-// ways and its rule; every ten years it weighs each law against what its interest groups want,
-// by their sway (the court's the less as its rule is doubted), what its movements and its
-// people's ways push for, and how hard old ways hold. A law moves a step at a time, and each step
+// and vengeance, the ruler's courts, one law for all. What each group wants of each law is what
+// each position would leave it, reckoned from its realm's own numbers (rules/lawgain.ts, the
+// breadth round: before it, 84 numbers said so alike in every realm). A realm's first laws are
+// those its groups and its people's ways would have; every ten years it weighs each law against
+// what its interest groups gain by it, by their sway (the court's the less as its rule is
+// doubted), what its movements and its people's ways push for, and how hard old ways hold. A law moves a step at a time, and each step
 // is a decision whose factors cite what drove it. Laws do things (in the order's year): serfs
 // bound under the lord's land and freed under the tiller's own; lands of another tongue or faith
 // aggrieved as subjects or as unbelievers; captives seldom carried off where strangers are citizens;
@@ -20,13 +22,20 @@ import {
   type Ref,
   type SimTime,
 } from "../../kernel/index.ts";
-import type { PopulationContext } from "../population/systems.ts";
+import { GOODS, HOLD, OCC, lawGains, lawWritten, type LawFacts } from "../../rules/index.ts";
+import { tongueLikeness } from "../../gen/index.ts";
+import { mouths, type PopulationContext } from "../population/systems.ts";
+import type { MarketStore } from "../economy/market.ts";
 import { WAY, cultureOf, type Ways } from "../culture/culture.ts";
 import { beliefOf } from "../belief/belief.ts";
 import { loreOf } from "../lore/lore.ts";
-import { realmName, type Polity } from "../polity/polity.ts";
+import { LAW, politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import { interestsOf, type Group } from "../polity/interests.ts";
-import type { RealmOrder } from "./order.ts";
+import { capacityOf, type RealmOrder } from "./order.ts";
+import { holdsOf } from "./holds.ts";
+import { readersOf } from "../lore/letters.ts";
+import { bindOf, deficitOf, refNumber, revenueOf } from "../money/kept.ts";
+import { TEMPLE_ROW, TEMPLE_STORE, cultureRows } from "../culture/rows.ts";
 import { whisperIn } from "../acts/person.ts";
 import { pullOnLaw, schoolOver } from "../ideas/kept.ts";
 
@@ -53,49 +62,162 @@ export const LAW_EVENTS = { changed: defineEventType("order.law", 5) };
 export const LAW_EVERY = 10;
 export const REFORM_LINE = 0.12;
 
-/** What each interest group wants of each law, position by position (-1 … 1). */
-const WANTS: Readonly<Record<Law, Readonly<Record<Group, readonly [number, number, number]>>>> = {
-  land: {
-    farmers: [-1, 0, 1],
-    herders: [-0.5, 0, 0.5],
-    crafters: [0, 0.3, 0.3],
-    traders: [-0.3, 0.6, 0.2],
-    "the court": [1, 0.3, -0.8],
-    "the temple": [0.6, 0.2, -0.4],
-    "the army": [0.6, 0.2, -0.4],
-  },
-  strangers: {
-    farmers: [0.2, 0, -0.1],
-    herders: [0.2, 0, 0],
-    crafters: [-0.2, 0, 0.4],
-    traders: [-0.6, -0.2, 1],
-    "the court": [0.8, 0.2, -0.6],
-    "the temple": [0, 1, -0.4],
-    "the army": [0.6, 0.2, -0.4],
-  },
-  faith: {
-    farmers: [0.2, 0.2, 0],
-    herders: [0, 0.2, 0],
-    crafters: [-0.2, 0.4, 0.4],
-    traders: [-0.6, 0.6, 0.6],
-    "the court": [0.4, 0.4, -0.2],
-    "the temple": [1, -0.2, -1],
-    "the army": [0.2, 0.2, 0],
-  },
-  justice: {
-    farmers: [0.2, 0, 0.4],
-    herders: [0.3, 0, 0.2],
-    crafters: [-0.2, 0.2, 0.8],
-    traders: [-0.6, 0.2, 1],
-    "the court": [-0.2, 1, -0.4],
-    "the temple": [0.4, 0.4, -0.2],
-    "the army": [-0.4, 0.8, -0.2],
-  },
-};
+/** What each group gains by each position of each law (-1 … 1), by law, group, position: rules/lawgain.ts. */
+export type LawGainsTable = ReturnType<typeof lawGains>;
 
-/** The position of a law (0 … 2) a group wants most (the older of equals): what a school that speaks for it teaches (sim/ideas). */
-export function lawWanted(group: Group, law: Law): number {
-  const w = WANTS[law][group];
+/**
+ * All a realm's laws are weighed from (rules/lawgain.ts LawFacts), read off its lands: its people by what they live by and
+ * what their work brought them, as its markets paid it; what keeps a worker; its lands of another tongue or faith than its
+ * seat's, by their people; its trade across its borders against what its lands use, and the share of it with realms of
+ * another faith; its seat's faith and clergy; how it is held and judged. Only reads.
+ */
+export function lawFactsOf(ctx: PopulationContext, p: Polity, o: RealmOrder, t: SimTime): LawFacts {
+  const { world } = ctx,
+    markets = world.store<MarketStore>("economy.markets"),
+    culture = cultureOf(world),
+    faiths = beliefOf(world),
+    lore = loreOf(world),
+    seatWays = culture.get(p.seat),
+    seatFaith = faiths.of(p.seat).faith,
+    realms = politiesOf(world),
+    interests = interestsOf(ctx, p, t),
+    count = (g: Group) => interests.find((i) => i.group === g)?.people ?? 0,
+    swayOf = (g: Group) => interests.find((i) => i.group === g)?.sway ?? 0;
+  let people = 0,
+    foreign = 0,
+    unbelief = 0,
+    used = 0,
+    kept = 0,
+    workers = 0,
+    // (How far its arms hold its tillers to the land, by them, where it was reckoned: sim/money/money.ts.)
+    held = 0,
+    open = 0,
+    heldOver = 0;
+  // (Pay, by OCC: farmers (and those who gather), herders, crafters, traders; and their heads, where a market paid them.)
+  const paid = [0, 0, 0, 0],
+    paidHeads = [0, 0, 0, 0];
+  for (const c of p.members) {
+    const prov = ctx.provinces.get(c);
+    if (!prov) continue;
+    const n = prov.total();
+    people += n;
+    if (c !== p.seat) {
+      const ways = culture.get(c);
+      if (seatWays && ways) foreign += n * (1 - tongueLikeness(seatWays.tongue, ways.tongue));
+      const theirs = faiths.of(c).faith;
+      if (seatFaith !== null && theirs !== null && theirs !== seatFaith) unbelief += n;
+    }
+    const m = markets.get(c);
+    if (m) for (let k = 0; k < GOODS.length; k++) used += m.book("used", k) * GOODS[k]!.value;
+    const w = markets.wagesOf(c);
+    if (!w) continue;
+    const at = [
+      prov.occupation(OCC.farmer) + prov.occupation(OCC.forager),
+      prov.occupation(OCC.herder),
+      prov.occupation(OCC.crafter),
+      prov.occupation(OCC.trader),
+    ];
+    paid[0] = paid[0]! + at[0]! * (w[OCC.farmer] ?? 0);
+    paid[1] = paid[1]! + at[1]! * (w[OCC.herder] ?? 0);
+    paid[2] = paid[2]! + at[2]! * (w[OCC.crafter] ?? 0);
+    paid[3] = paid[3]! + at[3]! * (w[OCC.trader] ?? 0);
+    for (let k = 0; k < 4; k++) paidHeads[k] = paidHeads[k]! + at[k]!;
+    kept += 12 * mouths(prov, ctx.life);
+    const tilling = at[0]! + at[1]!,
+      bound = bindOf(world, c);
+    if (bound) {
+      held += bound.hold * tilling;
+      open += Math.min(2, bound.open) * tilling;
+      heldOver += tilling;
+    }
+    workers += Math.max(1, n - prov.occupation(OCC.dependent));
+  }
+  let trade = 0,
+    otherFaiths = 0;
+  for (const i of markets.flowsAt(p.members)) {
+    const f = markets.flows[i]!,
+      from = realms.of(f.from),
+      to = realms.of(f.to);
+    if (!from || !to || from === to || (from !== p && to !== p)) continue;
+    const other = from === p ? to : from,
+      worth = markets.boundAt(i) * GOODS[f.good]!.value;
+    trade += worth;
+    const theirs = faiths.of(other.seat).faith;
+    if (seatFaith !== null && theirs !== null && theirs !== seatFaith) otherFaiths += worth;
+  }
+  // (Its clergy: as many to its faithful as its seat's faith keeps over all its lands.)
+  const row = seatFaith ? cultureRows(world, TEMPLE_STORE)?.get(refNumber(seatFaith)) : undefined,
+    clergy =
+      row && row[TEMPLE_ROW.faithful]! > 0
+        ? (row[TEMPLE_ROW.clergy]! / row[TEMPLE_ROW.faithful]!) * Math.max(0, people - unbelief)
+        : 0,
+    payOf = (k: number) => (paidHeads[k]! > 0 ? paid[k]! / paidHeads[k]! : 0),
+    numbers = holdsOf(world, p.ref),
+    capacity = capacityOf(ctx, p).value,
+    revenue = revenueOf(world, p.ref),
+    trait = (k: number) => seatWays?.traits[k] ?? 0.5;
+  return {
+    heads: {
+      farmers: count("farmers"),
+      herders: count("herders"),
+      crafters: count("crafters"),
+      traders: count("traders"),
+      "the court": count("the court"),
+      "the temple": clergy,
+      "the army": count("the army"),
+    },
+    pay: { farmers: payOf(0), herders: payOf(1), crafters: payOf(2), traders: payOf(3) },
+    living: workers > 0 ? kept / workers : 0,
+    hold: heldOver > 0 ? held / heldOver : 1,
+    open: heldOver > 0 ? open / heldOver : 0,
+    sway: {
+      farmers: swayOf("farmers"),
+      herders: swayOf("herders"),
+      crafters: swayOf("crafters"),
+      traders: swayOf("traders"),
+      "the court": swayOf("the court"),
+      "the temple": swayOf("the temple"),
+      "the army": swayOf("the army"),
+    },
+    foreign: people > 0 ? foreign / people : 0,
+    unbelief: people > 0 ? unbelief / people : 0,
+    trade: used > 0 ? Math.min(1, trade / used) : 0,
+    otherFaiths: trade > 0 ? otherFaiths / trade : 0,
+    faith: seatFaith !== null,
+    piety: trait(WAY.piety),
+    sacred: p.law === LAW.indexOf("the sacred"),
+    force: numbers[HOLD.force]!,
+    voice: numbers[HOLD.voice]!,
+    trust: numbers[HOLD.trust]!,
+    kinship: trait(WAY.kinship),
+    corruption: o.corruption,
+    written: lawWritten(
+      !!lore.get(p.seat, "law-codes"),
+      lore.effect(p.seat, "writing") > 0,
+      capacity,
+      readersOf(world, p.seat),
+    ),
+    capacity,
+    short: revenue > 0 ? deficitOf(world, p.ref) / revenue : 0,
+    tribute: p.tribute,
+    land: o.laws[LAW_OF.land] ?? 1,
+    justice: o.laws[LAW_OF.justice] ?? 1,
+  };
+}
+
+/** What each of a realm's groups gains by each position of each law now (rules/lawgain.ts). Only reads. */
+export function lawGainsOf(
+  ctx: PopulationContext,
+  p: Polity,
+  o: RealmOrder,
+  t: SimTime,
+): LawGainsTable {
+  return lawGains(lawFactsOf(ctx, p, o, t));
+}
+
+/** The position of a law (0 … 2) a group gains most by (the older of equals): what a school that speaks for it teaches (sim/ideas). */
+export function lawWanted(gains: LawGainsTable, group: Group, law: Law): number {
+  const w = gains[LAW_OF[law]]![group];
   return w[2] > w[1] && w[2] > w[0] ? 2 : w[1] > w[0] ? 1 : 0;
 }
 
@@ -108,7 +230,10 @@ const nudged = (w: Ways | undefined, k: number): CauseRef | null => {
 /** From the old order (-1) through the middle (0) to the new (1), by position. */
 const NEWER = [-1, 0, 1] as const;
 
-/** A realm's first laws: of its people's ways and its rule. */
+/**
+ * A realm's first laws where its lands cannot be read (an order begun by a hand before the realm's first year of order: every
+ * realm's is begun at its year's start, by lawsFounded): of its people's ways and its rule.
+ */
 export function firstLaws(p: Polity, ways: Ways | undefined, faith: boolean): number[] {
   const hier = trait(ways, WAY.hierarchy),
     open = trait(ways, WAY.openness),
@@ -122,6 +247,55 @@ export function firstLaws(p: Polity, ways: Ways | undefined, faith: boolean): nu
   ];
 }
 
+/**
+ * A realm's first laws: of each, the position its groups gain most by, by their sway, with what its people's ways lean to (as
+ * weighLaws weighs them, no old ways yet to hold). One law for all and a land of free conscience are written laws; where its
+ * seat keeps no faith, the middle. `o` is its order as begun.
+ */
+export function lawsFounded(
+  ctx: PopulationContext,
+  p: Polity,
+  o: RealmOrder,
+  t: SimTime,
+): number[] {
+  const { world } = ctx,
+    ways = cultureOf(world).get(p.seat),
+    faith = beliefOf(world).of(p.seat).faith !== null,
+    writing = loreOf(world).effect(p.seat, "writing") > 0,
+    gains = lawGainsOf(ctx, p, o, t),
+    sway = swayOnLaws(ctx, p, o, t);
+  return LAWS.map((law, k) => {
+    if (law === "faith" && !faith) return 1;
+    const lean = waysPullOn(law, ways);
+    let best = 1,
+      bestAt = -Infinity;
+    for (let pos = 0; pos < 3; pos++) {
+      if (!writing && pos === 2 && (law === "justice" || law === "faith")) continue;
+      let at = lean * NEWER[pos]!;
+      for (const [g, w] of sway) at += w * gains[k]![g][pos]!;
+      if (at > bestAt + 1e-9) {
+        best = pos;
+        bestAt = at;
+      }
+    }
+    return best;
+  });
+}
+
+/** What a people's ways lean a law toward (from the old order, -, to the new, +). */
+function waysPullOn(law: Law, ways: Ways | undefined): number {
+  const hier = trait(ways, WAY.hierarchy),
+    open = trait(ways, WAY.openness),
+    piety = trait(ways, WAY.piety);
+  return law === "land"
+    ? -0.5 * (hier - 0.5)
+    : law === "strangers"
+      ? 0.5 * (open - 0.5) - 0.3 * (hier - 0.5)
+      : law === "faith"
+        ? 0.4 * (open - 0.5) - 0.5 * (piety - 0.5)
+        : 0.3 * (open - 0.5);
+}
+
 /** The law of a kind a realm keeps (its position), with its words. */
 export function lawOf(o: RealmOrder, law: Law): { position: number; words: string } {
   const position = o.laws[LAW_OF[law]] ?? 1;
@@ -132,10 +306,14 @@ export function lawOf(o: RealmOrder, law: Law): { position: number; words: strin
  * How far a realm's laws are what its powerful want (-1 … 1): over its laws, each group's want
  * of the law it keeps, by the group's sway.
  */
-export function approvalOf(laws: readonly number[], sway: ReadonlyMap<Group, number>): number {
+export function approvalOf(
+  laws: readonly number[],
+  sway: ReadonlyMap<Group, number>,
+  gains: LawGainsTable,
+): number {
   let sum = 0;
-  LAWS.forEach((law, k) => {
-    for (const [g, s] of sway) sum += s * WANTS[law][g][laws[k]!]!;
+  LAWS.forEach((_, k) => {
+    for (const [g, s] of sway) sum += s * gains[k]![g][laws[k]!]!;
   });
   return Math.max(-1, Math.min(1, sum / LAWS.length));
 }
@@ -159,6 +337,7 @@ export function swayOnLaws(
 /** Who is for a step of a law and who against, by their sway and how much they want it (Lives L4). */
 export function stepVoices(
   sway: ReadonlyMap<Group, number>,
+  gains: LawGainsTable,
   law: Law,
   from: number,
   to: number,
@@ -171,7 +350,8 @@ export function stepVoices(
     against = 0;
   const groups: { group: Group; by: number }[] = [];
   for (const [group, s] of sway) {
-    const by = s * (WANTS[law][group][to]! - WANTS[law][group][from]!);
+    const w = gains[LAW_OF[law]]![group],
+      by = s * (w[to]! - w[from]!);
     if (by > 0) forIt += by;
     else against -= by;
     groups.push({ group, by });
@@ -201,14 +381,17 @@ export function weighLaws(ctx: PopulationContext, p: Polity, o: RealmOrder, t: S
     ),
     moved = (cause: "land" | "voice") => o.movements.find((m) => m.cause === cause),
     // (The school most of its lands hold draws each law the way it teaches: sim/ideas. Nothing where none is held.)
-    school = schoolOver(world, p.members, p.seat, year, ctx.generated.life.people?.body.span ?? 70);
+    school = schoolOver(world, p.members, p.seat, year, ctx.generated.life.people?.body.span ?? 70),
+    // (What each group gains by each position, reckoned once for all four laws.)
+    gains = lawGainsOf(ctx, p, o, t);
   for (const law of LAWS) {
     const k = LAW_OF[law],
       now = o.laws[k]!;
     if (law === "faith" && !faith) continue;
     // What moves each position: the groups by their sway, a movement, the people's ways, a rule
     // doubted (toward the new) and old ways (toward what stands).
-    const groups = (pos: number) => [...sway].reduce((s, [g, w]) => s + w * WANTS[law][g][pos]!, 0),
+    const gain = gains[k]!,
+      groups = (pos: number) => [...sway].reduce((s, [g, w]) => s + w * gain[g][pos]!, 0),
       movement =
         law === "land"
           ? moved("land")
@@ -216,14 +399,7 @@ export function weighLaws(ctx: PopulationContext, p: Polity, o: RealmOrder, t: S
             ? moved("voice")
             : undefined,
       push = movement ? (law === "land" ? 1 : 0.6) * movement.strength : 0,
-      waysPull =
-        law === "land"
-          ? -0.5 * (hier - 0.5)
-          : law === "strangers"
-            ? 0.5 * (open - 0.5) - 0.3 * (hier - 0.5)
-            : law === "faith"
-              ? 0.4 * (open - 0.5) - 0.5 * (piety - 0.5)
-              : 0.3 * (open - 0.5),
+      waysPull = waysPullOn(law, ways),
       taught = pullOnLaw(school, k),
       support = (pos: number) =>
         groups(pos) +
@@ -246,12 +422,12 @@ export function weighLaws(ctx: PopulationContext, p: Polity, o: RealmOrder, t: S
     if (score < line) continue;
     const toward = NEWER[to]! - NEWER[now]!,
       ranked = [...sway]
-        .map(([g, w]) => ({ g, c: w * (WANTS[law][g][to]! - WANTS[law][g][now]!) }))
+        .map(([g, w]) => ({ g, c: w * (gain[g][to]! - gain[g][now]!) }))
         .sort((a, b) => Math.abs(b.c) - Math.abs(a.c) || (a.g < b.g ? -1 : 1))
         .slice(0, 3),
       factors: Factor[] = [
         ...ranked.map(({ g, c }) => ({
-          name: `${g} ${c >= 0 ? "want it" : "stand against it"}`,
+          name: `${g} ${c >= 0 ? "gain by it" : "lose by it"}`,
           value: sway.get(g) ?? 0,
           contribution: c,
           source: null,
@@ -323,7 +499,7 @@ export function weighLaws(ctx: PopulationContext, p: Polity, o: RealmOrder, t: S
     o.laws[k] = to;
     o.lawEvents[k] = event;
   }
-  o.approval = approvalOf(o.laws, sway);
+  o.approval = approvalOf(o.laws, sway, gains);
 }
 
 /** What a law asks of a land's people, as grievance a year: strangers held as subjects, unbelievers. */
