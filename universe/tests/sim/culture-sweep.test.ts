@@ -31,6 +31,7 @@ import {
   clergyKept,
   drawAfter,
   folkAfter,
+  folkKept,
   granaryAfter,
   kinToSeat,
   nationTarget,
@@ -113,6 +114,13 @@ test("a people's 'us' reaches a valley before letters, all its speech once it re
   const after = folkAfter(0.1, 0.9, 10);
   assert.ok(after > 0.1 && after < 0.9);
   assert.ok(near(folkAfter(0.1, 0.9, 0), 0.1));
+  // (Kept in thousandths, a step too short to show still moves it one: a land is drawn all the way, not held a thousandth short.)
+  assert.equal(folkKept(999, folkAfter(0.999, 1, 5), 1), 1000);
+  assert.equal(folkKept(1000, 1, 1), 1000);
+  assert.equal(
+    folkKept(500, folkAfter(0.5, 0.9, 5), 0.9),
+    Math.round(folkAfter(0.5, 0.9, 5) * 1000),
+  );
 });
 
 test("being ruled by strangers aggrieves a nation more than a valley, and none who count the seat's people near their own", () => {
@@ -253,7 +261,14 @@ test("a young world keeps the sweep's stores: who each land of a realm counts it
     const seat = identityOf(world, r.seat);
     if (!seat) continue;
     const strangers = strangersIn(world, r.seat);
-    if (strangers === 0) assert.equal(seat.kin, 1, `${r.ref} holds no strangers`);
+    // (A seat whose strangers have lately gone is drawn back to wholly its own at each weighing, not at once: pol:0:10's left in
+    // year 36, a hundredth of its people under ABROAD.least, and its seat reads 0.997 at 40, its own again within a few
+    // weighings.)
+    if (strangers === 0)
+      assert.ok(
+        seat.kin <= 1 && seat.kin >= 1 - ABROAD.apart,
+        `${r.ref} holds no strangers: ${seat.kin}`,
+      );
     else {
       mixed++;
       // (By their share when it was last weighed, once in five years: never more than strangers can take.)

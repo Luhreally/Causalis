@@ -118,6 +118,18 @@ export function folkAfter(was: number, target: number, years: number): number {
 }
 
 /**
+ * A land's identity as kept, in thousandths, from `was` (kept) toward `target` (0 … 1) after a step to `now`: rounded, but a
+ * thousandth on where the step was too short to show while the target is elsewhere. (Rounded alone, a land within a thousandth
+ * or two of where it is drawn stood short of it for ever: a seat that once held strangers read 0.999 its own a century after
+ * the last of them was gone.)
+ */
+export function folkKept(was: number, now: number, target: number): number {
+  const to = Math.round(target * 1000),
+    r = Math.round(now * 1000);
+  return r === was && to !== was ? was + Math.sign(to - was) : r;
+}
+
+/**
  * What being ruled by those it counts strangers breeds of grievance in a land a year: as far as its kin to the seat's people falls
  * short of the middle (FOLK.middle), where it counts them neither its own nor strangers. A land nearer its seat than that is no
  * stranger's subject: its oneness is the realm's standing (onenessStanding), not a grievance as well.
