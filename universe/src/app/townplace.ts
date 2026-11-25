@@ -5,8 +5,9 @@
 // the place's page of it. Orders are commands (sim/town/managed.ts); what the town did by them is told to its land at
 // each month's turn while it is watched, and on leaving. The place runs on the world's own clock, set on entering to a
 // pace a day can be watched at; leaving puts the clock and the god game's chrome back, and the town's usual people.
-// How it is run (by hand, or watched: bridge/placemodes.ts) is the place's own to keep, asked on entering; a town watched
-// is given no order from here, and the eye is led over it (app/townwatch.ts).
+// How it is run (by hand, watched, or by its own head: bridge/placemodes.ts) is the place's own to keep, asked on
+// entering; a town watched is given no order from here, and the eye is led over it (app/townwatch.ts); a town stewarded
+// is asked every second what its head has decided, and each order is given here as a player's is (host/steward.ts).
 import "./townplace.css";
 import {
   askedGrown,
@@ -16,6 +17,7 @@ import {
   type PlaceFrame,
   type PlaceLogSheet,
   type PlaceMode,
+  type PlaceWatch,
   type PlacePeopleSheet,
   type PlaceStocksSheet,
   type PlaceWorkSheet,
@@ -115,12 +117,43 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     wallsAt: () => flow.wallsAt(),
     caption: (c) => hud.caption(c),
   });
-  /** The way it is run taken up: its chrome, and the eye led where it is watched. */
+  /** A town stewarded: the last of its head's orders given, and the next asking. */
+  let headGave = 0,
+    headTimer: ReturnType<typeof setTimeout> | null = null;
+  const stewardAsk = async (): Promise<void> => {
+    headTimer = null;
+    const ref = town;
+    if (!ref || mode !== "steward") return;
+    try {
+      const w = await d.client.query<PlaceWatch | null>({
+        type: "place.watch",
+        args: { ref, since: told?.t ?? 0, after: headGave },
+      });
+      if (w && town === ref && mode === "steward") {
+        hud.head(w.head);
+        // (Each given once, in the order decided, as a player's order is: sim/town/managed.ts.)
+        for (const o of w.orders) {
+          if (town !== ref || mode !== "steward") break;
+          headGave = Math.max(headGave, o.n);
+          await order(o.type, o.args);
+        }
+      }
+    } catch {
+      // (Asked again in a moment.)
+    }
+    if (town === ref && mode === "steward") headTimer = setTimeout(() => void stewardAsk(), 1000);
+  };
+  /** The way it is run taken up: its chrome, the eye led where it is watched, its head asked where it is stewarded. */
   const ran = (next: PlaceMode): void => {
     mode = next;
     hud.mode(next);
     if (next === "watch" && town) watch.start(town);
     else watch.stop();
+    if (headTimer) clearTimeout(headTimer);
+    headTimer = null;
+    headGave = 0;
+    if (next === "steward" && town) void stewardAsk();
+    else hud.head(null);
   };
 
   /** What the town did by its orders told to its land: at a month's turn, and on leaving. */

@@ -1,7 +1,7 @@
 // A town entered, three ways (town mode; asked 2026-11-25: "an auto management and like gameplay mode where i just
 // observe the sim too"): by hand, as it was; watched, with no order given and the eye led to what happens; or run by the
-// town's own head, who gives the very orders a player would. Which, is kept with the town's place (host/place.ts), out
-// of the world's hash. What the host tells the page of each is here.
+// town's own head, who gives the very orders a player would (host/steward.ts). Which, is kept with the town's place
+// (host/place.ts), out of the world's hash. What the host tells the page of each is here.
 
 /** How a town entered is run: by the player's hand, by no one (watched), by its own head (stewarded). */
 export const PLACE_MODES = ["hand", "watch", "steward"] as const;
@@ -26,6 +26,8 @@ export type PlaceSight = {
 
 /** An order the town's head would give now (sim/town/managed.ts), with the reason it is given for. */
 export type StewardOrder = {
+  /** Its number among its head's orders: the page gives each once, those after the last it gave. */
+  readonly n: number;
   readonly type: string;
   readonly args: Record<string, unknown>;
   /** What it is of, by which it is found again ("respond:firebreaks", "prio:412", "site:3", "shelter"). */

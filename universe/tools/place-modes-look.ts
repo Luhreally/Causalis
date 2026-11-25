@@ -414,6 +414,36 @@ for (const view of [
   await page.waitForTimeout(600);
   await read("by hand again");
   await shot("10-hand-again");
+
+  // Run by its own head: the manager's chrome stays, the head's decisions are told, each order given as a player's.
+  await press(".place-mode", "the key that says how the town is run");
+  await press('.place-mode-choice[data-mode="steward"]', "Its head");
+  await until("the town run by its head", async () => (await state()).ran === "steward");
+  check(await shown(".place-foot"), "run by its head, the tabs are there to overrule it by");
+  await until("its head named on the key", async () =>
+    /by its head, /.test(await k<string>(`document.querySelector(".place-mode")?.title ?? ""`)),
+  );
+  say(`the key: ${await k<string>(`document.querySelector(".place-mode")?.title ?? ""`)}`);
+  await k("globalThis.causalis.place.pace(3600)");
+  await page.waitForTimeout(view.name === "phone" ? 14000 : 9000);
+  await k("globalThis.causalis.place.pace(600)");
+  await page.waitForTimeout(1500);
+  say(
+    `its notice line: ${await k<string>(`document.querySelector(".place-notice-text")?.textContent ?? ""`)}`,
+  );
+  await read("run by its head");
+  await shot("11-steward");
+  await press('.place-tab[data-tab="log"]', "the Log tab");
+  await page.waitForTimeout(1500);
+  const heads = await k<string[]>(
+    `[...document.querySelectorAll(".place-sheet-body *")].map((e) => e.textContent ?? "").filter((t) => / as (the town's|its) head/.test(t) && t.length < 400)`,
+  );
+  say(`its head's lines in the Log (${heads.length}):`);
+  for (const l of [...new Set(heads)].slice(0, 8)) say(`    ${l}`);
+  check(heads.length > 0, "the Log tells what its head decided, and why");
+  await read("run by its head, the Log open");
+  await shot("12-steward-log");
+  check(!!(await state()).told?.managed || heads.length > 0, "its head's orders reached the town");
   check(
     errors.length === 0,
     `no errors on the page (${errors.slice(0, 2).join(" | ").slice(0, 300)})`,

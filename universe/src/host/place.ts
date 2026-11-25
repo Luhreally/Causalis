@@ -328,6 +328,8 @@ export const HAP = {
   paired: 28,
   buried: 29,
   ofAge: 30,
+  /** What its head decided, stewarding it (host/steward.ts says it). */
+  steward: 31,
 } as const;
 /** The happenings that are a death. */
 const HAP_DEATH: ReadonlySet<number> = new Set([1, 5, 17, 19, 21, 22]);
@@ -363,6 +365,7 @@ const HAP_WORDS = [
   "was paired",
   "was buried",
   "came of age",
+  "gave an order, as the town's head",
 ];
 
 /** The place's draws: through the world's Rng, on a stream no registry holds (it is no part of the ruleset's identity). */
@@ -394,6 +397,7 @@ const P = {
   watch: 20,
   wound: 21,
   due: 22,
+  steward: 23,
 } as const;
 
 const NEEDS = 4;
@@ -698,7 +702,40 @@ export type PlaceHap = {
   /** Of one who is gone with it (dead, or left): their household's key and their sex, by which they are still named. */
   k?: number;
   s?: number;
+  /** Done by its head's order, not the player's (a town stewarded: host/steward.ts). */
+  o?: number;
 };
+
+/**
+ * What a town's head keeps while it stewards (host/steward.ts): the number of its last order; what it set each matter to
+ * ("respond:firebreaks", "site:3", "prio:412", "shelter"), as the town's orders would say it; the last handed over; the matters it leaves to
+ * the player, who has spoken for them; and its orders decided and not yet seen standing, numbered, with when.
+ */
+export type Steward = {
+  n: number;
+  /** The last of them handed to the page (each is handed over once: kept, so a save goes on as it would have). */
+  handed?: number;
+  did: Record<string, string>;
+  let: string[];
+  orders: {
+    n: number;
+    t: number;
+    type: string;
+    args: Record<string, unknown>;
+    key: string;
+    why: string;
+  }[];
+};
+
+/**
+ * What a place reads of its steward (host/steward.ts), set where that is loaded: its head's look, on every tick of a town
+ * stewarded; its head's lines told; and whether a matter stands as its head set it. Absent: no town is stewarded.
+ */
+export const PLACE_HOOKS: {
+  look: ((world: World, place: Place) => void) | null;
+  told: ((place: Place, x: PlaceHap) => string) | null;
+  heads: ((place: Place, key: string) => boolean) | null;
+} = { look: null, told: null, heads: null };
 
 export type Place = {
   readonly town: Ref;
@@ -789,6 +826,8 @@ export type Place = {
    * head). Kept here, out of the world's hash: choosing a way moves nothing of history.
    */
   mode?: number;
+  /** Its head's memory while it stewards (host/steward.ts; absent: never stewarded). */
+  steward?: Steward;
 };
 
 /** What waits in a place's `due`: a death, a leaving, a birth, a coming, a burial, a pairing. */
@@ -1386,6 +1425,7 @@ export class PlaceStore implements StateStore {
         due: p.due,
         rite: p.rite,
         ...(p.mode ? { mode: p.mode } : {}),
+        ...(p.steward ? { steward: p.steward } : {}),
         ...(UNPAIRED.has(p) ? { unpaired: true } : {}),
         // (Read from a save kept before skill was, and not brought on since: still to be reckoned.)
         ...(UNSKILLED.has(p) ? { unskilled: true } : {}),
@@ -1474,6 +1514,7 @@ export class PlaceStore implements StateStore {
         due: [...((raw.due as number[] | undefined) ?? [])],
         rite: [...((raw.rite as number[] | undefined) ?? [])],
         ...(raw.mode ? { mode: raw.mode as number } : {}),
+        ...(raw.steward ? { steward: structuredClone(raw.steward as Steward) } : {}),
       });
       if (unskilled) UNSKILLED.add(this.places.at(-1)!);
       if (!cols.mate || raw.unpaired === true) UNPAIRED.add(this.places.at(-1)!);
@@ -1546,11 +1587,13 @@ export function placeDigest(p: Place): string {
       .int(x.a)
       .int(x.b)
       .int(x.k ?? 0)
-      .int(x.s ?? 0);
+      .int(x.s ?? 0)
+      .int(x.o ?? 0);
   h.string(p.ordered)
     .string(p.sited)
     .string(p.plague)
-    .int(p.mode ?? 0);
+    .int(p.mode ?? 0)
+    .string(p.steward ? JSON.stringify(p.steward) : "");
   p.figRef.forEach((ref, k) => h.string(ref).int(p.figId[k]!));
   return h.hex();
 }
@@ -2261,6 +2304,18 @@ function note(
     place.log = kept;
   }
 }
+
+/** A line of a place's log, for what tells it from outside (host/steward.ts). */
+export const placeNote = (place: Place, what: number, id: number, a = 0, b = 0): void =>
+  note(place, what, id, a, b);
+/** A line just told marked as done by its head's order, where the matter stands as its head set it. */
+function byHead(place: Place, key: string): void {
+  const x = place.log.at(-1);
+  if (x && PLACE_HOOKS.heads?.(place, key)) x.o = 1;
+}
+/** A head's own draw for a matter (host/steward.ts): the same on every day. */
+export const stewardDraw = (world: World, place: Place, id: number, k: number): number =>
+  world.rng.unit(PLACE_DRAW, place.key ^ id, 0, P.steward, k);
 
 /** So many more counted of a kind (place.counts), this year; those of before last year let go. */
 function counted(place: Place, what: number, of: number, n: number): void {
@@ -3492,6 +3547,7 @@ function armsCrew(world: World, place: Place, f: Frame): void {
     p.carry[i] = 0;
     p.bound[i] = BOUND_ARMS;
     note(place, HAP.mustered, p.id[i]!);
+    byHead(place, "respond:muster");
   }
 }
 
@@ -3625,6 +3681,8 @@ function crewSites(world: World, place: Place, f: Frame): void {
       p.work[i] = lot;
       if (!p.eta[i]) p.act[i] = ACT.idle;
       note(place, HAP.crew, p.id[i]!, lot);
+      const site = place.sites.find((x) => x.lot === lot);
+      if (site) byHead(place, `site:${site.n}`);
     }
   }
 }
@@ -5319,6 +5377,7 @@ export function advancePlace(world: World, place: Place): number {
     while (place.t < now) {
       tick(world, place, f);
       ticks++;
+      if (place.mode === 2) PLACE_HOOKS.look?.(world, place);
     }
     reconcile(world, place, s, f, month);
     unworked(place);
@@ -5350,6 +5409,8 @@ export function advancePlace(world: World, place: Place): number {
     if (place.due.length && place.due[0]! <= place.t) liveDue(world, place, f);
     tick(world, place, f);
     ticks++;
+    // (A town stewarded: its head looks it over, on the hour.)
+    if (place.mode === 2) PLACE_HOOKS.look?.(world, place);
   }
   // (Those its clock has not yet come to wait for it.)
   place.seen = next < strikes.length ? strikes[next]!.at - 1 : world.now;
@@ -5643,8 +5704,12 @@ export function hapTold(
       return `died of ${ill()}`;
     case HAP.sick:
       return `fell sick of ${ill()}`;
+    case HAP.steward:
+      return PLACE_HOOKS.told?.(place, x) ?? HAP_WORDS[x.what]!;
     default:
-      return HAP_WORDS[x.what] ?? "";
+      return x.o
+        ? (HAP_WORDS[x.what] ?? "").replace("by your order", "by its head's order")
+        : (HAP_WORDS[x.what] ?? "");
   }
 }
 
@@ -5665,6 +5730,8 @@ export const HAP_GRAVE: ReadonlySet<number> = new Set([
   HAP.wounded,
   HAP.famine,
   HAP.plague,
+  // (Each of its head's decisions a line of its own, with its reason.)
+  HAP.steward,
 ]);
 /** What many did, where they are counted: "were born". */
 export const HAP_MANY: readonly string[] = [
@@ -5699,6 +5766,7 @@ export const HAP_MANY: readonly string[] = [
   "were paired",
   "were buried",
   "came of age",
+  "orders of the town's head",
 ];
 
 /** What many did, said with what of: "died of the red flux", "fell in the battle at Sairis's land". */

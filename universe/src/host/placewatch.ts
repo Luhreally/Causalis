@@ -34,13 +34,20 @@ import {
   type Place,
 } from "./place.ts";
 import { goneNames, lotWords, placeNamed, placeWho, tradeWords } from "./placeplan.ts";
+import { stewardHead, stewardOrders, stewardTaken, temperWords } from "./steward.ts";
 
 /** How a place is run, and set. */
 export const placeMode = (place: Place): PlaceMode => PLACE_MODES[place.mode ?? 0] ?? "hand";
-export function setPlaceMode(place: Place, mode: PlaceMode): void {
-  const next = Math.max(0, PLACE_MODES.indexOf(mode));
-  if ((place.mode ?? 0) === next) return;
-  place.mode = next;
+export function setPlaceMode(world: World, place: Place, mode: PlaceMode): void {
+  const next = Math.max(0, PLACE_MODES.indexOf(mode)),
+    was = place.mode ?? 0;
+  if (was === next) return;
+  // (By hand is the way of a place that says nothing.)
+  if (next) place.mode = next;
+  else delete place.mode;
+  // (Its head given the town, or the town taken from them: host/steward.ts.)
+  if (next === 2) stewardTaken(world, place, true);
+  else if (was === 2) stewardTaken(world, place, false);
 }
 
 /** What a town's own orders did, which only a town given orders tells of: no sight in one watched for its own sake. */
@@ -53,6 +60,7 @@ const ORDERED: ReadonlySet<number> = new Set([
   HAP.uncrew,
   HAP.mustered,
   HAP.stoodDown,
+  HAP.steward,
 ]);
 /** Where a lot is, said for under a happening: "At the smithy", "In the fields". */
 const whereWords = (place: Place, lot: number): string =>
@@ -175,16 +183,28 @@ export function placeWatched(world: World, place: Place, ids: readonly number[])
   return out;
 }
 
-/** What a town watched or stewarded tells its page: brought to the world's moment first. */
-export function placeWatch(world: World, town: string, since: number): PlaceWatch | null {
+/**
+ * What a town watched or stewarded tells its page: brought to the world's moment first. Stewarded, its head and the
+ * orders they have decided on after the one numbered `after` (the last the page gave).
+ */
+export function placeWatch(
+  world: World,
+  town: string,
+  since: number,
+  after = 0,
+): PlaceWatch | null {
   const place = enterPlace(world, town);
   if (!place) return null;
+  const mode = placeMode(place),
+    head = mode === "steward" ? stewardHead(world, place) : null;
   return {
-    mode: placeMode(place),
+    mode,
     t: place.t,
     sights: placeSights(world, place, since),
-    head: null,
-    orders: [],
+    head: head
+      ? { name: head.name, ref: head.ref, id: head.id, temper: temperWords(place, head.i) }
+      : null,
+    orders: mode === "steward" ? stewardOrders(place, after) : [],
     managed: !!ordersOf(world, town),
   };
 }
@@ -200,12 +220,17 @@ export function placeModeQueries(): Readonly<Record<string, QueryHandler>> {
         place = enterPlace(world, a.ref);
       if (!place) return null;
       if (typeof a.mode === "string" && (PLACE_MODES as readonly string[]).includes(a.mode))
-        setPlaceMode(place, a.mode as PlaceMode);
+        setPlaceMode(world, place, a.mode as PlaceMode);
       return placeMode(place);
     },
     "place.watch": (world, args) => {
-      const a = args as { ref: string; since?: number };
-      return placeWatch(world, a.ref, typeof a.since === "number" ? a.since : Infinity);
+      const a = args as { ref: string; since?: number; after?: number };
+      return placeWatch(
+        world,
+        a.ref,
+        typeof a.since === "number" ? a.since : Infinity,
+        typeof a.after === "number" ? a.after : 0,
+      );
     },
     "place.watched": (world, args) => {
       const a = args as { ref: string; ids?: number[] },

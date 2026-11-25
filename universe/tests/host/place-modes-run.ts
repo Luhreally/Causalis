@@ -11,25 +11,41 @@ const ask = placeModeQueries();
 export const watchOf = (w: World, ref: string, since?: number): PlaceWatch =>
   ask["place.watch"]!(w, since === undefined ? { ref } : { ref, since }) as PlaceWatch;
 
-/** The town run on for so long, asked every `each` seconds: every sight it told, and every order its head gave. */
+/**
+ * The town run on for so long, asked every `each` seconds: every sight it told, every order its head gave (the host
+ * hands each over once), and each as given: when it was given from, the command and what it asked.
+ */
 export function ranFor(
   w: World,
   ref: string,
   seconds: number,
   each = HOUR,
-): { sights: PlaceSight[]; orders: PlaceWatch["orders"][number][] } {
+  _steward = false,
+): {
+  sights: PlaceSight[];
+  orders: PlaceWatch["orders"][number][];
+  given: { at: number; type: string; args: Record<string, unknown> }[];
+} {
   const sights: PlaceSight[] = [],
-    orders: PlaceWatch["orders"][number][] = [];
+    orders: PlaceWatch["orders"][number][] = [],
+    given: { at: number; type: string; args: Record<string, unknown> }[] = [];
   let since = watchOf(w, ref).t;
+  const give = (told: PlaceWatch) => {
+    for (const o of told.orders) {
+      const at = w.now,
+        args = { town: ref, ...o.args };
+      w.runTo(w.submit(o.type, args).t);
+      orders.push(o);
+      given.push({ at, type: o.type, args });
+    }
+  };
+  give(ask["place.watch"]!(w, { ref, since }) as PlaceWatch);
   for (const end = w.now + seconds; w.now < end;) {
     w.runTo(Math.min(end, w.now + each));
-    const told = watchOf(w, ref, since);
+    const told = ask["place.watch"]!(w, { ref, since }) as PlaceWatch;
     since = told.t;
     sights.push(...told.sights);
-    for (const o of told.orders) {
-      w.runTo(w.submit(o.type, { town: ref, ...o.args }).t);
-      orders.push(o);
-    }
+    give(told);
   }
-  return { sights, orders };
+  return { sights, orders, given };
 }

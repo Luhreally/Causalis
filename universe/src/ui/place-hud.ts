@@ -5,9 +5,10 @@
 // and the orders against that, and its log day by day. Phone first: every key a finger's size,
 // nothing over anything. What it shows is told by the page that owns it (app/townplace.ts); it asks for nothing itself.
 //
-// How the town is run is chosen from a key on its bar (asked 2026-11-25): by hand, as above; or watched, where no order
+// How the town is run is chosen from a key on its bar (asked 2026-11-25): by hand, as above; watched, where no order
 // is given: the notice line, the sheets and the tabs are away, and a line at the foot says who or what the eye is with,
-// with a key to stay with them and one to go on to another.
+// with a key to stay with them and one to go on to another; or by its own head, with the sheets as by hand, its head's
+// decisions in the notice line and the Log, and any of them overruled by an order of your own.
 import {
   PLACE_TRADES,
   type PlaceMode,
@@ -41,6 +42,7 @@ const PACES: readonly (readonly [string, number, string])[] = [
 const MODES: readonly (readonly [PlaceMode, string, string, string])[] = [
   ["hand", "✋", "By hand", "You give the orders"],
   ["watch", "👁", "Watch", "No orders: the eye is led"],
+  ["steward", "🏛", "Its head", "Its own head runs it"],
 ];
 /** What the eye is with in a town watched: said in two lines, the page that tells more, and whether it stays with them. */
 export type PlaceCaption = {
@@ -104,8 +106,9 @@ export class PlaceHud {
   private readonly watchWords = el("span", "place-watch-words");
   private readonly stayKey = el("button", "place-watch-stay", "📌");
   private captionNow: PlaceCaption | null = null;
-  /** How the town is run now. */
+  /** How the town is run now, and by whom where its head runs it. */
   ran: PlaceMode = "hand";
+  private headNow: { name: string; temper: string } | null = null;
   private noticeNow: PlaceNotice | null = null;
   private drawn = "";
   /** Whose order is being chosen on the People sheet (their number; null: no one's). */
@@ -234,10 +237,24 @@ export class PlaceHud {
     this.modeKey.setAttribute("aria-expanded", String(on));
     this.element.classList.toggle("choosing", on);
   }
+  /** Who runs the town where its own head does (null: no one yet, or not run so). */
+  head(h: { name: string; temper: string } | null): void {
+    if (h?.name === this.headNow?.name && h?.temper === this.headNow?.temper) return;
+    this.headNow = h ? { name: h.name, temper: h.temper } : null;
+    if (this.ran === "steward") this.mode("steward");
+  }
   /** How the town is run, as it is now: its key says it, and a town watched has none of the manager's chrome. */
   mode(mode: PlaceMode): void {
     const [, sign, words] = MODES.find((m) => m[0] === mode) ?? MODES[0]!,
-      say = `The town is run: ${words.toLowerCase()}. Tap to choose another way`;
+      by =
+        mode === "steward"
+          ? this.headNow
+            ? `by its head, ${this.headNow.name} (${this.headNow.temper}): an order of yours overrules theirs`
+            : "by its head"
+          : mode === "watch"
+            ? "by no one: it is watched"
+            : words.toLowerCase(),
+      say = `The town is run ${by}. Tap to choose another way`;
     this.ran = mode;
     this.modeKey.textContent = sign;
     this.modeKey.title = say;
