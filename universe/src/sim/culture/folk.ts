@@ -11,6 +11,7 @@ import {
   VOICE,
   apartGrievance,
   folkAfter,
+  folkKept,
   joinedBy,
   kinToSeat,
   nationTarget,
@@ -188,8 +189,8 @@ export function folkYear(ctx: PopulationContext, t: SimTime): void {
       kin = row ? folkAfter(row[FOLK_ROW.kin]! / 1000, target.kin, years) : target.kin,
       nation = row ? folkAfter(row[FOLK_ROW.nation]! / 1000, target.nation, years) : target.nation;
     rows.set(p.cell, [
-      Math.round((same ? kin : target.kin) * 1000),
-      Math.round(nation * 1000),
+      same ? folkKept(row[FOLK_ROW.kin]!, kin, target.kin) : Math.round(target.kin * 1000),
+      row ? folkKept(row[FOLK_ROW.nation]!, nation, target.nation) : Math.round(nation * 1000),
       serial,
       since,
       year,

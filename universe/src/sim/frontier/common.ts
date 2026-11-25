@@ -4,7 +4,7 @@ import { yearOfMoment, type Ref, type World } from "../../kernel/index.ts";
 import { isProvinceWorld, type HomeWorld } from "../../gen/index.ts";
 import type { Polity } from "../polity/polity.ts";
 import type { PopulationContext } from "../population/systems.ts";
-import { energyPerHead } from "../economy/energy.ts";
+import { sparedShare } from "../economy/energy.ts";
 
 /** Fold whole numbers into a running digest (two 32-bit words): what a checkpoint hashes in place of every row. */
 export function fold(d: [number, number], xs: readonly number[]): void {
@@ -46,9 +46,8 @@ export function realmPeople(ctx: PopulationContext, p: Polity): number {
 /** The share of a land's work its wires carry (0 … 1): all but its bodies', beasts' and old mills' own, where it knows the current. */
 export function gridShare(ctx: PopulationContext, cell: number, knowsCurrent: boolean): number {
   if (!knowsCurrent) return 0;
-  const e = energyPerHead(ctx.world, cell);
-  if (!e || e.work <= 0) return 0;
-  return Math.max(0, Math.min(1, 1 - (e.sources.none + e.sources.mills) / e.work));
+  const r = sparedShare(ctx.world, cell);
+  return r === null ? 0 : Math.max(0, Math.min(1, r));
 }
 
 /** The year now. */

@@ -15,13 +15,13 @@ import {
   writtenAfter,
   type LifeHistory,
 } from "../../rules/index.ts";
-import { energyPerHead } from "../economy/energy.ts";
+import { sparedShare } from "../economy/energy.ts";
 import { loreOf } from "../lore/lore.ts";
 
 /** Of the work a land turns, the share its engines and its current do, not its bodies, its beasts or its old mills: what it can spare. */
 export function sparedWork(world: World, cell: number): number {
-  const e = energyPerHead(world, cell);
-  return e && e.work > 0 ? dmath.clamp(1 - (e.sources.none + e.sources.mills) / e.work, 0, 1) : 0;
+  const r = sparedShare(world, cell);
+  return r === null ? 0 : dmath.clamp(r, 0, 1);
 }
 
 export type Engineered = {

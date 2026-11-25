@@ -894,6 +894,24 @@ export function energyPerHead(world: World, cell: number): EnergyReading | null 
   };
 }
 
+/**
+ * Of the work a land turns, one less the share its bodies, its beasts and its old mills turn, as energyPerHead's reading tells
+ * it (`1 - (sources.none + sources.mills) / work`, unclamped), without making the reading: null where it turns none or keeps
+ * no account. (Read for every land that writes bodies or makes minds, twice a month: the reading was most of what it cost.)
+ */
+export function sparedShare(world: World, cell: number): number | null {
+  const e = energyBooks(world)?.get(cell);
+  if (!e || e.people <= 0) return null;
+  const people = e.people;
+  let work = 0;
+  for (let i = 0; i < SOURCES.length; i++) work = work + (e.by[i] ?? 0);
+  const perHead = work / people;
+  if (!(perHead > 0)) return null;
+  return 1 - ((e.by[NONE_AT] ?? 0) / people + (e.by[MILLS_AT] ?? 0) / people) / perHead;
+}
+const NONE_AT = SOURCES.indexOf("none"),
+  MILLS_AT = SOURCES.indexOf("mills");
+
 /** The engines' work a worker who works with machines draws (kW, est). */
 export const MACHINE_KW = 0.1;
 
