@@ -83,10 +83,13 @@ export function rooflessYear(ctx: PopulationContext, t: SimTime): void {
     // who are housed again a share a year, and in a year a blow fell on it.)
     // (While a twentieth and more of them are: the last few housed again wait for its turn. A blow's own year always.)
     // (And in a year after many of its grown died, for the young they left: twice an ordinary year's dead and more.)
-    const people = p.total(),
-      died = rears && people > 0 ? ctx.history.deathsIn(c, year - 1) : 0,
+    // (Asked of a land with a town weighed before, and only past what its town's people alone would make a dying year.)
+    const died = rears && was ? ctx.history.deathsIn(c, year - 1) : 0,
+      people = died > 0 && died >= ORPHANS.dying * was![ROOF_ROW.town]! ? p.total() : 0,
       orphaned =
-        died >= ORPHANS.dying * people ? orphanedIn(ctx, p, year - 1, pairing, people + died) : 0;
+        people > 0 && died >= ORPHANS.dying * people
+          ? orphanedIn(ctx, p, year - 1, pairing, people + died)
+          : 0;
     if (was && !landTurn(c, year) && was[ROOF_ROW.displaced]! < 50 && !struck.get(c) && !orphaned)
       continue;
     // Its towns: those it has raised a fabric for, and the homes they hold.

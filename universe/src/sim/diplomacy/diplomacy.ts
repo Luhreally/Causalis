@@ -303,7 +303,14 @@ export function diplomacyYear(ctx: PopulationContext, t: SimTime): void {
     faiths = beliefOf(world),
     markets = world.store<MarketStore>("economy.markets"),
     honours = honourStore(world),
-    year = yearOfMoment(t);
+    year = yearOfMoment(t),
+    // (What each realm's word adds where another must rely on it, read once a realm a year: sim/diplomacy/honour.ts.)
+    words = new Map<Ref, number>(),
+    wordOf = (realm: Ref): number => {
+      let x = words.get(realm);
+      if (x === undefined) words.set(realm, (x = honourIn(world, realm, year).term));
+      return x;
+    };
   store.forget(year);
 
   // Lands taken: a land that left one realm and joined another this year is remembered by the one it left.
@@ -602,11 +609,11 @@ export function diplomacyYear(ctx: PopulationContext, t: SimTime): void {
     // (Each by what the other's word is thought worth, where it has a record: sim/diplomacy/honour.ts. As before where neither has.)
     const shared = sharedFoe(a, b),
       honoured = honours !== null && honours.size > 0,
-      wordA = honoured ? honourIn(world, a.ref, year) : null,
-      wordB = honoured ? honourIn(world, b.ref, year) : null,
+      wordA = honoured ? wordOf(a.ref) : 0,
+      wordB = honoured ? wordOf(b.ref) : 0,
       worth = Math.min(
-        pactWorth(opinion + (wordB?.term ?? 0), shared.weight, sb.wars),
-        pactWorth(opinion + (wordA?.term ?? 0), shared.weight, sa.wars),
+        pactWorth(opinion + wordB, shared.weight, sb.wars),
+        pactWorth(opinion + wordA, shared.weight, sa.wars),
       );
     if (!relation.pact && worth > PACT) {
       const foe =

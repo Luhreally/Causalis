@@ -17,6 +17,7 @@ import {
   FUND,
   HOLD,
   INST_FUNDS,
+  OCC,
   curriculumOf,
   schoolingReach,
   type Content,
@@ -24,7 +25,6 @@ import {
 import type { PopulationContext } from "../population/systems.ts";
 import { heldScripture } from "../belief/belief.ts";
 import { CURRICULUM_ROW, CURRICULUM_STORE, cultureRows } from "../culture/rows.ts";
-import { interestsOf } from "../polity/interests.ts";
 import { realmName, type Polity } from "../polity/polity.ts";
 import { holdsOf } from "./holds.ts";
 import type { Body } from "./institutions-kept.ts";
@@ -73,12 +73,7 @@ export function curriculumForget(world: World, realm: Ref): void {
 }
 
 /** A realm's bodies were reckoned: what its schools teach is read off those that teach and who pays them. */
-export function curriculumStep(
-  ctx: PopulationContext,
-  p: Polity,
-  bodies: readonly Body[],
-  t: SimTime,
-): void {
+export function curriculumStep(ctx: PopulationContext, p: Polity, bodies: readonly Body[]): void {
   const { world } = ctx,
     rows = cultureRows(world, CURRICULUM_STORE);
   if (!rows) return;
@@ -96,10 +91,16 @@ export function curriculumStep(
     if (was) rows.drop(p.ref);
     return;
   }
-  const interests = interestsOf(ctx, p, t),
-    heads = (g: string) => interests.find((i) => i.group === g)?.people ?? 0;
-  let people = 0;
-  for (const c of p.members) people += ctx.provinces.get(c)?.total() ?? 0;
+  let people = 0,
+    traders = 0,
+    crafters = 0;
+  for (const c of p.members) {
+    const prov = ctx.provinces.get(c);
+    if (!prov) continue;
+    people += prov.total();
+    traders += prov.occupation(OCC.trader);
+    crafters += prov.occupation(OCC.crafter);
+  }
   const { shares, lead } = curriculumOf({
       tithes: paid[FUND.tithes]!,
       treasury: paid[FUND.treasury]!,
@@ -109,8 +110,8 @@ export function curriculumStep(
       scripture: heldScripture(world, p.seat),
       capacity: capacityOf(ctx, p).value,
       force: holdsOf(world, p.ref)[HOLD.force]!,
-      traders: heads("traders"),
-      crafters: heads("crafters"),
+      traders,
+      crafters,
     }),
     reach = schoolingReach(teachers, people);
   if (!lead) {

@@ -60,22 +60,35 @@ export function preachersFor(people: number): number {
   return Math.max(MISSION.fewest, Math.round(Math.max(0, people) * MISSION.parish * MISSION.open));
 }
 
+/** The chance a land is won at all over a mission's years (0 … 1). */
+export function missionWon(holdsFaith: boolean, piety: number): number {
+  return 1 - dmath.pow(1 - missionChance(holdsFaith, piety), MISSION.years);
+}
+
 /**
- * What a mission to a land is worth against its cost (grain): `people` there, `holdsFaith`, the senders' `piety`, and `giving`
- * what one of the faithful gives the faith a year (grain).
+ * What a mission to a land is worth against its cost (grain): `people` there, `won` the chance it is won over the mission's
+ * years (missionWon), and `giving` what one of the faithful gives the faith a year (grain).
  */
-export function missionWorth(
+export function missionWorthWon(
   people: number,
-  holdsFaith: boolean,
-  piety: number,
+  won: number,
   giving: number,
 ): { worth: number; cost: number; won: number; preachers: number } {
-  const won = 1 - dmath.pow(1 - missionChance(holdsFaith, piety), MISSION.years),
-    preachers = preachersFor(people);
+  const preachers = preachersFor(people);
   return {
     worth: Math.max(0, people) * won * Math.max(0, giving) * MISSION.horizon,
     cost: preachers * MISSION.keep * MISSION.years,
     won,
     preachers,
   };
+}
+
+/** The same, from whether the land holds a faith already and how devout the senders are. */
+export function missionWorth(
+  people: number,
+  holdsFaith: boolean,
+  piety: number,
+  giving: number,
+): { worth: number; cost: number; won: number; preachers: number } {
+  return missionWorthWon(people, missionWon(holdsFaith, piety), giving);
 }

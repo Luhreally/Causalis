@@ -9,7 +9,13 @@ import {
   type SimTime,
   type World,
 } from "../../kernel/index.ts";
-import { MISSION, missionCanGo, missionChance, missionWorth } from "../../rules/index.ts";
+import {
+  MISSION,
+  missionCanGo,
+  missionChance,
+  missionWon,
+  missionWorthWon,
+} from "../../rules/index.ts";
 import { politiesOf } from "../polity/polity.ts";
 import { orderOf } from "../order/order.ts";
 import { LAW_OF } from "../order/laws.ts";
@@ -74,12 +80,17 @@ export function missionsYear(
     if (!lands.length) continue;
     const giving = row[TEMPLE_ROW.given]! / row[TEMPLE_ROW.faithful]!,
       piety = culture.get(f.seat)?.traits[WAY.piety] ?? 0.5,
+      // (The chance a land is won, of the old beliefs and of a faith of its own: reckoned once a faith.)
+      wonOld = missionWon(false, piety),
+      wonHeld = missionWon(true, piety),
+      clergy = row[TEMPLE_ROW.clergy]!,
       seen = new Set<number>();
+    let bestNet = -Infinity;
     let best: {
       cell: number;
       people: number;
       holds: boolean;
-      w: ReturnType<typeof missionWorth>;
+      w: ReturnType<typeof missionWorthWon>;
     } | null = null;
     for (const i of markets.flowsAt(lands)) {
       const flow = markets.flows[i]!;
@@ -90,26 +101,24 @@ export function missionsYear(
         if (theirs === f.ref) continue;
         const people = ctx.provinces.get(c)?.total() ?? 0;
         if (people <= 0) continue;
-        const w = missionWorth(people, theirs !== null, piety, giving),
-          net = w.worth - w.cost,
-          // (Its own clergy go, a tenth of them at the most; and not where a realm's law allows one faith that is not theirs.)
-          realm = realms.of(c),
+        const w = missionWorthWon(people, theirs !== null ? wonHeld : wonOld, giving),
+          net = w.worth - w.cost;
+        // (Only one that would be the best yet is asked whether they can go.)
+        if (best && (net < bestNet || (net === bestNet && c > best.cell))) continue;
+        // (Its own clergy go, a tenth of them at the most; and not where a realm's law allows one faith that is not theirs.)
+        const realm = realms.of(c),
           law = realm ? order?.realms.get(realm.ref)?.laws[LAW_OF.faith] : undefined;
         if (
           !missionCanGo(
             w.preachers,
-            row[TEMPLE_ROW.clergy]!,
+            clergy,
             law === 0,
             !!realm && store.of(realm.seat).faith === f.ref,
           )
         )
           continue;
-        if (
-          !best ||
-          net > best.w.worth - best.w.cost ||
-          (net === best.w.worth - best.w.cost && c < best.cell)
-        )
-          best = { cell: c, people, holds: theirs !== null, w };
+        bestNet = net;
+        best = { cell: c, people, holds: theirs !== null, w };
       }
     }
     if (!best || best.w.worth <= best.w.cost || row[TEMPLE_ROW.granary]! < best.w.cost) continue;

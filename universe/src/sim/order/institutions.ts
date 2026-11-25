@@ -2143,7 +2143,7 @@ export function bodiesYear(ctx: PopulationContext, t: SimTime): void {
       span = was ? Math.max(1, Math.min(50, year - was.last)) : INST.every;
     stepRealm(ctx, p, v, span, t, moved);
     // (What its schools teach, by who pays those that teach: sim/order/curriculum.ts.)
-    curriculumStep(ctx, p, v.bodies, t);
+    curriculumStep(ctx, p, v.bodies);
     if (was || v.bodies.length || v.next > 1) store.put(p.ref, v);
   }
   if (moved.length)
