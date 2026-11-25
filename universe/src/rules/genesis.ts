@@ -24,6 +24,9 @@ export type FossilOrigin = {
   /** Whether it is a fuel there: something in its air to burn it in. */
   readonly burns: boolean;
   readonly words: string;
+  /** The same of the solid alone, and of the liquid alone. */
+  readonly solidWords: string;
+  readonly liquidWords: string;
 };
 
 /**
@@ -63,6 +66,7 @@ export function fossilOrigin(l: LifeChemistry, burns: boolean): FossilOrigin {
         : chain === "siloxane"
           ? "pressed and cooked to a waxy shale of silicon and oxygen"
           : "pressed and cooked until its hydrogen left it, a dark shale of silicon";
+  const unburned = `nothing in its air burns it: it is a stock of ${chain === "carbon" ? "carbon" : "silicon"} to make things of, not a fuel`;
   return {
     of,
     solid: `the growth of its land, of ${of}, buried under wet ground in ${liquidName} and ${cooked}`,
@@ -73,7 +77,13 @@ export function fossilOrigin(l: LifeChemistry, burns: boolean): FossilOrigin {
     burns,
     words: burns
       ? `burned, a kilogram of the solid gives some ${h.solid} MJ and of the liquid ${h.liquid}, leaving ${h.leaves}`
-      : `nothing in its air burns it: it is a stock of ${chain === "carbon" ? "carbon" : "silicon"} to make things of, not a fuel`,
+      : unburned,
+    solidWords: burns
+      ? `burned, a kilogram gives some ${h.solid} MJ, leaving ${h.leaves}`
+      : unburned,
+    liquidWords: burns
+      ? `burned, a kilogram gives some ${h.liquid} MJ, leaving ${h.leaves}`
+      : unburned,
   };
 }
 

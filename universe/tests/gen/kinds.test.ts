@@ -42,7 +42,9 @@ test("a seed that now falls as a kind, pinned rocky, regenerates the world it ma
   const before: Record<string, string> = {
     "alien 20": "2a1de9eebd5c964b",
     "alien 21": "d7671233c76cd692",
-    "alien 61": "16db9a1604697892",
+    // (alien 61's star, of 0.46 Suns, holds one face of its twin in water's zone: its planet says so since the planet round
+    // (rules/locked.ts), and no act keeps a world turning. Its digest was 16db9a1604697892 while it turned.)
+    "alien 61": "52964767d2ede88a",
     "alien 62": "466eb32e7db93883",
   };
   for (const [seed, digest] of Object.entries(before)) {

@@ -36,7 +36,7 @@ export function depositMaking(
   if (d.kind === "coal" || d.kind === "oil") {
     if (!g.physical || !g.life.species.length) return base;
     const f = fossilOrigin(worldLife(g), KINDS[worldKindOf(g)].burns);
-    return `${d.kind === "coal" ? f.solid : f.liquid}; ${f.words}`;
+    return d.kind === "coal" ? `${f.solid}; ${f.solidWords}` : `${f.liquid}; ${f.liquidWords}`;
   }
   // (An ice world's lie under its crust, beyond any digging: no gathering is told of what no one reaches.)
   const ore = chem.kind === "ammonia" || chem.kind === "methane" ? null : oreWords(chem, d.kind);

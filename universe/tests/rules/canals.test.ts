@@ -37,6 +37,15 @@ test("a realm digs where the trade passing saves more than the digging costs, wi
   assert.ok(!small.dig);
   assert.match(small.why!, /too few hands/);
   assert.ok(small.years > CANAL.years);
+  // Its diggers are kept out of its granaries: with too little in store, none is begun.
+  const lean = weighCanal({
+    ...road,
+    haul: even * 3,
+    grain: (work * CANAL.keep) / CANAL.spare - 1,
+  });
+  assert.ok(!lean.dig);
+  assert.match(lean.why!, /too little grain/);
+  assert.ok(weighCanal({ ...road, haul: even * 3, grain: (work * CANAL.keep) / CANAL.spare }).dig);
   // A longer road asks more trade.
   assert.ok(!weighCanal({ ...road, km: 400, haul: even * 1.1 }).dig);
 });

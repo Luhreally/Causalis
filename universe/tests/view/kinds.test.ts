@@ -82,9 +82,18 @@ test("where nothing burns, no feast fire is lit and no charcoal is burned", () =
   const cold = feastAt({ ...plan, fireless: true }, dusk)!;
   assert.equal(cold.lit, false);
   assert.equal(cold.dressed, true, "the square is dressed all the same");
+  // (A town burns charcoal only where it keeps woods about it to fell, since Phase 51's later rule
+  // (view/errands.ts burnsCharcoal, view/village.ts keepsWoods): the plan stands in woodland, with
+  // what the woods' drawing reads of it. Before, a plan of smiths alone was enough, and this failed.)
   const smiths = {
+    ref: "vill:0:1",
+    biome: 6,
     metal: "copper",
     people: [{ trade: { kind: "smith" } }],
+    homes: [],
+    fields: [],
+    road: { x: 1, z: 0 },
+    pasture: { x: 0, z: 0, r: 0 },
   } as unknown as VillagePlan;
   assert.equal(burnsCharcoal(smiths), true);
   assert.equal(burnsCharcoal({ ...smiths, fireless: true }), false);
