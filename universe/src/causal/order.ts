@@ -195,8 +195,14 @@ const landRef = (cell: number) => cellRef(0, cell) as Parameters<typeof landWord
 
 // The trade in bound people between realms (sim/order/boundtrade.ts): who, how many, at what price.
 registerEventWords(BOUND_TRADE_EVENTS.sold.type, (world, e) => {
-  const d = e.data as { from?: string; to?: number; price?: number; paid?: number } | null;
-  return `The holders of ${realm(e.data)} bought ${people(n(e.data, "count"))} of the bound of ${landWords(world, e.place)} from ${d?.from ?? "another realm"}: a bound hand's work keeps a holder more ${typeof d?.to === "number" ? `in ${landWords(world, landRef(d.to))}` : "there"} than where they were held, and each fetched what ${d?.price ?? "some"} years of a worker's living come to${d?.paid ? `, ${count(d.paid)} of grain from its treasury in all` : ""}; they were carried there, ${year(e.t)}`;
+  const d = e.data as {
+    from?: string;
+    to?: number;
+    price?: number;
+    paid?: number;
+    first?: boolean;
+  } | null;
+  return `The holders of ${realm(e.data)} bought ${people(n(e.data, "count"))} of the bound of ${landWords(world, e.place)} from ${d?.from ?? "another realm"}: a bound hand's work keeps a holder more ${typeof d?.to === "number" ? `in ${landWords(world, landRef(d.to))}` : "there"} than where they were held, and each fetched what ${d?.price ?? "some"} years of a worker's living come to${d?.paid ? `, ${count(d.paid)} of grain from its treasury in all` : ""}; they were carried there${d?.first ? ", the first its people ever held bound" : ""}, ${year(e.t)}`;
 });
 registerDecisionWords(
   "order.bound-trade",

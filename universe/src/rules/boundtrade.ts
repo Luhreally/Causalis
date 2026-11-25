@@ -7,7 +7,8 @@
 // - His price is what that work keeps over the working years he has left (the working share of his kind's span), less his
 //   guard (BOUND_TRADE.keep: his own living is already out of what his work keeps); told in years of a worker's living.
 // - A sale is made where the buyer's worth (in the land of its realm where a bound hand keeps the most) is more than the
-//   seller's (and than his guard) by more than the road costs (BOUND_TRADE.road), between lands whose trade already joins them, of two realms whose laws both allow bondage and do not
+//   seller's (and than his guard) by more than the road costs (BOUND_TRADE.road), between lands whose trade already joins them, of two realms whose laws both allow bondage (the buyer's people holding the bound, or such as would
+//   bind those it buys had they taken them: sim/order/order.ts bindingWays) and do not
 //   make strangers citizens; none between realms at war. As many are sold as the gap is wide: of the seller land's bound,
 //   BOUND_TRADE.share at a gap three times a hand's guard.
 // Pure functions. (What is said: who sold whom to whom, at what price, and what it did to both lands. Never how.)
