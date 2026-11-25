@@ -416,6 +416,7 @@ import { installPossession } from "./possess.ts";
 import { installHome, type HomeAsk } from "./home.ts";
 import { installMoney } from "./money.ts";
 import { installPlace } from "./townplace.ts";
+import type { PlaceTab } from "../ui/index.ts";
 import { installLeaders } from "./leaders.ts";
 import { installLife } from "./life.ts";
 import { installReign } from "./reign.ts";
@@ -1087,6 +1088,8 @@ type Exposed = {
   place?: {
     toggle(): Promise<void>;
     pace(seconds: number): void;
+    sheet(tab: PlaceTab | null): void;
+    order(type: string, args: Record<string, unknown>): Promise<string | null>;
     state(): { on: boolean; town: string | null; tells: string | null; told: PlaceFrame | null };
   };
   faunaNow?: () => {
@@ -10819,8 +10822,10 @@ async function runPlanetPage(): Promise<void> {
   moneyPlan = moneyFlow.planNow;
   // A town entered (town mode, first slice): 🏘️ on its bar. Its people kept one by one, drawn where the place has them.
   const placeFlow = installPlace({
+    hud,
     client,
     village,
+    rig,
     pages: pageWindow,
     panel: villagePanel,
     plan: () => (scale === "village" ? plan : null),
@@ -10840,10 +10845,12 @@ async function runPlanetPage(): Promise<void> {
   exposed.place = {
     toggle: () => placeFlow.toggle(),
     pace: (seconds: number) => placeFlow.pace(seconds),
+    sheet: (tab: PlaceTab | null) => placeFlow.sheet(tab),
+    order: (type: string, args: Record<string, unknown>) => placeFlow.order(type, args),
     state: () => ({
       on: placeFlow.on,
       town: placeFlow.town,
-      tells: villagePanel.placeTells,
+      tells: placeFlow.noticed,
       told: placeFlow.told,
     }),
   };
@@ -11304,9 +11311,16 @@ async function runPlanetPage(): Promise<void> {
     () =>
       events.open ||
       directorControls.watching ||
-      ["filming", "fleet-filming", "homing", "living", "possessing", "ruling", "paging"].some((c) =>
-        document.body.classList.contains(c),
-      ) ||
+      [
+        "filming",
+        "fleet-filming",
+        "homing",
+        "living",
+        "placing",
+        "possessing",
+        "ruling",
+        "paging",
+      ].some((c) => document.body.classList.contains(c)) ||
       !!document.querySelector(".jump-screen"),
   );
   if (exposed.jumpedFrom !== undefined) runNote.jumped();
@@ -11323,8 +11337,8 @@ async function runPlanetPage(): Promise<void> {
     client,
     () => {
       if (
-        ["filming", "fleet-filming", "homing", "living", "possessing", "ruling"].some((c) =>
-          document.body.classList.contains(c),
+        ["filming", "fleet-filming", "homing", "living", "placing", "possessing", "ruling"].some(
+          (c) => document.body.classList.contains(c),
         )
       )
         return null;
@@ -11379,9 +11393,16 @@ async function runPlanetPage(): Promise<void> {
         : village.sungNow(now()),
     () =>
       directorControls.watching ||
-      ["filming", "fleet-filming", "homing", "living", "possessing", "ruling", "paging"].some((c) =>
-        document.body.classList.contains(c),
-      ),
+      [
+        "filming",
+        "fleet-filming",
+        "homing",
+        "living",
+        "placing",
+        "possessing",
+        "ruling",
+        "paging",
+      ].some((c) => document.body.classList.contains(c)),
   );
   exposed.sungNote = () => sungNote.element;
   // The court sits (J1): who stands before it and for what, pressed for the case.
@@ -11404,9 +11425,16 @@ async function runPlanetPage(): Promise<void> {
     },
     () =>
       directorControls.watching ||
-      ["filming", "fleet-filming", "homing", "living", "possessing", "ruling", "paging"].some((c) =>
-        document.body.classList.contains(c),
-      ),
+      [
+        "filming",
+        "fleet-filming",
+        "homing",
+        "living",
+        "placing",
+        "possessing",
+        "ruling",
+        "paging",
+      ].some((c) => document.body.classList.contains(c)),
   );
   exposed.courtNote = () => courtNote.element;
   // What is going on in the town now that belongs to something larger (a meeting, a corner kept, bread given): the soonest
@@ -11472,9 +11500,16 @@ async function runPlanetPage(): Promise<void> {
     },
     () =>
       directorControls.watching ||
-      ["filming", "fleet-filming", "homing", "living", "possessing", "ruling", "paging"].some((c) =>
-        document.body.classList.contains(c),
-      ),
+      [
+        "filming",
+        "fleet-filming",
+        "homing",
+        "living",
+        "placing",
+        "possessing",
+        "ruling",
+        "paging",
+      ].some((c) => document.body.classList.contains(c)),
   );
   exposed.goingNote = () => goingNote.element;
   takeUp.push(() => runNote.fromNow());

@@ -1,36 +1,279 @@
-/* A town entered (town mode, first slice): a line of its bar's own, under its buttons: what its people are at, and the
-   way out. In the bar's flow, so it lies over nothing. The pace of its clock is the time bar's own keys. */
-.bar .town-placed {
-  flex-basis: 100%;
+/* A town entered (town mode): the mode's own chrome in place of the god game's. Phone first: one row at the top, a
+   notice line under it, a sheet over the foot's four tabs. It takes only its own touches; every key a finger's size;
+   within the phone's safe areas; nothing over anything (tools/hud-read.ts at 430x932 and 1280x800, every state). */
+body.placing #hud > *:not(.place-hud):not(.page-window):not(.panel.page-panel) {
+  display: none !important;
+}
+#hud > .place-hud {
+  position: absolute;
+  inset: 0;
+  z-index: 26;
+  pointer-events: none;
+  font-size: 14px;
+  color: #fff;
+}
+.place-hud[hidden],
+.place-notice[hidden],
+.place-sheet[hidden] {
+  display: none !important;
+}
+.place-bar,
+.place-notice,
+.place-sheet,
+.place-foot {
+  pointer-events: auto;
+  position: absolute;
+  left: calc(env(safe-area-inset-left, 0px) + 8px);
+  right: calc(env(safe-area-inset-right, 0px) + 8px);
+  background: linear-gradient(180deg, rgba(40, 58, 120, 0.96), rgba(20, 30, 76, 0.96));
+  border: 1px solid rgba(190, 205, 255, 0.55);
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+.place-bar {
+  top: calc(env(safe-area-inset-top, 0px) + 6px);
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 4px 0 8px;
+}
+.place-name {
+  flex: 1 1 0;
+  min-width: 0;
+  font-weight: 700;
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.place-clock {
+  flex: 0 0 auto;
+  font-family: ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  color: #b6ff9a;
+  padding: 0 4px;
+}
+.place-paces {
+  display: flex;
+  flex: 0 0 auto;
+}
+.place-hud button {
+  min-height: 44px;
+  min-width: 44px;
+  font: inherit;
+  white-space: nowrap;
+}
+.place-bar button {
+  padding: 0 4px;
+}
+.place-hud button.on {
+  border-color: #0b7a62;
+  background: linear-gradient(180deg, #d9fff5 0%, #6ff0cf 46%, #29cfa6 54%, #8bf5dc 100%);
+  color: #06261f;
+}
+.place-notice {
+  top: calc(env(safe-area-inset-top, 0px) + 62px);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 0 0 8px;
+  background: rgba(64, 44, 8, 0.94);
+  border-color: rgba(255, 214, 120, 0.7);
+}
+.place-notice .place-notice-text {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: left;
+  white-space: normal;
+  background: none;
+  border: none;
+  color: #ffe6a8;
+  padding: 4px 0;
+}
+.place-notice .place-notice-shut {
+  flex: 0 0 auto;
+  background: none;
+  border: none;
+  color: #ffe6a8;
+  font-size: 20px;
+}
+.place-foot {
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 6px);
+  height: 56px;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+}
+.place-foot .place-tab {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 0;
+  line-height: 1.15;
+}
+.place-tab-name {
+  font-size: 12px;
+}
+.place-sheet {
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 68px);
+  max-height: min(52vh, 520px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.place-sheet-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  padding: 0 0 0 10px;
+  border-bottom: 1px solid rgba(190, 205, 255, 0.35);
+}
+.place-sheet-head h2 {
+  flex: 1 1 0;
+  margin: 0;
+  font-size: 16px;
+}
+.place-sheet-head button {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 20px;
+}
+.place-sheet-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px 8px 8px;
+  -webkit-overflow-scrolling: touch;
+}
+.place-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.place-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.place-hud .place-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto 6px;
+  column-gap: 8px;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  padding: 4px 8px;
+  white-space: normal;
+}
+.place-row-name {
+  font-weight: 700;
+  min-width: 0;
+}
+.place-row-what {
+  grid-column: 1;
+  grid-row: 2;
+  font-size: 12px;
+  opacity: 0.85;
+}
+.place-need-word {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.place-need {
+  grid-column: 1 / span 2;
+  grid-row: 3;
+  height: 5px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #2a8f5a var(--full, 0%), rgba(0, 0, 0, 0.25) var(--full, 0%));
+}
+.place-need.high {
+  background: linear-gradient(90deg, #c2452d var(--full, 0%), rgba(0, 0, 0, 0.25) var(--full, 0%));
+}
+.place-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0;
+}
+.place-line-words {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 4px 0;
+}
+.place-more,
+.place-wait {
+  margin: 6px 0 2px;
+  font-size: 12px;
+  opacity: 0.85;
+}
+.place-sub {
+  margin: 8px 0 2px;
+  font-size: 13px;
+}
+.place-stock {
+  padding: 4px 0;
+  border-bottom: 1px dotted rgba(190, 205, 255, 0.3);
+}
+.place-stock-head {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-width: 0;
-  padding: 2px 8px;
-  font-size: 0.82rem;
-  color: #e8dcb8;
-  background: rgba(0, 0, 0, 0.18);
 }
-.bar .town-placed[hidden] {
+.place-stock-head .place-row-name {
+  flex: 1 1 0;
+}
+.place-stock-held,
+.place-stock-day {
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+}
+.place-stock-day {
+  opacity: 0.8;
+  font-size: 12px;
+}
+.place-stock-where {
+  font-size: 12px;
+  opacity: 0.92;
+  line-height: 1.9;
+}
+.place-hud .place-stock-where .place-link {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 6px;
+  background: none;
+  border: none;
+  color: #9ee7ff;
+  text-decoration: underline;
+}
+/* A page over the mode takes the sheet's and the tabs' place until it is closed; the mode's bar stays. */
+body.placing:has(.page-window:not([hidden])) .place-sheet,
+body.placing:has(.page-window:not([hidden])) .place-foot {
   display: none;
 }
-.town-placed .placed-told {
-  flex: 1 1 0;
-  min-width: 0;
-  font-variant-numeric: tabular-nums;
-  /* (On a phone its words take the lines they need: nothing of them is cut off.) */
-  white-space: normal;
-  overflow-wrap: anywhere;
+body.placing .page-window {
+  z-index: 27;
 }
-.town-placed .placed-leave {
-  flex: 0 0 auto;
-  min-height: 32px;
-  min-width: 44px;
-  white-space: nowrap;
-}
-@media (pointer: coarse) {
-  .town-placed .placed-leave {
-    min-height: 44px;
+/* A desk's width: a column of its own at the left, the bar over the notice over the sheet over the tabs; the rest of the
+   screen is the town's (and the sound's key, at the right, stays where it is). */
+@media (min-width: 900px) {
+  .place-bar,
+  .place-notice,
+  .place-foot,
+  .place-sheet {
+    right: auto;
+    width: 460px;
+  }
+  .place-sheet {
+    max-height: min(62vh, 600px);
   }
 }
 .bar .town-place.on {

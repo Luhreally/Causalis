@@ -1,0 +1,382 @@
+// A town entered (town mode): the mode's own chrome over the town, in place of the god game's. One row at the top (the
+// town, its clock, the paces a day is watched at, the way out); a line under it for what wants the manager's eye, that
+// can be closed; four tabs at the foot, each opening a sheet: its people by who is most pressed, its stocks good by
+// good, its hands by trade and the orders that move them, what it can raise. Phone first: every key a finger's size,
+// nothing over anything. What it shows is told by the page that owns it (app/townplace.ts); it asks for nothing itself.
+import {
+  PLACE_TRADES,
+  type PlaceNotice,
+  type PlacePeopleSheet,
+  type PlaceStocksSheet,
+  type PlaceWorkSheet,
+  type TownOffers,
+} from "../bridge/index.ts";
+import { el } from "./why.ts";
+
+export type PlaceTab = "people" | "stocks" | "work" | "build";
+const TABS: readonly (readonly [PlaceTab, string, string])[] = [
+  ["people", "👥", "People"],
+  ["stocks", "📦", "Stocks"],
+  ["work", "⚒️", "Work"],
+  ["build", "🏗️", "Build"],
+];
+/** The paces a town's day is watched at: the key, the clock's seconds a second, and that in words. */
+const PACES: readonly (readonly [string, number, string])[] = [
+  ["⏸", 0, "Stop the town's clock"],
+  ["1m", 60, "A minute of the town's day a second"],
+  ["10m", 600, "Ten minutes of the town's day a second"],
+  ["1h", 3600, "An hour of the town's day a second"],
+];
+const NEEDS = ["hungry", "tired", "cold", "lonely"];
+const TRADE_CHIPS: readonly (readonly [number | null, string])[] = [
+  [null, "All"],
+  [2, "Farmers"],
+  [3, "Herders"],
+  [4, "Crafters"],
+  [5, "Traders"],
+  [6, "Leaders"],
+  [0, "No trade"],
+];
+
+const amount = (x: number) =>
+  x >= 100 ? `${Math.round(x)}` : x >= 10 ? x.toFixed(1) : x.toFixed(2);
+
+export class PlaceHud {
+  readonly element = el("div", "place-hud");
+  private readonly name = el("span", "place-name");
+  private readonly clock = el("span", "place-clock");
+  private readonly paces: HTMLButtonElement[] = [];
+  private readonly notice = el("div", "place-notice");
+  private readonly noticeText = el("button", "place-notice-text");
+  private readonly sheet = el("section", "place-sheet");
+  private readonly sheetTitle = el("h2");
+  private readonly sheetBody = el("div", "place-sheet-body");
+  private readonly tabs = new Map<PlaceTab, HTMLButtonElement>();
+  private readonly closed = new Set<string>();
+  private noticeNow: PlaceNotice | null = null;
+  private drawn = "";
+  /** The shares being set on the Work sheet before they are ordered (thousandths; null: none being set). */
+  private setting: number[] | null = null;
+  tab: PlaceTab | null = null;
+  /** The trade the People sheet is narrowed to (the world's occupation column; null: all). */
+  occ: number | null = null;
+  onPace: (seconds: number) => void = () => {};
+  onLeave: () => void = () => {};
+  /** A tab opened, or the sheet closed (null). */
+  onTab: (tab: PlaceTab | null) => void = () => {};
+  /** A page asked for. */
+  onOpen: (ref: string) => void = () => {};
+  /** An order given: the command and what it asks. */
+  onOrder: (type: string, args: Record<string, unknown>) => void = () => {};
+
+  constructor(root: HTMLElement) {
+    const bar = el("header", "place-bar"),
+      keys = el("span", "place-paces");
+    for (const [words, seconds, say] of PACES) {
+      const b = el("button", "place-pace", words);
+      b.title = say;
+      b.setAttribute("aria-label", say);
+      b.dataset.pace = String(seconds);
+      b.onclick = () => this.onPace(seconds);
+      this.paces.push(b);
+      keys.append(b);
+    }
+    const leave = el("button", "place-leave", "Leave");
+    leave.title = "Leave the town to the world: it is kept as it is, and goes on from here";
+    leave.onclick = () => this.onLeave();
+    bar.append(this.name, this.clock, keys, leave);
+    const shut = el("button", "place-notice-shut", "×");
+    shut.setAttribute("aria-label", "Put this notice away");
+    shut.onclick = () => {
+      if (this.noticeNow) this.closed.add(this.noticeNow.key);
+      this.notices(this.lastNotices);
+    };
+    this.noticeText.onclick = () => {
+      if (this.noticeNow?.ref) this.onOpen(this.noticeNow.ref);
+    };
+    this.notice.append(this.noticeText, shut);
+    this.notice.hidden = true;
+    const head = el("header", "place-sheet-head"),
+      close = el("button", "place-sheet-shut", "×");
+    close.setAttribute("aria-label", "Close");
+    close.onclick = () => this.open(null);
+    head.append(this.sheetTitle, close);
+    this.sheet.append(head, this.sheetBody);
+    this.sheet.hidden = true;
+    const foot = el("nav", "place-foot");
+    for (const [tab, icon, words] of TABS) {
+      const b = el("button", "place-tab");
+      b.append(el("span", "place-tab-icon", icon), el("span", "place-tab-name", words));
+      b.dataset.tab = tab;
+      b.onclick = () => this.open(this.tab === tab ? null : tab);
+      this.tabs.set(tab, b);
+      foot.append(b);
+    }
+    this.element.append(bar, this.notice, this.sheet, foot);
+    this.element.hidden = true;
+    root.append(this.element);
+  }
+
+  get shown(): boolean {
+    return !this.element.hidden;
+  }
+  show(town: string): void {
+    this.name.textContent = town;
+    this.element.hidden = false;
+    this.closed.clear();
+    document.body.classList.add("placing");
+  }
+  hide(): void {
+    this.element.hidden = true;
+    this.open(null, false);
+    document.body.classList.remove("placing");
+  }
+
+  /** A sheet opened (null: closed). */
+  open(tab: PlaceTab | null, tell = true): void {
+    this.tab = tab;
+    this.setting = null;
+    this.drawn = "";
+    this.sheet.hidden = tab === null;
+    for (const [k, b] of this.tabs) b.classList.toggle("on", k === tab);
+    if (tab) {
+      this.sheetTitle.textContent = TABS.find((x) => x[0] === tab)![2];
+      this.sheetBody.replaceChildren(el("p", "place-wait", "…"));
+    }
+    if (tell) this.onTab(tab);
+  }
+
+  /** Its clock and the pace it runs at. */
+  time(t: number, pace: number): void {
+    const hour = Math.floor((((t % 86_400) + 86_400) % 86_400) / 3600),
+      minute = Math.floor((((t % 3600) + 3600) % 3600) / 60),
+      words = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+    if (this.clock.textContent !== words) this.clock.textContent = words;
+    for (const b of this.paces) b.classList.toggle("on", Number(b.dataset.pace) === pace);
+  }
+
+  private lastNotices: readonly PlaceNotice[] = [];
+  /** What wants the manager's eye: the first not put away. */
+  notices(list: readonly PlaceNotice[]): void {
+    this.lastNotices = list;
+    const now = list.find((n) => !this.closed.has(n.key)) ?? null;
+    this.noticeNow = now;
+    if (this.notice.hidden !== !now) this.notice.hidden = !now;
+    if (now && this.noticeText.textContent !== now.words) this.noticeText.textContent = now.words;
+  }
+  /** What the notice line tells now (the look tools; null: nothing). */
+  get noticed(): string | null {
+    return this.notice.hidden ? null : (this.noticeText.textContent ?? "");
+  }
+
+  /** Whether what would be drawn is what is drawn already (a sheet read again every second is not built again for nothing). */
+  private same(what: unknown): boolean {
+    const key = JSON.stringify(what);
+    if (key === this.drawn) return true;
+    this.drawn = key;
+    return false;
+  }
+
+  people(s: PlacePeopleSheet): void {
+    if (this.tab !== "people" || this.same([s, this.occ])) return;
+    const chips = el("div", "place-chips");
+    for (const [occ, words] of TRADE_CHIPS) {
+      const n = occ === null ? s.trades.reduce((a, b) => a + b, 0) : (s.trades[occ] ?? 0);
+      if (occ !== null && n <= 0) continue;
+      const b = el("button", "place-chip", `${words} ${n}`);
+      b.classList.toggle("on", this.occ === occ);
+      b.onclick = () => {
+        this.occ = occ;
+        this.drawn = "";
+        this.onTab("people");
+      };
+      chips.append(b);
+    }
+    const list = el("div", "place-rows");
+    for (const r of s.rows) {
+      const row = el("button", "place-row"),
+        worst = r.needs[r.worst] ?? 0,
+        bar = el("span", "place-need");
+      bar.style.setProperty("--full", `${Math.round(worst * 100)}%`);
+      bar.classList.toggle("high", worst >= 0.9);
+      bar.title = `${NEEDS[r.worst]} ${Math.round(worst * 100)}%`;
+      row.append(
+        el("span", "place-row-name", r.name),
+        el(
+          "span",
+          "place-row-what",
+          `${r.trade} · ${r.doing}${r.lack > 0 ? ` · ${r.lack} d in want` : ""}`,
+        ),
+        el("span", "place-need-word", `${NEEDS[r.worst]} ${Math.round(worst * 100)}%`),
+        bar,
+      );
+      row.onclick = () => this.onOpen(r.ref);
+      list.append(row);
+    }
+    const more =
+      s.all > s.rows.length
+        ? [el("p", "place-more", `and ${s.all - s.rows.length} more, less pressed`)]
+        : [];
+    this.sheetBody.replaceChildren(chips, list, ...more);
+  }
+
+  stocks(s: PlaceStocksSheet): void {
+    if (this.tab !== "stocks" || this.same(s)) return;
+    const hold = el("div", "place-line"),
+      less = el("button", "place-step", "−"),
+      more = el("button", "place-step", "+");
+    less.setAttribute("aria-label", "Hold back a month less");
+    more.setAttribute("aria-label", "Hold back a month more");
+    less.disabled = s.hold <= 0;
+    more.disabled = s.hold >= 24;
+    less.onclick = () => this.onOrder("place.hold", { months: Math.max(0, s.hold - 1) });
+    more.onclick = () => this.onOrder("place.hold", { months: Math.min(24, s.hold + 1) });
+    hold.append(
+      el(
+        "span",
+        "place-line-words",
+        `Food for ${Math.round(s.foodDays)} days. The granary holds back ${s.hold} ${s.hold === 1 ? "month" : "months"} of it from households.`,
+      ),
+      less,
+      more,
+    );
+    const list = el("div", "place-rows");
+    for (const r of s.rows) {
+      const row = el("div", "place-stock"),
+        head = el("div", "place-stock-head"),
+        sell = el("button", "place-sell", r.forbidden ? "Held" : "Sold");
+      sell.classList.toggle("on", r.forbidden);
+      sell.title = r.forbidden
+        ? "The market will not let this go. Tap to allow it."
+        : "The market lets this go. Tap to forbid it.";
+      sell.setAttribute("aria-label", `${r.name}: ${sell.title}`);
+      sell.onclick = () => this.onOrder("place.forbid", { good: r.good, on: !r.forbidden });
+      head.append(
+        el("span", "place-row-name", `${r.name.charAt(0).toUpperCase()}${r.name.slice(1)}`),
+        el("span", "place-stock-held", `${amount(r.held)}${r.food ? " mo" : ""}`),
+        el("span", "place-stock-day", `today +${amount(r.made)} −${amount(r.used)}`),
+        sell,
+      );
+      const where = el("div", "place-stock-where");
+      if (r.stuff) where.append(el("span", "place-stuff", `${r.stuff} · `));
+      r.where.slice(0, 4).forEach((w, k) => {
+        if (k) where.append(", ");
+        const words = `${w.name} ${amount(w.n)}`;
+        if (w.ref) {
+          const a = el("button", "place-link", words),
+            ref = w.ref;
+          a.onclick = () => this.onOpen(ref);
+          where.append(a);
+        } else where.append(words);
+      });
+      row.append(head, where);
+      list.append(row);
+    }
+    this.sheetBody.replaceChildren(hold, list);
+  }
+
+  work(s: PlaceWorkSheet): void {
+    if (this.tab !== "work" || this.same([s, this.setting])) return;
+    const all = s.hands.reduce((a, b) => a + b, 0),
+      now = s.hands.map((n) => (all > 0 ? Math.round((1000 * n) / all) : 0)),
+      shares = this.setting ?? (s.shares ? [...s.shares] : now),
+      body: HTMLElement[] = [
+        el(
+          "p",
+          "place-line-words",
+          `${all} grown hands at trades an order can move; ${s.leaders} lead, ${s.dependents} keep no trade. ${s.waiting} wait for want of stuff; ${s.inWant} have gone a day or more in want.`,
+        ),
+      ];
+    PLACE_TRADES.forEach((words, k) => {
+      const row = el("div", "place-line"),
+        less = el("button", "place-step", "−"),
+        more = el("button", "place-step", "+"),
+        step = (by: number) => {
+          const next = [...shares];
+          next[k] = Math.max(0, Math.min(1000, next[k]! + by));
+          this.setting = next;
+          this.drawn = "";
+          this.work(s);
+        };
+      less.setAttribute("aria-label", `Fewer hands to ${words}`);
+      more.setAttribute("aria-label", `More hands to ${words}`);
+      less.onclick = () => step(-50);
+      more.onclick = () => step(50);
+      row.append(
+        el(
+          "span",
+          "place-line-words",
+          `${words}: ${s.hands[k]} now · ${Math.round(shares[k]! / 10)} parts`,
+        ),
+        less,
+        more,
+      );
+      body.push(row);
+    });
+    const sum = shares.reduce((a, b) => a + b, 0),
+      keys = el("div", "place-line"),
+      order = el("button", "place-order", "Give the order"),
+      free = el("button", "place-order", "As the land has them");
+    order.disabled = !this.setting || sum <= 0;
+    order.onclick = () => {
+      // (The parts as shares of a thousand, the last taking what rounding leaves.)
+      const out = shares.map((x) => Math.floor((1000 * x) / sum));
+      out[out.indexOf(Math.max(...out))]! += 1000 - out.reduce((a, b) => a + b, 0);
+      this.setting = null;
+      this.onOrder("place.work", { shares: out });
+    };
+    free.disabled = !s.shares && !this.setting;
+    free.onclick = () => {
+      this.setting = null;
+      this.onOrder("place.work", { shares: null });
+    };
+    keys.append(order, free);
+    body.push(
+      keys,
+      el(
+        "p",
+        "place-more",
+        s.shares
+          ? `Ordered. ${s.unsettled ? `${s.unsettled} changes are told to its land at the month's turn, or on leaving.` : "Its land has been told."} Those moved make what their new trade makes, by its land's own reckoning.`
+          : "No order given: its hands are as its land has them. An order moves real hands from one trade to another, and its land is told.",
+      ),
+    );
+    this.sheetBody.replaceChildren(...body);
+  }
+
+  build(o: TownOffers | null): void {
+    if (this.tab !== "build" || this.same(o)) return;
+    if (!o)
+      return void this.sheetBody.replaceChildren(
+        el("p", "place-more", "Nothing can be raised here."),
+      );
+    const body: HTMLElement[] = [];
+    if (o.shut) body.push(el("p", "place-more", o.shut));
+    for (const a of o.asked) {
+      const b = el("button", "place-row");
+      b.append(el("span", "place-row-name", "Under way"), el("span", "place-row-what", a.words));
+      b.onclick = () => this.onOpen(a.ref);
+      body.push(b);
+    }
+    for (const r of o.raises) {
+      const row = el("div", "place-line"),
+        go = el("button", "place-order", "Raise");
+      go.setAttribute("aria-label", `Raise ${r.name}`);
+      go.onclick = () => this.onOrder("town.ask", { kind: "raise", what: r.what });
+      row.append(el("span", "place-line-words", `${r.icon} ${r.name}: ${r.note}`), go);
+      body.push(row);
+    }
+    if (o.no.length) {
+      body.push(el("h3", "place-sub", "Not now"));
+      for (const n of o.no) body.push(el("p", "place-more", `${n.name}: ${n.why}`));
+    }
+    body.push(
+      el(
+        "p",
+        "place-more",
+        `${o.who} answer. What is raised goes up by the town's own hands, month by month, fed and tooled from its land's stores.`,
+      ),
+    );
+    this.sheetBody.replaceChildren(...body);
+  }
+}

@@ -200,7 +200,7 @@ import { BAR_QUERIES } from "./bar.ts";
 import { writtenIndex, writtenRead } from "./inspect/written.ts";
 import { WEALTH_QUERIES } from "./wealth.ts";
 import { installYears } from "./years.ts";
-import { installPlaces } from "./place.ts";
+import { installPlaces, settleOf } from "./place.ts";
 import { placeQueries } from "./placeplan.ts";
 import { HELD_QUERIES } from "./held.ts";
 import { SEARCH_QUERIES } from "./search.ts";
@@ -975,6 +975,11 @@ function planetUniverse(name: string, prior: Prior): Universe {
     // The hand laid on a town is told who of it was of each thing going on there, by name, read now, before its people are
     // the hand's: the hand keeps it, and a save with it (host/inspect/townlife.ts). Whoever lays it, from whatever page.
     told: (world, type, args) => {
+      // (A managed town's settling: what it did by its orders, as its place has kept it. Town mode.)
+      if (type === "place.settle") {
+        const town = (args as { town?: unknown } | null)?.town;
+        return (typeof town === "string" ? settleOf(world, town) : null) ?? undefined;
+      }
       if (type !== "hand.lay" || !args || typeof args !== "object" || "was" in args)
         return undefined;
       const village = (args as { village?: unknown }).village;

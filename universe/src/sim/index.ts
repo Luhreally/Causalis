@@ -2259,3 +2259,13 @@ export {
   type Canal,
   type CanalReading,
 } from "./economy/canals.ts";
+export {
+  MANAGED_TRADES,
+  managedDead,
+  managedOf,
+  type Managed,
+  type ManagedStore,
+  type SettleArgs,
+  type SettleDead,
+  type SettleMove,
+} from "./town/managed.ts";

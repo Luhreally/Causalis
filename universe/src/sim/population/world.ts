@@ -85,6 +85,7 @@ import { installOrder } from "../order/order.ts";
 import { installCities } from "../city/city.ts";
 import { installTowns } from "../town/fabric.ts";
 import { installAsks } from "../town/asks.ts";
+import { installManaged } from "../town/managed.ts";
 import { installLost } from "../lore/lost.ts";
 import { installRights } from "../lore/rights.ts";
 import { installMaterials } from "../lore/materials.ts";
@@ -509,6 +510,8 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installTowns(world, () => populationContext(world));
   installLocalActs(world, () => populationContext(world));
   installAsks(world, () => populationContext(world));
+  // (A town managed by one who has entered it: town mode. Nothing kept until an order is given.)
+  installManaged(world, () => populationContext(world));
   installPossession(world, () => populationContext(world));
   installLife(world, () => populationContext(world));
   installPeopleActs(world, () => populationContext(world));

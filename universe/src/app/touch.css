@@ -239,7 +239,9 @@
      the bar it stood on a card's close box and on the god's hand, open. In the lives lived, whose strips have the
      whole of the screen's top, it waits. */
   html
-    body:not(.filming):not(.fleet-filming):not(.living):not(.possessing):not(.ruling):not(.homing)
+    body:not(.filming):not(.fleet-filming):not(.living):not(.placing):not(.possessing):not(
+      .ruling
+    ):not(.homing)
     .sound-button.free:not(.on-title) {
     top: calc(8px + env(safe-area-inset-top, 0px));
   }
@@ -248,7 +250,7 @@
   #hud:has(> .panel:not([hidden]) > .inspector:not([hidden])) > .director-caption {
     display: none;
   }
-  body:is(.living, .ruling, .possessing, .homing) .sound-button.free {
+  body:is(.living, .placing, .ruling, .possessing, .homing) .sound-button.free {
     display: none !important;
   }
   /* The god's hand, open: no taller than the room between the bar and the people bar (whole, with an act in hand,

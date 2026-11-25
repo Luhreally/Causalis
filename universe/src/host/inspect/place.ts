@@ -1,20 +1,19 @@
-// The pages of a place (town mode, first slice; host/place.ts): one of its people — their needs and what decided what
-// they are doing, their home, their work, their household and its pantry, what they carry — and one of its lots: a
-// building with what it holds good by good and what each is made of here, who works in it and who is in it now; a home
-// with its households. Read of the place as kept: a page asks nothing of it and moves nothing.
+// The pages of a place (town mode; host/place.ts): one of its people, leading with their four needs and why they do
+// what they do, then their home, their work, their household and its pantry, what they carry; and one of its lots,
+// leading with what it holds good by good and what each is made of here, then who works in it, lives in it and is in it
+// now. One the god game names (a holder of a line of the town's roster) has one page, the god game's, with these laid
+// at its head while the town is kept. Read of the place as kept: a page asks nothing of it and moves nothing.
 import { DAY, YEAR, type Ref, type World } from "../../kernel/index.ts";
 import { FOODS, GOODS, OCC } from "../../rules/index.ts";
 import { lifeOf, marketGoodRef, populationContext } from "../../sim/index.ts";
 import {
   placeLotRef,
-  placePersonRef,
   type Block,
   type Item,
   type Line,
   type PageModel,
   type Stat,
 } from "../../bridge/index.ts";
-import { townStuff } from "../chain.ts";
 import {
   ACT,
   ACT_WORDS,
@@ -23,6 +22,7 @@ import {
   NEED_WORDS,
   PLACE_MOST,
   hapWords,
+  ordersOf,
   placeIndexOf,
   placeLot,
   placePerson,
@@ -30,13 +30,25 @@ import {
   pressOf,
   type Place,
 } from "../place.ts";
-import { lotWords, placeNames, tradeWords, whyWords } from "../placeplan.ts";
+import {
+  lotWords,
+  placeStuff,
+  placeWho,
+  placedHolder,
+  tradeWords,
+  whyWords,
+} from "../placeplan.ts";
 import { buildingRef, lotRef, townPartOf } from "./fabric.ts";
 import { townLink } from "./names.ts";
 import { link, many, stat, yearNow } from "./words.ts";
 
 const pct = (x: number) => `${Math.round(x * 100)}%`,
   amount = (x: number) => (x >= 100 ? `${Math.round(x)}` : x >= 10 ? x.toFixed(1) : x.toFixed(2)),
+  /** A need as a bar of ten: so much of it full. */
+  bar = (x: number) => {
+    const n = Math.max(0, Math.min(10, Math.round(x * 10)));
+    return `${"▮".repeat(n)}${"▯".repeat(10 - n)} ${pct(x)}`;
+  },
   FIFTH_WORDS = [
     "the poorest fifth",
     "the second fifth",
@@ -61,28 +73,14 @@ function unknown(world: World, ref: string, town: string | null, words: string):
   };
 }
 
-/** What each good is made of in a place's land, as its making chain names it (none: it is what it is). */
-function stuffOf(world: World, place: Place): (good: number) => string | null {
-  let stuff: ReturnType<typeof townStuff> | null = null;
-  const of = () => (stuff ??= townStuff(world, place.cell, Math.floor(place.t / YEAR)));
-  return (good) => {
-    const id = GOODS[good]?.id;
-    if (id === "tools") return of().tool.name;
-    if (id === "clothing") return of().cloth.name;
-    if (id === "pottery") return of().clay.name;
-    if (id === "copper" || id === "tin" || id === "iron")
-      return of().ore?.yields === id ? `smelted from ${of().ore!.name}` : null;
-    return null;
-  };
-}
-
 /** A lot of a place as a link to its page here. */
 const lotLink = (place: Place, lot: number) =>
   link(lotWords(place, lot), placeLotRef(place.town, lot));
 
 /** A stock as rows: each good held, how much, what it is made of here; the good's own page behind it. */
 function stockRows(world: World, place: Place, stock: readonly number[]): Stat[] {
-  const of = stuffOf(world, place),
+  const of = placeStuff(world, place),
+    forbidden = ordersOf(world, place.town)?.forbidden ?? [],
     rows: Stat[] = [];
   stock.forEach((x, g) => {
     if (x <= 0) return;
@@ -90,7 +88,11 @@ function stockRows(world: World, place: Place, stock: readonly number[]): Stat[]
     rows.push(
       stat(
         cap(GOODS[g]!.name),
-        [`${amount(x)} ${GOODS[g]!.food ? "person-months" : "units"}`, made ? ` · ${made}` : ""],
+        [
+          `${amount(x)} ${GOODS[g]!.food ? "person-months" : "units"}`,
+          made ? ` · ${made}` : "",
+          forbidden.includes(g) ? " · not to be sold, by your order" : "",
+        ],
         { why: marketGoodRef(place.cell, g) },
       ),
     );
@@ -100,71 +102,60 @@ function stockRows(world: World, place: Place, stock: readonly number[]): Stat[]
 
 const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
-/** The page of one of a place's people: `plc:<town>:<id>`. */
-export function placePersonPage(world: World, ref: string): PageModel {
-  const at = townPartOf(ref),
-    place = at ? placesOf(world)?.get(at.town) : undefined,
-    s = at ? populationContext(world).settlements.get(at.town) : undefined;
-  if (!at || !place || !s)
-    return unknown(
-      world,
-      ref,
-      at?.town ?? null,
-      "This town is not kept in detail now: enter it to meet its people.",
-    );
-  const id = at.rest[0] ?? -1,
-    r = placePerson(world, place, id),
-    year = yearNow(world);
-  if (!r) {
-    const gone = place.log.filter((x) => x.id === id).at(-1);
-    return unknown(
-      world,
-      ref,
-      s.ref,
-      gone
-        ? `They ${hapWords(gone.what)} in year ${Math.floor(gone.t / YEAR)}.`
-        : "No one of this town is kept by that number.",
-    );
-  }
-  const names = placeNames(world, place),
-    life = lifeOf(world),
+/** What a place tells of one of its people: their needs and the why first, then what they hold and who they live with. */
+function personBlocks(
+  world: World,
+  place: Place,
+  i: number,
+): { needs: Stat[]; now: Stat; blocks: Block[] } | null {
+  const p = place.people,
+    id = p.id[i]!,
+    r = placePerson(world, place, id);
+  if (!r) return null;
+  const life = lifeOf(world),
+    who = placeWho(world, place),
     child = r.age < life.adulthood,
-    i = placeIndexOf(place, id),
-    p = place.people,
-    name = names(id, r.sex, r.houseKey),
     doing = `${cap(ACT_WORDS[r.act]!)}${r.eta > 0 ? `, walking to ${lotWords(place, r.to)}` : r.act === ACT.sleep || r.act === ACT.eat ? "" : ` at ${lotWords(place, r.at)}`}`,
-    needRows: Stat[] = NEED_WORDS.map((w, q) =>
-      stat(cap(w), `${pct(r.needs[q]!)} full, pressing ${pct(pressOf(r.needs[q]!))}`),
-    ),
+    needs: Stat[] = NEED_WORDS.map((w, q) => stat(cap(w), bar(r.needs[q]!))),
+    lackDays = Math.floor(p.lack[i]! / 144),
     kin: Item[] = r.household.map((k) => {
       const j = placeIndexOf(place, k),
         age = (place.t / DAY - p.born[j]!) / 365,
-        sex = p.sexOcc[j]! >> 4;
+        w = who(j);
       return {
         line: [
-          link(names(k, sex, r.houseKey), placePersonRef(place.town, k)),
+          link(w.name, w.ref),
           `, ${Math.floor(age)}, ${tradeWords(p.sexOcc[j]! & 15, age < life.adulthood)}`,
         ],
       };
     }),
     pantry = new Array<number>(GOODS.length).fill(0);
   FOODS.forEach((g, k) => (pantry[g] = r.pantry[k]!));
-  const stats: Stat[] = [
-      stat("Age", `${Math.floor(r.age)}`),
-      stat("Work", [
-        cap(tradeWords(r.occupation, child)),
-        r.craft ? `: ${r.craft}` : "",
-        r.occupation !== OCC.dependent ? " at " : "",
-        r.occupation !== OCC.dependent ? lotLink(place, r.work) : "",
-      ]),
-      stat("Now", doing),
-      stat("Home", [lotLink(place, r.home)]),
-    ],
-    happened = place.log
-      .filter((x) => x.id === id)
-      .map((x): Item => ({ line: [`Year ${Math.floor(x.t / YEAR)}: ${hapWords(x.what)}`] })),
-    blocks: Block[] = [
-      { type: "facts", rows: [...stats, stat("Town", [townLink(world, s.ref)])] },
+  const happened = place.log
+    .filter((x) => x.id === id)
+    .map((x): Item => ({ line: [`Year ${Math.floor(x.t / YEAR)}: ${hapWords(x.what)}`] }));
+  return {
+    needs,
+    now: stat("Now", doing),
+    blocks: [
+      {
+        type: "facts",
+        title: "Needs",
+        rows: [
+          ...needs.map((n, q) => ({
+            ...n,
+            value: [`${bar(r.needs[q]!)}, pressing ${pct(pressOf(r.needs[q]!))}`],
+          })),
+          ...(lackDays > 0
+            ? [
+                stat(
+                  "In want",
+                  `${lackDays} ${lackDays === 1 ? "day" : "days"}: their work is worth less for it, and they sicken`,
+                ),
+              ]
+            : []),
+        ],
+      },
       {
         type: "text",
         title: "Why",
@@ -177,7 +168,20 @@ export function placePersonPage(world: World, ref: string): PageModel {
           ],
         ],
       },
-      { type: "facts", title: "Needs", rows: needRows },
+      {
+        type: "facts",
+        title: "In the town",
+        rows: [
+          stat("Now", doing),
+          stat("Home", [lotLink(place, r.home)]),
+          stat("Work", [
+            cap(tradeWords(r.occupation, child)),
+            r.craft ? `: ${r.craft}` : "",
+            r.occupation !== OCC.dependent ? " at " : "",
+            r.occupation !== OCC.dependent ? lotLink(place, r.work) : "",
+          ]),
+        ],
+      },
       {
         type: "facts",
         title: "Holds",
@@ -202,17 +206,78 @@ export function placePersonPage(world: World, ref: string): PageModel {
       ...(happened.length
         ? [{ type: "list" as const, title: "Since the town was entered", items: happened }]
         : []),
-    ];
+    ],
+  };
+}
+
+/**
+ * The god game's page of one of a town's named people (a holder of a line of its roster), with what the place tells of
+ * them laid at its head while the town is kept and they are of it: one person, one page.
+ */
+export function withPlace(world: World, ref: string, page: PageModel): PageModel {
+  const at = townPartOf(ref),
+    place = at ? placesOf(world)?.get(at.town) : undefined;
+  if (!at || !place || at.rest.length < 2) return page;
+  const i = placedHolder(place, at.rest[0]!, at.rest[1]!),
+    told = i >= 0 ? personBlocks(world, place, i) : null;
+  if (!told || !page.tabs.length) return page;
+  const [first, ...rest] = page.tabs;
+  return {
+    ...page,
+    stats: [...told.needs, told.now, ...page.stats],
+    tabs: [{ ...first!, blocks: [...told.blocks, ...first!.blocks] }, ...rest],
+  };
+}
+
+/** The page of one of a place's people: `plc:<town>:<id>`. */
+export function placePersonPage(
+  world: World,
+  ref: string,
+  named: (ref: string) => PageModel,
+): PageModel {
+  const at = townPartOf(ref),
+    place = at ? placesOf(world)?.get(at.town) : undefined,
+    s = at ? populationContext(world).settlements.get(at.town) : undefined;
+  if (!at || !place || !s)
+    return unknown(
+      world,
+      ref,
+      at?.town ?? null,
+      "This town is not kept in detail now: enter it to meet its people.",
+    );
+  const id = at.rest[0] ?? -1,
+    i = placeIndexOf(place, id),
+    r = i >= 0 ? placePerson(world, place, id) : null,
+    told = r ? personBlocks(world, place, i) : null,
+    year = yearNow(world);
+  if (!r || !told) {
+    const gone = place.log.filter((x) => x.id === id).at(-1);
+    return unknown(
+      world,
+      ref,
+      s.ref,
+      gone
+        ? `They ${hapWords(gone.what)} in year ${Math.floor(gone.t / YEAR)}.`
+        : "No one of this town is kept by that number.",
+    );
+  }
+  // (One the god game names has the god game's page, the place's telling at its head.)
+  const who = placeWho(world, place)(i);
+  if (who.ref !== ref) return named(who.ref);
+  const child = r.age < lifeOf(world).adulthood;
   return {
     ref,
     kind: "person",
     icon: child ? "🧒" : "🧑",
-    title: name,
-    subtitle: [`${cap(tradeWords(r.occupation, child))} of `, townLink(world, s.ref)],
+    title: who.name,
+    subtitle: [
+      `${cap(tradeWords(r.occupation, child))}, ${Math.floor(r.age)}, of `,
+      townLink(world, s.ref),
+    ],
     color: null,
     place: { scale: "village", town: s.ref },
-    stats,
-    tabs: [{ id: "overview", name: "Overview", blocks }],
+    stats: [...told.needs, told.now],
+    tabs: [{ id: "overview", name: "Overview", blocks: told.blocks }],
     followable: false,
     year,
   };
@@ -232,20 +297,18 @@ export function placeLotPage(world: World, ref: string): PageModel {
     );
   const lot = (at.rest[0] ?? 0) - 3,
     r = placeLot(place, lot),
-    names = placeNames(world, place),
     p = place.people,
     life = lifeOf(world),
+    whoOf = placeWho(world, place),
     year = yearNow(world),
     who = (ids: readonly number[], most = 40): Item[] =>
       ids.slice(0, most).map((id) => {
         const j = placeIndexOf(place, id),
-          age = (place.t / DAY - p.born[j]!) / 365;
+          age = (place.t / DAY - p.born[j]!) / 365,
+          w = whoOf(j);
         return {
           line: [
-            link(
-              names(id, p.sexOcc[j]! >> 4, place.houses.key[p.house[j]!]!),
-              placePersonRef(place.town, id),
-            ),
+            link(w.name, w.ref),
             `, ${tradeWords(p.sexOcc[j]! & 15, age < life.adulthood)}, ${ACT_WORDS[p.act[j]!]}`,
           ],
         };
@@ -260,19 +323,46 @@ export function placeLotPage(world: World, ref: string): PageModel {
           : lotRef(place.town, lot)
         : null,
     rows = stockRows(world, place, r.stock),
+    // (What it holds first: its greatest stocks, then who is about it.)
+    held = r.stock
+      .map((x, g) => [x, g] as const)
+      .filter(([x]) => x > 0)
+      .sort((a, b) => b[0] - a[0])
+      .slice(0, 3)
+      .map(([x, g]) => stat(cap(GOODS[g]!.name), amount(x))),
     stats: Stat[] = [
-      stat("Holds", rows.length ? many(rows.length, "kind of good", "kinds of goods") : "nothing"),
-      ...(r.kind ? [stat("Working here", `${r.working.length}`)] : []),
-      ...(r.households.length
-        ? [stat("Households", `${r.households.length}`), stat("Living here", `${r.living.length}`)]
-        : []),
+      ...(held.length ? held : [stat("Holds", "nothing now")]),
+      ...(r.kind && lot >= 0 ? [stat("Working here", `${r.working.length}`)] : []),
+      ...(r.households.length ? [stat("Living here", `${r.living.length}`)] : []),
       stat("Here now", `${r.here.length}`),
     ],
     blocks: Block[] = [
+      rows.length
+        ? { type: "facts" as const, title: r.kind ? "Holds" : "Pantries hold", rows }
+        : {
+            type: "text" as const,
+            title: "Holds",
+            lines: [
+              [
+                lot === AT.square
+                  ? "Nothing now: the town's goods lie in its granary, its market and its workshops, and its square holds only what has no building to lie in."
+                  : "Nothing now.",
+              ],
+            ],
+          },
       {
         type: "facts",
         rows: [
-          ...stats,
+          ...(r.kind && lot >= 0
+            ? [stat("Working here", many(r.working.length, "person", "people"))]
+            : []),
+          ...(r.households.length
+            ? [
+                stat("Households", `${r.households.length}`),
+                stat("Living here", `${r.living.length}`),
+              ]
+            : []),
+          stat("Here now", `${r.here.length}`),
           stat("Town", [townLink(world, s.ref)]),
           ...(own
             ? [
@@ -288,7 +378,7 @@ export function placeLotPage(world: World, ref: string): PageModel {
         lines: [
           [
             lot === AT.square
-              ? "The square: what the town holds that has no building to lie in lies here, and those who want company come."
+              ? "The square: those who want company come here."
               : lot === AT.fields
                 ? "The fields and pastures outside the town: its farmers and herders work here and bring in what they win a load at a time."
                 : r.kind
@@ -304,9 +394,6 @@ export function placeLotPage(world: World, ref: string): PageModel {
             : []),
         ],
       },
-      ...(rows.length
-        ? [{ type: "facts" as const, title: r.kind ? "Stocks" : "Pantries", rows }]
-        : []),
       ...(r.working.length
         ? [
             { type: "list" as const, title: "Work here", items: who(r.working) },

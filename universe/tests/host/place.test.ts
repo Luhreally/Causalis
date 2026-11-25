@@ -30,6 +30,7 @@ import {
   PLACE_MOST,
   advancePlace,
   enterPlace,
+  placeIndexOf,
   keptTable,
   placeDigest,
   placeStocks,
@@ -290,7 +291,8 @@ test("a place's people and lots have pages that say what they hold and why they 
     s = near(w, 400),
     place = enterPlace(w, s.ref)!,
     before = JSON.stringify(w.domainHashes()),
-    id = place.people.id[0]!,
+    // (One who holds no line of the town's roster: theirs is a page of the place's own.)
+    id = place.people.id[[...Array(place.people.n).keys()].find((k) => !place.people.line[k])!]!,
     person = pageOf(w, placePersonRef(s.ref, id)),
     text = JSON.stringify(person);
   assert.equal(person.kind, "person");
@@ -298,7 +300,10 @@ test("a place's people and lots have pages that say what they hold and why they 
     assert.ok(text.includes(word), word);
   const square = pageOf(w, placeLotRef(s.ref, -3));
   assert.equal(square.kind, "building");
-  const home = pageOf(w, placeLotRef(s.ref, place.houses.home[place.people.house[0]!]!));
+  const home = pageOf(
+    w,
+    placeLotRef(s.ref, place.houses.home[place.people.house[placeIndexOf(place, id)]!]!),
+  );
   assert.ok(
     JSON.stringify(home).includes(placePersonRef(s.ref, id)),
     "a home lists who lives in it",
@@ -315,14 +320,10 @@ test("a place's people and lots have pages that say what they hold and why they 
   const placed = placePlan(w, plan, place, 60);
   assert.ok(placed.people.length > 0 && placed.people.length <= 60 + 12);
   for (const p of placed.people) {
-    assert.ok(p.ref.startsWith(`plc:${s.ref}:`));
+    assert.ok(p.ref.startsWith(`plc:${s.ref}:`) || p.ref.startsWith(`folk:${s.ref}:`));
     assert.ok(p.home >= 0 && p.home < plan.homes.length);
   }
-  const frame = placeFrame(
-    w,
-    s.ref,
-    placed.people.map((p) => Number(p.ref.split(":").at(-1))),
-  )!;
+  const frame = placeFrame(w, s.ref, [...placed.placed!])!;
   assert.equal(frame.at.length, placed.people.length);
   assert.ok(frame.why.every((x) => x.length > 0));
   assert.equal(JSON.stringify(w.domainHashes()), before, "reading it moved nothing");

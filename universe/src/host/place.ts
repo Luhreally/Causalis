@@ -16,26 +16,26 @@
 // lately entered let go first. A town of more than PLACE_MOST people keeps that many as individuals, a whole-number
 // share of its table (its heart's homes); the rest stay counts, and the two add up to the town.
 //
-// Stated limits of this slice. A town's table is its land's shared by head-count (the world keeps none per town). Its
-// people are not the roster's line-holders (host/roster.ts): they have names and pages of their own here. Its clock is
-// the town view's standard day and year, not the world's own (see frameOf). A walk is reckoned by its length, not by
-// the streets. Carriers bring a making its stuff; what is made waits where it was made, and wool, hides and the rest
-// that no one here wins come and go at the month's matching. A land of several peoples is read by its first's body.
+// How management reaches the world (second slice). Orders are kernel commands kept by a ruled store that is out of the
+// hash until the first is given (sim/town/managed.ts): the hands put to each trade, the food its granary holds back, the
+// goods its market will not let go; what a town is asked to raise is the god game's own asking (sim/town/asks.ts). The
+// place reads its orders and lives by them. What it then did that its land's reckoning would not have (hands changed
+// from trade to trade, those dead of want) is told back in a command of its own, `place.settle`, its numbers told by
+// the host as the command is taken (Universe.told, settleOf below), at each month's turn while the town is watched and
+// on leaving; the world writes them to its land's counts, never more than the land has. What those hands then make is
+// the land's own reckoning of its trades: the made and the used are counted once, there, not here as well. A managed
+// town's table is its land's shared as if it had moved no one, with those it moved laid over it (targetTable).
 //
-// WHAT A LATER SLICE NEEDS, for the player's management here to change the world (not done in this slice):
-//  1. Commands. Anything the player does in a place (set a priority, move a stock, forbid a door) must be a kernel
-//     command in the log, so that a save replays; the place would then be a ruled store, hashed from the first
-//     command on (dormant before it, as town.asks is), and its stream registered: a rule-version bump.
-//  2. A way back for totals. Today the world's month and year reckon the land's stocks, births and deaths, and the
-//     place is reconciled to them. For management to matter the land's reckoning must read the place where one is
-//     kept: the town's share of its land's making and eating (`flow` below is already that ledger, good by good),
-//     its deaths by hunger and cold by band, fed into economy/systems.ts and population/systems.ts as the town's
-//     part of the land's sums, the rest of the land reckoned as now.
-//  3. A share that is the town's own. A town's table here is its land's table shared by head-count; the world keeps
-//     no table per town. If a managed town is to differ from its land (fewer hungry, more smiths), the town's own
-//     counts must be kept by the world, or the land's reckoning must take them from the place.
-//  4. The same clock for all of a land. A place steps in minutes, its land in months: what the place made this month
-//     must enter the land's books once, at the month's turn, never twice (the reconcile below is where it would).
+// Stated limits. An unmanaged town's table is its land's shared by head-count (the world keeps none per town). Only the
+// holders of its roster's lines are the god game's named people here (linkRoster); a realm's key figures stand before
+// their doors as the town view has them, without needs. Its clock is the town view's standard day and year, not the
+// world's own (see frameOf). A walk is reckoned by its length here and drawn along the streets by the view. Wool, hides
+// and the rest that no one here wins come and go at the month's matching. A land of several peoples is read by its
+// first's body. What the granary holds back and the market forbids move who eats and who works within the town; they
+// reach the world only through who then changes trade or dies. Deaths of want are reckoned only in a managed town,
+// where they can be told to its land. If a managed town is let go from memory before it is settled (the cap, below),
+// what it had yet to tell is lost with it: the page settles on leaving, so this needs a fifth town entered meanwhile.
+//
 import {
   DAY,
   HOUR,
@@ -78,12 +78,19 @@ import {
   levelsOf,
   lifeOf,
   familySizeOf,
+  managedDead,
+  managedOf,
+  MANAGED_TRADES,
   marketsOf,
   moneyStore,
   populationContext,
   townsOf,
+  type Managed,
+  type SettleDead,
+  type SettleMove,
   type Settlement,
 } from "../sim/index.ts";
+import { linesOf, townRoster, workOf as lineWork, folkWork } from "./roster.ts";
 
 // —— Measures ————————————————————————————————————————————————————————————————————————————————————————————————————
 
@@ -128,6 +135,7 @@ export const ACT_WORDS = [
   "getting warm",
   "among others",
   "waiting",
+  "fetching goods",
 ] as const;
 
 /** Why: the force that decided it. */
@@ -145,11 +153,28 @@ export const WHY = {
   load: 10,
   asleep: 11,
   dark: 12,
+  haul: 13,
 } as const;
 
 /** What happened to someone, as a place's log tells it. */
-export const HAP = { born: 0, died: 1, came: 2, left: 3, trade: 4 } as const;
-const HAP_WORDS = ["was born", "died", "came to the town", "left the town", "took up other work"];
+export const HAP = {
+  born: 0,
+  died: 1,
+  came: 2,
+  left: 3,
+  trade: 4,
+  starved: 5,
+  ordered: 6,
+} as const;
+const HAP_WORDS = [
+  "was born",
+  "died",
+  "came to the town",
+  "left the town",
+  "took up other work",
+  "died of want",
+  "was put to other work by the town's orders",
+];
 
 /** The place's draws: through the world's Rng, on a stream no registry holds (it is no part of the ruleset's identity). */
 const PLACE_DRAW: Stream = Object.freeze({
@@ -169,6 +194,8 @@ const P = {
   settle: 9,
   angle: 10,
   dying: 11,
+  order: 12,
+  sick: 13,
 } as const;
 
 const NEEDS = 4;
@@ -221,9 +248,15 @@ type People = {
   trip: Uint16Array;
   carryGood: Uint8Array;
   carry: Int32Array;
+  /** The line of the town's roster they hold (host/roster.ts; its number + 1, 0: none), and which holder of it they are. */
+  line: Uint32Array;
+  lineN: Uint16Array;
+  /** Ticks a need of theirs has stood full, less the ticks none has since: how long they have gone in want. */
+  lack: Uint16Array;
 };
 /** Bytes a person takes in a place's columns. */
-export const PERSON_BYTES = 4 + 4 + 1 + 1 + 2 + 4 + 2 * NEEDS + 1 + 1 + 4 + 4 + 2 + 2 + 1 + 4;
+export const PERSON_BYTES =
+  4 + 4 + 1 + 1 + 2 + 4 + 2 * NEEDS + 1 + 1 + 4 + 4 + 2 + 2 + 1 + 4 + 4 + 2 + 2;
 
 function peopleOf(cap: number): People {
   return {
@@ -243,6 +276,9 @@ function peopleOf(cap: number): People {
     trip: new Uint16Array(cap),
     carryGood: new Uint8Array(cap),
     carry: new Int32Array(cap),
+    line: new Uint32Array(cap),
+    lineN: new Uint16Array(cap),
+    lack: new Uint16Array(cap),
   };
 }
 const PEOPLE_COLS = [
@@ -261,6 +297,9 @@ const PEOPLE_COLS = [
   "trip",
   "carryGood",
   "carry",
+  "line",
+  "lineN",
+  "lack",
 ] as const;
 type Col = (typeof PEOPLE_COLS)[number];
 const widthOf = (c: Col) => (c === "needs" ? NEEDS : 1);
@@ -336,6 +375,18 @@ export type Place = {
   base: number[];
   flow: number[];
   log: PlaceHap[];
+  /**
+   * What it has done by its orders that its land has not yet been told (sim/town/managed.ts place.settle): those who
+   * changed trade, [row, from, to, count] one after another, and those who died of want, [row, trade, count].
+   */
+  moves: number[];
+  dead: number[];
+  /** The orders its hands were last put to work by (their shares, said), so they are put once. */
+  ordered: string;
+  /** What was made and used of each good since the day began (millionths), and the day. */
+  day: number;
+  madeDay: number[];
+  usedDay: number[];
 };
 
 // —— What the world says of a town ————————————————————————————————————————————————————————————————————————————————
@@ -449,7 +500,14 @@ const coldOf = (f: Frame, warmth: number): number =>
  * numbers, never more of a kind than its land has, adding up to the town's people (or to its land's, where the
  * town's count has run ahead of it within a year).
  */
-export function townTable(world: World, s: Settlement): number[] {
+export function townTable(
+  world: World,
+  s: Settlement,
+  /** What a managed town has moved of its land's counts (sim/town/managed.ts Managed.own): shared as if it had not. */
+  own: readonly number[] | null = null,
+  /** Those of it dead since its count was last reckoned. */
+  less = 0,
+): number[] {
   const p = populationContext(world).provinces.get(s.cell),
     out = new Array<number>(ROWS * OCCS).fill(0);
   if (!p) return out;
@@ -458,12 +516,12 @@ export function townTable(world: World, s: Settlement): number[] {
     all = 0;
   for (let r = 0; r < ROWS; r++)
     for (let o = 0; o < OCCS; o++) {
-      const c = p.counts.get(r, o);
+      const c = Math.max(0, p.counts.get(r, o) - (own?.[r * OCCS + o] ?? 0));
       w[r * OCCS + o] = c;
       all += c;
       if (o !== OCC.forager) settled += c;
     }
-  const people = Math.max(0, Math.min(Math.round(s.population), all));
+  const people = Math.max(0, Math.min(Math.round(s.population) - less, all));
   if (people <= 0) return out;
   if (people <= settled) for (let r = 0; r < ROWS; r++) w[r * OCCS + OCC.forager] = 0;
   return apportion(people, w);
@@ -474,6 +532,44 @@ export function keptTable(table: readonly number[]): number[] {
   let all = 0;
   for (const c of table) all += c;
   return all <= PLACE_MOST ? [...table] : apportion(PLACE_MOST, table);
+}
+
+/**
+ * The table a place's people are matched to: its town's, and where the town is managed (sim/town/managed.ts) its land's
+ * shared as if the town had moved no one, with those it moved laid over it: the hands its orders changed stay changed,
+ * told to its land already or not yet. No kind below nothing: what a row lacks is taken of its fullest kind.
+ */
+export function targetTable(world: World, s: Settlement, place: Place | null): number[] {
+  const m = managedOf(world)?.get(s.ref),
+    year = Math.floor(world.now / YEAR);
+  let waiting = 0;
+  if (place) for (let k = 0; k < place.dead.length; k += 3) waiting += place.dead[k + 2]!;
+  const t = keptTable(townTable(world, s, m?.own ?? null, managedDead(m, year) + waiting));
+  if (!m && !place?.moves.length) return t;
+  if (m) for (let c = 0; c < t.length; c++) t[c]! += m.own[c]!;
+  if (place)
+    for (let k = 0; k < place.moves.length; k += 4) {
+      const row = place.moves[k]!,
+        n = place.moves[k + 3]!;
+      t[row * OCCS + place.moves[k + 1]!]! -= n;
+      t[row * OCCS + place.moves[k + 2]!]! += n;
+    }
+  for (let r = 0; r < ROWS; r++)
+    for (let o = 0; o < OCCS; o++) {
+      const c = r * OCCS + o;
+      while (t[c]! < 0) {
+        let most = r * OCCS;
+        for (let k = 1; k < OCCS; k++) if (t[r * OCCS + k]! > t[most]!) most = r * OCCS + k;
+        if (t[most]! <= 0) {
+          t[c] = 0;
+          break;
+        }
+        const give = Math.min(-t[c]!, t[most]!);
+        t[most]! -= give;
+        t[c]! += give;
+      }
+    }
+  return t;
 }
 
 /** A town's share of its land's stocks, good by good, in millionths: by the heads kept against its land's. */
@@ -600,6 +696,12 @@ export class PlaceStore implements StateStore {
         base: p.base,
         flow: p.flow,
         log: p.log,
+        moves: p.moves,
+        dead: p.dead,
+        ordered: p.ordered,
+        day: p.day,
+        madeDay: p.madeDay,
+        usedDay: p.usedDay,
       })),
     };
   }
@@ -613,7 +715,8 @@ export class PlaceStore implements StateStore {
         n = cols.id.length,
         people = peopleOf(Math.max(16, n));
       people.n = n;
-      for (const c of PEOPLE_COLS) (people[c] as Uint8Array).set(cols[c]);
+      // (A column a save from before did not keep begins empty.)
+      for (const c of PEOPLE_COLS) if (cols[c]) (people[c] as Uint8Array).set(cols[c]);
       const h = raw.houses as Omit<Houses, "n">,
         b = raw.bldgs as Buildings,
         town = raw.town as Ref;
@@ -641,6 +744,16 @@ export class PlaceStore implements StateStore {
         base: [...(raw.base as number[])],
         flow: [...(raw.flow as number[])],
         log: (raw.log as PlaceHap[]).map((x) => ({ ...x })),
+        moves: [...((raw.moves as number[] | undefined) ?? [])],
+        dead: [...((raw.dead as number[] | undefined) ?? [])],
+        ordered: (raw.ordered as string | undefined) ?? "",
+        day: (raw.day as number | undefined) ?? 0,
+        madeDay: [
+          ...((raw.madeDay as number[] | undefined) ?? new Array<number>(GOOD_COUNT).fill(0)),
+        ],
+        usedDay: [
+          ...((raw.usedDay as number[] | undefined) ?? new Array<number>(GOOD_COUNT).fill(0)),
+        ],
       });
     }
   }
@@ -676,6 +789,11 @@ export function placeDigest(p: Place): string {
     p.bldgs.stock,
     p.base,
     p.flow,
+    p.moves,
+    p.dead,
+    p.madeDay,
+    p.usedDay,
+    p.day,
     p.matched.kinds,
     p.matched.land,
     p.matched.town,
@@ -684,6 +802,7 @@ export function placeDigest(p: Place): string {
   for (const x of p.houses.means) h.float(x);
   for (const x of [...p.matched.made, ...p.matched.wage]) h.float(x);
   for (const x of p.log) h.int(x.t).int(x.what).int(x.id).int(x.a).int(x.b);
+  h.string(p.ordered);
   return h.hex();
 }
 
@@ -756,6 +875,9 @@ function addPerson(place: Place, sex: number, occ: number, born: number, house: 
   p.trip[i] = 0;
   p.carryGood[i] = 0;
   p.carry[i] = 0;
+  p.line[i] = 0;
+  p.lineN[i] = 0;
+  p.lack[i] = 0;
   place.houses.members[house]!++;
   return i;
 }
@@ -1006,7 +1128,7 @@ function matchPeople(
   years: number,
   span: number,
 ): void {
-  const target = keptTable(townTable(world, s)),
+  const target = targetTable(world, s, place),
     now = placeTable(place, f.life),
     p = () => place.people,
     cellOf = (i: number) =>
@@ -1193,6 +1315,7 @@ function reconcile(world: World, place: Place, s: Settlement, f: Frame, month: n
     )
       workOf(world, place, i);
   matchStocks(place, stockShare(world, place.cell, p.n));
+  unlinkRoster(world, place);
 }
 
 /** A place made of a town as it stands now. */
@@ -1201,7 +1324,7 @@ function makePlace(world: World, s: Settlement): Place | null {
     t = Math.floor(world.now / PLACE_TICK) * PLACE_TICK,
     start = t - SETTLE,
     month = Math.floor(world.now / MONTH),
-    table = keptTable(townTable(world, s)),
+    table = targetTable(world, s, null),
     n = table.reduce((a, b) => a + b, 0),
     key = hashString(`place ${s.ref}`);
   // (A town whose land keeps no table of its people, a colony's on another body: nothing to keep one by one.)
@@ -1222,6 +1345,12 @@ function makePlace(world: World, s: Settlement): Place | null {
     base: new Array<number>(GOOD_COUNT).fill(0),
     flow: new Array<number>(GOOD_COUNT).fill(0),
     log: [],
+    moves: [],
+    dead: [],
+    ordered: "",
+    day: Math.floor(t / DAY),
+    madeDay: new Array<number>(GOOD_COUNT).fill(0),
+    usedDay: new Array<number>(GOOD_COUNT).fill(0),
   };
   // Its households, each in a home: as many as a hearth's mouths make of its people, the homes filled from its heart.
   const homes = homesFor(world, s.ref, n),
@@ -1263,6 +1392,7 @@ function makePlace(world: World, s: Settlement): Place | null {
       workOf(world, place, i);
     }
   }
+  linkRoster(world, place, s, f);
   reckonMeans(world, place);
   stockOut(place, f, stockShare(world, s.cell, n));
   // Its day under way before it is seen; then its stocks are the world's again, to the last millionth.
@@ -1359,6 +1489,7 @@ function eatFrom(place: Place, h: number, want: number): number {
       take = Math.min(place.houses.pantry[at]!, Math.ceil(want));
     place.houses.pantry[at]! -= take;
     place.flow[FOODS[k]!]! -= take;
+    place.usedDay[FOODS[k]!]! += take;
     want -= take;
     eaten += take;
   }
@@ -1379,8 +1510,37 @@ function tick(world: World, place: Place, f: Frame): void {
     perTick = (PLACE_TICK * MICRO) / (YEAR * WORK_SHARE),
     foodStore = buildingOf(place, FOOD_STORES),
     market = buildingOf(place, ["market"]),
-    mean = meanWage(place);
-  let wants: [number, number][] | null = null;
+    mean = meanWage(place),
+    // Its orders, where it is managed (sim/town/managed.ts): what its granary holds back, what its market will not let go.
+    orders = managedOf(world)?.get(place.town),
+    reserve = orders ? orders.hold * p.n * f.daily * 30 : 0,
+    barred = (b: number, g: number) => b === market && !!orders && orders.forbidden.includes(g),
+    // (The food a store will let a household have: all of it, less what the granary is told to hold back.)
+    free = (b: number, g: number): number => {
+      if (barred(b, g)) return 0;
+      const has = bldgs.stock[b * GOOD_COUNT + g]!;
+      if (b !== foodStore || reserve <= 0) return has;
+      let all = 0;
+      for (const x of FOODS) all += bldgs.stock[b * GOOD_COUNT + x]!;
+      return Math.max(0, Math.min(has, all - reserve));
+    },
+    madeOf = (g: number, n: number) => {
+      place.flow[g]! += n;
+      place.madeDay[g]! += n;
+    },
+    usedOf = (g: number, n: number) => {
+      place.flow[g]! -= n;
+      place.usedDay[g]! += n;
+    },
+    tickNo = Math.floor(t / PLACE_TICK),
+    dying: number[] = [];
+  if (Math.floor(t / DAY) !== place.day) {
+    place.day = Math.floor(t / DAY);
+    place.madeDay.fill(0);
+    place.usedDay.fill(0);
+  }
+  let wants: [number, number][] | null = null,
+    hauls: [number, number][] | null = null;
   for (let i = 0; i < p.n; i++) {
     const at0 = i * NEEDS,
       asleep = p.act[i] === ACT.sleep,
@@ -1404,6 +1564,24 @@ function tick(world: World, place: Place, f: Frame): void {
       p.needs[at0 + N.lone] = Math.max(0, p.needs[at0 + N.lone]! - 12 * f.lone);
     else if (!asleep && (moving || p.act[i] !== ACT.work))
       p.needs[at0 + N.lone] = Math.min(FULL, p.needs[at0 + N.lone]! + f.lone);
+    // Want: a need of the body's standing full. How long it has, less how long it has not since.
+    const inWant =
+      p.needs[at0 + N.food]! >= 0.95 * FULL ||
+      p.needs[at0 + N.rest]! >= 0.95 * FULL ||
+      p.needs[at0 + N.cold]! >= 0.95 * FULL;
+    p.lack[i] = inWant ? Math.min(65535, p.lack[i]! + 1) : Math.max(0, p.lack[i]! - 1);
+    const lackDays = p.lack[i]! / 144;
+    // Days in want bring sickness and death, by their people's own table of dying, the more the longer: asked of each
+    // once a day. Only in a town managed: there its dead are told to its land (place.settle), elsewhere its land's own
+    // reckoning says who dies.
+    if (orders && lackDays >= 1 && (tickNo + p.id[i]!) % 144 === 0) {
+      const base = (f.life.mortality[bandOf(ageOf(p, i, t), f.life)] ?? 0.02) / 365,
+        chance = Math.min(0.5, base * (1 + lackDays) ** 3);
+      if (world.rng.chance(chance, PLACE_DRAW, place.key ^ p.id[i]!, tickNo, P.sick)) {
+        dying.push(i);
+        continue;
+      }
+    }
     if (moving) {
       if (--p.eta[i]! === 0) {
         p.at[i] = p.to[i]!;
@@ -1416,7 +1594,11 @@ function tick(world: World, place: Place, f: Frame): void {
       chilled = pressOf(p.needs[at0 + N.cold]! / FULL),
       lone = pressOf(p.needs[at0 + N.lone]! / FULL),
       occ = occOf(p, i),
-      worth = occ === OCC.dependent ? 0 : workWorth(world, place, i, mean) * dark,
+      // (One long in want is worth less at their work: sick with it.)
+      worth =
+        occ === OCC.dependent
+          ? 0
+          : workWorth(world, place, i, mean) * dark * (1 - Math.min(0.6, 0.15 * lackDays)),
       bar = Math.max(worth, IDLE_WORTH);
     // What is carried is set down where it was bound.
     if (p.carry[i]! > 0 && p.act[i] === ACT.carry) {
@@ -1432,13 +1614,27 @@ function tick(world: World, place: Place, f: Frame): void {
       p.why[i] = WHY.asleep;
       continue;
     }
+    // Come for what a building has made: a load of it taken up, for the market.
+    if (p.act[i] === ACT.haul) {
+      const b = Math.max(0, bldgAt(place, p.at[i]!)),
+        g = p.carryGood[i]!,
+        take = Math.floor(Math.min(bldgs.stock[b * GOOD_COUNT + g]!, LOAD * MICRO));
+      if (take > 0 && b !== market) {
+        bldgs.stock[b * GOOD_COUNT + g]! -= take;
+        p.carry[i] = take;
+        p.act[i] = ACT.carry;
+        p.why[i] = WHY.load;
+        go(place, i, bldgs.lot[market]!);
+      } else p.act[i] = ACT.idle;
+      continue;
+    }
     // Fetching: at the store, take what the household eats in some days; then home.
     if (p.act[i] === ACT.fetch) {
       const b = Math.max(0, bldgAt(place, p.at[i]!));
       let want = houses.members[h]! * f.daily * FETCH_DAYS;
       for (let k = 0; k < FOODS.length && want > 0; k++) {
         const g = FOODS[k]!,
-          take = Math.floor(Math.min(want, bldgs.stock[b * GOOD_COUNT + g]!, 2147483647));
+          take = Math.floor(Math.min(want, free(b, g), 2147483647));
         if (take <= 0) continue;
         bldgs.stock[b * GOOD_COUNT + g]! -= take;
         p.carryGood[i] = g;
@@ -1455,7 +1651,8 @@ function tick(world: World, place: Place, f: Frame): void {
       if (hunger === press) {
         // Hunger: eat at home; a pantry bare, one who is grown fetches from the town's stores.
         if (p.at[i] !== home) {
-          p.act[i] = ACT.idle;
+          // (Bound home to eat: told as eating from the moment they turn for it.)
+          p.act[i] = ACT.eat;
           p.why[i] = WHY.hunger;
           go(place, i, home);
           continue;
@@ -1474,11 +1671,11 @@ function tick(world: World, place: Place, f: Frame): void {
           continue;
         }
         const grown = ageOf(p, i, t) >= f.life.adulthood;
-        let any = 0;
-        for (const g of FOODS) any += bldgs.stock[foodStore * GOOD_COUNT + g]! + bldgs.stock[g]!;
-        if (grown && any > 0) {
-          let from = foodStore;
-          if (FOODS.every((g) => bldgs.stock[foodStore * GOOD_COUNT + g]! <= 0)) from = 0;
+        // (From its granary; that bare, or held back, from its market; that bare, from its square.)
+        let from = -1;
+        for (const b of foodStore === market ? [foodStore, 0] : [foodStore, market, 0])
+          if (from < 0 && FOODS.some((g) => free(b, g) > 0)) from = b;
+        if (grown && from >= 0) {
           p.act[i] = ACT.fetch;
           p.why[i] = WHY.pantry;
           go(place, i, bldgs.lot[from]!);
@@ -1537,7 +1734,7 @@ function tick(world: World, place: Place, f: Frame): void {
         made = Math.round(matched.made[g]! * perTick);
       if (p.carry[i]! <= 0) p.carryGood[i] = g;
       p.carry[i]! += made;
-      place.flow[g]! += made;
+      madeOf(g, made);
       if (p.carry[i]! >= LOAD * MICRO) {
         let pantry = 0;
         for (let k = 0; k < FOODS.length; k++) pantry += houses.pantry[h * FOODS.length + k]!;
@@ -1558,8 +1755,9 @@ function tick(world: World, place: Place, f: Frame): void {
         b = at < 0 ? market : at,
         made = Math.round(matched.made[good]! * perTick);
       let can = made;
-      for (const [x, amount] of r.inputs)
-        can = Math.min(can, Math.floor((bldgs.stock[b * GOOD_COUNT + x]! * per) / amount));
+      // (What its market will not let go is not to be had there.)
+      const has = (x: number) => (barred(b, x) ? 0 : bldgs.stock[b * GOOD_COUNT + x]!);
+      for (const [x, amount] of r.inputs) can = Math.min(can, Math.floor((has(x) * per) / amount));
       if (can <= 0 && made > 0) {
         p.act[i] = ACT.wait;
         p.why[i] = WHY.noStuff;
@@ -1568,10 +1766,10 @@ function tick(world: World, place: Place, f: Frame): void {
       for (const [x, amount] of r.inputs) {
         const used = Math.min(bldgs.stock[b * GOOD_COUNT + x]!, Math.ceil((can * amount) / per));
         bldgs.stock[b * GOOD_COUNT + x]! -= used;
-        place.flow[x]! -= used;
+        usedOf(x, used);
       }
       bldgs.stock[b * GOOD_COUNT + good]! += can;
-      place.flow[good]! += can;
+      madeOf(good, can);
     } else if (occ === OCC.trader) {
       // A carrier: what a working building has made goes to the market; what one lacks and the market holds goes to it.
       if (p.at[i] !== bldgs.lot[market]) continue;
@@ -1595,7 +1793,7 @@ function tick(world: World, place: Place, f: Frame): void {
       }
       for (let k = 0; k < wants.length; k++) {
         const [b, x] = wants[k]!,
-          has = bldgs.stock[market * GOOD_COUNT + x]!;
+          has = barred(market, x) ? 0 : bldgs.stock[market * GOOD_COUNT + x]!;
         if (has <= 0) continue;
         const take = Math.min(has, LOAD * MICRO);
         bldgs.stock[market * GOOD_COUNT + x]! -= take;
@@ -1607,7 +1805,33 @@ function tick(world: World, place: Place, f: Frame): void {
         wants.splice(k, 1);
         break;
       }
+      if (p.act[i] === ACT.carry) continue;
+      // (And what its buildings have made, a load of it lying there: fetched for the market, one carrier to each.)
+      if (!hauls) {
+        hauls = [];
+        for (let b = 1; b < bldgs.lot.length; b++) {
+          if (b === market) continue;
+          for (const g of MAKING_GOODS.get(bldgs.kind[b]!) ?? [])
+            if (bldgs.stock[b * GOOD_COUNT + g]! >= LOAD * MICRO) hauls.push([b, g]);
+        }
+      }
+      const haul = hauls.shift();
+      if (haul) {
+        p.carryGood[i] = haul[1];
+        p.carry[i] = 0;
+        p.act[i] = ACT.haul;
+        p.why[i] = WHY.haul;
+        go(place, i, bldgs.lot[haul[0]]!);
+      }
     }
+  }
+  // Those who died of want: told, kept for its land's telling, and gone.
+  for (let k = dying.length - 1; k >= 0; k--) {
+    const i = dying[k]!,
+      row = sexOf(p, i) * BANDS + bandOf(ageOf(p, i, t), f.life);
+    note(place, HAP.starved, p.id[i]!, Math.round(ageOf(p, i, t)), occOf(p, i));
+    place.dead.push(row, occOf(p, i), 1);
+    removePerson(place, i);
   }
   place.t = t + PLACE_TICK;
 }
@@ -1621,6 +1845,132 @@ for (const [good, kinds] of Object.entries(MAKING_AT))
     if (!MAKING_GOODS.has(k)) MAKING_GOODS.set(k, []);
     MAKING_GOODS.get(k)!.push(Number(good));
   }
+
+/**
+ * A managed town's hands put to its orders (sim/town/managed.ts place.work): of its grown at the trades an order can
+ * move, as many to each as its shares say; those of a trade with too many take up one with too few, who by a keyed
+ * draw. Each is kept for its land's telling (place.settle). Done once for each order given.
+ */
+function applyOrders(world: World, place: Place, f: Frame): void {
+  const work = managedOf(world)?.get(place.town)?.work ?? null,
+    key = work ? work.join(",") : "";
+  if (key === place.ordered) return;
+  place.ordered = key;
+  if (!work) return;
+  const p = place.people,
+    at = (occ: number) => (MANAGED_TRADES as readonly number[]).indexOf(occ),
+    hands: number[][] = MANAGED_TRADES.map(() => []);
+  for (let i = 0; i < p.n; i++) {
+    const k = at(occOf(p, i));
+    if (k >= 0 && ageOf(p, i, place.t) >= f.life.adulthood) hands[k]!.push(i);
+  }
+  const all = hands.reduce((n, list) => n + list.length, 0);
+  if (all <= 0 || work.every((x) => x <= 0)) return;
+  const want = apportion(all, work);
+  for (let from = 0; from < hands.length; from++) {
+    const list = hands[from]!,
+      draw = new Map(
+        list.map((i) => [i, world.rng.unit(PLACE_DRAW, place.key ^ p.id[i]!, place.t, P.order)]),
+      );
+    list.sort((a, b) => draw.get(a)! - draw.get(b)! || p.id[a]! - p.id[b]!);
+    for (let to = 0; to < hands.length && list.length > want[from]!; to++) {
+      if (to === from) continue;
+      while (list.length > want[from]! && hands[to]!.length < want[to]!) {
+        const i = list.pop()!,
+          row = sexOf(p, i) * BANDS + bandOf(ageOf(p, i, place.t), f.life);
+        p.sexOcc[i] = (sexOf(p, i) << 4) | MANAGED_TRADES[to]!;
+        workOf(world, place, i);
+        hands[to]!.push(i);
+        note(place, HAP.ordered, p.id[i]!, MANAGED_TRADES[from]!, MANAGED_TRADES[to]!);
+        place.moves.push(row, MANAGED_TRADES[from]!, MANAGED_TRADES[to]!, 1);
+      }
+    }
+  }
+  reckonMeans(world, place);
+}
+
+/**
+ * What a managed town has done that its land has not been told, as its settling tells it (sim/town/managed.ts
+ * place.settle), and let go of here: the host tells it as the command is taken (Universe.told). Null: nothing to tell,
+ * or the town is not managed.
+ */
+export function settleOf(
+  world: World,
+  town: string,
+): { town: string; moves: SettleMove[]; dead: SettleDead[] } | null {
+  const place = placesOf(world)?.get(town);
+  if (!place || !managedOf(world)?.get(town)) return null;
+  if (!place.moves.length && !place.dead.length) return null;
+  const moves = new Map<string, number>(),
+    dead = new Map<string, number>();
+  for (let k = 0; k < place.moves.length; k += 4) {
+    const key = `${place.moves[k]},${place.moves[k + 1]},${place.moves[k + 2]}`;
+    moves.set(key, (moves.get(key) ?? 0) + place.moves[k + 3]!);
+  }
+  for (let k = 0; k < place.dead.length; k += 3) {
+    const key = `${place.dead[k]},${place.dead[k + 1]}`;
+    dead.set(key, (dead.get(key) ?? 0) + place.dead[k + 2]!);
+  }
+  place.moves = [];
+  place.dead = [];
+  const cells = (m: Map<string, number>) =>
+    [...m].map(([key, n]) => [...key.split(",").map(Number), n]);
+  return {
+    town,
+    moves: cells(moves) as unknown as SettleMove[],
+    dead: cells(dead) as unknown as SettleDead[],
+  };
+}
+
+/** A managed town's orders, as a place lives by them (null: it has none). */
+export function ordersOf(world: World, town: string): Managed | null {
+  return managedOf(world)?.get(town) ?? null;
+}
+
+/**
+ * The town's named people of the god game for its people here (host/roster.ts): each holder of one of its roster's lines
+ * is one of the place's own of the same sex, age band and work, who takes the holder's age. Where no one of the place
+ * is of a holder's kind, that holder is not here (the place's table is its town's, and is not bent to them).
+ */
+function linkRoster(world: World, place: Place, s: Settlement, f: Frame): void {
+  const p = place.people,
+    year = Math.floor(place.t / YEAR),
+    roster = townRoster(world, place.town, year),
+    work = folkWork(world, place.cell),
+    lines = Math.min(linesOf(Math.round(s.population)), Math.ceil(p.n / 12)),
+    free = new Map<number, number[]>();
+  for (let i = p.n - 1; i >= 0; i--) {
+    p.line[i] = 0;
+    const c = (sexOf(p, i) * BANDS + bandOf(ageOf(p, i, place.t), f.life)) * OCCS + occOf(p, i);
+    if (!free.has(c)) free.set(c, []);
+    free.get(c)!.push(i);
+  }
+  for (let k = 0; k < lines; k++) {
+    const h = roster.holder(k);
+    if (!h) continue;
+    const age = year - h.born + 0.5,
+      band = bandOf(age, f.life),
+      occ = age < f.life.adulthood ? OCC.dependent : lineWork(h.key, work),
+      i = free.get((rowSex(h.sex) * BANDS + band) * OCCS + occ)?.pop();
+    if (i === undefined) continue;
+    p.line[i] = k + 1;
+    p.lineN[i] = h.n;
+    p.born[i] = Math.floor(place.t / DAY - age * 365);
+  }
+}
+/** A roster holder's sex (1: a man) as the world's table numbers the sexes. */
+const rowSex = (sex: number): number => (sex === 1 ? 1 - FEMALE : FEMALE);
+
+/** Those who hold a roster's line no longer (dead, or their term done) are the town's own again. */
+function unlinkRoster(world: World, place: Place): void {
+  const p = place.people;
+  let roster: ReturnType<typeof townRoster> | null = null;
+  for (let i = 0; i < p.n; i++) {
+    if (!p.line[i]) continue;
+    roster ??= townRoster(world, place.town, Math.floor(place.t / YEAR));
+    if (roster.holder(p.line[i]! - 1)?.n !== p.lineN[i]) p.line[i] = 0;
+  }
+}
 
 // —— Entering, staying, coming back ——————————————————————————————————————————————————————————————————————————————
 
@@ -1655,6 +2005,8 @@ export function advancePlace(world: World, place: Place): number {
   const f = frameOf(world, place.cell),
     now = Math.floor(world.now / PLACE_TICK) * PLACE_TICK,
     month = Math.floor(world.now / MONTH);
+  // (Its hands put to any order given since: before its next tick, and though the clock stands still.)
+  applyOrders(world, place, f);
   if (now <= place.t) return 0;
   let ticks = 0;
   if (now - place.t > EXACT_MOST || month - place.matched.month > 1) {

@@ -614,6 +614,8 @@ export type VillagePlan = {
     readonly name: string;
     readonly color: readonly [number, number, number];
   };
+  /** While its town is entered (town mode): who each of its people is in the place kept of it, in their order (host/placeplan.ts). */
+  readonly placed?: readonly number[];
   readonly people: readonly {
     ref: string;
     name: string;

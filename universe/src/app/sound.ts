@@ -59,7 +59,15 @@ const MOST_DELAY = 2.5;
 const AHEAD = 0.7,
   PUMP_MS = 400;
 /** Modes whose chrome puts the corner tools away: 🔊 stays, standing by itself. */
-const CHROMELESS = ["filming", "fleet-filming", "living", "possessing", "ruling", "homing"];
+const CHROMELESS = [
+  "filming",
+  "fleet-filming",
+  "living",
+  "placing",
+  "possessing",
+  "ruling",
+  "homing",
+];
 
 type Rand = () => number;
 const randOf = (seed: number): Rand => {

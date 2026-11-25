@@ -1,22 +1,30 @@
-// A town entered (town mode, first slice), the page's part: 🏘️ on a town's bar. The town's own scene and eye stay; its
+// A town entered (town mode), the page's part: 🏘️ on a town's bar. The town's own scene stays, the eye goes near; its
 // people are the place's (host/place.ts), kept one by one and found again whenever the town is come back to, drawn where
-// the place has them; a tap on one, or on a building, opens the place's page of it. The place runs on the world's own
-// clock, set on entering to a pace a day can be watched at (the time bar's keys change it); leaving puts the clock back
-// and the town's usual people with it.
+// the place has them; the chrome is the mode's own (ui/place-hud.ts): its clock and paces, a notice line, and four
+// sheets, its people, its stocks, its work and what it can raise. A tap on one of its people, or on a building, opens
+// the place's page of it. Orders are commands (sim/town/managed.ts); what the town did by them is told to its land at
+// each month's turn while it is watched, and on leaving. The place runs on the world's own clock, set on entering to a
+// pace a day can be watched at; leaving puts the clock and the god game's chrome back, and the town's usual people.
 import "./townplace.css";
 import {
   placeLotRef,
   type HostClient,
   type PlaceFrame,
+  type PlacePeopleSheet,
+  type PlaceStocksSheet,
+  type PlaceWorkSheet,
+  type TownOffers,
   type VillagePlan,
 } from "../bridge/index.ts";
-import type { VillageScene } from "../render/index.ts";
-import type { PageWindow, VillagePanel } from "../ui/index.ts";
+import type { OrbitRig, VillageScene } from "../render/index.ts";
+import { PlaceHud, type PageWindow, type PlaceTab, type VillagePanel } from "../ui/index.ts";
 import { PlaceBodies, type TownThing } from "../view/index.ts";
 
 export type PlaceDeps = {
+  readonly hud: HTMLElement;
   readonly client: HostClient;
   readonly village: VillageScene;
+  readonly rig: OrbitRig;
   readonly pages: PageWindow;
   readonly panel: VillagePanel;
   readonly plan: () => VillagePlan | null;
@@ -44,46 +52,47 @@ export type PlaceFlow = {
   readonly told: PlaceFrame | null;
   /** The pace its clock runs at while it is entered (the clock's seconds a second; 0: stopped). */
   pace(seconds: number): void;
+  /** A sheet opened, or closed (the look tools). */
+  sheet(tab: PlaceTab | null): void;
+  /** An order given (the look tools): the command, and what it asks beside the town. */
+  order(type: string, args: Record<string, unknown>): Promise<string | null>;
+  /** What its notice line tells (the look tools). */
+  readonly noticed: string | null;
 };
 
-const DOING = [
-  "at rest",
-  "asleep",
-  "eating",
-  "at work",
-  "fetching",
-  "carrying",
-  "warming",
-  "in company",
-  "waiting",
-];
+/** The eye over a town entered (world units; as a life's: app/life.ts): a few homes across. */
+const EYE_NEAR = 9,
+  EYE_PITCH = -48,
+  /** How near a finger must come to one of its people (px): a fingertip's breadth. */
+  TAP_REACH = 44,
+  /** How often an open sheet is read again (ms). */
+  SHEET_EVERY = 1000;
 
 export function installPlace(d: PlaceDeps): PlaceFlow {
+  const hud = new PlaceHud(d.hud);
   let town: string | null = null,
     body: PlaceBodies | null = null,
     told: PlaceFrame | null = null,
     stop: (() => void) | null = null,
+    stopSheet: (() => void) | null = null,
     /** The clock's pace as it was before the town was entered (put back on leaving), and the pace chosen in it. */
     was: number | null = null,
-    pace = 600;
+    pace = 600,
+    /** The month its doings were last told to its land in (sim/town/managed.ts place.settle). */
+    settled = -1,
+    settling = false;
 
-  const say = (): void => {
-    if (!town) return d.panel.placeNow(null);
-    const f = told;
-    if (!f) return d.panel.placeNow("Entering…");
-    const hour = Math.floor((f.t % 86_400) / 3600),
-      minute = Math.floor((f.t % 3600) / 60),
-      most = f.doing
-        .map((n, k) => [n, k] as const)
-        .filter(([n]) => n > 0)
-        .sort((a, b) => b[0] - a[0])
-        .slice(0, 4)
-        .map(([n, k]) => `${n} ${DOING[k]}`)
-        .join(", "),
-      kept = f.kept < f.people ? `${f.kept} of ${f.people} kept` : `${f.kept} people kept`;
-    d.panel.placeNow(
-      `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")} · ${kept}, ${f.households} households · ${most}`,
-    );
+  /** What the town did by its orders told to its land: at a month's turn, and on leaving. */
+  const settle = async (): Promise<void> => {
+    if (!town || settling) return;
+    settling = true;
+    try {
+      await d.client.command("place.settle", { town });
+    } catch {
+      // (Nothing to tell, or the town given no order: nothing told.)
+    } finally {
+      settling = false;
+    }
   };
 
   /** The people of the plan drawn laid where the place has them, and asked after from now on. */
@@ -104,23 +113,83 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
         // (No such town any more, or no one in it: left.)
         if (!f) return void leave();
         told = mine.frame = f;
-        say();
+        hud.time(f.t, pace);
+        hud.notices(f.notices);
+        // (A month's turn: what it did by its orders is told to its land.)
+        if (settled < 0) settled = f.month;
+        if (f.month !== settled) {
+          settled = f.month;
+          if (f.managed && f.unsettled > 0) void settle();
+        }
       },
     );
+  };
+
+  /** The sheet open read, and read again while it stays open. */
+  const sheet = (tab: PlaceTab | null): void => {
+    stopSheet?.();
+    stopSheet = null;
+    if (!town || !tab) return;
+    const ref = town;
+    if (tab === "people")
+      stopSheet = d.client.subscribe<PlacePeopleSheet | null>(
+        { type: "place.people", args: { ref, occ: hud.occ } },
+        SHEET_EVERY,
+        (s) => s && hud.people(s),
+      );
+    else if (tab === "stocks")
+      stopSheet = d.client.subscribe<PlaceStocksSheet | null>(
+        { type: "place.stocks", args: { ref } },
+        SHEET_EVERY,
+        (s) => s && hud.stocks(s),
+      );
+    else if (tab === "work")
+      stopSheet = d.client.subscribe<PlaceWorkSheet | null>(
+        { type: "place.work", args: { ref } },
+        SHEET_EVERY,
+        (s) => s && hud.work(s),
+      );
+    else
+      stopSheet = d.client.subscribe<TownOffers | null>(
+        { type: "town.offers", args: { ref } },
+        SHEET_EVERY,
+        (s) => hud.build(s),
+      );
+  };
+
+  const order = async (type: string, args: Record<string, unknown>): Promise<string | null> => {
+    if (!town) return "no town is entered";
+    try {
+      // (What a town is asked to raise is asked as the god game asks it: sim/town/asks.ts.)
+      await d.client.command(
+        type,
+        type === "town.ask" ? { village: town, ...args } : { town, ...args },
+      );
+      // (The sheet read again at once: an order shows as soon as it is given.)
+      sheet(hud.tab);
+      return null;
+    } catch (error) {
+      return (error as Error).message;
+    }
   };
 
   const leave = async (): Promise<void> => {
     if (!town) return;
     const left = town;
+    // (What it did by its orders told to its land before it is left.)
+    if (told?.managed && told.unsettled > 0) await settle();
     town = null;
     stop?.();
-    stop = null;
+    stopSheet?.();
+    stop = stopSheet = null;
     if (body && d.village.posed === body) d.village.posed = null;
     body = null;
     told = null;
+    settled = -1;
     if (was !== null) d.client.setSpeed(was);
     was = null;
-    say();
+    hud.hide();
+    d.panel.placeNow(null);
     // (Its usual people back, if it is still the town shown.)
     if (d.scale() === "village" && d.plan()?.ref === left) await d.reload(left);
   };
@@ -131,12 +200,22 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     town = plan.ref;
     was = d.client.status?.speed ?? 0;
     d.client.setSpeed(pace);
-    say();
+    d.pages.close();
+    hud.show(plan.name);
+    hud.time(d.client.status?.t ?? 0, pace);
+    // (The eye near: a few homes across, its people to be told apart.)
+    d.rig.flyTo({ distance: EYE_NEAR, pitch: EYE_PITCH }, 0.9);
     await d.reload(town);
     // (The plan read is laid by planRead; a town left meanwhile is left.)
   };
 
-  return {
+  hud.onPace = (seconds) => flow.pace(seconds);
+  hud.onLeave = () => void leave();
+  hud.onTab = (tab) => sheet(tab);
+  hud.onOpen = (ref) => void d.pages.open(ref);
+  hud.onOrder = (type, args) => void order(type, args);
+
+  const flow: PlaceFlow = {
     get on() {
       return town !== null;
     },
@@ -145,6 +224,9 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     },
     get told() {
       return told;
+    },
+    get noticed() {
+      return hud.noticed;
     },
     toggle: () => (town ? leave() : enter()),
     leave,
@@ -157,10 +239,10 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     tapped: (x, y) => {
       const plan = d.plan();
       if (!town || !body || !plan || plan.ref !== town) return false;
-      const i = d.village.pick(x, y),
+      const i = d.village.pick(x, y, TAP_REACH),
         person = i === null ? undefined : plan.people[i];
-      if (person && body.ids[i!] !== null) {
-        void d.pages.open(person.ref);
+      if (person) {
+        void d.pages.open(person.page ?? person.ref);
         return true;
       }
       const thing = d.townThing(x, y);
@@ -178,7 +260,10 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     pace: (seconds) => {
       pace = Math.max(0, seconds);
       if (town) d.client.setSpeed(pace);
-      say();
+      if (told) hud.time(told.t, pace);
     },
+    sheet: (tab) => hud.open(tab),
+    order,
   };
+  return flow;
 }

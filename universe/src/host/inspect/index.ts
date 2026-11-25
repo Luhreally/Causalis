@@ -2,7 +2,7 @@
 // ref, and the few names that are not refs (a far star, another star's world, one under
 // the god's hand) — to its page, and its place for "go to it". Pure reads of the world as
 // it stands (the observer ledger aside, which history never reads): asking never moves it.
-import { placeLotPage, placePersonPage } from "./place.ts";
+import { placeLotPage, placePersonPage, withPlace } from "./place.ts";
 import { holdPage } from "./strongholds.ts";
 import { notablePage } from "./notables.ts";
 import { toldPage } from "./told.ts";
@@ -188,7 +188,10 @@ function build(
   // A town's stronghold or seat (asked 2026-11-21).
   if (ref.startsWith("hold:")) return holdPage(world, ref);
   // A town kept in detail (town mode): one of its people, one of its lots.
-  if (ref.startsWith("plc:")) return placePersonPage(world, ref);
+  if (ref.startsWith("plc:"))
+    return placePersonPage(world, ref, (named) =>
+      withPlace(world, named, townsfolkPage(world, named)),
+    );
   if (ref.startsWith("plcl:")) return placeLotPage(world, ref);
   // A band's camp on its land (Phase 28 M159).
   if (ref.startsWith("camp:")) return campPage(world, ref);
@@ -196,7 +199,8 @@ function build(
   if (ref.startsWith("herd:")) return herdPage(world, ref);
   if (ref.startsWith("beast:")) return beastPage(world, ref);
   // One of a town's many kept by their line, and one of a battle's levy (Phase 55 M225).
-  if (ref.startsWith("folk:town:")) return townsfolkPage(world, ref);
+  // (One of a town kept in detail: what the place tells of them at their page's head. Town mode.)
+  if (ref.startsWith("folk:town:")) return withPlace(world, ref, townsfolkPage(world, ref));
   if (ref.startsWith("lv:")) return levyManPage(world, ref);
   // A maker named for their seat at a trade (Phase 55 wave 5).
   if (ref.startsWith("seat:")) return seatPage(world, ref);

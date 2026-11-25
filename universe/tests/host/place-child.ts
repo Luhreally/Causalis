@@ -45,6 +45,9 @@ if (mode === "second") {
     ).world,
     ref = town(w);
   enterPlace(w, ref);
+  // (And given an order: its hands put to other trades, kept in the save with what its land has yet to be told.)
+  const c = w.submit("place.work", { town: ref, shares: [300, 100, 500, 100] });
+  w.runTo(c.t);
   go(w, ref, 6);
   if (mode === "first")
     writeFileSync(b!, gzipSync(JSON.stringify(saveWorld(w, "r", { universe: "earth" }))));

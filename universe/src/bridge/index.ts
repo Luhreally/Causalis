@@ -602,5 +602,12 @@ export {
   placeLotRef,
   placePersonRef,
   placedId,
+  PLACE_TRADES,
   type PlaceFrame,
+  type PlaceNotice,
+  type PlacePeopleSheet,
+  type PlacePersonRow,
+  type PlaceStockRow,
+  type PlaceStocksSheet,
+  type PlaceWorkSheet,
 } from "./place.ts";

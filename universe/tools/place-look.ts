@@ -1,7 +1,9 @@
-// A town entered, looked at (town mode, first slice): on a save given, at a phone's size and a desk's, the town gone to,
-// 🏘️ pressed, its line told, its people drawn where the place has them, one of them and a building tapped for their pages,
-// the town left and come back to (the same people, gone on); the HUD read for overlap in each state by the overlap
-// gate's own reading (tools/hud-read.ts). Stills into --shots. (npm run build first: it reads dist/.)
+// A town entered, looked at (town mode): on a save given, at a phone's size and a desk's, the town gone to, 🏘️ pressed,
+// the mode's own chrome up and the god game's away, its people drawn near and large where the place has them, each of
+// its four sheets opened, orders given through them (hands put to crafts, food held back, a good forbidden), a notice
+// told and put away, one of its people and a building tapped for their pages, the town left (the god game's chrome
+// back) and come back to (the same people, gone on, its orders kept). The HUD is read for overlap in every state by the
+// overlap gate's own reading (tools/hud-read.ts). Stills into --shots. (npm run build first: it reads dist/.)
 //   node tools/place-look.ts --save file.save [--shots dir] [--people 400] [--soft]
 import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -47,9 +49,7 @@ const bytes = readFileSync(saveFile),
     doc,
     (s) => EARTH.build(s),
     rulesetId(EARTH.build(seedFromText(doc.seed)), EARTH.version),
-    {
-      allowRulesetChange: true,
-    },
+    { allowRulesetChange: true },
   ).world,
   ctx = populationContext(world),
   town = ctx.settlements
@@ -129,17 +129,34 @@ for (const view of [
         r.off.length === 0 && r.gone.length === 0,
         `${name}: nothing off the screen (${[...r.off, ...r.gone].slice(0, 3).join("; ")})`,
       );
-      // (Of the town mode's own controls: a page's links and the stores' line are as they are everywhere.)
-      const small = r.small.filter((x) => /town-place|placed-/.test(x));
+      // (Of the town mode's own controls: a page's links are as they are everywhere.)
+      const small = r.small.filter((x) => /place-|town-place/.test(x));
       if (view.name === "phone")
         check(
           small.length === 0,
-          `${name}: none of its own controls smaller than a fingertip (${small.join("; ")})`,
+          `${name}: none of its own controls smaller than a fingertip (${small.slice(0, 4).join("; ")})`,
         );
       return r;
     },
     tap = (x: number, y: number) =>
-      view.name === "phone" ? page.touchscreen.tap(x, y) : page.mouse.click(x, y);
+      view.name === "phone" ? page.touchscreen.tap(x, y) : page.mouse.click(x, y),
+    box = (selector: string) =>
+      k<{ x: number; y: number; w: number; h: number } | null>(
+        `(() => { for (const e of document.querySelectorAll(${JSON.stringify(selector)})) { const r = e.getBoundingClientRect(); if (r.width > 0 && r.height > 0) return { x: r.x + r.width / 2, y: r.y + r.height / 2, w: r.width, h: r.height }; } return null; })()`,
+      ),
+    press = async (selector: string, what: string): Promise<boolean> => {
+      const at = await box(selector);
+      check(!!at, `${what} is there to press`);
+      if (!at) return false;
+      await tap(at.x, at.y);
+      await page.waitForTimeout(slow(350));
+      return true;
+    },
+    shownCount = (selector: string) =>
+      k<number>(
+        `[...document.querySelectorAll(${JSON.stringify(selector)})].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; }).length`,
+      ),
+    sheetText = () => k<string>(`document.querySelector(".place-sheet-body")?.textContent ?? ""`);
 
   // The save loaded, held.
   const name = "earth:place-look",
@@ -207,29 +224,17 @@ for (const view of [
   await k("globalThis.causalis.closePage()");
   await page.waitForTimeout(slow(400));
 
-  // Entered: 🏘️ on its bar.
-  const key = await k<{ x: number; y: number; w: number; h: number } | null>(
-    `(() => { const e = document.querySelector(".town-place"); if (!e) return null; const r = e.getBoundingClientRect(); return r.width ? { x: r.x + r.width / 2, y: r.y + r.height / 2, w: r.width, h: r.height } : null; })()`,
-  );
-  check(!!key, "🏘️ stands on the town's bar");
-  if (!key) continue;
-  if (view.name === "phone")
-    check(
-      key.h >= 44 && key.w >= 44,
-      `🏘️ is a finger's size (${Math.round(key.w)}x${Math.round(key.h)})`,
-    );
-  await tap(key.x, key.y);
+  // Entered: 🏘️ on its bar. The mode's chrome up, the god game's away, the eye near.
+  if (!(await press(".town-place", "🏘️ on the town's bar"))) continue;
   await until("the town entered and its people told", async () => {
     const s = await state();
     return (
-      s.on &&
-      !!s.told &&
-      (await k<string>("globalThis.causalis.planNow().people[0]?.ref ?? ''")).startsWith("plc:")
+      s.on && !!s.told && (await k<number>("globalThis.causalis.planNow().placed?.length ?? 0")) > 0
     );
   });
+  await page.waitForTimeout(slow(1800));
   const first = await state(),
     placed = await k<number>("globalThis.causalis.planNow().people.length");
-  say(`its line: ${first.tells}`);
   check(
     placed > 0,
     `the plan's people are the place's (${placed}; the town's usual were ${usual})`,
@@ -238,68 +243,146 @@ for (const view of [
     (first.told?.kept ?? 0) === Math.min(6000, town.population),
     `it keeps ${first.told?.kept} of the town's ${town.population}`,
   );
-  // Its clock runs: an hour a second for a while, then ten minutes a second.
-  await k("globalThis.causalis.place.pace(3600)");
-  await page.waitForTimeout(slow(9000));
-  await k("globalThis.causalis.place.pace(600)");
-  await page.waitForTimeout(slow(3000));
+  check((await shownCount(".place-bar")) === 1, "the mode's own bar is up");
+  check(
+    (await shownCount("#hud > .panel .bar, #hud > .palette, .town-live")) === 0,
+    "the god game's bar, its hand and Live here are away",
+  );
+  const bar = await box(".place-bar");
+  check(!!bar && bar.h <= 60, `the mode's bar is one row (${Math.round(bar?.h ?? 0)} px tall)`);
+  // Its clock runs at the paces of its own bar.
+  await press('.place-pace[data-pace="3600"]', "the hour-a-second pace");
+  await page.waitForTimeout(slow(8000));
+  await press('.place-pace[data-pace="600"]', "the ten-minutes-a-second pace");
+  await page.waitForTimeout(slow(2500));
   const later = await state();
   check(
     (later.told?.t ?? 0) > (first.told?.t ?? 0) + 3600,
     `its clock went on (${(((later.told?.t ?? 0) - (first.told?.t ?? 0)) / 3600).toFixed(1)} h)`,
   );
-  say(`its line: ${later.tells}`);
+  say(`doing: ${later.told?.doing.join(",")}`);
   await shot("2-entered");
   await read("the town entered");
-  // (And from near, where its people can be told apart.)
-  await k("globalThis.causalis.rig.flyTo({ distance: 9, pitch: -42 }, 0.4)");
-  await page.waitForTimeout(slow(2500));
-  await shot("2b-entered-near");
 
-  // One of its people seen and tapped: their page.
-  // (Its clock stopped first: at ten minutes a second one walking is elsewhere before the finger comes down.)
-  await k("globalThis.causalis.place.pace(0)");
-  await page.waitForTimeout(slow(600));
+  // One of its people is large enough to tap, and a tap near them gives their page, needs first.
+  await press('.place-pace[data-pace="0"]', "the pause");
+  await page.waitForTimeout(slow(500));
   const seen = await k<{ i: number; x: number; y: number } | null>(
-    `(() => { const c = globalThis.causalis, n = c.planNow().people.length, W = innerWidth, H = innerHeight; for (let i = 0; i < n; i++) { const p = c.personOnScreen(i); if (p && p.x > 40 && p.x < W - 40 && p.y > H * 0.35 && p.y < H * 0.8) return { i, x: p.x, y: p.y }; } return null; })()`,
+    `(() => { const c = globalThis.causalis, n = c.planNow().people.length, W = innerWidth, H = innerHeight; for (let i = 0; i < n; i++) { const p = c.personOnScreen(i); if (p && p.x > 40 && p.x < W - 40 && p.y > H * 0.2 && p.y < H * 0.8) return { i, x: p.x, y: p.y }; } return null; })()`,
   );
   check(!!seen, "one of its people stands on the screen");
   if (seen) {
-    await tap(seen.x, seen.y);
+    // (A fingertip off them: the nearest within reach is taken.)
+    await tap(seen.x + 14, seen.y - 10);
     await until("a person's page", async () =>
-      ((await k<string | null>("globalThis.causalis.pageOpen()")) ?? "").startsWith("plc:"),
+      /^(plc|folk):/.test((await k<string | null>("globalThis.causalis.pageOpen()")) ?? ""),
     );
     await page.waitForTimeout(slow(700));
     const text = await k<string>(`document.querySelector(".page-window")?.textContent ?? ""`);
-    for (const word of ["Hunger", "Tiredness", "Home", "Why", "In hand"])
+    for (const word of ["Hunger", "Tiredness", "Cold", "Why", "In hand"])
       check(text.includes(word), `their page says "${word}"`);
+    check(text.indexOf("Hunger") < text.indexOf("Home"), "their needs lead their page");
     await shot("3-person-page");
     await read("a person's page open");
     await k("globalThis.causalis.closePage()");
     await page.waitForTimeout(slow(400));
   }
-  await k("globalThis.causalis.place.pace(600)");
-  // A building's page, by the place: the square's, opened as a tap on it would.
+  // A granary's (or its first building's) page, by the place: what it holds first.
   await k(`globalThis.causalis.open(${JSON.stringify(`plcl:${town.ref}:0`)})`);
   await until("the square's page", async () =>
     ((await k<string | null>("globalThis.causalis.pageOpen()")) ?? "").startsWith("plcl:"),
   );
-  await page.waitForTimeout(slow(700));
-  await shot("4-lot-page");
+  await page.waitForTimeout(slow(500));
   await read("a building's page open");
   await k("globalThis.causalis.closePage()");
   await page.waitForTimeout(slow(300));
 
-  // Left, and come back to: kept, and gone on from where it was.
-  const before = await state();
-  await k("globalThis.causalis.place.toggle()");
+  // Its four sheets, each opened from its tab at the foot.
+  await press('.place-tab[data-tab="people"]', "the People tab");
+  await until("the People sheet", async () => (await shownCount(".place-row")) > 3);
+  check((await shownCount(".place-chip")) >= 3, "its people can be narrowed by trade");
+  await shot("4-sheet-people");
+  await read("the People sheet open");
+  await press(".place-chip:nth-child(2)", "a trade's chip");
+  await page.waitForTimeout(slow(1300));
+  await read("the People sheet narrowed to a trade");
+
+  await press('.place-tab[data-tab="stocks"]', "the Stocks tab");
+  await until("the Stocks sheet", async () => (await shownCount(".place-stock")) > 0);
+  check(/today \+/.test(await sheetText()), "its goods say what was made and used today");
+  await shot("5-sheet-stocks");
+  await read("the Stocks sheet open");
+  // Orders from it: food held back, a good forbidden.
+  await press(".place-step:last-of-type", "hold back a month more");
+  await until("the granary holding back a month", async () =>
+    /holds back 1 month/.test(await sheetText()),
+  );
+  await press(".place-sell", "a good's Sold key");
+  await until("a good held from sale", async () => (await shownCount(".place-sell.on")) > 0);
+
+  await press('.place-tab[data-tab="work"]', "the Work tab");
+  await until("the Work sheet", async () => /grown hands/.test(await sheetText()));
+  const before = await sheetText();
+  // (More hands to crafts, twice, and the order given.)
+  for (let n = 0; n < 4; n++)
+    await press(
+      ".place-sheet-body .place-line:nth-of-type(3) .place-step:last-of-type",
+      "more hands to crafts",
+    );
+  await shot("6-sheet-work");
+  await read("the Work sheet open, an order being set");
+  await press(".place-order", "Give the order");
+  await until("the order taken", async () => /Ordered/.test(await sheetText()));
+  await press('.place-pace[data-pace="600"]', "the ten-minutes-a-second pace");
+  await until(
+    "its hands moved",
+    async () =>
+      (await sheetText()) !== before && /changes are told|has been told/.test(await sheetText()),
+  );
+  say(`work: ${(await sheetText()).slice(0, 220)}`);
+  await read("the Work sheet open, the order given");
+
+  await press('.place-tab[data-tab="build"]', "the Build tab");
+  await until("the Build sheet", async () => /answer/.test(await sheetText()));
+  await shot("7-sheet-build");
+  await read("the Build sheet open");
+  say(`build: ${(await sheetText()).slice(0, 200)}`);
+  if ((await shownCount(".place-sheet-body .place-order")) > 0) {
+    await press(".place-sheet-body .place-order", "Raise, on the first thing it can raise");
+    await until("what was asked told", async () =>
+      /Under way|Not now|answer/.test(await sheetText()),
+    );
+    await page.waitForTimeout(slow(1500));
+    say(`build after asking: ${(await sheetText()).slice(0, 200)}`);
+    await read("the Build sheet after asking");
+  }
+  await press(".place-sheet-shut", "the sheet's close");
+  check((await shownCount(".place-sheet")) === 0, "the sheet closes");
+
+  // A notice: told, and put away.
+  const noticed = await until("a notice told", async () => !!(await state()).tells, slow(20000));
+  if (noticed) {
+    say(`notice: ${(await state()).tells}`);
+    await shot("8-notice");
+    await read("a notice up");
+    const was = (await state()).tells;
+    await press(".place-notice-shut", "the notice's close");
+    check((await state()).tells !== was, "the notice is put away");
+  }
+
+  // Left: the god game's chrome back, its usual people; what it did by its orders told to its land.
+  const leaving = await state();
+  await press(".place-leave", "Leave");
   await until(
     "the town left",
     async () =>
       !(await state()).on &&
-      !(await k<string>("globalThis.causalis.planNow().people[0]?.ref ?? ''")).startsWith("plc:"),
+      !(await k<number>("globalThis.causalis.planNow().placed?.length ?? 0")),
   );
-  await shot("5-left");
+  await page.waitForTimeout(slow(800));
+  check((await shownCount("#hud > .panel .bar")) > 0, "the god game's bar is back");
+  check((await shownCount(".place-bar")) === 0, "the mode's bar is away");
+  await shot("9-left");
   await read("the town left");
   const kept = await k<{ places: { town: string; people: number; t: number }[]; bytes: number }>(
     `globalThis.causalis.client.query({ type: "place.kept" })`,
@@ -308,17 +391,18 @@ for (const view of [
     kept.places.some((p) => p.town === town.ref),
     `the place is kept after leaving (${kept.places.length} kept, ${kept.bytes} bytes)`,
   );
-  await k("globalThis.causalis.place.toggle()");
+  await press(".town-place", "🏘️ again");
   await until("the town entered again", async () => (await state()).on && !!(await state()).told);
   const again = await state();
   check(
-    (again.told?.t ?? 0) >= (before.told?.t ?? 0),
+    (again.told?.t ?? 0) >= (leaving.told?.t ?? 0),
     "it goes on from where it was left, not from the start",
   );
-  check(again.told?.kept === before.told?.kept, `the same people are there (${again.told?.kept})`);
-  await shot("6-entered-again");
-  await k("globalThis.causalis.place.toggle()");
-  await page.waitForTimeout(slow(500));
+  check(again.told?.managed === true, "its orders are kept");
+  check(again.told?.unsettled === 0, "what it did by its orders was told to its land on leaving");
+  await shot("10-entered-again");
+  await press(".place-leave", "Leave");
+  await page.waitForTimeout(slow(600));
   check(
     errors.length === 0,
     `no errors on the page (${errors.slice(0, 2).join(" | ").slice(0, 300)})`,

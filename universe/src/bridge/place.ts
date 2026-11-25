@@ -16,6 +16,8 @@ export const PLACE_ACT = {
   warm: 6,
   visit: 7,
   wait: 8,
+  /** Gone to fetch what a building has made, for the market. */
+  haul: 9,
 } as const;
 
 /** The page of one of a place's people, and of one of its lots (its square and its fields too). */
@@ -51,4 +53,79 @@ export type PlaceFrame = {
   readonly why: readonly string[];
   /** How many are at each thing now, of all the place keeps (host/place.ts ACT's order). */
   readonly doing: readonly number[];
+  /** What wants its manager's eye now, the most pressing first: said, and the page that tells more (null: none). */
+  readonly notices: readonly PlaceNotice[];
+  /** Whether it has been given orders, and how many of its doings by them its land has yet to be told. */
+  readonly managed: boolean;
+  readonly unsettled: number;
+  /** The month of the world's clock its tick stands in: at its turn what is unsettled is told. */
+  readonly month: number;
+};
+
+export type PlaceNotice = {
+  readonly key: string;
+  readonly words: string;
+  readonly ref: string | null;
+};
+
+/** The trades an order can put hands to, in the order its shares are given (sim/town/managed.ts MANAGED_TRADES). */
+export const PLACE_TRADES = ["Fields", "Herds", "Crafts", "Hauling"] as const;
+
+/** One of a place's people on its People sheet. */
+export type PlacePersonRow = {
+  readonly ref: string;
+  readonly name: string;
+  /** Their trade (the world's occupation column), said, and what they are doing. */
+  readonly occ: number;
+  readonly trade: string;
+  readonly doing: string;
+  /** Their needs, 0 … 1 (hunger, tiredness, cold, want of company), and which presses most. */
+  readonly needs: readonly number[];
+  readonly worst: number;
+  /** Days they have gone in want. */
+  readonly lack: number;
+};
+export type PlacePeopleSheet = {
+  /** How many of each trade (the world's occupation columns), and the rows asked for: the most pressed first. */
+  readonly trades: readonly number[];
+  readonly rows: readonly PlacePersonRow[];
+  readonly all: number;
+};
+/** One good on its Stocks sheet. */
+export type PlaceStockRow = {
+  readonly good: number;
+  readonly name: string;
+  readonly food: boolean;
+  /** What it is made of here (null: it is what it is). */
+  readonly stuff: string | null;
+  /** All the place holds of it, what was made and used of it today (units). */
+  readonly held: number;
+  readonly made: number;
+  readonly used: number;
+  /** Where it lies: each building or kind of place holding any, the most first. */
+  readonly where: readonly {
+    readonly ref: string | null;
+    readonly name: string;
+    readonly n: number;
+  }[];
+  /** Whether its market will not let it go. */
+  readonly forbidden: boolean;
+};
+export type PlaceStocksSheet = {
+  readonly rows: readonly PlaceStockRow[];
+  /** Months of food its granary holds back, and the days of food it holds in all. */
+  readonly hold: number;
+  readonly foodDays: number;
+};
+export type PlaceWorkSheet = {
+  /** Its grown hands at each trade an order can move now, and the shares ordered (thousandths; null: as its land has them). */
+  readonly hands: readonly number[];
+  readonly shares: readonly number[] | null;
+  /** The rest of its people: leaders, those with no trade (the young and the old), foragers. */
+  readonly leaders: number;
+  readonly dependents: number;
+  /** Those waiting at their work for want of stuff, and those in want a day or more. */
+  readonly waiting: number;
+  readonly inWant: number;
+  readonly unsettled: number;
 };
