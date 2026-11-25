@@ -71,7 +71,7 @@ export type Relation = {
 
 /** A remembered wrong fades by half every thirty years, and is forgotten below this. */
 const FORGOTTEN = 0.02;
-const faded = (m: Memory, year: number) => m.value * dmath.pow(0.5, (year - m.year) / 30);
+const faded = (m: Memory, year: number) => m.value * dmath.halved(year - m.year, 30);
 
 /** Below this, two realms are rivals. */
 export const RIVALRY = -0.4;

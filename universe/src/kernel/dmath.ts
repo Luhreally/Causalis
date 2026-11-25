@@ -408,6 +408,21 @@ export function pow(x: number, y: number): number {
   return x < 0 && isOddInteger(y) ? -r : r;
 }
 
+/** What halving every `half` years leaves of one after `age` years, kept for each whole age a half-life is asked of. */
+const HALVED = new Map<number, number[]>();
+/**
+ * 0.5 ^ (age / half), exactly as pow gives it: kept for a whole age from 0 to 4,095 (a memory, a word, a council's weight
+ * faded by the years since: asked of every one each year, the same few dozen ages over and over).
+ */
+export function halved(age: number, half: number): number {
+  if (!(Number.isInteger(age) && age >= 0 && age < 4096)) return pow(0.5, age / half);
+  let row = HALVED.get(half);
+  if (!row) HALVED.set(half, (row = []));
+  let v = row[age];
+  if (v === undefined) row[age] = v = pow(0.5, age / half);
+  return v;
+}
+
 /** x clamped to [lo, hi]. */
 export function clamp(x: number, lo: number, hi: number): number {
   return x < lo ? lo : x > hi ? hi : x;

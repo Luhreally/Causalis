@@ -77,7 +77,7 @@ export class CouncilStore implements StateStore {
   /** How bound two realms are by their treaties, as of a year (a treaty's worth each, faded). */
   bondOf(a: Ref, b: Ref, year: number): number {
     const x = this.bonds.get(pairKey(a, b));
-    return x ? x.w * dmath.pow(0.5, (year - x.last) / COUNCILS.fade) : 0;
+    return x ? x.w * dmath.halved(year - x.last, COUNCILS.fade) : 0;
   }
   bond(a: Ref, b: Ref, year: number, pact: Ref | null = null, by = 1): void {
     const key = pairKey(a, b),
@@ -86,7 +86,7 @@ export class CouncilStore implements StateStore {
       this.bonds.set(key, { w: by, last: year, pact });
       return;
     }
-    x.w = x.w * dmath.pow(0.5, (year - x.last) / COUNCILS.fade) + by;
+    x.w = x.w * dmath.halved(year - x.last, COUNCILS.fade) + by;
     x.last = year;
     if (pact) x.pact = pact;
   }

@@ -84,3 +84,10 @@ test("pow2 and scale are exact across the whole exponent range", () => {
   assert.equal(dmath.scale(1.5, -1074), 5e-324 * 2);
   assert.equal(dmath.scale(1, 1024), Infinity);
 });
+
+test("halved is pow's halving by the years, whole ages kept and others reckoned", () => {
+  for (const half of [30, 40, 12.5, 1])
+    for (const age of [0, 1, 2, 7, 29, 30, 31, 100, 4095, 4096, 5000, 2.5, -3])
+      for (let twice = 0; twice < 2; twice++)
+        assert.equal(dmath.halved(age, half), dmath.pow(0.5, age / half), `${age}/${half}`);
+});

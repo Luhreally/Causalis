@@ -206,7 +206,7 @@ export function tabooYear(ctx: PopulationContext, t: SimTime): void {
         herdDeaths(f.toll, r.people, !!f.forbids),
         // (While it forbids the herd, the dead it was taught by are remembered, fading, whatever the slope among those who now
         // keep off it shows: the ban spares them.)
-        f.forbids ? f.forbids.dead * dmath.pow(0.5, (year - f.forbids.since) / TABOO.fade) : 0,
+        f.forbids ? f.forbids.dead * dmath.halved(year - f.forbids.since, TABOO.fade) : 0,
       ),
       // (While it forbids the herd, its believers make less of it: what it would give them is read back by what they keep off.)
       kept = f.forbids ? Math.min(0.8, r.pious / r.people) : 0,

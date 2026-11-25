@@ -1409,7 +1409,7 @@ function stepRealm(
       // fifth of the world's people at 1,500, it was eleven in 100,000 of the whole world's killed a year.)
       half = UNDER.warHalf * (1 - UNDER.cutShort * hunted),
       tired = open
-        ? dmath.pow(0.5, (year - open.since) / half)
+        ? dmath.halved(year - open.since, half)
         : last
           ? peaceWorn(year - last.ended!, moved)
           : 1,

@@ -28,7 +28,7 @@ export type WordRecord = { kept: number; broken: number; at: number };
 
 /** A record as it stands in `year`. */
 export function wordIn(r: Readonly<WordRecord>, year: number): { kept: number; broken: number } {
-  const k = year > r.at ? dmath.pow(0.5, (year - r.at) / HONOUR.fade) : 1;
+  const k = year > r.at ? dmath.halved(year - r.at, HONOUR.fade) : 1;
   return { kept: r.kept * k, broken: r.broken * k };
 }
 
