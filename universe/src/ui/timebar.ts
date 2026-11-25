@@ -177,10 +177,22 @@ export class TimeBar {
     return this.state.capped(who);
   }
 
+  /**
+   * On a world locked to its star, what stands for the hour where the eye is ("always day", "always dusk", "always night"):
+   * its sun does not move, so no hours are counted. Null where the world turns.
+   */
+  held: string | null = null;
+
   /** The date: to the minute while a day is watched, else to the day; and how fast it goes. */
   tick(t: number): void {
     const rate = this.state.stopped ? "paused" : this.status ? this.rate(this.status) : "",
-      text = `${this.state.speedAt() < DAY ? clockWords(t) : when(t)}${rate ? ` · ${rate}` : ""}`;
+      date =
+        this.state.speedAt() < DAY
+          ? this.held
+            ? `${when(t)}, ${this.held}`
+            : clockWords(t)
+          : when(t),
+      text = `${date}${rate ? ` · ${rate}` : ""}`;
     if (text === this.shown) return;
     this.shown = text;
     this.clock.textContent = text;

@@ -174,6 +174,9 @@ export class Stage {
         side.copy(this.camera.right).mulScalar(0.55);
         down.copy(this.camera.up).mulScalar(-0.6);
         dir.copy(this.camera.forward).add(side).add(down);
+        // (A world locked to its star, seen whole: its star shines on the one face for good, the other dim under the scene's
+        // fill, the line between them as soft as the light's fall. Its lit face is its grid's +x: rules/locked.ts.)
+        if (this.fixedSun) dir.set(-1, 0, 0);
         this.sun.setPosition(0, 0, 0);
         this.sun.lookAt(dir);
         this.sun.rotateLocal(90, 0, 0);
@@ -254,7 +257,7 @@ export class Stage {
     this.applyWeather();
     // (A land of a world locked to its star is lit as its sun stands over it for good, as its towns are: without this a land
     // on the dark side stood in a clear noon, 2026-11-24.)
-    if (this.held !== null && !this.colonyOver) this.daylight(this.held);
+    this.landHeld();
   }
 
   /** Whether the star is up by the hour on the ground, and the way toward it (a colony's disc stands there). */
@@ -390,8 +393,15 @@ export class Stage {
    * lockedDay; null: the world turns). `own`: a place with a day of its own (another body's halls), which is not held.
    */
   held: number | null = null;
+  /** Whether the sun in space stands over a locked world's lit face (the globe of one, seen whole) and does not follow the eye. */
+  fixedSun = false;
 
-  daylight(day: number, own = false): void {
+  /** Light a land of a locked world as its sun stands over it: by starlight on its dark side, far enough to read its ground. */
+  landHeld(): void {
+    if (this.held !== null && !this.colonyOver) this.daylight(this.held, false, true);
+  }
+
+  daylight(day: number, own = false, wide = false): void {
     if (this.held !== null && !own) day = this.held;
     const a = 2 * Math.PI * (day - 0.25),
       high = Math.sin(a),
@@ -429,6 +439,25 @@ export class Stage {
       ],
       fog,
     };
+    // (A whole land seen in the dark, a locked world's far side: starlight enough to read its ground, coasts and towns from as
+    // far off as a land is looked at, and its haze pushed out, where a town's night is seen from among its lamps. Seen without
+    // it, 2026-11-24, a dark land was one flat blue.)
+    if (wide && phase !== "day") {
+      const dark = phase === "night";
+      this.sun.setEulerAngles(50, 35, 0);
+      this.sun.light!.intensity = dark ? 0.62 : 0.8;
+      if (dark) this.sun.light!.color = new pc.Color(0.66, 0.74, 1);
+      const amb: Rgb = dark ? [0.3, 0.34, 0.5] : [0.34, 0.34, 0.44];
+      this.app.scene.ambientLight = new pc.Color(amb[0], amb[1], amb[2]);
+      this.clear = {
+        ...this.clear,
+        sun: this.sun.light!.intensity,
+        ambient: amb,
+        fog: dark ? [0.1, 0.13, 0.3] : [0.72, 0.56, 0.52],
+        start: this.fogReach.start * 2.4,
+        end: this.fogReach.end * 2.4,
+      };
+    }
     // A colony's star and air (Phase 64): its hue, its strength; no blue dusk where it has no air;
     // its star climbing truly (low at its dawn, its shadows long), and its night seen by its floodlights.
     const sky = this.colonyOver;

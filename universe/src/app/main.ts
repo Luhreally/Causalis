@@ -2517,7 +2517,18 @@ async function runPlanetPage(): Promise<void> {
         planetPanel.locked && !isColonyLand(regionCell)
           ? lockedDay(Math.cos((meta.lat * Math.PI) / 180) * Math.sin((meta.lon * Math.PI) / 180))
           : null;
-      if (stage.held !== null && scaleNow() === "region") stage.daylight(stage.held);
+      if (scaleNow() === "region") stage.landHeld();
+      // (Its towns' lights where the star stands under a quarter up the sky or not at all; and its clock has no hours.)
+      const starHigh = stage.held === null ? 1 : Math.sin(2 * Math.PI * (stage.held - 0.25));
+      region.nightLights(starHigh <= 0.25);
+      time.held =
+        stage.held === null
+          ? null
+          : starHigh > 0.25
+            ? "always day"
+            : starHigh > -0.08
+              ? "always dusk"
+              : "always night";
       region.setVillages(villages);
       region.plantTrees(regionTrees(frame, stage.quality.regionTrees), ...landFloraOf(frame));
       if (landPlan) region.setTowns(landPlan, landPlan.t);
@@ -12427,6 +12438,10 @@ async function runPlanetPage(): Promise<void> {
     }
     return sea / Math.max(1, all);
   };
+  // (A locked world seen whole: its star stands over its one face, and does not follow the eye round to its dark one.)
+  stage.onUpdate(() => {
+    stage.fixedSun = scale === "globe" && planetPanel.locked && !onColony();
+  });
   stage.onUpdate(() => {
     const wall = performance.now();
     if (wall < heardAt || !sound.listening) return;
