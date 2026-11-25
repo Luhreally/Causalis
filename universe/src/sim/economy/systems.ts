@@ -94,6 +94,7 @@ import {
   roundKeyed,
   type PopulationContext,
 } from "../population/systems.ts";
+import { mixAppetite } from "../population/mix.ts";
 import { GOOD_COUNT, type Market, type MarketStore, type TradeFlow } from "./market.ts";
 import { metalRank, metalSource, sourceRef } from "./metals.ts";
 import { heatShortfall, oreWorkable } from "./heat.ts";
@@ -862,7 +863,10 @@ function trade(
       if (margin <= 0) continue;
       const people = ctx.provinces.get(s.cell)!.total(),
         keep = GOODS[g]!.food
-          ? mouths(ctx.provinces.get(s.cell)!, ctx.life) * FOOD_RESERVE_MONTHS
+          ? mouths(ctx.provinces.get(s.cell)!, ctx.life) *
+            // (A mixed land's mouths are its peoples' own: population/mix.ts. Exactly 1 on any other.)
+            mixAppetite(ctx.world, s.cell) *
+            FOOD_RESERVE_MONTHS
           : (wanted.get(s.cell)?.[g] ?? 0),
         spare = s.stock[g]! - keep;
       if (spare <= 0) continue;

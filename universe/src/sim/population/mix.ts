@@ -9,6 +9,11 @@
 //     where two peoples of a land can have young together (their kinship in the tree of life, their chemistry), those born of
 //     both are a people of their own, whose body is the blend. Where they cannot, the shares stay apart.
 //   Those who move take their land's shares with them (migrateYear).
+//   Natives and settlers: where a realm's colony comes down on a world whose own people live (sim/space/farlife.ts
+//     landingsYear), those of them whose ground its land is are of its land from that year (`nativesDown`), as many as
+//     their numbers give one land of their world, no more than the colony can know as neighbours (as many as itself), and
+//     only where they can live on what the settlers grow (rules/biochem.ts eats). They are not of the settlers' tree of
+//     life: the two have no young together, and the land's shares move by each one's own table.
 import {
   YEAR,
   defineEventType,
@@ -21,6 +26,9 @@ import {
 } from "../../kernel/index.ts";
 import { cellRef, treeOfLife, worldLife, type HomeWorld } from "../../gen/index.ts";
 import {
+  FEMALE,
+  MALE,
+  OCC,
   CLADES,
   PEOPLES,
   WAY,
@@ -37,7 +45,9 @@ import {
 } from "../../rules/index.ts";
 import { cultureOf } from "../culture/culture.ts";
 import { homePlanet } from "../planet/store.ts";
+import { apportion } from "../../kernel/index.ts";
 import { lifeOfBody, peopleLife } from "./life.ts";
+import { row as rowOf, type Province } from "./model.ts";
 import type { PopulationContext } from "./systems.ts";
 
 export const MIX_EVENTS = {
@@ -261,6 +271,46 @@ export function setDown(
     cell,
     s.map((x, i) => (x * Math.max(0, before) + (i === kind ? 1000 * count : 0)) / all),
   );
+}
+
+/** The shares of a people set down by band of age, youngest first (as the first people's: population/world.ts). */
+const PYRAMID = [0.16, 0.13, 0.12, 0.1, 0.17, 0.13, 0.09, 0.05, 0.03, 0.02];
+
+/**
+ * The natives of a world a colony came down on, those whose ground its land is: `count` of them are of its land from now,
+ * of every age, a people of their own (their own body, of no tree the settlers are of). Their number among the land's.
+ */
+export function nativesDown(
+  ctx: PopulationContext,
+  dest: Province,
+  native: { readonly ref: string; readonly name: string; readonly body: BodyPlan },
+  count: number,
+  year: number,
+  event: Ref | null,
+): number {
+  const n = Math.floor(count);
+  if (!(n > 0) || !ctx.world.peek<MixStore>("population.mix")) return 0;
+  const kind = addKind(ctx.world, {
+      key: `native:${native.ref}`,
+      name: native.name,
+      body: native.body,
+      species: null,
+      of: null,
+      blend: 0,
+      since: year,
+      event,
+    }),
+    before = dest.total(),
+    life = ctx.life;
+  if (!kind) return 0;
+  apportion(n, PYRAMID.slice(0, life.bands.length)).forEach((k, b) => {
+    const [women, men] = apportion(k, [1, 1]),
+      occupation = life.bands[b]! >= life.adulthood ? OCC.forager : OCC.dependent;
+    dest.counts.add(rowOf(FEMALE, b), occupation, women!);
+    dest.counts.add(rowOf(MALE, b), occupation, men!);
+  });
+  setDown(ctx.world, dest.cell, kind, n, before);
+  return n;
 }
 
 /** Those who move take their land's shares with them: `count` from one land come to another that held `before`. */

@@ -76,6 +76,7 @@ export {
   slowDeaths,
   landDemography,
   takenIn,
+  broughtIn,
   putBy,
   transition,
   type PopulationContext,
@@ -300,6 +301,7 @@ export {
 } from "./culture/languages.ts";
 export { familySizeOf, lifeOf, lifeOfBody, peopleKin, peopleLife } from "./population/life.ts";
 export { engineeredOf, sparedWork, type Engineered } from "./frontier/engineered.ts";
+export { CarriedStore, carriedOf, installCarried } from "./population/carried.ts";
 export {
   HEREDITY_EVENTS,
   heredityOf,
@@ -317,6 +319,7 @@ export {
   mixFactors,
   mixOf,
   mixYear,
+  nativesDown,
   setDown,
   type MixKind,
 } from "./population/mix.ts";

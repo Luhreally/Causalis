@@ -55,6 +55,8 @@ import { knows } from "../lore/lore.ts";
 import { politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import { homePlanet } from "../planet/store.ts";
 import type { PopulationContext } from "../population/systems.ts";
+import { nativesDown } from "../population/mix.ts";
+import { homeLands } from "../frontier/common.ts";
 import { civilizationsNear } from "./contact.ts";
 import {
   civReading,
@@ -736,7 +738,25 @@ function landingsYear(ctx: PopulationContext, store: FarLifeStore, year: number)
             year,
           },
         });
-      setState(store, row, after, year);
+      // Natives and settlers (population/mix.ts): where a realm's colony stays, those of the natives whose ground its land is
+      // are of its land from now: their world's people by its lands (counted as the home world's are: est), no more than the
+      // colony itself, and only where they can live on what the settlers grow. Taken off their own number.
+      const colony =
+          l.arrival.kind === "home" && l.arrival.cell !== null && l.stay
+            ? ctx.provinces.get(l.arrival.cell)
+            : undefined,
+        joined =
+          colony && colony.total() > 0 && l.reading.foodHome.can
+            ? nativesDown(
+                ctx,
+                colony,
+                f,
+                Math.min(colony.total(), after.people / Math.max(1, homeLands(ctx.generated))),
+                year,
+                event,
+              )
+            : 0;
+      setState(store, row, joined > 0 ? { ...after, people: after.people - joined } : after, year);
       if (lostShare > 0)
         tellOn(row, {
           year,

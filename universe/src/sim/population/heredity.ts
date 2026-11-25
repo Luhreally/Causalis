@@ -16,7 +16,7 @@ import {
 } from "../../kernel/index.ts";
 import { HEREDITY } from "../../rules/index.ts";
 import { peopleKin } from "./life.ts";
-import { takenIn, type PopulationContext } from "./systems.ts";
+import { broughtIn, takenIn, type PopulationContext } from "./systems.ts";
 import { engineeredOf } from "../frontier/engineered.ts";
 import { loreOf } from "../lore/lore.ts";
 
@@ -71,10 +71,12 @@ export function heredityYear(ctx: PopulationContext, t: SimTime): void {
     best: ({ cell: number; taken: number } | null)[] = ASKS.map(() => null);
   for (const p of ctx.provinces.all()) {
     if (p.settledYear <= 0 || p.total() <= 0) continue;
-    const taken = takenIn(ctx, p, year, generation);
+    const taken = takenIn(ctx, p, year, generation),
+      brought = broughtIn(ctx, p, year, generation);
     ASKS.forEach((what, i) => {
       if (store.told.some((x) => x.what === what)) return;
-      const v = taken[what];
+      // (What the years there have given them: not what they brought from another land that asked the same.)
+      const v = taken[what] < 1 ? taken[what] - brought[what] : 1;
       // (1 where the land asks nothing of it: nothing to take to.)
       if (v >= 0.5 && v < 1 && (!best[i] || v > best[i].taken))
         best[i] = { cell: p.cell, taken: v };
