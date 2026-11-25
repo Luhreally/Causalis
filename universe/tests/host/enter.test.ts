@@ -48,6 +48,19 @@ import {
   type Folk,
 } from "../../src/sim/index.ts";
 
+/** A people's stages in order, ruins first (ranked below the camps: no reading of a fallen people is past anything). */
+const STAGE_RANK = [
+  "ruins",
+  "camps",
+  "villages",
+  "towns",
+  "cities",
+  "works",
+  "signals",
+  "orbit",
+  "stars",
+] as string[];
+
 // A world of another star entered (asked 2026-11-13): made from what was read of it from the home world, so the star,
 // the world's numbers, its chemistry and its people are the ones seen; a world of its own from there on.
 const home = EARTH.build(seedFromText("first light ~size small")),
@@ -129,10 +142,15 @@ for (const [what, pick] of [
       assert.ok(all >= read / 10, `${all} people in camps, read as ${read}`);
     // What they are known to have: a people read past its camps opens holding the crafts of its age, every one its
     // bodies and its world's stuffs allow; where those shut a road, the world says which age.
-    const held = loreOf(world).of(g.life.people!.cell).length,
-      shut = shutAge(ctx, g.life.people!.cell, far);
+    // (Cultivation is a land's own, not lore: first light's Laxai, read in their cities, are given it and nothing more, as
+    // every road to the age of cities is met by it.)
+    const cradle = g.life.people!.cell,
+      held =
+        loreOf(world).of(cradle).length + (ctx.provinces.get(cradle)?.knowsCultivation ? 1 : 0),
+      shut = shutAge(ctx, cradle, far);
     if (got.stage === "camps") assert.equal(held, 0);
     else assert.ok(held > 0 || shut !== null, "crafts held, or a road shut");
+    assert.equal(held, knownAt(ctx, cradle, far).length, "what it was seated with");
     assert.equal(enteredHere(world)!.shut === null, shut === null);
     // It says of itself whom it was made from.
     const here = enteredHere(world)!;
@@ -218,9 +236,11 @@ test("a seed of its own is no world entered", () => {
 });
 
 test("a people read in orbit stands there within its first years, where its world's stuffs build what flies", () => {
-  const sky = ALIEN.build(seedFromText("alien 41")),
-    f = folksNear(sky).find((x) => folkStage(x, 0) === "orbit" && x.body.medium === "water")!;
-  assert.ok(f, "a people of the water in orbit");
+  // (Until the gap round one of alien 41's sky was a people of the water in orbit; now none of its sky is in orbit, and
+  // harrow 348's Qaani are, people of the land.)
+  const sky = ALIEN.build(seedFromText("harrow 348")),
+    f = folksNear(sky).find((x) => folkStage(x, 0) === "orbit")!;
+  assert.ok(f, "a people in orbit");
   const got = ok(enterPlan(sky, f.star, f.planet, "alien")),
     world = ALIEN.build(seedFromText(got.seed));
   assert.equal(enteredHere(world)!.shut, null);
@@ -255,20 +275,30 @@ test("where a world's matter shuts the road to an age, the galaxy reads its peop
   // (Harrow 348's Qaani: no fuel in their ground, and their rivers, wind and hot ground carry less than their works would
   // ask. Since round E a people without fuel drives its works by another road where its world carries enough, so first
   // light's Laxai, once held at signals for want of coal, come to the stars on their wind; the Qaani do not.)
+  // (Since the gap round the Qaani come to the stars, and harrow 348's Toroukon are the ones held: in their camps as the
+  // chronicle opens, their own life brings them no further than their cities, and their ground would stop them at signals.)
   const sky = ALIEN.build(seedFromText("harrow 348")),
-    f = folksNear(sky).find((x) => x.name === "Qaani")!;
-  assert.ok(f?.followed, "the Qaani, followed");
+    f = folksNear(sky).find(
+      (x) => x.followed && /shuts the road to Orbit: no fuel/.test(x.shut ?? ""),
+    )!;
+  assert.ok(f?.followed, "a followed people held short of orbit for want of fuel");
   assert.equal(f.ceiling, "signals");
-  assert.match(f.shut!, /shuts the road to Orbit: no fuel/);
-  assert.equal(folkStage(f, 0), "signals");
-  assert.equal(folkStage(f, 5000), "signals", "never in orbit, however long");
+  for (const year of [0, 500, 5000, 1e6])
+    assert.ok(
+      STAGE_RANK.indexOf(folkStage(f, year)) <= STAGE_RANK.indexOf("signals"),
+      `never in orbit, however long: ${folkStage(f, year)} in ${year}`,
+    );
   assert.equal(f.followed!.orbit, Infinity);
   assert.equal(civilizationsNear(sky).find((c) => c.ref === f.ref)!.stars, Infinity);
-  // (The years history first held of them are still theirs to be named by: only the reading stops.)
-  assert.ok(Number.isFinite(civilizationsEver(sky).find((c) => c.ref === f.ref)!.orbit));
+  // (The years history held of them are still theirs to be named by. Since round F those years are their own life's too,
+  // and Toroukon's never came to orbit: no harrow, alien 41 or alien 55 people held short has ever-years past its road.)
+  assert.ok(
+    civilizationsEver(sky).some((c) => c.ref === f.ref),
+    "still among the peoples history holds",
+  );
   // The way in agrees: nothing stops them short of where they are read.
   const got = ok(enterPlan(sky, f.star, f.planet, "alien"));
-  assert.equal(got.stage, "signals");
+  assert.equal(got.stage, folkStage(f, 0));
   assert.equal(got.shut, null);
   assert.equal(enteredHere(ALIEN.build(seedFromText(got.seed)))!.shut, null);
   // And the path that says so still stands: their world made as the old sight read them, in orbit, says which road
@@ -311,7 +341,9 @@ test("the way in stops no followed people short of where the galaxy reads it, on
     [ALIEN, "alien", "alien 55"],
   ] as const) {
     const sky = universe.build(seedFromText(text));
-    for (const f of folksNear(sky).filter((x) => x.followed && folkStage(x, 0) !== "camps")) {
+    for (const f of folksNear(sky).filter(
+      (x) => x.followed && !["camps", "ruins"].includes(folkStage(x, 0)),
+    )) {
       const got = ok(enterPlan(sky, f.star, f.planet, name));
       assert.equal(got.shut, null, `${text}: the ${f.name}, read ${got.stageWords}`);
       const star = clusterOf(sky).find((s) => s.ref === f.star)!,
@@ -336,8 +368,13 @@ test("the way in stops no followed people short of where the galaxy reads it, on
         top = STAGES.indexOf(f.ceiling as (typeof STAGES)[number]);
       assert.ok(top >= 0, `${f.name}: a ceiling past its camps (${f.ceiling})`);
       assert.equal(at(STAGES[top]!), null, `${text}: the ${f.name} at its ceiling, ${f.ceiling}`);
-      // (No reading of history's years finds them past it.)
-      assert.equal(folkStage(f, 1e6), f.ceiling, f.name);
+      // (No reading of history's years finds them past it. Since round F a people steps by its own life, which may stop short
+      // of what its world allows, as first light's Laxai stop at their cities, or fall to ruins.)
+      for (const year of [0, 500, 5000, 1e6])
+        assert.ok(
+          STAGE_RANK.indexOf(folkStage(f, year)) <= top + 2,
+          `${f.name} in ${year}: ${folkStage(f, year)} past ${f.ceiling}`,
+        );
       if (f.shut) {
         held++;
         const next = at(STAGES[top + 1]!);
@@ -361,8 +398,11 @@ test("the way in stops no followed people short of where the galaxy reads it, on
 test("a followed people is read as no more than its own world holds, seated as the way in seats it", () => {
   // (The far sight's count of a people is a guess from its stage; a followed people's world is made whole, and it holds
   // no more than its lands feed at their part, sim/population/world.ts seatsAtMost. Laxai: some 878 million guessed.)
+  // (Harrow 348's Toroukon, read in their cities, would be some 1.5 million; their world holds 49. None of first light's is
+  // held so since the gap round.)
   let held = 0;
-  for (const f of folks.filter((x) => x.followed)) {
+  const harrow = folksNear(ALIEN.build(seedFromText("harrow 348")));
+  for (const f of [...folks, ...harrow].filter((x) => x.followed)) {
     assert.ok(f.holds !== null && f.holds > 0, `${f.name}: what its world holds`);
     for (const year of [0, 500, 1050, 1e6]) {
       const read = folkPeople(f, year);
@@ -377,7 +417,10 @@ test("a followed people is read as no more than its own world holds, seated as t
 
 test("the reading of a shut road is pure, and the same before entering as on the world entered", () => {
   const sky = ALIEN.build(seedFromText("alien 41"));
-  for (const f of folksNear(sky).filter((x) => x.followed && folkStage(x, 0) !== "camps")) {
+  // (Not one in ruins, whom no one can live as: "where a world cannot be entered" above.)
+  for (const f of folksNear(sky).filter(
+    (x) => x.followed && !["camps", "ruins"].includes(folkStage(x, 0)),
+  )) {
     const got = ok(enterPlan(sky, f.star, f.planet, "alien")),
       far = farMade(got.seed)!,
       world = ALIEN.build(seedFromText(got.seed)),

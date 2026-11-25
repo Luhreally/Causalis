@@ -14,8 +14,11 @@ import type { Block, PageModel } from "../../src/bridge/index.ts";
 
 const world = EARTH.build(seedFromText("first light"));
 world.runTo(440 * YEAR);
+// (A realm's money is first read at the turn of the year after it was founded: one founded within the year has none yet, nor
+// any fears, as first light's pol:0:457, founded in 439, at 440. Any older one has.)
 const store = financeOf(world)!,
-  living = politiesOf(world).living(),
+  all = politiesOf(world).living(),
+  living = all.filter((p) => store.of(p.ref) !== undefined),
   page = (ref: string) => EARTH.queries.page!(world, { ref }) as PageModel,
   tab = (p: PageModel, id: string) => p.tabs.find((t) => t.id === id),
   BAD = /undefined|NaN|\[object|Infinity|\b(ev|pol|war|cell):\d+:\d+[^"]/;
@@ -40,6 +43,10 @@ test("a realm that owes has a Money tab: what new debt would cost it and why, wh
 });
 
 test("every realm's Fears tab reads its fears in words, with the four numbers behind each", () => {
+  for (const p of all)
+    if (!store.of(p.ref))
+      assert.ok(p.founded >= 439, `${p.ref}, founded ${p.founded}: its money read`);
+  assert.ok(living.length >= all.length - 3);
   let fearing = 0;
   for (const p of living) {
     const m = store.of(p.ref)!,
