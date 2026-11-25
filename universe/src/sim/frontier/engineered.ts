@@ -60,10 +60,43 @@ function gainOf(life: LifeHistory, written: number, replaced: number) {
 }
 
 /**
+ * (vitalMonth's: each land's reading while its births and deaths are read, kept for the month's own second asking through
+ * transition. Nothing it reads, what the land knows, its year, the work its engines spare, moves within those; other
+ * systems of the same moment, which may, are not kept.)
+ */
+let MONTH_KEPT: Map<
+  number,
+  { life: LifeHistory; generation: number; made: Engineered | null }
+> | null = null;
+/** Keep each land's reading while `read` runs (see MONTH_KEPT). */
+export function engineeredKept<T>(read: () => T): T {
+  const was = MONTH_KEPT;
+  MONTH_KEPT = new Map();
+  try {
+    return read();
+  } finally {
+    MONTH_KEPT = was;
+  }
+}
+
+/**
  * How far a land's people are written and mended, and what it gains them (null: a land that neither writes bodies nor makes
  * minds, as every land of our own ages is).
  */
 export function engineeredOf(
+  world: World,
+  cell: number,
+  life: LifeHistory,
+  generation: number,
+): Engineered | null {
+  const kept = MONTH_KEPT?.get(cell);
+  if (kept && kept.life === life && kept.generation === generation) return kept.made;
+  const made = engineeredRead(world, cell, life, generation);
+  MONTH_KEPT?.set(cell, { life, generation, made });
+  return made;
+}
+
+function engineeredRead(
   world: World,
   cell: number,
   life: LifeHistory,
