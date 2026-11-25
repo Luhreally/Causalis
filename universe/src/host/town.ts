@@ -124,9 +124,14 @@ const STRUCK_SHOWN = 2 * YEAR;
  * What struck a town these two years past, oldest first (Phase 42 M201): fire sent on it, the
  * ground shaken or fire fallen from the sky on its land (`land`: its province's ref).
  */
-export function strikesOn(world: World, ref: Ref, land: Ref | null): TownStrike[] {
+export function strikesOn(
+  world: World,
+  ref: Ref,
+  land: Ref | null,
+  /** Those after this moment only (as told: these two years past). */
+  since = world.now - STRUCK_SHOWN,
+): TownStrike[] {
   const events = world.events,
-    since = world.now - STRUCK_SHOWN,
     out: TownStrike[] = [],
     // (A quake's or a fallen fire's dead are its land's: the town's share of them, by its people.)
     ctx = populationContext(world),

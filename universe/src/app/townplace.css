@@ -1,5 +1,5 @@
 /* A town entered (town mode): the mode's own chrome in place of the god game's. Phone first: one row at the top, a
-   notice line under it, a sheet over the foot's four tabs. It takes only its own touches; every key a finger's size;
+   notice line under it, a sheet over the foot's six tabs. It takes only its own touches; every key a finger's size;
    within the phone's safe areas; nothing over anything (tools/hud-read.ts at 430x932 and 1280x800, every state). */
 body.placing #hud > *:not(.place-hud):not(.page-window):not(.panel.page-panel) {
   display: none !important;
@@ -218,6 +218,9 @@ body.placing #hud > *:not(.place-hud):not(.page-window):not(.panel.page-panel) {
   grid-column: 1;
   grid-row: 2;
 }
+.place-hud .place-log-more {
+  margin: 0 0 0 8px;
+}
 .place-log-row .place-row-what {
   grid-row: 1;
 }
@@ -229,6 +232,13 @@ body.placing #hud > *:not(.place-hud):not(.page-window):not(.panel.page-panel) {
 }
 .place-hud .place-site {
   grid-template-rows: auto auto;
+}
+.place-hud .place-danger {
+  display: block;
+  grid-template-rows: none;
+}
+.place-hud .place-response {
+  margin: 0 0 6px;
 }
 .place-line-words {
   flex: 1 1 0;

@@ -73,6 +73,7 @@ import type { Settlement } from "../population/stores.ts";
 import { townsOf } from "../town/fabric.ts";
 import { landSpare } from "../war/bonds.ts";
 import { lessened } from "../lore/lessons-store.ts";
+import { orderedLeft } from "../town/managed.ts";
 import { concreteBuilt } from "../lore/materials.ts";
 import { actsOf } from "./acts.ts";
 import { DISASTER, DISASTER_EVENTS, deathsIn, grieve, razeOne, spill } from "./disasters.ts";
@@ -790,7 +791,11 @@ function wildfire(
       // (What its people have learned of fire keeps it to fewer roofs: exactly 1 where they have learned nothing of it.)
       const share =
         fireHomes(fuel, dryness(g.fine.climate.precipitation[on]!, here.rain / 1000)) *
-        lessened(world, cellRef(0, land), "fire", yearOfMoment(t));
+        // (Or where the town is held to them by an order, sim/town/managed.ts: the lesser of the two; exactly 1 where it is not.)
+        Math.min(
+          lessened(world, cellRef(0, land), "fire", yearOfMoment(t)),
+          orderedLeft(world, v.ref, "fire"),
+        );
       const fabric = townsOf(world).get(v.ref),
         lot = fabric ? Math.max(0, fabric.next - 1) : undefined,
         lost = razeOne(ctx, v, share, t, homesBy, lot),

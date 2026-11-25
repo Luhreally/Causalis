@@ -595,7 +595,12 @@ test("mood follows needs met and what befell the household, moves work's worth, 
   enterPlace(w, s.ref);
   assert.ok(place.log.some((x) => x.what === HAP.unheeded));
   const log = logSheet(w, place);
-  assert.ok(log.rows.length > 0 && log.rows.every((r) => r.words.length > 0 && r.ref));
+  assert.ok(
+    log.rows.length > 0 &&
+      log.rows.every(
+        (r) => r.words.length > 0 && r.day && (r.ref || /^and \d+ more /.test(r.words)),
+      ),
+  );
   assert.ok(log.rows[0]!.t >= log.rows.at(-1)!.t, "the latest first");
 });
 

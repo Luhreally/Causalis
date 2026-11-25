@@ -41,9 +41,21 @@
 // carriers bring it from the market, and eat half again as much for the work. What they did is told to its land with the
 // town's other doings (place.settle: person-months, and over how long); the land's month puts no hands of its own to the
 // site for the time told, so nothing is raised twice, and the thing is finished by the world's own rule, there.
-// Not built: fire, quake, raid, siege and famine shown befalling its individuals (a plague shows through the sickness
-// above; the rest are seen only as the town view already draws them). Walls are not a site of the place (they stand on
-// no lot): they go up by the land's month.
+// Walls are not a site of the place (they stand on no lot): they go up by the land's month.
+//
+// What threatens it (fourth slice). The world's own reckoning says what a fire, a quake, fire from the sky, a strike from
+// the air, a battle, a siege, a sickness or a lean year costs a town; the place says whom. A strike (host/town.ts
+// strikesOn: what the town's plan is told) is read as its clock passes it: the households whose home it took are named
+// and go to the building opened to them by an order, or in with others; as many are hurt as the strike's own count, abed
+// as a wound is; and as many die as the world's count says, those of the homes struck first, taken only of the kinds its
+// land's count is short by (a death the place cannot yet place waits for the next matching, and is told then). A fire is
+// fought for a day by the grown who live near it. At a year's turn its men's tally in each battle (host/burials.ts) names
+// who fell and who came home wounded. While a siege lies about it no one goes out to its fields. At every matching the
+// sick who go are told as dead of their sickness, and in a lean year those long in want as starved. Nothing is removed
+// here that the world has not removed, and nothing twice: who dies is the world's count, kind for kind.
+// Orders against them (sim/town/managed.ts place.respond, place.shelter) change what comes only through the world's own
+// rules, which read them; here they move who stands where: a watch that turns the whole town out to a fire, the sick's
+// households kept from the square, a share of its grown standing to arms.
 //
 // Stated limits. An unmanaged town's table is its land's shared by head-count (the world keeps none per town). Only the
 // holders of its roster's lines are the god game's named people here (linkRoster); a realm's key figures stand before
@@ -80,6 +92,7 @@ import {
   HEAL_DAYS,
   HEAL_TENDED,
   HOLDS,
+  LESSON_RESPONSE,
   OCC,
   OCCUPATIONS,
   RECIPES,
@@ -101,7 +114,10 @@ import {
   SITE_TONNES,
   SITE_TOOL_MONTHS,
   WORK_SHARE,
+  ASK_PULL,
   asksOf,
+  heartOf,
+  siegesOf,
   siteInHand,
   siteMostHands,
   siteOwed,
@@ -124,9 +140,10 @@ import {
   type SettleMove,
   type Settlement,
 } from "../sim/index.ts";
-import { townLots } from "../bridge/index.ts";
+import { townLots, type TownStrike } from "../bridge/index.ts";
+import { battleWords, battlesOfYear, townTally } from "./burials.ts";
 import { linesOf, townRoster, workOf as lineWork, folkWork } from "./roster.ts";
-import { townPlan } from "./town.ts";
+import { strikesOn, townPlan } from "./town.ts";
 import { townSite } from "./village.ts";
 
 // —— Measures ————————————————————————————————————————————————————————————————————————————————————————————————————
@@ -151,8 +168,13 @@ export const TICKS_PM = Math.round((MONTH * WORK_SHARE) / PLACE_TICK);
 /** What a tick of building uses of what the thing is built of (millionths of a tonne), and wears of tools (of a measure). */
 const SITE_USE = Math.round((SITE_TONNES * MICRO_) / TICKS_PM),
   SITE_WEAR = Math.round(MICRO_ / (SITE_TOOL_MONTHS * TICKS_PM));
-/** One put to a site by its town's order: what `bound` holds for them. */
+/** One put to a site by its town's order: what `bound` holds for them. And one standing to arms by its order. */
 export const BOUND_SITE = 254;
+export const BOUND_ARMS = 253;
+/** How far from a fire (lots) the grown turn out to fight it of themselves (est: its own few blocks). */
+const FIRE_NEAR = 40;
+/** A year's food that fed fewer than so many in a thousand of its land's needs is a lean one (sim/town/asks.ts: hungry). */
+const LEAN = 800;
 /** The trades a site's crew is taken from, the first first: the hands a site takes are the fields' (sim/town/asks.ts drain). */
 const CREW_FROM: readonly number[] = [OCC.farmer, OCC.herder, OCC.trader, OCC.crafter];
 /** The share of a body's own day it sleeps. */
@@ -164,8 +186,9 @@ const LOT_GROUND = 200;
 const FETCH_DAYS = 7;
 /** A load one carries (units of the market's). */
 const LOAD = 1;
-/** Happenings kept for a place's pages. */
-const LOG_MOST = 96;
+/** Happenings kept for a place's pages: one for each of its people, no fewer than the first and no more than the second. */
+const LOG_LEAST = 96,
+  LOG_MOST = 600;
 
 /** Where one is that is no lot (nowhere yet, the fields outside the town, its square), and what one is doing: as the page reads them. */
 export const AT = PLACE_AT;
@@ -184,6 +207,8 @@ export const ACT_WORDS = [
   "abed",
   "building",
   "bringing what a site is built of",
+  "fighting a fire",
+  "standing to arms",
 ] as const;
 
 /** Why: the force that decided it. */
@@ -208,6 +233,10 @@ export const WHY = {
   stuff: 17,
   stopped: 18,
   raised: 19,
+  fire: 20,
+  arms: 21,
+  siege: 22,
+  apart: 23,
 } as const;
 
 /** What happened to someone, as a place's log tells it. */
@@ -228,6 +257,16 @@ export const HAP = {
   bare: 13,
   crew: 14,
   uncrew: 15,
+  homeless: 16,
+  struckDead: 17,
+  struckHurt: 18,
+  fell: 19,
+  wounded: 20,
+  famine: 21,
+  plague: 22,
+  mustered: 23,
+  stoodDown: 24,
+  rehoused: 25,
 } as const;
 const HAP_WORDS = [
   "was born",
@@ -246,6 +285,16 @@ const HAP_WORDS = [
   "found the pantry bare",
   "was put to building, by your order",
   "went back to their own work from a site",
+  "lost their home, and their household with them",
+  "died",
+  "was hurt",
+  "fell in battle",
+  "came home wounded from battle",
+  "starved, in their land's lean year",
+  "died of a sickness",
+  "stood to arms, by your order",
+  "stood down from arms",
+  "found a home again with their household",
 ];
 
 /** The place's draws: through the world's Rng, on a stream no registry holds (it is no part of the ruleset's identity). */
@@ -272,6 +321,8 @@ const P = {
   ail: 15,
   hurt: 16,
   crew: 17,
+  struck: 18,
+  arms: 19,
 } as const;
 
 const NEEDS = 4;
@@ -452,6 +503,8 @@ type Houses = {
   /** The day one of it last died (-1: none has), and the day it was given a new home (-1: never). */
   grief: number[];
   fresh: number[];
+  /** The day it lost its home to what struck the town (-1: it has not). */
+  lost: number[];
 };
 
 /** A building with stocks: the square (lot AT.square, kind -1), then each of the town's other buildings standing. */
@@ -495,9 +548,22 @@ type Matched = {
   kinds: number;
   /** Lots of the town's plan taken (for how far its fields lie). */
   lots: number;
+  /** How far its land's food met its needs in the year last reckoned (thousandths; absent in an old save: all of them). */
+  fed?: number;
+  /** Whether a siege lies about it (sim/war/siege.ts: it is its land's heart, and its land is besieged). */
+  sieged?: boolean;
 };
 
-export type PlaceHap = { t: number; what: number; id: number; a: number; b: number };
+export type PlaceHap = {
+  t: number;
+  what: number;
+  id: number;
+  a: number;
+  b: number;
+  /** Of one who is gone with it (dead, or left): their household's key and their sex, by which they are still named. */
+  k?: number;
+  s?: number;
+};
 
 export type Place = {
   readonly town: Ref;
@@ -538,6 +604,20 @@ export type Place = {
   figName: string[];
   /** The sicknesses its people have had, by name and page ("name|ref"): a person's cause says which by its place here. */
   ills: string[];
+  /** The moment up to which what struck its town has been read (host/town.ts strikesOn). */
+  seen: number;
+  /**
+   * Deaths the world has counted that the place has yet to name, one after another: what of (a CAUSE; 100 + a battle's
+   * place in `wars`), and how many. The next of its people its land's count takes are told as these.
+   */
+  tolls: number[];
+  /** Those a strike killed whom the place has taken off its people before its town's count was reckoned anew: [year, count]. */
+  gone: number[];
+  /** A fire being fought: the lot, and until when (none: empty). */
+  fire: number[];
+  /** The battles its men were in, by name and event ("the battle at …|ref"), and the year whose battles have been read. */
+  wars: string[];
+  war: number;
   /** What was made and used of each good since the day began (millionths), and the day. */
   day: number;
   madeDay: number[];
@@ -702,6 +782,10 @@ export function targetTable(world: World, s: Settlement, place: Place | null): n
     year = Math.floor(world.now / YEAR);
   let waiting = 0;
   if (place) for (let k = 0; k < place.dead.length; k += 3) waiting += place.dead[k + 2]!;
+  // (And those a strike killed, taken off its people here already: its town's count is reckoned anew at the year's turn.)
+  if (place)
+    for (let k = 0; k < place.gone.length; k += 2)
+      if (place.gone[k] === year) waiting += place.gone[k + 1]!;
   const t = keptTable(townTable(world, s, m?.own ?? null, managedDead(m, year) + waiting));
   if (!m && !place?.moves.length) return t;
   if (m) for (let c = 0; c < t.length; c++) t[c]! += m.own[c]!;
@@ -766,6 +850,8 @@ function matchedOf(world: World, s: Settlement, month: number): Matched {
       : [200, 200, 200, 200, 200],
     kinds: m?.kinds ?? 0,
     lots: townsOf(world).get(s.ref)?.next ?? 0,
+    fed: ctx.history.yearsOf(s.cell).at(-1)?.fed ?? 1000,
+    sieged: besieged(world, s),
   };
 }
 
@@ -855,6 +941,7 @@ export class PlaceStore implements StateStore {
           pantry: p.houses.pantry,
           grief: p.houses.grief,
           fresh: p.houses.fresh,
+          lost: p.houses.lost,
         },
         bldgs: p.bldgs,
         matched: p.matched,
@@ -870,6 +957,12 @@ export class PlaceStore implements StateStore {
         figId: p.figId,
         figName: p.figName,
         ills: p.ills,
+        seen: p.seen,
+        tolls: p.tolls,
+        gone: p.gone,
+        fire: p.fire,
+        wars: p.wars,
+        war: p.war,
         day: p.day,
         madeDay: p.madeDay,
         usedDay: p.usedDay,
@@ -911,6 +1004,7 @@ export class PlaceStore implements StateStore {
           pantry: [...h.pantry],
           grief: h.grief ? [...h.grief] : h.key.map(() => -1),
           fresh: h.fresh ? [...h.fresh] : h.key.map(() => -1),
+          lost: h.lost ? [...h.lost] : h.key.map(() => -1),
         },
         bldgs: {
           lot: [...b.lot],
@@ -932,6 +1026,13 @@ export class PlaceStore implements StateStore {
         figId: [...((raw.figId as number[] | undefined) ?? [])],
         figName: [...((raw.figName as string[] | undefined) ?? [])],
         ills: [...((raw.ills as string[] | undefined) ?? [])],
+        // (A save from before strikes were read: none before the moment it was kept at.)
+        seen: (raw.seen as number | undefined) ?? (raw.t as number),
+        tolls: [...((raw.tolls as number[] | undefined) ?? [])],
+        gone: [...((raw.gone as number[] | undefined) ?? [])],
+        fire: [...((raw.fire as number[] | undefined) ?? [])],
+        wars: [...((raw.wars as string[] | undefined) ?? [])],
+        war: (raw.war as number | undefined) ?? Math.floor((raw.t as number) / YEAR),
         day: (raw.day as number | undefined) ?? 0,
         madeDay: [
           ...((raw.madeDay as number[] | undefined) ?? new Array<number>(GOOD_COUNT).fill(0)),
@@ -984,11 +1085,24 @@ export function placeDigest(p: Place): string {
     p.matched.kinds,
     p.matched.land,
     p.matched.town,
+    p.houses.lost,
+    p.seen,
+    p.tolls,
+    p.gone,
+    p.fire,
+    p.war,
   ].flat())
     h.int(list);
   for (const x of p.houses.means) h.float(x);
   for (const x of [...p.matched.made, ...p.matched.wage]) h.float(x);
-  for (const x of p.log) h.int(x.t).int(x.what).int(x.id).int(x.a).int(x.b);
+  for (const x of p.log)
+    h.int(x.t)
+      .int(x.what)
+      .int(x.id)
+      .int(x.a)
+      .int(x.b)
+      .int(x.k ?? 0)
+      .int(x.s ?? 0);
   h.string(p.ordered).string(p.sited);
   p.figRef.forEach((ref, k) => h.string(ref).int(p.figId[k]!));
   return h.hex();
@@ -1165,7 +1279,7 @@ function addHouse(place: Place, home: number, again = false): number {
   h.fifth[at] = 0;
   h.means[at] = 0;
   h.members[at] = 0;
-  h.grief[at] = h.fresh[at] = -1;
+  h.grief[at] = h.fresh[at] = h.lost[at] = -1;
   return at;
 }
 
@@ -1337,9 +1451,24 @@ function matchStocks(place: Place, share: readonly number[]): void {
   place.flow = new Array<number>(GOOD_COUNT).fill(0);
 }
 
-function note(place: Place, what: number, id: number, a = 0, b = 0): void {
-  place.log.push({ t: place.t, what, id, a, b });
-  if (place.log.length > LOG_MOST) place.log.splice(0, place.log.length - LOG_MOST);
+function note(
+  place: Place,
+  what: number,
+  id: number,
+  a = 0,
+  b = 0,
+  /** Their place among its people, where they are gone with this: they are named by it after. */
+  gone = -1,
+): void {
+  const p = place.people;
+  place.log.push(
+    gone >= 0
+      ? { t: place.t, what, id, a, b, k: place.houses.key[p.house[gone]!]!, s: sexOf(p, gone) }
+      : { t: place.t, what, id, a, b },
+  );
+  // (Let go of a few dozen at a time, not one at every telling.)
+  const most = Math.max(LOG_LEAST, Math.min(LOG_MOST, place.people.n));
+  if (place.log.length > most + 32) place.log.splice(0, place.log.length - most);
 }
 
 /** A household for a newcomer: one with fewer than a hearth's mouths, else a new one in the home with most room. */
@@ -1408,6 +1537,7 @@ function matchPeople(
       return list.sort((a, b) => d.get(a)! - d.get(b)! || p().id[a]! - p().id[b]!);
     };
   let changed = false;
+  const lean = (place.matched.fed ?? 1000) < LEAN;
   // Ages first. One's age here is a reading of their band, and the world moves its bands by its own reckoning: where a
   // band has more than the world's and the next one fewer, those nearest the line between them (within the time gone)
   // are of the other side of it. No one comes or goes for a birthday.
@@ -1488,21 +1618,40 @@ function matchPeople(
         Math.floor(expected) +
           (world.rng.unit(PLACE_DRAW, place.key ^ c, place.t, P.dying) < expected % 1 ? 1 : 0),
       ),
-      // (The sick go first: where the world's own reckoning took some of a kind, it took those its sickness had.)
+      // (Those hurt by what struck the town go first while the world's count of its dead is yet to be named here; then the
+      // sick: where the world's own reckoning took some of a kind, it took those its sickness had; then, in a lean year,
+      // those long in want.)
+      first = (i: number) =>
+        place.tolls.length && p().health[i] === 1 && p().cause[i]! >= CAUSE.fire
+          ? 0
+          : p().health[i] === 2
+            ? 1
+            : lean && p().lack[i]! >= 144
+              ? 2
+              : 3,
+      grown = band > 0 && f.life.bands[band]! >= f.life.adulthood,
       ids = ofCell(c)
-        .sort((a, b) => (p().health[b] === 2 ? 1 : 0) - (p().health[a] === 2 ? 1 : 0))
+        .sort((a, b) => first(a) - first(b))
         .slice(0, over)
         .map((i) => p().id[i]!);
     ids.forEach((id, k) => {
-      const i = p().id.subarray(0, p().n).indexOf(id);
-      note(
-        place,
-        k < dying ? HAP.died : HAP.left,
-        id,
-        Math.round(ageOf(p(), i, place.t)),
-        occOf(p(), i),
-      );
-      if (k < dying) place.houses.grief[p().house[i]!] = Math.floor(place.t / DAY);
+      const i = p().id.subarray(0, p().n).indexOf(id),
+        age = Math.round(ageOf(p(), i, place.t));
+      // How they are told: as one of the dead the world has counted and the place has yet to name (a strike's, a battle's:
+      // a battle's are of its grown); else, of those its people's table says die, the sick as dead of their sickness and
+      // in a lean year those long in want as starved; the rest died, or left.
+      let toll = -1;
+      for (let q = 0; q < place.tolls.length && toll < 0; q += 2)
+        if (place.tolls[q]! < 100 || grown) toll = q;
+      if (toll >= 0) {
+        const of = place.tolls[toll]!;
+        note(place, of >= 100 ? HAP.fell : HAP.struckDead, id, of >= 100 ? of - 100 : of, age, i);
+        if (--place.tolls[toll + 1]! <= 0) place.tolls.splice(toll, 2);
+      } else if (k < dying && p().health[i] === 2 && p().cause[i]! >= CAUSE.sickness)
+        note(place, HAP.plague, id, p().cause[i]! - CAUSE.sickness, age, i);
+      else if (k < dying && lean && p().lack[i]! >= 144) note(place, HAP.famine, id, age, 0, i);
+      else note(place, k < dying ? HAP.died : HAP.left, id, age, occOf(p(), i), i);
+      if (k < dying || toll >= 0) place.houses.grief[p().house[i]!] = Math.floor(place.t / DAY);
       removePerson(place, i);
     });
     now[c] = target[c]!;
@@ -1564,6 +1713,13 @@ function reconcile(world: World, place: Place, s: Settlement, f: Frame, month: n
     turned = Math.floor(month / 12) > Math.floor(place.matched.month / 12);
   restand(world, place);
   place.matched = matchedOf(world, s, month);
+  // (Those a strike killed, taken off its people here: let go of once its town's count has been reckoned anew.)
+  for (let k = place.gone.length - 2; k >= 0; k -= 2)
+    if (place.gone[k]! < Math.floor(place.t / YEAR)) place.gone.splice(k, 2);
+  // A year's turn: its men's tally in the battles fought at it. Who fell is told as its land's count takes them, below;
+  // who came home wounded, after.
+  const back = turned ? warYear(world, place) : [];
+  rehome(world, place, f, CAUSE.none);
   // (The world reckons its births and deaths by the year: a matching across a year's turn tells a year's.)
   matchPeople(world, place, s, f, years, turned ? Math.max(1, years) : Math.max(1 / 12, years));
   // (Anyone whose work stood in a building now gone works where their trade does now.)
@@ -1575,9 +1731,271 @@ function reconcile(world: World, place: Place, s: Settlement, f: Frame, month: n
       p.work[i] !== place.houses.home[p.house[i]!]
     )
       workOf(world, place, i);
+  for (let k = 0; k < back.length; k += 2) woundOf(world, place, f, back[k]!, back[k + 1]!);
+  // (A death counted that no one of the place could be told as, a year on: let go.)
+  if (turned) place.tolls.length = 0;
   crewSites(world, place, f);
+  armsCrew(world, place, f);
   matchStocks(place, stockShare(world, place.cell, p.n));
   unlinkRoster(world, place);
+}
+
+/** Whether a siege lies about a town: its land is besieged, and it is its land's heart (sim/war/siege.ts). */
+function besieged(world: World, s: Settlement): boolean {
+  const sieges = siegesOf(world);
+  if (!sieges || sieges.dormant()) return false;
+  for (const war of sieges.wars())
+    if (sieges.of(war)?.land === s.cell)
+      return heartOf(populationContext(world), s.cell)?.ref === s.ref;
+  return false;
+}
+
+/**
+ * The households whose home stands no longer (its town's fabric holds no home on their lot) are named, and go to the
+ * building opened to them by an order (sim/town/managed.ts place.shelter) if it stands, else in with others in the home
+ * with most room. And those sheltering in a building go to a home once one has room. Which households lost theirs.
+ */
+function rehome(world: World, place: Place, f: Frame, cause: number): number[] {
+  const fab = townsOf(world).get(place.town),
+    h = place.houses,
+    p = place.people;
+  if (!fab) return [];
+  const lots = new Set<number>(),
+    sheltering: number[] = [];
+  for (let k = 0; k < h.n; k++) {
+    if (h.members[k]! <= 0 || h.home[k]! < 0) continue;
+    if (bldgAt(place, h.home[k]!) > 0) sheltering.push(k);
+    else lots.add(h.home[k]!);
+  }
+  const sorted = [...lots].sort((a, b) => a - b),
+    gone = new Set<number>();
+  for (let k = 0; k < sorted.length;) {
+    const from = sorted[k]!,
+      to = Math.min(fab.next, from + 4096),
+      levels = to > from ? levelsOf(fab, from, to) : null;
+    for (; k < sorted.length && sorted[k]! < from + 4096; k++)
+      if (!levels || sorted[k]! >= to || levels[sorted[k]! - from]! < 0) gone.add(sorted[k]!);
+  }
+  if (!gone.size && !sheltering.length) return [];
+  const orders = managedOf(world)?.get(place.town),
+    sb = orders && orders.shelter >= 0 ? bldgAt(place, orders.shelter) : -1,
+    shelter = sb > 0 && !place.bldgs.site[sb] ? orders!.shelter : -1,
+    homes = homesFor(world, place.town, p.n),
+    day = Math.floor(place.t / DAY),
+    out: number[] = [],
+    move = (k: number, to: number, what: number): void => {
+      const old = h.home[k]!;
+      h.home[k] = to;
+      let told = false;
+      for (let i = 0; i < p.n; i++) {
+        if (p.house[i] !== k) continue;
+        if (!told) note(place, what, p.id[i]!, cause, to);
+        told = true;
+        if (p.work[i] === old) p.work[i] = to;
+      }
+    };
+  for (let k = 0; k < h.n; k++) {
+    if (h.members[k]! <= 0 || !gone.has(h.home[k]!)) continue;
+    h.lost[k] = day;
+    out.push(k);
+    move(k, shelter >= 0 ? shelter : roomiest(place, homes), HAP.homeless);
+  }
+  // (Out of a shelter into a home, once one has room for them.)
+  if (sheltering.length && homes.lot.length) {
+    const living = new Map<number, number>();
+    for (let k = 0; k < h.n; k++)
+      living.set(h.home[k]!, (living.get(h.home[k]!) ?? 0) + h.members[k]!);
+    for (const k of sheltering)
+      for (let q = 0; q < homes.lot.length; q++) {
+        const lot = homes.lot[q]!;
+        if ((living.get(lot) ?? 0) + h.members[k]! > homes.holds[q]!) continue;
+        living.set(lot, (living.get(lot) ?? 0) + h.members[k]!);
+        move(k, lot, HAP.rehoused);
+        break;
+      }
+  }
+  layLots(world, place);
+  return out;
+}
+
+/** What a strike is, as a cause of hurt and death. */
+const STRIKE_CAUSE: Readonly<Record<TownStrike["kind"], number>> = {
+  fire: 3,
+  quake: 4,
+  meteor: 5,
+  raid: 6,
+};
+
+/**
+ * A strike on the town, as its place's clock passes it. The world has counted what it cost (how many homes, how many
+ * dead, and by the strike's own ratio how many hurt who lived); the place says whom: the households whose home is gone
+ * are named and housed; as many are hurt, abed as a wound is, those of the homes struck first; and as many die as the
+ * world's count, those of the homes struck first, of the kinds its land's count is short by. A fire is fought for a day.
+ */
+function struck(world: World, place: Place, s: Settlement, f: Frame, k: TownStrike): void {
+  const cause = STRIKE_CAUSE[k.kind],
+    year = Math.floor(place.t / YEAR),
+    day = Math.floor(place.t / DAY),
+    before = place.houses.home.slice();
+  restand(world, place);
+  const lost = new Set(rehome(world, place, f, cause)),
+    p = () => place.people,
+    // (Who was nearest it: those of the homes it took, then anyone, by a keyed draw.)
+    near: number[] = [];
+  for (let i = 0; i < p().n; i++) near.push(i);
+  const draw = new Map(
+    near.map((i) => [i, world.rng.unit(PLACE_DRAW, place.key ^ p().id[i]!, place.t, P.struck)]),
+  );
+  near.sort(
+    (a, b) =>
+      (lost.has(p().house[a]!) ? 0 : 1) - (lost.has(p().house[b]!) ? 0 : 1) ||
+      draw.get(a)! - draw.get(b)! ||
+      p().id[a]! - p().id[b]!,
+  );
+  const order = near.map((i) => p().id[i]!);
+  let toll = k.dead ?? 0;
+  const taken = new Set<number>();
+  if (toll > 0) {
+    // (Counted off its town's people from now: its town's own count is reckoned anew only at the year's turn.)
+    place.gone.push(year, toll);
+    const target = targetTable(world, s, place),
+      now = placeTable(place, f.life);
+    for (const i of near) {
+      if (toll <= 0) break;
+      const c =
+        (sexOf(p(), i) * BANDS + bandOf(ageOf(p(), i, place.t), f.life)) * OCCS + occOf(p(), i);
+      if (now[c]! <= target[c]!) continue;
+      now[c]!--;
+      taken.add(p().id[i]!);
+      toll--;
+    }
+    for (const id of order) {
+      if (!taken.has(id)) continue;
+      const i = placeIndexOf(place, id);
+      note(place, HAP.struckDead, id, cause, Math.round(ageOf(p(), i, place.t)), i);
+      place.houses.grief[p().house[i]!] = day;
+      removePerson(place, i);
+    }
+    // (Those the place cannot yet place among its land's kinds are named at the next matching.)
+    if (toll > 0) place.tolls.push(cause, toll);
+  }
+  let hurt = k.hurt ?? 0;
+  const hospital = buildingOf(place, ["hospital"]) > 0;
+  for (const id of order) {
+    if (hurt <= 0) break;
+    const i = placeIndexOf(place, id);
+    if (i < 0 || p().health[i]) continue;
+    const tended = HEAL_TENDED[tendedBy(hospital, false, place.houses.members[p().house[i]!]! > 1)];
+    p().health[i] = 1;
+    p().cause[i] = cause;
+    p().ill[i] = Math.round(HEAL_DAYS.healed[0] * tended * 144);
+    note(place, HAP.struckHurt, id, cause);
+    hurt--;
+  }
+  // (A fire, or what fire came down with: fought for a day where it fell, or where the first home it took stood.)
+  if (k.kind !== "quake") {
+    const first = [...lost][0],
+      at = k.lot >= 0 ? k.lot : first !== undefined ? before[first]! : AT.square;
+    place.fire = [at, k.at + DAY];
+  }
+  if (lost.size || taken.size) reckonMeans(world, place);
+}
+
+/**
+ * Its men's tally in the battles fought at the year's turn just passed (host/burials.ts townTally: sent, fallen, wounded
+ * who lived): its fallen are the next of its grown its land's count takes, told as fallen there; its wounded, [battle,
+ * count] one after another, are named once its people are matched.
+ */
+function warYear(world: World, place: Place): number[] {
+  const year = Math.floor(place.t / YEAR),
+    back: number[] = [];
+  if (year <= place.war) return back;
+  place.war = year;
+  for (const { b } of battlesOfYear(world, year - 1))
+    for (const side of [0, 1] as const) {
+      const tally = townTally(world, b, side, place.town);
+      if (!tally || tally[0] <= 0 || place.wars.length >= 150) continue;
+      const name = `${battleWords(world, b.land)}|${b.event}`;
+      let at = place.wars.indexOf(name);
+      if (at < 0) at = place.wars.push(name) - 1;
+      if (tally[1] > 0) place.tolls.push(100 + at, tally[1]);
+      if (tally[2] > 0) back.push(at, tally[2]);
+    }
+  return back;
+}
+
+/** So many of its grown come home wounded from a battle: those who stood to arms first, then by a keyed draw. Abed as a wound is. */
+function woundOf(world: World, place: Place, f: Frame, battle: number, n: number): void {
+  const p = place.people,
+    hospital = buildingOf(place, ["hospital"]) > 0,
+    free: number[] = [];
+  for (let i = 0; i < p.n; i++)
+    if (!p.health[i] && occOf(p, i) !== OCC.dependent && ageOf(p, i, place.t) >= f.life.adulthood)
+      free.push(i);
+  const draw = new Map(
+    free.map((i) => [i, world.rng.unit(PLACE_DRAW, place.key ^ p.id[i]!, place.t, P.struck)]),
+  );
+  free.sort(
+    (a, b) =>
+      (p.bound[a] === BOUND_ARMS ? 0 : 1) - (p.bound[b] === BOUND_ARMS ? 0 : 1) ||
+      draw.get(a)! - draw.get(b)! ||
+      p.id[a]! - p.id[b]!,
+  );
+  for (const i of free.slice(0, n)) {
+    const tended = HEAL_TENDED[tendedBy(hospital, false, place.houses.members[p.house[i]!]! > 1)];
+    p.health[i] = 1;
+    p.cause[i] = CAUSE.battle;
+    p.ill[i] = Math.round(HEAL_DAYS.healed[0] * tended * 144);
+    note(place, HAP.wounded, p.id[i]!, battle);
+  }
+}
+
+/** How many of a town's grown hands stand to arms where it is ordered to: what a priority gladly taken up pulls of them. */
+export function armsWanted(hands: number): number {
+  return Math.round(ASK_PULL.glad * hands);
+}
+
+/**
+ * Those standing to arms by its order (sim/town/managed.ts place.respond, muster) made up: so many of its grown at the
+ * trades an order can move (armsWanted), well and held by no other order, taken as a site's crew is; all stood down
+ * where the order is let go.
+ */
+function armsCrew(world: World, place: Place, f: Frame): void {
+  const p = place.people,
+    on = !!managedOf(world)?.get(place.town)?.held.includes("muster"),
+    have: number[] = [],
+    free: number[] = [];
+  let hands = 0;
+  for (let i = 0; i < p.n; i++) {
+    if (p.bound[i] === BOUND_ARMS) have.push(i);
+    if (!CREW_FROM.includes(occOf(p, i)) || ageOf(p, i, place.t) < f.life.adulthood) continue;
+    hands++;
+    if (!p.bound[i] && !p.ill[i]) free.push(i);
+  }
+  const want = on ? armsWanted(hands) : 0;
+  while (have.length > want) {
+    const i = have.pop()!;
+    p.bound[i] = 0;
+    workOf(world, place, i);
+    if (p.act[i] === ACT.guard) p.act[i] = ACT.idle;
+    note(place, HAP.stoodDown, p.id[i]!);
+  }
+  if (have.length >= want) return;
+  const draw = new Map(
+    free.map((i) => [i, world.rng.unit(PLACE_DRAW, place.key ^ p.id[i]!, 0, P.arms)]),
+  );
+  free.sort(
+    (a, b) =>
+      CREW_FROM.indexOf(occOf(p, a)) - CREW_FROM.indexOf(occOf(p, b)) ||
+      draw.get(a)! - draw.get(b)! ||
+      p.id[a]! - p.id[b]!,
+  );
+  for (const i of free.slice(0, want - have.length)) {
+    if (p.carry[i]! > 0) place.bldgs.stock[p.carryGood[i]!]! += p.carry[i]!;
+    p.carry[i] = 0;
+    p.bound[i] = BOUND_ARMS;
+    note(place, HAP.mustered, p.id[i]!);
+  }
 }
 
 /** Its buildings as they stand now: one fallen gives up its stock to the square, one raised begins empty. */
@@ -1731,6 +2149,7 @@ function makePlace(world: World, s: Settlement): Place | null {
       pantry: [],
       grief: [],
       fresh: [],
+      lost: [],
     },
     bldgs: buildingsOf(world, s.ref, Math.floor(world.now / YEAR)),
     matched: matchedOf(world, s, month),
@@ -1746,6 +2165,12 @@ function makePlace(world: World, s: Settlement): Place | null {
     figId: [],
     figName: [],
     ills: [],
+    seen: t,
+    tolls: [],
+    gone: [],
+    fire: [],
+    wars: [],
+    war: Math.floor(t / YEAR),
     day: Math.floor(t / DAY),
     madeDay: new Array<number>(GOOD_COUNT).fill(0),
     usedDay: new Array<number>(GOOD_COUNT).fill(0),
@@ -1795,6 +2220,7 @@ function makePlace(world: World, s: Settlement): Place | null {
   stockOut(place, f, stockShare(world, s.cell, n));
   layLots(world, place);
   syncSites(world, place, f);
+  armsCrew(world, place, f);
   // Its day under way before it is seen; then its stocks are the world's again, to the last millionth.
   while (place.t < t) tick(world, place, f);
   matchStocks(place, stockShare(world, s.cell, place.people.n));
@@ -1873,7 +2299,28 @@ export function workWorth(world: World, place: Place, i: number, mean = meanWage
 }
 
 /** What a person's ailing is of. */
-export const CAUSE = { none: 0, accident: 1, want: 2, sickness: 16 } as const;
+export const CAUSE = {
+  none: 0,
+  accident: 1,
+  want: 2,
+  fire: 3,
+  quake: 4,
+  meteor: 5,
+  raid: 6,
+  battle: 7,
+  sickness: 16,
+} as const;
+/** A strike's or a battle's hurt and dead, said: "in the fire". */
+export const CAUSE_WORDS: readonly string[] = [
+  "",
+  "at their work",
+  "of want",
+  "in the fire",
+  "when the ground shook",
+  "when fire fell from the sky",
+  "in the strike from the air",
+  "in battle",
+];
 /** What moves a mood (bits). */
 export const MOOD = {
   want: 1,
@@ -1883,6 +2330,7 @@ export const MOOD = {
   friend: 16,
   home: 32,
   ordered: 64,
+  homeless: 128,
 } as const;
 export const MOOD_WORDS: readonly (readonly [number, string])[] = [
   [MOOD.want, "days gone hungry, cold or without rest"],
@@ -1892,6 +2340,7 @@ export const MOOD_WORDS: readonly (readonly [number, string])[] = [
   [MOOD.friend, "a friend made in company"],
   [MOOD.home, "a new home this month"],
   [MOOD.ordered, "held to a trade by an order, not their own choosing"],
+  [MOOD.homeless, "their home lost these two months"],
 ];
 /** Below this a mood heeds no order to change its work. */
 export const MOOD_UNHEEDING = -50;
@@ -1988,7 +2437,19 @@ function tick(world: World, place: Place, f: Frame): void {
     dying: number[] = [],
     // (Buildings whose work is stopped by order.)
     shut = orders?.shut.length ? new Set(orders.shut) : null,
-    hospital = buildingOf(place, ["hospital"]) > 0;
+    hospital = buildingOf(place, ["hospital"]) > 0,
+    // A fire being fought, where: by the grown who live near it, or by all of them where a watch is kept by order.
+    fireLot = place.fire.length && t < place.fire[1]! ? place.fire[0]! : null,
+    fireAll = !!orders?.held.includes("firebreaks"),
+    // The sick kept apart by order: fewer take a sickness (the world's own measure of it, rules/lessons.ts), and their
+    // households keep from the square.
+    apart = !!orders?.held.includes("quarantine"),
+    apartLeft = apart ? 1 - (LESSON_RESPONSE.get("quarantine")?.most ?? 0) : 1;
+  let sickHouses: Set<number> | null = null;
+  if (apart && place.ills.length) {
+    sickHouses = new Set();
+    for (let i = 0; i < p.n; i++) if (p.health[i] === 2) sickHouses.add(p.house[i]!);
+  }
   // Its sites in hand, by their lot: what each has yet to be worked (thousandths of a tick), and whether it is stopped.
   let sitesNow: Map<number, { site: PlaceSite; b: number; left: number; stopped: boolean }> | null =
     null;
@@ -2121,7 +2582,11 @@ function tick(world: World, place: Place, f: Frame): void {
         why |= MOOD.home;
         to += 20;
       }
-      if (p.bound[i] && p.bound[i]! < BOUND_SITE) {
+      if (houses.lost[h]! >= 0 && today - houses.lost[h]! <= 60) {
+        why |= MOOD.homeless;
+        to -= 30;
+      }
+      if (p.bound[i] && p.bound[i]! < BOUND_ARMS) {
         why |= MOOD.ordered;
         to -= 10;
       }
@@ -2131,7 +2596,7 @@ function tick(world: World, place: Place, f: Frame): void {
         const tended = HEAL_TENDED[tendedBy(hospital, false, houses.members[h]! > 1)],
           sick = ailing(),
           // (One in want takes a sickness the sooner.)
-          takes = sick ? sick.chance * (1 + lackDays) : 0;
+          takes = sick ? sick.chance * (1 + lackDays) * apartLeft : 0;
         if (takes > 0 && world.rng.chance(takes, PLACE_DRAW, place.key ^ p.id[i]!, tickNo, P.ail)) {
           p.health[i] = 2;
           p.cause[i] = CAUSE.sickness + sick!.at;
@@ -2205,6 +2670,20 @@ function tick(world: World, place: Place, f: Frame): void {
       else bldgs.stock[(b < 0 ? 0 : b) * GOOD_COUNT + p.carryGood[i]!]! += p.carry[i]!;
       p.carry[i] = 0;
       p.act[i] = ACT.idle;
+    }
+    // A fire in the town: the grown who live near it turn out to fight it, asleep or not, until it is out or hunger takes
+    // them off; all of them where a watch is kept.
+    if (
+      fireLot !== null &&
+      occ !== OCC.dependent &&
+      hunger < 0.6 &&
+      (fireAll || (home >= 0 && fireLot >= 0 && Math.abs(home - fireLot) <= FIRE_NEAR)) &&
+      ageOf(p, i, t) >= f.life.adulthood
+    ) {
+      p.act[i] = ACT.brigade;
+      p.why[i] = WHY.fire;
+      if (p.at[i] !== fireLot) go(place, i, fireLot);
+      continue;
     }
     // Asleep: until rested, or hunger or cold wakes them.
     if (asleep && p.needs[at0 + N.rest]! > 0.04 * FULL && hunger < bar && chilled < bar) {
@@ -2315,6 +2794,12 @@ function tick(world: World, place: Place, f: Frame): void {
         p.why[i] = WHY.cold;
         if (p.at[i] !== home) go(place, i, home);
         continue;
+      } else if (sickHouses?.has(h)) {
+        // (One of a household with sickness in it, kept apart by order: at home, wanting company.)
+        p.act[i] = ACT.idle;
+        p.why[i] = WHY.apart;
+        if (p.at[i] !== home) go(place, i, home);
+        continue;
       } else {
         p.act[i] = ACT.visit;
         p.why[i] = WHY.lone;
@@ -2345,6 +2830,20 @@ function tick(world: World, place: Place, f: Frame): void {
       // Their building's work is stopped by order: at home, waiting.
       p.act[i] = ACT.wait;
       p.why[i] = WHY.shut;
+      if (p.at[i] !== home) go(place, i, home);
+      continue;
+    }
+    // Standing to arms by order: in the square, in the hours their work would have had.
+    if (p.bound[i] === BOUND_ARMS) {
+      p.act[i] = ACT.guard;
+      p.why[i] = WHY.arms;
+      if (p.at[i] !== AT.square) go(place, i, AT.square);
+      continue;
+    }
+    // A siege lies about the town: no one goes out to its fields.
+    if (work === AT.fields && matched.sieged) {
+      p.act[i] = ACT.wait;
+      p.why[i] = WHY.siege;
       if (p.at[i] !== home) go(place, i, home);
       continue;
     }
@@ -2506,7 +3005,7 @@ function tick(world: World, place: Place, f: Frame): void {
   for (let k = dying.length - 1; k >= 0; k--) {
     const i = dying[k]!,
       row = sexOf(p, i) * BANDS + bandOf(ageOf(p, i, t), f.life);
-    note(place, HAP.starved, p.id[i]!, Math.round(ageOf(p, i, t)), occOf(p, i));
+    note(place, HAP.starved, p.id[i]!, Math.round(ageOf(p, i, t)), occOf(p, i), i);
     place.dead.push(row, occOf(p, i), 1);
     houses.grief[p.house[i]!] = today;
     removePerson(place, i);
@@ -2533,7 +3032,7 @@ function applyOrders(world: World, place: Place, f: Frame): void {
   const orders = managedOf(world)?.get(place.town),
     work = orders?.work ?? null,
     key = orders
-      ? `${work ? work.join(",") : ""}|${orders.assigned.join(",")}|${orders.housed.join(",")}`
+      ? `${work ? work.join(",") : ""}|${orders.assigned.join(",")}|${orders.housed.join(",")}|${orders.held.join(",")}`
       : "";
   if (key === place.ordered) return;
   place.ordered = key;
@@ -2555,7 +3054,7 @@ function applyOrders(world: World, place: Place, f: Frame): void {
   for (let i = 0; i < p.n; i++) {
     const order = named.get(p.id[i]!);
     if (!order) {
-      if (p.bound[i] && p.bound[i] !== BOUND_SITE) {
+      if (p.bound[i] && p.bound[i]! < BOUND_ARMS) {
         p.bound[i] = 0;
         workOf(world, place, i);
       }
@@ -2628,8 +3127,9 @@ function applyOrders(world: World, place: Place, f: Frame): void {
       list.push(...stay);
     }
   }
-  // (One of a site's crew put elsewhere by name is made up for.)
+  // (One of a site's crew put elsewhere by name is made up for; those standing to arms made up, or stood down.)
   if (place.sites.length) crewSites(world, place, f);
+  armsCrew(world, place, f);
   reckonMeans(world, place);
 }
 
@@ -2819,15 +3319,33 @@ export function advancePlace(world: World, place: Place): number {
     }
     reconcile(world, place, s, f, month);
     unworked(place);
+    // (What struck it while it was away is in its land's count already, matched just now: none of it is read again.)
+    place.seen = world.now;
+    place.fire = [];
     return ticks;
   }
+  // What struck the town since it was last read (host/town.ts: what its plan is told), each as its clock passes it.
+  const strikes =
+    place.seen < world.now
+      ? strikesOn(
+          world,
+          place.town,
+          populationContext(world).provinces.get(place.cell)?.ref ?? null,
+          place.seen,
+        )
+      : [];
+  let next = 0;
   while (place.t < now) {
     // (The month's turn: the world has reckoned its land, and the place is matched to it before its next tick.)
     const m = Math.floor(place.t / MONTH);
     if (m > place.matched.month) reconcile(world, place, s, f, m);
+    while (next < strikes.length && strikes[next]!.at <= place.t)
+      struck(world, place, s, f, strikes[next++]!);
     tick(world, place, f);
     ticks++;
   }
+  // (Those its clock has not yet come to wait for it.)
+  place.seen = next < strikes.length ? strikes[next]!.at - 1 : world.now;
   return ticks;
 }
 
@@ -3061,6 +3579,85 @@ export function siteStage(share: number): string {
         : share < 0.95
           ? "its roof going on"
           : "being fitted out";
+}
+
+/** What happened to someone, said in full: what struck them, which battle, which sickness. */
+export function hapTold(place: Place, x: PlaceHap): string {
+  const battle = () => (place.wars[x.a] ?? "a battle").split("|")[0]!,
+    ill = () => (place.ills[x.a] ?? "a sickness").split("|")[0]!;
+  switch (x.what) {
+    case HAP.homeless:
+      return `lost their home${x.a ? ` ${CAUSE_WORDS[x.a]}` : ""}, and their household with them`;
+    case HAP.struckDead:
+      return `died ${CAUSE_WORDS[x.a] ?? ""}`.trim();
+    case HAP.struckHurt:
+      return `was hurt ${CAUSE_WORDS[x.a] ?? ""}`.trim();
+    case HAP.fell:
+      return `fell in ${battle()}`;
+    case HAP.wounded:
+      return `came home wounded from ${battle()}`;
+    case HAP.plague:
+      return `died of ${ill()}`;
+    case HAP.sick:
+      return `fell sick of ${ill()}`;
+    default:
+      return HAP_WORDS[x.what] ?? "";
+  }
+}
+
+/**
+ * What a place's log tells one line each however many there were in a day (a death, a hurt, a home lost); the rest are
+ * told a few to a day and then counted, by what so many of them did.
+ */
+export const HAP_GRAVE: ReadonlySet<number> = new Set([
+  HAP.died,
+  HAP.starved,
+  HAP.sick,
+  HAP.hurt,
+  HAP.unheeded,
+  HAP.homeless,
+  HAP.struckDead,
+  HAP.struckHurt,
+  HAP.fell,
+  HAP.wounded,
+  HAP.famine,
+  HAP.plague,
+]);
+/** What many did, where they are counted: "were born". */
+export const HAP_MANY: readonly string[] = [
+  "were born",
+  "died",
+  "came to the town",
+  "left the town",
+  "took up other work",
+  "died of want",
+  "were put to other work by the town's orders",
+  "fell sick",
+  "were hurt at their work",
+  "are well again",
+  "were put to work by name, by your order",
+  "moved to a home given them by your order",
+  "would not heed an order",
+  "found the pantry bare",
+  "were put to building, by your order",
+  "went back to their own work from a site",
+  "lost their homes",
+  "died",
+  "were hurt",
+  "fell in battle",
+  "came home wounded",
+  "starved",
+  "died of a sickness",
+  "stood to arms, by your order",
+  "stood down from arms",
+  "found a home again with their households",
+];
+
+/** The page that tells more of what happened to someone (null: none): the battle, the sickness. */
+export function hapRef(place: Place, x: PlaceHap): string | null {
+  if (x.what === HAP.fell || x.what === HAP.wounded) return place.wars[x.a]?.split("|")[1] ?? null;
+  if (x.what === HAP.plague || x.what === HAP.sick) return place.ills[x.a]?.split("|")[1] ?? null;
+  return null;
 }
 
 /** What happened to someone, in words ("died", "took up other work"). */

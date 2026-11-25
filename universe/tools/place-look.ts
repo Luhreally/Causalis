@@ -268,15 +268,18 @@ for (const view of [
   await press('.place-pace[data-pace="0"]', "the pause");
   await page.waitForTimeout(slow(500));
   const seen = await k<{ i: number; x: number; y: number } | null>(
-    `(() => { const c = globalThis.causalis, n = c.planNow().people.length, W = innerWidth, H = innerHeight; for (let i = 0; i < n; i++) { const p = c.personOnScreen(i); if (p && p.x > 40 && p.x < W - 40 && p.y > H * 0.2 && p.y < H * 0.8) return { i, x: p.x, y: p.y }; } return null; })()`,
+    `(() => { const c = globalThis.causalis, n = c.planNow().people.length, W = innerWidth, H = innerHeight; for (let i = 0; i < n; i++) { const p = c.personOnScreen(i); if (p && p.x > 40 && p.x < W - 40 && p.y > H * 0.2 && p.y < H * 0.8 && document.elementFromPoint(p.x + 14, p.y - 10)?.tagName === "CANVAS") return { i, x: p.x, y: p.y }; } return null; })()`,
   );
   check(!!seen, "one of its people stands on the screen");
   if (seen) {
     // (A fingertip off them: the nearest within reach is taken.)
     await tap(seen.x + 14, seen.y - 10);
-    await until("a person's page", async () =>
-      /^(plc|folk):/.test((await k<string | null>("globalThis.causalis.pageOpen()")) ?? ""),
-    );
+    if (
+      !(await until("a person's page", async () =>
+        /^(plc|folk):/.test((await k<string | null>("globalThis.causalis.pageOpen()")) ?? ""),
+      ))
+    )
+      say(`the page open: ${await k<string | null>("globalThis.causalis.pageOpen()")}`);
     await page.waitForTimeout(slow(700));
     const text = await k<string>(`document.querySelector(".page-window")?.textContent ?? ""`);
     for (const word of ["Hunger", "Tiredness", "Cold", "Why", "In hand"])
@@ -446,6 +449,69 @@ for (const view of [
   say(`log: ${(await sheetText()).slice(0, 160)}`);
   await shot("7b-sheet-log");
   await read("the Log sheet open");
+  // What threatens it: its Dangers sheet, an order against a threat given, a fire sent on the town and seen on its
+  // people (its notice, who turned out, who was hurt, who lost a home), and a building opened to the homeless.
+  await press('.place-tab[data-tab="dangers"]', "the Dangers tab");
+  await until("the Dangers sheet", async () => /Your orders against them/.test(await sheetText()));
+  say(`dangers: ${(await sheetText()).slice(0, 1200)}`);
+  await shot("7i-sheet-dangers");
+  await read("the Dangers sheet open");
+  await k(
+    `document.querySelector(".place-sheet-body .place-sell").scrollIntoView({ block: "center" })`,
+  );
+  await page.waitForTimeout(slow(300));
+  await press(".place-sheet-body .place-sell", "Keep a fire watch");
+  await until(
+    "the fire watch kept",
+    async () => (await shownCount(".place-sheet-body .place-sell.on")) > 0,
+  );
+  await shot("7i2-dangers-order-kept");
+  await read("an order against a threat kept");
+  await k(
+    `globalThis.causalis.client.command("act.fire", { village: ${JSON.stringify(town.ref)} })`,
+  );
+  await press('.place-pace[data-pace="600"]', "the ten-minutes-a-second pace");
+  await until(
+    "the fire told on its notice line",
+    async () => /^Fire at /.test((await state()).tells ?? ""),
+    slow(40000),
+  );
+  await k(`document.querySelector(".place-sheet-body").scrollTop = 0`);
+  await until("those it left without a home told", async () =>
+    /Without a home/.test(await sheetText()),
+  );
+  await press('.place-pace[data-pace="0"]', "the pause");
+  say(`notice: ${(await state()).tells}`);
+  say(`dangers after a fire: ${(await sheetText()).slice(0, 1400)}`);
+  await shot("7j-dangers-fire");
+  await read("the Dangers sheet after a fire");
+  if ((await shownCount(".place-sheet-body .place-chips .place-chip")) > 0) {
+    await k(
+      `document.querySelector(".place-sheet-body .place-chips").scrollIntoView({ block: "center" })`,
+    );
+    await page.waitForTimeout(slow(300));
+    await press(
+      ".place-sheet-body .place-chips .place-chip",
+      "a building, to open it to the homeless",
+    );
+    await until(
+      "a building opened to them",
+      async () => (await shownCount(".place-sheet-body .place-chips .place-chip.on")) > 0,
+    );
+    await shot("7k-dangers-shelter");
+    await read("a shelter opened");
+  }
+  await press(".place-sheet-shut", "the sheet's close");
+  await page.waitForTimeout(slow(600));
+  await shot("7l-fire-fought");
+  await read("a fire being fought, its notice up");
+  await press('.place-pace[data-pace="600"]', "the ten-minutes-a-second pace");
+  // Its log again, by day.
+  await press('.place-tab[data-tab="log"]', "the Log tab");
+  await until("the Log sheet by day", async () => /Today/.test(await sheetText()));
+  say(`log by day: ${(await sheetText()).slice(0, 500)}`);
+  await shot("7m-log-by-day");
+  await read("the Log sheet by day");
   // An order by name, from the People sheet: one put to crafts.
   await press('.place-tab[data-tab="people"]', "the People tab");
   await until("the People sheet again", async () => (await shownCount(".place-row-order")) > 3);

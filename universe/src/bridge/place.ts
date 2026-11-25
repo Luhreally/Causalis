@@ -23,6 +23,9 @@ export const PLACE_ACT = {
   /** At work on a site, raising what the town was asked for; and gone for a load of what it is built of. */
   build: 11,
   stuff: 12,
+  /** Fighting a fire in the town; and standing to arms in its square, by an order. */
+  brigade: 13,
+  guard: 14,
 } as const;
 
 /** The page of one of a place's people, and of one of its lots (its square and its fields too). */
@@ -186,11 +189,48 @@ export type PlaceSiteRow = {
   /** Months more, at its hands' usual rate. */
   readonly months: number;
 };
-/** What happened in a place, a line each, the latest first: when (its clock), said, and the page that tells more. */
+/**
+ * What happened in a place, day by day, the latest first: when (its clock), said, the page that tells more, and the day
+ * it is of ("Today", "Yesterday", "Day 41 of year 150"). A death or a hurt has a line of its own; of the rest a day tells
+ * a few of a kind and counts the others.
+ */
 export type PlaceLogSheet = {
   readonly rows: readonly {
     readonly t: number;
     readonly words: string;
     readonly ref: string | null;
+    readonly day: string;
+  }[];
+};
+
+/** What threatens a place, whom it has touched, and what it can be held to against it. */
+export type PlaceDangersSheet = {
+  /** What bears on the town now, each said, with the page that tells more (null: none). */
+  readonly now: readonly {
+    readonly icon: string;
+    readonly words: string;
+    readonly ref: string | null;
+  }[];
+  /** Those hurt by what struck it or wounded in its battles, lying abed now: who, said, their page. */
+  readonly hurt: readonly { readonly name: string; readonly words: string; readonly ref: string }[];
+  /** Households that lost their home these two months: how many, their people, how many of them shelter in a building. */
+  readonly homeless: {
+    readonly households: number;
+    readonly people: number;
+    readonly sheltered: number;
+  };
+  /** The building opened to those without a home (null: none), and those that could be. */
+  readonly shelter: {
+    readonly lot: number | null;
+    readonly options: readonly { readonly lot: number; readonly name: string }[];
+  };
+  /** What it can be held to by an order: what it is, whether it stands, what it does, who it takes, what it costs. */
+  readonly responses: readonly {
+    readonly what: string;
+    readonly name: string;
+    readonly on: boolean;
+    readonly does: string;
+    readonly who: string;
+    readonly cost: string;
   }[];
 };

@@ -23,6 +23,8 @@ import {
   MOOD_UNHEEDING,
   MOOD_WORDS,
   IDLE_WORTH,
+  BOUND_ARMS,
+  hapTold,
   NEED_WORDS,
   PLACE_MOST,
   hapWords,
@@ -38,6 +40,7 @@ import {
 } from "../place.ts";
 import {
   ailWords,
+  goneNames,
   lotWords,
   placeStuff,
   placeWho,
@@ -143,7 +146,7 @@ function personBlocks(
     friend = fi >= 0 ? who(fi) : null;
   const happened = place.log
     .filter((x) => x.id === id)
-    .map((x): Item => ({ line: [`Year ${Math.floor(x.t / YEAR)}: ${hapWords(x.what)}`] }));
+    .map((x): Item => ({ line: [`Year ${Math.floor(x.t / YEAR)}: ${hapTold(place, x)}`] }));
   return {
     needs,
     now: stat("Now", doing),
@@ -207,11 +210,13 @@ function personBlocks(
             ? [
                 stat(
                   "By your order",
-                  p.bound[i] === BOUND_SITE
-                    ? ["One of the crew raising ", lotLink(place, r.work)]
-                    : p.bound[i] === 255
-                      ? ["Put at ", lotLink(place, r.work)]
-                      : [`Held to work as ${tradeWords(p.bound[i]! - 1, false)}`],
+                  p.bound[i] === BOUND_ARMS
+                    ? ["Standing to arms in the square, in the hours their work would have had"]
+                    : p.bound[i] === BOUND_SITE
+                      ? ["One of the crew raising ", lotLink(place, r.work)]
+                      : p.bound[i] === 255
+                        ? ["Put at ", lotLink(place, r.work)]
+                        : [`Held to work as ${tradeWords(p.bound[i]! - 1, false)}`],
                 ),
               ]
             : []),
@@ -316,15 +321,19 @@ export function placePersonPage(
     told = r ? personBlocks(world, place, i) : null,
     year = yearNow(world);
   if (!r || !told) {
-    const gone = place.log.filter((x) => x.id === id).at(-1);
-    return unknown(
-      world,
-      ref,
-      s.ref,
-      gone
-        ? `They ${hapWords(gone.what)} in year ${Math.floor(gone.t / YEAR)}.`
-        : "No one of this town is kept by that number.",
-    );
+    const gone = place.log.filter((x) => x.id === id).at(-1),
+      name = goneNames(world, place)(id);
+    return {
+      ...unknown(
+        world,
+        ref,
+        s.ref,
+        gone
+          ? `${name ?? "They"} ${hapTold(place, gone)} in year ${Math.floor(gone.t / YEAR)}.`
+          : "No one of this town is kept by that number.",
+      ),
+      ...(name ? { title: name, icon: "🕯️" } : {}),
+    };
   }
   // (One the god game names has the god game's page, the place's telling at its head.)
   const who = placeWho(world, place)(i);

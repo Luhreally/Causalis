@@ -25,6 +25,7 @@ import {
   worldKindOf,
 } from "../../gen/index.ts";
 import { lessened } from "../lore/lessons-store.ts";
+import { orderedLeft } from "../town/managed.ts";
 import { COLS } from "../population/model.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import type { Settlement } from "../population/stores.ts";
@@ -192,7 +193,11 @@ export function installLocalActs(world: World, ctx: () => PopulationContext): vo
       // (And as great a share of its homes, the heart first — or those about the lot it fell on:
       // Phase 23, Phase 42 M201.)
       // (Fewer, where its people have learned to keep lanes a fire stops at: exactly as many where they have learned nothing.)
-      const learned = lessened(world, cellRef(0, v.cell), "fire", year),
+      // (Or where it is held to them by an order, sim/town/managed.ts: the lesser of the two; exactly 1 where it is not.)
+      const learned = Math.min(
+          lessened(world, cellRef(0, v.cell), "fire", year),
+          orderedLeft(world, v.ref, "fire"),
+        ),
         homes = razeTown(c, v.ref, Math.min(1, 0.2 * s) * learned, t, lot);
       const p = c.provinces.get(v.cell)!,
         toll = Math.round((v.population / 100) * learned * s);

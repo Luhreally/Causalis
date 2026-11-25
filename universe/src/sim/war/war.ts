@@ -122,6 +122,7 @@ import {
 import { interestsOf, pressure } from "../polity/interests.ts";
 import { loreOf } from "../lore/lore.ts";
 import { lessonAdds } from "../lore/lessons-store.ts";
+import { orderedGuard } from "../town/managed.ts";
 import { holdOf } from "../order/holds.ts";
 import { notableCommands } from "../notable/kept.ts";
 import { commandAfter, commandIn } from "../notable/notables.ts";
@@ -1658,7 +1659,11 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       // (The ground favours those who hold it as far as it is broken, watered and wooded: sim/war/ground.ts.)
       ground = groundOf(ctx, land).factor,
       // (And what its towns were asked to raise and see to, H1: exactly 1 on a land never asked.)
-      walls = (1 + 0.25 * lore.effect(land, "walls")) * asksOf(ctx.world).guard(land, t),
+      // (And its towns standing to arms by an order, sim/town/managed.ts: exactly 1 where none does.)
+      walls =
+        (1 + 0.25 * lore.effect(land, "walls")) *
+        asksOf(ctx.world).guard(land, t) *
+        orderedGuard(ctx, land),
       // Those who hold the land know its ground, and every village is a stronghold; at
       // its seat the whole realm stands.
       seat = land === b.seat,
@@ -1822,7 +1827,9 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
     // taken with the field. Those the siege killed besides the battle (the camp's sick, the town's sick and starved) are the
     // war's cost too. (Only the one land fought for this year is read: a war has one siege at a time.)
     const walled = wallsStand(ctx, land, year),
-      known = walled ? wallsOf(ctx, land, asksOf(world).guard(land, t)) : 0,
+      known = walled
+        ? wallsOf(ctx, land, asksOf(world).guard(land, t) * orderedGuard(ctx, land))
+        : 0,
       sieged = walled
         ? siegeAt(
             ctx,

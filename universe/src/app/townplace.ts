@@ -1,7 +1,7 @@
 // A town entered (town mode), the page's part: 🏘️ on a town's bar. The town's own scene stays, the eye goes near; its
 // people are the place's (host/place.ts), kept one by one and found again whenever the town is come back to, drawn where
-// the place has them; the chrome is the mode's own (ui/place-hud.ts): its clock and paces, a notice line, and four
-// sheets, its people, its stocks, its work and what it can raise. A tap on one of its people, or on a building, opens
+// the place has them; the chrome is the mode's own (ui/place-hud.ts): its clock and paces, a notice line, and six
+// sheets, its people, its stocks, its work, what it can raise, what threatens it, and its log. A tap on one of its people, or on a building, opens
 // the place's page of it. Orders are commands (sim/town/managed.ts); what the town did by them is told to its land at
 // each month's turn while it is watched, and on leaving. The place runs on the world's own clock, set on entering to a
 // pace a day can be watched at; leaving puts the clock and the god game's chrome back, and the town's usual people.
@@ -10,6 +10,7 @@ import {
   askedGrown,
   placeLotRef,
   type HostClient,
+  type PlaceDangersSheet,
   type PlaceFrame,
   type PlaceLogSheet,
   type PlacePeopleSheet,
@@ -175,6 +176,12 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
         { type: "place.work", args: { ref } },
         SHEET_EVERY,
         (s) => s && hud.work(s),
+      );
+    else if (tab === "dangers")
+      stopSheet = d.client.subscribe<PlaceDangersSheet | null>(
+        { type: "place.dangers", args: { ref } },
+        SHEET_EVERY,
+        (s) => s && hud.dangers(s),
       );
     else if (tab === "log")
       stopSheet = d.client.subscribe<PlaceLogSheet | null>(

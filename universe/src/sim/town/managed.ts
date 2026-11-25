@@ -7,6 +7,14 @@
 // has of a kind, so nothing is made from nothing and every hand is one of the land's own. What more or less the town
 // then makes is the land's own reckoning of its trades, next it reckons: the made and the used are counted once, there.
 // Nothing is kept for a town never given an order, and a world where no one orders anything runs exactly as it did.
+//
+// What it does against what threatens it (fourth slice). A town may be held by an order to one of the answers its world's
+// peoples come to by loss (rules/lessons.ts: lanes a fire stops at, the sick kept apart, grain put by), or to stand to
+// arms as a town that has put its arms first does (sim/town/asks.ts). The order adds no rule and no number: the town leans
+// on that answer wholly, as one that had learned it would, and the world's own reckoning of a fire, a sickness, a lean
+// year or a battle for its land reads it, for the town's share of its land's people where the reckoning is its land's.
+// What it asks of them is taken from its fields as a town's own priority is: the answer's own asking (its `asks`) of the
+// hands a priority gladly taken up pulls.
 import {
   MONTH as MONTH_S,
   yearOfMoment,
@@ -16,10 +24,19 @@ import {
   type StateStore,
   type World,
 } from "../../kernel/index.ts";
-import { BANDS, GOODS, OCC, OCCUPATIONS, SEXES } from "../../rules/index.ts";
+import {
+  BANDS,
+  GOODS,
+  LESSONS_FOR,
+  LESSON_RESPONSE,
+  OCC,
+  OCCUPATIONS,
+  SEXES,
+  lessenBy,
+} from "../../rules/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { townsOf } from "./fabric.ts";
-import { askWorked, asksOf, handsFor, type Ask, type AskRaise } from "./asks.ts";
+import { ASK_PULL, askWorked, asksOf, handsFor, type Ask, type AskRaise } from "./asks.ts";
 
 const ROWS = SEXES * BANDS,
   OCCS = OCCUPATIONS.length;
@@ -65,7 +82,18 @@ export type Managed = {
    * under way; and when its land's month last reckoned it.
    */
   sites: number[];
+  /** What it is held to against what threatens it (HELD's names), in their order. */
+  held: string[];
+  /** The lot of the building opened to those of it who have lost their homes (-1: none). */
+  shelter: number;
 };
+
+/**
+ * What a town can be held to by an order: an answer of its world's own to a cause of loss (rules/lessons.ts, by its id),
+ * or `muster`, to stand to arms as a town that has put its arms first gladly does.
+ */
+export const HELD = ["firebreaks", "quarantine", "granaries", "muster"] as const;
+export type HeldTo = (typeof HELD)[number];
 
 /** A change of trade told back: so many of a sex and band, from one trade to another. */
 export type SettleMove = readonly [row: number, from: number, to: number, n: number];
@@ -111,6 +139,8 @@ export class ManagedStore implements StateStore {
         shut: [...(m.shut ?? [])],
         housed: [...(m.housed ?? [])],
         sites: [...(m.sites ?? [])],
+        held: [...(m.held ?? [])],
+        shelter: m.shelter ?? -1,
       });
   }
   private add(m: Managed): Managed {
@@ -141,6 +171,8 @@ export class ManagedStore implements StateStore {
         shut: [],
         housed: [],
         sites: [],
+        held: [],
+        shelter: -1,
       })
     );
   }
@@ -149,6 +181,79 @@ export class ManagedStore implements StateStore {
 /** A world's managed towns (null: it keeps none, a world of no towns). */
 export function managedOf(world: World): ManagedStore | null {
   return world.peek<ManagedStore>("town.managed") ?? null;
+}
+
+/** A land's towns held to anything, each with its share of its land's people (0 … 1). None where no town is managed. */
+function heldIn(ctx: PopulationContext, cell: number): (readonly [Managed, number])[] {
+  const store = managedOf(ctx.world);
+  if (!store || store.dormant()) return [];
+  const out: (readonly [Managed, number])[] = [],
+    total = ctx.provinces.get(cell)?.total() ?? 0;
+  for (const m of store.all()) {
+    if (m.cell !== cell || !m.held.length) continue;
+    const s = ctx.settlements.get(m.town);
+    if (s && s.population > 0 && total > 0)
+      out.push([m, Math.min(1, s.population / total)] as const);
+  }
+  return out;
+}
+
+/** What is left of a strike of a cause on a town held to an answer that lessens it: exactly 1 where it is held to none. */
+function leftOf(m: Managed, cause: string): number {
+  let left = 1;
+  for (const r of LESSONS_FOR.get(cause) ?? [])
+    if (r.how === "lessen" && m.held.includes(r.id)) left *= 1 - lessenBy(r, 1);
+  return left;
+}
+
+/**
+ * What is left of a strike of a cause on one town, by what it is held to (a fire on it): exactly 1 where it is held to
+ * nothing against that cause. Read beside what its land has learned (sim/lore/lessons-store.ts lessened), the lesser of
+ * the two: an order makes a town lean wholly on an answer, it does not stack on the same answer learned.
+ */
+export function orderedLeft(world: World, town: string, cause: string): number {
+  const m = managedOf(world)?.get(town);
+  return m && m.held.length ? leftOf(m, cause) : 1;
+}
+
+/** The same for a reckoning that is its land's (a sickness): each town's part, by its share of its land's people. */
+export function orderedLeftLand(ctx: PopulationContext, cell: number, cause: string): number {
+  let left = 1;
+  for (const [m, share] of heldIn(ctx, cell)) left -= share * (1 - leftOf(m, cause));
+  return Math.max(0, left);
+}
+
+/** What its towns' orders add to a land by answers that work by `how` (grain put by: `stores`), by their shares. Exactly 0 where none. */
+export function orderedAdds(ctx: PopulationContext, cell: number, how: string): number {
+  let add = 0;
+  for (const [m, share] of heldIn(ctx, cell))
+    for (const id of m.held) {
+      const r = LESSON_RESPONSE.get(id);
+      if (r?.how === how) add += share * r.most;
+    }
+  return add;
+}
+
+/** How much more a land's defenders count for its towns standing to arms by order: as a town that put its arms first gladly. Exactly 1 where none. */
+export function orderedGuard(ctx: PopulationContext, cell: number): number {
+  let k = 1;
+  for (const [m, share] of heldIn(ctx, cell))
+    if (m.held.includes("muster")) k *= 1 + ASK_PULL.glad * share;
+  return k;
+}
+
+/** The share of a town's hands what it is held to takes from its fields: each answer's own asking of what a priority gladly taken pulls; all of that for standing to arms. */
+export function heldPull(m: Pick<Managed, "held">): number {
+  let asks = 0;
+  for (const id of m.held) asks += id === "muster" ? 1 : (LESSON_RESPONSE.get(id)?.asks ?? 0);
+  return Math.min(1, asks * ASK_PULL.glad);
+}
+
+/** What its towns' orders leave of a land's harvest: the hands they take from its fields. Exactly 1 where none. */
+export function orderedGift(ctx: PopulationContext, cell: number): number {
+  let k = 1;
+  for (const [m, share] of heldIn(ctx, cell)) k *= 1 - heldPull(m) * share;
+  return k;
 }
 
 /** A site's five numbers in a town's orders (Managed.sites). */
@@ -374,6 +479,45 @@ export function installManaged(world: World, ctx: () => PopulationContext): Mana
         if (m.housed[k] !== a.house) next.push(m.housed[k]!, m.housed[k + 1]!);
       next.push(a.house, a.lot);
       m.housed = next;
+    },
+  });
+  // Held to an answer against what threatens it, or let go of it.
+  world.defineCommand({
+    type: "place.respond",
+    validate: (args) => {
+      const a = args as { what?: unknown; on?: unknown };
+      return (
+        held(args) ??
+        (!(HELD as readonly unknown[]).includes(a.what)
+          ? `what is one of ${HELD.join(", ")}`
+          : typeof a.on === "boolean"
+            ? null
+            : "on must be true or false")
+      );
+    },
+    apply: (command, t) => {
+      const a = command.args as { town: Ref; what: HeldTo; on: boolean },
+        s = ctx().settlements.get(a.town);
+      if (!s) return;
+      const m = store.of(s.ref, s.cell, t),
+        rest = m.held.filter((x) => x !== a.what);
+      m.held = a.on ? HELD.filter((x) => x === a.what || rest.includes(x)) : rest;
+    },
+  });
+  // A building opened to those who have lost their homes (null: none).
+  world.defineCommand({
+    type: "place.shelter",
+    validate: (args) => {
+      const a = args as { lot?: unknown };
+      return (
+        held(args) ??
+        (a.lot === null || whole(a.lot, 0, 1e9) ? null : "lot must be a building's lot, or null")
+      );
+    },
+    apply: (command, t) => {
+      const a = command.args as { town: Ref; lot: number | null },
+        s = ctx().settlements.get(a.town);
+      if (s) store.of(s.ref, s.cell, t).shelter = a.lot ?? -1;
     },
   });
   // A site (a building it was asked to raise) taken in hand with so many of its people, or given back to its land's month.

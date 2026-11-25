@@ -110,6 +110,7 @@ import {
 import { cultureOf, cultureYear } from "../culture/culture.ts";
 import { loreOf } from "../lore/lore.ts";
 import { lessonAdds } from "../lore/lessons-store.ts";
+import { orderedAdds, orderedGift } from "../town/managed.ts";
 import { asksMonth, asksOf } from "../town/asks.ts";
 import { MarketStore, type Market } from "../economy/market.ts";
 import {
@@ -726,7 +727,9 @@ function foodLand(
     // (And what its towns were asked to put first, and the hands on what they were asked to raise: H1. Exactly 1 on a land never asked.)
     gift =
       (act ? actFactor(act.sign > 0, ACT_STRENGTH.harvest, act.strength) : 1) *
-      asks.gift(p.cell, t);
+      asks.gift(p.cell, t) *
+      // (And the hands its towns' orders against what threatens them take from its fields: sim/town/managed.ts. Exactly 1 where none.)
+      orderedGift(ctx, p.cell);
   const m = markets.of(p.cell),
     c = provinceCapacity(ctx, p.cell),
     // The land gives as its living world stands: less game where the wild is thin,
@@ -785,7 +788,11 @@ function foodLand(
       lore.effect(p.cell, "storage") +
       asks.stored(p.cell, t) +
       // (Grain put by, where famine taught them to: rules/lessons.ts granaries. Exactly 0 where it has not.)
-      lessonAdds(world, p.ref, "stores", yearOfMoment(t)),
+      // (Or put by where its towns are held to it by an order, for their share of its people: the greater of the two.)
+      Math.max(
+        lessonAdds(world, p.ref, "stores", yearOfMoment(t)),
+        orderedAdds(ctx, p.cell, "stores"),
+      ),
     // (What they keep from their own use, as the ecology's year last set it: rules/lessons.ts kept-wild, kept-woods.)
     asideWild = alive.asideWild ?? 0,
     asideWoods = alive.asideWoods ?? 0,

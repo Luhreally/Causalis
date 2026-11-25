@@ -59,6 +59,7 @@ import { loreOf } from "../lore/lore.ts";
 import { herdFoodOf, herdKept, noteHerdOutbreak } from "../belief/taboo.ts";
 import type { StrainStore } from "./strains.ts";
 import { lessened } from "../lore/lessons-store.ts";
+import { orderedLeftLand } from "../town/managed.ts";
 import { WAY, cultureOf, pushWays } from "../culture/culture.ts";
 import { politiesOf } from "../polity/polity.ts";
 import { warsOf } from "../war/war.ts";
@@ -533,7 +534,11 @@ export function tollOf(
         rooflessSickOf(ctx.world, cell) *
         (1 + (SICK.bound - 1) * bound) *
         // (Fewer where its people have learned to keep the sick apart: exactly 1 where they have learned nothing.)
-        lessened(ctx.world, cellRef(0, cell), "sickness", yearOfMoment(ctx.world.now)) *
+        // (Or where its towns are held to it by an order, for their share of its people: sim/town/managed.ts. Exactly 1 where none is.)
+        Math.min(
+          lessened(ctx.world, cellRef(0, cell), "sickness", yearOfMoment(ctx.world.now)),
+          orderedLeftLand(ctx, cell, "sickness"),
+        ) *
         // (A herd's sickness takes the more the more they live off its herd, as far as it still lives in herds: rules/taboo.ts.)
         (s.source === "herds"
           ? herdContact(herdRange(ctx.world, s.ref), herdFoodOf(ctx.world, cell))

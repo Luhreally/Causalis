@@ -1,10 +1,12 @@
 // A town entered (town mode): the mode's own chrome over the town, in place of the god game's. One row at the top (the
 // town, its clock, the paces a day is watched at, the way out); a line under it for what wants the manager's eye, that
-// can be closed; four tabs at the foot, each opening a sheet: its people by who is most pressed, its stocks good by
-// good, its hands by trade and the orders that move them, what it can raise. Phone first: every key a finger's size,
+// can be closed; six tabs at the foot, each opening a sheet: its people by who is most pressed, its stocks good by
+// good, its hands by trade and the orders that move them (and what is going up), what it can raise, what threatens it
+// and the orders against that, and its log day by day. Phone first: every key a finger's size,
 // nothing over anything. What it shows is told by the page that owns it (app/townplace.ts); it asks for nothing itself.
 import {
   PLACE_TRADES,
+  type PlaceDangersSheet,
   type PlaceNotice,
   type PlacePeopleSheet,
   type PlaceStocksSheet,
@@ -14,12 +16,13 @@ import {
 } from "../bridge/index.ts";
 import { el } from "./why.ts";
 
-export type PlaceTab = "people" | "stocks" | "work" | "build" | "log";
+export type PlaceTab = "people" | "stocks" | "work" | "build" | "dangers" | "log";
 const TABS: readonly (readonly [PlaceTab, string, string])[] = [
   ["people", "👥", "People"],
   ["stocks", "📦", "Stocks"],
   ["work", "⚒️", "Work"],
   ["build", "🏗️", "Build"],
+  ["dangers", "🛡️", "Dangers"],
   ["log", "📜", "Log"],
 ];
 /** The paces a town's day is watched at: the key, the clock's seconds a second, and that in words. */
@@ -467,6 +470,88 @@ export class PlaceHud {
     this.sheetBody.replaceChildren(...body);
   }
 
+  /** What threatens the town, whom it has touched, and the orders against it. */
+  dangers(s: PlaceDangersSheet): void {
+    if (this.tab !== "dangers" || this.same(s)) return;
+    const body: HTMLElement[] = [];
+    for (const x of s.now) {
+      const words = `${x.icon} ${x.words}`;
+      if (x.ref) {
+        const b = el("button", "place-row place-danger", words),
+          ref = x.ref;
+        b.onclick = () => this.onOpen(ref);
+        body.push(b);
+      } else body.push(el("p", "place-line-words place-danger", words));
+    }
+    if (s.homeless.households > 0 || s.shelter.lot !== null) {
+      body.push(el("h3", "place-sub", "Without a home"));
+      const h = s.homeless,
+        open = s.shelter.options.find((o) => o.lot === s.shelter.lot);
+      body.push(
+        el(
+          "p",
+          "place-line-words",
+          h.households > 0
+            ? `${h.households} ${h.households === 1 ? "household" : "households"} (${h.people} people) lost ${h.households === 1 ? "its home" : "their homes"} these two months. ${h.sheltered} of them shelter in a building; the rest are taken in by others, in the homes with most room.`
+            : "No household is without a home now.",
+        ),
+        el(
+          "p",
+          "place-more",
+          open
+            ? `The ${open.name} is opened to those who lose their homes. They go to a home again once one has room.`
+            : "No building is opened to them: those who lose their homes go in with others. Open one:",
+        ),
+      );
+      const chips = el("div", "place-chips");
+      for (const o of s.shelter.options.slice(0, 8)) {
+        const b = el("button", "place-chip", o.name);
+        b.classList.toggle("on", o.lot === s.shelter.lot);
+        b.setAttribute("aria-label", `Open the ${o.name} to those without a home`);
+        b.onclick = () => this.onOrder("place.shelter", { lot: o.lot });
+        chips.append(b);
+      }
+      if (s.shelter.lot !== null) {
+        const none = el("button", "place-chip", "None");
+        none.onclick = () => this.onOrder("place.shelter", { lot: null });
+        chips.append(none);
+      }
+      body.push(chips);
+    }
+    if (s.hurt.length) {
+      body.push(el("h3", "place-sub", "Lying hurt"));
+      const list = el("div", "place-rows");
+      for (const x of s.hurt) {
+        const row = el("button", "place-row place-log-row");
+        row.append(el("span", "place-row-name", x.name), el("span", "place-log-words", x.words));
+        row.onclick = () => this.onOpen(x.ref);
+        list.append(row);
+      }
+      body.push(list);
+    }
+    body.push(el("h3", "place-sub", "Your orders against them"));
+    for (const r of s.responses) {
+      const row = el("div", "place-line"),
+        key = el("button", "place-sell", r.on ? "Kept" : "Not kept");
+      key.classList.toggle("on", r.on);
+      key.setAttribute(
+        "aria-label",
+        `${r.name}: ${r.on ? "kept. Tap to let it go" : "not kept. Tap to order it"}`,
+      );
+      key.onclick = () => this.onOrder("place.respond", { what: r.what, on: !r.on });
+      row.append(el("span", "place-line-words place-row-name", r.name), key);
+      body.push(row, el("p", "place-more place-response", `${r.does} ${r.who} ${r.cost}`));
+    }
+    body.push(
+      el(
+        "p",
+        "place-more",
+        "An order adds no rule: the town leans wholly on an answer its world's peoples come to by loss, and the world's own reckoning of a fire, a sickness, a lean year or a battle reads it. With no order, what comes is exactly what would have come.",
+      ),
+    );
+    this.sheetBody.replaceChildren(...body);
+  }
+
   log(s: PlaceLogSheet): void {
     if (this.tab !== "log" || this.same(s)) return;
     if (!s.rows.length)
@@ -477,24 +562,32 @@ export class PlaceHud {
           "Nothing yet. What befalls its people is told here as it happens: births, deaths, comings and goings, sickness and hurt, and what your orders did.",
         ),
       );
-    const list = el("div", "place-rows");
+    // Day by day, the latest first: each day under its own head, a line to a happening.
+    const body: HTMLElement[] = [];
+    let list: HTMLElement | null = null,
+      day = "";
     for (const r of s.rows) {
-      const day = Math.floor(r.t / 86_400) % 365,
-        hour = Math.floor((r.t % 86_400) / 3600),
-        row = el("button", "place-row place-log-row");
+      if (r.day !== day || !list) {
+        day = r.day;
+        list = el("div", "place-rows");
+        body.push(el("h3", "place-sub", day), list);
+      }
+      const hour = Math.floor((((r.t % 86_400) + 86_400) % 86_400) / 3600),
+        ref = r.ref;
+      if (!ref) {
+        // (A count of the many of a kind: no page of its own.)
+        list.append(el("p", "place-more place-log-more", r.words));
+        continue;
+      }
+      const row = el("button", "place-row place-log-row");
       row.append(
-        el(
-          "span",
-          "place-row-what",
-          `Year ${Math.floor(r.t / 31_536_000)}, day ${day}, ${String(hour).padStart(2, "0")}:00`,
-        ),
+        el("span", "place-row-what", `${String(hour).padStart(2, "0")}:00`),
         el("span", "place-log-words", r.words),
       );
-      const ref = r.ref;
-      if (ref) row.onclick = () => this.onOpen(ref);
+      row.onclick = () => this.onOpen(ref);
       list.append(row);
     }
-    this.sheetBody.replaceChildren(list);
+    this.sheetBody.replaceChildren(...body);
   }
 
   build(o: TownOffers | null): void {

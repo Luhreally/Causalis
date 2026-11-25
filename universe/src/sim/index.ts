@@ -2262,8 +2262,11 @@ export {
   type CanalReading,
 } from "./economy/canals.ts";
 export {
+  HELD,
   MANAGED_TRADES,
   WORK_SHARE,
+  heldPull,
+  type HeldTo,
   askDone,
   managedDead,
   managedOf,
