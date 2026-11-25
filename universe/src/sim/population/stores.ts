@@ -280,10 +280,20 @@ function withoutPeople(s: YearSummary): unknown {
 
 /** What withoutPeople kept. */
 function withPeople(kept: YearSummary): YearSummary {
-  if (kept.population !== undefined) return { ...kept };
+  if (kept.population !== undefined) return tradesShared({ ...kept });
   // (In the order a year's line is written.)
   const { year, population: _, ...rest } = kept;
-  return { year, population: peopleOf(kept), ...rest };
+  return tradesShared({ year, population: peopleOf(kept), ...rest });
+}
+
+/**
+ * The one empty list of trades every line past the century holds (they keep their people and how they ate, not their trades).
+ * Each its own, the empty lists were 1.7 MB of a world at 1,500: 52 thousand lines.
+ */
+const NO_TRADES: readonly number[] = Object.freeze([]);
+function tradesShared(line: { -readonly [K in keyof YearSummary]: YearSummary[K] }): YearSummary {
+  if (!line.byOccupation.length) line.byOccupation = NO_TRADES;
+  return line;
 }
 
 export class HistoryStore implements StateStore {
@@ -421,7 +431,7 @@ export class HistoryStore implements StateStore {
             )
             .map((s) =>
               s.year < year - SUMMARY_YEARS && s.byOccupation.length
-                ? { ...s, byOccupation: [] }
+                ? { ...s, byOccupation: NO_TRADES }
                 : s,
             ),
         );

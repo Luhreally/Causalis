@@ -586,15 +586,19 @@ export function provinceCapacity(ctx: PopulationContext, cell: number, warm?: nu
     if (known) return known;
   }
   // (As it was made, on every world whose ground has not moved: the key and the reckoning are then what they always were.)
+  // (A ground moved is answered by the land's number above while it stands, and kept nowhere else: kept by key as well, every
+  // ground the years had moved through stayed, 20 thousand answers at 1,500 of which a thirtieth were of the ground as it stood.)
+  if (now && shift?.key) {
+    const c = capacity(ctx.generated, cell, ctx.medium, 0, shift);
+    now.by[cell] = c;
+    return c;
+  }
   const made = `${surface}:${ctx.medium}:${cell}`,
-    key = shift ? (shift.key ? `${made}:${shift.key}` : made) : warm ? `${made}:${warm}` : made;
+    key = shift ? made : warm ? `${made}:${warm}` : made;
   let c = CAPACITIES.get(key);
   if (!c) {
     if (CAPACITIES.size > 50_000) CAPACITIES.clear();
-    CAPACITIES.set(
-      key,
-      (c = capacity(ctx.generated, cell, ctx.medium, warm ?? 0, shift?.key ? shift : null)),
-    );
+    CAPACITIES.set(key, (c = capacity(ctx.generated, cell, ctx.medium, warm ?? 0, null)));
   }
   if (now) now.by[cell] = c;
   return c;
@@ -606,18 +610,31 @@ const CAPACITY_NOW: {
   by: (Capacity | undefined)[];
 } = { surface: "", medium: "", shift: "", by: [] };
 const LIVABLE = new Map<string, boolean>();
+/**
+ * The same of the ground as it stands now where it has moved, by land, for the ground, medium and shift last asked of alone (as
+ * CAPACITY_NOW: those of every ground the years had moved through stayed by key, 14 thousand at 1,500).
+ */
+const LIVABLE_NOW: { at: string; by: Map<number, boolean> } = { at: "", by: new Map() };
 /** Whether the people can live in a place: unasked, as its ground stands now; asked `warm`, under the god's warming alone. */
 export function livableFor(ctx: PopulationContext, cell: number, warm?: number): boolean {
   const shift = warm === undefined ? shiftNow(ctx.world) : null,
-    made = `${homePlanet(ctx.world).surfaceKey}:${ctx.medium}:${cell}`,
-    key = shift ? (shift.key ? `${made}:${shift.key}` : made) : warm ? `${made}:${warm}` : made;
+    made = `${homePlanet(ctx.world).surfaceKey}:${ctx.medium}:${cell}`;
+  if (shift?.key) {
+    const at = `${homePlanet(ctx.world).surfaceKey}:${ctx.medium}:${shift.key}`;
+    if (LIVABLE_NOW.at !== at) {
+      LIVABLE_NOW.at = at;
+      LIVABLE_NOW.by = new Map();
+    }
+    let ok = LIVABLE_NOW.by.get(cell);
+    if (ok === undefined)
+      LIVABLE_NOW.by.set(cell, (ok = livable(ctx.generated, cell, ctx.medium, 0, shift)));
+    return ok;
+  }
+  const key = shift ? made : warm ? `${made}:${warm}` : made;
   let ok = LIVABLE.get(key);
   if (ok === undefined) {
     if (LIVABLE.size > 50_000) LIVABLE.clear();
-    LIVABLE.set(
-      key,
-      (ok = livable(ctx.generated, cell, ctx.medium, warm ?? 0, shift?.key ? shift : null)),
-    );
+    LIVABLE.set(key, (ok = livable(ctx.generated, cell, ctx.medium, warm ?? 0, null)));
   }
   return ok;
 }
