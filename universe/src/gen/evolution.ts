@@ -1983,6 +1983,20 @@ function growTree(g: HomeWorld): TreeOfLife {
   // Each line's daughters, oldest first.
   const children: number[][] = nodes.map(() => []);
   for (const n of nodes) if (n.parent >= 0) children[n.parent]!.push(n.id);
+  // A founding line no later line came of (every kind of body after it found a nearer mother) did not live to now: it died
+  // out as the lines the tree alone remembers do, within a few ages of its rising, at the first great dying if one comes.
+  // (Keyed draws of its own, and no line that has daughters or lives is touched: nothing else of the tree moves.)
+  for (const n of nodes) {
+    if (n.kind !== "stem" || n.to !== null || children[n.id]!.length) continue;
+    const k = Math.max(0, n.arose);
+    let died = Math.min(AGES - 1, k + 1 + Math.floor(u(40, n.id, 0) * 3));
+    for (let d = k + 1; d <= died; d++)
+      if (ages[d]!.kind === "impact" || ages[d]!.kind === "great volcanism") {
+        died = d;
+        break;
+      }
+    nodes[n.id] = { ...n, to: toIn(died, 9000 + n.id, n.from), died, fate: fateOf(died, n.warm) };
+  }
   for (const c of children) c.sort((a, b) => nodes[b]!.from - nodes[a]!.from || a - b);
   return { nodes, ofSpecies, rungs, worldAge, children };
 }
