@@ -50,8 +50,10 @@ import {
   CAUSE_WORDS,
   HAP,
   HAP_GRAVE,
-  HAP_MANY,
+  hapMany,
   armsWanted,
+  watchWanted,
+  placeCold,
   hapRef,
   hapTold,
   MOOD_UNHEEDING,
@@ -142,7 +144,10 @@ export function whyWords(world: World, place: Place, i: number): string {
     case WHY.tired:
       return `Tiredness (${pct(need(1))} full, pressing ${pct(pressOf(need(1)))}) passed ${bar}${going}`;
     case WHY.cold:
-      return `The cold (${pct(need(2))} full) passed ${bar}: indoors to get warm${going}`;
+      // (No roof: their household lost its home and found no room under another.)
+      return place.houses.home[p.house[i]!]! < 0 && place.houses.lost[p.house[i]!]! >= 0
+        ? `The cold (${pct(need(2))} full) passed ${bar}, and they have no roof to get warm under: their household lost its home and lives in the square, in the weather`
+        : `The cold (${pct(need(2))} full) passed ${bar}: indoors to get warm${going}`;
     case WHY.lone:
       return `Want of company passed ${bar}: among others in the square until it eases (${pct(need(3))} full now)${going}`;
     case WHY.work:
@@ -365,11 +370,26 @@ export function placeNotices(world: World, place: Place): PlaceNotice[] {
       words: `${bare.size} ${bare.size === 1 ? "pantry is" : "pantries are"} bare`,
       ref: placeLotRef(place.town, place.houses.home[[...bare][0]!]!),
     });
-  for (const [lot, n] of waiting)
+  // (Those who work at home, one notice for them all: a town of home crafters filled the line with a notice a house.)
+  let atHome = 0,
+    firstHome = -1;
+  for (const [lot, n] of waiting) {
+    if (lot >= 0 && place.bldgs.lot.indexOf(lot) < 0) {
+      atHome += n;
+      if (firstHome < 0) firstHome = lot;
+      continue;
+    }
     out.push({
       key: `wait${lot}`,
       words: `${n} at ${lotWords(place, lot)} wait for want of what they work`,
       ref: placeLotRef(place.town, lot),
+    });
+  }
+  if (atHome)
+    out.push({
+      key: "waithome",
+      words: `${atHome} who work at home wait for want of what they work`,
+      ref: placeLotRef(place.town, firstHome),
     });
   // What threatens it, seen on its own people.
   const fire = place.fire.length && place.t < place.fire[1]! ? place.fire[0]! : null;
@@ -614,7 +634,14 @@ export function stocksSheet(world: World, place: Place): PlaceStocksSheet {
       made = place.madeDay[g]! / MICRO,
       used = place.usedDay[g]! / MICRO;
     if (GOODS[g]!.food) food += held;
-    if (held <= 0 && made <= 0 && used <= 0 && !orders?.forbidden.includes(g)) continue;
+    if (
+      held <= 0 &&
+      made <= 0 &&
+      used <= 0 &&
+      place.cameDay[g]! <= 0 &&
+      !orders?.forbidden.includes(g)
+    )
+      continue;
     rows.push({
       good: g,
       name: GOODS[g]!.name,
@@ -623,6 +650,7 @@ export function stocksSheet(world: World, place: Place): PlaceStocksSheet {
       held,
       made,
       used,
+      came: place.cameDay[g]! / MICRO,
       where,
       forbidden: !!orders?.forbidden.includes(g),
     });
@@ -670,6 +698,12 @@ export function workSheet(world: World, place: Place): PlaceWorkSheet {
       hands: x.hands,
       most: x.most,
       busy: x.busy,
+      spares:
+        x.answer === "glad"
+          ? "all it can spare: the town took the asking up gladly"
+          : x.answer === "grudged"
+            ? "seven in ten of what it could spare: the town grudged the asking"
+            : "half of what it could spare: the town took up half the asking",
       stuff,
       lying: x.stuff,
       wants: x.wants,
@@ -789,29 +823,29 @@ export function dangersSheet(world: World, place: Place): PlaceDangersSheet {
       words: `Its land's food met ${Math.round(fed / 10)} in a hundred of its needs in the year last reckoned${fed < 800 ? ": a lean year. Those long in want are the first it takes" : ""}. ${want} of the town have gone a day or more in want.`,
       ref: null,
     });
-  // (Its battles of the year gone, and its dead of what struck it, as its log tells them.)
-  const told = new Map<string, { n: number; ref: string | null; icon: string }>();
-  for (const x of place.log) {
-    if (
-      x.what !== HAP.struckDead &&
-      x.what !== HAP.fell &&
-      x.what !== HAP.plague &&
-      x.what !== HAP.famine &&
-      x.what !== HAP.starved
-    )
-      continue;
-    const words = hapTold(place, x),
-      one = told.get(words);
-    if (one) one.n++;
-    else
-      told.set(words, {
-        n: 1,
-        ref: hapRef(place, x),
-        icon: x.what === HAP.fell ? "⚔️" : "🕯️",
-      });
+  // (Its dead of what struck it, of its battles, of a sickness and of want, this year and last: by the count kept beside
+  // its log, which lets go of its oldest lines.)
+  const c = place.counts;
+  for (let k = 0; k < c.length; k += 4) {
+    const what = c[k + 1]!,
+      n = c[k + 3]!;
+    if (what === HAP.died) continue;
+    const x = { t: 0, what, id: 0, a: c[k + 2]!, b: 0 },
+      when = c[k] === year ? "this year" : "last year";
+    now.push(
+      what === HAP.sick
+        ? {
+            icon: "🤒",
+            words: `${n} of the town took ${(place.ills[x.a] ?? "a sickness").split("|")[0]} when it came ${when}, and lived.`,
+            ref: hapRef(place, x),
+          }
+        : {
+            icon: what === HAP.fell ? "⚔️" : "🕯️",
+            words: `${n} of the town ${hapMany(place, what, x.a)} ${when}.`,
+            ref: hapRef(place, x),
+          },
+    );
   }
-  for (const [words, x] of told)
-    now.push({ icon: x.icon, words: `${x.n} of the town ${words}, as its log tells.`, ref: x.ref });
   if (abed > 0)
     now.push({
       icon: "🩹",
@@ -827,9 +861,13 @@ export function dangersSheet(world: World, place: Place): PlaceDangersSheet {
   // Its homeless.
   let households = 0,
     people = 0,
-    sheltered = 0;
+    sheltered = 0,
+    roofless = 0;
   for (let k = 0; k < h.n; k++) {
-    if (h.members[k]! <= 0 || h.lost[k]! < 0 || day - h.lost[k]! > 60) continue;
+    if (h.members[k]! <= 0 || h.lost[k]! < 0) continue;
+    // (Those with no roof are told of for as long as they have none.)
+    if (h.home[k]! < 0) roofless += h.members[k]!;
+    else if (day - h.lost[k]! > 60) continue;
     households++;
     people += h.members[k]!;
     if (place.bldgs.lot.indexOf(h.home[k]!) > 0) sheltered += h.members[k]!;
@@ -873,10 +911,10 @@ export function dangersSheet(world: World, place: Place): PlaceDangersSheet {
             ? `A fire on the town burns ${pctOf(most)} in a hundred fewer of its homes, and kills as many fewer.`
             : what === "quarantine"
               ? `A sickness in its land takes ${pctOf(most * share)} in a hundred fewer of its land's people (this town's part of them); here, ${pctOf(most)} in a hundred fewer take it.`
-              : `Its land keeps about ${Math.round(most * share * 30)} days more of its food against a lean year (this town's part).`,
+              : `Its land can keep about ${Math.round(most * share * 30)} days more of its food than a year's keeping lets it now (this town's part). Of use where its land wins more than it eats in its good years; a land that eats all it wins has nothing to put by.`,
         who:
           what === "firebreaks"
-            ? "All its grown turn out to a fire, not only those who live near it."
+            ? `${watchWanted(hands)} of its grown keep the watch and go to any fire in the town; those who live within a cry of it turn out as they would without.`
             : what === "quarantine"
               ? "Households with sickness in them keep from the square."
               : "Its households, each putting by from what it brings in.",
@@ -886,7 +924,7 @@ export function dangersSheet(world: World, place: Place): PlaceDangersSheet {
   return {
     now,
     hurt,
-    homeless: { households, people, sheltered },
+    homeless: { households, people, sheltered, roofless, cold: placeCold(world, place) },
     shelter: { lot: orders && orders.shelter >= 0 ? orders.shelter : null, options },
     responses,
   };
@@ -903,8 +941,9 @@ export function goneNames(world: World, place: Place): (id: number) => string | 
   };
 }
 
-/** Of a kind that is counted, how many a day tells one by one. */
-const LOG_EACH = 4;
+/** Of a kind that is counted, how many a day tells one by one; and of a death, a hurt or a home lost. */
+const LOG_EACH = 4,
+  LOG_GRAVE = 12;
 
 /**
  * What has happened in a place, day by day, the latest first, each said with who it befell and the page that tells of
@@ -932,13 +971,15 @@ export function logSheet(world: World, place: Place, most = 160): PlaceLogSheet 
       shown = new Map<number, number>(),
       more = new Map<number, number>();
     for (; k >= 0 && Math.floor(place.log[k]!.t / DAY) === d; k--) {
+      // (A kind is a happening and what it was of: the dead of one sickness, the fallen of one battle.)
       const x = place.log[k]!,
-        n = shown.get(x.what) ?? 0;
-      if (!HAP_GRAVE.has(x.what) && n >= LOG_EACH) {
-        more.set(x.what, (more.get(x.what) ?? 0) + 1);
+        of = HAP_GRAVE.has(x.what) ? x.what * 256 + (x.a & 255) : x.what * 256,
+        n = shown.get(of) ?? 0;
+      if (n >= (HAP_GRAVE.has(x.what) ? LOG_GRAVE : LOG_EACH)) {
+        more.set(of, (more.get(of) ?? 0) + 1);
         continue;
       }
-      shown.set(x.what, n + 1);
+      shown.set(of, n + 1);
       const i = index.get(x.id),
         one = i === undefined ? null : who(i);
       rows.push({
@@ -949,10 +990,10 @@ export function logSheet(world: World, place: Place, most = 160): PlaceLogSheet 
         day,
       });
     }
-    for (const [what, n] of more)
+    for (const [of, n] of more)
       rows.push({
         t: d * DAY,
-        words: `and ${n} more ${HAP_MANY[what] ?? "besides"}`,
+        words: `and ${n} more ${hapMany(place, Math.floor(of / 256), HAP_GRAVE.has(Math.floor(of / 256)) ? of % 256 : 0)}`,
         ref: null,
         day,
       });

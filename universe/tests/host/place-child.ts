@@ -5,7 +5,7 @@
 //   second <save>          load, go on the rest: the same digest and chain as `whole`
 import { readFileSync, writeFileSync } from "node:fs";
 import { gunzipSync, gzipSync } from "node:zlib";
-import { HOUR, loadWorld, saveWorld, type World } from "../../src/kernel/index.ts";
+import { DAY, HOUR, loadWorld, saveWorld, type World } from "../../src/kernel/index.ts";
 import { asksOf, populationContext } from "../../src/sim/index.ts";
 import { EARTH } from "../../src/host/index.ts";
 import { townOffers } from "../../src/host/inspect/asks.ts";
@@ -59,7 +59,17 @@ if (mode === "second") {
       "r",
     ).world,
     ref = town(w);
+  // (To four hours short of a month's turn, with a sickness loosed on its land: what the matching at the turn reads of it,
+  // its dead named and counted and its sick abed, is kept in the save with the rest.)
+  w.runTo(w.now + 29 * DAY + 20 * HOUR);
   enterPlace(w, ref);
+  try {
+    w.runTo(
+      w.submit("act.loose", { cell: populationContext(w).settlements.get(ref as never)!.cell }).t,
+    );
+  } catch {
+    // (A world that knows no sickness.)
+  }
   // (And given an order: its hands put to other trades, kept in the save with what its land has yet to be told.)
   const c = w.submit("place.work", { town: ref, shares: [300, 100, 500, 100] });
   w.runTo(c.t);

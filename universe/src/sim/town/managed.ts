@@ -313,11 +313,21 @@ function siteAsk(world: World, town: string, n: unknown): Ask | null {
   return a && a.work && a.work.at >= 0 && a.work.done === null && !a.work.left ? a : null;
 }
 
-/** The most hands a town can put to a site: what it would spare had it taken the asking up gladly (sim/town/asks.ts). */
+/**
+ * The most hands a town can put to a site: what its own answer to the asking spares (sim/town/asks.ts handsFor: all it can
+ * where it took the asking up gladly, seven in ten where it grudged it, half where it took up half). An order puts its own
+ * people to the work; it does not make a town that grudged a thing glad of it.
+ */
 export function siteMostHands(ctx: PopulationContext, a: Ask): number {
   const s = ctx.settlements.get(a.town),
     f = townsOf(ctx.world).get(a.town);
-  return handsFor(s?.population ?? 0, a.what as AskRaise, a.work?.lots ?? 0, f?.next ?? 0, "glad");
+  return handsFor(
+    s?.population ?? 0,
+    a.what as AskRaise,
+    a.work?.lots ?? 0,
+    f?.next ?? 0,
+    a.answer === "refused" ? "half" : a.answer,
+  );
 }
 
 /** Those of a managed town who died of want in a year. */

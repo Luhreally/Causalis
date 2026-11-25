@@ -132,6 +132,8 @@ export type PlaceStockRow = {
   readonly held: number;
   readonly made: number;
   readonly used: number;
+  /** What its land brought in to its stores of it today (units): the town's share of what its land wins outside it. */
+  readonly came: number;
   /** Where it lies: each building or kind of place holding any, the most first. */
   readonly where: readonly {
     readonly ref: string | null;
@@ -186,6 +188,8 @@ export type PlaceSiteRow = {
   readonly hands: number;
   readonly most: number;
   readonly busy: number;
+  /** Why no more: how its town took the asking up ("the town took the asking up gladly"). */
+  readonly spares: string;
   /** What it is built of, in a word, and the tonnes of it lying on the site and still wanted. */
   readonly stuff: string;
   readonly lying: number;
@@ -224,6 +228,9 @@ export type PlaceDangersSheet = {
     readonly households: number;
     readonly people: number;
     readonly sheltered: number;
+    /** Those of them with no roof at all: living in the square, in the weather. And how cold the air is on them now (0 … 1). */
+    readonly roofless: number;
+    readonly cold: number;
   };
   /** The building opened to those without a home (null: none), and those that could be. */
   readonly shelter: {

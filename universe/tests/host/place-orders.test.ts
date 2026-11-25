@@ -416,7 +416,8 @@ test("a walk is reckoned by the town's streets between where its plan lays its l
     assert.equal(streetLength(place, a, a), 0);
     assert.equal(d, streetLength(place, b, a));
     // (Round the blocks: never shorter than by way of the square, and no shorter than straight.)
-    assert.ok(d <= streetLength(place, a, AT.square) + streetLength(place, AT.square, b) + 1e-3);
+    // (Each length is told to a whole metre.)
+    assert.ok(d <= streetLength(place, a, AT.square) + streetLength(place, AT.square, b) + 2);
     if (d > 0) longer++;
   }
   assert.ok(longer >= 18);
@@ -458,8 +459,15 @@ test("a walk is reckoned by the town's streets between where its plan lays its l
     let far = 0;
     for (let q = 0; q + 1 < way.length; q++)
       far += Math.hypot(way[q + 1]!.x - way[q]!.x, way[q + 1]!.z - way[q]!.z);
-    assert.equal(streetLength(place, a, b), Math.round(far));
-    assert.ok(streetLength(place, a, b) >= Math.floor(straight));
+    // (Or by way of its square, where that is nearer than the way found.)
+    assert.equal(
+      streetLength(place, a, b),
+      Math.min(
+        Math.round(far),
+        streetLength(place, a, AT.square) + streetLength(place, AT.square, b),
+      ),
+    );
+    assert.ok(streetLength(place, a, b) >= Math.floor(straight) - 1);
     if (far > straight + 1) round++;
   }
   assert.ok(round > 0, "some walks go round a block");

@@ -328,11 +328,14 @@ export class PlaceHud {
       head.append(
         el("span", "place-row-name", `${r.name.charAt(0).toUpperCase()}${r.name.slice(1)}`),
         el("span", "place-stock-held", `${amount(r.held)}${r.food ? " mo" : ""}`),
-        el("span", "place-stock-day", `today +${amount(r.made)} −${amount(r.used)}`),
+        el("span", "place-stock-day", `today +${amount(r.made + r.came)} −${amount(r.used)}`),
         sell,
       );
       const where = el("div", "place-stock-where");
       if (r.stuff) where.append(el("span", "place-stuff", `${r.stuff} · `));
+      // (What its land brings in: the town's share of what is won outside it.)
+      if (r.came > 0)
+        where.append(el("span", "place-stuff", `${amount(r.came)} brought in from its land · `));
       r.where.slice(0, 4).forEach((w, k) => {
         if (k) where.append(", ");
         const words = `${w.name} ${amount(w.n)}`;
@@ -463,7 +466,7 @@ export class PlaceHud {
           more.onclick = () => give(Math.min(x.most, x.hands + 1));
           back.onclick = () => give(null);
           row.append(
-            el("span", "place-line-words", `Hands: ${x.hands} of ${x.most} at most`),
+            el("span", "place-line-words", `Hands: ${x.hands} of ${x.most} at most (${x.spares})`),
             less,
             more,
             back,
@@ -525,7 +528,7 @@ export class PlaceHud {
           "p",
           "place-line-words",
           h.households > 0
-            ? `${h.households} ${h.households === 1 ? "household" : "households"} (${h.people} people) lost ${h.households === 1 ? "its home" : "their homes"} these two months. ${h.sheltered} of them shelter in a building; the rest are taken in by others, in the homes with most room.`
+            ? `${h.households} ${h.households === 1 ? "household" : "households"} (${h.people} people) lost ${h.households === 1 ? "its home" : "their homes"} these two months. ${h.sheltered} of them shelter in a building; ${h.roofless > 0 ? `${h.roofless} have no roof and live in the square${h.cold >= 0.5 ? ", in bitter cold" : h.cold > 0 ? ", in the cold" : ", in mild air"}; ` : ""}the rest are taken in by others, where a home has room.`
             : "No household is without a home now.",
         ),
         el(
@@ -533,7 +536,7 @@ export class PlaceHud {
           "place-more",
           open
             ? `The ${open.name} is opened to those who lose their homes. They go to a home again once one has room.`
-            : "No building is opened to them: those who lose their homes go in with others. Open one:",
+            : "No building is opened to them: those who lose their homes go in with others where a home has room, and into the square where none has. Open one:",
         ),
       );
       const chips = el("div", "place-chips");

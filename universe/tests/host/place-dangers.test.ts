@@ -216,7 +216,8 @@ test("a fire watch kept by order halves what a fire takes, through the world's o
   );
   assert.ok(b.dead <= Math.ceil(a.dead / 2) + 1 && b.dead < a.dead, `${b.dead} of ${a.dead}`);
   watch(w, town, 2);
-  // The whole town turns out; those without a home are at the building opened to them.
+  // Its neighbours turn out and its watch with them, not the whole town; those without a home are at the building opened
+  // to them.
   const p = place.people,
     life = lifeOf(w);
   let out = 0,
@@ -225,7 +226,12 @@ test("a fire watch kept by order halves what a fire takes, through the world's o
     if (p.act[i] === ACT.brigade) out++;
     if ((p.sexOcc[i]! & 15) !== 0 && (place.t / DAY - p.born[i]!) / 365 >= life.adulthood) grown++;
   }
-  assert.ok(out > grown / 2, `${out} of ${grown} grown turned out`);
+  assert.ok(out > 0 && out < grown / 2, `${out} of ${grown} grown turned out`);
+  assert.ok(
+    /keep the watch and go to any fire/.test(
+      dangersSheet(w, place).responses.find((r) => r.what === "firebreaks")!.who,
+    ),
+  );
   const sheet = dangersSheet(w, place);
   assert.ok(sheet.homeless.households > 0);
   assert.equal(sheet.homeless.sheltered, sheet.homeless.people);
@@ -305,7 +311,8 @@ test("a battle's tally of a town's men names who fell and who came home wounded"
     s = ctx.settlements.get(town as never)!;
   w.runTo(151 * YEAR - 2 * DAY);
   const place = enterPlace(w, town)!;
-  watch(w, town, 4 * 24, 6);
+  // (To a day past the year's turn: its wounded lie abed two days or so.)
+  watch(w, town, 3 * 24, 6);
   assert.ok(Math.floor(place.t / YEAR) === 151);
   const fell = told(place, HAP.fell),
     wounded = told(place, HAP.wounded);
