@@ -177,7 +177,6 @@ export function weatherYear(ctx: PopulationContext, t: SimTime): void {
       causes: [{ ref: g.planet.ref as Ref, role: "trigger", weight: 1 }],
       data: {
         years: turn.to - turn.from,
-        flips: turn.flips,
         shelter: Math.round(1000 * homeField(g).shelter) / 10,
         low: Math.round(100 * homeFieldAt(g, Math.floor((turn.from + turn.to) / 2)).shelter),
       },

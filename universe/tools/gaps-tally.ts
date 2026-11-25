@@ -83,6 +83,9 @@ const doc = JSON.parse(gunzipSync(readFileSync(file)).toString("utf8")),
   from = yearOfMoment(world.now),
   events0 = world.events.count,
   ms: number[] = [];
+// (Each system's own milliseconds, by the scheduler's tally: a whole year's time moves with the world's history.)
+const work = new Map<string, number>();
+world.scheduler.tally = { clock: () => performance.now(), ms: work };
 let slips = 0,
   shipYears = 0;
 for (let y = 1; y <= years; y++) {
@@ -117,6 +120,11 @@ console.log(
   `${uni} ${doc.seed}${off ? " (rows off)" : ""}: years ${from}–${now}; a year ${(ms.reduce((a, b) => a + b, 0) / ms.length).toFixed(0)} ms mean, ${ms[ms.length >> 1]!.toFixed(0)} median; ${world.events.count - events0} events; hashes ${JSON.stringify(world.domainHashes()).length} chars, ${hashOf(JSON.stringify(world.domainHashes()))}`,
 );
 console.log(`  told: ${JSON.stringify(told)}`);
+const per = (k: string) => ((work.get(k) ?? 0) / years).toFixed(3),
+  all = [...work.values()].reduce((x, y) => x + y, 0) / years;
+console.log(
+  `  systems, ms a year: canals ${per("127.economy.canals")}, the economy's year (trade in it) ${per("125.economy.year")}, food ${per("095.population.food")}, ecology ${([...work].filter(([k]) => /ecology/.test(k)).reduce((x, [, v]) => x + v, 0) / years) | 0}, the home star's weather ${per("206.frontier.weather")}, ageing ${per("110.population.age")}, space ${([...work].filter(([k]) => /space/.test(k)).reduce((x, [, v]) => x + v, 0) / years) | 0}; all systems ${all.toFixed(0)}`,
+);
 // Pollinators.
 let lands = 0,
   need = 0,

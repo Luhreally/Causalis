@@ -14,7 +14,7 @@ import {
   type World,
 } from "../../kernel/index.ts";
 import { cellRef } from "../../gen/index.ts";
-import { CANAL, GOODS, weighCanal } from "../../rules/index.ts";
+import { CANAL, G, GOODS, weighCanal } from "../../rules/index.ts";
 import { loreOf } from "../lore/lore.ts";
 import { politiesOf } from "../polity/polity.ts";
 import { marketsOf, type PopulationContext } from "../population/systems.ts";
@@ -25,7 +25,7 @@ export const CANAL_EVENTS = {
   dug: defineEventType("economy.canal", 4),
 };
 
-/** A canal: the two lands it joins (the lesser first), the year it was dug and the event. */
+/** A canal: the two lands it joins (the lesser first), the year its digging is done (it carries from then) and the event. */
 export type Canal = {
   readonly a: number;
   readonly b: number;
@@ -48,6 +48,11 @@ export class CanalStore implements StateStore {
   }
   between(a: number, b: number): Canal | undefined {
     return this.map.get(keyOf(a, b));
+  }
+  /** Whether a canal between two lands carries in a year: its digging done. */
+  carries(a: number, b: number, year: number): boolean {
+    const c = this.map.size > 0 ? this.map.get(keyOf(a, b)) : undefined;
+    return !!c && c.year <= year;
   }
   add(c: Canal): void {
     this.map.set(keyOf(c.a, c.b), c);
@@ -120,7 +125,8 @@ export function canalsWeighed(ctx: PopulationContext): CanalReading[] {
   const realms = politiesOf(world),
     lore = loreOf(world),
     wars = warsOf(world),
-    people = new Map<Ref, number>();
+    people = new Map<Ref, number>(),
+    grain = new Map<Ref, number>();
   for (const [k, bulk] of [...passed].sort((x, y) => x[0] - y[0])) {
     const a = Math.floor(k / SPAN),
       b = k % SPAN;
@@ -140,8 +146,13 @@ export function canalsWeighed(ctx: PopulationContext): CanalReading[] {
     let folk = people.get(realm.ref);
     if (folk === undefined) {
       folk = 0;
-      for (const c of realm.members) folk += ctx.provinces.get(c)?.total() ?? 0;
+      let stored = 0;
+      for (const c of realm.members) {
+        folk += ctx.provinces.get(c)?.total() ?? 0;
+        stored += markets.get(c)?.stock[G.grain] ?? 0;
+      }
       people.set(realm.ref, folk);
+      grain.set(realm.ref, stored);
     }
     out.push({
       a,
@@ -156,6 +167,7 @@ export function canalsWeighed(ctx: PopulationContext): CanalReading[] {
         haul,
         people: folk,
         watered: !!(g.water.river[a] || g.water.river[b] || g.water.lake[a] || g.water.lake[b]),
+        grain: grain.get(realm.ref)!,
       }),
     });
   }
@@ -170,12 +182,38 @@ export function canalYear(ctx: PopulationContext, t: SimTime): void {
     store = canalsOf(world);
   if (!store) return;
   const markets = marketsOf(world),
-    realms = politiesOf(world);
+    realms = politiesOf(world),
+    spent = new Set<Ref>();
   for (const r of canalsWeighed(ctx)) {
-    const w = r.weighed;
-    if (!w.dig) continue;
+    if (!r.weighed.dig) continue;
     const { a, b } = r,
-      realm = realms.of(a)!,
+      realm = realms.of(a)!;
+    // (Its granaries as they stand now: an earlier canal of this year's has drawn on them.)
+    let stored = 0;
+    for (const c of realm.members) stored += markets.get(c)?.stock[G.grain] ?? 0;
+    const w = spent.has(realm.ref)
+      ? weighCanal({
+          km: r.km,
+          climb: r.climb,
+          haul: r.haul,
+          people: r.people,
+          watered: true,
+          grain: stored,
+        })
+      : r.weighed;
+    if (!w.dig) continue;
+    // The diggers' keep, paid out of its granaries, the fullest first.
+    let left = Math.ceil(w.cost);
+    for (const c of [...realm.members].sort(
+      (x, y) =>
+        (markets.get(y)?.stock[G.grain] ?? 0) - (markets.get(x)?.stock[G.grain] ?? 0) || x - y,
+    )) {
+      if (left <= 0) break;
+      const m = markets.get(c);
+      if (m) left -= m.take("used", G.grain, left);
+    }
+    spent.add(realm.ref);
+    const opens = year + Math.ceil(w.years),
       route = markets.route(a, b) ?? markets.route(b, a) ?? null,
       decision = world.decisions.record({
         rule: "economy.canal",
@@ -219,10 +257,12 @@ export function canalYear(ctx: PopulationContext, t: SimTime): void {
         work: Math.round(w.work),
         years: Math.ceil(w.years),
         saves: Math.round(w.saved / CANAL.horizon),
+        grain: Math.ceil(w.cost),
+        opens,
         year,
       },
     });
-    store.add({ a: Math.min(a, b), b: Math.max(a, b), year, event });
+    store.add({ a: Math.min(a, b), b: Math.max(a, b), year: opens, event });
   }
 }
 

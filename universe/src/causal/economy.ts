@@ -111,7 +111,9 @@ registerEventWords(CANAL_EVENTS.dug.type, (world, e) => {
     work = num(e.data, "work"),
     years = num(e.data, "years"),
     saves = num(e.data, "saves");
-  return `The realm of ${text(e.data, "realm") ?? "a people"} dug a canal from ${landWords(world, e.place)} to ${landWords(world, to)}: ${km ?? "?"} km of cut${climb ? ` and locks up ${count(climb)} m` : ""}, ${count(work ?? 0)} person-years over ${years ?? "some"} years, for the ${count(saves ?? 0)} in grain a year its trade saves in carrying, ${year(e.t)}`;
+  const grain = num(e.data, "grain"),
+    opens = num(e.data, "opens");
+  return `The realm of ${text(e.data, "realm") ?? "a people"} began a canal from ${landWords(world, e.place)} to ${landWords(world, to)}: ${km ?? "?"} km of cut${climb ? ` and locks up ${count(climb)} m` : ""}, ${count(work ?? 0)} person-years over ${years ?? "some"} years${grain ? `, its diggers kept on ${count(grain)} of grain from its granaries` : ""}${opens ? `, to carry from year ${opens}` : ""}, for the ${count(saves ?? 0)} in grain a year its trade saves in carrying, ${year(e.t)}`;
 });
 registerDecisionWords("economy.canal", (world, d) => {
   const o = d.outcome as { a?: number; b?: number } | null;

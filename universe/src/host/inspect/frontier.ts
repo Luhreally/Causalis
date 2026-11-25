@@ -130,7 +130,7 @@ export function homeHazardBlocks(world: World): Block[] {
             ? "never: it has no one pole to turn"
             : "it has none to turn"
           : turn
-            ? `now, from year ${turn.from} to ${turn.to}: it stands at ${Math.round(turn.weak * 100)}% of its strength${turn.flips ? ", and will come back the other way up" : ""}, and flares and bursts reach the ground`
+            ? `now, from year ${turn.from} to ${turn.to}: it stands at ${Math.round(turn.weak * 100)}% of its strength, to come back the other way up, and flares and bursts reach the ground`
             : `about once in ${count(Math.round(turns.turnYears / turns.chance / 1000) * 1000)} years, for some ${count(turns.turnYears)}: then it sinks to a tenth`,
       ),
       stat("Grids it has burned", count(ws?.storms ?? 0)),

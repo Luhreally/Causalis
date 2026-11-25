@@ -226,20 +226,19 @@ export function magnetosphereOf(i: MagnetosphereInputs): Magnetosphere {
 // —— Its field turning over ——————————————————————————————————————————————————————————————————————————
 
 /**
- * A dipole field turns over now and then: it sinks to a tenth, wanders, and comes back the same way up (an
- * excursion) or the other (a reversal). How long one takes is the time a change of field takes to soak through the
- * core, which goes as the core's size squared (Earth's: some two thousand years, as the Laschamp excursion and the
- * last reversal's weak middle were). How often goes by how hard the core is driven against how fast it turns: a
- * world turning as slowly as a dipole can bear (a local Rossby number near the limit) turns over often, and one
- * whose core has little heat left to drive it seldom (Earth's: one in some forty thousand years, most of them
- * excursions; one in ten a reversal, about its four reversals in a million years).
+ * A dipole field turns over now and then: it sinks to a tenth, wanders, and comes back the other way up (a
+ * reversal). How long one takes is the time a change of field takes to soak through the core, which goes as the
+ * core's size squared (Earth's: some four thousand years; the last, 780,000 years ago, is read in the rocks as
+ * taking between one and ten thousand). How often goes by how hard the core is driven against how fast it turns:
+ * a world turning as slowly as a dipole can bear (a local Rossby number near the limit) turns over often, and one
+ * whose core has little heat left to drive it seldom. Earth's has reversed four or five times in each of the last
+ * few million years: once in some 250,000 years, which fixes the scale.
  */
 export const REVERSAL = {
-  turnYears: 2000,
-  everyYears: 40000,
+  turnYears: 4000,
+  everyYears: 250000,
   low: 0.1,
   steep: 3,
-  flips: 0.1,
 } as const;
 
 /** How a world's field turns over: how long one takes (years) and the chance any such span holds one. */
@@ -260,12 +259,11 @@ export function turnRate(
   return { turnYears, chance: Math.min(0.5, turnYears / every) };
 }
 
-/** A field turning over: the years it spans, how weak it is now (its moment's share), and whether it comes back reversed. */
+/** A field turning over: the years it spans, and how weak it is now (its moment's share). */
 export type FieldTurn = {
   readonly from: number;
   readonly to: number;
   readonly weak: number;
-  readonly flips: boolean;
 };
 
 /** A draw in [0, 1) of a world's key and a span's number (a hash of its own: no stream is drawn on). */
@@ -292,7 +290,6 @@ export function fieldTurn(key: number, year: number, rate: TurnRate): FieldTurn 
     from,
     to: from + rate.turnYears,
     weak: 1 - (1 - REVERSAL.low) * dmath.sin(Math.PI * phase),
-    flips: turnDraw(key, span, 1) < REVERSAL.flips,
   };
 }
 

@@ -32,7 +32,7 @@ registerEventWords(WEATHER_EVENTS.flare.type, (_world, e) => {
 
 registerEventWords(WEATHER_EVENTS.turn.type, (_world, e) => {
   const d = data(e);
-  return `The world's field began to turn over: for some ${count(num(d.years))} years it sinks to a tenth and ${d.flips ? "comes back the other way up" : "comes back as it was"}; at its weakest it keeps off ${num(d.low)}% of its star's flares and the sky's bursts where it kept off ${num(d.shelter)}%, year ${yearOfMoment(e.t)}`;
+  return `The world's field began to turn over: for some ${count(num(d.years))} years it sinks to a tenth and comes back the other way up; at its weakest it keeps off ${num(d.low)}% of its star's flares and the sky's bursts where it kept off ${num(d.shelter)}%, year ${yearOfMoment(e.t)}`;
 });
 
 const CLASS_WORDS: D = {

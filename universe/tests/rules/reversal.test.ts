@@ -24,7 +24,7 @@ const EARTH: MagnetosphereInputs = {
   air: 1,
 };
 
-test("Earth's field turns over about once in forty thousand years, for some two thousand", () => {
+test("Earth's field turns over about once in 250,000 years, for some four thousand", () => {
   const r = turnRate(magnetosphereOf(EARTH), EARTH);
   assert.equal(r.turnYears, REVERSAL.turnYears);
   assert.ok(
@@ -44,7 +44,7 @@ test("a world turning nearly too slowly for one pole turns over often; no dipole
   assert.equal(turnRate(magnetosphereOf(dead), dead).chance, 0);
   // A bigger core takes longer to turn; a core with little heat left turns seldom.
   const big = { ...EARTH, mass: 3, radius: 1.35 };
-  assert.ok(turnRate(magnetosphereOf(big), big).turnYears > 3000);
+  assert.ok(turnRate(magnetosphereOf(big), big).turnYears > 6000);
   const old = { ...EARTH, ageGyr: 12 };
   assert.ok(turnRate(magnetosphereOf(old), old).chance < re.chance);
 });

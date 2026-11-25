@@ -31,7 +31,7 @@ const fl = read("first light", true);
 console.log(
   `first light: a turn of ${fl.t.rate.turnYears} years, once in ${fl.t.rate.chance > 0 ? Math.round(fl.t.rate.turnYears / fl.t.rate.chance) : "never"}; in its first 10,000 years: ${fl.first === null ? "none" : `at year ${fl.first}`}`,
 );
-for (const k of ["field", "turn", "turns"]) {
+for (const k of ["field"]) {
   const key = hashString(`${k} ${fl.g.ground}`);
   let at: number | null = null;
   for (let y = 0; y < 30000 && at === null; y += 50) if (fieldTurn(key, y, fl.t.rate)) at = y;
@@ -55,7 +55,7 @@ for (let i = from; i < from + count; i++) {
     const turn = homeTurn(r.g, r.first)!;
 
     console.log(
-      `  ${seed}: turning over in years ${turn.from}–${turn.to}${turn.flips ? " (a reversal)" : ""}; shelter ${homeField(r.g).shelter.toFixed(3)} → ${homeFieldAt(r.g, Math.floor((turn.from + turn.to) / 2)).shelter.toFixed(3)} at its middle; a flare of 5 lets ${flareThrough(5, homeField(r.g).shelter).toFixed(3)} → ${flareThrough(5, homeFieldAt(r.g, Math.floor((turn.from + turn.to) / 2)).shelter).toFixed(3)} through`,
+      `  ${seed}: turning over in years ${turn.from}–${turn.to}; shelter ${homeField(r.g).shelter.toFixed(3)} → ${homeFieldAt(r.g, Math.floor((turn.from + turn.to) / 2)).shelter.toFixed(3)} at its middle; a flare of 5 lets ${flareThrough(5, homeField(r.g).shelter).toFixed(3)} → ${flareThrough(5, homeFieldAt(r.g, Math.floor((turn.from + turn.to) / 2)).shelter).toFixed(3)} through`,
     );
   }
 }

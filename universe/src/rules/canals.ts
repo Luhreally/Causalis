@@ -4,7 +4,9 @@
 // years a realm counts on, is more than the work of digging: so many hands a kilometre of cut, more for every lock
 // the ground's rise asks, each hand fed and taken from other work for the years it digs. It needs water at one end
 // to fill it, and hands enough to dig it in the years a realm will dig for. Pure tables and functions:
-// sim/economy/canals.ts keeps which roads have one.
+// sim/economy/canals.ts keeps which roads have one. The diggers' keep (their food, and the harvest their hands are
+// missed from) is paid out of the realm's granaries when the canal is begun, and it carries from the year the
+// digging is done.
 export const CANAL = {
   /** What carrying costs along a canal against the road beside it (a river's share: sim/economy edges). */
   carries: 0.6,
@@ -20,6 +22,8 @@ export const CANAL = {
   /** The share of its people a realm can set to digging, and the most years it will dig for (est). */
   hands: 0.02,
   years: 15,
+  /** The share of the grain a realm holds in store that it will lay out on one canal (est: a quarter). */
+  spare: 0.25,
   /** A realm weighs its roads for one every so many years. */
   every: 10,
 } as const;
@@ -62,6 +66,8 @@ export function weighCanal(i: {
   readonly people: number;
   /** Whether a river or a lake at either end can fill it. */
   readonly watered: boolean;
+  /** The grain its realm holds in store (left out: enough). */
+  readonly grain?: number;
 }): CanalWeighed {
   const work = canalWork(i.km, i.climb),
     cost = work * CANAL.keep,
@@ -74,6 +80,8 @@ export function weighCanal(i: {
         ? "the trade passing would not save the work of digging"
         : years > CANAL.years
           ? "too few hands to dig it in the years a realm will dig for"
-          : null;
+          : i.grain !== undefined && cost > i.grain * CANAL.spare
+            ? "too little grain in store to keep its diggers"
+            : null;
   return { dig: why === null, work, cost, saved, years, why };
 }

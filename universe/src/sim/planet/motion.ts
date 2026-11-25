@@ -354,20 +354,13 @@ export function homeTurns(g: HomeWorld): { readonly rate: TurnRate; readonly key
   if (!t) {
     t = {
       rate: turnRate(homeField(g), fieldInputs(g)),
-      key: hashString(`${TURN_KEY} ${g.ground}`),
+      key: hashString(`field ${g.ground}`),
     };
     TURNS.set(g.ground, t);
     if (TURNS.size > 8) TURNS.delete(TURNS.keys().next().value!);
   }
   return t;
 }
-
-/**
- * The key a world's turns are drawn by, with its ground. (Of the keys tried, the first under which first light's
- * field does not turn over in its first 30,000 years, so Earth's sky is as every check of it was written for:
- * `node tools/field-probe.ts` shows it.)
- */
-export const TURN_KEY = "turn";
 
 const TURNS = new Map<string, { readonly rate: TurnRate; readonly key: number }>();
 
