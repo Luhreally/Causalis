@@ -231,17 +231,22 @@ test("a place is kept in the save and goes on from it as it would have", () => {
 test("a saved place goes on the same in another process", () => {
   const dir = mkdtempSync(join(tmpdir(), "place-")),
     child = fileURLToPath(new URL("./place-child.ts", import.meta.url)),
-    run = (...args: string[]) =>
+    lines = (...args: string[]) =>
       execFileSync(process.execPath, [child, ...args], { encoding: "utf8" })
         .trim()
-        .split("\n")
-        .at(-1)!;
+        .split("\n"),
+    run = (...args: string[]) => lines(...args).at(-1)!;
   try {
     const save = join(dir, "w.save"),
       whole = run("whole", String(YEARS)),
-      first = run("first", String(YEARS), save),
+      told = lines("first", String(YEARS), save),
+      first = told.at(-1)!,
       second = run("second", save);
     assert.ok(/^[0-9a-f]+ [0-9a-f]+$/.test(whole), whole);
+    // (The save holds lives still waiting to be lived, a burial or a pairing or the month's comings and goings: the
+    // second process lives them as the first would have, its digest, which reads the waiting list, the same.)
+    const due = told.find((l) => l.startsWith("due "))?.split(" ");
+    assert.ok(due && Number(due[1]) > 0, `something waits in the save: ${due?.join(" ")}`);
     assert.notEqual(first, whole, "the first half is not yet the whole");
     assert.equal(second, whole);
   } finally {

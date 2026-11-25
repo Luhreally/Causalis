@@ -32,9 +32,11 @@ import {
   CAUSE,
   HAP,
   armsWanted,
+  PLACE_TICK,
   enterPlace,
-  placeSettled,
   placeDigest,
+  placeDue,
+  placeIndexOf,
   placesOf,
   targetTable,
   type Place,
@@ -43,6 +45,35 @@ import { dangersSheet, logSheet, placeFrame, placeNotices } from "../../src/host
 import { universeWorld } from "./worlds.ts";
 
 const base = (): World => universeWorld(EARTH, "first light", 150);
+
+/**
+ * A place against its town's count, what it has lived and what waits told apart: nothing waits that its clock has passed;
+ * a death or a leaving that waits is of one living still, or of one another death took first (passed over when its day
+ * comes); and its people now, those waiting to be born or to come added and those waiting to die or leave taken off,
+ * are the count.
+ */
+function livedAgainst(
+  place: Place,
+  count: number,
+  what = "",
+): { lived: number; coming: number; going: number } {
+  const due = placeDue(place);
+  for (const d of due)
+    assert.ok(
+      d.t > place.t - PLACE_TICK,
+      `${what}: ${d.what} due at ${d.t}, its clock at ${place.t}`,
+    );
+  const coming = due.filter((d) => d.what === "born" || d.what === "come").length,
+    going = due.filter(
+      (d) => (d.what === "die" || d.what === "leave") && placeIndexOf(place, d.a) >= 0,
+    ).length;
+  assert.equal(
+    place.people.n,
+    count - coming + going,
+    `${what}: ${place.people.n} lived, ${coming} waiting to come and ${going} to go, of a count of ${count}`,
+  );
+  return { lived: place.people.n, coming, going };
+}
 const copy = (w: World): World => {
   const doc = JSON.parse(JSON.stringify(saveWorld(w, "r", { universe: "earth" })));
   return loadWorld(doc, (s) => EARTH.build(s), "r").world;
@@ -181,14 +212,11 @@ test("a fire is seen on its people: who lost a home, who was hurt, who died, by 
   let came = 0;
   for (let m = 0; m < 12; m++) {
     watch(w, town, 30 * 24, 12);
-    const target = targetTable(w, s, place);
-    assert.equal(
-      placeSettled(place),
-      target.reduce((a, b) => a + b, 0),
-    );
+    const count = targetTable(w, s, place).reduce((a, b) => a + b, 0);
+    livedAgainst(place, count, `month ${m}`);
     if (Math.floor(w.now / YEAR) === 150) {
-      // (With what a month's turn brought and waits to be lived counted as lived.)
-      assert.equal(placeSettled(place), before - cost.dead, `month ${m}`);
+      // (To the year's end its town's count is what it was less the fire's dead, who are lived: gone from its people.)
+      assert.equal(count, before - cost.dead, `month ${m}`);
       came = place.log.filter((x) => x.what === HAP.came || x.what === HAP.born).length;
     }
   }
@@ -321,10 +349,14 @@ test("a battle's tally of a town's men names who fell and who came home wounded"
   assert.ok(fell > 0 && fell <= pick!.fell, `${fell} told fallen of ${pick!.fell}`);
   assert.equal(wounded, pick!.hurt);
   assert.equal(place.tolls.length, 0);
-  assert.equal(
-    placeSettled(place),
+  livedAgainst(
+    place,
     targetTable(w, s, place).reduce((a, b) => a + b, 0),
+    "after the battle",
   );
+  // (The fallen are lived: none of them is of its people now, nor waits to die.)
+  for (const x of place.log)
+    if (x.what === HAP.fell) assert.ok(placeIndexOf(place, x.id) < 0, "one fallen is gone");
   // Its log tells them by name, each a line of its own. (The year's comings and goings are lived on days of their own now.)
   const rows = logSheet(w, place).rows;
   assert.equal(rows.filter((r) => / fell in the battle at /.test(r.words)).length, fell);
@@ -333,6 +365,19 @@ test("a battle's tally of a town's men names who fell and who came home wounded"
     wounded,
   );
   assert.ok(rows.every((r) => r.day.length > 0));
+  // A day of many of one kind is told a few lines and then counted: seven of its people coming to it on a day of its
+  // own, after the rest of its log. (The year's comings now come on days of their own, so none of its real days has so
+  // many: the sheet is read over the log with that day put on its end.)
+  const day = (Math.floor(place.t / DAY) + 1) * DAY,
+    many = { ...place, t: day + HOUR, log: [...place.log] };
+  for (let k = 0; k < 7; k++)
+    many.log.push({ t: day + 60 * k, what: HAP.came, id: place.people.id[k]!, a: 0, b: 0 });
+  const that = logSheet(w, many).rows.filter((r) => r.day === "Today");
+  assert.equal(that.filter((r) => r.ref !== null && / came to the town$/.test(r.words)).length, 4);
+  assert.ok(
+    that.some((r) => r.ref === null && /^and 3 more came to the town$/.test(r.words)),
+    JSON.stringify(that),
+  );
   const sheet = dangersSheet(w, place);
   assert.ok(sheet.now.some((x) => /fell in the battle at /.test(x.words) && x.ref));
   assert.ok(sheet.hurt.some((x) => /Wounded in battle/.test(x.words)));
@@ -369,10 +414,14 @@ test("a lean year is told on those it takes: the long in want starve, by the wor
   assert.ok((place.matched.fed ?? 1000) < 800, `fed ${place.matched.fed}`);
   const starved = told(place, HAP.famine);
   assert.ok(starved > 0, "those long in want are told as starved");
-  assert.equal(
-    placeSettled(place),
+  livedAgainst(
+    place,
     targetTable(w, s, place).reduce((a, b) => a + b, 0),
+    "in the lean year",
   );
+  // (Those who starved are lived: gone from its people, none of them waiting to die.)
+  for (const x of place.log)
+    if (x.what === HAP.famine) assert.ok(placeIndexOf(place, x.id) < 0, "one starved is gone");
   const sheet = dangersSheet(w, place);
   assert.ok(sheet.now.some((x) => /a lean year/.test(x.words)));
   assert.ok(sheet.now.some((x) => new RegExp(`^${starved} of the town starved`).test(x.words)));
