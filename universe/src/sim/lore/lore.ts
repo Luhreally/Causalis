@@ -176,8 +176,19 @@ export class LoreStore implements StateStore {
   private digest = "";
   private count = 0;
 
+  /**
+   * The land last asked of and what it knows (NaN: none): a land is asked of many principles in turn, hundreds of thousands
+   * of asks a year. Let go wherever a land's map is made, replaced or let go.
+   */
+  private lastCell = NaN;
+  private lastKnown: Map<string, Known> | undefined = undefined;
+
   get(cell: number, id: string): Known | undefined {
-    return this.known.get(cell)?.get(id);
+    if (cell !== this.lastCell) {
+      this.lastKnown = this.known.get(cell);
+      this.lastCell = cell;
+    }
+    return this.lastKnown?.get(id);
   }
 
   /** What a land knows, in the order it came to know it (roots excluded). */
@@ -242,7 +253,10 @@ export class LoreStore implements StateStore {
   }
   learn(cell: number, id: string, k: Known, p: Principle): void {
     let m = this.known.get(cell);
-    if (!m) this.known.set(cell, (m = new Map()));
+    if (!m) {
+      this.known.set(cell, (m = new Map()));
+      this.lastCell = NaN;
+    }
     if (!m.has(id)) this.lands.set(id, (this.lands.get(id) ?? 0) + 1);
     m.set(id, k);
     this.digest = new Hasher().string(this.digest).int(cell).string(id).value(k).hex();
@@ -250,6 +264,7 @@ export class LoreStore implements StateStore {
     const t = this.totals.get(cell) ?? new Float64Array(EFFECTS.length);
     EFFECTS.forEach((e, i) => (t[i] = t[i]! + (p.effects[e] ?? 0)));
     this.totals.set(cell, t);
+    this.lastTotalsCell = NaN;
   }
 
   /**
@@ -259,12 +274,14 @@ export class LoreStore implements StateStore {
   forget(cell: number, id: string): void {
     const m = this.known.get(cell);
     if (!m?.delete(id)) return;
+    this.lastCell = NaN;
     this.lands.set(id, (this.lands.get(id) ?? 1) - 1);
     this.digest = new Hasher().string(this.digest).int(cell).string("-").string(id).hex();
     this.count++;
     if (!m.size) {
       this.known.delete(cell);
       this.totals.delete(cell);
+      this.lastTotalsCell = NaN;
       return;
     }
     // (A new map for what it knows now: a reading keeps what it derives by the map and its size (knownOf), and a land that
@@ -276,6 +293,7 @@ export class LoreStore implements StateStore {
       EFFECTS.forEach((e, i) => (t[i] = t[i]! + (p.effects[e] ?? 0)));
     }
     this.totals.set(cell, t);
+    this.lastTotalsCell = NaN;
   }
 
   /** How many principles a land knows. */
@@ -297,8 +315,15 @@ export class LoreStore implements StateStore {
 
   /** A land's total of an effect. */
   effect(cell: number, e: Effect): number {
-    return this.totals.get(cell)?.[EFFECT_INDEX.get(e)!] ?? 0;
+    if (cell !== this.lastTotalsCell) {
+      this.lastTotals = this.totals.get(cell);
+      this.lastTotalsCell = cell;
+    }
+    return this.lastTotals?.[EFFECT_INDEX.get(e)!] ?? 0;
   }
+  /** The land last asked of its totals, and them (NaN: none), as `get` keeps its map: let go wherever its totals are set. */
+  private lastTotalsCell = NaN;
+  private lastTotals: Float64Array | undefined = undefined;
 
   pinned(): Ref[] {
     const refs: Ref[] = [];
@@ -346,7 +371,9 @@ export class LoreStore implements StateStore {
 
   load(state: unknown): void {
     this.known.clear();
+    this.lastCell = NaN;
     this.totals.clear();
+    this.lastTotalsCell = NaN;
     this.lands.clear();
     this.opens.clear();
     this.read.clear();
@@ -361,6 +388,7 @@ export class LoreStore implements StateStore {
       for (const [id, k] of list) this.learn(cell, id, k, byId.get(id)!);
     for (const [cell, ...xs] of s.summed ?? [])
       if (this.totals.has(cell!)) this.totals.set(cell!, Float64Array.from(xs));
+    this.lastTotalsCell = NaN;
     // The fold goes on from where it stood (the order it was learned in, not the save's).
     if (s.digest !== undefined) {
       this.digest = s.digest;
