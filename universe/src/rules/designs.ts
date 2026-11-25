@@ -1059,8 +1059,12 @@ export function hasMachineHost(parts: readonly { readonly id: string }[]): boole
 /** The value of a performance under a doctrine (cost counts against). */
 export function worth(does: Performance, doctrine: Doctrine): number {
   let v = 0;
-  for (const [axis, x] of Object.entries(does) as [Axis, number][])
-    v += (axis === "cost" ? -1 : 1) * (doctrine[axis] ?? 0) * x;
+  // (Its axes in the order they were set, as Object.entries gives them, without the list of pairs: weighed for every material
+  // of every realization of every role, each design made.)
+  for (const axis in does) {
+    const x = does[axis as Axis]!;
+    v += (axis === "cost" ? -1 : 1) * (doctrine[axis as Axis] ?? 0) * x;
+  }
   return v;
 }
 
@@ -1129,14 +1133,14 @@ export function performanceOf(
   props?: (p: Part) => MaterialProps | undefined,
 ): Record<string, number> {
   const out: Record<string, number> = {};
-  for (const p of parts)
-    for (const [axis, x] of Object.entries(
-      realization(p.id).does(
-        p.material,
-        props?.(p) ?? (p.here ? { ...MATERIAL[p.material], ...p.here } : undefined),
-      ),
-    ))
-      out[axis] = (out[axis] ?? 0) + x;
+  for (const p of parts) {
+    const does = realization(p.id).does(
+      p.material,
+      props?.(p) ?? (p.here ? { ...MATERIAL[p.material], ...p.here } : undefined),
+    );
+    // (In the order Object.entries gives them, without the list of pairs.)
+    for (const axis in does) out[axis] = (out[axis] ?? 0) + does[axis as Axis]!;
+  }
   return out;
 }
 
