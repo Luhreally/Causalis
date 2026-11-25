@@ -3349,10 +3349,7 @@ export function workWorth(
   const mark = p.mark[i]!,
     stiff = mark >> 4 === 2 && (mark & 15) - 1 >= 2 && (mark & 15) - 1 <= 5,
     hurt = (p.health[i] === 3 ? BOUND_WORTH : 1) * (stiff ? STIFF_WORTH : 1);
-  return Math.max(
-    0.05,
-    Math.min(0.9, (0.45 + earns + own) * (1 + p.mood[i]! / 400) * hurt),
-  );
+  return Math.max(0.05, Math.min(0.9, (0.45 + earns + own) * (1 + p.mood[i]! / 400) * hurt));
 }
 /** What each trade's work is worth by what it earns against the mean of its land's trades (workWorth's part of it, a trade each). */
 function tradeWorth(place: Place, mean: number): number[] {
