@@ -64,12 +64,26 @@ export class RowStore implements StateStore {
     this.name = name;
     this.width = width;
   }
+  /**
+   * The key last asked for and its row (null: none): a row is asked for several of its numbers in turn. Let go at every row
+   * set or dropped, and on loading.
+   */
+  private lastKey: string | number | null = null;
+  private lastRow: number[] | undefined = undefined;
   get(key: string | number): readonly number[] | undefined {
-    return typeof key === "number" ? this.byNumber.get(key) : this.rows.get(key);
+    if (key !== this.lastKey) {
+      this.lastRow = typeof key === "number" ? this.byNumber.get(key) : this.rows.get(key);
+      this.lastKey = key;
+    }
+    return this.lastRow;
   }
   /** One number of a row (0 where it is not kept). */
   at(key: string | number, i: number): number {
-    return (typeof key === "number" ? this.byNumber.get(key) : this.rows.get(key))?.[i] ?? 0;
+    if (key !== this.lastKey) {
+      this.lastRow = typeof key === "number" ? this.byNumber.get(key) : this.rows.get(key);
+      this.lastKey = key;
+    }
+    return this.lastRow?.[i] ?? 0;
   }
   private keep(k: string, r: number[]): void {
     this.rows.set(k, r);
@@ -79,6 +93,7 @@ export class RowStore implements StateStore {
     if (String(n) === k) this.byNumber.set(n, r);
   }
   set(key: string | number, row: readonly number[]): void {
+    this.lastKey = null;
     const r = new Array<number>(this.width);
     for (let i = 0; i < this.width; i++) {
       const x = row[i] ?? 0;
@@ -98,6 +113,7 @@ export class RowStore implements StateStore {
     this.sets++;
   }
   drop(key: string | number): void {
+    this.lastKey = null;
     if (typeof key === "number" && !this.byNumber.has(key)) return;
     const k = String(key);
     if (this.rows.delete(k)) this.byNumber.delete(Number(k));
@@ -124,6 +140,7 @@ export class RowStore implements StateStore {
   load(state: unknown): void {
     this.rows.clear();
     this.byNumber.clear();
+    this.lastKey = null;
     const s = state as {
       rows?: (string | number)[][];
       digest?: [number, number];
