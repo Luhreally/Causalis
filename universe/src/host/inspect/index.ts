@@ -2,6 +2,7 @@
 // ref, and the few names that are not refs (a far star, another star's world, one under
 // the god's hand) — to its page, and its place for "go to it". Pure reads of the world as
 // it stands (the observer ledger aside, which history never reads): asking never moves it.
+import { placeLotPage, placePersonPage } from "./place.ts";
 import { holdPage } from "./strongholds.ts";
 import { notablePage } from "./notables.ts";
 import { toldPage } from "./told.ts";
@@ -186,6 +187,9 @@ function build(
   if (ref.startsWith("walls:")) return wallsPage(world, ref);
   // A town's stronghold or seat (asked 2026-11-21).
   if (ref.startsWith("hold:")) return holdPage(world, ref);
+  // A town kept in detail (town mode): one of its people, one of its lots.
+  if (ref.startsWith("plc:")) return placePersonPage(world, ref);
+  if (ref.startsWith("plcl:")) return placeLotPage(world, ref);
   // A band's camp on its land (Phase 28 M159).
   if (ref.startsWith("camp:")) return campPage(world, ref);
   // A land's creatures, and a beast people know (Z1).

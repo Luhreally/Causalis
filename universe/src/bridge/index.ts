@@ -596,3 +596,11 @@ export {
   nearLine,
 } from "./districts.ts";
 export type { District } from "./districts.ts";
+export {
+  PLACE_ACT,
+  PLACE_AT,
+  placeLotRef,
+  placePersonRef,
+  placedId,
+  type PlaceFrame,
+} from "./place.ts";
