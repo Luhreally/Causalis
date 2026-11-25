@@ -4,10 +4,19 @@
 // where they are made to the market; and every building's page says what it holds.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { DAY, HOUR, MONTH, loadWorld, saveWorld, type World } from "../../src/kernel/index.ts";
+import {
+  DAY,
+  HOUR,
+  MONTH,
+  YEAR,
+  loadWorld,
+  saveWorld,
+  type World,
+} from "../../src/kernel/index.ts";
 import { GOODS, OCC, OCCUPATIONS } from "../../src/rules/index.ts";
 import {
   MANAGED_TRADES,
+  healthOf,
   lifeOf,
   managedOf,
   populationContext,
@@ -19,7 +28,12 @@ import {
   ACT,
   AT,
   HAP,
+  MOOD,
+  MOOD_UNHEEDING,
+  PERSON_BYTES,
   PLACES_MOST,
+  hazardOf,
+  workWorth,
   advancePlace,
   enterPlace,
   placeDigest,
@@ -32,6 +46,7 @@ import {
   type Place,
 } from "../../src/host/place.ts";
 import {
+  logSheet,
   peopleSheet,
   placeFrame,
   placePlan,
@@ -455,4 +470,169 @@ test("a realm's key figure living in the town is one of the place's people, with
   );
   // The same one, however often the plan is read.
   assert.equal(placePlan(w, plan, place, 480).placed![at], id);
+});
+
+test("one put to a trade by name stays at it; let be, they are their own again", () => {
+  const w = copy(base()),
+    s = near(w, 400),
+    place = enterPlace(w, s.ref)!,
+    p = place.people,
+    grown = lifeOf(w).adulthood,
+    i0 = [...Array(p.n).keys()].find(
+      (k) => (p.sexOcc[k]! & 15) === OCC.farmer && (place.t / DAY - p.born[k]!) / 365 > grown + 2,
+    )!,
+    id = p.id[i0]!,
+    at = () => [...p.id.subarray(0, p.n)].indexOf(id);
+  assert.throws(() =>
+    w.submit("place.assign", { town: s.ref, person: id, trade: OCC.leader, post: null }),
+  );
+  assert.throws(() =>
+    w.submit("place.assign", { town: s.ref, person: 0, trade: null, post: null }),
+  );
+  order(w, "place.assign", { town: s.ref, person: id, trade: OCC.crafter, post: null });
+  enterPlace(w, s.ref);
+  assert.equal(p.sexOcc[at()]! & 15, OCC.crafter);
+  assert.equal(p.bound[at()], OCC.crafter + 1);
+  assert.equal(place.moves.length, 4);
+  assert.ok(place.log.some((x) => x.what === HAP.assigned && x.id === id));
+  // An order by share for every hand to the fields leaves them at their craft.
+  order(w, "place.work", { town: s.ref, shares: [1000, 0, 0, 0] });
+  w.runTo(w.now + HOUR);
+  enterPlace(w, s.ref);
+  assert.equal(p.sexOcc[at()]! & 15, OCC.crafter);
+  settle(w, s.ref);
+  w.runTo(w.now + MONTH + DAY);
+  enterPlace(w, s.ref);
+  assert.equal(p.sexOcc[at()]! & 15, OCC.crafter, "through its land's own reckoning too");
+  const page = JSON.stringify(pageOf(w, placeWho(w, place)(at()).ref));
+  assert.ok(page.includes("By your order"), "their page says so");
+  assert.ok(peopleSheet(w, place, OCC.crafter, 500).rows.find((r) => r.id === id)?.bound);
+  order(w, "place.assign", { town: s.ref, person: id, trade: null, post: null });
+  enterPlace(w, s.ref);
+  assert.equal(p.bound[at()], 0);
+});
+
+test("a building's work stopped sends its workers home; a household given a home moves to it", () => {
+  const w = copy(base()),
+    s = near(w, 2500),
+    place = enterPlace(w, s.ref)!,
+    p = place.people,
+    sheet = workSheet(w, place),
+    b = [...sheet.buildings].sort((x, y) => y.working - x.working)[0]!;
+  assert.ok(b.working > 0, "a building where work is done");
+  order(w, "place.shut", { town: s.ref, lot: b.lot, on: true });
+  for (let h = 0; h < 30; h++) {
+    w.runTo(w.now + HOUR);
+    advancePlace(w, place);
+    for (let i = 0; i < p.n; i++)
+      if (p.work[i] === b.lot) assert.notEqual(p.act[i], ACT.work, "no one works there");
+  }
+  assert.ok(workSheet(w, place).buildings.find((x) => x.lot === b.lot)?.shut);
+  assert.ok(JSON.stringify(pageOf(w, placeLotRef(s.ref, b.lot))).includes("stopped by your order"));
+  order(w, "place.shut", { town: s.ref, lot: b.lot, on: false });
+  let worked = false;
+  for (let h = 0; h < 30 && !worked; h++) {
+    w.runTo(w.now + HOUR);
+    advancePlace(w, place);
+    for (let i = 0; i < p.n; i++) if (p.work[i] === b.lot && p.act[i] === ACT.work) worked = true;
+  }
+  assert.ok(worked, "let go on, they work there again");
+  // A household given another home that stands.
+  const house = p.house[0]!,
+    old = place.houses.home[house]!,
+    lot = place.houses.home.find((x) => x >= 0 && x !== old)!;
+  assert.throws(() => w.submit("place.house", { town: s.ref, house: -1, lot }));
+  order(w, "place.house", { town: s.ref, house: place.houses.key[house]!, lot });
+  enterPlace(w, s.ref);
+  assert.equal(place.houses.home[house], lot);
+  assert.ok(place.log.some((x) => x.what === HAP.moved));
+  w.runTo(w.now + 2 * DAY);
+  enterPlace(w, s.ref);
+  let glad = 0;
+  for (let i = 0; i < p.n; i++) if (p.house[i] === house && p.moodWhy[i]! & MOOD.home) glad++;
+  assert.ok(glad > 0, "a new home lifts their mood");
+});
+
+test("mood follows needs met and what befell the household, moves work's worth, and too low heeds no order", () => {
+  const w = copy(base()),
+    s = near(w, 400),
+    place = enterPlace(w, s.ref)!,
+    p = place.people,
+    mean = () => {
+      let sum = 0;
+      for (let i = 0; i < p.n; i++) sum += p.mood[i]!;
+      return sum / p.n;
+    };
+  for (let d = 0; d < 6; d += 2) {
+    w.runTo(w.now + 2 * DAY);
+    enterPlace(w, s.ref);
+  }
+  const fed = mean();
+  assert.ok(fed > 0, `fed and housed, their mood is up (${fed.toFixed(1)})`);
+  // Worth follows mood: the same one, glad and low.
+  const i = [...Array(p.n).keys()].find((k) => (p.sexOcc[k]! & 15) === OCC.farmer)!,
+    was = p.mood[i]!;
+  p.mood[i] = 80;
+  const glad = workWorth(w, place, i);
+  p.mood[i] = -80;
+  assert.ok(workWorth(w, place, i) < glad);
+  p.mood[i] = was;
+  order(w, "place.hold", { town: s.ref, months: 24 });
+  order(w, "place.work", { town: s.ref, shares: [0, 0, 500, 500] });
+  for (let d = 0; d < 80; d += 2) {
+    w.runTo(w.now + 2 * DAY);
+    enterPlace(w, s.ref);
+  }
+  assert.ok(mean() < fed - 20, `in want, it falls (${mean().toFixed(1)} from ${fed.toFixed(1)})`);
+  const low = [...Array(p.n).keys()].filter((k) => p.mood[k]! < MOOD_UNHEEDING);
+  assert.ok(low.length > 0, "some are too low to heed an order");
+  const page = JSON.stringify(pageOf(w, placeWho(w, place)(low[0]!).ref));
+  assert.ok(page.includes("Mood") && page.includes("days gone hungry"), "their page says why");
+  assert.ok(workSheet(w, place).unheeding >= low.length);
+  // An order to change work is not heeded by them, and that is told.
+  order(w, "place.work", { town: s.ref, shares: [900, 0, 50, 50] });
+  w.runTo(w.now + HOUR);
+  enterPlace(w, s.ref);
+  assert.ok(place.log.some((x) => x.what === HAP.unheeded));
+  const log = logSheet(w, place);
+  assert.ok(log.rows.length > 0 && log.rows.every((r) => r.words.length > 0 && r.ref));
+  assert.ok(log.rows[0]!.t >= log.rows.at(-1)!.t, "the latest first");
+});
+
+test("work harms some by their trade's own wear; the hurt lie abed at home and are well again", () => {
+  const w = copy(base()),
+    s = near(w, 2500),
+    place = enterPlace(w, s.ref)!,
+    p = place.people;
+  assert.equal(hazardOf(place, OCC.leader, 0), 0);
+  assert.ok(hazardOf(place, OCC.farmer, 0) > 0 && hazardOf(place, OCC.farmer, 0) < 0.2);
+  let hurt = 0,
+    well = 0,
+    abedAtHome = 0;
+  for (let d = 0; d < 150 && (hurt < 2 || well < 1); d++) {
+    w.runTo(w.now + DAY);
+    enterPlace(w, s.ref);
+    hurt += place.log.filter((x) => x.what === HAP.hurt && x.t > place.t - DAY).length;
+    well += place.log.filter((x) => x.what === HAP.well && x.t > place.t - DAY).length;
+    for (let i = 0; i < p.n; i++)
+      if (p.ill[i]! > 0 && !p.eta[i] && p.act[i] === ACT.abed) {
+        assert.equal(p.at[i], place.houses.home[p.house[i]!]);
+        abedAtHome++;
+        if (abedAtHome === 1) {
+          const page = JSON.stringify(pageOf(w, placeWho(w, place)(i).ref));
+          assert.ok(
+            page.includes("Hurt at their work") || page.includes("Sick of"),
+            "their page says what ails them",
+          );
+        }
+      }
+  }
+  assert.ok(hurt >= 2, `some were hurt at their work (${hurt})`);
+  assert.ok(well >= 1, "and were well again");
+  assert.ok(abedAtHome > 0);
+  assert.ok(PERSON_BYTES <= 100, `${PERSON_BYTES} bytes a person`);
+  // Where its land's own reckoning has no sickness come this year or last, no one of the place is sick.
+  const sick = [...Array(p.n).keys()].filter((i) => p.health[i] === 2).length,
+    last = healthOf(w)?.land(s.cell)?.last;
+  if (!last || Math.floor(w.now / YEAR) - last.year > 1) assert.equal(sick, 0);
 });

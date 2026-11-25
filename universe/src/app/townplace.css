@@ -198,6 +198,29 @@ body.placing #hud > *:not(.place-hud):not(.page-window):not(.panel.page-panel) {
 .place-need.high {
   background: linear-gradient(90deg, #c2452d var(--full, 0%), rgba(0, 0, 0, 0.25) var(--full, 0%));
 }
+.place-person {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px;
+}
+.place-person-orders {
+  grid-column: 1 / span 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-bottom: 4px;
+}
+.place-hud .place-log-row {
+  grid-template-columns: 1fr;
+  grid-template-rows: auto auto;
+}
+.place-log-words {
+  grid-column: 1;
+  grid-row: 2;
+}
+.place-log-row .place-row-what {
+  grid-row: 1;
+}
 .place-line {
   display: flex;
   align-items: center;

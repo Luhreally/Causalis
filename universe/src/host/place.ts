@@ -26,6 +26,16 @@
 // the land's own reckoning of its trades: the made and the used are counted once, there, not here as well. A managed
 // town's table is its land's shared as if it had moved no one, with those it moved laid over it (targetTable).
 //
+// What each of its people carries besides (third slice). Health: hurt at their work by their trade's own wear (hazardOf),
+// or sick of the sickness its land's own reckoning has come this year or last (sim/health), abed at home by the days a
+// wound takes with who tends it (rules/healing.ts); who dies of a sickness is the world's to say, and at a matching the
+// sick are the first to go, so nothing is counted twice. A mood, from needs met over the days gone and what befell their
+// household, with its causes kept; it moves what their work is worth, and too low it heeds no order to change work. A
+// friend made in company. Orders by name (a trade, a building), a building's work stopped, a household given a home.
+// Not built: a raised building worked in the place by hauled materials and stages (it is still the god game's asking,
+// worked by the world's month); fire, quake, raid, siege and famine shown befalling its individuals (a plague shows
+// through the sickness above; the rest are seen only as the town view already draws them).
+//
 // Stated limits. An unmanaged town's table is its land's shared by head-count (the world keeps none per town). Only the
 // holders of its roster's lines are the god game's named people here (linkRoster); a realm's key figures stand before
 // their doors as the town view has them, without needs. Its clock is the town view's standard day and year, not the
@@ -58,12 +68,16 @@ import {
   FOODS,
   G,
   GOODS,
+  HEAL_DAYS,
+  HEAL_TENDED,
   HOLDS,
   OCC,
   OCCUPATIONS,
   RECIPES,
   SEXES,
+  WANTS,
   bandOf,
+  tendedBy,
   coatOf,
   dayOf,
   nightFall,
@@ -81,6 +95,7 @@ import {
   managedDead,
   managedOf,
   MANAGED_TRADES,
+  healthOf,
   marketsOf,
   moneyStore,
   populationContext,
@@ -139,6 +154,7 @@ export const ACT_WORDS = [
   "among others",
   "waiting",
   "fetching goods",
+  "abed",
 ] as const;
 
 /** Why: the force that decided it. */
@@ -157,6 +173,8 @@ export const WHY = {
   asleep: 11,
   dark: 12,
   haul: 13,
+  shut: 14,
+  abed: 15,
 } as const;
 
 /** What happened to someone, as a place's log tells it. */
@@ -168,6 +186,13 @@ export const HAP = {
   trade: 4,
   starved: 5,
   ordered: 6,
+  sick: 7,
+  hurt: 8,
+  well: 9,
+  assigned: 10,
+  moved: 11,
+  unheeded: 12,
+  bare: 13,
 } as const;
 const HAP_WORDS = [
   "was born",
@@ -177,6 +202,13 @@ const HAP_WORDS = [
   "took up other work",
   "died of want",
   "was put to other work by the town's orders",
+  "fell sick",
+  "was hurt at their work",
+  "is well again",
+  "was put to work by name, by your order",
+  "moved with their household to a home given them by your order",
+  "would not heed an order to change their work: their mood is too low",
+  "found the pantry bare",
 ];
 
 /** The place's draws: through the world's Rng, on a stream no registry holds (it is no part of the ruleset's identity). */
@@ -199,6 +231,9 @@ const P = {
   dying: 11,
   order: 12,
   sick: 13,
+  mood: 14,
+  ail: 15,
+  hurt: 16,
 } as const;
 
 const NEEDS = 4;
@@ -256,10 +291,45 @@ type People = {
   lineN: Uint16Array;
   /** Ticks a need of theirs has stood full, less the ticks none has since: how long they have gone in want. */
   lack: Uint16Array;
+  /** How they are (0 well, 1 hurt, 2 sick), the ticks they have yet to lie abed, and what of (CAUSE; 16 + a sickness's place in the place's names of them). */
+  health: Uint8Array;
+  ill: Uint16Array;
+  cause: Uint8Array;
+  /** Their mood, -100 … 100, and what moves it (MOOD's bits). */
+  mood: Int8Array;
+  moodWhy: Uint8Array;
+  /** The trade an order by name holds them to (+ 1; 255: a building only; 0: none). */
+  bound: Uint8Array;
+  /** A friend made in company (their number; 0: none yet). */
+  friend: Uint32Array;
 };
 /** Bytes a person takes in a place's columns. */
 export const PERSON_BYTES =
-  4 + 4 + 1 + 1 + 2 + 4 + 2 * NEEDS + 1 + 1 + 4 + 4 + 2 + 2 + 1 + 4 + 4 + 2 + 2;
+  4 +
+  4 +
+  1 +
+  1 +
+  2 +
+  4 +
+  2 * NEEDS +
+  1 +
+  1 +
+  4 +
+  4 +
+  2 +
+  2 +
+  1 +
+  4 +
+  4 +
+  2 +
+  2 +
+  1 +
+  2 +
+  1 +
+  1 +
+  1 +
+  1 +
+  4;
 
 function peopleOf(cap: number): People {
   return {
@@ -282,6 +352,13 @@ function peopleOf(cap: number): People {
     line: new Uint32Array(cap),
     lineN: new Uint16Array(cap),
     lack: new Uint16Array(cap),
+    health: new Uint8Array(cap),
+    ill: new Uint16Array(cap),
+    cause: new Uint8Array(cap),
+    mood: new Int8Array(cap),
+    moodWhy: new Uint8Array(cap),
+    bound: new Uint8Array(cap),
+    friend: new Uint32Array(cap),
   };
 }
 const PEOPLE_COLS = [
@@ -303,6 +380,13 @@ const PEOPLE_COLS = [
   "line",
   "lineN",
   "lack",
+  "health",
+  "ill",
+  "cause",
+  "mood",
+  "moodWhy",
+  "bound",
+  "friend",
 ] as const;
 type Col = (typeof PEOPLE_COLS)[number];
 const widthOf = (c: Col) => (c === "needs" ? NEEDS : 1);
@@ -327,6 +411,9 @@ type Houses = {
   members: number[];
   /** Its pantry, food by food (FOODS' order), millionths. */
   pantry: number[];
+  /** The day one of it last died (-1: none has), and the day it was given a new home (-1: never). */
+  grief: number[];
+  fresh: number[];
 };
 
 /** A building with stocks: the square (lot AT.square, kind -1), then each of the town's other buildings standing. */
@@ -393,6 +480,8 @@ export type Place = {
   figRef: string[];
   figId: number[];
   figName: string[];
+  /** The sicknesses its people have had, by name and page ("name|ref"): a person's cause says which by its place here. */
+  ills: string[];
   /** What was made and used of each good since the day began (millionths), and the day. */
   day: number;
   madeDay: number[];
@@ -704,6 +793,8 @@ export class PlaceStore implements StateStore {
           means: p.houses.means,
           members: p.houses.members,
           pantry: p.houses.pantry,
+          grief: p.houses.grief,
+          fresh: p.houses.fresh,
         },
         bldgs: p.bldgs,
         matched: p.matched,
@@ -716,6 +807,7 @@ export class PlaceStore implements StateStore {
         figRef: p.figRef,
         figId: p.figId,
         figName: p.figName,
+        ills: p.ills,
         day: p.day,
         madeDay: p.madeDay,
         usedDay: p.usedDay,
@@ -755,6 +847,8 @@ export class PlaceStore implements StateStore {
           means: [...h.means],
           members: [...h.members],
           pantry: [...h.pantry],
+          grief: h.grief ? [...h.grief] : h.key.map(() => -1),
+          fresh: h.fresh ? [...h.fresh] : h.key.map(() => -1),
         },
         bldgs: { lot: [...b.lot], kind: [...b.kind], start: [...b.start], stock: [...b.stock] },
         matched: structuredClone(raw.matched as Matched),
@@ -767,6 +861,7 @@ export class PlaceStore implements StateStore {
         figRef: [...((raw.figRef as string[] | undefined) ?? [])],
         figId: [...((raw.figId as number[] | undefined) ?? [])],
         figName: [...((raw.figName as string[] | undefined) ?? [])],
+        ills: [...((raw.ills as string[] | undefined) ?? [])],
         day: (raw.day as number | undefined) ?? 0,
         madeDay: [
           ...((raw.madeDay as number[] | undefined) ?? new Array<number>(GOOD_COUNT).fill(0)),
@@ -957,6 +1052,7 @@ function addPerson(place: Place, sex: number, occ: number, born: number, house: 
   p.line[i] = 0;
   p.lineN[i] = 0;
   p.lack[i] = 0;
+  p.health[i] = p.ill[i] = p.cause[i] = p.mood[i] = p.moodWhy[i] = p.bound[i] = p.friend[i] = 0;
   place.houses.members[house]!++;
   return i;
 }
@@ -965,6 +1061,8 @@ function removePerson(place: Place, i: number): void {
   const p = place.people,
     last = p.n - 1;
   place.houses.members[p.house[i]!]!--;
+  // (No one of the place is their friend any more.)
+  for (let k = 0; k < p.n; k++) if (p.friend[k] === p.id[i]) p.friend[k] = 0;
   // (What they carried is set down in the square.)
   if (p.carry[i]! > 0) place.bldgs.stock[p.carryGood[i]!]! += p.carry[i]!;
   if (i !== last)
@@ -995,6 +1093,7 @@ function addHouse(place: Place, home: number, again = false): number {
   h.fifth[at] = 0;
   h.means[at] = 0;
   h.members[at] = 0;
+  h.grief[at] = h.fresh[at] = -1;
   return at;
 }
 
@@ -1269,7 +1368,10 @@ function matchPeople(
     for (let o = 0; o < OCCS; o++) {
       let over = now[r * OCCS + o]! - target[r * OCCS + o]!;
       if (over <= 0) continue;
-      const movers = ofCell(r * OCCS + o);
+      // (Those an order holds to their trade by name are the last to be moved from it.)
+      const movers = ofCell(r * OCCS + o).sort(
+        (a, b) => (p().bound[a] ? 1 : 0) - (p().bound[b] ? 1 : 0),
+      );
       for (let to = 0; to < OCCS && over > 0; to++) {
         let short = target[r * OCCS + to]! - now[r * OCCS + to]!;
         while (short > 0 && over > 0) {
@@ -1299,7 +1401,9 @@ function matchPeople(
         Math.floor(expected) +
           (world.rng.unit(PLACE_DRAW, place.key ^ c, place.t, P.dying) < expected % 1 ? 1 : 0),
       ),
+      // (The sick go first: where the world's own reckoning took some of a kind, it took those its sickness had.)
       ids = ofCell(c)
+        .sort((a, b) => (p().health[b] === 2 ? 1 : 0) - (p().health[a] === 2 ? 1 : 0))
         .slice(0, over)
         .map((i) => p().id[i]!);
     ids.forEach((id, k) => {
@@ -1311,6 +1415,7 @@ function matchPeople(
         Math.round(ageOf(p(), i, place.t)),
         occOf(p(), i),
       );
+      if (k < dying) place.houses.grief[p().house[i]!] = Math.floor(place.t / DAY);
       removePerson(place, i);
     });
     now[c] = target[c]!;
@@ -1418,7 +1523,17 @@ function makePlace(world: World, s: Settlement): Place | null {
     nextId: 1,
     nextHouse: 0,
     people: peopleOf(Math.max(16, n)),
-    houses: { n: 0, key: [], home: [], fifth: [], means: [], members: [], pantry: [] },
+    houses: {
+      n: 0,
+      key: [],
+      home: [],
+      fifth: [],
+      means: [],
+      members: [],
+      pantry: [],
+      grief: [],
+      fresh: [],
+    },
     bldgs: buildingsOf(world, s.ref, Math.floor(world.now / YEAR)),
     matched: matchedOf(world, s, month),
     base: new Array<number>(GOOD_COUNT).fill(0),
@@ -1430,6 +1545,7 @@ function makePlace(world: World, s: Settlement): Place | null {
     figRef: [],
     figId: [],
     figName: [],
+    ills: [],
     day: Math.floor(t / DAY),
     madeDay: new Array<number>(GOOD_COUNT).fill(0),
     usedDay: new Array<number>(GOOD_COUNT).fill(0),
@@ -1539,7 +1655,49 @@ export function workWorth(world: World, place: Place, i: number, mean = meanWage
   if (occ === OCC.dependent) return 0;
   const ratio = mean > 0 && m.wage[occ]! > 0 ? Math.min(4, Math.max(0.25, m.wage[occ]! / mean)) : 1,
     own = (world.rng.unit(PLACE_DRAW, place.key ^ p.id[i]!, 0, P.worth) - 0.5) * 0.16;
-  return Math.max(0.05, Math.min(0.9, 0.45 + 0.12 * Math.log2(ratio) + own));
+  // (And by their mood: a quarter more at its best, a quarter less at its worst.)
+  return Math.max(
+    0.05,
+    Math.min(0.9, (0.45 + 0.12 * Math.log2(ratio) + own) * (1 + p.mood[i]! / 400)),
+  );
+}
+
+/** What a person's ailing is of. */
+export const CAUSE = { none: 0, accident: 1, want: 2, sickness: 16 } as const;
+/** What moves a mood (bits). */
+export const MOOD = {
+  want: 1,
+  ailing: 2,
+  bereaved: 4,
+  pantry: 8,
+  friend: 16,
+  home: 32,
+  ordered: 64,
+} as const;
+export const MOOD_WORDS: readonly (readonly [number, string])[] = [
+  [MOOD.want, "days gone hungry, cold or without rest"],
+  [MOOD.ailing, "hurt or sick"],
+  [MOOD.bereaved, "a death in the household this month"],
+  [MOOD.pantry, "a pantry with a week's food in it"],
+  [MOOD.friend, "a friend made in company"],
+  [MOOD.home, "a new home this month"],
+  [MOOD.ordered, "held to a trade by an order, not their own choosing"],
+];
+/** Below this a mood heeds no order to change its work. */
+export const MOOD_UNHEEDING = -50;
+/**
+ * The chance a year that work harms the one at it: of the tools and machines their trade wears out in a year (rules/goods.ts
+ * WANTS), a fifth are worn on the hand that held them. Nothing for one who uses none.
+ */
+export function hazardOf(place: Place, occ: number, craft: number): number {
+  if (occ !== OCC.farmer && occ !== OCC.herder && occ !== OCC.crafter) return 0;
+  const machines =
+    occ === OCC.crafter && craft > 0 && RECIPES[craft - 1]!.output[0] === G.machines
+      ? 1
+      : place.matched.made[G.machines]! > 0
+        ? 0.5
+        : 0;
+  return 0.2 * (WANTS.toolsPerWorker + 4 * machines * WANTS.machinesPerWorker);
 }
 /** What a year's work is worth in a place's land, the mean of its trades that earn. */
 function meanWage(place: Place): number {
@@ -1616,7 +1774,33 @@ function tick(world: World, place: Place, f: Frame): void {
       place.usedDay[g]! += n;
     },
     tickNo = Math.floor(t / PLACE_TICK),
-    dying: number[] = [];
+    today = Math.floor(t / DAY),
+    dying: number[] = [],
+    // (Buildings whose work is stopped by order.)
+    shut = orders?.shut.length ? new Set(orders.shut) : null,
+    hospital = buildingOf(place, ["hospital"]) > 0;
+  // The sickness about in its land now, if its land's own reckoning has one come this year or last (sim/health): who
+  // of the place takes it is drawn here, a day at a time, so that as many take it in a year as it reaches of those not
+  // spared it. Who dies of it is the world's to say: at the month's matching the sick are the first to go.
+  let ail: { at: number; chance: number } | null | undefined;
+  const ailing = (): { at: number; chance: number } | null => {
+    if (ail !== undefined) return ail;
+    ail = null;
+    const health = healthOf(world),
+      last = health?.land(place.cell)?.last,
+      sickness = last ? health!.get(last.sickness) : undefined;
+    if (!last || !sickness || Math.floor(t / YEAR) - last.year > 1) return ail;
+    const name = `${sickness.name}|${sickness.ref}`;
+    let at = place.ills.indexOf(name);
+    if (at < 0) at = place.ills.push(name) - 1;
+    if (place.ills.length > 200) return ail;
+    ail = {
+      at,
+      chance: (sickness.reach * (1 - health!.immune(place.cell, sickness.ref))) / 365,
+    };
+    return ail;
+  };
+  let visitor = -1;
   if (Math.floor(t / DAY) !== place.day) {
     place.day = Math.floor(t / DAY);
     place.madeDay.fill(0);
@@ -1624,6 +1808,14 @@ function tick(world: World, place: Place, f: Frame): void {
   }
   let wants: [number, number][] | null = null,
     hauls: [number, number][] | null = null;
+  // (Before another load is taken up, what is in hand is set down where they stand: one put from the fields to hauling
+  // by an order still held part of a load of grain, and it was lost when they took up another.)
+  const setDown = (i: number): void => {
+    if (p.carry[i]! <= 0) return;
+    const b = bldgAt(place, p.at[i]!);
+    bldgs.stock[(b < 0 ? 0 : b) * GOOD_COUNT + p.carryGood[i]!]! += p.carry[i]!;
+    p.carry[i] = 0;
+  };
   for (let i = 0; i < p.n; i++) {
     const at0 = i * NEEDS,
       asleep = p.act[i] === ACT.sleep,
@@ -1665,10 +1857,100 @@ function tick(world: World, place: Place, f: Frame): void {
         continue;
       }
     }
+    // Once a day, each in turn: their mood, and what may befall them.
+    if ((tickNo + p.id[i]!) % 144 === 0) {
+      // Mood, from needs met over the days gone and what befell their household: a quarter of the way to where those
+      // put it, each day. A body that lives closer together leans more on its friends.
+      let why = 0,
+        to = 15;
+      if (lackDays >= 0.25) {
+        why |= MOOD.want;
+        to -= Math.min(70, 25 * lackDays + 15);
+      }
+      if (p.health[i]) {
+        why |= MOOD.ailing;
+        to -= 25;
+      }
+      if (houses.grief[h]! >= 0 && today - houses.grief[h]! <= 30) {
+        why |= MOOD.bereaved;
+        to -= 35;
+      }
+      let pantry = 0;
+      for (let k = 0; k < FOODS.length; k++) pantry += houses.pantry[h * FOODS.length + k]!;
+      if (pantry >= houses.members[h]! * f.daily * FETCH_DAYS) {
+        why |= MOOD.pantry;
+        to += 15;
+      }
+      if (p.friend[i]) {
+        why |= MOOD.friend;
+        to += 10 + 15 * f.social;
+      }
+      if (houses.fresh[h]! >= 0 && today - houses.fresh[h]! <= 30) {
+        why |= MOOD.home;
+        to += 20;
+      }
+      if (p.bound[i] && p.bound[i] !== 255) {
+        why |= MOOD.ordered;
+        to -= 10;
+      }
+      p.moodWhy[i] = why;
+      p.mood[i] = Math.max(-100, Math.min(100, Math.round(p.mood[i]! + (to - p.mood[i]!) / 4)));
+      if (!p.health[i]) {
+        const tended = HEAL_TENDED[tendedBy(hospital, false, houses.members[h]! > 1)],
+          sick = ailing(),
+          // (One in want takes a sickness the sooner.)
+          takes = sick ? sick.chance * (1 + lackDays) : 0;
+        if (takes > 0 && world.rng.chance(takes, PLACE_DRAW, place.key ^ p.id[i]!, tickNo, P.ail)) {
+          p.health[i] = 2;
+          p.cause[i] = CAUSE.sickness + sick!.at;
+          p.ill[i] = Math.round(HEAL_DAYS.scarred[0] * tended * 144);
+          note(place, HAP.sick, p.id[i]!, sick!.at);
+        } else if (
+          p.act[i] === ACT.work &&
+          world.rng.chance(
+            hazardOf(place, occOf(p, i), p.craft[i]!) / 365,
+            PLACE_DRAW,
+            place.key ^ p.id[i]!,
+            tickNo,
+            P.hurt,
+          )
+        ) {
+          // (A hurt at work: abed as a wound that heals is, by who tends it. rules/healing.ts.)
+          p.health[i] = 1;
+          p.cause[i] = CAUSE.accident;
+          p.ill[i] = Math.round(HEAL_DAYS.healed[0] * tended * 144);
+          note(place, HAP.hurt, p.id[i]!, occOf(p, i));
+        }
+      }
+    }
     if (moving) {
       if (--p.eta[i]! === 0) {
         p.at[i] = p.to[i]!;
         p.trip[i] = 0;
+      }
+      continue;
+    }
+    // Hurt or sick: home, and abed there until it is over, fed from the pantry by their household.
+    if (p.ill[i]! > 0) {
+      p.why[i] = WHY.abed;
+      p.act[i] = ACT.abed;
+      if (p.at[i] !== home) {
+        go(place, i, home);
+        continue;
+      }
+      if (p.needs[at0 + N.food]! > 0.5 * FULL) {
+        const want = p.needs[at0 + N.food]! * f.bite,
+          eaten = eatFrom(place, h, want);
+        if (eaten > 0)
+          p.needs[at0 + N.food] = Math.round(
+            p.needs[at0 + N.food]! * (1 - Math.min(1, eaten / want)),
+          );
+      }
+      p.needs[at0 + N.rest] = Math.max(0, p.needs[at0 + N.rest]! - f.rest);
+      if (--p.ill[i]! === 0) {
+        p.health[i] = 0;
+        p.act[i] = ACT.idle;
+        note(place, HAP.well, p.id[i]!);
       }
       continue;
     }
@@ -1703,6 +1985,7 @@ function tick(world: World, place: Place, f: Frame): void {
         g = p.carryGood[i]!,
         take = Math.floor(Math.min(bldgs.stock[b * GOOD_COUNT + g]!, LOAD * MICRO));
       if (take > 0 && b !== market) {
+        setDown(i);
         bldgs.stock[b * GOOD_COUNT + g]! -= take;
         p.carry[i] = take;
         p.act[i] = ACT.carry;
@@ -1719,6 +2002,7 @@ function tick(world: World, place: Place, f: Frame): void {
         const g = FOODS[k]!,
           take = Math.floor(Math.min(want, free(b, g), 2147483647));
         if (take <= 0) continue;
+        setDown(i);
         bldgs.stock[b * GOOD_COUNT + g]! -= take;
         p.carryGood[i] = g;
         p.carry[i] = take;
@@ -1789,6 +2073,14 @@ function tick(world: World, place: Place, f: Frame): void {
         p.act[i] = ACT.visit;
         p.why[i] = WHY.lone;
         if (p.at[i] !== AT.square) go(place, i, AT.square);
+        else {
+          // (Two in the square for company at once, neither with a friend yet: each the other's.)
+          if (visitor >= 0 && !p.friend[i] && !p.friend[visitor] && p.house[visitor] !== h) {
+            p.friend[i] = p.id[visitor]!;
+            p.friend[visitor] = p.id[i]!;
+          }
+          visitor = i;
+        }
         continue;
       }
     }
@@ -1803,6 +2095,13 @@ function tick(world: World, place: Place, f: Frame): void {
     }
     // Work: what the next hour of it is worth passes every need.
     const work = p.work[i]!;
+    if (shut?.has(work)) {
+      // Their building's work is stopped by order: at home, waiting.
+      p.act[i] = ACT.wait;
+      p.why[i] = WHY.shut;
+      if (p.at[i] !== home) go(place, i, home);
+      continue;
+    }
     if (p.at[i] !== work) {
       p.act[i] = ACT.work;
       p.why[i] = WHY.work;
@@ -1815,7 +2114,8 @@ function tick(world: World, place: Place, f: Frame): void {
       // What the fields and the flocks give is brought in a load at a time: home while the pantry is short, else to the store.
       const g = occ === OCC.farmer ? G.grain : G.meat,
         made = Math.round(matched.made[g]! * perTick);
-      if (p.carry[i]! <= 0) p.carryGood[i] = g;
+      if (p.carryGood[i] !== g) setDown(i);
+      p.carryGood[i] = g;
       p.carry[i]! += made;
       madeOf(g, made);
       if (p.carry[i]! >= LOAD * MICRO) {
@@ -1879,6 +2179,7 @@ function tick(world: World, place: Place, f: Frame): void {
           has = barred(market, x) ? 0 : bldgs.stock[market * GOOD_COUNT + x]!;
         if (has <= 0) continue;
         const take = Math.min(has, LOAD * MICRO);
+        setDown(i);
         bldgs.stock[market * GOOD_COUNT + x]! -= take;
         p.carryGood[i] = x;
         p.carry[i] = take;
@@ -1900,6 +2201,7 @@ function tick(world: World, place: Place, f: Frame): void {
       }
       const haul = hauls.shift();
       if (haul) {
+        setDown(i);
         p.carryGood[i] = haul[1];
         p.carry[i] = 0;
         p.act[i] = ACT.haul;
@@ -1914,6 +2216,7 @@ function tick(world: World, place: Place, f: Frame): void {
       row = sexOf(p, i) * BANDS + bandOf(ageOf(p, i, t), f.life);
     note(place, HAP.starved, p.id[i]!, Math.round(ageOf(p, i, t)), occOf(p, i));
     place.dead.push(row, occOf(p, i), 1);
+    houses.grief[p.house[i]!] = today;
     removePerson(place, i);
   }
   place.t = t + PLACE_TICK;
@@ -1935,38 +2238,102 @@ for (const [good, kinds] of Object.entries(MAKING_AT))
  * draw. Each is kept for its land's telling (place.settle). Done once for each order given.
  */
 function applyOrders(world: World, place: Place, f: Frame): void {
-  const work = managedOf(world)?.get(place.town)?.work ?? null,
-    key = work ? work.join(",") : "";
+  const orders = managedOf(world)?.get(place.town),
+    work = orders?.work ?? null,
+    key = orders
+      ? `${work ? work.join(",") : ""}|${orders.assigned.join(",")}|${orders.housed.join(",")}`
+      : "";
   if (key === place.ordered) return;
   place.ordered = key;
-  if (!work) return;
+  if (!orders) return;
   const p = place.people,
     at = (occ: number) => (MANAGED_TRADES as readonly number[]).indexOf(occ),
-    hands: number[][] = MANAGED_TRADES.map(() => []);
+    rowOf = (i: number) => sexOf(p, i) * BANDS + bandOf(ageOf(p, i, place.t), f.life),
+    change = (i: number, to: number, what: number) => {
+      const from = occOf(p, i);
+      if (from === to) return;
+      p.sexOcc[i] = (sexOf(p, i) << 4) | to;
+      note(place, what, p.id[i]!, from, to);
+      place.moves.push(rowOf(i), from, to, 1);
+    };
+  // By name: each put to the trade said, and at the building said if it stands. One let be is their own again.
+  const named = new Map<number, readonly [number, number]>();
+  for (let k = 0; k < orders.assigned.length; k += 3)
+    named.set(orders.assigned[k]!, [orders.assigned[k + 1]!, orders.assigned[k + 2]!]);
   for (let i = 0; i < p.n; i++) {
-    const k = at(occOf(p, i));
-    if (k >= 0 && ageOf(p, i, place.t) >= f.life.adulthood) hands[k]!.push(i);
-  }
-  const all = hands.reduce((n, list) => n + list.length, 0);
-  if (all <= 0 || work.every((x) => x <= 0)) return;
-  const want = apportion(all, work);
-  for (let from = 0; from < hands.length; from++) {
-    const list = hands[from]!,
-      draw = new Map(
-        list.map((i) => [i, world.rng.unit(PLACE_DRAW, place.key ^ p.id[i]!, place.t, P.order)]),
-      );
-    list.sort((a, b) => draw.get(a)! - draw.get(b)! || p.id[a]! - p.id[b]!);
-    for (let to = 0; to < hands.length && list.length > want[from]!; to++) {
-      if (to === from) continue;
-      while (list.length > want[from]! && hands[to]!.length < want[to]!) {
-        const i = list.pop()!,
-          row = sexOf(p, i) * BANDS + bandOf(ageOf(p, i, place.t), f.life);
-        p.sexOcc[i] = (sexOf(p, i) << 4) | MANAGED_TRADES[to]!;
+    const order = named.get(p.id[i]!);
+    if (!order) {
+      if (p.bound[i]) {
+        p.bound[i] = 0;
         workOf(world, place, i);
-        hands[to]!.push(i);
-        note(place, HAP.ordered, p.id[i]!, MANAGED_TRADES[from]!, MANAGED_TRADES[to]!);
-        place.moves.push(row, MANAGED_TRADES[from]!, MANAGED_TRADES[to]!, 1);
       }
+      continue;
+    }
+    const [trade, post] = order,
+      grown = ageOf(p, i, place.t) >= f.life.adulthood;
+    if (trade >= 0 && grown) change(i, trade, HAP.assigned);
+    p.bound[i] = trade >= 0 && grown ? trade + 1 : 255;
+    workOf(world, place, i);
+    if (post >= 0 && bldgAt(place, post) > 0 && occOf(p, i) !== OCC.dependent) p.work[i] = post;
+  }
+  // Households given a home: where the lot holds one.
+  if (orders.housed.length) {
+    const f2 = townsOf(world).get(place.town);
+    for (let k = 0; k < orders.housed.length; k += 2) {
+      const h = place.houses.key.indexOf(orders.housed[k]!),
+        lot = orders.housed[k + 1]!;
+      if (h < 0 || !f2 || lot >= f2.next || place.houses.home[h] === lot) continue;
+      if (levelsOf(f2, lot, lot + 1)[0]! < 0) continue;
+      const old = place.houses.home[h]!;
+      place.houses.home[h] = lot;
+      place.houses.fresh[h] = Math.floor(place.t / DAY);
+      let told = false;
+      for (let i = 0; i < p.n; i++) {
+        if (p.house[i] !== h) continue;
+        if (!told) note(place, HAP.moved, p.id[i]!, old, lot);
+        told = true;
+        if (p.work[i] === old) p.work[i] = lot;
+        if (p.at[i] === old && !p.eta[i]) p.at[i] = p.to[i] = lot;
+      }
+    }
+    layLots(world, place);
+  }
+  // By share: of its grown at the trades an order can move, those no order holds by name, as many to each as said.
+  if (work && !work.every((x) => x <= 0)) {
+    const hands: number[][] = MANAGED_TRADES.map(() => []);
+    for (let i = 0; i < p.n; i++) {
+      const k = at(occOf(p, i));
+      if (k >= 0 && !p.bound[i] && ageOf(p, i, place.t) >= f.life.adulthood) hands[k]!.push(i);
+    }
+    const all = hands.reduce((n, list) => n + list.length, 0),
+      want = all > 0 ? apportion(all, work) : [];
+    for (let from = 0; from < hands.length && all > 0; from++) {
+      const list = hands[from]!,
+        draw = new Map(
+          list.map((i) => [i, world.rng.unit(PLACE_DRAW, place.key ^ p.id[i]!, place.t, P.order)]),
+        );
+      list.sort((a, b) => draw.get(a)! - draw.get(b)! || p.id[a]! - p.id[b]!);
+      // (One too low in mood heeds no order to change their work, and is told so once.)
+      const stay: number[] = [];
+      for (let to = 0; to < hands.length && list.length + stay.length > want[from]!; to++) {
+        if (to === from) continue;
+        while (
+          list.length > 0 &&
+          list.length + stay.length > want[from]! &&
+          hands[to]!.length < want[to]!
+        ) {
+          const i = list.pop()!;
+          if (p.mood[i]! < MOOD_UNHEEDING) {
+            note(place, HAP.unheeded, p.id[i]!, MANAGED_TRADES[from]!, MANAGED_TRADES[to]!);
+            stay.push(i);
+            continue;
+          }
+          change(i, MANAGED_TRADES[to]!, HAP.ordered);
+          workOf(world, place, i);
+          hands[to]!.push(i);
+        }
+      }
+      list.push(...stay);
     }
   }
   reckonMeans(world, place);

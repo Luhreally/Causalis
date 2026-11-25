@@ -8,17 +8,19 @@ import {
   type PlaceNotice,
   type PlacePeopleSheet,
   type PlaceStocksSheet,
+  type PlaceLogSheet,
   type PlaceWorkSheet,
   type TownOffers,
 } from "../bridge/index.ts";
 import { el } from "./why.ts";
 
-export type PlaceTab = "people" | "stocks" | "work" | "build";
+export type PlaceTab = "people" | "stocks" | "work" | "build" | "log";
 const TABS: readonly (readonly [PlaceTab, string, string])[] = [
   ["people", "👥", "People"],
   ["stocks", "📦", "Stocks"],
   ["work", "⚒️", "Work"],
   ["build", "🏗️", "Build"],
+  ["log", "📜", "Log"],
 ];
 /** The paces a town's day is watched at: the key, the clock's seconds a second, and that in words. */
 const PACES: readonly (readonly [string, number, string])[] = [
@@ -28,6 +30,14 @@ const PACES: readonly (readonly [string, number, string])[] = [
   ["1h", 3600, "An hour of the town's day a second"],
 ];
 const NEEDS = ["hungry", "tired", "cold", "lonely"];
+/** What one can be put to by name: the world's occupation column and its word (null: let be). */
+const ORDER_TRADES: readonly (readonly [number | null, string])[] = [
+  [2, "Fields"],
+  [3, "Herds"],
+  [4, "Crafts"],
+  [5, "Hauling"],
+  [null, "Let be"],
+];
 const TRADE_CHIPS: readonly (readonly [number | null, string])[] = [
   [null, "All"],
   [2, "Farmers"],
@@ -55,6 +65,8 @@ export class PlaceHud {
   private readonly closed = new Set<string>();
   private noticeNow: PlaceNotice | null = null;
   private drawn = "";
+  /** Whose order is being chosen on the People sheet (their number; null: no one's). */
+  private ordering: number | null = null;
   /** The shares being set on the Work sheet before they are ordered (thousandths; null: none being set). */
   private setting: number[] | null = null;
   tab: PlaceTab | null = null;
@@ -205,13 +217,39 @@ export class PlaceHud {
         el(
           "span",
           "place-row-what",
-          `${r.trade} · ${r.doing}${r.lack > 0 ? ` · ${r.lack} d in want` : ""}`,
+          `${r.trade}${r.bound ? " (by order)" : ""} · ${r.doing}${r.lack > 0 ? ` · ${r.lack} d in want` : ""}${r.health === 1 ? " · hurt" : r.health === 2 ? " · sick" : ""} · mood ${r.mood > 0 ? "+" : ""}${r.mood}`,
         ),
         el("span", "place-need-word", `${NEEDS[r.worst]} ${Math.round(worst * 100)}%`),
         bar,
       );
       row.onclick = () => this.onOpen(r.ref);
-      list.append(row);
+      // (An order for them by name: the trade they are put to, or let be.)
+      const one = el("div", "place-person"),
+        key = el("button", "place-row-order", "⚒"),
+        words = `Give ${r.name} an order`;
+      key.title = words;
+      key.setAttribute("aria-label", words);
+      key.classList.toggle("on", this.ordering === r.id);
+      key.onclick = () => {
+        this.ordering = this.ordering === r.id ? null : r.id;
+        this.drawn = "";
+        this.people(s);
+      };
+      one.append(row, key);
+      if (this.ordering === r.id) {
+        const keys = el("div", "place-person-orders");
+        ORDER_TRADES.forEach(([occ, name]) => {
+          const b = el("button", "place-chip", name);
+          b.classList.toggle("on", occ !== null && r.bound !== null && r.occ === occ);
+          b.onclick = () => {
+            this.ordering = null;
+            this.onOrder("place.assign", { person: r.id, trade: occ, post: null });
+          };
+          keys.append(b);
+        });
+        one.append(keys);
+      }
+      list.append(one);
     }
     const more =
       s.all > s.rows.length
@@ -284,7 +322,7 @@ export class PlaceHud {
         el(
           "p",
           "place-line-words",
-          `${all} grown hands at trades an order can move; ${s.leaders} lead, ${s.dependents} keep no trade. ${s.waiting} wait for want of stuff; ${s.inWant} have gone a day or more in want.`,
+          `${all} grown hands at trades an order can move; ${s.leaders} lead, ${s.dependents} keep no trade. ${s.waiting} wait at their work; ${s.inWant} have gone a day or more in want; ${s.abed} lie abed, hurt or sick; ${s.unheeding} are too low in mood to heed an order.`,
         ),
       ];
     PLACE_TRADES.forEach((words, k) => {
@@ -341,7 +379,54 @@ export class PlaceHud {
           : "No order given: its hands are as its land has them. An order moves real hands from one trade to another, and its land is told.",
       ),
     );
+    if (s.buildings.length) {
+      body.push(el("h3", "place-sub", "Its buildings' work"));
+      for (const b of s.buildings) {
+        const row = el("div", "place-line"),
+          name = el("button", "place-link", `${b.name}: ${b.working} work there`),
+          key = el("button", "place-sell", b.shut ? "Stopped" : "Going");
+        name.onclick = () => this.onOpen(b.ref);
+        key.classList.toggle("on", b.shut);
+        key.setAttribute(
+          "aria-label",
+          `${b.name}: its work is ${b.shut ? "stopped. Tap to let it go on" : "going. Tap to stop it"}`,
+        );
+        key.onclick = () => this.onOrder("place.shut", { lot: b.lot, on: !b.shut });
+        row.append(name, key);
+        body.push(row);
+      }
+    }
     this.sheetBody.replaceChildren(...body);
+  }
+
+  log(s: PlaceLogSheet): void {
+    if (this.tab !== "log" || this.same(s)) return;
+    if (!s.rows.length)
+      return void this.sheetBody.replaceChildren(
+        el(
+          "p",
+          "place-more",
+          "Nothing yet. What befalls its people is told here as it happens: births, deaths, comings and goings, sickness and hurt, and what your orders did.",
+        ),
+      );
+    const list = el("div", "place-rows");
+    for (const r of s.rows) {
+      const day = Math.floor(r.t / 86_400) % 365,
+        hour = Math.floor((r.t % 86_400) / 3600),
+        row = el("button", "place-row place-log-row");
+      row.append(
+        el(
+          "span",
+          "place-row-what",
+          `Year ${Math.floor(r.t / 31_536_000)}, day ${day}, ${String(hour).padStart(2, "0")}:00`,
+        ),
+        el("span", "place-log-words", r.words),
+      );
+      const ref = r.ref;
+      if (ref) row.onclick = () => this.onOpen(ref);
+      list.append(row);
+    }
+    this.sheetBody.replaceChildren(list);
   }
 
   build(o: TownOffers | null): void {

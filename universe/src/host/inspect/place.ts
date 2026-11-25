@@ -18,6 +18,9 @@ import {
   ACT,
   ACT_WORDS,
   AT,
+  CAUSE,
+  MOOD_UNHEEDING,
+  MOOD_WORDS,
   IDLE_WORTH,
   NEED_WORDS,
   PLACE_MOST,
@@ -31,6 +34,7 @@ import {
   type Place,
 } from "../place.ts";
 import {
+  ailWords,
   lotWords,
   placeStuff,
   placeWho,
@@ -131,6 +135,8 @@ function personBlocks(
     }),
     pantry = new Array<number>(GOODS.length).fill(0);
   FOODS.forEach((g, k) => (pantry[g] = r.pantry[k]!));
+  const fi = p.friend[i] ? placeIndexOf(place, p.friend[i]!) : -1,
+    friend = fi >= 0 ? who(fi) : null;
   const happened = place.log
     .filter((x) => x.id === id)
     .map((x): Item => ({ line: [`Year ${Math.floor(x.t / YEAR)}: ${hapWords(x.what)}`] }));
@@ -146,6 +152,25 @@ function personBlocks(
             ...n,
             value: [`${bar(r.needs[q]!)}, pressing ${pct(pressOf(r.needs[q]!))}`],
           })),
+          stat(
+            "Mood",
+            `${p.mood[i]! >= 25 ? "Glad" : p.mood[i]! >= -15 ? "Even" : p.mood[i]! >= MOOD_UNHEEDING ? "Low" : "Too low to heed an order"} (${p.mood[i]! > 0 ? "+" : ""}${p.mood[i]}): ${
+              MOOD_WORDS.filter(([bit]) => p.moodWhy[i]! & bit)
+                .map(([, words]) => words)
+                .join("; ") || "nothing bears on it now"
+            }. It moves what their work is worth to them by ${Math.round(p.mood[i]! / 4)} in a hundred.`,
+          ),
+          ...(p.health[i]
+            ? [
+                stat(
+                  "Health",
+                  `${ailWords(place, i)}: abed ${Math.ceil(p.ill[i]! / 144)} more ${Math.ceil(p.ill[i]! / 144) === 1 ? "day" : "days"}`,
+                  p.cause[i]! >= CAUSE.sickness && place.ills[p.cause[i]! - CAUSE.sickness]
+                    ? { why: place.ills[p.cause[i]! - CAUSE.sickness]!.split("|")[1]! }
+                    : {},
+                ),
+              ]
+            : []),
           ...(lackDays > 0
             ? [
                 stat(
@@ -174,6 +199,19 @@ function personBlocks(
         rows: [
           stat("Now", doing),
           stat("Home", [lotLink(place, r.home)]),
+          ...(p.bound[i]
+            ? [
+                stat(
+                  "By your order",
+                  p.bound[i] === 255
+                    ? ["Put at ", lotLink(place, r.work)]
+                    : [`Held to work as ${tradeWords(p.bound[i]! - 1, false)}`],
+                ),
+              ]
+            : []),
+          ...(friend
+            ? [stat("Friend", [link(friend.name, friend.ref), ", met in company in the square"])]
+            : []),
           stat("Work", [
             cap(tradeWords(r.occupation, child)),
             r.craft ? `: ${r.craft}` : "",
@@ -344,6 +382,7 @@ export function placeLotPage(world: World, ref: string): PageModel {
           : lotRef(place.town, lot)
         : null,
     rows = stockRows(world, place, r.stock),
+    stopped = !!ordersOf(world, place.town)?.shut.includes(lot),
     // (What it holds first: its greatest stocks, then who is about it.)
     held = r.stock
       .map((x, g) => [x, g] as const)
@@ -353,6 +392,7 @@ export function placeLotPage(world: World, ref: string): PageModel {
       .map(([x, g]) => stat(cap(GOODS[g]!.name), amount(x))),
     stats: Stat[] = [
       ...(held.length ? held : [stat("Holds", "nothing now")]),
+      ...(stopped ? [stat("Work", "stopped by your order")] : []),
       ...(r.kind && lot >= 0 ? [stat("Working here", `${r.working.length}`)] : []),
       ...(r.households.length ? [stat("Living here", `${r.living.length}`)] : []),
       stat("Here now", `${r.here.length}`),

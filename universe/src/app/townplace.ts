@@ -10,6 +10,7 @@ import {
   placeLotRef,
   type HostClient,
   type PlaceFrame,
+  type PlaceLogSheet,
   type PlacePeopleSheet,
   type PlaceStocksSheet,
   type PlaceWorkSheet,
@@ -148,6 +149,12 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
         { type: "place.work", args: { ref } },
         SHEET_EVERY,
         (s) => s && hud.work(s),
+      );
+    else if (tab === "log")
+      stopSheet = d.client.subscribe<PlaceLogSheet | null>(
+        { type: "place.log", args: { ref } },
+        SHEET_EVERY,
+        (s) => s && hud.log(s),
       );
     else
       stopSheet = d.client.subscribe<TownOffers | null>(

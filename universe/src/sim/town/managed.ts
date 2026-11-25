@@ -45,6 +45,15 @@ export type Managed = {
   own: number[];
   /** Those of it who died of want, by the year: [year, count], oldest first. */
   dead: [number, number][];
+  /**
+   * Its people given work by name, one after another: who (their number in the town kept, host/place.ts), the trade they
+   * are put to (-1: none said), the building's lot they are put at (-9: none said).
+   */
+  assigned: number[];
+  /** The lots of its buildings whose work is stopped. */
+  shut: number[];
+  /** Households given a home, one after another: the household (its key), the lot. */
+  housed: number[];
 };
 
 /** A change of trade told back: so many of a sex and band, from one trade to another. */
@@ -81,6 +90,10 @@ export class ManagedStore implements StateStore {
         forbidden: [...m.forbidden],
         own: [...m.own],
         dead: m.dead.map((d) => [d[0], d[1]]),
+        // (A save from before they were kept: none.)
+        assigned: [...(m.assigned ?? [])],
+        shut: [...(m.shut ?? [])],
+        housed: [...(m.housed ?? [])],
       });
   }
   private add(m: Managed): Managed {
@@ -107,6 +120,9 @@ export class ManagedStore implements StateStore {
         forbidden: [],
         own: new Array<number>(ROWS * OCCS).fill(0),
         dead: [],
+        assigned: [],
+        shut: [],
+        housed: [],
       })
     );
   }
@@ -193,6 +209,89 @@ export function installManaged(world: World, ctx: () => PopulationContext): Mana
         at = m.forbidden.indexOf(a.good);
       if (a.on && at < 0) m.forbidden = [...m.forbidden, a.good].sort((x, y) => x - y);
       if (!a.on && at >= 0) m.forbidden = m.forbidden.filter((g) => g !== a.good);
+    },
+  });
+  // One of its people, by name, put to a trade or at a building (both null: let be).
+  world.defineCommand({
+    type: "place.assign",
+    validate: (args) => {
+      const a = args as { person?: unknown; trade?: unknown; post?: unknown };
+      return (
+        held(args) ??
+        (!whole(a.person, 1, 4294967295)
+          ? "person must be one's number in the town kept"
+          : a.trade !== null && !(MANAGED_TRADES as readonly unknown[]).includes(a.trade)
+            ? "trade must be one an order can put hands to, or null"
+            : a.post !== null && !whole(a.post, 0, 1e9)
+              ? "post must be a building's lot, or null"
+              : null)
+      );
+    },
+    apply: (command, t) => {
+      const a = command.args as {
+          town: Ref;
+          person: number;
+          trade: number | null;
+          post: number | null;
+        },
+        s = ctx().settlements.get(a.town);
+      if (!s) return;
+      const m = store.of(s.ref, s.cell, t),
+        next: number[] = [];
+      for (let k = 0; k < m.assigned.length; k += 3)
+        if (m.assigned[k] !== a.person)
+          next.push(m.assigned[k]!, m.assigned[k + 1]!, m.assigned[k + 2]!);
+      if (a.trade !== null || a.post !== null) next.push(a.person, a.trade ?? -1, a.post ?? -9);
+      m.assigned = next;
+    },
+  });
+  // A building's work stopped, or let go on.
+  world.defineCommand({
+    type: "place.shut",
+    validate: (args) => {
+      const a = args as { lot?: unknown; on?: unknown };
+      return (
+        held(args) ??
+        (!whole(a.lot, 0, 1e9)
+          ? "lot must be a building's lot"
+          : typeof a.on === "boolean"
+            ? null
+            : "on must be true or false")
+      );
+    },
+    apply: (command, t) => {
+      const a = command.args as { town: Ref; lot: number; on: boolean },
+        s = ctx().settlements.get(a.town);
+      if (!s) return;
+      const m = store.of(s.ref, s.cell, t),
+        rest = m.shut.filter((lot) => lot !== a.lot);
+      m.shut = a.on ? [...rest, a.lot].sort((x, y) => x - y) : rest;
+    },
+  });
+  // A household given a home.
+  world.defineCommand({
+    type: "place.house",
+    validate: (args) => {
+      const a = args as { house?: unknown; lot?: unknown };
+      return (
+        held(args) ??
+        (!whole(a.house, 0, 4294967295)
+          ? "house must be a household's key"
+          : whole(a.lot, 0, 1e9)
+            ? null
+            : "lot must be a home's lot")
+      );
+    },
+    apply: (command, t) => {
+      const a = command.args as { town: Ref; house: number; lot: number },
+        s = ctx().settlements.get(a.town);
+      if (!s) return;
+      const m = store.of(s.ref, s.cell, t),
+        next: number[] = [];
+      for (let k = 0; k < m.housed.length; k += 2)
+        if (m.housed[k] !== a.house) next.push(m.housed[k]!, m.housed[k + 1]!);
+      next.push(a.house, a.lot);
+      m.housed = next;
     },
   });
   // What a managed town did that its land's reckoning would not have: written to its land's counts.

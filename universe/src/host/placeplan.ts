@@ -10,6 +10,7 @@ import {
   placeLotRef,
   placePersonRef,
   type PlaceFrame,
+  type PlaceLogSheet,
   type PlaceNotice,
   type PlacePeopleSheet,
   type PlaceStockRow,
@@ -23,6 +24,10 @@ import {
   ACT,
   ACT_WORDS,
   AT,
+  CAUSE,
+  HAP,
+  MOOD_UNHEEDING,
+  hapWords,
   IDLE_WORTH,
   MICRO,
   PLACE_TICK,
@@ -119,6 +124,10 @@ export function whyWords(world: World, place: Place, i: number): string {
       return `A load to carry${going}`;
     case WHY.asleep:
       return `Asleep until rested (tiredness ${pct(need(1))} full), unless hunger or cold wakes them`;
+    case WHY.shut:
+      return `The work of ${lotWords(place, p.work[i]!)} is stopped by your order: at home until it goes on`;
+    case WHY.abed:
+      return `${ailWords(place, i)}: abed at home, ${Math.ceil(p.ill[i]! / 144)} more ${Math.ceil(p.ill[i]! / 144) === 1 ? "day" : "days"}, fed from the pantry by their household`;
     case WHY.dark:
       return `It is dark: work by sight is worth less than rest (${pct(IDLE_WORTH)}) until light`;
     default:
@@ -257,7 +266,9 @@ export function placeNotices(world: World, place: Place): PlaceNotice[] {
   for (let i = 0; i < p.n; i++) {
     if (p.lack[i]! >= 144) want++;
     if (p.why[i] === WHY.noFood || p.why[i] === WHY.pantry) bare.add(p.house[i]!);
-    if (p.act[i] === ACT.wait) waiting.set(p.work[i]!, (waiting.get(p.work[i]!) ?? 0) + 1);
+    // (Those whose building's work an order stopped wait by that order: no notice of it is wanted.)
+    if (p.act[i] === ACT.wait && p.why[i] !== WHY.shut)
+      waiting.set(p.work[i]!, (waiting.get(p.work[i]!) ?? 0) + 1);
   }
   if (want)
     out.push({
@@ -391,6 +402,13 @@ export function peopleSheet(
         needs,
         worst: top,
         lack: Math.floor(p.lack[i]! / 144),
+        mood: p.mood[i]!,
+        health: p.health[i]!,
+        bound:
+          p.bound[i] && p.bound[i] !== 255
+            ? tradeWords(p.bound[i]! - 1, false).replace(/^a /, "")
+            : null,
+        id: p.id[i]!,
       };
     }),
   };
@@ -463,10 +481,13 @@ export function workSheet(world: World, place: Place): PlaceWorkSheet {
   const p = place.people,
     grown = lifeOf(world).adulthood,
     hands = MANAGED_TRADES.map(() => 0);
+  const working = place.bldgs.lot.map(() => 0);
   let leaders = 0,
     dependents = 0,
     waiting = 0,
-    inWant = 0;
+    inWant = 0,
+    unheeding = 0,
+    abed = 0;
   for (let i = 0; i < p.n; i++) {
     const occ = p.sexOcc[i]! & 15,
       k = (MANAGED_TRADES as readonly number[]).indexOf(occ);
@@ -475,8 +496,24 @@ export function workSheet(world: World, place: Place): PlaceWorkSheet {
     else dependents++;
     if (p.act[i] === ACT.wait) waiting++;
     if (p.lack[i]! >= 144) inWant++;
+    if (p.mood[i]! < MOOD_UNHEEDING) unheeding++;
+    if (p.ill[i]! > 0) abed++;
+    const b = place.bldgs.lot.indexOf(p.work[i]!);
+    if (b > 0) working[b]!++;
   }
+  const shut = ordersOf(world, place.town)?.shut ?? [];
   return {
+    unheeding,
+    abed,
+    buildings: place.bldgs.lot
+      .map((lot, b) => ({
+        lot,
+        ref: placeLotRef(place.town, lot),
+        name: lotWords(place, lot).replace(/^the /, ""),
+        working: working[b]!,
+        shut: shut.includes(lot),
+      }))
+      .filter((x, b) => b > 0 && (x.working > 0 || x.shut)),
     hands,
     shares: ordersOf(world, place.town)?.work ?? null,
     leaders,
@@ -484,6 +521,36 @@ export function workSheet(world: World, place: Place): PlaceWorkSheet {
     waiting,
     inWant,
     unsettled: place.moves.length / 4 + place.dead.length / 3,
+  };
+}
+
+/** What ails one of a place's people, said: "Hurt at their work", "Sick of the red flux". */
+export function ailWords(place: Place, i: number): string {
+  const cause = place.people.cause[i]!;
+  if (cause >= CAUSE.sickness)
+    return `Sick of ${(place.ills[cause - CAUSE.sickness] ?? "a sickness").split("|")[0]}`;
+  return cause === CAUSE.accident ? "Hurt at their work" : "Ailing";
+}
+
+/** What has happened in a place, the latest first, each said with who it befell and the page that tells of them. */
+export function logSheet(world: World, place: Place, most = 80): PlaceLogSheet {
+  const who = placeWho(world, place),
+    index = new Map<number, number>();
+  for (let i = 0; i < place.people.n; i++) index.set(place.people.id[i]!, i);
+  return {
+    rows: place.log
+      .slice(-most)
+      .reverse()
+      .map((x) => {
+        const i = index.get(x.id),
+          one = i === undefined ? null : who(i),
+          ill = x.what === HAP.sick ? ` of ${(place.ills[x.a] ?? "a sickness").split("|")[0]}` : "";
+        return {
+          t: x.t,
+          words: `${one ? one.name : "One of the town"} ${hapWords(x.what)}${ill}`,
+          ref: one ? one.ref : placePersonRef(place.town, x.id),
+        };
+      }),
   };
 }
 
@@ -518,6 +585,10 @@ export function placeQueries(villagePlan: QueryHandler): Readonly<Record<string,
     "place.work": (world, args) => {
       const place = kept(world, args);
       return place ? workSheet(world, place) : null;
+    },
+    "place.log": (world, args) => {
+      const place = kept(world, args);
+      return place ? logSheet(world, place) : null;
     },
     "place.kept": (world) => {
       const store = placesOf(world);

@@ -18,6 +18,8 @@ export const PLACE_ACT = {
   wait: 8,
   /** Gone to fetch what a building has made, for the market. */
   haul: 9,
+  /** Abed, hurt or sick. */
+  abed: 10,
 } as const;
 
 /** The page of one of a place's people, and of one of its lots (its square and its fields too). */
@@ -84,6 +86,12 @@ export type PlacePersonRow = {
   readonly worst: number;
   /** Days they have gone in want. */
   readonly lack: number;
+  /** Their mood, -100 … 100; how they are (0 well, 1 hurt, 2 sick); the trade an order holds them to (null: none). */
+  readonly mood: number;
+  readonly health: number;
+  readonly bound: string | null;
+  /** Who they are in the place, for an order given them. */
+  readonly id: number;
 };
 export type PlacePeopleSheet = {
   /** How many of each trade (the world's occupation columns), and the rows asked for: the most pressed first. */
@@ -128,4 +136,23 @@ export type PlaceWorkSheet = {
   readonly waiting: number;
   readonly inWant: number;
   readonly unsettled: number;
+  /** Those too low in mood to heed an order to change their work, and those abed, hurt or sick. */
+  readonly unheeding: number;
+  readonly abed: number;
+  /** Its buildings where work is done: how many work at each, and whether its work is stopped by order. */
+  readonly buildings: readonly {
+    readonly lot: number;
+    readonly ref: string;
+    readonly name: string;
+    readonly working: number;
+    readonly shut: boolean;
+  }[];
+};
+/** What happened in a place, a line each, the latest first: when (its clock), said, and the page that tells more. */
+export type PlaceLogSheet = {
+  readonly rows: readonly {
+    readonly t: number;
+    readonly words: string;
+    readonly ref: string | null;
+  }[];
 };

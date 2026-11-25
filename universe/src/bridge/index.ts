@@ -604,6 +604,7 @@ export {
   placedId,
   PLACE_TRADES,
   type PlaceFrame,
+  type PlaceLogSheet,
   type PlaceNotice,
   type PlacePeopleSheet,
   type PlacePersonRow,

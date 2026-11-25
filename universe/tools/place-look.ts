@@ -356,6 +356,40 @@ for (const view of [
     say(`build after asking: ${(await sheetText()).slice(0, 200)}`);
     await read("the Build sheet after asking");
   }
+  // Its log: what has happened, each line leading to a page.
+  await press('.place-tab[data-tab="log"]', "the Log tab");
+  await until("the Log sheet", async () => (await shownCount(".place-log-row")) > 0);
+  say(`log: ${(await sheetText()).slice(0, 160)}`);
+  await shot("7b-sheet-log");
+  await read("the Log sheet open");
+  // An order by name, from the People sheet: one put to crafts.
+  await press('.place-tab[data-tab="people"]', "the People tab");
+  await until("the People sheet again", async () => (await shownCount(".place-row-order")) > 3);
+  await press(".place-row-order", "a person's order key");
+  await until(
+    "the trades one can be put to",
+    async () => (await shownCount(".place-person-orders .place-chip")) >= 5,
+  );
+  await shot("7c-person-order");
+  await read("an order by name being chosen");
+  await press(".place-person-orders .place-chip:nth-child(3)", "Crafts, for them");
+  await page.waitForTimeout(slow(1500));
+  // A building's work stopped, from the Work sheet, where the town has a building worked in.
+  await press('.place-tab[data-tab="work"]', "the Work tab");
+  await until("the Work sheet again", async () => /grown hands/.test(await sheetText()));
+  if ((await shownCount(".place-sheet-body .place-sell")) > 0) {
+    await k(
+      `document.querySelector(".place-sheet-body .place-sell").scrollIntoView({ block: "center" })`,
+    );
+    await page.waitForTimeout(slow(300));
+    await press(".place-sheet-body .place-sell", "a building's Going key");
+    await until(
+      "its work stopped",
+      async () => (await shownCount(".place-sheet-body .place-sell.on")) > 0,
+    );
+    await shot("7d-building-stopped");
+    await read("a building's work stopped");
+  } else say("no building here has anyone working in it: the stop key was not pressed");
   await press(".place-sheet-shut", "the sheet's close");
   check((await shownCount(".place-sheet")) === 0, "the sheet closes");
 
