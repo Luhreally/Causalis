@@ -118,8 +118,12 @@ test("a decade and a century are read as its arc, each piece a way to its year",
     assert.match(arc.headline, /\d/);
     assert.ok(arc.lines.length >= 1);
   }
-  // The decade it first stood in says it formed or came in then.
-  assert.match(decade.leads[0]!.headline, /Formed in|realms in/);
+  // The decade it first stood in opens on how it began then: formed, its head come into one standing, or its realms as the
+  // years kept first find them (host/inspect/told.ts: the arc's three openings; which one is the world's to say).
+  assert.match(
+    decade.leads[0]!.headline,
+    /^(Formed in|Came into an alliance in|[A-Z][a-z-]+ realms in) [0-9]/,
+  );
   assert.equal(decade.subject?.ref, subject);
   assert.ok(century.years.length >= 1);
   // A run's lead alone (a long run is read a piece at a time) is its arc too.
