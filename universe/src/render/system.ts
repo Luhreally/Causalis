@@ -8,13 +8,15 @@ import type { SystemPlan } from "../bridge/index.ts";
 import {
   MOST_GLINTS,
   STAR_SIZE,
+  bodySize,
   mirrorBand,
   orbitRings,
+  ringDrawn,
   type PeopleSystemMarks,
   type SkyMarks,
   type SystemSpot,
 } from "../view/index.ts";
-import { InstancedBatch, boxMesh } from "./batch.ts";
+import { InstancedBatch, boxMesh, groundQuadMesh } from "./batch.ts";
 import { billboard, glowMaterial } from "./glow.ts";
 import { flatMaterial, type Stage } from "./stage.ts";
 
@@ -131,6 +133,18 @@ export class SystemScene {
       e.enabled = !b.unmade;
       this.root.addChild(e);
       this.bodies.push(e);
+      // Its ring, in the plane it goes round in (no world but the home is given a tilt), growing and moving with it.
+      const ring = ringDrawn(b);
+      if (ring) {
+        const k = 1 / bodySize(b);
+        e.addChild(
+          ringEntity(
+            this.stage,
+            { inner: ring.inner * k, outer: ring.outer * k, at: ring.at * k, ice: b.ring!.ice },
+            b.ring!.ice ? 0.8 : 0.6,
+          ),
+        );
+      }
     }
     // The planets' orbits, one line mesh; on a world unmade's, its rubble, a thick belt of it right round.
     const lines: number[] = [],
@@ -216,6 +230,11 @@ export class SystemScene {
 
   set visible(on: boolean) {
     this.root.enabled = on;
+  }
+
+  /** Where each body is drawn now (for a gate's eye to go to one). */
+  get spotsNow(): readonly SystemSpot[] {
+    return this.spots;
   }
 
   /** Its star's mirrors at so many km² (0: none); drawn again only as their number grows. */
@@ -427,6 +446,77 @@ export function skyMaterials(stage: Stage): { material: pc.Material; mesh: pc.Me
     { material: glow([1, 1, 1]), mesh: line },
     { material: glow([1, 1, 1]), mesh: ball },
   ];
+}
+
+/**
+ * A world's ring about its middle, in the plane of its equator (y up), for a body drawn a unit across its radius: its
+ * edges and where the moon it was came apart, in those radii. A thin sheet seen through from either side, of ice (bright)
+ * or of rock and dust (dark); nothing inside its inner edge, thickest where the moon was torn, thinner out to the limit
+ * past which a moon holds together, and ending there. `most`: how much of what lies behind its thickest part hides.
+ */
+export function ringEntity(
+  stage: Stage,
+  ring: {
+    readonly inner: number;
+    readonly outer: number;
+    readonly at: number;
+    readonly ice: boolean;
+  },
+  most: number,
+): pc.Entity {
+  const size = 256,
+    canvas = document.createElement("canvas");
+  canvas.width = canvas.height = size;
+  const g = canvas.getContext("2d")!,
+    r = size / 2,
+    grad = g.createRadialGradient(r, r, 0, r, r, r),
+    [cr, cg, cb] = ring.ice ? [205, 218, 230] : [150, 132, 112],
+    // (The picture's last fiftieth is left clear, so its outer edge is the ring's and not the square's.)
+    out = 0.98,
+    inner = Math.min(0.96, (ring.inner / ring.outer) * out),
+    at = Math.min(out - 0.01, Math.max(inner + 0.004, (ring.at / ring.outer) * out)),
+    stop = (d: number, a: number) =>
+      grad.addColorStop(d, `rgba(${cr}, ${cg}, ${cb}, ${a.toFixed(3)})`);
+  // (Its edges are edges: inside, what falls lower is lost to the world's air; outside the limit it gathers into moons.)
+  stop(0, 0);
+  stop(Math.max(0, inner - 0.006), 0);
+  stop(inner, most * 0.7);
+  stop(at, most);
+  stop(out - 0.006, most * 0.5);
+  stop(out, 0);
+  stop(1, 0);
+  g.fillStyle = grad;
+  g.fillRect(0, 0, size, size);
+  const texture = new pc.Texture(stage.device, {
+    width: size,
+    height: size,
+    format: pc.PIXELFORMAT_RGBA8,
+    mipmaps: true,
+  });
+  texture.setSource(canvas);
+  const m = new pc.StandardMaterial();
+  m.useLighting = false;
+  m.diffuse = new pc.Color(0, 0, 0);
+  m.emissive = new pc.Color(1, 1, 1);
+  m.emissiveMap = texture;
+  m.opacityMap = texture;
+  m.opacityMapChannel = "a";
+  m.blendType = pc.BLEND_NORMAL;
+  m.depthWrite = false;
+  m.cull = pc.CULLFACE_NONE;
+  m.update();
+  const e = new pc.Entity("ring");
+  e.addComponent("render", {
+    meshInstances: [new pc.MeshInstance(groundQuadMesh(stage), m)],
+    castShadows: false,
+  });
+  e.setLocalScale(ring.outer / 0.98, ring.outer / 0.98, ring.outer / 0.98);
+  // (Its picture goes with it: a system built anew, a world left.)
+  e.once("destroy", () => {
+    m.destroy();
+    texture.destroy();
+  });
+  return e;
 }
 
 /** A material that shines by itself (the star, the rings): unlit, its own colour. */
