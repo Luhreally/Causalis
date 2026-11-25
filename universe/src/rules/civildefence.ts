@@ -10,6 +10,9 @@
 //   (1 - 1 / worth), and only as far as the seat's will is done in its lands (its capacity): a seat that cannot reach its
 //   towns cannot have them dig.
 // - What it does: of those a strike would have killed, DEFENCE.spares of those under cover live. Its treasury pays the work.
+//   Under the greatest fire, on a town or carried between worlds, and under a burned sky, cover spares half as many
+//   (DEFENCE.sparesGreat): those sent out of reach live, those under cover in the ground it flattens do not. Nothing spares
+//   anyone on a world unmade.
 // Pure functions. (What is said: who, at what cost, with what effect; never how a strike is made.)
 import { dmath } from "../kernel/index.ts";
 
@@ -18,6 +21,8 @@ export const DEFENCE = {
   work: 0.1,
   /** Of those under cover or sent away whom a strike would have killed, the share who live (est: two in three). */
   spares: 0.67,
+  /** The same under the greatest fire or a burned sky (est: half of it, those sent away). */
+  sparesGreat: 0.33,
   /** Years for what its strikes cost to be half as present to it. */
   fade: 8,
   /** Of a kind's span, the working years ahead of one of its people taken at the mean (est: three tenths). */
@@ -49,7 +54,9 @@ export function coverBuilt(worth: number, capacity: number): number {
   return worth > 1 ? dmath.clamp(capacity, 0, 1) * (1 - 1 / worth) : 0;
 }
 
-/** Of `dead` a strike would kill, those who die where `cover` of its people (0 … 1) are under cover. */
-export function deadUnderCover(dead: number, cover: number): number {
-  return Math.round(dead * (1 - dmath.clamp(cover, 0, 1) * DEFENCE.spares));
+/** Of `dead` a strike would kill, those who die where `cover` of its people (0 … 1) are under cover; `great`: the greatest fire's, or a burned sky's. */
+export function deadUnderCover(dead: number, cover: number, great = false): number {
+  return Math.round(
+    dead * (1 - dmath.clamp(cover, 0, 1) * (great ? DEFENCE.sparesGreat : DEFENCE.spares)),
+  );
 }

@@ -48,9 +48,49 @@ import { landLink, landTitle, realmLink } from "./names.ts";
 import { realmSchoolBlock } from "./ideas.ts";
 import { realmMindBlock } from "./minds.ts";
 import { designsOf, holdLines, type RealmOrder } from "../../sim/index.ts";
-import { heldWords, partWords, type Hold } from "../../rules/index.ts";
+import { CONTENTS, CONTENT_WORDS, heldWords, partWords, type Hold } from "../../rules/index.ts";
+import { honourIn, honourStore, schoolingOf, shelterCover } from "../../sim/index.ts";
 
 type Rgb = [number, number, number];
+
+/** A realm's cover, its word among its peers and what its schools teach: one line each, where it has them. */
+function keepsBlock(world: World, r: Polity): Block[] {
+  const rows: Stat[] = [],
+    year = yearNow(world),
+    cover = shelterCover(world, r.ref),
+    word = honourStore(world)?.get(r.ref),
+    schools = schoolingOf(world, r.ref);
+  if (cover > 0)
+    rows.push(
+      stat(
+        "Cover from strikes",
+        `for ${share(cover)} of its struck towns' people: of those a strike would kill, two in three of them live`,
+      ),
+    );
+  if (word) {
+    const now = honourIn(world, r.ref, year);
+    if (Math.abs(now.kept - 0.5) >= 0.005)
+      rows.push(
+        stat(
+          "Its word among its peers",
+          `${word.shamed ? "spoken of as faithless" : now.kept >= 0.5 ? "held good" : "doubted"}: reckoned to keep it ${Math.round(now.kept * 100)} times in a hundred; its calls and offers of friendship weigh by it`,
+          { why: word.shamed ?? word.last },
+        ),
+      );
+  }
+  if (schools) {
+    const others = CONTENTS.filter((k) => k !== schools.lead && schools.shares[k] >= 0.05)
+      .sort((a, b) => schools.shares[b] - schools.shares[a])
+      .map((k) => `${CONTENT_WORDS[k]} ${share(schools.shares[k])}`);
+    rows.push(
+      stat(
+        "Its schools teach",
+        `${CONTENT_WORDS[schools.lead]} first (${share(schools.shares[schools.lead])})${others.length ? `, then ${others.join(", ")}` : ""}; they reach ${share(schools.reach)} of its young`,
+      ),
+    );
+  }
+  return rows.length ? [{ type: "facts", title: "What else it keeps", rows }] : [];
+}
 
 /** Each kind of bondage in words: its icon, its name, what it is, its colour, its concept. */
 export const BOND_WORDS: Readonly<
@@ -527,6 +567,10 @@ export function realmOrderBlocks(world: World, r: Polity): Block[] {
         },
       ],
     },
+    // (What else its order keeps, each where it has it: cover for its towns' people from strikes (sim/war/shelter.ts), what
+    // its word is thought worth among its peers (sim/diplomacy/honour.ts), what its schools teach (sim/order/curriculum.ts).
+    // What, how much and why; never how.)
+    ...keepsBlock(world, r),
     ...(living
       ? [
           {

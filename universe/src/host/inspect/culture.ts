@@ -13,6 +13,7 @@ import {
 } from "../../gen/index.ts";
 import {
   DEITIES,
+  missionsOf,
   beliefOf,
   designsOf,
   languagesOf,
@@ -72,7 +73,8 @@ export function faithPage(world: World, ref: string): PageModel {
     lands = store.lands(f.ref),
     peopleOf = (c: number) => ctx.provinces.get(c)?.total() ?? 0,
     people = lands.reduce((s, c) => s + peopleOf(c), 0),
-    offshoots = store.all().filter((x) => x.from === f.ref);
+    offshoots = store.all().filter((x) => x.from === f.ref),
+    mission = missionsOf(world)?.get(f.ref);
   const rows: Row[] = [...lands]
     .sort((a, b) => peopleOf(b) - peopleOf(a) || a - b)
     .map((c) => ({
@@ -92,6 +94,20 @@ export function faithPage(world: World, ref: string): PageModel {
             stat("Founded", `year ${f.founded}`, { why: f.event }),
             stat("Where it began", [landLink(world, f.seat)]),
             ...(f.from ? [stat("Split from", [faithLink(world, f.from)], { why: f.event })] : []),
+            // (Its preachers abroad, while a mission stands: sim/belief/missions.ts.)
+            ...(mission
+              ? [
+                  stat(
+                    "Its preachers",
+                    [
+                      "sent to live among the people of ",
+                      landLink(world, mission.cell),
+                      ` in year ${mission.since}, kept from its granary until ${mission.until}`,
+                    ],
+                    { why: mission.event },
+                  ),
+                ]
+              : []),
           ],
         },
         creedBlock(f),

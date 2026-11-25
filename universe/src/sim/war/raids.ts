@@ -106,9 +106,13 @@ export function raidIn(
     lostPosted = Math.min(garrison, Math.round(RAID.bite * met * Math.min(2, weight / garrison))),
     // (Those who choose their hour and their ground, or strike from afar and are gone, lose the fewer for it.)
     hide = Math.max(ground, 0.5 * arms.fire),
+    // (How many of the posted they come under is their number and their ground, not their arms: better arms take more of the
+    // posted and bring no more of them to bear on those who carry them. Reckoned from `met`, raiders who were outweighed more
+    // than two to one lost the more the better they were armed: 28 of 191 with spears against 36 of 190 with fire, on juniper.)
+    faced = Math.min(out * (0.5 + ground), garrison),
     lostRaiders = Math.min(
       out,
-      Math.round(RAID.bite * met * Math.min(2, garrison / weight) * (1 - 0.6 * hide)),
+      Math.round(RAID.bite * faced * Math.min(2, garrison / weight) * (1 - 0.6 * hide)),
     ),
     key = cell * 2,
     deadRaiders = killOf(ctx, cell, pool.rows, lostRaiders, t, key, 20),

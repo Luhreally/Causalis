@@ -222,7 +222,9 @@ test("a hungry land of its realm borrows grain, carried from the house's town, a
   );
   assert.match(
     why(w, loan.event).claim,
-    new RegExp(`lent .+ grain against its famine, at ${Math.round(asked * 100)} in a hundred a year`),
+    new RegExp(
+      `lent .+ grain against its famine, at ${Math.round(asked * 100)} in a hundred a year`,
+    ),
   );
   // A land already fed is not lent to: its famine answered, no second loan.
   creditYear(ctx, at(k! + 2));

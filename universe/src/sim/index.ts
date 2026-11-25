@@ -2234,7 +2234,7 @@ export {
 } from "./planet/rivers.ts";
 export { MISSION_EVENTS, missionsOf, type Mission } from "./belief/missions.ts";
 export { HONOUR_EVENTS, honourIn, honourStore, type Honour } from "./diplomacy/honour.ts";
-export { CURRICULUM_EVENTS, craftTaught, taughtOf } from "./order/curriculum.ts";
+export { CURRICULUM_EVENTS, craftTaught, schoolingOf, taughtOf } from "./order/curriculum.ts";
 export { DROVE_EVENTS, droveGain, droveOf } from "./ecology/droving.ts";
 export { ORPHAN_EVENTS } from "./society/roofless.ts";
 export { BOUND_TRADE_EVENTS } from "./order/boundtrade.ts";

@@ -92,7 +92,19 @@ export function missionsYear(
       holds: boolean;
       w: ReturnType<typeof missionWorthWon>;
     } | null = null;
-    for (const i of markets.flowsAt(lands)) {
+    // (Preachers go out from its houses: its seat's land, while that holds the faith, and a few more of its lands, others
+    // each time it weighs. Asked of every land of a faith, the roads out of them were half of what its weighing cost: 145
+    // roads a faith, 0.24 ms a year at first light's 1,500.)
+    let from = lands;
+    if (lands.length > MISSION.houses) {
+      const stride = lands.length / MISSION.houses,
+        turn = Math.floor(year / MISSION.every);
+      from = [];
+      for (let k = 0; k < MISSION.houses; k++)
+        from.push(lands[Math.floor(k * stride + (turn % Math.ceil(stride))) % lands.length]!);
+      if (store.of(f.seat).faith === f.ref && !from.includes(f.seat)) from[0] = f.seat;
+    }
+    for (const i of markets.flowsAt(from)) {
       const flow = markets.flows[i]!;
       for (const c of [flow.from, flow.to]) {
         if (seen.has(c)) continue;

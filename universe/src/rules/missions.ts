@@ -2,7 +2,7 @@
 // Here a faith with houses and a granary sends its own people where they would win it the most: a land its believers already
 // deal with (their trade reaches it), weighed by what the land's people would come to give against what keeping preachers
 // among them costs.
-// - Who can be reached: a land its lands trade with, of another belief.
+// - Who can be reached: a land its houses' lands trade with (its seat's and a few more, others each time), of another belief.
 // - What a mission wins: preachers live among a people and speak as they do, so likeness of tongue, which a faith crossing a
 //   border by itself needs twice over, weighs nothing; what is left is how hard the land holds what it has (a faith held is
 //   left a third as readily as the old beliefs) and how devout the senders are. A year's chance is that of a neighbour's faith
@@ -27,6 +27,8 @@ export const MISSION = {
   /** Of the clergy a people would keep (`parish`: a priest to 250), the share that opens a land. */
   parish: 0.004,
   open: 0.1,
+  /** The lands of a faith its preachers set out from when it weighs a mission: its seat's and so many of its others. */
+  houses: 8,
   /** The fewest sent, and the share of its clergy a faith can spare to send. */
   fewest: 2,
   spare: 0.1,
