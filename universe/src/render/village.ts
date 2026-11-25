@@ -76,6 +76,9 @@ import {
   keepApart,
   partExtent,
   present,
+  PULL,
+  hipOf,
+  type Bodies,
   ringTurn,
   keepOut,
   villageSolids,
@@ -540,6 +543,39 @@ export class VillageScene {
       drawn: o.folk.shown.posed + o.folk.shown.carried,
     }));
   }
+  /**
+   * The bodies of a plan's people for a walk of their own (view/gait.ts): each one's hip above the ground as they are
+   * drawn (m), their legs' swing, their world's pull. Read once for a plan and its figures.
+   */
+  private bodiesOf(plan: VillagePlan): Bodies {
+    const kept = this.bodiesKept;
+    if (kept && kept.plan === plan && kept.figure === this.figure && kept.others === this.others)
+      return kept.bodies;
+    const legs = new Map<Figure, { hip: number; swing: number }>(),
+      of = (i: number) => {
+        const figure = this.figureFor(i);
+        let l = legs.get(figure);
+        if (!l) {
+          const own = hipOf(figure);
+          l = { hip: (own.hip * figure.scale) / M, swing: own.swing };
+          legs.set(figure, l);
+        }
+        return l;
+      },
+      bodies: Bodies = {
+        hips: Float32Array.from(plan.people, (p, i) => of(i).hip * (p.child ? 0.7 : 1)),
+        swings: Float32Array.from(plan.people, (_, i) => of(i).swing),
+        pull: PULL * (plan.body?.folk?.gravity || 1),
+      };
+    this.bodiesKept = { plan, figure: this.figure, others: this.others, bodies };
+    return bodies;
+  }
+  private bodiesKept: {
+    plan: VillagePlan;
+    figure: Figure;
+    others: unknown;
+    bodies: Bodies;
+  } | null = null;
   /** The figure one of the plan's people is drawn in: their own people's. */
   private figureFor(i: number): Figure {
     const k = this.otherOf?.[i] ?? -1;
@@ -2840,10 +2876,11 @@ export class VillageScene {
       targets,
       dt,
       villageSolids(plan),
+      this.bodiesOf(plan),
     );
     // (Those the small world moves, posed every frame: render/folk.ts.)
     const unposed = this.posed ? drawn.slice() : null;
-    this.posed?.pose(drawn, this.presence);
+    this.posed?.pose(drawn, this.presence, clock);
     this.moments = drawn.map((d) => d.moment);
     // (One let go, the camera flying out from where his eye stood: those about it faded as they were, by its sight now.)
     const gone = this.posed ? null : this.lettingGo;
@@ -3049,7 +3086,8 @@ export class VillageScene {
         d2 = (m.x * M - eye.x) ** 2 + (m.z * M - eye.z) ** 2,
         bob =
           bobOf(m.task, clock, i) +
-          (m.activity === ACTIVITY.walking ? woundBob(g, this.strides[i]!, i) : 0);
+          (m.activity === ACTIVITY.walking ? woundBob(g, this.strides[i]!, i) : 0) -
+          this.folk.dropOf(i);
       stumps += g.stumps;
       for (const b of g.bound) {
         place(placed, i, b.part);

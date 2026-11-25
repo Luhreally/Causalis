@@ -4,8 +4,13 @@
 // world runs, no one jumps: a gap too long to cross (the world run on hours, or a day, a
 // second) is a blink — shrunk away where they stood, grown again where they are — and so is
 // going in at a door or coming out of one.
+// Their legs are their body's (view/gait.ts, 2026-11-25): where the town says how high each one's hip stands, the
+// stride turns by the ground covered at the length a leg of theirs takes at the speed they are drawn going (a foot set
+// down stays put), swings as wide as that step reaches, and the body leans into its speeding up.
 import { ACTIVITY, type Moment } from "./village.ts";
 import { keepOut, type Ground } from "./ground.ts";
+import { PULL, leanOf, legSwing, strideLength } from "./gait.ts";
+import { STRIDES } from "./motion.ts";
 
 /** What is drawn of one person, carried from frame to frame. */
 export type Presence = {
@@ -20,6 +25,19 @@ export type Presence = {
   blinking: boolean;
   /** Their stride's own clock (seconds): quicker as they go faster, so the legs keep pace. */
   stride: number;
+  /** How fast they were last drawn going (m/s), and how far they lean (radians): a walk of their body's own. */
+  pace?: number;
+  lean?: number;
+};
+
+/**
+ * The bodies of those drawn, for a walk of their own: each one's hip above the ground as drawn (m; 0: no leg to walk
+ * on, the figure's swing as ever), their legs' own swing (radians), and their world's pull (m/s²; absent: a home world's).
+ */
+export type Bodies = {
+  readonly hips: ArrayLike<number>;
+  readonly swings: ArrayLike<number>;
+  readonly pull?: number;
 };
 
 /** How quickly the drawn place catches where they are (seconds: a spring's time). */
@@ -62,6 +80,7 @@ export function present(
   moments: readonly Moment[],
   dt: number,
   ground: Ground | null,
+  bodies: Bodies | null = null,
 ): { moment: Moment; size: number; stride: number }[] {
   const step = Math.max(0, Math.min(0.1, dt)),
     grow = step / BLINK,
@@ -98,7 +117,9 @@ export function present(
     }
     const gx = m.x - p.x,
       gz = m.z - p.z,
-      gap = Math.hypot(gx, gz);
+      gap = Math.hypot(gx, gz),
+      x0 = p.x,
+      z0 = p.z;
     if (gap > FAR && p.size > 0) p.blinking = true;
     if (p.blinking) {
       p.size = Math.max(0, p.size - grow);
@@ -133,8 +154,34 @@ export function present(
       moving = speed > MOVING && !p.blinking,
       facing = moving ? Math.atan2(p.vx, p.vz) : m.yaw;
     p.yaw = toward(p.yaw, facing, TURN * step);
-    // (The legs quicken with the pace, up to a run at a dash.)
-    p.stride += step * (moving ? 1 + Math.min(1.6, speed / 30) : 1);
+    const hip = bodies ? (bodies.hips[i] ?? 0) : 0,
+      swing = bodies ? (bodies.swings[i] ?? 0) : 0;
+    if (!bodies || !(hip > 0) || !(swing > 0)) {
+      // (The legs quicken with the pace, up to a run at a dash.)
+      p.stride += step * (moving ? 1 + Math.min(1.6, speed / 30) : 1);
+      out.push({
+        moment: {
+          ...m,
+          x: p.x,
+          z: p.z,
+          yaw: p.yaw,
+          activity: moving ? ACTIVITY.walking : m.activity,
+          hidden: p.size <= 0,
+        },
+        size: p.size,
+        stride: p.stride,
+      });
+      return;
+    }
+    // A walk of their body's own: the stride turned by the ground covered, as long as their leg takes at this speed.
+    const pull = bodies.pull ?? PULL,
+      long = moving ? strideLength(speed, hip, pull) : 0,
+      was = p.pace ?? 0,
+      lean = step > 0 && moving ? leanOf((speed - was) / step, pull) : 0,
+      ease = step > 0 ? 1 - Math.exp(-step / SMOOTH) : 0;
+    if (long > 0) p.stride += Math.hypot(p.x - x0, p.z - z0) / long / STRIDES;
+    p.pace = speed;
+    p.lean = (p.lean ?? 0) + (lean - (p.lean ?? 0)) * ease;
     out.push({
       moment: {
         ...m,
@@ -143,6 +190,8 @@ export function present(
         yaw: p.yaw,
         activity: moving ? ACTIVITY.walking : m.activity,
         hidden: p.size <= 0,
+        reach: moving ? legSwing(speed, hip, pull) / swing : 0,
+        lean: p.lean,
       },
       size: p.size,
       stride: p.stride,

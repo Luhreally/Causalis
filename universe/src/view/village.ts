@@ -252,6 +252,13 @@ export type Moment = {
   of?: { readonly ref: string; readonly name: string } | null;
   /** How high above the ground they are drawn (m: one held flying on the god's wings; absent: on it). */
   lift?: number;
+  /**
+   * Their walk as their body makes it at the speed they are drawn going (view/gait.ts; absent: the figure's own
+   * swing whole, as ever): how much of their legs' own swing a stride at that speed takes, and how far they lean
+   * into speeding up (radians; back, slowing).
+   */
+  reach?: number;
+  lean?: number;
 };
 
 const DAY = 86_400,

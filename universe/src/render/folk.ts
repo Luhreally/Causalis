@@ -9,6 +9,10 @@
 // pose, when it comes, is the one posed every frame). Those near the eye, those the god's hand walks
 // among (possession's small world), the wounded and those coming or going at a door are posed every
 // frame.
+// Their walk is their body's (view/gait.ts, 2026-11-25): where a moment says how much of the legs' swing a stride at its
+// speed takes, the limbs of one walking follow the stride itself (eased only while a walk is taken up, so a foot set
+// down stays where the ground has it); the hip rides its legs' arc, lower by what the lowest foot would else have
+// lifted; and the body above the hip leans into its speeding up.
 import type { VillagePlan } from "../bridge/index.ts";
 import {
   ACTIVITY,
@@ -115,6 +119,14 @@ export class FolkPoses {
   private groups = new Uint8Array(0);
   private hairs = new Uint8Array(0);
   private grown = new Float64Array(0);
+  /** The figure's legs (their places among its parts) and each one's hip above the ground (its own units). */
+  private legs: number[] = [];
+  private hips: number[] = [];
+  private hip = 0;
+  /** How far into a walk each one is taken up (0 just begun … 1 the stride's own). */
+  private taken = new Float32Array(0);
+  /** How far each one's hip stood lowered on its legs' arc when last posed (the figure's own units). */
+  private drops = new Float32Array(0);
   /**
    * Each one's parts as last posed (sixteen numbers a part), where they stood then (units), and
    * whether posed since they were last hidden.
@@ -136,6 +148,11 @@ export class FolkPoses {
     null;
   /** How many were posed and carried in the last frame (the tests, the look tools). */
   shown = { posed: 0, carried: 0 };
+
+  /** How far one's hip stood lowered on its legs' arc when last posed (the figure's own units): for what is worn on them. */
+  dropOf(i: number): number {
+    return this.drops[i] ?? 0;
+  }
 
   /** A new village's people: their limbs forgotten (the same village's are carried on). */
   forget(): void {
@@ -179,6 +196,16 @@ export class FolkPoses {
       p.machine ? hairsOf(plan) : hairOf(p.ref, p.age, span),
     );
     this.grown = Float64Array.from(plan.people, (p) => (p.child ? 0.7 : 1) * figure.scale);
+    this.legs = [];
+    this.hips = [];
+    figure.parts.forEach((part, pi) => {
+      if (part.role !== "leg" || !part.swing) return;
+      this.legs.push(pi);
+      this.hips.push(part.y + (part.pivot ?? 0));
+    });
+    this.hip = Math.max(0, ...this.hips);
+    this.taken = new Float32Array(n);
+    this.drops = new Float32Array(n);
     this.posed = new Float32Array(n * parts * 16);
     this.atX = new Float64Array(n);
     this.atZ = new Float64Array(n);
@@ -211,6 +238,12 @@ export class FolkPoses {
       this.read(plan, figure);
     const pitches = this.pitches,
       ease = dt > 0 ? 1 - Math.exp(-Math.min(0.1, dt) / 0.08) : 1,
+      // (A walk is taken up over as long as a limb takes to come to a pose: three of its easings.)
+      take = Math.min(0.1, Math.max(0, dt)) / 0.24,
+      legs = this.legs,
+      hips = this.hips,
+      hip = this.hip,
+      taken = this.taken,
       near2 = f.near * f.near,
       turn = this.frames++ & 1,
       out = [0, 0, 0, 1, 1, 1, 0, 0];
@@ -220,15 +253,23 @@ export class FolkPoses {
     const easeOne = (i: number, m: Moment) => {
       const drawn = pitches[i]!,
         g = gear[i] ?? null,
-        walking = m.activity === ACTIVITY.walking;
+        walking = m.activity === ACTIVITY.walking,
+        reach = m.reach;
+      // (A walk of their body's own: once taken up, the limbs are where the stride has them.)
+      let follow = ease;
+      if (reach !== undefined) {
+        const t = walking ? Math.min(1, taken[i]! + take) : 0;
+        taken[i] = t;
+        follow = ease + (1 - ease) * t * t;
+      }
       // Each limb eased toward its pose now: a stride begun or ended, a task taken up, is a turn of
       // the arm, not a jump of it.
       for (let pi = 0; pi < P; pi++) {
         const part = parts[pi]!,
-          posed = limbPitch(part, m.task, walking, walking ? strides[i]! : clock, i),
+          posed = limbPitch(part, m.task, walking, walking ? strides[i]! : clock, i, reach),
           aim = g ? woundPitch(g, pi, posed) : posed,
           was = drawn[pi]!;
-        drawn[pi] = Number.isNaN(was) ? aim : was + (aim - was) * ease;
+        drawn[pi] = Number.isNaN(was) ? aim : was + (aim - was) * follow;
       }
     };
     /** The parts of one drawn, posed now into what is kept of them. */
@@ -245,28 +286,50 @@ export class FolkPoses {
         mx = m.x * M,
         mz = m.z * M,
         keep = this.posed;
+      // (The hip on its legs' arc: lower by what the foot nearest the ground would else be lifted off it.)
+      let drop = 0;
+      if (m.reach !== undefined && legs.length > 1 && !lying) {
+        drop = Infinity;
+        for (let q = 0; q < legs.length; q++)
+          drop = Math.min(drop, hips[q]! * (1 - Math.cos(drawn[legs[q]!]!)));
+      }
+      this.drops[i] = drop;
+      // (And the body above it leant into its speeding up, about the hip.)
+      const lean = lying || !hip ? 0 : (m.lean ?? 0),
+        cl = lean ? Math.cos(lean) : 1,
+        sl = lean ? Math.sin(lean) : 0;
       for (let pi = 0; pi < P; pi++) {
         const part = parts[pi]!,
-          pitch = drawn[pi]!,
           o = (i * P + pi) * 16;
+        let pitch = drawn[pi]!;
         // A limb swings about its hinge: in the stride, or in the work at hand. (A wound's: a member
         // gone, a stump kept from its hinge, a limp's dip: Phase 55 M226.)
         const k = g ? g.keep[pi]! : 1,
           lift = k < 1 ? stumpAlong(partExtent(part)[1], k) : 0,
           hinge = (part.pivot ?? 0) - lift,
-          cp = Math.cos(pitch),
-          sp = Math.sin(pitch),
-          dy = hinge - hinge * cp,
-          dz = -hinge * sp,
           px = part.x,
-          pz = part.z + dz,
           sx = k > 0 ? part.sx * size : 0,
           sy = part.sy * size * k,
           sz = k > 0 ? part.sz * size : 0;
+        // (Where it hangs from, leant with the body above the hip; an arm hangs as it swings, the rest lean whole.)
+        let hy = part.y + lift + hinge,
+          hz = part.z;
+        const leant = lean !== 0 && part.role !== "leg";
+        if (leant) {
+          const up = hy - hip;
+          hy = hip + up * cl - hz * sl;
+          hz = hz * cl + up * sl;
+          if (part.role !== "arm") pitch += lean;
+        }
+        const cp = Math.cos(pitch),
+          sp = Math.sin(pitch),
+          // (Upright, reckoned as it always was, to the last bit.)
+          py = (leant ? hy - hinge * cp : part.y + lift + (hinge - hinge * cp)) - drop,
+          pz = hz - hinge * sp;
         if (lying) {
           // (Struck down: on their back where they fell, as the village laid them.)
           out[0] = mx + (px * c + pz * sn) * size;
-          out[1] = (part.y + lift + dy + bob + limp) * size;
+          out[1] = (py + bob + limp) * size;
           out[2] = mz + (-px * sn + pz * c) * size;
           out[3] = sx;
           out[4] = sy;
@@ -291,7 +354,7 @@ export class FolkPoses {
         keep[o + 10] = c * cp * sz;
         keep[o + 11] = 0;
         keep[o + 12] = mx + (px * c + pz * sn) * size;
-        keep[o + 13] = (part.y + lift + dy + bob + limp) * size + (m.lift ?? 0) * M;
+        keep[o + 13] = (py + bob + limp) * size + (m.lift ?? 0) * M;
         keep[o + 14] = mz + (-px * sn + pz * c) * size;
         keep[o + 15] = 1;
       }
@@ -382,24 +445,37 @@ export class FolkPoses {
         size = this.grown[i]! * (sizes[i] ?? 1),
         c = Math.cos(m.yaw),
         sn = Math.sin(m.yaw),
-        pitch = pitches[i]![pi]!,
         k = g ? g.keep[pi]! : 1,
         lift = k < 1 ? stumpAlong(partExtent(part)[1], k) : 0,
         hinge = (part.pivot ?? 0) - lift,
-        dy = hinge - hinge * Math.cos(pitch),
-        dz = -hinge * Math.sin(pitch),
+        lying = !!downed?.has(i),
+        lean = lying || !hip || part.role === "leg" ? 0 : (m.lean ?? 0),
+        up = part.y + lift + hinge - hip,
+        hy = lean ? hip + up * Math.cos(lean) - part.z * Math.sin(lean) : part.y + lift + hinge,
+        hz = lean ? part.z * Math.cos(lean) + up * Math.sin(lean) : part.z,
+        pitch = pitches[i]![pi]! + (lean && part.role !== "arm" ? lean : 0),
         px = part.x,
-        pz = part.z + dz,
+        pz = hz - hinge * Math.sin(pitch);
+      let drop = 0;
+      if (m.reach !== undefined && legs.length > 1 && !lying) {
+        drop = Infinity;
+        for (let q = 0; q < legs.length; q++)
+          drop = Math.min(drop, hips[q]! * (1 - Math.cos(pitches[i]![legs[q]!]!)));
+      }
+      const py =
+          (lean
+            ? hy - hinge * Math.cos(pitch)
+            : part.y + lift + (hinge - hinge * Math.cos(pitch))) - drop,
         limp = g && m.activity === ACTIVITY.walking ? woundBob(g, strides[i]!, i) : 0;
       o[0] = m.x * M + (px * c + pz * sn) * size;
-      o[1] = (part.y + lift + dy + bobOf(m.task, clock, i) + limp) * size + (m.lift ?? 0) * M;
+      o[1] = (py + bobOf(m.task, clock, i) + limp) * size + (m.lift ?? 0) * M;
       o[2] = m.z * M + (-px * sn + pz * c) * size;
       o[3] = k > 0 ? part.sx * size : 0;
       o[4] = part.sy * size * k;
       o[5] = k > 0 ? part.sz * size : 0;
       o[6] = m.yaw;
       o[7] = pitch;
-      if (downed?.has(i)) lieDown(o, part, m.x, m.z, m.yaw, size, pitch);
+      if (lying) lieDown(o, part, m.x, m.z, m.yaw, size, pitch);
     };
   }
 }

@@ -600,6 +600,8 @@ export type PosedHook = {
   pose(
     drawn: { moment: Moment; size: number; stride: number }[],
     presence: Map<string, Presence>,
+    /** (The screen's clock, seconds: for what of them moves by it.) */
+    clock?: number,
   ): void;
   /** Those drawn lying struck down (the plan's indices). */
   readonly downed: ReadonlySet<number>;
