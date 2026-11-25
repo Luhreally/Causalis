@@ -2,7 +2,7 @@
 // ref, and the few names that are not refs (a far star, another star's world, one under
 // the god's hand) — to its page, and its place for "go to it". Pure reads of the world as
 // it stands (the observer ledger aside, which history never reads): asking never moves it.
-import { placeLotPage, placePersonPage, withPlace } from "./place.ts";
+import { placeLotPage, placePersonPage, withPlace, withPlaceFigure } from "./place.ts";
 import { holdPage } from "./strongholds.ts";
 import { notablePage } from "./notables.ts";
 import { toldPage } from "./told.ts";
@@ -335,6 +335,8 @@ export function pageOf(
     );
     // (Their life, read whole: what they want, are like, have done and hold — round G.)
     if (!brief) page = withSelf(world, base, page, (p) => selfLawBlocks(world, p));
+    // (One of a realm's key figures living in a town kept in detail: what the place tells of them, at the head. Town mode.)
+    if (!brief) page = withPlaceFigure(world, base, page);
     page = withConcepts(tidy(page));
     // (How they are now, and the way on and off the people bar: B1.)
     if (!brief) page = withBarBlock(world, base, page);

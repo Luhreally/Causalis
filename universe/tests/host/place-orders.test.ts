@@ -17,7 +17,9 @@ import { EARTH } from "../../src/host/index.ts";
 import { pageOf } from "../../src/host/inspect/index.ts";
 import {
   ACT,
+  AT,
   HAP,
+  PLACES_MOST,
   advancePlace,
   enterPlace,
   placeDigest,
@@ -25,6 +27,7 @@ import {
   placeTable,
   placesOf,
   settleOf,
+  streetLength,
   targetTable,
   type Place,
 } from "../../src/host/place.ts";
@@ -348,4 +351,108 @@ test("goods flow from where they are made to the market, and every building's pa
   // What its market will not let go is said on the sheet, and no one takes it from there.
   order(w, "place.forbid", { town: s.ref, good: 0, on: true });
   assert.ok(stocksSheet(w, place).rows.find((r) => r.good === 0)?.forbidden);
+});
+
+test("a managed town with doings untold is never let go of; told, it can be", () => {
+  const w = copy(base()),
+    ctx = populationContext(w),
+    towns = ctx.settlements
+      .all()
+      .filter((s) => ctx.settlements.held(s.ref) && s.population > 100)
+      .sort((a, b) => b.population - a.population || (a.ref < b.ref ? -1 : 1))
+      .slice(40, 40 + PLACES_MOST + 3),
+    first = towns[0]!,
+    store = placesOf(w)!,
+    place = enterPlace(w, first.ref)!;
+  order(w, "place.work", { town: first.ref, shares: [300, 100, 500, 100] });
+  w.runTo(w.now + HOUR);
+  advancePlace(w, place);
+  assert.ok(place.moves.length > 0);
+  for (const s of towns.slice(1)) enterPlace(w, s.ref);
+  assert.equal(store.get(first.ref), place, "kept, though the least lately entered");
+  assert.ok(settle(w, first.ref) > 0);
+  enterPlace(w, towns[1]!.ref);
+  enterPlace(w, towns[2]!.ref);
+  for (const s of towns.slice(3)) enterPlace(w, s.ref);
+  assert.ok(store.places.length <= PLACES_MOST);
+});
+
+test("a walk is reckoned by the town's streets between where its plan lays its lots", () => {
+  const w = copy(base()),
+    s = near(w, 2500),
+    place = enterPlace(w, s.ref)!,
+    homes = [...new Set(place.houses.home)].filter((lot) => lot >= 0);
+  assert.ok(homes.length > 20);
+  let longer = 0;
+  for (let k = 0; k + 1 < 20; k++) {
+    const a = homes[k]!,
+      b = homes[homes.length - 1 - k]!,
+      d = streetLength(place, a, b);
+    assert.equal(streetLength(place, a, a), 0);
+    assert.equal(d, streetLength(place, b, a));
+    // (Round the blocks: never shorter than by way of the square, and no shorter than straight.)
+    assert.ok(d <= streetLength(place, a, AT.square) + streetLength(place, AT.square, b) + 1e-3);
+    if (d > 0) longer++;
+  }
+  assert.ok(longer >= 18);
+  // Its people's walks take the ticks that length takes at a walk.
+  w.runTo(w.now + 9 * HOUR);
+  advancePlace(w, place);
+  const p = place.people;
+  let walking = 0;
+  for (let i = 0; i < p.n; i++)
+    if (p.eta[i]! > 0) {
+      walking++;
+      assert.equal(
+        p.trip[i],
+        Math.max(1, Math.round(streetLength(place, p.at[i]!, p.to[i]!) / 720)),
+      );
+    }
+  assert.ok(walking > 0, "some are walking");
+});
+
+test("a realm's key figure living in the town is one of the place's people, with needs", () => {
+  const w = copy(base()),
+    s = near(w, 400),
+    place = enterPlace(w, s.ref)!,
+    figure = "rule:realm:0:1",
+    plan = {
+      ref: s.ref,
+      name: s.name,
+      homes: [...new Set(place.houses.home)].map((lot) => ({
+        x: lot,
+        z: 0,
+        yaw: 0,
+        household: null,
+        lot,
+      })),
+      people: [
+        {
+          ref: "agent:1",
+          name: "Ruler of the test",
+          home: 0,
+          age: 44,
+          occupation: 6,
+          child: false,
+          sex: 1,
+          figure,
+        },
+      ],
+    } as unknown as VillagePlan,
+    placed = placePlan(w, plan, place, 480),
+    at = placed.people.findIndex((q) => q.figure === figure),
+    id = placed.placed![at]!;
+  assert.ok(at >= 0 && id > 0, "the figure is one of the place's own");
+  assert.equal(placed.people[at]!.name, "Ruler of the test");
+  assert.equal(placed.people.filter((q) => q.figure === figure).length, 1);
+  assert.equal(placed.placed!.filter((x) => x === id).length, 1, "and is drawn once");
+  const i = [...place.people.id.subarray(0, place.people.n)].indexOf(id);
+  assert.deepEqual(placeWho(w, place)(i), { ref: figure, name: "Ruler of the test" });
+  const frame = placeFrame(w, s.ref, [id])!;
+  assert.ok(
+    frame.why[0]!.length > 0 && frame.at[0] !== AT.none,
+    "with needs and a place, as anyone's",
+  );
+  // The same one, however often the plan is read.
+  assert.equal(placePlan(w, plan, place, 480).placed![at], id);
 });

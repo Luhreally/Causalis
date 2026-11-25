@@ -374,7 +374,7 @@ export class PlaceHud {
       el(
         "p",
         "place-more",
-        `${o.who} answer. What is raised goes up by the town's own hands, month by month, fed and tooled from its land's stores.`,
+        `${o.who} What is raised goes up by the town's own hands, month by month, fed and tooled from its land's stores.`,
       ),
     );
     this.sheetBody.replaceChildren(...body);

@@ -90,7 +90,10 @@ import {
   type SettleMove,
   type Settlement,
 } from "../sim/index.ts";
+import { townLots } from "../bridge/index.ts";
 import { linesOf, townRoster, workOf as lineWork, folkWork } from "./roster.ts";
+import { townPlan } from "./town.ts";
+import { townSite } from "./village.ts";
 
 // —— Measures ————————————————————————————————————————————————————————————————————————————————————————————————————
 
@@ -383,6 +386,13 @@ export type Place = {
   dead: number[];
   /** The orders its hands were last put to work by (their shares, said), so they are put once. */
   ordered: string;
+  /**
+   * Its realm's key figures who live in it (host/leaders.ts: its ruler, an heir, a keeper), each one of its own people:
+   * the figure's page, and who they are here.
+   */
+  figRef: string[];
+  figId: number[];
+  figName: string[];
   /** What was made and used of each good since the day began (millionths), and the day. */
   day: number;
   madeDay: number[];
@@ -644,9 +654,13 @@ export class PlaceStore implements StateStore {
       for (let i = 0; i < this.places.length; i++)
         if (
           this.places[i] !== place &&
+          // (One with doings its land has yet to be told is kept until they are told: place.settle, on leaving.)
+          !this.places[i]!.moves.length &&
+          !this.places[i]!.dead.length &&
           (least < 0 || this.places[i]!.used < this.places[least]!.used)
         )
           least = i;
+      if (least < 0) break;
       this.places.splice(least, 1);
     }
   }
@@ -699,6 +713,9 @@ export class PlaceStore implements StateStore {
         moves: p.moves,
         dead: p.dead,
         ordered: p.ordered,
+        figRef: p.figRef,
+        figId: p.figId,
+        figName: p.figName,
         day: p.day,
         madeDay: p.madeDay,
         usedDay: p.usedDay,
@@ -747,6 +764,9 @@ export class PlaceStore implements StateStore {
         moves: [...((raw.moves as number[] | undefined) ?? [])],
         dead: [...((raw.dead as number[] | undefined) ?? [])],
         ordered: (raw.ordered as string | undefined) ?? "",
+        figRef: [...((raw.figRef as string[] | undefined) ?? [])],
+        figId: [...((raw.figId as number[] | undefined) ?? [])],
+        figName: [...((raw.figName as string[] | undefined) ?? [])],
         day: (raw.day as number | undefined) ?? 0,
         madeDay: [
           ...((raw.madeDay as number[] | undefined) ?? new Array<number>(GOOD_COUNT).fill(0)),
@@ -803,6 +823,7 @@ export function placeDigest(p: Place): string {
   for (const x of [...p.matched.made, ...p.matched.wage]) h.float(x);
   for (const x of p.log) h.int(x.t).int(x.what).int(x.id).int(x.a).int(x.b);
   h.string(p.ordered);
+  p.figRef.forEach((ref, k) => h.string(ref).int(p.figId[k]!));
   return h.hex();
 }
 
@@ -843,15 +864,73 @@ function ringOf(place: Place, lot: number): readonly [number, number] {
   return [r * Math.cos(a), r * Math.sin(a)];
 }
 
+/**
+ * Where a town's lots lie, as its own plan lays them (host/town.ts townPlan, bridge/town.ts townLots: what its view
+ * draws), in its streets' own frame: along its main way and across it. Read once for a place and again when its town
+ * has taken more lots; never saved (it is the world's, read again).
+ */
+type Laid = { readonly lots: number; readonly u: Float32Array; readonly v: Float32Array };
+const LAID = new WeakMap<Place, Laid>();
+/** The most lots a place reads the lie of (those past them are reckoned by their ring). */
+const LAID_MOST = 24_000;
+
+function layLots(world: World, place: Place): void {
+  let most = 0;
+  for (const lot of place.houses.home) most = Math.max(most, lot + 1);
+  for (const lot of place.bldgs.lot) most = Math.max(most, lot + 1);
+  most = Math.min(most, LAID_MOST);
+  if ((LAID.get(place)?.lots ?? -1) >= most) return;
+  const site = townSite(world, place.town),
+    plan = site ? townPlan(world, place.town, site.axis, most, site.water) : null;
+  if (!plan)
+    return void LAID.set(place, { lots: 0, u: new Float32Array(0), v: new Float32Array(0) });
+  const lots = townLots(
+      plan.family,
+      plan.seed,
+      plan.axis,
+      Math.min(most, plan.lots),
+      plan.water,
+      plan.site ?? null,
+      plan.lotSize ?? 1,
+    ),
+    n = lots.x.length,
+    u = new Float32Array(n),
+    v = new Float32Array(n),
+    c = Math.cos(plan.axis),
+    s = Math.sin(plan.axis);
+  for (let k = 0; k < n; k++) {
+    u[k] = lots.x[k]! * c + lots.z[k]! * s;
+    v[k] = -lots.x[k]! * s + lots.z[k]! * c;
+  }
+  LAID.set(place, { lots: n, u, v });
+}
+
+/**
+ * How far it is from one lot to another by the town's streets (metres): along its streets' two ways between where its
+ * own plan lays the two lots, as blocks are walked round, not through. (The view walks the very street path between
+ * them, view/placefolk.ts; this is that path's length as near as the plan's lie of its lots gives it without its
+ * street graph, which is the view's.) By their rings where the plan's lie is not read: the fields, lots past the read.
+ */
+export function streetLength(place: Place, a: number, b: number): number {
+  const laid = LAID.get(place),
+    at = (lot: number): readonly [number, number] | null =>
+      lot === AT.square || lot === AT.none
+        ? [0, 0]
+        : laid && lot >= 0 && lot < laid.lots
+          ? [laid.u[lot]!, laid.v[lot]!]
+          : null,
+    pa = at(a),
+    pb = at(b);
+  if (pa && pb) return Math.abs(pa[0] - pb[0]) + Math.abs(pa[1] - pb[1]);
+  const [ax, az] = ringOf(place, a),
+    [bx, bz] = ringOf(place, b);
+  return Math.hypot(ax - bx, az - bz);
+}
+
 /** Ticks to walk from one to another. */
 function ticksBetween(place: Place, a: number, b: number): number {
   if (a === b) return 0;
-  const [ax, az] = ringOf(place, a),
-    [bx, bz] = ringOf(place, b);
-  return Math.max(
-    1,
-    Math.min(65535, Math.round(Math.hypot(ax - bx, az - bz) / (WALK * PLACE_TICK))),
-  );
+  return Math.max(1, Math.min(65535, Math.round(streetLength(place, a, b) / (WALK * PLACE_TICK))));
 }
 
 // —— Making a place ——————————————————————————————————————————————————————————————————————————————————————————————
@@ -1348,6 +1427,9 @@ function makePlace(world: World, s: Settlement): Place | null {
     moves: [],
     dead: [],
     ordered: "",
+    figRef: [],
+    figId: [],
+    figName: [],
     day: Math.floor(t / DAY),
     madeDay: new Array<number>(GOOD_COUNT).fill(0),
     usedDay: new Array<number>(GOOD_COUNT).fill(0),
@@ -1395,6 +1477,7 @@ function makePlace(world: World, s: Settlement): Place | null {
   linkRoster(world, place, s, f);
   reckonMeans(world, place);
   stockOut(place, f, stockShare(world, s.cell, n));
+  layLots(world, place);
   // Its day under way before it is seen; then its stocks are the world's again, to the last millionth.
   while (place.t < t) tick(world, place, f);
   matchStocks(place, stockShare(world, s.cell, place.people.n));
@@ -1961,6 +2044,48 @@ function linkRoster(world: World, place: Place, s: Settlement, f: Frame): void {
 /** A roster holder's sex (1: a man) as the world's table numbers the sexes. */
 const rowSex = (sex: number): number => (sex === 1 ? 1 - FEMALE : FEMALE);
 
+/**
+ * One of its realm's key figures who lives in the town (their page, their sex as the town's plan has it: 1 a man) is one
+ * of the place's own people: kept once found; else one of its grown who holds no roster's line and is no other figure,
+ * a leader of their sex before any other, the lowest numbered first. Null: no one of the place can be them.
+ */
+export function placeFigure(
+  place: Place,
+  ref: string,
+  name: string,
+  sex: number | undefined,
+  grown: number,
+): number | null {
+  const p = place.people,
+    at = place.figRef.indexOf(ref);
+  if (at >= 0) {
+    if (placeIndexOf(place, place.figId[at]!) >= 0) return place.figId[at]!;
+    // (Dead or gone since: another is found.)
+    place.figRef.splice(at, 1);
+    place.figId.splice(at, 1);
+    place.figName.splice(at, 1);
+  }
+  const taken = new Set(place.figId);
+  let best = -1,
+    worth = -1;
+  for (let i = 0; i < p.n; i++) {
+    if (p.line[i] || taken.has(p.id[i]!) || ageOf(p, i, place.t) < grown) continue;
+    const w =
+      (occOf(p, i) === OCC.leader ? 4 : 0) +
+      (sex === undefined || sexOf(p, i) === rowSex(sex) ? 2 : 0) +
+      (occOf(p, i) !== OCC.dependent ? 1 : 0);
+    if (w > worth || (w === worth && p.id[i]! < p.id[best]!)) {
+      worth = w;
+      best = i;
+    }
+  }
+  if (best < 0) return null;
+  place.figRef.push(ref);
+  place.figId.push(p.id[best]!);
+  place.figName.push(name);
+  return p.id[best]!;
+}
+
 /** Those who hold a roster's line no longer (dead, or their term done) are the town's own again. */
 function unlinkRoster(world: World, place: Place): void {
   const p = place.people;
@@ -2005,6 +2130,7 @@ export function advancePlace(world: World, place: Place): number {
   const f = frameOf(world, place.cell),
     now = Math.floor(world.now / PLACE_TICK) * PLACE_TICK,
     month = Math.floor(world.now / MONTH);
+  layLots(world, place);
   // (Its hands put to any order given since: before its next tick, and though the clock stands still.)
   applyOrders(world, place, f);
   if (now <= place.t) return 0;

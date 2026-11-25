@@ -66,7 +66,7 @@ import {
 import { observer } from "../causal/index.ts";
 import { parseSeatRef, parseTownsfolkRef } from "../bridge/index.ts";
 import { breadCoin, landMadeHead, personLiving, rentOf } from "./home.ts";
-import { folkWork, townRoster, workOf } from "./roster.ts";
+import { linesOf, folkWork, townRoster, workOf } from "./roster.ts";
 import { familyOf, pairingOfWorld, seatHolder } from "./kin.ts";
 import { seatTownOf } from "./leaders.ts";
 import { landEra } from "./village.ts";
@@ -865,7 +865,10 @@ export function bearingIn(world: World, ref: string): 0 | 1 | 2 {
 export function townSelves(world: World, s: Settlement, most: number): SelfRead[] {
   const roster = townRoster(world, s.ref),
     out: SelfRead[] = [];
-  for (let k = 0; out.length < most && k < most * 2; k++) {
+  // (Only its own lines: a roster gives a holder for any line asked, and one past the town's lines is no one's. A town of
+  // 234 named the holders of lines it does not have, and their pages said "Gone from the world".)
+  const lines = linesOf(s.population);
+  for (let k = 0; out.length < most && k < Math.min(lines, most * 2); k++) {
     const h = roster.holder(k);
     if (!h) continue;
     const read = selfOf(world, h.ref, false);

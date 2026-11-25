@@ -229,6 +229,27 @@ export function withPlace(world: World, ref: string, page: PageModel): PageModel
   };
 }
 
+/**
+ * The page of one of a realm's key figures (its ruler, an heir, a keeper), with what the place tells of them at its head
+ * while the town they live in is kept and they are one of its people (host/place.ts placeFigure).
+ */
+export function withPlaceFigure(world: World, ref: string, page: PageModel): PageModel {
+  for (const place of placesOf(world)?.places ?? []) {
+    const at = place.figRef.indexOf(ref);
+    if (at < 0) continue;
+    const i = placeIndexOf(place, place.figId[at]!),
+      told = i >= 0 ? personBlocks(world, place, i) : null;
+    if (!told || !page.tabs.length) return page;
+    const [first, ...rest] = page.tabs;
+    return {
+      ...page,
+      stats: [...told.needs, told.now, ...page.stats],
+      tabs: [{ ...first!, blocks: [...told.blocks, ...first!.blocks] }, ...rest],
+    };
+  }
+  return page;
+}
+
 /** The page of one of a place's people: `plc:<town>:<id>`. */
 export function placePersonPage(
   world: World,
@@ -263,7 +284,7 @@ export function placePersonPage(
   }
   // (One the god game names has the god game's page, the place's telling at its head.)
   const who = placeWho(world, place)(i);
-  if (who.ref !== ref) return named(who.ref);
+  if (who.ref !== ref && who.ref.startsWith("folk:")) return named(who.ref);
   const child = r.age < lifeOf(world).adulthood;
   return {
     ref,

@@ -29,6 +29,8 @@ import {
   WHY,
   enterPlace,
   ordersOf,
+  placeFigure,
+  placeIndexOf,
   placesOf,
   pressOf,
   workWorth,
@@ -136,6 +138,9 @@ export function placeWho(
     names = placeNames(world, place);
   let roster: ReturnType<typeof townRoster> | null = null;
   return (i) => {
+    // (One of its realm's key figures: by their own name and page.)
+    const fig = place.figId.indexOf(p.id[i]!);
+    if (fig >= 0) return { ref: place.figRef[fig]!, name: place.figName[fig]! };
     if (p.line[i]) {
       roster ??= townRoster(world, place.town, Math.floor(place.t / YEAR));
       const h = roster.holder(p.line[i]! - 1);
@@ -185,6 +190,20 @@ export function placePlan(
   const houses = [...byHouse.keys()].sort((a, b) => h.home[a]! - h.home[b]! || a - b),
     people: VillagePlan["people"][number][] = [],
     placed: number[] = [];
+  // Its realm's key figures who live here, each one of the place's own people (host/place.ts placeFigure): drawn as the
+  // town view draws them, with their own name and page, where the place has them, with needs as anyone's.
+  const figures = new Map<number, VillagePlan["people"][number]>();
+  for (const q of plan.people) {
+    if (!q.figure) continue;
+    const id = placeFigure(place, q.figure, q.name, q.sex, grown);
+    if (id !== null) figures.set(id, q);
+  }
+  for (const [id, q] of figures) {
+    const i = placeIndexOf(place, id),
+      at = homeOf.get(h.home[p.house[i]!]!) ?? q.home;
+    people.push({ ...q, home: at, occupation: p.sexOcc[i]! & 15, child: false });
+    placed.push(id);
+  }
   let dealt = 0;
   for (const house of houses) {
     const members = byHouse.get(house)!,
@@ -196,6 +215,7 @@ export function placePlan(
     if (at === undefined) continue;
     if (people.length && people.length + members.length > most) break;
     for (const i of members) {
+      if (figures.has(p.id[i]!)) continue;
       const age = (place.t / DAY - p.born[i]!) / 365,
         occ = p.sexOcc[i]! & 15,
         sex = p.sexOcc[i]! >> 4,
@@ -216,9 +236,9 @@ export function placePlan(
       placed.push(p.id[i]!);
     }
   }
-  // (Its realm's key figures as the plan has them, before their doors: not of the place's count.)
+  // (A figure no one of the place could be stands as the plan has them, before their door.)
   for (const q of plan.people)
-    if (q.figure) {
+    if (q.figure && !place.figRef.includes(q.figure)) {
       people.push(q);
       placed.push(-1);
     }
