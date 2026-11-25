@@ -73,8 +73,11 @@ test("a world is painted by what covers it: seas blue, ice white, a giant in ban
 test("another people's world is alive, and its people and their lights are shown as the chronicle stands", () => {
   const civs = civilizationsNear(world);
   assert.ok(civs.length >= 1, "the cluster holds other peoples");
-  const c = civs.find((x) => x.electronics < 0) ?? civs[0]!,
-    w = EARTH.queries["world.globe"]!(world, { star: c.star, index: c.planet }) as WorldGlobe;
+  // (A followed people comes only as far as its own world lets it: one that never comes to electronics has that year at
+  // Infinity, and no finite year lights its world. The lights are told on one that does come to them.)
+  const c = civs.find((x) => Number.isFinite(x.electronics));
+  assert.ok(c, "one of them comes to electronics");
+  const w = EARTH.queries["world.globe"]!(world, { star: c.star, index: c.planet }) as WorldGlobe;
   assert.ok(w.living, "life greens a world with seas about an old star");
   assert.equal(w.people?.electronics, c.electronics);
   const lit = (year: number) => {
@@ -86,4 +89,21 @@ test("another people's world is alive, and its people and their lights are shown
   };
   assert.ok(lit(c.electronics + 1) > 0, "their lights once they have electronics");
   assert.equal(lit(c.electronics - 1), 0, "and none before");
+  const never = civs.find((x) => x.electronics === Infinity);
+  if (never) {
+    const dark = EARTH.queries["world.globe"]!(world, {
+      star: never.star,
+      index: never.planet,
+    }) as WorldGlobe;
+    assert.equal(dark.people?.electronics, Infinity);
+    const rgba = worldColors(dark, 1e9);
+    let n = 0;
+    for (let i = 0; i < dark.cover.length; i++)
+      if (rgba[4 * i]! > 250 && rgba[4 * i + 1]! > 240 && rgba[4 * i + 2]! > 200) n++;
+    assert.equal(
+      n,
+      0,
+      "a people that never comes to electronics lights nothing, however late the year",
+    );
+  }
 });
