@@ -75,7 +75,7 @@ import { clusterOf } from "../space/stars.ts";
 export const MOTION_EVENTS = {
   /** A land's ice sheet gone, or come. */
   thawed: defineEventType("planet.ice-gone", 4),
-  /** Its sea ice a quarter more gone (or come) against what it was made with. */
+  /** Its sea ice a tenth more gone (or come) against what it was made with. */
   floes: defineEventType("planet.sea-ice", 4),
   iced: defineEventType("planet.ice-come", 4),
   /** The seas risen or fallen another metre. */
@@ -138,7 +138,7 @@ export type MotionState = {
   /** The event the seas last moved by, and the overturning's. */
   seaEvent: Ref | null;
   overturnEvent: Ref | null;
-  /** Its sea ice against as made (1: all of it), the quarters of it told gone (negative: come), and the event that told it. */
+  /** Its sea ice against as made (1: all of it), the tenths of it told gone (negative: come), and the event that told it. */
   floes: number;
   toldFloes: number;
   floeEvent: Ref | null;
@@ -794,11 +794,11 @@ function tell(
       },
     });
   }
-  // Its sea ice, each quarter of what it was made with gone or come.
-  const quarters = Math.trunc((1 - s.floes) * 4);
-  if (quarters !== s.toldFloes) {
-    const gone = quarters > s.toldFloes;
-    s.toldFloes = quarters;
+  // Its sea ice, each tenth of what it was made with gone or come.
+  const tenths = Math.trunc((1 - s.floes) * 10 + 1e-9);
+  if (tenths !== s.toldFloes) {
+    const gone = tenths > s.toldFloes;
+    s.toldFloes = tenths;
     s.floeEvent = world.events.emit({
       type: MOTION_EVENTS.floes.type,
       causes: [

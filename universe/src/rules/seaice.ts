@@ -21,8 +21,12 @@ export const SEA_ICE = {
   perSalt: 0.054,
   /** Open water's brightness. */
   seaAlbedo: 0.06,
-  /** Of the light the same face of land ice would turn, what sea ice turns: the low sun of where it lies, and its clouds (est: Hudson 2011). */
-  keeps: 0.25,
+  /**
+   * Of the light the same face of land ice would turn, what sea ice turns: the low sun of where it lies, its clouds, and the part
+   * of the year it is there at all (est: Hudson 2011 has all the Arctic's gone as 0.7 W/m²; first light's seas bear ice over an
+   * eighth of its face by their mean warmth, and at a quarter each degree of warming brought a third of a degree more).
+   */
+  keeps: 0.12,
   /** The share of the overturning that is the brine of ice forming: gone with all its sea ice (est). */
   brine: 0.2,
 } as const;
