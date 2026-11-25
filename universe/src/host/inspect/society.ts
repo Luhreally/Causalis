@@ -136,7 +136,7 @@ export function landLivesBlocks(world: World, cell: number): Block[] {
         }),
         stat(
           "Kept by kin, temple, savings or pension",
-          `${per(unable[UNABLE_ROW.kept]!)}: they leave its workers and are fed as its children are; those no one keeps die the sooner`,
+          `${per(unable[UNABLE_ROW.kept]!)}: their share of its work is not done, and they are fed as they were; those no one keeps die the sooner`,
         ),
       ],
     });

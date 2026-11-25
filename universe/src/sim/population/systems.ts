@@ -15,7 +15,6 @@ import {
   tableKeptOf,
 } from "../society/kept.ts";
 import { workBySex } from "../society/work.ts";
-import { unableOf } from "../society/unable-kept.ts";
 import { rooflessColdOf } from "../society/kept.ts";
 import { youngKilledOf } from "../order/underworld-kept.ts";
 import { orgSparedOf, orgYoungKilledOf } from "../order/groups-kept.ts";
@@ -1481,19 +1480,6 @@ export function weatherYear(ctx: PopulationContext, t: SimTime): void {
   }
 }
 
-/**
- * A land's work's shares with its unable set aside (society/unable.ts): the share of its grown a mishap, a sickness, foul air or a
- * war has left unable to work stays among those it keeps, as its children are. Unchanged where none is reckoned.
- */
-function withUnable(world: World, cell: number, t: number[]): number[] {
-  const u = unableOf(world, cell);
-  if (u <= 0) return t;
-  let sum = 0;
-  for (let o = 1; o < COLS; o++) sum += t[o]!;
-  t[OCC.dependent] = (u * sum) / (1 - u);
-  return t;
-}
-
 /** Ageing and coming of age, yearly. */
 export function ageYear(ctx: PopulationContext, t: SimTime): void {
   const { world } = ctx,
@@ -1501,17 +1487,13 @@ export function ageYear(ctx: PopulationContext, t: SimTime): void {
   for (const p of ctx.provinces.all()) {
     const d = new CountDeltas(p.counts),
       key = refHash(p.ref),
-      targets = withUnable(
-        world,
-        p.cell,
-        occupationTargets(
-          p,
-          provinceCapacity(ctx, p.cell),
-          ctx.settlements.inProvince(p.cell).length,
-          marketsOf(world).wagesOf(p.cell),
-          farmingShare(ctx, p),
-          fieldsUse(ctx, p),
-        ),
+      targets = occupationTargets(
+        p,
+        provinceCapacity(ctx, p.cell),
+        ctx.settlements.inProvince(p.cell).length,
+        marketsOf(world).wagesOf(p.cell),
+        farmingShare(ctx, p),
+        fieldsUse(ctx, p),
       ),
       year = yearOfMoment(t),
       windowed = handOf(world).composition(p.cell, year, ctx.life);
@@ -1572,33 +1554,27 @@ export function workYear(ctx: PopulationContext, t: SimTime): void {
           for (let o = 0; o < COLS; o++) grown -= windowed[r * COLS + o]!;
     if (!grown) continue;
     const key = refHash(p.ref),
-      targets = withUnable(
-        world,
-        p.cell,
-        occupationTargets(
-          p,
-          provinceCapacity(ctx, p.cell),
-          ctx.settlements.inProvince(p.cell).length,
-          marketsOf(world).wagesOf(p.cell),
-          farmingShare(ctx, p),
-          fieldsUse(ctx, p),
-        ),
+      targets = occupationTargets(
+        p,
+        provinceCapacity(ctx, p.cell),
+        ctx.settlements.inProvince(p.cell).length,
+        marketsOf(world).wagesOf(p.cell),
+        farmingShare(ctx, p),
+        fieldsUse(ctx, p),
       );
     // (Each sex toward its own shares of the work, where the land's roles are kept: the society sweep, society/work.ts.)
     if (workBySex(ctx, p, targets, windowed, key, t)) continue;
     const desired = apportion(grown, targets, (k) => world.rng.u32(WORK, key, t, 0, k));
     const current = new Array<number>(COLS).fill(0);
-    // (Its unable are moved among those it keeps and back only where any are reckoned: else its work's columns alone, as before.)
-    const first = targets[OCC.dependent]! > 0 ? 0 : 1;
     const adultRows: number[] = [];
     for (let s = 0; s < SEXES; s++)
       for (let b = 0; b < BANDS; b++)
         if (ctx.life.bands[b]! >= ctx.life.adulthood) {
           adultRows.push(row(s, b));
-          for (let o = first; o < COLS; o++) current[o] = current[o]! + rest(row(s, b), o);
+          for (let o = 1; o < COLS; o++) current[o] = current[o]! + rest(row(s, b), o);
         }
-    const surplus = current.map((c, o) => (o < first ? 0 : Math.max(0, c - desired[o]!))),
-      deficit = current.map((c, o) => (o < first ? 0 : Math.max(0, desired[o]! - c))),
+    const surplus = current.map((c, o) => (o === 0 ? 0 : Math.max(0, c - desired[o]!))),
+      deficit = current.map((c, o) => (o === 0 ? 0 : Math.max(0, desired[o]! - c))),
       totalSurplus = surplus.reduce((a, b) => a + b, 0),
       totalDeficit = deficit.reduce((a, b) => a + b, 0),
       moving = Math.min(totalSurplus, totalDeficit, Math.ceil(grown * 0.1));

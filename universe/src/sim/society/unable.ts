@@ -1,7 +1,9 @@
 // A land's unable (the last gaps, 2026-11-24; rules/disabled.ts): those of its grown a mishap, a settled sickness, foul air or its
 // realm's wars have left unable to work, as many as are made so each year by the years they live on, the longer where someone keeps
-// them. One row a land, weighed in the land's turn with its care and its old (society/care.ts), whose keepers they share. Its share
-// is what the population's year sets aside of its grown from its work (population/systems.ts: they are kept as its children are).
+// them. One row a land, weighed in the land's turn with its care and its old (society/care.ts), whose keepers they share. Their share
+// of its grown is the share of its work not done (society/kept.ts daysWorkedOf, read wherever a land's work is reckoned): no one is
+// moved, so the population's year costs what it did. (Moved among those a land keeps, as its children are, each land's fourteen more
+// kinds of people cost first light some eight milliseconds a year at 1,317.)
 import {
   defineEventType,
   yearOfMoment,
@@ -16,8 +18,15 @@ import { endemicOf } from "../health/health.ts";
 import { politiesOf, type Polity } from "../polity/polity.ts";
 import { warsOf } from "../war/war.ts";
 import { landTurn } from "./care.ts";
-import { CARE_ROW, CARE_STORE, OLD_ROW, OLD_STORE, societyStore } from "./kept.ts";
-import { UNABLE_ROW, UNABLE_STORE } from "./unable-kept.ts";
+import {
+  CARE_ROW,
+  CARE_STORE,
+  OLD_ROW,
+  OLD_STORE,
+  UNABLE_ROW,
+  UNABLE_STORE,
+  societyStore,
+} from "./kept.ts";
 
 export const UNABLE_EVENTS = {
   /** A land's unable come to a twentieth of its grown: who made them so, and who keeps them. */

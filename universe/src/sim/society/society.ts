@@ -5,7 +5,7 @@
 import { YEAR, type World } from "../../kernel/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { RowStore } from "../money/kept.ts";
-import { SOCIETY_STORES } from "./kept.ts";
+import { SOCIETY_STORES, UNABLE_STORE, UNABLE_WIDTH } from "./kept.ts";
 import { careYear, oldYear, provisionYear } from "./care.ts";
 import { rolesYear } from "./roles.ts";
 import { holdingsYear, lawYear } from "./holding.ts";
@@ -13,7 +13,7 @@ import { dressYear, leisureYear, tableYear } from "./everyday.ts";
 import { rooflessYear } from "./roofless.ts";
 import { strainYear } from "./strain.ts";
 import { unableYear } from "./unable.ts";
-import { UNABLE_STORE, UNABLE_WIDTH } from "./unable-kept.ts";
+
 import { STRAIN_STORE, STRAIN_WIDTH } from "./strain-kept.ts";
 
 /** Register the society sweep's stores and systems on a peopled world. */
