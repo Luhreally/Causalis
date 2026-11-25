@@ -45,6 +45,8 @@ import { WAY, cultureOf } from "../culture/culture.ts";
 import { diplomacyOf } from "../diplomacy/diplomacy.ts";
 import { knows } from "../lore/lore.ts";
 import { endRealm, politiesOf, realmName, type Polity } from "../polity/polity.ts";
+import { shelterCover } from "./shelter.ts";
+import { deadUnderCover } from "../../rules/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { civilizationOf } from "../space/contact.ts";
 import { filledOf, starKey } from "../space/filled-store.ts";
@@ -185,10 +187,20 @@ export function strikeWorld(
             return aim?.star === star && aim.planet === o.planet;
           })
       : [];
-  let dead = 0;
+  let dead = 0,
+    spared = 0;
   for (const c of lands) {
     const n = ctx.provinces.get(c)?.total() ?? 0;
-    dead += deathsIn(ctx, c, o.rung === "world" ? n : Math.round(n * share), t);
+    if (o.rung === "world") {
+      dead += deathsIn(ctx, c, n, t);
+      continue;
+    }
+    // (Fewer where the land's realm has its towns' people under cover: sim/war/shelter.ts. As it was where it has none.)
+    const realm = politiesOf(world).of(c),
+      would = Math.round(n * share),
+      under = realm ? deadUnderCover(would, shelterCover(world, realm.ref), true) : would;
+    spared += would - under;
+    dead += deathsIn(ctx, c, under, t);
   }
   if (filled) {
     const gone = o.rung === "world" ? filled.people : Math.round(filled.people * share);
@@ -210,6 +222,7 @@ export function strikeWorld(
         star,
         planet: o.planet,
         dead,
+        ...(spared > 0 ? { spared } : {}),
         mj: o.mj,
         need: needOf(o.rung, numbers),
         first,

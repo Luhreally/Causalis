@@ -43,6 +43,8 @@ import { loreOf } from "../lore/lore.ts";
 import { orderOf } from "../order/order.ts";
 import { rulerProblem } from "../order/reign.ts";
 import { politiesOf, realmName, type Polity } from "../polity/polity.ts";
+import { noteStruck, shelterCover } from "./shelter.ts";
+import { deadUnderCover } from "../../rules/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { flattenTown, townsOf } from "../town/fabric.ts";
 import { fleetOf, foodIn, thrownAtOf, throwerOf, type Thrower } from "./air.ts";
@@ -527,7 +529,9 @@ function fall(
     lots = Math.max(1, f.next),
     done = greatFallOf({ lots, people: v.population, miss }),
     homes = flattenTown(ctx, target.ref, done.share, t, FIRE.ashYears),
-    dead = done.dead > 0 && all > 0 ? deathsIn(ctx, target.cell, done.dead, t) : 0,
+    // (Fewer where its realm has its towns' people under cover: sim/war/shelter.ts. As it was where it has none.)
+    under = deadUnderCover(done.dead, shelterCover(world, foe.ref), true),
+    dead = under > 0 && all > 0 ? deathsIn(ctx, target.cell, under, t) : 0,
     food = foodIn(ctx, target.cell);
   spill(ctx, target.cell, all > 0 ? done.share * Math.min(1, v.population / all) : 0);
   const m = world.store<MarketStore>("economy.markets").get(target.cell);
@@ -553,6 +557,7 @@ function fall(
         b: realmName(foe),
         ruler: c.ruler,
         dead,
+        ...(done.dead > under ? { spared: done.dead - under } : {}),
         homes,
         stores: Math.round(food - foodIn(ctx, target.cell)),
         flyers: 1,
@@ -568,6 +573,8 @@ function fall(
         idled: !!m?.works,
       },
     });
+  // (What it would have killed with no cover is what the struck realm weighs its cover by.)
+  noteStruck(ctx, foe, v.population, done.dead, event, t);
   warsOf(world).noteStrike({
     war: w.ref,
     year,

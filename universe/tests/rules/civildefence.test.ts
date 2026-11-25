@@ -27,6 +27,9 @@ test("none is built while it is not worth it; past that, more the more it is, as
 test("cover spares its share of those a strike would kill, and what was met fades", () => {
   assert.equal(deadUnderCover(1000, 0), 1000);
   assert.equal(deadUnderCover(1000, 1), Math.round(1000 * (1 - DEFENCE.spares)));
+  // (Under the greatest fire it spares half as many; none without cover.)
+  assert.equal(deadUnderCover(1000, 1, true), Math.round(1000 * (1 - DEFENCE.sparesGreat)));
+  assert.equal(deadUnderCover(1000, 0, true), 1000);
   assert.ok(Math.abs(defenceFade(100, DEFENCE.fade) - 50) < 1e-9);
   assert.equal(defenceFade(100, 0), 100);
 });

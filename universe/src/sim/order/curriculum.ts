@@ -67,6 +67,24 @@ export function craftTaught(world: World, realm: Ref): number {
     : 1;
 }
 
+/** What a realm's schools teach, for its page: each content's share, how far its schooling reaches its young, and the first (null where none teach). */
+export function schoolingOf(
+  world: World,
+  realm: Ref,
+): { shares: Record<Content, number>; reach: number; lead: Content } | null {
+  const row = rowOf(world, realm),
+    lead = row ? CONTENTS[row[CURRICULUM_ROW.lead]! - 1] : undefined;
+  if (!row || !lead) return null;
+  return {
+    shares: Object.fromEntries(CONTENTS.map((k, i) => [k, row[i]! / 1000])) as Record<
+      Content,
+      number
+    >,
+    reach: row[CURRICULUM_ROW.reach]! / 1000,
+    lead,
+  };
+}
+
 /** A realm ended: its row goes. */
 export function curriculumForget(world: World, realm: Ref): void {
   cultureRows(world, CURRICULUM_STORE)?.drop(realm);
