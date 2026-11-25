@@ -51,6 +51,7 @@ import {
   worksAfter,
   worksMade,
   type VoiceSituation,
+  ABROAD,
 } from "../../src/rules/index.ts";
 import {
   CULTURE_ROWS,
@@ -64,6 +65,7 @@ import {
   VOICE_STORE,
   ART_STORE,
   ACADEMY_STORE,
+  strangersIn,
 } from "../../src/sim/index.ts";
 import {
   ACADEMY_ROW,
@@ -240,13 +242,28 @@ test("a young world keeps the sweep's stores: who each land of a realm counts it
     assert.ok(row[FOLK_ROW.nation]! >= 0 && row[FOLK_ROW.nation]! <= 1000, `reach of ${key}`);
   }
   const realms = politiesOf(world).living();
+  let mixed = 0;
   for (const r of realms) {
     const v = voiceOf(world, r.ref);
     if (v) assert.ok(v.reach >= 0 && v.reach <= 1 && v.credence >= 0 && v.credence <= 1, r.ref);
-    // (A realm's seat is its own people, as far as it has been weighed under it.)
+    // (A realm's seat is its own people, as far as it has been weighed under it; less only what peoples not its own living in
+    // it take (sim/culture/folk.ts folkTargets, since peoples abroad were kept: ABROAD.apart of their share). It read "wholly
+    // its own" for every seat; since a people abroad is kept from a hundredth of a land (ABROAD.least, 2026-11-23) eleven of
+    // first light's 36 seats at 40 hold one, the least its own at 0.983.)
     const seat = identityOf(world, r.seat);
-    if (seat) assert.equal(seat.kin, 1);
+    if (!seat) continue;
+    const strangers = strangersIn(world, r.seat);
+    if (strangers === 0) assert.equal(seat.kin, 1, `${r.ref} holds no strangers`);
+    else {
+      mixed++;
+      // (By their share when it was last weighed, once in five years: never more than strangers can take.)
+      assert.ok(
+        seat.kin < 1 && seat.kin >= 1 - ABROAD.apart,
+        `${r.ref}: ${seat.kin} with ${strangers} of its people strangers`,
+      );
+    }
   }
+  assert.ok(mixed < realms.length / 2, `${mixed} of ${realms.length} seats hold strangers`);
 });
 
 test("a tie makes kin as its people make kin: a marriage half, a fostering a quarter, a hive's brood as much as a hive's own", () => {
