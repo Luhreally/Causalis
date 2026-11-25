@@ -1517,6 +1517,9 @@ type Laid = {
   readonly doorX: Float32Array;
   readonly doorZ: Float32Array;
   readonly walks: Map<number, number>;
+  /** The lengths found out to its fields (by the door and the field) and to its walls' site (by the door and the length). */
+  readonly fieldWalks: Map<number, number>;
+  readonly wallWalks: Map<number, number>;
   readonly key: string;
   /**
    * Where its fields are meant to lie, each one's middle, and its pasture's, as its plan lays them (host/village.ts
@@ -1569,6 +1572,8 @@ function layLots(world: World, place: Place): void {
       doorX: none,
       doorZ: none,
       walks: new Map(),
+      fieldWalks: new Map(),
+      wallWalks: new Map(),
       key,
       fieldX: none,
       fieldZ: none,
@@ -1622,12 +1627,46 @@ function layLots(world: World, place: Place): void {
     }
   }
   const out = townFieldsMeant(
-    world,
-    place.town,
-    lots,
-    Math.min(most, plan.lots),
-    townsOf(world).get(place.town)?.next ?? plan.lots,
-  );
+      world,
+      place.town,
+      lots,
+      Math.min(most, plan.lots),
+      townsOf(world).get(place.town)?.next ?? plan.lots,
+    ),
+    fieldX = Float32Array.from(out?.fields ?? [], (q) => q.x),
+    fieldZ = Float32Array.from(out?.fields ?? [], (q) => q.z),
+    pasture: readonly [number, number] | null = out ? [out.pasture.x, out.pasture.z] : null;
+  // A walk found is kept while the streets it was found by stand as they did: a year turned, or a town that took more
+  // lots within the blocks it held, lays the same streets, and the same walk between the same two doors (its streets
+  // say what they are made of: bridge/streets.ts signature). The walks out to its fields besides, while its fields lie
+  // where they did. Every walk was found anew at each year's turn and each lot taken.
+  const same = (a: Float32Array, b: Float32Array, n: number): boolean => {
+    for (let k = 0; k < n; k++) if (a[k] !== b[k]) return false;
+    return true;
+  };
+  let walks = new Map<number, number>(),
+    fieldWalks = new Map<number, number>(),
+    wallWalks = new Map<number, number>();
+  if (
+    streets &&
+    was?.streets &&
+    was.streets.signature() === streets.signature() &&
+    was.doorX.length <= doorX.length &&
+    same(was.doorX, doorX, was.doorX.length) &&
+    same(was.doorZ, doorZ, was.doorZ.length)
+  ) {
+    streets = was.streets;
+    walks = was.walks;
+    wallWalks = was.wallWalks;
+    if (
+      was.fieldX.length === fieldX.length &&
+      same(was.fieldX, fieldX, fieldX.length) &&
+      same(was.fieldZ, fieldZ, fieldZ.length) &&
+      was.pasture?.[0] === pasture?.[0] &&
+      was.pasture?.[1] === pasture?.[1]
+    )
+      fieldWalks = was.fieldWalks;
+  }
   LAID.set(place, {
     lots: n,
     u,
@@ -1635,11 +1674,13 @@ function layLots(world: World, place: Place): void {
     streets,
     doorX,
     doorZ,
-    walks: new Map(),
+    walks,
+    fieldWalks,
+    wallWalks,
     key,
-    fieldX: Float32Array.from(out?.fields ?? [], (q) => q.x),
-    fieldZ: Float32Array.from(out?.fields ?? [], (q) => q.z),
-    pasture: out ? [out.pasture.x, out.pasture.z] : null,
+    fieldX,
+    fieldZ,
+    pasture,
     x: Float32Array.from(lots.x),
     z: Float32Array.from(lots.z),
   });
@@ -1680,7 +1721,10 @@ export function streetLength(
       ib = b < 0 ? doors : b;
     // (A lot numbered one past the last of them is no square: it lies past the streets read.)
     if ((a < 0 || a < doors) && (b < 0 || b < doors)) {
-      const key = Math.min(ia, ib) * (doors + 1) + Math.max(ia, ib);
+      // (Kept by the two lots, the square as the lot past the most ever read: a town that reads more doors keeps its walks.)
+      const ka = a < 0 ? STREET_LOTS : a,
+        kb = b < 0 ? STREET_LOTS : b,
+        key = Math.min(ka, kb) * (STREET_LOTS + 1) + Math.max(ka, kb);
       let far = laid.walks.get(key);
       if (far === undefined) {
         const lo = Math.min(ia, ib),
@@ -1737,9 +1781,9 @@ function fieldLength(place: Place, lot: number, who: number): number {
   if (lot >= laid.lots) return -1;
   if (!laid.streets || from > doors || (lot >= 0 && lot >= doors))
     return lot < 0 ? Math.hypot(to.x, to.z) : Math.hypot(to.x - laid.x[lot]!, to.z - laid.z[lot]!);
-  // (Kept by the door and the field, past the pairs of doors.)
-  const key = (doors + 1) * (doors + 1) + from * 128 + (k + 1);
-  let far = laid.walks.get(key);
+  // (Kept by the door and the field.)
+  const key = (lot < 0 ? STREET_LOTS : lot) * 4096 + (k + 1);
+  let far = laid.fieldWalks.get(key);
   if (far === undefined) {
     const door = from === doors ? { x: 0, z: 0 } : { x: laid.doorX[from]!, z: laid.doorZ[from]! },
       way = laid.streets.route(door, to, STREET_REACH);
@@ -1747,8 +1791,8 @@ function fieldLength(place: Place, lot: number, who: number): number {
     for (let q = 0; q + 1 < way.length; q++)
       far += Math.hypot(way[q + 1]!.x - way[q]!.x, way[q + 1]!.z - way[q]!.z);
     far = Math.round(far);
-    if (laid.walks.size >= 60_000) laid.walks.clear();
-    laid.walks.set(key, far);
+    if (laid.fieldWalks.size >= 60_000) laid.fieldWalks.clear();
+    laid.fieldWalks.set(key, far);
   }
   return far;
 }
@@ -1771,8 +1815,8 @@ function wallLength(place: Place, lot: number): number {
       ? Math.hypot(to.x - laid.x[lot]!, to.z - laid.z[lot]!)
       : Math.hypot(to.x, to.z);
   const from = lot < 0 ? doors : lot,
-    key = -1 - (from * 4096 + Math.min(4095, site?.k ?? 0));
-  let far = laid.walks.get(key);
+    key = (lot < 0 ? STREET_LOTS : lot) * 4096 + Math.min(4095, site?.k ?? 0);
+  let far = laid.wallWalks.get(key);
   if (far === undefined) {
     const door = from === doors ? { x: 0, z: 0 } : { x: laid.doorX[from]!, z: laid.doorZ[from]! },
       way = laid.streets.route(door, to, STREET_REACH);
@@ -1780,8 +1824,8 @@ function wallLength(place: Place, lot: number): number {
     for (let q = 0; q + 1 < way.length; q++)
       far += Math.hypot(way[q + 1]!.x - way[q]!.x, way[q + 1]!.z - way[q]!.z);
     far = Math.round(far);
-    if (laid.walks.size >= 60_000) laid.walks.clear();
-    laid.walks.set(key, far);
+    if (laid.wallWalks.size >= 60_000) laid.wallWalks.clear();
+    laid.wallWalks.set(key, far);
   }
   return far;
 }
@@ -3266,14 +3310,40 @@ function stockOut(place: Place, f: Frame, share: readonly number[]): void {
 
 // —— The tick ————————————————————————————————————————————————————————————————————————————————————————————————————
 
+/**
+ * What one's own nature adds to or takes from their work's worth: drawn once from who they are, and kept while the place
+ * is in memory (it was drawn anew for every one at every tick).
+ */
+const WORTH_OWN = new WeakMap<Place, { id: Uint32Array; own: Float64Array }>();
+function ownWorth(world: World, place: Place, i: number): number {
+  const p = place.people;
+  let c = WORTH_OWN.get(place);
+  if (!c || c.id.length !== p.id.length)
+    WORTH_OWN.set(
+      place,
+      (c = { id: new Uint32Array(p.id.length), own: new Float64Array(p.id.length) }),
+    );
+  if (c.id[i] !== p.id[i]) {
+    c.id[i] = p.id[i]!;
+    c.own[i] = (world.rng.unit(PLACE_DRAW, place.key ^ p.id[i]!, 0, P.worth) - 0.5) * 0.16;
+  }
+  return c.own[i]!;
+}
+
 /** What the next hour's work is worth to one, 0 … 1: by what their trade earns against their land's, a little their own. */
-export function workWorth(world: World, place: Place, i: number, mean = meanWage(place)): number {
+export function workWorth(
+  world: World,
+  place: Place,
+  i: number,
+  mean = meanWage(place),
+  /** What each trade earns against its land's, as tradeWorth has it: reckoned once for a tick's every one. */
+  trades: readonly number[] | null = null,
+): number {
   const p = place.people,
-    occ = occOf(p, i),
-    m = place.matched;
+    occ = occOf(p, i);
   if (occ === OCC.dependent) return 0;
-  const ratio = mean > 0 && m.wage[occ]! > 0 ? Math.min(4, Math.max(0.25, m.wage[occ]! / mean)) : 1,
-    own = (world.rng.unit(PLACE_DRAW, place.key ^ p.id[i]!, 0, P.worth) - 0.5) * 0.16;
+  const earns = trades ? trades[occ]! : tradeWorth(place, mean)[occ]!,
+    own = ownWorth(world, place, i);
   // (And by their mood: a quarter more at its best, a quarter less at its worst. And less with a wound still bound, or
   // an arm or a hand it left stiff.)
   const mark = p.mark[i]!,
@@ -3281,8 +3351,19 @@ export function workWorth(world: World, place: Place, i: number, mean = meanWage
     hurt = (p.health[i] === 3 ? BOUND_WORTH : 1) * (stiff ? STIFF_WORTH : 1);
   return Math.max(
     0.05,
-    Math.min(0.9, (0.45 + 0.12 * Math.log2(ratio) + own) * (1 + p.mood[i]! / 400) * hurt),
+    Math.min(0.9, (0.45 + earns + own) * (1 + p.mood[i]! / 400) * hurt),
   );
+}
+/** What each trade's work is worth by what it earns against the mean of its land's trades (workWorth's part of it, a trade each). */
+function tradeWorth(place: Place, mean: number): number[] {
+  const m = place.matched,
+    out = new Array<number>(OCCS);
+  for (let occ = 0; occ < OCCS; occ++) {
+    const ratio =
+      mean > 0 && m.wage[occ]! > 0 ? Math.min(4, Math.max(0.25, m.wage[occ]! / mean)) : 1;
+    out[occ] = 0.12 * Math.log2(ratio);
+  }
+  return out;
 }
 
 /** What a person's ailing is of. */
@@ -3440,6 +3521,7 @@ function tick(world: World, place: Place, f: Frame): void {
     foodStore = buildingOf(place, FOOD_STORES),
     market = buildingOf(place, ["market"]),
     mean = meanWage(place),
+    trades = tradeWorth(place, mean),
     // Its orders, where it is managed (sim/town/managed.ts): what its granary holds back, what its market will not let go.
     orders = managedOf(world)?.get(place.town),
     reserve = orders ? orders.hold * p.n * f.daily * 30 : 0,
@@ -3773,7 +3855,7 @@ function tick(world: World, place: Place, f: Frame): void {
       worth =
         occ === OCC.dependent
           ? 0
-          : workWorth(world, place, i, mean) * dark * (1 - Math.min(0.6, 0.15 * lackDays)),
+          : workWorth(world, place, i, mean, trades) * dark * (1 - Math.min(0.6, 0.15 * lackDays)),
       bar = Math.max(worth, IDLE_WORTH);
     // What is carried is set down where it was bound.
     if (p.carry[i]! > 0 && p.act[i] === ACT.carry) {

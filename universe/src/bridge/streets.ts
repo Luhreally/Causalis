@@ -220,6 +220,40 @@ export class Streets {
     this.stamp = new Uint32Array(this.solids.length);
   }
 
+  /**
+   * Everything its ways and walks are made of, said as one line: its blocks and walls where they stand, its walls' ends,
+   * its sprawl, its edge and its water. Two towns' streets that say the same give the same walk between the same two
+   * points, so walks found by one may be kept for the other (host/place.ts: a town that grew within its blocks, a year
+   * turned).
+   */
+  signature(): string {
+    if (this.said !== null) return this.said;
+    const r = (x: number | undefined) => Math.round((x ?? 0) * 1000);
+    let h = 0x811c9dc5 | 0;
+    const mix = (v: number) => {
+      h = (Math.imul(h ^ (v | 0), 0x01000193) + 0x9e3779b9) | 0;
+    };
+    const head = `${this.plan.family}|${this.plan.seed}|${r(this.plan.axis)}|${r(this.plan.lotSize ?? 1)}|${r(this.reach)}|${r(this.edge)}|${
+      this.sprawl ? `${r(this.sprawl.r0)},${r(this.sprawl.r1)}` : ""
+    }|${this.lake ? `${r(this.lake.x)},${r(this.lake.z)},${r(this.lake.r)}` : ""}|${this.walls ? `${r(this.walls.r)},${this.walls.standing}` : ""}`;
+    for (let k = 0; k < head.length; k++) mix(head.charCodeAt(k));
+    for (const s of this.solids) {
+      mix(r(s.x));
+      mix(r(s.z));
+      mix(r(s.r));
+      mix(r(s.ax));
+      mix(r(s.az));
+      mix(r(s.half));
+      mix(r(s.across));
+    }
+    for (const e of this.wallEnds) {
+      mix(r(e.x));
+      mix(r(e.z));
+    }
+    return (this.said = `${head}:${this.solids.length}:${this.wallEnds.length}:${h >>> 0}`);
+  }
+  private said: string | null = null;
+
   /** The solids found about p within `reach` (each once). */
   private about(p: Point, reach: number, visit: (s: Solid) => void): void {
     if (++this.mark >= 0xffffffff) {
