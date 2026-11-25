@@ -22,8 +22,16 @@ import { healthOf, heartOf, managedOf, populationContext, siegesOf } from "../sr
 import { EARTH } from "../src/host/planet.ts";
 import { strikesOn } from "../src/host/town.ts";
 import { battlesOfYear, townTally } from "../src/host/burials.ts";
-import { HAP, enterPlace, hapTold, placeTable, placesOf, targetTable } from "../src/host/place.ts";
-import { dangersSheet, placeFrame } from "../src/host/placeplan.ts";
+import {
+  HAP,
+  enterPlace,
+  hapTold,
+  placeTable,
+  placesOf,
+  targetTable,
+  woundTakes,
+} from "../src/host/place.ts";
+import { dangersSheet, healthWords, markWords, placeFrame } from "../src/host/placeplan.ts";
 import { lifeOf } from "../src/sim/index.ts";
 
 const args = process.argv.slice(2),
@@ -78,7 +86,8 @@ const seenNotices = new Map<string, string>(),
 let sickMost = 0,
   siegedTicks = 0,
   fieldsWhileSieged = 0,
-  brigadeMost = 0;
+  brigadeMost = 0,
+  cry = 0;
 // (An act of the world's own rules sent on its land a while into the watch, where no world brings one: --act, --at days.)
 const act = arg("act"),
   actAt = Number(arg("at", "2")) * 24;
@@ -106,6 +115,7 @@ for (let h = 0; h < days * 24; h += step) {
   }
   sickMost = Math.max(sickMost, sick);
   brigadeMost = Math.max(brigadeMost, brigade);
+  if (place.fire.length > 2) cry = place.fire[2]!;
   if (place.matched.sieged) {
     siegedTicks++;
     fieldsWhileSieged = Math.max(fieldsWhileSieged, out);
@@ -142,8 +152,29 @@ console.log(
 console.log(`Notices seen: ${JSON.stringify([...seenNotices.values()])}`);
 console.log(`Dangers now: ${JSON.stringify(dangersSheet(w, place).now.map((x) => x.words))}`);
 console.log(
-  `Most fighting a fire at once: ${brigadeMost}. Homeless: ${JSON.stringify(dangersSheet(w, place).homeless)}`,
+  `Most fighting a fire at once: ${brigadeMost}${cry ? `, its cry carrying ${cry} m by the streets` : ""}. Homeless: ${JSON.stringify(dangersSheet(w, place).homeless)}`,
 );
+// What wounds have left: those mending and those marked, with what it takes of their going and their handling.
+{
+  const p = place.people,
+    said: string[] = [];
+  let mending = 0,
+    lame = 0,
+    scarred = 0;
+  for (let i = 0; i < p.n; i++) {
+    if (p.health[i] === 3) mending++;
+    if (p.mark[i]! >> 4 === 2) lame++;
+    else if (p.mark[i]) scarred++;
+    const takes = woundTakes(w, place, i);
+    if ((takes.going > 0 || takes.handling > 0) && said.length < 5)
+      said.push(
+        `${healthWords(w, place, i) ?? ""}${healthWords(w, place, i) && markWords(w, place, i) ? " | " : ""}${markWords(w, place, i) ?? ""} (going less ${takes.going.toFixed(2)}, handling less ${takes.handling.toFixed(2)})`,
+      );
+  }
+  console.log(
+    `Wounds: ${mending} up with one bound, ${lame} left lame, ${scarred} scarred. ${JSON.stringify(said)}`,
+  );
+}
 const s1 = ctx.settlements.get(town)!,
   target = targetTable(w, s1, place),
   table = placeTable(place, lifeOf(w));

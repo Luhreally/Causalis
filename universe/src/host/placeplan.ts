@@ -11,6 +11,8 @@ import {
   HEAL_CARE,
   LESSON_RESPONSE,
   OCC,
+  MEMBERS,
+  limbShare,
   OCCUPATIONS,
   civic,
   type CivicKind,
@@ -57,9 +59,11 @@ import {
   placeCold,
   placeMark,
   tendedOf,
-  LIMP_SLOW,
-  STIFF_WORTH,
-  BOUND_WORTH,
+  gaitOf,
+  hurtOf,
+  placeLimbs,
+  placeMember,
+  woundTakes,
   hapRef,
   hapTold,
   MOOD_UNHEEDING,
@@ -301,6 +305,8 @@ export function placePlan(
         occupation: occ,
         child,
         sex,
+        // (Of another people than its world's first: drawn in their own people's figure.)
+        ...(of && of.kind > 0 ? { kind: of.kind } : {}),
         folk: true,
         role: `${tradeWords(occ, child)} of ${plan.name}`,
         page: ref,
@@ -762,10 +768,23 @@ export function workSheet(world: World, place: Place): PlaceWorkSheet {
   };
 }
 
+/** How many times as long, said: "twice", "half again", "1.3 times". */
+function timesWords(x: number): string {
+  return Math.abs(x - 2) < 0.01
+    ? "twice"
+    : Math.abs(x - 1.5) < 0.01
+      ? "half again"
+      : Math.abs(x - 3) < 0.01
+        ? "three times"
+        : Math.abs(x - 4) < 0.01
+          ? "four times"
+          : `${Math.round(x * 10) / 10} times`;
+}
+
 /** What ails one of a place's people, said: "Hurt at their work", "Sick of the red flux". */
 export function ailWords(place: Place, i: number): string {
-  const cause = place.people.cause[i]!;
-  if (cause >= CAUSE.sickness)
+  const { cause } = hurtOf(place, i);
+  if (place.people.health[i] === 2)
     return `Sick of ${(place.ills[cause - CAUSE.sickness] ?? "a sickness").split("|")[0]}`;
   return cause === CAUSE.battle
     ? "Wounded in battle"
@@ -789,8 +808,22 @@ export function healthWords(world: World, place: Place, i: number): string | nul
     days = Math.ceil(p.ill[i]! / 144),
     more = `${days} more ${days === 1 ? "day" : "days"}`;
   if (!p.health[i]) return null;
-  if (p.health[i] === 3)
-    return `Up again with the wound bound: ${more} of mending, their work worth ${Math.round(BOUND_WORTH * 100)} in a hundred of what it was till then`;
+  if (p.health[i] === 3) {
+    // (What the member bound takes of their work and their going till it is mended: rules/anatomy.ts limbShare.)
+    const takes = woundTakes(world, place, i),
+      member = hurtOf(place, i).member,
+      where = member ? placeMember(world, place, i, member) : null,
+      leads = (p.sexOcc[i]! & 15) === OCC.leader || (p.sexOcc[i]! & 15) === OCC.dependent,
+      work =
+        takes.handling > 0 && !leads
+          ? takes.handling >= 1
+            ? ", and no work of their hands till then"
+            : `, their work worth ${Math.round((1 - takes.handling) * 100)} in a hundred of what it was till then`
+          : "",
+      walk =
+        takes.going > 0 ? `, a walk taking them ${timesWords(gaitOf(takes.going))} as long` : "";
+    return `Up again with the wound${where ? ` to ${where}` : ""} bound: ${more} of mending${work}${walk}`;
+  }
   const mark = p.health[i] === 1 ? placeMark(world, place, i) : null;
   return `${ailWords(place, i)}${mark ? `, in ${mark.member}` : ""}: abed ${more}, tended ${TENDED_WORDS[tendedOf(place, i)]}`;
 }
@@ -800,11 +833,22 @@ export function markWords(world: World, place: Place, i: number): string | null 
   const m = placeMark(world, place, i);
   if (!m) return null;
   const member = `${m.member.charAt(0).toUpperCase()}${m.member.slice(1)}`;
-  return m.lasting === "limp" || m.lasting === "crutch"
-    ? `${member} was left lame: they walk with a limp, two paces where they took ${Math.round(LIMP_SLOW * 2)}`
-    : m.lasting === "stiff"
-      ? `${member} was left stiff: their work is worth ${Math.round(STIFF_WORTH * 100)} in a hundred of what it was`
-      : `A scar on ${m.member}`;
+  if (m.outcome !== "lame") return `A scar on ${m.member}`;
+  // (What it takes of their going or their handling: the share of their body's legs or arms that the member was.)
+  const p = place.people,
+    mark = p.mark[i]!,
+    f = placeLimbs(world, place, i),
+    share = limbShare(MEMBERS[(mark & 15) - 1]!, f.legs, f.arms),
+    leads = (p.sexOcc[i]! & 15) === OCC.leader;
+  return share.going > 0
+    ? `${member} was left lame: they walk with a limp, a walk taking them ${timesWords(gaitOf(share.going))} as long`
+    : `${member} was left stiff: ${
+        leads
+          ? "their work is words, and is worth what it was"
+          : share.handling >= 1
+            ? "they can do no work of their hands"
+            : `their work is worth ${Math.round((1 - share.handling) * 100)} in a hundred of what it was`
+      }`;
 }
 
 /** Who tends a place's hurt and sick, and what its land knows of care (rules/wounds.ts CARE_PRINCIPLES), said. */
@@ -865,7 +909,7 @@ export function dangersSheet(world: World, place: Place): PlaceDangersSheet {
       (place.t / DAY - p.born[i]!) / 365 >= lifeOf(world).adulthood
     )
       hands++;
-    if (p.health[i] === 1 && p.cause[i]! >= CAUSE.fire && p.cause[i]! < CAUSE.sickness) {
+    if (p.health[i] === 1 && (p.cause[i]! & 7) >= CAUSE.fire) {
       abed++;
       if (hurt.length < 40) {
         const w = who(i),

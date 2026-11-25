@@ -14,7 +14,16 @@ import {
   saveWorld,
   type World,
 } from "../../src/kernel/index.ts";
-import { CLADES, FOODS, G, HOLDS, OCC, PRINCIPLES, healDays } from "../../src/rules/index.ts";
+import {
+  CLADES,
+  FOODS,
+  G,
+  HOLDS,
+  OCC,
+  PRINCIPLES,
+  bandOf,
+  healDays,
+} from "../../src/rules/index.ts";
 import { addKind, setDown } from "../../src/sim/population/mix.ts";
 import {
   asksOf,
@@ -35,7 +44,6 @@ import {
   ACT,
   AT,
   CAUSE,
-  FIRE_CRY,
   HAP,
   MICRO,
   PLACE_TICK,
@@ -48,6 +56,14 @@ import {
   placeMark,
   placeSites,
   placeTable,
+  placeLimbs,
+  cryReach,
+  gaitOf,
+  hurtOf,
+  woundTakes,
+  workWorth,
+  HANDS_A_BUILDING,
+  VOICE,
   BOUND_SITE,
   tendedOf,
   streetLength,
@@ -134,8 +150,8 @@ test("a town eats what its land's reckoning counts a mouth to eat, of what its o
       `${won} + ${came} of ${share}`,
     );
   });
-  // Over a week no one goes a day in want, and what it eats in a day is what its land counts its mouths to eat, as near
-  // as their sleep lets them.
+  // Over a week no one goes a day in want, and what it eats in a day is what its land counts its mouths to eat, however
+  // much of it they sleep (the young, their share: sim/population mouths).
   let ate = 0,
     days = 0;
   for (let d = 0; d < 7; d++) {
@@ -152,9 +168,11 @@ test("a town eats what its land's reckoning counts a mouth to eat, of what its o
     placeFrame(w, s.ref, []);
   }
   assert.equal(inWant(place), 0);
-  const need = (p.n * life.appetite) / 30,
+  let young = 0;
+  for (let i = 0; i < p.n; i++) if (bandOf((place.t / DAY - p.born[i]!) / 365, life) === 0) young++;
+  const need = ((p.n - young * (1 - life.young)) * life.appetite) / 30,
     share = ate / days / need;
-  assert.ok(share > 0.6 && share < 1.05, `it ate ${share.toFixed(2)} of its mouths' need a day`);
+  assert.ok(share > 0.95 && share < 1.05, `it ate ${share.toFixed(3)} of its mouths' need a day`);
   // Its stocks sheet says what came in, and nothing of it is nonsense.
   const text = JSON.stringify(stocksSheet(w, place));
   assert.ok(!/undefined|NaN/.test(text));
@@ -239,7 +257,7 @@ test("what strikes a town at a month's turn is read before the matching: its hom
     if (p.act[i] !== ACT.brigade) continue;
     out++;
     const home = place.houses.home[p.house[i]!]!;
-    assert.ok(streetLength(place, home < 0 ? AT.square : home, place.fire[0]!) <= FIRE_CRY);
+    assert.ok(streetLength(place, home < 0 ? AT.square : home, place.fire[0]!) <= place.fire[2]!);
   }
   assert.ok(out > 0);
   // Those who lost a home are under another's roof where one had room, else in the square, and its sheet says so.
@@ -297,7 +315,7 @@ test("a watch kept is so many of its grown as the order takes from its fields, f
     if (p.act[i] !== ACT.brigade) continue;
     out++;
     const home = place.houses.home[p.house[i]!]!;
-    if (streetLength(place, home < 0 ? AT.square : home, place.fire[0]!) > FIRE_CRY) far++;
+    if (streetLength(place, home < 0 ? AT.square : home, place.fire[0]!) > place.fire[2]!) far++;
   }
   assert.ok(out > 0);
   assert.ok(
@@ -364,7 +382,7 @@ test("a wound is to a member of the body, heals by what its land knows of care, 
   watch(w, town, 2);
   const hurt: number[] = [];
   for (let i = 0; i < p.n; i++)
-    if (p.health[i] === 1 && p.cause[i] === CAUSE.fire) hurt.push(p.id[i]!);
+    if (p.health[i] === 1 && (p.cause[i]! & 7) === CAUSE.fire) hurt.push(p.id[i]!);
   assert.ok(hurt.length > 0);
   // Abed for the days a burn takes, with the care its land knows and who tends them; their page says where and by whom.
   const care = place.matched.care ?? 0,
@@ -394,7 +412,7 @@ test("a wound is to a member of the body, heals by what its land knows of care, 
     const i = at(id);
     if (i >= 0 && p.health[i] === 3) {
       mending++;
-      assert.ok(/Up again with the wound bound/.test(healthWords(w, place, i)!));
+      assert.ok(/Up again with the wound( to [^:]+)? bound/.test(healthWords(w, place, i)!));
     }
   }
   assert.ok(mending > 0 && told(place, HAP.mending) > 0, `${mending} mending`);
@@ -595,4 +613,106 @@ test("the hands a town can put to a site are what its own answer to the asking s
     if (seen >= 6) break;
   }
   assert.ok(seen > 0);
+});
+
+test("what a wound takes is the share of their body's legs or arms the member was: a limp, a stiff arm, a wound bound", () => {
+  const w = copy(base()),
+    s = near(w, 600),
+    place = enterPlace(w, s.ref)!,
+    p = place.people,
+    grown = lifeOf(w).adulthood;
+  let i = -1;
+  for (let k = 0; k < p.n && i < 0; k++)
+    if ((p.sexOcc[k]! & 15) === OCC.farmer && (place.t / DAY - p.born[k]!) / 365 >= grown) i = k;
+  assert.ok(i >= 0);
+  const limbs = placeLimbs(w, place, i),
+    whole = workWorth(w, place, i),
+    home = place.houses.home[p.house[i]!]!,
+    far = streetLength(place, home, AT.fields, i);
+  assert.deepEqual(woundTakes(w, place, i), { going: 0, handling: 0 });
+  // A leg left lame (MEMBERS' seventh, 16 times 2 for lame): one of its legs' share of its going, and none of its work.
+  p.mark[i] = 7 | (2 << 4);
+  assert.equal(woundTakes(w, place, i).going, 1 / limbs.legs);
+  assert.equal(woundTakes(w, place, i).handling, 0);
+  assert.equal(workWorth(w, place, i), whole);
+  assert.equal(gaitOf(1 / 2), 2);
+  assert.ok(gaitOf(1) <= 4);
+  assert.ok(/a walk taking them/.test(markWords(w, place, i)!), markWords(w, place, i)!);
+  // An arm left stiff (MEMBERS' third): one of its arms' share of its handling.
+  p.mark[i] = 3 | (2 << 4);
+  assert.equal(woundTakes(w, place, i).handling, 1 / limbs.arms);
+  assert.ok(
+    Math.abs(workWorth(w, place, i) - Math.max(0.05, whole * (1 - 1 / limbs.arms))) < 1e-9,
+    `${workWorth(w, place, i)} of ${whole}`,
+  );
+  assert.ok(/in a hundred of what it was/.test(markWords(w, place, i)!), markWords(w, place, i)!);
+  // A scar takes nothing.
+  p.mark[i] = 3 | (1 << 4);
+  assert.deepEqual(woundTakes(w, place, i), { going: 0, handling: 0 });
+  p.mark[i] = 0;
+  // A wound bound while it mends: the member it was to does none of its share till then; a leader's work is words.
+  p.health[i] = 3;
+  p.ill[i] = 144;
+  p.cause[i] = CAUSE.accident | ((3 + 1) << 3);
+  assert.deepEqual(hurtOf(place, i), { cause: CAUSE.accident, member: "arm-r" });
+  assert.equal(woundTakes(w, place, i).handling, 1 / limbs.arms);
+  assert.ok(/bound: 1 more day of mending, their work worth/.test(healthWords(w, place, i)!));
+  p.cause[i] = CAUSE.accident | ((6 + 1) << 3);
+  assert.equal(woundTakes(w, place, i).going, 1 / limbs.legs);
+  assert.ok(/a walk taking them/.test(healthWords(w, place, i)!), healthWords(w, place, i)!);
+  // Their walk out to their field takes so many times as long.
+  p.at[i] = home;
+  p.eta[i] = 0;
+  p.health[i] = 0;
+  p.ill[i] = 0;
+  p.mark[i] = 7 | (2 << 4);
+  for (let k = 0; k < 4; k++) p.needs[i * 4 + k] = 0;
+  w.runTo(Math.ceil(w.now / DAY) * DAY + 10 * HOUR);
+  placeFrame(w, s.ref, []);
+  let walked = 0;
+  for (let k = 0; k < 144 && !walked; k++) {
+    w.runTo(w.now + 600);
+    placeFrame(w, s.ref, []);
+    if (p.eta[i]! > 0 && p.to[i] === AT.fields && p.at[i] === home) walked = p.trip[i]!;
+  }
+  if (walked)
+    assert.equal(walked, Math.round(Math.max(1, Math.round(far / 720)) * gaitOf(1 / limbs.legs)));
+});
+
+test("a cry carries to where it is no louder than the town's own noise, and at night no further than wakes a sleeper", () => {
+  const w = copy(base()),
+    s = near(w, 600),
+    place = enterPlace(w, s.ref)!,
+    p = place.people;
+  // Midnight: the town asleep.
+  w.runTo(Math.ceil(w.now / DAY) * DAY + 600);
+  placeFrame(w, s.ref, []);
+  const night = cryReach(w, place);
+  assert.equal(night, Math.round(Math.sqrt(VOICE.cry / VOICE.wake)));
+  // The middle of the day: as far as its own noise lets it, by how many are out and awake over its ground.
+  w.runTo(w.now + 12 * HOUR);
+  placeFrame(w, s.ref, []);
+  let out = 0;
+  for (let i = 0; i < p.n; i++)
+    if (
+      p.act[i] !== ACT.sleep &&
+      p.act[i] !== ACT.abed &&
+      (p.eta[i]! > 0 || p.at[i] !== place.houses.home[p.house[i]!])
+    )
+      out++;
+  const day = cryReach(w, place),
+    reach = Math.sqrt((Math.max(1, place.matched.lots) * 200) / Math.PI),
+    noise = (2 * VOICE.talk * out * Math.log(Math.max(Math.E, reach))) / (reach * reach);
+  assert.ok(out > 10, `${out} out and awake`);
+  assert.equal(day, Math.round(Math.sqrt(VOICE.cry / Math.max(noise, VOICE.still))));
+  assert.ok(day < Math.sqrt(VOICE.cry / VOICE.still), "no further than through the stillest air");
+  // A fire keeps the reach its cry had when it was raised, and those who turn out of themselves live within it.
+  order(w, "act.fire", { village: s.ref });
+  watch(w, s.ref, 1);
+  assert.equal(place.fire.length, 3);
+  assert.ok(place.fire[2]! > 0);
+  assert.ok(
+    HANDS_A_BUILDING >= 8 && HANDS_A_BUILDING <= 20,
+    `${HANDS_A_BUILDING} hands a building`,
+  );
 });

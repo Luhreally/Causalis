@@ -765,6 +765,7 @@ export {
   SCAR,
   SEVER_MOST,
   anatomyOf,
+  limbShare,
   deathMember,
   deathWeights,
   hurtWeights,

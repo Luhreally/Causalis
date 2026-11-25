@@ -226,6 +226,23 @@ export function deathWeights(a: Anatomy, blow: Blow): number[] {
   return w;
 }
 
+/**
+ * What of a body's going one of its legs does, and of its handling one of its arms (a hand with it): one share of as many
+ * as it has (rules/bodies.ts bodyFunction: the legs it stands on, the limbs it handles with). Its trunk bears every motion
+ * of its handling; its head and its eyes none of either. A limb left lame, or bound while it mends, is reckoned as doing
+ * none of its share: the world keeps no measure of what a stiff limb still does.
+ */
+export function limbShare(
+  member: Member,
+  legs: number,
+  arms: number,
+): { readonly going: number; readonly handling: number } {
+  if (isLeg(member)) return { going: 1 / Math.max(1, legs), handling: 0 };
+  if (member === "trunk") return { going: 0, handling: 1 };
+  if (isLimb(member)) return { going: 0, handling: 1 / Math.max(1, arms) };
+  return { going: 0, handling: 0 };
+}
+
 /** Where the blow that killed one of `a`'s kind landed (`r` 0 … 1, its own draw). */
 export function deathMember(a: Anatomy, blow: Blow, r: number): Member {
   return memberOf(deathWeights(a, blow), r);

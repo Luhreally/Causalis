@@ -72,9 +72,7 @@
 // live in the square, in their land's own weather, until a building is opened or a home has room.
 //
 // Stated limits. A town's table is a reading (the world keeps none per town): its land's ages and sexes by head-count,
-// its trades leaned to where its land's buildings of each work stand (tradeLean). A body
-// asleep hungers a quarter as fast, so through a long dark season, abed the more, a town eats a little under its land's
-// count of it (four fifths at the worst seen). Only the
+// its trades leaned to where its land's buildings of each work stand (tradeLean). Only the
 // holders of its roster's lines are the god game's named people here (linkRoster); a realm's key figures stand before
 // their doors as the town view has them, without needs. Its clock is the town view's standard day and year, not the
 // world's own (see frameOf). A walk between the lots nearest its square is reckoned by the very streets its view walks
@@ -100,7 +98,7 @@ import {
   type StateStore,
   type World,
 } from "../kernel/index.ts";
-import { PLACE_ACT, PLACE_AT, placeFieldOf } from "../bridge/index.ts";
+import { LOT_D, LOT_W, PLACE_ACT, PLACE_AT, placeFieldOf } from "../bridge/index.ts";
 import {
   BANDS,
   CIVICS,
@@ -114,7 +112,10 @@ import {
   HEAL_TENDED,
   HOLDS,
   MEMBERS,
+  OUR_STATURE,
   anatomyOf,
+  bodyFunction,
+  limbShare,
   healDays,
   hurtWeights,
   lastingOf,
@@ -122,6 +123,7 @@ import {
   outcomeOf,
   woundCare,
   type Anatomy,
+  type Member,
   type Blow,
   type Lasting,
   type Tended,
@@ -212,8 +214,12 @@ const SITE_USE = Math.round((SITE_TONNES * MICRO_) / TICKS_PM),
 /** One put to a site by its town's order: what `bound` holds for them. And one standing to arms by its order. */
 export const BOUND_SITE = 254;
 export const BOUND_ARMS = 253;
-/** How far from a fire, by its streets, the grown turn out to fight it of themselves (metres; est: as far as a cry carries among houses). */
-export const FIRE_CRY = 150;
+/**
+ * A voice, as sound: what a person's talk and their cry come to a metre off, the stillest air, and what wakes a sleeper
+ * (watts a square metre: 60, 90, 30 and 55 decibels). The world keeps no measure of a voice: these are a person's of our
+ * own kind, taken for every people.
+ */
+export const VOICE = { talk: 1e-6, cry: 1e-3, still: 1e-9, wake: 10 ** -6.5 } as const;
 /** A year's food that fed fewer than so many in a thousand of its land's needs is a lean one (sim/town/asks.ts: hungry). */
 const LEAN = 800;
 /** The trades a site's crew is taken from, the first first: the hands a site takes are the fields' (sim/town/asks.ts drain). */
@@ -448,6 +454,11 @@ type People = {
    * times, what came of it (1 a scar, 2 a limb left lame). rules/anatomy.ts.
    */
   mark: Uint8Array;
+  /**
+   * The time gone since they last ate, in half ticks (three a tick while raising a building, which hungers half again):
+   * a meal is what its land's reckoning counts a mouth to eat in that time, however much of it was slept.
+   */
+  owed: Uint16Array;
 };
 /** Bytes a person takes in a place's columns. */
 export const PERSON_BYTES =
@@ -476,7 +487,8 @@ export const PERSON_BYTES =
   1 +
   1 +
   4 +
-  1;
+  1 +
+  2;
 
 function peopleOf(cap: number): People {
   return {
@@ -507,6 +519,7 @@ function peopleOf(cap: number): People {
     bound: new Uint8Array(cap),
     friend: new Uint32Array(cap),
     mark: new Uint8Array(cap),
+    owed: new Uint16Array(cap),
   };
 }
 const PEOPLE_COLS = [
@@ -536,6 +549,7 @@ const PEOPLE_COLS = [
   "bound",
   "friend",
   "mark",
+  "owed",
 ] as const;
 type Col = (typeof PEOPLE_COLS)[number];
 const widthOf = (c: Col) => (c === "needs" ? NEEDS : 1);
@@ -752,10 +766,12 @@ type Frame = {
   readonly tire: number;
   readonly rest: number;
   readonly lone: number;
-  /** Food a person eats to a level of hunger (millionths). */
-  readonly bite: number;
-  /** Food a grown one eats in a day (millionths). */
+  /** Food a grown one eats in a day (millionths), and in half a tick. */
   readonly daily: number;
+  readonly half: number;
+  /** The legs their body goes on and the arms it handles with (rules/bodies.ts bodyFunction; a ring of tentacles goes on half of them). */
+  readonly legs: number;
+  readonly arms: number;
   /** What one carries of stone or timber at once (millionths of a tonne): a third of their body's weight (est, as a beast bears). */
   readonly load: number;
   /** Their body's members: what a wound can be to (rules/anatomy.ts). */
@@ -790,7 +806,8 @@ function frameOf(world: World, cell: number, kind = 0): Frame {
     awake = cycle * (1 - SLEEP_SHARE),
     // (Warm blood burns twice what cold does, rules/species.ts: it is hungry twice as often. Three meals to a waking.)
     meal = (awake / 3) * (body && !body.warm ? 2 : 1),
-    perSecond = (life.appetite * MICRO) / MONTH;
+    perSecond = (life.appetite * MICRO) / MONTH,
+    does = body ? bodyFunction(body) : { legs: 2, arms: 2 };
   f = {
     life,
     body,
@@ -811,10 +828,10 @@ function frameOf(world: World, cell: number, kind = 0): Frame {
     tire: Math.max(1, Math.round((FULL * PLACE_TICK) / awake)),
     rest: Math.max(1, Math.round((FULL * PLACE_TICK) / (cycle * SLEEP_SHARE))),
     lone: Math.round(((body?.social ?? 0.5) * FULL * PLACE_TICK) / (2 * awake)),
-    // (Asleep a body hungers a quarter as fast, below: over its own day, a third of it asleep, it eats what its land's
-    // reckoning counts a mouth to eat, and not three quarters of it.)
-    bite: (perSecond * meal) / FULL / (1 - SLEEP_SHARE + SLEEP_SHARE / 4),
     daily: perSecond * DAY,
+    half: (perSecond * PLACE_TICK) / 2,
+    legs: does.legs > 0 ? does.legs : Math.max(1, does.arms / 2),
+    arms: Math.max(1, does.legs > 0 ? does.arms : does.arms / 2),
     load: Math.max(1000, Math.round(((body?.size ?? 60) / 3) * 1000)),
     anatomy: anatomyOf(body),
   };
@@ -904,10 +921,12 @@ const PLIED_AT: readonly (readonly [number, readonly string[]])[] = [
   [OCC.trader, ["market", "docks", "station"]],
   [OCC.leader, ["hall", "temple", "shrine", "offices", "academy"]],
 ];
-/** Of a trade plied in buildings, the share that follows its buildings; the rest is plied at home and by the road, anywhere (est). */
-const PLIED_SHARE = 0.5;
-/** No town holds more than so many times its share by head of a trade (est: the rest of its land still has its own). */
-const PLIED_MOST = 6;
+/**
+ * The hands a building has room for: its lot's floor by the ground one at work takes, a circle a body's length about them
+ * with a tool in hand. A people lay their lots to their own measure (rules/stature.ts lotScale), so it is the same count
+ * for any people.
+ */
+export const HANDS_A_BUILDING = Math.floor((LOT_W * LOT_D) / (Math.PI * OUR_STATURE ** 2));
 type Plied = {
   readonly year: number;
   /** Its land's towns' people, and their buildings each trade is plied in (PLIED_AT's order). */
@@ -952,22 +971,24 @@ function pliedIn(world: World, cell: number): Plied {
 
 /**
  * How a town leans from its share by head of each trade (a number a trade; 1: by heads): those of a trade plied in
- * buildings live where its buildings stand. Half of them follow their land's buildings of that work, town by town, and
- * half are shared by heads (a making is done at home too, and goods are carried from any door): a market town holds more
- * of its land's traders and a town with no smithy fewer of its crafters. By heads where its land has no such building.
+ * buildings live where its buildings stand. As many of its land's of the trade as its buildings of that work have room
+ * for (HANDS_A_BUILDING each) follow them, town by town; the rest, who ply it at home and by the road, are shared by
+ * heads: a market town holds more of its land's traders and a town with no smithy fewer of its crafters. By heads where
+ * its land has no such building.
  */
 export function tradeLean(world: World, s: Settlement): number[] {
   const lean = new Array<number>(OCCS).fill(1),
     plied = pliedIn(world, s.cell),
     mine = plied.towns.get(s.ref);
   if (!mine || plied.people <= 0 || s.population <= 0) return lean;
-  const heads = s.population / plied.people;
+  const heads = s.population / plied.people,
+    land = populationContext(world).provinces.get(s.cell);
   PLIED_AT.forEach(([occ], k) => {
-    if (plied.all[k]! > 0)
-      lean[occ] = Math.min(
-        PLIED_MOST,
-        1 - PLIED_SHARE + (PLIED_SHARE * (mine[k]! / plied.all[k]!)) / heads,
-      );
+    const of = land?.occupation(occ) ?? 0;
+    if (plied.all[k]! <= 0 || of <= 0) return;
+    // (Of its land's of the trade, the share its buildings of the work have room for.)
+    const housed = Math.min(1, (HANDS_A_BUILDING * plied.all[k]!) / of);
+    lean[occ] = 1 - housed + (housed * (mine[k]! / plied.all[k]!)) / heads;
   });
   return lean;
 }
@@ -1865,6 +1886,7 @@ function addPerson(place: Place, sex: number, occ: number, born: number, house: 
   p.lack[i] = 0;
   p.health[i] = p.ill[i] = p.cause[i] = p.mood[i] = p.moodWhy[i] = p.bound[i] = p.friend[i] = 0;
   p.mark[i] = 0;
+  p.owed[i] = 0;
   place.houses.members[house]!++;
   return i;
 }
@@ -2328,7 +2350,7 @@ function matchPeople(
     },
     first = (i: number) =>
       place.tolls.length &&
-      ((p().health[i] === 1 && p().cause[i]! >= CAUSE.fire) ||
+      ((p().health[i] === 1 && (p().cause[i]! & 7) >= CAUSE.fire) ||
         (p().health[i] === 2 && tolled(p().cause[i]!)))
         ? 0
         : p().health[i] === 2
@@ -2727,7 +2749,8 @@ function wound(world: World, place: Place, i: number, cause: number): void {
     outcome = outcomeOf(member, blow, care, r(1)),
     days = healDays(outcome, member, blow, care, tendedOf(place, i));
   p.health[i] = 1;
-  p.cause[i] = cause;
+  // (What it was of, and the member it was to, eight times over: bound while it mends, that member does none of its share.)
+  p.cause[i] = cause | ((MEMBERS.indexOf(member) + 1) << 3);
   p.ill[i] = days.abed * 144;
   // (A worse mark is not lost to a lighter one.)
   const mark =
@@ -2752,10 +2775,44 @@ export function placeMark(
     lasting: lastingOf(a, member, outcome),
   };
 }
-/** How a limp slows a walk (est: two paces where three were), and what a limb held stiff, or a wound still bound, leaves of one's work (est). */
-export const LIMP_SLOW = 1.5,
-  STIFF_WORTH = 0.75,
-  BOUND_WORTH = 0.5;
+/** The legs and arms of one of a place's people, by their own people's body. */
+export function placeLimbs(world: World, place: Place, i: number): { legs: number; arms: number } {
+  const f = frameFor(world, place, i);
+  return { legs: f.legs, arms: f.arms };
+}
+/** A member in the words of the body of one of a place's people: "their left leg". */
+export function placeMember(world: World, place: Place, i: number, member: Member): string {
+  return (frameFor(world, place, i).anatomy.words[member] ?? "~ body").replace(/~/g, "their");
+}
+/** What one hurt is hurt of (a CAUSE), and the member the wound is to (null: a save from before it was kept, or sick). */
+export function hurtOf(place: Place, i: number): { cause: number; member: Member | null } {
+  const c = place.people.cause[i]!;
+  return place.people.health[i] === 2
+    ? { cause: c, member: null }
+    : { cause: c & 7, member: MEMBERS[(c >> 3) - 1] ?? null };
+}
+/**
+ * What a wound takes of one's going and of one's handling, 0 … 1: the share of their body's legs and arms that the member
+ * it left lame was, and the one bound while it mends (rules/anatomy.ts limbShare, by their own people's body). A leg of
+ * two is half one's going; an arm of two, half one's handling; a body bound about its trunk handles nothing till it mends.
+ */
+export function woundTakes(
+  world: World,
+  place: Place,
+  i: number,
+): { going: number; handling: number } {
+  const p = place.people,
+    mark = p.mark[i]!,
+    lame = mark >> 4 === 2 ? MEMBERS[(mark & 15) - 1] : undefined,
+    bound = p.health[i] === 3 ? MEMBERS[(p.cause[i]! >> 3) - 1] : undefined;
+  if (!lame && !bound) return { going: 0, handling: 0 };
+  const f = frameFor(world, place, i),
+    a = lame ? limbShare(lame, f.legs, f.arms) : { going: 0, handling: 0 },
+    b = bound && bound !== lame ? limbShare(bound, f.legs, f.arms) : { going: 0, handling: 0 };
+  return { going: Math.min(1, a.going + b.going), handling: Math.min(1, a.handling + b.handling) };
+}
+/** How many times as long a walk takes one for it (1: as long as anyone; never more than four times). */
+export const gaitOf = (going: number): number => 1 / (1 - Math.min(0.75, going));
 /** What a strike is, as a cause of hurt and death. */
 const STRIKE_CAUSE: Readonly<Record<TownStrike["kind"], number>> = {
   fire: 3,
@@ -2830,7 +2887,7 @@ function struck(world: World, place: Place, s: Settlement, f: Frame, k: TownStri
   if (k.kind !== "quake") {
     const first = [...lost][0],
       at = k.lot >= 0 ? k.lot : first !== undefined ? before[first]! : AT.square;
-    place.fire = [at, k.at + DAY];
+    place.fire = [at, k.at + DAY, cryReach(world, place)];
   }
   if (lost.size || taken.size) reckonMeans(world, place);
 }
@@ -2892,6 +2949,31 @@ export function watchWanted(hands: number): number {
 }
 
 /**
+ * How far a cry carries in a town, by its streets (metres): out to where it is no louder than the town's own noise, and
+ * no further than the stillest air lets it, or, where the town lies in the dark and asleep, than wakes a sleeper. A cry
+ * thins as any sound does, by the square of how far it has come; the town's noise is the talk of those awake and out of
+ * their homes, spread over its ground (each as loud as a voice, summed over a disc of the town's size: twice a voice's
+ * loudness at a metre, times how many, times the logarithm of its reach, over its reach squared). So a cry carries a few
+ * dozen metres through a busy day, a few dozen through a sleeping night, and a kilometre across a still dawn.
+ */
+export function cryReach(world: World, place: Place): number {
+  const p = place.people,
+    f = frameOf(world, place.cell);
+  let out = 0;
+  for (let i = 0; i < p.n; i++)
+    if (
+      p.act[i] !== ACT.sleep &&
+      p.act[i] !== ACT.abed &&
+      (p.eta[i]! > 0 || p.at[i] !== place.houses.home[p.house[i]!])
+    )
+      out++;
+  const reach = Math.sqrt((Math.max(1, place.matched.lots) * LOT_GROUND) / Math.PI),
+    noise = (2 * VOICE.talk * out * Math.log(Math.max(Math.E, reach))) / (reach * reach),
+    floor = airOf(f, place.t).lit ? VOICE.still : VOICE.wake;
+  return Math.round(Math.sqrt(VOICE.cry / Math.max(noise, floor)));
+}
+
+/**
  * Who turns out to a fire. Of themselves, the grown at a trade whose home stands within a cry of it by the town's streets,
  * but for one of each household with young of the first band and no elder at home, who stays with them. Where a watch is
  * kept by order, its watch besides, from anywhere in the town: so many of its grown hands as the order takes from its
@@ -2903,7 +2985,10 @@ function fireCrew(world: World, place: Place, f: Frame, lot: number, watch: bool
     key = `${lot}|${place.fire[1]}|${watch}|${p.n}|${place.nextId}`,
     was = FIRE_CREWS.get(place);
   if (was && was.key === key) return was.ids;
-  const ids = new Set<number>(),
+  // (How far the cry of it carried when it was raised: kept with the fire. One kept from before it was: as it would now.)
+  if (place.fire.length === 2) place.fire.push(cryReach(world, place));
+  const cry = place.fire[2] ?? 0,
+    ids = new Set<number>(),
     young = new Uint8Array(place.houses.n),
     elder = new Uint8Array(place.houses.n),
     hands: number[] = [];
@@ -2917,8 +3002,7 @@ function fireCrew(world: World, place: Place, f: Frame, lot: number, watch: bool
     if (CREW_FROM.includes(occOf(p, i))) hands.push(i);
     const h = p.house[i]!,
       home = place.houses.home[h]!;
-    if (streetLength(place, home < 0 ? AT.square : home, lot < 0 ? AT.square : lot) > FIRE_CRY)
-      continue;
+    if (streetLength(place, home < 0 ? AT.square : home, lot < 0 ? AT.square : lot) > cry) continue;
     // (The first of a household with young and no elder stays with them.)
     if (young[h] === 1 && !elder[h]) {
       young[h] = 2;
@@ -3225,6 +3309,8 @@ function makePlace(world: World, s: Settlement): Place | null {
         place.people.needs[i * NEEDS + q] = Math.floor(
           world.rng.unit(PLACE_DRAW, key ^ id, t, P.need, q) * FULL * 0.6,
         );
+      // (As long since their last meal as so much hunger takes to come.)
+      place.people.owed[i] = Math.round((2 * place.people.needs[i * NEEDS + N.food]!) / f.hunger);
       workOf(world, place, i);
     }
   }
@@ -3344,11 +3430,12 @@ export function workWorth(
   if (occ === OCC.dependent) return 0;
   const earns = trades ? trades[occ]! : tradeWorth(place, mean)[occ]!,
     own = ownWorth(world, place, i);
-  // (And by their mood: a quarter more at its best, a quarter less at its worst. And less with a wound still bound, or
-  // an arm or a hand it left stiff.)
-  const mark = p.mark[i]!,
-    stiff = mark >> 4 === 2 && (mark & 15) - 1 >= 2 && (mark & 15) - 1 <= 5,
-    hurt = (p.health[i] === 3 ? BOUND_WORTH : 1) * (stiff ? STIFF_WORTH : 1);
+  // (And by their mood: a quarter more at its best, a quarter less at its worst. And less by the share of their handling
+  // a wound bound, or an arm or a hand left stiff, takes: of any work but a leader's, which is words.)
+  const hurt =
+    (p.mark[i]! >> 4 === 2 || p.health[i] === 3) && occ !== OCC.leader
+      ? 1 - woundTakes(world, place, i).handling
+      : 1;
   return Math.max(0.05, Math.min(0.9, (0.45 + earns + own) * (1 + p.mood[i]! / 400) * hurt));
 }
 /** What each trade's work is worth by what it earns against the mean of its land's trades (workWorth's part of it, a trade each). */
@@ -3468,13 +3555,15 @@ export const pressOf = (level: number): number => level * level * level;
 /** What lying idle is worth: no work worth less than this is gone to, no need pressing less is served. */
 export const IDLE_WORTH = 0.2;
 
-function go(place: Place, i: number, to: number): void {
+function go(place: Place, i: number, to: number, world: World | null = null): void {
   const p = place.people;
   p.to[i] = to;
   let ticks = ticksBetween(place, p.at[i]!, to, i);
-  // (A leg left lame goes at a limp.)
-  if (ticks && p.mark[i]! >> 4 === 2 && (p.mark[i]! & 15) - 1 >= 6)
-    ticks = Math.min(65535, Math.round(ticks * LIMP_SLOW));
+  // (A leg left lame, or bound while it mends, goes at a limp: by the legs they have left to go on.)
+  if (ticks && world && (p.mark[i]! >> 4 === 2 || p.health[i] === 3)) {
+    const going = woundTakes(world, place, i).going;
+    if (going > 0) ticks = Math.min(65535, Math.round(ticks * gaitOf(going)));
+  }
   p.eta[i] = p.trip[i] = ticks;
   if (!p.eta[i]) p.at[i] = to;
 }
@@ -3640,6 +3729,20 @@ function tick(world: World, place: Place, f: Frame): void {
     bldgs.stock[(b < 0 ? 0 : b) * GOOD_COUNT + p.carryGood[i]!]! += p.carry[i]!;
     p.carry[i] = 0;
   };
+  // A meal: what its land's reckoning counts a mouth to eat in the time since their last (the young, their share of it),
+  // as far as the pantry has it; their hunger and what they have yet to eat fall by as much of it as they got. A body
+  // asleep hungers a quarter as fast, so it wakes hungry less often through a long dark season, and eats as much.
+  const eat = (i: number, h: number, fk: Frame): [number, number] => {
+    const want = p.owed[i]! * fk.half * (bandOf(ageOf(p, i, t), f.life) === 0 ? f.life.young : 1);
+    if (want <= 0) return [0, 0];
+    const eaten = eatFrom(place, h, want);
+    if (eaten > 0) {
+      const left = 1 - Math.min(1, eaten / want);
+      p.needs[i * NEEDS + N.food] = Math.round(p.needs[i * NEEDS + N.food]! * left);
+      p.owed[i] = Math.round(p.owed[i]! * left);
+    }
+    return [eaten, want];
+  };
   // Its land's peoples, where it is of more than one: each of its people by their own people's body.
   const fs =
       matched.mix && matched.mix.length > 1
@@ -3674,6 +3777,11 @@ function tick(world: World, place: Place, f: Frame): void {
           : p.act[i] === ACT.build || p.act[i] === ACT.stuff
             ? fk.hunger + (fk.hunger >> 1)
             : fk.hunger),
+    );
+    // (What they have yet to eat grows by the clock, asleep or awake: its land's reckoning counts a mouth by the month.)
+    p.owed[i] = Math.min(
+      65535,
+      p.owed[i]! + (p.act[i] === ACT.build || p.act[i] === ACT.stuff ? 3 : 2),
     );
     p.needs[at0 + N.rest] = asleep
       ? Math.max(0, p.needs[at0 + N.rest]! - fk.rest)
@@ -3804,24 +3912,17 @@ function tick(world: World, place: Place, f: Frame): void {
       p.why[i] = WHY.abed;
       p.act[i] = ACT.abed;
       if (p.at[i] !== home) {
-        go(place, i, home);
+        go(place, i, home, world);
         continue;
       }
-      if (p.needs[at0 + N.food]! > 0.5 * FULL) {
-        const want = p.needs[at0 + N.food]! * fk.bite,
-          eaten = eatFrom(place, h, want);
-        if (eaten > 0)
-          p.needs[at0 + N.food] = Math.round(
-            p.needs[at0 + N.food]! * (1 - Math.min(1, eaten / want)),
-          );
-      }
+      if (p.needs[at0 + N.food]! > 0.5 * FULL) eat(i, h, fk);
       p.needs[at0 + N.rest] = Math.max(0, p.needs[at0 + N.rest]! - fk.rest);
       if (--p.ill[i]! === 0) {
         p.act[i] = ACT.idle;
         // (A wound's days abed done: up and about with it bound for its days of mending. rules/healing.ts.)
         const mark = p.mark[i]!,
           member = MEMBERS[(mark & 15) - 1],
-          cause = p.cause[i]!,
+          cause = p.health[i] === 1 ? p.cause[i]! & 7 : p.cause[i]!,
           mending =
             p.health[i] === 1
               ? healDays(
@@ -3874,7 +3975,7 @@ function tick(world: World, place: Place, f: Frame): void {
     if (fireLot !== null && hunger < 0.6 && fireOut!.has(p.id[i]!)) {
       p.act[i] = ACT.brigade;
       p.why[i] = WHY.fire;
-      if (p.at[i] !== fireLot) go(place, i, fireLot);
+      if (p.at[i] !== fireLot) go(place, i, fireLot, world);
       continue;
     }
     // Asleep: until rested, or hunger or cold wakes them.
@@ -3893,7 +3994,7 @@ function tick(world: World, place: Place, f: Frame): void {
         p.carry[i] = take;
         p.act[i] = ACT.carry;
         p.why[i] = WHY.load;
-        go(place, i, bldgs.lot[market]!);
+        go(place, i, bldgs.lot[market]!, world);
       } else p.act[i] = ACT.idle;
       continue;
     }
@@ -3921,7 +4022,7 @@ function tick(world: World, place: Place, f: Frame): void {
       }
       p.act[i] = p.carry[i]! > 0 ? ACT.carry : ACT.idle;
       p.why[i] = p.carry[i]! > 0 ? WHY.pantry : WHY.noFood;
-      go(place, i, home);
+      go(place, i, home, world);
       continue;
     }
     // Gone for a load of what a site is built of: taken up outside the town, and set down at the site.
@@ -3929,7 +4030,7 @@ function tick(world: World, place: Place, f: Frame): void {
       const sn = p.bound[i] === BOUND_SITE ? sitesNow?.get(p.work[i]!) : undefined;
       if (sn && p.at[i] === AT.fields) {
         p.why[i] = WHY.stuff;
-        go(place, i, sn.site.lot);
+        go(place, i, sn.site.lot, world);
         continue;
       }
       if (sn && p.at[i] === sn.site.lot) {
@@ -3946,18 +4047,11 @@ function tick(world: World, place: Place, f: Frame): void {
           // (Bound home to eat: told as eating from the moment they turn for it.)
           p.act[i] = ACT.eat;
           p.why[i] = WHY.hunger;
-          go(place, i, home);
+          go(place, i, home, world);
           continue;
         }
-        const want =
-            p.needs[at0 + N.food]! *
-            fk.bite *
-            (bandOf(ageOf(p, i, t), f.life) === 0 ? f.life.young : 1),
-          eaten = eatFrom(place, h, want);
+        const [eaten, want] = eat(i, h, fk);
         if (eaten > 0) {
-          p.needs[at0 + N.food] = Math.round(
-            p.needs[at0 + N.food]! * (1 - Math.min(1, eaten / want)),
-          );
           p.act[i] = ACT.eat;
           p.why[i] = WHY.hunger;
           // (Fed, and the pantry holds a day's food for the household yet: no more to do. Fed on its last crumbs, one
@@ -3982,7 +4076,7 @@ function tick(world: World, place: Place, f: Frame): void {
         if (grown && from >= 0) {
           p.act[i] = ACT.fetch;
           p.why[i] = WHY.pantry;
-          go(place, i, bldgs.lot[from]!);
+          go(place, i, bldgs.lot[from]!, world);
           continue;
         }
         if (eaten > 0) continue;
@@ -3996,7 +4090,7 @@ function tick(world: World, place: Place, f: Frame): void {
         if (p.at[i] !== home) {
           p.act[i] = ACT.idle;
           p.why[i] = WHY.tired;
-          go(place, i, home);
+          go(place, i, home, world);
         } else {
           p.act[i] = ACT.sleep;
           p.why[i] = WHY.tired;
@@ -4005,18 +4099,18 @@ function tick(world: World, place: Place, f: Frame): void {
       } else if (chilled === press) {
         p.act[i] = ACT.warm;
         p.why[i] = WHY.cold;
-        if (p.at[i] !== home) go(place, i, home);
+        if (p.at[i] !== home) go(place, i, home, world);
         continue;
       } else if (sickHouses?.has(h)) {
         // (One of a household with sickness in it, kept apart by order: at home, wanting company.)
         p.act[i] = ACT.idle;
         p.why[i] = WHY.apart;
-        if (p.at[i] !== home) go(place, i, home);
+        if (p.at[i] !== home) go(place, i, home, world);
         continue;
       } else {
         p.act[i] = ACT.visit;
         p.why[i] = WHY.lone;
-        if (p.at[i] !== AT.square) go(place, i, AT.square);
+        if (p.at[i] !== AT.square) go(place, i, AT.square, world);
         else {
           // (Two in the square for company at once, neither with a friend yet: each the other's.)
           if (visitor >= 0 && !p.friend[i] && !p.friend[visitor] && p.house[visitor] !== h) {
@@ -4032,7 +4126,7 @@ function tick(world: World, place: Place, f: Frame): void {
       // Nothing presses and no work is worth going to: at home, abed while it is dark.
       if (p.at[i] !== home) {
         p.act[i] = ACT.idle;
-        go(place, i, home);
+        go(place, i, home, world);
       } else p.act[i] = air.lit ? ACT.idle : ACT.sleep;
       p.why[i] = occ === OCC.dependent ? WHY.young : WHY.dark;
       continue;
@@ -4043,21 +4137,21 @@ function tick(world: World, place: Place, f: Frame): void {
       // Their building's work is stopped by order: at home, waiting.
       p.act[i] = ACT.wait;
       p.why[i] = WHY.shut;
-      if (p.at[i] !== home) go(place, i, home);
+      if (p.at[i] !== home) go(place, i, home, world);
       continue;
     }
     // Standing to arms by order: in the square, in the hours their work would have had.
     if (p.bound[i] === BOUND_ARMS) {
       p.act[i] = ACT.guard;
       p.why[i] = WHY.arms;
-      if (p.at[i] !== AT.square) go(place, i, AT.square);
+      if (p.at[i] !== AT.square) go(place, i, AT.square, world);
       continue;
     }
     // A siege lies about the town: no one goes out to its fields.
     if (work === AT.fields && matched.sieged) {
       p.act[i] = ACT.wait;
       p.why[i] = WHY.siege;
-      if (p.at[i] !== home) go(place, i, home);
+      if (p.at[i] !== home) go(place, i, home, world);
       continue;
     }
     const sn = p.bound[i] === BOUND_SITE ? sitesNow?.get(work) : undefined;
@@ -4066,20 +4160,20 @@ function tick(world: World, place: Place, f: Frame): void {
       if (sn.stopped || sn.left <= 0) {
         p.act[i] = ACT.wait;
         p.why[i] = sn.stopped ? WHY.stopped : WHY.raised;
-        if (p.at[i] !== home) go(place, i, home);
+        if (p.at[i] !== home) go(place, i, home, world);
         continue;
       }
       p.why[i] = WHY.site;
       if (p.at[i] !== work) {
         p.act[i] = ACT.build;
-        go(place, i, work);
+        go(place, i, work, world);
         continue;
       }
       // (Nothing on the site to build in: a load of it fetched from outside the town.)
       if (sn.site.stuff < SITE_USE) {
         p.act[i] = ACT.stuff;
         p.why[i] = WHY.stuff;
-        go(place, i, AT.fields);
+        go(place, i, AT.fields, world);
         continue;
       }
       // A tick's building: what it is built of built in, tools worn; with none to hand the work is worth what a hand without
@@ -4115,14 +4209,14 @@ function tick(world: World, place: Place, f: Frame): void {
             p.carry[i] = take;
             p.act[i] = ACT.carry;
             p.why[i] = WHY.load;
-            go(place, i, bldgs.lot[foodStore]!);
+            go(place, i, bldgs.lot[foodStore]!, world);
             break;
           }
         if (p.act[i] === ACT.carry && p.carry[i]! > 0) continue;
       }
       p.act[i] = ACT.work;
       p.why[i] = WHY.work;
-      go(place, i, work);
+      go(place, i, work, world);
       continue;
     }
     p.act[i] = ACT.work;
@@ -4146,6 +4240,7 @@ function tick(world: World, place: Place, f: Frame): void {
           place,
           i,
           pantry < houses.members[h]! * fk.daily * keepDays ? home : bldgs.lot[foodStore]!,
+          world,
         );
       }
     } else if (occ === OCC.crafter && p.craft[i]) {
@@ -4214,7 +4309,7 @@ function tick(world: World, place: Place, f: Frame): void {
         p.carry[i] = take;
         p.act[i] = ACT.carry;
         p.why[i] = WHY.load;
-        go(place, i, bldgs.lot[b]!);
+        go(place, i, bldgs.lot[b]!, world);
         wants.splice(k, 1);
         break;
       }
@@ -4235,7 +4330,7 @@ function tick(world: World, place: Place, f: Frame): void {
         p.carry[i] = 0;
         p.act[i] = ACT.haul;
         p.why[i] = WHY.haul;
-        go(place, i, bldgs.lot[haul[0]]!);
+        go(place, i, bldgs.lot[haul[0]]!, world);
       }
     }
   }
@@ -4520,6 +4615,7 @@ function settle(world: World, place: Place): void {
       p.needs[i * NEEDS + q] = Math.floor(
         world.rng.unit(PLACE_DRAW, place.key ^ p.id[i]!, place.t, P.settle, q) * FULL * 0.6,
       );
+    p.owed[i] = Math.round((2 * p.needs[i * NEEDS + N.food]!) / frameOf(world, place.cell).hunger);
     // (What was in hand is set down in the square.)
     if (p.carry[i]! > 0) place.bldgs.stock[p.carryGood[i]!]! += p.carry[i]!;
     p.carry[i] = 0;
