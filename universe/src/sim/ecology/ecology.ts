@@ -318,6 +318,7 @@ export function carriedFields(ctx: PopulationContext, cell: number): number {
 
 /** What a land's wild food gives by its carriers' numbers (exactly 1 where they stand as they did). */
 export function carriedWild(ctx: PopulationContext, cell: number, w: Wilds): number {
+  if (w.small >= 1 && w.wild >= 1) return 1;
   const c = carriersAt(ctx, cell, w);
   return c.need && c.numbers < 1 ? carriedYield(CARRIED.wild, c.numbers) : 1;
 }

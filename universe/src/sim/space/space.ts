@@ -29,6 +29,7 @@ import {
 import {
   BANDS,
   CLEAR_SKY,
+  DEBRIS,
   G,
   GOODS,
   KINDS,
@@ -279,7 +280,15 @@ export function spaceYear(ctx: PopulationContext, t: SimTime): void {
     air = lifts.length ? homeAir(ctx) : 1,
     debris = lifts.length ? debrisOf(lifts, year, air) : CLEAR_SKY;
   // The year the strikes first outrun the air: told once, by the launches that left the most.
-  if (debris.cascade && !debrisOf(lifts, year - 1, air).cascade) {
+  // (Last year's flights saw only what had flown before them.)
+  if (
+    debris.cascade &&
+    !debrisOf(
+      lifts.filter((l) => l.year < year - 1),
+      year - 1,
+      air,
+    ).cascade
+  ) {
     const most = [...lifts].sort((a, b) => b.tonnes - a.tonnes || a.year - b.year).slice(0, 3);
     world.events.emit({
       type: SPACE_EVENTS.cascade.type,
@@ -327,6 +336,8 @@ export function spaceYear(ctx: PopulationContext, t: SimTime): void {
       cost = launcher.cost * tonnes * MACHINES_PER_COST * debris.costs,
       machines = machinesOfRealm(ctx, p);
     if (machines * PROGRAM_SHARE < cost) continue;
+    // (No realm sends its craft up to be lost more likely than not: the sky is left to clear.)
+    if (debris.loss > DEBRIS.dare) continue;
     // Its reasons: a rival already in the sky, a war, and its rulers' will.
     const reasons: Factor[] = [],
       rival = store.first[next];

@@ -202,7 +202,8 @@ export function delivered(
  * critical mass D* = 1/(4cτ) (Kessler and Cour-Palais 1978). `critical`: that mass at Earth's τ (tonnes, est).
  * Past it the strikes outrun the air: a cascade. `felt`: under this share of the critical mass no one flying
  * notices. `lossTonnes`: the fragments aloft at which a launch program has lost 63 in 100 of its craft (est).
- * `shield`: what armour, watching and dodging add to a launch's cost at the critical mass.
+ * `shield`: what armour, watching and dodging add to a launch's cost at the critical mass. `dare`: past this chance
+ * of losing its craft no realm launches at all, and the sky is left to clear.
  */
 export const DEBRIS = {
   left: 0.05,
@@ -212,6 +213,7 @@ export const DEBRIS = {
   felt: 0.25,
   lossTonnes: 20000,
   shield: 0.25,
+  dare: 0.5,
 } as const;
 
 /** Years a dead thing stays aloft over a world: Earth's by its air's weight (the heavier, the sooner down). */

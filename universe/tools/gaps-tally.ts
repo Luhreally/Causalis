@@ -63,9 +63,11 @@ if (args.includes("--save")) {
 if (!file) throw new Error("usage: gaps-tally.ts <earth|alien>=<file.save> [years] [--off]");
 if (off) {
   const set = (o: object, k: string, v: number) => ((o as Record<string, number>)[k] = v);
-  set(CARRIED, "garden", 0);
-  set(CARRIED, "wild", 0);
-  set(CANAL, "horizon", 0);
+  if (!args.includes("--keep-carried")) {
+    set(CARRIED, "garden", 0);
+    set(CARRIED, "wild", 0);
+  }
+  if (!args.includes("--keep-canals")) set(CANAL, "horizon", 0);
   set(REVERSAL, "everyYears", Infinity);
   set(DEBRIS, "felt", Infinity);
 }
