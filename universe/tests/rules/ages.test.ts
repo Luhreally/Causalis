@@ -8,6 +8,7 @@ import {
   MEASURE_IDS,
   MEASURES,
   PRINCIPLES,
+  PROPERTIES,
   SOLAR,
   affordsPrinciple,
   energyOf,
@@ -271,7 +272,11 @@ test("each measure's own figure, from what a land knows", () => {
   assert.ok(energyOf(land(["steam-engine"], { driven: 250_000 })) >= 1);
   assert.equal(stuffOf(land([]), SOLAR).name, "knapped stone");
   assert.equal(stuffOf(land(["steel"]), SOLAR).name, "steel");
-  assert.equal(stuffOf(land(["iron"]), SOLAR).strength, 370);
+  // (Iron's strength is read from its atoms as it is worked since the Materials round (rules/materials.ts: 368 MPa at
+  // 20 °C), not the handbook's 370: the stuff a land makes is held to that, and lands near the handbook's figure.)
+  const iron = stuffOf(land(["iron"]), SOLAR).strength;
+  assert.equal(iron, PROPERTIES.iron!.strength);
+  assert.ok(Math.abs(iron - 370) <= 370 * 0.05, `iron ${iron} MPa, near the handbook's 370`);
   assert.equal(fitOf(land([])).mm, 1);
   assert.equal(fitOf(land(["guidance"])).mm, 0.002);
   assert.equal(lifeOf(land([], { sown: false })).level, 0);
