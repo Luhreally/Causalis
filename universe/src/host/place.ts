@@ -77,8 +77,8 @@
 // their doors as the town view has them, without needs. Its clock is the town view's standard day and year, not the
 // world's own (see frameOf). A walk between the lots nearest its square is reckoned by the very streets its view walks
 // (bridge/streets.ts: the street graph is the bridge's, read by both); a walk out to its fields, to one's own field
-// where its plan means it to lie (host/village.ts townFieldsMeant: the fan its view draws, before its ground is read; a
-// field its ground moved is walked to where it was meant). Wool, hides
+// where its plan lays it on its ground (host/village.ts townFieldsMeant: the one laying its view draws by; a field its
+// ground moved is walked to where it is drawn). Wool, hides
 // and the rest that no one here wins come and go at the month's matching. A land of several peoples is read by its
 // first's body. What the granary holds back and the market forbids move who eats and who works within the town; they
 // reach the world only through who then changes trade or dies. Deaths of want are reckoned only in a managed town,
@@ -1715,6 +1715,7 @@ function layLots(world: World, place: Place): void {
       lots,
       Math.min(most, plan.lots),
       townsOf(world).get(place.town)?.next ?? plan.lots,
+      plan,
     ),
     fieldX = Float32Array.from(out?.fields ?? [], (q) => q.x),
     fieldZ = Float32Array.from(out?.fields ?? [], (q) => q.z),

@@ -81,6 +81,10 @@ import {
   openWater,
   shoreOf,
   townClaims,
+  wallAt,
+  wallLine,
+  wallsOut,
+  WALL_THICK,
   wetGround,
   type StoreBook,
   type TownPlan,
@@ -279,10 +283,11 @@ export function fieldWayOf(world: World, cell: number, tile: number): number {
 }
 
 /**
- * Where a town's fields are meant to lie and where its flocks graze, as its plan lays them before its ground is read
- * (villagePlan below: the same seed, the same way to its good ground, the same edge, the same fan), for a place's walks
- * out to them (host/place.ts): each field's middle, and its pasture's (metres from its square, in its plan's frame).
- * `lots`: its lots as laid, `drawn` of its `whole`.
+ * Where a town's fields lie and where its flocks graze, as its plan lays them on its ground (fieldsLaid: the same seed, the
+ * same way to its good ground, the same edge, the same fan, the same ground read), for a place's walks out to them
+ * (host/place.ts): each field's middle, and its pasture's (metres from its square, in its plan's frame). `lots`: its lots
+ * as laid, `drawn` of its `whole`; `town`: its plan of those lots, for the ground its strongholds hold and whether its
+ * homes stand on its lots.
  */
 export function townFieldsMeant(
   world: World,
@@ -290,6 +295,7 @@ export function townFieldsMeant(
   lots: TownLots,
   drawn: number,
   whole: number,
+  town: TownPlan | null = null,
 ): { fields: { x: number; z: number }[]; pasture: { x: number; z: number } } | null {
   const ctx = populationContext(world),
     v = ctx.settlements.get(ref);
@@ -309,26 +315,173 @@ export function townFieldsMeant(
     turn = apart(poorWay + 0.9, fieldWay) > apart(poorWay - 0.9, fieldWay) ? 0.9 : -0.9,
     pastureToward = offRoad(poorWay) < 0.7 ? poorWay + turn : poorWay,
     count = Math.max(4, Math.min(160, Math.ceil(v.population / 5))),
-    { edge, edgeAt } = fieldEdge({
+    laid = fieldsLaid(world, ref, {
+      seed: hashString(`village ${ref}`),
+      fieldWay,
+      roadWay,
+      pastureToward,
+      city: !!city,
+      // (Its homes stand on its lots where four of those drawn do, or lie flat there: as its plan counts them.)
+      fabric: !town || homesOnLots(town, count, world.now) >= 4,
+      town,
       lots,
       drawn,
       whole,
-      city: !!city,
-      cityRim: (BLOCKS * BLOCK_M) / 2,
       count,
       spires: !!landPast(world, v.cell)?.spires,
+    });
+  return {
+    fields: laid.fields.map((f) => ({ x: f.x, z: f.z })),
+    pasture: {
+      x: laid.pastureAt * Math.cos(laid.pastureWay),
+      z: laid.pastureAt * Math.sin(laid.pastureWay),
+    },
+  };
+}
+
+/** How many of a town's lots drawn hold a home standing done, up to `count`; where fewer than four, those lying flat besides (villagePlan's own count of its homes on its lots). */
+function homesOnLots(town: TownPlan, count: number, now: number): number {
+  const states = lotStates(town);
+  let n = 0;
+  for (let p = 0; p < town.lots && n < count; p++)
+    if (states.what[p] === LOT.home && progress(states.began[p]!, states.takes[p]!, now) >= 1) n++;
+  if (n < 4)
+    for (let p = 0; p < town.lots && n < Math.max(4, count); p++)
+      if (states.what[p] === LOT.razed) n++;
+  return n;
+}
+
+/**
+ * A town's fields and its pasture as they lie on its ground (metres from its square): each field where it was meant if
+ * that ground is free, else on out along its way to the nearest that is, else not sown; its pasture on free ground toward
+ * its poorer land. One laying, read by its plan (villagePlan) and by its place's walks out to them (townFieldsMeant): a
+ * field its ground moved is walked to where it is drawn. `lots`: its lots as laid (null: none drawn lot by lot), `drawn` of
+ * its `whole`; `fabric`: whether its homes stand on them; `town`: its plan, for the ground its strongholds hold.
+ */
+function fieldsLaid(
+  world: World,
+  ref: Ref,
+  o: {
+    readonly seed: number;
+    readonly fieldWay: number;
+    readonly roadWay: number;
+    readonly pastureToward: number;
+    readonly city: boolean;
+    readonly fabric: boolean;
+    readonly town: TownPlan | null;
+    readonly lots: TownLots | null;
+    readonly drawn: number;
+    readonly whole: number;
+    readonly count: number;
+    readonly spires: boolean;
+  },
+) {
+  const { seed, fieldWay, roadWay, pastureToward, city, fabric, town, lots, drawn, whole, count } =
+      o,
+    apart = (a: number, b: number) =>
+      Math.abs(((((a - b) % (2 * Math.PI)) + 3 * Math.PI) % (2 * Math.PI)) - Math.PI),
+    offRoad = (a: number) =>
+      city ? Math.min(apart(a, roadWay), apart(a, roadWay + Math.PI)) : apart(a, roadWay);
+  // Fields in a fan toward the good ground, beyond the homes (beyond a city's quarters); as its land's map lays them
+  // (bridge/town.ts fieldEdge, fieldsMeant; view/land.ts landFields).
+  const fields: { x: number; z: number; w: number; d: number; yaw: number }[] = [],
+    { edge, edgeAt, outline } = fieldEdge({
+      lots: fabric ? lots : null,
+      drawn,
+      whole,
+      city,
+      cityRim: (BLOCKS * BLOCK_M) / 2,
+      count,
+      spires: o.spires,
     }),
-    meant = fieldsMeant(hashString(`village ${ref}`), fieldWay, fieldCount(count), edgeAt),
-    outer = meant.reduce(
+    meant = fieldsMeant(seed, fieldWay, fieldCount(count), edgeAt);
+  // (Its ground as its countryside is laid on it: its land's water, its built ground, its road out; then its fields, each
+  // where it was meant to lie if that is free, else on out along its way to the nearest that is, else not sown: none on
+  // the water, none on its streets, none on another. bridge/claims.ts.)
+  const ground = townWet(world, ref),
+    // (Its road out goes as far as the dry ground does that way: to the shore, where the water comes first.)
+    roadLong = (city ? [roadWay, roadWay + Math.PI] : [roadWay]).reduce(
+      (m, a) => Math.min(m, dryOut(ground, a, ROAD_OUT)),
+      ROAD_OUT,
+    ),
+    roadOut = { x: roadLong * Math.cos(roadWay), z: roadLong * Math.sin(roadWay) },
+    claims = townClaims({
+      ground,
+      blocks: lots ? lots.blocks : null,
+      count: lots ? Math.ceil(drawn / 8) : 0,
+      outline,
+      outlineAt,
+      scale: lots ? Math.sqrt(whole / Math.max(1, drawn)) : 1,
+      edge,
+      road: roadOut,
+      through: city,
+    });
+  // (Its strongholds' and seats' ground, as its own view lays them: no field or pasture on it. bridge/holdplaces.ts.)
+  const held = town && lots ? holdPlaces(town, lots).map((p) => ({ x: p.x, z: p.z, r: p.r })) : [];
+  for (const p of held) claims.disc(p.x, p.z, p.r, GROUND.works, 0);
+  // (Its walls' line, standing or going up: no field within it or across it, as its land's map lays them, view/land.ts.
+  // A town asked for walls had them raised through its nearest fields and its orchard.)
+  if (town?.walls && lots) {
+    const about = wallLine(
+        Math.min(town.walls.reach, town.lots),
+        lots,
+        town.water,
+        town.site ?? null,
+      ),
+      far = wallsOut(town, lots);
+    claims.star(0, 0, (a) => wallAt(about, a) * far + WALL_THICK + 2, GROUND.wall, 0);
+  }
+  fields.push(...layOn(claims, meant, GROUND.field, 0, { x: 0, z: 0 }, 24, 12));
+  // The pasture lies toward the poorer ground, near the homes where that is clear of the
+  // fields' fan (else just past them); the wild begins beyond the last fields.
+  const outer = fields.reduce(
       (m, f) => Math.max(m, Math.hypot(f.x, f.z) + Math.max(f.w, f.d) / 2),
       edge,
     ),
-    // (Its pasture as first tried: ninety metres across, near the homes where that is clear of the fields' fan.)
-    out = apart(pastureToward, fieldWay) > 1.9 ? edge + 90 + 20 : outer + 90 + 15;
-  return {
-    fields: meant.map((f) => ({ x: f.x, z: f.z })),
-    pasture: { x: out * Math.cos(pastureToward), z: out * Math.sin(pastureToward) },
-  };
+    pastureOut = (way: number, r: number) =>
+      apart(way, fieldWay) > 1.9 ? edge + r + 20 : outer + r + 15,
+    // (On free ground: never on the water, the town or a field; turned a step at a time, then on out, then smaller, till it
+    // is. Where no ground is free for even the least of it, as where a great town fills its isle, the least is grazed on
+    // the first dry ground of those tried, its town's commons; on the water never, while any is dry.)
+    pastureFree = (way: number, out: number, r: number) =>
+      claims.freeDisc(
+        (pastureOut(way, r) + out) * Math.cos(way),
+        (pastureOut(way, r) + out) * Math.sin(way),
+        r,
+      ),
+    pastureTries = [90, 60, 40].flatMap((r) =>
+      [0, 60, 140, 260, 420, 640, 900].flatMap((out) =>
+        [0, 0.6, -0.6, 1.2, -1.2, 1.8, -1.8, 2.4, -2.4, Math.PI].map((t) => ({
+          way: pastureToward + t,
+          out,
+          r,
+        })),
+      ),
+    ),
+    pastureDry = (way: number, out: number, r: number) => {
+      const at = pastureOut(way, r) + out,
+        x = at * Math.cos(way),
+        z = at * Math.sin(way);
+      for (let k = -1; k < 8; k++) {
+        const u = k < 0 ? 0 : r * Math.cos((k * Math.PI) / 4),
+          v = k < 0 ? 0 : r * Math.sin((k * Math.PI) / 4);
+        if (claims.kindAt(x + u, z + v) === GROUND.water) return false;
+      }
+      return true;
+    },
+    pastureTry = pastureTries.find(
+      (p) => (p.way === pastureToward || offRoad(p.way) > 0.7) && pastureFree(p.way, p.out, p.r),
+    ) ??
+      pastureTries.find((p) => p.r === 40 && pastureDry(p.way, p.out, p.r)) ?? {
+        way: pastureToward,
+        out: 0,
+        r: 40,
+      },
+    pastureR = pastureTry.r,
+    pastureWay = pastureTry.way,
+    pastureAt = pastureOut(pastureWay, pastureR) + pastureTry.out,
+    wildAt = Math.round(outer + 60);
+  return { fields, edge, outer, ground, roadOut, held, pastureR, pastureWay, pastureAt, wildAt };
 }
 
 /** The eight ways out of a settlement's tile of its land: how good the ground is each way, and whether it is water. */
@@ -602,93 +755,24 @@ export function villagePlan(
       household: null,
     });
   }
-  // Fields in a fan toward the good ground, beyond the homes (beyond a city's quarters); as its land's map lays them
-  // (bridge/town.ts fieldEdge, fieldsMeant; view/land.ts landFields).
-  const fields: { x: number; z: number; w: number; d: number; yaw: number }[] = [],
-    { edge, edgeAt, outline } = fieldEdge({
-      lots: fabric && lots && town ? lots : null,
+  // Fields in a fan toward the good ground, beyond the homes (beyond a city's quarters), as its land's map lays them, each
+  // on free ground; the pasture toward the poorer ground; the wild past the last fields (fieldsLaid: the one laying, read by
+  // a place's walks too).
+  const { fields, edge, outer, ground, roadOut, held, pastureR, pastureWay, pastureAt, wildAt } =
+    fieldsLaid(world, ref, {
+      seed,
+      fieldWay,
+      roadWay,
+      pastureToward,
+      city: !!city,
+      fabric,
+      town: town ?? null,
+      lots: lots && town ? lots : null,
       drawn: town?.lots ?? 0,
       whole: town?.whole ?? 0,
-      city: !!city,
-      cityRim: (BLOCKS * BLOCK_M) / 2,
       count,
       spires: !!past?.spires,
-    }),
-    meant = fieldsMeant(seed, fieldWay, fieldCount(count), edgeAt);
-  // (Its ground as its countryside is laid on it: its land's water, its built ground, its road out; then its fields, each
-  // where it was meant to lie if that is free, else on out along its way to the nearest that is, else not sown: none on
-  // the water, none on its streets, none on another. bridge/claims.ts.)
-  const ground = townWet(world, ref),
-    // (Its road out goes as far as the dry ground does that way: to the shore, where the water comes first.)
-    roadLong = (city ? [roadWay, roadWay + Math.PI] : [roadWay]).reduce(
-      (m, a) => Math.min(m, dryOut(ground, a, ROAD_OUT)),
-      ROAD_OUT,
-    ),
-    roadOut = { x: roadLong * Math.cos(roadWay), z: roadLong * Math.sin(roadWay) },
-    claims = townClaims({
-      ground,
-      blocks: lots && town ? lots.blocks : null,
-      count: lots && town ? Math.ceil(town.lots / 8) : 0,
-      outline,
-      outlineAt,
-      scale: town ? Math.sqrt(town.whole / Math.max(1, town.lots)) : 1,
-      edge,
-      road: roadOut,
-      through: !!city,
     });
-  // (Its strongholds' and seats' ground, as its own view lays them: no field or pasture on it. bridge/holdplaces.ts.)
-  const held = town && lots ? holdPlaces(town, lots).map((p) => ({ x: p.x, z: p.z, r: p.r })) : [];
-  for (const p of held) claims.disc(p.x, p.z, p.r, GROUND.works, 0);
-  fields.push(...layOn(claims, meant, GROUND.field, 0, { x: 0, z: 0 }, 24, 12));
-  // The pasture lies toward the poorer ground, near the homes where that is clear of the
-  // fields' fan (else just past them); the wild begins beyond the last fields.
-  const outer = fields.reduce(
-      (m, f) => Math.max(m, Math.hypot(f.x, f.z) + Math.max(f.w, f.d) / 2),
-      edge,
-    ),
-    pastureOut = (way: number, r: number) =>
-      apart(way, fieldWay) > 1.9 ? edge + r + 20 : outer + r + 15,
-    // (On free ground: never on the water, the town or a field; turned a step at a time, then on out, then smaller, till it
-    // is. Where no ground is free for even the least of it, as where a great town fills its isle, the least is grazed on
-    // the first dry ground of those tried, its town's commons; on the water never, while any is dry.)
-    pastureFree = (way: number, out: number, r: number) =>
-      claims.freeDisc(
-        (pastureOut(way, r) + out) * Math.cos(way),
-        (pastureOut(way, r) + out) * Math.sin(way),
-        r,
-      ),
-    pastureTries = [90, 60, 40].flatMap((r) =>
-      [0, 60, 140, 260, 420, 640, 900].flatMap((out) =>
-        [0, 0.6, -0.6, 1.2, -1.2, 1.8, -1.8, 2.4, -2.4, Math.PI].map((t) => ({
-          way: pastureToward + t,
-          out,
-          r,
-        })),
-      ),
-    ),
-    pastureDry = (way: number, out: number, r: number) => {
-      const at = pastureOut(way, r) + out,
-        x = at * Math.cos(way),
-        z = at * Math.sin(way);
-      for (let k = -1; k < 8; k++) {
-        const u = k < 0 ? 0 : r * Math.cos((k * Math.PI) / 4),
-          v = k < 0 ? 0 : r * Math.sin((k * Math.PI) / 4);
-        if (claims.kindAt(x + u, z + v) === GROUND.water) return false;
-      }
-      return true;
-    },
-    pastureTry = pastureTries.find(
-      (p) => (p.way === pastureToward || offRoad(p.way) > 0.7) && pastureFree(p.way, p.out, p.r),
-    ) ??
-      pastureTries.find((p) => p.r === 40 && pastureDry(p.way, p.out, p.r)) ?? {
-        way: pastureToward,
-        out: 0,
-        r: 40,
-      },
-    pastureR = pastureTry.r,
-    pastureWay = pastureTry.way,
-    pastureAt = pastureOut(pastureWay, pastureR) + pastureTry.out,
-    wildAt = Math.round(outer + 60);
   const watched = known().sort((a, b) => a.seq - b.seq),
     people: VillagePlan["people"][number][] = [],
     hand = handOf(world).resting;
