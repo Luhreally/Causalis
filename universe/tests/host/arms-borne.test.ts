@@ -129,14 +129,13 @@ test("a fallen man's page tells where he fell, and what he bore there from the g
   for (const { b, roll } of recent)
     for (const [side, s] of [roll.attacker, roll.defender].entries())
       for (const man of s.fell.slice(0, 6)) {
+        // (Among all its facts: a man of a town's line has his line's link as a block of its own before them.)
         const p = page(man.ref),
-          facts = blocksOf(p).find((x) => x.type === "facts");
+          rows = blocksOf(p).flatMap((x) => (x.type === "facts" ? x.rows : []));
         if (p.ref.startsWith("unknown")) continue;
         if (!ask<ArmBorne | null>("arms.borne", { event: b.event, side, who: man.ref })) continue;
         assert.ok(
-          facts &&
-            facts.type === "facts" &&
-            facts.rows.some((r) => /^Fell at the battle at /.test(words(r.value))),
+          rows.some((r) => r.label === "Fate" && /^Fell at the battle at /.test(words(r.value))),
           `${man.ref}: where he fell`,
         );
         const bore = blocksOf(p).find((x) => x.type === "list" && x.title === "What he bore");
