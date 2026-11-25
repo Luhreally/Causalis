@@ -30,6 +30,7 @@ import {
   homePlanet,
   livable,
   livableFor,
+  motionOf,
   politiesOf,
   populationContext,
   provinceCapacity,
@@ -276,7 +277,11 @@ test("warmed for good, the ground follows over a generation: land opens, the pag
   // and its ice moved with the warmth, a twelve-degree turn the most of it.)
   const land = c.provinces.all().find((p) => p.total() > 0)!.cell,
     shift = shiftNow(w);
-  assert.equal(shift.warm, 12);
+  // (The god's twelve, and what its world's ground warmed of itself on top as the warmed ground lost its ice and its floes: their
+  // light given back, sim/planet/motion.ts albedo and sea ice; first light's was 0.75 more by then. Read in quarter degrees.)
+  const own = motionOf(w)!.state.ground;
+  assert.ok(own >= 0, `the warmed ground's own warmth: ${own}`);
+  assert.equal(shift.warm, Math.trunc((12 + own) / 0.25) * 0.25);
   assert.deepEqual(provinceCapacity(c, land), capacity(g, land, c.medium, 0, shift));
   assert.deepEqual(provinceCapacity(c, land, 0), capacity(g, land, c.medium));
   // (The home world's page and the act's say what changed; the globe is handed the spots that turned.)
@@ -285,10 +290,10 @@ test("warmed for good, the ground follows over a generation: land opens, the pag
   assert.match(said(g.planet.ref), /Lands that can be lived on/);
   assert.match(said(greatActsOf(w)!.all()[0]!.event), /It does not lift/);
   const map = warmthMap(w);
-  assert.equal(map.warm, 12);
+  assert.equal(map.warm, shift.warm);
   assert.ok(map.turned!.length > 0 && map.turned!.length % 2 === 0);
   // (A globe that has the map of this stamp is handed only the warmth and the stamp: round D keys the map by its shift.)
-  assert.deepEqual(warmthMap(w, map.stamp), { warm: 12, stamp: map.stamp });
+  assert.deepEqual(warmthMap(w, map.stamp), { warm: shift.warm, stamp: map.stamp });
   const frame = {
       arrays: {
         biome: Uint8Array.from(g.fine.climate.biome),
@@ -300,7 +305,8 @@ test("warmed for good, the ground follows over a generation: land opens, the pag
   assert.equal((drawn.arrays.biome as Uint8Array)[map.turned![0]!], map.turned![1]);
   assert.ok(
     Math.abs(
-      (drawn.arrays.temperature as Float32Array)[0]! - (g.fine.climate.temperature[0]! + 12),
+      (drawn.arrays.temperature as Float32Array)[0]! -
+        (g.fine.climate.temperature[0]! + shift.warm),
     ) < 1e-3,
   );
   assert.equal(
