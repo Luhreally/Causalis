@@ -5,6 +5,8 @@
 // the place's page of it. Orders are commands (sim/town/managed.ts); what the town did by them is told to its land at
 // each month's turn while it is watched, and on leaving. The place runs on the world's own clock, set on entering to a
 // pace a day can be watched at; leaving puts the clock and the god game's chrome back, and the town's usual people.
+// How it is run (by hand, or watched: bridge/placemodes.ts) is the place's own to keep, asked on entering; a town watched
+// is given no order from here, and the eye is led over it (app/townwatch.ts).
 import "./townplace.css";
 import {
   askedGrown,
@@ -13,6 +15,7 @@ import {
   type PlaceDangersSheet,
   type PlaceFrame,
   type PlaceLogSheet,
+  type PlaceMode,
   type PlacePeopleSheet,
   type PlaceStocksSheet,
   type PlaceWorkSheet,
@@ -22,6 +25,7 @@ import {
 import type { OrbitRig, VillageScene } from "../render/index.ts";
 import { PlaceHud, type PageWindow, type PlaceTab, type VillagePanel } from "../ui/index.ts";
 import { PlaceBodies, type TownThing } from "../view/index.ts";
+import { installWatch, type WatchFlow } from "./townwatch.ts";
 
 export type PlaceDeps = {
   readonly hud: HTMLElement;
@@ -65,6 +69,14 @@ export type PlaceFlow = {
   lotAt(lot: number): { x: number; z: number } | null;
   /** Where its walls' site is now, the length their line has come to (metres from its square; null: none going up; the look tools). */
   wallsAt(): { x: number; z: number } | null;
+  /** How the town entered is run, and another way chosen: kept with its place. */
+  readonly ran: PlaceMode;
+  mode(mode: PlaceMode): Promise<void>;
+  /** A town watched: what the eye is with, and what its line says (the look tools; null: not watched). */
+  readonly watching: WatchFlow["now"];
+  readonly captioned: { title: string; words: string; stay: boolean } | null;
+  watchStay(on: boolean): void;
+  watchNext(): void;
 };
 
 /** The eye over a town entered (world units; as a life's: app/life.ts): a few homes across. */
@@ -90,7 +102,26 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     settling = false,
     /** The sites it had in hand when last told, and when its plan was last read again for them (the page's clock, ms). */
     sited = "",
-    replanned = 0;
+    replanned = 0,
+    /** How it is run (the place's own to keep: asked on entering). */
+    mode: PlaceMode = "hand";
+  const watch = installWatch({
+    client: d.client,
+    village: d.village,
+    rig: d.rig,
+    plan: d.plan,
+    ids: () => body?.ids ?? null,
+    told: () => told,
+    wallsAt: () => flow.wallsAt(),
+    caption: (c) => hud.caption(c),
+  });
+  /** The way it is run taken up: its chrome, and the eye led where it is watched. */
+  const ran = (next: PlaceMode): void => {
+    mode = next;
+    hud.mode(next);
+    if (next === "watch" && town) watch.start(town);
+    else watch.stop();
+  };
 
   /** What the town did by its orders told to its land: at a month's turn, and on leaving. */
   const settle = async (): Promise<void> => {
@@ -209,6 +240,7 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
 
   const order = async (type: string, args: Record<string, unknown>): Promise<string | null> => {
     if (!town) return "no town is entered";
+    if (mode === "watch") return "the town is watched: no order is given it";
     try {
       // (A site given back: what its crew did is told to its land first, or it would be lost with them.)
       if (type === "place.site" && args.hands === null) await settle();
@@ -232,6 +264,7 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     if (told?.managed && (told.unsettled > 0 || told.sites.length > 0)) await settle();
     town = null;
     sited = "";
+    ran("hand");
     stop?.();
     stopSheet?.();
     stop = stopSheet = null;
@@ -258,8 +291,16 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     hud.time(d.client.status?.t ?? 0, pace);
     // (The eye near: a few homes across, its people to be told apart.)
     d.rig.flyTo({ distance: EYE_NEAR, pitch: EYE_PITCH }, 0.9);
-    await d.reload(town);
+    const ref = town;
+    await d.reload(ref);
     // (The plan read is laid by planRead; a town left meanwhile is left.)
+    // (How it was run when it was last left, as its place keeps it.)
+    try {
+      const kept = await d.client.query<PlaceMode | null>({ type: "place.mode", args: { ref } });
+      if (town === ref && kept) ran(kept);
+    } catch {
+      // (By hand.)
+    }
   };
 
   hud.onPace = (seconds) => flow.pace(seconds);
@@ -267,6 +308,9 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
   hud.onTab = (tab) => sheet(tab);
   hud.onOpen = (ref) => void d.pages.open(ref);
   hud.onOrder = (type, args) => void order(type, args);
+  hud.onMode = (next) => void flow.mode(next);
+  hud.onStay = (on) => watch.stay(on);
+  hud.onNext = () => watch.next();
 
   const flow: PlaceFlow = {
     get on() {
@@ -309,7 +353,10 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
         }
       });
       if (person) {
-        void d.pages.open(person.page ?? person.ref);
+        // (In a town watched the eye goes with them, and stays; their page is a tap on their line away.)
+        const id = mode === "watch" ? body.ids[plan.people.indexOf(person)] : null;
+        if (id !== null && id !== undefined) watch.goWith(id);
+        else void d.pages.open(person.page ?? person.ref);
         return true;
       }
       const thing = d.townThing(x, y);
@@ -320,7 +367,8 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     frame: () => {
       if (!town) return;
       // (Gone from the town, or another has taken its people up, a life lived or a body possessed: left.)
-      if (d.scale() !== "village" || (body && d.village.posed !== body)) void leave();
+      if (d.scale() !== "village" || (body && d.village.posed !== body)) return void leave();
+      watch.frame();
     },
     pace: (seconds) => {
       pace = Math.max(0, seconds);
@@ -335,6 +383,26 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
         at = town && ref ? d.village.askedSpot(ref, told?.t ?? d.client.status?.t ?? 0) : null;
       return at ? { x: at.x, z: at.z } : null;
     },
+    get ran() {
+      return mode;
+    },
+    mode: async (next) => {
+      const ref = town;
+      if (!ref || next === mode) return;
+      const kept = await d.client.query<PlaceMode | null>({
+        type: "place.mode",
+        args: { ref, mode: next },
+      });
+      if (town === ref && kept) ran(kept);
+    },
+    get watching() {
+      return watch.now;
+    },
+    get captioned() {
+      return hud.captioned;
+    },
+    watchStay: (on) => watch.stay(on),
+    watchNext: () => watch.next(),
   };
   return flow;
 }

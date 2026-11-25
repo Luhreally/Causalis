@@ -618,6 +618,14 @@ export {
   type PlaceWorkSheet,
 } from "./place.ts";
 export {
+  PLACE_MODES,
+  type PlaceMode,
+  type PlaceSight,
+  type PlaceWatch,
+  type PlaceWatched,
+  type StewardOrder,
+} from "./placemodes.ts";
+export {
   approachWay,
   clearAt,
   clearOf,

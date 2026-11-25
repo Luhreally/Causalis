@@ -49,7 +49,7 @@ import {
 import { CornerRail, phoneSized } from "../ui/index.ts";
 import { closeLifeSheet, showLifeSheet, type LifeSheet } from "../ui/index.ts";
 import { THUMB_TIMES, bannerMs, drawPortrait, forgetBanners, paintThumb } from "../ui/index.ts";
-import type { Portrait } from "../bridge/index.ts";
+import type { PlaceMode, Portrait } from "../bridge/index.ts";
 import { Checkpoint } from "./checkpoint.ts";
 import { HostClient, LOT, inlinePair, lotStates, progress, workerPort } from "../bridge/index.ts";
 import {
@@ -415,7 +415,7 @@ import { installHeld, type HeldField } from "./held.ts";
 import { installPossession } from "./possess.ts";
 import { installHome, type HomeAsk } from "./home.ts";
 import { installMoney } from "./money.ts";
-import { installPlace } from "./townplace.ts";
+import { installPlace, type PlaceFlow } from "./townplace.ts";
 import type { PlaceTab } from "../ui/index.ts";
 import { installLeaders } from "./leaders.ts";
 import { installLife } from "./life.ts";
@@ -1096,7 +1096,19 @@ type Exposed = {
     peoples(): { kind: number; drawn: number }[];
     /** Where one of the plan's people stands now (metres from the square; null: out of sight). */
     personAt(index: number): { x: number; z: number } | null;
-    state(): { on: boolean; town: string | null; tells: string | null; told: PlaceFrame | null };
+    state(): {
+      on: boolean;
+      town: string | null;
+      tells: string | null;
+      told: PlaceFrame | null;
+      ran: PlaceMode;
+      watching: PlaceFlow["watching"];
+      captioned: PlaceFlow["captioned"];
+    };
+    /** How the town entered is run, chosen; and in one watched, the stay key and the next. */
+    mode(mode: PlaceMode): Promise<void>;
+    watchStay(on: boolean): void;
+    watchNext(): void;
   };
   faunaNow?: () => {
     name: string;
@@ -10855,6 +10867,9 @@ async function runPlanetPage(): Promise<void> {
     order: (type: string, args: Record<string, unknown>) => placeFlow.order(type, args),
     lotAt: (lot: number) => placeFlow.lotAt(lot),
     wallsAt: () => placeFlow.wallsAt(),
+    mode: (mode: PlaceMode) => placeFlow.mode(mode),
+    watchStay: (on: boolean) => placeFlow.watchStay(on),
+    watchNext: () => placeFlow.watchNext(),
     peoples: () => village.peoplesDrawn(),
     personAt: (i: number) => (plan?.people[i] ? village.personAt(plan.people[i].ref) : null),
     state: () => ({
@@ -10862,6 +10877,9 @@ async function runPlanetPage(): Promise<void> {
       town: placeFlow.town,
       tells: placeFlow.noticed,
       told: placeFlow.told,
+      ran: placeFlow.ran,
+      watching: placeFlow.watching,
+      captioned: placeFlow.captioned,
     }),
   };
   // (A page's Go to, from a home: the home closed, then gone to.)

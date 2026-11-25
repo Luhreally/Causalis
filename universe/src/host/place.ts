@@ -784,6 +784,11 @@ export type Place = {
   due: number[];
   /** A burial being held: where, until when, and whose household stands by (none: empty). */
   rite: number[];
+  /**
+   * How it is run while it is entered (bridge/placemodes.ts PLACE_MODES: 0 or absent by hand, 1 watched, 2 by its own
+   * head). Kept here, out of the world's hash: choosing a way moves nothing of history.
+   */
+  mode?: number;
 };
 
 /** What waits in a place's `due`: a death, a leaving, a birth, a coming, a burial, a pairing. */
@@ -1380,6 +1385,7 @@ export class PlaceStore implements StateStore {
         ripe: p.ripe,
         due: p.due,
         rite: p.rite,
+        ...(p.mode ? { mode: p.mode } : {}),
         ...(UNPAIRED.has(p) ? { unpaired: true } : {}),
         // (Read from a save kept before skill was, and not brought on since: still to be reckoned.)
         ...(UNSKILLED.has(p) ? { unskilled: true } : {}),
@@ -1467,6 +1473,7 @@ export class PlaceStore implements StateStore {
         ripe: [...((raw.ripe as number[] | undefined) ?? new Array<number>(GOOD_COUNT).fill(0))],
         due: [...((raw.due as number[] | undefined) ?? [])],
         rite: [...((raw.rite as number[] | undefined) ?? [])],
+        ...(raw.mode ? { mode: raw.mode as number } : {}),
       });
       if (unskilled) UNSKILLED.add(this.places.at(-1)!);
       if (!cols.mate || raw.unpaired === true) UNPAIRED.add(this.places.at(-1)!);
@@ -1540,7 +1547,10 @@ export function placeDigest(p: Place): string {
       .int(x.b)
       .int(x.k ?? 0)
       .int(x.s ?? 0);
-  h.string(p.ordered).string(p.sited).string(p.plague);
+  h.string(p.ordered)
+    .string(p.sited)
+    .string(p.plague)
+    .int(p.mode ?? 0);
   p.figRef.forEach((ref, k) => h.string(ref).int(p.figId[k]!));
   return h.hex();
 }

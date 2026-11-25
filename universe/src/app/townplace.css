@@ -14,13 +14,17 @@ body.placing #hud > *:not(.place-hud):not(.page-window):not(.panel.page-panel) {
 }
 .place-hud[hidden],
 .place-notice[hidden],
-.place-sheet[hidden] {
+.place-sheet[hidden],
+.place-modes[hidden],
+.place-watch[hidden] {
   display: none !important;
 }
 .place-bar,
 .place-notice,
 .place-sheet,
-.place-foot {
+.place-foot,
+.place-modes,
+.place-watch {
   pointer-events: auto;
   position: absolute;
   left: calc(env(safe-area-inset-left, 0px) + 8px);
@@ -295,9 +299,86 @@ body.placing #hud > *:not(.place-hud):not(.page-window):not(.panel.page-panel) {
   color: #9ee7ff;
   text-decoration: underline;
 }
+/* How the town is run: a key on its bar, and the ways to choose from in the notice line's place while they are open. */
+.place-hud .place-mode {
+  flex: 0 0 auto;
+  font-size: 18px;
+}
+.place-modes {
+  top: calc(env(safe-area-inset-top, 0px) + 62px);
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+}
+.place-hud.choosing .place-notice {
+  display: none;
+}
+.place-hud .place-mode-choice {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 2px 4px;
+  white-space: normal;
+  line-height: 1.15;
+}
+.place-mode-name {
+  font-weight: 700;
+}
+.place-mode-does {
+  font-size: 12px;
+  opacity: 0.85;
+}
+/* A town watched: no notice line, no sheet, no tabs; a line at the foot for who or what the eye is with. */
+body.place-watching .place-notice,
+body.place-watching .place-sheet,
+body.place-watching .place-foot {
+  display: none !important;
+}
+.place-watch {
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 6px);
+  min-height: 56px;
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  padding: 4px;
+}
+.place-hud .place-watch-text {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 1px;
+  padding: 2px 6px;
+  text-align: left;
+  white-space: normal;
+  line-height: 1.2;
+  background: none;
+  border: none;
+  color: #fff;
+}
+.place-watch-title {
+  font-weight: 700;
+}
+.place-watch-words {
+  font-size: 12px;
+  opacity: 0.9;
+}
+.place-hud .place-watch-stay,
+.place-hud .place-watch-next {
+  flex: 0 0 auto;
+  font-size: 18px;
+}
 /* A page over the mode takes the sheet's and the tabs' place until it is closed; the mode's bar stays. */
 body.placing:has(.page-window:not([hidden])) .place-sheet,
-body.placing:has(.page-window:not([hidden])) .place-foot {
+body.placing:has(.page-window:not([hidden])) .place-foot,
+body.placing:has(.page-window:not([hidden])) .place-watch {
   display: none;
 }
 body.placing .page-window {
@@ -309,7 +390,9 @@ body.placing .page-window {
   .place-bar,
   .place-notice,
   .place-foot,
-  .place-sheet {
+  .place-sheet,
+  .place-modes,
+  .place-watch {
     right: auto;
     width: 460px;
   }
