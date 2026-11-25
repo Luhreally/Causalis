@@ -11,6 +11,7 @@ import {
   LIFE_SUBSTANCES,
   NOVEL_ELEMENTS,
   NOVEL_SUBSTANCES,
+  SILICON_LIFE,
   SUBSTANCES,
   type Substance,
 } from "../../src/rules/index.ts";
@@ -44,13 +45,23 @@ function made(over: Partial<Substance>): Substance {
   };
 }
 
-test("every substance of Earth's, of the novel chemistries, of the kinds and of a world's life has its row in LOOKS, and no other", () => {
-  for (const s of [...SUBSTANCES, ...NOVEL_SUBSTANCES, ...KIND_SUBSTANCES, ...LIFE_SUBSTANCES])
-    assert.ok(LOOKS[s.id], `${s.id} has a look`);
-  assert.equal(
-    Object.keys(LOOKS).length,
-    SUBSTANCES.length + NOVEL_SUBSTANCES.length + KIND_SUBSTANCES.length + LIFE_SUBSTANCES.length,
+test("every substance of Earth's, of the novel chemistries, of the kinds and of a world's life, carbon's or silicon's, has its row in LOOKS, and no other", () => {
+  // (A life of silicon's chains has matter of its own, kept apart from LIFE_SUBSTANCES: rules/matter.ts SILICON_LIFE.)
+  const all = [
+    ...SUBSTANCES,
+    ...NOVEL_SUBSTANCES,
+    ...KIND_SUBSTANCES,
+    ...LIFE_SUBSTANCES,
+    ...SILICON_LIFE,
+  ];
+  for (const s of all) assert.ok(LOOKS[s.id], `${s.id} has a look`);
+  const known = new Set(all.map((s) => s.id));
+  assert.deepEqual(
+    Object.keys(LOOKS).filter((id) => !known.has(id)),
+    [],
+    "a row in LOOKS for no substance",
   );
+  assert.equal(Object.keys(LOOKS).length, all.length);
 });
 
 test("every element of Earth's and of the novel chemistries has its nature in ELEMENT_NATURE", () => {
