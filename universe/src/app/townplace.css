@@ -210,6 +210,11 @@ body.placing #hud > *:not(.place-hud):not(.page-window):not(.panel.page-panel) {
   gap: 4px;
   padding-bottom: 4px;
 }
+.place-order-label {
+  flex: 0 0 100%;
+  font-size: 12px;
+  opacity: 0.85;
+}
 .place-hud .place-log-row {
   grid-template-columns: 1fr;
   grid-template-rows: auto auto;

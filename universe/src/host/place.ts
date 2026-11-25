@@ -99,6 +99,8 @@ import {
   SEXES,
   TOOL_GAIN,
   WANTS,
+  WAY,
+  ownLeaning,
   bandOf,
   tendedBy,
   coatOf,
@@ -116,6 +118,7 @@ import {
   WORK_SHARE,
   ASK_PULL,
   asksOf,
+  cultureOf,
   heartOf,
   siegesOf,
   siteInHand,
@@ -552,6 +555,8 @@ type Matched = {
   fed?: number;
   /** Whether a siege lies about it (sim/war/siege.ts: it is its land's heart, and its land is besieged). */
   sieged?: boolean;
+  /** Its land's ways (rules/ways.ts WAY_TRAITS' order, each 0 … 1; absent in an old save: the middle of each). */
+  ways?: number[];
 };
 
 export type PlaceHap = {
@@ -851,6 +856,7 @@ function matchedOf(world: World, s: Settlement, month: number): Matched {
     kinds: m?.kinds ?? 0,
     lots: townsOf(world).get(s.ref)?.next ?? 0,
     fed: ctx.history.yearsOf(s.cell).at(-1)?.fed ?? 1000,
+    ways: [...(cultureOf(world).get(s.cell)?.traits ?? [])].map((x) => Math.round(x * 1000) / 1000),
     sieged: besieged(world, s),
   };
 }
@@ -2342,6 +2348,35 @@ export const MOOD_WORDS: readonly (readonly [number, string])[] = [
   [MOOD.ordered, "held to a trade by an order, not their own choosing"],
   [MOOD.homeless, "their home lost these two months"],
 ];
+/**
+ * One's own temper, as far as it bears on their mood: each leaning half their land's way and half their own nature, drawn
+ * once from who they are (rules/temper.ts, as a ruler's is). How close they hold their kin (a death at home), how they
+ * take being bidden (an order), how they lean on company (a friend), how they set store by plenty (a full pantry), how
+ * boldly they bear hardship (want, a home lost). Each 0 … 1; the middle is as most are.
+ */
+export type PlaceTemper = {
+  readonly kin: number;
+  readonly bidden: number;
+  readonly sociable: number;
+  readonly thrifty: number;
+  readonly bold: number;
+};
+export function placeTemper(place: Place, i: number): PlaceTemper {
+  const w = place.matched.ways,
+    way = (k: number) => w?.[k] ?? 0.5,
+    who = place.key ^ place.people.id[i]!,
+    born = place.people.born[i]!;
+  return {
+    kin: ownLeaning(who, born, way(WAY.kinship), 11),
+    bidden: ownLeaning(who, born, way(WAY.hierarchy), 12),
+    sociable: ownLeaning(who, born, way(WAY.openness), 13),
+    thrifty: ownLeaning(who, born, way(WAY.thrift), 14),
+    bold: ownLeaning(who, born, way(WAY.valour), 15),
+  };
+}
+/** How much a thing weighs with one of a leaning, against most (1): half as much at the least, half as much again at the most. */
+export const leans = (x: number): number => 0.5 + x;
+
 /** Below this a mood heeds no order to change its work. */
 export const MOOD_UNHEEDING = -50;
 /**
@@ -2554,11 +2589,13 @@ function tick(world: World, place: Place, f: Frame): void {
     if ((tickNo + p.id[i]!) % 144 === 0) {
       // Mood, from needs met over the days gone and what befell their household: a quarter of the way to where those
       // put it, each day. A body that lives closer together leans more on its friends.
+      // (And by their own temper: what each of these weighs with them, against most. rules/temper.ts.)
+      const temper = placeTemper(place, i);
       let why = 0,
         to = 15;
       if (lackDays >= 0.25) {
         why |= MOOD.want;
-        to -= Math.min(70, 25 * lackDays + 15);
+        to -= Math.min(70, 25 * lackDays + 15) * leans(1 - temper.bold);
       }
       if (p.health[i]) {
         why |= MOOD.ailing;
@@ -2566,17 +2603,17 @@ function tick(world: World, place: Place, f: Frame): void {
       }
       if (houses.grief[h]! >= 0 && today - houses.grief[h]! <= 30) {
         why |= MOOD.bereaved;
-        to -= 35;
+        to -= 35 * leans(temper.kin);
       }
       let pantry = 0;
       for (let k = 0; k < FOODS.length; k++) pantry += houses.pantry[h * FOODS.length + k]!;
       if (pantry >= houses.members[h]! * f.daily * FETCH_DAYS) {
         why |= MOOD.pantry;
-        to += 15;
+        to += 15 * leans(temper.thrifty);
       }
       if (p.friend[i]) {
         why |= MOOD.friend;
-        to += 10 + 15 * f.social;
+        to += (10 + 15 * f.social) * leans(temper.sociable);
       }
       if (houses.fresh[h]! >= 0 && today - houses.fresh[h]! <= 30) {
         why |= MOOD.home;
@@ -2584,11 +2621,11 @@ function tick(world: World, place: Place, f: Frame): void {
       }
       if (houses.lost[h]! >= 0 && today - houses.lost[h]! <= 60) {
         why |= MOOD.homeless;
-        to -= 30;
+        to -= 30 * leans(1 - temper.bold);
       }
       if (p.bound[i] && p.bound[i]! < BOUND_ARMS) {
         why |= MOOD.ordered;
-        to -= 10;
+        to -= 10 * leans(1 - temper.bidden);
       }
       p.moodWhy[i] = why;
       p.mood[i] = Math.max(-100, Math.min(100, Math.round(p.mood[i]! + (to - p.mood[i]!) / 4)));
@@ -3483,6 +3520,20 @@ export function placeLot(place: Place, lot: number): PlaceLotRead {
     here,
     households,
   };
+}
+
+/** The homes of a place's town with most room to spare, for a household given one: each lot, and the room in it. */
+export function placeHomes(world: World, place: Place, most = 4): { lot: number; room: number }[] {
+  const homes = homesFor(world, place.town, place.people.n + 64),
+    living = new Map<number, number>(),
+    h = place.houses;
+  for (let k = 0; k < h.n; k++)
+    living.set(h.home[k]!, (living.get(h.home[k]!) ?? 0) + h.members[k]!);
+  return homes.lot
+    .map((lot, k) => ({ lot, room: homes.holds[k]! - (living.get(lot) ?? 0) }))
+    .filter((x) => x.room > 0)
+    .sort((a, b) => b.room - a.room || a.lot - b.lot)
+    .slice(0, most);
 }
 
 /** A site of a place, read: how far it has got, what it wants, and who works it. */

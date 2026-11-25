@@ -25,6 +25,8 @@ import {
   IDLE_WORTH,
   BOUND_ARMS,
   hapTold,
+  leans,
+  placeTemper,
   NEED_WORDS,
   PLACE_MOST,
   hapWords,
@@ -113,6 +115,23 @@ function stockRows(world: World, place: Place, stock: readonly number[]): Stat[]
 
 const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
+/** One's temper, said: the leanings that mark them out, and what each thing weighs with them against most. */
+function temperWords(place: Place, i: number): string {
+  const t = placeTemper(place, i),
+    marks: string[] = [],
+    mark = (x: number, high: string, low: string) => {
+      if (x >= 0.62) marks.push(high);
+      else if (x <= 0.38) marks.push(low);
+    },
+    of = (x: number) => `${Math.round(leans(x) * 100)}`;
+  mark(t.kin, "close to their kin", "their own person");
+  mark(t.bidden, "biddable", "wilful");
+  mark(t.sociable, "fond of company", "solitary");
+  mark(t.thrifty, "thrifty", "open-handed");
+  mark(t.bold, "bold", "timid");
+  return `${marks.length ? cap(marks.join(", ")) : "Much as most of their people are"}: half their people's ways, half their own nature. Against a hundred for most, a death at home weighs ${of(t.kin)} with them, an order ${of(1 - t.bidden)}, a friend ${of(t.sociable)}, a full pantry ${of(t.thrifty)}, want and a home lost ${of(1 - t.bold)}.`;
+}
+
 /** What a place tells of one of its people: their needs and the why first, then what they hold and who they live with. */
 function personBlocks(
   world: World,
@@ -167,6 +186,7 @@ function personBlocks(
                 .join("; ") || "nothing bears on it now"
             }. It moves what their work is worth to them by ${Math.round(p.mood[i]! / 4)} in a hundred.`,
           ),
+          stat("Temper", temperWords(place, i)),
           ...(p.health[i]
             ? [
                 stat(

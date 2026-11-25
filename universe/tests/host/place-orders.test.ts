@@ -38,6 +38,7 @@ import {
   enterPlace,
   placeDigest,
   placeStocks,
+  placeTemper,
   placeTable,
   placesOf,
   settleOf,
@@ -640,4 +641,54 @@ test("work harms some by their trade's own wear; the hurt lie abed at home and a
   const sick = [...Array(p.n).keys()].filter((i) => p.health[i] === 2).length,
     last = healthOf(w)?.land(s.cell)?.last;
   if (!last || Math.floor(w.now / YEAR) - last.year > 1) assert.equal(sick, 0);
+});
+
+test("the People sheet carries what its keys need: buildings to put one at, homes with room, each one's household", () => {
+  const w = copy(base()),
+    s = near(w, 2500),
+    place = enterPlace(w, s.ref)!,
+    sheet = peopleSheet(w, place, null),
+    p = place.people;
+  assert.ok(sheet.posts.length > 0, "its buildings standing");
+  assert.ok(sheet.homes.length > 0 && sheet.homes.every((h) => h.room > 0));
+  // One put at a building by its key works there; a household given a home by its key lives there.
+  const row = sheet.rows.find((r) => r.occ !== 0 && r.occ !== OCC.leader)!,
+    post = sheet.posts[0]!,
+    home = sheet.homes[0]!;
+  order(w, "place.assign", { town: s.ref, person: row.id, trade: null, post: post.lot });
+  order(w, "place.house", { town: s.ref, house: row.house, lot: home.lot });
+  placeFrame(w, s.ref, []);
+  const i = [...p.id.subarray(0, p.n)].indexOf(row.id);
+  assert.equal(p.work[i], post.lot);
+  assert.equal(place.houses.home[p.house[i]!], home.lot);
+  const again = peopleSheet(w, place, null).rows.find((r) => r.id === row.id);
+  if (again) assert.equal(again.post, post.lot);
+});
+
+test("each has a temper of their own, half their people's ways, and it weighs what moves their mood", () => {
+  const w = copy(base()),
+    s = near(w, 2500),
+    place = enterPlace(w, s.ref)!,
+    p = place.people;
+  assert.equal(place.matched.ways?.length, 8);
+  let low = 1,
+    high = 0;
+  const sums = [0, 0];
+  for (let i = 0; i < p.n; i++) {
+    const t = placeTemper(place, i);
+    for (const x of Object.values(t)) assert.ok(x >= 0 && x <= 1);
+    assert.deepEqual(placeTemper(place, i), t, "the same on every reading");
+    low = Math.min(low, t.kin);
+    high = Math.max(high, t.kin);
+    sums[0]! += t.kin;
+    sums[1]! += t.bold;
+  }
+  // (Half their own: they differ by up to half; half their people's: about their land's way.)
+  assert.ok(high - low > 0.3 && high - low <= 0.5 + 1e-9, `${low} to ${high}`);
+  const ways = place.matched.ways!;
+  assert.ok(Math.abs(sums[0]! / p.n - (0.5 * ways[0]! + 0.25)) < 0.05);
+  assert.ok(Math.abs(sums[1]! / p.n - (0.5 * ways[3]! + 0.25)) < 0.05);
+  const page = JSON.stringify(pageOf(w, placePersonRef(s.ref, p.id[0]!)));
+  assert.ok(/Temper/.test(page) && /half their people's ways, half their own nature/.test(page));
+  assert.ok(!/undefined|NaN/.test(page));
 });

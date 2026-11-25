@@ -524,6 +524,32 @@ for (const view of [
   await read("an order by name being chosen");
   await press(".place-person-orders .place-chip:nth-child(3)", "Crafts, for them");
   await page.waitForTimeout(slow(1500));
+  // One put at a building by name, and a household given a home: the keys under the trades.
+  await press(".place-row-order", "a person's order key, again");
+  if ((await shownCount(".place-person-posts .place-chip")) > 0) {
+    await press(".place-person-posts .place-chip", "a building to put them at");
+    await page.waitForTimeout(slow(1500));
+    await press(".place-row-order", "a person's order key, a third time");
+  } else say("no building stands to put anyone at");
+  if (
+    await until(
+      "homes with room, to give a household",
+      async () => (await shownCount(".place-person-homes .place-chip")) > 0,
+      slow(8000),
+    )
+  ) {
+    await shot("7c2-person-post-and-home");
+    await read("the keys to put one at a building and give a household a home");
+    await press(".place-person-homes .place-chip", "a home for their household");
+    await page.waitForTimeout(slow(1500));
+    const moved = await k<{ rows: { words: string }[] } | null>(
+      `globalThis.causalis.client.query({ type: "place.log", args: { ref: ${JSON.stringify(town.ref)} } })`,
+    );
+    check(
+      !!moved?.rows.some((r) => /moved with their household to a home given them/.test(r.words)),
+      "the household moved to the home given it",
+    );
+  }
   // A building's work stopped, from the Work sheet, where the town has a building worked in.
   await press('.place-tab[data-tab="work"]', "the Work tab");
   await until("the Work sheet again", async () => /grown hands/.test(await sheetText()));

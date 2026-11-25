@@ -251,6 +251,39 @@ export class PlaceHud {
           keys.append(b);
         });
         one.append(keys);
+        // (Put at a building, by name; and a home for their household, of those with most room.)
+        if (s.posts.length && r.occ !== 0) {
+          const at = el("div", "place-person-orders place-person-posts");
+          at.append(el("span", "place-order-label", "Put at:"));
+          for (const o of s.posts.slice(0, 8)) {
+            const b = el("button", "place-chip", o.name);
+            b.classList.toggle("on", r.post === o.lot);
+            b.setAttribute("aria-label", `Put ${r.name} at the ${o.name}`);
+            b.onclick = () => {
+              this.ordering = null;
+              this.onOrder("place.assign", { person: r.id, trade: null, post: o.lot });
+            };
+            at.append(b);
+          }
+          one.append(at);
+        }
+        if (s.homes.length) {
+          const home = el("div", "place-person-orders place-person-homes");
+          home.append(el("span", "place-order-label", "A home for their household:"));
+          for (const o of s.homes) {
+            const b = el("button", "place-chip", `Lot ${o.lot} · room for ${o.room}`);
+            b.setAttribute(
+              "aria-label",
+              `Give ${r.name}'s household the home on lot ${o.lot}, with room for ${o.room}`,
+            );
+            b.onclick = () => {
+              this.ordering = null;
+              this.onOrder("place.house", { house: r.house, lot: o.lot });
+            };
+            home.append(b);
+          }
+          one.append(home);
+        }
       }
       list.append(one);
     }

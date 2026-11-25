@@ -37,13 +37,20 @@ export function temperOf(
   born: number,
   ways: { readonly valour: number; readonly thrift: number; readonly piety: number },
 ): Temper {
-  const blend = (people: number, salt: number) =>
-    (1 - TEMPER.own) * Math.max(0, Math.min(1, people)) + TEMPER.own * mix(who, born, salt);
+  const blend = (people: number, salt: number) => ownLeaning(who, born, people, salt);
   return {
     bold: blend(ways.valour, 1),
     grasping: blend(1 - ways.thrift, 2),
     zealous: blend(ways.piety, 3),
   };
+}
+
+/**
+ * One leaning of anyone, as a ruler's are drawn: half their people's way (0 … 1) and half their own nature, a fixed draw
+ * from who they are (`salt`: which leaning). The same one has the same leaning on every reading.
+ */
+export function ownLeaning(who: number, born: number, people: number, salt: number): number {
+  return (1 - TEMPER.own) * Math.max(0, Math.min(1, people)) + TEMPER.own * mix(who, born, salt);
 }
 
 /** How far a ruler's own leanings carry the seat: as far as its choices are carried by few (voice 0: wholly; 1: not at all). */

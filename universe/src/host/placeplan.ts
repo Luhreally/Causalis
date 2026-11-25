@@ -63,6 +63,7 @@ import {
   enterPlace,
   ordersOf,
   placeFigure,
+  placeHomes,
   placeIndexOf,
   placeSites,
   placesOf,
@@ -522,9 +523,18 @@ export function peopleSheet(
     if (occ === null || (p.sexOcc[i]! & 15) === occ) order.push(i);
   }
   order.sort((a, b) => p.lack[b]! - p.lack[a]! || worst(b) - worst(a) || p.id[a]! - p.id[b]!);
+  const posts: { lot: number; name: string }[] = [];
+  for (let b = 1; b < place.bldgs.lot.length; b++)
+    if (!place.bldgs.site[b])
+      posts.push({
+        lot: place.bldgs.lot[b]!,
+        name: lotWords(place, place.bldgs.lot[b]!).replace(/^the /, ""),
+      });
   return {
     trades,
     all: order.length,
+    posts,
+    homes: placeHomes(world, place),
     rows: order.slice(0, most).map((i) => {
       const needs = [0, 1, 2, 3].map((q) => p.needs[i * 4 + q]! / 65535),
         age = (place.t / DAY - p.born[i]!) / 365;
@@ -549,6 +559,8 @@ export function peopleSheet(
                 ? tradeWords(p.bound[i]! - 1, false).replace(/^a /, "")
                 : null,
         id: p.id[i]!,
+        house: place.houses.key[p.house[i]!]!,
+        post: p.bound[i] === 255 ? p.work[i]! : null,
       };
     }),
   };

@@ -106,14 +106,20 @@ export type PlacePersonRow = {
   readonly mood: number;
   readonly health: number;
   readonly bound: string | null;
-  /** Who they are in the place, for an order given them. */
+  /** Who they are in the place, for an order given them; and their household (its key), for a home given it. */
   readonly id: number;
+  readonly house: number;
+  /** The building an order puts them at (its lot; null: none). */
+  readonly post: number | null;
 };
 export type PlacePeopleSheet = {
   /** How many of each trade (the world's occupation columns), and the rows asked for: the most pressed first. */
   readonly trades: readonly number[];
   readonly rows: readonly PlacePersonRow[];
   readonly all: number;
+  /** The buildings one can be put at by name, and the homes with most room a household can be given. */
+  readonly posts: readonly { readonly lot: number; readonly name: string }[];
+  readonly homes: readonly { readonly lot: number; readonly room: number }[];
 };
 /** One good on its Stocks sheet. */
 export type PlaceStockRow = {
