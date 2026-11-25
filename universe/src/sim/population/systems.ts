@@ -84,6 +84,7 @@ import { longRain } from "../climate/long.ts";
 import { lodesOf } from "../economy/lodes.ts";
 import { lodePush } from "../economy/worked.ts";
 import { herdLoss, pensLeft } from "../ecology/herds.ts";
+import { droveGain } from "../ecology/droving.ts";
 import { partnersOf } from "../ecology/lineage.ts";
 import { cropsGive } from "../ecology/crops.ts";
 import { herdGives, pestsLeft } from "../ecology/exchange.ts";
@@ -793,6 +794,8 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
         saturate(c.pasture, p.occupation(OCC.herder), PRODUCTIVITY[OCC.herder]! * tools * gathers) *
           (0.5 + 0.5 * rain) *
           flocks *
+          // (More where its herders drive them to a neighbour's pasture for its season: sim/ecology/droving.ts. 1 where they stay.)
+          droveGain(world, p.cell) *
           // (Less what the land's hunters take of the flocks, and what war and a known beast have.)
           (1 - FLOCK_LOSS * alive.hunters) *
           (1 - flocksLost) *

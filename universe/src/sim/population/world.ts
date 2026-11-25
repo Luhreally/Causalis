@@ -117,6 +117,7 @@ import { installEcology } from "../ecology/ecology.ts";
 import { installSeas } from "../ecology/seas.ts";
 import { installWoods } from "../ecology/woods.ts";
 import { installHerds } from "../ecology/herds.ts";
+import { installDroving } from "../ecology/droving.ts";
 import { installLodes } from "../economy/worked.ts";
 import { makePlanetWorld, homePlanet, type PlanetWorldOptions } from "../planet/store.ts";
 import { Province, capacity, livable, row } from "./model.ts";
@@ -513,6 +514,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installSwitches(world);
   installWoods(world, () => populationContext(world));
   installHerds(world, () => populationContext(world));
+  installDroving(world, () => populationContext(world));
   installLineage(world, () => populationContext(world));
   installLodes(world, () => populationContext(world));
   installWaysActs(world, () => populationContext(world));

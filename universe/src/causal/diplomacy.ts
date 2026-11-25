@@ -5,6 +5,7 @@
 import { parseRef, yearOfMoment, type CauseRef, type Ref } from "../kernel/index.ts";
 import {
   DIPLOMACY_EVENTS,
+  HONOUR_EVENTS,
   PACT,
   POLITY,
   RELATION,
@@ -64,6 +65,11 @@ registerEventWords(
   (_, e) =>
     `The friendship of ${data(e.data, "a")} and ${data(e.data, "b")} broke over ${data(e.data, "reason")}, year ${yearOfMoment(e.t)}`,
 );
+// Shame (sim/diplomacy/honour.ts): a realm whose word its peers no longer take.
+registerEventWords(HONOUR_EVENTS.shamed.type, (_, e) => {
+  const d = e.data as { chance?: number } | null;
+  return `${cap(data(e.data, "realm"))} was spoken of among its peers as faithless: it had broken its word again, and they reckoned it would keep it ${d?.chance ?? "few"} times in a hundred; its calls and its offers of friendship weigh the less for it, year ${yearOfMoment(e.t)}`;
+});
 
 function cap(s: string): string {
   return s ? s[0]!.toUpperCase() + s.slice(1) : s;

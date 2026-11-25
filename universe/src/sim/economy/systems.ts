@@ -34,7 +34,8 @@ import {
   surfaceOre,
   worldChemistry,
 } from "../../gen/index.ts";
-import { loreOf } from "../lore/lore.ts";
+import { loreOf, type LoreStore } from "../lore/lore.ts";
+import { MEASURING, measuresAgreed, measuresOf, tradeMeasured } from "../../rules/index.ts";
 import { fearShuts, financeOf } from "../finance/finance.ts";
 import { blockadeOn } from "../war/navy.ts";
 import { ORG_ROW, orgLandsStore } from "../order/groups-kept.ts";
@@ -109,6 +110,7 @@ import { dugSolid, energyYear, fuelWonOf, machinesWanted } from "./energy.ts";
 import { kmBetween, seaRange, seaReach } from "./sea.ts";
 import { compassReach, materialsOf } from "../lore/materials.ts";
 import { politiesOf } from "../polity/polity.ts";
+import { droveGain } from "../ecology/droving.ts";
 import { cartelsNow, craftsKept, machinesAtWork } from "../trade/kept.ts";
 import { fieldedOf, warsOf, type War } from "../war/war.ts";
 import { rearmYear } from "../war/arms.ts";
@@ -854,6 +856,8 @@ function trade(
         (1 - blockaded) *
         kept *
         (1 - preyed) *
+        // (And more as both ends count, weigh and date alike: rules/measures.ts. Exactly 1 where either measures nothing.)
+        tradeMeasured(measuresAgreed(measuresAt(lore, e.a), measuresAt(lore, e.b), apart)) *
         // (Kin on both ends of a road carry more down it: sim/culture/abroad.ts. Exactly 1 where neither end keeps any.)
         kinAcross(ctx.world, e.a, e.b),
       keen = 2 * (1 + SIGNAL.tradeMargin * linked),
@@ -966,6 +970,22 @@ function trade(
   return flows;
 }
 
+/** What a land can measure (rules/letters.ts measuresOf), kept while it knows what it knows. */
+function measuresAt(lore: LoreStore, cell: number): number {
+  return lore.readOff(cell, "measures", () => measuresOf((id) => !!lore.get(cell, id)));
+}
+
+/** Of what two lands measure by, what the lesser of them last learned: the event (null where either measures nothing). */
+function measureLearned(lore: LoreStore, a: number, b: number): Ref | null {
+  const c = measuresAt(lore, a) <= measuresAt(lore, b) ? a : b;
+  let last: { year: number; event: Ref } | null = null;
+  for (const id of MEASURING.keys()) {
+    const k = lore.get(c, id);
+    if (k && (!last || k.year > last.year)) last = { year: k.year, event: k.event };
+  }
+  return last?.event ?? null;
+}
+
 /** The first goods down a road: a decision, with the gap that drew them, and its event. */
 function openRoute(
   ctx: PopulationContext,
@@ -1009,6 +1029,24 @@ function openRoute(
       contribution: 0.5,
       source: { ref: ships, role: "enabler", weight: 1 },
     });
+  // (What both ends count, weigh and date alike: rules/measures.ts.)
+  const lore = loreOf(world),
+    ra = politiesOf(world).of(pl.from),
+    rb = politiesOf(world).of(pl.to),
+    agreed = measuresAgreed(
+      measuresAt(lore, pl.from),
+      measuresAt(lore, pl.to),
+      !!ra && !!rb && ra !== rb,
+    );
+  if (agreed > 0) {
+    const learned = measureLearned(lore, pl.from, pl.to);
+    factors.push({
+      name: "both ends count, weigh and date alike",
+      value: Math.round(agreed * 100) / 100,
+      contribution: tradeMeasured(agreed) - 1,
+      source: learned ? { ref: learned, role: "enabler", weight: 0.5 } : null,
+    });
+  }
   const decision = world.decisions.record({
     rule: "trade.open",
     subject: from.ref,
@@ -1212,6 +1250,7 @@ function wages(ctx: PopulationContext, p: Province, m: Market, can: readonly num
   w[OCC.herder] =
     margin(c.pasture, p.occupation(OCC.herder), PRODUCTIVITY[OCC.herder]! * tools * gathers) *
     (0.5 + 0.5 * rain) *
+    droveGain(ctx.world, p.cell) *
     (m.price[G.meat]! +
       HERD_GOODS.woolPerMeat * m.price[G.wool]! +
       HERD_GOODS.hidesPerMeat * m.price[G.hides]!);

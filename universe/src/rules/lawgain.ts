@@ -157,10 +157,9 @@ function toLords(out: Incomes, f: LawFacts, amount: number, faith = true): void 
     if (f.heads[g] > 0 && (faith || g !== "the temple")) out[g] += (amount * f.sway[g]) / all;
 }
 
-/** What each group has a year under each position of the land law (over its base). */
-function landIncomes(f: LawFacts, base: Incomes, x: number): Incomes {
-  const out = zero(),
-    tilled = base.farmers + base.herders,
+/** What is taken of its tillers a year under each position of the land law: of what they make above their keep, as far as they are held to it. */
+function landRent(f: LawFacts, base: Incomes, x: number): number {
+  const tilled = base.farmers + base.herders,
     keep = Math.max(1e-9, f.living),
     spare = f.pay.farmers > 0 ? dmath.clamp((f.pay.farmers - keep) / f.pay.farmers, 0, 1) : 0,
     // (What holds the tiller to it: the arms for a bond, the courts for a lease.)
@@ -175,8 +174,15 @@ function landIncomes(f: LawFacts, base: Incomes, x: number): Incomes {
             f.trust,
             f.kinship,
           ).kept /
-          (1 + dmath.clamp(f.open, 0, 2)),
-    rent = LAND_TAKES[x]! * spare * tilled * kept,
+          (1 + dmath.clamp(f.open, 0, 2));
+  return LAND_TAKES[x]! * spare * tilled * kept;
+}
+
+/** What each group has a year under each position of the land law (over its base). */
+function landIncomes(f: LawFacts, base: Incomes, x: number): Incomes {
+  const out = zero(),
+    tilled = base.farmers + base.herders,
+    rent = landRent(f, base, x),
     makers = base.crafters + base.traders,
     coin = makers / Math.max(1e-9, makers + tilled),
     secure = holdingSecure(seizureRisk(f).risk, COURTS[position(f.justice)]!, f.capacity),
@@ -284,5 +290,70 @@ export function lawGains(f: LawFacts): Record<LawGroup, [number, number, number]
           : [0, 0, 0];
     }
     return out;
+  });
+}
+
+// The clerks (the last breadth gaps, 2026-11-24: bureaucratic factions). Where a seat's officers keep accounts (its people know
+// bureaucracy) and its treasury pays them, they are a group of their own with their own gains: not the land's rent or the tithe,
+// but offices, which there are as many of as there is to assess, write down and judge. Under each position of each law, what
+// passes through their hands:
+//   the land: a lease is a written deal the courts hold to (its rents); the lord's land is held by his arms and the tiller's
+//     own owes no one, so neither keeps an office;
+//   strangers: the dues of those who are no citizens are assessed head by head (who is a stranger is on a roll);
+//   faith: the tithe is the temple's to gather, and the seat's officers' only where its law is sacred (the court's share of it);
+//   justice: the fees of its courts, as far as they reach (theirs whole: a court's fees are its officers' living); and of what is skimmed between the lands and the seat where each
+//     position settles, the part that sticks to those who hold the pens (one law for all binds them too).
+// Of rents, dues and tithes, keeping the offices takes OFFICE.keeps; the clerks want a position as far as what it would keep them, against
+// the mean of the three, is of what the treasury pays them now, saturating as every group's gain does. So they are for
+// written courts and rolls of strangers and against the reforms that close their offices; and where their skim is more than
+// their fees they stand against the one law that would end it.
+export const OFFICE = {
+  /** Of what its officers assess, write and judge, what keeping the offices that do it takes (est: a tenth, what gathering a due cost the old states). */
+  keeps: 0.1,
+  /** Of what is skimmed between the lands and the seat, the share that sticks to those who keep the accounts (the rest: the court's). */
+  skim: 0.5,
+} as const;
+
+/**
+ * What the clerks of a realm gain of each position of each law (by law, then position; -1 … 1), `paid` being what its treasury
+ * pays them a year (grain's worth, as `f.pay`). Nothing where it pays none.
+ */
+export function clerkGains(f: LawFacts, paid: number): [number, number, number][] {
+  if (!(paid > 0)) return INCOMES.map(() => [0, 0, 0]);
+  const base = baseOf(f);
+  let all = 0;
+  for (const g of COMMONS) all += base[g];
+  const tribute = dmath.clamp(f.tribute, 0, 1),
+    handled: [number, number, number][] = [
+      [0, landRent(f, base, 1), 0],
+      [f.foreign + f.unbelief - f.foreign * f.unbelief, f.unbelief, 0].map(
+        (payers) => STRANGER.dues * payers * all,
+      ) as [number, number, number],
+      (f.faith && f.sacred
+        ? [1, 1 - f.unbelief, (1 - f.unbelief) * dmath.clamp(f.piety, 0, 1)].map(
+            (payers) => FAITH_DUES.tithe * payers * all * FAITH_DUES.sacred,
+          )
+        : [0, 0, 0]) as [number, number, number],
+      [0, 1, 2].map((x) => JUSTICE_DUES.fees * COURTS[x]! * all * (x === 0 ? 0 : 1)) as [
+        number,
+        number,
+        number,
+      ],
+    ],
+    skim = [0, 1, 2].map(
+      (x) =>
+        OFFICE.skim *
+        JUSTICE_DUES.skim *
+        dmath.clamp(f.corruption - JUSTICE_DUES.skimFall * (x - 1), 0, 1) *
+        tribute *
+        all,
+    );
+  return handled.map((h, law) => {
+    const has = h.map((v, x) => (law === 3 ? v + skim[x]! : OFFICE.keeps * v)),
+      mean = (has[0]! + has[1]! + has[2]!) / 3;
+    return has.map((v) => {
+      const g = (LAW_GAIN.scale * (v - mean)) / paid;
+      return g / (1 + Math.abs(g));
+    }) as [number, number, number];
   });
 }

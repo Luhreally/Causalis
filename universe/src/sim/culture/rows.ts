@@ -92,6 +92,50 @@ export const ACADEMY_ROW = {
   at: 5,
 } as const;
 
+/**
+ * 7. A realm's civil defence (sim/war/shelter.ts; rules/civildefence.ts), a realm's row, kept only once its towns are struck.
+ */
+export const SHELTER_STORE = "war.shelter";
+export const SHELTER_ROW = {
+  /** What its strikes would have killed with no cover, and the people of the towns they fell on, both faded to `at`. */
+  dead: 0,
+  people: 1,
+  at: 2,
+  /** The share of its struck towns' people under cover, and that share when last told (thousandths). */
+  cover: 3,
+  told: 4,
+} as const;
+
+/** 8. What a realm's schools teach (sim/order/curriculum.ts; rules/curriculum.ts), a realm's row. */
+export const CURRICULUM_STORE = "order.curriculum";
+export const CURRICULUM_ROW = {
+  /** The share of each content (thousandths, by rules CONTENTS: letters, craft, creed, arms). */
+  letters: 0,
+  craft: 1,
+  creed: 2,
+  arms: 3,
+  /** How far its schooling reaches its young (thousandths), and what it teaches first (a CONTENTS index + 1). */
+  reach: 4,
+  lead: 5,
+} as const;
+
+/** 9. A land whose herders drive their flocks to a neighbour's pasture (sim/ecology/droving.ts), a land's row. */
+export const DROVE_STORE = "ecology.droving";
+export const DROVE_ROW = {
+  /** How much more its herds yield for it (thousandths, over 1000), the land driven to, the year it was taken up. */
+  gain: 0,
+  to: 1,
+  since: 2,
+} as const;
+
+/** 10. A land's orphans (sim/society/roofless.ts; rules/orphans.ts), a land's row, kept from when they were last told. */
+export const ORPHAN_STORE = "society.orphans";
+export const ORPHAN_ROW = {
+  /** The year they were last told, and how many they were. */
+  told: 0,
+  orphans: 1,
+} as const;
+
 /** Every store of the sweep, and its rows' width. */
 export const CULTURE_ROWS: readonly (readonly [string, number])[] = [
   [FOLK_STORE, 5],
@@ -100,6 +144,10 @@ export const CULTURE_ROWS: readonly (readonly [string, number])[] = [
   [URBAN_STORE, 4],
   [ART_STORE, 7],
   [ACADEMY_STORE, 6],
+  [SHELTER_STORE, 5],
+  [CURRICULUM_STORE, 6],
+  [DROVE_STORE, 3],
+  [ORPHAN_STORE, 2],
 ];
 
 /** One of the sweep's stores, where a world keeps it (a world from before the sweep, or one no one lives on, keeps none). */

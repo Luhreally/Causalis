@@ -8,6 +8,7 @@ import {
   BELIEF_EVENTS,
   DEITIES,
   FAITH,
+  MISSION_EVENTS,
   TABOO_EVENTS,
   beliefOf,
   taboosOf,
@@ -15,7 +16,7 @@ import {
 } from "../sim/index.ts";
 import { landWords } from "./generated.ts";
 import { count } from "./words.ts";
-import { edges, registerEventWords, registerExplainer } from "./why.ts";
+import { edges, registerDecisionWords, registerEventWords, registerExplainer } from "./why.ts";
 
 registerExplainer(FAITH.code, (world, ref) => {
   if (!world.hasStore("belief.faiths")) return null;
@@ -47,7 +48,18 @@ registerEventWords(BELIEF_EVENTS.founded.type, (world, e) => {
 registerEventWords(
   BELIEF_EVENTS.converted.type,
   (world, e) =>
-    `${cap(landWords(world, e.place))} took up the faith of ${text(e.data, "name") ?? "a neighbour"}, ${year(e.t)}`,
+    `${cap(landWords(world, e.place))} took up the faith of ${text(e.data, "name") ?? "a neighbour"}${(e.data as Data)?.["mission"] ? " from the preachers it had sent among them" : ""}, ${year(e.t)}`,
+);
+// A faith's mission (sim/belief/missions.ts): preachers sent where they would win it the most, kept from its granary.
+registerEventWords(MISSION_EVENTS.sent.type, (world, e) => {
+  const d = e.data as Data,
+    num = (k: string) => (typeof d?.[k] === "number" ? (d[k] as number) : 0);
+  return `${cap(text(d, "name") ?? "A faith")} sent ${count(num("preachers"))} preachers to live among the ${count(num("people"))} of ${landWords(world, e.place)}, whom its own people's trade already reached: what they might come to give it outweighed the ${count(num("cost"))} of grain its granary laid out to keep them there, ${year(e.t)}`;
+});
+registerDecisionWords(
+  "belief.mission",
+  (world, d) =>
+    `${cap(beliefOf(world).get(d.subject)?.name ?? "a faith")} weighed sending preachers abroad`,
 );
 registerEventWords(BELIEF_EVENTS.schism.type, (world, e) => {
   const from = text(e.data, "from");
