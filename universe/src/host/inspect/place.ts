@@ -7,6 +7,7 @@ import { DAY, YEAR, type Ref, type World } from "../../kernel/index.ts";
 import { FOODS, GOODS, OCC } from "../../rules/index.ts";
 import { SITE_TONNES, asksOf, lifeOf, marketGoodRef, populationContext } from "../../sim/index.ts";
 import {
+  PLACE_WALLS_REF,
   placeLotRef,
   type Block,
   type Item,
@@ -15,6 +16,7 @@ import {
   type Stat,
 } from "../../bridge/index.ts";
 import {
+  placeKind,
   ACT,
   ACT_WORDS,
   AT,
@@ -42,6 +44,9 @@ import {
 } from "../place.ts";
 import {
   ailWords,
+  careWords,
+  healthWords,
+  markWords,
   goneNames,
   lotWords,
   siteOf,
@@ -188,11 +193,21 @@ function personBlocks(
             }. It moves what their work is worth to them by ${Math.round(p.mood[i]! / 4)} in a hundred.`,
           ),
           stat("Temper", temperWords(place, i)),
+          // (In a land of more than one people: whose they are. Their needs are read off their own people's body.)
+          ...(placeKind(world, place, i)
+            ? [
+                stat(
+                  "People",
+                  `Of ${placeKind(world, place, i)!.name}: their hunger, their rest, the cold they feel and the load they carry are their own people's body's`,
+                ),
+              ]
+            : []),
+          ...(markWords(world, place, i) ? [stat("Bears", `${markWords(world, place, i)}.`)] : []),
           ...(p.health[i]
             ? [
                 stat(
                   "Health",
-                  `${ailWords(place, i)}: abed ${Math.ceil(p.ill[i]! / 144)} more ${Math.ceil(p.ill[i]! / 144) === 1 ? "day" : "days"}`,
+                  `${healthWords(world, place, i) ?? ailWords(place, i)}. ${careWords(place)}`,
                   p.cause[i]! >= CAUSE.sickness && place.ills[p.cause[i]! - CAUSE.sickness]
                     ? { why: place.ills[p.cause[i]! - CAUSE.sickness]!.split("|")[1]! }
                     : {},
@@ -390,7 +405,7 @@ export function placeLotPage(world: World, ref: string): PageModel {
       at?.town ?? null,
       "This town is not kept in detail now: enter it to see what its buildings hold.",
     );
-  const lot = (at.rest[0] ?? 0) - 3,
+  const lot = at.rest[0] === PLACE_WALLS_REF ? AT.walls : (at.rest[0] ?? 0) - 3,
     r = placeLot(place, lot),
     p = place.people,
     life = lifeOf(world),
@@ -428,7 +443,7 @@ export function placeLotPage(world: World, ref: string): PageModel {
             type: "facts",
             title: "Going up",
             rows: [
-              stat("So far", `${pct(site.share)} done: ${siteStage(site.share)}`),
+              stat("So far", `${pct(site.share)} done: ${siteStage(site.share, site.kind)}`),
               stat(
                 "Worked by",
                 site.inHand
@@ -504,7 +519,9 @@ export function placeLotPage(world: World, ref: string): PageModel {
       .map(([x, g]) => stat(cap(GOODS[g]!.name), amount(x))),
     stats: Stat[] = [
       ...(held.length ? held : [stat("Holds", "nothing now")]),
-      ...(site ? [stat("Going up", `${pct(site.share)}, ${siteStage(site.share)}`)] : []),
+      ...(site
+        ? [stat("Going up", `${pct(site.share)}, ${siteStage(site.share, site.kind)}`)]
+        : []),
       ...(stopped ? [stat("Work", "stopped by your order")] : []),
       ...(r.kind && lot >= 0 ? [stat("Working here", `${r.working.length}`)] : []),
       ...(r.households.length ? [stat("Living here", `${r.living.length}`)] : []),
@@ -556,11 +573,13 @@ export function placeLotPage(world: World, ref: string): PageModel {
               ? "The square: those who want company come here."
               : lot === AT.fields
                 ? "The fields and pastures outside the town: its farmers and herders work here and bring in what they win a load at a time."
-                : site
-                  ? "A site: nothing is made or kept here until it stands, but the tools its crew wears."
-                  : r.kind
-                    ? "What lies here is the town's share of its land's stocks, as the world reckons them, laid where it is worked and kept; what is made and eaten here is counted, and the rest comes and goes by the land's own reckoning each month."
-                    : "A home: each household's pantry holds its food, eaten from at every meal and filled from the town's stores and its own fields.",
+                : site && lot === AT.walls
+                  ? "The site of its walls: they stand on no lot, and go up a length at a time about their ring. Its crew works at the length the work has come to; nothing is kept here but the tools they wear."
+                  : site
+                    ? "A site: nothing is made or kept here until it stands, but the tools its crew wears."
+                    : r.kind
+                      ? "What lies here is the town's share of its land's stocks, as the world reckons them, laid where it is worked and kept; what is made and eaten here is counted, and the rest comes and goes by the land's own reckoning each month."
+                      : "A home: each household's pantry holds its food, eaten from at every meal and filled from the town's stores and its own fields.",
           ],
           ...(place.people.n >= PLACE_MOST
             ? [

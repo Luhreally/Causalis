@@ -307,10 +307,16 @@ export function askDone(world: World, a: Ask): number {
   return a.work ? Math.max(0, a.work.worked - (a.work.done === null ? siteOwed(world, a) : 0)) : 0;
 }
 
-/** The asking behind a site a town may take in hand: one of its own, a building, still going up (null: none such). */
+/** The asking behind a site a town may take in hand: one of its own, a building or its walls, still going up (null: none such). */
 function siteAsk(world: World, town: string, n: unknown): Ask | null {
   const a = typeof n === "number" ? asksOf(world).ofTown(town)[n] : undefined;
-  return a && a.work && a.work.at >= 0 && a.work.done === null && !a.work.left ? a : null;
+  return a &&
+    a.work &&
+    (a.work.at >= 0 || a.what === "walls") &&
+    a.work.done === null &&
+    !a.work.left
+    ? a
+    : null;
 }
 
 /**

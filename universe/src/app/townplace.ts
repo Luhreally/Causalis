@@ -109,7 +109,15 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     stop = null;
     const plan = d.plan();
     if (!town || !plan || plan.ref !== town) return;
-    body = new PlaceBodies(plan, (lot) => d.village.townLot(lot));
+    body = new PlaceBodies(
+      plan,
+      (lot) => d.village.townLot(lot),
+      // (Its walls' site: the length their line has come to, as the town drawn has it.)
+      (t) => {
+        const ref = plan.town?.walls?.asked?.ref;
+        return ref ? d.village.askedSpot(ref, t) : null;
+      },
+    );
     body.frame = told;
     d.village.posed = body;
     const mine = body;

@@ -99,6 +99,8 @@ export class Streets {
     readonly line: Float32Array;
     readonly standing: boolean;
   } | null;
+  /** The middles of its walls' lengths, in the order they go up about the ring (none: no walls, or pulled down). */
+  readonly wallAt: readonly Point[];
   private readonly plan: TownPlan;
   /** Its lots as its people lay them (TownPlan.lotSize). */
   private readonly m: LotMeasure;
@@ -196,6 +198,7 @@ export class Streets {
     this.walls = walls
       ? { r: walls.r, line: walls.line, standing: walls.lengths.length > 0 }
       : null;
+    this.wallAt = walls ? walls.lengths.map((l) => ({ x: l.x, z: l.z })) : [];
     this.sprawl = sprawlOf(plan, lots);
     this.edge = Math.max(reach, this.sprawl ? this.sprawl.r1 : 0) + 8;
     this.solids.forEach((s, i) => {

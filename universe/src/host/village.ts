@@ -72,6 +72,7 @@ import {
   lotStates,
   progress,
   townLots,
+  type TownLots,
   outlineAt,
   fieldCount,
   fieldEdge,
@@ -275,6 +276,59 @@ export function fieldYearOf(world: World, cell: number): FieldYear {
 export function fieldWayOf(world: World, cell: number, tile: number): number {
   const best = [...waysOut(world, cell, tile)].sort((a, b) => b.soil - a.soil || a.angle - b.angle);
   return best[0]?.angle ?? 0;
+}
+
+/**
+ * Where a town's fields are meant to lie and where its flocks graze, as its plan lays them before its ground is read
+ * (villagePlan below: the same seed, the same way to its good ground, the same edge, the same fan), for a place's walks
+ * out to them (host/place.ts): each field's middle, and its pasture's (metres from its square, in its plan's frame).
+ * `lots`: its lots as laid, `drawn` of its `whole`.
+ */
+export function townFieldsMeant(
+  world: World,
+  ref: Ref,
+  lots: TownLots,
+  drawn: number,
+  whole: number,
+): { fields: { x: number; z: number }[]; pasture: { x: number; z: number } } | null {
+  const ctx = populationContext(world),
+    v = ctx.settlements.get(ref);
+  if (!v) return null;
+  const ways = waysOut(world, v.cell, v.tile),
+    best = [...ways].sort((a, b) => b.soil - a.soil || a.angle - b.angle),
+    fieldWay = best[0]?.angle ?? 0,
+    city = citiesOf(world).get(ref),
+    fabric = townsOf(world).get(ref),
+    mainRoad = fabric ? townSiteOf(world, ref, fabric)?.roads[0]?.bearing : undefined,
+    roadWay = mainRoad ?? (city ? city.axis : fieldWay + Math.PI * 0.75),
+    apart = (a: number, b: number) =>
+      Math.abs(((((a - b) % (2 * Math.PI)) + 3 * Math.PI) % (2 * Math.PI)) - Math.PI),
+    offRoad = (a: number) =>
+      city ? Math.min(apart(a, roadWay), apart(a, roadWay + Math.PI)) : apart(a, roadWay),
+    poorWay = best.at(-1)?.angle ?? Math.PI,
+    turn = apart(poorWay + 0.9, fieldWay) > apart(poorWay - 0.9, fieldWay) ? 0.9 : -0.9,
+    pastureToward = offRoad(poorWay) < 0.7 ? poorWay + turn : poorWay,
+    count = Math.max(4, Math.min(160, Math.ceil(v.population / 5))),
+    { edge, edgeAt } = fieldEdge({
+      lots,
+      drawn,
+      whole,
+      city: !!city,
+      cityRim: (BLOCKS * BLOCK_M) / 2,
+      count,
+      spires: !!landPast(world, v.cell)?.spires,
+    }),
+    meant = fieldsMeant(hashString(`village ${ref}`), fieldWay, fieldCount(count), edgeAt),
+    outer = meant.reduce(
+      (m, f) => Math.max(m, Math.hypot(f.x, f.z) + Math.max(f.w, f.d) / 2),
+      edge,
+    ),
+    // (Its pasture as first tried: ninety metres across, near the homes where that is clear of the fields' fan.)
+    out = apart(pastureToward, fieldWay) > 1.9 ? edge + 90 + 20 : outer + 90 + 15;
+  return {
+    fields: meant.map((f) => ({ x: f.x, z: f.z })),
+    pasture: { x: out * Math.cos(pastureToward), z: out * Math.sin(pastureToward) },
+  };
 }
 
 /** The eight ways out of a settlement's tile of its land: how good the ground is each way, and whether it is water. */

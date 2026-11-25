@@ -220,7 +220,7 @@ export class PlaceHud {
         el(
           "span",
           "place-row-what",
-          `${r.trade}${r.bound ? " (by order)" : ""} · ${r.doing}${r.lack > 0 ? ` · ${r.lack} d in want` : ""}${r.health === 1 ? " · hurt" : r.health === 2 ? " · sick" : ""} · mood ${r.mood > 0 ? "+" : ""}${r.mood}`,
+          `${r.trade}${r.bound ? " (by order)" : ""} · ${r.doing}${r.lack > 0 ? ` · ${r.lack} d in want` : ""}${r.health === 1 ? " · hurt" : r.health === 2 ? " · sick" : r.health === 3 ? " · mending" : ""} · mood ${r.mood > 0 ? "+" : ""}${r.mood}`,
         ),
         el("span", "place-need-word", `${NEEDS[r.worst]} ${Math.round(worst * 100)}%`),
         bar,
@@ -563,7 +563,7 @@ export class PlaceHud {
         row.onclick = () => this.onOpen(x.ref);
         list.append(row);
       }
-      body.push(list);
+      body.push(list, el("p", "place-more", s.care));
     }
     body.push(el("h3", "place-sub", "Your orders against them"));
     for (const r of s.responses) {

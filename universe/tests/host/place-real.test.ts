@@ -14,12 +14,14 @@ import {
   saveWorld,
   type World,
 } from "../../src/kernel/index.ts";
-import { FOODS, G, HOLDS, OCC } from "../../src/rules/index.ts";
+import { CLADES, FOODS, G, HOLDS, OCC, PRINCIPLES, healDays } from "../../src/rules/index.ts";
+import { addKind, setDown } from "../../src/sim/population/mix.ts";
 import {
   asksOf,
   healthOf,
   levelsOf,
   lifeOf,
+  loreOf,
   marketsOf,
   populationContext,
   townsOf,
@@ -39,13 +41,35 @@ import {
   PLACE_TICK,
   enterPlace,
   placeCold,
+  placeDigest,
+  placeIndexOf,
+  placeKind,
+  placesOf,
+  placeMark,
+  placeSites,
   placeTable,
+  BOUND_SITE,
+  tendedOf,
   streetLength,
   targetTable,
+  townTable,
+  tradeLean,
   watchWanted,
   type Place,
 } from "../../src/host/place.ts";
-import { dangersSheet, logSheet, placeFrame, stocksSheet } from "../../src/host/placeplan.ts";
+import {
+  careWords,
+  dangersSheet,
+  healthWords,
+  logSheet,
+  markWords,
+  placeFrame,
+  placePlan,
+  stocksSheet,
+} from "../../src/host/placeplan.ts";
+import { pageOf } from "../../src/host/inspect/index.ts";
+import { villagePlan } from "../../src/host/village.ts";
+import { placeLotRef } from "../../src/bridge/index.ts";
 import { universeWorld } from "./worlds.ts";
 
 const base = (): World => universeWorld(EARTH, "first light", 150);
@@ -326,6 +350,220 @@ test("a sickness that comes: its dead are named, as many as its land's count tak
   // And the world is the one that was never looked at.
   quiet.runTo(w.now);
   assert.equal(JSON.stringify(w.domainHashes()), JSON.stringify(quiet.domainHashes()));
+});
+
+test("a wound is to a member of the body, heals by what its land knows of care, and may leave its mark", () => {
+  const w = copy(base()),
+    s = near(w, 600),
+    town = s.ref,
+    place = enterPlace(w, town)!,
+    p = place.people;
+  w.runTo(150 * YEAR + 40 * DAY + 10 * HOUR);
+  placeFrame(w, town, []);
+  order(w, "act.fire", { village: town });
+  watch(w, town, 2);
+  const hurt: number[] = [];
+  for (let i = 0; i < p.n; i++)
+    if (p.health[i] === 1 && p.cause[i] === CAUSE.fire) hurt.push(p.id[i]!);
+  assert.ok(hurt.length > 0);
+  // Abed for the days a burn takes, with the care its land knows and who tends them; their page says where and by whom.
+  const care = place.matched.care ?? 0,
+    at = (id: number) => placeIndexOf(place, id);
+  for (const id of hurt) {
+    const i = at(id),
+      mark = placeMark(w, place, i),
+      days = healDays(mark ? mark.outcome : "healed", "trunk", "fire", care, tendedOf(place, i));
+    assert.ok(
+      p.ill[i]! > 0 && p.ill[i]! <= days.abed * 144,
+      `${p.ill[i]} ticks abed of ${days.abed} days`,
+    );
+    const words = healthWords(w, place, i)!;
+    assert.ok(/^Hurt in the fire/.test(words) && /tended (by|at) /.test(words), words);
+    if (mark) assert.ok(new RegExp(mark.member).test(words) && markWords(w, place, i));
+  }
+  assert.ok(
+    healDays("healed", "trunk", "fire", 1, "healer").abed <
+      healDays("healed", "trunk", "fire", 0, "kin").abed,
+  );
+  assert.ok(/tended|healer|hospital/.test(careWords(place)));
+  assert.ok(!/undefined|NaN/.test(JSON.stringify(dangersSheet(w, place))));
+  // Up again with it bound, their work worth less till it is mended; then well, and what it left them with stays.
+  watch(w, town, 10 * 24, 6);
+  let mending = 0;
+  for (const id of hurt) {
+    const i = at(id);
+    if (i >= 0 && p.health[i] === 3) {
+      mending++;
+      assert.ok(/Up again with the wound bound/.test(healthWords(w, place, i)!));
+    }
+  }
+  assert.ok(mending > 0 && told(place, HAP.mending) > 0, `${mending} mending`);
+  watch(w, town, 80 * 24, 12);
+  for (const id of hurt) {
+    const i = at(id);
+    if (i < 0) continue;
+    assert.ok(p.health[i] !== 1 && p.health[i] !== 3, "mended in the end");
+    const mark = placeMark(w, place, i);
+    if (mark) assert.ok(mark.outcome === "scarred" || mark.outcome === "lame");
+  }
+});
+
+test("its walls are a site of the place too: a crew of its own builds them at the length their line has come to", () => {
+  const w = copy(base()),
+    ctx = populationContext(w),
+    towns = ctx.settlements
+      .all()
+      .filter((s) => ctx.settlements.held(s.ref) && s.population > 300 && s.population < 3000)
+      .sort((x, y) => x.population - y.population || (x.ref < y.ref ? -1 : 1));
+  let town = "",
+    n = -1;
+  // (No land of first light knows walls before its third century: the town's land is taught them here, by hand; the
+  // asking, the answer and the work are the world's own.)
+  const walls = PRINCIPLES.find((x) => x.id === "fortification")!;
+  for (const s of towns.slice(0, 24)) {
+    if (!loreOf(w).get(s.cell, walls.id))
+      loreOf(w).learn(s.cell, walls.id, { year: 149, event: w.events.at(0).id }, walls);
+    if (!townOffers(w, s.ref)?.raises.some((r) => r.what === "walls")) continue;
+    order(w, "town.ask", { village: s.ref, kind: "raise", what: "walls" });
+    const a = asksOf(w).ofTown(s.ref).at(-1);
+    if (!a?.work) continue;
+    town = s.ref;
+    n = a.n;
+    break;
+  }
+  assert.ok(town, "a town of this world takes up the raising of walls");
+  const ask = asksOf(w).ofTown(town)[n]!,
+    hands = Math.min(siteMostHands(ctx, ask), Math.max(4, ask.work!.hands));
+  assert.equal(ask.work!.at, -1);
+  order(w, "place.site", { town, ask: n, hands });
+  const place = enterPlace(w, town)!,
+    p = place.people,
+    site = () => placeSites(w, place).find((x) => x.kind === "walls")!;
+  assert.ok(site() && site().inHand && site().lot === AT.walls);
+  let crew = 0;
+  for (let i = 0; i < p.n; i++)
+    if (p.bound[i] === BOUND_SITE) {
+      crew++;
+      assert.equal(p.work[i], AT.walls);
+      const home = place.houses.home[p.house[i]!]!;
+      assert.ok(streetLength(place, home, AT.walls) > 0);
+      assert.equal(streetLength(place, home, AT.walls), streetLength(place, AT.walls, home));
+    }
+  assert.equal(crew, hands);
+  const seen = new Set<number>();
+  let there = 0;
+  for (let k = 0; k < 8 * 8; k++) {
+    w.runTo(w.now + 3 * HOUR);
+    placeFrame(w, town, []);
+    for (let i = 0; i < p.n; i++)
+      if (p.bound[i] === BOUND_SITE) {
+        seen.add(p.act[i]!);
+        if (p.at[i] === AT.walls && !p.eta[i]) there++;
+      }
+  }
+  assert.ok(seen.has(ACT.build) && seen.has(ACT.stuff), "they carry to it and build");
+  assert.ok(there > 0, "they stand at its walls' site");
+  assert.ok(site().brought > 0 && place.sites[0]!.ticks > 0);
+  assert.ok((place.sites[0]!.k ?? -1) >= 0);
+  // Its page and its sheet say what it is.
+  const page = JSON.stringify(pageOf(w, placeLotRef(town, AT.walls)));
+  assert.ok(
+    /walls/i.test(page) && /their line staked out|of their ring standing/.test(page),
+    page.slice(0, 400),
+  );
+  assert.ok(!/undefined|NaN/.test(page));
+  const plan = placePlan(w, villagePlan(w, town as never), place, 120);
+  assert.ok(plan.town?.walls?.asked && plan.town.walls.asked.share === site().share);
+});
+
+test("a town's trades lean to where its land's buildings of each work stand; its ages and sexes are by heads", () => {
+  const w = copy(base()),
+    ctx = populationContext(w),
+    OCCS = 7;
+  let leaned = 0,
+    more = 0;
+  for (const s of ctx.settlements.all()) {
+    if (!ctx.settlements.held(s.ref) || !townsOf(w).get(s.ref) || s.population < 200) continue;
+    const lean = tradeLean(w, s);
+    if (lean.every((x) => x === 1)) continue;
+    const land = ctx.provinces.get(s.cell)!,
+      table = townTable(w, s),
+      people = Math.min(Math.round(s.population), land.total()),
+      rows = table.length / OCCS;
+    assert.equal(
+      table.reduce((a, b) => a + b, 0),
+      people,
+    );
+    let town = 0,
+      all = 0,
+      settled = 0;
+    for (let r = 0; r < rows; r++)
+      for (let o = 0; o < OCCS; o++) {
+        assert.ok(
+          table[r * OCCS + o]! <= land.counts.get(r, o),
+          "never more of a kind than its land has",
+        );
+        if (o === OCC.trader) {
+          town += table[r * OCCS + o]!;
+          all += land.counts.get(r, o);
+        }
+        if (o !== OCC.forager) settled += land.counts.get(r, o);
+      }
+    leaned++;
+    // (A town with more than its share of its land's markets holds more than its share by head of its traders.)
+    if (lean[OCC.trader]! > 1.5 && all >= 40 && town / people > all / settled) more++;
+    if (leaned >= 60) break;
+  }
+  assert.ok(leaned > 10, `${leaned} towns lean`);
+  assert.ok(more > 0, "a market town holds more of its land's traders");
+});
+
+test("in a land of two peoples each of a place's people is read by their own people's body", () => {
+  const w = copy(base()),
+    s = near(w, 400),
+    land = populationContext(w).provinces.get(s.cell)!.total();
+  // (First light is a world of one people: a second, of another body, is set down on the town's land by hand, a third
+  // of its people, as the world's own reckoning sets one down: sim/population/mix.ts.)
+  const other = CLADES.find(
+      (c) => c.id !== "ape" && c.body.skin !== CLADES.find((x) => x.id === "ape")!.body.skin,
+    )!,
+    kind = addKind(w, {
+      key: "test:second",
+      name: "the second people",
+      body: other.body as never,
+      species: null,
+      of: null,
+      blend: 0,
+      since: 150,
+      event: null,
+    });
+  assert.ok(kind > 0);
+  setDown(w, s.cell, kind, Math.round(land / 2), land);
+  const place = enterPlace(w, s.ref)!,
+    p = place.people,
+    mix = place.matched.mix!;
+  assert.ok(mix && mix.length === 2 && mix[1]! > 300 && mix[1]! < 360, JSON.stringify(mix));
+  // Its households are of the two by its land's shares; each of its people is of their household's.
+  const of = [0, 0];
+  for (let i = 0; i < p.n; i++) of[placeKind(w, place, i)!.kind]!++;
+  assert.ok(of[1]! > p.n * 0.25 && of[1]! < p.n * 0.42, `${of[1]} of ${p.n} of the second people`);
+  const first = [...Array(p.n).keys()].find((i) => placeKind(w, place, i)!.kind === 0)!,
+    second = [...Array(p.n).keys()].find((i) => placeKind(w, place, i)!.kind === 1)!;
+  assert.equal(placeKind(w, place, second)!.name, "the second people");
+  for (const i of [first, second]) {
+    const page = JSON.stringify(pageOf(w, `plc:${s.ref}:${p.id[i]}`));
+    assert.ok(/"People"/.test(page) && /their own people's body/.test(page));
+    assert.ok(!/undefined|NaN/.test(page));
+  }
+  // It goes on as any place does, and is kept in the save.
+  watch(w, s.ref, 3 * 24, 3);
+  assert.equal(inWant(place), 0);
+  const again = copy(w),
+    kept = placesOf(again)!.get(s.ref)!;
+  assert.equal(placeDigest(kept), placeDigest(place));
+  for (const x of [w, again]) watch(x, s.ref, 24, 3);
+  assert.equal(placeDigest(kept), placeDigest(place));
+  assert.deepEqual(kept.houses.kind, place.houses.kind);
 });
 
 test("the hands a town can put to a site are what its own answer to the asking spares", () => {

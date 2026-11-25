@@ -481,10 +481,22 @@ test("a walk is reckoned by the town's streets between where its plan lays its l
       walking++;
       assert.equal(
         p.trip[i],
-        Math.max(1, Math.round(streetLength(place, p.at[i]!, p.to[i]!) / 720)),
+        Math.max(1, Math.round(streetLength(place, p.at[i]!, p.to[i]!, i) / 720)),
       );
     }
   assert.ok(walking > 0, "some are walking");
+  // Out to the fields each goes to a field of their own, where its plan means it to lie: no two alike, none nearer than
+  // straight from the square's edge, and a herder to the pasture.
+  const out = new Set<number>();
+  for (let i = 0; i < p.n; i++) {
+    const occ = p.sexOcc[i]! & 15;
+    if (occ !== OCC.farmer && occ !== OCC.herder) continue;
+    const far = streetLength(place, place.houses.home[p.house[i]!]!, AT.fields, i);
+    assert.ok(far > 20 && far < 20_000, `${far} m out to the fields`);
+    assert.equal(far, streetLength(place, AT.fields, place.houses.home[p.house[i]!]!, i));
+    out.add(far);
+  }
+  assert.ok(out.size > 3, "they go to fields of their own");
 });
 
 test("a realm's key figure living in the town is one of the place's people, with needs", () => {

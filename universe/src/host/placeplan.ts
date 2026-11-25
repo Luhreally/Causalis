@@ -8,6 +8,7 @@ import {
   CIVICS,
   FOODS,
   GOODS,
+  HEAL_CARE,
   LESSON_RESPONSE,
   OCC,
   OCCUPATIONS,
@@ -54,6 +55,11 @@ import {
   armsWanted,
   watchWanted,
   placeCold,
+  placeMark,
+  tendedOf,
+  LIMP_SLOW,
+  STIFF_WORTH,
+  BOUND_WORTH,
   hapRef,
   hapTold,
   MOOD_UNHEEDING,
@@ -92,6 +98,7 @@ export const siteOf = (words: string): string => words.replace(/'s site$/, "");
 export function lotWords(place: Place, lot: number): string {
   if (lot === AT.square || lot === AT.none) return "the square";
   if (lot === AT.fields) return "the fields";
+  if (lot === AT.walls) return place.bldgs.lot.includes(lot) ? "the walls' site" : "the walls";
   const b = place.bldgs.lot.indexOf(lot);
   if (b > 0) {
     const kind = PLACE_KINDS[place.bldgs.kind[b]!],
@@ -167,7 +174,7 @@ export function whyWords(world: World, place: Place, i: number): string {
     case WHY.shut:
       return `The work of ${lotWords(place, p.work[i]!)} is stopped by your order: at home until it goes on`;
     case WHY.abed:
-      return `${ailWords(place, i)}: abed at home, ${Math.ceil(p.ill[i]! / 144)} more ${Math.ceil(p.ill[i]! / 144) === 1 ? "day" : "days"}, fed from the pantry by their household`;
+      return `${healthWords(world, place, i) ?? ailWords(place, i)}, and fed from the pantry by their household`;
     case WHY.site:
       return `Put to raising ${siteOf(lotWords(place, p.work[i]!))} by your order. Nothing presses harder than ${bar}${going}`;
     case WHY.stuff:
@@ -335,7 +342,27 @@ export function placePlan(
             }),
           }
         : bare.town;
-  return { ...bare, ...(town ? { town } : {}), people, placed };
+  // (Its walls in hand likewise: as far about their ring as its own people have raised them.)
+  const wall = sites.find((q) => q.lot === AT.walls),
+    walled =
+      town && wall && town.walls?.asked
+        ? {
+            ...town,
+            walls: {
+              ...town.walls,
+              asked: {
+                ...town.walls.asked,
+                read: place.t,
+                share: wall.share,
+                stopped: wall.stopped || wall.raised,
+                done: place.t + wall.months * MONTH + (wall.stopped ? YEAR : 0),
+                hands: wall.hands,
+                crew: [],
+              },
+            },
+          }
+        : town;
+  return { ...bare, ...(walled ? { town: walled } : {}), people, placed };
 }
 
 /** What wants a manager's eye in a place now, the most pressing first. */
@@ -680,7 +707,7 @@ export function workSheet(world: World, place: Place): PlaceWorkSheet {
     if (p.act[i] === ACT.wait) waiting++;
     if (p.lack[i]! >= 144) inWant++;
     if (p.mood[i]! < MOOD_UNHEEDING) unheeding++;
-    if (p.ill[i]! > 0) abed++;
+    if (p.ill[i]! > 0 && p.health[i] !== 3) abed++;
     const b = place.bldgs.lot.indexOf(p.work[i]!);
     if (b > 0) working[b]!++;
   }
@@ -693,7 +720,7 @@ export function workSheet(world: World, place: Place): PlaceWorkSheet {
         .replace(/^the /, "")
         .replace(/'s site$/, ""),
       share: x.share,
-      stage: siteStage(x.share),
+      stage: siteStage(x.share, x.kind),
       inHand: x.inHand,
       hands: x.hands,
       most: x.most,
@@ -746,6 +773,46 @@ export function ailWords(place: Place, i: number): string {
       : cause === CAUSE.accident
         ? "Hurt at their work"
         : "Ailing";
+}
+
+const TENDED_WORDS = {
+  hospital: "at the town's hospital",
+  healer: "by the town's healer",
+  household: "by their household",
+  kin: "by kin",
+} as const;
+
+/** How one of a place's people is, said in full (null: well): what ails them, how long, who tends them. */
+export function healthWords(world: World, place: Place, i: number): string | null {
+  const p = place.people,
+    days = Math.ceil(p.ill[i]! / 144),
+    more = `${days} more ${days === 1 ? "day" : "days"}`;
+  if (!p.health[i]) return null;
+  if (p.health[i] === 3)
+    return `Up again with the wound bound: ${more} of mending, their work worth ${Math.round(BOUND_WORTH * 100)} in a hundred of what it was till then`;
+  const mark = p.health[i] === 1 ? placeMark(world, place, i) : null;
+  return `${ailWords(place, i)}${mark ? `, in ${mark.member}` : ""}: abed ${more}, tended ${TENDED_WORDS[tendedOf(place, i)]}`;
+}
+
+/** What a wound left one of a place's people with for good, said (null: nothing). */
+export function markWords(world: World, place: Place, i: number): string | null {
+  const m = placeMark(world, place, i);
+  if (!m) return null;
+  const member = `${m.member.charAt(0).toUpperCase()}${m.member.slice(1)}`;
+  return m.lasting === "limp" || m.lasting === "crutch"
+    ? `${member} was left lame: they walk with a limp, two paces where they took ${Math.round(LIMP_SLOW * 2)}`
+    : m.lasting === "stiff"
+      ? `${member} was left stiff: their work is worth ${Math.round(STIFF_WORTH * 100)} in a hundred of what it was`
+      : `A scar on ${m.member}`;
+}
+
+/** Who tends a place's hurt and sick, and what its land knows of care (rules/wounds.ts CARE_PRINCIPLES), said. */
+export function careWords(place: Place): string {
+  const care = place.matched.care ?? 0,
+    hospital = place.bldgs.kind.some(
+      (k, b) => b > 0 && !place.bldgs.site[b] && CIVICS[k]?.kind === "hospital",
+    );
+  return `${hospital ? "The town keeps a hospital: its hurt and sick are tended there." : place.matched.healer ? "The town keeps a healer, for its land knows herb-lore: its hurt and sick are tended by them." : "Its land knows no herb-lore, and the town keeps no healer: its hurt and sick are tended by their households."} ${care > 0 ? `By what its land knows of care, a wound heals ${Math.round(HEAL_CARE * care * 100)} in a hundred sooner and half as many limbs again are saved from laming as care is known (${Math.round(care * 100)} in a hundred of it).` : "Its land knows nothing yet of the care of wounds."}`;
 }
 
 const pctOf = (x: number) => `${Math.round(x * 1000) / 10}`;
@@ -804,7 +871,7 @@ export function dangersSheet(world: World, place: Place): PlaceDangersSheet {
           days = Math.ceil(p.ill[i]! / 144);
         hurt.push({
           name: w.name,
-          words: `${ailWords(place, i)}: abed ${days} more ${days === 1 ? "day" : "days"}`,
+          words: `${healthWords(world, place, i) ?? ailWords(place, i)}`,
           ref: w.ref,
         });
       }
@@ -924,6 +991,7 @@ export function dangersSheet(world: World, place: Place): PlaceDangersSheet {
   return {
     now,
     hurt,
+    care: careWords(place),
     homeless: { households, people, sheltered, roofless, cold: placeCold(world, place) },
     shelter: { lot: orders && orders.shelter >= 0 ? orders.shelter : null, options },
     responses,

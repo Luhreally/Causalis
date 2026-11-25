@@ -6,8 +6,13 @@
 import {
   PLACE_ACT,
   PLACE_AT,
+  placeFieldOf,
+  placeSpread,
   placedId,
+  streetDoor,
+  townLots,
   type PlaceFrame,
+  type TownLots,
   type VillagePlan,
 } from "../bridge/index.ts";
 import { route, villageGround } from "./ground.ts";
@@ -25,12 +30,8 @@ const REACH = 0.5;
 const WAYS_MOST = 2000;
 
 const unit = (h: number) => (h >>> 0) / 4294967296;
-/** A scramble of two whole numbers, for where one of many stands about a spot: the same each time. */
-function spread(a: number, b: number): number {
-  let h = Math.imul(a ^ 0x9e3779b9, 0x85ebca6b) ^ Math.imul(b + 0x7f4a7c15, 0xc2b2ae35);
-  h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d);
-  return (h ^ (h >>> 13)) >>> 0;
-}
+/** (The scramble the host places them by too: bridge/place.ts.) */
+const spread = placeSpread;
 
 /** What each of a place's doings is drawn as (bridge/place.ts PLACE_ACT's order). */
 const DOING: readonly Activity[] = [
@@ -66,10 +67,20 @@ export class PlaceBodies implements PosedHook {
   private readonly strides: number[];
   private strideAt = 0;
   private readonly ways = new Map<string, Way>();
+  /** Its town's lots as its plan lays them, for where each one's door stands (null: no town drawn lot by lot). */
+  private lots: TownLots | null | undefined;
 
-  constructor(plan: VillagePlan, lotAt: (lot: number) => Point | null) {
+  /** Where its walls' site is now, the length their line has come to (null: none going up). */
+  private readonly wallAt: (t: number) => Point | null;
+
+  constructor(
+    plan: VillagePlan,
+    lotAt: (lot: number) => Point | null,
+    wallAt: (t: number) => Point | null = () => null,
+  ) {
     this.plan = plan;
     this.lotAt = lotAt;
+    this.wallAt = wallAt;
     this.ids = plan.people.map((p, i) => {
       const id = plan.placed ? plan.placed[i] : placedId(p.ref);
       return id === undefined || id === null || id < 0 ? null : id;
@@ -97,9 +108,22 @@ export class PlaceBodies implements PosedHook {
       const r = 3 + 9 * unit(spread(id, 2));
       return { x: r * Math.cos(a), z: r * Math.sin(a) };
     }
+    if (lot === PLACE_AT.walls) {
+      // (At the length of its walls the work has come to, on the town's side of it.)
+      const w = this.wallAt(this.now);
+      if (w) {
+        const far = Math.hypot(w.x, w.z) || 1,
+          back = 3 + 4 * unit(spread(id, 8)),
+          side = (unit(spread(id, 9)) - 0.5) * 14;
+        return {
+          x: w.x - (w.x / far) * back - (w.z / far) * side,
+          z: w.z - (w.z / far) * back + (w.x / far) * side,
+        };
+      }
+    }
     if (lot === PLACE_AT.fields) {
-      // (A herder with the flock, anyone else in a field of their own.)
-      const f = plan.fields.length ? plan.fields[spread(id, 3) % plan.fields.length]! : null;
+      // (A herder with the flock, anyone else in a field of their own: the one the host reckons their walk to.)
+      const f = plan.fields.length ? plan.fields[placeFieldOf(id, plan.fields.length)]! : null;
       if (person.occupation === 3 || !f) {
         const r = plan.pasture.r * 0.8 * Math.sqrt(unit(spread(id, 4)));
         return { x: plan.pasture.x + r * Math.cos(a), z: plan.pasture.z + r * Math.sin(a) };
@@ -110,11 +134,43 @@ export class PlaceBodies implements PosedHook {
         s = Math.sin(f.yaw);
       return { x: f.x + u * c + v * s, z: f.z - u * s + v * c };
     }
+    // (By its door on the street, a step or two off it: a walk is from door to door, as the host reckons it.)
+    const door = lot >= 0 ? this.door(lot) : null;
+    if (door) {
+      const r = 0.6 + 1.6 * unit(spread(id, 7));
+      return { x: door.x + r * Math.cos(a), z: door.z + r * Math.sin(a) };
+    }
     const home = plan.homes[person.home],
       at = (lot >= 0 ? this.lotAt(lot) : null) ?? home ?? { x: 0, z: 0 },
       // (Before its door, a few steps off its middle.)
       r = 5.5 + 2.5 * unit(spread(id, 7));
     return { x: at.x + r * Math.cos(a), z: at.z + r * Math.sin(a) };
+  }
+
+  /** Where a lot's door stands on its street (bridge/streets.ts streetDoor: the very point the host reckons a walk from). */
+  private door(lot: number): Point | null {
+    if (this.lots === undefined) {
+      const town = this.plan.town;
+      this.lots = town
+        ? townLots(
+            town.family,
+            town.seed,
+            town.axis,
+            town.lots,
+            town.water,
+            town.site ?? null,
+            town.lotSize ?? 1,
+          )
+        : null;
+    }
+    const lots = this.lots;
+    if (!lots || lot >= lots.x.length) return null;
+    return streetDoor(
+      { x: lots.x[lot]!, z: lots.z[lot]!, yaw: lots.yaw[lot]! },
+      0,
+      undefined,
+      this.plan.town?.lotSize ?? 1,
+    );
   }
 
   /** The way one walks from a lot to another, by the town's streets. */

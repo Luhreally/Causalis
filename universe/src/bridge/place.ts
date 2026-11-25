@@ -2,8 +2,13 @@
 // are the plan's people while the mode is on, each by a ref of their own; where each is, lot by lot, comes a few times
 // a second and the page draws them between.
 
-/** Where one is that is no lot: nowhere yet, the fields and pastures outside the town, its square. */
-export const PLACE_AT = { none: -1, fields: -2, square: -3 } as const;
+/**
+ * Where one is that is no lot: nowhere yet, the fields and pastures outside the town, its square, and the site of its
+ * walls while they go up (they stand on no lot: the length of their line the work has come to).
+ */
+export const PLACE_AT = { none: -1, fields: -2, square: -3, walls: -4 } as const;
+/** The number a walls' site goes by in its page's ref (a lot's is its number and three). */
+export const PLACE_WALLS_REF = 999_999_999;
 
 /** What one of a place's people is doing (host/place.ts ACT). */
 export const PLACE_ACT = {
@@ -30,13 +35,24 @@ export const PLACE_ACT = {
 
 /** The page of one of a place's people, and of one of its lots (its square and its fields too). */
 export const placePersonRef = (town: string, id: number): string => `plc:${town}:${id}`;
-export const placeLotRef = (town: string, lot: number): string => `plcl:${town}:${lot + 3}`;
+export const placeLotRef = (town: string, lot: number): string =>
+  `plcl:${town}:${lot === PLACE_AT.walls ? PLACE_WALLS_REF : lot + 3}`;
 /** Who a plan's person is in their town's place (null: not one of a place's). */
 export function placedId(ref: string): number | null {
   if (!ref.startsWith("plc:")) return null;
   const id = Number(ref.slice(ref.lastIndexOf(":") + 1));
   return Number.isInteger(id) ? id : null;
 }
+
+/** A scramble of two whole numbers, for where one of many stands or goes: the same each time, in the host and the page. */
+export function placeSpread(a: number, b: number): number {
+  let h = Math.imul(a ^ 0x9e3779b9, 0x85ebca6b) ^ Math.imul(b + 0x7f4a7c15, 0xc2b2ae35);
+  h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d);
+  return (h ^ (h >>> 13)) >>> 0;
+}
+/** Which of its town's fields is one's own to work (who they are in the place; how many fields): the host reckons the walk to it, the page draws it. */
+export const placeFieldOf = (id: number, fields: number): number =>
+  fields > 0 ? placeSpread(id, 3) % fields : -1;
 
 /** A place's people as they stand at a tick: those asked for, in the order asked. */
 export type PlaceFrame = {
@@ -102,7 +118,7 @@ export type PlacePersonRow = {
   readonly worst: number;
   /** Days they have gone in want. */
   readonly lack: number;
-  /** Their mood, -100 … 100; how they are (0 well, 1 hurt, 2 sick); the trade an order holds them to (null: none). */
+  /** Their mood, -100 … 100; how they are (0 well, 1 hurt, 2 sick, 3 up again with a wound bound); the trade an order holds them to (null: none). */
   readonly mood: number;
   readonly health: number;
   readonly bound: string | null;
@@ -223,6 +239,8 @@ export type PlaceDangersSheet = {
   }[];
   /** Those hurt by what struck it or wounded in its battles, lying abed now: who, said, their page. */
   readonly hurt: readonly { readonly name: string; readonly words: string; readonly ref: string }[];
+  /** Who tends its hurt and sick, and what its land knows of care, said. */
+  readonly care: string;
   /** Households that lost their home these two months: how many, their people, how many of them shelter in a building. */
   readonly homeless: {
     readonly households: number;
