@@ -559,8 +559,11 @@ function interestsNow(
   let rival = across && had!.mark[ACROSS] === mark[ACROSS] ? had!.rival : undefined;
 
   const demands: Demand[] = [];
-  const want = (d: Omit<Demand, "strength"> & { strength: number }) => {
-    if (d.strength > 0.02) demands.push({ ...d, strength: Math.min(1, d.strength) });
+  // (Each asked of a demand made for it alone: held to 1 where it stands, not copied.)
+  const want = (d: { -readonly [K in keyof Demand]: Demand[K] }) => {
+    if (!(d.strength > 0.02)) return;
+    d.strength = Math.min(1, d.strength);
+    demands.push(d);
   };
   // Those who work the land: lighter tribute — the more after a famine; else it rests on
   // the tithe they bear (its last raising, if it was raised).

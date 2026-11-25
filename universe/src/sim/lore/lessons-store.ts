@@ -213,9 +213,12 @@ export function lessonAdds(world: World, holder: string, how: LessonHow, year: n
   const h = lessonsOf(world)?.get(holder);
   if (!h || !h.uses.size) return 0;
   let add = 0;
-  for (const [id] of h.uses) {
+  // (Each use as useIn reads it, off the entry in hand: asked of every land every month, and of every realm's levy.)
+  for (const [id, u] of h.uses) {
     const r = LESSON_RESPONSE.get(id);
-    if (r?.how === how) add += r.most * useIn(h, id, year);
+    if (r?.how !== how) continue;
+    const w = faded(u.w, year - u.at, r.keep ?? LESSON.keep);
+    add += r.most * (w < LESSON.least ? 0 : w);
   }
   return add;
 }
