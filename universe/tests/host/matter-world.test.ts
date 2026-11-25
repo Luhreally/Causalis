@@ -125,7 +125,7 @@ test("alien 16's facts: its star, its metals, its oxygen, its ground and its har
   assert.match(factRow(p, "What this world is made of", "Its ground"), /^nothing rusts/);
 });
 
-test("alien 16's eleven blocks: the air, its life, the crust against Earth's, rocks, stones, ores, metals, furnaces and the thin air's want, words", () => {
+test("alien 16's thirteen blocks: the air, its life, the crust against Earth's, its ores from it and what else it holds, rocks, stones, ores, metals, furnaces and the thin air's want, words", () => {
   const p = pageOf(alien, "world:matter#world"),
     titles = tabOf(p, "world").blocks.map((b) => ("title" in b ? b.title : ""));
   assert.deepEqual(titles, [
@@ -133,6 +133,9 @@ test("alien 16's eleven blocks: the air, its life, the crust against Earth's, ro
     "The air (by volume)",
     "What its life is made of",
     "Its crust, against Earth's",
+    // (Since its ores are read from what its crust holds, rules/genesis.ts: how far each was gathered, and what else could be.)
+    "Its ores, from what its crust holds",
+    "What else its ground could be worked for",
     "Its rocks",
     "Its stones",
     "Its ores",
