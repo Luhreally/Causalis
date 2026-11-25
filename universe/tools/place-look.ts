@@ -257,6 +257,9 @@ for (const view of [
   await shot("2b-entered-near");
 
   // One of its people seen and tapped: their page.
+  // (Its clock stopped first: at ten minutes a second one walking is elsewhere before the finger comes down.)
+  await k("globalThis.causalis.place.pace(0)");
+  await page.waitForTimeout(slow(600));
   const seen = await k<{ i: number; x: number; y: number } | null>(
     `(() => { const c = globalThis.causalis, n = c.planNow().people.length, W = innerWidth, H = innerHeight; for (let i = 0; i < n; i++) { const p = c.personOnScreen(i); if (p && p.x > 40 && p.x < W - 40 && p.y > H * 0.35 && p.y < H * 0.8) return { i, x: p.x, y: p.y }; } return null; })()`,
   );
@@ -275,6 +278,7 @@ for (const view of [
     await k("globalThis.causalis.closePage()");
     await page.waitForTimeout(slow(400));
   }
+  await k("globalThis.causalis.place.pace(600)");
   // A building's page, by the place: the square's, opened as a tap on it would.
   await k(`globalThis.causalis.open(${JSON.stringify(`plcl:${town.ref}:0`)})`);
   await until("the square's page", async () =>
