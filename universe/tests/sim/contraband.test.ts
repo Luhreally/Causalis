@@ -56,11 +56,13 @@ test("a realm keeps its greatest few smuggled wares by their rent, each crossing
   );
 });
 
-/** Two standing realms whose lands meet. */
-function neighbours(): [Polity, Polity] {
+/** Pairs of standing realms whose lands meet, each pair once. */
+function meeting(): [Polity, Polity][] {
   const ctx = populationContext(world),
     g = ctx.generated,
-    realms = politiesOf(world);
+    realms = politiesOf(world),
+    out: [Polity, Polity][] = [],
+    seen = new Set<string>();
   for (const p of realms.living())
     for (const c of p.members)
       for (let k = g.grid.offsets[c]!; k < g.grid.offsets[c + 1]!; k++) {
@@ -69,53 +71,63 @@ function neighbours(): [Polity, Polity] {
           q &&
           q.ended === null &&
           q.ref !== p.ref &&
-          ctx.provinces.get(g.grid.neighbours[k]!)?.total()
-        )
-          return [p, q];
+          ctx.provinces.get(g.grid.neighbours[k]!)?.total() &&
+          !seen.has(`${p.ref} ${q.ref}`)
+        ) {
+          seen.add(`${p.ref} ${q.ref}`);
+          out.push([p, q]);
+        }
       }
-  throw new Error("no two realms meet");
+  assert.ok(out.length, "two realms meet");
+  return out;
 }
 
 test("at war, what the enemy's side holds cheaper is smuggled across, its wedge the gap; the row is put back after", () => {
-  const [p, q] = neighbours(),
-    store = moneyStore(world, CONTRA_STORE)!,
-    was = store.get(p.ref),
+  // (Where the two sides' prices differ by more than the carrying: the first two realms that meet may hold nothing cheaper
+  // beyond it, as first light's leagues of Turey and Dratoth at 100 do not. Each pair of the first twenty that meet is set at
+  // war in turn; what crosses is always of the war, and some pair has something cross.)
+  const store = moneyStore(world, CONTRA_STORE)!,
     ctx = populationContext(world),
-    markets = marketsOf(world),
-    held = holdsOf(world, p.ref);
-  try {
-    store.drop(p.ref);
-    reckonContraband({
-      ctx,
-      p,
-      lands: p.members
-        .map((c) => ({ prov: ctx.provinces.get(c)!, m: markets.get(c)! }))
-        .filter((x) => x.prov && x.m && x.prov.total() > 0),
-      inBy: undefined,
-      shutBy: undefined,
-      rate: 0,
-      dealt: 1e9,
-      hold: { force: held[HOLD.force]!, capacity: 0.5, corruption: 0.2 },
-      border: 2,
-      force: 0.3,
-      voice: 0.5,
-      word: 0.5,
-      foes: new Set([q.ref]),
-      tell: () => assert.fail("nothing told under a dealt this great"),
-    });
-    const wares = contrabandOf(world, p.ref);
-    assert.ok(
-      wares.length > 0,
-      `something would cross between ${realmName(p)} and ${realmName(q)}`,
-    );
-    for (const w of wares) {
-      assert.equal(CONTRA_CAUSES[w.cause], "war");
-      assert.ok(w.wedge > 0 && w.wedge <= 1);
+    markets = marketsOf(world);
+  let tried = 0,
+    crossed = 0;
+  for (const [p, q] of meeting().slice(0, 20)) {
+    const was = store.get(p.ref),
+      held = holdsOf(world, p.ref);
+    tried++;
+    try {
+      store.drop(p.ref);
+      reckonContraband({
+        ctx,
+        p,
+        lands: p.members
+          .map((c) => ({ prov: ctx.provinces.get(c)!, m: markets.get(c)! }))
+          .filter((x) => x.prov && x.m && x.prov.total() > 0),
+        inBy: undefined,
+        shutBy: undefined,
+        rate: 0,
+        dealt: 1e9,
+        hold: { force: held[HOLD.force]!, capacity: 0.5, corruption: 0.2 },
+        border: 2,
+        force: 0.3,
+        voice: 0.5,
+        word: 0.5,
+        foes: new Set([q.ref]),
+        tell: () => assert.fail("nothing told under a dealt this great"),
+      });
+      const wares = contrabandOf(world, p.ref);
+      if (wares.length) crossed++;
+      for (const w of wares) {
+        assert.equal(CONTRA_CAUSES[w.cause], "war", `${realmName(p)} against ${realmName(q)}`);
+        assert.ok(w.wedge > 0 && w.wedge <= 1);
+      }
+    } finally {
+      if (was) store.set(p.ref, was);
+      else store.drop(p.ref);
     }
-  } finally {
-    if (was) store.set(p.ref, was);
-    else store.drop(p.ref);
+    assert.deepEqual(store.get(p.ref), was, "the row put back");
   }
+  assert.ok(crossed > 0, `something would cross between some of ${tried} pairs that meet`);
 });
 
 test("intoxicants kind by kind: each kind's law its own, and trade carries a kind to realms where none grows", () => {
