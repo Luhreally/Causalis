@@ -35,6 +35,7 @@ import { orderOf } from "../order/order.ts";
 import { blamesOutsiders, holdOf } from "../order/holds.ts";
 import { fearOf, financeOf, stakesBetween, topFear, wayOf } from "../finance/finance.ts";
 import { FINANCE, wayDistance } from "../../rules/index.ts";
+import { honourIn, honourStore, installHonour } from "./honour.ts";
 
 export const RELATION = defineKind("rel", "two realms' regard", "structural");
 
@@ -301,6 +302,7 @@ export function diplomacyYear(ctx: PopulationContext, t: SimTime): void {
     culture = cultureOf(world),
     faiths = beliefOf(world),
     markets = world.store<MarketStore>("economy.markets"),
+    honours = honourStore(world),
     year = yearOfMoment(t);
   store.forget(year);
 
@@ -597,16 +599,31 @@ export function diplomacyYear(ctx: PopulationContext, t: SimTime): void {
       relation: Relation = { a: a.ref, b: b.ref, opinion, terms, pact: before?.pact ?? null };
     // Pacts sworn and broken, by what one is worth to each (pactWorth): their regard, a foe they share, the wars each would be
     // drawn into.
+    // (Each by what the other's word is thought worth, where it has a record: sim/diplomacy/honour.ts. As before where neither has.)
     const shared = sharedFoe(a, b),
+      honoured = honours !== null && honours.size > 0,
+      wordA = honoured ? honourIn(world, a.ref, year) : null,
+      wordB = honoured ? honourIn(world, b.ref, year) : null,
       worth = Math.min(
-        pactWorth(opinion, shared.weight, sb.wars),
-        pactWorth(opinion, shared.weight, sa.wars),
+        pactWorth(opinion + (wordB?.term ?? 0), shared.weight, sb.wars),
+        pactWorth(opinion + (wordA?.term ?? 0), shared.weight, sa.wars),
       );
     if (!relation.pact && worth > PACT) {
       const foe =
           shared.foe && shared.weight * ALLY.foe >= 0.1 ? realms.get(shared.foe) : undefined,
         best = [...terms].sort((x, y) => y.value - x.value)[0]!,
-        reason = foe ? `a foe they share, ${realmName(foe)}` : best.name,
+        // (A pact their regard alone would not have made: each has kept its word to others.)
+        byWord =
+          !foe &&
+          Math.min(
+            pactWorth(opinion, shared.weight, sb.wars),
+            pactWorth(opinion, shared.weight, sa.wars),
+          ) <= PACT,
+        reason = foe
+          ? `a foe they share, ${realmName(foe)}`
+          : byWord
+            ? "each has kept its word to others"
+            : best.name,
         source = foe ? foe.event : best.source;
       relation.pact = world.events.emit({
         type: DIPLOMACY_EVENTS.pact.type,
@@ -645,6 +662,7 @@ export function installDiplomacy(world: World, ctx: () => PopulationContext): Di
   world.addPinner(() => store.pinned());
   world.system({ key: "186.diplomacy.year", every: YEAR, run: (t) => diplomacyYear(ctx(), t) });
   // (Bodies of realms that arise from treaties made again and again: sim/diplomacy/councils.ts.)
+  installHonour(world);
   const councils = world.register(new CouncilStore());
   world.addPinner(() => councils.pinned());
   world.system({ key: "186.diplomacy.councils", every: YEAR, run: (t) => councilsYear(ctx(), t) });

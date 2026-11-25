@@ -59,6 +59,7 @@ import { holdCarried, holdsCarried } from "../war/held.ts";
 import { grieve, strike } from "../acts/disasters.ts";
 import { handOf } from "../hand/hand.ts";
 import { LAW_OF, firstLaws, lawGrievance, lawsFounded, weighLaws } from "./laws.ts";
+import { boundTradeYear } from "./boundtrade.ts";
 import {
   HOLD,
   HOLDING,
@@ -953,7 +954,7 @@ export function legitimacyFactors(ctx: PopulationContext, p: Polity): Factor[] {
 }
 
 /** Draw `count` people from a land, in proportion to every sex, age and occupation (those under the hand stay). */
-function draw(
+export function draw(
   ctx: PopulationContext,
   from: number,
   count: number,
@@ -976,7 +977,7 @@ function draw(
 }
 
 /** Make a move drawn: out of one land, into another, and into its history as a move. */
-function carry(
+export function carry(
   ctx: PopulationContext,
   from: number,
   to: number,
@@ -1001,7 +1002,7 @@ function carry(
 }
 
 /** Bind `count` newcomers to a land of `before` people in a kind of bondage. */
-function bindNew(
+export function bindNew(
   store: OrderStore,
   cell: number,
   bond: number,
@@ -2159,6 +2160,8 @@ export function orderYear(ctx: PopulationContext, t: SimTime): void {
       weighAbolition(ctx, store, p, o, t);
     // (And every ten years, in its turn, its laws: M139.)
     weighLaws(ctx, p, o, t);
+    // (And every five, in its turn, what its holders buy of the bound of the lands its trade reaches: sim/order/boundtrade.ts.)
+    boundTradeYear(ctx, store, p, o, t);
     // (And how it is held: rules/holds.ts.)
     weighHolds(ctx, p, o, t);
 

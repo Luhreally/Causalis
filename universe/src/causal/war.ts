@@ -8,6 +8,8 @@ import {
   BOND_EVENTS,
   FAR_EVENTS,
   FIRE_EVENTS,
+  SHELTER_EVENTS,
+  VETERAN_EVENTS,
   WAR,
   WAR_EVENTS,
   battleCommanders,
@@ -285,6 +287,30 @@ registerDecisionWords("fire.works", (world, d) => {
   const realm = politiesOf(world).get(d.subject);
   return `${cap(realm ? realmName(realm) : "A realm")} chose to raise a great works`;
 });
+// Veterans come home (sim/war/veterans.ts): with a craft, or owed their pay.
+registerEventWords(VETERAN_EVENTS.home.type, (world, e) => {
+  const d = e.data as { men?: number; years?: number; craft?: string; owed?: number } | null,
+    men = `${count(d?.men ?? 0)} of ${text(e.data, "realm")}'s host went home after ${d?.years ?? "some"} year${d?.years === 1 ? "" : "s"} of war`,
+    craft = d?.craft
+      ? `those of ${landWords(world, e.place)} who had served beside its seat's makers brought home ${d.craft}`
+      : null,
+    owed =
+      d?.owed !== undefined
+        ? `its treasury ${d.owed} parts in a hundred short of what it spends, they went unpaid, and its lands were the angrier for them`
+        : null;
+  return `${cap(men)}: ${[craft, owed].filter(Boolean).join("; ")}, ${year(e.t)}`;
+});
+
+// Civil defence (sim/war/shelter.ts): a realm gives its struck towns' people cover.
+registerEventWords(SHELTER_EVENTS.built.type, (_, e) => {
+  const d = e.data as { cover?: number; dead?: number; cost?: number; more?: boolean } | null;
+  return `${cap(text(e.data, "realm"))} gave ${d?.more ? "more of " : ""}the people of its towns cover from the strikes on them, and sent those it could out of their reach: ${d?.dead ?? "some"} in a thousand of a struck town's people had died of them, and the lives were worth more than the work; cover for ${d?.cover ?? "some"} in a hundred, at ${count(d?.cost ?? 0)} of its treasury's grain, ${year(e.t)}`;
+});
+registerDecisionWords("war.shelter", (world, d) => {
+  const p = politiesOf(world).get(d.subject);
+  return `${cap(p ? realmName(p) : "a realm")} weighed giving its towns' people cover from the air`;
+});
+
 registerEventWords(WAR_EVENTS.strike.type, (_, e) => {
   const d = e.data as {
     name?: string;

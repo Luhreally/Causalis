@@ -8,6 +8,8 @@
 // and they are blamed — famine under a priest-king of the same faith breeds more
 // grievance. A faith held far from where it began, by people of other speech,
 // splits. Every founding, conversion and schism cites what caused it.
+import { installMissions, missionsYear } from "./missions.ts";
+import { taughtOf } from "../order/curriculum.ts";
 import { notableFaithHolds, notableFaithSpreads, notableReformer } from "../notable/kept.ts";
 import {
   YEAR,
@@ -28,7 +30,14 @@ import type { MarketStore } from "../economy/market.ts";
 import { WAY, cultureOf, drawsWays } from "../culture/culture.ts";
 import { readsScripture } from "../lore/letters.ts";
 import { homePlanet } from "../planet/store.ts";
-import { ACTS, creedHeld, creedOf, scriptureOfTenet, wonderStrength } from "../../rules/index.ts";
+import {
+  ACTS,
+  CURRICULUM,
+  creedHeld,
+  creedOf,
+  scriptureOfTenet,
+  wonderStrength,
+} from "../../rules/index.ts";
 import { politiesOf } from "../polity/polity.ts";
 import { orgSectOf } from "../order/groups-kept.ts";
 
@@ -358,7 +367,15 @@ export function beliefYear(ctx: PopulationContext, t: SimTime): void {
   }
 
   // 2. Faiths spread to neighbours who speak alike: planned from the year's opening, then made.
-  const converts: { cell: number; faith: Ref; via: number; chance: number }[] = [];
+  // (And to a land a faith's preachers live in, from them: sim/belief/missions.ts. Null where no mission stands.)
+  const missions = missionsYear(ctx, store, t);
+  const converts: {
+    cell: number;
+    faith: Ref;
+    via: number;
+    chance: number;
+    mission?: Ref;
+  }[] = [];
   const realms = world.hasStore("polity.states") ? politiesOf(world) : null;
   for (const p of ctx.provinces.all()) {
     if (founded.has(p.cell) || !p.total()) continue;
@@ -390,20 +407,46 @@ export function beliefYear(ctx: PopulationContext, t: SimTime): void {
       if (!best || chance > best.chance || (chance === best.chance && theirs.faith < best.faith))
         best = { cell: p.cell, faith: theirs.faith, via: n, chance };
     }
+    // (A land of its seat's faith, whose schools teach the creed, leaves it the less readily: sim/order/curriculum.ts.)
+    if (best && now.faith) {
+      const realm = realms?.of(p.cell);
+      if (realm && store.of(realm.seat).faith === now.faith) {
+        const creed = taughtOf(world, realm.ref, "creed");
+        if (creed > 0) best = { ...best, chance: best.chance * (1 - CURRICULUM.holds * creed) };
+      }
+    }
+    const sent = missions?.get(p.cell);
+    if (sent && sent.faith !== now.faith && (!best || sent.chance > best.chance))
+      best = {
+        cell: p.cell,
+        faith: sent.faith,
+        via: -1,
+        chance: sent.chance,
+        mission: sent.event,
+      };
     if (best && world.rng.real(SPREAD, p.cell, t, 0) < best.chance) converts.push(best);
   }
   for (const c of converts) {
     const prov = ctx.provinces.get(c.cell)!,
-      road = markets.route(c.cell, c.via);
+      road = c.mission ? undefined : markets.route(c.cell, c.via);
     const event = world.events.emit({
       type: BELIEF_EVENTS.converted.type,
       subjects: [c.faith, prov.ref],
       place: prov.ref,
-      causes: [
-        { ref: store.of(c.via).event ?? store.get(c.faith)!.event, role: "trigger", weight: 0.6 },
-        ...(road ? [{ ref: road, role: "enabler" as const, weight: 0.4 }] : []),
-      ],
-      data: { name: store.get(c.faith)!.name },
+      causes: c.mission
+        ? [
+            { ref: c.mission, role: "trigger", weight: 0.8 },
+            { ref: store.get(c.faith)!.event, role: "enabler", weight: 0.2 },
+          ]
+        : [
+            {
+              ref: store.of(c.via).event ?? store.get(c.faith)!.event,
+              role: "trigger",
+              weight: 0.6,
+            },
+            ...(road ? [{ ref: road, role: "enabler" as const, weight: 0.4 }] : []),
+          ],
+      data: { name: store.get(c.faith)!.name, ...(c.mission ? { mission: true } : {}) },
     });
     store.set(c.cell, { faith: c.faith, since: year, event });
   }
@@ -511,6 +554,7 @@ function spanOf(world: World): number {
 export function installBelief(world: World, ctx: () => PopulationContext): BeliefStore {
   const store = world.register(new BeliefStore());
   world.addPinner(() => store.pinned());
+  installMissions(world);
   world.system({ key: "175.belief.year", every: YEAR, run: (t) => beliefYear(ctx(), t) });
   drawsWays(heldCreed);
   readsScripture(heldScripture);

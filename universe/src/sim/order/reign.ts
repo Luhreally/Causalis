@@ -61,6 +61,7 @@ import {
   warCosts,
 } from "../war/bonds.ts";
 import { DIPLOMACY_EVENTS, RIVALRY, diplomacyOf, relationRef } from "../diplomacy/diplomacy.ts";
+import { noteWord } from "../diplomacy/honour.ts";
 import { openEmbassy, sendEnvoy, tiesOf } from "../war/ties.ts";
 import type { MarketStore } from "../economy/market.ts";
 import { capacityOf, orderOf, realmOrder, type RealmOrder } from "./order.ts";
@@ -806,6 +807,7 @@ export function applyWar(
       year,
       source: broken,
     });
+    noteWord(c, r, false, broken, year);
     regard.pact = null;
   }
   pay(world, c, r, o, warCost(pact !== null, grievance), 0, event);

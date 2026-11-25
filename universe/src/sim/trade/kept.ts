@@ -3,6 +3,7 @@
 // a land's keyed by its cell or a realm's by its ref, last reckoned only, a faded number where it needs the past.
 import type { World } from "../../kernel/index.ts";
 import { automationGain, abateCost } from "../../rules/index.ts";
+import { craftTaught } from "../order/curriculum.ts";
 import { RowStore, refNumber } from "../money/kept.ts";
 import { politiesOf } from "../polity/polity.ts";
 import { strainKept } from "../society/strain-kept.ts";
@@ -152,7 +153,10 @@ export function craftsKept(world: World, cell: number): number {
     plan = (tradeStore(world, PLAN_STORE)?.at(realm, PL.loss) ?? 0) / 1000,
     smoke = abateCost((tradeStore(world, SMOKE_STORE)?.at(realm, SM.abated) ?? 0) / 1000);
   // (And hands worn by what their land has lived do less: sim/society/strain.ts. 1 where none is reckoned.)
-  return (1 - idle) * (1 - plan) * (1 - smoke) * strainKept(world, cell);
+  // (And more as its schools teach its young the crafts: sim/order/curriculum.ts. 1 where none do.)
+  return (
+    (1 - idle) * (1 - plan) * (1 - smoke) * strainKept(world, cell) * craftTaught(world, realm)
+  );
 }
 
 /** How much more a land's crafters make with machines at their tasks (1: none). */
