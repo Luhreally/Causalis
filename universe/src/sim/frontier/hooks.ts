@@ -19,7 +19,8 @@ import type { PopulationContext } from "../population/systems.ts";
 import { clusterOf, starSitesOf } from "../space/stars.ts";
 import { worldsOf } from "../space/voyages.ts";
 import { weatherHarm } from "./weather.ts";
-import { burstAt, burstFields, burstHarmNow } from "./galactic.ts";
+import { burstAt, burstHarmNow } from "./galactic.ts";
+import { shieldUnder, type ShieldNow } from "./shield.ts";
 import { dustFields, dustRain } from "./impacts.ts";
 
 type Halls = {
@@ -85,10 +86,16 @@ export function frontierSky(ctx: PopulationContext, cell: number): number {
   return h.factor * burstAt(world, h.x, h.y, h.z);
 }
 
+/** The home world's shield against its star's hard light this year: whole, or stripped by a burst's light or a flare. */
+export function shieldNow(world: World): ShieldNow {
+  return shieldUnder(world, burstHarmNow(world), weatherHarm(world));
+}
+
 /** What the Frontier leaves of a land's fields (1: all; and all of a land of another body, farmed under roofs). */
 export function frontierFields(world: World, cell: number): number {
   if (offworldSite(homePlanet(world).generated, cell)) return 1;
-  return dustFields(world) * burstFields(world);
+  // (What a burst or a great flare strips of its shield lets more of its star's hard light onto its fields: frontier/shield.ts.)
+  return dustFields(world) * shieldNow(world).fields;
 }
 
 /** What the Frontier leaves of a land's rain (1: all). */

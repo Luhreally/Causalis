@@ -140,7 +140,14 @@ export type Planet = {
    * the two are one.
    */
   readonly climate?: number;
+  /** Whether its star's tide has locked one face of it to the star (rules/locked.ts). Absent where it turns. */
+  readonly locked?: boolean;
 };
+
+/** How long a world takes to turn once against the stars, hours: its day, or its year where it is locked to its star. */
+export function spinHours(p: Planet): number {
+  return p.locked ? p.yearDays * 24 : p.dayHours;
+}
 
 /** A world's kind: its planet's, rocky where it says none (Phase 56). */
 export function worldKindOf(g: { readonly planet: Planet }): WorldKind {

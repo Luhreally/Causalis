@@ -10,6 +10,7 @@ import {
   currentsOf,
   isProvinceWorld,
   offworldSite,
+  originGround,
   worldChemistry,
   type HomeWorld,
 } from "../../gen/index.ts";
@@ -20,7 +21,12 @@ import {
   coverOf,
   crustMultiplier,
   landUseOf,
+  growthUnderHard,
+  hardAtGround,
+  hardLight,
   lightGrowth,
+  ozoneColumn,
+  lockedLight,
   rockGrowth,
   seasonOf,
   type Cover,
@@ -46,19 +52,45 @@ export type Capacity = {
  * What a world's sky and rock give its growth (rules/biomes.ts): its star's light at its orbit (Earth's 1) and the phosphorus and
  * potash of its crust against Earth's. A pure reading of the world as made, kept by its digest.
  */
-type Sky = { readonly light: number; readonly rock: number };
+type Sky = {
+  readonly light: number;
+  readonly rock: number;
+  /**
+   * Its shield against its star's hard light (rules/skies.ts): its ozone against Earth's (from the free oxygen its life has put
+   * in its air), whether a haze shields it too, the hard light at its ground against Earth's, and what that leaves of growth in
+   * the open.
+   */
+  readonly ozone: number;
+  readonly haze: boolean;
+  readonly hard: number;
+  readonly open: number;
+};
 const SKIES = new Map<string, Sky>();
 export function skyOf(w: HomeWorld): Sky {
   let s = SKIES.get(w.digest);
   if (s) return s;
-  const chem = worldChemistry(w);
+  const chem = worldChemistry(w),
+    ground = originGround(w),
+    // (Free oxygen is its light-eaters' making: a world none lives on has none, and no ozone.)
+    ozone = ozoneColumn(ground.oxygen && ground.eatsLight ? ground.o2 * ground.pressure : 0),
+    hard = hardAtGround(hardLight(w.star.temperature), ozone, ground.haze);
   s = {
     light: w.planet.insolation,
     rock: rockGrowth(crustMultiplier(chem, "P"), crustMultiplier(chem, "K")),
+    ozone,
+    haze: ground.haze,
+    hard,
+    open: growthUnderHard(hard),
   };
   SKIES.set(w.digest, s);
   if (SKIES.size > 16) SKIES.delete(SKIES.keys().next().value!);
   return s;
+}
+
+/** The light a land gets against Earth's: its sky's, and on a world locked to its star by how high the star stands there. */
+export function landLight(w: HomeWorld, cell: number): number {
+  const light = skyOf(w).light;
+  return w.planet.locked ? Math.max(1e-6, light * lockedLight(w.grid.positions[3 * cell]!)) : light;
 }
 
 /** A fine land's cover, its warmth turned `heat` degrees and its rain moved as that warmth moves it (rules/biomes.ts coverOf). */
@@ -67,7 +99,8 @@ export function coverAt(w: HomeWorld, cell: number, heat = 0): Cover {
     t = w.climate.temperature[cell]! + heat,
     p0 = w.climate.precipitation[cell]!,
     p = heat ? p0 * rainUnderWarmth(w.grid.lat[cell]!, p0, heat) : p0;
-  return coverOf(t, p, w.climate.seasonality[cell]!, sky.light, sky.rock);
+  // (Growth in the open under what its shield lets through of its star's hard light: the sea shields its own.)
+  return coverOf(t, p, w.climate.seasonality[cell]!, landLight(w, cell), sky.rock * sky.open);
 }
 
 /**
@@ -234,7 +267,7 @@ function sea(
     ),
     // (And as its light and the rock its waters wash give the sea's growth: rules/biomes.ts. 1 under Earth's sun, on Earth's rock.)
     sky = skyOf(w),
-    k = areaKm2 * warm * share * lightGrowth(sky.light) * sky.rock;
+    k = areaKm2 * warm * share * lightGrowth(landLight(w, cell)) * sky.rock;
   return {
     forage: k * (SEA_FORAGE[biome] ?? 0),
     farm: k * (SEA_ARABLE[biome] ?? 0) * FARM_YIELD,

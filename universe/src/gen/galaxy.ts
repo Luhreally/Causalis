@@ -6,7 +6,7 @@
 // The cluster is the few thousand stars within some fifty light-years of home: the part of
 // the galaxy that can be lived in. Home is star 0 of sector 0, as it has always been.
 import { defineStream, dmath, makeRef, type Ref, type Rng } from "../kernel/index.ts";
-import { STAR_LIFE, starLifetime } from "../rules/index.ts";
+import { STAR_LIFE, roguesAStar, starLifetime } from "../rules/index.ts";
 import { STAR } from "./kinds.ts";
 
 const GALAXY = defineStream("gen.galaxy");
@@ -127,6 +127,22 @@ export function densityAt(g: Galaxy, x: number, y: number, z: number): number {
           g.arms * (g.homeAngle - dmath.log(g.homeRadius) / dmath.tan((g.pitch * Math.PI) / 180)),
         ))
   );
+}
+
+/**
+ * The stars of a galaxy's whole disk (its density summed over it: the disk thinning outward by its scale length and upward by a
+ * thousand light-years), and the worlds without a star that drift among them: what each star's giants threw out
+ * (rules/rings.ts), for a star of the mean mass of the stars' births.
+ */
+export function galaxyStars(g: Galaxy): number {
+  return (
+    LOCAL_DENSITY * dmath.exp(g.homeRadius / g.scale) * 2 * Math.PI * g.scale * g.scale * 2 * 1000
+  );
+}
+export function galaxyRogues(g: Galaxy): number {
+  let mass = 0;
+  for (let i = 0; i < 64; i++) mass += imfMass((i + 0.5) / 64) / 64;
+  return galaxyStars(g) * roguesAStar(mass);
 }
 
 /** A Poisson draw of mean m from one uniform (by the product of uniforms, keyed). */

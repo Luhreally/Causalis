@@ -27,6 +27,7 @@ import {
   madePrior,
   peoplingMade,
   showingScale,
+  tideLocked,
   worldKind,
   wetPlace,
   type FarMade,
@@ -160,7 +161,11 @@ export function generateHomeWorld(
         : worldKind({ text: seed.text, mass: star.mass, ageGyr: starAgeGyr(star) }),
     drawn = makePlanet(rng, made, star),
     twin = far ? farPlanet(drawn, far, star) : drawn,
-    planet = kind === "rocky" ? twin : kindPlanet(twin, kind, star),
+    turning = kind === "rocky" ? twin : kindPlanet(twin, kind, star),
+    // (One face held to its star where the star's tide has braked its turning: rules/locked.ts.)
+    planet: Planet = tideLocked(star.mass, turning.orbitAu)
+      ? { ...turning, locked: true }
+      : turning,
     // The rest of the star's system, on its own stream (the home world is untouched by it).
     system = makeSystem(rng, made, star, planet),
     tectonics = makeTectonics(grid, rng, planet),

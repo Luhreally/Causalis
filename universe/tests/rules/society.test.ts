@@ -7,7 +7,7 @@ import {
   CARE_OLD,
   CHILDREN,
   COAT,
-  DIMORPHISM,
+  dimorphismOf,
   HUMANLIKE,
   IMPROVE,
   KEEPING,
@@ -126,7 +126,18 @@ test("children wanted for age raise what a people bears; what a mother gives up 
 });
 
 test("the sexes' bodies differ most where one holds several; the plough shuts out the weaker; schooling opens work again", () => {
-  assert.ok(DIMORPHISM.harem > DIMORPHISM.life && DIMORPHISM.life > DIMORPHISM.brood);
+  // The contest sets it: the upright apes' is Earth's quarter; a heavy ape whose young need two little and that lives apart, far
+  // more; a hive's workers are one body; those that spawn put nothing into a young worth a contest.
+  const ape = { bearing: "live", young: 1, span: 70, social: 0.8, size: 60, medium: "land" },
+    harem = dimorphismOf({ ...ape, size: 160, social: 0.4, span: 23 }, 5),
+    hive = dimorphismOf({ ...ape, social: 0.95, size: 25 }, 15);
+  assert.equal(dimorphismOf(ape, 15), 0.25);
+  assert.equal(dimorphismOf(null, 15), 0.25);
+  assert.ok(harem > 0.7 && harem <= 1, `${harem}`);
+  assert.equal(hive, 0);
+  assert.equal(dimorphismOf({ ...ape, bearing: "spawn" }, 15), 0);
+  // The same body in a crowd, or lighter, contests less.
+  assert.ok(dimorphismOf({ ...ape, size: 160, social: 0.9, span: 23 }, 5) < harem);
   assert.ok(fieldStrength(true, true, 0) > fieldStrength(true, false, 0));
   assert.equal(fieldStrength(true, true, 1), 0);
   const m = { held: 0.4, dimorphism: 0.8, strength: 0.7, towns: 0.2, readers: 0, machines: 0 },

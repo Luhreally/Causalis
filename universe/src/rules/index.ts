@@ -146,6 +146,9 @@ export {
   growthOf,
   bandWidth,
   lifeHistoryOf,
+  grownMortality,
+  livingPace,
+  SENESCENCE,
   boyRiskOf,
   girlsAtBirth,
   girlsOf,
@@ -1894,3 +1897,8 @@ export * from "./droving.ts";
 export * from "./curriculum.ts";
 export * from "./honour.ts";
 export * from "./missions.ts";
+export * from "./rings.ts";
+export * from "./locked.ts";
+export * from "./skies.ts";
+export * from "./seaice.ts";
+export * from "./disabled.ts";

@@ -5,7 +5,8 @@
 // from warm seas, is carried downwind, and falls where air rises over mountains
 // or converges; the result is annual rain. Biomes follow from warmth and rain.
 import { dmath, type SphereGrid } from "../kernel/index.ts";
-import { climateMean, type Planet } from "./bodies.ts";
+import { KINDS, lockedRising, lockedWarmth } from "../rules/index.ts";
+import { climateMean, spinHours, type Planet } from "./bodies.ts";
 
 export const BIOME = {
   deepOcean: 0,
@@ -96,7 +97,12 @@ export function makeClimate(grid: SphereGrid, planet: Planet, elevation: Float32
     P = grid.positions,
     lat = grid.lat,
     ocean = (c: number) => elevation[c]! <= 0;
-  const bands = Math.max(1, Math.min(5, Math.round(3 * Math.sqrt(24 / planet.dayHours))));
+  const bands = Math.max(1, Math.min(5, Math.round(3 * Math.sqrt(24 / spinHours(planet))))),
+    // (A world locked to its star: the star stands over one point of its equator, and its warmth and rain go by how high
+    // the star stands there, not by latitude; rules/locked.ts.)
+    locked = planet.locked === true,
+    pressure = planet.kind ? KINDS[planet.kind].body.pressure : 1,
+    under = (c: number) => P[3 * c]!;
 
   // Steps inland from the sea.
   const inland = new Uint8Array(n).fill(255),
@@ -132,9 +138,11 @@ export function makeClimate(grid: SphereGrid, planet: Planet, elevation: Float32
       far = Math.min(1, inland[c]! / 12);
     // (In its liquid's degrees, on a world whose liquid is not water: Phase 56.)
     let t = climateMean(planet) + spread * (meanShape - shape);
-    if (!ocean(c)) t -= 6.5 * (elevation[c]! / 1000) + 3 * far * Math.abs(s);
+    if (locked) t = climateMean(planet) + lockedWarmth(under(c), pressure);
+    if (!ocean(c)) t -= 6.5 * (elevation[c]! / 1000) + (locked ? 0 : 3 * far * Math.abs(s));
     temperature[c] = t;
-    seasonality[c] = swing * Math.abs(s) * (6 + 18 * far);
+    // (No day turns and no season swings its light where one face is held to the star: only its orbit's small ellipse.)
+    seasonality[c] = locked ? 0.5 : swing * Math.abs(s) * (6 + 18 * far);
   }
 
   // Prevailing winds in each cell's tangent frame.
@@ -173,7 +181,8 @@ export function makeClimate(grid: SphereGrid, planet: Planet, elevation: Float32
     evaporation[c] = ocean(c) ? warm : 0.55 * warm;
     const x = (Math.abs(lat[c]!) / (Math.PI / 2)) * bands,
       converge = (1 + dmath.cos(Math.PI * x)) / 2;
-    propensity[c] = 0.015 + 0.6 * converge * converge * converge;
+    propensity[c] =
+      0.015 + 0.6 * (locked ? lockedRising(under(c)) : converge * converge * converge);
   }
   let moisture = Float64Array.from(evaporation);
   const rain = new Float64Array(n);

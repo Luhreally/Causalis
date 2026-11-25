@@ -809,6 +809,8 @@ export function summary(g: HomeWorld) {
       orbitAu: p.orbitAu,
       yearDays: p.yearDays,
       dayHours: p.dayHours,
+      // (One face held to its star, rules/locked.ts: it has no day.)
+      locked: p.locked === true,
       tilt: p.tilt,
       meanTemperature: p.meanTemperature,
       oceanFraction: p.oceanFraction,

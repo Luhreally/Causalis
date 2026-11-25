@@ -7,7 +7,7 @@
 // Nothing is drawn.
 import { yearOfMoment, type SimTime } from "../../kernel/index.ts";
 import {
-  DIMORPHISM,
+  dimorphismOf,
   bearersRule,
   bearingHeld,
   fieldStrength,
@@ -34,7 +34,7 @@ export function rolesYear(ctx: PopulationContext, t: SimTime): void {
   const year = yearOfMoment(t),
     body = ctx.generated.life.people?.body,
     pairing = pairingOf(body, ctx.life.adulthood),
-    dimorphism = DIMORPHISM[pairing] ?? 0.25,
+    dimorphism = dimorphismOf(body, ctx.life.adulthood),
     heldAtPlenty = bearingHeld(body, ctx.life),
     markets = marketsOf(world),
     lore = loreOf(world);

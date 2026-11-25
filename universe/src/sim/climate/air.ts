@@ -22,7 +22,10 @@ import {
 import {
   CARBON_CYCLE,
   G,
+  HAZE,
   fieldsUnder,
+  hazeFields,
+  hazeMasks,
   rainUnder,
   restingCarbon,
   seasSoured,
@@ -41,6 +44,7 @@ import {
   type HomeWorld,
 } from "../../gen/index.ts";
 import { divineWarming } from "../acts/great.ts";
+import { homeAirKept } from "../planet/motion.ts";
 import { provinceCapacity, type PopulationContext } from "../population/systems.ts";
 import type { MarketStore } from "../economy/market.ts";
 import { ecologyOf } from "../ecology/ecology.ts";
@@ -57,6 +61,8 @@ export const AIR_EVENTS = {
   soured: defineEventType("climate.seas-soured", 4),
   /** The frozen ground thawing: another ten parts in a million of its carbon rotted into the air. */
   thawing: defineEventType("climate.ground-thawing", 4),
+  /** The haze of what is burned hiding another fifth of a degree of the warming, or cleared so that it shows. */
+  dimmed: defineEventType("climate.dimmed", 4),
 };
 
 /** Carbon in the air before anyone burned or cleared, in parts per million. */
@@ -71,7 +77,10 @@ export const TONNES_A_PPM = 2.13e9;
  */
 export function carbonPerFuel(g: HomeWorld, fuel: "coal" | "oil" | "gas"): number {
   const n = meansNumbers(g),
-    air = (n.airBar * n.radius * n.radius) / Math.max(0.01, n.pull);
+    // (Of the air it was made with, what its star's wind has left it: planet/motion.ts homeAirKept.)
+    air =
+      (n.airBar * homeAirKept(isProvinceWorld(g) ? g.fine : g).kept * n.radius * n.radius) /
+      Math.max(0.01, n.pull);
   return fuelTonnes(fuel).carbon / TONNES_A_PPM / Math.max(1e-6, air);
 }
 /** Carbon a unit of coal burned puts in Earth's air (ppm). */
@@ -119,6 +128,14 @@ export type Air = {
   sourTold?: number;
   thawTold?: number;
   lastSoured?: Ref | null;
+  /**
+   * The haze of last year's burning (ppm of carbon, each fuel's weighed by how it smokes, less what a price on smoke had cut),
+   * the degrees it hides (rules/skies.ts), the fifths of a degree told, and the event that told them. Absent: none yet.
+   */
+  haze?: number;
+  masked?: number;
+  hazeTold?: number;
+  lastDimmed?: Ref | null;
 };
 
 export class AirStore implements StateStore {
@@ -159,6 +176,7 @@ export class AirStore implements StateStore {
   pinned(): Ref[] {
     const refs = [...this.smoke.values(), ...this.shifted.values()];
     if (this.air.lastWarmer) refs.push(this.air.lastWarmer);
+    if (this.air.lastDimmed) refs.push(this.air.lastDimmed);
     return refs;
   }
   hashInto(h: Hasher): void {
@@ -224,14 +242,16 @@ export function rainShift(ctx: PopulationContext, cell: number): number {
   return Math.max(0.5, 1 + sign * RAIN_PER_DEGREE * warm);
 }
 
-/** What the warmth does to a land's fields: hot lands yield less, cold lands a little more. */
+/** What the warmth does to a land's fields: hot lands yield less, cold lands a little more; and all a little less under the haze of what is burned. */
 export function heatYield(ctx: PopulationContext, cell: number): number {
-  const warm = warmingOf(ctx.world);
-  if (!warm) return 1;
+  const warm = warmingOf(ctx.world),
+    masked = ctx.world.hasStore("climate.air") ? (airOf(ctx.world).air.masked ?? 0) : 0,
+    dim = masked > 0 ? hazeFields(masked) : 1;
+  if (!warm) return dim;
   const t = ctx.generated.climate.temperature[cell]!;
-  if (t > 22) return Math.max(0.5, 1 - 0.05 * warm);
-  if (t < 6) return 1 + 0.03 * warm;
-  return 1;
+  if (t > 22) return dim * Math.max(0.5, 1 - 0.05 * warm);
+  if (t < 6) return dim * (1 + 0.03 * warm);
+  return dim;
 }
 
 /** What the greatest fire's store holds of the sky (W5), read by name: a world's climate does not lean on its wars. */
@@ -390,7 +410,8 @@ export function airYear(ctx: PopulationContext, t: SimTime): void {
     perCoal = carbonPerFuel(ctx.generated, "coal"),
     perOil = carbonPerFuel(ctx.generated, "oil");
   const burners: { cell: number; carbon: number }[] = [];
-  let burned = 0;
+  let burned = 0,
+    haze = 0;
   for (const m of markets.all()) {
     const used = m.years.at(-1)?.ledger[1];
     if (!used) continue;
@@ -403,9 +424,14 @@ export function airYear(ctx: PopulationContext, t: SimTime): void {
       // (Wood cut and sold lies in the solid class too: burned within what its woods grow, its carbon is the air's own.)
       coalUsed = Math.max(0, used[G.coal]! - (ownFluid ? 0 : own) - (row?.cut ?? 0) / 4),
       oilUsed = Math.max(0, used[G.oil]! - gas - (ownFluid ? own : 0)),
-      carbon = coalUsed * perCoal + oilUsed * perOil + gas * carbonPerFuel(ctx.generated, "gas");
+      gasCarbon = gas * carbonPerFuel(ctx.generated, "gas"),
+      carbon = coalUsed * perCoal + oilUsed * perOil + gasCarbon;
     if (carbon <= 0) continue;
     burned += carbon;
+    // (Its haze: each fuel's carbon by how it smokes, less what its realm's price on smoke has its works clean out.)
+    haze +=
+      (HAZE.coal * coalUsed * perCoal + HAZE.oil * oilUsed * perOil + HAZE.gas * gasCarbon) *
+      (1 - smokeCut(world, m.cell));
     burners.push({ cell: m.cell, carbon });
   }
   // And from forest cleared (regrowth takes some back).
@@ -444,7 +470,13 @@ export function airYear(ctx: PopulationContext, t: SimTime): void {
     floor = rest + tailShare(added, rest) * added;
   air.added = added;
   air.carbon = Math.max(rest, air.carbon + put - SINK * (air.carbon - floor));
-  const toward = SENSITIVITY * dmath.log2(air.carbon / rest);
+  // (The haze of the year's burning hides part of what its carbon would warm, while the burning lasts: rules/skies.ts.)
+  const masked = hazeMasks(haze);
+  if (haze > 0 || air.haze !== undefined) {
+    air.haze = haze;
+    air.masked = masked;
+  }
+  const toward = SENSITIVITY * dmath.log2(air.carbon / rest) - masked;
   air.warming += WARMING_PACE * (toward - air.warming);
 
   // Each half degree is told, with the lands that burned (three) and cleared (two) most
@@ -470,6 +502,32 @@ export function airYear(ctx: PopulationContext, t: SimTime): void {
       data: {
         warming: Math.round(air.warming * 10) / 10,
         carbon: Math.round(air.carbon),
+      },
+    });
+  }
+
+  // Its haze, told at each fifth of a degree it hides, and when it clears by as much.
+  const fifths = Math.floor(masked / 0.2 + 1e-9),
+    toldHaze = air.hazeTold ?? 0;
+  // (Cleared: fallen half a step under the last step told, so a haze wavering about a step is told once.)
+  if (fifths > toldHaze || (toldHaze > 0 && masked < (toldHaze - 0.5) * 0.2)) {
+    const cleared = fifths < toldHaze,
+      causes: CauseRef[] = [];
+    for (const b of most(burners, 3)) {
+      const m = markets.get(b.cell)!,
+        cause = m.works ?? m.mine ?? m.well;
+      if (cause) causes.push({ ref: cause, role: cleared ? "enabler" : "pressure", weight: 0.25 });
+    }
+    if (air.lastDimmed) causes.push({ ref: air.lastDimmed, role: "enabler", weight: 0.25 });
+    air.hazeTold = fifths;
+    air.lastDimmed = world.events.emit({
+      type: AIR_EVENTS.dimmed.type,
+      causes,
+      data: {
+        masked: Math.round(masked * 100) / 100,
+        cleared,
+        light: Math.round(1000 * (1 - hazeFields(masked))) / 10,
+        warming: Math.round(air.warming * 10) / 10,
       },
     });
   }

@@ -19,7 +19,13 @@ import {
   type StateStore,
   type World,
 } from "../../kernel/index.ts";
-import { cellRef, isProvinceWorld, keptKey, type ProvinceWorld } from "../../gen/index.ts";
+import {
+  cellRef,
+  isProvinceWorld,
+  keptKey,
+  spinHours,
+  type ProvinceWorld,
+} from "../../gen/index.ts";
 import {
   slideChance,
   slideHarm,
@@ -106,7 +112,7 @@ function exposedOf(ctx: PopulationContext): Exposed {
   for (let c = 0; c < g.offworld.base; c++) {
     const up = g.tectonics.elevation[c]! > 0,
       lat = (g.grid.lat[c]! * 180) / Math.PI,
-      spin = cycloneSpin(lat, g.planet.dayHours);
+      spin = cycloneSpin(lat, spinHours(g.planet));
     if (spin > 0) {
       // (A land people's coast: its warmest sea beside it; a water people's own sea is its warmth.)
       let sea = water && !up ? g.climate.temperature[c]! : -Infinity;

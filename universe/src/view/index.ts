@@ -1512,3 +1512,5 @@ export {
   type NetsClear,
   type TownNets,
 } from "./networks.ts";
+// (Where a locked world's sun stands still over a place, for the views that light it: rules/locked.ts.)
+export { lockedDay } from "../rules/index.ts";

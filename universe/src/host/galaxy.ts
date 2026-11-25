@@ -9,6 +9,8 @@ import {
   WORLD_FREQUENCY,
   foreignBody,
   foreignPlanets,
+  galaxyRogues,
+  galaxyStars,
   makeGalaxy,
   otherWorld,
   sectorStars,
@@ -44,6 +46,12 @@ export function galaxyPlan(world: World): GalaxyPlan {
 }
 
 /** A sector's cube back from its id (the zig-zag coding undone). */
+/** The stars of the world's galaxy, and the worlds without a star adrift in it (gen/galaxy.ts). */
+export function galaxyAdrift(world: World): { stars: number; rogues: number } {
+  const g = makeGalaxy(new Rng(world.seed), worldLaws(world)?.burn);
+  return { stars: galaxyStars(g), rogues: galaxyRogues(g) };
+}
+
 function cubeOf(id: number): [number, number, number] {
   const unzig = (n: number) => (n % 2 === 0 ? n / 2 : -(n + 1) / 2);
   return [unzig(id % 1024), unzig(Math.floor(id / 1024) % 1024), unzig(Math.floor(id / 1048576))];

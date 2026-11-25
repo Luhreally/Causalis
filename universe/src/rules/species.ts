@@ -113,8 +113,74 @@ export function bandOf(age: number, life: LifeHistory = HUMANLIKE): number {
 }
 
 /**
- * A people's life table from its body: the upright apes' table stretched to the body's
- * span (bands, coming of age and yearly rates alike); fertility by its fecundity, with
+ * How the grown die, by the body (Gompertz and Makeham): a hazard that takes them at any age alike, and a wearing that doubles
+ * every so many years. The hazard a year goes as the body's pace of living, its size to the minus quarter power (Kleiber's law
+ * for each kilo: a small body is taken the oftener) and half for cold blood; the wearing's doubling time is a share of its span.
+ * The upright apes': some eight in a thousand a year at any age, and a wearing that doubles every nine years.
+ */
+export const SENESCENCE = {
+  /** The apes' hazard a year, at any grown age (their table's fewest deaths, at ten to fifteen). */
+  hazard: 0.008,
+  /** Their wearing a year at birth, and how fast it grows a year of age (it doubles every nine). */
+  wear: 0.00068,
+  grows: 0.077,
+  /** A cold-blooded body's pace of living against a warm one's of its size. */
+  cold: 0.5,
+  /** The least of the apes' share of wearing a body's is reckoned at: one all but wholly taken by hazard still wears. */
+  least: 0.1,
+} as const;
+
+/** A body's pace of living against the upright apes': its size to the minus quarter power, halved for cold blood. */
+export function livingPace(size: number, warm: boolean): number {
+  return dmath.pow(Math.max(0.01, size) / 60, -0.25) * (warm ? 1 : SENESCENCE.cold);
+}
+
+/** The apes' wearing a year at an age (Gompertz), `k`: the body's span against their seventy years. */
+const wearAt = (age: number, k: number): number =>
+  (SENESCENCE.wear / k) * dmath.exp((SENESCENCE.grows / k) * age);
+
+/** The deaths that bring the apes from grown to their span, summed (their table's own, fifteen to seventy). */
+function apesToSpan(): number {
+  let sum = 0;
+  for (let b = 0; b < HUMANLIKE.bands.length - 1; b++)
+    if (HUMANLIKE.bands[b]! >= HUMANLIKE.adulthood)
+      sum += HUMANLIKE.mortality[b]! * (HUMANLIKE.bands[b + 1]! - HUMANLIKE.bands[b]!);
+  return sum;
+}
+
+/**
+ * The grown's chance of dying within a year in each band of a body's life (0 for the bands of its young), from its size and its
+ * pace of living: its hazard at every age, and its wearing over it, as much of the apes' as brings as many of its kind to its
+ * span as of theirs to theirs. So a small warm body dies mostly of hazard, at any age nearly alike; a large or a cold-blooded
+ * one mostly of age, late and together.
+ */
+export function grownMortality(
+  body: { readonly size: number; readonly warm: boolean; readonly span: number },
+  bands: readonly number[],
+  adulthood: number,
+): number[] {
+  const k = body.span / 70,
+    hazard = SENESCENCE.hazard * livingPace(body.size, body.warm),
+    mid = (b: number) =>
+      b + 1 < bands.length ? (bands[b]! + bands[b + 1]!) / 2 : bands[b]! + 5 * k,
+    width = (b: number) => (b + 1 < bands.length ? bands[b + 1]! - bands[b]! : 0);
+  let years = 0,
+    worn = 0;
+  for (let b = 0; b < bands.length; b++)
+    if (bands[b]! >= adulthood) {
+      years += width(b);
+      worn += wearAt(mid(b), k) * width(b);
+    }
+  // (What its hazard leaves of the deaths that bring it to its span is its wearing's.)
+  const share = worn > 0 ? Math.max(SENESCENCE.least, (apesToSpan() - hazard * years) / worn) : 1;
+  return bands.map((at, b) =>
+    at >= adulthood ? Math.min(0.95, hazard + share * wearAt(mid(b), k)) : 0,
+  );
+}
+
+/**
+ * A people's life table from its body: its bands and its coming of age the upright apes' by its span; its young's deaths
+ * theirs by its span, its grown's from its size and its pace of living (`grownMortality`); fertility by its fecundity, with
  * the young's first years the more perilous as more are born, so that a people at
  * plenty grows at its own body's pace (`plentyPace`: the apes' by its size to the minus
  * quarter power, as life's fastest growth scales; a short life bears more and loses more
@@ -134,7 +200,8 @@ export function lifeHistoryOf(body: BodyPlan, boyRisk = 1, paired = 1): LifeHist
     bands: number[] = [];
   for (const b of HUMANLIKE.bands)
     bands.push(Math.max(bands.length ? bands.at(-1)! + 1 : 0, Math.round(b * k)));
-  const adulthood = Math.max(1, Math.round(HUMANLIKE.adulthood * k));
+  const adulthood = Math.max(1, Math.round(HUMANLIKE.adulthood * k)),
+    grown = grownMortality(body, bands, adulthood);
   // The first years as perilous as they must be for the people to grow at its own pace:
   // solved on the simulation's own reckoning (`growthOf`).
   const shaped = (infant: number): LifeHistory => {
@@ -142,7 +209,9 @@ export function lifeHistoryOf(body: BodyPlan, boyRisk = 1, paired = 1): LifeHist
         name: body.clade,
         bands,
         fertility: HUMANLIKE.fertility.map((x) => (x * f) / k),
-        mortality: HUMANLIKE.mortality.map((x, i) => (i === 0 ? infant : Math.min(0.95, x / k))),
+        mortality: HUMANLIKE.mortality.map((x, i) =>
+          i === 0 ? infant : bands[i]! >= adulthood ? grown[i]! : Math.min(0.95, x / k),
+        ),
         adulthood,
         appetite: dmath.pow(body.size / 60, 0.75) * (body.warm ? 1 : 0.5),
         oldest: Math.max(1, Math.round(10 * k)),
@@ -153,7 +222,8 @@ export function lifeHistoryOf(body: BodyPlan, boyRisk = 1, paired = 1): LifeHist
     },
     target = apesGrowth() * plentyPace(body.size);
   let lo = Math.min(0.95, HUMANLIKE.mortality[0]! / k),
-    hi = 0.995;
+    // (As many as all but one in two thousand: a cold-blooded spawner whose grown die late loses its young so.)
+    hi = 0.9995;
   if (growthOf(shaped(lo)) <= target) return shaped(lo);
   for (let n = 0; n < 40; n++) {
     const mid = (lo + hi) / 2;

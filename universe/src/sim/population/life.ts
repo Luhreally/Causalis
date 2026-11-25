@@ -5,7 +5,7 @@ import type { World } from "../../kernel/index.ts";
 import { worldKindOf, type HomeWorld } from "../../gen/index.ts";
 import {
   CLADES,
-  DIMORPHISM,
+  dimorphismOf,
   HUMANLIKE,
   PAIRED,
   affordancesOf,
@@ -30,9 +30,11 @@ const LIVES = new Map<string, LifeHistory>();
 export function lifeOfBody(body: BodyPlan | null | undefined): LifeHistory {
   // (Its sexes as its kind pairs: how many more of the sires' young die, how far its births wait on a mate. The pairing reads
   // the coming of age the table itself takes, a fifteenth of seventy years of span.)
-  const pairing = body ? pairingOf(body, Math.max(1, Math.round((15 * body.span) / 70))) : null;
+  // (How far its sexes' bodies differ comes of the contest that pairing sets: rules/roles.ts dimorphismOf.)
+  const grown = body ? Math.max(1, Math.round((15 * body.span) / 70)) : 15,
+    pairing = body ? pairingOf(body, grown) : null;
   return body && pairing
-    ? lifeHistoryOf(body, boyRiskOf(DIMORPHISM[pairing]), PAIRED[pairing])
+    ? lifeHistoryOf(body, boyRiskOf(dimorphismOf(body, grown)), PAIRED[pairing])
     : HUMANLIKE;
 }
 
