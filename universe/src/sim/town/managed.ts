@@ -86,7 +86,36 @@ export type Managed = {
   held: string[];
   /** The lot of the building opened to those of it who have lost their homes (-1: none). */
   shelter: number;
+  /**
+   * What its people are to work at, by name and in what order (place.prio), two numbers each: who (their number in the
+   * town kept), and their five priorities packed two bits each (PRIO_KINDS' order; 0 never, 3 first). Absent: none set.
+   */
+  prio?: number[];
 };
+
+/** The kinds of work a priority is set for: the four trades an order can move hands to, and raising what the town builds. */
+export const PRIO_KINDS = ["fields", "herds", "crafts", "hauling", "building"] as const;
+/** One's priorities from their packed number (PRIO_KINDS' order, each 0 … 3), and back. */
+export const prioOf = (packed: number): number[] =>
+  PRIO_KINDS.map((_, k) => (packed >> (2 * k)) & 3);
+export const prioPacked = (kinds: readonly number[]): number =>
+  kinds.reduce((n, x, k) => n | ((x & 3) << (2 * k)), 0);
+/**
+ * The trade one with these priorities is put to: of the four trades, the one set highest (their own where it is among
+ * the highest; else the first of them); -1 where none is set above nothing.
+ */
+export function prioTrade(kinds: readonly number[], own: number): number {
+  let best = -1,
+    most = 0;
+  MANAGED_TRADES.forEach((occ, k) => {
+    const x = kinds[k] ?? 0;
+    if (x > most || (x === most && x > 0 && occ === own)) {
+      most = x;
+      best = occ;
+    }
+  });
+  return best;
+}
 
 /**
  * What a town can be held to by an order: an answer of its world's own to a cause of loss (rules/lessons.ts, by its id),
@@ -446,6 +475,37 @@ export function installManaged(world: World, ctx: () => PopulationContext): Mana
           next.push(m.assigned[k]!, m.assigned[k + 1]!, m.assigned[k + 2]!);
       if (a.trade !== null || a.post !== null) next.push(a.person, a.trade ?? -1, a.post ?? -9);
       m.assigned = next;
+    },
+  });
+  // What one of its people is to work at, and in what order (null: as they would of themselves).
+  world.defineCommand({
+    type: "place.prio",
+    validate: (args) => {
+      const a = args as { person?: unknown; kinds?: unknown };
+      if (held(args)) return held(args);
+      if (!whole(a.person, 1, 4294967295)) return "person must be one's number in the town kept";
+      if (a.kinds === null) return null;
+      if (
+        !Array.isArray(a.kinds) ||
+        a.kinds.length !== PRIO_KINDS.length ||
+        !a.kinds.every((x) => whole(x, 0, 3))
+      )
+        return "kinds must be a priority, 0 to 3, for each of fields, herds, crafts, hauling and building, or null";
+      return a.kinds.slice(0, MANAGED_TRADES.length).some((x: number) => x > 0)
+        ? null
+        : "one of the four trades must be set above nothing: the town does not keep idle hands";
+    },
+    apply: (command, t) => {
+      const a = command.args as { town: Ref; person: number; kinds: number[] | null },
+        s = ctx().settlements.get(a.town);
+      if (!s) return;
+      const m = store.of(s.ref, s.cell, t),
+        next: number[] = [];
+      for (let k = 0; k < (m.prio?.length ?? 0); k += 2)
+        if (m.prio![k] !== a.person) next.push(m.prio![k]!, m.prio![k + 1]!);
+      if (a.kinds) next.push(a.person, prioPacked(a.kinds));
+      if (next.length) m.prio = next;
+      else delete m.prio;
     },
   });
   // A building's work stopped, or let go on.

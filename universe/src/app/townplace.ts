@@ -181,7 +181,7 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
       );
     else if (tab === "work")
       stopSheet = d.client.subscribe<PlaceWorkSheet | null>(
-        { type: "place.work", args: { ref } },
+        { type: "place.work", args: { ref, occ: hud.gridOcc } },
         SHEET_EVERY,
         (s) => s && hud.work(s),
       );

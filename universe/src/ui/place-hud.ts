@@ -51,6 +51,16 @@ const TRADE_CHIPS: readonly (readonly [number | null, string])[] = [
   [0, "No trade"],
 ];
 
+/** The trades the priorities grid can be narrowed to, and a trade turned to, said. */
+const GRID_CHIPS: readonly (readonly [number | null, string])[] = [
+  [null, "All"],
+  [2, "Farmers"],
+  [3, "Herders"],
+  [4, "Crafters"],
+  [5, "Traders"],
+];
+const GRID_TURNED: readonly string[] = ["", "", "the fields", "the herds", "a craft", "hauling"];
+
 const amount = (x: number) =>
   x >= 100 ? `${Math.round(x)}` : x >= 10 ? x.toFixed(1) : x.toFixed(2);
 
@@ -72,6 +82,9 @@ export class PlaceHud {
   private ordering: number | null = null;
   /** The shares being set on the Work sheet before they are ordered (thousandths; null: none being set). */
   private setting: number[] | null = null;
+  /** Whether the Work sheet's priorities grid is open, and the trade it is narrowed to (null: all). */
+  private gridOpen = false;
+  gridOcc: number | null = null;
   tab: PlaceTab | null = null;
   /** The trade the People sheet is narrowed to (the world's occupation column; null: all). */
   occ: number | null = null;
@@ -376,7 +389,7 @@ export class PlaceHud {
   }
 
   work(s: PlaceWorkSheet): void {
-    if (this.tab !== "work" || this.same([s, this.setting])) return;
+    if (this.tab !== "work" || this.same([s, this.setting, this.gridOpen, this.gridOcc])) return;
     const all = s.hands.reduce((a, b) => a + b, 0),
       now = s.hands.map((n) => (all > 0 ? Math.round((1000 * n) / all) : 0)),
       shares = this.setting ?? (s.shares ? [...s.shares] : now),
@@ -441,6 +454,7 @@ export class PlaceHud {
           : "No order given: its hands are as its land has them. An order moves real hands from one trade to another, and its land is told.",
       ),
     );
+    body.push(...this.grid(s));
     if (s.sites.length) {
       body.push(el("h3", "place-sub", "Going up"));
       const tonnes = (x: number) => (x >= 10 ? `${Math.round(x)}` : x.toFixed(1)),

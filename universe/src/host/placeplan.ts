@@ -134,6 +134,16 @@ export function placeNames(
 }
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
+/** A trade's work, said: "the fields". */
+export const OCCUPATION_WORK: readonly string[] = [
+  "",
+  "foraging",
+  "the fields",
+  "the herds",
+  "a craft",
+  "hauling",
+  "leading",
+];
 
 /** Why one of a place's people does what they do, in words, with the numbers that decided it. */
 export function whyWords(world: World, place: Place, i: number): string {
@@ -161,6 +171,8 @@ export function whyWords(world: World, place: Place, i: number): string {
         : `The cold (${pct(need(2))} full) passed ${bar}: indoors to get warm${going}`;
     case WHY.lone:
       return `Want of company passed ${bar}: among others in the square until it eases (${pct(need(3))} full now)${going}`;
+    case WHY.turned:
+      return `Their own work has nothing for them now: turned to ${OCCUPATION_WORK[p.turn[i]!] ?? "other work"}, as your priorities for them say, and at it as one new to it${going}`;
     case WHY.work:
       return `Nothing presses harder than ${bar}: hunger pressing ${pct(pressOf(need(0)))}, tiredness ${pct(pressOf(need(1)))}${going}`;
     case WHY.pantry:
@@ -692,7 +704,56 @@ export function stocksSheet(world: World, place: Place): PlaceStocksSheet {
 }
 
 /** A place's hands for its Work sheet. */
-export function workSheet(world: World, place: Place): PlaceWorkSheet {
+/** How many of a place's people its priorities grid shows at once. */
+export const GRID_ROWS = 48;
+
+/** A place's priorities grid (PlaceWorkSheet.grid): narrowed to a trade where one is said. */
+function prioGrid(world: World, place: Place, occ: number | null): PlaceWorkSheet["grid"] {
+  const p = place.people,
+    grown = lifeOf(world).adulthood,
+    who = placeWho(world, place),
+    list: { i: number; kinds: number[] | null }[] = [];
+  for (let i = 0; i < p.n; i++) {
+    const o = p.sexOcc[i]! & 15;
+    if (!(MANAGED_TRADES as readonly number[]).includes(o)) continue;
+    if (occ !== null && o !== occ) continue;
+    if ((place.t / DAY - p.born[i]!) / 365 < grown) continue;
+    list.push({ i, kinds: placePrio(world, place, p.id[i]!) });
+  }
+  // (Those with priorities set first; then by trade, then as they were numbered.)
+  list.sort(
+    (a, b) =>
+      (a.kinds ? 0 : 1) - (b.kinds ? 0 : 1) ||
+      (p.sexOcc[a.i]! & 15) - (p.sexOcc[b.i]! & 15) ||
+      p.id[a.i]! - p.id[b.i]!,
+  );
+  return {
+    kinds: ["Fields", "Herds", "Crafts", "Hauling", "Building"],
+    all: list.length,
+    rows: list.slice(0, GRID_ROWS).map(({ i, kinds }) => {
+      const o = p.sexOcc[i]! & 15,
+        w = who(i);
+      return {
+        id: p.id[i]!,
+        ref: w.ref,
+        name: w.name,
+        occ: o,
+        skill: placeSkill(place, i).words,
+        // (Of themselves: their own trade and no other, and building when a site's crew is made up.)
+        kinds: kinds ?? [...MANAGED_TRADES.map((t) => (t === o ? 3 : 0)), 1],
+        set: !!kinds,
+        turned: p.turn[i]!,
+      };
+    }),
+  };
+}
+
+export function workSheet(
+  world: World,
+  place: Place,
+  /** The trade its priorities grid is narrowed to (null: all). */
+  gridOcc: number | null = null,
+): PlaceWorkSheet {
   const p = place.people,
     grown = lifeOf(world).adulthood,
     hands = MANAGED_TRADES.map(() => 0);
@@ -763,6 +824,7 @@ export function workSheet(world: World, place: Place): PlaceWorkSheet {
     waiting,
     inWant,
     unsettled: place.moves.length / 4 + place.dead.length / 3,
+    grid: prioGrid(world, place, gridOcc),
   };
 }
 
@@ -1141,8 +1203,9 @@ export function placeQueries(villagePlan: QueryHandler): Readonly<Record<string,
       return place ? stocksSheet(world, place) : null;
     },
     "place.work": (world, args) => {
-      const place = kept(world, args);
-      return place ? workSheet(world, place) : null;
+      const place = kept(world, args),
+        occ = (args as { occ?: unknown } | null)?.occ;
+      return place ? workSheet(world, place, typeof occ === "number" ? occ : null) : null;
     },
     "place.log": (world, args) => {
       const place = kept(world, args);

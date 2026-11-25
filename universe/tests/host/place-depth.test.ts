@@ -1,0 +1,282 @@
+// Town mode, sixth slice, depth: who works at what and in what order (place.prio), obeyed by a place's choice of work;
+// skill that grows with doing, by the world's own rule of it (rules/life.ts), and bears on work's worth and on hurt.
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { DAY, HOUR, loadWorld, saveWorld, type World } from "../../src/kernel/index.ts";
+import { GOODS, OCC, RECIPES, SKILL_LEVELS } from "../../src/rules/index.ts";
+import {
+  asksOf,
+  managedOf,
+  lifeOf,
+  populationContext,
+  prioOf,
+  prioPacked,
+  prioTrade,
+  townsOf,
+  type Settlement,
+} from "../../src/sim/index.ts";
+import { EARTH } from "../../src/host/index.ts";
+import { pageOf } from "../../src/host/inspect/index.ts";
+import { townOffers } from "../../src/host/inspect/asks.ts";
+import {
+  ACT,
+  AT,
+  HAP,
+  WHY,
+  enterPlace,
+  placeDigest,
+  placeIndexOf,
+  placePrio,
+  placeSkill,
+  placesOf,
+  skillHazard,
+  skillWorth,
+  workWorth,
+  type Place,
+} from "../../src/host/place.ts";
+import { GRID_ROWS, placeFrame, placeWho, whyWords, workSheet } from "../../src/host/placeplan.ts";
+import { universeWorld } from "./worlds.ts";
+
+const base = (): World => universeWorld(EARTH, "first light", 150);
+const copy = (w: World): World => {
+  const doc = JSON.parse(JSON.stringify(saveWorld(w, "r", { universe: "earth" })));
+  return loadWorld(doc, (s) => EARTH.build(s), "r").world;
+};
+const order = (w: World, type: string, args: unknown): void => {
+  const c = w.submit(type, args);
+  w.runTo(c.t);
+};
+const near = (w: World, people: number): Settlement => {
+  const ctx = populationContext(w);
+  return ctx.settlements
+    .all()
+    .filter((s) => ctx.settlements.held(s.ref) && townsOf(w).get(s.ref) && s.population > 0)
+    .sort((a, b) => b.population - a.population || (a.ref < b.ref ? -1 : 1))
+    .reduce((a, b) => (Math.abs(b.population - people) < Math.abs(a.population - people) ? b : a));
+};
+const watch = (w: World, town: string, hours: number, step = 1): void => {
+  for (let k = 0; k < hours; k += step) {
+    w.runTo(w.now + step * HOUR);
+    placeFrame(w, town, []);
+  }
+};
+/** The first of a place's grown at a trade, some years into it. */
+const one = (w: World, place: Place, occ: number, skip = 0): number => {
+  const p = place.people,
+    grown = lifeOf(w).adulthood;
+  let seen = 0;
+  for (let i = 0; i < p.n; i++)
+    if ((p.sexOcc[i]! & 15) === occ && (place.t / DAY - p.born[i]!) / 365 > grown + 4 && !p.line[i])
+      if (seen++ === skip) return p.id[i]!;
+  return -1;
+};
+
+test("priorities are checked, packed and kept: the trade set highest is one's own", () => {
+  const w = copy(base()),
+    s = near(w, 400),
+    place = enterPlace(w, s.ref)!,
+    id = one(w, place, OCC.farmer);
+  assert.ok(id > 0);
+  assert.deepEqual(prioOf(prioPacked([3, 0, 2, 1, 0])), [3, 0, 2, 1, 0]);
+  assert.equal(prioTrade([3, 0, 2, 1, 0], OCC.crafter), OCC.farmer);
+  assert.equal(
+    prioTrade([2, 0, 2, 1, 0], OCC.crafter),
+    OCC.crafter,
+    "their own, where it is among the highest",
+  );
+  assert.equal(prioTrade([0, 0, 0, 0, 3], OCC.farmer), -1);
+  for (const kinds of [[0, 0, 0, 0, 3], [1, 2, 3], [4, 0, 0, 0, 0], "x"])
+    assert.throws(() => w.submit("place.prio", { town: s.ref, person: id, kinds }));
+  assert.throws(() => w.submit("place.prio", { town: s.ref, person: 0, kinds: null }));
+  assert.equal(managedOf(w)?.get(s.ref), undefined, "nothing kept for a town given no order");
+  order(w, "place.prio", { town: s.ref, person: id, kinds: [1, 0, 3, 2, 0] });
+  assert.deepEqual(managedOf(w)!.get(s.ref)!.prio, [id, prioPacked([1, 0, 3, 2, 0])]);
+  placeFrame(w, s.ref, []);
+  assert.deepEqual(placePrio(w, place, id), [1, 0, 3, 2, 0]);
+  // Crafts set highest: a crafter now, by the ruled path an order by name takes (told to its land when it is settled).
+  const i = placeIndexOf(place, id),
+    p = place.people;
+  assert.equal(p.sexOcc[i]! & 15, OCC.crafter);
+  assert.equal(p.bound[i], OCC.crafter + 1);
+  assert.equal(place.moves.length, 4);
+  assert.ok(place.log.some((x) => x.what === HAP.assigned && x.id === id));
+  assert.equal(p.skill[i], 0, "new to their new trade");
+  // Their page and the sheet's grid say it.
+  const page = JSON.stringify(pageOf(w, placeWho(w, place)(i).ref));
+  assert.ok(
+    /By your order: crafts first, hauling second, fields third; never herds, building/.test(page),
+    "their page says their priorities",
+  );
+  assert.ok(/New to it at a craft: 0 hours given to it/.test(page));
+  const grid = workSheet(w, place).grid,
+    row = grid.rows.find((r) => r.id === id)!;
+  assert.ok(row && row.set && row.occ === OCC.crafter);
+  assert.deepEqual(row.kinds, [1, 0, 3, 2, 0]);
+  assert.equal(grid.rows[0]!.id, id, "those with priorities set come first");
+  assert.ok(grid.rows.length <= GRID_ROWS && grid.all >= grid.rows.length);
+  assert.ok(workSheet(w, place, OCC.herder).grid.rows.every((r) => r.occ === OCC.herder));
+  const other = grid.rows.find((r) => !r.set)!;
+  assert.deepEqual(
+    other.kinds,
+    [...[OCC.farmer, OCC.herder, OCC.crafter, OCC.trader].map((o) => (o === other.occ ? 3 : 0)), 1],
+    "of themselves: their own trade, and building when a crew is made up",
+  );
+  // Let be: their own again, and the list gone from the store.
+  order(w, "place.prio", { town: s.ref, person: id, kinds: null });
+  placeFrame(w, s.ref, []);
+  assert.equal(managedOf(w)!.get(s.ref)!.prio, undefined);
+  assert.equal(placePrio(w, place, id), null);
+  assert.equal(p.bound[placeIndexOf(place, id)], 0);
+});
+
+test("one whose own work has nothing for them turns to the next their priorities name that has, and back", () => {
+  const w = copy(base()),
+    s = near(w, 600),
+    place = enterPlace(w, s.ref)!,
+    p = place.people,
+    ids = [0, 1, 2].map((k) => one(w, place, OCC.crafter, k)).filter((id) => id > 0);
+  assert.ok(ids.length > 0, "the town has crafters");
+  for (const id of ids) order(w, "place.prio", { town: s.ref, person: id, kinds: [2, 0, 3, 0, 0] });
+  // (What their makings are made of is taken out of the town: their craft has nothing for them.)
+  const bare = (): void => {
+    for (const id of ids) {
+      const craft = p.craft[placeIndexOf(place, id)]!;
+      if (!craft) continue;
+      for (const [x] of RECIPES[craft - 1]!.inputs)
+        for (let b = 0; b < place.bldgs.lot.length; b++)
+          place.bldgs.stock[b * GOODS.length + x] = 0;
+    }
+  };
+  w.runTo(Math.ceil(w.now / DAY) * DAY + 7 * HOUR);
+  placeFrame(w, s.ref, []);
+  let turned = 0,
+    atFields = 0;
+  const skill0 = new Map(ids.map((id) => [id, p.skill[placeIndexOf(place, id)]!]));
+  for (let k = 0; k < 8 * 6; k++) {
+    bare();
+    w.runTo(w.now + 600);
+    placeFrame(w, s.ref, []);
+    for (const id of ids) {
+      const i = placeIndexOf(place, id);
+      if (p.turn[i] !== OCC.farmer) continue;
+      turned++;
+      assert.equal(
+        p.sexOcc[i]! & 15,
+        OCC.crafter,
+        "their trade is still their own in its land's count",
+      );
+      if (p.why[i] === WHY.turned) assert.ok(/turned to the fields/.test(whyWords(w, place, i)));
+      if (!p.eta[i] && p.at[i] === AT.fields && p.act[i] === ACT.work) atFields++;
+    }
+  }
+  assert.ok(turned > 0, "a crafter with nothing to work turned to the fields");
+  assert.ok(atFields > 0, "and worked there");
+  for (const id of ids) {
+    const i = placeIndexOf(place, id);
+    assert.ok(
+      p.skill[i]! - skill0.get(id)! <= 12,
+      "no skill at their craft comes of work that is not it",
+    );
+  }
+  // One with no priorities set never turns.
+  for (let i = 0; i < p.n; i++) if (!ids.includes(p.id[i]!)) assert.equal(p.turn[i], 0);
+  // Each day their own work is tried first again: with its stuff back, they are at their craft.
+  watch(w, s.ref, 40, 1);
+  let back = 0;
+  for (const id of ids) if (p.turn[placeIndexOf(place, id)] === 0) back++;
+  assert.ok(back > 0, "back at their own");
+  // Kept in the save, and gone on with the same.
+  const again = copy(w);
+  assert.equal(placeDigest(placesOf(again)!.get(s.ref)!), placeDigest(place));
+  for (const x of [w, again]) watch(x, s.ref, 12, 3);
+  assert.equal(placeDigest(placesOf(again)!.get(s.ref)!), placeDigest(place));
+  assert.deepEqual(
+    [...placesOf(again)!.get(s.ref)!.people.turn.subarray(0, p.n)],
+    [...p.turn.subarray(0, p.n)],
+  );
+});
+
+test("a site's crew is made up of those set to building first, and never of one set never to build", () => {
+  const w = copy(base()),
+    ctx = populationContext(w);
+  const towns = ctx.settlements
+    .all()
+    .filter((s) => ctx.settlements.held(s.ref) && s.population > 300)
+    .sort((x, y) => x.population - y.population || (x.ref < y.ref ? -1 : 1));
+  let done = false;
+  for (const s of towns.slice(0, 20)) {
+    const raise = (townOffers(w, s.ref)?.raises ?? []).find(
+      (r) => r.what !== "walls" && r.what !== "well",
+    );
+    if (!raise) continue;
+    const place = enterPlace(w, s.ref)!,
+      first = one(w, place, OCC.trader),
+      never = one(w, place, OCC.farmer);
+    if (first < 0 || never < 0) continue;
+    order(w, "place.prio", { town: s.ref, person: first, kinds: [0, 0, 0, 3, 3] });
+    order(w, "place.prio", { town: s.ref, person: never, kinds: [3, 0, 0, 0, 0] });
+    order(w, "town.ask", { village: s.ref, kind: "raise", what: raise.what });
+    const a = asksOf(w).ofTown(s.ref).at(-1);
+    if (!a?.work) continue;
+    order(w, "place.site", {
+      town: s.ref,
+      ask: a.n,
+      hands: Math.max(1, Math.min(2, a.work.hands)),
+    });
+    placeFrame(w, s.ref, []);
+    const p = place.people;
+    assert.equal(
+      p.bound[placeIndexOf(place, first)],
+      254,
+      "the one set to building first is of its crew",
+    );
+    assert.notEqual(p.bound[placeIndexOf(place, never)], 254);
+    done = true;
+    break;
+  }
+  assert.ok(done, "a town took up a raising");
+});
+
+test("skill grows with every hour at one's own trade, and bears on what their work is worth and on hurt", () => {
+  const w = copy(base()),
+    s = near(w, 600),
+    place = enterPlace(w, s.ref)!,
+    p = place.people,
+    grown = lifeOf(w).adulthood,
+    top = SKILL_LEVELS.length - 1;
+  // As made: by the years one has had at a trade since they were grown; none for one who keeps none.
+  let masters = 0,
+    learners = 0;
+  for (let i = 0; i < p.n; i++) {
+    const occ = p.sexOcc[i]! & 15,
+      age = (place.t / DAY - p.born[i]!) / 365,
+      sk = placeSkill(place, i);
+    if (occ === OCC.dependent) assert.equal(p.skill[i], 0);
+    else if (age > grown + 4) {
+      assert.equal(sk.level, top, `${age.toFixed(1)} years old, ${sk.hours} h`);
+      masters++;
+    } else if (age < grown + 1 && sk.level < top) learners++;
+  }
+  assert.ok(masters > 20 && learners > 0, `${masters} masters, ${learners} still learning`);
+  assert.equal(skillWorth(top), 1);
+  assert.ok(Math.abs(skillWorth(0) - 1 / 1.4) < 1e-9);
+  assert.ok(Math.abs(skillHazard(0) - 1.4) < 1e-9 && skillHazard(top) === 1);
+  // What an hour is worth to them against rest is not their skill's to move: one new to a trade works to learn it.
+  const id = one(w, place, OCC.farmer),
+    i = placeIndexOf(place, id),
+    kept = p.skill[i]!,
+    master = workWorth(w, place, i);
+  p.skill[i] = 0;
+  assert.equal(workWorth(w, place, i), master);
+  // New to it, a week's work at their own trade is a week's hours of skill.
+  watch(w, s.ref, 7 * 24, 1);
+  const j = placeIndexOf(place, id),
+    hours = placeSkill(place, j).hours;
+  assert.ok(j >= 0 && hours > 15 && hours < 7 * 16, `${hours} hours in a week`);
+  assert.ok(
+    /at the fields: \d+ hours given to it/.test(
+      JSON.stringify(pageOf(w, placeWho(w, place)(j).ref)),
+    ),
+  );
+  void kept;
+});

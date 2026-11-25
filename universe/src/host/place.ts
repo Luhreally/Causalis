@@ -128,6 +128,9 @@ import {
   type Lasting,
   type Tended,
   LESSON_RESPONSE,
+  SKILL_LEVELS,
+  SKILL_WORDS,
+  levelOf,
   OCC,
   OCCUPATIONS,
   RECIPES,
@@ -166,6 +169,9 @@ import {
   managedDead,
   managedOf,
   MANAGED_TRADES,
+  PRIO_KINDS,
+  prioOf,
+  prioTrade,
   healthOf,
   kindBody,
   lifeOfBody,
@@ -284,6 +290,7 @@ export const WHY = {
   arms: 21,
   siege: 22,
   apart: 23,
+  turned: 24,
 } as const;
 
 /** What happened to someone, as a place's log tells it. */
@@ -459,6 +466,13 @@ type People = {
    * a meal is what its land's reckoning counts a mouth to eat in that time, however much of it was slept.
    */
   owed: Uint16Array;
+  /**
+   * The ticks they have given to their own trade's work (rules/life.ts: the hours one has given to one's craft, six ticks
+   * each; no more counted than a master's), begun anew at a new trade.
+   */
+  skill: Uint16Array;
+  /** The trade they have turned to for now, their own having nothing for them (its place in OCCUPATIONS; 0: their own). */
+  turn: Uint8Array;
 };
 /** Bytes a person takes in a place's columns. */
 export const PERSON_BYTES =
@@ -488,7 +502,9 @@ export const PERSON_BYTES =
   1 +
   4 +
   1 +
-  2;
+  2 +
+  2 +
+  1;
 
 function peopleOf(cap: number): People {
   return {
@@ -520,6 +536,8 @@ function peopleOf(cap: number): People {
     friend: new Uint32Array(cap),
     mark: new Uint8Array(cap),
     owed: new Uint16Array(cap),
+    skill: new Uint16Array(cap),
+    turn: new Uint8Array(cap),
   };
 }
 const PEOPLE_COLS = [
@@ -550,6 +568,8 @@ const PEOPLE_COLS = [
   "friend",
   "mark",
   "owed",
+  "skill",
+  "turn",
 ] as const;
 type Col = (typeof PEOPLE_COLS)[number];
 const widthOf = (c: Col) => (c === "needs" ? NEEDS : 1);
@@ -1328,6 +1348,8 @@ export class PlaceStore implements StateStore {
         usedDay: p.usedDay,
         cameDay: p.cameDay,
         ripe: p.ripe,
+        // (Read from a save kept before skill was, and not brought on since: still to be reckoned.)
+        ...(UNSKILLED.has(p) ? { unskilled: true } : {}),
       })),
     };
   }
@@ -1343,6 +1365,7 @@ export class PlaceStore implements StateStore {
       people.n = n;
       // (A column a save from before did not keep begins empty.)
       for (const c of PEOPLE_COLS) if (cols[c]) (people[c] as Uint8Array).set(cols[c]);
+      const unskilled = !cols.skill || raw.unskilled === true;
       const h = raw.houses as Omit<Houses, "n">,
         b = raw.bldgs as Buildings,
         town = raw.town as Ref;
@@ -1410,6 +1433,7 @@ export class PlaceStore implements StateStore {
         ],
         ripe: [...((raw.ripe as number[] | undefined) ?? new Array<number>(GOOD_COUNT).fill(0))],
       });
+      if (unskilled) UNSKILLED.add(this.places.at(-1)!);
     }
   }
 }
@@ -1887,6 +1911,8 @@ function addPerson(place: Place, sex: number, occ: number, born: number, house: 
   p.health[i] = p.ill[i] = p.cause[i] = p.mood[i] = p.moodWhy[i] = p.bound[i] = p.friend[i] = 0;
   p.mark[i] = 0;
   p.owed[i] = 0;
+  p.skill[i] = 0;
+  p.turn[i] = 0;
   place.houses.members[house]!++;
   return i;
 }
@@ -2023,36 +2049,41 @@ function workOf(world: World, place: Place, i: number): void {
   if (occ === OCC.dependent) p.work[i] = AT.none;
   else if (occ === OCC.farmer || occ === OCC.herder || occ === OCC.forager) p.work[i] = AT.fields;
   else if (occ === OCC.crafter) {
-    // (Which of its land's makings is theirs: drawn by what its land made of each, at its usual worth.)
-    let total = 0;
-    const worth = RECIPES.map((r, k) => {
-      const w =
-        (m.kinds >>> k) & 1 ? Math.max(1e-9, m.made[r.output[0]]! * GOODS[r.output[0]]!.value) : 0;
-      total += w;
-      return w;
-    });
-    let craft = 0;
-    if (total > 0) {
-      let pick = world.rng.unit(PLACE_DRAW, place.key ^ p.id[i]!, 0, P.craft) * total;
-      for (let k = 0; k < worth.length; k++) {
-        pick -= worth[k]!;
-        if (pick < 0) {
-          craft = k + 1;
-          break;
-        }
-      }
-    }
-    p.craft[i] = craft;
-    const good = craft ? RECIPES[craft - 1]!.output[0] : -1,
-      at = good >= 0 && MAKING_AT[good] ? buildingOf(place, MAKING_AT[good]) : -1;
-    // (Coal and oil are won outside the town; with no building of its kind standing, a making is done at home.)
-    p.work[i] =
-      good === G.coal || good === G.oil
-        ? AT.fields
-        : at > 0
-          ? place.bldgs.lot[at]!
-          : (place.houses.home[p.house[i]!] ?? AT.square);
+    p.craft[i] = craftFor(world, place, i);
+    p.work[i] = makingLot(place, i);
   } else p.work[i] = place.bldgs.lot[buildingOf(place, TRADE_AT[occ] ?? [])]!;
+}
+
+/** Which of its land's makings is one's own (a recipe's place + 1; 0: its land makes nothing): drawn by what its land made of each, at its usual worth. */
+function craftFor(world: World, place: Place, i: number): number {
+  const m = place.matched;
+  let total = 0;
+  const worth = RECIPES.map((r, k) => {
+    const w =
+      (m.kinds >>> k) & 1 ? Math.max(1e-9, m.made[r.output[0]]! * GOODS[r.output[0]]!.value) : 0;
+    total += w;
+    return w;
+  });
+  if (total <= 0) return 0;
+  let pick = world.rng.unit(PLACE_DRAW, place.key ^ place.people.id[i]!, 0, P.craft) * total;
+  for (let k = 0; k < worth.length; k++) {
+    pick -= worth[k]!;
+    if (pick < 0) return k + 1;
+  }
+  return 0;
+}
+
+/** Where one's making is done: its building where one stands; outside the town for coal and oil; else at home. */
+function makingLot(place: Place, i: number): number {
+  const p = place.people,
+    craft = p.craft[i]!,
+    good = craft ? RECIPES[craft - 1]!.output[0] : -1,
+    at = good >= 0 && MAKING_AT[good] ? buildingOf(place, MAKING_AT[good]) : -1;
+  return good === G.coal || good === G.oil
+    ? AT.fields
+    : at > 0
+      ? place.bldgs.lot[at]!
+      : (place.houses.home[p.house[i]!] ?? AT.square);
 }
 
 /** Households' incomes: ranked by what their workers' trades earn, the fifths given their land's shares of its income. */
@@ -2330,6 +2361,8 @@ function matchPeople(
         while (short > 0 && over > 0) {
           const i = movers.shift()!;
           p().sexOcc[i] = (sexOf(p(), i) << 4) | to;
+          p().skill[i] = 0;
+          p().turn[i] = 0;
           workOf(world, place, i);
           note(place, HAP.trade, p().id[i]!, o, to);
           now[r * OCCS + o]!--;
@@ -2474,6 +2507,7 @@ function matchPeople(
         house = houseFor(world, place, id, f, homes);
       }
       const i = addPerson(place, sex, occ, born, house);
+      place.people.skill[i] = skillAt(f, age, occ);
       workOf(world, place, i);
       note(place, band === 0 ? HAP.born : HAP.came, id, Math.round(age), occ);
     }
@@ -3141,8 +3175,12 @@ function crewSites(world: World, place: Place, f: Frame): void {
     asks = asksIn(world, place.town),
     want = new Map<number, number>(),
     have = new Map<number, number[]>(),
+    prios = prioMap(managedOf(world)?.get(place.town)),
     release = (i: number): void => {
-      p.bound[i] = 0;
+      // (Back to their own work: held to the trade their priorities name, where any are set for them.)
+      const packed = prios?.get(p.id[i]!),
+        trade = packed === undefined ? -1 : prioTrade(prioOf(packed), occOf(p, i));
+      p.bound[i] = trade >= 0 ? trade + 1 : 0;
       workOf(world, place, i);
       if (p.act[i] === ACT.build || p.act[i] === ACT.stuff) p.act[i] = ACT.idle;
       note(place, HAP.uncrew, p.id[i]!);
@@ -3161,17 +3199,27 @@ function crewSites(world: World, place: Place, f: Frame): void {
     const free: number[] = [];
     for (let i = 0; i < p.n; i++)
       if (
-        !p.bound[i] &&
+        // (Held by no order; or only to the trade their priorities name, which say besides whether they build.)
+        (!p.bound[i] || (p.bound[i]! < BOUND_ARMS - 1 && !!prios?.has(p.id[i]!))) &&
         !p.ill[i] &&
         CREW_FROM.includes(occOf(p, i)) &&
         ageOf(p, i, place.t) >= f.life.adulthood
       )
         free.push(i);
+    // (Those set to building first, by how high; one set never to build is not taken. Then its fields' hands, as before.)
+    const prio = prios,
+      building = (i: number): number => {
+        const packed = prio?.get(p.id[i]!);
+        return packed === undefined ? 1 : (packed >> (2 * (PRIO_KINDS.length - 1))) & 3;
+      };
+    if (prio)
+      for (let k = free.length - 1; k >= 0; k--) if (building(free[k]!) === 0) free.splice(k, 1);
     const draw = new Map(
       free.map((i) => [i, world.rng.unit(PLACE_DRAW, place.key ^ p.id[i]!, lot, P.crew)]),
     );
     free.sort(
       (a, b) =>
+        (prio ? building(b) - building(a) : 0) ||
         CREW_FROM.indexOf(occOf(p, a)) - CREW_FROM.indexOf(occOf(p, b)) ||
         draw.get(a)! - draw.get(b)! ||
         p.id[a]! - p.id[b]!,
@@ -3315,6 +3363,9 @@ function makePlace(world: World, s: Settlement): Place | null {
     }
   }
   linkRoster(world, place, s, f);
+  // (Each one's skill, by the years they have had at their trade since they were grown, at the age they are now.)
+  for (let i = 0; i < place.people.n; i++)
+    place.people.skill[i] = skillAt(f, ageOf(place.people, i, t), occOf(place.people, i));
   reckonMeans(world, place);
   bringOf(world, place);
   stockOut(place, f, stockShare(world, s.cell, n));
@@ -3395,6 +3446,43 @@ function stockOut(place: Place, f: Frame, share: readonly number[]): void {
 }
 
 // —— The tick ————————————————————————————————————————————————————————————————————————————————————————————————————
+
+/** Ticks of work in a year of one's trade, as the world's year reckons it (a third of their time). */
+const SKILL_YEAR = Math.round((YEAR * WORK_SHARE) / PLACE_TICK);
+/** The most ticks counted: a master's (rules/life.ts SKILL_LEVELS' last, six ticks an hour); past it there is no more to learn. */
+const SKILL_MOST = SKILL_LEVELS[SKILL_LEVELS.length - 1]! * 6;
+/** The level one new to a trade begins at, and a master's (rules/life.ts SKILL_LEVELS). */
+const SKILL_TOP = SKILL_LEVELS.length - 1;
+/** The hours one of a place's people has given to their trade, and what that makes them at it (rules/life.ts levelOf). */
+export function placeSkill(
+  place: Place,
+  i: number,
+): { hours: number; level: number; words: string } {
+  const hours = Math.floor(place.people.skill[i]! / 6),
+    level = levelOf(hours);
+  return { hours, level, words: SKILL_WORDS[level] ?? "" };
+}
+/**
+ * What a level of skill is worth against a master's, as the world's own rule pays it (rules/life.ts dayWage: a tenth
+ * more for each level): a master's hour is worth 1.4 of one new to it. A hand turned to work not their own is new to it.
+ * It is what their hour wins or makes here: a master's is what its land counts a hand of the trade to make, one new to
+ * it five sevenths of that. (Not what the hour is worth to them against rest: one new to a trade works to learn it.)
+ */
+export const skillWorth = (level: number): number => (1 + 0.1 * level) / (1 + 0.1 * SKILL_TOP);
+/**
+ * How much oftener than a master one at a level is hurt at their work: the same making by a hand worth less takes so
+ * many more of its motions, and a fifth of what its tools wear is worn on the hand (hazardOf).
+ */
+export const skillHazard = (level: number): number => 1 / skillWorth(level);
+const SKILL_NEW = skillWorth(0);
+/** Places read from a save kept before skill was: each one's is reckoned from their age when the place is next brought on. */
+const UNSKILLED = new WeakSet<Place>();
+/** The skill one of an age comes with, at a trade kept since they were grown (ticks). */
+function skillAt(f: Frame, age: number, occ: number): number {
+  return occ === OCC.dependent
+    ? 0
+    : Math.min(SKILL_MOST, Math.max(0, Math.round((age - f.life.adulthood) * SKILL_YEAR)));
+}
 
 /**
  * What one's own nature adds to or takes from their work's worth: drawn once from who they are, and kept while the place
@@ -3729,6 +3817,105 @@ function tick(world: World, place: Place, f: Frame): void {
     bldgs.stock[(b < 0 ? 0 : b) * GOOD_COUNT + p.carryGood[i]!]! += p.carry[i]!;
     p.carry[i] = 0;
   };
+  // What its working buildings lack of what its land's makings are made of (one load to each), and what they have made, a
+  // load of it lying there: reckoned once a tick, when first asked.
+  const wantsNow = (): [number, number][] => {
+      if (wants) return wants;
+      wants = [];
+      // (A site in hand wants tools while it has less than a day's wear for its crew.)
+      if (sitesNow)
+        for (const sn of sitesNow.values())
+          if (
+            sn.b > 0 &&
+            !sn.stopped &&
+            sn.left > 0 &&
+            bldgs.stock[sn.b * GOOD_COUNT + G.tools]! < SITE_WEAR * 144
+          )
+            wants.push([sn.b, G.tools]);
+      for (let b = 1; b < bldgs.lot.length; b++) {
+        if (b === market || bldgs.site[b]) continue;
+        const made = MAKING_GOODS.get(bldgs.kind[b]!);
+        if (!made) continue;
+        RECIPES.forEach((r, k) => {
+          if (!((matched.kinds >>> k) & 1) || !made.includes(r.output[0])) return;
+          for (const [x] of r.inputs)
+            if (
+              bldgs.stock[b * GOOD_COUNT + x]! < LOAD * MICRO &&
+              !wants!.some((w) => w[0] === b && w[1] === x)
+            )
+              wants!.push([b, x]);
+        });
+      }
+      return wants;
+    },
+    haulsNow = (): [number, number][] => {
+      if (hauls) return hauls;
+      hauls = [];
+      for (let b = 1; b < bldgs.lot.length; b++) {
+        if (b === market || bldgs.site[b]) continue;
+        for (const g of MAKING_GOODS.get(bldgs.kind[b]!) ?? [])
+          if (bldgs.stock[b * GOOD_COUNT + g]! >= LOAD * MICRO) hauls.push([b, g]);
+      }
+      return hauls;
+    };
+  // Priorities set for its people by name (place.prio): when one's own trade has nothing for them, the trade set next
+  // highest that has: grain or beasts standing unwon, a making whose stuff is to hand, a load waiting to be carried. Done
+  // as one new to it; what it wins or makes is the place's, as any hand's is.
+  const prios = prioMap(orders),
+    tickWin = [Math.round(win[0]! * perTick), Math.round(win[1]! * perTick)],
+    turnPlace = (i: number, to: number): number =>
+      to === OCC.farmer || to === OCC.herder
+        ? AT.fields
+        : to === OCC.trader
+          ? bldgs.lot[market]!
+          : makingLot(place, i),
+    hasWork = (i: number, to: number): boolean => {
+      if (to === OCC.farmer) return tickWin[0]! > 0 && place.ripe[G.grain]! >= tickWin[0]!;
+      if (to === OCC.herder) return tickWin[1]! > 0 && place.ripe[G.meat]! >= tickWin[1]!;
+      if (to === OCC.trader)
+        return (
+          haulsNow().length > 0 ||
+          wantsNow().some(
+            ([, x]) => !barred(market, x) && bldgs.stock[market * GOOD_COUNT + x]! > 0,
+          )
+        );
+      if (!p.craft[i]) p.craft[i] = craftFor(world, place, i);
+      if (!p.craft[i]) return false;
+      const r = RECIPES[p.craft[i]! - 1]!,
+        lot = makingLot(place, i);
+      if (lot === AT.fields || shut?.has(lot)) return false;
+      const at = bldgAt(place, lot),
+        b = at < 0 ? market : at;
+      return (
+        matched.made[r.output[0]]! > 0 &&
+        r.inputs.every(([x]) => !barred(b, x) && bldgs.stock[b * GOOD_COUNT + x]! > 0)
+      );
+    },
+    /** One whose work has nothing for them turns to the next their priorities name that has (true: they have). */
+    turns = (i: number, own: number): boolean => {
+      if (p.turn[i]) {
+        // (What they had turned to has run out too: back to their own.)
+        p.turn[i] = 0;
+        return false;
+      }
+      const packed = prios?.get(p.id[i]!);
+      if (packed === undefined) return false;
+      let to = 0,
+        most = 0;
+      MANAGED_TRADES.forEach((occ, k) => {
+        const x = (packed >> (2 * k)) & 3;
+        if (occ !== own && x > most && hasWork(i, occ)) {
+          most = x;
+          to = occ;
+        }
+      });
+      if (!to) return false;
+      p.turn[i] = to;
+      p.act[i] = ACT.work;
+      p.why[i] = WHY.turned;
+      go(place, i, turnPlace(i, to), world);
+      return true;
+    };
   // A meal: what its land's reckoning counts a mouth to eat in the time since their last (the young, their share of it),
   // as far as the pantry has it; their hunger and what they have yet to eat fall by as much of it as they got. A body
   // asleep hungers a quarter as fast, so it wakes hungry less often through a long dark season, and eats as much.
@@ -3816,6 +4003,8 @@ function tick(world: World, place: Place, f: Frame): void {
     }
     // Once a day, each in turn: their mood, and what may befall them.
     if ((tickNo + p.id[i]!) % 144 === 0) {
+      // (Each day their own work is looked to again: back to it once it has something for them.)
+      if (p.turn[i] && hasWork(i, p.sexOcc[i]! & 15)) p.turn[i] = 0;
       // Mood, from needs met over the days gone and what befell their household: a quarter of the way to where those
       // put it, each day. A body that lives closer together leans more on its friends.
       // (And by their own temper: what each of these weighs with them, against most. rules/temper.ts.)
@@ -3879,7 +4068,8 @@ function tick(world: World, place: Place, f: Frame): void {
         } else if (
           p.act[i] === ACT.work &&
           world.rng.chance(
-            hazardOf(place, occOf(p, i), p.craft[i]!) / 365,
+            (hazardOf(place, occOf(p, i), p.craft[i]!) / 365) *
+              skillHazard(levelOf(Math.floor(p.skill[i]! / 6))),
             PLACE_DRAW,
             place.key ^ p.id[i]!,
             tickNo,
@@ -3943,6 +4133,16 @@ function tick(world: World, place: Place, f: Frame): void {
         }
       }
       continue;
+    }
+    // (Asleep, with neither hunger nor cold pressing past what rest is worth, and nothing in hand and no fire to turn out
+    // to: asleep still, whatever their work is worth to them. Half a town's hours are such, and none of them asks it.)
+    if (asleep && fireLot === null && p.carry[i] === 0 && p.needs[at0 + N.rest]! > 0.04 * FULL) {
+      const hf = p.needs[at0 + N.food]! / FULL,
+        cf = p.needs[at0 + N.cold]! / FULL;
+      if (hf * hf * hf < IDLE_WORTH && cf * cf * cf < IDLE_WORTH) {
+        p.why[i] = WHY.asleep;
+        continue;
+      }
     }
     const hunger = pressOf(p.needs[at0 + N.food]! / FULL),
       tired = pressOf(p.needs[at0 + N.rest]! / FULL),
@@ -4131,8 +4331,10 @@ function tick(world: World, place: Place, f: Frame): void {
       p.why[i] = occ === OCC.dependent ? WHY.young : WHY.dark;
       continue;
     }
-    // Work: what the next hour of it is worth passes every need.
-    const work = p.work[i]!;
+    // Work: what the next hour of it is worth passes every need. (Their own, or what they have turned to for now.)
+    const turned = p.turn[i]!,
+      doing = turned || occ,
+      work = turned ? turnPlace(i, turned) : p.work[i]!;
     if (shut?.has(work)) {
       // Their building's work is stopped by order: at home, waiting.
       p.act[i] = ACT.wait;
@@ -4215,17 +4417,30 @@ function tick(world: World, place: Place, f: Frame): void {
         if (p.act[i] === ACT.carry && p.carry[i]! > 0) continue;
       }
       p.act[i] = ACT.work;
-      p.why[i] = WHY.work;
+      p.why[i] = turned ? WHY.turned : WHY.work;
       go(place, i, work, world);
       continue;
     }
     p.act[i] = ACT.work;
-    p.why[i] = WHY.work;
-    if (occ === OCC.farmer || occ === OCC.herder) {
+    p.why[i] = turned ? WHY.turned : WHY.work;
+    // (An hour given to one's own trade is an hour of skill at it: rules/life.ts.)
+    if (!turned && p.skill[i]! < SKILL_MOST) p.skill[i]!++;
+    if (doing === OCC.farmer || doing === OCC.herder) {
       // What the fields and the flocks give is brought in a load at a time: home while the pantry is short, else to the store.
       // (Won as fast as a hand that works a third of its time must to win its year's making, of what is ready.)
-      const g = occ === OCC.farmer ? G.grain : G.meat,
-        made = Math.min(place.ripe[g]!, Math.round(win[occ === OCC.farmer ? 0 : 1]! * perTick));
+      // (By their skill: a hand turned to it from another trade wins as one new to it.)
+      const g = doing === OCC.farmer ? G.grain : G.meat,
+        skilled = turned
+          ? SKILL_NEW
+          : p.skill[i]! >= SKILL_MOST
+            ? 1
+            : skillWorth(levelOf(Math.floor(p.skill[i]! / 6))),
+        made = Math.min(
+          place.ripe[g]!,
+          Math.round(tickWin[doing === OCC.farmer ? 0 : 1]! * skilled),
+        );
+      // (Nothing stands ready to be won: what their priorities name next, if any has work.)
+      if (made <= 0 && (turned || prios) && turns(i, occ)) continue;
       place.ripe[g]! -= made;
       if (p.carryGood[i] !== g) setDown(i);
       p.carryGood[i] = g;
@@ -4243,19 +4458,29 @@ function tick(world: World, place: Place, f: Frame): void {
           world,
         );
       }
-    } else if (occ === OCC.crafter && p.craft[i]) {
+    } else if (doing === OCC.crafter && p.craft[i]) {
       // A making: its stuff taken from where it is worked, the made thing left there; for want of stuff, none.
       const r = RECIPES[p.craft[i]! - 1]!,
         [good, per] = r.output,
         // (One who works at home takes their stuff from the market and leaves what they make there.)
         at = bldgAt(place, p.at[i]!),
         b = at < 0 ? market : at,
-        made = Math.round(matched.made[good]! * perTick);
+        made = Math.round(
+          matched.made[good]! *
+            perTick *
+            (turned
+              ? SKILL_NEW
+              : p.skill[i]! >= SKILL_MOST
+                ? 1
+                : skillWorth(levelOf(Math.floor(p.skill[i]! / 6)))),
+        );
       let can = made;
       // (What its market will not let go is not to be had there.)
       const has = (x: number) => (barred(b, x) ? 0 : bldgs.stock[b * GOOD_COUNT + x]!);
       for (const [x, amount] of r.inputs) can = Math.min(can, Math.floor((has(x) * per) / amount));
       if (can <= 0 && made > 0) {
+        if ((turned || prios) && turns(i, occ)) continue;
+        if (turned) continue;
         p.act[i] = ACT.wait;
         p.why[i] = WHY.noStuff;
         continue;
@@ -4267,37 +4492,10 @@ function tick(world: World, place: Place, f: Frame): void {
       }
       bldgs.stock[b * GOOD_COUNT + good]! += can;
       madeOf(good, can);
-    } else if (occ === OCC.trader) {
+    } else if (doing === OCC.trader) {
       // A carrier: what a working building has made goes to the market; what one lacks and the market holds goes to it.
       if (p.at[i] !== bldgs.lot[market]) continue;
-      // (What its working buildings lack of what its land's makings are made of, reckoned once a tick: one load to each.)
-      if (!wants) {
-        wants = [];
-        // (A site in hand wants tools while it has less than a day's wear for its crew.)
-        if (sitesNow)
-          for (const sn of sitesNow.values())
-            if (
-              sn.b > 0 &&
-              !sn.stopped &&
-              sn.left > 0 &&
-              bldgs.stock[sn.b * GOOD_COUNT + G.tools]! < SITE_WEAR * 144
-            )
-              wants.push([sn.b, G.tools]);
-        for (let b = 1; b < bldgs.lot.length; b++) {
-          if (b === market || bldgs.site[b]) continue;
-          const made = MAKING_GOODS.get(bldgs.kind[b]!);
-          if (!made) continue;
-          RECIPES.forEach((r, k) => {
-            if (!((matched.kinds >>> k) & 1) || !made.includes(r.output[0])) return;
-            for (const [x] of r.inputs)
-              if (
-                bldgs.stock[b * GOOD_COUNT + x]! < LOAD * MICRO &&
-                !wants!.some((w) => w[0] === b && w[1] === x)
-              )
-                wants!.push([b, x]);
-          });
-        }
-      }
+      const wants = wantsNow();
       for (let k = 0; k < wants.length; k++) {
         const [b, x] = wants[k]!,
           has = barred(market, x) ? 0 : bldgs.stock[market * GOOD_COUNT + x]!;
@@ -4315,15 +4513,8 @@ function tick(world: World, place: Place, f: Frame): void {
       }
       if (p.act[i] === ACT.carry) continue;
       // (And what its buildings have made, a load of it lying there: fetched for the market, one carrier to each.)
-      if (!hauls) {
-        hauls = [];
-        for (let b = 1; b < bldgs.lot.length; b++) {
-          if (b === market || bldgs.site[b]) continue;
-          for (const g of MAKING_GOODS.get(bldgs.kind[b]!) ?? [])
-            if (bldgs.stock[b * GOOD_COUNT + g]! >= LOAD * MICRO) hauls.push([b, g]);
-        }
-      }
-      const haul = hauls.shift();
+      const haul = haulsNow().shift();
+      if (!haul && (turned || prios)) turns(i, occ);
       if (haul) {
         setDown(i);
         p.carryGood[i] = haul[1];
@@ -4356,6 +4547,25 @@ for (const [good, kinds] of Object.entries(MAKING_AT))
     MAKING_GOODS.get(k)!.push(Number(good));
   }
 
+/** The priorities set for a managed town's people, by who (null: none set): read once for each list its orders hold. */
+const PRIOS = new WeakMap<readonly number[], Map<number, number>>();
+function prioMap(orders: Managed | null | undefined): Map<number, number> | null {
+  const list = orders?.prio;
+  if (!list || !list.length) return null;
+  let map = PRIOS.get(list);
+  if (!map) {
+    map = new Map();
+    for (let k = 0; k < list.length; k += 2) map.set(list[k]!, list[k + 1]!);
+    PRIOS.set(list, map);
+  }
+  return map;
+}
+/** One's priorities, where any are set for them (PRIO_KINDS' order; null: none set). */
+export function placePrio(world: World, place: Place, id: number): number[] | null {
+  const packed = prioMap(managedOf(world)?.get(place.town))?.get(id);
+  return packed === undefined ? null : prioOf(packed);
+}
+
 /**
  * A managed town's hands put to its orders (sim/town/managed.ts place.work): of its grown at the trades an order can
  * move, as many to each as its shares say; those of a trade with too many take up one with too few, who by a keyed
@@ -4365,7 +4575,7 @@ function applyOrders(world: World, place: Place, f: Frame): void {
   const orders = managedOf(world)?.get(place.town),
     work = orders?.work ?? null,
     key = orders
-      ? `${work ? work.join(",") : ""}|${orders.assigned.join(",")}|${orders.housed.join(",")}|${orders.held.join(",")}|${orders.shelter}`
+      ? `${work ? work.join(",") : ""}|${orders.assigned.join(",")}|${orders.housed.join(",")}|${orders.held.join(",")}|${orders.shelter}${orders.prio ? `|${orders.prio.join(",")}` : ""}`
       : "";
   if (key === place.ordered) return;
   // (A building opened, or shut again, to those without a home: they go to it, or from it, at once.)
@@ -4380,6 +4590,8 @@ function applyOrders(world: World, place: Place, f: Frame): void {
       const from = occOf(p, i);
       if (from === to) return;
       p.sexOcc[i] = (sexOf(p, i) << 4) | to;
+      p.skill[i] = 0;
+      p.turn[i] = 0;
       note(place, what, p.id[i]!, from, to);
       place.moves.push(rowOf(i), from, to, 1);
     };
@@ -4387,7 +4599,15 @@ function applyOrders(world: World, place: Place, f: Frame): void {
   const named = new Map<number, readonly [number, number]>();
   for (let k = 0; k < orders.assigned.length; k += 3)
     named.set(orders.assigned[k]!, [orders.assigned[k + 1]!, orders.assigned[k + 2]!]);
+  // (Priorities set for one by name: of the four trades, the one set highest is the trade they are put to, as an order
+  // by name puts them; the rest say what they turn to when it has nothing for them, in the tick.)
+  const prio = prioMap(orders);
   for (let i = 0; i < p.n; i++) {
+    const packed = prio?.get(p.id[i]!);
+    if (packed !== undefined) {
+      const trade = prioTrade(prioOf(packed), occOf(p, i));
+      if (trade >= 0) named.set(p.id[i]!, [trade, named.get(p.id[i]!)?.[1] ?? -9]);
+    }
     const order = named.get(p.id[i]!);
     if (!order) {
       if (p.bound[i] && p.bound[i]! < BOUND_ARMS) {
@@ -4639,6 +4859,11 @@ export function advancePlace(world: World, place: Place): number {
   const f = frameOf(world, place.cell),
     now = Math.floor(world.now / PLACE_TICK) * PLACE_TICK,
     month = Math.floor(world.now / MONTH);
+  if (UNSKILLED.has(place)) {
+    UNSKILLED.delete(place);
+    for (let i = 0; i < place.people.n; i++)
+      place.people.skill[i] = skillAt(f, ageOf(place.people, i, place.t), occOf(place.people, i));
+  }
   layLots(world, place);
   // (What it was asked to raise read anew where that has changed; its hands put to any order given since: before its next
   // tick, and though the clock stands still.)

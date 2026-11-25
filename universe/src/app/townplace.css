@@ -325,3 +325,114 @@ body.placing .page-window {
   border-color: #0b7a62;
   background: linear-gradient(180deg, #d9fff5 0%, #6ff0cf 46%, #29cfa6 54%, #8bf5dc 100%);
 }
+
+/* The priorities grid: a row a person, a column a kind of work. Its names stay at the left and its kinds at the top
+   while the rest scrolls; every key a fingertip's size. */
+.place-grid {
+  max-height: min(52vh, 420px);
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid rgba(190, 205, 255, 0.35);
+  border-radius: 6px;
+  margin: 4px 0;
+  overscroll-behavior: contain;
+}
+.place-grid-rows {
+  display: grid;
+  grid-template-columns: minmax(96px, 1fr) repeat(6, 46px);
+  width: 100%;
+  min-width: 372px;
+}
+.place-grid-row {
+  display: contents;
+}
+.place-grid-row > * {
+  min-height: 44px;
+  box-sizing: border-box;
+  border-bottom: 1px dotted rgba(190, 205, 255, 0.25);
+}
+.place-hud .place-grid-name {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 2px 6px;
+  margin: 0;
+  text-align: left;
+  font-size: 13px;
+  line-height: 1.15;
+  background: #17255a;
+  color: inherit;
+  border-radius: 0;
+  border-width: 0 1px 1px 0;
+  border-style: solid;
+  border-color: rgba(190, 205, 255, 0.3);
+  box-shadow: none;
+  min-width: 0;
+}
+.place-grid-who {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.place-grid-skill {
+  font-size: 11px;
+  opacity: 0.8;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.place-grid-head > * {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  background: #0f1a45;
+  border-bottom: 1px solid rgba(190, 205, 255, 0.45);
+}
+.place-grid-head > .place-grid-name {
+  z-index: 3;
+  justify-content: center;
+  align-items: flex-start;
+  background: #0f1a45;
+}
+.place-hud .place-grid-key {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  margin: 0 1px;
+  padding: 0;
+  font-size: 16px;
+  font-weight: 700;
+  border-radius: 6px;
+  justify-self: center;
+  align-self: center;
+}
+.place-hud .place-grid-key:not(.on) {
+  opacity: 0.55;
+  font-weight: 400;
+}
+.place-hud .place-grid-key.first {
+  background: linear-gradient(#7ff0d2, #2fbf9b);
+  color: #06281f;
+}
+.place-hud .place-grid-key.own {
+  opacity: 0.6;
+}
+.place-hud .place-grid-key.own.first {
+  opacity: 0.8;
+}
+.place-grid-free {
+  justify-self: center;
+  align-self: center;
+}

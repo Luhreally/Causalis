@@ -191,6 +191,29 @@ export type PlaceWorkSheet = {
   }[];
   /** What it was asked to raise that is still going up. */
   readonly sites: readonly PlaceSiteRow[];
+  /**
+   * Who works at what, and in what order (its priorities, place.prio): the kinds of work, and its grown at the trades an
+   * order can move, those with priorities set first, as many as a sheet shows; and how many there are in all.
+   */
+  readonly grid: {
+    readonly kinds: readonly string[];
+    readonly rows: readonly PlacePrioRow[];
+    readonly all: number;
+  };
+};
+/** One of a place's people on its priorities grid. */
+export type PlacePrioRow = {
+  readonly id: number;
+  readonly ref: string;
+  readonly name: string;
+  /** Their trade (the world's occupation column), and their skill at it in a word ("a master"). */
+  readonly occ: number;
+  readonly skill: string;
+  /** Their priorities, a kind each (0 never … 3 first), and whether any were set by an order (else as they are of themselves). */
+  readonly kinds: readonly number[];
+  readonly set: boolean;
+  /** What they have turned to for now, their own trade having nothing for them (the occupation column; 0: their own). */
+  readonly turned: number;
 };
 /** A site on a place's Work sheet. */
 export type PlaceSiteRow = {

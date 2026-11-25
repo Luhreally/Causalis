@@ -73,6 +73,26 @@ if (mode === "second") {
   // (And given an order: its hands put to other trades, kept in the save with what its land has yet to be told.)
   const c = w.submit("place.work", { town: ref, shares: [300, 100, 500, 100] });
   w.runTo(c.t);
+  // (And priorities set for three of its people by name: the trade each is put to, what each turns to, kept in the save.)
+  {
+    const p = placesOf(w)!.get(ref)!.people;
+    let set = 0;
+    for (let i = 0; i < p.n && set < 3; i++) {
+      const occ = p.sexOcc[i]! & 15;
+      if (occ < 2 || occ > 5 || (w.now / DAY - p.born[i]!) / 365 < 25) continue;
+      w.runTo(
+        w.submit("place.prio", {
+          town: ref,
+          person: p.id[i]!,
+          kinds: [
+            [1, 0, 3, 2, 1],
+            [3, 2, 0, 1, 0],
+            [2, 0, 1, 3, 3],
+          ][set++]!,
+        }).t,
+      );
+    }
+  }
   // (And held to stand to arms, a building opened to the homeless, and a fire on it: its hurt, its homeless and those
   // under arms kept in the save too.)
   w.runTo(w.submit("place.respond", { town: ref, what: "muster", on: true }).t);

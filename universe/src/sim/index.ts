@@ -2264,6 +2264,10 @@ export {
 export {
   HELD,
   MANAGED_TRADES,
+  PRIO_KINDS,
+  prioOf,
+  prioPacked,
+  prioTrade,
   WORK_SHARE,
   heldPull,
   type HeldTo,

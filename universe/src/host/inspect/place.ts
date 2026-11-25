@@ -4,8 +4,15 @@
 // now. One the god game names (a holder of a line of the town's roster) has one page, the god game's, with these laid
 // at its head while the town is kept. Read of the place as kept: a page asks nothing of it and moves nothing.
 import { DAY, YEAR, type Ref, type World } from "../../kernel/index.ts";
-import { FOODS, GOODS, OCC } from "../../rules/index.ts";
-import { SITE_TONNES, asksOf, lifeOf, marketGoodRef, populationContext } from "../../sim/index.ts";
+import { FOODS, GOODS, OCC, SKILL_LEVELS } from "../../rules/index.ts";
+import {
+  SITE_TONNES,
+  asksOf,
+  lifeOf,
+  marketGoodRef,
+  populationContext,
+  PRIO_KINDS,
+} from "../../sim/index.ts";
 import {
   PLACE_WALLS_REF,
   placeLotRef,
@@ -41,6 +48,11 @@ import {
   pressOf,
   siteStage,
   type Place,
+  hazardOf,
+  placePrio,
+  placeSkill,
+  skillHazard,
+  skillWorth,
 } from "../place.ts";
 import {
   ailWords,
@@ -55,6 +67,7 @@ import {
   placedHolder,
   tradeWords,
   whyWords,
+  OCCUPATION_WORK,
 } from "../placeplan.ts";
 import { askRef, builtOf } from "./asks.ts";
 import { buildingRef, lotRef, townPartOf } from "./fabric.ts";
@@ -138,6 +151,40 @@ function temperWords(place: Place, i: number): string {
   return `${marks.length ? cap(marks.join(", ")) : "Much as most of their people are"}: half their people's ways, half their own nature. Against a hundred for most, a death at home weighs ${of(t.kin)} with them, an order ${of(1 - t.bidden)}, a friend ${of(t.sociable)}, a full pantry ${of(t.thrifty)}, want and a home lost ${of(1 - t.bold)}.`;
 }
 
+/** One's skill at their trade, said, with what it bears on (null: they keep no trade). */
+function skillLine(world: World, place: Place, i: number): string | null {
+  const p = place.people,
+    occ = p.sexOcc[i]! & 15;
+  if (occ === OCC.dependent) return null;
+  const s = placeSkill(place, i),
+    worth = Math.round(skillWorth(s.level) * 100),
+    hurt = skillHazard(s.level),
+    risks = hazardOf(place, occ, p.craft[i]!) > 0;
+  // (What it bears on here: what an hour at the fields, the herds or a craft wins or makes, and how often its tools hurt.)
+  const makes = occ === OCC.farmer || occ === OCC.herder || occ === OCC.crafter,
+    master = SKILL_LEVELS[SKILL_LEVELS.length - 1]!.toLocaleString("en-US");
+  return `${cap(s.words)} at ${OCCUPATION_WORK[occ] ?? "their work"}: ${s.hours.toLocaleString("en-US")} hours given to it. ${
+    !makes
+      ? `A master has given it ${master}`
+      : s.level >= SKILL_LEVELS.length - 1
+        ? `An hour of theirs wins or makes all a master's does${risks ? ", and they are hurt at it no oftener" : ""}`
+        : `An hour of theirs wins or makes ${worth} in a hundred of what a master's does${risks ? `, and they are hurt at it ${Math.round(hurt * 10) / 10} times as often` : ""}; a master has given it ${master} hours`
+  }. It grows with every hour at their own trade, and begins again at a new one.`;
+}
+
+/** One's priorities by your order, said (null: none set). */
+function prioLine(world: World, place: Place, i: number): string | null {
+  const kinds = placePrio(world, place, place.people.id[i]!);
+  if (!kinds) return null;
+  const order = ["", "third", "second", "first"],
+    said = PRIO_KINDS.map((name, k) => [kinds[k] ?? 0, name] as const)
+      .filter(([x]) => x > 0)
+      .sort((a, b) => b[0] - a[0])
+      .map(([x, name]) => `${name} ${order[x]}`),
+    never = PRIO_KINDS.filter((_, k) => !(kinds[k] ?? 0));
+  return `By your order: ${said.join(", ")}${never.length ? `; never ${never.join(", ")}` : ""}. The trade set highest is theirs; when it has nothing for them they turn to the next that has, as one new to it.`;
+}
+
 /** What a place tells of one of its people: their needs and the why first, then what they hold and who they live with. */
 function personBlocks(
   world: World,
@@ -208,7 +255,7 @@ function personBlocks(
                 stat(
                   "Health",
                   `${healthWords(world, place, i) ?? ailWords(place, i)}. ${careWords(place)}`,
-                  p.cause[i]! >= CAUSE.sickness && place.ills[p.cause[i]! - CAUSE.sickness]
+                  p.health[i] === 2 && place.ills[p.cause[i]! - CAUSE.sickness]
                     ? { why: place.ills[p.cause[i]! - CAUSE.sickness]!.split("|")[1]! }
                     : {},
                 ),
@@ -242,6 +289,8 @@ function personBlocks(
         rows: [
           stat("Now", doing),
           stat("Home", [lotLink(place, r.home)]),
+          ...(skillLine(world, place, i) ? [stat("Skill", skillLine(world, place, i)!)] : []),
+          ...(prioLine(world, place, i) ? [stat("Priorities", prioLine(world, place, i)!)] : []),
           ...(p.bound[i]
             ? [
                 stat(
