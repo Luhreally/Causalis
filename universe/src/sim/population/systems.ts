@@ -162,7 +162,7 @@ import { lightSteps, starSitesOf } from "../space/stars.ts";
 import { lateOf, remakeKey } from "../space/late-store.ts";
 import { frontierFields, frontierRain, frontierSky } from "../frontier/hooks.ts";
 import { writtenCut } from "../frontier/written.ts";
-import { engineeredOf } from "../frontier/engineered.ts";
+import { engineeredKept, engineeredOf } from "../frontier/engineered.ts";
 import { siteRegion } from "../space/ground.ts";
 import { starHazard } from "../acts/great.ts";
 import { homeSky, shiftNow, starEnded } from "../planet/motion.ts";
@@ -1060,6 +1060,10 @@ function heightsAt(elevation: ArrayLike<number>, cell: number, adapted: number):
 }
 
 export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
+  // (Each land's written and mended read once for the month, its births' and its deaths' both: sim/frontier/engineered.ts.)
+  engineeredKept(() => vitalMonthRead(ctx, t));
+}
+function vitalMonthRead(ctx: PopulationContext, t: SimTime): void {
   const { world, history } = ctx,
     year = yearOfMoment(t),
     life = ctx.life,
