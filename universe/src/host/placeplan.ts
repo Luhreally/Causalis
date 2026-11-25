@@ -305,8 +305,6 @@ export function placePlan(
         occupation: occ,
         child,
         sex,
-        // (Of another people than its world's first: drawn in their own people's figure.)
-        ...(of && of.kind > 0 ? { kind: of.kind } : {}),
         folk: true,
         role: `${tradeWords(occ, child)} of ${plan.name}`,
         page: ref,
