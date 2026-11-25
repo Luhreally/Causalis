@@ -279,7 +279,9 @@ for (const view of [
         /^(plc|folk):/.test((await k<string | null>("globalThis.causalis.pageOpen()")) ?? ""),
       ))
     )
-      say(`the page open: ${await k<string | null>("globalThis.causalis.pageOpen()")}`);
+      say(
+        `the page open: ${await k<string | null>("globalThis.causalis.pageOpen()")}; the mode ${JSON.stringify(await k("(() => { const s = globalThis.causalis.place.state(); return { on: s.on, town: s.town, people: globalThis.causalis.planNow()?.people.length, placed: globalThis.causalis.planNow()?.placed?.length }; })()"))}`,
+      );
     await page.waitForTimeout(slow(700));
     const text = await k<string>(`document.querySelector(".page-window")?.textContent ?? ""`);
     for (const word of ["Hunger", "Tiredness", "Cold", "Why", "In hand"])

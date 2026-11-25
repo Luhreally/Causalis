@@ -63,6 +63,16 @@ if (mode === "second") {
   // (And given an order: its hands put to other trades, kept in the save with what its land has yet to be told.)
   const c = w.submit("place.work", { town: ref, shares: [300, 100, 500, 100] });
   w.runTo(c.t);
+  // (And held to stand to arms, a building opened to the homeless, and a fire on it: its hurt, its homeless and those
+  // under arms kept in the save too.)
+  w.runTo(w.submit("place.respond", { town: ref, what: "muster", on: true }).t);
+  const hall = placesOf(w)!.get(ref)!.bldgs.lot[1];
+  if (hall !== undefined) w.runTo(w.submit("place.shelter", { town: ref, lot: hall }).t);
+  try {
+    w.runTo(w.submit("act.fire", { village: ref }).t);
+  } catch {
+    // (Nothing of it stands to burn, or nothing burns in its air: no fire.)
+  }
   go(w, ref, 6);
   if (mode === "first")
     writeFileSync(b!, gzipSync(JSON.stringify(saveWorld(w, "r", { universe: "earth" }))));

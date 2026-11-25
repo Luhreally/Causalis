@@ -280,20 +280,32 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
       lay();
     },
     tapped: (x, y) => {
+      if (!town) return false;
+      // (Every tap in a town entered is the mode's: one that finds no one and nothing of it opens no page of the god
+      // game's, whose chrome is away. Found by the look: a tap beside one of its people opened its land's page.)
       const plan = d.plan();
-      if (!town || !body || !plan || plan.ref !== town) return false;
-      const i = d.village.pick(x, y, TAP_REACH),
-        person = i === null ? undefined : plan.people[i];
+      if (!body || !plan || plan.ref !== town) return true;
+      // The nearest of the place's own people within a fingertip (of those the plan draws, never one of the town
+      // view's own figures drawn beside them).
+      let person: (typeof plan.people)[number] | undefined,
+        near = TAP_REACH * TAP_REACH;
+      plan.people.forEach((q, i) => {
+        const s = d.village.personOnScreen(i);
+        if (!s) return;
+        const far = (s.x - x) * (s.x - x) + (s.y - y) * (s.y - y);
+        if (far < near) {
+          near = far;
+          person = q;
+        }
+      });
       if (person) {
         void d.pages.open(person.page ?? person.ref);
         return true;
       }
       const thing = d.townThing(x, y);
-      if (thing?.kind === "civic" || thing?.kind === "lot") {
+      if (thing?.kind === "civic" || thing?.kind === "lot")
         void d.pages.open(placeLotRef(town, thing.kind === "civic" ? thing.at : thing.lot));
-        return true;
-      }
-      return false;
+      return true;
     },
     frame: () => {
       if (!town) return;

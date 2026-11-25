@@ -198,7 +198,8 @@ test("a site in hand is carried to and built by a crew of the place's own, told 
   // One of its crew says why.
   const builder = crew()[0]!,
     person = JSON.stringify(pageOf(w, `plc:${town}:${p.id[builder]}`));
-  assert.ok(/crew raising/.test(person), "a builder's page says whose crew they are of");
+  assert.ok(/One of the crew at /.test(person), "a builder's page says whose crew they are of");
+  assert.ok(/'s site/.test(person) && !/going up by your order/.test(person));
 });
 
 test("a site in hand is finished by the world's own rule, then stands, and its crew go back to their work", () => {

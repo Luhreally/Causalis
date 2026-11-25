@@ -44,6 +44,7 @@ import {
   ailWords,
   goneNames,
   lotWords,
+  siteOf,
   placeStuff,
   placeWho,
   placedHolder,
@@ -233,7 +234,7 @@ function personBlocks(
                   p.bound[i] === BOUND_ARMS
                     ? ["Standing to arms in the square, in the hours their work would have had"]
                     : p.bound[i] === BOUND_SITE
-                      ? ["One of the crew raising ", lotLink(place, r.work)]
+                      ? ["One of the crew at ", lotLink(place, r.work)]
                       : p.bound[i] === 255
                         ? ["Put at ", lotLink(place, r.work)]
                         : [`Held to work as ${tradeWords(p.bound[i]! - 1, false)}`],
@@ -590,9 +591,7 @@ export function placeLotPage(world: World, ref: string): PageModel {
     ref,
     kind: "building",
     icon: lot === AT.fields ? "🌾" : lot === AT.square ? "⛲" : site ? "🏗️" : r.kind ? "🏛️" : "🏠",
-    title: site
-      ? `${title.replace(/ going up$/, "")} of ${s.name}, going up`
-      : `${title} of ${s.name}`,
+    title: site ? `${siteOf(title)} of ${s.name}, going up` : `${title} of ${s.name}`,
     subtitle: ["In ", townLink(world, s.ref as Ref)],
     color: null,
     place: { scale: "village", town: s.ref },

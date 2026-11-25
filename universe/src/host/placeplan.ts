@@ -83,14 +83,17 @@ export function tradeWords(occ: number, child: boolean): string {
 
 const PLACE_KINDS: readonly CivicKind[] = CIVICS.map((c) => c.kind);
 
-/** A lot of a place in words: "the smithy", "the square", "the fields", "the home on lot 12". */
+/** What is going up on a site, from its lot's words: "the school" of "the school's site". */
+export const siteOf = (words: string): string => words.replace(/'s site$/, "");
+
+/** A lot of a place in words: "the smithy", "the square", "the fields", "the home on lot 12", "the school's site". */
 export function lotWords(place: Place, lot: number): string {
   if (lot === AT.square || lot === AT.none) return "the square";
   if (lot === AT.fields) return "the fields";
   const b = place.bldgs.lot.indexOf(lot);
   if (b > 0) {
     const kind = PLACE_KINDS[place.bldgs.kind[b]!],
-      rising = place.bldgs.site[b] ? " going up" : "";
+      rising = place.bldgs.site[b] ? "'s site" : "";
     return kind ? `the ${civic(kind).name.replace(/^(a|an) /, "")}${rising}` : "a building";
   }
   return `the home on lot ${lot}`;
@@ -161,13 +164,13 @@ export function whyWords(world: World, place: Place, i: number): string {
     case WHY.abed:
       return `${ailWords(place, i)}: abed at home, ${Math.ceil(p.ill[i]! / 144)} more ${Math.ceil(p.ill[i]! / 144) === 1 ? "day" : "days"}, fed from the pantry by their household`;
     case WHY.site:
-      return `Put to raising ${lotWords(place, p.work[i]!)} by your order. Nothing presses harder than ${bar}${going}`;
+      return `Put to raising ${siteOf(lotWords(place, p.work[i]!))} by your order. Nothing presses harder than ${bar}${going}`;
     case WHY.stuff:
       return `Nothing lies on the site to build in: a load of what it is built of is fetched from outside the town, a third of their own weight at a time${going}`;
     case WHY.stopped:
-      return `Work on ${lotWords(place, p.work[i]!)} is stopped, as its land's month stops it (fighting on its land, the ground's shaking, or nothing in store to feed its hands): at home until it goes on`;
+      return `Work on ${siteOf(lotWords(place, p.work[i]!))} is stopped, as its land's month stops it (fighting on its land, the ground's shaking, or nothing in store to feed its hands): at home until it goes on`;
     case WHY.raised:
-      return `All that ${lotWords(place, p.work[i]!)} wants is done. Its land is told at the month's turn, or on leaving, and then it stands`;
+      return `All that ${siteOf(lotWords(place, p.work[i]!))} wants is done. Its land is told at the month's turn, or on leaving, and then it stands`;
     case WHY.fire:
       return `A fire in the town: turned out to fight it at ${lotWords(place, p.to[i]!)}, until it is out or hunger takes them off`;
     case WHY.arms:
@@ -402,7 +405,7 @@ export function placeNotices(world: World, place: Place): PlaceNotice[] {
     });
   for (const x of placeSites(world, place)) {
     if (!x.inHand) continue;
-    const name = lotWords(place, x.lot).replace(/ going up$/, "");
+    const name = siteOf(lotWords(place, x.lot));
     if (x.raised)
       out.push({
         key: `raised${x.lot}`,
@@ -660,7 +663,7 @@ export function workSheet(world: World, place: Place): PlaceWorkSheet {
       ref: placeLotRef(place.town, x.lot),
       name: lotWords(place, x.lot)
         .replace(/^the /, "")
-        .replace(/ going up$/, ""),
+        .replace(/'s site$/, ""),
       share: x.share,
       stage: siteStage(x.share),
       inHand: x.inHand,
