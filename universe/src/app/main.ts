@@ -170,6 +170,7 @@ import type {
   PeoplesSky,
   SystemPlan,
   VillagePlan,
+  PlaceFrame,
   WorldGlobe,
   GalaxyPlan,
   PageModel,
@@ -414,6 +415,7 @@ import { installHeld, type HeldField } from "./held.ts";
 import { installPossession } from "./possess.ts";
 import { installHome, type HomeAsk } from "./home.ts";
 import { installMoney } from "./money.ts";
+import { installPlace } from "./townplace.ts";
 import { installLeaders } from "./leaders.ts";
 import { installLife } from "./life.ts";
 import { installReign } from "./reign.ts";
@@ -1081,6 +1083,12 @@ type Exposed = {
   /** Where each group's ship stands on the screen, and a tap in the village as by hand. */
   visitorsOnScreen?: () => { key: string; text: string; x: number; y: number }[];
   tapVillage?: (x: number, y: number) => void;
+  /** A town entered (town mode): entered or left, its clock's pace, and what it tells now. */
+  place?: {
+    toggle(): Promise<void>;
+    pace(seconds: number): void;
+    state(): { on: boolean; town: string | null; tells: string | null; told: PlaceFrame | null };
+  };
   faunaNow?: () => {
     name: string;
     niche: string;
@@ -6800,6 +6808,9 @@ async function runPlanetPage(): Promise<void> {
   let folkFilmedAt: number | null = null;
   /** A town's money told its plan was read again (Lives L6). */
   let moneyPlan: (() => void) | null = null;
+  /** A town entered (town mode): the asking its plan is read by while it is, and its plan read again. */
+  let placeQuery: ((ref: string) => "village.plan" | "place.plan") | null = null,
+    placePlan: (() => void) | null = null;
   /** The moment the plan was last asked for, by the host's own word: what struck the town after that, it hasn't heard of. */
   let planAsked = 0;
   /**
@@ -6822,7 +6833,7 @@ async function runPlanetPage(): Promise<void> {
     const q0 = performance.now(),
       asked = ++plansAsked;
     let next = await client.query<VillagePlan>({
-      type: "village.plan",
+      type: placeQuery?.(ref) ?? "village.plan",
       args: {
         ref,
         families: stage.quality.families,
@@ -6879,6 +6890,7 @@ async function runPlanetPage(): Promise<void> {
     villagePanel.show(plan.name, fresh);
     villagePanel.foreign = !!plan.native;
     moneyPlan?.();
+    placePlan?.();
     storesTold = null;
     villagePanel.hand = plan.hand;
     villagePanel.works = {
@@ -7690,6 +7702,7 @@ async function runPlanetPage(): Promise<void> {
   let colonyFrom = 0;
   // A tap in the village: someone, else a beast (its lineage and what it is doing), else no one.
   let lifeTap: ((x: number, y: number) => boolean) | null = null;
+  let placeTap: ((x: number, y: number) => boolean) | null = null;
   // (A home open: a tap is for what is in it. Lives L6.)
   let moneyTap: ((x: number, y: number) => boolean) | null = null,
     homeTap: ((x: number, y: number) => boolean) | null = null,
@@ -7705,6 +7718,8 @@ async function runPlanetPage(): Promise<void> {
     if (lifeTap?.(x, y)) return;
     // (A town's money over it: a home tapped gives its page, whoever stands before it. Lives L6.)
     if (moneyTap?.(x, y)) return;
+    // (A town entered: one of its kept people, or a building of it, gives the place's page of it. Town mode.)
+    if (placeTap?.(x, y)) return;
     // A car pressed: its owner. What goes a line: its page. A finger right on it gets it, whoever stands by it and whatever stands behind; only near it, if no
     // one stands nearer (R1).
     const ride = plan && !homeOpen() ? village.pickRide(x, y) : null;
@@ -10802,6 +10817,36 @@ async function runPlanetPage(): Promise<void> {
     if (plan && !plan.native) void pageWindow.open(`board:${plan.ref}`);
   };
   moneyPlan = moneyFlow.planNow;
+  // A town entered (town mode, first slice): 🏘️ on its bar. Its people kept one by one, drawn where the place has them.
+  const placeFlow = installPlace({
+    client,
+    village,
+    pages: pageWindow,
+    panel: villagePanel,
+    plan: () => (scale === "village" ? plan : null),
+    scale: () => scale,
+    reload: loadPlan,
+    townThing: (x, y) => {
+      const at = plan ? onPlane(x, y, 0) : null;
+      return at ? village.townThingAt(at.x / VILLAGE_METRE, at.z / VILLAGE_METRE, now()) : null;
+    },
+  });
+  placeTap = placeFlow.tapped;
+  placeQuery = placeFlow.planQuery;
+  placePlan = placeFlow.planRead;
+  villagePanel.onPlace = () => void placeFlow.toggle();
+  stage.onUpdate(() => placeFlow.frame());
+  // (For the look tools: the town entered, what its line tells, where its people are as last told.)
+  exposed.place = {
+    toggle: () => placeFlow.toggle(),
+    pace: (seconds: number) => placeFlow.pace(seconds),
+    state: () => ({
+      on: placeFlow.on,
+      town: placeFlow.town,
+      tells: villagePanel.placeTells,
+      told: placeFlow.told,
+    }),
+  };
   // (A page's Go to, from a home: the home closed, then gone to.)
   const goToPage = pageWindow.onGoTo;
   pageWindow.onGoTo = (place, ref) => {

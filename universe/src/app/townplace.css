@@ -1,0 +1,39 @@
+/* A town entered (town mode, first slice): a line of its bar's own, under its buttons: what its people are at, and the
+   way out. In the bar's flow, so it lies over nothing. The pace of its clock is the time bar's own keys. */
+.bar .town-placed {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 2px 8px;
+  font-size: 0.82rem;
+  color: #e8dcb8;
+  background: rgba(0, 0, 0, 0.18);
+}
+.bar .town-placed[hidden] {
+  display: none;
+}
+.town-placed .placed-told {
+  flex: 1 1 0;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+  /* (On a phone its words take the lines they need: nothing of them is cut off.) */
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.town-placed .placed-leave {
+  flex: 0 0 auto;
+  min-height: 32px;
+  min-width: 44px;
+  white-space: nowrap;
+}
+@media (pointer: coarse) {
+  .town-placed .placed-leave {
+    min-height: 44px;
+  }
+}
+.bar .town-place.on {
+  border-color: #0b7a62;
+  background: linear-gradient(180deg, #d9fff5 0%, #6ff0cf 46%, #29cfa6 54%, #8bf5dc 100%);
+}

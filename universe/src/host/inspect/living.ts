@@ -130,6 +130,8 @@ function livedRows(world: World, l: PersonLiving): Stat[] {
 /** Whether a page is of someone no longer among the living, or long gone from where it was. */
 function gone(world: World, ref: string, page: PageModel): boolean {
   if (page.icon === "🪦" || page.icon === "🕯️") return true;
+  // (One of a town kept in detail: their own page says where they live and what they hold, host/inspect/place.ts.)
+  if (ref.startsWith("plc:")) return true;
   if (ref.startsWith("prsn:")) return !resolvePerson(world, ref as never, 4).alive;
   if (ref.startsWith("rule:"))
     return (politiesOf(world).get(ref.slice("rule:".length) as never)?.ended ?? null) !== null;

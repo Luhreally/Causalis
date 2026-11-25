@@ -200,6 +200,8 @@ import { BAR_QUERIES } from "./bar.ts";
 import { writtenIndex, writtenRead } from "./inspect/written.ts";
 import { WEALTH_QUERIES } from "./wealth.ts";
 import { installYears } from "./years.ts";
+import { installPlaces } from "./place.ts";
+import { placeQueries } from "./placeplan.ts";
 import { HELD_QUERIES } from "./held.ts";
 import { SEARCH_QUERIES } from "./search.ts";
 import { takenWordsOf, type NamesArg } from "./names.ts";
@@ -961,6 +963,8 @@ function planetUniverse(name: string, prior: Prior): Universe {
       installColonyTowns(world);
       // (Its realms' and lands' years, as they were, for the charts: read, no part of the rules.)
       installYears(world);
+      // (Its towns entered, kept in detail: nothing of them until one is entered, no part of the rules. host/place.ts.)
+      installPlaces(world);
       return world;
     };
   let rules: string | null = null;
@@ -1549,39 +1553,9 @@ function planetUniverse(name: string, prior: Prior): Universe {
         const a = (args ?? {}) as { limit?: number; types?: string[] };
         return chronicle(world, a.limit ?? 60, a.types);
       },
-      "village.plan": (world, args) => {
-        const a = args as { ref: string; families?: number; folk?: number; figures?: boolean };
-        // (A town of a people of another world, read off it: Phase 69.)
-        const folkHere = folkOfTown(world, a.ref);
-        if (folkHere)
-          return planDrawn(
-            world,
-            folkTownPlan(
-              world,
-              folkHere,
-              a.families ? Math.max(1, Math.min(16, Math.round(a.families))) : 8,
-              a.folk ? Math.max(0, Math.min(480, Math.round(a.folk))) : 0,
-              (args as { at?: number }).at,
-            ),
-          );
-        // (Their wounds laid over them, their days away with the levy, those a strike killed this
-        // year: Phase 55 M226 — read from the record, the world untouched.)
-        const drawn = withWounds(
-          world,
-          // (A colony's: its own world's sky and ground, Phase 64.)
-          sealedPlan(
-            world,
-            villagePlan(
-              world,
-              a.ref as Ref,
-              a.families ? Math.max(1, Math.min(16, Math.round(a.families))) : undefined,
-              a.folk ? Math.max(0, Math.min(480, Math.round(a.folk))) : 0,
-            ),
-          ),
-        );
-        // (Its key figures, for the page that asks: Lives L1.)
-        return planDrawn(world, a.figures ? withFigures(world, drawn) : drawn);
-      },
+      "village.plan": villagePlanQuery,
+      // (A town entered and kept in detail: its people for the plan's, and where they are. host/placeplan.ts.)
+      ...placeQueries(villagePlanQuery),
       /** The towns whose levy comes home wounded this year, the most borne first (Phase 55 M226; the look tools). */
       "village.wounded": (world, args) =>
         woundedTowns(
@@ -1974,4 +1948,39 @@ function lessonsHeld(
   return out.sort(
     (a, b) => b.lessons.length - a.lessons.length || b.lost - a.lost || (a.ref < b.ref ? -1 : 1),
   );
+}
+
+/** A town's plan as its view asks for it (`village.plan`; a place's plan is laid over it: host/placeplan.ts). */
+function villagePlanQuery(world: World, args: unknown): unknown {
+  const a = args as { ref: string; families?: number; folk?: number; figures?: boolean };
+  // (A town of a people of another world, read off it: Phase 69.)
+  const folkHere = folkOfTown(world, a.ref);
+  if (folkHere)
+    return planDrawn(
+      world,
+      folkTownPlan(
+        world,
+        folkHere,
+        a.families ? Math.max(1, Math.min(16, Math.round(a.families))) : 8,
+        a.folk ? Math.max(0, Math.min(480, Math.round(a.folk))) : 0,
+        (args as { at?: number }).at,
+      ),
+    );
+  // (Their wounds laid over them, their days away with the levy, those a strike killed this
+  // year: Phase 55 M226 — read from the record, the world untouched.)
+  const drawn = withWounds(
+    world,
+    // (A colony's: its own world's sky and ground, Phase 64.)
+    sealedPlan(
+      world,
+      villagePlan(
+        world,
+        a.ref as Ref,
+        a.families ? Math.max(1, Math.min(16, Math.round(a.families))) : undefined,
+        a.folk ? Math.max(0, Math.min(480, Math.round(a.folk))) : 0,
+      ),
+    ),
+  );
+  // (Its key figures, for the page that asks: Lives L1.)
+  return planDrawn(world, a.figures ? withFigures(world, drawn) : drawn);
 }

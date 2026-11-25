@@ -80,6 +80,10 @@ export class VillagePanel {
   private readonly boardLine = el("button", "town-money town-board", "🏷️");
   /** Ask it for something (H1). */
   private readonly askLine = el("button", "town-money town-ask", "🙏");
+  /** Live in this town (town mode): its people kept one by one, entered and left from its bar. */
+  private readonly placeLine = el("button", "town-money town-place", "🏘️");
+  private readonly placeStrip = el("div", "town-placed");
+  private readonly placeTold = el("span", "placed-told");
   private warRef: string | null = null;
   private folkOpen = false;
   private cardKey = "";
@@ -88,6 +92,8 @@ export class VillagePanel {
   onMoney: () => void = () => {};
   onBoard: () => void = () => {};
   onAsk: () => void = () => {};
+  /** 🏘️ pressed: the town entered, or left if it is entered. */
+  onPlace: () => void = () => {};
   onClose: () => void = () => {};
   /** The stores' card opened (what else is up is put away). */
   onStores: () => void = () => {};
@@ -124,14 +130,27 @@ export class VillagePanel {
     this.askLine.title = "Ask this town for something";
     this.askLine.setAttribute("aria-label", "Ask this town for something");
     this.askLine.onclick = () => this.onAsk();
+    const placeWords = "Live in this town: its people kept one by one";
+    this.placeLine.title = placeWords;
+    this.placeLine.setAttribute("aria-label", placeWords);
+    this.placeLine.onclick = () => this.onPlace();
+    // (The town entered: what its people are at, and the way out. A line of the bar's own; its clock's pace is the bar's.)
+    const leave = el("button", "placed-leave", "Leave");
+    leave.title =
+      "Leave the town to the world: it is kept as it is, and goes on from here when you come back";
+    leave.onclick = () => this.onPlace();
+    this.placeStrip.append(this.placeTold, leave);
+    this.placeStrip.hidden = true;
     bar.append(
       back,
       this.title,
       this.timeSlot,
       this.liveLine,
+      this.placeLine,
       this.moneyLine,
       this.boardLine,
       this.askLine,
+      this.placeStrip,
       this.storesLine,
       this.warLine,
     );
@@ -166,6 +185,7 @@ export class VillagePanel {
   set foreign(on: boolean) {
     this.backLine.textContent = on ? "‹ Their world" : "‹ The land";
     this.liveLine.style.display = on ? "none" : "";
+    this.placeLine.style.display = on ? "none" : "";
     this.askLine.style.display = on ? "none" : "";
   }
 
@@ -178,6 +198,18 @@ export class VillagePanel {
     this.storesKey = this.cardKey = "";
     this.storesLine.hidden = true;
     this.warNow(null, null);
+  }
+
+  /** The town entered (town mode): what is told of it now; null: not entered. */
+  placeNow(told: string | null): void {
+    const on = told !== null;
+    if (this.placeStrip.hidden === on) this.placeStrip.hidden = !on;
+    this.placeLine.classList.toggle("on", on);
+    if (on && this.placeTold.textContent !== told) this.placeTold.textContent = told;
+  }
+  /** What the entered town's line tells (the look tools; null: not entered). */
+  get placeTells(): string | null {
+    return this.placeStrip.hidden ? null : (this.placeTold.textContent ?? "");
   }
 
   /** Whether its money lies over the town. */
