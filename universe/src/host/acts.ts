@@ -29,7 +29,7 @@ import {
   type Act,
   fireOf,
 } from "../sim/index.ts";
-import { NATURE, coldDegrees } from "../rules/index.ts";
+import { NATURE, coldDegrees, lockedDay } from "../rules/index.ts";
 import type { ActKindShown, ActMark, ActsMap, LandSky, PaletteLand } from "../bridge/index.ts";
 import { faithColor, languageColor, realmColor } from "./colors.ts";
 import { landTitle } from "./inspect/names.ts";
@@ -375,6 +375,10 @@ export function landSky(world: World, cell: number): LandSky {
     ),
     // (How its warmth is told, where its climate keeps its liquid's degrees: Phase 56.)
     ...skyDegrees(world),
+    // (Its sun stands still on a world locked to its star: rules/locked.ts.)
+    ...(g.planet.locked && !offworldSite(g, cell) && g.grid.positions[3 * cell] !== undefined
+      ? { held: lockedDay(g.grid.positions[3 * cell]!) }
+      : {}),
   };
 }
 

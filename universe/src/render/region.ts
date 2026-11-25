@@ -484,10 +484,13 @@ export class RegionScene {
   ): void {
     // (Batches first: their instance buffers go with them.)
     this.huts?.destroy();
+    this.hearths?.destroy();
+    this.pools?.destroy();
     for (const child of [...this.root.children])
       if (child !== this.marker && child !== this.land.root && child !== this.floraRoot)
         child.destroy();
     this.huts = null;
+    this.hearths = this.pools = null;
     this.villageTiles = [];
     this.trees = [];
     this.cleared = "";
@@ -1070,6 +1073,67 @@ export class RegionScene {
       out[4] = 1;
       out[6] = a;
     });
+    // Its towns' lights, seen where the land lies in the dark (a locked world's far side and its line): over every town, those
+    // drawn part by part too, a pool of warm light on its ground as wide as it is peopled, read from as far off as a land is
+    // looked at, and a bright point at its heart. Two batches, shown only then.
+    if (!this.hearths) {
+      const pool = new pc.StandardMaterial();
+      pool.useLighting = false;
+      pool.diffuse = new pc.Color(0, 0, 0);
+      pool.emissive = new pc.Color(1, 0.72, 0.34);
+      pool.opacity = 0.2;
+      pool.blendType = pc.BLEND_ADDITIVEALPHA;
+      pool.depthWrite = false;
+      pool.update();
+      this.pools = new InstancedBatch(
+        this.stage,
+        cylinderMesh(this.stage, 1, 0.04, 20),
+        [0, 0, 0],
+        2048,
+        this.root,
+        pool,
+      );
+      this.hearths = new InstancedBatch(
+        this.stage,
+        cylinderMesh(this.stage, 0.3, 0.12, 8),
+        [0.2, 0.15, 0.08],
+        2048,
+        this.root,
+      );
+      this.hearths.glow([1, 0.86, 0.55]);
+    }
+    const lit = villages.map((v) => {
+      const at = this.groundAt(v.tile)!;
+      return [at.x, at.y, at.z, Math.max(1.8, Math.min(5, Math.sqrt(v.population) / 20))] as const;
+    });
+    this.pools!.set(lit.length, (i, out) => {
+      const [x, y, z, r] = lit[i]!;
+      out[0] = x;
+      out[1] = y + 0.3;
+      out[2] = z;
+      out[3] = out[5] = r;
+      out[4] = 1;
+    });
+    this.hearths.set(lit.length, (i, out) => {
+      const [x, y, z, r] = lit[i]!;
+      out[0] = x;
+      out[1] = y + 0.7;
+      out[2] = z;
+      out[3] = out[5] = 0.5 + 0.12 * r;
+      out[4] = 1;
+    });
+    this.pools!.drawn(this.dark);
+    this.hearths.drawn(this.dark);
+  }
+
+  /** Whether the land lies in the dark (its towns' lights shown). */
+  private dark = false;
+  private hearths: InstancedBatch | null = null;
+  private pools: InstancedBatch | null = null;
+  nightLights(on: boolean): void {
+    this.dark = on;
+    this.hearths?.drawn(on);
+    this.pools?.drawn(on);
   }
 
   /** Screen positions (CSS pixels) of tiles, for labels; null when behind the camera. */

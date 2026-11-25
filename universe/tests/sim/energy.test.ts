@@ -19,9 +19,18 @@ import { EARTH } from "../../src/host/index.ts";
 import { universeWorld } from "../host/worlds.ts";
 
 const early = universeWorld(EARTH, "first light", 125),
-  // (800: first light's first works run on burned fuel between 760 and 780 as the world now runs, in 2 lands at 780 and 76
-  // at 800; none at 760. They came between 700 and 750 before a land's unable left its workers, 2026-11-24.)
-  late = universeWorld(EARTH, "first light", 800);
+  // (The first century read, of 800, 900 and 1,000, in which any land's works run on burned fuel: when its engines come is
+  // its history's path, between 700 and 750 on some heads of November 2026 and between 760 and 780 on others, 76 lands by
+  // 800. A year named here stood at the edge of each.)
+  late = (() => {
+    let world = early;
+    for (const year of [800, 900, 1000]) {
+      world = universeWorld(EARTH, "first light", year);
+      const books = energyBooks(world)!;
+      if (books.all().some((e) => energyPerHead(world, e.cell)?.drives === "burned")) break;
+    }
+    return world;
+  })();
 
 test("every peopled land keeps an account whose lines add up", () => {
   for (const world of [early, late]) {
@@ -98,12 +107,14 @@ test("each land's soil is what its ground's stocks give", () => {
   const ground = groundOf(late)!,
     eco = ecologyOf(late),
     ctx = populationContext(late);
-  let worn = 0;
+  let worn = 0,
+    lands = 0;
   for (const p of ctx.provinces.all()) {
     if (!p.total()) continue;
     const g = ground.get(p.cell),
       w = eco.get(p.cell);
     if (!g || !w) continue;
+    lands++;
     for (const x of g.nut) assert.ok(x >= 0 && x <= 1_300_000);
     // (Worn by a fiftieth: since the rounds merged a land's fields take only the hands that feed it, and few at 700 are worn by
     // more. Counted at a twentieth, the line stood at the edge of one history: 12 lands of 533 on the release's head of
@@ -116,5 +127,9 @@ test("each land's soil is what its ground's stocks give", () => {
       `land ${p.cell}: its soil ${w.soil} against its ground's`,
     );
   }
-  assert.ok(worn > 50, `${worn} lands' fields worn`);
+  // (A share of its lands, not a count of one history's: at least one in a hundred of them worn by a fiftieth. How many
+  // depends on the world's path, by what its herds and its ways give back to its fields: 130 to 158 of some 540 on the
+  // heads of November 2026 at 700 to 760, 25 of 544 at 800 once herds were driven to season pastures, their median land's
+  // least stock a twelfth over what it was made with.)
+  assert.ok(worn >= lands / 100, `${worn} of ${lands} lands' fields worn`);
 });

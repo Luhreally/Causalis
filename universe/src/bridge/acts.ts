@@ -100,6 +100,11 @@ export type LandSky = {
    * they are told in true ones: °C = at0 + per × degrees.
    */
   readonly degrees?: { readonly at0: number; readonly per: number };
+  /**
+   * On a world locked to its star, where its sun stands over this land for good, as the share of a turning world's day at which
+   * a sun stands as high (rules/locked.ts lockedDay): its sky has no hours. Absent where the world turns.
+   */
+  readonly held?: number;
 };
 
 /** A land as the god's palette sees it: whose it is, its faith, its towns. */
