@@ -48,6 +48,7 @@ import { homePlanet } from "../planet/store.ts";
 import { peopleLife } from "../population/life.ts";
 import { endRealm, politiesOf, realmName, type Polity, type Ruler } from "../polity/polity.ts";
 import { DIPLOMACY_EVENTS, diplomacyOf, type Relation } from "../diplomacy/diplomacy.ts";
+import { honourIn, noteWord } from "../diplomacy/honour.ts";
 import { courtOf } from "../court/court.ts";
 import { orderOf, realmOrder, type StateMatch } from "../order/order.ts";
 import { beliefOf } from "../belief/belief.ts";
@@ -511,6 +512,7 @@ export function warBreaksPact(
       },
     });
   diplomacy.remember(r.a, r.b, { name: "a broken pact", value: -0.4, year, source: broken });
+  noteWord(ctx, attacker, false, broken, year);
   r.pact = null;
 }
 
@@ -545,11 +547,14 @@ function answerOne(
   else if (oath && oath.to !== friend.ref) could = "sworn";
   else if (foeRegard?.pact) could = "both";
   else if (offworldSite(g, called.seat) || !front.length) could = "noway";
-  const foeRatio = strengthOf(ctx, foe) / Math.max(1, strengthOf(ctx, called)),
+  // (What the one calling is thought to be worth relying on, by its own record of its word: sim/diplomacy/honour.ts. Exactly
+  // nothing where it has none.)
+  const honour = honourIn(world, friend.ref, year),
+    foeRatio = strengthOf(ctx, foe) / Math.max(1, strengthOf(ctx, called)),
     odds = callOdds({
       bond,
       foeRatio,
-      regard: regard.opinion,
+      regard: regard.opinion + honour.term,
       foeRegard: foeRegard?.opinion ?? 0,
       wars: wars.fighting(called.ref).length,
       rested: rested(called),
@@ -589,6 +594,19 @@ function answerOne(
         contribution: regard.opinion,
         source: null,
       },
+      ...(honour.term !== 0
+        ? [
+            {
+              name:
+                honour.term < 0
+                  ? "the one calling has broken its own word before"
+                  : "the one calling has kept its own word before",
+              value: Math.round(honour.kept * 100) / 100,
+              contribution: honour.term,
+              source: honour.source,
+            },
+          ]
+        : []),
     ],
     decision = world.decisions.record({
       rule: "ties.call",
@@ -631,6 +649,8 @@ function answerOne(
   });
   sendEnvoy(ctx, friend, called, "call", event, came ? "yes" : "no", t);
   // What it costs: for one who came, the war itself, and the thanks; for one who would not, what the other remembers, and their standing.
+  // (And among all its peers, its word kept or broken: honour.ts.)
+  if (came || !COULD_NOT.has(why)) noteWord(ctx, called, came, event, year);
   if (came)
     diplomacy.remember(called.ref, friend.ref, {
       name: "they came when called",

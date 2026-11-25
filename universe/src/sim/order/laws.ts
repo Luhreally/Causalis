@@ -22,7 +22,16 @@ import {
   type Ref,
   type SimTime,
 } from "../../kernel/index.ts";
-import { GOODS, HOLD, OCC, lawGains, lawWritten, type LawFacts } from "../../rules/index.ts";
+import {
+  GOODS,
+  HOLD,
+  OCC,
+  TREASURY,
+  clerkGains,
+  lawGains,
+  lawWritten,
+  type LawFacts,
+} from "../../rules/index.ts";
 import { tongueLikeness } from "../../gen/index.ts";
 import { mouths, type PopulationContext } from "../population/systems.ts";
 import type { MarketStore } from "../economy/market.ts";
@@ -34,7 +43,15 @@ import { interestsOf, type Group } from "../polity/interests.ts";
 import { capacityOf, type RealmOrder } from "./order.ts";
 import { holdsOf } from "./holds.ts";
 import { readersOf } from "../lore/letters.ts";
-import { bindOf, deficitOf, refNumber, revenueOf } from "../money/kept.ts";
+import {
+  FISC,
+  TREASURY_STORE,
+  bindOf,
+  deficitOf,
+  moneyStore,
+  refNumber,
+  revenueOf,
+} from "../money/kept.ts";
 import { TEMPLE_ROW, TEMPLE_STORE, cultureRows } from "../culture/rows.ts";
 import { whisperIn } from "../acts/person.ts";
 import { pullOnLaw, schoolOver } from "../ideas/kept.ts";
@@ -56,7 +73,11 @@ export const LAW_POSITIONS: Readonly<Record<Law, readonly [string, string, strin
   justice: ["custom and vengeance", "the ruler's courts", "one law for all"],
 };
 
-export const LAW_EVENTS = { changed: defineEventType("order.law", 5) };
+export const LAW_EVENTS = {
+  changed: defineEventType("order.law", 5),
+  /** A reform its groups would have carried, held back by its clerks, whose offices it would close. */
+  held: defineEventType("order.law-held", 3),
+};
 
 /** A realm weighs its laws once in this many years; a law moves when its next step is wanted this much more. */
 export const LAW_EVERY = 10;
@@ -213,6 +234,38 @@ export function lawGainsOf(
   t: SimTime,
 ): LawGainsTable {
   return lawGains(lawFactsOf(ctx, p, o, t));
+}
+
+/**
+ * A realm's clerks as a group of their own (rules/lawgain.ts clerkGains): where its seat's officers keep accounts (its people
+ * know bureaucracy) and its treasury pays them. Their heads are those who lead at its seat; what they are paid, a head's
+ * living there by what the treasury pays an officer (rules TREASURY.clerks). Their sway is the court's own, as far as the
+ * seat's will is done through paid office: the share of those who lead who sit at the seat, by how far its hand reaches
+ * (its capacity); that much the less is the court's. Null where it keeps none. Only reads.
+ */
+export function clerksOf(
+  ctx: PopulationContext,
+  p: Polity,
+  f: LawFacts,
+): { readonly share: number; readonly gains: [number, number, number][] } | null {
+  const { world } = ctx;
+  if (!loreOf(world).get(p.seat, "bureaucracy")) return null;
+  const fisc = moneyStore(world, TREASURY_STORE)?.get(p.ref);
+  if (!fisc || !(fisc[FISC.clerks]! > 0)) return null;
+  const heads = ctx.provinces.get(p.seat)?.occupation(OCC.leader) ?? 0,
+    court = f.heads["the court"];
+  if (!(heads > 0) || !(court > 0)) return null;
+  let made = 0,
+    commons = 0;
+  for (const g of ["farmers", "herders", "crafters", "traders"] as const) {
+    made += f.heads[g] * f.pay[g];
+    commons += f.heads[g];
+  }
+  if (!(made > 0)) return null;
+  return {
+    share: Math.min(1, heads / court) * Math.max(0, Math.min(1, f.capacity)),
+    gains: clerkGains(f, heads * (made / commons) * TREASURY.clerks),
+  };
 }
 
 /** The position of a law (0 … 2) a group gains most by (the older of equals): what a school that speaks for it teaches (sim/ideas). */
@@ -382,8 +435,13 @@ export function weighLaws(ctx: PopulationContext, p: Polity, o: RealmOrder, t: S
     moved = (cause: "land" | "voice") => o.movements.find((m) => m.cause === cause),
     // (The school most of its lands hold draws each law the way it teaches: sim/ideas. Nothing where none is held.)
     school = schoolOver(world, p.members, p.seat, year, ctx.generated.life.people?.body.span ?? 70),
-    // (What each group gains by each position, reckoned once for all four laws.)
-    gains = lawGainsOf(ctx, p, o, t);
+    // (What each group gains by each position, reckoned once for all four laws; and its clerks, where it keeps them: of the
+    // court's sway, theirs is the part done through paid office.)
+    facts = lawFactsOf(ctx, p, o, t),
+    gains = lawGains(facts),
+    clerks = clerksOf(ctx, p, facts),
+    courtSway = sway.get("the court") ?? 0,
+    clerkSway = clerks ? courtSway * clerks.share : 0;
   for (const law of LAWS) {
     const k = LAW_OF[law],
       now = o.laws[k]!;
@@ -391,7 +449,11 @@ export function weighLaws(ctx: PopulationContext, p: Polity, o: RealmOrder, t: S
     // What moves each position: the groups by their sway, a movement, the people's ways, a rule
     // doubted (toward the new) and old ways (toward what stands).
     const gain = gains[k]!,
-      groups = (pos: number) => [...sway].reduce((s, [g, w]) => s + w * gain[g][pos]!, 0),
+      clerkGain = clerks ? clerks.gains[k]! : null,
+      // (With its clerks, the court's own sway is the less by theirs; `apart`: as it would be weighed were they not a group.)
+      groups = (pos: number, apart = false) =>
+        [...sway].reduce((s, [g, w]) => s + w * gain[g][pos]!, 0) +
+        (clerkGain && !apart ? clerkSway * (clerkGain[pos]! - gain["the court"][pos]!) : 0),
       movement =
         law === "land"
           ? moved("land")
@@ -401,34 +463,98 @@ export function weighLaws(ctx: PopulationContext, p: Polity, o: RealmOrder, t: S
       push = movement ? (law === "land" ? 1 : 0.6) * movement.strength : 0,
       waysPull = waysPullOn(law, ways),
       taught = pullOnLaw(school, k),
-      support = (pos: number) =>
-        groups(pos) +
+      support = (pos: number, apart = false) =>
+        groups(pos, apart) +
         (push + waysPull + taught + 0.15 * doubted) * NEWER[pos]! +
-        (pos === now ? 0.25 * tradition : 0);
-    let best = now;
-    for (let pos = 0; pos < 3; pos++) if (support(pos) > support(best) + 1e-9) best = pos;
-    if (best === now) continue;
-    const to = now + Math.sign(best - now);
-    // (One law for all is a written law; so is a land of free conscience.)
-    if (!writing && ((law === "justice" && to === 2) || (law === "faith" && to === 2))) continue;
-    const score = support(to) - support(now),
+        (pos === now ? 0.25 * tradition : 0),
+      // (One law for all is a written law; so is a land of free conscience.)
+      stepOf = (apart: boolean): { to: number; score: number } | null => {
+        let best = now;
+        for (let pos = 0; pos < 3; pos++)
+          if (support(pos, apart) > support(best, apart) + 1e-9) best = pos;
+        if (best === now) return null;
+        const to = now + Math.sign(best - now);
+        if (!writing && ((law === "justice" && to === 2) || (law === "faith" && to === 2)))
+          return null;
+        return { to, score: support(to, apart) - support(now, apart) };
+      },
+      step = stepOf(false),
+      apart = clerkGain ? stepOf(true) : null,
       // (A god's whisper to its ruler: to reform, half the line is enough; to hold, no law moves. Exactly the line where none.)
-      whispered = whisperIn(world, `rule:${p.ref}`, p.ruler.event, year, "law"),
+      whispered =
+        step || apart ? whisperIn(world, `rule:${p.ref}`, p.ruler.event, year, "law") : null,
       line = whispered
         ? whispered.aim === "law:reform"
           ? REFORM_LINE / 2
           : Infinity
         : REFORM_LINE;
-    if (score < line) continue;
-    const toward = NEWER[to]! - NEWER[now]!,
-      ranked = [...sway]
-        .map(([g, w]) => ({ g, c: w * (gain[g][to]! - gain[g][now]!) }))
+    if (!step || step.score < line) {
+      // (A reform its groups would have carried, were its clerks not a group of their own, and by which they lose: held back by
+      // them.)
+      if (clerkGain && apart && apart.score >= line && clerkGain[apart.to]! < clerkGain[now]!) {
+        const took = clerkSway * (clerkGain[apart.to]! - clerkGain[now]!),
+          standing = o.lawEvents[k] ?? null,
+          decision = world.decisions.record({
+            rule: "order.clerks",
+            subject: p.ref,
+            outcome: {
+              law,
+              kept: LAW_POSITIONS[law][now]!,
+              against: LAW_POSITIONS[law][apart.to]!,
+            },
+            score: apart.score - (step && step.to === apart.to ? step.score : 0),
+            threshold: apart.score - line,
+            factors: [
+              {
+                name: "what its clerks would lose of their offices by it",
+                value: Math.round(clerkSway * 100) / 100,
+                contribution: -took,
+                source: standing ? { ref: standing, role: "enabler", weight: 1 } : null,
+              },
+              {
+                name: "how far the step was wanted without them",
+                value: Math.round(apart.score * 100) / 100,
+                contribution: -(apart.score - line),
+                source: null,
+              },
+              {
+                name: "how far its seat's will is done through paid office",
+                value: Math.round(clerks!.share * 100) / 100,
+                contribution: 0,
+                source: null,
+              },
+            ],
+          });
+        world.events.emit({
+          type: LAW_EVENTS.held.type,
+          subjects: [p.ref],
+          place: ctx.provinces.get(p.seat)?.ref ?? null,
+          causes: [
+            { ref: decision, role: "trigger", weight: 1 },
+            ...(standing ? [{ ref: standing, role: "enabler" as const, weight: 0.4 }] : []),
+          ],
+          data: { realm: realmName(p), law, from: now, to: apart.to },
+        });
+      }
+      continue;
+    }
+    const { to, score } = step,
+      clerkBy = clerkGain ? clerkSway * (clerkGain[to]! - clerkGain[now]!) : 0,
+      toward = NEWER[to]! - NEWER[now]!,
+      ranked = [
+        ...[...sway].map(([g, w]) => ({
+          g: g as string,
+          w: g === "the court" && clerkGain ? w - clerkSway : w,
+          c: (g === "the court" && clerkGain ? w - clerkSway : w) * (gain[g][to]! - gain[g][now]!),
+        })),
+        ...(clerkGain ? [{ g: "its clerks", w: clerkSway, c: clerkBy }] : []),
+      ]
         .sort((a, b) => Math.abs(b.c) - Math.abs(a.c) || (a.g < b.g ? -1 : 1))
         .slice(0, 3),
       factors: Factor[] = [
-        ...ranked.map(({ g, c }) => ({
+        ...ranked.map(({ g, w, c }) => ({
           name: `${g} ${c >= 0 ? "gain by it" : "lose by it"}`,
-          value: sway.get(g) ?? 0,
+          value: w,
           contribution: c,
           source: null,
         })),

@@ -64,9 +64,10 @@ export function kindNames(mask: number, g: number): string[] {
 /**
  * The fuels a world can hold, each in the class it trades as: the solid class (coal's) or the fluid one (oil's). Gas comes with
  * oil from its field; a world's own fuel lies about where its air holds it (sim/economy/energy.ts ownFuel): a haze of
- * hydrocarbons where the air is hydrogen, sulphur by the vents where it is sour.
+ * hydrocarbons where the air is hydrogen, sulphur by the vents where it is sour. Wood cut past what a land's own hearths take is
+ * sold in the solid class (gaps round, 2026-11-24: rules/fuels.ts), as charcoal and firewood were long before any seam was dug.
  */
-export const FUEL_KINDS = ["coal", "oil", "gas", "haze", "sulphur"] as const;
+export const FUEL_KINDS = ["coal", "oil", "gas", "haze", "sulphur", "wood"] as const;
 export type FuelKind = (typeof FUEL_KINDS)[number];
 export const FUEL_CLASS: Readonly<Record<FuelKind, number>> = {
   coal: G.coal,
@@ -74,6 +75,7 @@ export const FUEL_CLASS: Readonly<Record<FuelKind, number>> = {
   gas: G.oil,
   haze: G.oil,
   sulphur: G.coal,
+  wood: G.coal,
 };
 export const FUEL_WORDS: Readonly<Record<FuelKind, string>> = {
   coal: "coal dug from its seam",
@@ -81,10 +83,11 @@ export const FUEL_WORDS: Readonly<Record<FuelKind, string>> = {
   gas: "gas drawn with the oil",
   haze: "the haze its air rains down, gathered",
   sulphur: "sulphur gathered by the vents",
+  wood: "wood cut from its woods, past what its own hearths take",
 };
 
 /** The kinds a fuel class's stock may hold that are not its first (rules above): their shares of it, in millionths, kept by a market. */
-export const BLENDED: readonly FuelKind[] = ["gas", "haze", "sulphur"];
+export const BLENDED: readonly FuelKind[] = ["gas", "haze", "sulphur", "wood"];
 /** A share's whole (millionths). */
 export const BLEND_WHOLE = 1_000_000;
 
@@ -108,6 +111,40 @@ export function blendIn(
     if (FUEL_CLASS[k] !== cls) continue;
     const came = from ? from[i]! : k === kind ? BLEND_WHOLE : 0;
     blend[i] = Math.round(blend[i]! * kept + (came * n) / stock);
+  }
+}
+
+/**
+ * A class's stock with `took` units just burned from it, `ofKind` of them of one blended kind chosen before the rest (wood
+ * from a market is burned by hearths before coal: rules/energy.ts): every share as it now stands. `stock` is the class's stock
+ * with them gone. The rest of what was taken came of the other kinds alike.
+ */
+export function blendOut(
+  blend: number[],
+  cls: number,
+  stock: number,
+  took: number,
+  kind: FuelKind,
+  ofKind: number,
+): void {
+  const at = BLENDED.indexOf(kind);
+  if (at < 0 || FUEL_CLASS[kind] !== cls || !(took > 0)) return;
+  if (!(stock > 0)) {
+    for (let i = 0; i < BLENDED.length; i++) if (FUEL_CLASS[BLENDED[i]!] === cls) blend[i] = 0;
+    return;
+  }
+  const before = stock + took,
+    kindBefore = (blend[at]! / BLEND_WHOLE) * before,
+    kindAfter = Math.min(stock, Math.max(0, kindBefore - Math.min(took, ofKind))),
+    restBefore = before - kindBefore,
+    kept = restBefore > 0 ? (stock - kindAfter) / restBefore : 0;
+  for (let i = 0; i < BLENDED.length; i++) {
+    if (FUEL_CLASS[BLENDED[i]!] !== cls) continue;
+    blend[i] = Math.round(
+      i === at
+        ? (kindAfter / stock) * BLEND_WHOLE
+        : (((blend[i]! / BLEND_WHOLE) * before * kept) / stock) * BLEND_WHOLE,
+    );
   }
 }
 

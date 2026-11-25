@@ -10,12 +10,24 @@ import {
   YEAR,
   defineEventType,
   yearOfMoment,
+  type Factor,
   type SimTime,
   type World,
 } from "../../kernel/index.ts";
 import { tongueLikeness } from "../../gen/index.ts";
-import { ABROAD, CREED, abroadAfter } from "../../rules/index.ts";
+import {
+  ABROAD,
+  CREED,
+  G,
+  OCC,
+  REMIT,
+  abroadAfter,
+  remitTie,
+  remitted,
+} from "../../rules/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
+import type { MarketStore } from "../economy/market.ts";
+import { throughGates } from "../population/flight.ts";
 import { languagesOf } from "./languages.ts";
 import { readersOf } from "../lore/letters.ts";
 import { cultureOf } from "./culture.ts";
@@ -24,6 +36,8 @@ import { AbroadStore, abroadOf, type Abroad } from "./abroad-kept.ts";
 export const ABROAD_EVENTS = {
   /** A people abroad came to be a tenth of a land's people. */
   settled: defineEventType("people.abroad", 3),
+  /** A land's guests abroad send home a hundredth and more of what it eats. */
+  remitted: defineEventType("people.remitted", 3),
 };
 
 /** The share at which a people abroad in a land is told (thousandths). */
@@ -84,6 +98,7 @@ export function abroadYear(ctx: PopulationContext, t: SimTime): void {
   // 2. Each land that keeps any, in its own year: aged, and those no longer abroad let go.
   const culture = cultureOf(world),
     generation = (CREED.generation * Math.max(5, ctx.generated.life.people?.body.span ?? 70)) / 70;
+  const turned: number[] = [];
   for (const c of store.cells()) {
     if ((year + c) % ABROAD.every !== 0) continue;
     const own = languages.of(c),
@@ -101,7 +116,119 @@ export function abroadYear(ctx: PopulationContext, t: SimTime): void {
       if (share >= ABROAD.least) kept.push([e[0], share, e[2], e[3]]);
     }
     store.set(c, kept);
+    if (kept.length) turned.push(c);
   }
+  // (What each land's guests send home for the years until its next turn: rules/remit.ts. Grain moves between lands and is
+  // told, so in the lands' order: the pass above is in none.)
+  turned.sort((a, b) => a - b);
+  for (const c of turned) for (const e of store.of(c) ?? []) sendHome(ctx, c, e, year, generation);
+}
+
+/** The best a year of common work is worth in a land (grain), as its market last paid it; 0 where none did. */
+function yearsWork(w: readonly number[] | null): number {
+  return w
+    ? Math.max(w[OCC.farmer] ?? 0, w[OCC.forager] ?? 0, w[OCC.herder] ?? 0, w[OCC.crafter] ?? 0)
+    : 0;
+}
+
+/**
+ * A land's guests of one people send pay to the land most of them came from (rules/remit.ts): grain out of its market into
+ * theirs, for the years until its next turn; told where it comes to a hundredth and more of what the home land eats.
+ */
+function sendHome(
+  ctx: PopulationContext,
+  cell: number,
+  e: Abroad,
+  year: number,
+  generation: number,
+): void {
+  const { world } = ctx,
+    home = e[2];
+  if (home === cell) return;
+  const markets = world.store<MarketStore>("economy.markets"),
+    there = markets.get(cell),
+    back = markets.get(home),
+    host = ctx.provinces.get(cell),
+    kin = ctx.provinces.get(home);
+  if (!there || !back || !host || !kin) return;
+  const people = host.total(),
+    homePeople = kin.total();
+  if (people <= 0 || homePeople <= 0) return;
+  const wageThere = yearsWork(markets.wagesOf(cell)),
+    wageHome = yearsWork(markets.wagesOf(home)),
+    living = 12 * ctx.life.appetite,
+    workers = (e[1] / 1000) * Math.max(0, people - host.occupation(OCC.dependent)),
+    tie = remitTie(year - e[3], generation),
+    gates = throughGates(world, cell, home, false),
+    aYear = remitted(workers, wageThere, wageHome, living, tie, gates);
+  if (!(aYear > 0)) return;
+  const sent = there.take(
+    "carriedOut",
+    G.grain,
+    Math.floor(
+      Math.min(aYear * ABROAD.every, there.stock[G.grain]! * REMIT.storeMost * ABROAD.every),
+    ),
+  );
+  if (sent <= 0) return;
+  back.move("carriedIn", G.grain, sent);
+  // (Told once in four of its turns, where it is a hundredth and more of what the home land eats.)
+  if (
+    (year + cell) % (ABROAD.every * 4) !== 0 ||
+    sent / ABROAD.every < REMIT.told * homePeople * living
+  )
+    return;
+  const road = markets.route(cell, home),
+    factors: Factor[] = [
+      {
+        name: "what a year's work is worth where they are",
+        value: Math.round(wageThere * 10) / 10,
+        contribution: wageThere - living,
+        source: null,
+      },
+      {
+        name: "what it is worth where they came from",
+        value: Math.round(wageHome * 10) / 10,
+        contribution: -(wageHome - living),
+        source: null,
+      },
+      {
+        name: "how far the gates between let them pass",
+        value: Math.round(gates * 100) / 100,
+        contribution: 0,
+        source: null,
+      },
+      {
+        name: "the years since the first of them came",
+        value: year - e[3],
+        contribution: 0,
+        source: road ? { ref: road, role: "enabler", weight: 0.5 } : null,
+      },
+    ],
+    decision = world.decisions.record({
+      rule: "culture.remit",
+      subject: host.ref,
+      outcome: { home, grain: sent },
+      score: wageThere,
+      threshold: wageHome,
+      factors,
+    });
+  world.events.emit({
+    type: ABROAD_EVENTS.remitted.type,
+    subjects: [kin.ref, host.ref],
+    place: kin.ref,
+    causes: [
+      { ref: decision, role: "trigger", weight: 1 },
+      ...(road ? [{ ref: road, role: "enabler" as const, weight: 0.4 }] : []),
+    ],
+    data: {
+      host: cell,
+      guests: Math.round(workers),
+      grain: Math.round(sent / ABROAD.every),
+      share: Math.round((1000 * sent) / ABROAD.every / (homePeople * living)),
+      there: Math.round(wageThere * 10) / 10,
+      home: Math.round(wageHome * 10) / 10,
+    },
+  });
 }
 
 /** Teach a peopled world its peoples abroad. */

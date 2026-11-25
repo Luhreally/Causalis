@@ -17,7 +17,6 @@ import {
   meanStorms,
   strikeChance,
   usualStorm,
-  writtenAfter,
 } from "../../rules/index.ts";
 import {
   burstNow,
@@ -41,6 +40,7 @@ import {
   stirredOf,
   weatherOf,
   writableOf,
+  writtenSoFar,
   writtenOf,
 } from "../../sim/index.ts";
 import type { Block, Row, Stat } from "../../bridge/index.ts";
@@ -312,11 +312,12 @@ export function frontierBlocks(world: World): Block[] {
       items: written.map((r) => {
         const sites = starSitesOf(world),
           far = sites?.all().find(([, s]) => s.realm === r.realm && s.arrived)?.[0],
-          share = far !== undefined ? writableOf(world, far, !!r.limbs) : null;
+          so = writtenSoFar(world, r),
+          share = far !== undefined ? writableOf(world, far, so.limbs) : null;
         return item(
           [
             realmLink(world, r.realm),
-            ` — since ${r.year}, ${Math.round(writtenAfter(year - r.year) * 100)} in a hundred of the way${r.limbs ? ", with limbs of machines" : ""}`,
+            ` — since ${r.year}, ${Math.round(so.written * 100)} in a hundred of the way${r.limbs ? `, ${Math.round(so.limbs * 100)} in a hundred of them with limbs of machines` : ""}`,
             ...(share !== null
               ? [
                   `; at `,

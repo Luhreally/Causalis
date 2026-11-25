@@ -114,6 +114,11 @@ export type PriceRead = {
   readonly work: readonly number[];
   /** How many kinds of each good it has to hand (rules/variety.ts; by good, 1 where not given): a varied class serves the more. */
   readonly kinds?: readonly number[];
+  /**
+   * The units of a good a worker wins in a year where no recipe makes it (by good, 0 none; null: none of any): a fuel class's
+   * wood cut for sale or its world's own gathered, by its heat a kilogram in this air (rules/fuels.ts).
+   */
+  readonly won?: readonly number[] | null;
 };
 
 /**
@@ -201,6 +206,17 @@ export function naturalPrices(r: PriceRead): { worth: number[]; basis: PriceBasi
       if (!Number.isFinite(worth[out]!) || basis[out] !== "made" || each < worth[out]!) {
         worth[out] = each;
         basis[out] = "made";
+      }
+    }
+  // What it wins without a recipe (rules/fuels.ts): the work a unit takes, where that is less than any recipe's cost.
+  if (r.won)
+    for (let g = 0; g < n; g++) {
+      const per = r.won[g]!;
+      if (!(per > 0) || basis[g] === "staple" || basis[g] === "labour") continue;
+      const each = Math.max(r.outside, 1e-6) / per;
+      if (!Number.isFinite(worth[g]!) || each < worth[g]!) {
+        worth[g] = each;
+        basis[g] = "made";
       }
     }
   // What it cannot make: by its use; or as an input, by what is made of it.

@@ -76,6 +76,9 @@ import {
   type Fleet,
   type Thrower,
 } from "./air.ts";
+import { noteStruck } from "./shelter.ts";
+import { veteransHome } from "./veterans.ts";
+import { taughtOf } from "../order/curriculum.ts";
 import { ArmsStore, armsOf } from "./arms.ts";
 import { farYear, installFar } from "./far.ts";
 import { fireYear, holdBack, installFire } from "./fire.ts";
@@ -143,7 +146,7 @@ import {
   type PeaceTerms,
 } from "./bonds.ts";
 import type { AimKind } from "../../rules/index.ts";
-import { ORG, TIES, warReckoning } from "../../rules/index.ts";
+import { CURRICULUM, ORG, TIES, warReckoning } from "../../rules/index.ts";
 import { hiredBy } from "../order/groups-kept.ts";
 import { rulerLuck, spend, whisperOn } from "../acts/person.ts";
 import {
@@ -1136,6 +1139,7 @@ function raids(
         a: realmName(by),
         b: realmName(foe),
         dead: done.dead,
+        ...(done.raw > done.dead ? { spared: done.raw - done.dead } : {}),
         homes: done.homes,
         stores: done.stores,
         flyers: each,
@@ -1143,6 +1147,7 @@ function raids(
         speed: Math.round(fleet.flyer.speed),
       },
     });
+    noteStruck(ctx, foe, done.people, done.raw, event, t);
     wars.noteStrike({
       war: w.ref,
       year,
@@ -1218,6 +1223,7 @@ function thrown(
         a: realmName(by),
         b: realmName(foe),
         dead: done.dead,
+        ...(done.raw > done.dead ? { spared: done.raw - done.dead } : {}),
         homes: done.homes,
         stores: done.stores,
         flyers: each,
@@ -1230,6 +1236,7 @@ function thrown(
         speed: Math.round(t2.rocket.speed),
       },
     });
+    noteStruck(ctx, foe, done.people, done.raw, event, t);
     wars.noteStrike({
       war: w.ref,
       year,
@@ -1541,6 +1548,11 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       b = realms.get(w.defender)!;
     if (a.ended !== null || b.ended !== null) {
       w.ended = year;
+      // (Each side's discharged go home: sim/war/veterans.ts.)
+      if (!w.civil && w.peace) {
+        veteransHome(ctx, w, a, w.peace, year, t);
+        veteransHome(ctx, w, b, w.peace, year, t);
+      }
       if (w.civil) settleCivil(ctx, w, false, false, t);
       continue;
     }
@@ -1587,6 +1599,11 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       if (made) bindPeace(ctx, w, made, w.peace, year);
       // (A whisper to a gentle peace, by the peace it made.)
       if (made?.whispered) spend(made.whispered, w.peace);
+      // (Each side's discharged go home: sim/war/veterans.ts.)
+      if (!w.civil && w.peace) {
+        veteransHome(ctx, w, a, w.peace, year, t);
+        veteransHome(ctx, w, b, w.peace, year, t);
+      }
       if (w.civil) settleCivil(ctx, w, false, false, t);
       continue;
     }
@@ -1927,6 +1944,11 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         year,
         source: w.event,
       });
+      // (Each side's discharged go home: sim/war/veterans.ts.)
+      if (!w.civil && w.peace) {
+        veteransHome(ctx, w, a, w.peace, year, t);
+        veteransHome(ctx, w, b, w.peace, year, t);
+      }
       if (w.civil) settleCivil(ctx, w, prizeWon, repulsed, t);
     }
   }
@@ -1984,7 +2006,11 @@ export function trainedOf(ctx: PopulationContext, p: Polity, year: number): numb
     share = standing ? 1 : fieldShare(ctx, p),
     kept = standing ? 1 : share > 0 ? Math.min(1, MOBILISE.standingMost / share) : 0,
     fought = battlesOf(ctx.world, p, year);
-  return trainedTerm(kept, 1 + lore.effect(p.seat, "arms"), fought.won + fought.lost);
+  // (And as its schools teach its young arms and command: sim/order/curriculum.ts. Exactly as before where none do.)
+  return (
+    trainedTerm(kept, 1 + lore.effect(p.seat, "arms"), fought.won + fought.lost) *
+    (1 + CURRICULUM.drill * taughtOf(ctx.world, p.ref, "arms"))
+  );
 }
 
 /** Teach a peopled world its wars. */

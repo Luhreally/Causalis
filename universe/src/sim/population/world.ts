@@ -106,6 +106,8 @@ import { installGodHand } from "../order/godhand.ts";
 import { installHealth, installHealthActs } from "../health/health.ts";
 import { installSummon } from "../space/summon.ts";
 import { installFrontier } from "../frontier/install.ts";
+import { installMix } from "./mix.ts";
+import { installHeredity } from "./heredity.ts";
 import { installCredit, installCreditActs } from "../credit/credit.ts";
 import { installFinance } from "../finance/finance.ts";
 import { installStrife, installStrifeActs } from "../strife/strife.ts";
@@ -116,6 +118,7 @@ import { installEcology } from "../ecology/ecology.ts";
 import { installSeas } from "../ecology/seas.ts";
 import { installWoods } from "../ecology/woods.ts";
 import { installHerds } from "../ecology/herds.ts";
+import { installDroving } from "../ecology/droving.ts";
 import { installLodes } from "../economy/worked.ts";
 import { makePlanetWorld, homePlanet, type PlanetWorldOptions } from "../planet/store.ts";
 import { Province, capacity, livable, row } from "./model.ts";
@@ -514,6 +517,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installSwitches(world);
   installWoods(world, () => populationContext(world));
   installHerds(world, () => populationContext(world));
+  installDroving(world, () => populationContext(world));
   installLineage(world, () => populationContext(world));
   installLodes(world, () => populationContext(world));
   installWaysActs(world, () => populationContext(world));
@@ -546,6 +550,9 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installSpace(world, () => populationContext(world));
   installSummon(world, () => populationContext(world));
   installFrontier(world, () => populationContext(world));
+  // (More than one people on a world: shares by people on the lands that hold them. Nothing on a world of one.)
+  installMix(world, () => populationContext(world));
+  installHeredity(world, () => populationContext(world));
 
   const g = homePlanet(world).generated;
   if (!g.life.people) {

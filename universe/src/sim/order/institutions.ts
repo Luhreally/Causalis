@@ -79,6 +79,7 @@ import {
   type InstFund,
   type InstGround,
 } from "../../rules/index.ts";
+import { curriculumForget, curriculumStep } from "./curriculum.ts";
 import { marketsOf, type PopulationContext } from "../population/systems.ts";
 import { WAY, cultureOf } from "../culture/culture.ts";
 import { beliefOf, type Faith } from "../belief/belief.ts";
@@ -2128,6 +2129,7 @@ export function bodiesYear(ctx: PopulationContext, t: SimTime): void {
         if (now && now.ended === null) moved.push([g, now.ref]);
       }
       store.forget(r);
+      curriculumForget(world, r);
     }
     // (A land no realm holds keeps no row; a land that changed hands is written again at its new realm's turn.)
     if (rows && year % 50 === 0)
@@ -2140,6 +2142,8 @@ export function bodiesYear(ctx: PopulationContext, t: SimTime): void {
       v: RealmBodies = was ? (was as RealmBodies) : fresh(year),
       span = was ? Math.max(1, Math.min(50, year - was.last)) : INST.every;
     stepRealm(ctx, p, v, span, t, moved);
+    // (What its schools teach, by who pays those that teach: sim/order/curriculum.ts.)
+    curriculumStep(ctx, p, v.bodies);
     if (was || v.bodies.length || v.next > 1) store.put(p.ref, v);
   }
   if (moved.length)

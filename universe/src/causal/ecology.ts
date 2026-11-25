@@ -5,16 +5,38 @@
 // gone with the kills — and why: the people who pressed the land, their fields, the land
 // itself.
 import { yearOfMoment, type Ref } from "../kernel/index.ts";
-import { ECOLOGY_EVENTS, HERD_EVENTS, LODE_EVENTS, WOODS_EVENTS } from "../sim/index.ts";
+import {
+  DROVE_EVENTS,
+  ECOLOGY_EVENTS,
+  HERD_EVENTS,
+  LODE_EVENTS,
+  WOODS_EVENTS,
+} from "../sim/index.ts";
+import { cellRef } from "../gen/index.ts";
 import { groveWhyWords, herdWhyWords, type GroveWhy, type HerdWhy } from "../rules/index.ts";
 import { landWords } from "./generated.ts";
-import { registerEventWords } from "./why.ts";
+import { registerDecisionWords, registerEventWords } from "./why.ts";
 
 const num = (data: unknown, key: string) => {
   const v = (data as Readonly<Record<string, unknown>> | null)?.[key];
   return typeof v === "number" ? v : null;
 };
 const year = (t: number) => `year ${yearOfMoment(t)}`;
+
+// Seasonal herding (sim/ecology/droving.ts): flocks driven to a neighbour's pasture for its season.
+registerEventWords(DROVE_EVENTS.taken.type, (world, e) => {
+  const d = e.data as { ended?: boolean; years?: number; to?: number } | null;
+  if (d?.ended)
+    return `The herders of ${landWords(world, e.place)} left off driving their flocks away for the season, after ${num(e.data, "years") ?? "some"} years: it no longer gave them more than the road took, ${year(e.t)}`;
+  const to =
+    typeof d?.to === "number" ? landWords(world, cellRef(0, d.to) as Ref) : "a neighbouring land";
+  return `The herders of ${landWords(world, e.place)} took to driving their flocks to the pasture of ${to} for the ${num(e.data, "season") ?? "few"} parts in a hundred of the year its grass stands, ${num(e.data, "days") ?? "some"} days on the way there and back: their herds give ${num(e.data, "gain") ?? "some"} parts in a hundred more for it, ${year(e.t)}`;
+});
+registerDecisionWords(
+  "ecology.droving",
+  (world, d) =>
+    `The herders of ${landWords(world, d.subject)} weighed driving their flocks to a neighbour's pasture`,
+);
 
 registerEventWords(HERD_EVENTS.emptied.type, (world, e) => {
   const d = e.data as { beast?: string; why?: HerdWhy; water?: boolean } | null;

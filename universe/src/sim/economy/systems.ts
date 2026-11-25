@@ -29,17 +29,23 @@ import {
   WORKS_WATTS,
   cellRef,
   landCarries,
+  meansNumbers,
   seamRef,
   surfaceOre,
   worldChemistry,
 } from "../../gen/index.ts";
-import { loreOf } from "../lore/lore.ts";
+import { loreOf, type LoreStore } from "../lore/lore.ts";
+import { MEASURING, measuresAgreed, measuresOf, tradeMeasured } from "../../rules/index.ts";
 import { fearShuts, financeOf } from "../finance/finance.ts";
 import { blockadeOn } from "../war/navy.ts";
 import { ORG_ROW, orgLandsStore } from "../order/groups-kept.ts";
 import {
   FINANCE,
   ENGINE_GAIN,
+  blendBulk,
+  seamYield,
+  oxidantsOf,
+  type Oxidant,
   FOODS,
   FORAGER_HIDES,
   FUELS,
@@ -101,11 +107,12 @@ import { heatShortfall, oreWorkable } from "./heat.ts";
 import { lodesOf } from "./lodes.ts";
 import { oreLaid } from "./ore.ts";
 import { digOre } from "./worked.ts";
-import { energyYear, machinesWanted } from "./energy.ts";
+import { dugSolid, energyYear, fuelWonOf, machinesWanted } from "./energy.ts";
 import { kmBetween, seaRange, seaReach } from "./sea.ts";
 import { canalsOf } from "./canals.ts";
 import { compassReach, materialsOf } from "../lore/materials.ts";
 import { politiesOf } from "../polity/polity.ts";
+import { droveGain } from "../ecology/droving.ts";
 import { cartelsNow, craftsKept, machinesAtWork } from "../trade/kept.ts";
 import { fieldedOf, warsOf, type War } from "../war/war.ts";
 import { rearmYear } from "../war/arms.ts";
@@ -430,8 +437,12 @@ function makeAndUse(
     // (What there is still room to make of each good, as its crafts take it up: several crafts make tools.)
     const left: number[] = [],
       leftOf = (g: number) => (left[g] ??= Math.max(0, room(g))),
+      // (A seam's year gives as many units as its heat in this world's air comes to: rules/fuels.ts. 1 under oxygen.)
+      airs = oxidantsOf(meansNumbers(ctx.generated)),
+      seam = (r: Recipe) => (r.needs?.seam ? seamYield(r.needs.seam, airs) : 1),
       eachOf = (r: Recipe) =>
         r.output[1] *
+        seam(r) *
         (r.needs?.ore ? oreWorkable(ctx, p.cell, r.needs.ore)!.grade : 1) *
         skill(r.output[0]);
     open.forEach(({ r }, k) => {
@@ -478,7 +489,7 @@ function makeAndUse(
           "made",
           r.output[0],
           roundKeyed(
-            n * r.output[1] * grade * skill(r.output[0]),
+            n * r.output[1] * seam(r) * grade * skill(r.output[0]),
             world.rng.real(CRAFT, key, t, 2, i),
           ),
         ),
@@ -617,6 +628,14 @@ function toolsOfYear(
 }
 
 /**
+ * How heavy a unit of a good is to carry from a market, against grain: its own, or for a fuel class what its stock there holds
+ * (rules/fuels.ts: a unit of wood is twice a unit of coal's weight, for the same heat).
+ */
+function bulkAt(m: Market, g: number, oxidants: readonly Oxidant[]): number {
+  return g === G.coal || g === G.oil ? blendBulk(g, m.blend, oxidants) : GOODS[g]!.bulk;
+}
+
+/**
  * A land's first coal dug, first oil drawn and first machines made, told once each: the
  * knowledge that let them, and what the deep past laid down there (or the road the coal
  * came down).
@@ -636,9 +655,11 @@ function firsts(ctx: PopulationContext, p: Province, m: Market): void {
     if (enabler) causes.push({ ref: enabler, role: "enabler", weight: 0.4 });
     return world.events.emit({ type, place: p.ref, causes, data });
   };
-  if (!m.mine && m.line("made", G.coal) > 0)
+  // (What a seam gave: wood cut for sale and a world's own fuel gathered lie in the same class, and open no mine.)
+  const dug = m.mine ? 0 : dugSolid(world, p.cell, m.line("made", G.coal));
+  if (!m.mine && dug > 0)
     m.mine = tell(ECONOMY_EVENTS.mine.type, "coal-mining", seamRef(g, p.cell, "coal") as Ref, {
-      coal: m.line("made", G.coal),
+      coal: dug,
     });
   if (!m.well && m.line("made", G.oil) > 0)
     m.well = tell(ECONOMY_EVENTS.well.type, "oil-drilling", seamRef(g, p.cell, "oil") as Ref, {
@@ -783,6 +804,8 @@ function trade(
     preyRows = orgLandsStore(ctx.world),
     preyedAt = (c: number, sea: boolean) =>
       preyRows ? preyRows.at(c, sea ? ORG_ROW.seaPrey : ORG_ROW.prey) / 1000 : 0;
+  // (What its air holds to burn with: a fuel class's weight to carry is by what its stock holds, rules/fuels.ts.)
+  const oxidants = oxidantsOf(meansNumbers(ctx.generated));
   // (Each realm's money's drift, read once a realm: exchangeCostOf, sim/money/kept.ts.)
   const drifts = new Map<string, number>(),
     driftOf = (r: string) => {
@@ -838,6 +861,8 @@ function trade(
         (1 - blockaded) *
         kept *
         (1 - preyed) *
+        // (And more as both ends count, weigh and date alike: rules/measures.ts. Exactly 1 where either measures nothing.)
+        tradeMeasured(measuresAgreed(measuresAt(lore, e.a), measuresAt(lore, e.b), apart)) *
         // (Kin on both ends of a road carry more down it: sim/culture/abroad.ts. Exactly 1 where neither end keeps any.)
         kinAcross(ctx.world, e.a, e.b),
       keen = 2 * (1 + SIGNAL.tradeMargin * linked),
@@ -862,7 +887,7 @@ function trade(
           d.price[g]! * (1 - duty - changed) -
           s.price[g]! -
           asked -
-          e.cost * dealt * GOODS[g]!.bulk,
+          e.cost * dealt * bulkAt(s, g, oxidants),
         insured = e.sea && seller ? insuredGainOf(ctx.world, seller) : 0;
       if (margin <= 0) continue;
       const people = ctx.provinces.get(s.cell)!.total(),
@@ -889,7 +914,10 @@ function trade(
   // Each province's carriers can move only so much.
   const load = new Map<number, number>();
   for (const pl of plans)
-    load.set(pl.from, (load.get(pl.from) ?? 0) + pl.count * GOODS[pl.good]!.bulk);
+    load.set(
+      pl.from,
+      (load.get(pl.from) ?? 0) + pl.count * bulkAt(markets.of(pl.from), pl.good, oxidants),
+    );
   for (const pl of plans) {
     const p = ctx.provinces.get(pl.from)!,
       // (Information work multiplies what its carriers move: exactly 1 before the telegraph.)
@@ -947,6 +975,22 @@ function trade(
   return flows;
 }
 
+/** What a land can measure (rules/letters.ts measuresOf), kept while it knows what it knows. */
+function measuresAt(lore: LoreStore, cell: number): number {
+  return lore.readOff(cell, "measures", () => measuresOf((id) => !!lore.get(cell, id)));
+}
+
+/** Of what two lands measure by, what the lesser of them last learned: the event (null where either measures nothing). */
+function measureLearned(lore: LoreStore, a: number, b: number): Ref | null {
+  const c = measuresAt(lore, a) <= measuresAt(lore, b) ? a : b;
+  let last: { year: number; event: Ref } | null = null;
+  for (const id of MEASURING.keys()) {
+    const k = lore.get(c, id);
+    if (k && (!last || k.year > last.year)) last = { year: k.year, event: k.event };
+  }
+  return last?.event ?? null;
+}
+
 /** The first goods down a road: a decision, with the gap that drew them, and its event. */
 function openRoute(
   ctx: PopulationContext,
@@ -990,6 +1034,24 @@ function openRoute(
       contribution: 0.5,
       source: { ref: ships, role: "enabler", weight: 1 },
     });
+  // (What both ends count, weigh and date alike: rules/measures.ts.)
+  const lore = loreOf(world),
+    ra = politiesOf(world).of(pl.from),
+    rb = politiesOf(world).of(pl.to),
+    agreed = measuresAgreed(
+      measuresAt(lore, pl.from),
+      measuresAt(lore, pl.to),
+      !!ra && !!rb && ra !== rb,
+    );
+  if (agreed > 0) {
+    const learned = measureLearned(lore, pl.from, pl.to);
+    factors.push({
+      name: "both ends count, weigh and date alike",
+      value: Math.round(agreed * 100) / 100,
+      contribution: tradeMeasured(agreed) - 1,
+      source: learned ? { ref: learned, role: "enabler", weight: 0.5 } : null,
+    });
+  }
   const decision = world.decisions.record({
     rule: "trade.open",
     subject: from.ref,
@@ -1106,6 +1168,7 @@ function reprice(
   const { worth, basis } = naturalPrices({
     price: m.price,
     recipes,
+    won: fuelWonOf(ctx, m),
     outside,
     wage: outside,
     living,
@@ -1192,6 +1255,7 @@ function wages(ctx: PopulationContext, p: Province, m: Market, can: readonly num
   w[OCC.herder] =
     margin(c.pasture, p.occupation(OCC.herder), PRODUCTIVITY[OCC.herder]! * tools * gathers) *
     (0.5 + 0.5 * rain) *
+    droveGain(ctx.world, p.cell) *
     (m.price[G.meat]! +
       HERD_GOODS.woolPerMeat * m.price[G.wool]! +
       HERD_GOODS.hidesPerMeat * m.price[G.hides]!);

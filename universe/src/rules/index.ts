@@ -1717,6 +1717,7 @@ export {
 } from "./far.ts";
 export { HARVEST, LEAN_MONTHS, SOWING, THRIFT, storeNeeded, thrift } from "./seasons.ts";
 export * from "./energy.ts";
+export * from "./fuels.ts";
 export * from "./ground.ts";
 export {
   BEARING,
@@ -1872,6 +1873,7 @@ export * from "./gifts.ts";
 // The gaps of 2026-11-22: a faith's head and the faith against a ruler; townsfolk sentenced and held; commanders held.
 export * from "./faithheads.ts";
 export * from "./sentences.ts";
+export * from "./substrate.ts";
 export * from "./variety.ts";
 export * from "./thrift.ts";
 export * from "./civicworth.ts";
@@ -1894,6 +1896,8 @@ export { CIRCLE, bodyLikeness, circleLeans, circleWords, moralCircle } from "./c
 // Where sicknesses arise (2026-11-23): a land's forces, herds, wild, crowds and warm water, and the people's kin among the beasts.
 export * from "./spillover.ts";
 export * from "./demography.ts";
+export * from "./peoples.ts";
+export * from "./heredity.ts";
 export * from "./biomes.ts";
 export * from "./carbon.ts";
 export * from "./cycles.ts";
@@ -1935,3 +1939,13 @@ export {
   type Measures,
 } from "./stature.ts";
 export * from "./taboo.ts";
+export * from "./civildefence.ts";
+export * from "./veterans.ts";
+export * from "./remit.ts";
+export * from "./boundtrade.ts";
+export * from "./measures.ts";
+export * from "./orphans.ts";
+export * from "./droving.ts";
+export * from "./curriculum.ts";
+export * from "./honour.ts";
+export * from "./missions.ts";

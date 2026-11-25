@@ -202,7 +202,9 @@ test("who dies of it: the bound half again as often as the free, the hungry the 
   ctx.provinces.get(cell)!.leanest = 300;
   assert.ok(tollOf(ctx, s, cell).share > free * 1.3, "the hungry die the more");
   ctx.provinces.get(cell)!.leanest = 1000;
-  const lore = loreOf(w);
+  const lore = loreOf(w),
+    // (What the land's healers spared already, of what it knew at the fixture's year: none, or a little.)
+    before = Math.min(0.6, 2 * lore.effect(cell, "health")) * careEffectiveOf(w, cell);
   for (const id of ["herbalism", "writing", "medicine"])
     if (!lore.get(cell, id))
       lore.learn(
@@ -213,9 +215,9 @@ test("who dies of it: the bound half again as often as the free, the hungry the 
       );
   // (As far as they reach the land's people: kin's tending where they do not, society/care.ts.)
   const healed = Math.min(0.6, 2 * lore.effect(cell, "health")) * careEffectiveOf(w, cell);
-  assert.ok(healed > 0);
+  assert.ok(healed > before);
   assert.ok(
-    Math.abs(tollOf(ctx, s, cell).share - free * (1 - healed)) < 1e-9,
+    Math.abs(tollOf(ctx, s, cell).share - (free / (1 - before)) * (1 - healed)) < 1e-9,
     "healers spare some",
   );
 });

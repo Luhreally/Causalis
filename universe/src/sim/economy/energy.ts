@@ -7,6 +7,7 @@
 // engines drove it. A land keeps only last year's account and a faded measure of its smoke: one row a land, never a log.
 import { Hasher, type SimTime, type StateStore, type World } from "../../kernel/index.ts";
 import {
+  type HomeWorld,
   keptKey,
   meansNumbers,
   meansOfWorld,
@@ -25,8 +26,15 @@ import {
   FUEL_MAKEUP,
   FUEL_UNIT_KWY,
   GLUT_YEARS,
+  BLENDED,
+  BLEND_WHOLE,
+  FUEL_KINDS,
+  GOODS,
   blendIn,
   blendMix,
+  blendOut,
+  fuelHere,
+  hearthAt,
   G,
   GROUND_DRAWN,
   GROUND_WM2,
@@ -82,7 +90,7 @@ import { ecologyOf } from "../ecology/ecology.ts";
 import { woodsRead } from "../ecology/woods.ts";
 import { groundOf } from "../ecology/ground.ts";
 import { furnaceHeat } from "./heat.ts";
-import type { Market } from "./market.ts";
+import type { Market, MarketStore } from "./market.ts";
 
 /** A land's last year of energy, as kept: kW and kW·yr, whole; a share in thousandths. */
 export type EnergyLand = {
@@ -112,6 +120,10 @@ export type EnergyLand = {
   sulphur: number;
   /** Its works' smoke: fuel burned outside its hearths, weighted by how it smokes, faded by half each year (kW·yr). */
   fume: number;
+  /** Of the wood in its market, what it burned (kW·yr; rules/fuels.ts). */
+  cut: number;
+  /** What it put in its solid class this year that no seam gave (units): wood cut for sale, its world's own gathered. */
+  gathered: number;
 };
 
 /** Fold whole numbers into a running digest (two 32-bit words): what a checkpoint hashes in place of every row. */
@@ -165,7 +177,13 @@ export class EnergyStore implements StateStore {
     this.map.clear();
     const s = state as { lands?: EnergyLand[]; digest?: [number, number]; sets?: number } | null;
     for (const e of s?.lands ?? [])
-      this.map.set(e.cell, { ...e, drawn: [...e.drawn], by: [...e.by] });
+      this.map.set(e.cell, {
+        ...e,
+        drawn: [...e.drawn],
+        by: [...e.by],
+        cut: e.cut ?? 0,
+        gathered: e.gathered ?? 0,
+      });
     // (The fold goes on from where it stood.)
     this.digest[0] = s?.digest?.[0] ?? 0x811c9dc5;
     this.digest[1] = s?.digest?.[1] ?? 0;
@@ -196,6 +214,8 @@ function rowOf(e: EnergyLand): number[] {
   ROW[i++] = e.carbon;
   ROW[i++] = e.sulphur;
   ROW[i++] = e.fume;
+  ROW[i++] = e.cut;
+  ROW[i++] = e.gathered;
   ROW.length = i;
   return ROW;
 }
@@ -226,10 +246,68 @@ type Site = {
 };
 const SITES = new Map<string, Map<number, Site>>();
 
+/**
+ * The units of each fuel class a worker of a land won in its year past any seam's recipe (rules/fuels.ts; null: none): the wood
+ * it cut for sale, its world's own fuel gathered, each at its heat in this world's air. What a unit of the class is worth there
+ * is that work (rules/money.ts naturalPrices `won`).
+ */
+export function fuelWonOf(ctx: PopulationContext, m: Market): readonly number[] | null {
+  const cell = m.cell,
+    row = energyBooks(ctx.world)?.get(cell);
+  if (!row || !(row.gathered > 0 || row.own > 0)) return null;
+  const n = meansNumbers(ctx.generated),
+    oxidants = oxidantsOf(n),
+    own = ownFuel(ctx, cell, n.airHolds, knowingOf(ctx, cell)),
+    ownHere = own ? fuelHere(own, oxidants) : null,
+    wood = (m.blend[WOOD_BLEND] ?? 0) > 0 && row.gathered > 0 ? fuelHere("wood", oxidants) : null,
+    won = WON.fill(0);
+  if (wood) won[G.coal] = wood.won;
+  // (The readier of the two where both lie in a class: no one pays more than the cheaper way costs.)
+  if (ownHere) won[ownHere.cls] = Math.max(won[ownHere.cls]!, ownHere.won);
+  return wood || ownHere ? won : null;
+}
+const WON: number[] = new Array<number>(GOODS.length).fill(0),
+  WOOD_BLEND = BLENDED.indexOf("wood");
+
+/**
+ * The heat a kilogram of the richest fuel a land has at hand gives in its world's air (MJ/kg; rules/fuels.ts): of what its
+ * market's fuel classes hold, by kind, and its own standing woods. 0: none at hand; -1: nothing burns on its world. What a
+ * people has to find engines with (rules/substrate.ts).
+ */
+export function richestFuelMj(ctx: PopulationContext, cell: number): number {
+  const oxidants = oxidantsOf(meansNumbers(ctx.generated));
+  if (!oxidants.length) return -1;
+  let best = 0;
+  const m = ctx.world.store<MarketStore>("economy.markets").get(cell);
+  if (m)
+    for (const k of FUEL_KINDS) {
+      const cls = FUEL_CLASS[k];
+      if (!(m.stock[cls]! > 0)) continue;
+      // (A class's first kind is what its blend leaves; the others, their own shares.)
+      const at = BLENDED.indexOf(k);
+      let share = at >= 0 ? m.blend[at]! : BLEND_WHOLE;
+      if (at < 0)
+        for (let i = 0; i < BLENDED.length; i++)
+          if (FUEL_CLASS[BLENDED[i]!] === cls) share -= m.blend[i]!;
+      if (share > 0) best = Math.max(best, fuelHere(k, oxidants)?.mj ?? 0);
+    }
+  if (best < 20 && woodsRead(ctx, cell).now > 0) best = Math.max(best, siteOf(ctx, cell).woodMj);
+  return best;
+}
+
+/** Wood's place among the carriers. */
+const WOOD_AT = CARRIERS.indexOf("wood");
+
+/**
+ * What a land dug of its solid class this year from a seam: what it made of the class, less what no seam gave (wood cut for
+ * sale, its world's own gathered). `made`: the class's making in the books read.
+ */
+export function dugSolid(world: World, cell: number, made: number): number {
+  return Math.max(0, made - (energyBooks(world)?.get(cell)?.gathered ?? 0));
+}
+
 /** A land's vents' heat, where a people of the sea floor works them (kW, est: a field of black smokers). */
 export const VENT_KW = 5e4;
-/** What a land's crafters gather of their world's own fuel lying about, each, a year (kW·yr, est: as a collier digs coal). */
-export const OWN_KWY = 60;
 /** The gas drawn with each unit of oil (kW·yr, est: a quarter of the oil's heat). */
 export const GAS_A_UNIT = 1;
 /** A sea floor's vents' heat (°C: Koschinsky 2008), as rules/means.ts groundHeat reads it. */
@@ -435,6 +513,18 @@ function knowingNow(ctx: PopulationContext, cell: number): Knowing {
   return k;
 }
 
+/** Below what warmth a world's people want a hearth (°C): by their cradle's warmth and their body; an upright ape's where none arose. */
+function hearthOf(g: HomeWorld): number {
+  const people = g.life.people;
+  return people
+    ? hearthAt(g.climate.temperature[people.cell]!, people.body.warm)
+    : hearthAt(26, true);
+}
+
+/** What a land's woods give a year without thinning (kW of heat): `standing` km² of them, at its ground's growth. */
+const woodsGive = (site: Site, standing: number): number =>
+  (standing * site.growth * 1000 * WOOD_TAKEN * site.woodMj) / MJ_A_KWY;
+
 /** What a land's account reads of it this year: `smelted` is the metal its smelters made. */
 export function energyInputs(
   ctx: PopulationContext,
@@ -471,7 +561,8 @@ export function energyInputs(
     beastKg: beastKgOf(ctx, p.cell),
     draught: k.draught,
     grain: m.line("made", G.grain),
-    cold: coldOf(g.climate.temperature[p.cell]!),
+    // (Cold for this people: against the warmth its body was shaped in, rules/energy.ts hearthAt.)
+    cold: coldOf(g.climate.temperature[p.cell]!, hearthOf(g)),
     fire,
     smelted,
     blast: k.blast,
@@ -481,7 +572,7 @@ export function energyInputs(
     fixKw: groundOf(ctx.world)?.get(p.cell)?.fixKw ?? 0,
     taps: k.taps,
     engine: k.engine,
-    woodKw: (standing * site.growth * 1000 * WOOD_TAKEN * site.woodMj) / MJ_A_KWY,
+    woodKw: woodsGive(site, standing),
     riverKw: site.riverKw,
     windKw: site.windKw,
     windTurbines: k.windTurbines,
@@ -496,6 +587,7 @@ export function energyInputs(
     oilKwy: oilStock * (fluid.oil ?? 0),
     gasKwy: oilStock * (fluid.gas ?? 0),
     ownKwy: coalStock * (solid.sulphur ?? 0) + oilStock * (fluid.haze ?? 0),
+    cutKwy: coalStock * (solid.wood ?? 0),
     fireC: fire ? furnaceHeat(ctx, p.cell) : joinedHeat(n),
     coldK: n.kelvin,
     fitMm: k.fitMm,
@@ -561,14 +653,17 @@ export function energyYear(
   want: number[],
   smelted: number,
 ): EnergyAccount {
-  const store = energyBooks(ctx.world)!;
-  drawFuels(ctx, p, m, store.get(p.cell));
+  const store = energyBooks(ctx.world)!,
+    drew = drawFuels(ctx, p, m, store.get(p.cell));
   const inputs = energyInputs(ctx, p, m, smelted),
     a = energyAccount(inputs);
   // What it burned of its market's fuel, in the units the market keeps: each class's, its own fuel by the class it lies in.
   const ownSolid = inputs.ownKwy > 0 ? a.own * solidOwnShare(inputs, m) : 0,
-    coal = m.take("used", G.coal, Math.round((a.coal + ownSolid) / FUEL_UNIT_KWY)),
+    coal = m.take("used", G.coal, Math.round((a.coal + ownSolid + a.cut) / FUEL_UNIT_KWY)),
     oil = m.take("used", G.oil, Math.round((a.oil + a.gas + a.own - ownSolid) / FUEL_UNIT_KWY));
+  // (The wood it burned was chosen before the rest of its solid class: its share of what is left falls by it.)
+  if (a.cut > 0 && coal > 0)
+    blendOut(m.blend, G.coal, m.stock[G.coal]!, coal, "wood", a.cut / FUEL_UNIT_KWY);
   // (What it wants: all the buried fuel its hearths and engines would have burned, as coal, the fuel a market first digs.)
   want[G.coal] = want[G.coal]! + Math.round(a.fuelWanted / FUEL_UNIT_KWY);
   if (a.felled > 0) fellWoods(ctx, p.cell, a.felled);
@@ -611,6 +706,8 @@ export function energyYear(
     carbon: Math.round(carbon),
     sulphur: Math.round(sulphur),
     fume: Math.round(0.5 * (was?.fume ?? 0) + 0.5 * smoke),
+    cut: Math.round(a.cut),
+    gathered: drew.wood + drew.sulphur,
   });
   return a;
 }
@@ -629,7 +726,8 @@ function drawFuels(
   was: EnergyLand | undefined,
 ): Record<FuelKind, number> {
   const k = knowingOf(ctx, p.cell),
-    drew: Record<FuelKind, number> = { coal: 0, oil: 0, gas: 0, haze: 0, sulphur: 0 };
+    drew: Record<FuelKind, number> = { coal: 0, oil: 0, gas: 0, haze: 0, sulphur: 0, wood: 0 },
+    oxidants = oxidantsOf(meansNumbers(ctx.generated));
   drew.coal = m.line("made", G.coal);
   drew.oil = m.line("made", G.oil);
   // (What its seams gave this year is of each class's first kind.)
@@ -641,9 +739,39 @@ function drawFuels(
     blendIn(m.blend, G.oil, m.stock[G.oil]!, gas, "gas");
   }
   const own = k.engine ? ownFuel(ctx, p.cell, meansNumbers(ctx.generated).airHolds, k) : null;
-  if (own) {
+  // Wood cut for sale (rules/fuels.ts): what its woods give past what its own hearths and engines took of them last year, as
+  // far as its crafters can cut and its market has use for. Within what its woods grow: nothing here thins them.
+  const wood = meansOfWorld(ctx.generated).burns ? fuelHere("wood", oxidants) : null;
+  // (Asked of its woods only where it has hands to cut and room for it.)
+  const woodUsed = was ? (was.fuelWanted + was.cut) / FUEL_UNIT_KWY : 0,
+    woodRoom =
+      wood && was
+        ? Math.min(
+            GLUT_YEARS * (Math.max(m.went(G.coal), woodUsed) + 1) - m.stock[G.coal]!,
+            p.occupation(OCC.crafter) * wood.won,
+          )
+        : 0;
+  if (wood && was && woodRoom >= 1) {
+    const site = siteOf(ctx, p.cell),
+      wilds = ecologyOf(ctx.world).get(p.cell),
+      spared =
+        wilds?.asideWoods && wilds.forest > 0
+          ? Math.max(0, 1 - wilds.asideWoods / wilds.forest)
+          : 1,
+      gives = woodsGive(site, woodsRead(ctx, p.cell).now * site.areaKm2 * spared),
+      took = Math.max(0, was.drawn[WOOD_AT]! - was.cut - was.felled),
+      spare = Math.max(0, gives - took) / FUEL_UNIT_KWY,
+      can = Math.min(spare, woodRoom);
+    if (can >= 1) {
+      drew.wood = m.move("made", G.coal, Math.floor(can));
+      blendIn(m.blend, G.coal, m.stock[G.coal]!, drew.wood, "wood");
+    }
+  }
+  // (Its world's own fuel: as many units a crafter as its heat in this air comes to; none where this air does not burn it.)
+  const ownHere = own ? fuelHere(own, oxidants) : null;
+  if (own && ownHere) {
     const cls = FUEL_CLASS[own],
-      gathered = (p.occupation(OCC.crafter) * OWN_KWY) / FUEL_UNIT_KWY,
+      gathered = p.occupation(OCC.crafter) * ownHere.won,
       used = was ? (was.fuelWanted + was.own) / FUEL_UNIT_KWY : gathered,
       room = GLUT_YEARS * (Math.max(m.went(cls), used) + 1) - m.stock[cls]!;
     drew[own] = m.move("made", cls, Math.max(0, Math.round(Math.min(gathered, room))));
@@ -728,6 +856,7 @@ export function keptAccount(e: EnergyLand): EnergyAccount {
     oil: e.oil,
     gas: e.gas,
     own: e.own,
+    cut: e.cut,
     engineFuel: 0,
     engineWood: 0,
     felled: e.felled,

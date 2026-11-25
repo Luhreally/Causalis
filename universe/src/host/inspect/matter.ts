@@ -13,6 +13,7 @@ import { materialTab, smeltBlocks } from "./making.ts";
 import { firePrincipleStats } from "./fire.ts";
 import {
   AIR_OFFSET,
+  FUEL_NOUNS,
   DRIVEN_BLAST,
   ARSENICAL_ORE,
   CLASS_WORDS,
@@ -110,6 +111,7 @@ import { matterWorldOf } from "../reading.ts";
 import { ownWordsItems } from "../names.ts";
 import { landLink, landTitle } from "./names.ts";
 import { firstOfLost, lostOfPrinciple } from "./lost.ts";
+import { goodName, worldFuels } from "./board.ts";
 import { airBlock } from "./ground.ts";
 import { elementPortrait, matterPortrait } from "../looks.ts";
 import { principleSignalStats } from "./signals.ts";
@@ -861,9 +863,35 @@ const WEARS: Readonly<Record<string, string>> = {
   clothing: `each person wears out ${WANTS.clothingPerPerson} a year`,
   pottery: `each person breaks ${WANTS.potteryPerPerson} a year`,
   machines: `each worker who works with them wears out ${WANTS.machinesPerWorker} a year`,
-  coal: `engines burn ${WANTS.fuelPerCrafter} for each crafter in works, and the cold ${WANTS.heatPerPerson} a person`,
-  oil: `engines burn ${WANTS.fuelPerCrafter} for each crafter in works`,
+  coal: `burned: by hearths for cooking and warmth, by smelters, and by engines as far as their works want (a land's energy account)`,
+  oil: `burned: by hearths, smelters and engines, as far as they want (a land's energy account)`,
 };
+
+/**
+ * What fills a fuel class on this world (rules/fuels.ts): every fuel of the class its air burns, the richest first, with the
+ * heat a kilogram gives there, what a unit of it weighs, and the units a worker wins in a year.
+ */
+function fillingBlock(world: World, cls: number): Block | null {
+  const fuels = worldFuels(world).filter((f) => f.cls === cls);
+  if (!fuels.length)
+    return {
+      type: "list",
+      title: "What fills it on this world",
+      items: [item(["Nothing: this world holds nothing of it that its air burns."])],
+    };
+  return {
+    type: "list",
+    title: "What fills it on this world",
+    items: fuels.map((f) =>
+      item([
+        `${cap(FUEL_NOUNS[f.kind])}: ${Math.round(f.mj * 10) / 10} MJ a kilogram with its air's ${f.by}, a unit ${weight(f.unitKg)}`,
+        Number.isFinite(f.won)
+          ? `, ${Math.round(f.won * 10) / 10} units a worker's year`
+          : ", come by with the oil",
+      ]),
+    ),
+  };
+}
 
 function recipeWords(r: Recipe): Line {
   const ins = r.inputs.map(([g, n]) => `${n} ${GOODS[g]!.name}`);
@@ -886,7 +914,9 @@ export function goodKindPage(world: World, ref: string): PageModel {
     holders = markets
       .filter((x) => x.stock[gi]! > 0)
       .sort((a, b) => b.stock[gi]! - a.stock[gi]! || a.cell - b.cell),
-    recipes = RECIPES.filter((r) => r.output[0] === gi);
+    recipes = RECIPES.filter((r) => r.output[0] === gi),
+    fuel = g.id === "coal" || g.id === "oil",
+    filling = fuel ? fillingBlock(world, gi) : null;
   const blocks: Block[] = [
     {
       type: "facts",
@@ -895,9 +925,10 @@ export function goodKindPage(world: World, ref: string): PageModel {
         stat("Worth", `${g.value} grain a unit`),
         stat("Spoils", g.spoil ? `${share(g.spoil)} of a store a month` : "never"),
         stat("To carry", `${g.bulk} as heavy as grain`),
-        ...(WEARS[g.id] ? [stat("Worn out", WEARS[g.id]!)] : []),
+        ...(WEARS[g.id] ? [stat(fuel ? "Used" : "Worn out", WEARS[g.id]!)] : []),
       ],
     },
+    ...(filling ? [filling] : []),
     ...m.ways.map((w) =>
       makeUpBlock(
         w.parts,
@@ -942,7 +973,7 @@ export function goodKindPage(world: World, ref: string): PageModel {
     ref,
     kind: "goods",
     icon: GOOD_ICON[g.id] ?? "📦",
-    title: cap(g.name),
+    title: cap(fuel ? goodName(world, gi) : g.name),
     subtitle: ["A good, the world over"],
     color: null,
     place: null,

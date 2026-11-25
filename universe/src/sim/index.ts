@@ -75,6 +75,7 @@ export {
   raisingCost,
   slowDeaths,
   landDemography,
+  takenIn,
   putBy,
   transition,
   type PopulationContext,
@@ -125,6 +126,7 @@ export {
   SMOKES,
   energyInputs,
   energyBooks,
+  richestFuelMj,
   energyPerHead,
   engineCarried,
   fuelTonnes,
@@ -297,7 +299,28 @@ export {
   languagesYear,
   type Language,
 } from "./culture/languages.ts";
-export { familySizeOf, lifeOf, peopleKin, peopleLife } from "./population/life.ts";
+export { familySizeOf, lifeOf, lifeOfBody, peopleKin, peopleLife } from "./population/life.ts";
+export { engineeredOf, sparedWork, type Engineered } from "./frontier/engineered.ts";
+export {
+  HEREDITY_EVENTS,
+  heredityOf,
+  heredityYear,
+  installHeredity,
+} from "./population/heredity.ts";
+export {
+  MIX_EVENTS,
+  MixStore,
+  addKind,
+  installMix,
+  kindBody,
+  kinshipOf,
+  peopleNameOf,
+  mixFactors,
+  mixOf,
+  mixYear,
+  setDown,
+  type MixKind,
+} from "./population/mix.ts";
 export { MOST_SEA_STEPS, SEA_STEPS, seaRange, seaReach, seaSteps } from "./economy/sea.ts";
 export {
   AIR_EVENTS,
@@ -1726,6 +1749,7 @@ export {
   WrittenStore,
   writableOf,
   writtenCut,
+  writtenSoFar,
   writtenOf,
   writtenYear,
   type WrittenRow,
@@ -2199,6 +2223,14 @@ export {
   riversOf,
   type RiverMove,
 } from "./planet/rivers.ts";
+export { MISSION_EVENTS, missionsOf, type Mission } from "./belief/missions.ts";
+export { HONOUR_EVENTS, honourIn, honourStore, type Honour } from "./diplomacy/honour.ts";
+export { CURRICULUM_EVENTS, craftTaught, taughtOf } from "./order/curriculum.ts";
+export { DROVE_EVENTS, droveGain, droveOf } from "./ecology/droving.ts";
+export { ORPHAN_EVENTS } from "./society/roofless.ts";
+export { BOUND_TRADE_EVENTS } from "./order/boundtrade.ts";
+export { VETERAN_EVENTS } from "./war/veterans.ts";
+export { SHELTER_EVENTS, shelterCover } from "./war/shelter.ts";
 export { TABOO_EVENTS, TabooStore, herdKept, taboosOf, type FaithTaboo } from "./belief/taboo.ts";
 export {
   CANAL_EVENTS,

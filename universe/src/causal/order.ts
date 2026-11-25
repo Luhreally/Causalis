@@ -3,8 +3,11 @@
 // the people called to the seat's works; the bound fleeing and rising, freed or crushed;
 // movements among a realm's people, a realm's crisis of standing, and its law freeing the bound.
 import { yearOfMoment } from "../kernel/index.ts";
+import { cellRef } from "../gen/index.ts";
 import {
   LAW_EVENTS,
+  BOUND_TRADE_EVENTS,
+  CURRICULUM_EVENTS,
   LAW_POSITIONS,
   ORDER_ACTS,
   ORDER_EVENTS,
@@ -187,6 +190,47 @@ registerEventWords(LAW_EVENTS.changed.type, (_, e) => {
     to = LAW_POSITIONS[law][d?.to ?? 0];
   return `${d?.by ? `By your hand, at the word of ${d.by}, ${realm(e.data)}` : cap(realm(e.data))} changed its law of ${LAW_NAMES[law]}: from ${from} to ${to}, ${year(e.t)}`;
 });
+
+const landRef = (cell: number) => cellRef(0, cell) as Parameters<typeof landWords>[1];
+
+// The trade in bound people between realms (sim/order/boundtrade.ts): who, how many, at what price.
+registerEventWords(BOUND_TRADE_EVENTS.sold.type, (world, e) => {
+  const d = e.data as { from?: string; to?: number; price?: number; paid?: number } | null;
+  return `The holders of ${realm(e.data)} bought ${people(n(e.data, "count"))} of the bound of ${landWords(world, e.place)} from ${d?.from ?? "another realm"}: a bound hand's work keeps a holder more ${typeof d?.to === "number" ? `in ${landWords(world, landRef(d.to))}` : "there"} than where they were held, and each fetched what ${d?.price ?? "some"} years of a worker's living come to${d?.paid ? `, ${count(d.paid)} of grain from its treasury in all` : ""}; they were carried there, ${year(e.t)}`;
+});
+registerDecisionWords(
+  "order.bound-trade",
+  (world, d) =>
+    `The holders of ${realmOf(world, d.subject)} weighed buying the bound of another realm`,
+);
+
+// What a realm's schools teach (sim/order/curriculum.ts): by who pays for them.
+registerEventWords(CURRICULUM_EVENTS.turned.type, (_, e) => {
+  const d = e.data as {
+    teaches?: string;
+    share?: number;
+    payer?: string;
+    paid?: number;
+    reach?: number;
+    from?: string;
+  } | null;
+  return `The schools of ${realm(e.data)} ${d?.from ? `turned from ${d.from} to teach` : "came to teach"} ${d?.teaches ?? "what their payers want"} first, ${d?.share ?? "most"} parts in a hundred of what they teach: ${d?.payer ?? "those who pay"} keep${d?.payer?.startsWith("those") || d?.payer?.endsWith("s") ? "" : "s"} ${d?.paid ?? "most"} in a hundred of them, and they reach ${d?.reach ?? "some"} in a hundred of its young, ${year(e.t)}`;
+});
+registerDecisionWords(
+  "order.curriculum",
+  (world, d) => `What the schools of ${realmOf(world, d.subject)} teach, by who pays for them`,
+);
+
+// A reform its clerks held back (sim/order/laws.ts: its clerks a group of their own, rules/lawgain.ts clerkGains).
+registerEventWords(LAW_EVENTS.held.type, (_, e) => {
+  const d = e.data as { law?: Law; from?: number; to?: number } | null,
+    law = d?.law ?? "land";
+  return `The clerks of ${realm(e.data)} held back a change of its law of ${LAW_NAMES[law]}, from ${LAW_POSITIONS[law][d?.from ?? 0]} to ${LAW_POSITIONS[law][d?.to ?? 0]}: its groups would have carried it, and the offices the clerks live by would have closed with it, ${year(e.t)}`;
+});
+registerDecisionWords(
+  "order.clerks",
+  (world, d) => `The clerks of ${realmOf(world, d.subject)} stood against a change of law`,
+);
 
 // The god's hand on bonds and freedoms (M138).
 registerEventWords(

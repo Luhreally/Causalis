@@ -25,6 +25,7 @@ import {
   missOf,
   rocketMiss,
   rocketOn,
+  deadUnderCover,
   stagesKnown,
   strikeOf,
   throwOf,
@@ -38,7 +39,8 @@ import { deathsIn, spill } from "../acts/disasters.ts";
 import type { Market, MarketStore } from "../economy/market.ts";
 import { loreOf } from "../lore/lore.ts";
 import { flyerFrameOf } from "../lore/materials.ts";
-import type { Polity } from "../polity/polity.ts";
+import { politiesOf, type Polity } from "../polity/polity.ts";
+import { shelterCover } from "./shelter.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { burnTown, townsOf } from "../town/fabric.ts";
 
@@ -139,6 +141,9 @@ export function targetsOf(
 
 /** What a strike did. */
 export type StrikeDone = {
+  /** What it would have killed with no cover (rules/civildefence.ts), and the town's people. */
+  readonly raw: number;
+  readonly people: number;
   readonly dead: number;
   readonly homes: number;
   readonly stores: number;
@@ -165,13 +170,27 @@ export function strikeTown(
       people: v.population,
     }),
     all = prov.total();
-  if (share <= 0) return { dead: 0, homes: 0, stores: 0 };
+  if (share <= 0) return { raw: 0, people: v.population, dead: 0, homes: 0, stores: 0 };
   const homes = burnTown(ctx, target.ref, share, t, lotsAboutAim(fleet.miss)),
-    killed = dead > 0 && all > 0 ? deathsIn(ctx, target.cell, dead, t) : 0,
+    under = underCover(ctx, target.cell, dead),
+    killed = under > 0 && all > 0 ? deathsIn(ctx, target.cell, under, t) : 0,
     before = foodIn(ctx, target.cell);
   // (What burned of its land's stores: as much of them as of its homes, by the town's share of its land's people.)
   spill(ctx, target.cell, all > 0 ? (share * Math.min(1, v.population / all)) / 2 : 0);
-  return { dead: killed, homes, stores: Math.round(before - foodIn(ctx, target.cell)) };
+  return {
+    raw: dead,
+    people: v.population,
+    dead: killed,
+    homes,
+    stores: Math.round(before - foodIn(ctx, target.cell)),
+  };
+}
+
+/** Of those a strike on a town in a land would kill, those who die: the fewer as its realm has its people under cover. */
+function underCover(ctx: PopulationContext, cell: number, dead: number): number {
+  if (dead <= 0) return 0;
+  const realm = politiesOf(ctx.world).of(cell);
+  return realm ? deadUnderCover(dead, shelterCover(ctx.world, realm.ref)) : dead;
 }
 
 /** What a realm can throw in a year of a war (W3). */
@@ -341,7 +360,17 @@ export function throwAt(
       people: v.population,
     }),
     all = prov.total();
-  if (share <= 0) return { dead: 0, homes: 0, stores: 0, landed, machines: 0, idled: false };
+  if (share <= 0)
+    return {
+      raw: 0,
+      people: v.population,
+      dead: 0,
+      homes: 0,
+      stores: 0,
+      landed,
+      machines: 0,
+      idled: false,
+    };
   const homes = burnTown(
       ctx,
       target.ref,
@@ -350,7 +379,8 @@ export function throwAt(
       lotsAboutAim(miss),
       Math.max(1, Math.round(landed)),
     ),
-    killed = dead > 0 && all > 0 ? deathsIn(ctx, target.cell, dead, t) : 0,
+    under = underCover(ctx, target.cell, dead),
+    killed = under > 0 && all > 0 ? deathsIn(ctx, target.cell, under, t) : 0,
     before = foodIn(ctx, target.cell);
   spill(ctx, target.cell, all > 0 ? (share * Math.min(1, v.population / all)) / 2 : 0);
   // What its land's works held and did: as much of it as its fall took of what they stand on.
@@ -364,6 +394,8 @@ export function throwAt(
     if (idled) m.idleUntil = Math.max(m.idleUntil, yearOfMoment(t) + WORKS_DOWN_YEARS);
   }
   return {
+    raw: dead,
+    people: v.population,
     dead: killed,
     homes,
     stores: Math.round(before - foodIn(ctx, target.cell)),
