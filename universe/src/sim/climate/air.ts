@@ -509,7 +509,8 @@ export function airYear(ctx: PopulationContext, t: SimTime): void {
   // Its haze, told at each fifth of a degree it hides, and when it clears by as much.
   const fifths = Math.floor(masked / 0.2 + 1e-9),
     toldHaze = air.hazeTold ?? 0;
-  if (fifths > toldHaze || fifths < toldHaze - 1) {
+  // (Cleared: fallen half a step under the last step told, so a haze wavering about a step is told once.)
+  if (fifths > toldHaze || (toldHaze > 0 && masked < (toldHaze - 0.5) * 0.2)) {
     const cleared = fifths < toldHaze,
       causes: CauseRef[] = [];
     for (const b of most(burners, 3)) {
