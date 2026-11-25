@@ -644,7 +644,7 @@ export function installHand(world: World): HandStore {
       for (let r = 0; r < ROWS; r++) for (let o = 0; o < COLS; o++) counts.push(p.counts.get(r, o));
       const whole = Math.min(v.population, p.total()),
         n = Math.min(whole, HAND_HOLDS),
-        taken = drawWithoutReplacement(n, counts, (i) => world.rng.real(COLLAPSE, v.cell, t, 0, i)),
+        taken = drawWithoutReplacement(n, counts, world.rng.reals(COLLAPSE, v.cell, t, 0)),
         agents: Agent[] = [];
       taken.forEach((k, i) => {
         const r = Math.floor(i / COLS),

@@ -1066,8 +1066,10 @@ function fall(
     take = Math.min(n, pool.men);
   if (!prov || !(take > 0)) return 0;
   const year = yearOfMoment(t),
-    drawn = drawWithoutReplacement(take, pool.counts, (i) =>
-      ctx.world.rng.real(FIGHT, subject, t, purpose, i),
+    drawn = drawWithoutReplacement(
+      take,
+      pool.counts,
+      ctx.world.rng.reals(FIGHT, subject, t, purpose),
     );
   drawn.forEach((k, i) => {
     if (!k) return;

@@ -143,6 +143,23 @@ export class Rng {
       b = finish(mix(h, 0x9e3779b9), 9) >>> 6;
     return (a * 67108864 + b) / TWO53;
   }
+  /**
+   * One question's draws by their index, its key's head absorbed once: `reals(stream, subject, time, purpose)(n)` is
+   * `real(stream, subject, time, purpose, n)`, for a question asked of many draws in turn (who of each row dies, who of a
+   * crowd sets out).
+   */
+  reals(stream: Stream, subject: number, time = 0, purpose = 0): (n: number) => number {
+    let h = mix(this.base, stream.salt);
+    h = mix(h, subject >>> 0);
+    h = mixInt(h, time);
+    const head = mix(h, purpose >>> 0);
+    return (n) => {
+      const k = mix(head, n >>> 0),
+        a = finish(k, 8) >>> 5,
+        b = finish(mix(k, 0x9e3779b9), 9) >>> 6;
+      return (a * 67108864 + b) / TWO53;
+    };
+  }
   /** A uniform integer in [0, count), for count ≤ 2^21 without bias worth measuring. */
   index(count: number, stream: Stream, subject: number, time = 0, purpose = 0, n = 0): number {
     return Math.floor((this.u32(stream, subject, time, purpose, n) * count) / TWO32);

@@ -393,8 +393,10 @@ function fallMore(
     pool = poolOf(c, cell, year),
     take = Math.min(n, pool.men);
   if (!prov || !(take > 0)) return 0;
-  const drawn = drawWithoutReplacement(take, pool.counts, (i) =>
-    c.world.rng.real(HAND_FIGHT, subject, t, purpose, i),
+  const drawn = drawWithoutReplacement(
+    take,
+    pool.counts,
+    c.world.rng.reals(HAND_FIGHT, subject, t, purpose),
   );
   drawn.forEach((k, i) => {
     if (!k) return;

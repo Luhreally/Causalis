@@ -85,3 +85,15 @@ test("streams are registered once, by dotted tag", () => {
   assert.equal(purpose("birth"), purpose("birth"));
   assert.notEqual(purpose("birth"), purpose("death"));
 });
+
+test("one question's draws by their index are its draws asked one by one", () => {
+  const rng = new Rng(seedFromText("reals"));
+  for (const [subject, time, p] of [
+    [0, 0, 0],
+    [7, 12345, 3],
+    [0xffffffff, 2 ** 40 + 17, 99],
+  ] as const) {
+    const draw = rng.reals(A, subject, time, p);
+    for (let n = 0; n < 300; n++) assert.equal(draw(n), rng.real(A, subject, time, p, n));
+  }
+});

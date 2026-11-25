@@ -81,7 +81,7 @@ export function workBySex(
       const byRow = drawWithoutReplacement(
         k,
         adultRows.map((r) => rest(r, o)),
-        (i) => world.rng.real(WORK_BY_SEX, key, t, base + 10 + o, i),
+        world.rng.reals(WORK_BY_SEX, key, t, base + 10 + o),
       );
       byRow.forEach((m, i) => {
         d.add(adultRows[i]!, o, -m);

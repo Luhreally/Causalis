@@ -170,8 +170,10 @@ function bury(
   };
   if (rows) for (const i of rows) each(i);
   else for (let i = 0; i < ROWS * COLS; i++) each(i);
-  const drawn = drawWithoutReplacement(Math.round(n), counts, (i) =>
-    ctx.world.rng.real(STREAM, cell, t, purpose, i),
+  const drawn = drawWithoutReplacement(
+    Math.round(n),
+    counts,
+    ctx.world.rng.reals(STREAM, cell, t, purpose),
   );
   let took = 0;
   drawn.forEach((k, i) => {

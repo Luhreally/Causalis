@@ -972,7 +972,7 @@ export function draw(
   const free = pools.reduce((a, b) => a + b, 0),
     n = Math.min(count, free);
   if (n <= 0) return null;
-  const moved = drawWithoutReplacement(n, pools, (i) => ctx.world.rng.real(stream, key, t, 1, i));
+  const moved = drawWithoutReplacement(n, pools, ctx.world.rng.reals(stream, key, t, 1));
   return { moved, n };
 }
 

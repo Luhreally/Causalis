@@ -394,8 +394,10 @@ function drawFrom(
   };
   if (rows) for (const i of rows) each(i);
   else for (let i = 0; i < ROWS * COLS; i++) each(i);
-  const drawn = drawWithoutReplacement(Math.round(n), counts, (i) =>
-    ctx.world.rng.real(STREAM, key, t, purpose, i),
+  const drawn = drawWithoutReplacement(
+    Math.round(n),
+    counts,
+    ctx.world.rng.reals(STREAM, key, t, purpose),
   );
   return { at, drawn };
 }

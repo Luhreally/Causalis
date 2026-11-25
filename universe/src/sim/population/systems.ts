@@ -828,10 +828,12 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
           partners.flocks,
       ],
     ];
-    for (const [g, x] of harvest)
-      m.move("made", g, roundKeyed(x * gift, world.rng.real(BIRTHS, key, t, HARVEST, g)));
+    // (Each food's harvest, and below what spoils of it, drawn of one question by the good.)
+    const harvestDraw = world.rng.reals(BIRTHS, key, t, HARVEST);
+    for (const [g, x] of harvest) m.move("made", g, roundKeyed(x * gift, harvestDraw(g)));
     // (Those at work on what its towns were asked to raise eat of it first: H1.)
     if (asks.open.length) asks.feed(p.cell, m);
+    const spoilDraw = world.rng.reals(BIRTHS, key, t, SPOIL);
     for (const g of FOODS)
       m.move(
         "spoiled",
@@ -840,7 +842,7 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
           m.stock[g]!,
           roundKeyed(
             m.stock[g]! * GOODS[g]!.spoil * (1 - 0.5 * pots) * (1 - keeping) * (1 - keptByLand),
-            world.rng.real(BIRTHS, key, t, SPOIL, g),
+            spoilDraw(g),
           ),
         ),
       );
@@ -1227,8 +1229,10 @@ function vitalMonthRead(ctx: PopulationContext, t: SimTime): void {
     const mated = matedShare(kin.pairing, sires, bearers, kin.even),
       births = roundKeyed((expected * fertility * mated) / 12, world.rng.real(BIRTHS, key, t));
     if (births) {
-      const [girls, boys] = multinomial(births, [girlsBorn, 1 - girlsBorn], (i) =>
-        world.rng.real(BIRTHS, key, t, SEX, i),
+      const [girls, boys] = multinomial(
+        births,
+        [girlsBorn, 1 - girlsBorn],
+        world.rng.reals(BIRTHS, key, t, SEX),
       );
       // The months' newborns were born through them: those of them who died within them, by
       // the first years' chance spread over the months (the sires' young the more).
@@ -1249,15 +1253,14 @@ function vitalMonthRead(ctx: PopulationContext, t: SimTime): void {
       history.addBirths(p.cell, year, births);
       if (infants) history.addDeaths(p.cell, year, 0, infants);
     }
+    // (Each row's dead drawn of one question, by its row and work.)
+    const deathDraw = world.rng.reals(DEATHS, key, t, 0);
     for (let s = 0; s < SEXES; s++)
       for (let b = 0; b < BANDS; b++)
         for (let o = 0; o < COLS; o++) {
           const n = rest(row(s, b), o);
           if (!n) continue;
-          const dead = Math.min(
-            n,
-            roundKeyed(n * dyingIn(b, s), world.rng.real(DEATHS, key, t, 0, row(s, b) * COLS + o)),
-          );
+          const dead = Math.min(n, roundKeyed(n * dyingIn(b, s), deathDraw(row(s, b) * COLS + o)));
           if (!dead) continue;
           d.add(row(s, b), o, -dead);
           history.addDeaths(p.cell, year, b, dead);
@@ -1720,7 +1723,9 @@ export function ageYear(ctx: PopulationContext, t: SimTime): void {
         fieldsUse(ctx, p),
       ),
       year = yearOfMoment(t),
-      windowed = handOf(world).composition(p.cell, year, ctx.life);
+      windowed = handOf(world).composition(p.cell, year, ctx.life),
+      // (Each row's movers drawn of one question, by its row and work.)
+      ageDraw = world.rng.reals(AGEING, key, t, 0);
     for (let s = 0; s < SEXES; s++)
       for (let b = 0; b < BANDS - 1; b++) {
         const comingOfAge = life.bands[b + 1]! === life.adulthood;
@@ -1729,17 +1734,14 @@ export function ageYear(ctx: PopulationContext, t: SimTime): void {
           if (!n) continue;
           const movers = Math.min(
             n,
-            roundKeyed(
-              n / bandWidth(b, life),
-              world.rng.real(AGEING, key, t, 0, row(s, b) * COLS + o),
-            ),
+            roundKeyed(n / bandWidth(b, life), ageDraw(row(s, b) * COLS + o)),
           );
           if (!movers) continue;
           d.add(row(s, b), o, -movers);
           if (comingOfAge && o === OCC.dependent) {
-            multinomial(movers, targets, (i) =>
-              world.rng.real(AGEING, key, t, row(s, b), i),
-            ).forEach((m, k) => d.add(row(s, b + 1), k, m));
+            multinomial(movers, targets, world.rng.reals(AGEING, key, t, row(s, b))).forEach(
+              (m, k) => d.add(row(s, b + 1), k, m),
+            );
           } else d.add(row(s, b + 1), o, movers);
         }
       }
@@ -1814,7 +1816,7 @@ export function workYear(ctx: PopulationContext, t: SimTime): void {
       const byRow = drawWithoutReplacement(
         n,
         adultRows.map((r) => rest(r, o)),
-        (i) => world.rng.real(WORK, key, t, 3 + o, i),
+        world.rng.reals(WORK, key, t, 3 + o),
       );
       byRow.forEach((m, i) => {
         d.add(adultRows[i]!, o, -m);
@@ -2043,16 +2045,12 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
     for (let r = 0; r < ROWS; r++)
       for (let o = 0; o < COLS; o++)
         counts[r * COLS + o] = p.counts.get(r, o) - (windowed ? windowed[r * COLS + o]! : 0);
-    const everyone = drawWithoutReplacement(movers, counts, (i) =>
-      world.rng.real(MOVES, key, t, 1, i),
-    );
+    const everyone = drawWithoutReplacement(movers, counts, world.rng.reals(MOVES, key, t, 1));
     const remaining = [...everyone];
     best.forEach((o, i) => {
       const count = split[i]!;
       if (!count) return;
-      const moved = drawWithoutReplacement(count, remaining, (j) =>
-        world.rng.real(MOVES, key, t, 2 + i, j),
-      );
+      const moved = drawWithoutReplacement(count, remaining, world.rng.reals(MOVES, key, t, 2 + i));
       moved.forEach((m, j) => (remaining[j] = remaining[j]! - m));
       const drought = p.lastDrought ? world.events.get(p.lastDrought) : undefined,
         famine = p.lastFamine ? world.events.get(p.lastFamine) : undefined;
