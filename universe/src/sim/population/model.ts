@@ -20,6 +20,7 @@ import {
   SEXES,
   coverOf,
   crustMultiplier,
+  growsFor,
   landUseOf,
   growthUnderHard,
   hardAtGround,
@@ -61,11 +62,19 @@ type Sky = {
    * the open.
    */
   readonly ozone: number;
+  /** The warmth its growth starts at, by what its own living kinds are fitted to (rules/biomes.ts growsFor). */
+  readonly grows: number;
   readonly haze: boolean;
   readonly hard: number;
   readonly open: number;
 };
 const SKIES = new Map<string, Sky>();
+/** The warmth each of a world's living kinds is fitted to (where it arose): none where nothing lives. */
+function livingFit(w: HomeWorld): number[] {
+  const out: number[] = [];
+  for (const s of w.life?.species ?? []) if (s.died === null) out.push(s.warm);
+  return out;
+}
 export function skyOf(w: HomeWorld): Sky {
   let s = SKIES.get(w.digest);
   if (s) return s;
@@ -78,6 +87,7 @@ export function skyOf(w: HomeWorld): Sky {
     light: w.planet.insolation,
     rock: rockGrowth(crustMultiplier(chem, "P"), crustMultiplier(chem, "K")),
     ozone,
+    grows: growsFor(livingFit(w)),
     haze: ground.haze,
     hard,
     open: growthUnderHard(hard),
@@ -100,7 +110,14 @@ export function coverAt(w: HomeWorld, cell: number, heat = 0): Cover {
     p0 = w.climate.precipitation[cell]!,
     p = heat ? p0 * rainUnderWarmth(w.grid.lat[cell]!, p0, heat) : p0;
   // (Growth in the open under what its shield lets through of its star's hard light: the sea shields its own.)
-  return coverOf(t, p, w.climate.seasonality[cell]!, landLight(w, cell), sky.rock * sky.open);
+  return coverOf(
+    t,
+    p,
+    w.climate.seasonality[cell]!,
+    landLight(w, cell),
+    sky.rock * sky.open,
+    sky.grows,
+  );
 }
 
 /**
@@ -346,7 +363,7 @@ function land(w: HomeWorld, cell: number, areaKm2: number, biome: number, heat =
     wild = Math.sqrt(season),
     // What its warmth, rain, seasons, light and rock grow, and how that stands (rules/biomes.ts).
     cover = coverAt(w, cell, heat),
-    use = landUseOf(cover, w.climate.temperature[cell]! + heat),
+    use = landUseOf(cover, w.climate.temperature[cell]! + heat, skyOf(w).grows),
     // A river greens a dry valley and waters its fields: the drier the land, the more (as a desert's, a steppe's).
     wet = river ? 1.3 + 1.2 * Math.max(0, Math.min(1, (0.7 - cover.moist) / 0.4)) : 1;
   return {

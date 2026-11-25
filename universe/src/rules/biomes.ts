@@ -69,9 +69,27 @@ export function demandMm(t: number, demand = 1): number {
   return (FORM.demand0 + FORM.demandPerDegree * Math.max(0, t)) * demand;
 }
 
-/** The share of a land's year above the warmth its growth starts at (its mean and half its swing; rules/seasons.ts shareAbove). */
-export function growingShare(mean: number, swing: number): number {
-  const x = mean - FORM.grows;
+/**
+ * The warmth a world's growth starts at, from the warmth its own living kinds are fitted to (each the warmth of the ground
+ * it arose on; degrees of its liquid). Where a sap of the bare liquid would freeze is FORM.grows, and on a world whose kinds
+ * arose warmer than that, that is where growth starts: nothing asked more of them. On a world whose kinds arose colder (its
+ * warmest ground under its liquid's freezing), life is fitted to it: its sap holds what keeps it liquid at the warmth its
+ * kinds live at (the middle one of them), and its growth starts there, slow as its cold makes it (warmGrowth). No sap holds
+ * liquid further than FORM.sap degrees under the bare liquid's freezing (a brine's coldest: salt water's is 21 under).
+ */
+export function growsFor(fitted: readonly number[]): number {
+  if (!fitted.length) return FORM.grows;
+  const sorted = [...fitted].sort((a, b) => a - b),
+    middle = sorted[sorted.length >> 1]!;
+  return Math.max(FORM.grows - FORM.sap, Math.min(FORM.grows, middle));
+}
+
+/**
+ * The share of a land's year above the warmth its growth starts at (its mean and half its swing; rules/seasons.ts shareAbove):
+ * `grows`, its world's own (growsFor), Earth's where none is said.
+ */
+export function growingShare(mean: number, swing: number, grows: number = FORM.grows): number {
+  const x = mean - grows;
   if (swing <= 1e-9) return x > 0 ? 1 : 0;
   const r = x / swing;
   return r >= 1 ? 1 : r <= -1 ? 0 : 1 - dmath.acos(r) / Math.PI;
@@ -82,10 +100,19 @@ export function growingShare(mean: number, swing: number): number {
  * and rock), and how it stands. Trees need rain past their demand and a mean above about its liquid's freezing (the boreal
  * edge); grass needs a third of it; below that it is shrub, lichen and bare ground.
  */
-export function coverOf(t: number, p: number, swing: number, light = 1, rock = 1): Cover {
+export function coverOf(
+  t: number,
+  p: number,
+  swing: number,
+  light = 1,
+  rock = 1,
+  /** The warmth its world's growth starts at (growsFor): its trees' edge stands as far from it as Earth's from Earth's. */
+  grows: number = FORM.grows,
+): Cover {
   const demand = demandOf(light),
     moist = p / demandMm(t, demand),
-    season = dmath.pow(growingShare(t, swing), FORM.season),
+    fitted = grows - FORM.grows,
+    season = dmath.pow(growingShare(t, swing, grows), FORM.season),
     // (Lieth's rain term holds for the warmth of Earth's lands, up to its tropics' FORM.hot less seven; a hotter land's air draws off
     // more of the same rain, and its plants get the less of it.)
     kept = Math.min(1, demandMm(FORM.hot - 7) / demandMm(t)),
@@ -95,7 +122,8 @@ export function coverOf(t: number, p: number, swing: number, light = 1, rock = 1
       lightGrowth(light) *
       rock,
     woody =
-      dmath.clamp((moist - FORM.woods) / FORM.woodsSpan, 0, 1) * dmath.clamp((t + 1) / 5, 0, 1),
+      dmath.clamp((moist - FORM.woods) / FORM.woodsSpan, 0, 1) *
+      dmath.clamp((t - fitted + 1) / 5, 0, 1),
     open = (1 - woody) * dmath.clamp((moist - FORM.grass) / FORM.grassSpan, 0, 1);
   return { growth, moist, woody, open };
 }
@@ -112,14 +140,15 @@ export type LandUse = {
  * than the woods' fruit and nut (a grazer eats the grass, a forager only the mast); fields where its warmth ripens a grass and its
  * rain waters it, less where trees must first be cleared; pasture by what is open.
  */
-export function landUseOf(c: Cover, t: number): LandUse {
+export function landUseOf(c: Cover, t: number, grows: number = FORM.grows): LandUse {
   const g = Math.max(0, c.growth),
     forage =
       FORM.forage *
       (FORM.mast * c.woody * dmath.pow(g, FORM.mastPower) +
         FORM.game * c.open * dmath.pow(g, FORM.gamePower) +
         0.15 * g),
-    ripens = dmath.clamp((t - 1) / 7, 0, 1),
+    // (Its seed ripens as far over where its world's growth starts as Earth's grasses do over Earth's.)
+    ripens = dmath.clamp((t - (grows - FORM.grows) - 1) / 7, 0, 1),
     watered = dmath.clamp((c.moist - FORM.grass) / FORM.watered, 0, 1),
     arable =
       FORM.arable *
@@ -143,6 +172,7 @@ export const FORM = {
   demand0: 200,
   demandPerDegree: 35,
   grows: 1.685,
+  sap: 20,
   season: 1.508,
   woods: 1.014,
   woodsSpan: 0.423,
