@@ -40,6 +40,9 @@ export type Bodies = {
   readonly pull?: number;
 };
 
+/** The least lean drawn (radians: a third of a degree, less than a pixel at any height a figure is drawn). */
+export const LEAST_LEAN = 0.006;
+
 /** How quickly the drawn place catches where they are (seconds: a spring's time). */
 export const SMOOTH = 0.12;
 /** A gap longer than this (metres) is not walked but blinked across. */
@@ -117,7 +120,7 @@ export function present(
     }
     const gx = m.x - p.x,
       gz = m.z - p.z,
-      gap = Math.hypot(gx, gz),
+      gap = Math.sqrt(gx * gx + gz * gz),
       x0 = p.x,
       z0 = p.z;
     if (gap > FAR && p.size > 0) p.blinking = true;
@@ -150,7 +153,7 @@ export function present(
       p.z = aimZ + (cz + tz) * decay;
       if (ground) keepOut(ground, p, REACH);
     }
-    const speed = Math.hypot(p.vx, p.vz),
+    const speed = Math.sqrt(p.vx * p.vx + p.vz * p.vz),
       moving = speed > MOVING && !p.blinking,
       facing = moving ? Math.atan2(p.vx, p.vz) : m.yaw;
     p.yaw = toward(p.yaw, facing, TURN * step);
@@ -167,6 +170,9 @@ export function present(
           yaw: p.yaw,
           activity: moving ? ACTIVITY.walking : m.activity,
           hidden: p.size <= 0,
+          // (Every moment of one shape, with a body's walk or without: what poses them reads one kind of thing.)
+          reach: undefined,
+          lean: undefined,
         },
         size: p.size,
         stride: p.stride,
@@ -179,7 +185,7 @@ export function present(
       was = p.pace ?? 0,
       lean = step > 0 && moving ? leanOf((speed - was) / step, pull) : 0,
       ease = step > 0 ? 1 - Math.exp(-step / SMOOTH) : 0;
-    if (long > 0) p.stride += Math.hypot(p.x - x0, p.z - z0) / long / STRIDES;
+    if (long > 0) p.stride += Math.sqrt((p.x - x0) ** 2 + (p.z - z0) ** 2) / long / STRIDES;
     p.pace = speed;
     p.lean = (p.lean ?? 0) + (lean - (p.lean ?? 0)) * ease;
     out.push({
@@ -191,7 +197,8 @@ export function present(
         activity: moving ? ACTIVITY.walking : m.activity,
         hidden: p.size <= 0,
         reach: moving ? legSwing(speed, hip, pull) / swing : 0,
-        lean: p.lean,
+        // (A lean too small to be seen is none: the body above the hip posed upright, at no cost.)
+        lean: Math.abs(p.lean) < LEAST_LEAN ? 0 : p.lean,
       },
       size: p.size,
       stride: p.stride,
