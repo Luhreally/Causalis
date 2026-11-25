@@ -195,11 +195,15 @@ export function naturalPrices(r: PriceRead): { worth: number[]; basis: PriceBasi
   for (let pass = 0; pass < 2; pass++)
     for (const i of r.recipes) {
       const rec = RECIPES[i]!,
-        [out, per] = rec.output;
+        out = rec.output[0],
+        per = rec.output[1];
       if (basis[out] === "staple" || basis[out] === "labour") continue;
       let cost = Math.max(r.outside, 1e-6);
-      for (const [g, k] of rec.inputs)
+      for (let j = 0; j < rec.inputs.length; j++) {
+        const g = rec.inputs[j]![0],
+          k = rec.inputs[j]![1];
         cost += k * (Number.isFinite(worth[g]!) ? worth[g]! : r.price[g]!);
+      }
       // (No one pays more for it than what it does for them, where that can be counted.)
       const use = useWorth(out, wage, r.cold, r.kinds?.[out] ?? 1),
         each = Number.isFinite(use) ? Math.min(cost / per, use) : cost / per;
@@ -231,25 +235,32 @@ export function naturalPrices(r: PriceRead): { worth: number[]; basis: PriceBasi
     let best = NaN;
     for (const i of r.recipes) {
       const rec = RECIPES[i]!,
-        k = rec.inputs.find(([x]) => x === g)?.[1];
+        k = inputOf(rec, g);
       if (!k) continue;
-      const [out, per] = rec.output;
+      const out = rec.output[0],
+        per = rec.output[1];
       // (Its product is worth, for this, what it would be had WITHOUT this good: by its use, or made the cheapest other way.
       // Reckoned at its worth as made, where this very recipe was the cheapest that worth was read off this good's own price,
       // and the good's worth off it: a worth resting on itself, that any year's fall took down for good.)
       let fetches = useWorth(out, wage, r.cold, r.kinds?.[out] ?? 1);
       for (const j of r.recipes) {
         const other = RECIPES[j]!;
-        if (other.output[0] !== out || other.inputs.some(([x]) => x === g)) continue;
+        if (other.output[0] !== out || inputOf(other, g) !== undefined) continue;
         let cost = Math.max(r.outside, 1e-6);
-        for (const [x, kx] of other.inputs)
+        for (let q = 0; q < other.inputs.length; q++) {
+          const x = other.inputs[q]![0],
+            kx = other.inputs[q]![1];
           cost += kx * (Number.isFinite(worth[x]!) ? worth[x]! : r.price[x]!);
+        }
         const each = cost / other.output[1];
         if (!(each >= fetches)) fetches = each;
       }
       if (!Number.isFinite(fetches)) fetches = r.price[out]!;
       let left = per * fetches - r.outside;
-      for (const [x, kx] of rec.inputs) if (x !== g) left -= kx * r.price[x]!;
+      for (let q = 0; q < rec.inputs.length; q++) {
+        const x = rec.inputs[q]![0];
+        if (x !== g) left -= rec.inputs[q]![1] * r.price[x]!;
+      }
       const each = left / k;
       if (each > 0 && !(each <= best)) best = each;
     }
@@ -271,6 +282,12 @@ export function naturalPrices(r: PriceRead): { worth: number[]; basis: PriceBasi
         : Math.max(w, CHEAPEST_YEARS * living);
   }
   return { worth, basis };
+}
+
+/** How much of a good a recipe takes, by the first of its inputs that is it (undefined: it takes none). */
+function inputOf(rec: (typeof RECIPES)[number], g: number): number | undefined {
+  for (let q = 0; q < rec.inputs.length; q++) if (rec.inputs[q]![0] === g) return rec.inputs[q]![1];
+  return undefined;
 }
 
 /** How far a year's shortage or glut moves a price from its worth (the market's own: sim/economy reprice). */
