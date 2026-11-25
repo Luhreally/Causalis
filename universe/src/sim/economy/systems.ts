@@ -963,15 +963,21 @@ function trade(
       pl.from,
       (load.get(pl.from) ?? 0) + pl.count * bulkAt(markets.of(pl.from), pl.good, oxidants),
     );
+  // (A land's carriers reckoned once for all it sends: nothing here moves them.)
+  const capacities = new Map<number, number>();
   for (const pl of plans) {
-    const p = ctx.provinces.get(pl.from)!,
-      // (Information work multiplies what its carriers move: exactly 1 before the telegraph.)
-      info = infoShare(connectivityOf(loreOf(ctx.world).effect(pl.from, "signal"))),
+    let capacity = capacities.get(pl.from);
+    if (capacity === undefined) {
+      const p = ctx.provinces.get(pl.from)!,
+        // (Information work multiplies what its carriers move: exactly 1 before the telegraph.)
+        info = infoShare(connectivityOf(loreOf(ctx.world).effect(pl.from, "signal")));
       capacity =
         (TRADER_CAPACITY * p.occupation(OCC.trader) + PORTERAGE_PER_PERSON * p.total()) *
         (1 + loreOf(ctx.world).effect(pl.from, "carrying")) *
-        (1 + SIGNAL.carriers * info),
-      carried = load.get(pl.from)!;
+        (1 + SIGNAL.carriers * info);
+      capacities.set(pl.from, capacity);
+    }
+    const carried = load.get(pl.from)!;
     if (carried > capacity) pl.count = Math.floor((pl.count * capacity) / carried);
   }
   // A market takes of a good no more than it has use for: what brings its stock to GLUT_YEARS of what goes there (what is
@@ -982,13 +988,20 @@ function trade(
   const sent = new Map<number, number>(),
     key = (pl: Plan) => pl.to * GOOD_COUNT + pl.good;
   for (const pl of plans) if (pl.count) sent.set(key(pl), (sent.get(key(pl)) ?? 0) + pl.count);
+  // (A market's room for a good reckoned once for all who send it: nothing here moves its stock.)
+  const rooms = new Map<number, number>();
   for (const pl of plans) {
     if (!pl.count) continue;
-    const to = markets.of(pl.to),
+    const k = key(pl);
+    let room = rooms.get(k);
+    if (room === undefined) {
+      const to = markets.of(pl.to);
       room =
         GLUT_YEARS * (Math.max(wanted.get(pl.to)?.[pl.good] ?? 0, to.goes(pl.good)) + 1) -
-        to.stock[pl.good]!,
-      all = sent.get(key(pl))!;
+        to.stock[pl.good]!;
+      rooms.set(k, room);
+    }
+    const all = sent.get(k)!;
     if (all > room) pl.count = room > 0 ? Math.floor((pl.count * room) / all) : 0;
   }
   const flows: TradeFlow[] = [];

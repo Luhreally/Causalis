@@ -489,6 +489,93 @@ function burn(m: Money, by: Ref, year: number): void {
   m.burnt = [[by, year] as [Ref, number], ...(m.burnt ?? []).filter(([r]) => r !== by)].slice(0, 4);
 }
 
+/**
+ * What each of two realms that meet fears of the other's way (financeYear's step 2, a relation at a time: in a function of its
+ * own, not the body of a loop over every relation).
+ */
+function fearsBetween(
+  world: World,
+  rel: Relation,
+  a: Read,
+  b: Read,
+  fears: Map<string, Fear[]>,
+): void {
+  const near = Math.min(1, -term(rel, "the land along their border") / 0.2),
+    trade = Math.min(1, term(rel, "trade between them") / TRADE_TIE.most),
+    like = rel.terms.find((x) => x.name === "alike speech" || x.name === "strange speech"),
+    tongue = Math.max(0, Math.min(1, (like?.value ?? 0) / 1.2 + 0.75)),
+    stakes = Math.min(1, stakesBetween(world, rel.a, rel.b) / 0.16),
+    meeting = { near, trade, tongue, stakes };
+  for (const [x, y] of [
+    [a, b],
+    [b, a],
+  ] as const) {
+    const th = threatOf(x.way, y.way, seenToWork(x.faring, y.faring), exposure(meeting, x.way[2]));
+    const was = x.m.fears.find((f) => f.of === y.p.ref)?.level ?? 0,
+      level = Math.round((was + pct(th.level)) / 2);
+    if (level < 5) continue;
+    const list = fears.get(x.p.ref) ?? [];
+    list.push({
+      of: y.p.ref,
+      level,
+      now: pct(th.level),
+      unlike: pct(th.unlike),
+      works: pct(th.works),
+      exposed: pct(th.exposed),
+      loss: pct(th.loss),
+      who: th.who,
+      drawn: pct(th.drawn),
+    });
+    fears.set(x.p.ref, list);
+  }
+}
+
+/**
+ * What each of two realms at peace that meet wants to hold of the other's listed worth (financeYear's step 7, a relation at a
+ * time).
+ */
+function stakeWants(
+  world: World,
+  rel: Relation,
+  a: Read,
+  b: Read,
+  year: number,
+  wants: Map<string, Map<Ref, number>>,
+): void {
+  for (const [holder, issuer] of [
+    [a, b],
+    [b, a],
+  ] as const) {
+    if (issuer.m.worth <= 0 || !holder.banking) continue;
+    if (rel.opinion < 0 || burntBy(holder.m, issuer.p.ref, year)) continue;
+    const fear = Math.max(
+        fearOf(world, holder.p.ref, issuer.p.ref),
+        fearOf(world, issuer.p.ref, holder.p.ref),
+      ),
+      gain = dmath.clamp(
+        issuer.m.worth / Math.max(1, issuer.m.worthWas || issuer.m.worth),
+        0.5,
+        1.5,
+      ),
+      mine = holder.faring.rich * holder.faring.people,
+      theirs = issuer.faring.rich * issuer.faring.people,
+      size = Math.min(1, (2 * mine) / Math.max(1, mine + theirs)),
+      want =
+        FINANCE.stake *
+        openTo(world, issuer) *
+        openTo(world, holder) *
+        Math.min(1, 0.5 + rel.opinion) *
+        gain *
+        (1 - fear) *
+        (1 - fear) *
+        size;
+    (wants.get(issuer.p.ref) ?? wants.set(issuer.p.ref, new Map()).get(issuer.p.ref)!).set(
+      holder.p.ref,
+      want,
+    );
+  }
+}
+
 /** The year's reckoning. */
 export function financeYear(ctx: PopulationContext, t: SimTime): void {
   const { world } = ctx,
@@ -561,39 +648,7 @@ export function financeYear(ctx: PopulationContext, t: SimTime): void {
     const a = reads.get(rel.a),
       b = reads.get(rel.b);
     if (!a || !b) continue;
-    const near = Math.min(1, -term(rel, "the land along their border") / 0.2),
-      trade = Math.min(1, term(rel, "trade between them") / TRADE_TIE.most),
-      like = rel.terms.find((x) => x.name === "alike speech" || x.name === "strange speech"),
-      tongue = Math.max(0, Math.min(1, (like?.value ?? 0) / 1.2 + 0.75)),
-      stakes = Math.min(1, stakesBetween(world, rel.a, rel.b) / 0.16),
-      meeting = { near, trade, tongue, stakes };
-    for (const [x, y] of [
-      [a, b],
-      [b, a],
-    ] as const) {
-      const th = threatOf(
-        x.way,
-        y.way,
-        seenToWork(x.faring, y.faring),
-        exposure(meeting, x.way[2]),
-      );
-      const was = x.m.fears.find((f) => f.of === y.p.ref)?.level ?? 0,
-        level = Math.round((was + pct(th.level)) / 2);
-      if (level < 5) continue;
-      const list = fears.get(x.p.ref) ?? [];
-      list.push({
-        of: y.p.ref,
-        level,
-        now: pct(th.level),
-        unlike: pct(th.unlike),
-        works: pct(th.works),
-        exposed: pct(th.exposed),
-        loss: pct(th.loss),
-        who: th.who,
-        drawn: pct(th.drawn),
-      });
-      fears.set(x.p.ref, list);
-    }
+    fearsBetween(world, rel, a, b, fears);
   }
   for (const r of reads.values()) {
     const list = (fears.get(r.p.ref) ?? [])
@@ -830,38 +885,7 @@ export function financeYear(ctx: PopulationContext, t: SimTime): void {
     const a = reads.get(rel.a),
       b = reads.get(rel.b);
     if (!a || !b || wars.between(rel.a, rel.b)) continue;
-    for (const [holder, issuer] of [
-      [a, b],
-      [b, a],
-    ] as const) {
-      if (issuer.m.worth <= 0 || !holder.banking) continue;
-      if (rel.opinion < 0 || burntBy(holder.m, issuer.p.ref, year)) continue;
-      const fear = Math.max(
-          fearOf(world, holder.p.ref, issuer.p.ref),
-          fearOf(world, issuer.p.ref, holder.p.ref),
-        ),
-        gain = dmath.clamp(
-          issuer.m.worth / Math.max(1, issuer.m.worthWas || issuer.m.worth),
-          0.5,
-          1.5,
-        ),
-        mine = holder.faring.rich * holder.faring.people,
-        theirs = issuer.faring.rich * issuer.faring.people,
-        size = Math.min(1, (2 * mine) / Math.max(1, mine + theirs)),
-        want =
-          FINANCE.stake *
-          openTo(world, issuer) *
-          openTo(world, holder) *
-          Math.min(1, 0.5 + rel.opinion) *
-          gain *
-          (1 - fear) *
-          (1 - fear) *
-          size;
-      (wants.get(issuer.p.ref) ?? wants.set(issuer.p.ref, new Map()).get(issuer.p.ref)!).set(
-        holder.p.ref,
-        want,
-      );
-    }
+    stakeWants(world, rel, a, b, year, wants);
   }
   for (const r of reads.values()) {
     const m = r.m,
