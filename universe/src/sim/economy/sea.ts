@@ -29,8 +29,9 @@ let REACH_ON = "";
 /**
  * The lands across the sea from `cell` (never its neighbours by land), each with the
  * fewest sea provinces between them, nearest first, out to the farthest any ship goes:
- * two numbers each, the land and the sea provinces to it. (Kept for every coast a ship has
- * sailed from, a list of pairs each was 18 MB of a world's memory at 1,500.)
+ * one number each, the land × REACH_SPAN and the sea provinces to it (reachLand, reachSteps).
+ * (Kept for every coast a ship has sailed from, a list of pairs each was 18 MB of a world's
+ * memory at 1,500.)
  */
 export function seaReach(g: HomeWorld, cell: number): Int32Array {
   const ground = keptKey(g);
@@ -68,15 +69,19 @@ export function seaReach(g: HomeWorld, cell: number): Int32Array {
     }
   }
   const sorted = [...found.entries()].sort((x, y) => x[1] - y[1] || x[0] - y[0]);
-  out = new Int32Array(2 * sorted.length);
-  for (let i = 0; i < sorted.length; i++) {
-    out[2 * i] = sorted[i]![0];
-    out[2 * i + 1] = sorted[i]![1];
-  }
+  out = new Int32Array(sorted.length);
+  for (let i = 0; i < sorted.length; i++) out[i] = sorted[i]![0] * REACH_SPAN + sorted[i]![1];
   if (REACH.size > 20_000) REACH.clear();
   REACH.set(cell, out);
   return out;
 }
+
+/** (seaReach's: past the most sea provinces any ship crosses, MOST_SEA_STEPS.) */
+const REACH_SPAN = 32;
+/** The land of one of seaReach's. */
+export const reachLand = (r: number): number => Math.floor(r / REACH_SPAN);
+/** The sea provinces to it. */
+export const reachSteps = (r: number): number => r % REACH_SPAN;
 
 /** The straight-line distance between two cells' centres, in kilometres. */
 export function kmBetween(g: HomeWorld, a: number, b: number): number {
