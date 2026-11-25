@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { EARTH } from "../../src/host/planet.ts";
-import { GOODS } from "../../src/rules/index.ts";
+import { GOODS, REACTIONS, smeltHeat } from "../../src/rules/index.ts";
 import { flowOf, storesSummed } from "../../src/host/inspect/stores.ts";
 import { designsOf, politiesOf, type MarketStore } from "../../src/sim/index.ts";
 import type { Block, PageModel, Tip } from "../../src/bridge/index.ts";
@@ -54,7 +54,15 @@ test("a reaction: what goes in and out for each kilogram made, its heat and fuel
     ins = lists.find((b) => b.title?.startsWith("What goes in"))!;
   assert.ok(ins.items.some((i) => i.ref === "subst:hematite"));
   const facts = of(blocks(p), "facts")[0]!;
-  assert.ok(facts.rows.some((r) => r.label === "Heat" && String(r.value).includes("1,200")));
+  // (The heat a smelt wants is read from its oxide's free energy against its reducer's and where its slag runs, since
+  // a0b2b482: rules/materials.ts smeltHeat. A bloomery's comes to 1,177 °C; it was the 1,200 written on the reaction.)
+  const heat = smeltHeat(REACTIONS.find((r) => r.id === "bloomery")!)!;
+  assert.ok(heat > 1100 && heat < 1250, `${heat}`);
+  assert.ok(
+    facts.rows.some(
+      (r) => r.label === "Heat" && String(r.value).includes(heat.toLocaleString("en-US")),
+    ),
+  );
   assert.ok(facts.rows.some((r) => r.label === "Taught by"));
 });
 

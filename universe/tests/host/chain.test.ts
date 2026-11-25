@@ -139,7 +139,10 @@ test("a town's makers are named, kept at their trades, and the ones its building
     );
   assert.ok(town, "a town with a smithy");
   const plan = ask<VillagePlan>("village.plan", { ref: town.ref, folk: 240 }),
-    folk = plan.people.filter((p) => p.folk),
+    // (Its own people: soldiers a realm posts in its streets against a group are in the plan too, not of the town and
+    // told by whose they are, "A soldier of …" (host/inspect/townlife.ts). The town this picks moves with the world; since
+    // the fuel round it is one with such a posting.)
+    folk = plan.people.filter((p) => p.folk && !p.outsider),
     smiths = plan.people.filter((p) => p.trade?.kind === "smith");
   // Every one of its many named in its tongue, not "A crafter of …".
   assert.ok(folk.length > 20);
