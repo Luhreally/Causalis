@@ -93,6 +93,8 @@ export class MixStore implements StateStore {
   tally = { moved: 0, crossed: 0 };
   // (Never saved: each people's numbers against the world's table, and each mixed land's weighed.)
   rates: (PeopleRates | undefined)[] = [];
+  /** Whether each people raises its young as a brood (its pairing by its own life table): kept as `rates` are. */
+  broods: (boolean | undefined)[] = [];
   ratesOf = "";
   readonly factors = new Map<number, Factors>();
 
@@ -131,6 +133,7 @@ export class MixStore implements StateStore {
     this.crossings = [...(s.crossings ?? [])];
     this.tally = { moved: s.tally?.moved ?? 0, crossed: s.tally?.crossed ?? 0 };
     this.rates = [];
+    this.broods = [];
     this.ratesOf = "";
     this.factors.clear();
   }
@@ -196,9 +199,23 @@ function ratesIn(g: HomeWorld, store: MixStore): (PeopleRates | undefined)[] {
   if (store.ratesOf !== key) {
     store.ratesOf = key;
     store.rates = [];
+    store.broods = [];
     store.factors.clear();
   }
   return store.rates;
+}
+/**
+ * Whether a people of a world raises its young as a brood (kept as its rates are: a life table read for each of a mixed
+ * land's two peoples each year was nearly all a late world's year of peoples).
+ */
+function broodOf(g: HomeWorld, store: MixStore, kind: number): boolean {
+  ratesIn(g, store);
+  let brood = store.broods[kind];
+  if (brood === undefined) {
+    const body = kindBody(g, store, kind);
+    brood = store.broods[kind] = pairingOf(body, lifeOfBody(body).adulthood) === "brood";
+  }
+  return brood;
 }
 function rateOf(g: HomeWorld, store: MixStore, kind: number): PeopleRates {
   const rates = ratesIn(g, store);
@@ -461,10 +478,7 @@ export function mixYear(ctx: PopulationContext, t: SimTime): void {
       b = order[1]!;
     if (n > 1 && next[b]! > 0) {
       const cross = crossingOf(ctx, store, a, b, cell),
-        brood = [a, b].some((k) => {
-          const body = kindBody(g, store, k);
-          return pairingOf(body, lifeOfBody(body).adulthood) === "brood";
-        });
+        brood = broodOf(g, store, a) || broodOf(g, store, b);
       if (cross.fertility > 0 && !brood) {
         const open = culture.get(cell)?.traits[WAY.openness] ?? 0.5,
           born =
