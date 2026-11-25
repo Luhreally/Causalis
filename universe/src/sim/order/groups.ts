@@ -1421,15 +1421,26 @@ function stepRealm(
   // 2. New groups: the strongest stakes no group of that aim holds yet.
   type Cand = { aim: OrgAim; land: Land; men: number; sea: boolean; identity?: string };
   const cands: Cand[] = [];
+  // (Each aim's groups' lands and their members, read once for all the realm's lands: they do not move while the candidates
+  // are found.)
+  const aimLands: number[][] = [],
+    aimHolding = new Array<number>(AIMS).fill(0);
+  for (let k = 0; k < AIMS; k++) aimLands.push([]);
+  for (const g of v.orgs)
+    if (g.aim >= 0 && g.aim < AIMS) {
+      for (const c of g.lands) aimLands[g.aim]!.push(c);
+      aimHolding[g.aim] = aimHolding[g.aim]! + g.members;
+    }
   for (const l of r.lands)
-    for (const [k, a] of ORG_AIMS.entries()) {
+    for (let k = 0; k < AIMS; k++) {
+      const a = ORG_AIMS[k]!;
       if (a === "smuggle") continue;
       const men = l.gather[k]!;
       if (men < ORG.crew) continue;
       if (a === "office") continue;
-      if (v.orgs.some((g) => g.aim === k && g.lands.includes(l.cell))) continue;
+      if (aimLands[k]!.includes(l.cell)) continue;
       // (Room for another: the groups of its aim hold well short of all the realm's stake would gather.)
-      const holding = v.orgs.reduce((n, g) => n + (g.aim === k ? g.members : 0), 0);
+      const holding = aimHolding[k]!;
       if (holding > 0 && holding >= 0.6 * v.gather[k]!) continue;
       const sea =
         a === "prey"

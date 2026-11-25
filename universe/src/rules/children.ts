@@ -79,7 +79,11 @@ export function bearingOf(life: LifeHistory): Bearing {
  * counted a fish's people at a sixtieth of those it raises.)
  */
 export function livingToBear(life: LifeHistory, m: number): number {
-  const born = bearingOf(life).born;
+  return livingOf(life, m, bearingOf(life).born);
+}
+
+/** The same, of a life table whose mothers bear `born` in all (its bearingOf's). */
+function livingOf(life: LifeHistory, m: number, born: number): number {
   if (born <= 0) return 0;
   let reach = 1 - diedInBirthYear(riskUnder(life.mortality[0]!, m)),
     bears = 0;
@@ -105,7 +109,7 @@ export function livingToBear(life: LifeHistory, m: number): number {
  */
 export function childrenKept(life: LifeHistory, m: number, cost: number, age = 0): number {
   const b = bearingOf(life),
-    could = b.born * livingToBear(life, m);
+    could = b.born * livingOf(life, m, b.born);
   return could > 0 ? Math.min(1, childrenWanted(cost, age, girlsOf(life)) / could) : 1;
 }
 

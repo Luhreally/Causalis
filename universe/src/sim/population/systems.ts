@@ -81,7 +81,7 @@ import {
   rainShift,
   smokeIn,
 } from "../climate/air.ts";
-import { energyPerHead } from "../economy/energy.ts";
+import { sparedShare } from "../economy/energy.ts";
 import { readersOf } from "../lore/letters.ts";
 import { longRain } from "../climate/long.ts";
 import { lodesOf } from "../economy/lodes.ts";
@@ -1527,8 +1527,9 @@ function bodyCoat(ctx: PopulationContext): number {
  * them while most of their young still died: 49 million at 600 against 134 million released.)
  */
 export function machineShare(ctx: PopulationContext, cell: number): number {
-  const e = energyPerHead(ctx.world, cell);
-  return e && e.work > 0 ? dmath.clamp(1 - (e.sources.none + e.sources.mills) / e.work, 0, 1) : 0;
+  // (Off the land's account as energyPerHead would read it, without making the reading: economy/energy.ts sparedShare.)
+  const r = sparedShare(ctx.world, cell);
+  return r === null ? 0 : dmath.clamp(r, 0, 1);
 }
 
 /** How pressing a land's deaths are, of what changes slowly: the cold on the ill-clothed, medicine, smoke (as vitalMonth reads them). */
