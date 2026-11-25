@@ -14,7 +14,7 @@ import {
 import { boundTradeYear } from "../../src/sim/order/boundtrade.ts";
 import { realmOrder } from "../../src/sim/order/order.ts";
 import { BIND, BIND_STORE, moneyStore, refNumber } from "../../src/sim/money/kept.ts";
-import { cultureOf } from "../../src/sim/culture/culture.ts";
+import { WAY, cultureOf } from "../../src/sim/culture/culture.ts";
 import { why } from "../../src/causal/index.ts";
 import { peopledWorld } from "../worlds.ts";
 
@@ -54,7 +54,8 @@ function setUp(world: World) {
   landOf(store, flow.from).shares[BOND.chattel] = 0.5;
   o.abolished = null;
   theirs.abolished = null;
-  o.firsts[BOND.chattel] ??= buyer.event;
+  // (It has never held the bound: its first are those it buys.)
+  o.firsts[BOND.chattel] = null;
   o.laws[1] = 0;
   // (Its turn: the year of five its own number falls in.)
   let t = world.now;
@@ -84,6 +85,7 @@ test("a realm whose bound hands keep their holders much buys the bound of a land
   const boundAfter = landOf(store, flow.from).shares[BOND.chattel]! * src.total();
   assert.ok(boundAfter < boundBefore, `${boundBefore} -> ${boundAfter}`);
   assert.ok(landOf(store, d.to).shares[BOND.chattel]! > 0, "bound where they were bought");
+  assert.equal(o.firsts[BOND.chattel], sold.id, "the first it held");
   assert.match(why(world, sold.id).claim, /bought .* of the bound of/);
 });
 
@@ -103,4 +105,42 @@ test("no one buys where the law has freed the bound, or where a bound hand keeps
   for (const c of a.buyer.members) moneyStore(world, BIND_STORE)!.set(c, [0, 0, 0, 0, 0, 0]);
   boundTradeYear(a.ctx, a.store, a.buyer, a.o, a.t);
   assert.equal(count(), 0, "a bound hand keeps his holder nothing there");
+});
+
+test("a realm that has never held the bound buys them only where its people would bind them had they taken them", () => {
+  const world = peopledWorld("juniper", 60, { start: "spread" }),
+    a = setUp(world),
+    culture = cultureOf(world),
+    mine = culture.get(a.buyer.seat)!,
+    theirs = culture.get(a.flow.from)!,
+    count = () => {
+      let n = 0;
+      for (let i = 0; i < world.events.count; i++)
+        if (world.events.at(i).type === BOUND_TRADE_EVENTS.sold.type) n++;
+      return n;
+    },
+    ways = (hier: number, open: number, valour: number) => {
+      culture.set({
+        ...mine,
+        traits: mine.traits.map((v, k) =>
+          k === WAY.hierarchy ? hier : k === WAY.openness ? open : k === WAY.valour ? valour : v,
+        ),
+      });
+      culture.set({ ...theirs, tongue: mine.tongue });
+    };
+  // (A bound hand keeps his holder a quarter of a year's living over his own in the buyer's land: a sale pays.)
+  for (const c of a.buyer.members) moneyStore(world, BIND_STORE)!.set(c, [0, 0, 0, 0, 0, 0]);
+  const row: number[] = [];
+  row[BIND.gain] = 500;
+  row[BIND.hold] = 500;
+  moneyStore(world, BIND_STORE)!.set(a.flow.to, row);
+  ways(0, 1, 0);
+  boundTradeYear(a.ctx, a.store, a.buyer, a.o, a.t);
+  assert.equal(count(), 0, "a people of equals, open to strangers, the bound of their own tongue");
+  ways(1, 0, 1);
+  boundTradeYear(a.ctx, a.store, a.buyer, a.o, a.t);
+  assert.equal(count(), 1, "a people who keep to rank, closed to strangers, given to war");
+  const sold = world.events.at(world.events.count - 1);
+  assert.equal((sold.data as { first?: boolean }).first, true);
+  assert.match(why(world, sold.id).claim, /the first its people ever held bound/);
 });

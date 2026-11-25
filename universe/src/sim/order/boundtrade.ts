@@ -1,5 +1,5 @@
 // The trade in bound people between realms (rules/boundtrade.ts): once in five years, in its turn, a realm whose law allows
-// bondage looks over the lands its trade reaches for bound hands worth more in the land of its own where a bound hand keeps
+// bondage, and whose people hold the bound or would bind those it buys had they taken them, looks over the lands its trade reaches for bound hands worth more in the land of its own where a bound hand keeps
 // his holder the most than where they are held, and buys them: they are moved (a passage in the lands' histories), the seller
 // land's bound are the fewer and the buying land's the more, and
 // the buyer's treasury pays the seller's. Nothing kept: the lands' bonds and the passage are the record.
@@ -18,8 +18,11 @@ import { politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import { captiveWorthOf } from "../society/kept.ts";
 import { warsOf } from "../war/war.ts";
 import { LAW_OF } from "./laws.ts";
+import { cultureOf } from "../culture/culture.ts";
 import {
   BOND,
+  CAPTIVE_LINE,
+  bindingWays,
   bindNew,
   boundGone,
   carry,
@@ -46,8 +49,17 @@ export function boundTradeYear(
   const { world } = ctx,
     year = yearOfMoment(t);
   if ((year + refNumber(p.ref)) % BOUND_TRADE.every !== 0) return;
-  // (Its law allows bondage, it has held the bound before, and it does not make strangers citizens.)
-  if (o.abolished !== null || !o.firsts[BOND.chattel] || o.laws[LAW_OF.strangers] === 2) return;
+  // (Its law has not freed the bound, and it does not make strangers citizens. And its people are such as hold others: it has
+  // held the bound, or it would bind those it buys had it taken them in war (the captives rule's own weighing of its ways and
+  // theirs, and what a bound hand keeps where it would hold him). Until 2026-11-25 it had to have held them before, by a land
+  // it took: of first light's 394 realms at year 1,500 three had, with the bound held in five lands of the world, so a buyer
+  // and a seller's land on one road never met and nothing was ever sold, there or on any world probed; but to buy them is
+  // one of the ways a realm comes to hold the bound.)
+  if (o.abolished !== null || o.laws[LAW_OF.strangers] === 2) return;
+  const held = o.firsts[BOND.chattel] ?? null,
+    culture = held ? null : cultureOf(world),
+    mine = culture?.get(p.seat);
+  if (!held && !mine) return;
   // (Where among its lands a bound hand keeps his holder the most: hands scarce and held. Of equals, the lesser land.)
   let there = 0,
     to = -1;
@@ -71,6 +83,7 @@ export function boundTradeYear(
     here: number;
     bound: number;
     sale: ReturnType<typeof boundSale>;
+    ways: number | null;
   } | null = null;
   for (const i of markets.flowsAt(p.members)) {
     const f = markets.flows[i]!;
@@ -86,8 +99,15 @@ export function boundTradeYear(
       const people = ctx.provinces.get(c)?.total() ?? 0,
         here = captiveWorthOf(world, c) ?? 0,
         sale = boundSale(here, there, share * people);
-      if (sale.count > 0 && (!best || sale.gap > best.sale.gap))
-        best = { cell: c, realm: q, here, bound: share * people, sale };
+      if (!(sale.count > 0) || (best && !(sale.gap > best.sale.gap))) continue;
+      let ways: number | null = null;
+      if (!held) {
+        const theirWays = culture!.get(c);
+        if (!theirWays) continue;
+        ways = bindingWays(world, o, p, mine!, theirWays, c, there).score;
+        if (ways < CAPTIVE_LINE) continue;
+      }
+      best = { cell: c, realm: q, here, bound: share * people, sale, ways };
     }
   }
   if (!best) return;
@@ -110,6 +130,16 @@ export function boundTradeYear(
         contribution: -Math.max(best.here, BOUND_TRADE.keep),
         source: standing ? { ref: standing, role: "enabler", weight: 1 } : null,
       },
+      ...(best.ways === null
+        ? []
+        : [
+            {
+              name: "a people such as hold strangers bound",
+              value: Math.round(best.ways * 100) / 100,
+              contribution: 0,
+              source: null,
+            },
+          ]),
       {
         name: "the road and the guard",
         value: BOUND_TRADE.road,
@@ -145,6 +175,7 @@ export function boundTradeYear(
         count: drawn.n,
         price: Math.round(price * 10) / 10,
         paid,
+        ...(held ? {} : { first: true }),
       },
     }),
     beforeSrc = src.total(),
@@ -153,6 +184,7 @@ export function boundTradeYear(
   boundGone(store, best.cell, drawn.n, beforeSrc);
   bindNew(store, to, BOND.chattel, drawn.n, beforeSeat);
   landOf(store, to).cause = event;
+  o.firsts[BOND.chattel] ??= event;
   if (fisc && buyer && paid > 0) {
     const mine = [...buyer];
     mine[FISC.reserve] = buyer[FISC.reserve]! - paid;
