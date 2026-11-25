@@ -1,6 +1,7 @@
 // The trade in bound people between realms (rules/boundtrade.ts): once in five years, in its turn, a realm whose law allows
-// bondage looks over the lands its trade reaches for bound hands worth more at its seat than where they are held, and buys
-// them: they are moved (a passage in the lands' histories), the seller land's bound are the fewer and the seat's the more, and
+// bondage looks over the lands its trade reaches for bound hands worth more in the land of its own where a bound hand keeps
+// his holder the most than where they are held, and buys them: they are moved (a passage in the lands' histories), the seller
+// land's bound are the fewer and the buying land's the more, and
 // the buyer's treasury pays the seller's. Nothing kept: the lands' bonds and the passage are the record.
 import {
   defineEventType,
@@ -47,9 +48,18 @@ export function boundTradeYear(
   if ((year + refNumber(p.ref)) % BOUND_TRADE.every !== 0) return;
   // (Its law allows bondage, it has held the bound before, and it does not make strangers citizens.)
   if (o.abolished !== null || !o.firsts[BOND.chattel] || o.laws[LAW_OF.strangers] === 2) return;
-  const there = captiveWorthOf(world, p.seat);
-  if (there === null || there <= BOUND_TRADE.keep + BOUND_TRADE.road) return;
-  const seat = ctx.provinces.get(p.seat);
+  // (Where among its lands a bound hand keeps his holder the most: hands scarce and held. Of equals, the lesser land.)
+  let there = 0,
+    to = -1;
+  for (const c of p.members) {
+    const v = captiveWorthOf(world, c);
+    if (v !== null && (v > there || (v === there && to >= 0 && c < to))) {
+      there = v;
+      to = c;
+    }
+  }
+  if (to < 0 || there <= BOUND_TRADE.keep + BOUND_TRADE.road) return;
+  const seat = ctx.provinces.get(to);
   if (!seat) return;
   const markets = world.store<MarketStore>("economy.markets"),
     realms = politiesOf(world),
@@ -89,7 +99,7 @@ export function boundTradeYear(
   const standing = store.lands.get(best.cell)?.cause ?? null,
     factors: Factor[] = [
       {
-        name: "what a bound hand's work keeps his holder at its seat",
+        name: "what a bound hand's work keeps his holder in its land where hands are scarcest",
         value: Math.round(there * 100) / 100,
         contribution: there,
         source: null,
@@ -130,6 +140,7 @@ export function boundTradeYear(
       ],
       data: {
         realm: realmName(p),
+        to,
         from: realmName(best.realm),
         count: drawn.n,
         price: Math.round(price * 10) / 10,
@@ -138,10 +149,10 @@ export function boundTradeYear(
     }),
     beforeSrc = src.total(),
     beforeSeat = seat.total();
-  carry(ctx, best.cell, p.seat, drawn.moved, drawn.n, decision, event, t);
+  carry(ctx, best.cell, to, drawn.moved, drawn.n, decision, event, t);
   boundGone(store, best.cell, drawn.n, beforeSrc);
-  bindNew(store, p.seat, BOND.chattel, drawn.n, beforeSeat);
-  landOf(store, p.seat).cause = event;
+  bindNew(store, to, BOND.chattel, drawn.n, beforeSeat);
+  landOf(store, to).cause = event;
   if (fisc && buyer && paid > 0) {
     const mine = [...buyer];
     mine[FISC.reserve] = buyer[FISC.reserve]! - paid;

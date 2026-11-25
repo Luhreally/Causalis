@@ -489,8 +489,9 @@ export function weighLaws(ctx: PopulationContext, p: Polity, o: RealmOrder, t: S
           : Infinity
         : REFORM_LINE;
     if (!step || step.score < line) {
-      // (A reform its groups would have carried, were its clerks not a group of their own: held back by them.)
-      if (clerkGain && apart && apart.score >= line) {
+      // (A reform its groups would have carried, were its clerks not a group of their own, and by which they lose: held back by
+      // them.)
+      if (clerkGain && apart && apart.score >= line && clerkGain[apart.to]! < clerkGain[now]!) {
         const took = clerkSway * (clerkGain[apart.to]! - clerkGain[now]!),
           standing = o.lawEvents[k] ?? null,
           decision = world.decisions.record({

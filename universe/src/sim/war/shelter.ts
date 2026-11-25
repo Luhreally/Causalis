@@ -16,6 +16,9 @@ import { FISC, TREASURY_STORE, moneyStore } from "../money/kept.ts";
 import { capacityOf } from "../order/order.ts";
 import { realmName, type Polity } from "../polity/polity.ts";
 
+/** Rows kept before the long-faded are let go. */
+const KEPT = 96;
+
 export const SHELTER_EVENTS = {
   /** A realm gives its struck towns' people cover (or much more of it than it had). */
   built: defineEventType("war.shelter", 4),
@@ -120,4 +123,8 @@ export function noteStruck(
   next[SHELTER_ROW.cover] = cover * 1000;
   next[SHELTER_ROW.told] = nowTold * 1000;
   store.set(p.ref, next);
+  // (Rows long past remembering are let go: a realm not struck in five fadings, or ended since, keeps nothing worth keeping.)
+  if (store.size > KEPT)
+    for (const k of store.keys())
+      if (year - store.at(k, SHELTER_ROW.at) > 5 * DEFENCE.fade) store.drop(k);
 }
