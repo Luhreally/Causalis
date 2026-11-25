@@ -151,7 +151,7 @@ function personBlocks(
   const life = lifeOf(world),
     who = placeWho(world, place),
     child = r.age < life.adulthood,
-    doing = `${cap(ACT_WORDS[r.act]!)}${r.eta > 0 ? `, walking to ${lotWords(place, r.to)}` : r.act === ACT.sleep || r.act === ACT.eat ? "" : ` at ${lotWords(place, r.at)}`}`,
+    doing = `${r.act === ACT.abed && r.eta > 0 ? "Hurt or sick" : cap(ACT_WORDS[r.act]!)}${r.eta > 0 ? `, ${r.act === ACT.abed ? "brought home to lie abed, to" : "walking to"} ${lotWords(place, r.to)}` : r.act === ACT.sleep || r.act === ACT.eat ? "" : ` at ${lotWords(place, r.at)}`}`,
     needs: Stat[] = NEED_WORDS.map((w, q) => stat(cap(w), bar(r.needs[q]!))),
     lackDays = Math.floor(p.lack[i]! / 144),
     kin: Item[] = r.household.map((k) => {

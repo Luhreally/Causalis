@@ -4,13 +4,16 @@
 // told and put away, one of its people and a building tapped for their pages, the town left (the god game's chrome
 // back) and come back to (the same people, gone on, its orders kept). The HUD is read for overlap in every state by the
 // overlap gate's own reading (tools/hud-read.ts). Stills into --shots. (npm run build first: it reads dist/.)
-//   node tools/place-look.ts --save file.save [--shots dir] [--people 400] [--soft]
+//   node tools/place-look.ts --save file.save [--shots dir] [--people 400] [--soft] [--browser webkit] [--only phone]
+// --browser webkit: Playwright's WebKit in place of Chromium (the nearest thing to a phone's Safari that runs here).
+// The site looked at is seen at three stages besides (early, middle, near done), each from near to far on a dolly, the
+// town's month taking it on between them: the same thing, in the same place, at every distance.
 import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gunzipSync } from "node:zlib";
 import { preview } from "vite";
-import { chromium, type Page } from "playwright";
+import { chromium, webkit, type Page } from "playwright";
 import { loadWorld, rulesetId, seedFromText } from "../src/kernel/index.ts";
 import { EARTH } from "../src/host/planet.ts";
 import { populationContext } from "../src/sim/index.ts";
@@ -25,7 +28,9 @@ const argv = process.argv.slice(2),
   },
   shots = arg("--shots"),
   saveFile = arg("--save"),
-  people = Number(arg("--people") ?? 400);
+  people = Number(arg("--people") ?? 400),
+  engine = arg("--browser") ?? "chromium",
+  only = arg("--only");
 if (!saveFile) throw new Error("--save file.save");
 if (shots) mkdirSync(shots, { recursive: true });
 const slow = (ms: number) => (soft ? ms * 4 : ms);
@@ -63,9 +68,13 @@ console.log(
 const root = fileURLToPath(new URL("..", import.meta.url)),
   server = await preview({ root, logLevel: "silent", preview: { port: 4417, strictPort: false } }),
   base = server.resolvedUrls!.local[0]!,
-  browser = await chromium.launch({
-    args: soft ? ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] : GPU,
-  });
+  browser =
+    engine === "webkit"
+      ? await webkit.launch()
+      : await chromium.launch({
+          args: soft ? ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] : GPU,
+        });
+console.log(`browser: ${engine} ${browser.version()}`);
 const READ = hudRead([], 1);
 
 type State = { on: boolean; town: string | null; tells: string | null; told: PlaceFrame | null };
@@ -82,6 +91,7 @@ for (const view of [
   },
   { name: "desk", options: { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 } },
 ] as const) {
+  if (only && only !== view.name) continue;
   console.log(`${view.name} (${view.options.viewport.width}x${view.options.viewport.height})`);
   const context = await browser.newContext(view.options),
     page: Page = await context.newPage(),
@@ -315,6 +325,7 @@ for (const view of [
   await press('.place-tab[data-tab="stocks"]', "the Stocks tab");
   await until("the Stocks sheet", async () => (await shownCount(".place-stock")) > 0);
   check(/today \+/.test(await sheetText()), "its goods say what was made and used today");
+  say(`stocks: ${(await sheetText()).slice(0, 500)}`);
   await shot("5-sheet-stocks");
   await read("the Stocks sheet open");
   // Orders from it: food held back, a good forbidden.
@@ -438,6 +449,56 @@ for (const view of [
         await shot(`7h-site-dolly-${String(distance).padStart(4, "0")}`);
       }
       await read("the town with a site in hand, from afar");
+      // Its stages: given back to the town's month, which takes it on a month a second; stopped at three (early, middle,
+      // near done), and each seen from near to far. Nothing of it moves with the eye, and what is drawn of it near is what
+      // is drawn of it far.
+      await press('.place-tab[data-tab="work"]', "the Work tab");
+      await until("its sites on the Work sheet again", async () =>
+        /Going up/.test(await sheetText()),
+      );
+      await k(`document.querySelector(".place-site").scrollIntoView({ block: "start" })`);
+      await press(".place-site-keys .place-order", "Give back, for its stages");
+      await until("the site given back", async () => (await workNow())?.sites[0]?.inHand === false);
+      await press(".place-sheet-shut", "the sheet's close");
+      // (The one of its sites that has got least far, where it has more than one: all its stages are still to come.)
+      const young = [...((await workNow())?.sites ?? [])].sort((x, y) => x.share - y.share)[0]!,
+        youngLot = Number(young.ref.slice(young.ref.lastIndexOf(":") + 1)) - 3,
+        spot =
+          (await k<{ x: number; z: number } | null>(
+            `globalThis.causalis.place.lotAt(${youngLot})`,
+          )) ?? at;
+      say(`stages of: ${young.name}, ${Math.round(young.share * 100)} in a hundred now`);
+      for (const [stage, share] of [
+        ["early", 0.12],
+        ["middle", 0.5],
+        ["late", 0.86],
+      ] as const) {
+        await k(`globalThis.causalis.client.setSpeed(${30 * 86400})`);
+        const came = await until(
+          `the site ${stage} (${share})`,
+          async () => {
+            const x = (await workNow())?.sites.find((q) => q.ref === young.ref);
+            return !x || x.share >= share;
+          },
+          slow(240000),
+        );
+        await k(`globalThis.causalis.client.setSpeed(0)`);
+        const now = (await workNow())?.sites.find((q) => q.ref === young.ref);
+        say(
+          `stage ${stage}: ${now ? `${Math.round(now.share * 100)} in a hundred, ${now.stage}` : "it stands"}`,
+        );
+        if (!came || !now) break;
+        // (Its plan read again as it has got on.)
+        await page.waitForTimeout(slow(2500));
+        for (const distance of [2.5, 4, 6.5, 10, 16, 26, 42, 68]) {
+          await k(
+            `globalThis.causalis.rig.flyTo({ target: { x: ${spot.x * 0.1}, y: 0.3, z: ${spot.z * 0.1} }, distance: ${distance}, pitch: -42 }, 0.01)`,
+          );
+          await page.waitForTimeout(slow(1100));
+          await shot(`7s-stage-${stage}-${String(distance * 10).padStart(4, "0")}`);
+        }
+        await read(`a site ${stage} in its raising`);
+      }
       await k(
         `globalThis.causalis.rig.flyTo({ target: { x: ${at.x * 0.1}, y: 0.3, z: ${at.z * 0.1} }, distance: 9, pitch: -48 }, 0.01)`,
       );
@@ -502,6 +563,31 @@ for (const view of [
     );
     await shot("7k-dangers-shelter");
     await read("a shelter opened");
+  }
+  // One of those it hurt: where on their body, who tends them, how long abed; and what its land knows of care.
+  if ((await shownCount(".place-sheet-body .place-log-row")) > 0) {
+    check(/tended (by|at) /.test(await sheetText()), "its hurt are said to be tended, and by whom");
+    check(
+      /Its land knows|The town keeps/.test(await sheetText()),
+      "the sheet says what its land knows of care",
+    );
+    await k(
+      `document.querySelector(".place-sheet-body .place-log-row").scrollIntoView({ block: "center" })`,
+    );
+    await page.waitForTimeout(slow(300));
+    await shot("7k2-dangers-hurt");
+    await read("the Dangers sheet at those lying hurt");
+    await press(".place-sheet-body .place-log-row", "one lying hurt");
+    await until("the hurt one's page", async () =>
+      /^(plc:|folk|person)/.test((await k<string | null>("globalThis.causalis.pageOpen()")) ?? ""),
+    );
+    await page.waitForTimeout(slow(700));
+    const hurtPage = await k<string>(`document.querySelector(".page-window")?.textContent ?? ""`);
+    say(`a hurt one's page: ${hurtPage.slice(0, 900)}`);
+    check(/Hurt in the fire/.test(hurtPage), "their page says they were hurt in the fire");
+    await shot("7k3-hurt-page");
+    await read("a hurt one's page open");
+    await k("globalThis.causalis.closePage()");
   }
   await press(".place-sheet-shut", "the sheet's close");
   await page.waitForTimeout(slow(600));

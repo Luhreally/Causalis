@@ -316,6 +316,10 @@ body.placing .page-window {
   .place-sheet {
     max-height: min(62vh, 600px);
   }
+  /* (A page open stands in that column, over where the notice lies: the notice is away till it is shut.) */
+  body.placing:has(.page-window:not([hidden])) .place-notice {
+    display: none;
+  }
 }
 .bar .town-place.on {
   border-color: #0b7a62;

@@ -584,7 +584,7 @@ export function peopleSheet(
     trades,
     all: order.length,
     posts,
-    homes: placeHomes(world, place),
+    homes: placeHomes(world, place, 6),
     rows: order.slice(0, most).map((i) => {
       const needs = [0, 1, 2, 3].map((q) => p.needs[i * 4 + q]! / 65535),
         age = (place.t / DAY - p.born[i]!) / 365;
@@ -610,6 +610,7 @@ export function peopleSheet(
                 : null,
         id: p.id[i]!,
         house: place.houses.key[p.house[i]!]!,
+        homeLot: place.houses.home[p.house[i]!]!,
         post: p.bound[i] === 255 ? p.work[i]! : null,
       };
     }),

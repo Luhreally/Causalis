@@ -117,6 +117,9 @@ export class PlaceHud {
     close.onclick = () => this.open(null);
     head.append(this.sheetTitle, close);
     this.sheet.append(head, this.sheetBody);
+    this.sheetBody.addEventListener("pointerdown", () => (this.held = performance.now() + 800));
+    for (const up of ["pointerup", "pointercancel"])
+      this.sheetBody.addEventListener(up, () => (this.held = performance.now() + 60));
     this.sheet.hidden = true;
     const foot = el("nav", "place-foot");
     for (const [tab, icon, words] of TABS) {
@@ -185,7 +188,25 @@ export class PlaceHud {
   }
 
   /** Whether what would be drawn is what is drawn already (a sheet read again every second is not built again for nothing). */
+  /** Until when (the page's clock, ms) a finger is taken to be down on the sheet: nothing under it is drawn anew. */
+  private held = 0;
+  private owed = false;
   private same(what: unknown): boolean {
+    // (A sheet drawn anew between a finger's coming down and going up loses the tap: the key pressed is gone when the
+    // press ends. Seen in WebKit at a phone's size, where a person's order key did nothing while the clock ran.)
+    if (performance.now() < this.held) {
+      // (What came meanwhile is asked for again once the finger is up.)
+      if (!this.owed) {
+        this.owed = true;
+        const again = (): void => {
+          if (performance.now() < this.held) return void setTimeout(again, 80);
+          this.owed = false;
+          if (this.tab) this.onTab(this.tab);
+        };
+        setTimeout(again, 80);
+      }
+      return true;
+    }
     const key = JSON.stringify(what);
     if (key === this.drawn) return true;
     this.drawn = key;
@@ -267,10 +288,12 @@ export class PlaceHud {
           }
           one.append(at);
         }
-        if (s.homes.length) {
+        // (Not the home they live in already.)
+        const homes = s.homes.filter((o) => o.lot !== r.homeLot).slice(0, 4);
+        if (homes.length) {
           const home = el("div", "place-person-orders place-person-homes");
           home.append(el("span", "place-order-label", "A home for their household:"));
-          for (const o of s.homes) {
+          for (const o of homes) {
             const b = el("button", "place-chip", `Lot ${o.lot} · room for ${o.room}`);
             b.setAttribute(
               "aria-label",

@@ -125,6 +125,8 @@ export type PlacePersonRow = {
   /** Who they are in the place, for an order given them; and their household (its key), for a home given it. */
   readonly id: number;
   readonly house: number;
+  /** The lot their household lives on. */
+  readonly homeLot: number;
   /** The building an order puts them at (its lot; null: none). */
   readonly post: number | null;
 };
