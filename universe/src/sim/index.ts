@@ -324,7 +324,15 @@ export {
   setDown,
   type MixKind,
 } from "./population/mix.ts";
-export { MOST_SEA_STEPS, SEA_STEPS, seaRange, seaReach, seaSteps } from "./economy/sea.ts";
+export {
+  MOST_SEA_STEPS,
+  SEA_STEPS,
+  reachLand,
+  reachSteps,
+  seaRange,
+  seaReach,
+  seaSteps,
+} from "./economy/sea.ts";
 export {
   AIR_EVENTS,
   AirStore,

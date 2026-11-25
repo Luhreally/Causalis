@@ -109,7 +109,7 @@ import { lodesOf } from "./lodes.ts";
 import { oreLaid } from "./ore.ts";
 import { digOre } from "./worked.ts";
 import { dugSolid, energyYear, fuelWonOf, machinesWanted } from "./energy.ts";
-import { kmBetween, seaRange, seaReach } from "./sea.ts";
+import { kmBetween, reachLand, reachSteps, seaRange, seaReach } from "./sea.ts";
 import { canalsOf } from "./canals.ts";
 import { compassReach, materialsOf } from "../lore/materials.ts";
 import { politiesOf } from "../polity/polity.ts";
@@ -750,9 +750,9 @@ function edges(ctx: PopulationContext, year: number): Edge[] {
       range = seaRange(lore, a) * compassReach(ctx.world, a);
     let taken = 0;
     const reach = seaReach(g, a);
-    for (let i = 0; i < reach.length; i += 2) {
-      const b = reach[i]!,
-        steps = reach[i + 1]!;
+    for (let i = 0; i < reach.length; i++) {
+      const b = reachLand(reach[i]!),
+        steps = reachSteps(reach[i]!);
       if (taken >= SEA_PARTNERS || steps > range) break;
       if (!ctx.provinces.get(b)?.total()) continue;
       taken++;
