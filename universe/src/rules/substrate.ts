@@ -9,7 +9,8 @@
 //     passes it (a world that burns has the old road: any heat, with the craft);
 //   energy density: what drives works and engines is found the more readily where the richest fuel at hand holds more heat
 //     a kilogram in that world's air (coal in a market against wood alone; rules/fuels.ts), the less where it has none;
-//   surplus: what is found by those not at winning food, by the share of a land's hands its food leaves free;
+//   surplus: what is found by those not at winning food and lies deep enough to be specialists' work, by the share of a
+//     land's hands its food leaves free (a craft that rests on nothing is its makers' own, beside their food);
 //   what is met: what of healing is found by looking through an instrument (the seeds of sickness, and what grows straight
 //     from knowing them) by the sickness a land has met and the share of its people who can read what was seen. A land that
 //     never met a sickness has nothing to look at; one that has buried thousands and writes it down has much.
@@ -19,7 +20,7 @@
 // Pure tables and functions.
 import { dmath } from "../kernel/index.ts";
 import { MEASURING } from "./letters.ts";
-import { FUNCTIONS, PRINCIPLES, fieldOf, type Principle } from "./principles.ts";
+import { FUNCTIONS, PRINCIPLES, PRINCIPLE_DEPTH, fieldOf, type Principle } from "./principles.ts";
 
 export const SUBSTRATE = {
   /** An ore in a land's own ground against one a neighbour or a road gives it: so much more, and less, readily. */
@@ -39,6 +40,9 @@ export const SUBSTRATE = {
    * Surplus: the share of a land's hands not at winning food, against this (est: a fifth, a farming land with towns: first
    * light's lands stand at a ninth of their hands at year 50, a fifth at 300, over a third at 450), within these bounds.
    */
+  /** Up to this depth a craft is its makers' own, beside their food; from `specialists` it is wholly specialists' (est). */
+  ownHands: 1,
+  specialists: 4,
   spare: 0.2,
   spareLeast: 0.8,
   spareMost: 1.25,
@@ -69,6 +73,12 @@ export type SubstrateFacts = {
 export type SubstrateAsks = {
   readonly energy: boolean;
   readonly surplus: boolean;
+  /**
+   * How far it is specialists' work (0 … 1), by how deep it lies in the tree (PRINCIPLE_DEPTH): a craft that rests on nothing
+   * or on one thing is found by those who win their own food (a forager shapes wood and nets fish), and surplus bends nothing
+   * of it; one that rests on four things deep or more is found by those whose food others win.
+   */
+  readonly specialists: number;
   readonly met: boolean;
 };
 
@@ -115,6 +125,12 @@ function asksOf(p: Principle): SubstrateAsks {
       (p.effects.industry ?? 0) > 0 ||
       p.needs.some((n) => n.split("|").some((id) => ENGINE_IDS.has(id))),
     surplus: others > food,
+    specialists: dmath.clamp(
+      ((PRINCIPLE_DEPTH.get(p.id) ?? 0) - SUBSTRATE.ownHands) /
+        (SUBSTRATE.specialists - SUBSTRATE.ownHands),
+      0,
+      1,
+    ),
     met: looksAt(p),
   };
 }
@@ -166,11 +182,13 @@ export function substrateOf(
       Math.round(f.fuelMj * 10) / 10,
       dmath.clamp(f.fuelMj / SUBSTRATE.fuelMj, SUBSTRATE.energyLeast, SUBSTRATE.energyMost),
     );
-  if (asks?.surplus)
+  if (asks?.surplus && asks.specialists > 0)
     part(
       "hands its food leaves free",
       Math.round(f.spare * 100) / 100,
-      dmath.clamp(f.spare / SUBSTRATE.spare, SUBSTRATE.spareLeast, SUBSTRATE.spareMost),
+      1 +
+        asks.specialists *
+          (dmath.clamp(f.spare / SUBSTRATE.spare, SUBSTRATE.spareLeast, SUBSTRATE.spareMost) - 1),
     );
   if (asks?.met) {
     const seen = f.sickDead * f.readers;

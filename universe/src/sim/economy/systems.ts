@@ -42,6 +42,7 @@ import {
   FINANCE,
   ENGINE_GAIN,
   blendBulk,
+  seamYield,
   oxidantsOf,
   type Oxidant,
   FOODS,
@@ -432,8 +433,12 @@ function makeAndUse(
     // (What there is still room to make of each good, as its crafts take it up: several crafts make tools.)
     const left: number[] = [],
       leftOf = (g: number) => (left[g] ??= Math.max(0, room(g))),
+      // (A seam's year gives as many units as its heat in this world's air comes to: rules/fuels.ts. 1 under oxygen.)
+      airs = oxidantsOf(meansNumbers(ctx.generated)),
+      seam = (r: Recipe) => (r.needs?.seam ? seamYield(r.needs.seam, airs) : 1),
       eachOf = (r: Recipe) =>
         r.output[1] *
+        seam(r) *
         (r.needs?.ore ? oreWorkable(ctx, p.cell, r.needs.ore)!.grade : 1) *
         skill(r.output[0]);
     open.forEach(({ r }, k) => {
@@ -480,7 +485,7 @@ function makeAndUse(
           "made",
           r.output[0],
           roundKeyed(
-            n * r.output[1] * grade * skill(r.output[0]),
+            n * r.output[1] * seam(r) * grade * skill(r.output[0]),
             world.rng.real(CRAFT, key, t, 2, i),
           ),
         ),

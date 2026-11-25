@@ -742,7 +742,16 @@ function drawFuels(
   // Wood cut for sale (rules/fuels.ts): what its woods give past what its own hearths and engines took of them last year, as
   // far as its crafters can cut and its market has use for. Within what its woods grow: nothing here thins them.
   const wood = meansOfWorld(ctx.generated).burns ? fuelHere("wood", oxidants) : null;
-  if (wood && was) {
+  // (Asked of its woods only where it has hands to cut and room for it.)
+  const woodUsed = was ? (was.fuelWanted + was.cut) / FUEL_UNIT_KWY : 0,
+    woodRoom =
+      wood && was
+        ? Math.min(
+            GLUT_YEARS * (Math.max(m.went(G.coal), woodUsed) + 1) - m.stock[G.coal]!,
+            p.occupation(OCC.crafter) * wood.won,
+          )
+        : 0;
+  if (wood && was && woodRoom >= 1) {
     const site = siteOf(ctx, p.cell),
       wilds = ecologyOf(ctx.world).get(p.cell),
       spared =
@@ -752,9 +761,7 @@ function drawFuels(
       gives = woodsGive(site, woodsRead(ctx, p.cell).now * site.areaKm2 * spared),
       took = Math.max(0, was.drawn[WOOD_AT]! - was.cut - was.felled),
       spare = Math.max(0, gives - took) / FUEL_UNIT_KWY,
-      used = (was.fuelWanted + was.cut) / FUEL_UNIT_KWY,
-      room = GLUT_YEARS * (Math.max(m.went(G.coal), used) + 1) - m.stock[G.coal]!,
-      can = Math.min(spare, p.occupation(OCC.crafter) * wood.won, room);
+      can = Math.min(spare, woodRoom);
     if (can >= 1) {
       drew.wood = m.move("made", G.coal, Math.floor(can));
       blendIn(m.blend, G.coal, m.stock[G.coal]!, drew.wood, "wood");

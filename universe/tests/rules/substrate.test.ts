@@ -19,7 +19,8 @@ test("which forces a principle answers to is read from the principle, never list
   assert.deepEqual(met.sort(), ["germs", "quarantine", "vaccines"]);
   assert.ok(SUBSTRATE_ASKS.get("steam-engine")!.energy && SUBSTRATE_ASKS.get("factories")!.energy);
   assert.ok(!SUBSTRATE_ASKS.get("plough")!.energy && !SUBSTRATE_ASKS.get("plough")!.surplus);
-  assert.ok(SUBSTRATE_ASKS.get("glass")!.surplus, "a craft is found by hands its food leaves free");
+  assert.equal(SUBSTRATE_ASKS.get("tanning")!.specialists, 0);
+  assert.equal(SUBSTRATE_ASKS.get("steam-engine")!.specialists, 1);
 });
 
 test("the seeds of sickness are found by the sickness met and read: a hundredfold between none and thousands", () => {
@@ -73,9 +74,18 @@ test("ore in a land's own ground, a heat well past what is asked, and hands spar
     barely,
     "a world that burns has any heat with the craft",
   );
-  const few = substrateOf(P("glass"), { ...LAND, spare: 0.05 }, null),
-    many = substrateOf(P("glass"), { ...LAND, spare: 0.5 }, null);
+  // What lies deep is specialists' work: by the hands its food leaves free. What rests on nothing is its makers' own.
+  const few = substrateOf(P("mills"), { ...LAND, spare: 0.05 }, null),
+    many = substrateOf(P("mills"), { ...LAND, spare: 0.5 }, null);
   assert.ok(Math.abs(few.k - SUBSTRATE.spareLeast) < 1e-9);
   assert.ok(Math.abs(many.k - SUBSTRATE.spareMost) < 1e-9);
   assert.ok(many.parts.some((p) => p.name === "hands its food leaves free"));
+  for (const id of ["tanning", "loom", "pottery-wheel", "sailing"])
+    assert.equal(
+      substrateOf(P(id), { ...LAND, spare: 0.02 }, null).k,
+      1,
+      `${id}: a forager's own craft`,
+    );
+  const wood = substrateOf(P("carpentry"), { ...LAND, spare: 0.05 }, null).k;
+  assert.ok(wood > 0.9 && wood < 1, `carpentry, one step down: ${wood}`);
 });

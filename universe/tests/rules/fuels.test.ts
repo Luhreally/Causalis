@@ -19,6 +19,7 @@ import {
   fuelWorth,
   fuelsHere,
   naturalPrices,
+  seamYield,
   slotBulk,
   type EnergyInputs,
   type Source,
@@ -176,4 +177,13 @@ test("wood burned from a mixed stock leaves less wood in it: its share falls by 
   blendOut(mixed, G.coal, 80, 20, "wood", 20);
   assert.ok(Math.abs(mixed[at]! / BLEND_WHOLE - 20 / 80) < 1e-5);
   assert.ok(Math.abs(mixed[BLENDED.indexOf("sulphur")]! / BLEND_WHOLE - 30 / 80) < 1e-5);
+});
+
+test("a seam's year gives as many units as its heat in the world's air comes to", () => {
+  assert.equal(seamYield("coal", ["oxygen"]), 1);
+  assert.equal(seamYield("oil", ["oxygen"]), 1);
+  const coal = seamYield("coal", ["hydrogen"]);
+  assert.ok(coal > 0.1 && coal < 0.25, `coal joined with hydrogen: ${coal}`);
+  assert.ok(seamYield("oil", ["hydrogen"]) < coal);
+  assert.equal(seamYield("coal", []), 1, "where nothing burns it is counted as it was");
 });

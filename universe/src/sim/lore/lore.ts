@@ -675,9 +675,13 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
       const working = prov.total() - prov.occupation(OCC.dependent),
         food =
           prov.occupation(OCC.forager) + prov.occupation(OCC.farmer) + prov.occupation(OCC.herder);
+      // (Its fuel at hand, read only when something an engine drives is open to it.)
+      let fuel: number | undefined;
       return (facts = {
         reach: reachIn(means, here),
-        fuelMj: richestFuelMj(ctx, cell),
+        get fuelMj() {
+          return (fuel ??= richestFuelMj(ctx, cell));
+        },
         spare: working > 0 ? Math.max(0, working - food) / working : 0,
         sickDead: health?.land(cell)?.dead ?? 0,
         readers: letters ? letters.of(cell) : 0,

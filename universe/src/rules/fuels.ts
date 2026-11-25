@@ -77,6 +77,17 @@ export function fuelHere(kind: FuelKind, oxidants: readonly Oxidant[]): FuelHere
 /** (Each fuel in each air, read once: a few kinds, a few airs.) */
 const HERE = new Map<string, FuelHere | null>();
 
+/**
+ * What a year at a seam or a field gives on a world, against the same year under an air of oxygen (the recipe's units): a unit
+ * is a heat, and the same weight dug gives as many units as its heat in this air comes to. Coal joined with a hydrogen air
+ * gives under a fifth of what it gives burned in oxygen. 1 where the air holds nothing to burn with: nothing there burns it,
+ * and what is dug is counted as it was (its works take it as a stuff).
+ */
+export function seamYield(kind: "coal" | "oil", oxidants: readonly Oxidant[]): number {
+  if (!oxidants.length) return 1;
+  return (fuelHere(kind, oxidants)?.mj ?? 0) / fuelHere(kind, ["oxygen"])!.mj;
+}
+
 /** Every fuel a world's air burns, the richest a kilogram first: what its fuel slot can hold at all. */
 export function fuelsHere(oxidants: readonly Oxidant[]): FuelHere[] {
   return FUEL_KINDS.map((k) => fuelHere(k, oxidants))
