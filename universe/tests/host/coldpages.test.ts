@@ -3,7 +3,8 @@
 // that never puts any away, and so does that world saved and loaded. Each answer through
 // structuredClone, as a worker's post would take it (a row read through its block must not escape as
 // one). What a block keeps only as far as it is read: the strengths behind a battle's exchanges, and
-// the weight of a cause, which comes of the sums to two or four places that "why" tells.
+// the weight of a cause, which comes of the sums to two or four places that "why" tells. And what is no
+// history at all: the milliseconds a year told took to read.
 import { test } from "node:test";
 import { keptLife } from "../../src/rules/kinds.ts";
 import assert from "node:assert/strict";
@@ -33,9 +34,13 @@ function evenly<T>(list: readonly T[], n: number): T[] {
 /** An answer as it would cross to the page, in a form to compare. */
 function answer(ask: () => unknown): string {
   try {
-    return String(JSON.stringify(structuredClone(ask())))
-      .replace(/"power":\[[\d.e+-]+,[\d.e+-]+\],"frames"/g, '"frames"')
-      .replace(/"role":"(\w+)","weight":[\d.e-]+,"node"/g, '"role":"$1","node"');
+    return (
+      String(JSON.stringify(structuredClone(ask())))
+        .replace(/"power":\[[\d.e+-]+,[\d.e+-]+\],"frames"/g, '"frames"')
+        .replace(/"role":"(\w+)","weight":[\d.e-]+,"node"/g, '"role":"$1","node"')
+        // (A year told says how long its reading took, for its page's own measure: the reader's time, not the world's.)
+        .replace(/"ms":[\d.e+-]+\}$/, '"ms":0}')
+    );
   } catch (e) {
     return `throws ${(e as Error).message}`;
   }
