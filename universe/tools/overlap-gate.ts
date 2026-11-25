@@ -1,4 +1,4 @@
-// node tools/overlap-gate.ts [--save file.save] [--shots dir] [--only phone|desk] [--states a,b] [--soft] [--dump]
+// node tools/overlap-gate.ts [--save file.save] [--shots dir] [--only phone|desk] [--desk 1280x800] [--states a,b] [--soft] [--dump]
 // The overlap gate (asked 2026-11-11: "no panels should ever overlap or cover another one … it
 // should just be an innate thing thats not allowed"): on the built app, at a phone's size (an iPhone
 // 15 Plus, 430 by 932, by touch) and at a desk's (1366 by 800, by mouse), every main state of the
@@ -31,7 +31,12 @@ const argv = process.argv.slice(2),
   shots = arg("--shots"),
   saveFile = arg("--save"),
   onlyView = arg("--only"),
-  onlyStates = arg("--states")?.split(",") ?? null;
+  onlyStates = arg("--states")?.split(",") ?? null,
+  // (A desk of another size, "1280x800": a window sized by the screen can meet another at one width and not the next.)
+  [deskW = 1366, deskH = 800] = (arg("--desk") ?? "")
+    .split("x")
+    .map(Number)
+    .filter((n) => n > 0);
 if (shots) mkdirSync(shots, { recursive: true });
 const slow = (ms: number) => (soft ? ms * 4 : ms);
 const GPU = [
@@ -68,7 +73,7 @@ const VIEWS = [
       isMobile: true,
     },
   },
-  { name: "desk", options: { viewport: { width: 1366, height: 800 }, deviceScaleFactor: 1 } },
+  { name: "desk", options: { viewport: { width: deskW, height: deskH }, deviceScaleFactor: 1 } },
 ] as const;
 
 const failures: string[] = [];
@@ -698,10 +703,10 @@ async function walk(view: (typeof VIEWS)[number]): Promise<void> {
   await closeCard();
   // The town's money shown (2026-11-19: its legend lay over the people bar at both sizes, and no state here showed it).
   await state("village-money", async () => {
-    await must("the money", press(".town-money:not(.town-board):not(.town-ask)"));
+    await must("the money", press(".town-money:not(.town-board):not(.town-ask):not(.town-place)"));
     await settle(1200);
   });
-  await press(".town-money:not(.town-board):not(.town-ask)");
+  await press(".town-money:not(.town-board):not(.town-ask):not(.town-place)");
   await state("village-board", async () => {
     await must("the board", press(".town-board"));
     await settle(1000);
