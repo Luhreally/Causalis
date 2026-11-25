@@ -149,6 +149,9 @@ const COMMONS = ["farmers", "herders", "crafters", "traders"] as const;
  */
 type Reading = {
   readonly mark: unknown[];
+  /** Where in the marks its people's counts, pay and heads lie (from, to): all the weighing reads them for is the sway. */
+  readonly countsAt: number;
+  readonly countsTo: number;
   /** Its people who farm (and gather), herd, craft, trade, lead, and its army; the first four's pay summed, and their heads. */
   readonly count: readonly number[];
   readonly paid: readonly number[];
@@ -251,6 +254,9 @@ function readingOf(ctx: PopulationContext, p: Polity): Reading {
     atWar[0]?.event,
     // (Whether it keeps an army at all: its count moves with its people through a year, and is told as it stands, interestsOf.)
     army > 0,
+  ];
+  const countsAt = mark.length;
+  mark.push(
     farmers,
     herders,
     crafters,
@@ -264,11 +270,14 @@ function readingOf(ctx: PopulationContext, p: Polity): Reading {
     headsH,
     headsC,
     headsT,
-    used,
-  ];
+  );
+  const countsTo = mark.length;
+  mark.push(used);
   for (const f of famines) mark.push(f);
   return {
     mark,
+    countsAt,
+    countsTo,
     count: [farmers, herders, crafters, traders, court, army],
     paid: [paidF, paidH, paidC, paidT],
     heads: [headsF, headsH, headsC, headsT],
@@ -339,12 +348,12 @@ export function interestsOf(ctx: PopulationContext, p: Polity, t: SimTime): read
   }
   const reading = readingOf(ctx, p),
     had = memo.by.get(p.ref) as Weighed | undefined;
-  if (had && sameMarks(had.mark, reading.mark)) {
+  if (had) {
     const faiths = beliefOf(world);
     let same = true;
     for (let i = 0; i < had.near.length && same; i++)
       same = faiths.of(had.near[i]!.seat).faith === had.theirs[i];
-    if (same) {
+    if (same && sameMarks(had.mark, reading.mark)) {
       // (Its army's count alone moved, as its people did: nothing is weighed by it but that there is an army, so the same
       // weighing with the count as it stands. Weighed again for it, 170 of a year's 410 weighings at 1,500 were the count's.)
       const army = reading.count[5]!;
@@ -355,10 +364,127 @@ export function interestsOf(ctx: PopulationContext, p: Polity, t: SimTime): read
       memo.by.set(p.ref, { ...had, army, interests });
       return interests;
     }
+    const kept = same ? keptWeighing(ctx, p, reading, had) : null;
+    if (kept) {
+      memo.by.set(p.ref, kept);
+      return kept.interests;
+    }
   }
   const weighed = interestsNow(ctx, p, t, reading, had);
   memo.by.set(p.ref, weighed);
   return weighed.interests;
+}
+
+/**
+ * The same weighing where its marks moved only where it does not read them for its demands: its people's counts, pay and heads
+ * (read for its sway, and the people each group counts, alone), and its relations (read for its rival alone, where it keeps an
+ * army: kept where its rival is found as it was). Its sway is weighed again of the counts as they stand, by the reckoning
+ * interestsNow's is. Null where anything else moved. (Weighed again whole, 160 of a year's 200 weighings again at 1,450 were of
+ * these: the people's counts moved between the order's year and the court's, the relations in the diplomacy's year.)
+ */
+function keptWeighing(
+  ctx: PopulationContext,
+  p: Polity,
+  reading: Reading,
+  had: Weighed,
+): Weighed | null {
+  const a = had.mark,
+    b = reading.mark;
+  if (a.length !== b.length) return null;
+  let counts = false,
+    relations = false;
+  for (let i = 0; i < b.length; i++) {
+    if (a[i] === b[i]) continue;
+    if (i === ACROSS) relations = true;
+    else if (i >= reading.countsAt && i < reading.countsTo) counts = true;
+    else return null;
+  }
+  const army = reading.count[5]!;
+  let rival = had.rival;
+  // (Its rival is looked for only where it keeps an army, and let go where it keeps none, as interestsNow keeps it: where its
+  // relations moved, as found again.)
+  if (relations) {
+    if (army > 0) {
+      const now = rivalOf(ctx, p, had.near);
+      if (!sameRival(now, rival)) return null;
+      rival = now;
+    } else rival = undefined;
+  }
+  if (!counts)
+    return {
+      ...had,
+      mark: b,
+      rival,
+      army,
+      interests: had.interests.map((i) => (i.group === "the army" ? { ...i, people: army } : i)),
+    };
+  const { count, sway } = swayRead(reading);
+  return {
+    ...had,
+    mark: b,
+    rival,
+    army,
+    interests: had.interests.map((i) => ({
+      group: i.group,
+      sway: sway[i.group],
+      people: i.group === "the temple" ? 0 : count[i.group],
+      demands: i.demands,
+    })),
+  };
+}
+
+/** Whether a rival found now is the one kept (undefined: none was looked for). */
+function sameRival(now: Rival | null, was: Rival | null | undefined): boolean {
+  if (was === undefined) return false;
+  if (now === null || was === null) return now === was;
+  return now.q === was.q && now.opinion === was.opinion && now.source === was.source;
+}
+
+/** A realm's groups' numbers and their sway, of a reading (interestsNow's, and a weighing kept but for its counts). */
+function swayRead(reading: Reading): { count: Count; sway: ReturnType<typeof swayOf> } {
+  const { paid, heads, piety, seatFaith, sacred } = reading,
+    count: Count = {
+      farmers: reading.count[0]!,
+      herders: reading.count[1]!,
+      crafters: reading.count[2]!,
+      traders: reading.count[3]!,
+      "the court": reading.count[4]!,
+      "the army": reading.count[5]!,
+    };
+  const wealth: Partial<Count> = {};
+  COMMONS.forEach((group, i) => {
+    if (heads[i]! > 0 && paid[i]! > 0) wealth[group] = paid[i]! / heads[i]!;
+  });
+  const sway = swayOf(
+    count,
+    [reading.force, reading.voice],
+    piety,
+    seatFaith.faith !== null,
+    sacred,
+    wealth,
+    // (The temple weighs as far as its faith's clergy are many to its faithful: sim/belief/temple.ts.)
+    templeSway(reading.pulpit),
+  );
+  return { count, sway };
+}
+
+/** The neighbour a realm resents most, and what their rivalry rests on most (null: none it resents). */
+function rivalOf(ctx: PopulationContext, p: Polity, near: readonly Polity[]): Rival | null {
+  const relations = diplomacyOf(ctx.world),
+    worst = near
+      .map((q) => ({ q, relation: relations.get(p.ref, q.ref) }))
+      .filter((x) => (x.relation?.opinion ?? 0) < 0)
+      .sort((a, b) => a.relation!.opinion - b.relation!.opinion || (a.q.ref < b.q.ref ? -1 : 1))[0];
+  return worst
+    ? {
+        q: worst.q,
+        opinion: worst.relation!.opinion,
+        source:
+          [...worst.relation!.terms]
+            .filter((x) => x.value < 0 && x.source)
+            .sort((x, y) => x.value - y.value || (x.name < y.name ? -1 : 1))[0]?.source ?? null,
+      }
+    : null;
 }
 
 function sameMarks(a: readonly unknown[], b: readonly unknown[]): boolean {
@@ -381,15 +507,8 @@ function interestsNow(
 ): Weighed {
   const { world, generated: g } = ctx,
     faiths = beliefOf(world),
-    { mark, paid, heads, piety, valour, seatFaith, sacred, atWar } = reading,
-    count: Count = {
-      farmers: reading.count[0]!,
-      herders: reading.count[1]!,
-      crafters: reading.count[2]!,
-      traders: reading.count[3]!,
-      "the court": reading.count[4]!,
-      "the army": reading.count[5]!,
-    };
+    { mark, piety, valour, seatFaith, sacred, atWar } = reading,
+    { count, sway } = swayRead(reading);
   let across = had !== undefined;
   for (let i = 0; i < ACROSS && across; i++) across = had!.mark[i] === mark[i];
   let sameFamines = across && had!.mark.length === mark.length;
@@ -406,20 +525,6 @@ function interestsNow(
       }
     }
   }
-  const wealth: Partial<Count> = {};
-  COMMONS.forEach((group, i) => {
-    if (heads[i]! > 0 && paid[i]! > 0) wealth[group] = paid[i]! / heads[i]!;
-  });
-  const sway = swayOf(
-    count,
-    [reading.force, reading.voice],
-    piety,
-    seatFaith.faith !== null,
-    sacred,
-    wealth,
-    // (The temple weighs as far as its faith's clergy are many to its faithful: sim/belief/temple.ts.)
-    templeSway(reading.pulpit),
-  );
 
   // The realms it meets: those it trades with (and down which road), and those of another faith.
   // (Only the flows out of or into its own lands can be its trade: a land is a realm's only
@@ -501,25 +606,7 @@ function interestsNow(
       toward: null,
       source: atWar[0]?.event ?? reading.junta ?? p.event,
     });
-    if (rival === undefined) {
-      const relations = diplomacyOf(world),
-        worst = near
-          .map((q) => ({ q, relation: relations.get(p.ref, q.ref) }))
-          .filter((x) => (x.relation?.opinion ?? 0) < 0)
-          .sort(
-            (a, b) => a.relation!.opinion - b.relation!.opinion || (a.q.ref < b.q.ref ? -1 : 1),
-          )[0];
-      rival = worst
-        ? {
-            q: worst.q,
-            opinion: worst.relation!.opinion,
-            source:
-              [...worst.relation!.terms]
-                .filter((x) => x.value < 0 && x.source)
-                .sort((x, y) => x.value - y.value || (x.name < y.name ? -1 : 1))[0]?.source ?? null,
-          }
-        : null;
-    }
+    if (rival === undefined) rival = rivalOf(ctx, p, near);
     if (rival)
       want({
         group: "the army",
