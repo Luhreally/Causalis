@@ -134,7 +134,11 @@ test("ships open roads across the sea, and peoples of different families meet th
   for (const e of voyages.slice(0, 10)) {
     const [a, b] = e.subjects.map((s) => Number(s.split(":")[2])) as [number, number];
     assert.ok(markets.bySea(a, b), "a road across the sea");
-    const steps = seaReach(g, a).find(([c]) => c === b)?.[1];
+    // (Two numbers a land: the land, and the sea provinces to it.)
+    const reach = seaReach(g, a);
+    let steps: number | undefined;
+    for (let i = 0; i < reach.length && steps === undefined; i += 2)
+      if (reach[i] === b) steps = reach[i + 1];
     assert.ok(steps !== undefined && steps <= seaSteps(lore, a, b), "within their ships' reach");
     const d = world.decisions.get(e.causes[0]!.ref as Ref)!;
     const ships = d.factors.find((f) => f.name === "ships to carry them");

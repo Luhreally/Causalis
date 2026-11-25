@@ -22,13 +22,15 @@ export function seaSteps(lore: LoreStore, a: number, b: number): number {
   return Math.max(seaRange(lore, a), seaRange(lore, b));
 }
 
-const REACH = new Map<string, readonly (readonly [number, number])[]>();
+const REACH = new Map<string, Int32Array>();
 
 /**
  * The lands across the sea from `cell` (never its neighbours by land), each with the
- * fewest sea provinces between them, nearest first, out to the farthest any ship goes.
+ * fewest sea provinces between them, nearest first, out to the farthest any ship goes:
+ * two numbers each, the land and the sea provinces to it. (Kept for every coast a ship has
+ * sailed from, a list of pairs each was 18 MB of a world's memory at 1,500.)
  */
-export function seaReach(g: HomeWorld, cell: number): readonly (readonly [number, number])[] {
+export function seaReach(g: HomeWorld, cell: number): Int32Array {
   const key = `${keptKey(g)}:${cell}`;
   let out = REACH.get(key);
   if (out) return out;
@@ -59,7 +61,12 @@ export function seaReach(g: HomeWorld, cell: number): readonly (readonly [number
       }
     }
   }
-  out = [...found.entries()].sort((x, y) => x[1] - y[1] || x[0] - y[0]);
+  const sorted = [...found.entries()].sort((x, y) => x[1] - y[1] || x[0] - y[0]);
+  out = new Int32Array(2 * sorted.length);
+  for (let i = 0; i < sorted.length; i++) {
+    out[2 * i] = sorted[i]![0];
+    out[2 * i + 1] = sorted[i]![1];
+  }
   if (REACH.size > 20_000) REACH.clear();
   REACH.set(key, out);
   return out;

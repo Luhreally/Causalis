@@ -749,7 +749,10 @@ function edges(ctx: PopulationContext, year: number): Edge[] {
       // (Half again where a lodestone's needle finds north out of sight of land: sim/lore/materials.ts.)
       range = seaRange(lore, a) * compassReach(ctx.world, a);
     let taken = 0;
-    for (const [b, steps] of seaReach(g, a)) {
+    const reach = seaReach(g, a);
+    for (let i = 0; i < reach.length; i += 2) {
+      const b = reach[i]!,
+        steps = reach[i + 1]!;
       if (taken >= SEA_PARTNERS || steps > range) break;
       if (!ctx.provinces.get(b)?.total()) continue;
       taken++;
