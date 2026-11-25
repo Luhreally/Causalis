@@ -5,10 +5,13 @@ import { PRINCIPLES, raisedBody } from "../../src/rules/index.ts";
 import {
   MixStore,
   addKind,
+  broughtIn,
+  carriedOf,
   engineeredOf,
   heredityOf,
   kinshipOf,
   COLS,
+  CarriedStore,
   ROWS,
   kindsInPlayOf,
   livableFor,
@@ -16,6 +19,7 @@ import {
   mixFactors,
   mixOf,
   mostRaisable,
+  nativesDown,
   peopleKin,
   politiesOf,
   populationContext,
@@ -151,4 +155,47 @@ test("a beast raised to thought is a people of its own on its land from the rais
   assert.deepEqual(store.shares(raising.cell), [0, 1000]);
   const f = mixFactors(w, raising.cell)!;
   assert.ok(f.births > 0 && f.appetite > 0);
+});
+
+test("natives set down in a colony's land are a people of no tree its settlers are of; settlers bring what they had taken to", () => {
+  const w = peopledWorld("first light", 30, { start: "spread" }),
+    c = populationContext(w),
+    gw = c.generated,
+    land = c.provinces
+      .all()
+      .filter((p) => p.cell < gw.grid.count && p.total() > 500)
+      .sort((a, b) => b.total() - a.total() || a.cell - b.cell)[0]!,
+    before = land.total(),
+    body = { ...gw.life.people!.body, clade: "far", name: "reed folk", size: 30, span: 40 },
+    down = nativesDown(c, land, { ref: "folk:test", name: "the reed folk", body }, 400.7, 30, null);
+  assert.equal(down, 400);
+  assert.equal(land.total(), before + 400);
+  const store = mixOf(w)!,
+    shares = store.shares(land.cell);
+  assert.equal(shares[0]! + shares[1]!, 1000);
+  assert.ok(Math.abs(shares[1]! - (1000 * 400) / (before + 400)) <= 1);
+  assert.deepEqual(kinshipOf(gw, store, 0, 1), { sameTree: false, generations: Infinity });
+  w.runTo(w.now + 2 * YEAR);
+  assert.deepEqual(
+    store.crossings.map((x) => [x.a, x.b, x.fertility]),
+    [[0, 1, 0]],
+  );
+  // What settlers bring: a cold land come to ten years since, half of whose cold its people could bear already.
+  const cold = c.provinces
+      .all()
+      .filter((p) => gw.climate.temperature[p.cell]! < 5 && p.total() > 0)
+      .sort((a, b) => a.cell - b.cell)[0]!,
+    year = Math.floor(w.now / YEAR),
+    generation = peopleKin(gw).generation,
+    ask = Math.min(1, (10 - gw.climate.temperature[cold.cell]!) / 10);
+  cold.settledYear = year - 10;
+  const bare = takenIn(c, cold, year, generation).cold;
+  assert.ok(bare > 0 && bare < 0.05, `${bare}`);
+  carriedOf(w)!.set(cold.cell, [0.5 * ask, 0, 0]);
+  const with_ = takenIn(c, cold, year, generation).cold;
+  assert.ok(Math.abs(with_ - bare - 0.5) < 0.01, `${with_} ${bare}`);
+  assert.ok(Math.abs(broughtIn(c, cold, year, generation).cold - 0.5) < 0.01);
+  const again = new CarriedStore();
+  again.load(JSON.parse(JSON.stringify(carriedOf(w)!.save())));
+  assert.deepEqual(again.save(), carriedOf(w)!.save());
 });

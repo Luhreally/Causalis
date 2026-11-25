@@ -69,6 +69,7 @@ import { standGame } from "../ecology/stands.ts";
 import { tillageAt } from "../ecology/farmed.ts";
 import { peopleAffords, peopleKin, peopleLife } from "./life.ts";
 import { mixAppetite, mixFactors, mixMoved, mixOf } from "./mix.ts";
+import { carriedOf } from "./carried.ts";
 import {
   airOf,
   darkCause,
@@ -512,7 +513,7 @@ export function farmingShare(ctx: PopulationContext, p: Province): number {
       (1 + improvedOf(ctx.world, p.cell)),
     // (What all its fields give, worked to the full; and what its people eat, a sixth over.)
     most = c.farm * fields,
-    need = mouths(p, ctx.life) * FARM_SPARE,
+    need = mouths(p, ctx.life) * mixAppetite(ctx.world, p.cell) * FARM_SPARE,
     // (The hands the old ways set to its fields: all but its herders of 0.77 of its grown, as occupationTargets has it.)
     old = adults(p, ctx.life) * (0.77 - (c.pasture > 0 && p.herding ? 0.07 : 0));
   if (!(most > 0) || need >= most * 0.95 || !(old > 0)) return 1;
@@ -941,31 +942,92 @@ export function takenIn(
   year: number,
   generation: number,
 ): { cold: number; heat: number; air: number } {
+  const r = takenRead(ctx, p, year, generation);
+  return { cold: r.taken[0], heat: r.taken[1], air: r.taken[2] };
+}
+type Three = [number, number, number];
+/**
+ * takenIn, with what it is made of: what the land asks of a body (of the cold's toll at its most, of the heat's, of the air
+ * lost), what the years there have given its people of each (0 … 1 of the way), and what they brought with them from the
+ * lands they came from (of the way: ./carried.ts; nothing on a land a chronicle opens on).
+ */
+function takenRead(
+  ctx: PopulationContext,
+  p: Province,
+  year: number,
+  generation: number,
+): { asks: Three; own: Three; brought: Three; taken: Three } {
   const cell = p.cell,
-    gens = p.settledYear <= 0 ? Infinity : (year - p.settledYear) / Math.max(1, generation),
+    opening = p.settledYear <= 0,
+    gens = opening ? Infinity : (year - p.settledYear) / Math.max(1, generation),
     hazard = youngHazardOf(ctx.life),
     h2 = HEREDITY.heritability,
-    cold = dmath.clamp((10 - ctx.generated.climate.temperature[cell]!) / 10, 0, 1),
+    cold = dmath.clamp((10 - ctx.generated.climate.temperature[cell]!) / 10, 0, 1) * bodyCoat(ctx),
     hot = hotOf(ctx, cell),
-    e = ctx.medium === "land" ? ctx.generated.tectonics.elevation[cell]! : 0;
-  return {
-    cold:
-      cold > 0
-        ? takenTo(
-            gens,
-            h2.cold,
-            landPressure(hazard, WARMTH_TOLL * cold * bodyCoat(ctx), DEMOGRAPHY.cold),
-          )
+    e = ctx.medium === "land" ? ctx.generated.tectonics.elevation[cell]! : 0,
+    lost = e > 0 ? heightsLost(e) : 0,
+    asks: Three = [cold > 0 ? cold : 0, hot > 0 ? hot : 0, lost],
+    own: Three = [
+      asks[0] > 0
+        ? takenTo(gens, h2.cold, landPressure(hazard, WARMTH_TOLL * asks[0], DEMOGRAPHY.cold))
         : 1,
-    heat:
-      hot > 0
-        ? takenTo(gens, h2.heat, landPressure(hazard, WARMTH_TOLL * hot, DEMOGRAPHY.cold))
+      asks[1] > 0
+        ? takenTo(gens, h2.heat, landPressure(hazard, WARMTH_TOLL * asks[1], DEMOGRAPHY.cold))
         : 1,
-    air:
-      e > 0
-        ? takenTo(gens, h2.air, landPressure(hazard, DEMOGRAPHY.heights * heightsLost(e), 1))
+      asks[2] > 0
+        ? takenTo(gens, h2.air, landPressure(hazard, DEMOGRAPHY.heights * asks[2], 1))
         : 1,
-  };
+    ],
+    kept = opening ? undefined : carriedOf(ctx.world)?.lands.get(cell),
+    brought: Three = [0, 0, 0],
+    taken: Three = [own[0], own[1], own[2]];
+  if (kept)
+    for (let i = 0; i < 3; i++)
+      if (asks[i]! > 0) {
+        brought[i] = kept[i]! / 1000 / asks[i]!;
+        taken[i] = dmath.clamp(own[i]! + brought[i]!, 0, 1);
+      }
+  return { asks, own, brought, taken };
+}
+/** Of how far a land's people have taken to what it asks, the part they brought with them (0 … 1 each, as takenIn's). */
+export function broughtIn(
+  ctx: PopulationContext,
+  p: Province,
+  year: number,
+  generation: number,
+): { cold: number; heat: number; air: number } {
+  const r = takenRead(ctx, p, year, generation),
+    part = (i: number) => dmath.clamp(Math.min(r.brought[i]!, r.taken[i]!), 0, 1);
+  return { cold: part(0), heat: part(1), air: part(2) };
+}
+/**
+ * Settlers bring what their bodies had taken to (./carried.ts): `count` of one land's people come to another that held
+ * `before`. What they could bear of the cold, the heat and the thin air, in what a land asks, is theirs still; the land
+ * they come to has it by their share of its people. Nothing on a land a chronicle opens on, whose people are of it.
+ */
+function carryTaken(
+  ctx: PopulationContext,
+  from: Province,
+  dest: Province,
+  count: number,
+  before: number,
+  year: number,
+): void {
+  const store = carriedOf(ctx.world);
+  if (!store || dest.settledYear <= 0 || !(count > 0)) return;
+  const generation = peopleKin(ctx.generated).generation,
+    a = takenRead(ctx, from, year, generation),
+    b = takenRead(ctx, dest, year, generation),
+    all = Math.max(0, before) + count,
+    next: Three = [0, 0, 0];
+  for (let i = 0; i < 3; i++) {
+    // (What each could bear, in what a land asks: a land that asks nothing of it has taught its people nothing.)
+    const had = a.taken[i]! * a.asks[i]!,
+      here = b.asks[i]! > 0 ? b.taken[i]! * b.asks[i]! : 0,
+      mean = (here * Math.max(0, before) + had * count) / all;
+    next[i] = b.asks[i]! > 0 ? Math.min(mean, b.asks[i]!) - b.own[i]! * b.asks[i]! : 0;
+  }
+  store.set(dest.cell, next);
 }
 /**
  * (heightsToll, the share of its air lost read once a land for the height it stands at: read again only where its ground was
@@ -1384,7 +1446,8 @@ export function handHazardNow(
  * with nothing made to read.)
  */
 export function putBy(ctx: PopulationContext, p: Province, m: Market | undefined): number {
-  const need = mouths(p, ctx.life);
+  // (A mixed land's mouths are its peoples' own: ./mix.ts. Exactly 1 on any other.)
+  const need = mouths(p, ctx.life) * mixAppetite(ctx.world, p.cell);
   if (!m || need <= 0) return 1;
   let made = 0;
   for (const g of FOODS) made += m.book("made", g);
@@ -1796,7 +1859,9 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
     flight = flightYear(ctx);
   const peopled = (cell: number) => ctx.provinces.get(cell);
   // What the land feeds is in food; a people's mouths are their numbers by their appetite.
-  const appetite = ctx.life.appetite;
+  // (A mixed land's by its peoples' own: ./mix.ts. Null on a world of one people.)
+  const appetite = ctx.life.appetite,
+    mixed = mixOf(world);
   // The lands a battle, a sack, a quake, a fire or a stone from the sky struck in the year gone: their people flee it, as
   // well as hunger (round "peoples": refugees). The year's events, read back from the latest.
   const struck = new Map<number, Ref>(),
@@ -1816,7 +1881,7 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
       p.going = p.going.filter((s) => s.year >= year - 1);
     const pop = p.total();
     if (pop < 20) continue;
-    const eating = mouths(p, ctx.life),
+    const eating = mixed ? mouths(p, ctx.life) * mixAppetite(world, p.cell) : mouths(p, ctx.life),
       c = living(provinceCapacity(ctx, p.cell), wildsOf(ctx, p.cell)),
       here = support(c, p.knowsCultivation, p.herding !== null),
       hunger = 1 - p.leanest / 1000,
@@ -1866,7 +1931,7 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
           p.knowsCultivation,
           p.herding !== null,
         ),
-        others = (peopled(m)?.total() ?? 0) * appetite,
+        others = (peopled(m)?.total() ?? 0) * appetite * (mixed ? mixAppetite(world, m) : 1),
         attraction = there / (others + appetite) - perHere;
       if (!(there > 20)) continue;
       // (Fleeing ruin or a law against their faith, safety first: a land not struck, a haven for their faith, even one that
@@ -2121,6 +2186,8 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
     if (from.metalworking && !to.metalworking) to.metalworking = from.metalworking;
     // (Those who leave a land of more than one people take its shares with them: sim/population/mix.ts. Nothing on any other.)
     mixMoved(world, f.from.cell, f.to, f.count, dest.total());
+    // (And what their bodies had taken to of their old land: ./carried.ts.)
+    carryTaken(ctx, f.from, dest, f.count, dest.total(), year);
     const byOccupation = new Array<number>(COLS).fill(0);
     f.moved.forEach((m, i) => {
       if (!m) return;
