@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { YEAR, seedFromText, type Ref } from "../../src/kernel/index.ts";
-import { FOODS, GOODS, OCC } from "../../src/rules/index.ts";
+import { FOODS, GOODS, OCC, RECIPES } from "../../src/rules/index.ts";
 import {
   ECONOMY_EVENTS,
   GOOD_COUNT,
@@ -10,12 +10,14 @@ import {
   MarketStore,
   POPULATION_EVENTS,
   VILLAGE_SIZE,
+  canMake,
   makePopulationWorld,
   marketGoodRef,
   marketsOf,
   occupationTargets,
   populationContext,
   provinceCapacity,
+  whyNot,
 } from "../../src/sim/index.ts";
 import { spine, why } from "../../src/causal/index.ts";
 import { cradleCell } from "../cradle.ts";
@@ -259,4 +261,20 @@ test("what goes of a good in a land: what it used, passed on within the year, an
   assert.equal(year(4, 3, { in: 3000, used: 10 }).went(g), 10);
   // (The most of its last years, and the last year alone.)
   assert.equal(store.of(4).goes(g), 50);
+});
+
+test("a land can work a recipe exactly where the pages give no reason it cannot", () => {
+  let can = 0,
+    cannot = 0;
+  for (const p of ctx.provinces.all()) {
+    const m = markets.get(p.cell);
+    if (!m) continue;
+    for (const r of RECIPES) {
+      const yes = canMake(ctx, p, m, r);
+      assert.equal(yes, whyNot(ctx, p.cell, m, r) === null, `${p.cell} ${r.id}`);
+      if (yes) can++;
+      else cannot++;
+    }
+  }
+  assert.ok(can > 0 && cannot > 0, `${can} can, ${cannot} cannot`);
 });

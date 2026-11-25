@@ -151,6 +151,7 @@ export {
   forgedMetal,
   toolMetal,
   whyNot,
+  canMake,
   type ToolMetal,
 } from "./economy/systems.ts";
 export {

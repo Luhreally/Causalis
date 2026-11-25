@@ -175,13 +175,36 @@ const PRICE_STEP = 0.35;
 
 // ── What a province can make ────────────────────────────────────────────────────
 
-function canMake(ctx: PopulationContext, p: Province, m: Market, r: Recipe): boolean {
-  return whyNot(ctx, p.cell, m, r) === null;
+/**
+ * Whether a land can work a recipe: whyNot's tests, in its order, without its words. (Read for every land and recipe as the year's
+ * crafts and prices are reckoned, and mostly a no: the words of each no, an ore's furnace and its lodes looked up for them, were a
+ * tenth of the economy's year at 1,500.)
+ */
+export function canMake(ctx: PopulationContext, p: Province, m: Market, r: Recipe): boolean {
+  const cell = p.cell,
+    needs = r.needs,
+    know = needs?.knowledge;
+  if (know === "metalworking" && !m.metalworking) return false;
+  if (needs?.fuelless && ctx.affords.fire) return false;
+  if (needs?.way && !materialsOf(ctx.world)?.made(cell, needs.way)) return false;
+  if (
+    needs?.carried &&
+    landCarries(ctx.generated, cell, !!loreOf(ctx.world).get(cell, "electronics")) <
+      WORKS_WATTS * Math.max(1, ctx.provinces.get(cell)?.total() ?? 0)
+  )
+    return false;
+  if (know && know !== "metalworking" && !loreOf(ctx.world).get(cell, know)) return false;
+  if (needs?.ore && !oreWorkable(ctx, cell, needs.ore)) return false;
+  if (needs?.seam && !surfaceOre(ctx.generated, cell, needs.seam)) return false;
+  if (needs?.seam && lodesOf(ctx.world)?.isOut(cell, needs.seam)) return false;
+  if (r.clay && !ctx.generated.water.river[cell] && !ctx.generated.water.lake[cell]) return false;
+  return true;
 }
 
 /**
  * Why a land cannot work a recipe (null: it can) — the same test its crafters' choice is made
- * by, in words, for the pages (Phase 15 M122): not known, no ore within reach, no seam, no clay.
+ * by, in words, for the pages (Phase 15 M122): not known, no ore within reach, no seam, no clay. (canMake above is the
+ * same tests without the words: the two change together, tests/sim/economy.test.ts.)
  */
 export function whyNot(ctx: PopulationContext, cell: number, m: Market, r: Recipe): string | null {
   const know = r.needs?.knowledge;
