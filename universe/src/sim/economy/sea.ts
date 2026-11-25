@@ -22,7 +22,9 @@ export function seaSteps(lore: LoreStore, a: number, b: number): number {
   return Math.max(seaRange(lore, a), seaRange(lore, b));
 }
 
-const REACH = new Map<string, Int32Array>();
+const REACH = new Map<number, Int32Array>();
+/** (The ground REACH was read on: its lands by cell, let go together when the world or its ground is another.) */
+let REACH_ON = "";
 
 /**
  * The lands across the sea from `cell` (never its neighbours by land), each with the
@@ -31,8 +33,12 @@ const REACH = new Map<string, Int32Array>();
  * sailed from, a list of pairs each was 18 MB of a world's memory at 1,500.)
  */
 export function seaReach(g: HomeWorld, cell: number): Int32Array {
-  const key = `${keptKey(g)}:${cell}`;
-  let out = REACH.get(key);
+  const ground = keptKey(g);
+  if (ground !== REACH_ON) {
+    REACH.clear();
+    REACH_ON = ground;
+  }
+  let out = REACH.get(cell);
   if (out) return out;
   const land = (c: number) => g.tectonics.elevation[c]! > 0,
     beside = new Set<number>([cell]);
@@ -68,7 +74,7 @@ export function seaReach(g: HomeWorld, cell: number): Int32Array {
     out[2 * i + 1] = sorted[i]![1];
   }
   if (REACH.size > 20_000) REACH.clear();
-  REACH.set(key, out);
+  REACH.set(cell, out);
   return out;
 }
 
