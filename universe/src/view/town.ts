@@ -79,6 +79,10 @@ import {
   laidAt,
   rectPoints,
   sprawlOf,
+  AVENUES,
+  AVENUE_HALF,
+  SPRAWL_GAP,
+  avenueWay,
   streetWide,
   wallAt,
 } from "../bridge/index.ts";
@@ -87,7 +91,7 @@ import { holdPlaces, onHeld } from "../bridge/index.ts";
 import { townHolds } from "./strongholds.ts";
 import { blockGround, lineOver } from "./streetline.ts";
 
-export { hasSpires, sprawlOf };
+export { AVENUES, AVENUE_HALF, SPRAWL_GAP, avenueWay, hasSpires, sprawlOf };
 
 /** How far about a stronghold's ground a block of a town yields it: a block's half breadth across its corners. */
 export const heldPad = (m: LotMeasure): number => Math.hypot(m.BLOCK_W, m.BLOCK_D) / 2;
@@ -1064,18 +1068,6 @@ function scatter(seed: number, i: number, k: number): number {
   h = Math.imul(h ^ (h >>> 16), 0x7feb352d) >>> 0;
   h = Math.imul(h ^ (h >>> 15), 0x846ca68b) >>> 0;
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
-}
-
-/** The ways out through a great city's sprawl, kept clear of its roofs: its road both ways, and six more. */
-export const AVENUES = 8;
-/** Half an avenue's breadth (metres). */
-export const AVENUE_HALF = 7;
-/** How far past the lots drawn a great city's sprawl begins (metres: a street's breadth and more). */
-export const SPRAWL_GAP = 16;
-
-/** The way of avenue k out of a town (radians). */
-export function avenueWay(plan: TownPlan, k: number): number {
-  return plan.axis + (k / AVENUES) * 2 * Math.PI;
 }
 
 /**

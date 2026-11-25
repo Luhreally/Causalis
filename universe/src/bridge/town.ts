@@ -1051,6 +1051,18 @@ export function sprawlOf(plan: TownPlan, lots: TownLots): { r0: number; r1: numb
   return r1 > r0 + 20 ? { r0, r1 } : null;
 }
 
+/** The ways out through a great city's sprawl, kept clear of its roofs: its road both ways, and six more. */
+export const AVENUES = 8;
+/** Half an avenue's breadth (metres). */
+export const AVENUE_HALF = 7;
+/** How far past the lots drawn a great city's sprawl begins (metres: a street's breadth and more). */
+export const SPRAWL_GAP = 16;
+
+/** The way of avenue k out of a town (radians). */
+export function avenueWay(plan: TownPlan, k: number): number {
+  return plan.axis + (k / AVENUES) * 2 * Math.PI;
+}
+
 /**
  * How many times over the line about all its lots drawn a great city's walls run, raised about more lots than are drawn (1:
  * none): out into its sprawl as far as the lots they rang would reach, as the sprawl reckons its own reach from the lots

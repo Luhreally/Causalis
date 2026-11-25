@@ -60,7 +60,8 @@
 // Stated limits. An unmanaged town's table is its land's shared by head-count (the world keeps none per town). Only the
 // holders of its roster's lines are the god game's named people here (linkRoster); a realm's key figures stand before
 // their doors as the town view has them, without needs. Its clock is the town view's standard day and year, not the
-// world's own (see frameOf). A walk is reckoned by its length here and drawn along the streets by the view. Wool, hides
+// world's own (see frameOf). A walk between the lots nearest its square is reckoned by the very streets its view walks
+// (bridge/streets.ts: the street graph is the bridge's, read by both); a walk out to its fields, by their ring. Wool, hides
 // and the rest that no one here wins come and go at the month's matching. A land of several peoples is read by its
 // first's body. What the granary holds back and the market forbids move who eats and who works within the town; they
 // reach the world only through who then changes trade or dies. Deaths of want are reckoned only in a managed town,
@@ -143,7 +144,7 @@ import {
   type SettleMove,
   type Settlement,
 } from "../sim/index.ts";
-import { townLots, type TownStrike } from "../bridge/index.ts";
+import { streetDoor, streetsOf, townLots, type Streets, type TownStrike } from "../bridge/index.ts";
 import { battleWords, battlesOfYear, townTally } from "./burials.ts";
 import { linesOf, townRoster, workOf as lineWork, folkWork } from "./roster.ts";
 import { strikesOn, townPlan } from "./town.ts";
@@ -1156,21 +1157,62 @@ function ringOf(place: Place, lot: number): readonly [number, number] {
  * draws), in its streets' own frame: along its main way and across it. Read once for a place and again when its town
  * has taken more lots; never saved (it is the world's, read again).
  */
-type Laid = { readonly lots: number; readonly u: Float32Array; readonly v: Float32Array };
+type Laid = {
+  readonly lots: number;
+  readonly u: Float32Array;
+  readonly v: Float32Array;
+  /**
+   * Its streets as its view walks them (bridge/streets.ts), over the lots nearest its square, where each of those lots'
+   * doors stands on them, and the lengths found (by the two lots); and what of its town they were read by, so that they
+   * are read again when its town builds, burns or is walled.
+   */
+  readonly streets: Streets | null;
+  readonly doorX: Float32Array;
+  readonly doorZ: Float32Array;
+  readonly walks: Map<number, number>;
+  readonly key: string;
+};
 const LAID = new WeakMap<Place, Laid>();
 /** The most lots a place reads the lie of (those past them are reckoned by their ring). */
 const LAID_MOST = 24_000;
+/**
+ * The lots, from its square out, a walk between which is reckoned by its very streets: those its view draws people of
+ * (a place's plan shows whole households of its lowest lots, host/placeplan.ts). Past them, by the lie of its lots.
+ */
+const STREET_LOTS = 1536;
+/** How near a wall one walks (metres): as its view's walkers (view/placefolk.ts). */
+const STREET_REACH = 0.5;
+
+/** What of a town its streets are laid by: read again when any of it changes. */
+function streetsKey(world: World, place: Place): string {
+  const f = townsOf(world).get(place.town);
+  return f
+    ? `${f.next}|${f.changes.length}|${f.civics.length}|${f.civics.version}|${f.walls ? `${f.walls.start},${f.walls.end}` : ""}|${Math.floor(place.t / YEAR)}`
+    : "";
+}
 
 function layLots(world: World, place: Place): void {
   let most = 0;
   for (const lot of place.houses.home) most = Math.max(most, lot + 1);
   for (const lot of place.bldgs.lot) most = Math.max(most, lot + 1);
   most = Math.min(most, LAID_MOST);
-  if ((LAID.get(place)?.lots ?? -1) >= most) return;
-  const site = townSite(world, place.town),
+  const was = LAID.get(place),
+    key = streetsKey(world, place);
+  if (was && was.lots >= most && was.key === key) return;
+  const none = new Float32Array(0),
+    site = townSite(world, place.town),
     plan = site ? townPlan(world, place.town, site.axis, most, site.water) : null;
   if (!plan)
-    return void LAID.set(place, { lots: 0, u: new Float32Array(0), v: new Float32Array(0) });
+    return void LAID.set(place, {
+      lots: 0,
+      u: none,
+      v: none,
+      streets: null,
+      doorX: none,
+      doorZ: none,
+      walks: new Map(),
+      key,
+    });
   const lots = townLots(
       plan.family,
       plan.seed,
@@ -1189,16 +1231,44 @@ function layLots(world: World, place: Place): void {
     u[k] = lots.x[k]! * c + lots.z[k]! * s;
     v[k] = -lots.x[k]! * s + lots.z[k]! * c;
   }
-  LAID.set(place, { lots: n, u, v });
+  // Its streets, over the lots nearest its square: the plan of just those lots, as its view would be given it.
+  const near = Math.min(n, STREET_LOTS),
+    heart =
+      near > 0 && near < plan.lots
+        ? townPlan(world, place.town, site!.axis, near, site!.water)
+        : near > 0
+          ? plan
+          : null,
+    doorX = new Float32Array(heart ? near : 0),
+    doorZ = new Float32Array(heart ? near : 0);
+  let streets: Streets | null = null;
+  if (heart) {
+    streets = streetsOf(
+      heart,
+      heart.water ? { x: heart.water.x, z: heart.water.z, r: heart.water.r } : null,
+    );
+    for (let k = 0; k < doorX.length; k++) {
+      const door = streetDoor(
+        { x: lots.x[k]!, z: lots.z[k]!, yaw: lots.yaw[k]! },
+        0,
+        undefined,
+        plan.lotSize ?? 1,
+      );
+      doorX[k] = door.x;
+      doorZ[k] = door.z;
+    }
+  }
+  LAID.set(place, { lots: n, u, v, streets, doorX, doorZ, walks: new Map(), key });
 }
 
 /**
- * How far it is from one lot to another by the town's streets (metres): along its streets' two ways between where its
- * own plan lays the two lots, as blocks are walked round, not through. (The view walks the very street path between
- * them, view/placefolk.ts; this is that path's length as near as the plan's lie of its lots gives it without its
- * street graph, which is the view's.) By their rings where the plan's lie is not read: the fields, lots past the read.
+ * How far it is from one lot to another by the town's streets (metres). Between two of the lots nearest its square (and
+ * its square), the very way its view walks: door to door by its streets' own graph (bridge/streets.ts), round its blocks,
+ * its walls and its water. Past those, along its streets' two ways between where its plan lays the two lots; and by their
+ * rings where the plan's lie is not read: the fields, lots past the read.
  */
 export function streetLength(place: Place, a: number, b: number): number {
+  if (a === b) return 0;
   const laid = LAID.get(place),
     at = (lot: number): readonly [number, number] | null =>
       lot === AT.square || lot === AT.none
@@ -1208,6 +1278,32 @@ export function streetLength(place: Place, a: number, b: number): number {
           : null,
     pa = at(a),
     pb = at(b);
+  if (laid?.streets && pa && pb) {
+    // (The square stands for a lot of its own, one past the last of them.)
+    const doors = laid.doorX.length,
+      ia = a < 0 ? doors : a,
+      ib = b < 0 ? doors : b;
+    if (ia <= doors && ib <= doors) {
+      const key = Math.min(ia, ib) * (doors + 1) + Math.max(ia, ib);
+      let far = laid.walks.get(key);
+      if (far === undefined) {
+        const lo = Math.min(ia, ib),
+          hi = Math.max(ia, ib),
+          door = (i: number) =>
+            i === doors ? { x: 0, z: 0 } : { x: laid.doorX[i]!, z: laid.doorZ[i]! },
+          way = laid.streets.route(door(lo), door(hi), STREET_REACH);
+        far = 0;
+        for (let k = 0; k + 1 < way.length; k++)
+          far += Math.hypot(way[k + 1]!.x - way[k]!.x, way[k + 1]!.z - way[k]!.z);
+        // (To a whole metre: the same walk reckoned on any machine.)
+        far = Math.round(far);
+        // (No more than so many kept: a great town's every pair would be a million.)
+        if (laid.walks.size >= 60_000) laid.walks.clear();
+        laid.walks.set(key, far);
+      }
+      return far;
+    }
+  }
   if (pa && pb) return Math.abs(pa[0] - pb[0]) + Math.abs(pa[1] - pb[1]);
   const [ax, az] = ringOf(place, a),
     [bx, bz] = ringOf(place, b);

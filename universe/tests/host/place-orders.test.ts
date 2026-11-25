@@ -55,7 +55,16 @@ import {
   stocksSheet,
   workSheet,
 } from "../../src/host/placeplan.ts";
-import { placeLotRef, placePersonRef, type VillagePlan } from "../../src/bridge/index.ts";
+import {
+  placeLotRef,
+  placePersonRef,
+  streetDoor,
+  streetsOf,
+  townLots,
+  type VillagePlan,
+} from "../../src/bridge/index.ts";
+import { townPlan } from "../../src/host/town.ts";
+import { townSite } from "../../src/host/village.ts";
 import { universeWorld } from "./worlds.ts";
 
 const base = (): World => universeWorld(EARTH, "first light", 150);
@@ -411,6 +420,49 @@ test("a walk is reckoned by the town's streets between where its plan lays its l
     if (d > 0) longer++;
   }
   assert.ok(longer >= 18);
+  // Between the lots nearest its square it is the very way its view walks: door to door by its streets' own graph
+  // (bridge/streets.ts, the one the town drawn walks its people by), never shorter than straight.
+  let most = 0;
+  for (const lot of [...place.houses.home, ...place.bldgs.lot]) most = Math.max(most, lot + 1);
+  const site = townSite(w, s.ref)!,
+    plan = townPlan(w, s.ref, site.axis, Math.min(most, 1536), site.water)!,
+    lots = townLots(
+      plan.family,
+      plan.seed,
+      plan.axis,
+      plan.lots,
+      plan.water,
+      plan.site ?? null,
+      plan.lotSize ?? 1,
+    ),
+    streets = streetsOf(
+      plan,
+      plan.water ? { x: plan.water.x, z: plan.water.z, r: plan.water.r } : null,
+    ),
+    door = (lot: number) =>
+      streetDoor(
+        { x: lots.x[lot]!, z: lots.z[lot]!, yaw: lots.yaw[lot]! },
+        0,
+        undefined,
+        plan.lotSize ?? 1,
+      ),
+    nearLots = homes.filter((lot) => lot < plan.lots);
+  assert.ok(nearLots.length > 10);
+  let round = 0;
+  for (let k = 0; k + 1 < Math.min(nearLots.length, 24); k++) {
+    const a = Math.min(nearLots[k]!, nearLots[nearLots.length - 1 - k]!),
+      b = Math.max(nearLots[k]!, nearLots[nearLots.length - 1 - k]!);
+    if (a === b) continue;
+    const way = streets.route(door(a), door(b), 0.5),
+      straight = Math.hypot(door(a).x - door(b).x, door(a).z - door(b).z);
+    let far = 0;
+    for (let q = 0; q + 1 < way.length; q++)
+      far += Math.hypot(way[q + 1]!.x - way[q]!.x, way[q + 1]!.z - way[q]!.z);
+    assert.equal(streetLength(place, a, b), Math.round(far));
+    assert.ok(streetLength(place, a, b) >= Math.floor(straight));
+    if (far > straight + 1) round++;
+  }
+  assert.ok(round > 0, "some walks go round a block");
   // Its people's walks take the ticks that length takes at a walk.
   w.runTo(w.now + 9 * HOUR);
   advancePlace(w, place);

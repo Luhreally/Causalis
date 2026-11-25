@@ -614,3 +614,19 @@ export {
   type PlaceStocksSheet,
   type PlaceWorkSheet,
 } from "./place.ts";
+export {
+  approachWay,
+  clearAt,
+  clearOf,
+  dryAt,
+  groundOf,
+  keepOut,
+  pushOut,
+  route,
+  wayClear,
+  type Ground,
+  type HouseStand,
+  type Solid,
+} from "./ground.ts";
+export { Streets, streetDoor, streetsOf } from "./streets.ts";
+export { AVENUES, AVENUE_HALF, SPRAWL_GAP, avenueWay } from "./town.ts";
