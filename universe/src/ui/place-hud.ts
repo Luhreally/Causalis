@@ -379,6 +379,74 @@ export class PlaceHud {
           : "No order given: its hands are as its land has them. An order moves real hands from one trade to another, and its land is told.",
       ),
     );
+    if (s.sites.length) {
+      body.push(el("h3", "place-sub", "Going up"));
+      const tonnes = (x: number) => (x >= 10 ? `${Math.round(x)}` : x.toFixed(1)),
+        left = (m: number) =>
+          m < 1.5
+            ? "about a month more"
+            : m < 18
+              ? `about ${Math.round(m)} months more`
+              : `about ${Math.round(m / 12)} years more`;
+      for (const x of s.sites) {
+        const name = el("button", "place-row place-site"),
+          row = el("div", "place-line place-site-keys"),
+          give = (hands: number | null) => this.onOrder("place.site", { ask: x.ask, hands });
+        name.append(
+          el(
+            "span",
+            "place-row-name",
+            `${x.name.charAt(0).toUpperCase()}${x.name.slice(1)}: ${Math.round(x.share * 100)}% · ${x.stage}`,
+          ),
+          el(
+            "span",
+            "place-row-what",
+            x.raised
+              ? "All it wants is done: it stands once its land is told."
+              : x.stopped
+                ? "Stopped, as its land's month stops it."
+                : x.inHand
+                  ? `${x.hands} hands by your order, ${x.busy} at it now · ${tonnes(x.lying)} t of ${x.stuff} on the site, ${tonnes(x.wants)} t still wanted · ${left(x.months)}`
+                  : `By the town's month, ${x.hands} hands · ${tonnes(x.wants)} t of ${x.stuff} still wanted · ${left(x.months)}`,
+          ),
+        );
+        name.onclick = () => this.onOpen(x.ref);
+        if (x.inHand) {
+          const less = el("button", "place-step", "−"),
+            more = el("button", "place-step", "+"),
+            back = el("button", "place-order", "Give back");
+          less.setAttribute("aria-label", `A hand fewer to the ${x.name}`);
+          more.setAttribute("aria-label", `A hand more to the ${x.name}`);
+          back.setAttribute(
+            "aria-label",
+            `Give the ${x.name} back to the town's month: its crew go back to their own work`,
+          );
+          less.disabled = x.hands <= 1;
+          more.disabled = x.hands >= x.most;
+          less.onclick = () => give(Math.max(1, x.hands - 1));
+          more.onclick = () => give(Math.min(x.most, x.hands + 1));
+          back.onclick = () => give(null);
+          row.append(
+            el("span", "place-line-words", `Hands: ${x.hands} of ${x.most} at most`),
+            less,
+            more,
+            back,
+          );
+        } else {
+          const take = el("button", "place-order", "Take in hand");
+          take.setAttribute(
+            "aria-label",
+            `Take the ${x.name} in hand: a crew of the town's own people carries to it and builds it`,
+          );
+          take.onclick = () => give(Math.min(x.most, Math.max(1, x.hands)));
+          row.append(
+            el("span", "place-line-words", "Left to the town's month, as in the world."),
+            take,
+          );
+        }
+        body.push(name, row);
+      }
+    }
     if (s.buildings.length) {
       body.push(el("h3", "place-sub", "Its buildings' work"));
       for (const b of s.buildings) {
@@ -459,7 +527,7 @@ export class PlaceHud {
       el(
         "p",
         "place-more",
-        `${o.who} What is raised goes up by the town's own hands, month by month, fed and tooled from its land's stores.`,
+        `${o.who} What is raised goes up by the town's own month, fed and tooled from its land's stores. Take it in hand on the Work sheet to put a crew of its people to it yourself.`,
       ),
     );
     this.sheetBody.replaceChildren(...body);

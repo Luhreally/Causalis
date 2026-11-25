@@ -32,9 +32,18 @@
 // sick are the first to go, so nothing is counted twice. A mood, from needs met over the days gone and what befell their
 // household, with its causes kept; it moves what their work is worth, and too low it heeds no order to change work. A
 // friend made in company. Orders by name (a trade, a building), a building's work stopped, a household given a home.
-// Not built: a raised building worked in the place by hauled materials and stages (it is still the god game's asking,
-// worked by the world's month); fire, quake, raid, siege and famine shown befalling its individuals (a plague shows
-// through the sickness above; the rest are seen only as the town view already draws them).
+//
+// Sites (fourth slice). A building the town was asked to raise (sim/town/asks.ts) is a site of the place while it goes up:
+// one of its buildings, not yet worked in. Left alone it goes up by its land's month, exactly as in the god game, and the
+// place only shows how far it has got. Taken in hand by an order (sim/town/managed.ts place.site, so many hands), a crew of
+// the place's own grown is put to it: they bring what it is built of from outside the town a load at a time (a third of
+// their body's weight), build it in at the site (SITE_TONNES to a person-month, the world's own bill), wear the tools its
+// carriers bring it from the market, and eat half again as much for the work. What they did is told to its land with the
+// town's other doings (place.settle: person-months, and over how long); the land's month puts no hands of its own to the
+// site for the time told, so nothing is raised twice, and the thing is finished by the world's own rule, there.
+// Not built: fire, quake, raid, siege and famine shown befalling its individuals (a plague shows through the sickness
+// above; the rest are seen only as the town view already draws them). Walls are not a site of the place (they stand on
+// no lot): they go up by the land's month.
 //
 // Stated limits. An unmanaged town's table is its land's shared by head-count (the world keeps none per town). Only the
 // holders of its roster's lines are the god game's named people here (linkRoster); a realm's key figures stand before
@@ -75,6 +84,7 @@ import {
   OCCUPATIONS,
   RECIPES,
   SEXES,
+  TOOL_GAIN,
   WANTS,
   bandOf,
   tendedBy,
@@ -88,6 +98,13 @@ import {
 import {
   SHARE,
   SHARES_STORE,
+  SITE_TONNES,
+  SITE_TOOL_MONTHS,
+  WORK_SHARE,
+  asksOf,
+  siteInHand,
+  siteMostHands,
+  siteOwed,
   homePlanet,
   levelsOf,
   lifeOf,
@@ -100,7 +117,9 @@ import {
   moneyStore,
   populationContext,
   townsOf,
+  type Ask,
   type Managed,
+  type SettleBuilt,
   type SettleDead,
   type SettleMove,
   type Settlement,
@@ -114,6 +133,7 @@ import { townSite } from "./village.ts";
 
 /** A tick of a place's clock (seconds): ten minutes. */
 export const PLACE_TICK = 600;
+const MICRO_ = 1_000_000;
 /** The most of a town's people kept as individuals; the most places kept; the most people in all of them. */
 export const PLACE_MOST = 6000;
 export const PLACES_MOST = 4;
@@ -126,8 +146,15 @@ const SETTLE = DAY;
 export const MICRO = 1_000_000;
 /** A need runs 0 … FULL. */
 const FULL = 65535;
-/** Of their time, the share the world's year takes its people to be at work: what a worker-year's making is spread over. */
-const WORK_SHARE = 1 / 3;
+/** Ticks of work in a person-month, as the world's month reckons one (a third of their time at work: WORK_SHARE). */
+export const TICKS_PM = Math.round((MONTH * WORK_SHARE) / PLACE_TICK);
+/** What a tick of building uses of what the thing is built of (millionths of a tonne), and wears of tools (of a measure). */
+const SITE_USE = Math.round((SITE_TONNES * MICRO_) / TICKS_PM),
+  SITE_WEAR = Math.round(MICRO_ / (SITE_TOOL_MONTHS * TICKS_PM));
+/** One put to a site by its town's order: what `bound` holds for them. */
+export const BOUND_SITE = 254;
+/** The trades a site's crew is taken from, the first first: the hands a site takes are the fields' (sim/town/asks.ts drain). */
+const CREW_FROM: readonly number[] = [OCC.farmer, OCC.herder, OCC.trader, OCC.crafter];
 /** The share of a body's own day it sleeps. */
 const SLEEP_SHARE = 1 / 3;
 /** How fast one walks (metres a second), and the ground a lot takes with its share of street (square metres). */
@@ -155,6 +182,8 @@ export const ACT_WORDS = [
   "waiting",
   "fetching goods",
   "abed",
+  "building",
+  "bringing what a site is built of",
 ] as const;
 
 /** Why: the force that decided it. */
@@ -175,6 +204,10 @@ export const WHY = {
   haul: 13,
   shut: 14,
   abed: 15,
+  site: 16,
+  stuff: 17,
+  stopped: 18,
+  raised: 19,
 } as const;
 
 /** What happened to someone, as a place's log tells it. */
@@ -193,6 +226,8 @@ export const HAP = {
   moved: 11,
   unheeded: 12,
   bare: 13,
+  crew: 14,
+  uncrew: 15,
 } as const;
 const HAP_WORDS = [
   "was born",
@@ -209,6 +244,8 @@ const HAP_WORDS = [
   "moved with their household to a home given them by your order",
   "would not heed an order to change their work: their mood is too low",
   "found the pantry bare",
+  "was put to building, by your order",
+  "went back to their own work from a site",
 ];
 
 /** The place's draws: through the world's Rng, on a stream no registry holds (it is no part of the ruleset's identity). */
@@ -234,6 +271,7 @@ const P = {
   mood: 14,
   ail: 15,
   hurt: 16,
+  crew: 17,
 } as const;
 
 const NEEDS = 4;
@@ -298,7 +336,7 @@ type People = {
   /** Their mood, -100 … 100, and what moves it (MOOD's bits). */
   mood: Int8Array;
   moodWhy: Uint8Array;
-  /** The trade an order by name holds them to (+ 1; 255: a building only; 0: none). */
+  /** The trade an order by name holds them to (+ 1; 255: a building only; 254: a site's crew; 0: none). */
   bound: Uint8Array;
   /** A friend made in company (their number; 0: none yet). */
   friend: Uint32Array;
@@ -423,6 +461,21 @@ type Buildings = {
   start: number[];
   /** Good by good, millionths: GOOD_COUNT to each. */
   stock: number[];
+  /** A site, still going up: the asking behind it (its number among its town's, + 1; 0: it stands). */
+  site: number[];
+};
+
+/** A site the place has in hand (sim/town/managed.ts place.site): what its own people have done on it. */
+export type PlaceSite = {
+  /** The asking (its number among its town's), and the lot it stands on. */
+  readonly n: number;
+  readonly lot: number;
+  /** Work done on it that its land has not been told, in thousandths of a person's tick; and since when it goes untold. */
+  ticks: number;
+  from: number;
+  /** What it is built of, brought and not yet built in, and all that was brought (millionths of a tonne). */
+  stuff: number;
+  brought: number;
 };
 
 /** What the world said when the place was last matched to it: what its ticks run on until the next match. */
@@ -473,6 +526,9 @@ export type Place = {
   dead: number[];
   /** The orders its hands were last put to work by (their shares, said), so they are put once. */
   ordered: string;
+  /** Its sites in hand, and what its town was asked to raise as last read (said), so its buildings are read anew when it changes. */
+  sites: PlaceSite[];
+  sited: string;
   /**
    * Its realm's key figures who live in it (host/leaders.ts: its ruler, an heir, a keeper), each one of its own people:
    * the figure's page, and who they are here.
@@ -517,6 +573,8 @@ type Frame = {
   readonly bite: number;
   /** Food a grown one eats in a day (millionths). */
   readonly daily: number;
+  /** What one carries of stone or timber at once (millionths of a tonne): a third of their body's weight (est, as a beast bears). */
+  readonly load: number;
 };
 const FRAMES = new WeakMap<World, Map<number, Frame>>();
 
@@ -563,6 +621,7 @@ function frameOf(world: World, cell: number): Frame {
     lone: Math.round(((body?.social ?? 0.5) * FULL * PLACE_TICK) / (2 * awake)),
     bite: (perSecond * meal) / FULL,
     daily: perSecond * DAY,
+    load: Math.max(1000, Math.round(((body?.size ?? 60) / 3) * 1000)),
   };
   of.set(cell, f);
   return f;
@@ -764,7 +823,8 @@ export class PlaceStore implements StateStore {
       b +=
         p.people.id.length * PERSON_BYTES +
         p.houses.n * (5 + FOODS.length) * 8 +
-        p.bldgs.lot.length * (3 + GOOD_COUNT) * 8 +
+        p.bldgs.lot.length * (4 + GOOD_COUNT) * 8 +
+        p.sites.length * 48 +
         p.log.length * 40;
     return b;
   }
@@ -804,6 +864,8 @@ export class PlaceStore implements StateStore {
         moves: p.moves,
         dead: p.dead,
         ordered: p.ordered,
+        sites: p.sites,
+        sited: p.sited,
         figRef: p.figRef,
         figId: p.figId,
         figName: p.figName,
@@ -850,7 +912,13 @@ export class PlaceStore implements StateStore {
           grief: h.grief ? [...h.grief] : h.key.map(() => -1),
           fresh: h.fresh ? [...h.fresh] : h.key.map(() => -1),
         },
-        bldgs: { lot: [...b.lot], kind: [...b.kind], start: [...b.start], stock: [...b.stock] },
+        bldgs: {
+          lot: [...b.lot],
+          kind: [...b.kind],
+          start: [...b.start],
+          stock: [...b.stock],
+          site: b.site ? [...b.site] : b.lot.map(() => 0),
+        },
         matched: structuredClone(raw.matched as Matched),
         base: [...(raw.base as number[])],
         flow: [...(raw.flow as number[])],
@@ -858,6 +926,8 @@ export class PlaceStore implements StateStore {
         moves: [...((raw.moves as number[] | undefined) ?? [])],
         dead: [...((raw.dead as number[] | undefined) ?? [])],
         ordered: (raw.ordered as string | undefined) ?? "",
+        sites: ((raw.sites as PlaceSite[] | undefined) ?? []).map((x) => ({ ...x })),
+        sited: (raw.sited as string | undefined) ?? "",
         figRef: [...((raw.figRef as string[] | undefined) ?? [])],
         figId: [...((raw.figId as number[] | undefined) ?? [])],
         figName: [...((raw.figName as string[] | undefined) ?? [])],
@@ -902,6 +972,8 @@ export function placeDigest(p: Place): string {
     p.bldgs.kind,
     p.bldgs.start,
     p.bldgs.stock,
+    p.bldgs.site,
+    p.sites.flatMap((x) => [x.n, x.lot, x.ticks, x.from, x.stuff, x.brought]),
     p.base,
     p.flow,
     p.moves,
@@ -917,7 +989,7 @@ export function placeDigest(p: Place): string {
   for (const x of p.houses.means) h.float(x);
   for (const x of [...p.matched.made, ...p.matched.wage]) h.float(x);
   for (const x of p.log) h.int(x.t).int(x.what).int(x.id).int(x.a).int(x.b);
-  h.string(p.ordered);
+  h.string(p.ordered).string(p.sited);
   p.figRef.forEach((ref, k) => h.string(ref).int(p.figId[k]!));
   return h.hex();
 }
@@ -1118,27 +1190,42 @@ function homesFor(world: World, town: Ref, people: number): { lot: number[]; hol
   return { lot, holds };
 }
 
-/** The town's other buildings standing now, behind its square. */
+/** What a town was asked to raise, where its world keeps askings (none where it keeps none). */
+const asksIn = (world: World, town: string): readonly Ask[] =>
+  world.hasStore("town.asks") ? asksOf(world).ofTown(town) : [];
+
+/**
+ * The town's other buildings now, behind its square: those standing, and those it was asked to raise still going up (its
+ * sites). One asked for stands when its asking is done, whatever year its plan gave it; one no one asked for, at its year.
+ */
 function buildingsOf(world: World, town: Ref, year: number): Buildings {
   const f = townsOf(world).get(town),
-    b: Buildings = { lot: [AT.square], kind: [-1], start: [0], stock: [] };
+    asks = asksIn(world, town),
+    b: Buildings = { lot: [AT.square], kind: [-1], start: [0], stock: [], site: [0] };
   if (f)
     for (const c of f.civics) {
-      if (c.end > year || (c.fell !== null && c.fell <= year)) continue;
+      if (c.fell !== null && c.fell <= year) continue;
+      const a = asks.length
+          ? asks.find((x) => x.work !== null && x.work.at === c.at && x.work.start === c.start)
+          : undefined,
+        rising = a ? a.work!.done === null : c.end > year;
+      if (rising && (!a || a.work!.left)) continue;
       b.lot.push(c.at);
       b.kind.push(KIND_INDEX.get(c.kind) ?? -1);
       b.start.push(c.start);
+      b.site.push(rising ? a!.n + 1 : 0);
     }
   b.stock = new Array<number>(b.lot.length * GOOD_COUNT).fill(0);
   return b;
 }
 
-/** The first of a place's buildings of any of these kinds (0, its square, where none stands). */
+/** The first of a place's buildings standing of any of these kinds (0, its square, where none stands). */
 function buildingOf(place: Place, kinds: readonly string[]): number {
-  for (const kind of kinds) {
-    const k = KIND_INDEX.get(kind),
-      at = k === undefined ? -1 : place.bldgs.kind.indexOf(k);
-    if (at > 0) return at;
+  const { kind, site } = place.bldgs;
+  for (const name of kinds) {
+    const k = KIND_INDEX.get(name);
+    if (k === undefined) continue;
+    for (let at = 1; at < kind.length; at++) if (kind[at] === k && !site[at]) return at;
   }
   return 0;
 }
@@ -1474,18 +1561,8 @@ function matchPeople(
 /** The place matched to the world as it is now: its numbers for the ticks to come, its people, its stocks. */
 function reconcile(world: World, place: Place, s: Settlement, f: Frame, month: number): void {
   const years = Math.max(0, (month - place.matched.month) / 12),
-    turned = Math.floor(month / 12) > Math.floor(place.matched.month / 12),
-    // (Its buildings as they stand now: one fallen gives up its stock to the square, one raised begins empty.)
-    year = Math.floor(place.t / YEAR),
-    stand = buildingsOf(world, place.town, year),
-    old = place.bldgs;
-  for (let b = 0; b < old.lot.length; b++) {
-    let to = stand.lot.findIndex((lot, k) => lot === old.lot[b] && stand.start[k] === old.start[b]);
-    if (to < 0) to = 0;
-    for (let g = 0; g < GOOD_COUNT; g++)
-      stand.stock[to * GOOD_COUNT + g]! += old.stock[b * GOOD_COUNT + g]!;
-  }
-  place.bldgs = stand;
+    turned = Math.floor(month / 12) > Math.floor(place.matched.month / 12);
+  restand(world, place);
   place.matched = matchedOf(world, s, month);
   // (The world reckons its births and deaths by the year: a matching across a year's turn tells a year's.)
   matchPeople(world, place, s, f, years, turned ? Math.max(1, years) : Math.max(1 / 12, years));
@@ -1498,8 +1575,129 @@ function reconcile(world: World, place: Place, s: Settlement, f: Frame, month: n
       p.work[i] !== place.houses.home[p.house[i]!]
     )
       workOf(world, place, i);
+  crewSites(world, place, f);
   matchStocks(place, stockShare(world, place.cell, p.n));
   unlinkRoster(world, place);
+}
+
+/** Its buildings as they stand now: one fallen gives up its stock to the square, one raised begins empty. */
+function restand(world: World, place: Place): void {
+  const stand = buildingsOf(world, place.town, Math.floor(place.t / YEAR)),
+    old = place.bldgs;
+  for (let b = 0; b < old.lot.length; b++) {
+    let to = stand.lot.findIndex((lot, k) => lot === old.lot[b] && stand.start[k] === old.start[b]);
+    if (to < 0) to = 0;
+    for (let g = 0; g < GOOD_COUNT; g++)
+      stand.stock[to * GOOD_COUNT + g]! += old.stock[b * GOOD_COUNT + g]!;
+  }
+  place.bldgs = stand;
+}
+
+/** What its town was asked to raise, as a place reads it: each building asked for, done or going up, and by whose hands. */
+function sitesKey(world: World, place: Place): string {
+  const asks = asksIn(world, place.town);
+  if (!asks.length) return "";
+  const m = managedOf(world)?.get(place.town);
+  let key = "";
+  for (const a of asks) {
+    const w = a.work;
+    if (!w || w.at < 0) continue;
+    key += w.left
+      ? `${a.n}x `
+      : w.done !== null
+        ? `${a.n}d `
+        : `${a.n}${siteInHand(m, a.n) ? `h${w.hands}` : ""} `;
+  }
+  return key;
+}
+
+/**
+ * A place's sites brought to what its town was asked to raise now: its buildings read anew where an asking was given,
+ * finished or given up; the sites it has in hand kept (one newly taken begins with nothing brought), the rest let go; and
+ * each one's crew made up. Asked every time the place is brought on; nothing is done where nothing has changed.
+ */
+function syncSites(world: World, place: Place, f: Frame): void {
+  const key = sitesKey(world, place);
+  if (key === place.sited) return;
+  place.sited = key;
+  restand(world, place);
+  const m = managedOf(world)?.get(place.town),
+    next: PlaceSite[] = [];
+  for (let b = 1; b < place.bldgs.lot.length; b++) {
+    const n = place.bldgs.site[b]! - 1;
+    if (n < 0 || !siteInHand(m, n)) continue;
+    next.push(
+      place.sites.find((x) => x.n === n) ?? {
+        n,
+        lot: place.bldgs.lot[b]!,
+        ticks: 0,
+        from: place.t,
+        stuff: 0,
+        brought: 0,
+      },
+    );
+  }
+  place.sites = next;
+  crewSites(world, place, f);
+}
+
+/**
+ * Each site's crew made up to the hands its asking has: those too many go back to their own work; those wanting are taken
+ * of its grown and well whom no order holds, its farmers first (the hands a site takes are the fields', sim/town/asks.ts),
+ * who by a keyed draw. They keep their trade in its land's count: what they do not bring in is the drain its land's
+ * harvest already bears for the site.
+ */
+function crewSites(world: World, place: Place, f: Frame): void {
+  const p = place.people,
+    asks = asksIn(world, place.town),
+    want = new Map<number, number>(),
+    have = new Map<number, number[]>(),
+    release = (i: number): void => {
+      p.bound[i] = 0;
+      workOf(world, place, i);
+      if (p.act[i] === ACT.build || p.act[i] === ACT.stuff) p.act[i] = ACT.idle;
+      note(place, HAP.uncrew, p.id[i]!);
+    };
+  for (const x of place.sites) want.set(x.lot, asks[x.n]?.work?.hands ?? 0);
+  for (let i = 0; i < p.n; i++) {
+    if (p.bound[i] !== BOUND_SITE) continue;
+    if (!want.has(p.work[i]!)) release(i);
+    else if (have.has(p.work[i]!)) have.get(p.work[i]!)!.push(i);
+    else have.set(p.work[i]!, [i]);
+  }
+  for (const [lot, n] of want) {
+    const crew = have.get(lot) ?? [];
+    while (crew.length > n) release(crew.pop()!);
+    if (crew.length >= n) continue;
+    const free: number[] = [];
+    for (let i = 0; i < p.n; i++)
+      if (
+        !p.bound[i] &&
+        !p.ill[i] &&
+        CREW_FROM.includes(occOf(p, i)) &&
+        ageOf(p, i, place.t) >= f.life.adulthood
+      )
+        free.push(i);
+    const draw = new Map(
+      free.map((i) => [i, world.rng.unit(PLACE_DRAW, place.key ^ p.id[i]!, lot, P.crew)]),
+    );
+    free.sort(
+      (a, b) =>
+        CREW_FROM.indexOf(occOf(p, a)) - CREW_FROM.indexOf(occOf(p, b)) ||
+        draw.get(a)! - draw.get(b)! ||
+        p.id[a]! - p.id[b]!,
+    );
+    for (const i of free.slice(0, n - crew.length)) {
+      // (What they had in hand is set down in the square.)
+      if (p.carry[i]! > 0) place.bldgs.stock[p.carryGood[i]!]! += p.carry[i]!;
+      p.carry[i] = 0;
+      p.bound[i] = BOUND_SITE;
+      p.craft[i] = 0;
+      p.work[i] = lot;
+      if (!p.eta[i]) p.act[i] = ACT.idle;
+      note(place, HAP.crew, p.id[i]!, lot);
+    }
+  }
 }
 
 /** A place made of a town as it stands now. */
@@ -1542,6 +1740,8 @@ function makePlace(world: World, s: Settlement): Place | null {
     moves: [],
     dead: [],
     ordered: "",
+    sites: [],
+    sited: "",
     figRef: [],
     figId: [],
     figName: [],
@@ -1594,11 +1794,21 @@ function makePlace(world: World, s: Settlement): Place | null {
   reckonMeans(world, place);
   stockOut(place, f, stockShare(world, s.cell, n));
   layLots(world, place);
+  syncSites(world, place, f);
   // Its day under way before it is seen; then its stocks are the world's again, to the last millionth.
   while (place.t < t) tick(world, place, f);
   matchStocks(place, stockShare(world, s.cell, place.people.n));
+  unworked(place);
   place.log.length = 0;
   return place;
+}
+
+/** The work of a day stepped only to set a place going is none of its sites': its land's month reckoned that day. */
+function unworked(place: Place): void {
+  for (const x of place.sites) {
+    x.ticks = 0;
+    x.from = place.t;
+  }
 }
 
 /** A town's share of its land's stocks laid out: a month's food in each pantry while it lasts, the rest in its stores. */
@@ -1779,6 +1989,23 @@ function tick(world: World, place: Place, f: Frame): void {
     // (Buildings whose work is stopped by order.)
     shut = orders?.shut.length ? new Set(orders.shut) : null,
     hospital = buildingOf(place, ["hospital"]) > 0;
+  // Its sites in hand, by their lot: what each has yet to be worked (thousandths of a tick), and whether it is stopped.
+  let sitesNow: Map<number, { site: PlaceSite; b: number; left: number; stopped: boolean }> | null =
+    null;
+  if (place.sites.length) {
+    const asks = asksIn(world, place.town);
+    sitesNow = new Map();
+    for (const site of place.sites) {
+      const w = asks[site.n]?.work;
+      if (!w || w.done !== null || w.left) continue;
+      sitesNow.set(site.lot, {
+        site,
+        b: bldgAt(place, site.lot),
+        left: (w.effort + siteOwed(world, asks[site.n]!) - w.worked) * TICKS_PM * 1000 - site.ticks,
+        stopped: w.stops.at(-1)?.to === null,
+      });
+    }
+  }
   // The sickness about in its land now, if its land's own reckoning has one come this year or last (sim/health): who
   // of the place takes it is drawn here, a day at a time, so that as many take it in a year as it reaches of those not
   // spared it. Who dies of it is the world's to say: at the month's matching the sick are the first to go.
@@ -1823,10 +2050,15 @@ function tick(world: World, place: Place, f: Frame): void {
       home = houses.home[h]!,
       moving = p.eta[i]! > 0,
       inside = !moving && p.at[i]! !== AT.fields && p.at[i]! !== AT.square;
-    // Needs.
+    // Needs. (One raising a building, or carrying to it, is hungry half again as fast: sim/town/asks.ts feed.)
     p.needs[at0 + N.food] = Math.min(
       FULL,
-      p.needs[at0 + N.food]! + (asleep ? f.hunger >> 2 : f.hunger),
+      p.needs[at0 + N.food]! +
+        (asleep
+          ? f.hunger >> 2
+          : p.act[i] === ACT.build || p.act[i] === ACT.stuff
+            ? f.hunger + (f.hunger >> 1)
+            : f.hunger),
     );
     p.needs[at0 + N.rest] = asleep
       ? Math.max(0, p.needs[at0 + N.rest]! - f.rest)
@@ -1889,7 +2121,7 @@ function tick(world: World, place: Place, f: Frame): void {
         why |= MOOD.home;
         to += 20;
       }
-      if (p.bound[i] && p.bound[i] !== 255) {
+      if (p.bound[i] && p.bound[i]! < BOUND_SITE) {
         why |= MOOD.ordered;
         to -= 10;
       }
@@ -2013,6 +2245,20 @@ function tick(world: World, place: Place, f: Frame): void {
       go(place, i, home);
       continue;
     }
+    // Gone for a load of what a site is built of: taken up outside the town, and set down at the site.
+    if (p.act[i] === ACT.stuff) {
+      const sn = p.bound[i] === BOUND_SITE ? sitesNow?.get(p.work[i]!) : undefined;
+      if (sn && p.at[i] === AT.fields) {
+        p.why[i] = WHY.stuff;
+        go(place, i, sn.site.lot);
+        continue;
+      }
+      if (sn && p.at[i] === sn.site.lot) {
+        sn.site.stuff += f.load;
+        sn.site.brought += f.load;
+      }
+      p.act[i] = ACT.idle;
+    }
     const press = Math.max(hunger, tired, chilled, lone);
     if (press > bar) {
       if (hunger === press) {
@@ -2102,6 +2348,42 @@ function tick(world: World, place: Place, f: Frame): void {
       if (p.at[i] !== home) go(place, i, home);
       continue;
     }
+    const sn = p.bound[i] === BOUND_SITE ? sitesNow?.get(work) : undefined;
+    if (sn) {
+      // One of a site's crew. Stopped (as its land's month stops it), or all it wants done and waiting on the telling: home.
+      if (sn.stopped || sn.left <= 0) {
+        p.act[i] = ACT.wait;
+        p.why[i] = sn.stopped ? WHY.stopped : WHY.raised;
+        if (p.at[i] !== home) go(place, i, home);
+        continue;
+      }
+      p.why[i] = WHY.site;
+      if (p.at[i] !== work) {
+        p.act[i] = ACT.build;
+        go(place, i, work);
+        continue;
+      }
+      // (Nothing on the site to build in: a load of it fetched from outside the town.)
+      if (sn.site.stuff < SITE_USE) {
+        p.act[i] = ACT.stuff;
+        p.why[i] = WHY.stuff;
+        go(place, i, AT.fields);
+        continue;
+      }
+      // A tick's building: what it is built of built in, tools worn; with none to hand the work is worth what a hand without
+      // tools is (rules/goods.ts TOOL_GAIN).
+      p.act[i] = ACT.build;
+      sn.site.stuff -= SITE_USE;
+      const tools = sn.b > 0 ? bldgs.stock[sn.b * GOOD_COUNT + G.tools]! : 0,
+        gain = tools >= SITE_WEAR ? 1000 : Math.round(1000 / (1 + TOOL_GAIN));
+      if (tools >= SITE_WEAR) {
+        bldgs.stock[sn.b * GOOD_COUNT + G.tools]! -= SITE_WEAR;
+        usedOf(G.tools, SITE_WEAR);
+      }
+      sn.site.ticks += gain;
+      sn.left -= gain;
+      continue;
+    }
     if (p.at[i] !== work) {
       p.act[i] = ACT.work;
       p.why[i] = WHY.work;
@@ -2159,8 +2441,18 @@ function tick(world: World, place: Place, f: Frame): void {
       // (What its working buildings lack of what its land's makings are made of, reckoned once a tick: one load to each.)
       if (!wants) {
         wants = [];
+        // (A site in hand wants tools while it has less than a day's wear for its crew.)
+        if (sitesNow)
+          for (const sn of sitesNow.values())
+            if (
+              sn.b > 0 &&
+              !sn.stopped &&
+              sn.left > 0 &&
+              bldgs.stock[sn.b * GOOD_COUNT + G.tools]! < SITE_WEAR * 144
+            )
+              wants.push([sn.b, G.tools]);
         for (let b = 1; b < bldgs.lot.length; b++) {
-          if (b === market) continue;
+          if (b === market || bldgs.site[b]) continue;
           const made = MAKING_GOODS.get(bldgs.kind[b]!);
           if (!made) continue;
           RECIPES.forEach((r, k) => {
@@ -2194,7 +2486,7 @@ function tick(world: World, place: Place, f: Frame): void {
       if (!hauls) {
         hauls = [];
         for (let b = 1; b < bldgs.lot.length; b++) {
-          if (b === market) continue;
+          if (b === market || bldgs.site[b]) continue;
           for (const g of MAKING_GOODS.get(bldgs.kind[b]!) ?? [])
             if (bldgs.stock[b * GOOD_COUNT + g]! >= LOAD * MICRO) hauls.push([b, g]);
         }
@@ -2263,7 +2555,7 @@ function applyOrders(world: World, place: Place, f: Frame): void {
   for (let i = 0; i < p.n; i++) {
     const order = named.get(p.id[i]!);
     if (!order) {
-      if (p.bound[i]) {
+      if (p.bound[i] && p.bound[i] !== BOUND_SITE) {
         p.bound[i] = 0;
         workOf(world, place, i);
       }
@@ -2336,6 +2628,8 @@ function applyOrders(world: World, place: Place, f: Frame): void {
       list.push(...stay);
     }
   }
+  // (One of a site's crew put elsewhere by name is made up for.)
+  if (place.sites.length) crewSites(world, place, f);
   reckonMeans(world, place);
 }
 
@@ -2347,10 +2641,20 @@ function applyOrders(world: World, place: Place, f: Frame): void {
 export function settleOf(
   world: World,
   town: string,
-): { town: string; moves: SettleMove[]; dead: SettleDead[] } | null {
+): { town: string; moves: SettleMove[]; dead: SettleDead[]; built: SettleBuilt[] } | null {
   const place = placesOf(world)?.get(town);
   if (!place || !managedOf(world)?.get(town)) return null;
-  if (!place.moves.length && !place.dead.length) return null;
+  // (Its sites in hand: the whole person-months its own people did on each, the rest kept; and over how long.)
+  const built: SettleBuilt[] = [];
+  for (const x of place.sites) {
+    const seconds = place.t - x.from;
+    if (seconds <= 0) continue;
+    const months = Math.floor(x.ticks / (TICKS_PM * 1000));
+    x.ticks -= months * TICKS_PM * 1000;
+    x.from = place.t;
+    built.push([x.n, months, seconds]);
+  }
+  if (!place.moves.length && !place.dead.length && !built.length) return null;
   const moves = new Map<string, number>(),
     dead = new Map<string, number>();
   for (let k = 0; k < place.moves.length; k += 4) {
@@ -2369,6 +2673,7 @@ export function settleOf(
     town,
     moves: cells(moves) as unknown as SettleMove[],
     dead: cells(dead) as unknown as SettleDead[],
+    built,
   };
 }
 
@@ -2498,7 +2803,9 @@ export function advancePlace(world: World, place: Place): number {
     now = Math.floor(world.now / PLACE_TICK) * PLACE_TICK,
     month = Math.floor(world.now / MONTH);
   layLots(world, place);
-  // (Its hands put to any order given since: before its next tick, and though the clock stands still.)
+  // (What it was asked to raise read anew where that has changed; its hands put to any order given since: before its next
+  // tick, and though the clock stands still.)
+  syncSites(world, place, f);
   applyOrders(world, place, f);
   if (now <= place.t) return 0;
   let ticks = 0;
@@ -2511,6 +2818,7 @@ export function advancePlace(world: World, place: Place): number {
       ticks++;
     }
     reconcile(world, place, s, f, month);
+    unworked(place);
     return ticks;
   }
   while (place.t < now) {
@@ -2657,6 +2965,102 @@ export function placeLot(place: Place, lot: number): PlaceLotRead {
     here,
     households,
   };
+}
+
+/** A site of a place, read: how far it has got, what it wants, and who works it. */
+export type PlaceSiteRead = {
+  /** The asking behind it (its number among its town's), its lot, what it will be (a building's kind). */
+  readonly n: number;
+  readonly lot: number;
+  readonly kind: string;
+  /** How far it has got, 0 … 1: what its land has been told and what its own people have done since. */
+  readonly share: number;
+  readonly worked: number;
+  readonly effort: number;
+  /** Whether the place has it in hand, with how many, and the most it could put to it. */
+  readonly inHand: boolean;
+  readonly hands: number;
+  readonly most: number;
+  /** Its crew (their numbers), and how many of them are at it or carrying to it now. */
+  readonly crew: readonly number[];
+  readonly busy: number;
+  /** What it is built of (tonnes): lying on the site, brought in all, and what the rest of it wants. */
+  readonly stuff: number;
+  readonly brought: number;
+  readonly wants: number;
+  /** Tools (measures): on the site, and what the rest of it will wear out. */
+  readonly tools: number;
+  readonly toolsWanted: number;
+  /** Food the rest of it takes over what its hands would have eaten at home (measures: a person's month each). */
+  readonly food: number;
+  readonly stopped: boolean;
+  /** All it wants is done here, and its land has yet to be told. */
+  readonly raised: boolean;
+  /** Months more at this rate (its hands at a third of their time, as its land's month reckons them). */
+  readonly months: number;
+};
+
+/** A place's sites: every building its town was asked to raise that is still going up. */
+export function placeSites(world: World, place: Place): PlaceSiteRead[] {
+  const asks = asksIn(world, place.town),
+    ctx = populationContext(world),
+    p = place.people,
+    out: PlaceSiteRead[] = [];
+  for (let b = 1; b < place.bldgs.lot.length; b++) {
+    const a = asks[place.bldgs.site[b]! - 1],
+      w = a?.work;
+    if (!a || !w || w.done !== null || w.left) continue;
+    const lot = place.bldgs.lot[b]!,
+      site = place.sites.find((x) => x.n === a.n),
+      here = site ? site.ticks / (TICKS_PM * 1000) : 0,
+      // (What its land's count runs ahead by is not yet done: sim/town/managed.ts siteOwed.)
+      done = w.worked - siteOwed(world, a) + here,
+      left = Math.max(0, w.effort - done),
+      crew: number[] = [];
+    let busy = 0;
+    if (site)
+      for (let i = 0; i < p.n; i++)
+        if (p.bound[i] === BOUND_SITE && p.work[i] === lot) {
+          crew.push(p.id[i]!);
+          if (p.act[i] === ACT.build || p.act[i] === ACT.stuff) busy++;
+        }
+    out.push({
+      n: a.n,
+      lot,
+      kind: kindName(place.bldgs.kind[b]!),
+      share: Math.max(0, Math.min(1, done / w.effort)),
+      worked: done,
+      effort: w.effort,
+      inHand: !!site,
+      hands: w.hands,
+      most: siteMostHands(ctx, a),
+      crew,
+      busy,
+      stuff: (site?.stuff ?? 0) / MICRO,
+      brought: (site?.brought ?? 0) / MICRO,
+      wants: left * SITE_TONNES,
+      tools: place.bldgs.stock[b * GOOD_COUNT + G.tools]! / MICRO,
+      toolsWanted: left / SITE_TOOL_MONTHS,
+      food: left / 2,
+      stopped: w.stops.at(-1)?.to === null,
+      raised: !!site && left <= 0,
+      months: left / Math.max(1, w.hands),
+    });
+  }
+  return out;
+}
+
+/** How far along a site is, in a word: what is seen of it. */
+export function siteStage(share: number): string {
+  return share < 0.08
+    ? "its ground cleared and its footing dug"
+    : share < 0.3
+      ? "its frame going up"
+      : share < 0.75
+        ? "its walls rising"
+        : share < 0.95
+          ? "its roof going on"
+          : "being fitted out";
 }
 
 /** What happened to someone, in words ("died", "took up other work"). */

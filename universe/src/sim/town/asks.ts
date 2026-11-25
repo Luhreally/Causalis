@@ -40,6 +40,7 @@ import { orderOf } from "../order/order.ts";
 import { politiesOf } from "../polity/polity.ts";
 import { warsOf } from "../war/war.ts";
 import { CIVIC_LOTS, TownBuilder, housingOf, townUseOf, townsOf, type Fabric } from "./fabric.ts";
+import { siteCovered, siteOwed } from "./managed.ts";
 
 export const ASK_EVENTS = {
   asked: defineEventType("town.asked", 5),
@@ -99,11 +100,14 @@ export type AskWork = {
   readonly at: number;
   readonly lots: number;
   readonly start: number;
-  /** How many at work on it, and the person-months it wants in all. */
-  readonly hands: number;
+  /**
+   * How many at work on it, and the person-months it wants in all. (The hands are as its town spared them when it took the
+   * asking up; a town managed may be told how many, sim/town/managed.ts place.site.)
+   */
+  hands: number;
   readonly effort: number;
   /** A share of its land's harvest, in thousandths, those hands would have brought in. */
-  readonly drain: number;
+  drain: number;
   worked: number;
   /** The moment it was finished, and its telling. */
   done: number | null;
@@ -178,6 +182,9 @@ const FEWEST = 30;
 const GRANARY_FEEDS = 4000;
 /** Person-months in a year of a building's plan: six hands, all year. */
 const YEARS_WORK = 72;
+/** Tonnes of what it is built of a person-month of raising wants (est), and the person-months a measure of tools lasts a site. */
+export const SITE_TONNES = 1.5;
+export const SITE_TOOL_MONTHS = 40;
 /** A well is a small thing. */
 const WELL_EFFORT = 26;
 /** One more of a kind, a great town may be asked for: one for so many of its people. */
@@ -777,6 +784,54 @@ function stoppedBy(
   return hungry ? { why: "food", ref: null } : null;
 }
 
+/**
+ * So many person-months worked on a site: tools worn out of its land's stores, and the thing finished when it has had all
+ * it wants. The month's own work (asksMonth), and what a town kept in detail did on it by its own people (place.settle).
+ */
+export function askWorked(
+  ctx: PopulationContext,
+  a: Ask,
+  hands: number,
+  t: SimTime,
+  /** Person-months its count runs ahead of what was truly done (sim/town/managed.ts siteOwed): done when it has those too. */
+  owed = 0,
+): void {
+  const { world } = ctx,
+    w = a.work;
+  if (!w || w.done !== null || w.left) return;
+  const s = ctx.settlements.get(a.town),
+    f = townsOf(world).get(a.town),
+    m = marketsOf(world).of(a.cell),
+    wear = w.worked % SITE_TOOL_MONTHS < hands ? Math.ceil(hands / SITE_TOOL_MONTHS) : 0;
+  if (wear) w.tools += m.take("used", G.tools, wear);
+  w.worked += hands;
+  if (w.worked < w.effort + owed || !s || !f) return;
+  const store = asksOf(world);
+  w.done = t;
+  w.doneEvent = world.events.emit({
+    type: ASK_EVENTS.raised.type,
+    subjects: [a.town],
+    place: ctx.provinces.get(a.cell)?.ref ?? null,
+    causes: [{ ref: a.event, role: "trigger", weight: 1 }],
+    data: {
+      name: s.name,
+      what: a.what,
+      hands: w.hands,
+      began: a.t,
+      ...(a.by ? { ruler: a.by.ruler } : {}),
+    },
+  });
+  if (a.what === "walls" && f.walls)
+    f.walls = { start: f.walls.start, end: yearOfMoment(t), reach: f.walls.reach };
+  townsOf(world).fold(a.town, 8, yearOfMoment(t), w.at);
+  store.open.splice(store.open.indexOf(a), 1);
+}
+
+/** What stops a site now (null: nothing): as its month reads it. */
+export function askStopped(ctx: PopulationContext, a: Ask, t: SimTime): boolean {
+  return stoppedBy(ctx, a, t) !== null;
+}
+
 /** The month's work on everything a town was asked to raise. */
 export function asksMonth(ctx: PopulationContext, t: SimTime): void {
   const store = asksOf(ctx.world);
@@ -814,7 +869,10 @@ export function asksMonth(ctx: PopulationContext, t: SimTime): void {
       leave("taken");
       continue;
     }
-    const stop = stoppedBy(ctx, a, t),
+    // (Where its town is kept in detail and has the site in hand, what its own people did there has been told already,
+    // sim/town/managed.ts place.settle: the month's hands are those of the time it was not.)
+    const covered = siteCovered(world, a, MONTH, t),
+      stop = stoppedBy(ctx, a, t),
       last = w.stops.at(-1);
     if (stop) {
       if (last && last.to === null) continue;
@@ -823,29 +881,12 @@ export function asksMonth(ctx: PopulationContext, t: SimTime): void {
     }
     if (last && last.to === null) last.to = t;
     // A month's work: its hands fed from the land's stores over what they would have eaten, their tools worn.
-    const m = marketsOf(world).of(a.cell);
-    const wear = w.worked % 40 < w.hands ? Math.ceil(w.hands / 40) : 0;
-    if (wear) w.tools += m.take("used", G.tools, wear);
-    w.worked += w.hands;
-    if (w.worked >= w.effort) {
-      w.done = t;
-      w.doneEvent = world.events.emit({
-        type: ASK_EVENTS.raised.type,
-        subjects: [a.town],
-        place,
-        causes: [{ ref: a.event, role: "trigger", weight: 1 }],
-        data: {
-          name: s.name,
-          what: a.what,
-          hands: w.hands,
-          began: a.t,
-          ...(a.by ? { ruler: a.by.ruler } : {}),
-        },
-      });
-      if (a.what === "walls" && f.walls)
-        f.walls = { start: f.walls.start, end: yearOfMoment(t), reach: f.walls.reach };
-      townsOf(world).fold(a.town, 8, yearOfMoment(t), w.at);
-      store.open.splice(store.open.indexOf(a), 1);
-    }
+    askWorked(
+      ctx,
+      a,
+      covered > 0 ? Math.floor(w.hands * (1 - covered / MONTH)) : w.hands,
+      t,
+      covered > 0 ? siteOwed(world, a) : 0,
+    );
   }
 }

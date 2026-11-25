@@ -6,19 +6,34 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { HOUR, loadWorld, saveWorld, type World } from "../../src/kernel/index.ts";
-import { populationContext } from "../../src/sim/index.ts";
+import { asksOf, populationContext } from "../../src/sim/index.ts";
 import { EARTH } from "../../src/host/index.ts";
+import { townOffers } from "../../src/host/inspect/asks.ts";
 import { enterPlace, placeDigest, placesOf } from "../../src/host/place.ts";
 import { universeWorld } from "./worlds.ts";
 
 const [mode, a, b] = process.argv.slice(2);
 
+/**
+ * The smallest town of more than 300 that takes up the raising of a building, the site taken in hand (kept in the save
+ * with what its crew has done on it); the smallest of them where none does.
+ */
 function town(w: World): string {
-  const ctx = populationContext(w);
-  return ctx.settlements
-    .all()
-    .filter((s) => ctx.settlements.held(s.ref) && s.population > 300)
-    .sort((x, y) => x.population - y.population || (x.ref < y.ref ? -1 : 1))[0]!.ref;
+  const ctx = populationContext(w),
+    towns = ctx.settlements
+      .all()
+      .filter((s) => ctx.settlements.held(s.ref) && s.population > 300)
+      .sort((x, y) => x.population - y.population || (x.ref < y.ref ? -1 : 1));
+  for (const s of towns.slice(0, 12))
+    for (const r of townOffers(w, s.ref)?.raises ?? []) {
+      if (r.what === "walls" || r.what === "well") continue;
+      w.runTo(w.submit("town.ask", { village: s.ref, kind: "raise", what: r.what }).t);
+      const a = asksOf(w).ofTown(s.ref).at(-1);
+      if (!a?.work) continue;
+      w.runTo(w.submit("place.site", { town: s.ref, ask: a.n, hands: a.work.hands }).t);
+      return s.ref;
+    }
+  return towns[0]!.ref;
 }
 function go(w: World, ref: string, hours: number): void {
   for (let h = 0; h < hours; h += 3) {

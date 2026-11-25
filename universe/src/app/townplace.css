@@ -227,6 +227,9 @@ body.placing #hud > *:not(.place-hud):not(.page-window):not(.panel.page-panel) {
   gap: 6px;
   margin: 2px 0;
 }
+.place-hud .place-site {
+  grid-template-rows: auto auto;
+}
 .place-line-words {
   flex: 1 1 0;
   min-width: 0;

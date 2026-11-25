@@ -6,6 +6,7 @@ import { DAY, MONTH, YEAR, hashString, type Ref, type World } from "../kernel/in
 import { cradleTongue, personName, tongueName, tonguePersonName } from "../gen/index.ts";
 import { CIVICS, FOODS, GOODS, OCC, OCCUPATIONS, civic, type CivicKind } from "../rules/index.ts";
 import { MANAGED_TRADES, cultureOf, lifeOf, populationContext } from "../sim/index.ts";
+import { builtOf } from "./inspect/asks.ts";
 import {
   placeLotRef,
   placePersonRef,
@@ -13,6 +14,7 @@ import {
   type PlaceLogSheet,
   type PlaceNotice,
   type PlacePeopleSheet,
+  type PlaceSiteRow,
   type PlaceStockRow,
   type PlaceStocksSheet,
   type PlaceWorkSheet,
@@ -24,6 +26,7 @@ import {
   ACT,
   ACT_WORDS,
   AT,
+  BOUND_SITE,
   CAUSE,
   HAP,
   MOOD_UNHEEDING,
@@ -36,8 +39,10 @@ import {
   ordersOf,
   placeFigure,
   placeIndexOf,
+  placeSites,
   placesOf,
   pressOf,
+  siteStage,
   workWorth,
   type Place,
 } from "./place.ts";
@@ -58,8 +63,9 @@ export function lotWords(place: Place, lot: number): string {
   if (lot === AT.fields) return "the fields";
   const b = place.bldgs.lot.indexOf(lot);
   if (b > 0) {
-    const kind = PLACE_KINDS[place.bldgs.kind[b]!];
-    return kind ? `the ${civic(kind).name.replace(/^(a|an) /, "")}` : "a building";
+    const kind = PLACE_KINDS[place.bldgs.kind[b]!],
+      rising = place.bldgs.site[b] ? " going up" : "";
+    return kind ? `the ${civic(kind).name.replace(/^(a|an) /, "")}${rising}` : "a building";
   }
   return `the home on lot ${lot}`;
 }
@@ -128,6 +134,14 @@ export function whyWords(world: World, place: Place, i: number): string {
       return `The work of ${lotWords(place, p.work[i]!)} is stopped by your order: at home until it goes on`;
     case WHY.abed:
       return `${ailWords(place, i)}: abed at home, ${Math.ceil(p.ill[i]! / 144)} more ${Math.ceil(p.ill[i]! / 144) === 1 ? "day" : "days"}, fed from the pantry by their household`;
+    case WHY.site:
+      return `Put to raising ${lotWords(place, p.work[i]!)} by your order. Nothing presses harder than ${bar}${going}`;
+    case WHY.stuff:
+      return `Nothing lies on the site to build in: a load of what it is built of is fetched from outside the town, a third of their own weight at a time${going}`;
+    case WHY.stopped:
+      return `Work on ${lotWords(place, p.work[i]!)} is stopped, as its land's month stops it (fighting on its land, the ground's shaking, or nothing in store to feed its hands): at home until it goes on`;
+    case WHY.raised:
+      return `All that ${lotWords(place, p.work[i]!)} wants is done. Its land is told at the month's turn, or on leaving, and then it stands`;
     case WHY.dark:
       return `It is dark: work by sight is worth less than rest (${pct(IDLE_WORTH)}) until light`;
     default:
@@ -253,7 +267,33 @@ export function placePlan(
     }
   // (The plan's own goings name its own people by their place among them: none of those are of the place.)
   const { goings: _, ...bare } = plan;
-  return { ...bare, people, placed };
+  // A site the place has in hand is drawn as far as its own people have got it, going on at its hands' usual rate.
+  const sites = placeSites(world, place).filter((x) => x.inHand),
+    town =
+      bare.town && sites.length
+        ? {
+            ...bare.town,
+            civics: bare.town.civics.map((c) => {
+              const x = c.asked ? sites.find((q) => q.lot === (c.truly ?? c.at)) : undefined;
+              return x && c.asked
+                ? {
+                    ...c,
+                    asked: {
+                      ...c.asked,
+                      read: place.t,
+                      share: x.share,
+                      stopped: x.stopped || x.raised,
+                      done: place.t + x.months * MONTH + (x.stopped ? YEAR : 0),
+                      hands: x.hands,
+                      // (Its crew are the place's own people, at the site: none of the plan's stand in for them.)
+                      crew: [],
+                    },
+                  }
+                : c;
+            }),
+          }
+        : bare.town;
+  return { ...bare, ...(town ? { town } : {}), people, placed };
 }
 
 /** What wants a manager's eye in a place now, the most pressing first. */
@@ -266,8 +306,14 @@ export function placeNotices(world: World, place: Place): PlaceNotice[] {
   for (let i = 0; i < p.n; i++) {
     if (p.lack[i]! >= 144) want++;
     if (p.why[i] === WHY.noFood || p.why[i] === WHY.pantry) bare.add(p.house[i]!);
-    // (Those whose building's work an order stopped wait by that order: no notice of it is wanted.)
-    if (p.act[i] === ACT.wait && p.why[i] !== WHY.shut)
+    // (Those whose building's work an order stopped wait by that order: no notice of it is wanted. A site's crew waiting
+    // are told of with their site, below.)
+    if (
+      p.act[i] === ACT.wait &&
+      p.why[i] !== WHY.shut &&
+      p.why[i] !== WHY.stopped &&
+      p.why[i] !== WHY.raised
+    )
       waiting.set(p.work[i]!, (waiting.get(p.work[i]!) ?? 0) + 1);
   }
   if (want)
@@ -288,11 +334,33 @@ export function placeNotices(world: World, place: Place): PlaceNotice[] {
       words: `${n} at ${lotWords(place, lot)} wait for want of what they work`,
       ref: placeLotRef(place.town, lot),
     });
+  for (const x of placeSites(world, place)) {
+    if (!x.inHand) continue;
+    const name = lotWords(place, x.lot).replace(/ going up$/, "");
+    if (x.raised)
+      out.push({
+        key: `raised${x.lot}`,
+        words: `All that ${name} wants is done: it stands once its land is told`,
+        ref: placeLotRef(place.town, x.lot),
+      });
+    else if (x.stopped)
+      out.push({
+        key: `stopped${x.lot}`,
+        words: `Work on ${name} is stopped`,
+        ref: placeLotRef(place.town, x.lot),
+      });
+    else if (x.crew.length < x.hands)
+      out.push({
+        key: `crew${x.lot}`,
+        words: `${name} has ${x.crew.length} of the ${x.hands} hands ordered to it: no more of its grown are free and well`,
+        ref: placeLotRef(place.town, x.lot),
+      });
+  }
   const unsettled = place.moves.length / 4 + place.dead.length / 3;
   if (unsettled && ordersOf(world, place.town))
     out.push({
       key: "unsettled",
-      words: `${unsettled} of its doings by your orders are told to its land at the month's turn, or on leaving`,
+      words: `${unsettled} of its doings by your orders ${unsettled === 1 ? "is" : "are"} told to its land at the month's turn, or on leaving`,
       ref: null,
     });
   return out;
@@ -365,6 +433,9 @@ export function placeFrame(world: World, town: string, ids: readonly number[]): 
     managed: !!ordersOf(world, town),
     unsettled: place.moves.length / 4 + place.dead.length / 3,
     month: Math.floor(place.t / MONTH),
+    sites: placeSites(world, place)
+      .filter((x) => x.inHand)
+      .map((x) => ({ lot: x.lot, share: x.share, stopped: x.stopped, raised: x.raised })),
   };
 }
 
@@ -405,9 +476,11 @@ export function peopleSheet(
         mood: p.mood[i]!,
         health: p.health[i]!,
         bound:
-          p.bound[i] && p.bound[i] !== 255
-            ? tradeWords(p.bound[i]! - 1, false).replace(/^a /, "")
-            : null,
+          p.bound[i] === BOUND_SITE
+            ? "builder"
+            : p.bound[i] && p.bound[i] !== 255
+              ? tradeWords(p.bound[i]! - 1, false).replace(/^a /, "")
+              : null,
         id: p.id[i]!,
       };
     }),
@@ -501,10 +574,31 @@ export function workSheet(world: World, place: Place): PlaceWorkSheet {
     const b = place.bldgs.lot.indexOf(p.work[i]!);
     if (b > 0) working[b]!++;
   }
-  const shut = ordersOf(world, place.town)?.shut ?? [];
+  const shut = ordersOf(world, place.town)?.shut ?? [],
+    stuff = placeSites(world, place).length ? builtOf(world, place.cell) : "",
+    sites: PlaceSiteRow[] = placeSites(world, place).map((x) => ({
+      ask: x.n,
+      ref: placeLotRef(place.town, x.lot),
+      name: lotWords(place, x.lot)
+        .replace(/^the /, "")
+        .replace(/ going up$/, ""),
+      share: x.share,
+      stage: siteStage(x.share),
+      inHand: x.inHand,
+      hands: x.hands,
+      most: x.most,
+      busy: x.busy,
+      stuff,
+      lying: x.stuff,
+      wants: x.wants,
+      stopped: x.stopped,
+      raised: x.raised,
+      months: x.months,
+    }));
   return {
     unheeding,
     abed,
+    sites,
     buildings: place.bldgs.lot
       .map((lot, b) => ({
         lot,
@@ -513,7 +607,7 @@ export function workSheet(world: World, place: Place): PlaceWorkSheet {
         working: working[b]!,
         shut: shut.includes(lot),
       }))
-      .filter((x, b) => b > 0 && (x.working > 0 || x.shut)),
+      .filter((x, b) => b > 0 && !place.bldgs.site[b] && (x.working > 0 || x.shut)),
     hands,
     shares: ordersOf(world, place.town)?.work ?? null,
     leaders,

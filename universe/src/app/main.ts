@@ -1090,6 +1090,7 @@ type Exposed = {
     pace(seconds: number): void;
     sheet(tab: PlaceTab | null): void;
     order(type: string, args: Record<string, unknown>): Promise<string | null>;
+    lotAt(lot: number): { x: number; z: number } | null;
     state(): { on: boolean; town: string | null; tells: string | null; told: PlaceFrame | null };
   };
   faunaNow?: () => {
@@ -10847,6 +10848,7 @@ async function runPlanetPage(): Promise<void> {
     pace: (seconds: number) => placeFlow.pace(seconds),
     sheet: (tab: PlaceTab | null) => placeFlow.sheet(tab),
     order: (type: string, args: Record<string, unknown>) => placeFlow.order(type, args),
+    lotAt: (lot: number) => placeFlow.lotAt(lot),
     state: () => ({
       on: placeFlow.on,
       town: placeFlow.town,

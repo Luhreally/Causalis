@@ -7,6 +7,7 @@
 // pace a day can be watched at; leaving puts the clock and the god game's chrome back, and the town's usual people.
 import "./townplace.css";
 import {
+  askedGrown,
   placeLotRef,
   type HostClient,
   type PlaceFrame,
@@ -59,6 +60,8 @@ export type PlaceFlow = {
   order(type: string, args: Record<string, unknown>): Promise<string | null>;
   /** What its notice line tells (the look tools). */
   readonly noticed: string | null;
+  /** Where a lot of the town entered stands on its ground (metres from its square; the look tools). */
+  lotAt(lot: number): { x: number; z: number } | null;
 };
 
 /** The eye over a town entered (world units; as a life's: app/life.ts): a few homes across. */
@@ -81,7 +84,10 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     pace = 600,
     /** The month its doings were last told to its land in (sim/town/managed.ts place.settle). */
     settled = -1,
-    settling = false;
+    settling = false,
+    /** The sites it had in hand when last told, and when its plan was last read again for them (the page's clock, ms). */
+    sited = "",
+    replanned = 0;
 
   /** What the town did by its orders told to its land: at a month's turn, and on leaving. */
   const settle = async (): Promise<void> => {
@@ -120,10 +126,30 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
         if (settled < 0) settled = f.month;
         if (f.month !== settled) {
           settled = f.month;
-          if (f.managed && f.unsettled > 0) void settle();
+          if (f.managed && (f.unsettled > 0 || f.sites.length > 0)) void settle();
         }
+        sites(f);
       },
     );
+  };
+
+  /**
+   * Its sites in hand, as told: one all done here is told to its land at once (then it stands); and the town is drawn
+   * again where a site has got further, or less far, than its drawing has it going (a twenty-fifth of the whole), or has
+   * been stopped, finished or given back.
+   */
+  const sites = (f: PlaceFrame): void => {
+    if (f.sites.some((x) => x.raised)) void settle();
+    const key = f.sites.map((x) => `${x.lot}${x.stopped || x.raised ? "s" : ""}`).join(","),
+      civics = d.plan()?.town?.civics ?? [],
+      off = f.sites.some((x) => {
+        const c = civics.find((q) => (q.truly ?? q.at) === x.lot);
+        return !!c?.asked && Math.abs(askedGrown(c.asked, f.t) - x.share) > 0.04;
+      });
+    if ((key === sited && !off) || performance.now() - replanned < 4000) return;
+    sited = key;
+    replanned = performance.now();
+    if (town) void d.reload(town);
   };
 
   /** The sheet open read, and read again while it stays open. */
@@ -167,6 +193,8 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
   const order = async (type: string, args: Record<string, unknown>): Promise<string | null> => {
     if (!town) return "no town is entered";
     try {
+      // (A site given back: what its crew did is told to its land first, or it would be lost with them.)
+      if (type === "place.site" && args.hands === null) await settle();
       // (What a town is asked to raise is asked as the god game asks it: sim/town/asks.ts.)
       await d.client.command(
         type,
@@ -184,8 +212,9 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     if (!town) return;
     const left = town;
     // (What it did by its orders told to its land before it is left.)
-    if (told?.managed && told.unsettled > 0) await settle();
+    if (told?.managed && (told.unsettled > 0 || told.sites.length > 0)) await settle();
     town = null;
+    sited = "";
     stop?.();
     stopSheet?.();
     stop = stopSheet = null;
@@ -271,6 +300,7 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     },
     sheet: (tab) => hud.open(tab),
     order,
+    lotAt: (lot) => (town ? d.village.townLot(lot) : null),
   };
   return flow;
 }

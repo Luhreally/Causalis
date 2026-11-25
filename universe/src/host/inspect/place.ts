@@ -5,7 +5,7 @@
 // at its head while the town is kept. Read of the place as kept: a page asks nothing of it and moves nothing.
 import { DAY, YEAR, type Ref, type World } from "../../kernel/index.ts";
 import { FOODS, GOODS, OCC } from "../../rules/index.ts";
-import { lifeOf, marketGoodRef, populationContext } from "../../sim/index.ts";
+import { SITE_TONNES, asksOf, lifeOf, marketGoodRef, populationContext } from "../../sim/index.ts";
 import {
   placeLotRef,
   type Block,
@@ -18,6 +18,7 @@ import {
   ACT,
   ACT_WORDS,
   AT,
+  BOUND_SITE,
   CAUSE,
   MOOD_UNHEEDING,
   MOOD_WORDS,
@@ -29,8 +30,10 @@ import {
   placeIndexOf,
   placeLot,
   placePerson,
+  placeSites,
   placesOf,
   pressOf,
+  siteStage,
   type Place,
 } from "../place.ts";
 import {
@@ -42,6 +45,7 @@ import {
   tradeWords,
   whyWords,
 } from "../placeplan.ts";
+import { askRef, builtOf } from "./asks.ts";
 import { buildingRef, lotRef, townPartOf } from "./fabric.ts";
 import { townLink } from "./names.ts";
 import { link, many, stat, yearNow } from "./words.ts";
@@ -203,9 +207,11 @@ function personBlocks(
             ? [
                 stat(
                   "By your order",
-                  p.bound[i] === 255
-                    ? ["Put at ", lotLink(place, r.work)]
-                    : [`Held to work as ${tradeWords(p.bound[i]! - 1, false)}`],
+                  p.bound[i] === BOUND_SITE
+                    ? ["One of the crew raising ", lotLink(place, r.work)]
+                    : p.bound[i] === 255
+                      ? ["Put at ", lotLink(place, r.work)]
+                      : [`Held to work as ${tradeWords(p.bound[i]! - 1, false)}`],
                 ),
               ]
             : []),
@@ -375,6 +381,82 @@ export function placeLotPage(world: World, ref: string): PageModel {
     more = (ids: readonly number[], most = 40): Line[] =>
       ids.length > most ? [[`and ${ids.length - most} more`]] : [],
     title = cap(lotWords(place, lot).replace(/^the /, "")),
+    site = placeSites(world, place).find((x) => x.lot === lot),
+    ask = site ? asksOf(world).ofTown(place.town)[site.n] : undefined,
+    stuff = site ? builtOf(world, place.cell) : "",
+    tonnes = (x: number) => (x >= 10 ? `${Math.round(x)}` : x.toFixed(1)),
+    monthsOf = (x: number) =>
+      x < 1.5
+        ? "about a month"
+        : x < 18
+          ? `about ${Math.round(x)} months`
+          : `about ${Math.round(x / 12)} years`,
+    // A site: how far it has got, what the rest of it wants, who works it. The bill is the world's own (sim/town/asks.ts).
+    siteBlocks: Block[] = site
+      ? [
+          {
+            type: "facts",
+            title: "Going up",
+            rows: [
+              stat("So far", `${pct(site.share)} done: ${siteStage(site.share)}`),
+              stat(
+                "Worked by",
+                site.inHand
+                  ? `its own people, by your order: ${site.crew.length} of ${site.hands} hands, ${site.busy} at it now`
+                  : `the town's month, ${site.hands} hands, as in the world's own reckoning`,
+              ),
+              ...(site.stopped
+                ? [
+                    stat(
+                      "Stopped",
+                      "as its land's month stops it: fighting on its land, the ground's shaking, or nothing in store to feed its hands",
+                    ),
+                  ]
+                : site.raised
+                  ? [
+                      stat(
+                        "Done here",
+                        "its land is told at the month's turn, or on leaving, and then it stands",
+                      ),
+                    ]
+                  : [stat("At this rate", `${monthsOf(site.months)} more`)]),
+              stat(
+                cap(stuff),
+                site.inHand
+                  ? `${tonnes(site.wants)} tonnes still wanted; ${tonnes(site.stuff)} lying on the site, ${tonnes(site.brought)} brought so far, a load at a time from outside the town`
+                  : `${tonnes(site.wants)} tonnes still wanted`,
+              ),
+              stat(
+                "Tools",
+                `${amount(site.toolsWanted)} more to be worn out${site.inHand ? `; ${amount(site.tools)} on the site, brought from the market by its carriers` : ", out of its land's stores"}`,
+                {
+                  why: marketGoodRef(
+                    place.cell,
+                    GOODS.findIndex((g) => g.id === "tools"),
+                  ),
+                },
+              ),
+              stat(
+                "Food",
+                `${amount(site.food)} person-months over what its hands would eat at home: the work makes them hungry half again as fast`,
+              ),
+              ...(ask
+                ? [stat("The asking", [link("how it was asked and answered", askRef(ask))])]
+                : []),
+            ],
+          },
+          {
+            type: "text",
+            lines: [
+              [
+                site.inHand
+                  ? `Its bill is the world's own: ${SITE_TONNES} tonnes of ${stuff} to each person-month of raising, a measure of tools worn out every forty, and half a person-month of food over the usual to each. What its crew does here is told to its land at the month's turn, or on leaving, and its land's month puts no hands of its own to it for the time told: nothing is raised twice. Give it back on the Work sheet and it goes up by the town's month as before.`
+                  : `It goes up by the town's own month, as in the world's reckoning. Take it in hand on the Work sheet to put a crew of your own choosing to it: they carry its ${stuff} in, build it and are fed for it here, and its land is told what they did.`,
+              ],
+            ],
+          },
+        ]
+      : [],
     own =
       lot >= 0
         ? r.kind
@@ -392,12 +474,14 @@ export function placeLotPage(world: World, ref: string): PageModel {
       .map(([x, g]) => stat(cap(GOODS[g]!.name), amount(x))),
     stats: Stat[] = [
       ...(held.length ? held : [stat("Holds", "nothing now")]),
+      ...(site ? [stat("Going up", `${pct(site.share)}, ${siteStage(site.share)}`)] : []),
       ...(stopped ? [stat("Work", "stopped by your order")] : []),
       ...(r.kind && lot >= 0 ? [stat("Working here", `${r.working.length}`)] : []),
       ...(r.households.length ? [stat("Living here", `${r.living.length}`)] : []),
       stat("Here now", `${r.here.length}`),
     ],
     blocks: Block[] = [
+      ...siteBlocks,
       rows.length
         ? { type: "facts" as const, title: r.kind ? "Holds" : "Pantries hold", rows }
         : {
@@ -442,9 +526,11 @@ export function placeLotPage(world: World, ref: string): PageModel {
               ? "The square: those who want company come here."
               : lot === AT.fields
                 ? "The fields and pastures outside the town: its farmers and herders work here and bring in what they win a load at a time."
-                : r.kind
-                  ? "What lies here is the town's share of its land's stocks, as the world reckons them, laid where it is worked and kept; what is made and eaten here is counted, and the rest comes and goes by the land's own reckoning each month."
-                  : "A home: each household's pantry holds its food, eaten from at every meal and filled from the town's stores and its own fields.",
+                : site
+                  ? "A site: nothing is made or kept here until it stands, but the tools its crew wears."
+                  : r.kind
+                    ? "What lies here is the town's share of its land's stocks, as the world reckons them, laid where it is worked and kept; what is made and eaten here is counted, and the rest comes and goes by the land's own reckoning each month."
+                    : "A home: each household's pantry holds its food, eaten from at every meal and filled from the town's stores and its own fields.",
           ],
           ...(place.people.n >= PLACE_MOST
             ? [
@@ -474,8 +560,10 @@ export function placeLotPage(world: World, ref: string): PageModel {
   return {
     ref,
     kind: "building",
-    icon: lot === AT.fields ? "🌾" : lot === AT.square ? "⛲" : r.kind ? "🏛️" : "🏠",
-    title: `${title} of ${s.name}`,
+    icon: lot === AT.fields ? "🌾" : lot === AT.square ? "⛲" : site ? "🏗️" : r.kind ? "🏛️" : "🏠",
+    title: site
+      ? `${title.replace(/ going up$/, "")} of ${s.name}, going up`
+      : `${title} of ${s.name}`,
     subtitle: ["In ", townLink(world, s.ref as Ref)],
     color: null,
     place: { scale: "village", town: s.ref },

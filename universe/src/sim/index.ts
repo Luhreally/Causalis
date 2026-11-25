@@ -790,6 +790,8 @@ export {
   askFormOf,
   askShut,
   asksOf,
+  SITE_TONNES,
+  SITE_TOOL_MONTHS,
   effortOf,
   firstProblem,
   handsFor,
@@ -2261,11 +2263,17 @@ export {
 } from "./economy/canals.ts";
 export {
   MANAGED_TRADES,
+  WORK_SHARE,
+  askDone,
   managedDead,
   managedOf,
+  siteInHand,
+  siteMostHands,
+  siteOwed,
   type Managed,
   type ManagedStore,
   type SettleArgs,
+  type SettleBuilt,
   type SettleDead,
   type SettleMove,
 } from "./town/managed.ts";

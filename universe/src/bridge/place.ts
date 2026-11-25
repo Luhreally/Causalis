@@ -20,6 +20,9 @@ export const PLACE_ACT = {
   haul: 9,
   /** Abed, hurt or sick. */
   abed: 10,
+  /** At work on a site, raising what the town was asked for; and gone for a load of what it is built of. */
+  build: 11,
+  stuff: 12,
 } as const;
 
 /** The page of one of a place's people, and of one of its lots (its square and its fields too). */
@@ -62,6 +65,16 @@ export type PlaceFrame = {
   readonly unsettled: number;
   /** The month of the world's clock its tick stands in: at its turn what is unsettled is told. */
   readonly month: number;
+  /**
+   * Its sites in hand (buildings it was asked to raise, worked by its own people): the lot each stands on, how far it has
+   * got (0 … 1), whether it is stopped, and whether all it wants is done here and its land has yet to be told.
+   */
+  readonly sites: readonly {
+    readonly lot: number;
+    readonly share: number;
+    readonly stopped: boolean;
+    readonly raised: boolean;
+  }[];
 };
 
 export type PlaceNotice = {
@@ -147,6 +160,31 @@ export type PlaceWorkSheet = {
     readonly working: number;
     readonly shut: boolean;
   }[];
+  /** What it was asked to raise that is still going up. */
+  readonly sites: readonly PlaceSiteRow[];
+};
+/** A site on a place's Work sheet. */
+export type PlaceSiteRow = {
+  /** The asking behind it (its number among its town's), its lot's page, and what it will be ("granary"). */
+  readonly ask: number;
+  readonly ref: string;
+  readonly name: string;
+  /** How far it has got (0 … 1), and what is seen of it ("its walls rising"). */
+  readonly share: number;
+  readonly stage: string;
+  /** Whether the town has it in hand, with how many hands, the most it can put to it, and how many are at it now. */
+  readonly inHand: boolean;
+  readonly hands: number;
+  readonly most: number;
+  readonly busy: number;
+  /** What it is built of, in a word, and the tonnes of it lying on the site and still wanted. */
+  readonly stuff: string;
+  readonly lying: number;
+  readonly wants: number;
+  readonly stopped: boolean;
+  readonly raised: boolean;
+  /** Months more, at its hands' usual rate. */
+  readonly months: number;
 };
 /** What happened in a place, a line each, the latest first: when (its clock), said, and the page that tells more. */
 export type PlaceLogSheet = {

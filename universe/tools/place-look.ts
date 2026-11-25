@@ -14,7 +14,7 @@ import { chromium, type Page } from "playwright";
 import { loadWorld, rulesetId, seedFromText } from "../src/kernel/index.ts";
 import { EARTH } from "../src/host/planet.ts";
 import { populationContext } from "../src/sim/index.ts";
-import type { PlaceFrame } from "../src/bridge/index.ts";
+import type { PlaceFrame, PlaceWorkSheet } from "../src/bridge/index.ts";
 import { hudRead, type HudRead } from "./hud-read.ts";
 
 const argv = process.argv.slice(2),
@@ -356,6 +356,90 @@ for (const view of [
     say(`build after asking: ${(await sheetText()).slice(0, 200)}`);
     await read("the Build sheet after asking");
   }
+  // A site: what it was asked to raise, on its Work sheet; taken in hand with a crew of its own, given a hand more; its
+  // lot's page; and the thing seen going up, from near to far (a dolly: the same thing at every distance, nothing moved).
+  const workNow = () =>
+      k<PlaceWorkSheet | null>(
+        `globalThis.causalis.client.query({ type: "place.work", args: { ref: ${JSON.stringify(town.ref)} } })`,
+      ),
+    site = (await workNow())?.sites[0];
+  if (site) {
+    await press('.place-tab[data-tab="work"]', "the Work tab");
+    await until("its sites on the Work sheet", async () => /Going up/.test(await sheetText()));
+    await k(`document.querySelector(".place-site").scrollIntoView({ block: "start" })`);
+    await page.waitForTimeout(slow(300));
+    say(`site: ${await k<string>(`document.querySelector(".place-site").textContent`)}`);
+    await shot(site.inHand ? "7e-site-in-hand-kept" : "7e-site-left-to-the-town");
+    await read("the Work sheet with a site going up");
+    if (site.inHand) {
+      // (Given back, then taken again: both keys.)
+      await press(".place-site-keys .place-order", "Give back");
+      await until("the site given back", async () => (await workNow())?.sites[0]?.inHand === false);
+      await page.waitForTimeout(slow(1200));
+      await shot("7e2-site-given-back");
+      await read("a site given back");
+    }
+    await press(".place-site-keys .place-order", "Take in hand");
+    await until("the site in hand", async () => (await workNow())?.sites[0]?.inHand === true);
+    await page.waitForTimeout(slow(1200));
+    const had = (await workNow())!.sites[0]!.hands;
+    if (had < site.most) {
+      await press(".place-site-keys .place-step:nth-of-type(2)", "a hand more to the site");
+      await until("a hand more", async () => (await workNow())!.sites[0]!.hands === had + 1);
+    }
+    await page.waitForTimeout(slow(1200));
+    await k(`document.querySelector(".place-site").scrollIntoView({ block: "start" })`);
+    say(`site in hand: ${await k<string>(`document.querySelector(".place-site").textContent`)}`);
+    await shot("7f-site-in-hand");
+    await read("a site in hand");
+    await k(`globalThis.causalis.open(${JSON.stringify(site.ref)})`);
+    await until("the site's page", async () =>
+      ((await k<string | null>("globalThis.causalis.pageOpen()")) ?? "").startsWith("plcl:"),
+    );
+    await page.waitForTimeout(slow(700));
+    const told = await k<string>(`document.querySelector(".page-window")?.textContent ?? ""`);
+    say(`site's page: ${told.slice(0, 1500)}`);
+    for (const word of ["Going up", "tonnes still wanted", "Tools", "Food", "by your order"])
+      check(told.includes(word), `the site's page says "${word}"`);
+    await shot("7g-site-page");
+    await read("a site's page open");
+    await k("globalThis.causalis.closePage()");
+    await press(".place-sheet-shut", "the sheet's close");
+    // Its crew at it by day: the clock run on to the middle of a working day, then stopped.
+    await press('.place-pace[data-pace="3600"]', "the hour-a-second pace");
+    await until(
+      "the middle of a day with the crew at the site",
+      async () => {
+        const s = await state(),
+          hour = (((s.told?.t ?? 0) % 86400) + 86400) % 86400;
+        return hour > 10 * 3600 && hour < 13 * 3600 && ((await workNow())?.sites[0]?.busy ?? 0) > 0;
+      },
+      slow(90000),
+    );
+    await press('.place-pace[data-pace="0"]', "the pause");
+    const lot = Number(site.ref.slice(site.ref.lastIndexOf(":") + 1)) - 3,
+      at = await k<{ x: number; z: number } | null>(`globalThis.causalis.place.lotAt(${lot})`);
+    check(!!at, "the site stands on a lot of the town drawn");
+    check(
+      ((await state()).told?.sites.length ?? 0) === 1,
+      "the place tells the page how far its site has got",
+    );
+    if (at) {
+      for (const distance of [2.5, 5, 9, 16, 30, 55, 90]) {
+        await k(
+          `globalThis.causalis.rig.flyTo({ target: { x: ${at.x * 0.1}, y: 0.3, z: ${at.z * 0.1} }, distance: ${distance}, pitch: -42 }, 0.01)`,
+        );
+        await page.waitForTimeout(slow(1400));
+        await shot(`7h-site-dolly-${String(distance).padStart(4, "0")}`);
+      }
+      await read("the town with a site in hand, from afar");
+      await k(
+        `globalThis.causalis.rig.flyTo({ target: { x: ${at.x * 0.1}, y: 0.3, z: ${at.z * 0.1} }, distance: 9, pitch: -48 }, 0.01)`,
+      );
+      await page.waitForTimeout(slow(900));
+    }
+    await press('.place-pace[data-pace="600"]', "the ten-minutes-a-second pace");
+  } else say("nothing is going up here: no site was looked at");
   // Its log: what has happened, each line leading to a page.
   await press('.place-tab[data-tab="log"]', "the Log tab");
   await until("the Log sheet", async () => (await shownCount(".place-log-row")) > 0);

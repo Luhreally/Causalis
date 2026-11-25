@@ -44,6 +44,10 @@ const DOING: readonly Activity[] = [
   ACTIVITY.gathering,
   ACTIVITY.resting,
   ACTIVITY.walking,
+  ACTIVITY.abed,
+  // (Raising a building, and gone for a load of what it is built of.)
+  ACTIVITY.working,
+  ACTIVITY.walking,
 ];
 
 type Way = { readonly points: Point[]; readonly lengths: number[]; readonly whole: number };
@@ -182,7 +186,8 @@ export class PlaceBodies implements PosedHook {
         if (w.lengths[leg]! > 0) yaw = Math.atan2(b.x - a.x, b.z - a.z);
       } else ({ x, z } = this.spot(i, at));
       // (Asleep, or indoors getting warm: within.)
-      const hidden = !walking && (act === PLACE_ACT.sleep || act === PLACE_ACT.warm),
+      const hidden =
+          !walking && (act === PLACE_ACT.sleep || act === PLACE_ACT.warm || act === PLACE_ACT.abed),
         moment: Moment = {
           x,
           z,

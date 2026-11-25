@@ -10,6 +10,8 @@ import {
   askFormOf,
   askShut,
   asksOf,
+  askDone,
+  SITE_TONNES,
   designsOf,
   houseFor,
   effortOf,
@@ -198,7 +200,7 @@ function askShort(world: World, a: Ask): string {
         ? `${sentenceCase(firstWords(world, a.what))} first`
         : sentenceCase(raiseName(world, a.what)),
     w = a.work;
-  return `${thing}, year ${count(yearOfMoment(a.t))}: ${ANSWER_WORD[a.answer]}${w ? (w.done !== null ? ", and raised" : w.left ? ", and given up" : `, ${Math.round((w.worked / w.effort) * 100)} in a hundred done`) : ""}`;
+  return `${thing}, year ${count(yearOfMoment(a.t))}: ${ANSWER_WORD[a.answer]}${w ? (w.done !== null ? ", and raised" : w.left ? ", and given up" : `, ${Math.round(Math.min(1, askDone(world, a) / w.effort) * 100)} in a hundred done`) : ""}`;
 }
 
 const WHO_ANSWERS: Readonly<Record<AskForm, string>> = {
@@ -490,7 +492,7 @@ const WALL_STUFF: Readonly<Record<string, string>> = {
 };
 
 /** What a land's people build in, in a word: the walls of the homes they raise now. */
-function builtOf(world: World, cell: number): string {
+export function builtOf(world: World, cell: number): string {
   const ctx = populationContext(world),
     land = ctx.provinces.get(cell),
     design = land
@@ -511,10 +513,10 @@ function siteBlocks(world: World, a: Ask): Block[] {
   const w = a.work;
   if (!w) return [];
   const ctx = populationContext(world),
-    share = Math.min(1, w.worked / w.effort),
+    share = Math.min(1, askDone(world, a) / w.effort),
     now = world.now,
     stuff = builtOf(world, a.cell),
-    tonnes = Math.round(w.effort * 1.5),
+    tonnes = Math.round(w.effort * SITE_TONNES),
     lines: Line[] = [],
     grips = meansOfWorld(ctx.generated).grips,
     stoppedNow = w.stops.at(-1)?.to === null ? w.stops.at(-1)! : null;
@@ -541,7 +543,7 @@ function siteBlocks(world: World, a: Ask): Block[] {
       ...named,
       `${grips ? "" : ". They have no hands to grip with: it goes up by mouth and shoulder, half as slow again"}.`,
     ]);
-    const left = (w.effort - w.worked) / w.hands;
+    const left = (w.effort - askDone(world, a)) / w.hands;
     lines.push([
       `${Math.round(share * 100)} in a hundred done. ${stoppedNow ? "It will wait as long as this does." : `At this rate, ${MONTHS_WORD(left)} more.`}`,
     ]);
@@ -718,7 +720,7 @@ export function askPage(world: World, ref: string): PageModel {
         ? [
             stat(
               "Done",
-              `${Math.round(Math.min(1, a.work.worked / a.work.effort) * 100)} in a hundred`,
+              `${Math.round(Math.min(1, askDone(world, a) / a.work.effort) * 100)} in a hundred`,
             ),
           ]
         : []),
@@ -788,7 +790,7 @@ const HEAP: readonly [number, number, number] = [0.62, 0.58, 0.5];
 function readAsked(world: World, a: Ask): TownAsked {
   const w = a.work!,
     now = world.now,
-    share = Math.min(1, w.worked / w.effort),
+    share = Math.min(1, askDone(world, a) / w.effort),
     stopped = w.stops.at(-1)?.to === null,
     left = !!w.left,
     stuff = roadStuff(world, a.cell, "paved");
@@ -796,7 +798,8 @@ function readAsked(world: World, a: Ask): TownAsked {
     ref: askRef(a),
     name: raiseThe(world, a.what),
     began: a.t,
-    done: w.done ?? now + (((w.effort - w.worked) / w.hands) * MONTH + (stopped ? YEAR : 0)),
+    done:
+      w.done ?? now + (((w.effort - askDone(world, a)) / w.hands) * MONTH + (stopped ? YEAR : 0)),
     read: now,
     share,
     stopped,

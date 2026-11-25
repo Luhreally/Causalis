@@ -607,6 +607,7 @@ export {
   type PlaceLogSheet,
   type PlaceNotice,
   type PlacePeopleSheet,
+  type PlaceSiteRow,
   type PlacePersonRow,
   type PlaceStockRow,
   type PlaceStocksSheet,
