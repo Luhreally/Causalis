@@ -28,7 +28,7 @@ import {
   peoplingMade,
   showingScale,
   tideLocked,
-  worldKind,
+  worldSolvent,
   wetPlace,
   type FarMade,
   type Prior,
@@ -155,13 +155,25 @@ export function generateHomeWorld(
     // (Its kind, on a world of a drawn chemistry: by its own keyed draws, never the seed's stream,
     // and its planet read through its liquid: Phase 56.)
     // (Every world read from afar is read as one of rock and water: gen/system.ts.)
-    kind =
-      far || (prior.chemistry ?? "drawn") === "solar"
-        ? "rocky"
-        : worldKind({ text: seed.text, mass: star.mass, ageGyr: starAgeGyr(star) }),
     drawn = makePlanet(rng, made, star),
     twin = far ? farPlanet(drawn, far, star) : drawn,
-    turning = kind === "rocky" ? twin : kindPlanet(twin, kind, star),
+    // (Its kind and the liquid of its seas from its numbers: what it gathered, where it stands, its air, what its
+    // ground still gives up: rules/solvent.ts. No draw of the seed's stream is taken for it.)
+    solvent =
+      far || (prior.chemistry ?? "drawn") === "solar"
+        ? null
+        : worldSolvent({
+            text: seed.text,
+            mass: star.mass,
+            ageGyr: starAgeGyr(star),
+            planet: {
+              gravity: drawn.gravity,
+              celsius: drawn.meanTemperature,
+              seas: drawn.oceanFraction,
+            },
+          }),
+    kind = solvent?.kind ?? "rocky",
+    turning = kind === "rocky" ? twin : kindPlanet(twin, kind, star, solvent!.liquid),
     // (One face held to its star where the star's tide has braked its turning: rules/locked.ts.)
     planet: Planet = tideLocked(star.mass, turning.orbitAu)
       ? { ...turning, locked: true }

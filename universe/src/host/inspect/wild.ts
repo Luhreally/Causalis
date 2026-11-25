@@ -44,7 +44,7 @@ export function wildBlocks(world: World, e: HistoryEvent): Block[] {
     },
     /** The ground it came out of, in this world's own words. */
     cover = (fallback: string): string =>
-      typeof d.cover === "string" ? kindBiomeName(worldKindOf(g), d.cover) : fallback,
+      typeof d.cover === "string" ? kindBiomeName(g.planet, d.cover) : fallback,
     out: Block[] = [];
   const dead = typeof d.dead === "number" ? d.dead : 0,
     homesBy = (d.homes && typeof d.homes === "object" ? d.homes : {}) as Record<string, number>,

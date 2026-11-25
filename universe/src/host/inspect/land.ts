@@ -29,6 +29,7 @@ import {
   offworldSite,
   spotRef,
   worldChemistry,
+  depositMaking,
 } from "../../gen/index.ts";
 import { GOODS, depositProcessOn, roleWord } from "../../rules/index.ts";
 import {
@@ -406,7 +407,7 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
           item(
             [
               link(`${roleWord(chem, d.kind)}, ${richWords(d.richness)}`, d.ref),
-              ` (${depositProcessOn(chem, d.kind) ?? d.process})`,
+              ` (${depositMaking(g, d)})`,
             ],
             d.ref,
           ),

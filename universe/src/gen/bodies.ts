@@ -4,7 +4,8 @@
 // gravity from mass and radius, and the energy balance of the planet's surface.
 import { defineStream, dmath, type Rng } from "../kernel/index.ts";
 import {
-  KINDS,
+  KIND_SOLVENT,
+  kindFacts,
   earthDegrees,
   kelvinPerDegree,
   bodyPull,
@@ -14,6 +15,7 @@ import {
   type NovelKind,
   type Prior,
   type Range,
+  type SolventId,
   type WorldKind,
 } from "../rules/index.ts";
 import { planetRef, starRef } from "./kinds.ts";
@@ -135,6 +137,11 @@ export type Planet = {
   /** Its kind, where it is not rocky (Phase 56: rules/kinds.ts). Absent on a rocky world. */
   readonly kind?: NovelKind;
   /**
+   * The liquid of its seas, where its numbers make it another than its kind's own (rules/solvent.ts: ethane on a
+   * methane world's ground). Absent where it is its kind's.
+   */
+  readonly liquid?: SolventId;
+  /**
    * The warmth its climate is built on, where its liquid freezes and boils away from where water does
    * (Phase 56): its mean in degrees of its liquid's band, as a rocky world's is in °C. Absent where
    * the two are one.
@@ -229,17 +236,32 @@ export function farPlanet(drawn: Planet, far: FarMade, star: Star): Planet {
  * its twin's stands between water's — so its climate, seas and ice are its liquid's — and is set
  * where that warmth truly falls: its equilibrium and greenhouse scaled to its liquid's band, its
  * orbit moved out to where its star's light gives that equilibrium (the energy balance read
- * backwards), its year by Kepler's law. Either way it says its kind.
+ * backwards), its year by Kepler's law. Either way it says its kind, and its liquid where its numbers make its seas
+ * of another than its kind's own (rules/solvent.ts): its band is then that liquid's.
  */
-export function kindPlanet(twin: Planet, kind: NovelKind, star: Star): Planet {
-  if (earthDegrees(kind)) return { ...twin, kind };
-  const k = kelvinPerDegree(kind),
+export function kindPlanet(
+  twin: Planet,
+  kind: NovelKind,
+  star: Star,
+  /** The liquid of its seas, as its numbers make it (its kind's own where none is said). */
+  solvent?: SolventId,
+): Planet {
+  const as = solvent && solvent !== KIND_SOLVENT[kind] ? { kind, liquid: solvent } : { kind };
+  if (earthDegrees(as)) return { ...twin, ...as };
+  const k = kelvinPerDegree(as),
+    freezeK = kindFacts(as).liquid.freezeK,
     grey = 278.6 * dmath.pow(1 - twin.albedo, 0.25),
     equilibrium = grey * dmath.pow(twin.insolation, 0.25),
-    real = KINDS[kind].liquid.freezeK + k * (equilibrium - 273.15),
+    // (A liquid that melts no colder than water, sulfuric acid: its air warms it as its twin's does, by as many
+    // kelvin, and the rest of its warmth is its star's, so it stands nearer in. A cold liquid's world stands far
+    // out under a thick air: both its star's part and its air's are scaled to its band, as they were.)
+    hot = freezeK >= 273.15 && as.liquid !== undefined,
+    greenhouse = hot ? twin.greenhouse : k * twin.greenhouse,
+    real = hot
+      ? freezeK + k * (equilibrium + twin.greenhouse - 273.15) - greenhouse
+      : freezeK + k * (equilibrium - 273.15),
     insolation = dmath.pow(real / grey, 4),
-    orbitAu = Math.sqrt(star.luminosity / insolation),
-    greenhouse = k * twin.greenhouse;
+    orbitAu = Math.sqrt(star.luminosity / insolation);
   return {
     ...twin,
     orbitAu,
@@ -247,7 +269,7 @@ export function kindPlanet(twin: Planet, kind: NovelKind, star: Star): Planet {
     insolation,
     greenhouse,
     meanTemperature: real + greenhouse - 273.15,
-    kind,
+    ...as,
     climate: twin.meanTemperature,
   };
 }

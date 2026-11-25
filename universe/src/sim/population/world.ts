@@ -56,6 +56,7 @@ import { installPilgrims } from "../ideas/pilgrims.ts";
 import { installAbroad } from "../culture/abroad.ts";
 import "../notable/heads.ts";
 import { installEconomy } from "../economy/systems.ts";
+import { installCanals } from "../economy/canals.ts";
 import { installActs } from "../acts/acts.ts";
 import { installGreatActs } from "../acts/great.ts";
 import { clusterOf } from "../space/voyages.ts";
@@ -415,6 +416,8 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   world.addPinner(() => history.pinned());
   installPopulation(world);
   installEconomy(world);
+  // (Canals a realm digs where the trade saved is more than the work: economy/canals.ts.)
+  installCanals(world, () => populationContext(world));
   // The god's acts on provinces; inspiration grants the next way of life a people lacks.
   installActs(
     world,

@@ -100,6 +100,11 @@ export type LifeInputs = {
    * its kind; absent, as its kind's tables have them (every world made before, and kept so).
    */
   readonly numbers?: { readonly o2: number; readonly acid: boolean };
+  /**
+   * Its seas are sulfuric acid itself, not water soured with it (rules/solvent.ts; absent: its kind's own liquid):
+   * carbon's long chains char in it at any warmth.
+   */
+  readonly vitriol?: boolean;
 };
 
 /** The warmth (°C) past which a water life's cell skins must be of ether lipids to hold together (an estimate: heat-loving archaea's). */
@@ -214,7 +219,9 @@ const PIGMENT_SUBST: Readonly<Record<Pigment, string>> = {
  * ammonia worlds among aliens 1-300 were of them.) Siloxanes are another matter: their chains of silicon and oxygen are what
  * water leaves of silicon's, and hold in it.
  */
-export function backboneOf(i: Pick<LifeInputs, "kind" | "carbon" | "silica" | "mean">): {
+export function backboneOf(
+  i: Pick<LifeInputs, "kind" | "carbon" | "silica" | "mean" | "vitriol">,
+): {
   readonly backbone: Backbone;
   readonly why: string;
 } {
@@ -225,9 +232,12 @@ export function backboneOf(i: Pick<LifeInputs, "kind" | "carbon" | "silica" | "m
         ? 1.2
         : i.kind === "ammonia" && i.mean < -30 && SOLVENT_WATER[FAMILY_OF[i.kind]] <= DRY_SOLVENT
           ? 0.9
-          : i.kind === "sulfur" && i.mean > HOT_SILICON
-            ? 1.1
-            : 0;
+          : i.kind === "sulfur" && i.vitriol
+            ? // (Acid itself takes the water out of carbon's chains and chars them, hot or not: silicon's with oxygen hold.)
+              2.5
+            : i.kind === "sulfur" && i.mean > HOT_SILICON
+              ? 1.1
+              : 0;
   if (silicon * holds > carbon && i.kind === "sulfur")
     return {
       backbone: "siloxane",
@@ -277,7 +287,9 @@ function withBackbone(l: LifeChemistry, i: LifeInputs): LifeChemistry {
 
 /** A world's life from its kind, its chemistry, its star and its warmth (never Earth's own: that is EARTH_LIFE). */
 export function lifeChemistryOf(i: LifeInputs): LifeChemistry {
-  return withBackbone(lifeOfKind(i), i);
+  const l = withBackbone(lifeOfKind(i), i);
+  // (Where its seas are sulfuric acid itself, that is the liquid of its bodies.)
+  return i.vitriol ? { ...l, liquid: "vitriol" } : l;
 }
 
 function lifeOfKind(i: LifeInputs): LifeChemistry {

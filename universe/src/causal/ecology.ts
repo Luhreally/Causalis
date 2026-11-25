@@ -237,6 +237,12 @@ registerEventWords(ECOLOGY_EVENTS.grainEaten.type, (world, e) => {
     share = num(e.data, "share");
   return `The ${typeof beast === "string" ? beast : "small game"} of ${landWords(world, e.place)} ate ${share === null ? "much" : `${share} in a hundred`} of its grain, its small hunters driven off, ${year(e.t)}`;
 });
+registerEventWords(ECOLOGY_EVENTS.carriersFew.type, (world, e) => {
+  const d = (e.data ?? {}) as { beast?: unknown; garden?: unknown },
+    left = num(e.data, "carriers"),
+    lost = num(e.data, "lost");
+  return `The ${typeof d.beast === "string" ? d.beast : "small animals"} that carry pollen from flower to flower in ${landWords(world, e.place)} grew few${left === null ? "" : ` (${left} in a hundred of what they were)`}, the wild ground they live on gathered bare or put under fields: ${lost === null ? "some" : `${lost} in a hundred`} of ${d.garden ? "its gardens' harvest" : "its wild food"} went unset, ${year(e.t)}`;
+});
 registerEventWords(ECOLOGY_EVENTS.fishFew.type, (world, e) => {
   const left = num(e.data, "fish");
   return `The fish of ${landWords(world, e.place)} grew few, fished hard${left === null ? "" : `: ${left} parts in a hundred of what they were`}, ${year(e.t)}`;

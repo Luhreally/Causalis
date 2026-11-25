@@ -25,13 +25,14 @@ import {
   gridLost,
   flareThrough,
   stormAt,
+  turnBegun,
   stormHarm,
   usualStorm,
 } from "../../rules/index.ts";
 import { knows } from "../lore/lore.ts";
 import { politiesOf } from "../polity/polity.ts";
 import { homePlanet } from "../planet/store.ts";
-import { homeField } from "../planet/motion.ts";
+import { homeField, homeFieldAt, homeTurns } from "../planet/motion.ts";
 import { shieldUnder, tellShield } from "./shield.ts";
 import { deathsIn } from "../acts/disasters.ts";
 import { marketsOf, type PopulationContext } from "../population/systems.ts";
@@ -43,6 +44,8 @@ export const WEATHER_EVENTS = {
   storm: defineEventType("frontier.storm", 5),
   /** A flare far past the usual, its lights seen far from the poles (and nothing burned: no wires, or none hit). */
   flare: defineEventType("frontier.great-flare", 3),
+  /** The home world's field begins to turn over: it sinks for some thousands of years and lets the sky down. */
+  turn: defineEventType("frontier.field-turn", 4),
 };
 
 const WEATHER = defineStream("frontier.weather");
@@ -162,7 +165,23 @@ export function weatherYear(ctx: PopulationContext, t: SimTime): void {
     { rate, usual, au } = homeWeather(world),
     flare = greatestFlare(world.rng.real(WEATHER, 0, t, 0), rate, years),
     storm = stormAt(flare, au),
-    field = homeField(g);
+    field = homeFieldAt(g, year);
+  // (Its field turning over: told the year it begins to sink, or the first year stepped to after.)
+  const turns = homeTurns(g),
+    turn = turnBegun(turns.key, year - years, year, turns.rate);
+  if (turn)
+    world.events.emit({
+      type: WEATHER_EVENTS.turn.type,
+      importance: 4,
+      subjects: [g.planet.ref as Ref],
+      place: null,
+      causes: [{ ref: g.planet.ref as Ref, role: "trigger", weight: 1 }],
+      data: {
+        years: turn.to - turn.from,
+        shelter: Math.round(1000 * homeField(g).shelter) / 10,
+        low: Math.round(100 * homeFieldAt(g, Math.floor((turn.from + turn.to) / 2)).shelter),
+      },
+    });
   // (The harm of a span stepped at once is its greatest storm's, for one year: the rest were the usual.)
   // (Its field keeps off what it keeps off of any flare: rules/planet.ts flareThrough. Earth's, nearly all.)
   const harm = Math.round(1000 * flareThrough(stormHarm(storm, usual), field.shelter));

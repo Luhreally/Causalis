@@ -30,6 +30,11 @@ registerEventWords(WEATHER_EVENTS.flare.type, (_world, e) => {
   return `The home star flared ${Math.round(num(d.storm) / Math.max(0.01, num(d.usual)))} times past its usual greatest: ${d.field ? "its lights hung far from the poles" : "its fire came down through the air"}, year ${yearOfMoment(e.t)}`;
 });
 
+registerEventWords(WEATHER_EVENTS.turn.type, (_world, e) => {
+  const d = data(e);
+  return `The world's field began to turn over: for some ${count(num(d.years))} years it sinks to a tenth and comes back the other way up; at its weakest it keeps off ${num(d.low)}% of its star's flares and the sky's bursts where it kept off ${num(d.shelter)}%, year ${yearOfMoment(e.t)}`;
+});
+
 const CLASS_WORDS: D = {
   regional: "a stone that could lay a country waste",
   great: "a stone that could darken the world",

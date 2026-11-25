@@ -90,6 +90,7 @@ import {
   type LifeHistory,
   type Recipe,
   type ToolMetal,
+  CANAL,
 } from "../../rules/index.ts";
 import type { Province } from "../population/model.ts";
 import {
@@ -109,6 +110,7 @@ import { oreLaid } from "./ore.ts";
 import { digOre } from "./worked.ts";
 import { dugSolid, energyYear, fuelWonOf, machinesWanted } from "./energy.ts";
 import { kmBetween, seaRange, seaReach } from "./sea.ts";
+import { canalsOf } from "./canals.ts";
 import { compassReach, materialsOf } from "../lore/materials.ts";
 import { politiesOf } from "../polity/polity.ts";
 import { droveGain } from "../ecology/droving.ts";
@@ -701,10 +703,13 @@ type Edge = { a: number; b: number; cost: number; sea: boolean };
 const COAST_SPAN = 2 ** 24;
 
 /** The roads between peopled neighbours (and coasts that ships reach), in canonical order, with what a unit of grain costs to carry. */
-function edges(ctx: PopulationContext): Edge[] {
+function edges(ctx: PopulationContext, year: number): Edge[] {
   const lore = loreOf(ctx.world),
     g = ctx.generated,
     radiusKm = 6371 * g.planet.radius,
+    // (Roads with a canal dug along them carry as a river does: economy/canals.ts. None until one is dug.)
+    dug = canalsOf(ctx.world),
+    canals = dug?.size ? dug : null,
     out: Edge[] = [];
   for (const p of ctx.provinces.all()) {
     if (!p.total()) continue;
@@ -718,7 +723,12 @@ function edges(ctx: PopulationContext): Edge[] {
         dz = pa[3 * a + 2]! - pa[3 * b + 2]!,
         km = dmath.sqrt(dx * dx + dy * dy + dz * dz) * radiusKm,
         climb = Math.abs(g.tectonics.elevation[a]! - g.tectonics.elevation[b]!),
-        river = g.water.river[a] && g.water.river[b] ? 0.6 : 1;
+        river =
+          g.water.river[a] && g.water.river[b]
+            ? 0.6
+            : canals?.carries(a, b, year)
+              ? CANAL.carries
+              : 1;
       // Beasts, wheels, carts, roads and bridges make carrying cheaper (the better-equipped end sets it).
       const eased = 1 - Math.min(0.7, Math.max(lore.effect(a, "haul"), lore.effect(b, "haul")));
       out.push({
@@ -815,7 +825,7 @@ function trade(
       return Number.isNaN(da) || Number.isNaN(db) ? 0 : exchangeRiskOf(da, db);
     };
   markets.firms = 0;
-  for (const e of edges(ctx)) {
+  for (const e of edges(ctx, yearOfMoment(t))) {
     const war = open.length ? between(e.a, e.b) : null;
     if (war) {
       cut.set(war, (cut.get(war) ?? 0) + 1);

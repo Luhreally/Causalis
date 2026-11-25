@@ -9,7 +9,10 @@ import { ALIEN } from "../src/host/planet.ts";
 import { landEra } from "../src/host/village.ts";
 import { stageOf, worldFirstsNow } from "../src/host/inspect/stage.ts";
 import { climateMean, worldKindOf } from "../src/gen/index.ts";
-import { KINDS, makingsOf } from "../src/rules/index.ts";
+import { OCC, kindFacts, makingsOf } from "../src/rules/index.ts";
+import { kindBlocks } from "../src/host/kinds.ts";
+import { lifeBlock } from "../src/host/biochem.ts";
+import { landWords } from "../src/causal/index.ts";
 import { homePlanet, populationContext } from "../src/sim/index.ts";
 
 const seed = process.argv[2] ?? "alien 20",
@@ -19,7 +22,7 @@ const seed = process.argv[2] ?? "alien 20",
   world = ALIEN.build(seedFromText(seed)),
   g = homePlanet(world).generated,
   kind = worldKindOf(g),
-  facts = KINDS[kind],
+  facts = kindFacts(g.planet),
   made = makingsOf(seed),
   ctx = populationContext(world),
   l = facts.liquid;
@@ -60,3 +63,33 @@ console.log(
     .map((f) => `${f.what} ${f.year}`)
     .join(", ")}`,
 );
+
+// Its people's living, and its pages as they read (the kind's own block, its life's, and a land's ground in words).
+{
+  const now = populationContext(world),
+    lands = now.provinces.all().filter((p) => p.total() > 0),
+    occ = (o: number) => lands.reduce((a, p) => a + p.occupation(o), 0),
+    plain = (x: unknown): string =>
+      typeof x === "string"
+        ? x
+        : Array.isArray(x)
+          ? x.map(plain).join("")
+          : x && typeof x === "object"
+            ? plain(
+                (x as { text?: unknown; value?: unknown; label?: unknown }).text ?? [
+                  (x as { label?: unknown }).label ?? "",
+                  ": ",
+                  (x as { value?: unknown }).value ?? "",
+                ],
+              )
+            : "";
+  console.log(
+    `  its people: ${lands.reduce((a, p) => a + p.total(), 0)} on ${lands.length} lands; farmers ${occ(OCC.farmer)}, foragers ${occ(OCC.forager)}, herders ${occ(OCC.herder)}, crafters ${occ(OCC.crafter)}; lands that farm ${lands.filter((p) => p.knowsCultivation).length}; fire for them ${now.affords.fire}`,
+  );
+  for (const b of [...kindBlocks(world), lifeBlock(world)]) {
+    const rows = (b as { rows?: unknown[] }).rows ?? [];
+    console.log(`  page “${(b as { title?: string }).title ?? ""}”`);
+    for (const r of rows) console.log(`    ${plain(r)}`.slice(0, 330));
+  }
+  if (lands[0]) console.log(`  a land: ${landWords(world, lands[0].ref)}`);
+}

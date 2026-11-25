@@ -32,6 +32,8 @@ import {
   populationContext,
   realmName,
   spaceOf,
+  debrisNow,
+  liftsOf,
   tameNow,
   warsOf,
   wildsOf,
@@ -41,7 +43,7 @@ import {
 import { PRINCIPLES, hasBeams } from "../../rules/index.ts";
 import { canBeFoundHere, kindAge, kindName, kindOf } from "../kinds.ts";
 import { principleName } from "../../causal/index.ts";
-import { parseRef, type Ref, type World } from "../../kernel/index.ts";
+import { parseRef, yearOfMoment, type Ref, type World } from "../../kernel/index.ts";
 import type { Block, Item, Line, PageModel, Row, Span, Stat, Tab } from "../../bridge/index.ts";
 import { faithColor, languageColor, realmColor } from "../colors.ts";
 import { wealthBlocks } from "../wealth.ts";
@@ -1950,7 +1952,7 @@ export function ledgerPage(world: World, tab?: string): PageModel {
     { id: "nature", name: "Nature", ...later("nature", () => natureLedger(world, lc)) },
     // Every sickness side by side (Phase 20 M140).
     { id: "sickness", name: "Sickness", blocks: sicknessLedger(world) },
-    { id: "sky", name: "Sky", blocks: skyLedger(world) },
+    { id: "sky", name: "Sky", blocks: [...skyLedger(world), ...debrisBlock(world)] },
   ];
   // (Each tab in its section, the sections in their order.)
   const sectionOf = new Map(
@@ -2595,6 +2597,37 @@ function lifeLedger(world: World): Block[] {
       title: "Every lineage",
       columns: ["Lineage", "What", "In the web", "Weight", "Lands", "Arose", "Now", "Tame"],
       rows,
+    },
+  ];
+}
+
+/** What the world's launches have left aloft, told (none while nothing has flown). */
+function debrisBlock(world: World): Block[] {
+  const lifts = liftsOf(world);
+  if (!lifts.length) return [];
+  const d = debrisNow(populationContext(world), yearOfMoment(world.now));
+  return [
+    {
+      type: "facts",
+      title: "🛰️ What its launches left aloft",
+      rows: [
+        stat(
+          "Dead mass in its sky",
+          `${count(Math.round(d.left))} tonnes from ${count(lifts.length)} launches, ${count(Math.round(d.fragments))} once it has struck itself`,
+        ),
+        stat(
+          "Against what its air can clear",
+          d.cascade
+            ? `past it (${count(Math.round(d.critical))} tonnes): the strikes outrun its air, a cascade`
+            : `${Math.round(d.load * 100)} in 100 of the ${count(Math.round(d.critical))} tonnes past which strikes outrun its air`,
+        ),
+        stat(
+          "What it does to a launch",
+          d.loss > 0
+            ? `${Math.round((d.costs - 1) * 100)} in 100 dearer, and ${Math.round(d.loss * 100)} in 100 of what flies is lost`
+            : "nothing yet: too thin to be felt",
+        ),
+      ],
     },
   ];
 }

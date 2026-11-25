@@ -4,7 +4,14 @@ import { warmthBlocks } from "./warmth.ts";
 import { motionBlocks, seasonBlocks, starLifeBlocks } from "./motion.ts";
 import { worldFiresBlocks } from "./nature.ts";
 import { frontierBlocks, homeHazardBlocks, starWeatherBlocks } from "./frontier.ts";
-import { CLADES, makingWords, makingsOf, starLifetime } from "../../rules/index.ts";
+import {
+  CLADES,
+  SOLVENTS,
+  bodyLiquid,
+  makingWords,
+  makingsOf,
+  starLifetime,
+} from "../../rules/index.ts";
 import {
   folkOf,
   civilizationsNear,
@@ -34,7 +41,7 @@ import {
 import { elsewhereBlocks } from "./small.ts";
 import { worldLook } from "../biochem.ts";
 import { kindBlocks } from "../kinds.ts";
-import { foreignPlanets } from "../../gen/index.ts";
+import { foreignPlanets, type HomeWorld, type SystemBody } from "../../gen/index.ts";
 import { claimOf, count, item, link, many, stat, yearNow } from "./words.ts";
 import { landLink, realmLink, spotOfLand } from "./names.ts";
 import { colonyRemade } from "../colony.ts";
@@ -73,6 +80,21 @@ function homeSpot(world: World): number {
       best = p.cell;
     }
   return (best >= 0 ? spotOfLand(world, best) : 0) ?? 0;
+}
+
+/** The liquid on a body's face, in words: which, or why none. A moon stands where its world does. */
+function faceLiquid(g: HomeWorld, b: SystemBody, around: SystemBody | undefined): string {
+  const a = b.orbit.around === g.star.ref ? b.orbit.a : (around?.orbit.a ?? b.orbit.a),
+    read = bodyLiquid({
+      kind: b.kind,
+      temperature: b.temperature,
+      pressure: b.pressure,
+      water: b.water,
+      pastFrost: a > g.system.frostLine,
+    });
+  return read.liquid
+    ? `${SOLVENTS[read.liquid].name[0]!.toUpperCase()}${SOLVENTS[read.liquid].name.slice(1)}: ${read.why}`
+    : `None: ${read.why}`;
 }
 
 /** A star's page: the home star's system, or a star of the cluster or the galaxy. */
@@ -395,6 +417,8 @@ export function bodyPage(world: World, ref: string): PageModel {
               stat("Size", `${b.radius.toFixed(2)} Earths across`),
               stat("Escape", `${b.escape.toFixed(1)} km/s`),
               stat("Air pressure", `${b.pressure.toFixed(2)} bar`),
+              // (Which liquid lies on its face, from its warmth, its air and what it holds: rules/solvent.ts.)
+              ...(home ? [] : [stat("Liquid on its face", faceLiquid(g, b, around))]),
               stat(
                 "Radiation at the ground",
                 home

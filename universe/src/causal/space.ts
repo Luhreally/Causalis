@@ -44,6 +44,22 @@ registerEventWords(SPACE_EVENTS.colony.type, (_world, e) => {
   return `The realm of ${d.realm ?? "a people"} set ${d.settlers ?? "its first"} settlers down in sealed halls on ${d.body ?? "another world"}, year ${yearOfMoment(e.t)}`;
 });
 
+registerEventWords(SPACE_EVENTS.lost.type, (_world, e) => {
+  const d = (e.data ?? {}) as { realm?: string; what?: string; loss?: number; aloft?: number },
+    what =
+      d.what === "crew" ? "crewed craft" : d.what === "station" ? "station's parts" : "satellite";
+  return `The realm of ${d.realm ?? "a people"} lost its ${what} on the way up, struck by what earlier launches left aloft (some ${count(d.aloft ?? 0)} tonnes of fragments; ${d.loss ?? 0} in 100 of what flies is lost), year ${yearOfMoment(e.t)}`;
+});
+registerEventWords(SPACE_EVENTS.cascade.type, (_world, e) => {
+  const d = (e.data ?? {}) as {
+    left?: number;
+    critical?: number;
+    launches?: number;
+    loss?: number;
+  };
+  return `The dead things ${count(d.launches ?? 0)} launches left in the world's sky, ${count(d.left ?? 0)} tonnes, began to strike each other faster than its air drags them down (past ${count(d.critical ?? 0)} tonnes they do): each strike makes more, and ${d.loss ?? 0} in 100 of what is launched is lost, year ${yearOfMoment(e.t)}`;
+});
+
 registerEventWords(VOYAGE_EVENTS.sailed.type, (_world, e) => {
   const d = (e.data ?? {}) as {
     realm?: string;
@@ -84,8 +100,19 @@ registerEventWords(LANE_EVENTS.came.type, (_world, e) => {
   return `A ship of the realm of ${d.realm ?? "a people"}, sent through the lanes in ${d.sailed ?? "?"}, came to a people it had seen living in ${d.seen ?? "their own places"}, year ${yearOfMoment(e.t)}`;
 });
 registerEventWords(VOYAGE_EVENTS.arrived.type, (_world, e) => {
-  const d = (e.data ?? {}) as { distance?: number; people?: number };
-  return `A ship came to its star ${d.distance?.toFixed(1) ?? "?"} light-years from home, and its ${d.people ?? ""} people went down into halls on a world there, year ${yearOfMoment(e.t)}`;
+  const d = (e.data ?? {}) as {
+      distance?: number;
+      people?: number;
+      home?: number;
+      aboard?: number;
+      word?: number;
+    },
+    clocks =
+      d.home && d.aboard && d.home - d.aboard >= 0.1
+        ? `; ${d.home} years had gone at home and ${d.aboard} aboard, its clocks slow at its speed`
+        : "",
+    word = d.word ? `; home hears of it in year ${d.word}, when its light gets there` : "";
+  return `A ship came to its star ${d.distance?.toFixed(1) ?? "?"} light-years from home, and its ${d.people ?? ""} people went down into halls on a world there${clocks}${word}, year ${yearOfMoment(e.t)}`;
 });
 
 const cargoWords = (goods: unknown): string =>

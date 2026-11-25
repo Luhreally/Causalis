@@ -9,13 +9,39 @@ import {
   EARTH_LIFE,
   KINDS,
   PRIORS,
+  depositProcessOn,
+  fossilOrigin,
   lifeChemistryOf,
+  oreWords,
   type LifeChemistry,
   type LifeInputs,
 } from "../rules/index.ts";
 import { worldKindOf } from "./bodies.ts";
 import { worldChemistry } from "./chemistry.ts";
 import type { HomeWorld } from "./homeworld.ts";
+
+/**
+ * How a deposit was made, in this world's own words (rules/genesis.ts): its coal and oil the buried growth of
+ * whatever its life is built of, where its life is read from its physics and any took hold; its metals by what its
+ * own crust holds of them and how far its ground gathered them. Earth's, and a world made by the old tables, as
+ * they were told.
+ */
+export function depositMaking(
+  g: HomeWorld,
+  d: { readonly kind: string; readonly process: string },
+): string {
+  const chem = worldChemistry(g),
+    base = depositProcessOn(chem, d.kind) ?? d.process;
+  if (chem.solar) return base;
+  if (d.kind === "coal" || d.kind === "oil") {
+    if (!g.physical || !g.life.species.length) return base;
+    const f = fossilOrigin(worldLife(g), KINDS[worldKindOf(g)].burns);
+    return d.kind === "coal" ? `${f.solid}; ${f.solidWords}` : `${f.liquid}; ${f.liquidWords}`;
+  }
+  // (An ice world's lie under its crust, beyond any digging: no gathering is told of what no one reaches.)
+  const ore = chem.kind === "ammonia" || chem.kind === "methane" ? null : oreWords(chem, d.kind);
+  return ore ? `${base}: ${ore}` : base;
+}
 
 /** Which way a life's first chemistry turned: a draw in [0, 1) of its key (a world's ground, a people's ref). */
 export function handDraw(key: string): number {
@@ -48,6 +74,8 @@ export function lifeInputs(g: HomeWorld): LifeInputs {
     star: g.star.temperature,
     mean: g.planet.meanTemperature,
     hand: handDraw(g.ground),
+    // (Its seas acid itself, where its numbers make them so: rules/solvent.ts.)
+    ...(g.planet.liquid === "sulfuric-acid" ? { vitriol: true } : {}),
   };
 }
 

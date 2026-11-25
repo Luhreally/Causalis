@@ -31,8 +31,16 @@ import {
   type World,
 } from "../../kernel/index.ts";
 import type { EnergyStore } from "../economy/energy.ts";
-import { BIOME, isProvinceWorld, lives, offworldSite, type HomeWorld } from "../../gen/index.ts";
-import { OCC, PRODUCTIVITY, regrowthPace } from "../../rules/index.ts";
+import {
+  BIOME,
+  isProvinceWorld,
+  keptKey,
+  lives,
+  offworldSite,
+  type HomeWorld,
+} from "../../gen/index.ts";
+import { CARRIED, OCC, PRODUCTIVITY, carriedYield, regrowthPace } from "../../rules/index.ts";
+import { ROOTS, cropsOf } from "./crops.ts";
 import { shiftNow } from "../planet/motion.ts";
 import { FARM_YIELD, type Capacity } from "../population/model.ts";
 import { provinceCapacity, type PopulationContext } from "../population/systems.ts";
@@ -44,6 +52,8 @@ import { stepStand } from "./stands.ts";
 const HUNT = defineStream("ecology.hunt");
 
 export const ECOLOGY_EVENTS = {
+  /** A land's small animals grown so few that its gardens' and its wild's fruit goes unset. */
+  carriersFew: defineEventType("ecology.carriers-few", 3),
   thinned: defineEventType("ecology.wild-thinned", 3),
   huntedOut: defineEventType("ecology.hunted-out", 4),
   huntersGone: defineEventType("ecology.hunters-gone", 4),
@@ -245,6 +255,72 @@ export function lineageOf(g: HomeWorld, cell: number, niche: string): number {
   for (const s of g.life.species)
     if (s.niche === niche && s.died === null && lives(g.life, cell, s.index)) return s.index;
   return -1;
+}
+
+const CARRIERS = new Map<string, Int16Array>();
+let lastCarriers: { g: HomeWorld; surface: string | undefined; kept: Int16Array } | null = null;
+
+/**
+ * The lineage that carries a land's pollen: its small animals that feed at its plants (the web's seed-eaters, its
+ * small game), -1 where none lives there. Kept by its world as its ground now stands (keptKey).
+ */
+export function carrierOf(g: HomeWorld, cell: number): number {
+  // (The world asked last, as its ground stood: asked land by land, month by month, its key is not made again.)
+  let kept =
+    lastCarriers && lastCarriers.g === g && lastCarriers.surface === g.surface
+      ? lastCarriers.kept
+      : null;
+  if (!kept) {
+    const key = keptKey(g);
+    kept = CARRIERS.get(key) ?? null;
+    if (!kept) {
+      kept = new Int16Array(g.grid.count).fill(-2);
+      CARRIERS.set(key, kept);
+      if (CARRIERS.size > 8) CARRIERS.delete(CARRIERS.keys().next().value!);
+    }
+    lastCarriers = { g, surface: g.surface, kept };
+  }
+  let c = kept[cell]!;
+  if (c === -2) kept[cell] = c = lineageOf(g, cell, "seed-eater");
+  return c;
+}
+
+/** A land's carriers against as many as it kept untouched, from its small game's numbers and its wild's standing. */
+export function carriersIn(small: number, wild: number): number {
+  return Math.min(1, small) * Math.min(1, wild);
+}
+
+/**
+ * A land's carriers against as many as it kept untouched (0 … 1): its small game's numbers, on as much of its wild
+ * as still stands (they nest and feed in ground no plough turns: fields take it, and a wild gathered bare has few
+ * flowers), where a lineage of them lives there. Where none ever did, its plants never leaned on one (`need`
+ * false): the wind and the water carry.
+ */
+export function carriersAt(
+  ctx: PopulationContext,
+  cell: number,
+  w: Wilds = wildsOf(ctx, cell),
+): { readonly lineage: number; readonly need: boolean; readonly numbers: number } {
+  const g = ctx.generated,
+    lineage = offworldSite(g, cell) ? -1 : carrierOf(g, cell);
+  return { lineage, need: lineage >= 0, numbers: lineage >= 0 ? carriersIn(w.small, w.wild) : 0 };
+}
+
+/**
+ * What a land's fields give by its carriers' numbers: a garden's fruit waits on them (rules/crops.ts CARRIED); a
+ * grass's ears and a sea bed do not. Exactly 1 where its small game stands as it did untouched.
+ */
+export function carriedFields(ctx: PopulationContext, cell: number): number {
+  if (cropsOf(ctx.world)?.get(cell)?.crop !== ROOTS) return 1;
+  const c = carriersAt(ctx, cell);
+  return c.need && c.numbers < 1 ? carriedYield(CARRIED.garden, c.numbers) : 1;
+}
+
+/** What a land's wild food gives by its carriers' numbers (exactly 1 where they stand as they did). */
+export function carriedWild(ctx: PopulationContext, cell: number, w: Wilds): number {
+  if (w.small >= 1 && w.wild >= 1) return 1;
+  const c = carriersAt(ctx, cell, w);
+  return c.need && c.numbers < 1 ? carriedYield(CARRIED.wild, c.numbers) : 1;
 }
 
 /** The land's hunting lineage: the first of the hunters that live there (-1 none). */
@@ -521,6 +597,7 @@ export function ecologyYear(ctx: PopulationContext, t: SimTime): void {
       asideWoods = kept ? asideIn(kept, "aside:woods", year) : 0;
     w.asideWild = asideWild;
     w.asideWoods = asideWoods;
+    const wasCarriers = carriersIn(w.small, w.wild);
     stepWilds(
       w,
       asideWild > 0 ? take * (1 - asideWild) : take,
@@ -579,6 +656,29 @@ export function ecologyYear(ctx: PopulationContext, t: SimTime): void {
         data: { wild: Math.round(w.wild * 100) },
       });
     else if (w.wild > 0.7 && w.thinned) w.thinned = null;
+    // Its carriers grown few: told the year its gardens' or its wild's fruit first sets below CARRIED.told for it.
+    const carriers = carriersIn(w.small, w.wild);
+    if (carriers < wasCarriers) {
+      const lineage = carrierOf(g, p.cell),
+        garden = cropsOf(world)?.get(p.cell)?.crop === ROOTS,
+        need = garden ? CARRIED.garden : CARRIED.wild,
+        now = carriedYield(need, carriers);
+      if (lineage >= 0 && now < CARRIED.told && carriedYield(need, wasCarriers) >= CARRIED.told) {
+        const s = g.life.species[lineage]!;
+        world.events.emit({
+          type: ECOLOGY_EVENTS.carriersFew.type,
+          subjects: [s.ref as Ref],
+          place: p.ref,
+          causes: causes(w.thinned ?? p.cultivation ?? p.arrival, s.ref as Ref),
+          data: {
+            beast: s.name,
+            carriers: Math.round(carriers * 100),
+            lost: Math.round((1 - now) * 100),
+            garden,
+          },
+        });
+      }
+    }
     if (w.firstForest > 0.2 && w.forest < 0.3 && !w.cleared)
       w.cleared = world.events.emit({
         type: ECOLOGY_EVENTS.cleared.type,

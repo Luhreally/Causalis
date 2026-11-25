@@ -118,6 +118,11 @@ export class StarSiteStore implements StateStore {
   first: FirstJump | null = null;
   visits: LaneVisit[] = [];
 
+  /** Whether any ship is still on its way (kept as they sail and arrive are read: a count of those not yet come). */
+  sailing(): boolean {
+    for (const s of this.sites.values()) if (!s.arrived) return true;
+    return false;
+  }
   get(cell: number): StarSite | undefined {
     return this.sites.get(cell);
   }

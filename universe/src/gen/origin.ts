@@ -8,7 +8,7 @@
 // nothing in history reads it, so no world's history, name or save changes. The tree of life's step "the air fills
 // with oxygen" is dated by it (gen/evolution.ts), which only its pages and the genesis tell.
 import {
-  KINDS,
+  kindFacts,
   airChange,
   lifeOdds,
   readOrigin,
@@ -58,7 +58,7 @@ export function heatOf(gravity: number, ageGyr: number, kneaded: boolean): numbe
 /** A home world's ground, as its first life met it. */
 export function originGround(g: HomeWorld): OriginGround {
   const kind = worldKindOf(g),
-    facts = KINDS[kind],
+    facts = kindFacts(g.planet),
     life = worldLife(g),
     chem = worldChemistry(g),
     home = g.system.bodies.find((b) => b.kind === "home"),

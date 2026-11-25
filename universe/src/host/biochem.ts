@@ -118,9 +118,20 @@ export function lifeRows(l: LifeChemistry): Stat[] {
     m = MEMBRANE_WORDS[l.membrane],
     p = PIGMENT_WORDS[l.pigment];
   return [
-    stat("Its liquid", [...named(l.liquid), `: ${f.why}`]),
+    stat("Its liquid", [
+      ...named(l.liquid),
+      // (Seas of sulfuric acid itself, rules/solvent.ts: not water's words.)
+      `: ${l.liquid === "vitriol" ? "the acid itself, with no free water in it: it takes the water out of anything built of carbon and chars it, and holds dissolved what is built of silicon and oxygen" : f.why}`,
+    ]),
     stat("Its hand", handWords(l)),
-    stat("Its sugars", l.sugar ? [...named(l.sugar), `: ${f.sugars}`] : sentence(f.sugars)),
+    stat(
+      "Its sugars",
+      l.sugar
+        ? [...named(l.sugar), `: ${f.sugars}`]
+        : l.backbone
+          ? "None: its chains are silicon's, and it stores what they are built of"
+          : sentence(f.sugars),
+    ),
     stat("What its seeds store", named(l.store)),
     stat("Its stalks and fibres", named(l.fibre)),
     stat("Its bones", boneLine(l, "bone")),

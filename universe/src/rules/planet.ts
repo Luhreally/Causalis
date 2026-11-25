@@ -153,6 +153,8 @@ export type MagnetosphereInputs = {
   readonly starMass: number;
   /** Whether its seas and air are its liquid's at all (an airless world's field shelters nothing that breathes). */
   readonly air: number;
+  /** Its field's moment against its steady one, while it turns over (fieldTurn; left out: 1). */
+  readonly weak?: number;
 };
 
 export type Magnetosphere = {
@@ -190,10 +192,12 @@ export function magnetosphereOf(i: MagnetosphereInputs): Magnetosphere {
     dynamo = through < 1,
     rossby = CORE.rossbyEarth * (i.dayHours / 24),
     dipole = dynamo && rossby < CORE.rossbyDipole,
+    weak = i.weak ?? 1,
     // (Christensen's flux scaling: the moment with the core's size and the heat still left to drive it; a world
     // turning too slowly makes a weak, tangled field of many poles.)
     moment = dynamo
-      ? iron *
+      ? weak *
+        iron *
         dmath.pow(Math.max(0.01, i.mass), 1.2) *
         dmath.pow(Math.max(0.02, 1 - through) / (1 - 4.6 / CORE.earthGyr), 1 / 3) *
         (dipole ? 1 : 0.08)
@@ -225,6 +229,94 @@ export function magnetosphereOf(i: MagnetosphereInputs): Magnetosphere {
     dose: Math.max(1, dose),
     stripped,
   };
+}
+
+// —— Its field turning over ——————————————————————————————————————————————————————————————————————————
+
+/**
+ * A dipole field turns over now and then: it sinks to a tenth, wanders, and comes back the other way up (a
+ * reversal). How long one takes is the time a change of field takes to soak through the core, which goes as the
+ * core's size squared (Earth's: some four thousand years; the last, 780,000 years ago, is read in the rocks as
+ * taking between one and ten thousand). How often goes by how hard the core is driven against how fast it turns:
+ * a world turning as slowly as a dipole can bear (a local Rossby number near the limit) turns over often, and one
+ * whose core has little heat left to drive it seldom. Earth's has reversed four or five times in each of the last
+ * few million years: once in some 250,000 years, which fixes the scale.
+ */
+export const REVERSAL = {
+  turnYears: 4000,
+  everyYears: 250000,
+  low: 0.1,
+  steep: 3,
+} as const;
+
+/** How a world's field turns over: how long one takes (years) and the chance any such span holds one. */
+export type TurnRate = { readonly turnYears: number; readonly chance: number };
+
+/** How often and how long a world's field turns over, from its core (none where no single dipole stands). */
+export function turnRate(
+  f: Pick<Magnetosphere, "dynamo" | "dipole" | "coreGyr">,
+  i: Pick<MagnetosphereInputs, "radius" | "dayHours" | "ageGyr">,
+): TurnRate {
+  const turnYears = Math.max(200, Math.round(REVERSAL.turnYears * i.radius * i.radius));
+  if (!f.dynamo || !f.dipole) return { turnYears, chance: 0 };
+  const rossby = CORE.rossbyEarth * (i.dayHours / 24),
+    near = (rossby - CORE.rossbyEarth) / (CORE.rossbyDipole - CORE.rossbyEarth),
+    // (The heat still left to drive it, against Earth's now.)
+    driven = Math.max(0.02, 1 - i.ageGyr / Math.max(1e-6, f.coreGyr)) / (1 - 4.6 / CORE.earthGyr),
+    every = REVERSAL.everyYears / (dmath.exp(REVERSAL.steep * near) * driven);
+  return { turnYears, chance: Math.min(0.5, turnYears / every) };
+}
+
+/** A field turning over: the years it spans, and how weak it is now (its moment's share). */
+export type FieldTurn = {
+  readonly from: number;
+  readonly to: number;
+  readonly weak: number;
+};
+
+/** A draw in [0, 1) of a world's key and a span's number (a hash of its own: no stream is drawn on). */
+function turnDraw(key: number, span: number, n: number): number {
+  let h = (key ^ Math.imul(span | 0, 0x9e3779b1) ^ Math.imul(n + 1, 0x85ebca6b)) >>> 0;
+  h = Math.imul(h ^ (h >>> 16), 0x21f0aaad) >>> 0;
+  h = Math.imul(h ^ (h >>> 15), 0x735a2d97) >>> 0;
+  return ((h ^ (h >>> 15)) >>> 0) / 4294967296;
+}
+
+/**
+ * Whether a world's field is turning over in a year, and how weak it is then: time is cut into spans as long as
+ * one takes (each world's cut falls at its own place, by its key), and a span holds one by the world's chance. It
+ * sinks to a tenth at the span's middle and is whole at its ends. A pure reading of the year: nothing is stored.
+ */
+export function fieldTurn(key: number, year: number, rate: TurnRate): FieldTurn | null {
+  if (rate.chance <= 0) return null;
+  const shift = Math.floor(turnDraw(key, 0, 7) * rate.turnYears),
+    span = Math.floor((year + shift) / rate.turnYears);
+  if (!(turnDraw(key, span, 0) < rate.chance)) return null;
+  const from = span * rate.turnYears - shift,
+    phase = (year - from + 0.5) / rate.turnYears;
+  return {
+    from,
+    to: from + rate.turnYears,
+    weak: 1 - (1 - REVERSAL.low) * dmath.sin(Math.PI * phase),
+  };
+}
+
+/** The first turning over that begins after one year and no later than another (a step of many years asks once). */
+export function turnBegun(
+  key: number,
+  after: number,
+  upTo: number,
+  rate: TurnRate,
+): FieldTurn | null {
+  if (rate.chance <= 0 || upTo <= after) return null;
+  const shift = Math.floor(turnDraw(key, 0, 7) * rate.turnYears),
+    last = Math.floor((upTo + shift) / rate.turnYears),
+    first = Math.max(Math.ceil((after + 1 + shift) / rate.turnYears), last - 4096);
+  for (let span = first; span <= last; span++) {
+    const turn = fieldTurn(key, span * rate.turnYears - shift, rate);
+    if (turn) return turn;
+  }
+  return null;
 }
 
 /** The share more of a people who die a year for each dose of the sky's particles past Earth's (cancers, a slow toll). */

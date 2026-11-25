@@ -27,6 +27,7 @@ import {
   worldLife,
 } from "../../gen/index.ts";
 import {
+  crossingClocks,
   crossingYears,
   cruise,
   habitability,
@@ -53,7 +54,7 @@ import {
   spendMachines,
 } from "./space.ts";
 import { nationsOf } from "./nation-store.ts";
-import { clusterOf, StarSiteStore, starSitesOf, type SiteLane } from "./stars.ts";
+import { clusterOf, StarSiteStore, starSitesOf, type SiteLane, type StarSite } from "./stars.ts";
 import { farTaken, filledYear, lastFarSailed, sailFar } from "./filled.ts";
 import { LANE_EVENTS, LANE_ROW, laneDraw, laneLawOf, laneRoute, lanesOf } from "./lanes.ts";
 
@@ -259,7 +260,14 @@ export function voyageYear(ctx: PopulationContext, t: SimTime): void {
         { ref: s.voyage, role: "trigger", weight: 1 },
         { ref: s.star, role: "enabler", weight: 0.5 },
       ],
-      data: { star: s.star, distance: s.distance, people: land?.total() ?? 0, year },
+      data: {
+        star: s.star,
+        distance: s.distance,
+        people: land?.total() ?? 0,
+        year,
+        // (Its clocks: the years lived aboard of those gone at home, and when its word reaches home at light's speed.)
+        ...arrivalClocks(s),
+      },
     });
   }
   // Departures.
@@ -313,6 +321,13 @@ export function voyageYear(ctx: PopulationContext, t: SimTime): void {
     // One ship a year in all the world.
     return;
   }
+}
+
+/** A ship's crossing by its own clock and home's, for its arrival's telling (none by a lane's throw: no speed kept). */
+function arrivalClocks(s: StarSite): { home?: number; aboard?: number; word?: number } {
+  if (s.lane) return {};
+  const c = crossingClocks(s.distance, s.arrives - s.departed);
+  return { home: c.home, aboard: Math.round(c.aboard * 10) / 10, word: s.arrives + c.word };
 }
 
 /** Whether a land is of the home world. */

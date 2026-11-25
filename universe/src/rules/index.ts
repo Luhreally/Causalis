@@ -247,6 +247,11 @@ export {
   type LaunchWorld,
   type Launcher,
   type Propulsion,
+  CLEAR_SKY,
+  DEBRIS,
+  aloftYears,
+  debrisOf,
+  type Debris,
 } from "./launch.ts";
 export {
   MOST_UPKEEP,
@@ -556,6 +561,14 @@ export {
   liquidDegrees,
   trueCelsius,
   worldKind,
+  worldSolvent,
+  kindFacts,
+  kindIn,
+  kindSeas,
+  KIND_SOLVENT,
+  SOLVENT_KIND,
+  type KindLike,
+  type WorldSolvent,
   type KindAge,
   type KindFacts,
   type KindInputs,
@@ -564,6 +577,48 @@ export {
   type Volatile,
   type WorldKind,
 } from "./kinds.ts";
+export {
+  REVERSAL,
+  fieldTurn,
+  turnBegun,
+  turnRate,
+  type FieldTurn,
+  type TurnRate,
+} from "./planet.ts";
+export { CARRIED, carriedYield, fruitSet } from "./crops.ts";
+export { CANAL, canalSaves, canalWork, weighCanal, type CanalWeighed } from "./canals.ts";
+export {
+  WORKABLE,
+  depositElement,
+  fossilOrigin,
+  oreEase,
+  oreGenesis,
+  oreWords,
+  otherOres,
+  type FossilOrigin,
+  type OreGenesis,
+} from "./genesis.ts";
+export {
+  SOLVENTS,
+  SOLVENT_IDS,
+  FACE_SPREAD,
+  boilAt,
+  bodyHolds,
+  bodyLiquid,
+  groundGiving,
+  homeHolds,
+  liquidBand,
+  stableLiquid,
+  vapourBar,
+  METHANE_AIR,
+  VENTED,
+  type BodyNumbers,
+  type Held,
+  type HomeMaking,
+  type SolventFacts,
+  type SolventId,
+  type Stable,
+} from "./solvent.ts";
 export {
   KIND_AIR,
   KIND_GASES,

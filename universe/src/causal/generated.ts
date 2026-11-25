@@ -29,6 +29,7 @@ import {
   surfaceCopper,
   starAgeGyr,
   treeOfLife,
+  depositMaking,
   worldChemistry,
   worldKindOf,
   type HomeWorld,
@@ -61,7 +62,7 @@ function hasPlanet(world: World): boolean {
  */
 function groundWords(g: HomeWorld, c: number): string {
   const e = g.tectonics.elevation[c]!,
-    kind = worldKindOf(g);
+    kind = g.planet;
   return `${kindBiomeName(kind, BIOME_NAMES[g.climate.biome[c]!]!)} at ${deg(g.grid.lat[c]!)}${g.grid.lat[c]! >= 0 ? "N" : "S"} ${deg(g.grid.lon[c]!)}${g.grid.lon[c]! >= 0 ? "E" : "W"}: ${Math.round(e)} m ${e >= 0 ? "above" : "below"} the sea, ${trueCelsius(kind, g.climate.temperature[c]!).toFixed(0)} °C, ${Math.round(g.climate.precipitation[c]!)} mm of rain a year`;
 }
 
@@ -135,7 +136,7 @@ registerExplainer(DEPOSIT.code, (world, ref) => {
       lat = pastLatitude(g.grid, g.tectonics, d.cell, (a.from + a.to) / 2);
     return generated(
       ref,
-      `${d.richness} units of ${d.kind}, laid down by ${d.process} in the ${ordinal(age + 1)} age, ${a.from}–${a.to} million years ago, when this land lay at ${deg(lat)}${lat >= 0 ? "N" : "S"}`,
+      `${d.richness} units of ${d.kind}, laid down by ${depositMaking(g, d)} in the ${ordinal(age + 1)} age, ${a.from}–${a.to} million years ago, when this land lay at ${deg(lat)}${lat >= 0 ? "N" : "S"}`,
       edges(world, [
         { ref: ageRef(0, age), role: "trigger", weight: 0.6 },
         { ref: g.tectonics.plates[own!]!.ref as Ref, role: "enabler", weight: 0.3 },
@@ -156,7 +157,7 @@ registerExplainer(DEPOSIT.code, (world, ref) => {
   ];
   return generated(
     ref,
-    `${d.richness} units of ${d.kind}, laid down by ${d.process}`,
+    `${d.richness} units of ${d.kind}, laid down by ${depositMaking(g, d)}`,
     edges(world, causes),
   );
 });
@@ -401,12 +402,12 @@ export function landWords(world: World, place: Ref | null): string {
   if (c >= g.grid.count) return "the land";
   const lat = g.grid.lat[c]!,
     lon = g.grid.lon[c]!;
-  return `the ${kindBiomeName(worldKindOf(g), BIOME_NAMES[g.climate.biome[c]!]!)} at ${deg(lat)}${lat >= 0 ? "N" : "S"} ${deg(lon)}${lon >= 0 ? "E" : "W"}`;
+  return `the ${kindBiomeName(g.planet, BIOME_NAMES[g.climate.biome[c]!]!)} at ${deg(lat)}${lat >= 0 ? "N" : "S"} ${deg(lon)}${lon >= 0 ? "E" : "W"}`;
 }
 
 /** A kind of ground in its own world's words. */
 export function coverWords(world: World, cover: string): string {
-  return hasPlanet(world) ? kindBiomeName(worldKindOf(homePlanet(world).generated), cover) : cover;
+  return hasPlanet(world) ? kindBiomeName(homePlanet(world).generated.planet, cover) : cover;
 }
 
 /** A star of the cluster in plain words, by its light: a red dwarf, a yellow star, a white dwarf. */

@@ -59,6 +59,8 @@ import { ACT_REACH, ACT_STRENGTH, actFactor, actsOf, blightRot, watered } from "
 import { lineageNature, tameNow } from "../acts/natures.ts";
 import {
   FLOCK_LOSS,
+  carriedFields,
+  carriedWild,
   ecologyOf,
   grainLost,
   living,
@@ -152,6 +154,8 @@ import {
   matedShare,
   MONSOON,
   monsoonOf,
+  clockSlips,
+  crossingClocks,
 } from "../../rules/index.ts";
 import { homePlanet } from "../planet/store.ts";
 import { lightSteps, starSitesOf } from "../space/stars.ts";
@@ -504,6 +508,8 @@ export function farmingShare(ctx: PopulationContext, p: Province): number {
       // (Its crop, as tame and as fitted to it as it is; the world's veil, and its own ash and flood: exactly 1 on a land
       // sowing its own, tamed, under a clear sky, its river in its banks.)
       cropsGive(ctx.world, p.cell) *
+      // (Its gardens' fruit by its carriers' numbers: ecology.ts carriedFields. Exactly 1 where they stand as they did.)
+      carriedFields(ctx, p.cell) *
       // (Less what weeds and pests carried in take: exactly 1 where none came.)
       pestsLeft(ctx.world, p.cell) *
       veilYield(ctx, p.cell) *
@@ -714,6 +720,7 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
         // (Its crop, as tame and as fitted to it as it is; the world's veil, and its own ash and flood: exactly 1 on a land
         // sowing its own, tamed, under a clear sky, its river in its banks.)
         cropsGive(world, p.cell) *
+        carriedFields(ctx, p.cell) *
         pestsLeft(world, p.cell) *
         veilYield(ctx, p.cell) *
         floodYield(world, p.cell) *
@@ -732,7 +739,8 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
       flocksLost = herdLoss(world, p.cell, t),
       // (What lives off its flocks and its wild, and what its seed carriers give: ecology/lineage.ts. Exactly 1 where none stand.)
       partners = partnersOf(world, p.cell),
-      wilds = 1 + lore.effect(p.cell, "forageYield"),
+      // (The wild's fruit by its carriers' numbers: ecology.ts carriedWild. Exactly 1 where its small game stands as it did.)
+      wilds = (1 + lore.effect(p.cell, "forageYield")) * carriedWild(ctx, p.cell, alive),
       keeping = Math.min(0.8, lore.effect(p.cell, "keeping")),
       // (And what its own air, coast, woods and brewing keep: society/everyday.ts. Exactly 0 where none is kept.)
       keptByLand = tableKeptOf(world, p.cell),
@@ -1663,8 +1671,25 @@ export function weatherYear(ctx: PopulationContext, t: SimTime): void {
 /** Ageing and coming of age, yearly. */
 export function ageYear(ctx: PopulationContext, t: SimTime): void {
   const { world } = ctx,
-    life = ctx.life;
+    life = ctx.life,
+    // (Ships between the stars, where any sail: their people age by their own slow clock, rules/crossing.ts.)
+    ships = starSitesOf(world),
+    sailing = ships?.sailing() ? ships : null;
   for (const p of ctx.provinces.all()) {
+    if (sailing) {
+      const ship = sailing.get(p.cell);
+      // (A year its clock lets go by unlived: no one aboard grows a year older. By its drive's speed, not a lane's throw.)
+      if (ship && !ship.arrived && !ship.lane) {
+        const year = yearOfMoment(t),
+          home = ship.arrives - ship.departed;
+        if (
+          year > ship.departed &&
+          year <= ship.arrives &&
+          clockSlips(year - ship.departed, crossingClocks(ship.distance, home).v)
+        )
+          continue;
+      }
+    }
     const d = new CountDeltas(p.counts),
       key = refHash(p.ref),
       targets = occupationTargets(

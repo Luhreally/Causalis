@@ -22,7 +22,9 @@ import {
   burstNow,
   galacticOf,
   galacticRates,
-  homeField,
+  homeFieldAt,
+  homeTurn,
+  homeTurns,
   homePlanet,
   homeStrikeRate,
   homeWeather,
@@ -99,7 +101,9 @@ export function homeHazardBlocks(world: World): Block[] {
   const g = homePlanet(world).generated,
     year = yearOfMoment(world.now),
     hw = homeWeather(world),
-    field = homeField(g),
+    field = homeFieldAt(g, year),
+    turn = homeTurn(g, year),
+    turns = homeTurns(g).rate,
     weather = weatherOf(world),
     impacts = impactsOf(world),
     galactic = galacticOf(world),
@@ -117,6 +121,17 @@ export function homeHazardBlocks(world: World): Block[] {
         field.dynamo
           ? `keeps ${Math.round(field.shelter * 1000) / 10} in a hundred of the star's particles off; its storms ring in it and drive currents in long wires`
           : "none: the storms come down through the air instead",
+      ),
+      // (Its field turning over: how often by its core, and whether it is now.)
+      stat(
+        "Its field turning over",
+        turns.chance <= 0
+          ? field.dynamo
+            ? "never: it has no one pole to turn"
+            : "it has none to turn"
+          : turn
+            ? `now, from year ${turn.from} to ${turn.to}: it stands at ${Math.round(turn.weak * 100)}% of its strength, to come back the other way up, and flares and bursts reach the ground`
+            : `about once in ${count(Math.round(turns.turnYears / turns.chance / 1000) * 1000)} years, for some ${count(turns.turnYears)}: then it sinks to a tenth`,
       ),
       stat("Grids it has burned", count(ws?.storms ?? 0)),
       stat("Machines burned", count(ws?.machines ?? 0)),

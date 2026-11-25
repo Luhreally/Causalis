@@ -938,6 +938,8 @@ export {
   launcherOfRealm,
   prospects,
   spaceOf,
+  debrisNow,
+  liftsOf,
   spaceYear,
   type Program,
 } from "./space/space.ts";
@@ -1445,6 +1447,9 @@ export {
   STEP as MOTION_STEP,
   homeAirKept,
   homeField,
+  homeFieldAt,
+  homeTurn,
+  homeTurns,
   homeSky,
   homeStarLife,
   motionOf,
@@ -2236,3 +2241,12 @@ export { BOUND_TRADE_EVENTS } from "./order/boundtrade.ts";
 export { VETERAN_EVENTS } from "./war/veterans.ts";
 export { SHELTER_EVENTS, shelterCover } from "./war/shelter.ts";
 export { TABOO_EVENTS, TabooStore, herdKept, taboosOf, type FaithTaboo } from "./belief/taboo.ts";
+export {
+  CANAL_EVENTS,
+  CanalStore,
+  canalYear,
+  canalsOf,
+  canalsWeighed,
+  type Canal,
+  type CanalReading,
+} from "./economy/canals.ts";

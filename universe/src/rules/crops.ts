@@ -50,6 +50,32 @@ export const CROPS = {
   gardenTolerance: 8,
 } as const;
 
+/**
+ * Plants an animal carries the pollen of (the breadth round's "pollinators"). A grass gives its pollen to the wind
+ * and a sea bed's to the water; a garden's fruit, and the fruit, nuts and berries of the wild, set only where a
+ * small animal has carried pollen from flower to flower. `garden`, `wild`: the share of each harvest, by weight,
+ * that such flowers bear (est: about a third of what gardens and orchards give, Klein and others 2007, and less of
+ * the wild's food, which is roots, greens and game besides). `half`: the carriers, against as many as the untouched
+ * land kept, at which half the flowers they could reach go unvisited (est: a quarter; a flower wants few visits, so
+ * the first carriers lost cost little and the last cost nearly all). `told`: a harvest cut below this by their
+ * fewness is told.
+ */
+export const CARRIED = { garden: 0.35, wild: 0.15, half: 0.25, told: 0.93 } as const;
+
+/** The share of the flowers an animal must visit that set fruit, by its carriers' numbers (0 … 1 of the untouched land's). */
+export function fruitSet(carriers: number): number {
+  const c = dmath.clamp(carriers, 0, 1);
+  return (c * (1 + CARRIED.half)) / (c + CARRIED.half);
+}
+
+/**
+ * What a harvest gives by its carriers' numbers: all of it where no part of it waits on a carrier (`need` 0) or
+ * they are as many as ever; less its carried share where they are gone.
+ */
+export function carriedYield(need: number, carriers: number): number {
+  return 1 - dmath.clamp(need, 0, 1) * (1 - fruitSet(carriers));
+}
+
 /** What a crop's harvest is against its tamed self's: from a wild stand sown (CROPS.wild) to all of it. */
 export function cropYield(tame: number): number {
   return CROPS.wild + (1 - CROPS.wild) * dmath.clamp(tame, 0, 1);
