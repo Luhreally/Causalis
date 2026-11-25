@@ -24,6 +24,7 @@ import {
 } from "../../kernel/index.ts";
 import {
   GOODS,
+  GOOD_VALUES,
   HOLD,
   OCC,
   TREASURY,
@@ -129,7 +130,7 @@ export function lawFactsOf(ctx: PopulationContext, p: Polity, o: RealmOrder, t: 
       if (seatFaith !== null && theirs !== null && theirs !== seatFaith) unbelief += n;
     }
     const m = markets.get(c);
-    if (m) for (let k = 0; k < GOODS.length; k++) used += m.book("used", k) * GOODS[k]!.value;
+    if (m) used = m.addBook("used", GOOD_VALUES, used);
     const w = markets.wagesOf(c);
     if (!w) continue;
     const at = [

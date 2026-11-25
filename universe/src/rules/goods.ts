@@ -41,6 +41,9 @@ export const GOODS: readonly Good[] = [
   { id: "iron", name: "iron", food: false, value: 5, spoil: 0.001, bulk: 0.6 },
 ];
 
+/** Each good's usual worth in grain (its value), by its index. */
+export const GOOD_VALUES: readonly number[] = GOODS.map((g) => g.value);
+
 export const G = {
   grain: 0,
   meat: 1,

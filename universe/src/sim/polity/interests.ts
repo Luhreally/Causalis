@@ -11,7 +11,7 @@
 // its wars) read those demands as factors, so their why runs through the people who
 // pressed them, and on to what moved those people.
 import { YEAR, type Ref, type SimTime } from "../../kernel/index.ts";
-import { GOODS, HOLD, OCC, templeSway } from "../../rules/index.ts";
+import { GOODS, GOOD_VALUES, HOLD, OCC, templeSway } from "../../rules/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import type { MarketStore } from "../economy/market.ts";
 import { WAY, cultureOf } from "../culture/culture.ts";
@@ -205,7 +205,7 @@ function readingOf(ctx: PopulationContext, p: Polity): Reading {
     used = 0;
   for (const c of p.members) {
     const m = markets.get(c);
-    if (m) for (let k = 0; k < GOODS.length; k++) used += m.book("used", k) * GOODS[k]!.value;
+    if (m) used = m.addBook("used", GOOD_VALUES, used);
     const prov = ctx.provinces.get(c);
     if (!prov) continue;
     const f = prov.occupation(OCC.farmer),

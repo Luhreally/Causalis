@@ -210,6 +210,22 @@ export class Market {
   }
 
   /**
+   * `sum` with each good's line of the same books added to it in turn, each at its weight: what `sum += book(line, g) *
+   * weight[g]` over every good in order comes to, the books found once. (A realm's lands' use in grain's worth is asked at
+   * every asking of its interests: a book read good by good was most of the asking.)
+   */
+  addBook(line: LedgerLine, weight: readonly number[], sum: number): number {
+    if (this.reckoned) {
+      const at = LINE[line] * GOOD_COUNT;
+      for (let g = 0; g < GOOD_COUNT; g++) sum += this.ledger[at + g]! * weight[g]!;
+      return sum;
+    }
+    const row = this.years.at(-1)?.ledger[LINE[line]];
+    for (let g = 0; g < GOOD_COUNT; g++) sum += (row?.[g] ?? 0) * weight[g]!;
+    return sum;
+  }
+
+  /**
    * What goes of a good here in a year: the most, in any of the last GLUT_YEARS closed years (the most, for a good smelted one
    * year is worked the next), of what it used, what it sent on of what came in that same year, and what it sent away of its own
    * making. What its making and what traders bring it are bounded by. (It was all it used and sent on, whatever it sent: a good

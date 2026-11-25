@@ -58,6 +58,7 @@ export {
   G,
   GLUT_YEARS,
   GOODS,
+  GOOD_VALUES,
   HERD_GOODS,
   HOME_MADE,
   MACHINE_GAIN,

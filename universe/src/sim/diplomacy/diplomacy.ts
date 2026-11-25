@@ -30,7 +30,7 @@ import type { MarketStore } from "../economy/market.ts";
 import { WAY, cultureOf } from "../culture/culture.ts";
 import { LAW, POLITY_EVENTS, politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import { beliefOf } from "../belief/belief.ts";
-import { GOODS, HOLD, HOLDING, OUTCOME } from "../../rules/index.ts";
+import { GOODS, GOOD_VALUES, HOLD, HOLDING, OUTCOME } from "../../rules/index.ts";
 import { orderOf } from "../order/order.ts";
 import { blamesOutsiders, holdOf } from "../order/holds.ts";
 import { fearOf, financeOf, stakesBetween, topFear, wayOf } from "../finance/finance.ts";
@@ -362,7 +362,7 @@ export function diplomacyYear(ctx: PopulationContext, t: SimTime): void {
         u = 0;
         for (const c of p.members) {
           const m = markets.get(c);
-          if (m) for (let k = 0; k < GOODS.length; k++) u += m.book("used", k) * GOODS[k]!.value;
+          if (m) u = m.addBook("used", GOOD_VALUES, u);
         }
         uses.set(p.ref, u);
       }
