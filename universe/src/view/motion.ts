@@ -24,7 +24,8 @@ export const SEATED: ReadonlySet<Task> = new Set([
 
 /**
  * How far a limb is swung now, radians about its hinge (a hip, a shoulder): `walking` or at
- * `task`, at screen time `t` seconds; `i` sets each person a little out of step.
+ * `task`, at screen time `t` seconds; `i` sets each person a little out of step. `reach`: how much of the limb's own
+ * swing a walk at their speed takes (view/gait.ts: a slow step is a short one; 1, the whole of it).
  */
 export function limbPitch(
   part: FigurePart,
@@ -32,6 +33,7 @@ export function limbPitch(
   walking: boolean,
   t: number,
   i: number,
+  reach = 1,
 ): number {
   const swing = part.swing ?? 0;
   if (!swing) return 0;
@@ -41,11 +43,11 @@ export function limbPitch(
     right = swing > 0;
   // (A bier borne on the shoulder: the arms up to hold it, the legs in a slow step.)
   if (walking && task === "bear")
-    return part.role === "arm" ? -2.7 : swing * 0.7 * Math.sin(ph * STRIDES * 0.8 + off);
+    return part.role === "arm" ? -2.7 : swing * 0.7 * reach * Math.sin(ph * STRIDES * 0.8 + off);
   // (A litter carried by its poles: the arms down to them, the legs in a slow step: Phase 55 M229.)
   if (walking && task === "carry")
-    return part.role === "arm" ? -0.12 : swing * 0.7 * Math.sin(ph * STRIDES * 0.8 + off);
-  if (walking) return swing * Math.sin(ph * STRIDES + off);
+    return part.role === "arm" ? -0.12 : swing * 0.7 * reach * Math.sin(ph * STRIDES * 0.8 + off);
+  if (walking) return swing * reach * Math.sin(ph * STRIDES + off);
   if (part.role === "leg") {
     if (task === "drill") return 0.35 * Math.sign(swing) * Math.max(0, Math.sin(ph * 0.8 + off));
     if (task === "brawl") return 0.3 * Math.sign(swing) * Math.sin(ph * 2.2 + off);

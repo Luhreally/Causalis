@@ -74,7 +74,19 @@ export {
 } from "./globe.ts";
 export { WEALTH_CHOICES, figureEye, wealthNote, wealthShades, wealthSpread } from "./leaders.ts";
 export { LivedBody, livedSpeed, ruledSpeed, spotOf } from "./lived.ts";
-export { PlaceBodies } from "./placefolk.ts";
+export { LATE, PLACED_SIZE, PlaceBodies, wayGone } from "./placefolk.ts";
+export {
+  EASY,
+  PULL,
+  WALK_ENDS,
+  WIDEST,
+  agePace,
+  easyPace,
+  hipOf,
+  leanOf,
+  legSwing,
+  strideLength,
+} from "./gait.ts";
 export { BLOOD_TONES, LIFE_WORDS, bloodTones, lifeTint, type BloodTones } from "./biochem.ts";
 export {
   ACT_PARTS,
@@ -563,7 +575,7 @@ export {
   type CampaignNow,
   type WarAgeNow,
 } from "./campaign.ts";
-export { BLINK, DASH, FAR, SMOOTH, present, type Presence } from "./presence.ts";
+export { BLINK, DASH, FAR, SMOOTH, present, type Bodies, type Presence } from "./presence.ts";
 export {
   BEYOND,
   HANDED,
