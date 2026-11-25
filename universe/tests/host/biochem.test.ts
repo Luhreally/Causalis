@@ -162,7 +162,7 @@ test("alien 84: bones of silica and green blood, on the lineage's page, the tree
   assert.match(rows.get("Its liquid")!, /^water: /);
   assert.match(rows.get("Its cells' skins")!, /caldarchaeol/);
   assert.match(rows.get("Its colour")!, /^Black, with bacteriochlorophyll/);
-  // One met's Body tab: their bones and their blood.
+  // One met's Body tab: their bones (or shell) and their blood.
   const towns = ALIEN.queries["towns.map"]!(sulfur, {}) as { ref: string }[];
   let told = 0;
   for (const t of towns) {
@@ -174,9 +174,12 @@ test("alien 84: bones of silica and green blood, on the lineage's page, the tree
     assert.ok(body, "a Body tab");
     const facts = body.blocks.find((b) => b.type === "facts");
     assert.ok(facts && facts.type === "facts");
-    const bones = facts.rows.find((r) => r.label === "Bones"),
+    // (Their bones, or their shell where its people are shelled, as alien 84's are since its people's body moved: both of
+    // its silica.)
+    const hard = facts.rows.filter((r) => r.label === "Bones" || r.label === "Shell"),
       blood = facts.rows.find((r) => r.label === "Blood");
-    assert.match(words(bones!.value), /^Silica \(opal\)/);
+    assert.equal(hard.length, 1, "bones or a shell");
+    assert.match(words(hard[0]!.value), /^Silica \(opal\)/);
     assert.match(words(blood!.value), /^Green/);
     told++;
     break;
