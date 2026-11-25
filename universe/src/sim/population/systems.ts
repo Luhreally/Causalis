@@ -1469,12 +1469,9 @@ export function putBy(ctx: PopulationContext, p: Province, m: Market | undefined
 
 export function transition(ctx: PopulationContext, cell: number): number {
   // (And the children more its mothers want where only their children would keep them old: society/care.ts. 0 where none is kept.)
-  const keeps = childrenKept(
-      ctx.life,
-      slowDeaths(ctx, cell),
-      raisingCost(ctx, cell),
-      oldAgeWantOf(ctx.world, cell),
-    ),
+  const slow = slowDeaths(ctx, cell),
+    want = oldAgeWantOf(ctx.world, cell),
+    keeps = childrenKept(ctx.life, slow, raisingCost(ctx, cell), want),
     lore = loreOf(ctx.world);
   // Past our ages (Phase 66): nothing here runs short any more, and what a people then does is its choice.
   // (Where it writes and grows its children, as far as it does: one grown, not borne, costs no mother her work, and lives
@@ -1487,9 +1484,9 @@ export function transition(ctx: PopulationContext, cell: number): number {
         made.written *
           (childrenKept(
             made.life,
-            slowDeaths(ctx, cell),
+            slow,
             childCost(readersOf(ctx.world, cell), machineShare(ctx, cell), 0),
-            oldAgeWantOf(ctx.world, cell),
+            want,
           ) -
             borne)
     : borne;
