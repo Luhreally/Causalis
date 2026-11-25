@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { EARTH } from "../../src/host/planet.ts";
 import { landStone } from "../../src/host/chain.ts";
 import { METALS, ORES, SUBSTANCE, SUBSTANCES } from "../../src/rules/index.ts";
-import { populationContext, toolMetal } from "../../src/sim/index.ts";
+import { forgedMetal, populationContext, toolMetal } from "../../src/sim/index.ts";
 import { dayTold, furnaceOf, rackNow, townDay, villageSolids } from "../../src/view/index.ts";
 import type { Line, PageModel, VillagePlan } from "../../src/bridge/index.ts";
 import { universeWorld } from "./worlds.ts";
@@ -19,19 +19,18 @@ const DAY = 86_400,
 const words = (l: Line) => l.map((s) => (typeof s === "string" ? s : s.text)).join("");
 const refsOf = (lines: readonly Line[]): string[] =>
   lines.flatMap((l) => l.flatMap((s) => (typeof s === "string" || !s.ref ? [] : [s.ref])));
-const plans = ask<{ ref: string }[]>("towns.map")
-  .slice(0, 40)
-  .map((t) => ask<VillagePlan>("village.plan", { ref: t.ref, folk: 220 }));
+const map = ask<{ ref: string }[]>("towns.map"),
+  planOf = (t: { ref: string }) => ask<VillagePlan>("village.plan", { ref: t.ref, folk: 220 }),
+  plans = map.slice(0, 40).map(planOf);
 // The greatest town that digs its own copper ore and smelts it, its smiths forging copper (one of bog
-// iron may be greater, and one whose land has learned bronze casts it with tin: which town that is moves
-// with history).
-const smelting = plans.find(
-  (p) =>
-    p.works?.mine?.what === "ore" &&
-    p.stuff?.ore &&
-    (p.stuff.ore.yields ?? "copper") === "copper" &&
-    toolMetal(populationContext(world), p.cell!) === "copper",
-)!;
+// iron may be greater, and one whose land has learned bronze casts it with tin, though its tools be
+// copper still: which town that is moves with history, and at 300 the first such is past the first forty).
+const copperSmelter = (p: VillagePlan) =>
+  p.works?.mine?.what === "ore" &&
+  !!p.stuff?.ore &&
+  (p.stuff.ore.yields ?? "copper") === "copper" &&
+  forgedMetal(populationContext(world), p.cell!) === "copper";
+const smelting = plans.find(copperSmelter) ?? map.slice(40, 200).map(planOf).find(copperSmelter)!;
 const days = Array.from({ length: 8 }, (_, d) => 300 * 365 + 120 + d);
 
 test("a town that digs its own ore smelts it at the furnace by its diggings, its smiths at the forge with the copper", () => {

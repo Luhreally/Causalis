@@ -6,6 +6,7 @@ import {
   frontier,
   politiesOf,
   populationContext,
+  underworldOf,
   warsOf,
   type Polity,
 } from "../../src/sim/index.ts";
@@ -161,16 +162,25 @@ test("the world in numbers: its people, realms and wars, towns, faiths and tongu
 
 test("the wars map carries each host's kinds, and the garrisons of the realms at peace", () => {
   const wars = ask<WarsMap>("wars.map");
-  assert.ok(wars.garrisons.length > 0 && wars.garrisons.length <= 48);
+  // (After the realms at peace, at most 48 and the greatest first, the soldiers a seat has sent against a crime group, in
+  // each of its lands: sim/order/underworld.ts escalation.)
+  const sent = wars.garrisons.filter((g) => / sent against /.test(g.name)),
+    peace = wars.garrisons.filter((g) => !sent.includes(g));
+  assert.deepEqual(wars.garrisons, [...peace, ...sent], "the realms at peace first");
+  assert.ok(peace.length > 0 && peace.length <= 48);
   const fighting = new Set(
     wars.wars.flatMap((w) => (w.ended === null ? [w.attacker.ref, w.defender.ref] : [])),
   );
-  for (const g of wars.garrisons) {
-    assert.ok(!fighting.has(g.realm), "a garrison stands at peace");
-    assert.ok(g.spot >= 0);
-  }
-  for (let i = 1; i < wars.garrisons.length; i++)
-    assert.ok(wars.garrisons[i - 1]!.fields >= wars.garrisons[i]!.fields, "the greatest first");
+  for (const g of peace) assert.ok(!fighting.has(g.realm), "a garrison stands at peace");
+  for (const g of wars.garrisons) assert.ok(g.spot >= 0);
+  for (let i = 1; i < peace.length; i++)
+    assert.ok(peace[i - 1]!.fields >= peace[i]!.fields, "the greatest first");
+  const sending = new Set<string>(
+    [...politiesOf(world).living()].flatMap((r) =>
+      (underworldOf(world)?.of(r.ref)?.ops ?? []).some((o) => o.ended === null) ? [r.ref] : [],
+    ),
+  );
+  for (const g of sent) assert.ok(sending.has(g.realm), `${g.name}: its soldiers sent now`);
   const sides = wars.wars.flatMap((w) => [w.attacker, w.defender]);
   assert.ok(sides.length > 0, "a war to see");
   assert.ok(
@@ -228,8 +238,11 @@ test("a realm's army and a war's course: its host, the men it fields through the
   assert.ok(army, "a realm has its army's tab");
   assert.deepEqual(
     army.blocks.map((b) => b.type),
-    ["facts", "lines", "table"],
+    ["facts", "lines", "table", "facts"],
   );
+  // (Its arms and ships, since the arming round: what it sends to war and what its arming does.)
+  const arms = army.blocks[3]!;
+  assert.ok(arms.type === "facts" && arms.rows.some((r) => r.label === "Sends to war"));
   const facts = army.blocks[0]!;
   assert.ok(facts.type === "facts" && facts.rows.some((r) => r.label === "Fields"));
   const through = army.blocks[1]!;

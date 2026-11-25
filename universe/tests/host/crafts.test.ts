@@ -53,10 +53,16 @@ test("a town's potters throw at their wheels, set each pot on the boards to dry,
     dawns = 0,
     sample: { index: number; n: number; form: string; day: number } | undefined;
   // (One the town's goings take for the day — a round with its watch, say — is not at the wheel: at most at the kiln at noon.
-  // Until 2026-11-23 none of first light's potters at 300 walked with a watch; now one does, on a day scanned.)
+  // Until 2026-11-23 none of first light's potters at 300 walked with a watch; now one does, on a day scanned. One whose going
+  // is after their day at the wheel, a corner kept or licensed tools sold of an evening, is at the wheel all the same.)
   const goingsDoing = new Set((potting.goings ?? []).map((g) => g.doing)),
-    taken = (i: number, day: number) =>
-      legsTold(potting, i, day).some((l) => l.why !== null && goingsDoing.has(l.why));
+    taken = (i: number, day: number) => {
+      const legs = legsTold(potting, i, day);
+      return (
+        legs.some((l) => l.why !== null && goingsDoing.has(l.why)) &&
+        !legs.some((l) => l.why?.startsWith("Throwing "))
+      );
+    };
   let away = 0,
     kilnDays = 0;
   for (const day of days) {
@@ -338,6 +344,7 @@ test("a town that burns charcoal keeps its clamp through a round of working days
     covered = 0,
     watched = 0,
     raked = 0,
+    heldOpen = 0,
     bare = 0;
   for (const d of weeks) {
     const stage: number = clampStage(burning, d),
@@ -375,6 +382,19 @@ test("a town that burns charcoal keeps its clamp through a round of working days
       assert.match(told, /Watching over the smouldering clamp/i, told);
       watched++;
     } else {
+      // (A collier a going holds through the working day — the head of a works, there from 7h30 to 16h — is not at the clamp
+      // while it holds them: nothing is raked open or taken from it before they come, its heap whole until then. Rorywick's,
+      // on one of first light's stage-5 days at 300.)
+      const held = lifeParts(burning, collier, d, ground).some((part) =>
+        part.stays.some((st) => !st.own && st.from < 10 * HOUR && st.to > 15 * HOUR),
+      );
+      if (held) {
+        const back = legsTold(burning, collier, d).find((l) => l.why?.startsWith("Filling a sack"));
+        for (let h = 6; back && h * HOUR < back.from; h++)
+          assert.equal(clamp(d, h).heap, 1, `day ${off} at ${h}h: whole while its collier is held`);
+        heldOpen++;
+        continue;
+      }
       // Opened: its charcoal carried off, so the heap at 17h is below the heap at 9h.
       assert.match(told, /Raking open the clamp/i, told);
       assert.ok(
@@ -386,7 +406,7 @@ test("a town that burns charcoal keeps its clamp through a round of working days
   }
   assert.ok(
     stacked > 0 && covered > 0 && watched > 0 && raked > 0 && bare > 0,
-    `stacked ${stacked}, covered ${covered}, watched ${watched}, raked ${raked}, without collier ${bare}`,
+    `stacked ${stacked}, covered ${covered}, watched ${watched}, raked ${raked} (${heldOpen} held), without collier ${bare}`,
   );
 });
 
