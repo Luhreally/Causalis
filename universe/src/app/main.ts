@@ -2513,9 +2513,11 @@ async function runPlanetPage(): Promise<void> {
       performance.measure("region.build", { start: t0 });
       regionPanel.show(meta.center, meta.lat, meta.lon, meta.size * meta.tileKm);
       // (A world locked to its star: its sun stands still over this land, as high as the star stands there.)
-      stage.held = planetPanel.locked
-        ? lockedDay(Math.cos((meta.lat * Math.PI) / 180) * Math.sin((meta.lon * Math.PI) / 180))
-        : null;
+      stage.held =
+        planetPanel.locked && !isColonyLand(regionCell)
+          ? lockedDay(Math.cos((meta.lat * Math.PI) / 180) * Math.sin((meta.lon * Math.PI) / 180))
+          : null;
+      if (stage.held !== null && scaleNow() === "region") stage.daylight(stage.held);
       region.setVillages(villages);
       region.plantTrees(regionTrees(frame, stage.quality.regionTrees), ...landFloraOf(frame));
       if (landPlan) region.setTowns(landPlan, landPlan.t);

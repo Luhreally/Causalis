@@ -63,7 +63,8 @@ export function wetShare(land: LandSky): number {
 /** The air of a land at moment t (°C): its mean, its season (0 midwinter), and its hour if `hourly`. */
 export function warmthAt(land: LandSky, t: number, hourly = true): number {
   const year = (((t % YEAR) + YEAR) % YEAR) / YEAR,
-    hour = (((t % DAY) + DAY) % DAY) / DAY;
+    // (Where its sun stands still, bridge LandSky.held, its warmth has no hours either.)
+    hour = land.held ?? (((t % DAY) + DAY) % DAY) / DAY;
   return (
     land.warmth -
     land.swing * Math.cos(2 * Math.PI * year) +
@@ -116,9 +117,9 @@ export function weatherAt(land: LandSky, t: number, pace = 0, wall: number | nul
     // (Under the soot of a great fire, W5: colder, the sun a smear behind it.)
     dark = land.dark?.soot ?? 0,
     warmth = warmthAt(land, t, fine) - (land.dark?.cold ?? 0),
-    hour = (((t % DAY) + DAY) % DAY) / DAY,
-    // (Told by the day or the season, it is told as by day.)
-    day = !fine || (hour > 0.27 && hour < 0.77),
+    hour = land.held ?? (((t % DAY) + DAY) % DAY) / DAY,
+    // (Told by the day or the season, it is told as by day; where the sun stands still, by where it stands.)
+    day = land.held !== undefined ? hour > 0.27 : !fine || (hour > 0.27 && hour < 0.77),
     // A dry year's haze by day; the god's withholding, the more.
     dry =
       land.sent < 0

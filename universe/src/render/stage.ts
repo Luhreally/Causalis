@@ -252,6 +252,9 @@ export class Stage {
     this.fogReach = { start: fog.start, end: fog.end };
     this.colonyLight();
     this.applyWeather();
+    // (A land of a world locked to its star is lit as its sun stands over it for good, as its towns are: without this a land
+    // on the dark side stood in a clear noon, 2026-11-24.)
+    if (this.held !== null && !this.colonyOver) this.daylight(this.held);
   }
 
   /** Whether the star is up by the hour on the ground, and the way toward it (a colony's disc stands there). */
