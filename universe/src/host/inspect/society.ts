@@ -31,6 +31,8 @@ import {
   LEISURE_STORE,
   OLD_ROW,
   OLD_STORE,
+  UNABLE_ROW,
+  UNABLE_STORE,
   PROVISION,
   PROVISION_STORE,
   ROLE_ROW,
@@ -116,6 +118,26 @@ export function landLivesBlocks(world: World, cell: number): Block[] {
         ...(care[CARE_ROW.drained]! > 0
           ? [stat("Of its people, drained and clean-watered", per(care[CARE_ROW.drained]!))]
           : []),
+      ],
+    });
+  const unable = societyStore(world, UNABLE_STORE)?.get(cell);
+  if (unable && unable[UNABLE_ROW.share]! > 0)
+    blocks.push({
+      type: "facts",
+      title: "Those unable to work",
+      rows: [
+        stat("Of its grown", per(unable[UNABLE_ROW.share]!), {
+          parts: [
+            part("maimed in its realm's wars", per(unable[UNABLE_ROW.war]!)),
+            part("weakened by its settled sicknesses", per(unable[UNABLE_ROW.sick]!)),
+            part("short of breath in its foul air", per(unable[UNABLE_ROW.smoke]!)),
+            part("hurt at their work", per(unable[UNABLE_ROW.mishap]!)),
+          ],
+        }),
+        stat(
+          "Kept by kin, temple, savings or pension",
+          `${per(unable[UNABLE_ROW.kept]!)}: their share of its work is not done, and they are fed as they were; those no one keeps die the sooner`,
+        ),
       ],
     });
   const old = societyStore(world, OLD_STORE)?.get(cell);

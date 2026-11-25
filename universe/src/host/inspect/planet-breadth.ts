@@ -2,9 +2,12 @@
 // stands (rules/biomes.ts); its monsoon, the great storms its seas breed and its slopes' failing, with the last that struck it;
 // and the world's air at rest, its seas' souring, its frozen ground's thaw, its slow swings and its star's companion.
 import type { World } from "../../kernel/index.ts";
-import { isProvinceWorld } from "../../gen/index.ts";
+import { isProvinceWorld, spinHours } from "../../gen/index.ts";
 import {
   CARBON_CYCLE,
+  KINDS,
+  hazeFields,
+  lockedWarmth,
   cycloneChance,
   cycloneSpin,
   monsoonOf,
@@ -16,17 +19,23 @@ import {
   airOf,
   carbonWorld,
   coverAt,
+  homeAirKept,
   homeCycles,
+  homeField,
   homePlanet,
   landSlope,
   populationContext,
   riverMovesOn,
+  shieldNow,
   skyOf,
   struckOn,
 } from "../../sim/index.ts";
 import type { Block } from "../../bridge/index.ts";
+import { galaxyAdrift } from "../galaxy.ts";
 import { count, stat } from "./words.ts";
 
+const lockedAir = (g: { planet: { kind?: keyof typeof KINDS } }) =>
+  g.planet.kind ? KINDS[g.planet.kind].body.pressure : 1;
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 
 /** What a land grows, and the storms, monsoon and slides it is open to. */
@@ -72,7 +81,7 @@ export function landBreadthBlocks(world: World, cell: number): Block[] {
       const m = g.grid.neighbours[k]!;
       if (g.tectonics.elevation[m]! <= 0) sea = Math.max(sea, g.climate.temperature[m]!);
     }
-    const storm = cycloneChance(sea, cycloneSpin(lat, g.planet.dayHours));
+    const storm = cycloneChance(sea, cycloneSpin(lat, spinHours(g.planet)));
     if (storm > 0)
       rows.push(
         stat(
@@ -114,6 +123,7 @@ export function landBreadthBlocks(world: World, cell: number): Block[] {
 /** The world's air at rest, its seas, its frozen ground, its slow swings and its star's companion. */
 export function worldBreadthBlock(world: World): Block {
   const g = homePlanet(world).generated,
+    fine = isProvinceWorld(g) ? g.fine : g,
     cw = carbonWorld(g),
     air = world.hasStore("climate.air") ? airOf(world).air : null,
     rest = air?.rest,
@@ -134,6 +144,13 @@ export function worldBreadthBlock(world: World): Block {
         stat(
           "Its seas",
           `${sour.toFixed(2)} of a pH more acid than at rest; their shells and reefs give ${pct(shellsLeft(sour))}`,
+        ),
+      );
+    if ((air.masked ?? 0) >= 0.02)
+      rows.push(
+        stat(
+          "The haze of its burning",
+          `hides ${(air.masked ?? 0).toFixed(2)} degrees of the warming its carbon is storing up, and dims its fields by ${(100 * (1 - hazeFields(air.masked ?? 0))).toFixed(1)}%: it lasts only while the burning does`,
         ),
       );
     if ((air.thawed ?? 0) > 0)
@@ -157,5 +174,46 @@ export function worldBreadthBlock(world: World): Block {
         `a star of ${companion.mass.toFixed(2)} Suns ${count(Math.round(companion.a))} times Earth's distance out, ${companion.moons >= 1 ? `${count(Math.round(companion.moons))} times as bright as a full moon` : "a bright star"} in its sky`,
       ),
     );
+  const kept = homeAirKept(fine);
+  rows.push(
+    stat(
+      "Its air against its star's wind",
+      kept.kept < 1
+        ? `${pct(1 - kept.kept)} of the air it was made with is gone, ${pct(kept.loss)} of it a billion years: its field keeps off ${pct(homeField(fine).shelter)} of a wind ${homeField(fine).wind.toFixed(1)} times the Sun's at Earth. What it burns fills a thinner air the faster`
+        : `kept: it loses ${(100 * kept.loss).toFixed(2)}% a billion years, its field keeping off ${pct(homeField(fine).shelter)} of its star's wind`,
+    ),
+  );
+  const sky = skyOf(fine),
+    shield = shieldNow(world);
+  rows.push(
+    stat(
+      "Its shield against its star's hard light",
+      `${sky.ozone > 0 ? `ozone ${sky.ozone.toFixed(2)} of Earth's, from the oxygen its life put in its air` : "no ozone: its air holds no free oxygen"}${sky.haze ? ", and a haze that stops it too" : ""}; ${sky.hard < 10 ? sky.hard.toFixed(2) : Math.round(sky.hard)} times Earth's hard light reaches its ground${sky.open < 0.995 ? `, and what grows in the open gives ${pct(sky.open)} of what it would under Earth's shield` : ""}${shield.left < 1 ? `. Now stripped to ${pct(shield.left)}: its open fields give ${pct(shield.fields)}` : ""}`,
+    ),
+  );
+  if (g.planet.locked)
+    rows.push(
+      stat(
+        "Its two sides",
+        `its star's tide holds one face to the star: ${lockedWarmth(1, lockedAir(g)).toFixed(0)} degrees over its mean under the star, ${Math.abs(lockedWarmth(0, lockedAir(g))).toFixed(0)} under it from the edge of the light across the whole dark side, where nothing grows`,
+      ),
+    );
+  for (const b of g.system.bodies)
+    if (b.ring)
+      rows.push(
+        stat(
+          b.kind === "home"
+            ? "Its own ring, a band across its sky"
+            : `The ring of ${b.designation}`,
+          `of ${b.ring.ice ? "ice" : "rock and dust"}, out to ${b.ring.outer.toFixed(1)} of its radii: a moon that came to ${b.ring.at.toFixed(1)}, inside where its tide tears one apart`,
+        ),
+      );
+  const adrift = galaxyAdrift(world);
+  rows.push(
+    stat(
+      "Worlds without a star",
+      `some ${(adrift.rogues / 1e9).toFixed(1)} billion adrift in its galaxy of ${Math.round(adrift.stars / 1e9)} billion stars, thrown out by their stars' giants when their systems were young`,
+    ),
+  );
   return { type: "facts", title: "Its planet's slow work", rows };
 }

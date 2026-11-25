@@ -15,7 +15,9 @@ import {
   orbitXY,
   bodyPull,
   companionOf,
+  ringOf,
   type Companion,
+  type Ring,
   yearUnder,
   type Prior,
   type Range,
@@ -68,6 +70,8 @@ export type SystemBody = {
   readonly radiation: number;
   /** Why it is as it is, in words (each clause a textbook law read on its numbers). */
   readonly because: readonly string[];
+  /** Its ring, where a moon came inside its Roche limit and was torn apart (rules/rings.ts). */
+  readonly ring?: Ring;
 };
 
 export type StarSystem = {
@@ -399,6 +403,25 @@ export function makeSystem(rng: Rng, prior: Prior, star: Star, home: Planet): St
       });
       m++;
     }
+  }
+  // Rings, on keyed draws of their own: a planet's moon drawn inward and torn inside its Roche limit (rules/rings.ts). The home
+  // world's too, where its own draw says so (a rocky world seldom draws one in): a band across its sky, on its page. Its moons
+  // and its tides are as they were made.
+  for (let i = 0; i < planets.length; i++) {
+    const b = bodies[i]!,
+      ring = ringOf({ mass: b.mass, radius: b.radius, icy: b.orbit.a > frostLine }, [
+        rng.real(SYSTEM, 8888, i, 0, 0),
+        rng.real(SYSTEM, 8888, i, 0, 1),
+      ]);
+    if (ring)
+      bodies[i] = {
+        ...b,
+        ring,
+        because: [
+          ...b.because,
+          `ringed with ${ring.ice ? "ice" : "rock and dust"}: a moon came within ${ring.at.toFixed(1)} of its radii, inside the ${ring.roche.toFixed(1)} where its tide tears a moon of ${ring.ice ? "ice" : "rock"} apart`,
+        ],
+      };
   }
   // (Its star's companion, on keyed draws of their own: the bodies above are drawn as they always were.)
   const companion = companionOf(star, home.orbitAu, [

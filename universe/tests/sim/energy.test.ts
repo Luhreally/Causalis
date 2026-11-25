@@ -19,9 +19,9 @@ import { EARTH } from "../../src/host/index.ts";
 import { universeWorld } from "../host/worlds.ts";
 
 const early = universeWorld(EARTH, "first light", 125),
-  // (760: first light's first engines turn between 700 and 750 as the world now runs: coal dug in 239 lands and clockwork
-  // known in 254 at 700, the engine in none; in 134 by 750. At 700 no land's works ran on burned fuel yet.)
-  late = universeWorld(EARTH, "first light", 760);
+  // (800: first light's first works run on burned fuel between 760 and 780 as the world now runs, in 2 lands at 780 and 76
+  // at 800; none at 760. They came between 700 and 750 before a land's unable left its workers, 2026-11-24.)
+  late = universeWorld(EARTH, "first light", 800);
 
 test("every peopled land keeps an account whose lines add up", () => {
   for (const world of [early, late]) {
@@ -71,10 +71,13 @@ test("by the age of engines some lands' works run on burned fuel, and what they 
     assert.ok(r.share > 0.01 && r.share < 0.3, `its engines' share of Carnot: ${r.share}`);
     assert.ok(r.primary > 0.3, `${r.primary} kW a head`);
     const cover = e.workWanted > 0 ? (1000 * e.workHad) / e.workWanted : 0;
-    assert.ok(
-      Math.abs(m.powerCover - cover) <= 3,
-      `its power cover ${m.powerCover} against ${cover}`,
-    );
+    // (A land's row keeps whole kilowatts: read where that rounding is under the three in a thousand allowed. A land of 463
+    // people that had 7 kW of the 10 its works wanted reads 700 where its market, from the unrounded account, reads 676.)
+    if (e.workWanted >= 400)
+      assert.ok(
+        Math.abs(m.powerCover - cover) <= 3,
+        `its power cover ${m.powerCover} against ${cover}`,
+      );
     // (What the transition reads of it: its engines' fuel, in units burned: transitionPower, a bridge for round C.)
     assert.ok(m.burned > 0);
   }

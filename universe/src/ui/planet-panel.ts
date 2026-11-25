@@ -36,6 +36,7 @@ type Summary = {
     orbitAu: number;
     yearDays: number;
     dayHours: number;
+    locked?: boolean;
     tilt: number;
     meanTemperature: number;
     plates: number;
@@ -673,10 +674,14 @@ export class PlanetPanel {
     this.world.prepend(row);
   }
 
+  /** Whether the world's one face is held to its star (it has no day: the views hold its sun still). */
+  locked = false;
+
   private async describe(): Promise<void> {
     const s = await this.client.query<Summary>({ type: "planet.summary" });
     const p = s.planet;
-    this.description = `A ${s.star.spectral} star · a world of ${p.mass.toFixed(2)} Earth masses, ${p.meanTemperature.toFixed(0)} °C on average, a ${Math.round(p.yearDays)}-day year`;
+    this.description = `A ${s.star.spectral} star · a world of ${p.mass.toFixed(2)} Earth masses, ${p.meanTemperature.toFixed(0)} °C on average, a ${Math.round(p.yearDays)}-day year${p.locked ? ", locked: one face always to its star" : ""}`;
+    this.locked = p.locked === true;
     this.worldText.textContent = this.description;
   }
 

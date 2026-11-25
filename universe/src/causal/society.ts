@@ -1,7 +1,14 @@
 // The society sweep in words (sim/society): a realm first paying its old a pension and the care of its poor, and its law first
 // written. Every number is the event's own.
 import { yearOfMoment } from "../kernel/index.ts";
-import { CARE_EVENTS, HOLDING_EVENTS, ORPHAN_EVENTS, politiesOf, realmName } from "../sim/index.ts";
+import {
+  CARE_EVENTS,
+  HOLDING_EVENTS,
+  ORPHAN_EVENTS,
+  UNABLE_EVENTS,
+  politiesOf,
+  realmName,
+} from "../sim/index.ts";
 import { landWords } from "./generated.ts";
 import { count } from "./words.ts";
 import { registerDecisionWords, registerEventWords } from "./why.ts";
@@ -49,4 +56,26 @@ registerDecisionWords(
 registerDecisionWords(
   HOLDING_EVENTS.written.type,
   (w, d) => `${subject(w, d.subject)} wrote its law down`,
+);
+registerEventWords(UNABLE_EVENTS.many.type, (world, e) => {
+  const d = e.data as {
+      share?: number;
+      war?: number;
+      sick?: number;
+      smoke?: number;
+      mishap?: number;
+      kept?: number;
+    } | null,
+    parts: [string, number][] = [
+      ["maimed in its realm's wars", d?.war ?? 0],
+      ["weakened by its settled sicknesses", d?.sick ?? 0],
+      ["short of breath in its foul air", d?.smoke ?? 0],
+      ["hurt at their work", d?.mishap ?? 0],
+    ],
+    most = parts.sort((a, b) => b[1] - a[1])[0]!;
+  return `${cap(landWords(world, e.place))} had ${d?.share ?? "many"} in a hundred of its grown unable to work${most[1] > 0 ? `, most of them ${most[0]}` : ""}${d?.kept === undefined ? "" : `, and ${d.kept} in a hundred of them kept by kin, temple, savings or pension`}, ${year(e.t)}`;
+});
+registerDecisionWords(
+  UNABLE_EVENTS.many.type,
+  (w, d) => `${cap(landWords(w, d.subject as never))} counted its unable`,
 );

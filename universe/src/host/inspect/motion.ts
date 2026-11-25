@@ -9,6 +9,7 @@ import {
   homePlanet,
   homeStarLife,
   motionOf,
+  seaRead,
   populationContext,
   starEnded,
 } from "../../sim/index.ts";
@@ -166,6 +167,10 @@ export function motionBlocks(world: World): Block[] {
           stat("Its ground", `${signed(s.ground, "degrees")} against as it was made`),
           stat("From its air", signed(s.ground - s.albedo - s.star, "degrees")),
           stat("From its ice's light", signed(s.albedo, "degrees")),
+          stat(
+            "Its sea ice",
+            `${Math.round(s.floes * 100)} in a hundred of what it was made with, on seas of ${seaRead(store, g.fine).salt.toFixed(0)} parts salt in a thousand that freeze at ${seaRead(store, g.fine).freezes.toFixed(1)} degrees`,
+          ),
           stat("From its star", signed(s.star, "degrees")),
         ],
       },
@@ -353,7 +358,9 @@ export function landSkyRows(world: World, cell: number): Stat[] {
       stat("Lean season", `${months(season.lean)} months its stores must last`),
       stat(
         "Its day",
-        `${Math.round(p.dayHours)} hours: ${day.midnightSun ? "a summer sun that never sets" : `${Math.round(day.summerLight)} of light at midsummer`}, ${day.polarNight ? "a winter night that never ends" : `${Math.round(day.winterLight)} at midwinter`}; its people sleep ${day.sleeps === 1 ? "once" : day.sleeps === 2 ? "twice" : "three times"} a day`,
+        p.locked
+          ? `none: one face of its world is held to its star. Here the star stands ${g.grid.positions[3 * cell]! > 0.02 ? "always in the sky" : g.grid.positions[3 * cell]! < -0.02 ? "never in the sky" : "always at the sky's edge"}; its people sleep by their own need`
+          : `${Math.round(p.dayHours)} hours: ${day.midnightSun ? "a summer sun that never sets" : `${Math.round(day.summerLight)} of light at midsummer`}, ${day.polarNight ? "a winter night that never ends" : `${Math.round(day.winterLight)} at midwinter`}; its people sleep ${day.sleeps === 1 ? "once" : day.sleeps === 2 ? "twice" : "three times"} a day`,
       ),
     ];
   // Its coast's current, and its sea.

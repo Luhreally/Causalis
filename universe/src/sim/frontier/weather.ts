@@ -33,6 +33,7 @@ import { knows } from "../lore/lore.ts";
 import { politiesOf } from "../polity/polity.ts";
 import { homePlanet } from "../planet/store.ts";
 import { homeField, homeFieldAt, homeTurns } from "../planet/motion.ts";
+import { shieldUnder, tellShield } from "./shield.ts";
 import { deathsIn } from "../acts/disasters.ts";
 import { marketsOf, type PopulationContext } from "../population/systems.ts";
 import { spaceOf } from "../space/space.ts";
@@ -239,6 +240,8 @@ export function weatherYear(ctx: PopulationContext, t: SimTime): void {
       field: field.dynamo,
     },
   });
+  // (What it stripped of the world's shield, this year: frontier/shield.ts.)
+  tellShield(world, shieldUnder(world, 1, harm / 1000), event, 1);
   for (const r of hit) store.hardened.set(r, year);
   if (hit.length) {
     s.storms++;

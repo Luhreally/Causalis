@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   CLADES,
-  DIMORPHISM,
+  dimorphismOf,
   HUMANLIKE,
   PAIRED,
   adaptedOf,
@@ -22,9 +22,9 @@ import {
 } from "../../src/rules/index.ts";
 
 test("the apes' own table carries the share of girls Fisher's balance gives it", () => {
-  const g = girlsAtBirth(HUMANLIKE, boyRiskOf(DIMORPHISM.life), PAIRED.life);
+  const g = girlsAtBirth(HUMANLIKE, boyRiskOf(dimorphismOf(null, 15)), PAIRED.life);
   assert.ok(Math.abs(g - HUMANLIKE.girls!) < 0.001, `${g}`);
-  assert.ok(Math.abs(HUMANLIKE.boyRisk! - boyRiskOf(DIMORPHISM.life)) < 0.001);
+  assert.ok(Math.abs(HUMANLIKE.boyRisk! - boyRiskOf(dimorphismOf(null, 15))) < 0.001);
   // Born so as to be even when grown: a sire for each bearer.
   assert.ok(Math.abs(evenOf(HUMANLIKE) - 1) < 0.01, `${evenOf(HUMANLIKE)}`);
   // The sires' young die the more.
@@ -35,7 +35,7 @@ test("those who pair for none are born half and half; those who pair for life, m
   for (const c of CLADES) {
     const ad = Math.max(1, Math.round((15 * c.body.span) / 70)),
       p = pairingOf(c.body, ad),
-      life = lifeHistoryOf(c.body, boyRiskOf(DIMORPHISM[p]), PAIRED[p]);
+      life = lifeHistoryOf(c.body, boyRiskOf(dimorphismOf(c.body, ad)), PAIRED[p]);
     if (PAIRED[p] === 0) assert.equal(life.girls, 0.5, c.id);
     else assert.ok(life.girls! < 0.5, `${c.id} ${life.girls}`);
   }

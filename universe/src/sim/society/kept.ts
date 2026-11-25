@@ -204,10 +204,17 @@ export function captiveWorthOf(world: World, seat: number): number | null {
   const row = moneyStore(world, BIND_STORE)?.get(seat);
   return row ? (row[BIND.gain]! / 1000) * (row[BIND.hold]! / 1000) : null;
 }
-/** The days a land works against the reference year (rules/leisure.ts daysWorked; 1 where none is reckoned). */
+/**
+ * The days a land works against the reference year (rules/leisure.ts daysWorked; 1 where none is reckoned), less the work of its
+ * unable: the share of its grown a mishap, a sickness, foul air or a war has left unable to work does none of it (society/unable.ts;
+ * nothing where none is reckoned). They are fed and kept as they were.
+ */
 export function daysWorkedOf(world: World, cell: number): number {
-  const row = societyStore(world, LEISURE_STORE)?.get(cell);
-  return row ? daysWorked(row[LEISURE_ROW.holy]!, row[LEISURE_ROW.feasts]!) : 1;
+  const row = societyStore(world, LEISURE_STORE)?.get(cell),
+    unable = societyStore(world, UNABLE_STORE)?.at(cell, UNABLE_ROW.share) ?? 0;
+  return (
+    (row ? daysWorked(row[LEISURE_ROW.holy]!, row[LEISURE_ROW.feasts]!) : 1) * (1 - unable / 1000)
+  );
 }
 /** The odds one of a land's people raised to rule or to a court is a bearer (rules/roles.ts bearersRule; even where none is kept). */
 export function bearerOddsOf(world: World, cell: number): number {
@@ -271,4 +278,26 @@ export function shelterCostOf(world: World, members: readonly number[]): number 
 /** The grievance a year a land breeds for its people on the street (rules/roof.ts ROOF.grievance; 0 where none is reckoned). */
 export function streetGrievanceOf(world: World, cell: number): number {
   return ROOF.grievance * streetOf(world, cell);
+}
+
+/**
+ * 10. A land's unable (society/unable.ts; thousandths of its grown unless said): their share; of it those maimed in its realm's wars,
+ * weakened by its settled sicknesses, short of breath in its foul air, hurt at their work; the share of them someone keeps (of the
+ * unable); whether their number has been told (0 or 1).
+ */
+export const UNABLE_STORE = "society.unable";
+export const UNABLE_WIDTH = 7;
+export const UNABLE_ROW = {
+  share: 0,
+  war: 1,
+  sick: 2,
+  smoke: 3,
+  mishap: 4,
+  kept: 5,
+  told: 6,
+} as const;
+
+/** The share of a land's grown unable to work (0 where none is reckoned). */
+export function unableOf(world: World, cell: number): number {
+  return (societyStore(world, UNABLE_STORE)?.at(cell, UNABLE_ROW.share) ?? 0) / 1000;
 }

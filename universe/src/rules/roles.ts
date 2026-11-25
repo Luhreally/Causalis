@@ -1,9 +1,10 @@
 // Who does what, by the body that bears and the work a land asks (the society sweep, asked 2026-11-16: "gender roles and kin roles
 // from a species' body and its labour"). Before it, every grown one of a people worked the same work, bearer or not, and what a child
 // cost its mother's work was nothing. Now:
-//   How different the sexes' bodies are (DIMORPHISM) comes of how a kind pairs: where one holds several, the strong win partners and
-//     grow stronger by it (sexual selection: est, apes that keep harems are half again as heavy in the male); where two raise their
-//     young together, a little; where a hive's one bears for all, its workers are one body.
+//   How different the sexes' bodies are (dimorphismOf) comes of the contest its pairing sets: what a bearer puts into each young, how
+//     free the sires are of raising them, and how far one strong body can hold several bearers to itself (sexual selection: est, apes
+//     that keep harems are half again as heavy in the male); where two raise their young together, a little; where a hive's one bears
+//     for all, its workers are one body. Reckoned against the upright apes' quarter, which is Earth's.
 //   What the fields ask of strength (fieldStrength): the plough, drawn and held, asks for the upper body's (Boserup: hoe fields were
 //     worked by all, ploughed fields by the stronger); the hunt asks some; machines ask none.
 //   How much of a bearer's work goes beyond the home (rolesTarget): the years her young do not hold her (round C's bearingHeld, as many
@@ -16,19 +17,69 @@
 //     more as work lies in towns and works.
 // Pure functions.
 import { dmath } from "../kernel/index.ts";
-import type { Pairing } from "./self.ts";
+import { CARE_YEARS, pairingOf, twoNeeded } from "./self.ts";
 import { OCC } from "./species.ts";
 
 const clamp01 = (x: number): number => dmath.clamp(x, 0, 1);
 
-/** How far the sexes' bodies differ (0: one body; 1: as far as any kind's), by how a kind pairs. */
-export const DIMORPHISM: Readonly<Record<Pairing, number>> = {
-  harem: 0.8,
-  life: 0.25,
-  season: 0.15,
-  brood: 0,
-  none: 0.05,
+/**
+ * What the contest among those who sire turns on (est; fitted so that an ape of a hundred and sixty kilos that keeps a harem, its
+ * young needing two by three tenths, differs 0.8, where an upright ape differs a quarter).
+ */
+export const CONTEST = {
+  /** How far the upright apes' sexes differ (Earth's measure: the rest are reckoned against it). */
+  ape: 0.25,
+  /** How much the contest grows as sires are free of the young (their whole effort free: once again). */
+  free: 1,
+  /** And as one strong body can hold several bearers for itself. */
+  hold: 7.4,
+  /** The weight (kg) at which a body is half as able to hold others off as the heaviest. */
+  heavy: 100,
+} as const;
+
+/** The body's facts the contest reads. */
+type ContestBody = {
+  readonly bearing: string;
+  readonly young: number;
+  readonly span: number;
+  readonly social: number;
+  readonly size: number;
+  readonly medium: string;
 };
+
+/** The upright ape's, the measure. */
+const APE: ContestBody = {
+  bearing: "live",
+  young: 1,
+  span: 70,
+  social: 0.8,
+  size: 60,
+  medium: "land",
+};
+
+/**
+ * How hard those who sire contest for those who bear, before it is set against the apes': what a bearer puts into each young (the
+ * years it holds her, against a live-bearer's: where she puts in nothing, as those that spawn, there is no one worth the contest),
+ * by how free the sires are of raising them (rules/self.ts twoNeeded) and how far one strong body can hold several bearers to
+ * itself (the heavier, and the less its kind lives in a crowd).
+ */
+function contestOf(b: ContestBody, adulthood: number): number {
+  const invest = (CARE_YEARS[b.bearing] ?? 0) / (CARE_YEARS.live ?? 1),
+    free = 1 - twoNeeded(b, adulthood),
+    hold = (b.size / (b.size + CONTEST.heavy)) * (1 - clamp01(b.social));
+  return invest * (1 + CONTEST.free * free + CONTEST.hold * free * hold);
+}
+
+/**
+ * How far the sexes' bodies differ (0: one body; 1: as far as any kind's), from the contest of its pairing: sexual selection
+ * makes the sex that contests for partners the larger, by how hard the contest is. A hive's workers, who do not breed, are one
+ * body. The upright apes' is Earth's quarter exactly (null: theirs).
+ */
+export function dimorphismOf(b: ContestBody | null | undefined, adulthood: number): number {
+  if (!b) return CONTEST.ape;
+  if (pairingOf(b, adulthood) === "brood") return 0;
+  return clamp01((CONTEST.ape * contestOf(b, adulthood)) / contestOf(APE, 15));
+}
 
 export const ROLES = {
   /** A mother's work given up as her young hold her: the share of her bearing years they hold, by this. */

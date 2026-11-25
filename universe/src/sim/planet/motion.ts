@@ -29,6 +29,7 @@ import {
   BIOME,
   cellRef,
   planetRef,
+  spinHours,
   worldChemistry,
   worldKindOf,
   type HomeWorld,
@@ -37,6 +38,13 @@ import {
   DEEP_WARMS,
   ICE,
   KINDS,
+  SEA_ICE,
+  airKept,
+  airLoss,
+  brineOf,
+  seaFreezes,
+  seaIceWarming,
+  seaSalt,
   OVERTURN,
   STAR_LIFE,
   albedoWarming,
@@ -72,6 +80,8 @@ import { clusterOf } from "../space/stars.ts";
 export const MOTION_EVENTS = {
   /** A land's ice sheet gone, or come. */
   thawed: defineEventType("planet.ice-gone", 4),
+  /** Its sea ice a tenth more gone (or come) against what it was made with. */
+  floes: defineEventType("planet.sea-ice", 4),
   iced: defineEventType("planet.ice-come", 4),
   /** The seas risen or fallen another metre. */
   seas: defineEventType("planet.seas-moved", 4),
@@ -133,6 +143,10 @@ export type MotionState = {
   /** The event the seas last moved by, and the overturning's. */
   seaEvent: Ref | null;
   overturnEvent: Ref | null;
+  /** Its sea ice against as made (1: all of it), the tenths of it told gone (negative: come), and the event that told it. */
+  floes: number;
+  toldFloes: number;
+  floeEvent: Ref | null;
 };
 
 const firstState = (): MotionState => ({
@@ -152,7 +166,19 @@ const firstState = (): MotionState => ({
   dying: null,
   seaEvent: null,
   overturnEvent: null,
+  floes: 1,
+  toldFloes: 0,
+  floeEvent: null,
 });
+
+/** A world's seas read off its ground: its sea cells' warmth, coldest first, the sea as cold as each or colder (km²), and its salt. */
+export type SeaRead = {
+  readonly warmth: Float32Array;
+  readonly km2: Float64Array;
+  /** Parts in a thousand, and where it freezes (degrees of its climate). */
+  readonly salt: number;
+  readonly freezes: number;
+};
 
 /** A land's turns told: drowned, bared, thawed, iced (each its event, null once eased). */
 export type LandTurn = {
@@ -194,13 +220,15 @@ export class MotionStore implements StateStore {
   kept: { version: number; god: number; shift: Shift } | null = null;
   /** What was read off the ground as it lay under one surface (not state: read again when the surface is another, and after a load):
    * how far inside its sheets each land lies by warmth, and the seas' area. */
-  read: { surface: string; inside: Map<number, Float32Array>; seas: number | null } = {
-    surface: "",
-    inside: new Map(),
-    seas: null,
-  };
-  readOf(surface: string): { inside: Map<number, Float32Array>; seas: number | null } {
-    if (this.read.surface !== surface) this.read = { surface, inside: new Map(), seas: null };
+  read: {
+    surface: string;
+    inside: Map<number, Float32Array>;
+    seas: number | null;
+    floes: SeaRead | null;
+  } = { surface: "", inside: new Map(), seas: null, floes: null };
+  readOf(surface: string): MotionStore["read"] {
+    if (this.read.surface !== surface)
+      this.read = { surface, inside: new Map(), seas: null, floes: null };
     return this.read;
   }
   /** The reading's turn last counted for the world's dying (not state). */
@@ -252,7 +280,7 @@ export class MotionStore implements StateStore {
     };
   }
   load(state: unknown): void {
-    this.read = { surface: "", inside: new Map(), seas: null };
+    this.read = { surface: "", inside: new Map(), seas: null, floes: null };
     const s = (state ?? {}) as {
       state?: MotionState;
       cells?: number[];
@@ -327,7 +355,7 @@ function fieldInputs(g: HomeWorld): MagnetosphereInputs {
   return {
     mass: g.planet.mass,
     radius: g.planet.radius,
-    dayHours: g.planet.dayHours,
+    dayHours: spinHours(g.planet),
     ageGyr: Math.min(g.star.ageGyr, 12.6),
     plates: g.planet.plateCount,
     feH: worldChemistry(g).feH,
@@ -387,6 +415,26 @@ export function homeFieldAt(g: HomeWorld, year: number): Magnetosphere {
   return field;
 }
 
+/**
+ * What the home world has kept of its air against its star's wind over its age (rules/skies.ts): the share it loses a billion
+ * years, by its field, its size and its air's weight, and what is left of the air it was made with (1: all but a hundredth).
+ */
+export function homeAirKept(g: HomeWorld): { readonly loss: number; readonly kept: number } {
+  const f = homeField(g),
+    kind = worldKindOf(g),
+    loss = airLoss({
+      wind: f.wind,
+      shelter: f.shelter,
+      mass: g.planet.mass,
+      radius: g.planet.radius,
+      pressure: KINDS[kind].body.pressure,
+    });
+  return {
+    loss,
+    kept: airKept(loss, Math.min(g.star.ageGyr, 12.6), g.planet.plateCount > 1 ? 1 : 0.3),
+  };
+}
+
 /** The home star's life, `years` into the chronicle. */
 export function homeStarLife(g: HomeWorld, years: number): StarLife {
   return starLifeOf(g.star.mass, g.star.ageGyr, g.star.lifetimeGyr, Math.max(0, years));
@@ -401,6 +449,8 @@ export function homeSky(world: World): number {
     field = homeFieldAt(g, yearOfMoment(world.now)),
     flare = starHazard(world, g.star.ref as Ref).factor,
     store = motionOf(world);
+  // (Its people rose under its sky as it is: the air its star's wind has taken, homeAirKept, lets no more through here. Laid on
+  // their deaths, a world left a fifteenth of its air had 2.4 times the deaths for good: alien 84's half million were 26 in 150 years.)
   let k = (1 + DOSE_DEATHS * (field.dose - 1)) * flareThrough(flare, field.shelter);
   if (store?.ends.length) {
     const year = yearOfMoment(world.now);
@@ -478,7 +528,7 @@ export function homeCycles(g: HomeWorld): Cycles {
   c = cyclesOf({
     starMass: g.star.mass,
     orbitAu: g.planet.orbitAu,
-    dayHours: g.planet.dayHours,
+    dayHours: spinHours(g.planet),
     ecc: home.orbit.e,
     moons: bodies
       .filter((b) => b.kind === "moon" && b.orbit.around === home.ref)
@@ -559,6 +609,49 @@ function seasKm2(g: HomeWorld): number {
   return a;
 }
 
+/** A world's seas as its ground now lies (kept in the world's store by its surface, as its sheets' reading is). */
+export function seaRead(store: MotionStore, g: HomeWorld): SeaRead {
+  const read = store.readOf(g.surface ?? "");
+  if (read.floes) return read.floes;
+  const cells: [number, number][] = [];
+  let land = 0,
+    sea = 0;
+  for (let c = 0; c < g.grid.count; c++) {
+    if (g.tectonics.elevation[c]! > 0) land += g.grid.areas[c]!;
+    else {
+      sea += g.grid.areas[c]!;
+      cells.push([g.climate.temperature[c]!, areaOf(g, c)]);
+    }
+  }
+  cells.sort((a, b) => a[0] - b[0]);
+  const warmth = new Float32Array(cells.length),
+    km2 = new Float64Array(cells.length);
+  let sum = 0;
+  cells.forEach(([t, a], i) => {
+    sum += a;
+    warmth[i] = t;
+    km2[i] = sum;
+  });
+  // (Salt lowers the freezing of water; another liquid's seas freeze where its climate's degrees say, at 0.)
+  const watery = KINDS[worldKindOf(g)].liquid.subst === "water",
+    salt = seaSalt(land, sea);
+  read.floes = { warmth, km2, salt, freezes: watery ? seaFreezes(salt) / kOf(g) : 0 };
+  return read.floes;
+}
+
+/** The sea under ice (km²) on a world so much warmer than as made (degrees of its climate). */
+export function seaIceKm2(r: SeaRead, warm: number): number {
+  const line = r.freezes - warm;
+  let lo = 0,
+    hi = r.warmth.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (r.warmth[mid]! < line) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo ? r.km2[lo - 1]! : 0;
+}
+
 /** Begin a world's motion: its tracked lands and their sheets as made. */
 function begin(store: MotionStore, g: HomeWorld): void {
   const cells = trackedCells(g),
@@ -605,7 +698,15 @@ export function motionYear(world: World, t: SimTime, years = 1): void {
       -0.95 * (g.planet.meanTemperature + 273.15),
       2.7 * (g.planet.meanTemperature + 273.15) * (dmath.pow(Math.max(0, 1 + risen), 0.25) - 1),
     );
-  s.albedo = albedoWarming(lostKm2 / face, g.planet.insolation) / k;
+  // (And its sea ice's, read off its seas' warmth as the ground now stands: rules/seaice.ts.)
+  const seaRd = seaRead(store, g),
+    floesMade = seaIceKm2(seaRd, 0),
+    floesNow = seaIceKm2(seaRd, s.ground + groundWarming(world, planetRef(0)));
+  s.floes = floesMade > 0 ? floesNow / floesMade : 1;
+  s.albedo =
+    (albedoWarming(lostKm2 / face, g.planet.insolation) +
+      seaIceWarming((floesMade - floesNow) / face, g.planet.insolation)) /
+    k;
   s.star = starK / k;
   const air = airWarming(world),
     toward = air.warm + s.albedo + s.star,
@@ -662,7 +763,8 @@ export function motionYear(world: World, t: SimTime, years = 1): void {
   const meltSv = (melt * 1e9) / (years < ICE_STEP ? 1 : years) / (365.25 * 86400) / 1e6;
   s.overturn +=
     (1 - dmath.pow(1 - OVERTURN.pace, years)) *
-    (overturnOf(meltSv, (s.ground + god) * k) - s.overturn);
+    (overturnOf(meltSv, (s.ground + god) * k, seaRd.salt / SEA_ICE.earthSalt, brineOf(s.floes)) -
+      s.overturn);
   store.note([
     Math.round(s.ground * 1e4),
     Math.round(s.seaIce * 100),
@@ -738,6 +840,20 @@ function tell(
         fromIce: Math.round(s.seaIce * 10) / 10,
         swell: Math.round(s.swell * 10) / 10,
       },
+    });
+  }
+  // Its sea ice, each tenth of what it was made with gone or come.
+  const tenths = Math.trunc((1 - s.floes) * 10 + 1e-9);
+  if (tenths !== s.toldFloes) {
+    const gone = tenths > s.toldFloes;
+    s.toldFloes = tenths;
+    s.floeEvent = world.events.emit({
+      type: MOTION_EVENTS.floes.type,
+      causes: [
+        ...why,
+        ...(s.floeEvent ? [{ ref: s.floeEvent, role: "enabler" as const, weight: 0.3 }] : []),
+      ],
+      data: { left: Math.round(s.floes * 100), gone, overturn: Math.round(s.overturn * 100) },
     });
   }
   // The overturning, halved or come back.

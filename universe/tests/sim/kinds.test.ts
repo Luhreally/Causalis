@@ -87,7 +87,9 @@ test("an ice world: vessels and blades of ice, walls of ice, and nothing burned"
 });
 
 test("a sulfur world burns: kilns and smelting, copper of blue vitriol, sulfur concrete, the hand's fire", () => {
-  const { world, ctx, lands, known, kind } = run("alien 84", 70);
+  // (130 years: alien 84 is held to its star by the star's tide, 2026-11-24, and its people are another on another ground,
+  // all on its day side: the wheel is turned by 50 and acid is first used on ore between 110 and 130, where it was by 70.)
+  const { world, ctx, lands, known, kind } = run("alien 84", 130);
   assert.equal(kind, "sulfur");
   assert.equal(ctx.affords.fire, true);
   assert.ok(lands.some((c) => knows(ctx, c, "metalworking")));

@@ -1442,6 +1442,7 @@ export {
   MOTION_EVENTS,
   MotionStore,
   STEP as MOTION_STEP,
+  homeAirKept,
   homeField,
   homeFieldAt,
   homeTurn,
@@ -1450,6 +1451,8 @@ export {
   homeStarLife,
   motionOf,
   motionYear,
+  seaIceKm2,
+  seaRead,
   shiftNow,
   starDeathAt,
   starEnded,
@@ -1775,6 +1778,8 @@ export {
   type Raising,
 } from "./frontier/uplift.ts";
 export { rogueRate, rogueStir, type Rogue } from "./frontier/galactic.ts";
+export { SHIELD_EVENTS, shieldUnder, type ShieldNow } from "./frontier/shield.ts";
+export { shieldNow } from "./frontier/hooks.ts";
 export {
   frontierFields,
   frontierRain,
@@ -1795,6 +1800,7 @@ export {
   provisionYear,
   type LandMeans,
 } from "./society/care.ts";
+export { UNABLE_EVENTS, unableYear } from "./society/unable.ts";
 export { rolesYear } from "./society/roles.ts";
 export { HOLDING_EVENTS, holdingsYear, lawYear } from "./society/holding.ts";
 export { dressYear, leisureYear, tableYear } from "./society/everyday.ts";

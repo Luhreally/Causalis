@@ -382,7 +382,14 @@ export class Stage {
   /** A fill of light a scene asks for, over the hour's own (0: none): added to its ambient the next time the hour is set. */
   fill = 0;
 
-  daylight(day: number): void {
+  /**
+   * Where the sun stands for good over the place looked at, as a share of a day, on a world locked to its star (rules/locked.ts
+   * lockedDay; null: the world turns). `own`: a place with a day of its own (another body's halls), which is not held.
+   */
+  held: number | null = null;
+
+  daylight(day: number, own = false): void {
+    if (this.held !== null && !own) day = this.held;
     const a = 2 * Math.PI * (day - 0.25),
       high = Math.sin(a),
       phase = high > 0.25 ? "day" : high > -0.08 ? (day < 0.5 ? "dawn" : "dusk") : "night";

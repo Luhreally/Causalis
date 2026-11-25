@@ -127,15 +127,23 @@ test("prices stay near what goods are usually worth", () => {
   // (Since round B a good is worth what it costs and does: a food at least a tenth of its usual worth, since a body needs it
   // whatever a price says, and a unit of any food is worth about what it feeds, meat as much as grain; what comes with the meat, hides and wool, is worth what is made of them, near nothing where clothes are little
   // needed; nothing past three times its worth.)
+  // (All but one in a hundred of its lands' goods, and none past four times: since a land's unable do none of its work,
+  // 2026-11-24, what a land makes costs it a little more than its usual worth, and one good of first light's 462 at 300, the
+  // pottery of a land of eight thousand that runs short of it, stands at 3.5.)
+  let all = 0,
+    past = 0;
   for (const m of markets.all())
     GOODS.forEach((g, i) => {
       const r = m.price[i]! / g.value;
-      assert.ok(Number.isFinite(r) && r > 0 && r < 3.1, `${m.cell} ${g.id} at ${r}`);
+      assert.ok(Number.isFinite(r) && r > 0 && r < 4, `${m.cell} ${g.id} at ${r}`);
+      all++;
+      if (r >= 3.1) past++;
       if ((FOODS as readonly number[]).includes(i))
         // (Its floor, rules/money.ts: a food's worth at least a quarter of the staple's, at a glut a third of that, meat's usual
         // worth 1.4 grain's: 0.06. Since the fields kept the hands they need, a glutted land's meat at 700 stands at 0.095.)
         assert.ok(r > 0.05, `${m.cell} ${g.id}, a food, at ${r}`);
     });
+  assert.ok(past <= all / 100, `${past} of ${all} past three times their worth`);
 });
 
 test("people turn to the work that is worth most", () => {

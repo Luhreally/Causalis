@@ -123,10 +123,18 @@ export const OVERTURN = {
   most: 1.3,
 } as const;
 
-/** The overturning the seas drive (1: as the world was made), by the melt poured in (Sv) and the warming (K). */
-export function overturnOf(meltSv: number, kelvin: number): number {
-  const fresh = 1 / (1 + Math.max(0, meltSv) / OVERTURN.halves);
-  return dmath.clamp(fresh * (1 - OVERTURN.perDegree * kelvin), OVERTURN.least, OVERTURN.most);
+/**
+ * The overturning the seas drive (1: as the world was made), by the melt poured in (Sv) and the warming (K); `salt`: its seas'
+ * salt against Earth's (a salter sea takes more fresh water to stop its sinking), `brine`: what its sea ice's forming adds
+ * (rules/seaice.ts; 1 as made).
+ */
+export function overturnOf(meltSv: number, kelvin: number, salt = 1, brine = 1): number {
+  const fresh = 1 / (1 + Math.max(0, meltSv) / (OVERTURN.halves * Math.max(0.05, salt)));
+  return dmath.clamp(
+    fresh * brine * (1 - OVERTURN.perDegree * kelvin),
+    OVERTURN.least,
+    OVERTURN.most,
+  );
 }
 
 // —— A world's field ————————————————————————————————————————————————————————————————————————————————
