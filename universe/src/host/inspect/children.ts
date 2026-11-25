@@ -68,6 +68,13 @@ export function childrenBlock(world: World, cell: number): Block | null {
         ),
       );
     rows.push(stat("Taken to their land", share(dem.adapted)));
+    if (Math.abs(dem.stature) >= 0.1)
+      rows.push(
+        stat(
+          "Their stature",
+          `${one(Math.abs(dem.stature))} of a spread ${dem.stature > 0 ? "larger" : "smaller"} than their people as made: a ${dem.stature > 0 ? "colder" : "warmer"} land's bodies, as far as they have taken to it`,
+        ),
+      );
     if (dem.heights > 1.005)
       rows.push(stat("The thin air of the heights", `${share(dem.heights - 1)} more deaths`));
     if (dem.long < 0.995)

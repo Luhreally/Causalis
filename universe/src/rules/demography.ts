@@ -12,6 +12,8 @@
 //     as far as its births wait on a mate, against the balance its table bears at (its fertility is already that balance's).
 //   A body takes to its land (`adaptedOf`): newcomers to the thin air of the heights and to the cold die the more until their
 //     lines have lived there some generations (the high Andes' and Tibet's peoples; the Spanish of Potosí lost their young).
+//     (Since 2026-11-24 how fast is not this one pace for every land: rules/heredity.ts takenTo, the breeder's equation on
+//     what each land's own toll selects; `adaptedOf` is kept as what it was.)
 //   Living long (`longerLived`): what a people knows of the body past what its care already spares the sick (the health its
 //     lore gives over the three-tenths care can use) slows the wearing of its old, up to half their deaths.
 //   A dynastic match (`matchChanceOf`): as often as a house has children grown to give (its own heirs a generation), by what

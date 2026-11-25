@@ -18,6 +18,7 @@ import {
   lifeHistoryOf,
   pairingOf,
   type Affordances,
+  type BodyPlan,
   type LifeHistory,
   type Pairing,
 } from "../../rules/index.ts";
@@ -25,22 +26,23 @@ import { homePlanet } from "../planet/store.ts";
 
 const LIVES = new Map<string, LifeHistory>();
 
+/** The life table of a body's people (the upright apes' where there is none): any people's of a world, by its own body. */
+export function lifeOfBody(body: BodyPlan | null | undefined): LifeHistory {
+  // (Its sexes as its kind pairs: how many more of the sires' young die, how far its births wait on a mate. The pairing reads
+  // the coming of age the table itself takes, a fifteenth of seventy years of span.)
+  // (How far its sexes' bodies differ comes of the contest that pairing sets: rules/roles.ts dimorphismOf.)
+  const grown = body ? Math.max(1, Math.round((15 * body.span) / 70)) : 15,
+    pairing = body ? pairingOf(body, grown) : null;
+  return body && pairing
+    ? lifeHistoryOf(body, boyRiskOf(dimorphismOf(body, grown)), PAIRED[pairing])
+    : HUMANLIKE;
+}
+
 /** The life table of a generated world's people (the upright apes' where it has none). */
 export function peopleLife(g: HomeWorld): LifeHistory {
   let life = LIVES.get(g.digest);
   if (!life) {
-    const body = g.life.people?.body;
-    // (Its sexes as its kind pairs: how many more of the sires' young die, how far its births wait on a mate. The pairing reads
-    // the coming of age the table itself takes, a fifteenth of seventy years of span.)
-    const pairing = body ? pairingOf(body, Math.max(1, Math.round((15 * body.span) / 70))) : null;
-    life =
-      body && pairing
-        ? lifeHistoryOf(
-            body,
-            boyRiskOf(dimorphismOf(body, Math.max(1, Math.round((15 * body.span) / 70)))),
-            PAIRED[pairing],
-          )
-        : HUMANLIKE;
+    life = lifeOfBody(g.life.people?.body);
     if (LIVES.size > 64) LIVES.clear();
     LIVES.set(g.digest, life);
   }

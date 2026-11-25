@@ -4,10 +4,29 @@
 // land reads one price for a good; what differs town by town is what it is known for, each from its own tile of its land.
 import { landTastesBlocks } from "./tastes.ts";
 import { priceWords } from "../../causal/index.ts";
-import { BIOME, surfaceOre, worldChemistry, WATER } from "../../gen/index.ts";
+import {
+  BIOME,
+  meansNumbers,
+  meansOfWorld,
+  surfaceOre,
+  worldChemistry,
+  WATER,
+} from "../../gen/index.ts";
 import type { Block, BoardRow, Line, PageModel, Span, Stat, Tab } from "../../bridge/index.ts";
 import type { Ref, World } from "../../kernel/index.ts";
-import { COIN_A_UNIT, G, GOODS, roleWord } from "../../rules/index.ts";
+import {
+  COIN_A_UNIT,
+  FUEL_NOUNS,
+  G,
+  GOODS,
+  blendMix,
+  fillingName,
+  fuelsHere,
+  oxidantsOf,
+  roleWord,
+  type FuelHere,
+  type FuelKind,
+} from "../../rules/index.ts";
 import {
   loreOf,
   marketGoodRef,
@@ -68,12 +87,72 @@ function measureOf(world: World, good: number): Measure {
     : m;
 }
 
-/** A good's name on this world: what hardens its copper is its own, and goes by it. */
-export function goodName(world: World, good: number): string {
+/**
+ * A good's name on this world: what hardens its copper is its own, and goes by it; a fuel class goes by what fills it
+ * (rules/fuels.ts): at a market (`m`), what its stock there holds; else what the world's markets hold of it, or would.
+ */
+export function goodName(world: World, good: number, m?: Market | null): string {
   const g = GOODS[good]!;
+  if (good === G.coal || good === G.oil) return fuelName(world, good, m ?? null);
   return g.id === "tin"
     ? roleWord(worldChemistry(populationContext(world).generated), "tin")
     : g.name;
+}
+
+/**
+ * The fuels a world can have at all (rules/fuels.ts): what its air burns, of what its ground, its air or its life holds, the
+ * richest a kilogram first.
+ */
+export function worldFuels(world: World): FuelHere[] {
+  const g = populationContext(world).generated,
+    n = meansNumbers(g),
+    holds = (k: FuelKind) =>
+      k === "coal" || k === "oil"
+        ? g.deep[k].some((x) => x > 0)
+        : k === "gas"
+          ? g.deep.oil.some((x) => x > 0)
+          : k === "haze"
+            ? n.airHolds.includes("hydrogen")
+            : k === "sulphur"
+              ? n.airHolds.includes("so2")
+              : // (Wood, where its people keep a fire at all: sim/economy/energy.ts cuts none elsewhere.)
+                g.life.species.length > 0 && meansOfWorld(g).burns;
+  return fuelsHere(oxidantsOf(n)).filter((f) => holds(f.kind));
+}
+
+/** (A world's fuel classes' names as its markets stood in a year: read once a year a world.) */
+const FUEL_NAMES = new WeakMap<World, { year: number; names: Map<number, string> }>();
+const firstKind = (cls: number): FuelKind => (cls === G.oil ? "oil" : "coal");
+function fuelName(world: World, cls: number, m: Market | null): string {
+  if (m && m.stock[cls]! > 0) return fillingName(blendMix(m.blend, cls, firstKind(cls)), cls);
+  const year = yearNow(world);
+  let kept = FUEL_NAMES.get(world);
+  if (!kept || kept.year !== year) FUEL_NAMES.set(world, (kept = { year, names: new Map() }));
+  let name = kept.names.get(cls);
+  if (name === undefined) {
+    // What all its markets hold of the class, by kind.
+    const mix: Partial<Record<FuelKind, number>> = {};
+    let all = 0;
+    for (const x of marketsOf(world).all()) {
+      const n = x.stock[cls]!;
+      if (!(n > 0)) continue;
+      const part = blendMix(x.blend, cls, firstKind(cls));
+      for (const k in part)
+        mix[k as FuelKind] = (mix[k as FuelKind] ?? 0) + n * part[k as FuelKind]!;
+      all += n;
+    }
+    if (all > 0) {
+      for (const k in mix) mix[k as FuelKind] = mix[k as FuelKind]! / all;
+      name = fillingName(mix, cls);
+    } else {
+      // None anywhere yet: the richest of what this world's air burns and its ground or life holds of the class (one that
+      // only comes up with another, last).
+      const first = worldFuels(world).find((f) => f.cls === cls && Number.isFinite(f.won));
+      name = first ? FUEL_NOUNS[first.kind] : GOODS[cls]!.name;
+    }
+    kept.names.set(cls, name);
+  }
+  return name;
 }
 
 /** Where a good is cheap and dear, as its page's title says it. */
@@ -200,7 +279,7 @@ export function boardOf(world: World, cell: number, town: string, name: string):
     rows.push({
       ref: marketGoodRef(cell, i),
       icon: ms.icon,
-      name: sentence(goodName(world, i)),
+      name: sentence(goodName(world, i, m)),
       each: ms.one,
       price,
       tone,

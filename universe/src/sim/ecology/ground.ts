@@ -63,7 +63,7 @@ import { provinceCapacity, type PopulationContext } from "../population/systems.
 import { homePlanet } from "../planet/store.ts";
 import { loreOf } from "../lore/lore.ts";
 import type { MarketStore } from "../economy/market.ts";
-import type { EnergyStore } from "../economy/energy.ts";
+import { dugSolid, type EnergyStore } from "../economy/energy.ts";
 import type { Wilds } from "./ecology.ts";
 import { smokeCut } from "../trade/kept.ts";
 
@@ -380,7 +380,7 @@ function stepGround(
       ? Math.min(lackN + TAKEN.N * farmed, 0.05) * N_T_KM2 * fieldsKm2 * FIX_KWY
       : 0,
   );
-  const coalDug = made?.[G.coal] ?? 0,
+  const coalDug = dugSolid(ctx.world, cell, made?.[G.coal] ?? 0),
     smelted = (made?.[G.copper] ?? 0) + (made?.[G.tin] ?? 0) + (made?.[G.iron] ?? 0),
     ha = Math.max(1, c.areaKm2 * 100),
     down = gen.water.flowTo[cell] ?? -1,

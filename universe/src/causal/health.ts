@@ -129,6 +129,11 @@ registerEventWords(HEALTH_EVENTS.strain.type, (world, e) => {
   const d = e.data as Data;
   return `A new strain of ${d?.parent ?? "a sickness"}, ${d?.sickness ?? "a new sickness"}, rose in ${landWords(world, e.place)} where most were spared the old: ${d?.deadliness ?? 0} in a hundred it takes die of it, ${year(e.t)}`;
 });
+registerEventWords(HEALTH_EVENTS.resisted.type, (_world, e) => {
+  const d = (e.data ?? {}) as Record<string, unknown>,
+    n = (k: string) => (typeof d[k] === "number" ? (d[k] as number) : 0);
+  return `Those ${String(d.sickness ?? "a sickness")} killed left no more young, and those it spared bore it the better: ${n("resist")} in a thousand of its hosts now resist it, twice as many as before it tried them, and it kills ${n("harm")} in a thousand of those it takes, year ${yearOfMoment(e.t)}`;
+});
 registerEventWords(HEALTH_EVENTS.spilled.type, (world, e) => {
   const d = e.data as Data;
   return `${cap(d?.sickness ?? "a sickness")}, kept in the herds, came back to those who keep them in ${landWords(world, e.place)}, ${year(e.t)}`;

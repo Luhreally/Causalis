@@ -6,6 +6,7 @@
 // was made.
 import { test } from "node:test";
 import { keptLife } from "../../src/rules/kinds.ts";
+import { metalEdge } from "../../src/rules/index.ts";
 import assert from "node:assert/strict";
 import { YEAR, loadWorld, rulesetId, saveWorld, seedFromText } from "../../src/kernel/index.ts";
 import { ALIEN, seedLife, tile } from "../../src/host/planet.ts";
@@ -202,7 +203,16 @@ test("an ice world's land is told in true degrees, and its seas by their liquid"
     words(i.line),
   );
   assert.equal(metals.length, 2, metals.join(" | "));
-  assert.match(metals[0]!, /^Iron fallen from the sky — keen 0\.6, tough 0\.1$/);
+  // (Its figures are read from its atoms at its cold, 93 K, since 362b873b: rules/materials.ts metalEdge. They were
+  // written down as 0.6 and 0.1; read, the iron is still far more brittle than the same iron in an ammonia world's cold.)
+  const brittle = /^Iron fallen from the sky — keen ([\d.]+), tough ([\d.]+)$/.exec(metals[0]!);
+  assert.ok(brittle, metals[0]);
+  assert.equal(Number(brittle[1]), Math.round(metalEdge("brittle star iron").keen * 100) / 100);
+  assert.equal(Number(brittle[2]), Math.round(metalEdge("brittle star iron").tough * 100) / 100);
+  assert.ok(
+    Number(brittle[2]) < 0.5 * metalEdge("star iron").tough,
+    "it breaks where the other bends",
+  );
   assert.match(metals[1]!, /^Iron fallen from the sky, forged hot — keen /);
   // Its furnaces: a hearth of joined acetylene, which its haze makes, is among the means it has.
   const furnaces = block(pageOf(methane, "world:matter#world"), "table", "Its furnaces").rows.map(

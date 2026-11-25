@@ -2,8 +2,10 @@
 // write words may raise the beast of its world whose body leans most toward a mind: a few thousand of its young written
 // a larger brain and taught, set down as the god's settlers are (acts/peoples.ts act.settle) in an empty land beside the
 // realm's, with the realm's speech and ways of their own body's making, and the land joined to the realm. What follows is
-// the simulation's own: they live, are born and die by the people's life table (one table a world: the raised kind's own
-// body reads in their ways, not in their years), and their ways drift as any people's do. Once in some centuries a realm
+// the simulation's own: their land carries its share of them (sim/population/mix.ts), so its births, its deaths and its
+// mouths are their own body's (rules/peoples.ts raisedBody: their own weight, blood and years), and those of them who move
+// take that with them; whether they and their makers can have young together is read off the world's tree of life; and
+// their ways drift as any people's do. Once in some centuries a realm
 // at most, each beast kind once a world. One row a raising.
 import {
   Hasher,
@@ -24,6 +26,7 @@ import {
   MALE,
   OCC,
   UPLIFT,
+  raisedBody,
   upliftScore,
   upliftWays,
   type UpliftBeast,
@@ -38,6 +41,7 @@ import {
   marketsOf,
   type PopulationContext,
 } from "../population/systems.ts";
+import { addKind, setDown } from "../population/mix.ts";
 import { fold, homeLands, refNumber } from "./common.ts";
 
 export const UPLIFT_EVENTS = {
@@ -188,13 +192,33 @@ export function upliftYear(ctx: PopulationContext, t: SimTime): void {
         data: { people: founders },
       });
     }
-    const life = ctx.life;
+    const life = ctx.life,
+      held = dest.total();
     apportion(founders, PYRAMID.slice(0, life.bands.length)).forEach((k, b) => {
       const [women, men] = apportion(k, [1, 1]),
         occupation = life.bands[b]! >= life.adulthood ? OCC.forager : OCC.dependent;
       dest.counts.add(rowOf(FEMALE, b), occupation, women!);
       dest.counts.add(rowOf(MALE, b), occupation, men!);
     });
+    // (A people of their own on the world: their land's births, deaths and mouths are their own body's from here.)
+    const makers = ctx.generated.life.people?.body;
+    if (makers)
+      setDown(
+        world,
+        cell,
+        addKind(world, {
+          key: `raised:${beast.ref}`,
+          name: `the ${beast.name}`,
+          body: raisedBody(makers, { name: beast.name, size: beast.size, warm: body.warm }),
+          species: beast.index,
+          of: null,
+          blend: 0,
+          since: year,
+          event,
+        }),
+        founders,
+        held,
+      );
     marketsOf(world)
       .of(cell)
       .move("carriedIn", G.wild, founders * 6);

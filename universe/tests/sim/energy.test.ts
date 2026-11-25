@@ -47,14 +47,14 @@ test("every peopled land keeps an account whose lines add up", () => {
 });
 
 test("before engines a land runs on its people's own strength, its beasts and its woods' heat", () => {
-  const books = energyBooks(early)!,
-    lands = populationContext(early).provinces;
+  const books = energyBooks(early)!;
   for (const e of books.all()) {
     const r = energyPerHead(early, e.cell);
     if (!r) continue;
-    // (A land of a handful is its rounding: one of six people, two of them children, reads a sixth.)
-    if ((lands.get(e.cell)?.total() ?? 0) < 100) continue;
-    assert.ok(r.carriers.muscle > 0.05 && r.carriers.muscle < 0.15, `${r.carriers.muscle}`);
+    // (A land's row keeps whole kilowatts: a land of a handful of people, 6 of them at 0.1 kW each, is kept as 1 kW, a
+    // sixth a head. Read where the rounding is under a tenth of the figure; first light at 125 has one such land.)
+    if (e.people >= 100)
+      assert.ok(r.carriers.muscle > 0.05 && r.carriers.muscle < 0.15, `${r.carriers.muscle}`);
     assert.equal(r.carriers.buried, 0);
     assert.ok(r.drives === "none" || r.drives === "mills", r.drives);
   }
