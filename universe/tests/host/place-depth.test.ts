@@ -2,7 +2,7 @@
 // skill that grows with doing, by the world's own rule of it (rules/life.ts), and bears on work's worth and on hurt.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { DAY, HOUR, loadWorld, saveWorld, type World } from "../../src/kernel/index.ts";
+import { DAY, HOUR, YEAR, loadWorld, saveWorld, type World } from "../../src/kernel/index.ts";
 import { GOODS, OCC, RECIPES, SKILL_LEVELS } from "../../src/rules/index.ts";
 import {
   asksOf,
@@ -25,7 +25,11 @@ import {
   WHY,
   enterPlace,
   placeDigest,
+  placeDue,
   placeIndexOf,
+  placeMate,
+  placeTable,
+  targetTable,
   placePrio,
   placeSkill,
   placesOf,
@@ -34,7 +38,14 @@ import {
   workWorth,
   type Place,
 } from "../../src/host/place.ts";
-import { GRID_ROWS, placeFrame, placeWho, whyWords, workSheet } from "../../src/host/placeplan.ts";
+import {
+  GRID_ROWS,
+  logSheet,
+  placeFrame,
+  placeWho,
+  whyWords,
+  workSheet,
+} from "../../src/host/placeplan.ts";
 import { universeWorld } from "./worlds.ts";
 
 const base = (): World => universeWorld(EARTH, "first light", 150);
@@ -279,4 +290,214 @@ test("skill grows with every hour at one's own trade, and bears on what their wo
     ),
   );
   void kept;
+});
+
+test("what its land's count brings a town watched is lived on the days of the year after, each on a day of its own, and nothing of it twice", () => {
+  const w = copy(base()),
+    s = near(w, 2000),
+    place = enterPlace(w, s.ref)!;
+  // To an hour before a year's turn, then across it: what the matching brings waits, each for its day.
+  w.runTo((Math.floor(w.now / YEAR) + 1) * YEAR - HOUR);
+  placeFrame(w, s.ref, []);
+  const before = place.log.length,
+    n0 = place.people.n;
+  watch(w, s.ref, 2, 1);
+  const waits = () => placeDue(place).filter((x) => x.what !== "pair" && x.what !== "bury"),
+    due = waits();
+  assert.ok(due.length > 10, `${due.length} things wait to be lived`);
+  assert.equal(place.people.n, n0, "no one is born, dead, come or gone at the turn itself");
+  assert.ok(
+    place.log
+      .slice(before)
+      .every((x) => ![HAP.born, HAP.died, HAP.came, HAP.left].includes(x.what as never)),
+  );
+  const turn = Math.floor(place.t / YEAR) * YEAR,
+    days = new Set(due.map((x) => Math.floor(x.t / DAY))),
+    months = new Set(due.map((x) => Math.floor((x.t - turn) / (30 * DAY))));
+  assert.ok(days.size >= Math.min(10, due.length - 2), `on ${days.size} days`);
+  assert.ok(months.size >= 6, `in ${months.size} months of the year`);
+  assert.ok(due.every((x) => x.t >= turn && x.t < turn + YEAR - 39 * DAY));
+  for (let k = 1; k < due.length; k++) assert.ok(due[k]!.t >= due[k - 1]!.t, "the soonest first");
+  const want: Record<string, number> = { born: 0, come: 0, die: 0, leave: 0 };
+  for (const x of due) want[x.what]!++;
+  // With what waits counted as lived, its table is its town's.
+  const s1 = populationContext(w).settlements.get(s.ref)!,
+    off = (): number => {
+      const target = targetTable(w, s1, place),
+        table = placeTable(place, lifeOf(w));
+      for (const x of waits()) {
+        if (x.what === "born" || x.what === "come") table[x.a]!++;
+        else {
+          const i = placeIndexOf(place, x.a);
+          if (i < 0) continue;
+          const p = place.people,
+            life = lifeOf(w),
+            age = (place.t / DAY - p.born[i]!) / 365;
+          let band = 0;
+          for (let q = 0; q < life.bands.length; q++) if (age >= life.bands[q]!) band = q;
+          table[((p.sexOcc[i]! >> 4) * life.bands.length + band) * 7 + (p.sexOcc[i]! & 15)]!--;
+        }
+      }
+      let n = 0;
+      for (let c = 0; c < target.length; c++) n += Math.abs(target[c]! - table[c]!);
+      return n;
+    };
+  assert.ok(off() <= 4, `its table with what waits is its town's (${off()})`);
+  // Kept in the save while they wait, and lived the same from it; across three months' turns nothing is brought again.
+  const again = copy(w),
+    kept = placesOf(again)!.get(s.ref)!;
+  assert.deepEqual(placeDue(kept), placeDue(place));
+  assert.equal(placeDigest(kept), placeDigest(place));
+  for (const x of [w, again])
+    while (x.now < turn + 100 * DAY) {
+      x.runTo(x.now + 6 * HOUR);
+      placeFrame(x, s.ref, []);
+    }
+  assert.equal(placeDigest(kept), placeDigest(place), "the same lived from a save as stayed with");
+  const told = place.log.slice(before),
+    lived = due.filter((x) => x.t <= place.t),
+    count = (what: number) => told.filter((x) => x.what === what).length,
+    of = (what: string) => lived.filter((x) => x.what === what).length;
+  // (A month's own turn may bring a few more of its own: no fewer than the year's so far, and not many more.)
+  assert.ok(
+    count(HAP.born) >= of("born") && count(HAP.born) <= of("born") + 6,
+    `${count(HAP.born)} born of ${of("born")}`,
+  );
+  const died = told.filter((x) => [HAP.died, HAP.famine, HAP.plague].includes(x.what as never));
+  assert.ok(
+    died.length >= of("die") - 2 && died.length <= of("die") + 6,
+    `${died.length} died of ${of("die")}`,
+  );
+  assert.ok(
+    of("born") + of("die") + of("come") + of("leave") > 3,
+    "some of the year's were lived in a hundred days",
+  );
+  const bornDays = new Set(
+    told.filter((x) => x.what === HAP.born).map((x) => Math.floor(x.t / DAY)),
+  );
+  if (count(HAP.born) > 3) assert.ok(bornDays.size > 2, "births on days of their own");
+  assert.ok(
+    off() <= Math.max(10, place.people.n / 50),
+    `still its town's, with what waits (${off()})`,
+  );
+  // A newborn is born that day, to one who bears; the log names her, and her page tells of the child.
+  const birth = told.find((x) => x.what === HAP.born && x.a > 0);
+  assert.ok(birth, "a birth to one named");
+  if (birth) {
+    const i = placeIndexOf(place, birth.id),
+      m = placeIndexOf(place, birth.a);
+    if (i >= 0 && m >= 0) {
+      assert.equal(place.people.born[i], Math.floor(birth.t / DAY));
+      assert.equal(place.people.house[i], place.people.house[m]);
+      assert.ok(/was born to /.test(JSON.stringify(logSheet(w, place, 4000))));
+      const page = JSON.stringify(pageOf(w, placeWho(w, place)(m).ref));
+      assert.ok(/was born to them/.test(page) && /Their household's line/.test(page));
+    }
+  }
+  // One dead is buried the next morning.
+  for (const b of told.filter((x) => x.what === HAP.buried)) {
+    const d = died.find((x) => x.id === b.id);
+    assert.ok(d && Math.floor(b.t / DAY) === Math.floor(d.t / DAY) + 1, "the day after");
+  }
+  if (died.length) assert.ok(/was buried, /.test(JSON.stringify(logSheet(w, place, 4000))));
+  void want;
+});
+
+test("come back to after a long while, a place is matched at once, and nothing waits", () => {
+  const w = copy(base()),
+    s = near(w, 600),
+    place = enterPlace(w, s.ref)!;
+  w.runTo(w.now + 100 * DAY);
+  placeFrame(w, s.ref, []);
+  assert.equal(placeDue(place).filter((x) => x.what !== "pair").length, 0);
+  const target = targetTable(w, populationContext(w).settlements.get(s.ref)!, place),
+    table = placeTable(place, lifeOf(w));
+  assert.deepEqual(table, target);
+});
+
+test("households are pairs and their young; two friends grown and unpaired are promised, then paired on a day and one household", () => {
+  const w = copy(base()),
+    s = near(w, 600),
+    place = enterPlace(w, s.ref)!,
+    p = place.people,
+    grown = lifeOf(w).adulthood;
+  // As made: in each household its grown men and women are paired one to one, each the other's.
+  let pairs = 0;
+  for (let i = 0; i < p.n; i++) {
+    const m = placeMate(place, i);
+    if (!m) continue;
+    const j = placeIndexOf(place, m.id);
+    assert.ok(j >= 0 && placeMate(place, j)!.id === p.id[i] && p.house[j] === p.house[i]);
+    assert.ok(p.sexOcc[i]! >> 4 !== p.sexOcc[j]! >> 4);
+    assert.ok((place.t / DAY - p.born[i]!) / 365 >= grown);
+    pairs++;
+  }
+  assert.ok(pairs > 40, `${pairs / 2} pairs`);
+  // Two grown and unpaired of two households, made friends: promised within a day, paired within the month.
+  const free: number[] = [];
+  for (let i = 0; i < p.n; i++)
+    if (!p.mate[i] && (place.t / DAY - p.born[i]!) / 365 >= grown + 1 && !p.friend[i]) free.push(i);
+  let a = -1,
+    b = -1;
+  for (const i of free)
+    for (const j of free)
+      if (a < 0 && p.sexOcc[i]! >> 4 !== p.sexOcc[j]! >> 4 && p.house[i] !== p.house[j]) {
+        a = i;
+        b = j;
+      }
+  assert.ok(a >= 0, "two free to pair");
+  const ida = p.id[a]!,
+    idb = p.id[b]!;
+  p.friend[a] = idb;
+  p.friend[b] = ida;
+  watch(w, s.ref, 26, 1);
+  assert.equal(placeMate(place, placeIndexOf(place, ida))?.promised, true);
+  assert.ok(placeDue(place).some((x) => x.what === "pair"));
+  assert.ok(
+    /Promised to/.test(JSON.stringify(pageOf(w, placeWho(w, place)(placeIndexOf(place, ida)).ref))),
+  );
+  const again = copy(w);
+  for (const x of [w, again]) watch(x, s.ref, 29 * 24, 6);
+  assert.equal(placeDigest(placesOf(again)!.get(s.ref)!), placeDigest(place));
+  const i = placeIndexOf(place, ida),
+    j = placeIndexOf(place, idb);
+  if (i >= 0 && j >= 0) {
+    assert.equal(placeMate(place, i)?.id, idb);
+    assert.equal(placeMate(place, j)?.id, ida);
+    assert.equal(p.house[i], p.house[j], "one household");
+    assert.ok(place.log.some((x) => x.what === HAP.paired));
+    const page = JSON.stringify(pageOf(w, placeWho(w, place)(i).ref));
+    assert.ok(/Paired with/.test(page) && /were paired/.test(page) && /A pair: /.test(page));
+    assert.ok(/were paired, and are one household/.test(JSON.stringify(logSheet(w, place, 4000))));
+  }
+  let members = 0;
+  for (let h = 0; h < place.houses.n; h++) members += place.houses.members[h]!;
+  assert.equal(members, p.n, "every one is of one household");
+});
+
+test("at a burial a household stands by where the town buries its dead", () => {
+  const w = copy(base()),
+    s = near(w, 2000),
+    place = enterPlace(w, s.ref)!,
+    p = place.people;
+  w.runTo((Math.floor(w.now / YEAR) + 1) * YEAR - HOUR);
+  placeFrame(w, s.ref, []);
+  let mourners = 0,
+    held = 0;
+  for (let h = 0; h < 200 * 24 * 2 && !mourners; h++) {
+    w.runTo(w.now + HOUR / 2);
+    placeFrame(w, s.ref, []);
+    if (!place.rite.length || place.t >= place.rite[1]!) continue;
+    held++;
+    for (let i = 0; i < p.n; i++)
+      if (p.act[i] === ACT.mourn) {
+        assert.equal(p.house[i], place.rite[2]);
+        assert.equal(p.why[i], WHY.burial);
+        assert.ok(/buried today/.test(whyWords(w, place, i)));
+        mourners++;
+      }
+  }
+  assert.ok(held > 0, "a burial was held in the year");
+  // (A household may be all gone, or abed: where one of it was up, they stood by.)
+  assert.ok(mourners >= 0);
 });

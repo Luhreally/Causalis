@@ -31,6 +31,8 @@ export const PLACE_ACT = {
   /** Fighting a fire in the town; and standing to arms in its square, by an order. */
   brigade: 13,
   guard: 14,
+  /** At a burial, with their household. */
+  mourn: 15,
 } as const;
 
 /** The page of one of a place's people, and of one of its lots (its square and its fields too). */

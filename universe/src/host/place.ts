@@ -262,6 +262,7 @@ export const ACT_WORDS = [
   "bringing what a site is built of",
   "fighting a fire",
   "standing to arms",
+  "at a burial",
 ] as const;
 
 /** Why: the force that decided it. */
@@ -291,6 +292,7 @@ export const WHY = {
   siege: 22,
   apart: 23,
   turned: 24,
+  burial: 25,
 } as const;
 
 /** What happened to someone, as a place's log tells it. */
@@ -323,6 +325,9 @@ export const HAP = {
   rehoused: 25,
   sheltered: 26,
   mending: 27,
+  paired: 28,
+  buried: 29,
+  ofAge: 30,
 } as const;
 /** The happenings that are a death. */
 const HAP_DEATH: ReadonlySet<number> = new Set([1, 5, 17, 19, 21, 22]);
@@ -355,6 +360,9 @@ const HAP_WORDS = [
   "found a home again with their household",
   "was taken in under a roof with their household, in the building opened to them",
   "is up again, their wound bound",
+  "was paired",
+  "was buried",
+  "came of age",
 ];
 
 /** The place's draws: through the world's Rng, on a stream no registry holds (it is no part of the ruleset's identity). */
@@ -385,6 +393,7 @@ const P = {
   arms: 19,
   watch: 20,
   wound: 21,
+  due: 22,
 } as const;
 
 const NEEDS = 4;
@@ -473,6 +482,8 @@ type People = {
   skill: Uint16Array;
   /** The trade they have turned to for now, their own having nothing for them (its place in OCCUPATIONS; 0: their own). */
   turn: Uint8Array;
+  /** The one they are paired with (their number; 0: no one; PROMISED: a pairing with their friend is set for a day to come). */
+  mate: Uint32Array;
 };
 /** Bytes a person takes in a place's columns. */
 export const PERSON_BYTES =
@@ -504,7 +515,8 @@ export const PERSON_BYTES =
   1 +
   2 +
   2 +
-  1;
+  1 +
+  4;
 
 function peopleOf(cap: number): People {
   return {
@@ -538,6 +550,7 @@ function peopleOf(cap: number): People {
     owed: new Uint16Array(cap),
     skill: new Uint16Array(cap),
     turn: new Uint8Array(cap),
+    mate: new Uint32Array(cap),
   };
 }
 const PEOPLE_COLS = [
@@ -570,6 +583,7 @@ const PEOPLE_COLS = [
   "owed",
   "skill",
   "turn",
+  "mate",
 ] as const;
 type Col = (typeof PEOPLE_COLS)[number];
 const widthOf = (c: Col) => (c === "needs" ? NEEDS : 1);
@@ -759,7 +773,23 @@ export type Place = {
    * that its hands win what its land counts them to win and no more, however long their day.
    */
   ripe: number[];
+  /**
+   * What its land's count has brought it that it has yet to live: four numbers each, the soonest first: when (its clock),
+   * what (DUE), and two numbers of it. Its town's count is reckoned once a year, at the year's turn: the births, deaths,
+   * comings and goings that brings are lived on the days of the year after, each on a day and at an hour of its own; what
+   * a month's turn brings (its land's ages and trades move by the month), on the days of that month. What waits is counted
+   * as lived at every matching, so nothing is brought twice. A burial the day after a death, and a pairing promised, wait
+   * here too.
+   */
+  due: number[];
+  /** A burial being held: where, until when, and whose household stands by (none: empty). */
+  rite: number[];
 };
+
+/** What waits in a place's `due`: a death, a leaving, a birth, a coming, a burial, a pairing. */
+const DUE = { die: 1, leave: 2, born: 3, come: 4, bury: 5, pair: 6 } as const;
+/** One promised to their friend: their pairing is set for a day to come. */
+const PROMISED = 0xffffffff;
 
 // —— What the world says of a town ————————————————————————————————————————————————————————————————————————————————
 
@@ -1348,6 +1378,9 @@ export class PlaceStore implements StateStore {
         usedDay: p.usedDay,
         cameDay: p.cameDay,
         ripe: p.ripe,
+        due: p.due,
+        rite: p.rite,
+        ...(UNPAIRED.has(p) ? { unpaired: true } : {}),
         // (Read from a save kept before skill was, and not brought on since: still to be reckoned.)
         ...(UNSKILLED.has(p) ? { unskilled: true } : {}),
       })),
@@ -1432,8 +1465,11 @@ export class PlaceStore implements StateStore {
           ...((raw.cameDay as number[] | undefined) ?? new Array<number>(GOOD_COUNT).fill(0)),
         ],
         ripe: [...((raw.ripe as number[] | undefined) ?? new Array<number>(GOOD_COUNT).fill(0))],
+        due: [...((raw.due as number[] | undefined) ?? [])],
+        rite: [...((raw.rite as number[] | undefined) ?? [])],
       });
       if (unskilled) UNSKILLED.add(this.places.at(-1)!);
+      if (!cols.mate || raw.unpaired === true) UNPAIRED.add(this.places.at(-1)!);
     }
   }
 }
@@ -1490,6 +1526,8 @@ export function placeDigest(p: Place): string {
     p.gone,
     p.fire,
     p.war,
+    p.due,
+    p.rite,
   ].flat())
     h.int(list);
   for (const x of p.houses.means) h.float(x);
@@ -1913,6 +1951,7 @@ function addPerson(place: Place, sex: number, occ: number, born: number, house: 
   p.owed[i] = 0;
   p.skill[i] = 0;
   p.turn[i] = 0;
+  p.mate[i] = 0;
   place.houses.members[house]!++;
   return i;
 }
@@ -1922,7 +1961,14 @@ function removePerson(place: Place, i: number): void {
     last = p.n - 1;
   place.houses.members[p.house[i]!]!--;
   // (No one of the place is their friend any more.)
-  for (let k = 0; k < p.n; k++) if (p.friend[k] === p.id[i]) p.friend[k] = 0;
+  // (And the one they were paired with, or promised to, is alone again.)
+  for (let k = 0; k < p.n; k++) {
+    if (p.friend[k] === p.id[i]) {
+      p.friend[k] = 0;
+      if (p.mate[k] === PROMISED) p.mate[k] = 0;
+    }
+    if (p.mate[k] === p.id[i]) p.mate[k] = 0;
+  }
   // (What they carried is set down in the square.)
   if (p.carry[i]! > 0) place.bldgs.stock[p.carryGood[i]!]! += p.carry[i]!;
   if (i !== last)
@@ -2272,6 +2318,13 @@ function matchPeople(
    * its people are: at a year's turn, and when a sickness has come.
    */
   owed = false,
+  /**
+   * Over how long what its land's count has brought it is lived out (seconds; a place watched): each death, leaving,
+   * birth and coming on a day of its own (`due`). Its land reckons its people month by month and its town's count once a
+   * year: what a year's turn brings is lived over the year to come, what a month's brings over the month. 0: all at
+   * once, as a place come back to is matched.
+   */
+  spread = 0,
 ): void {
   const target = targetTable(world, s, place),
     now = placeTable(place, f.life),
@@ -2280,13 +2333,26 @@ function matchPeople(
       (sexOf(p(), i) * BANDS + bandOf(ageOf(p(), i, place.t), f.life)) * OCCS + occOf(p(), i),
     draw = (i: number, purpose: number) =>
       world.rng.unit(PLACE_DRAW, place.key ^ p().id[i]!, place.t, purpose),
+    // What waits to be lived is counted as lived: one due to die or to leave is gone from its table already, one due
+    // to be born or to come is of it. So nothing its land's count brought it is brought again while it waits.
+    waiting = new Set<number>(),
     // (Those of a kind, in the order a draw gives them.)
     ofCell = (c: number) => {
       const list: number[] = [];
-      for (let i = 0; i < p().n; i++) if (cellOf(i) === c) list.push(i);
+      for (let i = 0; i < p().n; i++) if (cellOf(i) === c && !waiting.has(p().id[i]!)) list.push(i);
       const d = new Map(list.map((i) => [i, draw(i, P.pick)]));
       return list.sort((a, b) => d.get(a)! - d.get(b)! || p().id[a]! - p().id[b]!);
     };
+  for (let k = 0; k < place.due.length; k += 4) {
+    const what = place.due[k + 1]!;
+    if (what === DUE.born || what === DUE.come) now[place.due[k + 2]!]!++;
+    else if (what === DUE.die || what === DUE.leave) {
+      const i = placeIndexOf(place, place.due[k + 2]!);
+      if (i < 0) continue;
+      now[cellOf(i)]!--;
+      waiting.add(p().id[i]!);
+    }
+  }
   let changed = false;
   const lean = (place.matched.fed ?? 1000) < LEAN;
   // (Of each band of its land, the share that died in the year gone, as its land's history counted them: a lean year's
@@ -2302,6 +2368,75 @@ function matchPeople(
         for (let sex = 0; sex < SEXES; sex++) alive += land.counts.rowSum(sex * BANDS + b);
         const dead = ctx.history.deathsIn(place.cell, gone, b);
         died.push(alive + dead > 0 ? dead / (alive + dead) : 0);
+      }
+    }
+  }
+  // (Who goes first: those hurt by what struck the town while the world's count of its dead is yet to be named here, and
+  // the sick of a sickness whose dead are; then the sick: where the world's own reckoning took some of a kind, it took
+  // those its sickness had; then, in a lean year, those long in want.)
+  const tolled = (cause: number) => {
+      for (let q = 0; q < place.tolls.length; q += 2) if (place.tolls[q] === cause) return true;
+      return false;
+    },
+    first = (i: number) =>
+      place.tolls.length &&
+      ((p().health[i] === 1 && (p().cause[i]! & 7) >= CAUSE.fire) ||
+        (p().health[i] === 2 && tolled(p().cause[i]!)))
+        ? 0
+        : p().health[i] === 2
+          ? 1
+          : lean && p().lack[i]! >= 144
+            ? 2
+            : 3;
+  // A year's turn: its dead. Of each band, as many of the place's as its land's history counted dying of so many in the
+  // year gone (those the place has told dead of that year already, and those it has yet to name, taken off: nothing
+  // twice), whoever its table says; the sick and those long in want first. Its town's count held only what was left at
+  // the year's end: a town that grew by a hundred buried thirty and saw four die. Those who come after them are their
+  // juniors grown older, band by band, and at the foot the newborn.
+  if (died) {
+    let told = 0,
+      quota = 0;
+    for (let k = 0; k < place.counts.length; k += 4)
+      if (place.counts[k] === gone && HAP_DEATH.has(place.counts[k + 1]!))
+        told += place.counts[k + 3]!;
+    for (let q = 0; q < place.tolls.length; q += 2) told += place.tolls[q + 1]!;
+    for (let c = 0; c < ROWS * OCCS; c++)
+      quota += Math.max(0, now[c]!) * died[Math.floor(c / OCCS) % BANDS]!;
+    const left = quota > 0 ? Math.max(0, quota - told) / quota : 0;
+    for (let c = 0; c < ROWS * OCCS && left > 0; c++) {
+      const e = Math.max(0, now[c]!) * died[Math.floor(c / OCCS) % BANDS]! * left,
+        n =
+          Math.floor(e) +
+          (world.rng.unit(PLACE_DRAW, place.key ^ c, place.t, P.dying, 1) < e % 1 ? 1 : 0);
+      if (n <= 0) continue;
+      const ids = ofCell(c)
+        .sort((x, y) => first(x) - first(y))
+        .slice(0, n)
+        .map((i) => p().id[i]!);
+      for (const id of ids) {
+        const i = placeIndexOf(place, id),
+          what =
+            p().health[i] === 2 && p().cause[i]! >= CAUSE.sickness
+              ? HAP.plague
+              : lean && p().lack[i]! >= 144
+                ? HAP.famine
+                : HAP.died,
+          of = what === HAP.plague ? p().cause[i]! - CAUSE.sickness : 0;
+        now[c]!--;
+        // (One starved, or dead of a sickness, is told at once, as what threatens a town is; one dead in their time, on a
+        // day of the year to come.)
+        if (spread > 0 && what === HAP.died) {
+          dueIn(world, place, spread, id, DUE.die, id, what | (of << 8));
+          waiting.add(id);
+          continue;
+        }
+        const age = Math.round(ageOf(p(), i, place.t));
+        if (what === HAP.plague) note(place, HAP.plague, id, of, age, i);
+        else if (what === HAP.famine) note(place, HAP.famine, id, age, 0, i);
+        else note(place, HAP.died, id, age, occOf(p(), i), i);
+        place.houses.grief[p().house[i]!] = Math.floor(place.t / DAY);
+        removePerson(place, i);
+        changed = true;
       }
     }
   }
@@ -2333,7 +2468,8 @@ function matchPeople(
         near: number[] = [];
       for (let i = 0; i < p().n; i++)
         if (sexOf(p(), i) * BANDS + bandOf(ageOf(p(), i, place.t), f.life) === from)
-          if (Math.abs(ageOf(p(), i, place.t) - edge) <= reach) near.push(i);
+          if (Math.abs(ageOf(p(), i, place.t) - edge) <= reach && !waiting.has(p().id[i]!))
+            near.push(i);
       near.sort(
         (a, b) =>
           Math.abs(ageOf(p(), a, place.t) - edge) - Math.abs(ageOf(p(), b, place.t) - edge) ||
@@ -2364,7 +2500,16 @@ function matchPeople(
           p().skill[i] = 0;
           p().turn[i] = 0;
           workOf(world, place, i);
-          note(place, HAP.trade, p().id[i]!, o, to);
+          // (One just grown who takes up their first work has come of age.)
+          note(
+            place,
+            o === OCC.dependent && ageOf(p(), i, place.t) < f.life.adulthood + 3
+              ? HAP.ofAge
+              : HAP.trade,
+            p().id[i]!,
+            o,
+            to,
+          );
           now[r * OCCS + o]!--;
           now[r * OCCS + to]!++;
           short--;
@@ -2374,23 +2519,6 @@ function matchPeople(
       }
     }
   }
-  // (Who goes first: those hurt by what struck the town while the world's count of its dead is yet to be named here, and
-  // the sick of a sickness whose dead are; then the sick: where the world's own reckoning took some of a kind, it took
-  // those its sickness had; then, in a lean year, those long in want.)
-  const tolled = (cause: number) => {
-      for (let q = 0; q < place.tolls.length; q += 2) if (place.tolls[q] === cause) return true;
-      return false;
-    },
-    first = (i: number) =>
-      place.tolls.length &&
-      ((p().health[i] === 1 && (p().cause[i]! & 7) >= CAUSE.fire) ||
-        (p().health[i] === 2 && tolled(p().cause[i]!)))
-        ? 0
-        : p().health[i] === 2
-          ? 1
-          : lean && p().lack[i]! >= 144
-            ? 2
-            : 3;
   // Those a kind has too many of: dead or gone. (Taken by id, since taking one moves another into its place.)
   for (let c = 0; c < ROWS * OCCS; c++) {
     const over = now[c]! - target[c]!;
@@ -2398,7 +2526,8 @@ function matchPeople(
     const band = Math.floor(c / OCCS) % BANDS,
       // (As many of them dead as its people's table says die of so many in the time gone, a year's at a year's turn: a
       // part of one by a keyed draw. The rest left.)
-      expected = died ? now[c]! * died[band]! : now[c]! * (f.life.mortality[band] ?? 0.02) * span,
+      // (At a year's turn its dead are taken already, above: whoever is over then has left.)
+      expected = died ? 0 : now[c]! * (f.life.mortality[band] ?? 0.02) * span,
       dying = Math.min(
         over,
         Math.floor(expected) +
@@ -2424,6 +2553,33 @@ function matchPeople(
         else if (of >= CAUSE.sickness) note(place, HAP.plague, id, of - CAUSE.sickness, age, i);
         else note(place, HAP.struckDead, id, of, age, i);
         if (--place.tolls[toll + 1]! <= 0) place.tolls.splice(toll, 2);
+      } else if (
+        spread > 0 &&
+        !(
+          k < dying &&
+          ((p().health[i] === 2 && p().cause[i]! >= CAUSE.sickness) ||
+            (lean && p().lack[i]! >= 144))
+        )
+      ) {
+        // (Not now: on a day of the month to come, of what they would be told to have died of now; or gone on one.)
+        const what =
+          k >= dying
+            ? HAP.left
+            : p().health[i] === 2 && p().cause[i]! >= CAUSE.sickness
+              ? HAP.plague
+              : lean && p().lack[i]! >= 144
+                ? HAP.famine
+                : HAP.died;
+        dueIn(
+          world,
+          place,
+          spread,
+          id,
+          what === HAP.left ? DUE.leave : DUE.die,
+          id,
+          what | ((what === HAP.plague ? p().cause[i]! - CAUSE.sickness : 0) << 8),
+        );
+        return;
       } else if (k < dying && p().health[i] === 2 && p().cause[i]! >= CAUSE.sickness)
         note(place, HAP.plague, id, p().cause[i]! - CAUSE.sickness, age, i);
       else if (k < dying && lean && p().lack[i]! >= 144) note(place, HAP.famine, id, age, 0, i);
@@ -2477,6 +2633,11 @@ function matchPeople(
       lo = f.life.bands[band]!,
       hi = band + 1 < BANDS ? f.life.bands[band + 1]! : lo + f.life.oldest;
     for (let k = 0; k < short; k++) {
+      if (spread > 0) {
+        // (Born, or come, on a day of the month to come.)
+        dueIn(world, place, spread, c * 4096 + k, band === 0 ? DUE.born : DUE.come, c, 0);
+        continue;
+      }
       const id = place.nextId,
         u = world.rng.unit(PLACE_DRAW, place.key ^ id, place.t, P.age),
         // (A newborn is of the time gone; anyone else of their band.)
@@ -2509,15 +2670,199 @@ function matchPeople(
       const i = addPerson(place, sex, occ, born, house);
       place.people.skill[i] = skillAt(f, age, occ);
       workOf(world, place, i);
-      note(place, band === 0 ? HAP.born : HAP.came, id, Math.round(age), occ);
+      note(place, band === 0 ? HAP.born : HAP.came, id, band === 0 ? 0 : Math.round(age), occ);
     }
     changed = true;
   }
   if (changed) reckonMeans(world, place);
 }
 
+/**
+ * A thing set for a day of the span to come (`due`): the day and the hour by a keyed draw, on the place's grid of ticks;
+ * kept the soonest first.
+ */
+function dueIn(
+  world: World,
+  place: Place,
+  span: number,
+  key: number,
+  what: number,
+  a: number,
+  b: number,
+): void {
+  const days = Math.max(1, Math.floor(span / DAY)),
+    day = Math.floor(world.rng.unit(PLACE_DRAW, place.key ^ key, place.t, P.due, what) * days),
+    tick = Math.floor(world.rng.unit(PLACE_DRAW, place.key ^ key, place.t, P.due, what + 16) * 144);
+  dueAt(place, place.t + day * DAY + tick * PLACE_TICK, what, a, b);
+}
+function dueAt(place: Place, t: number, what: number, a: number, b: number): void {
+  const d = place.due;
+  let at = d.length;
+  while (at > 0 && d[at - 4]! > t) at -= 4;
+  d.splice(at, 0, t, what, a, b);
+}
+
+/** Where a town buries its dead: at its temple or its shrine where one stands, else in its square. */
+const graveLot = (place: Place): number =>
+  place.bldgs.lot[buildingOf(place, ["temple", "shrine"])]!;
+
+/**
+ * The pairs of a place's households, read when it is made: in each, its grown men and women, the eldest first, one to
+ * one. (Whom its world's people pair with is theirs to say after: friends made in company, in the tick.)
+ */
+function pairHouses(place: Place, f: Frame): void {
+  const p = place.people,
+    of = new Map<number, [number[], number[]]>();
+  for (let i = 0; i < p.n; i++) {
+    if (p.mate[i] || ageOf(p, i, place.t) < f.life.adulthood) continue;
+    let h = of.get(p.house[i]!);
+    if (!h) of.set(p.house[i]!, (h = [[], []]));
+    h[sexOf(p, i) === FEMALE ? 0 : 1]!.push(i);
+  }
+  for (const [women, men] of of.values()) {
+    const eldest = (a: number, b: number) => p.born[a]! - p.born[b]! || p.id[a]! - p.id[b]!;
+    women.sort(eldest);
+    men.sort(eldest);
+    for (let k = 0; k < Math.min(women.length, men.length); k++) {
+      p.mate[women[k]!] = p.id[men[k]!]!;
+      p.mate[men[k]!] = p.id[women[k]!]!;
+    }
+  }
+}
+
+/**
+ * What is due at a place's clock, lived (`all`: everything that waits, at once: before a matching). A death: told as
+ * what it was of, their household grieving, their burial set for the next morning. A leaving. A birth: to one who bears,
+ * of an age to, one paired before any other, into her household. A coming: to a household with room, or a new one. A
+ * burial: their household stands by for two hours where the town buries its dead. A pairing: the two are one household's,
+ * the one of the smaller going to the other's.
+ */
+function liveDue(world: World, place: Place, f: Frame, all = false): void {
+  const d = place.due;
+  let changed = false;
+  while (d.length && (all || d[0]! <= place.t)) {
+    const [, what, a, b] = d.splice(0, 4) as [number, number, number, number],
+      p = place.people,
+      day = Math.floor(place.t / DAY);
+    if (what === DUE.die || what === DUE.leave) {
+      const i = placeIndexOf(place, a);
+      if (i < 0) continue;
+      const age = Math.round(ageOf(p, i, place.t)),
+        h = p.house[i]!;
+      if (what === DUE.leave) note(place, HAP.left, a, age, occOf(p, i), i);
+      else {
+        const told = b & 255;
+        if (told === HAP.plague) note(place, HAP.plague, a, b >> 8, age, i);
+        else if (told === HAP.famine) note(place, HAP.famine, a, age, 0, i);
+        else note(place, HAP.died, a, age, occOf(p, i), i);
+        place.houses.grief[h] = day;
+        // (Buried the next morning, two hours before the middle of the day.)
+        if (!all) dueAt(place, (day + 1) * DAY + 10 * HOUR, DUE.bury, a, h * 2 + sexOf(p, i));
+      }
+      removePerson(place, i);
+      changed = true;
+    } else if (what === DUE.born || what === DUE.come) {
+      const row = Math.floor(a / OCCS),
+        sex = Math.floor(row / BANDS),
+        band = row % BANDS,
+        occ = a % OCCS,
+        id = place.nextId,
+        lo = f.life.bands[band]!,
+        hi = band + 1 < BANDS ? f.life.bands[band + 1]! : lo + f.life.oldest,
+        age =
+          what === DUE.born
+            ? 0
+            : lo + (hi - lo) * world.rng.unit(PLACE_DRAW, place.key ^ id, place.t, P.age);
+      let house = -1,
+        mother = 0;
+      if (what === DUE.born) {
+        // (Born to one who bears, of the age to: one paired, where any is.)
+        const mothers: number[] = [],
+          paired: number[] = [];
+        for (let i = 0; i < p.n; i++)
+          if (
+            sexOf(p, i) === FEMALE &&
+            (f.life.fertility[bandOf(ageOf(p, i, place.t), f.life)] ?? 0) > 0
+          )
+            (p.mate[i] && p.mate[i] !== PROMISED ? paired : mothers).push(i);
+        const of = paired.length ? paired : mothers;
+        if (of.length) {
+          const m = of[world.rng.index(of.length, PLACE_DRAW, place.key ^ id, place.t, P.mother)]!;
+          house = p.house[m]!;
+          mother = p.id[m]!;
+        }
+      }
+      if (house < 0) house = houseFor(world, place, id, f, homesFor(world, place.town, p.n + 1));
+      const i = addPerson(place, sex, occ, Math.floor(place.t / DAY - age * 365), house);
+      place.people.skill[i] = skillAt(f, age, occ);
+      workOf(world, place, i);
+      note(
+        place,
+        what === DUE.born ? HAP.born : HAP.came,
+        id,
+        what === DUE.born ? mother : Math.round(age),
+        occ,
+      );
+      changed = true;
+    } else if (what === DUE.bury) {
+      const h = b >> 1;
+      place.rite = [graveLot(place), place.t + 2 * HOUR, h];
+      place.log.push({
+        t: place.t,
+        what: HAP.buried,
+        id: a,
+        a: place.houses.members[h] ?? 0,
+        b: 0,
+        k: place.houses.key[h] ?? 0,
+        s: b & 1,
+      });
+    } else if (what === DUE.pair) {
+      const i = placeIndexOf(place, a),
+        j = placeIndexOf(place, b);
+      if (i < 0 || j < 0 || p.mate[i] !== PROMISED || p.mate[j] !== PROMISED) continue;
+      p.mate[i] = b;
+      p.mate[j] = a;
+      // (One household of the two: the one of the smaller goes to the other's.)
+      const hi = p.house[i]!,
+        hj = p.house[j]!;
+      if (hi !== hj) {
+        const mover =
+            place.houses.members[hi]! < place.houses.members[hj]! ||
+            (place.houses.members[hi] === place.houses.members[hj] && a > b)
+              ? i
+              : j,
+          from = p.house[mover]!,
+          to = mover === i ? hj : hi,
+          old = place.houses.home[from]!,
+          home = place.houses.home[to]!;
+        place.houses.members[from]!--;
+        place.houses.members[to]!++;
+        p.house[mover] = to;
+        if (p.work[mover] === old) p.work[mover] = home;
+        if (!p.eta[mover] && p.at[mover] === old) p.at[mover] = p.to[mover] = home;
+      }
+      note(place, HAP.paired, a, b);
+      changed = true;
+    }
+  }
+  if (changed) reckonMeans(world, place);
+}
+
 /** The place matched to the world as it is now: its numbers for the ticks to come, its people, its stocks. */
-function reconcile(world: World, place: Place, s: Settlement, f: Frame, month: number): void {
+function reconcile(
+  world: World,
+  place: Place,
+  s: Settlement,
+  f: Frame,
+  month: number,
+  /** Whether it is watched across this turn: what its land's count brings it is then lived over the month to come. */
+  watched = false,
+): void {
+  // (Come back to after a while: what waited is lived at once, and its people matched as they then are.)
+  if (!watched) {
+    liveDue(world, place, f, true);
+    place.rite = [];
+  }
   const years = Math.max(0, (month - place.matched.month) / 12),
     turned = Math.floor(month / 12) > Math.floor(place.matched.month / 12);
   const was = place.matched.month;
@@ -2541,6 +2886,8 @@ function reconcile(world: World, place: Place, s: Settlement, f: Frame, month: n
     turned ? Math.max(1, years) : Math.max(1 / 12, years),
     turned && years <= 1 ? Math.floor(month / 12) - 1 : null,
     turned || !!came,
+    // (A year's turn's, over the year to come but for its last weeks; a month's, over the month but for its last days.)
+    !watched ? 0 : turned ? YEAR - 40 * DAY : 28 * DAY,
   );
   // (The dead of a sickness are named at the matching it came by, and no later: its count is not kept for other deaths.)
   for (let k = place.tolls.length - 2; k >= 0; k -= 2)
@@ -2808,6 +3155,40 @@ export function placeMark(
     outcome,
     lasting: lastingOf(a, member, outcome),
   };
+}
+/** The one whom one of a place's people is paired with, or promised to (their number; null: no one). */
+export function placeMate(place: Place, i: number): { id: number; promised: boolean } | null {
+  const p = place.people,
+    mate = p.mate[i]!;
+  if (!mate) return null;
+  return mate === PROMISED ? { id: p.friend[i]!, promised: true } : { id: mate, promised: false };
+}
+/** How many a place's people are with what waits counted as lived: those due to be born or to come with them, those due to die or to leave not. */
+export function placeSettled(place: Place): number {
+  let n = place.people.n;
+  for (let k = 0; k < place.due.length; k += 4) {
+    const what = place.due[k + 1]!;
+    if (what === DUE.born || what === DUE.come) n++;
+    else if (
+      (what === DUE.die || what === DUE.leave) &&
+      placeIndexOf(place, place.due[k + 2]!) >= 0
+    )
+      n--;
+  }
+  return n;
+}
+/** What waits for a place to live it (its `due`), as tests and tools read it: when, and what. */
+export function placeDue(place: Place): { t: number; what: string; a: number; b: number }[] {
+  const names = ["", "die", "leave", "born", "come", "bury", "pair"],
+    out: { t: number; what: string; a: number; b: number }[] = [];
+  for (let k = 0; k < place.due.length; k += 4)
+    out.push({
+      t: place.due[k]!,
+      what: names[place.due[k + 1]!] ?? "",
+      a: place.due[k + 2]!,
+      b: place.due[k + 3]!,
+    });
+  return out;
 }
 /** The legs and arms of one of a place's people, by their own people's body. */
 export function placeLimbs(world: World, place: Place, i: number): { legs: number; arms: number } {
@@ -3299,6 +3680,8 @@ function makePlace(world: World, s: Settlement): Place | null {
     usedDay: new Array<number>(GOOD_COUNT).fill(0),
     cameDay: new Array<number>(GOOD_COUNT).fill(0),
     ripe: new Array<number>(GOOD_COUNT).fill(0),
+    due: [],
+    rite: [],
   };
   // Its households, each in a home: as many as a hearth's mouths make of its people, the homes filled from its heart.
   // (Each home takes of them by its beds: so many households as its share of all the beds read.)
@@ -3363,6 +3746,7 @@ function makePlace(world: World, s: Settlement): Place | null {
     }
   }
   linkRoster(world, place, s, f);
+  pairHouses(place, f);
   // (Each one's skill, by the years they have had at their trade since they were grown, at the age they are now.)
   for (let i = 0; i < place.people.n; i++)
     place.people.skill[i] = skillAt(f, ageOf(place.people, i, t), occOf(place.people, i));
@@ -3475,6 +3859,8 @@ export const skillWorth = (level: number): number => (1 + 0.1 * level) / (1 + 0.
  */
 export const skillHazard = (level: number): number => 1 / skillWorth(level);
 const SKILL_NEW = skillWorth(0);
+/** Places read from a save kept before pairings were: their households' pairs are read when the place is next brought on. */
+const UNPAIRED = new WeakSet<Place>();
 /** Places read from a save kept before skill was: each one's is reckoned from their age when the place is next brought on. */
 const UNSKILLED = new WeakSet<Place>();
 /** The skill one of an age comes with, at a trade kept since they were grown (ticks). */
@@ -3724,6 +4110,9 @@ function tick(world: World, place: Place, f: Frame): void {
     shut = orders?.shut.length ? new Set(orders.shut) : null,
     // A fire being fought, where: by the grown who live near it, or by all of them where a watch is kept by order.
     fireLot = place.fire.length && t < place.fire[1]! ? place.fire[0]! : null,
+    // A burial being held: where, and whose household stands by.
+    riteLot = place.rite.length && t < place.rite[1]! ? place.rite[0]! : null,
+    riteHouse = riteLot === null ? -1 : place.rite[2]!,
     fireOut =
       fireLot === null
         ? null
@@ -4003,6 +4392,30 @@ function tick(world: World, place: Place, f: Frame): void {
     }
     // Once a day, each in turn: their mood, and what may befall them.
     if ((tickNo + p.id[i]!) % 144 === 0) {
+      // Two friends, both grown and neither paired, of two households and of one people: promised, and paired on a day
+      // of the weeks to come (asked of the one numbered lower).
+      if (p.friend[i]! > p.id[i]! && !p.mate[i] && ageOf(p, i, t) >= f.life.adulthood) {
+        const j = placeIndexOf(place, p.friend[i]!);
+        if (
+          j >= 0 &&
+          !p.mate[j] &&
+          p.house[j] !== h &&
+          sexOf(p, j) !== sexOf(p, i) &&
+          ageOf(p, j, t) >= f.life.adulthood &&
+          (houses.kind[p.house[j]!] ?? 0) === (houses.kind[h] ?? 0)
+        ) {
+          p.mate[i] = p.mate[j] = PROMISED;
+          dueAt(
+            place,
+            t +
+              (1 + Math.floor(world.rng.unit(PLACE_DRAW, place.key ^ p.id[i]!, t, P.due) * 27)) *
+                DAY,
+            DUE.pair,
+            p.id[i]!,
+            p.id[j]!,
+          );
+        }
+      }
       // (Each day their own work is looked to again: back to it once it has something for them.)
       if (p.turn[i] && hasWork(i, p.sexOcc[i]! & 15)) p.turn[i] = 0;
       // Mood, from needs met over the days gone and what befell their household: a quarter of the way to where those
@@ -4136,7 +4549,13 @@ function tick(world: World, place: Place, f: Frame): void {
     }
     // (Asleep, with neither hunger nor cold pressing past what rest is worth, and nothing in hand and no fire to turn out
     // to: asleep still, whatever their work is worth to them. Half a town's hours are such, and none of them asks it.)
-    if (asleep && fireLot === null && p.carry[i] === 0 && p.needs[at0 + N.rest]! > 0.04 * FULL) {
+    if (
+      asleep &&
+      fireLot === null &&
+      h !== riteHouse &&
+      p.carry[i] === 0 &&
+      p.needs[at0 + N.rest]! > 0.04 * FULL
+    ) {
       const hf = p.needs[at0 + N.food]! / FULL,
         cf = p.needs[at0 + N.cold]! / FULL;
       if (hf * hf * hf < IDLE_WORTH && cf * cf * cf < IDLE_WORTH) {
@@ -4176,6 +4595,13 @@ function tick(world: World, place: Place, f: Frame): void {
       p.act[i] = ACT.brigade;
       p.why[i] = WHY.fire;
       if (p.at[i] !== fireLot) go(place, i, fireLot, world);
+      continue;
+    }
+    // A burial of one of their household: they stand by it, while neither hunger nor cold presses past their work.
+    if (h === riteHouse && hunger < bar && chilled < bar) {
+      p.act[i] = ACT.mourn;
+      p.why[i] = WHY.burial;
+      if (p.at[i] !== riteLot) go(place, i, riteLot!, world);
       continue;
     }
     // Asleep: until rested, or hunger or cold wakes them.
@@ -4859,6 +5285,10 @@ export function advancePlace(world: World, place: Place): number {
   const f = frameOf(world, place.cell),
     now = Math.floor(world.now / PLACE_TICK) * PLACE_TICK,
     month = Math.floor(world.now / MONTH);
+  if (UNPAIRED.has(place)) {
+    UNPAIRED.delete(place);
+    pairHouses(place, f);
+  }
   if (UNSKILLED.has(place)) {
     UNSKILLED.delete(place);
     for (let i = 0; i < place.people.n; i++)
@@ -4905,7 +5335,8 @@ export function advancePlace(world: World, place: Place): number {
     while (next < strikes.length && strikes[next]!.at <= place.t)
       struck(world, place, s, f, strikes[next++]!);
     const m = Math.floor(place.t / MONTH);
-    if (m > place.matched.month) reconcile(world, place, s, f, m);
+    if (m > place.matched.month) reconcile(world, place, s, f, m, true);
+    if (place.due.length && place.due[0]! <= place.t) liveDue(world, place, f);
     tick(world, place, f);
     ticks++;
   }
@@ -5170,10 +5601,23 @@ export function siteStage(share: number, kind = ""): string {
 }
 
 /** What happened to someone, said in full: what struck them, which battle, which sickness. */
-export function hapTold(place: Place, x: PlaceHap): string {
+export function hapTold(
+  place: Place,
+  x: PlaceHap,
+  /** One of the place by their number, named (a mother, the one paired with), where the teller can. */
+  named: ((id: number) => string | null) | null = null,
+): string {
   const battle = () => (place.wars[x.a] ?? "a battle").split("|")[0]!,
     ill = () => (place.ills[x.a] ?? "a sickness").split("|")[0]!;
   switch (x.what) {
+    case HAP.born:
+      return x.a > 0 && named?.(x.a) ? `was born to ${named(x.a)}` : "was born";
+    case HAP.paired:
+      return named?.(x.a) ? `and ${named(x.a)} were paired, and are one household` : "was paired";
+    case HAP.buried:
+      return `was buried, ${x.a === 1 ? "one of their household" : `${x.a} of their household`} standing by`;
+    case HAP.ofAge:
+      return `came of age, and took up work as ${OCCUPATIONS[x.b] === "crafter" ? "a crafter" : `a ${OCCUPATIONS[x.b] ?? "hand"}`}`;
     case HAP.homeless:
       return `lost their home${x.a ? ` ${CAUSE_WORDS[x.a]}` : ""}, and their household with them`;
     case HAP.struckDead:
@@ -5241,6 +5685,9 @@ export const HAP_MANY: readonly string[] = [
   "found a home again with their households",
   "were taken in under a roof, in the building opened to them",
   "are up again, their wounds bound",
+  "were paired",
+  "were buried",
+  "came of age",
 ];
 
 /** What many did, said with what of: "died of the red flux", "fell in the battle at Sairis's land". */

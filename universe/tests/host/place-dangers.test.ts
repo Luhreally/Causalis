@@ -33,6 +33,7 @@ import {
   HAP,
   armsWanted,
   enterPlace,
+  placeSettled,
   placeDigest,
   placesOf,
   targetTable,
@@ -182,11 +183,12 @@ test("a fire is seen on its people: who lost a home, who was hurt, who died, by 
     watch(w, town, 30 * 24, 12);
     const target = targetTable(w, s, place);
     assert.equal(
-      place.people.n,
+      placeSettled(place),
       target.reduce((a, b) => a + b, 0),
     );
     if (Math.floor(w.now / YEAR) === 150) {
-      assert.equal(place.people.n, before - cost.dead, `month ${m}`);
+      // (With what a month's turn brought and waits to be lived counted as lived.)
+      assert.equal(placeSettled(place), before - cost.dead, `month ${m}`);
       came = place.log.filter((x) => x.what === HAP.came || x.what === HAP.born).length;
     }
   }
@@ -320,10 +322,10 @@ test("a battle's tally of a town's men names who fell and who came home wounded"
   assert.equal(wounded, pick!.hurt);
   assert.equal(place.tolls.length, 0);
   assert.equal(
-    place.people.n,
+    placeSettled(place),
     targetTable(w, s, place).reduce((a, b) => a + b, 0),
   );
-  // Its log tells them by name, each a line of its own among the year's turn's many comings and goings, which are counted.
+  // Its log tells them by name, each a line of its own. (The year's comings and goings are lived on days of their own now.)
   const rows = logSheet(w, place).rows;
   assert.equal(rows.filter((r) => / fell in the battle at /.test(r.words)).length, fell);
   assert.equal(
@@ -331,7 +333,6 @@ test("a battle's tally of a town's men names who fell and who came home wounded"
     wounded,
   );
   assert.ok(rows.every((r) => r.day.length > 0));
-  assert.ok(rows.some((r) => r.ref === null && /^and \d+ more /.test(r.words)));
   const sheet = dangersSheet(w, place);
   assert.ok(sheet.now.some((x) => /fell in the battle at /.test(x.words) && x.ref));
   assert.ok(sheet.hurt.some((x) => /Wounded in battle/.test(x.words)));
@@ -369,7 +370,7 @@ test("a lean year is told on those it takes: the long in want starve, by the wor
   const starved = told(place, HAP.famine);
   assert.ok(starved > 0, "those long in want are told as starved");
   assert.equal(
-    place.people.n,
+    placeSettled(place),
     targetTable(w, s, place).reduce((a, b) => a + b, 0),
   );
   const sheet = dangersSheet(w, place);

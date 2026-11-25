@@ -326,6 +326,15 @@ for (const view of [
     await page.waitForTimeout(400);
     await shot("g4-person-skill");
     await read("a person's page, their skill and priorities");
+    // Their household's line: its pairs, its young, what has befallen it.
+    check(text.includes("household's line"), "their page shows their household's line");
+    say(`page: ${(text.match(/household's line.{0,300}/) ?? [""])[0]}`);
+    await k(
+      `(() => { const e = [...document.querySelectorAll(".page-window *")].find((x) => x.children.length === 0 && /household's line/i.test(x.textContent ?? "")); e?.scrollIntoView({ block: "start" }); })()`,
+    );
+    await page.waitForTimeout(400);
+    await shot("g4b-household-line");
+    await read("a person's page, their household's line");
     await k("globalThis.causalis.closePage()");
     await page.waitForTimeout(400);
     // Narrowed to a trade; then let be.

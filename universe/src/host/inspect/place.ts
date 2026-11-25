@@ -53,6 +53,8 @@ import {
   placeSkill,
   skillHazard,
   skillWorth,
+  HAP,
+  placeMate,
 } from "../place.ts";
 import {
   ailWords,
@@ -68,6 +70,8 @@ import {
   tradeWords,
   whyWords,
   OCCUPATION_WORK,
+  placeDay,
+  placeNamed,
 } from "../placeplan.ts";
 import { askRef, builtOf } from "./asks.ts";
 import { buildingRef, lotRef, townPartOf } from "./fabric.ts";
@@ -151,6 +155,70 @@ function temperWords(place: Place, i: number): string {
   return `${marks.length ? cap(marks.join(", ")) : "Much as most of their people are"}: half their people's ways, half their own nature. Against a hundred for most, a death at home weighs ${of(t.kin)} with them, an order ${of(1 - t.bidden)}, a friend ${of(t.sociable)}, a full pantry ${of(t.thrifty)}, want and a home lost ${of(1 - t.bold)}.`;
 }
 
+/**
+ * A household's line, as a place can read it: its pairs, their young (the eldest first), its other grown; then what has
+ * befallen it since the town was entered, each on its day: its births, its dead and their burials, its pairings, who of
+ * it came of age, who came and who left.
+ */
+function houseLine(world: World, place: Place, h: number): Item[] {
+  const p = place.people,
+    life = lifeOf(world),
+    who = placeWho(world, place),
+    named = placeNamed(world, place),
+    of: number[] = [],
+    age = (i: number) => Math.floor((place.t / DAY - p.born[i]!) / 365),
+    one = (i: number): Line => [link(who(i).name, who(i).ref), ` (${age(i)})`],
+    items: Item[] = [];
+  for (let i = 0; i < p.n; i++) if (p.house[i] === h) of.push(i);
+  of.sort((a, b) => p.born[a]! - p.born[b]! || p.id[a]! - p.id[b]!);
+  const inPair = new Set<number>();
+  for (const i of of) {
+    const m = placeMate(place, i),
+      j = m && !m.promised ? placeIndexOf(place, m.id) : -1;
+    if (j < 0 || p.house[j] !== h || inPair.has(i)) continue;
+    inPair.add(i).add(j);
+    items.push({ line: ["A pair: ", ...one(i), " and ", ...one(j)] });
+  }
+  const young = of.filter((i) => age(i) < life.adulthood),
+    rest = of.filter((i) => age(i) >= life.adulthood && !inPair.has(i)),
+    list = (label: string, ids: number[]): void => {
+      if (!ids.length) return;
+      const line: Line[number][] = [label];
+      ids.forEach((i, k) => line.push(...(k ? [", "] : []), ...one(i)));
+      items.push({ line });
+    };
+  list("Its young: ", young);
+  list("Its other grown: ", rest);
+  // What has befallen it, the latest first: by who of it now, and by its name for one gone with a telling.
+  const ids = new Set(of.map((i) => p.id[i]!)),
+    key = place.houses.key[h],
+    kinds: readonly number[] = [
+      HAP.born,
+      HAP.died,
+      HAP.starved,
+      HAP.struckDead,
+      HAP.fell,
+      HAP.famine,
+      HAP.plague,
+      HAP.paired,
+      HAP.buried,
+      HAP.ofAge,
+      HAP.came,
+      HAP.left,
+    ];
+  let told = 0;
+  for (let k = place.log.length - 1; k >= 0 && told < 12; k--) {
+    const x = place.log[k]!;
+    if (!kinds.includes(x.what)) continue;
+    if (!(ids.has(x.id) || (x.k !== undefined && x.k === key))) continue;
+    items.push({
+      line: [`${cap(placeDay(x.t))}: ${named(x.id) ?? "one of it"} ${hapTold(place, x, named)}`],
+    });
+    told++;
+  }
+  return items;
+}
+
 /** One's skill at their trade, said, with what it bears on (null: they keep no trade). */
 function skillLine(world: World, place: Place, i: number): string | null {
   const p = place.people,
@@ -165,7 +233,7 @@ function skillLine(world: World, place: Place, i: number): string | null {
     master = SKILL_LEVELS[SKILL_LEVELS.length - 1]!.toLocaleString("en-US");
   return `${cap(s.words)} at ${OCCUPATION_WORK[occ] ?? "their work"}: ${s.hours.toLocaleString("en-US")} hours given to it. ${
     !makes
-      ? `A master has given it ${master}`
+      ? `A master has given it ${master} hours`
       : s.level >= SKILL_LEVELS.length - 1
         ? `An hour of theirs wins or makes all a master's does${risks ? ", and they are hurt at it no oftener" : ""}`
         : `An hour of theirs wins or makes ${worth} in a hundred of what a master's does${risks ? `, and they are hurt at it ${Math.round(hurt * 10) / 10} times as often` : ""}; a master has given it ${master} hours`
@@ -216,9 +284,24 @@ function personBlocks(
   FOODS.forEach((g, k) => (pantry[g] = r.pantry[k]!));
   const fi = p.friend[i] ? placeIndexOf(place, p.friend[i]!) : -1,
     friend = fi >= 0 ? who(fi) : null;
-  const happened = place.log
-    .filter((x) => x.id === id)
-    .map((x): Item => ({ line: [`Year ${Math.floor(x.t / YEAR)}: ${hapTold(place, x)}`] }));
+  // What befell them, each on its day: and what befell another that was theirs too (a child born to them, their pairing).
+  const named = placeNamed(world, place),
+    happened = place.log
+      .filter((x) => x.id === id || ((x.what === HAP.born || x.what === HAP.paired) && x.a === id))
+      .map((x): Item => ({
+        line: [
+          `${cap(placeDay(x.t))}: ${
+            x.id === id
+              ? hapTold(place, x, named)
+              : x.what === HAP.born
+                ? `${named(x.id) ?? "a child"} was born to them`
+                : `they and ${named(x.id) ?? "another"} were paired, and are one household`
+          }`,
+        ],
+      })),
+    mate = placeMate(place, i),
+    mi = mate ? placeIndexOf(place, mate.id) : -1,
+    line = houseLine(world, place, p.house[i]!);
   return {
     needs,
     now: stat("Now", doing),
@@ -289,6 +372,19 @@ function personBlocks(
         rows: [
           stat("Now", doing),
           stat("Home", [lotLink(place, r.home)]),
+          ...(mate && mi >= 0
+            ? [
+                stat(
+                  mate.promised ? "Promised to" : "Paired with",
+                  mate.promised
+                    ? [
+                        link(who(mi).name, who(mi).ref),
+                        ", their friend: they are paired on a day of the weeks to come",
+                      ]
+                    : [link(who(mi).name, who(mi).ref)],
+                ),
+              ]
+            : []),
           ...(skillLine(world, place, i) ? [stat("Skill", skillLine(world, place, i)!)] : []),
           ...(prioLine(world, place, i) ? [stat("Priorities", prioLine(world, place, i)!)] : []),
           ...(p.bound[i]
@@ -337,6 +433,9 @@ function personBlocks(
         ],
       },
       ...(kin.length ? [{ type: "list" as const, title: "Household", items: kin }] : []),
+      ...(line.length
+        ? [{ type: "list" as const, title: "Their household's line", items: line }]
+        : []),
       ...(happened.length
         ? [{ type: "list" as const, title: "Since the town was entered", items: happened }]
         : []),

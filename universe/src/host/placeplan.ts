@@ -178,6 +178,8 @@ export function whyWords(world: World, place: Place, i: number): string {
         : `The cold (${pct(need(2))} full) passed ${bar}: indoors to get warm${going}`;
     case WHY.lone:
       return `Want of company passed ${bar}: among others in the square until it eases (${pct(need(3))} full now)${going}`;
+    case WHY.burial:
+      return `One of their household is buried today: standing by at ${lotWords(place, p.to[i]!)} while it is held`;
     case WHY.turned:
       return `Their own work has nothing for them now: turned to ${OCCUPATION_WORK[p.turn[i]!] ?? "other work"}, as your priorities for them say, and at it as one new to it${going}`;
     case WHY.work:
@@ -1144,6 +1146,21 @@ export function goneNames(world: World, place: Place): (id: number) => string | 
   };
 }
 
+/** One of a place's people by their number, named: one living by who they are, one gone by what their going kept of them. */
+export function placeNamed(world: World, place: Place): (id: number) => string | null {
+  const who = placeWho(world, place),
+    gone = goneNames(world, place);
+  return (id) => {
+    const i = placeIndexOf(place, id);
+    return i >= 0 ? who(i).name : gone(id);
+  };
+}
+/** A day of a place's clock, said: "day 41 of year 150". */
+export function placeDay(t: number): string {
+  const d = Math.floor(t / DAY);
+  return `day ${(((d % 365) + 365) % 365) + 1} of year ${Math.floor(d / 365)}`;
+}
+
 /** Of a kind that is counted, how many a day tells one by one; and of a death, a hurt or a home lost. */
 const LOG_EACH = 4,
   LOG_GRAVE = 12;
@@ -1160,7 +1177,8 @@ export function logSheet(world: World, place: Place, most = 160): PlaceLogSheet 
     rows: PlaceLogSheet["rows"][number][] = [];
   for (let i = 0; i < place.people.n; i++) index.set(place.people.id[i]!, i);
   // (One gone is still named: by what the telling of their going kept of them.)
-  const gone = goneNames(world, place);
+  const gone = goneNames(world, place),
+    named = placeNamed(world, place);
   const dayWords = (d: number) =>
     d === today
       ? "Today"
@@ -1187,7 +1205,7 @@ export function logSheet(world: World, place: Place, most = 160): PlaceLogSheet 
         one = i === undefined ? null : who(i);
       rows.push({
         t: x.t,
-        words: `${one ? one.name : (gone(x.id) ?? "One of the town")} ${hapTold(place, x)}`,
+        words: `${one ? one.name : (gone(x.id) ?? "One of the town")} ${hapTold(place, x, named)}`,
         // (One gone leads to what took them, where a page tells of it: the battle, the sickness.)
         ref: one ? one.ref : (hapRef(place, x) ?? placePersonRef(place.town, x.id)),
         day,
