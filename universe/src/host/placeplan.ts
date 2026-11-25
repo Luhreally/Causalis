@@ -77,6 +77,8 @@ import {
   placeFigure,
   placeHomes,
   placeIndexOf,
+  placePrio,
+  placeSkill,
   placeSites,
   placesOf,
   pressOf,

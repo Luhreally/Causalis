@@ -330,6 +330,112 @@ export class PlaceHud {
     this.sheetBody.replaceChildren(chips, list, ...more);
   }
 
+  /**
+   * Who works at what, and in what order: its grown at the trades an order can move, a row each, a kind of work a column.
+   * A key says 1, 2 or 3 (first, second, third) or – (never); a tap takes it on to the next. The names stay at the left
+   * and the kinds at the top while the rest scrolls under a finger.
+   */
+  private grid(s: PlaceWorkSheet): HTMLElement[] {
+    const head = el("div", "place-line"),
+      open = el(
+        "button",
+        "place-order place-grid-open",
+        this.gridOpen ? "Hide priorities" : "Priorities by name",
+      );
+    open.setAttribute("aria-expanded", String(this.gridOpen));
+    open.onclick = () => {
+      this.gridOpen = !this.gridOpen;
+      this.drawn = "";
+      this.work(s);
+    };
+    head.append(
+      el(
+        "span",
+        "place-line-words",
+        "Who works at what, and what each turns to when their own work has nothing for them.",
+      ),
+      open,
+    );
+    if (!this.gridOpen) return [el("h3", "place-sub", "Priorities"), head];
+    const chips = el("div", "place-chips");
+    for (const [occ, words] of GRID_CHIPS) {
+      const b = el("button", "place-chip", words);
+      b.classList.toggle("on", this.gridOcc === occ);
+      b.onclick = () => {
+        this.gridOcc = occ;
+        this.drawn = "";
+        this.onTab("work");
+      };
+      chips.append(b);
+    }
+    const box = el("div", "place-grid"),
+      table = el("div", "place-grid-rows"),
+      top = el("div", "place-grid-row place-grid-head");
+    top.append(el("span", "place-grid-name", "Name · skill"));
+    for (const kind of s.grid.kinds) top.append(el("span", "place-grid-kind", kind));
+    // (Over the keys that let one be.)
+    top.append(el("span", "place-grid-kind"));
+    table.append(top);
+    for (const r of s.grid.rows) {
+      const row = el("div", "place-grid-row"),
+        name = el("button", "place-grid-name");
+      name.append(
+        el("span", "place-grid-who", r.name),
+        el(
+          "span",
+          "place-grid-skill",
+          `${r.skill}${r.turned ? ` · now at ${GRID_TURNED[r.turned] ?? "other work"}` : ""}`,
+        ),
+      );
+      name.onclick = () => this.onOpen(r.ref);
+      row.append(name);
+      r.kinds.forEach((x, k) => {
+        const key = el("button", "place-grid-key", x > 0 ? String(4 - x) : "–"),
+          // (A tap takes it on: never, first, second, third, never. One's last trade is not set to never.)
+          trades = r.kinds.slice(0, 4),
+          only = k < 4 && trades.filter((y) => y > 0).length === 1 && x > 0,
+          next = x === 0 ? 3 : x === 1 ? (only ? 3 : 0) : x - 1,
+          words = `${r.name}, ${s.grid.kinds[k]}: ${x > 0 ? ["", "third", "second", "first"][x] : "never"}. Tap for ${next > 0 ? ["", "third", "second", "first"][next] : "never"}`;
+        key.classList.toggle("on", x > 0);
+        key.classList.toggle("first", x === 3);
+        key.classList.toggle("own", !r.set);
+        key.title = words;
+        key.setAttribute("aria-label", words);
+        key.onclick = () => {
+          const kinds = [...r.kinds];
+          kinds[k] = next;
+          this.onOrder("place.prio", { person: r.id, kinds });
+        };
+        row.append(key);
+      });
+      if (r.set) {
+        const free = el("button", "place-grid-key place-grid-free", "↺"),
+          words = `Let ${r.name} work as they would of themselves`;
+        free.title = words;
+        free.setAttribute("aria-label", words);
+        free.onclick = () => this.onOrder("place.prio", { person: r.id, kinds: null });
+        row.append(free);
+      } else row.append(el("span", "place-grid-free"));
+      table.append(row);
+    }
+    box.append(table);
+    const more =
+      s.grid.all > s.grid.rows.length
+        ? `${s.grid.rows.length} of ${s.grid.all} shown: narrow them by trade above. `
+        : "";
+    return [
+      el("h3", "place-sub", "Priorities"),
+      head,
+      chips,
+      box,
+      el(
+        "p",
+        "place-more",
+        `${more}1 is first. The trade set highest is the one they keep, and its land is told when it changes; a lower one is what they turn to, as one new to it, when their own has nothing for them. Building is who a site's crew is made up of first. Faint keys are as they are of themselves.`,
+      ),
+    ];
+  }
+
   stocks(s: PlaceStocksSheet): void {
     if (this.tab !== "stocks" || this.same(s)) return;
     const hold = el("div", "place-line"),
