@@ -700,213 +700,232 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
     offworldFrom = isProvinceWorld(ctx.generated) ? ctx.generated.offworld.base : Infinity;
   // (The month's work on what towns were asked to raise, H1: here, as an old save's agenda holds no new system.)
   asksMonth(ctx, t);
-  for (const p of ctx.provinces.all()) {
-    // A blessed harvest is richer, a blighted one poorer.
-    const act = acts.at(p.cell, "harvest", t),
-      // (And what its towns were asked to put first, and the hands on what they were asked to raise: H1. Exactly 1 on a land never asked.)
-      gift =
-        (act ? actFactor(act.sign > 0, ACT_STRENGTH.harvest, act.strength) : 1) *
-        asks.gift(p.cell, t);
-    const m = markets.of(p.cell),
-      c = provinceCapacity(ctx, p.cell),
-      // The land gives as its living world stands: less game where the wild is thin,
-      // less grain from worn soil, for the same work.
-      alive = wildsOf(ctx, p.cell),
-      key = refHash(p.ref),
-      rain = p.rain / 1000,
-      tools = (1 + (TOOL_GAIN * m.toolCover) / 1000) * (1 + (MACHINE_GAIN * m.machineCover) / 1000),
-      // A body gathers, sows and herds in proportion to what it eats (a giant's day's
-      // grazing is a giant's meal), so a worker feeds as many as an upright ape's does —
-      // less the share of every hand that keeps another world's halls alive.
-      gathers =
-        (mixed ? ctx.life.appetite * mixAppetite(world, p.cell) : ctx.life.appetite) *
-        (1 - hallsShare(ctx, p.cell)) *
-        // (As many days as its people work against the reference year, its rest days the fewer: the society sweep, rules/leisure.ts.
-        // 1 where none is kept.)
-        daysWorkedOf(world, p.cell),
-      pots = m.potteryCover / 1000,
-      // What the land's people know: better fields, flocks and hunting, stores that keep.
-      lore = loreOf(world),
-      // Hot fields yield less as the world warms; cold ones a little more.
-      till = tillageAt(ctx, p.cell),
-      fields =
-        till.yields *
-        heatYield(ctx, p.cell) *
-        // (Under the soot of a great fire, W5: exactly 1 under a clear sky.)
-        darkFields(world, p.cell) *
-        // (Its crop, as tame and as fitted to it as it is; the world's veil, and its own ash and flood: exactly 1 on a land
-        // sowing its own, tamed, under a clear sky, its river in its banks.)
-        cropsGive(world, p.cell) *
-        carriedFields(ctx, p.cell) *
-        pestsLeft(world, p.cell) *
-        veilYield(ctx, p.cell) *
-        floodYield(world, p.cell) *
-        // (And a great stone's dust, a burst's light: frontier/hooks.ts, exactly 1 under a clear sky.)
-        frontierFields(world, p.cell) *
-        (p.cell >= offworldFrom ? openFields(ctx, p.cell) : 1) *
-        // (And what its holders have put into them, as far as it is safe and theirs: society/holding.ts. Exactly 1 where none is kept.)
-        (1 + improvedOf(world, p.cell)),
-      // (And its herd beast against the one it first kept: exactly 1 until it takes up another: ecology/exchange.ts.)
-      flocks =
-        (1 + lore.effect(p.cell, "herdYield")) *
-        herdGives(world, p.cell) *
-        // (Less as far as their creed forbids them its flesh and milk: sim/belief/taboo.ts. Exactly 1 where it forbids none.)
-        (1 - herdKept(world, p.cell)),
-      // (What war has driven off of its herds and a beast at large takes: Z1. Exactly 0 where neither has.)
-      flocksLost = herdLoss(world, p.cell, t),
-      // (What lives off its flocks and its wild, and what its seed carriers give: ecology/lineage.ts. Exactly 1 where none stand.)
-      partners = partnersOf(world, p.cell),
-      // (The wild's fruit by its carriers' numbers: ecology.ts carriedWild. Exactly 1 where its small game stands as it did.)
-      wilds = (1 + lore.effect(p.cell, "forageYield")) * carriedWild(ctx, p.cell, alive),
-      keeping = Math.min(0.8, lore.effect(p.cell, "keeping")),
-      // (And what its own air, coast, woods and brewing keep: society/everyday.ts. Exactly 0 where none is kept.)
-      keptByLand = tableKeptOf(world, p.cell),
-      stored =
-        lore.effect(p.cell, "storage") +
-        asks.stored(p.cell, t) +
-        // (Grain put by, where famine taught them to: rules/lessons.ts granaries. Exactly 0 where it has not.)
-        lessonAdds(world, p.ref, "stores", yearOfMoment(t)),
-      // (What they keep from their own use, as the ecology's year last set it: rules/lessons.ts kept-wild, kept-woods.)
-      asideWild = alive.asideWild ?? 0,
-      asideWoods = alive.asideWoods ?? 0,
-      // Food grown in vats (Phase 66), whatever its ground, tended by machines more than hands.
-      vats = lore.get(p.cell, "vat-food")
+  for (const p of ctx.provinces.all())
+    foodLand(ctx, p, t, month, markets, acts, asks, mixed, offworldFrom);
+}
+
+/**
+ * One land's month of food (foodMonth's, land by land in the provinces' order): what it gathers, grows and herds, what spoils,
+ * what its people eat, and its hunger. (A function of its own: the month's whole in one body, its loop the length of every
+ * land, was a twentieth slower at 1,450.)
+ */
+function foodLand(
+  ctx: PopulationContext,
+  p: Province,
+  t: SimTime,
+  month: number,
+  markets: ReturnType<typeof marketsOf>,
+  acts: ReturnType<typeof actsOf>,
+  asks: ReturnType<typeof asksOf>,
+  mixed: ReturnType<typeof mixOf>,
+  offworldFrom: number,
+): void {
+  const { world } = ctx;
+  // A blessed harvest is richer, a blighted one poorer.
+  const act = acts.at(p.cell, "harvest", t),
+    // (And what its towns were asked to put first, and the hands on what they were asked to raise: H1. Exactly 1 on a land never asked.)
+    gift =
+      (act ? actFactor(act.sign > 0, ACT_STRENGTH.harvest, act.strength) : 1) *
+      asks.gift(p.cell, t);
+  const m = markets.of(p.cell),
+    c = provinceCapacity(ctx, p.cell),
+    // The land gives as its living world stands: less game where the wild is thin,
+    // less grain from worn soil, for the same work.
+    alive = wildsOf(ctx, p.cell),
+    key = refHash(p.ref),
+    rain = p.rain / 1000,
+    tools = (1 + (TOOL_GAIN * m.toolCover) / 1000) * (1 + (MACHINE_GAIN * m.machineCover) / 1000),
+    // A body gathers, sows and herds in proportion to what it eats (a giant's day's
+    // grazing is a giant's meal), so a worker feeds as many as an upright ape's does —
+    // less the share of every hand that keeps another world's halls alive.
+    gathers =
+      (mixed ? ctx.life.appetite * mixAppetite(world, p.cell) : ctx.life.appetite) *
+      (1 - hallsShare(ctx, p.cell)) *
+      // (As many days as its people work against the reference year, its rest days the fewer: the society sweep, rules/leisure.ts.
+      // 1 where none is kept.)
+      daysWorkedOf(world, p.cell),
+    pots = m.potteryCover / 1000,
+    // What the land's people know: better fields, flocks and hunting, stores that keep.
+    lore = loreOf(world),
+    // Hot fields yield less as the world warms; cold ones a little more.
+    till = tillageAt(ctx, p.cell),
+    fields =
+      till.yields *
+      heatYield(ctx, p.cell) *
+      // (Under the soot of a great fire, W5: exactly 1 under a clear sky.)
+      darkFields(world, p.cell) *
+      // (Its crop, as tame and as fitted to it as it is; the world's veil, and its own ash and flood: exactly 1 on a land
+      // sowing its own, tamed, under a clear sky, its river in its banks.)
+      cropsGive(world, p.cell) *
+      carriedFields(ctx, p.cell) *
+      pestsLeft(world, p.cell) *
+      veilYield(ctx, p.cell) *
+      floodYield(world, p.cell) *
+      // (And a great stone's dust, a burst's light: frontier/hooks.ts, exactly 1 under a clear sky.)
+      frontierFields(world, p.cell) *
+      (p.cell >= offworldFrom ? openFields(ctx, p.cell) : 1) *
+      // (And what its holders have put into them, as far as it is safe and theirs: society/holding.ts. Exactly 1 where none is kept.)
+      (1 + improvedOf(world, p.cell)),
+    // (And its herd beast against the one it first kept: exactly 1 until it takes up another: ecology/exchange.ts.)
+    flocks =
+      (1 + lore.effect(p.cell, "herdYield")) *
+      herdGives(world, p.cell) *
+      // (Less as far as their creed forbids them its flesh and milk: sim/belief/taboo.ts. Exactly 1 where it forbids none.)
+      (1 - herdKept(world, p.cell)),
+    // (What war has driven off of its herds and a beast at large takes: Z1. Exactly 0 where neither has.)
+    flocksLost = herdLoss(world, p.cell, t),
+    // (What lives off its flocks and its wild, and what its seed carriers give: ecology/lineage.ts. Exactly 1 where none stand.)
+    partners = partnersOf(world, p.cell),
+    // (The wild's fruit by its carriers' numbers: ecology.ts carriedWild. Exactly 1 where its small game stands as it did.)
+    wilds = (1 + lore.effect(p.cell, "forageYield")) * carriedWild(ctx, p.cell, alive),
+    keeping = Math.min(0.8, lore.effect(p.cell, "keeping")),
+    // (And what its own air, coast, woods and brewing keep: society/everyday.ts. Exactly 0 where none is kept.)
+    keptByLand = tableKeptOf(world, p.cell),
+    stored =
+      lore.effect(p.cell, "storage") +
+      asks.stored(p.cell, t) +
+      // (Grain put by, where famine taught them to: rules/lessons.ts granaries. Exactly 0 where it has not.)
+      lessonAdds(world, p.ref, "stores", yearOfMoment(t)),
+    // (What they keep from their own use, as the ecology's year last set it: rules/lessons.ts kept-wild, kept-woods.)
+    asideWild = alive.asideWild ?? 0,
+    asideWoods = alive.asideWoods ?? 0,
+    // Food grown in vats (Phase 66), whatever its ground, tended by machines more than hands.
+    vats = lore.get(p.cell, "vat-food")
+      ? saturate(
+          c.areaKm2 * VAT_PEOPLE_KM2,
+          p.occupation(OCC.farmer),
+          PRODUCTIVITY[OCC.farmer]! * tools * gathers,
+        )
+      : 0;
+  // Yearly food in person-years is this month's food in person-months.
+  const harvest: [number, number][] = [
+    [
+      G.wild,
+      saturate(
+        // (Less what they have set aside from their own taking: rules/lessons.ts kept-wild. As before where none is.)
+        asideWild > 0 ? c.forage * (1 - asideWild) : c.forage,
+        p.occupation(OCC.forager),
+        PRODUCTIVITY[OCC.forager]! * gathers,
+      ) *
+        rain *
+        wilds *
+        alive.wild *
+        waterYield(alive) *
+        // (And as the reach of sea its boats go out on stands, fished by all on it: sim/ecology/seas.ts. Exactly 1 where untouched.)
+        seaYield(ctx, p.cell) *
+        // (And young woods' browse: sim/ecology/stands.ts. Exactly 1 where its woods are untouched.)
+        standGame(world, p.cell, ecologyOf(world).get(p.cell)?.forest ?? 1) *
+        partners.wild,
+    ],
+    [
+      G.grain,
+      p.knowsCultivation
         ? saturate(
-            c.areaKm2 * VAT_PEOPLE_KM2,
+            // (Less the ground they keep as woods: rules/lessons.ts kept-woods. As before where none is.)
+            asideWoods > 0 ? c.farm * (1 - asideWoods) : c.farm,
             p.occupation(OCC.farmer),
-            PRODUCTIVITY[OCC.farmer]! * tools * gathers,
-          )
-        : 0;
-    // Yearly food in person-years is this month's food in person-months.
-    const harvest: [number, number][] = [
-      [
-        G.wild,
-        saturate(
-          // (Less what they have set aside from their own taking: rules/lessons.ts kept-wild. As before where none is.)
-          asideWild > 0 ? c.forage * (1 - asideWild) : c.forage,
-          p.occupation(OCC.forager),
-          PRODUCTIVITY[OCC.forager]! * gathers,
-        ) *
-          rain *
-          wilds *
-          alive.wild *
-          waterYield(alive) *
-          // (And as the reach of sea its boats go out on stands, fished by all on it: sim/ecology/seas.ts. Exactly 1 where untouched.)
-          seaYield(ctx, p.cell) *
-          // (And young woods' browse: sim/ecology/stands.ts. Exactly 1 where its woods are untouched.)
-          standGame(world, p.cell, ecologyOf(world).get(p.cell)?.forest ?? 1) *
-          partners.wild,
-      ],
-      [
-        G.grain,
-        p.knowsCultivation
-          ? saturate(
-              // (Less the ground they keep as woods: rules/lessons.ts kept-woods. As before where none is.)
-              asideWoods > 0 ? c.farm * (1 - asideWoods) : c.farm,
-              p.occupation(OCC.farmer),
-              // (The plough, the share and the mill let each farmer work more ground: rules/tillage.ts.)
-              PRODUCTIVITY[OCC.farmer]! * tools * gathers * till.work,
-            ) *
-              rain *
-              fields *
-              alive.soil *
-              (1 - grainLost(alive)) *
-              pensLeft(ctx, flocksLost) +
-            vats
-          : 0,
-      ],
-      [
-        G.meat,
-        saturate(c.pasture, p.occupation(OCC.herder), PRODUCTIVITY[OCC.herder]! * tools * gathers) *
-          (0.5 + 0.5 * rain) *
-          flocks *
-          // (More where its herders drive them to a neighbour's pasture for its season: sim/ecology/droving.ts. 1 where they stay.)
-          droveGain(world, p.cell) *
-          // (Less what the land's hunters take of the flocks, and what war and a known beast have.)
-          (1 - FLOCK_LOSS * alive.hunters) *
-          (1 - flocksLost) *
-          partners.flocks,
-      ],
-    ];
-    // (Each food's harvest, and below what spoils of it, drawn of one question by the good.)
-    const harvestDraw = world.rng.reals(BIRTHS, key, t, HARVEST);
-    for (const [g, x] of harvest) m.move("made", g, roundKeyed(x * gift, harvestDraw(g)));
-    // (Those at work on what its towns were asked to raise eat of it first: H1.)
-    if (asks.open.length) asks.feed(p.cell, m);
-    const spoilDraw = world.rng.reals(BIRTHS, key, t, SPOIL);
-    for (const g of FOODS)
-      m.move(
-        "spoiled",
-        g,
-        Math.min(
-          m.stock[g]!,
-          roundKeyed(
-            m.stock[g]! * GOODS[g]!.spoil * (1 - 0.5 * pots) * (1 - keeping) * (1 - keptByLand),
-            spoilDraw(g),
-          ),
+            // (The plough, the share and the mill let each farmer work more ground: rules/tillage.ts.)
+            PRODUCTIVITY[OCC.farmer]! * tools * gathers * till.work,
+          ) *
+            rain *
+            fields *
+            alive.soil *
+            (1 - grainLost(alive)) *
+            pensLeft(ctx, flocksLost) +
+          vats
+        : 0,
+    ],
+    [
+      G.meat,
+      saturate(c.pasture, p.occupation(OCC.herder), PRODUCTIVITY[OCC.herder]! * tools * gathers) *
+        (0.5 + 0.5 * rain) *
+        flocks *
+        // (More where its herders drive them to a neighbour's pasture for its season: sim/ecology/droving.ts. 1 where they stay.)
+        droveGain(world, p.cell) *
+        // (Less what the land's hunters take of the flocks, and what war and a known beast have.)
+        (1 - FLOCK_LOSS * alive.hunters) *
+        (1 - flocksLost) *
+        partners.flocks,
+    ],
+  ];
+  // (Each food's harvest, and below what spoils of it, drawn of one question by the good.)
+  const harvestDraw = world.rng.reals(BIRTHS, key, t, HARVEST);
+  for (const [g, x] of harvest) m.move("made", g, roundKeyed(x * gift, harvestDraw(g)));
+  // (Those at work on what its towns were asked to raise eat of it first: H1.)
+  if (asks.open.length) asks.feed(p.cell, m);
+  const spoilDraw = world.rng.reals(BIRTHS, key, t, SPOIL);
+  for (const g of FOODS)
+    m.move(
+      "spoiled",
+      g,
+      Math.min(
+        m.stock[g]!,
+        roundKeyed(
+          m.stock[g]! * GOODS[g]!.spoil * (1 - 0.5 * pots) * (1 - keeping) * (1 - keptByLand),
+          spoilDraw(g),
         ),
-      );
-    // (A blight laid past the strength of old is in the granaries too: acts.ts ACT_REACH. Nothing under any other.)
-    const rot = blightRot(act);
-    if (rot > 0)
-      for (const g of FOODS) m.move("spoiled", g, Math.floor(Math.max(0, m.stock[g]!) * rot));
-    // What they eat: their people by the appetite of their body (an upright ape's, one unit a month).
-    const need = Math.round(
-      mixed ? mouths(p, ctx.life) * mixAppetite(world, p.cell) : mouths(p, ctx.life),
+      ),
     );
-    let eaten = 0;
-    for (const g of FOODS) eaten += m.take("used", g, need - eaten);
-    let over = m.food(FOODS) - need * (12 + 12 * pots + stored);
-    for (const g of FOODS) if (over > 0) over -= m.take("spoiled", g, Math.ceil(over));
-    const fed = need > 0 ? eaten / need : 1,
-      // (Rain under the least a year brings of itself, which only the god's hand lays: the wells fail as the drought's
-      // years go on, and bread carried in is not water. Thirst is counted as hunger is.)
-      parched = p.rain < ACT_REACH.wells * 1000 ? acts.latest(p.cell, "rain", t) : null,
-      thirst =
-        parched && parched.sign < 0 && need > 0
-          ? watered(p.rain / 1000, (t - parched.from) / YEAR)
-          : 1000;
-    p.fed = Math.min(Math.round(fed * 1000), thirst);
-    p.leanest = Math.min(p.leanest, p.fed);
-    // A famine is a month with less than seven-tenths of the food a land needs: a people
-    // living at the edge of what their land gives (a lean month or two most years) is
-    // hungry, and that is told as the grievance and the prices it brings, not as famine.
-    if (p.fed < FAMINE && need >= 20 && month - p.famineMonth > 12) {
-      const causes: CauseRef[] = [];
-      const recentDrought = p.lastDrought ? world.events.get(p.lastDrought) : undefined,
-        dry = recentDrought && t - recentDrought.t < 2 * YEAR;
-      if (dry) causes.push({ ref: recentDrought.id, role: "trigger", weight: 0.6 });
-      if (act && act.sign < 0) causes.push({ ref: act.event, role: "agent", weight: 0.8 });
-      // (Its river risen over its fields this year: sim/planet/floods.ts.)
-      const flooded = floodBehind(world, p.cell);
-      if (flooded) causes.push({ ref: flooded, role: "trigger", weight: 0.5 });
-      if (parched && thirst < 1000) causes.push({ ref: parched.event, role: "agent", weight: 0.8 });
-      // What else pressed the land: its soil worn, its game thinned, its rain moved by the warming.
-      const stocks = ecologyOf(world).get(p.cell),
-        drier = airOf(world).shiftOf(p.cell);
-      if (stocks?.worn) causes.push({ ref: stocks.worn, role: "pressure", weight: 0.2 });
-      else if (stocks?.thinned) causes.push({ ref: stocks.thinned, role: "pressure", weight: 0.2 });
-      // (Its sea fished down, where its boats bring in less for it: sim/ecology/seas.ts.)
-      const sea = seaYield(ctx, p.cell) < 0.97 ? seaOf(ctx, p.cell).sea : undefined,
-        fishedOut = sea ? (sea.gone ?? sea.few) : null;
-      if (fishedOut) causes.push({ ref: fishedOut, role: "pressure", weight: 0.3 });
-      if (drier && rainShift(ctx, p.cell) < 1)
-        causes.push({ ref: drier, role: "pressure", weight: 0.2 });
-      // Without a dry year, they had grown to more than their land gives: the fields that
-      // let them grow so many, and the land itself.
-      if (!dry && p.cultivation) causes.push({ ref: p.cultivation, role: "enabler", weight: 0.3 });
-      // (No more than history takes: the land itself last, the lightest of the rest let go.)
-      causes.splice(5);
-      causes.push({ ref: p.ref, role: "constraint", weight: dry ? 0.4 : 0.5 });
-      p.lastFamine = world.events.emit({
-        type: POPULATION_EVENTS.famine.type,
-        importance: p.fed < 600 ? 5 : 4,
-        place: p.ref,
-        causes,
-        data: { fed: p.fed, people: need },
-      });
-      p.famineMonth = month;
-    }
+  // (A blight laid past the strength of old is in the granaries too: acts.ts ACT_REACH. Nothing under any other.)
+  const rot = blightRot(act);
+  if (rot > 0)
+    for (const g of FOODS) m.move("spoiled", g, Math.floor(Math.max(0, m.stock[g]!) * rot));
+  // What they eat: their people by the appetite of their body (an upright ape's, one unit a month).
+  const need = Math.round(
+    mixed ? mouths(p, ctx.life) * mixAppetite(world, p.cell) : mouths(p, ctx.life),
+  );
+  let eaten = 0;
+  for (const g of FOODS) eaten += m.take("used", g, need - eaten);
+  let over = m.food(FOODS) - need * (12 + 12 * pots + stored);
+  for (const g of FOODS) if (over > 0) over -= m.take("spoiled", g, Math.ceil(over));
+  const fed = need > 0 ? eaten / need : 1,
+    // (Rain under the least a year brings of itself, which only the god's hand lays: the wells fail as the drought's
+    // years go on, and bread carried in is not water. Thirst is counted as hunger is.)
+    parched = p.rain < ACT_REACH.wells * 1000 ? acts.latest(p.cell, "rain", t) : null,
+    thirst =
+      parched && parched.sign < 0 && need > 0
+        ? watered(p.rain / 1000, (t - parched.from) / YEAR)
+        : 1000;
+  p.fed = Math.min(Math.round(fed * 1000), thirst);
+  p.leanest = Math.min(p.leanest, p.fed);
+  // A famine is a month with less than seven-tenths of the food a land needs: a people
+  // living at the edge of what their land gives (a lean month or two most years) is
+  // hungry, and that is told as the grievance and the prices it brings, not as famine.
+  if (p.fed < FAMINE && need >= 20 && month - p.famineMonth > 12) {
+    const causes: CauseRef[] = [];
+    const recentDrought = p.lastDrought ? world.events.get(p.lastDrought) : undefined,
+      dry = recentDrought && t - recentDrought.t < 2 * YEAR;
+    if (dry) causes.push({ ref: recentDrought.id, role: "trigger", weight: 0.6 });
+    if (act && act.sign < 0) causes.push({ ref: act.event, role: "agent", weight: 0.8 });
+    // (Its river risen over its fields this year: sim/planet/floods.ts.)
+    const flooded = floodBehind(world, p.cell);
+    if (flooded) causes.push({ ref: flooded, role: "trigger", weight: 0.5 });
+    if (parched && thirst < 1000) causes.push({ ref: parched.event, role: "agent", weight: 0.8 });
+    // What else pressed the land: its soil worn, its game thinned, its rain moved by the warming.
+    const stocks = ecologyOf(world).get(p.cell),
+      drier = airOf(world).shiftOf(p.cell);
+    if (stocks?.worn) causes.push({ ref: stocks.worn, role: "pressure", weight: 0.2 });
+    else if (stocks?.thinned) causes.push({ ref: stocks.thinned, role: "pressure", weight: 0.2 });
+    // (Its sea fished down, where its boats bring in less for it: sim/ecology/seas.ts.)
+    const sea = seaYield(ctx, p.cell) < 0.97 ? seaOf(ctx, p.cell).sea : undefined,
+      fishedOut = sea ? (sea.gone ?? sea.few) : null;
+    if (fishedOut) causes.push({ ref: fishedOut, role: "pressure", weight: 0.3 });
+    if (drier && rainShift(ctx, p.cell) < 1)
+      causes.push({ ref: drier, role: "pressure", weight: 0.2 });
+    // Without a dry year, they had grown to more than their land gives: the fields that
+    // let them grow so many, and the land itself.
+    if (!dry && p.cultivation) causes.push({ ref: p.cultivation, role: "enabler", weight: 0.3 });
+    // (No more than history takes: the land itself last, the lightest of the rest let go.)
+    causes.splice(5);
+    causes.push({ ref: p.ref, role: "constraint", weight: dry ? 0.4 : 0.5 });
+    p.lastFamine = world.events.emit({
+      type: POPULATION_EVENTS.famine.type,
+      importance: p.fed < 600 ? 5 : 4,
+      place: p.ref,
+      causes,
+      data: { fed: p.fed, people: need },
+    });
+    p.famineMonth = month;
   }
 }
 
