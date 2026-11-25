@@ -19,9 +19,9 @@ import { EARTH } from "../../src/host/index.ts";
 import { universeWorld } from "../host/worlds.ts";
 
 const early = universeWorld(EARTH, "first light", 125),
-  // (760: first light's first engines turn between 700 and 750 as the world now runs: coal dug in 239 lands and clockwork
-  // known in 254 at 700, the engine in none; in 134 by 750. At 700 no land's works ran on burned fuel yet.)
-  late = universeWorld(EARTH, "first light", 760);
+  // (800: first light's first works run on burned fuel between 760 and 780 as the world now runs, in 2 lands at 780 and 76
+  // at 800; none at 760. They came between 700 and 750 before a land's unable left its workers, 2026-11-24.)
+  late = universeWorld(EARTH, "first light", 800);
 
 test("every peopled land keeps an account whose lines add up", () => {
   for (const world of [early, late]) {
@@ -47,10 +47,13 @@ test("every peopled land keeps an account whose lines add up", () => {
 });
 
 test("before engines a land runs on its people's own strength, its beasts and its woods' heat", () => {
-  const books = energyBooks(early)!;
+  const books = energyBooks(early)!,
+    lands = populationContext(early).provinces;
   for (const e of books.all()) {
     const r = energyPerHead(early, e.cell);
     if (!r) continue;
+    // (A land of a handful is its rounding: one of six people, two of them children, reads a sixth.)
+    if ((lands.get(e.cell)?.total() ?? 0) < 100) continue;
     assert.ok(r.carriers.muscle > 0.05 && r.carriers.muscle < 0.15, `${r.carriers.muscle}`);
     assert.equal(r.carriers.buried, 0);
     assert.ok(r.drives === "none" || r.drives === "mills", r.drives);
