@@ -40,7 +40,7 @@ import { orderOf } from "../order/order.ts";
 import { politiesOf } from "../polity/polity.ts";
 import { warsOf } from "../war/war.ts";
 import { CIVIC_LOTS, TownBuilder, housingOf, townUseOf, townsOf, type Fabric } from "./fabric.ts";
-import { siteCovered, siteOwed } from "./managed.ts";
+import { siteCovered, siteDone, siteOwed } from "./managed.ts";
 
 export const ASK_EVENTS = {
   asked: defineEventType("town.asked", 5),
@@ -825,6 +825,7 @@ export function askWorked(
     f.walls = { start: f.walls.start, end: yearOfMoment(t), reach: f.walls.reach };
   townsOf(world).fold(a.town, 8, yearOfMoment(t), w.at);
   store.open.splice(store.open.indexOf(a), 1);
+  siteDone(world, a);
 }
 
 /** What stops a site now (null: nothing): as its month reads it. */
@@ -855,6 +856,7 @@ export function asksMonth(ctx: PopulationContext, t: SimTime): void {
         const last = w.stops.at(-1);
         if (last && last.to === null) last.to = t;
         store.open.splice(store.open.indexOf(a), 1);
+        siteDone(world, a);
         if (f && c && c.fell === null) new TownBuilder(ctx, yearOfMoment(t)).askedFall(f, c);
       };
     if (!s || !f || s.population <= 0) {

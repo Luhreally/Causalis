@@ -4,8 +4,14 @@
 // good, its hands by trade and the orders that move them (and what is going up), what it can raise, what threatens it
 // and the orders against that, and its log day by day. Phone first: every key a finger's size,
 // nothing over anything. What it shows is told by the page that owns it (app/townplace.ts); it asks for nothing itself.
+//
+// How the town is run is chosen from a key on its bar (asked 2026-11-25): by hand, as above; watched, where no order
+// is given: the notice line, the sheets and the tabs are away, and a line at the foot says who or what the eye is with,
+// with a key to stay with them and one to go on to another; or by its own head, with the sheets as by hand, its head's
+// decisions in the notice line and the Log, and any of them overruled by an order of your own.
 import {
   PLACE_TRADES,
+  type PlaceMode,
   type PlaceDangersSheet,
   type PlaceNotice,
   type PlacePeopleSheet,
@@ -32,6 +38,21 @@ const PACES: readonly (readonly [string, number, string])[] = [
   ["10m", 600, "Ten minutes of the town's day a second"],
   ["1h", 3600, "An hour of the town's day a second"],
 ];
+/** The ways a town entered is run: its key's sign, its name, and what it is in a line. */
+const MODES: readonly (readonly [PlaceMode, string, string, string])[] = [
+  ["hand", "✋", "By hand", "You give the orders"],
+  ["watch", "👁", "Watch", "No orders: the eye is led"],
+  ["steward", "🏛", "Its head", "Its own head runs it"],
+];
+/** What the eye is with in a town watched: said in two lines, the page that tells more, and whether it stays with them. */
+export type PlaceCaption = {
+  readonly title: string;
+  readonly words: string;
+  readonly ref: string | null;
+  /** Staying with one of its people (their name is the title); and whether there is one to stay with. */
+  readonly stay: boolean;
+  readonly one: boolean;
+};
 const NEEDS = ["hungry", "tired", "cold", "lonely"];
 /** What one can be put to by name: the world's occupation column and its word (null: let be). */
 const ORDER_TRADES: readonly (readonly [number | null, string])[] = [
@@ -76,6 +97,18 @@ export class PlaceHud {
   private readonly sheetBody = el("div", "place-sheet-body");
   private readonly tabs = new Map<PlaceTab, HTMLButtonElement>();
   private readonly closed = new Set<string>();
+  private readonly modeKey = el("button", "place-mode");
+  private readonly modes = el("div", "place-modes");
+  private readonly modeKeys = new Map<PlaceMode, HTMLButtonElement>();
+  private readonly watch = el("div", "place-watch");
+  private readonly watchText = el("button", "place-watch-text");
+  private readonly watchTitle = el("span", "place-watch-title");
+  private readonly watchWords = el("span", "place-watch-words");
+  private readonly stayKey = el("button", "place-watch-stay", "📌");
+  private captionNow: PlaceCaption | null = null;
+  /** How the town is run now, and by whom where its head runs it. */
+  ran: PlaceMode = "hand";
+  private headNow: { name: string; temper: string } | null = null;
   private noticeNow: PlaceNotice | null = null;
   private drawn = "";
   /** Whose order is being chosen on the People sheet (their number; null: no one's). */
@@ -96,6 +129,11 @@ export class PlaceHud {
   onOpen: (ref: string) => void = () => {};
   /** An order given: the command and what it asks. */
   onOrder: (type: string, args: Record<string, unknown>) => void = () => {};
+  /** Another way of running the town chosen. */
+  onMode: (mode: PlaceMode) => void = () => {};
+  /** In a town watched: stay with the one the eye is with, or be led again; and on to another. */
+  onStay: (stay: boolean) => void = () => {};
+  onNext: () => void = () => {};
 
   constructor(root: HTMLElement) {
     const bar = el("header", "place-bar"),
@@ -112,7 +150,35 @@ export class PlaceHud {
     const leave = el("button", "place-leave", "Leave");
     leave.title = "Leave the town to the world: it is kept as it is, and goes on from here";
     leave.onclick = () => this.onLeave();
-    bar.append(this.name, this.clock, keys, leave);
+    this.modeKey.onclick = () => this.choosing(this.modes.hidden !== false);
+    bar.append(this.name, this.clock, keys, this.modeKey, leave);
+    for (const [mode, sign, words, does] of MODES) {
+      const b = el("button", "place-mode-choice");
+      b.append(
+        el("span", "place-mode-name", `${sign} ${words}`),
+        el("span", "place-mode-does", does),
+      );
+      b.dataset.mode = mode;
+      b.onclick = () => {
+        this.choosing(false);
+        if (mode !== this.ran) this.onMode(mode);
+      };
+      this.modeKeys.set(mode, b);
+      this.modes.append(b);
+    }
+    this.modes.hidden = true;
+    this.watchText.append(this.watchTitle, this.watchWords);
+    this.watchText.onclick = () => {
+      if (this.captionNow?.ref) this.onOpen(this.captionNow.ref);
+    };
+    this.stayKey.onclick = () => this.onStay(!this.captionNow?.stay);
+    const next = el("button", "place-watch-next", "⏭");
+    next.title = "On to another of the town";
+    next.setAttribute("aria-label", next.title);
+    next.onclick = () => this.onNext();
+    this.watch.append(this.watchText, this.stayKey, next);
+    this.watch.hidden = true;
+    this.mode("hand");
     const shut = el("button", "place-notice-shut", "×");
     shut.setAttribute("aria-label", "Put this notice away");
     shut.onclick = () => {
@@ -143,7 +209,7 @@ export class PlaceHud {
       this.tabs.set(tab, b);
       foot.append(b);
     }
-    this.element.append(bar, this.notice, this.sheet, foot);
+    this.element.append(bar, this.modes, this.notice, this.sheet, foot, this.watch);
     this.element.hidden = true;
     root.append(this.element);
   }
@@ -156,11 +222,78 @@ export class PlaceHud {
     this.element.hidden = false;
     this.closed.clear();
     document.body.classList.add("placing");
+    document.body.classList.toggle("place-watching", this.ran === "watch");
   }
   hide(): void {
     this.element.hidden = true;
     this.open(null, false);
-    document.body.classList.remove("placing");
+    this.choosing(false);
+    document.body.classList.remove("placing", "place-watching");
+  }
+
+  /** The ways it can be run shown for choosing, or put away. */
+  private choosing(on: boolean): void {
+    this.modes.hidden = !on;
+    this.modeKey.setAttribute("aria-expanded", String(on));
+    this.element.classList.toggle("choosing", on);
+  }
+  /** Who runs the town where its own head does (null: no one yet, or not run so). */
+  head(h: { name: string; temper: string } | null): void {
+    if (h?.name === this.headNow?.name && h?.temper === this.headNow?.temper) return;
+    this.headNow = h ? { name: h.name, temper: h.temper } : null;
+    if (this.ran === "steward") this.mode("steward");
+  }
+  /** How the town is run, as it is now: its key says it, and a town watched has none of the manager's chrome. */
+  mode(mode: PlaceMode): void {
+    const [, sign, words] = MODES.find((m) => m[0] === mode) ?? MODES[0]!,
+      by =
+        mode === "steward"
+          ? this.headNow
+            ? `by its head, ${this.headNow.name} (${this.headNow.temper}): an order of yours overrules theirs`
+            : "by its head"
+          : mode === "watch"
+            ? "by no one: it is watched"
+            : words.toLowerCase(),
+      say = `The town is run ${by}. Tap to choose another way`;
+    this.ran = mode;
+    this.modeKey.textContent = sign;
+    this.modeKey.title = say;
+    this.modeKey.setAttribute("aria-label", say);
+    for (const [m, b] of this.modeKeys) b.classList.toggle("on", m === mode);
+    const watching = mode === "watch";
+    if (watching && this.tab) this.open(null);
+    this.watch.hidden = !watching;
+    if (this.shown) document.body.classList.toggle("place-watching", watching);
+    if (!watching) this.caption(null);
+  }
+  /** What the eye is with in a town watched (null: nothing yet). */
+  caption(c: PlaceCaption | null): void {
+    this.captionNow = c;
+    const title = c?.title ?? "Watching the town",
+      words = c?.words ?? "The eye goes to what happens here.";
+    if (this.watchTitle.textContent !== title) this.watchTitle.textContent = title;
+    if (this.watchWords.textContent !== words) this.watchWords.textContent = words;
+    const say = c?.stay
+      ? `Staying with ${c.title}. Tap to be led to what happens again`
+      : c?.one
+        ? `Stay with ${c.title}, whatever else happens`
+        : "Stay with one of the town: there is no one the eye is with now";
+    this.stayKey.classList.toggle("on", !!c?.stay);
+    this.stayKey.disabled = !c?.stay && !c?.one;
+    if (this.stayKey.title !== say) {
+      this.stayKey.title = say;
+      this.stayKey.setAttribute("aria-label", say);
+    }
+  }
+  /** What its watching line says now (the look tools; null: it is not watched). */
+  get captioned(): { title: string; words: string; stay: boolean } | null {
+    return this.watch.hidden
+      ? null
+      : {
+          title: this.watchTitle.textContent ?? "",
+          words: this.watchWords.textContent ?? "",
+          stay: !!this.captionNow?.stay,
+        };
   }
 
   /** A sheet opened (null: closed). */

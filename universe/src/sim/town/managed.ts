@@ -329,6 +329,16 @@ export function siteOwed(world: World, a: Ask): number {
 }
 
 /**
+ * A site finished or given up, let go of its town's orders at once: at the month that finished it as at the telling that
+ * did, so no stale numbers stand in its orders until the next telling (its land's count has taken all of them then).
+ */
+export function siteDone(world: World, a: Ask): void {
+  const m = managedOf(world)?.get(a.town),
+    k = siteAt(m, a.n);
+  if (m && k >= 0) m.sites.splice(k, SITE.wide);
+}
+
+/**
  * The person-months truly done on what a town was asked to raise: its count, less what it runs ahead by where its own town
  * worked it (siteOwed). Its count itself where no town has had it in hand.
  */

@@ -58,6 +58,7 @@ import {
 } from "../place.ts";
 import {
   ailWords,
+  byOrder,
   careWords,
   healthWords,
   markWords,
@@ -250,7 +251,8 @@ function prioLine(world: World, place: Place, i: number): string | null {
       .sort((a, b) => b[0] - a[0])
       .map(([x, name]) => `${name} ${order[x]}`),
     never = PRIO_KINDS.filter((_, k) => !(kinds[k] ?? 0));
-  return `By your order: ${said.join(", ")}${never.length ? `; never ${never.join(", ")}` : ""}. The trade set highest is theirs; when it has nothing for them they turn to the next that has, as one new to it.`;
+  const by = byOrder(place, `prio:${place.people.id[i]!}`);
+  return `${by[0]!.toUpperCase()}${by.slice(1)}: ${said.join(", ")}${never.length ? `; never ${never.join(", ")}` : ""}. The trade set highest is theirs; when it has nothing for them they turn to the next that has, as one new to it.`;
 }
 
 /** What a place tells of one of its people: their needs and the why first, then what they hold and who they live with. */
@@ -595,7 +597,7 @@ export function placeLotPage(world: World, ref: string): PageModel {
               stat(
                 "Worked by",
                 site.inHand
-                  ? `its own people, by your order: ${site.crew.length} of ${site.hands} hands, ${site.busy} at it now`
+                  ? `its own people, ${byOrder(place, `site:${site.n}`)}: ${site.crew.length} of ${site.hands} hands, ${site.busy} at it now`
                   : `the town's month, ${site.hands} hands, as in the world's own reckoning`,
               ),
               ...(site.stopped

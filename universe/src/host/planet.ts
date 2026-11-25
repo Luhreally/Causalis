@@ -202,6 +202,7 @@ import { WEALTH_QUERIES } from "./wealth.ts";
 import { installYears } from "./years.ts";
 import { installPlaces, settleOf } from "./place.ts";
 import { placeQueries } from "./placeplan.ts";
+import { placeModeQueries } from "./placewatch.ts";
 import { HELD_QUERIES } from "./held.ts";
 import { SEARCH_QUERIES } from "./search.ts";
 import { takenWordsOf, type NamesArg } from "./names.ts";
@@ -1579,6 +1580,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
       "village.plan": villagePlanQuery,
       // (A town entered and kept in detail: its people for the plan's, and where they are. host/placeplan.ts.)
       ...placeQueries(villagePlanQuery),
+      ...placeModeQueries(),
       /** The towns whose levy comes home wounded this year, the most borne first (Phase 55 M226; the look tools). */
       "village.wounded": (world, args) =>
         woundedTowns(

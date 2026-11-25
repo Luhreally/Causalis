@@ -224,10 +224,9 @@ test("a site in hand is finished by the world's own rule, then stands, and its c
   const b = place.bldgs.lot.indexOf(work.at);
   assert.ok(b > 0 && place.bldgs.site[b] === 0, "it stands");
   for (let i = 0; i < place.people.n; i++) assert.notEqual(place.people.bound[i], BOUND_SITE);
-  // (Its orders hold it no longer once its land is next told anything: finished by a telling, it is let go in that
-  // telling; finished by its land's month between two, its five numbers wait for the next, with its asking done.)
-  const kept = managedOf(w)!.get(town)!.sites;
-  assert.ok(kept.length === 0 || (kept.length === 5 && kept[0] === ask.n && work.done !== null));
+  // (Its orders hold it no longer once it is finished: by a telling or by its land's month between two, it is let go
+  // there and then, with nothing of it left standing in them.)
+  assert.equal(managedOf(w)!.get(town)!.sites.length, 0);
   assert.equal(place.sites.length, 0);
 });
 

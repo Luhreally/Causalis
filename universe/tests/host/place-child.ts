@@ -1,7 +1,7 @@
 // A place saved in one process and gone on with in another (tests/host/place.test.ts): one process shares its module
 // caches between a world and its copy, two do not.
 //   whole <years>          enter a town, go on a day and a half in one process: its digest and the world's chain
-//   first <years> <save>   enter it, go on six hours, save
+//   first <years> <save>   enter it, go on six hours, save (and say what waits in it to be lived: its `due`)
 //   second <save>          load, go on the rest: the same digest and chain as `whole`
 import { readFileSync, writeFileSync } from "node:fs";
 import { gunzipSync, gzipSync } from "node:zlib";
@@ -9,7 +9,7 @@ import { DAY, HOUR, loadWorld, saveWorld, type World } from "../../src/kernel/in
 import { asksOf, populationContext } from "../../src/sim/index.ts";
 import { EARTH } from "../../src/host/index.ts";
 import { townOffers } from "../../src/host/inspect/asks.ts";
-import { enterPlace, placeDigest, placesOf } from "../../src/host/place.ts";
+import { enterPlace, placeDigest, placeDue, placesOf } from "../../src/host/place.ts";
 import { universeWorld } from "./worlds.ts";
 
 const [mode, a, b] = process.argv.slice(2);
@@ -61,7 +61,7 @@ if (mode === "second") {
     ref = town(w);
   // (To four hours short of a month's turn, with a sickness loosed on its land: what the matching at the turn reads of it,
   // its dead named and counted and its sick abed, is kept in the save with the rest.)
-  w.runTo(w.now + 29 * DAY + 20 * HOUR);
+  w.runTo(w.now + 30 * DAY + 6 * HOUR);
   enterPlace(w, ref);
   try {
     w.runTo(
@@ -104,8 +104,11 @@ if (mode === "second") {
     // (Nothing of it stands to burn, or nothing burns in its air: no fire.)
   }
   go(w, ref, 6);
-  if (mode === "first")
+  if (mode === "first") {
     writeFileSync(b!, gzipSync(JSON.stringify(saveWorld(w, "r", { universe: "earth" }))));
-  else go(w, ref, 30);
+    // (What waits for it to live, kept in the save: so many, of which kinds.)
+    const due = placeDue(placesOf(w)!.get(ref)!);
+    console.log(`due ${due.length} ${[...new Set(due.map((x) => x.what))].sort().join(",")}`);
+  } else go(w, ref, 30);
   console.log(told(w, ref));
 }

@@ -56,6 +56,7 @@ import {
   CAUSE,
   CAUSE_WORDS,
   HAP,
+  PLACE_HOOKS,
   HAP_GRAVE,
   hapMany,
   armsWanted,
@@ -104,6 +105,9 @@ const PLACE_KINDS: readonly CivicKind[] = CIVICS.map((c) => c.kind);
 
 /** What is going up on a site, from its lot's words: "the school" of "the school's site". */
 export const siteOf = (words: string): string => words.replace(/'s site$/, "");
+/** Whose order a matter of a town's orders stands by: its head's, where it stewards and set it so (host/steward.ts); else yours. */
+export const byOrder = (place: Place, key: string): string =>
+  PLACE_HOOKS.heads?.(place, key) ? "by its head's order" : "by your order";
 
 /** A lot of a place in words: "the smithy", "the square", "the fields", "the home on lot 12", "the school's site". */
 export function lotWords(place: Place, lot: number): string {
@@ -201,7 +205,7 @@ export function whyWords(world: World, place: Place, i: number): string {
     case WHY.abed:
       return `${healthWords(world, place, i) ?? ailWords(place, i)}, and fed from the pantry by their household`;
     case WHY.site:
-      return `Put to raising ${siteOf(lotWords(place, p.work[i]!))} by your order. Nothing presses harder than ${bar}${going}`;
+      return `Put to raising ${siteOf(lotWords(place, p.work[i]!))} ${byOrder(place, `site:${place.sites.find((x) => x.lot === p.work[i])?.n ?? -1}`)}. Nothing presses harder than ${bar}${going}`;
     case WHY.stuff:
       return `Nothing lies on the site to build in: a load of what it is built of is fetched from outside the town, a third of their own weight at a time${going}`;
     case WHY.stopped:
@@ -211,11 +215,11 @@ export function whyWords(world: World, place: Place, i: number): string {
     case WHY.fire:
       return `A fire in the town: turned out to fight it at ${lotWords(place, p.to[i]!)}, until it is out or hunger takes them off`;
     case WHY.arms:
-      return "Standing to arms in the square by your order, in the hours their work would have had";
+      return `Standing to arms in the square ${byOrder(place, "respond:muster")}, in the hours their work would have had`;
     case WHY.siege:
       return "A siege lies about the town: no one goes out to its fields. At home until it is lifted";
     case WHY.apart:
-      return "There is sickness in their household, and the sick are kept apart by your order: at home, though they want company";
+      return `There is sickness in their household, and the sick are kept apart ${byOrder(place, "respond:quarantine")}: at home, though they want company`;
     case WHY.dark:
       return `It is dark: work by sight is worth less than rest (${pct(IDLE_WORTH)}) until light`;
     default:
@@ -520,11 +524,24 @@ export function placeNotices(world: World, place: Place): PlaceNotice[] {
         ref: placeLotRef(place.town, x.lot),
       });
   }
+  // (A town stewarded: what its head last decided, for a day after.)
+  if (place.mode === 2)
+    for (let k = place.log.length - 1; k >= 0 && place.log[k]!.t > place.t - DAY; k--) {
+      const x = place.log[k]!;
+      if (x.what !== HAP.steward) continue;
+      const i = placeIndexOf(place, x.id);
+      out.push({
+        key: `head${x.t}|${x.a}`,
+        words: `${i >= 0 ? placeWho(world, place)(i).name : "The town's head"} ${hapTold(place, x)}`,
+        ref: i >= 0 ? placeWho(world, place)(i).ref : null,
+      });
+      break;
+    }
   const unsettled = place.moves.length / 4 + place.dead.length / 3;
   if (unsettled && ordersOf(world, place.town))
     out.push({
       key: "unsettled",
-      words: `${unsettled} of its doings by your orders ${unsettled === 1 ? "is" : "are"} told to its land at the month's turn, or on leaving`,
+      words: `${unsettled} of its doings by ${place.mode === 2 ? "its orders" : "your orders"} ${unsettled === 1 ? "is" : "are"} told to its land at the month's turn, or on leaving`,
       ref: null,
     });
   return out;
