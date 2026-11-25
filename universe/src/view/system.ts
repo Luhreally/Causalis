@@ -38,6 +38,21 @@ export function bodySize(b: SystemPlanBody): number {
   return 0.24 * Math.pow(b.radius, 0.35) * (b.kind === "moon" ? 0.8 : 1);
 }
 
+/**
+ * A ringed body's ring as it is drawn: its edges from the body's middle, scene units. Its true edges (in the body's radii)
+ * by their square root, as the system's distances are drawn, so a ring three radii out stands clear of its planet and
+ * does not reach its neighbours. Null: it has none.
+ */
+export function ringDrawn(b: SystemPlanBody): { inner: number; outer: number; at: number } | null {
+  if (!b.ring) return null;
+  const size = bodySize(b);
+  return {
+    inner: size * Math.sqrt(b.ring.inner),
+    outer: size * Math.sqrt(b.ring.outer),
+    at: size * Math.sqrt(b.ring.at),
+  };
+}
+
 /** How far out the farthest planet is drawn (for fitting the camera). */
 export function systemExtent(plan: SystemPlan): number {
   const home = plan.bodies[0]!.a;
@@ -62,12 +77,13 @@ export function systemSpec(plan: SystemPlan, t: number): SystemSpot[] {
     const p = orbitXY(b, t);
     if (b.around < 0) at[i] = compress(p.x, p.y, home);
     else {
-      // Beyond the planet's drawn size, a step further for each moon out.
+      // Beyond the planet's drawn size (and its ring's: a moon inside it would have been torn too), a step further for
+      // each moon out.
       const parent = plan.bodies[b.around]!,
         base = at[b.around]!,
         order = plan.bodies.filter((m, j) => m.around === b.around && j < i).length,
         r = Math.hypot(p.x, p.y) || 1,
-        d = bodySize(parent) + 0.18 + 0.16 * order;
+        d = (ringDrawn(parent)?.outer ?? bodySize(parent)) + 0.18 + 0.16 * order;
       at[i] = { x: base.x + (p.x / r) * d, z: base.z + (p.y / r) * d };
     }
     out.push({ index: i, x: at[i]!.x, z: at[i]!.z, size: bodySize(b), color: bodyColor(b) });

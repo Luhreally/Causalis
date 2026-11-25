@@ -251,6 +251,12 @@ import {
 import { lookMeta } from "./biochem.ts";
 import { knownWorld, unknownCells } from "./known.ts";
 
+/** The home world's own ring, where it has one (rules/rings.ts): its edges in its radii, and what it is of. */
+function homeRing(g: HomeWorld): { ring?: NonNullable<SystemPlan["bodies"][number]["ring"]> } {
+  const r = g.system.bodies.find((b) => b.kind === "home")?.ring;
+  return r ? { ring: { inner: r.inner, outer: r.outer, at: r.at, ice: r.ice } } : {};
+}
+
 const BOUNDARY_WORDS = ["none", "converging", "spreading", "sliding"];
 
 /** The newest strikes from the air the world remembers, newest first: the sheet's rows, asked only
@@ -311,6 +317,8 @@ function globeFrame(world: World) {
       ...liquidOn(g),
       // (Its life's colours, where they are not Earth's green: Phase 57.)
       ...lookMeta(g),
+      // (Its own ring, where a moon of its was torn: drawn about its globe.)
+      ...homeRing(pw),
       // (A people of the water's lands are its sea, not its ground: what their lenses paint.)
       ...(pw.life.people?.body.medium === "water" ? { undersea: true } : {}),
     },
@@ -1256,6 +1264,16 @@ function planetUniverse(name: string, prior: Prior): Universe {
             water: b.water,
             radiation: b.radiation,
             because: b.because,
+            ...(b.ring
+              ? {
+                  ring: {
+                    inner: b.ring.inner,
+                    outer: b.ring.outer,
+                    at: b.ring.at,
+                    ice: b.ring.ice,
+                  },
+                }
+              : {}),
           })),
         };
       },

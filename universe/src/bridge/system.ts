@@ -26,6 +26,16 @@ export type SystemPlanBody = {
   readonly because: readonly string[];
   /** Unmade (W6): rubble goes round where it was. */
   readonly unmade?: boolean;
+  /**
+   * Its ring (rules/rings.ts): its edges in its own radii, where the moon it was came apart (it lies thickest there), and
+   * whether it is of ice (bright) or of rock and dust.
+   */
+  readonly ring?: {
+    readonly inner: number;
+    readonly outer: number;
+    readonly at: number;
+    readonly ice: boolean;
+  };
 };
 
 export type SystemPlan = {
