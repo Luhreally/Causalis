@@ -466,7 +466,8 @@ for (const view of [
   await shot("7-sheet-build");
   await read("the Build sheet open");
   say(`build: ${(await sheetText()).slice(0, 200)}`);
-  if ((await shownCount(".place-sheet-body .place-order")) > 0) {
+  // (Where something was asked for already (--ask), nothing more is: its site is the one looked at.)
+  if (!ask && (await shownCount(".place-sheet-body .place-order")) > 0) {
     await press(".place-sheet-body .place-order", "Raise, on the first thing it can raise");
     await until("what was asked told", async () =>
       /Under way|Not now|answer/.test(await sheetText()),
