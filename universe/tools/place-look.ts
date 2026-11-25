@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 import { gunzipSync } from "node:zlib";
 import { preview } from "vite";
 import { chromium, webkit, type Page } from "playwright";
-import { loadWorld, rulesetId, seedFromText } from "../src/kernel/index.ts";
+import { loadWorld, rulesetId, seedFromText, type Ref } from "../src/kernel/index.ts";
 import { EARTH } from "../src/host/planet.ts";
 import { populationContext } from "../src/sim/index.ts";
 import type { PlaceFrame, PlaceWorkSheet } from "../src/bridge/index.ts";
@@ -30,10 +30,17 @@ const argv = process.argv.slice(2),
   saveFile = arg("--save"),
   people = Number(arg("--people") ?? 400),
   engine = arg("--browser") ?? "chromium",
-  only = arg("--only");
+  only = arg("--only"),
+  // (A town by its ref in place of the one nearest --people; a thing it is asked to raise before it is entered ("walls");
+  // and whether its other peoples are looked for, each in their own people's figure.)
+  townRef = arg("--town"),
+  ask = arg("--ask"),
+  peoples = argv.includes("--peoples");
 if (!saveFile) throw new Error("--save file.save");
 if (shots) mkdirSync(shots, { recursive: true });
 const slow = (ms: number) => (soft ? ms * 4 : ms);
+/** Frames of a site's dolly at each of its stages. */
+const DOLLY = 24;
 const GPU = [
   "--enable-gpu",
   "--ignore-gpu-blocklist",
@@ -57,10 +64,15 @@ const bytes = readFileSync(saveFile),
     { allowRulesetChange: true },
   ).world,
   ctx = populationContext(world),
-  town = ctx.settlements
-    .all()
-    .filter((s) => ctx.settlements.held(s.ref))
-    .reduce((a, b) => (Math.abs(b.population - people) < Math.abs(a.population - people) ? b : a));
+  town = townRef
+    ? ctx.settlements.get(townRef as Ref)!
+    : ctx.settlements
+        .all()
+        .filter((s) => ctx.settlements.held(s.ref))
+        .reduce((a, b) =>
+          Math.abs(b.population - people) < Math.abs(a.population - people) ? b : a,
+        );
+if (!town) throw new Error(`no town ${townRef} in this save`);
 console.log(
   `a town entered: ${town.name} (${town.ref}), ${town.population} people, year ${Math.floor(world.now / 31_536_000)}`,
 );
@@ -84,7 +96,9 @@ for (const view of [
     name: "phone",
     options: {
       viewport: { width: 430, height: 932 },
-      deviceScaleFactor: soft ? 1 : 2,
+      // (Playwright's WebKit here shows nothing of a WebGL canvas at two pixels a point: the game draws into its buffer and
+      // the still is bare. At one it is shown.)
+      deviceScaleFactor: soft || engine === "webkit" ? 1 : 2,
       hasTouch: true,
       isMobile: true,
     },
@@ -158,6 +172,11 @@ for (const view of [
       const at = await box(selector);
       check(!!at, `${what} is there to press`);
       if (!at) return false;
+      // (What the finger meets there: the key itself, or what lies over it or has it scrolled out from under.)
+      const met = await k<string | null>(
+        `(() => { for (const e of document.querySelectorAll(${JSON.stringify(selector)})) { const r = e.getBoundingClientRect(); if (!(r.width > 0 && r.height > 0)) continue; const t = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return t && (t === e || e.contains(t)) ? null : (t ? t.tagName + "." + t.className : "nothing") + " at " + Math.round(r.x + r.width / 2) + ", " + Math.round(r.y + r.height / 2); } return null; })()`,
+      );
+      check(met === null, `${what} is what a finger there meets (${met ?? ""})`);
       await tap(at.x, at.y);
       await page.waitForTimeout(slow(350));
       return true;
@@ -166,7 +185,33 @@ for (const view of [
       k<number>(
         `[...document.querySelectorAll(${JSON.stringify(selector)})].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; }).length`,
       ),
-    sheetText = () => k<string>(`document.querySelector(".place-sheet-body")?.textContent ?? ""`);
+    sheetText = () => k<string>(`document.querySelector(".place-sheet-body")?.textContent ?? ""`),
+    flyTo = (to: { x: number; z: number }, distance: number, pitch = -42) =>
+      k(
+        `globalThis.causalis.rig.flyTo({ target: { x: ${to.x * 0.1}, y: 0.3, z: ${to.z * 0.1} }, distance: ${distance}, pitch: ${pitch} }, 0.01)`,
+      ),
+    // (The town's clock on to the middle of a day, an hour a second, then stopped; with a site's crew at it where asked.)
+    midday = async (what: string, crewOf?: string) => {
+      await k(`globalThis.causalis.client.setSpeed(3600)`);
+      await until(
+        what,
+        async () => {
+          const hour = ((((await state()).told?.t ?? 0) % 86400) + 86400) % 86400;
+          return (
+            hour > 10.5 * 3600 &&
+            hour < 13 * 3600 &&
+            (!crewOf ||
+              ((
+                await k<PlaceWorkSheet | null>(
+                  `globalThis.causalis.client.query({ type: "place.work", args: { ref: ${JSON.stringify(town.ref)} } })`,
+                )
+              )?.sites.find((q) => q.ref === crewOf)?.busy ?? 0) > 0)
+          );
+        },
+        slow(90000),
+      );
+      await k(`globalThis.causalis.client.setSpeed(0)`);
+    };
 
   // The save loaded, held.
   const name = "earth:place-look",
@@ -234,6 +279,14 @@ for (const view of [
   await k("globalThis.causalis.closePage()");
   await page.waitForTimeout(slow(400));
 
+  // What it is asked to raise first (--ask), as the god game asks it: its answer told.
+  if (ask) {
+    const answer = await k<string>(
+      `globalThis.causalis.client.command("town.ask", { village: ${JSON.stringify(town.ref)}, kind: "raise", what: ${JSON.stringify(ask)} }).then(() => "asked", (e) => "not asked: " + e.message)`,
+    );
+    check(answer === "asked", `the town is asked for ${ask} (${answer})`);
+    await page.waitForTimeout(slow(1200));
+  }
   // Entered: 🏘️ on its bar. The mode's chrome up, the god game's away, the eye near.
   if (!(await press(".town-place", "🏘️ on the town's bar"))) continue;
   await until("the town entered and its people told", async () => {
@@ -273,6 +326,56 @@ for (const view of [
   say(`doing: ${later.told?.doing.join(",")}`);
   await shot("2-entered");
   await read("the town entered");
+  // Its other peoples, each in their own people's figure (--peoples): those the plan says are of another people are
+  // drawn in that people's figure, as many as stand in sight, and one of each is gone to and looked at near.
+  if (peoples) {
+    const of = await k<{ kind: number; name: string; n: number }[]>(
+        `(() => { const p = globalThis.causalis.planNow(); return (p.peoples ?? []).map((o) => ({ kind: o.kind, name: o.name, n: p.people.filter((q) => q.kind === o.kind).length })); })()`,
+      ),
+      all = await k<number>("globalThis.causalis.planNow().people.length");
+    check(
+      of.length > 0,
+      `its land is of more than one people (${of.map((o) => `${o.n} of the ${all} drawn are of ${o.name}`).join("; ")})`,
+    );
+    await midday("the middle of a day, its people about");
+    await page.waitForTimeout(slow(1500));
+    const drawn = await k<{ kind: number; drawn: number }[]>("globalThis.causalis.place.peoples()");
+    for (const o of of)
+      check(
+        (drawn.find((d) => d.kind === o.kind)?.drawn ?? 0) > 0,
+        `${o.name}: ${drawn.find((d) => d.kind === o.kind)?.drawn ?? 0} drawn in their own figure now`,
+      );
+    await shot("2p-peoples-entered");
+    for (const o of of) {
+      // (One of them out of doors, where the place has them.)
+      const who = await k<{ i: number; x: number; z: number } | null>(
+        `(() => { const c = globalThis.causalis, p = c.planNow(); for (let i = 0; i < p.people.length; i++) if (p.people[i].kind === ${o.kind}) { const m = c.place.personAt(i); if (m) return { i, x: m.x, z: m.z }; } return null; })()`,
+      );
+      check(!!who, `one of ${o.name} is out of doors`);
+      if (!who) continue;
+      for (const [distance, name] of [
+        [1.6, "near"],
+        [4, "mid"],
+        [12, "far"],
+      ] as const) {
+        await flyTo(who, distance, -28);
+        await page.waitForTimeout(slow(1300));
+        await shot(`2p-people-${o.kind}-${name}`);
+      }
+      await read(`one of ${o.name} looked at`);
+      await k(`globalThis.causalis.open(globalThis.causalis.planNow().people[${who.i}].ref)`);
+      await until("their page", async () =>
+        /^plc:/.test((await k<string | null>("globalThis.causalis.pageOpen()")) ?? ""),
+      );
+      await page.waitForTimeout(slow(900));
+      const words = await k<string>(`document.querySelector(".page-window")?.textContent ?? ""`);
+      check(words.includes(o.name.replace(/^the /, "")), `their page says they are of ${o.name}`);
+      await shot(`2p-people-${o.kind}-page`);
+      await read(`the page of one of ${o.name}`);
+      await k("globalThis.causalis.closePage()");
+    }
+    await press('.place-pace[data-pace="600"]', "the ten-minutes-a-second pace");
+  }
 
   // One of its people is large enough to tap, and a tap near them gives their page, needs first.
   await press('.place-pace[data-pace="0"]', "the pause");
@@ -378,7 +481,18 @@ for (const view of [
       k<PlaceWorkSheet | null>(
         `globalThis.causalis.client.query({ type: "place.work", args: { ref: ${JSON.stringify(town.ref)} } })`,
       ),
-    site = (await workNow())?.sites[0];
+    site = (await workNow())?.sites[0],
+    // (Where a site stands on the town's ground: its lot, or for its walls the length their line has come to.)
+    spotOf = (ref: string) => {
+      const n = Number(ref.slice(ref.lastIndexOf(":") + 1));
+      return k<{ x: number; z: number } | null>(
+        n === 999_999_999
+          ? "globalThis.causalis.place.wallsAt()"
+          : `globalThis.causalis.place.lotAt(${n - 3})`,
+      );
+    },
+    walls = !!site && site.ref.endsWith(":999999999");
+  if (ask) check(!!site, `what was asked for (${ask}) is a site of the place`);
   if (site) {
     await press('.place-tab[data-tab="work"]', "the Work tab");
     await until("its sites on the Work sheet", async () => /Going up/.test(await sheetText()));
@@ -417,6 +531,11 @@ for (const view of [
     say(`site's page: ${told.slice(0, 1500)}`);
     for (const word of ["Going up", "tonnes still wanted", "Tools", "Food", "by your order"])
       check(told.includes(word), `the site's page says "${word}"`);
+    if (walls)
+      check(
+        /their line staked out|of their ring standing/.test(told),
+        "its walls' page says how far about their ring they stand",
+      );
     await shot("7g-site-page");
     await read("a site's page open");
     await k("globalThis.causalis.closePage()");
@@ -433,18 +552,15 @@ for (const view of [
       slow(90000),
     );
     await press('.place-pace[data-pace="0"]', "the pause");
-    const lot = Number(site.ref.slice(site.ref.lastIndexOf(":") + 1)) - 3,
-      at = await k<{ x: number; z: number } | null>(`globalThis.causalis.place.lotAt(${lot})`);
-    check(!!at, "the site stands on a lot of the town drawn");
+    const at = await spotOf(site.ref);
+    check(!!at, "the site stands on the town drawn");
     check(
       ((await state()).told?.sites.length ?? 0) === 1,
       "the place tells the page how far its site has got",
     );
     if (at) {
       for (const distance of [2.5, 5, 9, 16, 30, 55, 90]) {
-        await k(
-          `globalThis.causalis.rig.flyTo({ target: { x: ${at.x * 0.1}, y: 0.3, z: ${at.z * 0.1} }, distance: ${distance}, pitch: -42 }, 0.01)`,
-        );
+        await flyTo(at, distance);
         await page.waitForTimeout(slow(1400));
         await shot(`7h-site-dolly-${String(distance).padStart(4, "0")}`);
       }
@@ -461,12 +577,7 @@ for (const view of [
       await until("the site given back", async () => (await workNow())?.sites[0]?.inHand === false);
       await press(".place-sheet-shut", "the sheet's close");
       // (The one of its sites that has got least far, where it has more than one: all its stages are still to come.)
-      const young = [...((await workNow())?.sites ?? [])].sort((x, y) => x.share - y.share)[0]!,
-        youngLot = Number(young.ref.slice(young.ref.lastIndexOf(":") + 1)) - 3,
-        spot =
-          (await k<{ x: number; z: number } | null>(
-            `globalThis.causalis.place.lotAt(${youngLot})`,
-          )) ?? at;
+      const young = [...((await workNow())?.sites ?? [])].sort((x, y) => x.share - y.share)[0]!;
       say(`stages of: ${young.name}, ${Math.round(young.share * 100)} in a hundred now`);
       for (const [stage, share] of [
         ["early", 0.12],
@@ -488,20 +599,44 @@ for (const view of [
           `stage ${stage}: ${now ? `${Math.round(now.share * 100)} in a hundred, ${now.stage}` : "it stands"}`,
         );
         if (!came || !now) break;
-        // (Its plan read again as it has got on.)
-        await page.waitForTimeout(slow(2500));
-        for (const distance of [2.5, 4, 6.5, 10, 16, 26, 42, 68]) {
-          await k(
-            `globalThis.causalis.rig.flyTo({ target: { x: ${spot.x * 0.1}, y: 0.3, z: ${spot.z * 0.1} }, distance: ${distance}, pitch: -42 }, 0.01)`,
-          );
-          await page.waitForTimeout(slow(1100));
-          await shot(`7s-stage-${stage}-${String(distance * 10).padStart(4, "0")}`);
+        // Taken in hand again where it has got to, and the clock on to the middle of a day with its crew at it: who builds
+        // it is seen with it. (Its plan is read again as it has got on, and its walls' site is where their line has come to.)
+        await k(
+          `globalThis.causalis.place.order("place.site", { ask: ${young.ask}, hands: ${Math.max(1, Math.min(young.most, 10))} })`,
+        );
+        await until(
+          `the site in hand, ${stage}`,
+          async () => (await workNow())?.sites.find((q) => q.ref === young.ref)?.inHand === true,
+        );
+        await midday(`the middle of a day with its crew at the site, ${stage}`, young.ref);
+        await page.waitForTimeout(slow(4500));
+        const spot = (await spotOf(young.ref)) ?? at,
+          busy = (await workNow())?.sites.find((q) => q.ref === young.ref)?.busy ?? 0;
+        say(
+          `stage ${stage}: ${busy} of its crew at it, at ${Math.round(spot.x)}, ${Math.round(spot.z)}`,
+        );
+        // A dolly of twenty-four frames from near to far, each a seventh further than the last: through every level of
+        // detail the town is drawn at, a step small enough that anything that pops, slides or changes shape shows between
+        // two frames.
+        for (let n = 0; n < DOLLY; n++) {
+          await flyTo(spot, 2.5 * Math.pow(68 / 2.5, n / (DOLLY - 1)));
+          await page.waitForTimeout(slow(n ? 700 : 1400));
+          await shot(`7s-stage-${stage}-${String(n).padStart(2, "0")}`);
         }
+        // (From above, straight down: what stands on what.)
+        await flyTo(spot, 12, -88);
+        await page.waitForTimeout(slow(1400));
+        await shot(`7t-stage-${stage}-from-above`);
+        await k(
+          `globalThis.causalis.place.order("place.site", { ask: ${young.ask}, hands: null })`,
+        );
+        await until(
+          `the site given back, ${stage}`,
+          async () => (await workNow())?.sites.find((q) => q.ref === young.ref)?.inHand === false,
+        );
         await read(`a site ${stage} in its raising`);
       }
-      await k(
-        `globalThis.causalis.rig.flyTo({ target: { x: ${at.x * 0.1}, y: 0.3, z: ${at.z * 0.1} }, distance: 9, pitch: -48 }, 0.01)`,
-      );
+      await flyTo(at, 9, -48);
       await page.waitForTimeout(slow(900));
     }
     await press('.place-pace[data-pace="600"]', "the ten-minutes-a-second pace");
@@ -581,9 +716,21 @@ for (const view of [
     await until("the hurt one's page", async () =>
       /^(plc:|folk|person)/.test((await k<string | null>("globalThis.causalis.pageOpen()")) ?? ""),
     );
-    await page.waitForTimeout(slow(700));
-    const hurtPage = await k<string>(`document.querySelector(".page-window")?.textContent ?? ""`);
-    say(`a hurt one's page: ${hurtPage.slice(0, 900)}`);
+    // (Their page is filled a part at a time, its health after its needs: read once it says how they are, and how long
+    // that took said. One up again since the sheet was read says so instead.)
+    const hurtName = await k<string>(
+        `document.querySelector(".place-sheet-body .place-log-row")?.textContent ?? ""`,
+      ),
+      asked = Date.now(),
+      pageText = () => k<string>(`document.querySelector(".page-window")?.textContent ?? ""`);
+    for (const end = Date.now() + slow(8000); Date.now() < end;) {
+      if (/Hurt in the fire/.test(await pageText())) break;
+      await page.waitForTimeout(100);
+    }
+    const hurtPage = await pageText();
+    say(
+      `a hurt one's page (${Date.now() - asked} ms; pressed: ${hurtName.slice(0, 60)}): ${hurtPage.slice(0, 900)}`,
+    );
     check(/Hurt in the fire/.test(hurtPage), "their page says they were hurt in the fire");
     await shot("7k3-hurt-page");
     await read("a hurt one's page open");
@@ -604,10 +751,16 @@ for (const view of [
   await press('.place-tab[data-tab="people"]', "the People tab");
   await until("the People sheet again", async () => (await shownCount(".place-row-order")) > 3);
   await press(".place-row-order", "a person's order key");
-  await until(
-    "the trades one can be put to",
-    async () => (await shownCount(".place-person-orders .place-chip")) >= 5,
-  );
+  if (
+    !(await until(
+      "the trades one can be put to",
+      async () => (await shownCount(".place-person-orders .place-chip")) >= 5,
+      slow(8000),
+    ))
+  )
+    say(
+      `the sheet then: ${await k<string>(`JSON.stringify({ tab: document.querySelector(".place-tab.on")?.dataset.tab ?? null, sheet: !document.querySelector(".place-sheet")?.hidden, rows: document.querySelectorAll(".place-row-order").length, on: document.querySelectorAll(".place-row-order.on").length, page: globalThis.causalis.pageOpen(), scroll: document.querySelector(".place-sheet-body")?.scrollTop })`)}`,
+    );
   await shot("7c-person-order");
   await read("an order by name being chosen");
   await press(".place-person-orders .place-chip:nth-child(3)", "Crafts, for them");
@@ -637,6 +790,46 @@ for (const view of [
       !!moved?.rows.some((r) => /moved with their household to a home given them/.test(r.words)),
       "the household moved to the home given it",
     );
+  } else
+    say(
+      `the People sheet then: ordering ${await shownCount(".place-row-order.on")}, ${(await k<string>(`document.querySelector(".place-person")?.textContent ?? ""`)).slice(0, 300)}; homes with room ${JSON.stringify(await k(`globalThis.causalis.client.query({ type: "place.people", args: { ref: ${JSON.stringify(town.ref)}, occ: null } }).then((s) => s?.homes)`))}`,
+    );
+  // One of no trade (a child, one grown old): no building to be put at, and a home for their household all the same.
+  const noTrade = await k<{ x: number; y: number } | null>(
+    `(() => { for (const e of document.querySelectorAll(".place-chips .place-chip")) if (/^No trade/.test(e.textContent ?? "")) { e.scrollIntoView({ block: "center" }); const r = e.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; } return null; })()`,
+  );
+  if (noTrade) {
+    await tap(noTrade.x, noTrade.y);
+    await until(
+      "the People sheet narrowed to those of no trade",
+      async () =>
+        /^No trade/.test(
+          await k<string>(
+            `document.querySelector(".place-chips .place-chip.on")?.textContent ?? ""`,
+          ),
+        ) && (await shownCount(".place-row-order")) > 0,
+    );
+    await page.waitForTimeout(slow(1300));
+    await press(".place-row-order", "the order key of one of no trade");
+    const offered = await until(
+      "homes with room, to give a household (of no trade)",
+      async () => (await shownCount(".place-person-homes .place-chip")) > 0,
+      slow(8000),
+    );
+    check(
+      (await shownCount(".place-person-posts .place-chip")) === 0,
+      "one of no trade is offered no building to be put at",
+    );
+    if (offered) {
+      await k(`document.querySelector(".place-person-homes").scrollIntoView({ block: "center" })`);
+      await page.waitForTimeout(slow(300));
+      await shot("7c3-no-trade-home");
+      await read("the keys to give the household of one of no trade a home");
+    } else
+      say(
+        `the People sheet then: ordering ${await shownCount(".place-row-order.on")}, ${(await k<string>(`document.querySelector(".place-person")?.textContent ?? ""`)).slice(0, 300)}`,
+      );
+    await press(".place-row-order", "the order key again, to put its keys away");
   }
   // A building's work stopped, from the Work sheet, where the town has a building worked in.
   await press('.place-tab[data-tab="work"]', "the Work tab");

@@ -616,6 +616,16 @@ export type VillagePlan = {
   };
   /** While its town is entered (town mode): who each of its people is in the place kept of it, in their order (host/placeplan.ts). */
   readonly placed?: readonly number[];
+  /**
+   * While its town is entered, where its land is of more than one people: the body of each people of its place besides
+   * its world's first, by their number among its world's peoples (a person's `kind`), as the figure needs it, and what
+   * they are called. Each of them is drawn in their own people's figure.
+   */
+  readonly peoples?: readonly {
+    readonly kind: number;
+    readonly name: string;
+    readonly body: VillagePlan["body"];
+  }[];
   readonly people: readonly {
     ref: string;
     name: string;
@@ -625,6 +635,8 @@ export type VillagePlan = {
     child: boolean;
     /** Their sex (0 a woman, 1 a man): who the god's hand would touch, laid from them (Phase 54). */
     sex?: number;
+    /** Which of its world's peoples they are of, where they are not of its first (`plan.peoples`; town mode). */
+    kind?: number;
     /** The tool they carry to work, in words (Phase 15 M125: a watched person's own). */
     tool?: string;
     /**

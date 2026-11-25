@@ -210,6 +210,20 @@ import { laidGround, shoreWaterSteps, villageShore, type ShoreWater } from "../v
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
 const M = 0.1; // units per metre
+/** One out of sight (of another people's figure than the one being posed), and no one's wounds' gear. */
+const UNSEEN: Moment = {
+    x: 0,
+    z: 0,
+    yaw: 0,
+    activity: ACTIVITY.home,
+    task: null,
+    hidden: true,
+    hunger: 0,
+    tiredness: 0,
+    carry: null,
+    why: null,
+  },
+  NO_GEAR: readonly null[] = [];
 /**
  * How far a village's own ground runs out (metres): past its farthest fields and pasture, and the mills on their rim (a great
  * city's lie kilometres out).
@@ -501,6 +515,36 @@ export class VillageScene {
   private screens = 0;
   private figure: Figure = figureOf(null);
   private moments: Moment[] = [];
+  /**
+   * The other peoples of a town entered (town mode: `plan.peoples`), each drawn in their own people's figure: its
+   * parts' batches for each group and each hair, as the town's own are; its people posed by themselves (their limbs
+   * their own figure's), and the moments they are posed by (everyone else out of sight). None where a town is of one
+   * people: nothing is made or posed for them then.
+   */
+  private others: {
+    readonly kind: number;
+    readonly plan: VillagePlan;
+    readonly figure: Figure;
+    readonly people: (InstancedBatch | null)[][];
+    readonly hair: (InstancedBatch[] | null)[];
+    readonly folk: FolkPoses;
+    readonly moments: Moment[];
+  }[] = [];
+  /** Which of `others` each of the plan's people is drawn with (-1: the town's own figure), and the town's own moments then. */
+  private otherOf: Int8Array | null = null;
+  private ownMoments: Moment[] = [];
+  /** Those of each other people of a town entered drawn now, in their own figure (the look tools). */
+  peoplesDrawn(): { kind: number; drawn: number }[] {
+    return this.others.map((o) => ({
+      kind: o.kind,
+      drawn: o.folk.shown.posed + o.folk.shown.carried,
+    }));
+  }
+  /** The figure one of the plan's people is drawn in: their own people's. */
+  private figureFor(i: number): Figure {
+    const k = this.otherOf?.[i] ?? -1;
+    return k >= 0 ? this.others[k]!.figure : this.figure;
+  }
   /**
    * The trees about it (Phase 41 M200): each part's batch (trunks, crowns by kind) and the trees it
    * holds, by their places in the trees drawn — those felled hidden, saplings grown small — and
@@ -981,6 +1025,8 @@ export class VillageScene {
     // (Batches first: an entity destroyed does not free the instance buffer it was given.)
     for (const b of this.batches) b.destroy();
     this.batches = [];
+    this.others = [];
+    this.otherOf = null;
     for (const child of [...this.root.children])
       if (
         child !== this.marker &&
@@ -1860,6 +1906,55 @@ export class VillageScene {
           ))
         : null,
     );
+    // The other peoples of a town entered, each in their own people's figure (town mode: plan.peoples; none elsewhere).
+    this.others = (plan.peoples ?? []).map((o) => {
+      const figure = lifeFigure(figureOf(o.body, s.quality.detail), o.body),
+        own = figure.parts,
+        same = own.map((part) =>
+          own.findIndex((p) => p.shape === part.shape && p.tone === part.tone),
+        ),
+        n = plan.people.reduce((a, p) => a + (p.kind === o.kind ? 1 : 0), 0),
+        most = (pi: number) => Math.max(1, n * same.filter((a) => a === same[pi]).length),
+        people = GROUP_COLORS.map((_, gi) => {
+          const paint = dressedOn(o.body, plan.era, gi, plan.colony),
+            made: InstancedBatch[] = [];
+          return own.map((part, pi) =>
+            part.tone === 3
+              ? null
+              : (made[same[pi]!] ??= this.batch(
+                  s,
+                  meshes[part.shape],
+                  paint.tones[part.tone],
+                  most(pi),
+                  this.root,
+                  nearFadeMaterial(paint.tones[part.tone]),
+                )),
+          );
+        }),
+        tints = dressedOn(o.body, plan.era, 0, plan.colony).hairs,
+        tinted: InstancedBatch[][] = [],
+        hair = own.map((part, pi) =>
+          part.tone === 3
+            ? (tinted[same[pi]!] ??= tints.map((c) =>
+                this.batch(s, meshes[part.shape], c, most(pi), this.root, nearFadeMaterial(c)),
+              ))
+            : null,
+        );
+      return {
+        kind: o.kind,
+        plan: { ...plan, body: o.body },
+        figure,
+        people,
+        hair,
+        folk: new FolkPoses(),
+        moments: [],
+      };
+    });
+    this.otherOf = this.others.length
+      ? Int8Array.from(plan.people, (p) =>
+          p.kind ? this.others.findIndex((o) => o.kind === p.kind) : -1,
+        )
+      : null;
     // The soldiers of a war about the town (M87, M204), armed afresh for it.
     this.meshes = meshes;
     this.armed = "";
@@ -2884,11 +2979,18 @@ export class VillageScene {
     const ease = dt > 0 ? 1 - Math.exp(-Math.min(0.1, dt) / 0.08) : 1,
       cam = this.stage.camera,
       at = cam.getPosition();
+    // (Those of another people are posed in their own figure below: out of sight in the town's own.)
+    const otherOf = this.otherOf;
+    if (otherOf) {
+      this.ownMoments.length = this.moments.length;
+      for (let i = 0; i < this.moments.length; i++)
+        this.ownMoments[i] = otherOf[i]! >= 0 ? UNSEEN : this.moments[i]!;
+    }
     /** A part of person i's figure, where it is now. */
     const place = this.folk.pose({
       plan,
       figure: this.figure,
-      moments: this.moments,
+      moments: otherOf ? this.ownMoments : this.moments,
       sizes: this.sizes,
       strides: this.strides,
       gear: this.gearNow,
@@ -2906,6 +3008,33 @@ export class VillageScene {
         this.stage.app.graphicsDevice.clientRect.height,
       ),
     });
+    if (otherOf)
+      this.others.forEach((o, k) => {
+        o.moments.length = this.moments.length;
+        for (let i = 0; i < this.moments.length; i++)
+          o.moments[i] = otherOf[i] === k ? this.moments[i]! : UNSEEN;
+        o.folk.pose({
+          plan: o.plan,
+          figure: o.figure,
+          moments: o.moments,
+          sizes: this.sizes,
+          strides: this.strides,
+          gear: NO_GEAR,
+          clock,
+          dt,
+          downed: this.posed?.downed ?? this.streetDowned,
+          kept: null,
+          alpha,
+          people: o.people,
+          hair: o.hair,
+          eye: { x: at.x / M, y: at.y / M, z: at.z / M },
+          near: nearReach(
+            o.figure,
+            cam.camera!.fov,
+            this.stage.app.graphicsDevice.clientRect.height,
+          ),
+        });
+      });
     // Their wounds worn (Phase 55 M226): linen bound about the parts as they are posed now, and
     // what they wear for them — a patch, a sling, a crutch, a scar — the nearest the eye first.
     const pieces: WornPiece[] = [],
@@ -3201,7 +3330,7 @@ export class VillageScene {
       c.z = m.z * M;
       c.yaw = m.yaw;
       c.carry = carry;
-      c.size = (p.child ? 0.7 : 1) * this.figure.scale * (this.sizes[i] ?? 1) * whole;
+      c.size = (p.child ? 0.7 : 1) * this.figureFor(i).scale * (this.sizes[i] ?? 1) * whole;
       n++;
     });
     this.carriers.length = n;

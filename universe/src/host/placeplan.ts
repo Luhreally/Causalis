@@ -23,9 +23,13 @@ import {
   MANAGED_TRADES,
   cultureOf,
   healthOf,
+  homePlanet,
+  kindBody,
   lifeOf,
+  mixOf,
   populationContext,
 } from "../sim/index.ts";
+import { figureBody } from "./folk.ts";
 import { builtOf } from "./inspect/asks.ts";
 import {
   placeLotRef,
@@ -79,6 +83,7 @@ import {
   placeIndexOf,
   placePrio,
   placeSkill,
+  placeKind,
   placeSites,
   placesOf,
   pressOf,
@@ -295,6 +300,8 @@ export function placePlan(
     placed.push(id);
   }
   let dealt = 0;
+  /** The peoples its place's drawn are of besides its world's first: their number, and what they are called. */
+  const kinds = new Map<number, string>();
   for (const house of houses) {
     const members = byHouse.get(house)!,
       at = homeOf.size
@@ -310,7 +317,9 @@ export function placePlan(
         occ = p.sexOcc[i]! & 15,
         sex = p.sexOcc[i]! >> 4,
         child = age < grown,
-        { ref, name } = who(i);
+        { ref, name } = who(i),
+        of = placeKind(world, place, i);
+      if (of && of.kind > 0) kinds.set(of.kind, of.name);
       people.push({
         ref,
         name,
@@ -319,6 +328,8 @@ export function placePlan(
         occupation: occ,
         child,
         sex,
+        // (Of another people than its world's first: drawn in their own people's figure.)
+        ...(of && of.kind > 0 ? { kind: of.kind } : {}),
         folk: true,
         role: `${tradeWords(occ, child)} of ${plan.name}`,
         page: ref,
@@ -380,7 +391,24 @@ export function placePlan(
             },
           }
         : town;
-  return { ...bare, ...(walled ? { town: walled } : {}), people, placed };
+  // (Each other people's body, as its figure is drawn from it: sim/population/mix.ts kindBody.)
+  const store = kinds.size ? mixOf(world) : null,
+    peoples = store
+      ? [...kinds]
+          .sort((a, b) => a[0] - b[0])
+          .map(([kind, name]) => ({
+            kind,
+            name,
+            body: figureBody(kindBody(homePlanet(world).generated, store, kind), null),
+          }))
+      : [];
+  return {
+    ...bare,
+    ...(walled ? { town: walled } : {}),
+    people,
+    placed,
+    ...(peoples.length ? { peoples } : {}),
+  };
 }
 
 /** What wants a manager's eye in a place now, the most pressing first. */

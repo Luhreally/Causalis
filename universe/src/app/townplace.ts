@@ -63,6 +63,8 @@ export type PlaceFlow = {
   readonly noticed: string | null;
   /** Where a lot of the town entered stands on its ground (metres from its square; the look tools). */
   lotAt(lot: number): { x: number; z: number } | null;
+  /** Where its walls' site is now, the length their line has come to (metres from its square; null: none going up; the look tools). */
+  wallsAt(): { x: number; z: number } | null;
 };
 
 /** The eye over a town entered (world units; as a life's: app/life.ts): a few homes across. */
@@ -328,6 +330,11 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     sheet: (tab) => hud.open(tab),
     order,
     lotAt: (lot) => (town ? d.village.townLot(lot) : null),
+    wallsAt: () => {
+      const ref = d.plan()?.town?.walls?.asked?.ref,
+        at = town && ref ? d.village.askedSpot(ref, told?.t ?? d.client.status?.t ?? 0) : null;
+      return at ? { x: at.x, z: at.z } : null;
+    },
   };
   return flow;
 }

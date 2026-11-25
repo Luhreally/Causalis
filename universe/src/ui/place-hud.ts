@@ -167,6 +167,7 @@ export class PlaceHud {
   open(tab: PlaceTab | null, tell = true): void {
     this.tab = tab;
     this.setting = null;
+    this.ordering = null;
     this.drawn = "";
     this.sheet.hidden = tab === null;
     for (const [k, b] of this.tabs) b.classList.toggle("on", k === tab);
@@ -226,8 +227,17 @@ export class PlaceHud {
     return false;
   }
 
-  people(s: PlacePeopleSheet): void {
-    if (this.tab !== "people" || this.same([s, this.occ])) return;
+  /**
+   * Its people, the most pressed first. `own`: drawn again by a key of the sheet itself, from the very rows it shows.
+   * While someone's order keys are open the list holds still: who is most pressed changes by the second while the clock
+   * runs, and a list read again moved the row and its keys from under the finger, or took them off the sheet with
+   * the one they were for (in WebKit at a phone's size an order key pressed did nothing six times in fourteen).
+   */
+  people(s: PlacePeopleSheet, own = false): void {
+    if (this.tab !== "people") return;
+    if (own) this.drawn = JSON.stringify([s, this.occ]);
+    else if ((this.ordering !== null && this.drawn !== "") || this.same([s, this.occ])) return;
+    let open: HTMLElement | null = null;
     const chips = el("div", "place-chips");
     for (const [occ, words] of TRADE_CHIPS) {
       const n = occ === null ? s.trades.reduce((a, b) => a + b, 0) : (s.trades[occ] ?? 0);
@@ -236,6 +246,7 @@ export class PlaceHud {
       b.classList.toggle("on", this.occ === occ);
       b.onclick = () => {
         this.occ = occ;
+        this.ordering = null;
         this.drawn = "";
         this.onTab("people");
       };
@@ -269,17 +280,18 @@ export class PlaceHud {
       key.classList.toggle("on", this.ordering === r.id);
       key.onclick = () => {
         this.ordering = this.ordering === r.id ? null : r.id;
-        this.drawn = "";
-        this.people(s);
+        this.people(s, true);
       };
       one.append(row, key);
       if (this.ordering === r.id) {
+        open = one;
         const keys = el("div", "place-person-orders");
         ORDER_TRADES.forEach(([occ, name]) => {
           const b = el("button", "place-chip", name);
           b.classList.toggle("on", occ !== null && r.bound !== null && r.occ === occ);
           b.onclick = () => {
             this.ordering = null;
+            this.people(s, true);
             this.onOrder("place.assign", { person: r.id, trade: occ, post: null });
           };
           keys.append(b);
@@ -295,6 +307,7 @@ export class PlaceHud {
             b.setAttribute("aria-label", `Put ${r.name} at the ${o.name}`);
             b.onclick = () => {
               this.ordering = null;
+              this.people(s, true);
               this.onOrder("place.assign", { person: r.id, trade: null, post: o.lot });
             };
             at.append(b);
@@ -314,6 +327,7 @@ export class PlaceHud {
             );
             b.onclick = () => {
               this.ordering = null;
+              this.people(s, true);
               this.onOrder("place.house", { house: r.house, lot: o.lot });
             };
             home.append(b);
@@ -327,7 +341,11 @@ export class PlaceHud {
       s.all > s.rows.length
         ? [el("p", "place-more", `and ${s.all - s.rows.length} more, less pressed`)]
         : [];
+    // (One whose keys are open and no longer among the rows read: no keys are open.)
+    if (!open) this.ordering = null;
     this.sheetBody.replaceChildren(chips, list, ...more);
+    // (The keys just opened brought onto the sheet, where their row stood near its foot.)
+    if (own && open) (open as HTMLElement).scrollIntoView({ block: "nearest" });
   }
 
   /**

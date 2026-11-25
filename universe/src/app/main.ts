@@ -1091,6 +1091,11 @@ type Exposed = {
     sheet(tab: PlaceTab | null): void;
     order(type: string, args: Record<string, unknown>): Promise<string | null>;
     lotAt(lot: number): { x: number; z: number } | null;
+    wallsAt(): { x: number; z: number } | null;
+    /** Those of each other people of the town entered drawn now, in their own figure. */
+    peoples(): { kind: number; drawn: number }[];
+    /** Where one of the plan's people stands now (metres from the square; null: out of sight). */
+    personAt(index: number): { x: number; z: number } | null;
     state(): { on: boolean; town: string | null; tells: string | null; told: PlaceFrame | null };
   };
   faunaNow?: () => {
@@ -10849,6 +10854,9 @@ async function runPlanetPage(): Promise<void> {
     sheet: (tab: PlaceTab | null) => placeFlow.sheet(tab),
     order: (type: string, args: Record<string, unknown>) => placeFlow.order(type, args),
     lotAt: (lot: number) => placeFlow.lotAt(lot),
+    wallsAt: () => placeFlow.wallsAt(),
+    peoples: () => village.peoplesDrawn(),
+    personAt: (i: number) => (plan?.people[i] ? village.personAt(plan.people[i].ref) : null),
     state: () => ({
       on: placeFlow.on,
       town: placeFlow.town,

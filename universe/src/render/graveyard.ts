@@ -416,10 +416,12 @@ export class GraveyardLayer {
       }[][] = STONES.map(() => []),
       crosses: { x: number; z: number; tip: number }[][] = [[], []],
       mounds: { x: number; z: number; high: number }[][] = [[], []];
-    for (let k = from; k < b.graves; k++) {
-      const p = plotAt(yard, k),
-        age = (b.graves - 1 - k) / per,
-        fresh = k >= b.freshFrom,
+    // (Each grave by its number `g` among the town's: `k` is its yard's measure, as above. A grave's number was read for
+    // that measure here, and a town's later graves stood hundreds of metres high and as far from their plots.)
+    for (let g = from; g < b.graves; g++) {
+      const p = plotAt(yard, g),
+        age = (b.graves - 1 - g) / per,
+        fresh = g >= b.freshFrom,
         // (The stone or cross at its head, the far end from the gate; the mound before it.)
         head = {
           x: p.x + V.x * (PLOT.deep / 2 - 0.6 * k),
@@ -428,30 +430,30 @@ export class GraveyardLayer {
         mid = { x: p.x - V.x * 0.3 * k, z: p.z - V.z * 0.3 * k };
       if (fresh) {
         mounds[0]!.push({ ...mid, high: 0.5 * k });
-        crosses[0]!.push({ ...head, tip: (draw(k, 1) - 0.5) * 0.06 });
+        crosses[0]!.push({ ...head, tip: (draw(g, 1) - 0.5) * 0.06 });
         continue;
       }
       if (age < MOUND_SINKS)
         mounds[1]!.push({ ...mid, high: Math.max(0.1, 0.32 * (1 - age / MOUND_SINKS)) * k });
-      if (draw(k, 2) < 0.35) {
+      if (draw(g, 2) < 0.35) {
         // A wooden cross: leaning more as it ages, rotted away at last.
         if (age < CROSS_ROTS)
           crosses[age < 2 ? 0 : 1]!.push({
             ...head,
-            tip: (draw(k, 3) - 0.5) * (0.08 + Math.min(0.6, age / 40)),
+            tip: (draw(g, 3) - 0.5) * (0.08 + Math.min(0.6, age / 40)),
           });
         continue;
       }
       // A stone: greying, sinking and leaning with its years; now and then fallen.
-      const fallen = age > 60 && draw(k, 4) < 0.1,
+      const fallen = age > 60 && draw(g, 4) < 0.1,
         sink = 1 - Math.min(0.35, age / 300),
-        arch = draw(k, 5) >= 0.3,
+        arch = draw(g, 5) >= 0.3,
         bucket = age < AGES[0] ? 0 : age < AGES[1] ? 1 : age < AGES[2] ? 2 : 3;
       stones[bucket]!.push({
         ...head,
         tip: fallen
-          ? (draw(k, 6) < 0.5 ? 1 : -1) * (Math.PI / 2 - 0.04)
-          : (draw(k, 6) - 0.5) * (0.06 + Math.min(0.4, age / 250)),
+          ? (draw(g, 6) < 0.5 ? 1 : -1) * (Math.PI / 2 - 0.04)
+          : (draw(g, 6) - 0.5) * (0.06 + Math.min(0.4, age / 250)),
         high: (arch ? 1.5 : 2) * sink * k,
         arch,
         fallen,
