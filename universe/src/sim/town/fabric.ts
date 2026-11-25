@@ -750,10 +750,11 @@ function unpack(s: Saved): Fabric {
     walls: walls ? { start: walls[0], end: walls[1], reach: walls[2] } : null,
     lean,
     forsaken,
+    // (In the order a town founded has its fields, as Fabric lists them: one read back is the same to the letter.)
+    emptied: s[14] ?? -1,
     engines: s[13]?.[0] ?? KEPT_NOT,
     order: s[13]?.[1] ?? KEPT_NOT,
     place: s[13]?.[2] ?? KEPT_NOT,
-    emptied: s[14] ?? -1,
   };
   readStanding(f);
   return f;

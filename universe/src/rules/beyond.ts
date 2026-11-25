@@ -6,9 +6,16 @@
 //   machines a year as its people would wear out, and no more. Its rock is its system's belt: the giant past the frost line
 //   that stirs it also clears it (a belt left unstirred holds more, est). Lit by mirrors, it doubles twice as fast.
 //   Bodies written for a world: a people that writes and grows its bodies writes its settlers' children for the world they
-//   live on, a share a generation, as far as a body can be bent (a warmth some sixty degrees from home's, a sky's rays with
-//   mended cells: est); air and pressure stay the halls' work. Machine limbs and senses (where minds are made) bear the cold
-//   and the rays a share more.
+//   live on, as far as a body can be bent (a warmth some sixty degrees from home's, a sky's rays with mended cells: est); air
+//   and pressure stay the halls' work. Machine limbs and senses (where minds are made) bear the cold and the rays besides.
+//   Bodies written and parts replaced (2026-11-24, "engineered bodies and cyborgs"): how many of a people's children are
+//   written a generation is what it knows of the body by what it can spare to pay for it (`rewritable`: no authored share),
+//   over its own generations; how many carry made parts, the same of what its engines spare, where it makes minds
+//   (`replaceable`). What either gains is read off the body's own limits (`bodyLimits`, its life table): its frailty (how
+//   much of its first years' deaths is their being the first years), its wearing out (how much of each old band's deaths
+//   is age, over the least its grown die at), and so its years. A written child is spared the first, a written or mended
+//   body the second (`engineeredDeaths`); and one grown, not borne, costs no mother her work and is made when wanted
+//   (sim/population/systems.ts transition, by rules/children.ts as any people's: no authored share of its bearing kept).
 //   Minds past their makers: a people's made minds think as many sums a second as its crystal and its power allow, and the
 //   crystal doubles every two years once minds design minds (Moore's law, est), until its power is all they can burn: a
 //   sum a picojoule (est, far above Landauer's bound). A body's brain thinks some 1e16 a second (est). Past their makers'
@@ -16,6 +23,7 @@
 //   tradition: est); and a people whose bodies can be read may go up into them, as many as its ways are open, slowly.
 // Pure tables and functions.
 import { dmath } from "../kernel/index.ts";
+import { bandWidth, type LifeHistory } from "./species.ts";
 
 export const BEYOND = {
   /** The first works in the sky (t): a station's weight in tools and seed works. */
@@ -35,13 +43,9 @@ export const BEYOND = {
   beltReached: 1e-6,
   /** Years untended before a works falls silent. */
   untended: 30,
-  /** A body's bending in a generation, the years of one, and how far: degrees of warmth from home's, a share of the sky's rays (est). */
-  writtenShare: 0.3,
-  generationYears: 25,
+  /** How far a body can be bent: degrees of warmth from home's, a share of the sky's rays (est). */
   writtenDegrees: 60,
   writtenRays: 0.5,
-  /** What machine limbs and senses add of the cold and the rays borne (est). */
-  limbs: 0.25,
   /** Sums a second a body's brain is reckoned to think (est). */
   brainSums: 1e16,
   /** Sums a second a head a people's first minds of crystal reckon (rules/ages.ts SUMS, "minds of crystal"). */
@@ -91,10 +95,11 @@ export const worksMachines = (t: number, people: number): number =>
 export function writableShare(
   needs: readonly { readonly id: string; readonly upkeep: number }[],
   degreesOff: number,
-  limbs: boolean,
+  /** The share of them who carry limbs and senses of machines (`replaceable`), which feel neither: 0 … 1. */
+  limbs: number,
 ): number {
   const k = BEYOND,
-    extra = limbs ? k.limbs : 0;
+    extra = dmath.clamp(limbs, 0, 1);
   let all = 0,
     bent = 0;
   for (const n of needs) {
@@ -108,9 +113,82 @@ export function writableShare(
   return all > 0 ? dmath.clamp(bent / all, 0, 1) : 0;
 }
 
-/** A body's bending after so many years of writing: a share a generation, compounding. */
-export const writtenAfter = (years: number): number =>
-  1 - dmath.pow(1 - BEYOND.writtenShare, Math.max(0, years) / BEYOND.generationYears);
+/**
+ * Of a people's children, the share written a generation: what it knows of the body (`knows`, 0 … 1: its lore of health)
+ * by what it can spare to pay for it (`pays`, 0 … 1: the share of its work its engines do, not its bodies).
+ */
+export const rewritable = (knows: number, pays: number): number =>
+  dmath.clamp(knows, 0, 1) * dmath.clamp(pays, 0, 1);
+
+/** Of a people, the share who carry made parts a generation: what its engines spare, where it makes minds to run them. */
+export const replaceable = (makesMinds: boolean, pays: number): number =>
+  makesMinds ? dmath.clamp(pays, 0, 1) : 0;
+
+/** How far a people is written (or mended) after so many years: `share` of its children a generation of its own, compounding. */
+export const writtenAfter = (years: number, share: number, generation: number): number =>
+  1 - dmath.pow(1 - dmath.clamp(share, 0, 0.999), Math.max(0, years) / Math.max(1, generation));
+
+const hazardOf = (p: number): number => -dmath.log(1 - Math.min(0.999, Math.max(0, p)));
+
+/**
+ * A body's own limits, read off its life table: of its first years' deaths, the share that is their being the first
+ * (over the hazard of the years after); of each band's deaths, the share that is age (over the least its grown die at);
+ * and the years its grown would live at that least (its span were it not to wear).
+ */
+export function bodyLimits(life: LifeHistory): {
+  readonly frail: number;
+  readonly worn: readonly number[];
+  readonly unworn: number;
+} {
+  let least = Infinity;
+  for (let b = 0; b < life.bands.length; b++)
+    if (life.bands[b]! >= life.adulthood) least = Math.min(least, hazardOf(life.mortality[b]!));
+  if (!(least < Infinity)) least = hazardOf(life.mortality.at(-1)!);
+  const first = hazardOf(life.mortality[0]!),
+    next = hazardOf(life.mortality[1] ?? life.mortality[0]!);
+  return {
+    frail: first > 0 ? dmath.clamp(1 - next / first, 0, 1) : 0,
+    worn: life.bands.map((lo, b) => {
+      const h = hazardOf(life.mortality[b]!);
+      return lo >= life.adulthood && h > 0 ? dmath.clamp(1 - least / h, 0, 1) : 0;
+    }),
+    unworn: least > 0 ? 1 / least : Infinity,
+  };
+}
+
+/**
+ * What a people's written and mended bodies do to its deaths, each band's (x): its first years spared their frailty as far
+ * as its children are written, every band its wearing as far as its bodies are written or carry made parts.
+ */
+export function engineeredDeaths(life: LifeHistory, written: number, replaced: number): number[] {
+  const limits = bodyLimits(life),
+    w = dmath.clamp(written, 0, 1),
+    either = 1 - (1 - w) * (1 - dmath.clamp(replaced, 0, 1));
+  return life.bands.map(
+    (_, b) => (b === 0 ? 1 - w * limits.frail : 1) * (1 - either * limits.worn[b]!),
+  );
+}
+
+/** The years a people so written and mended lives from its coming of age, against its body's own (x: 1 where neither). */
+export function engineeredYears(life: LifeHistory, written: number, replaced: number): number {
+  const by = engineeredDeaths(life, written, replaced),
+    years = (factor: (b: number) => number) => {
+      let live = 1,
+        sum = 0;
+      for (let b = 0; b < life.bands.length; b++) {
+        if (life.bands[b]! < life.adulthood) continue;
+        const h = hazardOf(life.mortality[b]!) * factor(b),
+          w = bandWidth(b, life),
+          // (The last band runs on at its own hazard.)
+          last = b === life.bands.length - 1;
+        sum += live * (h > 0 ? (last ? 1 / h : (1 - dmath.exp(-h * w)) / h) : w);
+        live *= dmath.exp(-h * w);
+      }
+      return sum;
+    },
+    own = years(() => 1);
+  return own > 0 ? years((b) => by[b]!) / own : 1;
+}
 
 /**
  * How many times their makers' sum a people's minds think (a ratio), `years` after minds began to design minds: their

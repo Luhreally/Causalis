@@ -4,7 +4,11 @@
 // along its trade-off, the faster the more hosts it took; where most of those it burns among were spared it, a strain
 // they are not spared may rise, a sickness of its own. A sickness passing among one people narrows to them; one that
 // can still live in herds waits in them when it sleeps, comes back to a herding land, and is never gone while herds
-// are kept. One row of numbers a sickness, a few dozen at most; its harm and reach a decade, thinned as they age.
+// are kept. And its hosts answer it (2026-11-24, rules/heredity.ts resistAfter, harmAmong): those of a people it kills
+// leave no more young, so the share of them that resists it grows by as many as it killed, slowly at first; its harm among
+// hosts who resist it is the less, below the harm that spreads it best, and the next year's selection draws it back up:
+// each one's trait moved by the other's pressure. One number more a sickness.
+// One row of numbers a sickness, a few dozen at most; its harm and reach a decade, thinned as they age.
 import {
   YEAR,
   defineStream,
@@ -18,6 +22,9 @@ import {
 import {
   EVOLVE,
   FIRST_RANGE,
+  HEREDITY,
+  harmAmong,
+  resistAfter,
   bestDeadliness,
   reachFor,
   selectionPace,
@@ -47,6 +54,10 @@ export type StrainLine = {
   taken: number;
   /** [year, harm ×1000, reach ×1000], once a decade it burned, thinned as they age. */
   past: number[][];
+  /** Of its hosts, the share that resists it (millionths; absent: as many as happen to before it has tried them). */
+  resist?: number;
+  /** Its hosts' resisting it told (once doubled from where it stood). */
+  resisted?: 1;
 };
 
 const PAST_MOST = 30;
@@ -157,6 +168,31 @@ export function strainsYear(ctx: PopulationContext, t: SimTime): void {
         pace = selectionPace(b.taken);
       s.deadliness += pace * (best - s.deadliness);
       s.reach += pace * (reachFor(s.route, s.deadliness, l.first, drained, s.lasting) - s.reach);
+      // Its hosts answer: those it killed (of those it burned among) left none, and the share that resists it is the more;
+      // its harm among them the less by it. (The next year's selection draws its harm back toward what spreads it best.)
+      const dead = Math.min(b.taken * s.deadliness, b.taken),
+        was = (l.resist ?? HEREDITY.standing * 1e6) / 1e6,
+        now = resistAfter(was, dead / Math.max(1, b.people + dead), HEREDITY.heritability.sickness),
+        kept = Math.round(now * 1e6);
+      if (kept !== Math.round(was * 1e6)) {
+        l.resist = kept;
+        s.deadliness = Math.max(0.002, (s.deadliness * harmAmong(now)) / harmAmong(was));
+        if (!l.resisted && now >= 2 * HEREDITY.standing) {
+          l.resisted = 1;
+          world.events.emit({
+            type: HEALTH_EVENTS.resisted.type,
+            subjects: [s.ref],
+            place: ctx.provinces.get(b.cell)?.ref ?? null,
+            causes: [{ ref: s.event, role: "trigger", weight: 1 }],
+            data: {
+              sickness: s.name,
+              resist: Math.round(now * 1000),
+              harm: Math.round(s.deadliness * 1000),
+              year,
+            },
+          });
+        }
+      }
       // It narrows to the people it passes among.
       l.range = Math.max(0, l.range * (1 - EVOLVE.narrows));
       l.tried = year;

@@ -89,6 +89,13 @@ registerEventWords(
   (world, e) =>
     `The flocks of ${landWords(world, e.place)}, kept close, grew heavy with parasites${inHundred(num(e.data, "toll"), "what they gave was lost")}, ${year(e.t)}`,
 );
+registerEventWords(LINEAGE_EVENTS.race.type, (_world, e) => {
+  const hunter = word(e.data, "hunter") ?? "a hunter",
+    prey = word(e.data, "prey") ?? "its prey";
+  const keen = num(e.data, "keen") ?? 0,
+    wary = num(e.data, "wary") ?? 0;
+  return `The ${hunter} that hunts the ${prey} had been changed by what its prey had become: the ${prey} ${Math.abs(wary)} spreads ${wary < 0 ? "less wary" : "warier"} than they were made, and the ${hunter} ${keen < 0 ? `the less keen after them by ${-keen} of a spread, a prey so wary seldom worth the chase` : `the keener after them by ${keen} of a spread`}, ${year(e.t)}`;
+});
 registerEventWords(LINEAGE_EVENTS.changed.type, (world, e) => {
   const beast = word(e.data, "beast") ?? "beasts",
     trait = word(e.data, "trait"),

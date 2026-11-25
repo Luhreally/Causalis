@@ -13,6 +13,11 @@
 //   (heights, dry or frozen ground, a great river, for a swimmer the land), read off the ground between, goes its own way:
 //   selected toward what its own lands ask, pulled back by what crosses the barrier, drifting. Gone far enough apart, by
 //   drift and by what each side was selected for, it is a kind of its own, the barrier and the selection its causes.
+// - Hunter and prey selecting each other (2026-11-24, rules/heredity.ts raceStep): each kind that is a land's great herd
+//   and the hunting kind that lives on the most of its lands run a race, the prey's wariness against the hunter's
+//   keenness, each moved a generation at a time by what the other's trait gains or costs it (the prey for its life, the
+//   hunter for its dinner). As made, the two stand where neither gains by moving; a prey a people's hunt has made warier
+//   moves its hunter, and its hunter so moved moves the prey in turn. One number a hunted kind.
 // - Partners and parasites: the land's beasts and its people's flocks carry what lives off them, endemic where they
 //   crowd past what it needs to pass from one to the next, kept down by the eaters of the dead and the small hunters
 //   that pick them clean; the seed carriers spread what the wild gives. What they take and give is the year's food
@@ -46,6 +51,8 @@ import {
   newKindOf,
   parasiteLoad,
   parasiteToll,
+  HEREDITY,
+  raceFrom,
   selected,
   traitFit,
   traitsAsked,
@@ -59,6 +66,8 @@ import { ecologyOf } from "./ecology.ts";
 import { shiftNow } from "../planet/motion.ts";
 
 export const LINEAGE_EVENTS = {
+  /** A hunter's keenness has gone a quarter of a spread from what it was made, by what its prey has become. */
+  race: defineEventType("life.arms-race", 3),
   /** A people's flocks grown heavy with what lives off them. */
   parasites: defineEventType("life.parasites-heavy", 3),
   /** A kind's stock changed by what its lands select: a spread of size, coat or wariness from where it was first seen. */
@@ -116,6 +125,17 @@ export type Partners = {
   heavy: Ref | null;
 };
 
+/**
+ * A hunted kind and the hunter on the most of its lands: how far the hunter's keenness has gone from what it was made
+ * (thousandths of a spread), selected by what its prey's wariness has become (the prey's is its own trait, KindTraits).
+ */
+export type Race = {
+  readonly prey: number;
+  hunter: number;
+  y: number;
+  told: 0 | 1;
+};
+
 export class LineageStore implements StateStore {
   readonly name = "life.lineage";
   /** Each cut-off land's stock gone apart from its kind (thousandths of the way to a kind of its own, unrounded). */
@@ -124,6 +144,8 @@ export class LineageStore implements StateStore {
   /** Each kind's traits in play, by its species index; each stock behind a barrier, by its first land. */
   readonly traits = new Map<number, KindTraits>();
   readonly isolates = new Map<number, Isolate>();
+  /** Each hunted kind's race with its hunter, by its species index. */
+  readonly races = new Map<number, Race>();
   /** Read from the ground, not state. */
   sites: Sites | null = null;
   dormant(): boolean {
@@ -146,6 +168,7 @@ export class LineageStore implements StateStore {
     // (Selection's, only once any is kept: a world saved before keeps its hash until its first.)
     if (this.traits.size || this.isolates.size)
       h.value(sorted(this.traits)).value(sorted(this.isolates));
+    if (this.races.size) h.value(sorted(this.races));
   }
   save(): unknown {
     if (this.dormant()) return {};
@@ -155,6 +178,7 @@ export class LineageStore implements StateStore {
       lands: sorted(this.lands).map(([, v]) => v),
       ...(this.traits.size ? { traits: sorted(this.traits).map(([, v]) => v) } : {}),
       ...(this.isolates.size ? { isolates: sorted(this.isolates).map(([, v]) => v) } : {}),
+      ...(this.races.size ? { races: sorted(this.races).map(([, v]) => v) } : {}),
     };
   }
   load(state: unknown): void {
@@ -163,7 +187,10 @@ export class LineageStore implements StateStore {
       lands?: Partners[];
       traits?: KindTraits[];
       isolates?: Isolate[];
+      races?: Race[];
     };
+    this.races.clear();
+    for (const r of s.races ?? []) this.races.set(r.prey, { ...r });
     this.traits.clear();
     for (const k of s.traits ?? [])
       this.traits.set(k.kind, { ...k, z: [...k.z], from: [...k.from] });
@@ -608,6 +635,58 @@ function selectionYear(ctx: PopulationContext, store: LineageStore, year: number
     }
     for (let i = 0; i < 3; i++)
       rec.z[i] = milli(selected(rec.z[i]! / 1000, asked.now[i]!, gens, i));
+    // A hunter and its prey select each other (rules/heredity.ts raceStep): this kind, a land's great herd, and the hunting
+    // kind that lives on the most of its lands.
+    if (s.level === 2) {
+      let hunter = -1,
+        shared = 0;
+      for (const o of g.life.species) {
+        if (o.level < 3 || o.died !== null || !o.body) continue;
+        let n = 0;
+        for (const c of lands) if (lives(g.life, c, o.index)) n++;
+        if (n > shared) {
+          shared = n;
+          hunter = o.index;
+        }
+      }
+      if (hunter >= 0) {
+        let race = store.races.get(kind);
+        if (!race) store.races.set(kind, (race = { prey: kind, hunter, y: 0, told: 0 }));
+        race.hunter = hunter;
+        const o = g.life.species[hunter]!,
+          next = raceFrom(
+            rec.z[2]! / 1000,
+            race.y / 1000,
+            gens,
+            LINEAGE_STEP / generationYears(o.size),
+            // (How much of the prey's dying this hunter is: the share of its lands the hunter lives on.)
+            shared / lands.length,
+          );
+        // (The hunter answers what its prey has become; the prey, what its hunter has become since it was made.)
+        rec.z[2] = milli(next.x);
+        race.y = milli(next.y);
+        if (!race.told && Math.abs(next.y) >= HEREDITY.raceTold) {
+          race.told = 1;
+          const by = asked.most >= 0 ? ctx.provinces.get(asked.most) : undefined;
+          world.events.emit({
+            type: LINEAGE_EVENTS.race.type,
+            subjects: [o.ref as Ref, s.ref as Ref],
+            place: (by?.ref ?? cellRef(0, lands[0]!)) as Ref,
+            causes: [
+              { ref: s.ref as Ref, role: "trigger", weight: 1 },
+              ...(by ? [{ ref: by.ref, role: "agent" as const, weight: 0.6 }] : []),
+            ],
+            data: {
+              hunter: o.name,
+              prey: s.name,
+              wary: Math.round(next.x * 10) / 10,
+              keen: Math.round(next.y * 100) / 100,
+              lands: shared,
+            },
+          });
+        }
+      }
+    }
     // Told once a trait has gone a spread, each way once.
     for (let i = 0; i < 3; i++) {
       const moved = (rec.z[i]! - rec.from[i]!) / 1000,
