@@ -36,6 +36,14 @@ export function lockedLight(mu: number): number {
   return Math.max(0, mu) / LOCKED.mean;
 }
 
+/**
+ * Where the star stands in the sky of a place on a locked world, as the share of a turning world's day at which its sun stands
+ * as high (0.25: at the sky's edge, 0.5: overhead; under 0.25 it is night): it never moves from there.
+ */
+export function lockedDay(mu: number): number {
+  return 0.25 + dmath.asin(dmath.clamp(mu, -1, 1)) / (2 * Math.PI);
+}
+
 /** How much of its usual rain falls at a place on a locked world: the air rises under the star, and the dark side is dry. */
 export function lockedRising(mu: number): number {
   const up = Math.max(0, mu);

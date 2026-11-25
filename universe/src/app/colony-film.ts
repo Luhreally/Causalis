@@ -348,7 +348,7 @@ export function installColonyFilm(d: ColonyFilmDeps): ColonyFilm {
         // (The world its first ship found, not what its people have made of it since.)
         if (look.remaking) showRemade(look, look.remade ?? 0);
         village.colony.landed();
-        stage.daylight(colonyHour(look, 0));
+        stage.daylight(colonyHour(look, 0), true);
         // What the town's first view is, for the film to end at.
         const y = (rig.yaw * Math.PI) / 180,
           p = (rig.pitch * Math.PI) / 180,

@@ -10,6 +10,7 @@ import "./bar.css";
 import "./brushes.css";
 import "./tour.css";
 import "./can.css";
+import { lockedDay } from "../view/index.ts";
 import "./years.css";
 import "./told.css";
 import "./memory.css";
@@ -2511,6 +2512,10 @@ async function runPlanetPage(): Promise<void> {
       // The phone's budgets are measured by these (npm run gate:7).
       performance.measure("region.build", { start: t0 });
       regionPanel.show(meta.center, meta.lat, meta.lon, meta.size * meta.tileKm);
+      // (A world locked to its star: its sun stands still over this land, as high as the star stands there.)
+      stage.held = planetPanel.locked
+        ? lockedDay(Math.cos((meta.lat * Math.PI) / 180) * Math.sin((meta.lon * Math.PI) / 180))
+        : null;
       region.setVillages(villages);
       region.plantTrees(regionTrees(frame, stage.quality.regionTrees), ...landFloraOf(frame));
       if (landPlan) region.setTowns(landPlan, landPlan.t);
@@ -7653,7 +7658,7 @@ async function runPlanetPage(): Promise<void> {
     if (plan?.colony) {
       stage.colonySky(colonySky(plan.colony));
       colonyFrom = now();
-      stage.daylight(colonyHour(plan.colony, 0));
+      stage.daylight(colonyHour(plan.colony, 0), true);
       // (Its skyline against its sky, what hangs there behind it; or its star's light from the side.)
       const way = village.colony.hanging ?? stage.starWay;
       rig.halt();
@@ -10031,6 +10036,7 @@ async function runPlanetPage(): Promise<void> {
           homeOpen()
           ? 0.45
           : (seen % DAY) / DAY,
+      !!plan.colony || homeOpen(),
     );
     // Those at their ease go in out of a downpour (Phase 30), and come out when it is over; and all
     // of the town while a battle is fought before it, but for those come out to watch (Phase 55 M227).

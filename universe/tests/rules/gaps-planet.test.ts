@@ -22,6 +22,7 @@ import {
   ozoneColumn,
   ozoneStripped,
   lockedRising,
+  lockedDay,
   lockedWarmth,
   maimedLiving,
   ringOf,
@@ -64,6 +65,10 @@ test("a world locked to its star has a day side and a night side", () => {
   // Thick air carries more of the warmth round; the rain falls under the star.
   assert.ok(lockedWarmth(1, 4) < lockedWarmth(1, 1) && LOCKED.contrast === 50);
   assert.ok(lockedRising(1) === 1 && lockedRising(-0.5) === 0);
+  // Its sun stands still: overhead under the star (a turning world's noon), at the sky's edge on the line, night past it.
+  assert.equal(lockedDay(1), 0.5);
+  assert.equal(lockedDay(0), 0.25);
+  assert.ok(lockedDay(-0.5) < 0.25);
 });
 
 test("a world's air is lost to its star's wind where no field holds it off", () => {

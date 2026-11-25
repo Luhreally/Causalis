@@ -202,7 +202,9 @@ export function worldBreadthBlock(world: World): Block {
     if (b.ring)
       rows.push(
         stat(
-          `The ring of ${b.designation}`,
+          b.kind === "home"
+            ? "Its own ring, a band across its sky"
+            : `The ring of ${b.designation}`,
           `of ${b.ring.ice ? "ice" : "rock and dust"}, out to ${b.ring.outer.toFixed(1)} of its radii: a moon that came to ${b.ring.at.toFixed(1)}, inside where its tide tears one apart`,
         ),
       );
