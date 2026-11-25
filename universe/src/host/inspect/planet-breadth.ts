@@ -179,7 +179,7 @@ export function worldBreadthBlock(world: World): Block {
     stat(
       "Its air against its star's wind",
       kept.kept < 1
-        ? `${pct(1 - kept.kept)} of the air it was made with is gone, ${pct(kept.loss)} of it a billion years: its field keeps off ${pct(homeField(fine).shelter)} of a wind ${homeField(fine).wind.toFixed(1)} times the Sun's at Earth. What it burns fills a thinner air the faster, and more of the sky's particles reach its ground`
+        ? `${pct(1 - kept.kept)} of the air it was made with is gone, ${pct(kept.loss)} of it a billion years: its field keeps off ${pct(homeField(fine).shelter)} of a wind ${homeField(fine).wind.toFixed(1)} times the Sun's at Earth. What it burns fills a thinner air the faster`
         : `kept: it loses ${(100 * kept.loss).toFixed(2)}% a billion years, its field keeping off ${pct(homeField(fine).shelter)} of its star's wind`,
     ),
   );

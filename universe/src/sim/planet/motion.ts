@@ -401,9 +401,9 @@ export function homeSky(world: World): number {
     field = homeField(g),
     flare = starHazard(world, g.star.ref as Ref).factor,
     store = motionOf(world);
-  // (What its air stops of the sky's particles goes with what is left of its air: rules/skies.ts.)
-  let k =
-    (1 + DOSE_DEATHS * (field.dose / homeAirKept(g).kept - 1)) * flareThrough(flare, field.shelter);
+  // (Its people rose under its sky as it is: the air its star's wind has taken, homeAirKept, lets no more through here. Laid on
+  // their deaths, a world left a fifteenth of its air had 2.4 times the deaths for good: alien 84's half million were 26 in 150 years.)
+  let k = (1 + DOSE_DEATHS * (field.dose - 1)) * flareThrough(flare, field.shelter);
   if (store?.ends.length) {
     const year = yearOfMoment(world.now);
     for (const e of store.ends)
