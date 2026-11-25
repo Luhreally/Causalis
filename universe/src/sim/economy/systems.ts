@@ -908,19 +908,27 @@ function trade(
       ),
       dealt = (1 - SIGNAL.tradeCost * linked) * (firm ? 1 - FIRM_SAVING : 1);
     if (firm) markets.firms++;
+    // (What each end's realm lays on goods from abroad, what its underwriters let its traders risk at sea, and its number: read
+    // once an edge, not once a good, each as it was asked of the good's buyer or seller.)
+    const dutyA = apart ? dutyOf(ctx.world, ta!) : 0,
+      dutyB = apart ? dutyOf(ctx.world, tb!) : 0,
+      insuredA = e.sea && ta ? insuredGainOf(ctx.world, ta) : 0,
+      insuredB = e.sea && tb ? insuredGainOf(ctx.world, tb) : 0,
+      numberA = apart ? refNumber(ta!) : 0,
+      numberB = apart ? refNumber(tb!) : 0;
     for (let g = 0; g < GOOD_COUNT; g++) {
       const [s, d] = ma.price[g]! <= mb.price[g]! ? [ma, mb] : [mb, ma],
-        buyer = s === ma ? tb : ta,
-        seller = s === ma ? ta : tb,
-        duty = apart && buyer ? dutyOf(ctx.world, buyer) : 0,
-        cartel = apart && seller ? cartels.get(g) : undefined,
-        asked = cartel && cartel.members.has(refNumber(seller!)) ? cartel.markup * s.price[g]! : 0,
+        fromA = s === ma,
+        duty = fromA ? dutyB : dutyA,
+        cartel = apart ? cartels.get(g) : undefined,
+        asked =
+          cartel && cartel.members.has(fromA ? numberA : numberB) ? cartel.markup * s.price[g]! : 0,
         margin =
           d.price[g]! * (1 - duty - changed) -
           s.price[g]! -
           asked -
           e.cost * dealt * bulkAt(s, g, oxidants),
-        insured = e.sea && seller ? insuredGainOf(ctx.world, seller) : 0;
+        insured = fromA ? insuredA : insuredB;
       if (margin <= 0) continue;
       const people = ctx.provinces.get(s.cell)!.total(),
         keep = GOODS[g]!.food
