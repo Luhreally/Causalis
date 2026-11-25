@@ -917,8 +917,10 @@ function trade(
       numberA = apart ? refNumber(ta!) : 0,
       numberB = apart ? refNumber(tb!) : 0;
     for (let g = 0; g < GOOD_COUNT; g++) {
-      const [s, d] = ma.price[g]! <= mb.price[g]! ? [ma, mb] : [mb, ma],
-        fromA = s === ma,
+      // (The cheaper end sells: chosen without making a pair of them for every good of every edge.)
+      const fromA = ma.price[g]! <= mb.price[g]!,
+        s = fromA ? ma : mb,
+        d = fromA ? mb : ma,
         duty = fromA ? dutyB : dutyA,
         cartel = apart ? cartels.get(g) : undefined,
         asked =

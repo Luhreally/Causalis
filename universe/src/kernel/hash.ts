@@ -185,7 +185,17 @@ export class Hasher {
             else this.value(v[j++]);
           return this;
         }
-        const shape = shapeOf(Object.keys(v)),
+        const came = Object.keys(v);
+        // (An object used as a map by id: its keys sorted and each absorbed as string() absorbs it, which is the words its
+        // spelling would be, without spelling them out: they are never asked for twice.)
+        if (came.length && byId(came[0]!)) {
+          came.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+          this.word(5).int(came.length);
+          for (let k = 0; k < came.length; k++)
+            this.string(came[k]!).value((v as Record<string, unknown>)[came[k]!]);
+          return this;
+        }
+        const shape = shapeOf(came),
           keys = shape.sorted,
           words = shape.words;
         this.word(5).int(keys.length);
