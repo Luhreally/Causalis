@@ -512,7 +512,9 @@ export function placeNotices(world: World, place: Place): PlaceNotice[] {
       `fire${place.fire[1]}`,
       "🔥",
       3,
-      `Fire at ${lotWords(place, fire)}: ${brigade} of its grown have turned out to fight it`,
+      brigade > 0
+        ? `Fire at ${lotWords(place, fire)}: ${brigade} of its grown ${brigade === 1 ? "has" : "have"} turned out to fight it`
+        : `Fire at ${lotWords(place, fire)}: none has yet turned out to fight it`,
       HAP.homeless,
       {
         n: brigade,
@@ -759,6 +761,8 @@ export function placeFrame(world: World, town: string, ids: readonly number[]): 
     carries.push(p.carry[i]! > 0);
     why.push(whyWords(world, place, i));
   }
+  // (What it holds at the day's turn, for the Stocks sheet's lines.)
+  stockDay(place);
   return {
     town,
     t: place.t,
@@ -799,12 +803,20 @@ export function peopleSheet(
     who = placeWho(world, place),
     trades = new Array<number>(OCCUPATIONS.length).fill(0),
     order: number[] = [],
-    worst = (i: number) => Math.max(p.needs[i * 4]!, p.needs[i * 4 + 1]!, p.needs[i * 4 + 2]!);
+    young = (i: number) => (place.t / DAY - p.born[i]!) / 365 < grown;
+  let children = 0;
   for (let i = 0; i < p.n; i++) {
-    trades[p.sexOcc[i]! & 15]!++;
-    if (occ === null || (p.sexOcc[i]! & 15) === occ) order.push(i);
+    const o = p.sexOcc[i]! & 15;
+    trades[o]!++;
+    if (o === OCC.dependent && young(i)) children++;
+    // (Those of no trade told apart: the young (PEOPLE_YOUNG) and the grown who keep none, most of them old (PEOPLE_OLD).)
+    const of = o === OCC.dependent ? (young(i) ? PEOPLE_YOUNG : PEOPLE_OLD) : o;
+    if (occ === null || o === occ || of === occ) order.push(i);
   }
-  order.sort((a, b) => p.lack[b]! - p.lack[a]! || worst(b) - worst(a) || p.id[a]! - p.id[b]!);
+  // Who wants the manager's eye first: by what is wrong with them, then how long, then how near a need is to full.
+  const attention = order.map((i) => attentionOf(place, i)),
+    at = new Map(order.map((i, k) => [i, attention[k]!]));
+  order.sort((a, b) => at.get(b)!.score - at.get(a)!.score || p.id[a]! - p.id[b]!);
   const posts: { lot: number; name: string }[] = [];
   for (let b = 1; b < place.bldgs.lot.length; b++)
     if (!place.bldgs.site[b])
@@ -814,6 +826,7 @@ export function peopleSheet(
       });
   return {
     trades,
+    children,
     all: order.length,
     posts,
     homes: placeHomes(world, place, 6),
@@ -831,6 +844,8 @@ export function peopleSheet(
         worst: top,
         lack: Math.floor(p.lack[i]! / 144),
         mood: p.mood[i]!,
+        attention: at.get(i)!.words,
+        level: at.get(i)!.level,
         health: p.health[i]!,
         bound:
           p.bound[i] === BOUND_ARMS
@@ -847,6 +862,85 @@ export function peopleSheet(
       };
     }),
   };
+}
+
+/** The People sheet's narrowing to its young of no trade, and to its grown of no trade (most of them old). */
+export const PEOPLE_YOUNG = 100,
+  PEOPLE_OLD = 101;
+/**
+ * How much one of a place's people wants the manager's eye, said: in want (its days), abed, too low in mood to heed an
+ * order, a need near its full; else at ease. Its level is the alert column's (3 grave, 2 to see to, 1 worth knowing, 0
+ * none), and its score orders the People sheet.
+ */
+export function attentionOf(
+  place: Place,
+  i: number,
+): { score: number; level: number; words: string } {
+  const p = place.people,
+    lack = Math.floor(p.lack[i]! / 144),
+    needs = [0, 1, 2, 3].map((q) => p.needs[i * 4 + q]! / 65535),
+    top = needs.slice(0, 3).reduce((b, x, q) => (x > needs[b]! ? q : b), 0),
+    full = needs[top]!,
+    mood = p.mood[i]!,
+    NEED = ["hungry", "worn out", "cold"];
+  const level =
+      lack > 0 || p.health[i] === 1 || p.health[i] === 2
+        ? 3
+        : mood < MOOD_UNHEEDING || full >= 0.9
+          ? 2
+          : full >= 0.75 || mood < -15
+            ? 1
+            : 0,
+    words =
+      lack > 0
+        ? `${lack} ${lack === 1 ? "day" : "days"} in want`
+        : p.health[i] === 2
+          ? "sick, abed"
+          : p.health[i] === 1
+            ? "hurt, abed"
+            : mood < MOOD_UNHEEDING
+              ? "too low to heed an order"
+              : full >= 0.9
+                ? `very ${NEED[top]}`
+                : full >= 0.75
+                  ? `${NEED[top]}`
+                  : p.health[i] === 3
+                    ? "up, a wound bound"
+                    : mood < -15
+                      ? "low in mood"
+                      : "at ease";
+  return {
+    score: level * 1e6 + lack * 1e3 + Math.round(full * 500) + Math.max(0, -mood),
+    level,
+    words,
+  };
+}
+
+/** A place's stores now, good by good (units): its buildings', its pantries' and what is carried. */
+function heldOf(place: Place): number[] {
+  const { bldgs, houses, people: p } = place,
+    out = new Array<number>(GOODS.length).fill(0);
+  for (let b = 0; b < bldgs.lot.length; b++)
+    for (let g = 0; g < GOODS.length; g++) out[g]! += bldgs.stock[b * GOODS.length + g]!;
+  for (let h = 0; h < houses.n; h++)
+    for (let k = 0; k < FOODS.length; k++) out[FOODS[k]!]! += houses.pantry[h * FOODS.length + k]!;
+  for (let i = 0; i < p.n; i++) if (p.carry[i]! > 0) out[p.carryGood[i]!]! += p.carry[i]!;
+  return out.map((x) => x / MICRO);
+}
+/**
+ * What a place held of each good at each day's turn while it was looked at, the last thirty days (the Stocks sheet's
+ * lines): read off it as its frames are asked, kept beside it for as long as the page is, and in no save or hash.
+ */
+const STOCK_DAYS = 30;
+const HELD_DAYS = new WeakMap<Place, { day: number; held: number[][] }>();
+export function stockDay(place: Place): void {
+  const day = Math.floor(place.t / DAY),
+    was = HELD_DAYS.get(place);
+  if (was && was.day === day) return;
+  const held = was && day - was.day < STOCK_DAYS ? was.held : [];
+  held.push(heldOf(place));
+  if (held.length > STOCK_DAYS) held.splice(0, held.length - STOCK_DAYS);
+  HELD_DAYS.set(place, { day, held });
 }
 
 /** What each good is made of in a place's land, as its making chain names it (null: it is what it is). */
@@ -902,6 +996,9 @@ export function stocksSheet(world: World, place: Place): PlaceStocksSheet {
       !orders?.forbidden.includes(g)
     )
       continue;
+    // (How long it lasts at the rate it is used today, the day's share gone; food by its mouths, a unit a month each.)
+    const gone = Math.max(1 / 24, (((place.t % DAY) + DAY) % DAY) / DAY),
+      perDay = used / gone;
     rows.push({
       good: g,
       name: GOODS[g]!.name,
@@ -913,6 +1010,9 @@ export function stocksSheet(world: World, place: Place): PlaceStocksSheet {
       came: place.cameDay[g]! / MICRO,
       where,
       forbidden: !!orders?.forbidden.includes(g),
+      unit: GOODS[g]!.food ? "months' food" : "units",
+      days: perDay > 0 ? held / perDay : null,
+      trend: (HELD_DAYS.get(place)?.held ?? []).map((d) => d[g] ?? 0),
     });
   }
   // (A unit of food is one person's for a month.)
@@ -1283,6 +1383,8 @@ export function dangersSheet(world: World, place: Place): PlaceDangersSheet {
             ? `${arms} of its grown stand in the square in their working hours.`
             : `${armsWanted(hands)} of its grown would stand in the square in their working hours.`,
           cost: cost(1),
+          gain: `+${pctOf(ASK_PULL.glad * share)}% defenders`,
+          price: `${pctOf(ASK_PULL.glad)}% of hands`,
         };
       const most = r?.most ?? 0;
       return {
@@ -1307,6 +1409,13 @@ export function dangersSheet(world: World, place: Place): PlaceDangersSheet {
               ? "Households with sickness in them keep from the square."
               : "Its households, each putting by from what it brings in.",
         cost: cost(r?.asks ?? 0),
+        gain:
+          what === "firebreaks"
+            ? `−${pctOf(most)}% homes burnt`
+            : what === "quarantine"
+              ? `−${pctOf(most)}% sicken`
+              : `+${Math.round(most * share * 30)} days' food kept`,
+        price: `${pctOf((r?.asks ?? 0) * ASK_PULL.glad)}% of hands`,
       };
     });
   return {
@@ -1389,6 +1498,10 @@ export function logSheet(world: World, place: Place, most = 160): PlaceLogSheet 
         one = i === undefined ? null : who(i);
       rows.push({
         t: x.t,
+        what: x.what,
+        name: one ? one.name : (gone(x.id) ?? "One of the town"),
+        told: hapTold(place, x, named),
+        many: hapMany(place, x.what, HAP_GRAVE.has(x.what) ? x.a & 255 : 0),
         words: `${one ? one.name : (gone(x.id) ?? "One of the town")} ${hapTold(place, x, named)}`,
         // (One gone leads to what took them, where a page tells of it: the battle, the sickness.)
         ref: one ? one.ref : (hapRef(place, x) ?? placePersonRef(place.town, x.id)),
@@ -1398,12 +1511,20 @@ export function logSheet(world: World, place: Place, most = 160): PlaceLogSheet 
     for (const [of, n] of more)
       rows.push({
         t: d * DAY,
+        what: Math.floor(of / 256),
+        name: "",
+        told: "",
+        many: "",
         words: `and ${n} more ${hapMany(place, Math.floor(of / 256), HAP_GRAVE.has(Math.floor(of / 256)) ? of % 256 : 0)}`,
         ref: null,
         day,
       });
   }
-  return { rows };
+  // (The town's bookkeeping, the Log's alone: its doings by its orders that its land has yet to be told.)
+  return {
+    rows,
+    unsettled: ordersOf(world, place.town) ? place.moves.length / 4 + place.dead.length / 3 : 0,
+  };
 }
 
 /**

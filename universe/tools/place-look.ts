@@ -296,6 +296,11 @@ for (const view of [
     );
   });
   await page.waitForTimeout(slow(1800));
+  // (The ways to run it are asked on entering: by hand, as before.)
+  if ((await shownCount(".place-mode-choice")) > 0) {
+    await press('.place-mode-choice[data-mode="hand"]', "✋ Run it");
+    await page.waitForTimeout(slow(600));
+  }
   const first = await state(),
     placed = await k<number>("globalThis.causalis.planNow().people.length");
   check(
@@ -434,13 +439,16 @@ for (const view of [
   // Orders from it: food held back, a good forbidden.
   await press(".place-step:last-of-type", "hold back a month more");
   await until("the granary holding back a month", async () =>
-    /holds back 1 month/.test(await sheetText()),
+    /households:\s*−\s*1 month/.test(await sheetText()),
   );
-  await press(".place-sell", "a good's Sold key");
-  await until("a good held from sale", async () => (await shownCount(".place-sell.on")) > 0);
+  await press(".place-stock-table .place-switch", "a good's Market may buy key");
+  await until(
+    "a good held from sale",
+    async () => (await shownCount(".place-stock-table .place-switch:not(.on)")) > 0,
+  );
 
   await press('.place-tab[data-tab="work"]', "the Work tab");
-  await until("the Work sheet", async () => /grown hands/.test(await sheetText()));
+  await until("the Work sheet", async () => /hands at trades/.test(await sheetText()));
   const before = await sheetText();
   // (More hands to crafts, twice, and the order given.)
   for (let n = 0; n < 4; n++)
@@ -451,7 +459,7 @@ for (const view of [
   await shot("6-sheet-work");
   await read("the Work sheet open, an order being set");
   await press(".place-order", "Give the order");
-  await until("the order taken", async () => /Ordered/.test(await sheetText()));
+  await until("the order taken", async () => /Applied/.test(await sheetText()));
   await press('.place-pace[data-pace="600"]', "the ten-minutes-a-second pace");
   await until(
     "its hands moved",
@@ -656,13 +664,13 @@ for (const view of [
   await shot("7i-sheet-dangers");
   await read("the Dangers sheet open");
   await k(
-    `document.querySelector(".place-sheet-body .place-sell").scrollIntoView({ block: "center" })`,
+    `document.querySelector(".place-response-row .place-switch").scrollIntoView({ block: "center" })`,
   );
   await page.waitForTimeout(slow(300));
-  await press(".place-sheet-body .place-sell", "Keep a fire watch");
+  await press(".place-response-row .place-switch", "Keep a fire watch");
   await until(
     "the fire watch kept",
-    async () => (await shownCount(".place-sheet-body .place-sell.on")) > 0,
+    async () => (await shownCount(".place-response-row .place-switch.on")) > 0,
   );
   await shot("7i2-dangers-order-kept");
   await read("an order against a threat kept");
@@ -834,16 +842,16 @@ for (const view of [
   }
   // A building's work stopped, from the Work sheet, where the town has a building worked in.
   await press('.place-tab[data-tab="work"]', "the Work tab");
-  await until("the Work sheet again", async () => /grown hands/.test(await sheetText()));
-  if ((await shownCount(".place-sheet-body .place-sell")) > 0) {
+  await until("the Work sheet again", async () => /hands at trades/.test(await sheetText()));
+  if ((await shownCount(".place-sheet-body .place-line > .place-switch")) > 0) {
     await k(
-      `document.querySelector(".place-sheet-body .place-sell").scrollIntoView({ block: "center" })`,
+      `document.querySelector(".place-sheet-body .place-line > .place-switch").scrollIntoView({ block: "center" })`,
     );
     await page.waitForTimeout(slow(300));
-    await press(".place-sheet-body .place-sell", "a building's Going key");
+    await press(".place-sheet-body .place-line > .place-switch", "a building's Working key");
     await until(
       "its work stopped",
-      async () => (await shownCount(".place-sheet-body .place-sell.on")) > 0,
+      async () => (await shownCount(".place-sheet-body .place-line > .place-switch:not(.on)")) > 0,
     );
     await shot("7d-building-stopped");
     await read("a building's work stopped");

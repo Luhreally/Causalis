@@ -135,6 +135,9 @@ export type PlacePersonRow = {
   readonly worst: number;
   /** Days they have gone in want. */
   readonly lack: number;
+  /** What wants the manager's eye in them, said ("3 days in want", "at ease"), and how much (0 none … 3 grave). */
+  readonly attention: string;
+  readonly level: number;
   /** Their mood, -100 … 100; how they are (0 well, 1 hurt, 2 sick, 3 up again with a wound bound); the trade an order holds them to (null: none). */
   readonly mood: number;
   readonly health: number;
@@ -150,6 +153,8 @@ export type PlacePersonRow = {
 export type PlacePeopleSheet = {
   /** How many of each trade (the world's occupation columns), and the rows asked for: the most pressed first. */
   readonly trades: readonly number[];
+  /** Of those of no trade, how many are young (the rest are grown and keep none, most of them old). */
+  readonly children: number;
   readonly rows: readonly PlacePersonRow[];
   readonly all: number;
   /** The buildings one can be put at by name, and the homes with most room a household can be given. */
@@ -177,6 +182,11 @@ export type PlaceStockRow = {
   }[];
   /** Whether its market will not let it go. */
   readonly forbidden: boolean;
+  /** What a unit of it is ("months' food": one person's for a month), and how many days it lasts at today's use (null: none used). */
+  readonly unit: string;
+  readonly days: number | null;
+  /** What the place held of it at each day's turn while it was looked at, the last thirty, the oldest first. */
+  readonly trend: readonly number[];
 };
 export type PlaceStocksSheet = {
   readonly rows: readonly PlaceStockRow[];
@@ -263,8 +273,16 @@ export type PlaceSiteRow = {
  * a few of a kind and counts the others.
  */
 export type PlaceLogSheet = {
+  /** Its doings by its orders its land has yet to be told (told at the month's turn, or on leaving). */
+  readonly unsettled: number;
   readonly rows: readonly {
     readonly t: number;
+    /** What kind of happening (host/place.ts HAP), whom it was of by name, and what befell them said after it. */
+    readonly what: number;
+    readonly name: string;
+    readonly told: string;
+    /** What many of the kind did, said ("were hurt"), for a line of several. */
+    readonly many: string;
     readonly words: string;
     readonly ref: string | null;
     readonly day: string;
@@ -305,5 +323,8 @@ export type PlaceDangersSheet = {
     readonly does: string;
     readonly who: string;
     readonly cost: string;
+    /** What it gains, and what it takes, in a few words each. */
+    readonly gain: string;
+    readonly price: string;
   }[];
 };

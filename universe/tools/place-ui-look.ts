@@ -238,9 +238,6 @@ for (const view of [
   const air = await text(".place-air");
   check(/-?\d+°/.test(air), `the bar's warmth and weather: "${air}"`);
   await look("03-hand", "the town run by hand");
-  const px = await k<number>("globalThis.causalis.place.figurePx()");
-  say(`its people stand ${px.toFixed(1)} px tall on entering (the middle of those drawn)`);
-  check(px >= 24, `its people are a finger's breadth tall on entering (${px.toFixed(1)} px)`);
 
   // A day a second: how far its clock goes in four seconds of the page's.
   await press('.place-pace[data-pace="86400"]', "the day-a-second pace");
@@ -271,6 +268,28 @@ for (const view of [
   );
   check((await shown(".place-alert")) > 0, "the alert column is shown");
   await look("04-alerts-fire", "the alerts, a fire among them");
+  // (Entered at midnight all are within: the eye as it is put on entering, by day, where most of them are out of doors.)
+  await k("globalThis.causalis.place.reframe()");
+  await page.waitForTimeout(1800);
+  const px = await k<number>("globalThis.causalis.place.figurePx()");
+  say(`its people stand ${px.toFixed(1)} px tall as the eye is put on entering, by day`);
+  check(px >= 24, `its people are a finger's breadth tall on entering (${px.toFixed(1)} px)`);
+  await look("03b-entry-by-day", "the eye as put on entering, by day");
+  // What the mode's chrome costs a frame of the page: four seconds at ten minutes a second, one of its people chosen.
+  {
+    const one = await k<string | null>("globalThis.causalis.planNow()?.people[0]?.ref ?? null");
+    if (one) await k(`globalThis.causalis.place.inspect(${JSON.stringify(one)})`);
+    await press('.place-pace[data-pace="600"]', "the ten-minutes-a-second pace");
+    await k("globalThis.causalis.place.uiCost()");
+    await page.waitForTimeout(4000);
+    const c = await k<{ ms: number; frames: number }>("globalThis.causalis.place.uiCost()");
+    await press('.place-pace[data-pace="0"]', "the pause");
+    await k("globalThis.causalis.place.inspect(null)");
+    say(
+      `the mode's chrome: ${(c.ms / Math.max(1, c.frames)).toFixed(3)} ms a frame over ${c.frames} frames (its alerts, clock, sky, ring and name)`,
+    );
+    check(c.frames > 0 && c.ms / c.frames < 0.3, "the mode's chrome costs a frame under 0.3 ms");
+  }
   await press(".place-alert", "the gravest alert");
   await page.waitForTimeout(1300);
   await look("05-alert-tapped", "an alert tapped: the eye gone there");
@@ -294,9 +313,20 @@ for (const view of [
   if (seen) {
     await tap(seen.x, seen.y);
     await until("their inspector", async () => /^plc/.test((await inspected()).ref ?? ""));
-    await page.waitForTimeout(1200);
+    const asked = Date.now();
+    await until(
+      "the inspector names them",
+      async () => !/^…?$/.test(await text(".place-insp-name")),
+      8000,
+    );
+    say(`the inspector told who they are in ${Date.now() - asked} ms`);
+    await page.waitForTimeout(600);
     const ins = await inspected();
     say(`inspected: ${JSON.stringify(ins)}`);
+    check(
+      !/^…?$/.test(await text(".place-insp-name")),
+      `the inspector names them ("${await text(".place-insp-name")}")`,
+    );
     check(ins.chosen !== null, "the one tapped is chosen");
     check(
       (await shown(".place-ring")) === 1 && (await shown(".place-tag")) === 1,
@@ -325,8 +355,9 @@ for (const view of [
     await look("16-insp-prose", "the inspector's words behind ⓘ");
     await press(".place-insp-info", "ⓘ again");
     await press(".place-insp-tab:nth-child(1)", "the inspector's first tab");
+    // (At half the screen, where its orders show.)
     if (phone) {
-      await press(".place-insp-handle", "the inspector's handle, to a peek");
+      await k('globalThis.causalis.place.inspectHeight("half")');
       await page.waitForTimeout(400);
     }
     await press(".place-insp-order", "the inspector's Orders");

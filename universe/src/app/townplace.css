@@ -242,8 +242,9 @@ body.placing > .sound-button {
   display: none;
 }
 /* The menu: under the bar at the right, in the alerts' place while it is open. */
+/* Under the paces' pill on a phone (in the bar on a desk, so under the bar there). */
 .place-menu {
-  top: calc(var(--place-top) + 60px);
+  top: calc(var(--place-top) + 116px);
   left: auto;
   width: 250px;
   display: flex;
@@ -257,6 +258,7 @@ body.placing > .sound-button {
 }
 .place-hud.menu-open .place-alerts,
 .place-hud.menu-open .place-notice,
+.place-hud.menu-open .place-insp,
 .place-hud.choosing .place-pill,
 .place-hud.choosing .place-notice,
 .place-hud.choosing .place-alerts {
@@ -470,7 +472,7 @@ body.placing > .sound-button {
   padding: 4px;
 }
 .place-modes-words {
-  flex: 0 0 100%;
+  flex: 0 0 calc(100% - 12px);
   margin: 4px 6px 2px;
   font-size: 13px;
 }
@@ -606,6 +608,7 @@ body.placing .page-window {
     display: none !important;
   }
   .place-menu {
+    top: calc(var(--place-top) + 60px);
     width: 270px;
   }
   .place-modes {
@@ -752,7 +755,7 @@ body.placing .page-window {
   left: var(--place-l);
   right: var(--place-r);
   bottom: calc(var(--place-b) + 62px);
-  height: 138px;
+  height: 160px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -780,7 +783,7 @@ body.placing .page-window {
   max-height: 32vh;
 }
 .place-hud.insp-open.sheet-open .place-insp {
-  height: 138px;
+  height: 160px;
   top: auto;
   right: var(--place-r);
   bottom: calc(var(--place-b) + 62px + 32vh + 6px);
@@ -790,8 +793,8 @@ body.placing .page-window {
 }
 .place-hud .place-insp-handle {
   flex: 0 0 auto;
-  min-height: 22px;
-  height: 22px;
+  min-height: 44px;
+  height: 44px;
   width: 100%;
   padding: 0;
   border: none;
@@ -804,7 +807,7 @@ body.placing .page-window {
   content: "";
   position: absolute;
   left: 50%;
-  top: 8px;
+  top: 9px;
   width: 44px;
   height: 5px;
   margin-left: -22px;
@@ -835,9 +838,16 @@ body.placing .page-window {
 .place-insp-name {
   margin: 0;
   font-size: 16px;
-  white-space: nowrap;
+  line-height: 1.15;
   overflow: hidden;
-  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+/* The whole screen the inspector's on a phone: the ring and name of whom it tells of, under it, are not shown through it. */
+.place-hud:has(.place-insp[data-height="full"]:not([hidden])) .place-marks {
+  display: none;
 }
 .place-insp-sub {
   margin: 2px 0 0;
@@ -1128,6 +1138,254 @@ h3.place-insp-sub {
   font-weight: 700;
   white-space: nowrap;
   transform-origin: 50% 100%;
+}
+/* The sheets (N4): people by what wants the eye, stocks and shares as tables, switches with what they gain and take. */
+.place-hud .place-person-row {
+  grid-template-rows: auto auto;
+  border-left: 4px solid transparent;
+}
+.place-hud .place-person-row.level3 {
+  border-left-color: #e0523a;
+}
+.place-hud .place-person-row.level2 {
+  border-left-color: #e6a52e;
+}
+.place-hud .place-person-row.level1 {
+  border-left-color: rgba(230, 200, 120, 0.55);
+}
+.place-person-row .place-row-name {
+  grid-column: 1;
+  grid-row: 1;
+}
+.place-attention {
+  grid-column: 2;
+  grid-row: 1;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+}
+.place-attention.level3 {
+  color: #b3261e;
+}
+.place-attention.level2 {
+  color: #8a5a00;
+}
+.place-attention.level0 {
+  font-weight: 400;
+  opacity: 0.7;
+}
+.place-person-row .place-row-what {
+  grid-column: 1;
+  grid-row: 2;
+}
+.place-mood-chip {
+  grid-column: 2;
+  grid-row: 2;
+  font-size: 12px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.place-hud .place-row-order {
+  padding: 0 8px;
+  font-size: 12px;
+}
+.place-table {
+  display: flex;
+  flex-direction: column;
+  margin: 4px 0;
+}
+.place-tr {
+  display: grid;
+  align-items: center;
+  column-gap: 6px;
+  padding: 2px 0;
+  border-bottom: 1px dotted rgba(190, 205, 255, 0.3);
+}
+.place-th {
+  font-size: 11px;
+  opacity: 0.8;
+  border-bottom: 1px solid rgba(190, 205, 255, 0.45);
+}
+.place-th > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.place-stock-table .place-tr {
+  grid-template-columns: minmax(0, 1fr) 62px 46px 58px 46px 62px;
+}
+.place-share-table .place-tr {
+  grid-template-columns: minmax(0, 1fr) 54px 64px 96px;
+}
+.place-not-table .place-tr {
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.6fr);
+  padding: 4px 0;
+}
+.place-not-table .place-row-what {
+  grid-row: auto;
+  grid-column: auto;
+}
+.place-hud .place-td-good {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  min-height: 44px;
+  justify-content: center;
+  padding: 2px 4px;
+  text-align: left;
+  white-space: normal;
+}
+span.place-td-good {
+  padding-left: 0;
+}
+.place-td-where {
+  font-size: 11px;
+  opacity: 0.85;
+  overflow-wrap: anywhere;
+}
+.place-num {
+  font-size: 13px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.place-num.short {
+  color: #ff8a75;
+  font-weight: 700;
+}
+.place-num.setting {
+  color: #8ff0b0;
+  font-weight: 700;
+}
+.place-unit {
+  font-size: 11px;
+  opacity: 0.75;
+}
+.place-today {
+  display: flex;
+  flex-direction: column;
+  font-size: 12px;
+}
+.place-today .up {
+  color: #8ff0b0;
+}
+.place-today .down {
+  color: #ffa08a;
+}
+.place-spark {
+  display: flex;
+  justify-content: center;
+  opacity: 0.9;
+}
+.place-spark svg polyline {
+  vector-effect: non-scaling-stroke;
+}
+.place-hud .place-switch {
+  min-width: 44px;
+  padding: 0 8px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.place-hud .place-switch.on {
+  background: linear-gradient(180deg, #a9f5cf, #55d39a);
+}
+.place-hold-n {
+  min-width: 64px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.place-td-keys {
+  display: flex;
+  gap: 4px;
+}
+.place-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 2px 0 6px;
+}
+.place-fact {
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 12px;
+}
+.place-fact.bad {
+  background: rgba(224, 82, 58, 0.35);
+}
+.place-response-row .place-line-words {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.place-response-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.place-gain,
+.place-price {
+  padding: 1px 7px;
+  border-radius: 9px;
+  font-size: 11px;
+}
+.place-gain {
+  background: rgba(85, 211, 154, 0.3);
+}
+.place-price {
+  background: rgba(230, 165, 46, 0.3);
+}
+.place-hud .place-info {
+  min-width: 44px;
+  padding: 0;
+}
+.place-hud .place-info.on {
+  background: linear-gradient(180deg, #d4e4ff, #9db8f0);
+}
+.place-log-entry {
+  padding: 3px 0;
+  border-bottom: 1px dotted rgba(190, 205, 255, 0.3);
+}
+.place-log-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.place-log-hour {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+.place-log-names {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 2px;
+  font-size: 13px;
+}
+.place-hud .place-log-names .place-link {
+  min-height: 44px;
+  padding: 0 6px;
+  background: none;
+  border: none;
+  box-shadow: none;
+  color: #9ee7ff;
+  text-decoration: underline;
+  font-weight: 700;
+}
+.place-log-told {
+  flex: 1 1 100%;
+  margin: -8px 0 0 6px;
+  opacity: 0.9;
+}
+.place-hud .place-bookkeeping {
+  margin: 0 0 6px;
+  font-style: italic;
+}
+.place-build-row .place-line-words {
+  display: flex;
+  flex-direction: column;
 }
 /* A page over the mode hides its inspector as it hides its sheet. */
 body.placing:has(.page-window:not([hidden])) .place-insp,

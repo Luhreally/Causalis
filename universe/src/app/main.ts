@@ -1114,6 +1114,8 @@ type Exposed = {
     inspect(ref: string | null): void;
     inspectHeight(h: "peek" | "half" | "full"): void;
     figurePx(): number;
+    reframe(): void;
+    uiCost(): { ms: number; frames: number };
   };
   faunaNow?: () => {
     name: string;
@@ -10886,6 +10888,8 @@ async function runPlanetPage(): Promise<void> {
     inspect: (ref: string | null) => placeFlow.inspect(ref),
     inspectHeight: (h: "peek" | "half" | "full") => placeFlow.inspectHeight(h),
     figurePx: () => placeFlow.figurePx(),
+    reframe: () => placeFlow.reframe(),
+    uiCost: () => placeFlow.uiCost(),
     peoples: () => village.peoplesDrawn(),
     personAt: (i: number) => (plan?.people[i] ? village.personAt(plan.people[i].ref) : null),
     state: () => ({
