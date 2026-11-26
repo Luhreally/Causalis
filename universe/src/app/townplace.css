@@ -1714,3 +1714,33 @@ body.placing:has(.page-window:not([hidden])) .place-tag {
   gap: 4px;
   flex: 0 0 auto;
 }
+
+/* Tiers: how closely one is followed, and the key to follow them in full. */
+.place-insp-tier {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 6px 0;
+  font-size: 13px;
+  color: #a9bbe2;
+}
+.place-insp-tier-words {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.place-insp-pin {
+  flex: 0 0 auto;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(158, 231, 255, 0.45);
+  background: rgba(20, 40, 84, 0.85);
+  color: #e8f1ff;
+  font: inherit;
+}
+.place-insp-pin.on {
+  background: linear-gradient(180deg, #3b6fc2, #234a8f);
+  border-color: rgba(242, 193, 78, 0.8);
+}

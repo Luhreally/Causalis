@@ -69,6 +69,7 @@ import {
   placeWorks,
   hapWords,
   WORK_QUALITY,
+  placeTier,
 } from "./place.ts";
 import {
   ailWords,
@@ -323,7 +324,12 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
         ? `Each need presses as its fullness cubed. A need is served when it presses harder than the next hour's work is worth to them (${Math.round(worth * 100)}% by day; less in the dark) and than rest is worth (${Math.round(IDLE_WORTH * 100)}%): the mark on each bar.`
         : `Each need presses as its fullness cubed. They keep no trade, so a need is served when it presses harder than rest is worth (${Math.round(IDLE_WORTH * 100)}%): the mark on each bar.`,
       ...(p.health[i] ? [careWords(place)] : []),
+      `Of a town's people, those that matter where the eye and the story are are followed in full, ten minutes at a time: those you follow, its healer and those who lead it and their households, and any caught up in a happening. Their households and friends are followed at the hour, the rest among the folk every three hours; each keeps all that they are, and is followed closer from their next turn.`,
     ],
+    tier: (() => {
+      const t = placeTier(place, i);
+      return { tier: t.tier, words: t.words, pinned: t.pinned !== null, soft: t.pinned !== null && t.pinned >= 0 };
+    })(),
   };
 }
 

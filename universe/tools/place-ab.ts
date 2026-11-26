@@ -5,8 +5,14 @@
 // column of its people, its households, buildings, stocks, sites and log: host/place.ts placeDigest) and a hash of its
 // log as told. The two must come to the same, byte for byte; it fails where they do not.
 //   node tools/place-ab.ts --save file.save --a <tree>/universe [--b <tree>/universe] [--people 5492] [--days 30]
-//     [--runs 1] [--mode managed|steward|watch]
+//     [--runs 1] [--mode managed|steward|watch] [--tell]
 // One tree alone (no --b) is run and said. Each run is a process of its own, so neither tree's code warms the other's.
+// The tiers measured (asked 2026-11-26: "compare one town all-full against the same town tiered"):
+//   node tools/place-ab.ts --save file.save --a <tree>/universe --tiers [--runs 4] [--days 30]
+// runs the town on one tree followed in tiers and followed all in full, from as many days as --runs (the town entered
+// on each of them, three days apart), and says the means and spread of what each came to: its food, its births and
+// deaths, its people, what it made, good by good; and the tiered less the full, day by day of entering, against the
+// spread of the full from one day to the next.
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -21,7 +27,7 @@ const argv = process.argv.slice(2),
 
 if (argv[0] === "--child") {
   // One run, in a process of its own: its tree's modules, its save.
-  const [, root, saveIn, want0, days0, mode] = argv as string[];
+  const [, root, saveIn, want0, days0, mode, tiers0, from0] = argv as string[];
   const at = (p: string) => import(pathToFileURL(root + p).href);
   const k = await at("/src/kernel/index.ts"),
     h = await at("/src/host/planet.ts"),
@@ -40,6 +46,11 @@ if (argv[0] === "--child") {
         Math.abs(b.population - want) < Math.abs(a.population - want) ? b : a,
       );
   w.runTo(w.submit("place.work", { town: town.ref, shares: [600, 100, 200, 100] }).t);
+  // (Entered so many days on, for the tiers' measure; and followed all in full where asked.)
+  if (Number(from0 ?? 0) > 0) w.runTo(w.now + Number(from0) * k.DAY);
+  if (tiers0 === "off") place.placeTiered?.(false);
+  // (Strides set otherwise: PLACE_STRIDES=light,folk.)
+  if (process.env.PLACE_STRIDES) place.placeStrides?.(...process.env.PLACE_STRIDES.split(",").map(Number));
   const t0 = performance.now(),
     p = place.enterPlace(w, town.ref),
     enter = performance.now() - t0;
@@ -51,7 +62,14 @@ if (argv[0] === "--child") {
     ms = 0,
     dayMs = 0,
     worst = 0;
+  // (What it made, good by good: its day's ledger, taken as each day turns.)
+  const made: number[] = new Array<number>(p.madeDay.length).fill(0);
+  let was: number[] = [...p.madeDay];
   for (let hr = 0; hr < days * 24; hr++) {
+    // (PLACE_PINS=1: one of its people looked at each hour, for two, as a player tapping about the town would: raised
+    // into full at once, mid-stride, and let go of after. Measures that a raise counts nothing twice.)
+    if (process.env.PLACE_PINS && tiers0 !== "off")
+      place.placePin(p, p.people.id[(hr * 7919) % p.people.n], p.t + 2 * k.HOUR);
     w.runTo(w.now + k.HOUR);
     const t1 = performance.now();
     ticks += place.advancePlace(w, p);
@@ -59,6 +77,9 @@ if (argv[0] === "--child") {
     ms += took;
     dayMs += took;
     if (hr < 24) worst = Math.max(worst, took);
+    const now: number[] = [...p.madeDay];
+    if (now.reduce((a, b) => a + b, 0) < was.reduce((a, b) => a + b, 0)) for (let g = 0; g < made.length; g++) made[g]! += was[g]!;
+    was = now;
     if (hr % 24 === 23 && daily.length < 8) {
       daily.push(dayMs / 144);
       dayMs = 0;
@@ -78,6 +99,15 @@ if (argv[0] === "--child") {
       cold: spans[0] ?? null,
       warm: spans[1] ?? null,
       daily,
+      made: made.map((x, g) => x + was[g]!),
+      // (Its food held, of the three foods: units.)
+      food: (await at("/src/rules/goods.ts")).FOODS.map((g: number) => place.placeHeld(p, g)).reduce(
+        (a: number, b: number) => a + b,
+        0,
+      ),
+      born: p.log.filter((x: { what: number }) => x.what === place.HAP.born).length,
+      died: p.log.filter((x: { what: number }) => place.hapIsDeath?.(x.what)).length,
+      tiers: place.TIER ? [0, 1, 2].map((t) => p.people.tier.subarray(0, p.people.n).filter((x: number) => (x & 3) === t).length) : [],
       digest: place.placeDigest(p),
       log: createHash("sha1").update(JSON.stringify(p.log)).digest("hex").slice(0, 16),
       lines: p.log.length,
@@ -120,10 +150,16 @@ type Run = {
   happened: Record<string, number>;
   end: number;
   bytes: number;
+  made: number[];
+  food: number;
+  born: number;
+  died: number;
+  tiers: number[];
 };
 const self = fileURLToPath(import.meta.url),
-  run = (root: string): Run => {
-    const r = spawnSync(process.execPath, [self, "--child", root, save, people, days, mode], {
+  // (--off: all in full, for a tree with tiers set against one without.)
+  run = (root: string, tiers = argv.includes("--off") ? "off" : "on", from = 0): Run => {
+    const r = spawnSync(process.execPath, [self, "--child", root, save, people, days, mode, tiers, String(from)], {
       encoding: "utf8",
       maxBuffer: 1 << 24,
     });
@@ -131,6 +167,63 @@ const self = fileURLToPath(import.meta.url),
     return JSON.parse(r.stdout.trim().split("\n").at(-1)!) as Run;
   },
   said = (x: number | null) => (x === null ? "-" : x.toFixed(3));
+if (argv.includes("--tiers")) {
+  // The same town on one tree, in tiers and all in full, entered on each of `runs` days three apart.
+  const on: Run[] = [],
+    off: Run[] = [];
+  for (let k = 0; k < runs; k++) {
+    on.push(run(a, "on", 3 * k));
+    off.push(run(a, "off", 3 * k));
+    const t = on.at(-1)!,
+      f = off.at(-1)!;
+    console.log(
+      `from day ${3 * k}: tiered warm ${said(t.warm)} ms (full ${t.tiers[0]}, light ${t.tiers[1]}, folk ${t.tiers[2]}), all in full ${said(f.warm)} ms; people ${t.end} / ${f.end}, born ${t.born} / ${f.born}, died ${t.died} / ${f.died}, food ${(t.food).toFixed(0)} / ${(f.food).toFixed(0)}`,
+    );
+  }
+  const stat = (xs: number[]) => {
+      const m = xs.reduce((s, x) => s + x, 0) / xs.length,
+        sd = Math.sqrt(xs.reduce((s, x) => s + (x - m) ** 2, 0) / Math.max(1, xs.length - 1));
+      return { m, sd };
+    },
+    // (A count of happenings, a few a month, is told within where it differs by no more than chance would make it: twice
+    // the spread of so many happenings drawn by chance, Poisson's.)
+    row = (name: string, get: (r: Run) => number, counted = false) => {
+      const t = stat(on.map(get)),
+        f = stat(off.map(get)),
+        d = stat(on.map((r, k) => get(r) - get(off[k]!)));
+      const within =
+        Math.abs(d.m) <=
+        Math.max(
+          2 * f.sd,
+          (2 * d.sd) / Math.sqrt(on.length),
+          0.02 * Math.abs(f.m),
+          1,
+          counted ? 2 * Math.sqrt((t.m + f.m) / on.length) : 0,
+        );
+      console.log(
+        `${name.padEnd(14)} tiered ${t.m.toFixed(1)} ± ${t.sd.toFixed(1)}   all in full ${f.m.toFixed(1)} ± ${f.sd.toFixed(1)}   tiered less full ${d.m.toFixed(1)} ± ${d.sd.toFixed(1)}  ${within ? "within" : "OUTSIDE"}`,
+      );
+      return within;
+    };
+  let ok = true;
+  ok = row("warm ms/tick", (r) => r.warm ?? 0) || true;
+  ok = row("cold ms/tick", (r) => r.cold ?? 0) || true;
+  ok = row("saved KB", (r) => r.bytes / 1024) || true;
+  ok = row("people", (r) => r.end) && ok;
+  ok = row("born", (r) => r.born) && ok;
+  ok = row("died", (r) => r.died) && ok;
+  ok = row("food held", (r) => r.food) && ok;
+  const goods = on[0]!.made.length,
+    named = ((await import(pathToFileURL(a + "/src/rules/goods.ts").href)).GOODS ?? []) as { name?: string }[];
+  for (let g = 0; g < goods; g++)
+    if (on.some((r) => r.made[g]! > 0) || off.some((r) => r.made[g]! > 0))
+      ok = row(`made: ${named[g]?.name ?? g}`, (r) => r.made[g]! / 1e6) && ok;
+  // (What befell it, kind by kind: hurts, sicknesses, breaks, quarrels and the rest, drawn at their turns.)
+  const kinds = [...new Set([...on, ...off].flatMap((r) => Object.keys(r.happened)))].sort();
+  for (const k of kinds) ok = row(`befell: ${k}`, (r) => r.happened[k] ?? 0, true) && ok;
+  console.log(ok ? "the tiers agree with all in full" : "the tiers do NOT agree with all in full");
+  process.exit(ok ? 0 : 1);
+}
 const results = new Map<string, Run[]>();
 for (let k = 0; k < runs; k++)
   for (const root of b ? [a, b] : [a]) {

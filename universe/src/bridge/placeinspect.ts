@@ -115,6 +115,11 @@ export type PlaceInspectPerson = {
   readonly life: readonly string[];
   /** The long sentences, for those who ask (ⓘ): how a need is weighed against work, what a mood moves. */
   readonly prose: readonly string[];
+  /**
+   * How closely they are followed (tiers: 0 in full, 1 at the hour, 2 among the folk), said; and whether by the player's
+   * word, for good or (`soft`) for a day from being looked at.
+   */
+  readonly tier: { readonly tier: number; readonly words: string; readonly pinned: boolean; readonly soft: boolean };
 };
 
 export type PlaceInspectLot = {

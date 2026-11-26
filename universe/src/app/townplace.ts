@@ -450,6 +450,9 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
   const choose = (id: number | null): void => {
     if (id === chosen) return;
     chosen = id;
+    // (One looked at is followed in full for a day from it, as near as their next turn: tiers.)
+    if (id !== null && town)
+      void d.client.query({ type: "place.pin", args: { ref: town, id, soft: true } }).catch(() => {});
     if (id === null) {
       ring.hidden = tag.hidden = true;
       if (inspector.following) follow(false);
@@ -720,6 +723,14 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     void order(type, args).then(() => {
       if (inspector.ref) inspect(inspector.ref);
     });
+  // (Followed in full by word, or let be: the town's own reading, given in any way it is run. Tiers.)
+  inspector.onPin = (id, on) => {
+    if (!town) return;
+    void d.client
+      .query({ type: "place.pin", args: { ref: town, id, on } })
+      .then(() => inspector.ref && inspect(inspector.ref))
+      .catch(() => {});
+  };
   inspector.onHeight = (h) => {
     if (h !== "peek" && hud.tab && !hud.desk) hud.open(null);
     laid();

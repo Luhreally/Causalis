@@ -722,7 +722,9 @@ test("work harms some by their trade's own wear; the hurt lie abed at home and a
   // the kind one's household taught them, one: 96 bytes before them, 117 with them; and for N8, whom one knows, a dozen
   // by their number (four bytes) and what one thinks of each (one): 177; for N9, a wound's bleeding, the blood lost and
   // its festering, a byte each: 180. The owner took more detail a person for this mode, 2026-11-25.)
-  assert.ok(PERSON_BYTES <= 180, `${PERSON_BYTES} bytes a person`);
+  // (182 since the tiers: a byte for how closely one is followed and one for how far into their stride their needs are
+  // reckoned, 2026-11-26.)
+  assert.ok(PERSON_BYTES <= 182, `${PERSON_BYTES} bytes a person`);
   // Where its land's own reckoning has no sickness come this year or last, no one of the place is sick.
   const sick = [...Array(p.n).keys()].filter((i) => p.health[i] === 2).length,
     last = healthOf(w)?.land(s.cell)?.last;

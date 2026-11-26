@@ -609,6 +609,20 @@ type People = {
   bleed: Uint8Array;
   blood: Uint8Array;
   fester: Uint8Array;
+  /**
+   * How closely they are followed (TIER's; the tiers asked for 2026-11-26, so the mode can go deeper a person): in full,
+   * every ten minutes; light, at the hour; or among the folk, every three hours. Each is turned at their own stride (their
+   * number setting its hour), their walk by the tick, and on coming where they were going. A byte: the tier in its two
+   * low bits; above them, for one raised into full within a stride, the ticks of it their last turn already did the
+   * work of.
+   */
+  tier: Uint8Array;
+  /**
+   * How many ticks into their stride their needs are reckoned to (tiers): what they did within it, each at its own
+   * ticks, so that a meal had within a stride is not hungered after for the whole of it. 0 at every turn of theirs; 0
+   * always for one in full. A byte.
+   */
+  reck: Uint8Array;
 };
 /**
  * The kinds of work one's hours are counted at (N6): the six trades' own, in OCCUPATIONS' order past the dependent's (a
@@ -690,7 +704,9 @@ export const PERSON_BYTES =
   // (N8: whom they know, by number, and what they think of each.)
   5 * TIES +
   // (N9: a wound's bleeding, the blood lost, its festering.)
-  3;
+  3 +
+  // (Tiers: how closely they are followed, and how far into their stride their needs are reckoned.)
+  2;
 
 function peopleOf(cap: number): People {
   return {
@@ -733,6 +749,8 @@ function peopleOf(cap: number): People {
     bleed: new Uint8Array(cap),
     blood: new Uint8Array(cap),
     fester: new Uint8Array(cap),
+    tier: new Uint8Array(cap),
+    reck: new Uint8Array(cap),
   };
 }
 const PEOPLE_COLS = [
@@ -774,6 +792,8 @@ const PEOPLE_COLS = [
   "bleed",
   "blood",
   "fester",
+  "tier",
+  "reck",
 ] as const;
 type Col = (typeof PEOPLE_COLS)[number];
 const widthOf = (c: Col) =>
@@ -1042,6 +1062,11 @@ export type Place = {
   breaks?: number[];
   held?: number[];
   works?: number[];
+  /**
+   * Those followed in full by the player's word (tiers), two numbers each: who (their number), and till when (seconds;
+   * -1: till it is unsaid). Absent: none.
+   */
+  pins?: number[];
 };
 
 /** What waits in a place's `due`: a death, a leaving, a birth, a coming, a burial, a pairing. */
@@ -1659,6 +1684,7 @@ export class PlaceStore implements StateStore {
         ...(p.breaks?.length ? { breaks: p.breaks } : {}),
         ...(p.held?.length ? { held: p.held } : {}),
         ...(p.works?.length ? { works: p.works } : {}),
+        ...(p.pins?.length ? { pins: p.pins } : {}),
         ...(UNPAIRED.has(p) ? { unpaired: true } : {}),
         // (Read from a save kept before skill was, and not brought on since: still to be reckoned.)
         ...(UNSKILLED.has(p) ? { unskilled: true } : {}),
@@ -1755,6 +1781,7 @@ export class PlaceStore implements StateStore {
         ...(raw.breaks ? { breaks: [...(raw.breaks as number[])] } : {}),
         ...(raw.held ? { held: [...(raw.held as number[])] } : {}),
         ...(raw.works ? { works: [...(raw.works as number[])] } : {}),
+        ...(raw.pins ? { pins: [...(raw.pins as number[])] } : {}),
       });
       if (unskilled) UNSKILLED.add(this.places.at(-1)!);
       if (!cols.taught || raw.untaught === true) UNTAUGHT.add(this.places.at(-1)!);
@@ -1779,6 +1806,8 @@ export function placeDigest(p: Place): string {
   h.int(p.people.n);
   for (const c of PEOPLE_COLS) {
     const a = p.people[c] as Uint8Array;
+    // (Tiers all full, as a place kept before them reads: hashed as one kept before them was, so the two are told alike.)
+    if ((c === "tier" || c === "reck") && !a.subarray(0, p.people.n).some((x) => x)) continue;
     for (let i = 0; i < p.people.n * widthOf(c); i++) h.int(a[i]!);
   }
   for (const list of [
@@ -1836,6 +1865,11 @@ export function placeDigest(p: Place): string {
   for (const x of p.breaks ?? []) h.int(x);
   for (const x of p.held ?? []) h.int(x);
   for (const x of p.works ?? []) h.int(x);
+  // (Those followed by word: hashed only where there are any, so a place kept before tiers is told as it was.)
+  if (p.pins?.length) {
+    h.int(p.pins.length);
+    for (const x of p.pins) h.int(x);
+  }
   h.string(p.ordered)
     .string(p.sited)
     .string(p.plague)
@@ -5178,6 +5212,7 @@ function tickCx(world: World, place: Place, f: Frame) {
     // (Its works wear away, a fiftieth a year: rules/art.ts ART.wear. Those broken down or held who are gone, let go.)
     if (place.works) wearWorks(world, place);
     if (place.breaks || place.held) pruneGone(place);
+    if (place.pins) prunePins(place);
     place.madeDay.fill(0);
     place.usedDay.fill(0);
     place.cameDay.fill(0);
@@ -5395,6 +5430,12 @@ function tickCx(world: World, place: Place, f: Frame) {
     sitesNow,
     ailing,
     visitor,
+    // (Tiers: how far into their stride the tick a turn is at stands (`base`), how far past that tick a turn that goes on
+    // within it stands, in ticks, and the ticks till the working day
+    // begins or ends from this tick, read once a tick when first asked: -1 not yet.)
+    ahead: 0,
+    base: 0,
+    flip: -1,
     // (Whether a feast day is kept as one: -1 not yet asked this tick.)
     feast: -1,
     // (Asked for by the first turn that needs it, and kept for the rest of the tick.)
@@ -5443,7 +5484,13 @@ function tickCx(world: World, place: Place, f: Frame) {
 type TickCx = ReturnType<typeof tickCx>;
 
 /** One of a place's people's turn in a tick: their needs move, and they do what presses most. */
-function turnOf(cx: TickCx, i: number): void {
+/**
+ * One of a place's people's turn: what the ticks since their last turn did to them (`k` of them: their needs, their
+ * want, a wound's bleeding, their mending; 0, a turn between their strides, on coming where they were going), and what
+ * they do now, for the `wk` ticks till their next turn (their work's yield and its hours; 0: a turn that only decides).
+ * In full, a tick each (1, 1). Tiers.
+ */
+function turnOf(cx: TickCx, i: number, k: number, wk: number): void {
   const {
     world,
     place,
@@ -5541,47 +5588,27 @@ function turnOf(cx: TickCx, i: number): void {
   const trade = cSexOcc[i]! & 15;
   if (cBound[i]! >= BOUND_ARMS && cBound[i] !== 255) {
     // (nothing)
-  } else if (trade === OCC.farmer) place.ripe[G.grain]! += ripens[0]!;
-  else if (trade === OCC.herder) place.ripe[G.meat]! += ripens[1]!;
-  // Needs. (One raising a building, or carrying to it, is hungry half again as fast: sim/town/asks.ts feed.)
-  cNeeds[at0 + N.food] = Math.min(
-    FULL,
-    cNeeds[at0 + N.food]! +
-      (asleep
-        ? fk.hunger >> 2
-        : cAct[i] === ACT.build || cAct[i] === ACT.stuff
-          ? fk.hunger + (fk.hunger >> 1)
-          : fk.hunger),
-  );
-  // (What they have yet to eat grows by the clock, asleep or awake: its land's reckoning counts a mouth by the month.)
-  cOwed[i] = Math.min(
-    65535,
-    cOwed[i]! + (cAct[i] === ACT.build || cAct[i] === ACT.stuff ? 3 : 2),
-  );
-  cNeeds[at0 + N.rest] = asleep
-    ? Math.max(0, cNeeds[at0 + N.rest]! - fk.rest)
-    : Math.min(FULL, cNeeds[at0 + N.rest]! + fk.tire);
-  const chilled0 = cNeeds[at0 + N.cold]!;
-  cNeeds[at0 + N.cold] =
-    inside || chilled0 > coldTo
-      ? Math.max(inside ? 0 : coldTo, chilled0 - warmUp)
-      : Math.min(coldTo, chilled0 + chill);
-  // (Company is had among others in the square; work neither gives it nor takes it, nor does sleep.)
-  if (!moving && cAct[i] === ACT.visit)
-    cNeeds[at0 + N.lone] = Math.max(0, cNeeds[at0 + N.lone]! - 12 * fk.lone);
-  else if (!asleep && (moving || cAct[i] !== ACT.work))
-    cNeeds[at0 + N.lone] = Math.min(FULL, cNeeds[at0 + N.lone]! + fk.lone);
+  } else if (trade === OCC.farmer) place.ripe[G.grain]! += ripens[0]! * k;
+  else if (trade === OCC.herder) place.ripe[G.meat]! += ripens[1]! * k;
+  // Needs, for the ticks of their stride not yet reckoned (tiers: all of them, for one in full).
+  if (k > 0) {
+    const rk = cx.p.reck[i]!;
+    if (k > rk) accrue(cx, i, k - rk, fk, coldTo, asleep, moving, inside);
+    // (One raised into full within a stride may stand reckoned some ticks ahead: those are not reckoned again.)
+    if (rk) cx.p.reck[i] = rk > k ? rk - k : 0;
+  }
   // Want: a need of the body's standing full. How long it has, less how long it has not since.
   const inWant =
     cNeeds[at0 + N.food]! >= 0.95 * FULL ||
     cNeeds[at0 + N.rest]! >= 0.95 * FULL ||
     cNeeds[at0 + N.cold]! >= 0.95 * FULL;
-  cLack[i] = inWant ? Math.min(65535, cLack[i]! + 1) : Math.max(0, cLack[i]! - 1);
+  cLack[i] = inWant ? Math.min(65535, cLack[i]! + k) : Math.max(0, cLack[i]! - k);
   const lackDays = cLack[i]! / 144;
   // Days in want bring sickness and death, by their people's own table of dying, the more the longer: asked of each
   // once a day. Only in a town managed: there its dead are told to its land (place.settle), elsewhere its land's own
   // reckoning says who dies.
-  if (orders && lackDays >= 1 && (tickNo + cId[i]!) % 144 === 0) {
+  // (Once a day: at the turn of theirs that falls on it, whatever their stride.)
+  if (orders && lackDays >= 1 && (tickNo + cId[i]!) % 144 < k) {
     const base = (f.life.mortality[bandOf(ageOf(p, i, t), f.life)] ?? 0.02) / 365,
       chance = Math.min(0.5, base * (1 + lackDays) ** 3);
     if (world.rng.chance(chance, PLACE_DRAW, place.key ^ cId[i]!, tickNo, P.sick)) {
@@ -5593,7 +5620,7 @@ function turnOf(cx: TickCx, i: number): void {
   // A wound bleeding (N9): their blood lost by the tick, the less as it clots (by half each ten minutes: rules/healing.ts).
   // Past what a body can lose, dead of it where the town is managed (its dead are told to its land, as those of want);
   // elsewhere its land's own reckoning says who dies, and they lie at the edge of it.
-  if (p.bleed[i]) {
+  for (let s = 0; s < k && p.bleed[i]; s++) {
     const lost = Math.min(BLOOD_UNITS, p.blood[i]! + p.bleed[i]!);
     p.bleed[i] = p.bleed[i]! >> 1;
     if (lost >= BLOOD_FATAL && orders) {
@@ -5605,7 +5632,7 @@ function turnOf(cx: TickCx, i: number): void {
     p.blood[i] = Math.min(lost, BLOOD_FATAL - 1);
   }
   // Once a day, each in turn: their mood, and what may befall them.
-  if ((tickNo + cId[i]!) % 144 === 0) {
+  if ((tickNo + cId[i]!) % 144 < k) {
     // (Their blood made again, a little a day, once they bleed no more: rules/healing.ts BLOOD.back.)
     if (p.blood[i] && !p.bleed[i])
       p.blood[i] = Math.max(0, p.blood[i]! - Math.round(BLOOD.back * BLOOD_UNITS));
@@ -5702,20 +5729,29 @@ function turnOf(cx: TickCx, i: number): void {
       }
     }
   }
+  // (One taken sick or wounded at a turn of their stride: followed in full from it, as they would be had it befallen them
+  // a turn before; a turn of theirs falls on a tick every stride shares. Tiers.)
+  if (wk > 1 && k > 0 && (cHealth[i] === 1 || cHealth[i] === 2 || p.bleed[i])) {
+    p.tier[i] = TIER.full;
+    wk = 1;
+  }
   if (moving) {
-    if (--cEta[i]! === 0) {
+    // (A turn that only decides, between ticks, walks no step: the walk is by the tick. Tiers.)
+    if (k > 0 && --cEta[i]! === 0) {
       cAt[i] = p.to[i]!;
       p.trip[i] = 0;
+      // (Come where they were going within a stride: the rest of it at what they came for. Tiers.)
+      if (wk > 1) goOn(cx, i, 1, wk - 1);
     }
     return;
   }
   // Up again with a wound still bound: well when its days of mending are done.
   if (cHealth[i] === 3) {
-    if (cIll[i]! <= 1) {
+    if (cIll[i]! <= Math.max(1, k)) {
       cIll[i] = 0;
       cHealth[i] = 0;
       note(place, HAP.well, cId[i]!);
-    } else cIll[i]!--;
+    } else cIll[i]! -= k;
   }
   // Hurt or sick: home, and abed there until it is over, fed from the pantry by their household.
   else if (cIll[i]! > 0) {
@@ -5726,7 +5762,7 @@ function turnOf(cx: TickCx, i: number): void {
       return;
     }
     if (cNeeds[at0 + N.food]! > 0.5 * FULL) eat(i, h, fk);
-    cNeeds[at0 + N.rest] = Math.max(0, cNeeds[at0 + N.rest]! - fk.rest);
+    cNeeds[at0 + N.rest] = Math.max(0, cNeeds[at0 + N.rest]! - fk.rest * Math.max(1, k));
     // (A wound not yet dressed is dressed by whoever of their household is at home, or by themselves where they can
     // stand, or at the town's hospital where it keeps one: its bleeding stopped. N9.)
     if (cHealth[i] === 1 && !(p.fester[i]! & FESTER_DRESSED)) {
@@ -5748,13 +5784,17 @@ function turnOf(cx: TickCx, i: number): void {
       }
     }
     // (Too faint to stand, or a wound festering: abed still, however its days of lying abed have run.)
+    const step = Math.max(1, k);
     if (
-      cIll[i] === 1 &&
+      cIll[i]! <= step &&
       cHealth[i] === 1 &&
       (p.blood[i]! >= BLOOD_FAINT || (p.fester[i]! & FESTER_LOAD) > 0)
-    )
+    ) {
+      cIll[i] = 1;
       return;
-    if (--cIll[i]! === 0) {
+    }
+    cIll[i] = Math.max(0, cIll[i]! - step);
+    if (cIll[i] === 0) {
       cAct[i] = ACT.idle;
       // (A wound's days abed done: up and about with it bound for its days of mending. rules/healing.ts.)
       const mark = p.mark[i]!,
@@ -5795,6 +5835,7 @@ function turnOf(cx: TickCx, i: number): void {
       cf = cNeeds[at0 + N.cold]! / FULL;
     if (hf * hf * hf < IDLE_WORTH && cf * cf * cf < IDLE_WORTH) {
       cWhy[i] = WHY.asleep;
+      if (wk > 1) wakes(cx, i, wk);
       return;
     }
   }
@@ -5834,7 +5875,7 @@ function turnOf(cx: TickCx, i: number): void {
   if (heldBy?.has(cId[i]!) && heldTurn(cx, i, h, fk)) return;
   if (breakOf?.has(cId[i]!) && breakTurn(cx, i, h, fk)) return;
   // A fine work where they are, seen once a day (N11): a thought by how fine it is.
-  if (worksAt && !moving && inside && (tickNo + cId[i]!) % 6 === 0) {
+  if (worksAt && !moving && inside && (tickNo + cId[i]!) % 6 < k) {
     const q = worksAt.get(cAt[i]!);
     if (q !== undefined) remember(place, i, THOUGHT.admired, 2 + 2 * q);
   }
@@ -5872,6 +5913,7 @@ function turnOf(cx: TickCx, i: number): void {
   // Asleep: until rested, or hunger or cold wakes them.
   if (asleep && cNeeds[at0 + N.rest]! > 0.04 * FULL && hunger < bar && chilled < bar) {
     cWhy[i] = WHY.asleep;
+    if (wk > 1) wakes(cx, i, wk);
     return;
   }
   // Come for what a building has made: a load of it taken up, for the market.
@@ -5950,7 +5992,11 @@ function turnOf(cx: TickCx, i: number): void {
         // store, their one grown eating what little came home and never finding the pantry quite bare.)
         let pantry = 0;
         for (let k = 0; k < FOODS.length; k++) pantry += houses.pantry[h * FOODS.length + k]!;
-        if (eaten >= want * 0.5 && pantry >= houses.members[h]! * fk.daily) return;
+        if (eaten >= want * 0.5 && pantry >= houses.members[h]! * fk.daily) {
+          // (A meal is a tick: one followed at a stride turns to what comes next for the rest of it. Tiers.)
+          if (wk > 1) goOn(cx, i, 1, wk - 1);
+          return;
+        }
       }
       // (Where no one grown lives, whoever is hungry goes: a household of children alone went hungry beside a full store.)
       let hasGrown = cx.hasGrown;
@@ -5971,7 +6017,10 @@ function turnOf(cx: TickCx, i: number): void {
         go(place, i, bldgs.lot[from]!, world);
         return;
       }
-      if (eaten > 0) return;
+      if (eaten > 0) {
+        if (wk > 1) goOn(cx, i, 1, wk - 1);
+        return;
+      }
       // (Nothing to eat: whatever presses next.)
       cWhy[i] = WHY.noFood;
       if (tired > bar && tired >= chilled && cAt[i] === home) {
@@ -5992,6 +6041,11 @@ function turnOf(cx: TickCx, i: number): void {
       cAct[i] = ACT.warm;
       cWhy[i] = WHY.cold;
       if (cAt[i] !== home) go(place, i, home, world);
+      else if (wk > 1) {
+        // (Warm again within the stride, at so much a tick: the rest of it at what comes next. Tiers.)
+        const d = Math.max(1, Math.ceil(cNeeds[at0 + N.cold]! / Math.max(1, warmUp)));
+        if (d < wk) goOn(cx, i, d, wk - d);
+      }
       return;
     } else if (sickHouses?.has(h)) {
       // (One of a household with sickness in it, kept apart by order: at home, wanting company.)
@@ -6010,6 +6064,11 @@ function turnOf(cx: TickCx, i: number): void {
           p.friend[cx.visitor] = cId[i]!;
         }
         cx.visitor = i;
+        if (wk > 1) {
+          // (Company had within the stride, at so much a tick: the rest of it at what comes next. Tiers.)
+          const d = Math.max(1, Math.ceil(cNeeds[at0 + N.lone]! / Math.max(1, 12 * fk.lone)));
+          if (d < wk) goOn(cx, i, d, wk - d);
+        }
       }
       return;
     }
@@ -6031,6 +6090,7 @@ function turnOf(cx: TickCx, i: number): void {
           (kind === THOUGHT.feast ? 8 : 3) * leans(placeTemper(place, i).sociable),
         );
     }
+    dayTurns(cx, i, wk, occ);
     return;
   }
   if (worth < IDLE_WORTH) {
@@ -6040,6 +6100,7 @@ function turnOf(cx: TickCx, i: number): void {
       go(place, i, home, world);
     } else cAct[i] = air.lit ? ACT.idle : ACT.sleep;
     cWhy[i] = occ === OCC.dependent ? WHY.young : air.lit && !working ? WHY.rest : WHY.dark;
+    dayTurns(cx, i, wk, occ);
     return;
   }
   // The healer, with none of the hurt wanting them and their remedies short: out about the fields to gather more, the
@@ -6051,7 +6112,7 @@ function turnOf(cx: TickCx, i: number): void {
     else
       place.herbs =
         (place.herbs ?? 0) +
-        Math.round((1000 / HERB_TICKS) * ticksWorth(hoursAt(p, i, SK.healing)));
+        Math.round((1000 / HERB_TICKS) * ticksWorth(hoursAt(p, i, SK.healing)) * wk);
     return;
   }
   // Work: what the next hour of it is worth passes every need. (Their own, or what they have turned to for now.)
@@ -6109,17 +6170,19 @@ function turnOf(cx: TickCx, i: number): void {
       return;
     }
     // A tick's building: what it is built of built in, tools worn; with none to hand the work is worth what a hand without
-    // tools is (rules/goods.ts TOOL_GAIN).
+    // tools is (rules/goods.ts TOOL_GAIN). (Each tick of their stride, as long as there is stuff to build in.)
     cAct[i] = ACT.build;
-    sn.site.stuff -= SITE_USE;
-    const tools = sn.b > 0 ? bldgs.stock[sn.b * GOOD_COUNT + G.tools]! : 0,
-      gain = tools >= SITE_WEAR ? 1000 : Math.round(1000 / (1 + TOOL_GAIN));
-    if (tools >= SITE_WEAR) {
-      bldgs.stock[sn.b * GOOD_COUNT + G.tools]! -= SITE_WEAR;
-      usedOf(G.tools, SITE_WEAR);
+    for (let s = 0; s < wk && sn.site.stuff >= SITE_USE && sn.left > 0; s++) {
+      sn.site.stuff -= SITE_USE;
+      const tools = sn.b > 0 ? bldgs.stock[sn.b * GOOD_COUNT + G.tools]! : 0,
+        gain = tools >= SITE_WEAR ? 1000 : Math.round(1000 / (1 + TOOL_GAIN));
+      if (tools >= SITE_WEAR) {
+        bldgs.stock[sn.b * GOOD_COUNT + G.tools]! -= SITE_WEAR;
+        usedOf(G.tools, SITE_WEAR);
+      }
+      sn.site.ticks += gain;
+      sn.left -= gain;
     }
-    sn.site.ticks += gain;
-    sn.left -= gain;
     return;
   }
   if (!making && doing === OCC.crafter && p.craft[i]) {
@@ -6161,23 +6224,39 @@ function turnOf(cx: TickCx, i: number): void {
     go(place, i, work, world);
     return;
   }
+  // (One followed at a stride works till a need would press past their work, as one followed in full stops at it: the
+  // need come to that, their work's yield for those ticks, and the rest of the stride turned to what presses. Tiers.)
+  let cut = 0;
+  if (wk > 1) {
+    const flip = flipTicks(cx) - cx.ahead,
+      d = Math.min(workTicks(cx, i, fk, bar, coldTo, inside), working && flip > 0 ? flip : Infinity);
+    if (d < wk) {
+      cut = wk - d;
+      wk = d;
+    }
+  }
+  try {
   cAct[i] = ACT.work;
   cWhy[i] = turned ? WHY.turned : WHY.work;
   // (An hour given to one's own trade is an hour of skill at it: rules/life.ts. One turned to another trade's work
   // gives it to that trade's, below with the rest of their hours.)
-  if (!turned && p.skill[i]! < SKILL_MOST) p.skill[i]!++;
+  if (!turned && p.skill[i]! < SKILL_MOST) p.skill[i] = Math.min(SKILL_MOST, p.skill[i]! + wk);
   if (doing === OCC.farmer || doing === OCC.herder) {
     // What the fields and the flocks give is brought in a load at a time: home while the pantry is short, else to the store.
     // (Won as fast as a hand that works a third of its time must to win its year's making, of what is ready.)
     // (By their skill at it: a hand turned to it from another trade by the hours they have given that trade's work.)
     const g = doing === OCC.farmer ? G.grain : G.meat,
       skilled = ticksWorth(hoursAt(p, i, tradeKind(doing))),
-      made = Math.min(
-        place.ripe[g]!,
-        Math.round(tickWin[doing === OCC.farmer ? 0 : 1]! * skilled),
-      );
+      per = tickWin[doing === OCC.farmer ? 0 : 1]! * skilled,
+      // (One followed at a stride fills a load and sets out with it as one followed in full does: so many ticks of their
+      // stride at it, and their going put off by them. Tiers.)
+      worked =
+        wk > 1 && per > 0
+          ? Math.min(wk, Math.max(1, Math.ceil((LOAD * MICRO - cCarry[i]!) / per)))
+          : wk,
+      made = Math.min(place.ripe[g]!, Math.round(per * worked));
     // (Nothing stands ready to be won: what their priorities name next, if any has work.)
-    if (made <= 0 && (turned || prios) && turns(i, occ)) return;
+    if (made <= 0 && worked > 0 && (turned || prios) && turns(i, occ)) return;
     place.ripe[g]! -= made;
     if (cCarryGood[i] !== g) setDown(i);
     cCarryGood[i] = g;
@@ -6194,19 +6273,23 @@ function turnOf(cx: TickCx, i: number): void {
         pantry < houses.members[h]! * fk.daily * keepDays ? home : foodTo(g, home),
         world,
       );
+      if (wk > 1 && cEta[i]) cEta[i] = Math.min(65535, cEta[i]! + worked - 1);
     }
   } else if (doing === OCC.crafter && making) {
     // A work, for its own sake, as much of their time as its land's makers give to works (rules/art.ts ART.hands): one
     // a month of a maker's work long, so its chance a tick is that share over a month's ticks (N11). (Drawn at one tick
     // in WORK_SIEVE of each maker's, at as many times the chance: a draw at every maker's every tick was a tenth of a
     // tick's cost in a town of 5,500.)
+    // (One followed at a stride: drawn where their drawing tick falls within the ticks of work to come, from the tick
+    // their work there begins; not within ticks gone, which another turn of theirs may have drawn already. Tiers.)
+    const from = tickNo + cx.ahead;
     if (
-      (tickNo + cId[i]!) % WORK_SIEVE === 0 &&
+      (WORK_SIEVE - ((from + cId[i]!) % WORK_SIEVE)) % WORK_SIEVE < wk &&
       world.rng.chance(
         (WORK_SIEVE * ART.hands) / WORK_TICKS,
         PLACE_DRAW,
         place.key ^ cId[i]!,
-        tickNo,
+        from,
         P.art,
       ) &&
       makeWork(cx, i)
@@ -6219,7 +6302,7 @@ function turnOf(cx: TickCx, i: number): void {
       at = bldgAt(place, cAt[i]!),
       b = at < 0 ? market : at,
       made = Math.round(
-        matched.made[good]! * perTick * ticksWorth(hoursAt(p, i, tradeKind(doing))),
+        matched.made[good]! * perTick * ticksWorth(hoursAt(p, i, tradeKind(doing))) * wk,
       );
     let can = made;
     // (What its market will not let go is not to be had there.)
@@ -6272,6 +6355,9 @@ function turnOf(cx: TickCx, i: number): void {
     }
   }
 
+  } finally {
+    if (cut > 0) goOn(cx, i, wk, cut);
+  }
 }
 
 // —— Bills and stores (N10) ————————————————————————————————————————————————————————————————————————————————————————
@@ -6891,10 +6977,350 @@ export function placeHealer(place: Place): { i: number; doses: number; wanted: n
 }
 
 /** One tick of a place: every one's needs move, and each does what presses most. */
+// —— Tiers (asked 2026-11-26) ———————————————————————————————————————————————————————————————————————————————————————
+// A town's people followed as closely as they matter where the eye and the story are: in full, a tick each, those the
+// player follows, its notables (its healer, those who lead it) and their households, and any caught up in a happening
+// (abed, bleeding, at a fire, at a burial, tending the hurt, broken down, held by its justice); light, at the hour, the
+// households of those caught up and the friends and the paired of those in full; the rest among the folk, every three
+// hours. Every one keeps all of their columns, so whoever is looked at is there in full, and one's tier changes only
+// how often they are turned. What they do at a turn is done for the ticks to come (their work's yield, its hours); what
+// ends within the stride (a meal, company, warmth, waking, a need pressing past their work, the working day's turn) ends
+// at its tick, and they turn again then to what comes next; their walk is by the tick, and on coming where they were
+// going they turn for the rest of their stride; a fire about them turns them out at once. Their needs are reckoned at
+// each of those ticks for what they did up to it (`reck`), so a meal had within a stride is not hungered after for the
+// whole of it. (Measured, tools/place-ab.ts --tiers, a town of 5,492 thirty days from three days three apart: its
+// grain, tools, food, people, births, deaths and what befell it agree with all in full, within a day's spread; a tick
+// 0.29-0.35 ms warm against 0.67-0.83 in full, 0.5 cold against 0.9. Before the reckoning by the tick its grain came
+// short by a seventh: a meal within a stride was hungered after for all of it, and its folk went home to eat again
+// within the hour. A work's draw falls once in 64 ticks of a maker's work in either: 63.6 in full, 64.7 in tiers, over
+// ten days.)
+
+/**
+ * One of a place's people's needs gone on `k` ticks at what they are doing: hungrier, tireder or rested, colder or
+ * warmer, lonelier or in company; and what they have yet to eat.
+ */
+function accrue(
+  cx: TickCx,
+  i: number,
+  k: number,
+  fk: Frame,
+  coldTo: number,
+  asleep: boolean,
+  moving: boolean,
+  inside: boolean,
+): void {
+  const { cNeeds, cAct, cOwed, chill, warmUp } = cx,
+    at0 = i * NEEDS;
+  // Needs. (One raising a building, or carrying to it, is hungry half again as fast: sim/town/asks.ts feed.)
+  cNeeds[at0 + N.food] = Math.min(
+    FULL,
+    cNeeds[at0 + N.food]! +
+      (asleep
+        ? fk.hunger >> 2
+        : cAct[i] === ACT.build || cAct[i] === ACT.stuff
+          ? fk.hunger + (fk.hunger >> 1)
+          : fk.hunger) *
+        k,
+  );
+  // (What they have yet to eat grows by the clock, asleep or awake: its land's reckoning counts a mouth by the month.)
+  cOwed[i] = Math.min(
+    65535,
+    cOwed[i]! + (cAct[i] === ACT.build || cAct[i] === ACT.stuff ? 3 : 2) * k,
+  );
+  cNeeds[at0 + N.rest] = asleep
+    ? Math.max(0, cNeeds[at0 + N.rest]! - fk.rest * k)
+    : Math.min(FULL, cNeeds[at0 + N.rest]! + fk.tire * k);
+  const chilled0 = cNeeds[at0 + N.cold]!;
+  cNeeds[at0 + N.cold] =
+    inside || chilled0 > coldTo
+      ? Math.max(inside ? 0 : coldTo, chilled0 - warmUp * k)
+      : Math.min(coldTo, chilled0 + chill * k);
+  // (Company is had among others in the square; work neither gives it nor takes it, nor does sleep.)
+  if (!moving && cAct[i] === ACT.visit)
+    cNeeds[at0 + N.lone] = Math.max(0, cNeeds[at0 + N.lone]! - 12 * fk.lone * k);
+  else if (!asleep && (moving || cAct[i] !== ACT.work))
+    cNeeds[at0 + N.lone] = Math.min(FULL, cNeeds[at0 + N.lone]! + fk.lone * k);
+}
+/**
+ * One followed at a stride's needs reckoned to `to` ticks into it, at what they have been doing since they were last
+ * reckoned (tiers).
+ */
+function reckon(cx: TickCx, i: number, to: number): void {
+  const p = cx.p,
+    rk = p.reck[i]!;
+  if (to <= rk) return;
+  const kind = cx.fs ? (cx.houses.kind[p.house[i]!] ?? 0) : 0,
+    fk = cx.fs ? (cx.fs[kind] ?? cx.f) : cx.f,
+    coldTo = cx.coldTos ? (cx.coldTos[kind] ?? cx.coldTo0) : cx.coldTo0,
+    moving = p.eta[i]! > 0,
+    where = p.at[i]!;
+  accrue(
+    cx,
+    i,
+    to - rk,
+    fk,
+    coldTo,
+    p.act[i] === ACT.sleep,
+    moving,
+    !moving && where !== AT.fields && where !== AT.square && where !== AT.walls,
+  );
+  p.reck[i] = to;
+}
+/**
+ * One followed at a stride gone on with after `used` ticks of it at what they were at: turned to what comes next for
+ * the `rest`, and any walk they set out on then put off by those ticks, so they come where they go when one followed
+ * in full would (its figure stands till then). Tiers.
+ */
+function goOn(cx: TickCx, i: number, used: number, rest: number, wake = false): void {
+  const eta = cx.p.eta,
+    was = eta[i]!,
+    flip = flipTicks(cx),
+    w0 = cx.working,
+    o0 = cx.offWork,
+    p0 = cx.playing,
+    a0 = cx.ahead;
+  // (Gone on with as the hour it is then: their needs reckoned to it, at what they were doing; past the working day's turn
+  // within the stride, its other side.)
+  cx.ahead = a0 + used;
+  reckon(cx, i, cx.base + cx.ahead);
+  if (wake) cx.p.act[i] = ACT.idle;
+  const real = inWorkDay(cx.today0, cx.t);
+  if (flip > 0 && cx.ahead >= flip) {
+    cx.working = !real;
+    cx.offWork = cx.working ? 1 : OFF_WORTH;
+    cx.playing = cx.air.lit && !cx.working;
+  }
+  turnOf(cx, i, 0, rest);
+  cx.working = w0;
+  cx.offWork = o0;
+  cx.playing = p0;
+  cx.ahead = a0;
+  if (!was && eta[i]) eta[i] = Math.min(65535, eta[i]! + used);
+}
+/** The ticks from this one till the working day begins or ends (TIER_ROUND at the most: not within any stride). */
+function flipTicks(cx: TickCx): number {
+  if (cx.flip < 0) {
+    const now = inWorkDay(cx.today0, cx.t);
+    let n = 1;
+    while (n < TIER_ROUND && inWorkDay(cx.today0, cx.t + n * PLACE_TICK) === now) n++;
+    cx.flip = n;
+  }
+  return cx.flip;
+}
+/**
+ * One of a trade resting or at play at a turn of a stride, their working day beginning within it: turned to it at its
+ * hour, as one followed in full is, not at their next turn. Tiers.
+ */
+function dayTurns(cx: TickCx, i: number, wk: number, occ: number): void {
+  if (wk <= 1 || cx.working || occ === OCC.dependent) return;
+  const d = flipTicks(cx) - cx.ahead;
+  if (d > 0 && d < wk) goOn(cx, i, d, wk - d);
+}
+/**
+ * The ticks one at work can give it before a need presses past what it is worth to them (at its rates at work: hunger,
+ * tiredness, and the cold out of doors), at least one.
+ */
+function workTicks(cx: TickCx, i: number, fk: Frame, bar: number, coldTo: number, inside: boolean): number {
+  const p = cx.p,
+    at = i * NEEDS,
+    line = FULL * Math.cbrt(Math.min(1, bar)),
+    until = (now: number, rate: number) => (rate <= 0 ? Infinity : Math.max(1, Math.ceil((line - now) / rate)));
+  let d = Math.min(until(p.needs[at + N.food]!, fk.hunger), until(p.needs[at + N.rest]!, fk.tire));
+  if (!inside && coldTo > line) d = Math.min(d, until(p.needs[at + N.cold]!, cx.chill));
+  return d;
+}
+/**
+ * One asleep at a turn of a stride: woken within it where their rest is done before it ends (by so much a tick), and
+ * turned to what comes next for the rest of it, as one followed in full would wake.
+ */
+function wakes(cx: TickCx, i: number, wk: number): void {
+  const p = cx.p,
+    h = p.house[i]!,
+    kind = cx.fs ? (cx.houses.kind[h] ?? 0) : 0,
+    fk = cx.fs ? (cx.fs[kind] ?? cx.f) : cx.f,
+    at = i * NEEDS + N.rest,
+    over = p.needs[at]! - 0.04 * FULL,
+    d = over <= 0 ? 1 : Math.ceil(over / Math.max(1, fk.rest));
+  if (d >= wk) return;
+  goOn(cx, i, d, wk - d, true);
+}
+/** The tiers, and how many ticks a turn is in each (each a whole share of the next, and of a day). */
+export const TIER = { full: 0, light: 1, folk: 2 } as const;
+export const TIER_STRIDE: number[] = [1, 6, 18];
+/** The strides set otherwise, each a whole share of the next and of the round (tools measuring them). */
+export function placeStrides(light: number, folk: number): void {
+  TIER_STRIDE[1] = light;
+  TIER_STRIDE[2] = folk;
+}
+const TIER_ROUND = 18;
+export const TIER_WORDS = ["followed in full", "followed at the hour", "among the folk, every three hours"] as const;
+/** Whether a place's people are followed in tiers (tools set it off to follow all in full, to measure against). */
+let TIERED = true;
+export function placeTiered(on: boolean): void {
+  TIERED = on;
+}
+/** Who matters in full this tick, read once: by number, and each household so (2: with one followed in full by the
+ * player's word or a notable; 1: with one caught up in a happening). */
+type TierWorth = { readonly full: Set<number>; readonly house: Uint8Array };
+function tierWorth(cx: TickCx): TierWorth {
+  const { place, p, houses, healerAt, breakOf, heldOf } = cx,
+    full = new Set<number>(),
+    house = new Uint8Array(houses.n),
+    so = p.sexOcc,
+    hs = p.house,
+    health = p.health,
+    bleed = p.bleed,
+    act = p.act,
+    id = p.id;
+  const mark = (i: number, h: number) => {
+    full.add(id[i]!);
+    house[hs[i]!] = Math.max(house[hs[i]!]!, h);
+  };
+  for (let i = 0; i < p.n; i++) {
+    if ((so[i]! & 15) === OCC.leader) mark(i, 2);
+    else {
+      const a = act[i]!;
+      if (
+        health[i] === 1 ||
+        health[i] === 2 ||
+        bleed[i] ||
+        a === ACT.brigade ||
+        a === ACT.mourn ||
+        a === ACT.tend
+      )
+        mark(i, 1);
+    }
+  }
+  if (healerAt >= 0) mark(healerAt, 2);
+  const pins = place.pins;
+  if (pins)
+    for (let k = 0; k < pins.length; k += 2) {
+      const i = placeIndexOf(place, pins[k]!);
+      if (i >= 0) mark(i, 2);
+    }
+  for (const m of [breakOf, heldOf])
+    if (m)
+      for (const who of m.keys()) {
+        const i = placeIndexOf(place, who);
+        if (i >= 0) mark(i, 1);
+      }
+  return { full, house };
+}
+/** The tier one would be at now. */
+function tierOf(cx: TickCx, w: TierWorth, i: number): number {
+  const p = cx.p,
+    h = w.house[p.house[i]!]!;
+  if (h === 2 || w.full.has(p.id[i]!)) return TIER.full;
+  if (h === 1 || (p.friend[i] && w.full.has(p.friend[i]!)) || (p.mate[i] && w.full.has(p.mate[i]!)))
+    return TIER.light;
+  return TIER.folk;
+}
+/** How closely one of a place's people is followed, and whether by the player's word (and till when: -1, till unsaid). */
+export function placeTier(place: Place, i: number): { tier: number; words: string; pinned: number | null } {
+  const id = place.people.id[i]!,
+    pins = place.pins ?? [];
+  let pinned: number | null = null;
+  for (let k = 0; k < pins.length; k += 2) if (pins[k] === id) pinned = pins[k + 1]!;
+  // (One followed or looked at is in full from the next tick: so told at once, paused or not.)
+  const tier = pinned !== null ? TIER.full : place.people.tier[i]! & 3;
+  return { tier, words: TIER_WORDS[tier] ?? TIER_WORDS[0], pinned };
+}
+/**
+ * Those the player follows or looks at (`pins`), among the light or the folk, raised into full at once (tiers): their
+ * needs reckoned to this tick, and the ticks of their stride their last turn already did the work of (its yield, its
+ * hours) gone through in full with none (`tier`'s bits above its two low ones, spent a tick at a time by countHours).
+ * Raised at any tick: full is a stride of one, which every tick shares.
+ */
+function raise(cx: TickCx, T: number): void {
+  const { p, place } = cx,
+    pins = place.pins!;
+  for (let k = 0; k < pins.length; k += 2) {
+    const i = placeIndexOf(place, pins[k]!);
+    if (i < 0) continue;
+    const was = p.tier[i]! & 3;
+    if (was === TIER.full) continue;
+    const s = TIER_STRIDE[was]!,
+      a = ((T + p.id[i]!) % TIER_ROUND) % s;
+    if (p.reck[i]! < a) reckon(cx, i, a);
+    p.reck[i] = p.reck[i]! - a;
+    p.tier[i] = TIER.full | ((s - a - 1) << 2);
+  }
+}
+/**
+ * One of a place's people followed in full by the player's word, or let go of (tiers): `until` the moment it holds to
+ * (seconds; -1 till unsaid), or null to let go. Kept with the place. They are followed so from their next turn on.
+ */
+export function placePin(place: Place, id: number, until: number | null): void {
+  const list = (place.pins ?? []).slice(),
+    at = list.findIndex((x, k) => k % 2 === 0 && x === id);
+  if (at >= 0) list.splice(at, 2);
+  if (until !== null && placeIndexOf(place, id) >= 0) list.push(id, until);
+  if (list.length) place.pins = list;
+  else delete place.pins;
+}
+/** Those followed by word whose time has run or who are gone, let go of (each day). */
+function prunePins(place: Place): void {
+  const list = place.pins!,
+    keep: number[] = [];
+  for (let k = 0; k + 1 < list.length; k += 2)
+    if ((list[k + 1]! < 0 || list[k + 1]! > place.t) && placeIndexOf(place, list[k]!) >= 0)
+      keep.push(list[k]!, list[k + 1]!);
+  if (keep.length) place.pins = keep;
+  else delete place.pins;
+}
+
 function tick(world: World, place: Place, f: Frame): void {
   const cx = tickCx(world, place, f),
     { p, houses, t, today, dying, dyingWhy } = cx;
-  for (let i = 0; i < p.n; i++) turnOf(cx, i);
+  // Each at their tier's stride (tiers): in full a tick each; light and folk at their hour, their walk by the tick and
+  // a turn on coming where they were going, and turned out at once to a fire about them. Their tier read again at their
+  // turns that fall on a stride of both the one they were at and the one it would be.
+  const T = cx.tickNo,
+    tier = p.tier,
+    eta = p.eta,
+    ids = p.id,
+    worthy = TIERED ? tierWorth(cx) : null;
+  for (let i = 0; i < p.n; i++) {
+    const was = tier[i]! & 3;
+    if (!worthy) {
+      turnOf(cx, i, 1, 1);
+      continue;
+    }
+    const at = (T + ids[i]!) % TIER_ROUND;
+    // (One in full a tick each; one raised into full within a stride, its ticks already worked at their last turn done
+    // with no more work's worth till they are spent, and in full till then.)
+    if (was === TIER.full && (tier[i]! > 3 || at % TIER_STRIDE[TIER.light]! !== 0)) {
+      turnOf(cx, i, 1, tier[i]! > 3 ? 0 : 1);
+      continue;
+    }
+    const s = TIER_STRIDE[was]!,
+      a = at % s;
+    if (a !== 0) {
+      if (eta[i]) {
+        if (eta[i] === 1) {
+          // (Come where they were going: their needs reckoned to now, on the way, and a turn.)
+          reckon(cx, i, a);
+          eta[i] = 0;
+          p.at[i] = p.to[i]!;
+          p.trip[i] = 0;
+          const left = s - 1 - a;
+          cx.base = a;
+          if (left > 0) turnOf(cx, i, 0, left);
+          cx.base = 0;
+        } else eta[i]!--;
+      } else if (cx.fireLot !== null && p.act[i] !== ACT.brigade && cx.fireOut!.has(ids[i]!)) {
+        reckon(cx, i, a);
+        cx.base = a;
+        turnOf(cx, i, 0, 0);
+        cx.base = 0;
+      }
+      continue;
+    }
+    let now = tierOf(cx, worthy, i);
+    if (at !== 0 && now === TIER.folk) now = TIER.light;
+    tier[i] = now;
+    turnOf(cx, i, s, TIER_STRIDE[now]!);
+  }
   // (Those its justice put to death this tick die with its other dead, in their places' order: N11.)
   const put = EXECUTED.get(place);
   if (put) {
@@ -6909,7 +7335,9 @@ function tick(world: World, place: Place, f: Frame): void {
     }
   }
   // The hours given this tick to kinds of work but one's own trade's (N6; their own trade's are counted at it, above).
-  countHours(place, f);
+  countHours(place, f, worthy ? T : -1);
+  // Those the player follows or looks at, among the light or the folk: in full from the next tick, not their next turn.
+  if (worthy && place.pins) raise(cx, T);
   // Those who died of want, or of a wound: told, kept for its land's telling, and gone.
   for (let k = dying.length - 1; k >= 0; k--) {
     const i = dying[k]!,
@@ -6931,7 +7359,7 @@ const ticksWorth = (ticks: number): number =>
  * or bringing what it is built of; tending one of their household abed whom it tends (awake, at home, and grown); at a
  * fire; and eating at home, a meal made at their hearth. Each grown one at one kind a tick (no more than a master's).
  */
-function countHours(place: Place, f: Frame): void {
+function countHours(place: Place, f: Frame, T = -1): void {
   const p = place.people,
     houses = place.houses;
   // (The households with one of theirs abed whom they tend themselves: no healer or hospital does.)
@@ -6940,6 +7368,15 @@ function countHours(place: Place, f: Frame): void {
     if ((p.health[i] === 1 || p.health[i] === 2) && tendedOf(place, i) === "household")
       (tending ??= new Uint8Array(houses.n))[p.house[i]!] = 1;
   for (let i = 0; i < p.n; i++) {
+    // (One followed at a stride: counted at their turn, the stride's ticks to come; one raised into full within it, not
+    // again for the ticks their last turn counted. Tiers.)
+    const tb = p.tier[i]!;
+    if (tb > 3) {
+      p.tier[i] = tb - 4;
+      continue;
+    }
+    const s = T < 0 ? 1 : TIER_STRIDE[tb]!;
+    if (s > 1 && ((T + p.id[i]!) % TIER_ROUND) % s !== 0) continue;
     const act = p.act[i]!,
       home = houses.home[p.house[i]!]!;
     let kind = -1;
@@ -6961,7 +7398,7 @@ function countHours(place: Place, f: Frame): void {
     if (kind < 0 || kind === tradeKind(occOf(p, i))) continue;
     if (ageOf(p, i, place.t) < f.life.adulthood) continue;
     const at = i * KINDS_N + kind;
-    if (p.hours[at]! < SKILL_MOST) p.hours[at]!++;
+    if (p.hours[at]! < SKILL_MOST) p.hours[at] = Math.min(SKILL_MOST, p.hours[at]! + s);
   }
 }
 
