@@ -41,12 +41,7 @@ import {
 } from "../ui/index.ts";
 import { PlaceBodies, type TownThing } from "../view/index.ts";
 import { installWatch, type WatchFlow } from "./townwatch.ts";
-import {
-  OVERLAY_SHADES,
-  PlaceOverlayLayer,
-  overlayColour,
-  shadeOf,
-} from "./townoverlay.ts";
+import { OVERLAY_SHADES, PlaceOverlayLayer, overlayColour, shadeOf } from "./townoverlay.ts";
 
 export type PlaceDeps = {
   readonly hud: HTMLElement;
@@ -660,8 +655,7 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
           const x = o && !("error" in o) ? o : null;
           overlay.set(x);
           // (Its ramp in the shades the ground is laid in.)
-          if (x)
-            hud.legend(x, (v) => overlayColour((shadeOf(v) + 0.5) / OVERLAY_SHADES, x.good));
+          if (x) hud.legend(x, (v) => overlayColour((shadeOf(v) + 0.5) / OVERLAY_SHADES, x.good));
         }),
     );
   };
