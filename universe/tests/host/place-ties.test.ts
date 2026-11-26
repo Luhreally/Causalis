@@ -63,7 +63,9 @@ test("each knows up to a dozen, likes those alike, quarrels with rivals; kept in
     place = enterPlace(w, s.ref)!;
   // (Its columns read afresh after a watch: a place's people grow into new ones as births pass what they held.)
   let p = place.people;
-  assert.ok(PERSON_BYTES <= 180, `${PERSON_BYTES} bytes a person`);
+  // (182 since the tiers: a byte for how closely one is followed and one for how far into their stride their needs are
+  // reckoned, 2026-11-26.)
+  assert.ok(PERSON_BYTES <= 182, `${PERSON_BYTES} bytes a person`);
   // Entered: each already knows some of their household, their work and their street.
   let known = 0,
     ties = 0;

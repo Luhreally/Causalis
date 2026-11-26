@@ -83,6 +83,8 @@ export class PlaceInspector {
   onPage: (ref: string) => void = () => {};
   onFollow: (on: boolean) => void = () => {};
   onOrder: (type: string, args: Record<string, unknown>) => void = () => {};
+  /** One of its people followed in full by word, or let go of (tiers). */
+  onPin: (id: number, on: boolean) => void = () => {};
 
   constructor(root: HTMLElement) {
     this.handle.title = "Taller or shorter";
@@ -215,6 +217,21 @@ export class PlaceInspector {
     const needs = el("div", "place-insp-needs");
     for (const n of x.needs) needs.append(this.needBar(n, x.serves));
     body.push(needs);
+    // (How closely they are followed, and a key to follow them in full for good, or let them be. Tiers.)
+    const tier = el("div", "place-insp-tier"),
+      fixed = x.tier.pinned && !x.tier.soft,
+      pin = el("button", `place-insp-pin${fixed ? " on" : ""}`, fixed ? "★ Followed" : "☆ Follow closely");
+    tier.append(
+      el("span", "place-insp-tier-words", `${cap(x.tier.words)}${x.tier.pinned ? (fixed ? ", by your word" : ", while looked at") : ""}`),
+      pin,
+    );
+    pin.setAttribute("aria-pressed", String(fixed));
+    pin.title = fixed
+      ? `Let ${x.name} be followed as the town's story has them`
+      : `Follow ${x.name} in full, ten minutes at a time, whatever befalls them`;
+    pin.setAttribute("aria-label", pin.title);
+    pin.onclick = () => this.onPin(x.id, !fixed);
+    body.push(tier);
     // (A hand's orders, by name: a trade, or let be.)
     if (this.orders && x.trade !== "child") {
       const row = el("div", "place-insp-orders"),

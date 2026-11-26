@@ -114,6 +114,8 @@ import {
   placeMakings,
   placeBreak,
   placeJailed,
+  placePin,
+  placeTier,
   BREAK,
   hapIsDeath,
 } from "./place.ts";
@@ -1959,6 +1961,21 @@ export function placeQueries(villagePlan: QueryHandler): Readonly<Record<string,
       const a = args as { ref?: unknown; since?: unknown } | null,
         place = typeof a?.ref === "string" ? placesOf(world)?.get(a.ref) : undefined;
       return place && typeof a?.since === "number" ? placeSince(world, place, a.since) : null;
+    },
+    // One of its people followed in full by the player's word, or let go of (tiers): `soft`, for a day from being looked
+    // at, and never in place of a word given for good.
+    "place.pin": (world, args) => {
+      const a = args as { ref?: unknown; id?: unknown; on?: unknown; soft?: unknown } | null,
+        place = typeof a?.ref === "string" ? placesOf(world)?.get(a.ref) : undefined;
+      if (!place || typeof a?.id !== "number") return null;
+      const i = placeIndexOf(place, a.id);
+      if (i < 0) return null;
+      const was = placeTier(place, i).pinned;
+      if (a.soft === true) {
+        if (was === -1) return was;
+        placePin(place, a.id, place.t + DAY);
+      } else placePin(place, a.id, a.on === true ? -1 : null);
+      return placeTier(place, i).pinned;
     },
     "place.log": (world, args) => {
       const place = kept(world, args);
