@@ -1,0 +1,91 @@
+/* A town being entered (O1): its loading screen, over the scene and in place of the god game's chrome while it stands
+   (nothing lies over anything: the rest of #hud is away). In the god game's look: its navy glass and aqua keys. */
+body.place-loading #hud > *:not(.place-load) {
+  display: none !important;
+}
+body.place-loading > .sound-button {
+  display: none !important;
+}
+#hud > .place-load {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  background: radial-gradient(ellipse at 50% 35%, rgba(18, 36, 78, 0.86), rgba(4, 9, 24, 0.95));
+  pointer-events: auto;
+}
+#hud > .place-load[hidden] {
+  display: none;
+}
+.place-load-card {
+  width: min(420px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  padding: 18px 18px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(158, 231, 255, 0.35);
+  background: linear-gradient(180deg, rgba(26, 48, 98, 0.92), rgba(10, 20, 46, 0.94));
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  color: #e8f1ff;
+  font: 14px/1.4 system-ui, sans-serif;
+}
+.place-load-banner {
+  height: 10px;
+  margin: -18px -18px 14px;
+  border-radius: 12px 12px 0 0;
+  background: linear-gradient(90deg, #2c6fd6, #9ee7ff 45%, #f2c14e 55%, #2c6fd6);
+}
+.place-load-name {
+  margin: 0 0 2px;
+  font-size: 22px;
+  letter-spacing: 0.02em;
+}
+.place-load-when {
+  margin: 0 0 10px;
+  color: #a9bbe2;
+}
+.place-load-facts {
+  margin: 0 0 12px;
+  padding-left: 18px;
+}
+.place-load-steps {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.place-load-step {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  opacity: 0.55;
+}
+.place-load-step.doing,
+.place-load-step.done {
+  opacity: 1;
+}
+.place-load-mark {
+  display: inline-block;
+  width: 18px;
+  text-align: center;
+  color: #9ee7ff;
+}
+.place-load-step.done .place-load-mark {
+  color: #7be3a8;
+}
+.place-load-cancel {
+  min-height: 44px;
+  min-width: 44px;
+  width: 100%;
+  font: inherit;
+  border-radius: 8px;
+  border: 1px solid rgba(158, 231, 255, 0.45);
+  background: linear-gradient(180deg, #3b6fc2, #234a8f);
+  color: #fff;
+}

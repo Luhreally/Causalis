@@ -74,7 +74,7 @@ export {
 } from "./globe.ts";
 export { WEALTH_CHOICES, figureEye, wealthNote, wealthShades, wealthSpread } from "./leaders.ts";
 export { LivedBody, livedSpeed, ruledSpeed, spotOf } from "./lived.ts";
-export { LATE, PLACED_SIZE, PlaceBodies, wayGone } from "./placefolk.ts";
+// (A place's bodies are read from their module by app/townplace.ts, a chunk of its own: view/placefolk.ts.)
 export {
   EASY,
   PULL,

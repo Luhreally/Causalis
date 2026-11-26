@@ -60,6 +60,29 @@ export class RunNote {
     this.close();
   }
 
+  /**
+   * A town left after it was run (town mode, O1): what befell it meanwhile, a line each, told as a run's note is, once
+   * the eye is free (its chrome gone, the god game's back).
+   */
+  town(title: string, lines: readonly string[]): void {
+    this.waiting = { title, lines };
+  }
+  private waiting: { title: string; lines: readonly string[] } | null = null;
+  private tellTown(x: { title: string; lines: readonly string[] }): void {
+    const head = el("div", "ran-head"),
+      close = el("button", "ran-close", "×"),
+      lines = el("div", "ran-lines");
+    close.setAttribute("aria-label", "Put it by");
+    close.onclick = () => this.close();
+    head.append(el("span", "ran-title", `🏘️ ${x.title}`), close);
+    for (const l of x.lines) lines.append(el("div", "ran-line", l));
+    this.element.replaceChildren(head, lines);
+    this.element.hidden = false;
+    this.parent.prepend(this.element);
+    this.left = STAYS_MS;
+    this.stands = true;
+  }
+
   /** The world jumped to where it stands, behind the screen, from its beginning. */
   jumped(): void {
     this.ready = { from: 0, to: -1, words: "While it ran" };
@@ -103,6 +126,10 @@ export class RunNote {
         this.left -= now - this.looked;
         if (this.left <= 0) this.close();
       }
+    } else if (this.waiting && !this.busy()) {
+      const x = this.waiting;
+      this.waiting = null;
+      this.tellTown(x);
     } else if (this.ready && this.last !== null && !this.busy()) {
       const run = this.ready;
       this.ready = null;

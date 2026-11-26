@@ -115,6 +115,7 @@ import {
   placeBreak,
   placeJailed,
   BREAK,
+  hapIsDeath,
 } from "./place.ts";
 import { townRoster } from "./roster.ts";
 
@@ -1269,6 +1270,49 @@ export function storeTakes(world: World, place: Place, store: number): PlaceStor
     })),
   };
 }
+/** What befell a place since a moment (O1), counted from its log: how long, and a line of each kind that came about. */
+export function placeSince(
+  world: World,
+  place: Place,
+  since: number,
+): { days: number; lines: readonly string[] } {
+  const n = new Map<number, number>(),
+    want = (what: number) => n.get(what) ?? 0;
+  let dead = 0;
+  for (const x of place.log)
+    if (x.t >= since) {
+      n.set(x.what, want(x.what) + 1);
+      if (hapIsDeath(x.what)) dead++;
+    }
+  const of = (k: number, one: string, many: string) => (k === 1 ? `1 ${one}` : `${k} ${many}`),
+    lines: string[] = [];
+  const born = want(HAP.born),
+    came = want(HAP.came),
+    left = want(HAP.left);
+  if (born || dead)
+    lines.push(
+      [born ? of(born, "was born", "were born") : null, dead ? of(dead, "died", "died") : null]
+        .filter(Boolean)
+        .join(", ") +
+        (want(HAP.starved) ? ` (${want(HAP.starved)} of want)` : "") +
+        ".",
+    );
+  if (came || left)
+    lines.push(
+      [came ? of(came, "came to the town", "came to the town") : null, left ? of(left, "left it", "left it") : null]
+        .filter(Boolean)
+        .join(", ") + ".",
+    );
+  if (want(HAP.paired)) lines.push(`${of(want(HAP.paired), "pair was", "pairs were")} made.`);
+  if (want(HAP.struckHurt) + want(HAP.hurt) + want(HAP.wounded))
+    lines.push(`${want(HAP.struckHurt) + want(HAP.hurt) + want(HAP.wounded)} were hurt.`);
+  if (want(HAP.broke)) lines.push(`${of(want(HAP.broke), "broke down", "broke down")}, a mood too low to bear.`);
+  if (want(HAP.judged)) lines.push(`${of(want(HAP.judged), "was", "were")} brought before its justice.`);
+  if (want(HAP.madeWork)) lines.push(`${of(want(HAP.madeWork), "work was", "works were")} made.`);
+  if (want(HAP.brawl)) lines.push(`${of(want(HAP.brawl), "came to blows", "came to blows")}.`);
+  void world;
+  return { days: Math.max(0, Math.round((place.t - since) / DAY)), lines };
+}
 /** A place's healer for its sheets (N9; null: its land knows no herb-lore, or none is chosen yet). */
 export function healerRow(world: World, place: Place): PlaceHealerRow | null {
   const h = placeHealer(place);
@@ -1909,6 +1953,12 @@ export function placeQueries(villagePlan: QueryHandler): Readonly<Record<string,
       const place = kept(world, args),
         occ = (args as { occ?: unknown } | null)?.occ;
       return place ? workSheet(world, place, typeof occ === "number" ? occ : null) : null;
+    },
+    // What befell a town while it was run, told on leaving it (O1: "While you ran…"): from its log since a moment.
+    "place.since": (world, args) => {
+      const a = args as { ref?: unknown; since?: unknown } | null,
+        place = typeof a?.ref === "string" ? placesOf(world)?.get(a.ref) : undefined;
+      return place && typeof a?.since === "number" ? placeSince(world, place, a.since) : null;
     },
     "place.log": (world, args) => {
       const place = kept(world, args);

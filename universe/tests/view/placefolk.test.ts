@@ -10,9 +10,7 @@ import {
   ACTIVITY,
   BLINK,
   EASY,
-  PLACED_SIZE,
   PULL,
-  PlaceBodies,
   STRIDES,
   WIDEST,
   agePace,
@@ -21,10 +19,10 @@ import {
   hipOf,
   legSwing,
   strideLength,
-  wayGone,
   type Moment,
   type Presence,
 } from "../../src/view/index.ts";
+import { PLACED_SIZE, PlaceBodies, wayGone } from "../../src/view/placefolk.ts";
 import { OCC, lifeFigure } from "../../src/rules/index.ts";
 
 const N = 40,

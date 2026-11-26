@@ -155,3 +155,45 @@ test("a save in one text is the text JSON writes of it, store by store", async (
   assert.ok(gunzipSync(over).toString("utf8").startsWith("CAUSALIS-SPLIT 1\n"));
   assert.equal(JSON.stringify(await decodeSave(over)), text(doc));
 });
+
+test("a world's towns are kept apart from its save, written again only when they have changed, and read back where they were", async () => {
+  const store = new MemoryByteStore(),
+    slots = new SaveSlots(store, "towns"),
+    w = makeToyWorld("towns"),
+    ruleset = rulesetId(w, "test");
+  w.runTo(3 * YEAR);
+  const base = saveWorld(w, ruleset),
+    towns = { schema: 1, data: { places: [{ town: "s:1", people: [1, 2, 3] }] }, hash: "h1", outside: true as const },
+    withTowns = (doc: typeof base, chunk: typeof towns) =>
+      ({ ...doc, stores: { ...doc.stores, "readings.places": chunk } }) as typeof base;
+  await slots.write(withTowns(base, towns));
+  const keys = (await store.keys()).filter((k) => k.includes("towns-"));
+  assert.deepEqual(keys, ["save/towns/towns-h1"]);
+  // The slot itself holds none of them.
+  const slot = (await decodeSave((await store.get("save/towns/a"))!)).stores["readings.places"] as {
+    data: unknown;
+  };
+  assert.equal(slot.data, null);
+  // Saved again with the same towns: none written again; with others, the old let go once no slot names them.
+  await slots.write(withTowns(base, towns));
+  assert.deepEqual(
+    (await store.keys()).filter((k) => k.includes("towns-")),
+    ["save/towns/towns-h1"],
+  );
+  const other = { ...towns, data: { places: [] }, hash: "h2" };
+  await slots.write(withTowns(base, other));
+  await slots.write(withTowns(base, other));
+  assert.deepEqual(
+    (await store.keys()).filter((k) => k.includes("towns-")),
+    ["save/towns/towns-h2"],
+  );
+  // Read back: put where they were.
+  const got = await slots.read((doc) => doc);
+  assert.deepEqual(got?.value.stores["readings.places"], JSON.parse(JSON.stringify(other)));
+  // Their bytes lost: the save reads without them.
+  await store.delete("save/towns/towns-h2");
+  const bare = await slots.read((doc) => doc);
+  assert.equal(bare?.value.stores["readings.places"], undefined);
+  await slots.remove();
+  assert.deepEqual(await store.keys(), []);
+});

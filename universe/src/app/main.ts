@@ -415,7 +415,8 @@ import { installHeld, type HeldField } from "./held.ts";
 import { installPossession } from "./possess.ts";
 import { installHome, type HomeAsk } from "./home.ts";
 import { installMoney } from "./money.ts";
-import { installPlace, type PlaceFlow } from "./townplace.ts";
+import type { PlaceFlow } from "./townplace.ts";
+import { lazyPlace } from "./townlazy.ts";
 import type { PlaceTab } from "../ui/index.ts";
 import { installLeaders } from "./leaders.ts";
 import { installLife } from "./life.ts";
@@ -10854,8 +10855,11 @@ async function runPlanetPage(): Promise<void> {
     if (plan && !plan.native) void pageWindow.open(`board:${plan.ref}`);
   };
   moneyPlan = moneyFlow.planNow;
+  /** What befell a town while it was run, told once it is left (set where the run's note is made). */
+  let townRan: ((title: string, lines: readonly string[]) => void) | null = null;
   // A town entered (town mode, first slice): 🏘️ on its bar. Its people kept one by one, drawn where the place has them.
-  const placeFlow = installPlace({
+  // (Its chunk fetched when a town is first entered, the loading screen up meanwhile: app/townlazy.ts, O1.)
+  const placeFlow = lazyPlace({
     hud,
     client,
     village,
@@ -10877,6 +10881,8 @@ async function runPlanetPage(): Promise<void> {
     fill: (x) => {
       stage.fill = x;
     },
+    // (What befell the town while it was run, told on leaving it: the run's note, made below.)
+    ranTown: (title, lines) => townRan?.(title, lines),
   });
   placeTap = placeFlow.tapped;
   placeQuery = placeFlow.planQuery;
@@ -11385,6 +11391,7 @@ async function runPlanetPage(): Promise<void> {
       !!document.querySelector(".jump-screen"),
   );
   if (exposed.jumpedFrom !== undefined) runNote.jumped();
+  townRan = (title, lines) => runNote.town(title, lines);
   // The date, pressed: this year told (ui/told.ts).
   time.onDate = () => void pageWindow.open(`told:${Math.floor((client.status?.t ?? 0) / YEAR)}`);
   // The people bar (B1): who matters where the eye is, and how they are. The eye's place is read here at a low rate; who
