@@ -231,17 +231,74 @@ export function fireHomes(fuel: number, burning: number): number {
 }
 
 /**
- * How deep it goes down in history, by its dead: the greater, the longer kept, and the farther it is told (6 and more, as a
- * window). So many dead is news on any world, however many live; fewer, on a world they were a part of. (Five hundred dead
- * went down for twelve centuries on any world, as first set: on first light, a world of billions, its every middling quake
- * was kept so, 4,500 of them at 3,100 and a fifth of its save.)
+ * How deep a blow from nature goes down in history (its importance: 5 kept twelve centuries, 4 four, 3 a lifetime unless something
+ * kept cites it), by what it did to the people it struck, never by a bare count: a thousand drowned is a land's ruin in its first
+ * centuries and, among eight million, an ordinary flood. (A thousand drowned and five thousand dead went down for twelve centuries
+ * on any world, as first set: on first light, eight million to a land by year 1,000, 11,851 of its 12,452 floods kept at 1,500
+ * were kept so, and 4,500 middling quakes at 3,100 before them.)
+ *
+ * - Against the world's people (6 and more told as a window): a share of everyone alive, for 5 and more. (Not for 4: a land is
+ *   a six-hundredth of first light, and a world's two in a million was a land's every middling flood.)
+ * - Against its own land's people (`land`): one in a hundred of them is a city drowned, history's however many live elsewhere.
+ * - Against what that land's blows of its kind usually take (`usual`, a share of its people, its own lessons counted): eight
+ *   times its usual is the one its people remember; four times, a great one, its land's for four centuries.
+ * - The worst of its kind the world has seen this century (`worst`, from centuryWorst) is history's, whatever else.
  */
-export function natureImportance(dead: number, people: number): number {
-  const share = dead / Math.max(1, people);
-  if (dead >= 1_000_000 || (dead >= 50000 && share >= 1e-3)) return 7;
-  if (dead >= 100_000 || (dead >= 5000 && share >= 2e-4)) return 6;
-  if (dead >= 5000 || (dead >= 500 && share >= 2e-5)) return 5;
-  return dead >= 500 || (dead >= 50 && share >= 2e-6) ? 4 : 3;
+export const NATURE_TOLD = {
+  /** Shares of the world's people for 7, 6 and 5, each with the least dead that may be told so. */
+  world: [
+    [1e-3, 50000],
+    [2e-4, 5000],
+    [2e-5, 500],
+  ] as readonly (readonly [number, number])[],
+  /** Shares of its own land's people for 5 and 4, each with the least dead. */
+  land: [
+    [0.01, 50],
+    [0.002, 10],
+  ] as readonly (readonly [number, number])[],
+  /** Times its land's usual toll for 5 and 4. */
+  usual: [8, 4] as readonly number[],
+} as const;
+
+export function natureImportance(
+  dead: number,
+  people: number,
+  land: number = people,
+  usual = 0,
+  worst = false,
+): number {
+  if (dead <= 0) return 3;
+  const share = dead / Math.max(1, people),
+    here = dead / Math.max(1, land),
+    times = usual > 0 ? here / usual : 0,
+    w = NATURE_TOLD.world,
+    l = NATURE_TOLD.land;
+  if (share >= w[0]![0] && dead >= w[0]![1]) return 7;
+  if (share >= w[1]![0] && dead >= w[1]![1]) return 6;
+  if (
+    (share >= w[2]![0] && dead >= w[2]![1]) ||
+    (here >= l[0]![0] && dead >= l[0]![1]) ||
+    times >= NATURE_TOLD.usual[0]! ||
+    worst
+  )
+    return 5;
+  return (here >= l[1]![0] && dead >= l[1]![1]) || times >= NATURE_TOLD.usual[1]! ? 4 : 3;
+}
+
+/**
+ * Whether a blow's dead are the most of its kind this century (the record kept as [century, dead]; one dead at least), and the
+ * record as it now stands.
+ */
+export function centuryWorst(
+  was: readonly [number, number] | undefined,
+  year: number,
+  dead: number,
+): { worst: boolean; record: [number, number] | undefined } {
+  const century = Math.floor(year / 100),
+    held = was && was[0] === century ? was[1] : 0;
+  if (dead <= 0 || dead <= held)
+    return { worst: false, record: was ? [was[0], was[1]] : undefined };
+  return { worst: true, record: [century, dead] };
 }
 
 /** The stakes of what befell a realm (0 … 1), by its dead. */

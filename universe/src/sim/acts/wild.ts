@@ -52,6 +52,7 @@ import {
   litChance,
   magnitudeOf,
   natureImportance,
+  centuryWorst,
   reachesGround,
   shakeAt,
   shakeShares,
@@ -127,6 +128,8 @@ export type WildTally = {
   rises: number;
   answered: number;
   failed: number;
+  /** The most dead of one quake this century: [century, dead] (rules/nature.ts centuryWorst). */
+  worstQuake?: [number, number];
 };
 
 const emptyTally = (): WildTally => ({
@@ -502,6 +505,24 @@ function quakesMonth(ctx: PopulationContext, g: ProvinceWorld, idx: Index, t: Si
   }
 }
 
+/**
+ * A quake's importance, by its dead against its land's people and the world's, and whether it is the worst this century
+ * (rules/nature.ts natureImportance; the record is kept in the tally). Its land's people are counted as they were before it.
+ */
+function quakeImportance(ctx: PopulationContext, cell: number, dead: number, t: SimTime): number {
+  if (dead <= 0) return natureImportance(0, 1);
+  const tally = wildOf(ctx.world)!.tally,
+    r = centuryWorst(tally.worstQuake, yearOfMoment(t), dead);
+  if (r.record) tally.worstQuake = r.record;
+  return natureImportance(
+    dead,
+    worldPeople(ctx),
+    (ctx.provinces.get(cell)?.total() ?? 0) + dead,
+    0,
+    r.worst,
+  );
+}
+
 function tellQuake(
   ctx: PopulationContext,
   g: ProvinceWorld,
@@ -533,7 +554,7 @@ function tellQuake(
     ],
     event = world.events.emit({
       type: DISASTER_EVENTS.quake.type,
-      importance: natureImportance(struck.dead, worldPeople(ctx)),
+      importance: quakeImportance(ctx, cell, struck.dead, t),
       subjects: [prov.ref],
       place: prov.ref,
       causes,
@@ -566,7 +587,7 @@ function tellQuake(
     if (near.dead <= 0 && homesIn(near) <= 0) continue;
     const beside = world.events.emit({
       type: DISASTER_EVENTS.quake.type,
-      importance: natureImportance(near.dead, worldPeople(ctx)),
+      importance: quakeImportance(ctx, next, near.dead, t),
       subjects: [ctx.provinces.get(next)!.ref],
       place: ctx.provinces.get(next)!.ref,
       causes: [{ ref: event, role: "trigger", weight: 1 }],
@@ -835,7 +856,10 @@ function wildfire(
   for (const { v, homes: lost, dead: fell } of towns)
     world.events.emit({
       type: LOCAL_ACT_EVENTS.fire.type,
-      importance: Math.max(natureImportance(fell, worldPeople(ctx)), 4),
+      importance: Math.max(
+        natureImportance(fell, worldPeople(ctx), (ctx.provinces.get(v.cell)?.total() ?? 0) + fell),
+        4,
+      ),
       subjects: [v.ref],
       place: cellRef(0, v.cell),
       causes: [{ ref: event, role: "trigger", weight: 1 }],
@@ -982,7 +1006,7 @@ function skyMonth(ctx: PopulationContext, g: ProvinceWorld, idx: Index, t: SimTi
   const town = Object.keys(homes)[0],
     strikeEvent = world.events.emit({
       type: DISASTER_EVENTS.meteor.type,
-      importance: natureImportance(fell, worldPeople(ctx)),
+      importance: natureImportance(fell, worldPeople(ctx), prov.total() + fell),
       subjects: [prov.ref],
       place: prov.ref,
       causes: [{ ref: star, role: "trigger", weight: 1 }],

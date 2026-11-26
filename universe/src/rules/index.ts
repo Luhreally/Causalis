@@ -12,7 +12,9 @@ export {
 export {
   NATURE,
   STARS,
+  NATURE_TOLD,
   answerChance,
+  centuryWorst,
   countOf,
   crossDays,
   dryness,
