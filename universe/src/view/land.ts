@@ -429,21 +429,22 @@ export function roadClear(
 ): (piece: readonly number[]) => boolean {
   if (!claims) return () => true;
   return (q) => {
-    if (g) {
-      const w = facetWater(g, q[0]!, q[2]!);
-      if (w === 1 || w === 3) return false;
-    }
     const ux = Math.sin(q[4]!),
       uz = Math.cos(q[4]!),
       along = q[3]! / 2,
       side = ROAD_TAKES / 2;
-    // (Its two ends, its middle, its middle's two sides and its four corners.)
+    // (Its two ends, its middle, its middle's two sides and its four corners: none on the sea or a lake, as none on a town's
+    // ground. Its middle alone was read for the water until 2026-11-25, and a piece whose middle stood on the shore lay over
+    // the water to its end: 150 pieces on 76 roads of 'probe 28' at year 400.)
     for (const [t, n] of ROAD_READ) {
+      const x = q[0]! + t * along * ux + n * side * uz,
+        z = q[2]! + t * along * uz - n * side * ux;
+      if (g) {
+        const w = facetWater(g, x, z);
+        if (w === 1 || w === 3) return false;
+      }
       // (What a town holds, its water within it with it: the town's own streets and bridges carry it there.)
-      const k = claims.laidAt(
-        q[0]! + t * along * ux + n * side * uz,
-        q[2]! + t * along * uz - n * side * ux,
-      );
+      const k = claims.laidAt(x, z);
       if (k === GROUND.built || k === GROUND.wall) return false;
     }
     return true;
@@ -818,9 +819,14 @@ export function roadTiles(
         if (done[s] || (barred(s) && s !== b)) continue;
         // (Not across a corner of the water: a step slantwise passes over the two tiles beside it, as the map draws them.)
         if (di && dj && (barred(j * g.size + ni) || barred(nj * g.size + i))) continue;
+        // (A river is bridged where the road must cross it: one tile of it at a time. Along it, from one of its tiles to the
+        // next, the road would lie in its water, as a lake's: so far dearer than going round. 'probe 28' had roads four of a
+        // river's tiles long at year 400, drawn as a road across a lake.)
         const run = (di && dj ? Math.SQRT2 : 1) * g.tileKm,
           climb = Math.abs(g.heights[s]! - g.heights[t]!) / run,
-          step = run * (1 + 5 * climb) + (w === 2 ? 2 * g.tileKm : 0),
+          step =
+            run * (1 + 5 * climb) +
+            (w === 2 ? (g.water[t] === 2 && !undersea ? 40 : 2) * g.tileKm : 0),
           c = cost[t]! + step;
         if (c < cost[s]!) {
           cost[s] = c;

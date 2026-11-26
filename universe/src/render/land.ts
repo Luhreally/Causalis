@@ -28,6 +28,7 @@ import {
   laneLine,
   landReach,
   facetWet,
+  facetWater,
   landEdge,
   linePieces,
   onLines,
@@ -202,24 +203,29 @@ class GroundBatches {
             out[q + 8] = grp.color[1];
             out[q + 9] = grp.color[2];
             let ground = floor(g, x, z),
-              wide = false;
-            // (A wide slab lies on its highest corner, or the land's rises come up through it. On the
-            // seabed the shore comes up over it, as it should: one lifted there would hang in the sea.)
+              low = ground;
+            // (What stands on a slope stands on its highest corner, or the land's rise comes up through it, and goes down to
+            // its lowest as a terrace or a plinth: drawn five times its size on the land, a lot on a steep hillside had its
+            // uphill side under the ground by several storeys, 2026-11-25. On the seabed the shore comes up over it, as it
+            // should: one lifted there would hang in the sea.)
             const sx = d[o + 3]! * LAND_ACROSS,
-              sz = d[o + 5]! * LAND_ACROSS;
+              sz = d[o + 5]! * LAND_ACROSS,
+              wide = !undersea && Math.max(sx, sz) > g.tileKm / 4;
             if (t.kept && top >= LAND_FLAT && t.kept(x, z, Math.max(sx, sz) / 2 + WAY_CLEAR))
               continue;
-            if (!undersea && Math.max(sx, sz) > g.tileKm / 4) {
-              wide = true;
+            if (!undersea) {
               const c = Math.cos(d[o + 6]!),
                 s = Math.sin(d[o + 6]!);
               for (const [u, v] of CORNERS) {
                 const a = (u * sx) / 2,
-                  b = (v * sz) / 2;
-                ground = Math.max(ground, floor(g, x + a * c + b * s, z - a * s + b * c));
+                  b = (v * sz) / 2,
+                  at = floor(g, x + a * c + b * s, z - a * s + b * c);
+                if (at > ground) ground = at;
+                else if (at < low) low = at;
               }
             }
             ground += LIFT;
+            low += LIFT;
             out[q] = x;
             out[q + 2] = z;
             out[q + 3] = d[o + 3]! * LAND_ACROSS;
@@ -227,16 +233,21 @@ class GroundBatches {
             out[q + 6] = d[o + 6]!;
             if (top < LAND_FLAT) {
               // Flat: a slab set into the ground, its top a little over it (higher for higher things).
-              const up = ground + top * FLAT_UP;
-              out[q + 1] = up - SLAB / 2;
-              out[q + 4] = SLAB;
+              const up = ground + top * FLAT_UP,
+                under = Math.min(up - SLAB, low);
+              out[q + 1] = (up + under) / 2;
+              out[q + 4] = up - under;
               if (wide) layTop(tops, g, x, z, Math.hypot(sx, sz) / 2, up);
             } else {
-              // (Towers kept from being needles at the land's height: Phase 66.)
+              // (Towers kept from being needles at the land's height: Phase 66. What stands on the ground goes down to it.)
               const foot = landHigh(d[o + 1]! - d[o + 4]! / 2),
-                head = landHigh(top);
-              out[q + 1] = ground + ((foot + head) / 2) * LAND_UP;
-              out[q + 4] = (head - foot) * LAND_UP;
+                head = ground + landHigh(top) * LAND_UP,
+                under =
+                  foot < LAND_FLAT
+                    ? Math.min(low, ground + foot * LAND_UP)
+                    : ground + foot * LAND_UP;
+              out[q + 1] = (head + under) / 2;
+              out[q + 4] = head - under;
             }
             m++;
             // (A great land's parts of one mesh read a share at a time.)
@@ -300,6 +311,13 @@ const ROAD_WIDE = { track: 0.07, paved: 0.1, rails: 0.05 } as const;
 /** A way worn between camps and hamlets, before any road is laid (R1): thin, and nearer the ground's own colour. */
 const FAINT: Rgb = [0.58, 0.5, 0.36];
 const FAINT_WIDE = 0.035;
+/**
+ * Where a road crosses a river the map draws (as broad as its tiles): a bridge, its deck of timber and stone a little over the
+ * water and a little broader than the road, so it reads as a crossing and not a road laid on the water.
+ */
+const BRIDGE: Rgb = [0.4, 0.33, 0.26];
+const BRIDGE_WIDE = 0.12;
+const BRIDGE_UP = 0.05;
 /** How often a road's laying is looked at, in a year; a road's sections, and how far either side of a cut lies open (region units). */
 const WORKS_LOOKS = 8;
 const SECTION = 0.25;
@@ -323,13 +341,14 @@ export class LandLayer {
   /** What each town's fields are sown with, as its own view reads them (landSown). */
   private sown = new Map<string, LandSown>();
   private readonly roadBatches: Record<
-    "track" | "paved" | "rails" | "faint",
+    "track" | "paved" | "rails" | "faint" | "bridge",
     InstancedBatch | null
   > = {
     track: null,
     paved: null,
     rails: null,
     faint: null,
+    bridge: null,
   };
   private readonly stage: Stage;
   private readonly meshes: Readonly<Record<PartMesh, pc.Mesh>>;
@@ -802,11 +821,12 @@ export class LandLayer {
       plan = this.plan!,
       year = Math.floor(moment),
       onGround = plan.undersea ? floorAt : this.overFields;
-    const pieces: Record<"track" | "paved" | "rails" | "faint", number[][]> = {
+    const pieces: Record<"track" | "paved" | "rails" | "faint" | "bridge", number[][]> = {
       track: [],
       paved: [],
       rails: [],
       faint: [],
+      bridge: [],
     };
     const nows = plan.roads.map((r) => roadNow(r, moment)),
       /** A road's sections laid. */
@@ -883,7 +903,15 @@ export class LandLayer {
                 this.wayPieces.set(key, made);
                 return made;
               })();
-          pieces[as === "rails" ? "paved" : as].push(...done.ground);
+          // (Over a river the map draws, a bridge: the same way, on a deck over the water.)
+          for (const q of done.ground)
+            pieces[
+              !plan.undersea && facetWater(g, q[0]!, q[2]!) === 2
+                ? "bridge"
+                : as === "rails"
+                  ? "paved"
+                  : as
+            ].push(q);
           if (as === "rails") {
             pieces.rails.push(...done.rails);
             this.railWays.push({ way: wayOf(done.side), busy: road.traffic });
@@ -969,7 +997,7 @@ export class LandLayer {
         .filter((c) => c.fled?.coming)
         .map((c) => ({ ...tileMiddle(g, c.tile), people: c.people })),
     );
-    for (const look of ["track", "paved", "rails", "faint"] as const) {
+    for (const look of ["track", "paved", "rails", "faint", "bridge"] as const) {
       const list = pieces[look];
       let b = this.roadBatches[look];
       if (!b || b.capacity < list.length) {
@@ -984,7 +1012,9 @@ export class LandLayer {
                 ? PAVED
                 : look === "faint"
                   ? FAINT
-                  : RAILS),
+                  : look === "bridge"
+                    ? BRIDGE
+                    : RAILS),
           ],
           Math.max(64, Math.ceil(list.length * 1.3)),
           this.root,
@@ -994,10 +1024,10 @@ export class LandLayer {
       b.set(list.length, (i, o) => {
         const [x, y, z, len, yaw, pitch] = list[i]!;
         o[0] = x!;
-        o[1] = y!;
+        o[1] = look === "bridge" ? y! + BRIDGE_UP : y!;
         o[2] = z!;
-        o[3] = look === "faint" ? FAINT_WIDE : ROAD_WIDE[look];
-        o[4] = 0.012;
+        o[3] = look === "faint" ? FAINT_WIDE : look === "bridge" ? BRIDGE_WIDE : ROAD_WIDE[look];
+        o[4] = look === "bridge" ? 0.03 : 0.012;
         o[5] = len!;
         o[6] = yaw!;
         o[7] = pitch!;
