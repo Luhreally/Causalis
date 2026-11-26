@@ -81,6 +81,18 @@ if (argv[0] === "--child") {
       digest: place.placeDigest(p),
       log: createHash("sha1").update(JSON.stringify(p.log)).digest("hex").slice(0, 16),
       lines: p.log.length,
+      // (What befell it, kind by kind, and what its place came to: --tell says them.)
+      happened: Object.fromEntries(
+        Object.entries(place.HAP as Record<string, number>)
+          .map(([name, what]) => [name, p.log.filter((x: { what: number }) => x.what === what).length])
+          .filter(([, n]) => (n as number) > 0),
+      ),
+      end: p.people.n,
+      bytes: (() => {
+        const st = new place.PlaceStore();
+        st.places.push(p);
+        return JSON.stringify(st.save()).length;
+      })(),
     }),
   );
   process.exit(0);
@@ -105,6 +117,9 @@ type Run = {
   digest: string;
   log: string;
   lines: number;
+  happened: Record<string, number>;
+  end: number;
+  bytes: number;
 };
 const self = fileURLToPath(import.meta.url),
   run = (root: string): Run => {
@@ -122,6 +137,12 @@ for (let k = 0; k < runs; k++)
     const r = run(root);
     (results.get(root) ?? results.set(root, []).get(root)!).push(r);
     console.log(
+      (argv.includes("--tell")
+        ? `${root}: ${r.end} people at the end, its place ${(r.bytes / 1024).toFixed(0)} KB saved; befell: ${Object.entries(r.happened)
+            .map(([k, n]) => `${k} ${n}`)
+            .join(", ")}
+`
+        : "") +
       `${root}: town of ${r.town}, kept ${r.kept} (${mode}); entered in ${r.enter.toFixed(0)} ms; first day's worst hour ${r.worst.toFixed(0)} ms; cold ${said(r.cold)} ms, warm ${said(r.warm)} ms a tick; days ${r.daily.map((x) => x.toFixed(2)).join(" ")}; after ${days} days digest ${r.digest}, log ${r.log} (${r.lines} lines)`,
     );
   }

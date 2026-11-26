@@ -68,8 +68,8 @@ const memories = (w: World, ref: string, kind: number) => {
 test("a person's memories are 24 bytes of them, and a person of a place stays within a hundred and eighty", () => {
   // (The place's columns before memories were 72 bytes a person: six memories of four bytes each are the growth; then the
   // hours at each kind of work, two bytes a kind, and the kind their household taught them, a byte: N6; whom they know,
-  // five bytes each of a dozen: N8.)
-  assert.equal(PERSON_BYTES, 72 + 4 * THOUGHTS + 2 * SKILL_KINDS.length + 1 + 5 * TIES);
+  // five bytes each of a dozen: N8; a wound's bleeding, the blood lost and its festering, a byte each: N9.)
+  assert.equal(PERSON_BYTES, 72 + 4 * THOUGHTS + 2 * SKILL_KINDS.length + 1 + 5 * TIES + 3);
   assert.ok(PERSON_BYTES <= 180);
 });
 

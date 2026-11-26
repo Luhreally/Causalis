@@ -46,6 +46,7 @@ import {
   type PlaceSiteRow,
   type PlaceStockRow,
   type PlaceStocksSheet,
+  type PlaceHealerRow,
   type PlaceWorkSheet,
   type VillagePlan,
 } from "../bridge/index.ts";
@@ -102,6 +103,8 @@ import {
   OFF_WORTH,
   placeDayOf,
   actWords,
+  placeWound,
+  placeHealer,
 } from "./place.ts";
 import { townRoster } from "./roster.ts";
 
@@ -302,6 +305,21 @@ export function whyWords(world: World, place: Place, i: number): string {
       return `There is sickness in their household, and the sick are kept apart ${byOrder(place, "respond:quarantine")}: at home, though they want company`;
     case WHY.dark:
       return `It is dark: work by sight is worth less than rest (${pct(IDLE_WORTH)}) until light`;
+    case WHY.tend: {
+      // (Whom they are with, or going to: the one whose home they are at.)
+      const at = p.eta[i]! > 0 ? p.to[i]! : p.at[i]!,
+        q = (() => {
+          for (let j = 0; j < p.n; j++)
+            if (p.health[j] === 1 && place.houses.home[p.house[j]!] === at) return j;
+          return -1;
+        })(),
+        name = q >= 0 ? placeWho(world, place)(q).name : null;
+      return `The town's healer: ${p.eta[i]! > 0 ? "going to" : "at the bedside of"} ${name ?? "one of its hurt"}, to dress a wound and wash it, with a day's remedies for one festering${going}`;
+    }
+    case WHY.herbs: {
+      const h = placeHealer(place);
+      return `The town's healer, with none of the hurt wanting them: out about the fields gathering remedies (${h.doses} of the ${h.wanted} doses they keep by them)${going}`;
+    }
     default:
       return ACT_WORDS[p.act[i]!] ?? "";
   }
@@ -544,7 +562,11 @@ export function placeNotices(world: World, place: Place): PlaceNotice[] {
         rare: rare(hap),
       });
     };
-  let want = 0,
+  let bleeding = 0,
+    bleedOne = -1,
+    festering = 0,
+    festerOne = -1,
+    want = 0,
     wantMost = -1,
     sick = 0,
     sickOne = -1,
@@ -561,6 +583,18 @@ export function placeNotices(world: World, place: Place): PlaceNotice[] {
     if (p.health[i] === 2) {
       sick++;
       if (sickOne < 0) sickOne = i;
+    }
+    // (A wound bleeding, and one festering: N9.)
+    if (p.health[i] === 1) {
+      const x = placeWound(place, i);
+      if (x.bleeding > 0) {
+        bleeding++;
+        if (bleedOne < 0 || x.bleeding > placeWound(place, bleedOne).bleeding) bleedOne = i;
+      }
+      if (x.fester > 0) {
+        festering++;
+        if (festerOne < 0 || x.fester > placeWound(place, festerOne).fester) festerOne = i;
+      }
     }
     // (Abed with no one of their own home to tend them, and no healer or hospital: rules/healing.ts tendedBy.)
     if ((p.health[i] === 1 || p.health[i] === 2) && tendedOf(place, i) === "kin") {
@@ -642,6 +676,31 @@ export function placeNotices(world: World, place: Place): PlaceNotice[] {
       `Food for ${left} ${left === 1 ? "day" : "days"} in its stores and pantries`,
       HAP.famine,
       { n: left, lot, ref: lot === null ? null : placeLotRef(place.town, lot) },
+    );
+  }
+  if (bleeding) {
+    const w = who(bleedOne),
+      x = placeWound(place, bleedOne);
+    add(
+      "bleeding",
+      "🩸",
+      3,
+      `${bleeding} ${bleeding === 1 ? "is" : "are"} bleeding from a wound not yet dressed: ${w.name}, losing ${pct(x.bleeding)} of their blood in ten minutes, ${pct(x.blood)} lost already`,
+      HAP.bled,
+      { n: bleeding, id: p.id[bleedOne]!, ref: w.ref },
+    );
+  }
+  if (festering) {
+    const w = who(festerOne),
+      x = placeWound(place, festerOne),
+      h = placeHealer(place);
+    add(
+      "festering",
+      "🦠",
+      x.fester >= 32 ? 3 : 2,
+      `${festering} ${festering === 1 ? "wound festers" : "wounds fester"}: ${w.name}'s the worst, ${festerWords(x.fester)}${h.i >= 0 && h.doses === 0 && !place.bldgs.kind.some((k) => CIVICS[k]?.kind === "hospital") ? "; the healer has no remedies left" : ""}`,
+      HAP.festered,
+      { n: festering, id: p.id[festerOne]!, ref: w.ref },
     );
   }
   if (sick) {
@@ -1083,7 +1142,41 @@ export function stocksSheet(world: World, place: Place): PlaceStocksSheet {
     });
   }
   // (A unit of food is one person's for a month.)
-  return { rows, hold: orders?.hold ?? 0, foodDays: p.n > 0 ? (food * 30) / p.n : 0 };
+  return {
+    rows,
+    hold: orders?.hold ?? 0,
+    foodDays: p.n > 0 ? (food * 30) / p.n : 0,
+    remedies: healerRow(world, place),
+  };
+}
+
+/** A place's healer for its sheets (N9; null: its land knows no herb-lore, or none is chosen yet). */
+export function healerRow(world: World, place: Place): PlaceHealerRow | null {
+  const h = placeHealer(place);
+  if (h.i < 0) return null;
+  const p = place.people,
+    w = placeWho(world, place)(h.i);
+  let abed = 0,
+    festering = 0;
+  for (let i = 0; i < p.n; i++)
+    if (p.health[i] === 1) {
+      abed++;
+      if (placeWound(place, i).fester > 0) festering++;
+    }
+  return {
+    ref: w.ref,
+    name: w.name,
+    doing:
+      p.why[h.i] === WHY.tend
+        ? "at the bedside of one of the hurt"
+        : p.why[h.i] === WHY.herbs
+          ? "gathering remedies about the fields"
+          : actWords(p, h.i),
+    doses: h.doses,
+    wanted: h.wanted,
+    abed,
+    festering,
+  };
 }
 
 /** A place's hands for its Work sheet. */
@@ -1249,6 +1342,7 @@ export function workSheet(
     waiting,
     inWant,
     unsettled: place.moves.length / 4 + place.dead.length / 3,
+    healer: healerRow(world, place),
     grid: prioGrid(world, place, gridOcc),
   };
 }
@@ -1280,6 +1374,29 @@ export function ailWords(place: Place, i: number): string {
         : "Ailing";
 }
 
+/** How far a wound has festered, said (rules/healing.ts: FESTER_MOST kills). */
+export function festerWords(load: number): string {
+  return load >= 48
+    ? "festering past bearing, the fever high"
+    : load >= 24
+      ? "festering, the fever rising"
+      : load >= 8
+        ? "festering"
+        : "beginning to fester";
+}
+/** How much a hurt hurts, said (0 … 1). */
+export function painWords(pain: number): string {
+  return pain >= 0.75
+    ? "in great pain"
+    : pain >= 0.5
+      ? "in pain"
+      : pain >= 0.25
+        ? "aching"
+        : pain > 0
+          ? "a little sore"
+          : "no pain";
+}
+
 export const TENDED_WORDS = {
   hospital: "at the town's hospital",
   healer: "by the town's healer",
@@ -1309,8 +1426,12 @@ export function healthWords(world: World, place: Place, i: number): string | nul
         takes.going > 0 ? `, a walk taking them ${timesWords(gaitOf(takes.going))} as long` : "";
     return `Up again with the wound${where ? ` to ${where}` : ""} bound: ${more} of mending${work}${walk}`;
   }
-  const mark = p.health[i] === 1 ? placeMark(world, place, i) : null;
-  return `${ailWords(place, i)}${mark ? `, in ${mark.member}` : ""}: abed ${more}, tended ${TENDED_WORDS[tendedOf(place, i)]}`;
+  const mark = p.health[i] === 1 ? placeMark(world, place, i) : null,
+    x = p.health[i] === 1 ? placeWound(place, i) : null,
+    wound = !x
+      ? ""
+      : `${x.bleeding > 0 ? `, bleeding (${pct(x.bleeding)} of their blood in ten minutes)` : x.dressed ? "" : ", the wound not yet dressed"}${x.fester > 0 ? `, the wound ${festerWords(x.fester)}` : ""}${x.faint ? ", too faint to stand" : ""}`;
+  return `${ailWords(place, i)}${mark ? `, in ${mark.member}` : ""}${wound}: abed ${more}${x && (x.fester > 0 || x.faint) ? " at the least" : ""}, tended ${TENDED_WORDS[tendedOf(place, i)]}`;
 }
 
 /** What a wound left one of a place's people with for good, said (null: nothing). */
