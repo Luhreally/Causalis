@@ -18,7 +18,14 @@ import {
   type World,
 } from "../../kernel/index.ts";
 import { cellRef, isProvinceWorld, keptKey, type ProvinceWorld } from "../../gen/index.ts";
-import { FLOOD, floodChance, floodHarm, floodSize } from "../../rules/index.ts";
+import {
+  FLOOD,
+  centuryWorst,
+  floodChance,
+  floodHarm,
+  floodSize,
+  natureImportance,
+} from "../../rules/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { DISASTER_EVENTS, deathsIn, grieve, spill } from "../acts/disasters.ts";
 import { groundOf, landSlope } from "../ecology/ground.ts";
@@ -42,7 +49,12 @@ export type Flood = {
   readonly event: Ref;
 };
 
-export type FloodTally = { floods: number; dead: number };
+export type FloodTally = {
+  floods: number;
+  dead: number;
+  /** The most drowned by one flood this century: [century, dead] (rules/nature.ts centuryWorst). */
+  worst?: [number, number];
+};
 
 const PLAINS = new Map<string, Int32Array>();
 
@@ -152,6 +164,8 @@ export function floodsYear(ctx: PopulationContext, t: SimTime): void {
   // (The world's own disasters turned off by the player: no river rises past its banks. sim/acts/switches.ts.)
   if (switchedOff(world, "disasters")) return;
   const eco = ecologyOf(world);
+  // (The world's people, for what a flood's dead are against them: counted once a year, when the first river rises.)
+  let people = -1;
   for (const cell of floodplains(ctx)) {
     const p = ctx.provinces.get(cell);
     if (!p || p.total() <= 0) continue;
@@ -170,10 +184,21 @@ export function floodsYear(ctx: PopulationContext, t: SimTime): void {
       ground.silt = Math.round(ground.silt + 1e6 * harm.silt);
       groundOf(world)!.set(ground);
     }
+    if (people < 0) {
+      people = 0;
+      for (const q of ctx.provinces.all()) people += q.total();
+    }
+    // (Most floods are a plain's ordinary sorrow; one that drowns many against its land's people or the world's, several
+    // times what its floods usually take there, or the most this century, is history's: rules/nature.ts natureImportance,
+    // the rule a quake's and a storm's dead go by. A great one, if few drown, is a plain's for four centuries.)
+    const record = centuryWorst(store.tally.worst, year, dead);
+    if (record.record) store.tally.worst = record.record;
     const event = world.events.emit({
       type: DISASTER_EVENTS.flood.type,
-      // (Most floods are a plain's ordinary sorrow; one that drowns a thousand is history's.)
-      importance: dead >= 1000 ? 5 : size >= 2 ? 4 : 3,
+      importance: Math.max(
+        natureImportance(dead, people, p.total() + dead, FLOOD.dead * spared, record.worst),
+        size >= 2 ? 4 : 3,
+      ),
       subjects: [p.ref],
       place: p.ref,
       causes: [],

@@ -49,6 +49,7 @@ import {
   quarterScore,
   satOf,
   settleHeld,
+  natureImportance,
   type FledKind,
 } from "../../rules/index.ts";
 import { COLS, ROWS } from "../population/model.ts";
@@ -555,9 +556,18 @@ function wrong(
     }),
     name = led?.name ?? v.ruler.name,
     town = ctx.settlements.inProvince(land)[0]?.name ?? "",
+    // (Its dead against its land's people and the world's, by the rule a flood's or a strike's go by: rules/nature.ts. Two
+    // thousand dead, as first set, was a small share of a land of millions.)
+    worldPeople = ctx.provinces.all().reduce((n, p) => n + p.total(), 0),
     event = world.events.emit({
       type: HELD_EVENTS.crime.type,
-      importance: dead >= 2000 ? 5 : 4,
+      importance: Math.max(
+        4,
+        Math.min(
+          5,
+          natureImportance(dead, worldPeople, (ctx.provinces.get(land)?.total() ?? 0) + dead),
+        ),
+      ),
       // (Who ordered it is its subject too: their page tells it.)
       subjects: led ? [w.ref, v.ref, b.ref, notableRef(led.id)] : [w.ref, v.ref, b.ref],
       place: cellRef(0, land),

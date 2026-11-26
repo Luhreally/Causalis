@@ -62,6 +62,7 @@ import {
   temperCarries,
   temperWords,
   trainedTerm,
+  natureImportance,
 } from "../../rules/index.ts";
 import { designsOf } from "../design/design.ts";
 import { grieve } from "../acts/disasters.ts";
@@ -1102,6 +1103,21 @@ function fallAll(
   ]);
 }
 
+/**
+ * A strike's importance: the chronicle's (4) where its dead are many against its land's people or the world's, by the rule a
+ * flood's or a quake's go by (rules/nature.ts natureImportance), else the ordinary years' (3). A thousand dead, as first set,
+ * was every strike on a town of millions: 11,225 of first light's strikes kept at 3,100 by that alone.
+ */
+function strikeImportance(ctx: PopulationContext, cell: number, dead: number): number {
+  if (dead <= 0) return 3;
+  let people = 0;
+  for (const q of ctx.provinces.all()) people += q.total();
+  return Math.min(
+    4,
+    natureImportance(dead, people, (ctx.provinces.get(cell)?.total() ?? 0) + dead),
+  );
+}
+
 const pairKey = (a: Ref, b: Ref) => (a < b ? `${a}|${b}` : `${b}|${a}`);
 
 /**
@@ -1131,9 +1147,9 @@ function raids(
     if (done.homes <= 0 && done.dead <= 0) continue;
     const event = world.events.emit({
       type: WAR_EVENTS.strike.type,
-      // (One raid among a war's many goes with the ordinary years unless something cites it; one that killed a thousand is the
-      // chronicle's. Kept whole they were 24,000 of first light's events at 1,500, its largest kind by what they weigh.)
-      importance: done.dead >= 1000 ? 4 : 3,
+      // (One raid among a war's many goes with the ordinary years unless something cites it; one whose dead are many against its
+      // land's people is the chronicle's: strikeImportance. Kept whole they were 24,000 of first light's events at 1,500.)
+      importance: strikeImportance(ctx, target.cell, done.dead),
       subjects: [target.ref, w.ref, by.ref, foe.ref],
       place: ctx.provinces.get(target.cell)!.ref,
       causes: [{ ref: w.event, role: "trigger", weight: 1 }],
@@ -1215,9 +1231,9 @@ function thrown(
     if (done.homes <= 0 && done.dead <= 0) continue;
     const event = world.events.emit({
       type: WAR_EVENTS.strike.type,
-      // (One raid among a war's many goes with the ordinary years unless something cites it; one that killed a thousand is the
-      // chronicle's. Kept whole they were 24,000 of first light's events at 1,500, its largest kind by what they weigh.)
-      importance: done.dead >= 1000 ? 4 : 3,
+      // (One raid among a war's many goes with the ordinary years unless something cites it; one whose dead are many against its
+      // land's people is the chronicle's: strikeImportance. Kept whole they were 24,000 of first light's events at 1,500.)
+      importance: strikeImportance(ctx, target.cell, done.dead),
       subjects: [target.ref, w.ref, by.ref, foe.ref],
       place: ctx.provinces.get(target.cell)!.ref,
       causes: [{ ref: w.event, role: "trigger", weight: 1 }],
