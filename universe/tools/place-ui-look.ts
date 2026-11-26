@@ -377,7 +377,7 @@ for (const view of [
       say(`hurt: ${(await text(".place-insp-body")).slice(0, 500)}`);
       check((await shown(".place-insp-figure")) === 1, "their body is drawn");
       await look("15h-insp-health-hurt", "one hurt in the fire, their health");
-      if (phone) await k('globalThis.causalis.place.inspectHeight("peek")');
+      if (phone) await k('globalThis.causalis.place.inspectHeight("full")');
       if (ins.ref) await k(`globalThis.causalis.place.inspect(${JSON.stringify(ins.ref)})`);
       await page.waitForTimeout(800);
     } else say("no one of its grown lies hurt to look at");
