@@ -21,7 +21,15 @@ import {
 import { LandLayer } from "./land.ts";
 import { FloraLayer } from "./flora.ts";
 import { WildfireLayer, wildfireMaterials } from "./wildfire.ts";
-import { InstancedBatch, boxMesh, coneMesh, cylinderMesh, gableMesh } from "./batch.ts";
+import {
+  InstancedBatch,
+  boxMesh,
+  coneMesh,
+  cylinderMesh,
+  gableMesh,
+  groundQuadMesh,
+} from "./batch.ts";
+import { glowMaterial } from "./glow.ts";
 import { flatMaterial, grainTexture, groundMaterial, type Rgb, type Stage } from "./stage.ts";
 import { windowMaterial } from "./village.ts";
 
@@ -403,6 +411,11 @@ export function groundTexels(
 
 /** How long a frame lays on at a land's plan being laid over frames (ms): the rest of a phone's frame is the drawing's. */
 const LAY_BUDGET = 4;
+/** A town's light on the ground at night: how high its lamps stand as a share of how far the light is drawn, and how far that is in the town's own reach. */
+const POOL_LAMP = 0.3,
+  POOL_REACH = 2;
+/** The light lamps `POOL_LAMP` up shed on the ground `d` off (0 under them … 1 the pool's end), of what falls under them. */
+const poolLight = (d: number) => (1 + (d / POOL_LAMP) ** 2) ** -1.5;
 
 export class RegionScene {
   private readonly stage: Stage;
@@ -1077,17 +1090,21 @@ export class RegionScene {
     // drawn part by part too, a pool of warm light on its ground as wide as it is peopled, read from as far off as a land is
     // looked at, and a bright point at its heart. Two batches, shown only then.
     if (!this.hearths) {
-      const pool = new pc.StandardMaterial();
-      pool.useLighting = false;
-      pool.diffuse = new pc.Color(0, 0, 0);
-      pool.emissive = new pc.Color(1, 0.72, 0.34);
-      pool.opacity = 0.2;
-      pool.blendType = pc.BLEND_ADDITIVEALPHA;
-      pool.depthWrite = false;
-      pool.update();
+      // (The pool has no edge: light shed from lamps a little over the ground falls on it as the cube of the cosine of the
+      // way to them, 1 / (1 + (d / h)²)^1.5, so it is brightest under them and gone by degrees. POOL_LAMP is how high the
+      // lamps stand as a share of the pool's reach; the last of it is taken off so it ends at nothing, not at a line.)
+      const edge = poolLight(1),
+        pool = glowMaterial(
+          this.stage,
+          Array.from({ length: 17 }, (_, i) => {
+            const d = i / 16,
+              a = (0.42 * (poolLight(d) - edge)) / (1 - edge);
+            return [d, `rgba(255, 184, 87, ${a.toFixed(4)})`] as const;
+          }),
+        );
       this.pools = new InstancedBatch(
         this.stage,
-        cylinderMesh(this.stage, 1, 0.04, 20),
+        groundQuadMesh(this.stage),
         [0, 0, 0],
         2048,
         this.root,
@@ -1111,7 +1128,8 @@ export class RegionScene {
       out[0] = x;
       out[1] = y + 0.3;
       out[2] = z;
-      out[3] = out[5] = r;
+      // (As wide again as the town's own reach: the light thins out over the ground about it.)
+      out[3] = out[5] = r * POOL_REACH;
       out[4] = 1;
     });
     this.hearths.set(lit.length, (i, out) => {

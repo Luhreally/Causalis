@@ -53,7 +53,8 @@ test("a healer's page: who, how long, what the craft knows, whom they tend", () 
     assert.equal(page.title, h.name);
     assert.ok(all.includes("Binds wounds with linen"), all);
     assert.ok(all.includes(`At it: ${h.years}`), all);
-    assert.deepEqual(page.place, { scale: "village", town: s.ref });
+    // (Its Go to goes to the healer, not only to the town: the page's place carries who.)
+    assert.deepEqual(page.place, { scale: "village", town: s.ref, person: healerRef(s.ref) });
   }
   const none = towns.find((s) => healerOf(world, s, Y) === null)!;
   assert.equal(healerPage(world, healerRef(none.ref)).kind, "unknown");

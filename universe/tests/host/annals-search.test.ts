@@ -136,13 +136,18 @@ test("a year range, a rank, and both", () => {
 });
 
 test("a name filter finds what names the thing, or says its name", () => {
-  const realms = annalsNames(world, {
-    session: sitting,
-    text: "commonwealth",
-    key: "realm",
-    most: 4,
-  });
+  // (By the kind of realm most of this world's are at forty years, whichever that is: its commonwealths once, its leagues since.)
+  const every = annalsNames(world, { session: sitting, text: "of", key: "realm", most: 24 }),
+    kinds = new Map<string, number>();
+  for (const n of every) {
+    const kind = /^the (\w+) of /.exec(n.name)?.[1];
+    if (kind) kinds.set(kind, (kinds.get(kind) ?? 0) + 1);
+  }
+  const kind = [...kinds].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))[0]?.[0];
+  assert.ok(kind, "no realm named by its kind");
+  const realms = annalsNames(world, { session: sitting, text: kind, key: "realm", most: 4 });
   assert.ok(realms.length > 0);
+  assert.ok(realms.every((n) => n.name.toLowerCase().includes(kind)));
   assert.ok(realms.every((n) => n.key === "realm" && n.ref?.startsWith("pol:")));
   const realm = realms[0]!,
     r = search(`realm:"${realm.name}"`, { limit: 100 });

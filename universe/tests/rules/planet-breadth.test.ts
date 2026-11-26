@@ -137,3 +137,27 @@ test("heat past a land's best takes its growth back; Earth's lands are untouched
     warm = coverOf(26, 1200, 2);
   assert.ok(hot.growth < warm.growth, `${hot.growth} ${warm.growth}`);
 });
+
+test("growth starts at the warmth a world's own life is fitted to", async () => {
+  const { FORM, coverOf, growingShare, growsFor, landUseOf } =
+    await import("../../src/rules/biomes.ts");
+  // (Kinds that arose warm: where a bare sap freezes, as on Earth. Nothing living: the same.)
+  assert.equal(growsFor([6, 18, 23, 27]), FORM.grows);
+  assert.equal(growsFor([]), FORM.grows);
+  // (A world whose kinds arose under its liquid's freezing: at their middle one's warmth, and no colder than a brine holds.)
+  assert.equal(growsFor([-10, -8, -3]), -8);
+  assert.equal(growsFor([-60, -50, -40]), FORM.grows - FORM.sap);
+  // (Its land at -5 grows nothing by Earth's start and something by its own, less than a warm land does.)
+  assert.equal(growingShare(-5, 0.5), 0);
+  assert.equal(coverOf(-5, 600, 0.5).growth, 0);
+  const cold = coverOf(-5, 600, 0.5, 1, 1, -8),
+    warm = coverOf(15, 600, 0.5);
+  assert.ok(
+    cold.growth > 0 && cold.growth < warm.growth / 3,
+    `${cold.growth} against ${warm.growth}`,
+  );
+  assert.ok(landUseOf(cold, -5, -8).forage > 0);
+  // (Earth's start said or left out: the same to the last bit.)
+  assert.deepEqual(coverOf(7, 800, 9, 1, 1, FORM.grows), coverOf(7, 800, 9));
+  assert.deepEqual(landUseOf(warm, 15, FORM.grows), landUseOf(warm, 15));
+});

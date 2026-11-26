@@ -151,7 +151,11 @@ const DOMAIN_SECTION: Readonly<Record<string, SectionId>> = {
   finance: "money",
   trade: "money",
   industry: "money",
+  // (A canal dug, sim/economy/canals.ts: the one kind written under the economy's own name.)
+  economy: "money",
   people: "people",
+  // (A border shut or opened to those in flight: sim/population/flight.ts.)
+  population: "people",
   health: "people",
   settlement: "people",
   city: "people",
@@ -163,6 +167,8 @@ const DOMAIN_SECTION: Readonly<Record<string, SectionId>> = {
   knowledge: "minds",
   lessons: "minds",
   belief: "minds",
+  // (A faith with a head of its own, and its quarrels with rulers: sim/belief/heads.ts.)
+  faith: "minds",
   language: "minds",
   design: "minds",
   notable: "minds",
@@ -877,9 +883,9 @@ const TYPE_MOTIF: readonly (readonly [RegExp, ToldMotif])[] = [
   [/^(polity\.|court\.|reign\.|order\.|notable\.|houses\.|ties\.)/, "crown"],
   [/^(health\.|act\.(plague|curse))/, "sickness"],
   [/^(ecology\.(woods-turn|forest-cleared))/, "woods"],
-  [/^(industry\.(lode-out|lode-deeper|mine|well))/, "dig"],
+  [/^(industry\.(lode-out|lode-deeper|mine|well)|economy\.canal)/, "dig"],
   [/^(people\.famine|weather\.|climate\.|ecology\.|people\.smoke)/, "famine"],
-  [/^(belief\.)/, "faith"],
+  [/^(belief\.|faith\.)/, "faith"],
   [/^(trade\.sea-route|war\.sea)/, "ship"],
   [
     /^(money\.|credit\.|finance\.|trade\.(crash|slump|cartel|route-opened|machines|relief|embargo))/,

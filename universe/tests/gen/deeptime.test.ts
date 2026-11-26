@@ -46,7 +46,12 @@ test("a land's past place follows its plate's turning: now it is where it is, ba
   assert.ok(moved > 5, `${moved} lands lay far from where they are now`);
 });
 
-test("coal lies where swamp forests were buried, in the wet tropics of their age; oil where warm seas were", () => {
+// (Since the breadth round a seam is what waterlogged ground kept of its growth, its rain far past what its warmth drew off:
+// gen/deeptime.ts buryCarbon. Rain falls in two belts, under the tropics' rising air and under the storm tracks about fifty
+// degrees; so a seam is a warm swamp's or a cold bog's, and none was laid in the dry belts between or toward the poles.)
+test("coal lies where waterlogged ground was buried, under the tropics' rain or the storm tracks' of its age, never the dry belts; oil where warm seas were", () => {
+  let swamps = 0,
+    bogs = 0;
   for (const w of worlds) {
     const coal = w.deposits.filter((d) => d.kind === "coal"),
       oil = w.deposits.filter((d) => d.kind === "oil");
@@ -58,14 +63,18 @@ test("coal lies where swamp forests were buried, in the wet tropics of their age
         a = w.deep.ages[age]!;
       assert.equal(age, w.deep.coalAge[d.cell]);
       assert.ok(a.forests);
-      const then = pastLatitude(w.grid, w.tectonics, d.cell, (a.from + a.to) / 2);
-      assert.ok(Math.abs(then) < (25 * Math.PI) / 180, "it lay in the tropics then");
+      const then =
+        (Math.abs(pastLatitude(w.grid, w.tectonics, d.cell, (a.from + a.to) / 2)) * 180) / Math.PI;
+      if (then < 20) swamps++;
+      else if (Math.abs(then - 50) < 12) bogs++;
+      else assert.fail(`a seam laid at ${then.toFixed(0)}°, under neither rain belt of its age`);
     }
     for (const d of oil) {
       assert.ok(w.deep.oil[d.cell]! > 0);
       assert.equal(d.detail.age, w.deep.oilAge[d.cell]);
     }
   }
+  assert.ok(swamps >= 10 && bogs >= 5, `${swamps} seams of warm swamps, ${bogs} of cold bogs`);
 });
 
 test("a coal seam explains itself back to the age that laid it, the world and its star", () => {

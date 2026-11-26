@@ -1,6 +1,7 @@
 // Those of a group the realm's soldiers took, and the collector killed as a land is taken over (host/inspect/grave.ts,
-// host/roster.ts's killing step, host/killings.ts). Kestrel four hundred years on, spread: the chiefdom of Groris sent its
-// soldiers against the Groris cartel in 387–397, and land 1400 passed from one group to another in 388.
+// host/roster.ts's killing step, host/killings.ts). Kestrel 380 years on, spread: a realm's soldiers were sent against a group
+// in 374–379, and some of those the court holds for it are still held, one of them where the town's lines would have them at
+// its head's door now (by 397 none is: a guard grows past the young, and is drawn no longer).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { deathNotesOf, politiesOf, populationContext, underworldOf } from "../../src/sim/index.ts";
@@ -14,7 +15,7 @@ import { takeoverOf } from "../../src/host/killings.ts";
 import { yearNow } from "../../src/host/inspect/words.ts";
 import { peopledWorld } from "../worlds.ts";
 
-const world = peopledWorld("kestrel", 400, { start: "spread" }),
+const world = peopledWorld("kestrel", 380, { start: "spread" }),
   ctx = populationContext(world),
   year = yearNow(world),
   towns = ctx.settlements.all().filter((t) => t.population > 0),
@@ -38,10 +39,18 @@ test("one of a group the soldiers took stands in the court's book, is held as gi
   const inLands = new Set(fought.flatMap(({ o }) => o.lands));
   let named = 0,
     held = 0,
+    drawn = 0,
     outside = 0;
-  for (const { o } of fought)
-    for (const t of towns.filter((x) => o.lands.includes(x.cell)).slice(0, 12))
-      for (let y = Math.max(o.since, year - 5); y <= Math.min(o.ended ?? year, year); y++) {
+  // (A group's own are at something in few of a land's towns, its head's above all: those towns first, then others of the
+  // land, where whoever was taken is of the group and of none of the town's lines. A land has hundreds of towns.)
+  const theirs = (t: (typeof towns)[number], y: number) =>
+    townRolesOf(world, t.ref, y).goings.some((g) => /^(mob|boss):/.test(g.of.ref));
+  for (const { o } of fought) {
+    const last = Math.min(o.ended ?? year, year),
+      inLand = towns.filter((x) => o.lands.includes(x.cell)),
+      own = inLand.filter((t) => theirs(t, last));
+    for (const t of [...own, ...inLand.filter((t) => !own.includes(t))].slice(0, 12))
+      for (let y = Math.max(o.since, year - 30); y <= last; y++) {
         const cs = casesOf(world, t.ref, y).filter((c) => c.offence === "taken");
         assert.ok(cs.length <= 1, `${t.ref} ${y}: one for each sending`);
         for (const c of cs) {
@@ -69,6 +78,13 @@ test("one of a group the soldiers took stands in the court's book, is held as gi
           held++;
           assert.equal(heldCaseOf(world, t.ref, c.accused.ref)?.ref, c.ref);
           assert.match(heldWords(world, t.ref, c.accused.ref) ?? "", /locked up|set to labour/);
+          assert.match(text(pageOf(world, c.accused.ref)), /Locked up|Set to labour/);
+          assert.match(text(pageOf(world, c.ref)), /taken by the soldiers/);
+          // (One the town's lines would have at it now, were they not held: one their years have taken off it since, as
+          // a guard grown past the young, is at nothing of it now, held or not.)
+          if (!townRolesOf(world, t.ref, year).goings.some((g) => g.who.includes(c.accused.ref)))
+            continue;
+          drawn++;
           // Off what they were at, another in their place, and told as who they were for it.
           const life = townLifeOf(world, t.ref);
           assert.ok(
@@ -76,13 +92,12 @@ test("one of a group the soldiers took stands in the court's book, is held as gi
             "the one held is off what they were at",
           );
           assert.ok(life.past.some((p) => p.ref === c.accused.ref && p.case.ref === c.ref));
-          assert.match(text(pageOf(world, c.accused.ref)), /Locked up|Set to labour/);
-          assert.match(text(pageOf(world, c.ref)), /taken by the soldiers/);
         }
       }
+  }
   assert.ok(
-    named >= 1 && held >= 1,
-    `${named} named of the town's lines, ${held} held now, ${outside} not of them`,
+    named >= 1 && held >= 1 && drawn >= 1,
+    `${named} named of the town's lines, ${held} held now (${drawn} of a part now), ${outside} not of them`,
   );
   // A town in no such land has no such case.
   let quiet = 0;

@@ -84,8 +84,14 @@ test("the commander the war asks for is the commander their realm's seat shows; 
     const at = notablesIn(world, s.ref),
       refs = at.map((n) => n.ref);
     assert.equal(new Set(refs).size, refs.length, s.name);
+    // (The host's commander and the fleet's admiral are both of war, and are two offices: one of each.)
     for (const k of ["judge", "priest", "general", "merchant"] as const)
-      assert.ok(at.filter((n) => n.kind === k).length <= 1, `${s.name}: two of ${k}`);
+      for (const post of [undefined, "command", "fleet"])
+        assert.ok(
+          at.filter((n) => n.kind === k && (k !== "general" || n.sim?.post?.kind === post))
+            .length <= 1,
+          `${s.name}: two of ${k}${post ? ` (${post})` : ""}`,
+        );
     const judge = at.find((n) => n.kind === "judge");
     if (judge?.sim) assert.equal(firstField(judge.sim), 7, "of the law");
   }

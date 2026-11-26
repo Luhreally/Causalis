@@ -510,6 +510,19 @@ export function cylinderMesh(stage: Stage, radius: number, height: number, sides
   );
 }
 
+/**
+ * A flat square lying on the ground, a unit from its middle to each side, its picture laid once across it: what a light
+ * shed on the ground is drawn on (a round glow's picture fades to nothing before the square's sides).
+ */
+export function groundQuadMesh(stage: Stage): pc.Mesh {
+  return shape(stage, "ground-quad", () =>
+    pc.Mesh.fromGeometry(
+      stage.device,
+      new pc.PlaneGeometry({ halfExtents: new pc.Vec2(1, 1), widthSegments: 1, lengthSegments: 1 }),
+    ),
+  );
+}
+
 /** A box a unit each way about its middle, its faces square to its axes. */
 export function boxMesh(stage: Stage): pc.Mesh {
   return shape(stage, "box", () =>

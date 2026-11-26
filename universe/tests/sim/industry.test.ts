@@ -125,7 +125,14 @@ test("a land that knows engines digs its coal, burns it and makes machines — a
 test("without coal to dig or buy, a land that knows engines fires them with its woods, as far as they give", () => {
   const m = marketsOf(world).get(bare.cell)!;
   assert.equal(m.mine, null);
-  assert.equal(m.years.at(-1)!.ledger[0]![G.coal], 0);
+  // (Since the fuel slot holds what a world burns, wood cut for sale is made into the solid class beside coal, bd4cf791: what
+  // this land made of it is wood, none dug from a seam: 1,737 units of first light's at 170, burned as wood, nothing buried.)
+  const made = m.years.at(-1)!.ledger[0]![G.coal]!,
+    bought = m.years.at(-1)!.ledger[2]![G.coal]!;
+  if (made > 0 && !bought) {
+    const fired = energyPerHead(world, bare.cell)!.carriers;
+    assert.ok(fired.wood > 0 && fired.buried === 0, `${made} made: ${JSON.stringify(fired)}`);
+  }
   // (Round A: wood fires an engine as coal does, at its own heat; a land without woods enough has none to drive them.)
   const r = energyPerHead(world, bare.cell)!;
   if (!m.years.at(-1)!.ledger[2]![G.coal]) {

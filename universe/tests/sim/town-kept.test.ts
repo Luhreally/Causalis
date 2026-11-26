@@ -112,7 +112,9 @@ test("a save from before they were kept loads: its towns read as never kept, and
     digest: [number, number];
     towns: { heads: unknown[][] };
   };
-  assert.equal(saved.towns.heads.length, 12);
+  // (Nine columns before the three kept numbers, then the year a town was emptied, a8d63235: a save cut to its first nine is
+  // one from before any of them.)
+  assert.equal(saved.towns.heads.length, 13);
   saved.towns.heads.length = 9;
   const store = new TownStore();
   store.load(saved);

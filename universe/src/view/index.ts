@@ -988,6 +988,7 @@ export {
   peopleSystemMarks,
   routeWords,
   skyMarks,
+  ringDrawn,
   systemExtent,
   MOST_GLINTS,
   mirrorBand,

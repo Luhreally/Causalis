@@ -16,7 +16,8 @@ import { EARTH_LIFE, OPEN, PRIORS, lifeChemistryOf } from "../../src/rules/index
 
 const earth = generateHomeWorld(seedFromText("first light"), PRIORS.earthlike!),
   sulfur = generateHomeWorld(seedFromText("alien 84"), OPEN),
-  methane = generateHomeWorld(seedFromText("alien 1429"), OPEN);
+  methane = generateHomeWorld(seedFromText("alien 73"), OPEN),
+  silane = generateHomeWorld(seedFromText("alien 1429"), OPEN);
 
 test("an Earth-like world's life is Earth's own, and its dawn Earth's words", () => {
   assert.equal(worldLife(earth), EARTH_LIFE);
@@ -51,8 +52,10 @@ test("a sulfur world under a red star: glass bones, vanadium blood, skins acid c
   assert.match(treeOfLife(sulfur).rungs.find((r) => r.id === "replicators")!.words, /acid water/);
 });
 
-test("a methane world: ice bones, iron-and-sulfur blood breathing hydrogen, azotosome skins, living on what the haze makes", () => {
+test("a methane world rich in carbon: ice bones, iron-and-sulfur blood breathing hydrogen, azotosome skins, living on what the haze makes", () => {
   const life = worldLife(methane);
+  assert.equal(worldChemistry(methane).kind, "methane");
+  assert.equal(life.backbone, undefined, "its chains are carbon's");
   assert.deepEqual(
     [life.family, life.bone, life.breath, life.blood, life.membrane, life.pigment, life.store],
     ["methane", "ice", "hydrogen", "iron-sulfur", "azotosome", "polyimine", "acetylene"],
@@ -61,6 +64,25 @@ test("a methane world: ice bones, iron-and-sulfur blood breathing hydrogen, azot
   assert.match(rungs.find((r) => r.id === "cells")!.words, /skin of acrylonitrile/);
   assert.equal(rungs.find((r) => r.id === "air")!.name, "The haze feeds life");
   assert.equal(rungs.find((r) => r.id === "light")!.name, "Life eats what the light makes");
+});
+
+test("a methane world whose rock is rich in silicon and poor in carbon: the same life built of silicon's chains, its store and stalks silanes, no sugar", () => {
+  // (alien 1429 since the sweep's Nature lane: rules/biochem.ts backboneOf. All else of a methane world's life stays.)
+  const life = worldLife(silane),
+    inputs = lifeInputs(silane);
+  assert.equal(worldChemistry(silane).kind, "methane");
+  assert.equal(inputs.silica, "high");
+  assert.notEqual(inputs.carbon, "carbon-rich");
+  assert.equal(life.backbone, "silane");
+  assert.deepEqual(
+    [life.family, life.bone, life.breath, life.blood, life.membrane, life.pigment],
+    ["methane", "ice", "hydrogen", "iron-sulfur", "azotosome", "polyimine"],
+  );
+  assert.deepEqual(
+    [life.store, life.fibre, life.hair, life.flesh, life.sugar],
+    ["tetrasilane", "polysilane", "polysilane", "polysilane", null],
+  );
+  assert.equal(treeOfLife(silane).rungs.find((r) => r.id === "air")!.name, "The haze feeds life");
 });
 
 test("a people of another star: of water, their hand their own, their pigment their star's", () => {

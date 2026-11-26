@@ -1056,7 +1056,9 @@ type Exposed = {
   watching?: () => number;
   /** Out to the home star's system; how many of its bodies are shown. */
   sky?: () => void;
+  landLights?: (on: boolean) => void;
   skyBodies?: () => number;
+  skySpots?: () => readonly { index: number; x: number; z: number; size: number }[];
   skyMirrors?: () => number | null;
   /** Out to the stars around; how many are shown. */
   stars?: () => void;
@@ -3872,6 +3874,11 @@ async function runPlanetPage(): Promise<void> {
   const globeFit = () => (aspect() < 1 ? 3.1 / aspect() : 3.3);
   // (Near enough that its towns, drawn from their fabric, are seen growing: M150.)
   const regionFit = () => (aspect() < 1 ? 74 / aspect() : 80);
+  // (A land's haze lies past what the eye looks at as far as it does from the land's own distance, however far the eye is drawn
+  // back: render/stage.ts hazeBeyond. A town's own and every other scale's stand as they were.)
+  stage.onUpdate(() =>
+    stage.hazeBeyond(scale === "region" ? Math.max(0, rig.distance - regionFit()) : 0),
+  );
   // A land touched on the globe: its page (a spot of the sea, the spot's own).
   const selectCell = (cell: number | null) => {
     globe.mark(cell);
@@ -6685,6 +6692,7 @@ async function runPlanetPage(): Promise<void> {
   };
   exposed.sky = () => void toSystem();
   exposed.skyBodies = () => (scale === "system" && skyPlan ? skyPlan.bodies.length : 0);
+  exposed.skySpots = () => (scale === "system" ? skyScene.spotsNow : []);
   exposed.skyMirrors = () => (scale === "system" ? skyScene.mirrorsShown : null);
   exposed.systemPeople = () => (scale === "system" ? skyScene.peopleShown : null);
   /** Whose system the sky shows: the home star's (null), or another's ref. */
@@ -11049,6 +11057,8 @@ async function runPlanetPage(): Promise<void> {
   exposed.descend = (cell: number) => toRegion(cell);
   exposed.villages = () => villages.length;
   exposed.landTown = (ref: string) => region.land.townAt(ref);
+  // (A land's towns' lights put on or off by hand, for a gate's eye: few towns stand in the dark of a locked world.)
+  exposed.landLights = (on: boolean) => region.nightLights(on);
   exposed.landParts = () => region.land.count;
   exposed.townParts = () => (scale === "village" ? village.townCounts() : null);
   exposed.townLotsDrawn = () => (scale === "village" ? village.townLotsDrawn() : null);
@@ -12730,6 +12740,9 @@ async function runPlanetPage(): Promise<void> {
     if (frame.view !== "globe") return;
     const kind = (frame.meta as { kind?: string }).kind ?? "rocky";
     globe.kind(kind);
+    globe.ring(
+      (frame.meta as { ring?: NonNullable<SystemPlan["bodies"][number]["ring"]> }).ring ?? null,
+    );
     region.kind(kind);
     stage.worldKind(kind);
     mapModes.kind = kind;

@@ -18,7 +18,11 @@ const ctx = populationContext(world),
   ask = <T>(type: string, args: unknown = {}) => ALIEN.queries[type]!(world, args) as T;
 
 test("a land too poor for villages: its bands camped about its dry ground, and seen near", () => {
-  assert.equal(landSites(ctx, cell).length, 0, "no ground for a village");
+  // (Its people are bands yet, none in a village. It was once asked that the land have no site at all: every land its
+  // people can stand on has one since a village may be raised on poor ground, so that could not hold, here or anywhere.)
+  assert.ok(ctx.provinces.get(cell)!.total() > 100, "a peopled land");
+  assert.equal(ctx.settlements.all().filter((v) => v.cell === cell).length, 0, "no village yet");
+  assert.ok(landSites(ctx, cell).length > 0, "ground a band can range");
   const camps = ask<LandPlan>("towns.land", { cell }).camps,
     r = regionOf(ctx, cell);
   assert.ok(camps.length >= 3, `${camps.length} camps`);

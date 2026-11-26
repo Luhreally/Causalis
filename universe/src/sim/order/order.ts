@@ -1032,6 +1032,42 @@ export function remember(o: RealmOrder, m: Omit<Memory, "weight">): void {
   if (o.memory.length > 8) o.memory.length = 8;
 }
 
+/**
+ * How far a realm's people are such as hold the people of `land` as chattel (the captives rule's own weighing, CAPTIVE_LINE its
+ * line): they keep to rank, are closed to strangers and given to war, the others speak another tongue or keep another faith,
+ * and a bound hand's work (`worth`, where they would be held) keeps his holder more than his keep and guard; a law that makes
+ * strangers citizens forbids it.
+ */
+export function bindingWays(
+  world: World,
+  o: RealmOrder,
+  a: Polity,
+  mine: Ways,
+  theirs: Ways,
+  land: number,
+  worth: number | null,
+) {
+  const hier = trait(mine, WAY.hierarchy),
+    open = trait(mine, WAY.openness),
+    valour = trait(mine, WAY.valour),
+    foreign = 1 - tongueLikeness(mine.tongue, theirs.tongue),
+    faiths = beliefOf(world),
+    ours = faiths.of(a.seat).faith,
+    other = faiths.of(land).faith,
+    unbelievers = ours !== null && other !== null && other !== ours ? 1 : 0,
+    citizens = o.laws[LAW_OF.strangers] === 2,
+    pays = worth === null ? 0 : CAPTIVE_WORK * (worth - CAPTIVE_PAYS),
+    score =
+      0.35 * hier +
+      0.25 * (1 - open) +
+      0.25 * foreign +
+      0.15 * unbelievers +
+      0.1 * valour +
+      pays -
+      (citizens ? 0.4 : 0);
+  return { hier, open, valour, foreign, unbelievers, other, citizens, pays, score };
+}
+
 /** Captives carried off from a land a realm has just taken, if its people are such as do it. */
 function takeCaptives(
   ctx: PopulationContext,
@@ -1059,28 +1095,19 @@ function takeCaptives(
     }
     return;
   }
-  const hier = trait(mine, WAY.hierarchy),
-    open = trait(mine, WAY.openness),
-    valour = trait(mine, WAY.valour),
-    foreign = 1 - tongueLikeness(mine.tongue, theirs.tongue),
-    faiths = beliefOf(world),
-    ours = faiths.of(a.seat).faith,
-    other = faiths.of(land).faith,
-    unbelievers = ours !== null && other !== null && other !== ours ? 1 : 0,
-    citizens = o.laws[LAW_OF.strangers] === 2,
-    // (What a captive's work would keep at its seat, as its holders weigh binding there: the gain of a bound hand over his living,
-    // as far as its arms hold the bound against the open land. Where hands are many, a captive's work keeps no more than his
-    // keep, and none is worth carrying off; where they are scarce and held, many are: Domar. The society sweep; none where unweighed.)
-    worth = captiveWorthOf(world, a.seat),
-    pays = worth === null ? 0 : CAPTIVE_WORK * (worth - CAPTIVE_PAYS),
-    score =
-      0.35 * hier +
-      0.25 * (1 - open) +
-      0.25 * foreign +
-      0.15 * unbelievers +
-      0.1 * valour +
-      pays -
-      (citizens ? 0.4 : 0);
+  // (What a captive's work would keep at its seat, as its holders weigh binding there: the gain of a bound hand over his living,
+  // as far as its arms hold the bound against the open land. Where hands are many, a captive's work keeps no more than his
+  // keep, and none is worth carrying off; where they are scarce and held, many are: Domar. The society sweep; none where unweighed.)
+  const worth = captiveWorthOf(world, a.seat),
+    { hier, open, valour, foreign, unbelievers, other, citizens, pays, score } = bindingWays(
+      world,
+      o,
+      a,
+      mine,
+      theirs,
+      land,
+      worth,
+    );
   // (A choice keeps its six heaviest factors, and the land's taking weighs nothing of itself: so what weighs nothing and cites
   // nothing is left out, and where the taken are strangers by their tongue, it is the battle that made them the taken.)
   const taking: NonNullable<Factor["source"]> = { ref: battle, role: "trigger", weight: 1 };

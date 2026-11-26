@@ -308,8 +308,8 @@ export class Stage {
       start: sky.haze ? start : 1e5,
       end: sky.haze ? end : 2e5,
     };
-    fog.start = this.clear.start;
-    fog.end = this.clear.end;
+    fog.start = this.clear.start + this.beyond;
+    fog.end = this.clear.end + this.beyond;
     this.sun.light!.color = new pc.Color(sky.sun[0], sky.sun[1], sky.sun[2]);
     this.sun.light!.intensity = this.clear.sun;
   }
@@ -375,9 +375,24 @@ export class Stage {
     this.fogNow.set(at(0), at(1), at(2));
     fog.color = this.fogNow;
     if (c.end > 0) {
-      fog.start = c.start * (1 - 0.35 * thick - 0.3 * haze);
-      fog.end = c.end * (1 - 0.3 * thick - 0.25 * haze);
+      fog.start = c.start * (1 - 0.35 * thick - 0.3 * haze) + this.beyond;
+      fog.end = c.end * (1 - 0.3 * thick - 0.25 * haze) + this.beyond;
     }
+  }
+
+  /** How much farther than its own reach the eye stands from what it looks at: the haze begins as much farther off. */
+  private beyond = 0;
+  /**
+   * The eye drawn back past the distance the ground's haze was set for (`beyond`, scene units; 0: at it or nearer). The haze
+   * is the air between the eye and the ground past what it looks at; an eye drawn up and back looks down through the same
+   * air, so the ground it looks at is as clear as from near, and the haze lies as far past it (asked 2026-11-25: a land seen
+   * from 220 washed out to its air's colour by day). Only the fog's reach moves: no shader is made again.
+   */
+  hazeBeyond(beyond: number): void {
+    const b = Math.max(0, Math.round(beyond));
+    if (b === this.beyond) return;
+    this.beyond = b;
+    this.applyWeather();
   }
 
   /**

@@ -115,14 +115,18 @@ test("a seed read: what it allows, with no history run", () => {
   assert.equal(earth.furthest, "gathered", JSON.stringify(earth.ages.filter((a) => !a.allowed)));
   assert.ok(earth.ages.every((a) => a.allowed && a.why));
   assert.ok(ms < 20000, `${ms} ms`);
-  // An Earth-like world whose people's lands have no coal: its road stops at steam, and it says so.
-  const noCoal = EARTH.reading!(seedOf("kestrel 154")),
-    engines = noCoal.ages.find((a) => a.id === "engines")!;
-  assert.equal(engines.allowed, false);
-  assert.match(engines.why, /coal/);
-  assert.equal(noCoal.furthest, "iron");
+  // An Earth-like world that once stopped at iron for want of coal within reach of its people's lands (kestrel 154): since a
+  // people's works are driven by whatever its own world gives (gen/carriers.ts) and its buried fuels lie where its ages
+  // buried them, its road goes on, and each age says by what.
+  const once = EARTH.reading!(seedOf("kestrel 154")),
+    engines = once.ages.find((a) => a.id === "engines")!;
+  assert.equal(engines.allowed, true);
+  assert.match(engines.why, /driven by /);
+  assert.doesNotMatch(engines.why, /none lies within reach/);
+  assert.equal(once.furthest, "gathered", JSON.stringify(once.ages.filter((a) => !a.allowed)));
   // A people of the water has its own roads to the same ages, and its name for them.
-  const water = ALIEN.reading!(seedOf(keptLife("alien 41")));
+  // (alien 55: alien 41's people, of the water once, are of the shore since its ground moved.)
+  const water = ALIEN.reading!(seedOf(keptLife("alien 55")));
   assert.equal(water.medium, "water");
   assert.equal(water.ages.find((a) => a.id === "engines")!.name, "Tide mills");
   assert.equal(water.ages.find((a) => a.id === "engines")!.allowed, true);

@@ -2625,11 +2625,14 @@ body.roaming .hint {
     max-height: calc(100% - var(--bar-bottom, 72px) - 50px - 28px - var(--right-foot, 8px));
   }
   /* (The god's bar, while such a window stands at the right: between the people bar's column at
-     the left and the window, 22rem and its bevel and the rail's 60px, so neither hides another's foot.) */
+     the left and the window, 22rem with its padding and bevel (2 × 12px and 2 × 2px) and the rail's 60px, 8px short
+     of it, so neither hides another's foot. Its own padding and bevel are in the measure: left out, at 1280 wide it
+     lay 23px over the window with every act of a kind out.) */
   #hud:has(> .panel:not([hidden]) > .inspector:not([hidden], .page-window)) > .palette {
     left: 188px;
     transform: none;
-    max-width: calc(100vw - 188px - var(--rail-left, 60px) - 22rem - 4px - 16px);
+    box-sizing: border-box;
+    max-width: calc(100vw - 188px - var(--rail-left, 60px) - 22rem - 28px - 8px);
   }
 }
 @media (max-width: 640px), (max-height: 520px) {
@@ -3261,11 +3264,15 @@ body.with-palette .hint {
 /* While a page is open at the left, the palette stands clear of it, beside the map modes (10px from
    the edge, 206px wide with their padding and bevel, 2 × 8px and 2 × 2px, and a gap of 8px). */
 @media (min-width: 641px) and (min-height: 521px) {
+  /* (The page: 8px from the edge, 27rem with its padding and bevel, 2 × 12px and 2 × 2px, the scroll's gutter in
+     them; then 8px clear. The palette's own padding and bevel are in the measure, and its acts wrap to a second row
+     where that is narrower than they are: at 1280 wide it lay 7px over the page.) */
   body.paging #hud > .palette {
     left: auto;
     right: 244px;
     transform: none;
-    max-width: calc(100vw - 244px - 27rem - 24px);
+    box-sizing: border-box;
+    max-width: calc(100vw - 244px - 27rem - 48px);
   }
 }
 /* While a wide page is open (the Ledger, the Chronicle: 58rem of the screen), no room is left at the foot for the palette beside

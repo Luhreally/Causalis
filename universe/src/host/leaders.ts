@@ -229,8 +229,25 @@ function metIn(world: World, town: string): { leaders: Leader[]; as: Map<string,
   const h = creditOf(world)?.houseIn(town),
     l = h ? lenderLeader(world, h) : null;
   if (l) out.push(l);
-  // (The heads of the groups whose home it is: host/inspect/townlife.ts.)
-  out.push(...townRolesOf(world, town).heads);
+  // (The heads of the groups whose home it is: host/inspect/townlife.ts. Two of its groups whose heads history names alike, by
+  // name and years, are headed by one person, listed once as head of both: juniper's Veathholt party and Eathaeckford order
+  // took the same head in year 110, and their town listed them twice.)
+  for (const h of townRolesOf(world, town).heads) {
+    const k = out.findIndex(
+      (l) => l.kind === "head" && l.name === h.name && l.as?.age === h.as?.age,
+    );
+    if (k < 0) {
+      out.push(h);
+      continue;
+    }
+    const same = out[k]!;
+    out[k] = {
+      ...same,
+      title: `${same.title}, and ${h.title[0]!.toLowerCase()}${h.title.slice(1)}`,
+      did: `${same.did} ${h.did}`,
+    };
+    as.set(h.ref, same.ref);
+  }
   // (Those who hold its offices and head its great things, as read: host/inspect/notables.ts.)
   for (const n of notablesIn(world, town)) {
     // (One of name who is the ruler or of the court listed above: the same person, once. Two were listed, and drawn.)

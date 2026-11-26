@@ -15,7 +15,7 @@ import {
   type Material,
 } from "../../src/rules/index.ts";
 import { ALIEN } from "../../src/host/planet.ts";
-import { designsOf, politiesOf } from "../../src/sim/index.ts";
+import { designsOf, politiesOf, populationContext } from "../../src/sim/index.ts";
 
 const cond = { warmth: 18, rain: 800, gravity: 1, ocean: 0.7 };
 const body = (id: string) =>
@@ -73,14 +73,28 @@ test("a people fights with what its body is and what it can make: claws, mandibl
 });
 
 test("a clawed people's realms arm their hosts with their own bodies", () => {
-  let seed = "";
-  for (let i = 0; i < 40 && !seed; i++) {
+  // (The first open world whose people are clawed and of the land, and come to sow and to realms by year 80: alien 3's, on a
+  // world of -11 °C since the gap round, are foragers still at 80, with no realm to arm, and are passed over; one at most.)
+  let skipped = 0,
+    armed = false;
+  for (let i = 0; i < 40 && !armed; i++) {
     const p = generateHomeWorld(seedFromText(`alien ${i}`), OPEN).life.people;
-    if (p?.body.manipulators === "claws" && p.body.medium === "land") seed = `alien ${i}`;
+    if (p?.body.manipulators !== "claws" || p.body.medium !== "land") continue;
+    const world = ALIEN.build(seedFromText(`alien ${i}`));
+    world.runTo(80 * YEAR);
+    const realm = politiesOf(world).living()[0];
+    if (!realm) {
+      assert.ok(
+        populationContext(world)
+          .provinces.all()
+          .every((q) => !q.knowsCultivation),
+        `alien ${i}: a sowing people with no realm by 80`,
+      );
+      skipped++;
+      continue;
+    }
+    assert.match(designWords(designsOf(world).of(realm.ref)!.parts), /claws/);
+    armed = true;
   }
-  const world = ALIEN.build(seedFromText(seed));
-  world.runTo(80 * YEAR);
-  const realm = politiesOf(world).living()[0]!,
-    design = designsOf(world).of(realm.ref)!;
-  assert.match(designWords(design.parts), /claws/);
+  assert.ok(armed && skipped <= 1, `armed ${armed}, ${skipped} passed over`);
 });

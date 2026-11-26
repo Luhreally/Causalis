@@ -311,52 +311,53 @@ export function townBankOf(world: World, ref: Ref): { x: number; z: number } | n
   // (Its ground's alone, so read once for a ground and tile: a land's heart is found from every town's square, and the
   // memory's reading finds every land's heart each year, which refined a region for each land of a world past the 64 kept,
   // 10 s of first light's every year at 300, since a20dcaa0. Not for a land of another body, whose ground is its own.)
-  const key = offworldSite(ctx.generated, s.cell) ? null : bankKey(world, s);
+  const key = offworldSite(ctx.generated, s.cell)
+    ? null
+    : `${homePlanet(world).surfaceKey}:${s.cell}:${s.tile}`;
   if (key !== null && BANKS.has(key)) return BANKS.get(key)!;
-  const bank = bankIn(regionOf(ctx, s.cell), s.tile);
-  if (key !== null) keepBank(key, bank);
+  const r = regionOf(ctx, s.cell),
+    bank =
+      r.water[s.tile] === WATER.land
+        ? null
+        : (landWater(r, s.tile % r.size, Math.floor(s.tile / r.size), false).bank ?? null);
+  if (key !== null) {
+    if (BANKS.size >= 1 << 16) BANKS.delete(BANKS.keys().next().value!);
+    BANKS.set(key, bank);
+  }
   return bank;
 }
 const BANKS = new Map<string, { x: number; z: number } | null>();
-const bankKey = (world: World, s: { readonly cell: number; readonly tile: number }): string =>
-  `${homePlanet(world).surfaceKey}:${s.cell}:${s.tile}`;
-function keepBank(key: string, bank: { x: number; z: number } | null): void {
-  if (BANKS.size >= 1 << 16) BANKS.delete(BANKS.keys().next().value!);
-  BANKS.set(key, bank);
-}
-function bankIn(
-  r: { size: number; tileKm: number; water: Uint8Array },
-  tile: number,
-): { x: number; z: number } | null {
-  return r.water[tile] === WATER.land
-    ? null
-    : (landWater(r, tile % r.size, Math.floor(tile / r.size), false).bank ?? null);
-}
 /** How far through a world's towns banksNext has come, by its ground. */
 const BANKS_AT = new Map<string, number>();
 
 /**
- * One more land's towns' banks found, of those not yet (false: every town's is): a world's spare moments do this (host:
- * idle), so that the first reading of every land's heart (the memory's, that a town's page and a head's read) waits on no
- * land's map (6 to 9 s on first light at 200: a land's region refined for each of 540 lands). Its region is not kept, so
- * the lands in sight stay kept as they were. Changes nothing read.
+ * One more land's towns' banks found, of those not yet (false: every town's is), kept as townBankOf keeps them: a world's
+ * spare moments do this (host: idle), so that the first reading of every land's heart (the memory's, that a town's page
+ * and a head's read) waits on no land's map (6 to 9 s on first light at 200: a land's region refined for each of 540
+ * lands). Its region is not kept, so the lands in sight stay kept as they were. Changes nothing read.
  */
 export function banksNext(world: World): boolean {
   const ctx = populationContext(world);
   if (ctx.medium === "water") return false;
   const all = ctx.settlements.all(),
-    surface = homePlanet(world).surfaceKey;
+    surface = homePlanet(world).surfaceKey,
+    key = (s: { readonly cell: number; readonly tile: number }) => `${surface}:${s.cell}:${s.tile}`;
   let i = BANKS_AT.get(surface) ?? 0;
-  while (
-    i < all.length &&
-    (offworldSite(ctx.generated, all[i]!.cell) || BANKS.has(bankKey(world, all[i]!)))
-  )
+  while (i < all.length && (offworldSite(ctx.generated, all[i]!.cell) || BANKS.has(key(all[i]!))))
     i++;
   BANKS_AT.set(surface, i);
   if (i >= all.length) return false;
   const cell = all[i]!.cell,
     r = regionOf(ctx, cell, false);
-  for (const s of all) if (s.cell === cell) keepBank(bankKey(world, s), bankIn(r, s.tile));
+  for (const s of all) {
+    if (s.cell !== cell) continue;
+    const bank =
+      r.water[s.tile] === WATER.land
+        ? null
+        : (landWater(r, s.tile % r.size, Math.floor(s.tile / r.size), false).bank ?? null);
+    if (BANKS.size >= 1 << 16) BANKS.delete(BANKS.keys().next().value!);
+    BANKS.set(key(s), bank);
+  }
   return true;
 }
 

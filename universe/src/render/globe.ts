@@ -9,6 +9,7 @@ import { globeRadius } from "../view/index.ts";
 import { InstancedBatch, cylinderMesh, keptMesh } from "./batch.ts";
 import { billboard, glowMaterial, type GlowStops } from "./glow.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
+import { ringEntity } from "./system.ts";
 
 /** The rim of air: clear in the middle (the globe hides it), a blue ring at the edge, fading out. */
 const HALO: GlowStops = [
@@ -342,6 +343,25 @@ export class GlobeScene {
     this.clouds.enabled = on && clouds;
   }
 
+  /**
+   * Its own ring (rules/rings.ts), its edges in the world's radii, about its equator: built once and kept; null, none.
+   * Shown with the globe.
+   */
+  ring(r: { inner: number; outer: number; at: number; ice: boolean } | null): void {
+    const key = r ? `${r.inner}|${r.outer}|${r.at}|${r.ice}` : "";
+    if (key === this.ringKey) return;
+    this.ringKey = key;
+    this.ringBand?.destroy();
+    this.ringBand = null;
+    if (!r) return;
+    // (Thin to the eye: the map under it is still read through it.)
+    this.ringBand = ringEntity(this.stage, r, 0.5);
+    this.ringBand.enabled = !!this.entity?.enabled;
+    this.stage.root.addChild(this.ringBand);
+  }
+  private ringBand: pc.Entity | null = null;
+  private ringKey = "";
+
   /** A lens painting a people of the water's lands: its sea thinner, or their colours drown. */
   clearSea(clear: boolean): void {
     const m = this.sea.render!.meshInstances[0]!.material as pc.StandardMaterial,
@@ -380,6 +400,7 @@ export class GlobeScene {
     this.halo.enabled = whole && this.entity !== null && this.air;
     this.clouds.enabled = whole && this.entity !== null && this.cloudy;
     this.hallRoot.enabled = whole;
+    if (this.ringBand) this.ringBand.enabled = whole;
     this.ruinRoot.enabled = on && this.isRuin;
     if (!on) {
       this.marker.enabled = false;

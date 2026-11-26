@@ -66,8 +66,12 @@ test("on a world the hand made, its thread ends in the hand's making", () => {
       .blocks.find((b): b is Thread => b.type === "thread")!,
     world = t.steps.find((s) => s.scale === "The world")!;
   assert.match(JSON.stringify(world.line), /made so by your hand: a dim red star/);
-  // (Its lands named where they lie, within a sentence in lower case: "rose to thought in the tundra at …".)
+  // (Its lands named where they lie, within a sentence in lower case: "rose to thought in the tundra at …"; which biome
+  // its cradle is is its world's to say, and moved when a land's cover came to be read from its warmth, rain and light.)
   const rose = t.steps.find((s) => s.scale === "A people")!.line[1]!;
-  assert.match(typeof rose === "string" ? rose : rose.text, /^the tundra at /);
+  assert.match(
+    typeof rose === "string" ? rose : rose.text,
+    /^the [a-z]+( [a-z]+)* at [0-9.]+°[NS] [0-9.]+°[EW]$/,
+  );
   assert.match(JSON.stringify(world.line), /an M\d?V? ?star|an M\w* star/);
 });

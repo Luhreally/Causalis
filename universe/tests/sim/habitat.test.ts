@@ -5,6 +5,7 @@ import { YEAR, seedFromText, type Ref } from "../../src/kernel/index.ts";
 import { BIOME, generateHomeWorld, refineRegion, WATER } from "../../src/gen/index.ts";
 import { OPEN } from "../../src/rules/index.ts";
 import { ALIEN } from "../../src/host/planet.ts";
+import { townSquareOff } from "../../src/host/sites.ts";
 import {
   POPULATION_EVENTS,
   capacity,
@@ -62,8 +63,15 @@ test("each people spreads over its own medium, and raises its villages there", (
       size = r.size,
       i = v.tile % size,
       j = Math.floor(v.tile / size);
-    // On the land (a river's bank will do), never in the sea.
-    assert.notEqual(r.water[v.tile], WATER.sea);
+    // On the land (a river's bank will do), never in the sea: a village whose tile the land's map draws as sea stands on
+    // that tile's bank, on ground the map draws dry (a20dcaa0, asked 2026-11-20; alien 31's Droon and Graithis).
+    if (r.water[v.tile] === WATER.sea) {
+      const off = townSquareOff(world, v.ref),
+        bi = Math.round(i + off.x / 2.4),
+        bj = Math.round(j + off.z / 2.4);
+      assert.ok(off.x || off.z, `village ${v.name} in the sea`);
+      assert.equal(r.water[bj * size + bi], WATER.land, `village ${v.name}'s bank is dry`);
+    }
     let sea = false;
     for (let dj = -16; dj <= 16; dj++)
       for (let di = -16; di <= 16; di++) {

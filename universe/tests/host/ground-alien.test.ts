@@ -147,7 +147,11 @@ test("alien 106's tin is garnierite, the nickel ore of its laterite", () => {
   assert.match(page.title, /^Nickel/);
   assert.ok(refsOf(fact(page, "Its ore").value).includes("subst:garnierite"));
   assert.ok(refsOf(fact(page, "Worked by").value).includes("rxn:smelt-garnierite"));
-  assert.equal(words(headline(page, "Laid down by").value), "serpentine slivers of an old suture");
+  // (And, since its ores are read from what its crust holds: how much nickel that is, and how far it was gathered here.)
+  assert.match(
+    words(headline(page, "Laid down by").value),
+    /^serpentine slivers of an old suture: its crust holds [\d.]+ ppm of nickel, gathered here [\d,.]+ times over/,
+  );
   const item = itemsOf(oneOhSix, depositPage(oneOhSix, tin.ref).land).find(
     (i) => i.ref === tin.ref,
   );
