@@ -440,10 +440,16 @@ for (const view of [
       await press(".place-grid-open", "the priorities grid");
       await page.waitForTimeout(900);
       say(`grid: ${(await text(".place-grid")).slice(0, 300)}`);
-      await page.evaluate(() => document.querySelector(".place-grid")?.scrollIntoView({ block: "start" }));
+      await page.evaluate(() =>
+        document.querySelector(".place-grid")?.scrollIntoView({ block: "start" }),
+      );
       await page.waitForTimeout(300);
       check((await shown(".place-grid-lv")) > 0, "the grid tells each kind's skill");
       await look("07b-grid", "the priorities grid, with skills");
+      await page.evaluate(() =>
+        document.querySelector(".place-grid-open")?.scrollIntoView({ block: "center" }),
+      );
+      await page.waitForTimeout(300);
       await press(".place-grid-open", "the priorities grid, closed");
     }
   }

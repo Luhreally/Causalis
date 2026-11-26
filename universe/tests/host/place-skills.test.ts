@@ -200,7 +200,9 @@ test("a fire's priority says who goes to one: set never, they stay away", () => 
   );
   const rows = new Map(seen.healthRows);
   assert.ok(/^\d+ more days?$/.test(rows.get("Abed") ?? ""), JSON.stringify(seen.healthRows));
-  assert.ok(rows.has("Tended") && rows.has("Lasting") && rows.has("Care"));
+  assert.ok(
+    rows.has("Tended") && (rows.has("Lasting") || rows.has("Will leave")) && rows.has("Care"),
+  );
   const gear = new Map(seen.gear);
   assert.ok(gear.has("In hand") && gear.has("Pantry") && /incomes/.test(gear.get("Means") ?? ""));
   assert.ok(!/undefined|NaN/.test(JSON.stringify(seen)));

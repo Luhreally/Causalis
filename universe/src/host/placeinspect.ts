@@ -389,7 +389,13 @@ function healthGear(
       ["Tended", cap(TENDED_WORDS[tendedOf(place, i)])],
     );
   if (p.health[i] === 3) rows.push(["Mending", `${days} more ${days === 1 ? "day" : "days"}`]);
-  rows.push(["Lasting", markWords(world, place, i) ?? "No mark of an old wound"]);
+  // (A wound still abed or mending whose mark is already known says what it will leave; an old one's, what it left.)
+  const healing =
+    (p.health[i] === 1 || p.health[i] === 3) && !!hurt.member && marked === hurt.member;
+  rows.push([
+    healing ? "Will leave" : "Lasting",
+    markWords(world, place, i) ?? "No mark of an old wound",
+  ]);
   if (takes.handling > 0 || takes.going > 0)
     rows.push([
       "Body",
