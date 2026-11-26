@@ -33,7 +33,8 @@ const EARTH_LANDS = 550,
    * under a bound of 19.6: the same headroom (3.5 in a hundred) over that reading is 21.05 MB for 550 lands, set at 21 (3.2 over it).
    * Its decisions there (2.08 MB of it) are what the chronicle and the living stores hold: 41 in a hundred of them by rules that
    * were not yet on 2026-11-16 (elections, great houses, groups, faiths' clashes, bodies, the underworld), and more realms
-   * (406 at 1,500 where there were 113); an ended realm no longer holds every tithe it raised (d88a14aa), and the save came to 22.18 MB.
+   * (406 at 1,500 where there were 113); an ended realm no longer holds every tithe it raised (d88a14aa): 22.18 MB, and 22.62 with
+   * events cold at thirty years (45ca17c3: what is cold packs a little less tightly, for 3 MB less heap at 1,500).
    */
   SAVE_BYTES = 21_000_000,
   /** The phone floor (an iPhone 15 Plus) runs at two thirds of this machine's pace; a century a minute there, at least. */
