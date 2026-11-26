@@ -10,6 +10,7 @@ import { landPast } from "./past.ts";
 import { landEra } from "./village.ts";
 import {
   floodWary,
+  homePlanet,
   loreOf,
   marketsOf,
   politiesOf,
@@ -307,10 +308,25 @@ export function townBankOf(world: World, ref: Ref): { x: number; z: number } | n
   const ctx = populationContext(world),
     s = ctx.settlements.get(ref);
   if (!s || ctx.medium === "water") return null;
-  const r = regionOf(ctx, s.cell);
-  if (r.water[s.tile] === WATER.land) return null;
-  return landWater(r, s.tile % r.size, Math.floor(s.tile / r.size), false).bank ?? null;
+  // (Its ground's alone, so read once for a ground and tile: a land's heart is found from every town's square, and the
+  // memory's reading finds every land's heart each year, which refined a region for each land of a world past the 64 kept,
+  // 10 s of first light's every year at 300, since a20dcaa0. Not for a land of another body, whose ground is its own.)
+  const key = offworldSite(ctx.generated, s.cell)
+    ? null
+    : `${homePlanet(world).surfaceKey}:${s.cell}:${s.tile}`;
+  if (key !== null && BANKS.has(key)) return BANKS.get(key)!;
+  const r = regionOf(ctx, s.cell),
+    bank =
+      r.water[s.tile] === WATER.land
+        ? null
+        : (landWater(r, s.tile % r.size, Math.floor(s.tile / r.size), false).bank ?? null);
+  if (key !== null) {
+    if (BANKS.size >= 1 << 16) BANKS.delete(BANKS.keys().next().value!);
+    BANKS.set(key, bank);
+  }
+  return bank;
 }
+const BANKS = new Map<string, { x: number; z: number } | null>();
 
 /**
  * Whether a land sows open fields about its towns: not one that forages still, nor one built over from edge to edge

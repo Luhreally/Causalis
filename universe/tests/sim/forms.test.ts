@@ -65,7 +65,16 @@ test("a people of the water builds with the shelf's gifts, not the land's", () =
   const world = ALIEN.build(seedFromText(keptLife("alien 55"))),
     ctx = populationContext(world);
   world.runTo(60 * YEAR);
-  const p = ctx.provinces.all().find((q) => ctx.settlements.inProvince(q.cell).length)!;
+  // (A settled land's house is designed every fifth year, sim/design/design.ts: one settled since year 55 has none yet at 60,
+  // as alien 55's first settled land has not since the gap round. Every other has.)
+  const settled = ctx.provinces.all().filter((q) => ctx.settlements.inProvince(q.cell).length);
+  for (const q of settled)
+    if (!designsOf(world).of(q.ref))
+      assert.ok(
+        ctx.settlements.inProvince(q.cell).every((t) => t.founded >= 55),
+        `${q.ref}: settled before 55, and no house designed`,
+      );
+  const p = settled.find((q) => designsOf(world).of(q.ref))!;
   const at = landMaterials(ctx, p.cell);
   assert.ok(at.has("shell") && !at.has("wood") && !at.has("reed"));
   const house = designsOf(world).of(p.ref)!;
