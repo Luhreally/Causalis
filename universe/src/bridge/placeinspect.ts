@@ -5,6 +5,7 @@
 import type { Portrait } from "./inspect.ts";
 import type { MemberState } from "./body.ts";
 import type { WoundMember } from "./wounds.ts";
+import type { PlaceBillRow, PlaceStoreTakes } from "./place.ts";
 
 /** One reason a mood stands where it does: said, how much it moves it (points of a hundred), and for how long yet. */
 export type PlaceThought = {
@@ -133,6 +134,11 @@ export type PlaceInspectLot = {
   readonly stock: readonly { readonly name: string; readonly n: number; readonly unit: string }[];
   /** Its work stopped by an order (null: no work is done in it). */
   readonly shut: boolean | null;
+  /** Its works (N11), the latest first: what each is and shows, said, and its maker. */
+  readonly works: readonly PlaceNamed[];
+  /** What is made here and its bills (N10), and, for one of its stores, what it takes (null: it is no store). */
+  readonly bills: readonly PlaceBillRow[];
+  readonly takes: PlaceStoreTakes | null;
   /** Going up: how far (0 … 1), what is seen of it, and its hands (null: it stands). */
   readonly site: { readonly share: number; readonly stage: string; readonly hands: number } | null;
   /** A line under it (what it is for, what lies on it). */

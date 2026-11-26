@@ -315,7 +315,7 @@ for (const view of [
   // (The gravest alert may be one lying abed indoors, out of sight: the eye taken to the fire's, where its crew stand.)
   const anyone = () =>
     k<boolean>(
-      `(() => { const c = globalThis.causalis, n = c.planNow().people.length, W = innerWidth, H = innerHeight; for (let i = 0; i < n; i++) { const p = c.personOnScreen(i); if (p && p.x > 30 && p.x < W - 64 && p.y > H * 0.2 && p.y < H * 0.7 && document.elementFromPoint(p.x, p.y)?.tagName === "CANVAS") return true; } return false; })()`,
+      `(() => { const c = globalThis.causalis, n = c.planNow().people.length, W = innerWidth, H = innerHeight; for (let i = 0; i < n; i++) { const p = c.personOnScreen(i); if (p && p.x > 8 && p.x < W - 8 && p.y > H * 0.15 && p.y < H * 0.8 && document.elementFromPoint(p.x, p.y)?.tagName === "CANVAS") return true; } return false; })()`,
     );
   if (!(await anyone()) && (await box('.place-alert[data-key="fire"]'))) {
     await press('.place-alert[data-key="fire"]', "the fire's alert");
@@ -325,7 +325,7 @@ for (const view of [
     await page.waitForTimeout(400);
   }
   const seen = await k<{ i: number; x: number; y: number } | null>(
-    `(() => { const c = globalThis.causalis, n = c.planNow().people.length, W = innerWidth, H = innerHeight; for (let i = 0; i < n; i++) { const p = c.personOnScreen(i); if (p && p.x > 30 && p.x < W - 64 && p.y > H * 0.2 && p.y < H * 0.7 && document.elementFromPoint(p.x, p.y)?.tagName === "CANVAS") return { i, x: p.x, y: p.y }; } return null; })()`,
+    `(() => { const c = globalThis.causalis, n = c.planNow().people.length, W = innerWidth, H = innerHeight; for (let i = 0; i < n; i++) { const p = c.personOnScreen(i); if (p && p.x > 8 && p.x < W - 8 && p.y > H * 0.15 && p.y < H * 0.8 && document.elementFromPoint(p.x, p.y)?.tagName === "CANVAS") return { i, x: p.x, y: p.y }; } return null; })()`,
   );
   check(!!seen, "one of its people stands on the screen, clear of the chrome");
   if (seen) {

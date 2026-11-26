@@ -7,6 +7,8 @@ import { cradleTongue, personName, tongueName, tonguePersonName } from "../gen/i
 import {
   CIVICS,
   FOODS,
+  G,
+  RECIPES,
   GOODS,
   HEAL_CARE,
   LESSON_RESPONSE,
@@ -47,6 +49,8 @@ import {
   type PlaceStockRow,
   type PlaceStocksSheet,
   type PlaceHealerRow,
+  type PlaceBillRow,
+  type PlaceStoreTakes,
   type PlaceWorkSheet,
   type VillagePlan,
 } from "../bridge/index.ts";
@@ -105,6 +109,12 @@ import {
   actWords,
   placeWound,
   placeHealer,
+  placeHeld,
+  placeMakingAt,
+  placeMakings,
+  placeBreak,
+  placeJailed,
+  BREAK,
 } from "./place.ts";
 import { townRoster } from "./roster.ts";
 
@@ -315,6 +325,23 @@ export function whyWords(world: World, place: Place, i: number): string {
         })(),
         name = q >= 0 ? placeWho(world, place)(q).name : null;
       return `The town's healer: ${p.eta[i]! > 0 ? "going to" : "at the bedside of"} ${name ?? "one of its hurt"}, to dress a wound and wash it, with a day's remedies for one festering${going}`;
+    }
+    case WHY.broke: {
+      const b = placeBreak(place, i),
+        hours = b ? Math.ceil(b.left / 3600) : 0;
+      return `Broken down, their mood too low to bear (${p.mood[i]}): ${b?.how === BREAK.wreck ? "lashing out at what lies about them" : b?.how === BREAK.binge ? "eating all in sight at home" : "wandering dazed"}, ${hours} more ${hours === 1 ? "hour" : "hours"} of it${going}`;
+    }
+    case WHY.held:
+    case WHY.labour: {
+      const b = placeJailed(place, i),
+        days = b ? Math.ceil(b.left / DAY) : 0;
+      return `${p.why[i] === WHY.labour ? "Set to labour at the fields" : "Held"} by the town's justice, ${days} more ${days === 1 ? "day" : "days"} of their term; their household brings them their food${going}`;
+    }
+    case WHY.billMet: {
+      const own = p.craft[i] ? RECIPES[p.craft[i]! - 1] : null,
+        g = own ? own.output[0] : -1,
+        until = g >= 0 ? billUntil(world, place, g) : null;
+      return `The town holds ${g >= 0 ? `as much ${GOODS[g]!.name} as its bill asks (${until ?? 0})` : "all its bills ask"}, and nothing else billed can be made with what is to hand: at home until it is wanted${going}`;
     }
     case WHY.herbs: {
       const h = placeHealer(place);
@@ -677,6 +704,23 @@ export function placeNotices(world: World, place: Place): PlaceNotice[] {
       HAP.famine,
       { n: left, lot, ref: lot === null ? null : placeLotRef(place.town, lot) },
     );
+  }
+  // (One broken down, their mood past bearing: N11.)
+  if (place.breaks?.length) {
+    const ids = place.breaks.filter((_, k) => k % 3 === 0),
+      i = placeIndexOf(place, ids[0]!);
+    if (i >= 0) {
+      const w = who(i),
+        how = placeBreak(place, i)!.how;
+      add(
+        "breaking",
+        "🌀",
+        2,
+        `${ids.length === 1 ? `${w.name} has` : `${ids.length} have`} broken down, a mood too low to bear: ${w.name} is ${how === BREAK.wreck ? "lashing out at what lies about their work" : how === BREAK.binge ? "eating all in sight at home" : "wandering dazed about the square"}`,
+        HAP.broke,
+        { n: ids.length, id: p.id[i]!, ref: w.ref },
+      );
+    }
   }
   if (bleeding) {
     const w = who(bleedOne),
@@ -1150,6 +1194,81 @@ export function stocksSheet(world: World, place: Place): PlaceStocksSheet {
   };
 }
 
+/** The units of a good a town's bill asks it to hold (null: no bill; 0: make none). */
+function billUntil(world: World, place: Place, g: number): number | null {
+  const bills = ordersOf(world, place.town)?.bills ?? [];
+  for (let k = 0; k + 1 < bills.length; k += 2) if (bills[k] === g) return bills[k + 1]!;
+  return null;
+}
+/** A good's step for a bill's keys: a tenth of what is held, to a round number (at the least one). */
+const billStep = (held: number): number =>
+  10 ** Math.max(0, Math.floor(Math.log10(Math.max(10, held))) - 1);
+/**
+ * A town's bills (N10), good by good of those its land knows how to make, the billed first in their order: what it holds,
+ * its bill, its makers, those at it now, where it is made. Only those made at a building's lot where one is given.
+ */
+export function billRows(world: World, place: Place, lot: number | null = null): PlaceBillRow[] {
+  const bills = ordersOf(world, place.town)?.bills ?? [],
+    p = place.people,
+    rows: PlaceBillRow[] = [];
+  for (const { good, makers } of placeMakings(place)) {
+    const b = placeMakingAt(place, good),
+      at = b >= 0 ? place.bldgs.lot[b]! : null;
+    if (lot !== null && at !== lot) continue;
+    const held = placeHeld(place, good),
+      k = bills.findIndex((x, j) => j % 2 === 0 && x === good);
+    // (Those at it now: makers at work where it is made, at a making of it.)
+    let making = 0;
+    for (let i = 0; i < p.n; i++)
+      if (
+        p.act[i] === ACT.work &&
+        (p.sexOcc[i]! & 15) === OCC.crafter &&
+        p.craft[i] &&
+        RECIPES[p.craft[i]! - 1]!.output[0] === good &&
+        p.why[i] !== WHY.billMet
+      )
+        making++;
+    rows.push({
+      good,
+      name: GOODS[good]!.name,
+      unit: GOODS[good]!.food ? "months' food" : "units",
+      held,
+      until: k >= 0 ? bills[k + 1]! : null,
+      step: billStep(held),
+      makers,
+      making,
+      where:
+        at !== null
+          ? lotWords(place, at).replace(/^the /, "")
+          : good === G.coal || good === G.oil
+            ? "outside the town"
+            : "at home",
+      ref: at !== null ? placeLotRef(place.town, at) : null,
+      order: k >= 0 ? k / 2 : null,
+    });
+  }
+  return rows.sort(
+    (a, b) => (a.order ?? 1e9) - (b.order ?? 1e9) || a.good - b.good,
+  );
+}
+/** What one of a town's stores takes (N10): its market (0) every good; its granary (1) its foods. */
+export function storeTakes(world: World, place: Place, store: number): PlaceStoreTakes {
+  const refuse = ordersOf(world, place.town)?.refuse ?? [],
+    refused = (g: number) => {
+      for (let k = 0; k + 1 < refuse.length; k += 2)
+        if (refuse[k] === store && refuse[k + 1] === g) return true;
+      return false;
+    };
+  return {
+    store,
+    goods: (store === 1 ? FOODS : GOODS.map((_, g) => g)).map((g) => ({
+      good: g,
+      name: GOODS[g]!.name,
+      takes: !refused(g),
+      held: placeHeld(place, g),
+    })),
+  };
+}
 /** A place's healer for its sheets (N9; null: its land knows no herb-lore, or none is chosen yet). */
 export function healerRow(world: World, place: Place): PlaceHealerRow | null {
   const h = placeHealer(place);
@@ -1343,6 +1462,7 @@ export function workSheet(
     inWant,
     unsettled: place.moves.length / 4 + place.dead.length / 3,
     healer: healerRow(world, place),
+    bills: billRows(world, place),
     grid: prioGrid(world, place, gridOcc),
   };
 }

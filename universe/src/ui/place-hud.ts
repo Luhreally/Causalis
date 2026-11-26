@@ -28,6 +28,7 @@ import {
   type TownOffers,
 } from "../bridge/index.ts";
 import { el } from "./why.ts";
+import { billsEl } from "./place-bills.ts";
 
 export type PlaceTab = "people" | "stocks" | "work" | "build" | "dangers" | "log";
 const TABS: readonly (readonly [PlaceTab, string, string])[] = [
@@ -54,6 +55,9 @@ const MODES: readonly (readonly [PlaceMode, string, string, string])[] = [
 ];
 /** The seasons, from midwinter on (a place's season is the share of its year gone from midwinter, its own hemisphere's). */
 const SEASONS = ["Winter", "Spring", "Summer", "Autumn"];
+/** A place's season (the share of its year gone from midwinter) in a word. */
+export const seasonWord = (season: number): string =>
+  SEASONS[Math.floor(((((season + 0.125) % 1) + 1) % 1) * 4) % 4]!;
 /** How many alerts the column shows at once on a phone; the rest are counted on a key of their own. */
 const ALERTS_PHONE = 5,
   ALERTS_DESK = 8;
@@ -1178,6 +1182,16 @@ export class PlaceHud {
       ),
     );
     body.push(...this.grid(s));
+    if (s.bills.length)
+      body.push(
+        el("h3", "place-sub", "Bills: how much of what it makes the town keeps"),
+        billsEl(s.bills, this.onOrder, this.onOpen, true),
+        el(
+          "p",
+          "place-more",
+          "A maker whose good the town holds as much of as its bill asks turns to the first good billed that it holds less of, as one new to it; with none, they wait at home, or go to what their priorities name next.",
+        ),
+      );
     if (s.sites.length) {
       body.push(el("h3", "place-sub", "Going up"));
       const tonnes = (x: number) => (x >= 10 ? `${Math.round(x)}` : x.toFixed(1)),

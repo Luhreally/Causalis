@@ -33,6 +33,8 @@ export const PLACE_ACT = {
   guard: 14,
   /** At a burial, with their household. */
   mourn: 15,
+  /** Held by the town's justice, in its court or its stocks (N11). */
+  held: 17,
   /** The town's healer at the bedside of one of its hurt (N9). */
   tend: 16,
 } as const;
@@ -201,6 +203,30 @@ export type PlaceStocksSheet = {
    */
   readonly remedies: PlaceHealerRow | null;
 };
+/**
+ * A good a town makes, and its bill (N10): how much the town holds of it (units), how much its bill asks it to hold (null:
+ * no bill, its makers at their own making; 0: make none), the step its keys move that by, its makers (whose own making
+ * it is) and those making it now, and where it is made (a building's page, or null: at home or outside the town).
+ */
+export type PlaceBillRow = {
+  readonly good: number;
+  readonly name: string;
+  readonly unit: string;
+  readonly held: number;
+  readonly until: number | null;
+  readonly step: number;
+  readonly makers: number;
+  readonly making: number;
+  readonly where: string;
+  readonly ref: string | null;
+  /** Its place among the bills (0 the first; null: no bill). */
+  readonly order: number | null;
+};
+/** One of a town's stores and what it takes (N10): the store (0 its market, 1 its granary), and each good it is for. */
+export type PlaceStoreTakes = {
+  readonly store: number;
+  readonly goods: readonly { readonly good: number; readonly name: string; readonly takes: boolean; readonly held: number }[];
+};
 /** A place's healer (N9): who, their page, what they are at, their doses of remedies in hand and wanted, the hurt abed. */
 export type PlaceHealerRow = {
   readonly ref: string;
@@ -227,6 +253,8 @@ export type PlaceWorkSheet = {
   readonly abed: number;
   /** Its healer, where its land knows herb-lore (N9; null: none). */
   readonly healer: PlaceHealerRow | null;
+  /** Its bills (N10): each good its land knows how to make, those billed first in their order. */
+  readonly bills: readonly PlaceBillRow[];
   /** Its buildings where work is done: how many work at each, and whether its work is stopped by order. */
   readonly buildings: readonly {
     readonly lot: number;

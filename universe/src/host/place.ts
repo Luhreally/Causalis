@@ -134,6 +134,13 @@ import {
   fightOf,
   painOf,
   remedyFight,
+  ART,
+  HOLD,
+  SENSE_ARTS,
+  SENTENCE,
+  harshOf,
+  keepsPersons,
+  sentenceMix,
   type Anatomy,
   type Member,
   type Blow,
@@ -186,6 +193,12 @@ import {
   familySizeOf,
   managedDead,
   managedOf,
+  artOf,
+  courtIn,
+  holdOf,
+  lawOf,
+  orderOf,
+  politiesOf,
   MANAGED_TRADES,
   PRIO_FIRE_OWN,
   PRIO_KINDS,
@@ -335,6 +348,12 @@ export const WHY = {
   /** The town's healer, gone to one of its hurt who wants them; and out gathering the remedies they treat with (N9). */
   tend: 28,
   herbs: 29,
+  /** A maker whose making's good the town holds as much of as its bill asks, with nothing else billed to make (N10). */
+  billMet: 30,
+  /** Broken by a mood too low to bear (N11): wandering dazed, eating all in sight, or lashing out; and held, or at labour, by the town's justice. */
+  broke: 31,
+  held: 32,
+  labour: 33,
 } as const;
 
 /** What happened to someone, as a place's log tells it. */
@@ -378,9 +397,20 @@ export const HAP = {
   /** Dead of a wound (N9): bled to death, and of one that festered. */
   bled: 34,
   festered: 35,
+  /**
+   * N11: broke down, a mood too low to bear (a: how, BREAK's); brought before the town's justice (a: the wronged, b: what
+   * came of it, VERDICT's); let go at their term's end; put to death by it; and made a work (a: its lot).
+   */
+  broke: 36,
+  judged: 37,
+  freed: 38,
+  executed: 39,
+  madeWork: 40,
 } as const;
 /** The happenings that are a death. */
-const HAP_DEATH: ReadonlySet<number> = new Set([1, 5, 17, 19, 21, 22, 34, 35]);
+const HAP_DEATH: ReadonlySet<number> = new Set([1, 5, 17, 19, 21, 22, 34, 35, 39]);
+/** Whether a happening of a place's log is a death. */
+export const hapIsDeath = (what: number): boolean => HAP_DEATH.has(what);
 const HAP_WORDS = [
   "was born",
   "died",
@@ -418,6 +448,11 @@ const HAP_WORDS = [
   "came to blows",
   "bled to death of their wound",
   "died of a wound that festered",
+  "broke down, their mood too low to bear",
+  "was brought before the town's justice",
+  "was let go, their term served",
+  "was put to death by the town's justice",
+  "made a work",
 ];
 
 /** The place's draws: through the world's Rng, on a stream no registry holds (it is no part of the ruleset's identity). */
@@ -453,6 +488,9 @@ const P = {
   meet: 24,
   bleed: 25,
   fester: 26,
+  brk: 27,
+  judge: 28,
+  art: 29,
 } as const;
 
 const NEEDS = 4;
@@ -995,6 +1033,15 @@ export type Place = {
   healer?: number;
   herbs?: number;
   tended?: number[];
+  /**
+   * N11. Those broken down now, three numbers each: who (their number), how (BREAK's), and till when (seconds). Those its
+   * justice holds, three each: who, till when, and how (VERDICT's: held, or at labour). Its works, seven each: the lot it
+   * is at, when it was made (seconds), its maker (their number), what it shows (a happening of its log: what, whom, when,
+   * in days), and how fine it is (WORK_QUALITY's). Absent: none.
+   */
+  breaks?: number[];
+  held?: number[];
+  works?: number[];
 };
 
 /** What waits in a place's `due`: a death, a leaving, a birth, a coming, a burial, a pairing. */
@@ -1609,6 +1656,9 @@ export class PlaceStore implements StateStore {
         ...(p.healer ? { healer: p.healer } : {}),
         ...(p.herbs ? { herbs: p.herbs } : {}),
         ...(p.tended?.length ? { tended: p.tended } : {}),
+        ...(p.breaks?.length ? { breaks: p.breaks } : {}),
+        ...(p.held?.length ? { held: p.held } : {}),
+        ...(p.works?.length ? { works: p.works } : {}),
         ...(UNPAIRED.has(p) ? { unpaired: true } : {}),
         // (Read from a save kept before skill was, and not brought on since: still to be reckoned.)
         ...(UNSKILLED.has(p) ? { unskilled: true } : {}),
@@ -1702,6 +1752,9 @@ export class PlaceStore implements StateStore {
         ...(raw.healer ? { healer: raw.healer as number } : {}),
         ...(raw.herbs ? { herbs: raw.herbs as number } : {}),
         ...(raw.tended ? { tended: [...(raw.tended as number[])] } : {}),
+        ...(raw.breaks ? { breaks: [...(raw.breaks as number[])] } : {}),
+        ...(raw.held ? { held: [...(raw.held as number[])] } : {}),
+        ...(raw.works ? { works: [...(raw.works as number[])] } : {}),
       });
       if (unskilled) UNSKILLED.add(this.places.at(-1)!);
       if (!cols.taught || raw.untaught === true) UNTAUGHT.add(this.places.at(-1)!);
@@ -1779,6 +1832,10 @@ export function placeDigest(p: Place): string {
       .int(x.o ?? 0);
   h.int(p.healer ?? 0).int(p.herbs ?? 0);
   for (const x of p.tended ?? []) h.int(x);
+  h.int(p.breaks?.length ?? 0).int(p.held?.length ?? 0).int(p.works?.length ?? 0);
+  for (const x of p.breaks ?? []) h.int(x);
+  for (const x of p.held ?? []) h.int(x);
+  for (const x of p.works ?? []) h.int(x);
   h.string(p.ordered)
     .string(p.sited)
     .string(p.plague)
@@ -2443,9 +2500,8 @@ function craftFor(world: World, place: Place, i: number): number {
 }
 
 /** Where one's making is done: its building where one stands; outside the town for coal and oil; else at home. */
-function makingLot(place: Place, i: number): number {
+function makingLot(place: Place, i: number, craft = place.people.craft[i]!): number {
   const p = place.people,
-    craft = p.craft[i]!,
     good = craft ? RECIPES[craft - 1]!.output[0] : -1,
     at = good >= 0 && MAKING_AT[good] ? buildingOf(place, MAKING_AT[good]) : -1;
   return good === G.coal || good === G.oil
@@ -4412,9 +4468,14 @@ export const THOUGHT = {
   feast: 7,
   quarrel: 8,
   brawl: 9,
+  /** N11: a break spent (its strain let out), held by the town's justice, a wrong done them judged, and a fine work seen. */
+  catharsis: 10,
+  heldBy: 11,
+  righted: 12,
+  admired: 13,
 } as const;
 /** Days in which each kind fades to half. */
-const THOUGHT_HALF: readonly number[] = [0, 30, 60, 20, 30, 10, 3, 10, 5, 15];
+const THOUGHT_HALF: readonly number[] = [0, 30, 60, 20, 30, 10, 3, 10, 5, 15, 5, 10, 10, 4];
 const thoughtKind = (v: number): number => v >>> 24;
 const thoughtSize = (v: number): number => ((v >>> 16) & 255) - 128;
 const thoughtAge = (v: number, today: number): number => (today - (v & 0xffff)) & 0xffff;
@@ -4599,7 +4660,11 @@ function meetDay(world: World, place: Place, rounds = 1): void {
         }
         // (Blows are told in the log; words are only remembered, and told on the Social tab: three a day in a town of
         // five hundred filled a log a town keeps to about its people's number, and pushed out its births and comings.)
-        if (blows) note(place, HAP.brawl, p.id[i]!, p.id[j]!);
+        // (And blows are a wrong, brought before the town's justice: N11.)
+        if (blows) {
+          note(place, HAP.brawl, p.id[i]!, p.id[j]!);
+          judge(world, place, i, j);
+        }
       }
     }
   // (What is not met again fades: a point a week toward nothing.)
@@ -4976,6 +5041,23 @@ function tickCx(world: World, place: Place, f: Frame) {
     orders = managedOf(world)?.get(place.town),
     reserve = orders ? orders.hold * p.n * f.daily * 30 : 0,
     barred = (b: number, g: number) => b === market && !!orders && orders.forbidden.includes(g),
+    // Its bills (N10): the units of each good it is to hold (-1: no bill), the goods billed in their order, and what it
+    // holds of each and how it makes each now, read as a tick first asks; and what its stores will not take (its market's
+    // by the good, its granary's by GOOD_COUNT and the good).
+    keepTo = orders?.bills ? billsOf(orders.bills) : null,
+    billOrder = orders?.bills ? orders.bills.filter((_, k) => k % 2 === 0) : null,
+    heldNow = orders?.bills ? new Float64Array(GOOD_COUNT).fill(-1) : null,
+    madeBy = orders?.bills ? new Int16Array(GOOD_COUNT).fill(-1) : null,
+    refused = orders?.refuse ? refusedOf(orders.refuse) : null,
+    // (Where food carried to store goes: its granary, else its market, where each will take it; else it stays at home.)
+    foodTo = (g: number, home: number): number =>
+      !refused
+        ? bldgs.lot[foodStore]!
+        : foodStore !== market && !refused.has(GOOD_COUNT + g)
+          ? bldgs.lot[foodStore]!
+          : !refused.has(g)
+            ? bldgs.lot[market]!
+            : home,
     // (The food a store will let a household have: all of it, less what the granary is told to hold back.)
     free = (b: number, g: number): number => {
       if (barred(b, g)) return 0;
@@ -5093,6 +5175,9 @@ function tickCx(world: World, place: Place, f: Frame) {
     meetDay(world, place);
     // (Whom its healer has seen of the festering is begun again each day.)
     if (place.tended) place.tended = [place.day];
+    // (Its works wear away, a fiftieth a year: rules/art.ts ART.wear. Those broken down or held who are gone, let go.)
+    if (place.works) wearWorks(world, place);
+    if (place.breaks || place.held) pruneGone(place);
     place.madeDay.fill(0);
     place.usedDay.fill(0);
     place.cameDay.fill(0);
@@ -5144,7 +5229,8 @@ function tickCx(world: World, place: Place, f: Frame) {
       for (let b = 1; b < bldgs.lot.length; b++) {
         if (b === market || bldgs.site[b]) continue;
         for (const g of MAKING_GOODS.get(bldgs.kind[b]!) ?? [])
-          if (bldgs.stock[b * GOOD_COUNT + g]! >= LOAD * MICRO) hauls.push([b, g]);
+          // (What its market will not take stays where it was made: N10.)
+          if (bldgs.stock[b * GOOD_COUNT + g]! >= LOAD * MICRO && !refused?.has(g)) hauls.push([b, g]);
       }
       return hauls;
     };
@@ -5342,6 +5428,14 @@ function tickCx(world: World, place: Place, f: Frame) {
     hospital,
     healerAt,
     homeFolk,
+    keepTo,
+    billOrder,
+    heldNow,
+    madeBy,
+    foodTo,
+    breakOf: place.breaks?.length ? byId(place.breaks, 3) : null,
+    heldOf: place.held?.length ? byId(place.held, 3) : null,
+    worksAt: place.works?.length ? worksByLot(place) : null,
   };
 }
 type TickCx = ReturnType<typeof tickCx>;
@@ -5424,6 +5518,11 @@ function turnOf(cx: TickCx, i: number): void {
     hospital,
     healerAt,
     homeFolk,
+    keepTo,
+    foodTo,
+    breakOf,
+    heldOf: heldBy,
+    worksAt,
   } = cx;
   const kind = fs ? (houses.kind[cHouse[i]!] ?? 0) : 0,
     fk = fs ? (fs[kind] ?? f) : f,
@@ -5554,6 +5653,16 @@ function turnOf(cx: TickCx, i: number): void {
     for (let k = i * THOUGHTS; k < (i + 1) * THOUGHTS; k++)
       if (p.thought[k] && Math.abs(thoughtNow(p.thought[k]!, today)) < 1) p.thought[k] = 0;
     p.mood[i] = Math.max(-100, Math.min(100, Math.round(p.mood[i]! + (to - p.mood[i]!) / 4)));
+    // A mood too low to bear breaks, the oftener the deeper (N11).
+    if (
+      p.mood[i]! < MOOD_UNHEEDING &&
+      !cHealth[i] &&
+      !breakOf?.has(cId[i]!) &&
+      !heldBy?.has(cId[i]!) &&
+      ageOf(p, i, t) >= f.life.adulthood &&
+      breakDay(cx, i)
+    )
+      return;
     if (!cHealth[i]) {
       const sick = ailing(),
         // (One in want takes a sickness the sooner.)
@@ -5717,6 +5826,15 @@ function turnOf(cx: TickCx, i: number): void {
     // beside it.)
     houses.pantry[h * FOODS.length + FOODS.indexOf(cCarryGood[i]!)]! += cCarry[i]!;
     cCarry[i] = 0;
+  }
+  // Held by the town's justice, or at labour for it, till their term is served; and one broken down, till it is spent
+  // (N11). (Their household brings them their food.)
+  if (heldBy?.has(cId[i]!) && heldTurn(cx, i, h, fk)) return;
+  if (breakOf?.has(cId[i]!) && breakTurn(cx, i, h, fk)) return;
+  // A fine work where they are, seen once a day (N11): a thought by how fine it is.
+  if (worksAt && !moving && inside && (tickNo + cId[i]!) % 6 === 0) {
+    const q = worksAt.get(cAt[i]!);
+    if (q !== undefined) remember(place, i, THOUGHT.admired, 2 + 2 * q);
   }
   // A fire in the town: the grown who live within a cry of it turn out to fight it, asleep or not, until it is out or
   // hunger takes them off; and its watch, where one is kept (fireCrew).
@@ -5937,7 +6055,14 @@ function turnOf(cx: TickCx, i: number): void {
   // Work: what the next hour of it is worth passes every need. (Their own, or what they have turned to for now.)
   const turned = p.turn[i]!,
     doing = turned || occ,
-    work = turned ? turnPlace(i, turned) : p.work[i]!;
+    // (A maker's making now: their own; or, where the town holds as much of its good as its bill asks, the first good
+    // billed that it holds less of and its land knows how to make, its stuff to hand; 0: none. N10.)
+    making = keepTo && !turned && doing === OCC.crafter ? makingNow(cx, i) : p.craft[i]!,
+    work = turned
+      ? turnPlace(i, turned)
+      : making && making !== p.craft[i]
+        ? makingLot(place, i, making)
+        : p.work[i]!;
   if (shut?.has(work)) {
     // Their building's work is stopped by order: at home, waiting.
     cAct[i] = ACT.wait;
@@ -5995,6 +6120,15 @@ function turnOf(cx: TickCx, i: number): void {
     sn.left -= gain;
     return;
   }
+  if (!making && doing === OCC.crafter && p.craft[i]) {
+    // The town holds as much of their making's good as its bill asks, and of nothing else billed that they could make
+    // (N10): what their priorities name next, where any has work; else at home.
+    if (prios && turns(i, occ)) return;
+    cAct[i] = ACT.wait;
+    cWhy[i] = WHY.billMet;
+    if (cAt[i] !== home) go(place, i, home, world);
+    return;
+  }
   if (cAt[i] !== work) {
     // (Setting out from a home that holds more than it keeps: a load of the rest goes to the town's store on the way,
     // for those who reap nothing. In a dearth a home keeps a day's food and no more.)
@@ -6006,15 +6140,16 @@ function turnOf(cx: TickCx, i: number): void {
       if (pantry - keep >= least)
         for (let k = FOODS.length - 1; k >= 0; k--) {
           const take = Math.floor(
-            Math.min(houses.pantry[h * FOODS.length + k]!, pantry - keep, LOAD * MICRO),
-          );
-          if (take <= 0) continue;
+              Math.min(houses.pantry[h * FOODS.length + k]!, pantry - keep, LOAD * MICRO),
+            ),
+            to = foodTo(FOODS[k]!, home);
+          if (take <= 0 || to === home) continue;
           houses.pantry[h * FOODS.length + k]! -= take;
           cCarryGood[i] = FOODS[k]!;
           cCarry[i] = take;
           cAct[i] = ACT.carry;
           cWhy[i] = WHY.load;
-          go(place, i, bldgs.lot[foodStore]!, world);
+          go(place, i, to, world);
           break;
         }
       if (cAct[i] === ACT.carry && cCarry[i]! > 0) return;
@@ -6054,13 +6189,29 @@ function turnOf(cx: TickCx, i: number): void {
       go(
         place,
         i,
-        pantry < houses.members[h]! * fk.daily * keepDays ? home : bldgs.lot[foodStore]!,
+        pantry < houses.members[h]! * fk.daily * keepDays ? home : foodTo(g, home),
         world,
       );
     }
-  } else if (doing === OCC.crafter && p.craft[i]) {
+  } else if (doing === OCC.crafter && making) {
+    // A work, for its own sake, as much of their time as its land's makers give to works (rules/art.ts ART.hands): one
+    // a month of a maker's work long, so its chance a tick is that share over a month's ticks (N11). (Drawn at one tick
+    // in WORK_SIEVE of each maker's, at as many times the chance: a draw at every maker's every tick was a tenth of a
+    // tick's cost in a town of 5,500.)
+    if (
+      (tickNo + cId[i]!) % WORK_SIEVE === 0 &&
+      world.rng.chance(
+        (WORK_SIEVE * ART.hands) / WORK_TICKS,
+        PLACE_DRAW,
+        place.key ^ cId[i]!,
+        tickNo,
+        P.art,
+      ) &&
+      makeWork(cx, i)
+    )
+      return;
     // A making: its stuff taken from where it is worked, the made thing left there; for want of stuff, none.
-    const r = RECIPES[p.craft[i]! - 1]!,
+    const r = RECIPES[making - 1]!,
       [good, per] = r.output,
       // (One who works at home takes their stuff from the market and leaves what they make there.)
       at = bldgAt(place, cAt[i]!),
@@ -6119,6 +6270,439 @@ function turnOf(cx: TickCx, i: number): void {
     }
   }
 
+}
+
+// —— Bills and stores (N10) ————————————————————————————————————————————————————————————————————————————————————————
+
+/** A town's bills read: the units of each good it is to hold (GOODS' order; -1: no bill). */
+function billsOf(bills: readonly number[]): Float64Array {
+  const out = new Float64Array(GOOD_COUNT).fill(-1);
+  for (let k = 0; k + 1 < bills.length; k += 2) out[bills[k]!] = bills[k + 1]!;
+  return out;
+}
+/** What a town's stores will not take, read: its market's by the good, its granary's by GOOD_COUNT and the good. */
+function refusedOf(refuse: readonly number[]): Set<number> {
+  const out = new Set<number>();
+  for (let k = 0; k + 1 < refuse.length; k += 2) out.add(refuse[k]! * GOOD_COUNT + refuse[k + 1]!);
+  return out;
+}
+/** What a place holds of a good, in units: in its buildings, its pantries and in hand (the Stocks sheet's `held`). */
+export function placeHeld(place: Place, g: number): number {
+  const { bldgs, houses, people: p } = place;
+  let n = 0;
+  for (let b = 0; b < bldgs.lot.length; b++) n += bldgs.stock[b * GOOD_COUNT + g]!;
+  const f = FOODS.indexOf(g);
+  if (f >= 0) for (let h = 0; h < houses.n; h++) n += houses.pantry[h * FOODS.length + f]!;
+  for (let q = 0; q < p.n; q++) if (p.carry[q]! > 0 && p.carryGood[q] === g) n += p.carry[q]!;
+  return n / MICRO;
+}
+/** What a tick holds of a good billed, as it first asks. */
+function heldOf(cx: TickCx, g: number): number {
+  const was = cx.heldNow![g]!;
+  return was >= 0 ? was : (cx.heldNow![g] = placeHeld(cx.place, g));
+}
+/**
+ * How a place makes a good now (a recipe's place + 1; 0: it cannot): of its land's makings of it, the latest its land
+ * knows, its stuff to hand where it is made (its building of the kind, else its market), as its makers' own are.
+ */
+function makesOf(cx: TickCx, g: number): number {
+  const was = cx.madeBy![g]!;
+  if (was >= 0) return was;
+  const { place, matched, bldgs, market, barred } = cx,
+    at = MAKING_AT[g] ? buildingOf(place, MAKING_AT[g]) : -1,
+    b = at > 0 ? at : market;
+  let out = 0;
+  for (let k = RECIPES.length - 1; k >= 0 && !out; k--) {
+    const r = RECIPES[k]!;
+    if (r.output[0] !== g || !((matched.kinds >>> k) & 1)) continue;
+    if (r.inputs.every(([x]) => !barred(b, x) && bldgs.stock[b * GOOD_COUNT + x]! > 0)) out = k + 1;
+  }
+  return (cx.madeBy![g] = out);
+}
+/**
+ * One maker's making now, by the town's bills (N10): their own while the town holds less of its good than its bill asks
+ * (or it has none); else the first good billed that it holds less of, as the town makes it now (makesOf); 0: none.
+ */
+function makingNow(cx: TickCx, i: number): number {
+  const { p, keepTo, billOrder } = cx,
+    own = p.craft[i]!;
+  if (!keepTo || !billOrder) return own;
+  if (own) {
+    const g = RECIPES[own - 1]!.output[0];
+    if (keepTo[g]! < 0 || heldOf(cx, g) < keepTo[g]!) return own;
+  }
+  for (const g of billOrder) {
+    if (keepTo[g]! <= 0 || heldOf(cx, g) >= keepTo[g]!) continue;
+    const r = makesOf(cx, g);
+    if (r) return r;
+  }
+  return 0;
+}
+/** A place's stores' lots (N10): its market's, and its granary's (-1: it keeps none apart from its market). */
+export function placeStores(place: Place): { market: number; granary: number } {
+  const market = buildingOf(place, ["market"]),
+    food = buildingOf(place, FOOD_STORES);
+  return {
+    market: place.bldgs.lot[market] ?? -1,
+    granary: food !== market ? (place.bldgs.lot[food] ?? -1) : -1,
+  };
+}
+/** Where a place makes a good: its building of the kind (-1: none; it is made at home, or outside the town). */
+export function placeMakingAt(place: Place, g: number): number {
+  const at = MAKING_AT[g] ? buildingOf(place, MAKING_AT[g]) : -1;
+  return at > 0 ? at : -1;
+}
+/** The goods a place's land knows how to make (GOODS' order), and of its makers how many make each as their own. */
+export function placeMakings(place: Place): { good: number; makers: number }[] {
+  const m = place.matched,
+    p = place.people,
+    by = new Map<number, number>();
+  RECIPES.forEach((r, k) => {
+    if ((m.kinds >>> k) & 1 && !by.has(r.output[0])) by.set(r.output[0], 0);
+  });
+  for (let i = 0; i < p.n; i++) {
+    const c = p.craft[i]!;
+    if (c && occOf(p, i) === OCC.crafter) {
+      const g = RECIPES[c - 1]!.output[0];
+      by.set(g, (by.get(g) ?? 0) + 1);
+    }
+  }
+  return [...by].map(([good, makers]) => ({ good, makers })).sort((a, b) => a.good - b.good);
+}
+
+// —— Breaks, justice and works (N11) ——————————————————————————————————————————————————————————————————————————————
+
+/** How one breaks down (place.breaks): wandering dazed, eating all in sight, lashing out at what is about them. */
+export const BREAK = { wander: 1, binge: 2, wreck: 3 } as const;
+/** What a town's justice did with one brought before it (rules/sentences.ts sentenceMix's order), and its words. */
+export const VERDICT = { fined: 1, death: 2, labour: 3, held: 4, freed: 5 } as const;
+/**
+ * How long a break lasts: half a waking day, the strain of a mood past bearing let out (and after, a thought of relief
+ * the more for the deeper it was). A day's chance of one is the square of how far the mood lies below MOOD_UNHEEDING, of
+ * the way from there to the bottom: one at the very bottom breaks most days, one at the edge of it seldom.
+ */
+const BREAK_TICKS = (8 * HOUR) / PLACE_TICK;
+/** What one eating all in sight eats, in days of their food; and what one lashing out spoils, in loads at the boldest. */
+const BINGE_DAYS = 3,
+  WRECK_LOADS = 1;
+/** A fine: what the household of one fined pays, in days of its food (to the wronged household, or to the town's store). */
+const FINE_DAYS = 7;
+/** A work is a month of a maker's working time long (rules/art.ts counts works in work-years): its ticks. */
+const WORK_TICKS = Math.round((YEAR * WORK_SHARE) / 12 / PLACE_TICK);
+/** Makers are drawn for a work at one tick in so many of theirs. */
+const WORK_SIEVE = 64;
+/** The works a building holds at the most: the oldest worn away first past it. */
+const WORKS_MOST = 24;
+/** A work's quality by its maker's skill (0 new … 4 a master), in a word. */
+export const WORK_QUALITY = ["crude", "plain", "good", "fine", "masterful"] as const;
+
+/** A flat list of so many numbers each, by the first (a person's number): its place in the list. */
+function byId(list: readonly number[], each: number): Map<number, number> {
+  const out = new Map<number, number>();
+  for (let k = 0; k + each - 1 < list.length; k += each) out.set(list[k]!, k);
+  return out;
+}
+/** A place's works by lot: the finest's quality at each (its works' seventh number is their quality). */
+function worksByLot(place: Place): Map<number, number> {
+  const w = place.works!,
+    out = new Map<number, number>();
+  for (let k = 0; k + 6 < w.length; k += 7) out.set(w[k]!, Math.max(out.get(w[k]!) ?? 0, w[k + 6]!));
+  return out;
+}
+/** A day of a place's works: each wears away at its land's rate (ART.wear a year), drawn by when it was made. */
+function wearWorks(world: World, place: Place): void {
+  const w = place.works!,
+    keep: number[] = [];
+  for (let k = 0; k + 6 < w.length; k += 7)
+    if (!world.rng.chance(ART.wear / 365, PLACE_DRAW, place.key ^ w[k + 2]!, place.t, P.art, w[k + 1]!))
+      keep.push(...w.slice(k, k + 7));
+  if (keep.length) place.works = keep;
+  else delete place.works;
+}
+/** One's day, a mood too low to bear: a break begun (true), by their temper. */
+function breakDay(cx: TickCx, i: number): boolean {
+  const { world, place, p, t, tickNo, bldgs } = cx,
+    deep = (MOOD_UNHEEDING - p.mood[i]!) / (100 + MOOD_UNHEEDING);
+  if (!world.rng.chance(deep * deep, PLACE_DRAW, place.key ^ p.id[i]!, tickNo, P.brk)) return false;
+  // (The bold lash out at what is about them; those who set no store by plenty eat all in sight; the rest wander dazed.)
+  const temper = placeTemper(place, i),
+    how = temper.bold >= 0.5 ? BREAK.wreck : temper.thrifty < 0.5 ? BREAK.binge : BREAK.wander;
+  (place.breaks ??= []).push(p.id[i]!, how, t + BREAK_TICKS * PLACE_TICK);
+  note(place, HAP.broke, p.id[i]!, how);
+  p.act[i] = ACT.idle;
+  p.why[i] = WHY.broke;
+  if (how === BREAK.wreck) {
+    // What lies about their work spoiled, the more the bolder: a wrong to the town, brought before its justice.
+    const b = bldgAt(place, p.work[i]!);
+    if (b > 0) {
+      let most = -1,
+        g = -1;
+      for (let x = 0; x < GOOD_COUNT; x++)
+        if (bldgs.stock[b * GOOD_COUNT + x]! > most) {
+          most = bldgs.stock[b * GOOD_COUNT + x]!;
+          g = x;
+        }
+      const lost = g >= 0 ? Math.floor(Math.min(most, WRECK_LOADS * LOAD * MICRO * temper.bold)) : 0;
+      if (lost > 0) {
+        bldgs.stock[b * GOOD_COUNT + g]! -= lost;
+        place.flow[g]! -= lost;
+        place.usedDay[g]! += lost;
+      }
+      judge(world, place, i, -1);
+    }
+  }
+  return true;
+}
+/** A tick of one broken down: as their break has them, till it is spent (false: it is spent, and they go on as they would). */
+function breakTurn(cx: TickCx, i: number, h: number, fk: Frame): boolean {
+  const { world, place, p, t, houses, breakOf } = cx,
+    k = breakOf!.get(p.id[i]!)!,
+    list = place.breaks!,
+    // (How, in its low three bits; whether one eating all in sight has eaten yet, eight.)
+    how = list[k + 1]! & 7;
+  if (t >= list[k + 2]!) {
+    // Spent: the strain let out (a thought of relief), and the break let go.
+    list.splice(k, 3);
+    if (!list.length) delete place.breaks;
+    breakOf!.clear();
+    if (place.breaks) for (const [id, at] of byId(place.breaks, 3)) breakOf!.set(id, at);
+    remember(place, i, THOUGHT.catharsis, 20);
+    return false;
+  }
+  p.act[i] = how === BREAK.binge ? ACT.eat : ACT.idle;
+  p.why[i] = WHY.broke;
+  const home = houses.home[h]!;
+  if (how === BREAK.binge) {
+    if (p.at[i] !== home) go(place, i, home, world);
+    else if (!(list[k + 1]! & 8)) {
+      // (All in sight, once home: days of food eaten at once, and no hunger left in them.)
+      eatFrom(place, h, BINGE_DAYS * fk.daily);
+      p.needs[i * NEEDS + N.food] = 0;
+      p.owed[i] = 0;
+      list[k + 1] = list[k + 1]! | 8;
+    }
+    return true;
+  }
+  if (p.at[i] !== AT.square) go(place, i, AT.square, world);
+  return true;
+}
+/** A tick of one held by the town's justice (false: their term is served, and they are let go). */
+function heldTurn(cx: TickCx, i: number, h: number, fk: Frame): boolean {
+  const { world, place, p, t, heldOf } = cx,
+    k = heldOf!.get(p.id[i]!)!,
+    list = place.held!;
+  if (t >= list[k + 1]!) {
+    list.splice(k, 3);
+    if (!list.length) delete place.held;
+    heldOf!.clear();
+    if (place.held) for (const [id, at] of byId(place.held, 3)) heldOf!.set(id, at);
+    note(place, HAP.freed, p.id[i]!);
+    return false;
+  }
+  const labour = list[k + 2] === VERDICT.labour,
+    at = labour ? AT.fields : heldAt(place);
+  p.act[i] = labour ? ACT.work : ACT.held;
+  p.why[i] = labour ? WHY.labour : WHY.held;
+  if (p.at[i] !== at) go(place, i, at, world);
+  // (Their household brings them their food, as it would eat it at home; and they sleep where they are held.)
+  if (p.needs[i * NEEDS + N.food]! > FULL / 2) {
+    const want = p.owed[i]! * fk.half,
+      eaten = want > 0 ? eatFrom(place, h, want) : 0;
+    if (eaten > 0) {
+      const left = 1 - Math.min(1, eaten / want);
+      p.needs[i * NEEDS + N.food] = Math.round(p.needs[i * NEEDS + N.food]! * left);
+      p.owed[i] = Math.round(p.owed[i]! * left);
+    }
+  }
+  if (!cx.air.lit) p.needs[i * NEEDS + N.rest] = Math.max(0, p.needs[i * NEEDS + N.rest]! - fk.rest);
+  return true;
+}
+/** Where a place holds those its justice holds: a court, a prison or a barracks of its own, else stocks in its square. */
+function heldAt(place: Place): number {
+  const b = buildingOf(place, ["prison", "court", "barracks", "townhall", "hall"]);
+  return b > 0 ? place.bldgs.lot[b]! : AT.square;
+}
+/** A place's law (N11), read of its realm as it stands now: how harsh, its justice, how far bought, by decree, how far it reaches. */
+export function placeLaw(
+  world: World,
+  place: Place,
+): {
+  harsh: number;
+  justice: number;
+  bought: number;
+  decree: boolean;
+  hive: boolean;
+  reach: number;
+} {
+  const realm = politiesOf(world).of(place.cell),
+    order = realm ? orderOf(world)?.of(realm.ref) : undefined,
+    row = courtIn(world, place.cell),
+    hive = !keepsPersons(homePlanet(world).generated.life.people?.body.social),
+    // (Where no court holds the land, the wronged and their kin bring it, and custom settles it.)
+    court = row.court > 0;
+  return {
+    harsh: harshOf(holdOf(world, realm?.ref, HOLD.force), holdOf(world, realm?.ref, HOLD.voice)),
+    justice: court && order ? lawOf(order, "justice").position : 0,
+    bought: row.bought,
+    decree: realm?.law === 1,
+    hive,
+    reach: court ? Math.max(0, row.court - 0.5 * row.bought) : 1,
+  };
+}
+/**
+ * A wrong brought before a place's justice (N11): one of its people (i) who wronged another (j; -1: the town, what they
+ * spoiled). Brought as far as its court reaches; what comes of it drawn by its realm's own law (rules/sentences.ts
+ * sentenceMix, a small wrong's gravity): a fine, paid of their household's food to the wronged household (or to the
+ * town's store); labour or a term held (SENTENCE.pettyTerm on the mean, a year); death where the town is managed (else
+ * held: its land's own reckoning says who dies); or let go.
+ */
+function judge(world: World, place: Place, i: number, j: number): void {
+  const p = place.people,
+    law = placeLaw(world, place),
+    r = (k: number) => world.rng.unit(PLACE_DRAW, place.key ^ p.id[i]!, place.t, P.judge, k);
+  if (r(0) >= law.reach) return;
+  const mix = sentenceMix({
+      grave: SENTENCE.pettyGrave,
+      harsh: law.harsh,
+      bought: law.bought,
+      decree: law.decree,
+      justice: law.justice,
+      hive: law.hive,
+    }),
+    u = r(1) * mix.reduce((a, b) => a + b, 0);
+  let verdict: number = VERDICT.freed;
+  for (let k = 0, sum = 0; k < 5; k++)
+    if (u < (sum += mix[k]!)) {
+      verdict = [VERDICT.fined, VERDICT.death, VERDICT.labour, VERDICT.held, VERDICT.freed][k]!;
+      break;
+    }
+  const orders = !!managedOf(world)?.get(place.town);
+  if (verdict === VERDICT.death && !orders) verdict = VERDICT.held;
+  note(place, HAP.judged, p.id[i]!, j >= 0 ? p.id[j]! : 0, verdict);
+  if (j >= 0) remember(place, j, THOUGHT.righted, verdict === VERDICT.freed ? -5 : 6);
+  const f = frameOf(world, place.cell);
+  if (verdict === VERDICT.fined) {
+    // (Its household's food, as much as it has: to the wronged household under custom, else to the town's store.)
+    const take = eatFromTo(place, p.house[i]!, FINE_DAYS * f.daily);
+    if (j >= 0 && law.justice === 0)
+      for (let k = 0; k < FOODS.length; k++) place.houses.pantry[p.house[j]! * FOODS.length + k]! += take[k]!;
+    else {
+      const b = Math.max(0, buildingOf(place, ["granary", "market"]));
+      for (let k = 0; k < FOODS.length; k++) place.bldgs.stock[b * GOOD_COUNT + FOODS[k]!]! += take[k]!;
+    }
+  } else if (verdict === VERDICT.held || verdict === VERDICT.labour) {
+    const days = Math.max(1, Math.round(365 * SENTENCE.pettyTerm * (0.5 + r(2))));
+    (place.held ??= []).push(p.id[i]!, place.t + days * DAY, verdict);
+    remember(place, i, THOUGHT.heldBy, -25);
+  } else if (verdict === VERDICT.death)
+    (EXECUTED.get(place) ?? EXECUTED.set(place, []).get(place)!).push(p.id[i]!);
+}
+/** Those a place's justice put to death this tick, by number, to die at its end with its other dead (tick's epilogue). */
+const EXECUTED = new WeakMap<Place, number[]>();
+/** Of a place's broken down and held, those gone from it let go (at the day's turn). */
+function pruneGone(place: Place): void {
+  for (const key of ["breaks", "held"] as const) {
+    const list = place[key];
+    if (!list) continue;
+    const keep: number[] = [];
+    for (let k = 0; k + 2 < list.length; k += 3)
+      if (placeIndexOf(place, list[k]!) >= 0) keep.push(list[k]!, list[k + 1]!, list[k + 2]!);
+    if (keep.length) place[key] = keep;
+    else delete place[key];
+  }
+}
+/** Food taken from a household's pantry, each food in turn, as much as it has: what was taken of each (FOODS' order). */
+function eatFromTo(place: Place, h: number, want: number): number[] {
+  const out = FOODS.map(() => 0);
+  for (let k = 0; k < FOODS.length && want > 0; k++) {
+    const at = h * FOODS.length + k,
+      take = Math.min(place.houses.pantry[at]!, Math.ceil(want));
+    place.houses.pantry[at]! -= take;
+    out[k] = take;
+    want -= take;
+  }
+  return out;
+}
+/** One of a place's makers at a work (N11): what it shows, a happening of its log; made where they work. False: none to make. */
+function makeWork(cx: TickCx, i: number): boolean {
+  const { place, p, t } = cx,
+    lot = p.at[i]!;
+  if (lot < 0 || lot === AT.fields || lot === AT.square || lot === AT.walls) return false;
+  // (What it shows: the gravest of the last year's happenings, the latest of them; else the town itself.)
+  let shows: PlaceHap | null = null;
+  for (let k = place.log.length - 1; k >= 0; k--) {
+    const x = place.log[k]!;
+    if (t - x.t > YEAR) break;
+    if (WORK_SUBJECTS.has(x.what) && (!shows || (HAP_GRAVE.has(x.what) && !HAP_GRAVE.has(shows.what)))) shows = x;
+  }
+  const level = levelOf(Math.floor(hoursAt(p, i, SK.crafts) / 6)),
+    w = (place.works ??= []);
+  w.push(
+    lot,
+    t,
+    p.id[i]!,
+    shows ? shows.what : -1,
+    shows ? shows.id : 0,
+    shows ? Math.floor(shows.t / DAY) : 0,
+    Math.max(0, Math.min(4, level)),
+  );
+  // (Past the most a building holds, its oldest worn away.)
+  let at = 0;
+  for (let k = 0; k + 6 < w.length; k += 7) if (w[k] === lot) at++;
+  if (at > WORKS_MOST) {
+    const first = w.findIndex((x, k) => k % 7 === 0 && x === lot);
+    w.splice(first, 7);
+  }
+  note(place, HAP.madeWork, p.id[i]!, lot);
+  p.act[i] = ACT.work;
+  p.why[i] = WHY.work;
+  return true;
+}
+/** The happenings a work may show: its gravest, and its glad days. */
+const WORK_SUBJECTS: ReadonlySet<number> = new Set([
+  HAP.died,
+  HAP.starved,
+  HAP.struckDead,
+  HAP.fell,
+  HAP.famine,
+  HAP.plague,
+  HAP.bled,
+  HAP.festered,
+  HAP.born,
+  HAP.paired,
+  HAP.buried,
+  HAP.brawl,
+  HAP.homeless,
+  HAP.executed,
+]);
+/** A place's works at a lot, read (N11): what each shows, who made it, when, how fine; the latest first. */
+export function placeWorks(
+  world: World,
+  place: Place,
+  lot: number,
+): { what: number; whom: number; day: number; maker: number; made: number; quality: number; form: string }[] {
+  const w = place.works ?? [],
+    form = artOf(world, place.cell)?.form ?? SENSE_ARTS[homePlanet(world).generated.life.people?.body.senses[0] ?? "sight"],
+    out = [];
+  for (let k = w.length - 7; k >= 0; k -= 7)
+    if (w[k] === lot)
+      out.push({ made: w[k + 1]!, maker: w[k + 2]!, what: w[k + 3]!, whom: w[k + 4]!, day: w[k + 5]!, quality: w[k + 6]!, form });
+  return out;
+}
+/** One of a place's people broken down, or held, read (N11; null: neither). */
+export function placeBreak(place: Place, i: number): { how: number; left: number } | null {
+  const list = place.breaks ?? [],
+    id = place.people.id[i]!;
+  for (let k = 0; k + 2 < list.length; k += 3)
+    if (list[k] === id) return { how: list[k + 1]! & 7, left: Math.max(0, list[k + 2]! - place.t) };
+  return null;
+}
+export function placeJailed(place: Place, i: number): { how: number; left: number } | null {
+  const list = place.held ?? [],
+    id = place.people.id[i]!;
+  for (let k = 0; k + 2 < list.length; k += 3)
+    if (list[k] === id) return { how: list[k + 2]!, left: Math.max(0, list[k + 1]! - place.t) };
+  return null;
 }
 
 // —— A wound by the hour, and the healer's work (N9) —————————————————————————————————————————————————————————————————
@@ -6276,6 +6860,19 @@ function tick(world: World, place: Place, f: Frame): void {
   const cx = tickCx(world, place, f),
     { p, houses, t, today, dying, dyingWhy } = cx;
   for (let i = 0; i < p.n; i++) turnOf(cx, i);
+  // (Those its justice put to death this tick die with its other dead, in their places' order: N11.)
+  const put = EXECUTED.get(place);
+  if (put) {
+    EXECUTED.delete(place);
+    for (const id of put) {
+      const i = placeIndexOf(place, id);
+      if (i < 0 || dying.includes(i)) continue;
+      let at = dying.findIndex((x) => x > i);
+      if (at < 0) at = dying.length;
+      dying.splice(at, 0, i);
+      dyingWhy.splice(at, 0, HAP.executed);
+    }
+  }
   // The hours given this tick to kinds of work but one's own trade's (N6; their own trade's are counted at it, above).
   countHours(place, f);
   // Those who died of want, or of a wound: told, kept for its land's telling, and gone.
@@ -7061,6 +7658,28 @@ export function hapTold(
       return named?.(x.a)
         ? `came to blows with ${named(x.a)} and was parted from them`
         : "came to blows";
+    case HAP.broke:
+      return x.a === BREAK.wreck
+        ? "broke down, their mood too low to bear, and lashed out at what lay about their work"
+        : x.a === BREAK.binge
+          ? "broke down, their mood too low to bear, and ate all in sight at home"
+          : "broke down, their mood too low to bear, and wandered dazed about the square";
+    case HAP.judged: {
+      const of = named?.(x.a) ? ` for the blows with ${named(x.a)}` : x.a ? "" : " for what they spoiled";
+      return x.b === VERDICT.fined
+        ? `was brought before the town's justice${of}, and fined: their household paid a week's food`
+        : x.b === VERDICT.death
+          ? `was brought before the town's justice${of}, and put to death for it`
+          : x.b === VERDICT.labour
+            ? `was brought before the town's justice${of}, and set to labour at the fields for a term`
+            : x.b === VERDICT.held
+              ? `was brought before the town's justice${of}, and held for a term`
+              : `was brought before the town's justice${of}, and let go`;
+    }
+    case HAP.madeWork: {
+      const b = place.bldgs.lot.indexOf(x.a);
+      return b > 0 ? `made a work, kept at the ${kindName(place.bldgs.kind[b]!)}` : "made a work, kept at home";
+    }
     default:
       return x.o
         ? (HAP_WORDS[x.what] ?? "").replace("by your order", "by its head's order")
@@ -7087,6 +7706,9 @@ export const HAP_GRAVE: ReadonlySet<number> = new Set([
   HAP.plague,
   HAP.bled,
   HAP.festered,
+  HAP.broke,
+  HAP.judged,
+  HAP.executed,
   // (Each of its head's decisions a line of its own, with its reason.)
   HAP.steward,
 ]);
@@ -7128,6 +7750,11 @@ export const HAP_MANY: readonly string[] = [
   "came to blows",
   "bled to death of their wounds",
   "died of wounds that festered",
+  "broke down",
+  "were brought before the town's justice",
+  "were let go, their terms served",
+  "were put to death by the town's justice",
+  "made works",
 ];
 
 /** What many did, said with what of: "died of the red flux", "fell in the battle at Sairis's land". */
