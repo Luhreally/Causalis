@@ -352,12 +352,15 @@ export function placeInstance(
   m[o + 15] = 1;
 }
 
+/** How many times each mesh was kept (keptMesh): what dropMesh gives back of it. */
+const KEPT = new WeakMap<pc.Mesh, number>();
 /**
  * A mesh shared by batches that come and go (a layer rebuilt as the year turns or the
  * setting changes): held, so that the last batch's end does not destroy it with itself.
  */
 export function keptMesh(mesh: pc.Mesh): pc.Mesh {
   mesh.incRefCount();
+  KEPT.set(mesh, (KEPT.get(mesh) ?? 0) + 1);
   return mesh;
 }
 
@@ -375,10 +378,18 @@ const SHARED = new WeakSet<pc.Mesh>();
 /**
  * A mesh a layer was handed and is done with: destroyed, unless it is a shared plain shape another
  * layer may be drawing (a fight's or a landing's clear destroyed the stage's one box, and every batch
- * of it after drew from buffers gone: "reading 'impl'", 2026-11-15).
+ * of it after drew from buffers gone: "reading 'impl'", 2026-11-15), or anything else still draws it.
+ * Each mesh instance holds its mesh (PlayCanvas counts them, and keptMesh holds one too) and the last
+ * destroyed destroys it, so one let go while another draws it goes when that one does: the shaders a
+ * town is about to draw are warmed over the frames after its building with its own meshes (stage.ts
+ * warmOver), and a town's ground rebuilt in those frames destroyed its old ground under them (gate 79,
+ * "reading 'impl'" in drawElements, 2026-11-26). What the layer kept of it (keptMesh) is given back first.
  */
 export function dropMesh(mesh: pc.Mesh): void {
-  if (!SHARED.has(mesh)) mesh.destroy();
+  if (SHARED.has(mesh)) return;
+  for (let n = KEPT.get(mesh) ?? 0; n > 0; n--) mesh.decRefCount();
+  KEPT.delete(mesh);
+  if (mesh.refCount < 1) mesh.destroy();
 }
 function shape(stage: Stage, key: string, make: () => pc.Mesh): pc.Mesh {
   let kept = SHAPES.get(stage);

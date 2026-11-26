@@ -180,6 +180,7 @@ import {
   capsuleMesh,
   coneMesh,
   cylinderMesh,
+  dropMesh,
   ringMesh,
   gableMesh,
 } from "./batch.ts";
@@ -2255,9 +2256,10 @@ export class VillageScene {
   private dropWater(): void {
     for (const e of this.waterParts) e.destroy();
     this.waterParts = [];
-    this.waterMesh?.destroy();
+    // (Let go, not destroyed outright: the warming of a town's shaders may still draw them, batch.ts dropMesh.)
+    if (this.waterMesh) dropMesh(this.waterMesh);
     this.waterMesh = null;
-    for (const mesh of this.shoreMeshes) mesh.destroy();
+    for (const mesh of this.shoreMeshes) dropMesh(mesh);
     this.shoreMeshes = [];
     this.shoreWater = null;
   }

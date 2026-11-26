@@ -6,7 +6,7 @@
 import * as pc from "playcanvas";
 import { nearestCell, sphereGrid, type SphereGrid } from "../kernel/index.ts";
 import { globeRadius } from "../view/index.ts";
-import { InstancedBatch, cylinderMesh, keptMesh } from "./batch.ts";
+import { InstancedBatch, cylinderMesh, dropMesh, keptMesh } from "./batch.ts";
 import { billboard, glowMaterial, type GlowStops } from "./glow.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 import { ringEntity } from "./system.ts";
@@ -248,7 +248,8 @@ export class GlobeScene {
     const oldMaterial = this.entity?.render?.meshInstances[0]?.material;
     this.entity?.destroy();
     this.entity = null;
-    this.mesh?.destroy();
+    // (Let go, not destroyed outright: a warming of shaders may still draw it, batch.ts dropMesh.)
+    if (this.mesh) dropMesh(this.mesh);
     oldMaterial?.destroy();
     // (A new face: whatever broke or burned of the last one is no part of it: W6.)
     this.breaking = null;

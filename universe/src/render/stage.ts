@@ -587,6 +587,18 @@ export class Stage {
     tri.setIndices([0, 1, 2]);
     tri.update();
     const identity = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+    // (Each mesh it will draw is held from now until it is done, as a mesh instance holds its mesh: the scale being built
+    // may let one go meanwhile (a town's ground rebuilt in these frames, render/townflora.ts), and one let go then is
+    // destroyed only when this lets it go too (batch.ts dropMesh). It drew one destroyed under it: gate 79, "reading
+    // 'impl'" in drawElements, 2026-11-26.)
+    const held = [...new Set(parts.flatMap((p) => (p.mesh ? [p.mesh] : [])))];
+    for (const m of held) m.incRefCount();
+    const release = () => {
+      for (const m of held) {
+        m.decRefCount();
+        if (m.refCount < 1) m.destroy();
+      }
+    };
     let at = 0,
       holders: pc.Entity[] = [],
       buffers: pc.VertexBuffer[] = [];
@@ -607,12 +619,16 @@ export class Stage {
         if (at >= parts.length) {
           off();
           tri.destroy();
+          release();
           done();
           return;
         }
         // (Those that cast shadows drawn casting, so the shadow pass's shader is made too.)
         for (const cast of [false, true]) {
-          const chunk = parts.slice(at, at + perFrame).filter((x) => !!x.cast === cast);
+          // (One destroyed before it was asked to warm, which holding cannot mend, is passed over.)
+          const chunk = parts
+            .slice(at, at + perFrame)
+            .filter((x) => !!x.cast === cast && (!x.mesh || !!x.mesh.vertexBuffer));
           if (!chunk.length) continue;
           const holder = new pc.Entity("warm");
           holder.addComponent("render", {
