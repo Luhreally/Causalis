@@ -1116,6 +1116,7 @@ type Exposed = {
     figurePx(): number;
     reframe(): void;
     uiCost(): { ms: number; frames: number };
+    overlaid: PlaceFlow["overlaid"];
   };
   faunaNow?: () => {
     name: string;
@@ -10890,6 +10891,7 @@ async function runPlanetPage(): Promise<void> {
     figurePx: () => placeFlow.figurePx(),
     reframe: () => placeFlow.reframe(),
     uiCost: () => placeFlow.uiCost(),
+    overlaid: () => placeFlow.overlaid(),
     peoples: () => village.peoplesDrawn(),
     personAt: (i: number) => (plan?.people[i] ? village.personAt(plan.people[i].ref) : null),
     state: () => ({

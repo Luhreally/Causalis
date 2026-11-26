@@ -1474,19 +1474,21 @@ body.placing:has(.page-window:not([hidden])) .place-tag {
 .place-hud:has(.place-insp[data-height="full"]:not([hidden])) .place-lens {
   display: none;
 }
-.place-overlay {
+.place-overlay-tip {
   position: absolute;
   left: 0;
   top: 0;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
+  max-width: 260px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(8, 16, 44, 0.9);
+  border: 1px solid rgba(160, 190, 255, 0.5);
+  font-size: 12px;
   pointer-events: none;
+  will-change: transform;
 }
-.place-overlay polygon {
-  fill-opacity: 0.42;
-  stroke: rgba(0, 0, 0, 0.35);
-  stroke-width: 1;
+.place-overlay-tip[hidden] {
+  display: none;
 }
 @media (min-width: 900px) {
   .place-lens {

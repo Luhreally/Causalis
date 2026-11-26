@@ -24,6 +24,7 @@ import {
   planMeasure,
 } from "../bridge/index.ts";
 import { TownMoneyLayer, type MoneyHome } from "./townmoney.ts";
+import { TownTintLayer, type TintLot } from "./towntint.ts";
 import {
   MONEY_LET,
   MONEY_RAMP,
@@ -650,6 +651,8 @@ export class VillageScene {
   private readonly litters: LittersLayer;
   /** Its money laid over it (Lives L6): made when first asked for. */
   private readonly moneyLayer: TownMoneyLayer;
+  /** A town mode's overlay on its lots' ground (N5): made with the scene, laid only while one is shown. */
+  private readonly tintLayer: TownTintLayer;
   private littersShown: LitterNow[] = [];
   /** Each look's gear by its key (the same look, the same gear); each one's now (null: none), read for the world's ten minutes `gearAt`; the stumps drawn last. */
   private readonly gears = new Map<string, WoundGear>();
@@ -726,6 +729,7 @@ export class VillageScene {
     this.worn = new WoundsLayer(stage, this.root);
     this.litters = new LittersLayer(stage, this.root);
     this.moneyLayer = new TownMoneyLayer(stage, this.root);
+    this.tintLayer = new TownTintLayer(stage, this.root);
     this.townFlora = new TownFloraLayer(stage, this.root);
     this.colony = new ColonyLayer(stage, stage.root);
     this.root.enabled = false;
@@ -1087,6 +1091,7 @@ export class VillageScene {
         child !== this.rides.root &&
         child !== this.litters.root &&
         child !== this.moneyLayer.root &&
+        child !== this.tintLayer.root &&
         child !== this.placedLayer?.root &&
         child !== this.townFlora.root &&
         // (Its water as drawn stands till the new is: drawLandWater.)
@@ -2624,6 +2629,23 @@ export class VillageScene {
   }
   moneySpots(): { n: number; x: number; y: number; colour: number }[] {
     return this.moneyLayer.spots();
+  }
+
+  /** A town mode's overlay laid on its lots' ground (each lot in its shade of these; none: put away). */
+  tintShow(lots: readonly TintLot[], shades: readonly Rgb[]): void {
+    if (lots.length) this.tintLayer.show(lots, shades);
+    else this.tintLayer.clear();
+  }
+  /** The overlay's lot under a point of the screen (its place in what was laid; null: none). */
+  tintPick(x: number, y: number): number | null {
+    return this.tintLayer.pick(x, y);
+  }
+  /** Where the overlay's lots stand on the screen (the look tools), and how many are laid. */
+  tintSpots(most = 400): { i: number; x: number; y: number; shade: number }[] {
+    return this.tintLayer.spots(most);
+  }
+  get tintCount(): number {
+    return this.tintLayer.count;
   }
 
   townLot(p: number): { x: number; z: number } | null {

@@ -116,6 +116,8 @@ export type PlaceFlow = {
   reframe(): void;
   /** What the mode's own chrome has cost the page's frames since last asked: its ms all told, and the frames (the look tools). */
   uiCost(): { ms: number; frames: number };
+  /** The overlay as laid on the ground (the look tools): its lots laid, and where those on the screen stand. */
+  overlaid(): { lots: number; spots: { i: number; x: number; y: number; shade: number }[] };
 };
 
 /** The eye over a town entered (world units; as a life's: app/life.ts): a few homes across. */
@@ -163,10 +165,18 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
   ring.className = "place-ring";
   tag.className = "place-tag";
   ring.hidden = tag.hidden = true;
-  // (Its overlay under them: the lots' ground tinted, read again each second while it is shown.)
+  // (Its overlay on the lots' ground in the scene, read again each second while it is shown; its words by the pointer.)
   const overlay = new PlaceOverlayLayer(d.village);
   let stopOverlay: (() => void) | null = null;
-  marks.append(overlay.svg, ring, tag);
+  marks.append(overlay.tip, ring, tag);
+  addEventListener(
+    "pointermove",
+    (e) => {
+      if (!overlay.on || e.pointerType !== "mouse") return;
+      overlay.hover(e.target instanceof HTMLCanvasElement ? { x: e.clientX, y: e.clientY } : null);
+    },
+    { passive: true },
+  );
   hud.element.prepend(marks);
   /** Who is chosen (their number in the place; null: no one), and the inspector's reading of what it shows. */
   let answered: number | null = null;
@@ -742,7 +752,6 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
       if (d.scale() !== "village" || (body && d.village.posed !== body)) return void leave();
       watch.frame();
       const t0 = performance.now();
-      overlay.frame();
       marked();
       // (The view steered by hand lets go of whom it was kept with.)
       if (inspector.following && !d.rig.follow) follow(false);
@@ -794,6 +803,7 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
       };
     },
     inspectHeight: (h) => inspector.setHeight(h),
+    overlaid: () => ({ lots: d.village.tintCount, spots: d.village.tintSpots() }),
     uiCost: () => {
       const out = { ms: uiMs, frames: uiFrames };
       uiMs = uiFrames = 0;

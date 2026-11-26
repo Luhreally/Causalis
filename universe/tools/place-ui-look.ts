@@ -426,16 +426,18 @@ for (const view of [
     await until(
       `the ${lens} overlay laid`,
       async () =>
-        (await k<number>(
-          `[...document.querySelectorAll(".place-overlay polygon")].filter((p) => p.style.display !== "none" && p.getAttribute("points")).length`,
-        )) > 0 || /Nothing burns/.test(await text(".place-lens-legend")),
+        (await k<number>("globalThis.causalis.place.overlaid().lots")) > 0 ||
+        /Nothing burns/.test(await text(".place-lens-legend")),
       8000,
     );
     await page.waitForTimeout(500);
-    const n = await k<number>(
-      `[...document.querySelectorAll(".place-overlay polygon")].filter((p) => p.style.display !== "none" && p.getAttribute("points")).length`,
+    const laid = await k<{ lots: number; spots: unknown[] }>(
+        "globalThis.causalis.place.overlaid()",
+      ),
+      n = laid.lots;
+    say(
+      `${lens} overlay: ${n} lots tinted on the ground, ${laid.spots.length} of them on the screen; legend "${await text(".place-lens-legend")}"`,
     );
-    say(`${lens} overlay: ${n} lots tinted; legend "${await text(".place-lens-legend")}"`);
     check(n > 0 || lens === "danger", `the ${lens} overlay tints its lots`);
     await look(`21-overlay-${lens}`, `the ${lens} overlay`);
   }
@@ -445,9 +447,7 @@ for (const view of [
   await press(".place-sheet-shut", "the sheet's close");
   await press(".place-lens-off", "× no overlay");
   check(
-    (await k<number>(
-      `[...document.querySelectorAll(".place-overlay")].filter((s) => s.style.display !== "none").length`,
-    )) === 0,
+    (await k<number>("globalThis.causalis.place.overlaid().lots")) === 0,
     "no overlay once put away",
   );
 
