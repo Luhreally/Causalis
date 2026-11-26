@@ -883,6 +883,19 @@ export class TownLayer {
     const s = this.scene;
     return s && p >= 0 && p < s.lots.x.length ? { x: s.lots.x[p]!, z: s.lots.z[p]! } : null;
   }
+  /** A lot's ground as laid (metres from its square): its middle, its turn, its width along its front and its depth. */
+  lotBox(p: number): { x: number; z: number; yaw: number; w: number; d: number } | null {
+    const s = this.scene;
+    return s && p >= 0 && p < s.lots.x.length
+      ? {
+          x: s.lots.x[p]!,
+          z: s.lots.z[p]!,
+          yaw: s.lots.yaw[p]!,
+          w: s.lots.m.LOT_W,
+          d: s.lots.m.LOT_D,
+        }
+      : null;
+  }
 
   /** A home's box as it stands at moment t (metres), for what is laid over it; null: no such lot. */
   homeBox(p: number, t: number): ReturnType<typeof homeBox> {

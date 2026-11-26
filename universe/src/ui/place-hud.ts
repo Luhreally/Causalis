@@ -18,6 +18,8 @@ import {
   type PlaceMode,
   type PlaceDangersSheet,
   type PlaceNotice,
+  type PlaceOverlay,
+  type PlaceOverlayKind,
   type PlacePeopleSheet,
   type PlaceStocksSheet,
   type PlaceLogSheet,
@@ -92,6 +94,15 @@ const TRADE_CHIPS: readonly (readonly [number | null, string])[] = [
   [100, "Children"],
   [101, "Grown, no trade"],
 ];
+/** Its overlays (N5), each with its chip's words and what it shows. */
+const LENSES: readonly (readonly [PlaceOverlayKind, string, string])[] = [
+  ["needs", "Needs", "How pressing the needs of those living on each lot are, on average"],
+  ["mood", "Mood", "The mood of those living or working on each lot, on average"],
+  ["room", "Room", "How full each home is, of the room it has"],
+  ["work", "Work", "How many work at each building, and which are stopped"],
+  ["age", "Age", "How long each building has stood"],
+  ["danger", "Danger", "A fire burning, and the lots within a cry of it"],
+];
 /** A mood in a sign. */
 const moodSign = (m: number) => (m >= 25 ? "😊" : m >= -15 ? "😐" : m >= -50 ? "😟" : "😠");
 
@@ -125,6 +136,13 @@ export class PlaceHud {
   private readonly air = el("span", "place-air");
   private readonly pill = el("div", "place-pill");
   private readonly paces: HTMLButtonElement[] = [];
+  /** Its overlays (N5): the key in the pill, and the panel of them with the legend of the one shown. */
+  private readonly lensKey = el("button", "place-pace place-lens-key", "🗺");
+  private readonly lensBox = el("div", "place-lens");
+  private readonly lensChips = el("div", "place-lens-chips");
+  private readonly lensLegend = el("div", "place-lens-legend");
+  /** The overlay shown (null: none). */
+  lens: PlaceOverlayKind | null = null;
   /** What an alert tapped says (a phone's: its words and the key to put it away), or the alerts the column has no room for. */
   private readonly notice = el("div", "place-notice");
   private readonly noticeText = el("div", "place-notice-text");
@@ -184,6 +202,8 @@ export class PlaceHud {
   onSheet: (tab: PlaceTab | null) => void = () => {};
   /** The game's sound, from the menu (null: none to be had). */
   sound: { on(): boolean; set(on: boolean): void } | null = null;
+  /** An overlay chosen (null: none shown). */
+  onLens: (lens: PlaceOverlayKind | null) => void = () => {};
   private readonly deskQuery = typeof matchMedia === "function" ? matchMedia(DESK) : null;
 
   constructor(root: HTMLElement) {
@@ -204,6 +224,24 @@ export class PlaceHud {
       this.paces.push(b);
       this.pill.append(b);
     }
+    this.lensKey.title = "Overlays on its lots: needs, mood, room, work, age, danger (O)";
+    this.lensKey.setAttribute("aria-label", this.lensKey.title);
+    this.lensKey.onclick = () => this.setLens(this.lens ? null : "needs");
+    this.pill.append(this.lensKey);
+    for (const [kind, words, say] of LENSES) {
+      const b = el("button", "place-chip place-lens-chip", words);
+      b.dataset.lens = kind;
+      b.title = say;
+      b.onclick = () => this.setLens(kind);
+      this.lensChips.append(b);
+    }
+    const off = el("button", "place-chip place-lens-off", "×");
+    off.title = "No overlay";
+    off.setAttribute("aria-label", off.title);
+    off.onclick = () => this.setLens(null);
+    this.lensChips.append(off);
+    this.lensBox.append(this.lensChips, this.lensLegend);
+    this.lensBox.hidden = true;
     this.modeKey.onclick = () => this.choosing(this.modes.hidden !== false);
     this.menuKey.title = "Menu: sound, how the town is run, leaving it";
     this.menuKey.setAttribute("aria-label", this.menuKey.title);
@@ -285,6 +323,7 @@ export class PlaceHud {
       this.modes,
       this.menu,
       this.alertsBox,
+      this.lensBox,
       this.notice,
       this.sheet,
       foot,
@@ -305,6 +344,7 @@ export class PlaceHud {
         if (e.code === "Space") {
           if (!e.repeat) this.onPace(this.pace > 0 ? 0 : this.lastPace);
         } else if (digit) this.onPace(PLACE_PACES[Number(digit[1])]![1]);
+        else if (e.code === "KeyO") this.setLens(this.lens ? null : "needs");
         else if (e.code === "KeyF") {
           // (F is the god game's tilt too: taken only where someone is chosen to follow.)
           if (!this.onFollow()) return;
@@ -324,6 +364,36 @@ export class PlaceHud {
         if (this.shown && e.code === "Space") e.stopImmediatePropagation();
       },
       { capture: true },
+    );
+  }
+
+  /** An overlay shown on its lots, or none: its chip lit, its panel shown, and told. */
+  setLens(lens: PlaceOverlayKind | null): void {
+    this.lens = lens;
+    this.lensBox.hidden = lens === null;
+    this.lensKey.classList.toggle("on", lens !== null);
+    this.element.classList.toggle("lens-on", lens !== null);
+    for (const b of this.lensChips.querySelectorAll<HTMLElement>(".place-lens-chip"))
+      b.classList.toggle("on", b.dataset.lens === lens);
+    if (lens === null) this.lensLegend.replaceChildren();
+    this.onLens(lens);
+  }
+  /** The legend of the overlay shown: its ramp from its low end to its high, and how many lots it reads. */
+  legend(o: PlaceOverlay | null, colour: (v: number) => string): void {
+    if (!o || o.of !== this.lens) return;
+    const ramp = el("span", "place-lens-ramp");
+    ramp.style.background = `linear-gradient(90deg, ${[0, 0.25, 0.5, 0.75, 1].map(colour).join(", ")})`;
+    const words =
+      o.of === "danger"
+        ? o.fire
+          ? `A fire burning, and the lots within a cry of it (${Math.round(o.fire.reach)} m now): those living there hear it and turn out.`
+          : "Nothing burns in the town now."
+        : `${o.lots.length} ${o.lots.length === 1 ? "lot" : "lots"} read. Tap one for what it is${this.desk ? ", or hover over it" : ""}.`;
+    this.lensLegend.replaceChildren(
+      el("span", "place-lens-end", o.low),
+      ramp,
+      el("span", "place-lens-end", o.high),
+      el("span", "place-lens-note", words),
     );
   }
 

@@ -302,7 +302,13 @@ for (const view of [
   await page.waitForTimeout(400);
 
   // The inspector: one of its people tapped (a ring at their feet, their name over them), at each height, each tab.
-  type Inspected = { ref: string | null; height: string; name: string; chosen: number | null };
+  type Inspected = {
+    ref: string | null;
+    height: string;
+    name: string;
+    chosen: number | null;
+    answered: number | null;
+  };
   const inspected = async () =>
     (await k<{ inspected: Inspected }>("globalThis.causalis.place.state()")).inspected;
   await press('.place-pace[data-pace="0"]', "the pause");
@@ -319,7 +325,9 @@ for (const view of [
       async () => !/^…?$/.test(await text(".place-insp-name")),
       8000,
     );
-    say(`the inspector told who they are in ${Date.now() - asked} ms`);
+    say(
+      `the inspector told who they are in ${Date.now() - asked} ms as the tool polls; its first answer came ${(await inspected()).answered} ms after it was asked`,
+    );
     await page.waitForTimeout(600);
     const ins = await inspected();
     say(`inspected: ${JSON.stringify(ins)}`);
@@ -403,6 +411,39 @@ for (const view of [
     await look(`07-sheet-${tab}`, `the ${tab} sheet open`);
   }
   await press(".place-sheet-shut", "the sheet's close");
+
+  // Its overlays: each laid on its lots, its legend under the pill; one with a sheet open beside it.
+  await k("globalThis.causalis.closePage?.()");
+  await press(".place-lens-key", "🗺 the overlays");
+  for (const lens of ["needs", "mood", "room", "work", "age", "danger"]) {
+    await press(`.place-lens-chip[data-lens="${lens}"]`, `the ${lens} overlay`);
+    await until(
+      `the ${lens} overlay laid`,
+      async () =>
+        (await k<number>(
+          `[...document.querySelectorAll(".place-overlay polygon")].filter((p) => p.style.display !== "none" && p.getAttribute("points")).length`,
+        )) > 0 || /Nothing burns/.test(await text(".place-lens-legend")),
+      8000,
+    );
+    await page.waitForTimeout(500);
+    const n = await k<number>(
+      `[...document.querySelectorAll(".place-overlay polygon")].filter((p) => p.style.display !== "none" && p.getAttribute("points")).length`,
+    );
+    say(`${lens} overlay: ${n} lots tinted; legend "${await text(".place-lens-legend")}"`);
+    check(n > 0 || lens === "danger", `the ${lens} overlay tints its lots`);
+    await look(`21-overlay-${lens}`, `the ${lens} overlay`);
+  }
+  await press('.place-tab[data-tab="people"]', "the People tab, an overlay shown");
+  await page.waitForTimeout(800);
+  await look("22-overlay-and-sheet", "an overlay with a sheet open");
+  await press(".place-sheet-shut", "the sheet's close");
+  await press(".place-lens-off", "× no overlay");
+  check(
+    (await k<number>(
+      `[...document.querySelectorAll(".place-overlay")].filter((s) => s.style.display !== "none").length`,
+    )) === 0,
+    "no overlay once put away",
+  );
 
   // The night: its people still to be told apart.
   await toHour(22, 24, "the town's night");

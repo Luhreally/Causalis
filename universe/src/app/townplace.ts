@@ -22,6 +22,7 @@ import {
   type PlaceMode,
   type PlaceNotice,
   type PlaceInspect,
+  type PlaceOverlay,
   type PlaceWatch,
   type PlacePeopleSheet,
   type PlaceStocksSheet,
@@ -40,6 +41,7 @@ import {
 } from "../ui/index.ts";
 import { PlaceBodies, type TownThing } from "../view/index.ts";
 import { installWatch, type WatchFlow } from "./townwatch.ts";
+import { PlaceOverlayLayer, overlayColour } from "./townoverlay.ts";
 
 export type PlaceDeps = {
   readonly hud: HTMLElement;
@@ -99,7 +101,14 @@ export type PlaceFlow = {
   watchNext(): void;
   /** The mode's inspector opened on a ref (null: closed), what it shows, and its height (the look tools). */
   inspect(ref: string | null): void;
-  readonly inspected: { ref: string | null; height: string; name: string; chosen: number | null };
+  readonly inspected: {
+    ref: string | null;
+    height: string;
+    name: string;
+    chosen: number | null;
+    /** How long its first answer took to come, from the asking (ms; null: not yet). */
+    answered: number | null;
+  };
   inspectHeight(h: "peek" | "half" | "full"): void;
   /** How tall its people stand on the screen now, the middle of those drawn (px; the look tools). */
   figurePx(): number;
@@ -127,6 +136,8 @@ const EYE_NEAR = 9,
    * px at 5.2 on a phone's 932, 21.3 at 5.2 on a desk's 800), so this puts one at some 26 px, a finger's breadth, on any.
    */
   EYE_ENTRY_PER_PX = 0.138 / 26,
+  /** How far back the eye is drawn when an overlay is turned on (as EYE_NEAR): the town's middle and its lots about. */
+  EYE_OVERLAY = 2.6,
   /** How often what the inspector shows is read again (ms). */
   INSPECT_EVERY = 500,
   /** A body's height for the name over one chosen (metres). */
@@ -152,9 +163,13 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
   ring.className = "place-ring";
   tag.className = "place-tag";
   ring.hidden = tag.hidden = true;
-  marks.append(ring, tag);
+  // (Its overlay under them: the lots' ground tinted, read again each second while it is shown.)
+  const overlay = new PlaceOverlayLayer(d.village);
+  let stopOverlay: (() => void) | null = null;
+  marks.append(overlay.svg, ring, tag);
   hud.element.prepend(marks);
   /** Who is chosen (their number in the place; null: no one), and the inspector's reading of what it shows. */
+  let answered: number | null = null;
   let chosen: number | null = null,
     stopInspect: (() => void) | null = null,
     framed = false;
@@ -379,6 +394,8 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     laid();
     const asked = ref,
       at = town;
+    const askedAt = performance.now();
+    answered = null;
     const query = { type: "place.inspect", args: { ref: at, of: asked } } as const,
       told = (x: PlaceInspect | null): void => {
         if (inspector.ref !== asked) return;
@@ -394,6 +411,7 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
           return;
         }
         if (x?.kind === "person" && chosen !== x.id) choose(x.id);
+        if (answered === null && x) answered = Math.round(performance.now() - askedAt);
         timed(() => inspector.show(x));
       };
     // (Asked at once, then kept: a subscription's first answer waits on the host's round of them.)
@@ -559,6 +577,7 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     stop?.();
     stopSheet?.();
     stop = stopSheet = null;
+    if (hud.lens) hud.setLens(null);
     if (body && d.village.posed === body) d.village.posed = null;
     body = null;
     told = null;
@@ -604,6 +623,31 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
   hud.onTab = (tab) => sheet(tab);
   hud.onOpen = (ref) => inspect(ref);
   hud.onAlert = (n) => alerted(n);
+  hud.onLens = (lens) => {
+    const was = overlay.on;
+    stopOverlay?.();
+    stopOverlay = null;
+    if (!lens || !town) return overlay.set(null);
+    // (Turned on: the eye drawn back over the town, its lots to be seen together.)
+    if (!was) {
+      d.rig.follow = null;
+      d.rig.flyTo(
+        { target: { x: 0, y: 0, z: 0 }, distance: EYE_NEAR * EYE_OVERLAY, pitch: EYE_PITCH },
+        0.8,
+      );
+    }
+    stopOverlay = d.client.subscribe<PlaceOverlay | null>(
+      { type: "place.overlay", args: { ref: town, of: lens } },
+      1000,
+      (o) =>
+        timed(() => {
+          if (hud.lens !== lens) return;
+          const x = o && !("error" in o) ? o : null;
+          overlay.set(x);
+          if (x) hud.legend(x, (v) => overlayColour(v, x.good));
+        }),
+    );
+  };
   hud.onEscape = () => {
     d.pages.close();
     inspect(null);
@@ -698,6 +742,7 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
       if (d.scale() !== "village" || (body && d.village.posed !== body)) return void leave();
       watch.frame();
       const t0 = performance.now();
+      overlay.frame();
       marked();
       // (The view steered by hand lets go of whom it was kept with.)
       if (inspector.following && !d.rig.follow) follow(false);
@@ -745,6 +790,7 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
         height: inspector.height,
         name: x ? (x.kind === "person" ? x.name : x.name) : "",
         chosen,
+        answered,
       };
     },
     inspectHeight: (h) => inspector.setHeight(h),
