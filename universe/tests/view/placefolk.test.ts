@@ -73,6 +73,8 @@ const frame = (
   ({
     town: plan.ref,
     t,
+    season: 0.5,
+    warmth: 15,
     tick: TICK,
     people: N,
     kept: N,

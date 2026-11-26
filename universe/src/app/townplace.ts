@@ -10,13 +10,18 @@
 // is asked every second what its head has decided, and each order is given here as a player's is (host/steward.ts).
 import "./townplace.css";
 import {
+  PLACE_AT,
   askedGrown,
   placeLotRef,
+  placePersonRef,
+  placedId,
   type HostClient,
   type PlaceDangersSheet,
   type PlaceFrame,
   type PlaceLogSheet,
   type PlaceMode,
+  type PlaceNotice,
+  type PlaceInspect,
   type PlaceWatch,
   type PlacePeopleSheet,
   type PlaceStocksSheet,
@@ -24,8 +29,15 @@ import {
   type TownOffers,
   type VillagePlan,
 } from "../bridge/index.ts";
-import type { OrbitRig, VillageScene } from "../render/index.ts";
-import { PlaceHud, type PageWindow, type PlaceTab, type VillagePanel } from "../ui/index.ts";
+import { VILLAGE_METRE, type OrbitRig, type VillageScene } from "../render/index.ts";
+import {
+  PlaceHud,
+  PlaceInspector,
+  type PageWindow,
+  type PlaceTab,
+  type PlaceWeather,
+  type VillagePanel,
+} from "../ui/index.ts";
 import { PlaceBodies, type TownThing } from "../view/index.ts";
 import { installWatch, type WatchFlow } from "./townwatch.ts";
 
@@ -41,6 +53,12 @@ export type PlaceDeps = {
   readonly reload: (ref: string) => Promise<void>;
   /** What of the town's fabric stands under a point of the screen. */
   readonly townThing: (x: number, y: number) => TownThing | null;
+  /** The weather over the town now, as the god game's bar has it (null: none told). */
+  readonly weather: () => PlaceWeather | null;
+  /** The game's sound, for the mode's menu (null: none to be had). */
+  readonly sound: { on(): boolean; set(on: boolean): void } | null;
+  /** Light with no side to it, over the hour's own (render/stage.ts fill): the mode's floor at night. */
+  readonly fill: (x: number) => void;
 };
 export type PlaceFlow = {
   readonly on: boolean;
@@ -79,6 +97,12 @@ export type PlaceFlow = {
   readonly captioned: { title: string; words: string; stay: boolean } | null;
   watchStay(on: boolean): void;
   watchNext(): void;
+  /** The mode's inspector opened on a ref (null: closed), what it shows, and its height (the look tools). */
+  inspect(ref: string | null): void;
+  readonly inspected: { ref: string | null; height: string; name: string; chosen: number | null };
+  inspectHeight(h: "peek" | "half" | "full"): void;
+  /** How tall its people stand on the screen now, the middle of those drawn (px; the look tools). */
+  figurePx(): number;
 };
 
 /** The eye over a town entered (world units; as a life's: app/life.ts): a few homes across. */
@@ -87,10 +111,40 @@ const EYE_NEAR = 9,
   /** How near a finger must come to one of its people (px): a fingertip's breadth. */
   TAP_REACH = 44,
   /** How often an open sheet is read again (ms). */
-  SHEET_EVERY = 1000;
+  SHEET_EVERY = 1000,
+  /**
+   * The light with no side to it laid over a town entered at night (render/stage.ts fill): enough that its people and
+   * what they wear are told apart in the dark, as a colony sim's night is; none by day.
+   */
+  NIGHT_FILL = 0.16,
+  /**
+   * The eye on entering, over where most of its people are out of doors (world units, as EYE_NEAR): near enough that a
+   * figure stands two dozen pixels tall on a phone, a finger's breadth.
+   */
+  EYE_ENTRY = 5.2,
+  /** How often what the inspector shows is read again (ms). */
+  INSPECT_EVERY = 500,
+  /** A body's height for the name over one chosen (metres). */
+  TAG_HIGH = 2.1;
 
 export function installPlace(d: PlaceDeps): PlaceFlow {
   const hud = new PlaceHud(d.hud);
+  hud.sound = d.sound;
+  const inspector = new PlaceInspector(hud.element),
+    marks = document.createElement("div"),
+    ring = document.createElement("div"),
+    tag = document.createElement("div");
+  // (The ring at the feet of the one chosen and their name over them: labels on the scene, no window of the HUD.)
+  marks.className = "labels place-marks";
+  ring.className = "place-ring";
+  tag.className = "place-tag";
+  ring.hidden = tag.hidden = true;
+  marks.append(ring, tag);
+  hud.element.prepend(marks);
+  /** Who is chosen (their number in the place; null: no one), and the inspector's reading of what it shows. */
+  let chosen: number | null = null,
+    stopInspect: (() => void) | null = null,
+    framed = false;
   let town: string | null = null,
     body: PlaceBodies | null = null,
     told: PlaceFrame | null = null,
@@ -195,8 +249,11 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
         // (No such town any more, or no one in it: left.)
         if (!f) return void leave();
         told = mine.frame = f;
-        hud.time(f.t, pace);
-        hud.notices(f.notices);
+        hud.time(f.t, pace, f.season);
+        hud.sky(d.weather(), f.warmth);
+        hud.alerts(f.notices);
+        night(f.t);
+        if (!framed) frameEntry();
         // (A month's turn: what it did by its orders is told to its land.)
         if (settled < 0) settled = f.month;
         if (f.month !== settled) {
@@ -225,6 +282,183 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     sited = key;
     replanned = performance.now();
     if (town) void d.reload(town);
+  };
+
+  /** The floor of light at night: by the hour of its clock, eased over dusk and dawn. */
+  let filled = -1;
+  const night = (t: number): void => {
+    const hour = (((t % 86_400) + 86_400) % 86_400) / 3600,
+      dark =
+        hour < 5 || hour >= 21 ? 1 : hour < 7 ? (7 - hour) / 2 : hour >= 19 ? (hour - 19) / 2 : 0,
+      fill = Math.round(NIGHT_FILL * dark * 100) / 100;
+    if (fill === filled) return;
+    filled = fill;
+    d.fill(fill);
+  };
+
+  /** Where a lot of the town is (metres from its square), the fields and the square too. */
+  const lotPoint = (lot: number): { x: number; z: number } | null => {
+    if (lot === PLACE_AT.square || lot === PLACE_AT.none) return { x: 0, z: 0 };
+    if (lot === PLACE_AT.fields) return d.plan()?.pasture ?? null;
+    if (lot === PLACE_AT.walls) return flow.wallsAt();
+    return d.village.townLot(lot);
+  };
+  /** Where one of its people is drawn now (metres from its square; null: not drawn). */
+  const personPoint = (id: number): { x: number; z: number } | null => {
+    const k = body?.ids.indexOf(id) ?? -1,
+      person = k >= 0 ? d.plan()?.people[k] : undefined;
+    return person ? d.village.personAt(person.ref) : null;
+  };
+  /** The eye flown to a point of the town (metres from its square). */
+  const lookAt = (at: { x: number; z: number }): void => {
+    d.rig.follow = null;
+    d.rig.flyTo(
+      {
+        target: { x: at.x * VILLAGE_METRE, y: 0, z: at.z * VILLAGE_METRE },
+        distance: EYE_NEAR * 0.8,
+        pitch: EYE_PITCH,
+      },
+      0.8,
+    );
+  };
+  /** An alert tapped: the eye goes to where it is, or to whom it is of; and what it is of is opened. */
+  const alerted = (n: PlaceNotice): void => {
+    const at =
+      (n.id !== null ? personPoint(n.id) : null) ?? (n.lot !== null ? lotPoint(n.lot) : null);
+    if (at) lookAt(at);
+    const ref = n.id !== null && town ? placePersonRef(town, n.id) : n.ref;
+    if (ref) inspect(ref);
+  };
+
+  /** What the inspector shows, as the hud lays it out: its height, and whether it is open. */
+  const laid = (): void => {
+    const open = inspector.shown,
+      tall = open && inspector.height !== "peek";
+    hud.element.classList.toggle("insp-open", open);
+    hud.element.classList.toggle("insp-tall", tall);
+  };
+  /**
+   * The inspector opened on what a ref names (one of its people, a lot; null: closed), and read every half second while
+   * it stays open. What the place has no inspector for (a realm's page, a sickness) is the god game's page.
+   */
+  const inspect = (ref: string | null): void => {
+    stopInspect?.();
+    stopInspect = null;
+    if (ref && !/^(plc|plcl|folk|person):/.test(ref)) {
+      void d.pages.open(ref);
+      return;
+    }
+    d.pages.close();
+    inspector.orders = mode !== "watch";
+    inspector.open(ref);
+    if (!ref || !town) {
+      choose(null);
+      laid();
+      return;
+    }
+    const id = placedId(ref);
+    if (ref.startsWith("plcl:")) choose(null);
+    else if (id !== null) choose(id);
+    // (A sheet open under it is kept where the inspector is only peeked; a taller one takes the sheet's place.)
+    if (inspector.height !== "peek" && hud.tab) hud.open(null);
+    laid();
+    const asked = ref,
+      at = town;
+    stopInspect = d.client.subscribe<PlaceInspect | null>(
+      { type: "place.inspect", args: { ref: at, of: asked } },
+      INSPECT_EVERY,
+      (x) => {
+        if (inspector.ref !== asked) return;
+        // (One the god game names and the place does not keep: their page is the god game's.)
+        if (!x && !asked.startsWith("plc")) {
+          inspect(null);
+          void d.pages.open(asked);
+          return;
+        }
+        if (x?.kind === "person" && chosen !== x.id) choose(x.id);
+        inspector.show(x);
+      },
+    );
+  };
+  /** One of its people chosen (their number in the place; null: no one): a ring at their feet, their name over them. */
+  const choose = (id: number | null): void => {
+    if (id === chosen) return;
+    chosen = id;
+    if (id === null) {
+      ring.hidden = tag.hidden = true;
+      if (inspector.following) follow(false);
+    }
+  };
+  /** The eye kept with the one chosen, or let go. */
+  const follow = (on: boolean): void => {
+    inspector.following = on && chosen !== null;
+    const id = chosen;
+    if (inspector.following && id !== null) {
+      const at = { x: 0, z: 0 },
+        keep = () => {
+          const p = personPoint(id);
+          if (p) {
+            at.x = p.x;
+            at.z = p.z;
+          }
+          return { x: at.x * VILLAGE_METRE, y: 0, z: at.z * VILLAGE_METRE };
+        };
+      d.rig.follow = keep;
+    } else if (d.rig.follow) d.rig.follow = null;
+    if (inspector.now) inspector.show(inspector.now);
+  };
+  /** The ring and the name over the one chosen, where they are drawn now (each frame; nothing where no one is chosen). */
+  const marked = (): void => {
+    if (chosen === null) return;
+    const p = personPoint(chosen),
+      foot = p ? d.village.screenOf(p.x, p.z, 0) : null,
+      head = p ? d.village.screenOf(p.x, p.z, TAG_HIGH) : null;
+    if (!foot || !head) {
+      if (!ring.hidden) ring.hidden = tag.hidden = true;
+      return;
+    }
+    const tall = Math.max(8, foot.y - head.y),
+      wide = Math.max(1, Math.min(3, tall / 30));
+    ring.hidden = tag.hidden = false;
+    ring.style.transform = `translate(${foot.x.toFixed(1)}px, ${foot.y.toFixed(1)}px) scale(${wide.toFixed(2)})`;
+    tag.style.transform = `translate(calc(${head.x.toFixed(1)}px - 50%), calc(${head.y.toFixed(1)}px - 100%))`;
+    const name = inspector.now?.kind === "person" ? inspector.now.name : "";
+    if (tag.textContent !== name) tag.textContent = name;
+  };
+  /**
+   * The eye on entering, over where most of its people are out of doors, near enough to tell them apart: once its people
+   * are drawn where the place has them (a 15 m grid's fullest square; the square itself where none is about).
+   */
+  const frameEntry = (): void => {
+    const plan = d.plan();
+    if (!plan || !body) return;
+    const cells = new Map<string, { n: number; x: number; z: number }>();
+    let drawn = 0;
+    for (const q of plan.people) {
+      const at = d.village.personAt(q.ref);
+      if (!at) continue;
+      drawn++;
+      const key = `${Math.floor(at.x / 15)},${Math.floor(at.z / 15)}`,
+        c = cells.get(key) ?? { n: 0, x: 0, z: 0 };
+      c.n++;
+      c.x += at.x;
+      c.z += at.z;
+      cells.set(key, c);
+    }
+    if (!drawn) return;
+    framed = true;
+    let best = { n: 0, x: 0, z: 0 };
+    for (const c of cells.values()) if (c.n > best.n) best = c;
+    const x = best.n ? best.x / best.n : 0,
+      z = best.n ? best.z / best.n : 0;
+    d.rig.flyTo(
+      {
+        target: { x: x * VILLAGE_METRE, y: 0, z: z * VILLAGE_METRE },
+        distance: EYE_ENTRY,
+        pitch: EYE_PITCH,
+      },
+      0.9,
+    );
   };
 
   /** The sheet open read, and read again while it stays open. */
@@ -298,6 +532,8 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     town = null;
     sited = "";
     ran("hand");
+    inspect(null);
+    framed = false;
     stop?.();
     stopSheet?.();
     stop = stopSheet = null;
@@ -307,6 +543,8 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     settled = -1;
     if (was !== null) d.client.setSpeed(was);
     was = null;
+    filled = -1;
+    d.fill(0);
     hud.hide();
     d.panel.placeNow(null);
     // (Its usual people back, if it is still the town shown.)
@@ -320,8 +558,11 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     was = d.client.status?.speed ?? 0;
     d.client.setSpeed(pace);
     d.pages.close();
+    framed = false;
     hud.show(plan.name);
     hud.time(d.client.status?.t ?? 0, pace);
+    // (How it is to be run, asked as it is entered: the way it was run when last left is lit.)
+    hud.choosing(true, true);
     // (The eye near: a few homes across, its people to be told apart.)
     d.rig.flyTo({ distance: EYE_NEAR, pitch: EYE_PITCH }, 0.9);
     const ref = town;
@@ -339,7 +580,34 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
   hud.onPace = (seconds) => flow.pace(seconds);
   hud.onLeave = () => void leave();
   hud.onTab = (tab) => sheet(tab);
-  hud.onOpen = (ref) => void d.pages.open(ref);
+  hud.onOpen = (ref) => inspect(ref);
+  hud.onAlert = (n) => alerted(n);
+  hud.onEscape = () => {
+    d.pages.close();
+    inspect(null);
+  };
+  hud.onFollow = () => {
+    if (chosen === null) return false;
+    follow(!inspector.following);
+    return true;
+  };
+  hud.onSheet = (tab) => {
+    // (A sheet opened under a tall inspector: the inspector goes down to a peek, above it.)
+    if (tab && inspector.shown && inspector.height !== "peek") inspector.setHeight("peek");
+    laid();
+  };
+  inspector.onClose = () => inspect(null);
+  inspector.onInspect = (ref) => inspect(ref);
+  inspector.onPage = (ref) => void d.pages.open(ref);
+  inspector.onFollow = (on) => follow(on);
+  inspector.onOrder = (type, args) =>
+    void order(type, args).then(() => {
+      if (inspector.ref) inspect(inspector.ref);
+    });
+  inspector.onHeight = (h) => {
+    if (h !== "peek" && hud.tab && !hud.desk) hud.open(null);
+    laid();
+  };
   hud.onOrder = (type, args) => void order(type, args);
   hud.onMode = (next) => void flow.mode(next);
   hud.onStay = (on) => watch.stay(on);
@@ -386,15 +654,20 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
         }
       });
       if (person) {
-        // (In a town watched the eye goes with them, and stays; their page is a tap on their line away.)
-        const id = mode === "watch" ? body.ids[plan.people.indexOf(person)] : null;
-        if (id !== null && id !== undefined) watch.goWith(id);
-        else void d.pages.open(person.page ?? person.ref);
+        // (Chosen: a ring at their feet, their name over them, their inspector open. In a town watched the eye goes with
+        // them too, and stays.)
+        const id = body.ids[plan.people.indexOf(person)];
+        if (id !== null && id !== undefined) {
+          if (mode === "watch") watch.goWith(id);
+          inspect(placePersonRef(town, id));
+        } else void d.pages.open(person.page ?? person.ref);
         return true;
       }
       const thing = d.townThing(x, y);
       if (thing?.kind === "civic" || thing?.kind === "lot")
-        void d.pages.open(placeLotRef(town, thing.kind === "civic" ? thing.at : thing.lot));
+        inspect(placeLotRef(town, thing.kind === "civic" ? thing.at : thing.lot));
+      // (A tap on the bare ground lets go of whom or what was chosen.)
+      else inspect(null);
       return true;
     },
     frame: () => {
@@ -402,6 +675,9 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
       // (Gone from the town, or another has taken its people up, a life lived or a body possessed: left.)
       if (d.scale() !== "village" || (body && d.village.posed !== body)) return void leave();
       watch.frame();
+      marked();
+      // (The view steered by hand lets go of whom it was kept with.)
+      if (inspector.following && !d.rig.follow) follow(false);
     },
     pace: (seconds) => {
       pace = Math.max(0, seconds);
@@ -436,6 +712,29 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     },
     watchStay: (on) => watch.stay(on),
     watchNext: () => watch.next(),
+    inspect: (ref) => inspect(ref),
+    get inspected() {
+      const x = inspector.now;
+      return {
+        ref: inspector.ref,
+        height: inspector.height,
+        name: x ? (x.kind === "person" ? x.name : x.name) : "",
+        chosen,
+      };
+    },
+    inspectHeight: (h) => inspector.setHeight(h),
+    figurePx: () => {
+      const tall: number[] = [];
+      for (const q of d.plan()?.people ?? []) {
+        const at = d.village.personAt(q.ref),
+          foot = at ? d.village.screenOf(at.x, at.z, 0) : null,
+          head = at ? d.village.screenOf(at.x, at.z, 1.7) : null;
+        if (foot && head && foot.x > 0 && foot.x < innerWidth && foot.y > 0 && foot.y < innerHeight)
+          tall.push(foot.y - head.y);
+      }
+      tall.sort((a, b) => a - b);
+      return tall.length ? tall[tall.length >> 1]! : 0;
+    },
   };
   return flow;
 }

@@ -1,14 +1,18 @@
-// A town entered (town mode): the mode's own chrome over the town, in place of the god game's. One row at the top (the
-// town, its clock, the paces a day is watched at, the way out); a line under it for what wants the manager's eye, that
-// can be closed; six tabs at the foot, each opening a sheet: its people by who is most pressed, its stocks good by
-// good, its hands by trade and the orders that move them (and what is going up), what it can raise, what threatens it
-// and the orders against that, and its log day by day. Phone first: every key a finger's size,
-// nothing over anything. What it shows is told by the page that owns it (app/townplace.ts); it asks for nothing itself.
+// A town entered (town mode): the mode's own chrome over the town, in place of the god game's. A bar at the top: the way
+// out, the town and its date (season, day, year), its clock and its air (warmth and weather), how it is run, and a menu
+// (≡: sound, the ways to run it, leaving). The paces its day is watched at (⏸, a minute, ten, an hour or a day a second)
+// in a pill of their own under the bar on a phone, in the bar on a desk. An alert column at the right: what wants the
+// manager's eye now, read by the place off what it has (host/placeplan.ts placeNotices), the gravest first, each a tap
+// from going there and opening it. Six tabs at the foot, each opening a sheet: its people, its stocks, its work and the
+// orders that move it, what it can raise, what threatens it and the orders against that, and its log. Phone first: every
+// key a finger's size, nothing over anything; on a desk the sheets are docked across the screen between the inspector's
+// place at the left and the alerts at the right. What it shows is told by the page that owns it (app/townplace.ts); it
+// asks for nothing itself.
 //
-// How the town is run is chosen from a key on its bar (asked 2026-11-25): by hand, as above; watched, where no order
-// is given: the notice line, the sheets and the tabs are away, and a line at the foot says who or what the eye is with,
-// with a key to stay with them and one to go on to another; or by its own head, with the sheets as by hand, its head's
-// decisions in the notice line and the Log, and any of them overruled by an order of your own.
+// How the town is run is chosen on entering, and again from the key on its bar (asked 2026-11-25): by hand, as above;
+// watched, where no order is given: the sheets and the tabs are away, and a line at the foot says who or what the eye is
+// with, with a key to stay with them and one to go on to another; or by its own head, with the sheets as by hand, its
+// head's decisions in the Log, and any of them overruled by an order of your own.
 import {
   PLACE_TRADES,
   type PlaceMode,
@@ -32,18 +36,27 @@ const TABS: readonly (readonly [PlaceTab, string, string])[] = [
   ["log", "📜", "Log"],
 ];
 /** The paces a town's day is watched at: the key, the clock's seconds a second, and that in words. */
-const PACES: readonly (readonly [string, number, string])[] = [
-  ["⏸", 0, "Stop the town's clock"],
-  ["1m", 60, "A minute of the town's day a second"],
-  ["10m", 600, "Ten minutes of the town's day a second"],
-  ["1h", 3600, "An hour of the town's day a second"],
+export const PLACE_PACES: readonly (readonly [string, number, string])[] = [
+  ["⏸", 0, "Stop the town's clock (Space)"],
+  ["1m", 60, "A minute of the town's day a second (1)"],
+  ["10m", 600, "Ten minutes of the town's day a second (2)"],
+  ["1h", 3600, "An hour of the town's day a second (3)"],
+  ["1d", 86_400, "A day of the town a second (4)"],
 ];
 /** The ways a town entered is run: its key's sign, its name, and what it is in a line. */
 const MODES: readonly (readonly [PlaceMode, string, string, string])[] = [
-  ["hand", "✋", "By hand", "You give the orders"],
-  ["watch", "👁", "Watch", "No orders: the eye is led"],
-  ["steward", "🏛", "Its head", "Its own head runs it"],
+  ["hand", "✋", "Run it", "You give the orders"],
+  ["steward", "🏛", "Its head runs it", "Its own head gives them"],
+  ["watch", "👁", "Watch it", "No orders: the eye is led"],
 ];
+/** The seasons, from midwinter on (a place's season is the share of its year gone from midwinter, its own hemisphere's). */
+const SEASONS = ["Winter", "Spring", "Summer", "Autumn"];
+/** How many alerts the column shows at once on a phone; the rest are counted on a key of their own. */
+const ALERTS_PHONE = 5,
+  ALERTS_DESK = 8;
+/** What the alerts' levels are called, for their keys' words. */
+const LEVEL_WORDS = ["", "Worth knowing", "To see to", "Danger"];
+
 /** What the eye is with in a town watched: said in two lines, the page that tells more, and whether it stays with them. */
 export type PlaceCaption = {
   readonly title: string;
@@ -52,6 +65,12 @@ export type PlaceCaption = {
   /** Staying with one of its people (their name is the title); and whether there is one to stay with. */
   readonly stay: boolean;
   readonly one: boolean;
+};
+/** The weather over the town now, as the god game's bar tells it (null: none told). */
+export type PlaceWeather = {
+  readonly icon: string;
+  readonly celsius: number | null;
+  readonly words: string;
 };
 const NEEDS = ["hungry", "tired", "cold", "lonely"];
 /** What one can be put to by name: the world's occupation column and its word (null: let be). */
@@ -84,14 +103,28 @@ const GRID_TURNED: readonly string[] = ["", "", "the fields", "the herds", "a cr
 
 const amount = (x: number) =>
   x >= 100 ? `${Math.round(x)}` : x >= 10 ? x.toFixed(1) : x.toFixed(2);
+const DAY = 86_400,
+  YEAR = 365 * DAY;
+const hhmm = (t: number) => {
+  const s = ((t % DAY) + DAY) % DAY;
+  return `${String(Math.floor(s / 3600)).padStart(2, "0")}:${String(Math.floor((s % 3600) / 60)).padStart(2, "0")}`;
+};
+/** Whether the page is laid out as a desk's (the stylesheet's own width). */
+const DESK = "(min-width: 900px)";
 
 export class PlaceHud {
   readonly element = el("div", "place-hud");
+  private readonly bar = el("header", "place-bar");
   private readonly name = el("span", "place-name");
+  private readonly date = el("span", "place-date");
   private readonly clock = el("span", "place-clock");
+  private readonly air = el("span", "place-air");
+  private readonly pill = el("div", "place-pill");
   private readonly paces: HTMLButtonElement[] = [];
+  /** What an alert tapped says (a phone's: its words and the key to put it away), or the alerts the column has no room for. */
   private readonly notice = el("div", "place-notice");
-  private readonly noticeText = el("button", "place-notice-text");
+  private readonly noticeText = el("div", "place-notice-text");
+  private readonly alertsBox = el("div", "place-alerts");
   private readonly sheet = el("section", "place-sheet");
   private readonly sheetTitle = el("h2");
   private readonly sheetBody = el("div", "place-sheet-body");
@@ -99,7 +132,11 @@ export class PlaceHud {
   private readonly closed = new Set<string>();
   private readonly modeKey = el("button", "place-mode");
   private readonly modes = el("div", "place-modes");
+  private readonly modesWords = el("p", "place-modes-words");
   private readonly modeKeys = new Map<PlaceMode, HTMLButtonElement>();
+  private readonly menuKey = el("button", "place-menu-key", "≡");
+  private readonly menu = el("div", "place-menu");
+  private readonly soundKey = el("button", "place-menu-item");
   private readonly watch = el("div", "place-watch");
   private readonly watchText = el("button", "place-watch-text");
   private readonly watchTitle = el("span", "place-watch-title");
@@ -109,7 +146,6 @@ export class PlaceHud {
   /** How the town is run now, and by whom where its head runs it. */
   ran: PlaceMode = "hand";
   private headNow: { name: string; temper: string } | null = null;
-  private noticeNow: PlaceNotice | null = null;
   private drawn = "";
   /** Whose order is being chosen on the People sheet (their number; null: no one's). */
   private ordering: number | null = null;
@@ -127,6 +163,8 @@ export class PlaceHud {
   onTab: (tab: PlaceTab | null) => void = () => {};
   /** A page asked for. */
   onOpen: (ref: string) => void = () => {};
+  /** An alert tapped: the eye goes there, and what it is of is opened. */
+  onAlert: (n: PlaceNotice) => void = () => {};
   /** An order given: the command and what it asks. */
   onOrder: (type: string, args: Record<string, unknown>) => void = () => {};
   /** Another way of running the town chosen. */
@@ -134,24 +172,43 @@ export class PlaceHud {
   /** In a town watched: stay with the one the eye is with, or be led again; and on to another. */
   onStay: (stay: boolean) => void = () => {};
   onNext: () => void = () => {};
+  /** Esc: what is chosen let go of. */
+  onEscape: () => void = () => {};
+  /** F: the eye kept with the one chosen, or let go (false: no one is chosen, and the key is not the mode's). */
+  onFollow: () => boolean = () => false;
+  /** A sheet opened or closed, by a tab or from the page (for what lies beside it). */
+  onSheet: (tab: PlaceTab | null) => void = () => {};
+  /** The game's sound, from the menu (null: none to be had). */
+  sound: { on(): boolean; set(on: boolean): void } | null = null;
+  private readonly deskQuery = typeof matchMedia === "function" ? matchMedia(DESK) : null;
 
   constructor(root: HTMLElement) {
-    const bar = el("header", "place-bar"),
-      keys = el("span", "place-paces");
-    for (const [words, seconds, say] of PACES) {
+    const back = el("button", "place-leave", "◂");
+    back.title = "Leave the town to the world: it is kept as it is, and goes on from here";
+    back.setAttribute("aria-label", back.title);
+    back.onclick = () => this.onLeave();
+    const id = el("span", "place-id"),
+      sky = el("span", "place-sky");
+    id.append(this.name, this.date);
+    sky.append(this.clock, this.air);
+    for (const [words, seconds, say] of PLACE_PACES) {
       const b = el("button", "place-pace", words);
       b.title = say;
       b.setAttribute("aria-label", say);
       b.dataset.pace = String(seconds);
       b.onclick = () => this.onPace(seconds);
       this.paces.push(b);
-      keys.append(b);
+      this.pill.append(b);
     }
-    const leave = el("button", "place-leave", "Leave");
-    leave.title = "Leave the town to the world: it is kept as it is, and goes on from here";
-    leave.onclick = () => this.onLeave();
     this.modeKey.onclick = () => this.choosing(this.modes.hidden !== false);
-    bar.append(this.name, this.clock, keys, this.modeKey, leave);
+    this.menuKey.title = "Menu: sound, how the town is run, leaving it";
+    this.menuKey.setAttribute("aria-label", this.menuKey.title);
+    this.menuKey.onclick = () => this.menuOpen(this.menu.hidden !== false);
+    this.bar.append(back, id, sky, this.modeKey, this.menuKey);
+    // (The pill in the bar on a desk, under it on a phone.)
+    this.placePill();
+    this.deskQuery?.addEventListener?.("change", () => this.placePill());
+    this.modes.append(this.modesWords);
     for (const [mode, sign, words, does] of MODES) {
       const b = el("button", "place-mode-choice");
       b.append(
@@ -167,6 +224,24 @@ export class PlaceHud {
       this.modes.append(b);
     }
     this.modes.hidden = true;
+    // The menu: sound, the ways to run it, leaving.
+    this.soundKey.onclick = () => {
+      if (!this.sound) return;
+      this.sound.set(!this.sound.on());
+      this.soundWords();
+    };
+    const ways = el("button", "place-menu-item", "✋ 🏛 👁  How it is run…"),
+      leave = el("button", "place-menu-item", "◂  Leave the town");
+    ways.onclick = () => {
+      this.menuOpen(false);
+      this.choosing(true);
+    };
+    leave.onclick = () => {
+      this.menuOpen(false);
+      this.onLeave();
+    };
+    this.menu.append(this.soundKey, ways, leave);
+    this.menu.hidden = true;
     this.watchText.append(this.watchTitle, this.watchWords);
     this.watchText.onclick = () => {
       if (this.captionNow?.ref) this.onOpen(this.captionNow.ref);
@@ -179,16 +254,7 @@ export class PlaceHud {
     this.watch.append(this.watchText, this.stayKey, next);
     this.watch.hidden = true;
     this.mode("hand");
-    const shut = el("button", "place-notice-shut", "×");
-    shut.setAttribute("aria-label", "Put this notice away");
-    shut.onclick = () => {
-      if (this.noticeNow) this.closed.add(this.noticeNow.key);
-      this.notices(this.lastNotices);
-    };
-    this.noticeText.onclick = () => {
-      if (this.noticeNow?.ref) this.onOpen(this.noticeNow.ref);
-    };
-    this.notice.append(this.noticeText, shut);
+    this.notice.append(this.noticeText);
     this.notice.hidden = true;
     const head = el("header", "place-sheet-head"),
       close = el("button", "place-sheet-shut", "×");
@@ -209,33 +275,116 @@ export class PlaceHud {
       this.tabs.set(tab, b);
       foot.append(b);
     }
-    this.element.append(bar, this.modes, this.notice, this.sheet, foot, this.watch);
+    this.alertsBox.hidden = true;
+    this.element.append(
+      this.bar,
+      this.pill,
+      this.modes,
+      this.menu,
+      this.alertsBox,
+      this.notice,
+      this.sheet,
+      foot,
+      this.watch,
+    );
     this.element.hidden = true;
     root.append(this.element);
+    // Keys, on a desk: Space stops or starts its clock, 1 to 4 its paces, Esc lets go of what is chosen. Taken before the
+    // god game's own (ui/keys.ts), whose paces are another scale's, and only while a town is entered.
+    addEventListener(
+      "keydown",
+      (e) => {
+        if (!this.shown || e.ctrlKey || e.metaKey || e.altKey) return;
+        const t = e.target as HTMLElement | null;
+        if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+        const digit = /^(?:Digit|Numpad)([1-4])$/.exec(e.code);
+        if (e.code === "Space") {
+          if (!e.repeat) this.onPace(this.pace > 0 ? 0 : this.lastPace);
+        } else if (digit) this.onPace(PLACE_PACES[Number(digit[1])]![1]);
+        else if (e.code === "KeyF") {
+          // (F is the god game's tilt too: taken only where someone is chosen to follow.)
+          if (!this.onFollow()) return;
+        } else if (e.code === "Escape") {
+          if (!this.modes.hidden) this.choosing(false);
+          else if (!this.menu.hidden) this.menuOpen(false);
+          else this.onEscape();
+        } else return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+      },
+      { capture: true },
+    );
+    addEventListener(
+      "keyup",
+      (e) => {
+        if (this.shown && e.code === "Space") e.stopImmediatePropagation();
+      },
+      { capture: true },
+    );
+  }
+
+  /** The paces' pill: in the bar on a desk (before how it is run), under it on a phone. */
+  private placePill(): void {
+    const desk = !!this.deskQuery?.matches;
+    if (desk && this.pill.parentElement !== this.bar)
+      this.bar.insertBefore(this.pill, this.modeKey);
+    else if (!desk && this.pill.parentElement === this.bar) this.bar.after(this.pill);
   }
 
   get shown(): boolean {
     return !this.element.hidden;
   }
+  /** Whether it is laid out as a desk's. */
+  get desk(): boolean {
+    return !!this.deskQuery?.matches;
+  }
   show(town: string): void {
     this.name.textContent = town;
+    this.name.title = town;
     this.element.hidden = false;
     this.closed.clear();
+    this.lastAlerts = [];
+    this.alertsKey = "";
+    this.alertsBox.replaceChildren();
+    this.alertsBox.hidden = true;
+    this.tell(null);
     document.body.classList.add("placing");
     document.body.classList.toggle("place-watching", this.ran === "watch");
+    this.soundWords();
   }
   hide(): void {
     this.element.hidden = true;
     this.open(null, false);
     this.choosing(false);
+    this.menuOpen(false);
     document.body.classList.remove("placing", "place-watching");
   }
 
-  /** The ways it can be run shown for choosing, or put away. */
-  private choosing(on: boolean): void {
+  /** The ways it can be run shown for choosing, or put away; `entering`: asked as the town is entered. */
+  choosing(on: boolean, entering = false): void {
     this.modes.hidden = !on;
+    if (on) this.menuOpen(false);
+    this.modesWords.textContent = entering
+      ? "How is this town to be run? You can change it from ✋ on the bar."
+      : "How is this town to be run?";
     this.modeKey.setAttribute("aria-expanded", String(on));
     this.element.classList.toggle("choosing", on);
+  }
+  private menuOpen(on: boolean): void {
+    this.menu.hidden = !on;
+    if (on) {
+      this.choosing(false);
+      this.soundWords();
+    }
+    this.menuKey.setAttribute("aria-expanded", String(on));
+    this.element.classList.toggle("menu-open", on);
+  }
+  private soundWords(): void {
+    const on = !!this.sound?.on(),
+      words = this.sound ? (on ? "🔊  Sound: on" : "🔈  Sound: off") : "🔇  No sound here";
+    if (this.soundKey.textContent !== words) this.soundKey.textContent = words;
+    this.soundKey.disabled = !this.sound;
+    this.soundKey.classList.toggle("on", on);
   }
   /** Who runs the town where its own head does (null: no one yet, or not run so). */
   head(h: { name: string; temper: string } | null): void {
@@ -245,7 +394,7 @@ export class PlaceHud {
   }
   /** How the town is run, as it is now: its key says it, and a town watched has none of the manager's chrome. */
   mode(mode: PlaceMode): void {
-    const [, sign, words] = MODES.find((m) => m[0] === mode) ?? MODES[0]!,
+    const [, sign] = MODES.find((m) => m[0] === mode) ?? MODES[0]!,
       by =
         mode === "steward"
           ? this.headNow
@@ -253,7 +402,7 @@ export class PlaceHud {
             : "by its head"
           : mode === "watch"
             ? "by no one: it is watched"
-            : words.toLowerCase(),
+            : "by your hand",
       say = `The town is run ${by}. Tap to choose another way`;
     this.ran = mode;
     this.modeKey.textContent = sign;
@@ -303,35 +452,147 @@ export class PlaceHud {
     this.ordering = null;
     this.drawn = "";
     this.sheet.hidden = tab === null;
+    this.element.classList.toggle("sheet-open", tab !== null);
     for (const [k, b] of this.tabs) b.classList.toggle("on", k === tab);
     if (tab) {
       this.sheetTitle.textContent = TABS.find((x) => x[0] === tab)![2];
       this.sheetBody.replaceChildren(el("p", "place-wait", "…"));
     }
+    this.onSheet(tab);
     if (tell) this.onTab(tab);
   }
 
-  /** Its clock and the pace it runs at. */
-  time(t: number, pace: number): void {
-    const hour = Math.floor((((t % 86_400) + 86_400) % 86_400) / 3600),
-      minute = Math.floor((((t % 3600) + 3600) % 3600) / 60),
-      words = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  /** The pace its clock runs at, and the last it ran at (Space starts it again at that). */
+  private pace = 0;
+  private lastPace = 600;
+  /** Its clock, the pace it runs at, and its date: the season by its own hemisphere, the day of the year, the year. */
+  time(t: number, pace: number, season?: number): void {
+    const words = hhmm(t);
     if (this.clock.textContent !== words) this.clock.textContent = words;
+    this.pace = pace;
+    if (pace > 0) this.lastPace = pace;
     for (const b of this.paces) b.classList.toggle("on", Number(b.dataset.pace) === pace);
+    if (season !== undefined) {
+      const name = SEASONS[Math.floor(((((season + 0.125) % 1) + 1) % 1) * 4) % 4]!,
+        date = `${name} · day ${Math.floor((((t % YEAR) + YEAR) % YEAR) / DAY) + 1} · year ${Math.floor(t / YEAR)}`;
+      if (this.date.textContent !== date) this.date.textContent = date;
+    }
+  }
+  /** Its air: the weather the god game's bar tells, and its warmth (that, or the place's own where it tells none). */
+  sky(w: PlaceWeather | null, warmth: number | null): void {
+    const c = w?.celsius ?? warmth,
+      text = `${c === null ? "" : `${Math.round(c)}°`}${w?.icon ? ` ${w.icon}` : ""}`.trim(),
+      words = `${w?.words ? `${w.words.charAt(0).toUpperCase()}${w.words.slice(1)}` : "The air"}${c === null ? "" : `, ${Math.round(c)} °C`}`;
+    if (this.air.textContent !== text) this.air.textContent = text;
+    if (this.air.title !== words) {
+      this.air.title = words;
+      this.air.setAttribute("aria-label", words);
+    }
   }
 
-  private lastNotices: readonly PlaceNotice[] = [];
-  /** What wants the manager's eye: the first not put away. */
-  notices(list: readonly PlaceNotice[]): void {
-    this.lastNotices = list;
-    const now = list.find((n) => !this.closed.has(n.key)) ?? null;
-    this.noticeNow = now;
-    if (this.notice.hidden !== !now) this.notice.hidden = !now;
-    if (now && this.noticeText.textContent !== now.words) this.noticeText.textContent = now.words;
+  private lastAlerts: readonly PlaceNotice[] = [];
+  private alertsKey = "";
+  /** The alert whose words are told now (a phone's notice line), and until when (the page's clock, ms). */
+  private telling: PlaceNotice | null = null;
+  private tellUntil = 0;
+  /** What wants the manager's eye: the alerts not put away, the gravest first, in the column at the right. */
+  alerts(list: readonly PlaceNotice[]): void {
+    const was = new Set(this.lastAlerts.map((n) => n.key));
+    this.lastAlerts = list;
+    const shown = list.filter((n) => !this.closed.has(n.key)),
+      desk = !!this.deskQuery?.matches,
+      most = desk ? ALERTS_DESK : ALERTS_PHONE,
+      key = JSON.stringify([desk, shown.map((n) => [n.key, n.icon, n.level, n.n, n.words])]);
+    // (A danger new since the last telling is told in words at once on a phone, as its notice line was.)
+    const fresh = shown.find((n) => n.level >= 3 && !was.has(n.key));
+    if (fresh && !desk) this.tell(fresh);
+    if (this.telling && !list.some((n) => n.key === this.telling!.key)) this.tell(null);
+    else if (this.telling && performance.now() > this.tellUntil) this.tell(null);
+    if (key === this.alertsKey) return;
+    this.alertsKey = key;
+    const keys: HTMLElement[] = [];
+    const room = shown.length > most ? most - 1 : most;
+    for (const n of shown.slice(0, room)) keys.push(this.alertKey(n));
+    if (shown.length > room) {
+      const rest = shown.slice(room),
+        more = el("button", "place-alert place-alert-more", `+${rest.length}`),
+        say = `${rest.length} more: ${rest.map((n) => n.words).join("; ")}`;
+      more.title = say;
+      more.setAttribute("aria-label", say);
+      more.onclick = () => this.tellMany(rest);
+      keys.push(more);
+    }
+    this.alertsBox.replaceChildren(...keys);
+    this.alertsBox.hidden = keys.length === 0;
   }
-  /** What the notice line tells now (the look tools; null: nothing). */
+  private alertKey(n: PlaceNotice): HTMLElement {
+    const row = el("div", `place-alert-row level${n.level}`),
+      b = el("button", `place-alert level${n.level}`),
+      say = `${LEVEL_WORDS[n.level] ?? ""}: ${n.words}. Tap to go there`;
+    b.append(el("span", "place-alert-icon", n.icon));
+    if (n.n > 0) b.append(el("span", "place-alert-n", n.n > 99 ? "99+" : String(n.n)));
+    b.append(el("span", "place-alert-words", n.words));
+    b.title = say;
+    b.setAttribute("aria-label", say);
+    b.dataset.key = n.key;
+    b.onclick = () => {
+      if (!this.deskQuery?.matches) this.tell(n);
+      this.onAlert(n);
+    };
+    const shut = el("button", "place-alert-shut", "×");
+    shut.title = "Put this alert away until it comes again";
+    shut.setAttribute("aria-label", `Put away: ${n.words}`);
+    shut.onclick = () => this.dismiss(n.key);
+    row.append(b, shut);
+    return row;
+  }
+  /** An alert put away: it comes back only as another (its key is its own: a fire is another fire). */
+  private dismiss(key: string): void {
+    this.closed.add(key);
+    if (this.telling?.key === key) this.tell(null);
+    this.alerts(this.lastAlerts);
+  }
+  /** The notice line under the paces (a phone's): what an alert tapped says, with its key to put it away (null: none). */
+  private tell(n: PlaceNotice | null): void {
+    this.telling = n;
+    this.tellUntil = performance.now() + 8000;
+    if (!n) {
+      this.notice.hidden = true;
+      return;
+    }
+    const words = el("button", "place-notice-words", `${n.icon} ${n.words}`),
+      shut = el("button", "place-notice-shut", "×");
+    words.onclick = () => this.onAlert(n);
+    shut.setAttribute("aria-label", `Put away: ${n.words}`);
+    shut.onclick = () => this.dismiss(n.key);
+    this.noticeText.replaceChildren(words);
+    this.notice.replaceChildren(this.noticeText, shut);
+    this.notice.hidden = false;
+  }
+  /** The alerts the column has no room for, told in the notice line, each a tap from going there. */
+  private tellMany(list: readonly PlaceNotice[]): void {
+    this.telling = list[0] ?? null;
+    this.tellUntil = performance.now() + 12_000;
+    const keys = list.map((n) => {
+      const b = el("button", `place-notice-words level${n.level}`, `${n.icon} ${n.words}`);
+      b.onclick = () => this.onAlert(n);
+      return b;
+    });
+    const shut = el("button", "place-notice-shut", "×");
+    shut.setAttribute("aria-label", "Close");
+    shut.onclick = () => this.tell(null);
+    this.noticeText.replaceChildren(...keys);
+    this.notice.replaceChildren(this.noticeText, shut);
+    this.notice.hidden = false;
+  }
+  /** What wants the manager's eye most now, as the column has it (the look tools; null: nothing). */
   get noticed(): string | null {
-    return this.notice.hidden ? null : (this.noticeText.textContent ?? "");
+    return this.lastAlerts.find((n) => !this.closed.has(n.key))?.words ?? null;
+  }
+  /** Put the gravest alert away (the look tools). */
+  dismissFirst(): void {
+    const n = this.lastAlerts.find((x) => !this.closed.has(x.key));
+    if (n) this.dismiss(n.key);
   }
 
   /** Whether what would be drawn is what is drawn already (a sheet read again every second is not built again for nothing). */

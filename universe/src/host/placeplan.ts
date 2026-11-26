@@ -61,6 +61,8 @@ import {
   hapMany,
   armsWanted,
   watchWanted,
+  placeAir,
+  DUE,
   placeCold,
   placeMark,
   tendedOf,
@@ -418,16 +420,82 @@ export function placePlan(
 }
 
 /** What wants a manager's eye in a place now, the most pressing first. */
+/** Below so many days of food in its stores and pantries a town is told of it; below the second, gravely. */
+const ALERT_FOOD_DAYS = 30,
+  ALERT_FOOD_LOW = 7;
+/**
+ * How seldom each kind of happening has come in a place, as far as its log remembers (host/placewatch.ts's measure): of
+ * its lines, and one more, the share that are of other kinds.
+ */
+export function placeRarity(place: Place): (what: number) => number {
+  const kinds = new Map<number, number>();
+  for (const x of place.log) kinds.set(x.what, (kinds.get(x.what) ?? 0) + 1);
+  return (what) => (what < 0 ? 0 : 1 - (kinds.get(what) ?? 0) / (place.log.length + 1));
+}
+
+/**
+ * What wants its manager's eye now (the mode's alert column), read off what the place has already: the gravest first,
+ * and of the equally grave the kind seldomest in this town (placeRarity). Each says where it is and whom it is of, so a
+ * tap goes there. What is only the town's bookkeeping (its doings yet to be told its land, what its head last decided)
+ * is the Log's, not an alert.
+ */
 export function placeNotices(world: World, place: Place): PlaceNotice[] {
   const p = place.people,
     out: PlaceNotice[] = [],
+    rare = placeRarity(place),
     bare = new Set<number>(),
-    waiting = new Map<number, number>();
-  let want = 0;
+    waiting = new Map<number, number>(),
+    day = Math.floor(place.t / DAY),
+    add = (
+      key: string,
+      icon: string,
+      level: number,
+      words: string,
+      hap: number,
+      at: { n?: number; lot?: number | null; id?: number | null; ref?: string | null },
+    ): void => {
+      out.push({
+        key,
+        icon,
+        level,
+        words,
+        n: at.n ?? 0,
+        lot: at.lot ?? null,
+        id: at.id ?? null,
+        ref: at.ref ?? null,
+        rare: rare(hap),
+      });
+    };
+  let want = 0,
+    wantMost = -1,
+    sick = 0,
+    sickOne = -1,
+    alone = 0,
+    aloneOne = -1,
+    low = 0,
+    lowOne = -1,
+    brigade = 0;
   for (let i = 0; i < p.n; i++) {
-    if (p.lack[i]! >= 144) want++;
+    if (p.lack[i]! >= 144) {
+      want++;
+      if (wantMost < 0 || p.lack[i]! > p.lack[wantMost]!) wantMost = i;
+    }
     if (p.why[i] === WHY.noFood || p.why[i] === WHY.pantry) bare.add(p.house[i]!);
-    // (Those whose building's work an order stopped wait by that order: no notice of it is wanted. A site's crew waiting
+    if (p.health[i] === 2) {
+      sick++;
+      if (sickOne < 0) sickOne = i;
+    }
+    // (Abed with no one of their own home to tend them, and no healer or hospital: rules/healing.ts tendedBy.)
+    if ((p.health[i] === 1 || p.health[i] === 2) && tendedOf(place, i) === "kin") {
+      alone++;
+      if (aloneOne < 0) aloneOne = i;
+    }
+    if (p.mood[i]! < MOOD_UNHEEDING) {
+      low++;
+      if (lowOne < 0 || p.mood[i]! < p.mood[lowOne]!) lowOne = i;
+    }
+    if (p.act[i] === ACT.brigade) brigade++;
+    // (Those whose building's work an order stopped wait by that order: no alert of it is wanted. A site's crew waiting
     // are told of with their site, below.)
     if (
       p.act[i] === ACT.wait &&
@@ -437,113 +505,211 @@ export function placeNotices(world: World, place: Place): PlaceNotice[] {
     )
       waiting.set(p.work[i]!, (waiting.get(p.work[i]!) ?? 0) + 1);
   }
-  if (want)
-    out.push({
-      key: "want",
-      words: `${want} ${want === 1 ? "has" : "have"} gone a day or more hungry, cold or without rest`,
-      ref: null,
-    });
-  if (bare.size)
-    out.push({
-      key: "pantry",
-      words: `${bare.size} ${bare.size === 1 ? "pantry is" : "pantries are"} bare`,
-      ref: placeLotRef(place.town, place.houses.home[[...bare][0]!]!),
-    });
-  // (Those who work at home, one notice for them all: a town of home crafters filled the line with a notice a house.)
-  let atHome = 0,
-    firstHome = -1;
-  for (const [lot, n] of waiting) {
-    if (lot >= 0 && place.bldgs.lot.indexOf(lot) < 0) {
-      atHome += n;
-      if (firstHome < 0) firstHome = lot;
-      continue;
-    }
-    out.push({
-      key: `wait${lot}`,
-      words: `${n} at ${lotWords(place, lot)} wait for want of what they work`,
-      ref: placeLotRef(place.town, lot),
-    });
-  }
-  if (atHome)
-    out.push({
-      key: "waithome",
-      words: `${atHome} who work at home wait for want of what they work`,
-      ref: placeLotRef(place.town, firstHome),
-    });
   // What threatens it, seen on its own people.
   const fire = place.fire.length && place.t < place.fire[1]! ? place.fire[0]! : null;
-  if (fire !== null) {
-    let out2 = 0;
-    for (let i = 0; i < p.n; i++) if (p.act[i] === ACT.brigade) out2++;
-    out.unshift({
-      key: `fire${place.fire[1]}`,
-      words: `Fire at ${lotWords(place, fire)}: ${out2} of its grown have turned out to fight it`,
-      ref: fire === AT.square ? null : placeLotRef(place.town, fire),
-    });
-  }
+  if (fire !== null)
+    add(
+      `fire${place.fire[1]}`,
+      "🔥",
+      3,
+      `Fire at ${lotWords(place, fire)}: ${brigade} of its grown have turned out to fight it`,
+      HAP.homeless,
+      {
+        n: brigade,
+        lot: fire,
+        ref: fire === AT.square ? null : placeLotRef(place.town, fire),
+      },
+    );
   if (place.matched.sieged)
-    out.unshift({
-      key: "siege",
-      words: "A siege lies about the town: no one goes out to its fields",
-      ref: null,
-    });
-  const day = Math.floor(place.t / DAY);
-  let roofless = 0;
+    add(
+      "siege",
+      "🏰",
+      3,
+      "A siege lies about the town: no one goes out to its fields",
+      HAP.mustered,
+      { lot: AT.square },
+    );
+  // (One of its realm's key figures hurt or sick: their page is the god game's, and the realm's.)
+  const who = placeWho(world, place);
+  for (let k = 0; k < place.figId.length; k++) {
+    const i = placeIndexOf(place, place.figId[k]!);
+    if (i < 0 || !p.health[i] || p.health[i] === 3) continue;
+    add(
+      `fig${place.figId[k]}`,
+      "👑",
+      3,
+      `${place.figName[k]} lies ${p.health[i] === 2 ? "sick" : "hurt"}`,
+      HAP.hurt,
+      { id: p.id[i]!, ref: place.figRef[k]! },
+    );
+  }
+  if (want) {
+    const w = who(wantMost);
+    add(
+      "want",
+      "🥣",
+      want * 10 >= p.n ? 3 : 2,
+      `${want} ${want === 1 ? "has" : "have"} gone a day or more hungry, cold or without rest; ${w.name} the longest, ${Math.floor(p.lack[wantMost]! / 144)} days`,
+      HAP.starved,
+      { n: want, id: p.id[wantMost]!, ref: w.ref },
+    );
+  }
+  // (Its food: what its stores and pantries hold, a unit one person's month, as the Stocks sheet reckons it.)
+  let food = 0,
+    granary = -1;
+  for (let b = 0; b < place.bldgs.lot.length; b++) {
+    for (const g of FOODS) food += place.bldgs.stock[b * GOODS.length + g]!;
+    if (granary < 0 && CIVICS[place.bldgs.kind[b]!]?.kind === "granary") granary = b;
+  }
+  for (let k = 0; k < place.houses.pantry.length; k++) food += place.houses.pantry[k]!;
+  const days = p.n > 0 ? (food / MICRO) * (30 / p.n) : Infinity;
+  if (days < ALERT_FOOD_DAYS) {
+    const left = Math.max(0, Math.floor(days)),
+      lot = granary >= 0 ? place.bldgs.lot[granary]! : null;
+    add(
+      "food",
+      "🌾",
+      days < ALERT_FOOD_LOW ? 3 : 2,
+      `Food for ${left} ${left === 1 ? "day" : "days"} in its stores and pantries`,
+      HAP.famine,
+      { n: left, lot, ref: lot === null ? null : placeLotRef(place.town, lot) },
+    );
+  }
+  if (sick) {
+    const w = who(sickOne);
+    add(
+      "sick",
+      "🤒",
+      sick * 20 >= p.n ? 3 : 2,
+      `${sick} of the town lie sick: ${w.name}, ${ailWords(place, sickOne)}`,
+      HAP.sick,
+      { n: sick, id: p.id[sickOne]!, ref: w.ref },
+    );
+  }
+  if (alone) {
+    const w = who(aloneOne);
+    add(
+      "alone",
+      "🩸",
+      2,
+      `${alone} lie abed with no one at home to tend them and no healer: ${w.name} among them`,
+      HAP.hurt,
+      { n: alone, id: p.id[aloneOne]!, ref: w.ref },
+    );
+  }
+  let roofless = 0,
+    lostOne = -1;
   for (let k = 0; k < place.houses.n; k++)
     if (
       place.houses.members[k]! > 0 &&
       place.houses.lost[k]! >= 0 &&
       day - place.houses.lost[k]! <= 60
-    )
+    ) {
       roofless++;
+      if (lostOne < 0) lostOne = k;
+    }
   if (roofless)
-    out.push({
-      key: `roofless${roofless}`,
-      words: `${roofless} ${roofless === 1 ? "household has" : "households have"} lost ${roofless === 1 ? "its home" : "their homes"}: see Dangers`,
-      ref: null,
-    });
+    add(
+      "roofless",
+      "🏚️",
+      2,
+      `${roofless} ${roofless === 1 ? "household has" : "households have"} lost ${roofless === 1 ? "its home" : "their homes"} these two months: see Dangers`,
+      HAP.homeless,
+      { n: roofless, lot: place.houses.home[lostOne] ?? AT.square },
+    );
+  if (low) {
+    const w = who(lowOne);
+    add(
+      "low",
+      "😠",
+      2,
+      `${low} ${low === 1 ? "is" : "are"} too low in mood to heed an order; ${w.name} the lowest (${p.mood[lowOne]})`,
+      HAP.unheeded,
+      { n: low, id: p.id[lowOne]!, ref: w.ref },
+    );
+  }
+  if (bare.size) {
+    const h = [...bare][0]!;
+    add(
+      "pantry",
+      "🫙",
+      2,
+      `${bare.size} ${bare.size === 1 ? "pantry is" : "pantries are"} bare`,
+      HAP.bare,
+      {
+        n: bare.size,
+        lot: place.houses.home[h]!,
+        ref: placeLotRef(place.town, place.houses.home[h]!),
+      },
+    );
+  }
   for (const x of placeSites(world, place)) {
-    if (!x.inHand) continue;
+    if (!x.inHand || x.raised) continue;
     const name = siteOf(lotWords(place, x.lot));
-    if (x.raised)
-      out.push({
-        key: `raised${x.lot}`,
-        words: `All that ${name} wants is done: it stands once its land is told`,
-        ref: placeLotRef(place.town, x.lot),
-      });
-    else if (x.stopped)
-      out.push({
-        key: `stopped${x.lot}`,
-        words: `Work on ${name} is stopped`,
+    if (x.stopped)
+      add(`stopped${x.lot}`, "🚧", 1, `Work on ${name} is stopped`, HAP.crew, {
+        lot: x.lot,
         ref: placeLotRef(place.town, x.lot),
       });
     else if (x.crew.length < x.hands)
-      out.push({
-        key: `crew${x.lot}`,
-        words: `${name} has ${x.crew.length} of the ${x.hands} hands ordered to it: no more of its grown are free and well`,
-        ref: placeLotRef(place.town, x.lot),
-      });
+      add(
+        `crew${x.lot}`,
+        "🚧",
+        1,
+        `${name} has ${x.crew.length} of the ${x.hands} hands ordered to it: no more of its grown are free and well`,
+        HAP.crew,
+        { n: x.crew.length, lot: x.lot, ref: placeLotRef(place.town, x.lot) },
+      );
   }
-  // (A town stewarded: what its head last decided, for a day after.)
-  if (place.mode === 2)
-    for (let k = place.log.length - 1; k >= 0 && place.log[k]!.t > place.t - DAY; k--) {
-      const x = place.log[k]!;
-      if (x.what !== HAP.steward) continue;
-      const i = placeIndexOf(place, x.id);
-      out.push({
-        key: `head${x.t}|${x.a}`,
-        words: `${i >= 0 ? placeWho(world, place)(i).name : "The town's head"} ${hapTold(place, x)}`,
-        ref: i >= 0 ? placeWho(world, place)(i).ref : null,
-      });
+  // (Those who wait for want of what they work: one alert for them all, at the place where most wait. A town of home
+  // crafters filled the line with a notice a house.)
+  let waits = 0,
+    places = 0,
+    most = -1,
+    mostN = 0;
+  for (const [lot, n] of waiting) {
+    waits += n;
+    places++;
+    if (n > mostN) {
+      mostN = n;
+      most = lot;
+    }
+  }
+  if (waits)
+    add(
+      "wait",
+      "⏳",
+      1,
+      places === 1
+        ? `${waits} at ${lotWords(place, most)} wait for want of what they work`
+        : `${waits} wait for want of what they work, at ${places} places; most at ${lotWords(place, most)} (${mostN})`,
+      -1,
+      { n: waits, lot: most, ref: most >= 0 ? placeLotRef(place.town, most) : null },
+    );
+  // (A burial now, or one to come by this time tomorrow: when, and where.)
+  const rite = place.rite.length && place.t < place.rite[1]! ? place.rite : null;
+  if (rite)
+    add(`rite${rite[1]}`, "⚱️", 1, `A burial is held at ${lotWords(place, rite[0]!)}`, HAP.buried, {
+      lot: rite[0]!,
+      ref: rite[0] === AT.square ? null : placeLotRef(place.town, rite[0]!),
+    });
+  else
+    for (let k = 0; k < place.due.length; k += 4) {
+      if (place.due[k]! > place.t + DAY) break;
+      if (place.due[k + 1] !== DUE.bury) continue;
+      const name = goneNames(world, place)(place.due[k + 2]!),
+        hour = Math.floor((place.due[k]! % DAY) / 3600);
+      add(
+        `bury${place.due[k]}`,
+        "⚱️",
+        1,
+        `${name ?? "One of the town"} is buried ${Math.floor(place.due[k]! / DAY) === day ? "today" : "tomorrow"} at ${String(hour).padStart(2, "0")}:00`,
+        HAP.buried,
+        {},
+      );
       break;
     }
-  const unsettled = place.moves.length / 4 + place.dead.length / 3;
-  if (unsettled && ordersOf(world, place.town))
-    out.push({
-      key: "unsettled",
-      words: `${unsettled} of its doings by ${place.mode === 2 ? "its orders" : "your orders"} ${unsettled === 1 ? "is" : "are"} told to its land at the month's turn, or on leaving`,
-      ref: null,
-    });
+  out.sort((a, b) => b.level - a.level || b.rare - a.rare);
   return out;
 }
 
@@ -597,6 +763,7 @@ export function placeFrame(world: World, town: string, ids: readonly number[]): 
     town,
     t: place.t,
     tick: PLACE_TICK,
+    ...placeAir(world, place),
     people: Math.round(s?.population ?? p.n),
     kept: p.n,
     households: place.houses.members.filter((m) => m > 0).length,

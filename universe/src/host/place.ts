@@ -831,7 +831,7 @@ export type Place = {
 };
 
 /** What waits in a place's `due`: a death, a leaving, a birth, a coming, a burial, a pairing. */
-const DUE = { die: 1, leave: 2, born: 3, come: 4, bury: 5, pair: 6 } as const;
+export const DUE = { die: 1, leave: 2, born: 3, come: 4, bury: 5, pair: 6 } as const;
 /** One promised to their friend: their pairing is set for a day to come. */
 const PROMISED = 0xffffffff;
 
@@ -1007,6 +1007,11 @@ const coldOf = (f: Frame, warmth: number): number =>
 export function placeCold(world: World, place: Place): number {
   const f = frameOf(world, place.cell);
   return coldOf(f, airOf(f, place.t).warmth);
+}
+/** A place's season (the share of its year gone from midwinter, its own hemisphere's) and its air's warmth now: read only. */
+export function placeAir(world: World, place: Place): { season: number; warmth: number } {
+  const f = frameOf(world, place.cell);
+  return { season: clockOf(f, place.t).season, warmth: airOf(f, place.t).warmth };
 }
 
 /** The trades plied in buildings, and the buildings each is plied in (their kinds): where those of the trade live. */
@@ -4068,6 +4073,75 @@ export const leans = (x: number): number => 0.5 + x;
 
 /** Below this a mood heeds no order to change its work. */
 export const MOOD_UNHEEDING = -50;
+/** Where a mood stands with nothing bearing on it: most are a little content. */
+export const MOOD_BASE = 15;
+/** One thing bearing on a mood: what it is (MOOD's bit), how far it moves it (points), and its days left (null: while it lasts). */
+export type MoodTerm = {
+  readonly bit: number;
+  readonly size: number;
+  readonly days: number | null;
+};
+/**
+ * What bears on one's mood now, each by how much, weighed by their own temper (placeTemper): from needs met over the days
+ * gone and what befell their household. The mood goes a quarter of the way to where these put it each day (tick).
+ */
+function moodTerms(
+  place: Place,
+  i: number,
+  lackDays: number,
+  today: number,
+  fk: Frame,
+): MoodTerm[] {
+  const p = place.people,
+    houses = place.houses,
+    h = p.house[i]!,
+    temper = placeTemper(place, i),
+    out: MoodTerm[] = [];
+  if (lackDays >= 0.25)
+    out.push({
+      bit: MOOD.want,
+      size: -(Math.min(70, 25 * lackDays + 15) * leans(1 - temper.bold)),
+      days: null,
+    });
+  if (p.health[i]) out.push({ bit: MOOD.ailing, size: -25, days: Math.ceil(p.ill[i]! / 144) });
+  if (houses.grief[h]! >= 0 && today - houses.grief[h]! <= 30)
+    out.push({
+      bit: MOOD.bereaved,
+      size: -(35 * leans(temper.kin)),
+      days: 31 - (today - houses.grief[h]!),
+    });
+  let pantry = 0;
+  for (let k = 0; k < FOODS.length; k++) pantry += houses.pantry[h * FOODS.length + k]!;
+  if (pantry >= houses.members[h]! * fk.daily * FETCH_DAYS)
+    out.push({ bit: MOOD.pantry, size: 15 * leans(temper.thrifty), days: null });
+  if (p.friend[i])
+    out.push({
+      bit: MOOD.friend,
+      size: (10 + 15 * fk.social) * leans(temper.sociable),
+      days: null,
+    });
+  if (houses.fresh[h]! >= 0 && today - houses.fresh[h]! <= 30)
+    out.push({ bit: MOOD.home, size: 20, days: 31 - (today - houses.fresh[h]!) });
+  if (houses.lost[h]! >= 0 && today - houses.lost[h]! <= 60)
+    out.push({
+      bit: MOOD.homeless,
+      size: -(30 * leans(1 - temper.bold)),
+      days: 61 - (today - houses.lost[h]!),
+    });
+  if (p.bound[i] && p.bound[i]! < BOUND_ARMS)
+    out.push({ bit: MOOD.ordered, size: -(10 * leans(1 - temper.bidden)), days: null });
+  return out;
+}
+/** What bears on one of a place's people's mood now, as their next day's turn will weigh it (read only). */
+export function placeMoodTerms(world: World, place: Place, i: number): MoodTerm[] {
+  return moodTerms(
+    place,
+    i,
+    place.people.lack[i]! / 144,
+    Math.floor(place.t / DAY),
+    frameFor(world, place, i),
+  );
+}
 /**
  * The chance a year that work harms the one at it: of the tools and machines their trade wears out in a year (rules/goods.ts
  * WANTS), a fifth are worn on the hand that held them. Nothing for one who uses none.
@@ -4490,42 +4564,11 @@ function tick(world: World, place: Place, f: Frame): void {
       // Mood, from needs met over the days gone and what befell their household: a quarter of the way to where those
       // put it, each day. A body that lives closer together leans more on its friends.
       // (And by their own temper: what each of these weighs with them, against most. rules/temper.ts.)
-      const temper = placeTemper(place, i);
       let why = 0,
-        to = 15;
-      if (lackDays >= 0.25) {
-        why |= MOOD.want;
-        to -= Math.min(70, 25 * lackDays + 15) * leans(1 - temper.bold);
-      }
-      if (p.health[i]) {
-        why |= MOOD.ailing;
-        to -= 25;
-      }
-      if (houses.grief[h]! >= 0 && today - houses.grief[h]! <= 30) {
-        why |= MOOD.bereaved;
-        to -= 35 * leans(temper.kin);
-      }
-      let pantry = 0;
-      for (let k = 0; k < FOODS.length; k++) pantry += houses.pantry[h * FOODS.length + k]!;
-      if (pantry >= houses.members[h]! * fk.daily * FETCH_DAYS) {
-        why |= MOOD.pantry;
-        to += 15 * leans(temper.thrifty);
-      }
-      if (p.friend[i]) {
-        why |= MOOD.friend;
-        to += (10 + 15 * fk.social) * leans(temper.sociable);
-      }
-      if (houses.fresh[h]! >= 0 && today - houses.fresh[h]! <= 30) {
-        why |= MOOD.home;
-        to += 20;
-      }
-      if (houses.lost[h]! >= 0 && today - houses.lost[h]! <= 60) {
-        why |= MOOD.homeless;
-        to -= 30 * leans(1 - temper.bold);
-      }
-      if (p.bound[i] && p.bound[i]! < BOUND_ARMS) {
-        why |= MOOD.ordered;
-        to -= 10 * leans(1 - temper.bidden);
+        to = MOOD_BASE;
+      for (const x of moodTerms(place, i, lackDays, today, fk)) {
+        why |= x.bit;
+        to += x.size;
       }
       p.moodWhy[i] = why;
       p.mood[i] = Math.max(-100, Math.min(100, Math.round(p.mood[i]! + (to - p.mood[i]!) / 4)));

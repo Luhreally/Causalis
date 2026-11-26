@@ -91,4 +91,5 @@ export {
 export { THUMB_TIMES, lazyThumb, paintThumb } from "./thumbs.ts";
 export { drawPortrait } from "./portrait.ts";
 export { bannerMs, forgetBanners } from "./page-art.ts";
-export { PlaceHud, type PlaceCaption, type PlaceTab } from "./place-hud.ts";
+export { PlaceHud, type PlaceCaption, type PlaceTab, type PlaceWeather } from "./place-hud.ts";
+export { PlaceInspector, type InspectHeight } from "./place-inspect.ts";

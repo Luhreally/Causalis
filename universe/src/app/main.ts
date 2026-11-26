@@ -1104,11 +1104,16 @@ type Exposed = {
       ran: PlaceMode;
       watching: PlaceFlow["watching"];
       captioned: PlaceFlow["captioned"];
+      inspected: PlaceFlow["inspected"];
     };
     /** How the town entered is run, chosen; and in one watched, the stay key and the next. */
     mode(mode: PlaceMode): Promise<void>;
     watchStay(on: boolean): void;
     watchNext(): void;
+    /** The mode's inspector opened on a ref (null: closed), and at a height; how tall its people stand (px). */
+    inspect(ref: string | null): void;
+    inspectHeight(h: "peek" | "half" | "full"): void;
+    figurePx(): number;
   };
   faunaNow?: () => {
     name: string;
@@ -10853,6 +10858,14 @@ async function runPlanetPage(): Promise<void> {
       const at = plan ? onPlane(x, y, 0) : null;
       return at ? village.townThingAt(at.x / VILLAGE_METRE, at.z / VILLAGE_METRE, now()) : null;
     },
+    weather: () =>
+      weatherNow
+        ? { icon: weatherNow.icon, celsius: weatherNow.celsius, words: weatherNow.words }
+        : null,
+    sound: { on: () => sound.wantedNow, set: (on) => sound.setOn(on) },
+    fill: (x) => {
+      stage.fill = x;
+    },
   });
   placeTap = placeFlow.tapped;
   placeQuery = placeFlow.planQuery;
@@ -10870,6 +10883,9 @@ async function runPlanetPage(): Promise<void> {
     mode: (mode: PlaceMode) => placeFlow.mode(mode),
     watchStay: (on: boolean) => placeFlow.watchStay(on),
     watchNext: () => placeFlow.watchNext(),
+    inspect: (ref: string | null) => placeFlow.inspect(ref),
+    inspectHeight: (h: "peek" | "half" | "full") => placeFlow.inspectHeight(h),
+    figurePx: () => placeFlow.figurePx(),
     peoples: () => village.peoplesDrawn(),
     personAt: (i: number) => (plan?.people[i] ? village.personAt(plan.people[i].ref) : null),
     state: () => ({
@@ -10880,6 +10896,7 @@ async function runPlanetPage(): Promise<void> {
       ran: placeFlow.ran,
       watching: placeFlow.watching,
       captioned: placeFlow.captioned,
+      inspected: placeFlow.inspected,
     }),
   };
   // (A page's Go to, from a home: the home closed, then gone to.)

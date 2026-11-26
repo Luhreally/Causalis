@@ -617,6 +617,14 @@ export {
   type PlaceStocksSheet,
   type PlaceWorkSheet,
 } from "./place.ts";
+export type {
+  PlaceInspect,
+  PlaceInspectLot,
+  PlaceInspectPerson,
+  PlaceNamed,
+  PlaceNeed,
+  PlaceThought,
+} from "./placeinspect.ts";
 export {
   PLACE_MODES,
   type PlaceMode,

@@ -1,66 +1,102 @@
-/* A town entered (town mode): the mode's own chrome in place of the god game's. Phone first: one row at the top, a
-   notice line under it, a sheet over the foot's six tabs. It takes only its own touches; every key a finger's size;
-   within the phone's safe areas; nothing over anything (tools/hud-read.ts at 430x932 and 1280x800, every state). */
+/* A town entered (town mode): the mode's own chrome in place of the god game's, in the god game's look (y2k.css: its navy
+   glass, its chrome, its aqua keys). Phone first: a bar at the top, the paces' pill under it, the alert column down the
+   right edge, a sheet over the foot's six tabs. It takes only its own touches; every key a finger's size; within the
+   phone's safe areas; nothing over anything (tools/hud-read.ts at 430x932 and 1280x800, every state). */
 body.placing #hud > *:not(.place-hud):not(.page-window):not(.panel.page-panel) {
   display: none !important;
 }
+/* (The god game's 🔊 is in the mode's menu while a town is entered.) */
+body.placing > .sound-button {
+  display: none !important;
+}
 #hud > .place-hud {
+  --place-top: calc(env(safe-area-inset-top, 0px) + 6px);
+  --place-l: calc(env(safe-area-inset-left, 0px) + 8px);
+  --place-r: calc(env(safe-area-inset-right, 0px) + 8px);
+  --place-b: calc(env(safe-area-inset-bottom, 0px) + 6px);
+  --place-red: #ff6a4d;
+  --place-amber: #ffc94a;
+  --place-grey: #a9bbe2;
   position: absolute;
   inset: 0;
   z-index: 26;
   pointer-events: none;
   font-size: 14px;
-  color: #fff;
+  color: var(--ink, #fff);
 }
 .place-hud[hidden],
 .place-notice[hidden],
 .place-sheet[hidden],
 .place-modes[hidden],
+.place-menu[hidden],
+.place-alerts[hidden],
 .place-watch[hidden] {
   display: none !important;
 }
 .place-bar,
+.place-pill,
 .place-notice,
 .place-sheet,
 .place-foot,
 .place-modes,
+.place-menu,
 .place-watch {
   pointer-events: auto;
   position: absolute;
-  left: calc(env(safe-area-inset-left, 0px) + 8px);
-  right: calc(env(safe-area-inset-right, 0px) + 8px);
-  background: linear-gradient(180deg, rgba(40, 58, 120, 0.96), rgba(20, 30, 76, 0.96));
+  left: var(--place-l);
+  right: var(--place-r);
+  background: var(
+    --panel-solid,
+    linear-gradient(180deg, rgba(40, 58, 120, 0.96), rgba(20, 30, 76, 0.96))
+  );
   border: 1px solid rgba(190, 205, 255, 0.55);
   border-radius: 8px;
   box-sizing: border-box;
 }
 .place-bar {
-  top: calc(env(safe-area-inset-top, 0px) + 6px);
-  height: 52px;
+  top: var(--place-top);
+  height: 54px;
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 0 4px 0 8px;
+  padding: 0 4px;
+}
+.place-id,
+.place-sky {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  line-height: 1.2;
+}
+.place-id {
+  flex: 1 1 0;
+  padding-left: 2px;
+}
+.place-sky {
+  flex: 0 0 auto;
+  align-items: flex-end;
+  padding: 0 2px;
 }
 .place-name {
-  flex: 1 1 0;
-  min-width: 0;
   font-weight: 700;
   font-style: italic;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.place-date,
+.place-air {
+  font-size: 12px;
+  color: var(--muted, #a9bbe2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .place-clock {
-  flex: 0 0 auto;
   font-family: ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
-  color: #b6ff9a;
-  padding: 0 4px;
-}
-.place-paces {
-  display: flex;
-  flex: 0 0 auto;
+  color: var(--act, #b6ff9a);
 }
 .place-hud button {
   min-height: 44px;
@@ -71,39 +107,163 @@ body.placing #hud > *:not(.place-hud):not(.page-window):not(.panel.page-panel) {
 .place-bar button {
   padding: 0 4px;
 }
+.place-hud .place-leave,
+.place-hud .place-menu-key,
+.place-hud .place-mode {
+  flex: 0 0 auto;
+  font-size: 18px;
+}
 .place-hud button.on {
   border-color: #0b7a62;
   background: linear-gradient(180deg, #d9fff5 0%, #6ff0cf 46%, #29cfa6 54%, #8bf5dc 100%);
   color: #06261f;
 }
-.place-notice {
-  top: calc(env(safe-area-inset-top, 0px) + 62px);
+/* The paces: a pill of their own under the bar on a phone (in the bar on a desk). */
+.place-pill {
+  top: calc(var(--place-top) + 60px);
+  right: auto;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+}
+.place-pill .place-pace {
+  padding: 0 2px;
+}
+.place-bar .place-pill {
+  position: static;
+  flex: 0 0 auto;
+  border: none;
+  background: none;
+  padding: 0;
+}
+/* What wants the manager's eye: a column down the right edge, the gravest first. */
+.place-alerts {
+  pointer-events: auto;
+  position: absolute;
+  top: calc(var(--place-top) + 60px);
+  right: var(--place-r);
+  width: 50px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.place-alert-row {
+  display: flex;
+}
+.place-hud .place-alert {
+  position: relative;
+  width: 50px;
+  height: 46px;
+  padding: 0;
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 0 0 0 8px;
-  background: rgba(64, 44, 8, 0.94);
+  justify-content: center;
+  gap: 6px;
+  font-size: 20px;
+  border-width: 2px;
+  border-style: solid;
+  border-radius: 8px;
+  color: #10183a;
+}
+.place-hud .place-alert.level3 {
+  border-color: #8a1a08;
+  background: linear-gradient(180deg, #ffd6cc 0%, #ff8a6e 50%, #f0563a 54%, #ff9b80 100%);
+}
+.place-hud .place-alert.level2 {
+  border-color: #8a5a06;
+  background: linear-gradient(180deg, #fff3cf 0%, #ffd56e 50%, #f0b232 54%, #ffe08e 100%);
+}
+.place-hud .place-alert.level1 {
+  border-color: #4a5880;
+  background: linear-gradient(180deg, #f4f7ff 0%, #c9d4f0 50%, #a8b6dc 54%, #d6def4 100%);
+}
+.place-hud .place-alert-more {
+  font-size: 14px;
+  font-weight: 700;
+  border: 1px solid rgba(190, 205, 255, 0.55);
+  background: var(--panel-solid, #17255a);
+  color: var(--ink, #fff);
+}
+.place-alert-n {
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  min-width: 14px;
+  padding: 0 3px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 14px;
+  background: #10183a;
+  color: #fff;
+}
+.place-alert-words,
+.place-hud .place-alert-shut {
+  display: none;
+}
+/* What an alert tapped says, under the paces, short of the column. */
+.place-notice {
+  top: calc(var(--place-top) + 116px);
+  right: calc(var(--place-r) + 58px);
+  max-height: 188px;
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 0 0 0 4px;
+  background: rgba(64, 44, 8, 0.95);
   border-color: rgba(255, 214, 120, 0.7);
 }
-.place-notice .place-notice-text {
+.place-notice-text {
   flex: 1 1 0;
   min-width: 0;
+  max-height: 186px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.place-hud .place-notice-words {
   text-align: left;
   white-space: normal;
   background: none;
   border: none;
+  box-shadow: none;
   color: #ffe6a8;
-  padding: 4px 0;
+  padding: 4px 2px;
 }
-.place-notice .place-notice-shut {
+.place-hud .place-notice-shut {
   flex: 0 0 auto;
   background: none;
   border: none;
+  box-shadow: none;
   color: #ffe6a8;
   font-size: 20px;
 }
+.place-hud.sheet-open .place-notice {
+  display: none;
+}
+/* The menu: under the bar at the right, in the alerts' place while it is open. */
+.place-menu {
+  top: calc(var(--place-top) + 60px);
+  left: auto;
+  width: 250px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px;
+}
+.place-hud .place-menu-item {
+  text-align: left;
+  padding: 0 10px;
+}
+.place-hud.menu-open .place-alerts,
+.place-hud.menu-open .place-notice,
+.place-hud.choosing .place-pill,
+.place-hud.choosing .place-notice,
+.place-hud.choosing .place-alerts {
+  display: none;
+}
 .place-foot {
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 6px);
+  bottom: var(--place-b);
   height: 56px;
   display: flex;
   gap: 4px;
@@ -111,6 +271,7 @@ body.placing #hud > *:not(.place-hud):not(.page-window):not(.panel.page-panel) {
 }
 .place-foot .place-tab {
   flex: 1 1 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -123,8 +284,9 @@ body.placing #hud > *:not(.place-hud):not(.page-window):not(.panel.page-panel) {
   font-size: 12px;
 }
 .place-sheet {
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 68px);
-  max-height: min(52vh, 520px);
+  bottom: calc(var(--place-b) + 62px);
+  /* (Never up to the alert column, whose six keys end some 340 px down.) */
+  max-height: min(52vh, 520px, calc(100vh - 420px));
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -299,24 +461,23 @@ body.placing #hud > *:not(.place-hud):not(.page-window):not(.panel.page-panel) {
   color: #9ee7ff;
   text-decoration: underline;
 }
-/* How the town is run: a key on its bar, and the ways to choose from in the notice line's place while they are open. */
-.place-hud .place-mode {
-  flex: 0 0 auto;
-  font-size: 18px;
-}
+/* How the town is run: asked on entering, and from the key on its bar; under the bar while open. */
 .place-modes {
-  top: calc(env(safe-area-inset-top, 0px) + 62px);
+  top: calc(var(--place-top) + 60px);
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   padding: 4px;
 }
-.place-hud.choosing .place-notice {
-  display: none;
+.place-modes-words {
+  flex: 0 0 100%;
+  margin: 4px 6px 2px;
+  font-size: 13px;
 }
 .place-hud .place-mode-choice {
   flex: 1 1 0;
   min-width: 0;
-  min-height: 52px;
+  min-height: 56px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -333,14 +494,13 @@ body.placing #hud > *:not(.place-hud):not(.page-window):not(.panel.page-panel) {
   font-size: 12px;
   opacity: 0.85;
 }
-/* A town watched: no notice line, no sheet, no tabs; a line at the foot for who or what the eye is with. */
-body.place-watching .place-notice,
+/* A town watched: no sheet, no tabs; a line at the foot for who or what the eye is with. */
 body.place-watching .place-sheet,
 body.place-watching .place-foot {
   display: none !important;
 }
 .place-watch {
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 6px);
+  bottom: var(--place-b);
   min-height: 56px;
   display: flex;
   align-items: stretch;
@@ -375,33 +535,97 @@ body.place-watching .place-foot {
   flex: 0 0 auto;
   font-size: 18px;
 }
-/* A page over the mode takes the sheet's and the tabs' place until it is closed; the mode's bar stays. */
+/* A page over the mode (the god game's, for what has no inspector of the mode's) takes the sheet's, the tabs' and the
+   notice's place until it is closed; the mode's bar stays. */
 body.placing:has(.page-window:not([hidden])) .place-sheet,
 body.placing:has(.page-window:not([hidden])) .place-foot,
-body.placing:has(.page-window:not([hidden])) .place-watch {
+body.placing:has(.page-window:not([hidden])) .place-watch,
+body.placing:has(.page-window:not([hidden])) .place-notice {
   display: none;
 }
 body.placing .page-window {
   z-index: 27;
 }
-/* A desk's width: a column of its own at the left, the bar over the notice over the sheet over the tabs; the rest of the
-   screen is the town's (and the sound's key, at the right, stays where it is). */
+/* A desk's width: the bar across the top with the paces in it, the alerts a column of their own at the right, and the
+   sheet docked across the rest of the foot over the tabs, a column at its left kept for the inspector. */
 @media (min-width: 900px) {
-  .place-bar,
-  .place-notice,
-  .place-foot,
-  .place-sheet,
-  .place-modes,
-  .place-watch {
+  .place-bar .place-pill .place-pace {
+    min-width: 46px;
+  }
+  .place-alerts {
+    top: calc(var(--place-top) + 60px);
+    width: 270px;
+    max-height: calc(100vh - 80px);
+    overflow-y: auto;
+  }
+  .place-alert-row {
+    gap: 2px;
+  }
+  .place-hud .place-alert {
+    flex: 1 1 0;
+    min-width: 0;
+    width: auto;
+    height: auto;
+    min-height: 46px;
+    justify-content: flex-start;
+    padding: 3px 6px;
+    text-align: left;
+    white-space: normal;
+  }
+  .place-hud .place-alert-more {
+    justify-content: center;
+  }
+  .place-alert-icon {
+    flex: 0 0 auto;
+    font-size: 18px;
+  }
+  .place-alert-words {
+    display: block;
+    flex: 1 1 0;
+    min-width: 0;
+    font-size: 12px;
+    line-height: 1.25;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .place-alert-n {
+    position: static;
+    flex: 0 0 auto;
+    order: 3;
+  }
+  .place-hud .place-alert-shut {
+    display: block;
+    flex: 0 0 auto;
+    min-width: 30px;
+    padding: 0;
+    font-size: 16px;
+  }
+  .place-notice {
+    display: none !important;
+  }
+  .place-menu {
+    width: 270px;
+  }
+  .place-modes {
     right: auto;
-    width: 460px;
+    width: 560px;
+    flex-wrap: wrap;
+  }
+  .place-sheet,
+  .place-foot,
+  .place-watch {
+    right: calc(var(--place-r) + 278px);
   }
   .place-sheet {
-    max-height: min(62vh, 600px);
+    max-height: min(58vh, 560px);
   }
-  /* (A page open stands in that column, over where the notice lies: the notice is away till it is shut.) */
-  body.placing:has(.page-window:not([hidden])) .place-notice {
-    display: none;
+  .place-foot {
+    justify-content: flex-start;
+  }
+  .place-foot .place-tab {
+    flex: 0 1 120px;
   }
 }
 .bar .town-place.on {
@@ -518,4 +742,425 @@ body.placing .page-window {
 .place-grid-free {
   justify-self: center;
   align-self: center;
+}
+
+/* The mode's own inspector: at the foot on a phone at three heights (a peek over the tabs, half the screen, all of it
+   below the paces and short of the alert column), pushed above a sheet open under it; docked at the left on a desk. */
+.place-insp {
+  pointer-events: auto;
+  position: absolute;
+  left: var(--place-l);
+  right: var(--place-r);
+  bottom: calc(var(--place-b) + 62px);
+  height: 138px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(
+    --panel-solid,
+    linear-gradient(180deg, rgba(40, 58, 120, 0.96), rgba(20, 30, 76, 0.96))
+  );
+  border: 1px solid rgba(190, 205, 255, 0.55);
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+.place-insp[hidden] {
+  display: none !important;
+}
+.place-insp[data-height="half"] {
+  height: min(50vh, 470px);
+}
+.place-insp[data-height="full"] {
+  height: auto;
+  top: calc(var(--place-top) + 116px);
+  right: calc(var(--place-r) + 58px);
+}
+.place-hud.insp-open.sheet-open .place-sheet {
+  height: 32vh;
+  max-height: 32vh;
+}
+.place-hud.insp-open.sheet-open .place-insp {
+  height: 138px;
+  top: auto;
+  right: var(--place-r);
+  bottom: calc(var(--place-b) + 62px + 32vh + 6px);
+}
+.place-hud.insp-tall .place-notice {
+  display: none;
+}
+.place-hud .place-insp-handle {
+  flex: 0 0 auto;
+  min-height: 22px;
+  height: 22px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: none;
+  position: relative;
+}
+.place-hud .place-insp-handle::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  width: 44px;
+  height: 5px;
+  margin-left: -22px;
+  border-radius: 3px;
+  background: rgba(190, 205, 255, 0.6);
+}
+.place-insp-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px 4px 8px;
+}
+.place-insp-portrait {
+  flex: 0 0 auto;
+  width: 64px;
+  height: 64px;
+  border-radius: 6px;
+  background: radial-gradient(circle at 50% 35%, rgba(120, 150, 230, 0.45), rgba(10, 18, 48, 0.6));
+}
+.place-insp-portrait[hidden] {
+  display: none;
+}
+.place-insp-names {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.place-insp-name {
+  margin: 0;
+  font-size: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.place-insp-sub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--muted, #a9bbe2);
+}
+.place-insp-keys {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 2px;
+}
+.place-hud .place-insp-key {
+  padding: 0;
+  font-size: 17px;
+}
+.place-insp-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 8px 8px;
+  -webkit-overflow-scrolling: touch;
+}
+.place-insp[data-height="peek"] .place-insp-body {
+  overflow: hidden;
+}
+.place-insp-now {
+  margin: 0 0 4px;
+  font-weight: 700;
+}
+.place-insp-why {
+  margin: 4px 0;
+  font-size: 12px;
+  color: var(--muted, #a9bbe2);
+}
+.place-insp-health {
+  margin: 2px 0 4px;
+  font-size: 13px;
+}
+.place-insp-health.bad {
+  color: #ffb4a0;
+}
+.place-insp-mood,
+.place-insp-need {
+  display: grid;
+  grid-template-columns: 74px 1fr 92px;
+  align-items: center;
+  gap: 6px;
+  min-height: 20px;
+  font-size: 12px;
+}
+.place-insp-needs {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2px;
+  margin: 2px 0 6px;
+}
+.place-insp-label {
+  color: var(--muted, #a9bbe2);
+  font-size: 12px;
+}
+.place-insp-value {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+.place-meter {
+  position: relative;
+  height: 9px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(190, 205, 255, 0.3);
+}
+.place-meter-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 4px;
+  background: #3fae74;
+}
+.place-insp-need.pressing .place-meter-fill {
+  background: #e0a23a;
+}
+.place-insp-need.high .place-meter-fill {
+  background: #d4533a;
+}
+.place-meter-mark {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  margin-left: -1px;
+  background: #fff;
+  box-shadow: 0 0 2px #000;
+}
+.place-insp-mood .place-meter::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.35);
+}
+.place-insp-mood.good .place-meter-fill {
+  background: #3fae74;
+}
+.place-insp-mood.low .place-meter-fill {
+  background: #e0a23a;
+}
+.place-insp-mood.bad .place-meter-fill {
+  background: #d4533a;
+}
+.place-insp-mood .place-meter-mark {
+  background: #ff8a6e;
+}
+.place-insp-orders,
+.place-insp-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 4px 0;
+}
+.place-hud .place-insp-tab {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0 4px;
+}
+.place-insp-facts {
+  display: grid;
+  grid-template-columns: 70px 1fr;
+  align-items: center;
+  gap: 2px 8px;
+  margin: 4px 0;
+}
+.place-insp-fact {
+  font-size: 13px;
+}
+.place-hud .place-insp-facts .place-link,
+.place-hud .place-insp-stock .place-link {
+  justify-self: start;
+  text-align: left;
+  white-space: normal;
+  padding: 0 4px;
+  background: none;
+  border: none;
+  box-shadow: none;
+  color: #9ee7ff;
+  text-decoration: underline;
+}
+.place-insp-thoughts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 4px 0;
+}
+.place-insp-thought {
+  display: grid;
+  grid-template-columns: 24px 1fr 40px 84px;
+  align-items: center;
+  gap: 4px;
+  min-height: 30px;
+  font-size: 13px;
+  border-bottom: 1px dotted rgba(190, 205, 255, 0.25);
+}
+.place-insp-thought-size {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.place-insp-thought.up .place-insp-thought-size {
+  color: #8ff0b0;
+}
+.place-insp-thought.down .place-insp-thought-size {
+  color: #ffa08a;
+}
+.place-insp-thought-days {
+  font-size: 11px;
+  color: var(--muted, #a9bbe2);
+  text-align: right;
+}
+.place-insp-people {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0;
+}
+.place-hud .place-insp-person {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  white-space: normal;
+  padding: 2px 8px;
+}
+.place-insp-life {
+  margin: 2px 0;
+  padding-left: 18px;
+  font-size: 12px;
+}
+.place-insp-sub {
+  font-size: 12px;
+}
+h3.place-insp-sub {
+  margin: 8px 0 2px;
+  font-size: 13px;
+  color: var(--ink, #fff);
+}
+.place-insp-prose {
+  margin-top: 6px;
+  padding: 4px 8px;
+  border-left: 3px solid var(--accent, #6fe7ff);
+  font-size: 12px;
+}
+.place-insp-prose p {
+  margin: 4px 0;
+}
+.place-insp-site {
+  position: relative;
+  height: 10px;
+  margin: 4px 0 8px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.35);
+}
+.place-insp-site-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 5px;
+  background: linear-gradient(90deg, #d9a54a, #f0d07a);
+}
+.place-insp-stock {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 4px 0;
+  font-size: 13px;
+}
+.place-insp-stock th {
+  text-align: left;
+  font-size: 11px;
+  color: var(--muted, #a9bbe2);
+  font-weight: 400;
+}
+.place-insp-stock td,
+.place-insp-stock th {
+  padding: 3px 4px;
+  border-bottom: 1px dotted rgba(190, 205, 255, 0.25);
+}
+.place-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.place-unit {
+  font-size: 11px;
+  color: var(--muted, #a9bbe2);
+}
+.place-hud .place-insp-order {
+  padding: 0 10px;
+}
+/* The one chosen: a ring at their feet and their name over them, fixed to them in the world (labels: no window of the HUD). */
+.place-ring,
+.place-tag {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  will-change: transform;
+}
+.place-ring[hidden],
+.place-tag[hidden] {
+  display: none;
+}
+.place-ring {
+  width: 40px;
+  height: 16px;
+  margin: -8px 0 0 -20px;
+  border: 3px solid #6ff0cf;
+  border-radius: 50%;
+  box-shadow: 0 0 6px rgba(111, 240, 207, 0.9);
+}
+.place-tag {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(8, 16, 44, 0.85);
+  border: 1px solid #6ff0cf;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  transform-origin: 50% 100%;
+}
+/* A page over the mode hides its inspector as it hides its sheet. */
+body.placing:has(.page-window:not([hidden])) .place-insp,
+body.placing:has(.page-window:not([hidden])) .place-ring,
+body.placing:has(.page-window:not([hidden])) .place-tag {
+  display: none;
+}
+@media (min-width: 900px) {
+  .place-insp,
+  .place-insp[data-height="half"],
+  .place-insp[data-height="full"],
+  .place-hud.insp-open.sheet-open .place-insp {
+    top: calc(var(--place-top) + 60px);
+    bottom: calc(var(--place-b) + 62px);
+    left: var(--place-l);
+    right: auto;
+    width: 360px;
+    height: auto;
+  }
+  .place-insp-handle {
+    display: none;
+  }
+  .place-insp[data-height="peek"] .place-insp-body {
+    overflow-y: auto;
+  }
+  .place-hud.insp-open .place-sheet {
+    left: calc(var(--place-l) + 368px);
+  }
+  .place-hud.insp-open.sheet-open .place-sheet {
+    height: auto;
+    max-height: min(58vh, 560px);
+  }
+  .place-hud.insp-open .place-modes {
+    left: calc(var(--place-l) + 368px);
+  }
 }
