@@ -18,6 +18,7 @@ import {
   MOOD,
   PERSON_BYTES,
   THOUGHT,
+  THOUGHTS,
   enterPlace,
   leans,
   placeMoodTerms,
@@ -62,9 +63,10 @@ const memories = (w: World, ref: string, kind: number) => {
   return out;
 };
 
-test("a person's memories are 32 bytes of them", () => {
-  // (The place's columns before memories were 72 bytes a person: eight memories of four bytes each are the growth.)
-  assert.equal(PERSON_BYTES, 72 + 32);
+test("a person's memories are 24 bytes of them, and a person of a place stays within a hundred", () => {
+  // (The place's columns before memories were 72 bytes a person: six memories of four bytes each are the growth.)
+  assert.equal(PERSON_BYTES, 72 + 4 * THOUGHTS);
+  assert.ok(PERSON_BYTES <= 100);
 });
 
 test("a fire fought is remembered by those who fought it, by their temper, and fades till it is let go", () => {
@@ -98,7 +100,7 @@ test("a fire fought is remembered by those who fought it, by their temper, and f
   go(w, ref, 60 * 24);
   assert.equal(memories(w, ref, THOUGHT.fire).length, 0, "let go once faded");
   let held = 0;
-  for (let k = 0; k < place.people.n * 8; k++)
+  for (let k = 0; k < place.people.n * THOUGHTS; k++)
     if (place.people.thought[k]! >>> 24 === THOUGHT.fire) held++;
   assert.equal(held, 0, "and its slot freed");
 });
@@ -125,7 +127,7 @@ test("nothing is remembered besides what a household's dates already reckon", ()
   }
   // (What its people remember after a season: all of kinds the place tells of, and each within its bounds.)
   let any = 0;
-  for (let k = 0; k < place.people.n * 8; k++) {
+  for (let k = 0; k < place.people.n * THOUGHTS; k++) {
     const v = place.people.thought[k]!;
     if (!v) continue;
     any++;
