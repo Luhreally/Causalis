@@ -9,6 +9,7 @@ import { lifeOf, mixOf, homePlanet, kindBody } from "../sim/index.ts";
 import {
   PLACE_AT,
   placeLotRef,
+  placePersonRef,
   placedId,
   type PlaceInspect,
   type PlaceInspectLot,
@@ -31,6 +32,7 @@ import {
   MOOD_BASE,
   MOOD_UNHEEDING,
   NEED_WORDS,
+  THOUGHT,
   enterPlace,
   hapTold,
   ordersOf,
@@ -77,6 +79,14 @@ const THOUGHT_WORDS: Readonly<Record<number, readonly [string, string]>> = {
   [MOOD.home]: ["🏠", "A new home"],
   [MOOD.ordered]: ["📋", "Held to a trade by an order"],
   [MOOD.homeless]: ["🏚️", "Their home lost"],
+};
+/** What each kind of memory is, said short, with its sign (host/place.ts THOUGHT). */
+const MEMORY_WORDS: Readonly<Record<number, readonly [string, string]>> = {
+  [THOUGHT.born]: ["👶", "A child born to the household"],
+  [THOUGHT.paired]: ["💞", "Paired"],
+  [THOUGHT.friendDied]: ["🕯️", "Their friend died"],
+  [THOUGHT.ofAge]: ["🎉", "Came of age, and took up work"],
+  [THOUGHT.fire]: ["🔥", "Fought a fire"],
 };
 /** A mood in a word. */
 export const moodWord = (m: number): string =>
@@ -129,8 +139,8 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
   const terms = placeMoodTerms(world, place, i),
     thoughts: PlaceThought[] = [
       ...terms.map((x) => ({
-        icon: THOUGHT_WORDS[x.bit]?.[0] ?? "•",
-        words: THOUGHT_WORDS[x.bit]?.[1] ?? "",
+        icon: (x.thought ? MEMORY_WORDS[x.thought] : THOUGHT_WORDS[x.bit])?.[0] ?? "•",
+        words: (x.thought ? MEMORY_WORDS[x.thought] : THOUGHT_WORDS[x.bit])?.[1] ?? "",
         size: Math.round(x.size),
         days: x.days,
       })),
@@ -177,7 +187,7 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
   return {
     kind: "person",
     id,
-    ref: me.ref,
+    ref: placePersonRef(place.town, id),
     page: me.ref,
     name: me.name,
     portrait: {
@@ -329,7 +339,10 @@ export function inspectLot(world: World, place: Place, lot: number): PlaceInspec
         }
       : null,
     words:
-      lot === PLACE_AT.square
+      (place.fire.length && place.t < place.fire[1]! && place.fire[0] === lot
+        ? "🔥 Burning now: those who live within a cry of it, and any keeping the fire watch, turn out to fight it. "
+        : "") +
+      (lot === PLACE_AT.square
         ? "The town's square: where its people meet in company, and where those with no roof live."
         : lot === PLACE_AT.fields
           ? "Its fields and pastures outside the town, worked by its farmers and herders."
@@ -337,7 +350,9 @@ export function inspectLot(world: World, place: Place, lot: number): PlaceInspec
             ? `Home of ${r.households.length} ${r.households.length === 1 ? "household" : "households"}.`
             : kind
               ? `${shut ? "Its work is stopped by your order." : "Worked in by the town's own."}`
-              : "",
+              : lot >= 0
+                ? "No household lives here now."
+                : ""),
   };
 }
 

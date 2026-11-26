@@ -92,6 +92,7 @@ import {
   YEAR,
   Hasher,
   apportion,
+  dmath,
   hashString,
   type Ref,
   type Stream,
@@ -488,7 +489,15 @@ type People = {
   turn: Uint8Array;
   /** The one they are paired with (their number; 0: no one; PROMISED: a pairing with their friend is set for a day to come). */
   mate: Uint32Array;
+  /**
+   * What they remember that bears on their mood, THOUGHTS a person (0: none): each its kind (THOUGHT) × 2^24, what it
+   * moved their mood by when it befell them (points + 128) × 2^16, and the day it did (the world's day, its last 16 bits).
+   * It fades by halves (THOUGHT_HALF) and is let go once it moves them by less than a point.
+   */
+  thought: Uint32Array;
 };
+/** How many things one remembers at once (the weakest let go for a new one). */
+const THOUGHTS = 8;
 /** Bytes a person takes in a place's columns. */
 export const PERSON_BYTES =
   4 +
@@ -520,7 +529,8 @@ export const PERSON_BYTES =
   2 +
   2 +
   1 +
-  4;
+  4 +
+  4 * THOUGHTS;
 
 function peopleOf(cap: number): People {
   return {
@@ -555,6 +565,7 @@ function peopleOf(cap: number): People {
     skill: new Uint16Array(cap),
     turn: new Uint8Array(cap),
     mate: new Uint32Array(cap),
+    thought: new Uint32Array(cap * THOUGHTS),
   };
 }
 const PEOPLE_COLS = [
@@ -588,9 +599,10 @@ const PEOPLE_COLS = [
   "skill",
   "turn",
   "mate",
+  "thought",
 ] as const;
 type Col = (typeof PEOPLE_COLS)[number];
-const widthOf = (c: Col) => (c === "needs" ? NEEDS : 1);
+const widthOf = (c: Col) => (c === "needs" ? NEEDS : c === "thought" ? THOUGHTS : 1);
 
 function grown(p: People, cap: number): People {
   const q = peopleOf(cap);
@@ -2011,6 +2023,7 @@ function addPerson(place: Place, sex: number, occ: number, born: number, house: 
   p.skill[i] = 0;
   p.turn[i] = 0;
   p.mate[i] = 0;
+  p.thought.fill(0, i * THOUGHTS, (i + 1) * THOUGHTS);
   place.houses.members[house]!++;
   return i;
 }
@@ -2290,6 +2303,7 @@ function note(
       what === HAP.struckDead || what === HAP.fell || what === HAP.plague ? a : 0,
       1,
     );
+  remembered(place, what, id, a, b, gone);
   place.log.push(
     gone >= 0
       ? { t: place.t, what, id, a, b, k: place.houses.key[p.house[gone]!]!, s: sexOf(p, gone) }
@@ -4071,15 +4085,98 @@ export function placeTemper(place: Place, i: number): PlaceTemper {
 /** How much a thing weighs with one of a leaning, against most (1): half as much at the least, half as much again at the most. */
 export const leans = (x: number): number => 0.5 + x;
 
+/**
+ * What one remembers that bears on their mood (asked 2026-11-25 for the mood's reasons as a colony sim shows them): what
+ * befell them or theirs that the place tells of already, each moving their mood by so much, weighed by their own temper,
+ * and fading by halves. What a household's dates already reckon (a death in it, a home new or lost) is not remembered
+ * besides, so nothing is counted twice.
+ */
+export const THOUGHT = { born: 1, paired: 2, friendDied: 3, ofAge: 4, fire: 5 } as const;
+/** Days in which each kind fades to half. */
+const THOUGHT_HALF: readonly number[] = [0, 30, 60, 20, 30, 10];
+const thoughtKind = (v: number): number => v >>> 24;
+const thoughtSize = (v: number): number => ((v >>> 16) & 255) - 128;
+const thoughtAge = (v: number, today: number): number => (today - (v & 0xffff)) & 0xffff;
+/** What a memory moves a mood by now (points), as it has faded. */
+const thoughtNow = (v: number, today: number): number =>
+  thoughtSize(v) * dmath.halved(thoughtAge(v, today), THOUGHT_HALF[thoughtKind(v)] ?? 30);
+/** Something one of a place's people will remember: kept, in place of the weakest memory where all are taken. */
+function remember(place: Place, i: number, kind: number, size: number): void {
+  const p = place.people,
+    s = Math.max(-127, Math.min(127, Math.round(size))),
+    today = Math.floor(place.t / DAY),
+    at = i * THOUGHTS;
+  if (!s) return;
+  let slot = -1,
+    weakest = Infinity;
+  for (let k = 0; k < THOUGHTS; k++) {
+    const v = p.thought[at + k]!;
+    if (!v) {
+      if (slot < 0 || weakest > 0) {
+        slot = k;
+        weakest = 0;
+      }
+      continue;
+    }
+    // (The same befalling them twice in a day is one thing: a fire fought by turns, a cry heard again.)
+    if (thoughtKind(v) === kind && thoughtAge(v, today) < 1) return;
+    const w = Math.abs(thoughtNow(v, today));
+    if (w < weakest) {
+      weakest = w;
+      slot = k;
+    }
+  }
+  p.thought[at + slot] = ((kind << 24) | ((s + 128) << 16) | (today & 0xffff)) >>> 0;
+}
+/** What of what befell whom a place's log tells is remembered, and by whom (note's hook). */
+function remembered(
+  place: Place,
+  what: number,
+  id: number,
+  a: number,
+  b: number,
+  gone: number,
+): void {
+  const p = place.people,
+    of = (i: number) => placeTemper(place, i);
+  if (what === HAP.born) {
+    // (A child born to the household: each of it is glad, the closer to their kin the more.)
+    const c = placeIndexOf(place, id);
+    if (c < 0) return;
+    for (let k = 0; k < p.n; k++)
+      if (k !== c && p.house[k] === p.house[c])
+        remember(place, k, THOUGHT.born, 20 * leans(of(k).kin));
+  } else if (what === HAP.paired) {
+    for (const who of [id, a, b]) {
+      const k = who ? placeIndexOf(place, who) : -1;
+      if (k >= 0) remember(place, k, THOUGHT.paired, 30 * leans(of(k).sociable));
+    }
+  } else if (what === HAP.ofAge) {
+    const k = placeIndexOf(place, id);
+    if (k >= 0) remember(place, k, THOUGHT.ofAge, 10);
+  } else if (HAP_DEATH.has(what)) {
+    // (A friend of another household dead: their own household's grief is its date's, not a memory besides.)
+    const i = gone >= 0 ? gone : placeIndexOf(place, id),
+      house = i >= 0 ? p.house[i]! : -1;
+    for (let k = 0; k < p.n; k++)
+      if (k !== i && p.friend[k] === id && p.house[k] !== house)
+        remember(place, k, THOUGHT.friendDied, -25 * leans(of(k).sociable));
+  }
+}
+
 /** Below this a mood heeds no order to change its work. */
 export const MOOD_UNHEEDING = -50;
 /** Where a mood stands with nothing bearing on it: most are a little content. */
 export const MOOD_BASE = 15;
-/** One thing bearing on a mood: what it is (MOOD's bit), how far it moves it (points), and its days left (null: while it lasts). */
+/**
+ * One thing bearing on a mood: what it is (MOOD's bit; 0 for a memory, whose kind is THOUGHT's), how far it moves it
+ * (points), and its days left (null: while it lasts).
+ */
 export type MoodTerm = {
   readonly bit: number;
   readonly size: number;
   readonly days: number | null;
+  readonly thought?: number;
 };
 /**
  * What bears on one's mood now, each by how much, weighed by their own temper (placeTemper): from needs met over the days
@@ -4130,6 +4227,23 @@ function moodTerms(
     });
   if (p.bound[i] && p.bound[i]! < BOUND_ARMS)
     out.push({ bit: MOOD.ordered, size: -(10 * leans(1 - temper.bidden)), days: null });
+  // What they remember, as it has faded; and the days till it is let go.
+  for (let k = i * THOUGHTS; k < (i + 1) * THOUGHTS; k++) {
+    const v = p.thought[k]!;
+    if (!v) continue;
+    const now = thoughtNow(v, today);
+    if (Math.abs(now) < 1) continue;
+    const half = THOUGHT_HALF[thoughtKind(v)] ?? 30;
+    out.push({
+      bit: 0,
+      size: now,
+      days: Math.max(
+        1,
+        Math.ceil(half * Math.log2(Math.abs(thoughtSize(v)))) - thoughtAge(v, today),
+      ),
+      thought: thoughtKind(v),
+    });
+  }
   return out;
 }
 /** What bears on one of a place's people's mood now, as their next day's turn will weigh it (read only). */
@@ -4571,6 +4685,9 @@ function tick(world: World, place: Place, f: Frame): void {
         to += x.size;
       }
       p.moodWhy[i] = why;
+      // (What has faded past a point is let go.)
+      for (let k = i * THOUGHTS; k < (i + 1) * THOUGHTS; k++)
+        if (p.thought[k] && Math.abs(thoughtNow(p.thought[k]!, today)) < 1) p.thought[k] = 0;
       p.mood[i] = Math.max(-100, Math.min(100, Math.round(p.mood[i]! + (to - p.mood[i]!) / 4)));
       if (!p.health[i]) {
         const sick = ailing(),
@@ -4704,6 +4821,9 @@ function tick(world: World, place: Place, f: Frame): void {
     // A fire in the town: the grown who live within a cry of it turn out to fight it, asleep or not, until it is out or
     // hunger takes them off; and its watch, where one is kept (fireCrew).
     if (fireLot !== null && hunger < 0.6 && fireOut!.has(p.id[i]!)) {
+      // (Turned out to fight it: a fear and a toil remembered, the more by the timid.)
+      if (p.act[i] !== ACT.brigade)
+        remember(place, i, THOUGHT.fire, -12 * leans(1 - placeTemper(place, i).bold));
       p.act[i] = ACT.brigade;
       p.why[i] = WHY.fire;
       if (p.at[i] !== fireLot) go(place, i, fireLot, world);
