@@ -4511,7 +4511,9 @@ function meetDay(world: World, place: Place, rounds = 1): void {
           );
           tieMove(p, a, b, blows ? -3 : -1);
         }
-        note(place, blows ? HAP.brawl : HAP.quarrel, p.id[i]!, p.id[j]!);
+        // (Blows are told in the log; words are only remembered, and told on the Social tab: three a day in a town of
+        // five hundred filled a log a town keeps to about its people's number, and pushed out its births and comings.)
+        if (blows) note(place, HAP.brawl, p.id[i]!, p.id[j]!);
       }
     }
   // (What is not met again fades: a point a week toward nothing.)

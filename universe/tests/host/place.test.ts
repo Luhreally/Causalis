@@ -288,7 +288,11 @@ test("only entered towns are kept, and no more than the cap: the least lately en
   assert.ok(store.places.reduce((n, p) => n + p.people.n, 0) <= PEOPLE_MOST);
   assert.ok(store.get(towns.at(-1)!.ref), "the last entered is kept");
   assert.ok(!store.get(towns[0]!.ref), "the first entered was let go");
-  assert.ok(store.bytes() < 1_200_000, `${store.bytes()} bytes`);
+  // (A million and a half held in memory: raised from 1.2 for N8's ties, 177 bytes a person where they were 117. In the
+  // save, measured on first light at 150 with four towns of 7,299 people kept and watched ten days: places add 123 bytes a
+  // person to the save's text and 40 gzipped, ties 21 and 28 of those; the cap's 12,000 people would add 1.5 MB to the
+  // save's text and 0.5 MB gzipped, against a whole save of 10.8 MB (3.4 gzipped) there and the release's 48 MB limit.)
+  assert.ok(store.bytes() < 1_500_000, `${store.bytes()} bytes`);
 });
 
 test("a place's people and lots have pages that say what they hold and why they do what they do", () => {

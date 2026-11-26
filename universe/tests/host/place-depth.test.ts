@@ -307,7 +307,8 @@ test("what its land's count brings a town watched is lived on the days of the ye
   // To an hour before a year's turn, then across it: what the matching brings waits, each for its day.
   w.runTo((Math.floor(w.now / YEAR) + 1) * YEAR - HOUR);
   placeFrame(w, s.ref, []);
-  const before = place.log.length,
+  const t0 = place.t,
+    before = place.log.length,
     n0 = place.people.n;
   watch(w, s.ref, 2, 1);
   const waits = () => placeDue(place).filter((x) => x.what !== "pair" && x.what !== "bury"),
@@ -362,7 +363,8 @@ test("what its land's count brings a town watched is lived on the days of the ye
       placeFrame(x, s.ref, []);
     }
   assert.equal(placeDigest(kept), placeDigest(place), "the same lived from a save as stayed with");
-  const told = place.log.slice(before),
+  // (By the clock, not by place in the log: a log kept to its town's size lets its oldest lines go as new ones come.)
+  const told = place.log.filter((x) => x.t > t0),
     lived = due.filter((x) => x.t <= place.t),
     count = (what: number) => told.filter((x) => x.what === what).length,
     of = (what: string) => lived.filter((x) => x.what === what).length;

@@ -12,6 +12,8 @@ import {
   HAP,
   PERSON_BYTES,
   RIVAL_AT,
+  THOUGHT,
+  THOUGHTS,
   TIES,
   enterPlace,
   placeDigest,
@@ -94,12 +96,19 @@ test("each knows up to a dozen, likes those alike, quarrels with rivals; kept in
   assert.ok(fN > 0 && rN > 0, `${fN} friendships, ${rN} rivalries`);
   assert.ok(fGap / fN < rGap / rN, `friends ${fGap / fN} apart, rivals ${rGap / rN}`);
   // Rivals who meet quarrel, and it is told.
-  const quarrels = place.log.filter((x) => x.what === HAP.quarrel || x.what === HAP.brawl);
-  assert.ok(quarrels.length > 0, "some quarrelled");
-  const q = quarrels.at(-1)!,
-    one = placeIndexOf(place, q.id);
+  // (Words are remembered, and blows told in the log besides.)
+  let one = -1;
+  for (let k = 0; k < p.n * THOUGHTS && one < 0; k++) {
+    const kind = p.thought[k]! >>> 24;
+    if (kind === THOUGHT.quarrel || kind === THOUGHT.brawl) one = Math.floor(k / THOUGHTS);
+  }
+  assert.ok(one >= 0, "some quarrelled, and remember it");
+  assert.ok(
+    place.log.every((x) => x.what !== HAP.quarrel),
+    "words are not told in the log",
+  );
   if (one >= 0) {
-    const seen = inspectPerson(w, place, q.id)!;
+    const seen = inspectPerson(w, place, p.id[one]!)!;
     assert.ok(seen.ties.length > 0 && /know/.test(seen.tiesWords), seen.tiesWords);
     assert.ok(
       seen.ties.every((t) => /\((\+|-)?\d+\)$/.test(t.words)),
