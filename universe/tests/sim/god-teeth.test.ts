@@ -74,9 +74,13 @@ test("the greatest drought or blight held five years starves a well-stocked land
     months = (w: World, k: number) =>
       (marketsOf(w).get(k)?.food(FOODS) ?? 0) /
       Math.max(1, populationContext(w).provinces.get(k)?.total() ?? 0),
-    // (The best-stocked land of the largest realm with a few thousand in it.)
+    // (The best-stocked land of the largest realm with a few thousand in it, and no realm's seat: the held a realm's foes give
+    // up at a peace come home to its seat, sim/war/held.ts, and a peace the act hastens is no part of the act's toll. First
+    // light's largest realm's seat was this land till 2026-11-25: a blight's peace brought 4,036 of its own home to it in 222,
+    // in the years a land let be was still at war.)
+    seats = new Set([...politiesOf(base).living()].map((p) => p.seat)),
     land = r0.members
-      .filter((k) => (c0.provinces.get(k)?.total() ?? 0) > 3000)
+      .filter((k) => (c0.provinces.get(k)?.total() ?? 0) > 3000 && !seats.has(k))
       .sort((a, b) => months(base, b) - months(base, a) || a - b)[0]!;
   assert.ok(months(base, land) > 18, `the land keeps ${months(base, land)} months' food`);
   const run = (cmd: string | null, strength: number, years: number) => {
