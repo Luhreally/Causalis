@@ -518,7 +518,7 @@ const paletteWords = () => k<string>(`document.querySelector(".palette-words")?.
 async function walk(
   hands: Hands,
   tag: string,
-): Promise<{ agent: number; name: string; listener: number | null } | null> {
+): Promise<{ agent: number; name: string; listener: number | null; tried: number[] } | null> {
   const n = (s: string) => `${hands.name}: ${s}`;
   // The palette refused plainly in a town the hand does not rest on.
   if (hands === desk || kit) {
@@ -619,7 +619,8 @@ async function walk(
       ).test(hint),
     n(`the work's words before it could be done: “${hint}”`),
   );
-  // The controls as the phone shows them: four acts a thumb's width, Let go, the strip; the game's own put away.
+  // The controls as the phone shows them: four acts a thumb's width, Let go, the strip; the game's own put away. (A fifth
+  // act's slot, 8c0ea943, stands hidden till a gift gives one: the acts shown are counted.)
   // A property this engine does not know (WebKit's Windows build knows neither `overscroll-behavior`
   // nor `-webkit-touch-callout`; an iPhone's Safari knows both) it drops as it reads the page's
   // styles, so for that one the page's own style text is read for it instead.
@@ -635,7 +636,7 @@ async function walk(
     const styles = [...document.querySelectorAll("style")].map((e) => e.textContent ?? "");
     for (const l of document.querySelectorAll('link[rel="stylesheet"]')) styles.push(await (await fetch(l.href)).text());
     return {
-      acts: [...document.querySelectorAll(".possess-act")].map((b) => Math.min(box(b).width, box(b).height)),
+      acts: [...document.querySelectorAll(".possess-act:not([hidden])")].map((b) => Math.min(box(b).width, box(b).height)),
       letGo: box(document.querySelector(".possess-letgo")).height,
       chrome: [...document.querySelectorAll("#hud > *:not(.possess-hud)")].filter((e) => getComputedStyle(e).display !== "none").length,
       hud: { touchAction: cs.touchAction, userSelect: cs.userSelect || cs.webkitUserSelect, callout: cs.webkitTouchCallout ?? "", overscroll: getComputedStyle(document.body).overscrollBehaviorY ?? "" },
@@ -742,11 +743,14 @@ async function walk(
   check(turned > 0.2, n(`a drag did not turn the eye (${turned.toFixed(2)} rad)`));
   // A word to the nearest of those about him: the stick held, the word said with another finger.
   let listener: number | null = null;
+  // (Those walked up to: a word is said to the nearest of those about him, who may be another than the one walked to.)
+  const tried: number[] = [];
   const others = (s?.live?.bodies ?? [])
     .filter((b) => b.id !== s!.agent && b.doing === "way")
     .map((b) => ({ ...b, d: Math.hypot(b.x - s!.me!.x, b.z - s!.me!.z) }))
     .sort((a, b) => a.d - b.d);
   for (const o of others.slice(0, 4)) {
+    tried.push(o.id);
     for (let tries = 0; tries < 4 && listener === null; tries++) {
       const b = await k<{ x: number; z: number } | null>(
         `globalThis.causalis.possess.drawn(${o.id})`,
@@ -773,7 +777,7 @@ async function walk(
   say(n(`a word: “${s?.live?.told?.words ?? ""}” (${others.length} about him; ${took()})`));
   check(listener !== null, n("no word said to anyone about him"));
   await shot(`${tag}-4-talk`);
-  const taken = { agent: s?.agent ?? chosen.index, name: chosen.name, listener };
+  const taken = { agent: s?.agent ?? chosen.index, name: chosen.name, listener, tried };
   // Turned on its side and back: every control in its place, none over another.
   if (hands !== desk) {
     const laid = async (w: number, h: number) => {
@@ -931,12 +935,13 @@ async function walk(
     .catch(() => undefined);
   await page.waitForTimeout(slow(1500));
   // (And the orbit handed back over where he stood, as much of the town across the screen as a
-  // desk shows at the nearest: metres across at its target, the lens 45° high.)
+  // desk shows at the nearest: metres across at its target, the lens 45° high, along the screen's longer side. Since
+  // 1a15a6a0 a phone held upright is handed back 90 m off, a desk 60: across a phone's narrow width that is 34 m, and 75 up it.)
   const back = await k<{ held: boolean; hud: boolean; chrome: number; across: number }>(`({
     held: !!globalThis.causalis.possess.state(),
     hud: !document.querySelector(".possess-hud").hidden,
     chrome: [...document.querySelectorAll("#hud > *:not(.possess-hud)")].filter((e) => getComputedStyle(e).display !== "none").length,
-    across: (globalThis.causalis.rig.distance / 0.1) * 2 * Math.tan(Math.PI / 8) * (innerWidth / innerHeight),
+    across: (globalThis.causalis.rig.distance / 0.1) * 2 * Math.tan(Math.PI / 8) * Math.max(1, innerWidth / innerHeight),
   })`);
   check(!back.held && !back.hud, n("not let go"));
   check(back.chrome > 0, n("the game's own controls not back after letting go"));
@@ -970,7 +975,10 @@ function frameGaps(p: Page, n: number): Promise<number[]> {
 }
 
 /** What a walk wrote back: the chronicle, his page, the spirits of the one spoken to. */
-async function written(hands: Hands, w: { agent: number; name: string; listener: number | null }) {
+async function written(
+  hands: Hands,
+  w: { agent: number; name: string; listener: number | null; tried: number[] },
+) {
   const n = (s: string) => `${hands.name}: ${s}`,
     me = first(w.name),
     chron = await ask<{ events: { type: string; claim: string }[] }>("chronicle", {
@@ -1002,7 +1010,11 @@ async function written(hands: Hands, w: { agent: number; name: string; listener:
     n(`his page does not remember what he made: ${remembered.join(" | ")}`),
   );
   if (w.listener !== null) {
-    const mood = await ask<{ mood: number } | null>("possess.mood", { id: w.listener });
+    let mood: { mood: number } | null = null;
+    for (const id of w.tried) {
+      const m = await ask<{ mood: number } | null>("possess.mood", { id });
+      if (m && (!mood || m.mood > mood.mood)) mood = m;
+    }
     say(n(`the one spoken to: spirits ${mood?.mood ?? "?"}`));
     check((mood?.mood ?? 0) > 0, n(`the spirits of the one spoken to not moved (${mood?.mood})`));
   }

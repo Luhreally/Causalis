@@ -152,8 +152,10 @@ test("growth starts at the warmth a world's own life is fitted to", async () => 
   assert.equal(coverOf(-5, 600, 0.5).growth, 0);
   const cold = coverOf(-5, 600, 0.5, 1, 1, -8),
     warm = coverOf(15, 600, 0.5);
+  // (Its rate is Lieth's warmth term at -5, an eighth of the most; the warm land at the same rain is held by its rain to a
+  // third of the most, so the cold one grows under half as much.)
   assert.ok(
-    cold.growth > 0 && cold.growth < warm.growth / 3,
+    cold.growth > 0 && cold.growth < 0.15 && cold.growth < warm.growth / 2,
     `${cold.growth} against ${warm.growth}`,
   );
   assert.ok(landUseOf(cold, -5, -8).forage > 0);

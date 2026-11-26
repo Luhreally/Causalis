@@ -20,7 +20,7 @@
 // Its small world being a people of the water's (asked for 2026-11-05, "the overlays dont look right in
 // the underwater cities/countries"), it also looks at what they hold where they hold it: a town seen from
 // under its sea; its land's map with the town drawn on the seabed; the Realms lens on their sea's spots.
-// On CI and by default the world is a small one that gets there ("kestrel 557", twelve lands, a century
+// On CI and by default the world is a small one that gets there ("marrow 18", nine lands, a century
 // past the year it gathers its star, a couple of minutes); --baked <file> takes the title's own world instead, Earth's "tide 207"
 // at year 2,000 (or --seed another at --year another), and looks at it (a world that wants a quarter of
 // an hour on a runner to reach).
@@ -30,7 +30,6 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 import { preview } from "vite";
-import { keptLife } from "../src/rules/index.ts";
 import { chromium } from "playwright";
 import { YEAR, rulesetId, saveWorld, seedFromText } from "../src/kernel/index.ts";
 import { ALIEN, EARTH } from "../src/host/planet.ts";
@@ -70,9 +69,17 @@ const root = fileURLToPath(new URL("..", import.meta.url)),
   universe = bakedFile ? EARTH : ALIEN,
   chosen = argv.indexOf("--seed"),
   chosenYear = argv.indexOf("--year"),
-  // (Kestrel 557 as it was made, life kept: of its own tree of life (B3 to B5) its people walk, where the people it bore before
-  // live in the water, whose towns on the seabed and sea under their realms this gate looks at.)
-  seed = bakedFile ? (chosen >= 0 ? argv[chosen + 1]! : PAST_WORLD.seed) : keptLife("kestrel 557");
+  // (Marrow 18: a people of the water, whose towns on the seabed and sea under their realms this gate looks at. Kestrel 557, life
+  // kept, was the world here; under the rules of the release pass (2026-11-25) it came to beams by 2750 and stood there to 6000
+  // (no land of its twelve found the long sleep, halls on other worlds or the fusion drive). Of the small worlds of a people of
+  // the water scanned then, marrow 18 gathers its star and remakes a world by 4000; wren 4 only by 5750 to 6000.)
+  seed = bakedFile
+    ? chosen >= 0
+      ? argv[chosen + 1]!
+      : PAST_WORLD.seed
+    : chosen >= 0
+      ? argv[chosen + 1]!
+      : "marrow 18";
 /** The year it's looked at: a baked world's own, or a small one's a century past gathering its star (the rules move when; it's the age that is being looked at). */
 let AT = bakedFile ? (chosenYear >= 0 ? Number(argv[chosenYear + 1]) : PAST_WORLD.year) : 0;
 let direct: unknown = null,
@@ -86,8 +93,8 @@ let direct: unknown = null,
   if (bakedFile) bytes = readFileSync(bakedFile);
   else {
     // (A hundred years past its gathering, and a world of it remade, which takes four centuries from its first making: since
-    // the rounds, kestrel 557 comes to world-making about 2450, and its first remakings were at 46 in a hundred at its
-    // gathering's hundredth year.)
+    // the rounds, kestrel 557 came to world-making about 2450, and its first remakings were at 46 in a hundred at its
+    // gathering's hundredth year; marrow 18 has both by 4000.)
     let gathered = false;
     for (let y = 1500; AT === 0 && y <= 6000; y += 50) {
       world.runTo(y * YEAR);

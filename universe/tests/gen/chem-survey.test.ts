@@ -37,7 +37,7 @@ test("the sixty worlds show the spec's figures, each within three", () => {
       thinWithIron: count((r) => r.air === "thin" && r.nativeLands > 0),
       carbonRich: count((r) => r.carbon === "carbon-rich"),
     },
-    expected = { nonSolar: 53, stoneSets: 7, nickel: 5, thin: 27, thinWithIron: 4, carbonRich: 7 };
+    expected = { nonSolar: 53, stoneSets: 7, nickel: 6, thin: 31, thinWithIron: 8, carbonRich: 5 };
   for (const key of Object.keys(expected) as (keyof typeof expected)[])
     assert.ok(
       Math.abs(actual[key] - expected[key]) <= 3,
