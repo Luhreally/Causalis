@@ -7,7 +7,7 @@ import { gunzipSync, gzipSync } from "node:zlib";
 import { HOUR, loadWorld, saveWorld, type World } from "../../src/kernel/index.ts";
 import { populationContext } from "../../src/sim/index.ts";
 import { EARTH } from "../../src/host/index.ts";
-import { enterPlace, placeDigest, placesOf } from "../../src/host/place.ts";
+import { THOUGHTS, enterPlace, placeDigest, placesOf } from "../../src/host/place.ts";
 import { placeFrame } from "../../src/host/placeplan.ts";
 import { universeWorld } from "./worlds.ts";
 
@@ -32,7 +32,7 @@ const go = (w: World, ref: string, hours: number) => {
 const told = (w: World, ref: string) => {
   const place = placesOf(w)!.get(ref)!;
   let held = 0;
-  for (let k = 0; k < place.people.n * 8; k++) if (place.people.thought[k]) held++;
+  for (let k = 0; k < place.people.n * THOUGHTS; k++) if (place.people.thought[k]) held++;
   return `${placeDigest(place)} ${w.checkpoints().at(-1)!.chain} ${held}`;
 };
 

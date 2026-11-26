@@ -496,8 +496,12 @@ type People = {
    */
   thought: Uint32Array;
 };
-/** How many things one remembers at once (the weakest let go for a new one). */
-const THOUGHTS = 8;
+/**
+ * How many things one remembers at once (the weakest let go for a new one): six, 24 bytes a person, so a person of a
+ * place stays within its hundred bytes (96). Few hold more than two at once (a town of 600 held 8 among them all after
+ * a quiet season), so a sixth is let go only in a year of many sorrows, and then the faintest.
+ */
+export const THOUGHTS = 6;
 /** Bytes a person takes in a place's columns. */
 export const PERSON_BYTES =
   4 +
