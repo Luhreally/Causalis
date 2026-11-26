@@ -687,11 +687,15 @@ test("work harms some by their trade's own wear; the hurt lie abed at home and a
   let hurt = 0,
     well = 0,
     abedAtHome = 0;
-  for (let d = 0; d < 150 && (hurt < 2 || well < 1); d++) {
-    w.runTo(w.now + DAY);
-    enterPlace(w, s.ref);
-    hurt += place.log.filter((x) => x.what === HAP.hurt && x.t > place.t - DAY).length;
-    well += place.log.filter((x) => x.what === HAP.well && x.t > place.t - DAY).length;
+  // (Watched an hour at a time, as a page watches it: a place read a day apart has its day drawn afresh up to the moment it
+  // is read, and that is the night's, when no one is at work to be hurt since N7 kept work to the working day.)
+  for (let d = 0; d < 24 * 200 && (hurt < 2 || well < 1 || abedAtHome === 0); d++) {
+    w.runTo(w.now + HOUR);
+    placeFrame(w, s.ref, []);
+    // (Its columns read afresh: a place's people grow into new ones as births pass what they held.)
+    const p = place.people;
+    hurt += place.log.filter((x) => x.what === HAP.hurt && x.t > place.t - HOUR).length;
+    well += place.log.filter((x) => x.what === HAP.well && x.t > place.t - HOUR).length;
     for (let i = 0; i < p.n; i++)
       if (p.ill[i]! > 0 && !p.eta[i] && p.act[i] === ACT.abed) {
         assert.equal(p.at[i], place.houses.home[p.house[i]!]);

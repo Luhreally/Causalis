@@ -223,8 +223,10 @@ test("a household with no one grown and well fetches for itself, and no one goes
     }
   for (let k = 0; k < FOODS.length; k++) place.houses.pantry[house * FOODS.length + k] = 0;
   let fetched = false;
-  for (let k = 0; k < 4 * 24; k++) {
-    watch(w, s.ref, 1);
+  // (Looked at each ten minutes: a fetch from a store nearby is there and back within the hour.)
+  for (let k = 0; k < 4 * 24 * 6; k++) {
+    w.runTo(w.now + 600);
+    placeFrame(w, s.ref, []);
     for (let i = 0; i < p.n; i++)
       if (p.house[i] === house && (p.act[i] === ACT.fetch || p.act[i] === ACT.carry))
         fetched = true;

@@ -39,7 +39,6 @@ test("a place keeps its land's working day and days of rest, and plays when its 
   const w = universeWorld(EARTH, "first light", 150),
     s = near(w, 500),
     place = enterPlace(w, s.ref)!,
-    p = place.people,
     row = societyStore(w, LEISURE_STORE)?.get(s.cell);
   // Its day is its land's: the working day's hours, its holy days and feasts, its games.
   const d = placeDayOf(w, place);
@@ -47,7 +46,7 @@ test("a place keeps its land's working day and days of rest, and plays when its 
     assert.equal(d.hours, row[LEISURE_ROW.hours]! / 10);
     assert.equal(d.games, row[LEISURE_ROW.games]);
   }
-  assert.ok(d.hours >= 6 && d.hours <= 11 && d.to - d.from === d.hours);
+  assert.ok(d.hours >= 6 && d.hours <= 11 && Math.abs(d.to - d.from - d.hours) < 1e-9);
   // (Its days of rest come as often in a year as it keeps them.)
   let rested = 0;
   for (let k = 0; k < 365; k++) if (placeDayOf(w, place, k * DAY).rest) rested++;
@@ -65,12 +64,12 @@ test("a place keeps its land's working day and days of rest, and plays when its 
     const day = placeDayOf(w, place),
       hour = ((place.t % DAY) / DAY) * 24,
       inDay = day.rest === null && hour >= day.from && hour < day.to;
-    for (let i = 0; i < p.n; i++) {
-      if (p.act[i] === ACT.work && !p.eta[i]) {
+    for (let i = 0; i < place.people.n; i++) {
+      if (place.people.act[i] === ACT.work && !place.people.eta[i]) {
         if (inDay) workedIn++;
         else if (hour >= day.to + 1 || hour < day.from - 1 || day.rest) workedOff++;
       }
-      if (p.why[i] === WHY.play) played++;
+      if (place.people.why[i] === WHY.play) played++;
     }
   }
   assert.ok(workedIn > 0, "they work in the working day");
@@ -78,14 +77,16 @@ test("a place keeps its land's working day and days of rest, and plays when its 
   assert.ok(played > 0, "some play when the day's work is done");
   // Remembered: some hold a memory of the games.
   let glad = 0;
-  for (let k = 0; k < p.n * THOUGHTS; k++) {
-    const v = p.thought[k]! >>> 24;
+  for (let k = 0; k < place.people.n * THOUGHTS; k++) {
+    const v = place.people.thought[k]! >>> 24;
     if (v === THOUGHT.games || v === THOUGHT.feast) glad++;
   }
   assert.ok(glad > 0, "the games remembered");
   // Told: the inspector's day an hour at a time, and its lines.
-  const i = [...Array(p.n).keys()].find((j) => p.work[j]! > 0 || (p.sexOcc[j]! & 15) > 0)!,
-    seen = inspectPerson(w, place, p.id[i]!)!;
+  const i = [...Array(place.people.n).keys()].find(
+      (j) => place.people.work[j]! > 0 || (place.people.sexOcc[j]! & 15) > 0,
+    )!,
+    seen = inspectPerson(w, place, place.people.id[i]!)!;
   assert.equal(seen.day.length, 24);
   assert.deepEqual(seen.day, placeDayStrip(w, place, i));
   const rows = new Map(placeDayRows(w, place));

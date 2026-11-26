@@ -58,8 +58,9 @@ const temperGap = (place: Parameters<typeof placeTemper>[0], i: number, j: numbe
 test("each knows up to a dozen, likes those alike, quarrels with rivals; kept in the save", () => {
   const w = universeWorld(EARTH, "first light", 150),
     s = near(w, 500),
-    place = enterPlace(w, s.ref)!,
-    p = place.people;
+    place = enterPlace(w, s.ref)!;
+  // (Its columns read afresh after a watch: a place's people grow into new ones as births pass what they held.)
+  let p = place.people;
   assert.ok(PERSON_BYTES <= 180, `${PERSON_BYTES} bytes a person`);
   // Entered: each already knows some of their household, their work and their street.
   let known = 0,
@@ -75,6 +76,7 @@ test("each knows up to a dozen, likes those alike, quarrels with rivals; kept in
   assert.ok(ties / p.n >= 4, `${(ties / p.n).toFixed(1)} ties a person`);
   // Like takes to like: friends are more alike of temper than rivals.
   watch(w, s.ref, 60);
+  p = place.people;
   let fGap = 0,
     fN = 0,
     rGap = 0,

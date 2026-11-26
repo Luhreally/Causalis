@@ -40,6 +40,7 @@ import {
   placesOf,
   targetTable,
   type Place,
+  placeDayOf,
 } from "../../src/host/place.ts";
 import { dangersSheet, logSheet, placeFrame, placeNotices } from "../../src/host/placeplan.ts";
 import { universeWorld } from "./worlds.ts";
@@ -449,6 +450,13 @@ test("while a siege lies about a town no one goes out to its fields, and its not
   // (No siege is laid in this world's years here: the place's own reading of one is set, as its matching would set it.)
   place.matched.sieged = true;
   watch(w, town, 30);
+  // (Looked at in its working day: out of it, its farmers would be at home anyway, resting or at play; N7.)
+  for (let k = 0; k < 24; k++) {
+    const d = placeDayOf(w, place),
+      hour = ((place.t % DAY) / DAY) * 24;
+    if (d.rest === null && hour >= d.from + 1 && hour < d.to) break;
+    watch(w, town, 1);
+  }
   let out = 0,
     kept = 0;
   for (let i = 0; i < p.n; i++) {
