@@ -354,12 +354,8 @@ for (const view of [
       await press(".place-insp-handle", "the inspector's handle, to all of it");
       await look("14-insp-full", "the inspector at its full height");
     }
-    for (const [n, tab] of [
-      [2, "mood"],
-      [3, "life"],
-      [4, "work"],
-    ] as const) {
-      await press(`.place-insp-tab:nth-child(${n})`, `the inspector's ${tab} tab`);
+    for (const tab of ["mood", "skills", "life", "work"]) {
+      await press(`.place-insp-tab[data-tab="${tab}"]`, `the inspector's ${tab} tab`);
       await page.waitForTimeout(700);
       say(`${tab}: ${(await text(".place-insp-body")).slice(0, 400)}`);
       await look(`15-insp-${tab}`, `the inspector's ${tab} tab`);
@@ -367,15 +363,18 @@ for (const view of [
     await press(".place-insp-info", "ⓘ");
     await look("16-insp-prose", "the inspector's words behind ⓘ");
     await press(".place-insp-info", "ⓘ again");
-    await press(".place-insp-tab:nth-child(1)", "the inspector's first tab");
+    await press('.place-insp-tab[data-tab="now"]', "the inspector's first tab");
     // (At half the screen, where its orders show.)
     if (phone) {
       await k('globalThis.causalis.place.inspectHeight("half")');
       await page.waitForTimeout(400);
     }
-    await press(".place-insp-order", "the inspector's Orders");
-    await look("17-insp-orders", "a person's orders in the inspector");
-    await press(".place-insp-order", "Orders, closed");
+    // (A child has no orders to give.)
+    if ((await shown(".place-insp-order")) > 0) {
+      await press(".place-insp-order", "the inspector's Orders");
+      await look("17-insp-orders", "a person's orders in the inspector");
+      await press(".place-insp-order", "Orders, closed");
+    } else say("the one inspected keeps no work: no orders to look at");
     // A sheet opened under it: the inspector above it, peeked.
     await press('.place-tab[data-tab="people"]', "the People tab, the inspector open");
     await page.waitForTimeout(1200);
@@ -415,6 +414,15 @@ for (const view of [
     await page.waitForTimeout(700);
     say(`${tab}: ${(await text(".place-sheet-body")).slice(0, 300)}`);
     await look(`07-sheet-${tab}`, `the ${tab} sheet open`);
+    // (The Work sheet's priorities grid, each kind's skill under its key.)
+    if (tab === "work" && (await box(".place-grid-open"))) {
+      await press(".place-grid-open", "the priorities grid");
+      await page.waitForTimeout(900);
+      say(`grid: ${(await text(".place-grid")).slice(0, 300)}`);
+      check((await shown(".place-grid-lv")) > 0, "the grid tells each kind's skill");
+      await look("07b-grid", "the priorities grid, with skills");
+      await press(".place-grid-open", "the priorities grid, closed");
+    }
   }
   await press(".place-sheet-shut", "the sheet's close");
 

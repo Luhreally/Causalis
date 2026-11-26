@@ -21,6 +21,7 @@ import {
   ASK_PULL,
   HELD,
   MANAGED_TRADES,
+  PRIO_FIRE_OWN,
   cultureOf,
   healthOf,
   homePlanet,
@@ -86,6 +87,8 @@ import {
   placeIndexOf,
   placePrio,
   placeSkill,
+  placeSkills,
+  SK,
   placeKind,
   placeSites,
   placesOf,
@@ -1029,6 +1032,34 @@ export function stocksSheet(world: World, place: Place): PlaceStocksSheet {
 }
 
 /** A place's hands for its Work sheet. */
+/** The kinds of work one's skill is called by (SKILL_KINDS' order). */
+export const SKILL_NAMES: readonly string[] = [
+  "Hunting",
+  "Fields",
+  "Herds",
+  "Crafts",
+  "Hauling",
+  "Leading",
+  "Building",
+  "Healing",
+  "Fire watch",
+  "Cooking",
+];
+/**
+ * The grid's skill columns: those a priority is set for (PRIO_KINDS' order), then those one's hours are counted at that
+ * take none (who tends whom, who cooks and who hunts are their household's and their trade's to say).
+ */
+const GRID_SKILLS: readonly number[] = [
+  SK.fields,
+  SK.herds,
+  SK.crafts,
+  SK.hauling,
+  SK.building,
+  SK.fire,
+  SK.healing,
+  SK.cooking,
+  SK.hunting,
+];
 /** How many of a place's people its priorities grid shows at once. */
 export const GRID_ROWS = 48;
 
@@ -1053,7 +1084,8 @@ function prioGrid(world: World, place: Place, occ: number | null): PlaceWorkShee
       p.id[a.i]! - p.id[b.i]!,
   );
   return {
-    kinds: ["Fields", "Herds", "Crafts", "Hauling", "Building"],
+    kinds: ["Fields", "Herds", "Crafts", "Hauling", "Building", "Fire watch"],
+    skills: GRID_SKILLS.map((k) => SKILL_NAMES[k]!),
     all: list.length,
     rows: list.slice(0, GRID_ROWS).map(({ i, kinds }) => {
       const o = p.sexOcc[i]! & 15,
@@ -1064,10 +1096,23 @@ function prioGrid(world: World, place: Place, occ: number | null): PlaceWorkShee
         name: w.name,
         occ: o,
         skill: placeSkill(place, i).words,
-        // (Of themselves: their own trade and no other, and building when a site's crew is made up.)
-        kinds: kinds ?? [...MANAGED_TRADES.map((t) => (t === o ? 3 : 0)), 1],
+        // (Of themselves: their own trade and no other, building when a site's crew is made up, and a fire near them.)
+        kinds: kinds ?? [...MANAGED_TRADES.map((t) => (t === o ? 3 : 0)), 1, PRIO_FIRE_OWN],
         set: !!kinds,
         turned: p.turn[i]!,
+        skills: (() => {
+          const all = placeSkills(world, place, i);
+          return GRID_SKILLS.map((k) => {
+            const x = all[k]!;
+            return {
+              hours: x.hours,
+              level: x.level,
+              words: x.words,
+              fit: x.fit,
+              passion: x.passion,
+            };
+          });
+        })(),
       };
     }),
   };

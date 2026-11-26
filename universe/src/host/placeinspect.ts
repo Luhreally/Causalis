@@ -44,7 +44,9 @@ import {
   placePerson,
   placeSites,
   placeSkill,
+  placeSkills,
   placeTemper,
+  tradeKind,
   pressOf,
   siteStage,
   workWorth,
@@ -62,6 +64,7 @@ import {
   tradeWords,
   whyWords,
   OCCUPATION_WORK,
+  SKILL_NAMES,
 } from "./placeplan.ts";
 import { landEra, peopleBody } from "./village.ts";
 
@@ -234,6 +237,20 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
       ? `${cap(skill.words)} at ${OCCUPATION_WORK[r.occupation] ?? "their work"} · ${skill.hours.toLocaleString("en-US")} h`
       : null,
     skillWords: skillLine(world, place, i),
+    skills: child
+      ? []
+      : placeSkills(world, place, i).map((x, k) => ({
+          name: SKILL_NAMES[k]!,
+          hours: x.hours,
+          level: x.level,
+          words: x.words,
+          fit: x.fit,
+          passion: x.passion,
+          own: k === tradeKind(r.occupation),
+        })),
+    taught: p.taught[i]
+      ? `${SKILL_NAMES[p.taught[i]! - 1]}: what their household taught them as they grew (two hundred hours of it when they came of age)`
+      : null,
     temper: marks.length ? cap(marks.join(", ")) : "Much as most of their people",
     temperWords: temperWords(place, i),
     home: {

@@ -223,7 +223,9 @@ export type PlaceWorkSheet = {
    * order can move, those with priorities set first, as many as a sheet shows; and how many there are in all.
    */
   readonly grid: {
+    /** The kinds a priority is set for (PRIO_KINDS'), and the kinds each row's skill is told at (the same, then those that take none). */
     readonly kinds: readonly string[];
+    readonly skills: readonly string[];
     readonly rows: readonly PlacePrioRow[];
     readonly all: number;
   };
@@ -241,6 +243,16 @@ export type PlacePrioRow = {
   readonly set: boolean;
   /** What they have turned to for now, their own trade having nothing for them (the occupation column; 0: their own). */
   readonly turned: number;
+  /** Their skill at each of the grid's skill columns (PlaceWorkSheet.grid.skills' order). */
+  readonly skills: readonly PlaceSkillCell[];
+};
+/** One's skill at a kind of work, short: hours given to it, its level (0 new … 4 a master), how fit for it, whether taught it. */
+export type PlaceSkillCell = {
+  readonly hours: number;
+  readonly level: number;
+  readonly words: string;
+  readonly fit: number;
+  readonly passion: boolean;
 };
 /** A site on a place's Work sheet. */
 export type PlaceSiteRow = {

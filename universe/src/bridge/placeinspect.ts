@@ -59,6 +59,18 @@ export type PlaceInspectPerson = {
   /** Their skill at their trade, said short ("skilled, 1,240 h"), and in full. */
   readonly skill: string | null;
   readonly skillWords: string | null;
+  /** Their skill at every kind of work (the Skills tab): its name, hours, level in a word, how fit for it, whether taught it. */
+  readonly skills: readonly {
+    readonly name: string;
+    readonly hours: number;
+    readonly level: number;
+    readonly words: string;
+    readonly fit: number;
+    readonly passion: boolean;
+    readonly own: boolean;
+  }[];
+  /** What their household taught them, said (null: nothing yet). */
+  readonly taught: string | null;
   /** Their temper in a few words, and in full. */
   readonly temper: string;
   readonly temperWords: string;

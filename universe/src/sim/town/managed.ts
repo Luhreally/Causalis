@@ -93,13 +93,24 @@ export type Managed = {
   prio?: number[];
 };
 
-/** The kinds of work a priority is set for: the four trades an order can move hands to, and raising what the town builds. */
-export const PRIO_KINDS = ["fields", "herds", "crafts", "hauling", "building"] as const;
+/**
+ * The kinds of work a priority is set for: the four trades an order can move hands to, raising what the town builds, and
+ * turning out to a fire (N6: who of those near it go, and who keep a watch where one is kept by order).
+ */
+export const PRIO_KINDS = ["fields", "herds", "crafts", "hauling", "building", "fire"] as const;
+/** The kinds an order of before the fire's was given for (five), and what the fire's is for one of them: as of themselves. */
+const PRIO_KINDS_BEFORE = 5;
+export const PRIO_FIRE_OWN = 1;
+/** A packed number that holds every kind of PRIO_KINDS (one packed before the fire's holds five). */
+const PRIO_ALL = 1 << (2 * PRIO_KINDS.length);
 /** One's priorities from their packed number (PRIO_KINDS' order, each 0 … 3), and back. */
 export const prioOf = (packed: number): number[] =>
-  PRIO_KINDS.map((_, k) => (packed >> (2 * k)) & 3);
+  PRIO_KINDS.map((_, k) =>
+    k >= PRIO_KINDS_BEFORE && !(packed & PRIO_ALL) ? PRIO_FIRE_OWN : (packed >> (2 * k)) & 3,
+  );
 export const prioPacked = (kinds: readonly number[]): number =>
-  kinds.reduce((n, x, k) => n | ((x & 3) << (2 * k)), 0);
+  kinds.reduce((n, x, k) => n | ((x & 3) << (2 * k)), 0) |
+  (kinds.length >= PRIO_KINDS.length ? PRIO_ALL : 0);
 /**
  * The trade one with these priorities is put to: of the four trades, the one set highest (their own where it is among
  * the highest; else the first of them); -1 where none is set above nothing.
@@ -497,10 +508,10 @@ export function installManaged(world: World, ctx: () => PopulationContext): Mana
       if (a.kinds === null) return null;
       if (
         !Array.isArray(a.kinds) ||
-        a.kinds.length !== PRIO_KINDS.length ||
+        (a.kinds.length !== PRIO_KINDS.length && a.kinds.length !== PRIO_KINDS_BEFORE) ||
         !a.kinds.every((x) => whole(x, 0, 3))
       )
-        return "kinds must be a priority, 0 to 3, for each of fields, herds, crafts, hauling and building, or null";
+        return "kinds must be a priority, 0 to 3, for each of fields, herds, crafts, hauling, building and fire (or the first five), or null";
       return a.kinds.slice(0, MANAGED_TRADES.length).some((x: number) => x > 0)
         ? null
         : "one of the four trades must be set above nothing: the town does not keep idle hands";

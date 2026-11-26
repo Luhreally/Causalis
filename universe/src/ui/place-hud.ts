@@ -866,8 +866,8 @@ export class PlaceHud {
     const box = el("div", "place-grid"),
       table = el("div", "place-grid-rows"),
       top = el("div", "place-grid-row place-grid-head");
-    top.append(el("span", "place-grid-name", "Name · skill"));
-    for (const kind of s.grid.kinds) top.append(el("span", "place-grid-kind", kind));
+    top.append(el("span", "place-grid-name", "Name · trade's skill"));
+    for (const kind of s.grid.skills) top.append(el("span", "place-grid-kind", kind));
     // (Over the keys that let one be.)
     top.append(el("span", "place-grid-kind"));
     table.append(top);
@@ -884,13 +884,31 @@ export class PlaceHud {
       );
       name.onclick = () => this.onOpen(r.ref);
       row.append(name);
+      // (Each kind's skill under its key: the level its hours make, 0 new to it … 4 a master, ★ where their household taught
+      // them it, ! where a wound takes from what it is done with.)
+      const skillOf = (k: number, key: HTMLElement): string => {
+        const c = r.skills[k];
+        if (!c) return "";
+        const words = `${c.words}, ${c.hours.toLocaleString("en-US")} h${c.passion ? ", taught it at home" : ""}${c.fit < 0.99 ? `, ${Math.round(c.fit * 100)}% fit for it` : ""}`;
+        key.append(
+          el(
+            "span",
+            `place-grid-lv${c.level >= 3 ? " high" : ""}${c.fit < 0.99 ? " unfit" : ""}`,
+            `${c.level}${c.passion ? "★" : ""}${c.fit < 0.99 ? "!" : ""}`,
+          ),
+        );
+        return words;
+      };
       r.kinds.forEach((x, k) => {
-        const key = el("button", "place-grid-key", x > 0 ? String(4 - x) : "–"),
+        const key = el("button", "place-grid-key"),
           // (A tap takes it on: never, first, second, third, never. One's last trade is not set to never.)
           trades = r.kinds.slice(0, 4),
           only = k < 4 && trades.filter((y) => y > 0).length === 1 && x > 0,
           next = x === 0 ? 3 : x === 1 ? (only ? 3 : 0) : x - 1,
-          words = `${r.name}, ${s.grid.kinds[k]}: ${x > 0 ? ["", "third", "second", "first"][x] : "never"}. Tap for ${next > 0 ? ["", "third", "second", "first"][next] : "never"}`;
+          skill =
+            (key.append(el("span", "place-grid-num", x > 0 ? String(4 - x) : "–")),
+            skillOf(k, key)),
+          words = `${r.name}, ${s.grid.kinds[k]}: ${x > 0 ? ["", "third", "second", "first"][x] : "never"}; ${skill}. Tap for ${next > 0 ? ["", "third", "second", "first"][next] : "never"}`;
         key.classList.toggle("on", x > 0);
         key.classList.toggle("first", x === 3);
         key.classList.toggle("own", !r.set);
@@ -903,6 +921,12 @@ export class PlaceHud {
         };
         row.append(key);
       });
+      // (The kinds one's hours are counted at that take no priority: their skill alone.)
+      for (let k = r.kinds.length; k < s.grid.skills.length; k++) {
+        const cell = el("span", "place-grid-key place-grid-only");
+        cell.title = `${r.name}, ${s.grid.skills[k]}: ${skillOf(k, cell)}`;
+        row.append(cell);
+      }
       if (r.set) {
         const free = el("button", "place-grid-key place-grid-free", "↺"),
           words = `Let ${r.name} work as they would of themselves`;
@@ -926,7 +950,7 @@ export class PlaceHud {
       el(
         "p",
         "place-more",
-        `${more}1 is first. The trade set highest is the one they keep, and its land is told when it changes; a lower one is what they turn to, as one new to it, when their own has nothing for them. Building is who a site's crew is made up of first. Faint keys are as they are of themselves.`,
+        `${more}1 is first. The trade set highest is the one they keep, and its land is told when it changes; a lower one is what they turn to, at the skill their hours at it make, when their own has nothing for them. Building is who a site's crew is made up of first; fire watch, who of those near a fire go to it (– never) and who keep a watch where one is ordered. The small number is their skill (0 new to it … 4 a master), from the hours they have given it; ★ the work their household taught them; ! a wound takes from what it is done with. Healing, cooking and hunting are counted as they are done: who tends one of their own abed, who cooks at their hearth, a forager's work. Faint keys are as they are of themselves.`,
       ),
     ];
   }

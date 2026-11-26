@@ -2264,6 +2264,7 @@ export {
 export {
   HELD,
   MANAGED_TRADES,
+  PRIO_FIRE_OWN,
   PRIO_KINDS,
   prioOf,
   prioPacked,

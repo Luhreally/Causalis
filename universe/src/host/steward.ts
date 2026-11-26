@@ -42,6 +42,7 @@ import { DAY, HOUR, YEAR, type World } from "../kernel/index.ts";
 import { LESSON_RESPONSE, OCC, takeUpChance } from "../rules/index.ts";
 import {
   MANAGED_TRADES,
+  PRIO_FIRE_OWN,
   PRIO_KINDS,
   lessonsOf,
   lifeOf,
@@ -315,7 +316,7 @@ export function stewardLooks(world: World, place: Place): void {
       .filter((x) => x.occ !== own && x.wage > 0)
       .sort((a, b) => b.wage - a.wage || a.k - b.k);
     if (!rest.length) continue;
-    const kinds = PRIO_KINDS.map(() => 0);
+    const kinds: number[] = PRIO_KINDS.map((k) => (k === "fire" ? PRIO_FIRE_OWN : 0));
     kinds[(MANAGED_TRADES as readonly number[]).indexOf(own)] = 3;
     rest.slice(0, 2).forEach((x, n) => (kinds[x.k] = 2 - n));
     if (inHand) kinds[PRIO_KINDS.indexOf("building")] = 2;

@@ -9,6 +9,7 @@ import {
   managedOf,
   lifeOf,
   populationContext,
+  PRIO_FIRE_OWN,
   prioOf,
   prioPacked,
   prioTrade,
@@ -88,7 +89,10 @@ test("priorities are checked, packed and kept: the trade set highest is one's ow
     place = enterPlace(w, s.ref)!,
     id = one(w, place, OCC.farmer);
   assert.ok(id > 0);
-  assert.deepEqual(prioOf(prioPacked([3, 0, 2, 1, 0])), [3, 0, 2, 1, 0]);
+  // (A priority of before the fire's, five kinds: a fire as of themselves. Six kinds, all six.)
+  assert.deepEqual(prioOf(prioPacked([3, 0, 2, 1, 0])), [3, 0, 2, 1, 0, PRIO_FIRE_OWN]);
+  assert.deepEqual(prioOf(prioPacked([3, 0, 2, 1, 0, 0])), [3, 0, 2, 1, 0, 0]);
+  assert.deepEqual(prioOf(prioPacked([0, 3, 0, 0, 2, 3])), [0, 3, 0, 0, 2, 3]);
   assert.equal(prioTrade([3, 0, 2, 1, 0], OCC.crafter), OCC.farmer);
   assert.equal(
     prioTrade([2, 0, 2, 1, 0], OCC.crafter),
@@ -103,7 +107,7 @@ test("priorities are checked, packed and kept: the trade set highest is one's ow
   order(w, "place.prio", { town: s.ref, person: id, kinds: [1, 0, 3, 2, 0] });
   assert.deepEqual(managedOf(w)!.get(s.ref)!.prio, [id, prioPacked([1, 0, 3, 2, 0])]);
   placeFrame(w, s.ref, []);
-  assert.deepEqual(placePrio(w, place, id), [1, 0, 3, 2, 0]);
+  assert.deepEqual(placePrio(w, place, id), [1, 0, 3, 2, 0, PRIO_FIRE_OWN]);
   // Crafts set highest: a crafter now, by the ruled path an order by name takes (told to its land when it is settled).
   const i = placeIndexOf(place, id),
     p = place.people;
@@ -122,15 +126,19 @@ test("priorities are checked, packed and kept: the trade set highest is one's ow
   const grid = workSheet(w, place).grid,
     row = grid.rows.find((r) => r.id === id)!;
   assert.ok(row && row.set && row.occ === OCC.crafter);
-  assert.deepEqual(row.kinds, [1, 0, 3, 2, 0]);
+  assert.deepEqual(row.kinds, [1, 0, 3, 2, 0, PRIO_FIRE_OWN]);
   assert.equal(grid.rows[0]!.id, id, "those with priorities set come first");
   assert.ok(grid.rows.length <= GRID_ROWS && grid.all >= grid.rows.length);
   assert.ok(workSheet(w, place, OCC.herder).grid.rows.every((r) => r.occ === OCC.herder));
   const other = grid.rows.find((r) => !r.set)!;
   assert.deepEqual(
     other.kinds,
-    [...[OCC.farmer, OCC.herder, OCC.crafter, OCC.trader].map((o) => (o === other.occ ? 3 : 0)), 1],
-    "of themselves: their own trade, and building when a crew is made up",
+    [
+      ...[OCC.farmer, OCC.herder, OCC.crafter, OCC.trader].map((o) => (o === other.occ ? 3 : 0)),
+      1,
+      PRIO_FIRE_OWN,
+    ],
+    "of themselves: their own trade, building when a crew is made up, and a fire near them",
   );
   // Let be: their own again, and the list gone from the store.
   order(w, "place.prio", { town: s.ref, person: id, kinds: null });

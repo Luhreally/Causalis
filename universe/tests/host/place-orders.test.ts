@@ -708,7 +708,10 @@ test("work harms some by their trade's own wear; the hurt lie abed at home and a
   assert.ok(hurt >= 2, `some were hurt at their work (${hurt})`);
   assert.ok(well >= 1, "and were well again");
   assert.ok(abedAtHome > 0);
-  assert.ok(PERSON_BYTES <= 100, `${PERSON_BYTES} bytes a person`);
+  // (A hundred and twenty: raised from a hundred for N6, the hours given to each of ten kinds of work, two bytes each, and
+  // the kind one's household taught them, one: 96 bytes before them, 117 with them. The owner took more detail a person
+  // for this mode, 2026-11-25.)
+  assert.ok(PERSON_BYTES <= 120, `${PERSON_BYTES} bytes a person`);
   // Where its land's own reckoning has no sickness come this year or last, no one of the place is sick.
   const sick = [...Array(p.n).keys()].filter((i) => p.health[i] === 2).length,
     last = healthOf(w)?.land(s.cell)?.last;

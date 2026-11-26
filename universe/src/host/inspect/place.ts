@@ -238,21 +238,24 @@ export function skillLine(world: World, place: Place, i: number): string | null 
       : s.level >= SKILL_LEVELS.length - 1
         ? `An hour of theirs wins or makes all a master's does${risks ? ", and they are hurt at it no oftener" : ""}`
         : `An hour of theirs wins or makes ${worth} in a hundred of what a master's does${risks ? `, and they are hurt at it ${Math.round(hurt * 10) / 10} times as often` : ""}; a master has given it ${master} hours`
-  }. It grows with every hour at their own trade, and begins again at a new one.`;
+  }. It grows with every hour at it; the hours of a trade they leave are kept with it, and taken up again should they come back to it.`;
 }
 
 /** One's priorities by your order, said (null: none set). */
 function prioLine(world: World, place: Place, i: number): string | null {
   const kinds = placePrio(world, place, place.people.id[i]!);
   if (!kinds) return null;
-  const order = ["", "third", "second", "first"],
-    said = PRIO_KINDS.map((name, k) => [kinds[k] ?? 0, name] as const)
-      .filter(([x]) => x > 0)
+  // (A fire is not work they turn to: whether they go to one near them, and how soon they are taken for a watch, said apart.)
+  const FIRE = PRIO_KINDS.indexOf("fire"),
+    order = ["", "third", "second", "first"],
+    said = PRIO_KINDS.map((name, k) => [kinds[k] ?? 0, name, k] as const)
+      .filter(([x, , k]) => x > 0 && k !== FIRE)
       .sort((a, b) => b[0] - a[0])
       .map(([x, name]) => `${name} ${order[x]}`),
-    never = PRIO_KINDS.filter((_, k) => !(kinds[k] ?? 0));
+    never = PRIO_KINDS.filter((_, k) => !(kinds[k] ?? 0) && k !== FIRE),
+    fire = kinds[FIRE] ?? 0;
   const by = byOrder(place, `prio:${place.people.id[i]!}`);
-  return `${by[0]!.toUpperCase()}${by.slice(1)}: ${said.join(", ")}${never.length ? `; never ${never.join(", ")}` : ""}. The trade set highest is theirs; when it has nothing for them they turn to the next that has, as one new to it.`;
+  return `${by[0]!.toUpperCase()}${by.slice(1)}: ${said.join(", ")}${never.length ? `; never ${never.join(", ")}` : ""}. The trade set highest is theirs; when it has nothing for them they turn to the next that has, at the skill their hours at it make. ${fire === 0 ? "They go to no fire." : `They go to a fire near them${fire > 1 ? `, and are taken ${order[fire]} for a fire watch` : ""}.`}`;
 }
 
 /** What a place tells of one of its people: their needs and the why first, then what they hold and who they live with. */

@@ -616,6 +616,7 @@ export {
   type PlaceStockRow,
   type PlaceStocksSheet,
   type PlaceWorkSheet,
+  type PlaceSkillCell,
 } from "./place.ts";
 export type {
   PlaceInspect,

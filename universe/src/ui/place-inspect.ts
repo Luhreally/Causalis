@@ -19,13 +19,16 @@ import { drawPortrait } from "./portrait.ts";
 import { el } from "./why.ts";
 
 export type InspectHeight = "peek" | "half" | "full";
-type PersonTab = "now" | "mood" | "life" | "work";
+type PersonTab = "now" | "mood" | "skills" | "life" | "work";
 const PERSON_TABS: readonly (readonly [PersonTab, string])[] = [
   ["now", "Now"],
   ["mood", "Mood"],
+  ["skills", "Skills"],
   ["life", "Life"],
   ["work", "Work"],
 ];
+/** The hours of each level (rules/life.ts SKILL_LEVELS: a hand at 200, able at 800, skilled at 2,000, a master at 8,000). */
+const LEVEL_HOURS = [0, 200, 800, 2000, 8000];
 /** What one can be put to by name: the world's occupation column and its word (null: let be). */
 const ORDER_TRADES: readonly (readonly [number | null, string])[] = [
   [2, "Fields"],
@@ -233,6 +236,7 @@ export class PlaceInspector {
     const tabs = el("div", "place-insp-tabs");
     for (const [t, words] of PERSON_TABS) {
       const b = el("button", "place-insp-tab", words);
+      b.dataset.tab = t;
       b.classList.toggle("on", this.tab === t);
       b.onclick = () => {
         this.tab = t;
@@ -269,6 +273,43 @@ export class PlaceInspector {
         list.append(row);
       }
       body.push(list, el("p", "place-insp-why", `Temper: ${x.temper}.`));
+    } else if (this.tab === "skills") {
+      if (!x.skills.length) body.push(el("p", "place-insp-why", "A child: they keep no work yet."));
+      else {
+        const list = el("div", "place-insp-skills");
+        for (const k of [...x.skills].sort(
+          (a, b) => Number(b.own) - Number(a.own) || b.hours - a.hours,
+        )) {
+          const row = el("div", `place-insp-skill${k.own ? " own" : ""}`),
+            bar = el("span", "place-insp-skill-bar"),
+            fill = el("span", "place-insp-skill-fill"),
+            // (Along the bar by level, each level a fifth, the hours past it toward the next.)
+            lo = LEVEL_HOURS[k.level] ?? 0,
+            hi = LEVEL_HOURS[k.level + 1],
+            along = hi === undefined ? 1 : (k.level + (k.hours - lo) / (hi - lo)) / 4;
+          fill.style.width = `${Math.round(Math.min(1, along) * 100)}%`;
+          bar.append(fill);
+          row.append(
+            el("span", "place-insp-skill-name", `${k.name}${k.passion ? " ★" : ""}`),
+            bar,
+            el(
+              "span",
+              "place-insp-skill-level",
+              `${cap(k.words)} · ${k.hours.toLocaleString("en-US")} h${k.fit < 0.99 ? ` · ${Math.round(k.fit * 100)}% fit` : ""}`,
+            ),
+          );
+          row.title = `${k.name}: ${k.words}, ${k.hours.toLocaleString("en-US")} hours given to it${k.own ? " (their own trade)" : ""}${k.passion ? "; their household taught them it" : ""}${k.fit < 0.99 ? `; a wound takes ${100 - Math.round(k.fit * 100)}% of what it is done with` : ""}`;
+          list.append(row);
+        }
+        body.push(list);
+        body.push(
+          el(
+            "p",
+            "place-insp-why",
+            `${x.taught ? `★ ${x.taught}. ` : ""}Each hour at a kind of work is an hour of skill at it, kept when they turn to another (a master has given 8,000).`,
+          ),
+        );
+      }
     } else if (this.tab === "life") {
       const named: PlaceNamed[] = [
         ...(x.mate ? [x.mate] : []),
