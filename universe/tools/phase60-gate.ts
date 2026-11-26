@@ -518,7 +518,13 @@ const paletteWords = () => k<string>(`document.querySelector(".palette-words")?.
 async function walk(
   hands: Hands,
   tag: string,
-): Promise<{ agent: number; name: string; listener: number | null; tried: number[] } | null> {
+): Promise<{
+  agent: number;
+  name: string;
+  listener: number | null;
+  near: number[];
+  hearer: string;
+} | null> {
   const n = (s: string) => `${hands.name}: ${s}`;
   // The palette refused plainly in a town the hand does not rest on.
   if (hands === desk || kit) {
@@ -743,14 +749,11 @@ async function walk(
   check(turned > 0.2, n(`a drag did not turn the eye (${turned.toFixed(2)} rad)`));
   // A word to the nearest of those about him: the stick held, the word said with another finger.
   let listener: number | null = null;
-  // (Those walked up to: a word is said to the nearest of those about him, who may be another than the one walked to.)
-  const tried: number[] = [];
   const others = (s?.live?.bodies ?? [])
     .filter((b) => b.id !== s!.agent && b.doing === "way")
     .map((b) => ({ ...b, d: Math.hypot(b.x - s!.me!.x, b.z - s!.me!.z) }))
     .sort((a, b) => a.d - b.d);
   for (const o of others.slice(0, 4)) {
-    tried.push(o.id);
     for (let tries = 0; tries < 4 && listener === null; tries++) {
       const b = await k<{ x: number; z: number } | null>(
         `globalThis.causalis.possess.drawn(${o.id})`,
@@ -777,7 +780,16 @@ async function walk(
   say(n(`a word: “${s?.live?.told?.words ?? ""}” (${others.length} about him; ${took()})`));
   check(listener !== null, n("no word said to anyone about him"));
   await shot(`${tag}-4-talk`);
-  const taken = { agent: s?.agent ?? chosen.index, name: chosen.name, listener, tried };
+  // (A word is said to the nearest of those about him, who may be another than the one walked to: the one who heard it is
+  // found by the name it was told with, among those about him.)
+  const hearer = /spoke to ([^:,]+)/.exec(s?.live?.told?.words ?? "")?.[1]?.trim() ?? "",
+    taken = {
+      agent: s?.agent ?? chosen.index,
+      name: chosen.name,
+      listener,
+      near: others.map((o) => o.id),
+      hearer,
+    };
   // Turned on its side and back: every control in its place, none over another.
   if (hands !== desk) {
     const laid = async (w: number, h: number) => {
@@ -977,7 +989,7 @@ function frameGaps(p: Page, n: number): Promise<number[]> {
 /** What a walk wrote back: the chronicle, his page, the spirits of the one spoken to. */
 async function written(
   hands: Hands,
-  w: { agent: number; name: string; listener: number | null; tried: number[] },
+  w: { agent: number; name: string; listener: number | null; near: number[]; hearer: string },
 ) {
   const n = (s: string) => `${hands.name}: ${s}`,
     me = first(w.name),
@@ -1010,12 +1022,19 @@ async function written(
     n(`his page does not remember what he made: ${remembered.join(" | ")}`),
   );
   if (w.listener !== null) {
-    let mood: { mood: number } | null = null;
-    for (const id of w.tried) {
-      const m = await ask<{ mood: number } | null>("possess.mood", { id });
-      if (m && (!mood || m.mood > mood.mood)) mood = m;
+    let heard: number | null = null;
+    for (const id of w.near) {
+      const title =
+        (await ask<{ title?: string } | null>("page", { ref: `agent:${id}` }))?.title ?? "";
+      if (title === w.hearer || title.startsWith(`${w.hearer} `)) {
+        heard = id;
+        break;
+      }
     }
-    say(n(`the one spoken to: spirits ${mood?.mood ?? "?"}`));
+    check(heard !== null, n(`no one about him is ${w.hearer}, who was spoken to`));
+    const mood =
+      heard === null ? null : await ask<{ mood: number } | null>("possess.mood", { id: heard });
+    say(n(`the one spoken to: ${w.hearer} (${heard}), spirits ${mood?.mood ?? "?"}`));
     check((mood?.mood ?? 0) > 0, n(`the spirits of the one spoken to not moved (${mood?.mood})`));
   }
 }
