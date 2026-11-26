@@ -680,16 +680,19 @@ test("mood follows needs met and what befell the household, moves work's worth, 
 test("work harms some by their trade's own wear; the hurt lie abed at home and are well again", () => {
   const w = copy(base()),
     s = near(w, 2500),
-    place = enterPlace(w, s.ref)!,
-    p = place.people;
+    place = enterPlace(w, s.ref)!;
+  // (Its people's columns are made again larger as the town grows: read afresh each day, never held from its entering.)
+  let p = place.people;
   assert.equal(hazardOf(place, OCC.leader, 0), 0);
   assert.ok(hazardOf(place, OCC.farmer, 0) > 0 && hazardOf(place, OCC.farmer, 0) < 0.2);
   let hurt = 0,
     well = 0,
     abedAtHome = 0;
-  for (let d = 0; d < 150 && (hurt < 2 || well < 1); d++) {
+  // (Until all three are seen: some hurt, one well again, and one of the hurt abed at home, read once a day.)
+  for (let d = 0; d < 150 && (hurt < 2 || well < 1 || abedAtHome === 0); d++) {
     w.runTo(w.now + DAY);
     enterPlace(w, s.ref);
+    p = place.people;
     hurt += place.log.filter((x) => x.what === HAP.hurt && x.t > place.t - DAY).length;
     well += place.log.filter((x) => x.what === HAP.well && x.t > place.t - DAY).length;
     for (let i = 0; i < p.n; i++)

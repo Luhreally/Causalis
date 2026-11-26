@@ -227,13 +227,13 @@ test("a town stewarded is run by its own head through the orders a player gives,
 test("an order of the player's overrules the head's, and the head leaves that matter alone after", () => {
   const w = copy(base()),
     ctx = populationContext(w);
-  // (The largest towns under fifteen hundred, the first whose head sets an idle hand to other work within twenty days:
+  // (The twelve largest towns under fifteen hundred, the first whose head sets an idle hand to other work within twenty days:
   // the more crafters, the sooner some run out of what they work.)
   const ref = ctx.settlements
     .all()
     .filter((s) => ctx.settlements.held(s.ref) && s.population > 300 && s.population < 1500)
     .sort((a, b) => b.population - a.population || (a.ref < b.ref ? -1 : 1))
-    .slice(0, 6)
+    .slice(0, 12)
     .map((s) => s.ref);
   let town = "",
     prio: { person: number; kinds: number[] } | null = null;
