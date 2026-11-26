@@ -1068,6 +1068,11 @@ export type Place = {
    * -1: till it is unsaid). Absent: none.
    */
   pins?: number[];
+  /**
+   * What it has lived of its own this year (vitalDay): its year, and how many were born and died so of it. Its town's count
+   * is that year's turn's: its people are the count with these, and with what waits. Absent: none yet.
+   */
+  vital?: number[];
 };
 
 /**
@@ -1077,6 +1082,21 @@ export type Place = {
 export const DUE = { die: 1, leave: 2, born: 3, come: 4, bury: 5, pair: 6, bear: 7 } as const;
 /** A death due that a year's turn brought (a bit of its `b`): of the year gone's count. */
 const DUE_GONE = 1 << 16;
+/** A death due of the place's own (vitalDay; a bit of its `b`): lived, it is of its year's `vital`. */
+const DUE_OWN = 1 << 17;
+/** One more born (0) or dead (1) of a place's own this year. */
+function vitalCount(place: Place, k: 0 | 1): void {
+  const year = Math.floor(place.t / YEAR);
+  if (!place.vital || place.vital[0] !== year) place.vital = [year, 0, 0];
+  place.vital[1 + k]!++;
+}
+/** What a place has lived of its own this year (vitalDay): born and dead. */
+export function placeOwn(place: Place): { born: number; died: number } {
+  const v = place.vital;
+  return v && v[0] === Math.floor(place.t / YEAR)
+    ? { born: v[1]!, died: v[2]! }
+    : { born: 0, died: 0 };
+}
 /** One promised to their friend: their pairing is set for a day to come. */
 const PROMISED = 0xffffffff;
 
@@ -1691,6 +1711,7 @@ export class PlaceStore implements StateStore {
         ...(p.held?.length ? { held: p.held } : {}),
         ...(p.works?.length ? { works: p.works } : {}),
         ...(p.pins?.length ? { pins: p.pins } : {}),
+        ...(p.vital ? { vital: p.vital } : {}),
         ...(UNPAIRED.has(p) ? { unpaired: true } : {}),
         // (Read from a save kept before skill was, and not brought on since: still to be reckoned.)
         ...(UNSKILLED.has(p) ? { unskilled: true } : {}),
@@ -1788,6 +1809,7 @@ export class PlaceStore implements StateStore {
         ...(raw.held ? { held: [...(raw.held as number[])] } : {}),
         ...(raw.works ? { works: [...(raw.works as number[])] } : {}),
         ...(raw.pins ? { pins: [...(raw.pins as number[])] } : {}),
+        ...(raw.vital ? { vital: [...(raw.vital as number[])] } : {}),
       });
       if (unskilled) UNSKILLED.add(this.places.at(-1)!);
       if (!cols.taught || raw.untaught === true) UNTAUGHT.add(this.places.at(-1)!);
@@ -1876,6 +1898,7 @@ export function placeDigest(p: Place): string {
     h.int(p.pins.length);
     for (const x of p.pins) h.int(x);
   }
+  if (p.vital) for (const x of p.vital) h.int(x);
   h.string(p.ordered)
     .string(p.sited)
     .string(p.plague)
@@ -3231,6 +3254,7 @@ function liveDue(world: World, place: Place, f: Frame, all = false): void {
         if (told === HAP.plague) note(place, HAP.plague, a, (b >> 8) & 255, age, i, year);
         else if (told === HAP.famine) note(place, HAP.famine, a, age, 0, i, year);
         else note(place, HAP.died, a, age, occOf(p, i), i, year);
+        if (b & DUE_OWN) vitalCount(place, 1);
         place.houses.grief[h] = day;
         // (Buried the next morning, two hours before the middle of the day.)
         if (!all) dueAt(place, (day + 1) * DAY + 10 * HOUR, DUE.bury, a, h * 2 + sexOf(p, i));
@@ -3291,6 +3315,7 @@ function liveDue(world: World, place: Place, f: Frame, all = false): void {
       teach(place, i);
       workOf(world, place, i);
       note(place, HAP.born, id, a, OCC.dependent);
+      vitalCount(place, 0);
       changed = true;
     } else if (what === DUE.bury) {
       const h = b >> 1;
@@ -3417,7 +3442,7 @@ function vitalDay(world: World, place: Place, f: Frame): void {
       id,
       world.rng.unit(PLACE_DRAW, place.key ^ id, place.t, P.vital, 2) < girl ? FEMALE : 1 - FEMALE,
     );
-  for (const id of dead) dueAt(place, at(id, 4), DUE.die, id, HAP.died);
+  for (const id of dead) dueAt(place, at(id, 4), DUE.die, id, HAP.died | DUE_OWN);
 }
 
 /** The place matched to the world as it is now: its numbers for the ticks to come, its people, its stocks. */

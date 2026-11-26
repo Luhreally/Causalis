@@ -630,11 +630,10 @@ test("mood follows needs met and what befell the household, moves work's worth, 
   const w = copy(base()),
     s = near(w, 400),
     place = enterPlace(w, s.ref)!,
-    p = place.people,
     mean = () => {
       let sum = 0;
-      for (let i = 0; i < p.n; i++) sum += p.mood[i]!;
-      return sum / p.n;
+      for (let i = 0; i < place.people.n; i++) sum += place.people.mood[i]!;
+      return sum / place.people.n;
     };
   for (let d = 0; d < 6; d += 2) {
     w.runTo(w.now + 2 * DAY);
@@ -643,23 +642,29 @@ test("mood follows needs met and what befell the household, moves work's worth, 
   const fed = mean();
   assert.ok(fed > 0, `fed and housed, their mood is up (${fed.toFixed(1)})`);
   // Worth follows mood: the same one, glad and low.
-  const i = [...Array(p.n).keys()].find((k) => (p.sexOcc[k]! & 15) === OCC.farmer)!,
-    was = p.mood[i]!;
-  p.mood[i] = 80;
+  const i = [...Array(place.people.n).keys()].find(
+      (k) => (place.people.sexOcc[k]! & 15) === OCC.farmer,
+    )!,
+    was = place.people.mood[i]!;
+  place.people.mood[i] = 80;
   const glad = workWorth(w, place, i);
-  p.mood[i] = -80;
+  place.people.mood[i] = -80;
   assert.ok(workWorth(w, place, i) < glad);
-  p.mood[i] = was;
+  place.people.mood[i] = was;
   order(w, "place.hold", { town: s.ref, months: 24 });
   order(w, "place.work", { town: s.ref, shares: [0, 0, 500, 500] });
   // (Read at the depth of its want, within eighty days: a town starved under its own hold has fewer mouths after, and
   // what its land brings may feed them again, when its mood climbs back as it should.)
-  const lows = () => [...Array(p.n).keys()].filter((k) => p.mood[k]! < MOOD_UNHEEDING);
+  const lows = () =>
+    [...Array(place.people.n).keys()].filter((k) => place.people.mood[k]! < MOOD_UNHEEDING);
   let wanting = 0;
   for (let d = 0; d < 80 && !(mean() < fed - 20 && lows().length > 0); d += 2) {
     w.runTo(w.now + 2 * DAY);
     enterPlace(w, s.ref);
-    wanting = Math.max(wanting, [...Array(p.n).keys()].filter((k) => p.lack[k]! > 0).length);
+    wanting = Math.max(
+      wanting,
+      [...Array(place.people.n).keys()].filter((k) => place.people.lack[k]! > 0).length,
+    );
   }
   assert.ok(wanting > 0, "held from its store, its people go in want");
   assert.ok(mean() < fed - 20, `in want, it falls (${mean().toFixed(1)} from ${fed.toFixed(1)})`);

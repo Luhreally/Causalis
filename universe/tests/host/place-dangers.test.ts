@@ -37,6 +37,7 @@ import {
   placeDigest,
   placeDue,
   placeIndexOf,
+  placeOwn,
   placesOf,
   targetTable,
   type Place,
@@ -51,7 +52,7 @@ const base = (): World => universeWorld(EARTH, "first light", 150);
  * A place against its town's count, what it has lived and what waits told apart: nothing waits that its clock has passed;
  * a death or a leaving that waits is of one living still, or of one another death took first (passed over when its day
  * comes); and its people now, those waiting to be born or to come added and those waiting to die or leave taken off,
- * are the count.
+ * are the count with what it has lived of its own this year (its births and deaths day by day, placeOwn).
  */
 function livedAgainst(
   place: Place,
@@ -64,14 +65,20 @@ function livedAgainst(
       d.t > place.t - PLACE_TICK,
       `${what}: ${d.what} due at ${d.t}, its clock at ${place.t}`,
     );
-  const coming = due.filter((d) => d.what === "born" || d.what === "come").length,
+  const coming = due.filter(
+      (d) =>
+        d.what === "born" ||
+        d.what === "come" ||
+        (d.what === "bear" && placeIndexOf(place, d.a) >= 0),
+    ).length,
     going = due.filter(
       (d) => (d.what === "die" || d.what === "leave") && placeIndexOf(place, d.a) >= 0,
-    ).length;
+    ).length,
+    own = placeOwn(place);
   assert.equal(
     place.people.n,
-    count - coming + going,
-    `${what}: ${place.people.n} lived, ${coming} waiting to come and ${going} to go, of a count of ${count}`,
+    count + own.born - own.died - coming + going,
+    `${what}: ${place.people.n} lived, ${coming} waiting to come and ${going} to go, of a count of ${count} and ${own.born} born and ${own.died} dead of its own`,
   );
   return { lived: place.people.n, coming, going };
 }
