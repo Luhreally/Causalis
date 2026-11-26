@@ -317,6 +317,11 @@ for (const view of [
   );
   check(!!seen, "one of its people stands on the screen, clear of the chrome");
   if (seen) {
+    // (How long the host takes to answer the plainest asking now, to tell its queue from the inspector's own reading.)
+    const rt = await k<number>(
+      `(async () => { const t0 = performance.now(); await globalThis.causalis.client.query({ type: "place.kept", args: {} }); return Math.round(performance.now() - t0); })()`,
+    );
+    say(`the host answers a plain asking in ${rt} ms before the tap`);
     await tap(seen.x, seen.y);
     await until("their inspector", async () => /^plc/.test((await inspected()).ref ?? ""));
     const asked = Date.now();
@@ -390,6 +395,7 @@ for (const view of [
     await until("a building's inspector", async () => (await text(".place-insp-body")).length > 0);
     await page.waitForTimeout(900);
     say(`building: ${(await text(".place-insp")).slice(0, 400)}`);
+    say(`the building's first answer came ${(await inspected()).answered} ms after it was asked`);
     await look("20-insp-lot", "a building inspected");
   }
   await page.keyboard.press("Escape");
