@@ -159,6 +159,9 @@ import {
   WANTS,
   WAY,
   ownLeaning,
+  ownNature,
+  TEMPER,
+  WAY_TRAITS,
   bandOf,
   tendedBy,
   coatOf,
@@ -4663,6 +4666,7 @@ export function placeTemper(place: Place, i: number): PlaceTemper {
     way = (k: number) => w?.[k] ?? 0.5,
     who = place.key ^ place.people.id[i]!,
     born = place.people.born[i]!;
+  // (Each half their land's way and half a facet of their own nature: FACETS, in the leanings' order.)
   return {
     kin: ownLeaning(who, born, way(WAY.kinship), 11),
     bidden: ownLeaning(who, born, way(WAY.hierarchy), 12),
@@ -4671,6 +4675,72 @@ export function placeTemper(place: Place, i: number): PlaceTemper {
     bold: ownLeaning(who, born, way(WAY.valour), 15),
   };
 }
+/**
+ * One's own nature (asked 2026-11-26: "a handful of facets that drive the existing temper"), six facets each 0 … 1, drawn
+ * once from who they are, as their temper's own half is (rules/temper.ts ownNature): warmth (the own half of how close
+ * they hold their kin), deference (of how they take being bidden), zest (of how they lean on company), prudence (of how
+ * they set store by plenty), nerve (of how boldly they bear hardship), and wonder: how far they take to those unlike them
+ * and to new ways, which no leaning of their land's carries. A temper is its land's ways met by these.
+ */
+export const FACETS = [
+  "warmth",
+  "deference",
+  "zest",
+  "prudence",
+  "nerve",
+  "wonder",
+] as const;
+export function placeFacets(place: Place, i: number): number[] {
+  const who = place.key ^ place.people.id[i]!,
+    born = place.people.born[i]!;
+  return [11, 12, 13, 14, 15, 16].map((salt) => ownNature(who, born, salt));
+}
+/**
+ * What one holds dear (asked 2026-11-26: "values that colour ties, quarrels and breaks"): their land's eight ways
+ * (rules/ways.ts: kin, rank, the gods, valour, trade, strangers, custom, thrift), each half their land's and half their
+ * own (a draw of who they are). Two alike in them take to each other the more, two who hold one dear at opposite ends
+ * come to words over it the oftener, and one who holds the gods dear breaks down at their altar.
+ */
+export const VALUES_N = WAY_TRAITS.length;
+export function placeValues(
+  place: Place,
+  i: number,
+  out = new Float64Array(VALUES_N),
+): Float64Array {
+  const w = place.matched.ways,
+    who = place.key ^ place.people.id[i]!,
+    born = place.people.born[i]!;
+  for (let k = 0; k < VALUES_N; k++)
+    out[k] = ownLeaning(who, born, w?.[k] ?? 0.5, 30 + k);
+  return out;
+}
+/**
+ * How far two hold one of their values at opposite ends of it, 0 … 1 (`at`, where given, set to which): each one's
+ * distance from their land's middle (its way), the product where they lie on two sides, against the most two can.
+ */
+export function valueClash(
+  a: ArrayLike<number>,
+  b: ArrayLike<number>,
+  ways: readonly number[] | undefined,
+  at?: { k: number },
+): number {
+  let most = 0;
+  for (let k = 0; k < VALUES_N; k++) {
+    const m =
+        (1 - TEMPER_OWN) * Math.max(0, Math.min(1, ways?.[k] ?? 0.5)) +
+        TEMPER_OWN / 2,
+      x = (-(a[k]! - m) * (b[k]! - m)) / ((TEMPER_OWN / 2) * (TEMPER_OWN / 2));
+    if (x > most) {
+      most = x;
+      if (at) at.k = k;
+    }
+  }
+  return Math.min(1, most);
+}
+/** One's own half of a leaning (rules/temper.ts TEMPER.own). */
+const TEMPER_OWN = TEMPER.own;
+/** How far apart two drawn at random hold a value, on the mean: their own halves, E|U1 - U2| = 1/3 of it. */
+const VALUE_APART = TEMPER_OWN / 3;
 /** How much a thing weighs with one of a leaning, against most (1): half as much at the least, half as much again at the most. */
 export const leans = (x: number): number => 0.5 + x;
 
@@ -5011,6 +5081,10 @@ function meetDay(world: World, place: Place, rounds = 1): void {
     n = p.n;
   if (n < 2) return;
   const temper = new Float32Array(n * 5),
+    // (What each holds dear, and their wonder: how little like takes to like with them. FACETS, VALUES.)
+    values = new Float64Array(n * VALUES_N),
+    wonder = new Float32Array(n),
+    ways = place.matched.ways,
     byHouse = new Map<number, number[]>(),
     byWork = new Map<number, number[]>(),
     here = new Set<number>();
@@ -5029,6 +5103,8 @@ function meetDay(world: World, place: Place, rounds = 1): void {
     temper[i * 5 + 2] = t.sociable;
     temper[i * 5 + 3] = t.thrifty;
     temper[i * 5 + 4] = t.bold;
+    placeValues(place, i, values.subarray(i * VALUES_N, (i + 1) * VALUES_N));
+    wonder[i] = ownNature(place.key ^ p.id[i]!, p.born[i]!, 16);
     const h = p.house[i]!;
     (byHouse.get(h) ?? byHouse.set(h, []).get(h)!).push(i);
     const w = p.work[i]!;
@@ -5054,10 +5130,19 @@ function meetDay(world: World, place: Place, rounds = 1): void {
         let dist = 0;
         for (let q = 0; q < 5; q++) dist += Math.abs(temper[i * 5 + q]! - temper[j * 5 + q]!);
         dist /= 5;
+        let apart = 0;
+        for (let q = 0; q < VALUES_N; q++)
+          apart += Math.abs(
+            values[i * VALUES_N + q]! - values[j * VALUES_N + q]!,
+          );
+        apart /= VALUES_N;
         const kin = p.house[i] === p.house[j],
           // (Like takes to like: alike past the mean of two drawn at random, warmer; unlike, cooler. Kin the warmer by how
-          // close each holds them; a low mood sours a meeting.)
-          base = 40 * (0.19 - dist),
+          // close each holds them; a low mood sours a meeting. And alike in what they hold dear, past two drawn at random,
+          // warmer, the less for those of much wonder: half as much at the most, half again at the least.)
+          base =
+            40 * (0.19 - dist) +
+            40 * (VALUE_APART - apart) * (1.5 - (wonder[i]! + wonder[j]!) / 2),
           ri = tieMove(
             p,
             i,
@@ -5073,11 +5158,23 @@ function meetDay(world: World, place: Place, rounds = 1): void {
         if (rounds > 1 || ri > QUARREL_AT || rj > QUARREL_AT) continue;
         // Two who cannot abide each other: words, now and then, the more often the hotter their tempers; and between hot
         // tempers who think worst of each other, blows, parted by those about them.
+        // (The oftener where they hold one thing dear at its two ends: half as often where they hold nothing so, half again
+        // where they could not be further apart on it.)
         const bold = (temper[i * 5 + 4]! + temper[j * 5 + 4]!) / 2,
+          clash =
+            0.5 +
+            valueClash(
+              values.subarray(i * VALUES_N, (i + 1) * VALUES_N),
+              values.subarray(j * VALUES_N, (j + 1) * VALUES_N),
+              ways,
+            ),
           flare = meetDraw(world, place, i, k + 3);
-        if (flare >= QUARREL_ODDS * 2 * bold) continue;
+        if (flare >= QUARREL_ODDS * 2 * bold * clash) continue;
         const blows =
-          ri <= BRAWL_AT && rj <= BRAWL_AT && bold >= BRAWL_BOLD && flare < QUARREL_ODDS * bold;
+          ri <= BRAWL_AT &&
+          rj <= BRAWL_AT &&
+          bold >= BRAWL_BOLD &&
+          flare < QUARREL_ODDS * bold * clash;
         for (const [a, b] of [
           [i, j],
           [j, i],
@@ -7025,7 +7122,7 @@ export function placeMakings(place: Place): { good: number; makers: number }[] {
 // —— Breaks, justice and works (N11) ——————————————————————————————————————————————————————————————————————————————
 
 /** How one breaks down (place.breaks): wandering dazed, eating all in sight, lashing out at what is about them. */
-export const BREAK = { wander: 1, binge: 2, wreck: 3 } as const;
+export const BREAK = { wander: 1, binge: 2, wreck: 3, pray: 4 } as const;
 /** What a town's justice did with one brought before it (rules/sentences.ts sentenceMix's order), and its words. */
 export const VERDICT = { fined: 1, death: 2, labour: 3, held: 4, freed: 5 } as const;
 /**
@@ -7097,16 +7194,21 @@ function breakDay(cx: TickCx, i: number): boolean {
   if (!world.rng.chance(deep * deep, PLACE_DRAW, place.key ^ p.id[i]!, tickNo, P.brk)) return false;
   // (The bold lash out at what is about their work; those who set no store by plenty eat all in sight; the rest wander
   // dazed. One bold whose work has nothing about it to lash out at, wanders.)
+  // (And one who holds the gods dear, where the town has an altar, kneels at it the break through: VALUES.)
   const temper = placeTemper(place, i),
     work = p.work[i]!,
     b = bldgAt(place, work),
     afield = work === AT.fields,
+    altar = buildingOf(place, ["temple", "shrine"]),
+    devout = placeValues(place, i)[WAY.piety]! >= 0.62 && altar > 0,
     how =
       temper.bold >= 0.5 && (b > 0 || afield)
         ? BREAK.wreck
         : temper.thrifty < 0.5
           ? BREAK.binge
-          : BREAK.wander;
+          : devout
+            ? BREAK.pray
+            : BREAK.wander;
   (place.breaks ??= []).push(p.id[i]!, how, t + BREAK_TICKS * PLACE_TICK);
   note(place, HAP.broke, p.id[i]!, how);
   p.act[i] = ACT.idle;
@@ -7168,7 +7270,12 @@ function breakTurn(cx: TickCx, i: number, h: number, fk: Frame): boolean {
     }
     return true;
   }
-  if (p.at[i] !== AT.square) go(place, i, AT.square, world);
+  // (One kneels at the town's altar; the rest wander dazed about the square.)
+  const to =
+    how === BREAK.pray
+      ? place.bldgs.lot[buildingOf(place, ["temple", "shrine"])]!
+      : AT.square;
+  if (p.at[i] !== to) go(place, i, to, world);
   return true;
 }
 /** A tick of one held by the town's justice (false: their term is served, and they are let go). */
@@ -8713,7 +8820,9 @@ export function hapTold(
         ? "broke down, their mood too low to bear, and lashed out at what lay about their work"
         : x.a === BREAK.binge
           ? "broke down, their mood too low to bear, and ate all in sight at home"
-          : "broke down, their mood too low to bear, and wandered dazed about the square";
+          : x.a === BREAK.pray
+            ? "broke down, their mood too low to bear, and knelt at the town's altar"
+            : "broke down, their mood too low to bear, and wandered dazed about the square";
     case HAP.judged: {
       const of = named?.(x.a) ? ` for the blows with ${named(x.a)}` : x.a ? "" : " for what they spoiled";
       return x.b === VERDICT.fined

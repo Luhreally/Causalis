@@ -103,6 +103,9 @@ export type PlaceInspectPerson = {
   /** Their temper in a few words, and in full. */
   readonly temper: string;
   readonly temperWords: string;
+  /** Their own nature (its facets) and what they hold dear, in a few words each. */
+  readonly nature: string;
+  readonly values: string;
   /** Their home and their work: the lot, said. */
   readonly home: { readonly lot: number; readonly words: string; readonly ref: string };
   readonly work: { readonly lot: number; readonly words: string; readonly ref: string } | null;

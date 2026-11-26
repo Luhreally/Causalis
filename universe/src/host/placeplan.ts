@@ -332,7 +332,7 @@ export function whyWords(world: World, place: Place, i: number): string {
     case WHY.broke: {
       const b = placeBreak(place, i),
         hours = b ? Math.ceil(b.left / 3600) : 0;
-      return `Broken down, their mood too low to bear (${p.mood[i]}): ${b?.how === BREAK.wreck ? "lashing out at what lies about them" : b?.how === BREAK.binge ? "eating all in sight at home" : "wandering dazed"}, ${hours} more ${hours === 1 ? "hour" : "hours"} of it${going}`;
+      return `Broken down, their mood too low to bear (${p.mood[i]}): ${b?.how === BREAK.wreck ? "lashing out at what lies about them" : b?.how === BREAK.binge ? "eating all in sight at home" : b?.how === BREAK.pray ? "kneeling at the town's altar" : "wandering dazed"}, ${hours} more ${hours === 1 ? "hour" : "hours"} of it${going}`;
     }
     case WHY.held:
     case WHY.labour: {
@@ -719,7 +719,7 @@ export function placeNotices(world: World, place: Place): PlaceNotice[] {
         "breaking",
         "🌀",
         2,
-        `${ids.length === 1 ? `${w.name} has` : `${ids.length} have`} broken down, a mood too low to bear: ${w.name} is ${how === BREAK.wreck ? "lashing out at what lies about their work" : how === BREAK.binge ? "eating all in sight at home" : "wandering dazed about the square"}`,
+        `${ids.length === 1 ? `${w.name} has` : `${ids.length} have`} broken down, a mood too low to bear: ${w.name} is ${how === BREAK.wreck ? "lashing out at what lies about their work" : how === BREAK.binge ? "eating all in sight at home" : how === BREAK.pray ? "kneeling at the town's altar" : "wandering dazed about the square"}`,
         HAP.broke,
         { n: ids.length, id: p.id[i]!, ref: w.ref },
       );

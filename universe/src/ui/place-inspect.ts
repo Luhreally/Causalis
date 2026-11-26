@@ -306,7 +306,11 @@ export class PlaceInspector {
         );
         list.append(row);
       }
-      body.push(list, el("p", "place-insp-why", `Temper: ${x.temper}.`));
+      body.push(
+        list,
+        el("p", "place-insp-why", `Temper: ${x.temper}. Nature: ${x.nature}.`),
+        el("p", "place-insp-why", `${x.values}.`),
+      );
     } else if (this.tab === "skills") {
       if (!x.skills.length) body.push(el("p", "place-insp-why", "A child: they keep no work yet."));
       else {
@@ -403,6 +407,8 @@ export class PlaceInspector {
           ["Trade", `${cap(x.trade)}${x.bound ? `; held by order: ${x.bound}` : ""}`, null],
           ...(x.skill ? [["Skill", x.skill, null] as const] : []),
           ["Temper", x.temper, null],
+          ["Nature", x.nature, null],
+          ["Values", x.values, null],
           ...(x.mark ? [["Bears", x.mark, null] as const] : []),
         ]),
       );

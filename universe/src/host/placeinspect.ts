@@ -72,6 +72,9 @@ import {
   placeTier,
   COND,
   lotOfSrc,
+  placeFacets,
+  placeValues,
+  valueClash,
 } from "./place.ts";
 import {
   ailWords,
@@ -136,6 +139,26 @@ const COND_WORDS: Readonly<Record<number, readonly [string, string]>> = {
 };
 /** A cook's skill at it, said of their meals. */
 const COOK_WORDS = ["poor", "plain", "good", "fine", "a master's"] as const;
+/** Each facet of one's nature at its two ends (host/place.ts FACETS). */
+const FACET_WORDS: readonly (readonly [string, string])[] = [
+  ["warm", "cool"],
+  ["deferent", "headstrong"],
+  ["lively", "quiet"],
+  ["prudent", "carefree"],
+  ["steady", "nervous"],
+  ["curious", "set in their ways"],
+];
+/** What each of the eight values is of (rules/ways.ts WAY_TRAITS' order). */
+export const VALUE_WORDS = [
+  "kin",
+  "rank",
+  "the gods",
+  "valour",
+  "trade",
+  "strangers",
+  "custom",
+  "thrift",
+] as const;
 /** A mood in a word. */
 export const moodWord = (m: number): string =>
   m >= 25 ? "Glad" : m >= -15 ? "Even" : m >= MOOD_UNHEEDING ? "Low" : "Too low to heed an order";
@@ -207,6 +230,21 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
         name: cap(lotWords(place, lot)),
       };
     },
+    // (Words or blows with one: over what the two hold dear at its two ends, where they do.)
+    overWords = (base: string, other: number): string => {
+      const j = placeIndexOf(place, other);
+      if (j < 0) return base;
+      const at = { k: -1 },
+        clash = valueClash(
+          placeValues(place, i),
+          placeValues(place, j),
+          place.matched.ways,
+          at,
+        );
+      return clash >= 0.25 && at.k >= 0
+        ? `${base}, over ${VALUE_WORDS[at.k]}`
+        : base;
+    },
     hd = (x: (typeof terms)[number]) =>
       x.cond
         ? COND_WORDS[x.cond]
@@ -223,7 +261,11 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
             ? x.src === id
               ? `Their own cooking, ${COOK_WORDS[Math.max(0, Math.min(4, (x.size + 2) / 2))] ?? "plain"}`
               : `Meals cooked at home, ${COOK_WORDS[Math.max(0, Math.min(4, (x.size + 2) / 2))] ?? "plain"}`
-            : base;
+            : (x.thought === THOUGHT.quarrel || x.thought === THOUGHT.brawl) &&
+                x.src &&
+                x.src > 0
+              ? overWords(base, x.src)
+              : base;
         return {
           icon: hd(x)?.[0] ?? "•",
           words,
@@ -252,6 +294,22 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
   mark(temper.sociable, "fond of company", "solitary");
   mark(temper.thrifty, "thrifty", "open-handed");
   mark(temper.bold, "bold", "timid");
+  // (Their nature, the facets far from the middle; what they hold dear and set little store by, against their land.)
+  const facets = placeFacets(place, i),
+    nature = facets
+      .map((x, k) =>
+        x >= 0.75 ? FACET_WORDS[k]![0] : x <= 0.25 ? FACET_WORDS[k]![1] : null,
+      )
+      .filter((x): x is string => !!x),
+    values = placeValues(place, i),
+    ways = place.matched.ways,
+    dear: string[] = [],
+    little: string[] = [];
+  values.forEach((v, k) => {
+    const m = 0.5 * (ways?.[k] ?? 0.5) + 0.25;
+    if (v - m >= 0.15) dear.push(VALUE_WORDS[k]!);
+    else if (m - v >= 0.15) little.push(VALUE_WORDS[k]!);
+  });
   const skill = r.occupation === OCC.dependent ? null : placeSkill(place, i),
     mate = placeMate(place, i),
     mi = mate ? placeIndexOf(place, mate.id) : -1,
@@ -340,6 +398,8 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
       ? `${SKILL_NAMES[p.taught[i]! - 1]}: what their household taught them as they grew (two hundred hours of it when they came of age)`
       : null,
     temper: marks.length ? cap(marks.join(", ")) : "Much as most of their people",
+    nature: nature.length ? cap(nature.join(", ")) : "Even in every way",
+    values: `${dear.length ? `Holds dear ${dear.join(", ")}` : "Holds nothing dearer than their people do"}${little.length ? `; sets little store by ${little.join(", ")}` : ""}`,
     temperWords: temperWords(place, i),
     home: {
       lot: r.home,
