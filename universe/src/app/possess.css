@@ -275,8 +275,10 @@ body.possessing:has(.page-window:not([hidden])) .possess-hint {
   position: absolute;
   right: calc(env(safe-area-inset-right, 0px) + 14px);
   bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
-  width: 214px;
-  height: 214px;
+  /* (As wide as the four it holds; the fifth, a gift's, widens it to hold that too: gifts.css. A box past what it holds lay
+     over the hint said beside it on a phone on its side.) */
+  width: 160px;
+  height: 160px;
   pointer-events: none;
 }
 .possess-act {

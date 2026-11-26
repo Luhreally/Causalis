@@ -33,6 +33,8 @@ import {
   cycloneHarm,
   cycloneSize,
   cycloneSpin,
+  centuryWorst,
+  natureImportance,
 } from "../../rules/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { deathsIn, grieve, spill } from "../acts/disasters.ts";
@@ -68,7 +70,13 @@ export type Struck = {
 export class StormStore implements StateStore {
   readonly name = "planet.storms";
   struck: Struck[] = [];
-  tally = { storms: 0, slides: 0, dead: 0 };
+  tally: {
+    storms: number;
+    slides: number;
+    dead: number;
+    /** The most dead of one storm, and of one slide, this century: [century, dead] (rules/nature.ts centuryWorst). */
+    worst?: { storm?: [number, number]; slide?: [number, number] };
+  } = { storms: 0, slides: 0, dead: 0 };
   dormant(): boolean {
     return !this.tally.storms && !this.tally.slides;
   }
@@ -85,6 +93,7 @@ export class StormStore implements StateStore {
     const s = (state ?? {}) as Partial<{ struck: Struck[]; tally: StormStore["tally"] }>;
     this.struck = (s.struck ?? []).map((x) => ({ ...x }));
     this.tally = { storms: 0, slides: 0, dead: 0, ...s.tally };
+    if (s.tally?.worst) this.tally.worst = { ...s.tally.worst };
   }
 }
 
@@ -157,9 +166,23 @@ function strike(
   // (Its harvest drowned or buried, kept with the floods' so the year's food and the pages read it: planet/floods.ts.)
   const floods = floodsOf(world);
   floods?.drowned.push([cell, t + YEAR, Math.round(1000 * harm.fields * ALL)]);
+  // (Its dead against its land's people, the world's, and what such a blow usually takes there, as a flood's are:
+  // planet/floods.ts.)
+  let people = 0,
+    worst = false;
+  if (dead > 0) {
+    for (const q of ctx.provinces.all()) people += q.total();
+    const r = centuryWorst(store.tally.worst?.[kind], year, dead);
+    worst = r.worst;
+    if (r.record) (store.tally.worst ??= {})[kind] = r.record;
+  }
+  const usual = (kind === "storm" ? cycloneHarm(1) : slideHarm(1)).dead * spared;
   const event = world.events.emit({
     type: kind === "storm" ? STORM_EVENTS.storm.type : STORM_EVENTS.slide.type,
-    importance: dead >= 1000 ? 5 : size >= 2 ? 4 : 3,
+    importance: Math.max(
+      natureImportance(dead, people, p.total() + dead, usual, worst),
+      size >= 2 ? 4 : 3,
+    ),
     subjects: [p.ref],
     place: p.ref,
     causes: [{ ref: cellRef(0, cell), role: "constraint", weight: 1 }],

@@ -26,6 +26,7 @@ import {
   litChance,
   magnitudeOf,
   natureImportance,
+  centuryWorst,
   reachesGround,
   stakesOf,
   yearsBetween,
@@ -58,18 +59,42 @@ test("a land's shocks go by how its plates meet and how far off", () => {
 
 test("the greater the blow, the rarer, and the farther it is told", () => {
   // A window only for a world's great losses: never a small land's small one, nor a few against many.
+  assert.equal(natureImportance(0, 1_000_000), 3);
   assert.equal(natureImportance(11, 1_000_000), 3);
-  assert.equal(natureImportance(60, 1_000_000), 4);
+  assert.equal(natureImportance(60, 1_000_000), 3);
   assert.equal(natureImportance(600, 1_000_000), 5);
   assert.equal(natureImportance(6_000, 1_000_000), 6);
-  assert.equal(natureImportance(6_000, 1_000_000_000), 5);
-  // (A middling quake among billions goes down for four centuries, not twelve.)
-  assert.equal(natureImportance(600, 1_000_000_000), 4);
-  assert.equal(natureImportance(60, 1_000_000_000), 3);
   assert.equal(natureImportance(60_000, 1_000_000), 7);
-  assert.equal(natureImportance(60_000, 10_000_000_000), 5);
-  assert.equal(natureImportance(150_000, 60_000_000_000), 6);
-  assert.equal(natureImportance(2_000_000, 60_000_000_000), 7);
+  // Never by a bare count: what is many among a million is few among billions (a middling quake among billions is a
+  // lifetime's, not twelve centuries').
+  assert.equal(natureImportance(600, 1_000_000_000), 3);
+  assert.equal(natureImportance(6_000, 1_000_000_000), 3);
+  assert.equal(natureImportance(60_000, 10_000_000_000), 3);
+  assert.equal(natureImportance(150_000, 60_000_000_000), 3);
+  assert.equal(natureImportance(2_000_000, 60_000_000_000), 5);
+  assert.equal(natureImportance(20_000_000, 60_000_000_000), 6);
+  // Against its own land's people: one in a hundred of them (a city drowned) is history's among any number elsewhere; one in
+  // five hundred (forty of a hamlet), its land's for four centuries.
+  assert.equal(natureImportance(90_000, 4_600_000_000, 8_000_000), 5);
+  assert.equal(natureImportance(20_000, 4_600_000_000, 8_000_000), 4);
+  assert.equal(natureImportance(4_000, 4_600_000_000, 8_000_000), 3);
+  assert.equal(natureImportance(40, 4_600_000_000, 2_000), 4);
+  // Against what its land's blows of the kind usually take: four times its usual is a great one, eight times remembered.
+  assert.equal(natureImportance(4_000, 4_600_000_000, 8_000_000, 0.0005), 3);
+  assert.equal(natureImportance(8_000, 4_600_000_000, 8_000_000, 0.0005), 3);
+  assert.equal(natureImportance(16_000, 4_600_000_000, 8_000_000, 0.0005), 4);
+  assert.equal(natureImportance(32_000, 4_600_000_000, 8_000_000, 0.0005), 5);
+  // The century's worst is history's, however small against the world.
+  assert.equal(natureImportance(4_000, 4_600_000_000, 8_000_000, 0.0005, true), 5);
+  let rec = centuryWorst(undefined, 1_234, 10);
+  assert.deepEqual([rec.worst, rec.record], [true, [12, 10]]);
+  rec = centuryWorst(rec.record, 1_250, 9);
+  assert.deepEqual([rec.worst, rec.record], [false, [12, 10]]);
+  rec = centuryWorst(rec.record, 1_299, 11);
+  assert.deepEqual([rec.worst, rec.record], [true, [12, 11]]);
+  rec = centuryWorst(rec.record, 1_300, 1);
+  assert.deepEqual([rec.worst, rec.record], [true, [13, 1]]);
+  assert.equal(centuryWorst(rec.record, 1_310, 0).worst, false);
   assert.ok(stakesOf(100) < stakesOf(10_000));
   assert.equal(stakesOf(0), 0);
   assert.equal(stakesOf(1e9), 1);

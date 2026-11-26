@@ -30,7 +30,7 @@ import {
   sightUp,
   type TownFlora,
 } from "../view/index.ts";
-import { InstancedBatch, coneMesh, keptMesh, sidesMesh } from "./batch.ts";
+import { InstancedBatch, coneMesh, dropMesh, keptMesh, sidesMesh } from "./batch.ts";
 import { WET } from "./compound.ts";
 import { ditherNear, fadingToned } from "./nearfade.ts";
 import { SNOW_HIDES } from "./flora.ts";
@@ -538,7 +538,8 @@ export class TownFloraLayer {
   private clear(): void {
     this.key = "";
     this.ground?.destroy();
-    this.groundMesh?.destroy();
+    // (Let go, not destroyed outright: the warming of a town's shaders may still draw it, batch.ts dropMesh.)
+    if (this.groundMesh) dropMesh(this.groundMesh);
     this.ground = null;
     this.groundMesh = null;
     this.base = null;
