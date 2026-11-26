@@ -111,6 +111,26 @@ export const siteOf = (words: string): string => words.replace(/'s site$/, "");
 export const byOrder = (place: Place, key: string): string =>
   PLACE_HOOKS.heads?.(place, key) ? "by its head's order" : "by your order";
 
+/**
+ * The fire burning in a place now, if one is: its lot, and how many of its grown are at it this moment (those whose
+ * act is the brigade's). Its alert and its Dangers sheet both tell it from this, so the two never disagree.
+ */
+export function fireNow(place: Place): { lot: number; fighting: number; words: string } | null {
+  if (!place.fire.length || place.t >= place.fire[1]!) return null;
+  const lot = place.fire[0]!,
+    p = place.people;
+  let fighting = 0;
+  for (let i = 0; i < p.n; i++) if (p.act[i] === ACT.brigade) fighting++;
+  return {
+    lot,
+    fighting,
+    words:
+      fighting > 0
+        ? `Fire at ${lotWords(place, lot)}: ${fighting} of its grown ${fighting === 1 ? "is" : "are"} fighting it`
+        : `Fire at ${lotWords(place, lot)}: no one is fighting it yet`,
+  };
+}
+
 /** A lot of a place in words: "the smithy", "the square", "the fields", "the home on lot 12", "the school's site". */
 export function lotWords(place: Place, lot: number): string {
   if (lot === AT.square || lot === AT.none) return "the square";
@@ -473,8 +493,7 @@ export function placeNotices(world: World, place: Place): PlaceNotice[] {
     alone = 0,
     aloneOne = -1,
     low = 0,
-    lowOne = -1,
-    brigade = 0;
+    lowOne = -1;
   for (let i = 0; i < p.n; i++) {
     if (p.lack[i]! >= 144) {
       want++;
@@ -494,7 +513,6 @@ export function placeNotices(world: World, place: Place): PlaceNotice[] {
       low++;
       if (lowOne < 0 || p.mood[i]! < p.mood[lowOne]!) lowOne = i;
     }
-    if (p.act[i] === ACT.brigade) brigade++;
     // (Those whose building's work an order stopped wait by that order: no alert of it is wanted. A site's crew waiting
     // are told of with their site, below.)
     if (
@@ -506,22 +524,13 @@ export function placeNotices(world: World, place: Place): PlaceNotice[] {
       waiting.set(p.work[i]!, (waiting.get(p.work[i]!) ?? 0) + 1);
   }
   // What threatens it, seen on its own people.
-  const fire = place.fire.length && place.t < place.fire[1]! ? place.fire[0]! : null;
-  if (fire !== null)
-    add(
-      `fire${place.fire[1]}`,
-      "🔥",
-      3,
-      brigade > 0
-        ? `Fire at ${lotWords(place, fire)}: ${brigade} of its grown ${brigade === 1 ? "has" : "have"} turned out to fight it`
-        : `Fire at ${lotWords(place, fire)}: none has yet turned out to fight it`,
-      HAP.homeless,
-      {
-        n: brigade,
-        lot: fire,
-        ref: fire === AT.square ? null : placeLotRef(place.town, fire),
-      },
-    );
+  const fire = fireNow(place);
+  if (fire)
+    add(`fire${place.fire[1]}`, "🔥", 3, fire.words, HAP.homeless, {
+      n: fire.fighting,
+      lot: fire.lot,
+      ref: fire.lot === AT.square ? null : placeLotRef(place.town, fire.lot),
+    });
   if (place.matched.sieged)
     add(
       "siege",
@@ -1253,12 +1262,12 @@ export function dangersSheet(world: World, place: Place): PlaceDangersSheet {
     now: { icon: string; words: string; ref: string | null }[] = [],
     hurt: { name: string; words: string; ref: string }[] = [];
   // What bears on it now.
-  const fire = place.fire.length && place.t < place.fire[1]! ? place.fire[0]! : null;
-  if (fire !== null)
+  const fire = fireNow(place);
+  if (fire)
     now.push({
       icon: "🔥",
-      words: `Fire at ${lotWords(place, fire)}, being fought until it is out.`,
-      ref: fire === AT.square ? null : placeLotRef(place.town, fire),
+      words: `${fire.words}.`,
+      ref: fire.lot === AT.square ? null : placeLotRef(place.town, fire.lot),
     });
   if (place.matched.sieged)
     now.push({

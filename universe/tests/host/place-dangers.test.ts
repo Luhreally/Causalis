@@ -187,10 +187,20 @@ test("a fire is seen on its people: who lost a home, who was hurt, who died, by 
       return n;
     };
   assert.ok(out() > 0, "its neighbours turn out");
-  assert.ok(placeNotices(w, place).some((x) => /^Fire at /.test(x.words)));
+  const alert = placeNotices(w, place).find((x) => /^Fire at /.test(x.words));
+  assert.ok(alert);
   const sheet = dangersSheet(w, place),
     text = JSON.stringify(sheet);
-  assert.ok(sheet.now.some((x) => /Fire at /.test(x.words)));
+  // (One truth for both: the alert and the sheet tell the same fire by the same count of those at it, out() of them.)
+  assert.equal(alert.n, out());
+  assert.ok(
+    new RegExp(`${out()} of its grown (is|are) fighting it`).test(alert.words),
+    alert.words,
+  );
+  assert.ok(
+    sheet.now.some((x) => x.words === `${alert.words}.`),
+    JSON.stringify(sheet.now.map((x) => x.words)),
+  );
   assert.ok(
     sheet.now.some((x) => new RegExp(`^${dead} of the town died in the fire`).test(x.words)),
   );
