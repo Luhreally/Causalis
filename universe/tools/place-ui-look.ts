@@ -218,13 +218,40 @@ for (const view of [
   await page.waitForTimeout(2500);
   check(/Run town/.test(await text(".town-place")), "the god game's key says 🏘️ Run town");
   await look("01-god-bar", "the town, before it is run");
+  // (What the page holds on its graphics card, the god game's scene and the town's, before it is run and while it is.)
+  const vram = () =>
+    k<{ tex: number; vb: number; ib: number } | null>(
+      "(() => { const v = globalThis.causalis.stage?.device?._vram; return v ? { tex: v.tex, vb: v.vb, ib: v.ib } : null; })()",
+    );
+  const mb = (v: { tex: number; vb: number; ib: number } | null) =>
+    v ? `${((v.tex + v.vb + v.ib) / 1048576).toFixed(1)} MB (textures ${(v.tex / 1048576).toFixed(1)}, meshes ${((v.vb + v.ib) / 1048576).toFixed(1)})` : "not told";
+  const godVram = await vram();
+  say(`graphics memory before the town is run: ${mb(godVram)}`);
 
-  // Entered: the ways to run it asked at once.
+  // Entered: its loading screen while its chunk comes and its people are read (O1), then the ways to run it asked.
+  // (The mode's chunk fetched as over a slow line, a second and a half: its loading screen stands to be looked at.)
+  await page.route(/townplace-[^/]*\.js$/, async (r) => {
+    await new Promise((done) => setTimeout(done, 1500));
+    await r.continue();
+  });
   if (!(await press(".town-place", "🏘️ Run town"))) continue;
+  if (
+    await page
+      .waitForSelector(".place-load:not([hidden])", { timeout: 3000 })
+      .then(() => true)
+      .catch(() => false)
+  )
+    // (At once: it stands a few hundred ms, less than a look's wait.)
+    await shot("01b-loading");
   await until("the town entered", async () => {
     const s = await state();
     return s.on && !!s.told;
   });
+  {
+    const c = await k<{ loaded: number }>("globalThis.causalis.place.uiCost()");
+    say(`the loading screen stood ${Math.round(c.loaded)} ms`);
+    check((await shown(".place-load")) === 0, "the loading screen is away once entered");
+  }
   await page.waitForTimeout(1500);
   check((await shown(".place-mode-choice")) === 3, "the three ways are asked on entering");
   await look("02-choose-on-entry", "the ways asked on entering");
@@ -238,6 +265,7 @@ for (const view of [
   const air = await text(".place-air");
   check(/-?\d+°/.test(air), `the bar's warmth and weather: "${air}"`);
   await look("03-hand", "the town run by hand");
+  say(`graphics memory while it is run: ${mb(await vram())}`);
 
   // A day a second: how far its clock goes in four seconds of the page's.
   await press('.place-pace[data-pace="86400"]', "the day-a-second pace");
@@ -323,6 +351,13 @@ for (const view of [
     await k("globalThis.causalis.closePage?.()");
     await page.keyboard.press("Escape");
     await page.waitForTimeout(400);
+  }
+  // (The eye close on a house can have its crew behind its walls: drawn back a little, as a finger would pinch.)
+  for (let tries = 0; tries < 3 && !(await anyone()); tries++) {
+    const vp = page.viewportSize()!;
+    await page.mouse.move(vp.width / 2, vp.height * 0.45);
+    await page.mouse.wheel(0, 500);
+    await page.waitForTimeout(900);
   }
   const seen = await k<{ i: number; x: number; y: number } | null>(
     `(() => { const c = globalThis.causalis, n = c.planNow().people.length, W = innerWidth, H = innerHeight; for (let i = 0; i < n; i++) { const p = c.personOnScreen(i); if (p && p.x > 8 && p.x < W - 8 && p.y > H * 0.15 && p.y < H * 0.8 && document.elementFromPoint(p.x, p.y)?.tagName === "CANVAS") return { i, x: p.x, y: p.y }; } return null; })()`,
@@ -430,6 +465,22 @@ for (const view of [
     say(`the building's first answer came ${(await inspected()).answered} ms after it was asked`);
     await look("20-insp-lot", "a building inspected");
   }
+  // Where a good is made, with its bills (N10), and the market, with what it takes; at half height.
+  const made = await k<{ ref: string | null; market: number | null }>(
+    `globalThis.causalis.client.query({ type: "place.work", args: { ref: ${JSON.stringify(town.ref)} } }).then((s) => ({ ref: s?.bills.find((b) => b.ref)?.ref ?? null, market: s?.buildings.find((b) => /market/.test(b.name))?.lot ?? null }))`,
+  );
+  for (const [ref, still, words] of [
+    [made.ref, "20b-insp-making", "a building where a good is made, its bills"],
+    [made.market !== null ? `plcl:${town.ref}:${made.market + 3}` : null, "20c-insp-market", "the market, what it takes"],
+  ] as const) {
+    if (!ref) continue;
+    await k(`globalThis.causalis.place.inspect(${JSON.stringify(ref)})`);
+    await until(words, async () => (await text(".place-insp-body")).length > 0);
+    await k(`globalThis.causalis.place.inspectHeight("full")`);
+    await page.waitForTimeout(900);
+    say(`${words}: ${(await text(".place-insp-body")).slice(0, 300)}`);
+    await look(still, words);
+  }
   await page.keyboard.press("Escape");
   await page.waitForTimeout(400);
   check((await shown(".place-insp")) === 0, "Esc lets go of what was inspected");
@@ -530,6 +581,15 @@ for (const view of [
   await until("the town left", async () => !(await state()).on);
   await page.waitForTimeout(800);
   check((await shown(".place-bar")) === 0, "the mode's bar is away");
+  // What befell it while it was run, told as the god game's chrome comes back (O1).
+  {
+    const told = await page
+      .waitForSelector(".ran-note:not([hidden])", { timeout: 4000 })
+      .then(() => true)
+      .catch(() => false);
+    say(`the note on leaving: ${told ? (await text(".ran-note")).slice(0, 200) : "none"}`);
+    if (told) await look("12-left-note", "what befell it, told on leaving");
+  }
   check(
     errors.length === 0,
     `no errors on the page (${errors.slice(0, 2).join(" | ").slice(0, 300)})`,

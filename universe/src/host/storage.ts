@@ -246,7 +246,19 @@ type SlotIndex = {
   latest: "a" | "b";
   count: number;
   meta?: Omit<SaveMeta, "name" | "count">;
+  /** Each slot's towns kept apart (APART), by their chunk's hash (absent: kept in the slot). */
+  apart?: { a?: string; b?: string };
 };
+
+/**
+ * The towns entered and kept (town mode's places, host/place.ts PlaceStore): kept apart from the rest of a save (O1),
+ * under a key of their own named by what they hold (their chunk's hash, as the save already reckons it). A save whose
+ * towns are as they were when last saved writes none of them again: a world saved on and on, its towns left alone,
+ * gzips only itself. Read back, they are put again where they were; a save whose towns' bytes are lost loads without
+ * them, as a game without the store does (an outside reading: kernel/save.ts).
+ */
+const APART = "readings.places";
+type ApartChunk = { readonly hash: string; readonly apart?: true; readonly data: unknown };
 
 /** Two alternating slots under one save name, with verified writes and fallback reads. */
 export class SaveSlots {
@@ -263,11 +275,36 @@ export class SaveSlots {
     const bytes = await this.store.get(this.key("index"));
     return bytes ? (JSON.parse(new TextDecoder().decode(bytes)) as SlotIndex) : null;
   }
+  private apartKey(hash: string): string {
+    return this.key(`towns-${hash}`);
+  }
   /** Write a save; returns its compressed size in bytes. */
-  async write(doc: SaveDocument): Promise<number> {
+  async write(whole: SaveDocument): Promise<number> {
     const index = await this.index(),
       slot: "a" | "b" = index?.latest === "a" ? "b" : "a",
-      bytes = await encodeSave(doc);
+      towns = whole.stores[APART] as ApartChunk | undefined;
+    let doc = whole,
+      apart: string | undefined,
+      townBytes = 0;
+    if (towns && towns.data !== null && towns.data !== undefined) {
+      apart = towns.hash;
+      const key = this.apartKey(apart);
+      // (Written only where these very towns are not kept already: read back and checked, as the save is.)
+      if (!(await this.store.get(key))) {
+        // (Its chunk alone, in a document of nothing else.)
+        const b = await encodeSave({ stores: { [APART]: whole.stores[APART]! } } as unknown as SaveDocument);
+        await this.store.put(key, b);
+        const back = await this.store.get(key);
+        if (!back || !sameBytes(back, b))
+          throw new SaveError("the save did not read back as written; the previous save is untouched");
+        townBytes = b.length;
+      }
+      doc = {
+        ...whole,
+        stores: { ...whole.stores, [APART]: { ...whole.stores[APART]!, data: null, apart: true } },
+      } as SaveDocument;
+    }
+    const bytes = await encodeSave(doc);
     await this.store.put(this.key(slot), bytes);
     const back = await this.store.get(this.key(slot));
     if (!back || !sameBytes(back, bytes))
@@ -283,9 +320,32 @@ export class SaveSlots {
         rulesets: doc.lineage.length,
         savedAt: Date.now(),
       },
+      apart: { ...index?.apart, [slot]: apart },
     };
+    if (!apart) delete next.apart![slot];
     await this.store.put(this.key("index"), new TextEncoder().encode(JSON.stringify(next)));
-    return bytes.length;
+    // (Towns no slot names any more let go.)
+    const named = new Set(Object.values(next.apart ?? {}).filter(Boolean));
+    for (const k of await this.store.keys())
+      if (k.startsWith(this.key("towns-")) && !named.has(k.slice(this.key("towns-").length)))
+        await this.store.delete(k);
+    return bytes.length + townBytes;
+  }
+  /** A slot's save with its towns put back where they were kept apart (left out, where their bytes are lost). */
+  private async whole(doc: SaveDocument): Promise<SaveDocument> {
+    const towns = doc.stores[APART] as ApartChunk | undefined;
+    if (!towns?.apart) return doc;
+    const stores = { ...doc.stores };
+    delete stores[APART];
+    const bytes = await this.store.get(this.apartKey(towns.hash));
+    if (bytes)
+      try {
+        const kept = (await decodeSave(bytes)).stores[APART];
+        if (kept && (kept as ApartChunk).hash === towns.hash) stores[APART] = kept;
+      } catch {
+        // (Unreadable: the world loads without its towns.)
+      }
+    return { ...doc, stores } as SaveDocument;
   }
   /**
    * Read the latest save that decodes and passes `accept` (a caller's check, such
@@ -301,7 +361,11 @@ export class SaveSlots {
       const bytes = await this.store.get(this.key(slot));
       if (!bytes) continue;
       try {
-        return { value: accept(await decodeSave(bytes)), slot, fellBack: slot !== index.latest };
+        return {
+          value: accept(await this.whole(await decodeSave(bytes))),
+          slot,
+          fellBack: slot !== index.latest,
+        };
       } catch {
         continue;
       }
@@ -310,6 +374,8 @@ export class SaveSlots {
   }
   async remove(): Promise<void> {
     for (const part of ["a", "b", "index"]) await this.store.delete(this.key(part));
+    for (const k of await this.store.keys())
+      if (k.startsWith(this.key("towns-"))) await this.store.delete(k);
   }
 }
 

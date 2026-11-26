@@ -31,15 +31,14 @@ import {
   type VillagePlan,
 } from "../bridge/index.ts";
 import { VILLAGE_METRE, type OrbitRig, type VillageScene } from "../render/index.ts";
-import {
-  PlaceHud,
-  PlaceInspector,
-  type PageWindow,
-  type PlaceTab,
-  type PlaceWeather,
-  type VillagePanel,
-} from "../ui/index.ts";
-import { PlaceBodies, type TownThing } from "../view/index.ts";
+import type { PageWindow, PlaceTab, PlaceWeather, VillagePanel } from "../ui/index.ts";
+// (The mode's own, read from their modules, not the barrels the god game reads: so they come in this chunk alone, fetched
+// when a town is first entered: app/townlazy.ts.)
+import { PlaceHud, seasonWord } from "../ui/place-hud.ts";
+import { PlaceInspector } from "../ui/place-inspect.ts";
+import type { PlaceLoading } from "../ui/place-loading.ts";
+import type { TownThing } from "../view/index.ts";
+import { PlaceBodies } from "../view/placefolk.ts";
 import { installWatch, type WatchFlow } from "./townwatch.ts";
 import { OVERLAY_SHADES, PlaceOverlayLayer, overlayColour, shadeOf } from "./townoverlay.ts";
 
@@ -61,6 +60,10 @@ export type PlaceDeps = {
   readonly sound: { on(): boolean; set(on: boolean): void } | null;
   /** Light with no side to it, over the hour's own (render/stage.ts fill): the mode's floor at night. */
   readonly fill: (x: number) => void;
+  /** The screen that stands while a town is entered (O1; app/townlazy.ts shows it before this chunk is fetched). */
+  readonly loading?: PlaceLoading;
+  /** What befell the town while it was run, told once it is left (O1: "While you ran…"; ui/ran.ts). */
+  readonly ranTown?: (title: string, lines: readonly string[]) => void;
 };
 export type PlaceFlow = {
   readonly on: boolean;
@@ -115,7 +118,7 @@ export type PlaceFlow = {
   /** The eye put again as on entering, at the next frame (the look tools: the entry's framing by day). */
   reframe(): void;
   /** What the mode's own chrome has cost the page's frames since last asked: its ms all told, and the frames (the look tools). */
-  uiCost(): { ms: number; frames: number };
+  uiCost(): { ms: number; frames: number; loaded: number };
   /** The overlay as laid on the ground (the look tools): its lots laid, and where those on the screen stand. */
   overlaid(): { lots: number; spots: { i: number; x: number; y: number; shade: number }[] };
 };
@@ -148,7 +151,11 @@ const EYE_NEAR = 9,
 export function installPlace(d: PlaceDeps): PlaceFlow {
   // (What the mode's chrome costs the page: its alerts, clock and sky as a frame is told, its ring and name each frame.)
   let uiMs = 0,
-    uiFrames = 0;
+    uiFrames = 0,
+    /** How long the loading screen stood when the town was last entered (ms; 0: none yet). */
+    entered = 0,
+    /** The place's clock when it was entered (its first frame told; null: not entered). */
+    enteredAt: number | null = null;
   const timed = (f: () => unknown): void => {
     const t0 = performance.now();
     f();
@@ -289,6 +296,17 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
         told = mine.frame = f;
         const t0 = performance.now();
         hud.time(f.t, pace, f.season);
+        // (Entered: where each of them is, told. Its season said, and the loading screen let go.)
+        enteredAt ??= f.t;
+        if (d.loading?.shown) {
+          const sky = d.weather();
+          d.loading.seasonIs(
+            seasonWord(f.season),
+            sky && sky.celsius !== null ? `${Math.round(sky.celsius)}° ${sky.words}` : (sky?.words ?? null),
+          );
+          d.loading.step(2, true);
+          entered = d.loading.hide();
+        }
         hud.sky(d.weather(), f.warmth);
         hud.alerts(f.notices);
         night(f.t);
@@ -575,10 +593,26 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
   };
 
   const leave = async (): Promise<void> => {
+    d.loading?.hide();
     if (!town) return;
     const left = town;
     // (What it did by its orders told to its land before it is left.)
     if (told?.managed && (told.unsettled > 0 || told.sites.length > 0)) await settle();
+    // (And what befell it while it was run, told once the god game's chrome is back.)
+    const since = enteredAt,
+      name = d.plan()?.name ?? "the town";
+    if (since !== null && d.ranTown)
+      void d.client
+        .query<{ days: number; lines: readonly string[] } | null>({
+          type: "place.since",
+          args: { ref: left, since },
+        })
+        .then((x) => {
+          if (x && x.lines.length && x.days >= 1)
+            d.ranTown!(`While you ran ${name}, ${x.days} ${x.days === 1 ? "day" : "days"}`, x.lines);
+        })
+        .catch(() => {});
+    enteredAt = null;
     town = null;
     sited = "";
     ran("hand");
@@ -617,7 +651,12 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     // (The eye near: a few homes across, its people to be told apart.)
     d.rig.flyTo({ distance: EYE_NEAR, pitch: EYE_PITCH }, 0.9);
     const ref = town;
+    // (Its people read one by one: the place made, or brought to the moment, as the plan is asked; then where each is.)
+    d.loading?.step(1, false);
     await d.reload(ref);
+    if (town !== ref) return;
+    d.loading?.step(1, true);
+    d.loading?.step(2, false);
     // (The plan read is laid by planRead; a town left meanwhile is left.)
     // (How it was run when it was last left, as its place keeps it.)
     try {
@@ -806,7 +845,7 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     inspectHeight: (h) => inspector.setHeight(h),
     overlaid: () => ({ lots: d.village.tintCount, spots: d.village.tintSpots() }),
     uiCost: () => {
-      const out = { ms: uiMs, frames: uiFrames };
+      const out = { ms: uiMs, frames: uiFrames, loaded: entered };
       uiMs = uiFrames = 0;
       return out;
     },

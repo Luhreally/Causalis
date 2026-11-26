@@ -91,5 +91,7 @@ export {
 export { THUMB_TIMES, lazyThumb, paintThumb } from "./thumbs.ts";
 export { drawPortrait } from "./portrait.ts";
 export { bannerMs, forgetBanners } from "./page-art.ts";
-export { PlaceHud, type PlaceCaption, type PlaceTab, type PlaceWeather } from "./place-hud.ts";
-export { PlaceInspector, type InspectHeight } from "./place-inspect.ts";
+// (The town mode's chrome is read from its own modules by app/townplace.ts, a chunk fetched when a town is entered: only
+// its types are told here.)
+export type { PlaceCaption, PlaceTab, PlaceWeather } from "./place-hud.ts";
+export type { InspectHeight } from "./place-inspect.ts";
