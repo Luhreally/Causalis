@@ -47,7 +47,11 @@
     right: calc(env(safe-area-inset-right, 0px) + 132px);
   }
 }
-/* The healing touch, the fifth act: at the head of the arc, gold. */
+/* The healing touch, the fifth act: at the head of the arc, gold. (The arc's box grown to hold it while it is shown.) */
+.possess-acts:has(> .possess-act-4:not([hidden])) {
+  width: 214px;
+  height: 214px;
+}
 .possess-act-4 {
   right: 150px;
   bottom: 150px;

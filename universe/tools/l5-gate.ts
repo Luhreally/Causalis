@@ -669,6 +669,28 @@ async function play(f: Forged, tag: string): Promise<void> {
     );
     await shot(`${tag}-5c-alert`);
     await tap(`[data-gate="alert"]`);
+  } else if (
+    // (A rail of more alerts than a phone's room holds folds the last of them behind its ⋯, the strife among them: there,
+    // its row in the ⋯'s sheet is pressed. ui/corner-rail.ts, asked 2026-11-11.)
+    await k<boolean>(
+      `!!document.querySelector('[data-gate="alert"]')?.classList.contains("folded")`,
+    )
+  ) {
+    await tap(".corner-more");
+    await settle(300);
+    await k(
+      `[...document.querySelectorAll(".corner-more-sheet .corner-more-row")].find((b) => b.textContent.includes("🗡"))?.setAttribute("data-gate", "alert-row")`,
+    );
+    if (await seen(`[data-gate="alert-row"]`)) {
+      await tap(`[data-gate="alert-row"]`);
+      await settle(400);
+      check(
+        (await text(".alert-list")).includes(f.found.rival),
+        `${tag}: the alert, from the rail's ⋯, does not show the plotter on the screen`,
+      );
+      await shot(`${tag}-5c-alert`);
+      await k(`document.querySelector('[data-gate="alert"]')?.click()`);
+    } else check(false, `${tag}: the strife alert folded behind the ⋯ has no row in its sheet`);
   } else check(false, `${tag}: no strife alert to press`);
   await ask("observe.watch", { ref: f.found.realm, on: false });
 }

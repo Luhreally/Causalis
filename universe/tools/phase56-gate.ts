@@ -249,8 +249,8 @@ const dials = await page.$$eval(".making-row:not(.size-row) .making-dial", (b) =
   b.map((x) => x.textContent ?? ""),
 );
 say(`the title: ${dials.length} dials (${dials.join(", ")})`);
-// (Eight since Phase 68: its lanes.)
-check(dials.length === 8, `${dials.length} making dials, not eight`);
+// (Eight since Phase 68: its lanes. Eleven since the sweep's Nature lane, b46b60c6: the universe's laws.)
+check(dials.length === 11, `${dials.length} making dials, not eleven`);
 /** The world the seed's text makes, told: its words come with this ending, and whether life arises. */
 const told = async (what: string, ends: RegExp) => {
   const ok = await until(
@@ -461,7 +461,13 @@ for (const [n, w] of WORLDS.entries()) {
       /^shut: it asks a people to harden copper\./.test(shut ?? ""),
       `bronze on ${w.seed} not shut for want of a hardener: “${shut}”`,
     );
-  } else check(shut === null, `bronze shut on ${w.seed}, where fire burns: “${shut}”`);
+  } else
+    // (Where fire burns, never for want of heat: a world of a metal-poor star may hold no tin or arsenic its people reach,
+    // alien 84's star 29 in a hundred of the Sun's metals.)
+    check(
+      shut === null || /^shut: it asks a people to harden copper\./.test(shut),
+      `bronze shut on ${w.seed}, where fire burns, not for want of a hardener: “${shut}”`,
+    );
   await shot(`${step}-bronze`);
 }
 
