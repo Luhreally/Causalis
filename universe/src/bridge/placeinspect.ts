@@ -83,6 +83,12 @@ export type PlaceInspectPerson = {
     readonly state: MemberState;
   }[];
   readonly healthRows: readonly (readonly [string, string])[];
+  /**
+   * Their day (the Work tab, N7): today an hour at a time from midnight, at work, at play or at home; and its working day,
+   * its days of rest, its games, line by line.
+   */
+  readonly day: readonly ("work" | "play" | "home")[];
+  readonly dayRows: readonly (readonly [string, string])[];
   /** What they have and wear (the Gear tab), line by line. */
   readonly gear: readonly (readonly [string, string])[];
   /** Their temper in a few words, and in full. */

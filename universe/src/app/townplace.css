@@ -1603,3 +1603,43 @@ body.placing:has(.page-window:not([hidden])) .place-tag {
 .place-insp-marks .mark-scarred {
   color: #e3a0a0;
 }
+/* The inspector's Work tab: their day, an hour a cell from midnight (N7). */
+.place-insp-day {
+  display: grid;
+  grid-template-columns: repeat(24, 1fr);
+  gap: 1px;
+  height: 16px;
+  margin: 4px 0 2px;
+}
+.place-insp-day span,
+.place-insp-day-key span[class^="pday-"] {
+  border-radius: 2px;
+}
+.pday-work {
+  background: #e0a440;
+}
+.pday-play {
+  background: #4fc3a1;
+}
+.pday-home {
+  background: #3a4a7a;
+}
+.place-insp-day-marks {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  opacity: 0.75;
+}
+.place-insp-day-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  align-items: center;
+  font-size: 12px;
+  margin: 4px 0 6px;
+}
+.place-insp-day-key span[class^="pday-"] {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+}

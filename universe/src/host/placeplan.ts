@@ -16,6 +16,9 @@ import {
   OCCUPATIONS,
   civic,
   type CivicKind,
+  GAME_WORDS,
+  LEISURE,
+  gamesIn,
 } from "../rules/index.ts";
 import {
   ASK_PULL,
@@ -96,6 +99,9 @@ import {
   siteStage,
   workWorth,
   type Place,
+  OFF_WORTH,
+  placeDayOf,
+  actWords,
 } from "./place.ts";
 import { townRoster } from "./roster.ts";
 
@@ -181,6 +187,47 @@ export const OCCUPATION_WORK: readonly string[] = [
   "leading",
 ];
 
+const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
+/** An hour of the day, said ("7:30"). */
+export const clockWords = (h: number): string => {
+  const m = Math.round(h * 60);
+  return `${Math.floor(m / 60) % 24}:${String(m % 60).padStart(2, "0")}`;
+};
+export const REST_WORDS = {
+  holy: "a holy day, kept by its faith",
+  feast: "a feast day",
+  rest: "a day of rest",
+} as const;
+/** A people's games, said ("foot races, wrestling and games of the board"; "talk among others" where it plays none). */
+export function gamesWords(bits: number): string {
+  const g = gamesIn(bits).map((x) => GAME_WORDS[x]);
+  return g.length === 0
+    ? "talk among others"
+    : g.length === 1
+      ? g[0]!
+      : `${g.slice(0, -1).join(", ")} and ${g.at(-1)}`;
+}
+/** One of a place's people's day, said, line by line (N7): today, its working day, its days of rest, its games. */
+export function placeDayRows(world: World, place: Place): [string, string][] {
+  const d = placeDayOf(world, place);
+  return [
+    ["Today", d.rest ? `${cap(REST_WORDS[d.rest])}: no work` : "A working day"],
+    [
+      "Working day",
+      `${clockWords(d.from)} to ${clockWords(d.to)}, ${d.hours.toFixed(1)} hours${
+        d.need === null
+          ? ""
+          : `: bread costs ${pct(d.need)} of what a day's work earns here, and the nearer it lies to it the longer the day`
+      }`,
+    ],
+    [
+      "Days of rest",
+      `${Math.round(d.days.all)} a year: ${Math.round(d.days.holy)} holy, ${Math.round(d.days.feasts)} feasts, ${LEISURE.rest} of rest`,
+    ],
+    ["Games", cap(gamesWords(d.games))],
+  ];
+}
+
 /** Why one of a place's people does what they do, in words, with the numbers that decided it. */
 export function whyWords(world: World, place: Place, i: number): string {
   const p = place.people,
@@ -207,6 +254,14 @@ export function whyWords(world: World, place: Place, i: number): string {
         : `The cold (${pct(need(2))} full) passed ${bar}: indoors to get warm${going}`;
     case WHY.lone:
       return `Want of company passed ${bar}: among others in the square until it eases (${pct(need(3))} full now)${going}`;
+    case WHY.play: {
+      const d = placeDayOf(world, place);
+      return `${d.rest ? cap(REST_WORDS[d.rest]) : `Their day's work done (it runs ${clockWords(d.from)} to ${clockWords(d.to)})`}: at ${gamesWords(d.games)} in the square${going}`;
+    }
+    case WHY.rest: {
+      const d = placeDayOf(world, place);
+      return `${d.rest ? cap(REST_WORDS[d.rest]) : `Out of their working day (${clockWords(d.from)} to ${clockWords(d.to)})`}: work is worth little to them now (${pct(OFF_WORTH * worth)}), and they rest at home${going}`;
+    }
     case WHY.burial:
       return `One of their household is buried today: standing by at ${lotWords(place, p.to[i]!)} while it is held`;
     case WHY.turned:
@@ -851,7 +906,7 @@ export function peopleSheet(
         ...who(i),
         occ: p.sexOcc[i]! & 15,
         trade: tradeWords(p.sexOcc[i]! & 15, age < grown).replace(/^a /, ""),
-        doing: `${ACT_WORDS[p.act[i]!]}${p.eta[i]! > 0 ? `, to ${lotWords(place, p.to[i]!)}` : ""}`,
+        doing: `${actWords(p, i)}${p.eta[i]! > 0 ? `, to ${lotWords(place, p.to[i]!)}` : ""}`,
         needs,
         worst: top,
         lack: Math.floor(p.lack[i]! / 144),

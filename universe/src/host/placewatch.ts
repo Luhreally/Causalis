@@ -23,7 +23,6 @@ import { lifeOf } from "../sim/index.ts";
 import type { QueryHandler } from "./host.ts";
 import {
   ACT,
-  ACT_WORDS,
   AT,
   HAP,
   enterPlace,
@@ -32,6 +31,7 @@ import {
   ordersOf,
   placeIndexOf,
   type Place,
+  actWords,
 } from "./place.ts";
 import { goneNames, lotWords, placeNamed, placeWho, tradeWords } from "./placeplan.ts";
 import { stewardHead, stewardOrders, stewardTaken, temperWords } from "./steward.ts";
@@ -176,7 +176,7 @@ export function placeWatched(world: World, place: Place, ids: readonly number[])
     out.push({
       id,
       ...who(i),
-      words: `${tradeWords(occ, age < grown).replace(/^a /, "")}, ${Math.floor(age)} · ${ACT_WORDS[p.act[i]!]}${going ? `, to ${lotWords(place, at)}` : at === AT.none ? "" : ` at ${lotWords(place, at)}`}`,
+      words: `${tradeWords(occ, age < grown).replace(/^a /, "")}, ${Math.floor(age)} · ${actWords(p, i)}${going ? `, to ${lotWords(place, at)}` : at === AT.none ? "" : ` at ${lotWords(place, at)}`}`,
       lot: at === AT.none ? AT.square : at,
     });
   }

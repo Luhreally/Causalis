@@ -149,8 +149,13 @@ import {
   affordancesOf,
   type BodyPlan,
   type LifeHistory,
+  LEISURE,
+  restDays,
 } from "../rules/index.ts";
 import {
+  LEISURE_ROW,
+  LEISURE_STORE,
+  societyStore,
   SHARE,
   SHARES_STORE,
   SITE_TONNES,
@@ -296,6 +301,10 @@ export const WHY = {
   apart: 23,
   turned: 24,
   burial: 25,
+  /** Their day's work done, or a day of rest: at their people's games in the square (N7). */
+  play: 26,
+  /** A day of rest, or out of their working day: at home. */
+  rest: 27,
 } as const;
 
 /** What happened to someone, as a place's log tells it. */
@@ -4084,26 +4093,12 @@ export function placeSkill(
 }
 
 /**
- * What each kind of work is done with, as much by the hands (0 … 1) and as much on foot (0 … 1): a wound's share of one's
- * handling or going (woundTakes) takes that much of their fitness for it. Leading is words, and takes neither.
+ * How fit one's body is now for a kind of work (0 … 1): the share of their handling a wound bound, or an arm or a hand left
+ * stiff, takes (woundTakes, rules/anatomy.ts limbShare), of any work but leading, which is words. What it takes of their
+ * going is in their walk (gaitOf), slower to wherever the work is, and is not counted again here.
  */
-const DONE_WITH: readonly (readonly [hands: number, feet: number])[] = [
-  [0.5, 1], // hunting and gathering: afoot all day, a hand to the bow or the basket
-  [0.6, 0.6], // the fields: the plough and the sickle, walked behind
-  [0.4, 0.8], // the herds: walked after
-  [1, 0], // crafts: at the bench
-  [0.5, 1], // hauling: carried on foot
-  [0, 0], // leading: words
-  [0.8, 0.6], // building: lifting and laying, on ladders
-  [1, 0.2], // healing: binding and dressing
-  [0.6, 1], // a fire: buckets run from the well
-  [1, 0], // cooking: at the hearth
-];
-/** How fit one's body is now for a kind of work (0 … 1): what a wound or a lamed limb takes of what it is done with. */
 function fitFor(world: World, place: Place, i: number, kind: number): number {
-  const takes = woundTakes(world, place, i),
-    [hands, feet] = DONE_WITH[kind] ?? [1, 1];
-  return Math.max(0, (1 - takes.handling * hands) * (1 - takes.going * feet));
+  return kind === SK.leading ? 1 : Math.max(0, 1 - woundTakes(world, place, i).handling);
 }
 /** One's hours, level, fitness and passion at a kind of work. */
 export type PlaceSkillAt = {
@@ -4191,8 +4186,8 @@ export function workWorth(
   if (occ === OCC.dependent) return 0;
   const earns = trades ? trades[occ]! : tradeWorth(place, mean)[occ]!,
     own = ownWorth(world, place, i);
-  // (And by their mood: a quarter more at its best, a quarter less at its worst. And less by what a wound bound, or a limb
-  // left stiff, takes of what their work is done with (DONE_WITH: a crafter's hands, a hauler's feet; a leader's words none).)
+  // (And by their mood: a quarter more at its best, a quarter less at its worst. And less by the share of their handling
+  // a wound bound, or an arm or a hand left stiff, takes: of any work but a leader's, which is words (fitFor).)
   const hurt =
     p.mark[i]! >> 4 === 2 || p.health[i] === 3 ? fitFor(world, place, i, tradeKind(occ)) : 1;
   return Math.max(0.05, Math.min(0.9, (0.45 + earns + own) * (1 + p.mood[i]! / 400) * hurt));
@@ -4288,9 +4283,17 @@ export const leans = (x: number): number => 0.5 + x;
  * and fading by halves. What a household's dates already reckon (a death in it, a home new or lost) is not remembered
  * besides, so nothing is counted twice.
  */
-export const THOUGHT = { born: 1, paired: 2, friendDied: 3, ofAge: 4, fire: 5 } as const;
+export const THOUGHT = {
+  born: 1,
+  paired: 2,
+  friendDied: 3,
+  ofAge: 4,
+  fire: 5,
+  games: 6,
+  feast: 7,
+} as const;
 /** Days in which each kind fades to half. */
-const THOUGHT_HALF: readonly number[] = [0, 30, 60, 20, 30, 10];
+const THOUGHT_HALF: readonly number[] = [0, 30, 60, 20, 30, 10, 3, 10];
 const thoughtKind = (v: number): number => v >>> 24;
 const thoughtSize = (v: number): number => ((v >>> 16) & 255) - 128;
 const thoughtAge = (v: number, today: number): number => (today - (v & 0xffff)) & 0xffff;
@@ -4324,6 +4327,15 @@ function remember(place: Place, i: number, kind: number, size: number): void {
     }
   }
   p.thought[at + slot] = ((kind << 24) | ((s + 128) << 16) | (today & 0xffff)) >>> 0;
+}
+/** Whether one of a place's people has a memory of a kind from today already. */
+function heldToday(place: Place, i: number, kind: number): boolean {
+  const today = Math.floor(place.t / DAY);
+  for (let k = 0; k < THOUGHTS; k++) {
+    const v = place.people.thought[i * THOUGHTS + k]!;
+    if (v && thoughtKind(v) === kind && thoughtAge(v, today) < 1) return true;
+  }
+  return false;
 }
 /** What of what befell whom a place's log tells is remembered, and by whom (note's hook). */
 function remembered(
@@ -4483,6 +4495,103 @@ export const pressOf = (level: number): number => level * level * level;
 /** What lying idle is worth: no work worth less than this is gone to, no need pressing less is served. */
 export const IDLE_WORTH = 0.2;
 
+/**
+ * A place's day (N7, rules/leisure.ts as its land reckons it each year, sim/society/everyday.ts leisureYear): how long its
+ * working day is (a worker works until what his work earns keeps him and his: the longer the nearer his earnings lie to his
+ * bread), from when to when (hours of its day: from an hour after its first light), whether today is a day of rest and which (its
+ * holy days by its piety, its feasts by what it has to spare, and the days any people rests), and the games its people
+ * play. Out of its working day and on a day of rest, work is worth little to them, and they rest or play.
+ */
+export type PlaceDay = {
+  readonly hours: number;
+  readonly from: number;
+  readonly to: number;
+  readonly rest: "holy" | "feast" | "rest" | null;
+  readonly days: { readonly holy: number; readonly feasts: number; readonly all: number };
+  /** Its games (rules/leisure.ts GAMES bits). */
+  readonly games: number;
+  /** What bread costs of what a day's work earns in its land (0 … 1; null: not reckoned, its day a third of the day's). */
+  readonly need: number | null;
+};
+/** What work is worth to one out of their working day, or on a day of rest, against what it is worth in it. */
+export const OFF_WORTH = 0.1;
+/**
+ * What an hour's play is worth to one at it, against a need that would send them off (an hour's rest at home is worth
+ * IDLE_WORTH): the games and the company keep them out a while yet, tired as the day has left them.
+ */
+export const PLAY_WORTH = 0.4;
+/** How long after first light a working day begins (hours): time to rise and eat. */
+const WORK_AFTER_DAWN = 1;
+export function placeDayOf(world: World, place: Place, t = place.t): PlaceDay {
+  const f = frameOf(world, place.cell),
+    { season } = clockOf(f, t),
+    // (Its working day begins with the light, as its sun rises today: where its people wake.)
+    light = f.lit[1] + (f.lit[0] - f.lit[1]) * ((1 - Math.cos(2 * Math.PI * season)) / 2),
+    from = 24 * (0.5 - light / 2) + WORK_AFTER_DAWN,
+    row = societyStore(world, LEISURE_STORE)?.get(place.cell),
+    hours = row ? row[LEISURE_ROW.hours]! / 10 : 24 * WORK_SHARE,
+    days = row
+      ? {
+          holy: row[LEISURE_ROW.holy]!,
+          feasts: row[LEISURE_ROW.feasts]!,
+          all: LEISURE.rest + row[LEISURE_ROW.holy]! + row[LEISURE_ROW.feasts]!,
+        }
+      : restDays(0.5, 0.5),
+    // (Its days of rest spread evenly through its year, and each of them holy, a feast or a plain rest as its land keeps
+    // them in a year, in a fixed order: the golden ratio's, so that none falls in a run.)
+    d = Math.floor(t / DAY),
+    share = Math.min(1, days.all / 365),
+    k = Math.floor(d * share),
+    off = Math.floor((d + 1) * share) > k,
+    x = (k * 0.6180339887) % 1,
+    rest = !off
+      ? null
+      : x < days.holy / days.all
+        ? "holy"
+        : x < (days.holy + days.feasts) / days.all
+          ? "feast"
+          : "rest";
+  return {
+    hours,
+    from,
+    to: from + hours,
+    rest,
+    days,
+    games: row ? row[LEISURE_ROW.games]! : 0,
+    need: row ? row[LEISURE_ROW.need]! / 1000 : null,
+  };
+}
+/** Whether a moment is in a place's working day: not a day of rest, and between its hours. */
+const hourOf = (t: number): number => ((((t % DAY) + DAY) % DAY) / DAY) * 24;
+const inWorkDay = (day: PlaceDay, t: number): boolean => {
+  const h = hourOf(t);
+  return day.rest === null && h >= day.from && h < day.to;
+};
+/**
+ * One of a place's people's day as it falls today, an hour at a time from midnight: at work (their working day, where they
+ * keep a trade), at play (their day's work done, or a day of rest, by light), or at home (asleep or at rest). What their
+ * needs press on them comes first, as it does in the hour.
+ */
+export function placeDayStrip(world: World, place: Place, i: number): ("work" | "play" | "home")[] {
+  const f = frameOf(world, place.cell),
+    d0 = Math.floor(place.t / DAY) * DAY,
+    day = placeDayOf(world, place, place.t),
+    works = occOf(place.people, i) !== OCC.dependent;
+  return Array.from({ length: 24 }, (_, h) => {
+    const t = d0 + h * HOUR + HOUR / 2;
+    if (works && inWorkDay(day, t)) return "work";
+    return airOf(f, t).lit && !inWorkDay(day, t) && (day.rest !== null || h + 0.5 >= day.to)
+      ? "play"
+      : "home";
+  });
+}
+/** What one of a place's people is doing, said ("at work", "at games"). */
+export function actWords(p: Place["people"], i: number): string {
+  return p.why[i] === WHY.play && p.act[i] === ACT.visit
+    ? "at games"
+    : (ACT_WORDS[p.act[i]!] ?? "");
+}
+
 function go(place: Place, i: number, to: number, world: World | null = null): void {
   const p = place.people;
   p.to[i] = to;
@@ -4574,7 +4683,13 @@ function tick(world: World, place: Place, f: Frame): void {
     // The sick kept apart by order: fewer take a sickness (the world's own measure of it, rules/lessons.ts), and their
     // households keep from the square.
     apart = !!orders?.held.includes("quarantine"),
-    apartLeft = apart ? 1 - (LESSON_RESPONSE.get("quarantine")?.most ?? 0) : 1;
+    apartLeft = apart ? 1 - (LESSON_RESPONSE.get("quarantine")?.most ?? 0) : 1,
+    // Its day (rules/leisure.ts): in its working day work is worth what it is; out of it, and on a day of rest, little.
+    today0 = placeDayOf(world, place, t),
+    working = inWorkDay(today0, t),
+    offWork = working ? 1 : OFF_WORTH,
+    // (Their day's work done, or a day of rest, by light: the hours they play in.)
+    playing = air.lit && !working && (today0.rest !== null || hourOf(t) >= today0.to);
   // A dearth: its stores hold less than its households would fetch at once. Then a home keeps, and fetches, a day's food
   // and no more, so that what there is goes round.
   // What its land brings in to its store this tick: nothing while a siege lies about it.
@@ -5000,8 +5115,11 @@ function tick(world: World, place: Place, f: Frame): void {
       worth =
         occ === OCC.dependent
           ? 0
-          : workWorth(world, place, i, mean, trades) * dark * (1 - Math.min(0.6, 0.15 * lackDays)),
-      bar = Math.max(worth, IDLE_WORTH);
+          : workWorth(world, place, i, mean, trades) *
+            dark *
+            offWork *
+            (1 - Math.min(0.6, 0.15 * lackDays)),
+      bar = Math.max(worth, playing ? PLAY_WORTH : IDLE_WORTH);
     // What is carried is set down where it was bound.
     if (p.carry[i]! > 0 && p.act[i] === ACT.carry) {
       const b = bldgAt(place, p.at[i]!);
@@ -5179,13 +5297,32 @@ function tick(world: World, place: Place, f: Frame): void {
         continue;
       }
     }
+    if (worth < IDLE_WORTH && playing && !sickHouses?.has(h)) {
+      // Their day's work done, or a day of rest: at their people's games in the square (rules/leisure.ts gamesOf: what
+      // their body, their land's lore and their ways give them to play), or among others there where it plays none; a
+      // feast day's company. Remembered gladly, a feast the more.
+      p.act[i] = ACT.visit;
+      p.why[i] = WHY.play;
+      if (p.at[i] !== AT.square) go(place, i, AT.square, world);
+      else if (!moving) {
+        const kind = today0.rest === "feast" ? THOUGHT.feast : THOUGHT.games;
+        if (!heldToday(place, i, kind))
+          remember(
+            place,
+            i,
+            kind,
+            (kind === THOUGHT.feast ? 8 : 3) * leans(placeTemper(place, i).sociable),
+          );
+      }
+      continue;
+    }
     if (worth < IDLE_WORTH) {
       // Nothing presses and no work is worth going to: at home, abed while it is dark.
       if (p.at[i] !== home) {
         p.act[i] = ACT.idle;
         go(place, i, home, world);
       } else p.act[i] = air.lit ? ACT.idle : ACT.sleep;
-      p.why[i] = occ === OCC.dependent ? WHY.young : WHY.dark;
+      p.why[i] = occ === OCC.dependent ? WHY.young : air.lit && !working ? WHY.rest : WHY.dark;
       continue;
     }
     // Work: what the next hour of it is worth passes every need. (Their own, or what they have turned to for now.)

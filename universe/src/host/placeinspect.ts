@@ -24,7 +24,6 @@ import { figureBody } from "./folk.ts";
 import { skillLine, temperWords } from "./inspect/place.ts";
 import {
   ACT,
-  ACT_WORDS,
   AT,
   BOUND_ARMS,
   BOUND_SITE,
@@ -58,6 +57,8 @@ import {
   siteStage,
   workWorth,
   type Place,
+  actWords,
+  placeDayStrip,
 } from "./place.ts";
 import {
   ailWords,
@@ -73,6 +74,7 @@ import {
   whyWords,
   OCCUPATION_WORK,
   SKILL_NAMES,
+  placeDayRows,
 } from "./placeplan.ts";
 import { landEra, peopleBody } from "./village.ts";
 
@@ -98,6 +100,8 @@ const MEMORY_WORDS: Readonly<Record<number, readonly [string, string]>> = {
   [THOUGHT.friendDied]: ["🕯️", "Their friend died"],
   [THOUGHT.ofAge]: ["🎉", "Came of age, and took up work"],
   [THOUGHT.fire]: ["🔥", "Fought a fire"],
+  [THOUGHT.games]: ["🎲", "Played at the games in the square"],
+  [THOUGHT.feast]: ["🍖", "Feasted with the town"],
 };
 /** A mood in a word. */
 export const moodWord = (m: number): string =>
@@ -145,7 +149,7 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
     doing =
       r.act === ACT.abed && r.eta > 0
         ? `Being brought home to lie abed, at ${lotWords(place, r.to)}`
-        : `${cap(ACT_WORDS[r.act]!)}${r.eta > 0 ? `, walking to ${lotWords(place, r.to)}` : r.act === ACT.sleep || r.act === ACT.eat ? "" : ` at ${lotWords(place, r.at)}`}`;
+        : `${cap(actWords(place.people, i))}${r.eta > 0 ? `, walking to ${lotWords(place, r.to)}` : r.act === ACT.sleep || r.act === ACT.eat ? "" : ` at ${lotWords(place, r.at)}`}`;
   // Their mood's reasons: what bears on it now, each by how much and for how long (host/place.ts moodTerms).
   const terms = placeMoodTerms(world, place, i),
     thoughts: PlaceThought[] = [
@@ -257,6 +261,8 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
           own: k === tradeKind(r.occupation),
         })),
     ...healthGear(world, place, i, r),
+    day: placeDayStrip(world, place, i),
+    dayRows: placeDayRows(world, place),
     taught: p.taught[i]
       ? `${SKILL_NAMES[p.taught[i]! - 1]}: what their household taught them as they grew (two hundred hours of it when they came of age)`
       : null,
@@ -407,7 +413,7 @@ export function inspectLot(world: World, place: Place, lot: number): PlaceInspec
         id,
         ref: who(j).ref,
         name: who(j).name,
-        words: `${words}; ${ACT_WORDS[p.act[j]!]}`,
+        words: `${words}; ${actWords(p, j)}`,
       });
     }
   };

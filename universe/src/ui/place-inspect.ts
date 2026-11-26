@@ -366,6 +366,24 @@ export class PlaceInspector {
         ]),
       );
       if (x.skillWords) body.push(el("p", "place-insp-why", x.skillWords));
+      // Their day: each hour of today, at work, at play or at home, and the hours marked under it.
+      const strip = el("div", "place-insp-day");
+      x.day.forEach((d, h) => {
+        const cell = el("span", `pday-${d}`);
+        cell.title = `${h}:00 ${d === "work" ? "at work" : d === "play" ? "at play" : "at home"}`;
+        strip.append(cell);
+      });
+      const marks = el("div", "place-insp-day-marks");
+      for (const h of [0, 6, 12, 18, 24]) marks.append(el("span", "", `${h}`));
+      const key = el("div", "place-insp-day-key");
+      for (const [k, w] of [
+        ["work", "Work"],
+        ["play", "Play"],
+        ["home", "Home, asleep or at rest"],
+      ] as const)
+        key.append(el("span", `pday-${k}`, ""), el("span", "", w));
+      body.push(el("h3", "place-insp-sub", "Their day"), strip, marks, key);
+      body.push(this.facts(x.dayRows.map(([a, b]) => [a, b, null] as const)));
     }
     if (this.prose) {
       const box = el("div", "place-insp-prose");
