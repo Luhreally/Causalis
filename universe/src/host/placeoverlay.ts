@@ -10,7 +10,7 @@ const pct = (x: number) => `${Math.round(x * 100)}%`;
 const signed = (x: number) => `${x > 0 ? "+" : ""}${Math.round(x)}`;
 
 /** Each lot's reading of one kind, and what its ends mean. */
-export function placeOverlay(world: World, place: Place, of: PlaceOverlayKind): PlaceOverlay {
+export function placeOverlay(world: World, place: Place, kind: PlaceOverlayKind): PlaceOverlay {
   const { people: p, houses, bldgs } = place,
     lots: PlaceOverlayLot[] = [];
   // (Who lives on each lot, and who works at each: one pass.)
@@ -25,11 +25,11 @@ export function placeOverlay(world: World, place: Place, of: PlaceOverlayKind): 
     Math.max(p.needs[i * 4]!, p.needs[i * 4 + 1]!, p.needs[i * 4 + 2]!, p.needs[i * 4 + 3]!) /
     65535;
   const sites = new Set(placeSites(world, place).map((s) => s.lot));
-  if (of === "needs" || of === "mood") {
-    const by = of === "needs" ? living : new Map([...living, ...working]);
+  if (kind === "needs" || kind === "mood") {
+    const by = kind === "needs" ? living : new Map([...living, ...working]);
     for (const [lot, who] of by) {
       if (!who.length) continue;
-      if (of === "needs") {
+      if (kind === "needs") {
         const m = who.reduce((n, i) => n + worst(i), 0) / who.length,
           top = Math.max(...who.map(worst));
         lots.push({
@@ -48,15 +48,15 @@ export function placeOverlay(world: World, place: Place, of: PlaceOverlayKind): 
       }
     }
     return {
-      of,
+      of: kind,
       lots,
-      low: of === "needs" ? "Served" : "Low (−100)",
-      high: of === "needs" ? "Pressing" : "Glad (+100)",
-      good: of === "needs" ? "low" : "high",
+      low: kind === "needs" ? "Served" : "Low (−100)",
+      high: kind === "needs" ? "Pressing" : "Glad (+100)",
+      good: kind === "needs" ? "low" : "high",
       fire: null,
     };
   }
-  if (of === "room") {
+  if (kind === "room") {
     const homes = homesFor(world, place.town, p.n + 64);
     homes.lot.forEach((lot, k) => {
       const n = living.get(lot)?.length ?? 0,
@@ -68,9 +68,9 @@ export function placeOverlay(world: World, place: Place, of: PlaceOverlayKind): 
         words: `${n} living here, room for ${holds}${n > holds ? `: ${n - holds} more than it holds` : ""}`,
       });
     });
-    return { of, lots, low: "Empty", high: "Half again full", good: "low", fire: null };
+    return { of: kind, lots, low: "Empty", high: "Half again full", good: "low", fire: null };
   }
-  if (of === "work") {
+  if (kind === "work") {
     const shut = ordersOf(world, place.town)?.shut ?? [];
     let most = 1;
     for (let b = 1; b < bldgs.lot.length; b++)
@@ -88,9 +88,16 @@ export function placeOverlay(world: World, place: Place, of: PlaceOverlayKind): 
             : `${n} work here`,
       });
     }
-    return { of, lots, low: "None at work", high: "The most at work", good: "high", fire: null };
+    return {
+      of: kind,
+      lots,
+      low: "None at work",
+      high: "The most at work",
+      good: "high",
+      fire: null,
+    };
   }
-  if (of === "age") {
+  if (kind === "age") {
     const today = place.t / DAY;
     let oldest = 1;
     for (let b = 1; b < bldgs.lot.length; b++)
@@ -105,7 +112,7 @@ export function placeOverlay(world: World, place: Place, of: PlaceOverlayKind): 
           : `${Math.floor(years)} ${Math.floor(years) === 1 ? "year" : "years"} standing`,
       });
     }
-    return { of, lots, low: "New", high: "The oldest", good: "none", fire: null };
+    return { of: kind, lots, low: "New", high: "The oldest", good: "none", fire: null };
   }
   // Danger: a fire burning, and how far a cry from it carries (who hears it and turns out); the lots near it are the page's
   // to reckon, from where it draws them.
@@ -114,7 +121,7 @@ export function placeOverlay(world: World, place: Place, of: PlaceOverlayKind): 
       ? { lot: place.fire[0]!, reach: place.fire[2]! }
       : null;
   return {
-    of,
+    of: kind,
     lots: fire ? [{ lot: fire.lot, v: 1, words: "Burning now" }] : [],
     low: "Out of a cry's reach",
     high: "Burning",
