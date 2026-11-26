@@ -652,12 +652,18 @@ test("mood follows needs met and what befell the household, moves work's worth, 
   p.mood[i] = was;
   order(w, "place.hold", { town: s.ref, months: 24 });
   order(w, "place.work", { town: s.ref, shares: [0, 0, 500, 500] });
-  for (let d = 0; d < 80; d += 2) {
+  // (Read at the depth of its want, within eighty days: a town starved under its own hold has fewer mouths after, and
+  // what its land brings may feed them again, when its mood climbs back as it should.)
+  const lows = () => [...Array(p.n).keys()].filter((k) => p.mood[k]! < MOOD_UNHEEDING);
+  let wanting = 0;
+  for (let d = 0; d < 80 && !(mean() < fed - 20 && lows().length > 0); d += 2) {
     w.runTo(w.now + 2 * DAY);
     enterPlace(w, s.ref);
+    wanting = Math.max(wanting, [...Array(p.n).keys()].filter((k) => p.lack[k]! > 0).length);
   }
+  assert.ok(wanting > 0, "held from its store, its people go in want");
   assert.ok(mean() < fed - 20, `in want, it falls (${mean().toFixed(1)} from ${fed.toFixed(1)})`);
-  const low = [...Array(p.n).keys()].filter((k) => p.mood[k]! < MOOD_UNHEEDING);
+  const low = lows();
   assert.ok(low.length > 0, "some are too low to heed an order");
   const page = JSON.stringify(pageOf(w, placeWho(w, place)(low[0]!).ref));
   assert.ok(page.includes("Mood") && page.includes("days gone hungry"), "their page says why");

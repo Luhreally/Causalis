@@ -5395,6 +5395,8 @@ function tickCx(world: World, place: Place, f: Frame) {
     sitesNow,
     ailing,
     visitor,
+    // (Whether a feast day is kept as one: -1 not yet asked this tick.)
+    feast: -1,
     // (Asked for by the first turn that needs it, and kept for the rest of the tick.)
     hasGrown: hasGrown as Uint8Array | null,
     setDown,
@@ -6020,7 +6022,7 @@ function turnOf(cx: TickCx, i: number): void {
     cWhy[i] = WHY.play;
     if (cAt[i] !== AT.square) go(place, i, AT.square, world);
     else if (!moving) {
-      const kind = today0.rest === "feast" ? THOUGHT.feast : THOUGHT.games;
+      const kind = today0.rest === "feast" && feastKept(cx) ? THOUGHT.feast : THOUGHT.games;
       if (!heldToday(place, i, kind))
         remember(
           place,
@@ -6419,37 +6421,70 @@ function wearWorks(world: World, place: Place): void {
   if (keep.length) place.works = keep;
   else delete place.works;
 }
+/**
+ * Whether a town keeps its feast day as a feast: a feast is of what it has to spare (rules/leisure.ts), and it has
+ * none while any of its people starve, whatever its land keeps. (A town that starved under its own hold, its store
+ * full and held, feasted the while: found when the release's world moved, 2026-11-26.) Read once a tick, and only on a
+ * feast day.
+ */
+function feastKept(cx: TickCx): boolean {
+  if (cx.feast < 0) {
+    const { p, cNeeds } = cx,
+      most = 0.95 * FULL;
+    cx.feast = 1;
+    for (let i = 0; i < p.n; i++)
+      if (cNeeds[i * NEEDS + N.food]! >= most) {
+        cx.feast = 0;
+        break;
+      }
+  }
+  return cx.feast === 1;
+}
 /** One's day, a mood too low to bear: a break begun (true), by their temper. */
 function breakDay(cx: TickCx, i: number): boolean {
   const { world, place, p, t, tickNo, bldgs } = cx,
     deep = (MOOD_UNHEEDING - p.mood[i]!) / (100 + MOOD_UNHEEDING);
   if (!world.rng.chance(deep * deep, PLACE_DRAW, place.key ^ p.id[i]!, tickNo, P.brk)) return false;
-  // (The bold lash out at what is about them; those who set no store by plenty eat all in sight; the rest wander dazed.)
+  // (The bold lash out at what is about their work; those who set no store by plenty eat all in sight; the rest wander
+  // dazed. One bold whose work has nothing about it to lash out at, wanders.)
   const temper = placeTemper(place, i),
-    how = temper.bold >= 0.5 ? BREAK.wreck : temper.thrifty < 0.5 ? BREAK.binge : BREAK.wander;
+    work = p.work[i]!,
+    b = bldgAt(place, work),
+    afield = work === AT.fields,
+    how =
+      temper.bold >= 0.5 && (b > 0 || afield)
+        ? BREAK.wreck
+        : temper.thrifty < 0.5
+          ? BREAK.binge
+          : BREAK.wander;
   (place.breaks ??= []).push(p.id[i]!, how, t + BREAK_TICKS * PLACE_TICK);
   note(place, HAP.broke, p.id[i]!, how);
   p.act[i] = ACT.idle;
   p.why[i] = WHY.broke;
   if (how === BREAK.wreck) {
-    // What lies about their work spoiled, the more the bolder: a wrong to the town, brought before its justice.
-    const b = bldgAt(place, p.work[i]!);
+    // What lies about their work spoiled, the more the bolder: a wrong to the town, brought before its justice. At a
+    // building, what it holds most of; at the fields, the crop or the flock standing ready there. (Before 2026-11-26 one
+    // at the fields lashed out at nothing and was brought before no one, though their break was told as a wreck.)
+    const most = WRECK_LOADS * LOAD * MICRO * temper.bold;
     if (b > 0) {
-      let most = -1,
+      let top = -1,
         g = -1;
       for (let x = 0; x < GOOD_COUNT; x++)
-        if (bldgs.stock[b * GOOD_COUNT + x]! > most) {
-          most = bldgs.stock[b * GOOD_COUNT + x]!;
+        if (bldgs.stock[b * GOOD_COUNT + x]! > top) {
+          top = bldgs.stock[b * GOOD_COUNT + x]!;
           g = x;
         }
-      const lost = g >= 0 ? Math.floor(Math.min(most, WRECK_LOADS * LOAD * MICRO * temper.bold)) : 0;
+      const lost = g >= 0 ? Math.floor(Math.min(top, most)) : 0;
       if (lost > 0) {
         bldgs.stock[b * GOOD_COUNT + g]! -= lost;
         place.flow[g]! -= lost;
         place.usedDay[g]! += lost;
       }
-      judge(world, place, i, -1);
+    } else {
+      const g = (p.sexOcc[i]! & 15) === OCC.herder ? G.meat : G.grain;
+      place.ripe[g] = Math.max(0, place.ripe[g]! - Math.floor(Math.min(place.ripe[g]!, most)));
     }
+    judge(world, place, i, -1);
   }
   return true;
 }
