@@ -4,7 +4,7 @@
 // asks. Read of the place as kept, through the readers its pages use (host/inspect/place.ts, host/placeplan.ts): asking
 // moves nothing, and nothing here is reckoned that the place does not reckon already.
 import { DAY, type World } from "../kernel/index.ts";
-import { CIVICS, FOODS, GOODS, MEMBERS, OCC } from "../rules/index.ts";
+import { CIVICS, FESTER_MOST, FOODS, GOODS, MEMBERS, OCC } from "../rules/index.ts";
 import { lifeOf, mixOf, homePlanet, kindBody } from "../sim/index.ts";
 import {
   PLACE_AT,
@@ -63,9 +63,13 @@ import {
   regardWords,
   FRIEND_AT,
   RIVAL_AT,
+  placeWound,
+  placeHealer,
 } from "./place.ts";
 import {
   ailWords,
+  festerWords,
+  painWords,
   healthWords,
   TENDED_WORDS,
   lotWords,
@@ -388,6 +392,41 @@ function healthGear(
       ["Abed", `${days} more ${days === 1 ? "day" : "days"}`],
       ["Tended", cap(TENDED_WORDS[tendedOf(place, i)])],
     );
+  // (A wound by the hour, N9: its bleeding, the blood lost, its festering, how much it hurts.)
+  const x = placeWound(place, i),
+    hurtNow = p.health[i] === 1 || p.health[i] === 3;
+  if (p.health[i] === 1)
+    rows.push([
+      "Bleeding",
+      x.bleeding > 0
+        ? `${Math.round(x.bleeding * 100)}% of their blood in the next ten minutes, the less as it clots; not yet dressed`
+        : x.dressed
+          ? "Stopped: the wound is dressed"
+          : "Stopped of itself; the wound not yet dressed",
+    ]);
+  if (x.blood > 0)
+    rows.push([
+      "Blood lost",
+      `${Math.round(x.blood * 100)}%${x.faint ? ": too faint to stand" : x.blood >= 0.15 ? ": weak" : ""}; made again a little each day`,
+    ]);
+  if (p.health[i] === 1)
+    rows.push([
+      "Festering",
+      !x.seen
+        ? "Not yet known: a wound festers or not a day or two after it is dealt"
+        : x.fester > 0
+          ? `${cap(festerWords(x.fester))} (${x.fester} of the ${FESTER_MOST} that kill)${x.tended ? "; the healer has seen to it today" : ""}`
+          : "Clean",
+    ]);
+  if (hurtNow) rows.push(["Pain", `${cap(painWords(x.pain))} (${Math.round(x.pain * 10)} of 10)`]);
+  if (hurtNow || x.blood > 0) {
+    const h = placeHealer(place);
+    if (h.i >= 0)
+      rows.push([
+        "Healer",
+        `${placeWho(world, place)(h.i).name}, with ${h.doses} ${h.doses === 1 ? "dose" : "doses"} of remedies by them`,
+      ]);
+  }
   if (p.health[i] === 3) rows.push(["Mending", `${days} more ${days === 1 ? "day" : "days"}`]);
   // (A wound still abed or mending whose mark is already known says what it will leave; an old one's, what it left.)
   const healing =

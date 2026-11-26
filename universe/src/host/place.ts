@@ -123,6 +123,17 @@ import {
   memberOf,
   outcomeOf,
   woundCare,
+  CARE_PRINCIPLES,
+  REMEDY_PRINCIPLES,
+  BLOOD,
+  FESTER_MOST,
+  bleedOf,
+  festerChance,
+  festerNext,
+  festerStart,
+  fightOf,
+  painOf,
+  remedyFight,
   type Anatomy,
   type Member,
   type Blow,
@@ -247,6 +258,21 @@ const LOT_GROUND = 200;
 const FETCH_DAYS = 7;
 /** A load one carries (units of the market's). */
 const LOAD = 1;
+/**
+ * A body's blood, as a place counts it (N9): so many parts to the whole; past BLOOD_FATAL of them lost it dies, past
+ * BLOOD_FAINT it cannot stand (rules/healing.ts BLOOD). A festering's bits: seen to fester or not, and dressed.
+ */
+const BLOOD_UNITS = 250,
+  BLOOD_FATAL = Math.round(BLOOD.fatal * BLOOD_UNITS),
+  BLOOD_FAINT = Math.round(BLOOD.faint * BLOOD_UNITS),
+  FESTER_SEEN = 64,
+  FESTER_DRESSED = 128,
+  FESTER_LOAD = 63;
+/** A dose of remedies gathered in so many ticks (est: a handful of a known plant found and cut in an hour about the fields). */
+const HERB_TICKS = 6;
+/** The doses a healer keeps by them: one for so many of the town, and never fewer than the least. */
+const HERBS_PER = 60,
+  HERBS_LEAST = 4;
 /** Happenings kept for a place's pages: one for each of its people, no fewer than the first and no more than the second. */
 const LOG_LEAST = 96,
   LOG_MOST = 600;
@@ -271,6 +297,7 @@ export const ACT_WORDS = [
   "fighting a fire",
   "standing to arms",
   "at a burial",
+  "tending the hurt",
 ] as const;
 
 /** Why: the force that decided it. */
@@ -305,6 +332,9 @@ export const WHY = {
   play: 26,
   /** A day of rest, or out of their working day: at home. */
   rest: 27,
+  /** The town's healer, gone to one of its hurt who wants them; and out gathering the remedies they treat with (N9). */
+  tend: 28,
+  herbs: 29,
 } as const;
 
 /** What happened to someone, as a place's log tells it. */
@@ -345,9 +375,12 @@ export const HAP = {
   /** Words with one they cannot abide (a: theirs), and blows (N8). */
   quarrel: 32,
   brawl: 33,
+  /** Dead of a wound (N9): bled to death, and of one that festered. */
+  bled: 34,
+  festered: 35,
 } as const;
 /** The happenings that are a death. */
-const HAP_DEATH: ReadonlySet<number> = new Set([1, 5, 17, 19, 21, 22]);
+const HAP_DEATH: ReadonlySet<number> = new Set([1, 5, 17, 19, 21, 22, 34, 35]);
 const HAP_WORDS = [
   "was born",
   "died",
@@ -383,6 +416,8 @@ const HAP_WORDS = [
   "gave an order, as the town's head",
   "quarrelled",
   "came to blows",
+  "bled to death of their wound",
+  "died of a wound that festered",
 ];
 
 /** The place's draws: through the world's Rng, on a stream no registry holds (it is no part of the ruleset's identity). */
@@ -416,6 +451,8 @@ const P = {
   due: 22,
   steward: 23,
   meet: 24,
+  bleed: 25,
+  fester: 26,
 } as const;
 
 const NEEDS = 4;
@@ -526,6 +563,14 @@ type People = {
    */
   tie: Uint32Array;
   regard: Int8Array;
+  /**
+   * A wound by the hour (N9; rules/healing.ts): how hard it bleeds now (`bleed`) and the blood they have lost (`blood`),
+   * each in BLOOD_UNITS of their body's whole; and its festering (`fester`): the festering itself in its low six bits (0:
+   * clean, to FESTER_MOST), whether it has been seen to fester or not (64), and whether it is dressed (128).
+   */
+  bleed: Uint8Array;
+  blood: Uint8Array;
+  fester: Uint8Array;
 };
 /**
  * The kinds of work one's hours are counted at (N6): the six trades' own, in OCCUPATIONS' order past the dependent's (a
@@ -605,7 +650,9 @@ export const PERSON_BYTES =
   2 * SKILL_KINDS.length +
   1 +
   // (N8: whom they know, by number, and what they think of each.)
-  5 * TIES;
+  5 * TIES +
+  // (N9: a wound's bleeding, the blood lost, its festering.)
+  3;
 
 function peopleOf(cap: number): People {
   return {
@@ -645,6 +692,9 @@ function peopleOf(cap: number): People {
     taught: new Uint8Array(cap),
     tie: new Uint32Array(cap * TIES),
     regard: new Int8Array(cap * TIES),
+    bleed: new Uint8Array(cap),
+    blood: new Uint8Array(cap),
+    fester: new Uint8Array(cap),
   };
 }
 const PEOPLE_COLS = [
@@ -683,6 +733,9 @@ const PEOPLE_COLS = [
   "taught",
   "tie",
   "regard",
+  "bleed",
+  "blood",
+  "fester",
 ] as const;
 type Col = (typeof PEOPLE_COLS)[number];
 const widthOf = (c: Col) =>
@@ -787,6 +840,8 @@ type Matched = {
    */
   care?: number;
   healer?: boolean;
+  /** Of that care, the share brought by remedies in hand (rules/healing.ts REMEDY_PRINCIPLES; absent: none). */
+  remedies?: number;
   /** How far its land's food met its needs in the month last reckoned (thousandths; absent in an old save: all of them). */
   fedNow?: number;
   /** How far its land's food met its needs in the year last reckoned (thousandths; absent in an old save: all of them). */
@@ -932,6 +987,14 @@ export type Place = {
   mode?: number;
   /** Its head's memory while it stewards (host/steward.ts; absent: never stewarded). */
   steward?: Steward;
+  /**
+   * Its healer (N9), where its land knows herb-lore: one of its people by number (the grown with most hours at healing),
+   * the remedies they have gathered and not used (doses), and whom they have seen of the festering today ([day, ...their
+   * numbers]). Absent: none chosen yet, none gathered, none seen.
+   */
+  healer?: number;
+  herbs?: number;
+  tended?: number[];
 };
 
 /** What waits in a place's `due`: a death, a leaving, a birth, a coming, a burial, a pairing. */
@@ -1318,10 +1381,18 @@ function stockShare(world: World, cell: number, kept: number): number[] {
 }
 
 /** What a land knows of healing by a year: the care its hurt and sick get, and whether its towns keep a healer. */
-function careOf(world: World, cell: number, year: number): { care: number; healer: boolean } {
+function careOf(
+  world: World,
+  cell: number,
+  year: number,
+): { care: number; healer: boolean; remedies: number } {
   const lore = loreOf(world),
-    known = (id: string) => (lore.get(cell, id)?.year ?? Infinity) <= year;
-  return { care: woundCare(known), healer: known("herbalism") };
+    known = (id: string) => (lore.get(cell, id)?.year ?? Infinity) <= year,
+    care = woundCare(known);
+  let remedies = 0;
+  for (const [id, weight] of CARE_PRINCIPLES)
+    if (REMEDY_PRINCIPLES.has(id) && known(id)) remedies += weight;
+  return { care, healer: known("herbalism"), remedies: Math.min(care, remedies) };
 }
 
 /**
@@ -1535,6 +1606,9 @@ export class PlaceStore implements StateStore {
         rite: p.rite,
         ...(p.mode ? { mode: p.mode } : {}),
         ...(p.steward ? { steward: p.steward } : {}),
+        ...(p.healer ? { healer: p.healer } : {}),
+        ...(p.herbs ? { herbs: p.herbs } : {}),
+        ...(p.tended?.length ? { tended: p.tended } : {}),
         ...(UNPAIRED.has(p) ? { unpaired: true } : {}),
         // (Read from a save kept before skill was, and not brought on since: still to be reckoned.)
         ...(UNSKILLED.has(p) ? { unskilled: true } : {}),
@@ -1625,6 +1699,9 @@ export class PlaceStore implements StateStore {
         rite: [...((raw.rite as number[] | undefined) ?? [])],
         ...(raw.mode ? { mode: raw.mode as number } : {}),
         ...(raw.steward ? { steward: structuredClone(raw.steward as Steward) } : {}),
+        ...(raw.healer ? { healer: raw.healer as number } : {}),
+        ...(raw.herbs ? { herbs: raw.herbs as number } : {}),
+        ...(raw.tended ? { tended: [...(raw.tended as number[])] } : {}),
       });
       if (unskilled) UNSKILLED.add(this.places.at(-1)!);
       if (!cols.taught || raw.untaught === true) UNTAUGHT.add(this.places.at(-1)!);
@@ -1700,6 +1777,8 @@ export function placeDigest(p: Place): string {
       .int(x.k ?? 0)
       .int(x.s ?? 0)
       .int(x.o ?? 0);
+  h.int(p.healer ?? 0).int(p.herbs ?? 0);
+  for (const x of p.tended ?? []) h.int(x);
   h.string(p.ordered)
     .string(p.sited)
     .string(p.plague)
@@ -3391,6 +3470,11 @@ function wound(world: World, place: Place, i: number, cause: number): void {
   // (What it was of, and the member it was to, eight times over: bound while it mends, that member does none of its share.)
   p.cause[i] = cause | ((MEMBERS.indexOf(member) + 1) << 3);
   p.ill[i] = days.abed * 144;
+  // (It bleeds as hard as the blow opened it, and is neither dressed nor yet seen to fester or not: N9. A wound brought
+  // home from a battle was dressed on the field, and bled there.)
+  p.bleed[i] =
+    cause === CAUSE.battle ? 0 : Math.min(BLOOD_UNITS, Math.round(bleedOf(blow, r(3)) * BLOOD_UNITS));
+  p.fester[i] = cause === CAUSE.battle ? FESTER_DRESSED : 0;
   // (A worse mark is not lost to a lighter one.)
   const mark =
     outcome === "healed" ? 0 : (MEMBERS.indexOf(member) + 1) | ((outcome === "lame" ? 2 : 1) << 4);
@@ -4639,7 +4723,13 @@ function moodTerms(
       size: -(Math.min(70, 25 * lackDays + 15) * leans(1 - temper.bold)),
       days: null,
     });
-  if (p.health[i]) out.push({ bit: MOOD.ailing, size: -25, days: Math.ceil(p.ill[i]! / 144) });
+  // (Sick, by a quarter; hurt, by how much it hurts them: a wound fresh and open, a festering, N9.)
+  if (p.health[i])
+    out.push({
+      bit: MOOD.ailing,
+      size: p.health[i] === 2 ? -25 : -(10 + 40 * placeWound(place, i).pain),
+      days: Math.ceil(p.ill[i]! / 144),
+    });
   if (houses.grief[h]! >= 0 && today - houses.grief[h]! <= 30)
     out.push({
       bit: MOOD.bereaved,
@@ -4906,6 +4996,8 @@ function tickCx(world: World, place: Place, f: Frame) {
     tickNo = Math.floor(t / PLACE_TICK),
     today = Math.floor(t / DAY),
     dying: number[] = [],
+    // (What each of them died of: of want, or of a wound, N9.)
+    dyingWhy: number[] = [],
     // (Buildings whose work is stopped by order.)
     shut = orders?.shut.length ? new Set(orders.shut) : null,
     // A fire being fought, where: by the grown who live near it, or by all of them where a watch is kept by order.
@@ -4999,6 +5091,8 @@ function tickCx(world: World, place: Place, f: Frame) {
   if (Math.floor(t / DAY) !== place.day) {
     place.day = Math.floor(t / DAY);
     meetDay(world, place);
+    // (Whom its healer has seen of the festering is begun again each day.)
+    if (place.tended) place.tended = [place.day];
     place.madeDay.fill(0);
     place.usedDay.fill(0);
     place.cameDay.fill(0);
@@ -5149,6 +5243,25 @@ function tickCx(world: World, place: Place, f: Frame) {
     cOwed = p.owed,
     cBound = p.bound,
     cSexOcc = p.sexOcc;
+  // Its healer (N9), where its land knows herb-lore: chosen again where there is none, or theirs is abed or gone.
+  const hospital = buildingOf(place, ["hospital"]) > 0;
+  let healerAt = matched.healer && place.healer ? placeIndexOf(place, place.healer) : -1;
+  if (!matched.healer) place.healer = undefined;
+  else if (healerAt < 0 || p.health[healerAt] === 1 || p.health[healerAt] === 2) {
+    healerAt = healerOf(place, f);
+    place.healer = healerAt >= 0 ? p.id[healerAt]! : undefined;
+  }
+  // (Those at home, by household: asked only where one lies with a wound undressed.)
+  let atHome: Map<number, number[]> | null = null;
+  const homeFolk = (h: number): readonly number[] => {
+    if (!atHome) {
+      atHome = new Map();
+      for (let q = 0; q < p.n; q++)
+        if (!p.eta[q] && p.at[q] === houses.home[p.house[q]!])
+          (atHome.get(p.house[q]!) ?? atHome.set(p.house[q]!, []).get(p.house[q]!)!).push(q);
+    }
+    return atHome.get(h) ?? [];
+  };
   return {
     world,
     place,
@@ -5225,6 +5338,10 @@ function tickCx(world: World, place: Place, f: Frame) {
     cOwed,
     cBound,
     cSexOcc,
+    dyingWhy,
+    hospital,
+    healerAt,
+    homeFolk,
   };
 }
 type TickCx = ReturnType<typeof tickCx>;
@@ -5303,6 +5420,10 @@ function turnOf(cx: TickCx, i: number): void {
     cOwed,
     cBound,
     cSexOcc,
+    dyingWhy,
+    hospital,
+    healerAt,
+    homeFolk,
   } = cx;
   const kind = fs ? (houses.kind[cHouse[i]!] ?? 0) : 0,
     fk = fs ? (fs[kind] ?? f) : f,
@@ -5364,11 +5485,35 @@ function turnOf(cx: TickCx, i: number): void {
       chance = Math.min(0.5, base * (1 + lackDays) ** 3);
     if (world.rng.chance(chance, PLACE_DRAW, place.key ^ cId[i]!, tickNo, P.sick)) {
       dying.push(i);
+      dyingWhy.push(HAP.starved);
       return;
     }
   }
+  // A wound bleeding (N9): their blood lost by the tick, the less as it clots (by half each ten minutes: rules/healing.ts).
+  // Past what a body can lose, dead of it where the town is managed (its dead are told to its land, as those of want);
+  // elsewhere its land's own reckoning says who dies, and they lie at the edge of it.
+  if (p.bleed[i]) {
+    const lost = Math.min(BLOOD_UNITS, p.blood[i]! + p.bleed[i]!);
+    p.bleed[i] = p.bleed[i]! >> 1;
+    if (lost >= BLOOD_FATAL && orders) {
+      p.blood[i] = lost;
+      dying.push(i);
+      dyingWhy.push(HAP.bled);
+      return;
+    }
+    p.blood[i] = Math.min(lost, BLOOD_FATAL - 1);
+  }
   // Once a day, each in turn: their mood, and what may befall them.
   if ((tickNo + cId[i]!) % 144 === 0) {
+    // (Their blood made again, a little a day, once they bleed no more: rules/healing.ts BLOOD.back.)
+    if (p.blood[i] && !p.bleed[i])
+      p.blood[i] = Math.max(0, p.blood[i]! - Math.round(BLOOD.back * BLOOD_UNITS));
+    // A wound abed festers or it does not, and a festering grows, or is fought off (N9).
+    if (cHealth[i] === 1 && festerDay(cx, i)) {
+      dying.push(i);
+      dyingWhy.push(HAP.festered);
+      return;
+    }
     // Two friends, both grown and neither paired, of two households and of one people: promised, and paired on a day
     // of the weeks to come (asked of the one numbered lower).
     if (p.friend[i]! > cId[i]! && !p.mate[i] && ageOf(p, i, t) >= f.life.adulthood) {
@@ -5471,6 +5616,33 @@ function turnOf(cx: TickCx, i: number): void {
     }
     if (cNeeds[at0 + N.food]! > 0.5 * FULL) eat(i, h, fk);
     cNeeds[at0 + N.rest] = Math.max(0, cNeeds[at0 + N.rest]! - fk.rest);
+    // (A wound not yet dressed is dressed by whoever of their household is at home, or by themselves where they can
+    // stand, or at the town's hospital where it keeps one: its bleeding stopped. N9.)
+    if (cHealth[i] === 1 && !(p.fester[i]! & FESTER_DRESSED)) {
+      let by = hospital ? i : -1;
+      if (by < 0)
+        for (const q of homeFolk(h))
+          if (q !== i && !p.health[q] && ageOf(p, q, t) >= f.life.adulthood) {
+            by = q;
+            break;
+          }
+      if (by < 0 && p.blood[i]! < BLOOD_FAINT && ageOf(p, i, t) >= f.life.adulthood) by = i;
+      if (by >= 0) {
+        p.bleed[i] = 0;
+        p.fester[i] = p.fester[i]! | FESTER_DRESSED;
+        if (by !== i) {
+          const at = by * KINDS_N + SK.healing;
+          p.hours[at] = Math.min(SKILL_MOST, p.hours[at]! + 3);
+        }
+      }
+    }
+    // (Too faint to stand, or a wound festering: abed still, however its days of lying abed have run.)
+    if (
+      cIll[i] === 1 &&
+      cHealth[i] === 1 &&
+      (p.blood[i]! >= BLOOD_FAINT || (p.fester[i]! & FESTER_LOAD) > 0)
+    )
+      return;
     if (--cIll[i]! === 0) {
       cAct[i] = ACT.idle;
       // (A wound's days abed done: up and about with it bound for its days of mending. rules/healing.ts.)
@@ -5504,6 +5676,7 @@ function turnOf(cx: TickCx, i: number): void {
     asleep &&
     fireLot === null &&
     h !== riteHouse &&
+    i !== healerAt &&
     cCarry[i] === 0 &&
     cNeeds[at0 + N.rest]! > 0.04 * FULL
   ) {
@@ -5555,6 +5728,19 @@ function turnOf(cx: TickCx, i: number): void {
     cWhy[i] = WHY.fire;
     if (cAt[i] !== fireLot) go(place, i, fireLot, world);
     return;
+  }
+  // The town's healer (N9): to one of its hurt who wants them, asleep or not where a wound lies undressed; awake, to the
+  // festering they have not yet seen today, with a day's remedies.
+  if (i === healerAt && hunger < 0.6) {
+    const q = patientFor(cx, !asleep);
+    if (q >= 0) {
+      cAct[i] = ACT.tend;
+      cWhy[i] = WHY.tend;
+      const there = houses.home[cHouse[q]!]!;
+      if (cAt[i] !== there) go(place, i, there, world);
+      else treat(cx, q);
+      return;
+    }
   }
   // A burial of one of their household: they stand by it, while neither hunger nor cold presses past their work.
   if (h === riteHouse && hunger < bar && chilled < bar) {
@@ -5734,6 +5920,18 @@ function turnOf(cx: TickCx, i: number): void {
       go(place, i, home, world);
     } else cAct[i] = air.lit ? ACT.idle : ACT.sleep;
     cWhy[i] = occ === OCC.dependent ? WHY.young : air.lit && !working ? WHY.rest : WHY.dark;
+    return;
+  }
+  // The healer, with none of the hurt wanting them and their remedies short: out about the fields to gather more, the
+  // faster the more they know of it (N9), in the hours their work would have had.
+  if (i === healerAt && (place.herbs ?? 0) < herbsWanted(place)) {
+    cAct[i] = ACT.work;
+    cWhy[i] = WHY.herbs;
+    if (cAt[i] !== AT.fields) go(place, i, AT.fields, world);
+    else
+      place.herbs =
+        (place.herbs ?? 0) +
+        Math.round((1000 / HERB_TICKS) * ticksWorth(hoursAt(p, i, SK.healing)));
     return;
   }
   // Work: what the next hour of it is worth passes every need. (Their own, or what they have turned to for now.)
@@ -5923,18 +6121,168 @@ function turnOf(cx: TickCx, i: number): void {
 
 }
 
+// —— A wound by the hour, and the healer's work (N9) —————————————————————————————————————————————————————————————————
+
+/** The doses of remedies a place's healer keeps by them (thousandths: place.herbs). */
+const herbsWanted = (place: Place): number =>
+  1000 * Math.max(HERBS_LEAST, Math.ceil(place.people.n / HERBS_PER));
+/** A place's healer: of its grown who are not abed, the one with the most hours at healing (the lowest numbered of as many). */
+function healerOf(place: Place, f: Frame): number {
+  const p = place.people;
+  let best = -1,
+    most = -1;
+  for (let i = 0; i < p.n; i++) {
+    if (p.health[i] === 1 || p.health[i] === 2 || occOf(p, i) === OCC.dependent) continue;
+    if (ageOf(p, i, place.t) < f.life.adulthood) continue;
+    const h = hoursAt(p, i, SK.healing);
+    if (h > most || (h === most && p.id[i]! < p.id[best]!)) {
+      most = h;
+      best = i;
+    }
+  }
+  return best;
+}
+/** Whether a place's healer has seen one of its festering today. */
+const seenToday = (place: Place, id: number): boolean =>
+  !!place.tended && place.tended.indexOf(id, 1) > 0;
+/**
+ * Of a place's hurt abed at home, the one who wants its healer most (-1: none): a wound undressed first, the hardest
+ * bleeding of them first; then, where the healer is awake, one festering they have not seen today, the worst first.
+ */
+function patientFor(cx: TickCx, awake: boolean): number {
+  const { place, p, houses } = cx;
+  let best = -1,
+    want = 0,
+    worst = -1;
+  for (let q = 0; q < p.n; q++) {
+    if (p.health[q] !== 1 || p.eta[q] || p.at[q] !== houses.home[p.house[q]!]) continue;
+    const v = p.fester[q]!,
+      need = !(v & FESTER_DRESSED)
+        ? 2
+        : awake && v & FESTER_LOAD && !seenToday(place, p.id[q]!)
+          ? 1
+          : 0,
+      how = need === 2 ? p.bleed[q]! : v & FESTER_LOAD;
+    if (need > want || (need === want && need > 0 && how > worst)) {
+      best = q;
+      want = need;
+      worst = how;
+    }
+  }
+  return best;
+}
+/**
+ * The healer at the bedside of one of the hurt: the wound dressed, its bleeding stopped; a festering they have not seen
+ * today washed and given a day's remedies from those they have gathered (rules/healing.ts remedyFight: the share of its
+ * land's care that remedies bring), or from its hospital's where it keeps one.
+ */
+function treat(cx: TickCx, q: number): void {
+  const { place, p, matched, hospital } = cx,
+    v = p.fester[q]!;
+  p.bleed[q] = 0;
+  let next = v | FESTER_DRESSED;
+  if (v & FESTER_LOAD && !seenToday(place, p.id[q]!)) {
+    if (hospital || (place.herbs ?? 0) >= 1000) {
+      if (!hospital) place.herbs = (place.herbs ?? 0) - 1000;
+      const load = Math.max(
+        0,
+        Math.round((v & FESTER_LOAD) - remedyFight(Math.min(matched.care ?? 0, matched.remedies ?? 0))),
+      );
+      next = (next & ~FESTER_LOAD) | load;
+    }
+    (place.tended ??= [place.day]).push(p.id[q]!);
+  }
+  p.fester[q] = next;
+}
+/**
+ * A day of a wound abed (N9): the first day's turn after it was dealt says whether it festers (rules/healing.ts
+ * festerChance, by its blow); a festering grows, and the body fights it off by the care brought to it: that of clean hands
+ * where it is dressed (its land's care less what remedies bring), and remedies at its hospital. The healer's remedies are
+ * brought at their visit (treat). True: it has killed them (only where the town is managed, as a bleeding).
+ */
+function festerDay(cx: TickCx, i: number): boolean {
+  const { world, place, p, matched, orders, hospital } = cx,
+    v = p.fester[i]!,
+    dressed = v & FESTER_DRESSED,
+    blow = blowOf(place, i, p.cause[i]! & 7);
+  if (!(v & FESTER_SEEN)) {
+    const r = (k: number) =>
+        world.rng.unit(PLACE_DRAW, place.key ^ p.id[i]!, place.t, P.fester, k),
+      festers = r(0) < festerChance(blow);
+    p.fester[i] = FESTER_SEEN | dressed | (festers ? Math.round(festerStart(r(1))) : 0);
+    return false;
+  }
+  const load = v & FESTER_LOAD;
+  if (!load) return false;
+  const care = matched.care ?? 0,
+    remedies = Math.min(care, matched.remedies ?? 0),
+    brought = dressed ? care - remedies + (hospital ? remedies : 0) : 0,
+    n = festerNext(load, fightOf(brought, p.blood[i]! / BLOOD_UNITS)),
+    // (Whole steps a day, away from where the body's fight and the festering's growth balance: rounded, a load beside
+    // that balance stood at it for good, abed and neither dying nor mending. At the balance itself the body wins.)
+    next = n > load ? Math.ceil(n) : Math.max(0, n < load ? Math.floor(n) : load - 1);
+  if (next >= FESTER_MOST) {
+    if (orders) return true;
+    // (Where the town is not managed its land's own reckoning says who dies of it: here the fever breaks, and they
+    // come through it. It stood at its height for good, and they never rose.)
+    p.fester[i] = FESTER_SEEN | dressed;
+    return false;
+  }
+  p.fester[i] = FESTER_SEEN | dressed | next;
+  return false;
+}
+/** One of a place's people's wound by the hour, read (N9): how hard it bleeds, the blood lost, its festering, their pain. */
+export type PlaceWoundRead = {
+  /** The share of their blood it loses in ten minutes now, and that lost (0 … 1); past `faint` they cannot stand. */
+  readonly bleeding: number;
+  readonly blood: number;
+  readonly faint: boolean;
+  /** Its festering (0: clean; FESTER_MOST: what kills), whether it has yet been seen to fester or not, and dressed. */
+  readonly fester: number;
+  readonly seen: boolean;
+  readonly dressed: boolean;
+  /** How much it hurts them, 0 … 1 (rules/healing.ts painOf). */
+  readonly pain: number;
+  /** Whether the healer has seen to its festering today. */
+  readonly tended: boolean;
+};
+export function placeWound(place: Place, i: number): PlaceWoundRead {
+  const p = place.people,
+    v = p.fester[i]!,
+    hurt = p.health[i] === 1 || p.health[i] === 3;
+  return {
+    bleeding: p.bleed[i]! / BLOOD_UNITS,
+    blood: p.blood[i]! / BLOOD_UNITS,
+    faint: p.blood[i]! >= BLOOD_FAINT,
+    fester: v & FESTER_LOAD,
+    seen: !!(v & FESTER_SEEN),
+    dressed: !!(v & FESTER_DRESSED),
+    pain: hurt ? painOf(p.health[i] === 1, p.health[i] === 3, !!(v & FESTER_DRESSED), v & FESTER_LOAD) : 0,
+    tended: seenToday(place, p.id[i]!),
+  };
+}
+/** A place's healer, read (N9): who (their place among its people; -1: none), and the doses of remedies by them, and wanted. */
+export function placeHealer(place: Place): { i: number; doses: number; wanted: number } {
+  const i = place.healer ? placeIndexOf(place, place.healer) : -1;
+  return {
+    i,
+    doses: Math.floor((place.herbs ?? 0) / 1000),
+    wanted: herbsWanted(place) / 1000,
+  };
+}
+
 /** One tick of a place: every one's needs move, and each does what presses most. */
 function tick(world: World, place: Place, f: Frame): void {
   const cx = tickCx(world, place, f),
-    { p, houses, t, today, dying } = cx;
+    { p, houses, t, today, dying, dyingWhy } = cx;
   for (let i = 0; i < p.n; i++) turnOf(cx, i);
   // The hours given this tick to kinds of work but one's own trade's (N6; their own trade's are counted at it, above).
   countHours(place, f);
-  // Those who died of want: told, kept for its land's telling, and gone.
+  // Those who died of want, or of a wound: told, kept for its land's telling, and gone.
   for (let k = dying.length - 1; k >= 0; k--) {
     const i = dying[k]!,
       row = sexOf(p, i) * BANDS + bandOf(ageOf(p, i, t), f.life);
-    note(place, HAP.starved, p.id[i]!, Math.round(ageOf(p, i, t)), occOf(p, i), i);
+    note(place, dyingWhy[k]!, p.id[i]!, Math.round(ageOf(p, i, t)), occOf(p, i), i);
     place.dead.push(row, occOf(p, i), 1);
     houses.grief[p.house[i]!] = today;
     removePerson(place, i);
@@ -5963,7 +6311,9 @@ function countHours(place: Place, f: Frame): void {
     const act = p.act[i]!,
       home = houses.home[p.house[i]!]!;
     let kind = -1;
-    if (act === ACT.work) kind = p.turn[i] ? tradeKind(p.turn[i]!) : -1;
+    if (act === ACT.work)
+      kind = p.why[i] === WHY.herbs ? SK.healing : p.turn[i] ? tradeKind(p.turn[i]!) : -1;
+    else if (act === ACT.tend) kind = SK.healing;
     else if (act === ACT.build || act === ACT.stuff) kind = SK.building;
     else if (act === ACT.brigade) kind = SK.fire;
     else if (act === ACT.eat && p.at[i] === home && !p.eta[i]) kind = SK.cooking;
@@ -6735,6 +7085,8 @@ export const HAP_GRAVE: ReadonlySet<number> = new Set([
   HAP.wounded,
   HAP.famine,
   HAP.plague,
+  HAP.bled,
+  HAP.festered,
   // (Each of its head's decisions a line of its own, with its reason.)
   HAP.steward,
 ]);
@@ -6774,6 +7126,8 @@ export const HAP_MANY: readonly string[] = [
   "orders of the town's head",
   "quarrelled",
   "came to blows",
+  "bled to death of their wounds",
+  "died of wounds that festered",
 ];
 
 /** What many did, said with what of: "died of the red flux", "fell in the battle at Sairis's land". */

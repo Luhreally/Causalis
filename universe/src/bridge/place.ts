@@ -33,6 +33,8 @@ export const PLACE_ACT = {
   guard: 14,
   /** At a burial, with their household. */
   mourn: 15,
+  /** The town's healer at the bedside of one of its hurt (N9). */
+  tend: 16,
 } as const;
 
 /** The page of one of a place's people, and of one of its lots (its square and its fields too). */
@@ -193,6 +195,21 @@ export type PlaceStocksSheet = {
   /** Months of food its granary holds back, and the days of food it holds in all. */
   readonly hold: number;
   readonly foodDays: number;
+  /**
+   * The remedies its healer keeps by them (N9), where its land knows herb-lore: doses in hand and wanted, and the healer
+   * (null: none kept).
+   */
+  readonly remedies: PlaceHealerRow | null;
+};
+/** A place's healer (N9): who, their page, what they are at, their doses of remedies in hand and wanted, the hurt abed. */
+export type PlaceHealerRow = {
+  readonly ref: string;
+  readonly name: string;
+  readonly doing: string;
+  readonly doses: number;
+  readonly wanted: number;
+  readonly abed: number;
+  readonly festering: number;
 };
 export type PlaceWorkSheet = {
   /** Its grown hands at each trade an order can move now, and the shares ordered (thousandths; null: as its land has them). */
@@ -208,6 +225,8 @@ export type PlaceWorkSheet = {
   /** Those too low in mood to heed an order to change their work, and those abed, hurt or sick. */
   readonly unheeding: number;
   readonly abed: number;
+  /** Its healer, where its land knows herb-lore (N9; null: none). */
+  readonly healer: PlaceHealerRow | null;
   /** Its buildings where work is done: how many work at each, and whether its work is stopped by order. */
   readonly buildings: readonly {
     readonly lot: number;

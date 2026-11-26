@@ -785,6 +785,17 @@ export {
   type Outcome,
 } from "./anatomy.ts";
 export {
+  BLED_SHARE,
+  BLOOD,
+  FESTER_MOST,
+  REMEDY_PRINCIPLES,
+  bleedOf,
+  festerChance,
+  festerNext,
+  festerStart,
+  fightOf,
+  painOf,
+  remedyFight,
   HEAL_BLOW,
   HEAL_CARE,
   HEAL_DAYS,

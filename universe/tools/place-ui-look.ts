@@ -312,8 +312,20 @@ for (const view of [
   const inspected = async () =>
     (await k<{ inspected: Inspected }>("globalThis.causalis.place.state()")).inspected;
   await press('.place-pace[data-pace="0"]', "the pause");
+  // (The gravest alert may be one lying abed indoors, out of sight: the eye taken to the fire's, where its crew stand.)
+  const anyone = () =>
+    k<boolean>(
+      `(() => { const c = globalThis.causalis, n = c.planNow().people.length, W = innerWidth, H = innerHeight; for (let i = 0; i < n; i++) { const p = c.personOnScreen(i); if (p && p.x > 30 && p.x < W - 64 && p.y > H * 0.2 && p.y < H * 0.7 && document.elementFromPoint(p.x, p.y)?.tagName === "CANVAS") return true; } return false; })()`,
+    );
+  if (!(await anyone()) && (await box('.place-alert[data-key="fire"]'))) {
+    await press('.place-alert[data-key="fire"]', "the fire's alert");
+    await page.waitForTimeout(1300);
+    await k("globalThis.causalis.closePage?.()");
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(400);
+  }
   const seen = await k<{ i: number; x: number; y: number } | null>(
-    `(() => { const c = globalThis.causalis, n = c.planNow().people.length, W = innerWidth, H = innerHeight; for (let i = 0; i < n; i++) { const p = c.personOnScreen(i); if (p && p.x > 60 && p.x < W - 120 && p.y > H * 0.2 && p.y < H * 0.55 && document.elementFromPoint(p.x, p.y)?.tagName === "CANVAS") return { i, x: p.x, y: p.y }; } return null; })()`,
+    `(() => { const c = globalThis.causalis, n = c.planNow().people.length, W = innerWidth, H = innerHeight; for (let i = 0; i < n; i++) { const p = c.personOnScreen(i); if (p && p.x > 30 && p.x < W - 64 && p.y > H * 0.2 && p.y < H * 0.7 && document.elementFromPoint(p.x, p.y)?.tagName === "CANVAS") return { i, x: p.x, y: p.y }; } return null; })()`,
   );
   check(!!seen, "one of its people stands on the screen, clear of the chrome");
   if (seen) {
@@ -437,6 +449,11 @@ for (const view of [
     await look(`07-sheet-${tab}`, `the ${tab} sheet open`);
     // (The Work sheet's priorities grid, each kind's skill under its key.)
     if (tab === "work" && (await box(".place-grid-open"))) {
+      // (Below the sheet's fold where its healer's line comes first: scrolled to, as a finger would.)
+      await page.evaluate(() =>
+        document.querySelector(".place-grid-open")?.scrollIntoView({ block: "center" }),
+      );
+      await page.waitForTimeout(300);
       await press(".place-grid-open", "the priorities grid");
       await page.waitForTimeout(900);
       say(`grid: ${(await text(".place-grid")).slice(0, 300)}`);

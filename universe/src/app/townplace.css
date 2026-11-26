@@ -1660,3 +1660,18 @@ body.placing:has(.page-window:not([hidden])) .place-tag {
 .place-insp-person.tie-known {
   border-left: 4px solid rgba(190, 205, 255, 0.35);
 }
+/* Its healer and their remedies, on the Work and Stocks sheets (N9): a line, a tap opens them. */
+.place-hud .place-healer {
+  grid-template-rows: auto auto;
+  min-height: 44px;
+  margin: 6px 0;
+  border-radius: 6px;
+  border: 1px solid rgba(158, 231, 255, 0.25);
+  background: rgba(255, 255, 255, 0.06);
+  color: #e8f1ff;
+  text-shadow: none;
+}
+.place-hud .place-healer .place-row-what.bad {
+  color: #ff9a8a;
+  opacity: 1;
+}

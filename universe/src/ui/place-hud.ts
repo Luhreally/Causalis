@@ -22,6 +22,7 @@ import {
   type PlaceOverlayKind,
   type PlacePeopleSheet,
   type PlaceStocksSheet,
+  type PlaceHealerRow,
   type PlaceLogSheet,
   type PlaceWorkSheet,
   type TownOffers,
@@ -1051,12 +1052,36 @@ export class PlaceHud {
     this.sheetBody.replaceChildren(
       hold,
       table,
+      ...(s.remedies ? [this.healerLine(s.remedies, true)] : []),
       el(
         "p",
         "place-more",
         "A month's food is what one person eats in a month. Held: the market will not buy it from the town; its own people still use it.",
       ),
     );
+  }
+
+  /** Its healer in a line (N9): who, what they are at, their remedies and the hurt; a tap opens them. */
+  private healerLine(h: PlaceHealerRow, stocks: boolean): HTMLElement {
+    const row = el("button", "place-row place-healer");
+    row.onclick = () => this.onOpen(h.ref);
+    row.append(
+      el(
+        "span",
+        "place-row-name",
+        stocks
+          ? `Remedies: ${h.doses} of the ${h.wanted} doses its healer keeps`
+          : `Healer: ${h.name}`,
+      ),
+      el(
+        "span",
+        `place-row-what${h.doses === 0 && h.festering > 0 ? " bad" : ""}`,
+        stocks
+          ? `Gathered about its fields by ${h.name}; a dose a day for each wound that festers (${h.festering} now)`
+          : `${h.doing.charAt(0).toUpperCase()}${h.doing.slice(1)} · ${h.abed} hurt abed, ${h.festering} festering · ${h.doses} of ${h.wanted} doses`,
+      ),
+    );
+    return row;
   }
 
   /** Its hands by trade and the share of them wanted at each, its priorities by name, its sites and its buildings' work. */
@@ -1080,6 +1105,7 @@ export class PlaceHud {
     fact(s.abed, "abed", true);
     fact(s.unheeding, "too low to heed", true);
     const body: HTMLElement[] = [facts];
+    if (s.healer) body.push(this.healerLine(s.healer, false));
     const table = el("div", "place-table place-share-table"),
       head = el("div", "place-tr place-th");
     for (const words of ["Trade", "Now", "Share wanted", ""]) head.append(el("span", "", words));
