@@ -2209,13 +2209,6 @@ function removePerson(place: Place, i: number): void {
     }
     if (p.mate[k] === p.id[i]) p.mate[k] = 0;
   }
-  // (And no one knows them any more.)
-  const gone = p.id[i]!;
-  for (let k = 0; k < p.n * TIES; k++)
-    if (p.tie[k] === gone) {
-      p.tie[k] = 0;
-      p.regard[k] = 0;
-    }
   // (What they carried is set down in the square.)
   if (p.carry[i]! > 0) place.bldgs.stock[p.carryGood[i]!]! += p.carry[i]!;
   if (i !== last)
@@ -4406,7 +4399,16 @@ function meetDay(world: World, place: Place, rounds = 1): void {
   if (n < 2) return;
   const temper = new Float32Array(n * 5),
     byHouse = new Map<number, number[]>(),
-    byWork = new Map<number, number[]>();
+    byWork = new Map<number, number[]>(),
+    here = new Set<number>();
+  for (let i = 0; i < n; i++) here.add(p.id[i]!);
+  // (Those gone from the place since are known no more: let go once a day, not at each going, which scanned every tie of
+  // the place for each of a month's matched dead.)
+  for (let k = 0; k < n * TIES; k++)
+    if (p.tie[k] && !here.has(p.tie[k]!)) {
+      p.tie[k] = 0;
+      p.regard[k] = 0;
+    }
   for (let i = 0; i < n; i++) {
     const t = placeTemper(place, i);
     temper[i * 5] = t.kin;
