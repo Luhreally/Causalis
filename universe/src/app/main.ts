@@ -3866,6 +3866,11 @@ async function runPlanetPage(): Promise<void> {
   const globeFit = () => (aspect() < 1 ? 3.1 / aspect() : 3.3);
   // (Near enough that its towns, drawn from their fabric, are seen growing: M150.)
   const regionFit = () => (aspect() < 1 ? 74 / aspect() : 80);
+  // (A land's haze lies past what the eye looks at as far as it does from the land's own distance, however far the eye is drawn
+  // back: render/stage.ts hazeBeyond. A town's own and every other scale's stand as they were.)
+  stage.onUpdate(() =>
+    stage.hazeBeyond(scale === "region" ? Math.max(0, rig.distance - regionFit()) : 0),
+  );
   // A land touched on the globe: its page (a spot of the sea, the spot's own).
   const selectCell = (cell: number | null) => {
     globe.mark(cell);
