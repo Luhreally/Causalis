@@ -13,7 +13,7 @@ const M = 0.1,
   /** Where its foot is (metres): a hair into the yard, so no seam shows between. */
   PLATE_FOOT = TOWN_GROUND_TOP - 0.02,
   /** How far in from its lot's edges the plate stops (metres a side), so lots side by side read as lots. */
-  INSET = 0.35,
+  INSET = 0.15,
   /** How much of the ground shows through (the plate's opacity), and how much of its own light it carries at night. */
   OPACITY = 0.72,
   GLOW = 0.5;
