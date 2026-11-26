@@ -17,8 +17,11 @@ import { spine } from "../../src/causal/index.ts";
 import { universeWorld } from "../host/worlds.ts";
 
 test("a war between the stars: declared on old news, its fleet years on the way, its why back to the home world's pull", () => {
-  // A world whose neighbours include a people long among the stars.
-  const world = universeWorld(ALIEN, "alien 41", 60);
+  // A world whose neighbours include a people long among the stars, and a realm of its own: alien 41's people find sowing
+  // by their own crowding and soil (no realm stands before a land sows), and since the breadth round none has by 150; by
+  // 200 a hundred and fifty-five lands sow and thirteen realms stand.
+  const AT = 200,
+    world = universeWorld(ALIEN, "alien 41", AT);
   assert.ok(
     civilizationsNear(world).some((c) => c.stars < 0),
     "an old starfaring people near",
@@ -27,13 +30,13 @@ test("a war between the stars: declared on old news, its fleet years on the way,
     (a, b) => b.members.length - a.members.length || (a.ref < b.ref ? -1 : 1),
   )[0]!;
   for (const id of ["mathematics", "electronics", "fusion-drive", "antimatter-drive"])
-    loreOf(world).learn(realm.seat, id, { year: 60, event: realm.event }, principle(id));
+    loreOf(world).learn(realm.seat, id, { year: AT, event: realm.event }, principle(id));
   // Its reach into the sky: a first satellite of its own, and machines for a fleet.
   const prog = spaceOf(world).program(realm.ref);
   prog.satellite = realm.event;
   marketsOf(world).of(realm.seat).move("made", G.machines, 60_000_000);
-  let y = 60;
-  while (!starWarsOf(world).all().length && y < 260) world.runTo(++y * YEAR);
+  let y = AT;
+  while (!starWarsOf(world).all().length && y < AT + 200) world.runTo(++y * YEAR);
   assert.ok(contactsOf(world).all().length > 0, "another people heard");
   const war = starWarsOf(world).all()[0]!;
   assert.ok(war, "a war declared");
