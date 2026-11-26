@@ -136,7 +136,7 @@ export class PlaceInspector {
   }
   /** What it shows, read again. */
   show(x: PlaceInspect | null): void {
-    if (!x || x.ref !== this.ref) {
+    if (!x || (x.ref !== this.ref && (x.kind !== "person" || x.page !== this.ref))) {
       if (x === null && this.ref) {
         this.title.textContent = "Gone from the town";
         this.sub.textContent = "Dead, or left: their page tells what befell them.";
@@ -173,7 +173,7 @@ export class PlaceInspector {
   }
 
   private picture(x: PlaceInspect): void {
-    const key = x.kind === "person" ? JSON.stringify(x.portrait) : "";
+    const key = x.kind === "person" ? JSON.stringify(x.portrait) : "lot";
     if (key === this.pictured) return;
     this.pictured = key;
     const ctx = this.portrait.getContext("2d");
@@ -303,7 +303,8 @@ export class PlaceInspector {
 
   private lot(x: PlaceInspectLot): void {
     this.picture(x);
-    const title = `${x.icon} ${x.name.replace(/^The /, "")}`;
+    const name = x.name.replace(/^The /, ""),
+      title = `${x.icon} ${name.charAt(0).toUpperCase()}${name.slice(1)}`;
     if (this.title.textContent !== title) this.title.textContent = title;
     this.sub.textContent = [
       x.working ? `${x.working} work here` : null,

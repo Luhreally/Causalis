@@ -103,6 +103,10 @@ export type PlaceFlow = {
   inspectHeight(h: "peek" | "half" | "full"): void;
   /** How tall its people stand on the screen now, the middle of those drawn (px; the look tools). */
   figurePx(): number;
+  /** The eye put again as on entering, at the next frame (the look tools: the entry's framing by day). */
+  reframe(): void;
+  /** What the mode's own chrome has cost the page's frames since last asked: its ms all told, and the frames (the look tools). */
+  uiCost(): { ms: number; frames: number };
 };
 
 /** The eye over a town entered (world units; as a life's: app/life.ts): a few homes across. */
@@ -118,16 +122,25 @@ const EYE_NEAR = 9,
    */
   NIGHT_FILL = 0.16,
   /**
-   * The eye on entering, over where most of its people are out of doors (world units, as EYE_NEAR): near enough that a
-   * figure stands two dozen pixels tall on a phone, a finger's breadth.
+   * The eye on entering, over where most of its people are out of doors (world units, as EYE_NEAR), for each pixel of the
+   * screen's height: a figure stands about 0.138 × the screen's height ÷ the eye's distance pixels tall (measured: 24.7
+   * px at 5.2 on a phone's 932, 21.3 at 5.2 on a desk's 800), so this puts one at some 26 px, a finger's breadth, on any.
    */
-  EYE_ENTRY = 5.2,
+  EYE_ENTRY_PER_PX = 0.138 / 26,
   /** How often what the inspector shows is read again (ms). */
   INSPECT_EVERY = 500,
   /** A body's height for the name over one chosen (metres). */
   TAG_HIGH = 2.1;
 
 export function installPlace(d: PlaceDeps): PlaceFlow {
+  // (What the mode's chrome costs the page: its alerts, clock and sky as a frame is told, its ring and name each frame.)
+  let uiMs = 0,
+    uiFrames = 0;
+  const timed = (f: () => unknown): void => {
+    const t0 = performance.now();
+    f();
+    uiMs += performance.now() - t0;
+  };
   const hud = new PlaceHud(d.hud);
   hud.sound = d.sound;
   const inspector = new PlaceInspector(hud.element),
@@ -249,11 +262,13 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
         // (No such town any more, or no one in it: left.)
         if (!f) return void leave();
         told = mine.frame = f;
+        const t0 = performance.now();
         hud.time(f.t, pace, f.season);
         hud.sky(d.weather(), f.warmth);
         hud.alerts(f.notices);
         night(f.t);
-        if (!framed) frameEntry();
+        uiMs += performance.now() - t0;
+        if (!framed) frameEntry(f.t);
         // (A month's turn: what it did by its orders is told to its land.)
         if (settled < 0) settled = f.month;
         if (f.month !== settled) {
@@ -364,11 +379,14 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     laid();
     const asked = ref,
       at = town;
-    stopInspect = d.client.subscribe<PlaceInspect | null>(
-      { type: "place.inspect", args: { ref: at, of: asked } },
-      INSPECT_EVERY,
-      (x) => {
+    const query = { type: "place.inspect", args: { ref: at, of: asked } } as const,
+      told = (x: PlaceInspect | null): void => {
         if (inspector.ref !== asked) return;
+        // (An asking the host could not answer comes as its error: said, not shown as nothing.)
+        if (x && "error" in x) {
+          console.warn(`place.inspect ${asked}: ${(x as { error: string }).error}`);
+          return;
+        }
         // (One the god game names and the place does not keep: their page is the god game's.)
         if (!x && !asked.startsWith("plc")) {
           inspect(null);
@@ -376,9 +394,11 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
           return;
         }
         if (x?.kind === "person" && chosen !== x.id) choose(x.id);
-        inspector.show(x);
-      },
-    );
+        timed(() => inspector.show(x));
+      };
+    // (Asked at once, then kept: a subscription's first answer waits on the host's round of them.)
+    void d.client.query<PlaceInspect | null>(query).then(told, () => undefined);
+    stopInspect = d.client.subscribe<PlaceInspect | null>(query, INSPECT_EVERY, told);
   };
   /** One of its people chosen (their number in the place; null: no one): a ring at their feet, their name over them. */
   const choose = (id: number | null): void => {
@@ -429,7 +449,7 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
    * The eye on entering, over where most of its people are out of doors, near enough to tell them apart: once its people
    * are drawn where the place has them (a 15 m grid's fullest square; the square itself where none is about).
    */
-  const frameEntry = (): void => {
+  const frameEntry = (t: number): void => {
     const plan = d.plan();
     if (!plan || !body) return;
     const cells = new Map<string, { n: number; x: number; z: number }>();
@@ -445,7 +465,9 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
       c.z += at.z;
       cells.set(key, c);
     }
-    if (!drawn) return;
+    // (At night all are within: the square, as it would be framed by day. By day, none yet drawn: wait a frame.)
+    const hour = (((t % 86_400) + 86_400) % 86_400) / 3600;
+    if (!drawn && hour >= 6 && hour < 21) return;
     framed = true;
     let best = { n: 0, x: 0, z: 0 };
     for (const c of cells.values()) if (c.n > best.n) best = c;
@@ -454,7 +476,7 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     d.rig.flyTo(
       {
         target: { x: x * VILLAGE_METRE, y: 0, z: z * VILLAGE_METRE },
-        distance: EYE_ENTRY,
+        distance: EYE_ENTRY_PER_PX * Math.max(480, innerHeight),
         pitch: EYE_PITCH,
       },
       0.9,
@@ -471,37 +493,37 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
       stopSheet = d.client.subscribe<PlacePeopleSheet | null>(
         { type: "place.people", args: { ref, occ: hud.occ } },
         SHEET_EVERY,
-        (s) => s && hud.people(s),
+        (s) => timed(() => s && hud.people(s)),
       );
     else if (tab === "stocks")
       stopSheet = d.client.subscribe<PlaceStocksSheet | null>(
         { type: "place.stocks", args: { ref } },
         SHEET_EVERY,
-        (s) => s && hud.stocks(s),
+        (s) => timed(() => s && hud.stocks(s)),
       );
     else if (tab === "work")
       stopSheet = d.client.subscribe<PlaceWorkSheet | null>(
         { type: "place.work", args: { ref, occ: hud.gridOcc } },
         SHEET_EVERY,
-        (s) => s && hud.work(s),
+        (s) => timed(() => s && hud.work(s)),
       );
     else if (tab === "dangers")
       stopSheet = d.client.subscribe<PlaceDangersSheet | null>(
         { type: "place.dangers", args: { ref } },
         SHEET_EVERY,
-        (s) => s && hud.dangers(s),
+        (s) => timed(() => s && hud.dangers(s)),
       );
     else if (tab === "log")
       stopSheet = d.client.subscribe<PlaceLogSheet | null>(
         { type: "place.log", args: { ref } },
         SHEET_EVERY,
-        (s) => s && hud.log(s),
+        (s) => timed(() => s && hud.log(s)),
       );
     else
       stopSheet = d.client.subscribe<TownOffers | null>(
-        { type: "town.offers", args: { ref } },
+        { type: "town.offers", args: { ref, all: true } },
         SHEET_EVERY,
-        (s) => hud.build(s),
+        (s) => timed(() => hud.build(s)),
       );
   };
 
@@ -675,9 +697,12 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
       // (Gone from the town, or another has taken its people up, a life lived or a body possessed: left.)
       if (d.scale() !== "village" || (body && d.village.posed !== body)) return void leave();
       watch.frame();
+      const t0 = performance.now();
       marked();
       // (The view steered by hand lets go of whom it was kept with.)
       if (inspector.following && !d.rig.follow) follow(false);
+      uiMs += performance.now() - t0;
+      uiFrames++;
     },
     pace: (seconds) => {
       pace = Math.max(0, seconds);
@@ -723,6 +748,14 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
       };
     },
     inspectHeight: (h) => inspector.setHeight(h),
+    uiCost: () => {
+      const out = { ms: uiMs, frames: uiFrames };
+      uiMs = uiFrames = 0;
+      return out;
+    },
+    reframe: () => {
+      framed = false;
+    },
     figurePx: () => {
       const tall: number[] = [];
       for (const q of d.plan()?.people ?? []) {

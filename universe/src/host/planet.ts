@@ -1297,7 +1297,8 @@ function planetUniverse(name: string, prior: Prior): Universe {
       /** A land's sky (Phase 30 M162): its climate, this year's rain, the god's acts on it. */
       "land.sky": (world, args) => landSky(world, (args as { cell: number }).cell),
       // What a town can be asked, and whether what it was asked has moved (H1).
-      "town.offers": (world, args) => townOffers(world, (args as { ref: string }).ref),
+      "town.offers": (world, args) =>
+        townOffers(world, (args as { ref: string }).ref, (args as { all?: boolean }).all === true),
       "town.asked": (world, args) => askedKey(world, (args as { ref: string }).ref),
       "woods.map": (world) => woodsMap(world),
       // (Every land's crime, for the underworld lens's crime view: asked only while it is shown.)

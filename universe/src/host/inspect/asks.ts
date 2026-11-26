@@ -101,8 +101,11 @@ function firstNote(world: World, what: AskFirst, share: number): string {
   }
 }
 
-/** What a town can be asked for now, what it cannot and why (town.offers). */
-export function townOffers(world: World, ref: string): TownOffers | null {
+/**
+ * What a town can be asked for now, what it cannot and why (town.offers). `all`: every building it cannot raise now said
+ * with why (the town mode's Build sheet), not only those a person might have looked for.
+ */
+export function townOffers(world: World, ref: string, all = false): TownOffers | null {
   const ctx = populationContext(world),
     s = ctx.settlements.get(ref as never);
   if (!s) return null;
@@ -132,12 +135,13 @@ export function townOffers(world: World, ref: string): TownOffers | null {
       if (bad) {
         // (What a person might have looked for, and why not: not everything no town here could yet dream of.)
         if (
-          (what === "walls" ||
+          all ||
+          ((what === "walls" ||
             what === "granary" ||
             what === "market" ||
             what === "shrine" ||
             what === "well") &&
-          !/has one|has its walls|don't yet know|know nothing/.test(bad)
+            !/has one|has its walls|don't yet know|know nothing/.test(bad))
         )
           no.push({ name: sentenceCase(raiseName(world, what)), why: bad });
         continue;
