@@ -320,7 +320,7 @@ export class PlaceInspector {
     } else if (this.tab === "health") {
       // (Their figure, each member not whole marked on it and named; then how they are, line by line.)
       const row = el("div", "place-insp-health-box"),
-        canvas = el("canvas", "place-insp-body");
+        canvas = el("canvas", "place-insp-figure");
       canvas.width = BODY_W;
       canvas.height = BODY_H;
       if (x.portrait?.kind === "person")

@@ -1578,7 +1578,7 @@ body.placing:has(.page-window:not([hidden])) .place-tag {
   align-items: flex-start;
   margin: 4px 0;
 }
-.place-insp-body {
+.place-insp-figure {
   width: 150px;
   height: 190px;
   flex: 0 0 auto;

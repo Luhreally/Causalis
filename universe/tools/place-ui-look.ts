@@ -375,7 +375,7 @@ for (const view of [
       await press('.place-insp-tab[data-tab="health"]', "the hurt one's health tab");
       await page.waitForTimeout(800);
       say(`hurt: ${(await text(".place-insp-body")).slice(0, 500)}`);
-      check((await shown(".place-insp-body canvas")) === 1, "their body is drawn");
+      check((await shown(".place-insp-figure")) === 1, "their body is drawn");
       await look("15h-insp-health-hurt", "one hurt in the fire, their health");
       if (phone) await k('globalThis.causalis.place.inspectHeight("peek")');
       if (ins.ref) await k(`globalThis.causalis.place.inspect(${JSON.stringify(ins.ref)})`);
@@ -440,6 +440,8 @@ for (const view of [
       await press(".place-grid-open", "the priorities grid");
       await page.waitForTimeout(900);
       say(`grid: ${(await text(".place-grid")).slice(0, 300)}`);
+      await page.evaluate(() => document.querySelector(".place-grid")?.scrollIntoView({ block: "start" }));
+      await page.waitForTimeout(300);
       check((await shown(".place-grid-lv")) > 0, "the grid tells each kind's skill");
       await look("07b-grid", "the priorities grid, with skills");
       await press(".place-grid-open", "the priorities grid, closed");
