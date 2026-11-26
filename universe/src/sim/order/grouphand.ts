@@ -21,6 +21,7 @@ import {
   ORG_BASES,
   ORG_KINDS,
   ORG_STANDING,
+  REIGN,
   mindSway,
   type OrgAim,
 } from "../../rules/index.ts";
@@ -80,6 +81,10 @@ export function charterProblem(world: World, args: unknown): string | null {
   if (bad) return bad;
   const a = args as { realm?: Ref; target?: string; to?: string };
   if (!a.to || !(CHARTER_ACTS as readonly string[]).includes(a.to)) return "no such decree";
+  // (A ruler's word on a group is a decree as a law is: below the word line it stops at the seat's door, sim/order/reign.ts.)
+  const legitimacy = orderOf(world)?.of(a.realm as Ref)?.legitimacy ?? 0.6;
+  if (legitimacy < REIGN.wordLine)
+    return `Only ${Math.round(legitimacy * 100)} in a hundred hold your rule rightful: your word stops at the seat's door.`;
   const at = a.realm && a.target ? charterTarget(world, a.realm, a.target) : null;
   if (!at) return "it no longer stands";
   if (at.realm !== a.realm) return "it is not of your realm";
