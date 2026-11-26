@@ -43,7 +43,7 @@ import { PULL, agePace, easyPace, hipOf, leanOf, legSwing, strideLength } from "
 import { route, villageGround } from "./ground.ts";
 import { STRIDES } from "./motion.ts";
 import type { PosedHook } from "./possess.ts";
-import { BLINK, FAR, SMOOTH, type Presence } from "./presence.ts";
+import { BLINK, FAR, LEAST_LEAN, SMOOTH, type Presence } from "./presence.ts";
 import { ACTIVITY, type Activity, type Moment, type Task } from "./village.ts";
 
 type Point = { x: number; z: number };
@@ -575,7 +575,8 @@ export class PlaceBodies implements PosedHook {
         // out where they stand to come up where they are.)
         this.ox[i] = lx - x;
         this.oz[i] = lz - z;
-        if (Math.hypot(this.ox[i]!, this.oz[i]!) > FAR && size > 0) this.out[i] = 1;
+        if (this.ox[i]! * this.ox[i]! + this.oz[i]! * this.oz[i]! > FAR * FAR && size > 0)
+          this.out[i] = 1;
       }
       this.segKind[i] = kind;
       this.segA[i] = a;
@@ -603,7 +604,7 @@ export class PlaceBodies implements PosedHook {
       // Their body's walk, by the ground they are drawn to cover: how fast, the stride's turn, how wide, the lean.
       const dx = nx - lx,
         dz = nz - lz,
-        far = Math.hypot(dx, dz),
+        far = Math.sqrt(dx * dx + dz * dz),
         hip = this.hips[i]!,
         before = this.going[i]!,
         fast = step > 0 ? before + (far / step - before) * ease : before,
@@ -634,12 +635,8 @@ export class PlaceBodies implements PosedHook {
           tiredness: f.tired[k] ?? 0,
           carry: f.carries[k] ? "sack" : null,
           why: f.why[k] ?? null,
-          ...(hip > 0
-            ? {
-                reach: moving ? legSwing(fast, hip, pull) / this.swings[i]! : 0,
-                lean: this.leans[i]!,
-              }
-            : {}),
+          reach: hip > 0 ? (moving ? legSwing(fast, hip, pull) / this.swings[i]! : 0) : undefined,
+          lean: hip > 0 ? (Math.abs(this.leans[i]!) < LEAST_LEAN ? 0 : this.leans[i]!) : undefined,
         },
         now = { moment, size: size * PLACED_SIZE, stride: this.strides[i]! };
       drawn[i] = now;
