@@ -149,6 +149,7 @@ const GARRISONS = 48;
 import { glanceSeed, readSeed } from "./can.ts";
 import type { Universe } from "./host.ts";
 import { OBSERVE_QUERIES } from "./observe.ts";
+import { banksNext } from "./sites.ts";
 import { PAGE_QUERIES } from "./pages.ts";
 import { KIN_QUERIES } from "./kin.ts";
 import {
@@ -1002,9 +1003,10 @@ function planetUniverse(name: string, prior: Prior): Universe {
               !ctx.settlements.seenIn(p.cell).length &&
               !sitesReady(ctx, p.cell),
           );
-      // (And what each followed people's own world lets it come to, one people at a time: read before a year of
-      // history has to wait on a far world's making. sim/space/far-read.ts.)
-      if (!next) return farReadNext(world);
+      // (Then each land's towns' banks, a land at a time: read before a town's page or its head's waits on every land's
+      // map (host/sites.ts banksNext). And what each followed people's own world lets it come to, one people at a time:
+      // read before a year of history has to wait on a far world's making. sim/space/far-read.ts.)
+      if (!next) return banksNext(world) || farReadNext(world);
       prepareSites(ctx, next.cell);
       return true;
     },

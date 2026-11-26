@@ -655,12 +655,19 @@ export function regionReady(ctx: PopulationContext, cell: number): boolean {
   return REGIONS.has(`${homePlanet(ctx.world).surfaceKey}:${cell}`);
 }
 
-export function regionOf(ctx: PopulationContext, cell: number): Region {
+/** `keep`: false for a reading made once of every land (the host's spare moments), which would push the lands in sight out. */
+export function regionOf(ctx: PopulationContext, cell: number, keep = true): Region {
   // (A land of another body: its own world's ground, Phase 64.)
   const there = offworldSite(ctx.generated, cell) ? siteRegion(ctx.world, cell) : null;
   if (there) return there;
   const key = `${homePlanet(ctx.world).surfaceKey}:${cell}`;
   let r = REGIONS.get(key);
+  if (!r && !keep) {
+    const g = ctx.generated;
+    return isProvinceWorld(g)
+      ? refineRegion(g.fine, g.centre[cell]!, REGION_SIZE, PROVINCE_TILE_KM)
+      : refineRegion(g, cell);
+  }
   if (!r) {
     if (REGIONS.size >= 64) REGIONS.delete(REGIONS.keys().next().value!);
     // A province's region is drawn around its centre, on the fine world, wide enough to hold most of it.

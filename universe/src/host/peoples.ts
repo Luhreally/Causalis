@@ -131,8 +131,10 @@ const RAID_SEEN = 1;
 export function visitorsAt(world: World, cell: number, year: number): Visitor[] | undefined {
   const store = peoplesOf(world);
   if (!store) return undefined;
-  const civs = civilizationsNear(world),
-    home = homePlanet(world).generated.star.ref,
+  // (The far peoples read only once one of them is at this land: reading them all is some 3 s the first time, and at
+  // nearly every land none is.)
+  let civs: ReturnType<typeof civilizationsNear> | null = null;
+  const home = homePlanet(world).generated.star.ref,
     found = new Map<string, Visitor>(),
     rank = { raid: 3, landing: 2, omen: 2, embassy: 1 } as const;
   const add = (
@@ -142,6 +144,7 @@ export function visitorsAt(world: World, cell: number, year: number): Visitor[] 
     event: string,
     count: number,
   ) => {
+    civs ??= civilizationsNear(world);
     const i = civs.findIndex((c) => c.ref === civRef),
       civ = civs[i];
     const body = civ ? civBody(civ) : undefined;
