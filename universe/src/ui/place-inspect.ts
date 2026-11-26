@@ -18,6 +18,7 @@ import type {
 import { drawPortrait } from "./portrait.ts";
 import { drawBody } from "./body.ts";
 import { el } from "./why.ts";
+import { billsEl, takesEl } from "./place-bills.ts";
 
 export type InspectHeight = "peek" | "half" | "full";
 type PersonTab = "now" | "mood" | "health" | "skills" | "social" | "gear" | "life" | "work";
@@ -466,6 +467,26 @@ export class PlaceInspector {
       }
       body.push(table);
     } else body.push(el("p", "place-insp-why", "It holds nothing now."));
+    if (x.works.length) {
+      const box = el("div", "place-insp-people");
+      for (const w of x.works) {
+        const b = el(w.ref ? "button" : "div", "place-insp-person");
+        b.append(el("span", "place-row-name", w.name), el("span", "place-row-what", w.words));
+        if (w.ref) (b as HTMLButtonElement).onclick = () => this.onInspect(w.ref);
+        box.append(b);
+      }
+      body.push(el("p", "place-insp-label", "Its works"), box);
+    }
+    if (x.bills.length)
+      body.push(
+        el("p", "place-insp-label", "Made here, and its bills"),
+        billsEl(x.bills, this.onOrder, null, this.orders),
+      );
+    if (x.takes)
+      body.push(
+        el("p", "place-insp-label", x.takes.store === 0 ? "What its market takes" : "What its granary takes"),
+        takesEl(x.takes, this.onOrder, this.orders),
+      );
     if (x.people.length) body.push(this.people(x.people));
     this.body.replaceChildren(...body);
   }

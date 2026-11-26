@@ -65,9 +65,15 @@ import {
   RIVAL_AT,
   placeWound,
   placeHealer,
+  placeStores,
+  placeWorks,
+  hapWords,
+  WORK_QUALITY,
 } from "./place.ts";
 import {
   ailWords,
+  billRows,
+  storeTakes,
   festerWords,
   painWords,
   healthWords,
@@ -112,6 +118,10 @@ const MEMORY_WORDS: Readonly<Record<number, readonly [string, string]>> = {
   [THOUGHT.feast]: ["🍖", "Feasted with the town"],
   [THOUGHT.quarrel]: ["💢", "Quarrelled with one they cannot abide"],
   [THOUGHT.brawl]: ["👊", "Came to blows"],
+  [THOUGHT.catharsis]: ["😮‍💨", "Let it all out, and feels the lighter"],
+  [THOUGHT.heldBy]: ["⛓️", "Held by the town's justice"],
+  [THOUGHT.righted]: ["⚖️", "A wrong done them judged"],
+  [THOUGHT.admired]: ["🖼️", "Saw a fine work"],
 };
 /** A mood in a word. */
 export const moodWord = (m: number): string =>
@@ -532,6 +542,31 @@ export function inspectLot(world: World, place: Place, lot: number): PlaceInspec
     people,
     stock,
     shut,
+    bills: lot >= 0 ? billRows(world, place, lot) : [],
+    works: placeWorks(world, place, lot)
+      .slice(0, 12)
+      .map((x) => {
+        const m = placeIndexOf(place, x.maker),
+          s = x.what >= 0 ? placeIndexOf(place, x.whom) : -1,
+          subject =
+            x.what < 0
+              ? "the town itself"
+              : `${s >= 0 ? who(s).name : "one of the town"} who ${hapWords(x.what)}, on day ${x.day % 365 + 1} of the year ${Math.floor(x.day / 365)}`;
+        return {
+          id: m >= 0 ? x.maker : null,
+          ref: m >= 0 ? who(m).ref : "",
+          name: `${cap(WORK_QUALITY[x.quality] ?? "plain")} ${x.form}`,
+          words: `showing ${subject}; by ${m >= 0 ? who(m).name : "one gone from the town"}`,
+        };
+      }),
+    takes: (() => {
+      const st = placeStores(place);
+      return lot === st.market && lot >= 0
+        ? storeTakes(world, place, 0)
+        : lot === st.granary && lot >= 0
+          ? storeTakes(world, place, 1)
+          : null;
+    })(),
     site: site
       ? {
           share: site.share,

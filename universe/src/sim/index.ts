@@ -2262,8 +2262,10 @@ export {
   type CanalReading,
 } from "./economy/canals.ts";
 export {
+  BILL_MOST,
   HELD,
   MANAGED_TRADES,
+  STORES,
   PRIO_FIRE_OWN,
   PRIO_KINDS,
   prioOf,

@@ -1675,3 +1675,42 @@ body.placing:has(.page-window:not([hidden])) .place-tag {
   color: #ff9a8a;
   opacity: 1;
 }
+/* Bills and what a store takes (N10): a good a row, its keys beside it; on a phone the keys go under its words. */
+.place-hud .place-bills,
+.place-hud .place-takes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0 8px;
+}
+.place-hud .place-bill,
+.place-hud .place-take {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 8px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+}
+.place-hud .place-bill.billed {
+  background: rgba(158, 231, 255, 0.1);
+}
+.place-hud .place-bill-name {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 200px;
+  min-width: 0;
+  text-align: left;
+  white-space: normal;
+  background: none;
+  border: none;
+  color: inherit;
+  padding: 0;
+}
+.place-hud .place-bill-keys {
+  display: flex;
+  gap: 4px;
+  flex: 0 0 auto;
+}

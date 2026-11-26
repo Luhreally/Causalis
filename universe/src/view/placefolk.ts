@@ -94,6 +94,10 @@ const DOING: readonly Activity[] = [
   // (Fighting a fire; standing to arms in the square.)
   ACTIVITY.working,
   ACTIVITY.gathering,
+  // (At a burial, as before: its task shows it; the healer at a bedside, N9; held by the town's justice, N11.)
+  ACTIVITY.home,
+  ACTIVITY.working,
+  ACTIVITY.resting,
 ];
 
 type Way = { readonly points: Point[]; readonly lengths: number[]; readonly whole: number };

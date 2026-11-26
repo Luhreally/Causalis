@@ -91,7 +91,25 @@ export type Managed = {
    * town kept), and their five priorities packed two bits each (PRIO_KINDS' order; 0 never, 3 first). Absent: none set.
    */
   prio?: number[];
+  /**
+   * Its bills (N10): how much of a good its makers are to keep it holding, two numbers each, in the order they were
+   * given: the good (GOODS' order), and the units the town is to hold of it (0: make none of it). A maker whose own
+   * making's good the town holds as much of as its bill asks turns to the first good asked for that it holds less of.
+   * Absent: none given, each maker at their own making.
+   */
+  bills?: number[];
+  /**
+   * What its stores will not take (N10): two numbers each, the store (STORES' order: its market, its granary) and the
+   * good. What its makers make of a good its market will not take stays where it was made; food its granary will not
+   * take goes to its market, and food neither will take stays at home. Absent: each takes all it is for.
+   */
+  refuse?: number[];
 };
+
+/** A town's stores an order can tell what to take (N10): its market, where all it makes is carried; its granary, its food. */
+export const STORES = ["market", "granary"] as const;
+/** The most of a good a bill can ask a town to hold (units). */
+export const BILL_MOST = 1_000_000;
 
 /**
  * The kinds of work a priority is set for: the four trades an order can move hands to, raising what the town builds, and
@@ -181,6 +199,8 @@ export class ManagedStore implements StateStore {
         sites: [...(m.sites ?? [])],
         held: [...(m.held ?? [])],
         shelter: m.shelter ?? -1,
+        ...(m.bills ? { bills: [...m.bills] } : {}),
+        ...(m.refuse ? { refuse: [...m.refuse] } : {}),
       });
   }
   private add(m: Managed): Managed {
@@ -527,6 +547,70 @@ export function installManaged(world: World, ctx: () => PopulationContext): Mana
       if (a.kinds) next.push(a.person, prioPacked(a.kinds));
       if (next.length) m.prio = next;
       else delete m.prio;
+    },
+  });
+  // A bill (N10): how much of a good its makers keep it holding (until: units, 0 none; null: no bill), put first or not.
+  world.defineCommand({
+    type: "place.bill",
+    validate: (args) => {
+      const a = args as { good?: unknown; until?: unknown; first?: unknown };
+      return (
+        held(args) ??
+        (!whole(a.good, 0, GOODS.length - 1)
+          ? "good must be a good's number"
+          : a.until !== null && !whole(a.until, 0, BILL_MOST)
+            ? `until is 0 to ${BILL_MOST} units, or null for no bill`
+            : a.first !== undefined && typeof a.first !== "boolean"
+              ? "first must be true or false"
+              : null)
+      );
+    },
+    apply: (command, t) => {
+      const a = command.args as { town: Ref; good: number; until: number | null; first?: boolean },
+        s = ctx().settlements.get(a.town);
+      if (!s) return;
+      const m = store.of(s.ref, s.cell, t),
+        was = m.bills ?? [],
+        at = was.findIndex((x, k) => k % 2 === 0 && x === a.good),
+        next: number[] = [];
+      for (let k = 0; k < was.length; k += 2) if (was[k] !== a.good) next.push(was[k]!, was[k + 1]!);
+      if (a.until !== null) {
+        // (Kept where it stood among them, unless put first.)
+        const into = a.first ? 0 : at >= 0 ? at : next.length;
+        next.splice(into, 0, a.good, a.until);
+      }
+      if (next.length) m.bills = next;
+      else delete m.bills;
+    },
+  });
+  // What one of its stores will take (N10): a good taken there, or not.
+  world.defineCommand({
+    type: "place.refuse",
+    validate: (args) => {
+      const a = args as { store?: unknown; good?: unknown; on?: unknown };
+      return (
+        held(args) ??
+        (!whole(a.store, 0, STORES.length - 1)
+          ? `store is ${STORES.map((x, k) => `${k} (${x})`).join(" or ")}`
+          : !whole(a.good, 0, GOODS.length - 1)
+            ? "good must be a good's number"
+            : typeof a.on === "boolean"
+              ? null
+              : "on must be true (it will not take it) or false")
+      );
+    },
+    apply: (command, t) => {
+      const a = command.args as { town: Ref; store: number; good: number; on: boolean },
+        s = ctx().settlements.get(a.town);
+      if (!s) return;
+      const m = store.of(s.ref, s.cell, t),
+        next: number[] = [];
+      for (let k = 0; k < (m.refuse?.length ?? 0); k += 2)
+        if (m.refuse![k] !== a.store || m.refuse![k + 1] !== a.good)
+          next.push(m.refuse![k]!, m.refuse![k + 1]!);
+      if (a.on) next.push(a.store, a.good);
+      if (next.length) m.refuse = next;
+      else delete m.refuse;
     },
   });
   // A building's work stopped, or let go on.
