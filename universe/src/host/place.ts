@@ -4393,6 +4393,40 @@ const BRAWL_BOLD = 0.6;
  * of one they think least of either way. Two who cannot abide each other quarrel when they meet, and remember it; two
  * hot tempers among them come to blows, and are parted. What they think fades a point a week where they do not meet.
  */
+/** A draw of a day's meetings (meetDay's). */
+function meetDraw(world: World, place: Place, i: number, k: number): number {
+  return world.rng.unit(PLACE_DRAW, place.key ^ place.people.id[i]!, place.t, P.meet, k);
+}
+/** One's view of another moved: found among those they know, or taken up in a free place or the one they think least of. */
+function tieMove(p: People, a: number, b: number, by: number): number {
+  const at = a * TIES,
+    id = p.id[b]!;
+  let slot = -1,
+    weakest = 1000,
+    found = false;
+  for (let k = 0; k < TIES; k++) {
+    const v = p.tie[at + k]!;
+    if (v === id) {
+      slot = k;
+      found = true;
+      break;
+    }
+    const w = v === 0 ? -1 : Math.abs(p.regard[at + k]!);
+    if (w < weakest) {
+      weakest = w;
+      slot = k;
+    }
+  }
+  if (!found) {
+    // (A stranger: taken up only in a free place, or in that of one they hardly think of.)
+    if (weakest > 5) return 0;
+    p.tie[at + slot] = id;
+    p.regard[at + slot] = 0;
+  }
+  const r = Math.max(-100, Math.min(100, p.regard[at + slot]! + by));
+  p.regard[at + slot] = r;
+  return r;
+}
 function meetDay(world: World, place: Place, rounds = 1): void {
   const p = place.people,
     n = p.n;
@@ -4421,53 +4455,22 @@ function meetDay(world: World, place: Place, rounds = 1): void {
     const w = p.work[i]!;
     if (w !== 0) (byWork.get(w) ?? byWork.set(w, []).get(w)!).push(i);
   }
-  const today = Math.floor(place.t / DAY),
-    draw = (i: number, k: number) =>
-      world.rng.unit(PLACE_DRAW, place.key ^ p.id[i]!, place.t, P.meet, k),
-    // (One's view of another moved: found among those they know, or taken up in a free place or the one they think least of.)
-    move = (a: number, b: number, by: number): number => {
-      const at = a * TIES,
-        id = p.id[b]!;
-      let slot = -1,
-        weakest = 1000,
-        found = false;
-      for (let k = 0; k < TIES; k++) {
-        const v = p.tie[at + k]!;
-        if (v === id) {
-          slot = k;
-          found = true;
-          break;
-        }
-        const w = v === 0 ? -1 : Math.abs(p.regard[at + k]!);
-        if (w < weakest) {
-          weakest = w;
-          slot = k;
-        }
-      }
-      if (!found) {
-        // (A stranger: taken up only in a free place, or in that of one they hardly think of.)
-        if (weakest > 5) return 0;
-        p.tie[at + slot] = id;
-        p.regard[at + slot] = 0;
-      }
-      const r = Math.max(-100, Math.min(100, p.regard[at + slot]! + by));
-      p.regard[at + slot] = r;
-      return r;
-    };
+  const today = Math.floor(place.t / DAY);
   for (let round = 0; round < rounds; round++)
     for (let i = 0; i < n; i++) {
       for (let m = 0; m < 2; m++) {
         const k = round * 8 + m * 4,
-          r = draw(i, k),
+          r = meetDraw(world, place, i, k),
           h = p.house[i]!,
           pool =
             r < 0.35
               ? byHouse.get(h)
               : r < 0.7 && p.work[i] !== 0
                 ? byWork.get(p.work[i]!)
-                : (byHouse.get(h + (draw(i, k + 2) < 0.5 ? -1 : 1)) ?? byHouse.get(h));
+                : (byHouse.get(h + (meetDraw(world, place, i, k + 2) < 0.5 ? -1 : 1)) ??
+                  byHouse.get(h));
         if (!pool || pool.length < 2) continue;
-        const j = pool[Math.floor(draw(i, k + 1) * pool.length)]!;
+        const j = pool[Math.floor(meetDraw(world, place, i, k + 1) * pool.length)]!;
         if (j === i) continue;
         let dist = 0;
         for (let q = 0; q < 5; q++) dist += Math.abs(temper[i * 5 + q]! - temper[j * 5 + q]!);
@@ -4476,15 +4479,23 @@ function meetDay(world: World, place: Place, rounds = 1): void {
           // (Like takes to like: alike past the mean of two drawn at random, warmer; unlike, cooler. Kin the warmer by how
           // close each holds them; a low mood sours a meeting.)
           base = 40 * (0.19 - dist),
-          by = (a: number) =>
-            Math.round(base + (kin ? 4 * temper[a * 5]! : 0) + Math.min(0, p.mood[a]!) / 25),
-          ri = move(i, j, by(i)),
-          rj = move(j, i, by(j));
+          ri = tieMove(
+            p,
+            i,
+            j,
+            Math.round(base + (kin ? 4 * temper[i * 5]! : 0) + Math.min(0, p.mood[i]!) / 25),
+          ),
+          rj = tieMove(
+            p,
+            j,
+            i,
+            Math.round(base + (kin ? 4 * temper[j * 5]! : 0) + Math.min(0, p.mood[j]!) / 25),
+          );
         if (rounds > 1 || ri > QUARREL_AT || rj > QUARREL_AT) continue;
         // Two who cannot abide each other: words, now and then, the more often the hotter their tempers; and between hot
         // tempers who think worst of each other, blows, parted by those about them.
         const bold = (temper[i * 5 + 4]! + temper[j * 5 + 4]!) / 2,
-          flare = draw(i, k + 3);
+          flare = meetDraw(world, place, i, k + 3);
         if (flare >= QUARREL_ODDS * 2 * bold) continue;
         const blows =
           ri <= BRAWL_AT && rj <= BRAWL_AT && bold >= BRAWL_BOLD && flare < QUARREL_ODDS * bold;
@@ -4498,7 +4509,7 @@ function meetDay(world: World, place: Place, rounds = 1): void {
             blows ? THOUGHT.brawl : THOUGHT.quarrel,
             (blows ? -10 : -4) * leans(1 - temper[a * 5 + 2]!),
           );
-          move(a, b, blows ? -3 : -1);
+          tieMove(p, a, b, blows ? -3 : -1);
         }
         note(place, blows ? HAP.brawl : HAP.quarrel, p.id[i]!, p.id[j]!);
       }
