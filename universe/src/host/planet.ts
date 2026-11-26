@@ -204,6 +204,7 @@ import { installPlaces, settleOf } from "./place.ts";
 import { placeQueries } from "./placeplan.ts";
 import { placeModeQueries } from "./placewatch.ts";
 import { placeInspectQueries } from "./placeinspect.ts";
+import { placeOverlayQueries } from "./placeoverlay.ts";
 import { HELD_QUERIES } from "./held.ts";
 import { SEARCH_QUERIES } from "./search.ts";
 import { takenWordsOf, type NamesArg } from "./names.ts";
@@ -1584,6 +1585,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
       ...placeQueries(villagePlanQuery),
       ...placeModeQueries(),
       ...placeInspectQueries(),
+      ...placeOverlayQueries(),
       /** The towns whose levy comes home wounded this year, the most borne first (Phase 55 M226; the look tools). */
       "village.wounded": (world, args) =>
         woundedTowns(

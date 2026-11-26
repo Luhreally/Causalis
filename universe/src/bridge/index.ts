@@ -624,6 +624,9 @@ export type {
   PlaceNamed,
   PlaceNeed,
   PlaceThought,
+  PlaceOverlay,
+  PlaceOverlayKind,
+  PlaceOverlayLot,
 } from "./placeinspect.ts";
 export {
   PLACE_MODES,

@@ -2087,7 +2087,11 @@ function addHouse(place: Place, home: number, again = false): number {
  * standing empty, so what takes a tenth of its homes takes about a tenth of its people. (A town kept in part, PLACE_MOST of
  * its people, is its heart's homes so filled.)
  */
-function homesFor(world: World, town: Ref, people: number): { lot: number[]; holds: number[] } {
+export function homesFor(
+  world: World,
+  town: Ref,
+  people: number,
+): { lot: number[]; holds: number[] } {
   const f = townsOf(world).get(town),
     lot: number[] = [],
     holds: number[] = [];

@@ -30,6 +30,7 @@ body.placing > .sound-button {
 .place-modes[hidden],
 .place-menu[hidden],
 .place-alerts[hidden],
+.place-lens[hidden],
 .place-watch[hidden] {
   display: none !important;
 }
@@ -40,6 +41,7 @@ body.placing > .sound-button {
 .place-foot,
 .place-modes,
 .place-menu,
+.place-lens,
 .place-watch {
   pointer-events: auto;
   position: absolute;
@@ -1420,5 +1422,80 @@ body.placing:has(.page-window:not([hidden])) .place-tag {
   }
   .place-hud.insp-open .place-modes {
     left: calc(var(--place-l) + 368px);
+  }
+}
+
+/* Its overlays (N5): the key in the pill, the panel of them under it with the legend of the one shown, the lots tinted. */
+.place-hud .place-lens-key.on {
+  background: linear-gradient(180deg, #a9f5cf, #55d39a);
+}
+.place-lens {
+  top: calc(var(--place-top) + 116px);
+  right: calc(var(--place-r) + 58px);
+  padding: 4px;
+}
+.place-lens-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.place-hud .place-lens-chips .place-chip {
+  flex: 1 1 auto;
+}
+.place-hud .place-lens-chips .place-lens-off {
+  flex: 0 0 44px;
+  min-width: 44px;
+  padding: 0;
+}
+.place-lens-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+  margin: 4px 2px 0;
+  font-size: 12px;
+}
+.place-lens-legend:empty {
+  display: none;
+}
+.place-lens-ramp {
+  flex: 1 1 60px;
+  height: 10px;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+.place-lens-note {
+  flex: 0 0 100%;
+  opacity: 0.85;
+}
+.place-hud.lens-on .place-notice,
+.place-hud.menu-open .place-lens,
+.place-hud.choosing .place-lens,
+.place-hud:has(.place-insp[data-height="full"]:not([hidden])) .place-lens {
+  display: none;
+}
+.place-overlay {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+.place-overlay polygon {
+  fill-opacity: 0.42;
+  stroke: rgba(0, 0, 0, 0.35);
+  stroke-width: 1;
+}
+@media (min-width: 900px) {
+  .place-lens {
+    top: calc(var(--place-top) + 60px);
+    right: calc(var(--place-r) + 278px);
+    width: 440px;
+    left: auto;
+  }
+  .place-hud.insp-open .place-lens {
+    right: calc(var(--place-r) + 278px);
   }
 }

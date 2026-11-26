@@ -2629,6 +2629,10 @@ export class VillageScene {
   townLot(p: number): { x: number; z: number } | null {
     return this.town.lotAt(p);
   }
+  /** A lot's ground as laid (metres from its middle), for what is laid over it on the screen (the town mode's overlays). */
+  townLotBox(p: number): ReturnType<TownLayer["lotBox"]> {
+    return this.town.lotBox(p);
+  }
 
   /**
    * The town's stores as last told (Phase 39 M198): the moment and way they were told, and when

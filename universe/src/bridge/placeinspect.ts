@@ -102,3 +102,18 @@ export type PlaceInspectLot = {
 };
 
 export type PlaceInspect = PlaceInspectPerson | PlaceInspectLot;
+
+/** The readings a town mode lays over its lots (N5): needs, mood, room, work, age, danger. */
+export type PlaceOverlayKind = "needs" | "mood" | "room" | "work" | "age" | "danger";
+/** One lot's reading: its value 0 … 1 (low to high on its legend) and what it is in words. */
+export type PlaceOverlayLot = { readonly lot: number; readonly v: number; readonly words: string };
+export type PlaceOverlay = {
+  readonly of: PlaceOverlayKind;
+  readonly lots: readonly PlaceOverlayLot[];
+  /** What its low and high ends are, and which is the good one (its colours: good green, bad red; "none" a plain ramp). */
+  readonly low: string;
+  readonly high: string;
+  readonly good: "low" | "high" | "none";
+  /** A fire burning: its lot, and how far a cry from it carries (metres). */
+  readonly fire: { readonly lot: number; readonly reach: number } | null;
+};
