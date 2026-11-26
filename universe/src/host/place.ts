@@ -1069,6 +1069,13 @@ export type Place = {
    */
   pins?: number[];
   /**
+   * What only those followed in full keep (asked 2026-11-26: "deeper full-tier state"), by their number: what they
+   * remember, every one of it with whom or what it came of (DEEP_THOUGHTS of it). Filled from what they were (their
+   * column's memories, their household, their ties and the place's log) when they come into full, and let go of to their
+   * columns when they leave it. Absent: none in full yet.
+   */
+  deep?: Map<number, Deep>;
+  /**
    * What it has lived of its own this year (vitalDay): its year, and how many were born and died so of it. Its town's count
    * is that year's turn's: its people are the count with these, and with what waits. Absent: none yet.
    */
@@ -1691,6 +1698,8 @@ export class PlaceStore implements StateStore {
         plague: p.plague,
         counts: p.counts,
         tolls: p.tolls,
+        ...(p.deep?.size ? { deep: deepSaved(p.deep) } : {}),
+        ...readingsSaved(p),
         gone: p.gone,
         fire: p.fire,
         wars: p.wars,
@@ -1810,7 +1819,9 @@ export class PlaceStore implements StateStore {
         ...(raw.works ? { works: [...(raw.works as number[])] } : {}),
         ...(raw.pins ? { pins: [...(raw.pins as number[])] } : {}),
         ...(raw.vital ? { vital: [...(raw.vital as number[])] } : {}),
+        ...(raw.deep ? { deep: deepLoaded(raw.deep as number[]) } : {}),
       });
+      readingsLoaded(this.places.at(-1)!, raw);
       if (unskilled) UNSKILLED.add(this.places.at(-1)!);
       if (!cols.taught || raw.untaught === true) UNTAUGHT.add(this.places.at(-1)!);
       if (!cols.mate || raw.unpaired === true) UNPAIRED.add(this.places.at(-1)!);
@@ -1876,6 +1887,8 @@ export function placeDigest(p: Place): string {
     p.rite,
   ].flat())
     h.int(list);
+  // (What only those in full keep: hashed only where any is kept, so a place kept before it is told as it was.)
+  if (p.deep?.size) for (const x of deepSaved(p.deep)) h.int(x);
   for (const x of p.houses.means) h.float(x);
   for (const x of [...p.matched.made, ...p.matched.wage]) h.float(x);
   for (const x of p.log)
@@ -2402,6 +2415,7 @@ function addPerson(place: Place, sex: number, occ: number, born: number, house: 
 function removePerson(place: Place, i: number): void {
   const p = place.people,
     last = p.n - 1;
+  place.deep?.delete(p.id[i]!);
   place.houses.members[p.house[i]!]!--;
   // (No one of the place is their friend any more.)
   // (And the one they were paired with, or promised to, is alone again.)
@@ -4686,17 +4700,222 @@ export const THOUGHT = {
 const THOUGHT_HALF: readonly number[] = [0, 30, 60, 20, 30, 10, 3, 10, 5, 15, 5, 10, 10, 4];
 const thoughtKind = (v: number): number => v >>> 24;
 const thoughtSize = (v: number): number => ((v >>> 16) & 255) - 128;
-const thoughtAge = (v: number, today: number): number => (today - (v & 0xffff)) & 0xffff;
+/**
+ * A memory's day is kept to its last thirteen bits (22 years; none is held past a year and a half: a size of 127 halved
+ * to a point in seven of its longest half-lives, 60 days); the three above them tell whom or what it came of apart
+ * (`srcTag`), so the same befalling one twice in a day from two of them is two things, and from one is one.
+ */
+const DAY_BITS = 0x1fff;
+const thoughtAge = (v: number, today: number): number =>
+  (today - (v & DAY_BITS)) & DAY_BITS;
+const thoughtTag = (v: number): number => (v >>> 13) & 7;
+/**
+ * Whom or what a memory came of (asked 2026-11-26: "each with its source"): one of the place's people by their number
+ * (1 …), a lot of it by its number (`srcLot`: -10 less it; its square, fields and walls so too), or nothing (0).
+ */
+export const srcLot = (lot: number): number => -10 - lot;
+export const lotOfSrc = (src: number): number => -10 - src;
+/** Three bits that tell sources apart (0: none). */
+const srcTag = (src: number): number =>
+  src ? 1 + ((Math.imul(src, 0x9e3779b1) >>> 0) % 7) : 0;
+/** How many memories one followed in full keeps, each with its source: as many as a colonist of RimWorld's holds at once. */
+export const DEEP_THOUGHTS = 24;
+/** What one followed in full keeps besides their columns (Place.deep). */
+export type Deep = {
+  /** Their memories, as their columns keep them (THOUGHTS' layout), and each one's source. */
+  readonly th: Uint32Array;
+  readonly src: Int32Array;
+};
+function deepOf(place: Place, i: number): Deep | null {
+  const t = place.people.tier[i]! & 3;
+  if (t !== TIER.full) return null;
+  const id = place.people.id[i]!,
+    deep = (place.deep ??= new Map());
+  let d = deep.get(id);
+  if (!d) deep.set(id, (d = deepFilled(place, i)));
+  return d;
+}
+/**
+ * One's deep memories filled from what they were (promotion): each of their columns' memories, its source found again
+ * from their own history by its kind and its tag: the place's log of that day (a child born to their household, the one
+ * they were paired with, a friend dead, one they came to blows with, one judged for a wrong done them), then those they
+ * know and live with, then where it befell (the square, a fire's lot, a fine work's). One whose tag nothing matches is
+ * kept without one; nothing is made up.
+ */
+function deepFilled(place: Place, i: number): Deep {
+  const p = place.people,
+    th = new Uint32Array(DEEP_THOUGHTS),
+    src = new Int32Array(DEEP_THOUGHTS);
+  for (let k = 0; k < THOUGHTS; k++) {
+    const v = p.thought[i * THOUGHTS + k]!;
+    th[k] = v;
+    src[k] = v ? sourceFound(place, i, v) : 0;
+  }
+  return { th, src };
+}
+function sourceFound(place: Place, i: number, v: number): number {
+  const tag = thoughtTag(v),
+    p = place.people,
+    me = p.id[i]!;
+  if (!tag) return 0;
+  const day = v & DAY_BITS,
+    kind = thoughtKind(v),
+    ok = (src: number) => src !== 0 && srcTag(src) === tag,
+    lotsOf = () => [
+      AT.square,
+      AT.fields,
+      place.houses.home[p.house[i]!]!,
+      p.work[i]!,
+      ...place.bldgs.lot,
+      ...(place.fire.length ? [place.fire[0]!] : []),
+    ];
+  // (A memory of a place, the square's games and feasts, a work admired, a fire: at a place before among people, whose
+  // three bits may tell the same.)
+  if (kind === THOUGHT.games || kind === THOUGHT.feast || kind === THOUGHT.admired || kind === THOUGHT.fire) {
+    for (const lot of lotsOf()) if (ok(srcLot(lot))) return srcLot(lot);
+    const w = place.works ?? [];
+    for (let k = 0; k + 6 < w.length; k += 7) if (ok(srcLot(w[k]!))) return srcLot(w[k]!);
+  }
+  // (The log of that day: whoever it names beside them.)
+  for (let k = place.log.length - 1; k >= 0; k--) {
+    const x = place.log[k]!;
+    if ((Math.floor(x.t / DAY) & DAY_BITS) !== day) continue;
+    for (const who of [x.id, x.a, x.b])
+      if (
+        who !== me &&
+        ok(who) &&
+        (x.id === me ||
+          x.a === me ||
+          x.b === me ||
+          kind === THOUGHT.born ||
+          kind === THOUGHT.friendDied)
+      )
+        return who;
+  }
+  // (Those they know and live with.)
+  const known: number[] = [p.mate[i]!, p.friend[i]!];
+  for (let k = 0; k < TIES; k++) known.push(p.tie[i * TIES + k]!);
+  for (const who of known) if (who !== PROMISED && ok(who)) return who;
+  for (let j = 0; j < p.n; j++)
+    if (p.house[j] === p.house[i] && ok(p.id[j]!)) return p.id[j]!;
+  // (Where it befell.)
+  for (const lot of lotsOf()) if (ok(srcLot(lot))) return srcLot(lot);
+  return 0;
+}
+/** A place's deep store as numbers, by number, for its save and its digest: each one's number, then their memories and sources. */
+function deepSaved(deep: Map<number, Deep>): number[] {
+  const out: number[] = [];
+  for (const id of [...deep.keys()].sort((a, b) => a - b)) {
+    const d = deep.get(id)!;
+    out.push(id, ...d.th, ...d.src);
+  }
+  return out;
+}
+function deepLoaded(raw: readonly number[]): Map<number, Deep> {
+  const out = new Map<number, Deep>(),
+    w = 1 + 2 * DEEP_THOUGHTS;
+  for (let k = 0; k + w <= raw.length; k += w)
+    out.set(raw[k]!, {
+      th: Uint32Array.from(raw.slice(k + 1, k + 1 + DEEP_THOUGHTS)),
+      src: Int32Array.from(raw.slice(k + 1 + DEEP_THOUGHTS, k + w)),
+    });
+  return out;
+}
+/** One leaving full: what they remember kept to their columns, the strongest first. */
+function deepLetGo(place: Place, i: number): void {
+  const id = place.people.id[i]!,
+    d = place.deep?.get(id);
+  if (!d) return;
+  place.deep!.delete(id);
+  const today = Math.floor(place.t / DAY),
+    order = [...d.th.keys()]
+      .filter((k) => d.th[k])
+      .sort(
+        (a, b) =>
+          Math.abs(thoughtNow(d.th[b]!, today)) -
+            Math.abs(thoughtNow(d.th[a]!, today)) || a - b,
+      ),
+    at = i * THOUGHTS;
+  for (let k = 0; k < THOUGHTS; k++)
+    place.people.thought[at + k] = k < order.length ? d.th[order[k]!]! : 0;
+}
+/** Whom or what each of one's memories came of, in their columns' order where they are not followed in full (read only). */
+export function placeThoughtSources(
+  place: Place,
+  i: number,
+): { v: number; src: number }[] {
+  const d =
+      (place.people.tier[i]! & 3) === TIER.full
+        ? place.deep?.get(place.people.id[i]!)
+        : undefined,
+    out: { v: number; src: number }[] = [];
+  if (d) {
+    for (let k = 0; k < DEEP_THOUGHTS; k++)
+      if (d.th[k]) out.push({ v: d.th[k]!, src: d.src[k]! });
+    return out;
+  }
+  // (As they would be filled on coming into full: nothing shown is other than what they will be.)
+  for (let k = 0; k < THOUGHTS; k++) {
+    const v = place.people.thought[i * THOUGHTS + k]!;
+    if (v) out.push({ v, src: sourceFound(place, i, v) });
+  }
+  return out;
+}
 /** What a memory moves a mood by now (points), as it has faded. */
 const thoughtNow = (v: number, today: number): number =>
   thoughtSize(v) * dmath.halved(thoughtAge(v, today), THOUGHT_HALF[thoughtKind(v)] ?? 30);
-/** Something one of a place's people will remember: kept, in place of the weakest memory where all are taken. */
-function remember(place: Place, i: number, kind: number, size: number): void {
+/**
+ * Something one of a place's people will remember, of whom or what (`src`): kept, in place of the weakest memory where
+ * all are taken; and, for one followed in full, among their deep memories with its source besides (DEEP_THOUGHTS).
+ */
+function remember(
+  place: Place,
+  i: number,
+  kind: number,
+  size: number,
+  src = 0,
+): void {
   const p = place.people,
     s = Math.max(-127, Math.min(127, Math.round(size))),
     today = Math.floor(place.t / DAY),
-    at = i * THOUGHTS;
+    at = i * THOUGHTS,
+    tag = srcTag(src);
   if (!s) return;
+  const nv =
+      ((kind << 24) | ((s + 128) << 16) | (tag << 13) | (today & DAY_BITS)) >>>
+      0,
+    d = deepOf(place, i);
+  if (d) {
+    let slot = -1,
+      weakest = Infinity;
+    for (let k = 0; k < DEEP_THOUGHTS; k++) {
+      const w0 = d.th[k]!;
+      if (!w0) {
+        if (slot < 0 || weakest > 0) {
+          slot = k;
+          weakest = 0;
+        }
+        continue;
+      }
+      if (
+        thoughtKind(w0) === kind &&
+        d.src[k] === src &&
+        thoughtAge(w0, today) < 1
+      ) {
+        slot = -2;
+        break;
+      }
+      const w = Math.abs(thoughtNow(w0, today));
+      if (w < weakest) {
+        weakest = w;
+        slot = k;
+      }
+    }
+    if (slot >= 0) {
+      d.th[slot] = nv;
+      d.src[slot] = src;
+    }
+  }
   let slot = -1,
     weakest = Infinity;
   for (let k = 0; k < THOUGHTS; k++) {
@@ -4708,15 +4927,20 @@ function remember(place: Place, i: number, kind: number, size: number): void {
       }
       continue;
     }
-    // (The same befalling them twice in a day is one thing: a fire fought by turns, a cry heard again.)
-    if (thoughtKind(v) === kind && thoughtAge(v, today) < 1) return;
+    // (The same befalling them twice in a day of one source is one thing: a fire fought by turns, a cry heard again.)
+    if (
+      thoughtKind(v) === kind &&
+      thoughtTag(v) === tag &&
+      thoughtAge(v, today) < 1
+    )
+      return;
     const w = Math.abs(thoughtNow(v, today));
     if (w < weakest) {
       weakest = w;
       slot = k;
     }
   }
-  p.thought[at + slot] = ((kind << 24) | ((s + 128) << 16) | (today & 0xffff)) >>> 0;
+  p.thought[at + slot] = nv;
 }
 /** Whether one of a place's people has a memory of a kind from today already. */
 function heldToday(place: Place, i: number, kind: number): boolean {
@@ -4863,6 +5087,7 @@ function meetDay(world: World, place: Place, rounds = 1): void {
             a,
             blows ? THOUGHT.brawl : THOUGHT.quarrel,
             (blows ? -10 : -4) * leans(1 - temper[a * 5 + 2]!),
+            p.id[b]!,
           );
           tieMove(p, a, b, blows ? -3 : -1);
         }
@@ -4941,11 +5166,18 @@ function remembered(
     if (c < 0) return;
     for (let k = 0; k < p.n; k++)
       if (k !== c && p.house[k] === p.house[c])
-        remember(place, k, THOUGHT.born, 20 * leans(of(k).kin));
+        remember(place, k, THOUGHT.born, 20 * leans(of(k).kin), id);
   } else if (what === HAP.paired) {
     for (const who of [id, a, b]) {
       const k = who ? placeIndexOf(place, who) : -1;
-      if (k >= 0) remember(place, k, THOUGHT.paired, 30 * leans(of(k).sociable));
+      if (k >= 0)
+        remember(
+          place,
+          k,
+          THOUGHT.paired,
+          30 * leans(of(k).sociable),
+          who === id ? a : id,
+        );
     }
   } else if (what === HAP.ofAge) {
     const k = placeIndexOf(place, id);
@@ -4956,7 +5188,7 @@ function remembered(
       house = i >= 0 ? p.house[i]! : -1;
     for (let k = 0; k < p.n; k++)
       if (k !== i && p.friend[k] === id && p.house[k] !== house)
-        remember(place, k, THOUGHT.friendDied, -25 * leans(of(k).sociable));
+        remember(place, k, THOUGHT.friendDied, -25 * leans(of(k).sociable), id);
   }
 }
 
@@ -4973,7 +5205,90 @@ export type MoodTerm = {
   readonly size: number;
   readonly days: number | null;
   readonly thought?: number;
+  /** A state of their household's or their work's that bears on it (COND), not one of MOOD's bits. */
+  readonly cond?: number;
+  /** Whom or what it is of (srcLot's numbering; 0 or absent: nothing one). */
+  readonly src?: number;
 };
+/**
+ * What bears on a mood from how one lives (asked 2026-11-26: "many at once, each with its own weight"): the meals their
+ * household's cook makes them, by the cook's skill at it (N6's cooking hours: a novice's poor, a master's a pleasure);
+ * at the work their household taught them, or kept from it; one of their household abed, or a friend.
+ */
+export const COND = {
+  cook: 1,
+  passion: 2,
+  kept: 3,
+  kinAbed: 4,
+  friendAbed: 5,
+} as const;
+/**
+ * A place's households read once a day at its first tick (so the same whoever asks, and whenever): each one's cook (the
+ * grown one of it, up and about, who has given the most hours to cooking) and their level at it, and one of it abed.
+ */
+type HouseDay = {
+  day: number;
+  cook: Int32Array;
+  level: Int8Array;
+  abed: Int32Array;
+};
+const HOUSE_DAY = new WeakMap<Place, HouseDay>();
+/**
+ * What a place reads at its first tick of a day (its households' day, HouseDay; and, as they came, its things' stuffs a
+ * year and its homes' comfort and beauty a day), kept in its save: each is read of the place as it stood at that tick,
+ * and a place gone on with from a save made later in the day would read it anew of the place as it stands then.
+ */
+function readingsSaved(place: Place): Record<string, unknown> {
+  const out: Record<string, unknown> = {},
+    hd = HOUSE_DAY.get(place);
+  if (hd) out.hday = [hd.day, ...hd.cook, ...hd.level, ...hd.abed];
+  return out;
+}
+function readingsLoaded(place: Place, raw: Record<string, unknown>): void {
+  const hd = raw.hday as number[] | undefined;
+  if (hd) {
+    const n = (hd.length - 1) / 3;
+    HOUSE_DAY.set(place, {
+      day: hd[0]!,
+      cook: Int32Array.from(hd.slice(1, 1 + n)),
+      level: Int8Array.from(hd.slice(1 + n, 1 + 2 * n)),
+      abed: Int32Array.from(hd.slice(1 + 2 * n)),
+    });
+  }
+}
+function houseDayOf(place: Place, f: Frame): HouseDay {
+  const p = place.people,
+    n = place.houses.n,
+    cook = new Int32Array(n),
+    level = new Int8Array(n),
+    abed = new Int32Array(n),
+    most = new Int32Array(n).fill(-1);
+  for (let i = 0; i < p.n; i++) {
+    const h = p.house[i]!;
+    if (p.health[i] === 1 || p.health[i] === 2) {
+      if (!abed[h]) abed[h] = p.id[i]!;
+      continue;
+    }
+    if (ageOf(p, i, place.t) < f.life.adulthood) continue;
+    const hours = hoursAt(p, i, SK.cooking);
+    if (hours > most[h]!) {
+      most[h] = hours;
+      cook[h] = p.id[i]!;
+      level[h] = levelOf(Math.floor(hours / 6));
+    }
+  }
+  return { day: Math.floor(place.t / DAY), cook, level, abed };
+}
+/** The day's reading of its households: kept by the tick (dayOf: true), else read for the asking and not kept. */
+function houseDay(place: Place, f: Frame, keep = false): HouseDay {
+  const was = HOUSE_DAY.get(place),
+    today = Math.floor(place.t / DAY);
+  // (A household made since the day's reading has none of it till the next: its cook and its abed read as none.)
+  if (was && was.day === today) return was;
+  const d = houseDayOf(place, f);
+  if (keep) HOUSE_DAY.set(place, d);
+  return d;
+}
 /**
  * What bears on one's mood now, each by how much, weighed by their own temper (placeTemper): from needs met over the days
  * gone and what befell their household. The mood goes a quarter of the way to where these put it each day (tick).
@@ -4984,12 +5299,15 @@ function moodTerms(
   lackDays: number,
   today: number,
   fk: Frame,
+  /** Read to be told (the inspector): each memory's source found where it is not kept. */
+  told = false,
 ): MoodTerm[] {
   const p = place.people,
     houses = place.houses,
     h = p.house[i]!,
     temper = placeTemper(place, i),
-    out: MoodTerm[] = [];
+    out: MoodTerm[] = [],
+    hd = houseDay(place, fk);
   if (lackDays >= 0.25)
     out.push({
       bit: MOOD.want,
@@ -5003,12 +5321,25 @@ function moodTerms(
       size: p.health[i] === 2 ? -25 : -(10 + 40 * placeWound(place, i).pain),
       days: Math.ceil(p.ill[i]! / 144),
     });
-  if (houses.grief[h]! >= 0 && today - houses.grief[h]! <= 30)
+  if (houses.grief[h]! >= 0 && today - houses.grief[h]! <= 30) {
+    // (Whose death: the last of their household the log tells dead.)
+    let dead = 0;
+    for (let k = place.log.length - 1; k >= 0 && !dead; k--) {
+      const x = place.log[k]!;
+      if (
+        HAP_DEATH.has(x.what) &&
+        x.k === houses.key[h] &&
+        Math.floor(x.t / DAY) >= houses.grief[h]! - 1
+      )
+        dead = x.id;
+    }
     out.push({
       bit: MOOD.bereaved,
       size: -(35 * leans(temper.kin)),
       days: 31 - (today - houses.grief[h]!),
+      src: dead,
     });
+  }
   let pantry = 0;
   for (let k = 0; k < FOODS.length; k++) pantry += houses.pantry[h * FOODS.length + k]!;
   if (pantry >= houses.members[h]! * fk.daily * FETCH_DAYS)
@@ -5018,6 +5349,7 @@ function moodTerms(
       bit: MOOD.friend,
       size: (10 + 15 * fk.social) * leans(temper.sociable),
       days: null,
+      src: p.friend[i]!,
     });
   if (houses.fresh[h]! >= 0 && today - houses.fresh[h]! <= 30)
     out.push({ bit: MOOD.home, size: 20, days: 31 - (today - houses.fresh[h]!) });
@@ -5029,9 +5361,51 @@ function moodTerms(
     });
   if (p.bound[i] && p.bound[i]! < BOUND_ARMS)
     out.push({ bit: MOOD.ordered, size: -(10 * leans(1 - temper.bidden)), days: null });
-  // What they remember, as it has faded; and the days till it is let go.
-  for (let k = i * THOUGHTS; k < (i + 1) * THOUGHTS; k++) {
-    const v = p.thought[k]!;
+  // How they live (COND): their household's cooking, if they eat at its hearth; at the work they were taught, or kept
+  // from it; one of their household abed, or a friend.
+  const grown = ageOf(p, i, place.t) >= fk.life.adulthood;
+  if (pantry > 0 && hd.cook[h]) {
+    const size = 2 * hd.level[h]! - 2;
+    if (size)
+      out.push({ bit: 0, cond: COND.cook, size, days: null, src: hd.cook[h]! });
+  }
+  if (grown && p.taught[i] && occOf(p, i) !== OCC.dependent) {
+    const own = tradeKind(occOf(p, i)) === p.taught[i]! - 1;
+    out.push({
+      bit: 0,
+      cond: own ? COND.passion : COND.kept,
+      size: own ? 6 : -3,
+      days: null,
+    });
+  }
+  if (hd.abed[h] && hd.abed[h] !== p.id[i])
+    out.push({
+      bit: 0,
+      cond: COND.kinAbed,
+      size: -(8 * leans(temper.kin)),
+      days: null,
+      src: hd.abed[h]!,
+    });
+  if (p.friend[i]) {
+    const j = placeIndexOf(place, p.friend[i]!);
+    if (j >= 0 && p.house[j] !== h && (p.health[j] === 1 || p.health[j] === 2))
+      out.push({
+        bit: 0,
+        cond: COND.friendAbed,
+        size: -(5 * leans(temper.sociable)),
+        days: null,
+        src: p.friend[i]!,
+      });
+  }
+  // What they remember, as it has faded; and the days till it is let go: for one followed in full, every one of it with
+  // its source (Place.deep), else their columns'.
+  const d =
+      (p.tier[i]! & 3) === TIER.full ? place.deep?.get(p.id[i]!) : undefined,
+    mem = d ? d.th : p.thought,
+    from = d ? 0 : i * THOUGHTS,
+    to = d ? DEEP_THOUGHTS : (i + 1) * THOUGHTS;
+  for (let k = from; k < to; k++) {
+    const v = mem[k]!;
     if (!v) continue;
     const now = thoughtNow(v, today);
     if (Math.abs(now) < 1) continue;
@@ -5044,6 +5418,8 @@ function moodTerms(
         Math.ceil(half * Math.log2(Math.abs(thoughtSize(v)))) - thoughtAge(v, today),
       ),
       thought: thoughtKind(v),
+      // (Where they are not followed in full, found as it would be on coming into full, for the telling only.)
+      src: d ? d.src[k]! : told ? sourceFound(place, i, v) : 0,
     });
   }
   return out;
@@ -5056,6 +5432,7 @@ export function placeMoodTerms(world: World, place: Place, i: number): MoodTerm[
     place.people.lack[i]! / 144,
     Math.floor(place.t / DAY),
     frameFor(world, place, i),
+    true,
   );
 }
 /**
@@ -5847,6 +6224,11 @@ function turnOf(cx: TickCx, i: number, k: number, wk: number): void {
     // (And by their own temper: what each of these weighs with them, against most. rules/temper.ts.)
     let why = 0,
       to = MOOD_BASE;
+    const dp = deepOf(place, i);
+    if (dp)
+      for (let k = 0; k < DEEP_THOUGHTS; k++)
+        if (dp.th[k] && Math.abs(thoughtNow(dp.th[k]!, today)) < 1)
+          dp.th[k] = dp.src[k] = 0;
     for (const x of moodTerms(place, i, lackDays, today, fk)) {
       why |= x.bit;
       to += x.size;
@@ -6051,14 +6433,21 @@ function turnOf(cx: TickCx, i: number, k: number, wk: number): void {
   // A fine work where they are, seen once a day (N11): a thought by how fine it is.
   if (worksAt && !moving && inside && (tickNo + cId[i]!) % 6 < k) {
     const q = worksAt.get(cAt[i]!);
-    if (q !== undefined) remember(place, i, THOUGHT.admired, 2 + 2 * q);
+    if (q !== undefined)
+      remember(place, i, THOUGHT.admired, 2 + 2 * q, srcLot(cAt[i]!));
   }
   // A fire in the town: the grown who live within a cry of it turn out to fight it, asleep or not, until it is out or
   // hunger takes them off; and its watch, where one is kept (fireCrew).
   if (fireLot !== null && hunger < 0.6 && fireOut!.has(cId[i]!)) {
     // (Turned out to fight it: a fear and a toil remembered, the more by the timid.)
     if (cAct[i] !== ACT.brigade)
-      remember(place, i, THOUGHT.fire, -12 * leans(1 - placeTemper(place, i).bold));
+      remember(
+        place,
+        i,
+        THOUGHT.fire,
+        -12 * leans(1 - placeTemper(place, i).bold),
+        srcLot(fireLot),
+      );
     cAct[i] = ACT.brigade;
     cWhy[i] = WHY.fire;
     if (cAt[i] !== fireLot) go(place, i, fireLot, world);
@@ -6262,6 +6651,7 @@ function turnOf(cx: TickCx, i: number, k: number, wk: number): void {
           i,
           kind,
           (kind === THOUGHT.feast ? 8 : 3) * leans(placeTemper(place, i).sociable),
+          srcLot(AT.square),
         );
     }
     dayTurns(cx, i, wk, occ);
@@ -6874,7 +7264,14 @@ function judge(world: World, place: Place, i: number, j: number): void {
   const orders = !!managedOf(world)?.get(place.town);
   if (verdict === VERDICT.death && !orders) verdict = VERDICT.held;
   note(place, HAP.judged, p.id[i]!, j >= 0 ? p.id[j]! : 0, verdict);
-  if (j >= 0) remember(place, j, THOUGHT.righted, verdict === VERDICT.freed ? -5 : 6);
+  if (j >= 0)
+    remember(
+      place,
+      j,
+      THOUGHT.righted,
+      verdict === VERDICT.freed ? -5 : 6,
+      p.id[i]!,
+    );
   const f = frameOf(world, place.cell);
   if (verdict === VERDICT.fined) {
     // (Its household's food, as much as it has: to the wronged household under custom, else to the town's store.)
@@ -7444,6 +7841,8 @@ function prunePins(place: Place): void {
 }
 
 function tick(world: World, place: Place, f: Frame): void {
+  // (Its households read for the day at its first tick: COND.)
+  houseDay(place, f, true);
   const cx = tickCx(world, place, f),
     { p, houses, t, today, dying, dyingWhy } = cx;
   // Each at their tier's stride (tiers): in full a tick each; light and folk at their hour, their walk by the tick and
@@ -7492,6 +7891,9 @@ function tick(world: World, place: Place, f: Frame): void {
     }
     let now = tierOf(cx, worthy, i);
     if (at !== 0 && now === TIER.folk) now = TIER.light;
+    // (Leaving full: what only full keeps let go of to their columns.)
+    if (was === TIER.full && now !== TIER.full && place.deep)
+      deepLetGo(place, i);
     tier[i] = now;
     turnOf(cx, i, s, TIER_STRIDE[now]!);
   }

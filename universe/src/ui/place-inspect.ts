@@ -284,10 +284,19 @@ export class PlaceInspector {
     } else if (this.tab === "mood") {
       const list = el("div", "place-insp-thoughts");
       for (const t of x.thoughts) {
-        const row = el("div", `place-insp-thought ${t.size >= 0 ? "up" : "down"}`);
+        // (Each with whom or what it came of under it; one of the town's people or its lots a tap away.)
+        const go = !!t.from?.ref,
+          row = el(
+            go ? "button" : "div",
+            `place-insp-thought ${t.size >= 0 ? "up" : "down"}${go ? " go" : ""}`,
+          ),
+          words = el("span", "place-insp-thought-words", t.words);
+        if (t.from)
+          words.append(el("span", "place-insp-thought-from", t.from.name));
+        if (go) row.onclick = () => this.onInspect(t.from!.ref!);
         row.append(
           el("span", "place-insp-thought-icon", t.icon),
-          el("span", "place-insp-thought-words", t.words),
+          words,
           el("span", "place-insp-thought-size", signed(t.size)),
           el(
             "span",

@@ -70,6 +70,8 @@ import {
   hapWords,
   WORK_QUALITY,
   placeTier,
+  COND,
+  lotOfSrc,
 } from "./place.ts";
 import {
   ailWords,
@@ -124,6 +126,16 @@ const MEMORY_WORDS: Readonly<Record<number, readonly [string, string]>> = {
   [THOUGHT.righted]: ["⚖️", "A wrong done them judged"],
   [THOUGHT.admired]: ["🖼️", "Saw a fine work"],
 };
+/** What each way one lives that bears on a mood is, said short, with its sign (host/place.ts COND). */
+const COND_WORDS: Readonly<Record<number, readonly [string, string]>> = {
+  [COND.cook]: ["🍲", "Meals cooked at home"],
+  [COND.passion]: ["⭐", "At the work their household taught them"],
+  [COND.kept]: ["🪢", "Kept from the work their household taught them"],
+  [COND.kinAbed]: ["🛏️", "One of their household abed"],
+  [COND.friendAbed]: ["🛏️", "Their friend abed"],
+};
+/** A cook's skill at it, said of their meals. */
+const COOK_WORDS = ["poor", "plain", "good", "fine", "a master's"] as const;
 /** A mood in a word. */
 export const moodWord = (m: number): string =>
   m >= 25 ? "Glad" : m >= -15 ? "Even" : m >= MOOD_UNHEEDING ? "Low" : "Too low to heed an order";
@@ -173,13 +185,53 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
         : `${cap(actWords(place.people, i))}${r.eta > 0 ? `, walking to ${lotWords(place, r.to)}` : r.act === ACT.sleep || r.act === ACT.eat ? "" : ` at ${lotWords(place, r.at)}`}`;
   // Their mood's reasons: what bears on it now, each by how much and for how long (host/place.ts moodTerms).
   const terms = placeMoodTerms(world, place, i),
+    // (Whom or what each came of: one of the town's people by name, living or gone; one of its lots by what stands on it.)
+    namedOf = placeNamed(world, place),
+    fromOf = (src: number | undefined): PlaceThought["from"] => {
+      if (!src) return null;
+      if (src > 0) {
+        const name = namedOf(src);
+        return name
+          ? {
+              ref:
+                placeIndexOf(place, src) >= 0
+                  ? placePersonRef(place.town, src)
+                  : null,
+              name,
+            }
+          : null;
+      }
+      const lot = lotOfSrc(src);
+      return {
+        ref: lot >= 0 ? placeLotRef(place.town, lot) : null,
+        name: cap(lotWords(place, lot)),
+      };
+    },
+    hd = (x: (typeof terms)[number]) =>
+      x.cond
+        ? COND_WORDS[x.cond]
+        : x.thought
+          ? MEMORY_WORDS[x.thought]
+          : THOUGHT_WORDS[x.bit],
     thoughts: PlaceThought[] = [
-      ...terms.map((x) => ({
-        icon: (x.thought ? MEMORY_WORDS[x.thought] : THOUGHT_WORDS[x.bit])?.[0] ?? "•",
-        words: (x.thought ? MEMORY_WORDS[x.thought] : THOUGHT_WORDS[x.bit])?.[1] ?? "",
-        size: Math.round(x.size),
-        days: x.days,
-      })),
+      ...terms.map((x) => {
+        const from = fromOf(x.src),
+          base = hd(x)?.[1] ?? "";
+        // (A household's meals said by its cook's skill at them; their own where they are its cook.)
+        const words =
+          x.cond === COND.cook
+            ? x.src === id
+              ? `Their own cooking, ${COOK_WORDS[Math.max(0, Math.min(4, (x.size + 2) / 2))] ?? "plain"}`
+              : `Meals cooked at home, ${COOK_WORDS[Math.max(0, Math.min(4, (x.size + 2) / 2))] ?? "plain"}`
+            : base;
+        return {
+          icon: hd(x)?.[0] ?? "•",
+          words,
+          size: Math.round(x.size),
+          days: x.days,
+          from: x.cond === COND.cook && x.src === id ? null : from,
+        };
+      }),
       { icon: "🙂", words: "At ease, as most are", size: MOOD_BASE, days: null },
     ].sort((a, b) => Math.abs(b.size) - Math.abs(a.size)),
     to = MOOD_BASE + terms.reduce((n, x) => n + x.size, 0);

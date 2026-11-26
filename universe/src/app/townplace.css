@@ -1054,6 +1054,39 @@ body.placing .page-window {
   font-size: 13px;
   border-bottom: 1px dotted rgba(190, 205, 255, 0.25);
 }
+/* Whom or what a thought came of, under its words; a row with one to go to is a key of its own (44 px). */
+.place-insp-thought-words {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.place-insp-thought-from {
+  font-size: 11px;
+  color: var(--muted, #a9bbe2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.place-hud .place-insp-thought.go {
+  min-height: 44px;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  background: none;
+  border: none;
+  border-bottom: 1px dotted rgba(190, 205, 255, 0.25);
+  box-shadow: none;
+  border-radius: 0;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.place-insp-thought.go .place-insp-thought-from {
+  color: #9ee7ff;
+  text-decoration: underline;
+}
 .place-insp-thought-size {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
