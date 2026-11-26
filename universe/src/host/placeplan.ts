@@ -1225,7 +1225,7 @@ export function ailWords(place: Place, i: number): string {
         : "Ailing";
 }
 
-const TENDED_WORDS = {
+export const TENDED_WORDS = {
   hospital: "at the town's hospital",
   healer: "by the town's healer",
   household: "by their household",

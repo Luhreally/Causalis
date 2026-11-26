@@ -4,13 +4,15 @@
 // asks. Read of the place as kept, through the readers its pages use (host/inspect/place.ts, host/placeplan.ts): asking
 // moves nothing, and nothing here is reckoned that the place does not reckon already.
 import { DAY, type World } from "../kernel/index.ts";
-import { CIVICS, FOODS, GOODS, OCC } from "../rules/index.ts";
+import { CIVICS, FOODS, GOODS, MEMBERS, OCC } from "../rules/index.ts";
 import { lifeOf, mixOf, homePlanet, kindBody } from "../sim/index.ts";
 import {
   PLACE_AT,
   placeLotRef,
   placePersonRef,
   placedId,
+  type MemberState,
+  type WoundMember,
   type PlaceInspect,
   type PlaceInspectLot,
   type PlaceInspectPerson,
@@ -45,6 +47,11 @@ import {
   placeSites,
   placeSkill,
   placeSkills,
+  placeMember,
+  hurtOf,
+  woundTakes,
+  gaitOf,
+  tendedOf,
   placeTemper,
   tradeKind,
   pressOf,
@@ -55,6 +62,7 @@ import {
 import {
   ailWords,
   healthWords,
+  TENDED_WORDS,
   lotWords,
   markWords,
   careWords,
@@ -248,6 +256,7 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
           passion: x.passion,
           own: k === tradeKind(r.occupation),
         })),
+    ...healthGear(world, place, i, r),
     taught: p.taught[i]
       ? `${SKILL_NAMES[p.taught[i]! - 1]}: what their household taught them as they grew (two hundred hours of it when they came of age)`
       : null,
@@ -289,6 +298,95 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
       ...(p.health[i] ? [careWords(place)] : []),
     ],
   };
+}
+
+/** The fifths of a land's incomes a household's is of, said (0: the poorest). */
+const FIFTH_WORDS = [
+  "the poorest fifth",
+  "the second fifth",
+  "the middle fifth",
+  "the fourth fifth",
+  "the richest fifth",
+];
+
+/**
+ * One of a place's people's body and health (the Health tab) and what they have (the Gear tab): each member not whole and
+ * how it is, their wound and its days, who tends them, what a wound left them with, what their land knows of care; what
+ * they hold, what they work with, what a wound has them bear, their household's pantry and means. All read of the place.
+ */
+function healthGear(
+  world: World,
+  place: Place,
+  i: number,
+  r: NonNullable<ReturnType<typeof placePerson>>,
+): Pick<PlaceInspectPerson, "body" | "healthRows" | "gear"> {
+  const p = place.people,
+    body: { member: WoundMember; words: string; state: MemberState }[] = [],
+    at = (member: string, state: MemberState) => {
+      if (body.some((x) => x.member === member)) return;
+      body.push({
+        member: member as WoundMember,
+        words: cap(placeMember(world, place, i, member as never)),
+        state,
+      });
+    };
+  // (The wound now first: abed with it, or up with it bound and mending; then what an old one left.)
+  const hurt = hurtOf(place, i);
+  if (hurt.member && (p.health[i] === 1 || p.health[i] === 3))
+    at(hurt.member, p.health[i] === 1 ? "abed" : "healing");
+  const mark = p.mark[i]!,
+    marked = MEMBERS[(mark & 15) - 1];
+  if (mark && marked) at(marked, mark >> 4 === 2 ? "lame" : "scarred");
+  const days = Math.ceil(p.ill[i]! / 144),
+    takes = woundTakes(world, place, i),
+    rows: [string, string][] = [
+      ["How", p.health[i] ? (healthWords(world, place, i) ?? ailWords(place, i)) : "Well"],
+    ];
+  if (p.health[i] === 1 || p.health[i] === 2)
+    rows.push(
+      ["Abed", `${days} more ${days === 1 ? "day" : "days"}`],
+      ["Tended", cap(TENDED_WORDS[tendedOf(place, i)])],
+    );
+  if (p.health[i] === 3) rows.push(["Mending", `${days} more ${days === 1 ? "day" : "days"}`]);
+  rows.push(["Lasting", markWords(world, place, i) ?? "No mark of an old wound"]);
+  if (takes.handling > 0 || takes.going > 0)
+    rows.push([
+      "Body",
+      `${takes.handling > 0 ? `${Math.round(takes.handling * 100)}% of their handling taken` : "Hands whole"}; ${takes.going > 0 ? `a walk takes them ${gaitOf(takes.going).toFixed(1)}× as long` : "walks as anyone"}`,
+    ]);
+  if (p.lack[i]! >= 144) rows.push(["In want", `${Math.floor(p.lack[i]! / 144)} days`]);
+  rows.push(["Care", careWords(place)]);
+  const pantry = r.pantry.reduce((a, b) => a + b, 0),
+    members = r.household.length + 1,
+    gear: [string, string][] = [
+      [
+        "In hand",
+        r.carry ? `${amount(r.carry.amount)} of ${GOODS[r.carry.good]!.name}` : "Nothing",
+      ],
+    ];
+  if (r.craft) gear.push(["Makes", cap(r.craft)]);
+  if (r.workKind) gear.push(["Works at", cap(lotWords(place, r.work))]);
+  if (p.health[i] === 3 && hurt.member)
+    gear.push([
+      "Bound",
+      `${cap(placeMember(world, place, i, hurt.member))}, in linen while it mends`,
+    ]);
+  if (mark >> 4 === 2 && marked)
+    gear.push([
+      "Bears",
+      takes.going > 0 ? "A stick to walk with: a leg was left lame" : "A stiff limb, favoured",
+    ]);
+  gear.push(
+    [
+      "Pantry",
+      pantry > 0 ? `${Math.round((pantry * 30) / members)} days' food for its ${members}` : "Bare",
+    ],
+    [
+      "Means",
+      `Their household is of ${FIFTH_WORDS[r.fifth] ?? "its land's"} incomes: ${Math.round(r.means)} of grain a year`,
+    ],
+  );
+  return { body, healthRows: rows, gear };
 }
 
 /** One of a place's lots (its square, its fields, its walls' site too), read for the mode's inspector. */

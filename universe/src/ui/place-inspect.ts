@@ -16,17 +16,24 @@ import type {
   PlaceNeed,
 } from "../bridge/index.ts";
 import { drawPortrait } from "./portrait.ts";
+import { drawBody } from "./body.ts";
 import { el } from "./why.ts";
 
 export type InspectHeight = "peek" | "half" | "full";
-type PersonTab = "now" | "mood" | "skills" | "life" | "work";
+type PersonTab = "now" | "mood" | "health" | "skills" | "social" | "gear" | "life" | "work";
 const PERSON_TABS: readonly (readonly [PersonTab, string])[] = [
   ["now", "Now"],
   ["mood", "Mood"],
+  ["health", "Health"],
   ["skills", "Skills"],
+  ["social", "Social"],
+  ["gear", "Gear"],
   ["life", "Life"],
   ["work", "Work"],
 ];
+/** The body drawn on the Health tab (CSS pixels). */
+const BODY_W = 150,
+  BODY_H = 190;
 /** The hours of each level (rules/life.ts SKILL_LEVELS: a hand at 200, able at 800, skilled at 2,000, a master at 8,000). */
 const LEVEL_HOURS = [0, 200, 800, 2000, 8000];
 /** What one can be put to by name: the world's occupation column and its word (null: let be). */
@@ -310,14 +317,40 @@ export class PlaceInspector {
           ),
         );
       }
-    } else if (this.tab === "life") {
+    } else if (this.tab === "health") {
+      // (Their figure, each member not whole marked on it and named; then how they are, line by line.)
+      const row = el("div", "place-insp-health-box"),
+        canvas = el("canvas", "place-insp-body");
+      canvas.width = BODY_W;
+      canvas.height = BODY_H;
+      if (x.portrait?.kind === "person")
+        drawBody(canvas, { type: "body", person: x.portrait, members: x.body }, BODY_W, BODY_H, {
+          gore: "less",
+          labels: false,
+        });
+      const marks = el("ul", "place-insp-marks");
+      for (const m of x.body) marks.append(el("li", `mark-${m.state}`, `${m.words}: ${m.state}`));
+      if (!x.body.length) marks.append(el("li", "", "Whole: no member hurt or marked"));
+      row.append(canvas, marks);
+      body.push(row, this.facts(x.healthRows.map(([a, b]) => [a, b, null] as const)));
+    } else if (this.tab === "social") {
       const named: PlaceNamed[] = [
         ...(x.mate ? [x.mate] : []),
         ...(x.friend ? [x.friend] : []),
         ...x.household.filter((h) => h.id !== x.mate?.id),
       ];
       if (named.length) body.push(this.people(named));
-      else body.push(el("p", "place-insp-why", "No one lives with them."));
+      else
+        body.push(
+          el("p", "place-insp-why", "No one lives with them, and they have no friend yet."),
+        );
+    } else if (this.tab === "gear") {
+      body.push(this.facts(x.gear.map(([a, b]) => [a, b, null] as const)));
+    } else if (this.tab === "life") {
+      if (!x.life.length)
+        body.push(
+          el("p", "place-insp-why", "Nothing has befallen them since the town was entered."),
+        );
       if (x.life.length) {
         const list = el("ul", "place-insp-life");
         for (const line of x.life) list.append(el("li", "", line));

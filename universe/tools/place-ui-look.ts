@@ -354,12 +354,33 @@ for (const view of [
       await press(".place-insp-handle", "the inspector's handle, to all of it");
       await look("14-insp-full", "the inspector at its full height");
     }
-    for (const tab of ["mood", "skills", "life", "work"]) {
+    for (const tab of ["mood", "health", "skills", "social", "gear", "life", "work"]) {
       await press(`.place-insp-tab[data-tab="${tab}"]`, `the inspector's ${tab} tab`);
       await page.waitForTimeout(700);
       say(`${tab}: ${(await text(".place-insp-body")).slice(0, 400)}`);
       await look(`15-insp-${tab}`, `the inspector's ${tab} tab`);
     }
+    // (One hurt in the fire: their Health tab, the wounded member on their figure.)
+    const hurt = await k<number | null>(
+      `globalThis.causalis.client.query({ type: "place.people", args: { ref: ${JSON.stringify(town.ref)}, occ: null } }).then((s) => s?.rows.find((r) => r.health === 1 && r.occ !== 0)?.id ?? null)`,
+    );
+    if (hurt !== null) {
+      await k(`globalThis.causalis.place.inspect(${JSON.stringify(`plc:${town.ref}:${hurt}`)})`);
+      await until(
+        "the one hurt inspected",
+        async () => !/^…?$/.test(await text(".place-insp-name")),
+        8000,
+      );
+      if (phone) await k('globalThis.causalis.place.inspectHeight("full")');
+      await press('.place-insp-tab[data-tab="health"]', "the hurt one's health tab");
+      await page.waitForTimeout(800);
+      say(`hurt: ${(await text(".place-insp-body")).slice(0, 500)}`);
+      check((await shown(".place-insp-body canvas")) === 1, "their body is drawn");
+      await look("15h-insp-health-hurt", "one hurt in the fire, their health");
+      if (phone) await k('globalThis.causalis.place.inspectHeight("peek")');
+      if (ins.ref) await k(`globalThis.causalis.place.inspect(${JSON.stringify(ins.ref)})`);
+      await page.waitForTimeout(800);
+    } else say("no one of its grown lies hurt to look at");
     await press(".place-insp-info", "ⓘ");
     await look("16-insp-prose", "the inspector's words behind ⓘ");
     await press(".place-insp-info", "ⓘ again");

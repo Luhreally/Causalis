@@ -1571,3 +1571,35 @@ body.placing:has(.page-window:not([hidden])) .place-tag {
   font-size: 11px;
   opacity: 0.85;
 }
+/* The inspector's Health tab: their figure with each member not whole marked, and the members named beside it. */
+.place-insp-health-box {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 4px 0;
+}
+.place-insp-body {
+  width: 150px;
+  height: 190px;
+  flex: 0 0 auto;
+  background: rgba(8, 16, 44, 0.5);
+  border-radius: 6px;
+}
+.place-insp-marks {
+  margin: 0;
+  padding: 0 0 0 14px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+.place-insp-marks .mark-abed {
+  color: #ff8a7a;
+}
+.place-insp-marks .mark-healing {
+  color: #f5b35a;
+}
+.place-insp-marks .mark-lame {
+  color: #f2c14e;
+}
+.place-insp-marks .mark-scarred {
+  color: #e3a0a0;
+}

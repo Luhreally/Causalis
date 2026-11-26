@@ -3,6 +3,8 @@
 // laid out: who and what first (a portrait, what they are at and why, their mood and health, four need bars), the rest
 // a tab away, and the long sentences behind ⓘ. Read of the place as kept: asking moves nothing (host/placeinspect.ts).
 import type { Portrait } from "./inspect.ts";
+import type { MemberState } from "./body.ts";
+import type { WoundMember } from "./wounds.ts";
 
 /** One reason a mood stands where it does: said, how much it moves it (points of a hundred), and for how long yet. */
 export type PlaceThought = {
@@ -71,6 +73,18 @@ export type PlaceInspectPerson = {
   }[];
   /** What their household taught them, said (null: nothing yet). */
   readonly taught: string | null;
+  /**
+   * Their body as it is (the Health tab): each member not whole, its words and how it is (abed with a wound, mending,
+   * scarred, lame), drawn on their figure; and how they are, line by line.
+   */
+  readonly body: readonly {
+    readonly member: WoundMember;
+    readonly words: string;
+    readonly state: MemberState;
+  }[];
+  readonly healthRows: readonly (readonly [string, string])[];
+  /** What they have and wear (the Gear tab), line by line. */
+  readonly gear: readonly (readonly [string, string])[];
   /** Their temper in a few words, and in full. */
   readonly temper: string;
   readonly temperWords: string;

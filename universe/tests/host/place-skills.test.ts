@@ -22,6 +22,7 @@ import {
   SKILL_KINDS,
   enterPlace,
   hoursAt,
+  hurtOf,
   placeDigest,
   placeIndexOf,
   placeSkills,
@@ -30,6 +31,7 @@ import {
   type Place,
 } from "../../src/host/place.ts";
 import { placeFrame, workSheet } from "../../src/host/placeplan.ts";
+import { inspectPerson } from "../../src/host/placeinspect.ts";
 import { universeWorld } from "./worlds.ts";
 
 const base = (): World => universeWorld(EARTH, "first light", 150);
@@ -188,6 +190,20 @@ test("a fire's priority says who goes to one: set never, they stay away", () => 
   let atFire = 0;
   for (let i = 0; i < p.n; i++) if (hoursAt(p, i, SK.fire) > 0) atFire++;
   assert.ok(atFire > 0, "an hour at a fire is an hour of it");
+  // The inspector of one the fire hurt: their wound on their body, abed and who tends them; what they have.
+  const hurt = [...Array(p.n).keys()].find((i) => p.health[i] === 1 && hurtOf(place, i).member);
+  assert.ok(hurt !== undefined, "the fire hurt one");
+  const seen = inspectPerson(w, place, p.id[hurt!]!)!;
+  assert.ok(
+    seen.body.some((m) => m.member === hurtOf(place, hurt!).member && m.state === "abed"),
+    JSON.stringify(seen.body),
+  );
+  const rows = new Map(seen.healthRows);
+  assert.ok(/^\d+ more days?$/.test(rows.get("Abed") ?? ""), JSON.stringify(seen.healthRows));
+  assert.ok(rows.has("Tended") && rows.has("Lasting") && rows.has("Care"));
+  const gear = new Map(seen.gear);
+  assert.ok(gear.has("In hand") && gear.has("Pantry") && /incomes/.test(gear.get("Means") ?? ""));
+  assert.ok(!/undefined|NaN/.test(JSON.stringify(seen)));
   assert.ok(fought > 0, "the rest went as they would");
   assert.equal(PRIO_FIRE_OWN, 1);
 });
