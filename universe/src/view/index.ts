@@ -343,6 +343,7 @@ export {
   SHAPE_TONES,
   type TownScene,
   type TownThing,
+  GROUND_TOP as TOWN_GROUND_TOP,
 } from "./town.ts";
 export {
   COMPOUNDS,

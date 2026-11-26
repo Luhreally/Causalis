@@ -556,9 +556,9 @@ export function homeBox(
 /** What stands at a point is looked for among the lots in squares of the ground this broad (metres), each lot in every square its building reaches into. */
 const SURFACE_CELL = 16,
   /** How far a lot's building reaches from its lot's middle at most (metres): the broadest level's half-diagonal, and its eaves. */
-  LOT_REACH = 9,
-  /** How high the ground of a town lies (metres): its yards a curb over its streets. */
-  GROUND_TOP = 0.5;
+  LOT_REACH = 9;
+/** How high the ground of a town lies (metres): its yards a curb over its streets. */
+export const GROUND_TOP = 0.5;
 
 /** A town's lots by the squares of the ground they stand in, and its other buildings' footprints: laid once for a scene. */
 type Standing = {

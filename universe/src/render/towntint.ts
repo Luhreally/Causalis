@@ -5,15 +5,18 @@
 import * as pc from "playcanvas";
 import { InstancedBatch, boxMesh, keptMesh } from "./batch.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
+import { TOWN_GROUND_TOP } from "../view/index.ts";
 
 const M = 0.1,
-  /** How high the plate stands (metres): over the lot's ground and its paths, under any wall or body. */
-  PLATE_HIGH = 0.12,
+  /** How thick the plate is, laid on a lot's yard (a curb over the streets, TOWN_GROUND_TOP): under any wall or body. */
+  PLATE_HIGH = 0.1,
+  /** Where its foot is (metres): a hair into the yard, so no seam shows between. */
+  PLATE_FOOT = TOWN_GROUND_TOP - 0.02,
   /** How far in from its lot's edges the plate stops (metres a side), so lots side by side read as lots. */
   INSET = 0.35,
   /** How much of the ground shows through (the plate's opacity), and how much of its own light it carries at night. */
-  OPACITY = 0.62,
-  GLOW = 0.4;
+  OPACITY = 0.72,
+  GLOW = 0.5;
 
 /** One lot as the overlay lays it: its ground (metres from the town's middle) and its shade's place among the shades. */
 export type TintLot = {
@@ -53,7 +56,7 @@ export class TownTintLayer {
       b.set(these.length, (i, out) => {
         const l = these[i]!;
         out[0] = l.x * M;
-        out[1] = (PLATE_HIGH / 2) * M;
+        out[1] = (PLATE_FOOT + PLATE_HIGH / 2) * M;
         out[2] = l.z * M;
         out[3] = Math.max(0.5, l.w - 2 * INSET) * M;
         out[4] = PLATE_HIGH * M;
@@ -86,8 +89,9 @@ export class TownTintLayer {
     const cam = this.stage.camera.camera!,
       a = cam.screenToWorld(x, y, cam.nearClip, new pc.Vec3()),
       b = cam.screenToWorld(x, y, cam.farClip, new pc.Vec3());
-    if (!(a.y > 0 && b.y < a.y)) return null;
-    const k = a.y / (a.y - b.y),
+    const top = (PLATE_FOOT + PLATE_HIGH) * M;
+    if (!(a.y > top && b.y < a.y)) return null;
+    const k = (a.y - top) / (a.y - b.y),
       gx = (a.x + (b.x - a.x) * k) / M,
       gz = (a.z + (b.z - a.z) * k) / M;
     for (let i = 0; i < this.lots.length; i++) {
@@ -112,7 +116,7 @@ export class TownTintLayer {
       out: { i: number; x: number; y: number; shade: number }[] = [];
     for (let i = 0; i < this.lots.length && out.length < most; i++) {
       const l = this.lots[i]!;
-      cam.worldToScreen(from.set(l.x * M, PLATE_HIGH * M, l.z * M), at);
+      cam.worldToScreen(from.set(l.x * M, (PLATE_FOOT + PLATE_HIGH) * M, l.z * M), at);
       if (at.z > 0) out.push({ i, x: at.x, y: at.y, shade: l.shade });
     }
     return out;
