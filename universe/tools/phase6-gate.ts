@@ -25,7 +25,17 @@ const ci = process.argv.includes("--ci"),
   years = Number(process.argv.slice(2).find((a) => !a.startsWith("--")) ?? 3100),
   OTHERS = ci ? ["alien 41"] : ["alien 41", "alien 55"];
 const EARTH_LANDS = 550,
-  SAVE_BYTES = 18_000_000,
+  /**
+   * The save at year 3,100, for every 550 lands. 16 MB at first, 18 since Phase 23 (the towns' fabric). 21 since 2026-11-26:
+   * what is kept now is history that real state holds on to, its wars (each with its battles, its peace and its declaring),
+   * every land's knowledge, each forsaken town's forsaking, and the world's own blows ranked by what they did to their land.
+   * First light at 3,100 came to 22.38 MB over 605 lands on those rules, where on 2026-11-16 it came to 18.94 MB over 599
+   * under a bound of 19.6: the same headroom (3.5 in a hundred) over that reading is 21.05 MB for 550 lands, set at 21 (3.2 over it).
+   * Its decisions there (2.08 MB of it) are what the chronicle and the living stores hold: 41 in a hundred of them by rules that
+   * were not yet on 2026-11-16 (elections, great houses, groups, faiths' clashes, bodies, the underworld), and more realms
+   * (406 at 1,500 where there were 113); an ended realm no longer holds every tithe it raised (d88a14aa), and the save came to 22.18 MB.
+   */
+  SAVE_BYTES = 21_000_000,
   /** The phone floor (an iPhone 15 Plus) runs at two thirds of this machine's pace; a century a minute there, at least. */
   PHONE = 1.5,
   LEAST_PACE = 100,
