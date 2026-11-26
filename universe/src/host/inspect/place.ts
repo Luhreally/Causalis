@@ -140,7 +140,7 @@ function stockRows(world: World, place: Place, stock: readonly number[]): Stat[]
 const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
 /** One's temper, said: the leanings that mark them out, and what each thing weighs with them against most. */
-function temperWords(place: Place, i: number): string {
+export function temperWords(place: Place, i: number): string {
   const t = placeTemper(place, i),
     marks: string[] = [],
     mark = (x: number, high: string, low: string) => {
@@ -221,7 +221,7 @@ function houseLine(world: World, place: Place, h: number): Item[] {
 }
 
 /** One's skill at their trade, said, with what it bears on (null: they keep no trade). */
-function skillLine(world: World, place: Place, i: number): string | null {
+export function skillLine(world: World, place: Place, i: number): string | null {
   const p = place.people,
     occ = p.sexOcc[i]! & 15;
   if (occ === OCC.dependent) return null;

@@ -62,6 +62,9 @@ export type PlaceFrame = {
   /** The place's clock (seconds of the world's), and the length of its tick. */
   readonly t: number;
   readonly tick: number;
+  /** The share of its year gone from midwinter, as its own hemisphere has it (0 … 1), and its air's warmth now (°C). */
+  readonly season: number;
+  readonly warmth: number;
   /** How many the town holds, how many of them the place keeps one by one, its households. */
   readonly people: number;
   readonly kept: number;
@@ -98,10 +101,22 @@ export type PlaceFrame = {
   }[];
 };
 
+/**
+ * Something that wants the manager's eye now (the mode's alert column): said, the page that tells more, its sign, how
+ * grave it is (3 a danger now, 2 a want to see to, 1 worth knowing), how many it touches (0: not a count), where it is
+ * (a lot or PLACE_AT; null: nowhere in one place) and whom (their number in the place; null: no one), and how seldom its
+ * kind has come in this town (0 … 1, as host/placewatch.ts reckons it: the seldomer first among the equally grave).
+ */
 export type PlaceNotice = {
   readonly key: string;
   readonly words: string;
   readonly ref: string | null;
+  readonly icon: string;
+  readonly level: number;
+  readonly n: number;
+  readonly lot: number | null;
+  readonly id: number | null;
+  readonly rare: number;
 };
 
 /** The trades an order can put hands to, in the order its shares are given (sim/town/managed.ts MANAGED_TRADES). */

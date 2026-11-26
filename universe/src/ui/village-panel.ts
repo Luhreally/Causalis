@@ -81,7 +81,7 @@ export class VillagePanel {
   /** Ask it for something (H1). */
   private readonly askLine = el("button", "town-money town-ask", "🙏");
   /** Live in this town (town mode): its people kept one by one, entered and left from its bar. */
-  private readonly placeLine = el("button", "town-money town-place", "🏘️");
+  private readonly placeLine = el("button", "town-money town-place", "🏘️ Run town");
   private readonly placeStrip = el("div", "town-placed");
   private readonly placeTold = el("span", "placed-told");
   private warRef: string | null = null;
@@ -130,7 +130,8 @@ export class VillagePanel {
     this.askLine.title = "Ask this town for something";
     this.askLine.setAttribute("aria-label", "Ask this town for something");
     this.askLine.onclick = () => this.onAsk();
-    const placeWords = "Live in this town: its people kept one by one";
+    const placeWords =
+      "Run this town: its people kept one by one, by your hand, by its own head, or only watched";
     this.placeLine.title = placeWords;
     this.placeLine.setAttribute("aria-label", placeWords);
     this.placeLine.onclick = () => this.onPlace();
