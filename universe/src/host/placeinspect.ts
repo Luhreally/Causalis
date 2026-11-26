@@ -59,6 +59,10 @@ import {
   type Place,
   actWords,
   placeDayStrip,
+  placeTies,
+  regardWords,
+  FRIEND_AT,
+  RIVAL_AT,
 } from "./place.ts";
 import {
   ailWords,
@@ -102,6 +106,8 @@ const MEMORY_WORDS: Readonly<Record<number, readonly [string, string]>> = {
   [THOUGHT.fire]: ["🔥", "Fought a fire"],
   [THOUGHT.games]: ["🎲", "Played at the games in the square"],
   [THOUGHT.feast]: ["🍖", "Feasted with the town"],
+  [THOUGHT.quarrel]: ["💢", "Quarrelled with one they cannot abide"],
+  [THOUGHT.brawl]: ["👊", "Came to blows"],
 };
 /** A mood in a word. */
 export const moodWord = (m: number): string =>
@@ -295,6 +301,7 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
       ),
     mate: mi >= 0 ? nameOf(mi, mate!.promised ? "promised" : "paired") : null,
     friend: fi >= 0 ? nameOf(fi, "friend") : null,
+    ...tiesOf(place, i, nameOf),
     life: lived,
     prose: [
       `Mood ${p.mood[i]! > 0 ? "+" : ""}${p.mood[i]}, going a quarter of the way each day to ${Math.round(to)}, where what bears on it now puts it. It moves what their work is worth to them by ${Math.round(p.mood[i]! / 4)} in a hundred; below ${MOOD_UNHEEDING} they heed no order to change their work.`,
@@ -303,6 +310,34 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
         : `Each need presses as its fullness cubed. They keep no trade, so a need is served when it presses harder than rest is worth (${Math.round(IDLE_WORTH * 100)}%): the mark on each bar.`,
       ...(p.health[i] ? [careWords(place)] : []),
     ],
+  };
+}
+
+const TIE_HOW = {
+  household: "of their household",
+  work: "works beside them",
+  street: "of their street",
+} as const;
+/** Whom one of a place's people knows, named, and the count of them said (N8, host/place.ts placeTies). */
+function tiesOf(
+  place: Place,
+  i: number,
+  nameOf: (j: number, words: string) => PlaceNamed,
+): Pick<PlaceInspectPerson, "ties" | "tiesWords"> {
+  const ties = placeTies(place, i),
+    friends = ties.filter((t) => t.regard >= FRIEND_AT).length,
+    rivals = ties.filter((t) => t.regard <= RIVAL_AT).length;
+  return {
+    ties: ties.map((t) => ({
+      ...nameOf(
+        t.j,
+        `${regardWords(t.regard)}, ${TIE_HOW[t.how]} (${t.regard > 0 ? "+" : ""}${t.regard})`,
+      ),
+      regard: t.regard,
+    })),
+    tiesWords: ties.length
+      ? `They know ${ties.length} well: ${friends === 1 ? "1 friend" : `${friends} friends`}, ${rivals === 1 ? "1 rival" : `${rivals} rivals`}. Each met at home, at work or about their street, and thought the better of as they are alike of temper.`
+      : "They know no one well yet.",
   };
 }
 

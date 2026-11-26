@@ -342,6 +342,9 @@ export const HAP = {
   ofAge: 30,
   /** What its head decided, stewarding it (host/steward.ts says it). */
   steward: 31,
+  /** Words with one they cannot abide (a: theirs), and blows (N8). */
+  quarrel: 32,
+  brawl: 33,
 } as const;
 /** The happenings that are a death. */
 const HAP_DEATH: ReadonlySet<number> = new Set([1, 5, 17, 19, 21, 22]);
@@ -378,6 +381,8 @@ const HAP_WORDS = [
   "was buried",
   "came of age",
   "gave an order, as the town's head",
+  "quarrelled",
+  "came to blows",
 ];
 
 /** The place's draws: through the world's Rng, on a stream no registry holds (it is no part of the ruleset's identity). */
@@ -410,6 +415,7 @@ const P = {
   wound: 21,
   due: 22,
   steward: 23,
+  meet: 24,
 } as const;
 
 const NEEDS = 4;
@@ -514,6 +520,12 @@ type People = {
   hours: Uint16Array;
   /** The kind of work their household taught them as they grew (SKILL_KINDS' place + 1; 0: none): their passion. */
   taught: Uint8Array;
+  /**
+   * Whom they know (N8): up to TIES of the place's people by their number (0: none), and what they think of each, -100 …
+   * 100 (`regard`): made and moved as they meet, at home, at work and about their street (meetDay).
+   */
+  tie: Uint32Array;
+  regard: Int8Array;
 };
 /**
  * The kinds of work one's hours are counted at (N6): the six trades' own, in OCCUPATIONS' order past the dependent's (a
@@ -554,6 +566,8 @@ export const tradeKind = (occ: number): number => occ - 1;
  * a quiet season), so a sixth is let go only in a year of many sorrows, and then the faintest.
  */
 export const THOUGHTS = 6;
+/** Whom one knows at the most (N8): about a dozen, as many as most hold close (the sympathy group of a dozen or so). */
+export const TIES = 12;
 /** Bytes a person takes in a place's columns. */
 export const PERSON_BYTES =
   4 +
@@ -589,7 +603,9 @@ export const PERSON_BYTES =
   4 * THOUGHTS +
   // (N6: the hours given to each kind of work, and the kind their household taught them.)
   2 * SKILL_KINDS.length +
-  1;
+  1 +
+  // (N8: whom they know, by number, and what they think of each.)
+  5 * TIES;
 
 function peopleOf(cap: number): People {
   return {
@@ -627,6 +643,8 @@ function peopleOf(cap: number): People {
     thought: new Uint32Array(cap * THOUGHTS),
     hours: new Uint16Array(cap * SKILL_KINDS.length),
     taught: new Uint8Array(cap),
+    tie: new Uint32Array(cap * TIES),
+    regard: new Int8Array(cap * TIES),
   };
 }
 const PEOPLE_COLS = [
@@ -663,10 +681,20 @@ const PEOPLE_COLS = [
   "thought",
   "hours",
   "taught",
+  "tie",
+  "regard",
 ] as const;
 type Col = (typeof PEOPLE_COLS)[number];
 const widthOf = (c: Col) =>
-  c === "needs" ? NEEDS : c === "thought" ? THOUGHTS : c === "hours" ? SKILL_KINDS.length : 1;
+  c === "needs"
+    ? NEEDS
+    : c === "thought"
+      ? THOUGHTS
+      : c === "hours"
+        ? SKILL_KINDS.length
+        : c === "tie" || c === "regard"
+          ? TIES
+          : 1;
 
 function grown(p: People, cap: number): People {
   const q = peopleOf(cap);
@@ -2162,6 +2190,8 @@ function addPerson(place: Place, sex: number, occ: number, born: number, house: 
   p.thought.fill(0, i * THOUGHTS, (i + 1) * THOUGHTS);
   p.hours.fill(0, i * KINDS_N, (i + 1) * KINDS_N);
   p.taught[i] = 0;
+  p.tie.fill(0, i * TIES, (i + 1) * TIES);
+  p.regard.fill(0, i * TIES, (i + 1) * TIES);
   place.houses.members[house]!++;
   return i;
 }
@@ -2179,6 +2209,13 @@ function removePerson(place: Place, i: number): void {
     }
     if (p.mate[k] === p.id[i]) p.mate[k] = 0;
   }
+  // (And no one knows them any more.)
+  const gone = p.id[i]!;
+  for (let k = 0; k < p.n * TIES; k++)
+    if (p.tie[k] === gone) {
+      p.tie[k] = 0;
+      p.regard[k] = 0;
+    }
   // (What they carried is set down in the square.)
   if (p.carry[i]! > 0) place.bldgs.stock[p.carryGood[i]!]! += p.carry[i]!;
   if (i !== last)
@@ -4001,6 +4038,9 @@ function makePlace(world: World, s: Settlement): Place | null {
   layLots(world, place);
   syncSites(world, place, f);
   armsCrew(world, place, f);
+  // (Whom each knows, and what they think of them, from the years they have met before it was entered: a few weeks'
+  // meetings' worth, no words or blows among them told.)
+  meetDay(world, place, SEEN_BEFORE);
   // Its day under way before it is seen; then its stocks are the world's again, to the last millionth.
   while (place.t < t) tick(world, place, f);
   matchStocks(place, stockShare(world, s.cell, place.people.n), f);
@@ -4291,9 +4331,11 @@ export const THOUGHT = {
   fire: 5,
   games: 6,
   feast: 7,
+  quarrel: 8,
+  brawl: 9,
 } as const;
 /** Days in which each kind fades to half. */
-const THOUGHT_HALF: readonly number[] = [0, 30, 60, 20, 30, 10, 3, 10];
+const THOUGHT_HALF: readonly number[] = [0, 30, 60, 20, 30, 10, 3, 10, 5, 15];
 const thoughtKind = (v: number): number => v >>> 24;
 const thoughtSize = (v: number): number => ((v >>> 16) & 255) - 128;
 const thoughtAge = (v: number, today: number): number => (today - (v & 0xffff)) & 0xffff;
@@ -4337,6 +4379,177 @@ function heldToday(place: Place, i: number, kind: number): boolean {
   }
   return false;
 }
+/** What one thinks of another past which they are a friend, and under which a rival (N8). */
+export const FRIEND_AT = 25,
+  RIVAL_AT = -30;
+/** Under this both ways, two who meet quarrel; under this, two hot tempers come to blows. */
+const QUARREL_AT = -30,
+  BRAWL_AT = -60;
+/** How often two rivals of middling temper who meet have words (each meeting), the hotter the oftener. */
+const QUARREL_ODDS = 0.1;
+/** The meetings a place's people are taken to have had before it is entered (rounds of meetDay's). */
+const SEEN_BEFORE = 20;
+/** How bold two tempers must be, between them, to come to blows (rules/temper.ts valour's leaning, 0 … 1). */
+const BRAWL_BOLD = 0.6;
+
+/**
+ * A day's meetings (N8): each of a place's people meets two others, one of their household, one they work beside, or one
+ * of their street (the households either side of theirs), as a draw falls; and what each thinks of the other moves by how
+ * alike they are of temper (the five leanings host/place.ts placeTemper draws from their land's ways and their own nature:
+ * like takes to like), the more for kin, the less in a low mood. Each keeps a dozen at the most; a new one takes the place
+ * of one they think least of either way. Two who cannot abide each other quarrel when they meet, and remember it; two
+ * hot tempers among them come to blows, and are parted. What they think fades a point a week where they do not meet.
+ */
+function meetDay(world: World, place: Place, rounds = 1): void {
+  const p = place.people,
+    n = p.n;
+  if (n < 2) return;
+  const temper = new Float32Array(n * 5),
+    byHouse = new Map<number, number[]>(),
+    byWork = new Map<number, number[]>();
+  for (let i = 0; i < n; i++) {
+    const t = placeTemper(place, i);
+    temper[i * 5] = t.kin;
+    temper[i * 5 + 1] = t.bidden;
+    temper[i * 5 + 2] = t.sociable;
+    temper[i * 5 + 3] = t.thrifty;
+    temper[i * 5 + 4] = t.bold;
+    const h = p.house[i]!;
+    (byHouse.get(h) ?? byHouse.set(h, []).get(h)!).push(i);
+    const w = p.work[i]!;
+    if (w !== 0) (byWork.get(w) ?? byWork.set(w, []).get(w)!).push(i);
+  }
+  const today = Math.floor(place.t / DAY),
+    draw = (i: number, k: number) =>
+      world.rng.unit(PLACE_DRAW, place.key ^ p.id[i]!, place.t, P.meet, k),
+    // (One's view of another moved: found among those they know, or taken up in a free place or the one they think least of.)
+    move = (a: number, b: number, by: number): number => {
+      const at = a * TIES,
+        id = p.id[b]!;
+      let slot = -1,
+        weakest = 1000,
+        found = false;
+      for (let k = 0; k < TIES; k++) {
+        const v = p.tie[at + k]!;
+        if (v === id) {
+          slot = k;
+          found = true;
+          break;
+        }
+        const w = v === 0 ? -1 : Math.abs(p.regard[at + k]!);
+        if (w < weakest) {
+          weakest = w;
+          slot = k;
+        }
+      }
+      if (!found) {
+        // (A stranger: taken up only in a free place, or in that of one they hardly think of.)
+        if (weakest > 5) return 0;
+        p.tie[at + slot] = id;
+        p.regard[at + slot] = 0;
+      }
+      const r = Math.max(-100, Math.min(100, p.regard[at + slot]! + by));
+      p.regard[at + slot] = r;
+      return r;
+    };
+  for (let round = 0; round < rounds; round++)
+    for (let i = 0; i < n; i++) {
+      for (let m = 0; m < 2; m++) {
+        const k = round * 8 + m * 4,
+          r = draw(i, k),
+          h = p.house[i]!,
+          pool =
+            r < 0.35
+              ? byHouse.get(h)
+              : r < 0.7 && p.work[i] !== 0
+                ? byWork.get(p.work[i]!)
+                : (byHouse.get(h + (draw(i, k + 2) < 0.5 ? -1 : 1)) ?? byHouse.get(h));
+        if (!pool || pool.length < 2) continue;
+        const j = pool[Math.floor(draw(i, k + 1) * pool.length)]!;
+        if (j === i) continue;
+        let dist = 0;
+        for (let q = 0; q < 5; q++) dist += Math.abs(temper[i * 5 + q]! - temper[j * 5 + q]!);
+        dist /= 5;
+        const kin = p.house[i] === p.house[j],
+          // (Like takes to like: alike past the mean of two drawn at random, warmer; unlike, cooler. Kin the warmer by how
+          // close each holds them; a low mood sours a meeting.)
+          base = 40 * (0.19 - dist),
+          by = (a: number) =>
+            Math.round(base + (kin ? 4 * temper[a * 5]! : 0) + Math.min(0, p.mood[a]!) / 25),
+          ri = move(i, j, by(i)),
+          rj = move(j, i, by(j));
+        if (rounds > 1 || ri > QUARREL_AT || rj > QUARREL_AT) continue;
+        // Two who cannot abide each other: words, now and then, the more often the hotter their tempers; and between hot
+        // tempers who think worst of each other, blows, parted by those about them.
+        const bold = (temper[i * 5 + 4]! + temper[j * 5 + 4]!) / 2,
+          flare = draw(i, k + 3);
+        if (flare >= QUARREL_ODDS * 2 * bold) continue;
+        const blows =
+          ri <= BRAWL_AT && rj <= BRAWL_AT && bold >= BRAWL_BOLD && flare < QUARREL_ODDS * bold;
+        for (const [a, b] of [
+          [i, j],
+          [j, i],
+        ] as const) {
+          remember(
+            place,
+            a,
+            blows ? THOUGHT.brawl : THOUGHT.quarrel,
+            (blows ? -10 : -4) * leans(1 - temper[a * 5 + 2]!),
+          );
+          move(a, b, blows ? -3 : -1);
+        }
+        note(place, blows ? HAP.brawl : HAP.quarrel, p.id[i]!, p.id[j]!);
+      }
+    }
+  // (What is not met again fades: a point a week toward nothing.)
+  if (today % 7 === 0)
+    for (let k = 0; k < n * TIES; k++) {
+      const r = p.regard[k]!;
+      if (r > 0) p.regard[k] = r - 1;
+      else if (r < 0) p.regard[k] = r + 1;
+    }
+}
+
+/** One of a place's people's ties (N8), the most thought of first: whom, what they think of them, and how they know them. */
+export function placeTies(
+  place: Place,
+  i: number,
+): { j: number; regard: number; how: "household" | "work" | "street" }[] {
+  const p = place.people,
+    out: { j: number; regard: number; how: "household" | "work" | "street" }[] = [];
+  for (let k = 0; k < TIES; k++) {
+    const id = p.tie[i * TIES + k]!;
+    if (!id) continue;
+    const j = placeIndexOf(place, id);
+    if (j < 0) continue;
+    out.push({
+      j,
+      regard: p.regard[i * TIES + k]!,
+      how:
+        p.house[j] === p.house[i]
+          ? "household"
+          : p.work[i] !== 0 && p.work[j] === p.work[i]
+            ? "work"
+            : "street",
+    });
+  }
+  return out.sort((a, b) => b.regard - a.regard || a.j - b.j);
+}
+/** What one thinks of another, said. */
+export function regardWords(r: number): string {
+  return r >= 60
+    ? "a close friend"
+    : r >= FRIEND_AT
+      ? "a friend"
+      : r >= 5
+        ? "on good terms"
+        : r > -5
+          ? "known to them"
+          : r > RIVAL_AT
+            ? "on poor terms"
+            : "a rival";
+}
+
 /** What of what befell whom a place's log tells is remembered, and by whom (note's hook). */
 function remembered(
   place: Place,
@@ -4761,6 +4974,7 @@ function tick(world: World, place: Place, f: Frame): void {
     hasGrown: Uint8Array | null = null;
   if (Math.floor(t / DAY) !== place.day) {
     place.day = Math.floor(t / DAY);
+    meetDay(world, place);
     place.madeDay.fill(0);
     place.usedDay.fill(0);
     place.cameDay.fill(0);
@@ -6242,6 +6456,12 @@ export function hapTold(
       return `fell sick of ${ill()}`;
     case HAP.steward:
       return PLACE_HOOKS.told?.(place, x) ?? HAP_WORDS[x.what]!;
+    case HAP.quarrel:
+      return named?.(x.a) ? `quarrelled with ${named(x.a)}, whom they cannot abide` : "quarrelled";
+    case HAP.brawl:
+      return named?.(x.a)
+        ? `came to blows with ${named(x.a)} and was parted from them`
+        : "came to blows";
     default:
       return x.o
         ? (HAP_WORDS[x.what] ?? "").replace("by your order", "by its head's order")
@@ -6303,6 +6523,8 @@ export const HAP_MANY: readonly string[] = [
   "were buried",
   "came of age",
   "orders of the town's head",
+  "quarrelled",
+  "came to blows",
 ];
 
 /** What many did, said with what of: "died of the red flux", "fell in the battle at Sairis's land". */

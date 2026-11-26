@@ -344,6 +344,20 @@ export class PlaceInspector {
         body.push(
           el("p", "place-insp-why", "No one lives with them, and they have no friend yet."),
         );
+      body.push(
+        el("h3", "place-insp-sub", "Whom they know"),
+        el("p", "place-insp-why", x.tiesWords),
+      );
+      if (x.ties.length) {
+        const list = this.people(x.ties);
+        // (Each marked by what they think of them: warm to cold.)
+        x.ties.forEach((t, k) =>
+          list.children[k]?.classList.add(
+            t.regard >= 25 ? "tie-friend" : t.regard <= -30 ? "tie-rival" : "tie-known",
+          ),
+        );
+        body.push(list);
+      }
     } else if (this.tab === "gear") {
       body.push(this.facts(x.gear.map(([a, b]) => [a, b, null] as const)));
     } else if (this.tab === "life") {

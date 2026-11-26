@@ -89,6 +89,12 @@ export type PlaceInspectPerson = {
    */
   readonly day: readonly ("work" | "play" | "home")[];
   readonly dayRows: readonly (readonly [string, string])[];
+  /**
+   * Whom they know (the Social tab, N8), the most thought of first: each named, how they know them and what they think of
+   * them (-100 … 100), and a line of the count (friends, rivals).
+   */
+  readonly ties: readonly (PlaceNamed & { readonly regard: number })[];
+  readonly tiesWords: string;
   /** What they have and wear (the Gear tab), line by line. */
   readonly gear: readonly (readonly [string, string])[];
   /** Their temper in a few words, and in full. */

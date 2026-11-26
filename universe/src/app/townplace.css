@@ -1643,3 +1643,13 @@ body.placing:has(.page-window:not([hidden])) .place-tag {
   width: 12px;
   height: 12px;
 }
+/* The inspector's Social tab: whom they know, marked warm to cold (N8). */
+.place-insp-person.tie-friend {
+  border-left: 4px solid #4fc3a1;
+}
+.place-insp-person.tie-rival {
+  border-left: 4px solid #e8604c;
+}
+.place-insp-person.tie-known {
+  border-left: 4px solid rgba(190, 205, 255, 0.35);
+}

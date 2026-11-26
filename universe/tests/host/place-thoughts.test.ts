@@ -18,6 +18,7 @@ import {
   MOOD,
   PERSON_BYTES,
   SKILL_KINDS,
+  TIES,
   THOUGHT,
   THOUGHTS,
   enterPlace,
@@ -64,11 +65,12 @@ const memories = (w: World, ref: string, kind: number) => {
   return out;
 };
 
-test("a person's memories are 24 bytes of them, and a person of a place stays within a hundred and twenty", () => {
+test("a person's memories are 24 bytes of them, and a person of a place stays within a hundred and eighty", () => {
   // (The place's columns before memories were 72 bytes a person: six memories of four bytes each are the growth; then the
-  // hours at each kind of work, two bytes a kind, and the kind their household taught them, a byte: N6.)
-  assert.equal(PERSON_BYTES, 72 + 4 * THOUGHTS + 2 * SKILL_KINDS.length + 1);
-  assert.ok(PERSON_BYTES <= 120);
+  // hours at each kind of work, two bytes a kind, and the kind their household taught them, a byte: N6; whom they know,
+  // five bytes each of a dozen: N8.)
+  assert.equal(PERSON_BYTES, 72 + 4 * THOUGHTS + 2 * SKILL_KINDS.length + 1 + 5 * TIES);
+  assert.ok(PERSON_BYTES <= 180);
 });
 
 test("a fire fought is remembered by those who fought it, by their temper, and fades till it is let go", () => {
@@ -133,7 +135,7 @@ test("nothing is remembered besides what a household's dates already reckon", ()
     const v = place.people.thought[k]!;
     if (!v) continue;
     any++;
-    assert.ok([1, 2, 3, 4, 5].includes(v >>> 24), `kind ${v >>> 24}`);
+    assert.ok((Object.values(THOUGHT) as number[]).includes(v >>> 24), `kind ${v >>> 24}`);
   }
   console.log(`  remembered after ninety days: ${any} memories among ${place.people.n}`);
 });
