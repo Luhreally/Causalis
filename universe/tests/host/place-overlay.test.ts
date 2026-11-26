@@ -33,15 +33,16 @@ test("each overlay reads every lot it can within its ends, in words, and moves n
   const place = placesOf(w)!.get(town)!,
     was = placeDigest(place),
     hashes = JSON.stringify(w.domainHashes());
-  for (const of of ["needs", "mood", "room", "work", "age", "danger"] as PlaceOverlayKind[]) {
-    const o = placeOverlay(w, place, of);
-    assert.equal(o.of, of);
-    if (of !== "danger") assert.ok(o.lots.length > 0, `${of}: some lots read`);
+  const kinds: PlaceOverlayKind[] = ["needs", "mood", "room", "work", "age", "danger"];
+  for (const kind of kinds) {
+    const o = placeOverlay(w, place, kind);
+    assert.equal(o.of, kind);
+    if (kind !== "danger") assert.ok(o.lots.length > 0, `${kind}: some lots read`);
     const seen = new Set<number>();
     for (const x of o.lots) {
-      assert.ok(x.v >= 0 && x.v <= 1, `${of}: ${x.v} within its ends`);
+      assert.ok(x.v >= 0 && x.v <= 1, `${kind}: ${x.v} within its ends`);
       assert.ok(x.words.length > 4 && !/undefined|NaN/.test(x.words), x.words);
-      assert.ok(!seen.has(x.lot), `${of}: lot ${x.lot} read once`);
+      assert.ok(!seen.has(x.lot), `${kind}: lot ${x.lot} read once`);
       seen.add(x.lot);
     }
     assert.ok(o.low && o.high);
