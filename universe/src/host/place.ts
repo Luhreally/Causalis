@@ -491,6 +491,7 @@ const P = {
   brk: 27,
   judge: 28,
   art: 29,
+  vital: 30,
 } as const;
 
 const NEEDS = 4;
@@ -1069,8 +1070,13 @@ export type Place = {
   pins?: number[];
 };
 
-/** What waits in a place's `due`: a death, a leaving, a birth, a coming, a burial, a pairing. */
-export const DUE = { die: 1, leave: 2, born: 3, come: 4, bury: 5, pair: 6 } as const;
+/**
+ * What waits in a place's `due`: a death, a leaving, a birth, a coming, a burial, a pairing; and a birth to one who bears
+ * (vitalDay: `a` her number, `b` the child's sex).
+ */
+export const DUE = { die: 1, leave: 2, born: 3, come: 4, bury: 5, pair: 6, bear: 7 } as const;
+/** A death due that a year's turn brought (a bit of its `b`): of the year gone's count. */
+const DUE_GONE = 1 << 16;
 /** One promised to their friend: their pairing is set for a day to come. */
 const PROMISED = 0xffffffff;
 
@@ -2362,6 +2368,10 @@ function addPerson(place: Place, sex: number, occ: number, born: number, house: 
   p.taught[i] = 0;
   p.tie.fill(0, i * TIES, (i + 1) * TIES);
   p.regard.fill(0, i * TIES, (i + 1) * TIES);
+  // (A wound's bleeding, the blood lost and its festering, and their tier: none. The slot is the one the last of the
+  // place's people was moved out of when another was let go, and kept what they had: a child born bleeding of another's
+  // wound, or raised into full with another's ticks of work already done.)
+  p.bleed[i] = p.blood[i] = p.fester[i] = p.tier[i] = p.reck[i] = 0;
   place.houses.members[house]!++;
   return i;
 }
@@ -2635,6 +2645,8 @@ function note(
   b = 0,
   /** Their place among its people, where they are gone with this: they are named by it after. */
   gone = -1,
+  /** The year a death is counted to (its land's count's): the year it is told in, but for one a year's turn brought. */
+  year = Math.floor(place.t / YEAR),
 ): void {
   const p = place.people;
   if (HAP_DEATH.has(what))
@@ -2643,6 +2655,7 @@ function note(
       what,
       what === HAP.struckDead || what === HAP.fell || what === HAP.plague ? a : 0,
       1,
+      year,
     );
   remembered(place, what, id, a, b, gone);
   place.log.push(
@@ -2678,10 +2691,16 @@ export const stewardDraw = (world: World, place: Place, id: number, k: number): 
   world.rng.unit(PLACE_DRAW, place.key ^ id, 0, P.steward, k);
 
 /** So many more counted of a kind (place.counts), this year; those of before last year let go. */
-function counted(place: Place, what: number, of: number, n: number): void {
-  const year = Math.floor(place.t / YEAR),
-    c = place.counts;
-  for (let k = c.length - 4; k >= 0; k -= 4) if (c[k]! < year - 1) c.splice(k, 4);
+function counted(
+  place: Place,
+  what: number,
+  of: number,
+  n: number,
+  year = Math.floor(place.t / YEAR),
+): void {
+  const c = place.counts,
+    now = Math.floor(place.t / YEAR);
+  for (let k = c.length - 4; k >= 0; k -= 4) if (c[k]! < now - 1) c.splice(k, 4);
   for (let k = 0; k < c.length; k += 4)
     if (c[k] === year && c[k + 1] === what && c[k + 2] === of) return void (c[k + 3]! += n);
   c.push(year, what, of, n);
@@ -2751,6 +2770,13 @@ function matchPeople(
    * once, as a place come back to is matched.
    */
   spread = 0,
+  /**
+   * Whether each sex and band is held to the place's own (a month's turn while it is watched): it lives its births and
+   * deaths day by day (vitalDay), so a month's turn only moves its people between trades. Its town's count is reckoned
+   * once a year; its land's month moves the shape of it, and that shape brought its land's births again on a month's
+   * turn, and told its old as gone where they had died.
+   */
+  hold = false,
 ): void {
   const target = targetTable(world, s, place),
     now = placeTable(place, f.life),
@@ -2772,13 +2798,32 @@ function matchPeople(
   for (let k = 0; k < place.due.length; k += 4) {
     const what = place.due[k + 1]!;
     if (what === DUE.born || what === DUE.come) now[place.due[k + 2]!]!++;
-    else if (what === DUE.die || what === DUE.leave) {
+    else if (what === DUE.bear) {
+      if (placeIndexOf(place, place.due[k + 2]!) >= 0)
+        now[place.due[k + 3]! * BANDS * OCCS + OCC.dependent]!++;
+    } else if (what === DUE.die || what === DUE.leave) {
       const i = placeIndexOf(place, place.due[k + 2]!);
       if (i < 0) continue;
       now[cellOf(i)]!--;
       waiting.add(p().id[i]!);
     }
   }
+  if (hold)
+    for (let r = 0; r < ROWS; r++) {
+      let want = 0,
+        of = 0;
+      for (let o = 0; o < OCCS; o++) {
+        want += Math.max(0, now[r * OCCS + o]!);
+        of += target[r * OCCS + o]!;
+      }
+      // (So many of each as the place has, shared among the trades as its town's count shares them; a band its town's
+      // count has none of, as the place has them.)
+      const split =
+        of > 0
+          ? apportion(want, target.slice(r * OCCS, (r + 1) * OCCS))
+          : now.slice(r * OCCS, (r + 1) * OCCS).map((x) => Math.max(0, x));
+      for (let o = 0; o < OCCS; o++) target[r * OCCS + o] = split[o]!;
+    }
   let changed = false;
   const lean = (place.matched.fed ?? 1000) < LEAN;
   // (Of each band of its land, the share that died in the year gone, as its land's history counted them: a lean year's
@@ -2852,7 +2897,8 @@ function matchPeople(
         // (One starved, or dead of a sickness, is told at once, as what threatens a town is; one dead in their time, on a
         // day of the year to come.)
         if (spread > 0 && what === HAP.died) {
-          dueIn(world, place, spread, id, DUE.die, id, what | (of << 8));
+          // (Counted, when told, to the year gone whose count brought it: DUE_GONE.)
+          dueIn(world, place, spread, id, DUE.die, id, what | (of << 8) | DUE_GONE);
           waiting.add(id);
           continue;
         }
@@ -3177,10 +3223,14 @@ function liveDue(world: World, place: Place, f: Frame, all = false): void {
         h = p.house[i]!;
       if (what === DUE.leave) note(place, HAP.left, a, age, occOf(p, i), i);
       else {
-        const told = b & 255;
-        if (told === HAP.plague) note(place, HAP.plague, a, b >> 8, age, i);
-        else if (told === HAP.famine) note(place, HAP.famine, a, age, 0, i);
-        else note(place, HAP.died, a, age, occOf(p, i), i);
+        const told = b & 255,
+          // (One a year's turn brought is of the year gone's count: told now, counted to it, so the next turn's quota
+          // does not take them off what it brings. Counted to the year told in, every other year's turn brought a year's
+          // dead and the next almost none.)
+          year = Math.floor(place.t / YEAR) - (b & DUE_GONE ? 1 : 0);
+        if (told === HAP.plague) note(place, HAP.plague, a, (b >> 8) & 255, age, i, year);
+        else if (told === HAP.famine) note(place, HAP.famine, a, age, 0, i, year);
+        else note(place, HAP.died, a, age, occOf(p, i), i, year);
         place.houses.grief[h] = day;
         // (Buried the next morning, two hours before the middle of the day.)
         if (!all) dueAt(place, (day + 1) * DAY + 10 * HOUR, DUE.bury, a, h * 2 + sexOf(p, i));
@@ -3231,6 +3281,17 @@ function liveDue(world: World, place: Place, f: Frame, all = false): void {
         occ,
       );
       changed = true;
+    } else if (what === DUE.bear) {
+      // (Born to her, into her household: vitalDay.)
+      const m = placeIndexOf(place, a);
+      if (m < 0) continue;
+      const id = place.nextId,
+        i = addPerson(place, b, OCC.dependent, Math.floor(place.t / DAY), p.house[m]!);
+      place.people.skill[i] = skillAt(f, 0, OCC.dependent);
+      teach(place, i);
+      workOf(world, place, i);
+      note(place, HAP.born, id, a, OCC.dependent);
+      changed = true;
     } else if (what === DUE.bury) {
       const h = b >> 1;
       place.rite = [graveLot(place), place.t + 2 * HOUR, h];
@@ -3275,6 +3336,90 @@ function liveDue(world: World, place: Place, f: Frame, all = false): void {
   if (changed) reckonMeans(world, place);
 }
 
+/** The better part of a year a young is carried (rules/children.ts BEARING: carried so, and nursed two more). */
+const CARRIED = Math.round(0.75 * YEAR);
+/**
+ * A day's births and deaths in a place watched (asked 2026-11-26: a town of 5,492 told none in a month, and in the year
+ * after it was entered one dead a month where its land's count has a dozen). Its town's count is reckoned once a year,
+ * and a year's turn brought the year gone's to be lived over the year to come: a town entered after a turn lived next to
+ * none of its own year, and its dead were told as having left. Now each of its people dies on a day by their band's
+ * share of its land's dead in the year gone (its land's own count, as a year's turn reads it: rules of no new number),
+ * and each who bears gives birth by her band's share of its land's births that year, the more the more her band bears
+ * (its life table's fertility), into her own household; a child a girl by its land's own youngest. What it lives so is
+ * counted against what the next year's turn brings: the dead told this year come off its quota, and a band's newborn come
+ * short by as many as were born; between two turns a month's matching holds each band to the place's own (matchPeople
+ * `hold`), so nothing is brought twice. Each by a draw keyed on who they are and the day, the same in every tier.
+ */
+function vitalDay(world: World, place: Place, f: Frame): void {
+  const ctx = populationContext(world),
+    land = ctx.provinces.get(place.cell),
+    p = place.people;
+  if (!land || p.n === 0) return;
+  const year = Math.floor(place.t / YEAR) - 1,
+    life = f.life,
+    dies = new Float64Array(BANDS),
+    bears = new Float64Array(BANDS);
+  let weight = 0,
+    young = 0;
+  for (let b = 0; b < BANDS; b++) {
+    let alive = 0;
+    for (let sex = 0; sex < SEXES; sex++) alive += land.counts.rowSum(sex * BANDS + b);
+    const dead = ctx.history.deathsIn(place.cell, year, b);
+    dies[b] = alive + dead > 0 ? dead / (alive + dead) / 365 : 0;
+    weight += land.counts.rowSum(FEMALE * BANDS + b) * (life.fertility[b] ?? 0);
+  }
+  const births = ctx.history.birthsIn(place.cell, year);
+  for (let b = 0; b < BANDS; b++)
+    bears[b] = weight > 0 ? (births * (life.fertility[b] ?? 0)) / weight / 365 : 0;
+  for (let sex = 0; sex < SEXES; sex++) young += land.counts.rowSum(sex * BANDS);
+  const girl = young > 0 ? land.counts.rowSum(FEMALE * BANDS) / young : 0.5;
+  // (One due to die or to leave already is not drawn again.)
+  let due: Set<number> | null = null;
+  for (let k = 0; k < place.due.length; k += 4)
+    if (place.due[k + 1] === DUE.die || place.due[k + 1] === DUE.leave)
+      (due ??= new Set()).add(place.due[k + 2]!);
+  // (One who has borne a child within the better part of a year carries none yet: rules/children.ts BEARING.)
+  const bore = new Set<number>();
+  for (const x of place.log)
+    if (x.what === HAP.born && x.a && x.t > place.t - CARRIED) bore.add(x.a);
+  const dead: number[] = [],
+    mothers: number[] = [];
+  for (let i = 0; i < p.n; i++) {
+    const id = p.id[i]!;
+    if (due?.has(id)) continue;
+    const band = bandOf(ageOf(p, i, place.t), life);
+    if (
+      dies[band]! > 0 &&
+      world.rng.unit(PLACE_DRAW, place.key ^ id, place.t, P.vital, 0) < dies[band]!
+    )
+      dead.push(id);
+    else if (
+      sexOf(p, i) === FEMALE &&
+      bears[band]! > 0 &&
+      !bore.has(id) &&
+      world.rng.unit(PLACE_DRAW, place.key ^ id, place.t, P.vital, 1) < bears[band]!
+    )
+      mothers.push(id);
+  }
+  // (Each on a tick of the day by a draw, lived as what waits is (liveDue): a death told as one in their time, their
+  // household grieving and their burial the next morning; a birth into her household.)
+  const at = (id: number, k: number) =>
+    place.t +
+    Math.floor(
+      world.rng.unit(PLACE_DRAW, place.key ^ id, place.t, P.vital, k) * (DAY / PLACE_TICK),
+    ) *
+      PLACE_TICK;
+  for (const id of mothers)
+    dueAt(
+      place,
+      at(id, 3),
+      DUE.bear,
+      id,
+      world.rng.unit(PLACE_DRAW, place.key ^ id, place.t, P.vital, 2) < girl ? FEMALE : 1 - FEMALE,
+    );
+  for (const id of dead) dueAt(place, at(id, 4), DUE.die, id, HAP.died);
+}
+
 /** The place matched to the world as it is now: its numbers for the ticks to come, its people, its stocks. */
 function reconcile(
   world: World,
@@ -3315,6 +3460,8 @@ function reconcile(
     turned || !!came,
     // (A year's turn's, over the year to come but for its last weeks; a month's, over the month but for its last days.)
     !watched ? 0 : turned ? YEAR - 40 * DAY : 28 * DAY,
+    // (Watched between two years' turns: its births and deaths are its own, lived day by day.)
+    watched && !turned,
   );
   // (The dead of a sickness are named at the matching it came by, and no later: its count is not kept for other deaths.)
   for (let k = place.tolls.length - 2; k >= 0; k -= 2)
@@ -3601,7 +3748,9 @@ export function placeSettled(place: Place): number {
   for (let k = 0; k < place.due.length; k += 4) {
     const what = place.due[k + 1]!;
     if (what === DUE.born || what === DUE.come) n++;
-    else if (
+    else if (what === DUE.bear) {
+      if (placeIndexOf(place, place.due[k + 2]!) >= 0) n++;
+    } else if (
       (what === DUE.die || what === DUE.leave) &&
       placeIndexOf(place, place.due[k + 2]!) >= 0
     )
@@ -3611,7 +3760,7 @@ export function placeSettled(place: Place): number {
 }
 /** What waits for a place to live it (its `due`), as tests and tools read it: when, and what. */
 export function placeDue(place: Place): { t: number; what: string; a: number; b: number }[] {
-  const names = ["", "die", "leave", "born", "come", "bury", "pair"],
+  const names = ["", "die", "leave", "born", "come", "bury", "pair", "bear"],
     out: { t: number; what: string; a: number; b: number }[] = [];
   for (let k = 0; k < place.due.length; k += 4)
     out.push({
@@ -7779,6 +7928,8 @@ export function advancePlace(world: World, place: Place): number {
       struck(world, place, s, f, strikes[next++]!);
     const m = Math.floor(place.t / MONTH);
     if (m > place.matched.month) reconcile(world, place, s, f, m, true);
+    // (A day's births and deaths, at its turn.)
+    if (place.t % DAY === 0) vitalDay(world, place, f);
     if (place.due.length && place.due[0]! <= place.t) liveDue(world, place, f);
     tick(world, place, f);
     ticks++;
