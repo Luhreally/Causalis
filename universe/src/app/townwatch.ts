@@ -44,6 +44,8 @@ export type WatchFlow = {
   next(): void;
   /** One of its people tapped: the eye goes with them, and stays. */
   goWith(id: number): void;
+  /** The eye let go of whom or what it is with, as a drag over the land does: nothing takes it back till asked. */
+  letGo(): void;
   /** What it is with now (the look tools). */
   readonly now: {
     readonly id: number | null;
@@ -366,6 +368,13 @@ export function installWatch(d: WatchDeps): WatchFlow {
       if (!town) return;
       stay = true;
       person(id, 0);
+    },
+    letGo: () => {
+      if (!town) return;
+      if (mine && d.rig.follow === mine) d.rig.follow = null;
+      free = true;
+      stay = false;
+      tell();
     },
   };
 }

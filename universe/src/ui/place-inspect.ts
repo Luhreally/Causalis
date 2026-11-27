@@ -59,8 +59,11 @@ export class PlaceInspector {
   private readonly title = el("h2", "place-insp-name");
   private readonly sub = el("p", "place-insp-sub");
   private readonly followKey = el("button", "place-insp-key place-insp-follow", "🎯");
+  /** Back to whom or what was inspected before, the eye where it was (from the first: closed); and forward again. */
+  private readonly backKey = el("button", "place-insp-key place-insp-back", "‹");
+  private readonly aheadKey = el("button", "place-insp-key place-insp-ahead", "›");
   private readonly proseKey = el("button", "place-insp-key place-insp-info", "ⓘ");
-  private readonly pageKey = el("button", "place-insp-key place-insp-page", "📄");
+  private readonly pageKey = el("button", "place-insp-key place-insp-page", "📖");
   private readonly body = el("div", "place-insp-body");
   /** What is inspected now (null: nothing), and the last reading of it. */
   ref: string | null = null;
@@ -76,6 +79,8 @@ export class PlaceInspector {
   /** Whether the eye keeps with whom it shows. */
   following = false;
   onClose: () => void = () => {};
+  onBack: () => void = () => {};
+  onAhead: () => void = () => {};
   onHeight: (h: InspectHeight) => void = () => {};
   /** Another inspected: one of its people or a lot (their ref). */
   onInspect: (ref: string) => void = () => {};
@@ -92,6 +97,9 @@ export class PlaceInspector {
     this.handle.onclick = () =>
       this.setHeight(HEIGHTS[(HEIGHTS.indexOf(this.height) + 1) % HEIGHTS.length]!);
     this.followKey.onclick = () => this.onFollow(!this.following);
+    this.backKey.onclick = () => this.onBack();
+    this.aheadKey.onclick = () => this.onAhead();
+    this.setBack(null, false, false);
     this.proseKey.title = "What these numbers mean, in words";
     this.proseKey.setAttribute("aria-label", this.proseKey.title);
     this.proseKey.onclick = () => {
@@ -110,8 +118,11 @@ export class PlaceInspector {
     this.portrait.width = this.portrait.height = PORTRAIT;
     names.append(this.title, this.sub);
     keys.append(this.followKey, this.proseKey, this.pageKey, shut);
-    head.append(this.portrait, names, keys);
-    this.element.append(this.handle, head, this.body);
+    head.append(this.portrait, names);
+    // (Its keys in a row of their own above the name: back and forward, the handle between, the rest.)
+    const top = el("div", "place-insp-top");
+    top.append(this.backKey, this.aheadKey, this.handle, keys);
+    this.element.append(top, head, this.body);
     // (A finger down on it: nothing under it is drawn anew till it is up, or the key pressed is gone when it ends.)
     this.body.addEventListener("pointerdown", () => (this.held = performance.now() + 800));
     for (const up of ["pointerup", "pointercancel"])
@@ -121,6 +132,20 @@ export class PlaceInspector {
   }
   private held = 0;
 
+  /**
+   * Its Back key told whom it goes back to (null: one not named), or that it closes, the first opened; its Forward key
+   * whom it goes on to again (false: none, greyed).
+   */
+  setBack(name: string | null, steps: boolean, ahead: string | null | false): void {
+    const words = steps ? `Back to ${name ?? "the one before"}` : "Back: close it, the eye where it was";
+    this.backKey.title = words;
+    this.backKey.setAttribute("aria-label", words);
+    const on = ahead !== false;
+    this.aheadKey.disabled = !on;
+    const forward = on ? `Forward to ${ahead ?? "the one after"}` : "Forward: nothing to go on to";
+    this.aheadKey.title = forward;
+    this.aheadKey.setAttribute("aria-label", forward);
+  }
   get shown(): boolean {
     return !this.element.hidden;
   }
