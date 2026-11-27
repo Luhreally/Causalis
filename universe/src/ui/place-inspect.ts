@@ -10,6 +10,7 @@
 // itself: the page that owns it (app/townplace.ts) reads it and tells it.
 import type {
   PlaceInspect,
+  PlaceInspectFields,
   PlaceInspectInside,
   PlaceInspectItem,
   PlaceInspectLot,
@@ -22,6 +23,8 @@ import { drawBody } from "./body.ts";
 import { el } from "./why.ts";
 import { billsEl, takesEl } from "./place-bills.ts";
 import { insideEl } from "./place-inside.ts";
+import { fieldsEl } from "./place-fields.ts";
+import type { VillagePlan } from "../bridge/index.ts";
 
 export type InspectHeight = "peek" | "half" | "full";
 type PersonTab = "now" | "mood" | "health" | "skills" | "social" | "gear" | "life" | "work";
@@ -87,6 +90,8 @@ export class PlaceInspector {
   onHeight: (h: InspectHeight) => void = () => {};
   /** Another inspected: one of its people or a lot (their ref). */
   onInspect: (ref: string) => void = () => {};
+  /** The town's plan, as its view holds it: its fields' page is laid off it (O6). */
+  plan: () => VillagePlan | null = () => null;
   /** The god game's full page of it. */
   onPage: (ref: string) => void = () => {};
   onFollow: (on: boolean) => void = () => {};
@@ -237,6 +242,7 @@ export class PlaceInspector {
     if (x.kind === "person") this.person(x);
     else if (x.kind === "inside") this.inside(x);
     else if (x.kind === "item") this.item(x);
+    else if (x.kind === "fields") this.fields(x);
     else this.lot(x);
   }
 
@@ -506,6 +512,14 @@ export class PlaceInspector {
     this.body.replaceChildren(...insideEl(x, (ref) => this.onInspect(ref)));
   }
 
+  /** The town's fields and its flock (O6): laid off its plan, who is out in them now. */
+  private fields(x: PlaceInspectFields): void {
+    this.picture(x);
+    const title = `${x.icon} ${x.name}`;
+    if (this.title.textContent !== title) this.title.textContent = title;
+    this.sub.textContent = `${x.fields} ${x.fields === 1 ? "field" : "fields"} · ${x.people.length + x.more} out in them now`;
+    this.body.replaceChildren(...fieldsEl(x, this.plan(), (ref) => this.onInspect(ref)));
+  }
   /** A thing one holds, on its own page (O5): of what, how fine, by whom, held by whom, how worn, what it is to them. */
   private item(x: PlaceInspectItem): void {
     this.picture(x);
@@ -570,9 +584,11 @@ export class PlaceInspector {
     const body: HTMLElement[] = [];
     if (x.words) body.push(el("p", "place-insp-now", x.words));
     // (Inside it, O3: its rooms on its tiles, who is here, what stands here.)
-    if (x.lot >= 0 && x.ref.startsWith("plcl:")) {
-      const go = el("button", "place-insp-order place-insp-inside", "Inside ▸");
-      go.setAttribute("aria-label", `Look inside ${x.name}`);
+    // (Its fields, O6: laid off its plan, who is out in them.)
+    const fields = x.lot === -2;
+    if ((x.lot >= 0 || fields) && x.ref.startsWith("plcl:")) {
+      const go = el("button", "place-insp-order place-insp-inside", fields ? "Out in the fields ▸" : "Inside ▸");
+      go.setAttribute("aria-label", fields ? "Look over the fields and the flock" : `Look inside ${x.name}`);
       go.onclick = () => this.onInspect(x.ref.replace(/^plcl:/, "plci:"));
       body.push(go);
     }

@@ -1003,6 +1003,7 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
   inspector.onBack = () => goBack();
   inspector.onAhead = () => goAhead();
   inspector.onInspect = (ref) => inspect(ref);
+  inspector.plan = d.plan;
   inspector.onPage = (ref) => void d.pages.open(ref);
   inspector.onFollow = (on) => follow(on);
   inspector.onOrder = (type, args) =>

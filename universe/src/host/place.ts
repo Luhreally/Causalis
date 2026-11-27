@@ -2127,6 +2127,11 @@ function streetsKey(world: World, place: Place): string {
     : "";
 }
 
+/** How many fields a place's plan lays (O6: its fields' page reads who is on which by it; 0: its plan not read). */
+export function placeFieldCount(world: World, place: Place): number {
+  layLots(world, place);
+  return LAID.get(place)?.fieldX.length ?? 0;
+}
 function layLots(world: World, place: Place): void {
   let most = 0;
   for (const lot of place.houses.home) most = Math.max(most, lot + 1);

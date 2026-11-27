@@ -753,6 +753,37 @@ for (const view of [
         8000,
       );
     } else say("no home with its things to open");
+    // Its fields and flock (O6): from the fields' page, out in them; one out there opened, Back and Forward, Back to it.
+    await k(`globalThis.causalis.place.inspect(${JSON.stringify(`plcl:${town.ref}:1`)})`);
+    await until("the fields' page", async () => (await shown(".place-insp-inside")) > 0, 8000);
+    await k('document.querySelector(".place-insp-inside")?.scrollIntoView({ block: "center" })');
+    await page.waitForTimeout(300);
+    await press(".place-insp-inside", "Out in the fields ▸, on the fields' page");
+    await until("the fields laid out", async () => (await kind()) === "fields", 8000);
+    await page.waitForTimeout(600);
+    say(`fields: ${(await text(".place-insp")).slice(0, 400)}`);
+    check(
+      (await shown(".place-fields-plan")) > 0 && (await shown(".place-fields-field")) > 0,
+      "the fields are drawn off the town's plan",
+    );
+    await look("20f-fields", "the fields and the flock");
+    if ((await shown(".place-insp-people .place-insp-person")) > 0) {
+      await k('document.querySelector(".place-insp-people .place-insp-person")?.scrollIntoView({ block: "center" })');
+      await page.waitForTimeout(300);
+      await press(".place-insp-people .place-insp-person", "one out in the fields");
+      await until("their page", async () => (await kind()) === "person", 8000);
+      await press(".place-insp-back", "‹ Back to the fields");
+      await until("the fields again", async () => (await kind()) === "fields", 8000);
+      check((await kind()) === "fields", "Back from one out there comes to the fields");
+      await press(".place-insp-ahead", "› Forward to them again");
+      await until("them again", async () => (await kind()) === "person", 8000);
+      check((await kind()) === "person", "Forward goes to them again");
+      await press(".place-insp-back", "‹ Back to the fields once more");
+      await until("the fields once more", async () => (await kind()) === "fields", 8000);
+    } else say("no one out in the fields now");
+    await press(".place-insp-back", "‹ Back to the fields' page");
+    await until("the fields' page again", async () => (await kind()) === "lot", 8000);
+    check((await kind()) === "lot", "Back from the fields comes to their page");
     await k('globalThis.causalis.place.inspectHeight("peek")');
   }
   // Where a good is made, with its bills (N10), and the market, with what it takes; at half height.

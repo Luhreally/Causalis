@@ -259,7 +259,36 @@ export type PlaceInspectItem = {
   readonly mood: number;
 };
 
+/**
+ * A town's fields and its flock (O6): who is out in them now and on which field (its plan's, by placeFieldOf; -1: with the
+ * flock at its pasture), how many work them, at the place's hour. The page lays them on the town's own plan: each field's
+ * crop as it stands at that hour, the year in them, the flock and what is after it (view/fields.ts, as its 3D draws them).
+ */
+export type PlaceInspectFields = {
+  readonly kind: "fields";
+  readonly ref: string;
+  readonly lotRef: string;
+  readonly name: string;
+  readonly icon: string;
+  /** The place's clock, to the hour; and how many fields it lays. */
+  readonly t: number;
+  readonly fields: number;
+  readonly working: { readonly farmers: number; readonly herders: number; readonly foragers: number };
+  readonly people: readonly {
+    readonly id: number;
+    readonly ref: string;
+    readonly name: string;
+    readonly field: number;
+    readonly words: string;
+  }[];
+  /** Those out in them past the ones listed; and how many are on each field now, and with the flock. */
+  readonly more: number;
+  readonly onField: readonly number[];
+  readonly atPasture: number;
+};
+
 export type PlaceInspect =
+  | PlaceInspectFields
   | PlaceInspectPerson
   | PlaceInspectLot
   | PlaceInspectInside
