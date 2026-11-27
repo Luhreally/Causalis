@@ -97,6 +97,8 @@ export type FolkFrame = {
 const READS_EACH = 16;
 /** How long one's feet take to settle on a ground read anew (seconds, an easing's time: two thirds of the way in it). */
 const GROUND_EASE = 0.05;
+/** The fastest one's feet rise or fall onto a ground read anew (metres a second: up a kerb's height in a third of a second). */
+const GROUND_RISE = 1;
 
 /** A part's place now, as the village lays it out ([x, y, z, sx, sy, sz, yaw, pitch]). */
 export type PlacePart = (out: number[], i: number, pi: number) => void;
@@ -479,11 +481,16 @@ export class FolkPoses {
             this.groundZ[i] = m.z;
             this.grounds[i] = f.ground(m.x, m.z);
           }
-          // (Eased onto a ground read anew, as a body steps up a kerb or down off a yard, over a twentieth of a second: never a
+          // (Eased onto a ground read anew, as a body steps up a kerb or down off a yard, no faster than a step is taken: never a
           // jump. One never yet set on any is set on it at once.)
           const was = this.drawnG[i]!,
             to = this.grounds[i]!;
-          under = was !== was || Math.abs(to - was) < 1e-5 ? to : was + (to - was) * settle;
+          if (was !== was || Math.abs(to - was) < 1e-5) under = to;
+          else {
+            const by = (to - was) * settle,
+              most = GROUND_RISE * M * Math.min(0.1, Math.max(0, dt));
+            under = was + Math.max(-most, Math.min(most, by));
+          }
           this.drawnG[i] = under;
         }
         const hop = lying ? 0 : Math.max(0, bob) * size;

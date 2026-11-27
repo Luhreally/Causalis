@@ -234,6 +234,8 @@ const CLEAR_AGAIN = 0.05;
 const LOOKS_EACH = 24;
 /** How long one kept apart takes to step aside (seconds, an easing's time: two thirds of the way in it). */
 const SPREAD_EASE = 0.06;
+/** The fastest one steps aside (metres a second, over their walk: a step aside, not a jump). */
+const SPREAD_PACE = 1;
 /** One out of sight (of another people's figure than the one being posed), and no one's wounds' gear. */
 const UNSEEN: Moment = {
     x: 0,
@@ -753,9 +755,12 @@ export class VillageScene {
         this.owingIn[i] = 0;
         continue;
       }
-      const rest = m.hidden || ax * ax + az * az < 1e-6,
-        dx = rest ? ax : ax * f,
-        dz = rest ? az : az * f;
+      const left = Math.sqrt(ax * ax + az * az),
+        rest = m.hidden || left < 1e-3,
+        // (A part of the way left, no faster than one steps aside.)
+        part = rest ? 1 : Math.min(f, (SPREAD_PACE * Math.min(0.1, Math.max(0, dt))) / left),
+        dx = ax * part,
+        dz = az * part;
       m.x += dx;
       m.z += dz;
       const was = this.presence.get(plan.people[i]!.ref);
