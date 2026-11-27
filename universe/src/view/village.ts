@@ -6531,6 +6531,12 @@ export function keepApart(
   plan: VillagePlan,
   moments: Moment[],
   fixed: readonly { readonly x: number; readonly z: number }[] = [],
+  /**
+   * How far each was stepped aside the last time (apartMemory): each set that far aside again first, a little less, so a knot
+   * kept apart last frame is found kept apart, and only what came anew is worked (2026-11-27: worked afresh each frame, a big
+   * city's crowd took twenty passes and five thousand looks at its walls a frame). Absent: worked afresh.
+   */
+  memory?: ApartMemory,
 ): void {
   const ground = groundFor(plan),
     gap = 2 * bodyR(plan),
@@ -6540,7 +6546,31 @@ export function keepApart(
   moments.forEach((m, i) => {
     if (!m.hidden) live.push(i);
   });
-  if (live.length + fixed.length < 2) return;
+  const n = moments.length;
+  if (memory && (memory.plan !== plan || memory.dx.length !== n)) {
+    memory.plan = plan;
+    memory.dx = new Float32Array(n);
+    memory.dz = new Float32Array(n);
+  }
+  if (live.length + fixed.length < 2) {
+    memory?.dx.fill(0);
+    memory?.dz.fill(0);
+    return;
+  }
+  const rawX = memory ? new Float64Array(n) : null,
+    rawZ = memory ? new Float64Array(n) : null,
+    moved = new Uint8Array(n);
+  if (memory && rawX && rawZ)
+    for (const i of live) {
+      const m = moments[i]!,
+        ox = memory.dx[i]! * APART_KEPT,
+        oz = memory.dz[i]! * APART_KEPT;
+      rawX[i] = m.x;
+      rawZ[i] = m.z;
+      // (Set aside again where they were kept off the walls last: looked at the walls again only if they step now, as any.)
+      m.x += ox;
+      m.z += oz;
+    }
   // (Found by the cell of the ground each stands in, a body's breadth across: within eleven
   // kilometres of the middle keyed by a small whole number, quicker to look up; past it, as before,
   // above them all.)
@@ -6555,9 +6585,7 @@ export function keepApart(
     if (list) list.push(k);
     else pinned.set(key, [k]);
   });
-  const n = moments.length,
-    moved = new Uint8Array(n),
-    // (Each one's cell as the cells have them; and whether their turn is wanted again.)
+  const // (Each one's cell as the cells have them; and whether their turn is wanted again.)
     cellX = new Float64Array(n),
     cellZ = new Float64Array(n),
     due = new Uint8Array(n),
@@ -6664,9 +6692,54 @@ export function keepApart(
       due[i] = 1;
       stir(i, -1);
     }
-    if (!any) return;
+    if (!any) break;
+  }
+  if (memory && rawX && rawZ) {
+    memory.dx.fill(0);
+    memory.dz.fill(0);
+    // (Kept whole where one still stands about them; let go a little where none does, so a knot that parts closes up.)
+    const near = want * 1.02,
+      alone = (i: number) => {
+        const m = moments[i]!;
+        for (let ox = -1; ox <= 1; ox++)
+          for (let oz = -1; oz <= 1; oz++) {
+            const key = keyOf(cellX[i]! + ox, cellZ[i]! + oz);
+            for (const j of cells.get(key) ?? NO_ONE) {
+              if (j === i) continue;
+              const o = moments[j]!;
+              if ((o.x - m.x) ** 2 + (o.z - m.z) ** 2 < near * near) return false;
+            }
+            if (pinned.size)
+              for (const k of pinned.get(key) ?? NO_ONE) {
+                const f = fixed[k]!;
+                if ((f.x - m.x) ** 2 + (f.z - m.z) ** 2 < near * near) return false;
+              }
+          }
+        return true;
+      };
+    for (const i of live) {
+      const m = moments[i]!,
+        dx = m.x - rawX[i]!,
+        dz = m.z - rawZ[i]!;
+      if (dx === 0 && dz === 0) continue;
+      const keep = alone(i) ? APART_LET : 1;
+      memory.dx[i] = dx * keep;
+      memory.dz[i] = dz * keep;
+    }
   }
 }
+
+/** How far each was stepped aside the last time they were kept apart (keepApart), each by their place among the plan's. */
+export type ApartMemory = { plan: VillagePlan | null; dx: Float32Array; dz: Float32Array };
+export const apartMemory = (): ApartMemory => ({
+  plan: null,
+  dx: new Float32Array(0),
+  dz: new Float32Array(0),
+});
+/** How much of the last step aside each is set again; and, where no one stands about them, how much (a knot that parts closes
+ * up in a few tenths of a second). */
+const APART_KEPT = 1,
+  APART_LET = 0.85;
 
 /**
  * The signs a village's talk and work are shown in (M86): each topic its year brings, and

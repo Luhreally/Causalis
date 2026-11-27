@@ -74,6 +74,7 @@ import {
   armorPanels,
   armorColor,
   type FigurePart,
+  apartMemory,
   keepApart,
   partExtent,
   present,
@@ -626,6 +627,10 @@ export class VillageScene {
    * another as drawn, as before 2026-11-26.
    */
   feetOff = false;
+  /** How far each was stepped aside where their day has them stand the last frame (view/village.ts keepApart). */
+  private readonly apartMem = apartMemory();
+  /** The look tools' switch: kept apart afresh each frame, as before 2026-11-27 (tools: its cost with and without). */
+  apartCold = false;
   footCost(): { feet: number; spread: number; pose: number; frames: number } {
     const c = this.costs;
     this.costs = { feet: 0, spread: 0, pose: 0, frames: 0, gather: 0, core: 0, apart: 0 };
@@ -3397,6 +3402,7 @@ export class VillageScene {
       plan,
       targets,
       troops.filter((q) => q.size > 0.5),
+      this.apartCold ? undefined : this.apartMem,
     );
     this.costs.apart += performance.now() - a0;
     const dt = this.presenceClock === null ? 0 : clock - this.presenceClock;
