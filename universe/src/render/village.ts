@@ -960,6 +960,7 @@ export class VillageScene {
       trunks = this.townFlora.trunkTops(),
       ground = villageSolids(plan),
       p = { x: 0, z: 0 },
+      carried = { x: 0, z: 0 },
       clearX = this.clearX,
       clearZ = this.clearZ;
     // (Those owed a look taken a few at a time, from where the last left off: a town's worth would cost a frame.)
@@ -1005,13 +1006,18 @@ export class VillageScene {
           next = q + 1;
         }
         owe[i] = 0;
-        // (Kept off a wall by as far as they reach as drawn: at work, a hammer swung or an arm put out, not their body alone.)
-        keepOut(ground, p, Math.max(body, rs[q]!));
+        // (Kept off a wall by as far as they reach as drawn, a hammer swung or an arm put out, where their day has them stand
+        // so far off it; where it has them nearer, at the wall they build, by their body: never stepped nearer a wall than
+        // their day has them, nor pushed off the work it puts them at.)
+        const reach = Math.max(body, rs[q]!);
+        carried.x = m.x - offX[i]! + ox;
+        carried.z = m.z - offZ[i]! + oz;
+        keepOut(ground, p, reach > body && clearAt(ground, carried, reach) ? reach : body);
       }
       // (Wells, columns and trunks, by the cell one stands in: for each one looked at or stepped aside.)
       if (look || stepped) {
-        posts?.pushOut(p, Math.max(body, rs[q]!));
-        trunks?.pushOut(p, Math.max(body, rs[q]!));
+        posts?.pushOut(p, body);
+        trunks?.pushOut(p, body);
       }
       // (Pushed back off a wall, a well or a trunk: held there the next time they are kept apart, the other of a pair stepping
       // the whole way.)
