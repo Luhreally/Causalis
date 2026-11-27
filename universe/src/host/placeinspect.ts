@@ -44,7 +44,7 @@ import type { QueryHandler } from "./host.ts";
 import { figureBody } from "./folk.ts";
 import { skillLine, temperWords } from "./inspect/place.ts";
 import { groundReading } from "./inspect/ground.ts";
-import { placeInside } from "./placeinside.ts";
+import { placeFields, placeInside } from "./placeinside.ts";
 import {
   ACT,
   AT,
@@ -1007,6 +1007,7 @@ export function placeInspect(world: World, town: string, ref: string): PlaceInsp
   }
   if (ref.startsWith("plci:")) {
     const n = Number(ref.slice(ref.lastIndexOf(":") + 1));
+    if (n - 3 === PLACE_AT.fields) return placeFields(world, place);
     return Number.isInteger(n) ? placeInside(world, place, n - 3) : null;
   }
   if (ref.startsWith("plcl:")) {

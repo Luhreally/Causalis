@@ -10,9 +10,11 @@ import { DAY, type World } from "../kernel/index.ts";
 import { FOODS, GOODS, OCC, gradeOf } from "../rules/index.ts";
 import {
   PLACE_AT,
+  placeFieldOf,
   placeInsideRef,
   placeItemRef,
   placeLotRef,
+  type PlaceInspectFields,
   type PlaceInspectInside,
   type PlaceInsideThing,
 } from "../bridge/index.ts";
@@ -30,6 +32,7 @@ import {
   lotGrid,
   lotsOf,
   GEAR,
+  placeFieldCount,
   placeGear,
   type Place,
 } from "./place.ts";
@@ -107,6 +110,53 @@ class Floor {
     }
     return null;
   }
+}
+
+/** The most of those out in the fields its page lists one by one (the rest counted). */
+const FIELD_LISTED = 40;
+/**
+ * A town's fields and its flock now (O6), read only: who is out in them, on which of its plan's fields (a herder with the
+ * flock, at its pasture), and how many work them. The page lays the fields themselves off the town's plan.
+ */
+export function placeFields(world: World, place: Place): PlaceInspectFields {
+  const p = place.people,
+    who = placeWho(world, place),
+    n = placeFieldCount(world, place),
+    working = { farmers: 0, herders: 0, foragers: 0 },
+    people: PlaceInspectFields["people"][number][] = [],
+    onField: number[] = Array.from({ length: n }, () => 0);
+  let out = 0,
+    atPasture = 0;
+  for (let i = 0; i < p.n; i++) {
+    const occ = p.sexOcc[i]! & 15;
+    if (p.work[i] === PLACE_AT.fields) {
+      if (occ === OCC.farmer) working.farmers++;
+      else if (occ === OCC.herder) working.herders++;
+      else working.foragers++;
+    }
+    if (p.at[i] !== PLACE_AT.fields) continue;
+    out++;
+    const id = p.id[i]!,
+      field = occ === OCC.herder ? -1 : placeFieldOf(id, n);
+    if (field < 0) atPasture++;
+    else onField[field]!++;
+    if (people.length >= FIELD_LISTED) continue;
+    people.push({ id, ref: who(i).ref, name: who(i).name, field, words: actWords(p, i) });
+  }
+  return {
+    kind: "fields",
+    ref: placeInsideRef(place.town, PLACE_AT.fields),
+    lotRef: placeLotRef(place.town, PLACE_AT.fields),
+    name: "The fields",
+    icon: "🌾",
+    t: Math.floor(place.t / 3600) * 3600,
+    fields: n,
+    working,
+    people,
+    more: out - people.length,
+    onField,
+    atPasture,
+  };
 }
 
 /** What is inside a lot of a place now (O3), on its grid of tiles: its rooms, what stands in them, and who is there. */

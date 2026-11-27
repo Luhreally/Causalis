@@ -1266,6 +1266,27 @@ h3.place-insp-sub {
   white-space: normal;
   padding: 2px 8px;
 }
+/* The fields (O6): each in its crop's colour, the pasture, the square, how many on each. */
+.place-fields-field {
+  stroke: rgba(60, 45, 25, 0.55);
+  stroke-width: 1;
+}
+.place-fields-pasture {
+  fill: rgba(120, 170, 90, 0.55);
+  stroke: #4f7a3a;
+  stroke-width: 1.5;
+}
+.place-fields-square {
+  fill: #5b4a32;
+}
+.place-fields-count {
+  font-size: 12px;
+  font-weight: 700;
+  fill: #1d1a14;
+  paint-order: stroke;
+  stroke: #fff;
+  stroke-width: 3px;
+}
 .place-inside-pot {
   fill: #c98f6a;
 }

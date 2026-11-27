@@ -625,6 +625,7 @@ export {
 } from "./place.ts";
 export type {
   PlaceInspect,
+  PlaceInspectFields,
   PlaceInspectInside,
   PlaceInspectItem,
   PlaceInsideThing,
