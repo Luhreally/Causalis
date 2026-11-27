@@ -655,8 +655,15 @@ test("mood follows needs met and what befell the household, moves work's worth, 
   order(w, "place.work", { town: s.ref, shares: [0, 0, 500, 500] });
   // (Read at the depth of its want, within eighty days: a town starved under its own hold has fewer mouths after, and
   // what its land brings may feed them again, when its mood climbs back as it should.)
-  const lows = () =>
-    [...Array(place.people.n).keys()].filter((k) => place.people.mood[k]! < MOOD_UNHEEDING);
+  // (Of the grown, whom an order of work could move: a child too low in mood is told no order. On bfd1bd3f's first light
+  // at 150 the first too low was a child, and no order went unheeded.)
+  const adult = lifeOf(w).adulthood,
+    lows = () =>
+      [...Array(place.people.n).keys()].filter(
+        (k) =>
+          place.people.mood[k]! < MOOD_UNHEEDING &&
+          (place.t / DAY - place.people.born[k]!) / 365 >= adult,
+      );
   let wanting = 0;
   for (let d = 0; d < 80 && !(mean() < fed - 20 && lows().length > 0); d += 2) {
     w.runTo(w.now + 2 * DAY);

@@ -835,12 +835,18 @@ const widthOf = (c: Col) =>
           ? TIES
           : 1;
 
+/**
+ * Room for more in the same people: each column made longer, the object itself kept. (Made anew, whatever held the place's
+ * people across a coming or a birth read on in the old columns, which no longer moved: tests that held them saw a town
+ * stand still from the day it outgrew its room, and passed or failed by whether its world's town grew that far.)
+ */
 function grown(p: People, cap: number): People {
   const q = peopleOf(cap);
-  q.n = p.n;
-  for (const c of PEOPLE_COLS)
+  for (const c of PEOPLE_COLS) {
     (q[c] as Uint8Array).set((p[c] as Uint8Array).subarray(0, p.n * widthOf(c)));
-  return q;
+    (p as Record<Col, unknown>)[c] = q[c];
+  }
+  return p;
 }
 
 /** A household: where it lives, what it lives on, what its pantry holds. */

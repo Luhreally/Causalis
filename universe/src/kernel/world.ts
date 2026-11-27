@@ -75,8 +75,13 @@ const DOMAINS_FIRST = 320,
 /** Past the first DOMAINS_FIRST checkpoints, a checkpoint is taken one period in so many (the tenth year). */
 const LATE_EVERY = 10,
   LATE_AT = 5;
-/** How old a kept event or decision is before it goes cold (kernel/cold.ts). */
-const COLD_AFTER = 50 * YEAR;
+/**
+ * How old a kept event is before it goes cold (kernel/cold.ts), as a decision does: the window and ten years. (At fifty,
+ * first light at 1,500 held 51,659 events as objects where 43,071 are past those thirty years, 3.1 MB of a clean heap of
+ * 420.7; the same chain from 1,300 to 1,500 either way, and the same pace. By thirty, all but what is kept for ever, or by
+ * a store, has been forgotten: little of what goes cold is let go after.)
+ */
+const COLD_AFTER = 30 * YEAR;
 
 export class World {
   readonly seed: Seed;

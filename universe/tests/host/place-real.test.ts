@@ -258,6 +258,11 @@ test("a household with no one grown and well fetches for itself, and no one goes
   let fetched = false;
   // (Looked at each ten minutes: a fetch from a store nearby is there and back within the hour.)
   for (let k = 0; k < 4 * 24 * 6; k++) {
+    // (Kept bare till one of it goes for food: a month's turn lays its land's food in every pantry, and a household fed so
+    // has no need to fetch. First light at 150 on the rules of 2026-11-25: a month's turn came four hours after Kamathey's
+    // pantry was emptied, its children ate from what it laid in, and never went.)
+    if (!fetched)
+      for (let g = 0; g < FOODS.length; g++) place.houses.pantry[house * FOODS.length + g] = 0;
     w.runTo(w.now + 600);
     placeFrame(w, s.ref, []);
     for (let i = 0; i < p.n; i++)

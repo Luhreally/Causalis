@@ -271,9 +271,12 @@ export class PolityStore implements StateStore {
 
   pinned(): Ref[] {
     const refs: Ref[] = [];
+    // (Every realm's founding and its last ruler, ended or not: its page tells them. Its tithe only while it stands, the tithe it
+    // asks now: the why of a tithe opens on the raising before it, and so on back, so an ended realm held on to every change
+    // of its tithe it ever made, 2,479 events and 918 decisions of first light's at 3,100 that nothing else kept.)
     for (const p of this.list) {
       refs.push(p.event, p.ruler.event);
-      if (p.tithed) refs.push(p.tithed);
+      if (p.tithed && p.ended === null) refs.push(p.tithed);
     }
     for (const d of this.grievance.values()) if (d.cause) refs.push(d.cause);
     return refs;
@@ -954,9 +957,13 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
       p.law = want.law;
     }
 
-  // 7. A realm whose seat is empty, or which has lost every land, ends.
+  // 7. A realm whose seat is empty, or which has lost every land, ends; so does one whose seat has no one left to lead it, as
+  // none could found one there (step 1): its lands go free, for its neighbours to take in (step 2). (Kept while a soul was left
+  // at its seat, a realm of three people stood for decades on first light by 1,500, its lands closed to every neighbour.)
   for (const p of store.living()) {
-    if (pop(p.seat) > 0 && p.members.includes(p.seat)) continue;
+    const seat = ctx.provinces.get(p.seat);
+    if (seat && seat.total() > 0 && seat.occupation(OCC.leader) > 0 && p.members.includes(p.seat))
+      continue;
     endRealm(ctx, p, t, { ref: p.event, role: "enabler", weight: 1 });
   }
   // The realms that have ended will not change again: fold them into the digest.
