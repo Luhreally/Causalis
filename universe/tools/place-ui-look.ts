@@ -591,11 +591,12 @@ for (const view of [
         check(!s.following && s.inspected.ref === null, "Escape lets the eye go and closes");
       }
       // A tap on the bare ground: closed, the eye let go. (Well clear of anyone: a tap within TAP_REACH, 44 px, of one
-      // chooses them, and they walk while it is found.)
+      // chooses them, and they walk while it is found. On the scene's canvas, not a portrait's: at desk the first spot
+      // found was the inspector's portrait, docked at the left, and the click met it, not the town.)
       await reopen("reopened for a tap on the ground");
       await kept("for a tap on the ground");
       const bare = await k<{ x: number; y: number } | null>(
-        `(() => { const c = globalThis.causalis, W = innerWidth, H = innerHeight; for (let y = H * 0.2; y < H * 0.6; y += 23) for (let x = 20; x < W - 20; x += 29) { if (document.elementFromPoint(x, y)?.tagName !== "CANVAS") continue; let near = false; const n = c.planNow().people.length; for (let i = 0; i < n && !near; i++) { const p = c.personOnScreen(i); if (p && Math.hypot(p.x - x, p.y - y) < 70) near = true; } if (!near) return { x, y }; } return null; })()`,
+        `(() => { const c = globalThis.causalis, W = innerWidth, H = innerHeight; for (let y = H * 0.2; y < H * 0.6; y += 23) for (let x = 20; x < W - 20; x += 29) { { const e = document.elementFromPoint(x, y); if (e?.tagName !== "CANVAS" || e.closest(".place-insp, .place-sheet, .place-hud")) continue; } let near = false; const n = c.planNow().people.length; for (let i = 0; i < n && !near; i++) { const p = c.personOnScreen(i); if (p && Math.hypot(p.x - x, p.y - y) < 70) near = true; } if (!near) return { x, y }; } return null; })()`,
       );
       if (bare) {
         await tap(bare.x, bare.y);
@@ -734,7 +735,7 @@ for (const view of [
   // (Watched: one of its people tapped, the eye goes with them; Back lets it go and closes.)
   {
     const one = await k<{ x: number; y: number } | null>(
-      `(() => { const c = globalThis.causalis, n = c.planNow().people.length, W = innerWidth, H = innerHeight; for (let i = 0; i < n; i++) { const p = c.personOnScreen(i); if (p && p.x > 8 && p.x < W - 8 && p.y > H * 0.15 && p.y < H * 0.6 && document.elementFromPoint(p.x, p.y)?.tagName === "CANVAS") return { x: p.x, y: p.y }; } return null; })()`,
+      `(() => { const c = globalThis.causalis, n = c.planNow().people.length, W = innerWidth, H = innerHeight; for (let i = 0; i < n; i++) { const p = c.personOnScreen(i); if (p && p.x > 8 && p.x < W - 8 && p.y > H * 0.15 && p.y < H * 0.6 && (() => { const e = document.elementFromPoint(p.x, p.y); return e?.tagName === "CANVAS" && !e.closest(".place-insp, .place-sheet, .place-hud"); })()) return { x: p.x, y: p.y }; } return null; })()`,
     );
     if (one) {
       await k("globalThis.causalis.place.inspect(null)");
