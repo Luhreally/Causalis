@@ -7484,7 +7484,18 @@ function turnOf(cx: TickCx, i: number, k: number, wk: number): void {
   cWhy[i] = turned ? WHY.turned : WHY.work;
   // (An hour given to one's own trade is an hour of skill at it: rules/life.ts. One turned to another trade's work
   // gives it to that trade's, below with the rest of their hours.)
-  if (!turned && p.skill[i]! < SKILL_MOST) p.skill[i] = Math.min(SKILL_MOST, p.skill[i]! + wk);
+  if (!turned) {
+    const was = p.skill[i]!,
+      to = was + wk;
+    if (was < SKILL_MOST) p.skill[i] = Math.min(SKILL_MOST, to);
+    // (A master's hours past the top of their skill count toward it no more, but their tool wears by them all the same:
+    // what is reckoned to its wear (Deep.worked) is set back by as much. Their tool had worn no more once they were a
+    // master, and a farmer of fifty held a hoe as new as the day it was made.)
+    if (to > SKILL_MOST && (p.tier[i]! & 3) === TIER.full) {
+      const dp = place.deep?.get(p.id[i]!);
+      if (dp) dp.worked -= to - Math.max(was, SKILL_MOST);
+    }
+  }
   if (doing === OCC.farmer || doing === OCC.herder) {
     // What the fields and the flocks give is brought in a load at a time: home while the pantry is short, else to the store.
     // (Won as fast as a hand that works a third of its time must to win its year's making, of what is ready.)
