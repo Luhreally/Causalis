@@ -236,6 +236,8 @@ const LOOKS_EACH = 24;
 const SPREAD_EASE = 0.06;
 /** The fastest one steps aside (metres a second, over their walk: a step aside, not a jump). */
 const SPREAD_PACE = 1;
+/** How much of what one was set aside by is let go each time they are kept apart (render/village.ts spreadDrawn). */
+const SPREAD_LET = 0.1;
 /** One out of sight (of another people's figure than the one being posed), and no one's wounds' gear. */
 const UNSEEN: Moment = {
     x: 0,
@@ -560,11 +562,13 @@ export class VillageScene {
   /** Where each one standing still was last kept out of what stands about them (metres; NaN: not yet). */
   private clearX = new Float64Array(0);
   /**
-   * How far each kept apart has yet to be stepped (metres), and who has any way yet to go: the step taken over frames, as one
-   * steps aside, never a jump (render/village.ts easeApart).
+   * How far each is drawn set aside from where they are carried (metres), how far they were last found wanting, and who is
+   * set aside or wanting at all: eased between, never a jump (render/village.ts easeApart).
    */
-  private owedX = new Float32Array(0);
-  private owedZ = new Float32Array(0);
+  private offX = new Float32Array(0);
+  private offZ = new Float32Array(0);
+  private wantX = new Float32Array(0);
+  private wantZ = new Float32Array(0);
   private owing = new Int32Array(0);
   private owingIn = new Uint8Array(0);
   private owingN = 0;
@@ -722,17 +726,18 @@ export class VillageScene {
    * (render/village.ts presence), so they go on from there.
    */
   /**
-   * Those kept apart stepped on the way they are owed, a part of it each frame (two thirds in SPREAD_EASE seconds), as a body
-   * steps aside: where they are drawn and where they are carried on from. One gone indoors, or nearly there, is put there.
+   * Each one kept out of another as drawn set aside from where they are carried, by as much as they were last found wanting,
+   * eased onto it (two thirds in SPREAD_EASE seconds, no faster than SPREAD_PACE): what is drawn, never where they are carried
+   * on from, so the springs that carry them never pull against it. One gone indoors is set back at once.
    */
   private easeApart(plan: VillagePlan, dt: number): void {
     const n = this.owingN;
     if (n === 0) return;
-    // (Its people other than when they were owed it, a town gone into or its folk come and gone: none is stepped.)
+    // (Its people other than when they were set aside, a town gone into or its folk come and gone: none is.)
     if (this.spreadOf !== plan || this.spreadN !== this.moments.length) {
       for (let r = 0; r < n; r++) {
         const i = this.owing[r]!;
-        this.owedX[i] = this.owedZ[i] = 0;
+        this.offX[i] = this.offZ[i] = this.wantX[i] = this.wantZ[i] = 0;
         this.owingIn[i] = 0;
       }
       this.owingN = 0;
@@ -741,41 +746,37 @@ export class VillageScene {
     const t0 = performance.now(),
       moments = this.moments,
       owing = this.owing,
-      owedX = this.owedX,
-      owedZ = this.owedZ,
-      f = dt > 0 ? 1 - Math.exp(-Math.min(0.1, dt) / SPREAD_EASE) : 0;
+      offX = this.offX,
+      offZ = this.offZ,
+      wantX = this.wantX,
+      wantZ = this.wantZ,
+      f = dt > 0 ? 1 - Math.exp(-Math.min(0.1, dt) / SPREAD_EASE) : 0,
+      most = SPREAD_PACE * Math.min(0.1, Math.max(0, dt));
     let w = 0;
     for (let r = 0; r < n; r++) {
       const i = owing[r]!,
-        m = moments[i],
-        ax = owedX[i]!,
-        az = owedZ[i]!;
-      if (!m) {
-        owedX[i] = owedZ[i] = 0;
+        m = moments[i];
+      if (!m || m.hidden) {
+        offX[i] = offZ[i] = wantX[i] = wantZ[i] = 0;
         this.owingIn[i] = 0;
         continue;
       }
-      const left = Math.sqrt(ax * ax + az * az),
-        rest = m.hidden || left < 1e-3,
-        // (A part of the way left, no faster than one steps aside.)
-        part = rest ? 1 : Math.min(f, (SPREAD_PACE * Math.min(0.1, Math.max(0, dt))) / left),
-        dx = ax * part,
-        dz = az * part;
-      m.x += dx;
-      m.z += dz;
-      const was = this.presence.get(plan.people[i]!.ref);
-      if (was) {
-        was.x += dx;
-        was.z += dz;
-      }
-      if (rest) {
-        owedX[i] = owedZ[i] = 0;
-        this.owingIn[i] = 0;
+      const ax = wantX[i]! - offX[i]!,
+        az = wantZ[i]! - offZ[i]!,
+        left = Math.sqrt(ax * ax + az * az);
+      if (left < 1e-3) {
+        offX[i] = wantX[i]!;
+        offZ[i] = wantZ[i]!;
       } else {
-        owedX[i] = ax - dx;
-        owedZ[i] = az - dz;
-        owing[w++] = i;
+        // (A part of the way left, no faster than one steps aside.)
+        const part = Math.min(f, most / left);
+        offX[i] = offX[i]! + ax * part;
+        offZ[i] = offZ[i]! + az * part;
       }
+      m.x += offX[i]!;
+      m.z += offZ[i]!;
+      if (offX[i] === 0 && offZ[i] === 0 && wantX[i] === 0 && wantZ[i] === 0) this.owingIn[i] = 0;
+      else owing[w++] = i;
     }
     this.owingN = w;
     this.costs.spread += performance.now() - t0;
@@ -810,8 +811,10 @@ export class VillageScene {
       this.clearX = new Float64Array(n).fill(Number.NaN);
       this.clearZ = new Float64Array(n).fill(Number.NaN);
       this.spreadOwe = new Uint8Array(n);
-      this.owedX = new Float32Array(n);
-      this.owedZ = new Float32Array(n);
+      this.offX = new Float32Array(n);
+      this.offZ = new Float32Array(n);
+      this.wantX = new Float32Array(n);
+      this.wantZ = new Float32Array(n);
       this.owing = new Int32Array(n);
       this.owingIn = new Uint8Array(n);
       this.owingN = 0;
@@ -835,8 +838,12 @@ export class VillageScene {
       ozs = this.spreadOZ,
       base = this.spreadBase,
       sizes = this.sizes,
-      owedX = this.owedX,
-      owedZ = this.owedZ;
+      offX = this.offX,
+      offZ = this.offZ,
+      wantX = this.wantX,
+      wantZ = this.wantZ,
+      // (Let go a little only as they are kept out of one another again: between, what they are set aside by stands.)
+      lets = step ? SPREAD_LET : 0;
     let k = 0;
     for (let i = 0; i < n; i++) {
       const m = moments[i]!,
@@ -851,9 +858,9 @@ export class VillageScene {
       at[k] = i;
       oxs[k] = ox;
       ozs[k] = oz;
-      // (Where each is being stepped to, the way there not yet all taken: render/village.ts easeApart.)
-      xs[k] = m.x + owedX[i]! + ox;
-      zs[k] = m.z + owedZ[i]! + oz;
+      // (Each as drawn, the more they were set aside let go a little: so a knot opens and two gone past each other close up.)
+      xs[k] = m.x - offX[i]! * lets + ox;
+      zs[k] = m.z - offZ[i]! * lets + oz;
       rs[k] = base[3 * i + 2]! * size;
       // (At work, as far as their parts reached out from where they stand as last drawn, an arm put out, a tool swung.)
       if (m.task) {
@@ -891,10 +898,10 @@ export class VillageScene {
         ox = oxs[q]!,
         oz = ozs[q]!,
         // (Each's middle as gathered, worked out as it was: whether they were stepped aside, exactly.)
-        toX = m.x + owedX[i]!,
-        toZ = m.z + owedZ[i]!,
-        wasX = m.x + owedX[i]! + ox,
-        wasZ = m.z + owedZ[i]! + oz,
+        toX = m.x - offX[i]! * lets,
+        toZ = m.z - offZ[i]! * lets,
+        wasX = m.x - offX[i]! * lets + ox,
+        wasZ = m.z - offZ[i]! * lets + oz,
         walking = m.activity === ACTIVITY.walking,
         body = base[3 * i + 2]! * (sizes[i] ?? 1);
       p.x = xs[q]!;
@@ -920,15 +927,14 @@ export class VillageScene {
         posts?.pushOut(p, body);
         trunks?.pushOut(p, body);
       }
-      if (!look && p.x === wasX && p.z === wasZ) continue;
       if (look && !walking) {
         clearX[i] = p.x === wasX && p.z === wasZ ? toX : p.x - ox;
         clearZ[i] = p.x === wasX && p.z === wasZ ? toZ : p.z - oz;
       }
-      if (p.x === wasX && p.z === wasZ) continue;
-      // (Stepped there over the frames to come, not put there: easeApart.)
-      owedX[i] = p.x - ox - m.x;
-      owedZ[i] = p.z - oz - m.z;
+      // (Set aside as found now from where they are carried, eased onto it over the frames to come: easeApart.)
+      if (p.x === wasX && p.z === wasZ && offX[i] === 0 && offZ[i] === 0) continue;
+      wantX[i] = p.x - ox - (m.x - offX[i]!);
+      wantZ[i] = p.z - oz - (m.z - offZ[i]!);
       if (!this.owingIn[i]) {
         this.owingIn[i] = 1;
         this.owing[this.owingN++] = i;

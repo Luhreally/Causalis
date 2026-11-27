@@ -30,9 +30,8 @@ import {
   type Wonder,
 } from "../bridge/index.ts";
 import { OCC, article } from "../rules/index.ts";
-import { figureOf, paceOf } from "./figure.ts";
-import { restBody } from "./footing.ts";
-import { lifeFigure, measuresOf } from "./stature.ts";
+import { paceOf } from "./figure.ts";
+import { measuresOf } from "./stature.ts";
 
 /**
  * How large a town's folk are drawn against a person drawn three times life (rules/stature.ts Measures.drawn: ours 0.32, a
@@ -6496,22 +6495,15 @@ export const BODY_R = 0.35;
 /**
  * Half a town's folk's breadth as they are drawn true (rules/stature.ts Measures: across their shoulders or their flanks,
  * whichever is the more, and a little room): ours BODY_R, a greater body's as much more as it is broader, so a crowd of
- * them stands no more into one another than ours do; and no less than their figure as drawn reaches from where they stand
- * (view/footing.ts restBody, 2026-11-26: a long body drawn with its trunk and tail reaches past its measured length), so
- * where their day has them stand none is drawn in another.
+ * them stands no more into one another than ours do. (Their figures as drawn, a long body's trunk and tail reaching past
+ * its measured length, are kept out of one another as drawn: render/village.ts spreadDrawn, 2026-11-26.)
  */
 export function bodyR(plan: Pick<VillagePlan, "body">): number {
   const key = plan.body ?? NO_BODY;
   let r = BODY_RS.get(key);
   if (r === undefined) {
-    const m = measuresOf(plan.body),
-      f = lifeFigure(figureOf(plan.body, 2), plan.body),
-      b = restBody(f.parts);
-    r = Math.max(
-      BODY_R,
-      Math.max(m.breadth, m.length) * 0.55,
-      ((Math.hypot(b.x, b.z) + b.r) * f.scale) / FIGURE_UNITS,
-    );
+    const m = measuresOf(plan.body);
+    r = Math.max(BODY_R, Math.max(m.breadth, m.length) * 0.55);
     BODY_RS.set(key, r);
   }
   return r;
@@ -6520,8 +6512,6 @@ export function bodyR(plan: Pick<VillagePlan, "body">): number {
 const BODY_RS = new WeakMap<object, number>();
 /** Our own body (a plan's `body` absent) as a key. */
 const NO_BODY = {};
-/** A figure's units to the metre (as the town draws it: render/village.ts M). */
-const FIGURE_UNITS = 0.1;
 
 /** No one in a cell: what a cell no one stands in holds. */
 const NO_ONE: readonly number[] = [];
