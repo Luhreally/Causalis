@@ -232,6 +232,8 @@ const SPREAD_EVERY = 6;
 const CLEAR_AGAIN = 0.05;
 /** How many are looked at for what stands about them each time they are kept apart (render/village.ts spreadDrawn). */
 const LOOKS_EACH = 24;
+/** How far one stepped aside is looked at for walls at once, not in turn (metres; render/village.ts spreadDrawn). */
+const STEP_LOOK = 0.03;
 /** How long one kept apart takes to step aside (seconds, an easing's time: two thirds of the way in it). */
 const SPREAD_EASE = 0.06;
 /** The fastest one steps aside (metres a second, over their walk: a step aside, not a jump). */
@@ -559,13 +561,16 @@ export class VillageScene {
   private ownTops: GroundTops | null = null;
   private ownLaid = 0;
   /** The tops the ground is read off (its own and its town's): a new list when either is laid anew. */
-  private feetOn: readonly (GroundTops | null)[] = [];
+  private feetOn: readonly unknown[] = [];
   /** The drawn figures' separation (view/footing.ts Spread) and what it is fed, kept between frames. */
   private readonly spreader = new Spread();
   private spreadX = new Float64Array(0);
   private spreadZ = new Float64Array(0);
   private spreadR = new Float32Array(0);
   private spreadLive = new Uint8Array(0);
+  /** Of those gathered, who is held where they stand (pushed back off a wall when last looked at), and who of the people is. */
+  private spreadHeld = new Uint8Array(0);
+  private heldBy = new Uint8Array(0);
   /** Where each one standing still was last kept out of what stands about them (metres; NaN: not yet). */
   private clearX = new Float64Array(0);
   /**
@@ -581,6 +586,7 @@ export class VillageScene {
   private carriedZ = new Float64Array(0);
   /** Whether the clock was taken on at a stride this frame (render/village.ts update). */
   private jumped = false;
+  private strode = false;
   private owing = new Int32Array(0);
   private owingIn = new Uint8Array(0);
   private owingN = 0;
@@ -614,10 +620,15 @@ export class VillageScene {
    * separation, and the posing of the folk with it (render/folk.ts); for the look tools (tools/feet-check.ts), read and
    * begun again by footCost().
    */
-  private costs = { feet: 0, spread: 0, pose: 0, frames: 0, gather: 0, core: 0 };
+  private costs = { feet: 0, spread: 0, pose: 0, frames: 0, gather: 0, core: 0, apart: 0 };
+  /**
+   * The look tools' switch (tools: frame cost with and without): none set on the ground drawn under them nor kept out of one
+   * another as drawn, as before 2026-11-26.
+   */
+  feetOff = false;
   footCost(): { feet: number; spread: number; pose: number; frames: number } {
     const c = this.costs;
-    this.costs = { feet: 0, spread: 0, pose: 0, frames: 0, gather: 0, core: 0 };
+    this.costs = { feet: 0, spread: 0, pose: 0, frames: 0, gather: 0, core: 0, apart: 0 };
     return c;
   }
   /**
@@ -696,6 +707,34 @@ export class VillageScene {
     return Number.isFinite(top) ? top : 0;
   }
 
+  /**
+   * The ground under a point as surfaceAt reads it, kept by the quarter metre it falls in until the ground is laid anew: for
+   * what is read every frame wherever it goes, a cart, a beast, a soldier (a person's is read where they stand: folk.ts).
+   */
+  private surfaceNear(x: number, z: number): number {
+    const cx = Math.round(x * 4),
+      cz = Math.round(z * 4);
+    if (cx <= -16_384 || cx >= 16_384 || cz <= -16_384 || cz >= 16_384) return this.surfaceAt(x, z);
+    // (Its colony's rock is read where it stands each time: it is laid as the colony is.)
+    if (this.plan?.colony) return this.surfaceAt(x, z);
+    const of = this.groundNow();
+    if (of !== this.nearOf || this.nearKept.size > 50_000) {
+      this.nearKept.clear();
+      this.nearOf = of;
+    }
+    const key = (cx + 16_384) * 32_768 + (cz + 16_384);
+    let y = this.nearKept.get(key);
+    if (y === undefined) {
+      const t0 = performance.now();
+      y = this.surfaceAt(cx / 4, cz / 4);
+      this.nearKept.set(key, y);
+      this.costs.feet += performance.now() - t0;
+    }
+    return y;
+  }
+  private readonly nearKept = new Map<number, number>();
+  private nearOf: unknown = null;
+
   /** Its town's ground as laid (view/footing.ts GroundTops), as read this frame; between frames, read again. */
   private topsNow(): GroundTops | null {
     if (this.topsFrame !== this.frameNo) {
@@ -718,9 +757,16 @@ export class VillageScene {
       this.ownTops = new GroundTops([...this.laid, ...this.graveyard.laid]);
       this.ownLaid = laidNow;
     }
-    const town = this.topsNow();
-    if (this.feetOn[0] !== this.ownTops || this.feetOn[1] !== town)
-      this.feetOn = [this.ownTops, town];
+    const town = this.topsNow(),
+      rise = this.townFlora.groundOf,
+      rock = this.plan?.colony ? this.colony : null;
+    if (
+      this.feetOn[0] !== this.ownTops ||
+      this.feetOn[1] !== town ||
+      this.feetOn[2] !== rise ||
+      this.feetOn[3] !== rock
+    )
+      this.feetOn = [this.ownTops, town, rise, rock];
     return this.feetOn;
   }
   /** The ground under a point as folk.ts reads it (units), its reading timed for the look tools. */
@@ -801,8 +847,9 @@ export class VillageScene {
     this.costs.spread += performance.now() - t0;
   }
 
-  private spreadDrawn(plan: VillagePlan, step: boolean): void {
-    let jump = this.jumped;
+  /** (True when they were found at once, not eased: come in, or the clock taken on at a stride.) */
+  private spreadDrawn(plan: VillagePlan, step: boolean, again = false): boolean {
+    let jump = this.jumped || again;
     const t0 = performance.now(),
       moments = this.moments,
       n = moments.length;
@@ -837,6 +884,7 @@ export class VillageScene {
       this.wantX = new Float32Array(n);
       this.wantZ = new Float32Array(n);
       this.carriedX = new Float64Array(n).fill(Number.NaN);
+      this.heldBy = new Uint8Array(n);
       this.carriedZ = new Float64Array(n);
       this.owing = new Int32Array(n);
       this.owingIn = new Uint8Array(n);
@@ -850,6 +898,7 @@ export class VillageScene {
       this.spreadOX = new Float32Array(n);
       this.spreadOZ = new Float32Array(n);
       this.spreadLive = new Uint8Array(n).fill(1);
+      this.spreadHeld = new Uint8Array(n);
     }
     // (Those drawn standing on the ground now, gathered, each at the middle of their body as it faces: most of a town's people
     // are indoors.)
@@ -879,6 +928,7 @@ export class VillageScene {
         ox = bx * c + bz * sn,
         oz = -bx * sn + bz * c;
       at[k] = i;
+      this.spreadHeld[k] = this.heldBy[i]!;
       oxs[k] = ox;
       ozs[k] = oz;
       // (Each as drawn, the more they were set aside let go a little: so a knot opens and two gone past each other close up.)
@@ -897,7 +947,7 @@ export class VillageScene {
     // (Come in, or the clock taken on at a stride: kept apart as they stand, the knots worked through, at once.)
     if (step && k > 1)
       for (let pass = jump ? 3 : 1; pass > 0; pass--)
-        this.spreader.spread(xs, zs, rs, this.spreadLive, k);
+        this.spreader.spread(xs, zs, rs, this.spreadLive, k, 2, this.spreadHeld);
     const t2 = performance.now();
     this.costs.gather += t1 - t0;
     this.costs.core += t2 - t1;
@@ -941,18 +991,29 @@ export class VillageScene {
         owe[i] === 1 ||
         (!walking &&
           !(Math.abs(toX - clearX[i]!) < CLEAR_AGAIN && Math.abs(toZ - clearZ[i]!) < CLEAR_AGAIN));
-      const look = owed && (jump || looked < LOOKS_EACH);
+      // (One stepped aside by more than a few centimetres is looked at at once, as many as are: a step aside never stands in a
+      // wall. Those stepped less or only drifted, in turn, so many a time.)
+      const dsx = p.x - wasX,
+        dsz = p.z - wasZ,
+        far = dsx * dsx + dsz * dsz > STEP_LOOK * STEP_LOOK,
+        look = owed && (jump || far || looked < LOOKS_EACH);
       if (look) {
-        looked++;
-        next = q + 1;
+        if (!far) {
+          looked++;
+          next = q + 1;
+        }
         owe[i] = 0;
         keepOut(ground, p, body);
       }
-      // (Wells, columns and trunks are looked for by the cell one stands in: each time for all but those walking their way.)
-      if (look || stepped || !walking) {
+      // (Wells, columns and trunks, by the cell one stands in: for each one looked at or stepped aside.)
+      if (look || stepped) {
         posts?.pushOut(p, body);
         trunks?.pushOut(p, body);
       }
+      // (Pushed back off a wall, a well or a trunk: held there the next time they are kept apart, the other of a pair stepping
+      // the whole way.)
+      const pushed = p.x !== xs[q]! || p.z !== zs[q]!;
+      if (look || pushed) this.heldBy[i] = pushed ? 1 : 0;
       if (look && !walking) {
         clearX[i] = p.x === wasX && p.z === wasZ ? toX : p.x - ox;
         clearZ[i] = p.x === wasX && p.z === wasZ ? toZ : p.z - oz;
@@ -979,6 +1040,7 @@ export class VillageScene {
         offZ[i] = wantZ[i]!;
       }
     this.costs.spread += performance.now() - t0;
+    return jump;
   }
 
   /** The figure one of the plan's people is drawn in: their own people's. */
@@ -1114,7 +1176,7 @@ export class VillageScene {
     this.letGoMark = new LetGoMark(stage, this.root, M);
     this.fauna = new FaunaLayer(stage, this.root);
     // (Its beasts on the ground drawn under them: its pasture, its streets.)
-    this.fauna.groundAt = (x, z) => this.surfaceAt(x, z);
+    this.fauna.groundAt = (x, z) => (this.feetOff ? 0 : this.surfaceNear(x, z));
     this.fliers = new FlierLayer(stage, this.root);
     this.work = new WorkLayer(stage, this.root);
     this.visitors = new VisitorsLayer(stage, this.root);
@@ -1133,7 +1195,7 @@ export class VillageScene {
     this.courtLayer = new CourtLayer(stage, this.root);
     this.rides = new TownTraffic(stage, this.root);
     // (Its cars and coaches on the ground drawn under them, as its people are.)
-    this.rides.groundAt = (x, z) => this.surfaceAt(x, z);
+    this.rides.groundAt = (x, z) => (this.feetOff ? 0 : this.surfaceNear(x, z));
     this.worn = new WoundsLayer(stage, this.root);
     this.litters = new LittersLayer(stage, this.root);
     this.moneyLayer = new TownMoneyLayer(stage, this.root);
@@ -3155,7 +3217,10 @@ export class VillageScene {
     const step = t - this.lastT;
     this.lastT = t;
     // (The clock taken on at a stride, or back: each one's ground and room among the rest found at once, not eased.)
-    this.jumped = step < 0 || step > JUMP_STEP;
+    const stride = step < 0 || step > JUMP_STEP;
+    // (Once, as a stride begins: the clock run on at strides frame after frame, each frame's work no more than any's.)
+    this.jumped = stride && !this.strode;
+    this.strode = stride;
     this.town.update(t);
     // (Its town's ground as laid now read again once a frame, its build gone on: what each one stands on is read off it.)
     this.frameNo++;
@@ -3327,11 +3392,13 @@ export class VillageScene {
       if (m.task === "dance" && !m.hidden) Object.assign(m, ringTurn(plan, m, screen));
     // No one stands in anyone else, nor in a soldier; and no one jumps: each is carried to
     // where their day has them, however fast the world runs.
+    const a0 = performance.now();
     keepApart(
       plan,
       targets,
       troops.filter((q) => q.size > 0.5),
     );
+    this.costs.apart += performance.now() - a0;
     const dt = this.presenceClock === null ? 0 : clock - this.presenceClock;
     this.presenceClock = clock;
     const drawn = present(
@@ -3359,9 +3426,17 @@ export class VillageScene {
     // own bodies apart.)
     // (Out of what stands about them every sixth frame, out of one another every twelfth: where they are stepped to is where
     // they are carried on from, so they stay apart between; two come together are parted within a fifth of a second.)
-    if (SPREAD_ON && !this.posed) this.easeApart(plan, dt);
-    if (SPREAD_ON && !this.posed && (this.jumped || this.frameNo % SPREAD_EVERY === 0))
-      this.spreadDrawn(plan, this.jumped || this.frameNo % (2 * SPREAD_EVERY) === 0);
+    if (SPREAD_ON && !this.posed && !this.feetOff) this.easeApart(plan, dt);
+    if (
+      SPREAD_ON &&
+      !this.posed &&
+      !this.feetOff &&
+      (this.jumped || this.frameNo % SPREAD_EVERY === 0)
+    ) {
+      // (Come in, or the clock taken on at a stride: worked through thrice at once, those pushed back off a wall held.)
+      if (this.spreadDrawn(plan, this.jumped || this.frameNo % (2 * SPREAD_EVERY) === 0))
+        for (let again = 0; again < 2; again++) this.spreadDrawn(plan, true, true);
+    }
     // (Carried to where their day has them and kept apart, none is drawn nearer a block than their body as it strides and plays
     // and a street piece's depth (view/networks.ts): no one walks through a hydrant or a box by its kerb.)
     if (plan.town) {
@@ -3505,7 +3580,8 @@ export class VillageScene {
     const f1 = performance.now();
     /** A part of person i's figure, where it is now. */
     const place = this.folk.pose({
-      ground: this.groundFn,
+      ground: this.feetOff ? null : this.groundFn,
+      unfooted: this.feetOff,
       jumped: this.jumped,
       groundOf,
       plan,
@@ -3534,7 +3610,8 @@ export class VillageScene {
         for (let i = 0; i < this.moments.length; i++)
           o.moments[i] = otherOf[i] === k ? this.moments[i]! : UNSEEN;
         o.folk.pose({
-          ground: this.groundFn,
+          ground: this.feetOff ? null : this.groundFn,
+          unfooted: this.feetOff,
           jumped: this.jumped,
           groundOf,
           plan: o.plan,
@@ -3704,7 +3781,8 @@ export class VillageScene {
         }
       };
       this.troopFeet.clear();
-      for (const q of troops) this.troopFeet.set(q, this.surfaceAt(q.x, q.z) * M);
+      for (const q of troops)
+        this.troopFeet.set(q, this.feetOff ? 0 : this.surfaceNear(q.x, q.z) * M);
       this.fallenParts(troops);
       this.soldiers.forEach((batches, side) =>
         batches.forEach((batch, pi) =>

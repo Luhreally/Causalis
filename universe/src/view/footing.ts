@@ -75,6 +75,11 @@ export type FootedFigure = {
   readonly surface: number;
   /** How high it is in the air at a hop as it plays or dances (units; its lowest point stands so far over the surface). */
   readonly hop?: number;
+  /**
+   * The ground it is drawn set on now, where that is eased onto the surface (units; absent: the surface): a step up a kerb or
+   * down off a yard as it is taken.
+   */
+  readonly settling?: number;
   /** Where it stands, and whether lying. */
   readonly x: number;
   readonly z: number;
@@ -180,6 +185,8 @@ export type FeetTally = {
   /** Lowest point more than the tolerance below the surface, or above it (not at a hop: a hop is within a body's own bob). */
   sunk: number;
   floating: number;
+  /** Off the surface only as a step up or down is taken (set on the ground it is eased onto: `settling`). */
+  stepping: number;
   /** The deepest sunk and the highest floating (metres). */
   deepest: number;
   highest: number;
@@ -212,6 +219,7 @@ export function feetTally(
     figures: figures.length,
     sunk: 0,
     floating: 0,
+    stepping: 0,
     deepest: 0,
     highest: 0,
     pairs: 0,
@@ -223,7 +231,13 @@ export function feetTally(
   let reach = 0;
   for (const f of figures) {
     const off = (f.lowest - f.surface - (f.hop ?? 0)) / metre;
-    if (off < -tolerance) {
+    if (
+      Math.abs(off) > tolerance &&
+      f.settling !== undefined &&
+      Math.abs(f.lowest - f.settling - (f.hop ?? 0)) / metre <= tolerance
+    )
+      t.stepping++;
+    else if (off < -tolerance) {
       t.sunk++;
       t.deepest = Math.max(t.deepest, -off);
     } else if (off > tolerance) {
@@ -593,6 +607,8 @@ export class Spread {
     live: Uint8Array,
     n: number,
     passes = 2,
+    /** Those held where they stand (against a wall, say): the other of a pair steps the whole way. */
+    held: Uint8Array | null = null,
   ): number {
     let most = 0,
       fed = 0;
@@ -668,10 +684,13 @@ export class Spread {
               ux = ax / d;
               uz = az / d;
             }
-            xs[i] = xs[i]! - ux * each;
-            zs[i] = zs[i]! - uz * each;
-            xs[j] = xs[j]! + ux * each;
-            zs[j] = zs[j]! + uz * each;
+            const hi = held?.[i] ?? 0,
+              hj = held?.[j] ?? 0,
+              wi = hi && !hj ? 0 : hj && !hi ? 2 : 1;
+            xs[i] = xs[i]! - ux * each * wi;
+            zs[i] = zs[i]! - uz * each * wi;
+            xs[j] = xs[j]! + ux * each * (2 - wi);
+            zs[j] = zs[j]! + uz * each * (2 - wi);
             stepped++;
             any = true;
           }
