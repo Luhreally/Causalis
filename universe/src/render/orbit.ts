@@ -107,6 +107,12 @@ export class OrbitRig {
   } | null = null;
   /** Told when the viewer moves the view on (a person followed is let go). */
   onLetGo: (() => void) | null = null;
+  /**
+   * Whether a finger's drag over the land lets a person followed go and takes the ground, as it does with no one
+   * followed (the town's eye, asked 2026-11-26: on a phone the drag turned about the one followed, and nothing but a key
+   * let them go). Off: a drag turns about them (the god game's).
+   */
+  dragLetsGo = false;
   /** True once the viewer has zoomed by hand; fitting then leaves the distance alone. */
   userZoomed = false;
   /**
@@ -219,7 +225,7 @@ export class OrbitRig {
         e.button === 2 ||
         e.altKey ||
         e.ctrlKey ||
-        this.follow !== null;
+        (this.follow !== null && !this.dragLetsGo);
       const rect = element.getBoundingClientRect(),
         paint =
           this.pointers.size === 0 &&
@@ -294,6 +300,11 @@ export class OrbitRig {
       }
       if (Math.hypot(p.x - p.startX, p.y - p.startY) >= 6) p.tap = false;
       if (this.pointers.size === 1) {
+        // (A drag, not a tap, over the land: one followed is let go, where a drag may.)
+        if (!p.turn && !p.tap && this.follow && this.dragLetsGo) {
+          this.follow = null;
+          this.onLetGo?.();
+        }
         if (p.turn) this.turnBy(dx, dy);
         else this.grab(fromX, fromY, e.clientX, e.clientY);
       } else if (this.pointers.size === 2) {

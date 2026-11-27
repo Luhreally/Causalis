@@ -26,7 +26,6 @@ import {
   townsOf,
   type Settlement,
 } from "../../src/sim/index.ts";
-import { EARTH } from "../../src/host/index.ts";
 import {
   enterPlace,
   placeDigest,
@@ -35,7 +34,7 @@ import {
 } from "../../src/host/place.ts";
 import { placeFrame } from "../../src/host/placeplan.ts";
 import { inspectPerson } from "../../src/host/placeinspect.ts";
-import { universeWorld } from "./worlds.ts";
+import { PLACE_UNIVERSE, placeWorld } from "./worlds.ts";
 
 const BLOWS = Object.keys(TISSUE_REACH) as Blow[];
 
@@ -81,12 +80,12 @@ test("a wound's tissue by its bleeding's draw: the deeper the harder; each blow'
   );
 });
 
-const base = (): World => universeWorld(EARTH, "first light", 150);
+const base = (): World => placeWorld(150);
 const copy = (w: World): World => {
   const doc = JSON.parse(
-    JSON.stringify(saveWorld(w, "r", { universe: "earth" })),
+    JSON.stringify(saveWorld(w, "r", { universe: PLACE_UNIVERSE.name })),
   );
-  return loadWorld(doc, (s) => EARTH.build(s), "r").world;
+  return loadWorld(doc, (s) => PLACE_UNIVERSE.build(s), "r").world;
 };
 const near = (w: World, people: number): Settlement => {
   const ctx = populationContext(w);

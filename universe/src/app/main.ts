@@ -1108,6 +1108,8 @@ type Exposed = {
       watching: PlaceFlow["watching"];
       captioned: PlaceFlow["captioned"];
       inspected: PlaceFlow["inspected"];
+      /** Whether the eye is kept with anyone (🎯, or one a town watched goes with). */
+      following: boolean;
     };
     /** How the town entered is run, chosen; and in one watched, the stay key and the next. */
     mode(mode: PlaceMode): Promise<void>;
@@ -1115,6 +1117,10 @@ type Exposed = {
     watchNext(): void;
     /** The mode's inspector opened on a ref (null: closed), and at a height; how tall its people stand (px). */
     inspect(ref: string | null): void;
+    /** The inspector's Back key: the one before, the eye where it was; from the first, closed. */
+    back(): void;
+    /** Its Forward key: the one gone back from, again. */
+    ahead(): void;
     inspectHeight(h: "peek" | "half" | "full"): void;
     figurePx(): number;
     reframe(): void;
@@ -10908,6 +10914,8 @@ async function runPlanetPage(): Promise<void> {
     watchStay: (on: boolean) => placeFlow.watchStay(on),
     watchNext: () => placeFlow.watchNext(),
     inspect: (ref: string | null) => placeFlow.inspect(ref),
+    back: () => placeFlow.back(),
+    ahead: () => placeFlow.ahead(),
     inspectHeight: (h: "peek" | "half" | "full") => placeFlow.inspectHeight(h),
     figurePx: () => placeFlow.figurePx(),
     reframe: () => placeFlow.reframe(),
@@ -10924,6 +10932,7 @@ async function runPlanetPage(): Promise<void> {
       watching: placeFlow.watching,
       captioned: placeFlow.captioned,
       inspected: placeFlow.inspected,
+      following: placeFlow.following,
     }),
   };
   // (A page's Go to, from a home: the home closed, then gone to.)

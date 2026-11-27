@@ -6,7 +6,6 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { DAY, HOUR, loadWorld, saveWorld, type World } from "../../src/kernel/index.ts";
 import { populationContext, townsOf } from "../../src/sim/index.ts";
-import { EARTH } from "../../src/host/index.ts";
 import {
   FRIEND_AT,
   HAP,
@@ -24,11 +23,11 @@ import {
 } from "../../src/host/place.ts";
 import { placeFrame } from "../../src/host/placeplan.ts";
 import { inspectPerson } from "../../src/host/placeinspect.ts";
-import { universeWorld } from "./worlds.ts";
+import { PLACE_UNIVERSE, placeWorld } from "./worlds.ts";
 
 const copy = (w: World): World => {
-  const doc = JSON.parse(JSON.stringify(saveWorld(w, "r", { universe: "earth" })));
-  return loadWorld(doc, (s) => EARTH.build(s), "r").world;
+  const doc = JSON.parse(JSON.stringify(saveWorld(w, "r", { universe: PLACE_UNIVERSE.name })));
+  return loadWorld(doc, (s) => PLACE_UNIVERSE.build(s), "r").world;
 };
 const near = (w: World, people: number) => {
   const ctx = populationContext(w);
@@ -58,7 +57,7 @@ const temperGap = (place: Parameters<typeof placeTemper>[0], i: number, j: numbe
 };
 
 test("each knows up to a dozen, likes those alike, quarrels with rivals; kept in the save", () => {
-  const w = universeWorld(EARTH, "first light", 150),
+  const w = placeWorld(150),
     s = near(w, 500),
     place = enterPlace(w, s.ref)!;
   // (Its columns read afresh after a watch: a place's people grow into new ones as births pass what they held.)

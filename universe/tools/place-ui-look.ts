@@ -224,7 +224,9 @@ for (const view of [
       "(() => { const v = globalThis.causalis.stage?.device?._vram; return v ? { tex: v.tex, vb: v.vb, ib: v.ib } : null; })()",
     );
   const mb = (v: { tex: number; vb: number; ib: number } | null) =>
-    v ? `${((v.tex + v.vb + v.ib) / 1048576).toFixed(1)} MB (textures ${(v.tex / 1048576).toFixed(1)}, meshes ${((v.vb + v.ib) / 1048576).toFixed(1)})` : "not told";
+    v
+      ? `${((v.tex + v.vb + v.ib) / 1048576).toFixed(1)} MB (textures ${(v.tex / 1048576).toFixed(1)}, meshes ${((v.vb + v.ib) / 1048576).toFixed(1)})`
+      : "not told";
   const godVram = await vram();
   say(`graphics memory before the town is run: ${mb(godVram)}`);
 
@@ -394,6 +396,28 @@ for (const view of [
     );
     check((await shown(".page-window:not([hidden])")) === 0, "no page of the god game's opens");
     await look("12-insp-first", "one of its people inspected");
+    const clipped = () =>
+      k<string[]>(
+        `[...document.querySelectorAll(".place-insp button")].filter((b) => { const r = b.getBoundingClientRect(); return r.width > 0 && b.scrollWidth > b.clientWidth + 1; }).map((b) => b.className + " " + JSON.stringify(b.textContent))`,
+      );
+    {
+      // (On a phone its tabs are under its peek: at half the screen.)
+      if (phone) {
+        await k('globalThis.causalis.place.inspectHeight("half")');
+        await page.waitForTimeout(400);
+      }
+      await press('.place-insp-tab[data-tab="mood"]', "the Mood tab, to show the tabs");
+      const cut = await clipped();
+      check(
+        cut.length === 0,
+        `no key of the inspector's cut short (${cut.slice(0, 4).join("; ")})`,
+      );
+      await press('.place-insp-tab[data-tab="now"]', "back to the first tab");
+      if (phone) {
+        await k('globalThis.causalis.place.inspectHeight("peek")');
+        await page.waitForTimeout(400);
+      }
+    }
     say(`inspector: ${(await text(".place-insp")).slice(0, 400)}`);
     if (phone) {
       await press(".place-insp-handle", "the inspector's handle, to half");
@@ -447,11 +471,143 @@ for (const view of [
     await press('.place-tab[data-tab="people"]', "the People tab, the inspector open");
     await page.waitForTimeout(1200);
     await look("18-insp-and-sheet", "the inspector over a sheet");
+    {
+      const was = (await inspected()).ref,
+        rows = await k<number>(`document.querySelectorAll(".place-person-row").length`);
+      if (rows > 1) {
+        await k(
+          `(() => { const want = ${JSON.stringify(was)}; for (const b of document.querySelectorAll(".place-person-row")) { b.scrollIntoView({ block: "center" }); return true; } })()`,
+        );
+        await page.waitForTimeout(300);
+        await press(".place-person:nth-child(2) .place-person-row", "a row of the People sheet");
+        await until(
+          "one opened from the People sheet",
+          async () => (await inspected()).ref !== was,
+          8000,
+        );
+        await press(".place-insp-back", "‹ Back from one opened from the People sheet");
+        await until(
+          "Back to the one before the sheet's",
+          async () => (await inspected()).ref === was,
+          8000,
+        );
+      } else say("the People sheet has no rows to open");
+    }
     await press(".place-sheet-shut", "the sheet's close");
-    await press(".place-insp-follow", "follow");
-    await page.waitForTimeout(800);
+    // Every way back (asked 2026-11-26: "it doesnt let me click back when i click on person/like follow closesly"):
+    // each lets the eye go of whom it was kept with and leads back, from Follow closely and 🎯 alike.
+    const now = () =>
+        k<{ following: boolean; inspected: Inspected }>("globalThis.causalis.place.state()"),
+      reopen = async (what: string) => {
+        await k(`globalThis.causalis.place.inspect(null)`);
+        await k(`globalThis.causalis.place.inspect(${JSON.stringify(ins.ref)})`);
+        await until(what, async () => !/^…?$/.test(await text(".place-insp-name")), 8000);
+        if (phone) await k('globalThis.causalis.place.inspectHeight("peek")');
+        await page.waitForTimeout(300);
+      },
+      kept = async (what: string) => {
+        await press(".place-insp-follow", `🎯 ${what}`);
+        await page.waitForTimeout(600);
+        check((await now()).following, `${what}: the eye is kept with them`);
+      };
+    // (From the first opened: what was looked at before closed, then it opened anew.)
+    await reopen("opened first");
+    if (phone) await k('globalThis.causalis.place.inspectHeight("half")');
+    await page.waitForTimeout(300);
+    if ((await shown(".place-insp-pin")) > 0) await press(".place-insp-pin", "☆ Follow closely");
+    if (phone) await k('globalThis.causalis.place.inspectHeight("peek")');
+    await page.waitForTimeout(300);
+    await kept("followed closely");
     await look("19-insp-follow", "the eye kept with them");
-    await press(".place-insp-follow", "follow, let go");
+    await press(".place-insp-back", "‹ Back, from the first");
+    await page.waitForTimeout(900);
+    {
+      const s = await now();
+      check(
+        !s.following && s.inspected.ref === null,
+        `Back from the first lets the eye go and closes (${JSON.stringify(s.inspected.ref)}, ${s.following})`,
+      );
+    }
+    await look("19b-back-closed", "Back from the first: closed, the eye where it was");
+    // ×.
+    await reopen("reopened for ×");
+    await kept("for ×");
+    await press(".place-insp-shut", "× with the eye kept");
+    {
+      const s = await now();
+      check(!s.following && s.inspected.ref === null, "× closes and lets the eye go");
+    }
+    // A drag over the land: the eye let go, the inspector left open.
+    await reopen("reopened for a drag");
+    await kept("for a drag");
+    {
+      const vp = page.viewportSize()!,
+        y = vp.height * 0.3;
+      await page.mouse.move(vp.width * 0.3, y);
+      await page.mouse.down();
+      for (let s = 1; s <= 6; s++) await page.mouse.move(vp.width * (0.3 + s * 0.05), y + s * 4);
+      await page.mouse.up();
+      await page.waitForTimeout(500);
+      const s = await now();
+      check(!s.following && s.inspected.ref === ins.ref, "a drag over the land lets the eye go");
+    }
+    // To another (as a thought's source or a friend's name leads), then Back to the first.
+    const other = await k<string | null>(
+      `globalThis.causalis.client.query({ type: "place.people", args: { ref: ${JSON.stringify(town.ref)}, occ: null } }).then((s) => { const r = s?.rows.find((r) => \`plc:${town.ref}:\${r.id}\` !== ${JSON.stringify(ins.ref)}); return r ? \`plc:${town.ref}:\${r.id}\` : null; })`,
+    );
+    if (other) {
+      await kept("before going to another");
+      await k(`globalThis.causalis.place.inspect(${JSON.stringify(other)})`);
+      await until("the other inspected", async () => (await now()).inspected.ref === other, 8000);
+      await page.waitForTimeout(600);
+      await look("19c-to-another", "another inspected, Back to the first");
+      say(`back key: ${await text(".place-insp-back")}`);
+      await press(".place-insp-back", "‹ Back to the first");
+      await until("Back to the first", async () => (await now()).inspected.ref === ins.ref, 8000);
+      check(!(await now()).following, "Back from another: the eye let go");
+      check(
+        !(await k<boolean>(`document.querySelector(".place-insp-ahead")?.disabled ?? true`)),
+        "Forward is lit, the one gone back from ahead",
+      );
+      await press(".place-insp-ahead", "› Forward to the other again");
+      await until("Forward to the other", async () => (await now()).inspected.ref === other, 8000);
+      await look("19d-forward", "Forward: the other again");
+      check(
+        await k<boolean>(`document.querySelector(".place-insp-ahead")?.disabled ?? false`),
+        "Forward greyed, nothing ahead",
+      );
+      await press(".place-insp-back", "‹ Back to the first again");
+      await until(
+        "Back to the first again",
+        async () => (await now()).inspected.ref === ins.ref,
+        8000,
+      );
+      // Escape: closed, the eye let go.
+      await kept("for Escape");
+      await page.keyboard.press("Escape");
+      await page.waitForTimeout(500);
+      {
+        const s = await now();
+        check(!s.following && s.inspected.ref === null, "Escape lets the eye go and closes");
+      }
+      // A tap on the bare ground: closed, the eye let go. (Well clear of anyone: a tap within TAP_REACH, 44 px, of one
+      // chooses them, and they walk while it is found. On the scene's canvas, not a portrait's: at desk the first spot
+      // found was the inspector's portrait, docked at the left, and the click met it, not the town.)
+      await reopen("reopened for a tap on the ground");
+      await kept("for a tap on the ground");
+      const bare = await k<{ x: number; y: number } | null>(
+        `(() => { const c = globalThis.causalis, W = innerWidth, H = innerHeight; for (let y = H * 0.2; y < H * 0.6; y += 23) for (let x = 20; x < W - 20; x += 29) { { const e = document.elementFromPoint(x, y); if (e?.tagName !== "CANVAS" || e.closest(".place-insp, .place-sheet, .place-hud")) continue; } let near = false; const n = c.planNow().people.length; for (let i = 0; i < n && !near; i++) { const p = c.personOnScreen(i); if (p && Math.hypot(p.x - x, p.y - y) < 70) near = true; } if (!near) return { x, y }; } return null; })()`,
+      );
+      if (bare) {
+        await tap(bare.x, bare.y);
+        await page.waitForTimeout(600);
+        const s = await now();
+        check(!s.following, "a tap beside them on the town lets the eye go");
+        // (Where a lot lay under it, that lot is opened instead.)
+        if (/^plcl:/.test(s.inspected.ref ?? "")) say("the tap met a lot: it opened");
+        else check(s.inspected.ref === null, "a tap on the bare ground closes");
+      } else say("no bare ground on the screen to tap");
+    } else say("no other of its people to go to");
   }
   // A building's inspector.
   const lot = await k<number | null>(
@@ -471,7 +627,11 @@ for (const view of [
   );
   for (const [ref, still, words] of [
     [made.ref, "20b-insp-making", "a building where a good is made, its bills"],
-    [made.market !== null ? `plcl:${town.ref}:${made.market + 3}` : null, "20c-insp-market", "the market, what it takes"],
+    [
+      made.market !== null ? `plcl:${town.ref}:${made.market + 3}` : null,
+      "20c-insp-market",
+      "the market, what it takes",
+    ],
   ] as const) {
     if (!ref) continue;
     await k(`globalThis.causalis.place.inspect(${JSON.stringify(ref)})`);
@@ -556,6 +716,70 @@ for (const view of [
     "no overlay once put away",
   );
 
+  // The people bar's pins in the town's People sheet (asked 2026-11-26: "people i have pinned from that town should be in
+  // the people tab"): one of its people pinned on the bar and one pinned who is no one of it; the Pinned chip first,
+  // the one of it first in All, marked, followed in full; the other greyed under the chip; each let go of by its key.
+  {
+    const row = await k<{ ref: string; name: string; id: number } | null>(
+      `globalThis.causalis.client.query({ type: "place.people", args: { ref: ${JSON.stringify(town.ref)}, occ: null } }).then((s) => { const r = s?.rows.find((x) => !x.ref.startsWith("plc:")) ?? s?.rows[3]; return r ? { ref: r.ref, name: r.name, id: r.id } : null; })`,
+    );
+    // (One who is elsewhere: the first the people bar puts before the world as a whole, of no town.)
+    const far = await k<{ ref: string; name: string } | null>(
+      `globalThis.causalis.client.query({ type: "people.bar", args: { cell: null, town: null, pins: [], followed: [] } }).then((r) => { const x = r?.people.find((y) => !y.gone && !y.ref.startsWith("plc:")); return x ? { ref: x.ref, name: x.name } : null; })`,
+    );
+    if (row && far) {
+      await k(`(() => { const b = globalThis.causalis.barPins; for (const x of [...b.all]) b.off(x.ref); b.toggle(${JSON.stringify(row.ref)}, ${JSON.stringify(row.name)}); b.toggle(${JSON.stringify(far.ref)}, ${JSON.stringify(far.name)}); })()`);
+      await page.waitForTimeout(1200);
+      await press('.place-tab[data-tab="people"]', "the People tab, two pinned");
+      await page.waitForTimeout(1500);
+      const ref = JSON.stringify(row.ref),
+        fake = JSON.stringify(far.ref),
+        chip = await text(".place-chip-pinned"),
+        here = await k<number>(
+          `globalThis.causalis.client.query({ type: "place.people", args: { ref: ${JSON.stringify(town.ref)}, occ: 102, pins: globalThis.causalis.barPins.all.map((x) => x.ref) } }).then((s) => s?.pinned ?? -1)`,
+        ),
+        bar = await k<number>("globalThis.causalis.barPins.all.length");
+      say(`pinned: chip "${chip}", ${here} of its people pinned, ${bar} on the bar; first row "${(await text(".place-person-row")).slice(0, 60)}"`);
+      check(chip.endsWith(` ${here + 1}`), `the Pinned chip counts its pinned and the one elsewhere (${chip}; ${here} + 1)`);
+      check(
+        await k<boolean>(`document.querySelector(".place-person-row")?.classList.contains("pinned") ?? false`),
+        "the pinned first in All, marked",
+      );
+      await press(".place-chip-pinned", "📌 Pinned");
+      await page.waitForTimeout(1500);
+      check(
+        await k<boolean>(`!!document.querySelector(\`.place-person[data-ref=\${JSON.stringify(${ref})}] .place-person-row.pinned\`)`),
+        "under the chip: the one of it pinned on the bar",
+      );
+      check(
+        (await shown(".place-away-row")) === 1 && (await text(".place-away-row")).includes(far.name),
+        `under the chip: the one elsewhere, greyed, with where they are (${await text(".place-away")})`,
+      );
+      await look("23-pinned", "the pinned, here and elsewhere");
+      const tier = await k<string>(
+        `globalThis.causalis.client.query({ type: "place.inspect", args: { ref: ${JSON.stringify(town.ref)}, of: ${JSON.stringify(`plc:${town.ref}:${row.id}`)} } }).then((x) => (x?.tier ? \`\${x.tier.pinned ? "pinned: " : ""}\${x.tier.words}\` : ""))`,
+      );
+      say(`the one pinned, as its tier reads: ${tier}`);
+      check(/^pinned: .*full/i.test(tier), `the one pinned is followed in full, by word (${tier})`);
+      await press(`.place-person[data-ref=${fake}] .place-row-unpin`, "📌✕ the one elsewhere");
+      await page.waitForTimeout(1500);
+      check((await shown(".place-away-row")) === 0, "the one elsewhere let go of");
+      await press(`.place-person[data-ref=${ref}] .place-row-unpin`, "📌✕ the one of it");
+      await page.waitForTimeout(1500);
+      check(
+        !(await k<boolean>(`globalThis.causalis.barPins.has(${ref}) || globalThis.causalis.barPins.has(${fake})`)),
+        "both off the people bar",
+      );
+      check(
+        !(await k<boolean>(`!!document.querySelector(\`.place-person[data-ref=\${JSON.stringify(${ref})}]\`)`)),
+        "the one of it no longer under the chip",
+      );
+      await k(`[...document.querySelectorAll(".place-chip")].find((b) => /^All/.test(b.textContent ?? ""))?.click()`);
+      await page.waitForTimeout(600);
+      await press(".place-sheet-shut", "the sheet's close");
+    } else say("no one of it, or no one elsewhere, to pin");
+  }
+
   // The night: its people still to be told apart.
   await toHour(22, 24, "the town's night");
   await page.waitForTimeout(1500);
@@ -572,6 +796,34 @@ for (const view of [
   await press('.place-mode-choice[data-mode="watch"]', "👁 Watch it");
   await page.waitForTimeout(3000);
   await look("11-watch", "the town watched");
+  // (Watched: one of its people tapped, the eye goes with them; Back lets it go and closes.)
+  {
+    const one = await k<{ x: number; y: number } | null>(
+      `(() => { const c = globalThis.causalis, n = c.planNow().people.length, W = innerWidth, H = innerHeight; for (let i = 0; i < n; i++) { const p = c.personOnScreen(i); if (p && p.x > 8 && p.x < W - 8 && p.y > H * 0.15 && p.y < H * 0.6 && (() => { const e = document.elementFromPoint(p.x, p.y); return e?.tagName === "CANVAS" && !e.closest(".place-insp, .place-sheet, .place-hud"); })()) return { x: p.x, y: p.y }; } return null; })()`,
+    );
+    if (one) {
+      await k("globalThis.causalis.place.inspect(null)");
+      await tap(one.x, one.y);
+      await until(
+        "one watched inspected",
+        async () => /^plc/.test((await inspected()).ref ?? ""),
+        8000,
+      );
+      await page.waitForTimeout(800);
+      check(
+        (await k<{ following: boolean }>("globalThis.causalis.place.state()")).following,
+        "watched: the eye goes with the one tapped",
+      );
+      await look("11b-watch-with", "the town watched, the eye with one of its people");
+      await press(".place-insp-back", "‹ Back, watched");
+      await page.waitForTimeout(800);
+      const s = await k<{ following: boolean; inspected: { ref: string | null } }>(
+        "globalThis.causalis.place.state()",
+      );
+      check(!s.following, "watched: Back lets the eye go");
+      check(s.inspected.ref === null, `watched: Back from the first closes (${s.inspected.ref})`);
+    } else say("watched: no one on the screen to tap");
+  }
   await press(".place-mode", "how it is run");
   await press('.place-mode-choice[data-mode="hand"]', "✋ Run it");
   await page.waitForTimeout(800);

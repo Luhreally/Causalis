@@ -104,6 +104,10 @@ if (mode === "second") {
     // (Nothing of it stands to burn, or nothing burns in its air: no fire.)
   }
   go(w, ref, 6);
+  // (And on, three hours at a time, until something waits in it to be lived: what the save is to hold. A small town's
+  // month brings it a few lives to live, at days drawn across the month, and some months none: to its next month's turn at
+  // the most. The same in every mode, so that the whole and the two halves go the same hours.)
+  for (let h = 6; h < 40 * 24 && !placeDue(placesOf(w)!.get(ref)!).length; h += 3) go(w, ref, 3);
   if (mode === "first") {
     writeFileSync(b!, gzipSync(JSON.stringify(saveWorld(w, "r", { universe: "earth" }))));
     // (What waits for it to live, kept in the save: so many, of which kinds.)

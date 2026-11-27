@@ -9,7 +9,6 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { DAY, HOUR, loadWorld, saveWorld, type World } from "../../src/kernel/index.ts";
 import { populationContext, townsOf, type Settlement } from "../../src/sim/index.ts";
-import { EARTH } from "../../src/host/index.ts";
 import {
   ACT,
   BREAK,
@@ -26,12 +25,12 @@ import {
 } from "../../src/host/place.ts";
 import { placeFrame, placeNotices } from "../../src/host/placeplan.ts";
 import { inspectLot } from "../../src/host/placeinspect.ts";
-import { universeWorld } from "./worlds.ts";
+import { PLACE_UNIVERSE, placeWorld } from "./worlds.ts";
 
-const base = (): World => universeWorld(EARTH, "first light", 150);
+const base = (): World => placeWorld(150);
 const copy = (w: World): World => {
-  const doc = JSON.parse(JSON.stringify(saveWorld(w, "r", { universe: "earth" })));
-  return loadWorld(doc, (s) => EARTH.build(s), "r").world;
+  const doc = JSON.parse(JSON.stringify(saveWorld(w, "r", { universe: PLACE_UNIVERSE.name })));
+  return loadWorld(doc, (s) => PLACE_UNIVERSE.build(s), "r").world;
 };
 const near = (w: World, people: number): Settlement => {
   const ctx = populationContext(w);
@@ -81,7 +80,12 @@ test("a mood past bearing breaks, as its temper has it, and is lighter after; wh
   assert.ok(broke > 0, "a mood at the bottom breaks");
   assert.ok(seen > 0, "one broken down is at their break");
   assert.ok(alerted, "the alert column tells it");
-  assert.ok([...hows].every((x) => x === BREAK.wander || x === BREAK.binge || x === BREAK.wreck));
+  assert.ok(
+    [...hows].every(
+      (x) => x === BREAK.wander || x === BREAK.binge || x === BREAK.wreck || x === BREAK.pray,
+    ),
+    `each break one of its four (${[...hows].join(", ")})`,
+  );
   // Spent within the day, and lighter after.
   watch(w, s.ref, 12);
   const q = placesOf(w)!.get(s.ref)!.people;
@@ -89,6 +93,10 @@ test("a mood past bearing breaks, as its temper has it, and is lighter after; wh
   for (let i = 0; i < q.n; i++)
     if (placeMoodTerms(w, place, i).some((t) => t.thought === THOUGHT.catharsis && t.size > 0)) relieved++;
   assert.ok(relieved > 0, "a break spent is a relief");
+  // (None outlives its end, held by its justice or not.)
+  const left = place.breaks ?? [];
+  for (let k = 0; k < left.length; k += 3)
+    assert.ok(left[k + 2]! > place.t - HOUR, "a break runs out, held or not");
   // What was spoiled, and blows, brought before its justice as far as its court reaches, by its realm's own law.
   const law = placeLaw(w, place);
   assert.ok(law.reach >= 0 && law.reach <= 1 && law.harsh >= 0 && law.harsh <= 1);

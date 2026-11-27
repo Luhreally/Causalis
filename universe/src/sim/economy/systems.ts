@@ -1198,14 +1198,18 @@ function reprice(
   const life = ctx.life,
     pop = mouths(p, life),
     workers = workersOf(p);
-  // Foods stand in for one another: one scarcity for all three.
-  let eaten = 0,
+  // Foods stand in for one another: one scarcity for all three. What its people will want of them, against what came to hand in
+  // the year (made there and brought) and what is put by. (Read against what was eaten, a land living on its stores saw none
+  // of its want until they were gone: what it ate of them was counted as what it had. Land 1635 of first light, herders who grow
+  // no grain, ate down a lading of nine thousand over four years at a price of 0.6 of its worth, and traders brought the next
+  // only after its famine, one in five years in lockstep: 36 famines in the century from 500.)
+  let had = 0,
     kept = 0;
   for (const g of FOODS) {
-    eaten += m.line("used", g);
+    had += m.line("made", g) + m.line("in", g);
     kept += m.stock[g]!;
   }
-  const foodScarcity = (pop * 12 * 1.5) / (eaten + kept + 1),
+  const foodScarcity = (pop * 12 * 1.5) / (had + kept + 1),
     w = m.wage,
     living = (12 * pop) / workers,
     outside = Math.max(living, w[OCC.farmer]!, w[OCC.forager]!, w[OCC.herder]!),

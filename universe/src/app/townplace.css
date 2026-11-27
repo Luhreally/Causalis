@@ -374,7 +374,7 @@ body.placing > .sound-button {
   gap: 4px;
 }
 .place-person-orders {
-  grid-column: 1 / span 2;
+  grid-column: 1 / -1;
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
@@ -848,6 +848,35 @@ body.placing .page-window {
   border-radius: 3px;
   background: rgba(190, 205, 255, 0.6);
 }
+.place-insp-top {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 4px;
+}
+/* (Its other keys at the row's end, where the handle is hidden: docked at a desk.) */
+.place-insp-top .place-insp-keys {
+  margin-left: auto;
+}
+.place-insp-top .place-insp-handle {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+}
+/* (Back: a key a fingertip wide, its words cut short before the handle beside it is.) */
+.place-hud .place-insp-back,
+.place-hud .place-insp-ahead {
+  flex: 0 0 auto;
+  min-width: 44px;
+  font-size: 26px;
+  line-height: 1;
+}
+/* (A key with nothing to go to: greyed, and not pressed.) */
+.place-hud .place-insp-key:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
 .place-insp-head {
   flex: 0 0 auto;
   display: flex;
@@ -1005,17 +1034,13 @@ body.placing .page-window {
   gap: 4px;
   margin: 4px 0;
 }
+/* (Eight tabs: two rows of four, at every width: the inspector is never wider than 360 px docked, and a row of eight cut
+   their names short, "Mooc", "Heal", "Socia".) */
 .place-hud .place-insp-tab {
-  flex: 1 1 0;
-  min-width: 0;
+  flex: 1 1 22%;
+  min-width: 44px;
   padding: 0 4px;
-}
-/* (Eight tabs: two rows of four where a row of eight would leave each narrower than a fingertip.) */
-@media (max-width: 560px) {
-  .place-hud .place-insp-tab {
-    flex: 1 1 22%;
-    min-width: 44px;
-  }
+  white-space: nowrap;
 }
 .place-insp-facts {
   display: grid;
@@ -1263,6 +1288,20 @@ h3.place-insp-sub {
 .place-hud .place-row-order {
   padding: 0 8px;
   font-size: 12px;
+}
+/* Those pinned (the people bar's 📌, or followed by your word): first, marked, with a key to let them go; the pinned who
+   are elsewhere or gone greyed under them. */
+.place-person:has(.place-row-unpin) {
+  grid-template-columns: 1fr auto auto;
+}
+.place-hud .place-row-unpin {
+  min-width: 44px;
+}
+.place-hud .place-person-row.pinned {
+  border-left-color: #f0d68c;
+}
+.place-away .place-person-row {
+  opacity: 0.55;
 }
 .place-table {
   display: flex;

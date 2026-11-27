@@ -11,7 +11,6 @@ import {
   societyStore,
   townsOf,
 } from "../../src/sim/index.ts";
-import { EARTH } from "../../src/host/index.ts";
 import {
   ACT,
   THOUGHT,
@@ -24,7 +23,7 @@ import {
 } from "../../src/host/place.ts";
 import { placeDayRows, placeFrame } from "../../src/host/placeplan.ts";
 import { inspectPerson } from "../../src/host/placeinspect.ts";
-import { universeWorld } from "./worlds.ts";
+import { PLACE_UNIVERSE, placeWorld } from "./worlds.ts";
 
 const near = (w: World, people: number) => {
   const ctx = populationContext(w);
@@ -36,7 +35,7 @@ const near = (w: World, people: number) => {
 };
 
 test("a place keeps its land's working day and days of rest, and plays when its work is done", () => {
-  const w = universeWorld(EARTH, "first light", 150),
+  const w = placeWorld(150),
     s = near(w, 500),
     place = enterPlace(w, s.ref)!,
     row = societyStore(w, LEISURE_STORE)?.get(s.cell);

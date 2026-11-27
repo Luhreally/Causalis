@@ -99,6 +99,12 @@ export function laneMapOf(world: World): LaneMap {
  * each year, and the way was walked and summed again each time).
  */
 const TABLES = new Map<string, { readonly table: LaneTable; readonly to: (LaneRoute | null)[] }>();
+/**
+ * How many stars' tables are kept, the least lately asked let go first. (Kept to 65 and all let go at once, first light at 3,100
+ * asked from 83 to 89 stars a year, its realms' seats and the worlds of their own among 2,089, and made 80 to 770 tables again
+ * a year: 48 ms of its 497, a tenth. A table is 12 bytes a star.)
+ */
+const TABLES_KEPT = 256;
 /** The way by lanes between two stars, whoever knows of it (null: none runs). Not to be written to: all who ask share it. */
 export function laneRoute(world: World, from: string, to: string): LaneRoute | null {
   const map = laneMapOf(world),
@@ -107,8 +113,12 @@ export function laneRoute(world: World, from: string, to: string): LaneRoute | n
   if (a === undefined || b === undefined || a === b) return null;
   const key = `${world.seed.text} ${a}`;
   let t = TABLES.get(key);
-  if (!t) {
-    if (TABLES.size > 64) TABLES.clear();
+  if (t) {
+    // (The latest asked last: the first in the map is the one to let go.)
+    TABLES.delete(key);
+    TABLES.set(key, t);
+  } else {
+    if (TABLES.size >= TABLES_KEPT) TABLES.delete(TABLES.keys().next().value!);
     TABLES.set(key, (t = { table: laneTable(map.stars, map.lanes, map.ways, a), to: [] }));
   }
   let route = t.to[b];

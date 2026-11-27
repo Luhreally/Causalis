@@ -40,7 +40,6 @@ import {
 } from "../../src/sim/index.ts";
 import { handsFor } from "../../src/sim/town/asks.ts";
 import { siteMostHands } from "../../src/sim/town/managed.ts";
-import { EARTH } from "../../src/host/index.ts";
 import { townOffers } from "../../src/host/inspect/asks.ts";
 import {
   ACT,
@@ -71,6 +70,7 @@ import {
   tendedOf,
   streetLength,
   targetTable,
+  placeOwn,
   townTable,
   tradeLean,
   watchWanted,
@@ -89,14 +89,14 @@ import {
 import { pageOf } from "../../src/host/inspect/index.ts";
 import { villagePlan } from "../../src/host/village.ts";
 import { placeLotRef } from "../../src/bridge/index.ts";
-import { universeWorld } from "./worlds.ts";
+import { PLACE_UNIVERSE, placeWorld } from "./worlds.ts";
 
-const base = (): World => universeWorld(EARTH, "first light", 150);
+const base = (): World => placeWorld(150);
 const copy = (w: World): World => {
   const doc = JSON.parse(
-    JSON.stringify(saveWorld(w, "r", { universe: "earth" })),
+    JSON.stringify(saveWorld(w, "r", { universe: PLACE_UNIVERSE.name })),
   );
-  return loadWorld(doc, (s) => EARTH.build(s), "r").world;
+  return loadWorld(doc, (s) => PLACE_UNIVERSE.build(s), "r").world;
 };
 const order = (w: World, type: string, args: unknown): void => {
   const c = w.submit(type, args);
@@ -258,6 +258,11 @@ test("a household with no one grown and well fetches for itself, and no one goes
   let fetched = false;
   // (Looked at each ten minutes: a fetch from a store nearby is there and back within the hour.)
   for (let k = 0; k < 4 * 24 * 6; k++) {
+    // (Kept bare till one of it goes for food: a month's turn lays its land's food in every pantry, and a household fed so
+    // has no need to fetch. First light at 150 on the rules of 2026-11-25: a month's turn came four hours after Kamathey's
+    // pantry was emptied, its children ate from what it laid in, and never went.)
+    if (!fetched)
+      for (let g = 0; g < FOODS.length; g++) place.houses.pantry[house * FOODS.length + g] = 0;
     w.runTo(w.now + 600);
     placeFrame(w, s.ref, []);
     for (let i = 0; i < p.n; i++)
@@ -408,7 +413,9 @@ test("a sickness that comes: its dead are named, as many as its land's count tak
   assert.equal(told(place, HAP.plague), dead);
   assert.equal(place.plague, last.event);
   // (No one stands in for its dead till its town's count is reckoned anew: its people are its town's count less them.)
-  const target = targetTable(w, s, place).reduce((a, b) => a + b, 0);
+  // (And less those it has lived of its own since, dead, and more those born: vitalDay's, counted against its next turn.)
+  const own = placeOwn(place),
+    target = targetTable(w, s, place).reduce((a, b) => a + b, 0) - own.died + own.born;
   assert.equal(place.people.n, target);
   assert.deepEqual(
     placeTable(place, lifeOf(w)).length,
@@ -508,10 +515,27 @@ test("a wound is to a member of the body, heals by what its land knows of care, 
     }
   }
   assert.ok(mending > 0 && told(place, HAP.mending) > 0, `${mending} mending`);
-  watch(w, town, 80 * 24, 12);
+  // (Till each has mended, by their wound's own course at its land's care: a land that knows little of care keeps a burn
+  // mending for months. Three times the longest a trunk's burn takes, its tissue the slowest, and a month over.)
+  const course = Math.max(
+      ...hurt.map((id) => {
+        const i = at(id);
+        if (i < 0) return 0;
+        const mark = placeMark(w, place, i),
+          d = healDays(mark ? mark.outcome : "healed", "trunk", "fire", care, tendedOf(place, i));
+        return d.abed + d.mending;
+      }),
+    ),
+    down = () =>
+      hurt.some((id) => {
+        const i = at(id);
+        return i >= 0 && (p.cause[i]! & 7) === CAUSE.fire && (p.health[i] === 1 || p.health[i] === 3);
+      });
+  for (let d = 0; d < 3 * course + 30 && down(); d += 5) watch(w, town, 5 * 24, 12);
   for (const id of hurt) {
     const i = at(id);
-    if (i < 0) continue;
+    // (One hurt again since, by other hands, is abed of another wound.)
+    if (i < 0 || (p.health[i] && (p.cause[i]! & 7) !== CAUSE.fire)) continue;
     assert.ok(p.health[i] !== 1 && p.health[i] !== 3, "mended in the end");
     const mark = placeMark(w, place, i);
     if (mark) assert.ok(mark.outcome === "scarred" || mark.outcome === "lame");

@@ -86,6 +86,11 @@ export function lazyPlace(d: Omit<PlaceDeps, "loading">): PlaceFlow & { readonly
     watchStay: (on: boolean) => real?.watchStay(on),
     watchNext: () => real?.watchNext(),
     inspect: (ref: string | null) => real?.inspect(ref),
+    back: () => real?.back(),
+    ahead: () => real?.ahead(),
+    get following() {
+      return real?.following ?? false;
+    },
     get inspected() {
       return real?.inspected ?? { ref: null, height: "peek", name: "", chosen: null, answered: null };
     },

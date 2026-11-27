@@ -15,9 +15,9 @@ import {
   townsOf,
   type Settlement,
 } from "../../src/sim/index.ts";
-import { EARTH } from "../../src/host/index.ts";
 import {
   ACT,
+  cryReach,
   SK,
   SKILL_KINDS,
   enterPlace,
@@ -27,17 +27,18 @@ import {
   placeIndexOf,
   placeSkills,
   placesOf,
+  streetLength,
   tradeKind,
   type Place,
 } from "../../src/host/place.ts";
 import { placeFrame, workSheet } from "../../src/host/placeplan.ts";
 import { inspectPerson } from "../../src/host/placeinspect.ts";
-import { universeWorld } from "./worlds.ts";
+import { PLACE_UNIVERSE, placeWorld } from "./worlds.ts";
 
-const base = (): World => universeWorld(EARTH, "first light", 150);
+const base = (): World => placeWorld(150);
 const copy = (w: World): World => {
-  const doc = JSON.parse(JSON.stringify(saveWorld(w, "r", { universe: "earth" })));
-  return loadWorld(doc, (s) => EARTH.build(s), "r").world;
+  const doc = JSON.parse(JSON.stringify(saveWorld(w, "r", { universe: PLACE_UNIVERSE.name })));
+  return loadWorld(doc, (s) => PLACE_UNIVERSE.build(s), "r").world;
 };
 const order = (w: World, type: string, args: unknown): void => {
   const c = w.submit(type, args);
@@ -155,8 +156,9 @@ test("a fire's priority says who goes to one: set never, they stay away", () => 
   const w = copy(base()),
     s = near(w, 500),
     place = enterPlace(w, s.ref)!;
-  // Every grown farmer and crafter set never to go to a fire.
-  const never = [...grownAt(w, place, OCC.farmer), ...grownAt(w, place, OCC.crafter)];
+  // Every other grown farmer and crafter set never to go to a fire. (All of them, near half its people, left a fire among
+  // homes none to fight it but them.)
+  const never = [...grownAt(w, place, OCC.farmer), ...grownAt(w, place, OCC.crafter)].filter((_, k) => k % 2 === 0);
   assert.ok(never.length > 4);
   for (const id of never)
     order(w, "place.prio", {
@@ -172,7 +174,30 @@ test("a fire's priority says who goes to one: set never, they stay away", () => 
     });
   w.runTo(Math.ceil(w.now / DAY) * DAY + 10 * HOUR);
   placeFrame(w, s.ref, []);
-  order(w, "act.fire", { village: s.ref });
+  // (Where it is heard by those free to go: of the homes, the one with the most of its grown not set never within a cry of
+  // it, besides those of the home it takes; those set never about it stay away.)
+  const cry = cryReach(w, place),
+    free = [...Array(place.people.n).keys()].filter(
+      (i) =>
+        (place.people.sexOcc[i]! & 15) !== OCC.dependent &&
+        (place.t / DAY - place.people.born[i]!) / 365 >= lifeOf(w).adulthood &&
+        !never.includes(place.people.id[i]!),
+    );
+  let lot = -1,
+    most = 0;
+  for (const at of new Set(place.houses.home)) {
+    if (at < 0) continue;
+    const near = free.filter((i) => {
+      const home = place.houses.home[place.people.house[i]!]!;
+      return home !== at && home >= 0 && streetLength(place, home, at) <= cry;
+    }).length;
+    if (near > most) {
+      most = near;
+      lot = at;
+    }
+  }
+  assert.ok(lot >= 0, "a home within a cry of those free to go");
+  order(w, "act.fire", { village: s.ref, lot });
   let fought = 0,
     by = 0;
   for (let k = 0; k < 12; k++) {

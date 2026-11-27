@@ -11,7 +11,6 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import { DAY, HOUR, loadWorld, saveWorld, type World } from "../../src/kernel/index.ts";
 import { managedOf, populationContext, type Settlement } from "../../src/sim/index.ts";
-import { EARTH } from "../../src/host/index.ts";
 import {
   HAP,
   enterPlace,
@@ -23,14 +22,14 @@ import {
 import { placeMode, placeModeQueries, placeWatched } from "../../src/host/placewatch.ts";
 import { stewardHead } from "../../src/host/steward.ts";
 import { PLACE_AT } from "../../src/bridge/index.ts";
-import { universeWorld } from "./worlds.ts";
+import { PLACE_UNIVERSE, placeWorld } from "./worlds.ts";
 import { ranFor, watchOf } from "./place-modes-run.ts";
 
 const YEARS = 150;
-const base = (): World => universeWorld(EARTH, "first light", YEARS);
+const base = (): World => placeWorld(YEARS);
 const copy = (w: World): World => {
-  const doc = JSON.parse(JSON.stringify(saveWorld(w, "r", { universe: "earth" })));
-  return loadWorld(doc, (s) => EARTH.build(s), "r").world;
+  const doc = JSON.parse(JSON.stringify(saveWorld(w, "r", { universe: PLACE_UNIVERSE.name })));
+  return loadWorld(doc, (s) => PLACE_UNIVERSE.build(s), "r").world;
 };
 const near = (w: World, people: number): Settlement => {
   const ctx = populationContext(w);
@@ -234,13 +233,13 @@ test("a town stewarded is run by its own head through the orders a player gives,
 test("an order of the player's overrules the head's, and the head leaves that matter alone after", () => {
   const w = copy(base()),
     ctx = populationContext(w);
-  // (The largest towns under fifteen hundred, the first whose head sets an idle hand to other work within twenty days:
+  // (The twelve largest towns under fifteen hundred, the first whose head sets an idle hand to other work within twenty days:
   // the more crafters, the sooner some run out of what they work.)
   const ref = ctx.settlements
     .all()
     .filter((s) => ctx.settlements.held(s.ref) && s.population > 300 && s.population < 1500)
     .sort((a, b) => b.population - a.population || (a.ref < b.ref ? -1 : 1))
-    .slice(0, 6)
+    .slice(0, 12)
     .map((s) => s.ref);
   let town = "",
     prio: { person: number; kinds: number[] } | null = null;

@@ -835,12 +835,18 @@ const widthOf = (c: Col) =>
           ? TIES
           : 1;
 
+/**
+ * Room for more in the same people: each column made longer, the object itself kept. (Made anew, whatever held the place's
+ * people across a coming or a birth read on in the old columns, which no longer moved: tests that held them saw a town
+ * stand still from the day it outgrew its room, and passed or failed by whether its world's town grew that far.)
+ */
 function grown(p: People, cap: number): People {
   const q = peopleOf(cap);
-  q.n = p.n;
-  for (const c of PEOPLE_COLS)
+  for (const c of PEOPLE_COLS) {
     (q[c] as Uint8Array).set((p[c] as Uint8Array).subarray(0, p.n * widthOf(c)));
-  return q;
+    (p as Record<Col, unknown>)[c] = q[c];
+  }
+  return p;
 }
 
 /** A household: where it lives, what it lives on, what its pantry holds. */
@@ -4433,6 +4439,7 @@ function makePlace(world: World, s: Settlement): Place | null {
       workOf(world, place, i);
     }
   }
+  homesByFit(place, homes);
   linkRoster(world, place, s, f);
   pairHouses(place, f);
   // (Each one's skill, by the years they have had at their trade since they were grown, at the age they are now.)
@@ -4455,6 +4462,37 @@ function makePlace(world: World, s: Settlement): Place | null {
   place.log.length = 0;
   place.counts.length = 0;
   return place;
+}
+
+/**
+ * Its households in its homes as they fit, once its people are dealt among them: the largest first, each into the home
+ * with the most beds still free (the lowest lot of those as free). Dealt by their place among all the beds alone, a home
+ * of six could take two households of eleven while the next held two, in a town with a bed for each; so a town crowds only
+ * where it has fewer beds than people. One whose work or whereabouts was their household's home goes with it.
+ */
+function homesByFit(place: Place, homes: { lot: number[]; holds: number[] }): void {
+  const h = place.houses,
+    p = place.people,
+    k = homes.lot.length;
+  if (!k) return;
+  const free = homes.holds.slice(),
+    was = Array.from(h.home),
+    order = Array.from({ length: h.n }, (_, x) => x).sort((a, b) => h.members[b]! - h.members[a]! || a - b);
+  for (const x of order) {
+    let best = 0;
+    for (let q = 1; q < k; q++) if (free[q]! > free[best]!) best = q;
+    free[best]! -= h.members[x]!;
+    h.home[x] = homes.lot[best]!;
+  }
+  for (let i = 0; i < p.n; i++) {
+    const x = p.house[i]!,
+      old = was[x]!,
+      now = h.home[x]!;
+    if (old === now) continue;
+    if (p.work[i] === old) p.work[i] = now;
+    if (p.at[i] === old) p.at[i] = now;
+    if (p.to[i] === old) p.to[i] = now;
+  }
 }
 
 /** The work of a day stepped only to set a place going is none of its sites': its land's month reckoned that day. */
@@ -5655,7 +5693,104 @@ export const COND = {
   tool: 6,
   garment: 7,
   pot: 8,
+  /** Their home's room for those who sleep in it (NeedsDay), and a fine work in sight of its door. */
+  room: 9,
+  beauty: 10,
 } as const;
+/**
+ * What a household's home gives it each day of two needs besides the hourly ones (asked 2026-11-26: "more needs where the
+ * world has the means, such as warmth, comfort, beauty and company, each with a cause in the place"; warmth and company are
+ * the hourly needs N.cold and N.lone, met by a roof and by company): comfort, its home's beds (rules/buildings.ts HOLDS, by
+ * what stands on its lot) for all who sleep under it, crowded where a household that lost its home has found room under
+ * another's or a town has outgrown its beds; and beauty, the finest of the town's works (N11) to be made out from its door,
+ * where the town has any. Read once a day at its first tick, the same for every tier, and kept nowhere.
+ */
+type NeedsDay = {
+  readonly day: number;
+  /** Beds for each who sleeps under its home (1: as many as they; past it, room to spare). */
+  readonly room: Float32Array;
+  /** The lot of the finest work in sight of its door, and how fine (WORK_QUALITY's; -1: none). */
+  readonly seen: Int32Array;
+  readonly fine: Int8Array;
+};
+const NEEDS_DAY = new WeakMap<Place, NeedsDay>();
+/**
+ * How far from a door a work is made out (metres): a thing of a person's height at the arc an eye singles a thing out by
+ * among others, a degree (est.).
+ */
+const WORK_SEEN = Math.round(1.7 / Math.tan(Math.PI / 180));
+function needsDayOf(world: World, place: Place): NeedsDay {
+  const p = place.people,
+    houses = place.houses,
+    n = houses.n,
+    room = new Float32Array(n).fill(1),
+    seen = new Int32Array(n).fill(-1),
+    fine = new Int8Array(n).fill(-1),
+    fab = townsOf(world).get(place.town),
+    sleepers = new Map<number, number>();
+  for (let i = 0; i < p.n; i++) {
+    const lot = houses.home[p.house[i]!]!;
+    if (lot >= 0) sleepers.set(lot, (sleepers.get(lot) ?? 0) + 1);
+  }
+  const beds = new Map<number, number>();
+  if (fab)
+    for (const lot of sleepers.keys()) {
+      const level = lot < fab.next ? levelsOf(fab, lot, lot + 1)[0]! : -1;
+      beds.set(lot, level >= 0 ? (HOLDS[level] ?? 5) : 0);
+    }
+  for (let h = 0; h < n; h++) {
+    const lot = houses.home[h]!,
+      b = beds.get(lot) ?? 0;
+    if (lot >= 0 && b > 0) room[h] = b / Math.max(1, sleepers.get(lot) ?? 1);
+  }
+  // (The finest work to be made out from each door: works stand at lots of the town's laid plan.)
+  if (place.works?.length) {
+    layLots(world, place);
+    const laid = LAID.get(place),
+      w = place.works;
+    if (laid && laid.lots > 0)
+      for (let h = 0; h < n; h++) {
+        const lot = houses.home[h]!;
+        if (lot < 0 || lot >= laid.lots || !houses.members[h]) continue;
+        for (let k = 0; k + 6 < w.length; k += 7) {
+          const at = w[k]!,
+            q = w[k + 6]!;
+          if (at < 0 || at >= laid.lots || q <= fine[h]!) continue;
+          const d = Math.hypot(
+            laid.u[at]! - laid.u[lot]!,
+            laid.v[at]! - laid.v[lot]!,
+          );
+          if (d <= WORK_SEEN) {
+            fine[h] = q;
+            seen[h] = at;
+          }
+        }
+      }
+  }
+  return { day: Math.floor(place.t / DAY), room, seen, fine };
+}
+/** The day's reading of its homes' comfort and beauty: kept by the tick, else read for the asking. */
+function needsDay(world: World, place: Place, keep = false): NeedsDay {
+  const was = NEEDS_DAY.get(place);
+  if (
+    was &&
+    was.day === Math.floor(place.t / DAY) &&
+    was.room.length === place.houses.n
+  )
+    return was;
+  const d = needsDayOf(world, place);
+  if (keep) NEEDS_DAY.set(place, d);
+  return d;
+}
+/**
+ * Comfort's weight on a mood: by the doublings of room each has (none at a bed each; crowded, the more the fewer beds; a
+ * little at room to spare), as Classic weighs a home; beauty's by how fine the work and how much they wonder at things
+ * (FACETS' wonder).
+ */
+const roomTerm = (room: number): number =>
+  Math.max(-20, Math.min(4, Math.round(6 * Math.log2(room))));
+const beautyTerm = (fine: number, wonder: number): number =>
+  Math.round((1 + fine) * 2 * leans(wonder));
 /**
  * A place's households read once a day at its first tick (so the same whoever asks, and whenever): each one's cook (the
  * grown one of it, up and about, who has given the most hours to cooking) and their level at it, and one of it abed.
@@ -5678,6 +5813,8 @@ function readingsSaved(place: Place): Record<string, unknown> {
   if (hd) out.hday = [hd.day, ...hd.cook, ...hd.level, ...hd.abed];
   const st = STUFFS.get(place);
   if (st) out.stuffs = st;
+  const nd = NEEDS_DAY.get(place);
+  if (nd) out.nday = [nd.day, ...nd.room, ...nd.seen, ...nd.fine];
   return out;
 }
 function readingsLoaded(place: Place, raw: Record<string, unknown>): void {
@@ -5692,6 +5829,16 @@ function readingsLoaded(place: Place, raw: Record<string, unknown>): void {
     });
   }
   if (raw.stuffs) STUFFS.set(place, structuredClone(raw.stuffs) as Stuffs);
+  const nd = raw.nday as number[] | undefined;
+  if (nd) {
+    const n = (nd.length - 1) / 3;
+    NEEDS_DAY.set(place, {
+      day: nd[0]!,
+      room: Float32Array.from(nd.slice(1, 1 + n)),
+      seen: Int32Array.from(nd.slice(1 + n, 1 + 2 * n)),
+      fine: Int8Array.from(nd.slice(1 + 2 * n)),
+    });
+  }
 }
 function houseDayOf(place: Place, f: Frame): HouseDay {
   const p = place.people,
@@ -5738,6 +5885,8 @@ function moodTerms(
   fk: Frame,
   /** Read to be told (the inspector): each memory's source found where it is not kept. */
   told = false,
+  /** The day's comfort and beauty of its homes (NeedsDay; absent: none read). */
+  nd: NeedsDay | undefined = NEEDS_DAY.get(place),
 ): MoodTerm[] {
   const p = place.people,
     houses = place.houses,
@@ -5745,6 +5894,27 @@ function moodTerms(
     temper = placeTemper(place, i),
     out: MoodTerm[] = [],
     hd = houseDay(place, fk);
+  // Comfort and beauty: their home's beds for all under it, and a fine work in sight of its door.
+  if (nd && h < nd.room.length) {
+    const home = houses.home[h]!,
+      room = roomTerm(nd.room[h]!);
+    if (room && home >= 0)
+      out.push({
+        bit: 0,
+        cond: COND.room,
+        size: room,
+        days: null,
+        src: srcLot(home),
+      });
+    if (nd.fine[h]! >= 0)
+      out.push({
+        bit: 0,
+        cond: COND.beauty,
+        size: beautyTerm(nd.fine[h]!, placeFacets(place, i)[5]!),
+        days: null,
+        src: srcLot(nd.seen[h]!),
+      });
+  }
   if (lackDays >= 0.25)
     out.push({
       bit: MOOD.want,
@@ -5889,7 +6059,29 @@ export function placeMoodTerms(world: World, place: Place, i: number): MoodTerm[
     Math.floor(place.t / DAY),
     frameFor(world, place, i),
     true,
+    needsDay(world, place),
   );
+}
+/** One's household's comfort and beauty now (read only): beds for each under their home, and the finest work in sight. */
+export function placeNeedsMore(
+  world: World,
+  place: Place,
+  i: number,
+): { room: number; beds: number; under: number; fine: number; seen: number } {
+  const nd = needsDay(world, place),
+    h = place.people.house[i]!,
+    home = place.houses.home[h]!;
+  let under = 0;
+  for (let j = 0; j < place.people.n; j++)
+    if (place.houses.home[place.people.house[j]!] === home) under++;
+  const room = nd.room[h] ?? 1;
+  return {
+    room,
+    beds: Math.round(room * under),
+    under,
+    fine: nd.fine[h] ?? -1,
+    seen: nd.seen[h] ?? -1,
+  };
 }
 /**
  * The chance a year that work harms the one at it: of the tools and machines their trade wears out in a year (rules/goods.ts
@@ -6913,7 +7105,10 @@ function turnOf(cx: TickCx, i: number, k: number, wk: number): void {
   }
   // Held by the town's justice, or at labour for it, till their term is served; and one broken down, till it is spent
   // (N11). (Their household brings them their food.)
-  if (heldBy?.has(cId[i]!) && heldTurn(cx, i, h, fk)) return;
+  if (heldBy?.has(cId[i]!)) {
+    if (breakOf?.has(cId[i]!)) breakSpent(cx, i);
+    if (heldTurn(cx, i, h, fk)) return;
+  }
   if (breakOf?.has(cId[i]!) && breakTurn(cx, i, h, fk)) return;
   // A fine work where they are, seen once a day (N11): a thought by how fine it is.
   if (worksAt && !moving && inside && (tickNo + cId[i]!) % 6 < k) {
@@ -7153,8 +7348,9 @@ function turnOf(cx: TickCx, i: number, k: number, wk: number): void {
     return;
   }
   // The healer, with none of the hurt wanting them and their remedies short: out about the fields to gather more, the
-  // faster the more they know of it (N9), in the hours their work would have had.
-  if (i === healerAt && (place.herbs ?? 0) < herbsWanted(place)) {
+  // faster the more they know of it (N9), in the hours their work would have had. Not while a siege lies about the town:
+  // no one goes out to its fields, and the healer went out for herbs past the foe's lines.
+  if (i === healerAt && !matched.sieged && (place.herbs ?? 0) < herbsWanted(place)) {
     cAct[i] = ACT.work;
     cWhy[i] = WHY.herbs;
     if (cAt[i] !== AT.fields) go(place, i, AT.fields, world);
@@ -7289,7 +7485,18 @@ function turnOf(cx: TickCx, i: number, k: number, wk: number): void {
   cWhy[i] = turned ? WHY.turned : WHY.work;
   // (An hour given to one's own trade is an hour of skill at it: rules/life.ts. One turned to another trade's work
   // gives it to that trade's, below with the rest of their hours.)
-  if (!turned && p.skill[i]! < SKILL_MOST) p.skill[i] = Math.min(SKILL_MOST, p.skill[i]! + wk);
+  if (!turned) {
+    const was = p.skill[i]!,
+      to = was + wk;
+    if (was < SKILL_MOST) p.skill[i] = Math.min(SKILL_MOST, to);
+    // (A master's hours past the top of their skill count toward it no more, but their tool wears by them all the same:
+    // what is reckoned to its wear (Deep.worked) is set back by as much. Their tool had worn no more once they were a
+    // master, and a farmer of fifty held a hoe as new as the day it was made.)
+    if (to > SKILL_MOST && (p.tier[i]! & 3) === TIER.full) {
+      const dp = place.deep?.get(p.id[i]!);
+      if (dp) dp.worked -= to - Math.max(was, SKILL_MOST);
+    }
+  }
   if (doing === OCC.farmer || doing === OCC.herder) {
     // What the fields and the flocks give is brought in a load at a time: home while the pantry is short, else to the store.
     // (Won as fast as a hand that works a third of its time must to win its year's making, of what is ready.)
@@ -7716,24 +7923,33 @@ function theftDay(cx: TickCx, i: number, lackDays: number, fk: Frame): boolean {
   p.act[i] = ACT.idle;
   return false;
 }
+/**
+ * Whether one's break is spent by now, and if so the strain let out (a thought of relief) and the break let go: so too for
+ * one held or at labour for the town's justice, whose break runs out as anyone's (held, it was never spent, and no relief
+ * came till their term was served).
+ */
+function breakSpent(cx: TickCx, i: number): boolean {
+  const { place, p, t, breakOf } = cx,
+    k = breakOf!.get(p.id[i]!)!,
+    list = place.breaks!;
+  if (t < list[k + 2]!) return false;
+  list.splice(k, 3);
+  if (!list.length) delete place.breaks;
+  breakOf!.clear();
+  if (place.breaks) for (const [id, at] of byId(place.breaks, 3)) breakOf!.set(id, at);
+  remember(place, i, THOUGHT.catharsis, 20);
+  return true;
+}
 /** What a wrong brought before a place's justice was (VERDICT's in `b`'s low bits; this, sixteen times it). */
 export const WRONG = { blows: 0, theft: 1 } as const;
 /** A tick of one broken down: as their break has them, till it is spent (false: it is spent, and they go on as they would). */
 function breakTurn(cx: TickCx, i: number, h: number, fk: Frame): boolean {
-  const { world, place, p, t, houses, breakOf } = cx,
+  const { world, place, p, houses, breakOf } = cx,
     k = breakOf!.get(p.id[i]!)!,
     list = place.breaks!,
     // (How, in its low three bits; whether one eating all in sight has eaten yet, eight.)
     how = list[k + 1]! & 7;
-  if (t >= list[k + 2]!) {
-    // Spent: the strain let out (a thought of relief), and the break let go.
-    list.splice(k, 3);
-    if (!list.length) delete place.breaks;
-    breakOf!.clear();
-    if (place.breaks) for (const [id, at] of byId(place.breaks, 3)) breakOf!.set(id, at);
-    remember(place, i, THOUGHT.catharsis, 20);
-    return false;
-  }
+  if (breakSpent(cx, i)) return false;
   p.act[i] = how === BREAK.binge ? ACT.eat : ACT.idle;
   p.why[i] = WHY.broke;
   const home = houses.home[h]!;
@@ -8461,8 +8677,9 @@ function prunePins(place: Place): void {
 }
 
 function tick(world: World, place: Place, f: Frame): void {
-  // (Its households read for the day at its first tick: COND.)
+  // (Its households read for the day at its first tick: COND; and its homes' comfort and beauty.)
   houseDay(place, f, true);
+  needsDay(world, place, true);
   const cx = tickCx(world, place, f),
     { p, houses, t, today, dying, dyingWhy } = cx;
   // Each at their tier's stride (tiers): in full a tick each; light and folk at their hour, their walk by the tick and

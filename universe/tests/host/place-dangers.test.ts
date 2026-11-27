@@ -23,7 +23,6 @@ import {
   orderedLeft,
   orderedLeftLand,
 } from "../../src/sim/town/managed.ts";
-import { EARTH } from "../../src/host/index.ts";
 import { pageOf } from "../../src/host/inspect/index.ts";
 import { townTally, battlesOfYear } from "../../src/host/burials.ts";
 import {
@@ -44,9 +43,9 @@ import {
   placeDayOf,
 } from "../../src/host/place.ts";
 import { dangersSheet, logSheet, placeFrame, placeNotices } from "../../src/host/placeplan.ts";
-import { universeWorld } from "./worlds.ts";
+import { PLACE_UNIVERSE, placeWorld } from "./worlds.ts";
 
-const base = (): World => universeWorld(EARTH, "first light", 150);
+const base = (): World => placeWorld(150);
 
 /**
  * A place against its town's count, what it has lived and what waits told apart: nothing waits that its clock has passed;
@@ -54,6 +53,8 @@ const base = (): World => universeWorld(EARTH, "first light", 150);
  * comes); and its people now, those waiting to be born or to come added and those waiting to die or leave taken off,
  * are the count with what it has lived of its own this year (its births and deaths day by day, placeOwn).
  */
+/** A death due of a place's own (vitalDay), a bit of its `b` (host/place.ts DUE_OWN). */
+const DUE_OWN = 1 << 17;
 function livedAgainst(
   place: Place,
   count: number,
@@ -65,14 +66,15 @@ function livedAgainst(
       d.t > place.t - PLACE_TICK,
       `${what}: ${d.what} due at ${d.t}, its clock at ${place.t}`,
     );
-  const coming = due.filter(
-      (d) =>
-        d.what === "born" ||
-        d.what === "come" ||
-        (d.what === "bear" && placeIndexOf(place, d.a) >= 0),
-    ).length,
+  // (A birth of its own still to come, vitalDay's "bear", is in neither its count nor its own born till it is lived.)
+  const coming = due.filter((d) => d.what === "born" || d.what === "come").length,
+    // (A death of its own still to come, vitalDay's, is in its count and its people both, and in its own dead once lived:
+    // not one going. One a year's turn brought is gone from its count already.)
     going = due.filter(
-      (d) => (d.what === "die" || d.what === "leave") && placeIndexOf(place, d.a) >= 0,
+      (d) =>
+        (d.what === "die" || d.what === "leave") &&
+        !(d.what === "die" && d.b & DUE_OWN) &&
+        placeIndexOf(place, d.a) >= 0,
     ).length,
     own = placeOwn(place);
   assert.equal(
@@ -83,8 +85,8 @@ function livedAgainst(
   return { lived: place.people.n, coming, going };
 }
 const copy = (w: World): World => {
-  const doc = JSON.parse(JSON.stringify(saveWorld(w, "r", { universe: "earth" })));
-  return loadWorld(doc, (s) => EARTH.build(s), "r").world;
+  const doc = JSON.parse(JSON.stringify(saveWorld(w, "r", { universe: PLACE_UNIVERSE.name })));
+  return loadWorld(doc, (s) => PLACE_UNIVERSE.build(s), "r").world;
 };
 const order = (w: World, type: string, args: unknown): void => {
   const c = w.submit(type, args);
@@ -376,12 +378,14 @@ test("a battle's tally of a town's men names who fell and who came home wounded"
   for (const x of place.log)
     if (x.what === HAP.fell) assert.ok(placeIndexOf(place, x.id) < 0, "one fallen is gone");
   // Its log tells them by name, each a line of its own. (The year's comings and goings are lived on days of their own now.)
-  const rows = logSheet(w, place).rows;
-  assert.equal(rows.filter((r) => / fell in the battle at /.test(r.words)).length, fell);
-  assert.equal(
-    rows.filter((r) => / came home wounded from the battle at /.test(r.words)).length,
-    wounded,
-  );
+  const rows = logSheet(w, place).rows,
+    // (A dozen of a kind named, the rest counted: "and 6 more came home wounded from the battle at ...".)
+    lines = (re: RegExp): number =>
+      rows
+        .filter((r) => re.test(r.words))
+        .reduce((n, r) => n + Number(/^and (\d+) more /.exec(r.words)?.[1] ?? 1), 0);
+  assert.equal(lines(/ fell in the battle at /), fell);
+  assert.equal(lines(/ came home wounded from the battle at /), wounded);
   assert.ok(rows.every((r) => r.day.length > 0));
   // A day of many of one kind is told a few lines and then counted: seven of its people coming to it on a day of its
   // own, after the rest of its log. (The year's comings now come on days of their own, so none of its real days has so

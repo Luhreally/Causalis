@@ -22,7 +22,6 @@ import {
   populationContext,
   type Settlement,
 } from "../../src/sim/index.ts";
-import { EARTH } from "../../src/host/index.ts";
 import { pageOf } from "../../src/host/inspect/index.ts";
 import {
   ACT,
@@ -65,12 +64,12 @@ import {
 } from "../../src/bridge/index.ts";
 import { townPlan } from "../../src/host/town.ts";
 import { townSite } from "../../src/host/village.ts";
-import { universeWorld } from "./worlds.ts";
+import { PLACE_UNIVERSE, noTown, placeWorld, townWhere } from "./worlds.ts";
 
-const base = (): World => universeWorld(EARTH, "first light", 150);
+const base = (): World => placeWorld(150);
 const copy = (w: World): World => {
-  const doc = JSON.parse(JSON.stringify(saveWorld(w, "r", { universe: "earth" })));
-  return loadWorld(doc, (s) => EARTH.build(s), "r").world;
+  const doc = JSON.parse(JSON.stringify(saveWorld(w, "r", { universe: PLACE_UNIVERSE.name })));
+  return loadWorld(doc, (s) => PLACE_UNIVERSE.build(s), "r").world;
 };
 const near = (w: World, people: number): Settlement => {
   const ctx = populationContext(w);
@@ -227,21 +226,60 @@ test("a world given no order hashes as it did; a town given orders moves its wor
   assert.equal(JSON.stringify(again.domainHashes()), JSON.stringify(ordered.domainHashes()));
 });
 
-test("food held back leaves households in want: they sicken, some die, and its land's count is theirs less", () => {
+/** Whether a town's land wins less food a head than its people eat (its share by head of a year's winning, in months' food). */
+const landShort = (place: Place): boolean => {
+  const m = place.matched,
+    n = place.people.n;
+  return (
+    (m.rate ?? []).reduce((a, x) => a + x, 0) * (Math.min(n, m.land) / Math.max(1, m.land)) <
+    0.9 * 12 * n
+  );
+};
+
+/**
+ * A town's food all held back and its fields and flocks left: its granary holding two years' eating, its farmers and herders
+ * put to crafts and hauling, and none of them turned to the fields or the flocks when their own work runs out (a hand idle
+ * at its own goes to reap what stands ripe, by the priorities it has of itself, and brings the town its bread).
+ */
+function holdAll(w: World, town: string, place: Place): void {
+  order(w, "place.hold", { town, months: 24 });
+  order(w, "place.work", { town, shares: [0, 0, 500, 500] });
+  w.runTo(w.now + HOUR);
+  enterPlace(w, town);
+  for (let i = 0; i < place.people.n; i++) {
+    const occ = place.people.sexOcc[i]! & 15;
+    if (occ === OCC.crafter || occ === OCC.trader)
+      order(w, "place.prio", {
+        town,
+        person: place.people.id[i]!,
+        kinds: [0, 0, occ === OCC.crafter ? 3 : 0, occ === OCC.trader ? 3 : 0, 1, 1],
+      });
+  }
+}
+
+test("food held back leaves households in want: they sicken, some die, and its land's count is theirs less", (t) => {
   const w = copy(base()),
-    s = near(w, 400),
-    place = enterPlace(w, s.ref)!,
+    // (A town whose land wins less food a head than it eats: its land brings it its share by head of what the land wins,
+    // the most of it its foragers', who live in no town, and a town of a land that wins enough is fed held back or not.)
+    s = townWhere(w, landShort, { near: 400, least: 150 });
+  if (!s) return void noTown(t, "whose land wins less food than its people eat");
+  const place = enterPlace(w, s.ref)!,
     land = populationContext(w).provinces.get(s.cell)!;
-  // (All its food held back, and its fields and herds left: no one brings any in.)
-  order(w, "place.hold", { town: s.ref, months: 24 });
-  order(w, "place.work", { town: s.ref, shares: [0, 0, 500, 500] });
+  // (All its food held back, and its fields and herds left: none of its own bring any in, and it eats what its land brings.)
+  holdAll(w, s.ref, place);
   let told = 0,
     starved = 0;
-  const total = land.total();
-  for (let day = 0; day < 120 && starved < 3; day += 2) {
+  const total = land.total(),
+    gone = new Set<number>();
+  // (Read till some have died of want, as each is logged; told to its land at each month's turn as the mode tells it,
+  // till the first are dead: what is told of them is read below.)
+  for (let day = 0; day < 540 && starved < 3; day += 2) {
+    const month = Math.floor(w.now / MONTH);
     w.runTo(w.now + 2 * DAY);
     enterPlace(w, s.ref);
-    starved = place.log.filter((x) => x.what === HAP.starved).length + told;
+    for (const x of place.log) if (x.what === HAP.starved) gone.add(x.id);
+    starved = gone.size;
+    if (Math.floor(w.now / MONTH) !== month && !place.dead.length) settle(w, s.ref);
     assert.ok(placeStocks(place).every((x, g) => x === place.base[g]! + place.flow[g]!));
   }
   assert.ok(starved >= 3, "some died of want");
@@ -655,8 +693,15 @@ test("mood follows needs met and what befell the household, moves work's worth, 
   order(w, "place.work", { town: s.ref, shares: [0, 0, 500, 500] });
   // (Read at the depth of its want, within eighty days: a town starved under its own hold has fewer mouths after, and
   // what its land brings may feed them again, when its mood climbs back as it should.)
-  const lows = () =>
-    [...Array(place.people.n).keys()].filter((k) => place.people.mood[k]! < MOOD_UNHEEDING);
+  // (Of the grown, whom an order of work could move: a child too low in mood is told no order. On bfd1bd3f's first light
+  // at 150 the first too low was a child, and no order went unheeded.)
+  const adult = lifeOf(w).adulthood,
+    lows = () =>
+      [...Array(place.people.n).keys()].filter(
+        (k) =>
+          place.people.mood[k]! < MOOD_UNHEEDING &&
+          (place.t / DAY - place.people.born[k]!) / 365 >= adult,
+      );
   let wanting = 0;
   for (let d = 0; d < 80 && !(mean() < fed - 20 && lows().length > 0); d += 2) {
     w.runTo(w.now + 2 * DAY);

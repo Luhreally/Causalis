@@ -4,22 +4,21 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { HOUR, loadWorld, saveWorld, type World } from "../../src/kernel/index.ts";
 import { populationContext } from "../../src/sim/index.ts";
-import { EARTH } from "../../src/host/index.ts";
 import { enterPlace, placeDigest, placesOf } from "../../src/host/place.ts";
 import { placeFrame } from "../../src/host/placeplan.ts";
 import { placeOverlay } from "../../src/host/placeoverlay.ts";
 import type { PlaceOverlayKind } from "../../src/bridge/index.ts";
-import { universeWorld } from "./worlds.ts";
+import { PLACE_UNIVERSE, placeWorld } from "./worlds.ts";
 
 const copy = (w: World): World =>
   loadWorld(
-    JSON.parse(JSON.stringify(saveWorld(w, "r", { universe: "earth" }))),
-    (s) => EARTH.build(s),
+    JSON.parse(JSON.stringify(saveWorld(w, "r", { universe: PLACE_UNIVERSE.name }))),
+    (s) => PLACE_UNIVERSE.build(s),
     "r",
   ).world;
 
 test("each overlay reads every lot it can within its ends, in words, and moves nothing", () => {
-  const w = copy(universeWorld(EARTH, "first light", 150)),
+  const w = copy(placeWorld(150)),
     ctx = populationContext(w),
     town = ctx.settlements
       .all()

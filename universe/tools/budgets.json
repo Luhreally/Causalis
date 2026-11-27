@@ -20,27 +20,27 @@
       "year": 400,
       "window": 100,
       "world": {
-        "lands": 531,
-        "realms": 100,
-        "towns": 22571,
-        "people": 22793520
+        "lands": 544,
+        "realms": 187,
+        "towns": 16125,
+        "people": 7745806
       },
       "totals": {
-        "yearMs": 242,
-        "p99Ms": 404,
-        "saveBytes": 18577064,
-        "heapBytes": 353055917
+        "yearMs": 250,
+        "p99Ms": 401,
+        "saveBytes": 19976715,
+        "heapBytes": 319146048
       },
       "systems": {
         "095.population.food": {
-          "share": 0.111,
-          "ms": 20.41,
-          "events": 1.1,
+          "share": 0.1265,
+          "ms": 23.71,
+          "events": 1.2,
           "decisions": 1
         },
         "100.population.vital": {
-          "share": 0.0604,
-          "ms": 11.35,
+          "share": 0.0579,
+          "ms": 9.43,
           "events": 1,
           "decisions": 1
         },
@@ -51,102 +51,240 @@
           "decisions": 1
         },
         "105.weather.rain": {
-          "share": 0.0173,
-          "ms": 1.02,
-          "events": 83.4,
+          "share": 0.0171,
+          "ms": 0.94,
+          "events": 86.2,
+          "decisions": 1
+        },
+        "106.planet.floods": {
+          "share": 0.0165,
+          "ms": 0.82,
+          "events": 18.8,
+          "decisions": 1
+        },
+        "107.planet.storms": {
+          "share": 0.0151,
+          "ms": 0.53,
+          "events": 1.6,
           "decisions": 1
         },
         "110.population.age": {
-          "share": 0.0534,
-          "ms": 8.24,
+          "share": 0.0421,
+          "ms": 6.13,
           "events": 1,
           "decisions": 1
         },
         "115.ecology.year": {
-          "share": 0.0197,
-          "ms": 1.45,
-          "events": 1,
+          "share": 0.0185,
+          "ms": 1.22,
+          "events": 1.1,
           "decisions": 1
         },
-        "116.woods.year": {
-          "share": 0.0175,
-          "ms": 1,
-          "events": 1,
-          "decisions": 1
-        },
-        "117.herds.year": {
-          "share": 0.0161,
-          "ms": 0.73,
-          "events": 1,
-          "decisions": 1
-        },
-        "120.population.work": {
-          "share": 0.1095,
-          "ms": 19.85,
-          "events": 1,
-          "decisions": 1
-        },
-        "125.economy.year": {
-          "share": 0.134,
-          "ms": 28.91,
-          "events": 8.1,
-          "decisions": 1.9
-        },
-        "126.climate.air": {
-          "share": 0.019,
-          "ms": 1.3,
-          "events": 1,
-          "decisions": 1
-        },
-        "127.lodes.year": {
-          "share": 0.0152,
-          "ms": 0.55,
-          "events": 1,
-          "decisions": 1
-        },
-        "130.population.migrate": {
-          "share": 0.0295,
-          "ms": 3.96,
-          "events": 56.2,
-          "decisions": 56.2
-        },
-        "140.population.settle": {
-          "share": 0.0893,
-          "ms": 15.47,
-          "events": 31.7,
-          "decisions": 31.7
-        },
-        "150.knowledge.cultivation": {
+        "115.ecology.zseas": {
           "share": 0.0157,
           "ms": 0.65,
           "events": 1,
           "decisions": 1
         },
-        "155.knowledge.metal": {
-          "share": 0.0152,
-          "ms": 0.55,
+        "116.woods.year": {
+          "share": 0.0166,
+          "ms": 0.83,
           "events": 1,
           "decisions": 1
         },
+        "117.herds.year": {
+          "share": 0.0159,
+          "ms": 0.69,
+          "events": 1.1,
+          "decisions": 1
+        },
+        "117.herds.year.droving": {
+          "share": 0.0156,
+          "ms": 0.62,
+          "events": 1.2,
+          "decisions": 1.2
+        },
+        "118.ground.year": {
+          "share": 0.0201,
+          "ms": 1.56,
+          "events": 1,
+          "decisions": 1
+        },
+        "119.life.lineage": {
+          "share": 0.0156,
+          "ms": 0.62,
+          "events": 1,
+          "decisions": 1
+        },
+        "120.population.work": {
+          "share": 0.0654,
+          "ms": 10.99,
+          "events": 1,
+          "decisions": 1
+        },
+        "121.life.diet": {
+          "share": 0.0195,
+          "ms": 1.44,
+          "events": 1.9,
+          "decisions": 1
+        },
+        "125.economy.year": {
+          "share": 0.1396,
+          "ms": 26.44,
+          "events": 6.6,
+          "decisions": 1.6
+        },
+        "126.climate.air": {
+          "share": 0.0167,
+          "ms": 0.86,
+          "events": 1,
+          "decisions": 1
+        },
+        "127.economy.canals": {
+          "share": 0.0157,
+          "ms": 0.64,
+          "events": 1,
+          "decisions": 1
+        },
+        "127.lodes.year": {
+          "share": 0.0153,
+          "ms": 0.56,
+          "events": 1,
+          "decisions": 1
+        },
+        "128.planet.motion": {
+          "share": 0.0156,
+          "ms": 0.63,
+          "events": 1,
+          "decisions": 1
+        },
+        "129.planet.fires": {
+          "share": 0.0151,
+          "ms": 0.53,
+          "events": 1.2,
+          "decisions": 1
+        },
+        "129.population.borders": {
+          "share": 0.0158,
+          "ms": 0.68,
+          "events": 1.1,
+          "decisions": 1.1
+        },
+        "130.population.migrate": {
+          "share": 0.0258,
+          "ms": 2.75,
+          "events": 61.7,
+          "decisions": 61.6
+        },
+        "135.population.mix": {
+          "share": 0.015,
+          "ms": 0.51,
+          "events": 1,
+          "decisions": 1
+        },
+        "136.population.heredity": {
+          "share": 0.0152,
+          "ms": 0.54,
+          "events": 1,
+          "decisions": 1
+        },
+        "140.population.settle": {
+          "share": 0.0321,
+          "ms": 4.05,
+          "events": 47.8,
+          "decisions": 47.8
+        },
+        "141.population.urban": {
+          "share": 0.0156,
+          "ms": 0.62,
+          "events": 1,
+          "decisions": 1
+        },
+        "150.knowledge.cultivation": {
+          "share": 0.0154,
+          "ms": 0.59,
+          "events": 1,
+          "decisions": 1
+        },
+        "151.life.crops": {
+          "share": 0.0162,
+          "ms": 0.76,
+          "events": 1,
+          "decisions": 1
+        },
+        "152.life.exchange": {
+          "share": 0.0156,
+          "ms": 0.62,
+          "events": 1,
+          "decisions": 1
+        },
+        "155.knowledge.metal": {
+          "share": 0.0151,
+          "ms": 0.52,
+          "events": 1,
+          "decisions": 1
+        },
+        "156.lore.letters": {
+          "share": 0.0161,
+          "ms": 0.74,
+          "events": 1,
+          "decisions": 1
+        },
+        "157.lore.academies": {
+          "share": 0.0158,
+          "ms": 0.68,
+          "events": 1,
+          "decisions": 1
+        },
+        "157.lore.rights": {
+          "share": 0.0157,
+          "ms": 0.65,
+          "events": 1.6,
+          "decisions": 1
+        },
         "157.lore.year": {
-          "share": 0.1549,
-          "ms": 30.79,
-          "events": 56.9,
+          "share": 0.092,
+          "ms": 16.52,
+          "events": 57.4,
           "decisions": 2.8
         },
+        "158.lore.lost": {
+          "share": 0.0172,
+          "ms": 0.95,
+          "events": 1.3,
+          "decisions": 1
+        },
+        "158.lore.materials": {
+          "share": 0.018,
+          "ms": 1.12,
+          "events": 3.3,
+          "decisions": 1
+        },
         "160.culture.ways": {
-          "share": 0.0283,
-          "ms": 3.68,
+          "share": 0.0248,
+          "ms": 2.53,
           "events": 1,
           "decisions": 1
         },
         "162.culture.languages": {
-          "share": 0.032,
-          "ms": 3.97,
-          "events": 2.9,
+          "share": 0.0244,
+          "ms": 2.46,
+          "events": 2.6,
           "decisions": 1.1
         },
+        "163.culture.abroad": {
+          "share": 0.0157,
+          "ms": 0.65,
+          "events": 3.3,
+          "decisions": 1.9
+        },
         "168.acts.fortunes": {
+          "share": 0.015,
+          "ms": 0.5,
+          "events": 1,
+          "decisions": 1
+        },
+        "168.acts.persons": {
           "share": 0.015,
           "ms": 0.5,
           "events": 1,
@@ -159,92 +297,404 @@
           "decisions": 1
         },
         "170.polity.year": {
-          "share": 0.0319,
-          "ms": 4.54,
-          "events": 19.5,
-          "decisions": 10.2
+          "share": 0.0323,
+          "ms": 4.09,
+          "events": 26.2,
+          "decisions": 14.3
         },
         "175.belief.year": {
-          "share": 0.0262,
-          "ms": 2.76,
-          "events": 16.8,
+          "share": 0.0241,
+          "ms": 2.39,
+          "events": 31.3,
+          "decisions": 17.8
+        },
+        "176.belief.temples": {
+          "share": 0.0176,
+          "ms": 1.05,
+          "events": 1,
+          "decisions": 1
+        },
+        "177.culture.folk": {
+          "share": 0.0166,
+          "ms": 0.83,
+          "events": 1,
+          "decisions": 1
+        },
+        "178.culture.art": {
+          "share": 0.0157,
+          "ms": 0.64,
+          "events": 1,
+          "decisions": 1
+        },
+        "184.war.arming": {
+          "share": 0.0341,
+          "ms": 4.48,
+          "events": 4.2,
+          "decisions": 1
+        },
+        "184.war.navy": {
+          "share": 0.0207,
+          "ms": 1.68,
+          "events": 3.6,
+          "decisions": 1
+        },
+        "184.war.zfleets": {
+          "share": 0.016,
+          "ms": 0.7,
+          "events": 2,
           "decisions": 1
         },
         "185.war.year": {
-          "share": 0.1043,
-          "ms": 18.51,
-          "events": 38.4,
-          "decisions": 7.7
+          "share": 0.058,
+          "ms": 9.46,
+          "events": 43,
+          "decisions": 8
         },
-        "186.diplomacy.year": {
-          "share": 0.0333,
-          "ms": 4.87,
-          "events": 2.4,
+        "185.war.zoccupied": {
+          "share": 0.016,
+          "ms": 0.7,
+          "events": 6.6,
           "decisions": 1
         },
-        "187.order.year": {
-          "share": 0.0692,
-          "ms": 13.44,
-          "events": 6.7,
-          "decisions": 6.7
+        "185.war.zsieges": {
+          "share": 0.015,
+          "ms": 0.5,
+          "events": 1,
+          "decisions": 1
         },
-        "188.health.year": {
-          "share": 0.0283,
-          "ms": 3.18,
-          "events": 6.8,
-          "decisions": 6.8
+        "186.diplomacy.councils": {
+          "share": 0.0194,
+          "ms": 1.41,
+          "events": 1.2,
+          "decisions": 1
         },
-        "189.credit.year": {
-          "share": 0.0203,
-          "ms": 1.77,
+        "186.diplomacy.spies": {
+          "share": 0.0194,
+          "ms": 1.42,
+          "events": 8.7,
+          "decisions": 1
+        },
+        "186.diplomacy.year": {
+          "share": 0.035,
+          "ms": 4.67,
+          "events": 6,
+          "decisions": 1
+        },
+        "186.money.intox": {
+          "share": 0.018,
+          "ms": 1.12,
+          "events": 1,
+          "decisions": 1
+        },
+        "186.money.labour": {
+          "share": 0.0192,
+          "ms": 1.38,
           "events": 2.1,
-          "decisions": 2.1
+          "decisions": 1
         },
-        "189.finance.year": {
-          "share": 0.025,
-          "ms": 2.66,
-          "events": 1.8,
-          "decisions": 1.6
+        "186.order.voice": {
+          "share": 0.0201,
+          "ms": 1.56,
+          "events": 1,
+          "decisions": 1
         },
-        "189.strife.court": {
-          "share": 0.024,
-          "ms": 2.64,
-          "events": 3.3,
-          "decisions": 1.6
+        "187.order.votes": {
+          "share": 0.0196,
+          "ms": 1.46,
+          "events": 17.2,
+          "decisions": 17.2
         },
-        "189.strife.year": {
-          "share": 0.0383,
-          "ms": 6.06,
+        "187.order.year": {
+          "share": 0.0758,
+          "ms": 13.16,
+          "events": 3.7,
+          "decisions": 3.3
+        },
+        "187.society.care": {
+          "share": 0.0168,
+          "ms": 0.88,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.society.dress": {
+          "share": 0.016,
+          "ms": 0.71,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.society.law": {
+          "share": 0.0162,
+          "ms": 0.76,
+          "events": 1.4,
+          "decisions": 1.4
+        },
+        "187.society.law.holdings": {
+          "share": 0.016,
+          "ms": 0.71,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.society.leisure": {
+          "share": 0.016,
+          "ms": 0.7,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.society.old": {
+          "share": 0.0159,
+          "ms": 0.7,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.society.provision": {
+          "share": 0.0203,
+          "ms": 1.6,
+          "events": 1.4,
+          "decisions": 1.4
+        },
+        "187.society.roles": {
+          "share": 0.0174,
+          "ms": 1.01,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.society.roofless": {
+          "share": 0.0331,
+          "ms": 4.27,
+          "events": 3.2,
+          "decisions": 1
+        },
+        "187.society.strain": {
+          "share": 0.0159,
+          "ms": 0.7,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.society.table": {
+          "share": 0.0159,
+          "ms": 0.68,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.society.unable": {
+          "share": 0.0163,
+          "ms": 0.77,
           "events": 1.2,
           "decisions": 1.2
         },
+        "187.war.zheld": {
+          "share": 0.0163,
+          "ms": 0.76,
+          "events": 6.7,
+          "decisions": 1.5
+        },
+        "188.health.year": {
+          "share": 0.0192,
+          "ms": 1.38,
+          "events": 1.7,
+          "decisions": 1.7
+        },
+        "188.health.year.strains": {
+          "share": 0.0152,
+          "ms": 0.53,
+          "events": 1.1,
+          "decisions": 1
+        },
+        "188.health.year.taboo": {
+          "share": 0.0155,
+          "ms": 0.6,
+          "events": 1,
+          "decisions": 1
+        },
+        "188.money.coin": {
+          "share": 0.0222,
+          "ms": 2,
+          "events": 11.8,
+          "decisions": 8.9
+        },
+        "188.money.cover": {
+          "share": 0.0207,
+          "ms": 1.69,
+          "events": 1.8,
+          "decisions": 1
+        },
+        "188.money.prohibition": {
+          "share": 0.0259,
+          "ms": 2.78,
+          "events": 3.3,
+          "decisions": 1.8
+        },
+        "188.money.strength": {
+          "share": 0.0155,
+          "ms": 0.59,
+          "events": 1,
+          "decisions": 1
+        },
+        "188.money.trade": {
+          "share": 0.022,
+          "ms": 1.97,
+          "events": 3,
+          "decisions": 1.8
+        },
+        "188.money.treasury": {
+          "share": 0.0286,
+          "ms": 3.34,
+          "events": 3.2,
+          "decisions": 3.2
+        },
+        "188.order.houses": {
+          "share": 0.0255,
+          "ms": 2.69,
+          "events": 36.1,
+          "decisions": 36.1
+        },
+        "188.order.underworld": {
+          "share": 0.0357,
+          "ms": 4.81,
+          "events": 15.3,
+          "decisions": 14.7
+        },
+        "188.order.zgroups": {
+          "share": 0.0559,
+          "ms": 9.02,
+          "events": 98.6,
+          "decisions": 58
+        },
+        "188.order.zzbodies": {
+          "share": 0.0236,
+          "ms": 2.3,
+          "events": 26.5,
+          "decisions": 5.6
+        },
+        "188.order.zzzsentences": {
+          "share": 0.016,
+          "ms": 0.71,
+          "events": 1,
+          "decisions": 1
+        },
+        "189.credit.year": {
+          "share": 0.0186,
+          "ms": 1.25,
+          "events": 1.7,
+          "decisions": 1.7
+        },
+        "189.finance.year": {
+          "share": 0.0261,
+          "ms": 2.8,
+          "events": 1.4,
+          "decisions": 1.2
+        },
+        "189.order.charter": {
+          "share": 0.0161,
+          "ms": 0.72,
+          "events": 1.1,
+          "decisions": 1.1
+        },
+        "189.strife.court": {
+          "share": 0.0215,
+          "ms": 1.85,
+          "events": 5.9,
+          "decisions": 2.2
+        },
+        "189.strife.year": {
+          "share": 0.0252,
+          "ms": 2.62,
+          "events": 2.3,
+          "decisions": 2.3
+        },
+        "189.trade.capital": {
+          "share": 0.0181,
+          "ms": 1.15,
+          "events": 1,
+          "decisions": 1
+        },
+        "189.trade.cartel": {
+          "share": 0.0154,
+          "ms": 0.58,
+          "events": 1.1,
+          "decisions": 1.1
+        },
+        "189.trade.cycle": {
+          "share": 0.0188,
+          "ms": 1.3,
+          "events": 4.5,
+          "decisions": 4.5
+        },
+        "189.trade.plan": {
+          "share": 0.0159,
+          "ms": 0.69,
+          "events": 1,
+          "decisions": 1
+        },
+        "189.trade.rent": {
+          "share": 0.0163,
+          "ms": 0.77,
+          "events": 1,
+          "decisions": 1
+        },
+        "189.trade.smoke": {
+          "share": 0.0155,
+          "ms": 0.6,
+          "events": 1,
+          "decisions": 1
+        },
         "190.city.year": {
-          "share": 0.0431,
-          "ms": 6.17,
-          "events": 1.2,
+          "share": 0.0338,
+          "ms": 4.42,
+          "events": 1.4,
           "decisions": 1
         },
         "191.town.year": {
-          "share": 0.2318,
-          "ms": 44.2,
-          "events": 37.9,
+          "share": 0.1259,
+          "ms": 23.58,
+          "events": 3.1,
           "decisions": 1
         },
         "192.wild.month": {
-          "share": 0.0504,
-          "ms": 7.64,
-          "events": 42,
-          "decisions": 18.4
+          "share": 0.026,
+          "ms": 2.78,
+          "events": 38.4,
+          "decisions": 18.9
         },
         "195.design.year": {
-          "share": 0.0267,
-          "ms": 3.29,
-          "events": 3.3,
+          "share": 0.0211,
+          "ms": 1.78,
+          "events": 4.8,
           "decisions": 1
+        },
+        "197.people.notables": {
+          "share": 0.0225,
+          "ms": 2.05,
+          "events": 3.4,
+          "decisions": 1.7
+        },
+        "197.people.zfaith": {
+          "share": 0.0185,
+          "ms": 1.24,
+          "events": 9.5,
+          "decisions": 2.6
         },
         "197.space.year": {
           "share": 0.0154,
-          "ms": 0.61,
+          "ms": 0.58,
+          "events": 1,
+          "decisions": 1
+        },
+        "198.ideas.works": {
+          "share": 0.0161,
+          "ms": 0.73,
+          "events": 2.1,
+          "decisions": 1
+        },
+        "198.ideas.year": {
+          "share": 0.0171,
+          "ms": 0.93,
+          "events": 2,
+          "decisions": 1.1
+        },
+        "198.ideas.zpilgrims": {
+          "share": 0.0155,
+          "ms": 0.6,
           "events": 1,
           "decisions": 1
         },
@@ -255,8 +705,14 @@
           "decisions": 1
         },
         "199.space.contact": {
-          "share": 0.0151,
-          "ms": 0.52,
+          "share": 0.0152,
+          "ms": 0.55,
+          "events": 1,
+          "decisions": 1
+        },
+        "199.space.zfarreigns": {
+          "share": 0.015,
+          "ms": 0.5,
           "events": 1,
           "decisions": 1
         },
@@ -267,13 +723,13 @@
           "decisions": 1
         },
         "201.space.peoples": {
-          "share": 0.0157,
-          "ms": 0.68,
+          "share": 0.0151,
+          "ms": 0.53,
           "events": 1,
           "decisions": 1
         },
         "202.space.lanes": {
-          "share": 0.0151,
+          "share": 0.015,
           "ms": 0.51,
           "events": 1,
           "decisions": 1
@@ -290,141 +746,81 @@
           "events": 1,
           "decisions": 1
         },
+        "205.space.farlife": {
+          "share": 0.0156,
+          "ms": 0.63,
+          "events": 1,
+          "decisions": 1
+        },
+        "206.frontier.weather": {
+          "share": 0.0151,
+          "ms": 0.52,
+          "events": 1,
+          "decisions": 1
+        },
+        "207.frontier.impacts": {
+          "share": 0.0151,
+          "ms": 0.51,
+          "events": 1,
+          "decisions": 1
+        },
+        "208.frontier.galactic": {
+          "share": 0.015,
+          "ms": 0.5,
+          "events": 1,
+          "decisions": 1
+        },
+        "209.frontier.minds": {
+          "share": 0.0151,
+          "ms": 0.53,
+          "events": 1,
+          "decisions": 1
+        },
+        "209.frontier.orbital": {
+          "share": 0.015,
+          "ms": 0.51,
+          "events": 1,
+          "decisions": 1
+        },
+        "209.frontier.uplift": {
+          "share": 0.0151,
+          "ms": 0.52,
+          "events": 1,
+          "decisions": 1
+        },
+        "209.frontier.written": {
+          "share": 0.0151,
+          "ms": 0.52,
+          "events": 1,
+          "decisions": 1
+        },
         "880.lessons.year": {
-          "share": 0.0232,
-          "ms": 2.26,
-          "events": 6.6,
+          "share": 0.0244,
+          "ms": 2.46,
+          "events": 5.7,
           "decisions": 1
         },
         "890.economy.ledger": {
-          "share": 0.0287,
-          "ms": 3.77,
+          "share": 0.0261,
+          "ms": 2.82,
           "events": 1,
           "decisions": 1
         },
         "900.population.ledger": {
-          "share": 0.0216,
-          "ms": 1.95,
+          "share": 0.0202,
+          "ms": 1.58,
           "events": 1,
           "decisions": 1
         },
         "990.history.compact": {
-          "share": 0.0217,
-          "ms": 2.11,
+          "share": 0.0295,
+          "ms": 3.51,
           "events": 1,
           "decisions": 1
         },
         "999.checkpoint": {
-          "share": 0.0828,
-          "ms": 16.69,
-          "events": 1,
-          "decisions": 1
-        },
-        "118.ground.year": {
-          "share": 0.0197,
-          "ms": 1.63,
-          "events": 1,
-          "decisions": 1
-        },
-        "119.life.lineage": {
-          "share": 0.0158,
-          "ms": 0.69,
-          "events": 1,
-          "decisions": 1
-        },
-        "128.planet.motion": {
-          "share": 0.0154,
-          "ms": 0.6,
-          "events": 1,
-          "decisions": 1
-        },
-        "156.lore.letters": {
-          "share": 0.0165,
-          "ms": 0.85,
-          "events": 1,
-          "decisions": 1
-        },
-        "158.lore.lost": {
-          "share": 0.0181,
-          "ms": 1.23,
-          "events": 1.6,
-          "decisions": 1.1
-        },
-        "185.war.zoccupied": {
-          "share": 0.0158,
-          "ms": 0.69,
-          "events": 2.5,
-          "decisions": 1
-        },
-        "186.diplomacy.councils": {
-          "share": 0.018,
-          "ms": 1.22,
-          "events": 1.6,
-          "decisions": 1
-        },
-        "186.diplomacy.spies": {
-          "share": 0.0177,
-          "ms": 1.14,
-          "events": 8,
-          "decisions": 1
-        },
-        "186.money.intox": {
-          "share": 0.017,
-          "ms": 0.97,
-          "events": 1,
-          "decisions": 1
-        },
-        "186.money.labour": {
-          "share": 0.0209,
-          "ms": 1.92,
-          "events": 1.3,
-          "decisions": 1
-        },
-        "187.order.votes": {
-          "share": 0.0216,
-          "ms": 2.07,
-          "events": 24.4,
-          "decisions": 24.4
-        },
-        "188.health.year.strains": {
-          "share": 0.0152,
-          "ms": 0.55,
-          "events": 1.1,
-          "decisions": 1
-        },
-        "188.money.coin": {
-          "share": 0.0228,
-          "ms": 2.36,
-          "events": 3.5,
-          "decisions": 1.7
-        },
-        "188.money.cover": {
-          "share": 0.0242,
-          "ms": 2.69,
-          "events": 1.6,
-          "decisions": 1
-        },
-        "188.money.prohibition": {
-          "share": 0.0431,
-          "ms": 7.22,
-          "events": 1,
-          "decisions": 1
-        },
-        "188.money.trade": {
-          "share": 0.0456,
-          "ms": 7.81,
-          "events": 1.4,
-          "decisions": 1.3
-        },
-        "188.money.treasury": {
-          "share": 0.0247,
-          "ms": 2.81,
-          "events": 2.8,
-          "decisions": 2.8
-        },
-        "205.space.farlife": {
-          "share": 0.0152,
-          "ms": 0.54,
+          "share": 0.0744,
+          "ms": 12.87,
           "events": 1,
           "decisions": 1
         }
@@ -433,81 +829,168 @@
         "acts.active": 2362,
         "acts.fortunes": 2059,
         "acts.great": 2070,
+        "acts.persons": 2059,
         "acts.switches": 2059,
-        "acts.wild": 98736,
-        "belief.faiths": 166870,
-        "city.quarters": 80342,
-        "climate.air": 18691,
+        "acts.wild": 24529,
+        "belief.faiths": 38701,
+        "belief.heads": 8510,
+        "belief.missions": 4482,
+        "belief.taboos": 5107,
+        "belief.temples": 7484,
+        "city.quarters": 75852,
+        "climate.air": 10266,
         "commands.log": 2075,
-        "court.states": 164444,
-        "credit.houses": 9395,
-        "culture.languages": 71294,
-        "culture.ways": 178453,
-        "design.designs": 58532,
-        "diplomacy.relations": 91238,
-        "ecology.herds": 25223,
-        "ecology.lands": 72370,
-        "ecology.woods": 166507,
-        "economy.lodes": 4675,
-        "economy.markets": 1804015,
-        "finance.realms": 50300,
+        "court.states": 78836,
+        "credit.houses": 9919,
+        "culture.abroad": 5203,
+        "culture.art": 16172,
+        "culture.folk": 13090,
+        "culture.languages": 15607,
+        "culture.ways": 140197,
+        "design.designs": 68044,
+        "diplomacy.councils": 19414,
+        "diplomacy.honour": 6522,
+        "diplomacy.relations": 177247,
+        "ecology.droving": 2689,
+        "ecology.ground": 32102,
+        "ecology.herds": 18641,
+        "ecology.lands": 74411,
+        "ecology.seas": 3953,
+        "ecology.stands": 3928,
+        "ecology.woods": 48188,
+        "economy.canals": 2072,
+        "economy.energy": 38473,
+        "economy.lodes": 4699,
+        "economy.markets": 1766881,
+        "finance.realms": 36611,
+        "frontier.galactic": 2146,
+        "frontier.impacts": 2190,
+        "frontier.minds": 2104,
+        "frontier.orbital": 2059,
+        "frontier.uplift": 2059,
+        "frontier.weather": 2208,
+        "frontier.written": 2059,
         "hand.window": 2076,
-        "health.sickness": 23915,
-        "history.decisions": 1710104,
-        "history.events": 3898466,
-        "lore.known": 120661,
-        "lore.lessons": 155568,
+        "health.sickness": 15498,
+        "health.strains": 4331,
+        "history.decisions": 2198671,
+        "history.events": 5546257,
+        "ideas.pilgrims": 2664,
+        "ideas.schools": 20887,
+        "ideas.works": 48311,
+        "life.crops": 20512,
+        "life.diet": 14825,
+        "life.exchange": 14468,
+        "life.lineage": 15229,
+        "lore.academies": 14165,
+        "lore.known": 130841,
+        "lore.lessons": 86941,
+        "lore.letters": 4468,
+        "lore.lost": 9031,
+        "lore.materials": 22493,
+        "lore.rights": 6410,
+        "money.bind": 12968,
+        "money.coin": 9619,
+        "money.contraband": 16256,
+        "money.cover": 22340,
+        "money.goods": 46940,
+        "money.intox": 39617,
+        "money.intoxkinds": 14399,
+        "money.labour": 13864,
+        "money.potency": 3959,
+        "money.prohibition": 17455,
+        "money.shares": 19790,
+        "money.smuggling": 5509,
+        "money.tariffs": 7849,
+        "money.treasury": 27274,
         "observer.ledger": 2170,
-        "order.bonds": 679696,
-        "planet.home": 3089,
-        "polity.states": 51352,
-        "population.history": 2660610,
-        "population.provinces": 989428,
-        "population.settlements": 850090,
-        "readings.years": 277483,
+        "order.bodies": 231254,
+        "order.bodylands": 28692,
+        "order.bonds": 173983,
+        "order.charters": 10501,
+        "order.curriculum": 4608,
+        "order.elections": 56486,
+        "order.gangs": 12720,
+        "order.grouplands": 27862,
+        "order.groups": 307698,
+        "order.houses": 93844,
+        "order.reach": 4865,
+        "order.reachlands": 11592,
+        "order.sentences": 10273,
+        "order.underworld": 120547,
+        "order.voice": 7820,
+        "order.wants": 68309,
+        "people.notables": 186121,
+        "planet.fires": 3546,
+        "planet.floods": 4601,
+        "planet.home": 5222,
+        "planet.motion": 14142,
+        "planet.rivers": 2329,
+        "planet.storms": 3514,
+        "polity.states": 50764,
+        "population.borders": 5917,
+        "population.carried": 2059,
+        "population.heredity": 2059,
+        "population.history": 2451938,
+        "population.mix": 2059,
+        "population.provinces": 1013579,
+        "population.settlements": 602066,
+        "readings.commanders": 57384,
+        "readings.deaths": 398089,
+        "readings.far": 2855,
+        "readings.places": 2185,
+        "readings.years": 307508,
+        "society.care": 18630,
+        "society.dress": 14806,
+        "society.holdings": 14063,
+        "society.law": 8017,
+        "society.leisure": 13464,
+        "society.old": 18832,
+        "society.orphans": 5534,
+        "society.provision": 5876,
+        "society.roles": 14837,
+        "society.roofless": 40063,
+        "society.strain": 16278,
+        "society.table": 17975,
+        "society.unable": 13198,
         "space.contact": 2059,
+        "space.farlife": 3865,
+        "space.farreigns": 2059,
         "space.filled": 2088,
-        "space.flight": 2156,
+        "space.flight": 2317,
         "space.late": 2112,
         "space.nations": 2160,
-        "space.peoples": 2348,
+        "space.peoples": 2224,
         "space.stars": 2059,
         "space.starwars": 2059,
         "space.trade": 2142,
-        "strife.realms": 11826,
+        "strife.realms": 24143,
+        "ties.spies": 3559,
         "town.asks": 2059,
-        "town.fabric": 2329106,
-        "war.arms": 7210,
-        "war.bonds": 7633,
+        "town.fabric": 1443136,
+        "town.managed": 2059,
+        "town.urban": 8989,
+        "trade.capital": 2110,
+        "trade.cartel": 2344,
+        "trade.cycle": 9756,
+        "trade.demand": 17766,
+        "trade.exchange": 2110,
+        "trade.plan": 5454,
+        "trade.rent": 13762,
+        "trade.smoke": 2110,
+        "war.arming": 20100,
+        "war.arms": 4340,
+        "war.bonds": 3337,
         "war.fire": 2165,
+        "war.fleets": 10337,
         "war.godhosts": 2059,
-        "war.ties": 19075,
-        "war.wars": 1405894,
-        "diplomacy.councils": 17240,
-        "ecology.ground": 30871,
-        "economy.energy": 37832,
-        "health.strains": 4366,
-        "life.lineage": 44506,
-        "lore.letters": 8252,
-        "lore.lost": 30214,
-        "money.bind": 20969,
-        "money.coin": 13777,
-        "money.cover": 31831,
-        "money.goods": 54593,
-        "money.intox": 30421,
-        "money.labour": 19499,
-        "money.prohibition": 14172,
-        "money.shares": 34228,
-        "money.smuggling": 6965,
-        "money.tariffs": 11027,
-        "money.treasury": 25049,
-        "order.elections": 111830,
-        "order.wants": 174580,
-        "planet.motion": 27552,
-        "readings.far": 2814,
-        "space.farlife": 4062,
-        "ties.spies": 10073,
-        "war.occupation": 4370
+        "war.held": 12428,
+        "war.navy": 7561,
+        "war.occupation": 3714,
+        "war.shelter": 2110,
+        "war.sieges": 2120,
+        "war.ties": 12098,
+        "war.wars": 521774
       }
     },
     {
@@ -517,133 +1000,271 @@
       "year": 400,
       "window": 100,
       "world": {
-        "lands": 146,
-        "realms": 50,
-        "towns": 5875,
-        "people": 24798402
+        "lands": 147,
+        "realms": 43,
+        "towns": 5932,
+        "people": 10808355
       },
       "totals": {
-        "yearMs": 98,
-        "p99Ms": 131,
-        "saveBytes": 5977664,
-        "heapBytes": 206168928
+        "yearMs": 76,
+        "p99Ms": 137,
+        "saveBytes": 7736609,
+        "heapBytes": 229862420
       },
       "systems": {
         "095.population.food": {
-          "share": 0.1011,
-          "ms": 7.49,
-          "events": 4.4,
+          "share": 0.1046,
+          "ms": 6.11,
+          "events": 1.4,
           "decisions": 1
         },
         "100.population.vital": {
-          "share": 0.0673,
-          "ms": 3.68,
+          "share": 0.0558,
+          "ms": 3.05,
           "events": 1,
           "decisions": 1
         },
         "101.hand.life": {
-          "share": 0.0154,
-          "ms": 0.53,
+          "share": 0.0153,
+          "ms": 0.52,
           "events": 1,
           "decisions": 1
         },
         "105.weather.rain": {
-          "share": 0.0173,
-          "ms": 0.69,
-          "events": 23.7,
+          "share": 0.017,
+          "ms": 0.62,
+          "events": 24.6,
+          "decisions": 1
+        },
+        "106.planet.floods": {
+          "share": 0.0174,
+          "ms": 0.65,
+          "events": 8.2,
+          "decisions": 1
+        },
+        "107.planet.storms": {
+          "share": 0.0153,
+          "ms": 0.52,
+          "events": 1.2,
           "decisions": 1
         },
         "110.population.age": {
-          "share": 0.0477,
-          "ms": 3.15,
+          "share": 0.0373,
+          "ms": 1.89,
           "events": 1,
           "decisions": 1
         },
         "115.ecology.year": {
-          "share": 0.0191,
-          "ms": 0.84,
-          "events": 1.1,
-          "decisions": 1
-        },
-        "116.woods.year": {
-          "share": 0.0175,
+          "share": 0.0182,
           "ms": 0.7,
           "events": 1,
           "decisions": 1
         },
+        "115.ecology.zseas": {
+          "share": 0.0153,
+          "ms": 0.52,
+          "events": 1,
+          "decisions": 1
+        },
+        "116.woods.year": {
+          "share": 0.0172,
+          "ms": 0.64,
+          "events": 1,
+          "decisions": 1
+        },
         "117.herds.year": {
-          "share": 0.0163,
-          "ms": 0.6,
-          "events": 1,
+          "share": 0.0174,
+          "ms": 0.65,
+          "events": 1.1,
           "decisions": 1
         },
-        "120.population.work": {
-          "share": 0.1101,
-          "ms": 8.21,
-          "events": 1,
-          "decisions": 1
-        },
-        "125.economy.year": {
-          "share": 0.1401,
-          "ms": 8.11,
-          "events": 6.2,
-          "decisions": 1.6
-        },
-        "126.climate.air": {
-          "share": 0.0194,
-          "ms": 0.85,
-          "events": 1,
-          "decisions": 1
-        },
-        "127.lodes.year": {
-          "share": 0.0154,
-          "ms": 0.53,
-          "events": 1,
-          "decisions": 1
-        },
-        "130.population.migrate": {
-          "share": 0.0302,
-          "ms": 1.42,
-          "events": 16.2,
-          "decisions": 16.2
-        },
-        "140.population.settle": {
-          "share": 0.0878,
-          "ms": 6.33,
-          "events": 1.6,
-          "decisions": 1.6
-        },
-        "150.knowledge.cultivation": {
-          "share": 0.0156,
+        "117.herds.year.droving": {
+          "share": 0.0157,
           "ms": 0.55,
           "events": 1,
           "decisions": 1
         },
-        "155.knowledge.metal": {
-          "share": 0.0153,
-          "ms": 0.53,
+        "118.ground.year": {
+          "share": 0.0193,
+          "ms": 0.77,
           "events": 1,
           "decisions": 1
         },
+        "119.life.lineage": {
+          "share": 0.0159,
+          "ms": 0.55,
+          "events": 1,
+          "decisions": 1
+        },
+        "120.population.work": {
+          "share": 0.059,
+          "ms": 3.25,
+          "events": 1,
+          "decisions": 1
+        },
+        "121.life.diet": {
+          "share": 0.019,
+          "ms": 0.75,
+          "events": 1.3,
+          "decisions": 1
+        },
+        "125.economy.year": {
+          "share": 0.1324,
+          "ms": 7.85,
+          "events": 4.1,
+          "decisions": 1.7
+        },
+        "126.climate.air": {
+          "share": 0.0169,
+          "ms": 0.62,
+          "events": 1,
+          "decisions": 1
+        },
+        "127.economy.canals": {
+          "share": 0.0153,
+          "ms": 0.52,
+          "events": 1,
+          "decisions": 1
+        },
+        "127.lodes.year": {
+          "share": 0.0156,
+          "ms": 0.54,
+          "events": 1,
+          "decisions": 1
+        },
+        "128.planet.motion": {
+          "share": 0.018,
+          "ms": 0.69,
+          "events": 1,
+          "decisions": 1
+        },
+        "129.planet.fires": {
+          "share": 0.0156,
+          "ms": 0.53,
+          "events": 1.1,
+          "decisions": 1
+        },
+        "129.population.borders": {
+          "share": 0.016,
+          "ms": 0.56,
+          "events": 1,
+          "decisions": 1
+        },
+        "130.population.migrate": {
+          "share": 0.0276,
+          "ms": 1.29,
+          "events": 18.1,
+          "decisions": 18
+        },
+        "135.population.mix": {
+          "share": 0.015,
+          "ms": 0.5,
+          "events": 1,
+          "decisions": 1
+        },
+        "136.population.heredity": {
+          "share": 0.0151,
+          "ms": 0.51,
+          "events": 1,
+          "decisions": 1
+        },
+        "140.population.settle": {
+          "share": 0.0324,
+          "ms": 1.59,
+          "events": 2.3,
+          "decisions": 2.3
+        },
+        "141.population.urban": {
+          "share": 0.0156,
+          "ms": 0.54,
+          "events": 1,
+          "decisions": 1
+        },
+        "150.knowledge.cultivation": {
+          "share": 0.0153,
+          "ms": 0.52,
+          "events": 1.1,
+          "decisions": 1
+        },
+        "151.life.crops": {
+          "share": 0.0163,
+          "ms": 0.58,
+          "events": 1.1,
+          "decisions": 1
+        },
+        "152.life.exchange": {
+          "share": 0.0159,
+          "ms": 0.56,
+          "events": 1.1,
+          "decisions": 1
+        },
+        "155.knowledge.metal": {
+          "share": 0.0153,
+          "ms": 0.52,
+          "events": 1,
+          "decisions": 1
+        },
+        "156.lore.letters": {
+          "share": 0.0159,
+          "ms": 0.56,
+          "events": 1,
+          "decisions": 1
+        },
+        "157.lore.academies": {
+          "share": 0.016,
+          "ms": 0.56,
+          "events": 1,
+          "decisions": 1
+        },
+        "157.lore.rights": {
+          "share": 0.0157,
+          "ms": 0.55,
+          "events": 1.2,
+          "decisions": 1
+        },
         "157.lore.year": {
-          "share": 0.1629,
-          "ms": 11.66,
-          "events": 16.4,
-          "decisions": 1.8
+          "share": 0.0987,
+          "ms": 5.74,
+          "events": 17.3,
+          "decisions": 1.9
+        },
+        "158.lore.lost": {
+          "share": 0.0163,
+          "ms": 0.58,
+          "events": 1,
+          "decisions": 1
+        },
+        "158.lore.materials": {
+          "share": 0.0183,
+          "ms": 0.71,
+          "events": 3.7,
+          "decisions": 1
         },
         "160.culture.ways": {
-          "share": 0.0307,
-          "ms": 1.6,
+          "share": 0.0247,
+          "ms": 1.11,
           "events": 1,
           "decisions": 1
         },
         "162.culture.languages": {
-          "share": 0.0304,
-          "ms": 1.75,
-          "events": 1.3,
+          "share": 0.025,
+          "ms": 1.12,
+          "events": 1.4,
           "decisions": 1
         },
+        "163.culture.abroad": {
+          "share": 0.0161,
+          "ms": 0.57,
+          "events": 1.9,
+          "decisions": 1.3
+        },
         "168.acts.fortunes": {
+          "share": 0.015,
+          "ms": 0.5,
+          "events": 1,
+          "decisions": 1
+        },
+        "168.acts.persons": {
           "share": 0.015,
           "ms": 0.5,
           "events": 1,
@@ -656,116 +1277,434 @@
           "decisions": 1
         },
         "170.polity.year": {
-          "share": 0.0308,
-          "ms": 1.5,
-          "events": 9.3,
-          "decisions": 5.9
+          "share": 0.0292,
+          "ms": 1.39,
+          "events": 8.2,
+          "decisions": 5.1
         },
         "175.belief.year": {
-          "share": 0.0234,
-          "ms": 1.18,
-          "events": 5,
-          "decisions": 1
-        },
-        "185.war.year": {
-          "share": 0.1274,
-          "ms": 9.62,
-          "events": 20.5,
-          "decisions": 4.8
-        },
-        "186.diplomacy.year": {
-          "share": 0.0354,
-          "ms": 2.16,
-          "events": 1.4,
-          "decisions": 1
-        },
-        "187.order.year": {
-          "share": 0.0769,
-          "ms": 5.52,
+          "share": 0.0232,
+          "ms": 1.01,
           "events": 8.4,
-          "decisions": 8.2
+          "decisions": 5.3
         },
-        "188.health.year": {
-          "share": 0.0264,
-          "ms": 1.43,
+        "176.belief.temples": {
+          "share": 0.0176,
+          "ms": 0.66,
+          "events": 1,
+          "decisions": 1
+        },
+        "177.culture.folk": {
+          "share": 0.0166,
+          "ms": 0.6,
+          "events": 1,
+          "decisions": 1
+        },
+        "178.culture.art": {
+          "share": 0.0156,
+          "ms": 0.54,
+          "events": 1,
+          "decisions": 1
+        },
+        "184.war.arming": {
+          "share": 0.031,
+          "ms": 1.5,
           "events": 2.1,
-          "decisions": 2.1
-        },
-        "189.credit.year": {
-          "share": 0.0206,
-          "ms": 0.92,
-          "events": 1.2,
-          "decisions": 1.2
-        },
-        "189.finance.year": {
-          "share": 0.0269,
-          "ms": 1.46,
-          "events": 1.2,
-          "decisions": 1.2
-        },
-        "189.strife.court": {
-          "share": 0.0271,
-          "ms": 1.48,
-          "events": 2.4,
-          "decisions": 1.5
-        },
-        "189.strife.year": {
-          "share": 0.0322,
-          "ms": 1.9,
-          "events": 1.1,
-          "decisions": 1.1
-        },
-        "190.city.year": {
-          "share": 0.0261,
-          "ms": 1.4,
-          "events": 1.1,
           "decisions": 1
         },
-        "191.town.year": {
-          "share": 0.2134,
-          "ms": 16.6,
-          "events": 13.6,
-          "decisions": 1
-        },
-        "192.wild.month": {
-          "share": 0.0391,
-          "ms": 2.45,
-          "events": 11.8,
-          "decisions": 7.5
-        },
-        "195.design.year": {
-          "share": 0.025,
-          "ms": 1.31,
+        "184.war.navy": {
+          "share": 0.0201,
+          "ms": 0.82,
           "events": 1.9,
           "decisions": 1
         },
-        "197.space.year": {
+        "184.war.zfleets": {
+          "share": 0.0159,
+          "ms": 0.56,
+          "events": 1.4,
+          "decisions": 1
+        },
+        "185.war.year": {
+          "share": 0.0718,
+          "ms": 4.06,
+          "events": 15.1,
+          "decisions": 3.3
+        },
+        "185.war.zoccupied": {
+          "share": 0.016,
+          "ms": 0.56,
+          "events": 2,
+          "decisions": 1
+        },
+        "185.war.zsieges": {
+          "share": 0.015,
+          "ms": 0.5,
+          "events": 1,
+          "decisions": 1
+        },
+        "186.diplomacy.councils": {
+          "share": 0.0193,
+          "ms": 0.77,
+          "events": 1,
+          "decisions": 1
+        },
+        "186.diplomacy.spies": {
+          "share": 0.0176,
+          "ms": 0.66,
+          "events": 2.5,
+          "decisions": 1
+        },
+        "186.diplomacy.year": {
+          "share": 0.0316,
+          "ms": 1.54,
+          "events": 1.9,
+          "decisions": 1
+        },
+        "186.money.intox": {
+          "share": 0.0177,
+          "ms": 0.67,
+          "events": 1,
+          "decisions": 1
+        },
+        "186.money.labour": {
+          "share": 0.0182,
+          "ms": 0.7,
+          "events": 1.3,
+          "decisions": 1
+        },
+        "186.order.voice": {
+          "share": 0.0198,
+          "ms": 0.8,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.order.votes": {
+          "share": 0.0183,
+          "ms": 0.71,
+          "events": 3.7,
+          "decisions": 3.7
+        },
+        "187.order.year": {
+          "share": 0.0696,
+          "ms": 3.91,
+          "events": 1.7,
+          "decisions": 1.6
+        },
+        "187.society.care": {
+          "share": 0.0166,
+          "ms": 0.6,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.society.dress": {
           "share": 0.0157,
           "ms": 0.55,
           "events": 1,
           "decisions": 1
         },
+        "187.society.law": {
+          "share": 0.0161,
+          "ms": 0.57,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.society.law.holdings": {
+          "share": 0.0161,
+          "ms": 0.57,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.society.leisure": {
+          "share": 0.0158,
+          "ms": 0.55,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.society.old": {
+          "share": 0.0157,
+          "ms": 0.55,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.society.provision": {
+          "share": 0.0206,
+          "ms": 0.85,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.society.roles": {
+          "share": 0.0174,
+          "ms": 0.65,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.society.roofless": {
+          "share": 0.033,
+          "ms": 1.63,
+          "events": 2,
+          "decisions": 1
+        },
+        "187.society.strain": {
+          "share": 0.0159,
+          "ms": 0.56,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.society.table": {
+          "share": 0.0158,
+          "ms": 0.55,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.society.unable": {
+          "share": 0.0162,
+          "ms": 0.58,
+          "events": 1.1,
+          "decisions": 1.1
+        },
+        "187.war.zheld": {
+          "share": 0.0177,
+          "ms": 0.67,
+          "events": 4.9,
+          "decisions": 1.6
+        },
+        "188.health.year": {
+          "share": 0.0205,
+          "ms": 0.84,
+          "events": 2.3,
+          "decisions": 2.3
+        },
+        "188.health.year.strains": {
+          "share": 0.0154,
+          "ms": 0.52,
+          "events": 1,
+          "decisions": 1
+        },
+        "188.health.year.taboo": {
+          "share": 0.0158,
+          "ms": 0.55,
+          "events": 1,
+          "decisions": 1
+        },
+        "188.money.coin": {
+          "share": 0.0204,
+          "ms": 0.84,
+          "events": 1.3,
+          "decisions": 1.2
+        },
+        "188.money.cover": {
+          "share": 0.0197,
+          "ms": 0.79,
+          "events": 1.1,
+          "decisions": 1
+        },
+        "188.money.prohibition": {
+          "share": 0.024,
+          "ms": 1.07,
+          "events": 1.4,
+          "decisions": 1
+        },
+        "188.money.strength": {
+          "share": 0.0154,
+          "ms": 0.53,
+          "events": 1,
+          "decisions": 1
+        },
+        "188.money.trade": {
+          "share": 0.0211,
+          "ms": 0.88,
+          "events": 1.6,
+          "decisions": 1.2
+        },
+        "188.money.treasury": {
+          "share": 0.0269,
+          "ms": 1.24,
+          "events": 1.4,
+          "decisions": 1.4
+        },
+        "188.order.houses": {
+          "share": 0.0262,
+          "ms": 1.2,
+          "events": 10.3,
+          "decisions": 10.3
+        },
+        "188.order.underworld": {
+          "share": 0.0446,
+          "ms": 2.35,
+          "events": 6.6,
+          "decisions": 6.1
+        },
+        "188.order.zgroups": {
+          "share": 0.055,
+          "ms": 3,
+          "events": 28.1,
+          "decisions": 14.3
+        },
+        "188.order.zzbodies": {
+          "share": 0.0245,
+          "ms": 1.09,
+          "events": 7.8,
+          "decisions": 1.9
+        },
+        "188.order.zzzsentences": {
+          "share": 0.0164,
+          "ms": 0.59,
+          "events": 1,
+          "decisions": 1
+        },
+        "189.credit.year": {
+          "share": 0.0187,
+          "ms": 0.73,
+          "events": 1,
+          "decisions": 1
+        },
+        "189.finance.year": {
+          "share": 0.0224,
+          "ms": 0.96,
+          "events": 1.1,
+          "decisions": 1.1
+        },
+        "189.order.charter": {
+          "share": 0.016,
+          "ms": 0.56,
+          "events": 1,
+          "decisions": 1
+        },
+        "189.strife.court": {
+          "share": 0.022,
+          "ms": 0.94,
+          "events": 2.8,
+          "decisions": 1.6
+        },
+        "189.strife.year": {
+          "share": 0.0229,
+          "ms": 1,
+          "events": 1.4,
+          "decisions": 1.4
+        },
+        "189.trade.capital": {
+          "share": 0.0179,
+          "ms": 0.68,
+          "events": 1,
+          "decisions": 1
+        },
+        "189.trade.cartel": {
+          "share": 0.0155,
+          "ms": 0.53,
+          "events": 1,
+          "decisions": 1
+        },
+        "189.trade.cycle": {
+          "share": 0.018,
+          "ms": 0.69,
+          "events": 1.2,
+          "decisions": 1.2
+        },
+        "189.trade.plan": {
+          "share": 0.0157,
+          "ms": 0.54,
+          "events": 1,
+          "decisions": 1
+        },
+        "189.trade.rent": {
+          "share": 0.0159,
+          "ms": 0.56,
+          "events": 1,
+          "decisions": 1
+        },
+        "189.trade.smoke": {
+          "share": 0.0155,
+          "ms": 0.53,
+          "events": 1,
+          "decisions": 1
+        },
+        "190.city.year": {
+          "share": 0.0262,
+          "ms": 1.2,
+          "events": 1.1,
+          "decisions": 1
+        },
+        "191.town.year": {
+          "share": 0.1805,
+          "ms": 10.85,
+          "events": 20.4,
+          "decisions": 1
+        },
+        "192.wild.month": {
+          "share": 0.0291,
+          "ms": 1.38,
+          "events": 11,
+          "decisions": 6.8
+        },
+        "195.design.year": {
+          "share": 0.0207,
+          "ms": 0.86,
+          "events": 2.6,
+          "decisions": 1
+        },
+        "197.people.notables": {
+          "share": 0.0253,
+          "ms": 1.14,
+          "events": 3.4,
+          "decisions": 1.6
+        },
+        "197.people.zfaith": {
+          "share": 0.0179,
+          "ms": 0.68,
+          "events": 3.6,
+          "decisions": 1.6
+        },
+        "197.space.year": {
+          "share": 0.0154,
+          "ms": 0.53,
+          "events": 1,
+          "decisions": 1
+        },
+        "198.ideas.works": {
+          "share": 0.0164,
+          "ms": 0.59,
+          "events": 1.6,
+          "decisions": 1
+        },
+        "198.ideas.year": {
+          "share": 0.0168,
+          "ms": 0.61,
+          "events": 1.4,
+          "decisions": 1
+        },
+        "198.ideas.zpilgrims": {
+          "share": 0.0153,
+          "ms": 0.52,
+          "events": 1.1,
+          "decisions": 1
+        },
         "198.space.voyage": {
           "share": 0.0152,
-          "ms": 0.52,
+          "ms": 0.51,
           "events": 1,
           "decisions": 1
         },
         "199.space.contact": {
           "share": 0.0152,
-          "ms": 0.52,
+          "ms": 0.51,
+          "events": 1,
+          "decisions": 1
+        },
+        "199.space.zfarreigns": {
+          "share": 0.015,
+          "ms": 0.5,
           "events": 1,
           "decisions": 1
         },
         "200.space.starwar": {
           "share": 0.0151,
-          "ms": 0.51,
+          "ms": 0.5,
           "events": 1,
           "decisions": 1
         },
         "201.space.peoples": {
-          "share": 0.0176,
-          "ms": 0.66,
+          "share": 0.0152,
+          "ms": 0.51,
           "events": 1,
           "decisions": 1
         },
@@ -787,141 +1726,81 @@
           "events": 1,
           "decisions": 1
         },
+        "205.space.farlife": {
+          "share": 0.0167,
+          "ms": 0.61,
+          "events": 1,
+          "decisions": 1
+        },
+        "206.frontier.weather": {
+          "share": 0.0152,
+          "ms": 0.51,
+          "events": 1,
+          "decisions": 1
+        },
+        "207.frontier.impacts": {
+          "share": 0.0151,
+          "ms": 0.51,
+          "events": 1,
+          "decisions": 1
+        },
+        "208.frontier.galactic": {
+          "share": 0.015,
+          "ms": 0.5,
+          "events": 1,
+          "decisions": 1
+        },
+        "209.frontier.minds": {
+          "share": 0.0151,
+          "ms": 0.51,
+          "events": 1,
+          "decisions": 1
+        },
+        "209.frontier.orbital": {
+          "share": 0.0151,
+          "ms": 0.5,
+          "events": 1,
+          "decisions": 1
+        },
+        "209.frontier.uplift": {
+          "share": 0.0151,
+          "ms": 0.51,
+          "events": 1,
+          "decisions": 1
+        },
+        "209.frontier.written": {
+          "share": 0.0151,
+          "ms": 0.51,
+          "events": 1,
+          "decisions": 1
+        },
         "880.lessons.year": {
-          "share": 0.0254,
-          "ms": 1.35,
-          "events": 2.5,
+          "share": 0.0223,
+          "ms": 0.96,
+          "events": 3.1,
           "decisions": 1
         },
         "890.economy.ledger": {
-          "share": 0.0291,
-          "ms": 1.64,
+          "share": 0.0239,
+          "ms": 1.06,
           "events": 1,
           "decisions": 1
         },
         "900.population.ledger": {
-          "share": 0.0213,
-          "ms": 1.01,
+          "share": 0.0206,
+          "ms": 0.85,
           "events": 1,
           "decisions": 1
         },
         "990.history.compact": {
-          "share": 0.0243,
-          "ms": 1.25,
+          "share": 0.0276,
+          "ms": 1.29,
           "events": 1,
           "decisions": 1
         },
         "999.checkpoint": {
-          "share": 0.0578,
-          "ms": 3.97,
-          "events": 1,
-          "decisions": 1
-        },
-        "118.ground.year": {
-          "share": 0.0201,
-          "ms": 0.81,
-          "events": 1,
-          "decisions": 1
-        },
-        "119.life.lineage": {
-          "share": 0.016,
-          "ms": 0.56,
-          "events": 1,
-          "decisions": 1
-        },
-        "128.planet.motion": {
-          "share": 0.0166,
-          "ms": 0.6,
-          "events": 1,
-          "decisions": 1
-        },
-        "156.lore.letters": {
-          "share": 0.0165,
-          "ms": 0.59,
-          "events": 1,
-          "decisions": 1
-        },
-        "158.lore.lost": {
-          "share": 0.0185,
-          "ms": 0.71,
-          "events": 1.3,
-          "decisions": 1.1
-        },
-        "185.war.zoccupied": {
-          "share": 0.0171,
-          "ms": 0.63,
-          "events": 1.3,
-          "decisions": 1
-        },
-        "186.diplomacy.councils": {
-          "share": 0.0175,
-          "ms": 0.65,
-          "events": 1.1,
-          "decisions": 1
-        },
-        "186.diplomacy.spies": {
-          "share": 0.0171,
-          "ms": 0.63,
-          "events": 2.6,
-          "decisions": 1
-        },
-        "186.money.intox": {
-          "share": 0.017,
-          "ms": 0.62,
-          "events": 1,
-          "decisions": 1
-        },
-        "186.money.labour": {
-          "share": 0.0212,
-          "ms": 0.88,
-          "events": 1.1,
-          "decisions": 1
-        },
-        "187.order.votes": {
-          "share": 0.0195,
-          "ms": 0.78,
-          "events": 3.1,
-          "decisions": 3.1
-        },
-        "188.health.year.strains": {
-          "share": 0.0156,
-          "ms": 0.54,
-          "events": 1.2,
-          "decisions": 1
-        },
-        "188.money.coin": {
-          "share": 0.022,
-          "ms": 0.93,
-          "events": 1.4,
-          "decisions": 1.2
-        },
-        "188.money.cover": {
-          "share": 0.0207,
-          "ms": 0.85,
-          "events": 1.1,
-          "decisions": 1
-        },
-        "188.money.prohibition": {
-          "share": 0.0339,
-          "ms": 1.65,
-          "events": 1,
-          "decisions": 1
-        },
-        "188.money.trade": {
-          "share": 0.0355,
-          "ms": 1.75,
-          "events": 1.1,
-          "decisions": 1.1
-        },
-        "188.money.treasury": {
-          "share": 0.0225,
-          "ms": 0.96,
-          "events": 1.4,
-          "decisions": 1.4
-        },
-        "205.space.farlife": {
-          "share": 0.0157,
-          "ms": 0.54,
+          "share": 0.0655,
+          "ms": 3.66,
           "events": 1,
           "decisions": 1
         }
@@ -930,81 +1809,168 @@
         "acts.active": 2359,
         "acts.fortunes": 2059,
         "acts.great": 2070,
+        "acts.persons": 2059,
         "acts.switches": 2059,
-        "acts.wild": 34906,
-        "belief.faiths": 43260,
-        "city.quarters": 22279,
-        "climate.air": 6457,
+        "acts.wild": 12395,
+        "belief.faiths": 11840,
+        "belief.heads": 4379,
+        "belief.missions": 2896,
+        "belief.taboos": 4480,
+        "belief.temples": 4002,
+        "city.quarters": 23314,
+        "climate.air": 4940,
         "commands.log": 2075,
-        "court.states": 64590,
-        "credit.houses": 15637,
-        "culture.languages": 29518,
-        "culture.ways": 50960,
-        "design.designs": 18725,
-        "diplomacy.relations": 38036,
-        "ecology.herds": 9622,
-        "ecology.lands": 22434,
-        "ecology.woods": 31978,
-        "economy.lodes": 3719,
-        "economy.markets": 522836,
-        "finance.realms": 21268,
+        "court.states": 22880,
+        "credit.houses": 3946,
+        "culture.abroad": 4146,
+        "culture.art": 6242,
+        "culture.folk": 5102,
+        "culture.languages": 8555,
+        "culture.ways": 42384,
+        "design.designs": 21806,
+        "diplomacy.councils": 6119,
+        "diplomacy.honour": 4399,
+        "diplomacy.relations": 48502,
+        "ecology.droving": 2110,
+        "ecology.ground": 10942,
+        "ecology.herds": 9014,
+        "ecology.lands": 22699,
+        "ecology.seas": 2084,
+        "ecology.stands": 2776,
+        "ecology.woods": 13084,
+        "economy.canals": 2072,
+        "economy.energy": 14018,
+        "economy.lodes": 3954,
+        "economy.markets": 523175,
+        "finance.realms": 6402,
+        "frontier.galactic": 2146,
+        "frontier.impacts": 2190,
+        "frontier.minds": 2104,
+        "frontier.orbital": 2059,
+        "frontier.uplift": 2059,
+        "frontier.weather": 2208,
+        "frontier.written": 2059,
         "hand.window": 2076,
-        "health.sickness": 15199,
-        "history.decisions": 481165,
-        "history.events": 1277767,
-        "lore.known": 30254,
-        "lore.lessons": 52596,
+        "health.sickness": 14302,
+        "health.strains": 3583,
+        "history.decisions": 707345,
+        "history.events": 1923311,
+        "ideas.pilgrims": 3782,
+        "ideas.schools": 6676,
+        "ideas.works": 21138,
+        "life.crops": 7577,
+        "life.diet": 5923,
+        "life.exchange": 5748,
+        "life.lineage": 8026,
+        "lore.academies": 5084,
+        "lore.known": 33305,
+        "lore.lessons": 37037,
+        "lore.letters": 3360,
+        "lore.lost": 2179,
+        "lore.materials": 8100,
+        "lore.rights": 3427,
+        "money.bind": 5041,
+        "money.coin": 4044,
+        "money.contraband": 5688,
+        "money.cover": 7796,
+        "money.goods": 14221,
+        "money.intox": 11617,
+        "money.intoxkinds": 5188,
+        "money.labour": 5495,
+        "money.potency": 2552,
+        "money.prohibition": 5844,
+        "money.shares": 7126,
+        "money.smuggling": 3913,
+        "money.tariffs": 3882,
+        "money.treasury": 8279,
         "observer.ledger": 2170,
-        "order.bonds": 227702,
-        "planet.home": 3106,
-        "polity.states": 19972,
-        "population.history": 823260,
-        "population.provinces": 276611,
-        "population.settlements": 223158,
-        "readings.years": 80657,
+        "order.bodies": 124265,
+        "order.bodylands": 10426,
+        "order.bonds": 65297,
+        "order.charters": 4195,
+        "order.curriculum": 3290,
+        "order.elections": 46422,
+        "order.gangs": 6688,
+        "order.grouplands": 9072,
+        "order.groups": 117443,
+        "order.houses": 31198,
+        "order.reach": 3528,
+        "order.reachlands": 4612,
+        "order.sentences": 6072,
+        "order.underworld": 98918,
+        "order.voice": 4255,
+        "order.wants": 20694,
+        "people.notables": 128062,
+        "planet.fires": 3370,
+        "planet.floods": 3950,
+        "planet.home": 5236,
+        "planet.motion": 14108,
+        "planet.rivers": 2322,
+        "planet.storms": 3517,
+        "polity.states": 18997,
+        "population.borders": 3563,
+        "population.carried": 2059,
+        "population.heredity": 2059,
+        "population.history": 769176,
+        "population.mix": 2059,
+        "population.provinces": 277094,
+        "population.settlements": 223579,
+        "readings.commanders": 21223,
+        "readings.deaths": 350590,
+        "readings.far": 2794,
+        "readings.places": 2185,
+        "readings.years": 89399,
+        "society.care": 6799,
+        "society.dress": 5652,
+        "society.holdings": 5368,
+        "society.law": 3821,
+        "society.leisure": 5311,
+        "society.old": 6582,
+        "society.orphans": 3703,
+        "society.provision": 3966,
+        "society.roles": 5729,
+        "society.roofless": 11998,
+        "society.strain": 6024,
+        "society.table": 6613,
+        "society.unable": 5236,
         "space.contact": 2059,
+        "space.farlife": 3784,
+        "space.farreigns": 2059,
         "space.filled": 2088,
-        "space.flight": 2156,
+        "space.flight": 2317,
         "space.late": 2112,
         "space.nations": 2160,
-        "space.peoples": 2348,
+        "space.peoples": 2224,
         "space.stars": 2059,
         "space.starwars": 2059,
         "space.trade": 2142,
-        "strife.realms": 9467,
+        "strife.realms": 20693,
+        "ties.spies": 2820,
         "town.asks": 2059,
-        "town.fabric": 690258,
-        "war.arms": 3810,
-        "war.bonds": 7878,
+        "town.fabric": 924652,
+        "town.managed": 2059,
+        "town.urban": 4754,
+        "trade.capital": 2110,
+        "trade.cartel": 2752,
+        "trade.cycle": 4328,
+        "trade.demand": 6691,
+        "trade.exchange": 2110,
+        "trade.plan": 4067,
+        "trade.rent": 5804,
+        "trade.smoke": 2110,
+        "war.arming": 7292,
+        "war.arms": 3574,
+        "war.bonds": 3252,
         "war.fire": 2165,
+        "war.fleets": 5694,
         "war.godhosts": 2059,
-        "war.ties": 11578,
-        "war.wars": 647047,
-        "diplomacy.councils": 5545,
-        "ecology.ground": 10322,
-        "economy.energy": 13452,
-        "health.strains": 4313,
-        "life.lineage": 13583,
-        "lore.letters": 3332,
-        "lore.lost": 7313,
-        "money.bind": 7003,
-        "money.coin": 4475,
-        "money.cover": 9613,
-        "money.goods": 15724,
-        "money.intox": 8844,
-        "money.labour": 6781,
-        "money.prohibition": 4435,
-        "money.shares": 10819,
-        "money.smuggling": 3124,
-        "money.tariffs": 3937,
-        "money.treasury": 6907,
-        "order.elections": 12686,
-        "order.wants": 38036,
-        "planet.motion": 27530,
-        "readings.far": 2786,
-        "space.farlife": 4063,
-        "ties.spies": 3094,
-        "war.occupation": 2059
+        "war.held": 8071,
+        "war.navy": 4104,
+        "war.occupation": 2198,
+        "war.shelter": 2110,
+        "war.sieges": 2123,
+        "war.ties": 12197,
+        "war.wars": 242024
       }
     },
     {
@@ -1015,132 +1981,270 @@
       "window": 100,
       "world": {
         "lands": 655,
-        "realms": 183,
-        "towns": 11072,
-        "people": 19294646
+        "realms": 473,
+        "towns": 19754,
+        "people": 15084180
       },
       "totals": {
-        "yearMs": 195,
-        "p99Ms": 269,
-        "saveBytes": 14468124,
-        "heapBytes": 317530119
+        "yearMs": 348,
+        "p99Ms": 516,
+        "saveBytes": 22707722,
+        "heapBytes": 377043927
       },
       "systems": {
         "095.population.food": {
-          "share": 0.1403,
-          "ms": 38.97,
-          "events": 1.2,
+          "share": 0.1099,
+          "ms": 27.98,
+          "events": 1,
           "decisions": 1
         },
         "100.population.vital": {
-          "share": 0.0717,
-          "ms": 20.19,
+          "share": 0.0528,
+          "ms": 11.46,
           "events": 1,
           "decisions": 1
         },
         "101.hand.life": {
+          "share": 0.0151,
+          "ms": 0.52,
+          "events": 1,
+          "decisions": 1
+        },
+        "105.weather.rain": {
+          "share": 0.0165,
+          "ms": 0.94,
+          "events": 80.2,
+          "decisions": 1
+        },
+        "106.planet.floods": {
+          "share": 0.015,
+          "ms": 0.51,
+          "events": 1,
+          "decisions": 1
+        },
+        "107.planet.storms": {
+          "share": 0.015,
+          "ms": 0.5,
+          "events": 1,
+          "decisions": 1
+        },
+        "110.population.age": {
+          "share": 0.0381,
+          "ms": 7.2,
+          "events": 1,
+          "decisions": 1
+        },
+        "115.ecology.year": {
+          "share": 0.0181,
+          "ms": 1.41,
+          "events": 1,
+          "decisions": 1
+        },
+        "115.ecology.zseas": {
+          "share": 0.0158,
+          "ms": 0.73,
+          "events": 1,
+          "decisions": 1
+        },
+        "116.woods.year": {
+          "share": 0.0159,
+          "ms": 0.77,
+          "events": 5,
+          "decisions": 1
+        },
+        "117.herds.year": {
+          "share": 0.0157,
+          "ms": 0.7,
+          "events": 1,
+          "decisions": 1
+        },
+        "117.herds.year.droving": {
+          "share": 0.0151,
+          "ms": 0.52,
+          "events": 1,
+          "decisions": 1
+        },
+        "118.ground.year": {
+          "share": 0.0209,
+          "ms": 2.21,
+          "events": 1,
+          "decisions": 1
+        },
+        "119.life.lineage": {
+          "share": 0.0157,
+          "ms": 0.69,
+          "events": 1,
+          "decisions": 1
+        },
+        "120.population.work": {
+          "share": 0.056,
+          "ms": 12.37,
+          "events": 1,
+          "decisions": 1
+        },
+        "121.life.diet": {
+          "share": 0.0178,
+          "ms": 1.31,
+          "events": 1,
+          "decisions": 1
+        },
+        "125.economy.year": {
+          "share": 0.1103,
+          "ms": 28.11,
+          "events": 15.9,
+          "decisions": 6.4
+        },
+        "126.climate.air": {
+          "share": 0.0171,
+          "ms": 1.11,
+          "events": 1,
+          "decisions": 1
+        },
+        "127.economy.canals": {
           "share": 0.0152,
           "ms": 0.55,
           "events": 1,
           "decisions": 1
         },
-        "105.weather.rain": {
-          "share": 0.0178,
-          "ms": 1.43,
-          "events": 79.2,
-          "decisions": 1
-        },
-        "110.population.age": {
-          "share": 0.0553,
-          "ms": 12.29,
-          "events": 1,
-          "decisions": 1
-        },
-        "115.ecology.year": {
-          "share": 0.0212,
-          "ms": 2.32,
-          "events": 1,
-          "decisions": 1
-        },
-        "116.woods.year": {
-          "share": 0.0177,
-          "ms": 1.21,
-          "events": 5,
-          "decisions": 1
-        },
-        "117.herds.year": {
-          "share": 0.0163,
-          "ms": 0.77,
-          "events": 1,
-          "decisions": 1
-        },
-        "120.population.work": {
-          "share": 0.109,
-          "ms": 28.05,
-          "events": 1,
-          "decisions": 1
-        },
-        "125.economy.year": {
-          "share": 0.1647,
-          "ms": 52.45,
-          "events": 14.7,
-          "decisions": 8.1
-        },
-        "126.climate.air": {
-          "share": 0.0222,
-          "ms": 2.35,
-          "events": 1,
-          "decisions": 1
-        },
         "127.lodes.year": {
-          "share": 0.0158,
-          "ms": 0.78,
+          "share": 0.0155,
+          "ms": 0.65,
           "events": 1,
           "decisions": 1
+        },
+        "128.planet.motion": {
+          "share": 0.0156,
+          "ms": 0.66,
+          "events": 1,
+          "decisions": 1
+        },
+        "129.planet.fires": {
+          "share": 0.0151,
+          "ms": 0.53,
+          "events": 1.2,
+          "decisions": 1
+        },
+        "129.population.borders": {
+          "share": 0.0162,
+          "ms": 0.85,
+          "events": 1.1,
+          "decisions": 1.1
         },
         "130.population.migrate": {
-          "share": 0.0235,
-          "ms": 3.45,
-          "events": 21.5,
-          "decisions": 21.5
+          "share": 0.0217,
+          "ms": 2.46,
+          "events": 36.7,
+          "decisions": 36.6
+        },
+        "135.population.mix": {
+          "share": 0.015,
+          "ms": 0.5,
+          "events": 1,
+          "decisions": 1
+        },
+        "136.population.heredity": {
+          "share": 0.0151,
+          "ms": 0.53,
+          "events": 1,
+          "decisions": 1
         },
         "140.population.settle": {
-          "share": 0.052,
-          "ms": 9.85,
-          "events": 17.8,
-          "decisions": 17.8
+          "share": 0.0344,
+          "ms": 6.11,
+          "events": 85.6,
+          "decisions": 85.6
+        },
+        "141.population.urban": {
+          "share": 0.0154,
+          "ms": 0.63,
+          "events": 1,
+          "decisions": 1
         },
         "150.knowledge.cultivation": {
-          "share": 0.0173,
-          "ms": 1.15,
+          "share": 0.0156,
+          "ms": 0.69,
+          "events": 1,
+          "decisions": 1
+        },
+        "151.life.crops": {
+          "share": 0.0162,
+          "ms": 0.86,
+          "events": 1,
+          "decisions": 1
+        },
+        "152.life.exchange": {
+          "share": 0.0155,
+          "ms": 0.64,
           "events": 1,
           "decisions": 1
         },
         "155.knowledge.metal": {
-          "share": 0.0163,
-          "ms": 0.71,
-          "events": 2,
+          "share": 0.0152,
+          "ms": 0.55,
+          "events": 1.1,
+          "decisions": 1
+        },
+        "156.lore.letters": {
+          "share": 0.0159,
+          "ms": 0.76,
+          "events": 1,
+          "decisions": 1
+        },
+        "157.lore.academies": {
+          "share": 0.0158,
+          "ms": 0.73,
+          "events": 1,
+          "decisions": 1
+        },
+        "157.lore.rights": {
+          "share": 0.0162,
+          "ms": 0.84,
+          "events": 2.2,
           "decisions": 1
         },
         "157.lore.year": {
-          "share": 0.1556,
-          "ms": 39.97,
-          "events": 43.1,
-          "decisions": 2.6
+          "share": 0.0565,
+          "ms": 12.52,
+          "events": 36.9,
+          "decisions": 2.7
+        },
+        "158.lore.lost": {
+          "share": 0.0164,
+          "ms": 0.9,
+          "events": 1,
+          "decisions": 1
+        },
+        "158.lore.materials": {
+          "share": 0.0176,
+          "ms": 1.26,
+          "events": 1.1,
+          "decisions": 1
         },
         "160.culture.ways": {
-          "share": 0.0343,
-          "ms": 6.92,
-          "events": 1.3,
+          "share": 0.0252,
+          "ms": 3.46,
+          "events": 1.1,
           "decisions": 1
         },
         "162.culture.languages": {
-          "share": 0.0381,
-          "ms": 5.78,
-          "events": 2.9,
-          "decisions": 1.3
+          "share": 0.0228,
+          "ms": 2.77,
+          "events": 1.9,
+          "decisions": 1.2
+        },
+        "163.culture.abroad": {
+          "share": 0.0155,
+          "ms": 0.64,
+          "events": 3.9,
+          "decisions": 2
         },
         "168.acts.fortunes": {
+          "share": 0.015,
+          "ms": 0.5,
+          "events": 1,
+          "decisions": 1
+        },
+        "168.acts.persons": {
           "share": 0.015,
           "ms": 0.5,
           "events": 1,
@@ -1153,93 +2257,405 @@
           "decisions": 1
         },
         "170.polity.year": {
-          "share": 0.0337,
-          "ms": 6.17,
-          "events": 36.7,
-          "decisions": 13.4
+          "share": 0.0335,
+          "ms": 5.85,
+          "events": 91.1,
+          "decisions": 36.3
         },
         "175.belief.year": {
-          "share": 0.0249,
-          "ms": 2.87,
-          "events": 13.9,
+          "share": 0.022,
+          "ms": 2.53,
+          "events": 32.6,
+          "decisions": 19.5
+        },
+        "176.belief.temples": {
+          "share": 0.0179,
+          "ms": 1.33,
+          "events": 1,
+          "decisions": 1
+        },
+        "177.culture.folk": {
+          "share": 0.0165,
+          "ms": 0.93,
+          "events": 1,
+          "decisions": 1
+        },
+        "178.culture.art": {
+          "share": 0.0155,
+          "ms": 0.65,
+          "events": 1,
+          "decisions": 1
+        },
+        "184.war.arming": {
+          "share": 0.0374,
+          "ms": 6.99,
+          "events": 9.3,
+          "decisions": 1
+        },
+        "184.war.navy": {
+          "share": 0.0173,
+          "ms": 1.18,
+          "events": 1.6,
+          "decisions": 1
+        },
+        "184.war.zfleets": {
+          "share": 0.0152,
+          "ms": 0.56,
+          "events": 1.2,
           "decisions": 1
         },
         "185.war.year": {
-          "share": 0.0821,
-          "ms": 20.29,
-          "events": 39.6,
-          "decisions": 8.4
+          "share": 0.059,
+          "ms": 13.25,
+          "events": 84.7,
+          "decisions": 15
         },
-        "186.diplomacy.year": {
-          "share": 0.0342,
-          "ms": 6.84,
-          "events": 3.4,
+        "185.war.zoccupied": {
+          "share": 0.0155,
+          "ms": 0.63,
+          "events": 3.1,
           "decisions": 1
         },
-        "187.order.year": {
-          "share": 0.0884,
-          "ms": 22.52,
-          "events": 14.5,
-          "decisions": 13.1
+        "185.war.zsieges": {
+          "share": 0.015,
+          "ms": 0.5,
+          "events": 1,
+          "decisions": 1
         },
-        "188.health.year": {
-          "share": 0.019,
-          "ms": 1.89,
+        "186.diplomacy.councils": {
+          "share": 0.0222,
+          "ms": 2.58,
+          "events": 1.3,
+          "decisions": 1
+        },
+        "186.diplomacy.spies": {
+          "share": 0.0192,
+          "ms": 1.71,
+          "events": 10.1,
+          "decisions": 1
+        },
+        "186.diplomacy.year": {
+          "share": 0.0404,
+          "ms": 7.85,
+          "events": 16.2,
+          "decisions": 1
+        },
+        "186.money.intox": {
+          "share": 0.0176,
+          "ms": 1.26,
+          "events": 1,
+          "decisions": 1
+        },
+        "186.money.labour": {
+          "share": 0.0189,
+          "ms": 1.63,
+          "events": 4.7,
+          "decisions": 1
+        },
+        "186.order.voice": {
+          "share": 0.0221,
+          "ms": 2.56,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.order.votes": {
+          "share": 0.0165,
+          "ms": 0.93,
+          "events": 7.3,
+          "decisions": 7.3
+        },
+        "187.order.year": {
+          "share": 0.1107,
+          "ms": 28.22,
+          "events": 4.6,
+          "decisions": 3.8
+        },
+        "187.society.care": {
+          "share": 0.0167,
+          "ms": 1,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.society.dress": {
+          "share": 0.0159,
+          "ms": 0.77,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.society.law": {
+          "share": 0.0166,
+          "ms": 0.97,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.society.law.holdings": {
+          "share": 0.0161,
+          "ms": 0.82,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.society.leisure": {
+          "share": 0.0159,
+          "ms": 0.76,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.society.old": {
+          "share": 0.0159,
+          "ms": 0.77,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.society.provision": {
+          "share": 0.0204,
+          "ms": 2.06,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.society.roles": {
+          "share": 0.0172,
+          "ms": 1.13,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.society.roofless": {
+          "share": 0.0255,
+          "ms": 3.53,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.society.strain": {
+          "share": 0.016,
+          "ms": 0.8,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.society.table": {
+          "share": 0.0158,
+          "ms": 0.74,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.society.unable": {
+          "share": 0.016,
+          "ms": 0.78,
           "events": 1.1,
           "decisions": 1.1
         },
-        "189.credit.year": {
-          "share": 0.0183,
-          "ms": 1.63,
+        "187.war.zheld": {
+          "share": 0.0166,
+          "ms": 0.97,
+          "events": 15.1,
+          "decisions": 3.7
+        },
+        "188.health.year": {
+          "share": 0.017,
+          "ms": 1.07,
           "events": 1,
           "decisions": 1
         },
+        "188.health.year.strains": {
+          "share": 0.015,
+          "ms": 0.51,
+          "events": 1,
+          "decisions": 1
+        },
+        "188.health.year.taboo": {
+          "share": 0.015,
+          "ms": 0.5,
+          "events": 1,
+          "decisions": 1
+        },
+        "188.money.coin": {
+          "share": 0.0234,
+          "ms": 2.95,
+          "events": 23.8,
+          "decisions": 17.1
+        },
+        "188.money.cover": {
+          "share": 0.0205,
+          "ms": 2.1,
+          "events": 2,
+          "decisions": 1
+        },
+        "188.money.prohibition": {
+          "share": 0.032,
+          "ms": 5.43,
+          "events": 5.1,
+          "decisions": 2.5
+        },
+        "188.money.strength": {
+          "share": 0.0155,
+          "ms": 0.63,
+          "events": 1,
+          "decisions": 1
+        },
+        "188.money.trade": {
+          "share": 0.0215,
+          "ms": 2.38,
+          "events": 5.2,
+          "decisions": 2.6
+        },
+        "188.money.treasury": {
+          "share": 0.0367,
+          "ms": 6.78,
+          "events": 4,
+          "decisions": 4
+        },
+        "188.order.houses": {
+          "share": 0.0301,
+          "ms": 4.87,
+          "events": 154.4,
+          "decisions": 154.4
+        },
+        "188.order.underworld": {
+          "share": 0.0311,
+          "ms": 5.17,
+          "events": 23.5,
+          "decisions": 20.8
+        },
+        "188.order.zgroups": {
+          "share": 0.0682,
+          "ms": 15.91,
+          "events": 315.7,
+          "decisions": 203.8
+        },
+        "188.order.zzbodies": {
+          "share": 0.0227,
+          "ms": 2.73,
+          "events": 58.9,
+          "decisions": 7.2
+        },
+        "188.order.zzzsentences": {
+          "share": 0.016,
+          "ms": 0.78,
+          "events": 1,
+          "decisions": 1
+        },
+        "189.credit.year": {
+          "share": 0.018,
+          "ms": 1.37,
+          "events": 1.3,
+          "decisions": 1.3
+        },
         "189.finance.year": {
-          "share": 0.0283,
-          "ms": 4.25,
-          "events": 1.8,
+          "share": 0.0284,
+          "ms": 4.37,
+          "events": 2,
           "decisions": 1.8
         },
+        "189.order.charter": {
+          "share": 0.0171,
+          "ms": 1.1,
+          "events": 1.1,
+          "decisions": 1.1
+        },
         "189.strife.court": {
-          "share": 0.0271,
-          "ms": 4.26,
-          "events": 6.9,
-          "decisions": 2.4
+          "share": 0.0254,
+          "ms": 3.52,
+          "events": 9.2,
+          "decisions": 3.4
         },
         "189.strife.year": {
-          "share": 0.0364,
-          "ms": 7.94,
-          "events": 2,
-          "decisions": 1.9
+          "share": 0.0317,
+          "ms": 5.35,
+          "events": 2.9,
+          "decisions": 2.9
+        },
+        "189.trade.capital": {
+          "share": 0.0174,
+          "ms": 1.21,
+          "events": 1,
+          "decisions": 1
+        },
+        "189.trade.cartel": {
+          "share": 0.0154,
+          "ms": 0.63,
+          "events": 1,
+          "decisions": 1
+        },
+        "189.trade.cycle": {
+          "share": 0.02,
+          "ms": 1.96,
+          "events": 9.6,
+          "decisions": 9.6
+        },
+        "189.trade.plan": {
+          "share": 0.0164,
+          "ms": 0.91,
+          "events": 1,
+          "decisions": 1
+        },
+        "189.trade.rent": {
+          "share": 0.016,
+          "ms": 0.8,
+          "events": 1,
+          "decisions": 1
+        },
+        "189.trade.smoke": {
+          "share": 0.0157,
+          "ms": 0.71,
+          "events": 1,
+          "decisions": 1
         },
         "190.city.year": {
-          "share": 0.0254,
-          "ms": 3.38,
-          "events": 1.1,
+          "share": 0.0358,
+          "ms": 6.52,
+          "events": 2.8,
           "decisions": 1
         },
         "191.town.year": {
-          "share": 0.1211,
-          "ms": 23.97,
-          "events": 13.8,
+          "share": 0.1133,
+          "ms": 28.97,
+          "events": 1.2,
           "decisions": 1
         },
         "192.wild.month": {
-          "share": 0.0281,
-          "ms": 4.1,
-          "events": 10,
+          "share": 0.0194,
+          "ms": 1.77,
+          "events": 11.1,
           "decisions": 3
         },
         "195.design.year": {
-          "share": 0.0232,
-          "ms": 2.64,
-          "events": 2.6,
+          "share": 0.021,
+          "ms": 2.24,
+          "events": 2.4,
           "decisions": 1
+        },
+        "197.people.notables": {
+          "share": 0.0208,
+          "ms": 2.19,
+          "events": 3.4,
+          "decisions": 1.4
+        },
+        "197.people.zfaith": {
+          "share": 0.0188,
+          "ms": 1.61,
+          "events": 20.8,
+          "decisions": 3.7
         },
         "197.space.year": {
           "share": 0.0156,
-          "ms": 0.68,
+          "ms": 0.67,
           "events": 1,
+          "decisions": 1
+        },
+        "198.ideas.works": {
+          "share": 0.0159,
+          "ms": 0.76,
+          "events": 3,
+          "decisions": 1
+        },
+        "198.ideas.year": {
+          "share": 0.0157,
+          "ms": 0.72,
+          "events": 2.4,
+          "decisions": 1.2
+        },
+        "198.ideas.zpilgrims": {
+          "share": 0.0152,
+          "ms": 0.55,
+          "events": 1.1,
           "decisions": 1
         },
         "198.space.voyage": {
@@ -1249,31 +2665,37 @@
           "decisions": 1
         },
         "199.space.contact": {
-          "share": 0.0152,
-          "ms": 0.57,
+          "share": 0.0154,
+          "ms": 0.6,
+          "events": 1,
+          "decisions": 1
+        },
+        "199.space.zfarreigns": {
+          "share": 0.015,
+          "ms": 0.5,
           "events": 1,
           "decisions": 1
         },
         "200.space.starwar": {
           "share": 0.0151,
-          "ms": 0.52,
+          "ms": 0.51,
           "events": 1,
           "decisions": 1
         },
         "201.space.peoples": {
-          "share": 0.0159,
-          "ms": 0.83,
+          "share": 0.0154,
+          "ms": 0.61,
           "events": 1,
           "decisions": 1
         },
         "202.space.lanes": {
           "share": 0.015,
-          "ms": 0.51,
+          "ms": 0.5,
           "events": 1,
           "decisions": 1
         },
         "203.space.trade": {
-          "share": 0.0151,
+          "share": 0.015,
           "ms": 0.51,
           "events": 1,
           "decisions": 1
@@ -1284,141 +2706,81 @@
           "events": 1,
           "decisions": 1
         },
+        "205.space.farlife": {
+          "share": 0.0156,
+          "ms": 0.66,
+          "events": 1,
+          "decisions": 1
+        },
+        "206.frontier.weather": {
+          "share": 0.015,
+          "ms": 0.51,
+          "events": 1,
+          "decisions": 1
+        },
+        "207.frontier.impacts": {
+          "share": 0.015,
+          "ms": 0.51,
+          "events": 1,
+          "decisions": 1
+        },
+        "208.frontier.galactic": {
+          "share": 0.015,
+          "ms": 0.5,
+          "events": 1,
+          "decisions": 1
+        },
+        "209.frontier.minds": {
+          "share": 0.0152,
+          "ms": 0.57,
+          "events": 1,
+          "decisions": 1
+        },
+        "209.frontier.orbital": {
+          "share": 0.015,
+          "ms": 0.51,
+          "events": 1,
+          "decisions": 1
+        },
+        "209.frontier.uplift": {
+          "share": 0.0152,
+          "ms": 0.54,
+          "events": 1,
+          "decisions": 1
+        },
+        "209.frontier.written": {
+          "share": 0.0152,
+          "ms": 0.54,
+          "events": 1,
+          "decisions": 1
+        },
         "880.lessons.year": {
-          "share": 0.0256,
-          "ms": 3.53,
-          "events": 7.6,
+          "share": 0.0251,
+          "ms": 3.43,
+          "events": 9,
           "decisions": 1
         },
         "890.economy.ledger": {
-          "share": 0.0306,
-          "ms": 5.31,
+          "share": 0.0232,
+          "ms": 2.88,
           "events": 1,
           "decisions": 1
         },
         "900.population.ledger": {
-          "share": 0.0248,
-          "ms": 2.94,
+          "share": 0.0192,
+          "ms": 1.71,
           "events": 1,
           "decisions": 1
         },
         "990.history.compact": {
-          "share": 0.0201,
-          "ms": 2.1,
+          "share": 0.0276,
+          "ms": 4.15,
           "events": 1,
           "decisions": 1
         },
         "999.checkpoint": {
-          "share": 0.144,
-          "ms": 39.17,
-          "events": 1,
-          "decisions": 1
-        },
-        "118.ground.year": {
-          "share": 0.0234,
-          "ms": 3.42,
-          "events": 1,
-          "decisions": 1
-        },
-        "119.life.lineage": {
-          "share": 0.016,
-          "ms": 0.86,
-          "events": 1,
-          "decisions": 1
-        },
-        "128.planet.motion": {
-          "share": 0.0156,
-          "ms": 0.69,
-          "events": 1,
-          "decisions": 1
-        },
-        "156.lore.letters": {
-          "share": 0.0162,
-          "ms": 0.9,
-          "events": 1,
-          "decisions": 1
-        },
-        "158.lore.lost": {
-          "share": 0.0182,
-          "ms": 1.6,
-          "events": 1.1,
-          "decisions": 1
-        },
-        "185.war.zoccupied": {
-          "share": 0.0159,
-          "ms": 0.81,
-          "events": 1.3,
-          "decisions": 1
-        },
-        "186.diplomacy.councils": {
-          "share": 0.0185,
-          "ms": 1.72,
-          "events": 1.4,
-          "decisions": 1
-        },
-        "186.diplomacy.spies": {
-          "share": 0.0178,
-          "ms": 1.48,
-          "events": 9.7,
-          "decisions": 1
-        },
-        "186.money.intox": {
-          "share": 0.0173,
-          "ms": 1.3,
-          "events": 1,
-          "decisions": 1
-        },
-        "186.money.labour": {
-          "share": 0.0227,
-          "ms": 3.16,
-          "events": 2.3,
-          "decisions": 1
-        },
-        "187.order.votes": {
-          "share": 0.0193,
-          "ms": 2,
-          "events": 16.9,
-          "decisions": 16.9
-        },
-        "188.health.year.strains": {
-          "share": 0.015,
-          "ms": 0.52,
-          "events": 1,
-          "decisions": 1
-        },
-        "188.money.coin": {
-          "share": 0.023,
-          "ms": 3.26,
-          "events": 3.1,
-          "decisions": 1.5
-        },
-        "188.money.cover": {
-          "share": 0.0216,
-          "ms": 2.78,
-          "events": 1.4,
-          "decisions": 1
-        },
-        "188.money.prohibition": {
-          "share": 0.039,
-          "ms": 8.84,
-          "events": 1,
-          "decisions": 1
-        },
-        "188.money.trade": {
-          "share": 0.0425,
-          "ms": 10.06,
-          "events": 2.7,
-          "decisions": 2.1
-        },
-        "188.money.treasury": {
-          "share": 0.0278,
-          "ms": 4.95,
-          "events": 3.1,
-          "decisions": 3.1
-        },
-        "205.space.farlife": {
-          "share": 0.0151,
-          "ms": 0.55,
+          "share": 0.1385,
+          "ms": 36.28,
           "events": 1,
           "decisions": 1
         }
@@ -1427,81 +2789,168 @@
         "acts.active": 2070,
         "acts.fortunes": 2059,
         "acts.great": 2070,
+        "acts.persons": 2059,
         "acts.switches": 2059,
-        "acts.wild": 20627,
-        "belief.faiths": 115250,
-        "city.quarters": 57061,
-        "climate.air": 22400,
+        "acts.wild": 8948,
+        "belief.faiths": 38071,
+        "belief.heads": 8899,
+        "belief.missions": 4810,
+        "belief.taboos": 2059,
+        "belief.temples": 9103,
+        "city.quarters": 94338,
+        "climate.air": 12151,
         "commands.log": 2075,
-        "court.states": 210953,
-        "credit.houses": 3586,
-        "culture.languages": 84000,
-        "culture.ways": 187415,
-        "design.designs": 29675,
-        "diplomacy.relations": 130206,
-        "ecology.herds": 25675,
-        "ecology.lands": 74976,
-        "ecology.woods": 187388,
-        "economy.lodes": 15778,
-        "economy.markets": 1943050,
-        "finance.realms": 68027,
+        "court.states": 163018,
+        "credit.houses": 18380,
+        "culture.abroad": 4168,
+        "culture.art": 19157,
+        "culture.folk": 14575,
+        "culture.languages": 20161,
+        "culture.ways": 191749,
+        "design.designs": 47272,
+        "diplomacy.councils": 42924,
+        "diplomacy.honour": 8332,
+        "diplomacy.relations": 303209,
+        "ecology.droving": 2110,
+        "ecology.ground": 34457,
+        "ecology.herds": 20945,
+        "ecology.lands": 78947,
+        "ecology.seas": 5914,
+        "ecology.stands": 2968,
+        "ecology.woods": 52134,
+        "economy.canals": 2072,
+        "economy.energy": 40702,
+        "economy.lodes": 12010,
+        "economy.markets": 1923725,
+        "finance.realms": 44366,
+        "frontier.galactic": 2208,
+        "frontier.impacts": 2190,
+        "frontier.minds": 2104,
+        "frontier.orbital": 2059,
+        "frontier.uplift": 2059,
+        "frontier.weather": 3012,
+        "frontier.written": 2059,
         "hand.window": 2076,
-        "health.sickness": 11177,
-        "history.decisions": 926634,
-        "history.events": 2562356,
-        "lore.known": 66118,
-        "lore.lessons": 94708,
+        "health.sickness": 2316,
+        "health.strains": 2059,
+        "history.decisions": 2812768,
+        "history.events": 6321295,
+        "ideas.pilgrims": 3088,
+        "ideas.schools": 6257,
+        "ideas.works": 60868,
+        "life.crops": 24132,
+        "life.diet": 14582,
+        "life.exchange": 16171,
+        "life.lineage": 11665,
+        "lore.academies": 13229,
+        "lore.known": 66080,
+        "lore.lessons": 103668,
+        "lore.letters": 4183,
+        "lore.lost": 2179,
+        "lore.materials": 25735,
+        "lore.rights": 12566,
+        "money.bind": 14522,
+        "money.coin": 20489,
+        "money.contraband": 32789,
+        "money.cover": 29082,
+        "money.goods": 55036,
+        "money.intox": 45576,
+        "money.intoxkinds": 32167,
+        "money.labour": 16258,
+        "money.potency": 4562,
+        "money.prohibition": 37402,
+        "money.shares": 22344,
+        "money.smuggling": 9458,
+        "money.tariffs": 14858,
+        "money.treasury": 61902,
         "observer.ledger": 2170,
-        "order.bonds": 840188,
+        "order.bodies": 273076,
+        "order.bodylands": 46699,
+        "order.bonds": 252594,
+        "order.charters": 22750,
+        "order.curriculum": 5785,
+        "order.elections": 29482,
+        "order.gangs": 13394,
+        "order.grouplands": 46382,
+        "order.groups": 501941,
+        "order.houses": 127213,
+        "order.reach": 8624,
+        "order.reachlands": 13736,
+        "order.sentences": 18724,
+        "order.underworld": 157807,
+        "order.voice": 15404,
+        "order.wants": 154765,
+        "people.notables": 203468,
+        "planet.fires": 3409,
+        "planet.floods": 2059,
         "planet.home": 2129,
-        "polity.states": 48359,
-        "population.history": 2183840,
-        "population.provinces": 1215611,
-        "population.settlements": 417263,
-        "readings.years": 301657,
+        "planet.motion": 23274,
+        "planet.rivers": 2059,
+        "planet.storms": 2059,
+        "polity.states": 70588,
+        "population.borders": 11537,
+        "population.carried": 2059,
+        "population.heredity": 2059,
+        "population.history": 2209507,
+        "population.mix": 2059,
+        "population.provinces": 1216428,
+        "population.settlements": 744929,
+        "readings.commanders": 82226,
+        "readings.deaths": 435011,
+        "readings.far": 2994,
+        "readings.places": 2185,
+        "readings.years": 465947,
+        "society.care": 21241,
+        "society.dress": 16610,
+        "society.holdings": 16954,
+        "society.law": 15698,
+        "society.leisure": 15667,
+        "society.old": 20470,
+        "society.orphans": 2110,
+        "society.provision": 10373,
+        "society.roles": 17338,
+        "society.roofless": 51059,
+        "society.strain": 20491,
+        "society.table": 19382,
+        "society.unable": 15472,
         "space.contact": 2059,
+        "space.farlife": 3533,
+        "space.farreigns": 2059,
         "space.filled": 2088,
-        "space.flight": 2156,
+        "space.flight": 2317,
         "space.late": 2112,
         "space.nations": 2160,
-        "space.peoples": 3335,
+        "space.peoples": 3336,
         "space.stars": 2059,
         "space.starwars": 2059,
         "space.trade": 2142,
-        "strife.realms": 13100,
+        "strife.realms": 28176,
+        "ties.spies": 5058,
         "town.asks": 2059,
-        "town.fabric": 782632,
-        "war.arms": 8324,
-        "war.bonds": 9665,
+        "town.fabric": 1341401,
+        "town.managed": 2059,
+        "town.urban": 6072,
+        "trade.capital": 2110,
+        "trade.cartel": 2120,
+        "trade.cycle": 20297,
+        "trade.demand": 21577,
+        "trade.exchange": 2110,
+        "trade.plan": 9677,
+        "trade.rent": 17718,
+        "trade.smoke": 2110,
+        "war.arming": 44975,
+        "war.arms": 6017,
+        "war.bonds": 3733,
         "war.fire": 2165,
+        "war.fleets": 9220,
         "war.godhosts": 2059,
-        "war.ties": 19189,
-        "war.wars": 819832,
-        "diplomacy.councils": 23671,
-        "ecology.ground": 33744,
-        "economy.energy": 39072,
-        "health.strains": 2504,
-        "life.lineage": 40634,
-        "lore.letters": 7392,
-        "lore.lost": 3338,
-        "money.bind": 25499,
-        "money.coin": 17870,
-        "money.cover": 35297,
-        "money.goods": 65534,
-        "money.intox": 29462,
-        "money.labour": 23078,
-        "money.prohibition": 14777,
-        "money.shares": 40490,
-        "money.smuggling": 8920,
-        "money.tariffs": 13284,
-        "money.treasury": 29924,
-        "order.elections": 43886,
-        "order.wants": 221354,
-        "planet.motion": 56038,
-        "readings.far": 2920,
-        "space.farlife": 3526,
-        "ties.spies": 11956,
-        "war.occupation": 4706
+        "war.held": 20760,
+        "war.navy": 5639,
+        "war.occupation": 3301,
+        "war.shelter": 2110,
+        "war.sieges": 2110,
+        "war.ties": 15794,
+        "war.wars": 453906
       }
     },
     {
@@ -1512,133 +2961,271 @@
       "window": 200,
       "far": true,
       "world": {
-        "lands": 599,
-        "realms": 113,
-        "towns": 23204,
-        "people": 13263912247
+        "lands": 567,
+        "realms": 399,
+        "towns": 24377,
+        "people": 3790510909
       },
       "totals": {
-        "yearMs": 328,
-        "p99Ms": 625,
-        "saveBytes": 64048643,
-        "heapBytes": 632609261
+        "yearMs": 418,
+        "p99Ms": 619,
+        "saveBytes": 50575190,
+        "heapBytes": 543017069
       },
       "systems": {
         "095.population.food": {
-          "share": 0.0957,
-          "ms": 36.34,
-          "events": 36.3,
+          "share": 0.1034,
+          "ms": 31.24,
+          "events": 2.8,
           "decisions": 1
         },
         "100.population.vital": {
-          "share": 0.0499,
-          "ms": 20.33,
+          "share": 0.051,
+          "ms": 13.01,
           "events": 1,
           "decisions": 1
         },
         "101.hand.life": {
           "share": 0.0151,
-          "ms": 0.54,
+          "ms": 0.52,
           "events": 1,
           "decisions": 1
         },
         "105.weather.rain": {
-          "share": 0.0166,
-          "ms": 1.22,
-          "events": 74.6,
+          "share": 0.0164,
+          "ms": 0.97,
+          "events": 77.1,
+          "decisions": 1
+        },
+        "106.planet.floods": {
+          "share": 0.0173,
+          "ms": 1.29,
+          "events": 27.6,
+          "decisions": 1
+        },
+        "107.planet.storms": {
+          "share": 0.0152,
+          "ms": 0.57,
+          "events": 1.6,
           "decisions": 1
         },
         "110.population.age": {
-          "share": 0.0346,
-          "ms": 9.88,
+          "share": 0.0306,
+          "ms": 5.94,
           "events": 1,
           "decisions": 1
         },
         "115.ecology.year": {
           "share": 0.0203,
-          "ms": 2.58,
-          "events": 3.5,
+          "ms": 2.35,
+          "events": 1.6,
           "decisions": 1
         },
-        "116.woods.year": {
-          "share": 0.0165,
-          "ms": 1.08,
-          "events": 2.2,
-          "decisions": 1
-        },
-        "117.herds.year": {
-          "share": 0.0161,
-          "ms": 0.98,
-          "events": 2.4,
-          "decisions": 1
-        },
-        "120.population.work": {
-          "share": 0.0767,
-          "ms": 23.76,
+        "115.ecology.zseas": {
+          "share": 0.0159,
+          "ms": 0.82,
           "events": 1,
           "decisions": 1
         },
-        "125.economy.year": {
-          "share": 0.1541,
-          "ms": 79.52,
-          "events": 25.9,
-          "decisions": 1.2
+        "116.woods.year": {
+          "share": 0.0161,
+          "ms": 0.88,
+          "events": 1,
+          "decisions": 1
         },
-        "126.climate.air": {
-          "share": 0.0194,
-          "ms": 1.94,
+        "117.herds.year": {
+          "share": 0.0163,
+          "ms": 0.97,
           "events": 1.1,
           "decisions": 1
         },
-        "127.lodes.year": {
-          "share": 0.0161,
-          "ms": 0.92,
-          "events": 2,
+        "117.herds.year.droving": {
+          "share": 0.0153,
+          "ms": 0.61,
+          "events": 1.6,
+          "decisions": 1.3
+        },
+        "118.ground.year": {
+          "share": 0.0194,
+          "ms": 2.02,
+          "events": 1,
           "decisions": 1
         },
+        "119.life.lineage": {
+          "share": 0.0157,
+          "ms": 0.73,
+          "events": 1.1,
+          "decisions": 1
+        },
+        "120.population.work": {
+          "share": 0.0518,
+          "ms": 13.3,
+          "events": 1,
+          "decisions": 1
+        },
+        "121.life.diet": {
+          "share": 0.0195,
+          "ms": 2.07,
+          "events": 1.1,
+          "decisions": 1
+        },
+        "125.economy.year": {
+          "share": 0.1414,
+          "ms": 44.48,
+          "events": 6.5,
+          "decisions": 1
+        },
+        "126.climate.air": {
+          "share": 0.0173,
+          "ms": 1.28,
+          "events": 1,
+          "decisions": 1
+        },
+        "127.economy.canals": {
+          "share": 0.0153,
+          "ms": 0.62,
+          "events": 1,
+          "decisions": 1
+        },
+        "127.lodes.year": {
+          "share": 0.0158,
+          "ms": 0.79,
+          "events": 1,
+          "decisions": 1
+        },
+        "128.planet.motion": {
+          "share": 0.0159,
+          "ms": 0.82,
+          "events": 1,
+          "decisions": 1
+        },
+        "129.planet.fires": {
+          "share": 0.0151,
+          "ms": 0.53,
+          "events": 1.1,
+          "decisions": 1
+        },
+        "129.population.borders": {
+          "share": 0.0159,
+          "ms": 0.83,
+          "events": 2,
+          "decisions": 2
+        },
         "130.population.migrate": {
-          "share": 0.0389,
-          "ms": 8.88,
-          "events": 156.3,
-          "decisions": 156.3
+          "share": 0.0284,
+          "ms": 5.17,
+          "events": 60.8,
+          "decisions": 41.3
+        },
+        "135.population.mix": {
+          "share": 0.0157,
+          "ms": 0.74,
+          "events": 1,
+          "decisions": 1
+        },
+        "136.population.heredity": {
+          "share": 0.015,
+          "ms": 0.51,
+          "events": 1,
+          "decisions": 1
         },
         "140.population.settle": {
-          "share": 0.0791,
-          "ms": 24.81,
+          "share": 0.022,
+          "ms": 2.92,
+          "events": 2.4,
+          "decisions": 2.4
+        },
+        "141.population.urban": {
+          "share": 0.0155,
+          "ms": 0.68,
           "events": 1,
           "decisions": 1
         },
         "150.knowledge.cultivation": {
-          "share": 0.0156,
-          "ms": 0.67,
+          "share": 0.0154,
+          "ms": 0.62,
+          "events": 1,
+          "decisions": 1
+        },
+        "151.life.crops": {
+          "share": 0.0159,
+          "ms": 0.8,
+          "events": 1,
+          "decisions": 1
+        },
+        "152.life.exchange": {
+          "share": 0.0154,
+          "ms": 0.65,
           "events": 1,
           "decisions": 1
         },
         "155.knowledge.metal": {
-          "share": 0.0152,
-          "ms": 0.57,
+          "share": 0.0151,
+          "ms": 0.53,
           "events": 1,
           "decisions": 1
         },
-        "157.lore.year": {
-          "share": 0.0708,
-          "ms": 32.2,
-          "events": 30.8,
+        "156.lore.letters": {
+          "share": 0.0158,
+          "ms": 0.77,
+          "events": 1,
           "decisions": 1
         },
-        "160.culture.ways": {
-          "share": 0.0263,
-          "ms": 6.3,
+        "157.lore.academies": {
+          "share": 0.0156,
+          "ms": 0.72,
+          "events": 1,
+          "decisions": 1
+        },
+        "157.lore.rights": {
+          "share": 0.0159,
+          "ms": 0.8,
           "events": 1.1,
           "decisions": 1
         },
+        "157.lore.year": {
+          "share": 0.0181,
+          "ms": 1.56,
+          "events": 4.1,
+          "decisions": 1
+        },
+        "158.lore.lost": {
+          "share": 0.0226,
+          "ms": 3.16,
+          "events": 11.7,
+          "decisions": 1
+        },
+        "158.lore.materials": {
+          "share": 0.0166,
+          "ms": 1.07,
+          "events": 2.1,
+          "decisions": 1
+        },
+        "160.culture.ways": {
+          "share": 0.0231,
+          "ms": 3.3,
+          "events": 1,
+          "decisions": 1
+        },
         "162.culture.languages": {
-          "share": 0.0279,
-          "ms": 5.41,
-          "events": 2.7,
-          "decisions": 1.2
+          "share": 0.021,
+          "ms": 2.58,
+          "events": 1.4,
+          "decisions": 1
+        },
+        "163.culture.abroad": {
+          "share": 0.0156,
+          "ms": 0.72,
+          "events": 4.1,
+          "decisions": 1.1
         },
         "168.acts.fortunes": {
+          "share": 0.015,
+          "ms": 0.5,
+          "events": 1,
+          "decisions": 1
+        },
+        "168.acts.persons": {
           "share": 0.015,
           "ms": 0.5,
           "events": 1,
@@ -1651,355 +3238,700 @@
           "decisions": 1
         },
         "170.polity.year": {
-          "share": 0.0304,
-          "ms": 9.25,
-          "events": 51,
-          "decisions": 27.9
+          "share": 0.0309,
+          "ms": 6.02,
+          "events": 41.6,
+          "decisions": 16.7
         },
         "175.belief.year": {
-          "share": 0.025,
-          "ms": 3.81,
-          "events": 18.4,
+          "share": 0.0213,
+          "ms": 2.69,
+          "events": 20.2,
+          "decisions": 10.7
+        },
+        "176.belief.temples": {
+          "share": 0.0175,
+          "ms": 1.38,
+          "events": 1,
+          "decisions": 1
+        },
+        "177.culture.folk": {
+          "share": 0.0167,
+          "ms": 1.1,
+          "events": 1,
+          "decisions": 1
+        },
+        "178.culture.art": {
+          "share": 0.0155,
+          "ms": 0.67,
+          "events": 1,
+          "decisions": 1
+        },
+        "184.war.arming": {
+          "share": 0.0337,
+          "ms": 7.02,
+          "events": 6.1,
+          "decisions": 1
+        },
+        "184.war.navy": {
+          "share": 0.0204,
+          "ms": 2.37,
+          "events": 3,
+          "decisions": 1
+        },
+        "184.war.zfleets": {
+          "share": 0.0159,
+          "ms": 0.8,
+          "events": 3.1,
           "decisions": 1
         },
         "185.war.year": {
-          "share": 0.1134,
-          "ms": 56.41,
-          "events": 234.8,
-          "decisions": 24.7
-        },
-        "186.diplomacy.year": {
-          "share": 0.055,
-          "ms": 23.23,
-          "events": 10.8,
-          "decisions": 1
-        },
-        "187.order.year": {
-          "share": 0.0973,
-          "ms": 47.25,
-          "events": 9.6,
-          "decisions": 8.6
-        },
-        "188.health.year": {
-          "share": 0.0215,
-          "ms": 3.48,
-          "events": 1.3,
-          "decisions": 1.3
-        },
-        "189.credit.year": {
-          "share": 0.0198,
-          "ms": 3.24,
-          "events": 4.6,
-          "decisions": 4.6
-        },
-        "189.finance.year": {
-          "share": 0.0505,
-          "ms": 20.7,
-          "events": 39.7,
-          "decisions": 4
-        },
-        "189.strife.court": {
-          "share": 0.0265,
-          "ms": 7.01,
-          "events": 10.2,
-          "decisions": 3.7
-        },
-        "189.strife.year": {
-          "share": 0.0435,
-          "ms": 16.69,
-          "events": 2.8,
-          "decisions": 2.8
-        },
-        "190.city.year": {
-          "share": 0.0243,
-          "ms": 3.8,
-          "events": 1,
-          "decisions": 1
-        },
-        "191.town.year": {
-          "share": 0.2978,
-          "ms": 77.73,
-          "events": 70.4,
-          "decisions": 1
-        },
-        "192.wild.month": {
-          "share": 0.0349,
-          "ms": 6.65,
-          "events": 16.8,
-          "decisions": 8.2
-        },
-        "195.design.year": {
-          "share": 0.0312,
-          "ms": 9.72,
-          "events": 15.9,
-          "decisions": 1
-        },
-        "197.space.year": {
-          "share": 0.0279,
-          "ms": 7.8,
-          "events": 3.5,
-          "decisions": 3.5
-        },
-        "198.space.voyage": {
-          "share": 0.0512,
-          "ms": 15.19,
-          "events": 3.9,
-          "decisions": 2.2
-        },
-        "199.space.contact": {
-          "share": 0.0171,
-          "ms": 1.68,
-          "events": 1,
-          "decisions": 1
-        },
-        "200.space.starwar": {
-          "share": 0.0193,
-          "ms": 2.7,
-          "events": 6.1,
-          "decisions": 2.2
-        },
-        "201.space.peoples": {
-          "share": 0.0155,
-          "ms": 0.64,
-          "events": 1.1,
-          "decisions": 1
-        },
-        "202.space.lanes": {
-          "share": 0.0156,
-          "ms": 0.84,
-          "events": 1,
-          "decisions": 1
-        },
-        "203.space.trade": {
-          "share": 0.0174,
-          "ms": 1.78,
-          "events": 1.5,
-          "decisions": 1
-        },
-        "204.space.nations": {
-          "share": 0.018,
-          "ms": 2.01,
-          "events": 2.4,
-          "decisions": 1.7
-        },
-        "880.lessons.year": {
-          "share": 0.0343,
-          "ms": 11.45,
-          "events": 14.6,
-          "decisions": 1
-        },
-        "890.economy.ledger": {
-          "share": 0.0243,
-          "ms": 4.29,
-          "events": 1,
-          "decisions": 1
-        },
-        "900.population.ledger": {
-          "share": 0.021,
-          "ms": 2.7,
-          "events": 1,
-          "decisions": 1
-        },
-        "990.history.compact": {
-          "share": 0.0282,
-          "ms": 8.03,
-          "events": 1,
-          "decisions": 1
-        },
-        "999.checkpoint": {
-          "share": 0.0921,
-          "ms": 44.3,
-          "events": 1,
-          "decisions": 1
-        },
-        "118.ground.year": {
-          "share": 0.0188,
-          "ms": 2.66,
-          "events": 1,
-          "decisions": 1
-        },
-        "119.life.lineage": {
-          "share": 0.0156,
-          "ms": 0.84,
-          "events": 1.2,
-          "decisions": 1
-        },
-        "128.planet.motion": {
-          "share": 0.0152,
-          "ms": 0.63,
-          "events": 1,
-          "decisions": 1
-        },
-        "156.lore.letters": {
-          "share": 0.0159,
-          "ms": 0.99,
-          "events": 1,
-          "decisions": 1
-        },
-        "158.lore.lost": {
-          "share": 0.033,
-          "ms": 10.72,
-          "events": 42.4,
-          "decisions": 1
+          "share": 0.0654,
+          "ms": 18.02,
+          "events": 114.6,
+          "decisions": 15.1
         },
         "185.war.zoccupied": {
-          "share": 0.0154,
-          "ms": 0.71,
-          "events": 1.1,
+          "share": 0.0152,
+          "ms": 0.57,
+          "events": 1.7,
+          "decisions": 1
+        },
+        "185.war.zsieges": {
+          "share": 0.015,
+          "ms": 0.5,
+          "events": 1,
           "decisions": 1
         },
         "186.diplomacy.councils": {
-          "share": 0.0301,
-          "ms": 9.1,
-          "events": 4.7,
+          "share": 0.0285,
+          "ms": 5.21,
+          "events": 2.2,
           "decisions": 1
         },
         "186.diplomacy.spies": {
-          "share": 0.022,
-          "ms": 4.47,
-          "events": 70.4,
+          "share": 0.0202,
+          "ms": 2.31,
+          "events": 26.3,
+          "decisions": 1
+        },
+        "186.diplomacy.year": {
+          "share": 0.0479,
+          "ms": 11.95,
+          "events": 16.4,
           "decisions": 1
         },
         "186.money.intox": {
-          "share": 0.0164,
-          "ms": 1.32,
+          "share": 0.0171,
+          "ms": 1.24,
           "events": 1,
           "decisions": 1
         },
         "186.money.labour": {
-          "share": 0.0193,
-          "ms": 2.92,
+          "share": 0.018,
+          "ms": 1.56,
           "events": 1.1,
           "decisions": 1
         },
+        "186.order.voice": {
+          "share": 0.023,
+          "ms": 3.28,
+          "events": 1,
+          "decisions": 1
+        },
         "187.order.votes": {
-          "share": 0.0182,
-          "ms": 2.3,
-          "events": 23.1,
-          "decisions": 23.1
+          "share": 0.0211,
+          "ms": 2.61,
+          "events": 40.3,
+          "decisions": 40.3
+        },
+        "187.order.year": {
+          "share": 0.0991,
+          "ms": 29.75,
+          "events": 7.5,
+          "decisions": 6
+        },
+        "187.society.care": {
+          "share": 0.0166,
+          "ms": 1.04,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.society.dress": {
+          "share": 0.016,
+          "ms": 0.85,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.society.law": {
+          "share": 0.0163,
+          "ms": 0.95,
+          "events": 1.6,
+          "decisions": 1.6
+        },
+        "187.society.law.holdings": {
+          "share": 0.0159,
+          "ms": 0.8,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.society.leisure": {
+          "share": 0.0158,
+          "ms": 0.77,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.society.old": {
+          "share": 0.0157,
+          "ms": 0.76,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.society.provision": {
+          "share": 0.02,
+          "ms": 2.23,
+          "events": 2.2,
+          "decisions": 2.2
+        },
+        "187.society.roles": {
+          "share": 0.0176,
+          "ms": 1.41,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.society.roofless": {
+          "share": 0.0333,
+          "ms": 6.85,
+          "events": 1.4,
+          "decisions": 1
+        },
+        "187.society.strain": {
+          "share": 0.0158,
+          "ms": 0.78,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.society.table": {
+          "share": 0.0157,
+          "ms": 0.73,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.society.unable": {
+          "share": 0.0159,
+          "ms": 0.8,
+          "events": 1,
+          "decisions": 1
+        },
+        "187.war.zheld": {
+          "share": 0.0159,
+          "ms": 0.81,
+          "events": 17,
+          "decisions": 1.1
+        },
+        "188.health.year": {
+          "share": 0.027,
+          "ms": 4.68,
+          "events": 1.8,
+          "decisions": 1.6
         },
         "188.health.year.strains": {
-          "share": 0.0153,
+          "share": 0.0155,
           "ms": 0.66,
+          "events": 1.1,
+          "decisions": 1
+        },
+        "188.health.year.taboo": {
+          "share": 0.0152,
+          "ms": 0.59,
           "events": 1,
           "decisions": 1
         },
         "188.money.coin": {
-          "share": 0.0218,
-          "ms": 4.38,
-          "events": 10.5,
+          "share": 0.0224,
+          "ms": 3.07,
+          "events": 14.7,
           "decisions": 1
         },
         "188.money.cover": {
-          "share": 0.0209,
-          "ms": 3.88,
-          "events": 1.7,
+          "share": 0.0212,
+          "ms": 2.66,
+          "events": 1.4,
           "decisions": 1
         },
         "188.money.prohibition": {
-          "share": 0.0454,
-          "ms": 17.76,
+          "share": 0.0291,
+          "ms": 5.4,
+          "events": 1.7,
+          "decisions": 1.1
+        },
+        "188.money.strength": {
+          "share": 0.0154,
+          "ms": 0.65,
           "events": 1,
           "decisions": 1
         },
         "188.money.trade": {
-          "share": 0.0556,
-          "ms": 23.58,
-          "events": 2.9,
-          "decisions": 2.3
+          "share": 0.0232,
+          "ms": 3.37,
+          "events": 2.5,
+          "decisions": 1.6
         },
         "188.money.treasury": {
-          "share": 0.0264,
-          "ms": 6.98,
-          "events": 3.8,
-          "decisions": 3.8
+          "share": 0.0333,
+          "ms": 6.88,
+          "events": 3,
+          "decisions": 3
+        },
+        "188.order.houses": {
+          "share": 0.0257,
+          "ms": 4.21,
+          "events": 33.3,
+          "decisions": 33.3
+        },
+        "188.order.underworld": {
+          "share": 0.032,
+          "ms": 6.43,
+          "events": 17.3,
+          "decisions": 15.2
+        },
+        "188.order.zgroups": {
+          "share": 0.0669,
+          "ms": 18.54,
+          "events": 212.9,
+          "decisions": 113.7
+        },
+        "188.order.zzbodies": {
+          "share": 0.026,
+          "ms": 4.34,
+          "events": 68.6,
+          "decisions": 24.3
+        },
+        "188.order.zzzsentences": {
+          "share": 0.0177,
+          "ms": 1.44,
+          "events": 1,
+          "decisions": 1
+        },
+        "189.credit.year": {
+          "share": 0.0178,
+          "ms": 1.47,
+          "events": 3.6,
+          "decisions": 3.6
+        },
+        "189.finance.year": {
+          "share": 0.0504,
+          "ms": 12.82,
+          "events": 13.7,
+          "decisions": 1.4
+        },
+        "189.order.charter": {
+          "share": 0.017,
+          "ms": 1.19,
+          "events": 1.5,
+          "decisions": 1.3
+        },
+        "189.strife.court": {
+          "share": 0.0231,
+          "ms": 3.31,
+          "events": 9.5,
+          "decisions": 3.2
+        },
+        "189.strife.year": {
+          "share": 0.0283,
+          "ms": 5.14,
+          "events": 1.5,
+          "decisions": 1.5
+        },
+        "189.trade.capital": {
+          "share": 0.0181,
+          "ms": 1.56,
+          "events": 1.3,
+          "decisions": 1.3
+        },
+        "189.trade.cartel": {
+          "share": 0.0154,
+          "ms": 0.65,
+          "events": 1.1,
+          "decisions": 1.1
+        },
+        "189.trade.cycle": {
+          "share": 0.0208,
+          "ms": 2.52,
+          "events": 42.5,
+          "decisions": 42.5
+        },
+        "189.trade.plan": {
+          "share": 0.0165,
+          "ms": 1.04,
+          "events": 1,
+          "decisions": 1
+        },
+        "189.trade.rent": {
+          "share": 0.0161,
+          "ms": 0.9,
+          "events": 1,
+          "decisions": 1
+        },
+        "189.trade.smoke": {
+          "share": 0.0166,
+          "ms": 1.05,
+          "events": 1,
+          "decisions": 1
+        },
+        "190.city.year": {
+          "share": 0.0213,
+          "ms": 2.69,
+          "events": 1.1,
+          "decisions": 1
+        },
+        "191.town.year": {
+          "share": 0.1294,
+          "ms": 40.31,
+          "events": 187.9,
+          "decisions": 1
+        },
+        "192.wild.month": {
+          "share": 0.0232,
+          "ms": 3.36,
+          "events": 33.7,
+          "decisions": 16.3
+        },
+        "195.design.year": {
+          "share": 0.0274,
+          "ms": 4.8,
+          "events": 5,
+          "decisions": 1
+        },
+        "197.people.notables": {
+          "share": 0.0224,
+          "ms": 3.07,
+          "events": 3.4,
+          "decisions": 2.2
+        },
+        "197.people.zfaith": {
+          "share": 0.0168,
+          "ms": 1.14,
+          "events": 11.9,
+          "decisions": 7
+        },
+        "197.space.year": {
+          "share": 0.0276,
+          "ms": 4.87,
+          "events": 2.3,
+          "decisions": 2.2
+        },
+        "198.ideas.works": {
+          "share": 0.0166,
+          "ms": 1.07,
+          "events": 3,
+          "decisions": 1
+        },
+        "198.ideas.year": {
+          "share": 0.0169,
+          "ms": 1.17,
+          "events": 1,
+          "decisions": 1
+        },
+        "198.ideas.zpilgrims": {
+          "share": 0.0153,
+          "ms": 0.61,
+          "events": 1.1,
+          "decisions": 1
+        },
+        "198.space.voyage": {
+          "share": 0.0166,
+          "ms": 1.05,
+          "events": 1.1,
+          "decisions": 1
+        },
+        "199.space.contact": {
+          "share": 0.0163,
+          "ms": 0.96,
+          "events": 1,
+          "decisions": 1
+        },
+        "199.space.zfarreigns": {
+          "share": 0.015,
+          "ms": 0.51,
+          "events": 1.1,
+          "decisions": 1
+        },
+        "200.space.starwar": {
+          "share": 0.0168,
+          "ms": 1.12,
+          "events": 1.1,
+          "decisions": 1
+        },
+        "201.space.peoples": {
+          "share": 0.0168,
+          "ms": 1.13,
+          "events": 1,
+          "decisions": 1
+        },
+        "202.space.lanes": {
+          "share": 0.0153,
+          "ms": 0.6,
+          "events": 1,
+          "decisions": 1
+        },
+        "203.space.trade": {
+          "share": 0.0162,
+          "ms": 0.91,
+          "events": 1.1,
+          "decisions": 1
+        },
+        "204.space.nations": {
+          "share": 0.0151,
+          "ms": 0.54,
+          "events": 1,
+          "decisions": 1
         },
         "205.space.farlife": {
-          "share": 0.0155,
+          "share": 0.0158,
           "ms": 0.79,
+          "events": 1,
+          "decisions": 1
+        },
+        "206.frontier.weather": {
+          "share": 0.0151,
+          "ms": 0.53,
+          "events": 1,
+          "decisions": 1
+        },
+        "207.frontier.impacts": {
+          "share": 0.015,
+          "ms": 0.51,
+          "events": 1,
+          "decisions": 1
+        },
+        "208.frontier.galactic": {
+          "share": 0.015,
+          "ms": 0.5,
+          "events": 1,
+          "decisions": 1
+        },
+        "209.frontier.minds": {
+          "share": 0.0184,
+          "ms": 1.69,
           "events": 1.1,
+          "decisions": 1
+        },
+        "209.frontier.orbital": {
+          "share": 0.0154,
+          "ms": 0.63,
+          "events": 1.1,
+          "decisions": 1.1
+        },
+        "209.frontier.uplift": {
+          "share": 0.0157,
+          "ms": 0.76,
+          "events": 1,
+          "decisions": 1
+        },
+        "209.frontier.written": {
+          "share": 0.0153,
+          "ms": 0.6,
+          "events": 1,
+          "decisions": 1
+        },
+        "880.lessons.year": {
+          "share": 0.0274,
+          "ms": 4.81,
+          "events": 4.6,
+          "decisions": 1
+        },
+        "890.economy.ledger": {
+          "share": 0.0222,
+          "ms": 3.02,
+          "events": 1,
+          "decisions": 1
+        },
+        "900.population.ledger": {
+          "share": 0.0189,
+          "ms": 1.86,
+          "events": 1,
+          "decisions": 1
+        },
+        "990.history.compact": {
+          "share": 0.0459,
+          "ms": 11.25,
+          "events": 1,
+          "decisions": 1
+        },
+        "999.checkpoint": {
+          "share": 0.0674,
+          "ms": 18.74,
+          "events": 1,
           "decisions": 1
         }
       },
       "stores": {
-        "acts.active": 3115,
+        "acts.active": 3125,
         "acts.fortunes": 2059,
         "acts.great": 2070,
+        "acts.persons": 2059,
         "acts.switches": 2059,
-        "acts.wild": 37597,
-        "belief.faiths": 261383,
-        "city.quarters": 81100,
-        "climate.air": 21270,
+        "acts.wild": 23792,
+        "belief.faiths": 60311,
+        "belief.heads": 14075,
+        "belief.missions": 3592,
+        "belief.taboos": 2542,
+        "belief.temples": 5714,
+        "city.quarters": 87763,
+        "climate.air": 13213,
         "commands.log": 2075,
-        "court.states": 433690,
-        "credit.houses": 24242,
-        "culture.languages": 99841,
-        "culture.ways": 206234,
-        "design.designs": 396365,
-        "diplomacy.relations": 432986,
-        "ecology.herds": 46448,
-        "ecology.lands": 69780,
-        "ecology.woods": 207368,
-        "economy.lodes": 24378,
-        "economy.markets": 3276035,
-        "finance.realms": 234506,
+        "court.states": 175108,
+        "credit.houses": 20568,
+        "culture.abroad": 5020,
+        "culture.art": 19069,
+        "culture.folk": 13423,
+        "culture.languages": 17509,
+        "culture.ways": 190674,
+        "design.designs": 416376,
+        "diplomacy.councils": 64378,
+        "diplomacy.honour": 21164,
+        "diplomacy.relations": 410516,
+        "ecology.droving": 3460,
+        "ecology.ground": 34682,
+        "ecology.herds": 29530,
+        "ecology.lands": 75534,
+        "ecology.seas": 4448,
+        "ecology.stands": 3983,
+        "ecology.woods": 56016,
+        "economy.canals": 4835,
+        "economy.energy": 69505,
+        "economy.lodes": 17411,
+        "economy.markets": 2325674,
+        "finance.realms": 274321,
+        "frontier.galactic": 2324,
+        "frontier.impacts": 2191,
+        "frontier.minds": 16334,
+        "frontier.orbital": 5510,
+        "frontier.uplift": 3046,
+        "frontier.weather": 8680,
+        "frontier.written": 2674,
         "hand.window": 2076,
-        "health.sickness": 54721,
-        "history.decisions": 5848229,
-        "history.events": 22050074,
-        "lore.known": 552149,
-        "lore.lessons": 336238,
+        "health.sickness": 146785,
+        "health.strains": 16324,
+        "history.decisions": 5645712,
+        "history.events": 20073964,
+        "ideas.pilgrims": 12474,
+        "ideas.schools": 14261,
+        "ideas.works": 104192,
+        "life.crops": 21370,
+        "life.diet": 12018,
+        "life.exchange": 14603,
+        "life.lineage": 16001,
+        "lore.academies": 20402,
+        "lore.known": 576534,
+        "lore.lessons": 107485,
+        "lore.letters": 4751,
+        "lore.lost": 81406,
+        "lore.materials": 33187,
+        "lore.rights": 8896,
+        "money.bind": 13499,
+        "money.coin": 20482,
+        "money.contraband": 34654,
+        "money.cover": 29480,
+        "money.goods": 50663,
+        "money.intox": 41768,
+        "money.intoxkinds": 27665,
+        "money.labour": 14448,
+        "money.potency": 5022,
+        "money.prohibition": 36550,
+        "money.shares": 21190,
+        "money.smuggling": 9300,
+        "money.tariffs": 15251,
+        "money.treasury": 74052,
         "observer.ledger": 2170,
-        "order.bonds": 3415816,
-        "planet.home": 5447,
-        "polity.states": 139172,
-        "population.history": 5425558,
-        "population.provinces": 1109339,
-        "population.settlements": 924802,
-        "readings.years": 1050200,
-        "space.contact": 2510,
-        "space.filled": 184050,
-        "space.flight": 126724,
-        "space.late": 6798,
-        "space.nations": 118481,
-        "space.peoples": 11261,
-        "space.stars": 13987,
-        "space.starwars": 112300,
-        "space.trade": 62194,
-        "strife.realms": 41435,
+        "order.bodies": 818282,
+        "order.bodylands": 51784,
+        "order.bonds": 570121,
+        "order.charters": 20161,
+        "order.curriculum": 7169,
+        "order.elections": 106099,
+        "order.gangs": 19195,
+        "order.grouplands": 37043,
+        "order.groups": 566998,
+        "order.houses": 173287,
+        "order.reach": 7607,
+        "order.reachlands": 12379,
+        "order.sentences": 56482,
+        "order.underworld": 263784,
+        "order.voice": 13462,
+        "order.wants": 135883,
+        "people.notables": 177262,
+        "planet.fires": 3685,
+        "planet.floods": 3532,
+        "planet.home": 7228,
+        "planet.motion": 12814,
+        "planet.rivers": 2677,
+        "planet.storms": 3587,
+        "polity.states": 113984,
+        "population.borders": 10492,
+        "population.carried": 2059,
+        "population.heredity": 2222,
+        "population.history": 4558148,
+        "population.mix": 5520,
+        "population.provinces": 1058506,
+        "population.settlements": 901711,
+        "readings.commanders": 289782,
+        "readings.deaths": 514390,
+        "readings.far": 3659,
+        "readings.places": 2185,
+        "readings.years": 977011,
+        "society.care": 18326,
+        "society.dress": 16388,
+        "society.holdings": 15262,
+        "society.law": 13696,
+        "society.leisure": 13115,
+        "society.old": 19621,
+        "society.orphans": 8554,
+        "society.provision": 13364,
+        "society.roles": 15493,
+        "society.roofless": 47348,
+        "society.strain": 16163,
+        "society.table": 17155,
+        "society.unable": 13655,
+        "space.contact": 2144,
+        "space.farlife": 9694,
+        "space.farreigns": 2119,
+        "space.filled": 4766,
+        "space.flight": 23826,
+        "space.late": 3434,
+        "space.nations": 4001,
+        "space.peoples": 7300,
+        "space.stars": 7476,
+        "space.starwars": 3743,
+        "space.trade": 19577,
+        "strife.realms": 56828,
+        "ties.spies": 4609,
         "town.asks": 2059,
-        "town.fabric": 17326609,
-        "war.arms": 14640,
-        "war.bonds": 16028,
-        "war.fire": 25873,
+        "town.fabric": 3988490,
+        "town.managed": 2059,
+        "town.urban": 16452,
+        "trade.capital": 16835,
+        "trade.cartel": 2434,
+        "trade.cycle": 20396,
+        "trade.demand": 19151,
+        "trade.exchange": 19020,
+        "trade.plan": 8738,
+        "trade.rent": 17288,
+        "trade.smoke": 6869,
+        "war.arming": 38887,
+        "war.arms": 6492,
+        "war.bonds": 3380,
+        "war.fire": 6418,
+        "war.fleets": 17844,
         "war.godhosts": 2059,
-        "war.ties": 154666,
-        "war.wars": 5414573,
-        "diplomacy.councils": 89788,
-        "ecology.ground": 34210,
-        "economy.energy": 65027,
-        "health.strains": 6877,
-        "life.lineage": 51142,
-        "lore.letters": 9128,
-        "lore.lost": 1462816,
-        "money.bind": 20048,
-        "money.coin": 41930,
-        "money.cover": 43081,
-        "money.goods": 62994,
-        "money.intox": 31355,
-        "money.labour": 19418,
-        "money.prohibition": 32959,
-        "money.shares": 34912,
-        "money.smuggling": 15079,
-        "money.tariffs": 25882,
-        "money.treasury": 71113,
-        "order.elections": 91133,
-        "order.wants": 427901,
-        "planet.motion": 28600,
-        "readings.far": 3611,
-        "space.farlife": 25192,
-        "ties.spies": 24612,
-        "war.occupation": 4915
+        "war.held": 19183,
+        "war.navy": 13484,
+        "war.occupation": 2388,
+        "war.shelter": 5821,
+        "war.sieges": 2123,
+        "war.ties": 29038,
+        "war.wars": 2421130
       }
     }
   ]

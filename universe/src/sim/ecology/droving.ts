@@ -69,10 +69,12 @@ export function drovingYear(ctx: PopulationContext, t: SimTime): void {
     } | null = null;
     for (let k = g.grid.offsets[p.cell]!; k < g.grid.offsets[p.cell + 1]!; k++) {
       const n = g.grid.neighbours[k]!,
-        cap = provinceCapacity(ctx, n).pasture;
+        theirs = ctx.provinces.get(n),
+        // (Its grazing as its own people were fed in its leanest month: a land in want, its pasture burnt by the drought that
+        // starves it, is no summer's grass to drive a herd to. See migrateYear.)
+        cap = provinceCapacity(ctx, n).pasture * ((theirs?.leanest ?? 1000) / 1000);
       if (!(cap > 0)) continue;
-      const theirs = ctx.provinces.get(n),
-        spare = cap - (theirs?.herding ? theirs.occupation(OCC.herder) * work : 0);
+      const spare = cap - (theirs?.herding ? theirs.occupation(OCC.herder) * work : 0);
       if (!(spare > 0)) continue;
       const grows = shareAbove(g.climate.temperature[n]!, g.climate.seasonality[n]!, GROWS_ABOVE),
         w = droveWorth(
