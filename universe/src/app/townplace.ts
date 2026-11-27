@@ -31,6 +31,7 @@ import {
   type VillagePlan,
 } from "../bridge/index.ts";
 import { VILLAGE_METRE, type OrbitRig, type VillageScene } from "../render/index.ts";
+import type { OrbitView } from "../view/zoom.ts";
 import type { PageWindow, PlaceTab, PlaceWeather, VillagePanel } from "../ui/index.ts";
 // (The mode's own, read from their modules, not the barrels the god game reads: so they come in this chunk alone, fetched
 // when a town is first entered: app/townlazy.ts.)
@@ -104,6 +105,10 @@ export type PlaceFlow = {
   watchNext(): void;
   /** The mode's inspector opened on a ref (null: closed), what it shows, and its height (the look tools). */
   inspect(ref: string | null): void;
+  /** The inspector's Back key pressed, and whether the eye is kept with anyone (the look tools). */
+  back(): void;
+  ahead(): void;
+  readonly following: boolean;
   readonly inspected: {
     ref: string | null;
     height: string;
@@ -367,6 +372,64 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
       person = k >= 0 ? d.plan()?.people[k] : undefined;
     return person ? d.village.personAt(person.ref) : null;
   };
+  /**
+   * Whom and what was inspected before (asked 2026-11-26: "it doesnt let me click back"): each with where the eye was when
+   * it was left for the next; and where the eye was before it went with the first one. Back goes one step; from the
+   * first it closes the inspector and the eye goes back to where it was.
+   */
+  const before: { ref: string; eye: OrbitView }[] = [],
+    ahead: { ref: string; eye: OrbitView }[] = [];
+  let eyeFirst: OrbitView | null = null,
+    eyeMoved = false;
+  /** The eye let go of whom it is kept with: the one followed (🎯), or one a town watched goes with. */
+  const letGo = (): void => {
+    if (inspector.following) follow(false);
+    if (mode === "watch") watch.letGo();
+    if (d.rig.follow) d.rig.follow = null;
+  };
+  /**
+   * One step back, as a browser's: the one inspected before, the eye where it was; from the first, closed, the eye where
+   * it began. What was left is kept to go forward to again, till another is opened.
+   */
+  const goBack = (): void => {
+    letGo();
+    if (inspector.ref) {
+      if (inspector.now) backNames.set(inspector.ref, inspector.now.name);
+      ahead.push({ ref: inspector.ref, eye: d.rig.view });
+    }
+    const prev = before.pop();
+    if (prev) {
+      inspect(prev.ref, false);
+      d.rig.flyTo(prev.eye, 0.6);
+      return;
+    }
+    const eye = eyeMoved ? eyeFirst : null;
+    inspect(null, false);
+    if (eye) d.rig.flyTo(eye, 0.6);
+  };
+  /** One step forward again: the one gone back from, the eye where it was then. */
+  const goAhead = (): void => {
+    const next = ahead.pop();
+    if (!next) return;
+    letGo();
+    if (inspector.ref) {
+      if (inspector.now) backNames.set(inspector.ref, inspector.now.name);
+      before.push({ ref: inspector.ref, eye: d.rig.view });
+    }
+    inspect(next.ref, false);
+    d.rig.flyTo(next.eye, 0.6);
+  };
+  /** Its Back and Forward keys' words: whom or what each goes to. */
+  const backWords = (): void => {
+    const prev = before.at(-1),
+      next = ahead.at(-1);
+    inspector.setBack(
+      prev ? (backNames.get(prev.ref) ?? null) : null,
+      before.length > 0,
+      next ? (backNames.get(next.ref) ?? null) : false,
+    );
+  };
+  const backNames = new Map<string, string>();
   /** The eye flown to a point of the town (metres from its square). */
   const lookAt = (at: { x: number; z: number }): void => {
     d.rig.follow = null;
@@ -399,7 +462,7 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
    * The inspector opened on what a ref names (one of its people, a lot; null: closed), and read every half second while
    * it stays open. What the place has no inspector for (a realm's page, a sickness) is the god game's page.
    */
-  const inspect = (ref: string | null): void => {
+  const inspect = (ref: string | null, step = true): void => {
     stopInspect?.();
     stopInspect = null;
     if (ref && !/^(plc|plcl|folk|person):/.test(ref)) {
@@ -407,8 +470,29 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
       return;
     }
     d.pages.close();
+    // (Back: another opened over one shown is a step to go back by; the first opened keeps where the eye began; closed,
+    // none is kept.)
+    // (Opened anew by any way, the map, a sheet's row, a thought's source, a name, an alert: nothing ahead to go
+    // forward to. Back and Forward themselves keep what is ahead.)
+    if (step) ahead.length = 0;
+    if (!ref) {
+      if (step) before.length = 0;
+      eyeFirst = null;
+      eyeMoved = false;
+    } else if (!inspector.ref) {
+      if (step) before.length = 0;
+      eyeFirst = d.rig.view;
+      eyeMoved = false;
+    } else if (step && ref !== inspector.ref) {
+      // (The eye kept with the one before is let go of: 🎯 is of whom the inspector shows.)
+      if (inspector.following) follow(false);
+      if (inspector.now) backNames.set(inspector.ref, inspector.now.name);
+      before.push({ ref: inspector.ref, eye: d.rig.view });
+      if (before.length > 24) before.shift();
+    }
     inspector.orders = mode !== "watch";
     inspector.open(ref);
+    backWords();
     if (!ref || !town) {
       choose(null);
       laid();
@@ -463,6 +547,7 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     inspector.following = on && chosen !== null;
     const id = chosen;
     if (inspector.following && id !== null) {
+      eyeMoved = true;
       const at = { x: 0, z: 0 },
         keep = () => {
           const p = personPoint(id);
@@ -617,6 +702,7 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
         .catch(() => {});
     enteredAt = null;
     town = null;
+    d.rig.dragLetsGo = false;
     sited = "";
     ran("hand");
     inspect(null);
@@ -643,6 +729,8 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     const plan = d.plan();
     if (!plan || d.scale() !== "village" || plan.native) return;
     town = plan.ref;
+    // (A drag over the town lets go of one the eye is kept with, and takes the ground.)
+    d.rig.dragLetsGo = true;
     was = d.client.status?.speed ?? 0;
     d.client.setSpeed(pace);
     d.pages.close();
@@ -701,8 +789,10 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
         }),
     );
   };
+  // (Escape: a page shut, else the inspector closed and the eye let go of whom it was kept with.)
   hud.onEscape = () => {
-    d.pages.close();
+    if (!d.pages.element.hidden) return void d.pages.close();
+    letGo();
     inspect(null);
   };
   hud.onFollow = () => {
@@ -715,7 +805,12 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     if (tab && inspector.shown && inspector.height !== "peek") inspector.setHeight("peek");
     laid();
   };
-  inspector.onClose = () => inspect(null);
+  inspector.onClose = () => {
+    letGo();
+    inspect(null);
+  };
+  inspector.onBack = () => goBack();
+  inspector.onAhead = () => goAhead();
   inspector.onInspect = (ref) => inspect(ref);
   inspector.onPage = (ref) => void d.pages.open(ref);
   inspector.onFollow = (on) => follow(on);
@@ -785,16 +880,23 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
         // them too, and stays.)
         const id = body.ids[plan.people.indexOf(person)];
         if (id !== null && id !== undefined) {
-          if (mode === "watch") watch.goWith(id);
+          if (mode === "watch") {
+            if (!inspector.ref) eyeFirst = d.rig.view;
+            watch.goWith(id);
+          }
           inspect(placePersonRef(town, id));
+          if (mode === "watch") eyeMoved = true;
         } else void d.pages.open(person.page ?? person.ref);
         return true;
       }
       const thing = d.townThing(x, y);
       if (thing?.kind === "civic" || thing?.kind === "lot")
         inspect(placeLotRef(town, thing.kind === "civic" ? thing.at : thing.lot));
-      // (A tap on the bare ground lets go of whom or what was chosen.)
-      else inspect(null);
+      // (A tap on the bare ground lets go of whom or what was chosen, and of the eye kept with them.)
+      else {
+        letGo();
+        inspect(null);
+      }
       return true;
     },
     frame: () => {
@@ -843,6 +945,11 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     watchStay: (on) => watch.stay(on),
     watchNext: () => watch.next(),
     inspect: (ref) => inspect(ref),
+    back: () => goBack(),
+    ahead: () => goAhead(),
+    get following() {
+      return d.rig.follow !== null;
+    },
     get inspected() {
       const x = inspector.now;
       return {
