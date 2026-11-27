@@ -15,6 +15,7 @@ import {
   placeLotRef,
   placePersonRef,
   placedId,
+  type BarRead,
   type HostClient,
   type PlaceDangersSheet,
   type PlaceFrame,
@@ -36,6 +37,7 @@ import type { PageWindow, PlaceTab, PlaceWeather, VillagePanel } from "../ui/ind
 // (The mode's own, read from their modules, not the barrels the god game reads: so they come in this chunk alone, fetched
 // when a town is first entered: app/townlazy.ts.)
 import { PlaceHud, seasonWord } from "../ui/place-hud.ts";
+import { barPins } from "../ui/people-bar.ts";
 import { PlaceInspector } from "../ui/place-inspect.ts";
 import type { PlaceLoading } from "../ui/place-loading.ts";
 import type { TownThing } from "../view/index.ts";
@@ -302,6 +304,8 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
         const t0 = performance.now();
         hud.time(f.t, pace, f.season);
         // (Entered: where each of them is, told. Its season said, and the loading screen let go.)
+        // (Its people pinned on the people bar followed in full from the first frame: pins.)
+        if (enteredAt === null) pinsKept();
         enteredAt ??= f.t;
         if (d.loading?.shown) {
           const sky = d.weather();
@@ -617,6 +621,63 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     );
   };
 
+  /**
+   * The people bar's pins kept by the town too (asked 2026-11-26: "people i have pinned from that town should be in the
+   * people tab"): each of its people pinned there followed in full by word on entering and whenever the pins change, and
+   * one taken off the bar let go of; and the other way, one followed by word in the town pinned on the bar where they are
+   * someone the god game knows (their page is not the place's own).
+   */
+  let pinsWere: string[] = [];
+  const pinsKept = (): void => {
+    if (!town) return;
+    const now = barPins.all.map((x) => x.ref);
+    void d.client
+      .query({ type: "place.pins", args: { ref: town, pins: now, was: pinsWere } })
+      .then(() => {
+        if (inspector.ref) inspect(inspector.ref, false);
+      })
+      .catch(() => {});
+    pinsWere = now;
+    if (hud.tab === "people") sheet("people");
+  };
+  barPins.onChange(pinsKept);
+  /** The People sheet drawn, with the pinned who are not here read as the people bar reads them (where, or gone). */
+  let awayRead = "";
+  const pinsAway = (s: PlacePeopleSheet): void => {
+    const here = new Set(s.pinsHere),
+      away = barPins.all.filter((x) => !here.has(x.ref)),
+      key = away.map((x) => x.ref).join("|");
+    if (key !== awayRead) {
+      awayRead = key;
+      // (None left elsewhere: drawn again without them at once.)
+      if (!away.length) {
+        hud.away = [];
+        return void hud.people(s, true);
+      } else
+        void d.client
+          .query<BarRead>({ type: "people.bar", args: { cell: null, town: null, pins: away, followed: [] } })
+          .then((r) => {
+            // (The pins alone: the bar reads besides whom the place it is asked of puts on it.)
+            hud.away = r.people
+              .filter((x) => x.kind === "pin")
+              .map((x) => {
+                const pin = away.find((y) => y.ref === x.ref || x.key.startsWith(`${y.ref}|`));
+                return {
+                  ref: pin?.ref ?? x.ref,
+                  name: x.gone || !pin ? (pin?.name ?? x.name) : x.name,
+                  words: x.gone
+                    ? x.died
+                      ? `Died: ${x.died}`
+                      : "History tells of them no more"
+                    : x.readings.doing.words,
+                };
+              });
+            hud.people(s, true);
+          })
+          .catch(() => undefined);
+    }
+    hud.people(s);
+  };
   /** The sheet open read, and read again while it stays open. */
   const sheet = (tab: PlaceTab | null): void => {
     stopSheet?.();
@@ -625,9 +686,9 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     const ref = town;
     if (tab === "people")
       stopSheet = d.client.subscribe<PlacePeopleSheet | null>(
-        { type: "place.people", args: { ref, occ: hud.occ } },
+        { type: "place.people", args: { ref, occ: hud.occ, pins: barPins.all.map((x) => x.ref) } },
         SHEET_EVERY,
-        (s) => timed(() => s && hud.people(s)),
+        (s) => timed(() => s && pinsAway(s)),
       );
     else if (tab === "stocks")
       stopSheet = d.client.subscribe<PlaceStocksSheet | null>(
@@ -714,6 +775,9 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     if (body && d.village.posed === body) d.village.posed = null;
     body = null;
     told = null;
+    pinsWere = [];
+    awayRead = "";
+    hud.away = [];
     settled = -1;
     if (was !== null) d.client.setSpeed(was);
     was = null;
@@ -821,11 +885,29 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
   // (Followed in full by word, or let be: the town's own reading, given in any way it is run. Tiers.)
   inspector.onPin = (id, on) => {
     if (!town) return;
+    // (On the people bar too, where the god game knows them: the same pin.)
+    const x = inspector.now,
+      page = x?.kind === "person" && x.id === id ? x.page : null;
     void d.client
       .query({ type: "place.pin", args: { ref: town, id, on } })
-      .then(() => inspector.ref && inspect(inspector.ref))
+      .then(() => {
+        if (page && !page.startsWith("plc:")) {
+          if (on && !barPins.has(page)) barPins.toggle(page, x!.name);
+          else if (!on && barPins.has(page)) barPins.off(page);
+        }
+        if (inspector.ref) inspect(inspector.ref);
+      })
       .catch(() => {});
   };
+  hud.onUnpin = (ref, id) => {
+    if (barPins.has(ref)) barPins.off(ref);
+    if (town && id !== null)
+      void d.client
+        .query({ type: "place.pin", args: { ref: town, id, on: false } })
+        .then(() => hud.tab === "people" && sheet("people"))
+        .catch(() => {});
+  };
+  hud.onPage = (ref) => void d.pages.open(ref);
   inspector.onHeight = (h) => {
     if (h !== "peek" && hud.tab && !hud.desk) hud.open(null);
     laid();

@@ -716,6 +716,70 @@ for (const view of [
     "no overlay once put away",
   );
 
+  // The people bar's pins in the town's People sheet (asked 2026-11-26: "people i have pinned from that town should be in
+  // the people tab"): one of its people pinned on the bar and one pinned who is no one of it; the Pinned chip first,
+  // the one of it first in All, marked, followed in full; the other greyed under the chip; each let go of by its key.
+  {
+    const row = await k<{ ref: string; name: string; id: number } | null>(
+      `globalThis.causalis.client.query({ type: "place.people", args: { ref: ${JSON.stringify(town.ref)}, occ: null } }).then((s) => { const r = s?.rows.find((x) => !x.ref.startsWith("plc:")) ?? s?.rows[3]; return r ? { ref: r.ref, name: r.name, id: r.id } : null; })`,
+    );
+    // (One who is elsewhere: the first the people bar puts before the world as a whole, of no town.)
+    const far = await k<{ ref: string; name: string } | null>(
+      `globalThis.causalis.client.query({ type: "people.bar", args: { cell: null, town: null, pins: [], followed: [] } }).then((r) => { const x = r?.people.find((y) => !y.gone && !y.ref.startsWith("plc:")); return x ? { ref: x.ref, name: x.name } : null; })`,
+    );
+    if (row && far) {
+      await k(`(() => { const b = globalThis.causalis.barPins; for (const x of [...b.all]) b.off(x.ref); b.toggle(${JSON.stringify(row.ref)}, ${JSON.stringify(row.name)}); b.toggle(${JSON.stringify(far.ref)}, ${JSON.stringify(far.name)}); })()`);
+      await page.waitForTimeout(1200);
+      await press('.place-tab[data-tab="people"]', "the People tab, two pinned");
+      await page.waitForTimeout(1500);
+      const ref = JSON.stringify(row.ref),
+        fake = JSON.stringify(far.ref),
+        chip = await text(".place-chip-pinned"),
+        here = await k<number>(
+          `globalThis.causalis.client.query({ type: "place.people", args: { ref: ${JSON.stringify(town.ref)}, occ: 102, pins: globalThis.causalis.barPins.all.map((x) => x.ref) } }).then((s) => s?.pinned ?? -1)`,
+        ),
+        bar = await k<number>("globalThis.causalis.barPins.all.length");
+      say(`pinned: chip "${chip}", ${here} of its people pinned, ${bar} on the bar; first row "${(await text(".place-person-row")).slice(0, 60)}"`);
+      check(chip.endsWith(` ${here + 1}`), `the Pinned chip counts its pinned and the one elsewhere (${chip}; ${here} + 1)`);
+      check(
+        await k<boolean>(`document.querySelector(".place-person-row")?.classList.contains("pinned") ?? false`),
+        "the pinned first in All, marked",
+      );
+      await press(".place-chip-pinned", "📌 Pinned");
+      await page.waitForTimeout(1500);
+      check(
+        await k<boolean>(`!!document.querySelector(\`.place-person[data-ref=\${JSON.stringify(${ref})}] .place-person-row.pinned\`)`),
+        "under the chip: the one of it pinned on the bar",
+      );
+      check(
+        (await shown(".place-away-row")) === 1 && (await text(".place-away-row")).includes(far.name),
+        `under the chip: the one elsewhere, greyed, with where they are (${await text(".place-away")})`,
+      );
+      await look("23-pinned", "the pinned, here and elsewhere");
+      const tier = await k<string>(
+        `globalThis.causalis.client.query({ type: "place.inspect", args: { ref: ${JSON.stringify(town.ref)}, of: ${JSON.stringify(`plc:${town.ref}:${row.id}`)} } }).then((x) => (x?.tier ? \`\${x.tier.pinned ? "pinned: " : ""}\${x.tier.words}\` : ""))`,
+      );
+      say(`the one pinned, as its tier reads: ${tier}`);
+      check(/^pinned: .*full/i.test(tier), `the one pinned is followed in full, by word (${tier})`);
+      await press(`.place-person[data-ref=${fake}] .place-row-unpin`, "📌✕ the one elsewhere");
+      await page.waitForTimeout(1500);
+      check((await shown(".place-away-row")) === 0, "the one elsewhere let go of");
+      await press(`.place-person[data-ref=${ref}] .place-row-unpin`, "📌✕ the one of it");
+      await page.waitForTimeout(1500);
+      check(
+        !(await k<boolean>(`globalThis.causalis.barPins.has(${ref}) || globalThis.causalis.barPins.has(${fake})`)),
+        "both off the people bar",
+      );
+      check(
+        !(await k<boolean>(`!!document.querySelector(\`.place-person[data-ref=\${JSON.stringify(${ref})}]\`)`)),
+        "the one of it no longer under the chip",
+      );
+      await k(`[...document.querySelectorAll(".place-chip")].find((b) => /^All/.test(b.textContent ?? ""))?.click()`);
+      await page.waitForTimeout(600);
+      await press(".place-sheet-shut", "the sheet's close");
+    } else say("no one of it, or no one elsewhere, to pin");
+  }
+
   // The night: its people still to be told apart.
   await toHour(22, 24, "the town's night");
   await page.waitForTimeout(1500);

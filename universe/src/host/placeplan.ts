@@ -970,26 +970,48 @@ export function peopleSheet(
   place: Place,
   occ: number | null,
   most = 60,
+  /** The people bar's pins (their pages): those of its people pinned there are pinned here too. */
+  pins: readonly string[] = [],
 ): PlacePeopleSheet {
   const p = place.people,
     grown = lifeOf(world).adulthood,
     who = placeWho(world, place),
     trades = new Array<number>(OCCUPATIONS.length).fill(0),
     order: number[] = [],
-    young = (i: number) => (place.t / DAY - p.born[i]!) / 365 < grown;
-  let children = 0;
+    young = (i: number) => (place.t / DAY - p.born[i]!) / 365 < grown,
+    asked = new Set(pins),
+    here = new Set<string>(),
+    // (Followed in full by your word, for good: pinned too.)
+    byWord = new Set<number>();
+  for (let k = 0; k + 1 < (place.pins?.length ?? 0); k += 2)
+    if (place.pins![k + 1] === -1) byWord.add(place.pins![k]!);
+  const pinned = new Uint8Array(p.n);
+  let children = 0,
+    pinnedN = 0;
+  for (let i = 0; i < p.n; i++) {
+    const ref = asked.size ? who(i).ref : "";
+    if (asked.has(ref)) here.add(ref);
+    if (asked.has(ref) || byWord.has(p.id[i]!)) {
+      pinned[i] = 1;
+      pinnedN++;
+    }
+  }
   for (let i = 0; i < p.n; i++) {
     const o = p.sexOcc[i]! & 15;
     trades[o]!++;
     if (o === OCC.dependent && young(i)) children++;
     // (Those of no trade told apart: the young (PEOPLE_YOUNG) and the grown who keep none, most of them old (PEOPLE_OLD).)
     const of = o === OCC.dependent ? (young(i) ? PEOPLE_YOUNG : PEOPLE_OLD) : o;
-    if (occ === null || o === occ || of === occ) order.push(i);
+    if (occ === PEOPLE_PINNED ? pinned[i] : occ === null || o === occ || of === occ) order.push(i);
   }
-  // Who wants the manager's eye first: by what is wrong with them, then how long, then how near a need is to full.
+  // Who wants the manager's eye first: the pinned, then by what is wrong with them, then how long, then how near a need
+  // is to full.
   const attention = order.map((i) => attentionOf(place, i)),
     at = new Map(order.map((i, k) => [i, attention[k]!]));
-  order.sort((a, b) => at.get(b)!.score - at.get(a)!.score || p.id[a]! - p.id[b]!);
+  order.sort(
+    (a, b) =>
+      pinned[b]! - pinned[a]! || at.get(b)!.score - at.get(a)!.score || p.id[a]! - p.id[b]!,
+  );
   const posts: { lot: number; name: string }[] = [];
   for (let b = 1; b < place.bldgs.lot.length; b++)
     if (!place.bldgs.site[b])
@@ -1001,6 +1023,8 @@ export function peopleSheet(
     trades,
     children,
     all: order.length,
+    pinned: pinnedN,
+    pinsHere: [...here],
     posts,
     homes: placeHomes(world, place, 6),
     rows: order.slice(0, most).map((i) => {
@@ -1032,6 +1056,7 @@ export function peopleSheet(
         house: place.houses.key[p.house[i]!]!,
         homeLot: place.houses.home[p.house[i]!]!,
         post: p.bound[i] === 255 ? p.work[i]! : null,
+        pinned: pinned[i] === 1,
       };
     }),
   };
@@ -1039,7 +1064,9 @@ export function peopleSheet(
 
 /** The People sheet's narrowing to its young of no trade, and to its grown of no trade (most of them old). */
 export const PEOPLE_YOUNG = 100,
-  PEOPLE_OLD = 101;
+  PEOPLE_OLD = 101,
+  /** And to those pinned (the people bar's 📌, and those followed by your word). */
+  PEOPLE_PINNED = 102;
 /**
  * How much one of a place's people wants the manager's eye, said: in want (its days), abed, too low in mood to heed an
  * order, a need near its full; else at ease. Its level is the alert column's (3 grave, 2 to see to, 1 worth knowing, 0
@@ -1958,8 +1985,37 @@ export function placeQueries(villagePlan: QueryHandler): Readonly<Record<string,
     },
     "place.people": (world, args) => {
       const place = kept(world, args),
-        occ = (args as { occ?: number | null }).occ;
-      return place ? peopleSheet(world, place, typeof occ === "number" ? occ : null) : null;
+        a = args as { occ?: number | null; pins?: unknown },
+        pins = Array.isArray(a.pins) ? a.pins.filter((x): x is string => typeof x === "string") : [];
+      return place
+        ? peopleSheet(world, place, typeof a.occ === "number" ? a.occ : null, 60, pins)
+        : null;
+    },
+    // The people bar's pins kept by the town too (asked 2026-11-26: "people i have pinned from that town should be in the
+    // people tab"): each of its people pinned there followed in full by word, for good; each no longer pinned there (of
+    // `was`) let go of, where it was the pin that held them.
+    "place.pins": (world, args) => {
+      const a = args as { ref?: unknown; pins?: unknown; was?: unknown } | null,
+        place = typeof a?.ref === "string" ? placesOf(world)?.get(a.ref) : undefined;
+      if (!place || !Array.isArray(a?.pins)) return null;
+      const on = new Set(a.pins.filter((x): x is string => typeof x === "string")),
+        off = new Set(
+          (Array.isArray(a.was) ? a.was : []).filter(
+            (x): x is string => typeof x === "string" && !on.has(x),
+          ),
+        ),
+        who = placeWho(world, place),
+        p = place.people;
+      let n = 0;
+      if (on.size || off.size)
+        for (let i = 0; i < p.n; i++) {
+          const ref = who(i).ref;
+          if (on.has(ref)) {
+            if (placeTier(place, i).pinned !== -1) placePin(place, p.id[i]!, -1);
+            n++;
+          } else if (off.has(ref) && placeTier(place, i).pinned === -1) placePin(place, p.id[i]!, null);
+        }
+      return n;
     },
     "place.stocks": (world, args) => {
       const place = kept(world, args);
