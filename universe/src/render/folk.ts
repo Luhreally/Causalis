@@ -93,6 +93,8 @@ export type FolkFrame = {
   readonly groundOf?: unknown;
   /** The world's clock taken on at a stride (or a town come into): each one's ground read and set on at once. */
   readonly jumped?: boolean;
+  /** None set on the ground (the look tools' frame cost without: as before 2026-11-26). */
+  readonly unfooted?: boolean;
 };
 
 /** How many gone on a quarter metre have the ground under them read again a frame (FolkFrame.ground). */
@@ -475,7 +477,7 @@ export class FolkPoses {
       }
       // On the ground (view/footing.ts): their lowest point, whatever their body and however they stand, sit or lie, set on
       // what they stand on (a hop off it at play kept), never into it nor short of it.
-      const lowest = lowestOf(keep, i * P * 16, P, this.codes);
+      const lowest = f.unfooted ? Number.NaN : lowestOf(keep, i * P * 16, P, this.codes);
       let shift = 0;
       if (Number.isFinite(lowest)) {
         let under = 0;

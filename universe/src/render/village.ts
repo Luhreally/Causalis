@@ -616,8 +616,11 @@ export class VillageScene {
    * begun again by footCost().
    */
   private costs = { feet: 0, spread: 0, pose: 0, frames: 0, gather: 0, core: 0, apart: 0 };
-  /** Whether where their day has them stand is kept apart by their figures as drawn (view/village.ts keepApart). */
-  apartDrawn = false;
+  /**
+   * The look tools' switch (tools: frame cost with and without): none set on the ground drawn under them nor kept out of one
+   * another as drawn, as before 2026-11-26.
+   */
+  feetOff = false;
   footCost(): { feet: number; spread: number; pose: number; frames: number } {
     const c = this.costs;
     this.costs = { feet: 0, spread: 0, pose: 0, frames: 0, gather: 0, core: 0, apart: 0 };
@@ -1168,7 +1171,7 @@ export class VillageScene {
     this.letGoMark = new LetGoMark(stage, this.root, M);
     this.fauna = new FaunaLayer(stage, this.root);
     // (Its beasts on the ground drawn under them: its pasture, its streets.)
-    this.fauna.groundAt = (x, z) => this.surfaceNear(x, z);
+    this.fauna.groundAt = (x, z) => (this.feetOff ? 0 : this.surfaceNear(x, z));
     this.fliers = new FlierLayer(stage, this.root);
     this.work = new WorkLayer(stage, this.root);
     this.visitors = new VisitorsLayer(stage, this.root);
@@ -1187,7 +1190,7 @@ export class VillageScene {
     this.courtLayer = new CourtLayer(stage, this.root);
     this.rides = new TownTraffic(stage, this.root);
     // (Its cars and coaches on the ground drawn under them, as its people are.)
-    this.rides.groundAt = (x, z) => this.surfaceNear(x, z);
+    this.rides.groundAt = (x, z) => (this.feetOff ? 0 : this.surfaceNear(x, z));
     this.worn = new WoundsLayer(stage, this.root);
     this.litters = new LittersLayer(stage, this.root);
     this.moneyLayer = new TownMoneyLayer(stage, this.root);
@@ -3389,7 +3392,6 @@ export class VillageScene {
       plan,
       targets,
       troops.filter((q) => q.size > 0.5),
-      this.apartDrawn,
     );
     this.costs.apart += performance.now() - a0;
     const dt = this.presenceClock === null ? 0 : clock - this.presenceClock;
@@ -3419,8 +3421,13 @@ export class VillageScene {
     // own bodies apart.)
     // (Out of what stands about them every sixth frame, out of one another every twelfth: where they are stepped to is where
     // they are carried on from, so they stay apart between; two come together are parted within a fifth of a second.)
-    if (SPREAD_ON && !this.posed) this.easeApart(plan, dt);
-    if (SPREAD_ON && !this.posed && (this.jumped || this.frameNo % SPREAD_EVERY === 0)) {
+    if (SPREAD_ON && !this.posed && !this.feetOff) this.easeApart(plan, dt);
+    if (
+      SPREAD_ON &&
+      !this.posed &&
+      !this.feetOff &&
+      (this.jumped || this.frameNo % SPREAD_EVERY === 0)
+    ) {
       // (Come in, or the clock taken on at a stride: worked through thrice at once, those pushed back off a wall held.)
       if (this.spreadDrawn(plan, this.jumped || this.frameNo % (2 * SPREAD_EVERY) === 0))
         for (let again = 0; again < 2; again++) this.spreadDrawn(plan, true, true);
@@ -3568,7 +3575,8 @@ export class VillageScene {
     const f1 = performance.now();
     /** A part of person i's figure, where it is now. */
     const place = this.folk.pose({
-      ground: this.groundFn,
+      ground: this.feetOff ? null : this.groundFn,
+      unfooted: this.feetOff,
       jumped: this.jumped,
       groundOf,
       plan,
@@ -3597,7 +3605,8 @@ export class VillageScene {
         for (let i = 0; i < this.moments.length; i++)
           o.moments[i] = otherOf[i] === k ? this.moments[i]! : UNSEEN;
         o.folk.pose({
-          ground: this.groundFn,
+          ground: this.feetOff ? null : this.groundFn,
+          unfooted: this.feetOff,
           jumped: this.jumped,
           groundOf,
           plan: o.plan,
@@ -3767,7 +3776,8 @@ export class VillageScene {
         }
       };
       this.troopFeet.clear();
-      for (const q of troops) this.troopFeet.set(q, this.surfaceNear(q.x, q.z) * M);
+      for (const q of troops)
+        this.troopFeet.set(q, this.feetOff ? 0 : this.surfaceNear(q.x, q.z) * M);
       this.fallenParts(troops);
       this.soldiers.forEach((batches, side) =>
         batches.forEach((batch, pi) =>

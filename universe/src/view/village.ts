@@ -30,9 +30,8 @@ import {
   type Wonder,
 } from "../bridge/index.ts";
 import { OCC, article } from "../rules/index.ts";
-import { figureOf, paceOf } from "./figure.ts";
-import { restBody } from "./footing.ts";
-import { lifeFigure, measuresOf } from "./stature.ts";
+import { paceOf } from "./figure.ts";
+import { measuresOf } from "./stature.ts";
 
 /**
  * How large a town's folk are drawn against a person drawn three times life (rules/stature.ts Measures.drawn: ours 0.32, a
@@ -6509,24 +6508,6 @@ export function bodyR(plan: Pick<VillagePlan, "body">): number {
   }
   return r;
 }
-/**
- * Half a town's folk's breadth as their figures are drawn (bodyR, and no less than their figure as drawn reaches from where
- * they stand: view/footing.ts restBody, a long body drawn with its trunk and tail reaching past its measured length).
- */
-export function drawnBodyR(plan: Pick<VillagePlan, "body">): number {
-  const key = plan.body ?? NO_BODY;
-  let r = DRAWN_RS.get(key);
-  if (r === undefined) {
-    const f = lifeFigure(figureOf(plan.body, 2), plan.body),
-      b = restBody(f.parts);
-    r = Math.max(bodyR(plan), ((Math.hypot(b.x, b.z) + b.r) * f.scale) / FIGURE_UNITS);
-    DRAWN_RS.set(key, r);
-  }
-  return r;
-}
-const DRAWN_RS = new WeakMap<object, number>();
-/** A figure's units to the metre (as the town draws it: render/village.ts M). */
-const FIGURE_UNITS = 0.1;
 /** Each body's reach (bodyR), read once. */
 const BODY_RS = new WeakMap<object, number>();
 /** Our own body (a plan's `body` absent) as a key. */
@@ -6550,11 +6531,9 @@ export function keepApart(
   plan: VillagePlan,
   moments: Moment[],
   fixed: readonly { readonly x: number; readonly z: number }[] = [],
-  /** Kept apart by their figures as drawn (drawnBodyR), not their bodies' measure. */
-  drawn = false,
 ): void {
   const ground = groundFor(plan),
-    gap = 2 * (drawn ? drawnBodyR(plan) : bodyR(plan)),
+    gap = 2 * bodyR(plan),
     // (Each steps a little past the breadth, so a knot settles without creeping.)
     want = gap * 1.06,
     live: number[] = [];
