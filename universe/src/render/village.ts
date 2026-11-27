@@ -230,6 +230,8 @@ const SPREAD_ON = true;
 const SPREAD_EVERY = 4;
 /** How far one standing still may have drifted (metres) before what stands about them is looked at again. */
 const CLEAR_AGAIN = 0.05;
+/** How many standing still are looked at a frame (render/village.ts spreadDrawn). */
+const STILL_EACH = 6;
 /** One out of sight (of another people's figure than the one being posed), and no one's wounds' gear. */
 const UNSEEN: Moment = {
     x: 0,
@@ -555,6 +557,8 @@ export class VillageScene {
   private spreadLive = new Uint8Array(0);
   /** Where each one standing still was last kept out of what stands about them (metres; NaN: not yet). */
   private clearX = new Float64Array(0);
+  /** Where the next frame's look at those standing still begins, among those gathered. */
+  private stillFrom = 0;
   private clearZ = new Float64Array(0);
   /** Whose each of those gathered is (their place in the plan's people). */
   private spreadAt = new Int32Array(0);
@@ -804,8 +808,13 @@ export class VillageScene {
       p = { x: 0, z: 0 },
       clearX = this.clearX,
       clearZ = this.clearZ;
-    for (let q = 0; q < k; q++) {
-      const i = at[q]!,
+    // (Those standing still looked at a few a frame, from where the last frame left off: a town's worth would cost a frame.)
+    let still = 0;
+    const from = this.stillFrom % Math.max(1, k);
+    let next = from;
+    for (let r = 0; r < k; r++) {
+      const q = (from + r) % k,
+        i = at[q]!,
         m = moments[i]!,
         ox = oxs[q]!,
         oz = ozs[q]!,
@@ -817,13 +826,18 @@ export class VillageScene {
       p.x = xs[q]!;
       p.z = zs[q]!;
       // (A walker not stepped aside goes on as their way keeps them: off walls and homes, round wells and trees.)
+      const stepped = p.x !== wasX || p.z !== wasZ;
       if (
-        p.x === wasX &&
-        p.z === wasZ &&
+        !stepped &&
         (walking ||
+          still >= STILL_EACH ||
           (Math.abs(m.x - clearX[i]!) < CLEAR_AGAIN && Math.abs(m.z - clearZ[i]!) < CLEAR_AGAIN))
       )
         continue;
+      if (!stepped) {
+        still++;
+        next = q + 1;
+      }
       keepOut(ground, p, body);
       posts?.pushOut(p, body);
       trunks?.pushOut(p, body);
@@ -842,6 +856,7 @@ export class VillageScene {
         was.z = z;
       }
     }
+    this.stillFrom = next;
     this.costs.spread += performance.now() - t0;
   }
 
