@@ -615,10 +615,12 @@ export class VillageScene {
    * separation, and the posing of the folk with it (render/folk.ts); for the look tools (tools/feet-check.ts), read and
    * begun again by footCost().
    */
-  private costs = { feet: 0, spread: 0, pose: 0, frames: 0, gather: 0, core: 0 };
+  private costs = { feet: 0, spread: 0, pose: 0, frames: 0, gather: 0, core: 0, apart: 0 };
+  /** Whether where their day has them stand is kept apart by their figures as drawn (view/village.ts keepApart). */
+  apartDrawn = false;
   footCost(): { feet: number; spread: number; pose: number; frames: number } {
     const c = this.costs;
-    this.costs = { feet: 0, spread: 0, pose: 0, frames: 0, gather: 0, core: 0 };
+    this.costs = { feet: 0, spread: 0, pose: 0, frames: 0, gather: 0, core: 0, apart: 0 };
     return c;
   }
   /**
@@ -3347,11 +3349,14 @@ export class VillageScene {
       if (m.task === "dance" && !m.hidden) Object.assign(m, ringTurn(plan, m, screen));
     // No one stands in anyone else, nor in a soldier; and no one jumps: each is carried to
     // where their day has them, however fast the world runs.
+    const a0 = performance.now();
     keepApart(
       plan,
       targets,
       troops.filter((q) => q.size > 0.5),
+      this.apartDrawn,
     );
+    this.costs.apart += performance.now() - a0;
     const dt = this.presenceClock === null ? 0 : clock - this.presenceClock;
     this.presenceClock = clock;
     const drawn = present(
