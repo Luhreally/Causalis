@@ -322,7 +322,44 @@ export type PlaceInspectBelow = {
   readonly words: string;
 };
 
+/**
+ * A work of the town on its own page (O9): what it is, how fine, where it is kept, who made it and when, what it shows
+ * (a happening of the town, and whom), and the homes it is in sight of, whose finest it is.
+ */
+export type PlaceInspectWork = {
+  readonly kind: "work";
+  readonly ref: string;
+  readonly lotRef: string;
+  readonly name: string;
+  readonly icon: string;
+  readonly quality: string;
+  readonly kept: string;
+  readonly made: string;
+  readonly maker: { readonly name: string; readonly ref: string | null };
+  readonly shows: string;
+  readonly whom: { readonly name: string; readonly ref: string } | null;
+  readonly seenBy: number;
+  readonly words: string;
+};
+/**
+ * A town's legends (O9): its works, the finest first, each to its page; the battles its men were in; and the rarest of
+ * what its log keeps, the oldest first, each with whom it befell, a tap away while they are of the town.
+ */
+export type PlaceInspectLegends = {
+  readonly kind: "legends";
+  readonly ref: string;
+  readonly lotRef: string;
+  readonly name: string;
+  readonly icon: string;
+  readonly works: readonly { readonly ref: string; readonly name: string; readonly words: string }[];
+  readonly battles: readonly { readonly name: string; readonly ref: string }[];
+  readonly lines: readonly { readonly when: string; readonly words: string; readonly ref: string | null }[];
+  readonly words: string;
+};
+
 export type PlaceInspect =
+  | PlaceInspectWork
+  | PlaceInspectLegends
   | PlaceInspectBelow
   | PlaceInspectFields
   | PlaceInspectPerson

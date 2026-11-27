@@ -813,6 +813,35 @@ for (const view of [
     await press(".place-insp-back", "‹ Back to the square's page");
     await until("the square's page again", async () => (await kind()) === "lot", 8000);
     check((await kind()) === "lot", "Back from below comes to the square's page");
+    // Its legends (O9): from the square's page; a work on its own page from them, Back and Forward; Back to the square's.
+    await k('document.querySelector(".place-insp-legends")?.scrollIntoView({ block: "center" })');
+    await page.waitForTimeout(300);
+    await press(".place-insp-legends", "Its legends ▸, on the square's page");
+    await until("its legends", async () => (await kind()) === "legends", 8000);
+    await page.waitForTimeout(600);
+    say(`legends: ${(await text(".place-insp")).slice(0, 400)}`);
+    check((await shown(".place-legend-line")) > 0, "its legends tell what befell it");
+    await look("20h-legends", "the town's legends");
+    if ((await shown("button.place-legend-work")) > 0) {
+      await k('document.querySelector("button.place-legend-work")?.scrollIntoView({ block: "center" })');
+      await page.waitForTimeout(300);
+      await press("button.place-legend-work", "one of its works, in its legends");
+      await until("the work's page", async () => (await kind()) === "work", 8000);
+      await page.waitForTimeout(400);
+      say(`work: ${(await text(".place-insp")).slice(0, 300)}`);
+      await look("20i-work", "a work on its own page");
+      await press(".place-insp-back", "‹ Back to its legends");
+      await until("its legends again", async () => (await kind()) === "legends", 8000);
+      check((await kind()) === "legends", "Back from a work comes to the legends");
+      await press(".place-insp-ahead", "› Forward to the work again");
+      await until("the work again", async () => (await kind()) === "work", 8000);
+      check((await kind()) === "work", "Forward goes to the work again");
+      await press(".place-insp-back", "‹ Back to its legends once more");
+      await until("its legends once more", async () => (await kind()) === "legends", 8000);
+    } else say("no work of the town's kept yet");
+    await press(".place-insp-back", "‹ Back to the square's page from its legends");
+    await until("the square's page once more", async () => (await kind()) === "lot", 8000);
+    check((await kind()) === "lot", "Back from its legends comes to the square's page");
     await k('globalThis.causalis.place.inspectHeight("peek")');
   }
   // Where a good is made, with its bills (N10), and the market, with what it takes; at half height.

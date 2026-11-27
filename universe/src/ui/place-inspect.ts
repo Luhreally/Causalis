@@ -11,6 +11,8 @@
 import type {
   PlaceInspect,
   PlaceInspectBelow,
+  PlaceInspectLegends,
+  PlaceInspectWork,
   PlaceInspectFields,
   PlaceInspectInside,
   PlaceInspectItem,
@@ -246,6 +248,8 @@ export class PlaceInspector {
     else if (x.kind === "item") this.item(x);
     else if (x.kind === "fields") this.fields(x);
     else if (x.kind === "below") this.below(x);
+    else if (x.kind === "work") this.work(x);
+    else if (x.kind === "legends") this.legends(x);
     else this.lot(x);
   }
 
@@ -515,6 +519,50 @@ export class PlaceInspector {
     this.body.replaceChildren(...insideEl(x, (ref) => this.onInspect(ref)));
   }
 
+  /** A work of the town on its own page (O9): what, how fine, kept where, by whom, what it shows, who sees it. */
+  private work(x: PlaceInspectWork): void {
+    this.picture(x);
+    const title = `${x.icon} ${x.name}`;
+    if (this.title.textContent !== title) this.title.textContent = title;
+    this.sub.textContent = `${x.quality.charAt(0).toUpperCase()}${x.quality.slice(1)} · kept at ${x.kept.replace(/^The /, "the ")}`;
+    this.body.replaceChildren(
+      this.facts([
+        ["Shows", x.shows, x.whom?.ref ?? null],
+        ["Made by", x.maker.name, x.maker.ref],
+        ["Made", x.made, null],
+        ["Kept at", x.kept, x.lotRef],
+        ["Seen by", x.seenBy ? `${x.seenBy} ${x.seenBy === 1 ? "household" : "households"}` : "None as their finest", null],
+      ]),
+      el("p", "place-insp-why", x.words),
+    );
+  }
+  /** A town's legends (O9): its works, its battles, the seldomest of what it keeps; each a key. */
+  private legends(x: PlaceInspectLegends): void {
+    this.picture(x);
+    const title = `${x.icon} ${x.name}`;
+    if (this.title.textContent !== title) this.title.textContent = title;
+    this.sub.textContent = `${x.works.length} ${x.works.length === 1 ? "work" : "works"} · ${x.battles.length} ${x.battles.length === 1 ? "battle" : "battles"} · ${x.lines.length} told`;
+    const body: HTMLElement[] = [el("p", "place-insp-why", x.words)],
+      keys = (rows: readonly { name: string; words: string; ref: string | null }[], label: string, cls: string) => {
+        if (!rows.length) return;
+        const box = el("div", "place-insp-people");
+        for (const r of rows) {
+          const b = el(r.ref ? "button" : "div", `place-insp-person ${cls}`);
+          b.append(el("span", "place-row-name", r.name), el("span", "place-row-what", r.words));
+          if (r.ref) (b as HTMLButtonElement).onclick = () => this.onInspect(r.ref!);
+          box.append(b);
+        }
+        body.push(el("p", "place-insp-label", label), box);
+      };
+    keys(x.lines.map((l) => ({ name: l.when, words: l.words, ref: l.ref })), "Told of it", "place-legend-line");
+    keys(x.works, "Its works", "place-legend-work");
+    keys(
+      x.battles.map((b) => ({ name: b.name, words: "Its men were there", ref: b.ref || null })),
+      "Its battles",
+      "place-legend-battle",
+    );
+    this.body.replaceChildren(...body);
+  }
   /** What lies below the town and the water it draws (O8). */
   private below(x: PlaceInspectBelow): void {
     this.picture(x);
@@ -658,6 +706,11 @@ export class PlaceInspector {
       down.setAttribute("aria-label", "What lies below the town, and the water it draws");
       down.onclick = () => this.onInspect(x.ref.replace(/^plcl:(.*):\d+$/, "plcb:$1"));
       body.push(down);
+      // (Its legends, O9.)
+      const told = el("button", "place-insp-order place-insp-legends", "Its legends ▸");
+      told.setAttribute("aria-label", "The town's legends: its works, its battles, the seldomest of what befell it");
+      told.onclick = () => this.onInspect(x.ref.replace(/^plcl:(.*):\d+$/, "plcy:$1"));
+      body.push(told);
     }
     if (x.zoneWords) body.push(el("p", "place-insp-why", x.zoneWords));
     // (The guard's post by your order, O7: those standing to arms keep it, watching the homes within a cry of it.)

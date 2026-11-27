@@ -51,7 +51,7 @@ export function setPlaceMode(world: World, place: Place, mode: PlaceMode): void 
 }
 
 /** What a town's own orders did, which only a town given orders tells of: no sight in one watched for its own sake. */
-const ORDERED: ReadonlySet<number> = new Set([
+export const ORDERED: ReadonlySet<number> = new Set([
   HAP.ordered,
   HAP.assigned,
   HAP.moved,
