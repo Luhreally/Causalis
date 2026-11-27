@@ -21,7 +21,6 @@ import {
 } from "../../src/kernel/index.ts";
 import { FOODS, GOODS } from "../../src/rules/index.ts";
 import { lifeOf, marketsOf, populationContext, type Settlement } from "../../src/sim/index.ts";
-import { EARTH } from "../../src/host/index.ts";
 import { pageOf } from "../../src/host/inspect/index.ts";
 import {
   MICRO,
@@ -40,14 +39,14 @@ import {
 } from "../../src/host/place.ts";
 import { placeFrame, placePlan } from "../../src/host/placeplan.ts";
 import { placeLotRef, placePersonRef, type VillagePlan } from "../../src/bridge/index.ts";
-import { universeWorld } from "./worlds.ts";
+import { PLACE_UNIVERSE, placeWorld } from "./worlds.ts";
 
 const YEARS = 150;
 /** The world the tests share is never entered: each test enters a copy of its own. */
-const base = (): World => universeWorld(EARTH, "first light", YEARS);
+const base = (): World => placeWorld(YEARS);
 const copy = (w: World): World => {
-  const doc = JSON.parse(JSON.stringify(saveWorld(w, "r", { universe: "earth" })));
-  return loadWorld(doc, (s) => EARTH.build(s), "r").world;
+  const doc = JSON.parse(JSON.stringify(saveWorld(w, "r", { universe: PLACE_UNIVERSE.name })));
+  return loadWorld(doc, (s) => PLACE_UNIVERSE.build(s), "r").world;
 };
 /** Its towns, the most peopled first. */
 const townsOf = (w: World): Settlement[] => {

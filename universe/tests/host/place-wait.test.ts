@@ -6,12 +6,11 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { WATER } from "../../src/gen/index.ts";
 import { populationContext, regionOf } from "../../src/sim/index.ts";
-import { EARTH } from "../../src/host/index.ts";
 import { banksNext, landWater, townBankOf } from "../../src/host/sites.ts";
-import { universeWorld } from "./worlds.ts";
+import { PLACE_UNIVERSE, placeWorld } from "./worlds.ts";
 
 test("a land's banks found in spare moments are what its map says, a land a call, and the reading ends", () => {
-  const w = universeWorld(EARTH, "first light", 150),
+  const w = placeWorld(150),
     ctx = populationContext(w),
     lands = new Set(ctx.settlements.all().map((s) => s.cell)),
     done = new Set<number>();

@@ -9,7 +9,6 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { DAY, HOUR, loadWorld, saveWorld, type World } from "../../src/kernel/index.ts";
 import { populationContext, townsOf, type Settlement } from "../../src/sim/index.ts";
-import { EARTH } from "../../src/host/index.ts";
 import {
   ACT,
   BREAK,
@@ -26,12 +25,12 @@ import {
 } from "../../src/host/place.ts";
 import { placeFrame, placeNotices } from "../../src/host/placeplan.ts";
 import { inspectLot } from "../../src/host/placeinspect.ts";
-import { universeWorld } from "./worlds.ts";
+import { PLACE_UNIVERSE, placeWorld } from "./worlds.ts";
 
-const base = (): World => universeWorld(EARTH, "first light", 150);
+const base = (): World => placeWorld(150);
 const copy = (w: World): World => {
-  const doc = JSON.parse(JSON.stringify(saveWorld(w, "r", { universe: "earth" })));
-  return loadWorld(doc, (s) => EARTH.build(s), "r").world;
+  const doc = JSON.parse(JSON.stringify(saveWorld(w, "r", { universe: PLACE_UNIVERSE.name })));
+  return loadWorld(doc, (s) => PLACE_UNIVERSE.build(s), "r").world;
 };
 const near = (w: World, people: number): Settlement => {
   const ctx = populationContext(w);

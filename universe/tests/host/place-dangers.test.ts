@@ -23,7 +23,6 @@ import {
   orderedLeft,
   orderedLeftLand,
 } from "../../src/sim/town/managed.ts";
-import { EARTH } from "../../src/host/index.ts";
 import { pageOf } from "../../src/host/inspect/index.ts";
 import { townTally, battlesOfYear } from "../../src/host/burials.ts";
 import {
@@ -44,9 +43,9 @@ import {
   placeDayOf,
 } from "../../src/host/place.ts";
 import { dangersSheet, logSheet, placeFrame, placeNotices } from "../../src/host/placeplan.ts";
-import { universeWorld } from "./worlds.ts";
+import { PLACE_UNIVERSE, placeWorld } from "./worlds.ts";
 
-const base = (): World => universeWorld(EARTH, "first light", 150);
+const base = (): World => placeWorld(150);
 
 /**
  * A place against its town's count, what it has lived and what waits told apart: nothing waits that its clock has passed;
@@ -83,8 +82,8 @@ function livedAgainst(
   return { lived: place.people.n, coming, going };
 }
 const copy = (w: World): World => {
-  const doc = JSON.parse(JSON.stringify(saveWorld(w, "r", { universe: "earth" })));
-  return loadWorld(doc, (s) => EARTH.build(s), "r").world;
+  const doc = JSON.parse(JSON.stringify(saveWorld(w, "r", { universe: PLACE_UNIVERSE.name })));
+  return loadWorld(doc, (s) => PLACE_UNIVERSE.build(s), "r").world;
 };
 const order = (w: World, type: string, args: unknown): void => {
   const c = w.submit(type, args);

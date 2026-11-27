@@ -40,7 +40,6 @@ import {
 } from "../../src/sim/index.ts";
 import { handsFor } from "../../src/sim/town/asks.ts";
 import { siteMostHands } from "../../src/sim/town/managed.ts";
-import { EARTH } from "../../src/host/index.ts";
 import { townOffers } from "../../src/host/inspect/asks.ts";
 import {
   ACT,
@@ -90,14 +89,14 @@ import {
 import { pageOf } from "../../src/host/inspect/index.ts";
 import { villagePlan } from "../../src/host/village.ts";
 import { placeLotRef } from "../../src/bridge/index.ts";
-import { universeWorld } from "./worlds.ts";
+import { PLACE_UNIVERSE, placeWorld } from "./worlds.ts";
 
-const base = (): World => universeWorld(EARTH, "first light", 150);
+const base = (): World => placeWorld(150);
 const copy = (w: World): World => {
   const doc = JSON.parse(
-    JSON.stringify(saveWorld(w, "r", { universe: "earth" })),
+    JSON.stringify(saveWorld(w, "r", { universe: PLACE_UNIVERSE.name })),
   );
-  return loadWorld(doc, (s) => EARTH.build(s), "r").world;
+  return loadWorld(doc, (s) => PLACE_UNIVERSE.build(s), "r").world;
 };
 const order = (w: World, type: string, args: unknown): void => {
   const c = w.submit(type, args);

@@ -19,7 +19,6 @@ import {
   type World,
 } from "../../src/kernel/index.ts";
 import { populationContext, type Settlement } from "../../src/sim/index.ts";
-import { EARTH } from "../../src/host/index.ts";
 import {
   COND,
   DEEP_THOUGHTS,
@@ -41,15 +40,15 @@ import {
 } from "../../src/host/place.ts";
 import { placeFrame } from "../../src/host/placeplan.ts";
 import { inspectPerson } from "../../src/host/placeinspect.ts";
-import { universeWorld } from "./worlds.ts";
+import { PLACE_UNIVERSE, placeWorld } from "./worlds.ts";
 
 const YEARS = 150;
-const base = (): World => universeWorld(EARTH, "first light", YEARS);
+const base = (): World => placeWorld(YEARS);
 const copy = (w: World): World => {
   const doc = JSON.parse(
-    JSON.stringify(saveWorld(w, "r", { universe: "earth" })),
+    JSON.stringify(saveWorld(w, "r", { universe: PLACE_UNIVERSE.name })),
   );
-  return loadWorld(doc, (s) => EARTH.build(s), "r").world;
+  return loadWorld(doc, (s) => PLACE_UNIVERSE.build(s), "r").world;
 };
 const near = (w: World, people: number): Settlement => {
   const ctx = populationContext(w);
