@@ -232,6 +232,8 @@ const SPREAD_EVERY = 6;
 const CLEAR_AGAIN = 0.05;
 /** How many are looked at for what stands about them each time they are kept apart (render/village.ts spreadDrawn). */
 const LOOKS_EACH = 24;
+/** How far one stepped aside is looked at for walls at once, not in turn (metres; render/village.ts spreadDrawn). */
+const STEP_LOOK = 0.03;
 /** How long one kept apart takes to step aside (seconds, an easing's time: two thirds of the way in it). */
 const SPREAD_EASE = 0.06;
 /** The fastest one steps aside (metres a second, over their walk: a step aside, not a jump). */
@@ -944,26 +946,29 @@ export class VillageScene {
         owe[i] === 1 ||
         (!walking &&
           !(Math.abs(toX - clearX[i]!) < CLEAR_AGAIN && Math.abs(toZ - clearZ[i]!) < CLEAR_AGAIN));
-      // (One stepped aside is looked at at once, as many as are: a step aside never stands in a wall. Those only drifted, in
-      // turn, so many a time.)
-      const look = owed && (jump || stepped || looked < LOOKS_EACH);
+      // (One stepped aside by more than a few centimetres is looked at at once, as many as are: a step aside never stands in a
+      // wall. Those stepped less or only drifted, in turn, so many a time.)
+      const dsx = p.x - wasX,
+        dsz = p.z - wasZ,
+        far = dsx * dsx + dsz * dsz > STEP_LOOK * STEP_LOOK,
+        look = owed && (jump || far || looked < LOOKS_EACH);
       if (look) {
-        if (!stepped) {
+        if (!far) {
           looked++;
           next = q + 1;
         }
         owe[i] = 0;
-        const bx = p.x,
-          bz = p.z;
         keepOut(ground, p, body);
-        // (Pushed back off a wall: held there the next time they are kept apart, the other of a pair stepping the whole way.)
-        this.heldBy[i] = p.x !== bx || p.z !== bz ? 1 : 0;
       }
       // (Wells, columns and trunks are looked for by the cell one stands in: each time for all but those walking their way.)
       if (look || stepped || !walking) {
         posts?.pushOut(p, body);
         trunks?.pushOut(p, body);
       }
+      // (Pushed back off a wall, a well or a trunk: held there the next time they are kept apart, the other of a pair stepping
+      // the whole way.)
+      const pushed = p.x !== xs[q]! || p.z !== zs[q]!;
+      if (look || pushed) this.heldBy[i] = pushed ? 1 : 0;
       if (look && !walking) {
         clearX[i] = p.x === wasX && p.z === wasZ ? toX : p.x - ox;
         clearZ[i] = p.x === wasX && p.z === wasZ ? toZ : p.z - oz;
