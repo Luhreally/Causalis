@@ -55,7 +55,7 @@ export function urbanYear(ctx: PopulationContext, t: SimTime): void {
   const year = yearOfMoment(t);
   for (const p of ctx.provinces.all()) {
     if ((year + p.cell) % URBAN_EVERY !== 0) continue;
-    const town = p.total() ? ctx.settlements.inProvince(p.cell).find((v) => v.market) : undefined;
+    const town = p.total() ? ctx.settlements.kept(p.cell).find((v) => v.market) : undefined;
     if (!town) {
       if (rows.get(p.cell)) rows.drop(p.cell);
       continue;

@@ -238,7 +238,7 @@ export function godTownSite(
         (c.provinces.get(n)?.total() ?? 0) !== 0 ||
         politiesOf(c.world).of(n) ||
         !livableFor(c, n) ||
-        (!c.settlements.inProvince(n).length && !landSites(c, n).length)
+        (!c.settlements.kept(n).length && !landSites(c, n).length)
       )
         continue;
       const feeds = landFeeds(c, n, sows, herds);

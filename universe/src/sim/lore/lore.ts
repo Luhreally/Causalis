@@ -658,7 +658,7 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
         const e = prov.lastFamine ? world.events.get(prov.lastFamine) : undefined;
         return e && t - e.t <= 3 * YEAR ? e.id : null;
       })(),
-      town = ctx.settlements.inProvince(cell).find((s) => s.market),
+      town = ctx.settlements.kept(cell).find((s) => s.market),
       coast = (() => {
         for (let k = g.grid.offsets[cell]!; k < g.grid.offsets[cell + 1]!; k++)
           if (g.tectonics.elevation[g.grid.neighbours[k]!]! <= 0) return true;

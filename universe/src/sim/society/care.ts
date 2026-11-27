@@ -97,7 +97,7 @@ export function landMeans(
     earns = Math.max(living, hands > 0 ? earned / hands : living),
     need = earns > 0 ? dmath.clamp(living / earns, 0, 1) : 1;
   let town = 0;
-  for (const s of ctx.settlements.inProvince(p.cell)) town += s.population;
+  for (const s of ctx.settlements.kept(p.cell)) town += s.population;
   return {
     people,
     workers: workers / people,
@@ -114,7 +114,7 @@ export function landMeans(
 function nearHospital(ctx: PopulationContext, cell: number, people: number): number {
   if (!loreOf(ctx.world).get(cell, "medicine")) return 0;
   let n = 0;
-  for (const s of ctx.settlements.inProvince(cell))
+  for (const s of ctx.settlements.kept(cell))
     if (s.population >= CARE.hospitalTown) n += s.population;
   return dmath.clamp(n / Math.max(1, people), 0, 1);
 }

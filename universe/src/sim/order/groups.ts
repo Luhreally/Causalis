@@ -377,7 +377,7 @@ function readRealm(ctx: PopulationContext, p: Polity, year: number, t: SimTime):
     street += n * st;
     const faith = belief.of(c).faith ?? null;
     if (faith === seatFaith) ofSeatFaith += n;
-    const town = ctx.settlements.inProvince(c).find((s) => s.market)?.population ?? 0,
+    const town = ctx.settlements.kept(c).find((s) => s.market)?.population ?? 0,
       coast = coastal(ctx, c),
       far = steps.get(c) ?? 6,
       landReach = over.lands.get(c) ?? over.value,
@@ -961,7 +961,7 @@ function rise(
     salt = v.next * 17 + AIM[aim],
     name =
       (aim === "rule" || aim === "trade" || aim === "aid") && home.town >= 2000
-        ? (f.ctx.settlements.inProvince(home.cell).find((s) => s.market)?.name ?? null)
+        ? (f.ctx.settlements.kept(home.cell).find((s) => s.market)?.name ?? null)
         : tongueWord(f, home.cell, salt, 0x0a9c);
   if (!name || v.orgs.some((g) => g.name === name && g.aim === AIM[aim])) return null;
   const basis = basisFor(aim, r, home),

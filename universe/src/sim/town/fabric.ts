@@ -2673,7 +2673,7 @@ export function townUseOf(ctx: PopulationContext, s: Settlement): TownUse {
   if (!prov || total <= 0 || people <= 0)
     return { people, share: [1, 0, 0, 0, 0], worth: [1, 1, 1, 1, 1], preference: 0.05 };
   let towns = 0;
-  for (const o of ctx.settlements?.inProvince(s.cell) ?? [s]) towns += Math.max(0, o.population);
+  for (const o of ctx.settlements?.kept(s.cell) ?? [s]) towns += Math.max(0, o.population);
   const inTown = (occ: number) =>
       Math.min(1, (USE_OCC[occ]! * (people / Math.max(people, towns))) / people),
     w = m?.wage,
@@ -2721,7 +2721,7 @@ function keptBy(ctx: PopulationContext, s: Settlement, def: CivicDef, use: TownU
   if (u === 4) return keptPeopleBy(def, lots, USE_OCC[OCC.dependent]! / total, 1);
   const occ = u === 1 ? OCC.crafter : u === 2 ? OCC.trader : OCC.leader;
   let towns = 0;
-  for (const o of ctx.settlements?.inProvince(s.cell) ?? [s]) towns += Math.max(0, o.population);
+  for (const o of ctx.settlements?.kept(s.cell) ?? [s]) towns += Math.max(0, o.population);
   const share = Math.min(1, (USE_OCC[occ]! * (people / Math.max(people, towns))) / people),
     w = ctx.world?.peek<MarketStore>("economy.markets")?.get(s.cell)?.wage,
     workers = total - USE_OCC[OCC.dependent]!;
@@ -2894,7 +2894,7 @@ export function townYear(ctx: PopulationContext, t: SimTime): void {
       builder.rise(f, people, top, edgeLevel(top, city), designSince(ctx, cell));
     }
     const fallen = sacked.get(cell);
-    if (fallen && ctx.settlements.inProvince(cell).every((o) => o.population <= people))
+    if (fallen && ctx.settlements.kept(cell).every((o) => o.population <= people))
       builder.raze(f, Math.min(0.12, 0.01 + fallen / Math.max(1, people) / 20), true);
     // Its other buildings first (about the square, before its first homes take the lots).
     if (weighs)

@@ -588,7 +588,7 @@ function wrong(
       factors: q.factors,
     }),
     name = led?.name ?? v.ruler.name,
-    town = ctx.settlements.inProvince(land)[0]?.name ?? "",
+    town = ctx.settlements.kept(land)[0]?.name ?? "",
     // (Its dead against its land's people and the world's, by the rule a flood's or a strike's go by: rules/nature.ts. Two
     // thousand dead, as first set, was a small share of a land of millions.)
     worldPeople = ctx.provinces.all().reduce((n, p) => n + p.total(), 0),

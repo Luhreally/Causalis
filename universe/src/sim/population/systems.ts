@@ -1743,7 +1743,7 @@ export function ageYear(ctx: PopulationContext, t: SimTime): void {
       targets = occupationTargets(
         p,
         provinceCapacity(ctx, p.cell),
-        ctx.settlements.inProvince(p.cell).length,
+        ctx.settlements.kept(p.cell).length,
         marketsOf(world).wagesOf(p.cell),
         farmingShare(ctx, p),
         fieldsUse(ctx, p),
@@ -1809,7 +1809,7 @@ export function workYear(ctx: PopulationContext, t: SimTime): void {
       targets = occupationTargets(
         p,
         provinceCapacity(ctx, p.cell),
-        ctx.settlements.inProvince(p.cell).length,
+        ctx.settlements.kept(p.cell).length,
         marketsOf(world).wagesOf(p.cell),
         farmingShare(ctx, p),
         fieldsUse(ctx, p),
@@ -2935,7 +2935,7 @@ export function ledgerYear(ctx: PopulationContext, t: SimTime): void {
       population: p.total(),
       byOccupation,
       fed: p.leanest,
-      settlements: ctx.settlements.inProvince(p.cell).length,
+      settlements: ctx.settlements.kept(p.cell).length,
     });
     p.leanest = 1000;
   }

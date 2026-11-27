@@ -133,7 +133,7 @@ function townsDry(ctx: PopulationContext, from: number, to: number): boolean {
     const may = [from, to].some(
       (u) => angle(c, u) >= inner && down[u]! >= 0 && angle(c, down[u]!) <= outer,
     );
-    if (may && ctx.settlements.inProvince(l).length) lands.push(l);
+    if (may && ctx.settlements.kept(l).length) lands.push(l);
   }
   // (Where a map is drawn afresh, before as after, and neither stretch is a river that could enter it (a cell outside it
   // flowing into one of its own), its water is the same after as before, tile for tile: it is not drawn, either time. A map

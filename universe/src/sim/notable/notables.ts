@@ -327,7 +327,7 @@ function tellRise(r: Run, n: Notable, causes: CauseRef[], factors?: Factor[]): v
 
 /** A land as its people call it, for a telling: its first town's name. */
 function atOf(r: Run, cell: number): { at?: string } {
-  const town = r.ctx.settlements.inProvince(cell)[0]?.name;
+  const town = r.ctx.settlements.kept(cell)[0]?.name;
   return town ? { at: town } : {};
 }
 

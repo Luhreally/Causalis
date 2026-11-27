@@ -570,7 +570,7 @@ export function rentYear(ctx: PopulationContext, t: SimTime): void {
     if ((c + year) % TRADE_EVERY !== 0) continue;
     const m = markets.get(c);
     let people = 0;
-    for (const s of ctx.settlements.inProvince(c)) people = Math.max(people, s.population);
+    for (const s of ctx.settlements.kept(c)) people = Math.max(people, s.population);
     if (!m || people < 200) {
       store.drop(c);
       continue;

@@ -96,7 +96,7 @@ export function rooflessYear(ctx: PopulationContext, t: SimTime): void {
     let town = 0,
       housing = 0,
       waiting = 0;
-    for (const s of ctx.settlements.inProvince(c)) {
+    for (const s of ctx.settlements.kept(c)) {
       const f = towns.of(s);
       if (!f) continue;
       const homes = housingOf(f);

@@ -85,7 +85,7 @@ export function brushPreview(ctx: PopulationContext, args: unknown) {
       0,
     ),
     towns = provinces.reduce(
-      (n, p) => n + ((shares.get(p) ?? 0) > 0 ? ctx.settlements.inProvince(p).length : 0),
+      (n, p) => n + ((shares.get(p) ?? 0) > 0 ? ctx.settlements.kept(p).length : 0),
       0,
     );
   return { cells, provinces, atRisk, towns, shares, seeded, spared, kind: a.kind };

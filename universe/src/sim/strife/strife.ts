@@ -1712,9 +1712,7 @@ export function installStrifeActs(world: World, ctx: () => PopulationContext): v
       if (typeof p === "string") return p;
       const cell = (args as { cell: number }).cell;
       if (cell === p.seat) return "a realm's seat cannot rise against itself";
-      return ctx().settlements.inProvince(cell).length
-        ? null
-        : "no town there to raise a claimant in";
+      return ctx().settlements.kept(cell).length ? null : "no town there to raise a claimant in";
     },
     apply: (command, t) => {
       const c = ctx(),
