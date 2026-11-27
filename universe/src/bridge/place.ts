@@ -153,6 +153,8 @@ export type PlacePersonRow = {
   readonly homeLot: number;
   /** The building an order puts them at (its lot; null: none). */
   readonly post: number | null;
+  /** Pinned: kept on the god game's people bar (📌), or followed in full by your word in the town. */
+  readonly pinned: boolean;
 };
 export type PlacePeopleSheet = {
   /** How many of each trade (the world's occupation columns), and the rows asked for: the most pressed first. */
@@ -161,6 +163,12 @@ export type PlacePeopleSheet = {
   readonly children: number;
   readonly rows: readonly PlacePersonRow[];
   readonly all: number;
+  /**
+   * How many of its people are pinned (the people bar's pins asked, and those followed by your word), and which of the
+   * pins asked are of its people (the rest are elsewhere, or gone).
+   */
+  readonly pinned: number;
+  readonly pinsHere: readonly string[];
   /** The buildings one can be put at by name, and the homes with most room a household can be given. */
   readonly posts: readonly { readonly lot: number; readonly name: string }[];
   readonly homes: readonly { readonly lot: number; readonly room: number }[];

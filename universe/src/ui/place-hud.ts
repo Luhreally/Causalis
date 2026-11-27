@@ -88,6 +88,8 @@ const ORDER_TRADES: readonly (readonly [number | null, string])[] = [
   [5, "Hauling"],
   [null, "Let be"],
 ];
+/** The People sheet's narrowing to those pinned (host/placeplan.ts PEOPLE_PINNED). */
+const PINNED = 102;
 /** The People sheet's narrowings: the world's occupation column (100 the young of no trade, 101 the grown of none). */
 const TRADE_CHIPS: readonly (readonly [number | null, string])[] = [
   [null, "All"],
@@ -184,6 +186,12 @@ export class PlaceHud {
   tab: PlaceTab | null = null;
   /** The trade the People sheet is narrowed to (the world's occupation column; null: all). */
   occ: number | null = null;
+  /** The pinned who are not of the town entered, or are gone: their pages, names and where they are, in words. */
+  away: readonly { readonly ref: string; readonly name: string; readonly words: string }[] = [];
+  /** A pin let go of: their page (the people bar's) and who they are in the place (null: not of it). */
+  onUnpin: (ref: string, id: number | null) => void = () => {};
+  /** A page of the god game's opened (one pinned who is elsewhere). */
+  onPage: (ref: string) => void = () => {};
   onPace: (seconds: number) => void = () => {};
   onLeave: () => void = () => {};
   /** A tab opened, or the sheet closed (null). */
@@ -712,6 +720,20 @@ export class PlaceHud {
     else if ((this.ordering !== null && this.drawn !== "") || this.same([s, this.occ])) return;
     let open: HTMLElement | null = null;
     const chips = el("div", "place-chips");
+    // (Those pinned first: the people bar's 📌 and those followed by your word, here and, greyed, elsewhere.)
+    const pins = s.pinned + this.away.length;
+    if (pins > 0 || this.occ === PINNED) {
+      const b = el("button", "place-chip place-chip-pinned", `📌 Pinned ${pins}`);
+      b.classList.toggle("on", this.occ === PINNED);
+      b.title = "Those you pinned: on the people bar, or followed by your word";
+      b.onclick = () => {
+        this.occ = PINNED;
+        this.ordering = null;
+        this.drawn = "";
+        this.onTab("people");
+      };
+      chips.append(b);
+    }
     for (const [occ, words] of TRADE_CHIPS) {
       const n =
         occ === null
@@ -753,6 +775,10 @@ export class PlaceHud {
       );
       row.title = `${r.name}: ${NEEDS.map((w, q) => `${w} ${Math.round((r.needs[q] ?? 0) * 100)}%`).join(", ")}`;
       row.onclick = () => this.onOpen(r.ref);
+      if (r.pinned) {
+        row.classList.add("pinned");
+        row.querySelector(".place-row-name")!.prepend("📌 ");
+      }
       // (An order for them by name: the trade they are put to, or let be.)
       const one = el("div", "place-person"),
         key = el("button", "place-row-order", "Orders"),
@@ -764,7 +790,17 @@ export class PlaceHud {
         this.ordering = this.ordering === r.id ? null : r.id;
         this.people(s, true);
       };
+      one.dataset.ref = r.ref;
       one.append(row, key);
+      // (A pinned one let go of: off the people bar and no longer followed by word.)
+      if (r.pinned) {
+        const off = el("button", "place-row-order place-row-unpin", "📌✕"),
+          said = `Unpin ${r.name}`;
+        off.title = said;
+        off.setAttribute("aria-label", said);
+        off.onclick = () => this.onUnpin(r.ref, r.id);
+        one.append(off);
+      }
       if (this.ordering === r.id) {
         open = one;
         const keys = el("div", "place-person-orders");
@@ -825,7 +861,28 @@ export class PlaceHud {
         : [];
     // (One whose keys are open and no longer among the rows read: no keys are open.)
     if (!open) this.ordering = null;
-    this.sheetBody.replaceChildren(chips, list, ...more);
+    // (Under the chip, the pinned who are elsewhere or gone: greyed, with where they are.)
+    const away: HTMLElement[] = [];
+    if (this.occ === PINNED && this.away.length) {
+      const box = el("div", "place-rows place-away");
+      box.append(el("p", "place-more", "Pinned, and not here:"));
+      for (const x of this.away) {
+        const one = el("div", "place-person"),
+          b = el("button", "place-row place-person-row place-away-row");
+        one.dataset.ref = x.ref;
+        b.append(el("span", "place-row-name", `📌 ${x.name}`), el("span", "place-row-what", x.words));
+        b.title = `${x.name}: ${x.words}`;
+        b.onclick = () => this.onPage(x.ref);
+        const off = el("button", "place-row-order place-row-unpin", "📌✕");
+        off.title = `Unpin ${x.name}`;
+        off.setAttribute("aria-label", off.title);
+        off.onclick = () => this.onUnpin(x.ref, null);
+        one.append(b, off);
+        box.append(one);
+      }
+      away.push(box);
+    }
+    this.sheetBody.replaceChildren(chips, list, ...more, ...away);
     // (The keys just opened brought onto the sheet, where their row stood near its foot.)
     if (own && open) (open as HTMLElement).scrollIntoView({ block: "nearest" });
   }
