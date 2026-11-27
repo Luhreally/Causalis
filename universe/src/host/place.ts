@@ -161,6 +161,12 @@ import {
   ownLeaning,
   ownNature,
   TEMPER,
+  TISSUES,
+  tissueOf,
+  tissuePain,
+  tissueMends,
+  tissueTakes,
+  type Tissue,
   qualityOf,
   type Edge,
   WAY_TRAITS,
@@ -635,6 +641,12 @@ type People = {
    * always for one in full. A byte.
    */
   reck: Uint8Array;
+  /**
+   * The tissue their wound reached (asked 2026-11-26: "members and tissues"; rules/tissues.ts TISSUES' place + 1; 0: no
+   * wound, or one dealt before tissues were): it sets how much the wound hurts, how long it mends and what of its member's
+   * work it takes. A byte, kept while it mends; a scar's or a lame limb's is in `mark`.
+   */
+  tissue: Uint8Array;
 };
 /**
  * The kinds of work one's hours are counted at (N6): the six trades' own, in OCCUPATIONS' order past the dependent's (a
@@ -718,7 +730,9 @@ export const PERSON_BYTES =
   // (N9: a wound's bleeding, the blood lost, its festering.)
   3 +
   // (Tiers: how closely they are followed, and how far into their stride their needs are reckoned.)
-  2;
+  2 +
+  // (The tissue a wound reached.)
+  1;
 
 function peopleOf(cap: number): People {
   return {
@@ -763,6 +777,7 @@ function peopleOf(cap: number): People {
     fester: new Uint8Array(cap),
     tier: new Uint8Array(cap),
     reck: new Uint8Array(cap),
+    tissue: new Uint8Array(cap),
   };
 }
 const PEOPLE_COLS = [
@@ -806,6 +821,7 @@ const PEOPLE_COLS = [
   "fester",
   "tier",
   "reck",
+  "tissue",
 ] as const;
 type Col = (typeof PEOPLE_COLS)[number];
 const widthOf = (c: Col) =>
@@ -2424,7 +2440,13 @@ function addPerson(place: Place, sex: number, occ: number, born: number, house: 
   // (A wound's bleeding, the blood lost and its festering, and their tier: none. The slot is the one the last of the
   // place's people was moved out of when another was let go, and kept what they had: a child born bleeding of another's
   // wound, or raised into full with another's ticks of work already done.)
-  p.bleed[i] = p.blood[i] = p.fester[i] = p.tier[i] = p.reck[i] = 0;
+  p.bleed[i] =
+    p.blood[i] =
+    p.fester[i] =
+    p.tier[i] =
+    p.reck[i] =
+    p.tissue[i] =
+      0;
   place.houses.members[house]!++;
   return i;
 }
@@ -3758,11 +3780,16 @@ function wound(world: World, place: Place, i: number, cause: number): void {
     r = (k: number) => world.rng.unit(PLACE_DRAW, place.key ^ p.id[i]!, place.t, P.wound, k),
     member = memberOf(hurtWeights(f.anatomy, blow), r(0)),
     outcome = outcomeOf(member, blow, care, r(1)),
+    // (The tissue it reached, by the draw it bleeds by: the deeper, the harder. rules/tissues.ts.)
+    tissue = tissueOf(blow, member, r(3)),
     days = healDays(outcome, member, blow, care, tendedOf(place, i));
   p.health[i] = 1;
+  p.tissue[i] = TISSUES.indexOf(tissue) + 1;
   // (What it was of, and the member it was to, eight times over: bound while it mends, that member does none of its share.)
   p.cause[i] = cause | ((MEMBERS.indexOf(member) + 1) << 3);
-  p.ill[i] = days.abed * 144;
+  p.ill[i] =
+    Math.max(1, Math.round(days.abed * tissueMends(blow, member, tissue))) *
+    144;
   // (It bleeds as hard as the blow opened it, and is neither dressed nor yet seen to fester or not: N9. A wound brought
   // home from a battle was dressed on the field, and bled there.)
   p.bleed[i] =
@@ -3860,7 +3887,15 @@ export function woundTakes(
   if (!lame && !bound) return { going: 0, handling: 0 };
   const f = frameFor(world, place, i),
     a = lame ? limbShare(lame, f.legs, f.arms) : { going: 0, handling: 0 },
-    b = bound && bound !== lame ? limbShare(bound, f.legs, f.arms) : { going: 0, handling: 0 };
+    b0 =
+      bound && bound !== lame
+        ? limbShare(bound, f.legs, f.arms)
+        : { going: 0, handling: 0 },
+    // (A member bound while it mends does none of its share where its bone was broken, a little where only its skin was
+    // cut: rules/tissues.ts. One dealt before tissues were, all of it.)
+    t = tissueAt(p, i),
+    by = bound && t ? tissueTakes(t) : 1,
+    b = { going: b0.going * by, handling: b0.handling * by };
   return { going: Math.min(1, a.going + b.going), handling: Math.min(1, a.handling + b.handling) };
 }
 /** How many times as long a walk takes one for it (1: as long as anyone; never more than four times). */
@@ -6804,13 +6839,24 @@ function turnOf(cx: TickCx, i: number, k: number, wk: number): void {
                 matched.care ?? 0,
                 tendedOf(place, i),
               ).mending
-            : 0;
+            : 0,
+        // (As long again as the tissue it reached takes to mend, against its blow's mean: rules/tissues.ts.)
+        reached = tissueAt(p, i),
+        wounded = MEMBERS[(p.cause[i]! >> 3) - 1],
+        mends =
+          reached && wounded
+            ? tissueMends(blowOf(place, i, cause), wounded, reached)
+            : 1;
       if (mending > 0) {
         cHealth[i] = 3;
-        cIll[i] = Math.min(65535, mending * 144);
+        cIll[i] = Math.min(
+          65535,
+          Math.max(1, Math.round(mending * mends)) * 144,
+        );
         note(place, HAP.mending, cId[i]!, cause);
       } else {
         cHealth[i] = 0;
+        p.tissue[i] = 0;
         note(place, HAP.well, cId[i]!);
       }
     }
@@ -8068,11 +8114,33 @@ export type PlaceWoundRead = {
   readonly fester: number;
   readonly seen: boolean;
   readonly dressed: boolean;
-  /** How much it hurts them, 0 … 1 (rules/healing.ts painOf). */
+  /** How much it hurts them, 0 … 1 (rules/healing.ts painOf, by the tissue it reached: rules/tissues.ts). */
   readonly pain: number;
   /** Whether the healer has seen to its festering today. */
   readonly tended: boolean;
+  /** The tissue it reached (null: none known). */
+  readonly tissue: Tissue | null;
 };
+/** The tissue one's wound reached (null: none, or one dealt before tissues were). */
+const tissueAt = (p: People, i: number): Tissue | null =>
+  TISSUES[p.tissue[i]! - 1] ?? null;
+/** How much a wound hurts (0 … 1): its days and its festering (rules/healing.ts painOf), by the tissue it reached. */
+function woundPain(place: Place, i: number, v: number): number {
+  const p = place.people,
+    base = painOf(
+      p.health[i] === 1,
+      p.health[i] === 3,
+      !!(v & FESTER_DRESSED),
+      v & FESTER_LOAD,
+    ),
+    t = tissueAt(p, i),
+    member = MEMBERS[(p.cause[i]! >> 3) - 1];
+  if (!t || !member) return base;
+  return Math.min(
+    1,
+    base * tissuePain(blowOf(place, i, p.cause[i]! & 7), member, t),
+  );
+}
 export function placeWound(place: Place, i: number): PlaceWoundRead {
   const p = place.people,
     v = p.fester[i]!,
@@ -8084,7 +8152,8 @@ export function placeWound(place: Place, i: number): PlaceWoundRead {
     fester: v & FESTER_LOAD,
     seen: !!(v & FESTER_SEEN),
     dressed: !!(v & FESTER_DRESSED),
-    pain: hurt ? painOf(p.health[i] === 1, p.health[i] === 3, !!(v & FESTER_DRESSED), v & FESTER_LOAD) : 0,
+    pain: hurt ? woundPain(place, i, v) : 0,
+    tissue: tissueAt(p, i),
     tended: seenToday(place, p.id[i]!),
   };
 }

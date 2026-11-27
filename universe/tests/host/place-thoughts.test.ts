@@ -83,12 +83,13 @@ test("a person's memories are 24 bytes of them, and a person of a place stays wi
   // (The place's columns before memories were 72 bytes a person: six memories of four bytes each are the growth; then the
   // hours at each kind of work, two bytes a kind, and the kind their household taught them, a byte: N6; whom they know,
   // five bytes each of a dozen: N8; a wound's bleeding, the blood lost and its festering, a byte each: N9; how closely
-  // they are followed, and how far into their stride their needs are reckoned, a byte each: the tiers.)
+  // they are followed, and how far into their stride their needs are reckoned, a byte each: the tiers; the tissue a wound
+  // reached, a byte: 2026-11-26.)
   assert.equal(
     PERSON_BYTES,
-    72 + 4 * THOUGHTS + 2 * SKILL_KINDS.length + 1 + 5 * TIES + 3 + 2,
+    72 + 4 * THOUGHTS + 2 * SKILL_KINDS.length + 1 + 5 * TIES + 3 + 2 + 1,
   );
-  assert.ok(PERSON_BYTES <= 182);
+  assert.ok(PERSON_BYTES <= 183);
 });
 
 test("a fire fought is remembered by those who fought it, by their temper, and fades till it is let go", () => {

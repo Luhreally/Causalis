@@ -11,8 +11,18 @@ import {
   GOODS,
   MEMBERS,
   OCC,
+  TISSUE_WORDS,
   gradeOf,
+  type Tissue,
 } from "../rules/index.ts";
+/** What the tissue a wound reached means for its mending. */
+const TISSUE_WHY: Readonly<Record<Tissue, string>> = {
+  skin: "it mends soonest, and the limb works through it",
+  flesh: "the muscle that moves it torn; the limb weak while it mends",
+  bone: "set and splinted; the limb of no use till the bone knits",
+  vessel: "it bled hard; weak while it mends",
+  organ: "it hurts deep, and mends slowly",
+};
 import { lifeOf, mixOf, homePlanet, kindBody } from "../sim/index.ts";
 import {
   PLACE_AT,
@@ -578,7 +588,17 @@ function healthGear(
           ? `${cap(festerWords(x.fester))} (${x.fester} of the ${FESTER_MOST} that kill)${x.tended ? "; the healer has seen to it today" : ""}`
           : "Clean",
     ]);
-  if (hurtNow) rows.push(["Pain", `${cap(painWords(x.pain))} (${Math.round(x.pain * 10)} of 10)`]);
+  // (The tissue it reached: why it bled so, hurts so and takes so much of its member's work while it mends.)
+  if (hurtNow && x.tissue)
+    rows.push([
+      "Reached",
+      `${cap(TISSUE_WORDS[x.tissue])}: ${TISSUE_WHY[x.tissue]}`,
+    ]);
+  if (hurtNow)
+    rows.push([
+      "Pain",
+      `${cap(painWords(x.pain))} (${Math.round(x.pain * 10)} of 10)`,
+    ]);
   if (hurtNow || x.blood > 0) {
     const h = placeHealer(place);
     if (h.i >= 0)
