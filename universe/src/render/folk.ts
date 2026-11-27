@@ -94,7 +94,7 @@ export type FolkFrame = {
 };
 
 /** How many gone on a quarter metre have the ground under them read again a frame (FolkFrame.ground). */
-const READS_EACH = 40;
+const READS_EACH = 16;
 
 /** A part's place now, as the village lays it out ([x, y, z, sx, sy, sz, yaw, pitch]). */
 export type PlacePart = (out: number[], i: number, pi: number) => void;

@@ -227,11 +227,11 @@ const M = 0.1; // units per metre
 /** Whether the drawn figures are kept out of one another and out of what rises from the ground (render/village.ts spreadDrawn). */
 const SPREAD_ON = true;
 /** How many frames apart they are kept out of what stands about them, and twice as many out of one another (spreadDrawn). */
-const SPREAD_EVERY = 4;
+const SPREAD_EVERY = 6;
 /** How far one standing still may have drifted (metres) before what stands about them is looked at again. */
 const CLEAR_AGAIN = 0.05;
 /** How many are looked at for what stands about them each time they are kept apart (render/village.ts spreadDrawn). */
-const LOOKS_EACH = 16;
+const LOOKS_EACH = 24;
 /** One out of sight (of another people's figure than the one being posed), and no one's wounds' gear. */
 const UNSEEN: Moment = {
     x: 0,
@@ -3227,8 +3227,8 @@ export class VillageScene {
     const alpha = this.posed?.alpha ?? (gone ? this.goneAlpha : null);
     // (No one drawn stands in another, nor in what rises from its ground, as real bodies do not: possession's small world keeps its
     // own bodies apart.)
-    // (Out of what stands about them every fourth frame, out of one another every eighth: where they are stepped to is where
-    // they are carried on from, so they stay apart between; two come together are parted within a sixth of a second.)
+    // (Out of what stands about them every sixth frame, out of one another every twelfth: where they are stepped to is where
+    // they are carried on from, so they stay apart between; two come together are parted within a fifth of a second.)
     if (SPREAD_ON && !this.posed && this.frameNo % SPREAD_EVERY === 0)
       this.spreadDrawn(plan, this.frameNo % (2 * SPREAD_EVERY) === 0);
     // (Carried to where their day has them and kept apart, none is drawn nearer a block than their body as it strides and plays
