@@ -698,6 +698,61 @@ for (const view of [
     await press(".place-insp-back", "‹ Back to the lot's page");
     await until("the lot's page", async () => /Ground: /.test(await text(".place-insp-body")), 8000);
     check(/Ground: /.test(await text(".place-insp-body")), "Back from inside comes to the lot's page");
+    // Its things (O5): one kept in a home opened from its plan, on its own page; its holder a tap away; Back and Forward.
+    const kept = await k<number | null>(
+      `globalThis.causalis.client.query({ type: "place.overlay", args: { ref: ${JSON.stringify(town.ref)}, of: "room" } }).then((o) => o?.lots?.find((l) => /^[1-9]/.test(l.words))?.lot ?? null)`,
+    );
+    const kind = () => k<string>('document.querySelector(".place-insp")?.dataset.kind ?? ""');
+    if (kept !== null) {
+      await k(
+        `globalThis.causalis.place.inspect(${JSON.stringify(`plci:${town.ref}:${kept + 3}`)})`,
+      );
+      await until("a home's things", async () => (await shown(".place-inside-item")) > 0, 8000);
+    }
+    if (kept !== null && (await shown(".place-inside-item")) > 0) {
+      await k('document.querySelector(".place-inside-item")?.scrollIntoView({ block: "center" })');
+      await page.waitForTimeout(300);
+      await press(".place-inside-item", "a thing kept in the home");
+      await until("the thing's page", async () => (await kind()) === "item", 8000);
+      await page.waitForTimeout(600);
+      say(`thing: ${(await text(".place-insp")).slice(0, 400)}`);
+      check(
+        /Held by/.test(await text(".place-insp-body")) &&
+          (await shown(".place-insp-body .place-meter")) > 0,
+        "a thing's page says who holds it and how worn it is",
+      );
+      await look("20e-item", "a thing on its own page");
+      const holder = await k<string | null>(
+        `(() => { const l = [...document.querySelectorAll(".place-insp-facts .place-insp-label")].find((e) => e.textContent === "Held by"); return l?.nextElementSibling?.getAttribute("data-ref") ?? null; })()`,
+      );
+      check(!!holder, "its holder is a key");
+      if (holder) {
+        const sel = `.place-insp-facts .place-link[data-ref="${holder}"]`;
+        await k(
+          `document.querySelector(${JSON.stringify(sel)})?.scrollIntoView({ block: "center" })`,
+        );
+        await page.waitForTimeout(300);
+        await press(sel, "its holder, on the thing's page");
+        await until("its holder's page", async () => (await kind()) === "person", 8000);
+        await press(".place-insp-back", "‹ Back to the thing");
+        await until("the thing again", async () => (await kind()) === "item", 8000);
+        check((await kind()) === "item", "Back from its holder comes to the thing");
+        await press(".place-insp-ahead", "› Forward to its holder again");
+        await until("its holder again", async () => (await kind()) === "person", 8000);
+        check((await kind()) === "person", "Forward goes to its holder again");
+        await press(".place-insp-back", "‹ Back to the thing once more");
+        await until("the thing once more", async () => (await kind()) === "item", 8000);
+      }
+      await press(".place-insp-back", "‹ Back to the home's plan");
+      await until("the home's plan", async () => (await kind()) === "inside", 8000);
+      check((await kind()) === "inside", "Back from a thing comes to the plan it was kept in");
+      await press(".place-insp-back", "‹ Back to the lot's page from the home");
+      await until(
+        "the lot's page again",
+        async () => /Ground: /.test(await text(".place-insp-body")),
+        8000,
+      );
+    } else say("no home with its things to open");
     await k('globalThis.causalis.place.inspectHeight("peek")');
   }
   // Where a good is made, with its bills (N10), and the market, with what it takes; at half height.

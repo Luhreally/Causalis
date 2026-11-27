@@ -1255,6 +1255,23 @@ h3.place-insp-sub {
 .place-hud .place-inside-row {
   margin: 2px 0;
 }
+/* A thing with a page (O5): a fingertip each, one under another; a pot and a chest drawn on the plan. */
+.place-hud .place-inside-things {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.place-hud .place-inside-key {
+  text-align: left;
+  white-space: normal;
+  padding: 2px 8px;
+}
+.place-inside-pot {
+  fill: #c98f6a;
+}
+.place-inside-chest {
+  fill: #a8845a;
+}
 /* A lot's zone (O2): its keys share a row, each at least a fingertip. */
 .place-hud .place-insp-zones .place-chip {
   flex: 1 1 0;

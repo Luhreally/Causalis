@@ -5169,6 +5169,18 @@ export function placeGear(world: World, place: Place, i: number): Item[] {
     ? d.items
     : gearFilled(world, place, i, frameFor(world, place, i));
 }
+/**
+ * A thing one holds against its town (O5, read only): what the town's middling hands make of its kind, what it is to its
+ * holder's mood (gearTerm), and its life in days of use.
+ */
+export function placeGearReading(
+  world: World,
+  place: Place,
+  x: Item,
+): { mid: number; term: number; life: number } {
+  const s = stuffsOf(world, place);
+  return { mid: gearMid(s, x.k), term: gearTerm(s, x), life: gearLife(x.k) };
+}
 /** What a thing is worth to one who holds it, against what the town's middling hands make, and worn out. */
 function gearTerm(s: Stuffs, x: Item): number {
   return x.wear >= 1000

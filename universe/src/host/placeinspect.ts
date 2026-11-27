@@ -26,12 +26,14 @@ const TISSUE_WHY: Readonly<Record<Tissue, string>> = {
 import { lifeOf, mixOf, homePlanet, kindBody } from "../sim/index.ts";
 import {
   PLACE_AT,
+  placeItemRef,
   placeLotRef,
   placePersonRef,
   placedId,
   type MemberState,
   type WoundMember,
   type PlaceInspect,
+  type PlaceInspectItem,
   type PlaceInspectLot,
   type PlaceInspectPerson,
   type PlaceNamed,
@@ -105,6 +107,7 @@ import {
   placeValues,
   valueClash,
   placeGear,
+  placeGearReading,
   placeNeedsMore,
   GEAR,
   type Item,
@@ -226,6 +229,73 @@ function gearName(x: Item, occ: number): string {
 function gearWords(x: Item, by: string | null): string {
   const worn = Math.round(x.wear / 10);
   return `${cap(gradeOf(x.q))} (${x.q} of 100) · ${by ? `made by ${by}` : "bought in"}, ${placeDay(x.made * DAY)} · ${x.wear >= 1000 ? "worn out" : `${worn}% worn`}`;
+}
+/** Each kind of thing's sign (GEAR). */
+const GEAR_ICON: Readonly<Record<number, string>> = {
+  [GEAR.tool]: "🛠️",
+  [GEAR.garment]: "👕",
+  [GEAR.pot]: "🍲",
+};
+/**
+ * A thing one holds, on its own page (O5): read off what they hold now (placeGear), against what the town's middling
+ * hands make of its kind, its maker named living or gone (a tap to them while they are of the town), its holder a tap.
+ */
+export function inspectItem(
+  world: World,
+  place: Place,
+  id: number,
+  k: number,
+): PlaceInspectItem | null {
+  const i = placeIndexOf(place, id);
+  if (i < 0) return null;
+  const x = placeGear(world, place, i).find((g) => g.k === k);
+  if (!x) return null;
+  const p = place.people,
+    occ = p.sexOcc[i]! & 15,
+    who = placeWho(world, place)(i),
+    names = placeNames(world, place),
+    g = placeGearReading(world, place, x),
+    mj = x.maker ? placeIndexOf(place, x.maker) : -1,
+    left = Math.max(0, Math.round(((1000 - x.wear) / 1000) * g.life)),
+    today = Math.floor(place.t / DAY),
+    years = Math.floor((today - x.made) / 365),
+    home = place.houses.home[p.house[i]!]!,
+    at = p.at[i]!;
+  return {
+    kind: "item",
+    ref: placeItemRef(place.town, id, k),
+    name: gearName(x, occ),
+    icon: GEAR_ICON[k] ?? "📦",
+    holder: { name: who.name, ref: placePersonRef(place.town, id) },
+    maker: x.maker
+      ? {
+          name: `${names(x.maker, x.ms, x.mk)}${mj >= 0 ? "" : ", no longer of the town"}`,
+          ref: mj >= 0 ? placePersonRef(place.town, x.maker) : null,
+        }
+      : null,
+    stuff: x.stuff,
+    q: x.q,
+    grade: gradeOf(x.q),
+    mid: g.mid,
+    wear: x.wear,
+    daysLeft: x.wear >= 1000 ? 0 : left,
+    made: `${cap(placeDay(x.made * DAY))}${years > 0 ? `, ${years} ${years === 1 ? "year" : "years"} ago` : ""}`,
+    use:
+      k === GEAR.tool
+        ? `For their work as ${tradeWords(occ, false)}: worn by the work done with it`
+        : k === GEAR.garment
+          ? "Worn day by day, against the weather"
+          : "Their household's cooking, at its hearth: they are its cook",
+    where:
+      k === GEAR.garment
+        ? "On them"
+        : k === GEAR.pot
+          ? `At the hearth of their home, ${lotWords(place, home)}`
+          : at === home
+            ? `In the chest at home, ${lotWords(place, home)}, while they are there`
+            : `With them, at ${lotWords(place, at)}`,
+    mood: g.term,
+  };
 }
 /** A cook's skill at it, said of their meals. */
 const COOK_WORDS = ["poor", "plain", "good", "fine", "a master's"] as const;
@@ -739,37 +809,43 @@ function healthGear(
   const pantry = r.pantry.reduce((a, b) => a + b, 0),
     members = r.household.length + 1,
     names = placeNames(world, place),
-    gear: [string, string][] = [
-      // (Each thing they hold, its own: of what, how fine, by whom and when, how worn.)
-      ...placeGear(world, place, i).map((x): [string, string] => [
+    gear: [string, string, string | null][] = [
+      // (Each thing they hold, its own: of what, how fine, by whom and when, how worn; a tap opens its page, O5.)
+      ...placeGear(world, place, i).map((x): [string, string, string | null] => [
         gearName(x, r.occupation),
         gearWords(x, x.maker ? names(x.maker, x.ms, x.mk) : null),
+        placeItemRef(place.town, p.id[i]!, x.k),
       ]),
       [
         "In hand",
         r.carry ? `${amount(r.carry.amount)} of ${GOODS[r.carry.good]!.name}` : "Nothing",
+        null,
       ],
     ];
-  if (r.craft) gear.push(["Makes", cap(r.craft)]);
-  if (r.workKind) gear.push(["Works at", cap(lotWords(place, r.work))]);
+  if (r.craft) gear.push(["Makes", cap(r.craft), null]);
+  if (r.workKind) gear.push(["Works at", cap(lotWords(place, r.work)), null]);
   if (p.health[i] === 3 && hurt.member)
     gear.push([
       "Bound",
       `${cap(placeMember(world, place, i, hurt.member))}, in linen while it mends`,
+      null,
     ]);
   if (mark >> 4 === 2 && marked)
     gear.push([
       "Bears",
       takes.going > 0 ? "A stick to walk with: a leg was left lame" : "A stiff limb, favoured",
+      null,
     ]);
   gear.push(
     [
       "Pantry",
       pantry > 0 ? `${Math.round((pantry * 30) / members)} days' food for its ${members}` : "Bare",
+      null,
     ],
     [
       "Means",
       `Their household is of ${FIFTH_WORDS[r.fifth] ?? "its land's"} incomes: ${Math.round(r.means)} of grain a year`,
+      null,
     ],
   );
   return { body, healthRows: rows, gear };
@@ -924,6 +1000,11 @@ function lotZone(
 export function placeInspect(world: World, town: string, ref: string): PlaceInspect | null {
   const place = enterPlace(world, town);
   if (!place) return null;
+  if (ref.startsWith("plcg:")) {
+    // (plcg:<town>:<holder>:<kind>: the town's own key has colons of its own.)
+    const [id, k] = ref.split(":").slice(-2).map(Number) as [number, number];
+    return Number.isInteger(id) && Number.isInteger(k) ? inspectItem(world, place, id, k) : null;
+  }
   if (ref.startsWith("plci:")) {
     const n = Number(ref.slice(ref.lastIndexOf(":") + 1));
     return Number.isInteger(n) ? placeInside(world, place, n - 3) : null;

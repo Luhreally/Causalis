@@ -601,6 +601,7 @@ export {
   PLACE_AT,
   placeLotRef,
   placeInsideRef,
+  placeItemRef,
   placePersonRef,
   placedId,
   placeFieldOf,
@@ -625,6 +626,7 @@ export {
 export type {
   PlaceInspect,
   PlaceInspectInside,
+  PlaceInspectItem,
   PlaceInsideThing,
   PlaceInspectLot,
   PlaceInspectPerson,
