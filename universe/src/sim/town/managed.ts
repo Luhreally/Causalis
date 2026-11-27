@@ -110,6 +110,11 @@ export type Managed = {
    * sheltering at the nearest meeting place (else the square), its work stopped, but for a fire. Absent: none.
    */
   zones?: number[];
+  /**
+   * Where those standing to arms stand by its order (O7): a lot, the walls' site, or (absent) the square. Posted there in
+   * the hours their work would have had, they watch the homes within a cry of it: a theft from one is caught in the act.
+   */
+  post?: number;
 };
 
 /** What a lot of a town can be zoned as (O2): a meeting place, or kept clear. */
@@ -211,6 +216,7 @@ export class ManagedStore implements StateStore {
         ...(m.bills ? { bills: [...m.bills] } : {}),
         ...(m.refuse ? { refuse: [...m.refuse] } : {}),
         ...(m.zones ? { zones: [...m.zones] } : {}),
+        ...(m.post !== undefined ? { post: m.post } : {}),
       });
   }
   private add(m: Managed): Managed {
@@ -720,6 +726,27 @@ export function installManaged(world: World, ctx: () => PopulationContext): Mana
       if (a.zone !== null) next.push(a.lot, ZONES.indexOf(a.zone));
       if (next.length) m.zones = next;
       else delete m.zones;
+    },
+  });
+  // Where those standing to arms stand (O7): a lot, the walls' site (-4), or the square (null).
+  world.defineCommand({
+    type: "place.post",
+    validate: (args) => {
+      const a = args as { lot?: unknown };
+      return (
+        held(args) ??
+        (a.lot === null || a.lot === -4 || whole(a.lot, 0, 1e9)
+          ? null
+          : "lot must be one of its lots, the walls (-4), or null for the square")
+      );
+    },
+    apply: (command, t) => {
+      const a = command.args as { town: Ref; lot: number | null },
+        s = ctx().settlements.get(a.town);
+      if (!s) return;
+      const m = store.of(s.ref, s.cell, t);
+      if (a.lot === null) delete m.post;
+      else m.post = a.lot;
     },
   });
   // A building opened to those who have lost their homes (null: none).

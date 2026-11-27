@@ -23,7 +23,7 @@ const TISSUE_WHY: Readonly<Record<Tissue, string>> = {
   vessel: "it bled hard; weak while it mends",
   organ: "it hurts deep, and mends slowly",
 };
-import { lifeOf, mixOf, homePlanet, kindBody } from "../sim/index.ts";
+import { lifeOf, managedOf, mixOf, homePlanet, kindBody } from "../sim/index.ts";
 import {
   PLACE_AT,
   placeItemRef,
@@ -50,6 +50,8 @@ import {
   AT,
   BOUND_ARMS,
   BOUND_SITE,
+  cryReach,
+  streetLength,
   HAP,
   IDLE_WORTH,
   MOOD,
@@ -941,6 +943,7 @@ export function inspectLot(world: World, place: Place, lot: number): PlaceInspec
         }
       : null,
     ...lotZone(world, place, lot),
+    ...lotPost(world, place, lot),
     ground: (() => {
       const g = groundReading(world, place.cell);
       return g ? `${g.stats[0]?.value ?? "Its soil"} over ${g.line.replace(/^Ground: /, "")}` : "";
@@ -963,6 +966,43 @@ export function inspectLot(world: World, place: Place, lot: number): PlaceInspec
   };
 }
 
+/** The homes within a cry of a guard's post (O7), counted once a day a post: as the watch at it would hear them. */
+const WATCH_COUNT = new WeakMap<Place, { key: string; n: number }>();
+/** A lot as the guard's post (O7): whether it is one, whether it may be, and what comes of it, said. */
+function lotPost(
+  world: World,
+  place: Place,
+  lot: number,
+): { post: boolean; postable: boolean; postWords: string } {
+  const m = managedOf(world)?.get(place.town),
+    postable = lot >= 0 || lot === PLACE_AT.walls,
+    post = m?.post !== undefined && m.post === lot;
+  if (!post) return { post, postable, postWords: "" };
+  const p = place.people,
+    reach = cryReach(world, place),
+    key = `${lot}|${Math.floor(place.t / DAY)}|${Math.round(reach)}`;
+  let w = WATCH_COUNT.get(place);
+  if (!w || w.key !== key) {
+    const homes = new Set<number>();
+    for (const home of place.houses.home)
+      if (home >= 0 && !homes.has(home) && streetLength(place, lot, home) <= reach) homes.add(home);
+    WATCH_COUNT.set(place, (w = { key, n: homes.size }));
+  }
+  let at = 0,
+    standing = 0;
+  for (let i = 0; i < p.n; i++)
+    if (p.bound[i] === BOUND_ARMS) {
+      standing++;
+      if (p.at[i] === lot && p.act[i] === ACT.guard) at++;
+    }
+  return {
+    post,
+    postable,
+    postWords: !m?.held.includes("muster")
+      ? "The guard's post by your order: but none stand to arms. Order the town to stand to arms (Defence) and they keep it."
+      : `The guard's post by your order: ${at} of the ${standing} standing to arms are here now. The ${w.n} ${w.n === 1 ? "home" : "homes"} within a cry of it (${Math.round(reach)} m by its streets) are watched while it is kept: a theft from one is caught in the act, and brought before the town's justice.`,
+  };
+}
 /** A lot's zone (O2): what it is zoned as, whether it may be kept clear, and what comes of it, said. */
 function lotZone(
   world: World,

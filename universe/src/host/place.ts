@@ -369,6 +369,8 @@ export const WHY = {
   labour: 33,
   /** Kept clear by your order (O2): the work where they work stopped, and their home gone to by no one. */
   clear: 34,
+  /** O7: keeping the night's watch at the guard's post, by turns. */
+  watch: 35,
 } as const;
 
 /** What happened to someone, as a place's log tells it. */
@@ -425,6 +427,8 @@ export const HAP = {
   stole: 41,
   /** Q2: two paired who could no longer abide each other parted (`a`: the other). */
   parted: 42,
+  /** O7: caught stealing by the watch at the guard's post (`a`: one of the household they would have robbed). */
+  caught: 43,
 } as const;
 /** The happenings that are a death. */
 const HAP_DEATH: ReadonlySet<number> = new Set([1, 5, 17, 19, 21, 22, 34, 35, 39]);
@@ -474,6 +478,7 @@ const HAP_WORDS = [
   "made a work",
   "stole from another household",
   "parted from the one they were paired with",
+  "was caught stealing by the watch",
 ];
 
 /** The place's draws: through the world's Rng, on a stream no registry holds (it is no part of the ruleset's identity). */
@@ -6661,6 +6666,8 @@ function tickCx(world: World, place: Place, f: Frame) {
     shut = orders?.shut.length ? new Set(orders.shut) : null,
     // Its zones by order (O2): its lots kept clear, and where those of each home go for company and their games.
     zoned = orders?.zones?.length ? zonesOf(place, orders.zones) : null,
+    // (Where those standing to arms stand by its order: O7. Undefined: the square.)
+    post = orders?.post,
     // A fire being fought, where: by the grown who live near it, or by all of them where a watch is kept by order.
     fireLot = place.fire.length && t < place.fire[1]! ? place.fire[0]! : null,
     // A burial being held: where, and whose household stands by.
@@ -6976,6 +6983,7 @@ function tickCx(world: World, place: Place, f: Frame) {
     ailing,
     visitor,
     zoned,
+    post,
     // (The last come for company to each meeting place this tick, as `visitor` is the square's: O2.)
     visitAt: zoned?.meets.length ? new Map<number, number>() : null,
     // (Tiers: how far into their stride the tick a turn is at stands (`base`), how far past that tick a turn that goes on
@@ -7691,6 +7699,20 @@ function turnOf(cx: TickCx, i: number, k: number, wk: number): void {
       return;
     }
   }
+  // (The guard's post kept through the night by turns, out of the working day and while nothing presses them: one in
+  // WATCH_TURNS of those standing to arms each night, each their own night of them. O7.)
+  if (
+    cx.post !== undefined &&
+    cBound[i] === BOUND_ARMS &&
+    !working &&
+    (cId[i]! + today) % WATCH_TURNS === 0
+  ) {
+    cAct[i] = ACT.guard;
+    cWhy[i] = WHY.watch;
+    if (cAt[i] !== cx.post) go(place, i, cx.post, world);
+    dayTurns(cx, i, wk, occ);
+    return;
+  }
   if (worth < IDLE_WORTH && playing && !sickHouses?.has(h)) {
     // Their day's work done, or a day of rest: at their people's games in the square (rules/leisure.ts gamesOf: what
     // their body, their land's lore and their ways give them to play), or among others there where it plays none; a
@@ -7754,11 +7776,12 @@ function turnOf(cx: TickCx, i: number, k: number, wk: number): void {
     if (cAt[i] !== home) go(place, i, home, world);
     return;
   }
-  // Standing to arms by order: in the square, in the hours their work would have had.
+  // Standing to arms by order: at their post (O7), else in the square, in the hours their work would have had.
   if (cBound[i] === BOUND_ARMS) {
+    const post = cx.post ?? AT.square;
     cAct[i] = ACT.guard;
     cWhy[i] = WHY.arms;
-    if (cAt[i] !== AT.square) go(place, i, AT.square, world);
+    if (cAt[i] !== post) go(place, i, post, world);
     return;
   }
   // A siege lies about the town: no one goes out to its fields.
@@ -8138,6 +8161,21 @@ export function placeMeetFor(world: World, place: Place, home: number): number {
 export function lotGrid(lots = 1): { w: number; d: number } {
   return { w: Math.max(3, LOT_W * lots - 2), d: Math.max(4, LOT_D - 4) };
 }
+/** Of those standing to arms, how many share the night's watch at the guard's post by turns (O7): each one night in so many (est.: a watch of four). */
+export const WATCH_TURNS = 4;
+/**
+ * Whether a home is watched by the guard at its post now (O7): a post given by its order, one standing to arms there this
+ * very turn, and the home within a cry of it by its streets (cryReach: as far as a shout for the watch carries now).
+ */
+export function watched(world: World, place: Place, home: number): boolean {
+  const post = managedOf(world)?.get(place.town)?.post;
+  if (post === undefined || home < 0) return false;
+  const p = place.people;
+  let kept = false;
+  for (let i = 0; i < p.n && !kept; i++)
+    kept = p.bound[i] === BOUND_ARMS && p.act[i] === ACT.guard && p.at[i] === post;
+  return kept && streetLength(place, post, home) <= cryReach(world, place);
+}
 /** How many lots a building of a place stands over (its town's plan: a smithy one, a market hall four; a home one). */
 export function lotsOf(place: Place, lot: number): number {
   const b = bldgAt(place, lot);
@@ -8366,6 +8404,17 @@ function theftDay(cx: TickCx, i: number, lackDays: number, fk: Frame): boolean {
     )
       v = x;
   if (v < 0) return false;
+  // (Within a cry of the guard's post, while it is kept: caught in the act, nothing taken, and brought before its
+  // justice. O7.)
+  if (watched(world, place, houses.home[v]!)) {
+    let j = -1;
+    for (let q = 0; q < p.n && j < 0; q++)
+      if (p.house[q] === v && ageOf(p, q, t) >= fk.life.adulthood) j = q;
+    note(place, HAP.caught, p.id[i]!, j >= 0 ? p.id[j]! : 0);
+    judge(world, place, i, j, WRONG.theft, true);
+    p.act[i] = ACT.idle;
+    return false;
+  }
   // (A day's food for their household, each food in its share of what the robbed held.)
   const all = held(v);
   let took = 0;
@@ -8533,11 +8582,13 @@ function judge(
   i: number,
   j: number,
   wrong = 0,
+  caught = false,
 ): void {
   const p = place.people,
     law = placeLaw(world, place),
     r = (k: number) => world.rng.unit(PLACE_DRAW, place.key ^ p.id[i]!, place.t, P.judge, k);
-  if (r(0) >= law.reach) return;
+  // (One caught in the act by the watch is brought before it whatever its reach. O7.)
+  if (!caught && r(0) >= law.reach) return;
   const mix = sentenceMix({
       grave: SENTENCE.pettyGrave,
       harsh: law.harsh,
@@ -10064,6 +10115,10 @@ export function hapTold(
       return named?.(x.a)
         ? `parted from ${named(x.a)}, whom they could no longer abide, and lives on under one roof with them`
         : "parted from the one they were paired with";
+    case HAP.caught:
+      return named?.(x.a)
+        ? `was caught by the watch stealing from the household of ${named(x.a)}, being in want`
+        : "was caught stealing by the watch, being in want";
     case HAP.stole:
       return named?.(x.a)
         ? `stole a day's food from the household of ${named(x.a)}, being in want`
