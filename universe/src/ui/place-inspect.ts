@@ -580,6 +580,13 @@ export class PlaceInspector {
     row.classList.toggle("high", n.level >= 0.9);
     bar.append(fill, mark);
     row.title = `${n.name}: ${Math.round(n.level * 100)}% full, pressing ${Math.round(n.press * 100)}%. Past the mark it is seen to before work.`;
+    // (A need met by the day, by their home and what is in sight of it: told what meets it; nothing is sought for it.)
+    if (n.words) {
+      row.classList.remove("pressing");
+      row.classList.add("daily");
+      mark.hidden = true;
+      row.title = `${n.name}: ${n.words}`;
+    }
     row.append(
       el("span", "place-insp-label", n.name),
       bar,

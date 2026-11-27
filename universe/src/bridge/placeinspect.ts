@@ -20,7 +20,13 @@ export type PlaceThought = {
 };
 
 /** A need of theirs: its name, how full it is (0 … 1), how hard it presses (0 … 1). */
-export type PlaceNeed = { readonly name: string; readonly level: number; readonly press: number };
+export type PlaceNeed = {
+  readonly name: string;
+  readonly level: number;
+  readonly press: number;
+  /** A need met by the day, not by the hour (comfort, beauty): what meets it or does not, in words; none sought before work. */
+  readonly words?: string;
+};
 
 /** One of the people named on an inspector: who, their page, a word beside them. */
 export type PlaceNamed = {

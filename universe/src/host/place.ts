@@ -5655,7 +5655,104 @@ export const COND = {
   tool: 6,
   garment: 7,
   pot: 8,
+  /** Their home's room for those who sleep in it (NeedsDay), and a fine work in sight of its door. */
+  room: 9,
+  beauty: 10,
 } as const;
+/**
+ * What a household's home gives it each day of two needs besides the hourly ones (asked 2026-11-26: "more needs where the
+ * world has the means, such as warmth, comfort, beauty and company, each with a cause in the place"; warmth and company are
+ * the hourly needs N.cold and N.lone, met by a roof and by company): comfort, its home's beds (rules/buildings.ts HOLDS, by
+ * what stands on its lot) for all who sleep under it, crowded where a household that lost its home has found room under
+ * another's or a town has outgrown its beds; and beauty, the finest of the town's works (N11) to be made out from its door,
+ * where the town has any. Read once a day at its first tick, the same for every tier, and kept nowhere.
+ */
+type NeedsDay = {
+  readonly day: number;
+  /** Beds for each who sleeps under its home (1: as many as they; past it, room to spare). */
+  readonly room: Float32Array;
+  /** The lot of the finest work in sight of its door, and how fine (WORK_QUALITY's; -1: none). */
+  readonly seen: Int32Array;
+  readonly fine: Int8Array;
+};
+const NEEDS_DAY = new WeakMap<Place, NeedsDay>();
+/**
+ * How far from a door a work is made out (metres): a thing of a person's height at the arc an eye singles a thing out by
+ * among others, a degree (est.).
+ */
+const WORK_SEEN = Math.round(1.7 / Math.tan(Math.PI / 180));
+function needsDayOf(world: World, place: Place): NeedsDay {
+  const p = place.people,
+    houses = place.houses,
+    n = houses.n,
+    room = new Float32Array(n).fill(1),
+    seen = new Int32Array(n).fill(-1),
+    fine = new Int8Array(n).fill(-1),
+    fab = townsOf(world).get(place.town),
+    sleepers = new Map<number, number>();
+  for (let i = 0; i < p.n; i++) {
+    const lot = houses.home[p.house[i]!]!;
+    if (lot >= 0) sleepers.set(lot, (sleepers.get(lot) ?? 0) + 1);
+  }
+  const beds = new Map<number, number>();
+  if (fab)
+    for (const lot of sleepers.keys()) {
+      const level = lot < fab.next ? levelsOf(fab, lot, lot + 1)[0]! : -1;
+      beds.set(lot, level >= 0 ? (HOLDS[level] ?? 5) : 0);
+    }
+  for (let h = 0; h < n; h++) {
+    const lot = houses.home[h]!,
+      b = beds.get(lot) ?? 0;
+    if (lot >= 0 && b > 0) room[h] = b / Math.max(1, sleepers.get(lot) ?? 1);
+  }
+  // (The finest work to be made out from each door: works stand at lots of the town's laid plan.)
+  if (place.works?.length) {
+    layLots(world, place);
+    const laid = LAID.get(place),
+      w = place.works;
+    if (laid && laid.lots > 0)
+      for (let h = 0; h < n; h++) {
+        const lot = houses.home[h]!;
+        if (lot < 0 || lot >= laid.lots || !houses.members[h]) continue;
+        for (let k = 0; k + 6 < w.length; k += 7) {
+          const at = w[k]!,
+            q = w[k + 6]!;
+          if (at < 0 || at >= laid.lots || q <= fine[h]!) continue;
+          const d = Math.hypot(
+            laid.u[at]! - laid.u[lot]!,
+            laid.v[at]! - laid.v[lot]!,
+          );
+          if (d <= WORK_SEEN) {
+            fine[h] = q;
+            seen[h] = at;
+          }
+        }
+      }
+  }
+  return { day: Math.floor(place.t / DAY), room, seen, fine };
+}
+/** The day's reading of its homes' comfort and beauty: kept by the tick, else read for the asking. */
+function needsDay(world: World, place: Place, keep = false): NeedsDay {
+  const was = NEEDS_DAY.get(place);
+  if (
+    was &&
+    was.day === Math.floor(place.t / DAY) &&
+    was.room.length === place.houses.n
+  )
+    return was;
+  const d = needsDayOf(world, place);
+  if (keep) NEEDS_DAY.set(place, d);
+  return d;
+}
+/**
+ * Comfort's weight on a mood: by the doublings of room each has (none at a bed each; crowded, the more the fewer beds; a
+ * little at room to spare), as Classic weighs a home; beauty's by how fine the work and how much they wonder at things
+ * (FACETS' wonder).
+ */
+const roomTerm = (room: number): number =>
+  Math.max(-20, Math.min(4, Math.round(6 * Math.log2(room))));
+const beautyTerm = (fine: number, wonder: number): number =>
+  Math.round((1 + fine) * 2 * leans(wonder));
 /**
  * A place's households read once a day at its first tick (so the same whoever asks, and whenever): each one's cook (the
  * grown one of it, up and about, who has given the most hours to cooking) and their level at it, and one of it abed.
@@ -5678,6 +5775,8 @@ function readingsSaved(place: Place): Record<string, unknown> {
   if (hd) out.hday = [hd.day, ...hd.cook, ...hd.level, ...hd.abed];
   const st = STUFFS.get(place);
   if (st) out.stuffs = st;
+  const nd = NEEDS_DAY.get(place);
+  if (nd) out.nday = [nd.day, ...nd.room, ...nd.seen, ...nd.fine];
   return out;
 }
 function readingsLoaded(place: Place, raw: Record<string, unknown>): void {
@@ -5692,6 +5791,16 @@ function readingsLoaded(place: Place, raw: Record<string, unknown>): void {
     });
   }
   if (raw.stuffs) STUFFS.set(place, structuredClone(raw.stuffs) as Stuffs);
+  const nd = raw.nday as number[] | undefined;
+  if (nd) {
+    const n = (nd.length - 1) / 3;
+    NEEDS_DAY.set(place, {
+      day: nd[0]!,
+      room: Float32Array.from(nd.slice(1, 1 + n)),
+      seen: Int32Array.from(nd.slice(1 + n, 1 + 2 * n)),
+      fine: Int8Array.from(nd.slice(1 + 2 * n)),
+    });
+  }
 }
 function houseDayOf(place: Place, f: Frame): HouseDay {
   const p = place.people,
@@ -5738,6 +5847,8 @@ function moodTerms(
   fk: Frame,
   /** Read to be told (the inspector): each memory's source found where it is not kept. */
   told = false,
+  /** The day's comfort and beauty of its homes (NeedsDay; absent: none read). */
+  nd: NeedsDay | undefined = NEEDS_DAY.get(place),
 ): MoodTerm[] {
   const p = place.people,
     houses = place.houses,
@@ -5745,6 +5856,27 @@ function moodTerms(
     temper = placeTemper(place, i),
     out: MoodTerm[] = [],
     hd = houseDay(place, fk);
+  // Comfort and beauty: their home's beds for all under it, and a fine work in sight of its door.
+  if (nd && h < nd.room.length) {
+    const home = houses.home[h]!,
+      room = roomTerm(nd.room[h]!);
+    if (room && home >= 0)
+      out.push({
+        bit: 0,
+        cond: COND.room,
+        size: room,
+        days: null,
+        src: srcLot(home),
+      });
+    if (nd.fine[h]! >= 0)
+      out.push({
+        bit: 0,
+        cond: COND.beauty,
+        size: beautyTerm(nd.fine[h]!, placeFacets(place, i)[5]!),
+        days: null,
+        src: srcLot(nd.seen[h]!),
+      });
+  }
   if (lackDays >= 0.25)
     out.push({
       bit: MOOD.want,
@@ -5889,7 +6021,29 @@ export function placeMoodTerms(world: World, place: Place, i: number): MoodTerm[
     Math.floor(place.t / DAY),
     frameFor(world, place, i),
     true,
+    needsDay(world, place),
   );
+}
+/** One's household's comfort and beauty now (read only): beds for each under their home, and the finest work in sight. */
+export function placeNeedsMore(
+  world: World,
+  place: Place,
+  i: number,
+): { room: number; beds: number; under: number; fine: number; seen: number } {
+  const nd = needsDay(world, place),
+    h = place.people.house[i]!,
+    home = place.houses.home[h]!;
+  let under = 0;
+  for (let j = 0; j < place.people.n; j++)
+    if (place.houses.home[place.people.house[j]!] === home) under++;
+  const room = nd.room[h] ?? 1;
+  return {
+    room,
+    beds: Math.round(room * under),
+    under,
+    fine: nd.fine[h] ?? -1,
+    seen: nd.seen[h] ?? -1,
+  };
 }
 /**
  * The chance a year that work harms the one at it: of the tools and machines their trade wears out in a year (rules/goods.ts
@@ -8473,8 +8627,9 @@ function prunePins(place: Place): void {
 }
 
 function tick(world: World, place: Place, f: Frame): void {
-  // (Its households read for the day at its first tick: COND.)
+  // (Its households read for the day at its first tick: COND; and its homes' comfort and beauty.)
   houseDay(place, f, true);
+  needsDay(world, place, true);
   const cx = tickCx(world, place, f),
     { p, houses, t, today, dying, dyingWhy } = cx;
   // Each at their tier's stride (tiers): in full a tick each; light and folk at their hour, their walk by the tick and
