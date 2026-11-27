@@ -4433,6 +4433,7 @@ function makePlace(world: World, s: Settlement): Place | null {
       workOf(world, place, i);
     }
   }
+  homesByFit(place, homes);
   linkRoster(world, place, s, f);
   pairHouses(place, f);
   // (Each one's skill, by the years they have had at their trade since they were grown, at the age they are now.)
@@ -4455,6 +4456,37 @@ function makePlace(world: World, s: Settlement): Place | null {
   place.log.length = 0;
   place.counts.length = 0;
   return place;
+}
+
+/**
+ * Its households in its homes as they fit, once its people are dealt among them: the largest first, each into the home
+ * with the most beds still free (the lowest lot of those as free). Dealt by their place among all the beds alone, a home
+ * of six could take two households of eleven while the next held two, in a town with a bed for each; so a town crowds only
+ * where it has fewer beds than people. One whose work or whereabouts was their household's home goes with it.
+ */
+function homesByFit(place: Place, homes: { lot: number[]; holds: number[] }): void {
+  const h = place.houses,
+    p = place.people,
+    k = homes.lot.length;
+  if (!k) return;
+  const free = homes.holds.slice(),
+    was = Array.from(h.home),
+    order = Array.from({ length: h.n }, (_, x) => x).sort((a, b) => h.members[b]! - h.members[a]! || a - b);
+  for (const x of order) {
+    let best = 0;
+    for (let q = 1; q < k; q++) if (free[q]! > free[best]!) best = q;
+    free[best]! -= h.members[x]!;
+    h.home[x] = homes.lot[best]!;
+  }
+  for (let i = 0; i < p.n; i++) {
+    const x = p.house[i]!,
+      old = was[x]!,
+      now = h.home[x]!;
+    if (old === now) continue;
+    if (p.work[i] === old) p.work[i] = now;
+    if (p.at[i] === old) p.at[i] = now;
+    if (p.to[i] === old) p.to[i] = now;
+  }
 }
 
 /** The work of a day stepped only to set a place going is none of its sites': its land's month reckoned that day. */
