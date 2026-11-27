@@ -232,6 +232,8 @@ const SPREAD_EVERY = 6;
 const CLEAR_AGAIN = 0.05;
 /** How many are looked at for what stands about them each time they are kept apart (render/village.ts spreadDrawn). */
 const LOOKS_EACH = 24;
+/** How long one kept apart takes to step aside (seconds, an easing's time: two thirds of the way in it). */
+const SPREAD_EASE = 0.06;
 /** One out of sight (of another people's figure than the one being posed), and no one's wounds' gear. */
 const UNSEEN: Moment = {
     x: 0,
@@ -555,6 +557,15 @@ export class VillageScene {
   private spreadLive = new Uint8Array(0);
   /** Where each one standing still was last kept out of what stands about them (metres; NaN: not yet). */
   private clearX = new Float64Array(0);
+  /**
+   * How far each kept apart has yet to be stepped (metres), and who has any way yet to go: the step taken over frames, as one
+   * steps aside, never a jump (render/village.ts easeApart).
+   */
+  private owedX = new Float32Array(0);
+  private owedZ = new Float32Array(0);
+  private owing = new Int32Array(0);
+  private owingIn = new Uint8Array(0);
+  private owingN = 0;
   /** Who has been stepped aside and not yet looked at for what stands about them. */
   private spreadOwe = new Uint8Array(0);
   /** Where the next frame's look at those standing still begins, among those gathered. */
@@ -708,6 +719,63 @@ export class VillageScene {
    * (a well's curb, a column, a cross, a stronghold's wall): where each is drawn now moved, and where they are carried from
    * (render/village.ts presence), so they go on from there.
    */
+  /**
+   * Those kept apart stepped on the way they are owed, a part of it each frame (two thirds in SPREAD_EASE seconds), as a body
+   * steps aside: where they are drawn and where they are carried on from. One gone indoors, or nearly there, is put there.
+   */
+  private easeApart(plan: VillagePlan, dt: number): void {
+    const n = this.owingN;
+    if (n === 0) return;
+    // (Its people other than when they were owed it, a town gone into or its folk come and gone: none is stepped.)
+    if (this.spreadOf !== plan || this.spreadN !== this.moments.length) {
+      for (let r = 0; r < n; r++) {
+        const i = this.owing[r]!;
+        this.owedX[i] = this.owedZ[i] = 0;
+        this.owingIn[i] = 0;
+      }
+      this.owingN = 0;
+      return;
+    }
+    const t0 = performance.now(),
+      moments = this.moments,
+      owing = this.owing,
+      owedX = this.owedX,
+      owedZ = this.owedZ,
+      f = dt > 0 ? 1 - Math.exp(-Math.min(0.1, dt) / SPREAD_EASE) : 0;
+    let w = 0;
+    for (let r = 0; r < n; r++) {
+      const i = owing[r]!,
+        m = moments[i],
+        ax = owedX[i]!,
+        az = owedZ[i]!;
+      if (!m) {
+        owedX[i] = owedZ[i] = 0;
+        this.owingIn[i] = 0;
+        continue;
+      }
+      const rest = m.hidden || ax * ax + az * az < 1e-6,
+        dx = rest ? ax : ax * f,
+        dz = rest ? az : az * f;
+      m.x += dx;
+      m.z += dz;
+      const was = this.presence.get(plan.people[i]!.ref);
+      if (was) {
+        was.x += dx;
+        was.z += dz;
+      }
+      if (rest) {
+        owedX[i] = owedZ[i] = 0;
+        this.owingIn[i] = 0;
+      } else {
+        owedX[i] = ax - dx;
+        owedZ[i] = az - dz;
+        owing[w++] = i;
+      }
+    }
+    this.owingN = w;
+    this.costs.spread += performance.now() - t0;
+  }
+
   private spreadDrawn(plan: VillagePlan, step: boolean): void {
     const t0 = performance.now(),
       moments = this.moments,
@@ -737,6 +805,11 @@ export class VillageScene {
       this.clearX = new Float64Array(n).fill(Number.NaN);
       this.clearZ = new Float64Array(n).fill(Number.NaN);
       this.spreadOwe = new Uint8Array(n);
+      this.owedX = new Float32Array(n);
+      this.owedZ = new Float32Array(n);
+      this.owing = new Int32Array(n);
+      this.owingIn = new Uint8Array(n);
+      this.owingN = 0;
     }
     if (this.spreadAt.length < n) {
       this.spreadAt = new Int32Array(n);
@@ -756,7 +829,9 @@ export class VillageScene {
       oxs = this.spreadOX,
       ozs = this.spreadOZ,
       base = this.spreadBase,
-      sizes = this.sizes;
+      sizes = this.sizes,
+      owedX = this.owedX,
+      owedZ = this.owedZ;
     let k = 0;
     for (let i = 0; i < n; i++) {
       const m = moments[i]!,
@@ -771,8 +846,9 @@ export class VillageScene {
       at[k] = i;
       oxs[k] = ox;
       ozs[k] = oz;
-      xs[k] = m.x + ox;
-      zs[k] = m.z + oz;
+      // (Where each is being stepped to, the way there not yet all taken: render/village.ts easeApart.)
+      xs[k] = m.x + owedX[i]! + ox;
+      zs[k] = m.z + owedZ[i]! + oz;
       rs[k] = base[3 * i + 2]! * size;
       // (At work, as far as their parts reached out from where they stand as last drawn, an arm put out, a tool swung.)
       if (m.task) {
@@ -810,8 +886,10 @@ export class VillageScene {
         ox = oxs[q]!,
         oz = ozs[q]!,
         // (Each's middle as gathered, worked out as it was: whether they were stepped aside, exactly.)
-        wasX = m.x + ox,
-        wasZ = m.z + oz,
+        toX = m.x + owedX[i]!,
+        toZ = m.z + owedZ[i]!,
+        wasX = m.x + owedX[i]! + ox,
+        wasZ = m.z + owedZ[i]! + oz,
         walking = m.activity === ACTIVITY.walking,
         body = base[3 * i + 2]! * (sizes[i] ?? 1);
       p.x = xs[q]!;
@@ -824,7 +902,7 @@ export class VillageScene {
       const owed =
         owe[i] === 1 ||
         (!walking &&
-          !(Math.abs(m.x - clearX[i]!) < CLEAR_AGAIN && Math.abs(m.z - clearZ[i]!) < CLEAR_AGAIN));
+          !(Math.abs(toX - clearX[i]!) < CLEAR_AGAIN && Math.abs(toZ - clearZ[i]!) < CLEAR_AGAIN));
       const look = owed && looked < LOOKS_EACH;
       if (look) {
         looked++;
@@ -839,18 +917,16 @@ export class VillageScene {
       }
       if (!look && p.x === wasX && p.z === wasZ) continue;
       if (look && !walking) {
-        clearX[i] = p.x === wasX && p.z === wasZ ? m.x : p.x - ox;
-        clearZ[i] = p.x === wasX && p.z === wasZ ? m.z : p.z - oz;
+        clearX[i] = p.x === wasX && p.z === wasZ ? toX : p.x - ox;
+        clearZ[i] = p.x === wasX && p.z === wasZ ? toZ : p.z - oz;
       }
       if (p.x === wasX && p.z === wasZ) continue;
-      const x = p.x - ox,
-        z = p.z - oz;
-      m.x = x;
-      m.z = z;
-      const was = this.presence.get(plan.people[i]!.ref);
-      if (was) {
-        was.x = x;
-        was.z = z;
+      // (Stepped there over the frames to come, not put there: easeApart.)
+      owedX[i] = p.x - ox - m.x;
+      owedZ[i] = p.z - oz - m.z;
+      if (!this.owingIn[i]) {
+        this.owingIn[i] = 1;
+        this.owing[this.owingN++] = i;
       }
     }
     this.stillFrom = next;
@@ -3233,6 +3309,7 @@ export class VillageScene {
     // own bodies apart.)
     // (Out of what stands about them every sixth frame, out of one another every twelfth: where they are stepped to is where
     // they are carried on from, so they stay apart between; two come together are parted within a fifth of a second.)
+    if (SPREAD_ON && !this.posed) this.easeApart(plan, dt);
     if (SPREAD_ON && !this.posed && this.frameNo % SPREAD_EVERY === 0)
       this.spreadDrawn(plan, this.frameNo % (2 * SPREAD_EVERY) === 0);
     // (Carried to where their day has them and kept apart, none is drawn nearer a block than their body as it strides and plays
@@ -5265,6 +5342,22 @@ export class VillageScene {
    * Every figure of the town's folk drawn now, read for the count of figures off the ground or in it, in one another, in what
    * stands solid and in the trees' trunks (view/footing.ts feetTally; tools/feet-check.ts), at `tolerance` metres.
    */
+  /** Each drawn one now: where they stand and the ground drawn under them (metres; NaN: not drawn), for the look tools. */
+  footTrack(): Float32Array {
+    const n = this.moments.length,
+      out = new Float32Array(3 * n).fill(Number.NaN);
+    for (let i = 0; i < n; i++) {
+      const m = this.moments[i]!;
+      if (m.hidden || (this.sizes[i] ?? 1) < 1) continue;
+      const k = this.otherOf?.[i] ?? -1,
+        folk = k >= 0 ? this.others[k]!.folk : this.folk;
+      out[3 * i] = m.x;
+      out[3 * i + 1] = m.z;
+      out[3 * i + 2] = folk.groundAt(i) / M;
+    }
+    return out;
+  }
+
   feetNow(tolerance = 0.02): Omit<FeetTally, "met" | "stuck"> & {
     /** The first in a solid or a trunk: who, at what, where (metres). */
     stuck: { name: string; at: string; x: number; z: number; tree: boolean }[];

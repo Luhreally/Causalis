@@ -95,6 +95,8 @@ export type FolkFrame = {
 
 /** How many gone on a quarter metre have the ground under them read again a frame (FolkFrame.ground). */
 const READS_EACH = 16;
+/** How long one's feet take to settle on a ground read anew (seconds, an easing's time: two thirds of the way in it). */
+const GROUND_EASE = 0.05;
 
 /** A part's place now, as the village lays it out ([x, y, z, sx, sy, sz, yaw, pitch]). */
 export type PlacePart = (out: number[], i: number, pi: number) => void;
@@ -171,6 +173,8 @@ export class FolkPoses {
   private groundX = new Float64Array(0);
   private groundZ = new Float64Array(0);
   private groundRead: unknown = null;
+  /** The ground each one is drawn on now, eased onto the one read (units; NaN: never set on any). */
+  private drawnG = new Float32Array(0);
   private reads = 0;
   /** How high each one was at a hop when last posed (units). */
   private hops = new Float32Array(0);
@@ -203,7 +207,8 @@ export class FolkPoses {
 
   /** The ground one was last set on (units; 0 before they are first posed). */
   groundAt(i: number): number {
-    return this.grounds[i] ?? 0;
+    const g = this.drawnG[i] ?? Number.NaN;
+    return g === g ? g : (this.grounds[i] ?? 0);
   }
 
   /** How far one's parts reached out across the ground about them as last posed at work (units; 0: not at work). */
@@ -293,6 +298,7 @@ export class FolkPoses {
     this.shifts = new Float64Array(n);
     this.grounds = new Float32Array(n);
     this.groundX = new Float64Array(n).fill(Number.NaN);
+    this.drawnG = new Float32Array(n).fill(Number.NaN);
     this.groundZ = new Float64Array(n).fill(Number.NaN);
     this.hops = new Float32Array(n);
     this.reaches = new Float32Array(n);
@@ -336,6 +342,7 @@ export class FolkPoses {
     this.reads = 0;
     const pitches = this.pitches,
       ease = dt > 0 ? 1 - Math.exp(-Math.min(0.1, dt) / 0.08) : 1,
+      settle = dt > 0 ? 1 - Math.exp(-Math.min(0.1, dt) / GROUND_EASE) : 1,
       // (A walk is taken up over as long as a limb takes to come to a pose: three of its easings.)
       take = Math.min(0.1, Math.max(0, dt)) / 0.24,
       legs = this.legs,
@@ -472,7 +479,12 @@ export class FolkPoses {
             this.groundZ[i] = m.z;
             this.grounds[i] = f.ground(m.x, m.z);
           }
-          under = this.grounds[i]!;
+          // (Eased onto a ground read anew, as a body steps up a kerb or down off a yard, over a twentieth of a second: never a
+          // jump. One never yet set on any is set on it at once.)
+          const was = this.drawnG[i]!,
+            to = this.grounds[i]!;
+          under = was !== was || Math.abs(to - was) < 1e-5 ? to : was + (to - was) * settle;
+          this.drawnG[i] = under;
         }
         const hop = lying ? 0 : Math.max(0, bob) * size;
         this.hops[i] = hop;
