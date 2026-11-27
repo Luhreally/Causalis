@@ -556,7 +556,7 @@ export class VillageScene {
   private ownTops: GroundTops | null = null;
   private ownLaid = 0;
   /** The tops the ground is read off (its own and its town's): a new list when either is laid anew. */
-  private feetOn: readonly (GroundTops | null)[] = [];
+  private feetOn: readonly unknown[] = [];
   /** The drawn figures' separation (view/footing.ts Spread) and what it is fed, kept between frames. */
   private readonly spreader = new Spread();
   private spreadX = new Float64Array(0);
@@ -699,6 +699,34 @@ export class VillageScene {
     return Number.isFinite(top) ? top : 0;
   }
 
+  /**
+   * The ground under a point as surfaceAt reads it, kept by the quarter metre it falls in until the ground is laid anew: for
+   * what is read every frame wherever it goes, a cart, a beast, a soldier (a person's is read where they stand: folk.ts).
+   */
+  private surfaceNear(x: number, z: number): number {
+    const cx = Math.round(x * 4),
+      cz = Math.round(z * 4);
+    if (cx <= -16_384 || cx >= 16_384 || cz <= -16_384 || cz >= 16_384) return this.surfaceAt(x, z);
+    // (Its colony's rock is read where it stands each time: it is laid as the colony is.)
+    if (this.plan?.colony) return this.surfaceAt(x, z);
+    const of = this.groundNow();
+    if (of !== this.nearOf || this.nearKept.size > 50_000) {
+      this.nearKept.clear();
+      this.nearOf = of;
+    }
+    const key = (cx + 16_384) * 32_768 + (cz + 16_384);
+    let y = this.nearKept.get(key);
+    if (y === undefined) {
+      const t0 = performance.now();
+      y = this.surfaceAt(cx / 4, cz / 4);
+      this.nearKept.set(key, y);
+      this.costs.feet += performance.now() - t0;
+    }
+    return y;
+  }
+  private readonly nearKept = new Map<number, number>();
+  private nearOf: unknown = null;
+
   /** Its town's ground as laid (view/footing.ts GroundTops), as read this frame; between frames, read again. */
   private topsNow(): GroundTops | null {
     if (this.topsFrame !== this.frameNo) {
@@ -721,9 +749,16 @@ export class VillageScene {
       this.ownTops = new GroundTops([...this.laid, ...this.graveyard.laid]);
       this.ownLaid = laidNow;
     }
-    const town = this.topsNow();
-    if (this.feetOn[0] !== this.ownTops || this.feetOn[1] !== town)
-      this.feetOn = [this.ownTops, town];
+    const town = this.topsNow(),
+      rise = this.townFlora.groundOf,
+      rock = this.plan?.colony ? this.colony : null;
+    if (
+      this.feetOn[0] !== this.ownTops ||
+      this.feetOn[1] !== town ||
+      this.feetOn[2] !== rise ||
+      this.feetOn[3] !== rock
+    )
+      this.feetOn = [this.ownTops, town, rise, rock];
     return this.feetOn;
   }
   /** The ground under a point as folk.ts reads it (units), its reading timed for the look tools. */
@@ -962,8 +997,8 @@ export class VillageScene {
         owe[i] = 0;
         keepOut(ground, p, body);
       }
-      // (Wells, columns and trunks are looked for by the cell one stands in: each time for all but those walking their way.)
-      if (look || stepped || !walking) {
+      // (Wells, columns and trunks, by the cell one stands in: for each one looked at or stepped aside.)
+      if (look || stepped) {
         posts?.pushOut(p, body);
         trunks?.pushOut(p, body);
       }
@@ -1133,7 +1168,7 @@ export class VillageScene {
     this.letGoMark = new LetGoMark(stage, this.root, M);
     this.fauna = new FaunaLayer(stage, this.root);
     // (Its beasts on the ground drawn under them: its pasture, its streets.)
-    this.fauna.groundAt = (x, z) => this.surfaceAt(x, z);
+    this.fauna.groundAt = (x, z) => this.surfaceNear(x, z);
     this.fliers = new FlierLayer(stage, this.root);
     this.work = new WorkLayer(stage, this.root);
     this.visitors = new VisitorsLayer(stage, this.root);
@@ -1152,7 +1187,7 @@ export class VillageScene {
     this.courtLayer = new CourtLayer(stage, this.root);
     this.rides = new TownTraffic(stage, this.root);
     // (Its cars and coaches on the ground drawn under them, as its people are.)
-    this.rides.groundAt = (x, z) => this.surfaceAt(x, z);
+    this.rides.groundAt = (x, z) => this.surfaceNear(x, z);
     this.worn = new WoundsLayer(stage, this.root);
     this.litters = new LittersLayer(stage, this.root);
     this.moneyLayer = new TownMoneyLayer(stage, this.root);
@@ -3732,7 +3767,7 @@ export class VillageScene {
         }
       };
       this.troopFeet.clear();
-      for (const q of troops) this.troopFeet.set(q, this.surfaceAt(q.x, q.z) * M);
+      for (const q of troops) this.troopFeet.set(q, this.surfaceNear(q.x, q.z) * M);
       this.fallenParts(troops);
       this.soldiers.forEach((batches, side) =>
         batches.forEach((batch, pi) =>

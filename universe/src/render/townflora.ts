@@ -122,6 +122,10 @@ export class TownFloraLayer {
   private key = "";
   /** Its ground's reading and how far about its square it lies level (metres), as its mesh was laid: for heightAt. */
   private reading: { g: TownGround; flat: number } | null = null;
+  /** What its ground's rise is read off now (heightAt): another when it is read anew. */
+  get groundOf(): unknown {
+    return this.reading;
+  }
   /** The last building's time (ms): its ground, and the frames' share of laying what grows on it. */
   buildMs = 0;
   layMs = 0;
