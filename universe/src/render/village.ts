@@ -226,12 +226,14 @@ import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 const M = 0.1; // units per metre
 /** Whether the drawn figures are kept out of one another and out of what rises from the ground (render/village.ts spreadDrawn). */
 const SPREAD_ON = true;
-/** How many frames apart they are kept out of one another (render/village.ts spreadDrawn). */
+/** How many frames apart they are kept out of what stands about them, and twice as many out of one another (spreadDrawn). */
 const SPREAD_EVERY = 4;
 /** How far one standing still may have drifted (metres) before what stands about them is looked at again. */
 const CLEAR_AGAIN = 0.05;
 /** How many standing still are looked at a frame (render/village.ts spreadDrawn). */
 const STILL_EACH = 6;
+/** How many gone on a quarter metre have the ground under them read again a frame (render/village.ts groundUnder). */
+const READS_EACH = 40;
 /** One out of sight (of another people's figure than the one being posed), and no one's wounds' gear. */
 const UNSEEN: Moment = {
     x: 0,
@@ -680,6 +682,8 @@ export class VillageScene {
     return this.frameTops;
   }
   private frameTops: GroundTops | null = null;
+  /** Where the next frame's reading of those gone on begins (render/village.ts groundUnder). */
+  private feetFrom = 0;
   private frameNo = 0;
   private topsFrame = -1;
 
@@ -699,17 +703,32 @@ export class VillageScene {
     }
     this.feetOn = on;
     const feet = this.feet,
-      at = this.feetAt;
-    for (let i = 0; i < n; i++) {
-      const m = moments[i]!;
-      if (m.hidden) continue;
-      const dx = m.x - at[2 * i]!,
-        dz = m.z - at[2 * i + 1]!;
-      if (!again && dx * dx + dz * dz < 0.0625) continue;
+      at = this.feetAt,
+      from = this.feetFrom % Math.max(1, n);
+    // (One come out into sight read at once; of those gone on a quarter metre, so many a frame, from where the last frame left
+    // off: the town run fast, all its walkers would be read every frame.)
+    let read = 0,
+      next = from;
+    for (let r = 0; r < n; r++) {
+      const i = from + r < n ? from + r : from + r - n,
+        m = moments[i]!;
+      if (m.hidden) {
+        at[2 * i] = Number.NaN;
+        continue;
+      }
+      const ax = at[2 * i]!;
+      if (!again && ax === ax) {
+        const dx = m.x - ax,
+          dz = m.z - at[2 * i + 1]!;
+        if (dx * dx + dz * dz < 0.0625 || read >= READS_EACH) continue;
+        read++;
+        next = i + 1;
+      }
       at[2 * i] = m.x;
       at[2 * i + 1] = m.z;
       feet[i] = this.surfaceAt(m.x, m.z) * M;
     }
+    this.feetFrom = next;
     return feet;
   }
 
@@ -3234,10 +3253,10 @@ export class VillageScene {
     const alpha = this.posed?.alpha ?? (gone ? this.goneAlpha : null);
     // (No one drawn stands in another, nor in what rises from its ground, as real bodies do not: possession's small world keeps its
     // own bodies apart.)
-    // (Out of what stands about them every other frame, out of one another every fourth: where they are stepped to is where
-    // they are carried on from, so they stay apart between; two come together are parted within a tenth of a second.)
-    if (SPREAD_ON && !this.posed && this.frameNo % 2 === 0)
-      this.spreadDrawn(plan, this.frameNo % SPREAD_EVERY === 0);
+    // (Out of what stands about them every fourth frame, out of one another every eighth: where they are stepped to is where
+    // they are carried on from, so they stay apart between; two come together are parted within a sixth of a second.)
+    if (SPREAD_ON && !this.posed && this.frameNo % SPREAD_EVERY === 0)
+      this.spreadDrawn(plan, this.frameNo % (2 * SPREAD_EVERY) === 0);
     // (Carried to where their day has them and kept apart, none is drawn nearer a block than their body as it strides and plays
     // and a street piece's depth (view/networks.ts): no one walks through a hydrant or a box by its kerb.)
     if (plan.town) {
