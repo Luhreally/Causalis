@@ -45,6 +45,7 @@ import { figureBody } from "./folk.ts";
 import { skillLine, temperWords } from "./inspect/place.ts";
 import { groundReading } from "./inspect/ground.ts";
 import { placeFields, placeInside } from "./placeinside.ts";
+import { placeBelow } from "./placebelow.ts";
 import {
   ACT,
   AT,
@@ -1040,6 +1041,7 @@ function lotZone(
 export function placeInspect(world: World, town: string, ref: string): PlaceInspect | null {
   const place = enterPlace(world, town);
   if (!place) return null;
+  if (ref.startsWith("plcb:")) return placeBelow(world, place);
   if (ref.startsWith("plcg:")) {
     // (plcg:<town>:<holder>:<kind>: the town's own key has colons of its own.)
     const [id, k] = ref.split(":").slice(-2).map(Number) as [number, number];

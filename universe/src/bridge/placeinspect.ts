@@ -294,7 +294,36 @@ export type PlaceInspectFields = {
   readonly atPasture: number;
 };
 
+/**
+ * What lies below a town and the water it draws (O8): its land's soil and its rocks, each its share; what its lodes have
+ * given, how deep they are dug, and whether they gave out; its water at hand (a river, a lake, the sea) or its wells,
+ * and the rain on its land. Read of its world: the same as its land's page and its Build sheet tell.
+ */
+export type PlaceInspectBelow = {
+  readonly kind: "below";
+  readonly ref: string;
+  readonly lotRef: string;
+  readonly name: string;
+  readonly icon: string;
+  readonly soil: string;
+  readonly rocks: readonly { readonly name: string; readonly share: number }[];
+  /** Each lode dug: what of, how deep (0 the top … 3 the deepest), and the year it gave out (null: worked still). */
+  readonly lodes: readonly {
+    readonly name: string;
+    readonly tier: number;
+    readonly out: number | null;
+    readonly words: string;
+  }[];
+  /** Its water at hand (null: none), its wells standing, the rain on its land (mm a year), and all of it said. */
+  readonly water: "river" | "lake" | "sea" | null;
+  readonly wells: number;
+  readonly rain: number;
+  readonly undersea: boolean;
+  readonly words: string;
+};
+
 export type PlaceInspect =
+  | PlaceInspectBelow
   | PlaceInspectFields
   | PlaceInspectPerson
   | PlaceInspectLot
