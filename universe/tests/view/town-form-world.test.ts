@@ -70,9 +70,14 @@ test("a lived world's towns read what they kept: a market place where they held 
       const scene = townScene(plan, world.now);
       if (scene.lots.blocks.place) {
         places++;
-        // (Within its town: no further out than its furthest lot.)
+        // (Within its town: no further out than its furthest lot, by more than a street and its own length. Its grower lays it
+        // on the next clear ground along its main street, looking six blocks on: first light's Thaethostmere at 120 keeps its
+        // place, 80 m by 67, past ground on its road it could not build on, its middle 61 m past its furthest lot.)
         const p = scene.lots.blocks.place;
-        assert.ok(Math.hypot(p.x, p.z) < townReach(scene.lots, plan.lots) + 60, s.name);
+        assert.ok(
+          Math.hypot(p.x, p.z) < townReach(scene.lots, plan.lots) + 60 + Math.max(p.w, p.d),
+          s.name,
+        );
       }
     }
   }

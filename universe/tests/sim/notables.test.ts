@@ -159,15 +159,21 @@ test("a host has a commander when it fights; the day moves their standing; one w
 
 test("a general who commands a host and then seizes the seat is one person, kept once", () => {
   // (Each occasion made them anew: first light at year 1,500 kept Eai Giaigeamere, born 1461, as 99260 and 99337.)
-  const p = politiesOf(world)
-    .living()
-    .find(
-      (r) =>
-        !store.holder("command", r.ref) &&
-        courtOf(world)
+  // (A realm whose court's soldier the world does not keep held or gone already: one struck above, still seated by their court, is
+  // not made again to lead its host.)
+  const lost = [...store.all().filter((n) => n.held), ...store.gone()],
+    p = politiesOf(world)
+      .living()
+      .find((r) => {
+        const f = courtOf(world)
           ?.of(r.ref)
-          ?.figures.some((f) => f.seat === "the army"),
-    );
+          ?.figures.find((x) => x.seat === "the army");
+        return (
+          !store.holder("command", r.ref) &&
+          !!f &&
+          !lost.some((n) => n.name === f.name && n.born === f.born)
+        );
+      });
   assert.ok(p, "a realm whose court keeps a soldier");
   const t = world.now as SimTime,
     led = commandIn(ctx, p, t)!,
@@ -176,17 +182,23 @@ test("a general who commands a host and then seizes the seat is one person, kept
   seize(ctx, p, [], t);
   assert.equal(p.ruler.name, one.name);
   notablesYear(ctx, t);
-  const same = store.all().filter((n) => n.name === one.name && n.born === one.born);
+  // (Kept once among the living and the dead alike: the year's ills may take them, as at 399 they took this one, 51.)
+  const same = [...store.all(), ...store.gone()].filter(
+    (n) => n.name === one.name && n.born === one.born,
+  );
   assert.deepEqual(
     same.map((n) => n.id),
     [one.id],
   );
+  const alive = store.get(one.id),
+    kept = alive ?? store.goneOf(one.id)!;
   assert.ok(
-    one.deeds.some((d) => d.w === "strife.coup"),
+    kept.deeds.some((d) => d.w === "strife.coup"),
     "the seizing is their deed",
   );
-  assert.equal(one.as, "rule");
-  assert.equal(commandIn(ctx, p, t)!.id, one.id, "and the host is still theirs");
+  assert.equal(kept.as, "rule");
+  if (alive) assert.equal(commandIn(ctx, p, t)!.id, one.id, "and the host is still theirs");
+  else assert.notEqual(commandIn(ctx, p, t)?.id, one.id, "and the dead lead no host");
 });
 
 test("a thing found has its finder, and a year's telling stays within its budget", () => {

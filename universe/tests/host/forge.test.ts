@@ -4,7 +4,14 @@ import { EARTH } from "../../src/host/planet.ts";
 import { landStone } from "../../src/host/chain.ts";
 import { METALS, ORES, SUBSTANCE, SUBSTANCES } from "../../src/rules/index.ts";
 import { forgedMetal, populationContext, toolMetal } from "../../src/sim/index.ts";
-import { dayTold, furnaceOf, rackNow, townDay, villageSolids } from "../../src/view/index.ts";
+import {
+  dayTold,
+  furnaceOf,
+  lifeParts,
+  rackNow,
+  townDay,
+  villageSolids,
+} from "../../src/view/index.ts";
 import type { Line, PageModel, VillagePlan } from "../../src/bridge/index.ts";
 import { universeWorld } from "./worlds.ts";
 
@@ -45,9 +52,18 @@ test("a town that digs its own ore smelts it at the furnace by its diggings, its
       smiths = roles.flatMap((r, i) => (r.kind === "smith" ? [i] : [])),
       miners = roles.flatMap((r, i) => (r.kind === "mine" ? [i] : []));
     if (!smiths.length) continue;
-    worked++;
     // One of its diggers at the furnace each working day: charged, the bellows worked, the copper drawn.
     assert.equal(smelters.length, 1, `day ${day}: one at the furnace`);
+    // (Unless a going holds the one the day drew there from morning to evening, as a round with the town's watch: the furnace
+    // stands cold that day. The town's watch and its houses' guards are history's, drawn from its people since the rounds.)
+    // (Held: five hours and more of the working day at what the going has them at, a round broken by their bread at noon.)
+    let away = 0;
+    for (const part of lifeParts(smelting, smelters[0]!, day, ground))
+      for (const st of part.stays)
+        if (!st.own) away += Math.max(0, Math.min(st.to, 17 * HOUR) - Math.max(st.from, 7 * HOUR));
+    const held = away >= 5 * HOUR;
+    if (held) continue;
+    worked++;
     const told = dayTold(smelting, smelters[0]!, day)
       .map((l) => l.words)
       .join(" | ");

@@ -34,9 +34,19 @@ test("a war between the stars: declared on old news, its fleet years on the way,
   // Its reach into the sky: a first satellite of its own, and machines for a fleet.
   const prog = spaceOf(world).program(realm.ref);
   prog.satellite = realm.event;
-  marketsOf(world).of(realm.seat).move("made", G.machines, 60_000_000);
+  // (And kept so through the years it waits on a cause and its rulers' will: since the release's rules its machines ran down
+  // below a fleet's in a century, a realm of a year's chance in fifty to go having no war in it.)
+  const stocked = () => {
+    const m = marketsOf(world).of(realm.seat),
+      short = 60_000_000 - m.stock[G.machines]!;
+    if (short > 0) m.move("made", G.machines, short);
+  };
+  stocked();
   let y = AT;
-  while (!starWarsOf(world).all().length && y < AT + 200) world.runTo(++y * YEAR);
+  while (!starWarsOf(world).all().length && y < AT + 200) {
+    world.runTo(++y * YEAR);
+    stocked();
+  }
   assert.ok(contactsOf(world).all().length > 0, "another people heard");
   const war = starWarsOf(world).all()[0]!;
   assert.ok(war, "a war declared");
