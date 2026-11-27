@@ -11,7 +11,10 @@ import {
   homesFor,
   ordersOf,
   placeNeedsDay,
+  placeMeetFor,
   placeSites,
+  placeZone,
+  ZONE,
   type Place,
 } from "./place.ts";
 
@@ -103,6 +106,35 @@ export function placeOverlay(world: World, place: Place, kind: PlaceOverlayKind)
     }
     return { of: kind, lots, low: "Roomy and fair", high: "Crowded and plain", good: "low", fire: null };
   }
+  // Its zones (O2): each meeting place and the homes it gathers, and each lot kept clear.
+  if (kind === "zones") {
+    const zones = ordersOf(world, place.town)?.zones ?? [],
+      gathered = new Map<number, number>();
+    if (zones.length)
+      for (const home of new Set(houses.home))
+        if (home >= 0) {
+          const at = placeMeetFor(world, place, home);
+          if (at >= 0) gathered.set(at, (gathered.get(at) ?? 0) + 1);
+        }
+    for (let k = 0; k < zones.length; k += 2) {
+      const lot = zones[k]!,
+        z = placeZone(world, place, lot);
+      if (zones[k + 1] === ZONE.meet) {
+        const n = gathered.get(lot) ?? 0;
+        lots.push({
+          lot,
+          v: 0,
+          words: `A meeting place: those of ${n} ${n === 1 ? "home" : "homes"} come here for company and games`,
+        });
+      } else
+        lots.push({
+          lot,
+          v: 1,
+          words: z.holds ? "Kept clear: none go here but to a fire" : "Zoned clear, but a store cannot be kept clear",
+        });
+    }
+    return { of: kind, lots, low: "Meeting place", high: "Kept clear", good: "low", fire: null };
+  }
   if (kind === "work") {
     const shut = ordersOf(world, place.town)?.shut ?? [];
     let most = 1;
@@ -165,7 +197,16 @@ export function placeOverlay(world: World, place: Place, kind: PlaceOverlayKind)
 
 /** `place.overlay`: { ref: the town, of: which reading }. */
 export function placeOverlayQueries(): Readonly<Record<string, QueryHandler>> {
-  const KINDS: readonly PlaceOverlayKind[] = ["needs", "mood", "room", "comfort", "work", "age", "danger"];
+  const KINDS: readonly PlaceOverlayKind[] = [
+    "needs",
+    "mood",
+    "room",
+    "comfort",
+    "work",
+    "age",
+    "danger",
+    "zones",
+  ];
   return {
     "place.overlay": (world, args) => {
       const a = args as { ref?: unknown; of?: unknown };

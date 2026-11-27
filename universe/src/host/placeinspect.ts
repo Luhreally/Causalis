@@ -41,6 +41,7 @@ import {
 import type { QueryHandler } from "./host.ts";
 import { figureBody } from "./folk.ts";
 import { skillLine, temperWords } from "./inspect/place.ts";
+import { groundReading } from "./inspect/ground.ts";
 import {
   ACT,
   AT,
@@ -64,6 +65,9 @@ import {
   placePerson,
   placeSites,
   placeSkill,
+  placeZone,
+  placeMeetFor,
+  ZONE,
   placeSkills,
   placeMember,
   hurtOf,
@@ -858,6 +862,11 @@ export function inspectLot(world: World, place: Place, lot: number): PlaceInspec
           hands: site.inHand ? site.crew.length : site.hands,
         }
       : null,
+    ...lotZone(world, place, lot),
+    ground: (() => {
+      const g = groundReading(world, place.cell);
+      return g ? `${g.stats[0]?.value ?? "Its soil"} over ${g.line.replace(/^Ground: /, "")}` : "";
+    })(),
     words:
       (place.fire.length && place.t < place.fire[1]! && place.fire[0] === lot
         ? "🔥 Burning now: those who live within a cry of it, and any keeping the fire watch, turn out to fight it. "
@@ -873,6 +882,39 @@ export function inspectLot(world: World, place: Place, lot: number): PlaceInspec
               : lot >= 0
                 ? "No household lives here now."
                 : ""),
+  };
+}
+
+/** A lot's zone (O2): what it is zoned as, whether it may be kept clear, and what comes of it, said. */
+function lotZone(
+  world: World,
+  place: Place,
+  lot: number,
+): { zone: "meet" | "clear" | null; clearable: boolean; zoneWords: string } {
+  const st = placeStores(place),
+    clearable = lot >= 0 && lot !== st.market && lot !== st.granary,
+    z = lot >= 0 ? placeZone(world, place, lot) : { zone: -1, holds: false };
+  if (z.zone === ZONE.meet) {
+    const homes = new Set<number>();
+    for (const home of place.houses.home) if (home >= 0 && placeMeetFor(world, place, home) === lot) homes.add(home);
+    return {
+      zone: "meet",
+      clearable,
+      zoneWords: `A meeting place: those of ${homes.size} ${homes.size === 1 ? "home" : "homes"} nearer it than the square come here for company and their games.`,
+    };
+  }
+  if (z.zone === ZONE.clear)
+    return {
+      zone: "clear",
+      clearable,
+      zoneWords: z.holds
+        ? "Kept clear: none go here but to a fire; those who work here wait at home, and those who live here shelter at the nearest meeting place, else the square."
+        : "Zoned to be kept clear, but a store cannot be: the town's households fetch their food from it.",
+    };
+  return {
+    zone: null,
+    clearable,
+    zoneWords: clearable ? "" : "A store: it cannot be kept clear, the town's households fetch their food from it.",
   };
 }
 

@@ -167,12 +167,29 @@ export type PlaceInspectLot = {
   readonly site: { readonly share: number; readonly stage: string; readonly hands: number } | null;
   /** A line under it (what it is for, what lies on it). */
   readonly words: string;
+  /**
+   * Its zone by your order (O2): a meeting place, kept clear, or none; whether it may be kept clear (no store: its
+   * households fetch their food there); and whose company it gathers (a meeting place: those of so many homes).
+   */
+  readonly zone: "meet" | "clear" | null;
+  readonly clearable: boolean;
+  readonly zoneWords: string;
+  /** What its ground is: its land's soil, and the rock under it. */
+  readonly ground: string;
 };
 
 export type PlaceInspect = PlaceInspectPerson | PlaceInspectLot;
 
 /** The readings a town mode lays over its lots (N5): needs, mood, room, work, age, danger. */
-export type PlaceOverlayKind = "needs" | "mood" | "room" | "comfort" | "work" | "age" | "danger";
+export type PlaceOverlayKind =
+  | "needs"
+  | "mood"
+  | "room"
+  | "comfort"
+  | "work"
+  | "age"
+  | "danger"
+  | "zones";
 /** One lot's reading: its value 0 … 1 (low to high on its legend) and what it is in words. */
 export type PlaceOverlayLot = { readonly lot: number; readonly v: number; readonly words: string };
 export type PlaceOverlay = {

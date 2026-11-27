@@ -1207,6 +1207,11 @@ h3.place-insp-sub {
 .place-hud .place-insp-order {
   padding: 0 10px;
 }
+/* A lot's zone (O2): its keys share a row, each at least a fingertip. */
+.place-hud .place-insp-zones .place-chip {
+  flex: 1 1 0;
+  padding: 0 6px;
+}
 /* The one chosen: a ring at their feet and their name over them, fixed to them in the world (labels: no window of the HUD). */
 .place-ring,
 .place-tag {

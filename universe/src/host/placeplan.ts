@@ -302,6 +302,8 @@ export function whyWords(world: World, place: Place, i: number): string {
       return `Asleep until rested (tiredness ${pct(need(1))} full), unless hunger or cold wakes them`;
     case WHY.shut:
       return `The work of ${lotWords(place, p.work[i]!)} is stopped by your order: at home until it goes on`;
+    case WHY.clear:
+      return `${cap(lotWords(place, p.work[i]!))} is kept clear by your order: none work there, and they wait at home until it is not`;
     case WHY.abed:
       return `${healthWords(world, place, i) ?? ailWords(place, i)}, and fed from the pantry by their household`;
     case WHY.site:
@@ -644,6 +646,7 @@ export function placeNotices(world: World, place: Place): PlaceNotice[] {
     if (
       p.act[i] === ACT.wait &&
       p.why[i] !== WHY.shut &&
+      p.why[i] !== WHY.clear &&
       p.why[i] !== WHY.stopped &&
       p.why[i] !== WHY.raised
     )

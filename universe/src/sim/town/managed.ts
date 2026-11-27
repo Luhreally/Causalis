@@ -104,7 +104,16 @@ export type Managed = {
    * take goes to its market, and food neither will take stays at home. Absent: each takes all it is for.
    */
   refuse?: number[];
+  /**
+   * Its zones (O2): two numbers each, a lot and what it is zoned as (ZONES' order). A meeting place is where those near
+   * it go for company and their games, in place of the square; a lot kept clear is gone to by no one, its household
+   * sheltering at the nearest meeting place (else the square), its work stopped, but for a fire. Absent: none.
+   */
+  zones?: number[];
 };
+
+/** What a lot of a town can be zoned as (O2): a meeting place, or kept clear. */
+export const ZONES = ["meet", "clear"] as const;
 
 /** A town's stores an order can tell what to take (N10): its market, where all it makes is carried; its granary, its food. */
 export const STORES = ["market", "granary"] as const;
@@ -201,6 +210,7 @@ export class ManagedStore implements StateStore {
         shelter: m.shelter ?? -1,
         ...(m.bills ? { bills: [...m.bills] } : {}),
         ...(m.refuse ? { refuse: [...m.refuse] } : {}),
+        ...(m.zones ? { zones: [...m.zones] } : {}),
       });
   }
   private add(m: Managed): Managed {
@@ -683,6 +693,33 @@ export function installManaged(world: World, ctx: () => PopulationContext): Mana
       const m = store.of(s.ref, s.cell, t),
         rest = m.held.filter((x) => x !== a.what);
       m.held = a.on ? HELD.filter((x) => x === a.what || rest.includes(x)) : rest;
+    },
+  });
+  // A lot zoned (O2): a meeting place, kept clear, or neither (null).
+  world.defineCommand({
+    type: "place.zone",
+    validate: (args) => {
+      const a = args as { lot?: unknown; zone?: unknown };
+      return (
+        held(args) ??
+        (!whole(a.lot, 0, 1e9)
+          ? "lot must be one of its lots"
+          : a.zone === null || (ZONES as readonly unknown[]).includes(a.zone)
+            ? null
+            : `zone is one of ${ZONES.join(", ")}, or null`)
+      );
+    },
+    apply: (command, t) => {
+      const a = command.args as { town: Ref; lot: number; zone: (typeof ZONES)[number] | null },
+        s = ctx().settlements.get(a.town);
+      if (!s) return;
+      const m = store.of(s.ref, s.cell, t),
+        next: number[] = [];
+      for (let k = 0; k < (m.zones?.length ?? 0); k += 2)
+        if (m.zones![k] !== a.lot) next.push(m.zones![k]!, m.zones![k + 1]!);
+      if (a.zone !== null) next.push(a.lot, ZONES.indexOf(a.zone));
+      if (next.length) m.zones = next;
+      else delete m.zones;
     },
   });
   // A building opened to those who have lost their homes (null: none).

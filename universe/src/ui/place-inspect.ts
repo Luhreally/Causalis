@@ -535,6 +535,26 @@ export class PlaceInspector {
       key.onclick = () => this.onOrder("place.shut", { lot: x.lot, on: !x.shut });
       body.push(key);
     }
+    // (Its zone by your order, O2: a meeting place, kept clear, or neither.)
+    if (x.lot >= 0 && this.orders) {
+      const row = el("div", "place-insp-orders place-insp-zones");
+      for (const [zone, words, says] of [
+        [null, "No zone", "no zone"],
+        ["meet", "Meeting place", "a meeting place, where those near it come for company and games"],
+        ["clear", "Keep clear", "kept clear, gone to by no one but to a fire"],
+      ] as const) {
+        if (zone === "clear" && !x.clearable) continue;
+        const b = el("button", "place-chip", words);
+        b.classList.toggle("on", x.zone === zone);
+        b.setAttribute("aria-pressed", String(x.zone === zone));
+        b.setAttribute("aria-label", `Make ${x.name} ${says}`);
+        b.onclick = () => this.onOrder("place.zone", { lot: x.lot, zone });
+        row.append(b);
+      }
+      body.push(row);
+    }
+    if (x.zoneWords) body.push(el("p", "place-insp-why", x.zoneWords));
+    if (x.ground) body.push(el("p", "place-insp-why", `Ground: ${x.ground}`));
     if (x.stock.length) {
       const table = el("table", "place-insp-stock"),
         head = el("tr");
