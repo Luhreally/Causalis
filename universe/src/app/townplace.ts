@@ -488,7 +488,7 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
   const inspect = (ref: string | null, step = true): void => {
     stopInspect?.();
     stopInspect = null;
-    if (ref && !/^(plc|plcl|folk|person):/.test(ref)) {
+    if (ref && !/^(plc|plcl|plci|folk|person):/.test(ref)) {
       void d.pages.open(ref);
       return;
     }
@@ -522,7 +522,7 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
       return;
     }
     const id = placedId(ref);
-    if (ref.startsWith("plcl:")) choose(null);
+    if (ref.startsWith("plcl:") || ref.startsWith("plci:")) choose(null);
     else if (id !== null) choose(id);
     // (A sheet open under it is kept where the inspector is only peeked; a taller one takes the sheet's place.)
     if (inspector.height !== "peek" && hud.tab) hud.open(null);

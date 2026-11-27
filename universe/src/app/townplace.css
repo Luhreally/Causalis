@@ -1207,6 +1207,54 @@ h3.place-insp-sub {
 .place-hud .place-insp-order {
   padding: 0 10px;
 }
+/* Inside a lot (O3): its plan, fit to the inspector; its tiles faint, its rooms walled, those here as rings. */
+.place-hud .place-inside {
+  display: flex;
+  justify-content: center;
+  margin: 6px 0;
+}
+.place-hud .place-inside-plan {
+  max-width: 100%;
+  height: auto;
+  background: #e9dcc0;
+  border: 2px solid #5b4a32;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.place-inside-tile {
+  stroke: rgba(91, 74, 50, 0.18);
+  stroke-width: 1;
+}
+.place-inside-room {
+  fill: none;
+  stroke: #5b4a32;
+  stroke-width: 2;
+}
+.place-inside-thing {
+  fill: #c8a878;
+  stroke: #7a5f3c;
+  stroke-width: 1;
+}
+.place-inside-bed {
+  fill: #b9c8e6;
+}
+.place-inside-hearth {
+  fill: #e8a27a;
+}
+.place-inside-goods {
+  fill: #d9c79a;
+}
+.place-inside-work {
+  fill: #e6d38a;
+}
+.place-inside-person {
+  fill: #2a6fdb;
+  stroke: #fff;
+  stroke-width: 2;
+}
+.place-hud .place-inside-row {
+  margin: 2px 0;
+}
 /* A lot's zone (O2): its keys share a row, each at least a fingertip. */
 .place-hud .place-insp-zones .place-chip {
   flex: 1 1 0;
