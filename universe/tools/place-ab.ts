@@ -47,7 +47,10 @@ if (argv[0] === "--child") {
       );
   w.runTo(w.submit("place.work", { town: town.ref, shares: [600, 100, 200, 100] }).t);
   // (Entered so many days on, for the tiers' measure; and followed all in full where asked.)
-  if (Number(from0 ?? 0) > 0) w.runTo(w.now + Number(from0) * k.DAY);
+  // (PLACE_FROM: days more before entering, for every run: to watch a year's turn, when its land's count brings it its
+  // births and deaths to be lived over the year to come.)
+  const from = Number(from0 ?? 0) + Number(process.env.PLACE_FROM ?? 0);
+  if (from > 0) w.runTo(w.now + from * k.DAY);
   if (tiers0 === "off") place.placeTiered?.(false);
   // (Strides set otherwise: PLACE_STRIDES=light,folk.)
   if (process.env.PLACE_STRIDES) place.placeStrides?.(...process.env.PLACE_STRIDES.split(",").map(Number));
@@ -118,6 +121,12 @@ if (argv[0] === "--child") {
           .filter(([, n]) => (n as number) > 0),
       ),
       end: p.people.n,
+      // (Their mean age, years.)
+      age: (() => {
+        let sum = 0;
+        for (let i = 0; i < p.people.n; i++) sum += p.t / k.DAY / 365 - p.people.born[i] / 365;
+        return sum / Math.max(1, p.people.n);
+      })(),
       bytes: (() => {
         const st = new place.PlaceStore();
         st.places.push(p);
@@ -149,6 +158,7 @@ type Run = {
   lines: number;
   happened: Record<string, number>;
   end: number;
+  age: number;
   bytes: number;
   made: number[];
   food: number;
@@ -212,6 +222,7 @@ if (argv.includes("--tiers")) {
   ok = row("people", (r) => r.end) && ok;
   ok = row("born", (r) => r.born) && ok;
   ok = row("died", (r) => r.died) && ok;
+  ok = row("mean age", (r) => r.age) && ok;
   ok = row("food held", (r) => r.food) && ok;
   const goods = on[0]!.made.length,
     named = ((await import(pathToFileURL(a + "/src/rules/goods.ts").href)).GOODS ?? []) as { name?: string }[];

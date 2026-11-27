@@ -154,8 +154,7 @@ test("the hours of each kind of work are counted as it is done, a household's tr
 test("a fire's priority says who goes to one: set never, they stay away", () => {
   const w = copy(base()),
     s = near(w, 500),
-    place = enterPlace(w, s.ref)!,
-    p = place.people;
+    place = enterPlace(w, s.ref)!;
   // Every grown farmer and crafter set never to go to a fire.
   const never = [...grownAt(w, place, OCC.farmer), ...grownAt(w, place, OCC.crafter)];
   assert.ok(never.length > 4);
@@ -165,7 +164,7 @@ test("a fire's priority says who goes to one: set never, they stay away", () => 
       person: id,
       kinds: [
         ...[OCC.farmer, OCC.herder, OCC.crafter, OCC.trader].map((o) =>
-          o === (p.sexOcc[placeIndexOf(place, id)]! & 15) ? 3 : 0,
+          o === (place.people.sexOcc[placeIndexOf(place, id)]! & 15) ? 3 : 0,
         ),
         1,
         0,
@@ -179,21 +178,23 @@ test("a fire's priority says who goes to one: set never, they stay away", () => 
   for (let k = 0; k < 12; k++) {
     w.runTo(w.now + 600);
     placeFrame(w, s.ref, []);
-    for (let i = 0; i < p.n; i++) {
-      if (p.act[i] !== ACT.brigade) continue;
+    for (let i = 0; i < place.people.n; i++) {
+      if (place.people.act[i] !== ACT.brigade) continue;
       fought++;
-      if (never.includes(p.id[i]!)) by++;
+      if (never.includes(place.people.id[i]!)) by++;
     }
   }
   assert.equal(by, 0, "none set never to go to a fire went");
   // (And those who went have hours at it now.)
   let atFire = 0;
-  for (let i = 0; i < p.n; i++) if (hoursAt(p, i, SK.fire) > 0) atFire++;
+  for (let i = 0; i < place.people.n; i++) if (hoursAt(place.people, i, SK.fire) > 0) atFire++;
   assert.ok(atFire > 0, "an hour at a fire is an hour of it");
   // The inspector of one the fire hurt: their wound on their body, abed and who tends them; what they have.
-  const hurt = [...Array(p.n).keys()].find((i) => p.health[i] === 1 && hurtOf(place, i).member);
+  const hurt = [...Array(place.people.n).keys()].find(
+    (i) => place.people.health[i] === 1 && hurtOf(place, i).member,
+  );
   assert.ok(hurt !== undefined, "the fire hurt one");
-  const seen = inspectPerson(w, place, p.id[hurt!]!)!;
+  const seen = inspectPerson(w, place, place.people.id[hurt!]!)!;
   assert.ok(
     seen.body.some((m) => m.member === hurtOf(place, hurt!).member && m.state === "abed"),
     JSON.stringify(seen.body),

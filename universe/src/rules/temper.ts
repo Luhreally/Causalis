@@ -45,6 +45,11 @@ export function temperOf(
   };
 }
 
+/** One's own nature on a leaning (`salt`: which), 0 … 1: the fixed draw from who they are that ownLeaning blends. */
+export function ownNature(who: number, born: number, salt: number): number {
+  return mix(who, born, salt);
+}
+
 /**
  * One leaning of anyone, as a ruler's are drawn: half their people's way (0 … 1) and half their own nature, a fixed draw
  * from who they are (`salt`: which leaning). The same one has the same leaning on every reading.

@@ -11,12 +11,24 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
-import { DAY, HOUR, loadWorld, saveWorld, type World } from "../../src/kernel/index.ts";
+import {
+  DAY,
+  HOUR,
+  loadWorld,
+  saveWorld,
+  type World,
+} from "../../src/kernel/index.ts";
 import { populationContext, type Settlement } from "../../src/sim/index.ts";
 import { EARTH } from "../../src/host/index.ts";
 import {
+  COND,
+  DEEP_THOUGHTS,
   MOOD,
   PERSON_BYTES,
+  TIER,
+  placeIndexOf,
+  placePin,
+  lotOfSrc,
   SKILL_KINDS,
   TIES,
   THOUGHT,
@@ -34,7 +46,9 @@ import { universeWorld } from "./worlds.ts";
 const YEARS = 150;
 const base = (): World => universeWorld(EARTH, "first light", YEARS);
 const copy = (w: World): World => {
-  const doc = JSON.parse(JSON.stringify(saveWorld(w, "r", { universe: "earth" })));
+  const doc = JSON.parse(
+    JSON.stringify(saveWorld(w, "r", { universe: "earth" })),
+  );
   return loadWorld(doc, (s) => EARTH.build(s), "r").world;
 };
 const near = (w: World, people: number): Settlement => {
@@ -69,9 +83,13 @@ test("a person's memories are 24 bytes of them, and a person of a place stays wi
   // (The place's columns before memories were 72 bytes a person: six memories of four bytes each are the growth; then the
   // hours at each kind of work, two bytes a kind, and the kind their household taught them, a byte: N6; whom they know,
   // five bytes each of a dozen: N8; a wound's bleeding, the blood lost and its festering, a byte each: N9; how closely
-  // they are followed, and how far into their stride their needs are reckoned, a byte each: the tiers.)
-  assert.equal(PERSON_BYTES, 72 + 4 * THOUGHTS + 2 * SKILL_KINDS.length + 1 + 5 * TIES + 3 + 2);
-  assert.ok(PERSON_BYTES <= 182);
+  // they are followed, and how far into their stride their needs are reckoned, a byte each: the tiers; the tissue a wound
+  // reached, a byte: 2026-11-26.)
+  assert.equal(
+    PERSON_BYTES,
+    72 + 4 * THOUGHTS + 2 * SKILL_KINDS.length + 1 + 5 * TIES + 3 + 2 + 1,
+  );
+  assert.ok(PERSON_BYTES <= 183);
 });
 
 test("a fire fought is remembered by those who fought it, by their temper, and fades till it is let go", () => {
@@ -88,19 +106,31 @@ test("a fire fought is remembered by those who fought it, by their temper, and f
   const place = placesOf(w)!.get(ref)!;
   if (!place.fire.length) return;
   const fought = memories(w, ref, THOUGHT.fire);
-  assert.ok(fought.length > 3, `those who fought it remember it (${fought.length})`);
+  assert.ok(
+    fought.length > 3,
+    `those who fought it remember it (${fought.length})`,
+  );
   for (const m of fought.slice(0, 20)) {
     // (Weighed by how boldly they bear hardship: the timid the more. A day or so faded.)
     const full = -12 * leans(1 - placeTemper(place, m.i).bold);
-    assert.ok(m.size < 0 && m.size >= full - 0.5 && m.size <= full * 0.85, `${m.size} of ${full}`);
-    assert.ok(m.days !== null && m.days > 20 && m.days < 50, `${m.days} days left`);
+    assert.ok(
+      m.size < 0 && m.size >= full - 0.5 && m.size <= full * 0.85,
+      `${m.size} of ${full}`,
+    );
+    assert.ok(
+      m.days !== null && m.days > 20 && m.days < 50,
+      `${m.days} days left`,
+    );
   }
   const sizes = new Set(fought.map((m) => Math.round(m.size)));
   assert.ok(sizes.size > 1, "not the same for all: each by their own temper");
   // What the inspector says of one of them: the memory among their mood's reasons, with its size and its days.
   const one = inspectPerson(w, place, place.people.id[fought[0]!.i]!)!;
   const said = one.thoughts.find((t) => t.words === "Fought a fire");
-  assert.ok(said && said.size < 0 && said.days !== null, JSON.stringify(one.thoughts));
+  assert.ok(
+    said && said.size < 0 && said.days !== null,
+    JSON.stringify(one.thoughts),
+  );
   // Two months on, it has faded past a point and is let go (ten days to a half).
   go(w, ref, 60 * 24);
   assert.equal(memories(w, ref, THOUGHT.fire).length, 0, "let go once faded");
@@ -121,7 +151,10 @@ test("nothing is remembered besides what a household's dates already reckon", ()
     const terms = placeMoodTerms(w, place, i),
       grief = terms.some((x) => x.bit === MOOD.bereaved);
     for (const x of terms) {
-      assert.ok(x.bit !== 0 || x.thought, "a term is a bit or a memory");
+      assert.ok(
+        x.bit !== 0 || x.thought || x.cond,
+        "a term is a bit, a way they live, or a memory",
+      );
       if (x.thought) assert.equal(x.bit, 0);
     }
     if (grief)
@@ -136,9 +169,14 @@ test("nothing is remembered besides what a household's dates already reckon", ()
     const v = place.people.thought[k]!;
     if (!v) continue;
     any++;
-    assert.ok((Object.values(THOUGHT) as number[]).includes(v >>> 24), `kind ${v >>> 24}`);
+    assert.ok(
+      (Object.values(THOUGHT) as number[]).includes(v >>> 24),
+      `kind ${v >>> 24}`,
+    );
   }
-  console.log(`  remembered after ninety days: ${any} memories among ${place.people.n}`);
+  console.log(
+    `  remembered after ninety days: ${any} memories among ${place.people.n}`,
+  );
 });
 
 test("a town whose people remember runs its world exactly as a twin never entered", () => {
@@ -160,7 +198,10 @@ test("a town whose people remember runs its world exactly as a twin never entere
   go(w, ref, 24 * 20);
   twin.runTo(w.now);
   assert.ok(memories(w, ref, THOUGHT.fire).length > 0 || !fired);
-  assert.equal(JSON.stringify(w.domainHashes()), JSON.stringify(twin.domainHashes()));
+  assert.equal(
+    JSON.stringify(w.domainHashes()),
+    JSON.stringify(twin.domainHashes()),
+  );
   assert.deepEqual(
     w.checkpoints().map((c) => c.chain),
     twin.checkpoints().map((c) => c.chain),
@@ -169,7 +210,9 @@ test("a town whose people remember runs its world exactly as a twin never entere
 
 test("what they remember is kept in the save and goes on the same in another process", () => {
   const dir = mkdtempSync(join(tmpdir(), "place-thoughts-")),
-    child = fileURLToPath(new URL("./place-thoughts-child.ts", import.meta.url)),
+    child = fileURLToPath(
+      new URL("./place-thoughts-child.ts", import.meta.url),
+    ),
     run = (...args: string[]) =>
       execFileSync(process.execPath, [child, ...args], { encoding: "utf8" })
         .trim()
@@ -181,7 +224,10 @@ test("what they remember is kept in the save and goes on the same in another pro
       first = run("first", String(YEARS), save),
       second = run("second", save);
     assert.match(whole, /^[0-9a-f]+ [0-9a-f]+ \d+$/);
-    assert.ok(Number(first.split(" ")[2]) > 0, `memories kept in the save (${first})`);
+    assert.ok(
+      Number(first.split(" ")[2]) > 0,
+      `memories kept in the save (${first})`,
+    );
     assert.notEqual(first, whole, "the first days are not yet the whole");
     assert.equal(second, whole);
   } finally {
@@ -209,4 +255,84 @@ test("a day's turn of a mood is where its reasons put it, a quarter of the way",
     `${was} → ${now}, its reasons ${Math.round(to)}`,
   );
   void DAY;
+});
+
+test("one followed in full holds many memories at once, each with whom or what it came of; let go to their columns on leaving full, and found the same on coming back", () => {
+  const w = copy(base()),
+    ref = near(w, 600).ref;
+  enterPlace(w, ref);
+  go(w, ref, 24 * 40);
+  const place = placesOf(w)!.get(ref)!;
+  // Those in full keep their memories with their sources (Place.deep); a memory of another is of one they know or knew.
+  assert.ok(place.deep && place.deep.size > 0, "some are kept in full");
+  let sourced = 0,
+    held = 0;
+  for (const [id, d] of place.deep!) {
+    const i = placeIndexOf(place, id);
+    assert.ok(
+      i >= 0 && (place.people.tier[i]! & 3) === TIER.full,
+      "only those in full",
+    );
+    for (let k = 0; k < DEEP_THOUGHTS; k++) {
+      if (!d.th[k]) continue;
+      held++;
+      const kind = d.th[k]! >>> 24,
+        src = d.src[k]!;
+      if (src) sourced++;
+      if (kind === THOUGHT.quarrel || kind === THOUGHT.brawl)
+        assert.ok(src > 0, "words are with someone");
+      if (kind === THOUGHT.games || kind === THOUGHT.feast)
+        assert.ok(src < 0 && lotOfSrc(src) < 0, "the square");
+    }
+  }
+  console.log(
+    `  in full: ${place.deep!.size}, ${held} memories, ${sourced} with a source`,
+  );
+  // The ways they live bear on a mood too, each with its source: a household's cook is one of it.
+  let cooks = 0;
+  for (let i = 0; i < place.people.n; i++)
+    for (const x of placeMoodTerms(w, place, i))
+      if (x.cond === COND.cook) {
+        cooks++;
+        const c = placeIndexOf(place, x.src!);
+        assert.ok(
+          c >= 0 && place.people.house[c] === place.people.house[i],
+          "cooked for by one of their household",
+        );
+      }
+  assert.ok(cooks > 0, "meals cooked at home bear on moods");
+  // One among the folk with a memory: what is told of it is what they keep on coming into full.
+  let folk = -1;
+  for (let i = 0; i < place.people.n && folk < 0; i++)
+    if ((place.people.tier[i]! & 3) !== TIER.full)
+      for (let k = 0; k < THOUGHTS; k++)
+        if ((place.people.thought[i * THOUGHTS + k]! >>> 13) & 7) folk = i;
+  if (folk >= 0) {
+    const id = place.people.id[folk]!,
+      told = placeMoodTerms(w, place, folk)
+        .filter((x) => x.thought)
+        .map((x) => `${x.thought}:${x.src}`)
+        .sort();
+    placePin(place, id, -1);
+    go(w, ref, 1);
+    const j = placeIndexOf(place, id),
+      now = placeMoodTerms(w, place, j)
+        .filter((x) => x.thought)
+        .map((x) => `${x.thought}:${x.src}`)
+        .sort();
+    assert.equal(place.people.tier[j]! & 3, TIER.full);
+    assert.ok(
+      told.every((x) => now.includes(x)),
+      `${told} kept as ${now}`,
+    );
+    // The inspector tells each with it.
+    const seen = inspectPerson(w, place, id)!;
+    assert.ok(seen.thoughts.length > 1, "many at once");
+    // Let go of: back among the folk, their memories kept in their columns, the strongest.
+    placePin(place, id, null);
+    go(w, ref, 24);
+    const k2 = placeIndexOf(place, id);
+    if (k2 >= 0 && (place.people.tier[k2]! & 3) !== TIER.full)
+      assert.ok(!place.deep!.has(id), "let go of");
+  }
 });

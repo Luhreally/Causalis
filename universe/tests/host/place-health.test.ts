@@ -94,7 +94,8 @@ test("the world's shares of the dead of wounds, lived by the hour", () => {
   assert.equal(painOf(false, false, true, 0), 0);
   // (182 since the tiers: a byte for how closely one is followed and one for how far into their stride their needs are
   // reckoned, 2026-11-26.)
-  assert.ok(PERSON_BYTES <= 182, `${PERSON_BYTES} bytes a person`);
+  // (183 since the tissue a wound reached, a byte, 2026-11-26.)
+  assert.ok(PERSON_BYTES <= 183, `${PERSON_BYTES} bytes a person`);
 });
 
 test("a fire's hurt bleed, are dressed, may fester, hurt, and the healer goes to them; saved and read back the same", () => {

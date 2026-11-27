@@ -15,6 +15,8 @@ export type PlaceThought = {
   readonly days: number | null;
   /** Its sign. */
   readonly icon: string;
+  /** Whom or what it came of: one of the town's people, or one of its lots (null: nothing one). */
+  readonly from?: { readonly ref: string | null; readonly name: string } | null;
 };
 
 /** A need of theirs: its name, how full it is (0 … 1), how hard it presses (0 … 1). */
@@ -101,6 +103,9 @@ export type PlaceInspectPerson = {
   /** Their temper in a few words, and in full. */
   readonly temper: string;
   readonly temperWords: string;
+  /** Their own nature (its facets) and what they hold dear, in a few words each. */
+  readonly nature: string;
+  readonly values: string;
   /** Their home and their work: the lot, said. */
   readonly home: { readonly lot: number; readonly words: string; readonly ref: string };
   readonly work: { readonly lot: number; readonly words: string; readonly ref: string } | null;

@@ -4,7 +4,25 @@
 // asks. Read of the place as kept, through the readers its pages use (host/inspect/place.ts, host/placeplan.ts): asking
 // moves nothing, and nothing here is reckoned that the place does not reckon already.
 import { DAY, type World } from "../kernel/index.ts";
-import { CIVICS, FESTER_MOST, FOODS, GOODS, MEMBERS, OCC } from "../rules/index.ts";
+import {
+  CIVICS,
+  FESTER_MOST,
+  FOODS,
+  GOODS,
+  MEMBERS,
+  OCC,
+  TISSUE_WORDS,
+  gradeOf,
+  type Tissue,
+} from "../rules/index.ts";
+/** What the tissue a wound reached means for its mending. */
+const TISSUE_WHY: Readonly<Record<Tissue, string>> = {
+  skin: "it mends soonest, and the limb works through it",
+  flesh: "the muscle that moves it torn; the limb weak while it mends",
+  bone: "set and splinted; the limb of no use till the bone knits",
+  vessel: "it bled hard; weak while it mends",
+  organ: "it hurts deep, and mends slowly",
+};
 import { lifeOf, mixOf, homePlanet, kindBody } from "../sim/index.ts";
 import {
   PLACE_AT,
@@ -70,6 +88,14 @@ import {
   hapWords,
   WORK_QUALITY,
   placeTier,
+  COND,
+  lotOfSrc,
+  placeFacets,
+  placeValues,
+  valueClash,
+  placeGear,
+  GEAR,
+  type Item,
 } from "./place.ts";
 import {
   ailWords,
@@ -84,6 +110,7 @@ import {
   careWords,
   placeDay,
   placeNamed,
+  placeNames,
   placeWho,
   tradeWords,
   whyWords,
@@ -124,6 +151,56 @@ const MEMORY_WORDS: Readonly<Record<number, readonly [string, string]>> = {
   [THOUGHT.righted]: ["⚖️", "A wrong done them judged"],
   [THOUGHT.admired]: ["🖼️", "Saw a fine work"],
 };
+/** What each way one lives that bears on a mood is, said short, with its sign (host/place.ts COND). */
+const COND_WORDS: Readonly<Record<number, readonly [string, string]>> = {
+  [COND.cook]: ["🍲", "Meals cooked at home"],
+  [COND.passion]: ["⭐", "At the work their household taught them"],
+  [COND.kept]: ["🪢", "Kept from the work their household taught them"],
+  [COND.kinAbed]: ["🛏️", "One of their household abed"],
+  [COND.friendAbed]: ["🛏️", "Their friend abed"],
+  [COND.tool]: ["🛠️", "The tool of their trade"],
+  [COND.garment]: ["🧥", "What they wear"],
+  [COND.pot]: ["🍯", "Their household's pot"],
+};
+/** A thing in words: what it is, of what (a farmer's hoe and sickle, a herder's crook and shears, a crafter's tools). */
+function gearName(x: Item, occ: number): string {
+  if (x.k === GEAR.garment) return `${cap(x.stuff)} garment`;
+  if (x.k === GEAR.pot) return `A cooking pot of ${x.stuff}`;
+  const tool =
+    occ === OCC.farmer
+      ? "hoe and sickle"
+      : occ === OCC.herder
+        ? "crook and shears"
+        : "set of tools";
+  return `A ${tool} of ${x.stuff}`;
+}
+/** A thing's quality and wear, and who made it and when. */
+function gearWords(x: Item, by: string | null): string {
+  const worn = Math.round(x.wear / 10);
+  return `${cap(gradeOf(x.q))} (${x.q} of 100) · ${by ? `made by ${by}` : "bought in"}, ${placeDay(x.made * DAY)} · ${x.wear >= 1000 ? "worn out" : `${worn}% worn`}`;
+}
+/** A cook's skill at it, said of their meals. */
+const COOK_WORDS = ["poor", "plain", "good", "fine", "a master's"] as const;
+/** Each facet of one's nature at its two ends (host/place.ts FACETS). */
+const FACET_WORDS: readonly (readonly [string, string])[] = [
+  ["warm", "cool"],
+  ["deferent", "headstrong"],
+  ["lively", "quiet"],
+  ["prudent", "carefree"],
+  ["steady", "nervous"],
+  ["curious", "set in their ways"],
+];
+/** What each of the eight values is of (rules/ways.ts WAY_TRAITS' order). */
+export const VALUE_WORDS = [
+  "kin",
+  "rank",
+  "the gods",
+  "valour",
+  "trade",
+  "strangers",
+  "custom",
+  "thrift",
+] as const;
 /** A mood in a word. */
 export const moodWord = (m: number): string =>
   m >= 25 ? "Glad" : m >= -15 ? "Even" : m >= MOOD_UNHEEDING ? "Low" : "Too low to heed an order";
@@ -173,13 +250,72 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
         : `${cap(actWords(place.people, i))}${r.eta > 0 ? `, walking to ${lotWords(place, r.to)}` : r.act === ACT.sleep || r.act === ACT.eat ? "" : ` at ${lotWords(place, r.at)}`}`;
   // Their mood's reasons: what bears on it now, each by how much and for how long (host/place.ts moodTerms).
   const terms = placeMoodTerms(world, place, i),
+    // (Whom or what each came of: one of the town's people by name, living or gone; one of its lots by what stands on it.)
+    namedOf = placeNamed(world, place),
+    fromOf = (src: number | undefined): PlaceThought["from"] => {
+      if (!src) return null;
+      if (src > 0) {
+        const name = namedOf(src);
+        return name
+          ? {
+              ref:
+                placeIndexOf(place, src) >= 0
+                  ? placePersonRef(place.town, src)
+                  : null,
+              name,
+            }
+          : null;
+      }
+      const lot = lotOfSrc(src);
+      return {
+        ref: lot >= 0 ? placeLotRef(place.town, lot) : null,
+        name: cap(lotWords(place, lot)),
+      };
+    },
+    // (Words or blows with one: over what the two hold dear at its two ends, where they do.)
+    overWords = (base: string, other: number): string => {
+      const j = placeIndexOf(place, other);
+      if (j < 0) return base;
+      const at = { k: -1 },
+        clash = valueClash(
+          placeValues(place, i),
+          placeValues(place, j),
+          place.matched.ways,
+          at,
+        );
+      return clash >= 0.25 && at.k >= 0
+        ? `${base}, over ${VALUE_WORDS[at.k]}`
+        : base;
+    },
+    hd = (x: (typeof terms)[number]) =>
+      x.cond
+        ? COND_WORDS[x.cond]
+        : x.thought
+          ? MEMORY_WORDS[x.thought]
+          : THOUGHT_WORDS[x.bit],
     thoughts: PlaceThought[] = [
-      ...terms.map((x) => ({
-        icon: (x.thought ? MEMORY_WORDS[x.thought] : THOUGHT_WORDS[x.bit])?.[0] ?? "•",
-        words: (x.thought ? MEMORY_WORDS[x.thought] : THOUGHT_WORDS[x.bit])?.[1] ?? "",
-        size: Math.round(x.size),
-        days: x.days,
-      })),
+      ...terms.map((x) => {
+        const from = fromOf(x.src),
+          base = hd(x)?.[1] ?? "";
+        // (A household's meals said by its cook's skill at them; their own where they are its cook.)
+        const words =
+          x.cond === COND.cook
+            ? x.src === id
+              ? `Their own cooking, ${COOK_WORDS[Math.max(0, Math.min(4, (x.size + 2) / 2))] ?? "plain"}`
+              : `Meals cooked at home, ${COOK_WORDS[Math.max(0, Math.min(4, (x.size + 2) / 2))] ?? "plain"}`
+            : (x.thought === THOUGHT.quarrel || x.thought === THOUGHT.brawl) &&
+                x.src &&
+                x.src > 0
+              ? overWords(base, x.src)
+              : base;
+        return {
+          icon: hd(x)?.[0] ?? "•",
+          words,
+          size: Math.round(x.size),
+          days: x.days,
+          from: x.cond === COND.cook && x.src === id ? null : from,
+        };
+      }),
       { icon: "🙂", words: "At ease, as most are", size: MOOD_BASE, days: null },
     ].sort((a, b) => Math.abs(b.size) - Math.abs(a.size)),
     to = MOOD_BASE + terms.reduce((n, x) => n + x.size, 0);
@@ -200,6 +336,22 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
   mark(temper.sociable, "fond of company", "solitary");
   mark(temper.thrifty, "thrifty", "open-handed");
   mark(temper.bold, "bold", "timid");
+  // (Their nature, the facets far from the middle; what they hold dear and set little store by, against their land.)
+  const facets = placeFacets(place, i),
+    nature = facets
+      .map((x, k) =>
+        x >= 0.75 ? FACET_WORDS[k]![0] : x <= 0.25 ? FACET_WORDS[k]![1] : null,
+      )
+      .filter((x): x is string => !!x),
+    values = placeValues(place, i),
+    ways = place.matched.ways,
+    dear: string[] = [],
+    little: string[] = [];
+  values.forEach((v, k) => {
+    const m = 0.5 * (ways?.[k] ?? 0.5) + 0.25;
+    if (v - m >= 0.15) dear.push(VALUE_WORDS[k]!);
+    else if (m - v >= 0.15) little.push(VALUE_WORDS[k]!);
+  });
   const skill = r.occupation === OCC.dependent ? null : placeSkill(place, i),
     mate = placeMate(place, i),
     mi = mate ? placeIndexOf(place, mate.id) : -1,
@@ -288,6 +440,8 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
       ? `${SKILL_NAMES[p.taught[i]! - 1]}: what their household taught them as they grew (two hundred hours of it when they came of age)`
       : null,
     temper: marks.length ? cap(marks.join(", ")) : "Much as most of their people",
+    nature: nature.length ? cap(nature.join(", ")) : "Even in every way",
+    values: `${dear.length ? `Holds dear ${dear.join(", ")}` : "Holds nothing dearer than their people do"}${little.length ? `; sets little store by ${little.join(", ")}` : ""}`,
     temperWords: temperWords(place, i),
     home: {
       lot: r.home,
@@ -434,7 +588,17 @@ function healthGear(
           ? `${cap(festerWords(x.fester))} (${x.fester} of the ${FESTER_MOST} that kill)${x.tended ? "; the healer has seen to it today" : ""}`
           : "Clean",
     ]);
-  if (hurtNow) rows.push(["Pain", `${cap(painWords(x.pain))} (${Math.round(x.pain * 10)} of 10)`]);
+  // (The tissue it reached: why it bled so, hurts so and takes so much of its member's work while it mends.)
+  if (hurtNow && x.tissue)
+    rows.push([
+      "Reached",
+      `${cap(TISSUE_WORDS[x.tissue])}: ${TISSUE_WHY[x.tissue]}`,
+    ]);
+  if (hurtNow)
+    rows.push([
+      "Pain",
+      `${cap(painWords(x.pain))} (${Math.round(x.pain * 10)} of 10)`,
+    ]);
   if (hurtNow || x.blood > 0) {
     const h = placeHealer(place);
     if (h.i >= 0)
@@ -460,7 +624,13 @@ function healthGear(
   rows.push(["Care", careWords(place)]);
   const pantry = r.pantry.reduce((a, b) => a + b, 0),
     members = r.household.length + 1,
+    names = placeNames(world, place),
     gear: [string, string][] = [
+      // (Each thing they hold, its own: of what, how fine, by whom and when, how worn.)
+      ...placeGear(world, place, i).map((x): [string, string] => [
+        gearName(x, r.occupation),
+        gearWords(x, x.maker ? names(x.maker, x.ms, x.mk) : null),
+      ]),
       [
         "In hand",
         r.carry ? `${amount(r.carry.amount)} of ${GOODS[r.carry.good]!.name}` : "Nothing",

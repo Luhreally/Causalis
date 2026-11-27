@@ -27,6 +27,7 @@ import {
   enterPlace,
   placeDigest,
   placeDue,
+  placeOwn,
   placeIndexOf,
   placeMate,
   placeTable,
@@ -336,7 +337,10 @@ test("what its land's count brings a town watched is lived on the days of the ye
         table = placeTable(place, lifeOf(w));
       for (const x of waits()) {
         if (x.what === "born" || x.what === "come") table[x.a]!++;
-        else {
+        else if (x.what === "bear") {
+          // (A child of its own due to her: of its sex, the youngest band, no trade.)
+          if (placeIndexOf(place, x.a) >= 0) table[x.b * lifeOf(w).bands.length * 7]!++;
+        } else {
           const i = placeIndexOf(place, x.a);
           if (i < 0) continue;
           const p = place.people,
@@ -368,15 +372,21 @@ test("what its land's count brings a town watched is lived on the days of the ye
     lived = due.filter((x) => x.t <= place.t),
     count = (what: number) => told.filter((x) => x.what === what).length,
     of = (what: string) => lived.filter((x) => x.what === what).length;
-  // (A month's own turn may bring a few more of its own: no fewer than the year's so far, and not many more.)
-  assert.ok(
-    count(HAP.born) >= of("born") && count(HAP.born) <= of("born") + 6,
-    `${count(HAP.born)} born of ${of("born")}`,
+  // (And what it lives of its own, day by day: placeOwn. Nothing besides: a month's turn holds each band to its own.)
+  const own = placeOwn(place);
+  assert.equal(
+    count(HAP.born),
+    of("born") + own.born,
+    `${count(HAP.born)} born of ${of("born")} and ${own.born}`,
   );
   const died = told.filter((x) => [HAP.died, HAP.famine, HAP.plague].includes(x.what as never));
   assert.ok(
-    died.length >= of("die") - 2 && died.length <= of("die") + 6,
-    `${died.length} died of ${of("die")}`,
+    died.length >= of("die") + own.died - 2 && died.length <= of("die") + own.died + 2,
+    `${died.length} died of ${of("die")} and ${own.died}`,
+  );
+  assert.ok(
+    own.born > 0 && own.died > 0,
+    `its own, day by day: ${own.born} born, ${own.died} dead`,
   );
   assert.ok(
     of("born") + of("die") + of("come") + of("leave") > 3,
@@ -387,8 +397,8 @@ test("what its land's count brings a town watched is lived on the days of the ye
   );
   if (count(HAP.born) > 3) assert.ok(bornDays.size > 2, "births on days of their own");
   assert.ok(
-    off() <= Math.max(10, place.people.n / 50),
-    `still its town's, with what waits (${off()})`,
+    off() <= Math.max(10, place.people.n / 50) + own.born + own.died,
+    `still its town's, with what waits and what it lived of its own (${off()})`,
   );
   // A newborn is born that day, to one who bears; the log names her, and her page tells of the child.
   const birth = told.find((x) => x.what === HAP.born && x.a > 0);
@@ -429,37 +439,49 @@ test("households are pairs and their young; two friends grown and unpaired are p
   const w = copy(base()),
     s = near(w, 600),
     place = enterPlace(w, s.ref)!,
-    p = place.people,
     grown = lifeOf(w).adulthood;
   // As made: in each household its grown men and women are paired one to one, each the other's.
   let pairs = 0;
-  for (let i = 0; i < p.n; i++) {
+  for (let i = 0; i < place.people.n; i++) {
     const m = placeMate(place, i);
     if (!m) continue;
     const j = placeIndexOf(place, m.id);
-    assert.ok(j >= 0 && placeMate(place, j)!.id === p.id[i] && p.house[j] === p.house[i]);
-    assert.ok(p.sexOcc[i]! >> 4 !== p.sexOcc[j]! >> 4);
-    assert.ok((place.t / DAY - p.born[i]!) / 365 >= grown);
+    assert.ok(
+      j >= 0 &&
+        placeMate(place, j)!.id === place.people.id[i] &&
+        place.people.house[j] === place.people.house[i],
+    );
+    assert.ok(place.people.sexOcc[i]! >> 4 !== place.people.sexOcc[j]! >> 4);
+    assert.ok((place.t / DAY - place.people.born[i]!) / 365 >= grown);
     pairs++;
   }
   assert.ok(pairs > 40, `${pairs / 2} pairs`);
   // Two grown and unpaired of two households, made friends: promised within a day, paired within the month.
   const free: number[] = [];
-  for (let i = 0; i < p.n; i++)
-    if (!p.mate[i] && (place.t / DAY - p.born[i]!) / 365 >= grown + 1 && !p.friend[i]) free.push(i);
+  for (let i = 0; i < place.people.n; i++)
+    if (
+      !place.people.mate[i] &&
+      (place.t / DAY - place.people.born[i]!) / 365 >= grown + 1 &&
+      !place.people.friend[i]
+    )
+      free.push(i);
   let a = -1,
     b = -1;
   for (const i of free)
     for (const j of free)
-      if (a < 0 && p.sexOcc[i]! >> 4 !== p.sexOcc[j]! >> 4 && p.house[i] !== p.house[j]) {
+      if (
+        a < 0 &&
+        place.people.sexOcc[i]! >> 4 !== place.people.sexOcc[j]! >> 4 &&
+        place.people.house[i] !== place.people.house[j]
+      ) {
         a = i;
         b = j;
       }
   assert.ok(a >= 0, "two free to pair");
-  const ida = p.id[a]!,
-    idb = p.id[b]!;
-  p.friend[a] = idb;
-  p.friend[b] = ida;
+  const ida = place.people.id[a]!,
+    idb = place.people.id[b]!;
+  place.people.friend[a] = idb;
+  place.people.friend[b] = ida;
   watch(w, s.ref, 26, 1);
   assert.equal(placeMate(place, placeIndexOf(place, ida))?.promised, true);
   assert.ok(placeDue(place).some((x) => x.what === "pair"));
@@ -474,7 +496,7 @@ test("households are pairs and their young; two friends grown and unpaired are p
   if (i >= 0 && j >= 0) {
     assert.equal(placeMate(place, i)?.id, idb);
     assert.equal(placeMate(place, j)?.id, ida);
-    assert.equal(p.house[i], p.house[j], "one household");
+    assert.equal(place.people.house[i], place.people.house[j], "one household");
     assert.ok(place.log.some((x) => x.what === HAP.paired));
     const page = JSON.stringify(pageOf(w, placeWho(w, place)(i).ref));
     assert.ok(/Paired with/.test(page) && /were paired/.test(page) && /A pair: /.test(page));
@@ -482,7 +504,7 @@ test("households are pairs and their young; two friends grown and unpaired are p
   }
   let members = 0;
   for (let h = 0; h < place.houses.n; h++) members += place.houses.members[h]!;
-  assert.equal(members, p.n, "every one is of one household");
+  assert.equal(members, place.people.n, "every one is of one household");
 });
 
 test("at a burial a household stands by where the town buries its dead", () => {

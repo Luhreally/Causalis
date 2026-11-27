@@ -284,10 +284,19 @@ export class PlaceInspector {
     } else if (this.tab === "mood") {
       const list = el("div", "place-insp-thoughts");
       for (const t of x.thoughts) {
-        const row = el("div", `place-insp-thought ${t.size >= 0 ? "up" : "down"}`);
+        // (Each with whom or what it came of under it; one of the town's people or its lots a tap away.)
+        const go = !!t.from?.ref,
+          row = el(
+            go ? "button" : "div",
+            `place-insp-thought ${t.size >= 0 ? "up" : "down"}${go ? " go" : ""}`,
+          ),
+          words = el("span", "place-insp-thought-words", t.words);
+        if (t.from)
+          words.append(el("span", "place-insp-thought-from", t.from.name));
+        if (go) row.onclick = () => this.onInspect(t.from!.ref!);
         row.append(
           el("span", "place-insp-thought-icon", t.icon),
-          el("span", "place-insp-thought-words", t.words),
+          words,
           el("span", "place-insp-thought-size", signed(t.size)),
           el(
             "span",
@@ -297,7 +306,11 @@ export class PlaceInspector {
         );
         list.append(row);
       }
-      body.push(list, el("p", "place-insp-why", `Temper: ${x.temper}.`));
+      body.push(
+        list,
+        el("p", "place-insp-why", `Temper: ${x.temper}. Nature: ${x.nature}.`),
+        el("p", "place-insp-why", `${x.values}.`),
+      );
     } else if (this.tab === "skills") {
       if (!x.skills.length) body.push(el("p", "place-insp-why", "A child: they keep no work yet."));
       else {
@@ -394,6 +407,8 @@ export class PlaceInspector {
           ["Trade", `${cap(x.trade)}${x.bound ? `; held by order: ${x.bound}` : ""}`, null],
           ...(x.skill ? [["Skill", x.skill, null] as const] : []),
           ["Temper", x.temper, null],
+          ["Nature", x.nature, null],
+          ["Values", x.values, null],
           ...(x.mark ? [["Bears", x.mark, null] as const] : []),
         ]),
       );

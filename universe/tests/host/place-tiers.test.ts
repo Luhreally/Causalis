@@ -121,7 +121,8 @@ test("its notables and their households in full, the caught up and their friends
   placePin(place, id, null);
   assert.equal(place.pins, undefined);
   // (Two bytes a person for it.)
-  assert.ok(PERSON_BYTES <= 182, `${PERSON_BYTES} bytes a person`);
+  // (183 since the tissue a wound reached, a byte, 2026-11-26.)
+  assert.ok(PERSON_BYTES <= 183, `${PERSON_BYTES} bytes a person`);
 });
 
 test("the tiers and those followed by word are kept in the save and go on the same in another process", () => {

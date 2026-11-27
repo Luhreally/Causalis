@@ -1972,3 +1972,4 @@ export * from "./locked.ts";
 export * from "./skies.ts";
 export * from "./seaice.ts";
 export * from "./disabled.ts";
+export * from "./tissues.ts";

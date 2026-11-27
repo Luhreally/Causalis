@@ -159,6 +159,17 @@ import {
   WANTS,
   WAY,
   ownLeaning,
+  ownNature,
+  TEMPER,
+  TISSUES,
+  tissueOf,
+  tissuePain,
+  tissueMends,
+  tissueTakes,
+  type Tissue,
+  qualityOf,
+  type Edge,
+  WAY_TRAITS,
   bandOf,
   tendedBy,
   coatOf,
@@ -226,6 +237,7 @@ import { battleWords, battlesOfYear, townTally } from "./burials.ts";
 import { linesOf, townRoster, workOf as lineWork, folkWork } from "./roster.ts";
 import { strikesOn, townPlan } from "./town.ts";
 import { townFieldsMeant, townSite } from "./village.ts";
+import { landCloth, toolMade, townStuff } from "./chain.ts";
 
 // —— Measures ————————————————————————————————————————————————————————————————————————————————————————————————————
 
@@ -406,6 +418,8 @@ export const HAP = {
   freed: 38,
   executed: 39,
   madeWork: 40,
+  /** Stole from another household, in want (a: one of it; b: the food taken, millionths; items: the thing taken). */
+  stole: 41,
 } as const;
 /** The happenings that are a death. */
 const HAP_DEATH: ReadonlySet<number> = new Set([1, 5, 17, 19, 21, 22, 34, 35, 39]);
@@ -453,6 +467,7 @@ const HAP_WORDS = [
   "was let go, their term served",
   "was put to death by the town's justice",
   "made a work",
+  "stole from another household",
 ];
 
 /** The place's draws: through the world's Rng, on a stream no registry holds (it is no part of the ruleset's identity). */
@@ -491,6 +506,9 @@ const P = {
   brk: 27,
   judge: 28,
   art: 29,
+  vital: 30,
+  gear: 31,
+  theft: 32,
 } as const;
 
 const NEEDS = 4;
@@ -623,6 +641,12 @@ type People = {
    * always for one in full. A byte.
    */
   reck: Uint8Array;
+  /**
+   * The tissue their wound reached (asked 2026-11-26: "members and tissues"; rules/tissues.ts TISSUES' place + 1; 0: no
+   * wound, or one dealt before tissues were): it sets how much the wound hurts, how long it mends and what of its member's
+   * work it takes. A byte, kept while it mends; a scar's or a lame limb's is in `mark`.
+   */
+  tissue: Uint8Array;
 };
 /**
  * The kinds of work one's hours are counted at (N6): the six trades' own, in OCCUPATIONS' order past the dependent's (a
@@ -706,7 +730,9 @@ export const PERSON_BYTES =
   // (N9: a wound's bleeding, the blood lost, its festering.)
   3 +
   // (Tiers: how closely they are followed, and how far into their stride their needs are reckoned.)
-  2;
+  2 +
+  // (The tissue a wound reached.)
+  1;
 
 function peopleOf(cap: number): People {
   return {
@@ -751,6 +777,7 @@ function peopleOf(cap: number): People {
     fester: new Uint8Array(cap),
     tier: new Uint8Array(cap),
     reck: new Uint8Array(cap),
+    tissue: new Uint8Array(cap),
   };
 }
 const PEOPLE_COLS = [
@@ -794,6 +821,7 @@ const PEOPLE_COLS = [
   "fester",
   "tier",
   "reck",
+  "tissue",
 ] as const;
 type Col = (typeof PEOPLE_COLS)[number];
 const widthOf = (c: Col) =>
@@ -1067,10 +1095,42 @@ export type Place = {
    * -1: till it is unsaid). Absent: none.
    */
   pins?: number[];
+  /**
+   * What only those followed in full keep (asked 2026-11-26: "deeper full-tier state"), by their number: what they
+   * remember, every one of it with whom or what it came of (DEEP_THOUGHTS of it). Filled from what they were (their
+   * column's memories, their household, their ties and the place's log) when they come into full, and let go of to their
+   * columns when they leave it. Absent: none in full yet.
+   */
+  deep?: Map<number, Deep>;
+  /**
+   * What it has lived of its own this year (vitalDay): its year, and how many were born and died so of it. Its town's count
+   * is that year's turn's: its people are the count with these, and with what waits. Absent: none yet.
+   */
+  vital?: number[];
 };
 
-/** What waits in a place's `due`: a death, a leaving, a birth, a coming, a burial, a pairing. */
-export const DUE = { die: 1, leave: 2, born: 3, come: 4, bury: 5, pair: 6 } as const;
+/**
+ * What waits in a place's `due`: a death, a leaving, a birth, a coming, a burial, a pairing; and a birth to one who bears
+ * (vitalDay: `a` her number, `b` the child's sex).
+ */
+export const DUE = { die: 1, leave: 2, born: 3, come: 4, bury: 5, pair: 6, bear: 7 } as const;
+/** A death due that a year's turn brought (a bit of its `b`): of the year gone's count. */
+const DUE_GONE = 1 << 16;
+/** A death due of the place's own (vitalDay; a bit of its `b`): lived, it is of its year's `vital`. */
+const DUE_OWN = 1 << 17;
+/** One more born (0) or dead (1) of a place's own this year. */
+function vitalCount(place: Place, k: 0 | 1): void {
+  const year = Math.floor(place.t / YEAR);
+  if (!place.vital || place.vital[0] !== year) place.vital = [year, 0, 0];
+  place.vital[1 + k]!++;
+}
+/** What a place has lived of its own this year (vitalDay): born and dead. */
+export function placeOwn(place: Place): { born: number; died: number } {
+  const v = place.vital;
+  return v && v[0] === Math.floor(place.t / YEAR)
+    ? { born: v[1]!, died: v[2]! }
+    : { born: 0, died: 0 };
+}
 /** One promised to their friend: their pairing is set for a day to come. */
 const PROMISED = 0xffffffff;
 
@@ -1665,6 +1725,8 @@ export class PlaceStore implements StateStore {
         plague: p.plague,
         counts: p.counts,
         tolls: p.tolls,
+        ...(p.deep?.size ? { deep: deepSaved(p.deep) } : {}),
+        ...readingsSaved(p),
         gone: p.gone,
         fire: p.fire,
         wars: p.wars,
@@ -1685,6 +1747,7 @@ export class PlaceStore implements StateStore {
         ...(p.held?.length ? { held: p.held } : {}),
         ...(p.works?.length ? { works: p.works } : {}),
         ...(p.pins?.length ? { pins: p.pins } : {}),
+        ...(p.vital ? { vital: p.vital } : {}),
         ...(UNPAIRED.has(p) ? { unpaired: true } : {}),
         // (Read from a save kept before skill was, and not brought on since: still to be reckoned.)
         ...(UNSKILLED.has(p) ? { unskilled: true } : {}),
@@ -1782,7 +1845,12 @@ export class PlaceStore implements StateStore {
         ...(raw.held ? { held: [...(raw.held as number[])] } : {}),
         ...(raw.works ? { works: [...(raw.works as number[])] } : {}),
         ...(raw.pins ? { pins: [...(raw.pins as number[])] } : {}),
+        ...(raw.vital ? { vital: [...(raw.vital as number[])] } : {}),
+        ...(raw.deep
+          ? { deep: deepLoaded(raw.deep as { n: number[]; stuffs: string[] }) }
+          : {}),
       });
+      readingsLoaded(this.places.at(-1)!, raw);
       if (unskilled) UNSKILLED.add(this.places.at(-1)!);
       if (!cols.taught || raw.untaught === true) UNTAUGHT.add(this.places.at(-1)!);
       if (!cols.mate || raw.unpaired === true) UNPAIRED.add(this.places.at(-1)!);
@@ -1848,6 +1916,12 @@ export function placeDigest(p: Place): string {
     p.rite,
   ].flat())
     h.int(list);
+  // (What only those in full keep: hashed only where any is kept, so a place kept before it is told as it was.)
+  if (p.deep?.size) {
+    const d = deepSaved(p.deep);
+    for (const x of d.n) h.int(x);
+    for (const x of d.stuffs) h.string(x);
+  }
   for (const x of p.houses.means) h.float(x);
   for (const x of [...p.matched.made, ...p.matched.wage]) h.float(x);
   for (const x of p.log)
@@ -1870,6 +1944,7 @@ export function placeDigest(p: Place): string {
     h.int(p.pins.length);
     for (const x of p.pins) h.int(x);
   }
+  if (p.vital) for (const x of p.vital) h.int(x);
   h.string(p.ordered)
     .string(p.sited)
     .string(p.plague)
@@ -2362,6 +2437,16 @@ function addPerson(place: Place, sex: number, occ: number, born: number, house: 
   p.taught[i] = 0;
   p.tie.fill(0, i * TIES, (i + 1) * TIES);
   p.regard.fill(0, i * TIES, (i + 1) * TIES);
+  // (A wound's bleeding, the blood lost and its festering, and their tier: none. The slot is the one the last of the
+  // place's people was moved out of when another was let go, and kept what they had: a child born bleeding of another's
+  // wound, or raised into full with another's ticks of work already done.)
+  p.bleed[i] =
+    p.blood[i] =
+    p.fester[i] =
+    p.tier[i] =
+    p.reck[i] =
+    p.tissue[i] =
+      0;
   place.houses.members[house]!++;
   return i;
 }
@@ -2369,6 +2454,7 @@ function addPerson(place: Place, sex: number, occ: number, born: number, house: 
 function removePerson(place: Place, i: number): void {
   const p = place.people,
     last = p.n - 1;
+  place.deep?.delete(p.id[i]!);
   place.houses.members[p.house[i]!]!--;
   // (No one of the place is their friend any more.)
   // (And the one they were paired with, or promised to, is alone again.)
@@ -2635,6 +2721,8 @@ function note(
   b = 0,
   /** Their place among its people, where they are gone with this: they are named by it after. */
   gone = -1,
+  /** The year a death is counted to (its land's count's): the year it is told in, but for one a year's turn brought. */
+  year = Math.floor(place.t / YEAR),
 ): void {
   const p = place.people;
   if (HAP_DEATH.has(what))
@@ -2643,6 +2731,7 @@ function note(
       what,
       what === HAP.struckDead || what === HAP.fell || what === HAP.plague ? a : 0,
       1,
+      year,
     );
   remembered(place, what, id, a, b, gone);
   place.log.push(
@@ -2678,10 +2767,16 @@ export const stewardDraw = (world: World, place: Place, id: number, k: number): 
   world.rng.unit(PLACE_DRAW, place.key ^ id, 0, P.steward, k);
 
 /** So many more counted of a kind (place.counts), this year; those of before last year let go. */
-function counted(place: Place, what: number, of: number, n: number): void {
-  const year = Math.floor(place.t / YEAR),
-    c = place.counts;
-  for (let k = c.length - 4; k >= 0; k -= 4) if (c[k]! < year - 1) c.splice(k, 4);
+function counted(
+  place: Place,
+  what: number,
+  of: number,
+  n: number,
+  year = Math.floor(place.t / YEAR),
+): void {
+  const c = place.counts,
+    now = Math.floor(place.t / YEAR);
+  for (let k = c.length - 4; k >= 0; k -= 4) if (c[k]! < now - 1) c.splice(k, 4);
   for (let k = 0; k < c.length; k += 4)
     if (c[k] === year && c[k + 1] === what && c[k + 2] === of) return void (c[k + 3]! += n);
   c.push(year, what, of, n);
@@ -2751,6 +2846,13 @@ function matchPeople(
    * once, as a place come back to is matched.
    */
   spread = 0,
+  /**
+   * Whether each sex and band is held to the place's own (a month's turn while it is watched): it lives its births and
+   * deaths day by day (vitalDay), so a month's turn only moves its people between trades. Its town's count is reckoned
+   * once a year; its land's month moves the shape of it, and that shape brought its land's births again on a month's
+   * turn, and told its old as gone where they had died.
+   */
+  hold = false,
 ): void {
   const target = targetTable(world, s, place),
     now = placeTable(place, f.life),
@@ -2772,13 +2874,32 @@ function matchPeople(
   for (let k = 0; k < place.due.length; k += 4) {
     const what = place.due[k + 1]!;
     if (what === DUE.born || what === DUE.come) now[place.due[k + 2]!]!++;
-    else if (what === DUE.die || what === DUE.leave) {
+    else if (what === DUE.bear) {
+      if (placeIndexOf(place, place.due[k + 2]!) >= 0)
+        now[place.due[k + 3]! * BANDS * OCCS + OCC.dependent]!++;
+    } else if (what === DUE.die || what === DUE.leave) {
       const i = placeIndexOf(place, place.due[k + 2]!);
       if (i < 0) continue;
       now[cellOf(i)]!--;
       waiting.add(p().id[i]!);
     }
   }
+  if (hold)
+    for (let r = 0; r < ROWS; r++) {
+      let want = 0,
+        of = 0;
+      for (let o = 0; o < OCCS; o++) {
+        want += Math.max(0, now[r * OCCS + o]!);
+        of += target[r * OCCS + o]!;
+      }
+      // (So many of each as the place has, shared among the trades as its town's count shares them; a band its town's
+      // count has none of, as the place has them.)
+      const split =
+        of > 0
+          ? apportion(want, target.slice(r * OCCS, (r + 1) * OCCS))
+          : now.slice(r * OCCS, (r + 1) * OCCS).map((x) => Math.max(0, x));
+      for (let o = 0; o < OCCS; o++) target[r * OCCS + o] = split[o]!;
+    }
   let changed = false;
   const lean = (place.matched.fed ?? 1000) < LEAN;
   // (Of each band of its land, the share that died in the year gone, as its land's history counted them: a lean year's
@@ -2852,7 +2973,8 @@ function matchPeople(
         // (One starved, or dead of a sickness, is told at once, as what threatens a town is; one dead in their time, on a
         // day of the year to come.)
         if (spread > 0 && what === HAP.died) {
-          dueIn(world, place, spread, id, DUE.die, id, what | (of << 8));
+          // (Counted, when told, to the year gone whose count brought it: DUE_GONE.)
+          dueIn(world, place, spread, id, DUE.die, id, what | (of << 8) | DUE_GONE);
           waiting.add(id);
           continue;
         }
@@ -3177,10 +3299,15 @@ function liveDue(world: World, place: Place, f: Frame, all = false): void {
         h = p.house[i]!;
       if (what === DUE.leave) note(place, HAP.left, a, age, occOf(p, i), i);
       else {
-        const told = b & 255;
-        if (told === HAP.plague) note(place, HAP.plague, a, b >> 8, age, i);
-        else if (told === HAP.famine) note(place, HAP.famine, a, age, 0, i);
-        else note(place, HAP.died, a, age, occOf(p, i), i);
+        const told = b & 255,
+          // (One a year's turn brought is of the year gone's count: told now, counted to it, so the next turn's quota
+          // does not take them off what it brings. Counted to the year told in, every other year's turn brought a year's
+          // dead and the next almost none.)
+          year = Math.floor(place.t / YEAR) - (b & DUE_GONE ? 1 : 0);
+        if (told === HAP.plague) note(place, HAP.plague, a, (b >> 8) & 255, age, i, year);
+        else if (told === HAP.famine) note(place, HAP.famine, a, age, 0, i, year);
+        else note(place, HAP.died, a, age, occOf(p, i), i, year);
+        if (b & DUE_OWN) vitalCount(place, 1);
         place.houses.grief[h] = day;
         // (Buried the next morning, two hours before the middle of the day.)
         if (!all) dueAt(place, (day + 1) * DAY + 10 * HOUR, DUE.bury, a, h * 2 + sexOf(p, i));
@@ -3231,6 +3358,18 @@ function liveDue(world: World, place: Place, f: Frame, all = false): void {
         occ,
       );
       changed = true;
+    } else if (what === DUE.bear) {
+      // (Born to her, into her household: vitalDay.)
+      const m = placeIndexOf(place, a);
+      if (m < 0) continue;
+      const id = place.nextId,
+        i = addPerson(place, b, OCC.dependent, Math.floor(place.t / DAY), p.house[m]!);
+      place.people.skill[i] = skillAt(f, 0, OCC.dependent);
+      teach(place, i);
+      workOf(world, place, i);
+      note(place, HAP.born, id, a, OCC.dependent);
+      vitalCount(place, 0);
+      changed = true;
     } else if (what === DUE.bury) {
       const h = b >> 1;
       place.rite = [graveLot(place), place.t + 2 * HOUR, h];
@@ -3275,6 +3414,90 @@ function liveDue(world: World, place: Place, f: Frame, all = false): void {
   if (changed) reckonMeans(world, place);
 }
 
+/** The better part of a year a young is carried (rules/children.ts BEARING: carried so, and nursed two more). */
+const CARRIED = Math.round(0.75 * YEAR);
+/**
+ * A day's births and deaths in a place watched (asked 2026-11-26: a town of 5,492 told none in a month, and in the year
+ * after it was entered one dead a month where its land's count has a dozen). Its town's count is reckoned once a year,
+ * and a year's turn brought the year gone's to be lived over the year to come: a town entered after a turn lived next to
+ * none of its own year, and its dead were told as having left. Now each of its people dies on a day by their band's
+ * share of its land's dead in the year gone (its land's own count, as a year's turn reads it: rules of no new number),
+ * and each who bears gives birth by her band's share of its land's births that year, the more the more her band bears
+ * (its life table's fertility), into her own household; a child a girl by its land's own youngest. What it lives so is
+ * counted against what the next year's turn brings: the dead told this year come off its quota, and a band's newborn come
+ * short by as many as were born; between two turns a month's matching holds each band to the place's own (matchPeople
+ * `hold`), so nothing is brought twice. Each by a draw keyed on who they are and the day, the same in every tier.
+ */
+function vitalDay(world: World, place: Place, f: Frame): void {
+  const ctx = populationContext(world),
+    land = ctx.provinces.get(place.cell),
+    p = place.people;
+  if (!land || p.n === 0) return;
+  const year = Math.floor(place.t / YEAR) - 1,
+    life = f.life,
+    dies = new Float64Array(BANDS),
+    bears = new Float64Array(BANDS);
+  let weight = 0,
+    young = 0;
+  for (let b = 0; b < BANDS; b++) {
+    let alive = 0;
+    for (let sex = 0; sex < SEXES; sex++) alive += land.counts.rowSum(sex * BANDS + b);
+    const dead = ctx.history.deathsIn(place.cell, year, b);
+    dies[b] = alive + dead > 0 ? dead / (alive + dead) / 365 : 0;
+    weight += land.counts.rowSum(FEMALE * BANDS + b) * (life.fertility[b] ?? 0);
+  }
+  const births = ctx.history.birthsIn(place.cell, year);
+  for (let b = 0; b < BANDS; b++)
+    bears[b] = weight > 0 ? (births * (life.fertility[b] ?? 0)) / weight / 365 : 0;
+  for (let sex = 0; sex < SEXES; sex++) young += land.counts.rowSum(sex * BANDS);
+  const girl = young > 0 ? land.counts.rowSum(FEMALE * BANDS) / young : 0.5;
+  // (One due to die or to leave already is not drawn again.)
+  let due: Set<number> | null = null;
+  for (let k = 0; k < place.due.length; k += 4)
+    if (place.due[k + 1] === DUE.die || place.due[k + 1] === DUE.leave)
+      (due ??= new Set()).add(place.due[k + 2]!);
+  // (One who has borne a child within the better part of a year carries none yet: rules/children.ts BEARING.)
+  const bore = new Set<number>();
+  for (const x of place.log)
+    if (x.what === HAP.born && x.a && x.t > place.t - CARRIED) bore.add(x.a);
+  const dead: number[] = [],
+    mothers: number[] = [];
+  for (let i = 0; i < p.n; i++) {
+    const id = p.id[i]!;
+    if (due?.has(id)) continue;
+    const band = bandOf(ageOf(p, i, place.t), life);
+    if (
+      dies[band]! > 0 &&
+      world.rng.unit(PLACE_DRAW, place.key ^ id, place.t, P.vital, 0) < dies[band]!
+    )
+      dead.push(id);
+    else if (
+      sexOf(p, i) === FEMALE &&
+      bears[band]! > 0 &&
+      !bore.has(id) &&
+      world.rng.unit(PLACE_DRAW, place.key ^ id, place.t, P.vital, 1) < bears[band]!
+    )
+      mothers.push(id);
+  }
+  // (Each on a tick of the day by a draw, lived as what waits is (liveDue): a death told as one in their time, their
+  // household grieving and their burial the next morning; a birth into her household.)
+  const at = (id: number, k: number) =>
+    place.t +
+    Math.floor(
+      world.rng.unit(PLACE_DRAW, place.key ^ id, place.t, P.vital, k) * (DAY / PLACE_TICK),
+    ) *
+      PLACE_TICK;
+  for (const id of mothers)
+    dueAt(
+      place,
+      at(id, 3),
+      DUE.bear,
+      id,
+      world.rng.unit(PLACE_DRAW, place.key ^ id, place.t, P.vital, 2) < girl ? FEMALE : 1 - FEMALE,
+    );
+  for (const id of dead) dueAt(place, at(id, 4), DUE.die, id, HAP.died | DUE_OWN);
+}
+
 /** The place matched to the world as it is now: its numbers for the ticks to come, its people, its stocks. */
 function reconcile(
   world: World,
@@ -3315,6 +3538,8 @@ function reconcile(
     turned || !!came,
     // (A year's turn's, over the year to come but for its last weeks; a month's, over the month but for its last days.)
     !watched ? 0 : turned ? YEAR - 40 * DAY : 28 * DAY,
+    // (Watched between two years' turns: its births and deaths are its own, lived day by day.)
+    watched && !turned,
   );
   // (The dead of a sickness are named at the matching it came by, and no later: its count is not kept for other deaths.)
   for (let k = place.tolls.length - 2; k >= 0; k -= 2)
@@ -3555,11 +3780,16 @@ function wound(world: World, place: Place, i: number, cause: number): void {
     r = (k: number) => world.rng.unit(PLACE_DRAW, place.key ^ p.id[i]!, place.t, P.wound, k),
     member = memberOf(hurtWeights(f.anatomy, blow), r(0)),
     outcome = outcomeOf(member, blow, care, r(1)),
+    // (The tissue it reached, by the draw it bleeds by: the deeper, the harder. rules/tissues.ts.)
+    tissue = tissueOf(blow, member, r(3)),
     days = healDays(outcome, member, blow, care, tendedOf(place, i));
   p.health[i] = 1;
+  p.tissue[i] = TISSUES.indexOf(tissue) + 1;
   // (What it was of, and the member it was to, eight times over: bound while it mends, that member does none of its share.)
   p.cause[i] = cause | ((MEMBERS.indexOf(member) + 1) << 3);
-  p.ill[i] = days.abed * 144;
+  p.ill[i] =
+    Math.max(1, Math.round(days.abed * tissueMends(blow, member, tissue))) *
+    144;
   // (It bleeds as hard as the blow opened it, and is neither dressed nor yet seen to fester or not: N9. A wound brought
   // home from a battle was dressed on the field, and bled there.)
   p.bleed[i] =
@@ -3601,7 +3831,9 @@ export function placeSettled(place: Place): number {
   for (let k = 0; k < place.due.length; k += 4) {
     const what = place.due[k + 1]!;
     if (what === DUE.born || what === DUE.come) n++;
-    else if (
+    else if (what === DUE.bear) {
+      if (placeIndexOf(place, place.due[k + 2]!) >= 0) n++;
+    } else if (
       (what === DUE.die || what === DUE.leave) &&
       placeIndexOf(place, place.due[k + 2]!) >= 0
     )
@@ -3611,7 +3843,7 @@ export function placeSettled(place: Place): number {
 }
 /** What waits for a place to live it (its `due`), as tests and tools read it: when, and what. */
 export function placeDue(place: Place): { t: number; what: string; a: number; b: number }[] {
-  const names = ["", "die", "leave", "born", "come", "bury", "pair"],
+  const names = ["", "die", "leave", "born", "come", "bury", "pair", "bear"],
     out: { t: number; what: string; a: number; b: number }[] = [];
   for (let k = 0; k < place.due.length; k += 4)
     out.push({
@@ -3655,7 +3887,15 @@ export function woundTakes(
   if (!lame && !bound) return { going: 0, handling: 0 };
   const f = frameFor(world, place, i),
     a = lame ? limbShare(lame, f.legs, f.arms) : { going: 0, handling: 0 },
-    b = bound && bound !== lame ? limbShare(bound, f.legs, f.arms) : { going: 0, handling: 0 };
+    b0 =
+      bound && bound !== lame
+        ? limbShare(bound, f.legs, f.arms)
+        : { going: 0, handling: 0 },
+    // (A member bound while it mends does none of its share where its bone was broken, a little where only its skin was
+    // cut: rules/tissues.ts. One dealt before tissues were, all of it.)
+    t = tissueAt(p, i),
+    by = bound && t ? tissueTakes(t) : 1,
+    b = { going: b0.going * by, handling: b0.handling * by };
   return { going: Math.min(1, a.going + b.going), handling: Math.min(1, a.handling + b.handling) };
 }
 /** How many times as long a walk takes one for it (1: as long as anyone; never more than four times). */
@@ -4475,6 +4715,7 @@ export function placeTemper(place: Place, i: number): PlaceTemper {
     way = (k: number) => w?.[k] ?? 0.5,
     who = place.key ^ place.people.id[i]!,
     born = place.people.born[i]!;
+  // (Each half their land's way and half a facet of their own nature: FACETS, in the leanings' order.)
   return {
     kin: ownLeaning(who, born, way(WAY.kinship), 11),
     bidden: ownLeaning(who, born, way(WAY.hierarchy), 12),
@@ -4483,6 +4724,72 @@ export function placeTemper(place: Place, i: number): PlaceTemper {
     bold: ownLeaning(who, born, way(WAY.valour), 15),
   };
 }
+/**
+ * One's own nature (asked 2026-11-26: "a handful of facets that drive the existing temper"), six facets each 0 … 1, drawn
+ * once from who they are, as their temper's own half is (rules/temper.ts ownNature): warmth (the own half of how close
+ * they hold their kin), deference (of how they take being bidden), zest (of how they lean on company), prudence (of how
+ * they set store by plenty), nerve (of how boldly they bear hardship), and wonder: how far they take to those unlike them
+ * and to new ways, which no leaning of their land's carries. A temper is its land's ways met by these.
+ */
+export const FACETS = [
+  "warmth",
+  "deference",
+  "zest",
+  "prudence",
+  "nerve",
+  "wonder",
+] as const;
+export function placeFacets(place: Place, i: number): number[] {
+  const who = place.key ^ place.people.id[i]!,
+    born = place.people.born[i]!;
+  return [11, 12, 13, 14, 15, 16].map((salt) => ownNature(who, born, salt));
+}
+/**
+ * What one holds dear (asked 2026-11-26: "values that colour ties, quarrels and breaks"): their land's eight ways
+ * (rules/ways.ts: kin, rank, the gods, valour, trade, strangers, custom, thrift), each half their land's and half their
+ * own (a draw of who they are). Two alike in them take to each other the more, two who hold one dear at opposite ends
+ * come to words over it the oftener, and one who holds the gods dear breaks down at their altar.
+ */
+export const VALUES_N = WAY_TRAITS.length;
+export function placeValues(
+  place: Place,
+  i: number,
+  out = new Float64Array(VALUES_N),
+): Float64Array {
+  const w = place.matched.ways,
+    who = place.key ^ place.people.id[i]!,
+    born = place.people.born[i]!;
+  for (let k = 0; k < VALUES_N; k++)
+    out[k] = ownLeaning(who, born, w?.[k] ?? 0.5, 30 + k);
+  return out;
+}
+/**
+ * How far two hold one of their values at opposite ends of it, 0 … 1 (`at`, where given, set to which): each one's
+ * distance from their land's middle (its way), the product where they lie on two sides, against the most two can.
+ */
+export function valueClash(
+  a: ArrayLike<number>,
+  b: ArrayLike<number>,
+  ways: readonly number[] | undefined,
+  at?: { k: number },
+): number {
+  let most = 0;
+  for (let k = 0; k < VALUES_N; k++) {
+    const m =
+        (1 - TEMPER_OWN) * Math.max(0, Math.min(1, ways?.[k] ?? 0.5)) +
+        TEMPER_OWN / 2,
+      x = (-(a[k]! - m) * (b[k]! - m)) / ((TEMPER_OWN / 2) * (TEMPER_OWN / 2));
+    if (x > most) {
+      most = x;
+      if (at) at.k = k;
+    }
+  }
+  return Math.min(1, most);
+}
+/** One's own half of a leaning (rules/temper.ts TEMPER.own). */
+const TEMPER_OWN = TEMPER.own;
+/** How far apart two drawn at random hold a value, on the mean: their own halves, E|U1 - U2| = 1/3 of it. */
+const VALUE_APART = TEMPER_OWN / 3;
 /** How much a thing weighs with one of a leaning, against most (1): half as much at the least, half as much again at the most. */
 export const leans = (x: number): number => 0.5 + x;
 
@@ -4507,22 +4814,511 @@ export const THOUGHT = {
   heldBy: 11,
   righted: 12,
   admired: 13,
+  /** A thing of theirs worn out and made anew (its maker), and robbed (the thief). */
+  newGear: 14,
+  robbed: 15,
 } as const;
 /** Days in which each kind fades to half. */
-const THOUGHT_HALF: readonly number[] = [0, 30, 60, 20, 30, 10, 3, 10, 5, 15, 5, 10, 10, 4];
+const THOUGHT_HALF: readonly number[] = [
+  0, 30, 60, 20, 30, 10, 3, 10, 5, 15, 5, 10, 10, 4, 10, 20,
+];
 const thoughtKind = (v: number): number => v >>> 24;
 const thoughtSize = (v: number): number => ((v >>> 16) & 255) - 128;
-const thoughtAge = (v: number, today: number): number => (today - (v & 0xffff)) & 0xffff;
+/**
+ * A memory's day is kept to its last thirteen bits (22 years; none is held past a year and a half: a size of 127 halved
+ * to a point in seven of its longest half-lives, 60 days); the three above them tell whom or what it came of apart
+ * (`srcTag`), so the same befalling one twice in a day from two of them is two things, and from one is one.
+ */
+const DAY_BITS = 0x1fff;
+const thoughtAge = (v: number, today: number): number =>
+  (today - (v & DAY_BITS)) & DAY_BITS;
+const thoughtTag = (v: number): number => (v >>> 13) & 7;
+/**
+ * Whom or what a memory came of (asked 2026-11-26: "each with its source"): one of the place's people by their number
+ * (1 …), a lot of it by its number (`srcLot`: -10 less it; its square, fields and walls so too), or nothing (0).
+ */
+export const srcLot = (lot: number): number => -10 - lot;
+export const lotOfSrc = (src: number): number => -10 - src;
+/** Three bits that tell sources apart (0: none). */
+const srcTag = (src: number): number =>
+  src ? 1 + ((Math.imul(src, 0x9e3779b1) >>> 0) % 7) : 0;
+/** How many memories one followed in full keeps, each with its source: as many as a colonist of RimWorld's holds at once. */
+export const DEEP_THOUGHTS = 24;
+/** What one followed in full keeps besides their columns (Place.deep). */
+export type Deep = {
+  /** Their memories, as their columns keep them (THOUGHTS' layout), and each one's source. */
+  readonly th: Uint32Array;
+  readonly src: Int32Array;
+  /**
+   * The things they hold, each its own (Item); the ticks of their own trade's work their tool's wear is reckoned to; and
+   * whether their things are filled yet (on coming into full, at their next day's turn).
+   */
+  items: Item[];
+  worked: number;
+  filled: boolean;
+};
+/**
+ * A thing one holds, each its own (asked 2026-11-26: "single items: material from the world's own stuffs, quality from the
+ * maker's skill and tools, the maker's name, and wear"): a tool of their trade (a farmer's, a herder's, a crafter's), a
+ * garment, their household's pot (its cook's). Of what its land makes such things of (host/chain.ts: its tools' stone or
+ * metal, its cloth, its clay), of a quality from that stuff, its land's craft at the work and its maker's years at it
+ * (rules/stuffs.ts qualityOf, Classic's tool's), by one of the town's own who makes such things (else bought in, or made
+ * at home), worn by use over the life its land's reckoning gives such things (rules/goods.ts WANTS: a tool four years of
+ * its trade's work), and made anew when worn out.
+ */
+export type Item = {
+  /** GEAR's. */
+  readonly k: number;
+  readonly stuff: string;
+  /** Quality, 5 … 99. */
+  readonly q: number;
+  /** Thousandths of its life used. */
+  wear: number;
+  /** Its maker: their number, their household's key and their sex (for their name, living or gone); 0: bought in. */
+  readonly maker: number;
+  readonly mk: number;
+  readonly ms: number;
+  /** The day it was made. */
+  readonly made: number;
+};
+export const GEAR = { tool: 1, garment: 2, pot: 3 } as const;
+/** The good each kind of thing is of. */
+const GEAR_GOOD: Readonly<Record<number, number>> = {
+  [GEAR.tool]: G.tools,
+  [GEAR.garment]: G.clothing,
+  [GEAR.pot]: G.pottery,
+};
+/** How long each lasts in use, days: its land's reckoning of what wears out a year (WANTS). */
+const gearLife = (k: number): number =>
+  Math.round(
+    365 /
+      (k === GEAR.tool
+        ? WANTS.toolsPerWorker
+        : k === GEAR.garment
+          ? WANTS.clothingPerPerson
+          : WANTS.potteryPerPerson),
+  );
+/**
+ * What a cloth and a fired clay take of a tool's measure of a stuff (keen, tough) for quality (est.: a cloth holds no edge;
+ * how well it is woven and wears is the most of it, as a pot's firing is).
+ */
+const CLOTH_EDGE: Edge = { keen: 0.45, tough: 0.5 },
+  CLAY_EDGE: Edge = { keen: 0.4, tough: 0.45 };
+/** What a place's things are made of this year: its tools' stuff and its edge, its cloth, its ware; its land's craft at each. */
+type Stuffs = {
+  readonly year: number;
+  readonly tool: { readonly name: string; readonly edge: Edge };
+  readonly cloth: string;
+  readonly ware: string;
+  readonly craft: Readonly<Record<number, number>>;
+};
+const STUFFS = new WeakMap<Place, Stuffs>();
+function stuffsOf(world: World, place: Place): Stuffs {
+  const year = Math.floor(place.t / YEAR),
+    was = STUFFS.get(place);
+  if (was && was.year === year) return was;
+  const made = toolMade(
+      world,
+      place.cell,
+      `place ${place.town}`,
+      year,
+      false,
+      place.town,
+    ),
+    town = townStuff(world, place.cell, year),
+    lore = loreOf(world),
+    craft = (w: "tools" | "clothing" | "pottery") =>
+      Math.min(1, Math.max(0, lore.effect(place.cell, w)));
+  const s: Stuffs = {
+    year,
+    tool: { name: made.stuff, edge: made.edge },
+    cloth: landCloth(world, place.cell).kind,
+    ware: town.clay.ware,
+    craft: {
+      [GEAR.tool]: craft("tools"),
+      [GEAR.garment]: craft("clothing"),
+      [GEAR.pot]: craft("pottery"),
+    },
+  };
+  STUFFS.set(place, s);
+  return s;
+}
+/** What a kind of thing is made of, and its measure. */
+function gearStuff(s: Stuffs, k: number): { name: string; edge: Edge } {
+  return k === GEAR.tool
+    ? s.tool
+    : k === GEAR.garment
+      ? { name: s.cloth, edge: CLOTH_EDGE }
+      : { name: s.ware, edge: CLAY_EDGE };
+}
+/** The quality one of the town's middling hands (six years at it, as rules/stuffs.ts takes one made at home) makes a kind to. */
+function gearMid(s: Stuffs, k: number): number {
+  return qualityOf(gearStuff(s, k).edge, s.craft[k] ?? 0, 6);
+}
+/** The kinds of thing one holds: a garment; a tool where their trade works with one; their household's pot where they are its cook. */
+function gearKinds(place: Place, i: number, f: Frame): number[] {
+  const p = place.people,
+    occ = occOf(p, i),
+    out: number[] = [GEAR.garment];
+  if (occ === OCC.farmer || occ === OCC.herder || occ === OCC.crafter)
+    out.push(GEAR.tool);
+  const hd = houseDay(place, f);
+  if (hd.cook[p.house[i]!] === p.id[i]) out.push(GEAR.pot);
+  return out;
+}
+/**
+ * A thing made for one of a place's people on a day: by one of the town's own who makes its good (a crafter at a making of
+ * it, by a draw), else, a garment or a pot, at home by the one of their household who has given most to crafts, else bought
+ * in; of its quality by its stuff, its land's craft and its maker's years at it.
+ */
+function gearMade(
+  world: World,
+  place: Place,
+  i: number,
+  k: number,
+  day: number,
+  s: Stuffs,
+): Item {
+  const p = place.people,
+    good = GEAR_GOOD[k]!,
+    makers: number[] = [];
+  for (let j = 0; j < p.n; j++)
+    if (
+      occOf(p, j) === OCC.crafter &&
+      p.craft[j] &&
+      RECIPES[p.craft[j]! - 1]!.output[0] === good
+    )
+      makers.push(j);
+  let m = -1;
+  if (makers.length)
+    m =
+      makers[
+        world.rng.index(
+          makers.length,
+          PLACE_DRAW,
+          place.key ^ p.id[i]!,
+          day,
+          P.gear,
+          k,
+        )
+      ]!;
+  else if (k !== GEAR.tool) {
+    let most = -1;
+    for (let j = 0; j < p.n; j++)
+      if (
+        p.house[j] === p.house[i] &&
+        ageOf(p, j, place.t) >= frameOf(world, place.cell).life.adulthood
+      ) {
+        const h = hoursAt(p, j, SK.crafts);
+        if (h > most) {
+          most = h;
+          m = j;
+        }
+      }
+  }
+  const years = m >= 0 ? hoursAt(p, m, SK.crafts) / SKILL_YEAR : 6,
+    st = gearStuff(s, k);
+  return {
+    k,
+    stuff: st.name,
+    q: qualityOf(st.edge, s.craft[k] ?? 0, years),
+    wear: 0,
+    maker: m >= 0 ? p.id[m]! : 0,
+    mk: m >= 0 ? place.houses.key[p.house[m]!]! : 0,
+    ms: m >= 0 ? sexOf(p, m) : 0,
+    made: day,
+  };
+}
+/**
+ * One's things as they hold them on coming into full (promotion): each of their kinds, made by a draw some way into its
+ * life (a thing in use is as likely any way through it), its maker of the town as it is now.
+ */
+function gearFilled(world: World, place: Place, i: number, f: Frame): Item[] {
+  const s = stuffsOf(world, place),
+    today = Math.floor(place.t / DAY),
+    id = place.people.id[i]!;
+  return gearKinds(place, i, f).map((k) => {
+    const u = world.rng.unit(PLACE_DRAW, place.key ^ id, 0, P.gear, 100 + k),
+      life = gearLife(k),
+      day = today - Math.floor(u * life),
+      it = gearMade(world, place, i, k, day, s);
+    it.wear = Math.floor(u * 1000);
+    return it;
+  });
+}
+/** Wear on one's things for a day of use (one in full, at their day's turn); one worn out made anew, where one can be had. */
+function gearDay(
+  world: World,
+  place: Place,
+  i: number,
+  d: Deep,
+  f: Frame,
+): void {
+  const p = place.people,
+    s = stuffsOf(world, place),
+    today = Math.floor(place.t / DAY),
+    worked = p.skill[i]!,
+    kinds = gearKinds(place, i, f);
+  // (A thing of a kind they no longer hold, given up: a tool of a trade left, a pot to the household's new cook.)
+  d.items = d.items.filter((x) => kinds.includes(x.k));
+  for (const k of kinds)
+    if (!d.items.some((x) => x.k === k))
+      d.items.push(gearMade(world, place, i, k, today, s));
+  const did = Math.max(0, worked - d.worked);
+  d.worked = worked;
+  for (let n = 0; n < d.items.length; n++) {
+    const x = d.items[n]!;
+    // (A tool by the work done with it: four years of its trade's; the rest by the day.)
+    x.wear += Math.round(
+      x.k === GEAR.tool
+        ? (did * 1000 * WANTS.toolsPerWorker) / SKILL_YEAR
+        : 1000 / gearLife(x.k),
+    );
+    if (x.wear < 1000) continue;
+    x.wear = 1000;
+    // (Made anew where the town makes it or its market holds it; else made do with.)
+    // (A garment or a pot can be made at home; a tool is had of the town's own makers or its market's stock.)
+    const it = gearMade(world, place, i, x.k, today, s),
+      market = buildingOf(place, ["market"]);
+    if (
+      x.k === GEAR.tool &&
+      !it.maker &&
+      place.bldgs.stock[market * GOOD_COUNT + G.tools]! < MICRO
+    )
+      continue;
+    d.items[n] = it;
+    remember(place, i, THOUGHT.newGear, 3, it.maker);
+  }
+}
+/** One's things as they hold them now (read only): kept where they are in full, else as they would be on coming into it. */
+export function placeGear(world: World, place: Place, i: number): Item[] {
+  const d =
+    (place.people.tier[i]! & 3) === TIER.full
+      ? place.deep?.get(place.people.id[i]!)
+      : undefined;
+  return d?.filled
+    ? d.items
+    : gearFilled(world, place, i, frameFor(world, place, i));
+}
+/** What a thing is worth to one who holds it, against what the town's middling hands make, and worn out. */
+function gearTerm(s: Stuffs, x: Item): number {
+  return x.wear >= 1000
+    ? -3
+    : Math.round((x.q - gearMid(s, x.k)) / (x.k === GEAR.tool ? 8 : 10));
+}
+function deepOf(place: Place, i: number): Deep | null {
+  const t = place.people.tier[i]! & 3;
+  if (t !== TIER.full) return null;
+  const id = place.people.id[i]!,
+    deep = (place.deep ??= new Map());
+  let d = deep.get(id);
+  if (!d) deep.set(id, (d = deepFilled(place, i)));
+  return d;
+}
+/**
+ * One's deep memories filled from what they were (promotion): each of their columns' memories, its source found again
+ * from their own history by its kind and its tag: the place's log of that day (a child born to their household, the one
+ * they were paired with, a friend dead, one they came to blows with, one judged for a wrong done them), then those they
+ * know and live with, then where it befell (the square, a fire's lot, a fine work's). One whose tag nothing matches is
+ * kept without one; nothing is made up.
+ */
+function deepFilled(place: Place, i: number): Deep {
+  const p = place.people,
+    th = new Uint32Array(DEEP_THOUGHTS),
+    src = new Int32Array(DEEP_THOUGHTS);
+  for (let k = 0; k < THOUGHTS; k++) {
+    const v = p.thought[i * THOUGHTS + k]!;
+    th[k] = v;
+    src[k] = v ? sourceFound(place, i, v) : 0;
+  }
+  // (Their things are filled at their day's turn, where the world is to hand: gearFilled, the same as a reading of them.)
+  return { th, src, items: [], worked: p.skill[i]!, filled: false };
+}
+function sourceFound(place: Place, i: number, v: number): number {
+  const tag = thoughtTag(v),
+    p = place.people,
+    me = p.id[i]!;
+  if (!tag) return 0;
+  const day = v & DAY_BITS,
+    kind = thoughtKind(v),
+    ok = (src: number) => src !== 0 && srcTag(src) === tag,
+    lotsOf = () => [
+      AT.square,
+      AT.fields,
+      place.houses.home[p.house[i]!]!,
+      p.work[i]!,
+      ...place.bldgs.lot,
+      ...(place.fire.length ? [place.fire[0]!] : []),
+    ];
+  // (A memory of a place, the square's games and feasts, a work admired, a fire: at a place before among people, whose
+  // three bits may tell the same.)
+  if (kind === THOUGHT.games || kind === THOUGHT.feast || kind === THOUGHT.admired || kind === THOUGHT.fire) {
+    for (const lot of lotsOf()) if (ok(srcLot(lot))) return srcLot(lot);
+    const w = place.works ?? [];
+    for (let k = 0; k + 6 < w.length; k += 7) if (ok(srcLot(w[k]!))) return srcLot(w[k]!);
+  }
+  // (The log of that day: whoever it names beside them.)
+  for (let k = place.log.length - 1; k >= 0; k--) {
+    const x = place.log[k]!;
+    if ((Math.floor(x.t / DAY) & DAY_BITS) !== day) continue;
+    for (const who of [x.id, x.a, x.b])
+      if (
+        who !== me &&
+        ok(who) &&
+        (x.id === me ||
+          x.a === me ||
+          x.b === me ||
+          kind === THOUGHT.born ||
+          kind === THOUGHT.friendDied)
+      )
+        return who;
+  }
+  // (Those they know and live with.)
+  const known: number[] = [p.mate[i]!, p.friend[i]!];
+  for (let k = 0; k < TIES; k++) known.push(p.tie[i * TIES + k]!);
+  for (const who of known) if (who !== PROMISED && ok(who)) return who;
+  for (let j = 0; j < p.n; j++)
+    if (p.house[j] === p.house[i] && ok(p.id[j]!)) return p.id[j]!;
+  // (Where it befell.)
+  for (const lot of lotsOf()) if (ok(srcLot(lot))) return srcLot(lot);
+  return 0;
+}
+/** A place's deep store as numbers, by number, for its save and its digest: each one's number, then their memories and sources. */
+function deepSaved(deep: Map<number, Deep>): { n: number[]; stuffs: string[] } {
+  const n: number[] = [],
+    stuffs: string[] = [];
+  for (const id of [...deep.keys()].sort((a, b) => a - b)) {
+    const d = deep.get(id)!;
+    n.push(id, ...d.th, ...d.src, d.worked, d.filled ? 1 : 0, d.items.length);
+    for (const x of d.items) {
+      let s = stuffs.indexOf(x.stuff);
+      if (s < 0) s = stuffs.push(x.stuff) - 1;
+      n.push(x.k, x.q, x.wear, x.maker, x.mk, x.ms, x.made, s);
+    }
+  }
+  return { n, stuffs };
+}
+function deepLoaded(raw: { n: number[]; stuffs: string[] }): Map<number, Deep> {
+  const out = new Map<number, Deep>(),
+    a = raw.n;
+  for (let k = 0; k < a.length;) {
+    const id = a[k++]!,
+      th = Uint32Array.from(a.slice(k, (k += DEEP_THOUGHTS))),
+      src = Int32Array.from(a.slice(k, (k += DEEP_THOUGHTS))),
+      worked = a[k++]!,
+      filled = a[k++] === 1,
+      many = a[k++]!,
+      items: Item[] = [];
+    for (let q = 0; q < many; q++, k += 8)
+      items.push({
+        k: a[k]!,
+        q: a[k + 1]!,
+        wear: a[k + 2]!,
+        maker: a[k + 3]!,
+        mk: a[k + 4]!,
+        ms: a[k + 5]!,
+        made: a[k + 6]!,
+        stuff: raw.stuffs[a[k + 7]!] ?? "",
+      });
+    out.set(id, { th, src, worked, filled, items });
+  }
+  return out;
+}
+/** One leaving full: what they remember kept to their columns, the strongest first. */
+function deepLetGo(place: Place, i: number): void {
+  const id = place.people.id[i]!,
+    d = place.deep?.get(id);
+  if (!d) return;
+  place.deep!.delete(id);
+  const today = Math.floor(place.t / DAY),
+    order = [...d.th.keys()]
+      .filter((k) => d.th[k])
+      .sort(
+        (a, b) =>
+          Math.abs(thoughtNow(d.th[b]!, today)) -
+            Math.abs(thoughtNow(d.th[a]!, today)) || a - b,
+      ),
+    at = i * THOUGHTS;
+  for (let k = 0; k < THOUGHTS; k++)
+    place.people.thought[at + k] = k < order.length ? d.th[order[k]!]! : 0;
+}
+/** Whom or what each of one's memories came of, in their columns' order where they are not followed in full (read only). */
+export function placeThoughtSources(
+  place: Place,
+  i: number,
+): { v: number; src: number }[] {
+  const d =
+      (place.people.tier[i]! & 3) === TIER.full
+        ? place.deep?.get(place.people.id[i]!)
+        : undefined,
+    out: { v: number; src: number }[] = [];
+  if (d) {
+    for (let k = 0; k < DEEP_THOUGHTS; k++)
+      if (d.th[k]) out.push({ v: d.th[k]!, src: d.src[k]! });
+    return out;
+  }
+  // (As they would be filled on coming into full: nothing shown is other than what they will be.)
+  for (let k = 0; k < THOUGHTS; k++) {
+    const v = place.people.thought[i * THOUGHTS + k]!;
+    if (v) out.push({ v, src: sourceFound(place, i, v) });
+  }
+  return out;
+}
 /** What a memory moves a mood by now (points), as it has faded. */
 const thoughtNow = (v: number, today: number): number =>
   thoughtSize(v) * dmath.halved(thoughtAge(v, today), THOUGHT_HALF[thoughtKind(v)] ?? 30);
-/** Something one of a place's people will remember: kept, in place of the weakest memory where all are taken. */
-function remember(place: Place, i: number, kind: number, size: number): void {
+/**
+ * Something one of a place's people will remember, of whom or what (`src`): kept, in place of the weakest memory where
+ * all are taken; and, for one followed in full, among their deep memories with its source besides (DEEP_THOUGHTS).
+ */
+function remember(
+  place: Place,
+  i: number,
+  kind: number,
+  size: number,
+  src = 0,
+): void {
   const p = place.people,
     s = Math.max(-127, Math.min(127, Math.round(size))),
     today = Math.floor(place.t / DAY),
-    at = i * THOUGHTS;
+    at = i * THOUGHTS,
+    tag = srcTag(src);
   if (!s) return;
+  const nv =
+      ((kind << 24) | ((s + 128) << 16) | (tag << 13) | (today & DAY_BITS)) >>>
+      0,
+    d = deepOf(place, i);
+  if (d) {
+    let slot = -1,
+      weakest = Infinity;
+    for (let k = 0; k < DEEP_THOUGHTS; k++) {
+      const w0 = d.th[k]!;
+      if (!w0) {
+        if (slot < 0 || weakest > 0) {
+          slot = k;
+          weakest = 0;
+        }
+        continue;
+      }
+      if (
+        thoughtKind(w0) === kind &&
+        d.src[k] === src &&
+        thoughtAge(w0, today) < 1
+      ) {
+        slot = -2;
+        break;
+      }
+      const w = Math.abs(thoughtNow(w0, today));
+      if (w < weakest) {
+        weakest = w;
+        slot = k;
+      }
+    }
+    if (slot >= 0) {
+      d.th[slot] = nv;
+      d.src[slot] = src;
+    }
+  }
   let slot = -1,
     weakest = Infinity;
   for (let k = 0; k < THOUGHTS; k++) {
@@ -4534,15 +5330,20 @@ function remember(place: Place, i: number, kind: number, size: number): void {
       }
       continue;
     }
-    // (The same befalling them twice in a day is one thing: a fire fought by turns, a cry heard again.)
-    if (thoughtKind(v) === kind && thoughtAge(v, today) < 1) return;
+    // (The same befalling them twice in a day of one source is one thing: a fire fought by turns, a cry heard again.)
+    if (
+      thoughtKind(v) === kind &&
+      thoughtTag(v) === tag &&
+      thoughtAge(v, today) < 1
+    )
+      return;
     const w = Math.abs(thoughtNow(v, today));
     if (w < weakest) {
       weakest = w;
       slot = k;
     }
   }
-  p.thought[at + slot] = ((kind << 24) | ((s + 128) << 16) | (today & 0xffff)) >>> 0;
+  p.thought[at + slot] = nv;
 }
 /** Whether one of a place's people has a memory of a kind from today already. */
 function heldToday(place: Place, i: number, kind: number): boolean {
@@ -4613,6 +5414,10 @@ function meetDay(world: World, place: Place, rounds = 1): void {
     n = p.n;
   if (n < 2) return;
   const temper = new Float32Array(n * 5),
+    // (What each holds dear, and their wonder: how little like takes to like with them. FACETS, VALUES.)
+    values = new Float64Array(n * VALUES_N),
+    wonder = new Float32Array(n),
+    ways = place.matched.ways,
     byHouse = new Map<number, number[]>(),
     byWork = new Map<number, number[]>(),
     here = new Set<number>();
@@ -4631,6 +5436,8 @@ function meetDay(world: World, place: Place, rounds = 1): void {
     temper[i * 5 + 2] = t.sociable;
     temper[i * 5 + 3] = t.thrifty;
     temper[i * 5 + 4] = t.bold;
+    placeValues(place, i, values.subarray(i * VALUES_N, (i + 1) * VALUES_N));
+    wonder[i] = ownNature(place.key ^ p.id[i]!, p.born[i]!, 16);
     const h = p.house[i]!;
     (byHouse.get(h) ?? byHouse.set(h, []).get(h)!).push(i);
     const w = p.work[i]!;
@@ -4656,10 +5463,19 @@ function meetDay(world: World, place: Place, rounds = 1): void {
         let dist = 0;
         for (let q = 0; q < 5; q++) dist += Math.abs(temper[i * 5 + q]! - temper[j * 5 + q]!);
         dist /= 5;
+        let apart = 0;
+        for (let q = 0; q < VALUES_N; q++)
+          apart += Math.abs(
+            values[i * VALUES_N + q]! - values[j * VALUES_N + q]!,
+          );
+        apart /= VALUES_N;
         const kin = p.house[i] === p.house[j],
           // (Like takes to like: alike past the mean of two drawn at random, warmer; unlike, cooler. Kin the warmer by how
-          // close each holds them; a low mood sours a meeting.)
-          base = 40 * (0.19 - dist),
+          // close each holds them; a low mood sours a meeting. And alike in what they hold dear, past two drawn at random,
+          // warmer, the less for those of much wonder: half as much at the most, half again at the least.)
+          base =
+            40 * (0.19 - dist) +
+            40 * (VALUE_APART - apart) * (1.5 - (wonder[i]! + wonder[j]!) / 2),
           ri = tieMove(
             p,
             i,
@@ -4675,11 +5491,23 @@ function meetDay(world: World, place: Place, rounds = 1): void {
         if (rounds > 1 || ri > QUARREL_AT || rj > QUARREL_AT) continue;
         // Two who cannot abide each other: words, now and then, the more often the hotter their tempers; and between hot
         // tempers who think worst of each other, blows, parted by those about them.
+        // (The oftener where they hold one thing dear at its two ends: half as often where they hold nothing so, half again
+        // where they could not be further apart on it.)
         const bold = (temper[i * 5 + 4]! + temper[j * 5 + 4]!) / 2,
+          clash =
+            0.5 +
+            valueClash(
+              values.subarray(i * VALUES_N, (i + 1) * VALUES_N),
+              values.subarray(j * VALUES_N, (j + 1) * VALUES_N),
+              ways,
+            ),
           flare = meetDraw(world, place, i, k + 3);
-        if (flare >= QUARREL_ODDS * 2 * bold) continue;
+        if (flare >= QUARREL_ODDS * 2 * bold * clash) continue;
         const blows =
-          ri <= BRAWL_AT && rj <= BRAWL_AT && bold >= BRAWL_BOLD && flare < QUARREL_ODDS * bold;
+          ri <= BRAWL_AT &&
+          rj <= BRAWL_AT &&
+          bold >= BRAWL_BOLD &&
+          flare < QUARREL_ODDS * bold * clash;
         for (const [a, b] of [
           [i, j],
           [j, i],
@@ -4689,6 +5517,7 @@ function meetDay(world: World, place: Place, rounds = 1): void {
             a,
             blows ? THOUGHT.brawl : THOUGHT.quarrel,
             (blows ? -10 : -4) * leans(1 - temper[a * 5 + 2]!),
+            p.id[b]!,
           );
           tieMove(p, a, b, blows ? -3 : -1);
         }
@@ -4767,11 +5596,18 @@ function remembered(
     if (c < 0) return;
     for (let k = 0; k < p.n; k++)
       if (k !== c && p.house[k] === p.house[c])
-        remember(place, k, THOUGHT.born, 20 * leans(of(k).kin));
+        remember(place, k, THOUGHT.born, 20 * leans(of(k).kin), id);
   } else if (what === HAP.paired) {
     for (const who of [id, a, b]) {
       const k = who ? placeIndexOf(place, who) : -1;
-      if (k >= 0) remember(place, k, THOUGHT.paired, 30 * leans(of(k).sociable));
+      if (k >= 0)
+        remember(
+          place,
+          k,
+          THOUGHT.paired,
+          30 * leans(of(k).sociable),
+          who === id ? a : id,
+        );
     }
   } else if (what === HAP.ofAge) {
     const k = placeIndexOf(place, id);
@@ -4782,7 +5618,7 @@ function remembered(
       house = i >= 0 ? p.house[i]! : -1;
     for (let k = 0; k < p.n; k++)
       if (k !== i && p.friend[k] === id && p.house[k] !== house)
-        remember(place, k, THOUGHT.friendDied, -25 * leans(of(k).sociable));
+        remember(place, k, THOUGHT.friendDied, -25 * leans(of(k).sociable), id);
   }
 }
 
@@ -4799,7 +5635,97 @@ export type MoodTerm = {
   readonly size: number;
   readonly days: number | null;
   readonly thought?: number;
+  /** A state of their household's or their work's that bears on it (COND), not one of MOOD's bits. */
+  readonly cond?: number;
+  /** Whom or what it is of (srcLot's numbering; 0 or absent: nothing one). */
+  readonly src?: number;
 };
+/**
+ * What bears on a mood from how one lives (asked 2026-11-26: "many at once, each with its own weight"): the meals their
+ * household's cook makes them, by the cook's skill at it (N6's cooking hours: a novice's poor, a master's a pleasure);
+ * at the work their household taught them, or kept from it; one of their household abed, or a friend.
+ */
+export const COND = {
+  cook: 1,
+  passion: 2,
+  kept: 3,
+  kinAbed: 4,
+  friendAbed: 5,
+  /** A thing of theirs (Deep.items): its quality against what the town's own hands make, or worn out. */
+  tool: 6,
+  garment: 7,
+  pot: 8,
+} as const;
+/**
+ * A place's households read once a day at its first tick (so the same whoever asks, and whenever): each one's cook (the
+ * grown one of it, up and about, who has given the most hours to cooking) and their level at it, and one of it abed.
+ */
+type HouseDay = {
+  day: number;
+  cook: Int32Array;
+  level: Int8Array;
+  abed: Int32Array;
+};
+const HOUSE_DAY = new WeakMap<Place, HouseDay>();
+/**
+ * What a place reads at its first tick of a day (its households' day, HouseDay; and, as they came, its things' stuffs a
+ * year and its homes' comfort and beauty a day), kept in its save: each is read of the place as it stood at that tick,
+ * and a place gone on with from a save made later in the day would read it anew of the place as it stands then.
+ */
+function readingsSaved(place: Place): Record<string, unknown> {
+  const out: Record<string, unknown> = {},
+    hd = HOUSE_DAY.get(place);
+  if (hd) out.hday = [hd.day, ...hd.cook, ...hd.level, ...hd.abed];
+  const st = STUFFS.get(place);
+  if (st) out.stuffs = st;
+  return out;
+}
+function readingsLoaded(place: Place, raw: Record<string, unknown>): void {
+  const hd = raw.hday as number[] | undefined;
+  if (hd) {
+    const n = (hd.length - 1) / 3;
+    HOUSE_DAY.set(place, {
+      day: hd[0]!,
+      cook: Int32Array.from(hd.slice(1, 1 + n)),
+      level: Int8Array.from(hd.slice(1 + n, 1 + 2 * n)),
+      abed: Int32Array.from(hd.slice(1 + 2 * n)),
+    });
+  }
+  if (raw.stuffs) STUFFS.set(place, structuredClone(raw.stuffs) as Stuffs);
+}
+function houseDayOf(place: Place, f: Frame): HouseDay {
+  const p = place.people,
+    n = place.houses.n,
+    cook = new Int32Array(n),
+    level = new Int8Array(n),
+    abed = new Int32Array(n),
+    most = new Int32Array(n).fill(-1);
+  for (let i = 0; i < p.n; i++) {
+    const h = p.house[i]!;
+    if (p.health[i] === 1 || p.health[i] === 2) {
+      if (!abed[h]) abed[h] = p.id[i]!;
+      continue;
+    }
+    if (ageOf(p, i, place.t) < f.life.adulthood) continue;
+    const hours = hoursAt(p, i, SK.cooking);
+    if (hours > most[h]!) {
+      most[h] = hours;
+      cook[h] = p.id[i]!;
+      level[h] = levelOf(Math.floor(hours / 6));
+    }
+  }
+  return { day: Math.floor(place.t / DAY), cook, level, abed };
+}
+/** The day's reading of its households: kept by the tick (dayOf: true), else read for the asking and not kept. */
+function houseDay(place: Place, f: Frame, keep = false): HouseDay {
+  const was = HOUSE_DAY.get(place),
+    today = Math.floor(place.t / DAY);
+  // (A household made since the day's reading has none of it till the next: its cook and its abed read as none.)
+  if (was && was.day === today) return was;
+  const d = houseDayOf(place, f);
+  if (keep) HOUSE_DAY.set(place, d);
+  return d;
+}
 /**
  * What bears on one's mood now, each by how much, weighed by their own temper (placeTemper): from needs met over the days
  * gone and what befell their household. The mood goes a quarter of the way to where these put it each day (tick).
@@ -4810,12 +5736,15 @@ function moodTerms(
   lackDays: number,
   today: number,
   fk: Frame,
+  /** Read to be told (the inspector): each memory's source found where it is not kept. */
+  told = false,
 ): MoodTerm[] {
   const p = place.people,
     houses = place.houses,
     h = p.house[i]!,
     temper = placeTemper(place, i),
-    out: MoodTerm[] = [];
+    out: MoodTerm[] = [],
+    hd = houseDay(place, fk);
   if (lackDays >= 0.25)
     out.push({
       bit: MOOD.want,
@@ -4829,12 +5758,25 @@ function moodTerms(
       size: p.health[i] === 2 ? -25 : -(10 + 40 * placeWound(place, i).pain),
       days: Math.ceil(p.ill[i]! / 144),
     });
-  if (houses.grief[h]! >= 0 && today - houses.grief[h]! <= 30)
+  if (houses.grief[h]! >= 0 && today - houses.grief[h]! <= 30) {
+    // (Whose death: the last of their household the log tells dead.)
+    let dead = 0;
+    for (let k = place.log.length - 1; k >= 0 && !dead; k--) {
+      const x = place.log[k]!;
+      if (
+        HAP_DEATH.has(x.what) &&
+        x.k === houses.key[h] &&
+        Math.floor(x.t / DAY) >= houses.grief[h]! - 1
+      )
+        dead = x.id;
+    }
     out.push({
       bit: MOOD.bereaved,
       size: -(35 * leans(temper.kin)),
       days: 31 - (today - houses.grief[h]!),
+      src: dead,
     });
+  }
   let pantry = 0;
   for (let k = 0; k < FOODS.length; k++) pantry += houses.pantry[h * FOODS.length + k]!;
   if (pantry >= houses.members[h]! * fk.daily * FETCH_DAYS)
@@ -4844,6 +5786,7 @@ function moodTerms(
       bit: MOOD.friend,
       size: (10 + 15 * fk.social) * leans(temper.sociable),
       days: null,
+      src: p.friend[i]!,
     });
   if (houses.fresh[h]! >= 0 && today - houses.fresh[h]! <= 30)
     out.push({ bit: MOOD.home, size: 20, days: 31 - (today - houses.fresh[h]!) });
@@ -4855,9 +5798,70 @@ function moodTerms(
     });
   if (p.bound[i] && p.bound[i]! < BOUND_ARMS)
     out.push({ bit: MOOD.ordered, size: -(10 * leans(1 - temper.bidden)), days: null });
-  // What they remember, as it has faded; and the days till it is let go.
-  for (let k = i * THOUGHTS; k < (i + 1) * THOUGHTS; k++) {
-    const v = p.thought[k]!;
+  // How they live (COND): their household's cooking, if they eat at its hearth; at the work they were taught, or kept
+  // from it; one of their household abed, or a friend.
+  const grown = ageOf(p, i, place.t) >= fk.life.adulthood;
+  if (pantry > 0 && hd.cook[h]) {
+    const size = 2 * hd.level[h]! - 2;
+    if (size)
+      out.push({ bit: 0, cond: COND.cook, size, days: null, src: hd.cook[h]! });
+  }
+  if (grown && p.taught[i] && occOf(p, i) !== OCC.dependent) {
+    const own = tradeKind(occOf(p, i)) === p.taught[i]! - 1;
+    out.push({
+      bit: 0,
+      cond: own ? COND.passion : COND.kept,
+      size: own ? 6 : -3,
+      days: null,
+    });
+  }
+  if (hd.abed[h] && hd.abed[h] !== p.id[i])
+    out.push({
+      bit: 0,
+      cond: COND.kinAbed,
+      size: -(8 * leans(temper.kin)),
+      days: null,
+      src: hd.abed[h]!,
+    });
+  if (p.friend[i]) {
+    const j = placeIndexOf(place, p.friend[i]!);
+    if (j >= 0 && p.house[j] !== h && (p.health[j] === 1 || p.health[j] === 2))
+      out.push({
+        bit: 0,
+        cond: COND.friendAbed,
+        size: -(5 * leans(temper.sociable)),
+        days: null,
+        src: p.friend[i]!,
+      });
+  }
+  // What they remember, as it has faded; and the days till it is let go: for one followed in full, every one of it with
+  // its source (Place.deep), else their columns'.
+  const d =
+      (p.tier[i]! & 3) === TIER.full ? place.deep?.get(p.id[i]!) : undefined,
+    mem = d ? d.th : p.thought,
+    from = d ? 0 : i * THOUGHTS,
+    to = d ? DEEP_THOUGHTS : (i + 1) * THOUGHTS;
+  // The things they hold (one in full): each against what the town's middling hands make, or worn out; of its maker.
+  const st = d?.filled ? STUFFS.get(place) : undefined;
+  if (d && st)
+    for (const x of d.items) {
+      const size = gearTerm(st, x);
+      if (size)
+        out.push({
+          bit: 0,
+          cond:
+            x.k === GEAR.tool
+              ? COND.tool
+              : x.k === GEAR.garment
+                ? COND.garment
+                : COND.pot,
+          size,
+          days: null,
+          src: x.maker,
+        });
+    }
+  for (let k = from; k < to; k++) {
+    const v = mem[k]!;
     if (!v) continue;
     const now = thoughtNow(v, today);
     if (Math.abs(now) < 1) continue;
@@ -4870,6 +5874,8 @@ function moodTerms(
         Math.ceil(half * Math.log2(Math.abs(thoughtSize(v)))) - thoughtAge(v, today),
       ),
       thought: thoughtKind(v),
+      // (Where they are not followed in full, found as it would be on coming into full, for the telling only.)
+      src: d ? d.src[k]! : told ? sourceFound(place, i, v) : 0,
     });
   }
   return out;
@@ -4882,6 +5888,7 @@ export function placeMoodTerms(world: World, place: Place, i: number): MoodTerm[
     place.people.lack[i]! / 144,
     Math.floor(place.t / DAY),
     frameFor(world, place, i),
+    true,
   );
 }
 /**
@@ -5673,6 +6680,18 @@ function turnOf(cx: TickCx, i: number, k: number, wk: number): void {
     // (And by their own temper: what each of these weighs with them, against most. rules/temper.ts.)
     let why = 0,
       to = MOOD_BASE;
+    const dp = deepOf(place, i);
+    if (dp) {
+      for (let k = 0; k < DEEP_THOUGHTS; k++)
+        if (dp.th[k] && Math.abs(thoughtNow(dp.th[k]!, today)) < 1)
+          dp.th[k] = dp.src[k] = 0;
+      // (Their things: filled on coming into full, then worn by the day's use, and made anew when worn out.)
+      if (!dp.filled) {
+        dp.items = gearFilled(world, place, i, fk);
+        dp.worked = p.skill[i]!;
+        dp.filled = true;
+      } else gearDay(world, place, i, dp, fk);
+    }
     for (const x of moodTerms(place, i, lackDays, today, fk)) {
       why |= x.bit;
       to += x.size;
@@ -5690,6 +6709,17 @@ function turnOf(cx: TickCx, i: number, k: number, wk: number): void {
       !heldBy?.has(cId[i]!) &&
       ageOf(p, i, t) >= f.life.adulthood &&
       breakDay(cx, i)
+    )
+      return;
+    // In want with a bare pantry and low of mood, one may steal from a household about their street (theft).
+    if (
+      lackDays >= 1 &&
+      p.mood[i]! < 0 &&
+      !cHealth[i] &&
+      !breakOf?.has(cId[i]!) &&
+      !heldBy?.has(cId[i]!) &&
+      ageOf(p, i, t) >= f.life.adulthood &&
+      theftDay(cx, i, lackDays, fk)
     )
       return;
     if (!cHealth[i]) {
@@ -5809,13 +6839,24 @@ function turnOf(cx: TickCx, i: number, k: number, wk: number): void {
                 matched.care ?? 0,
                 tendedOf(place, i),
               ).mending
-            : 0;
+            : 0,
+        // (As long again as the tissue it reached takes to mend, against its blow's mean: rules/tissues.ts.)
+        reached = tissueAt(p, i),
+        wounded = MEMBERS[(p.cause[i]! >> 3) - 1],
+        mends =
+          reached && wounded
+            ? tissueMends(blowOf(place, i, cause), wounded, reached)
+            : 1;
       if (mending > 0) {
         cHealth[i] = 3;
-        cIll[i] = Math.min(65535, mending * 144);
+        cIll[i] = Math.min(
+          65535,
+          Math.max(1, Math.round(mending * mends)) * 144,
+        );
         note(place, HAP.mending, cId[i]!, cause);
       } else {
         cHealth[i] = 0;
+        p.tissue[i] = 0;
         note(place, HAP.well, cId[i]!);
       }
     }
@@ -5877,14 +6918,21 @@ function turnOf(cx: TickCx, i: number, k: number, wk: number): void {
   // A fine work where they are, seen once a day (N11): a thought by how fine it is.
   if (worksAt && !moving && inside && (tickNo + cId[i]!) % 6 < k) {
     const q = worksAt.get(cAt[i]!);
-    if (q !== undefined) remember(place, i, THOUGHT.admired, 2 + 2 * q);
+    if (q !== undefined)
+      remember(place, i, THOUGHT.admired, 2 + 2 * q, srcLot(cAt[i]!));
   }
   // A fire in the town: the grown who live within a cry of it turn out to fight it, asleep or not, until it is out or
   // hunger takes them off; and its watch, where one is kept (fireCrew).
   if (fireLot !== null && hunger < 0.6 && fireOut!.has(cId[i]!)) {
     // (Turned out to fight it: a fear and a toil remembered, the more by the timid.)
     if (cAct[i] !== ACT.brigade)
-      remember(place, i, THOUGHT.fire, -12 * leans(1 - placeTemper(place, i).bold));
+      remember(
+        place,
+        i,
+        THOUGHT.fire,
+        -12 * leans(1 - placeTemper(place, i).bold),
+        srcLot(fireLot),
+      );
     cAct[i] = ACT.brigade;
     cWhy[i] = WHY.fire;
     if (cAt[i] !== fireLot) go(place, i, fireLot, world);
@@ -6088,6 +7136,7 @@ function turnOf(cx: TickCx, i: number, k: number, wk: number): void {
           i,
           kind,
           (kind === THOUGHT.feast ? 8 : 3) * leans(placeTemper(place, i).sociable),
+          srcLot(AT.square),
         );
     }
     dayTurns(cx, i, wk, occ);
@@ -6461,7 +7510,7 @@ export function placeMakings(place: Place): { good: number; makers: number }[] {
 // —— Breaks, justice and works (N11) ——————————————————————————————————————————————————————————————————————————————
 
 /** How one breaks down (place.breaks): wandering dazed, eating all in sight, lashing out at what is about them. */
-export const BREAK = { wander: 1, binge: 2, wreck: 3 } as const;
+export const BREAK = { wander: 1, binge: 2, wreck: 3, pray: 4 } as const;
 /** What a town's justice did with one brought before it (rules/sentences.ts sentenceMix's order), and its words. */
 export const VERDICT = { fined: 1, death: 2, labour: 3, held: 4, freed: 5 } as const;
 /**
@@ -6533,16 +7582,21 @@ function breakDay(cx: TickCx, i: number): boolean {
   if (!world.rng.chance(deep * deep, PLACE_DRAW, place.key ^ p.id[i]!, tickNo, P.brk)) return false;
   // (The bold lash out at what is about their work; those who set no store by plenty eat all in sight; the rest wander
   // dazed. One bold whose work has nothing about it to lash out at, wanders.)
+  // (And one who holds the gods dear, where the town has an altar, kneels at it the break through: VALUES.)
   const temper = placeTemper(place, i),
     work = p.work[i]!,
     b = bldgAt(place, work),
     afield = work === AT.fields,
+    altar = buildingOf(place, ["temple", "shrine"]),
+    devout = placeValues(place, i)[WAY.piety]! >= 0.62 && altar > 0,
     how =
       temper.bold >= 0.5 && (b > 0 || afield)
         ? BREAK.wreck
         : temper.thrifty < 0.5
           ? BREAK.binge
-          : BREAK.wander;
+          : devout
+            ? BREAK.pray
+            : BREAK.wander;
   (place.breaks ??= []).push(p.id[i]!, how, t + BREAK_TICKS * PLACE_TICK);
   note(place, HAP.broke, p.id[i]!, how);
   p.act[i] = ACT.idle;
@@ -6574,6 +7628,96 @@ function breakDay(cx: TickCx, i: number): boolean {
   }
   return true;
 }
+/**
+ * One in want stealing (asked 2026-11-26: things "held, used, traded and stolen"): their household's pantry bare, of a
+ * day by a draw, the likelier the longer in want, the lower their mood and the less biddable they are; from the household
+ * about their street (either side of theirs, as they meet: meetDay) with the fuller pantry, a day's food for their own
+ * household, and where one of it is followed in full, the finest of their things not worn out. The robbed remember it,
+ * and it is a wrong brought before the town's justice (N11).
+ */
+function theftDay(cx: TickCx, i: number, lackDays: number, fk: Frame): boolean {
+  const { world, place, p, t } = cx,
+    houses = place.houses,
+    h = p.house[i]!,
+    nf = FOODS.length,
+    held = (x: number) => {
+      let n = 0;
+      for (let k = 0; k < nf; k++) n += houses.pantry[x * nf + k]!;
+      return n;
+    };
+  if (held(h) >= fk.daily) return false;
+  const temper = placeTemper(place, i),
+    chance =
+      Math.min(1, lackDays / 7) * (-p.mood[i]! / 100) * (1 - temper.bidden);
+  if (
+    !world.rng.chance(
+      chance,
+      PLACE_DRAW,
+      place.key ^ p.id[i]!,
+      Math.floor(t / DAY),
+      P.theft,
+    )
+  )
+    return false;
+  const want = houses.members[h]! * fk.daily;
+  let v = -1;
+  for (const x of [h - 1, h + 1])
+    if (
+      x >= 0 &&
+      x < houses.n &&
+      houses.members[x]! > 0 &&
+      held(x) >= want &&
+      (v < 0 || held(x) > held(v))
+    )
+      v = x;
+  if (v < 0) return false;
+  // (A day's food for their household, each food in its share of what the robbed held.)
+  const all = held(v);
+  let took = 0;
+  for (let k = 0; k < nf; k++) {
+    const n = Math.floor((houses.pantry[v * nf + k]! * want) / all);
+    houses.pantry[v * nf + k]! -= n;
+    houses.pantry[h * nf + k]! += n;
+    took += n;
+  }
+  // (One of the robbed household: the grown one of it there is first; the finest of the things of any of it in full.)
+  let j = -1,
+    best: { d: Deep; n: number } | null = null;
+  for (let q = 0; q < p.n; q++) {
+    if (p.house[q] !== v) continue;
+    if (j < 0 && ageOf(p, q, t) >= fk.life.adulthood) j = q;
+    const d =
+      (p.tier[q]! & 3) === TIER.full ? place.deep?.get(p.id[q]!) : undefined;
+    if (d?.filled)
+      d.items.forEach((x, n) => {
+        if (x.wear < 1000 && (!best || x.q > best.d.items[best.n]!.q))
+          best = { d, n };
+      });
+  }
+  if (best) {
+    const b = best as { d: Deep; n: number },
+      [thing] = b.d.items.splice(b.n, 1),
+      mine =
+        (p.tier[i]! & 3) === TIER.full ? place.deep?.get(p.id[i]!) : undefined;
+    // (Kept by the thief where they are followed in full; else sold on, out of the town.)
+    if (mine?.filled && thing) mine.items.push(thing);
+  }
+  note(place, HAP.stole, p.id[i]!, j >= 0 ? p.id[j]! : 0, took);
+  for (let q = 0; q < p.n; q++)
+    if (p.house[q] === v)
+      remember(
+        place,
+        q,
+        THOUGHT.robbed,
+        -10 * leans(placeTemper(place, q).thrifty),
+        p.id[i]!,
+      );
+  judge(world, place, i, j, WRONG.theft);
+  p.act[i] = ACT.idle;
+  return false;
+}
+/** What a wrong brought before a place's justice was (VERDICT's in `b`'s low bits; this, sixteen times it). */
+export const WRONG = { blows: 0, theft: 1 } as const;
 /** A tick of one broken down: as their break has them, till it is spent (false: it is spent, and they go on as they would). */
 function breakTurn(cx: TickCx, i: number, h: number, fk: Frame): boolean {
   const { world, place, p, t, houses, breakOf } = cx,
@@ -6604,7 +7748,12 @@ function breakTurn(cx: TickCx, i: number, h: number, fk: Frame): boolean {
     }
     return true;
   }
-  if (p.at[i] !== AT.square) go(place, i, AT.square, world);
+  // (One kneels at the town's altar; the rest wander dazed about the square.)
+  const to =
+    how === BREAK.pray
+      ? place.bldgs.lot[buildingOf(place, ["temple", "shrine"])]!
+      : AT.square;
+  if (p.at[i] !== to) go(place, i, to, world);
   return true;
 }
 /** A tick of one held by the town's justice (false: their term is served, and they are let go). */
@@ -6677,7 +7826,13 @@ export function placeLaw(
  * town's store); labour or a term held (SENTENCE.pettyTerm on the mean, a year); death where the town is managed (else
  * held: its land's own reckoning says who dies); or let go.
  */
-function judge(world: World, place: Place, i: number, j: number): void {
+function judge(
+  world: World,
+  place: Place,
+  i: number,
+  j: number,
+  wrong = 0,
+): void {
   const p = place.people,
     law = placeLaw(world, place),
     r = (k: number) => world.rng.unit(PLACE_DRAW, place.key ^ p.id[i]!, place.t, P.judge, k);
@@ -6699,8 +7854,21 @@ function judge(world: World, place: Place, i: number, j: number): void {
     }
   const orders = !!managedOf(world)?.get(place.town);
   if (verdict === VERDICT.death && !orders) verdict = VERDICT.held;
-  note(place, HAP.judged, p.id[i]!, j >= 0 ? p.id[j]! : 0, verdict);
-  if (j >= 0) remember(place, j, THOUGHT.righted, verdict === VERDICT.freed ? -5 : 6);
+  note(
+    place,
+    HAP.judged,
+    p.id[i]!,
+    j >= 0 ? p.id[j]! : 0,
+    verdict | (wrong << 4),
+  );
+  if (j >= 0)
+    remember(
+      place,
+      j,
+      THOUGHT.righted,
+      verdict === VERDICT.freed ? -5 : 6,
+      p.id[i]!,
+    );
   const f = frameOf(world, place.cell);
   if (verdict === VERDICT.fined) {
     // (Its household's food, as much as it has: to the wronged household under custom, else to the town's store.)
@@ -6946,11 +8114,33 @@ export type PlaceWoundRead = {
   readonly fester: number;
   readonly seen: boolean;
   readonly dressed: boolean;
-  /** How much it hurts them, 0 … 1 (rules/healing.ts painOf). */
+  /** How much it hurts them, 0 … 1 (rules/healing.ts painOf, by the tissue it reached: rules/tissues.ts). */
   readonly pain: number;
   /** Whether the healer has seen to its festering today. */
   readonly tended: boolean;
+  /** The tissue it reached (null: none known). */
+  readonly tissue: Tissue | null;
 };
+/** The tissue one's wound reached (null: none, or one dealt before tissues were). */
+const tissueAt = (p: People, i: number): Tissue | null =>
+  TISSUES[p.tissue[i]! - 1] ?? null;
+/** How much a wound hurts (0 … 1): its days and its festering (rules/healing.ts painOf), by the tissue it reached. */
+function woundPain(place: Place, i: number, v: number): number {
+  const p = place.people,
+    base = painOf(
+      p.health[i] === 1,
+      p.health[i] === 3,
+      !!(v & FESTER_DRESSED),
+      v & FESTER_LOAD,
+    ),
+    t = tissueAt(p, i),
+    member = MEMBERS[(p.cause[i]! >> 3) - 1];
+  if (!t || !member) return base;
+  return Math.min(
+    1,
+    base * tissuePain(blowOf(place, i, p.cause[i]! & 7), member, t),
+  );
+}
 export function placeWound(place: Place, i: number): PlaceWoundRead {
   const p = place.people,
     v = p.fester[i]!,
@@ -6962,7 +8152,8 @@ export function placeWound(place: Place, i: number): PlaceWoundRead {
     fester: v & FESTER_LOAD,
     seen: !!(v & FESTER_SEEN),
     dressed: !!(v & FESTER_DRESSED),
-    pain: hurt ? painOf(p.health[i] === 1, p.health[i] === 3, !!(v & FESTER_DRESSED), v & FESTER_LOAD) : 0,
+    pain: hurt ? woundPain(place, i, v) : 0,
+    tissue: tissueAt(p, i),
     tended: seenToday(place, p.id[i]!),
   };
 }
@@ -7270,6 +8461,8 @@ function prunePins(place: Place): void {
 }
 
 function tick(world: World, place: Place, f: Frame): void {
+  // (Its households read for the day at its first tick: COND.)
+  houseDay(place, f, true);
   const cx = tickCx(world, place, f),
     { p, houses, t, today, dying, dyingWhy } = cx;
   // Each at their tier's stride (tiers): in full a tick each; light and folk at their hour, their walk by the tick and
@@ -7318,6 +8511,9 @@ function tick(world: World, place: Place, f: Frame): void {
     }
     let now = tierOf(cx, worthy, i);
     if (at !== 0 && now === TIER.folk) now = TIER.light;
+    // (Leaving full: what only full keeps let go of to their columns.)
+    if (was === TIER.full && now !== TIER.full && place.deep)
+      deepLetGo(place, i);
     tier[i] = now;
     turnOf(cx, i, s, TIER_STRIDE[now]!);
   }
@@ -7779,6 +8975,8 @@ export function advancePlace(world: World, place: Place): number {
       struck(world, place, s, f, strikes[next++]!);
     const m = Math.floor(place.t / MONTH);
     if (m > place.matched.month) reconcile(world, place, s, f, m, true);
+    // (A day's births and deaths, at its turn.)
+    if (place.t % DAY === 0) vitalDay(world, place, f);
     if (place.due.length && place.due[0]! <= place.t) liveDue(world, place, f);
     tick(world, place, f);
     ticks++;
@@ -8135,19 +9333,35 @@ export function hapTold(
         ? "broke down, their mood too low to bear, and lashed out at what lay about their work"
         : x.a === BREAK.binge
           ? "broke down, their mood too low to bear, and ate all in sight at home"
-          : "broke down, their mood too low to bear, and wandered dazed about the square";
+          : x.a === BREAK.pray
+            ? "broke down, their mood too low to bear, and knelt at the town's altar"
+            : "broke down, their mood too low to bear, and wandered dazed about the square";
     case HAP.judged: {
-      const of = named?.(x.a) ? ` for the blows with ${named(x.a)}` : x.a ? "" : " for what they spoiled";
-      return x.b === VERDICT.fined
+      const theft = x.b >> 4 === WRONG.theft,
+        v = x.b & 15,
+        of = theft
+          ? named?.(x.a)
+            ? ` for stealing from the household of ${named(x.a)}`
+            : " for stealing"
+          : named?.(x.a)
+            ? ` for the blows with ${named(x.a)}`
+            : x.a
+              ? ""
+              : " for what they spoiled";
+      return v === VERDICT.fined
         ? `was brought before the town's justice${of}, and fined: their household paid a week's food`
-        : x.b === VERDICT.death
+        : v === VERDICT.death
           ? `was brought before the town's justice${of}, and put to death for it`
-          : x.b === VERDICT.labour
+          : v === VERDICT.labour
             ? `was brought before the town's justice${of}, and set to labour at the fields for a term`
-            : x.b === VERDICT.held
+            : v === VERDICT.held
               ? `was brought before the town's justice${of}, and held for a term`
               : `was brought before the town's justice${of}, and let go`;
     }
+    case HAP.stole:
+      return named?.(x.a)
+        ? `stole a day's food from the household of ${named(x.a)}, being in want`
+        : "stole food, being in want";
     case HAP.madeWork: {
       const b = place.bldgs.lot.indexOf(x.a);
       return b > 0 ? `made a work, kept at the ${kindName(place.bldgs.kind[b]!)}` : "made a work, kept at home";
@@ -8227,6 +9441,7 @@ export const HAP_MANY: readonly string[] = [
   "were let go, their terms served",
   "were put to death by the town's justice",
   "made works",
+  "stole from other households",
 ];
 
 /** What many did, said with what of: "died of the red flux", "fell in the battle at Sairis's land". */
