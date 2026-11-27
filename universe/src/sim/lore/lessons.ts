@@ -495,6 +495,8 @@ export function strike(
   event: Ref | null,
 ): void {
   if (!LESSON_CAUSE.has(s.cause)) return;
+  // (What its holders lean on changes: lessons-store.ts lessonAdds reads it again.)
+  store.changes++;
   const h = store.holder(s.holder);
   let m = h.causes.get(s.cause);
   if (!m) {
@@ -597,6 +599,7 @@ export function lessonsYear(ctx: PopulationContext, t: SimTime): void {
 }
 
 function forget(ctx: PopulationContext, store: LessonStore, year: number): void {
+  store.changes++;
   const realms = politiesOf(ctx.world);
   for (const [k, h] of [...store.holders]) {
     if (cellOf(k) === null) {
