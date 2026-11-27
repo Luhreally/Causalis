@@ -11,6 +11,7 @@
 import type {
   PlaceInspect,
   PlaceInspectInside,
+  PlaceInspectItem,
   PlaceInspectLot,
   PlaceInspectPerson,
   PlaceNamed,
@@ -235,6 +236,7 @@ export class PlaceInspector {
     this.proseKey.classList.toggle("on", this.prose);
     if (x.kind === "person") this.person(x);
     else if (x.kind === "inside") this.inside(x);
+    else if (x.kind === "item") this.item(x);
     else this.lot(x);
   }
 
@@ -445,7 +447,7 @@ export class PlaceInspector {
         body.push(list);
       }
     } else if (this.tab === "gear") {
-      body.push(this.facts(x.gear.map(([a, b]) => [a, b, null] as const)));
+      body.push(this.facts(x.gear));
     } else if (this.tab === "life") {
       if (!x.life.length)
         body.push(
@@ -502,6 +504,54 @@ export class PlaceInspector {
     if (this.title.textContent !== title) this.title.textContent = title;
     this.sub.textContent = `${x.rooms.length} ${x.rooms.length === 1 ? "room" : "rooms"} · ${x.people.length} here now`;
     this.body.replaceChildren(...insideEl(x, (ref) => this.onInspect(ref)));
+  }
+
+  /** A thing one holds, on its own page (O5): of what, how fine, by whom, held by whom, how worn, what it is to them. */
+  private item(x: PlaceInspectItem): void {
+    this.picture(x);
+    const title = `${x.icon} ${x.name}`;
+    if (this.title.textContent !== title) this.title.textContent = title;
+    this.sub.textContent = `${x.grade.charAt(0).toUpperCase()}${x.grade.slice(1)} · ${x.stuff}`;
+    // (Its wear, as a bar: what of its life is used; amber past three quarters, red worn out.)
+    const wear = el("div", "place-insp-need"),
+      bar = el("div", "place-meter"),
+      fill = el("span", "place-meter-fill");
+    fill.style.width = `${Math.min(100, x.wear / 10)}%`;
+    wear.classList.toggle("pressing", x.wear >= 750);
+    bar.append(fill);
+    wear.append(
+      el("span", "place-insp-label", "Worn"),
+      bar,
+      el(
+        "span",
+        "place-insp-value",
+        x.wear >= 1000 ? "Worn out" : `${Math.round(x.wear / 10)}%, ${x.daysLeft} days' use left`,
+      ),
+    );
+    const vs = x.q - x.mid;
+    this.body.replaceChildren(
+      wear,
+      this.facts([
+        ["Of", x.stuff, null],
+        [
+          "Quality",
+          `${x.q} of 100: ${vs >= 5 ? "finer than" : vs <= -5 ? "poorer than" : "as fine as"} the town's middling hands make (${x.mid})`,
+          null,
+        ],
+        ["Made by", x.maker ? x.maker.name : "Bought in, from the market", x.maker?.ref ?? null],
+        ["Made", x.made, null],
+        ["Held by", x.holder.name, x.holder.ref],
+        ["Where", x.where, null],
+        ["For", x.use, null],
+        [
+          "To them",
+          x.mood
+            ? `${signed(x.mood)} to their mood while they hold it (${x.mood > 0 ? "a fine thing" : x.wear >= 1000 ? "worn out" : "a poor thing"})`
+            : "Nothing to their mood: a thing like any other",
+          null,
+        ],
+      ]),
+    );
   }
 
   private lot(x: PlaceInspectLot): void {
@@ -666,6 +716,7 @@ export class PlaceInspector {
       box.append(el("span", "place-insp-label", label));
       if (ref) {
         const b = el("button", "place-link", words);
+        b.dataset.ref = ref;
         b.onclick = () => this.onInspect(ref);
         box.append(b);
       } else box.append(el("span", "place-insp-fact", words));

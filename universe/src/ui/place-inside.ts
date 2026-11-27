@@ -102,6 +102,17 @@ export function insideEl(x: PlaceInspectInside, onInspect: (ref: string) => void
         best = q.ref;
       }
     }
+    // (Else a thing drawn under it that has a page: a pot, a bench's tools. O5.)
+    if (!best)
+      for (const t of x.things)
+        if (
+          t.ref &&
+          px >= t.x * s &&
+          px <= (t.x + t.w) * s &&
+          py >= t.y * s &&
+          py <= (t.y + t.d) * s
+        )
+          best = t.ref;
     if (best) onInspect(best);
   });
   const box = el("div", "place-inside");
@@ -124,11 +135,32 @@ export function insideEl(x: PlaceInspectInside, onInspect: (ref: string) => void
   } else out.push(el("p", "place-insp-why", "No one is here now."));
   if (x.things.length) {
     const list = el("div", "place-inside-things");
-    for (const t of x.things)
-      list.append(
-        el("p", "place-inside-row", `${t.glyph} ${t.name}${t.words ? `: ${t.words}` : ""}`),
-      );
+    for (const t of x.things) {
+      const words = `${t.glyph} ${t.name}${t.words ? `: ${t.words}` : ""}`;
+      if (!t.ref) {
+        list.append(el("p", "place-inside-row", words));
+        continue;
+      }
+      // (A thing with a page: a fingertip to it. O5.)
+      const b = el("button", "place-insp-person place-inside-key", words);
+      b.onclick = () => onInspect(t.ref!);
+      list.append(b);
+    }
     out.push(el("p", "place-insp-label", "What stands here"), list);
+  }
+  // Their things kept here, each to its page (O5).
+  if (x.items.length) {
+    const list = el("div", "place-insp-people");
+    for (const q of x.items) {
+      const b = el("button", "place-insp-person place-inside-item");
+      b.append(
+        el("span", "place-row-name", `${q.glyph} ${q.name}`),
+        el("span", "place-row-what", q.words),
+      );
+      b.onclick = () => onInspect(q.ref);
+      list.append(b);
+    }
+    out.push(el("p", "place-insp-label", `Their things here (${x.items.length})`), list);
   }
   return out;
 }

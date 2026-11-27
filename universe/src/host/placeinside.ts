@@ -7,10 +7,11 @@
 // bench, else about the room. Nothing lies over another thing, nothing past its room's walls, none two on one tile. The
 // place is only read: nothing of this is kept, and the tick never asks for it.
 import { DAY, type World } from "../kernel/index.ts";
-import { FOODS, GOODS, OCC } from "../rules/index.ts";
+import { FOODS, GOODS, OCC, gradeOf } from "../rules/index.ts";
 import {
   PLACE_AT,
   placeInsideRef,
+  placeItemRef,
   placeLotRef,
   type PlaceInspectInside,
   type PlaceInsideThing,
@@ -28,12 +29,16 @@ import {
   benchless,
   lotGrid,
   lotsOf,
+  GEAR,
+  placeGear,
   type Place,
 } from "./place.ts";
 import { lotWords, placeWho, tradeWords } from "./placeplan.ts";
 
 /** The most households of a lot whose rooms are laid side by side (a block of flats: the rest are on the floors above). */
 const ROOMS_ACROSS = 3;
+/** The trades that work with tools of their own (host/place.ts gearKinds). */
+const GEARED = new Set<number>([OCC.farmer, OCC.herder, OCC.crafter]);
 /** A room's floor a head (m²) under which it is cramped, and from which it is roomy (est: a bed, a seat and room to pass). */
 const CRAMPED = 6,
   ROOMY = 12;
@@ -68,7 +73,11 @@ class Floor {
     return true;
   }
   /** A thing set on the first tiles of a room it fits on (from its back wall or its front), or null where none are free. */
-  set(room: Room, t: Omit<PlaceInsideThing, "x" | "y">, fromBack = false): PlaceInsideThing | null {
+  set(
+    room: Room,
+    t: Omit<PlaceInsideThing, "x" | "y" | "ref"> & { ref?: string | null },
+    fromBack = false,
+  ): PlaceInsideThing | null {
     for (let a = 0; a < room.d; a++) {
       const y = fromBack ? room.y + room.d - t.d - a : room.y + a;
       for (let x = room.x; x + t.w <= room.x + room.w; x++)
@@ -79,7 +88,7 @@ class Floor {
               if (!this.taken[j * this.w + i]) this.taken[j * this.w + i] = AISLE;
           for (let j = y; j < y + t.d; j++)
             for (let i = x; i < x + t.w; i++) this.taken[j * this.w + i] = TAKEN;
-          const thing = { ...t, x, y };
+          const thing = { ...t, ref: t.ref ?? null, x, y };
           this.things.push(thing);
           return thing;
         }
@@ -116,6 +125,8 @@ export function placeInside(world: World, place: Place, lot: number): PlaceInspe
     // (Each household's room, by its place among the rooms.)
     roomOfHouse = new Map<number, number>(),
     benches: PlaceInsideThing[] = [],
+    // (The things of theirs kept here, each to its page: O5.)
+    items: { ref: string; glyph: string; name: string; words: string }[] = [],
     said: string[] = [];
   if (homes) {
     // A home: each household's own room, side by side, its hearth and table at the front, its beds at the back.
@@ -165,6 +176,50 @@ export function placeInside(world: World, place: Place, lot: number): PlaceInspe
         d: 1,
         words: `${amount(held)} person-months of food`,
       });
+      // (Its things, O5: its cook's pot by the hearth; the tools of those at home in its chest; a garment is worn.)
+      const kept: string[] = [];
+      for (const i of members)
+        for (const x of placeGear(world, place, i)) {
+          const ref = placeItemRef(place.town, p.id[i]!, x.k);
+          if (x.k === GEAR.pot) {
+            const pot = floor.set(room, {
+              kind: "pot",
+              glyph: "🍲",
+              name: `${who(i).name}'s pot`,
+              w: 1,
+              d: 1,
+              words: `Of ${x.stuff}, ${gradeOf(x.q)}: the household's cooking`,
+              ref,
+            });
+            items.push({
+              ref,
+              glyph: "🍲",
+              name: `A cooking pot of ${x.stuff}`,
+              words: `${who(i).name}'s, ${pot ? "by the hearth" : "on the hearth"}`,
+            });
+          } else if (x.k === GEAR.tool && p.at[i] === lot) {
+            kept.push(who(i).name);
+            items.push({
+              ref,
+              glyph: "🛠️",
+              name: `${who(i).name}'s tools, of ${x.stuff}`,
+              words: `${cap(gradeOf(x.q))}, ${Math.round(x.wear / 10)}% worn: in the chest`,
+            });
+          }
+        }
+      if (kept.length)
+        floor.set(
+          room,
+          {
+            kind: "chest",
+            glyph: "🧰",
+            name: "A chest",
+            w: 1,
+            d: 1,
+            words: `The tools of ${kept.length === 1 ? kept[0] : `${kept.length} of them`}, while they are home`,
+          },
+          true,
+        );
       // (Its beds, as its room gives them: those who have none sleep on the floor.)
       const room0 = nd.room[hh.house] ?? 1,
         beds = Math.min(members.length, Math.max(0, Math.round(room0 * members.length)));
@@ -207,7 +262,9 @@ export function placeInside(world: World, place: Place, lot: number): PlaceInspe
           name: `A ${tradeWords(occ, false).replace(/^an? /, "")}'s bench`,
           w: 2,
           d: 1,
-          words: `${who(i).name}'s`,
+          words: `${who(i).name}'s${GEARED.has(occ) ? ", their tools on it" : ""}`,
+          // (Its holder's tools on it, to their page: O5.)
+          ref: GEARED.has(occ) ? placeItemRef(place.town, p.id[i]!, GEAR.tool) : null,
         });
       if (!bench) break;
       benches.push(bench);
@@ -300,6 +357,7 @@ export function placeInside(world: World, place: Place, lot: number): PlaceInspe
     d,
     rooms: rooms.map((m) => ({ ...m, words: m.words ?? "" })),
     things: floor.things,
+    items,
     people,
     words: [
       `${w} by ${d} metres, a tile a metre, on day ${(Math.floor(place.t / DAY) % 365) + 1}.`,

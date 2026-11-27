@@ -231,7 +231,7 @@ test("a fire's priority says who goes to one: set never, they stay away", () => 
   assert.ok(
     rows.has("Tended") && (rows.has("Lasting") || rows.has("Will leave")) && rows.has("Care"),
   );
-  const gear = new Map(seen.gear);
+  const gear = new Map(seen.gear.map(([a, b]) => [a, b] as const));
   assert.ok(gear.has("In hand") && gear.has("Pantry") && /incomes/.test(gear.get("Means") ?? ""));
   assert.ok(!/undefined|NaN/.test(JSON.stringify(seen)));
   assert.ok(fought > 0, "the rest went as they would");

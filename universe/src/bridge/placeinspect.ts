@@ -112,8 +112,8 @@ export type PlaceInspectPerson = {
   /** What those they know think of each other (indices into `ties`), for the web; and how the town thinks of them. */
   readonly web: readonly { readonly a: number; readonly b: number; readonly regard: number }[];
   readonly repute: string;
-  /** What they have and wear (the Gear tab), line by line. */
-  readonly gear: readonly (readonly [string, string])[];
+  /** What they have and wear (the Gear tab), line by line; a thing of theirs with its page's ref (O5). */
+  readonly gear: readonly (readonly [string, string, string | null])[];
   /** Their temper in a few words, and in full. */
   readonly temper: string;
   readonly temperWords: string;
@@ -188,6 +188,8 @@ export type PlaceInsideThing = {
   readonly w: number;
   readonly d: number;
   readonly words: string;
+  /** Its page, a thing one holds (O5), else null. */
+  readonly ref: string | null;
 };
 /**
  * Inside a lot (O3): its grid (tiles a metre square, across and deep, the street's side at the top), its rooms, what
@@ -212,6 +214,13 @@ export type PlaceInspectInside = {
     readonly words: string;
   }[];
   readonly things: readonly PlaceInsideThing[];
+  /** The things of its people kept here (O5), each to its page: a cook's pot, the tools of those at home in its chest. */
+  readonly items: readonly {
+    readonly ref: string;
+    readonly glyph: string;
+    readonly name: string;
+    readonly words: string;
+  }[];
   readonly people: readonly {
     readonly id: number;
     readonly ref: string;
@@ -223,7 +232,38 @@ export type PlaceInspectInside = {
   readonly words: string;
 };
 
-export type PlaceInspect = PlaceInspectPerson | PlaceInspectLot | PlaceInspectInside;
+/**
+ * A thing one of a town's people holds, on its own page (O5, asked for an artifact page: creator, owner, material, what it
+ * was made for): what it is and of what, how fine against what the town's middling hands make of it, who made it and
+ * when, who holds it, how worn and how long it has left in use, and what it is to its holder.
+ */
+export type PlaceInspectItem = {
+  readonly kind: "item";
+  readonly ref: string;
+  readonly name: string;
+  readonly icon: string;
+  readonly holder: { readonly name: string; readonly ref: string };
+  readonly maker: { readonly name: string; readonly ref: string | null } | null;
+  readonly stuff: string;
+  /** Its quality (5 … 99), its grade, and what the town's middling hands make of its kind. */
+  readonly q: number;
+  readonly grade: string;
+  readonly mid: number;
+  /** Thousandths of its life used, and the days of use left it (at the rate it is used). */
+  readonly wear: number;
+  readonly daysLeft: number;
+  readonly made: string;
+  /** What it is for, where it is, and what it is to its holder's mood (a condition while they hold it). */
+  readonly use: string;
+  readonly where: string;
+  readonly mood: number;
+};
+
+export type PlaceInspect =
+  | PlaceInspectPerson
+  | PlaceInspectLot
+  | PlaceInspectInside
+  | PlaceInspectItem;
 
 /** The readings a town mode lays over its lots (N5): needs, mood, room, work, age, danger. */
 export type PlaceOverlayKind =
