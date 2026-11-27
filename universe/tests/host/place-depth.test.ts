@@ -75,11 +75,19 @@ const making = (w: World, people: number): Settlement => {
     towns = ctx.settlements
       .all()
       .filter((s) => ctx.settlements.held(s.ref) && townsOf(w).get(s.ref) && s.population > 0)
-      .sort((a, b) => Math.abs(a.population - people) - Math.abs(b.population - people) || (a.ref < b.ref ? -1 : 1));
+      .sort(
+        (a, b) =>
+          Math.abs(a.population - people) - Math.abs(b.population - people) ||
+          (a.ref < b.ref ? -1 : 1),
+      );
   for (const s of towns.slice(0, 8)) {
     const pl = enterPlace(copy(w), s.ref)!;
     for (let i = 0; i < pl.people.n; i++)
-      if ((pl.people.sexOcc[i]! & 15) === OCC.crafter && pl.people.craft[i] && RECIPES[pl.people.craft[i]! - 1]!.inputs.length)
+      if (
+        (pl.people.sexOcc[i]! & 15) === OCC.crafter &&
+        pl.people.craft[i] &&
+        RECIPES[pl.people.craft[i]! - 1]!.inputs.length
+      )
         return s;
   }
   return towns[0]!;
@@ -94,12 +102,20 @@ const pairable = (w: World, people: number): Settlement => {
     towns = ctx.settlements
       .all()
       .filter((s) => ctx.settlements.held(s.ref) && townsOf(w).get(s.ref) && s.population > 0)
-      .sort((a, b) => Math.abs(a.population - people) - Math.abs(b.population - people) || (a.ref < b.ref ? -1 : 1));
+      .sort(
+        (a, b) =>
+          Math.abs(a.population - people) - Math.abs(b.population - people) ||
+          (a.ref < b.ref ? -1 : 1),
+      );
   for (const s of towns.slice(0, 8)) {
     const pl = enterPlace(copy(w), s.ref)!,
       seen = [false, false];
     for (let i = 0; i < pl.people.n; i++)
-      if (!pl.people.mate[i] && !pl.people.friend[i] && (pl.t / DAY - pl.people.born[i]!) / 365 >= grown + 1)
+      if (
+        !pl.people.mate[i] &&
+        !pl.people.friend[i] &&
+        (pl.t / DAY - pl.people.born[i]!) / 365 >= grown + 1
+      )
         seen[pl.people.sexOcc[i]! >> 4] = true;
     if (seen[0] && seen[1]) return s;
   }
@@ -249,7 +265,8 @@ test("one whose own work has nothing for them turns to the next their priorities
   for (let i = 0; i < p.n; i++) if (!ids.includes(p.id[i]!)) assert.equal(p.turn[i], 0);
   // Each day their own work is tried first again: with its stuff back, they are at their craft. (Given back: a town
   // that weaves and keeps no flock is brought no wool in two days.)
-  for (let k = 0; k < stores.length; k++) place.bldgs.stock[k] = Math.max(place.bldgs.stock[k]!, stores[k]!);
+  for (let k = 0; k < stores.length; k++)
+    place.bldgs.stock[k] = Math.max(place.bldgs.stock[k]!, stores[k]!);
   watch(w, s.ref, 40, 1);
   let back = 0;
   for (const id of ids) if (p.turn[placeIndexOf(place, id)] === 0) back++;
