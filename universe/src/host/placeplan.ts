@@ -32,6 +32,7 @@ import {
   homePlanet,
   kindBody,
   lifeOf,
+  managedOf,
   mixOf,
   populationContext,
 } from "../sim/index.ts";
@@ -317,7 +318,16 @@ export function whyWords(world: World, place: Place, i: number): string {
     case WHY.fire:
       return `A fire in the town: turned out to fight it at ${lotWords(place, p.to[i]!)}, until it is out or hunger takes them off`;
     case WHY.arms:
-      return `Standing to arms in the square ${byOrder(place, "respond:muster")}, in the hours their work would have had`;
+      return `Standing to arms ${(() => {
+        // (At the post your order gives, O7: watching the homes within a cry of it.)
+        const post = managedOf(world)?.get(place.town)?.post;
+        return post === undefined ? "in the square" : `at their post, ${lotWords(place, post)}, watching the homes within a cry of it`;
+      })()} ${byOrder(place, "respond:muster")}, in the hours their work would have had`;
+    case WHY.watch: {
+      // (The night's watch at the guard's post, O7.)
+      const post = managedOf(world)?.get(place.town)?.post;
+      return `Keeping the night's watch at the guard's post${post === undefined ? "" : `, ${lotWords(place, post)}`}, by turns: the homes within a cry of it watched against thieves`;
+    }
     case WHY.siege:
       return "A siege lies about the town: no one goes out to its fields. At home until it is lifted";
     case WHY.apart:
@@ -1436,6 +1446,10 @@ export function placeSince(
   if (want(HAP.stole))
     lines.push(
       `${of(want(HAP.stole), "stole", "stole")} from other households, in want.`,
+    );
+  if (want(HAP.caught))
+    lines.push(
+      `${of(want(HAP.caught), "was", "were")} caught stealing by the watch at the guard's post.`,
     );
   void world;
   return { days: Math.max(0, Math.round((place.t - since) / DAY)), lines };

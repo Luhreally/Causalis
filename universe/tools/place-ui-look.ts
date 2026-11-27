@@ -657,6 +657,18 @@ for (const view of [
     say(`zoned: ${(await text(".place-insp-body")).match(/A meeting place[^.]*\./)?.[0] ?? ""}`);
     check(/Ground: /.test(await text(".place-insp-body")), "a lot's page says what its ground is");
     await look("20b-insp-zone", "a lot zoned a meeting place");
+    // The guard's post (O7): posted here by its key, the page saying what it watches; and back to the square.
+    await k('document.querySelector(".place-insp-post")?.scrollIntoView({ block: "center" })');
+    await page.waitForTimeout(300);
+    await press(".place-insp-post", "Post the guard here, on the lot's page");
+    await until("the lot made the guard's post", async () => /The guard's post by your order/.test(await text(".place-insp-body")), 8000);
+    check(/The guard's post by your order/.test(await text(".place-insp-body")), "a lot posted says it is the guard's post");
+    say(`posted: ${(await text(".place-insp-body")).match(/The guard's post by your order[^.]*\.[^.]*\./)?.[0] ?? ""}`);
+    await look("20b2-insp-post", "a lot made the guard's post");
+    await k('document.querySelector(".place-insp-post")?.scrollIntoView({ block: "center" })');
+    await page.waitForTimeout(300);
+    await press(".place-insp-post", "the guard's post, back to the square");
+    await until("the post let go", async () => !/The guard's post by your order/.test(await text(".place-insp-body")), 8000);
     // Inside it (O3): its plan on its tiles; one of those there opened from it, and Back to the plan, and to the lot.
     await k('document.querySelector(".place-insp-inside")?.scrollIntoView({ block: "center" })');
     await page.waitForTimeout(300);

@@ -639,6 +639,21 @@ export class PlaceInspector {
       body.push(row);
     }
     if (x.zoneWords) body.push(el("p", "place-insp-why", x.zoneWords));
+    // (The guard's post by your order, O7: those standing to arms keep it, watching the homes within a cry of it.)
+    if (x.postable && this.orders) {
+      const b = el("button", "place-chip place-insp-post", x.post ? "🛡️ The guard's post: back to the square" : "🛡️ Post the guard here");
+      b.classList.toggle("on", x.post);
+      b.setAttribute("aria-pressed", String(x.post));
+      b.setAttribute(
+        "aria-label",
+        x.post ? "Those standing to arms stand in the square again" : `Those standing to arms stand at ${x.name}`,
+      );
+      b.onclick = () => this.onOrder("place.post", { lot: x.post ? null : x.lot });
+      const row = el("div", "place-insp-orders");
+      row.append(b);
+      body.push(row);
+    }
+    if (x.postWords) body.push(el("p", "place-insp-why", x.postWords));
     if (x.ground) body.push(el("p", "place-insp-why", `Ground: ${x.ground}`));
     if (x.stock.length) {
       const table = el("table", "place-insp-stock"),

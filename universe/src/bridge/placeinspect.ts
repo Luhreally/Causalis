@@ -174,6 +174,13 @@ export type PlaceInspectLot = {
   readonly zone: "meet" | "clear" | null;
   readonly clearable: boolean;
   readonly zoneWords: string;
+  /**
+   * Whether it is the guard's post by your order (O7), whether it may be one (any lot, its walls' site), and what comes of
+   * it: those standing to arms there, the homes within a cry of it watched.
+   */
+  readonly post: boolean;
+  readonly postable: boolean;
+  readonly postWords: string;
   /** What its ground is: its land's soil, and the rock under it. */
   readonly ground: string;
 };
