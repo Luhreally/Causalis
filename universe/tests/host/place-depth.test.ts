@@ -67,6 +67,45 @@ const near = (w: World, people: number): Settlement => {
     .sort((a, b) => b.population - a.population || (a.ref < b.ref ? -1 : 1))
     .reduce((a, b) => (Math.abs(b.population - people) < Math.abs(a.population - people) ? b : a));
 };
+/**
+ * The town nearest so many people with a crafter whose making takes stuff of its stores (read on a copy): a land that
+ * makes stone tools alone, of nothing it keeps, leaves its crafters their work however bare its stores.
+ */
+const making = (w: World, people: number): Settlement => {
+  const ctx = populationContext(w),
+    towns = ctx.settlements
+      .all()
+      .filter((s) => ctx.settlements.held(s.ref) && townsOf(w).get(s.ref) && s.population > 0)
+      .sort((a, b) => Math.abs(a.population - people) - Math.abs(b.population - people) || (a.ref < b.ref ? -1 : 1));
+  for (const s of towns.slice(0, 8)) {
+    const pl = enterPlace(copy(w), s.ref)!;
+    for (let i = 0; i < pl.people.n; i++)
+      if ((pl.people.sexOcc[i]! & 15) === OCC.crafter && pl.people.craft[i] && RECIPES[pl.people.craft[i]! - 1]!.inputs.length)
+        return s;
+  }
+  return towns[0]!;
+};
+/**
+ * The town nearest so many people with grown men and women both unpaired and without a friend yet (read on a copy): one
+ * of a land whose wars took its men can have every man of it paired, and none to pair.
+ */
+const pairable = (w: World, people: number): Settlement => {
+  const ctx = populationContext(w),
+    grown = lifeOf(w).adulthood,
+    towns = ctx.settlements
+      .all()
+      .filter((s) => ctx.settlements.held(s.ref) && townsOf(w).get(s.ref) && s.population > 0)
+      .sort((a, b) => Math.abs(a.population - people) - Math.abs(b.population - people) || (a.ref < b.ref ? -1 : 1));
+  for (const s of towns.slice(0, 8)) {
+    const pl = enterPlace(copy(w), s.ref)!,
+      seen = [false, false];
+    for (let i = 0; i < pl.people.n; i++)
+      if (!pl.people.mate[i] && !pl.people.friend[i] && (pl.t / DAY - pl.people.born[i]!) / 365 >= grown + 1)
+        seen[pl.people.sexOcc[i]! >> 4] = true;
+    if (seen[0] && seen[1]) return s;
+  }
+  return towns[0]!;
+};
 const watch = (w: World, town: string, hours: number, step = 1): void => {
   for (let k = 0; k < hours; k += step) {
     w.runTo(w.now + step * HOUR);
@@ -151,22 +190,31 @@ test("priorities are checked, packed and kept: the trade set highest is one's ow
 
 test("one whose own work has nothing for them turns to the next their priorities name that has, and back", () => {
   const w = copy(base()),
-    s = near(w, 600),
+    s = making(w, 600),
     place = enterPlace(w, s.ref)!,
     p = place.people,
-    ids = [0, 1, 2].map((k) => one(w, place, OCC.crafter, k)).filter((id) => id > 0);
-  assert.ok(ids.length > 0, "the town has crafters");
+    // (Three whose making takes stuff of the town's stores: one who makes stone tools takes none, and has work however
+    // bare they are.)
+    ids: number[] = [];
+  for (let k = 0; ids.length < 3; k++) {
+    const id = one(w, place, OCC.crafter, k);
+    if (id < 0) break;
+    const craft = p.craft[placeIndexOf(place, id)]!;
+    if (craft && RECIPES[craft - 1]!.inputs.length) ids.push(id);
+  }
+  assert.ok(ids.length > 0, "the town has crafters whose making takes stuff");
   for (const id of ids) order(w, "place.prio", { town: s.ref, person: id, kinds: [2, 0, 3, 0, 0] });
   // (What their makings are made of is taken out of the town: their craft has nothing for them.)
-  const bare = (): void => {
-    for (const id of ids) {
-      const craft = p.craft[placeIndexOf(place, id)]!;
-      if (!craft) continue;
-      for (const [x] of RECIPES[craft - 1]!.inputs)
-        for (let b = 0; b < place.bldgs.lot.length; b++)
-          place.bldgs.stock[b * GOODS.length + x] = 0;
-    }
-  };
+  const stores = place.bldgs.stock.slice(),
+    bare = (): void => {
+      for (const id of ids) {
+        const craft = p.craft[placeIndexOf(place, id)]!;
+        if (!craft) continue;
+        for (const [x] of RECIPES[craft - 1]!.inputs)
+          for (let b = 0; b < place.bldgs.lot.length; b++)
+            place.bldgs.stock[b * GOODS.length + x] = 0;
+      }
+    };
   w.runTo(Math.ceil(w.now / DAY) * DAY + 7 * HOUR);
   placeFrame(w, s.ref, []);
   let turned = 0,
@@ -200,7 +248,9 @@ test("one whose own work has nothing for them turns to the next their priorities
   }
   // One with no priorities set never turns.
   for (let i = 0; i < p.n; i++) if (!ids.includes(p.id[i]!)) assert.equal(p.turn[i], 0);
-  // Each day their own work is tried first again: with its stuff back, they are at their craft.
+  // Each day their own work is tried first again: with its stuff back, they are at their craft. (Given back: a town
+  // that weaves and keeps no flock is brought no wool in two days.)
+  for (let k = 0; k < stores.length; k++) place.bldgs.stock[k] = Math.max(place.bldgs.stock[k]!, stores[k]!);
   watch(w, s.ref, 40, 1);
   let back = 0;
   for (const id of ids) if (p.turn[placeIndexOf(place, id)] === 0) back++;
@@ -437,7 +487,7 @@ test("come back to after a long while, a place is matched at once, and nothing w
 
 test("households are pairs and their young; two friends grown and unpaired are promised, then paired on a day and one household", () => {
   const w = copy(base()),
-    s = near(w, 600),
+    s = pairable(w, 600),
     place = enterPlace(w, s.ref)!,
     grown = lifeOf(w).adulthood;
   // As made: in each household its grown men and women are paired one to one, each the other's.
