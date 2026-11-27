@@ -10,6 +10,7 @@ import {
   TOWN_FRAME,
   boltColors,
   figureOf,
+  lyingLift,
   lifeFigure,
   figurePaint,
   flameGeometry,
@@ -258,7 +259,9 @@ export class InvasionLayer {
     // by its own slot (its index, so a gait does not jump when another raider comes or goes).
     const alive = now.raiders.filter((r) => r.size > 0),
       nR = Math.min(alive.length, P.cap),
-      scale = P.figure.scale * 1.05;
+      scale = P.figure.scale * 1.05,
+      // (The fallen flat on the ground, their lowest point on it whatever their body: view/footing.ts.)
+      flat = lyingLift(P.figure.parts, scale);
     P.figure.parts.forEach((part, pi) => {
       const lane = P.raiders[pi]!;
       lane.batch.set(nR, (q, out) => {
@@ -273,7 +276,7 @@ export class InvasionLayer {
           sn = Math.sin(r.yaw);
         if (r.doing === "fallen") {
           out[0] = r.x * M + (part.x * c + py * sn) * scale;
-          out[1] = 0.04 + part.z * scale;
+          out[1] = flat + part.z * scale;
           out[2] = r.z * M + (-part.x * sn + py * c) * scale;
           out[7] = Math.PI / 2;
         } else {

@@ -8,6 +8,7 @@ import {
   TOWN_FRAME,
   armLook,
   figureOf,
+  lyingLift,
   lifeFigure,
   figurePaint,
   flameGeometry,
@@ -268,7 +269,9 @@ export class LandfallLayer {
     clock: number,
     count: (lane: Lane, n: number) => void,
   ): void {
-    const n = list.length;
+    const n = list.length,
+      // (Flat to the ground, their lowest point on it whatever their body: view/footing.ts.)
+      flat = lyingLift(host.figure.parts, host.scale, 0.4);
     host.figure.parts.forEach((part, pi) => {
       const lane = host.lanes[pi]!,
         k = Math.min(n, lane.cap);
@@ -287,7 +290,7 @@ export class LandfallLayer {
         if (f.doing === "fallen") {
           out[0] = f.x * M + (part.x * c + py * sn) * s;
           // (Flat to the ground, whatever its body: a low body lying reads as one standing otherwise.)
-          out[1] = 0.04 + part.z * s * 0.4;
+          out[1] = flat + part.z * s * 0.4;
           out[2] = f.z * M + (-part.x * sn + py * c) * s;
           out[7] = Math.PI / 2;
         } else {

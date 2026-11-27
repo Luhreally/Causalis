@@ -13,6 +13,8 @@ import {
   meadowCellAt,
   madeShare,
   seatedSink,
+  SHAPE_CODE,
+  placeBelow,
   type BandPerson,
   type BandState,
   figurePaint,
@@ -87,6 +89,9 @@ export class BandLayer {
   private readonly shapes: Record<PartShape, pc.Mesh>;
   /** The figure drawn, its batches, and how high it stands against an upright ape (what it carries rides so high). */
   private figure: { f: Figure; batches: InstancedBatch[]; lift: number } | null = null;
+  /** The figure's parts' shapes (view/footing.ts), and how far each awake one is set up to stand on the ground (units). */
+  private codes = new Uint8Array(0);
+  private lifts = new Float32Array(0);
   private readonly sleepers: InstancedBatch;
   /** What they carry: an armful gathered, meat, the camp packed. */
   private readonly loads: Record<"food" | "meat" | "bundle", InstancedBatch>;
@@ -231,8 +236,9 @@ export class BandLayer {
       // them; a figure with no pair of legs to sit on works standing.)
       sinks = tasks.map((task) => seatedSink(fig.f.parts, task));
     // Each awake one in the parts of the figure, limbs swinging as they go or work.
-    fig.f.parts.forEach((part, i) => {
-      fig.batches[i]!.set(awake.length, (j, out) => {
+    const parts = fig.f.parts,
+      /** A part of awake one j, laid into `out` (its height from the ground under the figure's own middle). */
+      place = (part: (typeof parts)[number], j: number, out: number[]) => {
         const p = awake[j]!,
           k = size(p),
           task = tasks[j]!,
@@ -260,6 +266,27 @@ export class BandLayer {
         out[5] = part.sz * k;
         out[6] = p.heading;
         out[7] = pitch;
+      };
+    // (Each set on the meadow's ground, its lowest point on it whatever its body and however it sits or strides, a hop at
+    // play kept: view/footing.ts.)
+    if (this.codes.length !== parts.length)
+      this.codes = Uint8Array.from(parts, (part) => SHAPE_CODE[part.shape]);
+    if (this.lifts.length < awake.length) this.lifts = new Float32Array(awake.length * 2);
+    const one = [0, 0, 0, 1, 1, 1, 0, 0];
+    for (let j = 0; j < awake.length; j++) {
+      let lo = Infinity;
+      parts.forEach((part, pi) => {
+        place(part, j, one);
+        if (one[3] || one[4])
+          lo = Math.min(lo, one[1]! - placeBelow(this.codes[pi]!, one[4]!, one[5]!, one[7]!));
+      });
+      const hop = Math.max(0, bobOf(tasks[j]!, s, awake[j]!.id)) * size(awake[j]!);
+      this.lifts[j] = Number.isFinite(lo) ? hop - lo : 0;
+    }
+    parts.forEach((part, i) => {
+      fig.batches[i]!.set(awake.length, (j, out) => {
+        place(part, j, out);
+        out[1] = out[1]! + this.lifts[j]!;
       });
     });
     // The sleeping, lying about the fire.

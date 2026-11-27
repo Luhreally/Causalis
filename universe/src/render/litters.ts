@@ -50,7 +50,7 @@ export function litterPieces(
   folk = 1,
 ): LitterPiece[] {
   const k = folk,
-    y = l.borne ? held : LITTER.rest * k,
+    y = (l.ground ?? 0) + (l.borne ? held : LITTER.rest * k),
     s = Math.sin(l.face),
     c = Math.cos(l.face),
     // (So far along it toward its head, across it to its right, and up.)

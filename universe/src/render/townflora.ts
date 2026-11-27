@@ -6,6 +6,7 @@ import * as pc from "playcanvas";
 import { FLORA_NAMES, wetGround, type VillagePlan } from "../bridge/index.ts";
 import {
   FAIR_YEAR,
+  GroundTops,
   formColor,
   grassTint,
   seasonGround,
@@ -41,6 +42,8 @@ const M = 0.1;
 /** How long a frame spends laying what grows about a town, at most (ms). */
 const LAY_SLICE = 4;
 /** The ground mesh's rings and spokes; its rings past its own ground, and how far they reach (units: past the eye's far clip). */
+/** How far its ground mesh is laid over the plain disc under it (units). */
+const GROUND_LIFT = 0.004;
 const RINGS = 30,
   SPOKES = 72,
   OUTER = 14,
@@ -117,6 +120,8 @@ export class TownFloraLayer {
   private plan: VillagePlan | null = null;
   /** What the last laying was laid by (floraKey). */
   private key = "";
+  /** Its ground's reading and how far about its square it lies level (metres), as its mesh was laid: for heightAt. */
+  private reading: { g: TownGround; flat: number } | null = null;
   /** The last building's time (ms): its ground, and the frames' share of laying what grows on it. */
   buildMs = 0;
   layMs = 0;
@@ -167,6 +172,7 @@ export class TownFloraLayer {
     this.key = key;
     this.plan = plan;
     const g = townGroundOf(plan);
+    this.reading = g ? { g, flat: radius / M } : null;
     if (!g) {
       this.job = null;
       this.shown = null;
@@ -212,7 +218,7 @@ export class TownFloraLayer {
     const e = new pc.Entity("town-ground");
     e.addComponent("render", { meshInstances: [new pc.MeshInstance(mesh, m)] });
     e.render!.castShadows = false;
-    e.setLocalPosition(0, 0.004, 0);
+    e.setLocalPosition(0, GROUND_LIFT, 0);
     this.root.addChild(e);
     this.ground = e;
     this.groundMesh = mesh;
@@ -485,6 +491,51 @@ export class TownFloraLayer {
       layMs: +this.layMs.toFixed(1),
       laying: !!this.job,
     };
+  }
+
+  /**
+   * How high its ground mesh stands at a point (metres from the square: its land's rise past its own level ground, and the
+   * mesh's own lift over the plain disc); null where it draws none (a colony's, a land built over).
+   */
+  heightAt(x: number, z: number): number | null {
+    const r = this.reading;
+    if (!r || !this.ground) return null;
+    return townRiseAt(r.g, x, z, r.flat) + GROUND_LIFT / M;
+  }
+
+  /**
+   * The trees' trunks as last laid, as what stands in the way of a body (view/footing.ts GroundTops, metres): read again as
+   * they are laid anew; null: none laid.
+   */
+  trunkTops(): GroundTops | null {
+    const trunks = this.shown?.trunks;
+    if (!trunks?.length) return null;
+    if (this.trunksRead?.of !== trunks) {
+      // (Each its trunk's round, from the ground up, at least as tall as stands in the way: a sapling is not stepped on.)
+      const tall = (h: number) => Math.max(2, h);
+      this.trunksRead = {
+        of: trunks,
+        tops: new GroundTops(
+          trunks.map((t) => ({
+            x: t.x,
+            y: tall(t.h) / 2,
+            z: t.z,
+            sx: t.w,
+            sy: tall(t.h),
+            sz: t.w,
+            yaw: 0,
+            round: true,
+          })),
+        ),
+      };
+    }
+    return this.trunksRead.tops;
+  }
+  private trunksRead: { of: readonly unknown[]; tops: GroundTops } | null = null;
+
+  /** The trees' trunks as last laid (metres from the square, r their half breadth): the count of figures in what stands solid. */
+  trunksNow(): { x: number; z: number; r: number }[] {
+    return (this.shown?.trunks ?? []).map((t) => ({ x: t.x, z: t.z, r: t.w / 2 }));
   }
 
   /** Every thing as last laid (metres from the square), for the look tools' count of what stands where it may not. */

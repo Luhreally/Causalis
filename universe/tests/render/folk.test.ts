@@ -15,6 +15,8 @@ import {
   hairOf,
   keepApart,
   limbPitch,
+  lowestOf,
+  SHAPE_CODE,
   lookNow,
   looksHurt,
   momentsOf,
@@ -85,7 +87,10 @@ function setBefore(count: number, place: (i: number, out: number[]) => void): Fl
 
 type Drawn = { people: (Float32Array | null)[][]; hair: (Float32Array[] | null)[] };
 
-/** The village's people as it posed them before (to Phase 59): each one, every frame. */
+/**
+ * The village's people as it posed them before (to Phase 59): each one, every frame; and since 2026-11-26 each set on the
+ * ground, its lowest point on it (view/footing.ts), a hop at play kept.
+ */
 class Before {
   private readonly limbs = new Map<string, Float32Array>();
   place: (out: number[], i: number, pi: number) => void = () => {};
@@ -112,7 +117,7 @@ class Before {
         });
         return drawnPitch;
       });
-    const place = (out: number[], i: number, pi: number) => {
+    const laid = (out: number[], i: number, pi: number) => {
       const p = plan.people[i]!,
         part = parts[pi]!,
         m = moments[i]!,
@@ -139,13 +144,40 @@ class Before {
       out[7] = pitch;
       if (f.downed?.has(i)) lieDown(out, part, m.x, m.z, m.yaw, size, pitch);
     };
+    // (How far each is set up or down to stand on the ground: their lowest point, as drawn, on it.)
+    const codes = parts.map((part) => SHAPE_CODE[part.shape]),
+      shifts = plan.people.map((p, i) => {
+        const m = moments[i]!;
+        if (m.hidden) return 0;
+        const posed = setBefore(parts.length, (pi, out) => laid(out, i, pi)),
+          lowest = lowestOf(posed, 0, parts.length, codes);
+        if (!Number.isFinite(lowest)) return 0;
+        const size = (p.child ? 0.7 : 1) * figure.scale * (sizes[i] ?? 1),
+          hop = f.downed?.has(i) ? 0 : Math.max(0, bobOf(m.task, clock, i)) * size;
+        return 0 + 0 * M + hop - lowest;
+      });
+    const place = (out: number[], i: number, pi: number) => {
+      laid(out, i, pi);
+      out[1] = out[1]! + shifts[i]!;
+    };
+    /** A batch's instances of `who` as set() wrote them, each set on the ground. */
+    const grounded = (who: readonly number[], pi: number): Float32Array => {
+      const m = setBefore(who.length, (k, out) => laid(out, who[k]!, pi));
+      who.forEach((i, k) => (m[k * 16 + 13] = m[k * 16 + 13]! + shifts[i]!));
+      return m;
+    };
     this.place = place;
     const people = f.people.map((batches, gi) => {
       const members = plan.people
         .map((p, i) => ({ p, i }))
         .filter(({ p, i }) => personGroup(p) === gi && !moments[i]!.hidden);
       return batches.map((batch, pi) =>
-        batch ? setBefore(members.length, (k, out) => place(out, members[k]!.i, pi)) : null,
+        batch
+          ? grounded(
+              members.map((x) => x.i),
+              pi,
+            )
+          : null,
       );
     });
     const span = plan.body?.span ?? 70,
@@ -155,7 +187,10 @@ class Before {
               const wearers = plan.people
                 .map((p, i) => ({ p, i }))
                 .filter(({ p, i }) => !moments[i]!.hidden && hairOf(p.ref, p.age, span) === hi);
-              return setBefore(wearers.length, (k, out) => place(out, wearers[k]!.i, pi));
+              return grounded(
+                wearers.map((x) => x.i),
+                pi,
+              );
             })
           : null,
       );

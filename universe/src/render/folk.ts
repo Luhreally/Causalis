@@ -20,11 +20,16 @@ import {
   dressedOn,
   hairOf,
   limbPitch,
+  lowestOf,
+  partBox,
+  partFrame,
   partExtent,
   personGroup,
+  SHAPE_CODE,
   woundBob,
   woundPitch,
   type Figure,
+  type FootedFigure,
   type Moment,
   type WoundGear,
 } from "../view/index.ts";
@@ -78,6 +83,11 @@ export type FolkFrame = {
    * their batches' fading material (render/nearfade.ts): those near the eye behind one possessed, faded by degrees.
    */
   readonly alpha?: ArrayLike<number> | null;
+  /**
+   * The ground under each one as drawn (units: the top of the street, the yard, the square or the field they stand on, or the
+   * land's ground; absent: the plain ground's level, 0), each figure's lowest point set on it.
+   */
+  readonly ground?: ArrayLike<number> | null;
 };
 
 /** A part's place now, as the village lays it out ([x, y, z, sx, sy, sz, yaw, pitch]). */
@@ -146,8 +156,67 @@ export class FolkPoses {
   private shared:
     (Shared & { readonly of: FolkFrame["people"]; readonly hairOf: FolkFrame["hair"] }) | null =
     null;
+  /** Each part's shape (view/footing.ts SHAPE_CODE), and how far each one was set up or down to stand on the ground when last posed (units). */
+  private codes = new Uint8Array(0);
+  private shifts = new Float64Array(0);
+  /** The ground each one was set on when last posed (units). */
+  private grounds = new Float32Array(0);
+  /** How high each one was at a hop when last posed (units). */
+  private hops = new Float32Array(0);
+  /** How far each one's parts reached out across the ground about them when last posed at work (units; 0: not at work). */
+  private reaches = new Float32Array(0);
   /** How many were posed and carried in the last frame (the tests, the look tools). */
   shown = { posed: 0, carried: 0 };
+
+  /**
+   * Where one's lowest point is drawn now, and the surface they stand on (units; null: not drawn): for the look tools'
+   * count of figures off the ground or in it (tools/feet-check.ts).
+   */
+  footOf(
+    i: number,
+    moments: readonly Moment[],
+  ): { lowest: number; surface: number; hop: number } | null {
+    const m = moments[i],
+      figure = this.figure;
+    if (!m || m.hidden || !figure || i >= this.shifts.length) return null;
+    const P = figure.parts.length,
+      lowest = lowestOf(this.posed, i * P * 16, P, this.codes);
+    return Number.isFinite(lowest)
+      ? {
+          lowest,
+          surface: (this.grounds[i] ?? 0) + (m.lift ?? 0) * M,
+          hop: this.hops[i] ?? 0,
+        }
+      : null;
+  }
+
+  /** How far one's parts reached out across the ground about them as last posed at work (units; 0: not at work). */
+  reachOf(i: number): number {
+    return this.reaches[i] ?? 0;
+  }
+
+  /** One drawn now as the count of figures on the ground and in one another reads them (view/footing.ts; null: not drawn). */
+  footedOf(i: number, moments: readonly Moment[], lying: boolean): FootedFigure | null {
+    const foot = this.footOf(i, moments),
+      figure = this.figure,
+      m = moments[i];
+    if (!foot || !figure || !m) return null;
+    const P = figure.parts.length,
+      boxes = new Float32Array(P * 6),
+      frames = new Float32Array(P * 12),
+      // (Carried since posed: as far on as they have gone.)
+      dx = this.now[i] ? 0 : m.x * M - this.atX[i]!,
+      dz = this.now[i] ? 0 : m.z * M - this.atZ[i]!;
+    for (let pi = 0; pi < P; pi++) {
+      partBox(this.posed, (i * P + pi) * 16, boxes, pi * 6);
+      boxes[pi * 6] = boxes[pi * 6]! + dx;
+      boxes[pi * 6 + 2] = boxes[pi * 6 + 2]! + dz;
+      partFrame(this.posed, (i * P + pi) * 16, frames, pi * 12);
+      frames[pi * 12] = frames[pi * 12]! + dx;
+      frames[pi * 12 + 2] = frames[pi * 12 + 2]! + dz;
+    }
+    return { boxes, frames, ...foot, x: m.x * M, z: m.z * M, lying };
+  }
 
   /** How far one's hip stood lowered on its legs' arc when last posed (the figure's own units): for what is worn on them. */
   dropOf(i: number): number {
@@ -204,6 +273,11 @@ export class FolkPoses {
       this.hips.push(part.y + (part.pivot ?? 0));
     });
     this.hip = Math.max(0, ...this.hips);
+    this.codes = Uint8Array.from(figure.parts, (p) => SHAPE_CODE[p.shape]);
+    this.shifts = new Float64Array(n);
+    this.grounds = new Float32Array(n);
+    this.hops = new Float32Array(n);
+    this.reaches = new Float32Array(n);
     this.taken = new Float32Array(n);
     this.drops = new Float32Array(n);
     this.posed = new Float32Array(n * parts * 16);
@@ -358,6 +432,43 @@ export class FolkPoses {
         keep[o + 14] = mz + (-px * sn + pz * c) * size;
         keep[o + 15] = 1;
       }
+      // On the ground (view/footing.ts): their lowest point, whatever their body and however they stand, sit or lie, set on
+      // what they stand on (a hop off it at play kept), never into it nor short of it.
+      const lowest = lowestOf(keep, i * P * 16, P, this.codes);
+      let shift = 0;
+      if (Number.isFinite(lowest)) {
+        const under = f.ground?.[i] ?? 0;
+        const hop = lying ? 0 : Math.max(0, bob) * size;
+        this.grounds[i] = under;
+        this.hops[i] = hop;
+        shift = under + (m.lift ?? 0) * M + hop - lowest;
+        // (At work, how far their parts reach out across the ground, an arm put out, a tool swung: what they are kept from
+        // others by, beyond their body at rest.)
+        let reach = 0;
+        for (let pi = 0; pi < P; pi++) {
+          const o = (i * P + pi) * 16;
+          keep[o + 13] = keep[o + 13]! + shift;
+          if (m.task) {
+            const dx = keep[o + 12]! - mx,
+              dz = keep[o + 14]! - mz,
+              a = keep[o]!,
+              b = keep[o + 2]!,
+              c = keep[o + 4]!,
+              d = keep[o + 6]!,
+              e = keep[o + 8]!,
+              g = keep[o + 10]!,
+              out =
+                Math.sqrt(dx * dx + dz * dz) +
+                0.5 *
+                  (Math.sqrt(a * a + b * b) + Math.sqrt(c * c + d * d) + Math.sqrt(e * e + g * g));
+            if (out > reach) reach = out;
+          }
+        }
+        this.reaches[i] = reach;
+      }
+      this.shifts[i] = shift;
+      // (What is worn on them, a crutch, a sling, set by as much: their hip's drop less what set them on the ground.)
+      if (size > 0) this.drops[i] = drop - shift / size;
       this.atX[i] = mx;
       this.atZ[i] = mz;
       this.fresh[i] = 1;
@@ -476,6 +587,8 @@ export class FolkPoses {
       o[6] = m.yaw;
       o[7] = pitch;
       if (lying) lieDown(o, part, m.x, m.z, m.yaw, size, pitch);
+      // (Set on the ground as their figure was when posed.)
+      o[1] += this.shifts[i] ?? 0;
     };
   }
 }

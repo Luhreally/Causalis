@@ -2,6 +2,25 @@
 // May import: kernel, rules, bridge. See README.md and docs/architecture §28.
 export { WORN_WIDE, wornOf, type Worn, type WornPiece } from "./worn.ts";
 export {
+  SHAPE_CODE,
+  feetTally,
+  groundPlaces,
+  lyingLift,
+  Spread,
+  GroundTops,
+  STEP_UP,
+  type LaidPiece,
+  lowestOf,
+  partBelow,
+  partBox,
+  partFrame,
+  framesMeet,
+  restBody,
+  placeBelow,
+  type FeetTally,
+  type FootedFigure,
+} from "./footing.ts";
+export {
   CAR_REACH,
   RIDES_REACHES,
   LONG_WALK,

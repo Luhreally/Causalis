@@ -302,7 +302,9 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
           const sky = d.weather();
           d.loading.seasonIs(
             seasonWord(f.season),
-            sky && sky.celsius !== null ? `${Math.round(sky.celsius)}° ${sky.words}` : (sky?.words ?? null),
+            sky && sky.celsius !== null
+              ? `${Math.round(sky.celsius)}° ${sky.words}`
+              : (sky?.words ?? null),
           );
           d.loading.step(2, true);
           entered = d.loading.hide();
@@ -452,7 +454,9 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     chosen = id;
     // (One looked at is followed in full for a day from it, as near as their next turn: tiers.)
     if (id !== null && town)
-      void d.client.query({ type: "place.pin", args: { ref: town, id, soft: true } }).catch(() => {});
+      void d.client
+        .query({ type: "place.pin", args: { ref: town, id, soft: true } })
+        .catch(() => {});
     if (id === null) {
       ring.hidden = tag.hidden = true;
       if (inspector.following) follow(false);
@@ -480,8 +484,10 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
   const marked = (): void => {
     if (chosen === null) return;
     const p = personPoint(chosen),
-      foot = p ? d.village.screenOf(p.x, p.z, 0) : null,
-      head = p ? d.village.screenOf(p.x, p.z, TAG_HIGH) : null;
+      // (On the ground drawn under them, as their figure stands: render/folk.ts.)
+      under = p ? d.village.surfaceAt(p.x, p.z) : 0,
+      foot = p ? d.village.screenOf(p.x, p.z, under) : null,
+      head = p ? d.village.screenOf(p.x, p.z, under + TAG_HIGH) : null;
     if (!foot || !head) {
       if (!ring.hidden) ring.hidden = tag.hidden = true;
       return;
@@ -612,7 +618,10 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
         })
         .then((x) => {
           if (x && x.lines.length && x.days >= 1)
-            d.ranTown!(`While you ran ${name}, ${x.days} ${x.days === 1 ? "day" : "days"}`, x.lines);
+            d.ranTown!(
+              `While you ran ${name}, ${x.days} ${x.days === 1 ? "day" : "days"}`,
+              x.lines,
+            );
         })
         .catch(() => {});
     enteredAt = null;
@@ -867,8 +876,9 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
       const tall: number[] = [];
       for (const q of d.plan()?.people ?? []) {
         const at = d.village.personAt(q.ref),
-          foot = at ? d.village.screenOf(at.x, at.z, 0) : null,
-          head = at ? d.village.screenOf(at.x, at.z, 1.7) : null;
+          under = at ? d.village.surfaceAt(at.x, at.z) : 0,
+          foot = at ? d.village.screenOf(at.x, at.z, under) : null,
+          head = at ? d.village.screenOf(at.x, at.z, under + 1.7) : null;
         if (foot && head && foot.x > 0 && foot.x < innerWidth && foot.y > 0 && foot.y < innerHeight)
           tall.push(foot.y - head.y);
       }

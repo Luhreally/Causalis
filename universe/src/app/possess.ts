@@ -539,9 +539,11 @@ export function installPossession(d: PossessionDeps): Possession {
     o.posed.step = o.clock;
     // The eye behind him as he is drawn; words over those who say something.
     const me = o.posed.drawnAt(o.now.agent);
-    if (me) eye.update(me.x, me.z, villageSolids(o.plan), dt, me.lift ?? 0);
+    // (Over the ground drawn under him, as his figure stands on it: render/folk.ts.)
+    const up = me ? (me.lift ?? 0) + d.village.surfaceAt(me.x, me.z) : 0;
+    if (me) eye.update(me.x, me.z, villageSolids(o.plan), dt, up);
     o.posed.eye = me ? { ...eye.stood, tall: eye.height } : null;
-    hud.clearOf(me ? eye.bodyOnScreen(me.x, me.z, me.lift ?? 0) : null);
+    hud.clearOf(me ? eye.bodyOnScreen(me.x, me.z, up) : null);
     const said: { text: string; x: number; y: number }[] = [];
     for (const b of o.posed.live?.bodies ?? []) {
       if (!b.say) continue;
@@ -610,7 +612,9 @@ export function installPossession(d: PossessionDeps): Possession {
           faded: on.posed.faded,
           body: (() => {
             const m = on.posed.drawnAt(on.now.agent);
-            return m ? eye.bodyOnScreen(m.x, m.z, m.lift ?? 0) : null;
+            return m
+              ? eye.bodyOnScreen(m.x, m.z, (m.lift ?? 0) + d.village.surfaceAt(m.x, m.z))
+              : null;
           })(),
           eye: { yaw: eye.looking, pitch: eye.pitch, distance: eye.distance, ...eye.stood },
         },

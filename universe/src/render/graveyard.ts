@@ -16,6 +16,7 @@ import {
   sectionsOf,
   yardPoint,
   type Graveyard,
+  type LaidPiece,
 } from "../view/index.ts";
 import { InstancedBatch, boxMesh, coneMesh, cylinderMesh, gableMesh, keptMesh } from "./batch.ts";
 import type { Rgb, Stage } from "./stage.ts";
@@ -82,6 +83,8 @@ export type BurialShown = {
     readonly z: number;
     readonly face: number;
     readonly borne: boolean;
+    /** The ground drawn under it (metres; absent: the plain ground's). */
+    readonly ground?: number;
   }[];
   readonly graves: number;
   /** The first of this year's graves (those after it fresh). */
@@ -117,6 +120,8 @@ export class GraveyardLayer {
   private gravesKey = "";
   /** The graveyard drawn (null: none). */
   yard: Graveyard | null = null;
+  /** What it lays on the ground (metres: its grass, its paths, its wall), for those in it to stand on and keep out of. */
+  laid: LaidPiece[] = [];
   /** What was last drawn (the look tools). */
   shown = {
     stones: 0,
@@ -189,6 +194,7 @@ export class GraveyardLayer {
       biers: 0,
       borne: 0,
     };
+    this.laid = [];
     if (!yard) return;
     const make = (mesh: pc.Mesh, color: Rgb, n: number) => {
         const b = new InstancedBatch(this.stage, mesh, color, Math.max(1, n), this.root);
@@ -212,6 +218,16 @@ export class GraveyardLayer {
         y: number,
       ) => {
         const p = at(u, v);
+        this.laid.push({
+          x: p.x,
+          y: y + high / 2,
+          z: p.z,
+          sx: long,
+          sy: high,
+          sz: wide,
+          yaw: vYaw,
+          round: false,
+        });
         out[0] = p.x * M;
         out[1] = (y + high / 2) * M;
         out[2] = p.z * M;
@@ -341,7 +357,7 @@ export class GraveyardLayer {
       out[6] = vYaw;
     });
     const biers = b.biers.slice(0, MOST_BIERS),
-      top = (q: (typeof biers)[number]) => (q.borne ? held : 1.0 * k);
+      top = (q: (typeof biers)[number]) => (q.ground ?? 0) + (q.borne ? held : 1.0 * k);
     this.planks!.set(biers.length, (i, out) => {
       const q = biers[i]!;
       out[0] = q.x * M;
@@ -381,7 +397,7 @@ export class GraveyardLayer {
         s = Math.sin(q.face),
         c = Math.cos(q.face);
       out[0] = (q.x + s * along + c * across) * M;
-      out[1] = 0.45 * k * M;
+      out[1] = ((q.ground ?? 0) + 0.45 * k) * M;
       out[2] = (q.z + c * along - s * across) * M;
       out[3] = out[5] = 0.2 * k * M;
       out[4] = 0.9 * k * M;

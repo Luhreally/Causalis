@@ -277,6 +277,12 @@ export class FaunaLayer {
   }
 
   /** Put every creature where it is at screen time `s` (seconds). */
+  /**
+   * The ground drawn under a point (metres up; a town's: its pasture, its streets, a hand over the land), each beast on the
+   * ground set on it; absent: the plain ground's level.
+   */
+  groundAt: ((x: number, z: number) => number) | null = null;
+
   update(s: number, t?: number): void {
     const fauna = this.fauna;
     if (!fauna || !this.root.enabled) return;
@@ -310,7 +316,16 @@ export class FaunaLayer {
       // (Out of sight, not posed: most of a village's beasts are, looking into it.)
       if (!this.inSight(b.species, b.x, 0, b.z)) continue;
       if (sight && i !== held && sight(b) < 0.5) this.hidden++;
-      this.draw(b.species, b.x, 0, b.z, b.yaw, b.dead ? 0.35 : 0, b.pose, b.size);
+      this.draw(
+        b.species,
+        b.x,
+        this.groundAt?.(b.x, b.z) ?? 0,
+        b.z,
+        b.yaw,
+        b.dead ? 0.35 : 0,
+        b.pose,
+        b.size,
+      );
     }
     // The fliers, on their wings; the swimmers, leaping.
     const birds = birdsAt(fauna, s, this.birdsNow);
@@ -341,7 +356,11 @@ export class FaunaLayer {
     if (lit && this.ring.enabled) {
       const b = fauna.species[lit.species]!.body,
         r = Math.max(0.12, b.length * b.k * 0.8);
-      this.ring.setLocalPosition(lit.x * M, 0.035, lit.z * M);
+      this.ring.setLocalPosition(
+        lit.x * M,
+        0.035 + (this.groundAt?.(lit.x, lit.z) ?? 0) * M,
+        lit.z * M,
+      );
       this.ring.setLocalScale(r * 2, 1, r * 2);
     }
     this.shown = n + birds + leaping;

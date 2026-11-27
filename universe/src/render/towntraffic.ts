@@ -108,8 +108,16 @@ export class TownTraffic {
       this.slots.set(k, s);
     }
     const M = this.scale;
-    s.data.push(x * M, (y + sy / 2) * M, z * M, sx * M, sy * M, sz * M, yaw, 0);
+    s.data.push(x * M, (this.under + y + sy / 2) * M, z * M, sx * M, sy * M, sz * M, yaw, 0);
   }
+
+  /**
+   * The ground drawn under a point of the town (metres up; the village's surfaceAt: its streets stand a hand over the land),
+   * each vehicle set on it as one, read where it stands; absent: the plain ground's level.
+   */
+  groundAt: ((x: number, z: number) => number) | null = null;
+  /** The ground under the vehicle being laid (metres). */
+  private under = 0;
 
   /** Everyone's vehicle where it is at t: `moments` where the town has its people now. */
   update(
@@ -150,6 +158,7 @@ export class TownTraffic {
         side = ground?.town?.sideNear({ x, z }, KERB_NEAR) ?? null,
         yaw = side === null ? had : Math.cos(had - side) >= 0 ? side : side + Math.PI,
         body = own ?? TONES[o.tone % TONES.length]!;
+      this.under = this.groundAt?.(x, z) ?? 0;
       if (wheeled) this.wheels(x, z, yaw, CAR.wide, CAR.long, lift);
       this.put(body, x, lift, z, CAR.wide, CAR.tall * 0.6, CAR.long, yaw);
       this.put(GLASS, x, lift + CAR.tall * 0.6, z, CAR.wide * 0.86, CAR.top, CAR.long * 0.5, yaw);
@@ -237,6 +246,7 @@ export class TownTraffic {
     aboard: number,
     wheeled: boolean,
   ): void {
+    this.under = this.groundAt?.(x, z) ?? 0;
     if (wheeled) this.wheels(x, z, yaw, COACH.wide, COACH.long, lift);
     this.put(body, x, lift, z, COACH.wide, COACH.tall, COACH.long, yaw);
     const c = Math.cos(yaw),

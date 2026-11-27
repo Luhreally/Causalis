@@ -82,6 +82,15 @@ import {
   type Bodies,
   ringTurn,
   keepOut,
+  clearAt,
+  feetTally,
+  GroundTops,
+  Spread,
+  restBody,
+  lyingLift,
+  type LaidPiece,
+  type FeetTally,
+  type FootedFigure,
   villageSolids,
   villageGround,
   daysAhead,
@@ -215,6 +224,12 @@ import { laidGround, shoreWaterSteps, villageShore, type ShoreWater } from "../v
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
 const M = 0.1; // units per metre
+/** Whether the drawn figures are kept out of one another and out of what rises from the ground (render/village.ts spreadDrawn). */
+const SPREAD_ON = true;
+/** How many frames apart they are kept out of one another (render/village.ts spreadDrawn). */
+const SPREAD_EVERY = 4;
+/** How far one standing still may have drifted (metres) before what stands about them is looked at again. */
+const CLEAR_AGAIN = 0.05;
 /** One out of sight (of another people's figure than the one being posed), and no one's wounds' gear. */
 const UNSEEN: Moment = {
     x: 0,
@@ -521,6 +536,58 @@ export class VillageScene {
   private figure: Figure = figureOf(null);
   private moments: Moment[] = [];
   /**
+   * What its own ground lays that one stands on (metres from its square: its plain discs, its pasture, its square, its fields)
+   * and its tops (view/footing.ts), laid as it is built; and each one's ground under them now (units), read again as they move
+   * (`feetAt`, metres: where each was read), so every figure stands on what is drawn under it (2026-11-26).
+   */
+  private laid: LaidPiece[] = [];
+  private ownTops: GroundTops | null = null;
+  private ownLaid = 0;
+  private feet = new Float32Array(0);
+  private feetAt = new Float32Array(0);
+  /** The tops the feet were read on (its own and its town's), to read them all again when either is laid anew. */
+  private feetOn: readonly (GroundTops | null)[] = [];
+  /** The drawn figures' separation (view/footing.ts Spread) and what it is fed, kept between frames. */
+  private readonly spreader = new Spread();
+  private spreadX = new Float64Array(0);
+  private spreadZ = new Float64Array(0);
+  private spreadR = new Float32Array(0);
+  private spreadLive = new Uint8Array(0);
+  /** Where each one standing still was last kept out of what stands about them (metres; NaN: not yet). */
+  private clearX = new Float64Array(0);
+  private clearZ = new Float64Array(0);
+  /** Whose each of those gathered is (their place in the plan's people). */
+  private spreadAt = new Int32Array(0);
+  /** The town, its others and its count each one's reach (spreadR) was read for. */
+  private spreadOf: VillagePlan | null = null;
+  private spreadOthers: unknown = null;
+  private spreadN = -1;
+  /** Each one's body at their own size: its middle from where they stand, facing ahead, and its round (metres; three numbers). */
+  private spreadBase = new Float32Array(0);
+  /** Each gathered one's body's middle from where they stand, turned as they face (metres). */
+  private spreadOX = new Float32Array(0);
+  private spreadOZ = new Float32Array(0);
+  /** The ground under each soldier of the war about the town this frame (units), by the soldier. */
+  private readonly troopFeet = new Map<object, number>();
+  /** How high a figure lies on its back and on its front so its lowest point is on the ground (its own units), by its parts. */
+  private lieKept: { parts: readonly FigurePart[]; back: number; front: number } | null = null;
+  private lieOf(parts: readonly FigurePart[]): { back: number; front: number } {
+    if (this.lieKept?.parts !== parts)
+      this.lieKept = { parts, back: lyingLift(parts, 1), front: lyingLift(parts, 1, -1) };
+    return this.lieKept;
+  }
+  /**
+   * What standing on the ground and out of one another cost (ms, summed over `frames`): the ground read under each one, the
+   * separation, and the posing of the folk with it (render/folk.ts); for the look tools (tools/feet-check.ts), read and
+   * begun again by footCost().
+   */
+  private costs = { feet: 0, spread: 0, pose: 0, frames: 0, gather: 0, core: 0 };
+  footCost(): { feet: number; spread: number; pose: number; frames: number } {
+    const c = this.costs;
+    this.costs = { feet: 0, spread: 0, pose: 0, frames: 0, gather: 0, core: 0 };
+    return c;
+  }
+  /**
    * The other peoples of a town entered (town mode: `plan.peoples`), each drawn in their own people's figure: its
    * parts' batches for each group and each hair, as the town's own are; its people posed by themselves (their limbs
    * their own figure's), and the moments they are posed by (everyone else out of sight). None where a town is of one
@@ -578,6 +645,206 @@ export class VillageScene {
     others: unknown;
     bodies: Bodies;
   } | null = null;
+  /**
+   * The surface one stands on at a point (metres from the square, metres up): the highest top drawn there that is stepped
+   * onto — its colony's rock, its land's ground mesh, its plain discs and pasture and fields, its town's streets, square,
+   * yards and worn ways (view/footing.ts GroundTops) — or the plain ground's.
+   */
+  surfaceAt(x: number, z: number): number {
+    let top = this.ownTops?.topAt(x, z) ?? -Infinity;
+    const flora = this.townFlora.heightAt(x, z);
+    if (flora !== null && flora > top) top = flora;
+    if (this.plan?.colony) {
+      const rock = this.colony.heightAt(x * M, z * M);
+      if (rock !== null && rock / M > top) top = rock / M;
+    }
+    const town = this.topsNow()?.topAt(x, z) ?? -Infinity;
+    if (town > top) top = town;
+    return Number.isFinite(top) ? top : 0;
+  }
+
+  /**
+   * Each one's ground under them now (units), read again where they have moved a quarter metre and more since last read, or
+   * the ground under them was laid anew: what their figures are set on (render/folk.ts), and what they carry with them.
+   */
+  /** Its town's ground as laid (view/footing.ts GroundTops), as read this frame; between frames, read again. */
+  private topsNow(): GroundTops | null {
+    if (this.topsFrame !== this.frameNo) {
+      this.frameTops = this.town.groundTops();
+      this.topsFrame = this.frameNo;
+    }
+    return this.frameTops;
+  }
+  private frameTops: GroundTops | null = null;
+  private frameNo = 0;
+  private topsFrame = -1;
+
+  private groundUnder(moments: readonly Moment[]): Float32Array {
+    const n = moments.length;
+    // (Its own laid, and its graveyard's, read again as either lays more: a town's build goes on over frames.)
+    const laidNow = this.laid.length + this.graveyard.laid.length;
+    if (!this.ownTops || this.ownLaid !== laidNow) {
+      this.ownTops = new GroundTops([...this.laid, ...this.graveyard.laid]);
+      this.ownLaid = laidNow;
+    }
+    const on = [this.ownTops, this.topsNow()],
+      again = on[0] !== this.feetOn[0] || on[1] !== this.feetOn[1] || this.feet.length !== n;
+    if (this.feet.length !== n) {
+      this.feet = new Float32Array(n);
+      this.feetAt = new Float32Array(2 * n).fill(Number.NaN);
+    }
+    this.feetOn = on;
+    const feet = this.feet,
+      at = this.feetAt;
+    for (let i = 0; i < n; i++) {
+      const m = moments[i]!;
+      if (m.hidden) continue;
+      const dx = m.x - at[2 * i]!,
+        dz = m.z - at[2 * i + 1]!;
+      if (!again && dx * dx + dz * dz < 0.0625) continue;
+      at[2 * i] = m.x;
+      at[2 * i + 1] = m.z;
+      feet[i] = this.surfaceAt(m.x, m.z) * M;
+    }
+    return feet;
+  }
+
+  /**
+   * Keep those drawn now out of one another (view/footing.ts Spread: half the breadth of their body as drawn true, the more of
+   * its length and its breadth, a child's smaller), and out of what rises from the ground of its town that is no lot's
+   * (a well's curb, a column, a cross, a stronghold's wall): where each is drawn now moved, and where they are carried from
+   * (render/village.ts presence), so they go on from there.
+   */
+  private spreadDrawn(plan: VillagePlan, step: boolean): void {
+    const t0 = performance.now(),
+      moments = this.moments,
+      n = moments.length;
+    // (Each one's body read once a town: the round their figure's parts cover at rest, about its middle (metres, at size 1),
+    // a tenth more for a limb swung; a child's smaller.)
+    if (this.spreadOf !== plan || this.spreadOthers !== this.otherOf || this.spreadN !== n) {
+      const bodyOf = (f: Figure) => {
+          const b = restBody(f.parts),
+            k = f.scale / M;
+          return { x: b.x * k, z: b.z * k, r: b.r * k * 1.1 };
+        },
+        own = bodyOf(this.figure),
+        theirs = this.others.map((o) => bodyOf(o.figure));
+      this.spreadBase = new Float32Array(3 * n);
+      for (let i = 0; i < n; i++) {
+        const k = this.otherOf?.[i] ?? -1,
+          b = k >= 0 ? theirs[k]! : own,
+          grown = plan.people[i]?.child ? 0.7 : 1;
+        this.spreadBase[3 * i] = b.x * grown;
+        this.spreadBase[3 * i + 1] = b.z * grown;
+        this.spreadBase[3 * i + 2] = b.r * grown;
+      }
+      this.spreadOf = plan;
+      this.spreadOthers = this.otherOf;
+      this.spreadN = n;
+      this.clearX = new Float64Array(n).fill(Number.NaN);
+      this.clearZ = new Float64Array(n).fill(Number.NaN);
+    }
+    if (this.spreadAt.length < n) {
+      this.spreadAt = new Int32Array(n);
+      this.spreadX = new Float64Array(n);
+      this.spreadZ = new Float64Array(n);
+      this.spreadR = new Float32Array(n);
+      this.spreadOX = new Float32Array(n);
+      this.spreadOZ = new Float32Array(n);
+      this.spreadLive = new Uint8Array(n).fill(1);
+    }
+    // (Those drawn standing on the ground now, gathered, each at the middle of their body as it faces: most of a town's people
+    // are indoors.)
+    const at = this.spreadAt,
+      xs = this.spreadX,
+      zs = this.spreadZ,
+      rs = this.spreadR,
+      oxs = this.spreadOX,
+      ozs = this.spreadOZ,
+      base = this.spreadBase,
+      sizes = this.sizes;
+    let k = 0;
+    for (let i = 0; i < n; i++) {
+      const m = moments[i]!,
+        size = sizes[i] ?? 1;
+      if (m.hidden || m.lift || size < 1) continue;
+      const c = Math.cos(m.yaw),
+        sn = Math.sin(m.yaw),
+        bx = base[3 * i]! * size,
+        bz = base[3 * i + 1]! * size,
+        ox = bx * c + bz * sn,
+        oz = -bx * sn + bz * c;
+      at[k] = i;
+      oxs[k] = ox;
+      ozs[k] = oz;
+      xs[k] = m.x + ox;
+      zs[k] = m.z + oz;
+      rs[k] = base[3 * i + 2]! * size;
+      // (At work, as far as their parts reached out from where they stand as last drawn, an arm put out, a tool swung.)
+      if (m.task) {
+        const o = this.otherOf?.[i] ?? -1,
+          work = (o >= 0 ? this.others[o]!.folk : this.folk).reachOf(i) / M;
+        if (work > 0) rs[k] = Math.max(rs[k]!, work + Math.sqrt(ox * ox + oz * oz));
+      }
+      k++;
+    }
+    const t1 = performance.now();
+    if (step && k > 1) this.spreader.spread(xs, zs, rs, this.spreadLive, k);
+    const t2 = performance.now();
+    this.costs.gather += t1 - t0;
+    this.costs.core += t2 - t1;
+    // (One stepped aside kept off a wall, a home, the water, out of what rises from the ground that is no lot's (a well's curb,
+    // a column) and the trees' trunks, by their body as it stands: none is stepped into a building to be out of another's way.
+    // One standing still, at work, talking, at prayer, kept out of the same where none has looked yet: where their day has
+    // them stand may be nearer a wall than a body as broad as theirs fits.)
+    const tall = this.topsNow(),
+      posts = tall?.laid.tall ? tall : null,
+      trunks = this.townFlora.trunkTops(),
+      ground = villageSolids(plan),
+      p = { x: 0, z: 0 },
+      clearX = this.clearX,
+      clearZ = this.clearZ;
+    for (let q = 0; q < k; q++) {
+      const i = at[q]!,
+        m = moments[i]!,
+        ox = oxs[q]!,
+        oz = ozs[q]!,
+        // (Each's middle as gathered, worked out as it was: whether they were stepped aside, exactly.)
+        wasX = m.x + ox,
+        wasZ = m.z + oz,
+        walking = m.activity === ACTIVITY.walking,
+        body = base[3 * i + 2]! * (sizes[i] ?? 1);
+      p.x = xs[q]!;
+      p.z = zs[q]!;
+      // (A walker not stepped aside goes on as their way keeps them: off walls and homes, round wells and trees.)
+      if (
+        p.x === wasX &&
+        p.z === wasZ &&
+        (walking ||
+          (Math.abs(m.x - clearX[i]!) < CLEAR_AGAIN && Math.abs(m.z - clearZ[i]!) < CLEAR_AGAIN))
+      )
+        continue;
+      keepOut(ground, p, body);
+      posts?.pushOut(p, body);
+      trunks?.pushOut(p, body);
+      if (!walking) {
+        clearX[i] = p.x === wasX && p.z === wasZ ? m.x : p.x - ox;
+        clearZ[i] = p.x === wasX && p.z === wasZ ? m.z : p.z - oz;
+      }
+      if (p.x === wasX && p.z === wasZ) continue;
+      const x = p.x - ox,
+        z = p.z - oz;
+      m.x = x;
+      m.z = z;
+      const was = this.presence.get(plan.people[i]!.ref);
+      if (was) {
+        was.x = x;
+        was.z = z;
+      }
+    }
+    this.costs.spread += performance.now() - t0;
+  }
+
   /** The figure one of the plan's people is drawn in: their own people's. */
   private figureFor(i: number): Figure {
     const k = this.otherOf?.[i] ?? -1;
@@ -710,6 +977,8 @@ export class VillageScene {
     this.root.addChild(this.marker);
     this.letGoMark = new LetGoMark(stage, this.root, M);
     this.fauna = new FaunaLayer(stage, this.root);
+    // (Its beasts on the ground drawn under them: its pasture, its streets.)
+    this.fauna.groundAt = (x, z) => this.surfaceAt(x, z);
     this.fliers = new FlierLayer(stage, this.root);
     this.work = new WorkLayer(stage, this.root);
     this.visitors = new VisitorsLayer(stage, this.root);
@@ -727,6 +996,8 @@ export class VillageScene {
     this.memorialLayer = new MemorialLayer(stage, this.root);
     this.courtLayer = new CourtLayer(stage, this.root);
     this.rides = new TownTraffic(stage, this.root);
+    // (Its cars and coaches on the ground drawn under them, as its people are.)
+    this.rides.groundAt = (x, z) => this.surfaceAt(x, z);
     this.worn = new WoundsLayer(stage, this.root);
     this.litters = new LittersLayer(stage, this.root);
     this.moneyLayer = new TownMoneyLayer(stage, this.root);
@@ -1101,6 +1372,8 @@ export class VillageScene {
         child.destroy();
     this.stacks = [];
     this.dressed = [];
+    this.laid = [];
+    this.ownTops = null;
     this.plan = plan;
     // (A new village's people are drawn afresh; the same village's, carried on.)
     if (this.presenceOf !== plan.ref) {
@@ -1140,6 +1413,18 @@ export class VillageScene {
         e.setLocalPosition(x, y, z);
         this.root.addChild(e);
         if (inner) this.farRing = e;
+        // (What one stands on: its top, a hundredth of a unit over its middle.)
+        if (kind === "ground")
+          this.laid.push({
+            x: x / M,
+            y: y / M,
+            z: z / M,
+            sx: (2 * r) / M,
+            sy: 0.02 / M,
+            sz: (2 * r) / M,
+            yaw: 0,
+            round: true,
+          });
         this.dressed.push({
           kind,
           base: color,
@@ -1555,6 +1840,17 @@ export class VillageScene {
       const sown = plan.past?.covered ? [] : plan.fields.filter((_, k) => crop[k] === kind);
       if (!sown.length) return [];
       const batch = this.batch(s, boxMesh(s), cropColor(kind, t), sown.length, this.root);
+      for (const f of sown)
+        this.laid.push({
+          x: f.x,
+          y: 0.02 / M,
+          z: f.z,
+          sx: f.w,
+          sy: 0.02 / M,
+          sz: f.d,
+          yaw: f.yaw,
+          round: false,
+        });
       batch.set(sown.length, (i, out) => {
         const f = sown[i]!;
         out[0] = f.x * M;
@@ -2723,6 +3019,8 @@ export class VillageScene {
     const step = t - this.lastT;
     this.lastT = t;
     this.town.update(t);
+    // (Its town's ground as laid now read again once a frame, its build gone on: what each one stands on is read off it.)
+    this.frameNo++;
     // (Its networks told where the eye is, for their fade: render/townnets.ts.)
     if (this.town.visible) this.town.nets.update(this.stage.camera.getPosition());
     // The fields as the year in them has it (Phase 44 M206): their crop's colour now — parched,
@@ -2919,6 +3217,12 @@ export class VillageScene {
       }
     }
     const alpha = this.posed?.alpha ?? (gone ? this.goneAlpha : null);
+    // (No one drawn stands in another, nor in what rises from its ground, as real bodies do not: possession's small world keeps its
+    // own bodies apart.)
+    // (Out of what stands about them every other frame, out of one another every fourth: where they are stepped to is where
+    // they are carried on from, so they stay apart between; two come together are parted within a tenth of a second.)
+    if (SPREAD_ON && !this.posed && this.frameNo % 2 === 0)
+      this.spreadDrawn(plan, this.frameNo % SPREAD_EVERY === 0);
     // (Carried to where their day has them and kept apart, none is drawn nearer a block than their body as it strides and plays
     // and a street piece's depth (view/networks.ts): no one walks through a hydrant or a box by its kerb.)
     if (plan.town) {
@@ -3005,10 +3309,13 @@ export class VillageScene {
         {
           open: b.open,
           biers: b.biers.map((q) => {
-            const ms = q.bearers.map((i) => moments[i]).filter((m) => !!m && !m.hidden) as Moment[];
-            return q.borne && ms.length === q.bearers.length && ms.length >= 2
-              ? { ...q, ...bierBetween(ms) }
-              : q;
+            const ms = q.bearers.map((i) => moments[i]).filter((m) => !!m && !m.hidden) as Moment[],
+              at =
+                q.borne && ms.length === q.bearers.length && ms.length >= 2
+                  ? { ...q, ...bierBetween(ms) }
+                  : q;
+            // (On the ground drawn where it is, as its bearers are.)
+            return { ...at, ground: this.surfaceAt(at.x, at.z) };
           }),
           graves: b.graves,
           freshFrom: gravesBefore(plan),
@@ -3051,8 +3358,15 @@ export class VillageScene {
       for (let i = 0; i < this.moments.length; i++)
         this.ownMoments[i] = otherOf[i]! >= 0 ? UNSEEN : this.moments[i]!;
     }
+    // (Each on the ground drawn under them: render/folk.ts.)
+    const f0 = performance.now(),
+      feet = this.groundUnder(this.moments),
+      f1 = performance.now();
+    this.costs.feet += f1 - f0;
+    this.costs.frames++;
     /** A part of person i's figure, where it is now. */
     const place = this.folk.pose({
+      ground: feet,
       plan,
       figure: this.figure,
       moments: otherOf ? this.ownMoments : this.moments,
@@ -3079,6 +3393,7 @@ export class VillageScene {
         for (let i = 0; i < this.moments.length; i++)
           o.moments[i] = otherOf[i] === k ? this.moments[i]! : UNSEEN;
         o.folk.pose({
+          ground: feet,
           plan: o.plan,
           figure: o.figure,
           moments: o.moments,
@@ -3100,6 +3415,7 @@ export class VillageScene {
           ),
         });
       });
+    this.costs.pose += performance.now() - f1;
     // Their wounds worn (Phase 55 M226): linen bound about the parts as they are posed now, and
     // what they wear for them — a patch, a sling, a crutch, a scar — the nearest the eye first.
     const pieces: WornPiece[] = [],
@@ -3138,10 +3454,12 @@ export class VillageScene {
     // The levy's wounded borne home on litters (Phase 55 M229): between their bearers where they
     // are drawn, else where their day has them.
     this.littersShown = littersNow(plan, t).map((q) => {
-      const ms = q.bearers.map((i) => this.moments[i]).filter((m) => !!m && !m.hidden) as Moment[];
-      return q.borne && ms.length === q.bearers.length && ms.length >= 2
-        ? { ...q, ...bierBetween(ms) }
-        : q;
+      const ms = q.bearers.map((i) => this.moments[i]).filter((m) => !!m && !m.hidden) as Moment[],
+        at =
+          q.borne && ms.length === q.bearers.length && ms.length >= 2
+            ? { ...q, ...bierBetween(ms) }
+            : q;
+      return { ...at, ground: this.surfaceAt(at.x, at.z) };
     });
     this.litters.update(
       this.littersShown,
@@ -3204,20 +3522,21 @@ export class VillageScene {
           pz = part.z - hinge * Math.sin(pitch),
           pp = pitch;
         if (q.doing === "fallen") {
-          // On their back: what stood up lies back along the ground.
+          // On their back: what stood up lies back along the ground (its lowest point on it, whatever their body).
           const up = py;
-          py = 0.06 + pz;
+          py = this.lieOf(parts).back + pz;
           pz = -up;
           pp = pitch - Math.PI / 2;
         } else if (q.doing === "prone") {
           // On their front, the head toward the foe: what stood up lies forward along the ground.
           const up = py;
-          py = 0.06 - pz;
+          py = this.lieOf(parts).front - pz;
           pz = up;
           pp = pitch + Math.PI / 2;
         }
         out[0] = q.x * M + (px * c + pz * sn) * size;
-        out[1] = py * size;
+        // (On the ground drawn under them: its street, its square, its field.)
+        out[1] = py * size + (this.troopFeet.get(q) ?? 0);
         out[2] = q.z * M + (-px * sn + pz * c) * size;
         out[3] = part.sx * size;
         out[4] = part.sy * size;
@@ -3241,6 +3560,8 @@ export class VillageScene {
           out[6] += away ? away * 0.6 : 0.4;
         }
       };
+      this.troopFeet.clear();
+      for (const q of troops) this.troopFeet.set(q, this.surfaceAt(q.x, q.z) * M);
       this.fallenParts(troops);
       this.soldiers.forEach((batches, side) =>
         batches.forEach((batch, pi) =>
@@ -3284,7 +3605,7 @@ export class VillageScene {
           across = 0.13,
           ahead = fallen ? -0.35 : prone ? 0.62 : 0.05;
         out[0] = q.x * M + (across * c + ahead * sn) * size;
-        out[1] = (fallen ? 0.03 : prone ? 0.07 : 0.36) * size;
+        out[1] = (fallen ? 0.03 : prone ? 0.07 : 0.36) * size + (this.troopFeet.get(q) ?? 0);
         out[2] = q.z * M + (-across * sn + ahead * c) * size;
         out[3] = (gun ? 0.026 : 0.018) * size;
         out[4] = (gun ? 0.62 : 0.8) * size;
@@ -3295,21 +3616,28 @@ export class VillageScene {
       // Burning light: from each who fights, now and again, a straight line out at the foe, there and gone.
       this.townBolts.forEach((batch, side) => {
         if (!batch || !armLook(this.kits[side]?.arm).beam) return;
-        const firing: { x: number; z: number; yaw: number; k: number }[] = [];
+        const firing: { x: number; z: number; yaw: number; k: number; y: number }[] = [];
         for (let i = side * this.soldiersEach; i < (side + 1) * this.soldiersEach; i++) {
           const q = troops[i];
           if (!q || (q.doing !== "fight" && q.doing !== "fire") || firing.length >= BOLTS_A_SIDE)
             continue;
           const beat = clock * 1.3 + i * 0.37,
             k = beat - Math.floor(beat);
-          if (k < 0.14) firing.push({ x: q.x, z: q.z, yaw: q.yaw, k: 1 - k / 0.14 });
+          if (k < 0.14)
+            firing.push({
+              x: q.x,
+              z: q.z,
+              yaw: q.yaw,
+              k: 1 - k / 0.14,
+              y: this.troopFeet.get(q) ?? 0,
+            });
         }
         batch.set(firing.length, (n, out) => {
           const b = firing[n]!,
             long = 34,
             size = this.figure.scale;
           out[0] = (b.x + Math.sin(b.yaw) * (long / 2 + 1)) * M;
-          out[1] = 0.62 * size;
+          out[1] = 0.62 * size + b.y;
           out[2] = (b.z + Math.cos(b.yaw) * (long / 2 + 1)) * M;
           out[3] = 0.018 * b.k + 0.006;
           out[4] = 0.018 * b.k + 0.006;
@@ -3330,7 +3658,7 @@ export class VillageScene {
           across = 0.14,
           ahead = fallen ? -0.3 : 0.08;
         out[0] = q.x * M + (across * c + ahead * sn) * size;
-        out[1] = (fallen ? 0.03 : 0.3) * size;
+        out[1] = (fallen ? 0.03 : 0.3) * size + (this.troopFeet.get(q) ?? 0);
         out[2] = q.z * M + (-across * sn + ahead * c) * size;
         out[3] = 0.016 * size;
         out[4] = (axe ? 0.3 : 0.38) * size;
@@ -3349,7 +3677,7 @@ export class VillageScene {
           across = -0.14,
           ahead = fallen ? -0.3 : q.doing === "fight" ? 0.2 : 0.06;
         out[0] = q.x * M + (across * c + ahead * sn) * size;
-        out[1] = (fallen ? 0.03 : 0.42) * size;
+        out[1] = (fallen ? 0.03 : 0.42) * size + (this.troopFeet.get(q) ?? 0);
         out[2] = q.z * M + (-across * sn + ahead * c) * size;
         out[3] = 0.014 * size;
         out[4] = 0.5 * size;
@@ -3369,7 +3697,7 @@ export class VillageScene {
             across = fallen ? -0.25 : -0.15,
             ahead = fallen ? 0.1 : 0.1;
           out[0] = q.x * M + (across * c + ahead * sn) * size;
-          out[1] = (fallen ? 0.02 : 0.34) * size;
+          out[1] = (fallen ? 0.02 : 0.34) * size + (this.troopFeet.get(q) ?? 0);
           out[2] = q.z * M + (-across * sn + ahead * c) * size;
           out[3] = 0.22 * size;
           out[4] = (fallen ? 0.02 : 0.28) * size;
@@ -3397,6 +3725,8 @@ export class VillageScene {
       c.yaw = m.yaw;
       c.carry = carry;
       c.size = (p.child ? 0.7 : 1) * this.figureFor(i).scale * (this.sizes[i] ?? 1) * whole;
+      // (On the ground they stand on, as they are: render/folk.ts.)
+      c.y = this.feet[i] ?? 0;
       n++;
     });
     this.carriers.length = n;
@@ -4914,6 +5244,82 @@ export class VillageScene {
             },
           ],
     );
+  }
+
+  /**
+   * Every figure of the town's folk drawn now, read for the count of figures off the ground or in it, in one another, in what
+   * stands solid and in the trees' trunks (view/footing.ts feetTally; tools/feet-check.ts), at `tolerance` metres.
+   */
+  feetNow(tolerance = 0.02): Omit<FeetTally, "met" | "stuck"> & {
+    /** The first in a solid or a trunk: who, at what, where (metres). */
+    stuck: { name: string; at: string; x: number; z: number; tree: boolean }[];
+    worst: { name: string; off: number; task: string | null }[];
+    /** The first pairs in one another: who, at what, how far apart (metres), and how far each is kept from others. */
+    met: { a: string; b: string; at: string; apart: number; kept: number; reach: number[] }[];
+    laid?: { flat: number; tall: number; ms: number };
+  } {
+    const plan = this.plan,
+      figures: FootedFigure[] = [],
+      who: number[] = [],
+      worst: { name: string; off: number; task: string | null }[] = [];
+    if (!plan) return { ...feetTally([], M, tolerance, null, []), worst, met: [], stuck: [] };
+    const downed = this.posed?.downed ?? this.streetDowned;
+    this.moments.forEach((m, i) => {
+      if (m.hidden || (this.sizes[i] ?? 1) < 1) return;
+      const k = this.otherOf?.[i] ?? -1,
+        folk = k >= 0 ? this.others[k]!.folk : this.folk,
+        moments = k >= 0 ? this.others[k]!.moments : this.otherOf ? this.ownMoments : this.moments,
+        f = folk.footedOf(i, moments, !!downed?.has(i));
+      if (!f) return;
+      figures.push(f);
+      who.push(i);
+      const off = (f.lowest - f.surface - (f.hop ?? 0)) / M;
+      if (Math.abs(off) > tolerance) worst.push({ name: plan.people[i]!.name, off, task: m.task });
+    });
+    // (What stands solid as its walkers keep out of it: its homes, blocks and walls, its court and stones; not its water.)
+    const ground = { ...villageSolids(plan), lake: null },
+      tall = this.town.groundTops(),
+      into = (x: number, z: number, half: number) =>
+        !clearAt(ground, { x, z }, half - 0.05) || (tall?.tallDepth(x, z, half - 0.05) ?? 0) > 0;
+    worst.sort((a, b) => Math.abs(b.off) - Math.abs(a.off));
+    const tally = feetTally(figures, M, tolerance, into, this.townFlora.trunksNow()),
+      doing = (i: number) => {
+        const m = this.moments[i]!;
+        return `${m.task ?? m.activity}${m.lift ? " raised" : ""}${downed?.has(i) ? " lying" : ""}`;
+      };
+    return {
+      ...tally,
+      stuck: tally.stuck.map(({ i, tree }) => {
+        const m = this.moments[who[i]!]!;
+        return {
+          name: plan.people[who[i]!]!.name,
+          at: doing(who[i]!),
+          x: Math.round(m.x * 10) / 10,
+          z: Math.round(m.z * 10) / 10,
+          tree,
+        };
+      }),
+      met: tally.met.map(({ i, j, apart }) => ({
+        a: plan.people[who[i]!]!.name,
+        b: plan.people[who[j]!]!.name,
+        at: `${doing(who[i]!)} / ${doing(who[j]!)}`,
+        apart,
+        kept: (this.spreadBase[3 * who[i]! + 2] ?? 0) + (this.spreadBase[3 * who[j]! + 2] ?? 0),
+        reach: [figures[i]!, figures[j]!].map((f) => {
+          let r = 0;
+          for (let o = 0; o < f.boxes.length; o += 6)
+            if (f.boxes[o + 3] || f.boxes[o + 4])
+              r = Math.max(
+                r,
+                Math.hypot(f.boxes[o]! - f.x, f.boxes[o + 2]! - f.z) +
+                  Math.max(f.boxes[o + 3]!, f.boxes[o + 5]!),
+              );
+          return r / M;
+        }),
+      })),
+      worst: worst.slice(0, 8),
+      ...(tall ? { laid: { ...tall.laid, ms: this.town.topsMs } } : {}),
+    };
   }
 
   /** How many are in out of a downpour now (for the look tools). */

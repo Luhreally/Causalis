@@ -382,6 +382,8 @@ export class ColonyLayer {
   /** Where in the sky what hangs there stands (a direction), kept with the eye. */
   private overWay = new pc.Vec3(0, 1, 0);
   private key = "";
+  /** What its ground's heights are read by (heightAt): its seed, how far it lies level, its roughness. */
+  private heights: { seed: number; flat: number; rough: number } | null = null;
   /** Its port (Phase 71), made when there first is one. */
   private portLayer: PortLayer | null = null;
 
@@ -452,6 +454,7 @@ export class ColonyLayer {
           col.push(Math.round(c[0] * 255), Math.round(c[1] * 255), Math.round(c[2] * 255), 255);
         }
       };
+    this.heights = { seed, flat: mid * 1.1, rough };
     for (let j = 0; j < rings; j++)
       for (let i = 0; i < sectors; i++) {
         const a = vertex(i, j),
@@ -561,6 +564,12 @@ export class ColonyLayer {
     if (!this.lander) this.lander = new Lander(s, this.root, this.meshes);
     this.lander.rockColour = tones.light;
     this.lander.visible = false;
+  }
+
+  /** How high its ground stands at a point (units from its middle; null: none built), as its facets are laid. */
+  heightAt(x: number, z: number): number | null {
+    const h = this.heights;
+    return h && this.ground ? colonyHeight(h.seed, x, z, h.flat, h.rough) : null;
   }
 
   /** Its port, or none (Phase 71): beyond a town level to `flat` units. */

@@ -49,7 +49,8 @@ const FLOATS = 8;
 type Gathered = { batch: InstancedBatch; data: Float32Array; count: number };
 
 /** Someone carrying something now: where (units), which way, what, and at what size. */
-export type Carrier = { x: number; z: number; yaw: number; carry: Carry; size: number };
+/** One carrying something: where (units), which way, what, their size; `y` the ground they stand on (units; absent: 0). */
+export type Carrier = { x: number; z: number; yaw: number; carry: Carry; size: number; y?: number };
 
 /** The works' pieces by what they are made of. */
 function roleColor(role: MinePiece["role"], engines: boolean, ore?: Rgb): Rgb {
@@ -407,7 +408,7 @@ export class WorkLayer {
         put(
           this.items.get(p.material)!,
           who.x + (px * c + pz * sn) * k,
-          p.y * k * this.lift,
+          (who.y ?? 0) + p.y * k * this.lift,
           who.z + (-px * sn + pz * c) * k,
           p.sx * k,
           p.sy * k,

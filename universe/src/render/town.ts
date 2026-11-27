@@ -57,6 +57,8 @@ import {
   type TownScene,
   type TownThing,
   type Burnable,
+  GroundTops,
+  type LaidPiece,
 } from "../view/index.ts";
 import {
   InstancedBatch,
@@ -394,6 +396,15 @@ export class TownLayer {
   netsKeep: NetsClear["keep"] = [];
   /** Its civics and walls as they stood when it was built, for its networks to keep off. */
   private standing = new TownParts();
+  /** What its ground and what stands on it lay, its tops (view/footing.ts): kept while the parts it was read from are. */
+  private topsKept: {
+    ground: TownParts;
+    standing: TownParts;
+    count: number;
+    tops: GroundTops;
+  } | null = null;
+  /** How long its tops took to read when last read (ms; the look tools). */
+  topsMs = 0;
   /**
    * A year's plan worked out ahead of its building (prepare), into parts of its own (`ground`, `own`, `far`: those the last
    * building drew, kept to be filled again): its scene, its ground, its homes as the eye would choose them, its civics and
@@ -561,6 +572,26 @@ export class TownLayer {
       keep,
     });
     this.prepared = { plan, ref, t, scene, eye, detail, ground, own, far, standing, nets };
+  }
+
+  /**
+   * Its ground's tops as laid and what rises from its ground besides its homes (view/footing.ts GroundTops: metres from its
+   * square), for its folk to stand on and keep out of; null while nothing of it is drawn. Read again once its ground or what
+   * stands on it is laid anew.
+   */
+  groundTops(): GroundTops | null {
+    if (!this.visible) return null;
+    const ground = this.ground,
+      standing = this.standing,
+      count = ground.count + standing.count,
+      kept = this.topsKept;
+    if (kept && kept.ground === ground && kept.standing === standing && kept.count === count)
+      return kept.tops;
+    const t0 = performance.now(),
+      tops = new GroundTops(laidOf([ground, standing]));
+    this.topsMs = performance.now() - t0;
+    this.topsKept = { ground, standing, count, tops };
+    return tops;
   }
 
   /** Built afresh at the next building, as a town come to (its lots, the eye at its square). */
@@ -926,4 +957,25 @@ export class TownLayer {
     this.rising.destroy();
     this.root.destroy();
   }
+}
+
+/** Every part laid of so many (metres): boxes, round ones, and a home drawn as one (its walls' box); not its windows' glass. */
+function* laidOf(parts: readonly TownParts[]): Generator<LaidPiece> {
+  for (const p of parts)
+    for (const g of p.groups.values()) {
+      if (g.lamp || g.mesh === "gable" || g.mesh === "cone") continue;
+      const round = g.mesh === "cyl" || g.mesh === "dome",
+        d = g.data;
+      for (let o = 0; o < d.length; o += 7)
+        yield {
+          x: d[o]!,
+          y: d[o + 1]!,
+          z: d[o + 2]!,
+          sx: d[o + 3]!,
+          sy: d[o + 4]!,
+          sz: d[o + 5]!,
+          yaw: d[o + 6]!,
+          round,
+        };
+    }
 }

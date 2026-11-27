@@ -30,8 +30,9 @@ import {
   type Wonder,
 } from "../bridge/index.ts";
 import { OCC, article } from "../rules/index.ts";
-import { paceOf } from "./figure.ts";
-import { measuresOf } from "./stature.ts";
+import { figureOf, paceOf } from "./figure.ts";
+import { restBody } from "./footing.ts";
+import { lifeFigure, measuresOf } from "./stature.ts";
 
 /**
  * How large a town's folk are drawn against a person drawn three times life (rules/stature.ts Measures.drawn: ours 0.32, a
@@ -2086,6 +2087,8 @@ export type LitterNow = {
   readonly borne: boolean;
   readonly bearers: readonly number[];
   readonly index: number;
+  /** The ground drawn under it (metres; absent: the plain ground's). */
+  readonly ground?: number;
 };
 
 /** A town's litters at moment t: at the road's end as its column comes, borne between their bearers, set down at the door a while. */
@@ -6493,12 +6496,32 @@ export const BODY_R = 0.35;
 /**
  * Half a town's folk's breadth as they are drawn true (rules/stature.ts Measures: across their shoulders or their flanks,
  * whichever is the more, and a little room): ours BODY_R, a greater body's as much more as it is broader, so a crowd of
- * them stands no more into one another than ours do.
+ * them stands no more into one another than ours do; and no less than their figure as drawn reaches from where they stand
+ * (view/footing.ts restBody, 2026-11-26: a long body drawn with its trunk and tail reaches past its measured length), so
+ * where their day has them stand none is drawn in another.
  */
 export function bodyR(plan: Pick<VillagePlan, "body">): number {
-  const m = measuresOf(plan.body);
-  return Math.max(BODY_R, Math.max(m.breadth, m.length) * 0.55);
+  const key = plan.body ?? NO_BODY;
+  let r = BODY_RS.get(key);
+  if (r === undefined) {
+    const m = measuresOf(plan.body),
+      f = lifeFigure(figureOf(plan.body, 2), plan.body),
+      b = restBody(f.parts);
+    r = Math.max(
+      BODY_R,
+      Math.max(m.breadth, m.length) * 0.55,
+      ((Math.hypot(b.x, b.z) + b.r) * f.scale) / FIGURE_UNITS,
+    );
+    BODY_RS.set(key, r);
+  }
+  return r;
 }
+/** Each body's reach (bodyR), read once. */
+const BODY_RS = new WeakMap<object, number>();
+/** Our own body (a plan's `body` absent) as a key. */
+const NO_BODY = {};
+/** A figure's units to the metre (as the town draws it: render/village.ts M). */
+const FIGURE_UNITS = 0.1;
 
 /** No one in a cell: what a cell no one stands in holds. */
 const NO_ONE: readonly number[] = [];

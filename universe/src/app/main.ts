@@ -1592,6 +1592,10 @@ type Exposed = {
     task: string | null;
     size: number;
   }[];
+  /** The town's figures drawn now, counted off the ground or in it, in one another and in what stands solid (tools/feet-check.ts). */
+  feetNow?: (tolerance?: number) => ReturnType<VillageScene["feetNow"]> | null;
+  /** What standing on the ground and out of one another has cost since last asked (ms summed over frames). */
+  footCost?: () => ReturnType<VillageScene["footCost"]>;
   /** What the people in view are saying now, in signs (for the look tools). */
   bubblesNow?: () => { key: string; text: string; at: { x: number; y: number } | null }[];
   /** The camera's rig, for the look tools. */
@@ -10297,6 +10301,9 @@ async function runPlanetPage(): Promise<void> {
     scale === "village" && plan ? village.personOnScreen(i) : null;
   exposed.bubblesNow = () => (scale === "village" ? village.bubbles() : []);
   exposed.peopleNow = () => (scale === "village" ? village.peopleNow() : []);
+  exposed.feetNow = (tolerance?: number) =>
+    scale === "village" ? village.feetNow(tolerance) : null;
+  exposed.footCost = () => village.footCost();
   exposed.trades = () => (scale === "village" ? village.tradesNow() : null);
   exposed.rackOnScreen = () => (scale === "village" ? village.rackOnScreen() : []);
   exposed.crafts = () => (scale === "village" ? village.craftsNow() : null);

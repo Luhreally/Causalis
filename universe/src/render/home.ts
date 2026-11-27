@@ -10,6 +10,8 @@ import {
   limbPitch,
   personGroup,
   seatedSink,
+  SHAPE_CODE,
+  groundPlaces,
   type HomeDrawn,
   type HomeMesh,
   type HomeParts,
@@ -88,7 +90,8 @@ export class HomeScene {
   private people(plan: VillagePlan, drawn: HomeDrawn, under: pc.Entity): void {
     const meshes = this.meshesNow(),
       figure = figureOf(plan.body),
-      parts = figure.parts;
+      parts = figure.parts,
+      codes = Uint8Array.from(parts, (part) => SHAPE_CODE[part.shape]);
     // (By part and colour, so the same part of two of one group is one draw.)
     const groups = new Map<string, { mesh: pc.Mesh; color: readonly number[]; data: number[] }>();
     const out = [0, 0, 0, 1, 1, 1, 0, 0];
@@ -102,6 +105,9 @@ export class HomeScene {
         sink = f.lying ? 0 : seatedSink(parts, f.task),
         c = Math.cos(f.yaw),
         s = Math.sin(f.yaw);
+      // (Laid part by part, then set on what they stand, sit or lie on: their lowest point on it. view/footing.ts.)
+      const laid: number[] = [],
+        keys: string[] = [];
       parts.forEach((part) => {
         const pitch = f.lying ? 0 : limbPitch(part, f.task, false, 0.1, f.index),
           hinge = part.pivot ?? 0,
@@ -123,10 +129,12 @@ export class HomeScene {
         }
         const color = part.tone === 3 ? hair : paint.tones[part.tone],
           key = `${part.shape}|${color[0]}|${color[1]}|${color[2]}`;
-        let g = groups.get(key);
-        if (!g) groups.set(key, (g = { mesh: meshes[part.shape], color, data: [] }));
-        g.data.push(...out);
+        if (!groups.has(key)) groups.set(key, { mesh: meshes[part.shape], color, data: [] });
+        keys.push(key);
+        laid.push(...out);
       });
+      groundPlaces(laid, 0, parts.length, codes, f.y);
+      keys.forEach((key, pi) => groups.get(key)!.data.push(...laid.slice(pi * 8, pi * 8 + 8)));
     });
     for (const g of groups.values()) {
       const n = g.data.length / 8,
