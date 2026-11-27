@@ -106,7 +106,11 @@ export function insideEl(x: PlaceInspectInside, onInspect: (ref: string) => void
   });
   const box = el("div", "place-inside");
   box.append(plan);
-  const out: HTMLElement[] = [box, el("p", "place-insp-why", x.words)];
+  const out: HTMLElement[] = [box];
+  // (Each room read, O4.)
+  for (const r of x.rooms)
+    if (r.words) out.push(el("p", "place-insp-why", `${r.name}: ${r.words}`));
+  out.push(el("p", "place-insp-why", x.words));
   // Who is here now, and what stands here: a fingertip each.
   if (x.people.length) {
     const list = el("div", "place-insp-people");

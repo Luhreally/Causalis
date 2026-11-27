@@ -204,6 +204,7 @@ import {
   familySizeOf,
   managedDead,
   managedOf,
+  CIVIC_LOTS,
   artOf,
   courtIn,
   holdOf,
@@ -6009,6 +6010,8 @@ export const COND = {
   /** Their home's room for those who sleep in it (NeedsDay), and a fine work in sight of its door. */
   room: 9,
   beauty: 10,
+  /** O4: their post in a building whose floor has no bench left for them (benchless): at the yard and the door. */
+  crowded: 11,
 } as const;
 /**
  * What a household's home gives it each day of two needs besides the hourly ones (asked 2026-11-26: "more needs where the
@@ -6298,6 +6301,9 @@ function moodTerms(
       days: null,
     });
   }
+  // (Their post in a building past what its floor takes: crowded at the yard and the door, while it holds. O4.)
+  if (grown && p.work[i]! >= 0 && benchless(place)[i])
+    out.push({ bit: 0, cond: COND.crowded, size: -CROWDED_MOOD, days: null });
   if (hd.abed[h] && hd.abed[h] !== p.id[i])
     out.push({
       bit: 0,
@@ -7911,7 +7917,12 @@ function turnOf(cx: TickCx, i: number, k: number, wk: number): void {
       at = bldgAt(place, cAt[i]!),
       b = at < 0 ? market : at,
       made = Math.round(
-        matched.made[good]! * perTick * ticksWorth(hoursAt(p, i, tradeKind(doing))) * wk,
+        matched.made[good]! *
+          perTick *
+          ticksWorth(hoursAt(p, i, tradeKind(doing))) *
+          wk *
+          // (At their own building with no bench left there for them: at the yard and the door. O4.)
+          (at > 0 && cAt[i] === p.work[i] && benchless(place)[i] ? BENCHLESS_WORTH : 1),
       );
     let can = made;
     // (What its market will not let go is not to be had there.)
@@ -8105,6 +8116,51 @@ export function placeZone(world: World, place: Place, lot: number): { zone: numb
 export function placeMeetFor(world: World, place: Place, home: number): number {
   const zones = ordersOf(world, place.town)?.zones;
   return zones?.length ? meetFor(place, zonesOf(place, zones), home) : AT.square;
+}
+/** A lot's floor as its grid lays it (O3): tiles a metre square, across and deep, less its yard, for a building over `lots`. */
+export function lotGrid(lots = 1): { w: number; d: number } {
+  return { w: Math.max(3, LOT_W * lots - 2), d: Math.max(4, LOT_D - 4) };
+}
+/** How many lots a building of a place stands over (its town's plan: a smithy one, a market hall four; a home one). */
+export function lotsOf(place: Place, lot: number): number {
+  const b = bldgAt(place, lot);
+  return b > 0 ? ((CIVIC_LOTS as Readonly<Record<string, number>>)[kindName(place.bldgs.kind[b]!)] ?? 1) : 1;
+}
+/**
+ * The benches a building's floor takes (O4): each two tiles by one with an aisle a tile wide about it, set in rows from
+ * its front wall, as its plan lays them (host/placeinside.ts): three tiles across and two deep a bench.
+ */
+export function benchesFit(lots = 1): number {
+  const { w, d } = lotGrid(lots);
+  return Math.floor((w + 1) / 3) * Math.floor((d + 1) / 2);
+}
+/**
+ * What one at work in a building without a bench there is worth at their making (O4): at the yard and the door, with
+ * no bench and their tools not to hand, half (est). Its benches go to those who work there in the order of the place's
+ * people, as its plan gives them.
+ */
+export const BENCHLESS_WORTH = 0.5;
+/** What working crowded, with no bench of one's own, takes from a mood while it holds (est: as being kept from one's taught work, a little more). */
+const CROWDED_MOOD = 4;
+type Benched = { day: number; n: number; none: Uint8Array };
+const BENCHED = new WeakMap<Place, Benched>();
+/** Those of a place at work in a building whose floor has no bench left for them, read once a day (1: benchless). */
+export function benchless(place: Place): Uint8Array {
+  const p = place.people,
+    day = Math.floor(place.t / DAY),
+    was = BENCHED.get(place);
+  if (was && was.day === day && was.n === p.n) return was.none;
+  const none = new Uint8Array(p.n),
+    taken = new Map<number, number>();
+  for (let i = 0; i < p.n; i++) {
+    const lot = p.work[i]!;
+    if (lot < 0 || bldgAt(place, lot) <= 0) continue;
+    const k = (taken.get(lot) ?? 0) + 1;
+    taken.set(lot, k);
+    if (k > benchesFit(lotsOf(place, lot))) none[i] = 1;
+  }
+  BENCHED.set(place, { day, n: p.n, none });
+  return none;
 }
 /** Where a place makes a good: its building of the kind (-1: none; it is made at home, or outside the town). */
 export function placeMakingAt(place: Place, g: number): number {

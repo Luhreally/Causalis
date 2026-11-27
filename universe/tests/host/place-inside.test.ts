@@ -8,7 +8,10 @@ import { HOUR, loadWorld, saveWorld, type World } from "../../src/kernel/index.t
 import {
   ACT,
   advancePlace,
+  benchesFit,
+  benchless,
   enterPlace,
+  lotsOf,
   placeDigest,
   placeLot,
   type Place,
@@ -105,7 +108,22 @@ test("inside a home and a building: laid on their tiles, nothing over another, t
     }
     const y = placeInside(w, place, b.lot)!;
     sound(y);
-    const benches = y.things.filter((q) => q.kind === "bench").length;
+    const benches = y.things.filter((q) => q.kind === "bench").length,
+      fit = benchesFit(lotsOf(place, b.lot));
+    // (Its benches as its floor takes them, O4: the plan lays as many as the tick reckons, and the rest are benchless.)
+    assert.equal(benches, Math.min(b.working, fit), "a bench each, as many as the floor takes");
+    const none = benchless(place);
+    let over = 0;
+    for (let i = 0; i < p.n; i++) if (p.work[i] === b.lot && none[i]) over++;
+    assert.equal(
+      over,
+      Math.max(0, b.working - fit),
+      "the rest are benchless, in the tick as on the plan",
+    );
+    assert.ok(
+      y.rooms.every((m) => m.words.length > 0) && x.rooms.every((m) => m.words.length > 0),
+      "each room read",
+    );
     assert.ok(
       benches > 0 && benches <= b.working,
       `a bench each who works there, at most (${benches} of ${b.working})`,
