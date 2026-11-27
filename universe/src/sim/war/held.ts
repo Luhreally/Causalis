@@ -104,6 +104,12 @@ export type Captives = {
   readonly since: number;
   /** The battle they were first taken at. */
   readonly cause: Ref;
+  /**
+   * The lands the men taken in the field came from, and how many of each, flat (land, men, …; by land): where those sent home
+   * at the peace go back to. (Absent in a save from before it was kept, and for those carried off from a land taken: their
+   * realm's seat.)
+   */
+  homes?: number[];
 };
 
 /** Those who fled to a land from another, and have not yet settled into it. */
@@ -186,7 +192,16 @@ export class DisplacedStore implements StateStore {
     for (const pair of this.holds.values()) for (const h of pair) if (h?.of === realm) out.push(h);
     return out;
   }
-  hold(w: War, side: 0 | 1, at: number, men: number, folk: number, year: number, cause: Ref): void {
+  hold(
+    w: War,
+    side: 0 | 1,
+    at: number,
+    men: number,
+    folk: number,
+    year: number,
+    cause: Ref,
+    from: readonly (readonly [land: number, men: number])[] = [],
+  ): void {
     const pair = this.holds.get(w.ref) ?? [null, null],
       was = pair[side];
     if (was) {
@@ -203,6 +218,15 @@ export class DisplacedStore implements StateStore {
         since: year,
         cause,
       };
+    const h = pair[side]!;
+    for (const [land, n] of from) {
+      if (!(n > 0)) continue;
+      const homes = (h.homes ??= []);
+      let i = 0;
+      while (i < homes.length && homes[i]! < land) i += 2;
+      if (homes[i] === land) homes[i + 1] = homes[i + 1]! + n;
+      else homes.splice(i, 0, land, n);
+    }
     this.holds.set(w.ref, pair);
     this.tally.taken += men + folk;
   }
@@ -299,7 +323,10 @@ export class DisplacedStore implements StateStore {
     h.int(this.holds.size);
     for (const [war, pair] of this.holds) {
       h.string(war);
-      for (const x of pair) h.int(x ? x.men : -1).int(x ? x.folk : -1);
+      for (const x of pair) {
+        h.int(x ? x.men : -1).int(x ? x.folk : -1);
+        if (x?.homes) h.value(x.homes);
+      }
     }
     h.int(this.camps.size);
     let sum = 0,
@@ -343,7 +370,13 @@ export class DisplacedStore implements StateStore {
     for (const pair of s.holds ?? []) {
       const any = pair[0] ?? pair[1];
       if (any)
-        this.holds.set(any.war, [pair[0] ? { ...pair[0] } : null, pair[1] ? { ...pair[1] } : null]);
+        this.holds.set(
+          any.war,
+          pair.map((h) => (h ? { ...h, ...(h.homes ? { homes: [...h.homes] } : {}) } : null)) as [
+            Captives | null,
+            Captives | null,
+          ],
+        );
     }
     this.camps.clear();
     this.byLand = null;
@@ -647,17 +680,20 @@ export function heldAfter(
     const each = apportionCapped(caught, living, living),
       none = q.score >= HELD.line;
     let n = 0;
+    const from: [number, number][] = [];
     levy.pools.forEach((pool, k) => {
       if (!each[k]) return;
-      n += none
+      const m = none
         ? killOf(ctx, pool.cell, pool.rows, each[k]!, t, key, 40 + k)
         : move(ctx, pool.cell, victor.seat, pool.rows, each[k]!, t, key, 40 + k);
+      n += m;
+      if (m > 0) from.push([pool.cell, m]);
     });
     if (n > 0 && none) {
       w.fallen[s] = w.fallen[s]! + n;
       store.tally.died += n;
       wrong(ctx, store, w, victor, beaten, "quarter", f.land, n, led, q, f.battle, t);
-    } else if (n > 0) store.hold(w, (1 - s) as 0 | 1, victor.seat, n, 0, year, f.battle);
+    } else if (n > 0) store.hold(w, (1 - s) as 0 | 1, victor.seat, n, 0, year, f.battle, from);
   }
   // A town stormed: its people at the mercy of those who lost their own before its walls.
   if (f.stormed && f.won) {
@@ -812,8 +848,26 @@ function settle(
         key = serial(w.ref) * 4 + 2 + s;
       // (Whose realm is no more have no home to be sent to: they stay, bound or free, where they are.)
       if (of && alive[1 - s] && home > 0) {
-        const men = Math.min(home, h.men);
-        if (men > 0) move(ctx, h.at, of.seat, poolOf(ctx, h.at, year).rows, men, t, key, 1);
+        const men = Math.min(home, h.men),
+          rows = poolOf(ctx, h.at, year).rows;
+        // (The men go back to the lands they were taken from, each as many as it lost at most, by what it lost; any whose land
+        // is no one's now, and any beyond, to their realm's seat. Sent all to the seat, a land that sent its men to war lost
+        // them for good, the seat gaining them: a land of first light at 150 had 293 grown women to 143 men.)
+        let back = 0;
+        if (men > 0 && h.homes?.length) {
+          const lands: number[] = [],
+            lost: number[] = [];
+          for (let i = 0; i < h.homes.length; i += 2) {
+            lands.push(h.homes[i]!);
+            lost.push(h.homes[i + 1]!);
+          }
+          apportionCapped(men, lost, lost).forEach((k, i) => {
+            // (Those whose land is where they are held are home already.)
+            if (k > 0)
+              back += lands[i] === h.at ? k : move(ctx, h.at, lands[i]!, rows, k, t, key, 8 + i);
+          });
+        }
+        if (men > back) move(ctx, h.at, of.seat, rows, men - back, t, key, 1);
         if (home > men) move(ctx, h.at, of.seat, null, home - men, t, key, 2);
       }
       if (out.bought[s] > 0 && of) {
