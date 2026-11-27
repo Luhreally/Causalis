@@ -996,9 +996,11 @@ export class VillageScene {
       const dsx = p.x - wasX,
         dsz = p.z - wasZ,
         far = dsx * dsx + dsz * dsz > STEP_LOOK * STEP_LOOK,
-        look = owed && (jump || far || looked < LOOKS_EACH);
+        // (One set aside from where they are carried is looked at each time, as their way carries them on along a wall.)
+        aside = offX[i] !== 0 || offZ[i] !== 0,
+        look = (owed || aside) && (jump || far || aside || looked < LOOKS_EACH);
       if (look) {
-        if (!far) {
+        if (!far && !aside) {
           looked++;
           next = q + 1;
         }
