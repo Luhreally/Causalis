@@ -7348,8 +7348,9 @@ function turnOf(cx: TickCx, i: number, k: number, wk: number): void {
     return;
   }
   // The healer, with none of the hurt wanting them and their remedies short: out about the fields to gather more, the
-  // faster the more they know of it (N9), in the hours their work would have had.
-  if (i === healerAt && (place.herbs ?? 0) < herbsWanted(place)) {
+  // faster the more they know of it (N9), in the hours their work would have had. Not while a siege lies about the town:
+  // no one goes out to its fields, and the healer went out for herbs past the foe's lines.
+  if (i === healerAt && !matched.sieged && (place.herbs ?? 0) < herbsWanted(place)) {
     cAct[i] = ACT.work;
     cWhy[i] = WHY.herbs;
     if (cAt[i] !== AT.fields) go(place, i, AT.fields, world);
