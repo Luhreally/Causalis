@@ -36,6 +36,7 @@ import {
   type PlaceInspectPerson,
   type PlaceNamed,
   type PlaceThought,
+  type Portrait,
 } from "../bridge/index.ts";
 import type { QueryHandler } from "./host.ts";
 import { figureBody } from "./folk.ts";
@@ -78,6 +79,11 @@ import {
   actWords,
   placeDayStrip,
   placeTies,
+  placeOpinion,
+  placeRepute,
+  REASON,
+  REASON_WORDS,
+  TIES,
   regardWords,
   FRIEND_AT,
   RIVAL_AT,
@@ -510,7 +516,7 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
       ),
     mate: mi >= 0 ? nameOf(mi, mate!.promised ? "promised" : "paired") : null,
     friend: fi >= 0 ? nameOf(fi, "friend") : null,
-    ...tiesOf(place, i, nameOf),
+    ...tiesOf(world, place, i, nameOf, named),
     life: lived,
     prose: [
       `Mood ${p.mood[i]! > 0 ? "+" : ""}${p.mood[i]}, going a quarter of the way each day to ${Math.round(to)}, where what bears on it now puts it. It moves what their work is worth to them by ${Math.round(p.mood[i]! / 4)} in a hundred; below ${MOOD_UNHEEDING} they heed no order to change their work.`,
@@ -532,26 +538,88 @@ const TIE_HOW = {
   work: "works beside them",
   street: "of their street",
 } as const;
-/** Whom one of a place's people knows, named, and the count of them said (N8, host/place.ts placeTies). */
+/** One of a place's people's portrait (their own people's figure, in their land's clothes), its body read once a kind. */
+function portraitOf(
+  world: World,
+  place: Place,
+  j: number,
+  bodies: Map<number, ReturnType<typeof peopleBody>>,
+): Portrait {
+  const p = place.people,
+    kind = placeKind(world, place, j)?.kind ?? 0;
+  let body = bodies.get(kind);
+  if (body === undefined) {
+    const mix = kind > 0 ? mixOf(world) : null;
+    body = mix ? figureBody(kindBody(homePlanet(world).generated, mix, kind), null) : peopleBody(world);
+    bodies.set(kind, body);
+  }
+  const age = (place.t / DAY - p.born[j]!) / 365;
+  return {
+    kind: "person",
+    ref: placePersonRef(place.town, p.id[j]!),
+    age,
+    span: body?.span ?? 70,
+    occupation: p.sexOcc[j]! & 15,
+    child: age < lifeOf(world).adulthood,
+    era: landEra(world, place.cell),
+    body,
+  };
+}
+/**
+ * Whom one of a place's people knows (N8, and Q2's reasons: host/place.ts placeTies, placeOpinion), named, each with what
+ * they think of them all told and why, the strongest reasons first; their portraits and what those think of each other
+ * (the web); and how the town thinks of them.
+ */
 function tiesOf(
+  world: World,
   place: Place,
   i: number,
   nameOf: (j: number, words: string) => PlaceNamed,
-): Pick<PlaceInspectPerson, "ties" | "tiesWords"> {
-  const ties = placeTies(place, i),
-    friends = ties.filter((t) => t.regard >= FRIEND_AT).length,
-    rivals = ties.filter((t) => t.regard <= RIVAL_AT).length;
+  named: (id: number) => string | null,
+): Pick<PlaceInspectPerson, "ties" | "tiesWords" | "web" | "repute"> {
+  const p = place.people,
+    ties = placeTies(place, i),
+    friends = ties.filter((t) => t.opinion >= FRIEND_AT).length,
+    rivals = ties.filter((t) => t.opinion <= RIVAL_AT).length,
+    bodies = new Map<number, ReturnType<typeof peopleBody>>(),
+    signed = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n)}`;
+  const why = (j: number): string => {
+    const o = placeOpinion(place, i, j),
+      parts = o.reasons.slice(0, 3).map((x) => {
+        const of =
+          x.kind === REASON.told && x.from
+            ? `heard ${x.size > 0 ? "well" : "ill"} of them from ${named(x.from) ?? "another"}`
+            : REASON_WORDS[x.kind]!;
+        return `${of} ${signed(x.size)}${x.days ? `, ${x.days} ${x.days === 1 ? "day" : "days"} ago` : ", today"}`;
+      });
+    if (o.kin) parts.push(o.kin > 0 ? `keeps them, as kin ${signed(o.kin)}` : `lets them go wanting ${signed(o.kin)}`);
+    if (o.regard) parts.push(`their meetings ${signed(o.regard)}`);
+    return parts.join("; ");
+  };
+  const at = new Map(ties.map((t, k) => [p.id[t.j]!, k] as const)),
+    web: { a: number; b: number; regard: number }[] = [];
+  ties.forEach((t, a) => {
+    for (let k = 0; k < TIES; k++) {
+      const b = at.get(p.tie[t.j * TIES + k]!),
+        r = p.regard[t.j * TIES + k]!;
+      if (b !== undefined && b !== a && Math.abs(r) >= 5) web.push({ a, b, regard: r });
+    }
+  });
+  const rep = placeRepute(place, i);
   return {
     ties: ties.map((t) => ({
-      ...nameOf(
-        t.j,
-        `${regardWords(t.regard)}, ${TIE_HOW[t.how]} (${t.regard > 0 ? "+" : ""}${t.regard})`,
-      ),
-      regard: t.regard,
+      ...nameOf(t.j, `${regardWords(t.opinion)}, ${TIE_HOW[t.how]} (${signed(t.opinion)})`),
+      regard: t.opinion,
+      why: why(t.j),
+      portrait: portraitOf(world, place, t.j, bodies),
     })),
     tiesWords: ties.length
-      ? `They know ${ties.length} well: ${friends === 1 ? "1 friend" : `${friends} friends`}, ${rivals === 1 ? "1 rival" : `${rivals} rivals`}. Each met at home, at work or about their street, and thought the better of as they are alike of temper.`
+      ? `They know ${ties.length} well: ${friends === 1 ? "1 friend" : `${friends} friends`}, ${rivals === 1 ? "1 rival" : `${rivals} rivals`}. Each met at home, at work or about their street, thought the better of as they are alike of temper and hold the same dear, and the better or worse for what has passed between them, each reason fading.`
       : "They know no one well yet.",
+    web,
+    repute: rep.known
+      ? `Known well to ${rep.known} of the town: ${rep.well} think well of them, ${rep.ill} ill (on the whole ${signed(Math.round(rep.mean))}).`
+      : "Known well to no one of the town yet.",
   };
 }
 
