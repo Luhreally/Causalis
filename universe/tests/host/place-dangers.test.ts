@@ -53,6 +53,8 @@ const base = (): World => placeWorld(150);
  * comes); and its people now, those waiting to be born or to come added and those waiting to die or leave taken off,
  * are the count with what it has lived of its own this year (its births and deaths day by day, placeOwn).
  */
+/** A death due of a place's own (vitalDay), a bit of its `b` (host/place.ts DUE_OWN). */
+const DUE_OWN = 1 << 17;
 function livedAgainst(
   place: Place,
   count: number,
@@ -64,14 +66,15 @@ function livedAgainst(
       d.t > place.t - PLACE_TICK,
       `${what}: ${d.what} due at ${d.t}, its clock at ${place.t}`,
     );
-  const coming = due.filter(
-      (d) =>
-        d.what === "born" ||
-        d.what === "come" ||
-        (d.what === "bear" && placeIndexOf(place, d.a) >= 0),
-    ).length,
+  // (A birth of its own still to come, vitalDay's "bear", is in neither its count nor its own born till it is lived.)
+  const coming = due.filter((d) => d.what === "born" || d.what === "come").length,
+    // (A death of its own still to come, vitalDay's, is in its count and its people both, and in its own dead once lived:
+    // not one going. One a year's turn brought is gone from its count already.)
     going = due.filter(
-      (d) => (d.what === "die" || d.what === "leave") && placeIndexOf(place, d.a) >= 0,
+      (d) =>
+        (d.what === "die" || d.what === "leave") &&
+        !(d.what === "die" && d.b & DUE_OWN) &&
+        placeIndexOf(place, d.a) >= 0,
     ).length,
     own = placeOwn(place);
   assert.equal(

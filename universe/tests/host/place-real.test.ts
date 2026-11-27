@@ -515,10 +515,27 @@ test("a wound is to a member of the body, heals by what its land knows of care, 
     }
   }
   assert.ok(mending > 0 && told(place, HAP.mending) > 0, `${mending} mending`);
-  watch(w, town, 80 * 24, 12);
+  // (Till each has mended, by their wound's own course at its land's care: a land that knows little of care keeps a burn
+  // mending for months. Three times the longest a trunk's burn takes, its tissue the slowest, and a month over.)
+  const course = Math.max(
+      ...hurt.map((id) => {
+        const i = at(id);
+        if (i < 0) return 0;
+        const mark = placeMark(w, place, i),
+          d = healDays(mark ? mark.outcome : "healed", "trunk", "fire", care, tendedOf(place, i));
+        return d.abed + d.mending;
+      }),
+    ),
+    down = () =>
+      hurt.some((id) => {
+        const i = at(id);
+        return i >= 0 && (p.cause[i]! & 7) === CAUSE.fire && (p.health[i] === 1 || p.health[i] === 3);
+      });
+  for (let d = 0; d < 3 * course + 30 && down(); d += 5) watch(w, town, 5 * 24, 12);
   for (const id of hurt) {
     const i = at(id);
-    if (i < 0) continue;
+    // (One hurt again since, by other hands, is abed of another wound.)
+    if (i < 0 || (p.health[i] && (p.cause[i]! & 7) !== CAUSE.fire)) continue;
     assert.ok(p.health[i] !== 1 && p.health[i] !== 3, "mended in the end");
     const mark = placeMark(w, place, i);
     if (mark) assert.ok(mark.outcome === "scarred" || mark.outcome === "lame");
