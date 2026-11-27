@@ -1216,6 +1216,31 @@ h3.place-insp-sub {
   pointer-events: none;
   will-change: transform;
 }
+/* Q1: what bears on those near the eye, over their heads; a mark between two talking. */
+.place-bubble {
+  box-sizing: border-box;
+  contain: strict;
+  will-change: transform;
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 26px;
+  height: 26px;
+  line-height: 24px;
+  text-align: center;
+  font-size: 15px;
+  border-radius: 50%;
+  background: rgba(8, 16, 44, 0.72);
+  border: 1px solid rgba(190, 205, 255, 0.45);
+  pointer-events: none;
+  will-change: transform;
+}
+.place-bubble.off {
+  visibility: hidden;
+}
+.place-bubble.talk {
+  border-color: rgba(240, 214, 140, 0.8);
+}
 .place-ring[hidden],
 .place-tag[hidden] {
   display: none;

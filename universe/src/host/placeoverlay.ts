@@ -4,7 +4,16 @@
 import { DAY, type World } from "../kernel/index.ts";
 import type { PlaceOverlay, PlaceOverlayKind, PlaceOverlayLot } from "../bridge/index.ts";
 import type { QueryHandler } from "./host.ts";
-import { MOOD_UNHEEDING, enterPlace, homesFor, ordersOf, placeSites, type Place } from "./place.ts";
+import {
+  MOOD_UNHEEDING,
+  WORK_QUALITY,
+  enterPlace,
+  homesFor,
+  ordersOf,
+  placeNeedsDay,
+  placeSites,
+  type Place,
+} from "./place.ts";
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 const signed = (x: number) => `${x > 0 ? "+" : ""}${Math.round(x)}`;
@@ -70,6 +79,30 @@ export function placeOverlay(world: World, place: Place, kind: PlaceOverlayKind)
     });
     return { of: kind, lots, low: "Empty", high: "Half again full", good: "low", fire: null };
   }
+  // Comfort and beauty (Q1, E's NeedsDay): each home's beds for those under it, and the finest work in sight of its door.
+  if (kind === "comfort") {
+    const nd = placeNeedsDay(world, place),
+      of = new Map<number, { room: number; fine: number; n: number }>();
+    for (let h = 0; h < houses.n; h++) {
+      const lot = houses.home[h]!;
+      if (lot < 0 || !houses.members[h] || h >= nd.room.length) continue;
+      const x = of.get(lot) ?? { room: Infinity, fine: -1, n: 0 };
+      x.room = Math.min(x.room, nd.room[h]!);
+      x.fine = Math.max(x.fine, nd.fine[h]!);
+      x.n += houses.members[h]!;
+      of.set(lot, x);
+    }
+    for (const [lot, x] of of) {
+      const crowd = Math.max(0, Math.min(1, 1 - x.room)),
+        plain = x.fine < 0 ? 1 : Math.max(0, 1 - (x.fine + 1) / WORK_QUALITY.length);
+      lots.push({
+        lot,
+        v: (crowd + plain) / 2,
+        words: `${x.room >= 1 ? "A bed each" : `${Math.round(x.room * 100)}% of a bed each`} for the ${x.n} under its roof; ${x.fine < 0 ? "no work of the town's in sight of its door" : `a ${WORK_QUALITY[x.fine]} work in sight of its door`}`,
+      });
+    }
+    return { of: kind, lots, low: "Roomy and fair", high: "Crowded and plain", good: "low", fire: null };
+  }
   if (kind === "work") {
     const shut = ordersOf(world, place.town)?.shut ?? [];
     let most = 1;
@@ -132,7 +165,7 @@ export function placeOverlay(world: World, place: Place, kind: PlaceOverlayKind)
 
 /** `place.overlay`: { ref: the town, of: which reading }. */
 export function placeOverlayQueries(): Readonly<Record<string, QueryHandler>> {
-  const KINDS: readonly PlaceOverlayKind[] = ["needs", "mood", "room", "work", "age", "danger"];
+  const KINDS: readonly PlaceOverlayKind[] = ["needs", "mood", "room", "comfort", "work", "age", "danger"];
   return {
     "place.overlay": (world, args) => {
       const a = args as { ref?: unknown; of?: unknown };

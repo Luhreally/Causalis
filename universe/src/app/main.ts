@@ -1110,6 +1110,8 @@ type Exposed = {
       inspected: PlaceFlow["inspected"];
       /** Whether the eye is kept with anyone (🎯, or one a town watched goes with). */
       following: boolean;
+      /** What is drawn over heads near the eye (Q1). */
+      bubbles: PlaceFlow["bubbles"];
     };
     /** How the town entered is run, chosen; and in one watched, the stay key and the next. */
     mode(mode: PlaceMode): Promise<void>;
@@ -10926,6 +10928,7 @@ async function runPlanetPage(): Promise<void> {
       captioned: placeFlow.captioned,
       inspected: placeFlow.inspected,
       following: placeFlow.following,
+      bubbles: placeFlow.bubbles,
     }),
   };
   // (A page's Go to, from a home: the home closed, then gone to.)

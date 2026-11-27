@@ -175,6 +175,8 @@ export class PlaceBodies implements PosedHook {
   private readonly px: Float64Array;
   private readonly pz: Float64Array;
   private readonly yaws: Float64Array;
+  /** Each of those asked by their place in the plan (the frame's lists are of those asked). */
+  private readonly ofAsked: number[] = [];
   private readonly grown: Float64Array;
   private readonly out: Uint8Array;
   /** How far each is drawn from where their walk or their stand has them (m): carried off over SMOOTH. */
@@ -232,6 +234,9 @@ export class PlaceBodies implements PosedHook {
     this.px = f64(Number.NaN);
     this.pz = f64(Number.NaN);
     this.yaws = f64();
+    this.ids.forEach((id, i) => {
+      if (id !== null) this.ofAsked.push(i);
+    });
     this.grown = f64();
     this.out = new Uint8Array(n);
     this.ox = f64();
@@ -620,6 +625,16 @@ export class PlaceBodies implements PosedHook {
         this.leans[i]! +=
           ((moving ? leanOf((fast - before) / step, pull) : 0) - this.leans[i]!) * ease;
         if (far > MOVING * step) yaw = toward(yaw, Math.atan2(dx, dz), TURN * step);
+        else {
+          // (Two talking where they stand turn to each other: Q1.)
+          const with_ = f.talk?.[k] ?? -1,
+            j = with_ >= 0 ? (this.ofAsked[with_] ?? -1) : -1;
+          if (j >= 0 && j !== i) {
+            const ox = this.px[j]! - nx,
+              oz = this.pz[j]! - nz;
+            if (ox * ox + oz * oz > 0.01) yaw = toward(yaw, Math.atan2(ox, oz), TURN * step);
+          }
+        }
         if (long > 0) this.strides[i]! += far / long / STRIDES;
         else if (moving) this.strides[i]! += step;
       }

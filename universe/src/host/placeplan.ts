@@ -57,6 +57,10 @@ import {
 import { townStuff } from "./chain.ts";
 import type { QueryHandler } from "./host.ts";
 import {
+  placeStrongest,
+  placeRegard,
+  RIVAL_AT,
+  THOUGHT,
   ACT,
   ACT_WORDS,
   AT,
@@ -889,6 +893,39 @@ export function placeNotices(world: World, place: Place): PlaceNotice[] {
 }
 
 /** A place at its tick, for those asked (by their ids, in the order asked): brought to the world's moment first. */
+/** Each memory's sign over a head (Q1; host/place.ts THOUGHT, as the inspector's Mood tab shows them). */
+const THOUGHT_SIGN: Readonly<Record<number, string>> = {
+  [THOUGHT.born]: "👶",
+  [THOUGHT.paired]: "💞",
+  [THOUGHT.friendDied]: "🕯️",
+  [THOUGHT.ofAge]: "🎉",
+  [THOUGHT.fire]: "🔥",
+  [THOUGHT.games]: "🎲",
+  [THOUGHT.feast]: "🍖",
+  [THOUGHT.quarrel]: "💢",
+  [THOUGHT.brawl]: "👊",
+  [THOUGHT.catharsis]: "😮‍💨",
+  [THOUGHT.heldBy]: "⛓️",
+  [THOUGHT.righted]: "⚖️",
+  [THOUGHT.admired]: "🖼️",
+  [THOUGHT.newGear]: "🛠️",
+  [THOUGHT.robbed]: "🧺",
+  [THOUGHT.parted]: "💔",
+};
+/** What one at their work is at, as a sign over their head (Q1): by what they do, and at their trade by their trade. */
+const ACT_SIGN: Readonly<Record<number, string>> = {
+  [ACT.build]: "🧱",
+  [ACT.stuff]: "🧱",
+  [ACT.brigade]: "🪣",
+  [ACT.guard]: "🛡️",
+  [ACT.tend]: "🩹",
+  [ACT.haul]: "📦",
+  [ACT.carry]: "📦",
+  [ACT.mourn]: "🕯️",
+};
+const TRADE_SIGN: readonly string[] = ["", "", "🌾", "🐑", "🔨", "⚖️", "📜"];
+/** What stands still about a lot together, to be seen talking (Q1): at ease, eating, visiting, waiting, warming. */
+const TALKING: ReadonlySet<number> = new Set([ACT.idle, ACT.eat, ACT.visit, ACT.wait, ACT.warm]);
 export function placeFrame(world: World, town: string, ids: readonly number[]): PlaceFrame | null {
   const place = enterPlace(world, town);
   if (!place) return null;
@@ -908,7 +945,12 @@ export function placeFrame(world: World, town: string, ids: readonly number[]): 
     hunger: number[] = [],
     tired: number[] = [],
     carries: boolean[] = [],
-    why: string[] = [];
+    why: string[] = [],
+    bubble: string[] = [],
+    talk: number[] = [],
+    warm: boolean[] = [],
+    // (Those standing still about each lot, by their place in the list, for who talks with whom.)
+    still = new Map<number, number[]>();
   for (const id of ids) {
     const i = index.get(id);
     if (i === undefined) {
@@ -922,6 +964,9 @@ export function placeFrame(world: World, town: string, ids: readonly number[]): 
       tired.push(0);
       carries.push(false);
       why.push("");
+      bubble.push("");
+      talk.push(-1);
+      warm.push(false);
       continue;
     }
     at.push(p.at[i]!);
@@ -933,7 +978,40 @@ export function placeFrame(world: World, town: string, ids: readonly number[]): 
     tired.push(p.needs[i * 4 + 1]! / 65535);
     carries.push(p.carry[i]! > 0);
     why.push(whyWords(world, place, i));
+    const strong = placeStrongest(place, i),
+      a = p.act[i]!;
+    bubble.push(
+      strong
+        ? (THOUGHT_SIGN[Math.abs(strong)] ?? "")
+        : a === ACT.work
+          ? (TRADE_SIGN[p.sexOcc[i]! & 15] ?? "")
+          : (ACT_SIGN[a] ?? ""),
+    );
+    talk.push(-1);
+    warm.push(false);
+    if (!p.eta[i] && TALKING.has(a)) {
+      const k = bubble.length - 1;
+      (still.get(p.at[i]!) ?? still.set(p.at[i]!, []).get(p.at[i]!)!).push(k);
+    }
   }
+  // Who talks with whom (Q1): about a lot, standing still, two who know each other, each with the first of them still
+  // free of those after them; warmly but where they are rivals.
+  for (const group of still.values())
+    for (let x = 0; x < group.length; x++) {
+      const a = group[x]!;
+      if (talk[a] !== -1) continue;
+      const ia = index.get(ids[a]!)!;
+      for (let y = x + 1; y < Math.min(group.length, x + 9); y++) {
+        const b = group[y]!;
+        if (talk[b] !== -1) continue;
+        const r = placeRegard(place, ia, index.get(ids[b]!)!);
+        if (r === null) continue;
+        talk[a] = b;
+        talk[b] = a;
+        warm[a] = warm[b] = r > RIVAL_AT;
+        break;
+      }
+    }
   // (What it holds at the day's turn, for the Stocks sheet's lines.)
   stockDay(place);
   return {
@@ -953,6 +1031,9 @@ export function placeFrame(world: World, town: string, ids: readonly number[]): 
     tired,
     carries,
     why,
+    bubble,
+    talk,
+    warm,
     doing,
     notices: placeNotices(world, place),
     managed: !!ordersOf(world, town),
