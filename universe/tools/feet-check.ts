@@ -41,6 +41,7 @@ type Tally = {
   figures: number;
   sunk: number;
   floating: number;
+  stepping?: number;
   deepest: number;
   highest: number;
   pairs: number;
@@ -279,7 +280,7 @@ for (const given of saves) {
         const sum = (f: (t: Tally) => number) => got.reduce((a, t) => a + f(t), 0),
           most = (f: (t: Tally) => number) => got.reduce((a, t) => Math.max(a, f(t)), 0);
         console.log(
-          `  ${town.kind.padEnd(10)} ${town.name}: ${sum((t) => t.figures)} figures over ${got.length} counts; sunk ${sum((t) => t.sunk)} (deepest ${most((t) => t.deepest).toFixed(3)} m), floating ${sum((t) => t.floating)} (highest ${most((t) => t.highest).toFixed(3)} m); pairs in one another ${sum((t) => t.pairs)}; in a solid ${sum((t) => t.inSolid)}; in a trunk ${sum((t) => t.inTree)}`,
+          `  ${town.kind.padEnd(10)} ${town.name}: ${sum((t) => t.figures)} figures over ${got.length} counts; sunk ${sum((t) => t.sunk)} (deepest ${most((t) => t.deepest).toFixed(3)} m), floating ${sum((t) => t.floating)} (highest ${most((t) => t.highest).toFixed(3)} m), mid-step ${sum((t) => t.stepping ?? 0)}; pairs in one another ${sum((t) => t.pairs)}; in a solid ${sum((t) => t.inSolid)}; in a trunk ${sum((t) => t.inTree)}`,
         );
         const w = got.flatMap((t) => t.worst).sort((a, b) => Math.abs(b.off) - Math.abs(a.off))[0];
         if (w) console.log(`      worst: ${w.name} at ${w.task ?? "-"}, ${w.off.toFixed(3)} m`);
@@ -343,7 +344,7 @@ if (outFile) writeFileSync(outFile, JSON.stringify({ results, costs }, null, 1))
 const total = (f: (t: Tally) => number) =>
   results.reduce((a, r) => a + r.samples.reduce((b, t) => b + f(t), 0), 0);
 console.log(
-  `all: ${total((t) => t.figures)} figures counted; sunk ${total((t) => t.sunk)}, floating ${total((t) => t.floating)}, pairs ${total((t) => t.pairs)}, in a solid ${total((t) => t.inSolid)}, in a trunk ${total((t) => t.inTree)}`,
+  `all: ${total((t) => t.figures)} figures counted; sunk ${total((t) => t.sunk)}, floating ${total((t) => t.floating)}, mid-step ${total((t) => t.stepping ?? 0)}, pairs ${total((t) => t.pairs)}, in a solid ${total((t) => t.inSolid)}, in a trunk ${total((t) => t.inTree)}`,
 );
 await browser.close();
 await new Promise<void>((done) => server.httpServer.close(() => done()));

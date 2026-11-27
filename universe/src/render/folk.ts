@@ -197,7 +197,7 @@ export class FolkPoses {
   footOf(
     i: number,
     moments: readonly Moment[],
-  ): { lowest: number; surface: number; hop: number } | null {
+  ): { lowest: number; surface: number; hop: number; settling: number } | null {
     const m = moments[i],
       figure = this.figure;
     if (!m || m.hidden || !figure || i >= this.shifts.length) return null;
@@ -208,6 +208,7 @@ export class FolkPoses {
           lowest,
           surface: (this.grounds[i] ?? 0) + (m.lift ?? 0) * M,
           hop: this.hops[i] ?? 0,
+          settling: this.groundAt(i) + (m.lift ?? 0) * M,
         }
       : null;
   }
@@ -482,10 +483,14 @@ export class FolkPoses {
           const ax = this.groundX[i]!,
             dx = m.x - ax,
             dz = m.z - this.groundZ[i]!,
-            // (Carried two metres and more since read, the clock run on at a stride: read and set on at once, as they are.)
-            far = f.jumped || ax !== ax || dx * dx + dz * dz >= 4;
-          if (far || (dx * dx + dz * dz >= 0.0625 && this.reads < READS_EACH)) {
-            if (!far) this.reads++;
+            d2 = dx * dx + dz * dz,
+            // (Never read, or the clock taken on at a stride: read at once. Carried two metres and more since read: set on
+            // at once as it is read, not eased, as they were.)
+            now = !!f.jumped || ax !== ax,
+            read = now || (d2 >= 0.0625 && this.reads < READS_EACH),
+            far = read && (now || d2 >= 4);
+          if (read) {
+            if (!now) this.reads++;
             this.groundX[i] = m.x;
             this.groundZ[i] = m.z;
             this.grounds[i] = f.ground(m.x, m.z);
