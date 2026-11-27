@@ -358,12 +358,14 @@ test("a battle's tally of a town's men names who fell and who came home wounded"
   for (const x of place.log)
     if (x.what === HAP.fell) assert.ok(placeIndexOf(place, x.id) < 0, "one fallen is gone");
   // Its log tells them by name, each a line of its own. (The year's comings and goings are lived on days of their own now.)
-  const rows = logSheet(w, place).rows;
-  assert.equal(rows.filter((r) => / fell in the battle at /.test(r.words)).length, fell);
-  assert.equal(
-    rows.filter((r) => / came home wounded from the battle at /.test(r.words)).length,
-    wounded,
-  );
+  const rows = logSheet(w, place).rows,
+    // (A dozen of a kind named, the rest counted: "and 6 more came home wounded from the battle at ...".)
+    lines = (re: RegExp): number =>
+      rows
+        .filter((r) => re.test(r.words))
+        .reduce((n, r) => n + Number(/^and (\d+) more /.exec(r.words)?.[1] ?? 1), 0);
+  assert.equal(lines(/ fell in the battle at /), fell);
+  assert.equal(lines(/ came home wounded from the battle at /), wounded);
   assert.ok(rows.every((r) => r.day.length > 0));
   // A day of many of one kind is told a few lines and then counted: seven of its people coming to it on a day of its
   // own, after the rest of its log. (The year's comings now come on days of their own, so none of its real days has so
