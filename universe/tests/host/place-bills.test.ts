@@ -59,12 +59,14 @@ test("a bill of none stops a making; a bill wanting more takes its makers' hands
     s = near(w, 900),
     place = enterPlace(w, s.ref)!;
   watch(w, s.ref, 2);
-  const mk = placeMakings(place).sort((a, b) => b.makers - a.makers);
-  assert.ok(mk.length && mk[0]!.makers > 0, "the town has makers");
-  const g = mk[0]!.good;
-  // Before: a working day makes some of it.
+  const mk = placeMakings(place).filter((x) => x.makers > 0);
+  assert.ok(mk.length, "the town has makers");
+  // Before: a working day makes some of it. (The making its makers make the most of, as they make it: one with makers
+  // may want for its stuff, and a day of rest makes none; up to three days read.)
   const before = new Array<number>(place.madeDay.length).fill(0);
-  watch(w, s.ref, 24, before);
+  let days = 0;
+  for (; days < 3 && !mk.some((x) => before[x.good]! > 0); days++) watch(w, s.ref, 24, before);
+  const g = mk.reduce((a, b) => (before[b.good]! > before[a.good]! ? b : a)).good;
   assert.ok(before[g]! > 0, `${g} is made in a day`);
   // Make none of it: a day makes none, and its makers wait for want of a bill.
   order(w, "place.bill", { town: s.ref, good: g, until: 0 });
@@ -98,7 +100,7 @@ test("a bill of none stops a making; a bill wanting more takes its makers' hands
     });
     const after = new Array<number>(place.madeDay.length).fill(0);
     watch(w, s.ref, 24, after);
-    assert.ok(after[other.good]! > before[other.good]!, "the billed good is made by more hands");
+    assert.ok(after[other.good]! * days > before[other.good]!, "the billed good is made by more hands, a day against a day");
     assert.equal(after[g], 0);
   }
   // Kept in the world's save, and read back the same.

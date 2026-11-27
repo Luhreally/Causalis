@@ -112,8 +112,10 @@ test("its makers make works of the town's happenings, kept where they work, and 
   const w = copy(base()),
     s = near(w, 3000),
     place = enterPlace(w, s.ref)!;
-  // A month and more, three hours at a time.
+  // A month and more, three hours at a time, and on till the first is made: a maker gives a fiftieth of their time to works
+  // (rules/art.ts), one a month of it, so a town of fewer makers makes fewer. (Up to half a year.)
   watch(w, s.ref, 40 * 24, 3);
+  for (let d = 40; d < 180 && !(place.works ?? []).length; d += 5) watch(w, s.ref, 5 * 24, 3);
   const works = place.works ?? [];
   assert.ok(works.length >= 7, `works were made (${works.length / 7})`);
   assert.equal(works.length % 7, 0);

@@ -33,7 +33,7 @@ import {
 } from "../../src/host/place.ts";
 import { placeFrame, workSheet } from "../../src/host/placeplan.ts";
 import { inspectPerson } from "../../src/host/placeinspect.ts";
-import { PLACE_UNIVERSE, placeWorld } from "./worlds.ts";
+import { PLACE_UNIVERSE, keepsHouseholds, placeWorld } from "./worlds.ts";
 
 const base = (): World => placeWorld(150);
 const copy = (w: World): World => {
@@ -92,7 +92,9 @@ test("the hours of each kind of work are counted as it is done, a household's tr
     );
     assert.ok(placeSkills(w, place, i)[p.taught[i]! - 1]!.passion);
   }
-  assert.ok(taught > 0, "some were taught their household's work");
+  // (A people that keeps no household of more than one, a spawning people's or a hive's, has none to teach its work.)
+  if (keepsHouseholds(w)) assert.ok(taught > 0, "some were taught their household's work");
+  else assert.equal(taught, 0, "none is taught a household's work where none keeps house");
   // A day and a night watched: some cook at their hearth; no one's hours at their own trade are counted twice.
   const before = Array.from(p.hours.subarray(0, p.n * SKILL_KINDS.length));
   watch(w, s.ref, 30, 1);

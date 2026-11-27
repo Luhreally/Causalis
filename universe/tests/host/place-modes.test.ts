@@ -11,8 +11,10 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import { DAY, HOUR, loadWorld, saveWorld, type World } from "../../src/kernel/index.ts";
 import { managedOf, populationContext, type Settlement } from "../../src/sim/index.ts";
+import { GOODS, OCC, RECIPES } from "../../src/rules/index.ts";
 import {
   HAP,
+  type Place,
   enterPlace,
   hapTold,
   placeDigest,
@@ -233,19 +235,37 @@ test("a town stewarded is run by its own head through the orders a player gives,
 test("an order of the player's overrules the head's, and the head leaves that matter alone after", () => {
   const w = copy(base()),
     ctx = populationContext(w);
-  // (The twelve largest towns under fifteen hundred, the first whose head sets an idle hand to other work within twenty days:
-  // the more crafters, the sooner some run out of what they work.)
-  const ref = ctx.settlements
+  // (The twelve largest towns under fifteen hundred whose crafters make of stuff, the first whose head sets an idle hand to
+  // other work within twenty days. Their stuff taken out of the town each morning: they stand with nothing to work, as the
+  // crafters of a town that ran out of it would. A world whose crafters never run short has none idle of itself.)
+  const makesOf = (pl: Place): number[] => {
+      const x: number[] = [];
+      for (let i = 0; i < pl.people.n; i++) {
+        const craft = pl.people.craft[i]!;
+        if ((pl.people.sexOcc[i]! & 15) === OCC.crafter && craft)
+          for (const [g] of RECIPES[craft - 1]!.inputs) if (!x.includes(g)) x.push(g);
+      }
+      return x;
+    },
+    seen = copy(w),
+    ref: string[] = [];
+  for (const s of ctx.settlements
     .all()
     .filter((s) => ctx.settlements.held(s.ref) && s.population > 300 && s.population < 1500)
-    .sort((a, b) => b.population - a.population || (a.ref < b.ref ? -1 : 1))
-    .slice(0, 12)
-    .map((s) => s.ref);
+    .sort((a, b) => b.population - a.population || (a.ref < b.ref ? -1 : 1))) {
+    if (ref.length >= 12) break;
+    const pl = enterPlace(seen, s.ref);
+    if (pl && makesOf(pl).length > 0) ref.push(s.ref);
+  }
   let town = "",
     prio: { person: number; kinds: number[] } | null = null;
   for (const r of ref) {
     setMode(w, r, "steward");
     for (let d = 0; d < 20 && !prio; d++) {
+      const pl = placesOf(w)?.get(r);
+      if (pl)
+        for (const g of makesOf(pl))
+          for (let b = 0; b < pl.bldgs.lot.length; b++) pl.bldgs.stock[b * GOODS.length + g] = 0;
       const o = ranFor(w, r, DAY, 3 * HOUR, true).orders.find((x) => x.type === "place.prio");
       if (o) prio = o.args as { person: number; kinds: number[] };
     }

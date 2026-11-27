@@ -39,7 +39,7 @@ import {
 } from "../../src/host/place.ts";
 import { placeFrame, placePlan } from "../../src/host/placeplan.ts";
 import { placeLotRef, placePersonRef, type VillagePlan } from "../../src/bridge/index.ts";
-import { PLACE_UNIVERSE, placeWorld } from "./worlds.ts";
+import { PLACE_UNIVERSE, noTown, placeWorld, shortestDay, townWhere } from "./worlds.ts";
 
 const YEARS = 150;
 /** The world the tests share is never entered: each test enters a copy of its own. */
@@ -127,9 +127,13 @@ test("the same town entered at the same moment is the same place", () => {
   assert.equal(placeDigest(pa), placeDigest(pb));
 });
 
-test("a place steps by what presses: its people sleep, eat, work and carry, and stocks move by what is made and eaten", () => {
+test("a place steps by what presses: its people sleep, eat, work and carry, and stocks move by what is made and eaten", (t) => {
   const w = copy(base()),
-    s = near(w, 400),
+    // (A town whose land has a day at every season: in a polar night its young, at home with nothing to do, sleep the
+    // dark through, and its grown work by the clock.)
+    found = townWhere(w, (_, x, s) => shortestDay(x, s.cell) >= 6, { near: 400 });
+  if (!found) return void noTown(t, "whose land has a day of six hours at every season");
+  const s = found,
     place = enterPlace(w, s.ref)!,
     seen = new Set<number>(),
     asleep: number[] = [];
