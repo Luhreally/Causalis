@@ -441,13 +441,18 @@ test("while a siege lies about a town no one goes out to its fields, and its not
   // (No siege is laid in this world's years here: the place's own reading of one is set, as its matching would set it.)
   place.matched.sieged = true;
   watch(w, town, 30);
+  // (Read hour by hour till its farmers are up and would be at the fields: at an hour they sleep, none waits. No one out
+  // at any hour of it.)
   let out = 0,
     kept = 0;
-  for (let i = 0; i < p.n; i++) {
-    if (p.at[i] === -2 || p.to[i] === -2) out++;
-    if (p.act[i] === ACT.wait) kept++;
+  for (let h = 0; h < 48 && !kept; h++) {
+    if (h) watch(w, town, 1);
+    for (let i = 0; i < p.n; i++) {
+      if (p.at[i] === -2 || p.to[i] === -2) out++;
+      if (p.act[i] === ACT.wait) kept++;
+    }
+    assert.equal(out, 0, "no one is out in the fields, or bound for them");
   }
-  assert.equal(out, 0, "no one is out in the fields, or bound for them");
   assert.ok(kept > 0, "its farmers wait at home");
   assert.ok(placeNotices(w, place).some((x) => /^A siege lies about the town/.test(x.words)));
   assert.ok(dangersSheet(w, place).now.some((x) => /^A siege lies about the town/.test(x.words)));
