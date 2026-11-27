@@ -91,6 +91,8 @@ export type FolkFrame = {
   readonly ground?: ((x: number, z: number) => number) | null;
   /** What the ground was read off (any value): when it is another, each one's is read again. */
   readonly groundOf?: unknown;
+  /** The world's clock taken on at a stride (or a town come into): each one's ground read and set on at once. */
+  readonly jumped?: boolean;
 };
 
 /** How many gone on a quarter metre have the ground under them read again a frame (FolkFrame.ground). */
@@ -177,6 +179,9 @@ export class FolkPoses {
   private groundRead: unknown = null;
   /** The ground each one is drawn on now, eased onto the one read (units; NaN: never set on any). */
   private drawnG = new Float32Array(0);
+  /** Where each one was carried when last posed (metres; NaN: not yet). */
+  private prevX = new Float64Array(0);
+  private prevZ = new Float64Array(0);
   private reads = 0;
   /** How high each one was at a hop when last posed (units). */
   private hops = new Float32Array(0);
@@ -301,6 +306,8 @@ export class FolkPoses {
     this.grounds = new Float32Array(n);
     this.groundX = new Float64Array(n).fill(Number.NaN);
     this.drawnG = new Float32Array(n).fill(Number.NaN);
+    this.prevX = new Float64Array(n).fill(Number.NaN);
+    this.prevZ = new Float64Array(n).fill(Number.NaN);
     this.groundZ = new Float64Array(n).fill(Number.NaN);
     this.hops = new Float32Array(n);
     this.reaches = new Float32Array(n);
@@ -474,9 +481,11 @@ export class FolkPoses {
         if (f.ground) {
           const ax = this.groundX[i]!,
             dx = m.x - ax,
-            dz = m.z - this.groundZ[i]!;
-          if (ax !== ax || (dx * dx + dz * dz >= 0.0625 && this.reads < READS_EACH)) {
-            if (ax === ax) this.reads++;
+            dz = m.z - this.groundZ[i]!,
+            // (Carried two metres and more since read, the clock run on at a stride: read and set on at once, as they are.)
+            far = f.jumped || ax !== ax || dx * dx + dz * dz >= 4;
+          if (far || (dx * dx + dz * dz >= 0.0625 && this.reads < READS_EACH)) {
+            if (!far) this.reads++;
             this.groundX[i] = m.x;
             this.groundZ[i] = m.z;
             this.grounds[i] = f.ground(m.x, m.z);
@@ -485,13 +494,18 @@ export class FolkPoses {
           // jump. One never yet set on any is set on it at once.)
           const was = this.drawnG[i]!,
             to = this.grounds[i]!;
-          if (was !== was || Math.abs(to - was) < 1e-5) under = to;
+          // (No faster than a step is taken, or than half as fast as they are carried: the world run fast, they are.)
+          const px = this.prevX[i]!,
+            moved = px === px ? Math.hypot(m.x - px, m.z - this.prevZ[i]!) : 0;
+          if (was !== was || far || Math.abs(to - was) < 1e-5) under = to;
           else {
             const by = (to - was) * settle,
-              most = GROUND_RISE * M * Math.min(0.1, Math.max(0, dt));
+              most = Math.max(GROUND_RISE * Math.min(0.1, Math.max(0, dt)), moved * 0.5) * M;
             under = was + Math.max(-most, Math.min(most, by));
           }
           this.drawnG[i] = under;
+          this.prevX[i] = m.x;
+          this.prevZ[i] = m.z;
         }
         const hop = lying ? 0 : Math.max(0, bob) * size;
         this.hops[i] = hop;

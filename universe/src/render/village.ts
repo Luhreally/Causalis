@@ -238,6 +238,8 @@ const SPREAD_EASE = 0.06;
 const SPREAD_PACE = 1;
 /** How much of what one was set aside by is let go each time they are kept apart (render/village.ts spreadDrawn). */
 const SPREAD_LET = 0.1;
+/** How far the clock taken on in a frame is a stride, not a run (seconds of the world's: an hour a second's frame and more). */
+const JUMP_STEP = 60;
 /** One out of sight (of another people's figure than the one being posed), and no one's wounds' gear. */
 const UNSEEN: Moment = {
     x: 0,
@@ -569,6 +571,11 @@ export class VillageScene {
   private offZ = new Float32Array(0);
   private wantX = new Float32Array(0);
   private wantZ = new Float32Array(0);
+  /** Where each set aside was carried last frame (metres; NaN: not yet): how fast they go, which they step aside as fast as. */
+  private carriedX = new Float64Array(0);
+  private carriedZ = new Float64Array(0);
+  /** Whether the clock was taken on at a stride this frame (render/village.ts update). */
+  private jumped = false;
   private owing = new Int32Array(0);
   private owingIn = new Uint8Array(0);
   private owingN = 0;
@@ -751,7 +758,9 @@ export class VillageScene {
       wantX = this.wantX,
       wantZ = this.wantZ,
       f = dt > 0 ? 1 - Math.exp(-Math.min(0.1, dt) / SPREAD_EASE) : 0,
-      most = SPREAD_PACE * Math.min(0.1, Math.max(0, dt));
+      pace = SPREAD_PACE * Math.min(0.1, Math.max(0, dt)),
+      carriedX = this.carriedX,
+      carriedZ = this.carriedZ;
     let w = 0;
     for (let r = 0; r < n; r++) {
       const i = owing[r]!,
@@ -763,7 +772,12 @@ export class VillageScene {
       }
       const ax = wantX[i]! - offX[i]!,
         az = wantZ[i]! - offZ[i]!,
-        left = Math.sqrt(ax * ax + az * az);
+        left = Math.sqrt(ax * ax + az * az),
+        // (No faster than one steps aside, or than half as fast as they are carried: the world run fast, they are.)
+        cx = carriedX[i]!,
+        most = cx === cx ? Math.max(pace, 0.5 * Math.hypot(m.x - cx, m.z - carriedZ[i]!)) : pace;
+      carriedX[i] = m.x;
+      carriedZ[i] = m.z;
       if (left < 1e-3) {
         offX[i] = wantX[i]!;
         offZ[i] = wantZ[i]!;
@@ -783,6 +797,7 @@ export class VillageScene {
   }
 
   private spreadDrawn(plan: VillagePlan, step: boolean): void {
+    let jump = this.jumped;
     const t0 = performance.now(),
       moments = this.moments,
       n = moments.length;
@@ -806,6 +821,7 @@ export class VillageScene {
         this.spreadBase[3 * i + 2] = b.r * grown;
       }
       this.spreadOf = plan;
+      jump = true;
       this.spreadOthers = this.otherOf;
       this.spreadN = n;
       this.clearX = new Float64Array(n).fill(Number.NaN);
@@ -815,6 +831,8 @@ export class VillageScene {
       this.offZ = new Float32Array(n);
       this.wantX = new Float32Array(n);
       this.wantZ = new Float32Array(n);
+      this.carriedX = new Float64Array(n).fill(Number.NaN);
+      this.carriedZ = new Float64Array(n);
       this.owing = new Int32Array(n);
       this.owingIn = new Uint8Array(n);
       this.owingN = 0;
@@ -871,7 +889,10 @@ export class VillageScene {
       k++;
     }
     const t1 = performance.now();
-    if (step && k > 1) this.spreader.spread(xs, zs, rs, this.spreadLive, k);
+    // (Come in, or the clock taken on at a stride: kept apart as they stand, the knots worked through, at once.)
+    if (step && k > 1)
+      for (let pass = jump ? 3 : 1; pass > 0; pass--)
+        this.spreader.spread(xs, zs, rs, this.spreadLive, k);
     const t2 = performance.now();
     this.costs.gather += t1 - t0;
     this.costs.core += t2 - t1;
@@ -915,7 +936,7 @@ export class VillageScene {
         owe[i] === 1 ||
         (!walking &&
           !(Math.abs(toX - clearX[i]!) < CLEAR_AGAIN && Math.abs(toZ - clearZ[i]!) < CLEAR_AGAIN));
-      const look = owed && looked < LOOKS_EACH;
+      const look = owed && (jump || looked < LOOKS_EACH);
       if (look) {
         looked++;
         next = q + 1;
@@ -938,9 +959,20 @@ export class VillageScene {
       if (!this.owingIn[i]) {
         this.owingIn[i] = 1;
         this.owing[this.owingN++] = i;
+        this.carriedX[i] = Number.NaN;
       }
     }
     this.stillFrom = next;
+    // (Come in or taken on at a stride: set aside as they are found, not eased onto it.)
+    if (jump)
+      for (let r = 0; r < this.owingN; r++) {
+        const i = this.owing[r]!,
+          m = moments[i]!;
+        m.x += wantX[i]! - offX[i]!;
+        m.z += wantZ[i]! - offZ[i]!;
+        offX[i] = wantX[i]!;
+        offZ[i] = wantZ[i]!;
+      }
     this.costs.spread += performance.now() - t0;
   }
 
@@ -3117,6 +3149,8 @@ export class VillageScene {
     if (this.posed) t = this.posed.at(t);
     const step = t - this.lastT;
     this.lastT = t;
+    // (The clock taken on at a stride, or back: each one's ground and room among the rest found at once, not eased.)
+    this.jumped = step < 0 || step > JUMP_STEP;
     this.town.update(t);
     // (Its town's ground as laid now read again once a frame, its build gone on: what each one stands on is read off it.)
     this.frameNo++;
@@ -3321,8 +3355,8 @@ export class VillageScene {
     // (Out of what stands about them every sixth frame, out of one another every twelfth: where they are stepped to is where
     // they are carried on from, so they stay apart between; two come together are parted within a fifth of a second.)
     if (SPREAD_ON && !this.posed) this.easeApart(plan, dt);
-    if (SPREAD_ON && !this.posed && this.frameNo % SPREAD_EVERY === 0)
-      this.spreadDrawn(plan, this.frameNo % (2 * SPREAD_EVERY) === 0);
+    if (SPREAD_ON && !this.posed && (this.jumped || this.frameNo % SPREAD_EVERY === 0))
+      this.spreadDrawn(plan, this.jumped || this.frameNo % (2 * SPREAD_EVERY) === 0);
     // (Carried to where their day has them and kept apart, none is drawn nearer a block than their body as it strides and plays
     // and a street piece's depth (view/networks.ts): no one walks through a hydrant or a box by its kerb.)
     if (plan.town) {
@@ -3467,6 +3501,7 @@ export class VillageScene {
     /** A part of person i's figure, where it is now. */
     const place = this.folk.pose({
       ground: this.groundFn,
+      jumped: this.jumped,
       groundOf,
       plan,
       figure: this.figure,
@@ -3495,6 +3530,7 @@ export class VillageScene {
           o.moments[i] = otherOf[i] === k ? this.moments[i]! : UNSEEN;
         o.folk.pose({
           ground: this.groundFn,
+          jumped: this.jumped,
           groundOf,
           plan: o.plan,
           figure: o.figure,
