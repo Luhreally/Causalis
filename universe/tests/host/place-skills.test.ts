@@ -155,8 +155,9 @@ test("a fire's priority says who goes to one: set never, they stay away", () => 
   const w = copy(base()),
     s = near(w, 500),
     place = enterPlace(w, s.ref)!;
-  // Every grown farmer and crafter set never to go to a fire.
-  const never = [...grownAt(w, place, OCC.farmer), ...grownAt(w, place, OCC.crafter)];
+  // Every other grown farmer and crafter set never to go to a fire. (All of them, near half its people, left a fire among
+  // homes none to fight it but them.)
+  const never = [...grownAt(w, place, OCC.farmer), ...grownAt(w, place, OCC.crafter)].filter((_, k) => k % 2 === 0);
   assert.ok(never.length > 4);
   for (const id of never)
     order(w, "place.prio", {
@@ -172,7 +173,10 @@ test("a fire's priority says who goes to one: set never, they stay away", () => 
     });
   w.runTo(Math.ceil(w.now / DAY) * DAY + 10 * HOUR);
   placeFrame(w, s.ref, []);
-  order(w, "act.fire", { village: s.ref });
+  // (At the home of one of its grown herders or traders: those about it go, those set never stay away.)
+  const by0 = [...grownAt(w, place, OCC.herder), ...grownAt(w, place, OCC.trader)].map((id) => placeIndexOf(place, id)),
+    lot = by0.length ? place.houses.home[place.people.house[by0[0]!]!]! : -1;
+  order(w, "act.fire", lot >= 0 ? { village: s.ref, lot } : { village: s.ref });
   let fought = 0,
     by = 0;
   for (let k = 0; k < 12; k++) {

@@ -71,6 +71,7 @@ import {
   tendedOf,
   streetLength,
   targetTable,
+  placeOwn,
   townTable,
   tradeLean,
   watchWanted,
@@ -413,7 +414,9 @@ test("a sickness that comes: its dead are named, as many as its land's count tak
   assert.equal(told(place, HAP.plague), dead);
   assert.equal(place.plague, last.event);
   // (No one stands in for its dead till its town's count is reckoned anew: its people are its town's count less them.)
-  const target = targetTable(w, s, place).reduce((a, b) => a + b, 0);
+  // (And less those it has lived of its own since, dead, and more those born: vitalDay's, counted against its next turn.)
+  const own = placeOwn(place),
+    target = targetTable(w, s, place).reduce((a, b) => a + b, 0) - own.died + own.born;
   assert.equal(place.people.n, target);
   assert.deepEqual(
     placeTable(place, lifeOf(w)).length,
