@@ -84,6 +84,14 @@ export type PlaceFrame = {
   readonly tired: readonly number[];
   readonly carries: readonly boolean[];
   readonly why: readonly string[];
+  /**
+   * What is drawn over each one's head near the eye (Q1): the memory that bears most on them now, else what they are at
+   * where it is their work, as a sign ("": nothing); and whom of those asked each is talking with where they stand (their
+   * place in the list; -1: no one), warmly or not.
+   */
+  readonly bubble: readonly string[];
+  readonly talk: readonly number[];
+  readonly warm: readonly boolean[];
   /** How many are at each thing now, of all the place keeps (host/place.ts ACT's order). */
   readonly doing: readonly number[];
   /** What wants its manager's eye now, the most pressing first: said, and the page that tells more (null: none). */

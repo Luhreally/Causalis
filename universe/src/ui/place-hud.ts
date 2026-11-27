@@ -106,6 +106,7 @@ const LENSES: readonly (readonly [PlaceOverlayKind, string, string])[] = [
   ["needs", "Needs", "How pressing the needs of those living on each lot are, on average"],
   ["mood", "Mood", "The mood of those living or working on each lot, on average"],
   ["room", "Room", "How full each home is, of the room it has"],
+  ["comfort", "Comfort", "Each home's beds for those under it, and a fine work in sight of its door"],
   ["work", "Work", "How many work at each building, and which are stopped"],
   ["age", "Age", "How long each building has stood"],
   ["danger", "Danger", "A fire burning, and the lots within a cry of it"],

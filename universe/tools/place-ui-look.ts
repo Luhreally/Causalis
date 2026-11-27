@@ -312,13 +312,31 @@ for (const view of [
     await press('.place-pace[data-pace="600"]', "the ten-minutes-a-second pace");
     await k("globalThis.causalis.place.uiCost()");
     await page.waitForTimeout(4000);
-    const c = await k<{ ms: number; frames: number }>("globalThis.causalis.place.uiCost()");
+    const c = await k<{ ms: number; frames: number; signs?: unknown }>("globalThis.causalis.place.uiCost()");
+    say(`  of it, the signs over heads: ${JSON.stringify(c.signs ?? null)}`);
     await press('.place-pace[data-pace="0"]', "the pause");
     await k("globalThis.causalis.place.inspect(null)");
     say(
       `the mode's chrome: ${(c.ms / Math.max(1, c.frames)).toFixed(3)} ms a frame over ${c.frames} frames (its alerts, clock, sky, ring and name)`,
     );
     check(c.frames > 0 && c.ms / c.frames < 0.3, "the mode's chrome costs a frame under 0.3 ms");
+  }
+  // Over heads near the eye (Q1): what bears most on them or what they are at, and a mark between two talking; none over
+  // another.
+  {
+    let b = { signs: 0, talks: 0, near: 0 };
+    for (let tries = 0; tries < 12 && !b.signs; tries++) {
+      await page.waitForTimeout(500);
+      b = await k<{ signs: number; talks: number; near: number }>("globalThis.causalis.place.state().bubbles");
+    }
+    say(`over heads near the eye: ${b.signs} signs, ${b.talks} of them two talking, of ${b.near} near it with one`);
+    say(`  what they cost: ${JSON.stringify(await k("globalThis.causalis.place.state().bubbles.ms"))}`);
+    check(b.signs > 0 || b.near === 0, "signs over heads near the eye, where any near it has one");
+    const over = await k<number>(
+      `(() => { const r = [...document.querySelectorAll(".place-bubble:not(.off)")].map((e) => e.getBoundingClientRect()); let n = 0; for (let a = 0; a < r.length; a++) for (let c = a + 1; c < r.length; c++) if (r[a].left < r[c].right - 1 && r[c].left < r[a].right - 1 && r[a].top < r[c].bottom - 1 && r[c].top < r[a].bottom - 1) n++; return n; })()`,
+    );
+    check(over === 0, `no sign over another (${over})`);
+    await look("03c-bubbles", "signs over heads near the eye");
   }
   await press(".place-alert", "the gravest alert");
   await page.waitForTimeout(1300);
@@ -691,7 +709,7 @@ for (const view of [
   // Its overlays: each laid on its lots, its legend under the pill; one with a sheet open beside it.
   await k("globalThis.causalis.closePage?.()");
   await press(".place-lens-key", "🗺 the overlays");
-  for (const lens of ["needs", "mood", "room", "work", "age", "danger"]) {
+  for (const lens of ["needs", "mood", "room", "comfort", "work", "age", "danger"]) {
     await press(`.place-lens-chip[data-lens="${lens}"]`, `the ${lens} overlay`);
     await until(
       `the ${lens} overlay laid`,

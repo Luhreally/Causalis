@@ -445,6 +445,11 @@ function glowWindows(m: pc.StandardMaterial, glow: number, screens = 0): void {
 /** A home of a village's ring, not of a lot of its plan (host/home.ts). */
 const RING_HOME = 1_000_000;
 
+/** Scratch for where a head is drawn (personHeadOnScreen), so a frame's signs make no garbage. */
+const HEAD_AT = new pc.Vec3(),
+  HEAD_FOOT = new pc.Vec3(),
+  HEAD_TOP = new pc.Vec3();
+
 export class VillageScene {
   private readonly stage: Stage;
   private readonly root = new pc.Entity("village");
@@ -5509,6 +5514,33 @@ export class VillageScene {
     if (!m || m.hidden) return null;
     const s = this.stage.camera.camera!.worldToScreen(new pc.Vec3(m.x * M, 0.2, m.z * M));
     return s.z > 0 ? { x: s.x, y: s.y } : null;
+  }
+
+  /** Where on the screen one of those drawn has their feet and a point over their head (`high` metres), or null. */
+  personHeadOnScreen(index: number, high: number): { x: number; y: number; foot: number } | null {
+    const m = this.moments[index];
+    if (!m || m.hidden) return null;
+    const cam = this.stage.camera.camera!,
+      f = cam.worldToScreen(HEAD_AT.set(m.x * M, 0, m.z * M), HEAD_FOOT),
+      h = cam.worldToScreen(HEAD_AT.set(m.x * M, high * M, m.z * M), HEAD_TOP);
+    return f.z > 0 && h.z > 0 ? { x: h.x, y: h.y, foot: f.y } : null;
+  }
+
+  /**
+   * Whether one of those drawn could stand `tall` px from their feet to `high` metres, by how far they are from the eye
+   * alone (no projection; a little generous, so none who would is passed over): to pass over the far cheaply.
+   */
+  personMayStand(index: number, high: number, tall: number): boolean {
+    const m = this.moments[index];
+    if (!m || m.hidden) return false;
+    const e = this.stage.camera,
+      at = e.getPosition(),
+      dx = m.x * M - at.x,
+      dy = at.y,
+      dz = m.z * M - at.z,
+      far = Math.sqrt(dx * dx + dy * dy + dz * dz),
+      focal = ((this.stage.app.graphicsDevice.clientRect.height || 1) / 2) * e.camera!.projectionMatrix.data[5]!;
+    return far > 0 && (high * M * focal) / far >= tall * 0.8;
   }
 
   /** Everyone carrying something now: where (metres) and what (for the look tools). */

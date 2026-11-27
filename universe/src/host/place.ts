@@ -5673,6 +5673,35 @@ function partWays(place: Place, i: number, m: number): void {
     reason(place, a, b, REASON.parted, -10);
   }
 }
+/** How strongly a memory must bear on one now to be shown over their head (Q1; points of mood). */
+const BUBBLE_AT = 5;
+/**
+ * The memory that bears most on one now, as their columns keep it (the same at every tier): its kind, less than nought
+ * where it lowers them (0: none bears so much as BUBBLE_AT). For what is drawn over their head (Q1).
+ */
+export function placeStrongest(place: Place, i: number): number {
+  const p = place.people,
+    today = Math.floor(place.t / DAY);
+  let best = 0,
+    kind = 0;
+  for (let k = 0; k < THOUGHTS; k++) {
+    const v = p.thought[i * THOUGHTS + k]!;
+    if (!v) continue;
+    const n = thoughtNow(v, today);
+    if (Math.abs(n) > Math.abs(best)) {
+      best = n;
+      kind = thoughtKind(v);
+    }
+  }
+  return Math.abs(best) >= BUBBLE_AT ? (best > 0 ? kind : -kind) : 0;
+}
+/** One's regard of another (indices; null: they do not know them). */
+export function placeRegard(place: Place, i: number, j: number): number | null {
+  const p = place.people,
+    id = p.id[j]!;
+  for (let k = 0; k < TIES; k++) if (p.tie[i * TIES + k] === id) return p.regard[i * TIES + k]!;
+  return null;
+}
 /** What one thinks of another, and why (read only): their regard, each reason now with whom it came of, and kin's. */
 export function placeOpinion(
   place: Place,
@@ -6343,6 +6372,14 @@ export function placeMoodTerms(world: World, place: Place, i: number): MoodTerm[
     true,
     needsDay(world, place),
   );
+}
+/** Each household's comfort and beauty today (read only; NeedsDay's): beds for each under its home, the finest work in sight. */
+export function placeNeedsDay(
+  world: World,
+  place: Place,
+): { room: Float32Array; fine: Int8Array; seen: Int32Array } {
+  const d = needsDay(world, place);
+  return { room: d.room, fine: d.fine, seen: d.seen };
 }
 /** One's household's comfort and beauty now (read only): beds for each under their home, and the finest work in sight. */
 export function placeNeedsMore(

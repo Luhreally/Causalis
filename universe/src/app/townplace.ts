@@ -111,6 +111,8 @@ export type PlaceFlow = {
   back(): void;
   ahead(): void;
   readonly following: boolean;
+  /** What is drawn over heads near the eye now (Q1; the look tools): how many signs, and of them marks between two talking. */
+  readonly bubbles: { signs: number; talks: number; near: number };
   readonly inspected: {
     ref: string | null;
     height: string;
@@ -153,7 +155,15 @@ const EYE_NEAR = 9,
   /** How often what the inspector shows is read again (ms). */
   INSPECT_EVERY = 500,
   /** A body's height for the name over one chosen (metres). */
-  TAG_HIGH = 2.1;
+  TAG_HIGH = 2.1,
+  /** Q1's signs over heads: how many at most, how high over the ground (metres), how tall one must be drawn to have one
+   * (px: those near the eye only), and their size (px). */
+  BUBBLES = 24,
+  BUBBLE_HIGH = 2.3,
+  BUBBLE_TALL = 22,
+  BUBBLE_W = 26,
+  /** How often the signs over heads are chosen anew (ms); between, those chosen are only kept over their heads. */
+  BUBBLE_EVERY = 120;
 
 export function installPlace(d: PlaceDeps): PlaceFlow {
   // (What the mode's chrome costs the page: its alerts, clock and sky as a frame is told, its ring and name each frame.)
@@ -179,10 +189,17 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
   ring.className = "place-ring";
   tag.className = "place-tag";
   ring.hidden = tag.hidden = true;
+  // (Over heads near the eye, what bears most on them or what they are at, and a mark between two talking: Q1. Pooled.)
+  const bubbles: HTMLSpanElement[] = [];
+  for (let k = 0; k < BUBBLES; k++) {
+    const b = document.createElement("span");
+    b.className = "place-bubble off";
+    bubbles.push(b);
+  }
   // (Its overlay on the lots' ground in the scene, read again each second while it is shown; its words by the pointer.)
   const overlay = new PlaceOverlayLayer(d.village);
   let stopOverlay: (() => void) | null = null;
-  marks.append(overlay.tip, ring, tag);
+  marks.append(overlay.tip, ...bubbles, ring, tag);
   addEventListener(
     "pointermove",
     (e) => {
@@ -570,6 +587,108 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     if (inspector.now) inspector.show(inspector.now);
   };
   /** The ring and the name over the one chosen, where they are drawn now (each frame; nothing where no one is chosen). */
+  /** Each of those asked by their place in the plan (for where they are drawn), read once a body. */
+  let planOf: { of: PlaceBodies | null; at: number[] } = { of: null, at: [] };
+  /** What is over heads near the eye now (the look tools): how many signs, and of them marks between two talking. */
+  let bubbled = { signs: 0, talks: 0, near: 0 };
+  /** What the signs have cost (the look tools): ms choosing them and how often, ms placing them and over how many frames. */
+  const signMs = { choose: 0, chosen: 0, place: 0, frames: 0 };
+  /** The signs chosen: whose (their place among those asked; the other of two talking), what, and when chosen. */
+  let shown: { k: number; o: number; sign: string; talk: boolean }[] = [],
+    shownAt = -Infinity;
+  const bubbled_ = (): void => {
+    const now = performance.now();
+    if (planOf.of !== body || now - shownAt >= BUBBLE_EVERY) {
+      shownAt = now;
+      chooseSigns();
+      signMs.choose += performance.now() - now;
+      signMs.chosen++;
+    }
+    const t1 = performance.now();
+    // (Over their heads where they are drawn now, none over another.)
+    let used = 0,
+      talks = 0;
+    const W = innerWidth,
+      H = innerHeight,
+      placed: { x: number; y: number; n: (typeof shown)[number] }[] = [];
+    if (body)
+      for (const n of shown) {
+        const h = d.village.personHeadOnScreen(planOf.at[n.k]!, BUBBLE_HIGH);
+        if (!h) continue;
+        let x = h.x,
+          y = h.y;
+        if (n.o >= 0) {
+          const o = d.village.personHeadOnScreen(planOf.at[n.o]!, BUBBLE_HIGH);
+          if (!o) continue;
+          x = (x + o.x) / 2;
+          y = Math.min(y, o.y);
+        }
+        if (x < 0 || x > W || y < 0 || y > H) continue;
+        if (placed.some((q) => Math.abs(q.x - x) < BUBBLE_W + 2 && Math.abs(q.y - y) < BUBBLE_W + 2)) continue;
+        placed.push({ x, y, n });
+      }
+    for (const { x, y, n } of placed) {
+        const b = bubbles[used++]!;
+        if (b.textContent !== n.sign) b.textContent = n.sign;
+        if (b.classList.contains("talk") !== n.talk) b.classList.toggle("talk", n.talk);
+        b.style.transform = `translate(${(x - BUBBLE_W / 2).toFixed(1)}px, ${(y - BUBBLE_W).toFixed(1)}px)`;
+        if (b.classList.contains("off")) b.classList.remove("off");
+        if (n.talk) talks++;
+      }
+    for (let k = used; k < BUBBLES; k++) if (!bubbles[k]!.classList.contains("off")) bubbles[k]!.classList.add("off");
+    bubbled = { signs: used, talks, near: bubbled.near };
+    signMs.place += performance.now() - t1;
+    signMs.frames++;
+  };
+  const chooseSigns = (): void => {
+    const f = told;
+    let seen = 0;
+    shown = [];
+    if (f && body && f.bubble) {
+      if (planOf.of !== body) {
+        const at: number[] = [];
+        body.ids.forEach((id, k) => {
+          if (id !== null) at.push(k);
+        });
+        planOf = { of: body, at };
+      }
+      const W = innerWidth,
+        H = innerHeight,
+        near: { k: number; x: number; y: number; d: number; sign: string; talk: boolean }[] = [];
+      for (let k = 0; k < f.bubble.length; k++) {
+        const t = f.talk[k]!,
+          talking = t > k,
+          sign = talking ? (f.warm[k] ? "💬" : "💢") : t >= 0 ? "" : f.bubble[k]!;
+        if (!sign) continue;
+        const id = body.ids[planOf.at[k]!];
+        if (id === chosen) continue;
+        if (!d.village.personMayStand(planOf.at[k]!, BUBBLE_HIGH, BUBBLE_TALL)) continue;
+        const h = d.village.personHeadOnScreen(planOf.at[k]!, BUBBLE_HIGH);
+        // (Only those near the eye: drawn at least so tall.)
+        if (!h || h.foot - h.y < BUBBLE_TALL || h.x < 0 || h.x > W || h.y < 0 || h.y > H) continue;
+        let x = h.x,
+          y = h.y;
+        if (talking) {
+          const o = d.village.personHeadOnScreen(planOf.at[t]!, BUBBLE_HIGH);
+          if (!o) continue;
+          x = (x + o.x) / 2;
+          y = Math.min(y, o.y);
+        }
+        near.push({ k, x, y, d: Math.hypot(x - W / 2, y - H / 2), sign, talk: talking });
+      }
+      near.sort((a, b) => a.d - b.d || a.k - b.k);
+      // (Those nearest the middle of the screen, as many as there are signs, none over another as chosen.)
+      const placed: { x: number; y: number }[] = [];
+      for (const n of near) {
+        if (shown.length >= BUBBLES) break;
+        if (placed.some((q) => Math.abs(q.x - n.x) < BUBBLE_W + 2 && Math.abs(q.y - n.y) < BUBBLE_W + 2)) continue;
+        placed.push(n);
+        shown.push({ k: n.k, o: n.talk ? f.talk[n.k]! : -1, sign: n.sign, talk: n.talk });
+      }
+      seen = near.length;
+    }
+    bubbled = { ...bubbled, near: seen };
+  };
   const marked = (): void => {
     if (chosen === null) return;
     const p = personPoint(chosen),
@@ -997,6 +1116,7 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
       watch.frame();
       const t0 = performance.now();
       marked();
+      bubbled_();
       // (The view steered by hand lets go of whom it was kept with.)
       if (inspector.following && !d.rig.follow) follow(false);
       uiMs += performance.now() - t0;
@@ -1041,6 +1161,9 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     get following() {
       return d.rig.follow !== null;
     },
+    get bubbles() {
+      return { ...bubbled, ms: { ...signMs } };
+    },
     get inspected() {
       const x = inspector.now;
       return {
@@ -1054,8 +1177,9 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     inspectHeight: (h) => inspector.setHeight(h),
     overlaid: () => ({ lots: d.village.tintCount, spots: d.village.tintSpots() }),
     uiCost: () => {
-      const out = { ms: uiMs, frames: uiFrames, loaded: entered };
+      const out = { ms: uiMs, frames: uiFrames, loaded: entered, signs: { ...signMs } };
       uiMs = uiFrames = 0;
+      signMs.choose = signMs.chosen = signMs.place = signMs.frames = 0;
       return out;
     },
     reframe: () => {

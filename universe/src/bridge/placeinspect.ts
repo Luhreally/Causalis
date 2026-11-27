@@ -172,7 +172,7 @@ export type PlaceInspectLot = {
 export type PlaceInspect = PlaceInspectPerson | PlaceInspectLot;
 
 /** The readings a town mode lays over its lots (N5): needs, mood, room, work, age, danger. */
-export type PlaceOverlayKind = "needs" | "mood" | "room" | "work" | "age" | "danger";
+export type PlaceOverlayKind = "needs" | "mood" | "room" | "comfort" | "work" | "age" | "danger";
 /** One lot's reading: its value 0 … 1 (low to high on its legend) and what it is in words. */
 export type PlaceOverlayLot = { readonly lot: number; readonly v: number; readonly words: string };
 export type PlaceOverlay = {

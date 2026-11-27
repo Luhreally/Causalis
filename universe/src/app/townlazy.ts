@@ -91,6 +91,9 @@ export function lazyPlace(d: Omit<PlaceDeps, "loading">): PlaceFlow & { readonly
     get following() {
       return real?.following ?? false;
     },
+    get bubbles() {
+      return real?.bubbles ?? { signs: 0, talks: 0, near: 0 };
+    },
     get inspected() {
       return real?.inspected ?? { ref: null, height: "peek", name: "", chosen: null, answered: null };
     },
