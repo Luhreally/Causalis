@@ -230,10 +230,8 @@ const SPREAD_ON = true;
 const SPREAD_EVERY = 4;
 /** How far one standing still may have drifted (metres) before what stands about them is looked at again. */
 const CLEAR_AGAIN = 0.05;
-/** How many standing still are looked at a frame (render/village.ts spreadDrawn). */
-const STILL_EACH = 6;
-/** How many gone on a quarter metre have the ground under them read again a frame (render/village.ts groundUnder). */
-const READS_EACH = 40;
+/** How many are looked at for what stands about them each time they are kept apart (render/village.ts spreadDrawn). */
+const LOOKS_EACH = 16;
 /** One out of sight (of another people's figure than the one being posed), and no one's wounds' gear. */
 const UNSEEN: Moment = {
     x: 0,
@@ -541,15 +539,13 @@ export class VillageScene {
   private moments: Moment[] = [];
   /**
    * What its own ground lays that one stands on (metres from its square: its plain discs, its pasture, its square, its fields)
-   * and its tops (view/footing.ts), laid as it is built; and each one's ground under them now (units), read again as they move
-   * (`feetAt`, metres: where each was read), so every figure stands on what is drawn under it (2026-11-26).
+   * and its tops (view/footing.ts), laid as it is built: what each one's ground is read off as they are posed (render/folk.ts),
+   * so every figure stands on what is drawn under it (2026-11-26).
    */
   private laid: LaidPiece[] = [];
   private ownTops: GroundTops | null = null;
   private ownLaid = 0;
-  private feet = new Float32Array(0);
-  private feetAt = new Float32Array(0);
-  /** The tops the feet were read on (its own and its town's), to read them all again when either is laid anew. */
+  /** The tops the ground is read off (its own and its town's): a new list when either is laid anew. */
   private feetOn: readonly (GroundTops | null)[] = [];
   /** The drawn figures' separation (view/footing.ts Spread) and what it is fed, kept between frames. */
   private readonly spreader = new Spread();
@@ -559,6 +555,8 @@ export class VillageScene {
   private spreadLive = new Uint8Array(0);
   /** Where each one standing still was last kept out of what stands about them (metres; NaN: not yet). */
   private clearX = new Float64Array(0);
+  /** Who has been stepped aside and not yet looked at for what stands about them. */
+  private spreadOwe = new Uint8Array(0);
   /** Where the next frame's look at those standing still begins, among those gathered. */
   private stillFrom = 0;
   private clearZ = new Float64Array(0);
@@ -669,10 +667,6 @@ export class VillageScene {
     return Number.isFinite(top) ? top : 0;
   }
 
-  /**
-   * Each one's ground under them now (units), read again where they have moved a quarter metre and more since last read, or
-   * the ground under them was laid anew: what their figures are set on (render/folk.ts), and what they carry with them.
-   */
   /** Its town's ground as laid (view/footing.ts GroundTops), as read this frame; between frames, read again. */
   private topsNow(): GroundTops | null {
     if (this.topsFrame !== this.frameNo) {
@@ -682,55 +676,31 @@ export class VillageScene {
     return this.frameTops;
   }
   private frameTops: GroundTops | null = null;
-  /** Where the next frame's reading of those gone on begins (render/village.ts groundUnder). */
-  private feetFrom = 0;
   private frameNo = 0;
   private topsFrame = -1;
 
-  private groundUnder(moments: readonly Moment[]): Float32Array {
-    const n = moments.length;
-    // (Its own laid, and its graveyard's, read again as either lays more: a town's build goes on over frames.)
+  /**
+   * What each one's ground is read off now (render/folk.ts FolkFrame.ground): its own laid and its graveyard's, read again as
+   * either lays more (a town's build goes on over frames), and its town's; a new key when any is laid anew.
+   */
+  private groundNow(): unknown {
     const laidNow = this.laid.length + this.graveyard.laid.length;
     if (!this.ownTops || this.ownLaid !== laidNow) {
       this.ownTops = new GroundTops([...this.laid, ...this.graveyard.laid]);
       this.ownLaid = laidNow;
     }
-    const on = [this.ownTops, this.topsNow()],
-      again = on[0] !== this.feetOn[0] || on[1] !== this.feetOn[1] || this.feet.length !== n;
-    if (this.feet.length !== n) {
-      this.feet = new Float32Array(n);
-      this.feetAt = new Float32Array(2 * n).fill(Number.NaN);
-    }
-    this.feetOn = on;
-    const feet = this.feet,
-      at = this.feetAt,
-      from = this.feetFrom % Math.max(1, n);
-    // (One come out into sight read at once; of those gone on a quarter metre, so many a frame, from where the last frame left
-    // off: the town run fast, all its walkers would be read every frame.)
-    let read = 0,
-      next = from;
-    for (let r = 0; r < n; r++) {
-      const i = from + r < n ? from + r : from + r - n,
-        m = moments[i]!;
-      if (m.hidden) {
-        at[2 * i] = Number.NaN;
-        continue;
-      }
-      const ax = at[2 * i]!;
-      if (!again && ax === ax) {
-        const dx = m.x - ax,
-          dz = m.z - at[2 * i + 1]!;
-        if (dx * dx + dz * dz < 0.0625 || read >= READS_EACH) continue;
-        read++;
-        next = i + 1;
-      }
-      at[2 * i] = m.x;
-      at[2 * i + 1] = m.z;
-      feet[i] = this.surfaceAt(m.x, m.z) * M;
-    }
-    this.feetFrom = next;
-    return feet;
+    const town = this.topsNow();
+    if (this.feetOn[0] !== this.ownTops || this.feetOn[1] !== town)
+      this.feetOn = [this.ownTops, town];
+    return this.feetOn;
   }
+  /** The ground under a point as folk.ts reads it (units), its reading timed for the look tools. */
+  private readonly groundFn = (x: number, z: number): number => {
+    const t0 = performance.now(),
+      y = this.surfaceAt(x, z) * M;
+    this.costs.feet += performance.now() - t0;
+    return y;
+  };
 
   /**
    * Keep those drawn now out of one another (view/footing.ts Spread: half the breadth of their body as drawn true, the more of
@@ -766,6 +736,7 @@ export class VillageScene {
       this.spreadN = n;
       this.clearX = new Float64Array(n).fill(Number.NaN);
       this.clearZ = new Float64Array(n).fill(Number.NaN);
+      this.spreadOwe = new Uint8Array(n);
     }
     if (this.spreadAt.length < n) {
       this.spreadAt = new Int32Array(n);
@@ -827,8 +798,9 @@ export class VillageScene {
       p = { x: 0, z: 0 },
       clearX = this.clearX,
       clearZ = this.clearZ;
-    // (Those standing still looked at a few a frame, from where the last frame left off: a town's worth would cost a frame.)
-    let still = 0;
+    // (Those owed a look taken a few at a time, from where the last left off: a town's worth would cost a frame.)
+    let looked = 0;
+    const owe = this.spreadOwe;
     const from = this.stillFrom % Math.max(1, k);
     let next = from;
     for (let r = 0; r < k; r++) {
@@ -845,22 +817,24 @@ export class VillageScene {
       p.x = xs[q]!;
       p.z = zs[q]!;
       // (A walker not stepped aside goes on as their way keeps them: off walls and homes, round wells and trees.)
+      // (One stepped aside owes a look at what stands about them until it is taken; one standing still where none has looked
+      // yet is owed one too. So many are looked at a time, the rest in turn after.)
       const stepped = p.x !== wasX || p.z !== wasZ;
-      if (
-        !stepped &&
-        (walking ||
-          still >= STILL_EACH ||
-          (Math.abs(m.x - clearX[i]!) < CLEAR_AGAIN && Math.abs(m.z - clearZ[i]!) < CLEAR_AGAIN))
-      )
-        continue;
-      if (!stepped) {
-        still++;
+      if (stepped) owe[i] = 1;
+      const owed =
+        owe[i] === 1 ||
+        (!walking &&
+          !(Math.abs(m.x - clearX[i]!) < CLEAR_AGAIN && Math.abs(m.z - clearZ[i]!) < CLEAR_AGAIN));
+      const look = owed && looked < LOOKS_EACH;
+      if (look) {
+        looked++;
         next = q + 1;
-      }
-      keepOut(ground, p, body);
-      posts?.pushOut(p, body);
-      trunks?.pushOut(p, body);
-      if (!walking) {
+        owe[i] = 0;
+        keepOut(ground, p, body);
+        posts?.pushOut(p, body);
+        trunks?.pushOut(p, body);
+      } else if (!stepped) continue;
+      if (look && !walking) {
         clearX[i] = p.x === wasX && p.z === wasZ ? m.x : p.x - ox;
         clearZ[i] = p.x === wasX && p.z === wasZ ? m.z : p.z - oz;
       }
@@ -3394,13 +3368,14 @@ export class VillageScene {
     }
     // (Each on the ground drawn under them: render/folk.ts.)
     const f0 = performance.now(),
-      feet = this.groundUnder(this.moments),
-      f1 = performance.now();
-    this.costs.feet += f1 - f0;
+      groundOf = this.groundNow();
+    this.costs.feet += performance.now() - f0;
     this.costs.frames++;
+    const f1 = performance.now();
     /** A part of person i's figure, where it is now. */
     const place = this.folk.pose({
-      ground: feet,
+      ground: this.groundFn,
+      groundOf,
       plan,
       figure: this.figure,
       moments: otherOf ? this.ownMoments : this.moments,
@@ -3427,7 +3402,8 @@ export class VillageScene {
         for (let i = 0; i < this.moments.length; i++)
           o.moments[i] = otherOf[i] === k ? this.moments[i]! : UNSEEN;
         o.folk.pose({
-          ground: feet,
+          ground: this.groundFn,
+          groundOf,
           plan: o.plan,
           figure: o.figure,
           moments: o.moments,
@@ -3760,7 +3736,8 @@ export class VillageScene {
       c.carry = carry;
       c.size = (p.child ? 0.7 : 1) * this.figureFor(i).scale * (this.sizes[i] ?? 1) * whole;
       // (On the ground they stand on, as they are: render/folk.ts.)
-      c.y = this.feet[i] ?? 0;
+      const k = this.otherOf?.[i] ?? -1;
+      c.y = (k >= 0 ? this.others[k]!.folk : this.folk).groundAt(i);
       n++;
     });
     this.carriers.length = n;

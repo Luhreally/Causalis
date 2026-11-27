@@ -84,11 +84,17 @@ export type FolkFrame = {
    */
   readonly alpha?: ArrayLike<number> | null;
   /**
-   * The ground under each one as drawn (units: the top of the street, the yard, the square or the field they stand on, or the
-   * land's ground; absent: the plain ground's level, 0), each figure's lowest point set on it.
+   * The ground drawn under a point (metres from the middle; units up: the top of the street, the yard, the square or the field
+   * one stands on, or the land's ground; absent: the plain ground's level, 0), each figure's lowest point set on it. Read for
+   * each one posed where they have gone a quarter metre on since last read, so many a frame (one never read at once).
    */
-  readonly ground?: ArrayLike<number> | null;
+  readonly ground?: ((x: number, z: number) => number) | null;
+  /** What the ground was read off (any value): when it is another, each one's is read again. */
+  readonly groundOf?: unknown;
 };
+
+/** How many gone on a quarter metre have the ground under them read again a frame (FolkFrame.ground). */
+const READS_EACH = 40;
 
 /** A part's place now, as the village lays it out ([x, y, z, sx, sy, sz, yaw, pitch]). */
 export type PlacePart = (out: number[], i: number, pi: number) => void;
@@ -161,6 +167,11 @@ export class FolkPoses {
   private shifts = new Float64Array(0);
   /** The ground each one was set on when last posed (units). */
   private grounds = new Float32Array(0);
+  /** Where each one's ground was last read (metres; NaN: not yet), what it was read off, and how many were read this frame. */
+  private groundX = new Float64Array(0);
+  private groundZ = new Float64Array(0);
+  private groundRead: unknown = null;
+  private reads = 0;
   /** How high each one was at a hop when last posed (units). */
   private hops = new Float32Array(0);
   /** How far each one's parts reached out across the ground about them when last posed at work (units; 0: not at work). */
@@ -188,6 +199,11 @@ export class FolkPoses {
           hop: this.hops[i] ?? 0,
         }
       : null;
+  }
+
+  /** The ground one was last set on (units; 0 before they are first posed). */
+  groundAt(i: number): number {
+    return this.grounds[i] ?? 0;
   }
 
   /** How far one's parts reached out across the ground about them as last posed at work (units; 0: not at work). */
@@ -276,6 +292,8 @@ export class FolkPoses {
     this.codes = Uint8Array.from(figure.parts, (p) => SHAPE_CODE[p.shape]);
     this.shifts = new Float64Array(n);
     this.grounds = new Float32Array(n);
+    this.groundX = new Float64Array(n).fill(Number.NaN);
+    this.groundZ = new Float64Array(n).fill(Number.NaN);
     this.hops = new Float32Array(n);
     this.reaches = new Float32Array(n);
     this.taken = new Float32Array(n);
@@ -310,6 +328,12 @@ export class FolkPoses {
       P = parts.length;
     if (plan !== this.plan || figure !== this.figure || this.pitches.length !== n)
       this.read(plan, figure);
+    // (The ground laid anew: each one's read again.)
+    if (f.groundOf !== this.groundRead) {
+      this.groundRead = f.groundOf;
+      this.groundX.fill(Number.NaN);
+    }
+    this.reads = 0;
     const pitches = this.pitches,
       ease = dt > 0 ? 1 - Math.exp(-Math.min(0.1, dt) / 0.08) : 1,
       // (A walk is taken up over as long as a limb takes to come to a pose: three of its easings.)
@@ -437,9 +461,20 @@ export class FolkPoses {
       const lowest = lowestOf(keep, i * P * 16, P, this.codes);
       let shift = 0;
       if (Number.isFinite(lowest)) {
-        const under = f.ground?.[i] ?? 0;
+        let under = 0;
+        if (f.ground) {
+          const ax = this.groundX[i]!,
+            dx = m.x - ax,
+            dz = m.z - this.groundZ[i]!;
+          if (ax !== ax || (dx * dx + dz * dz >= 0.0625 && this.reads < READS_EACH)) {
+            if (ax === ax) this.reads++;
+            this.groundX[i] = m.x;
+            this.groundZ[i] = m.z;
+            this.grounds[i] = f.ground(m.x, m.z);
+          }
+          under = this.grounds[i]!;
+        }
         const hop = lying ? 0 : Math.max(0, bob) * size;
-        this.grounds[i] = under;
         this.hops[i] = hop;
         shift = under + (m.lift ?? 0) * M + hop - lowest;
         // (At work, how far their parts reach out across the ground, an arm put out, a tool swung: what they are kept from

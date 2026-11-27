@@ -172,6 +172,8 @@ test("every figure posed stands with its lowest point on the ground under it: st
         batches = GROUP_COLORS.map(() => figure.parts.map(() => new Kept())),
         groups = people.map((p) => personGroup(p as never)),
         ground = Float32Array.from(people, (_, i) => (i % 3) * 0.031),
+        // (The ground read where each stands: each one's own, by where they stand, x three metres a person.)
+        groundAt = (x: number) => ground[Math.round(x / 3)] ?? 0,
         downed = new Set([3, 11]);
       for (let frame = 0; frame < 30; frame++) {
         const moments: Moment[] = people.map((_, i) => ({
@@ -202,7 +204,8 @@ test("every figure posed stands with its lowest point on the ground under it: st
           hair: figure.parts.map(() => null),
           eye: { x: 0, y: 30, z: 0 },
           near: Infinity,
-          ground,
+          ground: groundAt,
+          groundOf: ground,
         });
         // (Each group's batches hold its own, in the people's order.)
         const all = new Float32Array(n * P * 16);
