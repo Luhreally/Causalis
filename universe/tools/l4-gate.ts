@@ -140,14 +140,29 @@ function forge(
       ...living.filter((p) => alone(p) && fit(p)),
       ...living.filter((p) => !alone(p) && fit(p)),
     ],
-    old =
-      living.find((p) => !alone(p) && !fitting.slice(0, 6).includes(p)) ??
-      living.find((p) => !fitting.slice(0, 6).includes(p)) ??
-      living.at(-1)!,
-    now = Math.floor(world.now / YEAR);
+    olds = [
+      ...living.filter((p) => !alone(p) && !fitting.slice(0, 6).includes(p)),
+      ...living.filter((p) => alone(p) && !fitting.slice(0, 6).includes(p)),
+    ],
+    now = Math.floor(world.now / YEAR),
+    born = now - 3 * ctx.life.bands.at(-1)!;
   if (!fitting.length) throw new Error(`no realm with a neighbour in reach on ${seed}`);
-  // Very old, so a year or few under the life table's oldest band will see them gone.
-  old.ruler = { ...old.ruler, born: now - 3 * ctx.life.bands.at(-1)! };
+  // Very old, so a year or few under the life table's oldest band will see them gone: one who is still there when the gate
+  // comes to them (step 7, a few years on), each tried on a copy of the world. (Made old, the first of first light's died in
+  // its first year, and the gate waited forty years on the young one who followed.)
+  const ruleset = rulesetId(world, u.version),
+    base = saveWorld(world, ruleset, { universe: u.name }),
+    lasts = (p: Polity) => {
+      const copy = loadWorld(base, (s) => u.build(s), ruleset).world,
+        q = politiesOf(copy).get(p.ref)!,
+        name = q.ruler.name;
+      q.ruler = { ...q.ruler, born };
+      copy.runTo(world.now + 4 * YEAR);
+      const after = politiesOf(copy).get(p.ref);
+      return !!after && after.ended === null && after.ruler.name === name;
+    },
+    old = olds.slice(0, 8).find(lasts) ?? olds[0] ?? living.at(-1)!;
+  old.ruler = { ...old.ruler, born };
   const bytes = gzipSync(
       JSON.stringify(saveWorld(world, rulesetId(world, u.version), { universe: u.name })),
     ),
