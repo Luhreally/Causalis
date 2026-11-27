@@ -630,11 +630,10 @@ test("mood follows needs met and what befell the household, moves work's worth, 
   const w = copy(base()),
     s = near(w, 400),
     place = enterPlace(w, s.ref)!,
-    p = place.people,
     mean = () => {
       let sum = 0;
-      for (let i = 0; i < p.n; i++) sum += p.mood[i]!;
-      return sum / p.n;
+      for (let i = 0; i < place.people.n; i++) sum += place.people.mood[i]!;
+      return sum / place.people.n;
     };
   for (let d = 0; d < 6; d += 2) {
     w.runTo(w.now + 2 * DAY);
@@ -643,21 +642,40 @@ test("mood follows needs met and what befell the household, moves work's worth, 
   const fed = mean();
   assert.ok(fed > 0, `fed and housed, their mood is up (${fed.toFixed(1)})`);
   // Worth follows mood: the same one, glad and low.
-  const i = [...Array(p.n).keys()].find((k) => (p.sexOcc[k]! & 15) === OCC.farmer)!,
-    was = p.mood[i]!;
-  p.mood[i] = 80;
+  const i = [...Array(place.people.n).keys()].find(
+      (k) => (place.people.sexOcc[k]! & 15) === OCC.farmer,
+    )!,
+    was = place.people.mood[i]!;
+  place.people.mood[i] = 80;
   const glad = workWorth(w, place, i);
-  p.mood[i] = -80;
+  place.people.mood[i] = -80;
   assert.ok(workWorth(w, place, i) < glad);
-  p.mood[i] = was;
+  place.people.mood[i] = was;
   order(w, "place.hold", { town: s.ref, months: 24 });
   order(w, "place.work", { town: s.ref, shares: [0, 0, 500, 500] });
-  for (let d = 0; d < 80; d += 2) {
+  // (Read at the depth of its want, within eighty days: a town starved under its own hold has fewer mouths after, and
+  // what its land brings may feed them again, when its mood climbs back as it should.)
+  // (Of the grown, whom an order of work could move: a child too low in mood is told no order. On bfd1bd3f's first light
+  // at 150 the first too low was a child, and no order went unheeded.)
+  const adult = lifeOf(w).adulthood,
+    lows = () =>
+      [...Array(place.people.n).keys()].filter(
+        (k) =>
+          place.people.mood[k]! < MOOD_UNHEEDING &&
+          (place.t / DAY - place.people.born[k]!) / 365 >= adult,
+      );
+  let wanting = 0;
+  for (let d = 0; d < 80 && !(mean() < fed - 20 && lows().length > 0); d += 2) {
     w.runTo(w.now + 2 * DAY);
     enterPlace(w, s.ref);
+    wanting = Math.max(
+      wanting,
+      [...Array(place.people.n).keys()].filter((k) => place.people.lack[k]! > 0).length,
+    );
   }
+  assert.ok(wanting > 0, "held from its store, its people go in want");
   assert.ok(mean() < fed - 20, `in want, it falls (${mean().toFixed(1)} from ${fed.toFixed(1)})`);
-  const low = [...Array(p.n).keys()].filter((k) => p.mood[k]! < MOOD_UNHEEDING);
+  const low = lows();
   assert.ok(low.length > 0, "some are too low to heed an order");
   const page = JSON.stringify(pageOf(w, placeWho(w, place)(low[0]!).ref));
   assert.ok(page.includes("Mood") && page.includes("days gone hungry"), "their page says why");
@@ -680,21 +698,22 @@ test("mood follows needs met and what befell the household, moves work's worth, 
 test("work harms some by their trade's own wear; the hurt lie abed at home and are well again", () => {
   const w = copy(base()),
     s = near(w, 2500),
-    place = enterPlace(w, s.ref)!;
-  // (Its people's columns are made again larger as the town grows: read afresh each day, never held from its entering.)
-  let p = place.people;
+    place = enterPlace(w, s.ref)!,
+    p = place.people;
   assert.equal(hazardOf(place, OCC.leader, 0), 0);
   assert.ok(hazardOf(place, OCC.farmer, 0) > 0 && hazardOf(place, OCC.farmer, 0) < 0.2);
   let hurt = 0,
     well = 0,
     abedAtHome = 0;
-  // (Until all three are seen: some hurt, one well again, and one of the hurt abed at home, read once a day.)
-  for (let d = 0; d < 150 && (hurt < 2 || well < 1 || abedAtHome === 0); d++) {
-    w.runTo(w.now + DAY);
-    enterPlace(w, s.ref);
-    p = place.people;
-    hurt += place.log.filter((x) => x.what === HAP.hurt && x.t > place.t - DAY).length;
-    well += place.log.filter((x) => x.what === HAP.well && x.t > place.t - DAY).length;
+  // (Watched an hour at a time, as a page watches it: a place read a day apart has its day drawn afresh up to the moment it
+  // is read, and that is the night's, when no one is at work to be hurt since N7 kept work to the working day.)
+  for (let d = 0; d < 24 * 200 && (hurt < 2 || well < 1 || abedAtHome === 0); d++) {
+    w.runTo(w.now + HOUR);
+    placeFrame(w, s.ref, []);
+    // (Its columns read afresh: a place's people grow into new ones as births pass what they held.)
+    const p = place.people;
+    hurt += place.log.filter((x) => x.what === HAP.hurt && x.t > place.t - HOUR).length;
+    well += place.log.filter((x) => x.what === HAP.well && x.t > place.t - HOUR).length;
     for (let i = 0; i < p.n; i++)
       if (p.ill[i]! > 0 && !p.eta[i] && p.act[i] === ACT.abed) {
         assert.equal(p.at[i], place.houses.home[p.house[i]!]);
@@ -711,7 +730,14 @@ test("work harms some by their trade's own wear; the hurt lie abed at home and a
   assert.ok(hurt >= 2, `some were hurt at their work (${hurt})`);
   assert.ok(well >= 1, "and were well again");
   assert.ok(abedAtHome > 0);
-  assert.ok(PERSON_BYTES <= 100, `${PERSON_BYTES} bytes a person`);
+  // (A hundred and eighty: raised from a hundred for N6, the hours given to each of ten kinds of work, two bytes each, and
+  // the kind one's household taught them, one: 96 bytes before them, 117 with them; and for N8, whom one knows, a dozen
+  // by their number (four bytes) and what one thinks of each (one): 177; for N9, a wound's bleeding, the blood lost and
+  // its festering, a byte each: 180. The owner took more detail a person for this mode, 2026-11-25.)
+  // (182 since the tiers: a byte for how closely one is followed and one for how far into their stride their needs are
+  // reckoned, 2026-11-26.)
+  // (183 since the tissue a wound reached, a byte, 2026-11-26.)
+  assert.ok(PERSON_BYTES <= 183, `${PERSON_BYTES} bytes a person`);
   // Where its land's own reckoning has no sickness come this year or last, no one of the place is sick.
   const sick = [...Array(p.n).keys()].filter((i) => p.health[i] === 2).length,
     last = healthOf(w)?.land(s.cell)?.last;
