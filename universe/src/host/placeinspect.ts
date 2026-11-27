@@ -94,6 +94,7 @@ import {
   placeValues,
   valueClash,
   placeGear,
+  placeNeedsMore,
   GEAR,
   type Item,
 } from "./place.ts";
@@ -161,7 +162,42 @@ const COND_WORDS: Readonly<Record<number, readonly [string, string]>> = {
   [COND.tool]: ["🛠️", "The tool of their trade"],
   [COND.garment]: ["🧥", "What they wear"],
   [COND.pot]: ["🍯", "Their household's pot"],
+  [COND.room]: ["🛏️", "Their home's room"],
+  [COND.beauty]: ["🗿", "A fine work in sight of their door"],
 };
+/** Comfort and beauty as their needs read: wanting the more, the fewer beds for those under their home and the less fine a work in sight. */
+function needsMore(
+  world: World,
+  place: Place,
+  i: number,
+): { name: string; level: number; press: number; words?: string }[] {
+  const x = placeNeedsMore(world, place, i),
+    // (Wanting nothing at a bed each; the more, the fewer beds there are for those under their roof.)
+    crowd = Math.max(0, Math.min(1, 1 - x.room)),
+    out: { name: string; level: number; press: number; words?: string }[] = [
+      {
+        name: "Comfort",
+        level: crowd,
+        press: pressOf(crowd),
+        words: `${x.under} under their roof, ${x.beds} ${x.beds === 1 ? "bed" : "beds"}`,
+      },
+    ];
+  // (Beauty where the town has works to see.)
+  if (place.works?.length) {
+    const want =
+      x.fine < 0 ? 1 : Math.max(0, 1 - (x.fine + 1) / WORK_QUALITY.length);
+    out.push({
+      name: "Beauty",
+      level: want,
+      press: pressOf(want),
+      words:
+        x.fine < 0
+          ? "No work of the town's in sight of their door"
+          : `A ${WORK_QUALITY[x.fine]} work at ${lotWords(place, x.seen)} in sight of their door`,
+    });
+  }
+  return out;
+}
 /** A thing in words: what it is, of what (a farmer's hoe and sickle, a herder's crook and shears, a crafter's tools). */
 function gearName(x: Item, occ: number): string {
   if (x.k === GEAR.garment) return `${cap(x.stuff)} garment`;
@@ -408,11 +444,15 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
     moodWord: moodWord(p.mood[i]!),
     breakAt: MOOD_UNHEEDING,
     thoughts,
-    needs: NEED_WORDS.map((w, q) => ({
-      name: cap(w),
-      level: r.needs[q]!,
-      press: pressOf(r.needs[q]!),
-    })),
+    needs: [
+      ...NEED_WORDS.map((w, q) => ({
+        name: cap(w),
+        level: r.needs[q]!,
+        press: pressOf(r.needs[q]!),
+      })),
+      // (Comfort and beauty, by the day: a bed each under their home, and a fine work in sight of its door.)
+      ...needsMore(world, place, i),
+    ],
     serves,
     health: p.health[i]!,
     healthWords: p.health[i] ? (healthWords(world, place, i) ?? ailWords(place, i)) : null,
