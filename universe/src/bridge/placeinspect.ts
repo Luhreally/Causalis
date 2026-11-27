@@ -208,6 +208,8 @@ export type PlaceInspectInside = {
     readonly y: number;
     readonly w: number;
     readonly d: number;
+    /** Its room read (O4): its floor a head, its beds, its hearth, or its benches for those who work there. */
+    readonly words: string;
   }[];
   readonly things: readonly PlaceInsideThing[];
   readonly people: readonly {

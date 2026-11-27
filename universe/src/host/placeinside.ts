@@ -7,11 +7,8 @@
 // bench, else about the room. Nothing lies over another thing, nothing past its room's walls, none two on one tile. The
 // place is only read: nothing of this is kept, and the tick never asks for it.
 import { DAY, type World } from "../kernel/index.ts";
-import { CIVIC_LOTS } from "../sim/index.ts";
-import { FOODS, GOODS } from "../rules/index.ts";
+import { FOODS, GOODS, OCC } from "../rules/index.ts";
 import {
-  LOT_D,
-  LOT_W,
   PLACE_AT,
   placeInsideRef,
   placeLotRef,
@@ -26,34 +23,32 @@ import {
   placeNeedsDay,
   placeWorks,
   WORK_QUALITY,
+  BENCHLESS_WORTH,
+  benchesFit,
+  benchless,
+  lotGrid,
+  lotsOf,
   type Place,
 } from "./place.ts";
 import { lotWords, placeWho, tradeWords } from "./placeplan.ts";
 
-/** The walls' and the yard's share of a lot's ground (tiles): a home stands back from its street, with a yard behind. */
-const YARD_SIDE = 1,
-  YARD_FRONT = 2,
-  YARD_BACK = 2;
 /** The most households of a lot whose rooms are laid side by side (a block of flats: the rest are on the floors above). */
 const ROOMS_ACROSS = 3;
+/** A room's floor a head (m²) under which it is cramped, and from which it is roomy (est: a bed, a seat and room to pass). */
+const CRAMPED = 6,
+  ROOMY = 12;
 /** The most of its goods a building's floor shows heaped (the most held first). */
 const HEAPS = 6;
 const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 const amount = (n: number): string =>
   n >= 100 ? String(Math.round(n)) : n >= 10 ? n.toFixed(1) : n.toFixed(2);
 
-/** A lot's grid (O3): how many tiles across and deep its floor is, a metre each, for a building over `lots` of them. */
-export function lotGrid(lots = 1): { w: number; d: number } {
-  return {
-    w: Math.max(3, LOT_W * lots - 2 * YARD_SIDE),
-    d: Math.max(4, LOT_D - YARD_FRONT - YARD_BACK),
-  };
-}
+export { lotGrid };
 
 /** A floor's tile: free, an aisle beside a thing (stood in, not built on), or a thing's. */
 const AISLE = 1,
   TAKEN = 2;
-type Room = { name: string; x: number; y: number; w: number; d: number };
+type Room = { name: string; x: number; y: number; w: number; d: number; words?: string };
 /** A floor's tiles, each taken or not, and things set on them where they fit. */
 class Floor {
   readonly taken: Uint8Array;
@@ -113,7 +108,7 @@ export function placeInside(world: World, place: Place, lot: number): PlaceInspe
     p = place.people,
     who = placeWho(world, place),
     homes = r.households.length > 0,
-    lots = !homes && r.kind ? ((CIVIC_LOTS as Readonly<Record<string, number>>)[r.kind] ?? 1) : 1,
+    lots = homes ? 1 : lotsOf(place, lot),
     { w, d } = lotGrid(lots),
     floor = new Floor(w, d),
     rooms: Room[] = [],
@@ -184,7 +179,11 @@ export function placeInside(world: World, place: Place, lot: number): PlaceInspe
         bedOf.set(i, bed);
         made++;
       }
-      const floorSleep = members.length - made;
+      const floorSleep = members.length - made,
+        area = room.w * room.d,
+        head = area / Math.max(1, members.length);
+      // (Its room read, O4: its floor a head, its beds, its hearth; under CRAMPED a head it is cramped, from ROOMY roomy.)
+      room.words = `${members.length} in ${area} m² (${Math.round(head)} a head), ${made === members.length ? "a bed each" : `${made} ${made === 1 ? "bed" : "beds"} for ${members.length}`}, a hearth: ${head < CRAMPED ? "cramped" : head >= ROOMY ? "roomy" : "snug"}`;
       if (floorSleep > 0)
         said.push(
           `${floorSleep} of the ${members.length} of ${room.name.replace(/^The /, "the ")} ${floorSleep === 1 ? "sleeps" : "sleep"} on the floor: ${made === beds ? "their home has no more beds for them" : "no more beds fit their room"}.`,
@@ -215,10 +214,14 @@ export function placeInside(world: World, place: Place, lot: number): PlaceInspe
       bedOf.set(i, bench);
       benched++;
     }
-    if (workers.length > benched)
+    if (workers.length > benched) {
+      const none = benchless(place),
+        makers = workers.filter((i) => none[i] && (p.sexOcc[i]! & 15) === OCC.crafter).length;
       said.push(
-        `${workers.length - benched} more work here than its floor has benches for: at the yard and the door.`,
+        `${workers.length - benched} more work here than its floor has benches for: at the yard and the door${makers ? `, ${makers} of them makers making at ${Math.round(BENCHLESS_WORTH * 100)}% of the pace` : ""}.`,
       );
+    }
+    room.words = `${benched} ${benched === 1 ? "bench" : "benches"} (its floor takes ${benchesFit(lots)}) for the ${workers.length} who work here; ${w * d} m²${workers.length > benched ? ": crowded" : ""}`;
     const heaps = r.stock
       .map((n, g) => ({ n, g }))
       .filter((x) => x.n > 0)
@@ -295,7 +298,7 @@ export function placeInside(world: World, place: Place, lot: number): PlaceInspe
     icon: homes ? "🏠" : "🏢",
     w,
     d,
-    rooms,
+    rooms: rooms.map((m) => ({ ...m, words: m.words ?? "" })),
     things: floor.things,
     people,
     words: [

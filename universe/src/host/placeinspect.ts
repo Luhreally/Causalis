@@ -168,6 +168,7 @@ const COND_WORDS: Readonly<Record<number, readonly [string, string]>> = {
   [COND.cook]: ["🍲", "Meals cooked at home"],
   [COND.passion]: ["⭐", "At the work their household taught them"],
   [COND.kept]: ["🪢", "Kept from the work their household taught them"],
+  [COND.crowded]: ["🧱", "Works in a crowd at the yard and the door, no bench of their own"],
   [COND.kinAbed]: ["🛏️", "One of their household abed"],
   [COND.friendAbed]: ["🛏️", "Their friend abed"],
   [COND.tool]: ["🛠️", "The tool of their trade"],
