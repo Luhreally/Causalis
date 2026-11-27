@@ -831,9 +831,13 @@ export class VillageScene {
         next = q + 1;
         owe[i] = 0;
         keepOut(ground, p, body);
+      }
+      // (Wells, columns and trunks are looked for by the cell one stands in: each time for all but those walking their way.)
+      if (look || stepped || !walking) {
         posts?.pushOut(p, body);
         trunks?.pushOut(p, body);
-      } else if (!stepped) continue;
+      }
+      if (!look && p.x === wasX && p.z === wasZ) continue;
       if (look && !walking) {
         clearX[i] = p.x === wasX && p.z === wasZ ? m.x : p.x - ox;
         clearZ[i] = p.x === wasX && p.z === wasZ ? m.z : p.z - oz;
