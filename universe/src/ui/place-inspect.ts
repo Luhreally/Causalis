@@ -10,6 +10,7 @@
 // itself: the page that owns it (app/townplace.ts) reads it and tells it.
 import type {
   PlaceInspect,
+  PlaceInspectBelow,
   PlaceInspectFields,
   PlaceInspectInside,
   PlaceInspectItem,
@@ -24,6 +25,7 @@ import { el } from "./why.ts";
 import { billsEl, takesEl } from "./place-bills.ts";
 import { insideEl } from "./place-inside.ts";
 import { fieldsEl } from "./place-fields.ts";
+import { belowEl } from "./place-below.ts";
 import type { VillagePlan } from "../bridge/index.ts";
 
 export type InspectHeight = "peek" | "half" | "full";
@@ -243,6 +245,7 @@ export class PlaceInspector {
     else if (x.kind === "inside") this.inside(x);
     else if (x.kind === "item") this.item(x);
     else if (x.kind === "fields") this.fields(x);
+    else if (x.kind === "below") this.below(x);
     else this.lot(x);
   }
 
@@ -512,6 +515,17 @@ export class PlaceInspector {
     this.body.replaceChildren(...insideEl(x, (ref) => this.onInspect(ref)));
   }
 
+  /** What lies below the town and the water it draws (O8). */
+  private below(x: PlaceInspectBelow): void {
+    this.picture(x);
+    const title = `${x.icon} ${x.name}`;
+    if (this.title.textContent !== title) this.title.textContent = title;
+    this.sub.textContent = [
+      x.water ? `water at hand: ${x.water}` : x.wells ? `${x.wells} ${x.wells === 1 ? "well" : "wells"}` : "no water at hand",
+      `${x.lodes.length} ${x.lodes.length === 1 ? "lode" : "lodes"} dug`,
+    ].join(" · ");
+    this.body.replaceChildren(...belowEl(x));
+  }
   /** The town's fields and its flock (O6): laid off its plan, who is out in them now. */
   private fields(x: PlaceInspectFields): void {
     this.picture(x);
@@ -637,6 +651,13 @@ export class PlaceInspector {
         row.append(b);
       }
       body.push(row);
+    }
+    // (Below the town and its water, O8: from its square's page.)
+    if (x.lot === -3 && x.ref.startsWith("plcl:")) {
+      const down = el("button", "place-insp-order place-insp-below", "Below ground ▸");
+      down.setAttribute("aria-label", "What lies below the town, and the water it draws");
+      down.onclick = () => this.onInspect(x.ref.replace(/^plcl:(.*):\d+$/, "plcb:$1"));
+      body.push(down);
     }
     if (x.zoneWords) body.push(el("p", "place-insp-why", x.zoneWords));
     // (The guard's post by your order, O7: those standing to arms keep it, watching the homes within a cry of it.)

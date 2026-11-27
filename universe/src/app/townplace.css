@@ -1287,6 +1287,27 @@ h3.place-insp-sub {
   stroke: #fff;
   stroke-width: 3px;
 }
+/* Below the town (O8): its sky, its water, its soil, its shafts. */
+.place-below-sky {
+  fill: #cfe3f0;
+}
+.place-below-water {
+  fill: #4f86b8;
+}
+.place-below-soil {
+  fill: #6b4f33;
+}
+.place-below-shaft,
+.place-below-well {
+  stroke: #1d1a14;
+  stroke-width: 3;
+}
+.place-below-well {
+  stroke: #2f6fa8;
+}
+.place-below-shaft.out {
+  stroke-dasharray: 4 3;
+}
 .place-inside-pot {
   fill: #c98f6a;
 }

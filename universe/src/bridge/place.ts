@@ -45,6 +45,8 @@ export const placeLotRef = (town: string, lot: number): string =>
   `plcl:${town}:${lot === PLACE_AT.walls ? PLACE_WALLS_REF : lot + 3}`;
 /** A ref for inside a lot of a town's place (O3: its rooms on its grid of tiles), as its inspector opens it. */
 export const placeInsideRef = (town: string, lot: number): string => `plci:${town}:${lot + 3}`;
+/** A ref for what lies below a town and the water it draws (O8). */
+export const placeBelowRef = (town: string): string => `plcb:${town}`;
 /** A ref for a thing one of a town's people holds (O5: its own page), by its holder's number and its kind (one of each). */
 export const placeItemRef = (town: string, id: number, kind: number): string =>
   `plcg:${town}:${id}:${kind}`;

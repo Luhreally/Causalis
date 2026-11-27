@@ -796,6 +796,23 @@ for (const view of [
     await press(".place-insp-back", "‹ Back to the fields' page");
     await until("the fields' page again", async () => (await kind()) === "lot", 8000);
     check((await kind()) === "lot", "Back from the fields comes to their page");
+    // Below the town (O8): from the square's page; its ground cut through, its water and wells, its lodes; Back to it.
+    await k(`globalThis.causalis.place.inspect(${JSON.stringify(`plcl:${town.ref}:0`)})`);
+    await until("the square's page", async () => (await shown(".place-insp-below")) > 0, 8000);
+    await k('document.querySelector(".place-insp-below")?.scrollIntoView({ block: "center" })');
+    await page.waitForTimeout(300);
+    await press(".place-insp-below", "Below ground ▸, on the square's page");
+    await until("below the town", async () => (await kind()) === "below", 8000);
+    await page.waitForTimeout(600);
+    say(`below: ${(await text(".place-insp")).slice(0, 400)}`);
+    check(
+      (await shown(".place-below-cut")) > 0 && /mm of rain/.test(await text(".place-insp-body")),
+      "below the town: its ground cut through, its water said",
+    );
+    await look("20g-below", "below the town");
+    await press(".place-insp-back", "‹ Back to the square's page");
+    await until("the square's page again", async () => (await kind()) === "lot", 8000);
+    check((await kind()) === "lot", "Back from below comes to the square's page");
     await k('globalThis.causalis.place.inspectHeight("peek")');
   }
   // Where a good is made, with its bills (N10), and the market, with what it takes; at half height.

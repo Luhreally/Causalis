@@ -77,6 +77,21 @@ export function groundReading(
   };
 }
 
+/** A land's ground in layers (O8: below a town): its soil, and its rocks each with its share of its bedrock. */
+export function groundLayers(
+  world: World,
+  cell: number,
+): { soil: string; rocks: { name: string; share: number }[] } | null {
+  const chem = worldChemistry(homePlanet(world).generated),
+    ground = groundIn(world),
+    rocks = ground.rock.get(cell);
+  if (!rocks?.length) return null;
+  return {
+    soil: worldSoil(chem, BIOME_SOIL[ground.biome.get(cell) ?? -1] ?? "sea").name,
+    rocks: rocks.map(([r, k]) => ({ name: worldRock(chem, r).name, share: k })),
+  };
+}
+
 /** A land's soil: what it is called and what it is made of (sea-floor mud for the sea). */
 export function soilOf(
   world: World,
