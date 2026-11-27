@@ -81,7 +81,12 @@ test("a mood past bearing breaks, as its temper has it, and is lighter after; wh
   assert.ok(broke > 0, "a mood at the bottom breaks");
   assert.ok(seen > 0, "one broken down is at their break");
   assert.ok(alerted, "the alert column tells it");
-  assert.ok([...hows].every((x) => x === BREAK.wander || x === BREAK.binge || x === BREAK.wreck));
+  assert.ok(
+    [...hows].every(
+      (x) => x === BREAK.wander || x === BREAK.binge || x === BREAK.wreck || x === BREAK.pray,
+    ),
+    `each break one of its four (${[...hows].join(", ")})`,
+  );
   // Spent within the day, and lighter after.
   watch(w, s.ref, 12);
   const q = placesOf(w)!.get(s.ref)!.people;
