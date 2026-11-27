@@ -178,7 +178,50 @@ export type PlaceInspectLot = {
   readonly ground: string;
 };
 
-export type PlaceInspect = PlaceInspectPerson | PlaceInspectLot;
+/** A thing inside a building (O3), on its grid of tiles: what, its sign, its name, where and how big (tiles), said. */
+export type PlaceInsideThing = {
+  readonly kind: string;
+  readonly glyph: string;
+  readonly name: string;
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly d: number;
+  readonly words: string;
+};
+/**
+ * Inside a lot (O3): its grid (tiles a metre square, across and deep, the street's side at the top), its rooms, what
+ * stands in them, those here now on their tiles, and what the plan does not show, said.
+ */
+export type PlaceInspectInside = {
+  readonly kind: "inside";
+  readonly lot: number;
+  readonly ref: string;
+  readonly lotRef: string;
+  readonly name: string;
+  readonly icon: string;
+  readonly w: number;
+  readonly d: number;
+  readonly rooms: readonly {
+    readonly name: string;
+    readonly x: number;
+    readonly y: number;
+    readonly w: number;
+    readonly d: number;
+  }[];
+  readonly things: readonly PlaceInsideThing[];
+  readonly people: readonly {
+    readonly id: number;
+    readonly ref: string;
+    readonly name: string;
+    readonly x: number;
+    readonly y: number;
+    readonly words: string;
+  }[];
+  readonly words: string;
+};
+
+export type PlaceInspect = PlaceInspectPerson | PlaceInspectLot | PlaceInspectInside;
 
 /** The readings a town mode lays over its lots (N5): needs, mood, room, work, age, danger. */
 export type PlaceOverlayKind =

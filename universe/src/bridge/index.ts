@@ -600,6 +600,7 @@ export {
   PLACE_ACT,
   PLACE_AT,
   placeLotRef,
+  placeInsideRef,
   placePersonRef,
   placedId,
   placeFieldOf,
@@ -623,6 +624,8 @@ export {
 } from "./place.ts";
 export type {
   PlaceInspect,
+  PlaceInspectInside,
+  PlaceInsideThing,
   PlaceInspectLot,
   PlaceInspectPerson,
   PlaceNamed,

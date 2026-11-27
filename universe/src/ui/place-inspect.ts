@@ -10,6 +10,7 @@
 // itself: the page that owns it (app/townplace.ts) reads it and tells it.
 import type {
   PlaceInspect,
+  PlaceInspectInside,
   PlaceInspectLot,
   PlaceInspectPerson,
   PlaceNamed,
@@ -19,6 +20,7 @@ import { drawPortrait } from "./portrait.ts";
 import { drawBody } from "./body.ts";
 import { el } from "./why.ts";
 import { billsEl, takesEl } from "./place-bills.ts";
+import { insideEl } from "./place-inside.ts";
 
 export type InspectHeight = "peek" | "half" | "full";
 type PersonTab = "now" | "mood" | "health" | "skills" | "social" | "gear" | "life" | "work";
@@ -232,6 +234,7 @@ export class PlaceInspector {
     this.followKey.setAttribute("aria-label", fw);
     this.proseKey.classList.toggle("on", this.prose);
     if (x.kind === "person") this.person(x);
+    else if (x.kind === "inside") this.inside(x);
     else this.lot(x);
   }
 
@@ -492,6 +495,15 @@ export class PlaceInspector {
     this.body.replaceChildren(...body);
   }
 
+  /** Inside a lot (O3): its plan on its tiles, who is here and what stands here. Back goes to the lot's page. */
+  private inside(x: PlaceInspectInside): void {
+    this.picture(x);
+    const title = `${x.icon} Inside ${x.name.replace(/^The /, "the ")}`;
+    if (this.title.textContent !== title) this.title.textContent = title;
+    this.sub.textContent = `${x.rooms.length} ${x.rooms.length === 1 ? "room" : "rooms"} · ${x.people.length} here now`;
+    this.body.replaceChildren(...insideEl(x, (ref) => this.onInspect(ref)));
+  }
+
   private lot(x: PlaceInspectLot): void {
     this.picture(x);
     const name = x.name.replace(/^The /, ""),
@@ -507,6 +519,13 @@ export class PlaceInspector {
       .join(" · ");
     const body: HTMLElement[] = [];
     if (x.words) body.push(el("p", "place-insp-now", x.words));
+    // (Inside it, O3: its rooms on its tiles, who is here, what stands here.)
+    if (x.lot >= 0 && x.ref.startsWith("plcl:")) {
+      const go = el("button", "place-insp-order place-insp-inside", "Inside ▸");
+      go.setAttribute("aria-label", `Look inside ${x.name}`);
+      go.onclick = () => this.onInspect(x.ref.replace(/^plcl:/, "plci:"));
+      body.push(go);
+    }
     if (x.site) {
       const bar = el("div", "place-insp-site"),
         fill = el("span", "place-insp-site-fill");

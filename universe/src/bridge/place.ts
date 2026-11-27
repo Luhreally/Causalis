@@ -43,6 +43,8 @@ export const PLACE_ACT = {
 export const placePersonRef = (town: string, id: number): string => `plc:${town}:${id}`;
 export const placeLotRef = (town: string, lot: number): string =>
   `plcl:${town}:${lot === PLACE_AT.walls ? PLACE_WALLS_REF : lot + 3}`;
+/** A ref for inside a lot of a town's place (O3: its rooms on its grid of tiles), as its inspector opens it. */
+export const placeInsideRef = (town: string, lot: number): string => `plci:${town}:${lot + 3}`;
 /** Who a plan's person is in their town's place (null: not one of a place's). */
 export function placedId(ref: string): number | null {
   if (!ref.startsWith("plc:")) return null;

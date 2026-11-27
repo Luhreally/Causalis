@@ -657,6 +657,47 @@ for (const view of [
     say(`zoned: ${(await text(".place-insp-body")).match(/A meeting place[^.]*\./)?.[0] ?? ""}`);
     check(/Ground: /.test(await text(".place-insp-body")), "a lot's page says what its ground is");
     await look("20b-insp-zone", "a lot zoned a meeting place");
+    // Inside it (O3): its plan on its tiles; one of those there opened from it, and Back to the plan, and to the lot.
+    await k('document.querySelector(".place-insp-inside")?.scrollIntoView({ block: "center" })');
+    await page.waitForTimeout(300);
+    await press(".place-insp-inside", "Inside ▸, on the lot's page");
+    await until("the plan inside", async () => (await shown(".place-inside-plan")) > 0, 8000);
+    await page.waitForTimeout(600);
+    say(`inside: ${(await text(".place-insp-body")).slice(0, 300)}`);
+    check((await shown(".place-inside-plan")) > 0, "the plan inside is drawn");
+    await look("20c-inside", "inside a building, on its tiles");
+    // (No one there now, as at night: a home's inside, where its household is, its people opened from it.)
+    let homeToo = false;
+    if ((await shown(".place-insp-people .place-insp-person")) === 0) {
+      const home = await k<number | null>(
+        `globalThis.causalis.client.query({ type: "place.overlay", args: { ref: ${JSON.stringify(town.ref)}, of: "room" } }).then((o) => o?.lots?.find((l) => /^[1-9]/.test(l.words))?.lot ?? null)`,
+      );
+      if (home !== null) {
+        await k(`globalThis.causalis.place.inspect(${JSON.stringify(`plci:${town.ref}:${home + 3}`)})`);
+        homeToo = true;
+        await until("a home's plan", async () => (await shown(".place-insp-people .place-insp-person")) > 0, 8000);
+        await page.waitForTimeout(600);
+        await look("20d-inside-home", "inside a home, its household there");
+      }
+    }
+    if ((await shown(".place-insp-people .place-insp-person")) > 0) {
+      await k('document.querySelector(".place-insp-people .place-insp-person")?.scrollIntoView({ block: "center" })');
+      await page.waitForTimeout(300);
+      await press(".place-insp-people .place-insp-person", "one of those inside");
+      await until("their page", async () => (await shown(".place-inside-plan")) === 0, 8000);
+      await press(".place-insp-back", "‹ Back to the plan inside");
+      await until("the plan again", async () => (await shown(".place-inside-plan")) > 0, 8000);
+      check((await shown(".place-inside-plan")) > 0, "Back from one inside comes to the plan");
+      await press(".place-insp-ahead", "› Forward to them again");
+      await until("their page again", async () => (await shown(".place-inside-plan")) === 0, 8000);
+      check((await shown(".place-inside-plan")) === 0, "Forward goes to them again");
+      await press(".place-insp-back", "‹ Back to the plan");
+      await until("the plan once more", async () => (await shown(".place-inside-plan")) > 0, 8000);
+    } else say("no one inside now: none to open from the plan");
+    if (homeToo) await press(".place-insp-back", "‹ Back from the home to the building's plan");
+    await press(".place-insp-back", "‹ Back to the lot's page");
+    await until("the lot's page", async () => /Ground: /.test(await text(".place-insp-body")), 8000);
+    check(/Ground: /.test(await text(".place-insp-body")), "Back from inside comes to the lot's page");
     await k('globalThis.causalis.place.inspectHeight("peek")');
   }
   // Where a good is made, with its bills (N10), and the market, with what it takes; at half height.

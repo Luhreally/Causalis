@@ -42,6 +42,7 @@ import type { QueryHandler } from "./host.ts";
 import { figureBody } from "./folk.ts";
 import { skillLine, temperWords } from "./inspect/place.ts";
 import { groundReading } from "./inspect/ground.ts";
+import { placeInside } from "./placeinside.ts";
 import {
   ACT,
   AT,
@@ -922,6 +923,10 @@ function lotZone(
 export function placeInspect(world: World, town: string, ref: string): PlaceInspect | null {
   const place = enterPlace(world, town);
   if (!place) return null;
+  if (ref.startsWith("plci:")) {
+    const n = Number(ref.slice(ref.lastIndexOf(":") + 1));
+    return Number.isInteger(n) ? placeInside(world, place, n - 3) : null;
+  }
   if (ref.startsWith("plcl:")) {
     const n = Number(ref.slice(ref.lastIndexOf(":") + 1));
     if (!Number.isInteger(n)) return null;
