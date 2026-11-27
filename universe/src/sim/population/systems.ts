@@ -1998,12 +1998,20 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
         }
     }
     for (const m of reach) {
-      const there = support(
-          living(provinceCapacity(ctx, m), wildsOf(ctx, m)),
-          p.knowsCultivation,
-          p.herding !== null,
-        ),
-        others = (peopled(m)?.total() ?? 0) * appetite * (mixed ? mixAppetite(world, m) : 1),
+      // (What a land feeds, as its own people were fed in its leanest month of the year gone: one whose harvests failed feeds
+      // a newcomer no better than its own. Read by its ground alone, a land starving under five years of the greatest drought
+      // looked the better the more of it died, and 1,705 came into land 1747 of first light from 220 as its people went
+      // without, from lands fed in full: tests/sim/god-teeth.test.ts. Every way a people goes is weighed here: hunger and
+      // crowding, young bands budding off, those fleeing war, ruin or a law against their faith, those drawn by wages.)
+      const theirs = peopled(m),
+        there =
+          support(
+            living(provinceCapacity(ctx, m), wildsOf(ctx, m)),
+            p.knowsCultivation,
+            p.herding !== null,
+          ) *
+          ((theirs?.leanest ?? 1000) / 1000),
+        others = (theirs?.total() ?? 0) * appetite * (mixed ? mixAppetite(world, m) : 1),
         attraction = there / (others + appetite) - perHere;
       if (!(there > 20)) continue;
       // (Fleeing ruin or a law against their faith, safety first: a land not struck, a haven for their faith, even one that

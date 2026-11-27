@@ -89,16 +89,22 @@ test("the greatest drought or blight held five years starves a well-stocked land
       p = c.provinces.get(land)!;
     if (cmd) w.submit(cmd, { cell: land, sign: -1, years, strength });
     let dead = 0,
+      born = 0,
       least = p.total();
     for (let y = 1; y <= 6; y++) {
       w.runTo(now + y * YEAR);
       dead += c.history.deathsIn(land, AT + y - 1);
+      born += c.history.birthsIn(land, AT + y - 1);
       least = Math.min(least, p.total());
     }
+    const came = c.history
+      .flowsInto(land)
+      .filter((f) => f.year >= AT)
+      .reduce((n, f) => n + f.count, 0);
     const famines = w.events
       .all()
       .filter((e) => e.t > now && e.type === POPULATION_EVENTS.famine.type && e.place === p.ref);
-    return { people: p.total(), least, dead, famines };
+    return { people: p.total(), least, dead, born, came, famines };
   };
   const none = run(null, 1, 1);
   assert.equal(none.famines.length, 0);
@@ -106,7 +112,7 @@ test("the greatest drought or blight held five years starves a well-stocked land
     const faint = run(cmd, 0.5, 5),
       short = run(cmd, 3, 1),
       most = run(cmd, 3, 5),
-      say = `${cmd}: people after six years / dead in them: none ${none.people}/${none.dead}, faint for five ${faint.people}/${faint.dead}, a year of the greatest ${short.people}/${short.dead}, five of it ${most.people}/${most.dead} (fewest ${most.least}, ${most.famines.length} famines)`;
+      say = `${cmd}: people after six years / dead in them: none ${none.people}/${none.dead}, faint for five ${faint.people}/${faint.dead}, a year of the greatest ${short.people}/${short.dead}, five of it ${most.people}/${most.dead} (fewest ${most.least}, ${most.famines.length} famines; land ${land}, ${months(base, land).toFixed(1)} months' food; born ${none.born} and ${most.born}, came ${none.came} and ${most.came})`;
     console.log(say);
     assert.ok(Math.abs(faint.people - none.people) < none.people * 0.03, say);
     assert.equal(faint.famines.length, 0, say);
