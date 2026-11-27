@@ -366,6 +366,8 @@ export const WHY = {
   broke: 31,
   held: 32,
   labour: 33,
+  /** Kept clear by your order (O2): the work where they work stopped, and their home gone to by no one. */
+  clear: 34,
 } as const;
 
 /** What happened to someone, as a place's log tells it. */
@@ -6634,6 +6636,8 @@ function tickCx(world: World, place: Place, f: Frame) {
     dyingWhy: number[] = [],
     // (Buildings whose work is stopped by order.)
     shut = orders?.shut.length ? new Set(orders.shut) : null,
+    // Its zones by order (O2): its lots kept clear, and where those of each home go for company and their games.
+    zoned = orders?.zones?.length ? zonesOf(place, orders.zones) : null,
     // A fire being fought, where: by the grown who live near it, or by all of them where a watch is kept by order.
     fireLot = place.fire.length && t < place.fire[1]! ? place.fire[0]! : null,
     // A burial being held: where, and whose household stands by.
@@ -6948,6 +6952,9 @@ function tickCx(world: World, place: Place, f: Frame) {
     sitesNow,
     ailing,
     visitor,
+    zoned,
+    // (The last come for company to each meeting place this tick, as `visitor` is the square's: O2.)
+    visitAt: zoned?.meets.length ? new Map<number, number>() : null,
     // (Tiers: how far into their stride the tick a turn is at stands (`base`), how far past that tick a turn that goes on
     // within it stands, in ticks, and the ticks till the working day
     // begins or ends from this tick, read once a tick when first asked: -1 not yet.)
@@ -7090,6 +7097,7 @@ function turnOf(cx: TickCx, i: number, k: number, wk: number): void {
     breakOf,
     heldOf: heldBy,
     worksAt,
+    zoned,
   } = cx;
   const kind = fs ? (houses.kind[cHouse[i]!] ?? 0) : 0,
     fk = fs ? (fs[kind] ?? f) : f,
@@ -7098,7 +7106,9 @@ function turnOf(cx: TickCx, i: number, k: number, wk: number): void {
   const at0 = i * NEEDS,
     asleep = cAct[i] === ACT.sleep,
     h = cHouse[i]!,
-    home = houses.home[h]!,
+    home0 = houses.home[h]!,
+    // (A home kept clear by your order: its household shelters at the meeting place nearest it, else the square. O2.)
+    home = zoned?.clear.has(home0) ? meetFor(place, zoned, home0) : home0,
     moving = cEta[i]! > 0,
     inside = !moving && cAt[i]! !== AT.fields && cAt[i]! !== AT.square && cAt[i]! !== AT.walls;
   // (What the fields and the flocks give comes by the calendar, to each hand its land counts at them.)
@@ -7637,14 +7647,18 @@ function turnOf(cx: TickCx, i: number, k: number, wk: number): void {
     } else {
       cAct[i] = ACT.visit;
       cWhy[i] = WHY.lone;
-      if (cAt[i] !== AT.square) go(place, i, AT.square, world);
+      // (For company: to the square, or to a meeting place nearer their home, O2.)
+      const gather = zoned ? meetFor(place, zoned, home) : AT.square;
+      if (cAt[i] !== gather) go(place, i, gather, world);
       else {
-        // (Two in the square for company at once, neither with a friend yet: each the other's.)
-        if (cx.visitor >= 0 && !p.friend[i] && !p.friend[cx.visitor] && cHouse[cx.visitor] !== h) {
-          p.friend[i] = cId[cx.visitor]!;
-          p.friend[cx.visitor] = cId[i]!;
+        // (Two there for company at once, neither with a friend yet: each the other's.)
+        const v = gather === AT.square ? cx.visitor : (cx.visitAt?.get(gather) ?? -1);
+        if (v >= 0 && !p.friend[i] && !p.friend[v] && cHouse[v] !== h) {
+          p.friend[i] = cId[v]!;
+          p.friend[v] = cId[i]!;
         }
-        cx.visitor = i;
+        if (gather === AT.square) cx.visitor = i;
+        else cx.visitAt?.set(gather, i);
         if (wk > 1) {
           // (Company had within the stride, at so much a tick: the rest of it at what comes next. Tiers.)
           const d = Math.max(1, Math.ceil(cNeeds[at0 + N.lone]! / Math.max(1, 12 * fk.lone)));
@@ -7660,7 +7674,8 @@ function turnOf(cx: TickCx, i: number, k: number, wk: number): void {
     // feast day's company. Remembered gladly, a feast the more.
     cAct[i] = ACT.visit;
     cWhy[i] = WHY.play;
-    if (cAt[i] !== AT.square) go(place, i, AT.square, world);
+    const gather = zoned ? meetFor(place, zoned, home) : AT.square;
+    if (cAt[i] !== gather) go(place, i, gather, world);
     else if (!moving) {
       const kind = today0.rest === "feast" && feastKept(cx) ? THOUGHT.feast : THOUGHT.games;
       if (!heldToday(place, i, kind))
@@ -7669,7 +7684,7 @@ function turnOf(cx: TickCx, i: number, k: number, wk: number): void {
           i,
           kind,
           (kind === THOUGHT.feast ? 8 : 3) * leans(placeTemper(place, i).sociable),
-          srcLot(AT.square),
+          srcLot(gather),
         );
     }
     dayTurns(cx, i, wk, occ);
@@ -7709,10 +7724,10 @@ function turnOf(cx: TickCx, i: number, k: number, wk: number): void {
       : making && making !== p.craft[i]
         ? makingLot(place, i, making)
         : p.work[i]!;
-  if (shut?.has(work)) {
-    // Their building's work is stopped by order: at home, waiting.
+  if (shut?.has(work) || zoned?.clear.has(work)) {
+    // Their building's work is stopped by order, or where they work is kept clear (O2): at home, waiting.
     cAct[i] = ACT.wait;
-    cWhy[i] = WHY.shut;
+    cWhy[i] = shut?.has(work) ? WHY.shut : WHY.clear;
     if (cAt[i] !== home) go(place, i, home, world);
     return;
   }
@@ -8028,6 +8043,68 @@ export function placeStores(place: Place): { market: number; granary: number } {
     market: place.bldgs.lot[market] ?? -1,
     granary: food !== market ? (place.bldgs.lot[food] ?? -1) : -1,
   };
+}
+/**
+ * A place's zones as its orders give them (O2), read once for each giving of them: the lots kept clear (never its
+ * stores: its households fetch their food from them), its meeting places (none kept clear), and, as asked, the meeting
+ * place nearest each home by the streets where it is nearer than the square.
+ */
+type Zoned = {
+  readonly of: readonly number[];
+  readonly year: number;
+  readonly clear: ReadonlySet<number>;
+  readonly meets: readonly number[];
+  readonly near: Map<number, number>;
+};
+const ZONED = new WeakMap<Place, Zoned>();
+/** The zones a place's orders give its lots, by their number (sim/town/managed.ts ZONES' order). */
+export const ZONE = { meet: 0, clear: 1 } as const;
+function zonesOf(place: Place, zones: readonly number[]): Zoned {
+  const year = Math.floor(place.t / YEAR),
+    was = ZONED.get(place);
+  if (was && was.of === zones && was.year === year) return was;
+  const st = placeStores(place),
+    clear = new Set<number>(),
+    meets: number[] = [];
+  for (let k = 0; k < zones.length; k += 2) {
+    const lot = zones[k]!;
+    if (zones[k + 1] === ZONE.meet) meets.push(lot);
+    else if (zones[k + 1] === ZONE.clear && lot !== st.market && lot !== st.granary) clear.add(lot);
+  }
+  const z: Zoned = { of: zones, year, clear, meets: meets.filter((lot) => !clear.has(lot)), near: new Map() };
+  ZONED.set(place, z);
+  return z;
+}
+/** Where those of a home go for company and their games: the meeting place nearest it by the streets, if nearer than the square. */
+function meetFor(place: Place, z: Zoned, home: number): number {
+  if (!z.meets.length) return AT.square;
+  let at = z.near.get(home);
+  if (at !== undefined) return at;
+  at = AT.square;
+  let best = streetLength(place, home, AT.square);
+  for (const lot of z.meets) {
+    const d = streetLength(place, home, lot);
+    if (d < best) {
+      best = d;
+      at = lot;
+    }
+  }
+  z.near.set(home, at);
+  return at;
+}
+/** A lot's zone by a place's orders (ZONE's; -1: none), and whether a zone holds there (a store is never kept clear). */
+export function placeZone(world: World, place: Place, lot: number): { zone: number; holds: boolean } {
+  const zones = ordersOf(world, place.town)?.zones;
+  let zone = -1;
+  for (let k = 0; zones && k < zones.length; k += 2) if (zones[k] === lot) zone = zones[k + 1]!;
+  if (zone < 0) return { zone, holds: false };
+  const z = zonesOf(place, zones!);
+  return { zone, holds: zone === ZONE.clear ? z.clear.has(lot) : z.meets.includes(lot) };
+}
+/** Where those of a home of a place go for company now: a meeting place by its orders, or the square (O2). */
+export function placeMeetFor(world: World, place: Place, home: number): number {
+  const zones = ordersOf(world, place.town)?.zones;
+  return zones?.length ? meetFor(place, zonesOf(place, zones), home) : AT.square;
 }
 /** Where a place makes a good: its building of the kind (-1: none; it is made at home, or outside the town). */
 export function placeMakingAt(place: Place, g: number): number {

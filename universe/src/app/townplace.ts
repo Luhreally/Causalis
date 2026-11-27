@@ -858,8 +858,16 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
         type,
         type === "town.ask" ? { village: town, ...args } : { town, ...args },
       );
-      // (The sheet read again at once: an order shows as soon as it is given.)
+      // (The sheet read again at once: an order shows as soon as it is given; and the one inspected, on whose page a key
+      // may have given it.)
       sheet(hud.tab);
+      const of = inspector.ref;
+      if (of)
+        void d.client
+          .query<PlaceInspect | null>({ type: "place.inspect", args: { ref: town, of } })
+          .then((x) => {
+            if (x && !("error" in x) && inspector.ref === of) timed(() => inspector.show(x));
+          }, () => undefined);
       return null;
     } catch (error) {
       return (error as Error).message;

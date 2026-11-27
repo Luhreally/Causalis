@@ -643,6 +643,21 @@ for (const view of [
     say(`building: ${(await text(".place-insp")).slice(0, 400)}`);
     say(`the building's first answer came ${(await inspected()).answered} ms after it was asked`);
     await look("20-insp-lot", "a building inspected");
+    // Its zone (O2): made a meeting place by its key, the page saying so; the Zones overlay below shows it.
+    check((await shown(".place-insp-zones .place-chip")) >= 2, "a lot's page has its zone keys");
+    // (On a phone the page opens peeked, its zone keys below the fold: raised and scrolled to, as a finger would.)
+    await k('globalThis.causalis.place.inspectHeight("half")');
+    await page.waitForTimeout(400);
+    await k(
+      'document.querySelector(".place-insp-zones .place-chip:nth-child(2)")?.scrollIntoView({ block: "center" })',
+    );
+    await page.waitForTimeout(300);
+    await press(".place-insp-zones .place-chip:nth-child(2)", "Meeting place, on the lot's page");
+    await until("the lot zoned a meeting place", async () => /A meeting place/.test(await text(".place-insp-body")), 8000);
+    say(`zoned: ${(await text(".place-insp-body")).match(/A meeting place[^.]*\./)?.[0] ?? ""}`);
+    check(/Ground: /.test(await text(".place-insp-body")), "a lot's page says what its ground is");
+    await look("20b-insp-zone", "a lot zoned a meeting place");
+    await k('globalThis.causalis.place.inspectHeight("peek")');
   }
   // Where a good is made, with its bills (N10), and the market, with what it takes; at half height.
   const made = await k<{ ref: string | null; market: number | null }>(
@@ -709,7 +724,7 @@ for (const view of [
   // Its overlays: each laid on its lots, its legend under the pill; one with a sheet open beside it.
   await k("globalThis.causalis.closePage?.()");
   await press(".place-lens-key", "🗺 the overlays");
-  for (const lens of ["needs", "mood", "room", "comfort", "work", "age", "danger"]) {
+  for (const lens of ["needs", "mood", "room", "comfort", "work", "age", "danger", "zones"]) {
     await press(`.place-lens-chip[data-lens="${lens}"]`, `the ${lens} overlay`);
     await until(
       `the ${lens} overlay laid`,
@@ -734,6 +749,8 @@ for (const view of [
   await look("22-overlay-and-sheet", "an overlay with a sheet open");
   await press(".place-sheet-shut", "the sheet's close");
   await press(".place-lens-off", "× no overlay");
+  // (The lot zoned above let go: the town as it was.)
+  if (lot !== null) await k(`globalThis.causalis.place.order("place.zone", { lot: ${lot}, zone: null })`);
   check(
     (await k<number>("globalThis.causalis.place.overlaid().lots")) === 0,
     "no overlay once put away",

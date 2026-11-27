@@ -110,6 +110,7 @@ const LENSES: readonly (readonly [PlaceOverlayKind, string, string])[] = [
   ["work", "Work", "How many work at each building, and which are stopped"],
   ["age", "Age", "How long each building has stood"],
   ["danger", "Danger", "A fire burning, and the lots within a cry of it"],
+  ["zones", "Zones", "Your meeting places and the lots you keep clear: tap a lot to zone it"],
 ];
 /** A mood in a sign. */
 const moodSign = (m: number) => (m >= 25 ? "😊" : m >= -15 ? "😐" : m >= -50 ? "😟" : "😠");
