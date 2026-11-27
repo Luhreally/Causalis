@@ -779,7 +779,7 @@ export function readStanding(f: Fabric): void {
   const cs = f.civics;
   for (let j = 0; j < cs.length; j++)
     if (cs.fellAt(j) === NO_FALL) cuts.push(clip(cs.lotAt(j)), clip(cs.lotAt(j) + cs.lotsAt(j)));
-  const xs = Int32Array.from(cuts.sort((a, b) => a - b));
+  const xs = new Int32Array(cuts.sort((a, b) => a - b));
   let places = 0;
   for (let i = 0; i < xs.length; i++) if (i === 0 || xs[i] !== xs[i - 1]) xs[places++] = xs[i]!;
   const spans = places - 1,
@@ -1989,7 +1989,7 @@ export class TownBuilder {
       emptied: f.emptied,
       lean: f.lean,
       at,
-      drawn: drawn.length ? Float64Array.from(drawn) : null,
+      drawn: drawn.length ? new Float64Array(drawn) : null,
     });
     return at;
   }
@@ -2843,6 +2843,14 @@ export function townYear(ctx: PopulationContext, t: SimTime): void {
       const k = knower(ctx, cell);
       knowers.set(cell, k);
       return k;
+    },
+    // (Whether a land has come to engines, asked of each of its towns not yet come to them, once a land: nothing of the towns'
+    // year teaches a land.)
+    engined = new Map<number, boolean>(),
+    enginesIn = (cell: number) => {
+      let e = engined.get(cell);
+      if (e === undefined) engined.set(cell, (e = (knowers.get(cell) ?? knowerOf(cell))(ENGINES)));
+      return e;
     };
   // (Each town's year its own function, asked of each in turn: as one loop's body, a late world's town year was compiled
   // and let go again within the loop, a hundred milliseconds of one year.)
@@ -2858,7 +2866,7 @@ export function townYear(ctx: PopulationContext, t: SimTime): void {
         s.population <= 0 &&
         !s.market &&
         !(sacked.size && sacked.has(s.cell)) &&
-        !(asleep === ASLEEP_ENGINES && (knowers.get(s.cell) ?? knowerOf(s.cell))(ENGINES))
+        !(asleep === ASLEEP_ENGINES && enginesIn(s.cell))
       )
         return;
       store.wakeAt(at);
@@ -2875,7 +2883,7 @@ export function townYear(ctx: PopulationContext, t: SimTime): void {
       people = s.population,
       weighs = f.next === 0 || (year + f.phase) % CIVIC_EVERY === 0;
     // (Engines come to its land: what it has taken by now was laid before them. Set down once.)
-    if (f.engines === -1 && k(ENGINES)) {
+    if (f.engines === -1 && enginesIn(cell)) {
       f.engines = f.next;
       store.fold(f.town, FOLD.form, 4, f.next);
       builder.orderSet(f, ORDER_AT.engines, cell);
