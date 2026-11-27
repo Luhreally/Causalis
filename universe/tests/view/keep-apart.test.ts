@@ -11,6 +11,7 @@ import {
   ACTIVITY,
   PERSON_REACH,
   bodyR,
+  apartMemory,
   keepApart,
   momentOf,
   type Moment,
@@ -272,4 +273,46 @@ test("far out, across the cells' small keys and past them, they settle as before
     const s = settled(town, crowd, fixed, `at ${cx}, ${cz}`);
     assert.ok(s.stepped > 100 && s.crossed > 30, `at ${cx}, ${cz}: ${s.stepped}, ${s.crossed}`);
   }
+});
+
+test("kept apart with the last frame's steps remembered, a knot stays parted frame after frame, and closes up once parted", () => {
+  const gap = 2 * bodyR(town),
+    memory = apartMemory(),
+    // (A knot of forty on one spot, by the town's middle, shaken a little each frame as a day's targets are.)
+    knot = Array.from({ length: 40 }, () => one((u() - 0.5) * 2, (u() - 0.5) * 2, false));
+  const nearest = (ms: readonly Moment[]) => {
+    let d = Infinity;
+    for (let i = 0; i < ms.length; i++)
+      for (let j = i + 1; j < ms.length; j++)
+        d = Math.min(d, Math.hypot(ms[i]!.x - ms[j]!.x, ms[i]!.z - ms[j]!.z));
+    return d;
+  };
+  for (let frame = 0; frame < 60; frame++) {
+    const now = knot.map((m, q) => ({ ...m, x: m.x + Math.sin(frame * 0.3 + q) * 0.02 }));
+    keepApart(town, now, [], memory);
+    // (After the first few frames, none nearer than a body's breadth: the knot as kept, worked on.)
+    if (frame >= 5)
+      assert.ok(nearest(now) >= gap * 0.999, `frame ${frame}: ${nearest(now)} < ${gap}`);
+  }
+  // (Scattered far apart: each let go of the step aside it no longer needs, keeping only what a wall asks, as one worked
+  // afresh would.)
+  const apart = knot.map((m, q) => ({ ...m, x: q * 10, z: 0 }));
+  for (let frame = 0; frame < 60; frame++)
+    keepApart(
+      town,
+      apart.map((m) => ({ ...m })),
+      [],
+      memory,
+    );
+  const fresh = apart.map((m) => ({ ...m }));
+  keepApart(town, fresh);
+  let left = 0;
+  fresh.forEach((m, q) => {
+    left = Math.max(
+      left,
+      Math.abs(memory.dx[q]! - (m.x - apart[q]!.x)),
+      Math.abs(memory.dz[q]! - (m.z - apart[q]!.z)),
+    );
+  });
+  assert.ok(left < 0.01, `still stepped aside by ${left} m more than a wall asks`);
 });
