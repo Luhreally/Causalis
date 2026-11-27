@@ -1010,12 +1010,13 @@ export class VillageScene {
           next = q + 1;
         }
         owe[i] = 0;
-        keepOut(ground, p, body);
+        // (Kept off a wall by as far as they reach as drawn: at work, a hammer swung or an arm put out, not their body alone.)
+        keepOut(ground, p, Math.max(body, rs[q]!));
       }
       // (Wells, columns and trunks, by the cell one stands in: for each one looked at or stepped aside.)
       if (look || stepped) {
-        posts?.pushOut(p, body);
-        trunks?.pushOut(p, body);
+        posts?.pushOut(p, Math.max(body, rs[q]!));
+        trunks?.pushOut(p, Math.max(body, rs[q]!));
       }
       // (Pushed back off a wall, a well or a trunk: held there the next time they are kept apart, the other of a pair stepping
       // the whole way.)
