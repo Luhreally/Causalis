@@ -249,6 +249,9 @@ export function shopsBelow(lot: number, lots: number, level: number): boolean {
 // —— Measures (metres; bridge/town.ts's lots and blocks) ——————————————————————————————————————
 const BW = 36,
   BD = 28,
+  // (How near a block of the town's a market place's own block stands, middle to middle: a block's length and depth, and two
+  // streets' breadth between.)
+  PLACE_NEAR = BW + BD + 16,
   REACH = Math.hypot(BW / 2, BD / 2),
   /** A street's breadth, a lane's, half a road's. */
   STREET_W = 8,
@@ -905,21 +908,38 @@ export function* grownBlocksSteps(
   };
 
   // —— Its market place: the next ground along its main street, both sides of it where it is great, kept open ——
-  const keepPlace = (b: number) => {
+  // (The next ground beside what stands: where it, or a smaller place, has a block of the town's within PLACE_NEAR; else it
+  // is kept at a later block. Kept on the first clear ground along the road whatever stood about it, a market place stood past
+  // four blocks of water, nearly two hundred metres out along its road with nothing about it: first light's Thaethostmere at
+  // 120, 165 m from its nearest lot.)
+  const keepPlace = (b: number): boolean => {
     const want = site.place!,
       st = streets[QUARTER.road]!,
-      both = want.size >= 2,
-      slots = want.size >= 3 ? 2 : 1,
-      sides = both ? [-1, 1] : [1],
       first = Math.max(st.next[0], st.next[1]);
+    // (As great as it was kept, both sides of the street and two blocks long; else one block long; else one side.)
+    if (want.size >= 3 && keepPlaceAs(b, st, first, true, 2)) return true;
+    if (want.size >= 2 && keepPlaceAs(b, st, first, true, 1)) return true;
+    return keepPlaceAs(b, st, first, false, 1);
+  };
+  const keepPlaceAs = (
+    b: number,
+    st: Street,
+    first: number,
+    both: boolean,
+    slots: number,
+  ): boolean => {
+    const sides = both ? [-1, 1] : [1];
     for (let i = first; i < first + 6; i++) {
-      let free = true;
+      let free = true,
+        near = false;
       for (let k = 0; k < slots && free; k++)
         for (const side of sides) {
           const { bx, bz, t } = blockAt(st, i + k, side);
           if (!clear(bx, bz, t, Math.max(st.pad, padAt(b)), b)) free = false;
+          for (let o = 0; o < placed && !near; o++)
+            near = Math.hypot(x[o]! - bx, z[o]! - bz) <= PLACE_NEAR;
         }
-      if (!free) continue;
+      if (!free || !near) continue;
       let n = 0,
         mx = 0,
         mz = 0;
@@ -957,8 +977,9 @@ export function* grownBlocksSteps(
         at: b,
         through: both,
       };
-      return;
+      return true;
     }
+    return false;
   };
 
   // The road each quarter with no meaning of its own fronts while fields hold the town: the nearest road in (-1: none; the
@@ -1021,7 +1042,7 @@ export function* grownBlocksSteps(
         push(st, 1);
       }
     }
-    if (site.place && b === site.place.at) keepPlace(b);
+    if (site.place && !place && b >= site.place.at) keepPlace(b);
     if (measuredAt(b) && flat && takeCell(b, q)) continue;
     if (front(b, q)) continue;
     const heap = heaps[q]!;
