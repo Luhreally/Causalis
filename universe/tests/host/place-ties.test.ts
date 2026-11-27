@@ -113,7 +113,7 @@ test("each knows up to a dozen, likes those alike, quarrels with rivals; kept in
     const seen = inspectPerson(w, place, p.id[one]!)!;
     assert.ok(seen.ties.length > 0 && /know/.test(seen.tiesWords), seen.tiesWords);
     assert.ok(
-      seen.ties.every((t) => /\((\+|-)?\d+\)$/.test(t.words)),
+      seen.ties.every((t) => /\((\+|-|−)?\d+\)$/.test(t.words)),
       JSON.stringify(seen.ties),
     );
   }

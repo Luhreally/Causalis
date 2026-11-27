@@ -47,7 +47,7 @@ import {
   whyWords,
   workSheet,
 } from "../../src/host/placeplan.ts";
-import { PLACE_UNIVERSE, placeWorld } from "./worlds.ts";
+import { PLACE_UNIVERSE, keepsHouseholds, noTown, placeWorld } from "./worlds.ts";
 
 const base = (): World => placeWorld(150);
 const copy = (w: World): World => {
@@ -265,19 +265,24 @@ test("one whose own work has nothing for them turns to the next their priorities
   );
 });
 
-test("a site's crew is made up of those set to building first, and never of one set never to build", () => {
+test("a site's crew is made up of those set to building first, and never of one set never to build", (t) => {
   const w = copy(base()),
     ctx = populationContext(w);
   const towns = ctx.settlements
     .all()
     .filter((s) => ctx.settlements.held(s.ref) && s.population > 300)
     .sort((x, y) => x.population - y.population || (x.ref < y.ref ? -1 : 1));
-  let done = false;
-  for (const s of towns.slice(0, 20)) {
+  // (The smallest towns with a raising to take up besides walls and a well, twenty of them: a people that knows how to raise
+  // little yet, and has what it knows how to, has none.)
+  let done = false,
+    tried = 0;
+  for (const s of towns) {
+    if (tried >= 20) break;
     const raise = (townOffers(w, s.ref)?.raises ?? []).find(
       (r) => r.what !== "walls" && r.what !== "well",
     );
     if (!raise) continue;
+    tried++;
     const place = enterPlace(w, s.ref)!,
       first = one(w, place, OCC.trader),
       never = one(w, place, OCC.farmer);
@@ -303,6 +308,7 @@ test("a site's crew is made up of those set to building first, and never of one 
     done = true;
     break;
   }
+  if (!tried) return void noTown(t, "offered a raising besides walls and a well");
   assert.ok(done, "a town took up a raising");
 });
 
@@ -364,7 +370,13 @@ test("what its land's count brings a town watched is lived on the days of the ye
   const waits = () => placeDue(place).filter((x) => x.what !== "pair" && x.what !== "bury"),
     due = waits();
   assert.ok(due.length > 10, `${due.length} things wait to be lived`);
-  assert.equal(place.people.n, n0, "no one is born, dead, come or gone at the turn itself");
+  // (Its men fallen in the year's battles are told it at the turn itself, and are gone from it then.)
+  const fellAtTurn = place.log.slice(before).filter((x) => x.what === HAP.fell).length;
+  assert.equal(
+    place.people.n,
+    n0 - fellAtTurn,
+    "no one is born, dead, come or gone at the turn itself, but its fallen",
+  );
   assert.ok(
     place.log
       .slice(before)
@@ -484,9 +496,11 @@ test("come back to after a long while, a place is matched at once, and nothing w
   assert.deepEqual(table, target);
 });
 
-test("households are pairs and their young; two friends grown and unpaired are promised, then paired on a day and one household", () => {
-  const w = copy(base()),
-    s = pairable(w, 600),
+test("households are pairs and their young; two friends grown and unpaired are promised, then paired on a day and one household", (t) => {
+  const w = copy(base());
+  // (A people that keeps no partner, a spawning people's or a hive's, has no pairs to keep house.)
+  if (!keepsHouseholds(w)) return void noTown(t, "whose people keep a partner");
+  const s = pairable(w, 600),
     place = enterPlace(w, s.ref)!,
     grown = lifeOf(w).adulthood;
   // As made: in each household its grown men and women are paired one to one, each the other's.

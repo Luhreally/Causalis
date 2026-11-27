@@ -102,8 +102,16 @@ export type PlaceInspectPerson = {
    * Whom they know (the Social tab, N8), the most thought of first: each named, how they know them and what they think of
    * them (-100 … 100), and a line of the count (friends, rivals).
    */
-  readonly ties: readonly (PlaceNamed & { readonly regard: number })[];
+  readonly ties: readonly (PlaceNamed & {
+    readonly regard: number;
+    /** Why, the strongest reasons first (Q2), and their portrait for the web. */
+    readonly why: string;
+    readonly portrait: Portrait | null;
+  })[];
   readonly tiesWords: string;
+  /** What those they know think of each other (indices into `ties`), for the web; and how the town thinks of them. */
+  readonly web: readonly { readonly a: number; readonly b: number; readonly regard: number }[];
+  readonly repute: string;
   /** What they have and wear (the Gear tab), line by line. */
   readonly gear: readonly (readonly [string, string])[];
   /** Their temper in a few words, and in full. */

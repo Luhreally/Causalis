@@ -429,6 +429,11 @@ for (const view of [
       await press(`.place-insp-tab[data-tab="${tab}"]`, `the inspector's ${tab} tab`);
       await page.waitForTimeout(700);
       say(`${tab}: ${(await text(".place-insp-body")).slice(0, 400)}`);
+      // (Q2: whom they know as a web of portraits, and why they think as they do of each.)
+      if (tab === "social" && (await shown(".place-insp-person.tie-friend, .place-insp-person.tie-known, .place-insp-person.tie-rival")) > 0) {
+        check((await shown(".place-insp-web")) === 1, "the Social tab draws the web of whom they know");
+        check(/Known well to/.test(await text(".place-insp-body")), "the Social tab says how the town thinks of them");
+      }
       await look(`15-insp-${tab}`, `the inspector's ${tab} tab`);
     }
     // (One hurt in the fire: their Health tab, the wounded member on their figure.)

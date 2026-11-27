@@ -420,6 +420,8 @@ export const HAP = {
   madeWork: 40,
   /** Stole from another household, in want (a: one of it; b: the food taken, millionths; items: the thing taken). */
   stole: 41,
+  /** Q2: two paired who could no longer abide each other parted (`a`: the other). */
+  parted: 42,
 } as const;
 /** The happenings that are a death. */
 const HAP_DEATH: ReadonlySet<number> = new Set([1, 5, 17, 19, 21, 22, 34, 35, 39]);
@@ -468,6 +470,7 @@ const HAP_WORDS = [
   "was put to death by the town's justice",
   "made a work",
   "stole from another household",
+  "parted from the one they were paired with",
 ];
 
 /** The place's draws: through the world's Rng, on a stream no registry holds (it is no part of the ruleset's identity). */
@@ -1853,7 +1856,7 @@ export class PlaceStore implements StateStore {
         ...(raw.pins ? { pins: [...(raw.pins as number[])] } : {}),
         ...(raw.vital ? { vital: [...(raw.vital as number[])] } : {}),
         ...(raw.deep
-          ? { deep: deepLoaded(raw.deep as { n: number[]; stuffs: string[] }) }
+          ? { deep: deepLoaded(raw.deep as { n: number[]; stuffs: string[]; ops?: number[] }) }
           : {}),
       });
       readingsLoaded(this.places.at(-1)!, raw);
@@ -1927,6 +1930,7 @@ export function placeDigest(p: Place): string {
     const d = deepSaved(p.deep);
     for (const x of d.n) h.int(x);
     for (const x of d.stuffs) h.string(x);
+    for (const x of d.ops) h.int(x);
   }
   for (const x of p.houses.means) h.float(x);
   for (const x of [...p.matched.made, ...p.matched.wage]) h.float(x);
@@ -3414,6 +3418,8 @@ function liveDue(world: World, place: Place, f: Frame, all = false): void {
         if (!p.eta[mover] && p.at[mover] === old) p.at[mover] = p.to[mover] = home;
       }
       note(place, HAP.paired, a, b);
+      reason(place, i, j, REASON.wed, 12);
+      reason(place, j, i, REASON.wed, 12);
       changed = true;
     }
   }
@@ -4455,6 +4461,21 @@ function makePlace(world: World, s: Settlement): Place | null {
   // (Whom each knows, and what they think of them, from the years they have met before it was entered: a few weeks'
   // meetings' worth, no words or blows among them told.)
   meetDay(world, place, SEEN_BEFORE);
+  // (Two paired who could not abide each other had parted before it was entered: none told, Q2.)
+  {
+    const p = place.people,
+      today = Math.floor(place.t / DAY);
+    for (let i = 0; i < p.n; i++) {
+      const m = p.mate[i] && p.mate[i] !== PROMISED ? placeIndexOf(place, p.mate[i]!) : -1;
+      if (
+        m > i &&
+        p.mate[m] === p.id[i] &&
+        opinionNow(place, i, m, today) <= PART_AT &&
+        opinionNow(place, m, i, today) <= PART_AT
+      )
+        p.mate[i] = p.mate[m] = 0;
+    }
+  }
   // Its day under way before it is seen; then its stocks are the world's again, to the last millionth.
   while (place.t < t) tick(world, place, f);
   matchStocks(place, stockShare(world, s.cell, place.people.n), f);
@@ -4855,10 +4876,12 @@ export const THOUGHT = {
   /** A thing of theirs worn out and made anew (its maker), and robbed (the thief). */
   newGear: 14,
   robbed: 15,
+  /** Q2: parted from the one they were paired with. */
+  parted: 16,
 } as const;
 /** Days in which each kind fades to half. */
 const THOUGHT_HALF: readonly number[] = [
-  0, 30, 60, 20, 30, 10, 3, 10, 5, 15, 5, 10, 10, 4, 10, 20,
+  0, 30, 60, 20, 30, 10, 3, 10, 5, 15, 5, 10, 10, 4, 10, 20, 30,
 ];
 const thoughtKind = (v: number): number => v >>> 24;
 const thoughtSize = (v: number): number => ((v >>> 16) & 255) - 128;
@@ -4894,6 +4917,11 @@ export type Deep = {
   items: Item[];
   worked: number;
   filled: boolean;
+  /**
+   * What moved their view of those they know (Q2), each its own: OPINIONS of them, three numbers each (whom, by their
+   * number; the reason, packed as a memory is: its kind, its size and its day; and who told them of it, for a thing heard).
+   */
+  readonly ops: Int32Array;
 };
 /**
  * A thing one holds, each its own (asked 2026-11-26: "single items: material from the world's own stuffs, quality from the
@@ -5170,7 +5198,7 @@ function deepFilled(place: Place, i: number): Deep {
     src[k] = v ? sourceFound(place, i, v) : 0;
   }
   // (Their things are filled at their day's turn, where the world is to hand: gearFilled, the same as a reading of them.)
-  return { th, src, items: [], worked: p.skill[i]!, filled: false };
+  return { th, src, items: [], worked: p.skill[i]!, filled: false, ops: new Int32Array(OPINIONS * 3) };
 }
 function sourceFound(place: Place, i: number, v: number): number {
   const tag = thoughtTag(v),
@@ -5222,9 +5250,10 @@ function sourceFound(place: Place, i: number, v: number): number {
   return 0;
 }
 /** A place's deep store as numbers, by number, for its save and its digest: each one's number, then their memories and sources. */
-function deepSaved(deep: Map<number, Deep>): { n: number[]; stuffs: string[] } {
+function deepSaved(deep: Map<number, Deep>): { n: number[]; stuffs: string[]; ops: number[] } {
   const n: number[] = [],
-    stuffs: string[] = [];
+    stuffs: string[] = [],
+    ops: number[] = [];
   for (const id of [...deep.keys()].sort((a, b) => a - b)) {
     const d = deep.get(id)!;
     n.push(id, ...d.th, ...d.src, d.worked, d.filled ? 1 : 0, d.items.length);
@@ -5233,10 +5262,12 @@ function deepSaved(deep: Map<number, Deep>): { n: number[]; stuffs: string[] } {
       if (s < 0) s = stuffs.push(x.stuff) - 1;
       n.push(x.k, x.q, x.wear, x.maker, x.mk, x.ms, x.made, s);
     }
+    // (Their reasons apart, so a place kept before they were reads as it was.)
+    if (d.ops.some((v) => v !== 0)) ops.push(id, ...d.ops);
   }
-  return { n, stuffs };
+  return { n, stuffs, ops };
 }
-function deepLoaded(raw: { n: number[]; stuffs: string[] }): Map<number, Deep> {
+function deepLoaded(raw: { n: number[]; stuffs: string[]; ops?: number[] }): Map<number, Deep> {
   const out = new Map<number, Deep>(),
     a = raw.n;
   for (let k = 0; k < a.length;) {
@@ -5258,8 +5289,11 @@ function deepLoaded(raw: { n: number[]; stuffs: string[] }): Map<number, Deep> {
         made: a[k + 6]!,
         stuff: raw.stuffs[a[k + 7]!] ?? "",
       });
-    out.set(id, { th, src, worked, filled, items });
+    out.set(id, { th, src, worked, filled, items, ops: new Int32Array(OPINIONS * 3) });
   }
+  const o = raw.ops ?? [];
+  for (let k = 0; k + OPINIONS * 3 < o.length + 1; k += 1 + OPINIONS * 3)
+    out.get(o[k]!)?.ops.set(o.slice(k + 1, k + 1 + OPINIONS * 3));
   return out;
 }
 /** One leaving full: what they remember kept to their columns, the strongest first. */
@@ -5267,6 +5301,8 @@ function deepLetGo(place: Place, i: number): void {
   const id = place.people.id[i]!,
     d = place.deep?.get(id);
   if (!d) return;
+  // (What moved their view of each, rolled into their regard of them as it would settle: Q2.)
+  for (let k = 0; k < OPINIONS; k++) if (d.ops[k * 3 + 1]) reasonSettled(place, i, d, k);
   place.deep!.delete(id);
   const today = Math.floor(place.t / DAY),
     order = [...d.th.keys()]
@@ -5447,6 +5483,242 @@ function tieMove(p: People, a: number, b: number, by: number): number {
   p.regard[at + slot] = r;
   return r;
 }
+/**
+ * Why one thinks as they do of another (asked 2026-11-26, "deeper social life": an opinion of each one known that is the
+ * sum of sourced reasons with their own decay, as a colony sim's). Their regard (N8) is what their meetings have made of
+ * it, alike of temper and of what they hold dear; on it, what has passed between them, each a reason with its size, its
+ * day and its source, fading by halves as a memory does: words had (a quarrel), blows, a theft from their household, a
+ * thing told them of the other by one they trust, a mate's jealousy, their pairing, their parting. Kept so by those
+ * followed in full (Place.deep); for the rest, and as each fades, the share that stays is rolled into their regard.
+ * Besides, what holds while it holds and is kept nowhere: kin who keep them (their household's grown, to its young and
+ * old), or let them go wanting.
+ */
+export const REASON = {
+  words: 1,
+  blows: 2,
+  stole: 3,
+  told: 4,
+  jealous: 5,
+  wed: 6,
+  parted: 7,
+} as const;
+/** Days in which each kind of reason fades to half. */
+const REASON_HALF: readonly number[] = [0, 6, 20, 30, 8, 10, 60, 40];
+/** What each kind of reason is, said of the other (the Social tab). */
+export const REASON_WORDS: readonly string[] = [
+  "",
+  "had words with them",
+  "came to blows with them",
+  "stole from their household",
+  "heard of them from another",
+  "too taken with their mate",
+  "were paired",
+  "parted",
+];
+/** How many reasons one followed in full keeps at once, of all they know. */
+export const OPINIONS = 10;
+/** The share of a reason that stays in one's regard once it has faded (est.: half, as a quarrel's words leave a point). */
+const REASON_SETTLES = 0.5;
+/** Kin who keep one (their household's grown, to its young and old); and the same household gone without food. */
+const KIN_KEEPS = 4,
+  KIN_WANTING = -3;
+/** How often one tells another of a third they think much of either way, each meeting; and the share of it told on. */
+const TELL_ODDS = 0.3,
+  TELL_SHARE = 0.1;
+/** What one thinks of another before a mate sees them taken with each other; and how often the mate sees it. */
+const SMITTEN_AT = 50,
+  JEALOUS_ODDS = 0.25;
+/** Under this both ways, two paired part. */
+export const PART_AT = -40;
+const reasonKind = (v: number): number => v >>> 24;
+const reasonSize = (v: number): number => ((v >>> 16) & 255) - 128;
+const reasonAge = (v: number, today: number): number => (today - (v & 0xffff)) & 0xffff;
+const reasonNow = (v: number, today: number): number =>
+  reasonSize(v) * dmath.halved(reasonAge(v, today), REASON_HALF[reasonKind(v)] ?? 10);
+/** One of a's reasons let go, its share rolled into their regard of whom it was of. */
+function reasonSettled(place: Place, a: number, d: Deep, k: number): void {
+  const v = d.ops[k * 3 + 1]!,
+    j = placeIndexOf(place, d.ops[k * 3]!),
+    by = Math.round(reasonSize(v) * REASON_SETTLES);
+  d.ops[k * 3] = d.ops[k * 3 + 1] = d.ops[k * 3 + 2] = 0;
+  if (j >= 0 && by) tieMove(place.people, a, j, by);
+}
+/** A day's turn: each reason faded to nothing let go, what stays of it in their regard. */
+function reasonsFaded(place: Place, a: number, d: Deep, today: number): void {
+  for (let k = 0; k < OPINIONS; k++) {
+    const v = d.ops[k * 3 + 1]!;
+    if (v && Math.abs(reasonNow(v, today)) < 1) reasonSettled(place, a, d, k);
+  }
+}
+/**
+ * A reason a has to think better or worse of b (indices), of a kind, and who told them (a number; 0: none): kept as its
+ * own by one followed in full, in place of the weakest where all are taken (its share rolled into their regard); for the
+ * rest, its share put to their regard at once.
+ */
+function reason(place: Place, a: number, b: number, kind: number, size: number, from = 0): void {
+  const p = place.people,
+    s = Math.max(-127, Math.min(127, Math.round(size)));
+  if (!s || a === b) return;
+  const d = deepOf(place, a);
+  if (!d) {
+    const by = Math.round(s * REASON_SETTLES);
+    if (by) tieMove(p, a, b, by);
+    return;
+  }
+  const whom = p.id[b]!,
+    today = Math.floor(place.t / DAY),
+    ops = d.ops,
+    nv = ((kind << 24) | ((s + 128) << 16) | (today & 0xffff)) >>> 0;
+  let slot = -1,
+    weakest = Infinity;
+  for (let k = 0; k < OPINIONS; k++) {
+    const v = ops[k * 3 + 1]!;
+    if (!v) {
+      if (weakest > 0) {
+        slot = k;
+        weakest = 0;
+      }
+      continue;
+    }
+    // (The same from the same that day: the one, the larger.)
+    if (ops[k * 3] === whom && reasonKind(v) === kind && ops[k * 3 + 2] === from && reasonAge(v, today) < 1) {
+      if (Math.abs(s) > Math.abs(reasonSize(v))) ops[k * 3 + 1] = nv;
+      return;
+    }
+    const w = Math.abs(reasonNow(v, today));
+    if (w < weakest) {
+      weakest = w;
+      slot = k;
+    }
+  }
+  if (ops[slot * 3 + 1]) reasonSettled(place, a, d, slot);
+  ops[slot * 3] = whom;
+  ops[slot * 3 + 1] = nv;
+  ops[slot * 3 + 2] = from;
+}
+/** What holds between kin while it holds (kept nowhere): their household's grown keep its young and old, or let them go wanting. */
+function kinTerm(place: Place, i: number, j: number): number {
+  const p = place.people,
+    h = p.house[i]!;
+  if (h !== p.house[j] || occOf(p, i) !== OCC.dependent || occOf(p, j) === OCC.dependent) return 0;
+  let food = 0;
+  for (let f = 0; f < FOODS.length; f++) food += place.houses.pantry[h * FOODS.length + f]!;
+  return food > 0 ? KIN_KEEPS : KIN_WANTING;
+}
+/** What one thinks of another past their regard: their reasons now (kept in full), and what holds between kin. */
+function opinionMore(place: Place, i: number, j: number, today: number): number {
+  const p = place.people;
+  let n = kinTerm(place, i, j);
+  const d = (p.tier[i]! & 3) === TIER.full ? place.deep?.get(p.id[i]!) : undefined;
+  if (d) {
+    const whom = p.id[j]!;
+    for (let k = 0; k < OPINIONS; k++)
+      if (d.ops[k * 3] === whom && d.ops[k * 3 + 1]) n += reasonNow(d.ops[k * 3 + 1]!, today);
+  }
+  return n;
+}
+/** One's regard of another (by number) as their ties keep it (0: not known). */
+function regardOf(p: People, i: number, id: number): number {
+  for (let k = 0; k < TIES; k++) if (p.tie[i * TIES + k] === id) return p.regard[i * TIES + k]!;
+  return 0;
+}
+/** What one thinks of another, all told (-100 … 100). */
+function opinionNow(place: Place, i: number, j: number, today: number): number {
+  return Math.max(-100, Math.min(100, regardOf(place.people, i, place.people.id[j]!) + opinionMore(place, i, j, today)));
+}
+/**
+ * A meeting's talk, as i has it with j (meetDay's, a day lived): now and then i tells j of the one they think most of
+ * either way (a third), and j takes it as far as they trust i, a tenth of it at the most; and where i is taken with j,
+ * their mate may see it, and think the worse of j by as much as they think of i.
+ */
+function talked(world: World, place: Place, i: number, j: number, k: number, ri: number, rj: number): void {
+  const p = place.people;
+  // (Drawn only where j would take it: a draw is keyed, so one not drawn moves no other.)
+  if (rj > 0 && meetDraw(world, place, i, 100 + k) < TELL_ODDS) {
+    let third = 0,
+      most = 0;
+    for (let q = 0; q < TIES; q++) {
+      const id = p.tie[i * TIES + q]!,
+        r = p.regard[i * TIES + q]!;
+      if (id && id !== p.id[j] && Math.abs(r) > Math.abs(most)) {
+        third = id;
+        most = r;
+      }
+    }
+    const t = third ? placeIndexOf(place, third) : -1,
+      by = Math.round(most * TELL_SHARE * Math.min(1, rj / 50));
+    if (t >= 0 && t !== j && by) reason(place, j, t, REASON.told, by, p.id[i]!);
+  }
+  const mate = p.mate[i]!;
+  if (ri >= SMITTEN_AT && mate && mate !== PROMISED && mate !== p.id[j] && p.house[i] !== p.house[j] && sexOf(p, i) !== sexOf(p, j)) {
+    const m = placeIndexOf(place, mate);
+    if (m >= 0 && meetDraw(world, place, i, 200 + k) < JEALOUS_ODDS) {
+      const fond = Math.max(0, Math.min(1, regardOf(p, m, p.id[i]!) / 50));
+      if (fond > 0) reason(place, m, j, REASON.jealous, -8 * fond);
+    }
+  }
+}
+/** Two paired part: neither the other's any more (still of one household), each remembering it and thinking the worse. */
+function partWays(place: Place, i: number, m: number): void {
+  const p = place.people;
+  p.mate[i] = p.mate[m] = 0;
+  if (p.friend[i] === p.id[m]) p.friend[i] = 0;
+  if (p.friend[m] === p.id[i]) p.friend[m] = 0;
+  note(place, HAP.parted, p.id[i]!, p.id[m]!);
+  for (const [a, b] of [
+    [i, m],
+    [m, i],
+  ] as const) {
+    remember(place, a, THOUGHT.parted, -8, p.id[b]!);
+    reason(place, a, b, REASON.parted, -10);
+  }
+}
+/** What one thinks of another, and why (read only): their regard, each reason now with whom it came of, and kin's. */
+export function placeOpinion(
+  place: Place,
+  i: number,
+  j: number,
+): {
+  total: number;
+  regard: number;
+  kin: number;
+  reasons: { kind: number; size: number; days: number; from: number }[];
+} {
+  const p = place.people,
+    today = Math.floor(place.t / DAY),
+    regard = regardOf(p, i, p.id[j]!),
+    kin = kinTerm(place, i, j),
+    d = (p.tier[i]! & 3) === TIER.full ? place.deep?.get(p.id[i]!) : undefined,
+    reasons: { kind: number; size: number; days: number; from: number }[] = [];
+  if (d)
+    for (let k = 0; k < OPINIONS; k++) {
+      const v = d.ops[k * 3 + 1]!;
+      if (d.ops[k * 3] !== p.id[j] || !v) continue;
+      const size = Math.round(reasonNow(v, today));
+      if (size) reasons.push({ kind: reasonKind(v), size, days: reasonAge(v, today), from: d.ops[k * 3 + 2]! });
+    }
+  reasons.sort((a, b) => Math.abs(b.size) - Math.abs(a.size) || a.kind - b.kind);
+  const total = Math.max(-100, Math.min(100, regard + kin + reasons.reduce((n, x) => n + x.size, 0)));
+  return { total, regard, kin, reasons };
+}
+/** How the town thinks of one (read only): how many know them, and of those how many think well and how many ill of them. */
+export function placeRepute(place: Place, i: number): { known: number; well: number; ill: number; mean: number } {
+  const p = place.people,
+    id = p.id[i]!;
+  let known = 0,
+    well = 0,
+    ill = 0,
+    sum = 0;
+  for (let k = 0; k < p.n * TIES; k++)
+    if (p.tie[k] === id) {
+      const r = p.regard[k]!;
+      known++;
+      sum += r;
+      if (r >= FRIEND_AT) well++;
+      else if (r <= RIVAL_AT) ill++;
+    }
+  return { known, well, ill, mean: known ? sum / known : 0 };
+}
 function meetDay(world: World, place: Place, rounds = 1): void {
   const p = place.people,
     n = p.n;
@@ -5526,7 +5798,15 @@ function meetDay(world: World, place: Place, rounds = 1): void {
             i,
             Math.round(base + (kin ? 4 * temper[j * 5]! : 0) + Math.min(0, p.mood[j]!) / 25),
           );
-        if (rounds > 1 || ri > QUARREL_AT || rj > QUARREL_AT) continue;
+        if (rounds > 1) continue;
+        // (What they tell each other of a third, and a mate who sees them taken with each other: Q2.)
+        talked(world, place, i, j, k, ri, rj);
+        talked(world, place, j, i, k + 16, rj, ri);
+        // (The other's opinion read only where the first's could come to words: most who meet think well enough of each other.)
+        const oi = ri + opinionMore(place, i, j, today);
+        if (oi > QUARREL_AT) continue;
+        const oj = rj + opinionMore(place, j, i, today);
+        if (oj > QUARREL_AT) continue;
         // Two who cannot abide each other: words, now and then, the more often the hotter their tempers; and between hot
         // tempers who think worst of each other, blows, parted by those about them.
         // (The oftener where they hold one thing dear at its two ends: half as often where they hold nothing so, half again
@@ -5542,8 +5822,8 @@ function meetDay(world: World, place: Place, rounds = 1): void {
           flare = meetDraw(world, place, i, k + 3);
         if (flare >= QUARREL_ODDS * 2 * bold * clash) continue;
         const blows =
-          ri <= BRAWL_AT &&
-          rj <= BRAWL_AT &&
+          oi <= BRAWL_AT &&
+          oj <= BRAWL_AT &&
           bold >= BRAWL_BOLD &&
           flare < QUARREL_ODDS * bold * clash;
         for (const [a, b] of [
@@ -5557,7 +5837,7 @@ function meetDay(world: World, place: Place, rounds = 1): void {
             (blows ? -10 : -4) * leans(1 - temper[a * 5 + 2]!),
             p.id[b]!,
           );
-          tieMove(p, a, b, blows ? -3 : -1);
+          reason(place, a, b, blows ? REASON.blows : REASON.words, blows ? -6 : -2);
         }
         // (Blows are told in the log; words are only remembered, and told on the Social tab: three a day in a town of
         // five hundred filled a log a town keeps to about its people's number, and pushed out its births and comings.)
@@ -5581,9 +5861,10 @@ function meetDay(world: World, place: Place, rounds = 1): void {
 export function placeTies(
   place: Place,
   i: number,
-): { j: number; regard: number; how: "household" | "work" | "street" }[] {
+): { j: number; regard: number; opinion: number; how: "household" | "work" | "street" }[] {
   const p = place.people,
-    out: { j: number; regard: number; how: "household" | "work" | "street" }[] = [];
+    today = Math.floor(place.t / DAY),
+    out: { j: number; regard: number; opinion: number; how: "household" | "work" | "street" }[] = [];
   for (let k = 0; k < TIES; k++) {
     const id = p.tie[i * TIES + k]!;
     if (!id) continue;
@@ -5592,6 +5873,7 @@ export function placeTies(
     out.push({
       j,
       regard: p.regard[i * TIES + k]!,
+      opinion: Math.max(-100, Math.min(100, p.regard[i * TIES + k]! + opinionMore(place, i, j, today))),
       how:
         p.house[j] === p.house[i]
           ? "household"
@@ -5600,7 +5882,7 @@ export function placeTies(
             : "street",
     });
   }
-  return out.sort((a, b) => b.regard - a.regard || a.j - b.j);
+  return out.sort((a, b) => b.opinion - a.opinion || a.j - b.j);
 }
 /** What one thinks of another, said. */
 export function regardWords(r: number): string {
@@ -6865,6 +7147,24 @@ function turnOf(cx: TickCx, i: number, k: number, wk: number): void {
         );
       }
     }
+    // Two paired who can no longer abide each other part (Q2), asked of the one numbered lower.
+    // (Their regard first: one not followed in full has no reasons past it, and mates are both grown, so no kin's term; most
+    // think too well of their mate to part.)
+    const mate = p.mate[i]!;
+    if (
+      mate &&
+      mate !== PROMISED &&
+      mate > cId[i]! &&
+      (regardOf(p, i, mate) <= PART_AT || (p.tier[i]! & 3) === TIER.full)
+    ) {
+      const m = placeIndexOf(place, mate);
+      if (
+        m >= 0 &&
+        opinionNow(place, i, m, today) <= PART_AT &&
+        opinionNow(place, m, i, today) <= PART_AT
+      )
+        partWays(place, i, m);
+    }
     // (Each day their own work is looked to again: back to it once it has something for them.)
     if (p.turn[i] && hasWork(i, cSexOcc[i]! & 15)) p.turn[i] = 0;
     // Mood, from needs met over the days gone and what befell their household: a quarter of the way to where those
@@ -6877,6 +7177,7 @@ function turnOf(cx: TickCx, i: number, k: number, wk: number): void {
       for (let k = 0; k < DEEP_THOUGHTS; k++)
         if (dp.th[k] && Math.abs(thoughtNow(dp.th[k]!, today)) < 1)
           dp.th[k] = dp.src[k] = 0;
+      reasonsFaded(place, i, dp, today);
       // (Their things: filled on coming into full, then worn by the day's use, and made anew when worn out.)
       if (!dp.filled) {
         dp.items = gearFilled(world, place, i, fk);
@@ -7911,14 +8212,11 @@ function theftDay(cx: TickCx, i: number, lackDays: number, fk: Frame): boolean {
   }
   note(place, HAP.stole, p.id[i]!, j >= 0 ? p.id[j]! : 0, took);
   for (let q = 0; q < p.n; q++)
-    if (p.house[q] === v)
-      remember(
-        place,
-        q,
-        THOUGHT.robbed,
-        -10 * leans(placeTemper(place, q).thrifty),
-        p.id[i]!,
-      );
+    if (p.house[q] === v) {
+      const hurt = leans(placeTemper(place, q).thrifty);
+      remember(place, q, THOUGHT.robbed, -10 * hurt, p.id[i]!);
+      reason(place, q, i, REASON.stole, -12 * hurt);
+    }
   judge(world, place, i, j, WRONG.theft);
   p.act[i] = ACT.idle;
   return false;
@@ -9575,6 +9873,10 @@ export function hapTold(
               ? `was brought before the town's justice${of}, and held for a term`
               : `was brought before the town's justice${of}, and let go`;
     }
+    case HAP.parted:
+      return named?.(x.a)
+        ? `parted from ${named(x.a)}, whom they could no longer abide, and lives on under one roof with them`
+        : "parted from the one they were paired with";
     case HAP.stole:
       return named?.(x.a)
         ? `stole a day's food from the household of ${named(x.a)}, being in want`
@@ -9659,6 +9961,7 @@ export const HAP_MANY: readonly string[] = [
   "were put to death by the town's justice",
   "made works",
   "stole from other households",
+  "parted from those they were paired with",
 ];
 
 /** What many did, said with what of: "died of the red flux", "fell in the battle at Sairis's land". */

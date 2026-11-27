@@ -6,7 +6,14 @@
 // from the save an earlier process made under this very code: the key takes every file of the
 // folders a host's world is made from (the engine, the rules, and the host's own readings).
 import { YEAR, loadWorld, saveWorld, seedFromText, type World } from "../../src/kernel/index.ts";
-import { populationContext, townsOf, type Settlement } from "../../src/sim/index.ts";
+import {
+  homePlanet,
+  peopleKin,
+  populationContext,
+  townsOf,
+  type Settlement,
+} from "../../src/sim/index.ts";
+import { dayOf } from "../../src/rules/index.ts";
 import { enterPlace, type Place } from "../../src/host/place.ts";
 import { ALIEN, EARTH, type Universe } from "../../src/host/index.ts";
 import { PEOPLED_FROM, keptWorld } from "../worlds.ts";
@@ -87,4 +94,17 @@ export function noTown(t: { skip: (why: string) => void }, what: string): null {
   if (!PLACE_ELSEWHERE) throw new Error(`no town of ${PLACE_WORLD} ${what}`);
   t.skip(`no town of ${PLACE_WORLD} ${what}`);
   return null;
+}
+
+/** The hours of light of a land's shortest day (0 in a polar night): a test of who sleeps by night needs a land with a day. */
+export function shortestDay(w: World, cell: number): number {
+  const g = homePlanet(w).generated,
+    d = dayOf(g.grid.lat[cell] ?? 0, g.planet.tilt, 24);
+  return Math.min(d.summerLight, d.winterLight);
+}
+
+/** Whether a world's people keep a partner and a hearth of more than one: a spawning people's or a hive's keep neither. */
+export function keepsHouseholds(w: World): boolean {
+  const k = peopleKin(homePlanet(w).generated);
+  return k.pairing !== "none" && k.pairing !== "brood" && k.hearth >= 2;
 }

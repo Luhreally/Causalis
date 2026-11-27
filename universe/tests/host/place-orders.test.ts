@@ -356,7 +356,10 @@ test("the god game's named townsfolk are the place's own people, with one page",
 
 test("goods flow from where they are made to the market, and every building's page says what it holds", () => {
   const w = copy(base()),
-    s = near(w, 2500),
+    // (A town with buildings besides its square and its market: so many stand by a town's size and its land's crafts.)
+    s =
+      townWhere(w, (pl) => pl.bldgs.kind.length > 2, { near: 2500, least: 300 }) ??
+      assert.fail("no town of this world has buildings besides its square and market"),
     place = enterPlace(w, s.ref)!,
     seen = new Set<number>(),
     kinds = place.bldgs.kind.length;

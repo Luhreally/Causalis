@@ -98,6 +98,23 @@ export class PlaceInspector {
       this.setHeight(HEIGHTS[(HEIGHTS.indexOf(this.height) + 1) % HEIGHTS.length]!);
     this.followKey.onclick = () => this.onFollow(!this.following);
     this.backKey.onclick = () => this.onBack();
+    // (A tap on the web: the one nearest it, within a finger's breadth.)
+    this.web.onclick = (e) => {
+      const r = this.web.getBoundingClientRect(),
+        sx = 340 / Math.max(1, r.width),
+        x = (e.clientX - r.left) * sx,
+        y = (e.clientY - r.top) * sx;
+      let best: string | null = null,
+        near = 22 * sx;
+      for (const n of this.webAt) {
+        const d = Math.hypot(n.x - x, n.y - y);
+        if (d < near) {
+          near = d;
+          best = n.ref;
+        }
+      }
+      if (best) this.onInspect(best);
+    };
     this.aheadKey.onclick = () => this.onAhead();
     this.setBack(null, false, false);
     this.proseKey.title = "What these numbers mean, in words";
@@ -403,9 +420,11 @@ export class PlaceInspector {
       body.push(
         el("h3", "place-insp-sub", "Whom they know"),
         el("p", "place-insp-why", x.tiesWords),
+        el("p", "place-insp-why", x.repute),
       );
+      if (x.ties.length) body.push(this.webOf(x));
       if (x.ties.length) {
-        const list = this.people(x.ties);
+        const list = this.people(x.ties.map((t) => ({ ...t, words: t.why ? `${t.words}: ${t.why}` : t.words })));
         // (Each marked by what they think of them: warm to cold.)
         x.ties.forEach((t, k) =>
           list.children[k]?.classList.add(
@@ -605,6 +624,73 @@ export class PlaceInspector {
       } else box.append(el("span", "place-insp-fact", words));
     }
     return box;
+  }
+  /** The web of whom one knows (Q2): them at its heart, those they know about them, joined by what each thinks. */
+  private readonly web = el("canvas", "place-insp-web");
+  private webbed = "";
+  private webAt: { x: number; y: number; ref: string }[] = [];
+  private webOf(x: PlaceInspectPerson): HTMLElement {
+    const W = 340,
+      H = 230,
+      dpr = Math.min(2, globalThis.devicePixelRatio || 1),
+      key = JSON.stringify([x.ref, x.ties.map((t) => [t.ref, t.regard]), x.web]);
+    this.web.title = "Whom they know: green the warmer, red the colder, the thicker the more; tap one to see them";
+    this.web.setAttribute("aria-label", this.web.title);
+    if (key === this.webbed) return this.web;
+    this.webbed = key;
+    this.web.width = W * dpr;
+    this.web.height = H * dpr;
+    const g = this.web.getContext("2d");
+    if (!g) return this.web;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, W, H);
+    const n = x.ties.length,
+      cx = W / 2,
+      cy = H / 2,
+      at = x.ties.map((_, k) => {
+        const a = -Math.PI / 2 + (2 * Math.PI * k) / n;
+        return { x: cx + (W / 2 - 26) * Math.cos(a), y: cy + (H / 2 - 24) * Math.sin(a) };
+      }),
+      hue = (r: number, alpha: number) =>
+        r >= 0 ? `rgba(79, 195, 161, ${alpha})` : `rgba(232, 96, 76, ${alpha})`;
+    // (What those they know think of each other: faint.)
+    for (const e of x.web) {
+      const a = at[e.a]!,
+        b = at[e.b]!;
+      g.strokeStyle = hue(e.regard, 0.3);
+      g.lineWidth = 1;
+      g.beginPath();
+      g.moveTo(a.x, a.y);
+      g.lineTo(b.x, b.y);
+      g.stroke();
+    }
+    // (What they think of each: the warmer the greener, the colder the redder, the thicker the more.)
+    x.ties.forEach((t, k) => {
+      g.strokeStyle = hue(t.regard, 0.9);
+      g.lineWidth = 1 + Math.abs(t.regard) / 20;
+      g.beginPath();
+      g.moveTo(cx, cy);
+      g.lineTo(at[k]!.x, at[k]!.y);
+      g.stroke();
+    });
+    const face = (p: PlaceInspectPerson["portrait"], px: number, py: number, size: number, ring: string) => {
+      g.fillStyle = "rgba(14, 22, 48, 0.95)";
+      g.strokeStyle = ring;
+      g.lineWidth = 2;
+      g.beginPath();
+      g.arc(px, py, size / 2 + 2, 0, Math.PI * 2);
+      g.fill();
+      g.stroke();
+      if (p?.kind !== "person") return;
+      const c = document.createElement("canvas");
+      c.width = c.height = size * dpr;
+      drawPortrait(c, p, size * dpr, size * dpr, 0);
+      g.drawImage(c, px - size / 2, py - size / 2, size, size);
+    };
+    x.ties.forEach((t, k) => face(t.portrait, at[k]!.x, at[k]!.y, 30, hue(t.regard, 1)));
+    face(x.portrait, cx, cy, 40, "rgba(240, 214, 140, 1)");
+    this.webAt = x.ties.map((t, k) => ({ ...at[k]!, ref: t.ref }));
+    return this.web;
   }
   private people(list: readonly PlaceNamed[]): HTMLElement {
     const box = el("div", "place-insp-people");

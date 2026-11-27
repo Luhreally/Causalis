@@ -599,8 +599,10 @@ test("its walls are a site of the place too: a crew of its own builds them at th
   assert.equal(crew, hands);
   const seen = new Set<number>();
   let there = 0;
-  for (let k = 0; k < 8 * 8; k++) {
-    w.runTo(w.now + 3 * HOUR);
+  // (Read an hour at a time till both are seen, up to a month: one of its crew goes for a load only when the site has
+  // too little to build in, and a site its land keeps in stuff wants a load seldom.)
+  for (let k = 0; k < 30 * 24 && !(k >= 8 * 24 && seen.has(ACT.build) && seen.has(ACT.stuff)); k++) {
+    w.runTo(w.now + HOUR);
     placeFrame(w, town, []);
     for (let i = 0; i < p.n; i++)
       if (p.bound[i] === BOUND_SITE) {
@@ -668,8 +670,9 @@ test("a town's trades lean to where its land's buildings of each work stand; its
         if (o !== OCC.forager) settled += land.counts.get(r, o);
       }
     leaned++;
-    // (A town with more than its share of its land's markets holds more than its share by head of its traders.)
-    if (lean[OCC.trader]! > 1.5 && all >= 40 && town / people > all / settled)
+    // (A town with more than its share of its land's markets holds more than its share by head of its traders. A fifth
+    // more and over: how far a market town leans is its land's own.)
+    if (lean[OCC.trader]! > 1.2 && all >= 40 && town / people > all / settled)
       more++;
     if (leaned >= 60) break;
   }

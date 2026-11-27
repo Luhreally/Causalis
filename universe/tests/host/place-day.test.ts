@@ -18,6 +18,8 @@ import {
   WHY,
   enterPlace,
   placeDayOf,
+  PLACE_TICK,
+  TIER_STRIDE,
   placeDayStrip,
   placesOf,
 } from "../../src/host/place.ts";
@@ -65,8 +67,11 @@ test("a place keeps its land's working day and days of rest, and plays when its 
       inDay = day.rest === null && hour >= day.from && hour < day.to;
     for (let i = 0; i < place.people.n; i++) {
       if (place.people.act[i] === ACT.work && !place.people.eta[i]) {
+        // (One followed at a stride is turned to their work at the working day's hour within it, and holds what they are
+        // doing then for all of it: seen at work as much as a stride before the hour, or after it. Tiers.)
+        const by = Math.max(1, (TIER_STRIDE[place.people.tier[i]! & 3]! * PLACE_TICK) / HOUR);
         if (inDay) workedIn++;
-        else if (hour >= day.to + 1 || hour < day.from - 1 || day.rest) workedOff++;
+        else if (hour >= day.to + by || hour < day.from - by || day.rest) workedOff++;
       }
       if (place.people.why[i] === WHY.play) played++;
     }
