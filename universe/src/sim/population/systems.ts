@@ -710,6 +710,14 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
  * what its people eat, and its hunger. (A function of its own: the month's whole in one body, its loop the length of every
  * land, was a twentieth slower at 1,450.)
  */
+/** A land's draw key, its ref's hash: read once a land, not once a land and month. */
+const LAND_KEYS = new WeakMap<Province, number>();
+function landKey(p: Province): number {
+  let k = LAND_KEYS.get(p);
+  if (k === undefined) LAND_KEYS.set(p, (k = refHash(p.ref)));
+  return k;
+}
+
 function foodLand(
   ctx: PopulationContext,
   p: Province,
@@ -735,7 +743,7 @@ function foodLand(
     // The land gives as its living world stands: less game where the wild is thin,
     // less grain from worn soil, for the same work.
     alive = wildsOf(ctx, p.cell),
-    key = refHash(p.ref),
+    key = landKey(p),
     rain = p.rain / 1000,
     tools = (1 + (TOOL_GAIN * m.toolCover) / 1000) * (1 + (MACHINE_GAIN * m.machineCover) / 1000),
     // A body gathers, sows and herds in proportion to what it eats (a giant's day's
