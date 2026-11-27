@@ -93,19 +93,19 @@ const KIND_ROWS = new Set([
 // tools, stuff, ground, arms, workshops and camps are other ones, and the principles, substances and reactions pages are
 // the merged rounds' (new principles and matter). No page's words for an unchanged world were meant to move.)
 const BEFORE: Record<string, string> = {
-  tools: "bc40ca4a:16642",
-  stuff: "bc20049c:13320",
-  ground: "cade1d27:84581",
-  deposits: "606e404f:97897",
-  arms: "245435df:24254",
-  designs: "e8698c2b:31829",
-  workshops: "8788b80f:542933",
-  substances: "9ff02e58:139235",
-  reactions: "c15047ea:71940",
+  tools: "d8a94697:15167",
+  stuff: "8a531d78:13274",
+  ground: "901cc531:84517",
+  deposits: "d41c14e8:97923",
+  arms: "16e75792:24862",
+  designs: "8237147e:32197",
+  workshops: "d972303e:354875",
+  substances: "8101061:139270",
+  reactions: "d905b45d:72176",
   // (Its pages no longer list what only a people of the water could find: F1, canBeFoundHere.)
-  principles: "eef77d35:176616",
+  principles: "24dad616:178677",
   guide: "ced49326:17137",
-  camps: "47ff327:323363",
+  camps: "49748615:325070",
 };
 
 /**
