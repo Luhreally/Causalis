@@ -6913,7 +6913,10 @@ function turnOf(cx: TickCx, i: number, k: number, wk: number): void {
   }
   // Held by the town's justice, or at labour for it, till their term is served; and one broken down, till it is spent
   // (N11). (Their household brings them their food.)
-  if (heldBy?.has(cId[i]!) && heldTurn(cx, i, h, fk)) return;
+  if (heldBy?.has(cId[i]!)) {
+    if (breakOf?.has(cId[i]!)) breakSpent(cx, i);
+    if (heldTurn(cx, i, h, fk)) return;
+  }
   if (breakOf?.has(cId[i]!) && breakTurn(cx, i, h, fk)) return;
   // A fine work where they are, seen once a day (N11): a thought by how fine it is.
   if (worksAt && !moving && inside && (tickNo + cId[i]!) % 6 < k) {
@@ -7716,24 +7719,33 @@ function theftDay(cx: TickCx, i: number, lackDays: number, fk: Frame): boolean {
   p.act[i] = ACT.idle;
   return false;
 }
+/**
+ * Whether one's break is spent by now, and if so the strain let out (a thought of relief) and the break let go: so too for
+ * one held or at labour for the town's justice, whose break runs out as anyone's (held, it was never spent, and no relief
+ * came till their term was served).
+ */
+function breakSpent(cx: TickCx, i: number): boolean {
+  const { place, p, t, breakOf } = cx,
+    k = breakOf!.get(p.id[i]!)!,
+    list = place.breaks!;
+  if (t < list[k + 2]!) return false;
+  list.splice(k, 3);
+  if (!list.length) delete place.breaks;
+  breakOf!.clear();
+  if (place.breaks) for (const [id, at] of byId(place.breaks, 3)) breakOf!.set(id, at);
+  remember(place, i, THOUGHT.catharsis, 20);
+  return true;
+}
 /** What a wrong brought before a place's justice was (VERDICT's in `b`'s low bits; this, sixteen times it). */
 export const WRONG = { blows: 0, theft: 1 } as const;
 /** A tick of one broken down: as their break has them, till it is spent (false: it is spent, and they go on as they would). */
 function breakTurn(cx: TickCx, i: number, h: number, fk: Frame): boolean {
-  const { world, place, p, t, houses, breakOf } = cx,
+  const { world, place, p, houses, breakOf } = cx,
     k = breakOf!.get(p.id[i]!)!,
     list = place.breaks!,
     // (How, in its low three bits; whether one eating all in sight has eaten yet, eight.)
     how = list[k + 1]! & 7;
-  if (t >= list[k + 2]!) {
-    // Spent: the strain let out (a thought of relief), and the break let go.
-    list.splice(k, 3);
-    if (!list.length) delete place.breaks;
-    breakOf!.clear();
-    if (place.breaks) for (const [id, at] of byId(place.breaks, 3)) breakOf!.set(id, at);
-    remember(place, i, THOUGHT.catharsis, 20);
-    return false;
-  }
+  if (breakSpent(cx, i)) return false;
   p.act[i] = how === BREAK.binge ? ACT.eat : ACT.idle;
   p.why[i] = WHY.broke;
   const home = houses.home[h]!;
