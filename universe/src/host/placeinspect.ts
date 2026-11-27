@@ -4,7 +4,15 @@
 // asks. Read of the place as kept, through the readers its pages use (host/inspect/place.ts, host/placeplan.ts): asking
 // moves nothing, and nothing here is reckoned that the place does not reckon already.
 import { DAY, type World } from "../kernel/index.ts";
-import { CIVICS, FESTER_MOST, FOODS, GOODS, MEMBERS, OCC } from "../rules/index.ts";
+import {
+  CIVICS,
+  FESTER_MOST,
+  FOODS,
+  GOODS,
+  MEMBERS,
+  OCC,
+  gradeOf,
+} from "../rules/index.ts";
 import { lifeOf, mixOf, homePlanet, kindBody } from "../sim/index.ts";
 import {
   PLACE_AT,
@@ -75,6 +83,9 @@ import {
   placeFacets,
   placeValues,
   valueClash,
+  placeGear,
+  GEAR,
+  type Item,
 } from "./place.ts";
 import {
   ailWords,
@@ -89,6 +100,7 @@ import {
   careWords,
   placeDay,
   placeNamed,
+  placeNames,
   placeWho,
   tradeWords,
   whyWords,
@@ -136,7 +148,27 @@ const COND_WORDS: Readonly<Record<number, readonly [string, string]>> = {
   [COND.kept]: ["🪢", "Kept from the work their household taught them"],
   [COND.kinAbed]: ["🛏️", "One of their household abed"],
   [COND.friendAbed]: ["🛏️", "Their friend abed"],
+  [COND.tool]: ["🛠️", "The tool of their trade"],
+  [COND.garment]: ["🧥", "What they wear"],
+  [COND.pot]: ["🍯", "Their household's pot"],
 };
+/** A thing in words: what it is, of what (a farmer's hoe and sickle, a herder's crook and shears, a crafter's tools). */
+function gearName(x: Item, occ: number): string {
+  if (x.k === GEAR.garment) return `${cap(x.stuff)} garment`;
+  if (x.k === GEAR.pot) return `A cooking pot of ${x.stuff}`;
+  const tool =
+    occ === OCC.farmer
+      ? "hoe and sickle"
+      : occ === OCC.herder
+        ? "crook and shears"
+        : "set of tools";
+  return `A ${tool} of ${x.stuff}`;
+}
+/** A thing's quality and wear, and who made it and when. */
+function gearWords(x: Item, by: string | null): string {
+  const worn = Math.round(x.wear / 10);
+  return `${cap(gradeOf(x.q))} (${x.q} of 100) · ${by ? `made by ${by}` : "bought in"}, ${placeDay(x.made * DAY)} · ${x.wear >= 1000 ? "worn out" : `${worn}% worn`}`;
+}
 /** A cook's skill at it, said of their meals. */
 const COOK_WORDS = ["poor", "plain", "good", "fine", "a master's"] as const;
 /** Each facet of one's nature at its two ends (host/place.ts FACETS). */
@@ -572,7 +604,13 @@ function healthGear(
   rows.push(["Care", careWords(place)]);
   const pantry = r.pantry.reduce((a, b) => a + b, 0),
     members = r.household.length + 1,
+    names = placeNames(world, place),
     gear: [string, string][] = [
+      // (Each thing they hold, its own: of what, how fine, by whom and when, how worn.)
+      ...placeGear(world, place, i).map((x): [string, string] => [
+        gearName(x, r.occupation),
+        gearWords(x, x.maker ? names(x.maker, x.ms, x.mk) : null),
+      ]),
       [
         "In hand",
         r.carry ? `${amount(r.carry.amount)} of ${GOODS[r.carry.good]!.name}` : "Nothing",

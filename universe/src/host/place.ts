@@ -161,6 +161,8 @@ import {
   ownLeaning,
   ownNature,
   TEMPER,
+  qualityOf,
+  type Edge,
   WAY_TRAITS,
   bandOf,
   tendedBy,
@@ -229,6 +231,7 @@ import { battleWords, battlesOfYear, townTally } from "./burials.ts";
 import { linesOf, townRoster, workOf as lineWork, folkWork } from "./roster.ts";
 import { strikesOn, townPlan } from "./town.ts";
 import { townFieldsMeant, townSite } from "./village.ts";
+import { landCloth, toolMade, townStuff } from "./chain.ts";
 
 // —— Measures ————————————————————————————————————————————————————————————————————————————————————————————————————
 
@@ -409,6 +412,8 @@ export const HAP = {
   freed: 38,
   executed: 39,
   madeWork: 40,
+  /** Stole from another household, in want (a: one of it; b: the food taken, millionths; items: the thing taken). */
+  stole: 41,
 } as const;
 /** The happenings that are a death. */
 const HAP_DEATH: ReadonlySet<number> = new Set([1, 5, 17, 19, 21, 22, 34, 35, 39]);
@@ -456,6 +461,7 @@ const HAP_WORDS = [
   "was let go, their term served",
   "was put to death by the town's justice",
   "made a work",
+  "stole from another household",
 ];
 
 /** The place's draws: through the world's Rng, on a stream no registry holds (it is no part of the ruleset's identity). */
@@ -495,6 +501,8 @@ const P = {
   judge: 28,
   art: 29,
   vital: 30,
+  gear: 31,
+  theft: 32,
 } as const;
 
 const NEEDS = 4;
@@ -1822,7 +1830,9 @@ export class PlaceStore implements StateStore {
         ...(raw.works ? { works: [...(raw.works as number[])] } : {}),
         ...(raw.pins ? { pins: [...(raw.pins as number[])] } : {}),
         ...(raw.vital ? { vital: [...(raw.vital as number[])] } : {}),
-        ...(raw.deep ? { deep: deepLoaded(raw.deep as number[]) } : {}),
+        ...(raw.deep
+          ? { deep: deepLoaded(raw.deep as { n: number[]; stuffs: string[] }) }
+          : {}),
       });
       readingsLoaded(this.places.at(-1)!, raw);
       if (unskilled) UNSKILLED.add(this.places.at(-1)!);
@@ -1891,7 +1901,11 @@ export function placeDigest(p: Place): string {
   ].flat())
     h.int(list);
   // (What only those in full keep: hashed only where any is kept, so a place kept before it is told as it was.)
-  if (p.deep?.size) for (const x of deepSaved(p.deep)) h.int(x);
+  if (p.deep?.size) {
+    const d = deepSaved(p.deep);
+    for (const x of d.n) h.int(x);
+    for (const x of d.stuffs) h.string(x);
+  }
   for (const x of p.houses.means) h.float(x);
   for (const x of [...p.matched.made, ...p.matched.wage]) h.float(x);
   for (const x of p.log)
@@ -4765,9 +4779,14 @@ export const THOUGHT = {
   heldBy: 11,
   righted: 12,
   admired: 13,
+  /** A thing of theirs worn out and made anew (its maker), and robbed (the thief). */
+  newGear: 14,
+  robbed: 15,
 } as const;
 /** Days in which each kind fades to half. */
-const THOUGHT_HALF: readonly number[] = [0, 30, 60, 20, 30, 10, 3, 10, 5, 15, 5, 10, 10, 4];
+const THOUGHT_HALF: readonly number[] = [
+  0, 30, 60, 20, 30, 10, 3, 10, 5, 15, 5, 10, 10, 4, 10, 20,
+];
 const thoughtKind = (v: number): number => v >>> 24;
 const thoughtSize = (v: number): number => ((v >>> 16) & 255) - 128;
 /**
@@ -4795,7 +4814,263 @@ export type Deep = {
   /** Their memories, as their columns keep them (THOUGHTS' layout), and each one's source. */
   readonly th: Uint32Array;
   readonly src: Int32Array;
+  /**
+   * The things they hold, each its own (Item); the ticks of their own trade's work their tool's wear is reckoned to; and
+   * whether their things are filled yet (on coming into full, at their next day's turn).
+   */
+  items: Item[];
+  worked: number;
+  filled: boolean;
 };
+/**
+ * A thing one holds, each its own (asked 2026-11-26: "single items: material from the world's own stuffs, quality from the
+ * maker's skill and tools, the maker's name, and wear"): a tool of their trade (a farmer's, a herder's, a crafter's), a
+ * garment, their household's pot (its cook's). Of what its land makes such things of (host/chain.ts: its tools' stone or
+ * metal, its cloth, its clay), of a quality from that stuff, its land's craft at the work and its maker's years at it
+ * (rules/stuffs.ts qualityOf, Classic's tool's), by one of the town's own who makes such things (else bought in, or made
+ * at home), worn by use over the life its land's reckoning gives such things (rules/goods.ts WANTS: a tool four years of
+ * its trade's work), and made anew when worn out.
+ */
+export type Item = {
+  /** GEAR's. */
+  readonly k: number;
+  readonly stuff: string;
+  /** Quality, 5 … 99. */
+  readonly q: number;
+  /** Thousandths of its life used. */
+  wear: number;
+  /** Its maker: their number, their household's key and their sex (for their name, living or gone); 0: bought in. */
+  readonly maker: number;
+  readonly mk: number;
+  readonly ms: number;
+  /** The day it was made. */
+  readonly made: number;
+};
+export const GEAR = { tool: 1, garment: 2, pot: 3 } as const;
+/** The good each kind of thing is of. */
+const GEAR_GOOD: Readonly<Record<number, number>> = {
+  [GEAR.tool]: G.tools,
+  [GEAR.garment]: G.clothing,
+  [GEAR.pot]: G.pottery,
+};
+/** How long each lasts in use, days: its land's reckoning of what wears out a year (WANTS). */
+const gearLife = (k: number): number =>
+  Math.round(
+    365 /
+      (k === GEAR.tool
+        ? WANTS.toolsPerWorker
+        : k === GEAR.garment
+          ? WANTS.clothingPerPerson
+          : WANTS.potteryPerPerson),
+  );
+/**
+ * What a cloth and a fired clay take of a tool's measure of a stuff (keen, tough) for quality (est.: a cloth holds no edge;
+ * how well it is woven and wears is the most of it, as a pot's firing is).
+ */
+const CLOTH_EDGE: Edge = { keen: 0.45, tough: 0.5 },
+  CLAY_EDGE: Edge = { keen: 0.4, tough: 0.45 };
+/** What a place's things are made of this year: its tools' stuff and its edge, its cloth, its ware; its land's craft at each. */
+type Stuffs = {
+  readonly year: number;
+  readonly tool: { readonly name: string; readonly edge: Edge };
+  readonly cloth: string;
+  readonly ware: string;
+  readonly craft: Readonly<Record<number, number>>;
+};
+const STUFFS = new WeakMap<Place, Stuffs>();
+function stuffsOf(world: World, place: Place): Stuffs {
+  const year = Math.floor(place.t / YEAR),
+    was = STUFFS.get(place);
+  if (was && was.year === year) return was;
+  const made = toolMade(
+      world,
+      place.cell,
+      `place ${place.town}`,
+      year,
+      false,
+      place.town,
+    ),
+    town = townStuff(world, place.cell, year),
+    lore = loreOf(world),
+    craft = (w: "tools" | "clothing" | "pottery") =>
+      Math.min(1, Math.max(0, lore.effect(place.cell, w)));
+  const s: Stuffs = {
+    year,
+    tool: { name: made.stuff, edge: made.edge },
+    cloth: landCloth(world, place.cell).kind,
+    ware: town.clay.ware,
+    craft: {
+      [GEAR.tool]: craft("tools"),
+      [GEAR.garment]: craft("clothing"),
+      [GEAR.pot]: craft("pottery"),
+    },
+  };
+  STUFFS.set(place, s);
+  return s;
+}
+/** What a kind of thing is made of, and its measure. */
+function gearStuff(s: Stuffs, k: number): { name: string; edge: Edge } {
+  return k === GEAR.tool
+    ? s.tool
+    : k === GEAR.garment
+      ? { name: s.cloth, edge: CLOTH_EDGE }
+      : { name: s.ware, edge: CLAY_EDGE };
+}
+/** The quality one of the town's middling hands (six years at it, as rules/stuffs.ts takes one made at home) makes a kind to. */
+function gearMid(s: Stuffs, k: number): number {
+  return qualityOf(gearStuff(s, k).edge, s.craft[k] ?? 0, 6);
+}
+/** The kinds of thing one holds: a garment; a tool where their trade works with one; their household's pot where they are its cook. */
+function gearKinds(place: Place, i: number, f: Frame): number[] {
+  const p = place.people,
+    occ = occOf(p, i),
+    out: number[] = [GEAR.garment];
+  if (occ === OCC.farmer || occ === OCC.herder || occ === OCC.crafter)
+    out.push(GEAR.tool);
+  const hd = houseDay(place, f);
+  if (hd.cook[p.house[i]!] === p.id[i]) out.push(GEAR.pot);
+  return out;
+}
+/**
+ * A thing made for one of a place's people on a day: by one of the town's own who makes its good (a crafter at a making of
+ * it, by a draw), else, a garment or a pot, at home by the one of their household who has given most to crafts, else bought
+ * in; of its quality by its stuff, its land's craft and its maker's years at it.
+ */
+function gearMade(
+  world: World,
+  place: Place,
+  i: number,
+  k: number,
+  day: number,
+  s: Stuffs,
+): Item {
+  const p = place.people,
+    good = GEAR_GOOD[k]!,
+    makers: number[] = [];
+  for (let j = 0; j < p.n; j++)
+    if (
+      occOf(p, j) === OCC.crafter &&
+      p.craft[j] &&
+      RECIPES[p.craft[j]! - 1]!.output[0] === good
+    )
+      makers.push(j);
+  let m = -1;
+  if (makers.length)
+    m =
+      makers[
+        world.rng.index(
+          makers.length,
+          PLACE_DRAW,
+          place.key ^ p.id[i]!,
+          day,
+          P.gear,
+          k,
+        )
+      ]!;
+  else if (k !== GEAR.tool) {
+    let most = -1;
+    for (let j = 0; j < p.n; j++)
+      if (
+        p.house[j] === p.house[i] &&
+        ageOf(p, j, place.t) >= frameOf(world, place.cell).life.adulthood
+      ) {
+        const h = hoursAt(p, j, SK.crafts);
+        if (h > most) {
+          most = h;
+          m = j;
+        }
+      }
+  }
+  const years = m >= 0 ? hoursAt(p, m, SK.crafts) / SKILL_YEAR : 6,
+    st = gearStuff(s, k);
+  return {
+    k,
+    stuff: st.name,
+    q: qualityOf(st.edge, s.craft[k] ?? 0, years),
+    wear: 0,
+    maker: m >= 0 ? p.id[m]! : 0,
+    mk: m >= 0 ? place.houses.key[p.house[m]!]! : 0,
+    ms: m >= 0 ? sexOf(p, m) : 0,
+    made: day,
+  };
+}
+/**
+ * One's things as they hold them on coming into full (promotion): each of their kinds, made by a draw some way into its
+ * life (a thing in use is as likely any way through it), its maker of the town as it is now.
+ */
+function gearFilled(world: World, place: Place, i: number, f: Frame): Item[] {
+  const s = stuffsOf(world, place),
+    today = Math.floor(place.t / DAY),
+    id = place.people.id[i]!;
+  return gearKinds(place, i, f).map((k) => {
+    const u = world.rng.unit(PLACE_DRAW, place.key ^ id, 0, P.gear, 100 + k),
+      life = gearLife(k),
+      day = today - Math.floor(u * life),
+      it = gearMade(world, place, i, k, day, s);
+    it.wear = Math.floor(u * 1000);
+    return it;
+  });
+}
+/** Wear on one's things for a day of use (one in full, at their day's turn); one worn out made anew, where one can be had. */
+function gearDay(
+  world: World,
+  place: Place,
+  i: number,
+  d: Deep,
+  f: Frame,
+): void {
+  const p = place.people,
+    s = stuffsOf(world, place),
+    today = Math.floor(place.t / DAY),
+    worked = p.skill[i]!,
+    kinds = gearKinds(place, i, f);
+  // (A thing of a kind they no longer hold, given up: a tool of a trade left, a pot to the household's new cook.)
+  d.items = d.items.filter((x) => kinds.includes(x.k));
+  for (const k of kinds)
+    if (!d.items.some((x) => x.k === k))
+      d.items.push(gearMade(world, place, i, k, today, s));
+  const did = Math.max(0, worked - d.worked);
+  d.worked = worked;
+  for (let n = 0; n < d.items.length; n++) {
+    const x = d.items[n]!;
+    // (A tool by the work done with it: four years of its trade's; the rest by the day.)
+    x.wear += Math.round(
+      x.k === GEAR.tool
+        ? (did * 1000 * WANTS.toolsPerWorker) / SKILL_YEAR
+        : 1000 / gearLife(x.k),
+    );
+    if (x.wear < 1000) continue;
+    x.wear = 1000;
+    // (Made anew where the town makes it or its market holds it; else made do with.)
+    // (A garment or a pot can be made at home; a tool is had of the town's own makers or its market's stock.)
+    const it = gearMade(world, place, i, x.k, today, s),
+      market = buildingOf(place, ["market"]);
+    if (
+      x.k === GEAR.tool &&
+      !it.maker &&
+      place.bldgs.stock[market * GOOD_COUNT + G.tools]! < MICRO
+    )
+      continue;
+    d.items[n] = it;
+    remember(place, i, THOUGHT.newGear, 3, it.maker);
+  }
+}
+/** One's things as they hold them now (read only): kept where they are in full, else as they would be on coming into it. */
+export function placeGear(world: World, place: Place, i: number): Item[] {
+  const d =
+    (place.people.tier[i]! & 3) === TIER.full
+      ? place.deep?.get(place.people.id[i]!)
+      : undefined;
+  return d?.filled
+    ? d.items
+    : gearFilled(world, place, i, frameFor(world, place, i));
+}
+/** What a thing is worth to one who holds it, against what the town's middling hands make, and worn out. */
+function gearTerm(s: Stuffs, x: Item): number {
+  return x.wear >= 1000
+    ? -3
+    : Math.round((x.q - gearMid(s, x.k)) / (x.k === GEAR.tool ? 8 : 10));
+}
 function deepOf(place: Place, i: number): Deep | null {
   const t = place.people.tier[i]! & 3;
   if (t !== TIER.full) return null;
@@ -4821,7 +5096,8 @@ function deepFilled(place: Place, i: number): Deep {
     th[k] = v;
     src[k] = v ? sourceFound(place, i, v) : 0;
   }
-  return { th, src };
+  // (Their things are filled at their day's turn, where the world is to hand: gearFilled, the same as a reading of them.)
+  return { th, src, items: [], worked: p.skill[i]!, filled: false };
 }
 function sourceFound(place: Place, i: number, v: number): number {
   const tag = thoughtTag(v),
@@ -4873,22 +5149,44 @@ function sourceFound(place: Place, i: number, v: number): number {
   return 0;
 }
 /** A place's deep store as numbers, by number, for its save and its digest: each one's number, then their memories and sources. */
-function deepSaved(deep: Map<number, Deep>): number[] {
-  const out: number[] = [];
+function deepSaved(deep: Map<number, Deep>): { n: number[]; stuffs: string[] } {
+  const n: number[] = [],
+    stuffs: string[] = [];
   for (const id of [...deep.keys()].sort((a, b) => a - b)) {
     const d = deep.get(id)!;
-    out.push(id, ...d.th, ...d.src);
+    n.push(id, ...d.th, ...d.src, d.worked, d.filled ? 1 : 0, d.items.length);
+    for (const x of d.items) {
+      let s = stuffs.indexOf(x.stuff);
+      if (s < 0) s = stuffs.push(x.stuff) - 1;
+      n.push(x.k, x.q, x.wear, x.maker, x.mk, x.ms, x.made, s);
+    }
   }
-  return out;
+  return { n, stuffs };
 }
-function deepLoaded(raw: readonly number[]): Map<number, Deep> {
+function deepLoaded(raw: { n: number[]; stuffs: string[] }): Map<number, Deep> {
   const out = new Map<number, Deep>(),
-    w = 1 + 2 * DEEP_THOUGHTS;
-  for (let k = 0; k + w <= raw.length; k += w)
-    out.set(raw[k]!, {
-      th: Uint32Array.from(raw.slice(k + 1, k + 1 + DEEP_THOUGHTS)),
-      src: Int32Array.from(raw.slice(k + 1 + DEEP_THOUGHTS, k + w)),
-    });
+    a = raw.n;
+  for (let k = 0; k < a.length;) {
+    const id = a[k++]!,
+      th = Uint32Array.from(a.slice(k, (k += DEEP_THOUGHTS))),
+      src = Int32Array.from(a.slice(k, (k += DEEP_THOUGHTS))),
+      worked = a[k++]!,
+      filled = a[k++] === 1,
+      many = a[k++]!,
+      items: Item[] = [];
+    for (let q = 0; q < many; q++, k += 8)
+      items.push({
+        k: a[k]!,
+        q: a[k + 1]!,
+        wear: a[k + 2]!,
+        maker: a[k + 3]!,
+        mk: a[k + 4]!,
+        ms: a[k + 5]!,
+        made: a[k + 6]!,
+        stuff: raw.stuffs[a[k + 7]!] ?? "",
+      });
+    out.set(id, { th, src, worked, filled, items });
+  }
   return out;
 }
 /** One leaving full: what they remember kept to their columns, the strongest first. */
@@ -5318,6 +5616,10 @@ export const COND = {
   kept: 3,
   kinAbed: 4,
   friendAbed: 5,
+  /** A thing of theirs (Deep.items): its quality against what the town's own hands make, or worn out. */
+  tool: 6,
+  garment: 7,
+  pot: 8,
 } as const;
 /**
  * A place's households read once a day at its first tick (so the same whoever asks, and whenever): each one's cook (the
@@ -5339,6 +5641,8 @@ function readingsSaved(place: Place): Record<string, unknown> {
   const out: Record<string, unknown> = {},
     hd = HOUSE_DAY.get(place);
   if (hd) out.hday = [hd.day, ...hd.cook, ...hd.level, ...hd.abed];
+  const st = STUFFS.get(place);
+  if (st) out.stuffs = st;
   return out;
 }
 function readingsLoaded(place: Place, raw: Record<string, unknown>): void {
@@ -5352,6 +5656,7 @@ function readingsLoaded(place: Place, raw: Record<string, unknown>): void {
       abed: Int32Array.from(hd.slice(1 + 2 * n)),
     });
   }
+  if (raw.stuffs) STUFFS.set(place, structuredClone(raw.stuffs) as Stuffs);
 }
 function houseDayOf(place: Place, f: Frame): HouseDay {
   const p = place.people,
@@ -5501,6 +5806,25 @@ function moodTerms(
     mem = d ? d.th : p.thought,
     from = d ? 0 : i * THOUGHTS,
     to = d ? DEEP_THOUGHTS : (i + 1) * THOUGHTS;
+  // The things they hold (one in full): each against what the town's middling hands make, or worn out; of its maker.
+  const st = d?.filled ? STUFFS.get(place) : undefined;
+  if (d && st)
+    for (const x of d.items) {
+      const size = gearTerm(st, x);
+      if (size)
+        out.push({
+          bit: 0,
+          cond:
+            x.k === GEAR.tool
+              ? COND.tool
+              : x.k === GEAR.garment
+                ? COND.garment
+                : COND.pot,
+          size,
+          days: null,
+          src: x.maker,
+        });
+    }
   for (let k = from; k < to; k++) {
     const v = mem[k]!;
     if (!v) continue;
@@ -6322,10 +6646,17 @@ function turnOf(cx: TickCx, i: number, k: number, wk: number): void {
     let why = 0,
       to = MOOD_BASE;
     const dp = deepOf(place, i);
-    if (dp)
+    if (dp) {
       for (let k = 0; k < DEEP_THOUGHTS; k++)
         if (dp.th[k] && Math.abs(thoughtNow(dp.th[k]!, today)) < 1)
           dp.th[k] = dp.src[k] = 0;
+      // (Their things: filled on coming into full, then worn by the day's use, and made anew when worn out.)
+      if (!dp.filled) {
+        dp.items = gearFilled(world, place, i, fk);
+        dp.worked = p.skill[i]!;
+        dp.filled = true;
+      } else gearDay(world, place, i, dp, fk);
+    }
     for (const x of moodTerms(place, i, lackDays, today, fk)) {
       why |= x.bit;
       to += x.size;
@@ -6343,6 +6674,17 @@ function turnOf(cx: TickCx, i: number, k: number, wk: number): void {
       !heldBy?.has(cId[i]!) &&
       ageOf(p, i, t) >= f.life.adulthood &&
       breakDay(cx, i)
+    )
+      return;
+    // In want with a bare pantry and low of mood, one may steal from a household about their street (theft).
+    if (
+      lackDays >= 1 &&
+      p.mood[i]! < 0 &&
+      !cHealth[i] &&
+      !breakOf?.has(cId[i]!) &&
+      !heldBy?.has(cId[i]!) &&
+      ageOf(p, i, t) >= f.life.adulthood &&
+      theftDay(cx, i, lackDays, fk)
     )
       return;
     if (!cHealth[i]) {
@@ -7240,6 +7582,96 @@ function breakDay(cx: TickCx, i: number): boolean {
   }
   return true;
 }
+/**
+ * One in want stealing (asked 2026-11-26: things "held, used, traded and stolen"): their household's pantry bare, of a
+ * day by a draw, the likelier the longer in want, the lower their mood and the less biddable they are; from the household
+ * about their street (either side of theirs, as they meet: meetDay) with the fuller pantry, a day's food for their own
+ * household, and where one of it is followed in full, the finest of their things not worn out. The robbed remember it,
+ * and it is a wrong brought before the town's justice (N11).
+ */
+function theftDay(cx: TickCx, i: number, lackDays: number, fk: Frame): boolean {
+  const { world, place, p, t } = cx,
+    houses = place.houses,
+    h = p.house[i]!,
+    nf = FOODS.length,
+    held = (x: number) => {
+      let n = 0;
+      for (let k = 0; k < nf; k++) n += houses.pantry[x * nf + k]!;
+      return n;
+    };
+  if (held(h) >= fk.daily) return false;
+  const temper = placeTemper(place, i),
+    chance =
+      Math.min(1, lackDays / 7) * (-p.mood[i]! / 100) * (1 - temper.bidden);
+  if (
+    !world.rng.chance(
+      chance,
+      PLACE_DRAW,
+      place.key ^ p.id[i]!,
+      Math.floor(t / DAY),
+      P.theft,
+    )
+  )
+    return false;
+  const want = houses.members[h]! * fk.daily;
+  let v = -1;
+  for (const x of [h - 1, h + 1])
+    if (
+      x >= 0 &&
+      x < houses.n &&
+      houses.members[x]! > 0 &&
+      held(x) >= want &&
+      (v < 0 || held(x) > held(v))
+    )
+      v = x;
+  if (v < 0) return false;
+  // (A day's food for their household, each food in its share of what the robbed held.)
+  const all = held(v);
+  let took = 0;
+  for (let k = 0; k < nf; k++) {
+    const n = Math.floor((houses.pantry[v * nf + k]! * want) / all);
+    houses.pantry[v * nf + k]! -= n;
+    houses.pantry[h * nf + k]! += n;
+    took += n;
+  }
+  // (One of the robbed household: the grown one of it there is first; the finest of the things of any of it in full.)
+  let j = -1,
+    best: { d: Deep; n: number } | null = null;
+  for (let q = 0; q < p.n; q++) {
+    if (p.house[q] !== v) continue;
+    if (j < 0 && ageOf(p, q, t) >= fk.life.adulthood) j = q;
+    const d =
+      (p.tier[q]! & 3) === TIER.full ? place.deep?.get(p.id[q]!) : undefined;
+    if (d?.filled)
+      d.items.forEach((x, n) => {
+        if (x.wear < 1000 && (!best || x.q > best.d.items[best.n]!.q))
+          best = { d, n };
+      });
+  }
+  if (best) {
+    const b = best as { d: Deep; n: number },
+      [thing] = b.d.items.splice(b.n, 1),
+      mine =
+        (p.tier[i]! & 3) === TIER.full ? place.deep?.get(p.id[i]!) : undefined;
+    // (Kept by the thief where they are followed in full; else sold on, out of the town.)
+    if (mine?.filled && thing) mine.items.push(thing);
+  }
+  note(place, HAP.stole, p.id[i]!, j >= 0 ? p.id[j]! : 0, took);
+  for (let q = 0; q < p.n; q++)
+    if (p.house[q] === v)
+      remember(
+        place,
+        q,
+        THOUGHT.robbed,
+        -10 * leans(placeTemper(place, q).thrifty),
+        p.id[i]!,
+      );
+  judge(world, place, i, j, WRONG.theft);
+  p.act[i] = ACT.idle;
+  return false;
+}
+/** What a wrong brought before a place's justice was (VERDICT's in `b`'s low bits; this, sixteen times it). */
+export const WRONG = { blows: 0, theft: 1 } as const;
 /** A tick of one broken down: as their break has them, till it is spent (false: it is spent, and they go on as they would). */
 function breakTurn(cx: TickCx, i: number, h: number, fk: Frame): boolean {
   const { world, place, p, t, houses, breakOf } = cx,
@@ -7348,7 +7780,13 @@ export function placeLaw(
  * town's store); labour or a term held (SENTENCE.pettyTerm on the mean, a year); death where the town is managed (else
  * held: its land's own reckoning says who dies); or let go.
  */
-function judge(world: World, place: Place, i: number, j: number): void {
+function judge(
+  world: World,
+  place: Place,
+  i: number,
+  j: number,
+  wrong = 0,
+): void {
   const p = place.people,
     law = placeLaw(world, place),
     r = (k: number) => world.rng.unit(PLACE_DRAW, place.key ^ p.id[i]!, place.t, P.judge, k);
@@ -7370,7 +7808,13 @@ function judge(world: World, place: Place, i: number, j: number): void {
     }
   const orders = !!managedOf(world)?.get(place.town);
   if (verdict === VERDICT.death && !orders) verdict = VERDICT.held;
-  note(place, HAP.judged, p.id[i]!, j >= 0 ? p.id[j]! : 0, verdict);
+  note(
+    place,
+    HAP.judged,
+    p.id[i]!,
+    j >= 0 ? p.id[j]! : 0,
+    verdict | (wrong << 4),
+  );
   if (j >= 0)
     remember(
       place,
@@ -8824,17 +9268,31 @@ export function hapTold(
             ? "broke down, their mood too low to bear, and knelt at the town's altar"
             : "broke down, their mood too low to bear, and wandered dazed about the square";
     case HAP.judged: {
-      const of = named?.(x.a) ? ` for the blows with ${named(x.a)}` : x.a ? "" : " for what they spoiled";
-      return x.b === VERDICT.fined
+      const theft = x.b >> 4 === WRONG.theft,
+        v = x.b & 15,
+        of = theft
+          ? named?.(x.a)
+            ? ` for stealing from the household of ${named(x.a)}`
+            : " for stealing"
+          : named?.(x.a)
+            ? ` for the blows with ${named(x.a)}`
+            : x.a
+              ? ""
+              : " for what they spoiled";
+      return v === VERDICT.fined
         ? `was brought before the town's justice${of}, and fined: their household paid a week's food`
-        : x.b === VERDICT.death
+        : v === VERDICT.death
           ? `was brought before the town's justice${of}, and put to death for it`
-          : x.b === VERDICT.labour
+          : v === VERDICT.labour
             ? `was brought before the town's justice${of}, and set to labour at the fields for a term`
-            : x.b === VERDICT.held
+            : v === VERDICT.held
               ? `was brought before the town's justice${of}, and held for a term`
               : `was brought before the town's justice${of}, and let go`;
     }
+    case HAP.stole:
+      return named?.(x.a)
+        ? `stole a day's food from the household of ${named(x.a)}, being in want`
+        : "stole food, being in want";
     case HAP.madeWork: {
       const b = place.bldgs.lot.indexOf(x.a);
       return b > 0 ? `made a work, kept at the ${kindName(place.bldgs.kind[b]!)}` : "made a work, kept at home";
@@ -8914,6 +9372,7 @@ export const HAP_MANY: readonly string[] = [
   "were let go, their terms served",
   "were put to death by the town's justice",
   "made works",
+  "stole from other households",
 ];
 
 /** What many did, said with what of: "died of the red flux", "fell in the battle at Sairis's land". */

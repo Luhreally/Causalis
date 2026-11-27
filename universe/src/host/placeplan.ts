@@ -1307,11 +1307,25 @@ export function placeSince(
     );
   if (want(HAP.paired)) lines.push(`${of(want(HAP.paired), "pair was", "pairs were")} made.`);
   if (want(HAP.struckHurt) + want(HAP.hurt) + want(HAP.wounded))
-    lines.push(`${want(HAP.struckHurt) + want(HAP.hurt) + want(HAP.wounded)} were hurt.`);
-  if (want(HAP.broke)) lines.push(`${of(want(HAP.broke), "broke down", "broke down")}, a mood too low to bear.`);
-  if (want(HAP.judged)) lines.push(`${of(want(HAP.judged), "was", "were")} brought before its justice.`);
-  if (want(HAP.madeWork)) lines.push(`${of(want(HAP.madeWork), "work was", "works were")} made.`);
-  if (want(HAP.brawl)) lines.push(`${of(want(HAP.brawl), "came to blows", "came to blows")}.`);
+    lines.push(
+      `${want(HAP.struckHurt) + want(HAP.hurt) + want(HAP.wounded)} were hurt.`,
+    );
+  if (want(HAP.broke))
+    lines.push(
+      `${of(want(HAP.broke), "broke down", "broke down")}, a mood too low to bear.`,
+    );
+  if (want(HAP.judged))
+    lines.push(
+      `${of(want(HAP.judged), "was", "were")} brought before its justice.`,
+    );
+  if (want(HAP.madeWork))
+    lines.push(`${of(want(HAP.madeWork), "work was", "works were")} made.`);
+  if (want(HAP.brawl))
+    lines.push(`${of(want(HAP.brawl), "came to blows", "came to blows")}.`);
+  if (want(HAP.stole))
+    lines.push(
+      `${of(want(HAP.stole), "stole", "stole")} from other households, in want.`,
+    );
   void world;
   return { days: Math.max(0, Math.round((place.t - since) / DAY)), lines };
 }
