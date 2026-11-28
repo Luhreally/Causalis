@@ -14,6 +14,7 @@ import {
   askedGrown,
   placeLotRef,
   placePersonRef,
+  placeHelpRef,
   placedId,
   type BarRead,
   type HostClient,
@@ -416,6 +417,7 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
    */
   const goBack = (): void => {
     letGo();
+    hud.lesson("back");
     if (inspector.ref) {
       if (inspector.now) backNames.set(inspector.ref, inspector.now.name);
       ahead.push({ ref: inspector.ref, eye: d.rig.view });
@@ -467,6 +469,7 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
   };
   /** An alert tapped: the eye goes to where it is, or to whom it is of; and what it is of is opened. */
   const alerted = (n: PlaceNotice): void => {
+    hud.lesson("alert");
     const at =
       (n.id !== null ? personPoint(n.id) : null) ?? (n.lot !== null ? lotPoint(n.lot) : null);
     if (at) lookAt(at);
@@ -486,11 +489,15 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
    * it stays open. What the place has no inspector for (a realm's page, a sickness) is the god game's page.
    */
   const inspect = (ref: string | null, step = true): void => {
+    // (Lessons done by it, G1; and on a phone, the lessons put back from where the page opens.)
+    if (ref && /^(plc|folk|person):/.test(ref)) hud.lesson("person");
+    if (ref?.startsWith("plci:")) hud.lesson("inside");
+    if (ref) hud.guideAside();
     stopInspect?.();
     stopInspect = null;
     if (
       ref &&
-      !/^(plc|plcl|plci|plcg|plcb|plcw|plcy|plca|plcf|plcc|plcm|plcs|plcd|plcr|folk|person):/.test(
+      !/^(plc|plcl|plci|plcg|plcb|plcw|plcy|plca|plcf|plcc|plcm|plcs|plcv|plch|plcd|plcr|folk|person):/.test(
         ref,
       )
     ) {
@@ -527,7 +534,7 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
       return;
     }
     const id = placedId(ref);
-    if (/^plc[ligbwyafcmsdr]:/.test(ref)) choose(null);
+    if (/^plc[ligbwyafcmsvhdr]:/.test(ref)) choose(null);
     else if (id !== null) choose(id);
     // (A sheet open under it is kept where the inspector is only peeked; a taller one takes the sheet's place.)
     if (inspector.height !== "peek" && hud.tab) hud.open(null);
@@ -574,6 +581,7 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
   };
   /** The eye kept with the one chosen, or let go. */
   const follow = (on: boolean): void => {
+    if (on) hud.lesson("follow");
     inspector.following = on && chosen !== null;
     const id = chosen;
     if (inspector.following && id !== null) {
@@ -875,6 +883,9 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
         type,
         type === "town.ask" ? { village: town, ...args } : { town, ...args },
       );
+      // (Lessons done by it, G1.)
+      if (type === "place.zone" && args.zone !== null) hud.lesson("zone");
+      if (type === "town.ask" && args.kind === "raise") hud.lesson("build");
       // (The sheet read again at once: an order shows as soon as it is given; and the one inspected, on whose page a key
       // may have given it.)
       sheet(hud.tab);
@@ -956,6 +967,7 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     d.pages.close();
     framed = false;
     hud.show(plan.name);
+    hud.lesson("enter");
     hud.time(d.client.status?.t ?? 0, pace);
     // (How it is to be run, asked as it is entered: the way it was run when last left is lit.)
     hud.choosing(true, true);
@@ -982,6 +994,10 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
   hud.onLeave = () => void leave();
   hud.onTab = (tab) => sheet(tab);
   hud.onOpen = (ref) => inspect(ref);
+  // (What a sheet, a tab or a page is, in plain words: a page of the inspector's, so Back comes back. G2.)
+  const help = (topic: string): void => void (town && inspect(placeHelpRef(town, topic)));
+  hud.onHelp = help;
+  inspector.onHelp = help;
   hud.onAlert = (n) => alerted(n);
   hud.onLens = (lens) => {
     const was = overlay.on;
@@ -1035,6 +1051,9 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
   inspector.plan = d.plan;
   inspector.onPage = (ref) => void d.pages.open(ref);
   inspector.onFollow = (on) => follow(on);
+  inspector.onTabbed = (t) => t === "mood" && hud.lesson("mood");
+  // (The lessons out on a phone in the sheet's place: the inspector goes down to a peek under them.)
+  hud.onGuide = (out) => out && inspector.shown && inspector.setHeight("peek");
   inspector.onOrder = (type, args) =>
     void order(type, args).then(() => {
       if (inspector.ref) inspect(inspector.ref);

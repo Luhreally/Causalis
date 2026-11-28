@@ -651,7 +651,48 @@ export type PlaceInspectMaking = {
   readonly stability: readonly (readonly [string, string])[];
 };
 
+/**
+ * A town's works and orders (R6): what is going up and how far each has got; what its land may find next and what each
+ * asks, what it came to know last, its learned; and every standing order given it.
+ */
+export type PlaceInspectCivic = {
+  readonly kind: "civic";
+  readonly ref: string;
+  readonly name: string;
+  readonly icon: string;
+  readonly sub: string;
+  readonly sites: readonly {
+    readonly name: string;
+    readonly ref: string;
+    /** How far it has got, 0 … 100. */
+    readonly share: number;
+    readonly words: string;
+  }[];
+  readonly findable: readonly { readonly name: string; readonly words: string }[];
+  readonly known: readonly string[];
+  readonly learned: string;
+  readonly orders: readonly (readonly [string, string])[];
+  /** Whether any order was given it (else it runs as its land runs it). */
+  readonly managed: boolean;
+  readonly year: number;
+};
+
+/** What a sheet, a tab or a page is, in plain words (G2): what it is, what its numbers mean, what you can do there. */
+export type PlaceInspectHelp = {
+  readonly kind: "help";
+  readonly ref: string;
+  readonly topic: string;
+  readonly name: string;
+  readonly icon: string;
+  readonly sub: string;
+  readonly what: string;
+  readonly numbers: readonly (readonly [string, string])[];
+  readonly can: readonly string[];
+};
+
 export type PlaceInspect =
+  | PlaceInspectHelp
+  | PlaceInspectCivic
   | PlaceInspectMaking
   | PlaceInspectBody
   | PlaceInspectCharacter

@@ -898,6 +898,11 @@ body.placing .page-window {
   flex: 1 1 0;
   min-width: 0;
 }
+/* (What this is, G2: at the end of the name's row.) */
+.place-insp-head .place-insp-helpkey {
+  flex: 0 0 auto;
+  align-self: flex-start;
+}
 .place-insp-name {
   margin: 0;
   font-size: 16px;
@@ -2063,4 +2068,144 @@ body.placing:has(.page-window:not([hidden])) .place-tag {
 .place-insp-pin.on {
   background: linear-gradient(180deg, #3b6fc2, #234a8f);
   border-color: rgba(242, 193, 78, 0.8);
+}
+
+/* Its lessons (G1): on a desk a card at the foot of the right-hand column, the alerts above it kept clear of it; on a
+   phone hidden till asked for, then in the sheet's place with nothing under it. */
+.place-guide {
+  pointer-events: auto;
+  position: absolute;
+  display: none;
+  flex-direction: column;
+  box-sizing: border-box;
+  background: var(
+    --panel-solid,
+    linear-gradient(180deg, rgba(40, 58, 120, 0.96), rgba(20, 30, 76, 0.96))
+  );
+  border: 1px solid rgba(190, 205, 255, 0.55);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.place-guide[hidden] {
+  display: none !important;
+}
+.place-guide-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+}
+.place-hud .place-guide-title {
+  flex: 1 1 auto;
+  text-align: left;
+  font-weight: 700;
+  background: none;
+  border: none;
+  box-shadow: none;
+  color: inherit;
+  padding: 0 8px;
+}
+.place-hud .place-guide-shut {
+  flex: 0 0 auto;
+  background: none;
+  border: none;
+  box-shadow: none;
+  color: inherit;
+  font-size: 18px;
+}
+.place-guide-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 6px 4px;
+}
+.place-guide-lesson {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  column-gap: 4px;
+  padding: 3px 0;
+  border-top: 1px dotted rgba(190, 205, 255, 0.25);
+  font-size: 12px;
+  line-height: 1.3;
+}
+.place-guide-lesson.done {
+  opacity: 0.6;
+}
+.place-hud .place-guide-show {
+  padding: 0 6px;
+  font-size: 12px;
+}
+.place-guide-said {
+  margin: 0 8px 4px;
+  font-size: 12px;
+  color: var(--place-amber);
+}
+.place-guide-said:empty,
+.place-guide-extra:empty {
+  display: none;
+}
+.place-guide-extra {
+  display: flex;
+  gap: 4px;
+  padding: 0 6px 6px;
+}
+.place-guide.folded .place-guide-list,
+.place-guide.folded .place-guide-said,
+.place-guide.folded .place-guide-extra {
+  display: none;
+}
+.place-hud .place-glow {
+  outline: 3px solid var(--place-amber);
+  outline-offset: 1px;
+  animation: place-glow 0.8s ease-in-out infinite alternate;
+}
+@keyframes place-glow {
+  from {
+    outline-color: rgba(255, 201, 74, 0.35);
+  }
+  to {
+    outline-color: rgba(255, 201, 74, 1);
+  }
+}
+.place-hud.guide-asked .place-guide {
+  display: flex;
+  left: var(--place-l);
+  right: var(--place-r);
+  bottom: calc(var(--place-b) + 62px);
+  max-height: min(52vh, 520px, calc(100vh - 420px));
+}
+.place-hud.guide-asked .place-sheet,
+.place-hud.guide-asked .place-notice,
+.place-hud.guide-asked .place-insp {
+  display: none;
+}
+@media (min-width: 900px) {
+  .place-hud.guide-out .place-guide {
+    display: flex;
+    left: auto;
+    right: var(--place-r);
+    bottom: var(--place-b);
+    width: 270px;
+    max-height: min(46vh, 360px);
+  }
+  .place-hud.guide-asked .place-sheet,
+  .place-hud.guide-asked .place-insp {
+    display: flex;
+  }
+  .place-hud.guide-out .place-alerts {
+    max-height: calc(100vh - var(--place-top) - 60px - var(--guide-h, 0px) - var(--place-b) - 12px);
+  }
+  .place-hud.guide-out.menu-open .place-guide {
+    display: none;
+  }
+}
+
+/* What a sheet is, in plain words (G2): its ? beside its ×. */
+.place-hud .place-sheet-help {
+  font-weight: 700;
+  font-size: 17px;
+}
+.place-help-what {
+  font-size: 14px;
 }

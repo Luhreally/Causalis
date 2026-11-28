@@ -522,6 +522,55 @@ for (const view of [
       await k('globalThis.causalis.place.inspectHeight("half")');
       await page.waitForTimeout(400);
     }
+    // The lessons (G1): opening a person ticked off, its Show me lighting the real key where it is out.
+    {
+      const done = () =>
+        k<string[]>(
+          '[...document.querySelectorAll(".place-guide-lesson.done")].map((e) => e.dataset.lesson)',
+        );
+      if (!phone) {
+        check((await shown(".place-guide")) > 0, "the lessons' card out on a desk");
+        check(
+          (await done()).includes("enter") && (await done()).includes("person"),
+          "entering and opening a person ticked off",
+        );
+        // (A lesson done has no Show me: the first of those whose key is out on a person's page not yet done.)
+        const todo = await k<string>(
+          '["mood", "back", "follow"].find((l) => document.querySelector(`.place-guide-lesson[data-lesson="${l}"] .place-guide-show`)) ?? ""',
+        );
+        check(todo !== "", "a lesson not yet done whose key is out on a person's page");
+        if (todo) {
+          await press(
+            `.place-guide-lesson[data-lesson="${todo}"] .place-guide-show`,
+            `Show me, for the lesson "${todo}"`,
+          );
+          await page.waitForTimeout(300);
+          check(
+            (await shown(".place-glow")) > 0,
+            `Show me lights the real key for the lesson "${todo}"`,
+          );
+        }
+        await look("16g-lessons", "the lessons beside a person's page");
+      } else
+        check((await shown(".place-guide")) === 0, "the lessons hidden on a phone till asked for");
+    }
+    // What this tab is, in plain words (G2): from the inspector's ?, and Back to them.
+    const inspKind = () => k<string>('document.querySelector(".place-insp")?.dataset.kind ?? ""');
+    await press(".place-insp-helpkey", "? on a person's page");
+    await until("what this is", async () => (await inspKind()) === "help", 8000);
+    say(`help: ${(await text(".place-insp")).slice(0, 200)}`);
+    check(
+      /What is this\?/.test(await text(".place-insp-names")),
+      "what the tab is, in plain words",
+    );
+    await look("16h-help", "what a tab is, in plain words");
+    await press(".place-insp-back", "‹ Back from what this is");
+    await until(
+      "them again, after what this is",
+      async () => (await inspKind()) === "person",
+      8000,
+    );
+    check((await inspKind()) === "person", "Back from what this is comes to them");
     // (A child has no orders to give.)
     if ((await shown(".place-insp-order")) > 0) {
       await press(".place-insp-order", "the inspector's Orders");
@@ -929,6 +978,24 @@ for (const view of [
       "below the town: its ground cut through, its water said",
     );
     await look("20g-below", "below the town");
+    // (Its lessons asked for from the menu, on a phone in the sheet's place, and put back by a sheet; ticks kept.)
+    if (phone) {
+      await press(".place-menu-key", "the menu, for the lessons");
+      await page.waitForTimeout(300);
+      await press(".place-menu-lessons", "🎓 Lessons, from the menu");
+      await page.waitForTimeout(400);
+      check((await shown(".place-guide")) > 0, "the lessons out on a phone when asked for");
+      const ticked = await k<string[]>(
+        '[...document.querySelectorAll(".place-guide-lesson.done")].map((e) => e.dataset.lesson)',
+      );
+      say(`lessons done: ${ticked.join(", ")}`);
+      for (const l of ["enter", "person", "back", "follow", "mood"])
+        check(ticked.includes(l), `the lesson "${l}" ticked off by doing it`);
+      await look("20h-lessons", "the lessons on a phone, asked for");
+      await press(".place-guide-shut", "× the lessons put away");
+      await page.waitForTimeout(300);
+      check((await shown(".place-guide")) === 0, "the lessons put away");
+    }
     await press(".place-insp-back", "‹ Back to the square's page");
     await until("the square's page again", async () => (await kind()) === "lot", 8000);
     check((await kind()) === "lot", "Back from below comes to the square's page");
@@ -1023,9 +1090,30 @@ for (const view of [
       8000,
     );
     check((await kind()) === "lot", "Back from what it lives on comes to the square's page");
+    // Its works and orders (R6): from the square's page, and Back.
+    await k('document.querySelector(".place-insp-civic")?.scrollIntoView({ block: "center" })');
+    await page.waitForTimeout(300);
+    await press(".place-insp-civic", "Its works and orders ▸, on the square's page");
+    await until("its works and orders", async () => (await kind()) === "civic", 8000);
+    await page.waitForTimeout(400);
+    say(`civic: ${(await text(".place-insp")).slice(0, 300)}`);
+    await look("20p-civic", "the town's works and orders");
+    await press(".place-insp-back", "‹ Back to the square's page from its works and orders");
+    await until("the square's page from its works", async () => (await kind()) === "lot", 8000);
+    check((await kind()) === "lot", "Back from its works and orders comes to the square's page");
     // One of its dead (R1): the Log's names lead to them; their page outlives them, and Back comes again.
     {
       await press('.place-tab[data-tab="log"]', "the log tab, for one of its dead");
+      // (What the Log is, in plain words, G2: its sheet's ?, a page of the inspector's.)
+      {
+        await until("the log sheet's ?", async () => (await shown(".place-sheet-help")) > 0, 8000);
+        await press(".place-sheet-help", "? on the Log");
+        await until("what the Log is", async () => (await kind()) === "help", 8000);
+        check(/Log/.test(await text(".place-insp-names")), "what the Log is, in plain words");
+        await look("20i-sheet-help", "what a sheet is, over it");
+        await press(".place-insp-shut", "× what the Log is");
+        await page.waitForTimeout(300);
+      }
       await until("the log sheet", async () => !/^…$/.test(await text(".place-sheet-body")));
       await page.waitForTimeout(500);
       const refs = await k<string[]>(
@@ -1116,9 +1204,12 @@ for (const view of [
   await page.waitForTimeout(400);
   check((await shown(".place-insp")) === 0, "Esc lets go of what was inspected");
 
-  // The menu: sound, the ways, leaving.
+  // The menu: sound, the ways, the lessons, leaving.
   await press(".place-menu-key", "≡");
-  check((await shown(".place-menu-item")) === 3, "the menu has its three items");
+  check(
+    (await shown(".place-menu-item")) === 4,
+    "the menu has its four items: sound, the ways, the lessons, leaving",
+  );
   await look("06-menu", "the menu open");
   await press(".place-menu-key", "≡ again, to close it");
 
