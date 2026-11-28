@@ -51,7 +51,12 @@ test("a step of a beast's living world with the line's beast held costs no more 
       body: bred.line!.body,
       words: null,
     },
-    m = newMeadow({ seed: "first light", ages: [], lineages: [lineage] } as never, 0, "first light line", false),
+    m = newMeadow(
+      { seed: "first light", ages: [], lineages: [lineage] } as never,
+      0,
+      "first light line",
+      false,
+    ),
     b = m.beasts[0]!,
     h = holdMeadow(m, b.id)!;
   for (let i = 0; i < 40; i++) stepMeadow(m);
@@ -63,6 +68,8 @@ test("a step of a beast's living world with the line's beast held costs no more 
     stepMeadow(m);
   }
   const ms = (performance.now() - t0) / n;
-  console.log(`living world step with the beast held, ${m.beasts.length} beasts: ${ms.toFixed(3)} ms`);
+  console.log(
+    `living world step with the beast held, ${m.beasts.length} beasts: ${ms.toFixed(3)} ms`,
+  );
   assert.ok(ms <= 1.5, `${ms.toFixed(3)} ms`);
 });

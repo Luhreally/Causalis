@@ -32,7 +32,9 @@ const problems: string[] = [],
 const root = fileURLToPath(new URL("..", import.meta.url)),
   server = await preview({ root, logLevel: "silent", preview: { port: 4447, strictPort: false } }),
   base = server.resolvedUrls!.local[0]!,
-  browser = await chromium.launch({ args: ["--enable-gpu", "--ignore-gpu-blocklist", "--use-angle=d3d11"] });
+  browser = await chromium.launch({
+    args: ["--enable-gpu", "--ignore-gpu-blocklist", "--use-angle=d3d11"],
+  });
 const READ = hudRead([], 1);
 type State = {
   on: boolean;
@@ -48,12 +50,18 @@ type State = {
   nav: { back: boolean; forward: boolean; at: number; length: number };
   guide: { done: string[]; welcomed: boolean; hidden: boolean };
   stepMs: number;
+  ended: boolean;
 };
 
 for (const view of [
   {
     name: "phone",
-    options: { viewport: { width: 430, height: 932 }, deviceScaleFactor: 3, hasTouch: true, isMobile: true },
+    options: {
+      viewport: { width: 430, height: 932 },
+      deviceScaleFactor: 3,
+      hasTouch: true,
+      isMobile: true,
+    },
   },
   { name: "desk", options: { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 } },
 ] as const) {
@@ -85,14 +93,23 @@ for (const view of [
     },
     read = async (name: string) => {
       const r = await k<HudRead>(READ);
-      check(r.overlaps.length === 0, `${name}: nothing lies over anything (${r.overlaps.slice(0, 3).join("; ")})`);
-      check(r.covered.length === 0, `${name}: every control can be reached (${r.covered.slice(0, 3).join("; ")})`);
+      check(
+        r.overlaps.length === 0,
+        `${name}: nothing lies over anything (${r.overlaps.slice(0, 3).join("; ")})`,
+      );
+      check(
+        r.covered.length === 0,
+        `${name}: every control can be reached (${r.covered.slice(0, 3).join("; ")})`,
+      );
       check(
         r.off.length === 0 && r.gone.length === 0,
         `${name}: nothing off the screen (${[...r.off, ...r.gone].slice(0, 3).join("; ")})`,
       );
       const small = r.small.filter((x) => /line-/.test(x));
-      check(small.length === 0, `${name}: no control of the mode smaller than a fingertip (${small.slice(0, 4).join("; ")})`);
+      check(
+        small.length === 0,
+        `${name}: no control of the mode smaller than a fingertip (${small.slice(0, 4).join("; ")})`,
+      );
       // (Words clipped: anything of the mode's whose text runs past its own box.)
       const clipped = await k<string[]>(
         `[...document.querySelectorAll(".line-hud button, .line-hud .line-when, .line-hud .line-clock-words")].filter((e) => e.offsetParent && (e.scrollWidth > e.clientWidth + 1)).map((e) => e.className + " “" + e.textContent.slice(0, 30) + "”")`,
@@ -135,9 +152,13 @@ for (const view of [
     };
 
   await page.goto(`${base}?universe=earth&seed=${encodeURIComponent(seed)}&hold=1`);
-  await page.waitForFunction(() => !!(globalThis as { causalis?: { client?: unknown } }).causalis?.client, undefined, {
-    timeout: 180000,
-  });
+  await page.waitForFunction(
+    () => !!(globalThis as { causalis?: { client?: unknown } }).causalis?.client,
+    undefined,
+    {
+      timeout: 180000,
+    },
+  );
   await page.waitForFunction(
     () => ((globalThis as { causalis?: { drawn?: () => number } }).causalis?.drawn?.() ?? 0) > 0,
     undefined,
@@ -161,17 +182,32 @@ for (const view of [
     if (fold) await tap(fold.x, fold.y);
     await page.waitForTimeout(400);
   }
-  if (await box('button[title="Begin as a cell"]')) pressed = await press('button[title="Begin as a cell"]', "🦠 Begin as a cell");
+  if (await box('button[title="Begin as a cell"]'))
+    pressed = await press('button[title="Begin as a cell"]', "🦠 Begin as a cell");
   if (!pressed) {
     say("(the bar's key not to be had on this screen: entered by the look tools' hook)");
     await k("globalThis.causalis.line.open(null)");
   }
-  if (await page.waitForSelector(".place-load:not([hidden])", { timeout: 2500 }).then(() => true).catch(() => false))
+  if (
+    await page
+      .waitForSelector(".place-load:not([hidden])", { timeout: 2500 })
+      .then(() => true)
+      .catch(() => false)
+  )
     await shot("00-loading");
-  if (!(await until("the mode entered", async () => !!(await k<boolean>("globalThis.causalis.lineMode?.state().on")), 60000)))
+  if (
+    !(await until(
+      "the mode entered",
+      async () => !!(await k<boolean>("globalThis.causalis.lineMode?.state().on")),
+      60000,
+    ))
+  )
     continue;
   await page.waitForTimeout(800);
-  check(await k<boolean>("document.body.classList.contains('lining')"), "the god game's chrome is put away");
+  check(
+    await k<boolean>("document.body.classList.contains('lining')"),
+    "the god game's chrome is put away",
+  );
   check(
     (await state()).layer?.includes("line-welcome") ?? false,
     "the welcome stands the first time (what this is, how to leave)",
@@ -187,9 +223,31 @@ for (const view of [
   await page.keyboard.up("KeyD");
   await page.waitForTimeout(300);
   const s1 = await state();
-  check(s1.steered > 1 && s1.x !== x0, `the cell steered (${s1.steered.toFixed(1)} s, x ${x0?.toFixed(1)} → ${s1.x?.toFixed(1)})`);
+  check(
+    s1.steered > 1 && s1.x !== x0,
+    `the cell steered (${s1.steered.toFixed(1)} s, x ${x0?.toFixed(1)} → ${s1.x?.toFixed(1)})`,
+  );
   check(s1.guide.done.includes("steer"), "the lesson to steer ticked itself off");
   await look("03-steered", "after steering");
+
+  // —— Danger: a hunter beside it grips it (the ring of beads, the red edge); taken, the line goes on by itself.
+  if (await k<boolean>("globalThis.causalis.lineMode.threaten()")) {
+    await page.waitForTimeout(350);
+    await shot("03b-gripped");
+    await until(
+      "the line to go on after the cell was taken",
+      async () => {
+        const s = await state();
+        return !s.ended && s.layer === null && (s as unknown as { steered: number }).steered >= 0;
+      },
+      8000,
+    );
+    await page.waitForTimeout(3000);
+    check(
+      !(await state()).ended,
+      "taken, the line went on as one of its own with nothing to press",
+    );
+  } else say("(no hunter in the drop yet to threaten it)");
 
   // —— Filled, divided by its key, and a daughter chosen by a tap.
   await k("globalThis.causalis.lineMode.feed()");
@@ -199,8 +257,14 @@ for (const view of [
   await look("04-daughters", "the daughters");
   await press('.line-daughter[data-daughter="0"]', "the first daughter");
   const s2 = await state();
-  check(s2.gen === 1 && s2.choosing === 0 && !s2.layer, `a daughter chosen: generation ${s2.gen + 1}`);
-  check(s2.guide.done.includes("divide") && s2.guide.done.includes("choose"), "the lessons to divide and choose ticked off");
+  check(
+    s2.gen === 1 && s2.choosing === 0 && !s2.layer,
+    `a daughter chosen: generation ${s2.gen + 1}`,
+  );
+  check(
+    s2.guide.done.includes("divide") && s2.guide.done.includes("choose"),
+    "the lessons to divide and choose ticked off",
+  );
 
   // —— Its page, a link, Back and Forward.
   await press(".line-name", "the cell's name");
@@ -258,41 +322,78 @@ for (const view of [
   await page.waitForTimeout(400);
   await look("11-first-bodies", "the cell stage's end");
   await pressText(".line-card-go", /Found a body/, "🐚 Found a body");
-  await until("the bodies to found", async () => ((await state()) as unknown as { offered: number }).offered > 0, 15000);
+  await until(
+    "the bodies to found",
+    async () => ((await state()) as unknown as { offered: number }).offered > 0,
+    15000,
+  );
   await look("12-founders", "the bodies to found");
   await press('.line-body[data-body="0"]', "the first body");
-  type Body = State & { living: boolean; body: { name: string; way: string; mass: number } | null; bodies: number; pickMs: number; turnMs: number; beastStepMs: number; beast: { x: number; z: number; fed: number } | null };
+  type Body = State & {
+    living: boolean;
+    body: { name: string; way: string; mass: number } | null;
+    bodies: number;
+    pickMs: number;
+    turnMs: number;
+    beastStepMs: number;
+    beast: { x: number; z: number; fed: number } | null;
+  };
   const b0 = (await state()) as Body;
-  check(b0.living && !!b0.body, `a body founded and lived: ${b0.body?.name}, ${b0.body?.mass} kg (picker drawn in ${b0.pickMs.toFixed(1)} ms, its world in ${b0.turnMs.toFixed(1)} ms)`);
+  check(
+    b0.living && !!b0.body,
+    `a body founded and lived: ${b0.body?.name}, ${b0.body?.mass} kg (picker drawn in ${b0.pickMs.toFixed(1)} ms, its world in ${b0.turnMs.toFixed(1)} ms)`,
+  );
   if (phone) check(b0.pickMs <= 4, `the picker drawn in ≤ 4 ms (${b0.pickMs.toFixed(2)})`);
   await page.keyboard.down("KeyW");
   await page.waitForTimeout(1500);
   await page.keyboard.up("KeyW");
   const b1 = (await state()) as Body;
-  check(!!b1.beast && !!b0.beast && Math.hypot(b1.beast.x - b0.beast.x, b1.beast.z - b0.beast.z) > 0.3, `the beast went where it was steered (${b0.beast?.x.toFixed(1)},${b0.beast?.z.toFixed(1)} → ${b1.beast?.x.toFixed(1)},${b1.beast?.z.toFixed(1)})`);
+  check(
+    !!b1.beast && !!b0.beast && Math.hypot(b1.beast.x - b0.beast.x, b1.beast.z - b0.beast.z) > 0.3,
+    `the beast went where it was steered (${b0.beast?.x.toFixed(1)},${b0.beast?.z.toFixed(1)} → ${b1.beast?.x.toFixed(1)},${b1.beast?.z.toFixed(1)})`,
+  );
   await look("13-body", "the body lived");
   await press(".line-name", "the body's name");
   check((await state()).page === "body", "the body's page opened");
   await look("14-body-page", "the body's page");
   await press(".line-page-close", "✕ Close");
   await press(".line-now", "💡 What now?");
-  check((await k<string>(`document.querySelector(".line-now-said")?.textContent ?? ""`)).length > 10, "What now? speaks of the body");
+  check(
+    (await k<string>(`document.querySelector(".line-now-said")?.textContent ?? ""`)).length > 10,
+    "What now? speaks of the body",
+  );
   await throttled("a body going");
-  say(`the meadow's step with the beast held: ${((await state()) as Body).beastStepMs.toFixed(3)} ms`);
+  say(
+    `the meadow's step with the beast held: ${((await state()) as Body).beastStepMs.toFixed(3)} ms`,
+  );
   await k("globalThis.causalis.lineMode.young()");
-  await until("the young to choose among", async () => ((await state()) as unknown as { offered: number }).offered > 0, 15000);
+  await until(
+    "the young to choose among",
+    async () => ((await state()) as unknown as { offered: number }).offered > 0,
+    15000,
+  );
   await look("15-young", "the young");
   await press('.line-body[data-body="0"]', "the first young one");
   await until("the next age", async () => ((await state()) as Body).bodies === 2, 15000);
   const b2 = (await state()) as Body;
-  check(b2.living && b2.turnMs <= 30, `on into the next age: ${b2.body?.name}, ${b2.body?.mass} kg, ${b2.my} My ago (its turn ${b2.turnMs.toFixed(1)} ms)`);
+  check(
+    b2.living && b2.turnMs <= 30,
+    `on into the next age: ${b2.body?.name}, ${b2.body?.mass} kg, ${b2.my} My ago (its turn ${b2.turnMs.toFixed(1)} ms)`,
+  );
   await look("16-next-age", "the next age");
 
   // —— Wake: back to the world, exactly where it was.
   await press(".line-wake", "☀️ Wake");
-  await until("woken", async () => !(await k<boolean>("globalThis.causalis.lineMode.state().on")), 10000);
+  await until(
+    "woken",
+    async () => !(await k<boolean>("globalThis.causalis.lineMode.state().on")),
+    10000,
+  );
   await page.waitForTimeout(800);
-  check(!(await k<boolean>("document.body.classList.contains('lining')")), "the god game's chrome is back");
+  check(
+    !(await k<boolean>("document.body.classList.contains('lining')")),
+    "the god game's chrome is back",
+  );
   const t1 = await k<number>("globalThis.causalis.client.status?.t ?? -1"),
     h1 = JSON.stringify(await k("globalThis.causalis.client.query({ type: 'hashes' })"));
   check(t1 === t0, `the world's clock where it was (${t0} → ${t1})`);
@@ -310,7 +411,11 @@ for (const view of [
     check(opened, "a line of the tree of life opened");
     await page.waitForTimeout(2500);
     if (await pressText(".page-actions button", /Live this line/, "🧬 Live this line")) {
-      await until("the mode entered from the tree", async () => !!(await k<boolean>("globalThis.causalis.lineMode.state().on")), 30000);
+      await until(
+        "the mode entered from the tree",
+        async () => !!(await k<boolean>("globalThis.causalis.lineMode.state().on")),
+        30000,
+      );
       await page.waitForTimeout(800);
       await look("18-from-tree", "entered from a line of the tree");
       await k("globalThis.causalis.lineMode.close()");
@@ -322,10 +427,15 @@ for (const view of [
       );
     }
   }
-  check(errors.length === 0, `no errors on the page (${errors.slice(0, 2).join(" | ").slice(0, 400)})`);
+  check(
+    errors.length === 0,
+    `no errors on the page (${errors.slice(0, 2).join(" | ").slice(0, 400)})`,
+  );
   await context.close();
 }
 await browser.close();
 await server.close();
-console.log(problems.length ? `${problems.length} problems:\n  ${problems.join("\n  ")}` : "all well");
+console.log(
+  problems.length ? `${problems.length} problems:\n  ${problems.join("\n  ")}` : "all well",
+);
 process.exit(problems.length ? 1 : 0);

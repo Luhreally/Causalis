@@ -1,7 +1,22 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { FIELD_H, FIELD_W, MOTE, newDrop, stepDrop, worth, type DropState } from "../../src/view/drop.ts";
-import { CRUMB, aboutHeld, divideHeld, heldCell, holdDrop, stepHeld } from "../../src/view/drop-held.ts";
+import {
+  FIELD_H,
+  FIELD_W,
+  MOTE,
+  newDrop,
+  stepDrop,
+  worth,
+  type DropState,
+} from "../../src/view/drop.ts";
+import {
+  CRUMB,
+  aboutHeld,
+  divideHeld,
+  heldCell,
+  holdDrop,
+  stepHeld,
+} from "../../src/view/drop-held.ts";
 import {
   cellDone,
   cellGates,
@@ -24,10 +39,42 @@ import type { Block, DropKind } from "../../src/bridge/index.ts";
 
 type Drop = Extract<Block, { type: "drop" }>;
 const KINDS: DropKind[] = [
-  { ref: "a", name: "small cells", line: "", way: "eater", color: [1, 0.8, 0.4], size: 2, share: 0.6 },
-  { ref: "b", name: "light-eaters", line: "", way: "light", color: [0.4, 0.9, 0.4], size: 5, share: 0.3 },
-  { ref: "c", name: "hunting cells", line: "", way: "hunter", color: [0.8, 0.6, 1], size: 24, share: 0.05 },
-  { ref: "d", name: "cells together", line: "", way: "colony", color: [0.4, 0.8, 0.6], size: 34, share: 0.05 },
+  {
+    ref: "a",
+    name: "small cells",
+    line: "",
+    way: "eater",
+    color: [1, 0.8, 0.4],
+    size: 2,
+    share: 0.6,
+  },
+  {
+    ref: "b",
+    name: "light-eaters",
+    line: "",
+    way: "light",
+    color: [0.4, 0.9, 0.4],
+    size: 5,
+    share: 0.3,
+  },
+  {
+    ref: "c",
+    name: "hunting cells",
+    line: "",
+    way: "hunter",
+    color: [0.8, 0.6, 1],
+    size: 24,
+    share: 0.05,
+  },
+  {
+    ref: "d",
+    name: "cells together",
+    line: "",
+    way: "colony",
+    color: [0.4, 0.8, 0.6],
+    size: 34,
+    share: 0.05,
+  },
 ];
 const block = (over: Partial<Drop> = {}): Drop => ({
   type: "drop",
@@ -90,19 +137,39 @@ test("the ways a line takes up open no earlier than its world's own dates, and o
   const later = cellGates(WATER, RUNGS, 1900, 0.9);
   assert.ok(later.light.open && later.nucleus.open && !later.together.open);
   // A methane world's life has no pigment light can drive in its seas: never light, whatever the date.
-  const methane = cellGates({ pigment: "polyimine", liquidName: "liquid methane" }, RUNGS, 100, 0.9);
+  const methane = cellGates(
+    { pigment: "polyimine", liquidName: "liquid methane" },
+    RUNGS,
+    100,
+    0.9,
+  );
   assert.ok(!methane.light.allowed && !methane.light.open);
   assert.match(methane.light.why, /too little light/);
   // A world whose dawn never came to a step never opens it.
-  const short = cellGates(WATER, RUNGS.filter((r) => r.id !== "nucleus"), 100, 0.9);
+  const short = cellGates(
+    WATER,
+    RUNGS.filter((r) => r.id !== "nucleus"),
+    100,
+    0.9,
+  );
   assert.ok(!short.nucleus.allowed && !short.nucleus.open);
   // A third daughter takes up what is open: the nucleus before light, light before staying together.
   const ds = daughtersOf(first, "w1", 1, 0, later, WATER);
   assert.equal(ds.length, 3);
   assert.equal(ds[2]!.took, "nucleus");
-  assert.ok(ds[2]!.traits.size > first.size * 2.5, "a cell with a nucleus is several times as wide");
+  assert.ok(
+    ds[2]!.traits.size > first.size * 2.5,
+    "a cell with a nucleus is several times as wide",
+  );
   // Taking in, and basking, are greyed with their reasons until the line can.
-  const offers = cellOffers({ t: first, gates: early, energy: 0, prey: null, basking: false, light: 0.9 });
+  const offers = cellOffers({
+    t: first,
+    gates: early,
+    energy: 0,
+    prey: null,
+    basking: false,
+    light: 0.9,
+  });
   assert.deepEqual(
     offers.map((o) => [o.act, o.can]),
     [
@@ -232,7 +299,13 @@ test("a hunting cell takes the cell held where it reaches it; divided, the hand 
     ds = daughtersOf(first, "w", 1, 0, gates, WATER),
     before = t.cells.length,
     e = m.energy;
-  const next = divideHeld(t, g, ds.map((d) => d.traits), 1, (x) => swimSpeed(x, WATER))!;
+  const next = divideHeld(
+    t,
+    g,
+    ds.map((d) => d.traits),
+    1,
+    (x) => swimSpeed(x, WATER),
+  )!;
   const n = heldCell(t, next)!;
   assert.equal(n.size, ds[1]!.traits.size);
   assert.equal(n.generation, m.generation + 1);
@@ -271,9 +344,15 @@ test("What now? reads the stage and says the next thing to do", () => {
 test("a daughter's change is a part one can see, made of what its world allows, its worth and cost from its physics", async () => {
   const { PARTS, partEffects, partsAllowed } = await import("../../src/view/line.ts");
   // (What its chemistry cannot make never comes: no spine or poison in oil or liquid methane, no eyespot without a pigment light drives.)
-  assert.ok(!partsAllowed({ liquid: "methane", pigment: "chlorophyll" }).some((p) => p === "spike" || p === "toxin"));
+  assert.ok(
+    !partsAllowed({ liquid: "methane", pigment: "chlorophyll" }).some(
+      (p) => p === "spike" || p === "toxin",
+    ),
+  );
   assert.ok(!partsAllowed({ liquid: "water", pigment: "polyimine" }).includes("eyespot"));
-  assert.ok(partsAllowed({ liquid: "water", pigment: "chlorophyll" }).length === Object.keys(PARTS).length);
+  assert.ok(
+    partsAllowed({ liquid: "water", pigment: "chlorophyll" }).length === Object.keys(PARTS).length,
+  );
   const methane = { liquid: "methane", pigment: "polyimine" } as const;
   let t = first;
   const seen = new Set<string>();
@@ -281,11 +360,18 @@ test("a daughter's change is a part one can see, made of what its world allows, 
     const ds = daughtersOf(t, "w", 2, gen, cellGates(WATER, RUNGS, 3700, 0.9), methane);
     for (const d of ds.slice(0, 2)) {
       assert.ok(d.part, "each plain daughter changes a part");
-      assert.ok(!["spike", "toxin", "eyespot"].includes(d.part!.id), `${d.part!.id} in liquid methane`);
+      assert.ok(
+        !["spike", "toxin", "eyespot"].includes(d.part!.id),
+        `${d.part!.id} in liquid methane`,
+      );
       seen.add(d.part!.id);
       assert.match(d.reasons[0]!, /grew|lost|larger/i);
     }
-    assert.deepEqual(ds, daughtersOf(t, "w", 2, gen, cellGates(WATER, RUNGS, 3700, 0.9), methane), "the same draws");
+    assert.deepEqual(
+      ds,
+      daughtersOf(t, "w", 2, gen, cellGates(WATER, RUNGS, 3700, 0.9), methane),
+      "the same draws",
+    );
     t = ds[gen % 2]!.traits;
   }
   assert.ok(seen.size >= 4, `parts seen: ${[...seen].join(", ")}`);
@@ -293,7 +379,9 @@ test("a daughter's change is a part one can see, made of what its world allows, 
   const fl = partEffects({ parts: { flagellum: 1 } }),
     sp = partEffects({ parts: { spike: 1 } });
   assert.ok(fl.speed > 1 && fl.upkeep > 1 && sp.speed < 1 && sp.engulf > 1);
-  assert.ok(swimSpeed({ ...first, parts: { flagellum: 2 } }, WATER) > swimSpeed(first, WATER) * 1.5);
+  assert.ok(
+    swimSpeed({ ...first, parts: { flagellum: 2 } }, WATER) > swimSpeed(first, WATER) * 1.5,
+  );
 });
 
 test("a cell with a toxin is let go by the hunter that grips it", () => {
@@ -328,7 +416,11 @@ test("a cell with a nucleus calls a mate when it is full; the mate swims to it, 
     both = daughtersOf(t, "w", 1, 0, gates, WATER, true);
   assert.equal(both.length, alone.length + 1);
   assert.ok(both.at(-1)!.mate && both.at(-1)!.part?.gained);
-  assert.deepEqual(both.slice(0, alone.length), alone, "the young of a mating are those of a division, and one more");
+  assert.deepEqual(
+    both.slice(0, alone.length),
+    alone,
+    "the young of a mating are those of a division, and one more",
+  );
   // (Without a nucleus, the same press divides it alone.)
   const s2 = newDrop(block(), [true, false, false, false]),
     h2 = holdDrop(s2, first, swimSpeed(first, WATER), { x: 90, y: 60 });

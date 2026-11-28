@@ -7,7 +7,7 @@
 // (gen/evolution.ts mutate), told by what changed and what favoured it (innovations, pressures). Between the generations
 // played it is bred forward off the screen by those draws and the fitness of its way, and a line too unfit for its world
 // dies out: the player goes on as its nearest living kin. Pure reads of the world as generated: nothing here is history.
-import { finish, hashString, mix } from "../kernel/index.ts";
+import { finish, hashString, mix, type World } from "../kernel/index.ts";
 import {
   AGES,
   ageSpan,
@@ -17,6 +17,7 @@ import {
   fitness,
   inWater,
   innovations,
+  isProvinceWorld,
   kindOfBody,
   lineOf,
   massWords,
@@ -40,6 +41,8 @@ import {
   type CreatureBody,
   type LifeWorld,
 } from "../rules/index.ts";
+import { homePlanet } from "../sim/index.ts";
+import { installSaga, type SagaStore } from "./saga.ts";
 
 /** A body of the line: what it is called, its way of life, its genome and the body it grows, and why it is as it is. */
 export type LineBody = {
@@ -58,12 +61,19 @@ export type LineBody = {
 const LIFE_WORLDS = new WeakMap<HomeWorld, LifeWorld>();
 function lifeWorld(g: HomeWorld): LifeWorld {
   let lw = LIFE_WORLDS.get(g);
-  if (!lw) LIFE_WORLDS.set(g, (lw = protoLifeWorld(g as unknown as Parameters<typeof protoLifeWorld>[0])));
+  if (!lw)
+    LIFE_WORLDS.set(g, (lw = protoLifeWorld(g as unknown as Parameters<typeof protoLifeWorld>[0])));
   return lw;
 }
 
 /** A keyed draw in [0, 1): of the world, the saga, the generation, the child and the draw's slot (view/line.ts's own). */
-export function bodyDraw(digest: string, saga: number, gen: number, child: number, k: number): number {
+export function bodyDraw(
+  digest: string,
+  saga: number,
+  gen: number,
+  child: number,
+  k: number,
+): number {
   let h = hashString(`line body ${digest}`);
   h = mix(h, saga);
   h = mix(h, gen);
@@ -128,7 +138,10 @@ export function checkBody(
     bears = largestFrame(frame, lw.gravity, sea),
     feeds = lw.eatTrade === "breathe-o2" ? breathingCeiling(breath, lw.o2) : Infinity,
     reasons: string[] = [];
-  if (genome.mass > bears) breaks.push(`a frame of ${frame} bears ${massWords(bears)} here, not ${massWords(genome.mass)}`);
+  if (genome.mass > bears)
+    breaks.push(
+      `a frame of ${frame} bears ${massWords(bears)} here, not ${massWords(genome.mass)}`,
+    );
   if (genome.mass > feeds && !breaks.some((b) => /oxygen/.test(b)))
     breaks.push(`breathing by ${breath}, its oxygen feeds no more than ${massWords(feeds)}`);
   reasons.push(
@@ -184,7 +197,7 @@ function lookFor(g: HomeWorld, body: CreatureBody, sea: boolean): CreatureBody {
     if (!best || d < best.d) best = { s, d };
   }
   const look = best ? beastLookOf(g, best.s) : null;
-  return look ? { ...body, look } as CreatureBody : body;
+  return look ? ({ ...body, look } as CreatureBody) : body;
 }
 
 /** A body of the line made whole: checked against its world, told, and how fit it is. */
@@ -248,7 +261,13 @@ export function foundersOf(g: HomeWorld, digest: string, saga: number, gen: numb
     seen = new Set<string>(),
     out: LineBody[] = [];
   const stems = tree.nodes
-    .filter((n) => n.genome && (n.kind === "dawn" || n.kind === "stem") && n.from <= bodies + 1 && n.from >= bodies - 160)
+    .filter(
+      (n) =>
+        n.genome &&
+        (n.kind === "dawn" || n.kind === "stem") &&
+        n.from <= bodies + 1 &&
+        n.from >= bodies - 160,
+    )
     .sort((a, b) => b.from - a.from || a.id - b.id);
   for (const n of stems) {
     if (out.length >= 3) break;
@@ -256,8 +275,7 @@ export function foundersOf(g: HomeWorld, digest: string, saga: number, gen: numb
       kind = kindOfBody(g0);
     const way = (inWater(n.way) ? n.way : "sea swimmer") as Way;
     if (seen.has(kind) || seen.has(way)) continue;
-    const
-      child = out.length;
+    const child = out.length;
     let made: LineBody | null = null;
     // (A change drawn, tried against the world's physics; one that breaks them is drawn again, and the body as it first
     // was kept at the last.)
@@ -325,7 +343,13 @@ export function bredOn(
   digest: string,
   saga: number,
   gen: number,
-): { genome: Genome; way: Way; rounds: number; died: null | { name: string; ref: string }; line: LineBody | null } {
+): {
+  genome: Genome;
+  way: Way;
+  rounds: number;
+  died: null | { name: string; ref: string };
+  line: LineBody | null;
+} {
   const tree = treeOfLife(g),
     lw = lifeWorld(g),
     rounds = Math.max(1, Math.min(ROUNDS_MOST, Math.ceil((from - to) / 25)));
@@ -350,10 +374,19 @@ export function bredOn(
   // its world's own lines were), on a draw: a line no fitter than they goes on as often as not.
   const env = lineEnv(g, to),
     alive = tree.nodes.filter(
-      (n) => n.genome && n.kind !== "dawn" && n.from >= to && (n.to === null || n.to <= to) && n.way === w,
+      (n) =>
+        n.genome &&
+        n.kind !== "dawn" &&
+        n.from >= to &&
+        (n.to === null || n.to <= to) &&
+        n.way === w,
     ),
     least = Math.min(...alive.map((n) => fitness(n.genome!, w, env)));
-  if (alive.length && fitness(x, w, env) < least - 0.3 && bodyDraw(digest, saga, gen, 99, 0) < 0.35) {
+  if (
+    alive.length &&
+    fitness(x, w, env) < least - 0.3 &&
+    bodyDraw(digest, saga, gen, 99, 0) < 0.35
+  ) {
     let kin = alive[0]!,
       d = Infinity;
     for (const n of alive) {
@@ -369,7 +402,13 @@ export function bredOn(
       line: told(wayWord(kw), kin.genome!, kw, lineEnv(g, to), lw, null, g),
     };
   }
-  return { genome: x, way: w, rounds, died: null, line: told(wayWord(w), x, w, env, lw, genome, g) };
+  return {
+    genome: x,
+    way: w,
+    rounds,
+    died: null,
+    line: told(wayWord(w), x, w, env, lw, genome, g),
+  };
 }
 
 /** What a line is lived in: the world's liquid, its life's chemistry, its pull, and (asked of a line) what its forebears took up. */
@@ -402,4 +441,73 @@ export function lineFactsOf(g: HomeWorld, ref: string | null) {
         }
       : null,
   };
+}
+
+// —— The sagas kept, and the page's askings ——————————————————————————————————————————————————————————————————————————
+
+/** The most sagas kept (the least lately played let go first), and the most bytes they may hold in all. */
+const SAGAS_MOST = 6,
+  BYTES_MOST = 48_000;
+
+/** A saga kept (id 0: a new one, given its id): the least lately played let go while there are too many or too much. */
+export function keepSaga(store: SagaStore, id: number, data: unknown): number {
+  const at = ++store.uses,
+    was = id > 0 ? store.sagas.find((s) => s.id === id) : undefined,
+    sid = was?.id ?? store.next++;
+  if (was) Object.assign(was, { at, data });
+  else store.sagas.push({ id: sid, at, data });
+  while (
+    store.sagas.length > 1 &&
+    (store.sagas.length > SAGAS_MOST || JSON.stringify(store.sagas).length > BYTES_MOST)
+  ) {
+    let least = 0;
+    for (let i = 1; i < store.sagas.length; i++)
+      if (store.sagas[i]!.at < store.sagas[least]!.at) least = i;
+    if (store.sagas[least]!.id === sid) break;
+    store.sagas.splice(least, 1);
+  }
+  return sid;
+}
+
+type Asked = {
+  ref?: string;
+  id: number;
+  data: unknown;
+  digest: string;
+  saga: number;
+  gen: number;
+  genome: Genome;
+  way: Way;
+  my: number;
+  to: number;
+};
+
+/** The page's askings of a line (host/saga.ts hands them here): pure reads of the world as generated, and its sagas. */
+export function ask(type: string, world: World, args: unknown): unknown {
+  const a = (args ?? {}) as Asked,
+    store = () => {
+      installSaga(world);
+      return world.peek<SagaStore>("readings.saga")!;
+    },
+    fine = () => {
+      const g0 = homePlanet(world).generated;
+      return isProvinceWorld(g0) ? g0.fine : g0;
+    };
+  switch (type) {
+    case "line.facts":
+      return lineFactsOf(fine(), a.ref ?? null);
+    case "line.founders":
+      return foundersOf(fine(), a.digest, a.saga, a.gen);
+    case "line.young":
+      return youngOf(fine(), a.genome, a.way, a.my, a.digest, a.saga, a.gen);
+    case "line.bred":
+      return bredOn(fine(), a.genome, a.way, a.my, a.to, a.digest, a.saga, a.gen);
+    case "saga.list":
+      return [...store().sagas]
+        .sort((x, y) => y.at - x.at)
+        .map((s) => ({ id: s.id, data: s.data }));
+    case "saga.keep":
+      return keepSaga(store(), a.id, a.data);
+  }
+  throw new Error(`no asking ${type}`);
 }

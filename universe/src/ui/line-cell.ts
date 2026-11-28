@@ -2,12 +2,17 @@
 // daughter carries is seen on her, the part new to her lit. Our own look: a round cell, its parts as simple strokes (a
 // whip of a flagellum, a fringe of cilia, spines, a thick wall, a poison's dotted halo, an eyespot, a mouth's notch, a
 // filter's comb). Drawn as SVG, nothing fetched.
-import type { PartId, Traits } from "../view/line.ts";
+import type { PartId, Traits } from "../view/index.ts";
 
 const NS = "http://www.w3.org/2000/svg";
 
 /** The cell drawn (`size` px square), its body coloured `fill`, the part `lit` drawn in the light of the new. */
-export function cellPicture(t: Traits, lit: PartId | null, fill = "#8fd6c0", size = 64): SVGSVGElement {
+export function cellPicture(
+  t: Traits,
+  lit: PartId | null,
+  fill = "#8fd6c0",
+  size = 64,
+): SVGSVGElement {
   const svg = document.createElementNS(NS, "svg"),
     c = size / 2,
     r = size * 0.24,
@@ -26,7 +31,16 @@ export function cellPicture(t: Traits, lit: PartId | null, fill = "#8fd6c0", siz
   svg.setAttribute("aria-hidden", "true");
   svg.classList.add("line-cell-pic");
   if (on("toxin"))
-    add("circle", { cx: c, cy: c, r: r + 7, fill: "none", stroke: tone("toxin"), "stroke-width": 1.5, "stroke-dasharray": "2 3", opacity: 0.8 });
+    add("circle", {
+      cx: c,
+      cy: c,
+      r: r + 7,
+      fill: "none",
+      stroke: tone("toxin"),
+      "stroke-width": 1.5,
+      "stroke-dasharray": "2 3",
+      opacity: 0.8,
+    });
   if (on("flagellum")) {
     const len = 10 + 8 * on("flagellum");
     add("path", {
@@ -68,9 +82,22 @@ export function cellPicture(t: Traits, lit: PartId | null, fill = "#8fd6c0", siz
     stroke: on("wall") ? tone("wall") : "#d8fff4",
     "stroke-width": on("wall") ? 2 + 1.5 * on("wall") : 1,
   });
-  if (t.nucleus) add("circle", { cx: c + r * 0.15, cy: c + r * 0.1, r: r * 0.35, fill: "#5b3b8a", opacity: 0.8 });
+  if (t.nucleus)
+    add("circle", {
+      cx: c + r * 0.15,
+      cy: c + r * 0.1,
+      r: r * 0.35,
+      fill: "#5b3b8a",
+      opacity: 0.8,
+    });
   if (t.light) add("circle", { cx: c - r * 0.35, cy: c + r * 0.3, r: r * 0.2, fill: "#4caf50" });
-  if (on("eyespot")) add("circle", { cx: c + r * 0.55, cy: c - r * 0.35, r: 2 + on("eyespot"), fill: tone("eyespot") === "#ffd75a" ? "#ffd75a" : "#e5432f" });
+  if (on("eyespot"))
+    add("circle", {
+      cx: c + r * 0.55,
+      cy: c - r * 0.35,
+      r: 2 + on("eyespot"),
+      fill: tone("eyespot") === "#ffd75a" ? "#ffd75a" : "#e5432f",
+    });
   if (on("mouth"))
     add("path", {
       d: `M ${c + r} ${c - 4 - on("mouth")} L ${c + r * 0.55} ${c} L ${c + r} ${c + 4 + on("mouth")}`,

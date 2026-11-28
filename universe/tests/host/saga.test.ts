@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { World, loadWorld, rulesetId, saveWorld, seedFromText } from "../../src/kernel/index.ts";
 import { EARTHLIKE, OPEN } from "../../src/rules/index.ts";
 import { generateHomeWorld, treeOfLife } from "../../src/gen/index.ts";
-import { SagaStore, installSaga, sagaQueries } from "../../src/host/saga.ts";
-import { lineFactsOf } from "../../src/host/line.ts";
+import { SagaStore, installSaga } from "../../src/host/saga.ts";
+import { ask, lineFactsOf } from "../../src/host/line.ts";
 import { dawnSeaOf, dropOfWorld } from "../../src/host/inspect/small.ts";
 import { cellGates, daughtersOf, firstTraits, type LineFacts } from "../../src/view/line.ts";
 
@@ -22,7 +22,7 @@ test("a saga is kept beside the world: in its save, never in its hash nor its ru
     b = build(),
     bare = new World(seedFromText("saga"));
   assert.ok((a.store("readings.saga") as SagaStore).dormant());
-  const keep = sagaQueries()["saga.keep"]!;
+  const keep = (w: World, a: unknown) => ask("saga.keep", w, a);
   const id = keep(a, { id: 0, data: { v: 1, gens: [{ pick: 1, my: 3000 }] } }) as number;
   assert.equal(id, 1);
   assert.equal(keep(a, { id, data: { v: 1, gens: [] } }), 1, "kept again under its own id");
@@ -33,7 +33,7 @@ test("a saga is kept beside the world: in its save, never in its hash nor its ru
   // Through a save and back: the sagas as they were.
   const doc = saveWorld(a, rulesetId(a, "x")),
     back = loadWorld(doc, (s) => build(s), rulesetId(a, "x")).world;
-  const list = sagaQueries()["saga.list"]!(back, {}) as { id: number; data: unknown }[];
+  const list = ask("saga.list", back, {}) as { id: number; data: unknown }[];
   assert.deepEqual(
     list.map((x) => x.id),
     [2, 1],
@@ -45,7 +45,7 @@ test("a saga is kept beside the world: in its save, never in its hash nor its ru
 
 test("the sagas kept are bounded: the least lately played let go", () => {
   const w = build(),
-    keep = sagaQueries()["saga.keep"]!;
+    keep = (x: World, a: unknown) => ask("saga.keep", x, a);
   for (let i = 0; i < 12; i++) keep(w, { id: 0, data: { v: 1, pad: "x".repeat(2000) } });
   const s = w.store("readings.saga") as SagaStore;
   assert.ok(s.sagas.length <= 6);
@@ -84,13 +84,16 @@ test("what a cell can take up holds to each world's own chemistry and dawn, on s
       ] as const) {
         const r = rungs.find((x) => x.id === id);
         if (!ids.has(id)) assert.ok(!gate.open, `${name}: ${id} never came, never opens`);
-        else if (gate.open) assert.ok(my <= r!.at, `${name}: ${id} open at ${my}, came at ${r!.at}`);
+        else if (gate.open)
+          assert.ok(my <= r!.at, `${name}: ${id} open at ${my}, came at ${r!.at}`);
       }
-      if (f.pigment === "polyimine") assert.ok(!gates.light.open, `${name}: methane life never lives by light`);
+      if (f.pigment === "polyimine")
+        assert.ok(!gates.light.open, `${name}: methane life never lives by light`);
       // A daughter takes up only what is open.
       const k = drop.kinds.find((x) => x.way === "eater") ?? drop.kinds[0]!,
         ds = daughtersOf(firstTraits(k), f.digest, 1, 0, gates, f);
-      for (const d of ds) if (d.took) assert.ok(gates[d.took].open, `${name}: took ${d.took} unopened`);
+      for (const d of ds)
+        if (d.took) assert.ok(gates[d.took].open, `${name}: took ${d.took} unopened`);
     }
   }
   assert.ok(lived >= 4, `${lived} of the six worlds held life`);
@@ -102,5 +105,8 @@ test("a line asked for is read with the steps of the dawn its forebears went thr
     beast = tree.nodes.find((n) => n.kind === "crown" && n.genome),
     f = lineFactsOf(g, beast!.ref) as LineFacts;
   assert.equal(f.line?.ref, beast!.ref);
-  assert.ok(f.line!.nucleus && f.line!.together, "a beast's forebears grew a nucleus and stayed together");
+  assert.ok(
+    f.line!.nucleus && f.line!.together,
+    "a beast's forebears grew a nucleus and stayed together",
+  );
 });

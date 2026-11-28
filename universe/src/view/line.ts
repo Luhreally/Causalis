@@ -111,8 +111,18 @@ export function smallWords(x: number): string {
 
 // —— What the world allows ————————————————————————————————————————————————————————————————————————————————————————
 
-export type Gate = { readonly allowed: boolean; readonly open: boolean; readonly at: number | null; readonly why: string };
-export type Gates = { readonly light: Gate; readonly nucleus: Gate; readonly together: Gate; readonly bodies: Gate };
+export type Gate = {
+  readonly allowed: boolean;
+  readonly open: boolean;
+  readonly at: number | null;
+  readonly why: string;
+};
+export type Gates = {
+  readonly light: Gate;
+  readonly nucleus: Gate;
+  readonly together: Gate;
+  readonly bodies: Gate;
+};
 
 const rungOf = (rungs: readonly LineRung[], id: string) => rungs.find((r) => r.id === id) ?? null;
 
@@ -179,7 +189,13 @@ export function cellSpan(rungs: readonly LineRung[]): { from: number; to: number
  * The clock on for what was gathered (`gain`, in a cell's worth: a whole division's is twice its worth), held short of the
  * first bodies until the line has stayed together (no body grows of a cell alone).
  */
-export function clockOn(my: number, gain: number, w: number, rungs: readonly LineRung[], t: Traits): number {
+export function clockOn(
+  my: number,
+  gain: number,
+  w: number,
+  rungs: readonly LineRung[],
+  t: Traits,
+): number {
   const span = cellSpan(rungs),
     step = ((span.from - span.to) / GENERATIONS) * (Math.max(0, gain) / Math.max(1e-9, 2 * w)),
     floor = t.together ? span.to : span.to + Math.max(1, (span.from - span.to) * 0.004);
@@ -194,7 +210,13 @@ export function cellDone(my: number, rungs: readonly LineRung[], t: Traits): boo
 // —— Daughters ——————————————————————————————————————————————————————————————————————————————————————————————————
 
 /** A keyed draw in [0, 1): of the world, the saga, the generation, the child and the draw's own slot. */
-export function lineDraw(digest: string, saga: number, gen: number, child: number, k: number): number {
+export function lineDraw(
+  digest: string,
+  saga: number,
+  gen: number,
+  child: number,
+  k: number,
+): number {
   let h = hashString(`line ${digest}`);
   h = mix(h, saga);
   h = mix(h, gen);
@@ -212,22 +234,71 @@ const normalOf = (u: (k: number) => number, k: number) => (u(k) + u(k + 1) + u(k
 // make never comes: an eyespot needs a pigment its light can drive; a spike of mineral, or a poison that dissolves, needs
 // a liquid that carries them (water, or water with acid or ammonia in it, not oil or liquid methane).
 
-export type PartId = "flagellum" | "cilia" | "spike" | "wall" | "toxin" | "eyespot" | "mouth" | "filter";
+export type PartId =
+  "flagellum" | "cilia" | "spike" | "wall" | "toxin" | "eyespot" | "mouth" | "filter";
 /** A cell's parts, each at a level (1 or 2; absent: none). */
 export type Parts = Readonly<Partial<Record<PartId, number>>>;
 
 /** Each part: its name, what it does for a level of it (speed and upkeep as factors), and its words. */
 export const PARTS: Readonly<
-  Record<PartId, { readonly name: string; readonly speed: number; readonly upkeep: number; readonly does: string }>
+  Record<
+    PartId,
+    {
+      readonly name: string;
+      readonly speed: number;
+      readonly upkeep: number;
+      readonly does: string;
+    }
+  >
 > = {
-  flagellum: { name: "a flagellum", speed: 0.3, upkeep: 0.15, does: "a whip it beats to push itself on: faster" },
-  cilia: { name: "cilia", speed: 0.05, upkeep: 0.08, does: "a fringe of tiny oars: its darts last longer" },
-  spike: { name: "spikes", speed: -0.08, upkeep: 0.06, does: "spines of mineral: a hunter takes longer to swallow it" },
-  wall: { name: "a tougher wall", speed: -0.06, upkeep: 0.12, does: "a thicker skin: harder to wrap and swallow" },
-  toxin: { name: "a toxin", speed: 0, upkeep: 0.2, does: "a poison in its skin: a hunter that grips it lets go" },
-  eyespot: { name: "an eyespot", speed: 0, upkeep: 0.05, does: "a patch of pigment that feels the light: it sees further" },
-  mouth: { name: "a bigger mouth", speed: -0.03, upkeep: 0.05, does: "it takes in food from further off, and larger cells" },
-  filter: { name: "a filter", speed: -0.12, upkeep: 0.1, does: "a sieve: it catches specks from about it as it goes" },
+  flagellum: {
+    name: "a flagellum",
+    speed: 0.3,
+    upkeep: 0.15,
+    does: "a whip it beats to push itself on: faster",
+  },
+  cilia: {
+    name: "cilia",
+    speed: 0.05,
+    upkeep: 0.08,
+    does: "a fringe of tiny oars: its darts last longer",
+  },
+  spike: {
+    name: "spikes",
+    speed: -0.08,
+    upkeep: 0.06,
+    does: "spines of mineral: a hunter takes longer to swallow it",
+  },
+  wall: {
+    name: "a tougher wall",
+    speed: -0.06,
+    upkeep: 0.12,
+    does: "a thicker skin: harder to wrap and swallow",
+  },
+  toxin: {
+    name: "a toxin",
+    speed: 0,
+    upkeep: 0.2,
+    does: "a poison in its skin: a hunter that grips it lets go",
+  },
+  eyespot: {
+    name: "an eyespot",
+    speed: 0,
+    upkeep: 0.05,
+    does: "a patch of pigment that feels the light: it sees further",
+  },
+  mouth: {
+    name: "a bigger mouth",
+    speed: -0.03,
+    upkeep: 0.05,
+    does: "it takes in food from further off, and larger cells",
+  },
+  filter: {
+    name: "a filter",
+    speed: -0.12,
+    upkeep: 0.1,
+    does: "a sieve: it catches specks from about it as it goes",
+  },
 };
 const PART_IDS = Object.keys(PARTS) as PartId[];
 const POLAR = new Set(["water", "acid-water", "ammonia-water"]);
@@ -277,7 +348,8 @@ function partWords(id: PartId, level: number, gained: boolean): string {
   const d = PARTS[id],
     sp = Math.round(d.speed * 100),
     up = Math.round(d.upkeep * 100);
-  if (!gained) return `It lost ${d.name}: ${up}% cheaper to keep${sp ? `, ${sp > 0 ? `${sp}% slower` : `${-sp}% faster`}` : ""}`;
+  if (!gained)
+    return `It lost ${d.name}: ${up}% cheaper to keep${sp ? `, ${sp > 0 ? `${sp}% slower` : `${-sp}% faster`}` : ""}`;
   return `${level > 1 ? "Its" : "It grew"} ${level > 1 ? `${d.name.replace(/^an? /, "")} grew larger` : d.name}: ${d.does}${sp ? `; ${sp > 0 ? `${sp}% faster` : `${-sp}% slower`} through its liquid's drag` : ""}; ${up}% more to keep`;
 }
 
@@ -294,7 +366,10 @@ export type Daughter = {
 };
 
 /** The first cell of a line: the first small cells of its world's drop (on their grain where the rock fed them). */
-export function firstTraits(kind: { readonly size: number; readonly way: string }, pace = 1): Traits {
+export function firstTraits(
+  kind: { readonly size: number; readonly way: string },
+  pace = 1,
+): Traits {
   const base = kind.way === "rock" ? "rock" : "eater";
   return {
     size: kind.size,
@@ -367,16 +442,32 @@ export function daughtersOf(
     // (What it took up changes what it is: a cell with a nucleus is some ten times as wide as one without; one that kept a
     // light-eater half again; cells together several times the one.)
     if (got === "nucleus")
-      t = { ...t, nucleus: true, size: Math.round(t.size * (3 + 2 * u(6)) * 100) / 100, speed: t.speed * 0.6 };
-    else if (got === "light") t = { ...t, light: true, size: Math.round(t.size * (1.3 + 0.4 * u(6)) * 100) / 100 };
+      t = {
+        ...t,
+        nucleus: true,
+        size: Math.round(t.size * (3 + 2 * u(6)) * 100) / 100,
+        speed: t.speed * 0.6,
+      };
+    else if (got === "light")
+      t = { ...t, light: true, size: Math.round(t.size * (1.3 + 0.4 * u(6)) * 100) / 100 };
     else if (got === "together")
-      t = { ...t, together: true, size: Math.round(t.size * (2.5 + 1.5 * u(6)) * 100) / 100, speed: t.speed * 0.7 };
+      t = {
+        ...t,
+        together: true,
+        size: Math.round(t.size * (2.5 + 1.5 * u(6)) * 100) / 100,
+        speed: t.speed * 0.7,
+      };
     const why = reasonsOf(mother, { ...t, parts: mother.parts }, got, liquid);
     out.push({
       traits: t,
       took: got,
       part,
-      reasons: part ? [partWords(part.id, t.parts?.[part.id] ?? 0, part.gained), ...why.filter((w) => w !== "Much as its mother was")] : why,
+      reasons: part
+        ? [
+            partWords(part.id, t.parts?.[part.id] ?? 0, part.gained),
+            ...why.filter((w) => w !== "Much as its mother was"),
+          ]
+        : why,
     });
   }
   if (mated) {
@@ -397,7 +488,9 @@ export function daughtersOf(
         mate: true,
         reasons: [
           `From her mother's mate: ${partWords(id, t.parts?.[id] ?? 1, true).replace(/^It grew |^Its /, "")}`,
-          ...reasonsOf(mother, { ...t, parts: mother.parts }, null, liquid).filter((w) => w !== "Much as its mother was"),
+          ...reasonsOf(mother, { ...t, parts: mother.parts }, null, liquid).filter(
+            (w) => w !== "Much as its mother was",
+          ),
         ],
       });
     }
@@ -627,7 +720,13 @@ export type CellNow = {
 };
 
 const side = (dx: number, dy: number) =>
-  Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "to your right" : "to your left") : dy > 0 ? "below you" : "above you";
+  Math.abs(dx) > Math.abs(dy)
+    ? dx > 0
+      ? "to your right"
+      : "to your left"
+    : dy > 0
+      ? "below you"
+      : "above you";
 
 /** What to do next, read from the stage as it stands (it changes nothing). */
 export function whatNow(n: CellNow): string {

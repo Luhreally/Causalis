@@ -25,3 +25,8 @@ export {
   type ByteStore,
 } from "./storage.ts";
 export { UNIVERSES } from "./universes.ts";
+// (Live a Line's readings, static here: the in-page host's chunk holds them, so the page's own chunks are as without
+// them; the worker, which does not come through here, fetches them only when a line is first lived.)
+import { ask as lineAsk } from "./line.ts";
+import { lineFrom } from "./saga.ts";
+lineFrom(() => Promise.resolve(lineAsk));
