@@ -539,6 +539,20 @@ for (const view of [
       await press(".place-insp-back", "‹ Back to them from their family");
       await until("them again", async () => (await kind()) === "person", 8000);
       check((await kind()) === "person", "Back from their family comes to them");
+      // Their character and mind (R2), beside their family's key, and Back.
+      await k(
+        'document.querySelector(".place-insp-character")?.scrollIntoView({ block: "center" })',
+      );
+      await page.waitForTimeout(300);
+      await press(".place-insp-character", "Character ▸, on a person's page");
+      await until("their character", async () => (await kind()) === "character", 8000);
+      await page.waitForTimeout(400);
+      say(`character: ${(await text(".place-insp")).slice(0, 300)}`);
+      check((await shown(".place-insp-leaning")) === 5, "their five leanings drawn");
+      await look("16c-character", "one's character and mind");
+      await press(".place-insp-back", "‹ Back to them from their character");
+      await until("them again", async () => (await kind()) === "person", 8000);
+      check((await kind()) === "person", "Back from their character comes to them");
     }
     // A sheet opened under it: the inspector above it, peeked.
     await press('.place-tab[data-tab="people"]', "the People tab, the inspector open");

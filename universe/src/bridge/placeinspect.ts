@@ -44,6 +44,8 @@ export type PlaceInspectPerson = {
   readonly page: string;
   /** Their family's page in the town (P3). */
   readonly familyRef: string;
+  /** Their character and mind (R2). */
+  readonly characterRef: string;
   /** R1. Their nearest kin a tap away: mother, father, the one they are paired with, their children (the most told). */
   readonly kin: readonly {
     readonly name: string;
@@ -527,7 +529,46 @@ export type PlaceInspectDead = {
   }[];
 };
 
+/**
+ * One's character and mind (R2), as Classic's character and mind cards had them: their traits as tags, each with what it
+ * does; their best skills; what they want most now and how long they have been in want; what they have come to; and their
+ * mind: what drives them, their leanings against most, how they learn, and the senses their people have.
+ */
+export type PlaceInspectCharacter = {
+  readonly kind: "character";
+  readonly ref: string;
+  readonly personRef: string;
+  readonly name: string;
+  readonly icon: string;
+  readonly traits: readonly {
+    readonly tag: string;
+    readonly meaning: string;
+    readonly of: "temper" | "nature" | "values";
+  }[];
+  readonly skills: readonly {
+    readonly name: string;
+    readonly words: string;
+    readonly hours: number;
+    readonly passion: boolean;
+  }[];
+  /** What they want most now, and since when they have been in want (null: in want of nothing). */
+  readonly want: string;
+  readonly since: string | null;
+  /** What they have come to, each on its day: paired, a child, of age, a masterwork, well again. */
+  readonly fulfilled: readonly string[];
+  readonly drive: string;
+  /** Their five leanings, each against most (100: as most are). */
+  readonly leanings: readonly {
+    readonly name: string;
+    readonly value: number;
+    readonly words: string;
+  }[];
+  readonly learning: readonly string[];
+  readonly senses: readonly { readonly name: string; readonly words: string }[];
+};
+
 export type PlaceInspect =
+  | PlaceInspectCharacter
   | PlaceInspectDead
   | PlaceInspectFaith
   | PlaceInspectBound

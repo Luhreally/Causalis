@@ -54,6 +54,8 @@ export const placeFaithRef = (town: string): string => `plcr:${town}`;
 export const placeBoundRef = (town: string): string => `plcd:${town}`;
 /** One's family in the town (P3). */
 export const placeFamilyRef = (town: string, id: number): string => `plcf:${town}:${id}`;
+/** One's character and mind in the town (R2). */
+export const placeCharacterRef = (town: string, id: number): string => `plcc:${town}:${id}`;
 /** A town's gate (P2): who has come to it this year, and who comes. */
 export const placeGateRef = (town: string): string => `plca:${town}`;
 export const placeLegendsRef = (town: string): string => `plcy:${town}`;

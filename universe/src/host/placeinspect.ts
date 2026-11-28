@@ -42,6 +42,7 @@ import {
   placeLotRef,
   placeWorkRef,
   placeFamilyRef,
+  placeCharacterRef,
   placePersonRef,
   placedId,
   type MemberState,
@@ -63,6 +64,7 @@ import { placeBelow } from "./placebelow.ts";
 import { placeLegends, placeWork, workName } from "./placelegends.ts";
 import { placeGate } from "./placevisitors.ts";
 import { placeDead, placeFamily, placeKin } from "./placefamily.ts";
+import { placeCharacter } from "./placecharacter.ts";
 import { bondWords, placeBound } from "./placebound.ts";
 import { placeFaith } from "./placefaith.ts";
 import {
@@ -361,7 +363,7 @@ const stuffsWord = (world: World, place: Place): string => landCloth(world, plac
 /** A cook's skill at it, said of their meals. */
 const COOK_WORDS = ["poor", "plain", "good", "fine", "a master's"] as const;
 /** Each facet of one's nature at its two ends (host/place.ts FACETS). */
-const FACET_WORDS: readonly (readonly [string, string])[] = [
+export const FACET_WORDS: readonly (readonly [string, string])[] = [
   ["warm", "cool"],
   ["deferent", "headstrong"],
   ["lively", "quiet"],
@@ -543,6 +545,7 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
     ref: placePersonRef(place.town, id),
     page: me.ref,
     familyRef: placeFamilyRef(place.town, id),
+    characterRef: placeCharacterRef(place.town, id),
     kin: placeKin(world, place, i),
     name: me.name,
     portrait: {
@@ -1136,6 +1139,10 @@ export function placeInspect(world: World, town: string, ref: string): PlaceInsp
   if (ref.startsWith("plca:")) return placeGate(world, place);
   if (ref.startsWith("plcd:")) return placeBound(world, place);
   if (ref.startsWith("plcr:")) return placeFaith(world, place);
+  if (ref.startsWith("plcc:")) {
+    const id = Number(ref.slice(ref.lastIndexOf(":") + 1));
+    return Number.isInteger(id) ? placeCharacter(world, place, id) : null;
+  }
   if (ref.startsWith("plcf:")) {
     const id = Number(ref.slice(ref.lastIndexOf(":") + 1));
     return Number.isInteger(id) ? placeFamily(world, place, id) : null;
