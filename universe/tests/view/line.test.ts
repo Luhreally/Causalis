@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { FIELD_H, FIELD_W, newDrop, stepDrop, worth, type DropState } from "../../src/view/drop.ts";
-import { aboutHeld, divideHeld, heldCell, holdDrop, stepHeld } from "../../src/view/drop-held.ts";
+import { FIELD_H, FIELD_W, MOTE, newDrop, stepDrop, worth, type DropState } from "../../src/view/drop.ts";
+import { CRUMB, aboutHeld, divideHeld, heldCell, holdDrop, stepHeld } from "../../src/view/drop-held.ts";
 import {
   cellDone,
   cellGates,
@@ -170,14 +170,14 @@ test("a drop no hand is in lives as before; the cell held goes only as far as it
   const stopped = c.x;
   stepHeld(s, h);
   assert.equal(c.x, stopped, "let go, it stops at once");
-  // Food in its way is taken in.
+  // Food in its way is taken in (each speck of a drop about a held cell a crumb: view/drop-held.ts CRUMB).
   const e0 = c.energy;
   s.motes.push({ x: c.x + 2, y: c.y, vx: 0, vy: 0 }, { x: c.x + 4, y: c.y, vx: 0, vy: 0 });
   h.mx = 1;
   run(s, 20, (x) => stepHeld(x, h));
   assert.equal(h.ate, 2);
-  assert.ok(c.energy > e0 + 2, `${e0} → ${c.energy}`);
-  assert.ok(h.gained >= 3 - 1e-9);
+  assert.ok(c.energy > e0 + 2 * MOTE * CRUMB * 0.8, `${e0} → ${c.energy}`);
+  assert.ok(h.gained >= 2 * MOTE * CRUMB - 1e-9);
 });
 
 test("a hunting cell takes the cell held where it reaches it; divided, the hand goes on in the daughter chosen", () => {

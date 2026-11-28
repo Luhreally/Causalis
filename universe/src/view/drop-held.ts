@@ -23,6 +23,7 @@ import {
   gap,
   gapY,
   lightAt,
+  normal,
   placeY,
   stepDrop,
   worth,
@@ -31,6 +32,34 @@ import {
   type DropState,
 } from "./drop.ts";
 import { wayOf, type Traits } from "./line.ts";
+
+/**
+ * Where the food of the drop about a held cell comes from, and how much (Live a Line, its food made playable from first
+ * principles, 2026-11-28). Specks of food are not made out of the water: they come from a supply the world has. Where the
+ * drop has a mineral grain, its vent: what wells up there is fed on and broken down into specks about it. Where it has
+ * none, its lit water: what its light-eaters leak and shed, thickest nearest the light. The specks well up there at the
+ * rate the drop's own food sets (DropBlock.food, read off its world: host/inspect/small.ts), as many again as the whole
+ * drop's water brings, and drift off as every speck does; a held cell begins at that supply's edge, where the food is
+ * thick and the rivals that crowd the open water are few. Its rivals eat as they always did, each by its size and pace,
+ * sensing a speck only within 10 µm (view/drop.ts): no further than the one held can see one.
+ */
+export type Supply = { readonly x: number; readonly y: number; readonly r: number; readonly how: "vent" | "light" };
+export function supplyOf(s: DropState): Supply {
+  const g = s.grain;
+  if (g) return { x: g.x, y: g.y, r: g.r + 14, how: "vent" };
+  return { x: FIELD_W * 0.2, y: s.habitat === "soil" ? FIELD_H * 0.5 : FIELD_H * 0.12, r: 26, how: "light" };
+}
+/**
+ * Crumbs a second at the supply, for each of the drop's own food (its whole water brings six whole specks), and what a
+ * crumb is worth against a whole speck: what wells up is fine, broken down small.
+ */
+export const SUPPLY = 5,
+  CRUMB = 1 / 6;
+/** How near the supply's edge a held cell begins (µm), and how far from it the rivals keep at the start. */
+const START_OFF = 6,
+  CLEAR = 45;
+/** What the held cell spends to keep alive, against its kind's in the drop (a held cell is one of a line that has come through; it keeps for a minute or so unfed). */
+const HELD_UPKEEP = 0.4;
 
 /** How long a dart lasts (seconds of the drop's time), how much faster it goes, and how far a cell may reach to take one in (µm). */
 const DART = 1.2,
@@ -82,11 +111,25 @@ export function holdDrop(
   at: { x: number; y: number } | null = null,
   energy: number | null = null,
 ): DropHand {
+  // (A drop with a cell held is watched at a second of its own time a second: a cold world's chemistry, slower than a warm
+  // one's, is not played slower for it. Its kinds keep their paces against one another, as its world sets them.)
+  s.pace = 1;
   const kind = kindFor(s, t),
-    c = born(s, kind, null, at?.x ?? FIELD_W / 2, at?.y ?? FIELD_H * 0.45);
+    sup = supplyOf(s),
+    start = at ?? { x: wrap(sup.x + sup.r + START_OFF, FIELD_W), y: placeY(s, sup.y) },
+    c = born(s, kind, null, start.x, start.y);
+  if (!at)
+    // (At the supply's edge the rivals are few: those of the open water that crowd it are elsewhere in the drop.)
+    for (const o of s.cells) {
+      if (o.way !== "eater" && o.way !== "hunter") continue;
+      const dx = gap(o.x, start.x, FIELD_W),
+        dy = gapY(s, o.y, start.y);
+      if (dx * dx + dy * dy < CLEAR * CLEAR) o.x = wrap(o.x + FIELD_W / 2, FIELD_W);
+    }
   c.size = t.size;
   c.speed = speed;
-  c.energy = energy ?? worth(t.size) * 0.6;
+  // (As a daughter newly divided: half of the twice its worth its mother gathered.)
+  c.energy = energy ?? worth(t.size);
   c.marked = true;
   s.cells.push(c);
   return {
@@ -153,6 +196,28 @@ export function foodOf(
   return best;
 }
 
+/** The supply's specks for a step: welling up about it, as the drop's own food sets. */
+function supply(s: DropState): void {
+  // (Every speck of the drop about a held cell is as small as what wells up: a sixth of a small cell's worth, to its
+  // rivals as to it. A speck the drop's water brings, or a cell falling apart, is the same.)
+  for (const m of s.motes) m.worth ??= MOTE * CRUMB;
+  const sup = supplyOf(s),
+    r = s.rnd,
+    n = s.food * SUPPLY * STEP * s.pace,
+    count = Math.floor(n) + (r() < n % 1 ? 1 : 0);
+  for (let i = 0; i < count; i++) {
+    const a = r() * Math.PI * 2,
+      d = sup.r * Math.sqrt(r());
+    s.motes.push({
+      x: wrap(sup.x + Math.cos(a) * d, FIELD_W),
+      y: placeY(s, sup.y + Math.sin(a) * d * (sup.how === "light" ? 0.5 : 1)),
+      vx: normal(r) * 0.3,
+      vy: normal(r) * 0.3,
+      worth: MOTE * CRUMB,
+    });
+  }
+}
+
 /**
  * A step of the drop with a cell held: the rest by its own step, then the one held by the hand — moved as the stick
  * pushes it, fed, taxed for living and for its speed, taken where a hunter reaches it, its act done if it can be.
@@ -167,6 +232,7 @@ export function stepHeld(s: DropState, h: DropHand): void {
   // (The rest of the drop goes on by its own step, the one held set aside while it does: nothing of it moves by itself.)
   s.cells.splice(at, 1);
   stepDrop(s);
+  supply(s);
   const dt = STEP * s.pace,
     kp = s.paces[c.kind] ?? 1,
     cdt = dt * kp,
@@ -230,7 +296,7 @@ export function stepHeld(s: DropState, h: DropHand): void {
       dy = gap(c.y, m.y, FIELD_H);
     if (dx * dx + dy * dy < reach) {
       s.motes.splice(i, 1);
-      gain += MOTE;
+      gain += m.worth ?? MOTE;
       h.ate++;
     }
   }
@@ -244,7 +310,7 @@ export function stepHeld(s: DropState, h: DropHand): void {
   h.gained += gain;
   // —— What it spends: to keep alive, by its size, and to go, as its speed's square against its way's usual.
   const base = SPEED[way] * kp;
-  c.energy -= (UPKEEP[way] * w + 0.002 * w * (v / Math.max(0.1, base)) ** 2) * cdt;
+  c.energy -= (HELD_UPKEEP * UPKEEP[way] * w + 0.002 * w * (v / Math.max(0.1, base)) ** 2) * cdt;
   c.age += cdt;
   for (const m of c.meals) m.age += dt;
   c.meals = c.meals.filter((m) => m.age < 8);

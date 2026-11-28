@@ -129,3 +129,49 @@ test("the picker's bodies are read in under 4 ms; a line's turn to the next age 
   assert.ok(worstPick < 4, `picker ${worstPick.toFixed(2)} ms`);
   assert.ok(worstTurn < 30, `turn ${worstTurn.toFixed(2)} ms`);
 });
+
+test("the cell held can live: steered simply toward the nearest food it divides within 90 s, left alone it lasts a minute", async () => {
+  const { dawnSeaOf, dropOfWorld } = await import("../../src/host/inspect/small.ts"),
+    { newDrop, stepDrop, worth } = await import("../../src/view/drop.ts"),
+    { foodOf, heldCell, holdDrop, stepHeld } = await import("../../src/view/drop-held.ts"),
+    { firstTraits, swimSpeed } = await import("../../src/view/line.ts");
+  for (const [n, g] of worlds.slice(0, 10)) {
+    const block = dropOfWorld(g, dawnSeaOf(g), { dawn: true });
+    if (!block) continue;
+    for (const steer of [true, false]) {
+      const s = newDrop(block, block.kinds.map((k) => k.way === "eater" || k.way === "rock"));
+      // (The drop as the mode may find it: lived a while first, its rivals as many as it holds.)
+      for (let i = 0; i < 900; i++) stepDrop(s);
+      const kind = block.kinds.find((k) => k.way === "eater") ?? block.kinds[0]!,
+        t = firstTraits(kind, kind.pace ?? 1),
+        h = holdDrop(s, t, swimSpeed(t, { liquid: "water" })),
+        w = worth(t.size);
+      let at = -1,
+        lasted = 120;
+      for (let i = 0; i < 30 * 120; i++) {
+        const c = heldCell(s, h);
+        if (!c || h.ended) {
+          lasted = i / 30;
+          break;
+        }
+        if (steer) {
+          const f = foodOf(s, c),
+            l = f ? Math.hypot(f.dx, f.dy) || 1 : 1;
+          h.mx = f ? f.dx / l : 1;
+          h.my = f ? f.dy / l : 0;
+        }
+        stepHeld(s, h);
+        if ((heldCell(s, h)?.energy ?? 0) >= 2 * w) {
+          at = i / 30;
+          break;
+        }
+      }
+      if (steer) assert.ok(at > 0 && at <= 90, `${n}: steered to food, divided at ${at} s (ate ${h.ate})`);
+      else {
+        assert.equal(at, -1, `${n}: left alone it does not divide`);
+        // (Starved only by neglect: a minute and more of it.)
+        assert.ok(lasted >= 60, `${n}: left alone it lasts a minute (${lasted} s, ${h.ended || "alive"})`);
+      }
+    }
+  }
+});

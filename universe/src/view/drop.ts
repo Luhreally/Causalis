@@ -89,7 +89,8 @@ export type Cell = {
   meals: { color: number; age: number }[];
 };
 
-export type Mote = { x: number; y: number; vx: number; vy: number };
+/** A speck of food; `worth` where it is less than a whole one's (a crumb a held cell's supply wells up: view/drop-held.ts). */
+export type Mote = { x: number; y: number; vx: number; vy: number; worth?: number };
 
 export type DropState = {
   readonly kinds: readonly DropKind[];
@@ -356,7 +357,7 @@ export function stepDrop(s: DropState): void {
             const m = s.motes[best]!;
             if (bd < (c.size / 2 + 1) ** 2) {
               eatenMotes.add(best);
-              c.energy += MOTE;
+              c.energy += m.worth ?? MOTE;
             } else c.heading = Math.atan2(gap(c.y, m.y, FIELD_H), gap(c.x, m.x, FIELD_W));
           } else if (r() < 0.6 * dt) c.heading = r() * Math.PI * 2;
         }
