@@ -65,7 +65,8 @@ test("each knows up to a dozen, likes those alike, quarrels with rivals; kept in
   // (182 since the tiers: a byte for how closely one is followed and one for how far into their stride their needs are
   // reckoned, 2026-11-26.)
   // (183 since the tissue a wound reached, a byte, 2026-11-26.)
-  assert.ok(PERSON_BYTES <= 183, `${PERSON_BYTES} bytes a person`);
+  // (191 since one's mother and father, by their number, four bytes each (P3), 2026-11-27.)
+  assert.ok(PERSON_BYTES <= 191, `${PERSON_BYTES} bytes a person`);
   // Entered: each already knows some of their household, their work and their street.
   let known = 0,
     ties = 0;
