@@ -1204,7 +1204,8 @@ h3.place-insp-sub {
   font-size: 11px;
   color: var(--muted, #a9bbe2);
 }
-.place-hud .place-insp-order {
+.place-hud .place-insp-order,
+.place-hud .place-insp-family {
   padding: 0 10px;
 }
 /* Inside a lot (O3): its plan, fit to the inspector; its tiles faint, its rooms walled, those here as rings. */

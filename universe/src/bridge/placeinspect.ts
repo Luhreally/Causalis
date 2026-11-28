@@ -42,6 +42,8 @@ export type PlaceInspectPerson = {
   /** Their page in the place, and the god game's page of them where it has one (a key figure, one of its roster). */
   readonly ref: string;
   readonly page: string;
+  /** Their family's page in the town (P3). */
+  readonly familyRef: string;
   readonly name: string;
   readonly portrait: Portrait | null;
   readonly age: number;
@@ -394,7 +396,26 @@ export type PlaceInspectGate = {
   readonly words: string;
 };
 
+/** One's family in the town (P3): each of their kin a key while of the town, as deep as it has kept them. */
+export type PlaceInspectFamily = {
+  readonly kind: "family";
+  readonly ref: string;
+  readonly personRef: string;
+  readonly name: string;
+  readonly icon: string;
+  readonly parents: readonly { readonly name: string; readonly ref: string | null; readonly words: string }[];
+  readonly grandparents: PlaceInspectFamily["parents"];
+  readonly mate: PlaceInspectFamily["parents"][number] | null;
+  /** Their pairing set for a day to come with the one named (courting). */
+  readonly promised: boolean;
+  readonly siblings: PlaceInspectFamily["parents"];
+  readonly children: PlaceInspectFamily["parents"];
+  readonly grandchildren: PlaceInspectFamily["parents"];
+  readonly words: string;
+};
+
 export type PlaceInspect =
+  | PlaceInspectFamily
   | PlaceInspectGate
   | PlaceInspectWork
   | PlaceInspectLegends

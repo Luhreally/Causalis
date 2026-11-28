@@ -490,6 +490,21 @@ for (const view of [
       await look("17-insp-orders", "a person's orders in the inspector");
       await press(".place-insp-order", "Orders, closed");
     } else say("the one inspected keeps no work: no orders to look at");
+    // Their family (P3): from their page, and Back to them.
+    {
+      const kind = () => k<string>('document.querySelector(".place-insp")?.dataset.kind ?? ""');
+      await k('document.querySelector(".place-insp-family")?.scrollIntoView({ block: "center" })');
+      await page.waitForTimeout(300);
+      await press(".place-insp-family", "Family ▸, on a person's page");
+      await until("their family", async () => (await kind()) === "family", 8000);
+      await page.waitForTimeout(400);
+      say(`family: ${(await text(".place-insp")).slice(0, 300)}`);
+      check((await shown(".place-family-row")) >= 2, "their family's page tells their parents");
+      await look("16b-family", "one's family in the town");
+      await press(".place-insp-back", "‹ Back to them from their family");
+      await until("them again", async () => (await kind()) === "person", 8000);
+      check((await kind()) === "person", "Back from their family comes to them");
+    }
     // A sheet opened under it: the inspector above it, peeked.
     await press('.place-tab[data-tab="people"]', "the People tab, the inspector open");
     await page.waitForTimeout(1200);

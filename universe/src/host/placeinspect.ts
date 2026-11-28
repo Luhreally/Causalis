@@ -39,6 +39,7 @@ import {
   placeItemRef,
   placeLotRef,
   placeWorkRef,
+  placeFamilyRef,
   placePersonRef,
   placedId,
   type MemberState,
@@ -59,6 +60,7 @@ import { placeFields, placeInside } from "./placeinside.ts";
 import { placeBelow } from "./placebelow.ts";
 import { placeLegends, placeWork } from "./placelegends.ts";
 import { placeGate } from "./placevisitors.ts";
+import { placeFamily } from "./placefamily.ts";
 import {
   ACT,
   AT,
@@ -511,6 +513,7 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
     id,
     ref: placePersonRef(place.town, id),
     page: me.ref,
+    familyRef: placeFamilyRef(place.town, id),
     name: me.name,
     portrait: {
       kind: "person",
@@ -1084,6 +1087,10 @@ export function placeInspect(world: World, town: string, ref: string): PlaceInsp
   if (ref.startsWith("plcb:")) return placeBelow(world, place);
   if (ref.startsWith("plcy:")) return placeLegends(world, place);
   if (ref.startsWith("plca:")) return placeGate(world, place);
+  if (ref.startsWith("plcf:")) {
+    const id = Number(ref.slice(ref.lastIndexOf(":") + 1));
+    return Number.isInteger(id) ? placeFamily(world, place, id) : null;
+  }
   if (ref.startsWith("plcw:")) {
     // (plcw:<town>:<lot + 3>:<made>:<maker>: the town's own key has colons of its own.)
     const [lot, made, maker] = ref.split(":").slice(-3).map(Number) as [number, number, number];
