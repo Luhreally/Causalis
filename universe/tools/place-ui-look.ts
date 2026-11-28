@@ -1007,6 +1007,22 @@ for (const view of [
     await press(".place-insp-back", "‹ Back to the square's page from its faith");
     await until("the square's page from its faith", async () => (await kind()) === "lot", 8000);
     check((await kind()) === "lot", "Back from its faith comes to the square's page");
+    // What it lives on (R5): from the square's page, and Back.
+    await k('document.querySelector(".place-insp-making")?.scrollIntoView({ block: "center" })');
+    await page.waitForTimeout(300);
+    await press(".place-insp-making", "What it lives on ▸, on the square's page");
+    await until("what it lives on", async () => (await kind()) === "making", 8000);
+    await page.waitForTimeout(400);
+    say(`making: ${(await text(".place-insp")).slice(0, 300)}`);
+    check((await shown(".place-insp-stuff-swatch")) >= 1, "all it holds, by its stuff");
+    await look("20o-making", "what the town lives on");
+    await press(".place-insp-back", "‹ Back to the square's page from what it lives on");
+    await until(
+      "the square's page from what it lives on",
+      async () => (await kind()) === "lot",
+      8000,
+    );
+    check((await kind()) === "lot", "Back from what it lives on comes to the square's page");
     // One of its dead (R1): the Log's names lead to them; their page outlives them, and Back comes again.
     {
       await press('.place-tab[data-tab="log"]', "the log tab, for one of its dead");

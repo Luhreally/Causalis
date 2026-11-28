@@ -616,7 +616,43 @@ export type PlaceInspectBody = {
   readonly genome: readonly (readonly [string, string])[];
 };
 
+/**
+ * What a town lives on (R5): all it holds by the stuff it is, what it made and used today, its water, its fuel, what
+ * poisons its people, the vulnerabilities its readings name, and how steady it is.
+ */
+export type PlaceInspectMaking = {
+  readonly kind: "making";
+  readonly ref: string;
+  readonly name: string;
+  readonly icon: string;
+  readonly sub: string;
+  readonly stuffs: readonly {
+    readonly name: string;
+    readonly kg: number;
+    readonly colour: string;
+  }[];
+  /** Kilograms of the stuffs past those told. */
+  readonly rest: number;
+  readonly making: readonly {
+    readonly name: string;
+    readonly made: number;
+    readonly used: number;
+    readonly came: number;
+  }[];
+  readonly water: string;
+  readonly fuel: readonly string[];
+  readonly poisons: string;
+  readonly vulnerable: readonly {
+    readonly name: string;
+    readonly words: string;
+    readonly ref: string | null;
+  }[];
+  readonly steady: "steady" | "strained" | "failing";
+  readonly stability: readonly (readonly [string, string])[];
+};
+
 export type PlaceInspect =
+  | PlaceInspectMaking
   | PlaceInspectBody
   | PlaceInspectCharacter
   | PlaceInspectDead
