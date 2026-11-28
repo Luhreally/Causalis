@@ -36,7 +36,8 @@ import {
   placeGear,
   type Place,
 } from "./place.ts";
-import { lotWords, placeWho, tradeWords } from "./placeplan.ts";
+import { lotWords, placeDay, placeWho, tradeWords } from "./placeplan.ts";
+import { workName } from "./placelegends.ts";
 
 /** The most households of a lot whose rooms are laid side by side (a block of flats: the rest are on the floors above). */
 const ROOMS_ACROSS = 3;
@@ -355,10 +356,11 @@ export function placeInside(world: World, place: Place, lot: number): PlaceInspe
       {
         kind: "work",
         glyph: "🖼",
-        name: `${cap(WORK_QUALITY[x.quality] ?? "plain")} ${x.form}`,
+        name: workName(world, place, x),
         w: 1,
         d: 1,
-        words: `Made on day ${(x.day % 365) + 1} of the year ${Math.floor(x.day / 365)}`,
+        // (Made when it was made: a work's making is kept in seconds, what it shows by its day.)
+        words: `Made ${placeDay(x.made)}`,
       },
       true,
     );

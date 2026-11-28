@@ -437,6 +437,8 @@ export const HAP = {
   caught: 43,
   /** Come to its gate (P2): `a` their line in `gates`, `b` how many (GATE_TURNED added: turned away by its order). */
   gate: 44,
+  /** Seized by a strange mood (P8): they made a masterwork, `a` the lot it is kept at. */
+  inspired: 45,
 } as const;
 /** On a gate's line (HAP.gate): those who asked to live in the town turned away, its gate shut to them by order. */
 export const GATE_TURNED = 1 << 20;
@@ -490,6 +492,7 @@ const HAP_WORDS = [
   "parted from the one they were paired with",
   "was caught stealing by the watch",
   "came to the gate",
+  "was seized by a strange mood",
 ];
 
 /** The place's draws: through the world's Rng, on a stream no registry holds (it is no part of the ruleset's identity). */
@@ -531,6 +534,7 @@ const P = {
   vital: 30,
   gear: 31,
   theft: 32,
+  strange: 33,
 } as const;
 
 const NEEDS = 4;
@@ -1132,6 +1136,8 @@ export type Place = {
   breaks?: number[];
   held?: number[];
   works?: number[];
+  /** P8. Its works made in a strange mood, two numbers each: when it was made (seconds) and its maker (their number). */
+  arts?: number[];
   /** P2. Those come to its gate, a line each: what (GATE_KINDS'), from where, and why, and the event behind it. Absent: none. */
   gates?: string[];
   /**
@@ -1832,6 +1838,7 @@ export class PlaceStore implements StateStore {
         ...(p.held?.length ? { held: p.held } : {}),
         ...(p.works?.length ? { works: p.works } : {}),
         ...(p.gates?.length ? { gates: p.gates } : {}),
+        ...(p.arts?.length ? { arts: p.arts } : {}),
         ...(p.pins?.length ? { pins: p.pins } : {}),
         ...(p.vital ? { vital: p.vital } : {}),
         ...(UNPAIRED.has(p) ? { unpaired: true } : {}),
@@ -1931,6 +1938,7 @@ export class PlaceStore implements StateStore {
         ...(raw.held ? { held: [...(raw.held as number[])] } : {}),
         ...(raw.works ? { works: [...(raw.works as number[])] } : {}),
         ...(raw.gates ? { gates: [...(raw.gates as string[])] } : {}),
+        ...(raw.arts ? { arts: [...(raw.arts as number[])] } : {}),
         ...(raw.pins ? { pins: [...(raw.pins as number[])] } : {}),
         ...(raw.vital ? { vital: [...(raw.vital as number[])] } : {}),
         ...(raw.deep
@@ -2032,6 +2040,11 @@ export function placeDigest(p: Place): string {
   for (const x of p.breaks ?? []) h.int(x);
   for (const x of p.held ?? []) h.int(x);
   for (const x of p.works ?? []) h.int(x);
+  // (Its works of a strange mood: hashed only where any was made, so a place kept before them is told as it was.)
+  if (p.arts?.length) {
+    h.int(p.arts.length);
+    for (const x of p.arts) h.int(x);
+  }
   // (Those come to its gate: hashed only where any came, so a place kept before them is told as it was.)
   if (p.gates?.length) {
     h.int(p.gates.length);
@@ -8975,7 +8988,17 @@ function makeWork(cx: TickCx, i: number): boolean {
     if (WORK_SUBJECTS.has(x.what) && (!shows || (HAP_GRAVE.has(x.what) && !HAP_GRAVE.has(shows.what)))) shows = x;
   }
   const level = levelOf(Math.floor(hoursAt(p, i, SK.crafts) / 6)),
-    w = (place.works ??= []);
+    w = (place.works ??= []),
+    // (A strange mood, P8: one long at their craft, by their wonder, makes a masterwork past their skill, now and again.)
+    strange =
+      level >= STRANGE_LEVEL &&
+      cx.world.rng.chance(
+        STRANGE_CHANCE * placeFacets(place, i)[5]!,
+        PLACE_DRAW,
+        place.key ^ p.id[i]!,
+        Math.floor(t / PLACE_TICK),
+        P.strange,
+      );
   w.push(
     lot,
     t,
@@ -8983,8 +9006,9 @@ function makeWork(cx: TickCx, i: number): boolean {
     shows ? shows.what : -1,
     shows ? shows.id : 0,
     shows ? Math.floor(shows.t / DAY) : 0,
-    Math.max(0, Math.min(4, level)),
+    strange ? 4 : Math.max(0, Math.min(4, level)),
   );
+  if (strange) (place.arts ??= []).push(t, p.id[i]!);
   // (Past the most a building holds, its oldest worn away.)
   let at = 0;
   for (let k = 0; k + 6 < w.length; k += 7) if (w[k] === lot) at++;
@@ -8992,10 +9016,23 @@ function makeWork(cx: TickCx, i: number): boolean {
     const first = w.findIndex((x, k) => k % 7 === 0 && x === lot);
     w.splice(first, 7);
   }
-  note(place, HAP.madeWork, p.id[i]!, lot);
+  note(place, strange ? HAP.inspired : HAP.madeWork, p.id[i]!, lot);
   p.act[i] = ACT.work;
   p.why[i] = WHY.work;
   return true;
+}
+/**
+ * P8. A strange mood: of a maker's works, the share made in one, by their wonder (their sixth facet, 0 … 1), once they are
+ * fine at their craft (est.: an eighth of the works of the most wondering of masters; first light's town of 2,200 makes some
+ * twenty works a year, most by its masters, so one or two of a strange mood a year, and its town of 600 one every few years).
+ */
+const STRANGE_CHANCE = 1 / 8,
+  STRANGE_LEVEL = 3;
+/** Whether a work of a place was made in a strange mood (P8). */
+export function placeArt(place: Place, made: number, maker: number): boolean {
+  const a = place.arts ?? [];
+  for (let k = 0; k + 1 < a.length; k += 2) if (a[k] === made && a[k + 1] === maker) return true;
+  return false;
 }
 /** The happenings a work may show: its gravest, and its glad days. */
 const WORK_SUBJECTS: ReadonlySet<number> = new Set([
@@ -10429,6 +10466,10 @@ export function hapTold(
       return named?.(x.a)
         ? `stole a day's food from the household of ${named(x.a)}, being in want`
         : "stole food, being in want";
+    case HAP.inspired: {
+      const b = place.bldgs.lot.indexOf(x.a);
+      return `was seized by a strange mood, and made a masterwork past their own skill, kept ${b > 0 ? `at the ${kindName(place.bldgs.kind[b]!)}` : "at home"}`;
+    }
     case HAP.madeWork: {
       const b = place.bldgs.lot.indexOf(x.a);
       return b > 0 ? `made a work, kept at the ${kindName(place.bldgs.kind[b]!)}` : "made a work, kept at home";
@@ -10512,6 +10553,7 @@ export const HAP_MANY: readonly string[] = [
   "parted from those they were paired with",
   "were caught stealing by the watch",
   "came to the gate",
+  "were seized by strange moods",
 ];
 
 /** What many did, said with what of: "died of the red flux", "fell in the battle at Sairis's land". */

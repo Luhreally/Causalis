@@ -60,7 +60,7 @@ import { skillLine, temperWords } from "./inspect/place.ts";
 import { groundReading } from "./inspect/ground.ts";
 import { placeFields, placeInside } from "./placeinside.ts";
 import { placeBelow } from "./placebelow.ts";
-import { placeLegends, placeWork } from "./placelegends.ts";
+import { placeLegends, placeWork, workName } from "./placelegends.ts";
 import { placeGate } from "./placevisitors.ts";
 import { placeFamily } from "./placefamily.ts";
 import { bondWords, placeBound } from "./placebound.ts";
@@ -994,7 +994,7 @@ export function inspectLot(world: World, place: Place, lot: number): PlaceInspec
           id: m >= 0 ? x.maker : null,
           // (Its own page, O9: its maker a tap on from there.)
           ref: placeWorkRef(place.town, lot, x.made, x.maker),
-          name: `${cap(WORK_QUALITY[x.quality] ?? "plain")} ${x.form}`,
+          name: workName(world, place, x),
           words: `showing ${subject}; by ${m >= 0 ? who(m).name : "one gone from the town"}`,
         };
       }),

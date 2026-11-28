@@ -18,12 +18,13 @@ import {
   hapSubject,
   hapTold,
   hapWords,
+  placeArt,
   placeIndexOf,
   placeNeedsDay,
   placeWorks,
   type Place,
 } from "./place.ts";
-import { lotWords, placeDay, placeNamed, placeWho } from "./placeplan.ts";
+import { lotWords, placeDay, placeNamed, placeNames, placeWho } from "./placeplan.ts";
 import { ORDERED } from "./placewatch.ts";
 
 /** The most of a town's works, its battles and its rarest happenings its legends tell. */
@@ -31,6 +32,23 @@ const LEGEND_WORKS = 8,
   LEGEND_BATTLES = 6,
   LEGEND_LINES = 10;
 const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
+
+/**
+ * A work's name (P8): by how fine it is and its form ("Fine carving"); one made in a strange mood named as its people name
+ * their own, a word of their tongue (host/placeplan.ts placeNames, keyed on when it was made and by whom), and its maker's.
+ */
+export function workName(
+  world: World,
+  place: Place,
+  x: { made: number; maker: number; quality: number; form: string },
+): string {
+  if (!placeArt(place, x.made, x.maker))
+    return `${cap(WORK_QUALITY[x.quality] ?? "plain")} ${x.form}`;
+  const key = (Math.imul(x.made ^ x.maker, 0x9e3779b1) ^ place.key) >>> 0,
+    word = placeNames(world, place)(key, key & 1, key >>> 3).split(" ")[0] ?? "Nameless",
+    maker = (placeNamed(world, place)(x.maker) ?? "a maker gone").split(" ")[0];
+  return `“${word}”, ${maker}'s ${x.form}`;
+}
 
 /** Every work the place keeps, at any lot: its own and its lot's. */
 function allWorks(world: World, place: Place) {
@@ -58,14 +76,15 @@ export function placeWork(
   let seenBy = 0;
   for (let h = 0; h < nd.seen.length; h++)
     if (nd.seen[h] === lot && place.houses.home[h]! >= 0) seenBy++;
-  const quality = WORK_QUALITY[x.quality] ?? "plain",
+  const art = placeArt(place, x.made, x.maker),
+    quality = art ? "masterful, made in a strange mood" : (WORK_QUALITY[x.quality] ?? "plain"),
     whomName = x.what >= 0 ? (s >= 0 ? who(s).name : (named(x.whom) ?? "one of the town")) : null;
   return {
     kind: "work",
     ref: placeWorkRef(place.town, lot, made, maker),
     lotRef: placeLotRef(place.town, lot),
-    name: `${cap(quality)} ${x.form}`,
-    icon: "🖼️",
+    name: workName(world, place, x),
+    icon: art ? "🏺" : "🖼️",
     quality,
     kept: cap(lotWords(place, lot)),
     made: cap(placeDay(x.made)),
@@ -80,9 +99,11 @@ export function placeWork(
     whom:
       x.what >= 0 && s >= 0 ? { name: who(s).name, ref: placePersonRef(place.town, x.whom) } : null,
     seenBy,
-    words: seenBy
-      ? `In sight of the doors of ${seenBy} ${seenBy === 1 ? "household" : "households"}, the finest each sees: their beauty of it.`
-      : "In sight of no household's door as the finest it sees.",
+    words: `${art ? "Made in a strange mood, past its maker's own skill: a legend of the town. " : ""}${
+      seenBy
+        ? `In sight of the doors of ${seenBy} ${seenBy === 1 ? "household" : "households"}, the finest each sees: their beauty of it.`
+        : "In sight of no household's door as the finest it sees."
+    }`,
   };
 }
 
@@ -110,11 +131,13 @@ export function placeLegends(world: World, place: Place): PlaceInspectLegends {
         };
       }),
     works = allWorks(world, place)
-      .sort((a, b) => b.quality - a.quality || b.made - a.made)
+      // (Those of a strange mood first, then the finest, the latest of each.)
+      .map((x) => ({ ...x, art: placeArt(place, x.made, x.maker) ? 1 : 0 }))
+      .sort((a, b) => b.art - a.art || b.quality - a.quality || b.made - a.made)
       .slice(0, LEGEND_WORKS)
       .map((x) => ({
         ref: placeWorkRef(place.town, x.lot, x.made, x.maker),
-        name: `${cap(WORK_QUALITY[x.quality] ?? "plain")} ${x.form}`,
+        name: workName(world, place, x),
         words: `Kept at ${lotWords(place, x.lot)}; made ${placeDay(x.made)}`,
       })),
     battles = place.wars.slice(-LEGEND_BATTLES).map((w) => {
