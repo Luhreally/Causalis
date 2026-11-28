@@ -1138,6 +1138,11 @@ export type Place = {
   works?: number[];
   /** P8. Its works made in a strange mood, two numbers each: when it was made (seconds) and its maker (their number). */
   arts?: number[];
+  /**
+   * R1. Its dead remembered: the last MOURN_KEPT of those who died of it, MOURN_STRIDE numbers each, as they stood at their
+   * death (placeMourned). Absent: none died since it was kept so.
+   */
+  mourned?: number[];
   /** P2. Those come to its gate, a line each: what (GATE_KINDS'), from where, and why, and the event behind it. Absent: none. */
   gates?: string[];
   /**
@@ -1851,6 +1856,7 @@ export class PlaceStore implements StateStore {
         ...(p.works?.length ? { works: p.works } : {}),
         ...(p.gates?.length ? { gates: p.gates } : {}),
         ...(p.arts?.length ? { arts: p.arts } : {}),
+        ...(p.mourned?.length ? { mourned: p.mourned } : {}),
         ...(p.pins?.length ? { pins: p.pins } : {}),
         ...(p.vital ? { vital: p.vital } : {}),
         ...(UNPAIRED.has(p) ? { unpaired: true } : {}),
@@ -1951,6 +1957,7 @@ export class PlaceStore implements StateStore {
         ...(raw.works ? { works: [...(raw.works as number[])] } : {}),
         ...(raw.gates ? { gates: [...(raw.gates as string[])] } : {}),
         ...(raw.arts ? { arts: [...(raw.arts as number[])] } : {}),
+        ...(raw.mourned ? { mourned: [...(raw.mourned as number[])] } : {}),
         ...(raw.pins ? { pins: [...(raw.pins as number[])] } : {}),
         ...(raw.vital ? { vital: [...(raw.vital as number[])] } : {}),
         ...(raw.deep
@@ -2058,6 +2065,11 @@ export function placeDigest(p: Place): string {
   if (p.arts?.length) {
     h.int(p.arts.length);
     for (const x of p.arts) h.int(x);
+  }
+  // (Its dead remembered: hashed only where any is, so a place kept before them is told as it was.)
+  if (p.mourned?.length) {
+    h.int(p.mourned.length);
+    for (const x of p.mourned) h.int(x);
   }
   // (Those come to its gate: hashed only where any came, so a place kept before them is told as it was.)
   if (p.gates?.length) {
@@ -2866,6 +2878,7 @@ function note(
       year,
     );
   remembered(place, what, id, a, b, gone);
+  if (HAP_DEATH.has(what)) mourn(place, gone >= 0 ? gone : placeIndexOf(place, id), what, a);
   place.log.push(
     gone >= 0
       ? { t: place.t, what, id, a, b, k: place.houses.key[p.house[gone]!]!, s: sexOf(p, gone) }
@@ -8981,6 +8994,112 @@ function makeWork(cx: TickCx, i: number): boolean {
  */
 const STRANGE_CHANCE = 1 / 8,
   STRANGE_LEVEL = 3;
+/**
+ * R1. One of a place's dead as they stood at their death, kept for their page: MOURN_STRIDE numbers. Their number, when
+ * (seconds), what took them and what it was of (as its log's line), sex and trade (sexOcc), their household's key and home
+ * lot, the day they were born, mother, father, mate, friend, their trade; their memories then (MOURN_MEMS: kind and size
+ * now); those they thought most and least of (MOURN_TIES: their number and opinion).
+ */
+export const MOURN_MEMS = THOUGHTS,
+  MOURN_TIES = 3,
+  MOURN_STRIDE = 12 + 2 * MOURN_MEMS + 2 * MOURN_TIES,
+  /** The most of its dead a place keeps a page for (the oldest let go first). */
+  MOURN_KEPT = 64;
+export type Mourned = {
+  readonly id: number;
+  readonly t: number;
+  readonly what: number;
+  readonly a: number;
+  readonly sexOcc: number;
+  readonly key: number;
+  readonly home: number;
+  readonly born: number;
+  readonly mother: number;
+  readonly father: number;
+  readonly mate: number;
+  readonly friend: number;
+  readonly memories: readonly { readonly thought: number; readonly size: number }[];
+  readonly ties: readonly { readonly id: number; readonly opinion: number }[];
+};
+function mourn(place: Place, i: number, what: number, a: number): void {
+  if (i < 0 || i >= place.people.n) return;
+  const p = place.people,
+    today = Math.floor(place.t / DAY),
+    h = p.house[i]!,
+    rec: number[] = [
+      p.id[i]!,
+      Math.floor(place.t),
+      what,
+      a | 0,
+      p.sexOcc[i]!,
+      place.houses.key[h] ?? 0,
+      place.houses.home[h] ?? -1,
+      p.born[i]!,
+      p.mother[i]!,
+      p.father[i]!,
+      p.mate[i] === PROMISED ? 0 : p.mate[i]!,
+      p.friend[i]!,
+    ];
+  // (What they carried in mind at the end: each memory's kind and its size then.)
+  for (let k = 0; k < MOURN_MEMS; k++) {
+    const v = p.thought[i * THOUGHTS + k]!,
+      now = v ? Math.round(thoughtNow(v, today)) : 0;
+    rec.push(now ? thoughtKind(v) : 0, now);
+  }
+  // (Those they thought most of, and the one they thought least of where they thought ill of anyone.)
+  const ties = placeTies(place, i),
+    chosen = ties.slice(0, MOURN_TIES - 1);
+  const worst = ties.at(-1);
+  if (worst && worst.opinion < 0 && !chosen.includes(worst)) chosen.push(worst);
+  else if (ties[MOURN_TIES - 1]) chosen.push(ties[MOURN_TIES - 1]!);
+  for (let k = 0; k < MOURN_TIES; k++) {
+    const t = chosen[k];
+    rec.push(t ? p.id[t.j]! : 0, t ? t.opinion : 0);
+  }
+  const m = (place.mourned ??= []);
+  m.push(...rec);
+  if (m.length > MOURN_KEPT * MOURN_STRIDE) m.splice(0, m.length - MOURN_KEPT * MOURN_STRIDE);
+}
+/** One of a place's dead as their page reads them (R1; null: none kept by that number). */
+export function placeMourned(place: Place, id: number): Mourned | null {
+  const m = place.mourned ?? [];
+  for (let o = m.length - MOURN_STRIDE; o >= 0; o -= MOURN_STRIDE) {
+    if (m[o] !== id) continue;
+    const memories: { thought: number; size: number }[] = [],
+      ties: { id: number; opinion: number }[] = [];
+    for (let k = 0; k < MOURN_MEMS; k++)
+      if (m[o + 12 + 2 * k])
+        memories.push({ thought: m[o + 12 + 2 * k]!, size: m[o + 13 + 2 * k]! });
+    for (let k = 0; k < MOURN_TIES; k++) {
+      const at = o + 12 + 2 * MOURN_MEMS + 2 * k;
+      if (m[at]) ties.push({ id: m[at]!, opinion: m[at + 1]! });
+    }
+    return {
+      id,
+      t: m[o + 1]!,
+      what: m[o + 2]!,
+      a: m[o + 3]!,
+      sexOcc: m[o + 4]!,
+      key: m[o + 5]!,
+      home: m[o + 6]!,
+      born: m[o + 7]!,
+      mother: m[o + 8]!,
+      father: m[o + 9]!,
+      mate: m[o + 10]!,
+      friend: m[o + 11]!,
+      memories,
+      ties,
+    };
+  }
+  return null;
+}
+/** The dead of a place kept for their pages (R1), the latest first: their numbers. */
+export function placeMournedIds(place: Place): number[] {
+  const m = place.mourned ?? [],
+    out: number[] = [];
+  for (let o = m.length - MOURN_STRIDE; o >= 0; o -= MOURN_STRIDE) out.push(m[o]!);
+  return out;
+}
 /** Whether a work of a place was made in a strange mood (P8). */
 export function placeArt(place: Place, made: number, maker: number): boolean {
   const a = place.arts ?? [];

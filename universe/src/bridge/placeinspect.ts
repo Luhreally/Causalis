@@ -44,6 +44,12 @@ export type PlaceInspectPerson = {
   readonly page: string;
   /** Their family's page in the town (P3). */
   readonly familyRef: string;
+  /** R1. Their nearest kin a tap away: mother, father, the one they are paired with, their children (the most told). */
+  readonly kin: readonly {
+    readonly name: string;
+    readonly ref: string | null;
+    readonly words: string;
+  }[];
   readonly name: string;
   readonly portrait: Portrait | null;
   readonly age: number;
@@ -495,7 +501,34 @@ export type PlaceInspectFaith = {
   readonly words: string;
 };
 
+/**
+ * One of a town's dead (R1), on a page that outlives them: what took them and when, their life in short, their kin and
+ * those they knew a tap away (living or kept so), and what they carried in mind at the end.
+ */
+export type PlaceInspectDead = {
+  readonly kind: "dead";
+  readonly ref: string;
+  readonly name: string;
+  readonly icon: string;
+  /** "Died day 41 of year 150, aged 63". */
+  readonly sub: string;
+  /** What took them, as the town's log told it. */
+  readonly death: string;
+  /** Their life in short: born where and when, their trade, their household's home. */
+  readonly life: readonly string[];
+  /** Their kin (parents, mate, children) and those they knew, each with what they were to them. */
+  readonly kin: PlaceInspectFamily["parents"];
+  readonly knew: PlaceInspectFamily["parents"];
+  /** What they carried in mind at the end: each memory's icon, words and its weight then. */
+  readonly memories: readonly {
+    readonly icon: string;
+    readonly words: string;
+    readonly size: number;
+  }[];
+};
+
 export type PlaceInspect =
+  | PlaceInspectDead
   | PlaceInspectFaith
   | PlaceInspectBound
   | PlaceInspectFamily

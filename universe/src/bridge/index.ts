@@ -635,6 +635,7 @@ export type {
   PlaceInspectBelow,
   PlaceInspectLegends,
   PlaceInspectGate,
+  PlaceInspectDead,
   PlaceInspectFamily,
   PlaceInspectBound,
   PlaceInspectFaith,

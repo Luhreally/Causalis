@@ -974,6 +974,45 @@ for (const view of [
     await press(".place-insp-back", "‹ Back to the square's page from its faith");
     await until("the square's page from its faith", async () => (await kind()) === "lot", 8000);
     check((await kind()) === "lot", "Back from its faith comes to the square's page");
+    // One of its dead (R1): the Log's names lead to them; their page outlives them, and Back comes again.
+    {
+      await press('.place-tab[data-tab="log"]', "the log tab, for one of its dead");
+      await until("the log sheet", async () => !/^…$/.test(await text(".place-sheet-body")));
+      await page.waitForTimeout(500);
+      const refs = await k<string[]>(
+        `[...document.querySelectorAll('.place-log-names .place-link[data-ref^="plc:"]')].map((b) => b.dataset.ref).slice(0, 40)`,
+      );
+      await press('.place-tab[data-tab="log"]', "the log tab again, to close it");
+      let found = false;
+      for (const ref of refs) {
+        await k(`globalThis.causalis.place.inspect(${JSON.stringify(ref)})`);
+        await page.waitForTimeout(250);
+        if ((await kind()) === "dead") {
+          found = true;
+          break;
+        }
+      }
+      if (found) {
+        await page.waitForTimeout(400);
+        say(`dead: ${(await text(".place-insp")).slice(0, 300)}`);
+        check(
+          /^Died day \d+ of year \d+/.test(await text(".place-insp-sub")),
+          "when they died, on their page",
+        );
+        await look("20n-dead", "one of its dead, on a page that outlives them");
+        const kin = await shown(".place-insp-kin button");
+        if (kin > 0) {
+          await press(
+            ".place-insp-kin button",
+            "one of their kin or those they knew, from the page of the dead",
+          );
+          await page.waitForTimeout(500);
+          await press(".place-insp-back", "‹ Back to the page of the dead");
+          await until("the page of the dead again", async () => (await kind()) === "dead", 8000);
+          check((await kind()) === "dead", "Back from their kin comes to the page of the dead");
+        } else say("none of their kin or those they knew has a page");
+      } else say("none of the log's names is one of its dead kept for their page");
+    }
     // Raised by hand (P1): a home's lot page offers what the town could raise on its lots; asked there, it is offered no more.
     if (kept !== null) {
       await k(
