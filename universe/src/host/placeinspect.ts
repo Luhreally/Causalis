@@ -71,6 +71,7 @@ import { placeBody } from "./placebody.ts";
 import { placeMaking } from "./placemaking.ts";
 import { placeCivic } from "./placecivic.ts";
 import { placeWhy } from "./placewhy.ts";
+import { placeLevels } from "./placelevels.ts";
 import { placeHelp } from "./placehelp.ts";
 import { placeWhatNow } from "./placewhatnow.ts";
 import { placeInventory } from "./placeinventory.ts";
@@ -1148,6 +1149,7 @@ export function placeInspect(world: World, town: string, ref: string): PlaceInsp
   const place = enterPlace(world, town);
   if (!place) return null;
   if (ref.startsWith("plcb:")) return placeBelow(world, place);
+  if (ref.startsWith("plcz:")) return placeLevels(world, place);
   if (ref.startsWith("plcy:")) return placeLegends(world, place);
   if (ref.startsWith("plca:")) return placeGate(world, place);
   if (ref.startsWith("plcd:")) return placeBound(world, place);

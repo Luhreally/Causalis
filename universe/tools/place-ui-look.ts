@@ -1016,6 +1016,22 @@ for (const view of [
       "below the town: its ground cut through, its water said",
     );
     await look("20g-below", "below the town");
+    // Its ground level by level (R8): a level down, and Back to below the town.
+    await k('document.querySelector(".place-insp-levels")?.scrollIntoView({ block: "center" })');
+    await page.waitForTimeout(300);
+    await press(".place-insp-levels", "Its ground, level by level ▸, below the town");
+    await until("its levels", async () => (await kind()) === "levels", 8000);
+    await page.waitForTimeout(400);
+    const first = await text(".place-levels-label");
+    await press(".place-levels-down", "▼ the level below");
+    await page.waitForTimeout(300);
+    const second = await text(".place-levels-label");
+    say(`levels: ${first} → ${second}; ${(await text(".place-insp-body")).slice(0, 240)}`);
+    check(first !== second && /^2 of /.test(second), "a level down, its own");
+    await look("20q-levels", "the town's ground, a level down");
+    await press(".place-insp-back", "‹ Back to below the town from its levels");
+    await until("below the town again", async () => (await kind()) === "below", 8000);
+    check((await kind()) === "below", "Back from its levels comes to below the town");
     // What now? (G3): from the menu, a page of the inspector's with one to three things, each with somewhere to go.
     {
       await press(".place-menu-key", "the menu, for What now?");

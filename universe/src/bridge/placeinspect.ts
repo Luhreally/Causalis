@@ -735,7 +735,37 @@ export type PlaceInspectWhy = {
   readonly day: number;
 };
 
+/** A level of the town's ground (R8): its name and depth, its stuff, what is dug there, whether its land's means reach it. */
+export type PlaceLevel = {
+  readonly name: string;
+  readonly depth: string;
+  readonly stuff: string;
+  readonly dug: readonly {
+    readonly icon: string;
+    readonly words: string;
+    /** Where it is: one of the town's lots, or its workings (the town's mine, as its plan places it); else neither. */
+    readonly lot: number | null;
+    readonly works: boolean;
+    readonly state: "dug" | "digging" | "out" | "none";
+  }[];
+  readonly reached: boolean;
+};
+/** The town's ground, level by level (R8), as Dwarf Fortress's levels have it. */
+export type PlaceInspectLevels = {
+  readonly kind: "levels";
+  readonly ref: string;
+  readonly belowRef: string;
+  readonly name: string;
+  readonly icon: string;
+  readonly sub: string;
+  readonly levels: readonly PlaceLevel[];
+  /** How deep its land's means reach, said ("picks", "engines"). */
+  readonly reach: string;
+  readonly words: string;
+};
+
 export type PlaceInspect =
+  | PlaceInspectLevels
   | PlaceInspectWhy
   | PlaceInspectWhatNow
   | PlaceInspectHelp

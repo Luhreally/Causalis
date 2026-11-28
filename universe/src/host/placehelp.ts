@@ -276,6 +276,12 @@ export const HELP: Readonly<Record<string, Help>> = {
     ],
     can: ["Tap a step to open its page.", "🎯 or 📍: send the eye to the person or the place."],
   },
+  "page:levels": {
+    title: "The ground, level by level",
+    what: "The ground under the town from the soil down: its graves and wells, the water, then each depth its mines are dug to.",
+    numbers: [["Shaded", "A level deeper than this land can dig yet."]],
+    can: ["▲ and ▼: go up or down a level.", "📍: send the eye to where something is dug."],
+  },
 };
 
 /** The topic for what a sheet, a tab or a page is (G2): its own, else the town's. */

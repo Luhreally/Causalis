@@ -11,6 +11,7 @@
 import type {
   PlaceInspect,
   PlaceInspectBelow,
+  PlaceInspectLevels,
   PlaceInspectBound,
   PlaceInspectFaith,
   PlaceInspectBody,
@@ -40,6 +41,7 @@ import { billsEl, takesEl } from "./place-bills.ts";
 import { insideEl } from "./place-inside.ts";
 import { fieldsEl } from "./place-fields.ts";
 import { belowEl } from "./place-below.ts";
+import { levelsEl } from "./place-levels.ts";
 import type { VillagePlan } from "../bridge/index.ts";
 
 export type InspectHeight = "peek" | "half" | "full";
@@ -110,11 +112,17 @@ export class PlaceInspector {
   onInspect: (ref: string) => void = () => {};
   /** The town's plan, as its view holds it: its fields' page is laid off it (O6). */
   plan: () => VillagePlan | null = () => null;
+  /** Where a lot of the town stands (metres from its square; R8's levels draw off it). */
+  lotAt: (lot: number) => { x: number; z: number } | null = () => null;
+  /** The level of the town's ground shown (R8), and of which page. */
+  private level = 0;
+  private levelOf = "";
   /** The god game's full page of it. */
   onPage: (ref: string) => void = () => {};
   onFollow: (on: boolean) => void = () => {};
   /** The eye sent to one of its people or a lot (R7). */
-  onGo: (g: { id: number | null; lot: number | null }) => void = () => {};
+  onGo: (g: { id: number | null; lot: number | null; at?: { x: number; z: number } }) => void =
+    () => {};
   /** What a page or tab is, asked (G2): its topic. */
   onHelp: (topic: string) => void = () => {};
   /** The eye sent to one of the town or a lot (G3's Go to). */
@@ -295,6 +303,7 @@ export class PlaceInspector {
     else if (x.kind === "making") this.making(x);
     else if (x.kind === "civic") this.civic(x);
     else if (x.kind === "why") this.whyPage(x);
+    else if (x.kind === "levels") this.levels(x);
     else if (x.kind === "help") this.help(x);
     else if (x.kind === "whatnow") this.whatNow(x);
     else this.lot(x);
@@ -926,6 +935,30 @@ export class PlaceInspector {
     }
     this.body.replaceChildren(...body);
   }
+  /** The town's ground, level by level (R8): stepped up and down, each drawn from above and told. */
+  private levels(x: PlaceInspectLevels): void {
+    this.picture(x);
+    const title = `${x.icon} ${x.name}`;
+    if (this.title.textContent !== title) this.title.textContent = title;
+    if (this.sub.textContent !== x.sub) this.sub.textContent = x.sub;
+    if (this.levelOf !== x.ref) {
+      this.levelOf = x.ref;
+      this.level = 0;
+    }
+    this.body.replaceChildren(
+      ...levelsEl(
+        x,
+        this.level,
+        this.plan(),
+        (lot) => this.lotAt(lot),
+        (k) => {
+          this.level = Math.max(0, Math.min(x.levels.length - 1, k));
+          this.levels(x);
+        },
+        (g) => this.onGo(g),
+      ),
+    );
+  }
   /** Why one does what they do (R7): each step, the page it opens, and where the eye can go for it. */
   private whyPage(x: PlaceInspectWhy): void {
     this.picture(x);
@@ -1196,7 +1229,18 @@ export class PlaceInspector {
           : "no water at hand",
       `${x.lodes.length} ${x.lodes.length === 1 ? "lode" : "lodes"} dug`,
     ].join(" · ");
-    this.body.replaceChildren(...belowEl(x));
+    // (Its ground level by level, R8.)
+    const levels = el(
+      "button",
+      "place-insp-order place-insp-levels",
+      "Its ground, level by level ▸",
+    );
+    levels.setAttribute(
+      "aria-label",
+      "The town's ground one level at a time, and what is dug at each",
+    );
+    levels.onclick = () => this.onInspect(x.ref.replace(/^plcb:/, "plcz:"));
+    this.body.replaceChildren(...belowEl(x), levels);
   }
   /** The town's fields and its flock (O6): laid off its plan, who is out in them now. */
   private fields(x: PlaceInspectFields): void {

@@ -73,6 +73,8 @@ export const placeGateRef = (town: string): string => `plca:${town}`;
 export const placeLegendsRef = (town: string): string => `plcy:${town}`;
 /** A ref for what lies below a town and the water it draws (O8). */
 export const placeBelowRef = (town: string): string => `plcb:${town}`;
+/** The town's ground, level by level (R8). */
+export const placeLevelsRef = (town: string): string => `plcz:${town}`;
 /** A ref for a thing one of a town's people holds (O5: its own page), by its holder's number and its kind (one of each). */
 export const placeItemRef = (town: string, id: number, kind: number): string =>
   `plcg:${town}:${id}:${kind}`;

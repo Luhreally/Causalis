@@ -3396,7 +3396,7 @@ function dueAt(place: Place, t: number, what: number, a: number, b: number): voi
 }
 
 /** Where a town buries its dead: at its temple or its shrine where one stands, else in its square. */
-const graveLot = (place: Place): number =>
+export const graveLot = (place: Place): number =>
   place.bldgs.lot[buildingOf(place, ["temple", "shrine"])]!;
 
 /**
