@@ -40,13 +40,14 @@ const TABS: readonly (readonly [PlaceTab, string, string])[] = [
   ["dangers", "🛡️", "Dangers"],
   ["log", "📜", "Log"],
 ];
-/** The paces a town's day is watched at: the key, the clock's seconds a second, and that in words. */
+/** The paces a town's day is watched at: the key (in plain units a second, as the god bar's "1 month/s", so "1m" is
+ * never read as a month), the clock's seconds a second, and that in words. */
 export const PLACE_PACES: readonly (readonly [string, number, string])[] = [
   ["⏸", 0, "Stop the town's clock (Space)"],
-  ["1m", 60, "A minute of the town's day a second (1)"],
-  ["10m", 600, "Ten minutes of the town's day a second (2)"],
-  ["1h", 3600, "An hour of the town's day a second (3)"],
-  ["1d", 86_400, "A day of the town a second (4)"],
+  ["1 min/s", 60, "A minute of the town's day a second (1)"],
+  ["10 min/s", 600, "Ten minutes of the town's day a second (2)"],
+  ["1 hr/s", 3600, "An hour of the town's day a second (3)"],
+  ["1 day/s", 86_400, "A day of the town a second (4)"],
 ];
 /** The ways a town entered is run: its key's sign, its name, and what it is in a line. */
 const MODES: readonly (readonly [PlaceMode, string, string, string])[] = [
@@ -703,6 +704,23 @@ export class PlaceHud {
     if (fresh && !desk) this.tell(fresh);
     if (this.telling && !list.some((n) => n.key === this.telling!.key)) this.tell(null);
     else if (this.telling && performance.now() > this.tellUntil) this.tell(null);
+    // (Told as it is now: its words and its key's count from the one reading, never words kept from when it was
+    // tapped beside a count that has moved on. U2.)
+    else if (this.telling) {
+      const told = this.tellingMany ?? [this.telling],
+        now = told
+          .map((n) => list.find((x) => x.key === n.key))
+          .filter((n): n is PlaceNotice => !!n),
+        moved =
+          now.length !== told.length ||
+          now.some(
+            (n, k) => n.words !== told[k]!.words || n.n !== told[k]!.n || n.icon !== told[k]!.icon,
+          );
+      if (moved) {
+        if (this.tellingMany) this.tellMany(now, false);
+        else this.tell(now[0] ?? null, false);
+      }
+    }
     if (key === this.alertsKey) return;
     this.alertsKey = key;
     const keys: HTMLElement[] = [];
@@ -747,16 +765,23 @@ export class PlaceHud {
     if (this.telling?.key === key) this.tell(null);
     this.alerts(this.lastAlerts);
   }
-  /** The notice line under the paces (a phone's): what an alert tapped says, with its key to put it away (null: none). */
-  private tell(n: PlaceNotice | null): void {
+  /** The alerts told together in the notice line (null: one, or none). */
+  private tellingMany: readonly PlaceNotice[] | null = null;
+  /**
+   * The notice line under the paces (a phone's): what an alert tapped says, with its key to put it away (null: none);
+   * `fresh` false where it is the same alert told again as it now is (its time to go unchanged).
+   */
+  private tell(n: PlaceNotice | null, fresh = true): void {
     this.telling = n;
-    this.tellUntil = performance.now() + 8000;
+    this.tellingMany = null;
+    if (fresh) this.tellUntil = performance.now() + 8000;
     if (!n) {
       this.notice.hidden = true;
       return;
     }
     const words = el("button", "place-notice-words", `${n.icon} ${n.words}`),
       shut = el("button", "place-notice-shut", "×");
+    words.dataset.key = n.key;
     words.onclick = () => this.onAlert(n);
     shut.setAttribute("aria-label", `Put away: ${n.words}`);
     shut.onclick = () => this.dismiss(n.key);
@@ -765,9 +790,11 @@ export class PlaceHud {
     this.notice.hidden = false;
   }
   /** The alerts the column has no room for, told in the notice line, each a tap from going there. */
-  private tellMany(list: readonly PlaceNotice[]): void {
-    this.telling = list[0] ?? null;
-    this.tellUntil = performance.now() + 12_000;
+  private tellMany(list: readonly PlaceNotice[], fresh = true): void {
+    if (!list.length) return this.tell(null);
+    this.telling = list[0]!;
+    this.tellingMany = list;
+    if (fresh) this.tellUntil = performance.now() + 12_000;
     const keys = list.map((n) => {
       const b = el("button", `place-notice-words level${n.level}`, `${n.icon} ${n.words}`);
       b.onclick = () => this.onAlert(n);
@@ -1056,6 +1083,9 @@ export class PlaceHud {
         ),
       );
       name.onclick = () => this.onOpen(r.ref);
+      // (Their full name and skill where the cell cuts them: U2.)
+      name.title = `${r.name}: ${r.skill}. Open their page`;
+      name.setAttribute("aria-label", name.title);
       row.append(name);
       // (Each kind's skill under its key: the level its hours make, 0 new to it … 4 a master, ★ where their household taught
       // them it, ! where a wound takes from what it is done with.)
@@ -1111,6 +1141,30 @@ export class PlaceHud {
       table.append(row);
     }
     box.append(table);
+    // (Its columns past the right edge told: a line says so and which way, the edge fading while more lie beyond. U2.)
+    const wrap = el("div", "place-grid-wrap"),
+      hint = el("p", "place-grid-hint"),
+      edge = (): void => {
+        const fits = box.scrollWidth <= box.clientWidth + 1,
+          end = box.scrollLeft + box.clientWidth >= box.scrollWidth - 2;
+        wrap.classList.toggle("fits", fits);
+        wrap.classList.toggle("at-end", end);
+        hint.hidden = fits;
+        const words = end
+          ? "← Swipe back for the first columns"
+          : "More columns to the right: swipe →";
+        if (hint.textContent !== words) hint.textContent = words;
+      };
+    wrap.append(box);
+    box.addEventListener("scroll", edge, { passive: true });
+    hint.hidden = true;
+    // (Read once it is laid out: a few frames' tries while the sheet takes it in.)
+    let tries = 0;
+    const laid = (): void => {
+      if (box.isConnected && box.clientWidth > 0) edge();
+      else if (++tries < 10) requestAnimationFrame(laid);
+    };
+    requestAnimationFrame(laid);
     const more =
       s.grid.all > s.grid.rows.length
         ? `${s.grid.rows.length} of ${s.grid.all} shown: narrow them by trade above. `
@@ -1119,7 +1173,8 @@ export class PlaceHud {
       el("h3", "place-sub", "Priorities"),
       head,
       chips,
-      box,
+      hint,
+      wrap,
       el(
         "p",
         "place-more",
@@ -1613,10 +1668,13 @@ export class PlaceHud {
       const names = el("div", "place-log-names");
       for (const x of group) {
         const b = el("button", "place-link", x.name),
-          ref = x.ref!;
+          ref = x.ref!,
+          // (A name and its Go to keys one unit, never wrapped apart: U2.)
+          who = el("span", "place-log-who");
         b.dataset.ref = ref;
         b.onclick = () => this.onOpen(ref);
-        names.append(b);
+        who.append(b);
+        names.append(who);
         // (Go to whom it was of, whom it was with, and where it happened, R7.)
         for (const g of x.go) {
           const k = el(
@@ -1631,7 +1689,7 @@ export class PlaceHud {
           k.title = g.words;
           k.setAttribute("aria-label", g.words);
           k.onclick = () => this.onGo(g);
-          names.append(k);
+          who.append(k);
         }
         if (group.length === 1) names.append(el("span", "place-log-told", ` ${x.told}`));
       }

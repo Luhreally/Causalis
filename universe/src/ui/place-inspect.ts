@@ -99,6 +99,8 @@ export class PlaceInspector {
   private tab: PersonTab = "now";
   private prose = false;
   private ordering = false;
+  /** A raise asked on a lot's page that clears homes, waiting on its Raise or Cancel (`ref|what|at`; null: none). U2. */
+  private raising: string | null = null;
   private drawn = "";
   private pictured = "";
   /** Whether orders may be given (by hand or by its head: not in a town watched). */
@@ -228,6 +230,7 @@ export class PlaceInspector {
       this.tab = "now";
       this.ordering = false;
       this.prose = false;
+      this.raising = null;
       this.drawn = "";
       this.now = null;
     }
@@ -276,6 +279,7 @@ export class PlaceInspector {
       this.ordering,
       this.orders,
       this.following,
+      this.raising,
     ]);
     if (key === this.drawn) return;
     this.drawn = key;
@@ -800,8 +804,8 @@ export class PlaceInspector {
     this.picture(x);
     const title = `${x.icon} ${x.name}`;
     if (this.title.textContent !== title) this.title.textContent = title;
-    const kinN = x.siblings.length + x.children.length + x.grandchildren.length;
-    this.sub.textContent = `${x.children.length} ${x.children.length === 1 ? "child" : "children"} · ${kinN + x.grandparents.length + (x.mate ? 1 : 0)} kin in the town`;
+    // (Its kin in the town counted by the host's one reader of kinship, the Social tab's rows' too: U2.)
+    this.sub.textContent = `${x.children.length} ${x.children.length === 1 ? "child" : "children"} · ${x.inTown} kin in the town · ${x.household.length} in their home`;
     const body: HTMLElement[] = [el("p", "place-insp-why", x.words)],
       rows = (
         label: string,
@@ -823,6 +827,7 @@ export class PlaceInspector {
     rows("Brothers and sisters", x.siblings);
     rows("Children", x.children);
     rows("Grandchildren", x.grandchildren);
+    rows("Their household", x.household);
     this.body.replaceChildren(...body);
   }
   /** Kin or those known, each a key to their page where they have one (the living's, or one of the dead kept so). */
@@ -1359,7 +1364,7 @@ export class PlaceInspector {
     if (this.title.textContent !== title) this.title.textContent = title;
     this.sub.textContent = `${x.grade.charAt(0).toUpperCase()}${x.grade.slice(1)} · ${x.stuff}`;
     // (Its wear, as a bar: what of its life is used; amber past three quarters, red worn out.)
-    const wear = el("div", "place-insp-need"),
+    const wear = el("div", "place-insp-need place-insp-wear"),
       bar = el("div", "place-meter"),
       fill = el("span", "place-meter-fill");
     fill.style.width = `${Math.min(100, x.wear / 10)}%`;
@@ -1577,9 +1582,46 @@ export class PlaceInspector {
           ),
         );
         go.setAttribute("aria-label", `Ask the town to raise ${r.name} here`);
-        go.onclick = () => this.onOrder("town.ask", { kind: "raise", what: r.what, at: r.at });
-        row.append(words, go);
+        const ask = () => this.onOrder("town.ask", { kind: "raise", what: r.what, at: r.at }),
+          which = `${x.ref}|${r.what}|${r.at}`;
+        // (One that clears homes asks first, saying what it clears; nothing is asked of the town till Raise. U2.)
+        go.onclick = () => {
+          if (!r.clears) return ask();
+          this.raising = which;
+          this.drawn = "";
+          this.redraw();
+        };
+        const asking = this.raising === which && r.clears > 0;
+        // (While it asks, its question and keys in the key's place: U2.)
+        row.append(words);
+        if (!asking) row.append(go);
         box.append(row);
+        if (asking) {
+          const clears = r.clears === 1 ? "1 household's home" : `${r.clears} households' homes`,
+            sure = el("div", "place-insp-raise-sure"),
+            raise = el("button", "place-order place-insp-raise-yes", "Raise"),
+            cancel = el("button", "place-order place-insp-raise-no", "Cancel");
+          sure.setAttribute("role", "group");
+          sure.append(
+            el("span", "place-insp-raise-ask", `Clears ${clears}: raise ${r.name} here?`),
+            raise,
+            cancel,
+          );
+          raise.setAttribute("aria-label", `Raise ${r.name} here, clearing ${clears}`);
+          raise.onclick = () => {
+            this.raising = null;
+            ask();
+            this.drawn = "";
+            this.redraw();
+          };
+          cancel.setAttribute("aria-label", "Cancel: clear nothing");
+          cancel.onclick = () => {
+            this.raising = null;
+            this.drawn = "";
+            this.redraw();
+          };
+          box.append(sure);
+        }
       }
       body.push(el("p", "place-insp-label", "Raise here"), box);
     }
@@ -1678,7 +1720,25 @@ export class PlaceInspector {
     const box = el("div", "place-insp-facts");
     for (const [label, words, ref] of rows) {
       box.append(el("span", "place-insp-label", label));
-      if (ref) {
+      // (A home lost is said in words, the lot they shelter at its own short key: a sentence as one key stood three lines
+      // tall, over the key under it on a phone. U2.)
+      const lost = /^None of their own/.test(words)
+        ? /^(.*?)(?:: they shelter at (.+))?$/.exec(words)
+        : null;
+      if (lost && ref) {
+        const cell = el(
+          "span",
+          "place-insp-fact",
+          lost[2] ? `${lost[1]}: they shelter at ` : words,
+        );
+        if (lost[2]) {
+          const b = el("button", "place-link", lost[2]);
+          b.dataset.ref = ref;
+          b.onclick = () => this.onInspect(ref);
+          cell.append(b);
+        }
+        box.append(cell);
+      } else if (ref) {
         const b = el("button", "place-link", words);
         b.dataset.ref = ref;
         b.onclick = () => this.onInspect(ref);

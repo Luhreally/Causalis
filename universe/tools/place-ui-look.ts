@@ -149,6 +149,16 @@ for (const view of [
       ),
     text = (selector: string) =>
       k<string>(`document.querySelector(${JSON.stringify(selector)})?.textContent ?? ""`),
+    /** The lessons' card's What now? key a footer in its flow: under its list and within the card, over none of it (U2). */
+    guideFooter = async (where: string): Promise<void> => {
+      const laid = await k<{ now: number; list: number; card: number; end: number } | null>(
+        `(() => { const n = document.querySelector(".place-guide-now")?.getBoundingClientRect(), l = document.querySelector(".place-guide-list")?.getBoundingClientRect(), c = document.querySelector(".place-guide")?.getBoundingClientRect(); return n && l && c && n.height > 0 ? { now: n.top, list: l.bottom, card: c.bottom, end: n.bottom } : null; })()`,
+      );
+      check(
+        !!laid && laid.now >= laid.list - 0.5 && laid.end <= laid.card + 0.5,
+        `What now? on the lessons' card a footer under its list, ${where} (${JSON.stringify(laid)})`,
+      );
+    },
     press = async (selector: string, what: string): Promise<boolean> => {
       // (Scrolled to within what holds it, as a finger would: a person's page at half the screen on a phone runs past its
       // fold. Then where it has come to rest: a sheet still rising or a row of tabs still scrolling moves it from under it.)
@@ -292,6 +302,14 @@ for (const view of [
   await look("03-hand", "the town run by hand");
   say(`graphics memory while it is run: ${mb(await vram())}`);
 
+  // (The paces in plain units a second, as the god bar's "1 month/s": never "1m" read as a month. U2.)
+  const paceWords = await k<string[]>(
+    '[...document.querySelectorAll(".place-pace[data-pace]")].filter((e) => e.dataset.pace !== "0").map((e) => e.textContent ?? "")',
+  );
+  check(
+    paceWords.length === 4 && paceWords.every((w) => /^\d+ (min|hr|day)\/s$/.test(w)),
+    `the paces in plain units a second: ${paceWords.join(", ")}`,
+  );
   // A day a second: how far its clock goes in four seconds of the page's.
   await press('.place-pace[data-pace="86400"]', "the day-a-second pace");
   const t0 = (await state()).told?.t ?? 0,
@@ -372,6 +390,16 @@ for (const view of [
   await press(".place-alert", "the gravest alert");
   await page.waitForTimeout(1300);
   await look("05-alert-tapped", "an alert tapped: the eye gone there");
+  // (The notice line's words and its alert's key count from one reading: a count in the words is the key's. U2.)
+  await page.waitForTimeout(1500);
+  const told = await k<{ words: string; n: string } | null>(
+    `(() => { const w = document.querySelector(".place-notice:not([hidden]) .place-notice-words[data-key]"); if (!w) return null; const n = document.querySelector(\`.place-alert[data-key="\${CSS.escape(w.dataset.key)}"] .place-alert-n\`); return { words: w.textContent ?? "", n: n?.textContent ?? "" }; })()`,
+  );
+  if (told && /^\S+ (\d+) /.test(told.words) && told.n && told.n !== "99+")
+    check(
+      told.words.match(/^\S+ (\d+) /)![1] === told.n,
+      `the notice's words and its key's count agree: "${told.words.slice(0, 60)}" / ${told.n}`,
+    );
   if ((await shown(".place-alert-more")) > 0) {
     await press(".place-alert-more", "the alerts the column has no room for");
     await look("05b-alerts-more", "the rest of the alerts told");
@@ -563,6 +591,7 @@ for (const view of [
           );
         }
         await look("16g-lessons", "the lessons beside a person's page");
+        await guideFooter("on a desk");
       } else
         check((await shown(".place-guide")) === 0, "the lessons hidden on a phone till asked for");
     }
@@ -940,6 +969,14 @@ for (const view of [
         "a thing's page says who holds it and how worn it is",
       );
       await look("20e-item", "a thing on its own page");
+      // (Its wear's words whole within the page, wrapped where they must be, not cut at its edge: U2.)
+      const worn = await k<{ right: number; edge: number; cut: boolean } | null>(
+        `(() => { const v = document.querySelector(".place-insp-wear .place-insp-value"), b = document.querySelector(".place-insp-body"); if (!v || !b) return null; const r = v.getBoundingClientRect(); return { right: r.right, edge: b.getBoundingClientRect().right, cut: v.scrollWidth > v.clientWidth + 1 }; })()`,
+      );
+      check(
+        !!worn && !worn.cut && worn.right <= worn.edge + 0.5,
+        `a thing's wear said whole on its page (${JSON.stringify(worn)})`,
+      );
       const holder = await k<string | null>(
         `(() => { const l = [...document.querySelectorAll(".place-insp-facts .place-insp-label")].find((e) => e.textContent === "Held by"); return l?.nextElementSibling?.getAttribute("data-ref") ?? null; })()`,
       );
@@ -1068,6 +1105,7 @@ for (const view of [
       for (const l of ["enter", "person", "back", "follow", "mood"])
         check(ticked.includes(l), `the lesson "${l}" ticked off by doing it`);
       await look("20h-lessons", "the lessons on a phone, asked for");
+      await guideFooter("on a phone");
       await press(".place-guide-shut", "× the lessons put away");
       await page.waitForTimeout(300);
       check((await shown(".place-guide")) === 0, "the lessons put away");
@@ -1212,12 +1250,28 @@ for (const view of [
       say(`the log's Go to keys: ${gos}`);
       check(gos > 0, "the log's rows have Go to keys");
       if (gos > 0) {
-        const was = await eye();
-        await press(".place-log-go", "🎯 Go to, on a row of the log");
-        await page.waitForTimeout(1400);
-        const now = await eye();
-        if (was && now)
-          check(Math.hypot(now[0] - was[0], now[1] - was[1]) > 0.01, "a row's Go to sends the eye");
+        // (Its keys to different places in turn, up to four: a row of where the eye already is sends it nowhere, and in a fire
+        // every row is of the burning lot the eye was sent to. U2.)
+        let moved = false,
+          read = true,
+          tried = 0;
+        for (let i = 0; i < Math.min(gos, 4) && !moved; i++) {
+          await k(
+            `(() => { for (const x of document.querySelectorAll("[data-look-try]")) x.removeAttribute("data-look-try"); const seen = new Set(), keys = [...document.querySelectorAll(".place-log-go")].filter((e) => { const r = e.getBoundingClientRect(), w = e.getAttribute("aria-label"); if (!(r.width > 0 && r.height > 0) || seen.has(w)) return false; seen.add(w); return true; }), e = keys[${i}]; if (e) e.setAttribute("data-look-try", "1"); })()`,
+          );
+          if (!(await shown('[data-look-try="1"]'))) break;
+          const was = await eye();
+          await press('[data-look-try="1"]', `🎯 Go to, on the log's key ${i + 1}`);
+          await page.waitForTimeout(1400);
+          const now = await eye();
+          tried++;
+          say(
+            `the log's key ${i + 1}: ${await k<string>('document.querySelector("[data-look-try]")?.getAttribute("aria-label") ?? "(gone)"')}; the eye ${JSON.stringify(was)} to ${JSON.stringify(now)}; following ${await k<string>('String(document.querySelector(".place-insp-follow")?.classList.contains("on"))')}`,
+          );
+          if (!was || !now) read = false;
+          else if (Math.hypot(now[0] - was[0], now[1] - was[1]) > 0.01) moved = true;
+        }
+        if (read) check(moved, `a row's Go to sends the eye (${tried} of its keys tried)`);
         else say("the eye's place could not be read");
       }
       await press('.place-tab[data-tab="log"]', "the log tab again, to close it");
@@ -1267,7 +1321,40 @@ for (const view of [
         );
         await page.waitForTimeout(300);
         await look("20j-raise-here", "what could be raised on a home's lots");
+        // (Where it clears homes it asks first, saying what it clears, and nothing is asked of the town till Raise. U2.)
+        const clears = /clears the homes? of/.test(
+          await text(".place-insp-raise .place-build-row"),
+        );
         await press(".place-insp-raise-key", "Raise here, on a home's lot page");
+        await page.waitForTimeout(300);
+        if (clears) {
+          const ask = await text(".place-insp-raise-sure");
+          check(
+            (await shown(".place-insp-raise-yes")) === 1 &&
+              (await shown(".place-insp-raise-no")) === 1 &&
+              /^Clears \d+ households?'s? homes?: raise /.test(ask),
+            `Raise here asks first, saying what it clears: "${ask}"`,
+          );
+          const keys = await k<number[]>(
+            '[...document.querySelectorAll(".place-insp-raise-yes, .place-insp-raise-no")].map((e) => Math.min(e.getBoundingClientRect().width, e.getBoundingClientRect().height))',
+          );
+          check(
+            keys.length === 2 && keys.every((x) => x >= 44),
+            `its Raise and Cancel keys 44 px: ${keys.join(", ")}`,
+          );
+          await look("20j2-raise-sure", "Raise here asking first what it clears");
+          // (Cancel clears nothing: the offer stands as it was.)
+          await press(".place-insp-raise-no", "Cancel, on Raise here's question");
+          await page.waitForTimeout(400);
+          check(
+            (await shown(".place-insp-raise-key")) === offered &&
+              (await shown(".place-insp-raise-sure")) === 0,
+            "cancelled: nothing cleared, the offer as it was",
+          );
+          await press(".place-insp-raise-key", "Raise here again");
+          await page.waitForTimeout(300);
+          await press(".place-insp-raise-yes", "Raise, clearing the homes it said");
+        }
         await until(
           "the asking taken",
           async () => (await shown(".place-insp-raise-key")) < offered,
@@ -1321,6 +1408,16 @@ for (const view of [
     await page.waitForTimeout(700);
     say(`${tab}: ${(await text(".place-sheet-body")).slice(0, 300)}`);
     await look(`07-sheet-${tab}`, `the ${tab} sheet open`);
+    // (The Log's Go to keys on the line of the name they are of, never wrapped away from it: U2.)
+    if (tab === "log") {
+      const apart = await k<string[]>(
+        `[...document.querySelectorAll(".place-log-who")].flatMap((u) => { const n = u.querySelector(".place-link")?.getBoundingClientRect(); if (!n || !n.height) return []; return [...u.querySelectorAll(".place-log-go")].filter((g) => { const r = g.getBoundingClientRect(); return r.height > 0 && Math.abs(r.top + r.height / 2 - (n.top + n.height / 2)) > 8 && u.getBoundingClientRect().width < u.parentElement.getBoundingClientRect().width - 1; }).map(() => u.textContent ?? ""); })`,
+      );
+      check(
+        apart.length === 0,
+        `the Log's 🎯 keys beside their names (${apart.slice(0, 3).join(" | ")})`,
+      );
+    }
     // (The Work sheet's priorities grid, each kind's skill under its key.)
     if (tab === "work" && (await box(".place-grid-open"))) {
       // (Below the sheet's fold where its healer's line comes first: scrolled to, as a finger would.)
@@ -1336,6 +1433,15 @@ for (const view of [
       );
       await page.waitForTimeout(300);
       check((await shown(".place-grid-lv")) > 0, "the grid tells each kind's skill");
+      // (Its columns past the right edge told where there are any, and each name's full words on its key: U2.)
+      const cue = await k<{ over: boolean; hint: string; named: boolean }>(
+        `(() => { const g = document.querySelector(".place-grid"), h = document.querySelector(".place-grid-hint"), n = document.querySelector(".place-grid-rows .place-grid-row:not(.place-grid-head) .place-grid-name"); return { over: !!g && g.scrollWidth > g.clientWidth + 1, hint: h && !h.hidden && h.getBoundingClientRect().height > 0 ? h.textContent : "", named: !!n && (n.title ?? "").length > 2 }; })()`,
+      );
+      check(
+        !cue.over || /swipe/i.test(cue.hint),
+        `the grid's columns past its edge told: "${cue.hint}"`,
+      );
+      check(cue.named, "each name in the grid whole on its key's title");
       await look("07b-grid", "the priorities grid, with skills");
       await page.evaluate(() =>
         document.querySelector(".place-grid-open")?.scrollIntoView({ block: "center" }),
