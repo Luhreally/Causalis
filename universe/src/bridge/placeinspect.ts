@@ -68,6 +68,12 @@ export type PlaceInspectPerson = {
   readonly health: number;
   readonly healthWords: string | null;
   readonly mark: string | null;
+  /** P4. Their household's table (the foods its pantry holds), and what they take and need (null: nothing). */
+  readonly table: string;
+  readonly takes: string | null;
+  /** P6. The bondage they are held in, in words (null: free), and whether your word may free them. */
+  readonly bond: string | null;
+  readonly freeable: boolean;
   readonly lack: number;
   /** Their skill at their trade, said short ("skilled, 1,240 h"), and in full. */
   readonly skill: string | null;
@@ -180,6 +186,8 @@ export type PlaceInspectLot = {
    * Whether it is the guard's post by your order (O7), whether it may be one (any lot, its walls' site), and what comes of
    * it: those standing to arms there, the homes within a cry of it watched.
    */
+  /** P5. How warm it keeps those in it against the cold out of doors, in words (null: not a building one is in). */
+  readonly warmth: string | null;
   readonly post: boolean;
   readonly postable: boolean;
   readonly postWords: string;
@@ -414,7 +422,49 @@ export type PlaceInspectFamily = {
   readonly words: string;
 };
 
+/**
+ * The bound of a town (P6): the share of its land's people in each kind of bondage and how many of the town so; captives its
+ * realm holds in its land; those its justice holds; and the bound of the town, each a key to their page, where your word
+ * may free them.
+ */
+export type PlaceInspectBound = {
+  readonly kind: "bound";
+  readonly ref: string;
+  readonly lotRef: string;
+  readonly name: string;
+  readonly icon: string;
+  readonly kinds: readonly { readonly name: string; readonly words: string; readonly here: number }[];
+  readonly captives: string | null;
+  readonly held: number;
+  readonly people: readonly { readonly name: string; readonly ref: string; readonly words: string }[];
+  readonly freed: number;
+  readonly words: string;
+};
+
+/**
+ * A town's faith and rank (P7): its land's faith and whom it worships, how devout and how given to rank its people are, its
+ * shrines and temples (each a key) and what having them or not is to its people; its hall, and those of rank, each a key,
+ * with what it is to them.
+ */
+export type PlaceInspectFaith = {
+  readonly kind: "faith";
+  readonly ref: string;
+  readonly lotRef: string;
+  readonly name: string;
+  readonly icon: string;
+  readonly faith: string;
+  readonly ways: string;
+  readonly shrines: readonly { readonly name: string; readonly ref: string }[];
+  readonly riteWords: string;
+  readonly hall: { readonly name: string; readonly ref: string } | null;
+  readonly rankWords: string;
+  readonly ranked: readonly { readonly name: string; readonly ref: string; readonly words: string }[];
+  readonly words: string;
+};
+
 export type PlaceInspect =
+  | PlaceInspectFaith
+  | PlaceInspectBound
   | PlaceInspectFamily
   | PlaceInspectGate
   | PlaceInspectWork

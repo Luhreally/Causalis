@@ -204,6 +204,11 @@ import {
   familySizeOf,
   managedDead,
   managedOf,
+  beliefOf,
+  INTOX,
+  INTOX_STORE,
+  intoxDependent,
+  intoxLost,
   CIVIC_LOTS,
   artOf,
   courtIn,
@@ -1336,6 +1341,47 @@ export function airOf(f: Frame, t: number): { warmth: number; lit: boolean } {
     lit: Math.abs(hour - 0.5) < light / 2,
   };
 }
+
+/**
+ * P5. What a town's clothes keep off of the cold out of doors (0 … 0.6): its land's cloth (host/chain.ts landCloth: wool,
+ * a beast's hair or down, else a plant's fibre), as fine as its middling hands make a garment (gearMid), worn by all. Est.:
+ * a woollen coat keeps off half the cold a body's skin would feel, a plant's weave a quarter; read once a year a place.
+ */
+const CLOTH_KEEPS: readonly (readonly [RegExp, number])[] = [
+  [/woollen/, 0.5],
+  [/-down/, 0.55],
+  [/-hair/, 0.45],
+];
+const DRESSED = new WeakMap<Place, { year: number; w: number }>();
+export function dressWarmth(world: World, place: Place): number {
+  const year = Math.floor(place.t / YEAR),
+    was = DRESSED.get(place);
+  if (was && was.year === year) return was.w;
+  const s = stuffsOf(world, place),
+    keeps = CLOTH_KEEPS.find(([re]) => re.test(s.cloth))?.[1] ?? 0.25,
+    w = Math.max(0, Math.min(0.6, keeps * Math.max(0.5, Math.min(1.2, gearMid(s, GEAR.garment) / 60))));
+  DRESSED.set(place, { year, w });
+  return w;
+}
+/**
+ * P5. What each building's walls let in of the cold out of doors, where no fire is kept in it (its lot to the share; a lot
+ * not listed lets in none: a home, warmed at its hearth, or a building whose work keeps a fire). Est.: walls without a fire
+ * keep out seven tenths of it. Read again when its buildings change.
+ */
+const ROOM_LETS = 0.3;
+const HEARTHS: ReadonlySet<string> = new Set(["smithy", "kiln", "baths", "factory", "power", "hospital", "vats"]);
+const LETS = new WeakMap<Place, { n: number; lot: number; lets: Map<number, number> }>();
+function roomLets(place: Place): Map<number, number> {
+  const b = place.bldgs,
+    was = LETS.get(place);
+  if (was && was.n === b.lot.length && was.lot === (b.lot[b.lot.length - 1] ?? -1)) return was.lets;
+  const lets = new Map<number, number>();
+  for (let k = 0; k < b.lot.length; k++) if (!HEARTHS.has(kindName(b.kind[k]!))) lets.set(b.lot[k]!, ROOM_LETS);
+  LETS.set(place, { n: b.lot.length, lot: b.lot[b.lot.length - 1] ?? -1, lets });
+  return lets;
+}
+/** What a building's walls let in of the cold out of doors (P5; 0: none, a home or one with a fire in it). */
+export const placeRoomLets = (place: Place, lot: number): number => roomLets(place).get(lot) ?? 0;
 
 /** How far the cold bites one out of doors, 0 … 1: by the air now and their coat (rules/dress.ts warmthNeeded's measure). */
 const coldOf = (f: Frame, warmth: number): number =>
@@ -6083,7 +6129,156 @@ export const COND = {
   beauty: 10,
   /** O4: their post in a building whose floor has no bench left for them (benchless): at the yard and the door. */
   crowded: 11,
+  /** P4: what they take and have come to need, as their land's people do (sim/money intox): it costs them. */
+  craving: 12,
+  /** P4: their household's table: the foods its pantry holds, one alone a meagre fare, many a varied one. */
+  fare: 13,
+  /** P6: held in bondage, as their land's people are (sim/order bonds): its kind weighs on them. */
+  bound: 14,
+  /** P7: a shrine or temple of the town to keep their faith's rites at, or none where their faith asks one. */
+  rite: 15,
+  /** P7: one of rank (a leader by trade, one of its realm's key figures): a hall befitting it, or none, as their people hold rank. */
+  rank: 16,
 } as const;
+/**
+ * P7. What the town gives its faith and its rank, read once a day a place: its land's faith (sim/belief) and how devout and
+ * how given to rank its people are (sim/culture ways: piety, hierarchy); whether it has a shrine or a temple standing, and
+ * a hall. Est. weights: a shrine is worth up to four to the devout, its want up to three; a hall up to two to its leaders,
+ * its want up to five where rank is held high.
+ */
+export type PlaceRites = {
+  readonly day: number;
+  readonly faith: string | null;
+  readonly piety: number;
+  readonly hierarchy: number;
+  readonly shrines: readonly number[];
+  readonly hall: number;
+  readonly rite: number;
+  readonly rank: number;
+};
+const RITES = new WeakMap<Place, PlaceRites>();
+export function placeRites(world: World, place: Place): PlaceRites {
+  const day = Math.floor(place.t / DAY),
+    was = RITES.get(place);
+  if (was && was.day === day) return was;
+  const ways = cultureOf(world).get(place.cell)?.traits,
+    piety = ways?.[WAY.piety] ?? 0.5,
+    hierarchy = ways?.[WAY.hierarchy] ?? 0.5,
+    faith = beliefOf(world).of(place.cell).faith,
+    b = place.bldgs,
+    shrines: number[] = [];
+  let hall = -1;
+  for (let k = 0; k < b.lot.length; k++) {
+    const kind = kindName(b.kind[k]!);
+    if (kind === "shrine" || kind === "temple") shrines.push(b.lot[k]!);
+    else if (kind === "hall" && hall < 0) hall = b.lot[k]!;
+  }
+  const r = {
+    day,
+    faith: faith ? (beliefOf(world).get(faith)?.name ?? null) : null,
+    piety,
+    hierarchy,
+    shrines,
+    hall,
+    rite: !faith
+      ? 0
+      : shrines.length
+        ? Math.round(4 * piety)
+        : piety > 0.5
+          ? -Math.round(6 * (piety - 0.5)) || -1
+          : 0,
+    rank: hall >= 0 ? Math.round(2 * hierarchy) : hierarchy > 0.5 ? -Math.round(10 * (hierarchy - 0.5)) || -1 : 0,
+  };
+  RITES.set(place, r);
+  return r;
+}
+/** P6. What each kind of bondage weighs on a mood (BONDS' order; est.: a chattel's the heaviest, an indenture's term the lightest). */
+const BOND_MOOD = [-8, -3, -4, -2, -3] as const;
+/**
+ * P6. Who of a place is held in bondage, as its land's people are (sim/order/order.ts: the share of them in each kind,
+ * read once a year a place), by a keyed draw on their number, and not those freed by your word (managed freed).
+ */
+export type PlaceBonds = { readonly shares: readonly number[]; readonly freed: ReadonlySet<number> };
+const BONDS_KEPT = new WeakMap<Place, { year: number; n: number; b: PlaceBonds }>();
+export function placeBonds(world: World, place: Place): PlaceBonds {
+  const year = Math.floor(place.t / YEAR),
+    freed = managedOf(world)?.get(place.town)?.freed ?? [],
+    was = BONDS_KEPT.get(place);
+  if (was && was.year === year && was.n === freed.length) return was.b;
+  const b = {
+    shares: [...(orderOf(world)?.lands.get(place.cell)?.shares ?? [])],
+    freed: new Set(freed),
+  };
+  BONDS_KEPT.set(place, { year, n: freed.length, b });
+  return b;
+}
+/** The kind of bondage one of a place is held in (its place in BONDS; -1: free, or freed by your word). P6. */
+export function placeBondOf(place: Place, id: number, b: PlaceBonds | undefined): number {
+  if (!b || !b.shares.length || b.freed.has(id)) return -1;
+  const u = (Math.imul(id ^ place.key ^ 0x5bd1e995, 0x85ebca6b) >>> 0) / 4294967296;
+  let at = 0;
+  for (let k = 0; k < b.shares.length; k++) {
+    at += b.shares[k]!;
+    if (u < at) return k;
+  }
+  return -1;
+}
+/** Whether one of a place was held in bondage and freed by your word (P6). */
+export const placeFreed = (place: Place, id: number, b: PlaceBonds | undefined): boolean =>
+  !!b?.freed.has(id) && placeBondOf(place, id, { shares: b.shares, freed: new Set() }) >= 0;
+/**
+ * P4. How much a table of one food alone weighs on a mood where others of the town eat of more, and one of more than one
+ * (est.: about a plain pot against a fine one). Its households hold one food or two (first light, year 150: grain, and
+ * meat and milk for one in ten of a herding town's), so two are a varied table.
+ */
+const FARE_ONE = -2,
+  FARE_MANY = 3,
+  FARE_MANY_FOODS = 2;
+/** P4. What needing what one takes weighs on a mood, all the while (est.: half a crowded bench's). */
+const CRAVING_MOOD = -4;
+/**
+ * P4. What its land's people take and how many need it (sim/money/intox.ts, read once a year a place): the share of them
+ * who need it, the kind most taken, and what a tick's making by one who needs it is worth: their land's work lost to it
+ * shared among those who need it (more where what wakes keeps them at it). Those of the town who need it are the share of
+ * them its keyed draw takes, by number.
+ */
+export type PlaceDrink = { readonly share: number; readonly worth: number; readonly kind: number };
+const DRINK = new WeakMap<Place, { year: number; d: PlaceDrink }>();
+export function placeDrink(world: World, place: Place): PlaceDrink {
+  const year = Math.floor(place.t / YEAR),
+    was = DRINK.get(place);
+  if (was && was.year === year) return was.d;
+  const share = intoxDependent(world, place.cell),
+    lost = intoxLost(world, place.cell),
+    row = moneyStore(world, INTOX_STORE)?.get(place.cell);
+  let kind = 0;
+  for (let k = 1; k < 4; k++) if ((row?.[INTOX.use + k] ?? 0) > (row?.[INTOX.use + kind] ?? 0)) kind = k;
+  const d = {
+    share,
+    worth: share > 0 ? Math.max(0.4, Math.min(1.2, 1 - lost / share)) : 1,
+    kind,
+  };
+  DRINK.set(place, { year, d });
+  return d;
+}
+/** P4. The most foods any household of a place holds, read once a day (its tables are told against it). */
+const FARE = new WeakMap<Place, { day: number; most: number }>();
+export function fareMost(place: Place, day: number): number {
+  const was = FARE.get(place);
+  if (was && was.day === day) return was.most;
+  const h = place.houses;
+  let most = 0;
+  for (let k = 0; k < h.n; k++) {
+    let n = 0;
+    for (let f = 0; f < FOODS.length; f++) if (h.pantry[k * FOODS.length + f]! > 0) n++;
+    if (n > most) most = n;
+  }
+  FARE.set(place, { day, most });
+  return most;
+}
+/** Whether one of a place needs what its land takes (P4): its keyed draw on their number against the share who do. */
+export const placeTakes = (place: Place, id: number, share: number): boolean =>
+  share > 0 && (Math.imul(id ^ place.key, 0x9e3779b1) >>> 0) / 4294967296 < share;
 /**
  * What a household's home gives it each day of two needs besides the hourly ones (asked 2026-11-26: "more needs where the
  * world has the means, such as warmth, comfort, beauty and company, each with a cause in the place"; warmth and company are
@@ -6334,8 +6529,52 @@ function moodTerms(
       src: dead,
     });
   }
-  let pantry = 0;
-  for (let k = 0; k < FOODS.length; k++) pantry += houses.pantry[h * FOODS.length + k]!;
+  let pantry = 0,
+    foods = 0;
+  for (let k = 0; k < FOODS.length; k++) {
+    const x = houses.pantry[h * FOODS.length + k]!;
+    pantry += x;
+    if (x > 0) foods++;
+  }
+  // (Their table, P4: the foods their pantry holds; one food alone weighs only where others of the town eat of many.)
+  if ((foods === 1 && fareMost(place, today) >= FARE_MANY_FOODS) || foods >= FARE_MANY_FOODS)
+    out.push({
+      bit: 0,
+      cond: COND.fare,
+      size: foods === 1 ? FARE_ONE : FARE_MANY,
+      days: null,
+      ...(houses.home[h]! >= 0 ? { src: srcLot(houses.home[h]!) } : {}),
+    });
+  // (Their faith's rites and their rank, P7: for the grown.)
+  const rites = RITES.get(place);
+  if (rites && ageOf(p, i, place.t) >= fk.life.adulthood) {
+    if (rites.rite)
+      out.push({
+        bit: 0,
+        cond: COND.rite,
+        size: rites.rite,
+        days: null,
+        ...(rites.shrines.length ? { src: srcLot(rites.shrines[0]!) } : {}),
+      });
+    if (rites.rank && (occOf(p, i) === OCC.leader || place.figId.includes(p.id[i]!)))
+      out.push({
+        bit: 0,
+        cond: COND.rank,
+        size: rites.rank,
+        days: null,
+        ...(rites.hall >= 0 ? { src: srcLot(rites.hall) } : {}),
+      });
+  }
+  // (Held in bondage, P6.)
+  const bond = placeBondOf(place, p.id[i]!, BONDS_KEPT.get(place)?.b);
+  if (bond >= 0)
+    out.push({ bit: 0, cond: COND.bound, size: BOND_MOOD[bond] ?? -3, days: null });
+  // (What they take and need, P4.)
+  if (
+    ageOf(p, i, place.t) >= fk.life.adulthood &&
+    placeTakes(place, p.id[i]!, DRINK.get(place)?.d.share ?? 0)
+  )
+    out.push({ bit: 0, cond: COND.craving, size: CRAVING_MOOD, days: null });
   if (pantry >= houses.members[h]! * fk.daily * FETCH_DAYS)
     out.push({ bit: MOOD.pantry, size: 15 * leans(temper.thrifty), days: null });
   if (p.friend[i])
@@ -6652,7 +6891,9 @@ function tickCx(world: World, place: Place, f: Frame) {
     cold = coldOf(f, air.warmth),
     // (Out of doors one grows as cold as the air is, in a couple of hours, and no colder: mild air chills a little and
     // stops there. It ran on to the full in any chill at all, and those left without a roof in mild weather died of it.)
-    coldTo0 = Math.round(cold * FULL),
+    // (Less what the town's clothes keep off: P5, dressWarmth.)
+    dressed = 1 - dressWarmth(world, place),
+    coldTo0 = Math.round(cold * dressed * FULL),
     chill = Math.round((FULL * PLACE_TICK) / (2 * HOUR)),
     warmUp = Math.round((FULL * PLACE_TICK) / HOUR),
     // (Work by a body that sees by light is worth less in the dark.)
@@ -6947,7 +7188,9 @@ function tickCx(world: World, place: Place, f: Frame) {
       matched.mix && matched.mix.length > 1
         ? matched.mix.map((_, k) => frameOf(world, place.cell, k))
         : null,
-    coldTos = fs ? fs.map((x) => Math.round(coldOf(x, air.warmth) * FULL)) : null,
+    coldTos = fs ? fs.map((x) => Math.round(coldOf(x, air.warmth) * dressed * FULL)) : null,
+    // (What a building's walls let in of the cold, where no fire is kept in it: P5, roomLets.)
+    lets = cold > 0 ? roomLets(place) : null,
     darks = fs ? fs.map((x) => (air.lit ? 1 : 1 - 0.7 * x.sight)) : null;
   // (Its columns as each one's turn reads them, taken out of its people once a tick.)
   const cAct = p.act,
@@ -7033,6 +7276,10 @@ function tickCx(world: World, place: Place, f: Frame) {
     visitor,
     zoned,
     post,
+    lets,
+    drink: placeDrink(world, place),
+    bonds: placeBonds(world, place),
+    rites: placeRites(world, place),
     // (The last come for company to each meeting place this tick, as `visitor` is the square's: O2.)
     visitAt: zoned?.meets.length ? new Map<number, number>() : null,
     // (Tiers: how far into their stride the tick a turn is at stands (`base`), how far past that tick a turn that goes on
@@ -8011,7 +8258,9 @@ function turnOf(cx: TickCx, i: number, k: number, wk: number): void {
           ticksWorth(hoursAt(p, i, tradeKind(doing))) *
           wk *
           // (At their own building with no bench left there for them: at the yard and the door. O4.)
-          (at > 0 && cAt[i] === p.work[i] && benchless(place)[i] ? BENCHLESS_WORTH : 1),
+          (at > 0 && cAt[i] === p.work[i] && benchless(place)[i] ? BENCHLESS_WORTH : 1) *
+          // (Needing what they take: their share of the work its land loses to it. P4.)
+          (cx.drink.share && placeTakes(place, cId[i]!, cx.drink.share) ? cx.drink.worth : 1),
       );
     let can = made;
     // (What its market will not let go is not to be had there.)
@@ -9022,11 +9271,11 @@ function accrue(
   cNeeds[at0 + N.rest] = asleep
     ? Math.max(0, cNeeds[at0 + N.rest]! - fk.rest * k)
     : Math.min(FULL, cNeeds[at0 + N.rest]! + fk.tire * k);
-  const chilled0 = cNeeds[at0 + N.cold]!;
+  const chilled0 = cNeeds[at0 + N.cold]!,
+    // (Indoors, a home or a building with a fire in it keeps all the cold out; any other walls keep out most of it. P5.)
+    to = inside ? (cx.lets && coldTo ? Math.round(coldTo * (cx.lets.get(cx.cAt[i]!) ?? 0)) : 0) : coldTo;
   cNeeds[at0 + N.cold] =
-    inside || chilled0 > coldTo
-      ? Math.max(inside ? 0 : coldTo, chilled0 - warmUp * k)
-      : Math.min(coldTo, chilled0 + chill * k);
+    chilled0 > to ? Math.max(to, chilled0 - warmUp * k) : Math.min(to, chilled0 + chill * k);
   // (Company is had among others in the square; work neither gives it nor takes it, nor does sleep.)
   if (!moving && cAct[i] === ACT.visit)
     cNeeds[at0 + N.lone] = Math.max(0, cNeeds[at0 + N.lone]! - 12 * fk.lone * k);

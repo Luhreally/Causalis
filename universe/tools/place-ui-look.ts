@@ -145,7 +145,14 @@ for (const view of [
     text = (selector: string) =>
       k<string>(`document.querySelector(${JSON.stringify(selector)})?.textContent ?? ""`),
     press = async (selector: string, what: string): Promise<boolean> => {
-      const at = await box(selector);
+      // (Where it has come to rest: a sheet still rising or a row of tabs still scrolling moves it from under the finger.)
+      let at = await box(selector);
+      for (let n = 0; at && n < 20; n++) {
+        await page.waitForTimeout(100);
+        const next = await box(selector);
+        if (next && Math.abs(next.x - at.x) < 0.5 && Math.abs(next.y - at.y) < 0.5) break;
+        at = next;
+      }
       check(!!at, `${what} is there to press`);
       if (!at) return false;
       const met = await k<string | null>(
@@ -490,6 +497,9 @@ for (const view of [
       await look("17-insp-orders", "a person's orders in the inspector");
       await press(".place-insp-order", "Orders, closed");
     } else say("the one inspected keeps no work: no orders to look at");
+    // Their table, and what they take where they need it (P4): on their first screen.
+    check((await shown(".place-insp-table")) > 0, "their household's table told on their page");
+    say(`table: ${await text(".place-insp-table")}${(await shown(".place-insp-takes")) ? ` · ${await text(".place-insp-takes")}` : ""}`);
     // Their family (P3): from their page, and Back to them.
     {
       const kind = () => k<string>('document.querySelector(".place-insp")?.dataset.kind ?? ""');
@@ -658,6 +668,8 @@ for (const view of [
     say(`building: ${(await text(".place-insp")).slice(0, 400)}`);
     say(`the building's first answer came ${(await inspected()).answered} ms after it was asked`);
     await look("20-insp-lot", "a building inspected");
+    // (How warm it keeps those in it: P5.)
+    check((await shown(".place-insp-warmth")) > 0, "a building's warmth told on its page");
     // Its zone (O2): made a meeting place by its key, the page saying so; the Zones overlay below shows it.
     check((await shown(".place-insp-zones .place-chip")) >= 2, "a lot's page has its zone keys");
     // (On a phone the page opens peeked, its zone keys below the fold: raised and scrolled to, as a finger would.)
@@ -878,6 +890,29 @@ for (const view of [
     await press(".place-insp-back", "‹ Back to the square's page from its gate");
     await until("the square's page from its gate", async () => (await kind()) === "lot", 8000);
     check((await kind()) === "lot", "Back from its gate comes to the square's page");
+    // Its bound (P6): from the square's page, and Back.
+    await k('document.querySelector(".place-insp-bound")?.scrollIntoView({ block: "center" })');
+    await page.waitForTimeout(300);
+    await press(".place-insp-bound", "The bound ▸, on the square's page");
+    await until("its bound", async () => (await kind()) === "bound", 8000);
+    await page.waitForTimeout(400);
+    say(`bound: ${(await text(".place-insp")).slice(0, 300)}`);
+    await look("20l-bound", "the town's bound");
+    await press(".place-insp-back", "‹ Back to the square's page from its bound");
+    await until("the square's page from its bound", async () => (await kind()) === "lot", 8000);
+    check((await kind()) === "lot", "Back from its bound comes to the square's page");
+    // Its faith and rank (P7): from the square's page, and Back.
+    await k('document.querySelector(".place-insp-faith")?.scrollIntoView({ block: "center" })');
+    await page.waitForTimeout(300);
+    await press(".place-insp-faith", "Faith and rank ▸, on the square's page");
+    await until("its faith", async () => (await kind()) === "faith", 8000);
+    await page.waitForTimeout(400);
+    say(`faith: ${(await text(".place-insp")).slice(0, 300)}`);
+    check((await shown(".place-insp-rite")) > 0, "its rites told");
+    await look("20m-faith", "the town's faith and rank");
+    await press(".place-insp-back", "‹ Back to the square's page from its faith");
+    await until("the square's page from its faith", async () => (await kind()) === "lot", 8000);
+    check((await kind()) === "lot", "Back from its faith comes to the square's page");
     // Raised by hand (P1): a home's lot page offers what the town could raise on its lots; asked there, it is offered no more.
     if (kept !== null) {
       await k(`globalThis.causalis.place.inspect(${JSON.stringify(`plcl:${town.ref}:${kept + 3}`)})`);

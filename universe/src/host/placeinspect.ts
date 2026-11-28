@@ -9,6 +9,8 @@ import {
   FESTER_MOST,
   FOODS,
   GOODS,
+  INTOX_KINDS,
+  INTOX_WORDS,
   MEMBERS,
   OCC,
   TISSUE_WORDS,
@@ -61,6 +63,8 @@ import { placeBelow } from "./placebelow.ts";
 import { placeLegends, placeWork } from "./placelegends.ts";
 import { placeGate } from "./placevisitors.ts";
 import { placeFamily } from "./placefamily.ts";
+import { bondWords, placeBound } from "./placebound.ts";
+import { placeFaith } from "./placefaith.ts";
 import {
   ACT,
   AT,
@@ -129,6 +133,11 @@ import {
   placeNeedsMore,
   GEAR,
   type Item,
+  dressWarmth,
+  fareMost,
+  placeDrink,
+  placeRoomLets,
+  placeTakes,
 } from "./place.ts";
 import {
   ailWords,
@@ -152,6 +161,7 @@ import {
   placeDayRows,
 } from "./placeplan.ts";
 import { landEra, peopleBody } from "./village.ts";
+import { landCloth } from "./chain.ts";
 
 const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 const amount = (x: number) =>
@@ -190,6 +200,11 @@ const COND_WORDS: Readonly<Record<number, readonly [string, string]>> = {
   [COND.passion]: ["⭐", "At the work their household taught them"],
   [COND.kept]: ["🪢", "Kept from the work their household taught them"],
   [COND.crowded]: ["🧱", "Works in a crowd at the yard and the door, no bench of their own"],
+  [COND.craving]: ["🍶", "Needs what they take"],
+  [COND.fare]: ["🥖", "Their household's table: the foods its pantry holds"],
+  [COND.bound]: ["⛓️", "Held in bondage"],
+  [COND.rite]: ["⛩️", "A shrine to keep their faith's rites at"],
+  [COND.rank]: ["🏛️", "A hall befitting their rank"],
   [COND.kinAbed]: ["🛏️", "One of their household abed"],
   [COND.friendAbed]: ["🛏️", "Their friend abed"],
   [COND.tool]: ["🛠️", "The tool of their trade"],
@@ -198,6 +213,32 @@ const COND_WORDS: Readonly<Record<number, readonly [string, string]>> = {
   [COND.room]: ["🛏️", "Their home's room"],
   [COND.beauty]: ["🗿", "A fine work in sight of their door"],
 };
+/** Their household's table and what they take (P4): the foods its pantry holds; what their land takes, where they need it. */
+function tableOf(
+  world: World,
+  place: Place,
+  i: number,
+  child: boolean,
+): { table: string; takes: string | null } {
+  const h = place.people.house[i]!,
+    held: string[] = [];
+  for (let k = 0; k < FOODS.length; k++)
+    if (place.houses.pantry[h * FOODS.length + k]! > 0) held.push(GOODS[FOODS[k]!]!.name.toLowerCase());
+  const most = fareMost(place, Math.floor(place.t / DAY)),
+    table = !held.length
+      ? "Their household's pantry is bare: they eat what they can get"
+      : held.length === 1
+        ? `Their household eats ${held[0]} alone${most >= 2 ? ": a meagre fare, where others of the town eat of more" : ", as the whole town does"}`
+        : `Their household eats ${held.slice(0, -1).join(", ")} and ${held.at(-1)}: a varied table`;
+  const d = placeDrink(world, place);
+  if (child || !placeTakes(place, place.people.id[i]!, d.share)) return { table, takes: null };
+  const k = INTOX_KINDS[d.kind]!,
+    lost = Math.round((1 - d.worth) * 100);
+  return {
+    table,
+    takes: `Needs ${INTOX_WORDS[k].name}, as ${Math.round(d.share * 100)} in a hundred of their land do: it ${INTOX_WORDS[k].does}${lost > 0 ? `; their work is ${lost}% the less for it` : lost < 0 ? `; it keeps them ${-lost}% the longer at their work` : ""}`,
+  };
+}
 /** Comfort and beauty as their needs read: wanting the more, the fewer beds for those under their home and the less fine a work in sight. */
 function needsMore(
   world: World,
@@ -302,7 +343,7 @@ export function inspectItem(
       k === GEAR.tool
         ? `For their work as ${tradeWords(occ, false)}: worn by the work done with it`
         : k === GEAR.garment
-          ? "Worn day by day, against the weather"
+          ? `Worn day by day, against the weather: the town's ${stuffsWord(world, place)} keeps off ${Math.round(dressWarmth(world, place) * 100)}% of the cold out of doors`
           : "Their household's cooking, at its hearth: they are its cook",
     where:
       k === GEAR.garment
@@ -315,6 +356,9 @@ export function inspectItem(
     mood: g.term,
   };
 }
+/** The town's cloth, in a word or two (its clothes). */
+const stuffsWord = (world: World, place: Place): string =>
+  landCloth(world, place.cell).name;
 /** A cook's skill at it, said of their meals. */
 const COOK_WORDS = ["poor", "plain", "good", "fine", "a master's"] as const;
 /** Each facet of one's nature at its two ends (host/place.ts FACETS). */
@@ -443,7 +487,11 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
                 x.src &&
                 x.src > 0
               ? overWords(base, x.src)
-              : base;
+              : x.cond === COND.rite && x.size < 0
+                ? "No shrine where their faith keeps its rites"
+                : x.cond === COND.rank && x.size < 0
+                  ? "No hall befitting their rank"
+                  : base;
         return {
           icon: hd(x)?.[0] ?? "•",
           words,
@@ -558,6 +606,11 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
     health: p.health[i]!,
     healthWords: p.health[i] ? (healthWords(world, place, i) ?? ailWords(place, i)) : null,
     mark: markWords(world, place, i),
+    ...tableOf(world, place, i, child),
+    ...((): { bond: string | null; freeable: boolean } => {
+      const b = bondWords(world, place, id);
+      return { bond: b?.words ?? null, freeable: !!b?.freeable };
+    })(),
     lack: Math.floor(p.lack[i]! / 144),
     skill: skill
       ? `${cap(skill.words)} at ${OCCUPATION_WORK[r.occupation] ?? "their work"} · ${skill.hours.toLocaleString("en-US")} h`
@@ -963,6 +1016,12 @@ export function inspectLot(world: World, place: Place, lot: number): PlaceInspec
     ...lotZone(world, place, lot),
     ...lotPost(world, place, lot),
     raiseHere: raiseHere(world, place, lot),
+    warmth:
+      lot < 0
+        ? null
+        : placeRoomLets(place, lot) > 0
+          ? `No fire is kept in it: its walls let in ${Math.round(placeRoomLets(place, lot) * 100)}% of the cold out of doors`
+          : "Warm in any cold: a hearth, or a fire kept for its work",
     ground: (() => {
       const g = groundReading(world, place.cell);
       return g ? `${g.stats[0]?.value ?? "Its soil"} over ${g.line.replace(/^Ground: /, "")}` : "";
@@ -1087,6 +1146,8 @@ export function placeInspect(world: World, town: string, ref: string): PlaceInsp
   if (ref.startsWith("plcb:")) return placeBelow(world, place);
   if (ref.startsWith("plcy:")) return placeLegends(world, place);
   if (ref.startsWith("plca:")) return placeGate(world, place);
+  if (ref.startsWith("plcd:")) return placeBound(world, place);
+  if (ref.startsWith("plcr:")) return placeFaith(world, place);
   if (ref.startsWith("plcf:")) {
     const id = Number(ref.slice(ref.lastIndexOf(":") + 1));
     return Number.isInteger(id) ? placeFamily(world, place, id) : null;

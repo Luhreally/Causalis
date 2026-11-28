@@ -48,6 +48,10 @@ export const placeInsideRef = (town: string, lot: number): string => `plci:${tow
 /** A ref for a work of the town (O9: its own page), by its lot, the day it was made and its maker; and for its legends. */
 export const placeWorkRef = (town: string, lot: number, made: number, maker: number): string =>
   `plcw:${town}:${lot + 3}:${made}:${maker}`;
+/** A town's faith and rank (P7). */
+export const placeFaithRef = (town: string): string => `plcr:${town}`;
+/** The bound of a town, its captives and those its justice holds (P6). */
+export const placeBoundRef = (town: string): string => `plcd:${town}`;
 /** One's family in the town (P3). */
 export const placeFamilyRef = (town: string, id: number): string => `plcf:${town}:${id}`;
 /** A town's gate (P2): who has come to it this year, and who comes. */

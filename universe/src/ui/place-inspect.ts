@@ -11,6 +11,8 @@
 import type {
   PlaceInspect,
   PlaceInspectBelow,
+  PlaceInspectBound,
+  PlaceInspectFaith,
   PlaceInspectFamily,
   PlaceInspectGate,
   PlaceInspectLegends,
@@ -254,6 +256,8 @@ export class PlaceInspector {
     else if (x.kind === "legends") this.legends(x);
     else if (x.kind === "gate") this.gate(x);
     else if (x.kind === "family") this.family(x);
+    else if (x.kind === "bound") this.bound(x);
+    else if (x.kind === "faith") this.faith(x);
     else this.lot(x);
   }
 
@@ -289,6 +293,19 @@ export class PlaceInspector {
     const needs = el("div", "place-insp-needs");
     for (const n of x.needs) needs.append(this.needBar(n, x.serves));
     body.push(needs);
+    // (Their table, and what they take and need: P4.)
+    body.push(el("p", "place-insp-why place-insp-table", x.table));
+    if (x.takes) body.push(el("p", "place-insp-why place-insp-takes", x.takes));
+    // (Held in bondage, and your word to free them: P6.)
+    if (x.bond) {
+      body.push(el("p", "place-insp-why place-insp-bond", `⛓️ ${x.bond}`));
+      if (x.freeable && this.orders) {
+        const free = el("button", "place-insp-free", "Free them");
+        free.setAttribute("aria-label", `Free ${x.name} from bondage by your word`);
+        free.onclick = () => this.onOrder("place.free", { person: x.id });
+        body.push(free);
+      }
+    }
     // (How closely they are followed, and a key to follow them in full for good, or let them be. Tiers.)
     const tier = el("div", "place-insp-tier"),
       fixed = x.tier.pinned && !x.tier.soft,
@@ -545,6 +562,61 @@ export class PlaceInspector {
       el("p", "place-insp-why", x.words),
     );
   }
+  /** A town's faith and rank (P7): its faith and ways; its shrines and hall, each a key; those of rank, each a key. */
+  private faith(x: PlaceInspectFaith): void {
+    this.picture(x);
+    const title = `${x.icon} ${x.name}`;
+    if (this.title.textContent !== title) this.title.textContent = title;
+    this.sub.textContent = `${x.shrines.length} ${x.shrines.length === 1 ? "shrine" : "shrines"} · ${x.hall ? "a hall" : "no hall"} · ${x.ranked.length} of rank`;
+    const body: HTMLElement[] = [
+      el("p", "place-insp-why", x.faith),
+      el("p", "place-insp-why", x.ways),
+      el("p", "place-insp-why place-insp-rite", x.riteWords),
+    ];
+    const keys = (rows: readonly { name: string; ref: string; words?: string }[], label: string) => {
+      if (!rows.length) return;
+      const box = el("div", "place-insp-people");
+      for (const r of rows) {
+        const b = el("button", "place-insp-person place-faith-row");
+        b.append(el("span", "place-row-name", r.name));
+        if (r.words) b.append(el("span", "place-row-what", r.words));
+        b.onclick = () => this.onInspect(r.ref);
+        box.append(b);
+      }
+      body.push(el("p", "place-insp-label", label), box);
+    };
+    keys(x.shrines, "Its shrines and temples");
+    body.push(el("p", "place-insp-why place-insp-rank", x.rankWords));
+    if (x.hall) keys([x.hall], "Its hall");
+    keys(x.ranked, "Of rank");
+    body.push(el("p", "place-insp-why", x.words));
+    this.body.replaceChildren(...body);
+  }
+  /** The bound of a town (P6): its land's bondage by kind, captives, those its justice holds, each of its bound a key. */
+  private bound(x: PlaceInspectBound): void {
+    this.picture(x);
+    const title = `${x.icon} ${x.name}`;
+    if (this.title.textContent !== title) this.title.textContent = title;
+    this.sub.textContent = `${x.people.length} bound named · ${x.held} held by its justice${x.freed ? ` · ${x.freed} freed` : ""}`;
+    const body: HTMLElement[] = [el("p", "place-insp-why", x.words)];
+    if (x.kinds.length)
+      body.push(
+        el("p", "place-insp-label", "Its land's bondage"),
+        this.facts(x.kinds.map((k) => [k.name, `${k.here} here · ${k.words}`, null] as [string, string, null])),
+      );
+    if (x.captives) body.push(el("p", "place-insp-why", x.captives));
+    if (x.people.length) {
+      const box = el("div", "place-insp-people");
+      for (const r of x.people) {
+        const b = el("button", "place-insp-person place-bound-row");
+        b.append(el("span", "place-row-name", r.name), el("span", "place-row-what", r.words));
+        b.onclick = () => this.onInspect(r.ref);
+        box.append(b);
+      }
+      body.push(el("p", "place-insp-label", "Its bound"), box);
+    }
+    this.body.replaceChildren(...body);
+  }
   /** One's family in the town (P3): each of their kin a key while of the town; a pairing to come said. */
   private family(x: PlaceInspectFamily): void {
     this.picture(x);
@@ -790,6 +862,16 @@ export class PlaceInspector {
       gate.setAttribute("aria-label", "Who has come to the town's gate, and who comes");
       gate.onclick = () => this.onInspect(x.ref.replace(/^plcl:(.*):\d+$/, "plca:$1"));
       body.push(gate);
+      // (Its bound, P6.)
+      const bound = el("button", "place-insp-order place-insp-bound", "The bound ▸");
+      bound.setAttribute("aria-label", "The town's bound, its captives and those its justice holds");
+      bound.onclick = () => this.onInspect(x.ref.replace(/^plcl:(.*):\d+$/, "plcd:$1"));
+      body.push(bound);
+      // (Its faith and rank, P7.)
+      const faith = el("button", "place-insp-order place-insp-faith", "Faith and rank ▸");
+      faith.setAttribute("aria-label", "The town's faith, its shrines, and those of rank");
+      faith.onclick = () => this.onInspect(x.ref.replace(/^plcl:(.*):\d+$/, "plcr:$1"));
+      body.push(faith);
     }
     if (x.zoneWords) body.push(el("p", "place-insp-why", x.zoneWords));
     // (The guard's post by your order, O7: those standing to arms keep it, watching the homes within a cry of it.)
@@ -807,6 +889,7 @@ export class PlaceInspector {
       body.push(row);
     }
     if (x.postWords) body.push(el("p", "place-insp-why", x.postWords));
+    if (x.warmth) body.push(el("p", "place-insp-why place-insp-warmth", `🔥 ${x.warmth}`));
     // (What the town could be asked to raise here, P1: on the lots this one is of; the homes it would clear said.)
     if (x.raiseHere.length && this.orders) {
       const box = el("div", "place-insp-people place-insp-raise");
