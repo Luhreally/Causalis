@@ -328,7 +328,9 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
           const sky = d.weather();
           d.loading.seasonIs(
             seasonWord(f.season),
-            sky && sky.celsius !== null ? `${Math.round(sky.celsius)}° ${sky.words}` : (sky?.words ?? null),
+            sky && sky.celsius !== null
+              ? `${Math.round(sky.celsius)}° ${sky.words}`
+              : (sky?.words ?? null),
           );
           d.loading.step(2, true);
           entered = d.loading.hide();
@@ -557,7 +559,9 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     chosen = id;
     // (One looked at is followed in full for a day from it, as near as their next turn: tiers.)
     if (id !== null && town)
-      void d.client.query({ type: "place.pin", args: { ref: town, id, soft: true } }).catch(() => {});
+      void d.client
+        .query({ type: "place.pin", args: { ref: town, id, soft: true } })
+        .catch(() => {});
     if (id === null) {
       ring.hidden = tag.hidden = true;
       if (inspector.following) follow(false);
@@ -620,18 +624,22 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
           y = Math.min(y, o.y);
         }
         if (x < 0 || x > W || y < 0 || y > H) continue;
-        if (placed.some((q) => Math.abs(q.x - x) < BUBBLE_W + 2 && Math.abs(q.y - y) < BUBBLE_W + 2)) continue;
+        if (
+          placed.some((q) => Math.abs(q.x - x) < BUBBLE_W + 2 && Math.abs(q.y - y) < BUBBLE_W + 2)
+        )
+          continue;
         placed.push({ x, y, n });
       }
     for (const { x, y, n } of placed) {
-        const b = bubbles[used++]!;
-        if (b.textContent !== n.sign) b.textContent = n.sign;
-        if (b.classList.contains("talk") !== n.talk) b.classList.toggle("talk", n.talk);
-        b.style.transform = `translate(${(x - BUBBLE_W / 2).toFixed(1)}px, ${(y - BUBBLE_W).toFixed(1)}px)`;
-        if (b.classList.contains("off")) b.classList.remove("off");
-        if (n.talk) talks++;
-      }
-    for (let k = used; k < BUBBLES; k++) if (!bubbles[k]!.classList.contains("off")) bubbles[k]!.classList.add("off");
+      const b = bubbles[used++]!;
+      if (b.textContent !== n.sign) b.textContent = n.sign;
+      if (b.classList.contains("talk") !== n.talk) b.classList.toggle("talk", n.talk);
+      b.style.transform = `translate(${(x - BUBBLE_W / 2).toFixed(1)}px, ${(y - BUBBLE_W).toFixed(1)}px)`;
+      if (b.classList.contains("off")) b.classList.remove("off");
+      if (n.talk) talks++;
+    }
+    for (let k = used; k < BUBBLES; k++)
+      if (!bubbles[k]!.classList.contains("off")) bubbles[k]!.classList.add("off");
     bubbled = { signs: used, talks, near: bubbled.near };
     signMs.place += performance.now() - t1;
     signMs.frames++;
@@ -677,7 +685,12 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
       const placed: { x: number; y: number }[] = [];
       for (const n of near) {
         if (shown.length >= BUBBLES) break;
-        if (placed.some((q) => Math.abs(q.x - n.x) < BUBBLE_W + 2 && Math.abs(q.y - n.y) < BUBBLE_W + 2)) continue;
+        if (
+          placed.some(
+            (q) => Math.abs(q.x - n.x) < BUBBLE_W + 2 && Math.abs(q.y - n.y) < BUBBLE_W + 2,
+          )
+        )
+          continue;
         placed.push(n);
         shown.push({ k: n.k, o: n.talk ? f.talk[n.k]! : -1, sign: n.sign, talk: n.talk });
       }
@@ -774,7 +787,10 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
         return void hud.people(s, true);
       } else
         void d.client
-          .query<BarRead>({ type: "people.bar", args: { cell: null, town: null, pins: away, followed: [] } })
+          .query<BarRead>({
+            type: "people.bar",
+            args: { cell: null, town: null, pins: away, followed: [] },
+          })
           .then((r) => {
             // (The pins alone: the bar reads besides whom the place it is asked of puts on it.)
             hud.away = r.people
@@ -859,9 +875,12 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
       if (of)
         void d.client
           .query<PlaceInspect | null>({ type: "place.inspect", args: { ref: town, of } })
-          .then((x) => {
-            if (x && !("error" in x) && inspector.ref === of) timed(() => inspector.show(x));
-          }, () => undefined);
+          .then(
+            (x) => {
+              if (x && !("error" in x) && inspector.ref === of) timed(() => inspector.show(x));
+            },
+            () => undefined,
+          );
       return null;
     } catch (error) {
       return (error as Error).message;
@@ -885,7 +904,10 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
         })
         .then((x) => {
           if (x && x.lines.length && x.days >= 1)
-            d.ranTown!(`While you ran ${name}, ${x.days} ${x.days === 1 ? "day" : "days"}`, x.lines);
+            d.ranTown!(
+              `While you ran ${name}, ${x.days} ${x.days === 1 ? "day" : "days"}`,
+              x.lines,
+            );
         })
         .catch(() => {});
     enteredAt = null;

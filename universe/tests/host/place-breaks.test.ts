@@ -91,7 +91,8 @@ test("a mood past bearing breaks, as its temper has it, and is lighter after; wh
   const q = placesOf(w)!.get(s.ref)!.people;
   let relieved = 0;
   for (let i = 0; i < q.n; i++)
-    if (placeMoodTerms(w, place, i).some((t) => t.thought === THOUGHT.catharsis && t.size > 0)) relieved++;
+    if (placeMoodTerms(w, place, i).some((t) => t.thought === THOUGHT.catharsis && t.size > 0))
+      relieved++;
   assert.ok(relieved > 0, "a break spent is a relief");
   // (None outlives its end, held by its justice or not.)
   const left = place.breaks ?? [];
@@ -102,7 +103,8 @@ test("a mood past bearing breaks, as its temper has it, and is lighter after; wh
   assert.ok(law.reach >= 0 && law.reach <= 1 && law.harsh >= 0 && law.harsh <= 1);
   const wrecked = place.log.filter((x) => x.what === HAP.broke && x.a === BREAK.wreck).length,
     judged = place.log.filter((x) => x.what === HAP.judged).length;
-  if (wrecked > 0 && law.reach >= 1) assert.ok(judged > 0, "a wrong where all are brought is judged");
+  if (wrecked > 0 && law.reach >= 1)
+    assert.ok(judged > 0, "a wrong where all are brought is judged");
   for (let i = 0; i < q.n; i++)
     if (q.act[i] === ACT.held) assert.equal(q.why[i], WHY.held, "one held is held by its justice");
   void MOOD_UNHEEDING;

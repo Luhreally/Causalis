@@ -65,7 +65,11 @@ test("the people bar's pins in the town's People sheet: first, alone under their
   pins(w, { ref: s.ref, pins: [who(b).ref], was: refs });
   assert.equal(placeTier(place, a).pinned, null);
   assert.equal(placeTier(place, b).pinned, -1);
-  assert.equal(placeTier(place, c).pinned, -1, "a word given in the town is not the bar's to take back");
+  assert.equal(
+    placeTier(place, c).pinned,
+    -1,
+    "a word given in the town is not the bar's to take back",
+  );
   // The same however often it is asked, and nothing of the world's moved: its hash is not the place's.
   assert.deepEqual(peopleSheet(w, place, null, 60, refs), peopleSheet(w, place, null, 60, refs));
 });

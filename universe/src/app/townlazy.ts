@@ -8,7 +8,9 @@ import { YEAR } from "../kernel/index.ts";
 import { PlaceLoading } from "../ui/place-loading.ts";
 import type { PlaceDeps, PlaceFlow } from "./townplace.ts";
 
-export function lazyPlace(d: Omit<PlaceDeps, "loading">): PlaceFlow & { readonly loading: PlaceLoading } {
+export function lazyPlace(
+  d: Omit<PlaceDeps, "loading">,
+): PlaceFlow & { readonly loading: PlaceLoading } {
   const loading = new PlaceLoading(d.hud);
   let real: PlaceFlow | null = null,
     fetching: Promise<PlaceFlow> | null = null,
@@ -28,7 +30,10 @@ export function lazyPlace(d: Omit<PlaceDeps, "loading">): PlaceFlow & { readonly
     loading.show({
       name: plan.name,
       year: Math.floor((d.client.status?.t ?? 0) / YEAR),
-      air: sky && sky.celsius !== null ? `${Math.round(sky.celsius)}° ${sky.words}` : (sky?.words ?? null),
+      air:
+        sky && sky.celsius !== null
+          ? `${Math.round(sky.celsius)}° ${sky.words}`
+          : (sky?.words ?? null),
       facts: [
         `${Math.round(plan.population).toLocaleString("en")} people`,
         plan.market ? "A market town" : `${plan.homes.length.toLocaleString("en")} homes`,
@@ -95,7 +100,9 @@ export function lazyPlace(d: Omit<PlaceDeps, "loading">): PlaceFlow & { readonly
       return real?.bubbles ?? { signs: 0, talks: 0, near: 0 };
     },
     get inspected() {
-      return real?.inspected ?? { ref: null, height: "peek", name: "", chosen: null, answered: null };
+      return (
+        real?.inspected ?? { ref: null, height: "peek", name: "", chosen: null, answered: null }
+      );
     },
     inspectHeight: (h: "peek" | "half" | "full") => real?.inspectHeight(h),
     figurePx: () => real?.figurePx() ?? 0,

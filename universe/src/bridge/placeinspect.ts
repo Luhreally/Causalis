@@ -146,7 +146,12 @@ export type PlaceInspectPerson = {
    * How closely they are followed (tiers: 0 in full, 1 at the hour, 2 among the folk), said; and whether by the player's
    * word, for good or (`soft`) for a day from being looked at.
    */
-  readonly tier: { readonly tier: number; readonly words: string; readonly pinned: boolean; readonly soft: boolean };
+  readonly tier: {
+    readonly tier: number;
+    readonly words: string;
+    readonly pinned: boolean;
+    readonly soft: boolean;
+  };
 };
 
 export type PlaceInspectLot = {
@@ -303,7 +308,11 @@ export type PlaceInspectFields = {
   /** The place's clock, to the hour; and how many fields it lays. */
   readonly t: number;
   readonly fields: number;
-  readonly working: { readonly farmers: number; readonly herders: number; readonly foragers: number };
+  readonly working: {
+    readonly farmers: number;
+    readonly herders: number;
+    readonly foragers: number;
+  };
   readonly people: readonly {
     readonly id: number;
     readonly ref: string;
@@ -374,9 +383,17 @@ export type PlaceInspectLegends = {
   readonly lotRef: string;
   readonly name: string;
   readonly icon: string;
-  readonly works: readonly { readonly ref: string; readonly name: string; readonly words: string }[];
+  readonly works: readonly {
+    readonly ref: string;
+    readonly name: string;
+    readonly words: string;
+  }[];
   readonly battles: readonly { readonly name: string; readonly ref: string }[];
-  readonly lines: readonly { readonly when: string; readonly words: string; readonly ref: string | null }[];
+  readonly lines: readonly {
+    readonly when: string;
+    readonly words: string;
+    readonly ref: string | null;
+  }[];
   readonly words: string;
 };
 
@@ -411,7 +428,11 @@ export type PlaceInspectFamily = {
   readonly personRef: string;
   readonly name: string;
   readonly icon: string;
-  readonly parents: readonly { readonly name: string; readonly ref: string | null; readonly words: string }[];
+  readonly parents: readonly {
+    readonly name: string;
+    readonly ref: string | null;
+    readonly words: string;
+  }[];
   readonly grandparents: PlaceInspectFamily["parents"];
   readonly mate: PlaceInspectFamily["parents"][number] | null;
   /** Their pairing set for a day to come with the one named (courting). */
@@ -433,10 +454,18 @@ export type PlaceInspectBound = {
   readonly lotRef: string;
   readonly name: string;
   readonly icon: string;
-  readonly kinds: readonly { readonly name: string; readonly words: string; readonly here: number }[];
+  readonly kinds: readonly {
+    readonly name: string;
+    readonly words: string;
+    readonly here: number;
+  }[];
   readonly captives: string | null;
   readonly held: number;
-  readonly people: readonly { readonly name: string; readonly ref: string; readonly words: string }[];
+  readonly people: readonly {
+    readonly name: string;
+    readonly ref: string;
+    readonly words: string;
+  }[];
   readonly freed: number;
   readonly words: string;
 };
@@ -458,7 +487,11 @@ export type PlaceInspectFaith = {
   readonly riteWords: string;
   readonly hall: { readonly name: string; readonly ref: string } | null;
   readonly rankWords: string;
-  readonly ranked: readonly { readonly name: string; readonly ref: string; readonly words: string }[];
+  readonly ranked: readonly {
+    readonly name: string;
+    readonly ref: string;
+    readonly words: string;
+  }[];
   readonly words: string;
 };
 
@@ -478,14 +511,7 @@ export type PlaceInspect =
 
 /** The readings a town mode lays over its lots (N5): needs, mood, room, work, age, danger. */
 export type PlaceOverlayKind =
-  | "needs"
-  | "mood"
-  | "room"
-  | "comfort"
-  | "work"
-  | "age"
-  | "danger"
-  | "zones";
+  "needs" | "mood" | "room" | "comfort" | "work" | "age" | "danger" | "zones";
 /** One lot's reading: its value 0 … 1 (low to high on its legend) and what it is in words. */
 export type PlaceOverlayLot = { readonly lot: number; readonly v: number; readonly words: string };
 export type PlaceOverlay = {

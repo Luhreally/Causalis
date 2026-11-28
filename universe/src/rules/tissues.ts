@@ -30,13 +30,7 @@ export const TISSUE_REACH: Readonly<Record<Blow, readonly number[]>> = {
  * The order the tissues bleed in, least first, as the wound's draw rises: skin, bone, flesh, organ, a great vessel. A
  * wound's tissue is where its own draw falls among its blow's shares laid in this order.
  */
-const BLEED_ORDER: readonly Tissue[] = [
-  "skin",
-  "bone",
-  "flesh",
-  "organ",
-  "vessel",
-];
+const BLEED_ORDER: readonly Tissue[] = ["skin", "bone", "flesh", "organ", "vessel"];
 /** How much each hurts, against a cut to the flesh (est.: a broken bone the most; a burn's skin more than a cut's). */
 const PAIN: Readonly<Record<Tissue, number>> = {
   skin: 0.7,
@@ -82,9 +76,7 @@ export function tissueOf(blow: Blow, member: Member, u: number): Tissue {
     sum += r[TISSUES.indexOf(t)]!;
     if (x < sum) return t;
   }
-  return (
-    BLEED_ORDER.filter((t) => r[TISSUES.indexOf(t)]! > 0).at(-1) ?? "flesh"
-  );
+  return BLEED_ORDER.filter((t) => r[TISSUES.indexOf(t)]! > 0).at(-1) ?? "flesh";
 }
 /** A measure of each tissue against its mean over a blow's wounds at a member (so the blow's mean is the tables'). */
 function againstMean(

@@ -41,7 +41,9 @@ if (argv[0] === "--child") {
     ctx = sim.populationContext(w),
     town = ctx.settlements
       .all()
-      .filter((s: { ref: string; population: number }) => ctx.settlements.held(s.ref) && s.population > 0)
+      .filter(
+        (s: { ref: string; population: number }) => ctx.settlements.held(s.ref) && s.population > 0,
+      )
       .reduce((a: { population: number }, b: { population: number }) =>
         Math.abs(b.population - want) < Math.abs(a.population - want) ? b : a,
       );
@@ -53,7 +55,8 @@ if (argv[0] === "--child") {
   if (from > 0) w.runTo(w.now + from * k.DAY);
   if (tiers0 === "off") place.placeTiered?.(false);
   // (Strides set otherwise: PLACE_STRIDES=light,folk.)
-  if (process.env.PLACE_STRIDES) place.placeStrides?.(...process.env.PLACE_STRIDES.split(",").map(Number));
+  if (process.env.PLACE_STRIDES)
+    place.placeStrides?.(...process.env.PLACE_STRIDES.split(",").map(Number));
   const t0 = performance.now(),
     p = place.enterPlace(w, town.ref),
     enter = performance.now() - t0;
@@ -81,7 +84,8 @@ if (argv[0] === "--child") {
     dayMs += took;
     if (hr < 24) worst = Math.max(worst, took);
     const now: number[] = [...p.madeDay];
-    if (now.reduce((a, b) => a + b, 0) < was.reduce((a, b) => a + b, 0)) for (let g = 0; g < made.length; g++) made[g]! += was[g]!;
+    if (now.reduce((a, b) => a + b, 0) < was.reduce((a, b) => a + b, 0))
+      for (let g = 0; g < made.length; g++) made[g]! += was[g]!;
     was = now;
     if (hr % 24 === 23 && daily.length < 8) {
       daily.push(dayMs / 144);
@@ -104,20 +108,27 @@ if (argv[0] === "--child") {
       daily,
       made: made.map((x, g) => x + was[g]!),
       // (Its food held, of the three foods: units.)
-      food: (await at("/src/rules/goods.ts")).FOODS.map((g: number) => place.placeHeld(p, g)).reduce(
-        (a: number, b: number) => a + b,
-        0,
-      ),
+      food: (await at("/src/rules/goods.ts")).FOODS.map((g: number) =>
+        place.placeHeld(p, g),
+      ).reduce((a: number, b: number) => a + b, 0),
       born: p.log.filter((x: { what: number }) => x.what === place.HAP.born).length,
       died: p.log.filter((x: { what: number }) => place.hapIsDeath?.(x.what)).length,
-      tiers: place.TIER ? [0, 1, 2].map((t) => p.people.tier.subarray(0, p.people.n).filter((x: number) => (x & 3) === t).length) : [],
+      tiers: place.TIER
+        ? [0, 1, 2].map(
+            (t) =>
+              p.people.tier.subarray(0, p.people.n).filter((x: number) => (x & 3) === t).length,
+          )
+        : [],
       digest: place.placeDigest(p),
       log: createHash("sha1").update(JSON.stringify(p.log)).digest("hex").slice(0, 16),
       lines: p.log.length,
       // (What befell it, kind by kind, and what its place came to: --tell says them.)
       happened: Object.fromEntries(
         Object.entries(place.HAP as Record<string, number>)
-          .map(([name, what]) => [name, p.log.filter((x: { what: number }) => x.what === what).length])
+          .map(([name, what]) => [
+            name,
+            p.log.filter((x: { what: number }) => x.what === what).length,
+          ])
           .filter(([, n]) => (n as number) > 0),
       ),
       end: p.people.n,
@@ -169,10 +180,14 @@ type Run = {
 const self = fileURLToPath(import.meta.url),
   // (--off: all in full, for a tree with tiers set against one without.)
   run = (root: string, tiers = argv.includes("--off") ? "off" : "on", from = 0): Run => {
-    const r = spawnSync(process.execPath, [self, "--child", root, save, people, days, mode, tiers, String(from)], {
-      encoding: "utf8",
-      maxBuffer: 1 << 24,
-    });
+    const r = spawnSync(
+      process.execPath,
+      [self, "--child", root, save, people, days, mode, tiers, String(from)],
+      {
+        encoding: "utf8",
+        maxBuffer: 1 << 24,
+      },
+    );
     if (r.status !== 0) throw new Error(`${root}: ${r.stderr}`);
     return JSON.parse(r.stdout.trim().split("\n").at(-1)!) as Run;
   },
@@ -187,7 +202,7 @@ if (argv.includes("--tiers")) {
     const t = on.at(-1)!,
       f = off.at(-1)!;
     console.log(
-      `from day ${3 * k}: tiered warm ${said(t.warm)} ms (full ${t.tiers[0]}, light ${t.tiers[1]}, folk ${t.tiers[2]}), all in full ${said(f.warm)} ms; people ${t.end} / ${f.end}, born ${t.born} / ${f.born}, died ${t.died} / ${f.died}, food ${(t.food).toFixed(0)} / ${(f.food).toFixed(0)}`,
+      `from day ${3 * k}: tiered warm ${said(t.warm)} ms (full ${t.tiers[0]}, light ${t.tiers[1]}, folk ${t.tiers[2]}), all in full ${said(f.warm)} ms; people ${t.end} / ${f.end}, born ${t.born} / ${f.born}, died ${t.died} / ${f.died}, food ${t.food.toFixed(0)} / ${f.food.toFixed(0)}`,
     );
   }
   const stat = (xs: number[]) => {
@@ -225,7 +240,9 @@ if (argv.includes("--tiers")) {
   ok = row("mean age", (r) => r.age) && ok;
   ok = row("food held", (r) => r.food) && ok;
   const goods = on[0]!.made.length,
-    named = ((await import(pathToFileURL(a + "/src/rules/goods.ts").href)).GOODS ?? []) as { name?: string }[];
+    named = ((await import(pathToFileURL(a + "/src/rules/goods.ts").href)).GOODS ?? []) as {
+      name?: string;
+    }[];
   for (let g = 0; g < goods; g++)
     if (on.some((r) => r.made[g]! > 0) || off.some((r) => r.made[g]! > 0))
       ok = row(`made: ${named[g]?.name ?? g}`, (r) => r.made[g]! / 1e6) && ok;
@@ -242,12 +259,14 @@ for (let k = 0; k < runs; k++)
     (results.get(root) ?? results.set(root, []).get(root)!).push(r);
     console.log(
       (argv.includes("--tell")
-        ? `${root}: ${r.end} people at the end, its place ${(r.bytes / 1024).toFixed(0)} KB saved; befell: ${Object.entries(r.happened)
+        ? `${root}: ${r.end} people at the end, its place ${(r.bytes / 1024).toFixed(0)} KB saved; befell: ${Object.entries(
+            r.happened,
+          )
             .map(([k, n]) => `${k} ${n}`)
             .join(", ")}
 `
         : "") +
-      `${root}: town of ${r.town}, kept ${r.kept} (${mode}); entered in ${r.enter.toFixed(0)} ms; first day's worst hour ${r.worst.toFixed(0)} ms; cold ${said(r.cold)} ms, warm ${said(r.warm)} ms a tick; days ${r.daily.map((x) => x.toFixed(2)).join(" ")}; after ${days} days digest ${r.digest}, log ${r.log} (${r.lines} lines)`,
+        `${root}: town of ${r.town}, kept ${r.kept} (${mode}); entered in ${r.enter.toFixed(0)} ms; first day's worst hour ${r.worst.toFixed(0)} ms; cold ${said(r.cold)} ms, warm ${said(r.warm)} ms a tick; days ${r.daily.map((x) => x.toFixed(2)).join(" ")}; after ${days} days digest ${r.digest}, log ${r.log} (${r.lines} lines)`,
     );
   }
 if (b) {

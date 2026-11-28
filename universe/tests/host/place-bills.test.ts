@@ -84,13 +84,16 @@ test("a bill of none stops a making; a bill wanting more takes its makers' hands
   assert.equal(rows[0]!.good, g);
   assert.equal(rows[0]!.until, 0);
   const at = placeMakingAt(place, g);
-  if (at >= 0) assert.ok(inspectLot(w, place, place.bldgs.lot[at]!).bills.some((r) => r.good === g));
+  if (at >= 0)
+    assert.ok(inspectLot(w, place, place.bldgs.lot[at]!).bills.some((r) => r.good === g));
   // A second good billed to more than is held, made of nothing but its land (stone tools, pottery): its makers' hands
   // turn to it, and more of it is made in a day than before.
   const other = placeMakings(place).find(
     (x) =>
       x.good !== g &&
-      RECIPES.some((r, k) => r.output[0] === x.good && (place.matched.kinds >>> k) & 1 && !r.inputs.length),
+      RECIPES.some(
+        (r, k) => r.output[0] === x.good && (place.matched.kinds >>> k) & 1 && !r.inputs.length,
+      ),
   );
   if (other) {
     order(w, "place.bill", {
@@ -100,7 +103,10 @@ test("a bill of none stops a making; a bill wanting more takes its makers' hands
     });
     const after = new Array<number>(place.madeDay.length).fill(0);
     watch(w, s.ref, 24, after);
-    assert.ok(after[other.good]! * days > before[other.good]!, "the billed good is made by more hands, a day against a day");
+    assert.ok(
+      after[other.good]! * days > before[other.good]!,
+      "the billed good is made by more hands, a day against a day",
+    );
     assert.equal(after[g], 0);
   }
   // Kept in the world's save, and read back the same.

@@ -292,11 +292,15 @@ export class SaveSlots {
       // (Written only where these very towns are not kept already: read back and checked, as the save is.)
       if (!(await this.store.get(key))) {
         // (Its chunk alone, in a document of nothing else.)
-        const b = await encodeSave({ stores: { [APART]: whole.stores[APART]! } } as unknown as SaveDocument);
+        const b = await encodeSave({
+          stores: { [APART]: whole.stores[APART]! },
+        } as unknown as SaveDocument);
         await this.store.put(key, b);
         const back = await this.store.get(key);
         if (!back || !sameBytes(back, b))
-          throw new SaveError("the save did not read back as written; the previous save is untouched");
+          throw new SaveError(
+            "the save did not read back as written; the previous save is untouched",
+          );
         townBytes = b.length;
       }
       doc = {

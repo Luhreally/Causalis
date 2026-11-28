@@ -70,7 +70,10 @@ test("a town watched is given no order, and its world runs exactly as a twin's n
   );
   assert.equal(placesOf(twin)!.places.length, 0, "the twin was never entered");
   // What it told over those days: things of its log, each said, placed, and worth the eye by how seldom its kind comes.
-  assert.ok(seen.sights.length > 0, "forty days of a town, or twice or thrice that, tell something worth the eye");
+  assert.ok(
+    seen.sights.length > 0,
+    "forty days of a town, or twice or thrice that, tell something worth the eye",
+  );
   const place = placesOf(watched)!.get(ref)!;
   for (const x of seen.sights) {
     assert.ok(x.words.length > 3 && !/undefined|NaN/.test(x.words + x.where), x.words);

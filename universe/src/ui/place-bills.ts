@@ -55,10 +55,22 @@ export function billsEl(
         },
         // (From no bill, a key starts at what is held now, a step more or less.)
         from = r.until ?? Math.round(r.held / r.step) * r.step;
-      key("−", `Keep ${amount(r.step)} less`, from > 0 ? { until: Math.max(0, from - r.step) } : null);
+      key(
+        "−",
+        `Keep ${amount(r.step)} less`,
+        from > 0 ? { until: Math.max(0, from - r.step) } : null,
+      );
       key("+", `Keep ${amount(r.step)} more`, { until: from + r.step });
-      key("⤒", "Put first among the bills", r.until !== null && r.order !== 0 ? { until: r.until, first: true } : null);
-      key("×", "No bill: its makers at their own making", r.until !== null ? { until: null } : null);
+      key(
+        "⤒",
+        "Put first among the bills",
+        r.until !== null && r.order !== 0 ? { until: r.until, first: true } : null,
+      );
+      key(
+        "×",
+        "No bill: its makers at their own making",
+        r.until !== null ? { until: null } : null,
+      );
       row.append(keys);
     }
     box.append(row);

@@ -4,12 +4,7 @@
 // member's work by the tissue, each against its blow's mean, so a blow's wounds mend as long as the tables say on the mean.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import {
-  HOUR,
-  loadWorld,
-  saveWorld,
-  type World,
-} from "../../src/kernel/index.ts";
+import { HOUR, loadWorld, saveWorld, type World } from "../../src/kernel/index.ts";
 import {
   TISSUES,
   TISSUE_REACH,
@@ -21,17 +16,8 @@ import {
   tissueTakes,
   type Blow,
 } from "../../src/rules/index.ts";
-import {
-  populationContext,
-  townsOf,
-  type Settlement,
-} from "../../src/sim/index.ts";
-import {
-  enterPlace,
-  placeDigest,
-  placeWound,
-  placesOf,
-} from "../../src/host/place.ts";
+import { populationContext, townsOf, type Settlement } from "../../src/sim/index.ts";
+import { enterPlace, placeDigest, placeWound, placesOf } from "../../src/host/place.ts";
 import { placeFrame } from "../../src/host/placeplan.ts";
 import { inspectPerson } from "../../src/host/placeinspect.ts";
 import { PLACE_UNIVERSE, placeWorld } from "./worlds.ts";
@@ -43,8 +29,7 @@ test("a wound's tissue by its bleeding's draw: the deeper the harder; each blow'
   for (const blow of BLOWS) {
     for (const member of ["trunk", "arm-l", "leg-r", "eye-l"] as const) {
       const r = reachAt(blow, member);
-      if (member !== "trunk")
-        assert.equal(r[TISSUES.indexOf("organ")], member === "eye-l" ? 1 : 0);
+      if (member !== "trunk") assert.equal(r[TISSUES.indexOf("organ")], member === "eye-l" ? 1 : 0);
       // (As the draw rises, the tissue goes no shallower in bleeding's order, and bleeding goes no lower.)
       let was = -1;
       const seen = new Map<string, number>();
@@ -75,32 +60,21 @@ test("a wound's tissue by its bleeding's draw: the deeper the harder; each blow'
     // (A vessel opened bleeds harder than skin cut.)
     assert.ok(bleedOf(blow, 0.99) >= bleedOf(blow, 0.01));
   }
-  assert.ok(
-    tissueTakes("bone") === 1 && tissueTakes("skin") < tissueTakes("flesh"),
-  );
+  assert.ok(tissueTakes("bone") === 1 && tissueTakes("skin") < tissueTakes("flesh"));
 });
 
 const base = (): World => placeWorld(150);
 const copy = (w: World): World => {
-  const doc = JSON.parse(
-    JSON.stringify(saveWorld(w, "r", { universe: PLACE_UNIVERSE.name })),
-  );
+  const doc = JSON.parse(JSON.stringify(saveWorld(w, "r", { universe: PLACE_UNIVERSE.name })));
   return loadWorld(doc, (s) => PLACE_UNIVERSE.build(s), "r").world;
 };
 const near = (w: World, people: number): Settlement => {
   const ctx = populationContext(w);
   return ctx.settlements
     .all()
-    .filter(
-      (s) =>
-        ctx.settlements.held(s.ref) &&
-        townsOf(w).get(s.ref) &&
-        s.population > 0,
-    )
+    .filter((s) => ctx.settlements.held(s.ref) && townsOf(w).get(s.ref) && s.population > 0)
     .sort((a, b) => b.population - a.population || (a.ref < b.ref ? -1 : 1))
-    .reduce((a, b) =>
-      Math.abs(b.population - people) < Math.abs(a.population - people) ? b : a,
-    );
+    .reduce((a, b) => (Math.abs(b.population - people) < Math.abs(a.population - people) ? b : a));
 };
 const watch = (w: World, town: string, hours: number): void => {
   for (let k = 0; k < hours; k++) {
@@ -127,10 +101,7 @@ test("a fire's hurt: each wound reaches a tissue, told on their page, kept in th
       if (!x.tissue) continue;
       reached++;
       // (A fire burns skin and flesh, no deeper.)
-      assert.ok(
-        x.tissue === "skin" || x.tissue === "flesh" || p.cause[i]! % 8 !== 3,
-        x.tissue,
-      );
+      assert.ok(x.tissue === "skin" || x.tissue === "flesh" || p.cause[i]! % 8 !== 3, x.tissue);
       const rows = new Map(inspectPerson(w, place, p.id[i]!)!.healthRows);
       if (
         /^(The skin|Into the flesh|The bone broken|A great vessel|Through to)/.test(
@@ -140,10 +111,7 @@ test("a fire's hurt: each wound reaches a tissue, told on their page, kept in th
         told++;
     }
   }
-  assert.ok(
-    reached > 0 && told === reached,
-    `${reached} reached, ${told} told`,
-  );
+  assert.ok(reached > 0 && told === reached, `${reached} reached, ${told} told`);
   const again = copy(w);
   watch(w, s.ref, 24);
   watch(again, s.ref, 24);

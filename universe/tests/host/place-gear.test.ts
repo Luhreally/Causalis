@@ -5,13 +5,7 @@
 // it, so what is read of one among the folk is what they hold once followed. One in want with a bare pantry may steal.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import {
-  DAY,
-  HOUR,
-  loadWorld,
-  saveWorld,
-  type World,
-} from "../../src/kernel/index.ts";
+import { DAY, HOUR, loadWorld, saveWorld, type World } from "../../src/kernel/index.ts";
 import { OCC, RECIPES } from "../../src/rules/index.ts";
 import { populationContext, type Settlement } from "../../src/sim/index.ts";
 import { townStuff } from "../../src/host/chain.ts";
@@ -33,9 +27,7 @@ import { PLACE_UNIVERSE, placeWorld } from "./worlds.ts";
 
 const base = (): World => placeWorld(150);
 const copy = (w: World): World => {
-  const doc = JSON.parse(
-    JSON.stringify(saveWorld(w, "r", { universe: PLACE_UNIVERSE.name })),
-  );
+  const doc = JSON.parse(JSON.stringify(saveWorld(w, "r", { universe: PLACE_UNIVERSE.name })));
   return loadWorld(doc, (s) => PLACE_UNIVERSE.build(s), "r").world;
 };
 const near = (w: World, people: number): Settlement => {
@@ -70,10 +62,7 @@ test("each holds things of their land's stuff, made by one of the town or bought
     if (!d.filled) continue;
     for (const x of d.items) {
       held++;
-      assert.ok(
-        x.q >= 5 && x.q <= 99 && x.wear >= 0 && x.wear <= 1000,
-        JSON.stringify(x),
-      );
+      assert.ok(x.q >= 5 && x.q <= 99 && x.wear >= 0 && x.wear <= 1000, JSON.stringify(x));
       if (x.k === GEAR.pot) assert.ok(x.stuff === stuff.clay.ware, x.stuff);
       if (x.maker) {
         const m = placeIndexOf(place, x.maker);
@@ -91,16 +80,11 @@ test("each holds things of their land's stuff, made by one of the town or bought
   // A farmer among the folk: what is read of them is what they hold once followed in full.
   let farmer = -1;
   for (let i = 0; i < place.people.n && farmer < 0; i++)
-    if (
-      (place.people.sexOcc[i]! & 15) === OCC.farmer &&
-      (place.people.tier[i]! & 3) !== TIER.full
-    )
+    if ((place.people.sexOcc[i]! & 15) === OCC.farmer && (place.people.tier[i]! & 3) !== TIER.full)
       farmer = i;
   assert.ok(farmer >= 0);
   const id = place.people.id[farmer]!,
-    read = placeGear(w, place, farmer).map(
-      (x) => `${x.k} ${x.stuff} ${x.q} ${x.maker} ${x.made}`,
-    );
+    read = placeGear(w, place, farmer).map((x) => `${x.k} ${x.stuff} ${x.q} ${x.maker} ${x.made}`);
   assert.ok(
     read.some((x) => x.startsWith(`${GEAR.tool} `)),
     "a farmer holds a tool",
@@ -122,17 +106,12 @@ test("each holds things of their land's stuff, made by one of the town or bought
     wasMade = was.made;
   go(w, ref, 30 * 24);
   const now = tool();
-  assert.ok(
-    now.made !== wasMade || now.wear > wasWear,
-    `${wasWear} → ${now.wear}`,
-  );
+  assert.ok(now.made !== wasMade || now.wear > wasWear, `${wasWear} → ${now.wear}`);
   // The inspector's Gear tab lists each.
   const seen = inspectPerson(w, place, id)!,
     rows = seen.gear.map(([a, b]) => `${a}: ${b}`);
   assert.ok(
-    rows.some(
-      (x) => /^A hoe and sickle of /.test(x) && /% worn|worn out/.test(x),
-    ),
+    rows.some((x) => /^A hoe and sickle of /.test(x) && /% worn|worn out/.test(x)),
     rows.join("\n"),
   );
   assert.ok(
@@ -192,9 +171,6 @@ test("one in want with a bare pantry, low of mood, steals from a household about
     (y) => y.what === HAP.judged && y.id === x.id && y.b >> 4 === WRONG.theft,
   );
   // (The town's justice may not reach them: its law's reach. Where it did, it is told so.)
-  if (judged.length)
-    assert.ok(/for stealing/.test(JSON.stringify(logSheet(w, place, 4000))));
-  assert.ok(
-    /stole a day's food/.test(JSON.stringify(logSheet(w, place, 4000))),
-  );
+  if (judged.length) assert.ok(/for stealing/.test(JSON.stringify(logSheet(w, place, 4000))));
+  assert.ok(/stole a day's food/.test(JSON.stringify(logSheet(w, place, 4000))));
 });
