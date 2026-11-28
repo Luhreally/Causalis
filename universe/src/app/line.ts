@@ -12,6 +12,8 @@ import "./line.css";
 import type { GenesisPlan, HostClient } from "../bridge/index.ts";
 import { MicroScene, type OrbitRig, type Stage } from "../render/index.ts";
 import { LineCreature, type LineBody } from "./line-creature.ts";
+import { LineBand } from "./line-band.ts";
+import type { CampNear } from "../bridge/index.ts";
 import { DepthLayer, type Beyond } from "../render/line-depth.ts";
 import { CellJuice } from "../render/line-juice.ts";
 import { LineSound } from "./line-sound.ts";
@@ -192,7 +194,14 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
     across = 0,
     played = 0,
     depth: DepthLayer | null = null,
-    juice: CellJuice | null = null;
+    juice: CellJuice | null = null,
+    /** The tribe (S6): the band led, whether it is being led now, its land as asked of the host. */
+    band: LineBand | null = null,
+    leading = false,
+    bandLand: { cell: number; id: number; grain: boolean; sows: boolean } | null = null,
+    /** The band's size when last drawn, its news last told, whether its land has been taught to sow. */
+    bandSeen = 0,
+    taught = false;
   const noises = new LineSound(d.sound);
   /** How everything stood as the mode was entered, to be put back as it was on waking. */
   let was: {
@@ -223,9 +232,10 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
   const others = (): Root[] => {
     const out: Root[] = [];
     const mine = micro?.root as unknown,
-      land = beast?.scene.root as unknown;
+      land = beast?.scene.root as unknown,
+      camp = band?.scene.root as unknown;
     for (const c of d.stage.root.children as unknown as Root[])
-      if (c !== mine && c !== land) out.push(c);
+      if (c !== mine && c !== land && c !== camp) out.push(c);
     for (const c of d.stage.app.root.children as unknown as Root[])
       if (c !== (d.stage.root as unknown) && !c.camera && !c.light) out.push(c);
     return out;
@@ -582,6 +592,177 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
   };
 
   /** The cell's stage come to its end: the line together, and its world's first bodies come. */
+  // —— The tribe (S6): a band of the world's people led ———————————————————————————————————————————————————————————————
+  // (Its day its own, view/band.ts; the hand's orders, its children and the grain come up, view/band-led.ts. Nothing of
+  // it reaches the world but the land taught to sow: the god's own act.inspire, at the hand's word, its world kept first.)
+
+  /** A band of the most peopled land that camps put under the hand (none camping: said so). */
+  const startBand = async () => {
+    layer(null);
+    const land = await d.client.query<typeof bandLand>({ type: "line.band" }),
+      info = land
+        ? await d.client.query<CampNear | null>({
+            type: "camp.near",
+            args: { cell: land.cell, id: land.id },
+          })
+        : null;
+    if (!land || !info) {
+      layer(
+        card(
+          "No band camps now",
+          [
+            "Your world's peoples all live in villages and towns now: no band of them camps anywhere to lead. Lead one in a world that is young, from its beginning.",
+          ],
+          [key("☀️ Wake", () => void flow.wake())],
+          "help:band",
+        ),
+      );
+      return;
+    }
+    if (beast) beast.leave();
+    living = false;
+    offered = null;
+    if (micro) micro.visible = false;
+    band ??= new LineBand(d.stage);
+    band.begin(info, land.grain);
+    bandLand = land;
+    leading = true;
+    taught = false;
+    bandSeen = band.band!.people.length;
+    ended = false;
+    told = "";
+    guide.away = true;
+    document.body.dataset.scale = "ground";
+    // (The words left from another stage put by: the band's own, from now.)
+    hud.say(`You lead the ${info.people}, camped in ${info.land}`, true);
+    layer(
+      card(
+        `The ${info.people}: a band of ${info.size}`,
+        [
+          `You lead a band of your world's people, camped in ${info.land}. They live their own day: out gathering and hunting, home by dusk, asleep by night.`,
+          "Look about with the stick: the ring is where you look. Send the hunters after a beast there, or walk the band on to that ground. Fed well, the band has children.",
+          land.sows
+            ? "Your land's people sow already: their villages will come."
+            : land.grain
+              ? "A wild grain grows in this land. Send the gatherers to the grass for its seed: what they drop by the fire may come up."
+              : "No wild grain grows in this land: its people will forage on.",
+        ],
+        [key("⛺ Lead them", () => layer(null))],
+        "help:band",
+      ),
+    );
+  };
+  const leaveBand = () => {
+    band?.leave();
+    leading = false;
+    bandLand = null;
+  };
+  const bandFrame = (dt: number) => {
+    if (!band) return;
+    const paused = hud.modal || ended;
+    if (!paused) {
+      const press = hud.takePressed()[0];
+      if (press !== undefined) {
+        const r = band.act(press);
+        if (r === "sow") sowCard();
+        else {
+          hud.say(r.words, r.good);
+          if (r.good) noises.play("pop");
+        }
+      }
+      band.stick = hud.stick();
+      if (band.stick.x || band.stick.y) moved = true;
+    } else hud.takePressed();
+    band.frame(dt, paused);
+    // (What came to pass, told as it comes: the last of a frame's.)
+    const news = band.news.splice(0);
+    if (news.length) {
+      const last = news.at(-1)!;
+      hud.say(last, !/died/.test(last));
+      if (/child is born/.test(last)) {
+        hud.pop();
+        noises.play("split");
+      }
+      if (/come up/.test(last)) {
+        noises.play("pop");
+        if (guide.first("sprouted"))
+          hud.say("The seed came up! Press 🌱 Sow to teach your land to sow", true);
+      }
+    }
+    const now = performance.now();
+    if (now - hudAt >= HUD_EVERY) {
+      hudAt = now;
+      bandChrome();
+    }
+  };
+  const bandChrome = () => {
+    if (!band?.band || !band.info || !band.led) return;
+    const b = band.band,
+      l = band.led,
+      st = band.strip()!;
+    hud.head(
+      `The ${band.info.people} · your band`,
+      band.info.land,
+      taught
+        ? 1
+        : l.sprouted
+          ? 0.85
+          : Math.min(0.8, (b.people.length - bandSeen) / Math.max(1, l.most - bandSeen)),
+      taught
+        ? "Your land sows: its first village comes in its turn"
+        : l.sprouted
+          ? "Next: teach your land to sow"
+          : "Next: a band well fed, and the seed it drops come up",
+    );
+    hud.cell(st.words, st.full);
+    hud.offers(band.offers());
+    hud.health(1, 0);
+    hud.hintWords(moved ? "" : "Drag here to look about");
+  };
+  /** Teaching the land to sow: what it does said first; the world kept, then taught. */
+  const sowCard = () => {
+    if (!bandLand || !band?.info || taught) return;
+    layer(
+      card(
+        "Teach your land to sow?",
+        [
+          `Your band has seen wild grain come up where it dropped seed by the fire. Taught, the people of ${band.info.land} sow: in their own time they settle, and their first village is founded in its turn.`,
+          "This changes your world, as the god's Inspire does: it is kept first in your saves, as it is now.",
+        ],
+        [key("Not yet", () => layer(null), true), key("🌱 Teach it", () => void teach())],
+        "help:band",
+      ),
+    );
+  };
+  const teach = async () => {
+    if (!bandLand || taught) return;
+    const params = new URLSearchParams(location.search),
+      universe = params.get("universe") ?? "earth",
+      seed = params.get("seed") ?? "first light";
+    await d.client.save(`${universe}:${seed}:before your band sowed`).catch(() => undefined);
+    const r = await d.client
+      .command("act.inspire", { cell: bandLand.cell, sign: 1, years: 1 })
+      .catch((e: unknown) => ({ ok: false, error: String(e) }));
+    const ok = (r as { ok?: boolean }).ok !== false;
+    taught = ok;
+    layer(
+      card(
+        ok ? "Your land sows" : "Your land could not be taught",
+        ok
+          ? [
+              `The people of ${band?.info?.land ?? "your land"} sow now. In their own time they settle, and when its turn comes, their first village is founded: wake and watch for it.`,
+              "Your world as it was before is kept in your saves.",
+            ]
+          : [`${(r as { error?: string }).error ?? "It was turned back."}`],
+        [
+          key("Stay with the band", () => layer(null), true),
+          key("☀️ Wake", () => void flow.wake()),
+        ],
+        "help:band",
+      ),
+    );
+  };
+
   const stageDone = () => {
     if (!saga) return;
     saga.stage = "body";
@@ -596,6 +777,7 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
         [
           key("Stay in the drop", () => layer(null), true),
           key("☀️ Wake", () => void flow.wake(), true),
+          key("⛺ Lead a band", () => void startBand(), true),
           key("🐚 Found a body", () => void openFounders()),
         ],
         "help:stage",
@@ -1162,6 +1344,7 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
 
   const frame = (dt: number) => {
     keepAway();
+    if (leading) return bandFrame(dt);
     if (living) return bodyFrame(dt);
     if (!drop || !hand || !traits || !micro) return;
     const paused = hud.modal || hand.dividing || ended;
@@ -1486,7 +1669,11 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
           year: Math.floor((d.client.status?.t ?? 0) / YEAR),
           air: "your world held still",
           facts: [
-            from ? "A line of its tree of life" : "From its world's first cells",
+            from === "band"
+              ? "A band of its people"
+              : from
+                ? "A line of its tree of life"
+                : "From its world's first cells",
             "Wake brings you back",
           ],
         },
@@ -1503,7 +1690,10 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
         loading.step(0, false);
         const [p, f, kept] = await Promise.all([
           d.client.query<GenesisPlan>({ type: "genesis" }),
-          d.client.query<LineFacts>({ type: "line.facts", args: from ? { ref: from } : {} }),
+          d.client.query<LineFacts>({
+            type: "line.facts",
+            args: from && from !== "band" ? { ref: from } : {},
+          }),
           d.client.query<{ id: number; data: SagaData }[]>({ type: "saga.list" }),
         ]);
         plan = p;
@@ -1537,6 +1727,10 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
               "help:mode",
             ),
           );
+        } else if (from === "band") {
+          // (The tribe asked for at once: the band led, the cells let be.)
+          await begin(null, null);
+          await startBand();
         } else {
           await begin(resumable, from);
           if (!guide.welcomed) layer(guide.welcome(() => {}));
@@ -1553,6 +1747,7 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
                     () => void begin(null, from).then(() => layer(null)),
                     true,
                   ),
+                  key("⛺ Lead a band", () => void startBand(), true),
                   key("Go on with it", () => layer(null)),
                 ],
                 "help:mode",
@@ -1581,6 +1776,7 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
       if (beast) beast.leave();
       living = false;
       offered = null;
+      leaveBand();
       noises.close();
       putBack();
       d.time.release("line");
@@ -1672,6 +1868,45 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
       now: () => (traits ? whatNow(nowState()) : null),
       close: () => layer(null),
       wake: () => flow.wake(),
+      /** The tribe (S6): led, its state; the eye put on a point; an order given; so many band days lived at once. */
+      lead: () => startBand(),
+      band: () => {
+        const b = band?.band,
+          l = band?.led;
+        return b && l
+          ? {
+              leading,
+              people: b.people.length,
+              food: b.food,
+              day: b.day,
+              hour: band!.hour(),
+              camp: { ...b.camp },
+              going: !!b.going,
+              born: l.born,
+              lost: l.lost,
+              grass: l.grass,
+              seed: l.seed.map((s) => ({ ...s })),
+              sprouted: l.sprouted,
+              grain: l.grain,
+              look: { ...band!.look },
+              quarry: band!.quarry(),
+              offers: band!.offers(),
+              taught,
+              stepMs: band!.stepMs,
+              land: bandLand,
+            }
+          : null;
+      },
+      bandLook: (x: number, z: number) => {
+        if (!band) return;
+        band.look.x = x;
+        band.look.z = z;
+      },
+      bandAct: (i: number) => (band ? band.act(i) : null),
+      bandLive: (days: number) => band?.live(days) ?? 0,
+      bandMorning: () => band?.toMorning() ?? false,
+      sow: () => sowCard(),
+      teach: () => teach(),
     };
   return flow;
 }
@@ -1791,6 +2026,14 @@ const HELP: Readonly<Record<string, readonly [string, readonly string[]]>> = {
       "Everything your line did not reach is as it was. Your world as it is now is kept: you can go back to it from your saves.",
     ],
   ],
+  "help:band": [
+    "Leading a band",
+    [
+      "A band of your world's people lives its own day, as every band seen near does: out gathering and hunting by day, home by dusk, asleep by night, its crafts by the fire. You lead it: the stick moves where you look (the ring on the ground).",
+      "🏹 Hunt sends the hunters after the beast nearest where you look, if they could take it. 🚶 Walk on packs up the camp and walks the band to the ground you look at. 🌾 Seed sends the gatherers to the grass for its seed instead of the woods.",
+      "A band fed well three days running has a child; one starved three days running loses its weakest. Seed eaten by a fire is dropped there: where a wild grain grows, a camp come back to after some days has it growing thick. That is how sowing came to people. Once your band has seen it, 🌱 Sow teaches your land to sow, and its people settle in their own time.",
+    ],
+  ],
   "help:young": [
     "How your young differ",
     [
@@ -1817,4 +2060,5 @@ const HELP_LINKS: readonly (readonly [string, string])[] = [
   ["help:body", "Your line's body"],
   ["help:young", "How your young differ"],
   ["help:makeso", "Make it so"],
+  ["help:band", "Leading a band"],
 ];

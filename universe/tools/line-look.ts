@@ -491,7 +491,125 @@ for (const view of [
   await look("17-woken", "the world after waking");
   check((await state()).guide.done.includes("wake"), "the lesson to wake ticked off");
 
-  // —— On the desk: in again by a line of the tree of life, and the line kept.
+  // —— The tribe (S6): a band of the world's people led. Its orders, its seed come up, its land taught to sow.
+  type Band = {
+    leading: boolean;
+    people: number;
+    food: number;
+    day: number;
+    hour: number;
+    camp: { x: number; z: number };
+    going: boolean;
+    born: number;
+    grass: boolean;
+    seed: { x: number; z: number; n: number; day: number }[];
+    sprouted: { x: number; z: number } | null;
+    grain: boolean;
+    quarry: number | null;
+    offers: { icon: string; label: string; can: boolean; words: string }[];
+    taught: boolean;
+    stepMs: number;
+    land: { cell: number; sows: boolean } | null;
+  };
+  const band = () => k<Band | null>("globalThis.causalis.lineMode.band()");
+  await k("globalThis.causalis.line.open('band')");
+  await until("the band led", async () => !!(await band())?.leading, 40000);
+  await page.waitForTimeout(1200);
+  await look("20-band-intro", "a band led: its card");
+  await k("globalThis.causalis.lineMode.close()");
+  await page.waitForTimeout(1500);
+  const bd0 = (await band())!;
+  check(
+    bd0.people >= 6 && bd0.offers.length === 4,
+    `a band of ${bd0.people}, four acts (${bd0.offers.map((o) => o.label).join(", ")})`,
+  );
+  say(`the band's land: ${JSON.stringify(bd0.land)}; a wild grain there: ${bd0.grain}`);
+  await look("21-band", "the band at its camp");
+  await throttled("a band led");
+  say(`the band's step: ${bd0.stepMs.toFixed(2)} ms`);
+  // (The hunters sent after a beast looked at, by day.)
+  await k("globalThis.causalis.lineMode.bandMorning()");
+  let hunted: { words: string; good: boolean } | null = null;
+  for (let a = 0; a < 24 && !hunted; a++) {
+    const c = (await band())!.camp;
+    await k(
+      `globalThis.causalis.lineMode.bandLook(${c.x + Math.cos(a) * (12 + a * 2)}, ${c.z + Math.sin(a) * (12 + a * 2)})`,
+    );
+    await page.waitForTimeout(60);
+    if ((await band())!.quarry !== null)
+      hunted = await k("globalThis.causalis.lineMode.bandAct(0)");
+  }
+  check(
+    !!hunted?.good,
+    `the hunters sent: ${hunted?.words ?? "no beast they could take was found about the camp"}`,
+  );
+  await page.waitForTimeout(1200);
+  await look("21b-hunt", "the hunters sent");
+  // (The gatherers to the grass; a day and a half; walked on; some days; walked back: the seed come up, where a grain grows.)
+  await k("globalThis.causalis.lineMode.bandAct(2)");
+  await k("globalThis.causalis.lineMode.bandLive(1.5)");
+  const bd1 = (await band())!,
+    old = bd1.seed.find((s) => s.n >= 3);
+  check(!!old, `seed dropped about the fire (${JSON.stringify(bd1.seed)})`);
+  if (old) {
+    await k("globalThis.causalis.lineMode.bandMorning()");
+    let c = (await band())!.camp;
+    if (Math.hypot(c.x - old.x, c.z - old.z) < 30) {
+      await k(`globalThis.causalis.lineMode.bandLook(${old.x + 60}, ${old.z})`);
+      const w = await k<{ good: boolean; words: string }>(
+        "globalThis.causalis.lineMode.bandAct(1)",
+      );
+      check(w.good, `walked on: ${w.words}`);
+    }
+    await k("globalThis.causalis.lineMode.bandLive(4.5)");
+    await k("globalThis.causalis.lineMode.bandMorning()");
+    c = (await band())!.camp;
+    if (!(await band())!.sprouted && Math.hypot(c.x - old.x, c.z - old.z) >= 10) {
+      await k(`globalThis.causalis.lineMode.bandLook(${old.x}, ${old.z + 6})`);
+      const w = await k<{ good: boolean; words: string }>(
+        "globalThis.causalis.lineMode.bandAct(1)",
+      );
+      check(w.good, `walked back to the old camp: ${w.words}`);
+    }
+    await k("globalThis.causalis.lineMode.bandLive(1.5)");
+    const bd2 = (await band())!;
+    check(
+      !!bd2.sprouted === bd2.grain,
+      `the seed come up where a wild grain grows (${bd2.grain}): ${JSON.stringify(bd2.sprouted)}`,
+    );
+    say(
+      `after ${bd2.day} days: ${bd2.people} in the band (${bd2.born} born), ${bd2.food.toFixed(1)} days of food`,
+    );
+    if (bd2.sprouted)
+      await k(`globalThis.causalis.lineMode.bandLook(${bd2.sprouted.x}, ${bd2.sprouted.z})`);
+    await page.waitForTimeout(1200);
+    await look("22-sprouted", "the grain come up at the old camp");
+    if (bd2.sprouted && !bd2.land?.sows) {
+      await k("globalThis.causalis.lineMode.sow()");
+      await page.waitForTimeout(300);
+      await look("23-sow", "Teach your land to sow?");
+      await pressText(".line-card-go, .line-card-other", /Teach it/, "🌱 Teach it");
+      await until("the land taught", async () => !!(await band())?.taught, 20000);
+      await page.waitForTimeout(400);
+      await look("24-taught", "your land sows");
+      const kept = await k<string[]>(
+        `globalThis.causalis.client.saves().then((s) => s.map((x) => x.name))`,
+      );
+      check(
+        kept.some((n) => /before your band sowed/.test(n)),
+        `the world before it kept (${kept.slice(0, 3).join(", ")})`,
+      );
+    }
+  }
+  await k("globalThis.causalis.lineMode.close()");
+  await k("globalThis.causalis.lineMode.wake()");
+  await page.waitForTimeout(600);
+  check(!(await k<boolean>("globalThis.causalis.lineMode.state().on")), "woken from the band");
+
+  // —— On the desk: in again by a line of the tree of life, and the line kept. (The clock as it stands now: the band's land
+  // taught to sow is a command, and the world went on by it.)
+  const tAgain = await k<number>("globalThis.causalis.client.status?.t ?? -1");
+  say(`the world's clock after the band: ${t0} → ${tAgain} s`);
   if (!phone) {
     await k(`globalThis.causalis.open("world:tree")`);
     await page.waitForTimeout(2500);
@@ -512,7 +630,7 @@ for (const view of [
       await k("globalThis.causalis.lineMode.wake()");
       await page.waitForTimeout(500);
       check(
-        (await k<number>("globalThis.causalis.client.status?.t ?? -1")) === t0,
+        (await k<number>("globalThis.causalis.client.status?.t ?? -1")) === tAgain,
         "the clock still where it was after a second waking",
       );
     }
