@@ -441,7 +441,29 @@ export type PlaceInspectBound = {
   readonly words: string;
 };
 
+/**
+ * A town's faith and rank (P7): its land's faith and whom it worships, how devout and how given to rank its people are, its
+ * shrines and temples (each a key) and what having them or not is to its people; its hall, and those of rank, each a key,
+ * with what it is to them.
+ */
+export type PlaceInspectFaith = {
+  readonly kind: "faith";
+  readonly ref: string;
+  readonly lotRef: string;
+  readonly name: string;
+  readonly icon: string;
+  readonly faith: string;
+  readonly ways: string;
+  readonly shrines: readonly { readonly name: string; readonly ref: string }[];
+  readonly riteWords: string;
+  readonly hall: { readonly name: string; readonly ref: string } | null;
+  readonly rankWords: string;
+  readonly ranked: readonly { readonly name: string; readonly ref: string; readonly words: string }[];
+  readonly words: string;
+};
+
 export type PlaceInspect =
+  | PlaceInspectFaith
   | PlaceInspectBound
   | PlaceInspectFamily
   | PlaceInspectGate

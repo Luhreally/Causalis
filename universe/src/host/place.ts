@@ -204,6 +204,7 @@ import {
   familySizeOf,
   managedDead,
   managedOf,
+  beliefOf,
   INTOX,
   INTOX_STORE,
   intoxDependent,
@@ -6134,7 +6135,63 @@ export const COND = {
   fare: 13,
   /** P6: held in bondage, as their land's people are (sim/order bonds): its kind weighs on them. */
   bound: 14,
+  /** P7: a shrine or temple of the town to keep their faith's rites at, or none where their faith asks one. */
+  rite: 15,
+  /** P7: one of rank (a leader by trade, one of its realm's key figures): a hall befitting it, or none, as their people hold rank. */
+  rank: 16,
 } as const;
+/**
+ * P7. What the town gives its faith and its rank, read once a day a place: its land's faith (sim/belief) and how devout and
+ * how given to rank its people are (sim/culture ways: piety, hierarchy); whether it has a shrine or a temple standing, and
+ * a hall. Est. weights: a shrine is worth up to four to the devout, its want up to three; a hall up to two to its leaders,
+ * its want up to five where rank is held high.
+ */
+export type PlaceRites = {
+  readonly day: number;
+  readonly faith: string | null;
+  readonly piety: number;
+  readonly hierarchy: number;
+  readonly shrines: readonly number[];
+  readonly hall: number;
+  readonly rite: number;
+  readonly rank: number;
+};
+const RITES = new WeakMap<Place, PlaceRites>();
+export function placeRites(world: World, place: Place): PlaceRites {
+  const day = Math.floor(place.t / DAY),
+    was = RITES.get(place);
+  if (was && was.day === day) return was;
+  const ways = cultureOf(world).get(place.cell)?.traits,
+    piety = ways?.[WAY.piety] ?? 0.5,
+    hierarchy = ways?.[WAY.hierarchy] ?? 0.5,
+    faith = beliefOf(world).of(place.cell).faith,
+    b = place.bldgs,
+    shrines: number[] = [];
+  let hall = -1;
+  for (let k = 0; k < b.lot.length; k++) {
+    const kind = kindName(b.kind[k]!);
+    if (kind === "shrine" || kind === "temple") shrines.push(b.lot[k]!);
+    else if (kind === "hall" && hall < 0) hall = b.lot[k]!;
+  }
+  const r = {
+    day,
+    faith: faith ? (beliefOf(world).get(faith)?.name ?? null) : null,
+    piety,
+    hierarchy,
+    shrines,
+    hall,
+    rite: !faith
+      ? 0
+      : shrines.length
+        ? Math.round(4 * piety)
+        : piety > 0.5
+          ? -Math.round(6 * (piety - 0.5)) || -1
+          : 0,
+    rank: hall >= 0 ? Math.round(2 * hierarchy) : hierarchy > 0.5 ? -Math.round(10 * (hierarchy - 0.5)) || -1 : 0,
+  };
+  RITES.set(place, r);
+  return r;
+}
 /** P6. What each kind of bondage weighs on a mood (BONDS' order; est.: a chattel's the heaviest, an indenture's term the lightest). */
 const BOND_MOOD = [-8, -3, -4, -2, -3] as const;
 /**
@@ -6488,6 +6545,26 @@ function moodTerms(
       days: null,
       ...(houses.home[h]! >= 0 ? { src: srcLot(houses.home[h]!) } : {}),
     });
+  // (Their faith's rites and their rank, P7: for the grown.)
+  const rites = RITES.get(place);
+  if (rites && ageOf(p, i, place.t) >= fk.life.adulthood) {
+    if (rites.rite)
+      out.push({
+        bit: 0,
+        cond: COND.rite,
+        size: rites.rite,
+        days: null,
+        ...(rites.shrines.length ? { src: srcLot(rites.shrines[0]!) } : {}),
+      });
+    if (rites.rank && (occOf(p, i) === OCC.leader || place.figId.includes(p.id[i]!)))
+      out.push({
+        bit: 0,
+        cond: COND.rank,
+        size: rites.rank,
+        days: null,
+        ...(rites.hall >= 0 ? { src: srcLot(rites.hall) } : {}),
+      });
+  }
   // (Held in bondage, P6.)
   const bond = placeBondOf(place, p.id[i]!, BONDS_KEPT.get(place)?.b);
   if (bond >= 0)
@@ -7202,6 +7279,7 @@ function tickCx(world: World, place: Place, f: Frame) {
     lets,
     drink: placeDrink(world, place),
     bonds: placeBonds(world, place),
+    rites: placeRites(world, place),
     // (The last come for company to each meeting place this tick, as `visitor` is the square's: O2.)
     visitAt: zoned?.meets.length ? new Map<number, number>() : null,
     // (Tiers: how far into their stride the tick a turn is at stands (`base`), how far past that tick a turn that goes on

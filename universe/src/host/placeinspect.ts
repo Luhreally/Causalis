@@ -64,6 +64,7 @@ import { placeLegends, placeWork } from "./placelegends.ts";
 import { placeGate } from "./placevisitors.ts";
 import { placeFamily } from "./placefamily.ts";
 import { bondWords, placeBound } from "./placebound.ts";
+import { placeFaith } from "./placefaith.ts";
 import {
   ACT,
   AT,
@@ -202,6 +203,8 @@ const COND_WORDS: Readonly<Record<number, readonly [string, string]>> = {
   [COND.craving]: ["🍶", "Needs what they take"],
   [COND.fare]: ["🥖", "Their household's table: the foods its pantry holds"],
   [COND.bound]: ["⛓️", "Held in bondage"],
+  [COND.rite]: ["⛩️", "A shrine to keep their faith's rites at"],
+  [COND.rank]: ["🏛️", "A hall befitting their rank"],
   [COND.kinAbed]: ["🛏️", "One of their household abed"],
   [COND.friendAbed]: ["🛏️", "Their friend abed"],
   [COND.tool]: ["🛠️", "The tool of their trade"],
@@ -484,7 +487,11 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
                 x.src &&
                 x.src > 0
               ? overWords(base, x.src)
-              : base;
+              : x.cond === COND.rite && x.size < 0
+                ? "No shrine where their faith keeps its rites"
+                : x.cond === COND.rank && x.size < 0
+                  ? "No hall befitting their rank"
+                  : base;
         return {
           icon: hd(x)?.[0] ?? "•",
           words,
@@ -1140,6 +1147,7 @@ export function placeInspect(world: World, town: string, ref: string): PlaceInsp
   if (ref.startsWith("plcy:")) return placeLegends(world, place);
   if (ref.startsWith("plca:")) return placeGate(world, place);
   if (ref.startsWith("plcd:")) return placeBound(world, place);
+  if (ref.startsWith("plcr:")) return placeFaith(world, place);
   if (ref.startsWith("plcf:")) {
     const id = Number(ref.slice(ref.lastIndexOf(":") + 1));
     return Number.isInteger(id) ? placeFamily(world, place, id) : null;

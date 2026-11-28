@@ -12,6 +12,7 @@ import type {
   PlaceInspect,
   PlaceInspectBelow,
   PlaceInspectBound,
+  PlaceInspectFaith,
   PlaceInspectFamily,
   PlaceInspectGate,
   PlaceInspectLegends,
@@ -256,6 +257,7 @@ export class PlaceInspector {
     else if (x.kind === "gate") this.gate(x);
     else if (x.kind === "family") this.family(x);
     else if (x.kind === "bound") this.bound(x);
+    else if (x.kind === "faith") this.faith(x);
     else this.lot(x);
   }
 
@@ -560,6 +562,36 @@ export class PlaceInspector {
       el("p", "place-insp-why", x.words),
     );
   }
+  /** A town's faith and rank (P7): its faith and ways; its shrines and hall, each a key; those of rank, each a key. */
+  private faith(x: PlaceInspectFaith): void {
+    this.picture(x);
+    const title = `${x.icon} ${x.name}`;
+    if (this.title.textContent !== title) this.title.textContent = title;
+    this.sub.textContent = `${x.shrines.length} ${x.shrines.length === 1 ? "shrine" : "shrines"} · ${x.hall ? "a hall" : "no hall"} · ${x.ranked.length} of rank`;
+    const body: HTMLElement[] = [
+      el("p", "place-insp-why", x.faith),
+      el("p", "place-insp-why", x.ways),
+      el("p", "place-insp-why place-insp-rite", x.riteWords),
+    ];
+    const keys = (rows: readonly { name: string; ref: string; words?: string }[], label: string) => {
+      if (!rows.length) return;
+      const box = el("div", "place-insp-people");
+      for (const r of rows) {
+        const b = el("button", "place-insp-person place-faith-row");
+        b.append(el("span", "place-row-name", r.name));
+        if (r.words) b.append(el("span", "place-row-what", r.words));
+        b.onclick = () => this.onInspect(r.ref);
+        box.append(b);
+      }
+      body.push(el("p", "place-insp-label", label), box);
+    };
+    keys(x.shrines, "Its shrines and temples");
+    body.push(el("p", "place-insp-why place-insp-rank", x.rankWords));
+    if (x.hall) keys([x.hall], "Its hall");
+    keys(x.ranked, "Of rank");
+    body.push(el("p", "place-insp-why", x.words));
+    this.body.replaceChildren(...body);
+  }
   /** The bound of a town (P6): its land's bondage by kind, captives, those its justice holds, each of its bound a key. */
   private bound(x: PlaceInspectBound): void {
     this.picture(x);
@@ -835,6 +867,11 @@ export class PlaceInspector {
       bound.setAttribute("aria-label", "The town's bound, its captives and those its justice holds");
       bound.onclick = () => this.onInspect(x.ref.replace(/^plcl:(.*):\d+$/, "plcd:$1"));
       body.push(bound);
+      // (Its faith and rank, P7.)
+      const faith = el("button", "place-insp-order place-insp-faith", "Faith and rank ▸");
+      faith.setAttribute("aria-label", "The town's faith, its shrines, and those of rank");
+      faith.onclick = () => this.onInspect(x.ref.replace(/^plcl:(.*):\d+$/, "plcr:$1"));
+      body.push(faith);
     }
     if (x.zoneWords) body.push(el("p", "place-insp-why", x.zoneWords));
     // (The guard's post by your order, O7: those standing to arms keep it, watching the homes within a cry of it.)

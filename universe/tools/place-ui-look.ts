@@ -901,6 +901,18 @@ for (const view of [
     await press(".place-insp-back", "‹ Back to the square's page from its bound");
     await until("the square's page from its bound", async () => (await kind()) === "lot", 8000);
     check((await kind()) === "lot", "Back from its bound comes to the square's page");
+    // Its faith and rank (P7): from the square's page, and Back.
+    await k('document.querySelector(".place-insp-faith")?.scrollIntoView({ block: "center" })');
+    await page.waitForTimeout(300);
+    await press(".place-insp-faith", "Faith and rank ▸, on the square's page");
+    await until("its faith", async () => (await kind()) === "faith", 8000);
+    await page.waitForTimeout(400);
+    say(`faith: ${(await text(".place-insp")).slice(0, 300)}`);
+    check((await shown(".place-insp-rite")) > 0, "its rites told");
+    await look("20m-faith", "the town's faith and rank");
+    await press(".place-insp-back", "‹ Back to the square's page from its faith");
+    await until("the square's page from its faith", async () => (await kind()) === "lot", 8000);
+    check((await kind()) === "lot", "Back from its faith comes to the square's page");
     // Raised by hand (P1): a home's lot page offers what the town could raise on its lots; asked there, it is offered no more.
     if (kept !== null) {
       await k(`globalThis.causalis.place.inspect(${JSON.stringify(`plcl:${town.ref}:${kept + 3}`)})`);
