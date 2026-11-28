@@ -65,7 +65,7 @@ import { placeFields, placeInside } from "./placeinside.ts";
 import { placeBelow } from "./placebelow.ts";
 import { placeLegends, placeWork, workName } from "./placelegends.ts";
 import { placeGate } from "./placevisitors.ts";
-import { placeDead, placeFamily, placeKin } from "./placefamily.ts";
+import { placeDead, placeFamily, placeKin, placeKinWord } from "./placefamily.ts";
 import { placeCharacter } from "./placecharacter.ts";
 import { placeBody } from "./placebody.ts";
 import { placeMaking } from "./placemaking.ts";
@@ -118,7 +118,6 @@ import {
   siteStage,
   workWorth,
   type Place,
-  actWords,
   placeDayStrip,
   placeTies,
   placeOpinion,
@@ -160,6 +159,8 @@ import {
   painWords,
   healthWords,
   TENDED_WORDS,
+  doingWords,
+  homeWords,
   lotWords,
   markWords,
   careWords,
@@ -436,10 +437,8 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
     age = (j: number) => Math.floor((place.t / DAY - p.born[j]!) / 365),
     worth = workWorth(world, place, i),
     serves = Math.cbrt(Math.max(worth, IDLE_WORTH)),
-    doing =
-      r.act === ACT.abed && r.eta > 0
-        ? `Being brought home to lie abed, at ${lotWords(place, r.to)}`
-        : `${cap(actWords(place.people, i))}${r.eta > 0 ? `, walking to ${lotWords(place, r.to)}` : r.act === ACT.sleep || r.act === ACT.eat ? "" : ` at ${lotWords(place, r.at)}`}`;
+    // (Said as their Health and Home say it: abed where they are hurt or sick, and no home lot called theirs that is not. U2.)
+    doing = cap(doingWords(place, i));
   // Their mood's reasons: what bears on it now, each by how much and for how long (host/place.ts moodTerms).
   const terms = placeMoodTerms(world, place, i),
     // (Whom or what each came of: one of the town's people by name, living or gone; one of its lots by what stands on it.)
@@ -642,7 +641,7 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
     temperWords: temperWords(place, i),
     home: {
       lot: r.home,
-      words: cap(lotWords(place, r.home)),
+      words: homeWords(place, i),
       ref: placeLotRef(place.town, r.home),
     },
     work:
@@ -659,12 +658,15 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
     household: r.household
       .map((k) => placeIndexOf(place, k))
       .filter((j) => j >= 0)
-      .map((j) =>
-        nameOf(
+      .map((j) => {
+        // (What they are to them, where the town kept it: the reader their Family page counts by. U2.)
+        const as = placeKinWord(place, i, j),
+          trade = tradeWords(p.sexOcc[j]! & 15, age(j) < life.adulthood).replace(/^an? /, "");
+        return nameOf(
           j,
-          `${age(j)}, ${tradeWords(p.sexOcc[j]! & 15, age(j) < life.adulthood).replace(/^an? /, "")}`,
-        ),
-      ),
+          as ? `${as}, ${age(j)}, ${trade}` : `${age(j)}, ${trade}; of their household`,
+        );
+      }),
     mate: mi >= 0 ? nameOf(mi, mate!.promised ? "promised" : "paired") : null,
     friend: fi >= 0 ? nameOf(fi, "friend") : null,
     ...tiesOf(world, place, i, nameOf, named),
@@ -947,7 +949,7 @@ export function inspectLot(world: World, place: Place, lot: number): PlaceInspec
         id,
         ref: who(j).ref,
         name: who(j).name,
-        words: `${words}; ${actWords(p, j)}`,
+        words: `${words}; ${doingWords(place, j, true)}`,
       });
     }
   };

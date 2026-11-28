@@ -21,6 +21,7 @@ import {
 } from "./place.ts";
 import { placeDay, placeNamed, placeNames, placeWho, tradeWords } from "./placeplan.ts";
 import { MEMORY_WORDS } from "./placeinspect.ts";
+import { lifeOf } from "../sim/index.ts";
 
 /** The pairing set for a day to come (host/place.ts PROMISED). */
 const PROMISED = 0xffffffff;
@@ -112,6 +113,26 @@ export function placeFamily(world: World, place: Place, id: number): PlaceInspec
       : kin(promised ? p.friend[i]! : mate, () => (promised ? "promised" : "paired")),
     all =
       grand.length + siblings.length + children.length + grandchildren.length + (paired ? 1 : 0);
+  // (Their kin living in the town and their household, by the one reader the Social tab's rows go by, so the two
+  // agree: U2.)
+  let inTown = 0;
+  const household: Kin[] = [],
+    grownAt = lifeOf(world).adulthood;
+  for (let j = 0; j < p.n; j++) {
+    if (j === i) continue;
+    const as = placeKinWord(place, i, j);
+    if (as) inTown++;
+    if (p.house[j] !== p.house[i]) continue;
+    const age = Math.floor((day - p.born[j]!) / 365),
+      trade = tradeWords(p.sexOcc[j]! & 15, age < grownAt).replace(/^an? /, "");
+    household.push({
+      name: who(j).name,
+      ref: placePersonRef(place.town, p.id[j]!),
+      words: as ? `${as}, ${age}, ${trade}` : `${age}, ${trade}; no kinship the town kept`,
+    });
+  }
+  const none =
+    "None of their kin is in the town, as it has kept them: those born in it are born to their mother and the one she is paired with.";
   return {
     kind: "family",
     ref: placeFamilyRef(place.town, id),
@@ -125,10 +146,64 @@ export function placeFamily(world: World, place: Place, id: number): PlaceInspec
     siblings: siblings.slice(0, KIN_MOST),
     children: children.slice(0, KIN_MOST),
     grandchildren: grandchildren.slice(0, KIN_MOST),
-    words: all
-      ? `${all} of their kin in the town, as it has kept them: those born in it are born to their mother and the one she is paired with.`
-      : "None of their kin is in the town, as it has kept them: those born in it are born to their mother and the one she is paired with.",
+    household: household.slice(0, KIN_MOST),
+    inTown,
+    words: inTown
+      ? `${inTown} of their kin in the town, as it has kept them${all > inTown ? `, and ${all - inTown} gone from it` : ""}: those born in it are born to their mother and the one she is paired with.`
+      : household.length
+        ? `${none} They share a home with ${household.length} of their household, whose kinship the town did not keep.`
+        : all
+          ? `None of their kin lives in the town now; ${all} it kept are gone from it. Those born in it are born to their mother and the one she is paired with.`
+          : none,
   };
+}
+
+/**
+ * What one of a place's people is to another of it (U2): partner (or promised), mother, father, son, daughter, brother,
+ * sister (or half), grandmother, grandfather, grandson, granddaughter; null where the town kept no kinship of the two.
+ * The one reader a family's count of kin in the town and the Social tab's household rows both go by. Read only.
+ */
+export function placeKinWord(place: Place, i: number, j: number): string | null {
+  if (i === j) return null;
+  const p = place.people,
+    id = p.id[i]!,
+    jd = p.id[j]!,
+    female = p.sexOcc[j]! >> 4 === FEMALE,
+    mate = p.mate[i]!,
+    mother = p.mother[i]!,
+    father = p.father[i]!;
+  if (mate === PROMISED ? p.friend[i] === jd : mate === jd)
+    return mate === PROMISED ? "promised" : "partner";
+  if (mother === jd) return "mother";
+  if (father === jd) return "father";
+  if (p.mother[j] === id || p.father[j] === id) return female ? "daughter" : "son";
+  if ((mother && p.mother[j] === mother) || (father && p.father[j] === father))
+    return (p.mother[j] === mother || !mother) && (p.father[j] === father || !father)
+      ? female
+        ? "sister"
+        : "brother"
+      : female
+        ? "half-sister"
+        : "half-brother";
+  // (A parent of their mother or father, where that one is of the town.)
+  for (const n of [mother, father]) {
+    const k = n ? placeIndexOf(place, n) : -1;
+    if (k >= 0 && (p.mother[k] === jd || p.father[k] === jd))
+      return female ? "grandmother" : "grandfather";
+  }
+  // (A child of one of their children, living or one of the dead kept.)
+  for (const n of [p.mother[j]!, p.father[j]!]) {
+    if (!n) continue;
+    const k = placeIndexOf(place, n),
+      m = k >= 0 ? null : placeMourned(place, n);
+    if (
+      k >= 0
+        ? p.mother[k] === id || p.father[k] === id
+        : !!m && (m.mother === id || m.father === id)
+    )
+      return female ? "granddaughter" : "grandson";
+  }
+  return null;
 }
 
 /** One of a place's dead kept for their page, as kin or one known: named as they were, a tap to their page (R1). */

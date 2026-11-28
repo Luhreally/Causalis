@@ -58,6 +58,20 @@ test("those born in the town kept with their mother and father; a family's page 
       m = placeIndexOf(place, mother),
       fam = placeInspect(w, town, placeFamilyRef(town, id)) as PlaceInspectFamily;
     assert.equal(fam.kind, "family");
+    // (Its count of kin in the town and the Social tab's household rows go by one reader of kinship: they agree. U2.)
+    assert.ok(fam.inTown >= 1, "their mother counted among their kin in the town");
+    const me = placeInspect(w, town, placePersonRef(town, id)) as PlaceInspectPerson,
+      kinRows = me.household.filter((h) =>
+        /^(mother|father|son|daughter|brother|sister|half-|grand|partner|promised)/.test(h.words),
+      );
+    assert.ok(kinRows.length <= fam.inTown, `${kinRows.length} kin at home of ${fam.inTown}`);
+    const ma = me.household.find((h) => h.id === mother);
+    if (ma) assert.match(ma.words, /^mother, /, "their mother named so among their household");
+    assert.equal(
+      fam.household.length,
+      me.household.length,
+      "the family's household as the Social tab's",
+    );
     assert.ok(!/undefined|NaN/.test(JSON.stringify(fam)), JSON.stringify(fam).slice(0, 300));
     assert.ok(m >= 0, "their mother of the town");
     // (Born to one who bears; their father the one she is paired with, where she is.)

@@ -131,6 +131,12 @@ body.placing > .sound-button {
 .place-pill .place-pace {
   padding: 0 2px;
 }
+/* Each pace in plain units a second ("10 min/s", as the god bar's "1 month/s"; U2), small enough that the pill and the
+   alerts beside it both fit a phone's width. */
+.place-pill .place-pace[data-pace]:not([data-pace="0"]) {
+  padding: 0 3px;
+  font-size: 13px;
+}
 .place-bar .place-pill {
   position: static;
   flex: 0 0 auto;
@@ -686,11 +692,50 @@ body.placing .page-window {
   box-shadow: none;
   min-width: 0;
 }
+/* A name in the grid: on two lines where it must, cut with … only past them (its full name in the key's title). U2. */
 .place-grid-who {
   max-width: 100%;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.15;
+}
+/* Its columns past the right edge told (U2): a line over it says so and which way, and the edge fades while more lie
+   beyond it. */
+.place-grid-wrap {
+  position: relative;
+  margin: 4px 0;
+}
+.place-grid-wrap > .place-grid {
+  margin: 0;
+}
+.place-grid-wrap::after {
+  content: "";
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  bottom: 1px;
+  width: 18px;
+  border-radius: 0 6px 6px 0;
+  pointer-events: none;
+  background: linear-gradient(to right, rgba(10, 18, 52, 0), rgba(10, 18, 52, 0.85));
+}
+.place-grid-wrap.at-end::after,
+.place-grid-wrap.fits::after {
+  display: none;
+}
+.place-grid-hint {
+  margin: 2px 0 0;
+  font-size: 12px;
+  text-align: right;
+  color: var(--place-amber, #ffc94a);
+}
+.place-grid-hint[hidden] {
+  display: none;
 }
 .place-grid-skill {
   font-size: 11px;
@@ -979,7 +1024,16 @@ body.placing .page-window {
 .place-insp-value {
   font-variant-numeric: tabular-nums;
   text-align: right;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+/* A thing's wear (O5): its words under its bar, the width of the page, wrapped where they must (U2: they were cut). */
+.place-insp-need.place-insp-wear {
+  grid-template-columns: 74px 1fr;
+}
+.place-insp-wear .place-insp-value {
+  grid-column: 2;
+  text-align: left;
 }
 .place-meter {
   position: relative;
@@ -1051,7 +1105,7 @@ body.placing .page-window {
   display: grid;
   grid-template-columns: 70px 1fr;
   align-items: center;
-  gap: 2px 8px;
+  gap: 4px 8px;
   margin: 4px 0;
 }
 .place-insp-fact {
@@ -1745,6 +1799,27 @@ span.place-td-good {
   display: flex;
   flex-direction: column;
 }
+/* Raise here, where it clears homes (U2): asked first, what it clears said, its Raise and Cancel full-sized keys. */
+.place-insp-raise-sure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 6px;
+  padding: 6px;
+  border: 1px solid var(--place-amber, #ffc94a);
+  border-radius: 6px;
+}
+.place-insp-raise-ask {
+  flex: 1 1 100%;
+  font-weight: 600;
+  color: var(--place-amber, #ffc94a);
+}
+.place-hud .place-insp-raise-yes,
+.place-hud .place-insp-raise-no {
+  min-width: 88px;
+  min-height: 44px;
+}
 /* A page over the mode hides its inspector as it hides its sheet. */
 body.placing:has(.page-window:not([hidden])) .place-insp,
 body.placing:has(.page-window:not([hidden])) .place-ring,
@@ -2145,10 +2220,15 @@ body.placing:has(.page-window:not([hidden])) .place-tag {
 .place-guide-extra:empty {
   display: none;
 }
+/* Its keys besides the lessons (What now?, G3): a footer in the card's flow under the list, ruled off from it and never
+   over it: the list scrolls above it (U2). */
 .place-guide-extra {
+  flex: 0 0 auto;
   display: flex;
   gap: 4px;
-  padding: 0 6px 6px;
+  padding: 6px;
+  border-top: 1px solid rgba(190, 205, 255, 0.4);
+  background: rgba(8, 14, 44, 0.55);
 }
 .place-guide.folded .place-guide-list,
 .place-guide.folded .place-guide-said,
@@ -2233,6 +2313,9 @@ body.placing:has(.page-window:not([hidden])) .place-tag {
 .place-hud .place-guide-now {
   padding: 0 10px;
 }
+.place-hud .place-guide-now {
+  flex: 1 1 auto;
+}
 
 /* The welcome the first time in a town (G4): above the ways to play it, Skip at its end. */
 .place-welcome {
@@ -2279,6 +2362,15 @@ body.placing:has(.page-window:not([hidden])) .place-tag {
   min-height: 44px;
   padding: 0 6px;
   font-size: 15px;
+}
+/* A name and its Go to keys one unit: the line breaks before it, never between a name and its 🎯 (U2); only a unit
+   wider than the whole line breaks within itself. */
+.place-log-who {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  max-width: 100%;
+  min-width: 0;
 }
 .place-hud .place-watch-why {
   flex: 0 0 auto;

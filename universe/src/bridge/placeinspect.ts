@@ -456,6 +456,10 @@ export type PlaceInspectFamily = {
   readonly siblings: PlaceInspectFamily["parents"];
   readonly children: PlaceInspectFamily["parents"];
   readonly grandchildren: PlaceInspectFamily["parents"];
+  /** Those they share a home with, each with what they are to them where the town kept it (U2). */
+  readonly household: PlaceInspectFamily["parents"];
+  /** Their kin living in the town: by the same reader the Social tab's household rows go by (U2). */
+  readonly inTown: number;
   readonly words: string;
 };
 

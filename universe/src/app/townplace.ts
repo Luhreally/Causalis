@@ -469,12 +469,31 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
       0.8,
     );
   };
+  /**
+   * The eye to one of its people where they are drawn, or else to a lot. One not drawn (the town drawn is a share of its
+   * people: a Go to for any other sent the eye nowhere, U2) is looked for at the lot the place has them at, asked of it
+   * once; the lot said with them where it has none for them.
+   */
+  const sendEye = (id: number | null, lot: number | null): void => {
+    const drawn = id !== null ? personPoint(id) : null,
+      there = lot !== null ? lotPoint(lot) : null;
+    if (drawn) return lookAt(drawn);
+    if (id === null || !town) return void (there && lookAt(there));
+    const ref = town;
+    void d.client.query<PlaceFrame | null>({ type: "place.frame", args: { ref, ids: [id] } }).then(
+      (f) => {
+        if (town !== ref) return;
+        const a = f?.at[0],
+          at = (a !== undefined && a !== PLACE_AT.none ? lotPoint(a) : null) ?? there;
+        if (at) lookAt(at);
+      },
+      () => undefined,
+    );
+  };
   /** An alert tapped: the eye goes to where it is, or to whom it is of; and what it is of is opened. */
   const alerted = (n: PlaceNotice): void => {
     hud.lesson("alert");
-    const at =
-      (n.id !== null ? personPoint(n.id) : null) ?? (n.lot !== null ? lotPoint(n.lot) : null);
-    if (at) lookAt(at);
+    sendEye(n.id, n.lot);
     const ref = n.id !== null && town ? placePersonRef(town, n.id) : n.ref;
     if (ref) inspect(ref);
   };
@@ -1000,24 +1019,19 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
   // (What now? G3: a page of the inspector's; its Go to sends the eye, its sheet opens the sheet.)
   hud.onWhatNow = () => void (town && inspect(placeWhatNowRef(town)));
   inspector.onGoFor = (g) => {
-    const at =
-      (g.id !== null ? personPoint(g.id) : null) ?? (g.lot !== null ? lotPoint(g.lot) : null);
-    if (at) lookAt(at);
+    sendEye(g.id, g.lot);
   };
   inspector.onSheet = (tab) => hud.open(tab as PlaceTab);
   inspector.onHelp = help;
   hud.onAlert = (n) => alerted(n);
-  // (Go to, R7: the eye to one of its people where they are drawn, or to a lot.)
+  // (Go to, R7: the eye to one of its people, or to a lot: sendEye.)
   const goTo = (g: {
     id: number | null;
     lot: number | null;
     at?: { x: number; z: number };
   }): void => {
-    const at =
-      g.at ??
-      (g.id !== null ? personPoint(g.id) : null) ??
-      (g.lot !== null ? lotPoint(g.lot) : null);
-    if (at) lookAt(at);
+    if (g.at) lookAt(g.at);
+    else sendEye(g.id, g.lot);
   };
   hud.onGo = goTo;
   hud.onWhy = (id) => town && inspect(placeWhyRef(town, id));

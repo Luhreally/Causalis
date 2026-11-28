@@ -237,5 +237,16 @@ export class PlaceGuide {
     }
     this.list.replaceChildren(...rows);
     this.onLaid();
+    // (The first lesson not yet done brought wholly into view in the list, above the card's footer, not left cut at its
+    // edge where it looked to lie under the What now? key: U2.)
+    requestAnimationFrame(() => {
+      const row = this.list.querySelector<HTMLElement>(".place-guide-lesson:not(.done)"),
+        h = this.list.clientHeight;
+      if (!row || !h) return;
+      const top = row.offsetTop - this.list.offsetTop,
+        bottom = top + row.offsetHeight;
+      if (top < this.list.scrollTop || bottom > this.list.scrollTop + h)
+        this.list.scrollTop = Math.min(top, Math.max(0, bottom - h));
+    });
   }
 }

@@ -16,14 +16,45 @@ import { lifeOf } from "../sim/index.ts";
 /** The most told. */
 const MOST = 3;
 
+type Weighed = PlaceTip & { readonly weight: number };
+/** A thing's words read for whether two tips tell one thing (an alert's and a danger's of one fire: U2). */
+const said = (words: string): string =>
+  words
+    .toLowerCase()
+    .replace(/[.:;,]+\s*/g, " ")
+    .trim();
+
 /** What now? (G3) */
 export function placeWhatNow(world: World, place: Place): PlaceInspectWhatNow {
-  const tips: (PlaceTip & { readonly weight: number })[] = [],
+  const tips: Weighed[] = [],
     p = place.people,
     who = placeWho(world, place),
-    grownAt = lifeOf(world).adulthood;
+    grownAt = lifeOf(world).adulthood,
+    // (One row a thing: a tip that tells what another already does (its words, or its page where one of the two only
+    // opens a page or a sheet) is made one with it, the first's words, the keys of both and the graver weight kept. U2:
+    // a fire was told twice, as an alert and as a danger.)
+    add = (x: Weighed): void => {
+      const k = tips.findIndex(
+        (y) =>
+          said(y.words) === said(x.words) ||
+          (x.ref !== null && y.ref === x.ref && (!x.go || !y.go)),
+      );
+      if (k < 0) return void tips.push(x);
+      const y = tips[k]!;
+      tips[k] = {
+        ...y,
+        weight: Math.max(x.weight, y.weight),
+        how:
+          y.how === x.how
+            ? y.how
+            : `${y.how.replace(/\.$/, "")}; or ${x.how.charAt(0).toLowerCase()}${x.how.slice(1)}`,
+        ref: y.ref ?? x.ref,
+        go: y.go ?? x.go,
+        sheet: y.sheet ?? x.sheet,
+      };
+    };
   for (const n of placeNotices(world, place))
-    tips.push({
+    add({
       weight: n.level >= 3 ? 30 : n.level === 2 ? 15 : 5,
       icon: n.icon,
       words: n.words,
@@ -34,7 +65,7 @@ export function placeWhatNow(world: World, place: Place): PlaceInspectWhatNow {
     });
   const food = stocksSheet(world, place).foodDays;
   if (food < 30)
-    tips.push({
+    add({
       weight: food < 14 ? 28 : 20,
       icon: "🍞",
       words: `Food will run out in about ${Math.max(0, Math.round(food))} days.`,
@@ -46,7 +77,7 @@ export function placeWhatNow(world: World, place: Place): PlaceInspectWhatNow {
   for (const d of dangersSheet(world, place)
     .now.filter((d) => d.icon !== "🕊️")
     .slice(0, 1))
-    tips.push({
+    add({
       weight: 25,
       icon: d.icon,
       words: d.words,
@@ -61,7 +92,7 @@ export function placeWhatNow(world: World, place: Place): PlaceInspectWhatNow {
     if (p.mood[i]! < MOOD_UNHEEDING + 15 && (low < 0 || p.mood[i]! < p.mood[low]!)) low = i;
   if (low >= 0) {
     const w = who(low);
-    tips.push({
+    add({
       weight: 18,
       icon: "😟",
       words: `${w.name} is near breaking (mood ${p.mood[low]}).`,
@@ -77,7 +108,7 @@ export function placeWhatNow(world: World, place: Place): PlaceInspectWhatNow {
   for (let i = 0; i < p.n; i++)
     if (p.why[i] === WHY.young && (today - p.born[i]!) / 365 >= grownAt) idle++;
   if (idle)
-    tips.push({
+    add({
       weight: 10,
       icon: "🧍",
       words: `${idle} grown ${idle === 1 ? "person has" : "people have"} no work.`,

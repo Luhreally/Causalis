@@ -178,6 +178,63 @@ export function lotWords(place: Place, lot: number): string {
   return `the home on lot ${lot}`;
 }
 
+/** Whether one of a place's people's household has a home of its own (not the square, nor a building it shelters in). */
+export function placeHoused(place: Place, i: number): boolean {
+  const home = place.houses.home[place.people.house[i]!]!;
+  return home >= 0 && place.bldgs.lot.indexOf(home) <= 0;
+}
+
+/**
+ * What one of a place's people is doing and where, said (U2): the inspector's line (`row` false), and the short form a
+ * row of the People sheet or a lot's page carries. Where they are hurt or sick it says they lie abed, or are on their
+ * way home to, whatever their act reads till their next turn; their own home is "home", another household's home is
+ * said to be another's, and a home's lot where no one lives now is not called a home. Words only: it reads, never sets.
+ */
+export function doingWords(place: Place, i: number, row = false): string {
+  const p = place.people,
+    h = place.houses,
+    home = h.home[p.house[i]!]!,
+    housed = placeHoused(place, i),
+    eta = p.eta[i]!,
+    to = p.to[i]!,
+    at = p.at[i]!,
+    where = (lot: number): string => {
+      if (lot === home && housed) return "home";
+      if (lot >= 0 && place.bldgs.lot.indexOf(lot) <= 0) {
+        for (let k = 0; k < h.n; k++)
+          if (h.home[k] === lot && h.members[k]! > 0)
+            return `${lotWords(place, lot)}, another household's`;
+        return `lot ${lot}, where no one lives now`;
+      }
+      return lotWords(place, lot);
+    },
+    atHome = housed ? "at home" : `at ${lotWords(place, home)}`,
+    toHome = housed ? "home" : `to ${lotWords(place, home)}`;
+  if ((p.health[i] === 1 || p.health[i] === 2) && p.ill[i]! > 0) {
+    const how = p.health[i] === 2 ? "sick" : "hurt";
+    if (eta === 0 && at === home) return row ? `abed ${atHome}` : `abed ${atHome}, ${how}`;
+    if (eta > 0 && to === home)
+      return row ? `being brought ${toHome}` : `${how}, being brought ${toHome} to lie abed`;
+    return row ? `to be brought ${toHome}` : `${how}, to be brought ${toHome} to lie abed`;
+  }
+  const act = actWords(p, i);
+  if (row)
+    return `${act}${eta > 0 ? (to === home && housed ? ", going home" : `, to ${lotWords(place, to)}`) : ""}`;
+  return `${act}${eta > 0 ? (to === home && housed ? ", walking home" : `, walking to ${where(to)}`) : p.act[i] === ACT.sleep || p.act[i] === ACT.eat ? "" : ` at ${where(at)}`}`;
+}
+
+/** Where one of a place's people lives, said (U2): their home; or, its home lost, where they sleep now and since when. */
+export function homeWords(place: Place, i: number): string {
+  const k = place.people.house[i]!,
+    home = place.houses.home[k]!,
+    lost = place.houses.lost[k] ?? -1;
+  if (placeHoused(place, i)) return cap(lotWords(place, home));
+  const since = lost >= 0 ? `, their home lost on ${placeDay(lost * DAY)}` : "";
+  return home >= 0
+    ? `None of their own${since}: they shelter at ${lotWords(place, home)}`
+    : `None of their own${since}: they sleep in the square`;
+}
+
 /** The names of a place's people: given by who they are, a family's by their household, in their land's tongue. */
 export function placeNames(
   world: World,
@@ -1146,7 +1203,7 @@ export function peopleSheet(
         ...who(i),
         occ: p.sexOcc[i]! & 15,
         trade: tradeWords(p.sexOcc[i]! & 15, age < grown).replace(/^a /, ""),
-        doing: `${actWords(p, i)}${p.eta[i]! > 0 ? `, to ${lotWords(place, p.to[i]!)}` : ""}`,
+        doing: doingWords(place, i, true),
         needs,
         worst: top,
         lack: Math.floor(p.lack[i]! / 144),
