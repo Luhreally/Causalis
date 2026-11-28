@@ -215,10 +215,16 @@ export function leadersOfTown(world: World, town: string): Leader[] {
  * page of the entry that gave way leads to the one met.
  */
 export function metAs(world: World, town: string, ref: string): string {
-  return metIn(world, town).as.get(ref) ?? ref;
+  // (Its ruler or one of its court is met as one of its named, or as themselves: never as one its groups' heads are read as,
+  // which is a town's roles folded through its years, the most of what a court page asked each year.)
+  return metIn(world, town, !/^(court|rule):/.test(ref)).as.get(ref) ?? ref;
 }
 
-function metIn(world: World, town: string): { leaders: Leader[]; as: Map<string, string> } {
+function metIn(
+  world: World,
+  town: string,
+  heads = true,
+): { leaders: Leader[]; as: Map<string, string> } {
   const s = populationContext(world).settlements.get(asRef(town)),
     as = new Map<string, string>();
   if (!s) return { leaders: [], as };
@@ -232,7 +238,7 @@ function metIn(world: World, town: string): { leaders: Leader[]; as: Map<string,
   // (The heads of the groups whose home it is: host/inspect/townlife.ts. Two of its groups whose heads history names alike, by
   // name and years, are headed by one person, listed once as head of both: juniper's Veathholt party and Eathaeckford order
   // took the same head in year 110, and their town listed them twice.)
-  for (const h of townRolesOf(world, town).heads) {
+  for (const h of heads ? townRolesOf(world, town).heads : []) {
     const k = out.findIndex(
       (l) => l.kind === "head" && l.name === h.name && l.as?.age === h.as?.age,
     );

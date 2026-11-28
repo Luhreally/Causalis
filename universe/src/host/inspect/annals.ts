@@ -742,9 +742,19 @@ function wholeOf(
       byYear.set(key, m);
     };
   for (const e of kept) {
+    const type = e.type;
+    // (Only the kinds read below: an event gone cold reads its data from its block, and most are of none of them.)
+    if (
+      type !== "war.battle" &&
+      type !== "war.strike" &&
+      type !== "war.declared" &&
+      type !== "people.famine" &&
+      type !== "health.outbreak"
+    )
+      continue;
     const year = yearOfMoment(e.t),
       d = e.data as { fallen?: number; dead?: number; people?: number } | null;
-    if (e.type === "war.battle" || e.type === "war.strike") {
+    if (type === "war.battle" || type === "war.strike") {
       const war = e.subjects.find((s) => s.startsWith("war:"));
       if (!war) continue;
       const dead = (e.type === "war.battle" ? d?.fallen : d?.dead) ?? 0;
@@ -1288,13 +1298,73 @@ function tellYear(world: World, year: number, events: readonly HistoryEvent[], w
 type Annals = {
   readonly stamp: string;
   readonly count: number;
+  /** The last event it read. */
+  readonly last: string;
   readonly now: number;
+  /** The years with anything told (all of them told to know: read for the whole of history only). */
   readonly years: readonly number[];
-  readonly told: ReadonlyMap<number, readonly Told[]>;
+  /** What each year tells, told the first time it is asked (each of its years in the order first met, iterated). */
+  readonly told: ToldYears;
   readonly words: Map<number, AnnalYear>;
 };
 
+/**
+ * What each year of a world's annals tells, told as it is asked, from the reading of all of history the annals made: what a
+ * year tells reads nothing another year's telling does (tellYear), so it is the same told now or with the rest. (Every year
+ * was told at once, 0.3 to 0.6 s of first light's at 1,300, where a run's note asks a few.)
+ */
+class ToldYears {
+  private readonly made = new Map<number, readonly Told[]>();
+  private readonly tell: (year: number) => readonly Told[];
+  /** The years with events or a first, in the order first met. */
+  private readonly order: readonly number[];
+  private readonly known: ReadonlySet<number>;
+
+  constructor(order: readonly number[], tell: (year: number) => readonly Told[]) {
+    this.order = order;
+    this.known = new Set(order);
+    this.tell = tell;
+  }
+
+  get(year: number): readonly Told[] | undefined {
+    if (!this.known.has(year)) return undefined;
+    let said = this.made.get(year);
+    if (!said) this.made.set(year, (said = this.tell(year)));
+    return said.length ? said : undefined;
+  }
+
+  *[Symbol.iterator](): IterableIterator<[number, readonly Told[]]> {
+    for (const year of this.order) {
+      const said = this.get(year);
+      if (said) yield [year, said];
+    }
+  }
+
+  /** The years with anything told, in order. */
+  years(): number[] {
+    return [...this].map(([y]) => y).sort((a, b) => a - b);
+  }
+
+  /** Of the years from `after` (not it) to `last`, those with anything told, in order. */
+  between(after: number, last: number): number[] {
+    return this.order
+      .filter((y) => y > after && y <= last)
+      .sort((a, b) => a - b)
+      .filter((y) => this.get(y) !== undefined);
+  }
+}
+
 const KEPT = new WeakMap<World, Annals>();
+
+/**
+ * What annalsOf last read of a world's log, as of its epoch (kernel/history.ts: it rises when an event goes cold, is
+ * forgotten, or the log is loaded anew): the events it tells, in the log's order, and by year. Read again from the start only
+ * once the epoch has moved (a forgetting a decade, and a block gone cold); each year else, only the year's new events.
+ */
+const SCANNED = new WeakMap<
+  World,
+  { epoch: number; count: number; kept: HistoryEvent[]; byYear: Map<number, HistoryEvent[]> }
+>();
 
 const stampOf = (world: World) => {
   const n = world.events.count;
@@ -1308,29 +1378,47 @@ export function annalsOf(world: World): Annals {
   if (was?.stamp === stamp) return was;
   const log = world.events,
     n = log.count,
-    byYear = new Map<number, HistoryEvent[]>(),
-    kept: HistoryEvent[] = [];
-  for (let i = 0; i < n; i++) {
+    // (While no row of the log has moved, it has only grown at its end: what was read of it stands, and only the new is read.)
+    was2 = SCANNED.get(world),
+    on = was2 !== undefined && was2.epoch === log.epoch && was2.count <= n,
+    scan = on
+      ? { epoch: log.epoch, count: n, kept: was2.kept, byYear: new Map(was2.byYear) }
+      : {
+          epoch: log.epoch,
+          count: n,
+          kept: [] as HistoryEvent[],
+          byYear: new Map<number, HistoryEvent[]>(),
+        },
+    { kept } = scan,
+    grown = new Set<number>();
+  for (let i = on ? was2.count : 0; i < n; i++) {
     const e = log.at(i);
     if (RULES[e.type]?.[1] === 0) continue;
     kept.push(e);
-    const y = yearOfMoment(e.t),
-      list = byYear.get(y);
+    const y = yearOfMoment(e.t);
+    let list = scan.byYear.get(y);
+    // (A year's list an annals made before holds is never added to: a page may still be reading that one.)
+    if (list && on && !grown.has(y)) scan.byYear.set(y, (list = list.slice()));
     if (list) list.push(e);
-    else byYear.set(y, [e]);
+    else scan.byYear.set(y, [e]);
+    grown.add(y);
   }
+  SCANNED.set(world, scan);
   const whole = wholeOf(world, kept),
-    told = new Map<number, readonly Told[]>();
+    byYear = new Map(scan.byYear);
   for (const year of whole.bare.keys()) if (!byYear.has(year)) byYear.set(year, []);
-  for (const [year, events] of byYear) {
-    const said = tellYear(world, year, events, whole).filter((t) => t.worth >= KIND_WORTH);
-    if (said.length) told.set(year, said);
-  }
+  const told = new ToldYears([...byYear.keys()], (year) =>
+    tellYear(world, year, byYear.get(year)!, whole).filter((t) => t.worth >= KIND_WORTH),
+  );
+  let years: number[] | null = null;
   const annals: Annals = {
     stamp,
     count: n,
+    last: n ? log.at(n - 1).id : "",
     now: Math.floor(world.now / YEAR),
-    years: [...told.keys()].sort((a, b) => a - b),
+    get years() {
+      return (years ??= told.years());
+    },
     told,
     words: new Map(),
   };
@@ -1368,11 +1456,18 @@ function wordsOf(world: World, t: Told, year: number): Line {
   }
 }
 
+/** Whether a world's log still holds all an annals read, where it read it (it has only grown since). */
+function unbroken(world: World, a: Annals): boolean {
+  const log = world.events;
+  return a.count <= log.count && (a.count === 0 || log.at(a.count - 1).id === a.last);
+}
+
 /** What a few years say. Kept once said, so a thumb going back and forth reads nothing twice. */
 export function annalsRead(world: World, years: readonly number[]): AnnalYear[] {
   const was = KEPT.get(world),
-    // (While the world runs on, a page already open reads on from what was read: it asks again for what is new.)
-    a = was && was.count <= world.events.count ? was : annalsOf(world);
+    // (While the world runs on, a page already open reads on from what was read: it asks again for what is new. Not past a
+    // forgetting: a year it has still to tell would be told of events no longer where they were.)
+    a = was && unbroken(world, was) ? was : annalsOf(world);
   return years.slice(0, 240).flatMap((year) => {
     const kept = a.words.get(year);
     if (kept) return [kept];
@@ -1423,8 +1518,7 @@ export function runTold(world: World, from: number, to: number): RunTold | null 
   let fellRef: string | null = null,
     began = 0,
     over = 0;
-  for (const year of a.years) {
-    if (year <= first || year > last) continue;
+  for (const year of a.told.between(first, last)) {
     for (const t of a.told.get(year)!) {
       if (t.fell) {
         fell.push(...t.fell);
