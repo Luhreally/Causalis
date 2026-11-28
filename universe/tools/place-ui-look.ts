@@ -482,6 +482,14 @@ for (const view of [
           "the Social tab says how the town thinks of them",
         );
       }
+      // (What they hold slot by slot and by its stuff, R3.)
+      if (tab === "gear") {
+        check(
+          (await shown(".place-insp-slot")) >= 1,
+          "the Gear tab has their things in their slots",
+        );
+        check((await shown(".place-insp-stuff-swatch")) >= 1, "and all of it by its stuff");
+      }
       await look(`15-insp-${tab}`, `the inspector's ${tab} tab`);
     }
     // (One hurt in the fire: their Health tab, the wounded member on their figure.)

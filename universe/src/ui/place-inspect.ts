@@ -510,6 +510,53 @@ export class PlaceInspector {
         body.push(list);
       }
     } else if (this.tab === "gear") {
+      // (Each thing in its slot, how worn and whether it still serves; then all they hold by its stuff: R3.)
+      const inv = x.inventory;
+      if (inv.slots.length) {
+        const slots = el("div", "place-insp-slots");
+        for (const t of inv.slots) {
+          const row = el(
+              t.ref ? "button" : "div",
+              `place-insp-slot place-slot-${t.state.replace(" ", "-")}`,
+            ),
+            bar = el("span", "place-insp-wear"),
+            fill = el("span", "place-insp-wear-fill");
+          fill.style.width = `${t.wear}%`;
+          bar.append(fill);
+          row.append(
+            el("span", "place-insp-slot-name", `${t.icon} ${t.slot}`),
+            el("span", "place-insp-slot-what", `${cap(t.name)} · ${t.state}, ${t.wear}% worn`),
+            bar,
+          );
+          if (t.ref) (row as HTMLButtonElement).onclick = () => this.onInspect(t.ref!);
+          slots.append(row);
+        }
+        body.push(el("h3", "place-insp-sub", "In their slots"), slots);
+      }
+      if (inv.materials.length) {
+        const list = el("div", "place-insp-stuffs");
+        for (const m of inv.materials) {
+          const sw = el("span", "place-insp-stuff-swatch");
+          sw.style.background = m.colour;
+          list.append(
+            sw,
+            el("span", "place-insp-stuff-name", cap(m.name)),
+            el(
+              "span",
+              "place-insp-stuff-kg",
+              `${m.kg < 10 ? m.kg.toFixed(2) : Math.round(m.kg)} kg`,
+            ),
+          );
+        }
+        body.push(
+          el(
+            "h3",
+            "place-insp-sub",
+            `By what it is made of: ${inv.kg < 10 ? inv.kg.toFixed(1) : Math.round(inv.kg)} kg in all`,
+          ),
+          list,
+        );
+      }
       body.push(this.facts(x.gear));
     } else if (this.tab === "life") {
       // (Their nearest kin a tap away, living or of the town's dead kept so: R1.)

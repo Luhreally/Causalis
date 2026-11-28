@@ -130,6 +130,8 @@ export type PlaceInspectPerson = {
   readonly repute: string;
   /** What they have and wear (the Gear tab), line by line; a thing of theirs with its page's ref (O5). */
   readonly gear: readonly (readonly [string, string, string | null])[];
+  /** R3. What they hold slot by slot, and all they hold and carry by the stuff it is. */
+  readonly inventory: PlaceInventory;
   /** Their temper in a few words, and in full. */
   readonly temper: string;
   readonly temperWords: string;
@@ -501,6 +503,28 @@ export type PlaceInspectFaith = {
     readonly words: string;
   }[];
   readonly words: string;
+};
+
+/**
+ * What one holds (R3): each thing in its slot, how worn, working or not; and all they hold and carry by the stuff it is,
+ * each with its weight (kg) and its colour as the world's matter has it.
+ */
+export type PlaceInventory = {
+  readonly slots: readonly {
+    readonly slot: string;
+    readonly icon: string;
+    readonly name: string;
+    readonly ref: string | null;
+    /** Its life used, 0 … 100. */
+    readonly wear: number;
+    readonly state: "working" | "failing" | "worn out";
+  }[];
+  readonly materials: readonly {
+    readonly name: string;
+    readonly kg: number;
+    readonly colour: string;
+  }[];
+  readonly kg: number;
 };
 
 /**

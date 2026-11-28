@@ -65,6 +65,7 @@ import { placeLegends, placeWork, workName } from "./placelegends.ts";
 import { placeGate } from "./placevisitors.ts";
 import { placeDead, placeFamily, placeKin } from "./placefamily.ts";
 import { placeCharacter } from "./placecharacter.ts";
+import { placeInventory } from "./placeinventory.ts";
 import { bondWords, placeBound } from "./placebound.ts";
 import { placeFaith } from "./placefaith.ts";
 import {
@@ -785,7 +786,7 @@ function healthGear(
   place: Place,
   i: number,
   r: NonNullable<ReturnType<typeof placePerson>>,
-): Pick<PlaceInspectPerson, "body" | "healthRows" | "gear"> {
+): Pick<PlaceInspectPerson, "body" | "healthRows" | "gear" | "inventory"> {
   const p = place.people,
     body: { member: WoundMember; words: string; state: MemberState }[] = [],
     at = (member: string, state: MemberState) => {
@@ -908,7 +909,7 @@ function healthGear(
       null,
     ],
   );
-  return { body, healthRows: rows, gear };
+  return { body, healthRows: rows, gear, inventory: placeInventory(world, place, i, r.carry) };
 }
 
 /** One of a place's lots (its square, its fields, its walls' site too), read for the mode's inspector. */
