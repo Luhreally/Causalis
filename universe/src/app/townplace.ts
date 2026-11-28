@@ -245,9 +245,11 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     wallsAt: () => flow.wallsAt(),
     caption: (c) => hud.caption(c),
   });
-  /** A town stewarded: the last of its head's orders given, and the next asking. */
+  /** A town stewarded: the last of its head's orders given, and the next asking; and who the head is (their page, and
+   * their number in the place: the lesson of meeting them, U6). */
   let headGave = 0,
-    headTimer: ReturnType<typeof setTimeout> | null = null;
+    headTimer: ReturnType<typeof setTimeout> | null = null,
+    headIs: { ref: string; id: number | null } | null = null;
   const stewardAsk = async (): Promise<void> => {
     headTimer = null;
     const ref = town;
@@ -259,11 +261,12 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
       });
       if (w && town === ref && mode === "steward") {
         hud.head(w.head);
-        // (Each given once, in the order decided, as a player's order is: sim/town/managed.ts.)
+        headIs = w.head ? { ref: w.head.ref, id: w.head.id } : null;
+        // (Each given once, in the order decided, as a player's order is: sim/town/managed.ts. The head's, not yours.)
         for (const o of w.orders) {
           if (town !== ref || mode !== "steward") break;
           headGave = Math.max(headGave, o.n);
-          await order(o.type, o.args);
+          await order(o.type, o.args, true);
         }
       }
     } catch {
@@ -281,7 +284,12 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     headTimer = null;
     headGave = 0;
     if (next === "steward" && town) void stewardAsk();
-    else hud.head(null);
+    else {
+      hud.head(null);
+      headIs = null;
+    }
+    // (Its welcome the first time this way is taken up, and its track of lessons: U6. None as the town is left.)
+    if (town) hud.greetWay();
   };
 
   /** What the town did by its orders told to its land: at a month's turn, and on leaving. */
@@ -517,6 +525,15 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     if (ref && /^(plc|folk|person):/.test(ref)) hud.lesson("person");
     if (ref?.startsWith("plci:")) hud.lesson("inside");
     if (ref && /^plc[tbzyadrsvx]:/.test(ref)) hud.lesson("town");
+    // (The head met, U6: their page opened from the Log, or by any way, while they run the town.)
+    if (
+      ref &&
+      mode === "steward" &&
+      headIs &&
+      town &&
+      (ref === headIs.ref || (headIs.id !== null && ref === placePersonRef(town, headIs.id)))
+    )
+      hud.lesson("head");
     if (ref) hud.guideAside();
     stopInspect?.();
     stopInspect = null;
@@ -926,7 +943,12 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
           () => undefined,
         );
   };
-  const order = async (type: string, args: Record<string, unknown>): Promise<string | null> => {
+  /** An order given: yours, or (`byHead`) one its head decided on, given by the same way. */
+  const order = async (
+    type: string,
+    args: Record<string, unknown>,
+    byHead = false,
+  ): Promise<string | null> => {
     if (!town) return "no town is entered";
     if (mode === "watch") return "the town is watched: no order is given it";
     try {
@@ -940,11 +962,24 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
       // (Lessons done by it, G1.)
       if (type === "place.zone" && args.zone !== null) hud.lesson("zone");
       if (type === "town.ask" && args.kind === "raise") hud.lesson("build");
+      if (!byHead) ordersLearned(type, args);
       ordered();
       return null;
     } catch (error) {
       return (error as Error).message;
     }
+  };
+
+  /**
+   * Lessons done by an order of yours (U6): your priorities, a bill, a draft, the gate answered; and, while its head runs
+   * the town, a matter taken over.
+   */
+  const ordersLearned = (type: string, args: Record<string, unknown>): void => {
+    if (type === "place.prio") hud.lesson("prio");
+    if (type === "place.bill") hud.lesson("bills");
+    if (type === "place.draft" && args.at !== null) hud.lesson("draft");
+    if (type === "place.gate") hud.lesson("gate");
+    if (mode === "steward") hud.lesson("takeover");
   };
 
   const leave = async (): Promise<void> => {
@@ -1043,6 +1078,8 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
   hud.onWhatNow = () => void (town && inspect(placeWhatNowRef(town)));
   // (The town's own pages listed, U3: from the foot's Town key and the menu.)
   hud.onTown = () => void (town && inspect(placeTownRef(town)));
+  // (The game's words, U6: a help page of the inspector's, from the menu.)
+  hud.onWords = () => help("glossary");
   // (What a sheet is, told in the sheet itself, U3: read as the inspector's help page is, the same words.)
   hud.onSheetHelp = (topic) => {
     const at = town;
@@ -1054,8 +1091,13 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
       })
       .then(
         (x) => {
-          // (Still the sheet it was asked of.)
-          if (x?.kind === "help" && town === at && `sheet:${hud.tab}` === topic)
+          // (Still the sheet it was asked of; or the game's words, asked from its help, U6.)
+          if (
+            x?.kind === "help" &&
+            town === at &&
+            hud.tab &&
+            (`sheet:${hud.tab}` === topic || topic.startsWith("glossary"))
+          )
             hud.sheetHelp(x as PlaceInspectHelp);
         },
         () => undefined,
@@ -1188,6 +1230,8 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
           (error: unknown) => (error as Error).message,
         ),
       );
+    const took = each.find((_, k) => out[k] === null);
+    if (took) ordersLearned(type, took);
     ordered();
     return out;
   };
@@ -1264,6 +1308,7 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
           if (mode === "watch") {
             if (!inspector.ref) eyeFirst = d.rig.view;
             watch.goWith(id);
+            hud.lesson("watchwith");
           }
           inspect(placePersonRef(town, id));
           if (mode === "watch") eyeMoved = true;

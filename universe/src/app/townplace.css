@@ -509,6 +509,12 @@ body.place-watching .place-sheet,
 body.place-watching .place-foot {
   display: none !important;
 }
+/* Over the watching line, by its height as it lies (--watch-h, ui/place-hud.ts): the inspector and the lessons asked for
+   stood 62 px up, the foot's height, and a line of two or three rows lay under them (U6). */
+body.place-watching .place-hud .place-insp,
+body.place-watching .place-hud.guide-asked .place-guide {
+  bottom: calc(var(--place-b) + max(62px, var(--watch-h, 56px) + 6px));
+}
 .place-watch {
   bottom: var(--place-b);
   min-height: 56px;
@@ -2689,4 +2695,106 @@ body.placing:has(.page-window:not([hidden])) .place-tag {
 }
 .place-grid-find {
   margin: 4px 0;
+}
+
+/* The guide, round two (U6). A way's welcome heading the lessons' card the first time the way is taken up: what it is,
+   what to try first, Show me and Got it. The card is never out over the menu or the ways being chosen. */
+.place-guide-welcome {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0 6px 4px;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 201, 74, 0.6);
+  border-radius: 6px;
+  background: rgba(8, 14, 44, 0.55);
+  font-size: 13px;
+  line-height: 1.35;
+}
+.place-guide-welcome[hidden] {
+  display: none;
+}
+.place-guide-welcome-title {
+  font-size: 14px;
+}
+.place-guide-welcome-first {
+  color: var(--place-amber);
+}
+.place-guide-welcome-keys {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.place-hud .place-guide-welcome-keys button {
+  padding: 0 14px;
+}
+.place-guide.greeting .place-guide-list {
+  flex: 1 1 0;
+}
+.place-hud.menu-open .place-guide,
+.place-hud.choosing .place-guide {
+  display: none !important;
+}
+/* Hold to read: a key's words in a tip, laid clear of the key and on the screen; it takes no touch. */
+.place-holdtip {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 40;
+  pointer-events: none;
+  box-sizing: border-box;
+  padding: 6px 9px;
+  border: 1px solid var(--accent, #8fd3ff);
+  border-radius: 6px;
+  background: var(--panel-solid, rgba(20, 30, 76, 0.97));
+  box-shadow: 0 6px 16px rgba(0, 0, 18, 0.6);
+  color: var(--ink, #fff);
+  font-size: 13px;
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.place-holdtip[hidden] {
+  display: none !important;
+}
+/* The game's words: each word and its line, the one asked for lit. */
+.place-glossary {
+  display: grid;
+  grid-template-columns: minmax(6.5em, 34%) 1fr;
+  column-gap: 8px;
+  row-gap: 5px;
+  margin: 6px 0;
+}
+.place-glossary-word {
+  font-weight: 700;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.place-glossary-line {
+  margin: 0;
+}
+.place-glossary .lit {
+  color: var(--place-amber);
+}
+/* A help page's foot: the words it uses, and all of them. */
+.place-help-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px dotted rgba(190, 205, 255, 0.35);
+}
+.place-help-foot-words {
+  font-size: 12px;
+  color: var(--muted, #a9bbe2);
+}
+.place-hud .place-help-glossary {
+  padding: 0 10px;
 }

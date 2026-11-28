@@ -696,6 +696,16 @@ export type PlaceInspectHelp = {
   readonly what: string;
   readonly numbers: readonly (readonly [string, string])[];
   readonly can: readonly string[];
+  /** The game's words, each in one plain line, A to Z (the glossary's page only, U6): its key, the word, the line. */
+  readonly words?: readonly {
+    readonly key: string;
+    readonly word: string;
+    readonly line: string;
+  }[];
+  /** The word the glossary was opened at, lit and brought into view (its key; null: none). */
+  readonly lit?: string | null;
+  /** A few of the game's words this page uses, each a tap from its line in the glossary (U6: kept light). */
+  readonly glossed?: readonly { readonly key: string; readonly word: string }[];
 };
 
 /** The town's own pages listed (U3): each with its sign, its name, what it tells, and its ref. The same for every town. */

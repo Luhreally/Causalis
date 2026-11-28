@@ -31,10 +31,12 @@ import {
   type PlaceHealerRow,
   type PlaceLogSheet,
   type PlaceWorkSheet,
+  type PlaceInspectHelp,
   type TownOffers,
 } from "../bridge/index.ts";
 import { el } from "./why.ts";
-import { PlaceGuide } from "./place-guide.ts";
+import { PlaceGuide, glossaryEl, helpFootEl } from "./place-guide.ts";
+import { PlaceTips } from "./place-tips.ts";
 import { billsEl } from "./place-bills.ts";
 
 export type PlaceTab = "people" | "stocks" | "work" | "build" | "dangers" | "log";
@@ -264,6 +266,22 @@ const hhmm = (t: number) => {
 const DESK = "(min-width: 900px)";
 /** How long a finger held on an alert's key tells its words without going there (ms; U3). */
 const LONG_PRESS = 450;
+/** Where the choice to pause on a grave alert is kept for the player (U6), as the lessons are: lost with the browser. */
+const PAUSE_KEPT = "causalis.town.pauseGrave";
+const keptPause = (): boolean => {
+  try {
+    return localStorage.getItem(PAUSE_KEPT) === "1";
+  } catch {
+    return false;
+  }
+};
+const keepPause = (on: boolean): void => {
+  try {
+    localStorage.setItem(PAUSE_KEPT, on ? "1" : "0");
+  } catch {
+    // (Kept nowhere: off again next time.)
+  }
+};
 
 /**
  * A key whose face is a sign given its word under it (U3): a phone shows no title, so a sign alone was a riddle there. The
@@ -327,6 +345,15 @@ export class PlaceHud {
   private readonly menuKey = el("button", "place-menu-key", "≡");
   private readonly menu = el("div", "place-menu");
   private readonly soundKey = el("button", "place-menu-item");
+  /** Pause on a grave alert (U6): a choice, off unless taken, kept for the player; its key in the menu. */
+  private readonly pauseKey = el("button", "place-menu-item place-menu-pause");
+  private pauseGrave = keptPause();
+  /** The grave alerts met since the town was entered (their keys), and the one its clock was stopped for (its words say
+   * so till it runs again; null: none). */
+  private readonly graveMet = new Set<string>();
+  private pausedFor: string | null = null;
+  /** Hold to read (U6): every title of the mode's chrome told on a phone too, and on a desk clear of its key. */
+  readonly tips: PlaceTips;
   private readonly watch = el("div", "place-watch");
   private readonly watchText = el("button", "place-watch-text");
   private readonly watchTitle = el("span", "place-watch-title");
@@ -426,6 +453,8 @@ export class PlaceHud {
   onTown: () => void = () => {};
   /** What now? asked (G3). */
   onWhatNow: () => void = () => {};
+  /** The game's words asked for (U6). */
+  onWords: () => void = () => {};
   /** Its lessons asked for on a phone, or put back (G1): the inspector goes down while they are out. */
   onGuide: (out: boolean) => void = () => {};
   /** A sheet opened or closed, by a tab or from the page (for what lies beside it). */
@@ -513,7 +542,8 @@ export class PlaceHud {
       b.dataset.mode = mode;
       b.onclick = () => {
         if (!this.welcome.hidden) this.guide.welcome();
-        this.choosing(false);
+        // (Its welcome once it is taken up, U6, not the old way's as the choice is put away.)
+        this.choosing(false, false, mode === this.ran);
         if (mode !== this.ran) this.onMode(mode);
       };
       this.modeKeys.set(mode, b);
@@ -548,11 +578,15 @@ export class PlaceHud {
     const now = el("button", "place-menu-item place-menu-now", "💡  What now?");
     now.onclick = () => {
       this.menuOpen(false);
+      this.lesson("whatnow");
       this.onWhatNow();
     };
     const cardNow = el("button", "place-guide-now", "💡 What now?");
     cardNow.setAttribute("aria-label", "What now? The few things most worth doing next");
-    cardNow.onclick = () => this.onWhatNow();
+    cardNow.onclick = () => {
+      this.lesson("whatnow");
+      this.onWhatNow();
+    };
     this.guide.extra.append(cardNow);
     // (The town's own pages, U3: first in the menu too, where a town watched has no tabs at its foot.)
     const pages = el("button", "place-menu-item place-menu-town", "🏘️  The town's own pages");
@@ -560,24 +594,65 @@ export class PlaceHud {
       this.menuOpen(false);
       this.townPages();
     };
-    this.menu.append(pages, this.soundKey, ways, now, lessons, leave);
+    // (The game's words, U6: each word of the town's pages in one plain line, a page of the inspector's. On a phone the
+    // sheet goes first, as for any page taller than a peek.)
+    const words = el("button", "place-menu-item place-menu-words", "📖  The game's words");
+    words.onclick = () => {
+      this.menuOpen(false);
+      if (this.tab && !this.desk) this.open(null);
+      this.guideAside();
+      this.onWords();
+    };
+    // (Pause on a grave alert, U6: off unless chosen. The menu stays open on it, as on the sound.)
+    this.pauseKey.onclick = () => {
+      this.pauseGrave = !this.pauseGrave;
+      keepPause(this.pauseGrave);
+      this.pauseWords();
+    };
+    // (The guide again, U6: every welcome to be shown anew; this way's at once, the first time in on entering next.)
+    const again = el("button", "place-menu-item place-menu-again", "🧭  Show the guide again");
+    again.setAttribute(
+      "aria-label",
+      "Show the guide again: the welcome to this way of playing, and its lessons",
+    );
+    again.onclick = () => {
+      this.menuOpen(false);
+      this.guide.again();
+      this.greetWay();
+    };
+    this.menu.append(pages, this.soundKey, this.pauseKey, ways, now, lessons, words, again, leave);
     this.guide.onLaid = () => this.laidGuide();
     this.menu.hidden = true;
     this.watchText.append(this.watchTitle, this.watchWords);
     this.watchText.onclick = () => {
       if (this.captionNow?.ref) this.onOpen(this.captionNow.ref);
     };
-    this.stayKey.onclick = () => this.onStay(!this.captionNow?.stay);
+    // (Each a lesson of watching, done by doing it: U6.)
+    this.stayKey.onclick = () => {
+      if (!this.captionNow?.stay) this.lesson("watchstay");
+      this.onStay(!this.captionNow?.stay);
+    };
     this.whyKey.onclick = () => {
       const id = this.captionNow?.id;
-      if (id !== null && id !== undefined) this.onWhy(id);
+      if (id === null || id === undefined) return;
+      this.lesson("watchwhy");
+      this.onWhy(id);
     };
     const next = captioned(el("button", "place-watch-next"), "⏭", "Next");
     next.title = "On to another of the town";
     next.setAttribute("aria-label", next.title);
-    next.onclick = () => this.onNext();
+    next.onclick = () => {
+      this.lesson("watchnext");
+      this.onNext();
+    };
     this.watch.append(this.watchText, this.whyKey, this.stayKey, next);
     this.watch.hidden = true;
+    // (Its height as it lies, for what stands over it: a long line of what the eye is with wraps it taller than the foot's
+    // 62 px, and the inspector and the lessons over it lay on it, U6. Told as it changes, never a frame.)
+    if (typeof ResizeObserver === "function")
+      new ResizeObserver(() =>
+        this.element.style.setProperty("--watch-h", `${this.watch.offsetHeight}px`),
+      ).observe(this.watch);
     this.mode("hand");
     this.notice.append(this.noticeText);
     this.notice.hidden = true;
@@ -673,6 +748,7 @@ export class PlaceHud {
     this.placePill();
     this.element.hidden = true;
     root.append(this.element);
+    this.tips = new PlaceTips(this.element);
     // Keys, on a desk: Space stops or starts its clock, 1 to 4 its paces, Esc lets go of what is chosen. Taken before the
     // god game's own (ui/keys.ts), whose paces are another scale's, and only while a town is entered.
     addEventListener(
@@ -770,6 +846,9 @@ export class PlaceHud {
     this.picking = this.grouping = false;
     this.picked.clear();
     this.peopleNow = null;
+    // (No grave alert met yet in the town entered, U6: one standing as it is entered stops its clock too, if chosen.)
+    this.graveMet.clear();
+    this.pausedFor = null;
     document.body.classList.add("placing");
     document.body.classList.toggle("place-watching", this.ran === "watch");
     this.soundWords();
@@ -779,11 +858,19 @@ export class PlaceHud {
     this.open(null, false);
     this.choosing(false);
     this.menuOpen(false);
+    this.tips.hide();
+    // (A way's welcome not left out for the next town: it was shown.)
+    if (this.guide.greetingWay) this.guide.ask(false);
     document.body.classList.remove("placing", "place-watching");
   }
 
-  /** The ways it can be run shown for choosing, or put away; `entering`: asked as the town is entered. */
-  choosing(on: boolean, entering = false): void {
+  /**
+   * The ways it can be run shown for choosing, or put away; `entering`: asked as the town is entered. Put away, the way
+   * it is run now has its welcome, the first time it is taken up (U6), unless `greet` is false (another way is being
+   * taken up: its welcome comes with it).
+   */
+  choosing(on: boolean, entering = false, greet = true): void {
+    const was = !this.modes.hidden;
     this.modes.hidden = !on;
     if (on) this.menuOpen(false);
     this.modesWords.textContent = entering
@@ -796,12 +883,28 @@ export class PlaceHud {
     this.modes.classList.toggle("welcoming", welcoming);
     this.modeKey.setAttribute("aria-expanded", String(on));
     this.element.classList.toggle("choosing", on);
+    if (!on && was && greet) this.greetWay();
+  }
+  /**
+   * The welcome to the way the town is run now, the first time it is taken up (U6): the lessons' card out with it at
+   * its head, in the sheet's place on a phone. None while the ways are being chosen; once a way, never again.
+   */
+  greetWay(): void {
+    if (!this.shown || !this.modes.hidden) return;
+    if (!this.guide.greet(this.ran)) return;
+    if (this.tab && !this.desk) this.open(null);
+    this.onGuide(true);
+  }
+  /** Which way's welcome is out now (null: none; the look tools). */
+  get greeting(): PlaceMode | null {
+    return this.guide.greetingWay;
   }
   private menuOpen(on: boolean): void {
     this.menu.hidden = !on;
     if (on) {
       this.choosing(false);
       this.soundWords();
+      this.pauseWords();
     }
     this.menuKey.setAttribute("aria-expanded", String(on));
     this.element.classList.toggle("menu-open", on);
@@ -812,6 +915,22 @@ export class PlaceHud {
     if (this.soundKey.textContent !== words) this.soundKey.textContent = words;
     this.soundKey.disabled = !this.sound;
     this.soundKey.classList.toggle("on", on);
+  }
+  /** The pause on a grave alert's key, saying whether it is chosen. */
+  private pauseWords(): void {
+    const words = this.pauseGrave ? "⏸  Pause on danger: on" : "⏸  Pause on danger: off",
+      say = this.pauseGrave
+        ? "On: the town's clock stops as soon as a grave alert comes (a fire, a siege, many bleeding), and the alert says so. Tap to turn it off"
+        : "Off: tap to have the town's clock stop as soon as a grave alert comes (a fire, a siege, many bleeding)";
+    if (this.pauseKey.textContent !== words) this.pauseKey.textContent = words;
+    this.pauseKey.classList.toggle("on", this.pauseGrave);
+    this.pauseKey.setAttribute("aria-pressed", String(this.pauseGrave));
+    this.pauseKey.title = say;
+    this.pauseKey.setAttribute("aria-label", say);
+  }
+  /** Whether the town's clock stops on a grave alert, and the alert it stopped for (the look tools). */
+  get pausing(): { on: boolean; for: string | null } {
+    return { on: this.pauseGrave, for: this.pausedFor };
   }
   /** Who runs the town where its own head does (null: no one yet, or not run so). */
   head(h: { name: string; temper: string } | null): void {
@@ -832,6 +951,8 @@ export class PlaceHud {
             : "by your hand",
       say = `The town is run ${by}. Tap to choose another way`;
     this.ran = mode;
+    // (Its own track of lessons, U6.)
+    this.guide.setWay(mode);
     captioned(this.modeKey, sign, "How run");
     this.modeKey.title = say;
     this.modeKey.setAttribute("aria-label", say);
@@ -909,6 +1030,8 @@ export class PlaceHud {
     this.sheet.hidden = tab === null;
     this.element.classList.toggle("sheet-open", tab !== null);
     for (const [k, b] of this.tabs) b.classList.toggle("on", k === tab);
+    // (What the head did, read in the Log while they run the town: a lesson of theirs, U6.)
+    if (tab === "log" && this.ran === "steward") this.lesson("headlog");
     if (tab) {
       this.sheetTitle.textContent = TABS.find((x) => x[0] === tab)![2];
       this.sheetBody.replaceChildren(el("p", "place-wait", "…"));
@@ -930,19 +1053,34 @@ export class PlaceHud {
    * What the sheet open is, in plain words, shown in the sheet itself (U3): its body's rows kept aside, the help's words
    * in their place, ‹ Back at the head's start; what it is read again meanwhile is not drawn till Back.
    */
-  sheetHelp(x: {
-    readonly name: string;
-    readonly what: string;
-    readonly numbers: readonly (readonly [string, string])[];
-    readonly can: readonly string[];
-  }): void {
+  sheetHelp(x: PlaceInspectHelp): void {
     if (!this.tab) return;
-    if (!this.helpOn) this.helpKept = [...this.sheetBody.childNodes];
+    if (!this.helpOn) {
+      this.helpKept = [...this.sheetBody.childNodes];
+      this.helpPrev = [];
+    } else if (this.helpNow && this.helpNow.ref !== x.ref) this.helpPrev.push(this.helpNow);
+    this.drawHelp(x);
+  }
+  /** The help shown in the sheet now, and those Back goes through to the sheet (the glossary over a sheet's help: U6). */
+  private helpNow: PlaceInspectHelp | null = null;
+  private helpPrev: PlaceInspectHelp[] = [];
+  private drawHelp(x: PlaceInspectHelp): void {
+    this.helpNow = x;
     this.helpOn = true;
     this.sheetBack.hidden = false;
     this.sheetHelpKey.disabled = true;
     this.sheetTitle.textContent = x.name;
     const body: HTMLElement[] = [el("p", "place-sheet-helpwords place-help-what", x.what)];
+    // (The game's words, U6: each in its line, the one asked lit and brought into view.)
+    if (x.words) {
+      const words = glossaryEl(x.words, x.lit ?? null);
+      body.push(words);
+      this.sheetBody.replaceChildren(...body);
+      const lit = words.querySelector<HTMLElement>(".place-glossary-word.lit");
+      this.sheetBody.scrollTop = 0;
+      if (lit) requestAnimationFrame(() => lit.scrollIntoView({ block: "start" }));
+      return;
+    }
     if (x.numbers.length) {
       body.push(el("h3", "place-sub", "What the numbers mean"));
       const box = el("div", "place-insp-facts place-sheet-helpnumbers");
@@ -956,12 +1094,17 @@ export class PlaceHud {
       for (const c of x.can) list.append(el("li", "", c));
       body.push(list);
     }
+    // (Its foot, U6: the game's words it uses, and all of them, in the sheet with Back to here.)
+    body.push(helpFootEl(x.glossed ?? [], (topic) => this.onSheetHelp(topic)));
     this.sheetBody.replaceChildren(...body);
     this.sheetBody.scrollTop = 0;
   }
-  /** Back from a sheet's help to the sheet, as it was; then drawn again from its next reading. */
+  /** Back from a sheet's help to the sheet, as it was (from the glossary, to the help it was opened from first); then
+   * drawn again from its next reading. */
   private helpBack(): void {
     if (!this.helpOn) return;
+    const prev = this.helpPrev.pop();
+    if (prev) return this.drawHelp(prev);
     const kept = this.helpKept;
     this.helpLeft();
     if (this.tab) {
@@ -974,6 +1117,8 @@ export class PlaceHud {
   private helpLeft(): void {
     this.helpOn = false;
     this.helpKept = [];
+    this.helpNow = null;
+    this.helpPrev = [];
     this.sheetBack.hidden = true;
     this.sheetHelpKey.disabled = false;
   }
@@ -987,6 +1132,14 @@ export class PlaceHud {
     if (this.clock.textContent !== words) this.clock.textContent = words;
     this.pace = pace;
     if (pace > 0) this.lastPace = pace;
+    // (Running again after a grave alert stopped it: its words no longer say so, U6.)
+    if (pace > 0 && this.pausedFor !== null) {
+      const was = this.pausedFor;
+      this.pausedFor = null;
+      this.alertsKey = "";
+      if (this.telling?.key === was && !this.tellingMany) this.tell(this.telling, false);
+      this.alerts(this.lastAlerts);
+    }
     for (const b of this.paces) b.classList.toggle("on", Number(b.dataset.pace) === pace);
     if (season !== undefined) {
       const name = SEASONS[Math.floor(((((season + 0.125) % 1) + 1) % 1) * 4) % 4]!,
@@ -1013,14 +1166,33 @@ export class PlaceHud {
   private tellUntil = 0;
   /** What wants the manager's eye: the alerts not put away, the gravest first, in the column at the right. */
   alerts(list: readonly PlaceNotice[]): void {
-    const was = new Set(this.lastAlerts.map((n) => n.key));
+    const was = new Set(this.lastAlerts.map((n) => n.key)),
+      // (One fire burning is one alert, though its key moves as it is told to burn longer: it stops the clock once.)
+      kindOf = (key: string) => (key.startsWith("fire") ? "fire" : key),
+      standing = new Set(this.lastAlerts.filter((n) => n.level >= 3).map((n) => kindOf(n.key)));
     this.lastAlerts = list;
     const shown = list.filter((n) => !this.closed.has(n.key)),
       desk = !!this.deskQuery?.matches,
       most = desk ? ALERTS_DESK : ALERTS_PHONE,
-      key = JSON.stringify([desk, shown.map((n) => [n.key, n.icon, n.level, n.n, n.words])]);
+      // (Paused on a grave alert as it comes, where the player chose it, U6: by the pace's own command, as ⏸ is, and
+      // said on the alert. Each grave alert once: one standing as the choice is made does not stop it.)
+      grave = shown.filter(
+        (n) => n.level >= 3 && !this.graveMet.has(n.key) && !standing.has(kindOf(n.key)),
+      );
+    for (const n of grave) this.graveMet.add(n.key);
+    if (this.pauseGrave && grave.length && this.pace > 0) {
+      this.pausedFor = grave[0]!.key;
+      this.onPace(0);
+    }
+    const key = JSON.stringify([
+      desk,
+      this.pausedFor,
+      shown.map((n) => [n.key, n.icon, n.level, n.n, n.words]),
+    ]);
     // (A danger new since the last telling is told in words at once on a phone, as its notice line was.)
-    const fresh = shown.find((n) => n.level >= 3 && !was.has(n.key));
+    const fresh =
+      shown.find((n) => n.key === this.pausedFor && grave.includes(n)) ??
+      shown.find((n) => n.level >= 3 && !was.has(n.key));
     if (fresh && !desk) this.tell(fresh);
     if (this.telling && !list.some((n) => n.key === this.telling!.key)) this.tell(null);
     else if (this.telling && performance.now() > this.tellUntil) this.tell(null);
@@ -1061,10 +1233,12 @@ export class PlaceHud {
   private alertKey(n: PlaceNotice): HTMLElement {
     const row = el("div", `place-alert-row level${n.level}`),
       b = el("button", `place-alert level${n.level}`),
-      say = `${LEVEL_WORDS[n.level] ?? ""}: ${n.words}. Tap to go there; hold to read it`;
+      paused = n.key === this.pausedFor ? "Paused: " : "",
+      say = `${paused}${LEVEL_WORDS[n.level] ?? ""}: ${n.words}. Tap to go there; hold to read it`;
     b.append(el("span", "place-alert-icon", n.icon));
     if (n.n > 0) b.append(el("span", "place-alert-n", n.n > 99 ? "99+" : String(n.n)));
-    b.append(el("span", "place-alert-words", n.words));
+    b.append(el("span", "place-alert-words", `${paused}${n.words}`));
+    b.classList.toggle("paused", !!paused);
     b.title = say;
     b.setAttribute("aria-label", say);
     b.dataset.key = n.key;
@@ -1118,7 +1292,11 @@ export class PlaceHud {
       this.notice.hidden = true;
       return;
     }
-    const words = el("button", "place-notice-words", `${n.icon} ${n.words}`),
+    const words = el(
+        "button",
+        "place-notice-words",
+        `${n.key === this.pausedFor ? "Paused: " : ""}${n.icon} ${n.words}`,
+      ),
       shut = el("button", "place-notice-shut", "×");
     words.dataset.key = n.key;
     words.onclick = () => this.onAlert(n);
@@ -1740,6 +1918,20 @@ export class PlaceHud {
     }
     const failed = new Map<string, number>();
     told.forEach((x) => x && failed.set(x, (failed.get(x) ?? 0) + 1));
+    // (Each who took it known to have it, though the sheet's page shows them no more: one picked kept the row they were
+    // picked with, and one the draft moved to another page was passed over as not drafted when all were stood down, U6.)
+    const kept: Partial<PlacePersonRow> | null =
+      o.key === "draft"
+        ? { drafted: true }
+        : o.key === "undraft"
+          ? { drafted: false }
+          : o.pin !== undefined
+            ? { pinned: o.pin }
+            : null;
+    if (kept)
+      sent.forEach((r, i) => {
+        if (!told[i] && this.picked.has(r.id)) this.picked.set(r.id, { ...r, ...kept });
+      });
     const took = sent.length - [...failed.values()].reduce((a, b) => a + b, 0),
       waiting = [...later.values()].reduce((a, b) => a + b, 0),
       now = o.now && waiting > 0 && took > waiting ? `; ${took - waiting} ${o.now}` : "",

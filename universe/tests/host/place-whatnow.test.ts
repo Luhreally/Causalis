@@ -1,11 +1,14 @@
 // What now? (town mode, G3): one to three things worth doing next, read off the town as it stands, each with somewhere
-// to go (a page, the eye to a place, a sheet); its gravest alert first where one is grave; and read only.
+// to go (a page, the eye to a place, a sheet); its gravest alert first where one is grave; and read only. By the way the
+// town is run (U6): watched, no orders; by its head, what they are about to do and what you might take over.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { HOUR } from "../../src/kernel/index.ts";
 import { advancePlace, enterPlace, placeDigest, placeIndexOf } from "../../src/host/place.ts";
 import { placeInspect } from "../../src/host/placeinspect.ts";
 import { placeNotices } from "../../src/host/placeplan.ts";
+import { setPlaceMode } from "../../src/host/placewatch.ts";
+import { stewardHead } from "../../src/host/steward.ts";
 import {
   placePersonRef,
   placeWhatNowRef,
@@ -88,4 +91,64 @@ test("a fire told once in what now; those it hurt said to lie abed, or to be bro
     abed++;
   }
   t.diagnostic(`${town}: ${burning} hours burning read, ${abed} abed`);
+});
+
+test("what now by the way the town is run: watched, no orders and something to look at; by its head, what they will do and what you might take over (U6)", (t) => {
+  const w = placeWorld(150),
+    s = townWhere(w, () => true, { near: 600, least: 100 }) ?? noTown(t, "of a hundred");
+  if (!s) return;
+  const town: string = s.ref,
+    place = enterPlace(w, town)!;
+  for (let h = 0; h < 30; h++) {
+    w.runTo(w.now + HOUR);
+    advancePlace(w, place);
+  }
+  const read = () => placeInspect(w, town, placeWhatNowRef(town)) as PlaceInspectWhatNow,
+    rows = (x: PlaceInspectWhatNow) => x.tips.map((tip) => `${tip.icon} ${tip.words}`).join(" | ");
+  const hand = read();
+  // Watched: only things worth looking at, each with a Go to or a page, never a sheet where orders are given.
+  setPlaceMode(w, place, "watch");
+  let before = placeDigest(place);
+  const watched = read();
+  assert.equal(placeDigest(place), before, "read only, watched");
+  assert.ok(watched.tips.length >= 1 && watched.tips.length <= 3);
+  for (const tip of watched.tips) {
+    assert.equal(tip.sheet, null, `watched, no sheet of orders: ${tip.words}`);
+    assert.ok(tip.go || tip.ref, `watched, somewhere to look: ${tip.words}`);
+    assert.doesNotMatch(tip.how, /\b(order|hold the town|put more hands|give them)\b/i, tip.how);
+    if (tip.go?.id != null) assert.ok(placeIndexOf(place, tip.go.id) >= 0);
+  }
+  assert.match(watched.sub, /no orders/);
+  // By its head: what the head is about to do, holds, or leaves to you, each where it is taken over.
+  setPlaceMode(w, place, "steward");
+  before = placeDigest(place);
+  const kept = JSON.stringify(place.steward),
+    headed = read();
+  assert.equal(placeDigest(place), before, "read only, by its head");
+  assert.equal(JSON.stringify(place.steward), kept, "the head's memory is read, not handed over");
+  assert.ok(headed.tips.length >= 1 && headed.tips.length <= 3);
+  for (const tip of headed.tips) {
+    assert.ok(tip.ref || tip.go || tip.sheet, `${tip.words}: somewhere to go`);
+    if (tip.sheet) assert.ok(SHEETS.includes(tip.sheet));
+  }
+  const head = stewardHead(w, place);
+  if (head)
+    assert.ok(
+      headed.sub.includes(head.name) || headed.tips.some((tip) => tip.words.includes(head.name)),
+      `its head named: ${headed.sub} / ${rows(headed)}`,
+    );
+  const grave = placeNotices(w, place).filter((n) => n.level >= 3);
+  if (grave.length) assert.equal(headed.tips[0]!.words, grave[0]!.words, "the gravest first");
+  // By hand again: as by hand, its rows with what to do.
+  setPlaceMode(w, place, "hand");
+  assert.match(read().sub, /worth doing next|Nothing presses/);
+  assert.notEqual(
+    rows(watched) + watched.sub,
+    rows(hand) + hand.sub,
+    "watched differs from by hand",
+  );
+  assert.notEqual(headed.sub, hand.sub, "by its head differs from by hand");
+  t.diagnostic(`${town} by hand: ${rows(hand)}`);
+  t.diagnostic(`watched: ${watched.sub}: ${rows(watched)}`);
+  t.diagnostic(`by its head: ${headed.sub}: ${rows(headed)}`);
 });
