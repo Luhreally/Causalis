@@ -13,6 +13,7 @@ import type {
   PlaceInspectBelow,
   PlaceInspectBound,
   PlaceInspectFaith,
+  PlaceInspectCharacter,
   PlaceInspectDead,
   PlaceInspectFamily,
   PlaceInspectGate,
@@ -262,6 +263,7 @@ export class PlaceInspector {
     else if (x.kind === "bound") this.bound(x);
     else if (x.kind === "faith") this.faith(x);
     else if (x.kind === "dead") this.dead(x);
+    else if (x.kind === "character") this.character(x);
     else this.lot(x);
   }
 
@@ -340,7 +342,13 @@ export class PlaceInspector {
       `${x.name}'s family: parents, brothers and sisters, children`,
     );
     family.onclick = () => this.onInspect(x.familyRef);
-    body.push(family);
+    // (Their character and mind, R2.)
+    const character = el("button", "place-insp-character", "Character ▸");
+    character.setAttribute("aria-label", `${x.name}'s character and mind`);
+    character.onclick = () => this.onInspect(x.characterRef);
+    const links = el("div", "place-insp-links");
+    links.append(family, character);
+    body.push(links);
     // (A hand's orders, by name: a trade, or let be.)
     if (this.orders && x.trade !== "child") {
       const row = el("div", "place-insp-orders"),
@@ -502,6 +510,53 @@ export class PlaceInspector {
         body.push(list);
       }
     } else if (this.tab === "gear") {
+      // (Each thing in its slot, how worn and whether it still serves; then all they hold by its stuff: R3.)
+      const inv = x.inventory;
+      if (inv.slots.length) {
+        const slots = el("div", "place-insp-slots");
+        for (const t of inv.slots) {
+          const row = el(
+              t.ref ? "button" : "div",
+              `place-insp-slot place-slot-${t.state.replace(" ", "-")}`,
+            ),
+            bar = el("span", "place-insp-wear"),
+            fill = el("span", "place-insp-wear-fill");
+          fill.style.width = `${t.wear}%`;
+          bar.append(fill);
+          row.append(
+            el("span", "place-insp-slot-name", `${t.icon} ${t.slot}`),
+            el("span", "place-insp-slot-what", `${cap(t.name)} · ${t.state}, ${t.wear}% worn`),
+            bar,
+          );
+          if (t.ref) (row as HTMLButtonElement).onclick = () => this.onInspect(t.ref!);
+          slots.append(row);
+        }
+        body.push(el("h3", "place-insp-sub", "In their slots"), slots);
+      }
+      if (inv.materials.length) {
+        const list = el("div", "place-insp-stuffs");
+        for (const m of inv.materials) {
+          const sw = el("span", "place-insp-stuff-swatch");
+          sw.style.background = m.colour;
+          list.append(
+            sw,
+            el("span", "place-insp-stuff-name", cap(m.name)),
+            el(
+              "span",
+              "place-insp-stuff-kg",
+              `${m.kg < 10 ? m.kg.toFixed(2) : Math.round(m.kg)} kg`,
+            ),
+          );
+        }
+        body.push(
+          el(
+            "h3",
+            "place-insp-sub",
+            `By what it is made of: ${inv.kg < 10 ? inv.kg.toFixed(1) : Math.round(inv.kg)} kg in all`,
+          ),
+          list,
+        );
+      }
       body.push(this.facts(x.gear));
     } else if (this.tab === "life") {
       // (Their nearest kin a tap away, living or of the town's dead kept so: R1.)
@@ -693,6 +748,78 @@ export class PlaceInspector {
       box.append(b);
     }
     return box;
+  }
+  /** One's character and mind (R2): traits as tags with what each does, best skills, wants; drive, leanings, learning, senses. */
+  private character(x: PlaceInspectCharacter): void {
+    this.picture(x);
+    const title = `${x.icon} ${x.name}`;
+    if (this.title.textContent !== title) this.title.textContent = title;
+    const sub = `${x.traits.length} ${x.traits.length === 1 ? "trait" : "traits"} · ${x.skills.length ? x.skills[0]!.name.toLowerCase() : "no skill yet"}`;
+    if (this.sub.textContent !== sub) this.sub.textContent = sub;
+    const body: HTMLElement[] = [el("h3", "place-insp-sub", "Character")];
+    if (x.traits.length) {
+      const tags = el("div", "place-insp-traits");
+      for (const t of x.traits) {
+        const tag = el("span", `place-insp-trait place-trait-${t.of}`, t.tag);
+        tag.title = t.meaning;
+        tags.append(tag);
+      }
+      body.push(tags);
+      const list = el("ul", "place-insp-life place-insp-trait-means");
+      for (const t of x.traits) list.append(el("li", "", `${cap(t.tag)}: ${t.meaning}.`));
+      body.push(list);
+    } else body.push(el("p", "place-insp-why", "Much as most of their people, in every way."));
+    body.push(
+      this.facts([
+        [
+          "Best at",
+          x.skills.length
+            ? x.skills
+                .map((s) => `${s.name} (${s.words}${s.passion ? ", a passion" : ""})`)
+                .join("; ")
+            : "Nothing yet",
+          null,
+        ],
+        ["Wants", x.want, null],
+        ...(x.since ? [["In want", x.since, null] as const] : []),
+      ]),
+    );
+    if (x.fulfilled.length) {
+      body.push(el("p", "place-insp-label", "What they have come to"));
+      const list = el("ul", "place-insp-life");
+      for (const line of x.fulfilled) list.append(el("li", "", line));
+      body.push(list);
+    }
+    body.push(
+      el("h3", "place-insp-sub", "Mind"),
+      el("p", "place-insp-why", `Driven by ${x.drive}.`),
+    );
+    const bars = el("div", "place-insp-leanings");
+    for (const l of x.leanings) {
+      const row = el("div", "place-insp-leaning"),
+        bar = el("span", "place-insp-leaning-bar"),
+        fill = el("span", "place-insp-leaning-fill");
+      fill.style.width = `${Math.max(0, Math.min(100, l.value / 1.5))}%`;
+      bar.append(fill);
+      row.append(
+        el("span", "place-insp-leaning-name", l.name),
+        bar,
+        el("span", "place-insp-leaning-words", `${l.words} (${l.value})`),
+      );
+      bars.append(row);
+    }
+    body.push(bars);
+    if (x.learning.length) {
+      body.push(el("p", "place-insp-label", "How they learn"));
+      const list = el("ul", "place-insp-life");
+      for (const line of x.learning) list.append(el("li", "", line));
+      body.push(list);
+    }
+    body.push(
+      el("p", "place-insp-label", "Their senses"),
+      this.facts(x.senses.map((s) => [s.name, s.words, null] as const)),
+    );
+    this.body.replaceChildren(...body);
   }
   /** One of the town's dead (R1): what took them, their life in short, their kin and those they knew, their last memories. */
   private dead(x: PlaceInspectDead): void {

@@ -1106,6 +1106,7 @@ body.placing .page-window {
   font: inherit;
   font-size: 13px;
   text-align: left;
+  white-space: normal;
   cursor: pointer;
 }
 .place-insp-thought.go .place-insp-thought-from {
@@ -1206,8 +1207,104 @@ h3.place-insp-sub {
 }
 .place-hud .place-insp-order,
 .place-hud .place-insp-family,
+.place-hud .place-insp-character,
 .place-hud .place-insp-free {
   padding: 0 10px;
+}
+/* A person's keys to their family and their character (P3, R2): side by side, each its 44 px. */
+.place-hud .place-insp-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0;
+}
+/* What one holds (R3): each thing in its slot with its wear; all of it by its stuff, a swatch of its colour each. */
+.place-hud .place-insp-slots {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0;
+}
+.place-hud .place-insp-slot {
+  display: grid;
+  grid-template-columns: minmax(0, 8em) minmax(0, 1fr);
+  align-items: center;
+  gap: 2px 8px;
+  min-height: 44px;
+  padding: 4px 8px;
+  text-align: left;
+  font-size: 12px;
+}
+.place-hud .place-insp-wear {
+  grid-column: 1 / -1;
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+.place-hud .place-insp-wear-fill {
+  display: block;
+  height: 100%;
+  background: rgba(150, 210, 140, 0.85);
+}
+.place-hud .place-slot-failing .place-insp-wear-fill {
+  background: rgba(235, 190, 90, 0.9);
+}
+.place-hud .place-slot-worn-out .place-insp-wear-fill {
+  background: rgba(230, 110, 90, 0.9);
+}
+.place-hud .place-insp-stuffs {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 3px 8px;
+  font-size: 12px;
+  margin: 4px 0;
+}
+.place-hud .place-insp-stuff-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+/* Their character (R2): traits as tags, by what they are of; their leanings as bars against most. */
+.place-hud .place-insp-traits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 4px 0;
+}
+.place-hud .place-insp-trait {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  background: rgba(120, 150, 230, 0.28);
+  border: 1px solid rgba(190, 205, 255, 0.45);
+}
+.place-hud .place-trait-nature {
+  background: rgba(120, 200, 160, 0.26);
+}
+.place-hud .place-trait-values {
+  background: rgba(230, 190, 110, 0.26);
+}
+.place-hud .place-insp-leaning {
+  display: grid;
+  grid-template-columns: minmax(0, 9em) minmax(0, 1fr) minmax(0, 8em);
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  margin: 2px 0;
+}
+.place-hud .place-insp-leaning-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+.place-hud .place-insp-leaning-fill {
+  display: block;
+  height: 100%;
+  background: rgba(130, 200, 255, 0.85);
 }
 /* Inside a lot (O3): its plan, fit to the inspector; its tiles faint, its rooms walled, those here as rings. */
 .place-hud .place-inside {

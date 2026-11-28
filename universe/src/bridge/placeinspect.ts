@@ -44,6 +44,8 @@ export type PlaceInspectPerson = {
   readonly page: string;
   /** Their family's page in the town (P3). */
   readonly familyRef: string;
+  /** Their character and mind (R2). */
+  readonly characterRef: string;
   /** R1. Their nearest kin a tap away: mother, father, the one they are paired with, their children (the most told). */
   readonly kin: readonly {
     readonly name: string;
@@ -128,6 +130,8 @@ export type PlaceInspectPerson = {
   readonly repute: string;
   /** What they have and wear (the Gear tab), line by line; a thing of theirs with its page's ref (O5). */
   readonly gear: readonly (readonly [string, string, string | null])[];
+  /** R3. What they hold slot by slot, and all they hold and carry by the stuff it is. */
+  readonly inventory: PlaceInventory;
   /** Their temper in a few words, and in full. */
   readonly temper: string;
   readonly temperWords: string;
@@ -502,6 +506,28 @@ export type PlaceInspectFaith = {
 };
 
 /**
+ * What one holds (R3): each thing in its slot, how worn, working or not; and all they hold and carry by the stuff it is,
+ * each with its weight (kg) and its colour as the world's matter has it.
+ */
+export type PlaceInventory = {
+  readonly slots: readonly {
+    readonly slot: string;
+    readonly icon: string;
+    readonly name: string;
+    readonly ref: string | null;
+    /** Its life used, 0 … 100. */
+    readonly wear: number;
+    readonly state: "working" | "failing" | "worn out";
+  }[];
+  readonly materials: readonly {
+    readonly name: string;
+    readonly kg: number;
+    readonly colour: string;
+  }[];
+  readonly kg: number;
+};
+
+/**
  * One of a town's dead (R1), on a page that outlives them: what took them and when, their life in short, their kin and
  * those they knew a tap away (living or kept so), and what they carried in mind at the end.
  */
@@ -527,7 +553,46 @@ export type PlaceInspectDead = {
   }[];
 };
 
+/**
+ * One's character and mind (R2), as Classic's character and mind cards had them: their traits as tags, each with what it
+ * does; their best skills; what they want most now and how long they have been in want; what they have come to; and their
+ * mind: what drives them, their leanings against most, how they learn, and the senses their people have.
+ */
+export type PlaceInspectCharacter = {
+  readonly kind: "character";
+  readonly ref: string;
+  readonly personRef: string;
+  readonly name: string;
+  readonly icon: string;
+  readonly traits: readonly {
+    readonly tag: string;
+    readonly meaning: string;
+    readonly of: "temper" | "nature" | "values";
+  }[];
+  readonly skills: readonly {
+    readonly name: string;
+    readonly words: string;
+    readonly hours: number;
+    readonly passion: boolean;
+  }[];
+  /** What they want most now, and since when they have been in want (null: in want of nothing). */
+  readonly want: string;
+  readonly since: string | null;
+  /** What they have come to, each on its day: paired, a child, of age, a masterwork, well again. */
+  readonly fulfilled: readonly string[];
+  readonly drive: string;
+  /** Their five leanings, each against most (100: as most are). */
+  readonly leanings: readonly {
+    readonly name: string;
+    readonly value: number;
+    readonly words: string;
+  }[];
+  readonly learning: readonly string[];
+  readonly senses: readonly { readonly name: string; readonly words: string }[];
+};
+
 export type PlaceInspect =
+  | PlaceInspectCharacter
   | PlaceInspectDead
   | PlaceInspectFaith
   | PlaceInspectBound

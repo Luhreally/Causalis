@@ -482,6 +482,14 @@ for (const view of [
           "the Social tab says how the town thinks of them",
         );
       }
+      // (What they hold slot by slot and by its stuff, R3.)
+      if (tab === "gear") {
+        check(
+          (await shown(".place-insp-slot")) >= 1,
+          "the Gear tab has their things in their slots",
+        );
+        check((await shown(".place-insp-stuff-swatch")) >= 1, "and all of it by its stuff");
+      }
       await look(`15-insp-${tab}`, `the inspector's ${tab} tab`);
     }
     // (One hurt in the fire: their Health tab, the wounded member on their figure.)
@@ -539,6 +547,20 @@ for (const view of [
       await press(".place-insp-back", "‹ Back to them from their family");
       await until("them again", async () => (await kind()) === "person", 8000);
       check((await kind()) === "person", "Back from their family comes to them");
+      // Their character and mind (R2), beside their family's key, and Back.
+      await k(
+        'document.querySelector(".place-insp-character")?.scrollIntoView({ block: "center" })',
+      );
+      await page.waitForTimeout(300);
+      await press(".place-insp-character", "Character ▸, on a person's page");
+      await until("their character", async () => (await kind()) === "character", 8000);
+      await page.waitForTimeout(400);
+      say(`character: ${(await text(".place-insp")).slice(0, 300)}`);
+      check((await shown(".place-insp-leaning")) === 5, "their five leanings drawn");
+      await look("16c-character", "one's character and mind");
+      await press(".place-insp-back", "‹ Back to them from their character");
+      await until("them again", async () => (await kind()) === "person", 8000);
+      check((await kind()) === "person", "Back from their character comes to them");
     }
     // A sheet opened under it: the inspector above it, peeked.
     await press('.place-tab[data-tab="people"]', "the People tab, the inspector open");
