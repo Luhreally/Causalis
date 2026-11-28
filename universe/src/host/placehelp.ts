@@ -265,6 +265,17 @@ export const HELP: Readonly<Record<string, Help>> = {
       "A sheet's key: open the sheet where it is done.",
     ],
   },
+  "page:why": {
+    title: "Why?",
+    what: "Why this person is doing what they do now, step by step: the reason, with the numbers that decided it, and what lies behind it in the town.",
+    numbers: [
+      [
+        "The numbers",
+        "What weighed most when they chose: the higher, the more it pressed on them.",
+      ],
+    ],
+    can: ["Tap a step to open its page.", "🎯 or 📍: send the eye to the person or the place."],
+  },
 };
 
 /** The topic for what a sheet, a tab or a page is (G2): its own, else the town's. */

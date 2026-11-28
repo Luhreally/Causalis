@@ -29,6 +29,7 @@ const SHEETS = ["people", "stocks", "work", "build", "dangers", "log"],
     "making",
     "civic",
     "whatnow",
+    "why",
   ];
 
 test("every sheet, tab and page has its own words: what it is, and what you can do", (t) => {

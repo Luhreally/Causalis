@@ -48,6 +48,8 @@ export type PlaceInspectPerson = {
   readonly characterRef: string;
   /** Their body and what it is written in (R4). */
   readonly bodyRef: string;
+  /** Why they do what they do (R7). */
+  readonly whyRef: string;
   /** R1. Their nearest kin a tap away: mother, father, the one they are paired with, their children (the most told). */
   readonly kin: readonly {
     readonly name: string;
@@ -710,7 +712,31 @@ export type PlaceInspectWhatNow = {
   readonly tips: readonly PlaceTip[];
 };
 
+/** A step of why one does what they do (R7): what it is, said; the page it opens; where the eye can go for it. */
+export type PlaceWhyStep = {
+  readonly label: string;
+  readonly words: string;
+  readonly ref: string | null;
+  readonly go: { readonly id: number | null; readonly lot: number | null } | null;
+};
+/**
+ * Why one of a town's people does what they do (R7): what they do now, the reason the place gave it, what lies behind
+ * that reason as the town stands, and what weighs most on their mood; each step with its page and where the eye can go.
+ */
+export type PlaceInspectWhy = {
+  readonly kind: "why";
+  readonly ref: string;
+  readonly personRef: string;
+  readonly id: number;
+  readonly name: string;
+  readonly icon: string;
+  readonly sub: string;
+  readonly steps: readonly PlaceWhyStep[];
+  readonly day: number;
+};
+
 export type PlaceInspect =
+  | PlaceInspectWhy
   | PlaceInspectWhatNow
   | PlaceInspectHelp
   | PlaceInspectCivic

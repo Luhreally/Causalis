@@ -2255,3 +2255,32 @@ body.placing:has(.page-window:not([hidden])) .place-tag {
   margin: 4px 0 0 auto;
   padding: 0 14px;
 }
+
+/* Why one does what they do (R7): each step a row, its words a link where it opens a page, a Go to key at its end. */
+.place-hud .place-insp-whys {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.place-hud .place-insp-whystep {
+  display: grid;
+  grid-template-columns: 6.5em 1fr auto;
+  align-items: center;
+  column-gap: 6px;
+  min-height: 44px;
+}
+.place-hud .place-insp-whywords {
+  text-align: left;
+  min-height: 44px;
+}
+.place-hud .place-insp-go,
+.place-hud .place-log-go {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 6px;
+  font-size: 15px;
+}
+.place-hud .place-watch-why {
+  flex: 0 0 auto;
+  font-size: 18px;
+}

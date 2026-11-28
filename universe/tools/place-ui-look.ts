@@ -107,6 +107,11 @@ for (const view of [
       if (shots) await page.screenshot({ path: join(shots, `${view.name}-${name}.png`) });
     },
     state = () => k<State>("globalThis.causalis.place.state()"),
+    // (Where the eye is, x and z of the stage's camera, for Go to (R7); null where it cannot be read.)
+    eye = () =>
+      k<[number, number] | null>(
+        "(() => { const c = globalThis.causalis.stage?.camera; const p = c?.getPosition?.(); return p ? [p.x, p.z] : null; })()",
+      ),
     read = async (name: string) => {
       const r = await k<HudRead>(READ);
       check(
@@ -628,6 +633,32 @@ for (const view of [
       await press(".place-insp-back", "‹ Back to them from their body");
       await until("them again", async () => (await kind()) === "person", 8000);
       check((await kind()) === "person", "Back from their body comes to them");
+      // Why they do what they do (R7): ❓ beside them, each step a page or a place to go to, and Back.
+      await k('document.querySelector(".place-insp-whykey")?.scrollIntoView({ block: "center" })');
+      await page.waitForTimeout(300);
+      await press(".place-insp-whykey", "Why? ▸, beside their family on their page");
+      await until("why they do it", async () => (await kind()) === "why", 8000);
+      await page.waitForTimeout(400);
+      say(`why: ${(await text(".place-insp")).slice(0, 300)}`);
+      check(
+        (await shown(".place-insp-whystep")) >= 3,
+        "what they do, why, and what lies behind it",
+      );
+      await look("16e-why", "why one does what they do");
+      if ((await shown(".place-insp-go")) > 0) {
+        const was = await eye();
+        await press(".place-insp-go", "🎯 Go to, on a step of why");
+        await page.waitForTimeout(1400);
+        const now = await eye();
+        if (was && now)
+          check(
+            Math.hypot(now[0] - was[0], now[1] - was[1]) > 0.01 || (await kind()) === "why",
+            "Go to sends the eye, the page staying",
+          );
+      }
+      await press(".place-insp-back", "‹ Back to them from why");
+      await until("them again", async () => (await kind()) === "person", 8000);
+      check((await kind()) === "person", "Back from why comes to them");
     }
     // A sheet opened under it: the inspector above it, peeked.
     await press('.place-tab[data-tab="people"]', "the People tab, the inspector open");
@@ -1146,6 +1177,19 @@ for (const view of [
       const refs = await k<string[]>(
         `[...document.querySelectorAll('.place-log-names .place-link[data-ref^="plc:"]')].map((b) => b.dataset.ref).slice(0, 40)`,
       );
+      // (Its rows' Go to keys, R7: to whom each was of, and where.)
+      const gos = await shown(".place-log-go");
+      say(`the log's Go to keys: ${gos}`);
+      check(gos > 0, "the log's rows have Go to keys");
+      if (gos > 0) {
+        const was = await eye();
+        await press(".place-log-go", "🎯 Go to, on a row of the log");
+        await page.waitForTimeout(1400);
+        const now = await eye();
+        if (was && now)
+          check(Math.hypot(now[0] - was[0], now[1] - was[1]) > 0.01, "a row's Go to sends the eye");
+        else say("the eye's place could not be read");
+      }
       await press('.place-tab[data-tab="log"]', "the log tab again, to close it");
       let found = false;
       for (const ref of refs) {

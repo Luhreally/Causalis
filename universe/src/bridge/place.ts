@@ -58,6 +58,8 @@ export const placeWhatNowRef = (town: string): string => `plcn:${town}`;
 export const placeMakingRef = (town: string): string => `plcs:${town}`;
 /** A town's works and orders (R6). */
 export const placeCivicRef = (town: string): string => `plcv:${town}`;
+/** Why one of a town's people does what they do (R7). */
+export const placeWhyRef = (town: string, id: number): string => `plcq:${town}:${id}`;
 /** The bound of a town, its captives and those its justice holds (P6). */
 export const placeBoundRef = (town: string): string => `plcd:${town}`;
 /** One's family in the town (P3). */
@@ -397,6 +399,15 @@ export type PlaceLogSheet = {
     readonly words: string;
     readonly ref: string | null;
     readonly day: string;
+    /**
+     * Where the eye can go for it (R7): to whom it was of and whom it was with, where they are of the town; to where it
+     * happened, where its telling keeps it (a work made, a crew put to a site, a home moved to). Each with what it goes to.
+     */
+    readonly go: readonly {
+      readonly id: number | null;
+      readonly lot: number | null;
+      readonly words: string;
+    }[];
   }[];
 };
 

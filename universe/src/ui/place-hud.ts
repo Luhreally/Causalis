@@ -73,6 +73,8 @@ export type PlaceCaption = {
   /** Staying with one of its people (their name is the title); and whether there is one to stay with. */
   readonly stay: boolean;
   readonly one: boolean;
+  /** Who of its people the eye is with (R7: their Why?; null: no one). */
+  readonly id: number | null;
 };
 /** The weather over the town now, as the god game's bar tells it (null: none told). */
 export type PlaceWeather = {
@@ -182,6 +184,7 @@ export class PlaceHud {
   private readonly watchTitle = el("span", "place-watch-title");
   private readonly watchWords = el("span", "place-watch-words");
   private readonly stayKey = el("button", "place-watch-stay", "📌");
+  private readonly whyKey = el("button", "place-watch-why", "❓");
   private captionNow: PlaceCaption | null = null;
   /** How the town is run now, and by whom where its head runs it. */
   ran: PlaceMode = "hand";
@@ -222,6 +225,10 @@ export class PlaceHud {
   onEscape: () => void = () => {};
   /** F: the eye kept with the one chosen, or let go (false: no one is chosen, and the key is not the mode's). */
   onFollow: () => boolean = () => false;
+  /** The eye sent to one of its people or a lot (R7). */
+  onGo: (g: { id: number | null; lot: number | null }) => void = () => {};
+  /** Why one of its people does what they do opened (R7). */
+  onWhy: (id: number) => void = () => {};
   /** What a sheet is, asked (G2): its topic. */
   onHelp: (topic: string) => void = () => {};
   /** What now? asked (G3). */
@@ -360,11 +367,15 @@ export class PlaceHud {
       if (this.captionNow?.ref) this.onOpen(this.captionNow.ref);
     };
     this.stayKey.onclick = () => this.onStay(!this.captionNow?.stay);
+    this.whyKey.onclick = () => {
+      const id = this.captionNow?.id;
+      if (id !== null && id !== undefined) this.onWhy(id);
+    };
     const next = el("button", "place-watch-next", "⏭");
     next.title = "On to another of the town";
     next.setAttribute("aria-label", next.title);
     next.onclick = () => this.onNext();
-    this.watch.append(this.watchText, this.stayKey, next);
+    this.watch.append(this.watchText, this.whyKey, this.stayKey, next);
     this.watch.hidden = true;
     this.mode("hand");
     this.notice.append(this.noticeText);
@@ -600,6 +611,16 @@ export class PlaceHud {
         ? `Stay with ${c.title}, whatever else happens`
         : "Stay with one of the town: there is no one the eye is with now";
     this.stayKey.classList.toggle("on", !!c?.stay);
+    // (Why the one the eye is with does what they do, R7.)
+    const whyWords =
+      c?.id !== null && c?.id !== undefined
+        ? `Why ${c.title} does what they do`
+        : "No one to ask why of";
+    this.whyKey.disabled = c?.id === null || c?.id === undefined;
+    if (this.whyKey.title !== whyWords) {
+      this.whyKey.title = whyWords;
+      this.whyKey.setAttribute("aria-label", whyWords);
+    }
     this.stayKey.disabled = !c?.stay && !c?.one;
     if (this.stayKey.title !== say) {
       this.stayKey.title = say;
@@ -1596,6 +1617,22 @@ export class PlaceHud {
         b.dataset.ref = ref;
         b.onclick = () => this.onOpen(ref);
         names.append(b);
+        // (Go to whom it was of, whom it was with, and where it happened, R7.)
+        for (const g of x.go) {
+          const k = el(
+            "button",
+            "place-log-go",
+            g.lot !== null
+              ? "📍"
+              : g.words === `Go to ${x.name}`
+                ? "🎯"
+                : `🎯 ${g.words.replace(/^Go to /, "")}`,
+          );
+          k.title = g.words;
+          k.setAttribute("aria-label", g.words);
+          k.onclick = () => this.onGo(g);
+          names.append(k);
+        }
         if (group.length === 1) names.append(el("span", "place-log-told", ` ${x.told}`));
       }
       entry.append(names);
