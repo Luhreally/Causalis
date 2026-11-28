@@ -2,7 +2,16 @@
 // stands. Its people, whether it sows, its first village and when it was founded, its market town, the realm that holds it.
 // A pure reading, asked only by Live a Line (host/line.ts ask) and fetched with it.
 import { YEAR, type World } from "../kernel/index.ts";
-import { politiesOf, populationContext, realmName } from "../sim/index.ts";
+import {
+  askedStar,
+  clusterOf,
+  politiesOf,
+  populationContext,
+  realmName,
+  starSitesOf,
+  voyageReach,
+} from "../sim/index.ts";
+import { starWords } from "./inspect/sky.ts";
 
 export type LineStory = {
   readonly people: number;
@@ -60,5 +69,69 @@ export function storyOf(world: World, cell: number): LineStory | null {
         }
       : null,
     waiting,
+  };
+}
+
+/** Live a Line's space (S8): the realm holding the line's land at the stars, what it lacks to sail, its ships, the stars in reach. */
+export type LineStars = {
+  readonly realm: { readonly ref: string; readonly name: string } | null;
+  /** What it lacks to send a ship (none: it can, when its own time comes). */
+  readonly wants: readonly string[];
+  /** The star its next ship was asked to sail for. */
+  readonly asked: { readonly ref: string; readonly words: string } | null;
+  /** Its ships: the land each is, bound where, arriving or come. */
+  readonly ships: readonly {
+    readonly land: string;
+    readonly words: string;
+    readonly arrives: number;
+    readonly arrived: boolean;
+  }[];
+  readonly stars: readonly {
+    readonly ref: string;
+    readonly words: string;
+    readonly distance: number;
+    readonly years: number;
+    readonly upkeep: number;
+    readonly taken: boolean;
+  }[];
+};
+
+const starText = (s: { spectral: string; remnant?: boolean; distance: number }) =>
+  `${starWords(s)} ${s.distance.toFixed(1)} light-years out`;
+
+export function starsOf(world: World, cell: number): LineStars | null {
+  const ctx = populationContext(world);
+  if (!ctx.provinces.get(cell)) return null;
+  const realm = politiesOf(world).of(cell);
+  if (!realm || realm.ended !== null)
+    return { realm: null, wants: [], asked: null, ships: [], stars: [] };
+  const reach = voyageReach(ctx, realm),
+    asked = askedStar(world, realm.ref),
+    star = asked ? clusterOf(world).find((s) => s.ref === asked) : undefined,
+    year = Math.floor(world.now / YEAR);
+  return {
+    realm: { ref: realm.ref, name: realmName(realm) },
+    wants: reach.wants,
+    asked: asked && star ? { ref: asked, words: starText(star) } : null,
+    ships: (starSitesOf(world)?.all() ?? [])
+      .filter(([, s]) => s.realm === realm.ref)
+      .map(([c, s]) => {
+        const to = clusterOf(world).find((x) => x.ref === s.star);
+        return {
+          land: ctx.provinces.get(c)?.ref ?? "",
+          words: to ? starText(to) : `a star ${s.distance.toFixed(1)} light-years out`,
+          arrives: s.arrives,
+          arrived: !!s.arrived || year >= s.arrives,
+        };
+      })
+      .filter((s) => s.land),
+    stars: reach.stars.map((r) => ({
+      ref: r.star.ref,
+      words: starText(r.star),
+      distance: Math.round(r.star.distance * 10) / 10,
+      years: Math.round(r.years),
+      upkeep: Math.round(r.upkeep * 10) / 10,
+      taken: r.taken,
+    })),
   };
 }

@@ -14,7 +14,7 @@ import { MicroScene, type OrbitRig, type Stage } from "../render/index.ts";
 import { LineCreature, type LineBody } from "./line-creature.ts";
 import { LineBand } from "./line-band.ts";
 import { STORY, storyPage, type StoryOf } from "./line-story.ts";
-import type { LineStory } from "../host/line-story.ts";
+import type { LineStars, LineStory } from "../host/line-story.ts";
 import type { CampNear } from "../bridge/index.ts";
 import { DepthLayer, type Beyond } from "../render/line-depth.ts";
 import { CellJuice } from "../render/line-juice.ts";
@@ -217,7 +217,9 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
     bandSeen = 0,
     taught = false,
     /** What came of the band's land in the world, as last asked (S7). */
-    storyWorld: LineStory | null = null;
+    storyWorld: LineStory | null = null,
+    /** The realm holding the band's land at the stars, as last asked (S8). */
+    storyStars: LineStars | null = null;
   const noises = new LineSound(d.sound);
   /** How everything stood as the mode was entered, to be put back as it was on waking. */
   let was: {
@@ -807,15 +809,19 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
       })),
       band: s?.tribe ?? null,
       world: storyWorld,
+      stars: storyStars,
     };
   };
   /** The story opened at a page, what came of the band's land asked of the world first. */
   const openStory = async (at: string = STORY[0]) => {
     const cell = saga?.tribe?.cell ?? bandLand?.cell;
-    storyWorld =
+    [storyWorld, storyStars] =
       cell === undefined
-        ? null
-        : await d.client.query<LineStory | null>({ type: "line.story", args: { cell } });
+        ? [null, null]
+        : await Promise.all([
+            d.client.query<LineStory | null>({ type: "line.story", args: { cell } }),
+            d.client.query<LineStars | null>({ type: "line.stars", args: { cell } }),
+          ]);
     layer(null);
     openPage(at);
   };
@@ -823,6 +829,25 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
   const goSee = (text: string, ref: string) => {
     const b = el("button", "line-link", text);
     b.onclick = () => void flow.wake().then(() => d.open(ref));
+    return b;
+  };
+
+  /** The realm's next ship asked toward a star (S8): the world's own `space.ask`, said back, the page read again. */
+  const sendShip = (text: string, realm: string, star: string | null) => {
+    const b = el("button", "line-link", text);
+    b.onclick = async () => {
+      const r = await d.client
+        .command("space.ask", { realm, star })
+        .catch((e: unknown) => ({ ok: false, error: String(e) }));
+      hud.say(
+        (r as { ok?: boolean }).ok === false
+          ? `It was turned back: ${(r as { error?: string }).error ?? ""}`
+          : star
+            ? "Asked: its next ship sails there, when the realm can send one."
+            : "The ask taken back: its next ship sails where the realm chooses.",
+      );
+      await openStory("story:stars");
+    };
     return b;
   };
 
@@ -1193,7 +1218,7 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
       f = facts,
       s = saga,
       L = (text: string, r: string) => pages.link(text, r);
-    const told = ref.startsWith("story:") ? storyPage(ref, storyNow(), L, goSee) : null;
+    const told = ref.startsWith("story:") ? storyPage(ref, storyNow(), L, goSee, sendShip) : null;
     if (told) return told;
     if (ref === "cell" && t && f && s) {
       const c = drop && hand ? heldCell(drop, hand) : null,
@@ -1975,6 +2000,7 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
       teach: () => teach(),
       story: (at?: string) => openStory(at),
       storyWorld: () => storyWorld,
+      storyStars: () => storyStars,
     };
   return flow;
 }
@@ -2105,9 +2131,10 @@ const HELP: Readonly<Record<string, readonly [string, readonly string[]]>> = {
   "help:story": [
     "Your line's story",
     [
-      "Six pages, from your line's first cell to the realm its people's land became part of: ‹ and › walk them in order, and Back and Forward as every page does.",
+      "Seven pages, from your line's first cell to the realm its people's land became part of, and that realm's stars: ‹ and › walk them in order, and Back and Forward as every page does.",
       "The cell, the body and the band are what you lived. The village, the town and the realm are what came of the land your band was led in, read off your world as it stands now: a step not come yet says what brings it.",
       "🏘️ Go and see leaves the mode for your world's own page of the place: from there you may live as one of its people, or rule them.",
+      "Its stars: once its realm can send ships between the stars, choose the star its next one sails for. The realm still decides when it can sail; if the star is taken first, the ship sails where the realm would have sent it.",
     ],
   ],
   "help:young": [

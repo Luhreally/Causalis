@@ -697,6 +697,12 @@ export function installSpace(world: World, ctx: () => PopulationContext): SpaceS
   world.addPinner(() => store.pinned());
   world.system({ key: "197.space.year", every: YEAR, run: (t) => spaceYear(ctx(), t) });
   installVoyages(world, ctx);
+  // (A hand's ask of a realm's next ship, Live a Line's space: dormant till asked, asks.ts.)
+  installSpaceAsks(
+    world,
+    (ref) => politiesOf(world).get(ref)?.ended === null,
+    (ref) => clusterOf(world).some((s) => s.ref === ref),
+  );
   installFilled(world);
   installContact(world, ctx);
   installFarReigns(world, ctx);
@@ -711,7 +717,8 @@ export function installSpace(world: World, ctx: () => PopulationContext): SpaceS
   return store;
 }
 
-import { installVoyages } from "./voyages.ts";
+import { clusterOf, installVoyages } from "./voyages.ts";
+import { installSpaceAsks } from "./asks.ts";
 import { installFilled } from "./filled.ts";
 import { installContact } from "./contact.ts";
 import { installFarReigns } from "./far-reigns.ts";

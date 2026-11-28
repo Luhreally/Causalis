@@ -3,7 +3,7 @@
 // village, its market town, the realm that holds it (host/line-story.ts). A step not reached yet says so, and what brings
 // it, never a stand-in. The village, town and realm each lead into the god game's own page, where living as one of them,
 // ruling them and their courts already are.
-import type { LineStory } from "../host/line-story.ts";
+import type { LineStars, LineStory } from "../host/line-story.ts";
 import { el } from "../ui/index.ts";
 import { fact, para, type LinePage } from "../ui/line-pages.ts";
 
@@ -28,6 +28,8 @@ export type StoryOf = {
   } | null;
   /** What came of its land in the world (null: no band led, or not asked yet). */
   readonly world: LineStory | null;
+  /** The realm holding its land at the stars (S8; null: no band led, or not asked yet). */
+  readonly stars: LineStars | null;
 };
 
 export const STORY = [
@@ -37,6 +39,7 @@ export const STORY = [
   "story:village",
   "story:town",
   "story:realm",
+  "story:stars",
 ] as const;
 const NAMES: Readonly<Record<(typeof STORY)[number], string>> = {
   "story:cell": "Its cell",
@@ -45,6 +48,7 @@ const NAMES: Readonly<Record<(typeof STORY)[number], string>> = {
   "story:village": "Its village",
   "story:town": "Its town",
   "story:realm": "Its realm",
+  "story:stars": "Its stars",
 };
 
 const myWords = (my: number) =>
@@ -61,6 +65,8 @@ export function storyPage(
   s: StoryOf,
   link: (text: string, ref: string) => HTMLElement,
   go: (text: string, ref: string) => HTMLElement,
+  /** A button asking the realm's next ship to sail for a star (null: the ask taken back). */
+  send: (text: string, realm: string, star: string | null) => HTMLElement,
 ): LinePage | null {
   const i = STORY.indexOf(ref as (typeof STORY)[number]);
   if (i < 0) return null;
@@ -111,8 +117,14 @@ export function storyPage(
         "its band",
         s.band
           ? [
-              fact("Led", `a band of the ${s.band.people}, camped in ${s.band.land}`),
-              fact("Grew", `to ${s.band.size}, ${s.band.born} born under your hand`),
+              fact(
+                "Led",
+                `a band of the ${s.band.people}, camped in ${s.band.land.replace(/^The /, "the ")}`,
+              ),
+              fact(
+                "Now",
+                `${s.band.size} in the band, ${s.band.born ? `${s.band.born} born under your hand` : "none born under your hand yet"}`,
+              ),
               fact(
                 "Sowing",
                 s.band.taught
@@ -181,6 +193,53 @@ export function storyPage(
               ),
             ],
       );
+    case "story:stars": {
+      const st = s.stars;
+      if (!st?.realm)
+        return page("its stars", [
+          para(
+            w?.realm
+              ? "Its realm is not at the stars yet."
+              : "First its realm: a realm sends ships to the stars, when it can.",
+          ),
+        ]);
+      const r = st.realm,
+        parts: HTMLElement[] = [];
+      if (st.wants.length)
+        parts.push(fact("Not at the stars yet", `${r.name} lacks ${st.wants.join("; ")}`));
+      if (st.asked)
+        parts.push(
+          fact("Its next ship", `asked to sail for ${st.asked.words}, when the realm can send one`),
+          send("Take the ask back", r.ref, null),
+        );
+      for (const sh of st.ships)
+        parts.push(
+          fact(
+            sh.arrived ? "Come down" : `Under way, arriving in the year ${sh.arrives}`,
+            sh.words,
+          ),
+          go("🚀 Go and see the ship", sh.land),
+        );
+      if (st.stars.length) {
+        parts.push(
+          para(
+            "The stars in its reach with a world its people could live on, nearest in time first. Ask, and its next ship sails for the one you choose, if it is still free when the realm can send one.",
+          ),
+        );
+        for (const x of st.stars)
+          parts.push(
+            fact(
+              x.words,
+              `${x.years.toLocaleString()} years under way · ${x.upkeep} machines a settler a year to keep${x.taken ? " · taken" : ""}`,
+            ),
+            ...(x.taken || st.asked?.ref === x.ref
+              ? []
+              : [send("🚀 Send our next ship here", r.ref, x.ref)]),
+          );
+      } else if (!st.wants.length)
+        parts.push(para("No star in its reach holds a world its people could live on."));
+      return page(`its stars, ${r.name}`, parts);
+    }
   }
   return null;
 }

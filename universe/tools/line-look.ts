@@ -644,6 +644,18 @@ for (const view of [
       );
       await page.waitForTimeout(400);
       await look("26-village", "the story: its village come");
+      // (S8: its stars, the seventh page, reached by › from its realm and back.)
+      await k("globalThis.causalis.lineMode.story('story:realm')");
+      await page.waitForTimeout(300);
+      await pressText(".line-page .line-link", / ›$/, "the story's next ›");
+      await page.waitForTimeout(300);
+      check((await pageNow()) === "story:stars", `› on to its stars (${await pageNow()})`);
+      say(
+        `its stars: ${JSON.stringify(await k("globalThis.causalis.lineMode.storyStars()")).slice(0, 160)}`,
+      );
+      await look("26b-stars", "the story: its stars");
+      await k("globalThis.causalis.lineMode.story('story:village')");
+      await page.waitForTimeout(300);
       if (village) {
         await pressText(".line-page button.line-link", /Go and see/, "🏘️ Go and see");
         await until(
