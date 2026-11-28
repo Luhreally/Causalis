@@ -677,7 +677,21 @@ export type PlaceInspectCivic = {
   readonly year: number;
 };
 
+/** What a sheet, a tab or a page is, in plain words (G2): what it is, what its numbers mean, what you can do there. */
+export type PlaceInspectHelp = {
+  readonly kind: "help";
+  readonly ref: string;
+  readonly topic: string;
+  readonly name: string;
+  readonly icon: string;
+  readonly sub: string;
+  readonly what: string;
+  readonly numbers: readonly (readonly [string, string])[];
+  readonly can: readonly string[];
+};
+
 export type PlaceInspect =
+  | PlaceInspectHelp
   | PlaceInspectCivic
   | PlaceInspectMaking
   | PlaceInspectBody

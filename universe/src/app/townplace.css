@@ -898,6 +898,11 @@ body.placing .page-window {
   flex: 1 1 0;
   min-width: 0;
 }
+/* (What this is, G2: at the end of the name's row.) */
+.place-insp-head .place-insp-helpkey {
+  flex: 0 0 auto;
+  align-self: flex-start;
+}
 .place-insp-name {
   margin: 0;
   font-size: 16px;
@@ -2194,4 +2199,13 @@ body.placing:has(.page-window:not([hidden])) .place-tag {
   .place-hud.guide-out.menu-open .place-guide {
     display: none;
   }
+}
+
+/* What a sheet is, in plain words (G2): its ? beside its ×. */
+.place-hud .place-sheet-help {
+  font-weight: 700;
+  font-size: 17px;
+}
+.place-help-what {
+  font-size: 14px;
 }

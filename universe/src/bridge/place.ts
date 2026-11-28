@@ -50,6 +50,8 @@ export const placeWorkRef = (town: string, lot: number, made: number, maker: num
   `plcw:${town}:${lot + 3}:${made}:${maker}`;
 /** A town's faith and rank (P7). */
 export const placeFaithRef = (town: string): string => `plcr:${town}`;
+/** What a sheet, a tab or a page of the town mode is, in plain words (G2): its topic after the bar. */
+export const placeHelpRef = (town: string, topic: string): string => `plch:${town}|${topic}`;
 /** What a town lives on (R5). */
 export const placeMakingRef = (town: string): string => `plcs:${town}`;
 /** A town's works and orders (R6). */

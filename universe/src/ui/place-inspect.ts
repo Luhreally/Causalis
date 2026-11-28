@@ -16,6 +16,7 @@ import type {
   PlaceInspectBody,
   PlaceInspectMaking,
   PlaceInspectCivic,
+  PlaceInspectHelp,
   PlaceInspectCharacter,
   PlaceInspectDead,
   PlaceInspectFamily,
@@ -83,6 +84,8 @@ export class PlaceInspector {
   private readonly aheadKey = el("button", "place-insp-key place-insp-ahead", "›");
   private readonly proseKey = el("button", "place-insp-key place-insp-info", "ⓘ");
   private readonly pageKey = el("button", "place-insp-key place-insp-page", "📖");
+  /** What this page or tab is, in plain words (G2). */
+  private readonly helpKey = el("button", "place-insp-key place-insp-helpkey", "?");
   private readonly body = el("div", "place-insp-body");
   /** What is inspected now (null: nothing), and the last reading of it. */
   ref: string | null = null;
@@ -108,6 +111,8 @@ export class PlaceInspector {
   /** The god game's full page of it. */
   onPage: (ref: string) => void = () => {};
   onFollow: (on: boolean) => void = () => {};
+  /** What a page or tab is, asked (G2): its topic. */
+  onHelp: (topic: string) => void = () => {};
   /** One of a person's tabs opened (G1's lessons). */
   onTabbed: (tab: string) => void = () => {};
   onOrder: (type: string, args: Record<string, unknown>) => void = () => {};
@@ -149,6 +154,12 @@ export class PlaceInspector {
     this.pageKey.title = "Its whole page, as the world tells it";
     this.pageKey.setAttribute("aria-label", this.pageKey.title);
     this.pageKey.onclick = () => this.now && this.onPage(this.now.ref);
+    this.helpKey.title = "What is this? In plain words";
+    this.helpKey.setAttribute("aria-label", this.helpKey.title);
+    this.helpKey.onclick = () => {
+      const x = this.now;
+      if (x) this.onHelp(x.kind === "person" ? `tab:${this.tab}` : `page:${x.kind}`);
+    };
     const shut = el("button", "place-insp-key place-insp-shut", "×");
     shut.setAttribute("aria-label", "Close");
     shut.onclick = () => this.onClose();
@@ -158,7 +169,9 @@ export class PlaceInspector {
     this.portrait.width = this.portrait.height = PORTRAIT;
     names.append(this.title, this.sub);
     keys.append(this.followKey, this.proseKey, this.pageKey, shut);
-    head.append(this.portrait, names);
+    // (What this is, G2: at the end of the name's row, where there is room at every size; among the keys above, it
+    // squeezed the handle beside them past a fingertip on a phone.)
+    head.append(this.portrait, names, this.helpKey);
     // (Its keys in a row of their own above the name: back and forward, the handle between, the rest.)
     const top = el("div", "place-insp-top");
     top.append(this.backKey, this.aheadKey, this.handle, keys);
@@ -251,6 +264,7 @@ export class PlaceInspector {
     this.drawn = key;
     this.element.dataset.kind = x.kind;
     this.followKey.hidden = x.kind !== "person";
+    this.helpKey.hidden = x.kind === "help";
     this.followKey.classList.toggle("on", this.following);
     const fw = this.following ? "Let them go: the eye stays" : "Keep the eye with them";
     this.followKey.title = fw;
@@ -272,6 +286,7 @@ export class PlaceInspector {
     else if (x.kind === "body") this.bodyPage(x);
     else if (x.kind === "making") this.making(x);
     else if (x.kind === "civic") this.civic(x);
+    else if (x.kind === "help") this.help(x);
     else this.lot(x);
   }
 
@@ -832,6 +847,25 @@ export class PlaceInspector {
       el("p", "place-insp-label", "Their senses"),
       this.facts(x.senses.map((s) => [s.name, s.words, null] as const)),
     );
+    this.body.replaceChildren(...body);
+  }
+  /** What a sheet, a tab or a page is, in plain words (G2). */
+  private help(x: PlaceInspectHelp): void {
+    this.picture(x);
+    const title = `${x.icon} ${x.name}`;
+    if (this.title.textContent !== title) this.title.textContent = title;
+    if (this.sub.textContent !== x.sub) this.sub.textContent = x.sub;
+    const body: HTMLElement[] = [el("p", "place-insp-why place-help-what", x.what)];
+    if (x.numbers.length) {
+      body.push(el("h3", "place-insp-sub", "What the numbers mean"));
+      body.push(this.facts(x.numbers.map(([a, b]) => [a, b, null] as const)));
+    }
+    if (x.can.length) {
+      body.push(el("h3", "place-insp-sub", "What you can do here"));
+      const list = el("ul", "place-insp-life");
+      for (const c of x.can) list.append(el("li", "", c));
+      body.push(list);
+    }
     this.body.replaceChildren(...body);
   }
   /** A town's works and orders (R6): what is going up, what its land may find next, its standing orders. */

@@ -220,6 +220,8 @@ export class PlaceHud {
   onEscape: () => void = () => {};
   /** F: the eye kept with the one chosen, or let go (false: no one is chosen, and the key is not the mode's). */
   onFollow: () => boolean = () => false;
+  /** What a sheet is, asked (G2): its topic. */
+  onHelp: (topic: string) => void = () => {};
   /** Its lessons asked for on a phone, or put back (G1): the inspector goes down while they are out. */
   onGuide: (out: boolean) => void = () => {};
   /** A sheet opened or closed, by a tab or from the page (for what lies beside it). */
@@ -334,7 +336,12 @@ export class PlaceHud {
       close = el("button", "place-sheet-shut", "×");
     close.setAttribute("aria-label", "Close");
     close.onclick = () => this.open(null);
-    head.append(this.sheetTitle, close);
+    // (What this sheet is, in plain words: G2.)
+    const what = el("button", "place-sheet-help", "?");
+    what.setAttribute("aria-label", "What is this sheet? In plain words");
+    what.title = what.getAttribute("aria-label")!;
+    what.onclick = () => this.tab && this.onHelp(`sheet:${this.tab}`);
+    head.append(this.sheetTitle, what, close);
     this.sheet.append(head, this.sheetBody);
     this.sheetBody.addEventListener("pointerdown", () => (this.held = performance.now() + 800));
     for (const up of ["pointerup", "pointercancel"])

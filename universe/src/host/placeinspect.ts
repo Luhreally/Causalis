@@ -69,6 +69,7 @@ import { placeCharacter } from "./placecharacter.ts";
 import { placeBody } from "./placebody.ts";
 import { placeMaking } from "./placemaking.ts";
 import { placeCivic } from "./placecivic.ts";
+import { placeHelp } from "./placehelp.ts";
 import { placeInventory } from "./placeinventory.ts";
 import { bondWords, placeBound } from "./placebound.ts";
 import { placeFaith } from "./placefaith.ts";
@@ -1138,6 +1139,8 @@ function lotZone(
 
 /** What a ref of the town's names, for its inspector: one of its people (by their page, or their roster's), or a lot. */
 export function placeInspect(world: World, town: string, ref: string): PlaceInspect | null {
+  // (A page of words, the same for every town: G2.)
+  if (ref.startsWith("plch:")) return placeHelp(town, ref.slice(ref.indexOf("|") + 1));
   const place = enterPlace(world, town);
   if (!place) return null;
   if (ref.startsWith("plcb:")) return placeBelow(world, place);

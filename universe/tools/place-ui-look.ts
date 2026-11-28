@@ -554,6 +554,23 @@ for (const view of [
       } else
         check((await shown(".place-guide")) === 0, "the lessons hidden on a phone till asked for");
     }
+    // What this tab is, in plain words (G2): from the inspector's ?, and Back to them.
+    const inspKind = () => k<string>('document.querySelector(".place-insp")?.dataset.kind ?? ""');
+    await press(".place-insp-helpkey", "? on a person's page");
+    await until("what this is", async () => (await inspKind()) === "help", 8000);
+    say(`help: ${(await text(".place-insp")).slice(0, 200)}`);
+    check(
+      /What is this\?/.test(await text(".place-insp-names")),
+      "what the tab is, in plain words",
+    );
+    await look("16h-help", "what a tab is, in plain words");
+    await press(".place-insp-back", "‹ Back from what this is");
+    await until(
+      "them again, after what this is",
+      async () => (await inspKind()) === "person",
+      8000,
+    );
+    check((await inspKind()) === "person", "Back from what this is comes to them");
     // (A child has no orders to give.)
     if ((await shown(".place-insp-order")) > 0) {
       await press(".place-insp-order", "the inspector's Orders");
@@ -1087,6 +1104,16 @@ for (const view of [
     // One of its dead (R1): the Log's names lead to them; their page outlives them, and Back comes again.
     {
       await press('.place-tab[data-tab="log"]', "the log tab, for one of its dead");
+      // (What the Log is, in plain words, G2: its sheet's ?, a page of the inspector's.)
+      {
+        await until("the log sheet's ?", async () => (await shown(".place-sheet-help")) > 0, 8000);
+        await press(".place-sheet-help", "? on the Log");
+        await until("what the Log is", async () => (await kind()) === "help", 8000);
+        check(/Log/.test(await text(".place-insp-names")), "what the Log is, in plain words");
+        await look("20i-sheet-help", "what a sheet is, over it");
+        await press(".place-insp-shut", "× what the Log is");
+        await page.waitForTimeout(300);
+      }
       await until("the log sheet", async () => !/^…$/.test(await text(".place-sheet-body")));
       await page.waitForTimeout(500);
       const refs = await k<string[]>(
