@@ -4,9 +4,16 @@
 // peace with (reign.war, reign.peace, W7), each with what it would cost or why it cannot be, in the world's own words. One
 // word a year; then the year is let pass and what it came to is told. Every act is a command the god game's ruler (L4)
 // already gives, so a world where none is given runs exactly as it would have. Fetched with Live a Line only.
-import type { HostClient, ReignEnvoys, ReignNow, ReignWars, TownOffers } from "../bridge/index.ts";
+import type {
+  HostClient,
+  ReignDecrees,
+  ReignEnvoys,
+  ReignNow,
+  ReignWars,
+  TownOffers,
+} from "../bridge/index.ts";
 
-export type CouncilKind = "build" | "court" | "fight" | "peace";
+export type CouncilKind = "build" | "law" | "court" | "fight" | "peace";
 
 /** One thing the council could do this year: what, what it would cost or why not, and the command that does it. */
 export type CouncilChoice = {
@@ -56,13 +63,14 @@ export async function councilOf(
 ): Promise<Council | null> {
   const who = { realm, ruler },
     quiet = <T>(p: Promise<T>) => p.catch(() => null);
-  const [now, wars, envoys, offers] = await Promise.all([
+  const [now, wars, envoys, offers, decrees] = await Promise.all([
     quiet(client.query<ReignNow | null>({ type: "reign.now", args: who })),
     quiet(client.query<ReignWars | null>({ type: "reign.wars", args: { realm } })),
     quiet(client.query<ReignEnvoys | null>({ type: "reign.envoys", args: { realm } })),
     town
       ? quiet(client.query<TownOffers | null>({ type: "town.offers", args: { ref: town } }))
       : Promise.resolve(null),
+    quiet(client.query<ReignDecrees | null>({ type: "reign.decrees", args: { realm } })),
   ]);
   if (!now) return null;
   const choices: CouncilChoice[] = [];
@@ -92,6 +100,25 @@ export async function councilOf(
         type: "town.ask",
         args: { village: offers.town, kind: o.kind, what: o.what, by: who },
       });
+  }
+  // —— A law: the first of its laws a decree could set otherwise than it stands, as its ruler may decree it.
+  if (decrees) {
+    let law: CouncilChoice | null = null;
+    for (const l of decrees.laws) {
+      const o = l.options.find((x) => x.can && x.label !== l.now);
+      if (!o) continue;
+      law = {
+        kind: "law",
+        icon: "📜",
+        label: `Decree it: ${l.title.replace(/^./, (c) => c.toLowerCase())}, ${o.label} (now ${l.now})`,
+        words: o.words,
+        can: true,
+        type: "reign.decree",
+        args: { ...who, law: l.law, to: o.to },
+      };
+      break;
+    }
+    if (law) choices.push(law);
   }
   // —— Court: an envoy to a realm it meets, the warmest errand that can be done.
   if (envoys?.realms.length) {

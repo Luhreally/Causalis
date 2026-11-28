@@ -2642,7 +2642,7 @@ const HELP: Readonly<Record<string, readonly [string, readonly string[]]>> = {
   "help:year": [
     "Your realm's year",
     [
-      "Once a realm holds your line's land, you rule its years. Each year its council offers three things, read off your world as it stands: one to build (your line's town asked to raise what it can), one realm to court (an envoy with a gift, a pact or an embassy), and one to fight, or to make peace with if it is at war.",
+      "Once a realm holds your line's land, you rule its years. Each year its council offers what it could do, read off your world as it stands: one thing to build (your line's town asked to raise what it can), one of its laws to set otherwise, one realm to court (an envoy with a gift, a pact or an embassy), and one to fight, or to make peace with if it is at war.",
       "Each says what it would cost or why it cannot be: its ruler's standing, its grain, its host. One word a year; then let the year pass, and see what it came to: its people, its lands, its place among the realms it meets.",
       "These are the god game's own acts of a ruler, given in its ruler's name: your world changes, as teaching your land to sow does. It is kept in your saves first, as it was before your realm's first year.",
     ],
