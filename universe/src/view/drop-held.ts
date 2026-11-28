@@ -196,6 +196,21 @@ export function threatOf(s: DropState, c: Cell): number | null {
   return best;
 }
 
+/** Where the one held looks: toward the nearest hunter that could take it, else toward the nearest food (null: neither). */
+export function lookOf(s: DropState, c: Cell): { dx: number; dy: number } | null {
+  let best: { dx: number; dy: number; d: number } | null = null;
+  for (const o of s.cells) {
+    if (o.way !== "hunter" || c.size >= o.size * 0.5) continue;
+    const dx = gap(c.x, o.x, FIELD_W),
+      dy = gapY(s, c.y, o.y),
+      d = Math.hypot(dx, dy);
+    if (d < SENSED * 1.6 && (!best || d < best.d)) best = { dx, dy, d };
+  }
+  if (best) return best;
+  const f = foodOf(s, c);
+  return f && f.d < 40 ? f : null;
+}
+
 /** The nearest food to the one held: how far, and which way (µm; null: none within sight). */
 export function foodOf(
   s: DropState,

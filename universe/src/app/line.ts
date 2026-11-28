@@ -13,6 +13,7 @@ import type { GenesisPlan, HostClient } from "../bridge/index.ts";
 import { MicroScene, type OrbitRig, type Stage } from "../render/index.ts";
 import { LineCreature, type LineBody } from "./line-creature.ts";
 import { DepthLayer, type Beyond } from "./line-depth.ts";
+import { CellJuice } from "./line-juice.ts";
 import { LineSound } from "./line-sound.ts";
 import { el, type PlaceLoading } from "../ui/index.ts";
 import { LineHud } from "../ui/line-hud.ts";
@@ -38,6 +39,7 @@ import {
   holdDrop,
   preyOf,
   ENGULF,
+  lookOf,
   stepHeld,
   threatOf,
   type DropHand,
@@ -160,7 +162,8 @@ export function installLine(d: LineDeps): LineFlow {
     ateSeen = 0,
     across = 0,
     played = 0,
-    depth: DepthLayer | null = null;
+    depth: DepthLayer | null = null,
+    juice: CellJuice | null = null;
   const noises = new LineSound();
   /** How everything stood as the mode was entered, to be put back as it was on waking. */
   let was: {
@@ -435,6 +438,7 @@ export function installLine(d: LineDeps): LineFlow {
     layer(null);
     if (!next) return;
     noises.play("split");
+    juice?.divided();
     wasFull = false;
     ateSeen = next.ate;
     hand = next;
@@ -1006,7 +1010,10 @@ export function installLine(d: LineDeps): LineFlow {
             if (way && kindOf(way) >= 0) arise(drop, kindOf(way));
           }
       }
-      if (hand.ate > ateSeen) noises.play("chomp");
+      if (hand.ate > ateSeen) {
+        noises.play("chomp");
+        juice?.bite();
+      }
       ateSeen = hand.ate;
       played += dt;
       if (hand.steered > 1.2) guide.did("steer");
@@ -1019,7 +1026,25 @@ export function installLine(d: LineDeps): LineFlow {
     } else hud.takePressed();
     eye(dt);
     const c = heldCell(drop, hand);
-    micro.living(roundDrop(aboutHeld(drop, hand), c ? hand.id : null), colours(), plan?.drop?.grain?.color);
+    const round = roundDrop(aboutHeld(drop, hand), c ? hand.id : null);
+    if (c) {
+      // (The cell held made lively: its eyes, its parts, its squash and stretch, its bites and its grip's ring.)
+      juice ??= new CellJuice(d.stage, micro.root as never);
+      juice.root.enabled = true;
+      juice.update(
+        round,
+        c.kind,
+        roundOf({ id: c.id, x: FIELD_W / 2, y: c.y }),
+        Math.max(0.12, c.size * (12 / 180) * 1.7),
+        c.heading,
+        paused ? 0 : Math.min(1, Math.hypot(hand.mx, hand.my)),
+        traits,
+        lookOf(drop, c),
+        1 - hand.caught / ENGULF,
+        Math.min(0.1, dt),
+      );
+    } else if (juice) juice.root.enabled = false;
+    micro.living(round, colours(), plan?.drop?.grain?.color);
     depth ??= new DepthLayer(d.stage, micro.root as never);
     depth.update(beyondOf(), traits.size, played, 0, cy);
     const now = performance.now();
