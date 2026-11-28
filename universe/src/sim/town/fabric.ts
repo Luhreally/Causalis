@@ -347,6 +347,8 @@ export class TownStore implements StateStore {
   readonly name = "town.fabric";
   /** Saved packed by column (kernel/pack.ts). */
   readonly packed = true;
+  /** Its save is its towns' columns written afresh, of numbers and names (intoColumns), and its digest's two numbers. */
+  readonly savesAnew = true;
   private readonly map = new Map<string, Fabric>();
   /** (Each town's fabric by the settlement itself, for the year's walk over them: a cache, let go on loading.) */
   private readonly bySettlement = new Map<Settlement, Fabric>();

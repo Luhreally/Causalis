@@ -201,7 +201,8 @@ export function* saveSteps(
       asked: store.packed === true,
       outside: store.outsideRules === true,
       ...(store.packed === undefined ? {} : { packed: store.packed }),
-      saved: heldCopy(saved),
+      // (A store whose save is made anew needs no copy of it: it holds nothing the world goes on to change.)
+      saved: store.savesAnew === true ? saved : heldCopy(saved),
     });
     yield;
   }

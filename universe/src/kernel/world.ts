@@ -37,6 +37,11 @@ export interface StateStore {
    */
   readonly packed?: boolean;
   /**
+   * Whether what save() (or saveSteps) gives is made anew, sharing nothing of the store the world goes on to change: a save
+   * then keeps it as it is, not a copy of it (kernel/save.ts heldCopy), while the world goes on before the save is made.
+   */
+  readonly savesAnew?: boolean;
+  /**
    * Whether it holds nothing yet: a store a later phase added, which until it holds anything is hashed
    * as if it were not there, so that it moves nothing of a history it has had no part in (Phase 66).
    */
