@@ -28,6 +28,7 @@ import {
   type TownOffers,
 } from "../bridge/index.ts";
 import { el } from "./why.ts";
+import { PlaceGuide } from "./place-guide.ts";
 import { billsEl } from "./place-bills.ts";
 
 export type PlaceTab = "people" | "stocks" | "work" | "build" | "dangers" | "log";
@@ -161,6 +162,8 @@ export class PlaceHud {
   private readonly noticeText = el("div", "place-notice-text");
   private readonly alertsBox = el("div", "place-alerts");
   private readonly sheet = el("section", "place-sheet");
+  /** Its lessons (G1): a card at the foot of the right-hand column on a desk; on a phone, out only when asked for. */
+  readonly guide = new PlaceGuide();
   private readonly sheetTitle = el("h2");
   private readonly sheetBody = el("div", "place-sheet-body");
   private readonly tabs = new Map<PlaceTab, HTMLButtonElement>();
@@ -217,6 +220,8 @@ export class PlaceHud {
   onEscape: () => void = () => {};
   /** F: the eye kept with the one chosen, or let go (false: no one is chosen, and the key is not the mode's). */
   onFollow: () => boolean = () => false;
+  /** Its lessons asked for on a phone, or put back (G1): the inspector goes down while they are out. */
+  onGuide: (out: boolean) => void = () => {};
   /** A sheet opened or closed, by a tab or from the page (for what lies beside it). */
   onSheet: (tab: PlaceTab | null) => void = () => {};
   /** The game's sound, from the menu (null: none to be had). */
@@ -300,7 +305,16 @@ export class PlaceHud {
       this.menuOpen(false);
       this.onLeave();
     };
-    this.menu.append(this.soundKey, ways, leave);
+    // (Its lessons brought out again, G1: on a phone in the sheet's place.)
+    const lessons = el("button", "place-menu-item place-menu-lessons", "🎓  Lessons");
+    lessons.onclick = () => {
+      this.menuOpen(false);
+      if (this.tab) this.open(null);
+      this.guide.ask(true);
+      this.onGuide(true);
+    };
+    this.menu.append(this.soundKey, ways, lessons, leave);
+    this.guide.onLaid = () => this.laidGuide();
     this.menu.hidden = true;
     this.watchText.append(this.watchTitle, this.watchWords);
     this.watchText.onclick = () => {
@@ -342,6 +356,7 @@ export class PlaceHud {
       this.modes,
       this.menu,
       this.alertsBox,
+      this.guide.element,
       this.lensBox,
       this.notice,
       this.sheet,
@@ -508,6 +523,21 @@ export class PlaceHud {
     if (this.shown) document.body.classList.toggle("place-watching", watching);
     if (!watching) this.caption(null);
   }
+  /** A lesson done (G1). */
+  lesson(id: string): void {
+    this.guide.done(id);
+  }
+  /** Its lessons put back from the sheet's place on a phone (one opened in their place). */
+  guideAside(): void {
+    if (this.guide.askedFor) this.guide.ask(false);
+  }
+  /** The lessons' card as it lies: out on a desk (the alerts above kept clear of it by its height), asked for on a phone. */
+  private laidGuide(): void {
+    const e = this.element;
+    e.classList.toggle("guide-out", this.guide.out);
+    e.classList.toggle("guide-asked", this.guide.askedFor);
+    e.style.setProperty("--guide-h", `${this.guide.element.offsetHeight}px`);
+  }
   /** What the eye is with in a town watched (null: nothing yet). */
   caption(c: PlaceCaption | null): void {
     this.captionNow = c;
@@ -540,6 +570,8 @@ export class PlaceHud {
 
   /** A sheet opened (null: closed). */
   open(tab: PlaceTab | null, tell = true): void {
+    // (A sheet opened in the lessons' place on a phone: they go back till asked for again.)
+    if (tab && this.guide.askedFor) this.guide.ask(false);
     this.tab = tab;
     this.setting = null;
     this.ordering = null;

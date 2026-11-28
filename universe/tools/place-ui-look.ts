@@ -522,6 +522,38 @@ for (const view of [
       await k('globalThis.causalis.place.inspectHeight("half")');
       await page.waitForTimeout(400);
     }
+    // The lessons (G1): opening a person ticked off, its Show me lighting the real key where it is out.
+    {
+      const done = () =>
+        k<string[]>(
+          '[...document.querySelectorAll(".place-guide-lesson.done")].map((e) => e.dataset.lesson)',
+        );
+      if (!phone) {
+        check((await shown(".place-guide")) > 0, "the lessons' card out on a desk");
+        check(
+          (await done()).includes("enter") && (await done()).includes("person"),
+          "entering and opening a person ticked off",
+        );
+        // (A lesson done has no Show me: the first of those whose key is out on a person's page not yet done.)
+        const todo = await k<string>(
+          '["mood", "back", "follow"].find((l) => document.querySelector(`.place-guide-lesson[data-lesson="${l}"] .place-guide-show`)) ?? ""',
+        );
+        check(todo !== "", "a lesson not yet done whose key is out on a person's page");
+        if (todo) {
+          await press(
+            `.place-guide-lesson[data-lesson="${todo}"] .place-guide-show`,
+            `Show me, for the lesson "${todo}"`,
+          );
+          await page.waitForTimeout(300);
+          check(
+            (await shown(".place-glow")) > 0,
+            `Show me lights the real key for the lesson "${todo}"`,
+          );
+        }
+        await look("16g-lessons", "the lessons beside a person's page");
+      } else
+        check((await shown(".place-guide")) === 0, "the lessons hidden on a phone till asked for");
+    }
     // (A child has no orders to give.)
     if ((await shown(".place-insp-order")) > 0) {
       await press(".place-insp-order", "the inspector's Orders");
@@ -929,6 +961,24 @@ for (const view of [
       "below the town: its ground cut through, its water said",
     );
     await look("20g-below", "below the town");
+    // (Its lessons asked for from the menu, on a phone in the sheet's place, and put back by a sheet; ticks kept.)
+    if (phone) {
+      await press(".place-menu-key", "the menu, for the lessons");
+      await page.waitForTimeout(300);
+      await press(".place-menu-lessons", "🎓 Lessons, from the menu");
+      await page.waitForTimeout(400);
+      check((await shown(".place-guide")) > 0, "the lessons out on a phone when asked for");
+      const ticked = await k<string[]>(
+        '[...document.querySelectorAll(".place-guide-lesson.done")].map((e) => e.dataset.lesson)',
+      );
+      say(`lessons done: ${ticked.join(", ")}`);
+      for (const l of ["enter", "person", "back", "follow", "mood"])
+        check(ticked.includes(l), `the lesson "${l}" ticked off by doing it`);
+      await look("20h-lessons", "the lessons on a phone, asked for");
+      await press(".place-guide-shut", "× the lessons put away");
+      await page.waitForTimeout(300);
+      check((await shown(".place-guide")) === 0, "the lessons put away");
+    }
     await press(".place-insp-back", "‹ Back to the square's page");
     await until("the square's page again", async () => (await kind()) === "lot", 8000);
     check((await kind()) === "lot", "Back from below comes to the square's page");
@@ -1127,9 +1177,12 @@ for (const view of [
   await page.waitForTimeout(400);
   check((await shown(".place-insp")) === 0, "Esc lets go of what was inspected");
 
-  // The menu: sound, the ways, leaving.
+  // The menu: sound, the ways, the lessons, leaving.
   await press(".place-menu-key", "≡");
-  check((await shown(".place-menu-item")) === 3, "the menu has its three items");
+  check(
+    (await shown(".place-menu-item")) === 4,
+    "the menu has its four items: sound, the ways, the lessons, leaving",
+  );
   await look("06-menu", "the menu open");
   await press(".place-menu-key", "≡ again, to close it");
 

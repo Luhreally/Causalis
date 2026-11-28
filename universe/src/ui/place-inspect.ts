@@ -108,6 +108,8 @@ export class PlaceInspector {
   /** The god game's full page of it. */
   onPage: (ref: string) => void = () => {};
   onFollow: (on: boolean) => void = () => {};
+  /** One of a person's tabs opened (G1's lessons). */
+  onTabbed: (tab: string) => void = () => {};
   onOrder: (type: string, args: Record<string, unknown>) => void = () => {};
   /** One of its people followed in full by word, or let go of (tiers). */
   onPin: (id: number, on: boolean) => void = () => {};
@@ -392,6 +394,7 @@ export class PlaceInspector {
       b.classList.toggle("on", this.tab === t);
       b.onclick = () => {
         this.tab = t;
+        this.onTabbed(t);
         if (this.height === "peek") this.setHeight("half");
         this.redraw();
       };
