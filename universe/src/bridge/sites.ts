@@ -912,9 +912,18 @@ export function* grownBlocksSteps(
   // is kept at a later block. Kept on the first clear ground along the road whatever stood about it, a market place stood past
   // four blocks of water, nearly two hundred metres out along its road with nothing about it: first light's Thaethostmere at
   // 120, 165 m from its nearest lot.)
+  // (Where its main street is spent both ways and gives none, the next street that fronts the town's blocks, by the same
+  // rule: first light's Githuford and Syhirney at 120, their main streets cut off by ground they could not build on, kept
+  // none.)
   const keepPlace = (b: number): boolean => {
+    const main = streets[QUARTER.road]!;
+    if (keepPlaceOn(b, main)) return true;
+    if (!main.done[0] || !main.done[1]) return false;
+    for (const st of streets) if (st !== main && st.used.size && keepPlaceOn(b, st)) return true;
+    return false;
+  };
+  const keepPlaceOn = (b: number, st: Street): boolean => {
     const want = site.place!,
-      st = streets[QUARTER.road]!,
       first = Math.max(st.next[0], st.next[1]);
     // (As great as it was kept, both sides of the street and two blocks long; else one block long; else one side.)
     if (want.size >= 3 && keepPlaceAs(b, st, first, true, 2)) return true;
