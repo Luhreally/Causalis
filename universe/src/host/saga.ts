@@ -54,6 +54,7 @@ const ASKED = [
   "line.bred",
   "line.makeSo",
   "line.band",
+  "line.story",
   "saga.list",
   "saga.keep",
 ];

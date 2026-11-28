@@ -599,6 +599,66 @@ for (const view of [
         kept.some((n) => /before your band sowed/.test(n)),
         `the world before it kept (${kept.slice(0, 3).join(", ")})`,
       );
+
+      // —— The line's story (S7): six pages, ‹ and › through them all; the years run until the land's first village
+      // comes, and Go and see opens the god game's page of it.
+      await pressText(".line-card-go, .line-card-other", /story/, "📜 Your line's story");
+      await page.waitForTimeout(500);
+      const pageNow = () => k<string | null>("globalThis.causalis.lineMode.state().page");
+      check(
+        (await pageNow()) === "story:village",
+        `the story opened at its village (${await pageNow()})`,
+      );
+      for (const want of ["story:town", "story:realm"]) {
+        await pressText(".line-page .line-link", / ›$/, "the story's next ›");
+        await page.waitForTimeout(250);
+        check((await pageNow()) === want, `› on to ${want} (${await pageNow()})`);
+      }
+      for (const want of [
+        "story:town",
+        "story:village",
+        "story:band",
+        "story:body",
+        "story:cell",
+      ]) {
+        await pressText(".line-page .line-link", /^‹ /, "the story's ‹");
+        await page.waitForTimeout(250);
+        check((await pageNow()) === want, `‹ back to ${want} (${await pageNow()})`);
+        await look(`25-${want.slice(6)}`, `the story: ${want}`);
+      }
+      // (The years run, a year at a time, until the land's first village comes: its turn among the lands that sow.)
+      await k("globalThis.causalis.lineMode.close()");
+      type Village = { ref: string; name: string; founded: number };
+      let village = null as Village | null;
+      for (let y = 0; y < 12 && !village; y++) {
+        const t = await k<number>("globalThis.causalis.client.status?.t ?? 0");
+        await k(`globalThis.causalis.client.advance(${t + 365 * 86400})`);
+        await k("globalThis.causalis.lineMode.story('story:village')");
+        village =
+          (await k<{ village: Village | null } | null>("globalThis.causalis.lineMode.storyWorld()"))
+            ?.village ?? null;
+      }
+      check(
+        !!village,
+        `the band's land has its first village: ${village ? `${village.name}, the year ${village.founded}` : "not in twelve years"}`,
+      );
+      await page.waitForTimeout(400);
+      await look("26-village", "the story: its village come");
+      if (village) {
+        await pressText(".line-page button.line-link", /Go and see/, "🏘️ Go and see");
+        await until(
+          "the god game's page of the village",
+          async () =>
+            (await k<string | null>("globalThis.causalis.pageOpen() ?? null")) === village!.ref,
+          20000,
+        );
+        check(
+          !(await k<boolean>("globalThis.causalis.lineMode.state().on")),
+          "the mode left for the god game's own page",
+        );
+        await look("27-village-page", "the village's page in the god game");
+        await k("globalThis.causalis.closePage()");
+      }
     }
   }
   await k("globalThis.causalis.lineMode.close()");

@@ -13,6 +13,8 @@ import type { GenesisPlan, HostClient } from "../bridge/index.ts";
 import { MicroScene, type OrbitRig, type Stage } from "../render/index.ts";
 import { LineCreature, type LineBody } from "./line-creature.ts";
 import { LineBand } from "./line-band.ts";
+import { STORY, storyPage, type StoryOf } from "./line-story.ts";
+import type { LineStory } from "../host/line-story.ts";
 import type { CampNear } from "../bridge/index.ts";
 import { DepthLayer, type Beyond } from "../render/line-depth.ts";
 import { CellJuice } from "../render/line-juice.ts";
@@ -87,6 +89,8 @@ export type LineDeps = {
   readonly time: { hold(who: string): void; release(who: string): void };
   /** The game's sound: its settings say whether the mode's own small sounds are heard (app/line-sound.ts). */
   readonly sound: ConstructorParameters<typeof LineSound>[0];
+  /** A page of the god game's opened (the line's story leads into its village, town and realm: S7). */
+  readonly open: (ref: string) => void;
 };
 
 export type LineFlow = {
@@ -129,6 +133,16 @@ type SagaData = {
   deaths: number;
   /** The tree of life's line its body was founded from (a line made so is its daughter; absent: none founded). */
   node?: number | null;
+  /** The band led (S6): its people, its land (and the land's cell), how many, born, the grain seen, the land taught. */
+  tribe?: {
+    people: string;
+    land: string;
+    cell: number;
+    size: number;
+    born: number;
+    sprouted: boolean;
+    taught: boolean;
+  } | null;
 };
 
 /** The drop's ways, by the step of the dawn each arises at (as the genesis has them). */
@@ -201,7 +215,9 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
     bandLand: { cell: number; id: number; grain: boolean; sows: boolean } | null = null,
     /** The band's size when last drawn, its news last told, whether its land has been taught to sow. */
     bandSeen = 0,
-    taught = false;
+    taught = false,
+    /** What came of the band's land in the world, as last asked (S7). */
+    storyWorld: LineStory | null = null;
   const noises = new LineSound(d.sound);
   /** How everything stood as the mode was entered, to be put back as it was on waking. */
   let was: {
@@ -700,6 +716,16 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
     const b = band.band,
       l = band.led,
       st = band.strip()!;
+    if (saga && bandLand)
+      saga.tribe = {
+        people: band.info.people,
+        land: band.info.land,
+        cell: bandLand.cell,
+        size: b.people.length,
+        born: l.born,
+        sprouted: !!l.sprouted,
+        taught,
+      };
     hud.head(
       `The ${band.info.people} · your band`,
       band.info.land,
@@ -709,7 +735,9 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
           ? 0.85
           : Math.min(0.8, (b.people.length - bandSeen) / Math.max(1, l.most - bandSeen)),
       taught
-        ? "Your land sows: its first village comes in its turn"
+        ? storyWorld?.village
+          ? `Its first village has come: ${storyWorld.village.name}. 📜 See your line's story`
+          : "Your land sows: its first village comes in its turn"
         : l.sprouted
           ? "Next: teach your land to sow"
           : "Next: a band well fed, and the seed it drops come up",
@@ -756,11 +784,46 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
           : [`${(r as { error?: string }).error ?? "It was turned back."}`],
         [
           key("Stay with the band", () => layer(null), true),
+          key("📜 Your line's story", () => void openStory("story:village"), true),
           key("☀️ Wake", () => void flow.wake()),
         ],
         "help:band",
       ),
     );
+  };
+
+  // —— The line's story (S7): six pages, its cell to the realm its band's land became part of ——————————————————————
+  const storyNow = (): StoryOf => {
+    const s = saga;
+    return {
+      cell: s?.gens.length
+        ? { gens: s.gens.length, way: wayWord(traits ?? s.first), my: s.gens[0]?.my ?? s.my }
+        : null,
+      bodies: (s?.bodies ?? []).map((b) => ({
+        name: b.name,
+        way: b.way,
+        mass: massText(b.mass),
+        my: b.my,
+      })),
+      band: s?.tribe ?? null,
+      world: storyWorld,
+    };
+  };
+  /** The story opened at a page, what came of the band's land asked of the world first. */
+  const openStory = async (at: string = STORY[0]) => {
+    const cell = saga?.tribe?.cell ?? bandLand?.cell;
+    storyWorld =
+      cell === undefined
+        ? null
+        : await d.client.query<LineStory | null>({ type: "line.story", args: { cell } });
+    layer(null);
+    openPage(at);
+  };
+  /** Out of the mode to the god game's own page of a thing of the world: its village, town or realm. */
+  const goSee = (text: string, ref: string) => {
+    const b = el("button", "line-link", text);
+    b.onclick = () => void flow.wake().then(() => d.open(ref));
+    return b;
   };
 
   const stageDone = () => {
@@ -1130,6 +1193,8 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
       f = facts,
       s = saga,
       L = (text: string, r: string) => pages.link(text, r);
+    const told = ref.startsWith("story:") ? storyPage(ref, storyNow(), L, goSee) : null;
+    if (told) return told;
     if (ref === "cell" && t && f && s) {
       const c = drop && hand ? heldCell(drop, hand) : null,
         w = worth(t.size),
@@ -1633,7 +1698,7 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
   };
   hud.onHelp = () => openPage("help:mode");
   hud.onStripHelp = () => openPage(living ? "help:body" : "help:cell");
-  hud.onName = () => openPage(living ? "body" : "cell");
+  hud.onName = () => (leading ? void openStory("story:band") : openPage(living ? "body" : "cell"));
   hud.onGuide = () => (hud.modal ? layer(null) : layer(guide.panel(() => layer(null))));
   hud.onNow = () => {
     if (!traits) return;
@@ -1748,6 +1813,7 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
                     true,
                   ),
                   key("⛺ Lead a band", () => void startBand(), true),
+                  key("📜 Its story", () => void openStory(), true),
                   key("Go on with it", () => layer(null)),
                 ],
                 "help:mode",
@@ -1907,6 +1973,8 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
       bandMorning: () => band?.toMorning() ?? false,
       sow: () => sowCard(),
       teach: () => teach(),
+      story: (at?: string) => openStory(at),
+      storyWorld: () => storyWorld,
     };
   return flow;
 }
@@ -2034,6 +2102,14 @@ const HELP: Readonly<Record<string, readonly [string, readonly string[]]>> = {
       "A band fed well three days running has a child; one starved three days running loses its weakest. Seed eaten by a fire is dropped there: where a wild grain grows, a camp come back to after some days has it growing thick. That is how sowing came to people. Once your band has seen it, 🌱 Sow teaches your land to sow, and its people settle in their own time.",
     ],
   ],
+  "help:story": [
+    "Your line's story",
+    [
+      "Six pages, from your line's first cell to the realm its people's land became part of: ‹ and › walk them in order, and Back and Forward as every page does.",
+      "The cell, the body and the band are what you lived. The village, the town and the realm are what came of the land your band was led in, read off your world as it stands now: a step not come yet says what brings it.",
+      "🏘️ Go and see leaves the mode for your world's own page of the place: from there you may live as one of its people, or rule them.",
+    ],
+  ],
   "help:young": [
     "How your young differ",
     [
@@ -2061,4 +2137,5 @@ const HELP_LINKS: readonly (readonly [string, string])[] = [
   ["help:young", "How your young differ"],
   ["help:makeso", "Make it so"],
   ["help:band", "Leading a band"],
+  ["help:story", "Your line's story"],
 ];
