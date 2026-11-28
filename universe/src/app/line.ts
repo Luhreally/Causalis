@@ -125,6 +125,8 @@ type SagaData = {
   gathered: number;
   ate: number;
   deaths: number;
+  /** The tree of life's line its body was founded from (a line made so is its daughter; absent: none founded). */
+  node?: number | null;
 };
 
 /** The drop's ways, by the step of the dawn each arises at (as the genesis has them). */
@@ -684,6 +686,7 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
     my = Math.min(my, bodiesAt());
     saga.my = my;
     saga.body = b;
+    saga.node = b.node ?? null;
     saga.bodies = [
       { my, name: b.name, way: b.way, mass: b.genome.mass, reasons: b.reasons, died: null },
     ];
@@ -1383,7 +1386,68 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
     };
   };
 
-  hud.onWake = () => void flow.wake();
+  // (Wake, or Make it so: once the line has come anywhere, both are offered; the world it was lived in is kept either way.)
+  hud.onWake = () =>
+    saga && (saga.gens.length || saga.body)
+      ? layer(
+          card(
+            "Wake, or make it so?",
+            [
+              "☀️ Wake: back to your world as it is. Nothing in it has changed.",
+              "✨ Make it so: a new world is made from your world's beginning, with your line in it. What your cell ate is what prospered in its first seas, and the ways your body lived prospered in their ages. Your world as it is now is kept.",
+            ],
+            [
+              key("☀️ Wake", () => void flow.wake(), true),
+              key("✨ Make it so", () => void makeItSo()),
+            ],
+            "help:makeso",
+          ),
+        )
+      : void flow.wake();
+  /** The line made so: the world's seed with the acts the line lived, the world kept, the new world opened from year 0. */
+  const makeItSo = async () => {
+    if (!saga) return;
+    const made = await d.client.query<{ seed: string; acts: string[] }>({
+      type: "line.makeSo",
+      args: {
+        // (The way its cell came to: the cell it lives in, or the last it lived in.)
+        cell: wayOf(traits ?? saga.first),
+        bodies: (saga.bodies ?? []).map((b) => ({ my: b.my, way: b.way })),
+        node: saga.node ?? null,
+        // (Its body as you leave it: the one your line lives in now.)
+        genome: saga.body?.genome ?? null,
+      },
+    });
+    if (!made.acts.length) {
+      hud.say(
+        "Your line has made nothing yet that would change its world: live it on, then make it so.",
+        false,
+      );
+      return;
+    }
+    // (What the new world will hold of it, shown while it is made: the body your line lives in, its picture.)
+    const made1 = card(
+      "Making it so…",
+      [
+        saga.body
+          ? `Your line, the ${saga.body.name}, lives on to now in the new world: as you left it, ${sizeTier(saga.body.genome.mass).words} and a ${saga.body.way}. Find it in its tree of life as “Your line”.`
+          : "Your cell's way prospers in the new world's first seas.",
+        "Your world as it is now is kept in your saves.",
+      ],
+      [],
+      "help:makeso",
+    );
+    if (saga.body)
+      made1.querySelector(".line-card-head")?.after(beastPicture(saga.body.body, null));
+    layer(made1);
+    await keepSaga();
+    // (Your world kept as the game keeps it, its own save: app/main.ts's checkpoint, by the same name.)
+    const params = new URLSearchParams(location.search),
+      universe = params.get("universe") ?? "earth",
+      seed = params.get("seed") ?? "first light";
+    await d.client.save(`${universe}:${seed}:auto`).catch(() => undefined);
+    location.search = `?universe=${encodeURIComponent(universe)}&seed=${encodeURIComponent(made.seed)}`;
+  };
   hud.onHelp = () => openPage("help:mode");
   hud.onStripHelp = () => openPage(living ? "help:body" : "help:cell");
   hud.onName = () => openPage(living ? "body" : "cell");
@@ -1719,6 +1783,14 @@ const HELP: Readonly<Record<string, readonly [string, readonly string[]]>> = {
       "Eat until you are well fed, then court one of your kind near you: young are born, and you choose which your line goes on in.",
     ],
   ],
+  "help:makeso": [
+    "Make it so",
+    [
+      "Your world's deep past is made, not lived: its first seas, its ages and its tree of life come from its beginning. Living a line changes none of it until you make it so.",
+      "Make it so makes a new world from the same beginning with your line laid into it: the way your cell lived is what prospered in its first seas, each age your body lived on land prospered in that way, and your line itself is in its tree of life, a daughter of the line it was founded from.",
+      "Everything your line did not reach is as it was. Your world as it is now is kept: you can go back to it from your saves.",
+    ],
+  ],
   "help:young": [
     "How your young differ",
     [
@@ -1744,4 +1816,5 @@ const HELP_LINKS: readonly (readonly [string, string])[] = [
   ["help:pages", "These pages"],
   ["help:body", "Your line's body"],
   ["help:young", "How your young differ"],
+  ["help:makeso", "Make it so"],
 ];

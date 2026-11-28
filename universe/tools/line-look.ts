@@ -469,8 +469,11 @@ for (const view of [
   );
   await look("16-next-age", "the next age");
 
-  // —— Wake: back to the world, exactly where it was.
+  // —— Wake: offered beside Make it so; back to the world, exactly where it was.
   await press(".line-wake", "☀️ Wake");
+  await page.waitForTimeout(300);
+  await look("16b-wake-or-make", "Wake, or make it so");
+  await pressText(".line-card-go, .line-card-other", /☀️ Wake/, "the card's ☀️ Wake");
   await until(
     "woken",
     async () => !(await k<boolean>("globalThis.causalis.lineMode.state().on")),
@@ -511,6 +514,73 @@ for (const view of [
       check(
         (await k<number>("globalThis.causalis.client.status?.t ?? -1")) === t0,
         "the clock still where it was after a second waking",
+      );
+    }
+  }
+  // —— Make it so (S4): the line laid into a new world from its beginning, the old world kept; the new world opened from
+  // year 0 in the time allowed, its tree holding the line. On the desk, once.
+  if (!phone) {
+    await k("globalThis.causalis.line.open(null)");
+    await until(
+      "in again for Make it so",
+      async () => !!(await k<boolean>("globalThis.causalis.lineMode?.state().on")),
+      30000,
+    );
+    await k("globalThis.causalis.lineMode.close()");
+    await page.waitForTimeout(500);
+    const living = ((await state()) as unknown as { living: boolean }).living;
+    if (!living) {
+      await k("globalThis.causalis.lineMode.ripen()");
+      await k("globalThis.causalis.lineMode.founders()");
+      await page.waitForTimeout(1500);
+      await k("globalThis.causalis.lineMode.found(0)");
+      await page.waitForTimeout(1500);
+      await k("globalThis.causalis.lineMode.close()");
+    }
+    const before = page.url();
+    await press(".line-wake", "☀️ Wake");
+    await page.waitForTimeout(300);
+    const t0m = Date.now();
+    if (await pressText(".line-card-go, .line-card-other", /Make it so/, "✨ Make it so")) {
+      await page
+        .waitForURL((u) => u.toString() !== before, { timeout: 30000 })
+        .catch(() => undefined);
+      const seedNow = new URL(page.url()).searchParams.get("seed") ?? "";
+      check(seedNow.includes("line "), `the new world's seed carries the line: “${seedNow}”`);
+      const came = await page
+        .waitForFunction(
+          () =>
+            ((globalThis as { causalis?: { client?: { status?: { t?: number } } } }).causalis
+              ?.client?.status?.t ?? -1) >= 0,
+          undefined,
+          { timeout: 60000 },
+        )
+        .then(() => true)
+        .catch(() => false);
+      const secs = (Date.now() - t0m) / 1000;
+      check(
+        came,
+        `the world remade to year 0 (the page loaded and the world come in ${secs.toFixed(1)} s; its making alone is bounded in tests/host/makeso.test.ts)`,
+      );
+      await page
+        .waitForFunction(
+          () => !!(globalThis as { causalis?: { open?: unknown } }).causalis?.open,
+          undefined,
+          { timeout: 60000 },
+        )
+        .catch(() => undefined);
+      await page.waitForTimeout(2000);
+      await k(`globalThis.causalis.open("world:tree")`);
+      await page.waitForTimeout(3000);
+      const ours = await k<boolean>(`/Your line/.test(document.body.textContent ?? "")`);
+      check(ours, "the remade world's tree of life holds your line");
+      await shot("19-made-so");
+      const saves = await k<string[]>(
+        `globalThis.causalis.client.saves().then((s) => s.map((x) => x.name))`,
+      );
+      check(
+        saves.some((n) => !n.includes("line ")),
+        `the world it was lived in kept (${saves.slice(0, 4).join(", ")})`,
       );
     }
   }
