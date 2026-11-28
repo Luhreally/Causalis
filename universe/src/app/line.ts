@@ -785,8 +785,18 @@ export function installLine(d: LineDeps): LineFlow {
       Math.max(0, Math.min(1, (from - my) / from)),
       "Next: young of your own, to choose among",
     );
-    if (st) hud.cell(st.words, st.fed);
-    hud.offers(beast.offers());
+    // (Its meter toward young: full when it may court, as the meadow's own rule has it (fed and grown); it pops then.)
+    const offers = beast.offers(),
+      court = offers.find((o) => /court/i.test(o.label)),
+      ready = !!court && (court.can || /None of its kind near/.test(court.words));
+    if (st) hud.cell(st.words, ready ? 1 : Math.min(0.97, st.fed / 0.7));
+    if (ready && !wasFull) {
+      hud.pop();
+      noises.play("pop");
+      if (guide.first("body-ready")) hud.say(`You are ready for young: find one of your kind (📣 Call brings them), then press ${court!.icon} ${court!.label}`);
+    }
+    wasFull = ready;
+    hud.offers(offers);
     const t = beast.told();
     if (t && t.words !== told) {
       told = t.words;
