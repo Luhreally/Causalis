@@ -586,7 +586,8 @@ export function packList(values: readonly unknown[], words?: Words): Packed {
         Number.isSafeInteger(v) && Math.abs(v) <= MAX_INT ? INT : Number.isFinite(v) ? FLOAT : RAW;
     else if (typeof v === "string") k = STR;
     else if (typeof v === "object" && v !== null)
-      if (Array.isArray(v)) k = ARR;
+      // (A store's long column of numbers may be kept in an array of numbers made for it: read as the list it would be.)
+      if (Array.isArray(v) || v instanceof Float64Array) k = ARR;
       else {
         const keys = plainKeys(v);
         if (keys) {
@@ -687,7 +688,8 @@ function packArrays(
   // (A hole is read as undefined, which JSON writes as null, as it would in the array.)
   if (most > TUPLE) {
     // (One array is its own items: a store's long column, not copied.)
-    if (arrays.length === 1 && !hasHoles(arrays[0]!)) {
+    // (An array of numbers made for it has none: asking of each place in one whether it is there is slow.)
+    if (arrays.length === 1 && (arrays[0] instanceof Float64Array || !hasHoles(arrays[0]!))) {
       out.e = packList(arrays[0]!, words);
       return;
     }
