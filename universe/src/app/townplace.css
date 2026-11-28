@@ -1033,13 +1033,6 @@ body.placing .page-window {
   flex-wrap: wrap;
   gap: 4px;
   margin: 4px 0;
-  /* (A person's page can run past the fold of its sheet, at half the screen on a phone most of all: its tabs keep to the
-     foot of the sheet till they are scrolled to, never out of reach below it, 2026-11-27.) */
-  position: sticky;
-  bottom: 0;
-  z-index: 1;
-  padding: 4px 0;
-  background: var(--panel-solid, rgba(20, 30, 76, 0.98));
 }
 /* (Eight tabs: two rows of four, at every width: the inspector is never wider than 360 px docked, and a row of eight cut
    their names short, "Mooc", "Heal", "Socia".) */

@@ -145,7 +145,11 @@ for (const view of [
     text = (selector: string) =>
       k<string>(`document.querySelector(${JSON.stringify(selector)})?.textContent ?? ""`),
     press = async (selector: string, what: string): Promise<boolean> => {
-      // (Where it has come to rest: a sheet still rising or a row of tabs still scrolling moves it from under the finger.)
+      // (Scrolled to within what holds it, as a finger would: a person's page at half the screen on a phone runs past its
+      // fold. Then where it has come to rest: a sheet still rising or a row of tabs still scrolling moves it from under it.)
+      await k<void>(
+        `(() => { for (const e of document.querySelectorAll(${JSON.stringify(selector)})) { const r = e.getBoundingClientRect(); if (r.width > 0 && r.height > 0) { e.scrollIntoView({ block: "nearest", inline: "nearest" }); return; } } })()`,
+      );
       let at = await box(selector);
       for (let n = 0; at && n < 20; n++) {
         await page.waitForTimeout(100);
