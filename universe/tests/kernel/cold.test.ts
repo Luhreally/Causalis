@@ -3,7 +3,19 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ColdDecisions, ColdEvents } from "../../src/kernel/cold.ts";
-import type { DecisionRecord, HistoryEvent, Ref } from "../../src/kernel/index.ts";
+import type {
+  DecisionRecord,
+  EventParts,
+  EventRewrite,
+  HistoryEvent,
+  HistoryOffload,
+  HistoryTicket,
+  Ref,
+  Words,
+} from "../../src/kernel/index.ts";
+import { Rewriter, WordsSent } from "../../src/host/history-rewrite.ts";
+import { WorkerOffload } from "../../src/host/history-offload.ts";
+import { NodeOffload } from "../../tools/history-offload-node.ts";
 
 const r = (s: string) => s as Ref;
 
@@ -137,6 +149,96 @@ test("through a save, its rows forgotten or written again", () => {
   const fourth = new ColdEvents();
   fourth.load(plain(third.save()));
   assert.deepEqual(readAll(fourth), plain(left), "and through a save again");
+});
+
+/**
+ * A worker of the test's own: every rewrite written at once, with words of its own kept in step as a worker's are, and given
+ * back when asked ("back"); or written but asked for before it came back, and so written in the asker's thread ("late").
+ */
+class Held implements HistoryOffload {
+  private readonly rewriter = new Rewriter();
+  private readonly sent = new WordsSent();
+  private readonly mode: "back" | "late";
+  private next = 1;
+  started = 0;
+  constructor(mode: "back" | "late") {
+    this.mode = mode;
+  }
+  start(words: Words, job: EventRewrite): HistoryTicket {
+    this.started++;
+    // (A copy, as a message is: the world goes on with its own.)
+    const reply = this.rewriter.handle(structuredClone(this.sent.message(this.next++, words, job)));
+    return { take: (): EventParts | null => (this.mode === "back" ? reply.parts : null) };
+  }
+}
+
+/** Rows forgotten, as a reckoning forgets them (what is away applied first, as its sweep does). */
+function forget(c: ColdEvents, gone: (row: number) => boolean): void {
+  c.settle();
+  let w = 0;
+  for (let k = 0; k < c.n; k++) {
+    if (gone(k)) {
+      c.blocks[c.block[k]!]!.dead++;
+      continue;
+    }
+    c.move(k, w++);
+  }
+  c.n = w;
+}
+
+/**
+ * Blocks with rows forgotten written again by tidy, and what a world does about them while a rewrite is away: reads them,
+ * raises the importance of rows in it (one raised before it too) and out of it, adds rows with words of their own (a freeze,
+ * where what is away is applied first), forgets more and tidies again, and saves with that away. The rows read at each step
+ * and the save at the end.
+ */
+function tidied(offload: HistoryOffload | null): { reads: unknown[]; saved: string } {
+  const list = rows(),
+    c = new ColdEvents(),
+    reads: unknown[] = [];
+  for (let k = 0; k < 320; k += 40) c.freeze(list.slice(k, k + 40));
+  c.offload = offload;
+  // Half the rows of blocks 0, 1, 4 and 5.
+  forget(c, (k) => (k < 80 || (k >= 160 && k < 240)) && k % 2 === 1);
+  c.raise(3, 6);
+  assert.equal(c.tidy(Infinity, 60), 2, "two runs of blocks written again");
+  reads.push(readAll(c));
+  c.raise(3, 6);
+  c.raise(5, 6);
+  c.raise(90, 6);
+  c.raise(130, 5);
+  reads.push(readAll(c));
+  c.freeze(
+    list.slice(0, 40).map((e, k) => ({ ...e, id: r(`ev:0:${1000 + k}`), type: `new.${e.type}` })),
+  );
+  reads.push(readAll(c));
+  // Half the rows of blocks 6 and 7, and one of them raised while their rewrite is away.
+  forget(c, (k) => k >= 160 && k < 240 && k % 2 === 0);
+  assert.equal(c.tidy(1, 60), 1, "one more");
+  c.raise(170, 6);
+  const saved = JSON.stringify(c.save());
+  reads.push(readAll(c));
+  return { reads, saved };
+}
+
+test("blocks written again elsewhere, back in time or not: the same rows and the same save to the letter", async () => {
+  const here = tidied(null);
+  for (const mode of ["back", "late"] as const) {
+    const held = new Held(mode),
+      there = tidied(held);
+    assert.equal(held.started, 3, `${mode}: every run sent off`);
+    assert.deepEqual(there.reads, here.reads, `${mode}: read alike at every step`);
+    assert.equal(there.saved, here.saved, `${mode}: saved alike`);
+  }
+  // No worker to be had (none in Node's own globals): written here, without a word said.
+  assert.equal(tidied(new WorkerOffload()).saved, here.saved, "no worker");
+  // Node's worker, its replies waited for.
+  const node = new NodeOffload();
+  try {
+    assert.equal(tidied(node).saved, here.saved, "Node's worker");
+  } finally {
+    await node.close();
+  }
 });
 
 // ---------------------------------------------------------------------------

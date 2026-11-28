@@ -4,7 +4,7 @@
 // decision records and commands. It knows no domain: planets, peoples and wars
 // live in the stores that sim registers here.
 import { hi32, lo32 } from "./bits.ts";
-import { COLD_ROWS, PinnedCodes, codeOf, refOfCode } from "./cold.ts";
+import { COLD_ROWS, PinnedCodes, codeOf, refOfCode, type HistoryOffload } from "./cold.ts";
 import { CommandLog, type Command, type CommandSpec } from "./command.ts";
 import { Hasher } from "./hash.ts";
 import { DECISION, DecisionLog, EVENT, EventLog, type RetentionOptions } from "./history.ts";
@@ -608,6 +608,14 @@ export class World {
     if (old < DOMAINS_FIRST) return;
     const c = this.chain[old]!;
     if (c.domains.length) this.chain[old] = { t: c.t, domains: [], chain: c.chain };
+  }
+
+  /**
+   * Where the events' cold blocks are written again, if anywhere but here (a worker: kernel/cold.ts, HistoryOffload). Nothing
+   * the world does or saves depends on it.
+   */
+  offloadHistory(offload: HistoryOffload | null): void {
+    this.events.cold.offload = offload;
   }
 
   checkpoints(): readonly Checkpoint[] {

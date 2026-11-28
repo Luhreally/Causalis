@@ -2,6 +2,7 @@
 // its budget allows and sleeping when idle. The page talks to it only through
 // the protocol (bridge/protocol.ts).
 import type { Port, ToHost, ToMain } from "../bridge/index.ts";
+import { WorkerOffload } from "./history-offload.ts";
 import { SimHost } from "./host.ts";
 import { IndexedDbByteStore } from "./storage.ts";
 import { UNIVERSES } from "./universes.ts";
@@ -34,6 +35,10 @@ try {
 const host = new SimHost(port, UNIVERSES, {
   clock: () => performance.now(),
   ...(storage ? { storage } : {}),
+  // (Unless the page asked for none, to compare: ?nohistory.)
+  ...((globalThis as { name?: string }).name === "nohistory"
+    ? {}
+    : { historyOffload: new WorkerOffload() }),
 });
 
 // One loop at a time: a message during a pump waits for it (the pump reads the inbox

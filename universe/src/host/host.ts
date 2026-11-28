@@ -13,6 +13,7 @@ import {
   saveWorld,
   saveSteps,
   seedFromText,
+  type HistoryOffload,
   type SaveDocument,
   type Seed,
   type World,
@@ -113,6 +114,8 @@ export type HostOptions = {
   readonly budgetMs?: number;
   readonly frameEveryMs?: number;
   readonly statusEveryMs?: number;
+  /** Where old blocks of a world's history are written again, if not in this thread (history-offload.ts). */
+  readonly historyOffload?: HistoryOffload;
 };
 
 type Subscription = {
@@ -231,7 +234,10 @@ const JUMP_SLICE_MOST_MS = 5000;
 export class SimHost {
   private readonly port: Port<ToHost, ToMain>;
   private readonly universes: Readonly<Record<string, Universe>>;
-  private readonly options: Required<Omit<HostOptions, "storage">> & { storage: ByteStore | null };
+  private readonly options: Required<Omit<HostOptions, "storage" | "historyOffload">> & {
+    storage: ByteStore | null;
+  };
+  private readonly historyOffload: HistoryOffload | null;
   private universe: Universe | null = null;
   private world: World | null = null;
   private lineage: SaveDocument["lineage"] | undefined;
@@ -289,6 +295,7 @@ export class SimHost {
       frameEveryMs: options.frameEveryMs ?? 100,
       statusEveryMs: options.statusEveryMs ?? 250,
     };
+    this.historyOffload = options.historyOffload ?? null;
     this.lastPump = options.clock();
     port.onMessage((m) => this.inbox.push(m));
   }
@@ -334,6 +341,7 @@ export class SimHost {
     this.jumping = null;
     this.universe = universe;
     this.world = world;
+    world.offloadHistory(this.historyOffload);
     this.lineage = lineage;
     this.steps = null;
     this.stepsTarget = -1;

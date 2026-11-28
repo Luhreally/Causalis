@@ -21,6 +21,7 @@ import {
   farReadAll,
 } from "../src/sim/index.ts";
 import { spine, why } from "../src/causal/index.ts";
+import { NodeOffload } from "./history-offload-node.ts";
 
 /** What a why comes down to: something made at the universe's making, a world, a star, a people of another star. */
 const WORLDLY = /^(plnt|star|civ|moon|cell|spec|depo|age):/;
@@ -131,6 +132,10 @@ export async function skySurvey(seed: string, years: number): Promise<SkySurvey>
   // before its years run (as gate 3 and the budget test do): no year is charged with a far world's making, some half a
   // second each, three to nine seconds in year 1 of a world whose followed peoples are already past their signals.)
   farReadAll(world);
+  // (Old blocks of history written again beside the world's thread, as the game's worker has them written: some 9 ms of a
+  // year at 1,300 to 1,500, and 0.7 s at once at 1,500. One not back when it is needed is waited for, and the wait is the year's.)
+  const offload = new NodeOffload();
+  world.offloadHistory(offload);
   let orbitalFlight: number | null = null;
   const left = new Map<number, Ref>(),
     leftYear = new Map<number, number>(),

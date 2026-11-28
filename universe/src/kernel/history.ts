@@ -317,8 +317,7 @@ export class EventLog {
       row = code > 0 ? c.rowOf(code) : -1;
     if (row < 0 || c.importance[row]! >= least) return;
     h.string(ref).int(least);
-    c.importance[row] = least;
-    c.raised.set(code, least);
+    c.raise(row, least);
   }
 
   get(id: Ref): HistoryEvent | undefined {
@@ -438,6 +437,8 @@ export class EventLog {
 
   /** Forget every event at a place `keep` rejects (the places are the log's before the sweep). */
   sweepAt(keep: (i: number) => boolean): number {
+    // (A rewrite still away is in place before rows move: kernel/cold.ts.)
+    this.cold.settle();
     let forgotten = 0,
       lanes: [number, number] | null = null;
     const c = this.cold,
