@@ -2585,15 +2585,16 @@ export class TownBuilder {
    * One of its buildings begun at the asking (H1): on the lots its own plan would give it, what it takes the place of coming down first. Its `end` is its kind's,
    * as every building's is when it is read back; how long it truly takes is its ask's.
    */
-  askedCivic(f: Fabric, kind: CivicKind): { at: number; lots: number } {
+  askedCivic(f: Fabric, kind: CivicKind, given?: number): { at: number; lots: number } {
     const def = civic(kind),
       old = def.replaces
         ? f.civics.find((c) => c.fell === null && c.kind === def.replaces)
         : undefined;
     if (old) this.fall(f, old, FOLD.replaced);
     // (At a great town's edge it would rise past what anyone can be shown: there, by its heart.)
+    // (Or where it was asked to stand, on lots its asker chose: P1, sitedProblem.)
     const lots = CIVIC_LOTS[kind],
-      at = this.siteBy(f, lots, CIVIC_SITE[kind], f.next > ASKED_EDGE_LOTS);
+      at = given ?? this.siteBy(f, lots, CIVIC_SITE[kind], f.next > ASKED_EDGE_LOTS);
     this.clearFor(f, at, lots);
     f.civics.add(CIVIC_INDEX.get(kind)!, at, lots, this.year, this.year + def.years);
     this.store.fold(f.town, FOLD.begun, CIVIC_INDEX.get(kind)!, at, this.year);

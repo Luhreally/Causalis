@@ -27,6 +27,7 @@ import {
   HAP,
   enterPlace,
   hapRef,
+  hapSubject,
   hapTold,
   ordersOf,
   placeIndexOf,
@@ -109,7 +110,7 @@ export function placeSights(world: World, place: Place, since: number): PlaceSig
             : AT.square;
     out.push({
       t: x.t,
-      words: `${one ? one.name : (gone(x.id) ?? "One of the town")} ${hapTold(place, x, named)}`,
+      words: `${one ? one.name : (hapSubject(place, x) ?? gone(x.id) ?? "One of the town")} ${hapTold(place, x, named)}`,
       id: i >= 0 ? x.id : null,
       lot: lot === AT.none ? AT.square : lot,
       where: whereWords(place, lot),

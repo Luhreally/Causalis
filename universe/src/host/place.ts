@@ -239,6 +239,7 @@ import { linesOf, townRoster, workOf as lineWork, folkWork } from "./roster.ts";
 import { strikesOn, townPlan } from "./town.ts";
 import { townFieldsMeant, townSite } from "./village.ts";
 import { landCloth, toolMade, townStuff } from "./chain.ts";
+import { GATE_ASKS, GATE_WHO, gateOn, type GateKind } from "./placegate.ts";
 
 // —— Measures ————————————————————————————————————————————————————————————————————————————————————————————————————
 
@@ -429,7 +430,11 @@ export const HAP = {
   parted: 42,
   /** O7: caught stealing by the watch at the guard's post (`a`: one of the household they would have robbed). */
   caught: 43,
+  /** Come to its gate (P2): `a` their line in `gates`, `b` how many (GATE_TURNED added: turned away by its order). */
+  gate: 44,
 } as const;
+/** On a gate's line (HAP.gate): those who asked to live in the town turned away, its gate shut to them by order. */
+export const GATE_TURNED = 1 << 20;
 /** The happenings that are a death. */
 const HAP_DEATH: ReadonlySet<number> = new Set([1, 5, 17, 19, 21, 22, 34, 35, 39]);
 /** Whether a happening of a place's log is a death. */
@@ -479,6 +484,7 @@ const HAP_WORDS = [
   "stole from another household",
   "parted from the one they were paired with",
   "was caught stealing by the watch",
+  "came to the gate",
 ];
 
 /** The place's draws: through the world's Rng, on a stream no registry holds (it is no part of the ruleset's identity). */
@@ -1107,6 +1113,8 @@ export type Place = {
   breaks?: number[];
   held?: number[];
   works?: number[];
+  /** P2. Those come to its gate, a line each: what (GATE_KINDS'), from where, and why, and the event behind it. Absent: none. */
+  gates?: string[];
   /**
    * Those followed in full by the player's word (tiers), two numbers each: who (their number), and till when (seconds;
    * -1: till it is unsaid). Absent: none.
@@ -1763,6 +1771,7 @@ export class PlaceStore implements StateStore {
         ...(p.breaks?.length ? { breaks: p.breaks } : {}),
         ...(p.held?.length ? { held: p.held } : {}),
         ...(p.works?.length ? { works: p.works } : {}),
+        ...(p.gates?.length ? { gates: p.gates } : {}),
         ...(p.pins?.length ? { pins: p.pins } : {}),
         ...(p.vital ? { vital: p.vital } : {}),
         ...(UNPAIRED.has(p) ? { unpaired: true } : {}),
@@ -1861,6 +1870,7 @@ export class PlaceStore implements StateStore {
         ...(raw.breaks ? { breaks: [...(raw.breaks as number[])] } : {}),
         ...(raw.held ? { held: [...(raw.held as number[])] } : {}),
         ...(raw.works ? { works: [...(raw.works as number[])] } : {}),
+        ...(raw.gates ? { gates: [...(raw.gates as string[])] } : {}),
         ...(raw.pins ? { pins: [...(raw.pins as number[])] } : {}),
         ...(raw.vital ? { vital: [...(raw.vital as number[])] } : {}),
         ...(raw.deep
@@ -1957,6 +1967,11 @@ export function placeDigest(p: Place): string {
   for (const x of p.breaks ?? []) h.int(x);
   for (const x of p.held ?? []) h.int(x);
   for (const x of p.works ?? []) h.int(x);
+  // (Those come to its gate: hashed only where any came, so a place kept before them is told as it was.)
+  if (p.gates?.length) {
+    h.int(p.gates.length);
+    for (const x of p.gates) h.int(hashString(x));
+  }
   // (Those followed by word: hashed only where there are any, so a place kept before tiers is told as it was.)
   if (p.pins?.length) {
     h.int(p.pins.length);
@@ -3337,6 +3352,11 @@ function liveDue(world: World, place: Place, f: Frame, all = false): void {
       }
       removePerson(place, i);
       changed = true;
+    } else if (what === DUE.come && gateShut(world, place)) {
+      // (Its gate shut to newcomers by order, P2: one who would have come to live in it goes on to another of its land's
+      // towns; the town is short of them till it opens, when its land's count brings them again.)
+      turnedAway(place);
+      continue;
     } else if (what === DUE.born || what === DUE.come) {
       const row = Math.floor(a / OCCS),
         sex = Math.floor(row / BANDS),
@@ -9729,7 +9749,10 @@ export function advancePlace(world: World, place: Place): number {
     const m = Math.floor(place.t / MONTH);
     if (m > place.matched.month) reconcile(world, place, s, f, m, true);
     // (A day's births and deaths, at its turn.)
-    if (place.t % DAY === 0) vitalDay(world, place, f);
+    if (place.t % DAY === 0) {
+      vitalDay(world, place, f);
+      gateDay(world, place);
+    }
     if (place.due.length && place.due[0]! <= place.t) liveDue(world, place, f);
     tick(world, place, f);
     ticks++;
@@ -10115,6 +10138,11 @@ export function hapTold(
       return named?.(x.a)
         ? `parted from ${named(x.a)}, whom they could no longer abide, and lives on under one roof with them`
         : "parted from the one they were paired with";
+    case HAP.gate: {
+      const [, from, why] = (place.gates?.[x.a] ?? "").split("|"),
+        turned = x.b & GATE_TURNED ? ", and were turned away, its gate shut to newcomers" : "";
+      return `came to the gate from ${from || "beyond"}, ${why || "on the road"}${turned}`;
+    }
     case HAP.caught:
       return named?.(x.a)
         ? `was caught by the watch stealing from the household of ${named(x.a)}, being in want`
@@ -10204,6 +10232,8 @@ export const HAP_MANY: readonly string[] = [
   "made works",
   "stole from other households",
   "parted from those they were paired with",
+  "were caught stealing by the watch",
+  "came to the gate",
 ];
 
 /** What many did, said with what of: "died of the red flux", "fell in the battle at Sairis's land". */
@@ -10230,8 +10260,58 @@ export function hapMany(place: Place, what: number, a: number): string {
   }
 }
 
+/** Whether a town's gate is shut to newcomers by order (P2). */
+export const gateShut = (world: World, place: Place): boolean =>
+  managedOf(world)?.get(place.town)?.gate === 0;
+
+/**
+ * Those come to its gate today, as its clock passes the day's turn (P2: host/placegate.ts reads them off its world's year),
+ * each told at the hour they come: those who ask to live in it turned away where its gate is shut by order.
+ */
+function gateDay(world: World, place: Place): void {
+  const day = Math.floor(place.t / DAY),
+    come = gateOn(world, place.town, place.cell, day);
+  if (!come.length) return;
+  const shut = gateShut(world, place);
+  for (const x of come) {
+    const line = `${x.kind}|${x.from}|${x.why}|${x.ref ?? ""}`,
+      gates = (place.gates ??= []);
+    let k = gates.indexOf(line);
+    if (k < 0) k = gates.push(line) - 1;
+    place.log.push({
+      // (Told at the day's turn, as its log keeps its days in order; the hour they come is the gate's page's.)
+      t: place.t,
+      what: HAP.gate,
+      id: 0,
+      a: k,
+      b: x.count | (shut && GATE_ASKS.has(x.kind) ? GATE_TURNED : 0),
+    });
+  }
+}
+
+/** One its land's count brought to live in it, turned away at its gate shut by order (P2): told a line a day, counted. */
+function turnedAway(place: Place): void {
+  const line = "settlers|elsewhere in its land|asking to live in the town|",
+    gates = (place.gates ??= []);
+  let k = gates.indexOf(line);
+  if (k < 0) k = gates.push(line) - 1;
+  const last = place.log.at(-1),
+    day = Math.floor(place.t / DAY);
+  if (last && last.what === HAP.gate && last.a === k && Math.floor(last.t / DAY) === day) last.b++;
+  else place.log.push({ t: place.t, what: HAP.gate, id: 0, a: k, b: 1 | GATE_TURNED });
+}
+
+/** Who a line of its log is of where it is no one of the town (P2: those come to its gate), else null. */
+export function hapSubject(place: Place, x: PlaceHap): string | null {
+  if (x.what !== HAP.gate) return null;
+  const kind = (place.gates?.[x.a] ?? "").split("|")[0] as GateKind,
+    n = x.b & (GATE_TURNED - 1);
+  return GATE_WHO[kind]?.(n) ?? `${n} travellers`;
+}
+
 /** The page that tells more of what happened to someone (null: none): the battle, the sickness. */
 export function hapRef(place: Place, x: PlaceHap): string | null {
+  if (x.what === HAP.gate) return place.gates?.[x.a]?.split("|")[3] || null;
   if (x.what === HAP.fell || x.what === HAP.wounded) return place.wars[x.a]?.split("|")[1] ?? null;
   if (x.what === HAP.plague || x.what === HAP.sick) return place.ills[x.a]?.split("|")[1] ?? null;
   return null;

@@ -842,6 +842,44 @@ for (const view of [
     await press(".place-insp-back", "‹ Back to the square's page from its legends");
     await until("the square's page once more", async () => (await kind()) === "lot", 8000);
     check((await kind()) === "lot", "Back from its legends comes to the square's page");
+    // Its gate (P2): from the square's page; shut to newcomers and opened again by its key; Back to the square's.
+    await k('document.querySelector(".place-insp-gate")?.scrollIntoView({ block: "center" })');
+    await page.waitForTimeout(300);
+    await press(".place-insp-gate", "At the gate ▸, on the square's page");
+    await until("its gate", async () => (await kind()) === "gate", 8000);
+    await page.waitForTimeout(600);
+    say(`gate: ${(await text(".place-insp")).slice(0, 400)}`);
+    await look("20k-gate", "who comes to the town's gate");
+    if ((await shown(".place-insp-gate-key")) > 0) {
+      const pressed = async () =>
+        await k('document.querySelector(".place-insp-gate-key")?.getAttribute("aria-pressed")');
+      await press(".place-insp-gate-key", "Shut the gate to newcomers");
+      await until("the gate shut", async () => (await pressed()) === "true", 8000);
+      check((await pressed()) === "true", "its gate shut by its key");
+      await press(".place-insp-gate-key", "Open the gate to newcomers");
+      await until("the gate open", async () => (await pressed()) === "false", 8000);
+      check((await pressed()) === "false", "its gate opened again by its key");
+    } else say("no order can be given the town watched");
+    await press(".place-insp-back", "‹ Back to the square's page from its gate");
+    await until("the square's page from its gate", async () => (await kind()) === "lot", 8000);
+    check((await kind()) === "lot", "Back from its gate comes to the square's page");
+    // Raised by hand (P1): a home's lot page offers what the town could raise on its lots; asked there, it is offered no more.
+    if (kept !== null) {
+      await k(`globalThis.causalis.place.inspect(${JSON.stringify(`plcl:${town.ref}:${kept + 3}`)})`);
+      await until("a home's lot page", async () => (await kind()) === "lot", 8000);
+      await k('globalThis.causalis.place.inspectHeight("half")');
+      await page.waitForTimeout(600);
+      const offered = await shown(".place-insp-raise-key");
+      if (offered > 0) {
+        say(`raise here: ${(await text(".place-insp-raise")).slice(0, 300)}`);
+        await k('document.querySelector(".place-insp-raise-key")?.scrollIntoView({ block: "center" })');
+        await page.waitForTimeout(300);
+        await look("20j-raise-here", "what could be raised on a home's lots");
+        await press(".place-insp-raise-key", "Raise here, on a home's lot page");
+        await until("the asking taken", async () => (await shown(".place-insp-raise-key")) < offered, 8000);
+        check((await shown(".place-insp-raise-key")) < offered, "raised there: no longer offered on its lots");
+      } else say("nothing the town could raise on this home's lots");
+    }
     await k('globalThis.causalis.place.inspectHeight("peek")');
   }
   // Where a good is made, with its bills (N10), and the market, with what it takes; at half height.

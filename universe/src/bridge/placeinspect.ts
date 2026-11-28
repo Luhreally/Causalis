@@ -181,6 +181,19 @@ export type PlaceInspectLot = {
   readonly post: boolean;
   readonly postable: boolean;
   readonly postWords: string;
+  /**
+   * What the town could be asked to raise here (P1), on the lots this one is of in step with its size: each with the
+   * first of those lots, and how many households live on them now, whose homes it would clear.
+   */
+  readonly raiseHere: readonly {
+    readonly what: string;
+    readonly icon: string;
+    readonly name: string;
+    readonly note: string;
+    readonly at: number;
+    readonly lots: number;
+    readonly clears: number;
+  }[];
   /** What its ground is: its land's soil, and the rock under it. */
   readonly ground: string;
 };
@@ -357,7 +370,32 @@ export type PlaceInspectLegends = {
   readonly words: string;
 };
 
+/**
+ * A town's gate (P2): who has come to it this year and who is to come, each on its day, what they are and from where, why
+ * they came, and the page of what sent them; whether it is shut to newcomers by order, and what that does.
+ */
+export type PlaceInspectGate = {
+  readonly kind: "gate";
+  readonly ref: string;
+  readonly lotRef: string;
+  readonly name: string;
+  readonly icon: string;
+  readonly shut: boolean;
+  readonly orderWords: string;
+  readonly arrivals: readonly {
+    readonly when: string;
+    readonly icon: string;
+    readonly who: string;
+    readonly words: string;
+    readonly ref: string | null;
+    readonly past: boolean;
+    readonly asks: boolean;
+  }[];
+  readonly words: string;
+};
+
 export type PlaceInspect =
+  | PlaceInspectGate
   | PlaceInspectWork
   | PlaceInspectLegends
   | PlaceInspectBelow

@@ -15,6 +15,7 @@ import {
 } from "../bridge/index.ts";
 import {
   WORK_QUALITY,
+  hapSubject,
   hapTold,
   hapWords,
   placeIndexOf,
@@ -104,7 +105,7 @@ export function placeLegends(world: World, place: Place): PlaceInspectLegends {
           name = named(x.id);
         return {
           when: cap(placeDay(x.t)),
-          words: `${name ?? "One of the town"} ${hapTold(place, x, named)}`,
+          words: `${hapSubject(place, x) ?? name ?? "One of the town"} ${hapTold(place, x, named)}`,
           ref: i >= 0 ? placePersonRef(place.town, x.id) : null,
         };
       }),
