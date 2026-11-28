@@ -673,6 +673,21 @@ body.lining > *:not(#app) {
   display: block;
   margin: 0 auto 4px;
 }
+/* (The later stages' scene: a sky of their own behind their pages, the stage left under them out of sight.) */
+body.line-far .line-hud::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(1px 1px at 12% 18%, #fff 50%, transparent 51%),
+    radial-gradient(1px 1px at 72% 12%, #cfe 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 40% 70%, #fff 50%, transparent 51%),
+    radial-gradient(1px 1px at 86% 58%, #ffd 50%, transparent 51%),
+    radial-gradient(1px 1px at 22% 88%, #dff 50%, transparent 51%),
+    radial-gradient(ellipse at 50% 40%, #13285a 0%, #050a1c 70%);
+}
 /* (A name for the people the line may become: the field a finger's height, the full width of the card.) */
 .line-name {
   display: flex;

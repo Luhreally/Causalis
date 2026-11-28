@@ -2156,7 +2156,16 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
     layer(risen);
   };
   hud.onHelp = () => openPage("help:mode");
-  hud.onStripHelp = () => openPage(living ? "help:body" : "help:cell");
+  hud.onStripHelp = () =>
+    openPage(
+      farAt === "story:stars"
+        ? "help:stars"
+        : farAt
+          ? "help:year"
+          : living
+            ? "help:body"
+            : "help:cell",
+    );
   hud.onName = () => (leading ? void openStory("story:band") : openPage(living ? "body" : "cell"));
   hud.onGuide = () => (hud.modal ? layer(null) : layer(guide.panel(() => layer(null))));
   hud.onNow = () => {
@@ -2177,8 +2186,62 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
     return false;
   };
   d.stage.onUpdate((dt) => {
-    if (on) frame(dt);
+    if (!on) return;
+    frame(dt);
+    farTop();
   });
+  // —— The later stages' own top (H1, the third fun audit): on the realm's, its year's and its stars' pages, the top tells
+  // the realm and the scene behind is a sky of its own, not the cell's drop or the band's meadow left under them.
+  const FAR = new Set(["story:realm", "story:year", "story:stars"]);
+  let farAt: string | null = null,
+    farSaid = "";
+  /** A realm's own name for the chip at the top ("the league of Grikywilholt" → "Grikywilholt"): short enough not to break. */
+  const ownName = (realm: string) => realm.replace(/^(the )?[a-z' -]+ of /, "");
+  const farTop = () => {
+    const at =
+      hud.modal && hud.layer.firstElementChild === pages.element && FAR.has(pages.ref ?? "")
+        ? (pages.ref as string)
+        : null;
+    if ((at === null) !== (farAt === null)) document.body.classList.toggle("line-far", at !== null);
+    farAt = at;
+    const st = storyStars,
+      c = storyCouncil,
+      top =
+        at === "story:stars" && st?.realm
+          ? (() => {
+              const settled = st.ships.filter((s) => s.arrived).length,
+                under = st.ships.length - settled;
+              return {
+                name: ownName(st.realm.name),
+                when: `the year ${st.year}`,
+                through: Math.min(1, settled / 3),
+                words: `${settled} of 3 worlds settled`,
+                strip: under
+                  ? `${under} ${under === 1 ? "ship" : "ships"} under way`
+                  : st.wants.length
+                    ? "readying for the stars"
+                    : "at the stars, a ship to send",
+                full: 0,
+                meter: "Its ships under way",
+              };
+            })()
+          : at && c
+            ? {
+                name: ownName(c.name),
+                when: `the year ${yearNow()}`,
+                through: 1 - (c.tally.rank - 1) / Math.max(1, c.tally.of),
+                words: `${c.tally.rank} of the ${c.tally.of} realms it meets`,
+                strip: `${c.tally.people.toLocaleString("en")} people in ${c.tally.lands} lands`,
+                full: c.tally.standing,
+                meter: `Its ruler's standing: ${Math.round(c.tally.standing * 100)} in a hundred`,
+              }
+            : null;
+    // (Written when it changes: a page open a while costs the frame nothing.)
+    const said = top ? JSON.stringify(top) : "";
+    if (said === farSaid) return;
+    farSaid = said;
+    hud.farTop(top);
+  };
 
   const flow: LineFlow = {
     get on() {
@@ -2579,7 +2642,7 @@ const HELP: Readonly<Record<string, readonly [string, readonly string[]]>> = {
   "help:year": [
     "Your realm's year",
     [
-      "Once a realm holds your line's land, you rule its years. Each year its council offers three things, read off your world as it stands: one to build (your line's town asked to raise what it can), one realm to court (an envoy with a gift, a pact or an embassy), and one to fight, or to make peace with if it is at war.",
+      "Once a realm holds your line's land, you rule its years. Each year its council offers what it could do, read off your world as it stands: one thing to build (your line's town asked to raise what it can), one of its laws to set otherwise, one realm to court (an envoy with a gift, a pact or an embassy), and one to fight, or to make peace with if it is at war.",
       "Each says what it would cost or why it cannot be: its ruler's standing, its grain, its host. One word a year; then let the year pass, and see what it came to: its people, its lands, its place among the realms it meets.",
       "These are the god game's own acts of a ruler, given in its ruler's name: your world changes, as teaching your land to sow does. It is kept in your saves first, as it was before your realm's first year.",
     ],

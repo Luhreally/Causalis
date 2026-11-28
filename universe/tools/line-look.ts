@@ -150,7 +150,7 @@ for (const view of [
     },
     pressText = async (selector: string, words: RegExp, what: string) => {
       const sel = await k<string | null>(
-        `(() => { const all = [...document.querySelectorAll(${JSON.stringify(selector)})].filter((e) => e.getBoundingClientRect().width > 0); const i = all.findIndex((e) => ${words}.test(e.textContent ?? "")); if (i < 0) return null; all[i].dataset.lookPick = "1"; return "[data-look-pick]"; })()`,
+        `(() => { const all = [...document.querySelectorAll(${JSON.stringify(selector)})].filter((e) => e.getBoundingClientRect().width > 0); const i = all.findIndex((e) => ${words}.test(e.textContent ?? "")); if (i < 0) return null; all[i].dataset.lookPick = "1"; all[i].scrollIntoView({ block: "center" }); return "[data-look-pick]"; })()`,
       );
       if (!sel) {
         check(false, `${what} is there to press`);
