@@ -213,6 +213,9 @@ function heapNow(): { used: number | null; most: number | null } {
 const ASKING_MS = 1500;
 /** The most a pump gives a save under way (ms): a frame is due every hundred. */
 const SAVE_SLICE_MS = 40;
+/** An answer or a frame that takes this long is noted (host.slow), ms; and so many are kept. */
+const SLOW_MS = 100,
+  SLOW_KEPT = 64;
 /** How long a pump gives a save once the world is read and goes on (the packing and hashing of its copies), ms. */
 const SAVE_AFTER_MS = 4;
 /** What waits behind a save till it is made, even once the world goes on: what saves, or reads saves, or puts another world in its place. */
@@ -254,6 +257,8 @@ export class SimHost {
     storage: ByteStore | null;
   };
   private readonly historyOffload: HistoryOffload | null;
+  /** The slowest answers and frames lately (see noteSlow). */
+  private readonly slow: { what: string; ms: number; t: number }[] = [];
   /** The saves made and being written, in the order asked: see stepSave. */
   private writing: Promise<void> = Promise.resolve();
   private universe: Universe | null = null;
@@ -663,9 +668,22 @@ export class SimHost {
   }
 
   private answer(query: Query): unknown {
+    // (What answers were slow, for a gate or a look at how the host keeps up: "host.slow".)
+    if (query.type === "host.slow") return this.slow;
     const handler = this.universe!.queries[query.type] ?? BUILTIN_QUERIES[query.type];
     if (!handler) throw new Error(`no query ${query.type}`);
-    return handler(this.world!, query.args);
+    const clock = this.options.clock,
+      start = clock(),
+      answer = handler(this.world!, query.args);
+    this.noteSlow(query.type, clock() - start);
+    return answer;
+  }
+
+  /** An answer or a frame that kept the host SLOW_MS or more, kept among the last SLOW_KEPT: what, how long, at what world time. */
+  private noteSlow(what: string, ms: number): void {
+    if (ms < SLOW_MS) return;
+    this.slow.push({ what, ms: Math.round(ms), t: this.world?.now ?? 0 });
+    if (this.slow.length > SLOW_KEPT) this.slow.shift();
   }
 
   private sendFrame(now: number): void {
@@ -673,7 +691,9 @@ export class SimHost {
       interest = this.interest!,
       build = this.universe!.frames[interest.view];
     if (!build) return;
-    const payload = build(world, interest);
+    const began = this.options.clock(),
+      payload = build(world, interest);
+    this.noteSlow(`frame ${interest.view}`, this.options.clock() - began);
     this.lastFrame = now;
     const key = payload.key ? `${interest.view}|${payload.key}` : null;
     if (key && key === this.lastFrameKey) return;

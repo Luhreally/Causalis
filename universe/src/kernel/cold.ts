@@ -24,6 +24,12 @@ export const COLD_ROWS = 16384;
 /** How many blocks may be read back at once, of each part. */
 const PARTS_KEPT = 4;
 /**
+ * And of their subjects and data, every block a world has (each read back a group of a kind at a time, as asked): what reads a
+ * whole world's past (its memory, its annals) read every block's back each time, four kept of twenty-one on first light at
+ * 1,300; kept, 0.4 to 0.25 s and 1 to 0.55 s, for 25 MB more.
+ */
+const READ_KEPT = 1024;
+/**
  * A block is written again without its forgotten once one row in this many is: of events, of decisions. (One in sixteen for
  * both, a late world wrote two blocks of events again most decades, 30 to 60 ms each, and one of decisions every other, 60 to
  * 150 ms: 11 ms of every year of first light from 1,200, ckpt.mts. Fewer rewrites leave more of the forgotten in a save until
@@ -366,6 +372,11 @@ class DataGroups {
 /** Parts read back lately: a few are kept, the oldest let go. Only a cache: nothing depends on it. */
 export class Recent<T> {
   private readonly held = new Map<number, T>();
+  private readonly most: number;
+
+  constructor(most = PARTS_KEPT) {
+    this.most = most;
+  }
 
   get(key: number, make: () => T): T {
     const known = this.held.get(key);
@@ -375,7 +386,7 @@ export class Recent<T> {
       return known;
     }
     const made = make();
-    if (this.held.size >= PARTS_KEPT) this.held.delete(this.held.keys().next().value!);
+    if (this.held.size >= this.most) this.held.delete(this.held.keys().next().value!);
     this.held.set(key, made);
     return made;
   }
@@ -554,10 +565,10 @@ export class ColdEvents {
   /** Rewrites sent off and not yet applied, in the order tidy wrote them; and the serials hindsight raised since. */
   private pending: Pending[] = [];
   private raisedSince = new Set<number>();
-  private subjectsOf = new Recent<Groups<readonly Ref[]>>();
+  private subjectsOf = new Recent<Groups<readonly Ref[]>>(READ_KEPT);
   private kidsIn = new Recent<Groups<readonly number[]>>();
   private causesOf = new Recent<Groups<readonly KeptCause[]>>();
-  private dataOf = new Recent<DataGroups>();
+  private dataOf = new Recent<DataGroups>(READ_KEPT);
   private placesOf = new Recent<readonly (readonly number[])[]>();
 
   private room(n: number): void {
