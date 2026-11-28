@@ -587,6 +587,16 @@ for (const view of [
       await press(`.place-insp-tab[data-tab="${tab}"]`, `the inspector's ${tab} tab`);
       await page.waitForTimeout(700);
       say(`${tab}: ${(await text(".place-insp-body")).slice(0, 400)}`);
+      // (Their need bars, their table and how closely they are followed on their first tab alone; their mood's bar there
+      // and on Mood: above every tab they took 430 px of a phone. U4.)
+      {
+        const head = await shown(
+          ".place-insp-need, .place-insp-needs-key, .place-insp-table, .place-insp-tier",
+        );
+        check(head === 0, `the ${tab} tab shows no need bars, table or tier line (${head})`);
+        if (tab !== "mood")
+          check((await shown(".place-insp-mood")) === 0, `the ${tab} tab shows no mood bar`);
+      }
       // (Q2: whom they know as a web of portraits, and why they think as they do of each.)
       if (
         tab === "social" &&
@@ -703,61 +713,112 @@ for (const view of [
     } else say("the one inspected keeps no work: no orders to look at");
     // Their table, and what they take where they need it (P4): on their first screen.
     check((await shown(".place-insp-table")) > 0, "their household's table told on their page");
-    // (What they hold a tap from their first tab: U3.)
-    await press(".place-insp-gearkey", "Gear ▸, on their first tab");
+    // (Their bars on their first tab, each saying which way is worse; the mood's red tick said: U4.)
     check(
-      (await k<string>(
-        `document.querySelector(".place-insp-tab.on")?.getAttribute("data-tab") ?? ""`,
-      )) === "gear",
-      "Gear ▸ opens what they hold",
+      (await shown(".place-insp-need")) >= 4 &&
+        /100% can bear no more/.test(await text(".place-insp-needs-key")) &&
+        /red tick/.test(await text(".place-insp-mood-key")),
+      "the need bars on their first tab, with which way is worse and what the red tick is",
     );
-    await press('.place-insp-tab[data-tab="now"]', "back to their first tab");
+    // (No row of drill keys, U4: their family on Social, their character on Skills, their body on Health, Why? on Now.)
+    check(
+      (await shown(
+        ".place-insp-links, .place-insp-family, .place-insp-character, .place-insp-bodykey, .place-insp-gearkey, .place-insp-pin",
+      )) === 0,
+      "no row of drill keys on a person's page, and no Follow closely key beside 🎯",
+    );
     say(
       `table: ${await text(".place-insp-table")}${(await shown(".place-insp-takes")) ? ` · ${await text(".place-insp-takes")}` : ""}`,
     );
-    // Their family (P3): from their page, and Back to them.
+    // Their family (P3), on their Social tab (U4): each of their kin a tap away, and Back to them.
     {
-      const kind = () => k<string>('document.querySelector(".place-insp")?.dataset.kind ?? ""');
-      await k('document.querySelector(".place-insp-family")?.scrollIntoView({ block: "center" })');
-      await page.waitForTimeout(300);
-      await press(".place-insp-family", "Family ▸, on a person's page");
-      await until("their family", async () => (await kind()) === "family", 8000);
-      await page.waitForTimeout(400);
-      say(`family: ${(await text(".place-insp")).slice(0, 300)}`);
-      check((await shown(".place-family-row")) >= 2, "their family's page tells their parents");
-      await look("16b-family", "one's family in the town");
-      await press(".place-insp-back", "‹ Back to them from their family");
-      await until("them again", async () => (await kind()) === "person", 8000);
-      check((await kind()) === "person", "Back from their family comes to them");
-      // Their character and mind (R2), beside their family's key, and Back.
-      await k(
-        'document.querySelector(".place-insp-character")?.scrollIntoView({ block: "center" })',
+      const kind = () => k<string>('document.querySelector(".place-insp")?.dataset.kind ?? ""'),
+        tabOn = () =>
+          k<string>(`document.querySelector(".place-insp-tab.on")?.getAttribute("data-tab") ?? ""`);
+      await press('.place-insp-tab[data-tab="social"]', "Social, for their family");
+      await until(
+        "their family on Social",
+        async () => (await shown(".place-insp-kinship .place-family-row")) >= 1,
+        8000,
       );
       await page.waitForTimeout(300);
-      await press(".place-insp-character", "Character ▸, on a person's page");
-      await until("their character", async () => (await kind()) === "character", 8000);
-      await page.waitForTimeout(400);
-      say(`character: ${(await text(".place-insp")).slice(0, 300)}`);
-      check((await shown(".place-insp-leaning")) === 5, "their five leanings drawn");
-      await look("16c-character", "one's character and mind");
-      await press(".place-insp-back", "‹ Back to them from their character");
-      await until("them again", async () => (await kind()) === "person", 8000);
-      check((await kind()) === "person", "Back from their character comes to them");
-      // Their body and what it is written in (R4), and Back.
-      await k('document.querySelector(".place-insp-bodykey")?.scrollIntoView({ block: "center" })');
-      await page.waitForTimeout(300);
-      await press(".place-insp-bodykey", "Body ▸, on a person's page");
-      await until("their body", async () => (await kind()) === "body", 8000);
-      await page.waitForTimeout(400);
-      say(`body: ${(await text(".place-insp")).slice(0, 300)}`);
-      await look("16d-body", "one's body and what it is written in");
-      await press(".place-insp-back", "‹ Back to them from their body");
-      await until("them again", async () => (await kind()) === "person", 8000);
-      check((await kind()) === "person", "Back from their body comes to them");
-      // Why they do what they do (R7): ❓ beside them, each step a page or a place to go to, and Back.
-      await k('document.querySelector(".place-insp-whykey")?.scrollIntoView({ block: "center" })');
-      await page.waitForTimeout(300);
-      await press(".place-insp-whykey", "Why? ▸, beside their family on their page");
+      say(`family: ${(await text(".place-insp-body")).slice(0, 300)}`);
+      check(
+        /Family/.test(await text(".place-insp-section")) &&
+          (await shown(".place-insp-kinship .place-family-row")) >= 2,
+        "their Social tab tells their family: their parents among them",
+      );
+      await k('document.querySelector(".place-insp-kinship")?.scrollIntoView({ block: "center" })');
+      await look("16b-family", "one's family, on their Social tab");
+      if ((await shown(".place-insp-kinship button.place-family-row")) > 0) {
+        await press(".place-insp-kinship button.place-family-row", "one of their kin, on Social");
+        await until("their kin", async () => (await inspected()).ref !== ins.ref, 8000);
+        await press(".place-insp-back", "‹ Back to them from their kin");
+        await until("them again", async () => (await inspected()).ref === ins.ref, 8000);
+        check(
+          (await inspected()).ref === ins.ref && (await kind()) === "person",
+          "Back from one of their kin comes to them",
+        );
+      } else say("none of their kin has a page to open");
+      // (Their family's, character's and body's own pages are kept for what links to them: each opened, and Back.)
+      const refs = await k<{ family: string; character: string; body: string } | null>(
+        `globalThis.causalis.client.query({ type: "place.inspect", args: { ref: ${JSON.stringify(town.ref)}, of: ${JSON.stringify(ins.ref)} } }).then((x) => x?.familyRef ? { family: x.familyRef, character: x.characterRef, body: x.bodyRef } : null)`,
+      );
+      if (refs)
+        for (const [want, ref] of [
+          ["family", refs.family],
+          ["character", refs.character],
+          ["body", refs.body],
+        ] as const) {
+          await k(`globalThis.causalis.place.inspect(${JSON.stringify(ref)})`);
+          await until(`their ${want} page`, async () => (await kind()) === want, 8000);
+          check((await kind()) === want, `their ${want} page still opens by its ref`);
+          await press(".place-insp-back", `‹ Back to them from their ${want} page`);
+          await until("them again", async () => (await kind()) === "person", 8000);
+          check((await kind()) === "person", `Back from their ${want} page comes to them`);
+        }
+      // Their character and mind (R2), on their Skills tab (U4).
+      await press('.place-insp-tab[data-tab="skills"]', "Skills, for their character");
+      await until(
+        "their character on Skills",
+        async () => (await shown(".place-insp-leaning")) > 0,
+        8000,
+      );
+      say(`character: ${(await text(".place-insp-body")).slice(0, 300)}`);
+      check(
+        (await tabOn()) === "skills" && (await shown(".place-insp-leaning")) === 5,
+        "their five leanings drawn, on their Skills tab",
+      );
+      if ((await shown(".place-insp-skill")) > 0)
+        check(
+          /8,000/.test(await text(".place-insp-skills-key")),
+          "their skills' scale said over them",
+        );
+      await k(
+        'document.querySelector(".place-insp-leanings")?.scrollIntoView({ block: "center" })',
+      );
+      await look("16c-character", "one's character and mind, on their Skills tab");
+      // Their body and what it is written in (R4), on their Health tab (U4).
+      await press('.place-insp-tab[data-tab="health"]', "Health, for their body");
+      await until(
+        "their body on Health",
+        async () => (await shown(".place-insp-madeof")) > 0,
+        8000,
+      );
+      say(`body: ${(await text(".place-insp-body")).slice(0, 300)}`);
+      check(
+        (await tabOn()) === "health" && (await shown(".place-insp-madeof")) === 1,
+        "what their body is made of, on their Health tab",
+      );
+      await k('document.querySelector(".place-insp-madeof")?.scrollIntoView({ block: "center" })');
+      await look("16d-body", "one's body and what it is written in, on their Health tab");
+      // Why they do what they do (R7): the first thing on their first tab, its Why? ▸ the whole chain, and Back.
+      await press('.place-insp-tab[data-tab="now"]', "their first tab, for why");
+      check(
+        (await shown(".place-insp-whyline .place-insp-reason")) === 1,
+        "their reason, the first thing on their first tab",
+      );
+      await press(".place-insp-whykey", "Why? ▸, beside their reason on their first tab");
       await until("why they do it", async () => (await kind()) === "why", 8000);
       await page.waitForTimeout(400);
       say(`why: ${(await text(".place-insp")).slice(0, 300)}`);
@@ -828,10 +889,34 @@ for (const view of [
     await reopen("opened first");
     if (phone) await k('globalThis.causalis.place.inspectHeight("half")');
     await page.waitForTimeout(300);
-    if ((await shown(".place-insp-pin")) > 0) await press(".place-insp-pin", "☆ Follow closely");
     if (phone) await k('globalThis.causalis.place.inspectHeight("peek")');
     await page.waitForTimeout(300);
+    // (One key that follows, U4: 🎯 keeps the eye with them and has their day worked out in full by your word, "Follow
+    // closely" as it was; its state on it. Again: both let go.)
+    const pinned = () =>
+      k<string>(
+        `globalThis.causalis.client.query({ type: "place.inspect", args: { ref: ${JSON.stringify(town.ref)}, of: ${JSON.stringify(ins.ref)} } }).then((x) => (x?.tier ? (x.tier.pinned ? (x.tier.soft ? "looked at" : "by word") : "no") : ""))`,
+      );
     await kept("followed closely");
+    await page.waitForTimeout(600);
+    check(
+      (await pinned()) === "by word" &&
+        /Following/.test(await text(".place-insp-follow")) &&
+        (await k<string>(
+          'document.querySelector(".place-insp-follow")?.getAttribute("aria-pressed") ?? ""',
+        )) === "true",
+      "🎯 follows them: the eye kept, their day worked out in full by your word, the key lit and saying so",
+    );
+    await press(".place-insp-follow", "🎯 again, to let them go");
+    await page.waitForTimeout(900);
+    check(
+      !(await now()).following &&
+        (await pinned()) !== "by word" &&
+        !/Following/.test(await text(".place-insp-follow")),
+      "🎯 again lets them go: the eye and your word both",
+    );
+    await kept("followed again");
+
     await look("19-insp-follow", "the eye kept with them");
     await press(".place-insp-back", "‹ Back, from the first");
     await page.waitForTimeout(900);
@@ -1572,6 +1657,19 @@ for (const view of [
     await page.waitForTimeout(700);
     say(`${tab}: ${(await text(".place-sheet-body")).slice(0, 300)}`);
     await look(`07-sheet-${tab}`, `the ${tab} sheet open`);
+    // (How long each lasts its first number, in days; what it holds in months' food or units, spelt: U4.)
+    if (tab === "stocks" && (await shown(".place-stock-table .place-tr:not(.place-th)")) > 0) {
+      const st = await k<{ head: string[]; units: string[] }>(
+        `({ head: [...document.querySelectorAll(".place-stock-table .place-th > span")].map((e) => e.textContent ?? ""), units: [...document.querySelectorAll(".place-stock-table .place-unit")].map((e) => (e.textContent ?? "").trim()) })`,
+      );
+      check(
+        st.head[1] === "Lasts" &&
+          st.head[2] === "Held" &&
+          st.units.length > 0 &&
+          st.units.every((u) => /^(months' food|units|days?|none used)$/.test(u)),
+        `the stocks say how long each lasts first, its units spelt out (${st.head.join("|")}; ${[...new Set(st.units)].join(", ")})`,
+      );
+    }
     // (The Log's Go to keys on the line of the name they are of, never wrapped away from it: U2.)
     if (tab === "log") {
       const apart = await k<string[]>(
@@ -1597,6 +1695,13 @@ for (const view of [
       );
       await page.waitForTimeout(300);
       check((await shown(".place-grid-lv")) > 0, "the grid tells each kind's skill");
+      {
+        const key = await text(".place-grid-legend");
+        check(
+          /priority/i.test(key) && /skill/i.test(key) && /master/.test(key),
+          `the grid's two numbers said over it ("${key.slice(0, 80)}")`,
+        );
+      }
       // (Its columns past the right edge told where there are any, and each name's full words on its key: U2.)
       const cue = await k<{ over: boolean; hint: string; named: boolean }>(
         `(() => { const g = document.querySelector(".place-grid"), h = document.querySelector(".place-grid-hint"), n = document.querySelector(".place-grid-rows .place-grid-row:not(.place-grid-head) .place-grid-name"); return { over: !!g && g.scrollWidth > g.clientWidth + 1, hint: h && !h.hidden && h.getBoundingClientRect().height > 0 ? h.textContent : "", named: !!n && (n.title ?? "").length > 2 }; })()`,

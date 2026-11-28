@@ -26,6 +26,13 @@ const POWER: readonly (readonly [string, readonly string[], string])[] = [
     "power carried to its works and homes by wire",
   ],
 ];
+/** Each rung as what does a town's work, in a phrase. */
+const POWER_BY: Readonly<Record<string, string>> = {
+  Hands: "its people's own hands",
+  Beasts: "hand and beasts' strength",
+  Engines: "engines",
+  "Power by wire": "power by wire",
+};
 /** What pulls and carries for it, where its land knows how. */
 const CARRY: readonly (readonly [string, string])[] = [
   ["draught", "Beasts pull its ploughs"],
@@ -72,7 +79,8 @@ export function placeBeasts(world: World, place: Place): PlaceInspectBeasts {
     ref: placeBeastsRef(place.town),
     name: "Its beasts and power",
     icon: "🐂",
-    sub: `${keepers.length} keep its flock · driven by ${top.rung.toLowerCase()}`,
+    // (Said as what does the work, U4: "driven by beasts" read as beasts driving it.)
+    sub: `${keepers.length} keep its flock · its work done by ${POWER_BY[top.rung] ?? top.rung.toLowerCase()}`,
     keepers: keepers.slice(0, 12),
     more: Math.max(0, keepers.length - 12),
     carry,

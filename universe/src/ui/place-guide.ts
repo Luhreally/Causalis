@@ -43,7 +43,7 @@ export const LESSONS: readonly Lesson[] = [
     id: "mood",
     title: "Read a mood",
     words:
-      "On a person's page, Mood lists what cheers them and what weighs on them, and for how long. Below the line, they stop heeding orders.",
+      "On a person's page, Mood lists what cheers them and what weighs on them, and for how long. Below the red tick on its bar, they stop heeding orders.",
     show: '.place-insp-tab[data-tab="mood"]',
     first: "Open a person first: Mood is among the tabs on their page.",
   },
@@ -67,7 +67,7 @@ export const LESSONS: readonly Lesson[] = [
     id: "follow",
     title: "Follow someone",
     words:
-      "🎯 on a person's page keeps the view on them as they go. Tap it again, or drag the town, to let them go.",
+      "🎯 Follow on a person's page keeps the view on them as they go, and has their day worked out in full. Tap it again to let them go; dragging the town only moves the view.",
     show: ".place-insp-follow",
     first: "Open a person first: 🎯 is at the top of their page.",
   },

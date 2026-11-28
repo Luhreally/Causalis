@@ -1122,6 +1122,11 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
   inspector.plan = d.plan;
   inspector.lotAt = (lot) => lotPoint(lot);
   inspector.onPage = (ref) => void d.pages.open(ref);
+  // (A section of a person's tab, read once as it is opened and again every few seconds while it stays: U4.)
+  inspector.read = (of) =>
+    town
+      ? d.client.query<PlaceInspect | null>({ type: "place.inspect", args: { ref: town, of } })
+      : Promise.resolve(null);
   inspector.onFollow = (on) => follow(on);
   inspector.onGo = goTo;
   inspector.onTabbed = (t) => t === "mood" && hud.lesson("mood");

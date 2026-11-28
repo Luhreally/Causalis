@@ -17,6 +17,7 @@ import {
 import { WHY, placeAir, placeIndexOf, type Place } from "./place.ts";
 import { dangersSheet, lotWords, stocksSheet } from "./placeplan.ts";
 
+const cap = (t: string): string => t.charAt(0).toUpperCase() + t.slice(1);
 /** The most of what weighs on their mood told. */
 const WEIGHS_TOLD = 3;
 
@@ -153,10 +154,15 @@ export function placeWhy(
   const heavy = [...x.thoughts]
     .sort((a, b) => Math.abs(b.size) - Math.abs(a.size))
     .slice(0, WEIGHS_TOLD);
-  behind("Their mood", `${x.mood}, ${x.moodWord}`, { ref: x.ref });
+  // (Its scale said, U4: a bare number of a mood read as nothing; each reason's share of it signed, a word after it.)
+  behind(
+    "Their mood",
+    `${cap(x.moodWord)}, ${x.mood > 0 ? "+" : x.mood < 0 ? "−" : ""}${Math.abs(x.mood)} on a scale of −100 to +100`,
+    { ref: x.ref },
+  );
   for (const t of heavy)
     behind(
-      `${t.size > 0 ? "+" : ""}${Math.round(t.size)}`,
+      `${t.size > 0 ? "+" : t.size < 0 ? "−" : ""}${Math.abs(Math.round(t.size))} mood`,
       `${t.icon} ${t.words}${t.days !== null ? `, ${t.days} more ${t.days === 1 ? "day" : "days"}` : ""}`,
       t.from?.ref ? { ref: t.from.ref } : {},
     );

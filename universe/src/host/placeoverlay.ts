@@ -55,7 +55,7 @@ export function placeOverlay(world: World, place: Place, kind: PlaceOverlayKind)
         lots.push({
           lot,
           v: (m + 100) / 200,
-          words: `Mood ${signed(m)} on average among ${who.length} ${living.has(lot) ? "living" : "working"} here${low ? `; ${low} too low to heed an order` : ""}`,
+          words: `Mood ${signed(m)} on average among ${who.length} ${living.has(lot) ? "living" : "working"} here${low ? `; ${low} too unhappy to follow orders` : ""}`,
         });
       }
     }

@@ -677,7 +677,7 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
         ? `Each need presses as its fullness cubed. A need is served when it presses harder than the next hour's work is worth to them (${Math.round(worth * 100)}% by day; less in the dark) and than rest is worth (${Math.round(IDLE_WORTH * 100)}%): the mark on each bar.`
         : `Each need presses as its fullness cubed. They keep no trade, so a need is served when it presses harder than rest is worth (${Math.round(IDLE_WORTH * 100)}%): the mark on each bar.`,
       ...(p.health[i] ? [careWords(place)] : []),
-      `Of a town's people, those that matter where the eye and the story are are followed in full, ten minutes at a time: those you follow, its healer and those who lead it and their households, and any caught up in a happening. Their households and friends are followed at the hour, the rest among the folk every three hours; each keeps all that they are, and is followed closer from their next turn.`,
+      `The town works out the days of those that matter now in full detail, ten minutes at a time: those you follow (🎯) or look at, its healer, those who lead it and their households, and any caught up in a happening. Their households and friends are worked out hour by hour, everyone else every three hours; none loses anything by it, and each is worked out closer from their next turn.`,
     ],
     tier: (() => {
       const t = placeTier(place, i);
@@ -1045,7 +1045,7 @@ export function inspectLot(world: World, place: Place, lot: number): PlaceInspec
           : r.households.length
             ? `Home of ${r.households.length} ${r.households.length === 1 ? "household" : "households"}.`
             : kind
-              ? `${shut ? "Its work is stopped by your order." : "Worked in by the town's own."}`
+              ? `${shut ? "Its work is stopped by your order." : "The town's own people work here."}`
               : lot >= 0
                 ? "No household lives here now."
                 : ""),
@@ -1110,7 +1110,7 @@ function lotPost(
     post,
     postable,
     postWords: !m?.held.includes("muster")
-      ? "The guard's post by your order: but none stand to arms. Order the town to stand to arms (Defence) and they keep it."
+      ? "The guard's post by your order: but none stand to arms. Order the town to stand to arms (on the Dangers sheet) and they keep it."
       : `The guard's post by your order: ${at} of the ${standing} standing to arms are here now. The ${w.n} ${w.n === 1 ? "home" : "homes"} within a cry of it (${Math.round(reach)} m by its streets) are watched while it is kept: a theft from one is caught in the act, and brought before the town's justice.`,
   };
 }
