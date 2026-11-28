@@ -100,8 +100,8 @@ export function placeMaking(world: World, place: Place): PlaceInspectMaking {
     vulnerable.push({ name: `${x.icon} Now`, words: x.words, ref: x.ref });
   if (unheeding)
     vulnerable.push({
-      name: "Past heeding",
-      words: `${unheeding} whose mood is too low to heed an order`,
+      name: "Too unhappy",
+      words: `${unheeding} too unhappy to follow orders`,
       ref: null,
     });
   // (How steady it is: its month's happenings, as its log tells them.)

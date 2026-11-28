@@ -154,7 +154,7 @@ export function townOffers(world: World, ref: string, all = false): TownOffers |
         what,
         icon: what === "walls" ? "🧱" : CIVIC_ICON[what as CivicKind],
         name: sentenceCase(raiseName(world, what)),
-        note: `${MONTHS_WORD(months)}, with ${count(hands)} at it, if they take it up gladly`,
+        note: `${MONTHS_WORD(months)}, with ${count(hands)} at it, if they are willing`,
       });
     }
     // (The likeliest wanted first; none hidden.)

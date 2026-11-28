@@ -1157,10 +1157,11 @@ body.placing .page-window {
   gap: 2px;
   margin: 4px 0;
 }
+/* (Each reason's amount and how long on its words' first line, U4: centred, they stood between the lines of a long one.) */
 .place-insp-thought {
   display: grid;
   grid-template-columns: 24px 1fr 40px 84px;
-  align-items: center;
+  align-items: baseline;
   gap: 4px;
   min-height: 30px;
   font-size: 13px;
@@ -1293,18 +1294,52 @@ h3.place-insp-sub {
   color: var(--muted, #a9bbe2);
 }
 .place-hud .place-insp-order,
-.place-hud .place-insp-family,
-.place-hud .place-insp-character,
-.place-hud .place-insp-bodykey,
+.place-hud .place-insp-whykey,
 .place-hud .place-insp-free {
   padding: 0 10px;
 }
-/* A person's keys to their family and their character (P3, R2): side by side, each its 44 px. */
-.place-hud .place-insp-links {
+/* Why, the first thing on a person's first tab (U4): their reason, and its key at the line's end, 44 px. */
+.place-insp-whyline {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0;
+}
+.place-insp-whyline .place-insp-reason {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+.place-hud .place-insp-whyline .place-insp-whykey {
+  flex: 0 0 auto;
+  min-height: 44px;
+}
+/* What a page's numbers mean, said once over them (U4): small, muted, never a key. */
+.place-insp-key-line {
+  margin: 2px 0;
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--muted, #a9bbe2);
+  opacity: 0.9;
+}
+/* The work grid's two numbers, said over it (U4). */
+.place-grid-legend {
   margin: 4px 0;
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--muted, #a9bbe2);
+}
+.place-grid-legend > p {
+  margin: 0;
+}
+/* A tab's section folded in from what was its own page (U4: family, character, body). */
+.place-insp-sub.place-insp-section {
+  margin-top: 12px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(190, 205, 255, 0.25);
+  font-size: 13px;
+  font-weight: 700;
+  color: #e8f1ff;
 }
 /* What one holds (R3): each thing in its slot with its wear; all of it by its stuff, a swatch of its colour each. */
 .place-hud .place-insp-slots {
@@ -1651,8 +1686,27 @@ h3.place-insp-sub {
   min-width: 0;
   overflow-wrap: anywhere;
 }
+/* (Lasts first, its days spelt under it; what it holds after, its unit spelt under it, wrapped where it must: U4.) */
 .place-stock-table .place-tr {
-  grid-template-columns: minmax(0, 1fr) 62px 46px 58px 46px 62px;
+  grid-template-columns: minmax(0, 1fr) 46px 62px 58px 46px 62px;
+}
+.place-stock-table .place-lasts,
+.place-stock-table .place-held {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  white-space: normal;
+  line-height: 1.15;
+}
+.place-stock-table .place-lasts > :first-child {
+  font-size: 15px;
+  font-weight: 700;
+}
+.place-stock-table .place-lasts .place-unit,
+.place-stock-table .place-held .place-unit {
+  font-size: 10px;
+  text-align: right;
+  overflow-wrap: anywhere;
 }
 .place-share-table .place-tr {
   grid-template-columns: minmax(0, 1fr) 54px 64px 96px;
@@ -2143,34 +2197,14 @@ body.placing:has(.page-window:not([hidden])) .place-tag {
   flex: 0 0 auto;
 }
 
-/* Tiers: how closely one is followed, and the key to follow them in full. */
+/* Tiers: how closely the town works out one's day, in a line (U4: its key is 🎯 Follow, in the key row). */
 .place-insp-tier {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
   margin: 6px 0;
-  font-size: 13px;
-  color: #a9bbe2;
 }
-.place-insp-tier-words {
-  min-width: 0;
-  flex: 1 1 auto;
-}
-.place-insp-pin {
-  flex: 0 0 auto;
-  min-height: 44px;
-  min-width: 44px;
-  padding: 0 12px;
-  border-radius: 8px;
-  border: 1px solid rgba(158, 231, 255, 0.45);
-  background: rgba(20, 40, 84, 0.85);
-  color: #e8f1ff;
-  font: inherit;
-}
-.place-insp-pin.on {
-  background: linear-gradient(180deg, #3b6fc2, #234a8f);
-  border-color: rgba(242, 193, 78, 0.8);
+/* (🎯 Follow with the eye gone elsewhere, their day still lived out in full by your word: ringed in gold, U4.) */
+.place-hud .place-insp-follow.kept {
+  border-color: rgba(242, 193, 78, 0.9);
+  box-shadow: inset 0 0 0 2px rgba(242, 193, 78, 0.6);
 }
 
 /* Its lessons (G1): on a desk a card at the foot of the right-hand column, the alerts above it kept clear of it; on a
@@ -2379,6 +2413,11 @@ body.placing:has(.page-window:not([hidden])) .place-tag {
   align-items: center;
   column-gap: 6px;
   min-height: 44px;
+}
+/* (A step's label, a mood's amount among them, on its words' first line, U4.) */
+.place-hud .place-insp-whystep > .place-insp-label,
+.place-hud .place-insp-whystep > .place-insp-whywords {
+  align-self: baseline;
 }
 .place-hud .place-insp-whywords {
   text-align: left;

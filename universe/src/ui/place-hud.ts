@@ -536,7 +536,7 @@ export class PlaceHud {
         ? o.fire
           ? `A fire burning, and the lots within a cry of it (${Math.round(o.fire.reach)} m now): those living there hear it and turn out.`
           : "Nothing burns in the town now."
-        : `${o.lots.length} ${o.lots.length === 1 ? "lot" : "lots"} read. Tap one for what it is${this.desk ? ", or hover over it" : ""}.`;
+        : `Shown on ${o.lots.length} ${o.lots.length === 1 ? "building or plot" : "buildings and plots"}. Tap one for what it is${this.desk ? ", or hover over it" : ""}.`;
     this.lensLegend.replaceChildren(
       el("span", "place-lens-end", o.low),
       ramp,
@@ -1308,16 +1308,27 @@ export class PlaceHud {
       s.grid.all > s.grid.rows.length
         ? `${s.grid.rows.length} of ${s.grid.all} shown: narrow them by trade above. `
         : "";
+    // (What its two numbers are, in two lines over it, U4: told only under it, past the fold on a phone.)
+    const key = el("div", "place-grid-legend");
+    key.append(
+      el("p", "", "Big number: priority. 1 first, 3 last, – never. Tap a key to change it."),
+      el(
+        "p",
+        "",
+        "Small number: skill, 0 new to it … 4 a master. ★ taught at home; ! slowed by a wound.",
+      ),
+    );
     return [
       el("h3", "place-sub", "Priorities"),
       head,
       chips,
+      key,
       hint,
       wrap,
       el(
         "p",
         "place-more",
-        `${more}1 is first. The trade set highest is the one they keep, and its land is told when it changes; a lower one is what they turn to, at the skill their hours at it make, when their own has nothing for them. Building is who a site's crew is made up of first; fire watch, who of those near a fire go to it (– never) and who keep a watch where one is ordered. The small number is their skill (0 new to it … 4 a master), from the hours they have given it; ★ the work their household taught them; ! a wound takes from what it is done with. Healing, cooking and hunting are counted as they are done: who tends one of their own abed, who cooks at their hearth, a forager's work. Faint keys are as they are of themselves.`,
+        `${more}The trade set highest is the one they keep, and its land is told when it changes; a lower one is what they turn to, at the skill their hours at it make, when their own has nothing for them. Building is who a site's crew is made up of first; fire watch, who of those near a fire go to it (– never) and who keep a watch where one is ordered. Skill comes of the hours they have given it. Healing, cooking and hunting are counted as they are done: who tends one of their own abed, who cooks at their hearth, a forager's work. Faint keys are as they are of themselves.`,
       ),
     ];
   }
@@ -1350,10 +1361,15 @@ export class PlaceHud {
     );
     const table = el("div", "place-table place-stock-table"),
       head = el("div", "place-tr place-th");
+    // (How long each lasts first, U4: the column that matters, in days spelt out; what it holds after it, its unit
+    // spelt out under it: "mo" and "u" said nothing.)
     for (const [words, say] of [
       ["Good", ""],
-      ["Held", "How much it holds: food in months' food for one, the rest in units"],
       ["Lasts", "How many days it lasts at today's use"],
+      [
+        "Held",
+        "How much it holds: food in months' food (one person's food for a month), the rest in units",
+      ],
       ["Today", "Made and brought in today, and used"],
       ["30 days", "What it held at each day's turn while you looked"],
       ["Market may buy", "Whether its market may buy it from the town"],
@@ -1390,9 +1406,27 @@ export class PlaceHud {
             .join(" · "),
         ),
       );
-      const held = el("span", "place-num");
-      held.append(el("span", "", amount(r.held)), el("span", "place-unit", r.food ? " mo" : " u"));
+      const held = el("span", "place-num place-held");
+      held.append(
+        el("span", "", amount(r.held)),
+        el("span", "place-unit", r.food ? "months' food" : "units"),
+      );
       held.title = `${amount(r.held)} ${r.unit}`;
+      const lasts = el(
+        "span",
+        `place-num place-lasts${r.days !== null && r.days < 30 ? " short" : ""}`,
+      );
+      if (r.days === null) {
+        lasts.append(el("span", "", "—"), el("span", "place-unit", "none used"));
+        lasts.title = "None of it used today";
+      } else {
+        const d = r.days >= 999 ? "999+" : `${Math.round(r.days)}`;
+        lasts.append(
+          el("span", "", d),
+          el("span", "place-unit", Math.round(r.days) === 1 ? "day" : "days"),
+        );
+        lasts.title = `Lasts ${d} ${Math.round(r.days) === 1 ? "day" : "days"} at today's use`;
+      }
       const into = r.made + r.came,
         today = el("span", "place-num place-today");
       // (What rounds to nothing, said as such: not "0.00", which reads as none at all.)
@@ -1401,18 +1435,7 @@ export class PlaceHud {
         el("span", into > 0 ? "up" : "", `+${small(into)}`),
         el("span", r.used > 0 ? "down" : "", `−${small(r.used)}`),
       );
-      row.append(
-        good,
-        held,
-        el(
-          "span",
-          `place-num${r.days !== null && r.days < 30 ? " short" : ""}`,
-          r.days === null ? "—" : r.days >= 999 ? "999+ d" : `${Math.round(r.days)} d`,
-        ),
-        today,
-        spark(r.trend),
-        sell,
-      );
+      row.append(good, lasts, held, today, spark(r.trend), sell);
       table.append(row);
     }
     this.sheetBody.replaceChildren(
@@ -1422,7 +1445,7 @@ export class PlaceHud {
       el(
         "p",
         "place-more",
-        "A month's food is what one person eats in a month. Held: the market will not buy it from the town; its own people still use it.",
+        "Lasts: days at today's use; red is under a month. Held: food in months' food (what one person eats in a month), everything else in units. Market may buy, No: the market will not buy it from the town; its own people still use it.",
       ),
     );
   }
@@ -1474,12 +1497,12 @@ export class PlaceHud {
     fact(s.waiting, "waiting for stuff", true);
     fact(s.inWant, "in want", true);
     fact(s.abed, "abed", true);
-    fact(s.unheeding, "too low to heed", true);
+    fact(s.unheeding, "too unhappy to obey", true);
     const body: HTMLElement[] = [facts];
     if (s.healer) body.push(this.healerLine(s.healer, false));
     const table = el("div", "place-table place-share-table"),
       head = el("div", "place-tr place-th");
-    for (const words of ["Trade", "Now", "Share wanted", ""]) head.append(el("span", "", words));
+    for (const words of ["Trade", "Now", "Your aim", ""]) head.append(el("span", "", words));
     table.append(head);
     PLACE_TRADES.forEach((words, k) => {
       const row = el("div", "place-tr"),

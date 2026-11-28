@@ -78,6 +78,22 @@ const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 const signed = (x: number) => `${x > 0 ? "+" : x < 0 ? "−" : ""}${Math.abs(Math.round(x))}`;
 const amount = (x: number) =>
   x >= 100 ? `${Math.round(x)}` : x >= 10 ? x.toFixed(1) : x.toFixed(2);
+/** How closely the town works out one's day, in plain words (U4: "Followed in full, while looked at" said nothing). */
+const tierWords = (x: PlaceInspectPerson): string =>
+  x.tier.pinned && !x.tier.soft
+    ? "Their day is worked out in full detail: you follow them (🎯)."
+    : x.tier.pinned
+      ? "Their day is worked out in full detail while you look at them."
+      : x.tier.tier === 0
+        ? "Their day is worked out in full detail: they matter to the town's story now."
+        : x.tier.tier === 1
+          ? "Their day is worked out hour by hour."
+          : "Their day is worked out every three hours, as for most of the town.";
+/** Mood's scale and the mark on its bar, said beside it (U4). */
+const MOOD_KEY = (at: number) =>
+  `Mood runs from −100 to +100. Below the red tick (${signed(at)}) they stop heeding orders.`;
+/** How long a reading of a tab's section is kept before it is asked again (ms): their family, character, body. */
+const SECTION_EVERY = 3000;
 
 export class PlaceInspector {
   readonly element = el("section", "place-insp");
@@ -161,13 +177,29 @@ export class PlaceInspector {
   onOrder: (type: string, args: Record<string, unknown>) => void = () => {};
   /** One of its people followed in full by word, or let go of (tiers). */
   onPin: (id: number, on: boolean) => void = () => {};
+  /**
+   * A page of theirs read for a section of a tab (U4: their family on Social, their character on Skills, their body on
+   * Health), asked only while that tab is open: the person's own reading, asked twice a second, carries none of it.
+   */
+  read: (ref: string) => Promise<PlaceInspect | null> = () => Promise.resolve(null);
+  private readonly sections = new Map<
+    string,
+    { x: PlaceInspect | null; at: number; asking: boolean }
+  >();
 
   constructor(root: HTMLElement) {
     this.handle.title = "Taller or shorter";
     this.handleWords();
     this.handle.onclick = () =>
       this.setHeight(HEIGHTS[(HEIGHTS.indexOf(this.height) + 1) % HEIGHTS.length]!);
-    this.followKey.onclick = () => this.onFollow(!this.following);
+    // (One key that follows, U4: the eye kept with them, and their day lived out in full by your word, as "Follow
+    // closely" had it; again, both let go. Kept by your word with the eye gone elsewhere, a tap keeps the eye too.)
+    this.followKey.onclick = () => {
+      const x = this.now,
+        on = !this.following;
+      this.onFollow(on);
+      if (x?.kind === "person" && on !== (x.tier.pinned && !x.tier.soft)) this.onPin(x.id, on);
+    };
     this.backKey.onclick = () => this.onBack();
     // (A tap on the web: the one nearest it, within a finger's breadth.)
     this.web.onclick = (e) => {
@@ -257,6 +289,7 @@ export class PlaceInspector {
       this.raising = null;
       this.drawn = "";
       this.now = null;
+      this.sections.clear();
     }
     this.ref = ref;
     this.element.hidden = ref === null;
@@ -323,8 +356,18 @@ export class PlaceInspector {
     this.followKey.disabled = x.kind !== "person";
     this.proseKey.disabled = x.kind !== "person";
     this.helpKey.disabled = x.kind === "help";
+    // (Its state on the key, U4: lit and "Following" while the eye is kept with them; ringed where your word still has
+    // their day lived out in full, the eye gone elsewhere.)
+    const kept = x.kind === "person" && x.tier.pinned && !x.tier.soft;
     this.followKey.classList.toggle("on", this.following);
-    const fw = this.following ? "Let them go: the eye stays" : "Keep the eye with them";
+    this.followKey.classList.toggle("kept", !this.following && kept);
+    this.followKey.setAttribute("aria-pressed", String(this.following));
+    captioned(this.followKey, "🎯", this.following ? "Following" : "Follow");
+    const fw = this.following
+      ? "Following: tap to let them go, the eye where it is"
+      : kept
+        ? "Their day is lived out in full by your word: tap to keep the eye with them too"
+        : "Follow: keep the eye with them, and have their day lived out in full";
     this.followKey.title = fw;
     this.followKey.setAttribute("aria-label", fw);
     this.proseKey.classList.toggle("on", this.prose);
@@ -374,8 +417,22 @@ export class PlaceInspector {
     const now = el("p", "place-insp-now", x.now);
     body.push(now, this.tabRow());
     const first = this.tab === "now";
-    if (first || this.tab === "mood") body.push(this.moodBar(x));
-    // The first tab: their mood, how they are, their needs, their keys and orders, why, where.
+    // Why, the first thing on their first tab (U4): their reason, and every step behind it a key away. (Their bars, their
+    // table and how closely they are followed are this tab's alone: above every tab they took 430 px of a phone. U4.)
+    if (first) {
+      const why = el("div", "place-insp-whyline"),
+        key = el("button", "place-insp-whykey", "Why? ▸");
+      key.setAttribute("aria-label", `Why ${x.name} does what they do, step by step`);
+      key.onclick = () => this.onInspect(x.whyRef);
+      why.append(el("p", "place-insp-why place-insp-reason", x.why), key);
+      body.push(why);
+    }
+    if (first || this.tab === "mood")
+      body.push(
+        this.moodBar(x),
+        el("p", "place-insp-key-line place-insp-mood-key", MOOD_KEY(x.breakAt)),
+      );
+    // The first tab: how they are, their needs, their table, how closely they are followed, their orders, where.
     if (first) {
       if (x.healthWords || x.lack > 0) {
         const h = el(
@@ -387,9 +444,17 @@ export class PlaceInspector {
         );
         body.push(h);
       }
+      // (Which way is worse, said once over the bars, U4: each bar is how much they want of it.)
       const needs = el("div", "place-insp-needs");
       for (const n of x.needs) needs.append(this.needBar(n, x.serves));
-      body.push(needs);
+      body.push(
+        el(
+          "p",
+          "place-insp-key-line place-insp-needs-key",
+          "Needs: 0% wants nothing, 100% can bear no more. Past the white tick it comes before their work.",
+        ),
+        needs,
+      );
       // (Their table, and what they take and need: P4.)
       body.push(el("p", "place-insp-why place-insp-table", x.table));
       if (x.takes) body.push(el("p", "place-insp-why place-insp-takes", x.takes));
@@ -403,55 +468,12 @@ export class PlaceInspector {
           body.push(free);
         }
       }
-      // (How closely they are followed, and a key to follow them in full for good, or let them be. Tiers.)
-      const tier = el("div", "place-insp-tier"),
-        fixed = x.tier.pinned && !x.tier.soft,
-        pin = el(
-          "button",
-          `place-insp-pin${fixed ? " on" : ""}`,
-          fixed ? "★ Followed" : "☆ Follow closely",
-        );
-      tier.append(
-        el(
-          "span",
-          "place-insp-tier-words",
-          `${cap(x.tier.words)}${x.tier.pinned ? (fixed ? ", by your word" : ", while looked at") : ""}`,
-        ),
-        pin,
-      );
-      pin.setAttribute("aria-pressed", String(fixed));
-      pin.title = fixed
-        ? `Let ${x.name} be followed as the town's story has them`
-        : `Follow ${x.name} in full, ten minutes at a time, whatever befalls them`;
-      pin.setAttribute("aria-label", pin.title);
-      pin.onclick = () => this.onPin(x.id, !fixed);
+      // (How closely the town works out their day, in plain words: tiers. Followed by your word from 🎯 Follow, U4: the
+      // drill keys that stood here, Family, Character, Body, Why and Gear, are each in a tab now, one way to each.)
+      const tier = el("p", "place-insp-why place-insp-tier", tierWords(x));
+      tier.title =
+        "How closely the town works out their day: in full, ten minutes at a time; hour by hour; or every three hours with most of its people";
       body.push(tier);
-      // (Their family, P3.)
-      const family = el("button", "place-insp-family", "Family ▸");
-      family.setAttribute(
-        "aria-label",
-        `${x.name}'s family: parents, brothers and sisters, children`,
-      );
-      family.onclick = () => this.onInspect(x.familyRef);
-      // (Their character and mind, R2.)
-      const character = el("button", "place-insp-character", "Character ▸");
-      character.setAttribute("aria-label", `${x.name}'s character and mind`);
-      character.onclick = () => this.onInspect(x.characterRef);
-      const links = el("div", "place-insp-links");
-      // (Their body and what it is written in, R4.)
-      const bodyKey = el("button", "place-insp-bodykey", "Body ▸");
-      bodyKey.setAttribute("aria-label", `${x.name}'s body, what it is made of and written in`);
-      bodyKey.onclick = () => this.onInspect(x.bodyRef);
-      // (Why they do what they do, R7: beside their family, character and body.)
-      const why = el("button", "place-insp-whykey", "Why? ▸");
-      why.setAttribute("aria-label", `Why ${x.name} does what they do`);
-      why.onclick = () => this.onInspect(x.whyRef);
-      // (What they hold, a tap from their first tab: U3.)
-      const gear = el("button", "place-insp-gearkey", "Gear ▸");
-      gear.setAttribute("aria-label", `What ${x.name} holds and wears`);
-      gear.onclick = () => this.toTab("gear");
-      links.append(family, character, bodyKey, why, gear);
-      body.push(links);
       // (A hand's orders, by name: a trade, or let be.)
       if (this.orders && x.trade !== "child") {
         const row = el("div", "place-insp-orders"),
@@ -515,7 +537,6 @@ export class PlaceInspector {
       }
     }
     if (this.tab === "now") {
-      body.push(el("p", "place-insp-why", x.why));
       body.push(
         this.facts([
           ["Home", x.home.words, x.home.ref],
@@ -556,6 +577,14 @@ export class PlaceInspector {
     } else if (this.tab === "skills") {
       if (!x.skills.length) body.push(el("p", "place-insp-why", "A child: they keep no work yet."));
       else {
+        // (Its scale said over it, U4: the hours, and the levels the bar fills by.)
+        body.push(
+          el(
+            "p",
+            "place-insp-key-line place-insp-skills-key",
+            "Hours given to each kind of work. The bar fills level by level: a hand at 200 h, able at 800, skilled at 2,000, a master at 8,000. ★ taught at home; % fit: what a wound leaves of their hand.",
+          ),
+        );
         const list = el("div", "place-insp-skills");
         for (const k of [...x.skills].sort(
           (a, b) => Number(b.own) - Number(a.own) || b.hours - a.hours,
@@ -586,10 +615,15 @@ export class PlaceInspector {
           el(
             "p",
             "place-insp-why",
-            `${x.taught ? `★ ${x.taught}. ` : ""}Each hour at a kind of work is an hour of skill at it, kept when they turn to another (a master has given 8,000).`,
+            `${x.taught ? `★ ${x.taught}. ` : ""}Each hour at a kind of work is an hour of skill at it, kept when they turn to another.`,
           ),
         );
       }
+      // (Their character and mind, U4: what Character ▸ opened, here under their skills.)
+      body.push(el("h3", "place-insp-sub place-insp-section", "Character"));
+      const c = this.section(x.characterRef, "character");
+      if (c) body.push(...this.characterEls(c, true));
+      else body.push(el("p", "place-insp-why", "…"));
     } else if (this.tab === "health") {
       // (Their figure, each member not whole marked on it and named; then how they are, line by line.)
       const row = el("div", "place-insp-health-box"),
@@ -606,22 +640,32 @@ export class PlaceInspector {
       if (!x.body.length) marks.append(el("li", "", "Whole: no member hurt or marked"));
       row.append(canvas, marks);
       body.push(row, this.facts(x.healthRows.map(([a, b]) => [a, b, null] as const)));
+      // (Their body, what it is made of and written in, U4: what Body ▸ opened, here under their health.)
+      body.push(el("h3", "place-insp-sub place-insp-section", "Body"));
+      const b = this.section(x.bodyRef, "body");
+      if (b) body.push(...this.bodyEls(b));
+      else body.push(el("p", "place-insp-why", "…"));
     } else if (this.tab === "social") {
-      const named: PlaceNamed[] = [
-        ...(x.mate ? [x.mate] : []),
-        ...(x.friend ? [x.friend] : []),
-        ...x.household.filter((h) => h.id !== x.mate?.id),
-      ];
-      if (named.length) body.push(this.people(named));
-      else
-        body.push(
-          el("p", "place-insp-why", "No one lives with them, and they have no friend yet."),
-        );
-      body.push(
-        el("h3", "place-insp-sub", "Whom they know"),
-        el("p", "place-insp-why", x.tiesWords),
-        el("p", "place-insp-why", x.repute),
-      );
+      // (Their family, U4: what Family ▸ opened, here: each of their kin a tap away, their household, then the web of
+      // whom they know. Till their family is read, their nearest kin and household as their own reading has them.)
+      body.push(el("h3", "place-insp-sub place-insp-section", "Family"));
+      const f = this.section(x.familyRef, "family");
+      if (f) body.push(...this.familyEls(f));
+      else {
+        const named: PlaceNamed[] = [
+          ...(x.mate ? [x.mate] : []),
+          ...x.household.filter((h) => h.id !== x.mate?.id),
+        ];
+        if (x.kin.length) body.push(this.kinRows(x.kin));
+        if (named.length) body.push(this.people(named));
+        if (!x.kin.length && !named.length)
+          body.push(
+            el("p", "place-insp-why", "No kin of theirs in the town, and no one lives with them."),
+          );
+      }
+      body.push(el("h3", "place-insp-sub place-insp-section", "Whom they know"));
+      if (x.friend) body.push(this.people([x.friend]));
+      body.push(el("p", "place-insp-why", x.tiesWords), el("p", "place-insp-why", x.repute));
       if (x.ties.length) body.push(this.webOf(x));
       if (x.ties.length) {
         const list = this.people(
@@ -657,7 +701,15 @@ export class PlaceInspector {
           if (t.ref) (row as HTMLButtonElement).onclick = () => this.onInspect(t.ref!);
           slots.append(row);
         }
-        body.push(el("h3", "place-insp-sub", "In their slots"), slots);
+        body.push(
+          el("h3", "place-insp-sub", "In their slots"),
+          el(
+            "p",
+            "place-insp-key-line place-insp-wear-key",
+            "Worn: 0% new, 100% worn out and of no more use.",
+          ),
+          slots,
+        );
       }
       if (inv.materials.length) {
         const list = el("div", "place-insp-stuffs");
@@ -685,11 +737,7 @@ export class PlaceInspector {
       }
       body.push(this.facts(x.gear));
     } else if (this.tab === "life") {
-      // (Their nearest kin a tap away, living or of the town's dead kept so: R1.)
-      if (x.kin.length) {
-        body.push(el("h3", "place-insp-sub", "Their nearest kin"));
-        body.push(this.kinRows(x.kin));
-      }
+      // (Their kin are on Social with the rest of their family, U4.)
       if (!x.life.length)
         body.push(
           el("p", "place-insp-why", "Nothing has befallen them since the town was entered."),
@@ -704,9 +752,6 @@ export class PlaceInspector {
         this.facts([
           ["Trade", `${cap(x.trade)}${x.bound ? `; held by order: ${x.bound}` : ""}`, null],
           ...(x.skill ? [["Skill", x.skill, null] as const] : []),
-          ["Temper", x.temper, null],
-          ["Nature", x.nature, null],
-          ["Values", x.values, null],
           ...(x.mark ? [["Bears", x.mark, null] as const] : []),
         ]),
       );
@@ -880,13 +925,17 @@ export class PlaceInspector {
     if (this.title.textContent !== title) this.title.textContent = title;
     // (Its kin in the town counted by the host's one reader of kinship, the Social tab's rows' too: U2.)
     this.sub.textContent = `${x.children.length} ${x.children.length === 1 ? "child" : "children"} · ${x.inTown} kin in the town · ${x.household.length} in their home`;
+    this.body.replaceChildren(...this.familyEls(x));
+  }
+  /** One's family, row by row (P3): on its own page, and on their Social tab (U4). */
+  private familyEls(x: PlaceInspectFamily): HTMLElement[] {
     const body: HTMLElement[] = [el("p", "place-insp-why", x.words)],
       rows = (
         label: string,
         list: readonly { name: string; ref: string | null; words: string }[],
       ) => {
         if (!list.length) return;
-        const box = el("div", "place-insp-people");
+        const box = el("div", "place-insp-people place-insp-kinship");
         for (const r of list) {
           const b = el(r.ref ? "button" : "div", "place-insp-person place-family-row");
           b.append(el("span", "place-row-name", r.name), el("span", "place-row-what", r.words));
@@ -902,7 +951,7 @@ export class PlaceInspector {
     rows("Children", x.children);
     rows("Grandchildren", x.grandchildren);
     rows("Their household", x.household);
-    this.body.replaceChildren(...body);
+    return body;
   }
   /** Kin or those known, each a key to their page where they have one (the living's, or one of the dead kept so). */
   private kinRows(
@@ -924,7 +973,17 @@ export class PlaceInspector {
     if (this.title.textContent !== title) this.title.textContent = title;
     const sub = `${x.traits.length} ${x.traits.length === 1 ? "trait" : "traits"} · ${x.skills.length ? x.skills[0]!.name.toLowerCase() : "no skill yet"}`;
     if (this.sub.textContent !== sub) this.sub.textContent = sub;
-    const body: HTMLElement[] = [el("h3", "place-insp-sub", "Character")];
+    this.body.replaceChildren(
+      el("h3", "place-insp-sub", "Character"),
+      ...this.characterEls(x, false),
+    );
+  }
+  /**
+   * One's character and mind (R2), on its own page and under their Skills tab (U4: there their skills are listed just
+   * above, so not again as "Best at").
+   */
+  private characterEls(x: PlaceInspectCharacter, inTab: boolean): HTMLElement[] {
+    const body: HTMLElement[] = [];
     if (x.traits.length) {
       const tags = el("div", "place-insp-traits");
       for (const t of x.traits) {
@@ -939,15 +998,19 @@ export class PlaceInspector {
     } else body.push(el("p", "place-insp-why", "Much as most of their people, in every way."));
     body.push(
       this.facts([
-        [
-          "Best at",
-          x.skills.length
-            ? x.skills
-                .map((s) => `${s.name} (${s.words}${s.passion ? ", a passion" : ""})`)
-                .join("; ")
-            : "Nothing yet",
-          null,
-        ],
+        ...(inTab
+          ? []
+          : [
+              [
+                "Best at",
+                x.skills.length
+                  ? x.skills
+                      .map((s) => `${s.name} (${s.words}${s.passion ? ", a passion" : ""})`)
+                      .join("; ")
+                  : "Nothing yet",
+                null,
+              ] as const,
+            ]),
         ["Wants", x.want, null],
         ...(x.since ? [["In want", x.since, null] as const] : []),
       ]),
@@ -961,6 +1024,12 @@ export class PlaceInspector {
     body.push(
       el("h3", "place-insp-sub", "Mind"),
       el("p", "place-insp-why", `Driven by ${x.drive}.`),
+      // (Their leanings' scale, U4: each against most of their people.)
+      el(
+        "p",
+        "place-insp-key-line place-insp-leanings-key",
+        "Leanings, each against most of their people: 100 is as most are, more is stronger.",
+      ),
     );
     const bars = el("div", "place-insp-leanings");
     for (const l of x.leanings) {
@@ -987,7 +1056,7 @@ export class PlaceInspector {
       el("p", "place-insp-label", "Their senses"),
       this.facts(x.senses.map((s) => [s.name, s.words, null] as const)),
     );
-    this.body.replaceChildren(...body);
+    return body;
   }
   /** What now? (G3): each thing worth doing, what to do, and its Go to, its page, its sheet. */
   private whatNow(x: PlaceInspectWhatNow): void {
@@ -1285,6 +1354,10 @@ export class PlaceInspector {
     const title = `${x.icon} ${x.name}`;
     if (this.title.textContent !== title) this.title.textContent = title;
     if (this.sub.textContent !== x.sub) this.sub.textContent = x.sub;
+    this.body.replaceChildren(...this.bodyEls(x));
+  }
+  /** One's body (R4): on its own page, and under their Health tab (U4). */
+  private bodyEls(x: PlaceInspectBody): HTMLElement[] {
     const made = el("div", "place-insp-stuffs place-insp-madeof");
     for (const m of x.madeOf) {
       const share = el("span", "place-insp-stuff-kg", `${m.share}%`);
@@ -1292,15 +1365,52 @@ export class PlaceInspector {
       what.title = m.words;
       made.append(share, what);
     }
-    this.body.replaceChildren(
+    return [
       el("p", "place-insp-why", `${x.body}.`),
-      el("h3", "place-insp-sub", "What their body is made of (est.)"),
+      el("p", "place-insp-label", "What their body is made of (est.): share of their weight"),
       made,
-      el("h3", "place-insp-sub", "How it lives"),
+      el("p", "place-insp-label", "How it lives"),
       this.facts(x.metabolism.map(([a, b]) => [a, b, null] as const)),
-      el("h3", "place-insp-sub", "What it is written in"),
+      el("p", "place-insp-label", "What it is written in"),
       this.facts(x.genome.map(([a, b]) => [a, b, null] as const)),
-    );
+    ];
+  }
+  /**
+   * A page of theirs for a tab's section (U4), as last read: asked when the tab first shows it and again when it is
+   * older than SECTION_EVERY, the tab drawn anew when it comes back changed. Null till it is read.
+   */
+  private section<K extends PlaceInspect["kind"]>(
+    ref: string,
+    kind: K,
+  ): Extract<PlaceInspect, { kind: K }> | null {
+    let s = this.sections.get(ref);
+    if (!s) {
+      s = { x: null, at: -Infinity, asking: false };
+      this.sections.set(ref, s);
+    }
+    const e = s;
+    if (!e.asking && performance.now() - e.at > SECTION_EVERY) {
+      e.asking = true;
+      this.read(ref).then(
+        (x) => {
+          e.asking = false;
+          e.at = performance.now();
+          const next = x && !("error" in x) ? x : null,
+            changed = JSON.stringify(next) !== JSON.stringify(e.x);
+          e.x = next;
+          // (Drawn anew only while it is theirs still: another opened since has cleared it.)
+          if (changed && this.sections.get(ref) === e && this.now) {
+            this.drawn = "";
+            this.show(this.now);
+          }
+        },
+        () => {
+          e.asking = false;
+          e.at = performance.now();
+        },
+      );
+    }
+    return e.x?.kind === kind ? (e.x as Extract<PlaceInspect, { kind: K }>) : null;
   }
   /** One of the town's dead (R1): what took them, their life in short, their kin and those they knew, their last memories. */
   private dead(x: PlaceInspectDead): void {
@@ -1623,7 +1733,7 @@ export class PlaceInspector {
       const b = el(
         "button",
         "place-chip place-insp-post",
-        x.post ? "🛡️ The guard's post: back to the square" : "🛡️ Post the guard here",
+        x.post ? "🛡️ Move the guard back to the square" : "🛡️ Post the guard here",
       );
       b.classList.toggle("on", x.post);
       b.setAttribute("aria-pressed", String(x.post));
@@ -1756,7 +1866,7 @@ export class PlaceInspector {
     fill.style.width = `${(Math.abs(m) / 200) * 100}%`;
     box.classList.add(m < x.breakAt ? "bad" : m < -15 ? "low" : "good");
     mark.style.left = at(x.breakAt);
-    mark.title = `Below ${x.breakAt} they heed no order`;
+    mark.title = `The red tick: below ${signed(x.breakAt)} they stop heeding orders`;
     bar.append(fill, mark);
     box.append(
       el("span", "place-insp-label", "Mood"),
@@ -1775,7 +1885,7 @@ export class PlaceInspector {
     row.classList.toggle("pressing", n.level >= serves);
     row.classList.toggle("high", n.level >= 0.9);
     bar.append(fill, mark);
-    row.title = `${n.name}: ${Math.round(n.level * 100)}% full, pressing ${Math.round(n.press * 100)}%. Past the mark it is seen to before work.`;
+    row.title = `${n.name}: ${Math.round(n.level * 100)}% (higher is worse: 100% can bear no more), pressing ${Math.round(n.press * 100)}%. Past the white tick it is seen to before work.`;
     // (A need met by the day, by their home and what is in sight of it: told what meets it; nothing is sought for it.)
     if (n.words) {
       row.classList.remove("pressing");

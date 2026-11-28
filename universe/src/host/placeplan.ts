@@ -1266,7 +1266,7 @@ export function attentionOf(
           : p.health[i] === 1
             ? "hurt, abed"
             : mood < MOOD_UNHEEDING
-              ? "too low to heed an order"
+              ? "too unhappy to follow orders"
               : full >= 0.9
                 ? `very ${NEED[top]}`
                 : full >= 0.75
@@ -1982,8 +1982,8 @@ export function dangersSheet(world: World, place: Place): PlaceDangersSheet {
             ? `${arms} of its grown stand in the square in their working hours.`
             : `${armsWanted(hands)} of its grown would stand in the square in their working hours.`,
           cost: cost(1),
-          gain: `+${pctOf(ASK_PULL.glad * share)}% defenders`,
-          price: `${pctOf(ASK_PULL.glad)}% of hands`,
+          gain: `Defence +${pctOf(ASK_PULL.glad * share)}%`,
+          price: `${pctOf(ASK_PULL.glad)}% of its workers`,
         };
       const most = r?.most ?? 0;
       return {
@@ -2014,7 +2014,7 @@ export function dangersSheet(world: World, place: Place): PlaceDangersSheet {
             : what === "quarantine"
               ? `−${pctOf(most)}% sicken`
               : `+${Math.round(most * share * 30)} days' food kept`,
-        price: `${pctOf((r?.asks ?? 0) * ASK_PULL.glad)}% of hands`,
+        price: `${pctOf((r?.asks ?? 0) * ASK_PULL.glad)}% of its workers`,
       };
     });
   return {

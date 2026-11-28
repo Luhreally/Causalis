@@ -55,7 +55,7 @@ export const HELP: Readonly<Record<string, Help>> = {
     numbers: [
       [
         "Mood",
-        "From -100 to 100. Below the line on a person's page, they stop doing as they are told.",
+        "From −100 to +100. Below the red tick on a person's page, they stop doing as they are told.",
       ],
       ["The bars", "How hungry, tired, cold and lonely each is: the fuller, the more it presses."],
     ],
@@ -63,11 +63,15 @@ export const HELP: Readonly<Record<string, Help>> = {
   },
   "sheet:stocks": {
     title: "Stocks",
-    what: "What the town holds in its stores and its granary, and how long its food will last.",
+    what: "What the town holds in its stores and its granary, and how long each thing will last.",
     numbers: [
       [
-        "Days",
-        "How many days each thing would last at the rate the town uses it. Red is under a month.",
+        "Lasts",
+        "How many days each thing would last at the rate the town uses it today. Red is under a month.",
+      ],
+      [
+        "Held",
+        "How much there is: food in months' food (what one person eats in a month), everything else in units.",
       ],
       ["Today", "What came in and went out today."],
     ],
@@ -82,7 +86,11 @@ export const HELP: Readonly<Record<string, Help>> = {
     what: "Who works at what: the fields, the herds, the crafts, hauling, building.",
     numbers: [
       ["Hands", "How many work at each."],
-      ["%", "The share of the town's grown people you want at each."],
+      ["Your aim", "The share of the town's grown people you want at each."],
+      [
+        "The grid",
+        "The big number is a priority: 1 first, 3 last, – never. The small one is skill: 0 new to it, 4 a master.",
+      ],
     ],
     can: [
       "Move the shares to put more hands where they are needed.",
@@ -112,43 +120,55 @@ export const HELP: Readonly<Record<string, Help>> = {
   },
   "tab:now": {
     title: "Now",
-    what: "What this person is doing at this moment, and why.",
+    what: "What this person is doing at this moment and why, how they feel, and what they need.",
     numbers: [
+      ["Mood", "From −100 to +100. Below the red tick they stop heeding orders."],
       [
-        "The four bars",
-        "Hunger, tiredness, cold and loneliness. When one passes its mark, it beats their work.",
+        "The need bars",
+        "Hunger, tiredness, cold, want of company and comfort: 0% wants nothing, 100% can bear no more. Past its white tick a need comes before their work.",
       ],
-      ["Mood", "From -100 to 100, with the line below which they stop heeding orders."],
     ],
-    can: ["Give them orders (Orders ▾).", "🎯 keeps the view on them."],
+    can: [
+      "Why? ▸ shows every step behind what they do.",
+      "Give them orders (Orders ▾).",
+      "🎯 Follow keeps the view on them and has their day worked out in full; tap it again to let them go.",
+    ],
   },
   "tab:mood": {
     title: "Mood",
-    what: "Everything that cheers this person or weighs on them right now.",
+    what: "Everything that cheers this person or weighs on them right now, and their mood as it all adds up.",
     numbers: [
-      ["+ and -", "How much each thing lifts or lowers their mood."],
+      ["The bar", "Their mood, from −100 to +100. Below the red tick they stop heeding orders."],
+      ["+ and −", "How much each thing lifts or lowers their mood."],
       ["Days", "How much longer it will last."],
     ],
     can: ["Tap who or what a feeling came from to open them."],
   },
   "tab:health": {
     title: "Health",
-    what: "Their body: wounds, sickness, and how each part of them is.",
-    numbers: [["Each part", "Whole, hurt, or lost."]],
+    what: "Their wounds and sickness, how each part of them is, and their body: what it is made of, how it lives, what it is written in.",
+    numbers: [
+      ["Each part", "Whole, hurt, or lost."],
+      ["%", "Rough shares of their weight, by what their body is made of."],
+    ],
     can: ["See who is tending them, and what they have taken."],
   },
   "tab:skills": {
     title: "Skills",
-    what: "What this person is good at, and how many hours they have put into each.",
+    what: "What this person is good at and how many hours they have put into each; then their character: traits, wants and mind.",
     numbers: [
-      ["Hours", "Time spent at it. More hours, more skill."],
-      ["A passion", "They learn it faster, and like doing it."],
+      [
+        "Hours",
+        "Time spent at it: a hand at 200 hours, able at 800, skilled at 2,000, a master at 8,000.",
+      ],
+      ["★", "Taught at home as they grew: they took to it early."],
+      ["Leanings", "Each against most of their people: 100 is as most are."],
     ],
     can: ["Put them to the work they are best at, from Orders."],
   },
   "tab:social": {
     title: "Social",
-    what: "Who they know, and what they think of each: friends, rivals, family.",
+    what: "Their family, kin and household, then everyone else they know and what they think of each: friends, rivals.",
     numbers: [["Regard", "From hatred to love: how they feel about that person."]],
     can: ["Tap anyone to open them."],
   },
@@ -156,28 +176,34 @@ export const HELP: Readonly<Record<string, Help>> = {
     title: "Gear",
     what: "What they hold and wear, and what it is made of.",
     numbers: [
-      ["Worn", "How used up each thing is. At 100% it stops working."],
+      ["Worn", "How used up each thing is: 0% new; at 100% it is worn out and stops working."],
       ["kg", "How heavy all they hold is, by what it is made of."],
     ],
     can: ["Tap a thing to open its page."],
   },
   "tab:life": {
     title: "Life",
-    what: "Their story: family, home, and what has happened to them since you came in.",
+    what: "Their story: what has happened to them since you came in, newest first.",
     numbers: [],
-    can: ["Open their family, their character or their body from their page."],
+    can: ["Their family is on Social, their character on Skills, their body on Health."],
   },
   "tab:work": {
     title: "Work",
-    what: "Their trade, where they work and live, and their temper and nature.",
-    numbers: [["Their hand at it", "How skilled they are at their own work."]],
+    what: "Their trade, where they work and live, their hand at it, and their day: when they work, play and rest.",
+    numbers: [
+      ["Their hand at it", "How skilled they are at their own work."],
+      ["Their day", "Each hour of today: at work, at play, or at home."],
+    ],
     can: ["Open their home or their workplace."],
   },
   "page:person": {
     title: "A person",
     what: "One of the town's people.",
     numbers: [],
-    can: ["Use the tabs to read about them; Orders to direct them."],
+    can: [
+      "Use the tabs to read about them; Orders to direct them.",
+      "🎯 Follow keeps the view on them and has their day worked out in full.",
+    ],
   },
   "page:lot": {
     title: "A building or a lot",
@@ -233,7 +259,7 @@ export const HELP: Readonly<Record<string, Help>> = {
   },
   "page:family": {
     title: "Family",
-    what: "A person's family: parents, partner, children, and the dead among them.",
+    what: "A person's family: parents, partner, children, and the dead among them. Their Social tab shows it too.",
     numbers: [],
     can: ["Tap anyone to open them."],
   },
@@ -257,14 +283,14 @@ export const HELP: Readonly<Record<string, Help>> = {
   },
   "page:character": {
     title: "Character",
-    what: "A person's traits, best skills, what they want, and how their mind works.",
-    numbers: [["The bars", "How they lean, against most of their people."]],
+    what: "A person's traits, best skills, what they want, and how their mind works. Their Skills tab shows it too.",
+    numbers: [["The bars", "How they lean, against most of their people: 100 is as most are."]],
     can: [],
   },
   "page:body": {
     title: "Body",
-    what: "What a person's body is made of and how it lives, as their world made it.",
-    numbers: [["%", "Rough shares of what their body is made of."]],
+    what: "What a person's body is made of and how it lives, as their world made it. Their Health tab shows it too.",
+    numbers: [["%", "Rough shares of their weight, by what their body is made of."]],
     can: [],
   },
   "page:making": {
