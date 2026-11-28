@@ -18,6 +18,7 @@ import {
   regionOf,
   townsOf,
   DRY_MOST,
+  PROVINCE_TILE_KM,
   ORDER_AT,
   orderAt,
   type Fabric,
@@ -291,6 +292,14 @@ export function landWater(
     bank = r.water[j * r.size + i] !== WATER.land ? bankOf(wet) : null;
   return bank ? { wet, bank } : { wet };
 }
+
+/**
+ * The farthest a town's square stands from its tile's middle on its land's map (km; townSquareOff), on a land of the home
+ * world (its tiles no wider than PROVINCE_TILE_KM): a bank is found within WET_HALF tiles of it (bridge/sites.ts bankOf), each
+ * of its two numbers rounded to a metre.
+ */
+export const SQUARE_REACH =
+  ((WET_HALF * Math.round((PROVINCE_TILE_KM * 1000) / LAND_SCALE) + 1) * LAND_SCALE) / 1000;
 
 /**
  * Where a town's square stands on its land's map, from its tile's middle (kilometres: the map's own units; 0, 0 where it

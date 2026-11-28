@@ -61,6 +61,14 @@ export class LessonStore implements StateStore {
   copied = 0;
   /** The responses some people of this world has taken up, the year each first was and its telling (kept), in that order. */
   readonly firsts: [string, number, Ref | null][] = [];
+  /**
+   * How many times what its holders lean on has been changed (a strike reckoned, what is leaned on no more forgotten, a load):
+   * neither hashed nor saved, only so lessonAdds may keep what it read until it changes.
+   */
+  changes = 0;
+  /** What lessonAdds last read, by how and holder: its year and what it gave, as of `addsAt` changes. */
+  readonly adds = new Map<string, Map<string, [number, number]>>();
+  addsAt = -1;
 
   /** Nothing has cost anyone yet: hashed as if not there (what it has read is the log's own, and moves nothing). */
   dormant(): boolean {
@@ -106,6 +114,7 @@ export class LessonStore implements StateStore {
     };
   }
   load(state: unknown): void {
+    this.changes++;
     const s = (state ?? {}) as {
       read?: number;
       taken?: number;
@@ -210,16 +219,36 @@ export function lessened(world: World, holder: string, cause: string, year: numb
  * they lean on it. Exactly 0 where they lean on none.
  */
 export function lessonAdds(world: World, holder: string, how: LessonHow, year: number): number {
-  const h = lessonsOf(world)?.get(holder);
+  const store = lessonsOf(world),
+    h = store?.get(holder);
   if (!h || !h.uses.size) return 0;
+  // (Kept, by how and holder, for the year it was read, until what they lean on is changed: asked of every land every month,
+  // it changes only as a strike is reckoned. The same sum, read the same way.)
+  if (store!.addsAt !== store!.changes) {
+    store!.adds.clear();
+    store!.addsAt = store!.changes;
+  }
+  let byHolder = store!.adds.get(how);
+  if (!byHolder) store!.adds.set(how, (byHolder = new Map()));
+  const kept = byHolder.get(holder);
+  if (kept && kept[0] === year) return kept[1];
+  const add = addsOf(h, how, year);
+  if (kept) {
+    kept[0] = year;
+    kept[1] = add;
+  } else byHolder.set(holder, [year, add]);
+  return add;
+}
+function addsOf(h: Holder, how: LessonHow, year: number): number {
   let add = 0;
   // (Each use as useIn reads it, off the entry in hand: asked of every land every month, and of every realm's levy.)
-  for (const [id, u] of h.uses) {
+  // (By forEach: no pair made for each entry.)
+  h.uses.forEach((u, id) => {
     const r = LESSON_RESPONSE.get(id);
-    if (r?.how !== how) continue;
+    if (r?.how !== how) return;
     const w = faded(u.w, year - u.at, r.keep ?? LESSON.keep);
     add += r.most * (w < LESSON.least ? 0 : w);
-  }
+  });
   return add;
 }
 

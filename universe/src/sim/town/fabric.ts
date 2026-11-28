@@ -387,6 +387,30 @@ export class TownStore implements StateStore {
   get(town: Ref): Fabric | undefined {
     return this.map.get(town) ?? this.seen?.(town);
   }
+  /** How many times a fabric has been added or the store loaded: what fabricsOf keeps its lists by. Not hashed, not saved. */
+  private added = 0;
+  /** By a land's cell: the list it was read from (as SettlementStore.kept holds it), how long, at which add, and the pairs. */
+  private readonly lists = new Map<
+    number,
+    { list: readonly Settlement[]; n: number; at: number; pairs: [Settlement, Fabric][] }
+  >();
+  /**
+   * The settlements of a land's list (`cell`'s, as SettlementStore.kept holds it) that have a fabric, each with it (as of), in
+   * the list's order: kept until a fabric is added or the store loaded, or the list grows or is another (a land's list only
+   * grows). A land's hamlets have none, and asking each of them by of was most of the roofless's year.
+   */
+  fabricsOf(cell: number, list: readonly Settlement[]): readonly [Settlement, Fabric][] {
+    const kept = this.lists.get(cell);
+    if (kept && kept.list === list && kept.n === list.length && kept.at === this.added)
+      return kept.pairs;
+    const pairs: [Settlement, Fabric][] = [];
+    for (const s of list) {
+      const f = this.of(s);
+      if (f) pairs.push([s, f]);
+    }
+    this.lists.set(cell, { list, n: list.length, at: this.added, pairs });
+    return pairs;
+  }
   /** A settlement's fabric (as get, by the settlement). */
   of(s: Settlement): Fabric | undefined {
     let f = this.bySettlement.get(s);
@@ -463,6 +487,7 @@ export class TownStore implements StateStore {
     return [...this.map.values()].sort((a, b) => (a.town < b.town ? -1 : 1));
   }
   add(f: Fabric): Fabric {
+    this.added++;
     this.map.set(f.town, f);
     this.fold(f.town, FOLD.found, TOWN_FAMILIES.indexOf(f.family));
     return f;
@@ -517,6 +542,7 @@ export class TownStore implements StateStore {
   load(state: unknown): void {
     // (Town by town, in a save from before Phase 66.)
     const s = state as { digest: [number, number]; fabrics?: Saved[]; towns?: SavedColumns };
+    this.added++;
     this.map.clear();
     this.bySettlement.clear();
     this.atSettlement.length = 0;
@@ -779,7 +805,7 @@ export function readStanding(f: Fabric): void {
   const cs = f.civics;
   for (let j = 0; j < cs.length; j++)
     if (cs.fellAt(j) === NO_FALL) cuts.push(clip(cs.lotAt(j)), clip(cs.lotAt(j) + cs.lotsAt(j)));
-  const xs = Int32Array.from(cuts.sort((a, b) => a - b));
+  const xs = new Int32Array(cuts.sort((a, b) => a - b));
   let places = 0;
   for (let i = 0; i < xs.length; i++) if (i === 0 || xs[i] !== xs[i - 1]) xs[places++] = xs[i]!;
   const spans = places - 1,
@@ -1989,7 +2015,7 @@ export class TownBuilder {
       emptied: f.emptied,
       lean: f.lean,
       at,
-      drawn: drawn.length ? Float64Array.from(drawn) : null,
+      drawn: drawn.length ? new Float64Array(drawn) : null,
     });
     return at;
   }
@@ -2674,7 +2700,7 @@ export function townUseOf(ctx: PopulationContext, s: Settlement): TownUse {
   if (!prov || total <= 0 || people <= 0)
     return { people, share: [1, 0, 0, 0, 0], worth: [1, 1, 1, 1, 1], preference: 0.05 };
   let towns = 0;
-  for (const o of ctx.settlements?.inProvince(s.cell) ?? [s]) towns += Math.max(0, o.population);
+  for (const o of ctx.settlements?.kept(s.cell) ?? [s]) towns += Math.max(0, o.population);
   const inTown = (occ: number) =>
       Math.min(1, (USE_OCC[occ]! * (people / Math.max(people, towns))) / people),
     w = m?.wage,
@@ -2722,7 +2748,7 @@ function keptBy(ctx: PopulationContext, s: Settlement, def: CivicDef, use: TownU
   if (u === 4) return keptPeopleBy(def, lots, USE_OCC[OCC.dependent]! / total, 1);
   const occ = u === 1 ? OCC.crafter : u === 2 ? OCC.trader : OCC.leader;
   let towns = 0;
-  for (const o of ctx.settlements?.inProvince(s.cell) ?? [s]) towns += Math.max(0, o.population);
+  for (const o of ctx.settlements?.kept(s.cell) ?? [s]) towns += Math.max(0, o.population);
   const share = Math.min(1, (USE_OCC[occ]! * (people / Math.max(people, towns))) / people),
     w = ctx.world?.peek<MarketStore>("economy.markets")?.get(s.cell)?.wage,
     workers = total - USE_OCC[OCC.dependent]!;
@@ -2844,6 +2870,14 @@ export function townYear(ctx: PopulationContext, t: SimTime): void {
       const k = knower(ctx, cell);
       knowers.set(cell, k);
       return k;
+    },
+    // (Whether a land has come to engines, asked of each of its towns not yet come to them, once a land: nothing of the towns'
+    // year teaches a land.)
+    engined = new Map<number, boolean>(),
+    enginesIn = (cell: number) => {
+      let e = engined.get(cell);
+      if (e === undefined) engined.set(cell, (e = (knowers.get(cell) ?? knowerOf(cell))(ENGINES)));
+      return e;
     };
   // (Each town's year its own function, asked of each in turn: as one loop's body, a late world's town year was compiled
   // and let go again within the loop, a hundred milliseconds of one year.)
@@ -2859,7 +2893,7 @@ export function townYear(ctx: PopulationContext, t: SimTime): void {
         s.population <= 0 &&
         !s.market &&
         !(sacked.size && sacked.has(s.cell)) &&
-        !(asleep === ASLEEP_ENGINES && (knowers.get(s.cell) ?? knowerOf(s.cell))(ENGINES))
+        !(asleep === ASLEEP_ENGINES && enginesIn(s.cell))
       )
         return;
       store.wakeAt(at);
@@ -2876,7 +2910,7 @@ export function townYear(ctx: PopulationContext, t: SimTime): void {
       people = s.population,
       weighs = f.next === 0 || (year + f.phase) % CIVIC_EVERY === 0;
     // (Engines come to its land: what it has taken by now was laid before them. Set down once.)
-    if (f.engines === -1 && k(ENGINES)) {
+    if (f.engines === -1 && enginesIn(cell)) {
       f.engines = f.next;
       store.fold(f.town, FOLD.form, 4, f.next);
       builder.orderSet(f, ORDER_AT.engines, cell);
@@ -2887,7 +2921,7 @@ export function townYear(ctx: PopulationContext, t: SimTime): void {
       builder.rise(f, people, top, edgeLevel(top, city), designSince(ctx, cell));
     }
     const fallen = sacked.get(cell);
-    if (fallen && ctx.settlements.inProvince(cell).every((o) => o.population <= people))
+    if (fallen && ctx.settlements.kept(cell).every((o) => o.population <= people))
       builder.raze(f, Math.min(0.12, 0.01 + fallen / Math.max(1, people) / 20), true);
     // Its other buildings first (about the square, before its first homes take the lots).
     if (weighs)

@@ -202,6 +202,23 @@ export function canMake(ctx: PopulationContext, p: Province, m: Market, r: Recip
 }
 
 /**
+ * canMake of the recipe `i`th of RECIPES, as the economy's year asks it: once a land and recipe in a moment. (Asked three times
+ * of each, its home-made, its crafts open and its prices; nothing the year does between reaches what it reads: what a land
+ * knows, makes, carries and digs is changed in systems of its own, and a lode found out only when the year's digging is done.)
+ */
+function canMakeNow(ctx: PopulationContext, p: Province, m: Market, i: number): boolean {
+  const t = ctx.world.now,
+    all = marketsOf(ctx.world).canMakeKept;
+  let kept = all.get(p.cell);
+  if (!kept || kept.t !== t) all.set(p.cell, (kept = { t, can: new Int8Array(RECIPES.length) }));
+  const was = kept.can[i]!;
+  if (was !== 0) return was > 0;
+  const can = canMake(ctx, p, m, RECIPES[i]!);
+  kept.can[i] = can ? 1 : -1;
+  return can;
+}
+
+/**
  * Why a land cannot work a recipe (null: it can) — the same test its crafters' choice is made
  * by, in words, for the pages (Phase 15 M122): not known, no ore within reach, no seam, no clay. (canMake above is the
  * same tests without the words: the two change together, tests/sim/economy.test.ts.)
@@ -355,8 +372,9 @@ function makeAndUse(
 
   // Households make part of what they need themselves, if they have what it takes.
   for (const hm of HOME_MADE) {
-    const r = RECIPES.find((x) => x.id === hm.recipe)!;
-    if (!canMake(ctx, p, m, r)) continue;
+    const at = RECIPES.findIndex((x) => x.id === hm.recipe),
+      r = RECIPES[at]!;
+    if (!canMakeNow(ctx, p, m, at)) continue;
     const [out, per] = r.output,
       short = needOf(out) * hm.share - m.stock[out]!;
     if (short <= 0) continue;
@@ -415,7 +433,7 @@ function makeAndUse(
     struck = strikeIn(world, p.cell, yearOfMoment(t)),
     crafters = struck > 0 ? Math.round(hands * (1 - struck)) : hands,
     open = RECIPES.map((r, i) => ({ r, i })).filter(
-      ({ r }) => canMake(ctx, p, m, r) && room(r.output[0]) > 0,
+      ({ r, i }) => canMakeNow(ctx, p, m, i) && room(r.output[0]) > 0,
     ),
     // The tools its crafters made this year, by the metal they were headed with.
     made = new Map<ToolMetal, number>();
@@ -915,7 +933,12 @@ function trade(
       insuredA = e.sea && ta ? insuredGainOf(ctx.world, ta) : 0,
       insuredB = e.sea && tb ? insuredGainOf(ctx.world, tb) : 0,
       numberA = apart ? refNumber(ta!) : 0,
-      numberB = apart ? refNumber(tb!) : 0;
+      numberB = apart ? refNumber(tb!) : 0,
+      // (What each end keeps back of its food and of each good, read once an edge: the same for every good it sells.)
+      wantedA = wanted.get(e.a),
+      wantedB = wanted.get(e.b);
+    let foodKeptA = -1,
+      foodKeptB = -1;
     for (let g = 0; g < GOOD_COUNT; g++) {
       // (The cheaper end sells: chosen without making a pair of them for every good of every edge.)
       const fromA = ma.price[g]! <= mb.price[g]!,
@@ -932,14 +955,20 @@ function trade(
           e.cost * dealt * bulkAt(s, g, oxidants),
         insured = fromA ? insuredA : insuredB;
       if (margin <= 0) continue;
-      const people = ctx.provinces.get(s.cell)!.total(),
-        keep = GOODS[g]!.food
-          ? mouths(ctx.provinces.get(s.cell)!, ctx.life) *
+      let keep: number;
+      if (GOODS[g]!.food) {
+        keep = fromA ? foodKeptA : foodKeptB;
+        if (keep < 0) {
+          keep =
+            mouths(ctx.provinces.get(s.cell)!, ctx.life) *
             // (A mixed land's mouths are its peoples' own: population/mix.ts. Exactly 1 on any other.)
             mixAppetite(ctx.world, s.cell) *
-            FOOD_RESERVE_MONTHS
-          : (wanted.get(s.cell)?.[g] ?? 0),
-        spare = s.stock[g]! - keep;
+            FOOD_RESERVE_MONTHS;
+          if (fromA) foodKeptA = keep;
+          else foodKeptB = keep;
+        }
+      } else keep = (fromA ? wantedA : wantedB)?.[g] ?? 0;
+      const spare = s.stock[g]! - keep;
       if (spare <= 0) continue;
       const count = Math.floor(
         spare * moved * (1 + insured) * Math.min(1, (keen * margin) / d.price[g]!),
@@ -1214,9 +1243,7 @@ function reprice(
     living = (12 * pop) / workers,
     outside = Math.max(living, w[OCC.farmer]!, w[OCC.forager]!, w[OCC.herder]!),
     recipes: number[] = [];
-  RECIPES.forEach((r, i) => {
-    if (canMake(ctx, p, m, r)) recipes.push(i);
-  });
+  for (let i = 0; i < RECIPES.length; i++) if (canMakeNow(ctx, p, m, i)) recipes.push(i);
   // (The work a unit of each food took this year: those who won it over what they won.)
   const work = new Array<number>(GOOD_COUNT).fill(NaN),
     per = (occ: number, g: number) => {

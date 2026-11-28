@@ -437,6 +437,51 @@ type EventBlock = {
   dead: number;
 };
 
+/** A block of events' parts, as written. */
+export type EventParts = Pick<EventBlock, "head" | "kids" | "causes" | "subjects" | "data">;
+
+/**
+ * A run of blocks tidy writes again as one: their parts as they are, and the columns of their live rows (`block` counted
+ * from the run's first). All a rewrite reads, so that it can be written anywhere: ColdEvents.rewrite.
+ */
+export type EventRewrite = {
+  readonly blocks: readonly EventParts[];
+  readonly serial: Int32Array<ArrayBuffer>;
+  readonly t: Float64Array<ArrayBuffer>;
+  readonly type: Int32Array<ArrayBuffer>;
+  readonly place: Int32Array<ArrayBuffer>;
+  readonly importance: Uint8Array<ArrayBuffer>;
+  readonly block: Int32Array<ArrayBuffer>;
+  readonly local: Uint16Array<ArrayBuffer>;
+  readonly group: Uint16Array<ArrayBuffer>;
+  readonly within: Uint16Array<ArrayBuffer>;
+};
+
+/**
+ * Somewhere else to write tidy's blocks again (a worker beside the simulation's: host/history-offload.ts). Old blocks change
+ * no more, so the rewrite of one can go while the world runs on; what it gives back is applied before anything reads the
+ * blocks' layout again (a freeze, a tidy, a reckoning's sweep, a save), and if it is not back by then the same rewrite is
+ * done here. What comes back is the same text either way: nothing a world or a save holds depends on when it came.
+ */
+export interface HistoryOffload {
+  /** A rewrite sent off with the words as they are now, or null if none can be. */
+  start(words: Words, job: EventRewrite): HistoryTicket | null;
+}
+
+export interface HistoryTicket {
+  /** The block written, if it is back (or can be waited for here); else null, and it is written here instead. Asked once. */
+  take(): EventParts | null;
+}
+
+type Pending = {
+  readonly b: number;
+  readonly last: number;
+  readonly from: number;
+  readonly to: number;
+  readonly job: EventRewrite;
+  readonly ticket: HistoryTicket;
+};
+
 type EventHead = {
   readonly s: readonly number[];
   readonly t: readonly number[];
@@ -504,6 +549,11 @@ export class ColdEvents {
   words = new Words();
   /** Importances hindsight has raised since their blocks were written, by serial. */
   raised = new Map<number, number>();
+  /** Where tidy's rewrites go, if anywhere: see HistoryOffload. */
+  offload: HistoryOffload | null = null;
+  /** Rewrites sent off and not yet applied, in the order tidy wrote them; and the serials hindsight raised since. */
+  private pending: Pending[] = [];
+  private raisedSince = new Set<number>();
   private subjectsOf = new Recent<Groups<readonly Ref[]>>();
   private kidsIn = new Recent<Groups<readonly number[]>>();
   private causesOf = new Recent<Groups<readonly KeptCause[]>>();
@@ -625,6 +675,7 @@ export class ColdEvents {
 
   /** The rows go cold, as a new block (they follow every row already cold). */
   freeze(rows: readonly HistoryEvent[]): void {
+    this.settle();
     const b = this.blocks.length,
       block = this.write(rows);
     this.blocks.push(block);
@@ -764,6 +815,7 @@ export class ColdEvents {
    * with what is remembered. Returns how many it wrote.
    */
   tidy(most: number, rows: number): number {
+    this.settle();
     let done = 0;
     for (let b = 0; b < this.blocks.length && done < most; b++) {
       const block = this.blocks[b]!;
@@ -777,29 +829,122 @@ export class ColdEvents {
       }
       const from = this.rowsOfBlock(b)[0],
         to = this.rowsOfBlock(last)[1],
-        plain: HistoryEvent[] = [];
-      for (let r = from; r < to; r++) plain.push(this.plain(r));
-      this.blocks[b] = this.write(plain);
-      for (let k = b + 1; k <= last; k++) this.blocks[k] = EMPTY_BLOCK;
-      const grouped = new GroupPlaces();
-      for (let r = from; r < to; r++) {
-        this.block[r] = b;
-        this.local[r] = r - from;
-        grouped.next(this.type[r]!);
-        this.group[r] = grouped.group;
-        this.within[r] = grouped.within;
-        this.raised.delete(this.serial[r]!);
+        job = this.offload ? this.rewriteOf(b, last, from, to) : null,
+        ticket = job ? this.offload!.start(this.words, job) : null;
+      if (ticket) this.pending.push({ b, last, from, to, job: job!, ticket });
+      else if (job) {
+        // (Those sent before it first, as they were written: a rewrite done here may add words.)
+        this.settle();
+        this.written(b, last, from, to, ColdEvents.rewrite(this.words, job));
+      } else {
+        const plain: HistoryEvent[] = [];
+        for (let r = from; r < to; r++) plain.push(this.plain(r));
+        this.written(b, last, from, to, this.write(plain));
       }
-      for (let k = b; k <= last; k++) {
-        this.subjectsOf.forget(k);
-        this.kidsIn.forget(k);
-        this.causesOf.forget(k);
-        this.dataOf.forget(k);
-        this.placesOf.forget(k);
-      }
+      // (The blocks after b it took in are empty now, or will be when it comes back.)
+      b = last;
       done++;
     }
     return done;
+  }
+
+  /** A run of blocks as a rewrite reads it. */
+  private rewriteOf(b: number, last: number, from: number, to: number): EventRewrite {
+    const blocks: EventParts[] = [];
+    for (let k = b; k <= last; k++) {
+      const { head, kids, causes, subjects, data } = this.blocks[k]!;
+      blocks.push({ head, kids, causes, subjects, data });
+    }
+    const block = this.block.slice(from, to);
+    for (let r = 0; r < block.length; r++) block[r] = block[r]! - b;
+    return {
+      blocks,
+      serial: this.serial.slice(from, to),
+      t: this.t.slice(from, to),
+      type: this.type.slice(from, to),
+      place: this.place.slice(from, to),
+      importance: this.importance.slice(from, to),
+      block,
+      local: this.local.slice(from, to),
+      group: this.group.slice(from, to),
+      within: this.within.slice(from, to),
+    };
+  }
+
+  /**
+   * A run of blocks' live rows written as one block, from nothing but the rewrite, wherever it is done: what tidy writes of
+   * them here (the words gain any it names that they lack, as here).
+   */
+  static rewrite(words: Words, job: EventRewrite): EventParts {
+    const c = new ColdEvents(),
+      n = job.serial.length;
+    c.words = words;
+    c.blocks = job.blocks.map((parts) => ({ ...parts, rows: 0, dead: 0 }));
+    c.n = n;
+    c.serial = job.serial;
+    c.t = job.t;
+    c.type = job.type;
+    c.place = job.place;
+    c.importance = job.importance;
+    c.block = job.block;
+    c.local = job.local;
+    c.group = job.group;
+    c.within = job.within;
+    const plain = new Array<HistoryEvent>(n);
+    for (let r = 0; r < n; r++) plain[r] = c.plain(r);
+    const { head, kids, causes, subjects, data } = c.write(plain);
+    return { head, kids, causes, subjects, data };
+  }
+
+  /** Blocks b to last written again as one, of rows from to `to`. */
+  private written(b: number, last: number, from: number, to: number, parts: EventParts): void {
+    this.blocks[b] = { ...parts, rows: to - from, dead: 0 };
+    for (let k = b + 1; k <= last; k++) this.blocks[k] = EMPTY_BLOCK;
+    const grouped = new GroupPlaces(),
+      since = this.raisedSince;
+    for (let r = from; r < to; r++) {
+      this.block[r] = b;
+      this.local[r] = r - from;
+      grouped.next(this.type[r]!);
+      this.group[r] = grouped.group;
+      this.within[r] = grouped.within;
+      // (One raised after the rewrite was sent is raised above what it wrote.)
+      if (!since.size || !since.has(this.serial[r]!)) this.raised.delete(this.serial[r]!);
+    }
+    for (let k = b; k <= last; k++) {
+      this.subjectsOf.forget(k);
+      this.kidsIn.forget(k);
+      this.causesOf.forget(k);
+      this.dataOf.forget(k);
+      this.placesOf.forget(k);
+    }
+  }
+
+  /** Hindsight raises a row's importance above what its block holds. */
+  raise(row: number, least: number): void {
+    const s = this.serial[row]!;
+    this.importance[row] = least;
+    this.raised.set(s, least);
+    if (this.pending.length) this.raisedSince.add(s);
+  }
+
+  /**
+   * Every rewrite sent off applied, in turn: before anything reads or changes the blocks' layout or adds to their words. One
+   * not back is written here, as it would have been.
+   */
+  settle(): void {
+    if (!this.pending.length) return;
+    const pending = this.pending;
+    this.pending = [];
+    for (const p of pending)
+      this.written(
+        p.b,
+        p.last,
+        p.from,
+        p.to,
+        p.ticket.take() ?? ColdEvents.rewrite(this.words, p.job),
+      );
+    this.raisedSince.clear();
   }
 
   /** A row as a plain event. */
@@ -818,6 +963,7 @@ export class ColdEvents {
   }
 
   save(): unknown {
+    this.settle();
     const blocks: unknown[] = [];
     for (let b = 0; b < this.blocks.length; b++) {
       const block = this.blocks[b]!;
@@ -853,6 +999,8 @@ export class ColdEvents {
     this.words = new Words(s.words);
     this.raised = new Map(s.raised.map(([a, b]) => [a, b]));
     this.blocks = [];
+    this.pending = [];
+    this.raisedSince.clear();
     this.subjectsOf.clear();
     this.kidsIn.clear();
     this.causesOf.clear();

@@ -111,13 +111,26 @@ export {
   rulesetId,
   saveWorld,
   saveSteps,
+  heldCopy,
   verifyByReplay,
   type LoadOptions,
   type Loaded,
   type SaveDocument,
+  type SaveStep,
   type StoreChunk,
 } from "./save.ts";
-export { COLD_ROWS, PinnedCodes, Recent, codeOf, refOfCode } from "./cold.ts";
+export {
+  COLD_ROWS,
+  ColdEvents,
+  PinnedCodes,
+  Recent,
+  codeOf,
+  refOfCode,
+  type EventParts,
+  type EventRewrite,
+  type HistoryOffload,
+  type HistoryTicket,
+} from "./cold.ts";
 export { Words, packList, unpackList, type Packed } from "./pack.ts";
 export { PIECE_MOST, joinJson, jsonCopy, splitJson } from "./split-json.ts";
 export { MinHeap } from "./heap.ts";

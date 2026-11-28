@@ -166,8 +166,11 @@ export class Folded {
   /** By place: the count of each decade × TYPES + type's number, in the order first counted. */
   private by = new Map<string, Map<number, number>>();
   private types = new Words();
+  /** How many times a count was added or all let go: what a reader keeps its reading of them by. Not hashed, not saved. */
+  changes = 0;
 
   add(place: string, decade: number, type: string, n = 1): void {
+    this.changes++;
     const code = this.types.idOf(type);
     if (code >= TYPES) throw new Error("more event types than a summary's key holds");
     const key = decade * TYPES + code;
@@ -219,6 +222,7 @@ export class Folded {
   }
 
   clear(): void {
+    this.changes++;
     this.by = new Map();
     this.types = new Words();
   }

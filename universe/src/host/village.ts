@@ -23,6 +23,7 @@ import {
   agentName,
   beliefOf,
   BLOCK_M,
+  type Settlement,
   blockAt,
   BLOCKS,
   citiesOf,
@@ -68,6 +69,7 @@ import {
   LAKE_R,
   LOT,
   WATER_OUT,
+  HEART_REACH,
   heartTown,
   lotStates,
   progress,
@@ -104,7 +106,7 @@ import {
 } from "../bridge/index.ts";
 import { strikesOn, townPlan } from "./town.ts";
 import { townFlora } from "./flora.ts";
-import { landWater, realmWays, townSiteOf, townSquareOff } from "./sites.ts";
+import { SQUARE_REACH, landWater, realmWays, townSiteOf, townSquareOff } from "./sites.ts";
 import { realmColor } from "./colors.ts";
 import { hostKinds } from "./arms.ts";
 import { visitorsAt } from "./peoples.ts";
@@ -570,24 +572,55 @@ function lakeOf(world: World, ref: Ref, waterWay: number | null): TownWater | nu
  * has them); null where no town of it is peopled.
  */
 export function landHeart(world: World, cell: number): Ref | null {
-  const half = ((REGION_SIZE - 1) * PROVINCE_TILE_KM) / 2;
-  return (
-    heartTown(
-      populationContext(world)
-        .settlements.seenIn(cell)
-        .filter((s) => s.population > 0)
-        .map((s) => {
-          // (Its square as the land's map draws it: on its tile's bank, where the tile is water.)
-          const off = townSquareOff(world, s.ref);
-          return {
-            ref: s.ref,
-            population: s.population,
-            x: (s.tile % REGION_SIZE) * PROVINCE_TILE_KM - half + off.x,
-            z: Math.floor(s.tile / REGION_SIZE) * PROVINCE_TILE_KM - half + off.z,
-          };
-        }),
-    )?.ref ?? null
-  );
+  const half = ((REGION_SIZE - 1) * PROVINCE_TILE_KM) / 2,
+    ctx = populationContext(world),
+    towns = ctx.settlements.seenIn(cell).filter((s) => s.population > 0),
+    // (Its square as the land's map draws it: on its tile's bank, where the tile is water.)
+    at = (s: Settlement) => {
+      const off = townSquareOff(world, s.ref);
+      return {
+        ref: s.ref,
+        population: s.population,
+        x: (s.tile % REGION_SIZE) * PROVINCE_TILE_KM - half + off.x,
+        z: Math.floor(s.tile / REGION_SIZE) * PROVINCE_TILE_KM - half + off.z,
+      };
+    };
+  if (towns.length < 2) return towns[0]?.ref ?? null;
+  // (A land of another body draws its own ground: every square read.)
+  if (offworldSite(ctx.generated, cell)) return heartTown(towns.map(at))?.ref ?? null;
+  // Where a square stands is read only where it could change which town heartTown takes: a square is never farther than
+  // SQUARE_REACH from its tile's middle, and finding it refines the land's whole map (a second and more of a phone's for
+  // each land, all of a world's at once when a save is taken up and the memory first read).
+  const near = towns.map((s) =>
+      Math.hypot(
+        (s.tile % REGION_SIZE) * PROVINCE_TILE_KM - half,
+        Math.floor(s.tile / REGION_SIZE) * PROVINCE_TILE_KM - half,
+      ),
+    ),
+    // heartTown's own choice among those within reach: the most peopled, then the least by its ref.
+    order = towns
+      .map((_, k) => k)
+      .sort((a, b) => {
+        const x = towns[a]!,
+          y = towns[b]!;
+        return y.population - x.population || (x.ref < y.ref ? -1 : x.ref > y.ref ? 1 : a - b);
+      });
+  for (const k of order) {
+    if (near[k]! - SQUARE_REACH > HEART_REACH) continue;
+    if (near[k]! + SQUARE_REACH <= HEART_REACH) return towns[k]!.ref;
+    const t = at(towns[k]!);
+    if (Math.hypot(t.x, t.z) <= HEART_REACH) return t.ref;
+  }
+  // None within reach: the nearest, read wherever it could be the nearest (the first of the nearest, as heartTown).
+  const most = Math.min(...near.map((d) => d + SQUARE_REACH));
+  let best: { ref: string; d: number } | null = null;
+  for (let k = 0; k < towns.length; k++) {
+    if (near[k]! - SQUARE_REACH > most) continue;
+    const t = at(towns[k]!),
+      d = Math.hypot(t.x, t.z);
+    if (!best || d < best.d) best = { ref: t.ref, d };
+  }
+  return (best?.ref as Ref | undefined) ?? null;
 }
 
 /** A town's healer (Phase 55 M225): who holds its seat where its land knows herb-lore by `year` (null: it does not). */

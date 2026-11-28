@@ -1,7 +1,7 @@
 // Those of a group the realm's soldiers took, and the collector killed as a land is taken over (host/inspect/grave.ts,
-// host/roster.ts's killing step, host/killings.ts). Kestrel 380 years on, spread: a realm's soldiers were sent against a group
-// in 374–379, and some of those the court holds for it are still held, one of them where the town's lines would have them at
-// its head's door now (by 397 none is: a guard grows past the young, and is drawn no longer).
+// host/roster.ts's killing step, host/killings.ts). Kestrel 394 years on, spread: a realm's soldiers were sent against groups
+// there, and one of those the court holds for it is still held, where the town's lines would have them at what the group is at
+// now. (Which years those are is history's: at 380, under these rules, all taken by then had been let go.)
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { deathNotesOf, politiesOf, populationContext, underworldOf } from "../../src/sim/index.ts";
@@ -15,7 +15,7 @@ import { takeoverOf } from "../../src/host/killings.ts";
 import { yearNow } from "../../src/host/inspect/words.ts";
 import { peopledWorld } from "../worlds.ts";
 
-const world = peopledWorld("kestrel", 380, { start: "spread" }),
+const world = peopledWorld("kestrel", 394, { start: "spread" }),
   ctx = populationContext(world),
   year = yearNow(world),
   towns = ctx.settlements.all().filter((t) => t.population > 0),

@@ -1817,7 +1817,7 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       won,
       fielded,
       battle,
-      ctx.settlements.inProvince(land)[0]?.name ?? "",
+      ctx.settlements.kept(land)[0]?.name ?? "",
       t,
     );
     const fought: Battle = {

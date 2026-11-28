@@ -19,30 +19,43 @@ const NOW = 125,
   plain = (l: Line) => l.map((s) => (typeof s === "string" ? s : s.text)).join(""),
   store = yearsOf(world)!,
   realms = politiesOf(world);
-// The longest-standing alliance now, and every year its head realm stood in one.
-const a = [...alliancesOf(world)].sort(
-    (x, z) => (x.since ?? NOW) - (z.since ?? NOW) || z.members.length - x.members.length,
-  )[0]!,
-  subject = `bloc:${a.head}`,
-  headLog = store.realms.get(a.head)!;
-/** The head an alliance's head realm stood under, read here from the years kept (now: as it stands). */
-const headAt = (y: number) =>
-  y >= NOW ? a.head : y < headLog.first ? "" : (logAt(headLog.bloc, y) ?? "");
-/** Its realms as a year closed, read here: those whose kept alliance was its then. */
-const membersAt = (y: number): string[] => {
-  if (y >= NOW) return [...a.members];
-  const h = headAt(y);
-  if (!h) return [];
-  const out: string[] = [];
-  for (const [ref, l] of store.realms) {
-    const p = realms.get(ref as Ref);
-    if (!p || p.founded > y || (p.ended !== null && y >= p.ended) || y < l.first) continue;
-    if (logAt(l.bloc, y) === h) out.push(ref);
-  }
-  return out.length >= 2 ? out : [];
+// The longest-standing alliance now that a realm came into while it stood, and every year its head realm stood in one. (Which
+// that is is history's: since the release's rules first light's longest at 125 had all its realms from the first.)
+type Bloc = ReturnType<typeof alliancesOf> extends Iterable<infer B> ? B : never;
+const readOf = (a: Bloc) => {
+  const headLog = store.realms.get(a.head);
+  if (!headLog) return null;
+  /** The head an alliance's head realm stood under, read here from the years kept (now: as it stands). */
+  const headAt = (y: number) =>
+    y >= NOW ? a.head : y < headLog.first ? "" : (logAt(headLog.bloc, y) ?? "");
+  /** Its realms as a year closed, read here: those whose kept alliance was its then. */
+  const membersAt = (y: number): string[] => {
+    if (y >= NOW) return [...a.members];
+    const h = headAt(y);
+    if (!h) return [];
+    const out: string[] = [];
+    for (const [ref, l] of store.realms) {
+      const p = realms.get(ref as Ref);
+      if (!p || p.founded > y || (p.ended !== null && y >= p.ended) || y < l.first) continue;
+      if (logAt(l.bloc, y) === h) out.push(ref);
+    }
+    return out.length >= 2 ? out : [];
+  };
+  const stood: number[] = [];
+  for (let y = headLog.first; y <= NOW; y++) if (membersAt(y).length) stood.push(y);
+  const comes = stood.some((y) => {
+    const was = membersAt(y - 1);
+    return headAt(y - 1) === headAt(y) && membersAt(y).some((r) => !was.includes(r));
+  });
+  return { a, headLog, headAt, membersAt, stood, comes };
 };
-const stood: number[] = [];
-for (let y = headLog.first; y <= NOW; y++) if (membersAt(y).length) stood.push(y);
+const ranked = [...alliancesOf(world)].sort(
+    (x, z) => (x.since ?? NOW) - (z.since ?? NOW) || z.members.length - x.members.length,
+  ),
+  chosen =
+    ranked.map(readOf).find((r) => !!r && r.comes && r.stood.length >= 10) ?? readOf(ranked[0]!)!,
+  { a, headAt, membersAt, stood } = chosen,
+  subject = `bloc:${a.head}`;
 const told = new Map<number, YearTold>(
   stood.map((y) => [y, yearTold(world, { year: y, realm: subject })]),
 );

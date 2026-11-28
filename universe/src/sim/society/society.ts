@@ -5,7 +5,7 @@
 import { YEAR, type World } from "../../kernel/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { RowStore } from "../money/kept.ts";
-import { SOCIETY_STORES, UNABLE_STORE, UNABLE_WIDTH } from "./kept.ts";
+import { CountedRows, SOCIETY_STORES, UNABLE_STORE, UNABLE_WIDTH } from "./kept.ts";
 import { careYear, oldYear, provisionYear } from "./care.ts";
 import { rolesYear } from "./roles.ts";
 import { holdingsYear, lawYear } from "./holding.ts";
@@ -18,7 +18,8 @@ import { STRAIN_STORE, STRAIN_WIDTH } from "./strain-kept.ts";
 
 /** Register the society sweep's stores and systems on a peopled world. */
 export function installSociety(world: World, ctx: () => PopulationContext): void {
-  for (const [name, width] of SOCIETY_STORES) world.register(new RowStore(name, width));
+  // (Each counting its changes, that what the food month reads of them is read again only when one is: ./kept.ts CountedRows.)
+  for (const [name, width] of SOCIETY_STORES) world.register(new CountedRows(name, width));
   world.system({ key: "187.society.care", every: YEAR, run: (t) => careYear(ctx(), t) });
   world.system({ key: "187.society.old", every: YEAR, run: (t) => oldYear(ctx(), t) });
   world.system({ key: "187.society.provision", every: YEAR, run: (t) => provisionYear(ctx(), t) });
@@ -35,7 +36,7 @@ export function installSociety(world: World, ctx: () => PopulationContext): void
   world.system({ key: "187.society.roofless", every: YEAR, run: (t) => rooflessYear(ctx(), t) });
   // (How a land bears its years: after its roofless are reckoned. 2026-11-22.)
   // (Its unable, by its care's and its old's rows: after both. 2026-11-24.)
-  world.register(new RowStore(UNABLE_STORE, UNABLE_WIDTH));
+  world.register(new CountedRows(UNABLE_STORE, UNABLE_WIDTH));
   world.system({ key: "187.society.unable", every: YEAR, run: (t) => unableYear(ctx(), t) });
   world.register(new RowStore(STRAIN_STORE, STRAIN_WIDTH));
   world.system({ key: "187.society.strain", every: YEAR, run: (t) => strainYear(ctx(), t) });

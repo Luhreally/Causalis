@@ -41,6 +41,8 @@ export function rig(storage: ByteStore = new MemoryByteStore()): Rig {
       for (let i = 0; i < 1000 && !done; i++) {
         await turn();
         await host.pump();
+        // (A save is written while the world goes on: what is asked of it is answered once it is.)
+        await host.written();
         await turn();
       }
       if (!done) throw new Error("the host never answered");

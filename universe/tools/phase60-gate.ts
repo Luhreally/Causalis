@@ -551,11 +551,17 @@ async function walk(
   }
   await into(great.ref);
   // One of its craftsmen a walk from his work (a farmer, if none).
+  // (Where none of them is within 60 m, as when at the morning read they are at their work already or a long walk off, the
+  // nearest of them past 6 m, within what a run of the walk's minute takes: which of a town's people stand where at one hour is
+  // the world's history, and the release rules moved first light's.)
   const all = await k<Candidate[]>(`globalThis.causalis.possess.candidates()`),
     order = ["smith", "potter", "weaver", "farmer"],
-    chosen = all
-      .filter((c) => !c.child && c.far >= 6 && c.far <= 60 && order.includes(c.trade))
-      .sort((a, b) => order.indexOf(a.trade) - order.indexOf(b.trade) || a.far - b.far)[0];
+    grown = all.filter((c) => !c.child && c.far >= 6 && order.includes(c.trade)),
+    chosen =
+      grown
+        .filter((c) => c.far <= 60)
+        .sort((a, b) => order.indexOf(a.trade) - order.indexOf(b.trade) || a.far - b.far)[0] ??
+      grown.filter((c) => c.far <= 150).sort((a, b) => a.far - b.far)[0];
   if (!chosen) {
     const by = new Map<string, number[]>();
     for (const c of all.filter((x) => !x.child))

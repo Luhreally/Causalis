@@ -4,7 +4,7 @@
 // decision records and commands. It knows no domain: planets, peoples and wars
 // live in the stores that sim registers here.
 import { hi32, lo32 } from "./bits.ts";
-import { COLD_ROWS, PinnedCodes, codeOf, refOfCode } from "./cold.ts";
+import { COLD_ROWS, PinnedCodes, codeOf, refOfCode, type HistoryOffload } from "./cold.ts";
 import { CommandLog, type Command, type CommandSpec } from "./command.ts";
 import { Hasher } from "./hash.ts";
 import { DECISION, DecisionLog, EVENT, EventLog, type RetentionOptions } from "./history.ts";
@@ -98,6 +98,9 @@ export class World {
   /** The last reckoning's time, where what it left of each log to go cold has not gone yet. */
   private eventsToFreeze: number | null = null;
   private decisionsToFreeze: number | null = null;
+  /** When the world began, and how often it takes a checkpoint: what a world loaded reads its housekeeping's state by. */
+  private readonly started: number;
+  private readonly checkpointEvery: number;
   private readonly pinners: (() => Iterable<Ref | PinnedCodes>)[] = [];
   /** What reads each year as it closes (addRecorder). */
   private readonly recorders: ((t: number) => void)[] = [];
@@ -136,6 +139,8 @@ export class World {
     this.rng = new Rng(seed);
     this.scheduler = new Scheduler(options.start ?? (0 as SimTime));
     const every = options.checkpointEvery ?? YEAR;
+    this.started = options.start ?? 0;
+    this.checkpointEvery = every;
     this.scheduler.addSystem({
       key: "999.checkpoint",
       every,
@@ -260,6 +265,43 @@ export class World {
   settleIndex(): void {
     if (this.index && !this.index.sync(this.events, this.decisions, this.minter))
       this.reckonByText();
+    this.resumeHousekeeping();
+  }
+
+  /**
+   * A world just loaded takes up its history's housekeeping where the one saved had it, read off its clock and checkpoints
+   * (none of it is saved): when the chronicle was last thinned by age, and whether what the last reckoning left to go cold
+   * has gone yet. Begun afresh, the first reckoning after a load thinned the chronicle again and wrote every block a share of
+   * whose rows were forgotten (a quarter of a second at 1,310), and what the last left to go cold went only at the next: a
+   * world saved at 1,301 and loaded kept its decisions otherwise than the one run on from it, save after save (the chain the
+   * same). What the reckoning holds for ever is still walked afresh at the first (a cache of history: foreverChronicle).
+   */
+  private resumeHousekeeping(): void {
+    const D = 10 * YEAR,
+      now = this.scheduler.now,
+      last = Math.floor(now / D) * D;
+    // (The reckoning runs at each tenth year after the world began, the moment's whole done before a save.)
+    if (last <= this.started) return;
+    const aging = this.retention.aging;
+    if (aging && this.agedAt === -1) this.agedAt = Math.floor(last / aging.every) * aging.every;
+    if (!this.index) return;
+    // (What the years since did of it, as keepHouse did: events in the first year past the reckoning's second that keeps
+    // house, decisions in the next.)
+    let events = true,
+      decisions = true;
+    const every = this.checkpointEvery;
+    for (let t = (Math.floor(last / every) + 1) * every; t <= now && decisions; t += every) {
+      let before = 0;
+      for (const c of this.chain) if (c.t < t) before++;
+      const first = before < DOMAINS_FIRST,
+        hashed = first || Math.round(t / every) % LATE_EVERY === LATE_AT;
+      if (!first && hashed) continue;
+      if (Math.floor(t / YEAR) % 10 < 2) continue;
+      if (events) events = false;
+      else decisions = false;
+    }
+    this.eventsToFreeze = events ? last : null;
+    this.decisionsToFreeze = decisions ? last : null;
   }
 
   /**
@@ -566,6 +608,14 @@ export class World {
     if (old < DOMAINS_FIRST) return;
     const c = this.chain[old]!;
     if (c.domains.length) this.chain[old] = { t: c.t, domains: [], chain: c.chain };
+  }
+
+  /**
+   * Where the events' cold blocks are written again, if anywhere but here (a worker: kernel/cold.ts, HistoryOffload). Nothing
+   * the world does or saves depends on it.
+   */
+  offloadHistory(offload: HistoryOffload | null): void {
+    this.events.cold.offload = offload;
   }
 
   checkpoints(): readonly Checkpoint[] {

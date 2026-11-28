@@ -273,7 +273,7 @@ export function houseFor(ctx: PopulationContext, cell: number): Part[] {
     total = Math.max(1, p.total()),
     roaming = (p.occupation(OCC.herder) + p.occupation(OCC.forager)) / total,
     trade = p.occupation(OCC.trader) / total,
-    town = ctx.settlements.inProvince(cell).some((s) => s.market),
+    town = ctx.settlements.kept(cell).some((s) => s.market),
     wealth = Math.min(0.4, trade * 4 + (town ? 0.15 : 0)),
     at = landMaterials(ctx, cell);
   // What their body asks of a house: cold blood seeks warmth, a warm coat shade; a big
@@ -634,7 +634,7 @@ export function designYear(ctx: PopulationContext, t: SimTime): void {
   if (year % 5 !== 0) return;
   const mint = () => world.minter.mint(DESIGN);
   for (const p of ctx.provinces.all()) {
-    if (!ctx.settlements.inProvince(p.cell).length) continue;
+    if (!ctx.settlements.kept(p.cell).length) continue;
     const parts = houseFor(ctx, p.cell),
       before = store.of(p.ref);
     if (before && same(before.parts, parts)) continue;

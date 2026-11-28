@@ -301,7 +301,7 @@ function tongueWord(f: Facts, cell: number, salt: number, seed: number): string 
 
 /** A land's market town's name, where it has one. */
 function townName(ctx: PopulationContext, cell: number): string | null {
-  const town = ctx.settlements.inProvince(cell).find((s) => s.market);
+  const town = ctx.settlements.kept(cell).find((s) => s.market);
   return town?.name ?? null;
 }
 
@@ -683,7 +683,7 @@ function streetTowns(ctx: PopulationContext, p: Polity, r: Read): Town[] {
   const seatFaith = belief.of(p.seat).faith ?? "none";
   for (const c of p.members) {
     const prov = ctx.provinces.get(c),
-      town = prov ? ctx.settlements.inProvince(c).find((s) => s.market) : undefined;
+      town = prov ? ctx.settlements.kept(c).find((s) => s.market) : undefined;
     if (!prov || !town || town.population < UNDER.town) continue;
     const n = prov.total();
     if (n <= 0) continue;
@@ -1118,7 +1118,7 @@ function stepRealm(
       keepAll = rent / manKeep,
       taken = new Set(own.flatMap((g) => g.lands)),
       open = [...p.members].filter(
-        (c) => !taken.has(c) && ctx.settlements.inProvince(c).some((s) => s.market),
+        (c) => !taken.has(c) && ctx.settlements.kept(c).some((s) => s.market),
       ).length,
       room = held < 0.6 * keepAll || open >= 2;
     if (
@@ -2414,7 +2414,7 @@ function buyMeans(ctx: PopulationContext, p: Polity, g: CrimeGroup, r: Read, spa
 
 /** How much a land weighs to a group that would hold it: its people, and its town's. */
 function landWeight(ctx: PopulationContext, cell: number): number {
-  const town = ctx.settlements.inProvince(cell).find((s) => s.market);
+  const town = ctx.settlements.kept(cell).find((s) => s.market);
   return (ctx.provinces.get(cell)?.total() ?? 0) + 2 * (town?.population ?? 0);
 }
 

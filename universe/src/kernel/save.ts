@@ -167,24 +167,59 @@ export function saveWorld(
   }
 }
 
+/** What a save's steps yield: "held" once all it reads of the world is read, after which the world may go on. */
+export type SaveStep = void | "held";
+
 /**
  * saveWorld a piece at a time (2026-11-15): a step yielded after each store is read, and after it is packed and
  * hashed, and between the pieces of a store that makes its save in pieces (StateStore.saveSteps). Whoever runs it
- * keeps the world as it is till it is done: what it returns is what saveWorld would.
+ * keeps the world as it is till it yields "held" (2026-11-28): by then each store's save is copied as it stood
+ * (heldCopy), and the packing and hashing after reads only the copies, so the world may go on meanwhile. What it
+ * returns is what saveWorld would of the world as it was at "held".
  */
 export function* saveSteps(
   world: World,
   ruleset: string,
   meta: Record<string, unknown> = {},
   lineage?: SaveDocument["lineage"],
-): Generator<void, SaveDocument, void> {
+): Generator<SaveStep, SaveDocument, void> {
   if (world.scheduler.midMoment) throw new Error("a world is saved between moments");
-  const stores: Record<string, StoreChunk> = {};
+  const read: {
+    name: string;
+    schema: number;
+    asked: boolean;
+    outside: boolean;
+    packed?: boolean;
+    saved: unknown;
+  }[] = [];
   for (const name of world.storeNames()) {
     const store = world.store(name),
-      asked = store.packed === true,
       saved = store.saveSteps ? yield* store.saveSteps() : store.save();
+    read.push({
+      name,
+      schema: schemaOf(store),
+      asked: store.packed === true,
+      outside: store.outsideRules === true,
+      ...(store.packed === undefined ? {} : { packed: store.packed }),
+      saved: heldCopy(saved),
+    });
     yield;
+  }
+  // (What else the document holds of the world, as it stands: no later step reads the world.)
+  const t = world.now,
+    seed = world.seed.text,
+    minter = heldCopy(world.minter.state()) as SaveDocument["minter"],
+    scheduler = heldCopy(world.scheduler.save()) as SaveDocument["scheduler"],
+    checkpoints = heldCopy(
+      world.checkpoints().map((c) => ({ ...c })),
+    ) as SaveDocument["checkpoints"],
+    hashes = heldCopy(world.domainHashes()) as SaveDocument["hashes"],
+    kept = heldCopy({ ...meta }) as SaveDocument["meta"];
+  yield "held";
+  const stores: Record<string, StoreChunk> = {};
+  for (const r of read) {
+    const { saved, asked } = r;
+    r.saved = null;
     // (Packed straight from the store: packList keeps what JSON keeps, and the copy through
     // JSON is then of the packed lists, a fraction of the size.)
     let { data, text } = throughJson(asked ? packList([saved]) : saved),
@@ -192,7 +227,7 @@ export function* saveSteps(
     // (A store that says nothing of it is kept packed all the same where that is the smaller and gives back, letter for
     // letter, what its JSON does: some hundred and fifty small stores of rows were 1.9 MB of a save at year 1,500
     // as they were and 1.2 MB so. A chunk says which it is, and a save from before loads as it did.)
-    if (store.packed === undefined && text !== undefined && text.length >= PACK_FROM) {
+    if (r.packed === undefined && text !== undefined && text.length >= PACK_FROM) {
       const smaller = packedIfSmaller(saved, text);
       if (smaller) {
         ({ data, text } = smaller);
@@ -200,27 +235,82 @@ export function* saveSteps(
       }
     }
     yield;
-    stores[name] = {
-      schema: schemaOf(store),
+    stores[r.name] = {
+      schema: r.schema,
       data,
       hash: chunkHash(data, text),
       ...(packed ? { packed: true as const } : {}),
-      ...(store.outsideRules ? { outside: true as const } : {}),
+      ...(r.outside ? { outside: true as const } : {}),
     };
   }
   return {
     format: SAVE_FORMAT,
     ruleset,
     lineage: lineage ?? [{ ruleset, from: 0 }],
-    seed: world.seed.text,
-    t: world.now,
-    minter: world.minter.state(),
-    scheduler: world.scheduler.save(),
+    seed,
+    t,
+    minter,
+    scheduler,
     stores,
-    checkpoints: world.checkpoints().map((c) => ({ ...c })),
-    hashes: world.domainHashes(),
-    meta: { ...meta },
+    checkpoints,
+    hashes,
+    meta: kept,
   };
+}
+
+/** A value JSON writes as it was when held (heldCopy): what a store kept in it that is not plain data. */
+class HeldJson {
+  private readonly json: unknown;
+  constructor(json: unknown) {
+    this.json = json;
+  }
+  toJSON(): unknown {
+    return this.json;
+  }
+}
+
+/**
+ * A copy of a store's save as it stands, that the world going on cannot change: its plain objects and arrays copied
+ * (their keys in order, holes left holes), what is not plain data held as the JSON it gives now. packList and JSON read
+ * the copy as they would the save: a plain object or array is still one, and the rest is still not (kept for JSON).
+ */
+export function heldCopy(v: unknown): unknown {
+  if (typeof v !== "object" || v === null) return v;
+  const proto = Object.getPrototypeOf(v) as unknown;
+  if (Array.isArray(v) && proto === Array.prototype) {
+    // (Copied whole, holes and all, then what in it is not a plain value copied in its place: most of a save's arrays are of numbers.)
+    const out = (v as unknown[]).slice(),
+      n = out.length;
+    for (let j = 0; j < n; j++) {
+      const x = out[j];
+      if (typeof x === "object" && x !== null) out[j] = heldCopy(x);
+    }
+    return out;
+  }
+  if (
+    (proto !== Object.prototype && proto !== null) ||
+    Array.isArray(v) ||
+    typeof (v as { toJSON?: unknown }).toJSON === "function"
+  ) {
+    const text = JSON.stringify(v);
+    return new HeldJson(text === undefined ? undefined : JSON.parse(text));
+  }
+  const o = v as Record<string, unknown>,
+    out: Record<string, unknown> =
+      proto === null ? (Object.create(null) as Record<string, unknown>) : {};
+  for (const key of Object.keys(o)) {
+    const x = o[key],
+      y = typeof x === "object" && x !== null ? heldCopy(x) : x;
+    if (key === "__proto__")
+      Object.defineProperty(out, key, {
+        value: y,
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
+    else out[key] = y;
+  }
+  return out;
 }
 
 export class SaveError extends Error {}

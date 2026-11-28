@@ -4,14 +4,20 @@
 // (province, time, purpose), and writes what it did to the ledgers and the
 // history, with causes recorded at the point of decision.
 import { notableHeals } from "../notable/kept.ts";
-import { intoxDeaths } from "../money/kept.ts";
+import { intoxDeaths, type RowStore } from "../money/kept.ts";
 import {
+  CountedRows,
+  HOLDINGS_STORE,
+  LEISURE_STORE,
+  TABLE_STORE,
+  UNABLE_STORE,
   careSparedOf,
   daysWorkedOf,
   forgoneOf,
   improvedOf,
   oldAgeWantOf,
   oldPressOf,
+  societyStore,
   tableKeptOf,
 } from "../society/kept.ts";
 import { workBySex } from "../society/work.ts";
@@ -708,8 +714,44 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
     offworldFrom = isProvinceWorld(ctx.generated) ? ctx.generated.offworld.base : Infinity;
   // (The month's work on what towns were asked to raise, H1: here, as an old save's agenda holds no new system.)
   asksMonth(ctx, t);
+  const rows = foodRows(world);
   for (const p of ctx.provinces.all())
-    foodLand(ctx, p, t, month, markets, acts, asks, mixed, offworldFrom);
+    foodLand(ctx, p, t, month, markets, acts, asks, mixed, offworldFrom, rows);
+}
+
+/**
+ * What the food month reads of a land's society rows (the days its people work, what its table keeps, what its holders have put
+ * into its fields), read once and kept until one of those rows is changed: the society sweep sets them once a year, and they were
+ * read every land every month. Kept exactly: the same numbers read the same way, read again the month after any of the four
+ * stores is set, dropped or loaded (society/kept.ts CountedRows). Where one counts no changes, read every time, as before.
+ */
+type FoodRows = {
+  readonly stores: readonly (RowStore | null)[];
+  readonly changes: number[];
+  /** By a land's cell: its days worked, its table's keeping and its fields' improvement (none: not read since a change). */
+  readonly days: number[];
+  readonly table: number[];
+  readonly improved: number[];
+};
+const FOOD_STORES = [LEISURE_STORE, UNABLE_STORE, TABLE_STORE, HOLDINGS_STORE];
+function foodRows(world: World): FoodRows | null {
+  const stores = FOOD_STORES.map((n) => societyStore(world, n));
+  // (A store that counts no changes, or none kept at all: each read as it is asked.)
+  if (stores.some((x) => x !== null && !(x instanceof CountedRows))) return null;
+  // (Kept on the first of them the world holds: none, nothing to read.)
+  const anchor = stores.find((x) => x !== null) as CountedRows | undefined;
+  if (!anchor) return null;
+  const changes = stores.map((x) => (x as CountedRows | null)?.changes ?? -1);
+  let kept = anchor.readerKept as FoodRows | null;
+  if (
+    !kept ||
+    kept.stores.some((x, i) => x !== stores[i]) ||
+    kept.changes.some((c, i) => c !== changes[i])
+  ) {
+    kept = { stores, changes, days: [], table: [], improved: [] };
+    anchor.readerKept = kept;
+  }
+  return kept;
 }
 
 /**
@@ -717,6 +759,18 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
  * what its people eat, and its hunger. (A function of its own: the month's whole in one body, its loop the length of every
  * land, was a twentieth slower at 1,450.)
  */
+/** A land's draw key, its ref's hash: read once a land, not once a land and month. */
+const LAND_KEYS = new Map<string, number>();
+function landKey(p: Province): number {
+  let k = LAND_KEYS.get(p.ref);
+  if (k === undefined) {
+    // (Of the ref alone, the same in every world: let go now and then, as worlds come and go.)
+    if (LAND_KEYS.size >= 1 << 16) LAND_KEYS.clear();
+    LAND_KEYS.set(p.ref, (k = refHash(p.ref)));
+  }
+  return k;
+}
+
 function foodLand(
   ctx: PopulationContext,
   p: Province,
@@ -727,8 +781,11 @@ function foodLand(
   asks: ReturnType<typeof asksOf>,
   mixed: ReturnType<typeof mixOf>,
   offworldFrom: number,
+  rows: FoodRows | null,
 ): void {
-  const { world } = ctx;
+  const { world } = ctx,
+    // (A mixed land's mouths against its first people's: read once for the month, for its work and its eating.)
+    mixA = mixed ? mixAppetite(world, p.cell) : 1;
   // A blessed harvest is richer, a blighted one poorer.
   const act = acts.at(p.cell, "harvest", t),
     // (And what its towns were asked to put first, and the hands on what they were asked to raise: H1. Exactly 1 on a land never asked.)
@@ -742,18 +799,18 @@ function foodLand(
     // The land gives as its living world stands: less game where the wild is thin,
     // less grain from worn soil, for the same work.
     alive = wildsOf(ctx, p.cell),
-    key = refHash(p.ref),
+    key = landKey(p),
     rain = p.rain / 1000,
     tools = (1 + (TOOL_GAIN * m.toolCover) / 1000) * (1 + (MACHINE_GAIN * m.machineCover) / 1000),
     // A body gathers, sows and herds in proportion to what it eats (a giant's day's
     // grazing is a giant's meal), so a worker feeds as many as an upright ape's does —
     // less the share of every hand that keeps another world's halls alive.
     gathers =
-      (mixed ? ctx.life.appetite * mixAppetite(world, p.cell) : ctx.life.appetite) *
+      (mixed ? ctx.life.appetite * mixA : ctx.life.appetite) *
       (1 - hallsShare(ctx, p.cell)) *
       // (As many days as its people work against the reference year, its rest days the fewer: the society sweep, rules/leisure.ts.
       // 1 where none is kept.)
-      daysWorkedOf(world, p.cell),
+      (rows ? (rows.days[p.cell] ??= daysWorkedOf(world, p.cell)) : daysWorkedOf(world, p.cell)),
     pots = m.potteryCover / 1000,
     // What the land's people know: better fields, flocks and hunting, stores that keep.
     lore = loreOf(world),
@@ -775,7 +832,8 @@ function foodLand(
       frontierFields(world, p.cell) *
       (p.cell >= offworldFrom ? openFields(ctx, p.cell) : 1) *
       // (And what its holders have put into them, as far as it is safe and theirs: society/holding.ts. Exactly 1 where none is kept.)
-      (1 + improvedOf(world, p.cell)),
+      (1 +
+        (rows ? (rows.improved[p.cell] ??= improvedOf(world, p.cell)) : improvedOf(world, p.cell))),
     // (And its herd beast against the one it first kept: exactly 1 until it takes up another: ecology/exchange.ts.)
     flocks =
       (1 + lore.effect(p.cell, "herdYield")) *
@@ -790,7 +848,9 @@ function foodLand(
     wilds = (1 + lore.effect(p.cell, "forageYield")) * carriedWild(ctx, p.cell, alive),
     keeping = Math.min(0.8, lore.effect(p.cell, "keeping")),
     // (And what its own air, coast, woods and brewing keep: society/everyday.ts. Exactly 0 where none is kept.)
-    keptByLand = tableKeptOf(world, p.cell),
+    keptByLand = rows
+      ? (rows.table[p.cell] ??= tableKeptOf(world, p.cell))
+      : tableKeptOf(world, p.cell),
     stored =
       lore.effect(p.cell, "storage") +
       asks.stored(p.cell, t) +
@@ -885,9 +945,7 @@ function foodLand(
   if (rot > 0)
     for (const g of FOODS) m.move("spoiled", g, Math.floor(Math.max(0, m.stock[g]!) * rot));
   // What they eat: their people by the appetite of their body (an upright ape's, one unit a month).
-  const need = Math.round(
-    mixed ? mouths(p, ctx.life) * mixAppetite(world, p.cell) : mouths(p, ctx.life),
-  );
+  const need = Math.round(mixed ? mouths(p, ctx.life) * mixA : mouths(p, ctx.life));
   let eaten = 0;
   for (const g of FOODS) eaten += m.take("used", g, need - eaten);
   let over = m.food(FOODS) - need * (12 + 12 * pots + stored);
@@ -1750,7 +1808,7 @@ export function ageYear(ctx: PopulationContext, t: SimTime): void {
       targets = occupationTargets(
         p,
         provinceCapacity(ctx, p.cell),
-        ctx.settlements.inProvince(p.cell).length,
+        ctx.settlements.kept(p.cell).length,
         marketsOf(world).wagesOf(p.cell),
         farmingShare(ctx, p),
         fieldsUse(ctx, p),
@@ -1816,7 +1874,7 @@ export function workYear(ctx: PopulationContext, t: SimTime): void {
       targets = occupationTargets(
         p,
         provinceCapacity(ctx, p.cell),
-        ctx.settlements.inProvince(p.cell).length,
+        ctx.settlements.kept(p.cell).length,
         marketsOf(world).wagesOf(p.cell),
         farmingShare(ctx, p),
         fieldsUse(ctx, p),
@@ -2942,7 +3000,7 @@ export function ledgerYear(ctx: PopulationContext, t: SimTime): void {
       population: p.total(),
       byOccupation,
       fed: p.leanest,
-      settlements: ctx.settlements.inProvince(p.cell).length,
+      settlements: ctx.settlements.kept(p.cell).length,
     });
     p.leanest = 1000;
   }

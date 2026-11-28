@@ -1704,7 +1704,11 @@ const scalesLeft: string[] = [];
 async function connect(): Promise<{ client: HostClient; mode: string }> {
   if (!inline && typeof Worker !== "undefined") {
     try {
-      const worker = new Worker(new URL("../host/worker.ts", import.meta.url), { type: "module" });
+      // (?nohistory: old blocks of history written again in the simulation's own thread, to compare.)
+      const worker = new Worker(new URL("../host/worker.ts", import.meta.url), {
+        type: "module",
+        name: params.has("nohistory") ? "nohistory" : "",
+      });
       return { client: new HostClient(workerPort(worker)), mode: "worker" };
     } catch {
       // Fall through to the in-thread host.

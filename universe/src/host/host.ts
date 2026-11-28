@@ -13,7 +13,9 @@ import {
   saveWorld,
   saveSteps,
   seedFromText,
+  type HistoryOffload,
   type SaveDocument,
+  type SaveStep,
   type Seed,
   type World,
 } from "../kernel/index.ts";
@@ -52,13 +54,16 @@ export type Universe = {
   readonly queries: Readonly<Record<string, QueryHandler>>;
   /**
    * Work that can be done early in spare time without changing anything the world
-   * will do (warming pure caches); returns whether it found any. Optional.
+   * will do (warming pure caches); returns whether it found any. `still`: the world is
+   * not running, so a piece of it may take longer than a slice. Optional.
    */
-  readonly idle?: (world: World) => boolean;
+  readonly idle?: (world: World, still: boolean) => boolean;
   /** The view shown before the page says otherwise. */
   readonly defaultView: string;
   /** Whether life arises on a seed's world, and a people in time (the world itself not built). */
   readonly life?: (seed: Seed) => SeedLife;
+  /** The same of the world it has made of that seed, read from what it made (no world made again). */
+  readonly lifeIn?: (world: World) => SeedLife;
   /** What a seed's world allows of each age, read from what it holds (the world itself not built). */
   readonly reading?: (seed: Seed) => SeedReading;
   /** Whether a seed is worth reading for an age: a glance at a coarse world of it, far cheaper. */
@@ -113,6 +118,8 @@ export type HostOptions = {
   readonly budgetMs?: number;
   readonly frameEveryMs?: number;
   readonly statusEveryMs?: number;
+  /** Where old blocks of a world's history are written again, if not in this thread (history-offload.ts). */
+  readonly historyOffload?: HistoryOffload;
 };
 
 type Subscription = {
@@ -206,6 +213,18 @@ function heapNow(): { used: number | null; most: number | null } {
 const ASKING_MS = 1500;
 /** The most a pump gives a save under way (ms): a frame is due every hundred. */
 const SAVE_SLICE_MS = 40;
+/** How long a pump gives a save once the world is read and goes on (the packing and hashing of its copies), ms. */
+const SAVE_AFTER_MS = 4;
+/** What waits behind a save till it is made, even once the world goes on: what saves, or reads saves, or puts another world in its place. */
+const ONE_SAVE_AT_A_TIME: ReadonlySet<string> = new Set([
+  "save",
+  "export",
+  "load",
+  "import",
+  "start",
+  "saves",
+  "deleteSave",
+]);
 /** What is answered while a save is made: what only reads the world, or nothing of it. */
 const WHILE_SAVING: ReadonlySet<string> = new Set([
   "query",
@@ -231,7 +250,12 @@ const JUMP_SLICE_MOST_MS = 5000;
 export class SimHost {
   private readonly port: Port<ToHost, ToMain>;
   private readonly universes: Readonly<Record<string, Universe>>;
-  private readonly options: Required<Omit<HostOptions, "storage">> & { storage: ByteStore | null };
+  private readonly options: Required<Omit<HostOptions, "storage" | "historyOffload">> & {
+    storage: ByteStore | null;
+  };
+  private readonly historyOffload: HistoryOffload | null;
+  /** The saves made and being written, in the order asked: see stepSave. */
+  private writing: Promise<void> = Promise.resolve();
   private universe: Universe | null = null;
   private world: World | null = null;
   private lineage: SaveDocument["lineage"] | undefined;
@@ -261,12 +285,15 @@ export class SimHost {
   private stepMs = 0;
   private busy = false;
   /**
-   * A save under way (2026-11-15): made a slice a pump, the world held still till it is written, while what only reads
-   * it (a query, a view, a frame) goes on being answered. A save of a world at 1,500 takes more than a second.
+   * A save under way (2026-11-15): made a slice a pump, the world held still till its document is made, while what only
+   * reads it (a query, a view, a frame) goes on being answered; then written while the world goes on (writing). A save of a
+   * world at 1,500 takes more than a second.
    */
   private saving: {
     readonly id: number;
-    readonly steps: Generator<void, SaveDocument, void>;
+    readonly steps: Generator<SaveStep, SaveDocument, void>;
+    /** Whether all it reads of the world is read (saveSteps' "held"): the world goes on from then. */
+    held: boolean;
     readonly done: (doc: SaveDocument) => Promise<void>;
   } | null = null;
   /**
@@ -289,6 +316,7 @@ export class SimHost {
       frameEveryMs: options.frameEveryMs ?? 100,
       statusEveryMs: options.statusEveryMs ?? 250,
     };
+    this.historyOffload = options.historyOffload ?? null;
     this.lastPump = options.clock();
     port.onMessage((m) => this.inbox.push(m));
   }
@@ -302,6 +330,11 @@ export class SimHost {
       !this.saving &&
       (this.speed === 0 || !this.world)
     );
+  }
+
+  /** Once every save asked so far is written (tests and tools: a pump no longer waits on the writing). */
+  written(): Promise<void> {
+    return this.writing;
   }
 
   /** The world the host runs (tests and tools only; the page never sees it). */
@@ -334,6 +367,7 @@ export class SimHost {
     this.jumping = null;
     this.universe = universe;
     this.world = world;
+    world.offloadHistory(this.historyOffload);
     this.lineage = lineage;
     this.steps = null;
     this.stepsTarget = -1;
@@ -415,10 +449,12 @@ export class SimHost {
         // (The worlds kept, and a kept file opened, need no world running: the title
         // screen asks for them before any is.)
         case "saves": {
+          await this.writing; // (A save asked before is written first.)
           this.reply(m.id, this.options.storage ? await listSaves(this.options.storage) : []);
           return;
         }
         case "deleteSave": {
+          await this.writing; // (A save asked before is written first.)
           if (!this.options.storage) throw new Error("this host has no storage");
           const kept = (await listSaves(this.options.storage)).some((s) => s.name === m.name);
           await new SaveSlots(this.options.storage, m.name).remove();
@@ -428,9 +464,15 @@ export class SimHost {
         case "life": {
           const universe = this.universes[m.universe];
           if (!universe) throw new Error(`no universe ${m.universe}`);
+          // (Of the world running, read from its own home world: made again, a second of a phone's after each load.)
+          const here =
+            this.world && this.universe === universe && this.world.seed.text === m.seed
+              ? universe.lifeIn?.(this.world)
+              : undefined;
           this.reply(
             m.id,
-            universe.life?.(seedFromText(m.seed)) ?? { living: true, peopled: true, words: "" },
+            here ??
+              universe.life?.(seedFromText(m.seed)) ?? { living: true, peopled: true, words: "" },
           );
           return;
         }
@@ -539,6 +581,7 @@ export class SimHost {
           return;
         }
         case "load": {
+          await this.writing; // (A save asked before is written first.)
           if (!this.options.storage) throw new Error("this host has no storage");
           const universe = this.universe!;
           const got = await new SaveSlots(this.options.storage, m.name).read((doc) =>
@@ -581,20 +624,34 @@ export class SimHost {
       { universe: this.universe!.name },
       this.lineage,
     );
-    this.saving = { id, steps, done };
+    this.saving = { id, steps, done, held: false };
   }
 
   /** As much of the save under way as a slice holds; written, and its asker answered, once it is made. */
   private async stepSave(start: number): Promise<void> {
     const s = this.saving!,
       clock = this.options.clock,
-      deadline = this.away ? Infinity : start + Math.max(SAVE_SLICE_MS, this.options.budgetMs);
+      deadline = this.away
+        ? Infinity
+        : start + (s.held ? SAVE_AFTER_MS : Math.max(SAVE_SLICE_MS, this.options.budgetMs));
     try {
       for (;;) {
         const r = s.steps.next();
+        if (r.value === "held") {
+          s.held = true;
+          // (The world goes on at once: the rest of the save is made in the time a pump has to spare from it.)
+          if (!this.away) return;
+        }
         if (r.done) {
+          // (The document is the world as it was, copied whole: written while the world goes on, each after the one asked
+          // before it. Written in the pump, a save of first light at 1,300 stopped everything for 1.7 s more.)
           this.saving = null;
-          await s.done(r.value);
+          const doc = r.value;
+          this.writing = this.writing
+            .then(() => s.done(doc))
+            .catch((error: unknown) => this.fail(s.id, error));
+          // (A page away is kept whole before the pump ends: a phone may stop it at any moment.)
+          if (this.away) await this.writing;
           return;
         }
         if (clock() >= deadline) return;
@@ -692,14 +749,21 @@ export class SimHost {
       // (The observatory's regular polls for news are not the viewer asking.)
       if (this.inbox.some((m) => !(m.kind === "query" && POLLS.has(m.query.type))))
         this.lastAsked = start;
-      // (While a save is made, what would change the world waits behind it, and all that came after, in order.)
+      // (While a save reads the world, what would change it waits behind it, and all that came after, in order; once it
+      // has, only what saves or reads saves, or puts another world in its place, waits for it to be made.)
       while (this.inbox.length) {
-        if (this.saving && !WHILE_SAVING.has(this.inbox[0]!.kind)) break;
+        if (
+          this.saving &&
+          !WHILE_SAVING.has(this.inbox[0]!.kind) &&
+          !(this.saving.held && !ONE_SAVE_AT_A_TIME.has(this.inbox[0]!.kind))
+        )
+          break;
         await this.handle(this.inbox.shift()!);
       }
       const world = this.world;
       if (!world) return;
-      if (this.saving) {
+      if (this.saving?.held) await this.stepSave(start);
+      if (this.saving && !this.saving.held) {
         await this.stepSave(start);
         this.stepMs = clock() - start;
         const now = clock();
@@ -747,7 +811,7 @@ export class SimHost {
         start - this.lastAsked > ASKING_MS &&
         clock() < start + this.options.budgetMs / 2
       )
-        this.universe.idle(world);
+        this.universe.idle(world, this.speed === 0);
       this.finishMoment();
       this.stepMs = clock() - start;
       const now = clock();

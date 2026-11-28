@@ -321,7 +321,7 @@ function tilesKm(a: number, b: number): number {
 }
 
 const standing = (ctx: PopulationContext, cell: number): readonly Settlement[] =>
-  ctx.settlements.inProvince(cell).filter((v) => v.population > 0 || townsOf(ctx.world).get(v.ref));
+  ctx.settlements.kept(cell).filter((v) => v.population > 0 || townsOf(ctx.world).get(v.ref));
 
 /** What fell on a land did this much: its people's dead, its towns' homes (by town), its blocks, its worst place's strength. */
 type Struck = { dead: number; blocks: number; homes: Record<string, number>; worst: number };

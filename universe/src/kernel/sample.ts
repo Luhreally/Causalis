@@ -35,7 +35,7 @@ export function weightedKey(u: number, weight: number): number {
 /** Index chosen with probability ∝ weights[i], from one uniform u in [0, 1). Order is the array's. */
 export function weightedIndex(weights: readonly number[], u: number): number {
   let total = 0;
-  for (const w of weights) if (w > 0) total += w;
+  for (let i = 0; i < weights.length; i++) if (weights[i]! > 0) total += weights[i]!;
   if (!(total > 0)) return -1;
   let target = u * total,
     last = -1;
@@ -83,7 +83,7 @@ export function apportion(
   const n = weights.length,
     parts = new Array<number>(n).fill(0);
   let sum = 0;
-  for (const w of weights) if (w > 0) sum += w;
+  for (let i = 0; i < n; i++) if (weights[i]! > 0) sum += weights[i]!;
   if (n === 0 || total === 0) return parts;
   if (!(sum > 0)) throw new Error("apportion needs at least one positive weight");
   // (Tie keys given as a function are asked only where two remainders are the same: a draw each, most never needed.)
@@ -308,7 +308,7 @@ export function multinomial(
 ): number[] {
   const out = new Array<number>(weights.length).fill(0);
   let total = 0;
-  for (const w of weights) if (w > 0) total += w;
+  for (let i = 0; i < weights.length; i++) if (weights[i]! > 0) total += weights[i]!;
   if (n <= 0 || !(total > 0)) return out;
   if (n <= ONE_BY_ONE) {
     for (let i = 0; i < n; i++) {

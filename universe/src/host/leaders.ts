@@ -249,6 +249,9 @@ function metIn(world: World, town: string): { leaders: Leader[]; as: Map<string,
     as.set(h.ref, same.ref);
   }
   // (Those who hold its offices and head its great things, as read: host/inspect/notables.ts.)
+  // (Two the world keeps of one name and birth are one person, listed once, as both: juniper at 120 keeps its host's commander,
+  // Roroun Bravaiey, born 97, beside themselves taken in the field as its court's soldier still, and its town listed them twice.)
+  const byBirth = new Map<string, Leader>();
   for (const n of notablesIn(world, town)) {
     // (One of name who is the ruler or of the court listed above: the same person, once. Two were listed, and drawn.)
     // (One of the court who has since taken the seat is its ruler, by their name and the year they were born.)
@@ -269,7 +272,31 @@ function metIn(world: World, town: string): { leaders: Leader[]; as: Map<string,
       out = out.filter((l) => l !== same);
       as.set(same.ref, n.ref);
     }
-    out.push(notableLeader(world, n));
+    const card = notableLeader(world, n),
+      born = `${n.name}|${n.born}`,
+      // (One of name who also heads one of its groups, as history names them alike, by name and years, is one person: listed once,
+      // as both, the head's entry giving way.)
+      head =
+        byBirth.get(born) ??
+        (card.as
+          ? out.find((l) => l.kind === "head" && l.name === card.name && l.as?.age === card.as!.age)
+          : undefined);
+    if (head && out.includes(head)) {
+      out = out.filter((l) => l !== head);
+      as.set(head.ref, n.ref);
+      for (const [k, v] of as) if (v === head.ref) as.set(k, n.ref);
+      const both = {
+        ...card,
+        as: card.as ?? head.as,
+        title: `${card.title}, and ${head.title[0]!.toLowerCase()}${head.title.slice(1)}`,
+        did: `${card.did} ${head.did}`,
+      };
+      out.push(both);
+      byBirth.set(born, both);
+      continue;
+    }
+    out.push(card);
+    byBirth.set(born, card);
   }
   return { leaders: out, as };
 }

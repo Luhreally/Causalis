@@ -564,7 +564,7 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
   // 1. Realms form around market towns where people keep to rank or have leaders enough.
   for (const p of provinces) {
     if (store.of(p.cell)) continue;
-    const town = ctx.settlements.inProvince(p.cell).find((s) => s.market),
+    const town = ctx.settlements.kept(p.cell).find((s) => s.market),
       ways = culture.get(p.cell);
     if (!town || !ways) continue;
     const rank = ways.traits[WAY.hierarchy]!,
@@ -805,7 +805,7 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
       if (!prov || !m || !ways) continue;
       if (reading && (steps.get(c) ?? 0) >= LOCAL.steps) {
         let town = 0;
-        for (const st of ctx.settlements.inProvince(c)) town = Math.max(town, st.population);
+        for (const st of ctx.settlements.kept(c)) town = Math.max(town, st.population);
         if (town >= LOCAL.town) farTowns++;
       }
       // The tithe: a share of the year's grain, never below three months of their food.
@@ -1065,7 +1065,7 @@ export function rulerDies(ctx: PopulationContext, p: Polity, t: SimTime, struck:
     // Where a market town lies among them, they raise their own realm there under a
     // rival claimant; else each goes its own way.
     const town = edge
-      .flatMap((c) => ctx.settlements.inProvince(c).filter((s) => s.market))
+      .flatMap((c) => ctx.settlements.kept(c).filter((s) => s.market))
       .sort((x, y) => y.population - x.population || (x.ref < y.ref ? -1 : 1))[0];
     const raised = town ? raiseRealm(ctx, town, edge, split, t, p.ref) : null;
     if (raised && claimant)

@@ -6,6 +6,8 @@ import {
   BLOCK_M,
   CITY_EVENTS,
   LORE_EVENTS,
+  LOST_EVENTS,
+  VETERAN_EVENTS,
   USE,
   blockAt,
   citiesOf,
@@ -13,7 +15,7 @@ import {
   layout,
   populationContext,
 } from "../../src/sim/index.ts";
-import { OCC } from "../../src/rules/index.ts";
+import { OCC, principle } from "../../src/rules/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { LOT, lotStates, townLots, type TownPlan } from "../../src/bridge/index.ts";
 import { universeWorld } from "../host/worlds.ts";
@@ -69,9 +71,28 @@ test("towns grow into cities, and paving reshapes them, answering to the road's 
   for (const c of paved) {
     const e = world.events.get(c.paved!)!;
     assert.equal(e.type, CITY_EVENTS.reshaped.type);
-    const learned = world.events.get(e.causes[0]!.ref as Ref)!;
-    assert.ok(learned.type === LORE_EVENTS.found.type || learned.type === LORE_EVENTS.learned.type);
-    assert.equal((learned.data as { principle: string }).principle, "roads");
+    // (How the land came to know it: found, taught, or, since knowledge can be lost (K1), found again, read from what a town
+    // kept, or brought back by those who still knew it: the last tells the crafts it brought; or brought home from a war by its
+    // soldiers, who tell the craft by its name.)
+    const learned = world.events.get(e.causes[0]!.ref as Ref)!,
+      data = learned.data as { principle?: string; crafts?: string[]; craft?: string };
+    assert.ok(
+      [
+        LORE_EVENTS.found.type,
+        LORE_EVENTS.learned.type,
+        LOST_EVENTS.foundAgain.type,
+        LOST_EVENTS.read.type,
+        LOST_EVENTS.brought.type,
+        VETERAN_EVENTS.home.type,
+      ].includes(learned.type),
+      learned.type,
+    );
+    assert.ok(
+      data.principle === "roads" ||
+        !!data.crafts?.includes("roads") ||
+        data.craft === principle("roads").name,
+      JSON.stringify(data),
+    );
   }
   // Each paved city whose quarters have come to their worth stands its trade nearer its road
   // than the same town's would unpaved (weighed against itself, not against other towns on

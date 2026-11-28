@@ -131,6 +131,28 @@ export const SOCIETY_STORES: readonly (readonly [string, number])[] = [
   ["society.roofless", 17],
 ];
 
+/**
+ * A society store that counts the times it is changed (set, dropped or loaded): neither history nor hashed nor saved, only so a
+ * reader asked month by month may keep what it read of it until it changes (sim/population/systems.ts foodMonth).
+ */
+export class CountedRows extends RowStore {
+  changes = 0;
+  /** What a reader keeps of the rows by their changes, on the world's own store (population/systems.ts: foodRows). Not saved. */
+  readerKept: unknown = null;
+  override set(key: string | number, row: readonly number[]): void {
+    this.changes++;
+    super.set(key, row);
+  }
+  override drop(key: string | number): void {
+    this.changes++;
+    super.drop(key);
+  }
+  override load(state: unknown): void {
+    this.changes++;
+    super.load(state);
+  }
+}
+
 /** One of the society sweep's stores on a world (null where it keeps none). */
 export function societyStore(world: World, name: string): RowStore | null {
   return world.peek<RowStore>(name) ?? null;

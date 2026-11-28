@@ -2149,7 +2149,7 @@ export function bodiesYear(ctx: PopulationContext, t: SimTime): void {
   if (moved.length)
     rehome(
       (r) => realms.get(r)?.members.length ?? 1,
-      (c) => ctx.settlements.inProvince(c).length > 0,
+      (c) => ctx.settlements.kept(c).length > 0,
       store,
       moved,
       year,

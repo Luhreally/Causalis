@@ -51,13 +51,53 @@ function foldOne(d: [number, number], x: number): void {
   d[1] = Math.imul(b + lo + 0x9e3779b9, 0x85ebca6b) ^ (b >>> 13);
 }
 
+/** Keys under this are kept in a plain list by their number (a land's cell, a realm's serial); any other in a map. */
+const DENSE = 1 << 16;
+
+/**
+ * Rows by their key as a number: a list by index for the small whole ones (every land's cell, nearly every realm's serial), a map
+ * for any other. (A map asked tens of thousands of times a year by two dozen systems: a list asks nothing but the index.)
+ */
+class ByNumber {
+  private dense: (number[] | undefined)[] = [];
+  private readonly other = new Map<number, number[]>();
+  private static small(n: number): boolean {
+    return (n | 0) === n && n >= 0 && n < DENSE;
+  }
+  get(n: number): number[] | undefined {
+    return ByNumber.small(n) ? this.dense[n] : this.other.get(n);
+  }
+  has(n: number): boolean {
+    return ByNumber.small(n) ? this.dense[n] !== undefined : this.other.has(n);
+  }
+  set(n: number, r: number[]): void {
+    if (!ByNumber.small(n)) {
+      this.other.set(n, r);
+      return;
+    }
+    const d = this.dense;
+    // (Filled up to it first, so the list stays a plain one, not one with holes.)
+    while (d.length < n) d.push(undefined);
+    d[n] = r;
+  }
+  delete(n: number): void {
+    if (ByNumber.small(n)) {
+      if (n < this.dense.length) this.dense[n] = undefined;
+    } else this.other.delete(n);
+  }
+  clear(): void {
+    this.dense = [];
+    this.other.clear();
+  }
+}
+
 /** A store of rows of whole numbers, each a land's (keyed by its cell) or a realm's (by its ref), of one fixed width. */
 export class RowStore implements StateStore {
   readonly name: string;
   readonly width: number;
   private readonly rows = new Map<string, number[]>();
   /** The same rows by their key as a number, where it is one (a land's cell, a realm's serial): asked without spelling it. */
-  private readonly byNumber = new Map<number, number[]>();
+  private readonly byNumber = new ByNumber();
   private readonly digest: [number, number] = [0x811c9dc5, 0];
   private sets = 0;
   constructor(name: string, width: number) {

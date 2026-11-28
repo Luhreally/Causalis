@@ -215,6 +215,12 @@ test("a town's weavers cut the day before's length from their looms and weave th
       // then before they first weave.)
       const legs = legsTold(weaving, i, day),
         broken = legs.some((l) => l.why === "Back to their day");
+      // (One a going holds the whole working day, as a house's guard from breakfast to supper, weaves none of it: their loom keeps
+      // the day before's length, cut the next day they weave. Looked at above: a loom for them, whole at 5h.)
+      if (!broken && !legs.some((l) => l.task === "weave")) {
+        heldDays++;
+        continue;
+      }
       if (!broken)
         assert.match(told, /Cutting the finished length/i, `${name} on day ${day}: ${told}`);
       const cut =

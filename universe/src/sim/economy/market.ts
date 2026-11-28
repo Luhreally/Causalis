@@ -480,6 +480,8 @@ export class MarketStore implements StateStore {
   /** Saved packed by column (kernel/pack.ts): each market keeps a row of numbers a year. */
   readonly packed = true;
   private readonly map = new Map<number, Market>();
+  /** What each land can make of the recipes at a moment, by its cell (economy/systems.ts canMakeNow). Not state. */
+  readonly canMakeKept = new Map<number, { t: number; can: Int8Array }>();
   /** Routes that have carried goods, by "a:b" (a < b): the event that opened each. */
   private readonly routes = new Map<string, Ref>();
   /**
@@ -811,6 +813,7 @@ export class MarketStore implements StateStore {
   }
 
   load(state: unknown): void {
+    this.canMakeKept.clear();
     const s = state as {
       markets: unknown[];
       routes: [string, Ref][];
