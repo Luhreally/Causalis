@@ -20,15 +20,19 @@ export function beastPicture(
   b: BeastPlan,
   mother: BeastPlan | null,
   w = 96,
-  h = 56,
+  // (Lower where nothing stands below it or rises over it: no legs, no wings.)
+  h = b.legs || b.wings ? 56 : 38,
 ): SVGSVGElement {
+  // (Written as one string and parsed once: a picker draws several, and an element made a part at a time cost the picker
+  // its 4 ms on a phone.)
   const svg = document.createElementNS(NS, "svg"),
-    add = (tag: string, at: Record<string, string | number>) => {
-      const e = document.createElementNS(NS, tag);
-      for (const [k, v] of Object.entries(at)) e.setAttribute(k, String(v));
-      svg.append(e);
-      return e;
-    },
+    parts: string[] = [],
+    add = (tag: string, at: Record<string, string | number>) =>
+      parts.push(
+        `<${tag} ${Object.entries(at)
+          .map(([k, v]) => `${k}="${typeof v === "number" ? Math.round(v * 10) / 10 : v}"`)
+          .join(" ")}/>`,
+      ),
     lit = (k: keyof BeastPlan) => !!mother && JSON.stringify(mother[k]) !== JSON.stringify(b[k]),
     tone = (k: keyof BeastPlan, base: string) => (lit(k) ? "#ffd75a" : base),
     skin = SKIN[b.covering] ?? "#9ab",
@@ -115,5 +119,6 @@ export function beastPicture(
       stroke: tone("features", "#e8e0d0"),
       "stroke-width": 2,
     });
+  svg.innerHTML = parts.join("");
   return svg;
 }

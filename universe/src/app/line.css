@@ -410,6 +410,8 @@ body.lining > *:not(#app) {
 .line-page {
   width: 100%;
   max-width: 460px;
+  /* (Its padding and border within its height: else it stood 26px past the layer, over the top's column or the screen's foot.) */
+  box-sizing: border-box;
   max-height: 100%;
   overflow: auto;
   overscroll-behavior: contain;

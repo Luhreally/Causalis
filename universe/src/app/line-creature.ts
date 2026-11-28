@@ -7,6 +7,7 @@
 import type { BeastPlan, GenesisPlan, MeadowPlan } from "../bridge/index.ts";
 import { BEAST_EYE, FLIER_UP, MeadowScene, PossessEye, type Stage } from "../render/index.ts";
 import type { HudOffer } from "../ui/line-hud.ts";
+import { LineNest } from "../render/line-nest.ts";
 import {
   MEADOW_H,
   MEADOW_STEP,
@@ -17,6 +18,7 @@ import {
   meadowOffers,
   newMeadow,
   stepMeadow,
+  type Beast,
   type MeadowState,
 } from "../view/index.ts";
 
@@ -74,6 +76,25 @@ const SHALLOWS_HUNTER = "line:hunter",
   SENSE = 22,
   GRIP = 1.1;
 export const HUNTER_NAME = "a hunter of the shallows";
+/**
+ * Courting (mates and nest): Court calls the nearest grown one of the line's kind within MATE_NEAR metres. It comes to
+ * the beast, they court DANCE seconds, a nest is made between them (on land, off the water and clear of the shrubs; in
+ * the sea's ages, its eggs floating where the line lives), and after LAY seconds the young one comes out of it.
+ */
+const MATE_NEAR = 14,
+  DANCE = 2.2,
+  COME = 4,
+  LAY = 1.6;
+
+type Nest = {
+  x: number;
+  z: number;
+  size: number;
+  eggs: number;
+  wet: boolean;
+  t: number;
+  laid: boolean;
+};
 
 /** The line's lineage's ref in the meadow. */
 export const LINE_REF = "line:held";
@@ -96,14 +117,23 @@ export class LineCreature {
   steps = 0;
   /** The shallows' hunter: its beast's id, how long it has held the line's beast, how long it is fed. */
   private hunter = { id: -1, grip: 0, fed: 0 };
+  /** The line's own weight (kg). */
+  private mass = 0;
   /** Whether the shallows' hunter is near (m; null: none), for the page. */
   danger: number | null = null;
+  /** The mate called and how long they have courted; the nest made, how long since, its eggs. */
+  private court: { mate: number; t: number; from: number; fed: number; owed: number } | null = null;
+  private nest: Nest | null = null;
+  private readonly nestDraw: LineNest;
+  /** What the courting is at, for the page: "coming", "courting", "nest" (null: none). */
+  courting: "coming" | "courting" | "nest" | null = null;
 
   constructor(stage: Stage) {
     this.stage = stage;
     this.scene = new MeadowScene(stage);
     this.scene.setDetail(2);
     this.eye = new PossessEye(stage);
+    this.nestDraw = new LineNest(stage, this.scene.root);
   }
 
   /**
@@ -116,6 +146,7 @@ export class LineCreature {
     my: number,
     sea: readonly MeadowPlan["lineages"][number][] | null,
   ): string | null {
+    this.mass = line.genome.mass;
     const age = ageOfMy(my),
       lineage = {
         ref: LINE_REF,
@@ -192,6 +223,9 @@ export class LineCreature {
     if (!h) return "your line's beast is not to be had";
     this.young = 0;
     this.owed = 0;
+    this.court = null;
+    this.nest = null;
+    this.courting = null;
     // (Of the shallows' hunter, one only: the first of its kind, the rest let go.)
     const hk = m.kinds.findIndex((x) => x.ref === SHALLOWS_HUNTER);
     this.hunter = { id: -1, grip: 0, fed: 6 };
@@ -201,7 +235,9 @@ export class LineCreature {
       if (of[0]) this.hunter.id = of[0].id;
     }
     const held = meadowHeld(m)!;
-    this.eye.height = Math.max(0.6, this.scene.sizeOf(LINE_REF) ?? held.k.length * 0.6);
+    // (The eye stands off by the body's own drawn size, however small: a worm of grams is seen as a worm is, close to it,
+    // and the lens's near and far planes are set to that scale each frame: frame().)
+    this.eye.height = Math.max(0.004, this.scene.sizeOf(LINE_REF) ?? held.k.length * 0.6);
     this.eye.pitch = BEAST_EYE.pitch;
     this.eye.distance = BEAST_EYE.distance;
     this.eye.behind(held.b.heading, true);
@@ -220,7 +256,15 @@ export class LineCreature {
       while (this.owed >= MEADOW_STEP && n < 6) {
         const h = m.hand;
         if (h) {
-          if (this.pressed !== null) h.act = meadowOffers(m)[this.pressed]?.act ?? null;
+          if (this.pressed !== null) {
+            const o = meadowOffers(m)[this.pressed];
+            h.act = o?.act ?? null;
+            // (Court: a mate called to it, not a young one at once.)
+            if (o?.act === "court" && o.can) {
+              h.act = null;
+              this.callMate();
+            }
+          }
           this.pressed = null;
           const yaw = this.eye.looking,
             // (The stick's frame: ahead is where the eye looks, as the meadow's held beast is steered: app/meadow-held.ts.)
@@ -230,8 +274,10 @@ export class LineCreature {
           h.mz = ahead * Math.cos(yaw) + right * Math.sin(yaw);
           h.run = Math.hypot(this.stick.x, this.stick.y) > 0.92;
         }
+        const had = h?.young ?? 0;
         stepMeadow(m);
         this.hunt(MEADOW_STEP);
+        this.woo(MEADOW_STEP, had);
         this.owed -= MEADOW_STEP;
         n++;
       }
@@ -246,8 +292,217 @@ export class LineCreature {
       const up = held.k.flies && beastPose(m, held.b).gait > 0 ? FLIER_UP : 0;
       this.lift += (up - this.lift) * (1 - Math.exp(-Math.min(0.1, dt) / 0.3));
       this.eye.update(held.b.x, held.b.z, null, dt, this.lift);
+      // (The lens to the body's scale, in the meadow's units (0.1 a metre): its near plane a twentieth of the way to the
+      // body, never past the stage's own 0.1; its far plane where the meadow and its sky end, so depth keeps its grain.)
+      const lens = this.stage.camera.camera;
+      if (lens) {
+        const off = this.eye.distance * this.eye.height * 0.1;
+        lens.nearClip = Math.min(0.1, Math.max(0.0003, off * 0.05));
+        lens.farClip = Math.min(400, Math.max(60, lens.nearClip * 4e4));
+      }
     }
     this.scene.update(m, this.bodies);
+    // (The eye stands off by the body as it is drawn, read once it is: at the hand's taking nothing is drawn yet, and the
+    // meadow draws its least beasts larger than life.)
+    const drawn = this.scene.sizeOf(LINE_REF);
+    if (drawn && Math.abs(drawn - this.eye.height) > 1e-6) this.eye.height = Math.max(0.004, drawn);
+    const c = this.court,
+      mate = c && held ? m.beasts.find((x) => x.id === c.mate) : null;
+    this.nestDraw.update({
+      court:
+        c && mate && held && this.courting === "courting"
+          ? {
+              x: (mate.x + held.b.x) / 2,
+              z: (mate.z + held.b.z) / 2,
+              t: c.t,
+              // (As large as the beast is drawn: the meadow draws its least beasts larger than life.)
+              size: Math.max(held.k.length, this.eye.height),
+            }
+          : null,
+      nest: this.nest,
+    });
+  }
+
+  /** Court pressed: the nearest grown one of its kind near is called to it. */
+  private callMate(): void {
+    const m = this.meadow,
+      held = m ? meadowHeld(m) : null;
+    if (!m || !held || this.court || this.nest) return;
+    let best: Beast | null = null,
+      bd = MATE_NEAR;
+    for (const o of m.beasts) {
+      if (o === held.b || o.kind !== held.b.kind || o.doing === "coming" || o.age <= held.k.grown)
+        continue;
+      const d = Math.hypot(o.x - held.b.x, o.z - held.b.z);
+      if (d < bd) {
+        bd = d;
+        best = o;
+      }
+    }
+    if (!best) return;
+    this.court = { mate: best.id, t: 0, from: bd, fed: held.b.energy, owed: 0 };
+    this.courting = "coming";
+    held.h.told = { words: "It courts: one of its kind comes to it", t: m.t, good: true };
+  }
+
+  /** The courting's step: the mate comes, they court, the nest is made, the young one comes out of it. */
+  private woo(dt: number, had: number): void {
+    const m = this.meadow,
+      held = m ? meadowHeld(m) : null;
+    if (!m || !held) return;
+    const c = this.court,
+      n = this.nest;
+    if (n) {
+      n.t += dt;
+      // (The young is had as the nest is made, while the pair are as fed as they came together: the meadow's own birth,
+      // the young set at the nest; it is shown for the choosing LAY seconds after: hadYoung.)
+      if (c && held.h.young > had) {
+        const young = m.beasts[m.beasts.length - 1];
+        if (young && young.kind === held.b.kind) {
+          // (Just out of the nest, past its rim and its eggs.)
+          young.x = n.x + 1.1 * n.size;
+          young.z = n.z;
+        }
+        n.eggs = Math.max(0, n.eggs - 1);
+        held.b.energy -= c.owed;
+        this.court = null;
+        this.courting = null;
+      } else if (c && n.t > MEADOW_STEP * 1.5) {
+        // (The meadow would not have the young born (its why told): the eggs come to nothing.)
+        const why = held.h.told?.words ?? "";
+        n.eggs = 0;
+        held.b.energy -= c.owed;
+        this.court = null;
+        this.courting = null;
+        held.h.told = {
+          words: `The eggs came to nothing${why ? `: ${why}` : ""}`,
+          t: m.t,
+          good: false,
+        };
+      }
+      // (The nest stays a while, then is left.)
+      if (n.t > 40) this.nest = null;
+      return;
+    }
+    if (!c) return;
+    const mate = m.beasts.find((x) => x.id === c.mate);
+    if (!mate) {
+      this.court = null;
+      this.courting = null;
+      return;
+    }
+    const dx = held.b.x - mate.x,
+      dz = held.b.z - mate.z,
+      d = Math.hypot(dx, dz) || 1,
+      near = held.k.length * 1.3;
+    mate.heading = Math.atan2(dx, dz);
+    if (d > near) {
+      // (It comes to the call at a run, and within COME seconds however far: the meadow's own courting asks no time at
+      // all, and a beast of grams at its own pace took minutes to cross the meadow's reach, starving the pair.)
+      const step = Math.min(d - near, Math.max(held.k.walk * 2, c.from / COME) * dt);
+      mate.x += (dx / d) * step;
+      mate.z += (dz / d) * step;
+      mate.doing = "walking";
+      c.t = 0;
+      this.courting = "coming";
+      // (Gone too far off from it: the mate gives up.)
+      if (d > MATE_NEAR * 2) {
+        this.court = null;
+        this.courting = null;
+      }
+      return;
+    }
+    // (Close: they court side by side, the mate kept there.)
+    mate.x = held.b.x - (dx / d) * near;
+    mate.z = held.b.z - (dz / d) * near;
+    mate.doing = "resting";
+    this.courting = "courting";
+    c.t += dt;
+    if (c.t < DANCE) return;
+    // (Beside the pair, not under them: to the side of the line between them that no beast stands on.)
+    const size = Math.max(held.k.length, this.eye.height),
+      mx = held.b.x - dx / 2,
+      mz = held.b.z - dz / 2,
+      side = (k: number) => ({
+        x: mx + (-dz / d) * size * 1.4 * k,
+        z: mz + (dx / d) * size * 1.4 * k,
+      }),
+      clear = (p: { x: number; z: number }) =>
+        Math.min(...m.beasts.map((o) => Math.hypot(o.x - p.x, o.z - p.z))),
+      at = clear(side(1)) >= clear(side(-1)) ? side(1) : side(-1);
+    this.nest = {
+      ...this.nestPlace(at.x, at.z, size, held.k.feed === "swim"),
+      t: 0,
+      laid: true,
+    };
+    this.courting = "nest";
+    held.h.told = { words: "They make a nest", t: m.t, good: true };
+    // (Whether it can have young is judged as it was when Court was pressed, as the meadow's own courting judges it at
+    // once; what the courting cost it is paid as soon as the young is had or not: owed.)
+    c.owed = Math.max(0, c.fed - held.b.energy);
+    held.b.energy += c.owed;
+    held.h.act = "court";
+  }
+
+  /** Where the nest goes, about (`x`, `z`): on land clear of the water and the shrubs; for a swimmer, in the water. */
+  private nestPlace(
+    x: number,
+    z: number,
+    size: number,
+    wet: boolean,
+  ): { x: number; z: number; size: number; eggs: number; wet: boolean } {
+    const m = this.meadow!,
+      p = m.pond;
+    if (p) {
+      const dx = x - p.x,
+        dz = z - p.z,
+        d = Math.hypot(dx, dz) || 1;
+      if (wet && d > p.r - size) {
+        x = p.x + (dx / d) * Math.max(0, p.r - size * 1.2);
+        z = p.z + (dz / d) * Math.max(0, p.r - size * 1.2);
+      } else if (!wet && d < p.r + size) {
+        x = p.x + (dx / d) * (p.r + size * 1.2);
+        z = p.z + (dz / d) * (p.r + size * 1.2);
+      }
+    }
+    if (!wet)
+      for (const s of m.shrubs) {
+        const dx = x - s.x,
+          dz = z - s.z,
+          d = Math.hypot(dx, dz) || 1,
+          clear = s.r + size * 0.7;
+        if (d < clear) {
+          x = s.x + (dx / d) * clear;
+          z = s.z + (dz / d) * clear;
+        }
+      }
+    return { x, z, size, eggs: 3, wet };
+  }
+
+  /** The beast held made grown and fed, a mate set beside it, and Court pressed (a look tool's shortcut). */
+  courtNow(): boolean {
+    const m = this.meadow,
+      held = m ? meadowHeld(m) : null;
+    if (!m || !held) return false;
+    held.b.energy = 1;
+    held.b.age = Math.max(held.b.age, held.k.grown + 1);
+    const mate = m.beasts.find(
+      (x) => x !== held.b && x.kind === held.b.kind && x.doing !== "coming",
+    );
+    if (mate) {
+      mate.age = Math.max(mate.age, held.k.grown + 1);
+      mate.x = held.b.x + Math.sin(held.b.heading) * held.k.length * 4;
+      mate.z = held.b.z + Math.cos(held.b.heading) * held.k.length * 4;
+    }
+    const i = meadowOffers(m).findIndex((o) => o.act === "court");
+    if (i < 0) return false;
+    this.pressed = i;
+    return true;
+  }
+
+  /** The nest and the courting, for the look tools. */
+  get nestNow(): { courting: string | null; nest: Nest | null } {
+    return { courting: this.courting, nest: this.nest };
   }
 
   /** The shallows' hunter's step: to the line's beast where it senses it, gripping it, taking it. */
@@ -316,7 +571,9 @@ export class LineCreature {
   /** Whether a young one has been born under the hand since it was last asked. */
   hadYoung(): boolean {
     const h = this.meadow?.hand;
-    if (!h || h.young <= this.young) return false;
+    // (A young one of the nest is shown once it has come out of it.)
+    if (!h || h.young <= this.young || (this.nest && this.nest.eggs < 3 && this.nest.t < LAY))
+      return false;
     this.young = h.young;
     return true;
   }
@@ -340,7 +597,8 @@ export class LineCreature {
       held = m ? meadowHeld(m) : null;
     if (!held) return null;
     return {
-      words: `${held.k.name} · ${held.k.size >= 1 ? `${held.k.size.toFixed(1)} kg` : `${Math.round(held.k.size * 1000)} g`} · ${held.b.doing}`,
+      // (The line's own weight: the meadow keeps its beasts no lighter than its own least.)
+      words: `${held.k.name} · ${this.mass >= 1 ? `${this.mass.toFixed(1)} kg` : this.mass >= 0.001 ? `${(this.mass * 1000).toFixed(this.mass < 0.01 ? 1 : 0)} g` : `${Math.round(this.mass * 1e6)} mg`} · ${held.b.doing}`,
       fed: held.b.energy,
       x: held.b.x,
       z: held.b.z,
@@ -355,6 +613,15 @@ export class LineCreature {
   }
 
   leave(): void {
+    this.court = null;
+    this.nest = null;
+    this.courting = null;
+    this.nestDraw.update({ court: null, nest: null });
+    const lens = this.stage.camera.camera;
+    if (lens) {
+      lens.nearClip = 0.1;
+      lens.farClip = 400;
+    }
     if (this.meadow) this.meadow.hand = null;
     this.meadow = null;
     this.scene.visible = false;

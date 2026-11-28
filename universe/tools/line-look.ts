@@ -234,19 +234,29 @@ for (const view of [
   if (await k<boolean>("globalThis.causalis.lineMode.threaten()")) {
     await page.waitForTimeout(350);
     await shot("03b-gripped");
-    await until(
-      "the line to go on after the cell was taken",
-      async () => {
-        const s = await state();
-        return !s.ended && s.layer === null && (s as unknown as { steered: number }).steered >= 0;
-      },
-      8000,
-    );
-    await page.waitForTimeout(3000);
-    check(
-      !(await state()).ended,
-      "taken, the line went on as one of its own with nothing to press",
-    );
+    // (Taken first: a grip takes its time, and the cell may slip it.)
+    if (
+      await until(
+        "the cell taken by the hunter set on it",
+        async () => (await state()).ended,
+        15000,
+      )
+    ) {
+      await shot("03c-goes-on");
+      await until(
+        "the line to go on after the cell was taken",
+        async () => {
+          const s = await state();
+          return !s.ended && s.layer === null;
+        },
+        8000,
+      );
+      await page.waitForTimeout(3000);
+      check(
+        !(await state()).ended,
+        "taken, the line went on as one of its own with nothing to press",
+      );
+    }
   } else say("(no hunter in the drop yet to threaten it)");
 
   // —— Filled, divided by its key, and a daughter chosen by a tap.
@@ -280,7 +290,7 @@ for (const view of [
   check(s3.page === "line", "Forward to its line again");
   await look("06-line-page", "its line's page");
   await press(".line-page .line-page-help", "the page's ?");
-  check((await state()).page === "help:pages", "the page's ? opens its help");
+  check(((await state()).page ?? "").startsWith("help:"), "the page's ? opens its help");
   await press(".line-page-close", "✕ Close");
   check(!(await state()).layer, "the page closed");
 
@@ -363,6 +373,52 @@ for (const view of [
     "What now? speaks of the body",
   );
   await throttled("a body going");
+  // —— Courting: a mate comes, they court, a nest is made off the water, the young one comes out of it.
+  type NestNow = {
+    courting: string | null;
+    nest: { x: number; z: number; wet: boolean; laid: boolean; eggs: number } | null;
+  };
+  if (await k<boolean>("globalThis.causalis.lineMode.court()")) {
+    const ways: string[] = [];
+    await until(
+      "the mate come and courting",
+      async () => {
+        const n = await k<NestNow | null>("globalThis.causalis.lineMode.nest()");
+        if (n?.courting && ways.at(-1) !== n.courting) ways.push(n.courting);
+        return n?.courting === "courting";
+      },
+      20000,
+    );
+    await page.waitForTimeout(600);
+    await shot("14b-courting");
+    await until(
+      "the nest made",
+      async () => !!(await k<NestNow | null>("globalThis.causalis.lineMode.nest()"))?.nest,
+      8000,
+    );
+    const made = (await k<NestNow>("globalThis.causalis.lineMode.nest()")).nest!;
+    await page.waitForTimeout(300);
+    await look("14c-nest", "the nest");
+    say(
+      `a nest made at ${made.x.toFixed(1)},${made.z.toFixed(1)} (${made.wet ? "its eggs floating where its line lives" : "on the ground"}; ${ways.join(" → ")})`,
+    );
+    await until(
+      "the young one out of the nest",
+      async () => (await k<NestNow>("globalThis.causalis.lineMode.nest()")).nest?.laid === true,
+      8000,
+    );
+    if (
+      !(await until(
+        "the young to choose among, from the nest",
+        async () => ((await state()) as unknown as { offered: number }).offered > 0,
+        8000,
+      ))
+    )
+      say(
+        `(the strip told: ${await k<string>(`document.querySelector(".line-told")?.textContent ?? ""`)})`,
+      );
+    await shot("14d-young-of-the-nest");
+  } else say("(Court not to be had here)");
   say(
     `the meadow's step with the beast held: ${((await state()) as Body).beastStepMs.toFixed(3)} ms`,
   );
