@@ -3287,8 +3287,11 @@ function matchPeople(
   // come to it from its land since: those are told as come, below. So the dead the place tells are the world's count of
   // them, and its people after are its town's, kind for kind.
   if (owed && place.tolls.length) {
+    // (Never one waiting to die or to leave: they are gone from its table already, and taken here as well their death or
+    // leaving would wait on no one, and the place keep one its town has not: a man due to die taken as one fallen in the
+    // battle at the turn of 150, first light, 2026-11-28.)
     const all: number[] = [];
-    for (let i = 0; i < p().n; i++) all.push(i);
+    for (let i = 0; i < p().n; i++) if (!waiting.has(p().id[i]!)) all.push(i);
     const d = new Map(all.map((i) => [i, draw(i, P.dying)])),
       grownAt = (i: number) => ageOf(p(), i, place.t) >= f.life.adulthood,
       ids = all
