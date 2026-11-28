@@ -41,6 +41,7 @@ import { builtOf } from "./inspect/asks.ts";
 import {
   placeLotRef,
   placePersonRef,
+  placeGateRef,
   type PlaceDangersSheet,
   type PlaceFrame,
   type PlaceLogSheet,
@@ -86,6 +87,7 @@ import {
   placeMember,
   woundTakes,
   hapRef,
+  hapSubject,
   hapTold,
   MOOD_UNHEEDING,
   hapWords,
@@ -2034,12 +2036,15 @@ export function logSheet(world: World, place: Place, most = 160): PlaceLogSheet 
       rows.push({
         t: x.t,
         what: x.what,
-        name: one ? one.name : (gone(x.id) ?? "One of the town"),
+        name: one ? one.name : (hapSubject(place, x) ?? gone(x.id) ?? "One of the town"),
         told: hapTold(place, x, named),
         many: hapMany(place, x.what, HAP_GRAVE.has(x.what) ? x.a & 255 : 0),
-        words: `${one ? one.name : (gone(x.id) ?? "One of the town")} ${hapTold(place, x, named)}`,
+        words: `${one ? one.name : (hapSubject(place, x) ?? gone(x.id) ?? "One of the town")} ${hapTold(place, x, named)}`,
         // (One gone leads to what took them, where a page tells of it: the battle, the sickness.)
-        ref: one ? one.ref : (hapRef(place, x) ?? placePersonRef(place.town, x.id)),
+        ref: one
+          ? one.ref
+          : (hapRef(place, x) ??
+            (x.what === HAP.gate ? placeGateRef(place.town) : placePersonRef(place.town, x.id))),
         day,
       });
     }

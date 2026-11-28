@@ -115,6 +115,11 @@ export type Managed = {
    * the hours their work would have had, they watch the homes within a cry of it: a theft from one is caught in the act.
    */
   post?: number;
+  /**
+   * Its gate shut to newcomers by order (P2: 0; absent, open): those who come asking to live in it are turned away, and go
+   * on to another of its land's towns.
+   */
+  gate?: 0;
 };
 
 /** What a lot of a town can be zoned as (O2): a meeting place, or kept clear. */
@@ -217,6 +222,7 @@ export class ManagedStore implements StateStore {
         ...(m.refuse ? { refuse: [...m.refuse] } : {}),
         ...(m.zones ? { zones: [...m.zones] } : {}),
         ...(m.post !== undefined ? { post: m.post } : {}),
+        ...(m.gate !== undefined ? { gate: m.gate } : {}),
       });
   }
   private add(m: Managed): Managed {
@@ -747,6 +753,22 @@ export function installManaged(world: World, ctx: () => PopulationContext): Mana
       const m = store.of(s.ref, s.cell, t);
       if (a.lot === null) delete m.post;
       else m.post = a.lot;
+    },
+  });
+  // Its gate shut to newcomers (P2), or opened (null).
+  world.defineCommand({
+    type: "place.gate",
+    validate: (args) => {
+      const a = args as { shut?: unknown };
+      return held(args) ?? (a.shut === true || a.shut === null ? null : "shut is true, or null to open it");
+    },
+    apply: (command, t) => {
+      const a = command.args as { town: Ref; shut: true | null },
+        s = ctx().settlements.get(a.town);
+      if (!s) return;
+      const m = store.of(s.ref, s.cell, t);
+      if (a.shut === null) delete m.gate;
+      else m.gate = 0;
     },
   });
   // A building opened to those who have lost their homes (null: none).

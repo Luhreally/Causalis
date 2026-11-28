@@ -370,7 +370,32 @@ export type PlaceInspectLegends = {
   readonly words: string;
 };
 
+/**
+ * A town's gate (P2): who has come to it this year and who is to come, each on its day, what they are and from where, why
+ * they came, and the page of what sent them; whether it is shut to newcomers by order, and what that does.
+ */
+export type PlaceInspectGate = {
+  readonly kind: "gate";
+  readonly ref: string;
+  readonly lotRef: string;
+  readonly name: string;
+  readonly icon: string;
+  readonly shut: boolean;
+  readonly orderWords: string;
+  readonly arrivals: readonly {
+    readonly when: string;
+    readonly icon: string;
+    readonly who: string;
+    readonly words: string;
+    readonly ref: string | null;
+    readonly past: boolean;
+    readonly asks: boolean;
+  }[];
+  readonly words: string;
+};
+
 export type PlaceInspect =
+  | PlaceInspectGate
   | PlaceInspectWork
   | PlaceInspectLegends
   | PlaceInspectBelow

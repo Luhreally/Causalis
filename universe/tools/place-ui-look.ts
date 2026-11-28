@@ -842,6 +842,27 @@ for (const view of [
     await press(".place-insp-back", "‹ Back to the square's page from its legends");
     await until("the square's page once more", async () => (await kind()) === "lot", 8000);
     check((await kind()) === "lot", "Back from its legends comes to the square's page");
+    // Its gate (P2): from the square's page; shut to newcomers and opened again by its key; Back to the square's.
+    await k('document.querySelector(".place-insp-gate")?.scrollIntoView({ block: "center" })');
+    await page.waitForTimeout(300);
+    await press(".place-insp-gate", "At the gate ▸, on the square's page");
+    await until("its gate", async () => (await kind()) === "gate", 8000);
+    await page.waitForTimeout(600);
+    say(`gate: ${(await text(".place-insp")).slice(0, 400)}`);
+    await look("20k-gate", "who comes to the town's gate");
+    if ((await shown(".place-insp-gate-key")) > 0) {
+      const pressed = async () =>
+        await k('document.querySelector(".place-insp-gate-key")?.getAttribute("aria-pressed")');
+      await press(".place-insp-gate-key", "Shut the gate to newcomers");
+      await until("the gate shut", async () => (await pressed()) === "true", 8000);
+      check((await pressed()) === "true", "its gate shut by its key");
+      await press(".place-insp-gate-key", "Open the gate to newcomers");
+      await until("the gate open", async () => (await pressed()) === "false", 8000);
+      check((await pressed()) === "false", "its gate opened again by its key");
+    } else say("no order can be given the town watched");
+    await press(".place-insp-back", "‹ Back to the square's page from its gate");
+    await until("the square's page from its gate", async () => (await kind()) === "lot", 8000);
+    check((await kind()) === "lot", "Back from its gate comes to the square's page");
     // Raised by hand (P1): a home's lot page offers what the town could raise on its lots; asked there, it is offered no more.
     if (kept !== null) {
       await k(`globalThis.causalis.place.inspect(${JSON.stringify(`plcl:${town.ref}:${kept + 3}`)})`);

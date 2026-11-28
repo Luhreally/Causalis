@@ -58,6 +58,7 @@ import { groundReading } from "./inspect/ground.ts";
 import { placeFields, placeInside } from "./placeinside.ts";
 import { placeBelow } from "./placebelow.ts";
 import { placeLegends, placeWork } from "./placelegends.ts";
+import { placeGate } from "./placevisitors.ts";
 import {
   ACT,
   AT,
@@ -1082,6 +1083,7 @@ export function placeInspect(world: World, town: string, ref: string): PlaceInsp
   if (!place) return null;
   if (ref.startsWith("plcb:")) return placeBelow(world, place);
   if (ref.startsWith("plcy:")) return placeLegends(world, place);
+  if (ref.startsWith("plca:")) return placeGate(world, place);
   if (ref.startsWith("plcw:")) {
     // (plcw:<town>:<lot + 3>:<made>:<maker>: the town's own key has colons of its own.)
     const [lot, made, maker] = ref.split(":").slice(-3).map(Number) as [number, number, number];

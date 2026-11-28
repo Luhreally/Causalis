@@ -11,6 +11,7 @@
 import type {
   PlaceInspect,
   PlaceInspectBelow,
+  PlaceInspectGate,
   PlaceInspectLegends,
   PlaceInspectWork,
   PlaceInspectFields,
@@ -250,6 +251,7 @@ export class PlaceInspector {
     else if (x.kind === "below") this.below(x);
     else if (x.kind === "work") this.work(x);
     else if (x.kind === "legends") this.legends(x);
+    else if (x.kind === "gate") this.gate(x);
     else this.lot(x);
   }
 
@@ -536,6 +538,44 @@ export class PlaceInspector {
       el("p", "place-insp-why", x.words),
     );
   }
+  /** A town's gate (P2): who came and who comes, each a key to what sent them; its order, shut to newcomers or open. */
+  private gate(x: PlaceInspectGate): void {
+    this.picture(x);
+    const title = `${x.icon} ${x.name}`;
+    if (this.title.textContent !== title) this.title.textContent = title;
+    const came = x.arrivals.filter((a) => a.past).length;
+    this.sub.textContent = `${came} come lately · ${x.arrivals.length - came} to come · ${x.shut ? "shut to newcomers" : "open"}`;
+    const body: HTMLElement[] = [el("p", "place-insp-why", x.words)];
+    if (this.orders) {
+      const key = el(
+        "button",
+        "place-insp-order place-insp-gate-key",
+        x.shut ? "Open the gate to newcomers" : "Shut the gate to newcomers",
+      );
+      key.setAttribute("aria-pressed", String(x.shut));
+      key.onclick = () => this.onOrder("place.gate", { shut: x.shut ? null : true });
+      body.push(key);
+    }
+    body.push(el("p", "place-insp-why", x.orderWords));
+    for (const [label, rows] of [
+      ["Come lately", x.arrivals.filter((a) => a.past)],
+      ["To come", x.arrivals.filter((a) => !a.past)],
+    ] as const) {
+      if (!rows.length) continue;
+      const box = el("div", "place-insp-people");
+      for (const r of rows) {
+        const b = el(r.ref ? "button" : "div", "place-insp-person place-gate-row");
+        b.append(
+          el("span", "place-row-name", `${r.icon} ${r.who}`),
+          el("span", "place-row-what", `${r.when}: ${r.words}`),
+        );
+        if (r.ref) (b as HTMLButtonElement).onclick = () => this.onInspect(r.ref!);
+        box.append(b);
+      }
+      body.push(el("p", "place-insp-label", label), box);
+    }
+    this.body.replaceChildren(...body);
+  }
   /** A town's legends (O9): its works, its battles, the seldomest of what it keeps; each a key. */
   private legends(x: PlaceInspectLegends): void {
     this.picture(x);
@@ -711,6 +751,11 @@ export class PlaceInspector {
       told.setAttribute("aria-label", "The town's legends: its works, its battles, the seldomest of what befell it");
       told.onclick = () => this.onInspect(x.ref.replace(/^plcl:(.*):\d+$/, "plcy:$1"));
       body.push(told);
+      // (Its gate, P2.)
+      const gate = el("button", "place-insp-order place-insp-gate", "At the gate ▸");
+      gate.setAttribute("aria-label", "Who has come to the town's gate, and who comes");
+      gate.onclick = () => this.onInspect(x.ref.replace(/^plcl:(.*):\d+$/, "plca:$1"));
+      body.push(gate);
     }
     if (x.zoneWords) body.push(el("p", "place-insp-why", x.zoneWords));
     // (The guard's post by your order, O7: those standing to arms keep it, watching the homes within a cry of it.)
