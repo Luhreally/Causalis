@@ -79,6 +79,13 @@ export function storyPage(
   send: (text: string, realm: string, star: string | null) => HTMLElement,
   /** A button of the realm's year (C1): one of its council's choices by its place, or the year let pass. */
   rule: (text: string, choice: number | "pass", can: boolean) => HTMLElement,
+  /** Its stars played: the map, the star picked on it, and the years let pass until a ship sails or comes down. */
+  space: {
+    readonly map: (st: LineStars) => HTMLElement;
+    readonly picked: string | null;
+    readonly landing: (st: LineStars, star: string) => HTMLElement | null;
+    readonly run: (text: string, until: "sails" | "lands") => HTMLElement;
+  },
 ): LinePage | null {
   const i = STORY.indexOf(ref as (typeof STORY)[number]);
   if (i < 0) return null;
@@ -270,6 +277,30 @@ export function storyPage(
         parts: HTMLElement[] = [];
       if (st.wants.length)
         parts.push(fact("Not at the stars yet", `${r.name} lacks ${st.wants.join("; ")}`));
+      // (The map, once there is anything at the stars to draw: press a star to pick it.)
+      if (st.stars.length || st.ships.length) {
+        parts.push(space.map(st));
+        const picked = space.picked ? st.stars.find((x) => x.ref === space.picked) : undefined;
+        if (picked) {
+          const shown = space.landing(st, picked.ref);
+          if (shown) parts.push(shown);
+          parts.push(
+            fact(
+              "Picked",
+              `${picked.words}: ${picked.years.toLocaleString()} years under way${picked.lands ? `; a ship comes down on ${picked.lands.words}` : ""}${picked.taken ? " · taken" : ""}`,
+            ),
+            ...(picked.taken || st.asked?.ref === picked.ref
+              ? []
+              : [send("🚀 Send our next ship here", r.ref, picked.ref)]),
+          );
+        } else
+          parts.push(para("Press a star on the map to pick it, or choose from the list below."));
+      }
+      // (The years let pass in the mode: until the ship asked for sails, or until one under way comes down.)
+      const under = st.ships.filter((x) => !x.arrived);
+      if (under.length) parts.push(space.run("⏭ Let the years pass until it comes down", "lands"));
+      else if (st.asked && !st.asked.taken && !st.wants.length)
+        parts.push(space.run("⏭ Let the years pass until it sails", "sails"));
       if (st.asked)
         parts.push(
           fact(
@@ -286,7 +317,7 @@ export function storyPage(
             sh.arrived ? "Come down" : `Under way, arriving in the year ${sh.arrives}`,
             `${sh.words}${sh.asked ? ", the star you asked it to sail for" : ""}`,
           ),
-          go("🚀 Go and see the ship", sh.land),
+          go(sh.arrived ? "🏙️ Go and see the colony" : "🚀 Go and see the ship", sh.land),
         );
       if (st.stars.length) {
         parts.push(
@@ -298,7 +329,7 @@ export function storyPage(
           parts.push(
             fact(
               x.words,
-              `${x.years.toLocaleString()} years under way · ${x.upkeep} machines a settler a year to keep${x.taken ? " · taken" : ""}`,
+              `${x.years.toLocaleString()} years under way · ${x.upkeep} machines a settler a year to keep${x.lands ? ` · comes down on ${x.lands.words}` : ""}${x.taken ? " · taken" : ""}`,
             ),
             ...(x.taken || st.asked?.ref === x.ref
               ? []

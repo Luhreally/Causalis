@@ -1027,6 +1027,7 @@ export {
   VOYAGE_GAP,
   clusterOf,
   installVoyages,
+  landingWorld,
   voyageReach,
   voyageTarget,
   voyageYear,

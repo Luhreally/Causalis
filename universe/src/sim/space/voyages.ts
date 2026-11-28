@@ -156,6 +156,19 @@ const FROM_ITS_OWN = 5;
 
 const STAR_BY_REF = new Map<string, Map<string, GalaxyStar>>();
 
+/**
+ * The world of a star a ship of this world would come down on: the one of its livable worlds least to keep, as the voyage
+ * chooses (voyageTarget). Read for Live a Line's map of the stars; null: none there its people could live on.
+ */
+export function landingWorld(
+  ctx: PopulationContext,
+  star: string,
+): { readonly planet: ForeignPlanet; readonly upkeep: number } | null {
+  let pick: { planet: ForeignPlanet; upkeep: number } | null = null;
+  for (const w of livableAt(ctx).get(star) ?? []) if (!pick || w.upkeep < pick.upkeep) pick = w;
+  return pick;
+}
+
 /** The stars of the worlds a realm holds. */
 function heldStars(world: World, realm: Ref): GalaxyStar[] {
   const store = nationsOf(world);

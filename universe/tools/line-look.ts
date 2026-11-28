@@ -246,13 +246,24 @@ for (const view of [
     const want = free.at(-1)?.ref,
       before = st.ships.length;
     if (want) {
-      // (Its button, the last of the page's: brought into view, and pressed where a finger would.)
+      // (Picked on the map: its touch ring pressed where a finger would.)
+      check(await k<boolean>("!!document.querySelector('.line-star-map')"), "the map of its stars");
       await k(
-        `(() => { const all = [...document.querySelectorAll(".line-page button.line-link")].filter((e) => /Send our next ship here/.test(e.textContent ?? "")); const b = all.at(-1); if (!b) return; b.scrollIntoView({ block: "center" }); b.dataset.lookPick = "1"; })()`,
+        `document.querySelector('.line-star[data-star="${want}"] .line-star-hit')?.scrollIntoView({ block: "center" })`,
       );
       await page.waitForTimeout(300);
-      await press("[data-look-pick]", "🚀 Send our next ship here, the last star");
-      await k(`document.querySelector("[data-look-pick]")?.removeAttribute("data-look-pick")`);
+      await press(`.line-star[data-star="${want}"] .line-star-hit`, "the last star, on the map");
+      await page.waitForTimeout(600);
+      check(
+        await k<boolean>("!!document.querySelector('.line-landing .line-landing-pic')"),
+        "picked: the world a ship would come down on there, drawn",
+      );
+      await look("s1c-picked", "its stars, a star picked on the map");
+      await pressText(
+        ".line-page button.line-link",
+        /Send our next ship here/,
+        "🚀 Send our next ship here, the star picked",
+      );
       await until(
         "the ask said back",
         async () =>
@@ -264,32 +275,59 @@ for (const view of [
       await look("s2-asked", "its stars, a ship asked");
       c = await clippedPage();
       check(c.length === 0, `no words clipped once asked (${c.slice(0, 3).join("; ")})`);
-      // (The years run a year at a time until its next ship sails: the realm's own time.)
-      await k("globalThis.causalis.lineMode.close()");
+      // (The years let pass in the mode until its next ship sails: the realm's own time, a year at a time, told.)
       const t1 = Date.now();
-      let sailed: Stars["ships"][number] | undefined,
-        years = 0;
-      while (!sailed && years < 90 && Date.now() - t1 < 9 * 60000) {
-        const t = await k<number>("globalThis.causalis.client.status?.t ?? 0");
-        await k(`globalThis.causalis.client.advance(${t + 365 * 86400})`);
-        years++;
-        if (years % 3 === 0 || years > 60) {
-          st = await starsNow();
-          sailed =
-            st.ships.length > before
-              ? (st.ships.find((x) => x.asked) ?? st.ships.at(-1))
-              : undefined;
-          await k("globalThis.causalis.lineMode.close()");
-        }
-      }
-      say(`ran ${years} years in ${Math.round((Date.now() - t1) / 1000)} s`);
-      check(!!sailed, `its next ship sailed (${years} years)`);
+      await pressText(
+        ".line-page button.line-link",
+        /until it sails/,
+        "⏭ Let the years pass until it sails",
+      );
+      await page.waitForTimeout(1500);
+      await look("s2b-years", "years passing, a card with Stop");
+      await until(
+        "its ship sails",
+        async () =>
+          /sends a ship/.test(
+            await k<string>("document.querySelector('.line-payoff')?.textContent ?? ''"),
+          ),
+        9 * 60000,
+      );
+      say(`sailed after ${Math.round((Date.now() - t1) / 1000)} s`);
+      st = await k<Stars>("globalThis.causalis.lineMode.storyStars()");
+      const sailed = st.ships.find((x) => x.star === want) ?? st.ships.at(-1);
+      check(!!sailed && st.ships.length > before, `its next ship sailed`);
       if (sailed) {
         check(sailed.star === want, `sailed for the star asked (${sailed.star})`);
         check(sailed.asked, "its sailing gives the ask as its reason");
-        st = await starsNow();
         check(!st.asked, "the ask spent");
-        await look("s3-sailed", "its stars, the ship sailed where asked");
+        await look("s3-sailed", "its ship sails: its card");
+        // (Then until it comes down: a world settled, its first colony, its picture.)
+        await pressText(".line-payoff button", /Until it comes down/, "⏭ Until it comes down");
+        const t2 = Date.now();
+        await until(
+          "its ship comes down",
+          async () =>
+            /A world settled/.test(
+              await k<string>("document.querySelector('.line-payoff')?.textContent ?? ''"),
+            ),
+          9 * 60000,
+        );
+        say(`came down after ${Math.round((Date.now() - t2) / 1000)} s`);
+        check(
+          await k<boolean>("!!document.querySelector('.line-payoff .line-landing-pic')"),
+          "the world settled, drawn on its card",
+        );
+        say(
+          `settled: ${await k<string>("document.querySelector('.line-payoff')?.textContent?.slice(0, 300) ?? ''")}`,
+        );
+        await look("s3b-settled", "a world settled: its payoff");
+        await pressText(".line-payoff button", /Its stars/, "Its stars");
+        await page.waitForTimeout(800);
+        check(
+          await k<boolean>("!!document.querySelector('.line-star-dot.settled')"),
+          "the world settled, green on the map",
+        );
+        await look("s3c-map-settled", "its stars, a world settled on the map");
       }
     }
     // —— Its year (C1): the realm's council, a choice made by its own command, the year let pass and what it came to told.
