@@ -528,18 +528,37 @@ export class TownStore implements StateStore {
     const steps = this.saveSteps();
     for (;;) {
       const r = steps.next();
-      if (r.done) return r.value;
+      if (r.done) {
+        // (As lists, as JSON reads them: the save's packing reads its long columns as they are, below.)
+        const out = r.value as { towns: Record<string, unknown> };
+        for (const [k, v] of Object.entries(out.towns))
+          if (v instanceof Float64Array) out.towns[k] = Array.from(v);
+          else if (Array.isArray(v) && v[0] instanceof Float64Array)
+            out.towns[k] = v.map((c: Float64Array) => Array.from(c));
+        return out;
+      }
     }
   }
-  /** save(), a thousand towns a piece (a world at 1,500 has twenty-three thousand): its columns written town by town. */
+  /**
+   * save(), a thousand towns a piece (a world at 1,500 has twenty-three thousand): its columns written town by town, its long
+   * ones (the towns' runs, designs, buildings and fallen, millions of numbers late) each into one array of numbers made as long
+   * as they come to, which the save's packing reads as the list it was (kernel/pack.ts): growing a list a number at a time was
+   * most of what the save cost.
+   */
   *saveSteps(): Generator<void, unknown, void> {
-    const all = this.all(),
-      columns = newColumns();
+    const all = this.all();
+    let runs = 0,
+      civics = 0;
+    for (const f of all) {
+      runs += f.changes.length;
+      civics += f.civics.length;
+    }
+    const columns = newColumns(runs, civics);
     for (let i = 0; i < all.length; i++) {
       intoColumns(columns, all[i]!);
       if (i % 1000 === 999) yield;
     }
-    return { digest: [this.a, this.b], towns: columns };
+    return { digest: [this.a, this.b], towns: laidOut(columns) };
   }
   load(state: unknown): void {
     // (Town by town, in a save from before Phase 66.)
@@ -595,29 +614,50 @@ const HEADS = 13,
 /** (Scratch: the lot of the last building of each kind, as a town's are written.) */
 const LAST_OF = new Float64Array(CIVICS.length);
 
+/** A long column written into an array of numbers as long as it may come to, and how far it is written. */
+type Laid = { a: Float64Array; n: number };
+
 type Columns = {
   heads: unknown[][];
-  designs: number[];
+  designs: Laid;
   designsOf: number[];
-  runs: number[][];
+  runs: Laid[];
   runsOf: number[];
-  civics: number[][];
+  civics: Laid[];
   civicsOf: number[];
-  fallen: number[];
+  fallen: Laid;
   fallenOf: number[];
 };
 
-function newColumns(): Columns {
+/** The columns of towns of so many runs and buildings in all (a town's designs no more than its runs, its fallen two a building). */
+function newColumns(runs: number, civics: number): Columns {
+  const laid = (n: number): Laid => ({ a: new Float64Array(n), n: 0 });
   return {
     heads: Array.from({ length: HEADS }, () => []),
-    designs: [],
+    designs: laid(runs),
     designsOf: [],
-    runs: Array.from({ length: RUN_COLUMNS }, () => []),
+    runs: Array.from({ length: RUN_COLUMNS }, () => laid(runs)),
     runsOf: [],
-    civics: Array.from({ length: CIVIC_COLUMNS }, () => []),
+    civics: Array.from({ length: CIVIC_COLUMNS }, () => laid(civics)),
     civicsOf: [],
-    fallen: [],
+    fallen: laid(2 * civics),
     fallenOf: [],
+  };
+}
+
+/** The columns as a save keeps them, each long one as far as it was written. */
+function laidOut(c: Columns) {
+  const out = (l: Laid) => l.a.subarray(0, l.n);
+  return {
+    heads: c.heads,
+    designs: out(c.designs),
+    designsOf: c.designsOf,
+    runs: c.runs.map(out),
+    runsOf: c.runsOf,
+    civics: c.civics.map(out),
+    civicsOf: c.civicsOf,
+    fallen: out(c.fallen),
+    fallenOf: c.fallenOf,
   };
 }
 
@@ -639,7 +679,8 @@ function intoColumns(c: Columns, f: Fabric): void {
   h[12]!.push(f.emptied);
   const R = f.changes,
     designs: number[] = [],
-    runs = c.runs;
+    runs = c.runs,
+    at = runs[0]!.n;
   let to = 0,
     start = 0;
   for (let i = 0; i < R.length; i++) {
@@ -647,39 +688,46 @@ function intoColumns(c: Columns, f: Fabric): void {
       a = R.v(s, 1),
       b = R.v(s, 2),
       first = R.v(s, 3),
-      design = R.v(s, 6);
+      design = R.v(s, 6),
+      o = at + i;
     let d = designs.indexOf(design);
     if (d < 0) d = designs.push(design) - 1;
-    runs[0]!.push(R.v(s, 0));
-    runs[1]!.push(a - to);
-    runs[2]!.push(b - a);
-    runs[3]!.push(first - start);
-    runs[4]!.push(R.v(s, 4) - first);
-    runs[5]!.push(R.v(s, 5));
-    runs[6]!.push(d);
+    runs[0]!.a[o] = R.v(s, 0);
+    runs[1]!.a[o] = a - to;
+    runs[2]!.a[o] = b - a;
+    runs[3]!.a[o] = first - start;
+    runs[4]!.a[o] = R.v(s, 4) - first;
+    runs[5]!.a[o] = R.v(s, 5);
+    runs[6]!.a[o] = d;
     to = b;
     start = first;
   }
+  for (const r of runs) r.n += R.length;
   c.designsOf.push(designs.length);
-  for (const d of designs) c.designs.push(d);
+  for (const d of designs) c.designs.a[c.designs.n++] = d;
   c.runsOf.push(R.length);
   const cs = f.civics,
-    civics = c.civics;
+    civics = c.civics,
+    from = civics[0]!.n,
+    fell = c.fallen;
   c.civicsOf.push(cs.length);
   LAST_OF.fill(0);
   let fallen = 0;
   for (let i = 0; i < cs.length; i++) {
     const kind = cs.kindAt(i),
-      at = cs.lotAt(i);
-    civics[0]!.push(kind);
-    civics[1]!.push(at - LAST_OF[kind]!);
-    civics[2]!.push(cs.startAt(i));
-    LAST_OF[kind] = at;
+      lot = cs.lotAt(i),
+      o = from + i;
+    civics[0]!.a[o] = kind;
+    civics[1]!.a[o] = lot - LAST_OF[kind]!;
+    civics[2]!.a[o] = cs.startAt(i);
+    LAST_OF[kind] = lot;
     if (cs.fellAt(i) !== NO_FALL) {
-      c.fallen.push(i, cs.fellAt(i) - cs.startAt(i));
+      fell.a[fell.n++] = i;
+      fell.a[fell.n++] = cs.fellAt(i) - cs.startAt(i);
       fallen += 2;
     }
   }
+  for (const v of civics) v.n += cs.length;
   c.fallenOf.push(fallen);
 }
 

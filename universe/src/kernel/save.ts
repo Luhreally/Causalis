@@ -12,7 +12,7 @@
 // it loads is what it saved, as JSON would have given it back.
 import { Hasher } from "./hash.ts";
 import { eventTypes } from "./history.ts";
-import { packList, unpackList, type Packed } from "./pack.ts";
+import { packList, packListSteps, unpackList, type Packed } from "./pack.ts";
 import { jsonCopy } from "./split-json.ts";
 import { kinds } from "./ref.ts";
 import { seedFromText, streams, type Seed } from "./rng.ts";
@@ -120,6 +120,71 @@ export function rulesetId(world: World, appVersion: string): string {
  * A store's state as JSON keeps it. (Copied without its text where the text would be longer than an engine's longest
  * string: a world of 162 million people could not be kept for that, 2026-11-13.)
  */
+/**
+ * throughJson a part at a time, a step after each: an object's or a short list's parts, a few levels down, each written and read
+ * back on its own and the texts joined as JSON joins them (what JSON.stringify gives, letter for letter). A packed store is a
+ * few such levels over its columns, and history's events were written and read back in one step of a tenth of a second late.
+ */
+function* throughJsonSteps(
+  value: unknown,
+): Generator<void, { data: unknown; text?: string }, void> {
+  try {
+    return yield* jsonSteps(value, JSON_LEVELS);
+  } catch (error) {
+    if (error instanceof RangeError) return { data: jsonCopy(value) };
+    throw error;
+  }
+}
+
+/** How far down throughJsonSteps goes, and the most parts a thing may have for it to go into them. */
+const JSON_LEVELS = 4,
+  JSON_PARTS = 64;
+
+function* jsonSteps(
+  value: unknown,
+  levels: number,
+): Generator<void, { data: unknown; text?: string }, void> {
+  const parts =
+    levels > 0 && value !== null && typeof value === "object"
+      ? Array.isArray(value)
+        ? value.length <= JSON_PARTS
+          ? value
+          : null
+        : typeof (value as { toJSON?: unknown }).toJSON !== "function" &&
+            Object.getPrototypeOf(value) === Object.prototype
+          ? Object.keys(value)
+          : null
+      : null;
+  if (
+    !parts ||
+    (!Array.isArray(value) && (parts as string[]).includes("__proto__")) ||
+    parts.length > JSON_PARTS
+  ) {
+    const text = JSON.stringify(value) as string | undefined;
+    yield;
+    return text === undefined ? { data: undefined } : { data: JSON.parse(text) as unknown, text };
+  }
+  if (Array.isArray(value)) {
+    const texts: string[] = [],
+      data = new Array<unknown>(value.length);
+    for (let i = 0; i < value.length; i++) {
+      const r = yield* jsonSteps(value[i], levels - 1);
+      texts.push(r.text ?? "null");
+      data[i] = r.text === undefined ? null : r.data;
+    }
+    return { data, text: `[${texts.join(",")}]` };
+  }
+  const texts: string[] = [],
+    data: Record<string, unknown> = {};
+  for (const key of parts as string[]) {
+    const r = yield* jsonSteps((value as Record<string, unknown>)[key], levels - 1);
+    if (r.text === undefined) continue;
+    texts.push(`${JSON.stringify(key)}:${r.text}`);
+    data[key] = r.data;
+  }
+  return { data, text: `{${texts.join(",")}}` };
+}
+
 function throughJson(value: unknown): { data: unknown; text?: string } {
   let text: string;
   try {
@@ -223,7 +288,8 @@ export function* saveSteps(
     r.saved = null;
     // (Packed straight from the store: packList keeps what JSON keeps, and the copy through
     // JSON is then of the packed lists, a fraction of the size.)
-    let { data, text } = throughJson(asked ? packList([saved]) : saved),
+    // (A column at a time, a step after each: one store's packing was one step of 0.3 s and more.)
+    let { data, text } = yield* throughJsonSteps(asked ? yield* packListSteps([saved]) : saved),
       packed = asked;
     // (A store that says nothing of it is kept packed all the same where that is the smaller and gives back, letter for
     // letter, what its JSON does: some hundred and fifty small stores of rows were 1.9 MB of a save at year 1,500

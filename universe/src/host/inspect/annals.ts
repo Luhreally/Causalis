@@ -724,25 +724,49 @@ const GREAT_WARS = 0.2;
 /** And never more of them than one to so many of a world's years. */
 const GREAT_WAR_YEARS = 10;
 
-function wholeOf(
-  world: World,
-  kept: readonly HistoryEvent[],
-  /** The worst of a world's wars as its own count of them has it, where `kept` is not all of history (a few years read). */
-  greatWars?: ReadonlySet<string>,
-): Whole {
-  const wars: Whole["wars"] = new Map(),
-    runs: Whole["runs"] = new Map(),
-    later: Whole["later"] = new Set(),
-    great: Whole["great"] = new Set(),
-    open = new Map<string, Run>(),
-    byYear = new Map<string, Map<number, number>>(),
+/**
+ * What wholeOf reads of history, read event by event in their order, as far as `read` of them: so a list that has only grown at
+ * its end (annalsOf's, while no row of the log has moved) is read on from there. What a Whole holds of it is copied out of it, as
+ * the reading goes on to change it.
+ */
+type WholeRead = {
+  read: number;
+  readonly wars: Map<string, { dead: number }>;
+  readonly runs: Map<string, Run>;
+  readonly later: Set<string>;
+  readonly great: Set<string>;
+  readonly open: Map<string, Run>;
+  readonly byYear: Map<string, Map<number, number>>;
+  readonly founded: Map<number, number>;
+};
+
+const wholeRead = (): WholeRead => ({
+  read: 0,
+  wars: new Map(),
+  runs: new Map(),
+  later: new Set(),
+  great: new Set(),
+  open: new Map(),
+  byYear: new Map(),
+  founded: new Map(),
+});
+
+function readOn(r: WholeRead, kept: readonly HistoryEvent[]): void {
+  const { wars, runs, later, great, open, byYear, founded } = r,
     add = (key: string, year: number, n: number) => {
       const m = byYear.get(key) ?? new Map<number, number>();
       m.set(year, (m.get(year) ?? 0) + n);
       byYear.set(key, m);
     };
-  for (const e of kept) {
-    const type = e.type;
+  for (let i = r.read; i < kept.length; i++) {
+    const e = kept[i]!,
+      type = e.type;
+    if (type === "bodies.founded") {
+      const y = yearOfMoment(e.t),
+        hands = (e.data as { hands?: number } | null)?.hands ?? 0;
+      if (hands > (founded.get(y) ?? 0)) founded.set(y, hands);
+      continue;
+    }
     // (Only the kinds read below: an event gone cold reads its data from its block, and most are of none of them.)
     if (
       type !== "war.battle" &&
@@ -760,13 +784,12 @@ function wholeOf(
       const dead = (e.type === "war.battle" ? d?.fallen : d?.dead) ?? 0;
       add(`${e.type}|${war}`, year, dead);
       if (e.type === "war.strike" && (d as { great?: boolean } | null)?.great) great.add(e.id);
-      const w = wars.get(war) ?? { dead: 0, battleYear: -1, strikeYear: -1, great: false };
+      const w = wars.get(war) ?? { dead: 0 };
       w.dead += dead;
       wars.set(war, w);
     } else if (e.type === "war.declared") {
       const war = e.subjects.find((s) => s.startsWith("war:"));
-      if (war && !wars.has(war))
-        wars.set(war, { dead: 0, battleYear: -1, strikeYear: -1, great: false });
+      if (war && !wars.has(war)) wars.set(war, { dead: 0 });
     } else if (e.type === "people.famine" || e.type === "health.outbreak") {
       const famine = e.type === "people.famine",
         key = famine ? `f|${e.place}` : `s|${e.subjects[0]}`,
@@ -784,6 +807,27 @@ function wholeOf(
       }
     }
   }
+  r.read = kept.length;
+}
+
+function wholeOf(
+  world: World,
+  kept: readonly HistoryEvent[],
+  /** The worst of a world's wars as its own count of them has it, where `kept` is not all of history (a few years read). */
+  greatWars?: ReadonlySet<string>,
+  /** What was read of `kept` so far (all of it read from the first otherwise). */
+  read: WholeRead = wholeRead(),
+): Whole {
+  readOn(read, kept);
+  const { byYear } = read,
+    wars: Whole["wars"] = new Map(),
+    runs: Whole["runs"] = new Map(),
+    later: Whole["later"] = new Set(read.later),
+    great: Whole["great"] = new Set(read.great),
+    founded: Whole["founded"] = new Map(read.founded);
+  for (const [ref, w] of read.wars)
+    wars.set(ref, { dead: w.dead, battleYear: -1, strikeYear: -1, great: false });
+  for (const [ref, run] of read.runs) runs.set(ref, { ...run });
   const bestYear = (key: string): number => {
     let best = -1,
       most = -1;
@@ -810,13 +854,6 @@ function wholeOf(
     const what = f.what.replace(/^\P{L}+/u, "");
     if (f.ref && world.events.get(f.ref)) firsts.set(f.ref, what);
     else bare.set(f.year, [...(bare.get(f.year) ?? []), { what, land: f.land }]);
-  }
-  const founded: Whole["founded"] = new Map();
-  for (const e of kept) {
-    if (e.type !== "bodies.founded") continue;
-    const y = yearOfMoment(e.t),
-      hands = (e.data as { hands?: number } | null)?.hands ?? 0;
-    if (hands > (founded.get(y) ?? 0)) founded.set(y, hands);
   }
   return { wars, runs, later, great, firsts, bare, founded };
 }
@@ -1363,7 +1400,13 @@ const KEPT = new WeakMap<World, Annals>();
  */
 const SCANNED = new WeakMap<
   World,
-  { epoch: number; count: number; kept: HistoryEvent[]; byYear: Map<number, HistoryEvent[]> }
+  {
+    epoch: number;
+    count: number;
+    kept: HistoryEvent[];
+    byYear: Map<number, HistoryEvent[]>;
+    whole: WholeRead;
+  }
 >();
 
 const stampOf = (world: World) => {
@@ -1382,12 +1425,19 @@ export function annalsOf(world: World): Annals {
     was2 = SCANNED.get(world),
     on = was2 !== undefined && was2.epoch === log.epoch && was2.count <= n,
     scan = on
-      ? { epoch: log.epoch, count: n, kept: was2.kept, byYear: new Map(was2.byYear) }
+      ? {
+          epoch: log.epoch,
+          count: n,
+          kept: was2.kept,
+          byYear: new Map(was2.byYear),
+          whole: was2.whole,
+        }
       : {
           epoch: log.epoch,
           count: n,
           kept: [] as HistoryEvent[],
           byYear: new Map<number, HistoryEvent[]>(),
+          whole: wholeRead(),
         },
     { kept } = scan,
     grown = new Set<number>();
@@ -1404,7 +1454,7 @@ export function annalsOf(world: World): Annals {
     grown.add(y);
   }
   SCANNED.set(world, scan);
-  const whole = wholeOf(world, kept),
+  const whole = wholeOf(world, kept, undefined, scan.whole),
     byYear = new Map(scan.byYear);
   for (const year of whole.bare.keys()) if (!byYear.has(year)) byYear.set(year, []);
   const told = new ToldYears([...byYear.keys()], (year) =>
