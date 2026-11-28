@@ -205,21 +205,47 @@ function foundHere(world: World, event: Ref): boolean {
   return found;
 }
 
+/**
+ * Each land's knowings as last read, by the map its lore keeps them in and its size (sim/lore knownOf: it only grows, and is a
+ * new one where the land forgets or the world is loaded), while no row of the log has moved (whether each was found there).
+ */
+const knowingsKept = new WeakMap<
+  World,
+  {
+    epoch: number;
+    lands: Map<
+      number,
+      { of: ReadonlyMap<string, unknown>; size: number; rows: [string, Knowing][] }
+    >;
+  }
+>();
+
 function knowings(world: World): Map<string, Knowing[]> {
   const ctx = populationContext(world),
     lore = loreOf(world),
-    out = new Map<string, Knowing[]>();
-  for (const p of ctx.provinces.all())
-    for (const [id, k] of lore.of(p.cell)) {
+    out = new Map<string, Knowing[]>(),
+    epoch = world.events.epoch;
+  let kept = knowingsKept.get(world);
+  if (!kept || kept.epoch !== epoch) knowingsKept.set(world, (kept = { epoch, lands: new Map() }));
+  for (const p of ctx.provinces.all()) {
+    const of = lore.knownOf(p.cell);
+    if (!of) continue;
+    let land = kept.lands.get(p.cell);
+    if (!land || land.of !== of || land.size !== of.size) {
+      const rows = lore
+        .of(p.cell)
+        .map(([id, k]): [string, Knowing] => [
+          id,
+          { year: k.year, land: p.cell, event: k.event, found: foundHere(world, k.event) },
+        ]);
+      kept.lands.set(p.cell, (land = { of, size: of.size, rows }));
+    }
+    for (const [id, k] of land.rows) {
       let list = out.get(id);
       if (!list) out.set(id, (list = []));
-      list.push({
-        year: k.year,
-        land: p.cell,
-        event: k.event,
-        found: foundHere(world, k.event),
-      });
+      list.push(k);
     }
+  }
   for (const list of out.values()) list.sort((a, b) => a.year - b.year || a.land - b.land);
   return out;
 }
