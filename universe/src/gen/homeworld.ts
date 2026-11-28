@@ -245,6 +245,7 @@ export function generateHomeWorld(
             dawn: dawnMade(seed.text),
             lives: livesMade(seed.text, AGES),
             cradle: peoplingMade(seed.text).cradle,
+            rises: linePeople(linesMade(seed.text, AGES)),
           })
         : barrenBiosphere(grid.count),
     // (And the people seen are its people: their body as it was read, seated where a body of theirs can live.)
@@ -482,21 +483,50 @@ export type LineMade = {
   readonly age: number;
   readonly way: number;
   readonly genome: Record<string, unknown> | null;
+  /** What the hand called it ("burrower"), its people named for it where they rise of it (S5; absent: unnamed). */
+  readonly name?: string;
 };
 
 /** The lines a seed's acts made, in their order (none: the tree as it would have grown). host/line.ts lineAct lays one. */
 export function linesMade(text: string, ages: number): LineMade[] {
   const out: LineMade[] = [];
   for (const a of seedActs(text)) {
-    const [word, n, k, w, code, ...rest] = a.split(" "),
+    const [word, n, k, w, code, named, ...rest] = a.split(" "),
       node = Number(n),
       age = Number(k) - 1,
       way = Number(w);
     if (word !== "line" || rest.length || ![node, age, way].every(Number.isInteger)) continue;
     if (node < 0 || age < 0 || age >= ages || way < 0) continue;
-    out.push({ node, age, way, genome: code ? genomeRead(code) : null });
+    const name = named && /^[a-z][a-z_-]{0,30}$/.test(named) ? named.replace(/_/g, " ") : undefined;
+    out.push({ node, age, way, genome: code ? genomeRead(code) : null, ...(name ? { name } : {}) });
   }
   return out;
+}
+
+/**
+ * The clade a line's body is of, read off it as the clades differ (rules/bodies.ts CLADES): a swimmer's fins and no legs, a
+ * shore-walker's shore, a strider's wings or feathers, a giant's weight, a crawler's scales, plates or no legs, a burrower's shell or
+ * many legs, a climber's fur, and else the bare upright apes'. Its people would be of this clade (S5).
+ */
+export function cladeOfLine(g: Record<string, unknown>): string {
+  const n = (k: string) => (typeof g[k] === "number" ? (g[k] as number) : 0),
+    skin = g.skin;
+  if (n("fins") > 0 && n("legs") === 0) return "swimmer";
+  if (g.place === "shore") return "shore";
+  if (n("wings") > 0 || skin === "feathers") return "strider";
+  if (n("mass") >= 300) return "trunk";
+  if (skin === "scales" || skin === "plates" || (n("legs") === 0 && n("fins") === 0))
+    return "crawler";
+  if (skin === "shell" || n("legs") >= 3 || n("segments") >= 3) return "burrower";
+  if (skin === "fur" || skin === "wool") return "shaggy";
+  return "ape";
+}
+
+/** The people the last line made so would rise as: its clade, and the name they take from it (none: no line, no body). */
+export function linePeople(lines: readonly LineMade[]): { clade: string; name: string } | null {
+  const l = lines.at(-1);
+  if (!l?.genome) return null;
+  return { clade: cladeOfLine(l.genome), name: l.name ? `${l.name} folk` : "folk of your line" };
 }
 
 /**

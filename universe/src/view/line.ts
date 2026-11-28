@@ -12,7 +12,68 @@
 // (host/saga.ts). Its page's part is app/line.ts, fetched only when the mode is entered.
 import { finish, hashString, mix } from "../kernel/index.ts";
 import { reynolds } from "../rules/index.ts";
-import { DRIFT, SPEED, worth } from "./drop.ts";
+import type { DropKind } from "../bridge/index.ts";
+import { FIELD_H, gap, worth, type DropState } from "./drop.ts";
+
+type Way = DropKind["way"];
+
+// —— The drop's own numbers and small rules, as view/drop.ts has them, copied here so that the god game's page need not
+// export them for this mode's chunk (each export it carries costs its first chunks). tests/view/drop-copies.test.ts holds
+// each to drop.ts's, so they cannot drift apart.
+/** The most lives a drop holds. */
+export const MOST = 240;
+/** How fast each kind moves (µm a second) and what it spends to keep alive, by its size. */
+export const SPEED: Readonly<Record<Way, number>> = {
+  eater: 14,
+  light: 3,
+  hunter: 7,
+  colony: 4,
+  rock: 3,
+};
+export const UPKEEP: Readonly<Record<Way, number>> = {
+  eater: 0.03,
+  light: 0.025,
+  hunter: 0.01,
+  colony: 0.02,
+  rock: 0.025,
+};
+/** What a light-eater makes of full light, a second, by its own worth. */
+export const SUN: Readonly<Record<Way, number>> = {
+  eater: 0,
+  light: 0.16,
+  hunter: 0,
+  colony: 0.05,
+  rock: 0,
+};
+/** What a rock-eater makes of its grain's chemistry, a second, by its own worth; how far beyond its grain it reaches (µm). */
+export const ROCK = 0.11;
+export const ROCK_REACH = 22;
+/** A mote's worth to the cell that eats it; what a hunter makes of a cell it takes in, by its worth. */
+export const MOTE = 1.5;
+export const DIGEST = 1.6;
+/** How far each kind's daughters may drift from it, a generation (size, speed). */
+export const DRIFT: Readonly<Record<Way, number>> = {
+  eater: 0.03,
+  light: 0.07,
+  hunter: 0.05,
+  colony: 0.04,
+  rock: 0.03,
+};
+export function normal(rnd: () => number): number {
+  return (rnd() + rnd() + rnd() - 1.5) * 2;
+}
+export function lightAt(s: DropState, y: number): number {
+  return s.habitat === "soil" ? s.light : s.light * (1 - 0.6 * (y / FIELD_H));
+}
+export function wrap(v: number, size: number): number {
+  return v < 0 ? v + size : v >= size ? v - size : v;
+}
+export function gapY(s: DropState, a: number, b: number): number {
+  return s.habitat === "soil" ? gap(a, b, FIELD_H) : b - a;
+}
+export function placeY(s: DropState, y: number): number {
+  return s.habitat === "soil" ? wrap(y, FIELD_H) : Math.min(FIELD_H - 0.5, Math.max(0.5, y));
+}
 
 export type CellWay = "eater" | "light" | "hunter" | "colony" | "rock";
 

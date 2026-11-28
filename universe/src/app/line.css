@@ -548,6 +548,22 @@ body.lining > *:not(#app) {
   float: right;
   margin: 0 0 4px 8px;
 }
+/* (The line risen as a people: its forebear and one of them, side by side under the heading, the words below full width.) */
+.line-rises-pictures {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 18px;
+  margin: 2px 0 6px;
+}
+.line-rises-pictures .line-beast-pic {
+  float: none;
+  margin: 0;
+}
+.line-rises-one {
+  width: 84px;
+  height: 84px;
+}
 .line-daughter-nums {
   color: #9ee7ff;
   font-size: 13px;

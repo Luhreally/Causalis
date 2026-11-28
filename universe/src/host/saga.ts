@@ -53,6 +53,7 @@ const ASKED = [
   "line.young",
   "line.bred",
   "line.makeSo",
+  "line.rises",
   "line.band",
   "line.story",
   "line.stars",

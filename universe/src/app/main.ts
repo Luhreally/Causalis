@@ -417,7 +417,8 @@ import { installHome, type HomeAsk } from "./home.ts";
 import { installMoney } from "./money.ts";
 import type { PlaceFlow } from "./townplace.ts";
 import { lazyPlace } from "./townlazy.ts";
-import { lazyLine } from "./linelazy.ts";
+import type { LineFlow } from "./line.ts";
+import { PlaceLoading } from "../ui/place-loading.ts";
 import type { PlaceTab } from "../ui/index.ts";
 import { installLeaders } from "./leaders.ts";
 import { installLife } from "./life.ts";
@@ -1615,7 +1616,7 @@ type Exposed = {
   bubblesNow?: () => { key: string; text: string; at: { x: number; y: number } | null }[];
   /** The camera's rig, for the look tools. */
   rig?: OrbitRig;
-  /** Live a Line entered (its chunk fetched on the first: app/linelazy.ts). */
+  /** Live a Line entered (its chunk fetched on the first). */
   line?: { open(from?: string | null): Promise<void> };
   /** The genesis played (Phase 24): its stage and clock, the seed as the hand left it, its drop. */
   genesis?: () => unknown;
@@ -10918,35 +10919,39 @@ async function runPlanetPage(): Promise<void> {
   placePlan = placeFlow.planRead;
   villagePanel.onPlace = () => void placeFlow.toggle();
   stage.onUpdate(() => placeFlow.frame());
-  // Live a Line (its chunk fetched when first entered): from the world's first cells, or from a line of its tree of life.
-  const lineFlow = lazyLine({
-    hud,
-    client,
-    stage,
-    rig,
-    time,
-    sound,
-    open: (ref) => void pageWindow.open(ref),
-  });
-  exposed.line = lineFlow;
-  planetPanel.onLine = () => void lineFlow.open();
+  // Live a Line, its chunk (app/line.ts) fetched when first entered and its loading screen its own: from the world's first
+  // cells, a line of its tree of life, or a camp's band. The god game's page carries no more of it than this.
+  let lining: Promise<LineFlow> | null = null;
+  const lineOpen = (from: string | null = null) =>
+    (lining ??= import("./line.ts").then((m) =>
+      m.installLine(
+        { hud, client, stage, rig, time, sound, open: (ref) => void pageWindow.open(ref) },
+        PlaceLoading,
+      ),
+    )).then((f) => f.enter(from));
+  exposed.line = { open: lineOpen };
+  planetPanel.onLine = () => void lineOpen();
   {
-    const acted = pageWindow.sceneActions;
-    pageWindow.sceneActions = (page) =>
-      page.kind === "clade" || page.kind === "lineage"
+    // (Live this line from a line of the tree of life; lead a camp's own band from its page.)
+    const acted = pageWindow.sceneActions,
+      live = "🧬 Live this line",
+      keys: Record<string, string> = { clade: live, lineage: live, camp: "⛺ Lead this band" };
+    pageWindow.sceneActions = (page) => [
+      ...acted(page),
+      ...(keys[page.kind]
         ? [
-            ...acted(page),
             {
-              label: "🧬 Live this line",
+              label: keys[page.kind]!,
               title: "",
               on: false,
               run: () => {
                 pageWindow.close();
-                void lineFlow.open(page.ref);
+                void lineOpen(page.ref);
               },
             },
           ]
-        : acted(page);
+        : []),
+    ];
   }
   // (For the look tools: the town entered, what its line tells, where its people are as last told.)
   exposed.place = {

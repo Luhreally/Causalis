@@ -1913,7 +1913,58 @@ function growTree(g: HomeWorld): TreeOfLife {
     if (k >= 1) ghosts(k);
   }
 
-  // The people: from the line nearest their body, through their forebears.
+  // The lines lived by a hand and made so (Live a Line, 2026-11-28: rules/dawn.ts linesMade): each a daughter of the line it
+  // was lived from, arisen in the age it was lived into, bred toward the way it took by this world's own breeding (its own
+  // keyed draws, its physics), living to now. After every line of the world's own, so none of those moves (the people, after
+  // them, come of it only where they rose from it: S5); none without such an act.
+  let lineNode: (typeof nodes)[number] | null = null;
+  for (const l of g.lines ?? []) {
+    const mother = nodes[l.node],
+      way = wayAt(l.way);
+    if (!mother?.genome || !way || l.age < Math.max(0, mother.arose)) continue;
+    if (mother.died !== null && l.age > mother.died) continue;
+    const env = envOf(
+        WAYS[way].sea ? sea : climateMean(g.planet),
+        WAYS[way].sea ? 1000 : 700,
+        l.age,
+        0.15,
+      ),
+      // (Its body as the hand left it, eating as its way does; untold, the world's own breeding makes it.)
+      genome: Genome = l.genome
+        ? { ...(l.genome as Genome), diet: WAYS[way].diet }
+        : evolve(mother.genome, way, env, 7000 + l.node * 64 + l.age, 5),
+      body = develop(genome, WAYS[way].level),
+      [start, end] = ageSpan(l.age),
+      // (Within its age, and no older than its mother nor younger than her end.)
+      from = Math.min(
+        mother.from,
+        Math.max(
+          mother.to ?? -Infinity,
+          Math.round(start - (start - end) * 0.3 * u(41, l.node, l.age)),
+        ),
+      );
+    lineNode = add({
+      parent: mother.id,
+      kind: "crown",
+      name: `Your line: ${stemName(way, body, names)}`,
+      what: `${creatureWords(body, wayWord(way))}: the line your hand lived, made so`,
+      species: null,
+      way,
+      from,
+      to: null,
+      arose: l.age,
+      died: null,
+      genome,
+      body,
+      innovations: innovations(mother.genome, genome, way, env),
+      fate: null,
+      origin: mother.origin,
+      warm: mother.warm,
+    });
+  }
+
+  // The people: from the line nearest their body, through their forebears (after the lines made so: the people may have
+  // risen from one).
   const people = g.life.people;
   if (people) {
     const s = species[people.species]!,
@@ -1923,24 +1974,29 @@ function growTree(g: HomeWorld): TreeOfLife {
       forebearsFrom = Math.round(ageSpan(k - 1)[0] - 10 * u(18, 0, 1)),
       // (A people risen from its tree came of the lineage it rose from: B4.)
       crown = people.forebear !== undefined ? (ofSpecies[people.forebear] ?? -1) : -1,
+      // (Risen from the line a hand lived and made so, where its clade fits this world: S5. It is their forebear.)
+      risen = people.line && lineNode ? lineNode : null,
       // (Earth's own came of the furred four-legged beasts, by way of the tree-climbers.)
-      { mother } =
-        crown >= 0
+      { mother } = risen
+        ? { mother: risen }
+        : crown >= 0
           ? { mother: nodes[crown]! }
           : nearest(genome, forebearsFrom, 9000, (n) =>
-              n.kind === "ghost"
-                ? 2
-                : g.prior === "earthlike" && n.kind === "stem" && n.genome?.skin === "fur"
-                  ? -4
-                  : n.genome && kindOfBody(n.genome) === kindOfBody(genome)
-                    ? -1
-                    : 0,
+              n === lineNode
+                ? Infinity
+                : n.kind === "ghost"
+                  ? 2
+                  : g.prior === "earthlike" && n.kind === "stem" && n.genome?.skin === "fur"
+                    ? -4
+                    : n.genome && kindOfBody(n.genome) === kindOfBody(genome)
+                      ? -1
+                      : 0,
             ),
       steps = changes(mother.genome!, genome);
     let mid = mother.genome!;
     for (const [i, c] of steps.entries()) if (i % 2 === 0) mid = c.apply(mid);
     const midBody = develop(mid, 3),
-      start = Math.min(forebearsFrom, mother.from - 1),
+      start = Math.min(risen ? mother.from - 1 : forebearsFrom, mother.from - 1),
       envFore = envOf(s.warm, 1000, ageAt(start), huntedAt(start)),
       forebear = add({
         parent: mother.id,
@@ -1985,54 +2041,6 @@ function growTree(g: HomeWorld): TreeOfLife {
       fate: null,
       origin: people.cell,
       warm: s.warm,
-    });
-  }
-
-  // The lines lived by a hand and made so (Live a Line, 2026-11-28: rules/dawn.ts linesMade): each a daughter of the line it
-  // was lived from, arisen in the age it was lived into, bred toward the way it took by this world's own breeding (its own
-  // keyed draws, its physics), living to now. Last of the tree's lines, so none before it moves; none without such an act.
-  for (const l of g.lines ?? []) {
-    const mother = nodes[l.node],
-      way = wayAt(l.way);
-    if (!mother?.genome || !way || l.age < Math.max(0, mother.arose)) continue;
-    if (mother.died !== null && l.age > mother.died) continue;
-    const env = envOf(
-        WAYS[way].sea ? sea : climateMean(g.planet),
-        WAYS[way].sea ? 1000 : 700,
-        l.age,
-        0.15,
-      ),
-      // (Its body as the hand left it, eating as its way does; untold, the world's own breeding makes it.)
-      genome: Genome = l.genome
-        ? { ...(l.genome as Genome), diet: WAYS[way].diet }
-        : evolve(mother.genome, way, env, 7000 + l.node * 64 + l.age, 5),
-      body = develop(genome, WAYS[way].level),
-      [start, end] = ageSpan(l.age),
-      // (Within its age, and no older than its mother nor younger than her end.)
-      from = Math.min(
-        mother.from,
-        Math.max(
-          mother.to ?? -Infinity,
-          Math.round(start - (start - end) * 0.3 * u(41, l.node, l.age)),
-        ),
-      );
-    add({
-      parent: mother.id,
-      kind: "crown",
-      name: `Your line: ${stemName(way, body, names)}`,
-      what: `${creatureWords(body, wayWord(way))}: the line your hand lived, made so`,
-      species: null,
-      way,
-      from,
-      to: null,
-      arose: l.age,
-      died: null,
-      genome,
-      body,
-      innovations: innovations(mother.genome, genome, way, env),
-      fate: null,
-      origin: mother.origin,
-      warm: mother.warm,
     });
   }
 
