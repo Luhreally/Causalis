@@ -206,6 +206,11 @@ function realmSide(
   };
 }
 
+/** A realm's ships as its fights draw them, in a year (Live a Line's ride aboard a ship of its realm, 2026-11-28). */
+export function realmShips(world: World, ref: string, year: number): FightSide {
+  return realmSide(world, ref, year, 1, false);
+}
+
 /** A people of the stars as one side of a fight. */
 function peopleSide(world: World, civ: Civilization, year: number, strength: number): FightSide {
   const i = civilizationsNear(world).indexOf(civ);

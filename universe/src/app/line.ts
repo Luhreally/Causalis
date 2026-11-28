@@ -21,6 +21,7 @@ import { CellJuice } from "../render/line-juice.ts";
 import { LineSound } from "./line-sound.ts";
 import { councilOf, yearWent, yearWords, type Council } from "./line-realm.ts";
 import { starMap } from "./line-stars.ts";
+import { ShipRide } from "./line-ride.ts";
 import { drawPortrait, el } from "../ui/index.ts";
 import type { PlaceLoading } from "../ui/place-loading.ts";
 import { YEAR } from "../kernel/index.ts";
@@ -263,9 +264,10 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
     const out: Root[] = [];
     const mine = micro?.root as unknown,
       land = beast?.scene.root as unknown,
-      camp = band?.scene.root as unknown;
+      camp = band?.scene.root as unknown,
+      aboard = ride.root;
     for (const c of d.stage.root.children as unknown as Root[])
-      if (c !== mine && c !== land && c !== camp) out.push(c);
+      if (c !== mine && c !== land && c !== camp && c !== aboard) out.push(c);
     for (const c of d.stage.app.root.children as unknown as Root[])
       if (c !== (d.stage.root as unknown) && !c.camera && !c.light) out.push(c);
     return out;
@@ -485,6 +487,41 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
     const b = el("button", other ? "line-card-other" : "line-card-go", text);
     b.onclick = run;
     return b;
+  };
+
+  // —— Aboard a ship of its realm (its stars played): Phase 73's ride over the voyage rule's crossing (app/line-ride.ts) ————
+  /** The land the story is of, as the line's askings take it (none: the cradle's). */
+  const storyArgs = (): Record<string, number> => {
+    const cell = storyCell ?? saga?.tribe?.cell ?? bandLand?.cell;
+    return cell === undefined ? {} : { cell };
+  };
+  let hiddenRoots: { root: { enabled: boolean }; was: boolean }[] = [];
+  const ride = new ShipRide({
+    client: d.client,
+    stage: d.stage,
+    layer,
+    card,
+    key,
+    noise: (x) => noises.play(x),
+    args: storyArgs,
+    scenes: (show) => {
+      if (!show) {
+        hiddenRoots = [micro?.root, beast?.scene.root, band?.scene.root]
+          .filter((r): r is NonNullable<typeof r> => !!r)
+          .map((root) => ({ root, was: root.enabled }));
+        for (const h of hiddenRoots) h.root.enabled = false;
+      } else {
+        for (const h of hiddenRoots) h.root.enabled = h.was;
+        hiddenRoots = [];
+      }
+    },
+    landed: (land) => void landed(land),
+    left: () => void openStory("story:stars"),
+  });
+  /** Aboard the ship of a land (the stars page's key, or its dot on the map). */
+  const boardShip = async (land: string) => {
+    if (await ride.board(land)) guide.did("ride");
+    else hud.say("That ship has come down, or cannot be boarded now.", false);
   };
 
   /** The daughters of a division, to choose among: each what it is and why, and what it does here. */
@@ -946,11 +983,16 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
     map: (st: LineStars) => {
       const box = el("div", "line-star-box");
       box.append(
-        starMap(st, pickedStar, (ref) => {
-          pickedStar = ref;
-          noises.play("pop");
-          openPage("story:stars");
-        }),
+        starMap(
+          st,
+          pickedStar,
+          (ref) => {
+            pickedStar = ref;
+            noises.play("pop");
+            openPage("story:stars");
+          },
+          (land) => void boardShip(land),
+        ),
       );
       return box;
     },
@@ -967,42 +1009,42 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
       );
       return box;
     },
-    run: (text: string, until: "sails" | "lands") => {
+    run: (text: string) => {
       const b = el("button", "line-link line-link-go", text);
-      b.onclick = () => void runUntil(until);
+      b.onclick = () => void runUntil();
+      return b;
+    },
+    ride: (text: string, land: string) => {
+      const b = el("button", "line-link line-link-go", text);
+      b.onclick = () => void boardShip(land);
       return b;
     },
   };
   let running = false,
     stopRun = false;
-  /** The years let pass, a year at a time, until the realm's next ship sails, or one under way comes down (or Stop). */
-  const runUntil = async (until: "sails" | "lands") => {
+  /** A card of the stars' stage: opened with the stars' own top and sky over it (H1), not the stage left under it. */
+  const starsLayer = (e: HTMLElement) => {
+    e.classList.add("line-at-stars");
+    layer(e);
+  };
+  /** The years let pass, a year at a time, until the realm's next ship sails (or Stop). */
+  const runUntil = async () => {
     const before = storyStars;
     if (running || !before?.realm || !saga) return;
     running = true;
     stopRun = false;
     await keepBeforeRule();
     const sailed = new Set(before.ships.map((s) => s.land)),
-      landed = new Set(before.ships.filter((s) => s.arrived).map((s) => s.land)),
-      soonest = Math.min(...before.ships.filter((s) => !s.arrived).map((s) => s.arrives)),
-      most =
-        until === "lands" && Number.isFinite(soonest)
-          ? Math.max(1, soonest - before.year + 1)
-          : 150,
-      cell = storyCell ?? saga.tribe?.cell ?? bandLand?.cell,
-      args = cell === undefined ? {} : { cell },
+      most = 150,
+      args = storyArgs(),
       progress = card(
         "Years pass…",
-        [
-          until === "sails"
-            ? "Your realm readies its ship."
-            : "Your ship crosses between the stars.",
-        ],
+        ["Your realm readies its ship."],
         [key("Stop", () => (stopRun = true), true)],
         "help:stars",
       ),
       line = progress.querySelector("p")!;
-    layer(progress);
+    starsLayer(progress);
     let met: LineStars["ships"][number] | undefined,
       years = 0;
     try {
@@ -1012,11 +1054,8 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
         const st = await d.client.query<LineStars | null>({ type: "line.stars", args });
         if (!st?.realm) break;
         storyStars = st;
-        line.textContent = `The year ${st.year}: ${years} ${years === 1 ? "year" : "years"} passed. ${until === "sails" ? "Your realm readies its ship." : "Your ship crosses between the stars."}`;
-        met =
-          until === "sails"
-            ? st.ships.find((s) => !sailed.has(s.land))
-            : st.ships.find((s) => s.arrived && !landed.has(s.land));
+        line.textContent = `The year ${st.year}: ${years} ${years === 1 ? "year" : "years"} passed. Your realm readies its ship.`;
+        met = st.ships.find((s) => !sailed.has(s.land));
       }
     } finally {
       running = false;
@@ -1027,45 +1066,53 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
       hud.say(
         stopRun
           ? `Stopped, ${years} ${years === 1 ? "year" : "years"} on.`
-          : `${years} years on, ${until === "sails" ? "no ship has sailed yet" : "no ship has come down yet"}.`,
+          : `${years} years on, no ship has sailed yet.`,
         false,
       );
       return;
     }
-    const shown = met.lands ? worldPicture(met.lands.portrait) : null;
-    if (until === "sails") {
-      noises.play("grow");
-      layer(
-        payoff(
-          `${st.realm?.name ?? "Your realm"} sends a ship`,
-          shown,
-          [
-            ["Bound for", met.words],
-            ["Comes down on", met.lands?.words ?? "a world its people could live on"],
-            ["Arrives", `in the year ${met.arrives}`],
-            ["Aboard", `${met.people.toLocaleString("en")} people`],
-          ],
-          [
-            met.asked
-              ? "It sails for the star you chose."
-              : "Your star was taken first: it sails where your realm chose.",
-          ],
-          [
-            key("Its stars", () => void openStory("story:stars"), true),
-            key("⏭ Until it comes down", () => void runUntil("lands")),
-          ],
-          "help:stars",
-        ),
-      );
+    const shown = met.lands ? worldPicture(met.lands.portrait) : null,
+      ship = met.land;
+    noises.play("grow");
+    starsLayer(
+      payoff(
+        `${st.realm?.name ?? "Your realm"} sends a ship`,
+        shown,
+        [
+          ["Bound for", met.words],
+          ["Comes down on", met.lands?.words ?? "a world its people could live on"],
+          ["Arrives", `in the year ${met.arrives}`],
+          ["Aboard", `${met.people.toLocaleString("en")} people`],
+        ],
+        [
+          met.asked
+            ? "It sails for the star you chose."
+            : "Your star was taken first: it sails where your realm chose.",
+        ],
+        [
+          key("🚀 Ride aboard it", () => void boardShip(ship)),
+          key("Its stars", () => void openStory("story:stars"), true),
+        ],
+        "help:stars",
+      ),
+    );
+  };
+
+  /** Come down (the ride's end): a world settled, its first colony founded. The stage's payoff, a world at a time. */
+  const landed = async (land: string) => {
+    const st = await d.client.query<LineStars | null>({ type: "line.stars", args: storyArgs() });
+    if (st) storyStars = st;
+    const met = st?.ships.find((s) => s.land === land);
+    if (!st || !met) {
+      await openStory("story:stars");
       return;
     }
-    // (Come down: a world settled, its first colony founded. The stage's payoff, a world at a time.)
-    const settled = st.ships.filter((s) => s.arrived).length,
-      land = met.land;
+    const shown = met.lands ? worldPicture(met.lands.portrait) : null,
+      settled = st.ships.filter((s) => s.arrived).length;
     guide.did("land");
     if (settled >= 3) guide.did("settle");
     noises.play("rise");
-    layer(
+    starsLayer(
       payoff(
         "A world settled",
         shown,
@@ -1080,10 +1127,54 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
           "Your line's people come down, and their first colony there is founded. Its land is your realm's, as any land of it is.",
         ],
         [
+          ...(settled >= 3 ? [key("📜 Your line's whole way", () => wholeLine(settled))] : []),
           key("Its stars", () => void openStory("story:stars"), true),
-          key("🔭 Go and see it", () => void flow.wake().then(() => d.open(land))),
+          key("🔭 Go and see it", () => void flow.wake().then(() => d.open(land)), settled >= 3),
         ],
         "help:stars",
+      ),
+    );
+  };
+
+  /** Its third world settled (the stars' last lesson): the line's whole way on one card, from its first cell to its worlds. */
+  const wholeLine = (settled: number) => {
+    const s = storyNow(),
+      w = s.world,
+      rows: [string, string][] = [];
+    if (s.cell)
+      rows.push([
+        "Its cell",
+        `${s.cell.gens} ${s.cell.gens === 1 ? "generation" : "generations"} ${s.cell.way}, ${myWords(s.cell.my)}`,
+      ]);
+    if (s.bodies.length)
+      rows.push([
+        "Its bodies",
+        `${s.bodies.length} ${s.bodies.length === 1 ? "generation" : "generations"}; the last, ${s.bodies.at(-1)!.name}`,
+      ]);
+    if (s.band)
+      rows.push([
+        "Its band",
+        `of the ${s.band.people}, in ${s.band.land.replace(/^The /, "the ")}`,
+      ]);
+    if (w?.village)
+      rows.push(["Its village", `${w.village.name}, founded in the year ${w.village.founded}`]);
+    if (w?.town && w.town.ref !== w.village?.ref) rows.push(["Its town", w.town.name]);
+    if (w?.realm) rows.push(["Its realm", w.realm.name]);
+    rows.push(["Its worlds", `home, and ${settled} at other stars`]);
+    noises.play("rise");
+    starsLayer(
+      payoff(
+        "From one cell to the stars",
+        null,
+        rows,
+        [
+          "Your line's whole way, as your world keeps it. It goes on: send more ships, rule its years, or wake.",
+        ],
+        [
+          key("Its stars", () => void openStory("story:stars")),
+          key("Your line's story", () => void openStory("story:cell"), true),
+        ],
+        "help:story",
       ),
     );
   };
@@ -1797,6 +1888,7 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
 
   const frame = (dt: number) => {
     keepAway();
+    if (ride.on) return ride.frame(dt);
     if (leading) return bandFrame(dt);
     if (living) return bodyFrame(dt);
     if (!drop || !hand || !traits || !micro) return;
@@ -2158,13 +2250,15 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
   hud.onHelp = () => openPage("help:mode");
   hud.onStripHelp = () =>
     openPage(
-      farAt === "story:stars"
-        ? "help:stars"
-        : farAt
-          ? "help:year"
-          : living
-            ? "help:body"
-            : "help:cell",
+      ride.on
+        ? "help:ride"
+        : farAt === "story:stars"
+          ? "help:stars"
+          : farAt
+            ? "help:year"
+            : living
+              ? "help:body"
+              : "help:cell",
     );
   hud.onName = () => (leading ? void openStory("story:band") : openPage(living ? "body" : "cell"));
   hud.onGuide = () => (hud.modal ? layer(null) : layer(guide.panel(() => layer(null))));
@@ -2197,11 +2291,29 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
     farSaid = "";
   /** A realm's own name for the chip at the top ("the league of Grikywilholt" → "Grikywilholt"): short enough not to break. */
   const ownName = (realm: string) => realm.replace(/^(the )?[a-z' -]+ of /, "");
+  /** Aboard (the ride): the top tells the realm, the year, the years to go and its people aboard and how they are fed. */
+  const rideTop = () => {
+    const v = ride.on ? ride.voyage : null;
+    if (!v) return null;
+    const left = Math.max(0, v.arrives - v.year);
+    return {
+      name: ownName(v.realm),
+      when: `the year ${v.year}`,
+      through: Math.round(ride.through * 200) / 200,
+      words: `${left} ${left === 1 ? "year" : "years"} to ${v.words.replace(/^A /, "a ")}`,
+      strip: `${v.people.toLocaleString("en")} aboard`,
+      full: v.fed,
+      meter: `Fed: ${Math.round(v.fed * 100)} in a hundred of what they need`,
+    };
+  };
   const farTop = () => {
-    const at =
-      hud.modal && hud.layer.firstElementChild === pages.element && FAR.has(pages.ref ?? "")
-        ? (pages.ref as string)
-        : null;
+    const shown = hud.modal ? hud.layer.firstElementChild : null,
+      at =
+        shown === pages.element && FAR.has(pages.ref ?? "")
+          ? (pages.ref as string)
+          : shown?.classList.contains("line-at-stars")
+            ? "story:stars"
+            : null;
     if ((at === null) !== (farAt === null)) document.body.classList.toggle("line-far", at !== null);
     farAt = at;
     const st = storyStars,
@@ -2237,10 +2349,11 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
               }
             : null;
     // (Written when it changes: a page open a while costs the frame nothing.)
-    const said = top ? JSON.stringify(top) : "";
+    const atop = rideTop() ?? top,
+      said = atop ? JSON.stringify(atop) : "";
     if (said === farSaid) return;
     farSaid = said;
-    hud.farTop(top);
+    hud.farTop(atop);
   };
 
   const flow: LineFlow = {
@@ -2365,6 +2478,7 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
       living = false;
       offered = null;
       leaveBand();
+      ride.destroy();
       noises.close();
       putBack();
       d.time.release("line");
@@ -2454,6 +2568,18 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
         stageDone();
       },
       page: (ref: string) => openPage(ref),
+      /** Aboard a ship (the ride): where it stands, as the ride shows it. */
+      ride: () => ({
+        on: ride.on,
+        paused: ride.paused,
+        pace: ride.pace,
+        through: ride.through,
+        year: ride.voyage?.year ?? null,
+        arrives: ride.voyage?.arrives ?? null,
+        people: ride.voyage?.people ?? null,
+      }),
+      /** The line's whole way (its third world settled), shown for the look tools on a world with fewer. */
+      whole: (n = 3) => wholeLine(n),
       now: () => (traits ? whatNow(nowState()) : null),
       close: () => layer(null),
       wake: () => flow.wake(),
@@ -2652,7 +2778,15 @@ const HELP: Readonly<Record<string, readonly [string, readonly string[]]>> = {
     [
       "Once your line's realm has a station, habitats, a drive and machines to spare, it sends ships to the stars, by its own rule, when it can. The map shows home in the middle, the stars in its reach (grey: taken by another), the worlds it has settled (green), and its ships along their crossings.",
       "Press a star to pick it: the world a ship would come down on there, as the voyage itself chooses it, and how long the crossing takes. Send our next ship here asks the realm to sail there next; if another takes the star first, it sails where it would have.",
-      "Let the years pass until it sails, and until it comes down: the world it lands on, and its first colony. Each world settled is your line's.",
+      "Let the years pass until it sails, then ride aboard it until it comes down: the world it lands on, and its first colony. Each world settled is your line's.",
+    ],
+  ],
+  "help:ride": [
+    "Aboard your ship",
+    [
+      "You ride along with a ship of your realm, between the stars, as the god game's own fleets are ridden: drag to look about it. Your world's years pass as you ride, a year every three seconds, or a year a second; ⏭ To its landing lets them go as fast as they can. Hold stops them.",
+      "What you see aboard is what your world keeps of the ship: a land of your realm's like any other, its people living, born and dying on the way. Food is what they eat against what they need; their work is the share of it that goes to keeping them alive aboard; grievance is how your realm's order reads their mood. What happens to them is told as it happens.",
+      "You only ride along: the ship goes as the voyage goes. When it comes down, its first colony is founded on the world it sailed for. Leave the ship to stop riding; the years passed stay passed.",
     ],
   ],
   "help:young": [
@@ -2685,4 +2819,5 @@ const HELP_LINKS: readonly (readonly [string, string])[] = [
   ["help:story", "Your line's story"],
   ["help:year", "Your realm's year"],
   ["help:stars", "Your realm at the stars"],
+  ["help:ride", "Aboard your ship"],
 ];

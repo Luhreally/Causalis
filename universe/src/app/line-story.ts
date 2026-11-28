@@ -84,7 +84,9 @@ export function storyPage(
     readonly map: (st: LineStars) => HTMLElement;
     readonly picked: string | null;
     readonly landing: (st: LineStars, star: string) => HTMLElement | null;
-    readonly run: (text: string, until: "sails" | "lands") => HTMLElement;
+    readonly run: (text: string) => HTMLElement;
+    /** Aboard a ship under way (app/line-ride.ts). */
+    readonly ride: (text: string, land: string) => HTMLElement;
   },
 ): LinePage | null {
   const i = STORY.indexOf(ref as (typeof STORY)[number]);
@@ -280,9 +282,9 @@ export function storyPage(
       // (First, the stage's own key where there is a ship to wait for: the years let pass in the mode, until the
       // ship asked for sails, or until one under way comes down.)
       const under = st.ships.filter((x) => !x.arrived);
-      if (under.length) parts.push(space.run("⏭ Let the years pass until it comes down", "lands"));
+      if (under.length) parts.push(space.ride("🚀 Ride aboard your ship", under[0]!.land));
       else if (st.asked && !st.asked.taken && !st.wants.length)
-        parts.push(space.run("⏭ Let the years pass until it sails", "sails"));
+        parts.push(space.run("⏭ Let the years pass until it sails"));
       // (The map, once there is anything at the stars to draw: press a star to pick it.)
       if (st.stars.length || st.ships.length) {
         parts.push(space.map(st));
