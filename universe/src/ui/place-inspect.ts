@@ -13,6 +13,8 @@ import type {
   PlaceInspectBelow,
   PlaceInspectBound,
   PlaceInspectFaith,
+  PlaceInspectBody,
+  PlaceInspectMaking,
   PlaceInspectCharacter,
   PlaceInspectDead,
   PlaceInspectFamily,
@@ -264,6 +266,8 @@ export class PlaceInspector {
     else if (x.kind === "faith") this.faith(x);
     else if (x.kind === "dead") this.dead(x);
     else if (x.kind === "character") this.character(x);
+    else if (x.kind === "body") this.bodyPage(x);
+    else if (x.kind === "making") this.making(x);
     else this.lot(x);
   }
 
@@ -347,7 +351,11 @@ export class PlaceInspector {
     character.setAttribute("aria-label", `${x.name}'s character and mind`);
     character.onclick = () => this.onInspect(x.characterRef);
     const links = el("div", "place-insp-links");
-    links.append(family, character);
+    // (Their body and what it is written in, R4.)
+    const bodyKey = el("button", "place-insp-bodykey", "Body ▸");
+    bodyKey.setAttribute("aria-label", `${x.name}'s body, what it is made of and written in`);
+    bodyKey.onclick = () => this.onInspect(x.bodyRef);
+    links.append(family, character, bodyKey);
     body.push(links);
     // (A hand's orders, by name: a trade, or let be.)
     if (this.orders && x.trade !== "child") {
@@ -821,6 +829,89 @@ export class PlaceInspector {
     );
     this.body.replaceChildren(...body);
   }
+  /** What the town lives on (R5): its stuffs, its making today, water, fuel, poisons, what it is short of, how steady. */
+  private making(x: PlaceInspectMaking): void {
+    this.picture(x);
+    const title = `${x.icon} ${x.name}`;
+    if (this.title.textContent !== title) this.title.textContent = title;
+    if (this.sub.textContent !== x.sub) this.sub.textContent = x.sub;
+    const body: HTMLElement[] = [];
+    if (x.vulnerable.length) {
+      body.push(el("h3", "place-insp-sub", "What it is short of, or what bears on it"));
+      body.push(this.facts(x.vulnerable.map((v) => [v.name, v.words, v.ref] as const)));
+    } else
+      body.push(
+        el("p", "place-insp-why", "Nothing it is short of, and nothing bearing on it now."),
+      );
+    body.push(
+      el("h3", "place-insp-sub", `How steady: ${x.steady}`),
+      this.facts(x.stability.map(([a, b]) => [a, b, null] as const)),
+    );
+    const list = el("div", "place-insp-stuffs");
+    for (const m of x.stuffs) {
+      const sw = el("span", "place-insp-stuff-swatch");
+      sw.style.background = m.colour;
+      list.append(
+        sw,
+        el("span", "place-insp-stuff-name", m.name),
+        el("span", "place-insp-stuff-kg", `${m.kg.toLocaleString("en-US")} kg`),
+      );
+    }
+    if (x.rest > 0)
+      list.append(
+        el("span", ""),
+        el("span", "place-insp-stuff-name", "The rest"),
+        el("span", "place-insp-stuff-kg", `${x.rest.toLocaleString("en-US")} kg`),
+      );
+    body.push(el("h3", "place-insp-sub", "All it holds, by its stuff"), list);
+    if (x.making.length) {
+      body.push(el("h3", "place-insp-sub", "Made and used today"));
+      body.push(
+        this.facts(
+          x.making.map(
+            (m) =>
+              [
+                m.name,
+                `made ${m.made}, used ${m.used}${m.came ? `, ${m.came} brought in` : ""}`,
+                null,
+              ] as const,
+          ),
+        ),
+      );
+    }
+    body.push(
+      el("h3", "place-insp-sub", "Water, fuel and poisons"),
+      this.facts([
+        ["Water", x.water, null],
+        ...x.fuel.map((f) => ["Fuel", f, null] as const),
+        ["Poisons", x.poisons, null],
+      ]),
+    );
+    this.body.replaceChildren(...body);
+  }
+  /** One's body (R4): what it is made of, how it lives, and what it is written in. */
+  private bodyPage(x: PlaceInspectBody): void {
+    this.picture(x);
+    const title = `${x.icon} ${x.name}`;
+    if (this.title.textContent !== title) this.title.textContent = title;
+    if (this.sub.textContent !== x.sub) this.sub.textContent = x.sub;
+    const made = el("div", "place-insp-stuffs place-insp-madeof");
+    for (const m of x.madeOf) {
+      const share = el("span", "place-insp-stuff-kg", `${m.share}%`);
+      const what = el("span", "place-insp-stuff-name", `${m.what} · ${m.kg} kg`);
+      what.title = m.words;
+      made.append(share, what);
+    }
+    this.body.replaceChildren(
+      el("p", "place-insp-why", `${x.body}.`),
+      el("h3", "place-insp-sub", "What their body is made of (est.)"),
+      made,
+      el("h3", "place-insp-sub", "How it lives"),
+      this.facts(x.metabolism.map(([a, b]) => [a, b, null] as const)),
+      el("h3", "place-insp-sub", "What it is written in"),
+      this.facts(x.genome.map(([a, b]) => [a, b, null] as const)),
+    );
+  }
   /** One of the town's dead (R1): what took them, their life in short, their kin and those they knew, their last memories. */
   private dead(x: PlaceInspectDead): void {
     this.picture(x);
@@ -1100,6 +1191,14 @@ export class PlaceInspector {
       faith.setAttribute("aria-label", "The town's faith, its shrines, and those of rank");
       faith.onclick = () => this.onInspect(x.ref.replace(/^plcl:(.*):\d+$/, "plcr:$1"));
       body.push(faith);
+      // (What it lives on, R5.)
+      const making = el("button", "place-insp-order place-insp-making", "What it lives on ▸");
+      making.setAttribute(
+        "aria-label",
+        "What the town holds by its stuff, makes, drinks and burns, and what it is short of",
+      );
+      making.onclick = () => this.onInspect(x.ref.replace(/^plcl:(.*):\d+$/, "plcs:$1"));
+      body.push(making);
     }
     if (x.zoneWords) body.push(el("p", "place-insp-why", x.zoneWords));
     // (The guard's post by your order, O7: those standing to arms keep it, watching the homes within a cry of it.)

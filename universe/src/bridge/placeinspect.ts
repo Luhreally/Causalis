@@ -46,6 +46,8 @@ export type PlaceInspectPerson = {
   readonly familyRef: string;
   /** Their character and mind (R2). */
   readonly characterRef: string;
+  /** Their body and what it is written in (R4). */
+  readonly bodyRef: string;
   /** R1. Their nearest kin a tap away: mother, father, the one they are paired with, their children (the most told). */
   readonly kin: readonly {
     readonly name: string;
@@ -591,7 +593,67 @@ export type PlaceInspectCharacter = {
   readonly senses: readonly { readonly name: string; readonly words: string }[];
 };
 
+/**
+ * One's body, what it is made of and how it lives, and what it is written in (R4): the shares of their body by what it is
+ * (est.), how they eat, breathe and keep warm, what poisons them; their heredity's chains, their cells' skins, their bones,
+ * their kind and lineage, and what is their own.
+ */
+export type PlaceInspectBody = {
+  readonly kind: "body";
+  readonly ref: string;
+  readonly personRef: string;
+  readonly name: string;
+  readonly icon: string;
+  readonly sub: string;
+  readonly body: string;
+  readonly madeOf: readonly {
+    readonly what: string;
+    readonly share: number;
+    readonly kg: number;
+    readonly words: string;
+  }[];
+  readonly metabolism: readonly (readonly [string, string])[];
+  readonly genome: readonly (readonly [string, string])[];
+};
+
+/**
+ * What a town lives on (R5): all it holds by the stuff it is, what it made and used today, its water, its fuel, what
+ * poisons its people, the vulnerabilities its readings name, and how steady it is.
+ */
+export type PlaceInspectMaking = {
+  readonly kind: "making";
+  readonly ref: string;
+  readonly name: string;
+  readonly icon: string;
+  readonly sub: string;
+  readonly stuffs: readonly {
+    readonly name: string;
+    readonly kg: number;
+    readonly colour: string;
+  }[];
+  /** Kilograms of the stuffs past those told. */
+  readonly rest: number;
+  readonly making: readonly {
+    readonly name: string;
+    readonly made: number;
+    readonly used: number;
+    readonly came: number;
+  }[];
+  readonly water: string;
+  readonly fuel: readonly string[];
+  readonly poisons: string;
+  readonly vulnerable: readonly {
+    readonly name: string;
+    readonly words: string;
+    readonly ref: string | null;
+  }[];
+  readonly steady: "steady" | "strained" | "failing";
+  readonly stability: readonly (readonly [string, string])[];
+};
+
 export type PlaceInspect =
+  | PlaceInspectMaking
+  | PlaceInspectBody
   | PlaceInspectCharacter
   | PlaceInspectDead
   | PlaceInspectFaith
