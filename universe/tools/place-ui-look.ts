@@ -145,7 +145,14 @@ for (const view of [
     text = (selector: string) =>
       k<string>(`document.querySelector(${JSON.stringify(selector)})?.textContent ?? ""`),
     press = async (selector: string, what: string): Promise<boolean> => {
-      const at = await box(selector);
+      // (Where it has come to rest: a sheet still rising or a row of tabs still scrolling moves it from under the finger.)
+      let at = await box(selector);
+      for (let n = 0; at && n < 20; n++) {
+        await page.waitForTimeout(100);
+        const next = await box(selector);
+        if (next && Math.abs(next.x - at.x) < 0.5 && Math.abs(next.y - at.y) < 0.5) break;
+        at = next;
+      }
       check(!!at, `${what} is there to press`);
       if (!at) return false;
       const met = await k<string | null>(
