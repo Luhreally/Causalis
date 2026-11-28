@@ -12,7 +12,7 @@
 // it loads is what it saved, as JSON would have given it back.
 import { Hasher } from "./hash.ts";
 import { eventTypes } from "./history.ts";
-import { packList, unpackList, type Packed } from "./pack.ts";
+import { packList, packOneSteps, unpackList, type Packed } from "./pack.ts";
 import { jsonCopy } from "./split-json.ts";
 import { kinds } from "./ref.ts";
 import { seedFromText, streams, type Seed } from "./rng.ts";
@@ -223,7 +223,8 @@ export function* saveSteps(
     r.saved = null;
     // (Packed straight from the store: packList keeps what JSON keeps, and the copy through
     // JSON is then of the packed lists, a fraction of the size.)
-    let { data, text } = throughJson(asked ? packList([saved]) : saved),
+    // (A column at a time, a step after each: one store's packing was one step of 0.3 s and more.)
+    let { data, text } = throughJson(asked ? yield* packOneSteps(saved) : saved),
       packed = asked;
     // (A store that says nothing of it is kept packed all the same where that is the smaller and gives back, letter for
     // letter, what its JSON does: some hundred and fifty small stores of rows were 1.9 MB of a save at year 1,500

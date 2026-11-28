@@ -616,6 +616,41 @@ export function packList(values: readonly unknown[], words?: Words): Packed {
   return out as Packed;
 }
 
+/**
+ * packList of one value, a step yielded after each of its parts: a plain object's each key, a short list's each item, and so
+ * down. What it returns is what packList([value]) would, letter for letter; a save packs a store of long columns so, a column at
+ * a time, where packing it whole was one step of 0.3 s and more (town.fabric at 1,300).
+ */
+export function* packOneSteps(value: unknown): Generator<void, Packed, void> {
+  if (typeof value === "object" && value !== null && !(value instanceof Float64Array)) {
+    if (Array.isArray(value)) {
+      // (As packArrays packs one list of no more than TUPLE: its length, then a column for each place.)
+      if (value.length <= TUPLE) {
+        const lengths = new Varints(1),
+          t: Packed[] = [];
+        lengths.push(value.length);
+        for (let j = 0; j < value.length; j++) {
+          t.push(yield* packOneSteps(value[j]));
+          yield;
+        }
+        return { n: 1, a: lengths.text(), t } as unknown as Packed;
+      }
+    } else {
+      // (As packObjects packs one object of one shape: its keys, then a column for each.)
+      const keys = plainKeys(value);
+      if (keys) {
+        const cols: Packed[] = [];
+        for (const key of keys) {
+          cols.push(yield* packOneSteps((value as Record<string, unknown>)[key]));
+          yield;
+        }
+        return { n: 1, o: [keys], c: [cols] } as unknown as Packed;
+      }
+    }
+  }
+  return packList([value]);
+}
+
 /** Whether every value is a whole number of 31 bits or fewer either way (so a whole number packList keeps as one). */
 function smallInts(values: readonly unknown[]): boolean {
   for (let j = 0; j < values.length; j++) {
