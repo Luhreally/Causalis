@@ -7,11 +7,14 @@
 // (gen/evolution.ts mutate), told by what changed and what favoured it (innovations, pressures). Between the generations
 // played it is bred forward off the screen by those draws and the fitness of its way, and a line too unfit for its world
 // dies out: the player goes on as its nearest living kin. Pure reads of the world as generated: nothing here is history.
-import { finish, hashString, mix, seedWithAct, type World } from "../kernel/index.ts";
+import { finish, hashString, mix, seedFromText, seedWithAct, type World } from "../kernel/index.ts";
 import {
   AGES,
   AGE_MY,
   GENOME_CODE,
+  generateHomeWorld,
+  linePeople,
+  linesMade,
   wayIndex,
   ageSpan,
   beastLookOf,
@@ -37,6 +40,9 @@ import {
   type Way,
 } from "../gen/index.ts";
 import {
+  CLADES,
+  PRIORS,
+  EARTHLIKE,
   DAWN_WAYS,
   KINDS,
   LIFE_NICHES,
@@ -51,8 +57,9 @@ import {
   type LifeWorld,
 } from "../rules/index.ts";
 import { homePlanet, populationContext, provinceCapacity } from "../sim/index.ts";
+import { peopleFigure } from "./folk.ts";
 import { landCamps } from "./land.ts";
-import { starsOf, storyOf } from "./line-story.ts";
+import { starsOf, storyOf, type LineRises } from "./line-story.ts";
 import { installSaga, type SagaStore } from "./saga.ts";
 
 /** A body of the line: what it is called, its way of life, its genome and the body it grows, and why it is as it is. */
@@ -491,6 +498,7 @@ export function lineAct(
   age: number,
   way: number,
   genome: Genome | null = null,
+  name: string | null = null,
 ): string {
   const g = genome as Record<string, unknown> | null,
     code = g
@@ -509,7 +517,14 @@ export function lineAct(
           .join(",")
           .replace(/,+$/, "")
       : "";
-  return `line ${node} ${age + 1} ${way}${code ? ` ${code}` : ""}`;
+  // (What the hand called it, after its body: its people are named for it where they rise of it.)
+  const called = name
+    ?.toLowerCase()
+    .replace(/[^a-z -]/g, "")
+    .trim()
+    .replace(/ +/g, "_")
+    .slice(0, 30);
+  return `line ${node} ${age + 1} ${way}${code ? ` ${code}${called && /^[a-z]/.test(called) ? ` ${called}` : ""}` : ""}`;
 }
 
 /** The age (oldest 0) a time falls in (millions of years ago). */
@@ -530,6 +545,7 @@ export function makeSo(
     bodies: readonly { my: number; way: Way }[];
     node: number | null;
     genome?: Genome | null;
+    name?: string | null;
   },
 ): { seed: string; acts: string[] } {
   const acts: string[] = [];
@@ -547,8 +563,33 @@ export function makeSo(
   }
   const last = a.bodies.at(-1);
   if (last && a.node !== null && wayIndex(last.way) >= 0)
-    acts.push(lineAct(a.node, ageOfMy(last.my), wayIndex(last.way), a.genome ?? null));
+    acts.push(
+      lineAct(a.node, ageOfMy(last.my), wayIndex(last.way), a.genome ?? null, a.name ?? null),
+    );
   return { seed: acts.reduce(seedWithAct, text), acts };
+}
+
+/** The new world a seed makes, as far as its people: made at once (a second or two), so the hand sees what rose before it goes. */
+export function risesOf(world: World, text: string): LineRises {
+  const want = linePeople(linesMade(text, AGES)),
+    prior = PRIORS[homePlanet(world).generated.prior] ?? EARTHLIKE,
+    made = generateHomeWorld(seedFromText(text), prior),
+    p = made.life.people,
+    cladeName = (id: string) => CLADES.find((c) => c.id === id)?.body.name ?? id;
+  return {
+    risen: !!p?.line,
+    people: p
+      ? {
+          name: p.body.name,
+          clade: cladeName(p.body.clade),
+          size: p.body.size,
+          hold: p.body.manipulators,
+          because: p.because,
+          figure: peopleFigure(made),
+        }
+      : null,
+    lineClade: want ? cladeName(want.clade) : null,
+  };
 }
 
 /**
@@ -559,13 +600,24 @@ export function makeSo(
  */
 export function bandOf(
   world: World,
+  /** A camp's page ("camp:<land>:<id>") the band was asked for from: that camp, while it stands. */
+  ref?: string,
 ): { cell: number; id: number; grain: boolean; sows: boolean } | null {
   const ctx = populationContext(world),
     g = homePlanet(world).generated,
-    lands = ctx.provinces
-      .all()
-      .filter((p) => p.total() > 0)
-      .sort((a, b) => b.total() - a.total() || a.cell - b.cell);
+    [, c, i] = (ref ?? "").split(":").map(Number),
+    asked =
+      ref?.startsWith("camp:") &&
+      Number.isInteger(c) &&
+      landCamps(world, c!).some((x) => x.id === i)
+        ? ctx.provinces.get(c!)
+        : undefined,
+    lands = asked
+      ? [asked]
+      : ctx.provinces
+          .all()
+          .filter((p) => p.total() > 0)
+          .sort((a, b) => b.total() - a.total() || a.cell - b.cell);
   for (const p of lands.slice(0, 12)) {
     if (!landCamps(world, p.cell).length) continue;
     const cell = p.cell,
@@ -575,7 +627,7 @@ export function bandOf(
       near = seed[g.grid.neighbours[k]!]! >= 0;
     return {
       cell,
-      id: 0,
+      id: asked ? i! : 0,
       grain: near || provinceCapacity(ctx, cell).farm > 0,
       sows: p.knowsCultivation,
     };
@@ -588,6 +640,8 @@ type Asked = {
   bodies: { my: number; way: Way }[];
   node: number | null;
   ref?: string;
+  seed?: string;
+  name?: string | null;
   id: number;
   data: unknown;
   digest: string;
@@ -626,13 +680,15 @@ export function ask(type: string, world: World, args: unknown): unknown {
     case "saga.keep":
       return keepSaga(store(), a.id, a.data);
     case "line.band":
-      return bandOf(world);
+      return bandOf(world, a.ref);
     case "line.story":
       return storyOf(world, a.cell);
     case "line.stars":
       return starsOf(world, a.cell);
     case "line.makeSo":
       return makeSo(world.seed.text, a);
+    case "line.rises":
+      return risesOf(world, String(a.seed ?? ""));
   }
   throw new Error(`no asking ${type}`);
 }

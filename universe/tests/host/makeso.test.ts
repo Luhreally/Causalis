@@ -5,7 +5,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { seedFromText, seedWithAct } from "../../src/kernel/index.ts";
 import { EARTHLIKE } from "../../src/rules/index.ts";
-import { generateHomeWorld, linesMade, treeOfLife, wayAt, wayIndex } from "../../src/gen/index.ts";
+import {
+  cladeOfLine,
+  generateHomeWorld,
+  linesMade,
+  treeOfLife,
+  wayAt,
+  wayIndex,
+} from "../../src/gen/index.ts";
 import { checkBody, foundersOf, lineAct, makeSo } from "../../src/host/line.ts";
 import { protoLifeWorld } from "../../src/gen/index.ts";
 
@@ -102,4 +109,71 @@ test("Make it so: the line lived is in the remade world's tree, living, and the 
   assert.deepEqual({ ...mine2!.genome!, diet: null }, { ...founder.genome, diet: null });
   // (And no act, the world as it was.)
   assert.equal(generateHomeWorld(seedFromText("first light"), EARTHLIKE).digest, before.digest);
+});
+
+test("S5: the line made so rises as the people where its clade can rise on the world, named for it; else the world's own rise", () => {
+  const before = generateHomeWorld(seedFromText("first light"), EARTHLIKE),
+    founder = foundersOf(before, before.digest, 1, 0)[0]!;
+  // (Read to its clade by its body.)
+  assert.equal(cladeOfLine({ fins: 1, legs: 0 }), "swimmer");
+  assert.equal(cladeOfLine({ legs: 0, fins: 0, skin: "slick" }), "crawler");
+  assert.equal(cladeOfLine({ legs: 2, skin: "feathers" }), "strider");
+  assert.equal(cladeOfLine({ legs: 2, skin: "fur" }), "shaggy");
+  assert.equal(cladeOfLine({ legs: 2, skin: "slick" }), "ape");
+  assert.equal(cladeOfLine({ legs: 2, skin: "fur", mass: 900 }), "trunk");
+  // (Its name carried in the act, read back.)
+  assert.equal(
+    linesMade(
+      seedWithAct(
+        "first light",
+        lineAct(3, 2, 1, { axis: "bilateral", mass: 1 } as never, "Grey Climber"),
+      ),
+      12,
+    )[0]!.name,
+    "grey climber",
+  );
+  let rose = 0;
+  for (const [skin, legs, want] of [
+    ["fur", 2, "shaggy"],
+    ["feathers", 2, "strider"],
+    ["slick", 2, "ape"],
+    ["scales", 2, "crawler"],
+  ] as const) {
+    const made = makeSo(seedFromText("first light").text, {
+        cell: null,
+        bodies: [{ my: 40, way: "grazer" }],
+        node: founder.node!,
+        genome: { ...founder.genome, skin, legs, fins: 0, wings: 0, mass: 30 },
+        name: "Grizzle",
+      }),
+      g = generateHomeWorld(seedFromText(made.seed), EARTHLIKE),
+      p = g.life.people!;
+    if (!p.line) {
+      // (Its clade could not rise here: the world's own people, the line living on beside them.)
+      assert.equal(p.body.clade, "ape", `${want}: the world's own`);
+      continue;
+    }
+    rose++;
+    assert.equal(p.body.clade, want);
+    assert.equal(p.body.name, "grizzle folk");
+    assert.match(p.because, /^of the line your hand lived and made so/);
+    // (In the tree, the people come of the line made so.)
+    const tree = treeOfLife(g),
+      line = tree.nodes.find((n) => n.name.startsWith("Your line"))!,
+      people = tree.nodes.find((n) => n.kind === "people")!;
+    let up = people.parent,
+      found = false;
+    while (up >= 0 && !found) {
+      found = up === line.id;
+      up = tree.nodes[up]!.parent;
+    }
+    assert.ok(found, `${want}: the people come of your line`);
+    assert.equal(people.name, "grizzle folk");
+  }
+  assert.ok(rose >= 2, `${rose} of 4 clades rose on first light`);
+  // (And no act, the people as they were.)
+  assert.equal(
+    generateHomeWorld(seedFromText("first light"), EARTHLIKE).life.people!.body.name,
+    "upright apes",
+  );
 });

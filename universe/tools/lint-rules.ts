@@ -54,7 +54,7 @@ export const PACKAGES: Partial<Record<ModuleName, readonly string[]>> = {
 // there they would be bundled into the god game's first chunks, which load before any mode is asked for. Each names the
 // mode that fetches it. Nothing else may be reached into.
 export const LAZY_ONLY: ReadonlyMap<string, string> = new Map([
-  // Live a Line (app/linelazy.ts fetches app/line.ts and what it alone uses).
+  // Live a Line (app/main.ts lineOpen fetches app/line.ts and what it alone uses).
   ["src/ui/line-hud.ts", "Live a Line"],
   ["src/ui/line-guide.ts", "Live a Line"],
   ["src/ui/line-cell.ts", "Live a Line"],

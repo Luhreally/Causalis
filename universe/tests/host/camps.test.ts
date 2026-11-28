@@ -6,6 +6,7 @@ import { OCC } from "../../src/rules/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { populationContext, provinceOfTile, regionOf } from "../../src/sim/index.ts";
 import { campWords } from "../../src/view/index.ts";
+import { bandOf } from "../../src/host/line.ts";
 import type { LandCamp, LandPlan, PageModel } from "../../src/bridge/index.ts";
 
 // Phase 28 M159: a land's bands camped on it — its people who forage or herd, in no village,
@@ -96,4 +97,28 @@ test("a camp's page: who they are, how they live, how far they range, and the la
   const gone = ask<PageModel>("page", { ref: `camp:${cell}:99` });
   assert.equal(gone.kind, "camp");
   assert.equal(gone.place, null);
+});
+
+test("a camp's page asks Live a Line for its own band: that camp, on its land; a camp not standing, the default", () => {
+  const plan = ask<LandPlan>("towns.land", { cell }),
+    others = [...ctx.provinces.all()]
+      .filter((p) => p.cell !== cell && ask<LandPlan>("towns.land", { cell: p.cell }).camps.length)
+      .slice(0, 1),
+    asked = (ref?: string) => bandOf(world, ref),
+    last = plan.camps[plan.camps.length - 1]!;
+  assert.deepEqual(
+    [asked()?.cell, asked()?.id],
+    [cell, 0],
+    "unasked: the most peopled land's first",
+  );
+  const mine = asked(`camp:${cell}:${last.id}`)!;
+  assert.deepEqual([mine.cell, mine.id], [cell, last.id], "a camp asked by its page: that one");
+  if (others[0]) {
+    const at = others[0].cell,
+      id = ask<LandPlan>("towns.land", { cell: at }).camps[0]!.id,
+      far = asked(`camp:${at}:${id}`)!;
+    assert.deepEqual([far.cell, far.id], [at, id], "a camp in another land: there");
+  }
+  const gone = asked(`camp:${cell}:9999`)!;
+  assert.deepEqual([gone.cell, gone.id], [cell, 0], "a camp not standing: the default band");
 });

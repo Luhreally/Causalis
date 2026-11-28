@@ -1,14 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  FIELD_H,
-  FIELD_W,
-  MOTE,
-  newDrop,
-  stepDrop,
-  worth,
-  type DropState,
-} from "../../src/view/drop.ts";
+import { FIELD_H, FIELD_W, newDrop, stepDrop, worth, type DropState } from "../../src/view/drop.ts";
+import { MOTE } from "../../src/view/line.ts";
 import {
   CRUMB,
   aboutHeld,

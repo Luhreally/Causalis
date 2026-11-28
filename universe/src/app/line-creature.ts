@@ -19,9 +19,9 @@ import {
   meadowHeld,
   meadowOffers,
   newMeadow,
-  prey,
   stepMeadow,
   type Beast,
+  type MeadowKind,
   type MeadowState,
 } from "../view/index.ts";
 
@@ -104,6 +104,19 @@ type Nest = {
 
 /** The line's lineage's ref in the meadow. */
 export const LINE_REF = "line:held";
+
+/**
+ * Whether a beast of kind `h` hunts one of kind `p`: the meadow's own rule (view/meadow.ts prey), copied so that the god
+ * game's page need not export it for this mode's chunk (tests/view/drop-copies.test.ts holds the two together).
+ */
+export function prey(h: MeadowKind, p: MeadowKind): boolean {
+  if (p === h || p.feed === "hunt" || p.feed === "small" || p.feed === "scavenge") return false;
+  if (p.feed === "swim") return false;
+  if (h.feed === "hunt")
+    return p.feed !== "peck" && p.size <= h.size * 2.5 && p.size >= h.size * 0.04;
+  if (h.feed === "small") return p.size <= h.size * 0.9 && (p.feed === "peck" || p.size < 30);
+  return false;
+}
 
 export class LineCreature {
   readonly scene: MeadowScene;

@@ -142,6 +142,8 @@ export type Biosphere = {
     readonly because: string;
     /** The lineage they rose from (B4: a world read from its physics). */
     readonly forebear?: number;
+    /** Risen from the line a hand lived and made so (Live a Line S5): the tree's people come of it. */
+    readonly line?: true;
   } | null;
   /** Why no people rose (B4: a world read from its physics where none qualified). */
   readonly noPeople?: string;
@@ -364,6 +366,12 @@ export function makeBiosphere(
     readonly lives?: ReadonlyMap<number, LifeWay>;
     /** Where the god's hand bade the people rise, a cell (Phase 28; null: where they would). */
     readonly cradle?: number | null;
+    /**
+     * The line a hand lived and made so, read to the clade its body is of, and the name its people would take (Live a Line
+     * S5): they rise of it where this world's conditions let that clade rise at all; else the world's own rise, and the line
+     * lives on beside them.
+     */
+    readonly rises?: { readonly clade: string; readonly name: string } | null;
   } = {
     prior: "earthlike",
     gravity: 1,
@@ -974,23 +982,28 @@ export function makeBiosphere(
     }
   }
 
-  const clade = riseOf(world.prior, conditionsIn, (i) =>
-    rng.real(BIO, Math.max(0, apesAt), 0, 101, i),
-  );
+  const asked = world.rises ? CLADES.find((c) => c.id === world.rises!.clade) : undefined,
+    askedAt = asked ? conditionsIn(asked.body.medium) : null,
+    fromLine = !!asked && !!askedAt && asked.fit(askedAt) > 0,
+    clade = fromLine
+      ? asked!
+      : riseOf(world.prior, conditionsIn, (i) => rng.real(BIO, Math.max(0, apesAt), 0, 101, i));
   if (!clade) {
     web();
     return { species, present, herdBeast, seedGrass, diversity, people: null };
   }
   const home = cradleOf[clade.body.medium],
     conditions = conditionsIn(clade.body.medium)!,
-    body =
-      world.prior === "earthlike"
+    bred =
+      world.prior === "earthlike" && clade.id === "ape"
         ? { ...clade.body }
         : bodyOf(
             clade,
             conditions,
             [0, 1, 2].map((i) => rng.real(BIO, home, 0, 102, i)),
-          );
+          ),
+    // (Risen from the line: its people named for it.)
+    body = fromLine ? { ...bred, name: world.rises!.name } : bred;
   const apes: Species = {
     index: species.length,
     ref: speciesRef(0, species.length),
@@ -1022,6 +1035,14 @@ export function makeBiosphere(
     herdBeast,
     seedGrass,
     diversity,
-    people: { species: apes.index, cell: home, body, because: clade.because(conditions) },
+    people: {
+      species: apes.index,
+      cell: home,
+      body,
+      because: fromLine
+        ? `of the line your hand lived and made so: ${clade.because(conditions)}`
+        : clade.because(conditions),
+      ...(fromLine ? { line: true as const } : {}),
+    },
   };
 }

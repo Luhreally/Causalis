@@ -8,30 +8,34 @@
 // choice (view/line.ts daughtersOf), the other swims off as one of its line. Kept apart from view/drop.ts so that the god
 // game's own pages carry none of it: it comes with the mode's chunk alone (app/line.ts).
 import {
-  DIGEST,
   FIELD_H,
   FIELD_W,
+  STEP,
+  born,
+  gap,
+  stepDrop,
+  worth,
+  type Cell,
+  type DropState,
+} from "./drop.ts";
+import {
+  DIGEST,
   MOST,
   MOTE,
   ROCK,
   ROCK_REACH,
   SPEED,
-  STEP,
   SUN,
   UPKEEP,
-  born,
-  gap,
   gapY,
   lightAt,
   normal,
+  partEffects,
   placeY,
-  stepDrop,
-  worth,
+  wayOf,
   wrap,
-  type Cell,
-  type DropState,
-} from "./drop.ts";
-import { partEffects, wayOf, type Traits } from "./line.ts";
+  type Traits,
+} from "./line.ts";
 
 /**
  * Where the food of the drop about a held cell comes from, and how much (Live a Line, its food made playable from first

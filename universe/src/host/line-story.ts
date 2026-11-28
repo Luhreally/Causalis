@@ -1,6 +1,7 @@
 // Live a Line's civilization (S7, 2026-11-28): what came of the land a line's band was led in, read off the world as it
 // stands. Its people, whether it sows, its first village and when it was founded, its market town, the realm that holds it.
 // A pure reading, asked only by Live a Line (host/line.ts ask) and fetched with it.
+import type { VillagePlan } from "../bridge/index.ts";
 import { YEAR, type World } from "../kernel/index.ts";
 import {
   ASKED_REASON,
@@ -162,3 +163,20 @@ export function starsOf(world: World, at: unknown): LineStars | null {
     })),
   };
 }
+
+/** What rose in a world made so (S5): its people of your line, named for it, or why they could not, and who rose instead. */
+export type LineRises = {
+  readonly risen: boolean;
+  /** Its people: their name, their clade's name, weight (kg), what they handle things with, and why they rose. */
+  readonly people: {
+    readonly name: string;
+    readonly clade: string;
+    readonly size: number;
+    readonly hold: string;
+    readonly because: string;
+    /** How one of them is drawn (the god game's own figure of a world's people: host/folk.ts). */
+    readonly figure: VillagePlan["body"];
+  } | null;
+  /** The clade your line is of, in words (null: no body made so). */
+  readonly lineClade: string | null;
+};

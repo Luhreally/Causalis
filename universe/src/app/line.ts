@@ -1,5 +1,5 @@
 // Live a Line (asked 2026-11-27, the owner's defaults approved): the world's life lived by hand from its first cell, a
-// mode of its own fetched only when it is entered (app/linelazy.ts). Entered from the planet's bar (Begin as a cell) or
+// mode of its own fetched only when it is entered (app/main.ts lineOpen). Entered from the planet's bar (Begin as a cell) or
 // from a line of the tree of life (Live this line), it holds the world's clock where it stands, puts the god game's chrome
 // and scenes away, and plays the world's own first seas (the genesis's drop: view/drop.ts) with one cell of them held by
 // the stick (view/drop-held.ts). What the cell can do is read off its world (view/line.ts); which daughter it lives on in
@@ -14,12 +14,12 @@ import { MicroScene, type OrbitRig, type Stage } from "../render/index.ts";
 import { LineCreature, type LineBody } from "./line-creature.ts";
 import { LineBand } from "./line-band.ts";
 import { STORY, storyPage, type StoryOf } from "./line-story.ts";
-import type { LineStars, LineStory } from "../host/line-story.ts";
+import type { LineRises, LineStars, LineStory } from "../host/line-story.ts";
 import type { CampNear } from "../bridge/index.ts";
 import { DepthLayer, type Beyond } from "../render/line-depth.ts";
 import { CellJuice } from "../render/line-juice.ts";
 import { LineSound } from "./line-sound.ts";
-import { el } from "../ui/index.ts";
+import { drawPortrait, el } from "../ui/index.ts";
 import type { PlaceLoading } from "../ui/place-loading.ts";
 import { YEAR } from "../kernel/index.ts";
 import { LineHud } from "../ui/line-hud.ts";
@@ -31,7 +31,6 @@ import {
   FIELD_W,
   STEP,
   arise,
-  lightAt,
   newDrop,
   roundDrop,
   roundOf,
@@ -71,6 +70,7 @@ import {
   whatNow,
   PARTS,
   partEffects,
+  lightAt,
   type PartId,
   type Daughter,
   type Gates,
@@ -617,9 +617,12 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
   // it reaches the world but the land taught to sow: the god's own act.inspire, at the hand's word, its world kept first.)
 
   /** A band of the most peopled land that camps put under the hand (none camping: said so). */
-  const startBand = async () => {
+  const startBand = async (camp?: string) => {
     layer(null);
-    const land = await d.client.query<typeof bandLand>({ type: "line.band" }),
+    const land = await d.client.query<typeof bandLand>({
+        type: "line.band",
+        args: camp ? { ref: camp } : {},
+      }),
       info = land
         ? await d.client.query<CampNear | null>({
             type: "camp.near",
@@ -1701,8 +1704,9 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
         cell: wayOf(traits ?? saga.first),
         bodies: (saga.bodies ?? []).map((b) => ({ my: b.my, way: b.way })),
         node: saga.node ?? null,
-        // (Its body as you leave it: the one your line lives in now.)
+        // (Its body as you leave it: the one your line lives in now; and what you call it, its people's name if they rise.)
         genome: saga.body?.genome ?? null,
+        name: saga.body?.name ?? null,
       },
     });
     if (!made.acts.length) {
@@ -1727,13 +1731,68 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
     if (saga.body)
       made1.querySelector(".line-card-head")?.after(beastPicture(saga.body.body, null));
     layer(made1);
-    await keepSaga();
-    // (Your world kept as the game keeps it, its own save: app/main.ts's checkpoint, by the same name.)
+    // (Your world kept as the game keeps it, its own save: app/main.ts's checkpoint, by the same name; and what rose in the
+    // new world read meanwhile: your line's people, named for it, where its clade can rise there.)
     const params = new URLSearchParams(location.search),
       universe = params.get("universe") ?? "earth",
-      seed = params.get("seed") ?? "first light";
-    await d.client.save(`${universe}:${seed}:auto`).catch(() => undefined);
-    location.search = `?universe=${encodeURIComponent(universe)}&seed=${encodeURIComponent(made.seed)}`;
+      seed = params.get("seed") ?? "first light",
+      [, rises] = await Promise.all([
+        keepSaga().then(() => d.client.save(`${universe}:${seed}:auto`).catch(() => undefined)),
+        saga.body
+          ? d.client
+              .query<LineRises>({ type: "line.rises", args: { seed: made.seed } })
+              .catch(() => null)
+          : Promise.resolve(null),
+      ]);
+    const open = () => {
+      location.search = `?universe=${encodeURIComponent(universe)}&seed=${encodeURIComponent(made.seed)}`;
+    };
+    if (!rises?.people || !saga.body) return open();
+    const p = rises.people,
+      them = `${p.size} kg, handling things with their ${p.hold}`;
+    const risen = card(
+      rises.risen
+        ? `Your line rises: the ${p.name}`
+        : "Your line lives on beside your world's people",
+      rises.risen
+        ? [
+            `Ages after your ${saga.body.name}, your line comes to think, to make and to remember: the ${p.name}, ${p.clade} of ${them}.`,
+            `They are your new world's people, ${p.because.replace(/^of the line your hand lived and made so: /, "")}. Their bands, villages and realms are your line's.`,
+          ]
+        : [
+            `Your line, ${rises.lineClade ? `of the ${rises.lineClade}` : "as you left it"}, lives on to now; but that kind could not rise to thought on this world.`,
+            `Its people rise as before: the ${p.name}, ${them}.`,
+          ],
+      [key("🌍 Open the new world", open)],
+      "help:makeso",
+    );
+    // (Risen: one of them drawn as the god game draws a world's people, beside the forebear the hand lived; else the forebear.)
+    const forebear = beastPicture(saga.body.body, null),
+      pictures = el("div", "line-rises-pictures");
+    if (rises.risen) {
+      const one = document.createElement("canvas");
+      one.className = "line-rises-one";
+      one.setAttribute("aria-label", `One of the ${p.name}`);
+      drawPortrait(
+        one,
+        {
+          kind: "person",
+          ref: `line:${made.seed}`,
+          age: 30,
+          span: 60,
+          occupation: 0,
+          child: false,
+          era: "forage",
+          body: p.figure,
+        },
+        84,
+        84,
+        0,
+      );
+      pictures.append(forebear, one);
+    } else pictures.append(forebear);
+    risen.querySelector(".line-card-head")?.after(pictures);
+    layer(risen);
   };
   hud.onHelp = () => openPage("help:mode");
   hud.onStripHelp = () => openPage(living ? "help:body" : "help:cell");
@@ -1773,7 +1832,7 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
           year: Math.floor((d.client.status?.t ?? 0) / YEAR),
           air: "your world held still",
           facts: [
-            from === "band"
+            from === "band" || from?.startsWith("camp:")
               ? "A band of its people"
               : from
                 ? "A line of its tree of life"
@@ -1831,10 +1890,10 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
               "help:mode",
             ),
           );
-        } else if (from === "band") {
-          // (The tribe asked for at once: the band led, the cells let be.)
+        } else if (from === "band" || from?.startsWith("camp:")) {
+          // (The tribe asked for at once, or a camp's own band from its page: the band led, the cells let be.)
           await begin(null, null);
-          await startBand();
+          await startBand(from === "band" ? undefined : from);
         } else {
           await begin(resumable, from);
           if (!guide.welcomed) layer(guide.welcome(() => {}));

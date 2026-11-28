@@ -578,7 +578,7 @@ export class PlanetPanel {
       whole = menuButton("⛶", "Full screen"),
       // The world's own beginning, from the galaxy's birth to its first people (M89).
       origin = menuButton("🌱", "Its beginning"),
-      // Live a Line: the world's life lived by hand from one of its first cells (app/linelazy.ts).
+      // Live a Line: the world's life lived by hand from one of its first cells (app/main.ts lineOpen).
       cell = menuButton("🦠", "Begin as a cell");
     origin.onclick = () => this.onGenesis();
     cell.onclick = () => this.onLine();

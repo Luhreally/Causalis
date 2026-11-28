@@ -643,6 +643,47 @@ for (const view of [
   say(`the band's land: ${JSON.stringify(bd0.land)}; a wild grain there: ${bd0.grain}`);
   await look("21-band", "the band at its camp");
   await throttled("a band led");
+  // —— ⛺ Lead this band, from a camp's own page in the god game: that camp's band led, on its land (the last camp of the
+  // land, so that the asked one is told from the first, which the mode leads unasked).
+  {
+    await k("globalThis.causalis.lineMode.wake()");
+    await until(
+      "back in the god game",
+      async () => !(await k<boolean>("document.body.classList.contains('lining')")),
+      20000,
+    );
+    const at = bd0.land!.cell,
+      camps = await k<{ id: number }[]>(
+        `globalThis.causalis.client.query({ type: "towns.land", args: { cell: ${at} } }).then((p) => p.camps.map((c) => ({ id: c.id })))`,
+      ),
+      id = camps[camps.length - 1]?.id ?? 0;
+    await k(`globalThis.causalis.open("camp:${at}:${id}")`);
+    await page.waitForTimeout(2500);
+    await look("21b-camp-page", "a camp's page, its key to lead its band");
+    // (On a phone a page's keys stand under its numbers: scrolled to, as a finger would.)
+    await k(
+      `[...document.querySelectorAll(".page-window .scene-act")].find((e) => /Lead this band/.test(e.textContent ?? ""))?.scrollIntoView({ block: "center" })`,
+    );
+    await page.waitForTimeout(500);
+    if (await pressText(".page-window .scene-act", /Lead this band/, "⛺ Lead this band")) {
+      await until(
+        "that camp's band led",
+        async () => {
+          const b = await band();
+          return !!b?.leading && b.land?.cell === at;
+        },
+        40000,
+      );
+      const led = (await band()) ?? { land: null };
+      check(
+        led.land?.cell === at && (led.land as { id?: number }).id === id,
+        `the camp asked by its page is the one led (camp ${at}:${id} → ${JSON.stringify(led.land)})`,
+      );
+      await page.waitForTimeout(1200);
+      await look("21c-camp-led", "the camp's own band led, its card");
+      await k("globalThis.causalis.lineMode.close()");
+    }
+  }
   say(`the band's step: ${bd0.stepMs.toFixed(2)} ms`);
   // (At night: 🌙 Sleep in the hunt's place, and the night passes in a few seconds, seen.)
   if ((await band())!.hour < 7.5 || (await band())!.hour >= 18) {
@@ -844,8 +885,9 @@ for (const view of [
     }
   }
   // —— Make it so (S4): the line laid into a new world from its beginning, the old world kept; the new world opened from
-  // year 0 in the time allowed, its tree holding the line. On the desk, once.
-  if (!phone) {
+  // year 0 in the time allowed, its tree holding the line; first, its people told (S5): the line risen as the world's people
+  // where its kind fits, named and shown on a card, or living on beside them. At both sizes, last (the page is left).
+  {
     await k("globalThis.causalis.line.open(null)");
     await until(
       "in again for Make it so",
@@ -868,6 +910,33 @@ for (const view of [
     await page.waitForTimeout(300);
     const t0m = Date.now();
     if (await pressText(".line-card-go, .line-card-other", /Make it so/, "✨ Make it so")) {
+      await until(
+        "the new world's people told",
+        async () =>
+          await k<boolean>(`/Your line (rises|lives on)/.test(document.body.textContent ?? "")`),
+        90000,
+      );
+      const told = await k<string>(
+        `[...document.querySelectorAll(".line-card")].map((e) => e.textContent).join(" | ").slice(0, 400)`,
+      );
+      say(`the rises card: ${told}`);
+      check(
+        /Your line rises: the .*folk|beside your world.s people/.test(told),
+        "the card names the people",
+      );
+      if (/Your line rises/.test(told))
+        check(
+          await k<boolean>(
+            `[...document.querySelectorAll(".line-rises-one")].some((e) => e.getBoundingClientRect().width > 40)`,
+          ),
+          "one of the risen people drawn beside their forebear",
+        );
+      await look("18b-rises", "the line's people told: named and shown");
+      await pressText(
+        ".line-card-go, .line-card-other",
+        /Open the new world/,
+        "🌍 Open the new world",
+      );
       await page
         .waitForURL((u) => u.toString() !== before, { timeout: 30000 })
         .catch(() => undefined);

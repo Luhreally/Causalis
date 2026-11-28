@@ -54,6 +54,8 @@ export {
   surfaceOre,
   type HomeWorld,
   linesMade,
+  linePeople,
+  cladeOfLine,
   GENOME_CODE,
   type LineMade,
 } from "./homeworld.ts";
