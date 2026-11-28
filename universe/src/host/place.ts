@@ -664,6 +664,13 @@ type People = {
    * work it takes. A byte, kept while it mends; a scar's or a lame limb's is in `mark`.
    */
   tissue: Uint8Array;
+  /**
+   * P3. Their mother and father (their numbers; 0: not known, one who came to the town grown, or born before parents were
+   * kept): those born in the town are born to one who bears and the one she is paired with, so a family's tree is the
+   * place's own.
+   */
+  mother: Uint32Array;
+  father: Uint32Array;
 };
 /**
  * The kinds of work one's hours are counted at (N6): the six trades' own, in OCCUPATIONS' order past the dependent's (a
@@ -749,7 +756,10 @@ export const PERSON_BYTES =
   // (Tiers: how closely they are followed, and how far into their stride their needs are reckoned.)
   2 +
   // (The tissue a wound reached.)
-  1;
+  1 +
+  // (P3: their mother and father.)
+  4 +
+  4;
 
 function peopleOf(cap: number): People {
   return {
@@ -795,6 +805,8 @@ function peopleOf(cap: number): People {
     tier: new Uint8Array(cap),
     reck: new Uint8Array(cap),
     tissue: new Uint8Array(cap),
+    mother: new Uint32Array(cap),
+    father: new Uint32Array(cap),
   };
 }
 const PEOPLE_COLS = [
@@ -839,6 +851,8 @@ const PEOPLE_COLS = [
   "tier",
   "reck",
   "tissue",
+  "mother",
+  "father",
 ] as const;
 type Col = (typeof PEOPLE_COLS)[number];
 const widthOf = (c: Col) =>
@@ -1902,7 +1916,12 @@ export function placeDigest(p: Place): string {
   for (const c of PEOPLE_COLS) {
     const a = p.people[c] as Uint8Array;
     // (Tiers all full, as a place kept before them reads: hashed as one kept before them was, so the two are told alike.)
-    if ((c === "tier" || c === "reck") && !a.subarray(0, p.people.n).some((x) => x)) continue;
+    // (So with parents, P3: a place kept before them, or with no one born since, is told as it was.)
+    if (
+      (c === "tier" || c === "reck" || c === "mother" || c === "father") &&
+      !a.subarray(0, p.people.n).some((x) => x)
+    )
+      continue;
     for (let i = 0; i < p.people.n * widthOf(c); i++) h.int(a[i]!);
   }
   for (const list of [
@@ -2484,6 +2503,8 @@ function addPerson(place: Place, sex: number, occ: number, born: number, house: 
     p.tier[i] =
     p.reck[i] =
     p.tissue[i] =
+    p.mother[i] =
+    p.father[i] =
       0;
   place.houses.members[house]!++;
   return i;
@@ -3370,7 +3391,8 @@ function liveDue(world: World, place: Place, f: Frame, all = false): void {
             ? 0
             : lo + (hi - lo) * world.rng.unit(PLACE_DRAW, place.key ^ id, place.t, P.age);
       let house = -1,
-        mother = 0;
+        mother = 0,
+        father = 0;
       if (what === DUE.born) {
         // (Born to one who bears, of the age to: one paired, where any is.)
         const mothers: number[] = [],
@@ -3386,10 +3408,14 @@ function liveDue(world: World, place: Place, f: Frame, all = false): void {
           const m = of[world.rng.index(of.length, PLACE_DRAW, place.key ^ id, place.t, P.mother)]!;
           house = p.house[m]!;
           mother = p.id[m]!;
+          // (Of her and the one she is paired with: P3.)
+          father = p.mate[m] && p.mate[m] !== PROMISED ? p.mate[m]! : 0;
         }
       }
       if (house < 0) house = houseFor(world, place, id, f, homesFor(world, place.town, p.n + 1));
       const i = addPerson(place, sex, occ, Math.floor(place.t / DAY - age * 365), house);
+      place.people.mother[i] = mother;
+      place.people.father[i] = father;
       place.people.skill[i] = skillAt(f, age, occ);
       teach(place, i);
       workOf(world, place, i);
@@ -3407,6 +3433,9 @@ function liveDue(world: World, place: Place, f: Frame, all = false): void {
       if (m < 0) continue;
       const id = place.nextId,
         i = addPerson(place, b, OCC.dependent, Math.floor(place.t / DAY), p.house[m]!);
+      // (Hers, and the one she is paired with: P3.)
+      p.mother[i] = a;
+      p.father[i] = p.mate[m] && p.mate[m] !== PROMISED ? p.mate[m]! : 0;
       place.people.skill[i] = skillAt(f, 0, OCC.dependent);
       teach(place, i);
       workOf(world, place, i);

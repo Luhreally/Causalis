@@ -11,6 +11,7 @@
 import type {
   PlaceInspect,
   PlaceInspectBelow,
+  PlaceInspectFamily,
   PlaceInspectGate,
   PlaceInspectLegends,
   PlaceInspectWork,
@@ -252,6 +253,7 @@ export class PlaceInspector {
     else if (x.kind === "work") this.work(x);
     else if (x.kind === "legends") this.legends(x);
     else if (x.kind === "gate") this.gate(x);
+    else if (x.kind === "family") this.family(x);
     else this.lot(x);
   }
 
@@ -302,6 +304,11 @@ export class PlaceInspector {
     pin.setAttribute("aria-label", pin.title);
     pin.onclick = () => this.onPin(x.id, !fixed);
     body.push(tier);
+    // (Their family, P3.)
+    const family = el("button", "place-insp-family", "Family ▸");
+    family.setAttribute("aria-label", `${x.name}'s family: parents, brothers and sisters, children`);
+    family.onclick = () => this.onInspect(x.familyRef);
+    body.push(family);
     // (A hand's orders, by name: a trade, or let be.)
     if (this.orders && x.trade !== "child") {
       const row = el("div", "place-insp-orders"),
@@ -537,6 +544,33 @@ export class PlaceInspector {
       ]),
       el("p", "place-insp-why", x.words),
     );
+  }
+  /** One's family in the town (P3): each of their kin a key while of the town; a pairing to come said. */
+  private family(x: PlaceInspectFamily): void {
+    this.picture(x);
+    const title = `${x.icon} ${x.name}`;
+    if (this.title.textContent !== title) this.title.textContent = title;
+    const kinN = x.siblings.length + x.children.length + x.grandchildren.length;
+    this.sub.textContent = `${x.children.length} ${x.children.length === 1 ? "child" : "children"} · ${kinN + x.grandparents.length + (x.mate ? 1 : 0)} kin in the town`;
+    const body: HTMLElement[] = [el("p", "place-insp-why", x.words)],
+      rows = (label: string, list: readonly { name: string; ref: string | null; words: string }[]) => {
+        if (!list.length) return;
+        const box = el("div", "place-insp-people");
+        for (const r of list) {
+          const b = el(r.ref ? "button" : "div", "place-insp-person place-family-row");
+          b.append(el("span", "place-row-name", r.name), el("span", "place-row-what", r.words));
+          if (r.ref) (b as HTMLButtonElement).onclick = () => this.onInspect(r.ref!);
+          box.append(b);
+        }
+        body.push(el("p", "place-insp-label", label), box);
+      };
+    rows("Parents", x.parents);
+    rows("Grandparents", x.grandparents);
+    if (x.mate) rows(x.promised ? "Promised to (courting)" : "Paired with", [x.mate]);
+    rows("Brothers and sisters", x.siblings);
+    rows("Children", x.children);
+    rows("Grandchildren", x.grandchildren);
+    this.body.replaceChildren(...body);
   }
   /** A town's gate (P2): who came and who comes, each a key to what sent them; its order, shut to newcomers or open. */
   private gate(x: PlaceInspectGate): void {
