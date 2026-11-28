@@ -8,9 +8,19 @@ import type { sound as Sound } from "./sound.ts";
 /** The game's own sound, as the mode is handed it (only its settings are read: whether, and how loud). */
 type Settings = Pick<typeof Sound, "settingsNow">;
 
-type Tone = { f: number; to: number; len: number; type: OscillatorType; level: number };
+/** A note: from and to (Hz), how long (s), its wave, how loud, and when after the first it begins (s; absent: 0.04 a note). */
+type Tone = {
+  f: number;
+  to: number;
+  len: number;
+  type: OscillatorType;
+  level: number;
+  after?: number;
+};
 
-const TONES: Readonly<Record<"chomp" | "pop" | "hurt" | "split" | "danger", readonly Tone[]>> = {
+const TONES: Readonly<
+  Record<"chomp" | "pop" | "hurt" | "split" | "danger" | "grow" | "loss" | "rise", readonly Tone[]>
+> = {
   chomp: [{ f: 520, to: 260, len: 0.07, type: "triangle", level: 0.16 }],
   pop: [
     { f: 440, to: 880, len: 0.12, type: "sine", level: 0.22 },
@@ -23,6 +33,23 @@ const TONES: Readonly<Record<"chomp" | "pop" | "hurt" | "split" | "danger", read
     { f: 560, to: 1120, len: 0.3, type: "sine", level: 0.08 },
   ],
   danger: [{ f: 110, to: 98, len: 0.5, type: "triangle", level: 0.14 }],
+  // (Growth: a child born, a young one taken, a year's gain. Two notes up a fifth.)
+  grow: [
+    { f: 392, to: 392, len: 0.16, type: "sine", level: 0.16 },
+    { f: 587, to: 587, len: 0.3, type: "sine", level: 0.13, after: 0.12 },
+  ],
+  // (A loss: a land or a place given up. Down a minor third, low.)
+  loss: [
+    { f: 233, to: 220, len: 0.3, type: "triangle", level: 0.13 },
+    { f: 196, to: 185, len: 0.45, type: "triangle", level: 0.1, after: 0.18 },
+  ],
+  // (A stage's end: a rising chord, its notes one after the other, gathered.)
+  rise: [
+    { f: 262, to: 262, len: 0.9, type: "sine", level: 0.13 },
+    { f: 330, to: 330, len: 0.85, type: "sine", level: 0.11, after: 0.12 },
+    { f: 392, to: 392, len: 0.8, type: "sine", level: 0.1, after: 0.24 },
+    { f: 523, to: 523, len: 0.75, type: "triangle", level: 0.08, after: 0.36 },
+  ],
 };
 
 export class LineSound {
@@ -71,7 +98,7 @@ export class LineSound {
     TONES[kind].forEach((t, i) => {
       const o = ctx.createOscillator(),
         g = ctx.createGain(),
-        start = at + i * 0.04;
+        start = at + (t.after ?? i * 0.04);
       o.type = t.type;
       o.frequency.setValueAtTime(t.f, start);
       o.frequency.exponentialRampToValueAtTime(t.to, start + t.len);

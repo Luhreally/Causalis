@@ -8,7 +8,14 @@
 //
 // Keyed draws on the biosphere's own stream (never a sequence: no other draw of the world moves), each choice its
 // own key; nothing stored but what the world already keeps of its biosphere.
-import { Rng, defineStream, seedFromText, weightedKey, type SphereGrid } from "../kernel/index.ts";
+import {
+  Rng,
+  defineStream,
+  dmath,
+  seedFromText,
+  weightedKey,
+  type SphereGrid,
+} from "../kernel/index.ts";
 import {
   LEAST_RISE,
   LIFE_NICHES,
@@ -64,6 +71,8 @@ export type LivingInputs = {
   readonly dawn?: DawnWay | null;
   readonly lives?: ReadonlyMap<number, LifeWay>;
   readonly cradle?: number | null;
+  /** The line a hand lived and made so (Live a Line S5): its body, and its name where the hand named it. */
+  readonly rises?: { readonly body: CreatureBody | null; readonly name: string | null } | null;
 };
 
 const GRASS = new Set<number>([BIOME.steppe, BIOME.savanna]),
@@ -536,8 +545,41 @@ export function makeLivingBiosphere(i: LivingInputs): Biosphere {
     const k = weightedKey(u(20, r.index, 0), r.score);
     if (k < key) [pick, key] = [j, k];
   });
+  // The line a hand lived and made so (S5): its own body risen where this world's rule of rising would raise it and its
+  // people could live, its herding and growing and its range those of its nearest kin among the world's living beasts.
+  // Without the act nothing here is read, and the world's own pick stands.
+  let fromLine: { cand: RiseCandidate; read: (typeof reads)[number] } | null = null,
+    lineNot: string | null = null;
+  const lb = i.rises?.body;
+  if (lb) {
+    const medium = risenMedium(lb.place);
+    let kin: RiseCandidate | null = null,
+      least = Infinity;
+    for (const c of candidates) {
+      if (risenMedium(c.body.place) !== medium) continue;
+      const d =
+        Math.abs(dmath.log((c.body.size + 1e-3) / (lb.size + 1e-3))) +
+        (c.body.covering === lb.covering ? 0 : 1) +
+        Math.abs(c.body.legs - lb.legs) / 4 +
+        (c.body.fins === lb.fins ? 0 : 0.5) +
+        (c.body.wings === lb.wings ? 0 : 0.5);
+      if (d < least) [kin, least] = [c, d];
+    }
+    if (kin) {
+      const cand: RiseCandidate = { ...kin, body: lb },
+        read = riseRead(cand, w);
+      if (read.score >= LEAST_RISE && settles(cand)) fromLine = { cand, read };
+      else
+        lineNot =
+          read.score < LEAST_RISE
+            ? read.lacks.length
+              ? read.lacks.join("; ")
+              : "it fell short of what a mind wants"
+            : `its people could have settled nowhere (${homeWords(risenMedium(lb.place))})`;
+    } else lineNot = "no lineage of its kind lived on this world to rise among";
+  } else if (i.rises) lineNot = "it had no body to rise in";
   const why = (j: number) => species[j]?.name ?? "beast";
-  if (pick < 0)
+  if (pick < 0 && !fromLine)
     return {
       species,
       present,
@@ -545,14 +587,16 @@ export function makeLivingBiosphere(i: LivingInputs): Biosphere {
       seedGrass,
       diversity,
       people: null,
+      ...(lineNot ? { lineNot } : {}),
       noPeople: homeless.size
         ? `no lineage rose to thought: the nearest, the ${why(candidates[[...homeless][0]!]!.index)}, lived nowhere its people could have settled (${homeWords(risenMedium(candidates[[...homeless][0]!]!.body.place))})`
         : noneRoseWhy(reads, why, w),
     };
-  const from = candidates[pick]!,
+  const from = fromLine ? fromLine.cand : candidates[pick]!,
     fore = species[from.index]!,
-    rise = reads[pick]!,
-    body = risenBody(from, w, (m) => u(21, from.index, m));
+    rise = fromLine ? fromLine.read : reads[pick]!,
+    bred = risenBody(from, w, (m) => u(21, from.index, m)),
+    body = fromLine && i.rises!.name ? { ...bred, name: i.rises!.name } : bred;
   // Their cradle: where their forebears lived and their people can, the most food about it and the mildest (or where
   // the hand bade them, where they can live).
   const fit = fits[body.medium];
@@ -594,16 +638,25 @@ export function makeLivingBiosphere(i: LivingInputs): Biosphere {
     level: 0,
   };
   species.push(people);
-  const because = `of the ${fore.name}, ${PLACES[fore.place as Place]?.words ?? "its land"}: its ${
-    fore.body!.arms && fore.body!.arms > 1 ? `${fore.body!.arms} ` : ""
-  }${graspWords(fore.body!.grasp)} free while it stood, it talked by ${rise.talks}, lived together, and its trade fed a brain`;
+  const held = fromLine ? from.body : fore.body!,
+    because = `${fromLine ? `of the line your hand lived and made so, kin of the ${fore.name}` : `of the ${fore.name}`}, ${PLACES[fore.place as Place]?.words ?? "its land"}: its ${
+      held.arms && held.arms > 1 ? `${held.arms} ` : ""
+    }${graspWords(held.grasp)} free while it stood, it talked by ${rise.talks}, lived together, and its trade fed a brain`;
   return {
     species,
     present,
     herdBeast,
     seedGrass,
     diversity,
-    people: { species: people.index, cell, body, because, forebear: fore.index },
+    people: {
+      species: people.index,
+      cell,
+      body,
+      because,
+      forebear: fore.index,
+      ...(fromLine ? { line: true as const } : {}),
+    },
+    ...(lineNot ? { lineNot } : {}),
   };
 }
 

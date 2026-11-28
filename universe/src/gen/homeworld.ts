@@ -64,7 +64,8 @@ import { nativeIronLands, worldChemistry } from "./chemistry.ts";
 import { makeLivingBiosphere, seatPeople } from "./living.ts";
 import { protoGround, protoLifeWorld, protoLiquidWhy, type ProtoWorld } from "./origin.ts";
 import { worldLife } from "./life.ts";
-import type { Laws } from "../rules/index.ts";
+import { lineBody } from "./evolution.ts";
+import type { CreatureBody, Laws } from "../rules/index.ts";
 
 export type HomeWorld = {
   readonly prior: string;
@@ -234,6 +235,7 @@ export function generateHomeWorld(
             dawn: dawnMade(seed.text),
             lives: livesMade(seed.text, AGES),
             cradle: peoplingMade(seed.text).cradle,
+            rises: linePeople(linesMade(seed.text, AGES)),
           })
         : barrenBiosphere(grid.count)
       : // (Life takes hold in a kind's liquid only as often as its chemistry lets it: Phase 56.)
@@ -523,10 +525,18 @@ export function cladeOfLine(g: Record<string, unknown>): string {
 }
 
 /** The people the last line made so would rise as: its clade, and the name they take from it (none: no line, no body). */
-export function linePeople(lines: readonly LineMade[]): { clade: string; name: string } | null {
+export function linePeople(
+  lines: readonly LineMade[],
+): { clade: string; name: string | null; body: CreatureBody | null } | null {
   const l = lines.at(-1);
   if (!l?.genome) return null;
-  return { clade: cladeOfLine(l.genome), name: l.name ? `${l.name} folk` : "folk of your line" };
+  // (Named by the hand: "grizzle folk". Unnamed: none, so the risen people are named as the world names their kind, and
+  // their name and kind agree.)
+  return {
+    clade: cladeOfLine(l.genome),
+    name: l.name ? `${l.name} folk` : null,
+    body: lineBody(l.genome, l.way),
+  };
 }
 
 /**

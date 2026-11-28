@@ -1048,6 +1048,12 @@ export function ageSpan(k: number): [number, number] {
 const STEM_WAYS: readonly Way[] = ["sea swimmer", "sea crawler", "burrower"];
 
 /** The tree's ways in a fixed order: a line act names its way by its place here (rules/dawn.ts lineAct). */
+/** A line made so's body as it develops (its genome as the act tells it, eating as its way does): S5's rise reads it. */
+export function lineBody(genome: Record<string, unknown>, way: number): CreatureBody | null {
+  const w = wayAt(way);
+  return w ? develop({ ...(genome as Genome), diet: WAYS[w].diet }, WAYS[w].level) : null;
+}
+
 export function wayAt(i: number): Way | null {
   return (Object.keys(WAYS) as Way[])[i] ?? null;
 }

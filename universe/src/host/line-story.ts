@@ -36,6 +36,8 @@ export type LineStory = {
     readonly name: string;
     readonly founded: number;
     readonly lands: number;
+    /** Who rules it now (its year is ruled in their name: app/line-realm.ts). */
+    readonly ruler: string;
   } | null;
   /** Lands that sow and have no village yet, the world over: a land's first village waits its turn among them. */
   readonly waiting: number;
@@ -80,6 +82,7 @@ export function storyOf(world: World, asked: unknown): LineStory | null {
           name: realmName(living),
           founded: living.founded,
           lands: living.members.length,
+          ruler: living.ruler.name,
         }
       : null,
     waiting,
@@ -167,6 +170,10 @@ export function starsOf(world: World, at: unknown): LineStars | null {
 /** What rose in a world made so (S5): its people of your line, named for it, or why they could not, and who rose instead. */
 export type LineRises = {
   readonly risen: boolean;
+  /** Whether the hand named them (else they bear the name the world gives their kind). */
+  readonly named: boolean;
+  /** Not risen: why not, by the world's own rule. */
+  readonly why: string | null;
   /** Its people: their name, their clade's name, weight (kg), what they handle things with, and why they rose. */
   readonly people: {
     readonly name: string;
