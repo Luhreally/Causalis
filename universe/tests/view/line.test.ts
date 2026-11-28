@@ -188,9 +188,38 @@ test("a hunting cell takes the cell held where it reaches it; divided, the hand 
   hunter.x = c.x;
   hunter.y = c.y;
   hunter.full = 0;
+  hunter.speed = 0;
+  // (Gripped, it is hurt and slowed, not taken at a touch; held the better part of a second, it is taken in.)
   stepHeld(s, h);
+  assert.equal(h.ended, "");
+  assert.ok(h.caught > 0 && h.hurt === 1);
+  for (let i = 0; i < 40 && !h.ended; i++) {
+    hunter.x = heldCell(s, h)?.x ?? hunter.x;
+    hunter.y = heldCell(s, h)?.y ?? hunter.y;
+    stepHeld(s, h);
+  }
   assert.equal(h.ended, "taken");
   assert.ok(!heldCell(s, h));
+
+  // Gripped and pulled free at once, by a dart: it lives, and the grip loosens.
+  const f = newDrop(block(), [true, false, true, false]),
+    fh = holdDrop(f, first, swimSpeed(first, WATER), { x: 90, y: 60 }),
+    fc = heldCell(f, fh)!,
+    fo = f.cells.find((x) => x.way === "hunter")!;
+  fo.x = fc.x;
+  fo.y = fc.y;
+  fo.full = 0;
+  fo.speed = 0;
+  stepHeld(f, fh);
+  assert.ok(fh.caught > 0);
+  fh.act = "dart";
+  fh.mx = 1;
+  for (let i = 0; i < 60; i++) {
+    fo.speed = 0;
+    stepHeld(f, fh);
+  }
+  assert.equal(fh.ended, "", "pulled free, it lives");
+  assert.ok(fh.caught < 0.3, `the grip loosens (${fh.caught})`);
 
   const t = newDrop(block(), [true, false, false, false]),
     g = holdDrop(t, first, swimSpeed(first, WATER), { x: 40, y: 40 }),

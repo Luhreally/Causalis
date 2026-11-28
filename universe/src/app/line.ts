@@ -36,6 +36,7 @@ import {
   heldCell,
   holdDrop,
   preyOf,
+  ENGULF,
   stepHeld,
   threatOf,
   type DropHand,
@@ -451,23 +452,32 @@ export function installLine(d: LineDeps): LineFlow {
     void keepSaga();
     const how =
       hand.ended === "taken"
-        ? `One of the ${hand.by ?? "hunting cells"} took your cell in.`
-        : "Your cell spent more than it gathered, and died.";
-    layer(
-      card(
-        "Your cell is gone",
-        [how, "Your line lives on in its own kind: go on as one of them, with all your line has become."],
-        [key("Go on as one of your line", () => goOn()), key("☀️ Wake", () => void flow.wake(), true)],
-        "help:stage",
-      ),
-    );
+        ? `One of the ${hand.by ?? "hunting cells"} took your cell in`
+        : "Your cell spent more than it gathered, and died";
+    // (Not an end: a moment, and the line goes on in a sister or one of its own, with all the line has become.)
+    hud.say(`${how}. Your line goes on.`, false);
+    const banner = el("div", "line-goes-on");
+    banner.append(el("strong", "", "Your line goes on"), el("br"), el("span", "", "as one of its own"));
+    hud.element.append(banner);
+    window.setTimeout(() => {
+      banner.remove();
+      if (on && ended && !living) goOn();
+    }, 2400);
   };
   const goOn = () => {
     if (!drop || !traits) return;
     // (Where one of its line is still in the drop, there; else a sister newly divided, in the drop's middle.)
     const kin = drop.cells.find((c) => c.marked && c.id !== hand?.id);
     if (kin) drop.cells.splice(drop.cells.indexOf(kin), 1);
-    hand = holdDrop(drop, traits, speedOf(traits), kin ? { x: kin.x, y: kin.y } : null);
+    hand = holdDrop(
+      drop,
+      traits,
+      speedOf(traits),
+      kin ? { x: kin.x, y: kin.y } : null,
+      kin ? Math.max(kin.energy, worth(traits.size) * 0.6) : null,
+    );
+    wasFull = false;
+    ateSeen = 0;
     ended = false;
     layer(null);
     hud.say("You go on as one of your line");
@@ -1078,6 +1088,8 @@ export function installLine(d: LineDeps): LineFlow {
       wasFull = full >= 1;
     }
     hud.offers(offersNow());
+    hud.health(1 - hand.caught / ENGULF, hand.hurt);
+    if (hand.caught > 0 && guide.first("caught")) hud.say("Caught! Swim hard, or dart (E), to pull free", false);
     if (c) {
       const near = threatOf(drop, c);
       if (near !== null && near < 34) {

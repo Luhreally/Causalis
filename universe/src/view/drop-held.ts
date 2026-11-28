@@ -61,6 +61,16 @@ const START_OFF = 6,
 /** What the held cell spends to keep alive, against its kind's in the drop (a held cell is one of a line that has come through; it keeps for a minute or so unfed). */
 const HELD_UPKEEP = 0.4;
 
+/**
+ * How long a hunting cell must hold the cell held to take it in (s): a cell is wrapped and swallowed, not taken at a touch
+ * (engulfing takes the better part of a second at this size); pulled free first, it lives, hurt. How much faster a hunter
+ * that senses it closes on it (its lunge, as a hunter of the drop closes on its prey there), and how much slower the one
+ * held goes while it is gripped.
+ */
+export const ENGULF = 0.9,
+  LUNGE = 0.5,
+  GRIPPED = 0.55;
+
 /** How long a dart lasts (seconds of the drop's time), how much faster it goes, and how far a cell may reach to take one in (µm). */
 const DART = 1.2,
   DART_FASTER = 2.2,
@@ -90,6 +100,9 @@ export type DropHand = {
   gained: number;
   /** Divide was pressed with enough gathered: its daughters wait to be chosen. */
   dividing: boolean;
+  /** Seconds it has been held in a hunter's grip (ENGULF: taken), and how fresh its last hurt is (1 … 0). */
+  caught: number;
+  hurt: number;
   /** How its life ended ("": it lives), and by what. */
   ended: "" | "taken" | "starved";
   by: string | null;
@@ -147,6 +160,8 @@ export function holdDrop(
     steered: 0,
     gained: 0,
     dividing: false,
+    caught: 0,
+    hurt: 0,
     ended: "",
     by: null,
   };
@@ -279,7 +294,8 @@ export function stepHeld(s: DropState, h: DropHand): void {
   }
   // —— It moves as far as it is pushed: at its size no way is kept (inertia is nothing to it).
   const push = Math.min(1, Math.hypot(h.mx, h.my)),
-    v = h.speed * push * (h.dart > 0 ? DART_FASTER : 1) * (h.bask ? 0.3 : 1);
+    v =
+      h.speed * push * (h.dart > 0 ? DART_FASTER : 1) * (h.bask ? 0.3 : 1) * (h.caught > 0 ? GRIPPED : 1);
   if (push > 0.05) {
     c.heading = Math.atan2(h.my, h.mx);
     h.steered += dt;
@@ -315,22 +331,40 @@ export function stepHeld(s: DropState, h: DropHand): void {
   for (const m of c.meals) m.age += dt;
   c.meals = c.meals.filter((m) => m.age < 8);
   // —— A hunting cell that reaches it takes it in; one that senses it closes on it, as it would on any cell it could take.
+  let gripped = false;
+  h.hurt = Math.max(0, h.hurt - dt * 1.5);
   for (const o of s.cells) {
     if (o.way !== "hunter" || o.dividing > 0 || c.size >= o.size * 0.5) continue;
     const dx = gap(o.x, c.x, FIELD_W),
       dy = gapY(s, o.y, c.y),
       d2 = dx * dx + dy * dy;
     if (d2 < (o.size / 2) ** 2 && o.full <= 0) {
-      h.ended = "taken";
-      h.by = s.kinds[o.kind]?.name ?? "a hunting cell";
-      o.energy += w * DIGEST;
-      o.full = w * 0.3;
-      o.meals.push({ color: c.kind, age: 0 });
-      s.eaten++;
-      return;
+      // (In its grip: wrapped a little more each moment, hurt; held long enough, taken in.)
+      gripped = true;
+      h.caught += cdt;
+      h.hurt = 1;
+      if (h.caught >= ENGULF) {
+        h.ended = "taken";
+        h.by = s.kinds[o.kind]?.name ?? "a hunting cell";
+        o.energy += w * DIGEST;
+        o.full = w * 0.3;
+        o.meals.push({ color: c.kind, age: 0 });
+        s.eaten++;
+        return;
+      }
+      continue;
     }
-    if (d2 < SENSED * SENSED && o.full <= 0) o.heading = Math.atan2(dy, dx);
+    if (d2 < SENSED * SENSED && o.full <= 0) {
+      // (It has sensed the one held: it turns to it, and closes.)
+      o.heading = Math.atan2(dy, dx);
+      const d = Math.sqrt(d2) || 1,
+        step = Math.min(d, LUNGE * o.speed * dt);
+      o.x = wrap(o.x + (dx / d) * step, FIELD_W);
+      o.y = placeY(s, o.y + (dy / d) * step);
+    }
   }
+  // (Pulled free, the grip loosens again.)
+  if (!gripped) h.caught = Math.max(0, h.caught - dt * 0.6);
   if (c.energy <= 0) {
     h.ended = "starved";
     s.died++;

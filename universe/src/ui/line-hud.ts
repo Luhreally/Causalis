@@ -43,6 +43,10 @@ export class LineHud {
   private readonly stripWords = el("span", "line-strip-words");
   private readonly full = el("span", "line-full");
   private readonly fullFill = el("span", "line-full-fill");
+  /** How much of the cell is left to a hunter's grip (shown only while it is gripped), and the hurt's red flash. */
+  private readonly grip = el("span", "line-grip");
+  private readonly gripFill = el("span", "line-grip-fill");
+  private readonly flash = el("div", "line-flash");
   readonly stripHelp = el("button", "line-help line-strip-help", "?");
   readonly told = el("div", "line-told");
   /** The guide's lesson now, in the top's column (ui/line-guide.ts fills it). */
@@ -112,10 +116,13 @@ export class LineHud {
     this.bar.append(who, right);
     this.clock.append(this.clockFill, this.clockWords);
     this.full.append(this.fullFill);
+    this.grip.append(this.gripFill);
+    this.grip.hidden = true;
     const stripLine = el("span", "line-strip-line");
-    stripLine.append(this.stripWords, this.full);
+    stripLine.append(this.stripWords, this.full, this.grip);
     this.strip.append(stripLine, this.stripHelp);
     this.coach.hidden = true;
+    this.element.append(this.flash);
     this.top.append(this.bar, this.clock, this.strip, this.told, this.coach);
     for (let slot = 0; slot < 4; slot++) {
       const b = el("button", `line-act line-act-${slot}`);
@@ -273,6 +280,15 @@ export class LineHud {
     if (this.fullFill.style.width !== w) this.fullFill.style.width = w;
     this.full.classList.toggle("ready", full >= 1);
     this.full.title = full >= 1 ? "Full: you can divide" : `${w} of the way to dividing`;
+  }
+
+  /** How whole the cell is in a hunter's grip (1: free, hidden), and how fresh its hurt is (0 … 1): the screen flashes red. */
+  health(whole: number, hurt: number): void {
+    const gripped = whole < 0.999;
+    if (this.grip.hidden === gripped) this.grip.hidden = !gripped;
+    if (gripped) this.gripFill.style.width = `${Math.round(Math.max(0, whole) * 100)}%`;
+    const o = (Math.round(hurt * 20) / 20).toString();
+    if (this.flash.style.opacity !== o) this.flash.style.opacity = o;
   }
 
   /** The meter filled: it pops. */

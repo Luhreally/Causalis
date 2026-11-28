@@ -167,6 +167,57 @@ body.lining > *:not(#app) {
 .line-full.ready .line-full-fill {
   background: linear-gradient(90deg, #f2c14e, #ffe9a0);
 }
+.line-grip {
+  display: block;
+  height: 6px;
+  margin-top: 3px;
+  border-radius: 3px;
+  background: rgba(255, 80, 80, 0.2);
+  overflow: hidden;
+}
+.line-grip[hidden] {
+  display: none;
+}
+.line-grip-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #ff5a4a, #ffb08a);
+}
+.line-flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(ellipse at center, rgba(255, 40, 30, 0) 45%, rgba(255, 40, 30, 0.55) 100%);
+  transition: opacity 0.12s;
+}
+.line-goes-on {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  padding: 10px 18px;
+  border-radius: 12px;
+  background: rgba(8, 18, 44, 0.82);
+  font-size: 18px;
+  text-align: center;
+  animation: line-goes 2.4s ease-out forwards;
+}
+@keyframes line-goes {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -40%) scale(0.9);
+  }
+  15%,
+  75% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+  }
+}
 .line-full.pop {
   animation: line-pop 0.6s ease-out;
 }
