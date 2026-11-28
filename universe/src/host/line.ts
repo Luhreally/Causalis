@@ -628,9 +628,9 @@ export function ask(type: string, world: World, args: unknown): unknown {
     case "line.band":
       return bandOf(world);
     case "line.story":
-      return storyOf(world, a.cell as unknown as number);
+      return storyOf(world, a.cell);
     case "line.stars":
-      return starsOf(world, a.cell as unknown as number);
+      return starsOf(world, a.cell);
     case "line.makeSo":
       return makeSo(world.seed.text, a);
   }

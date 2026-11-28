@@ -51,6 +51,9 @@ const NAMES: Readonly<Record<(typeof STORY)[number], string>> = {
   "story:stars": "Its stars",
 };
 
+/** Words that open with a capital put mid-sentence ("A red dwarf" → "a red dwarf"). */
+const mid = (words: string) => words.replace(/^(A|An|The) /, (w) => w.toLowerCase());
+
 const myWords = (my: number) =>
   my >= 1000
     ? `${(my / 1000).toFixed(2)} billion years ago`
@@ -141,9 +144,15 @@ export function storyPage(
             ],
       );
     case "story:village":
-      return page(
-        "its village",
-        w?.village
+      return page("its village", [
+        ...(w?.from === "cradle"
+          ? [
+              para(
+                "No band was led, so the story follows your world's people from the land they rose in.",
+              ),
+            ]
+          : []),
+        ...(w?.village
           ? [
               fact("Founded", `${w.village.name}, in the year ${w.village.founded}`),
               fact("People", `${w.village.people.toLocaleString()}`),
@@ -157,8 +166,8 @@ export function storyPage(
                     ? `Its land sows, and its first village comes in its turn: ${w.waiting.toLocaleString()} lands that sow wait for their first village the world over. Wake and let the years run.`
                     : "Its land does not sow yet. Lead its band to see wild grain come up, and teach the land to sow.",
               ),
-            ],
-      );
+            ]),
+      ]);
     case "story:town":
       return page(
         "its town",
@@ -209,14 +218,19 @@ export function storyPage(
         parts.push(fact("Not at the stars yet", `${r.name} lacks ${st.wants.join("; ")}`));
       if (st.asked)
         parts.push(
-          fact("Its next ship", `asked to sail for ${st.asked.words}, when the realm can send one`),
+          fact(
+            "Its next ship",
+            st.asked.taken
+              ? `asked to sail for ${mid(st.asked.words)}, but another took it first: it sails where the realm chooses. Ask for another star`
+              : `asked to sail for ${mid(st.asked.words)}, when the realm can send one`,
+          ),
           send("Take the ask back", r.ref, null),
         );
       for (const sh of st.ships)
         parts.push(
           fact(
             sh.arrived ? "Come down" : `Under way, arriving in the year ${sh.arrives}`,
-            sh.words,
+            `${sh.words}${sh.asked ? ", the star you asked it to sail for" : ""}`,
           ),
           go("🚀 Go and see the ship", sh.land),
         );

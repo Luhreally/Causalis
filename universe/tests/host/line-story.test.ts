@@ -29,4 +29,13 @@ test("a line's story reads its land's first village, market town and realm off t
   const empty = [...ctx.provinces.all()].find((p) => !ctx.settlements.inProvince(p.cell).length);
   if (empty) assert.equal(storyOf(world, empty.cell)?.village ?? null, null);
   assert.equal(storyOf(world, -5), null);
+  // No band led: the people's cradle, said so.
+  const cradle = storyOf(world, undefined)!;
+  assert.equal(cradle.from, "cradle");
+  assert.equal(s.from, "band");
+  assert.deepEqual(
+    { ...cradle, from: "band" },
+    storyOf(world, ctx.generated.life.people!.cell),
+    "the cradle's story is its land's",
+  );
 });

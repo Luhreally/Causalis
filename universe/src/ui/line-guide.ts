@@ -3,7 +3,7 @@
 // as it is done (to steer, to eat, to divide, to choose a daughter, to read the cell's page, to wake), each with a Show me
 // that lights what it speaks of; and the whole list on its own panel, to read again, hide, or begin again. What a player
 // has done of it is kept in their browser (shown once and remembered), and it can always be opened again by its button.
-import { LESSONS, type LessonId } from "../view/line.ts";
+import { LESSONS, type LessonId, type LessonStage } from "../view/line.ts";
 import { el } from "./why.ts";
 
 const KEY = "causalis-line-guide";
@@ -94,16 +94,16 @@ export class LineGuide {
     this.draw();
   }
 
-  /** The lesson now: the first not yet done (null: all done). */
+  /** The lesson now: the first not yet done of the stage the line is in (null: all of it done). */
   get next(): (typeof LESSONS)[number] | null {
-    return LESSONS.find((l) => !this.kept.done.includes(l.id)) ?? null;
+    return LESSONS.find((l) => l.stage === this.at && !this.kept.done.includes(l.id)) ?? null;
   }
 
-  /** Whether the lessons, the cell's, are put by: a body lived (their words of specks and dividing are not its). */
-  private by = false;
-  set away(on: boolean) {
-    if (this.by === on) return;
-    this.by = on;
+  /** The stage the line is in: its lessons the ones shown (a cell's words of specks and dividing are not a band's). */
+  private at: LessonStage = "cell";
+  set stage(s: LessonStage) {
+    if (this.at === s) return;
+    this.at = s;
     this.coach.dataset.lesson = "";
     this.draw();
   }
@@ -115,7 +115,7 @@ export class LineGuide {
     this.button.textContent = n >= all ? "📘 Guide ✓" : `📘 Guide ${n}/${all}`;
     this.button.setAttribute("aria-label", `The guide: ${n} of ${all} done`);
     const next = this.next;
-    if (this.kept.hidden || this.by || (!next && !this.ticked)) {
+    if (this.kept.hidden || (!next && !this.ticked)) {
       this.coach.hidden = true;
       this.coach.replaceChildren();
       return;

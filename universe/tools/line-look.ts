@@ -5,7 +5,7 @@
 // Wake, after which the world must be exactly where it was (its clock, and every domain's hash). Every state is read for
 // overlap by the overlap gate's reading (tools/hud-read.ts), and kept as a still (--shots). (npm run build first.)
 //   node tools/line-look.ts [--shots dir] [--seed "first light"] [--only phone|desk] [--frames 150]
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { preview } from "vite";
@@ -18,6 +18,8 @@ const argv = process.argv.slice(2),
     return at >= 0 ? argv[at + 1] : undefined;
   },
   shots = arg("--shots"),
+  // (A far-year save to look at the story's stars on: copied beside the build, fetched and imported by the page.)
+  starsSave = arg("--stars"),
   seed = arg("--seed") ?? "first light",
   only = arg("--only"),
   frames = Number(arg("--frames") ?? 150);
@@ -174,6 +176,121 @@ for (const view of [
     `performance.getEntriesByType("resource").filter((r) => /\\/line-[^/]*\\.js$/.test(r.name)).length`,
   );
   check(fetched === 0, `the mode's chunk is not fetched before it is entered (${fetched})`);
+
+  // —— Its stars on a world at the stars (S8, --stars): the long list read for overlap and clipped words, a ship sent to a
+  // star of the hand's choosing, the years run until it sails, and it sails there, saying so.
+  if (starsSave) {
+    const baked = JSON.parse(readFileSync(`${starsSave}.json`, "utf8")) as {
+      seat: number;
+      realm: string;
+      year: number;
+    };
+    say(`the realm that can sail: ${baked.realm}, its seat ${baked.seat}, the year ${baked.year}`);
+    const got = await k<{ t: number; seed: string }>(
+      `fetch("stars.save").then((r) => r.arrayBuffer()).then((b) => globalThis.causalis.client.importSave(new Uint8Array(b)))`,
+    );
+    say(`imported a world at year ${Math.floor(got.t / 31536000)}`);
+    await page.waitForTimeout(2500);
+    await k("globalThis.causalis.line.open(null)");
+    await until(
+      "the mode entered",
+      async () => !!(await k<boolean>("globalThis.causalis.lineMode?.state().on")),
+      60000,
+    );
+    await page.waitForTimeout(800);
+    await k("globalThis.causalis.lineMode.close()");
+    type Stars = {
+      realm: { name: string } | null;
+      wants: string[];
+      asked: { ref: string } | null;
+      ships: { star: string; asked: boolean; arrives: number }[];
+      stars: { ref: string; taken: boolean }[];
+    };
+    const starsNow = async () => {
+      await k("globalThis.causalis.lineMode.story('story:stars')");
+      await page.waitForTimeout(300);
+      return k<Stars>("globalThis.causalis.lineMode.storyStars()");
+    };
+    const clippedPage = () =>
+      k<string[]>(
+        `[...document.querySelectorAll(".line-page button, .line-page .line-fact *")].filter((e) => e.offsetParent && e.scrollWidth > e.clientWidth + 1).map((e) => "“" + e.textContent.slice(0, 40) + "”")`,
+      );
+    await k(`globalThis.causalis.lineMode.story("story:stars", ${baked.seat})`);
+    let st = await starsNow();
+    check(
+      !!st.realm && !st.wants.length,
+      `the cradle's realm can sail (${st.realm?.name}; lacks ${st.wants.join(", ")})`,
+    );
+    const free = st.stars.filter((x) => !x.taken);
+    check(free.length >= 3, `stars in its reach: ${st.stars.length}, ${free.length} free`);
+    await look("s1-stars", "its stars, a long list");
+    let c = await clippedPage();
+    check(c.length === 0, `no words clipped on the stars page (${c.slice(0, 3).join("; ")})`);
+    // (Scrolled to its foot: the last star and its key reachable.)
+    await k(
+      `(() => { const b = document.querySelector(".line-page-body"); if (b) b.scrollTop = b.scrollHeight; })()`,
+    );
+    await look("s1b-stars-foot", "its stars, scrolled to the foot");
+    await k(
+      `(() => { const b = document.querySelector(".line-page-body"); if (b) b.scrollTop = 0; })()`,
+    );
+    // (The last free star: not the one the realm would choose of itself, the nearest in time, so the ask is seen to change it.)
+    const want = free.at(-1)?.ref,
+      before = st.ships.length;
+    if (want) {
+      // (Its button, the last of the page's: brought into view, and pressed where a finger would.)
+      await k(
+        `(() => { const all = [...document.querySelectorAll(".line-page button.line-link")].filter((e) => /Send our next ship here/.test(e.textContent ?? "")); const b = all.at(-1); if (!b) return; b.scrollIntoView({ block: "center" }); b.dataset.lookPick = "1"; })()`,
+      );
+      await page.waitForTimeout(300);
+      await press("[data-look-pick]", "🚀 Send our next ship here, the last star");
+      await k(`document.querySelector("[data-look-pick]")?.removeAttribute("data-look-pick")`);
+      await until(
+        "the ask said back",
+        async () =>
+          (await k<Stars>("globalThis.causalis.lineMode.storyStars()")).asked?.ref === want,
+        20000,
+      );
+      st = await starsNow();
+      check(st.asked?.ref === want, `asked for ${want} (${st.asked?.ref})`);
+      await look("s2-asked", "its stars, a ship asked");
+      c = await clippedPage();
+      check(c.length === 0, `no words clipped once asked (${c.slice(0, 3).join("; ")})`);
+      // (The years run a year at a time until its next ship sails: the realm's own time.)
+      await k("globalThis.causalis.lineMode.close()");
+      const t1 = Date.now();
+      let sailed: Stars["ships"][number] | undefined,
+        years = 0;
+      while (!sailed && years < 90 && Date.now() - t1 < 9 * 60000) {
+        const t = await k<number>("globalThis.causalis.client.status?.t ?? 0");
+        await k(`globalThis.causalis.client.advance(${t + 365 * 86400})`);
+        years++;
+        if (years % 3 === 0 || years > 60) {
+          st = await starsNow();
+          sailed =
+            st.ships.length > before
+              ? (st.ships.find((x) => x.asked) ?? st.ships.at(-1))
+              : undefined;
+          await k("globalThis.causalis.lineMode.close()");
+        }
+      }
+      say(`ran ${years} years in ${Math.round((Date.now() - t1) / 1000)} s`);
+      check(!!sailed, `its next ship sailed (${years} years)`);
+      if (sailed) {
+        check(sailed.star === want, `sailed for the star asked (${sailed.star})`);
+        check(sailed.asked, "its sailing gives the ask as its reason");
+        st = await starsNow();
+        check(!st.asked, "the ask spent");
+        await look("s3-sailed", "its stars, the ship sailed where asked");
+      }
+    }
+    check(
+      errors.length === 0,
+      `no errors on the page (${errors.slice(0, 2).join(" | ").slice(0, 400)})`,
+    );
+    await context.close();
+    continue;
+  }
 
   // —— In, by the planet bar's key (opened from its fold where the bar folds it away).
   let pressed = false;
@@ -527,6 +644,25 @@ for (const view of [
   await look("21-band", "the band at its camp");
   await throttled("a band led");
   say(`the band's step: ${bd0.stepMs.toFixed(2)} ms`);
+  // (At night: 🌙 Sleep in the hunt's place, and the night passes in a few seconds, seen.)
+  if ((await band())!.hour < 7.5 || (await band())!.hour >= 18) {
+    check(
+      (await band())!.offers[0]?.label === "Sleep",
+      `by night, Sleep in the hunt's place (${(await band())!.offers[0]?.label})`,
+    );
+    await press(".line-act-0", "🌙 Sleep");
+    const slept = Date.now();
+    await until(
+      "the morning, slept to",
+      async () => {
+        const h = (await band())!.hour;
+        return h >= 7.5 && h < 18;
+      },
+      20000,
+    );
+    say(`the night slept through in ${((Date.now() - slept) / 1000).toFixed(1)} s`);
+    await look("21a-slept", "the morning after sleeping");
+  }
   // (The hunters sent after a beast looked at, by day.)
   await k("globalThis.causalis.lineMode.bandMorning()");
   let hunted: { words: string; good: boolean } | null = null;

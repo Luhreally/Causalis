@@ -251,6 +251,11 @@ body.lining > *:not(#app) {
 .line-told.bad {
   color: #ffd2a8;
 }
+/* (A page read, or a card answered: the guide's lesson steps aside, so the page has the screen. It comes back after.) */
+.line-hud:has(.line-layer > .line-page) .line-coach,
+.line-hud:has(.line-layer > .line-card) .line-coach {
+  display: none;
+}
 .line-coach {
   padding: 8px 10px;
   border: 1px solid #f2c14e;
