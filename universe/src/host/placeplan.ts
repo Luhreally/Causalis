@@ -42,6 +42,13 @@ import {
   placeLotRef,
   placePersonRef,
   placeGateRef,
+  PEOPLE_GROUPS,
+  PEOPLE_ONLY,
+  PEOPLE_SORTS,
+  type PeopleGroup,
+  type PeopleOnly,
+  type PeopleSort,
+  type PlacePeopleAsk,
   type PlaceDangersSheet,
   type PlaceFrame,
   type PlaceLogSheet,
@@ -242,17 +249,25 @@ export function placeNames(
 ): (id: number, sex: number, houseKey: number) => string {
   const ctx = populationContext(world),
     tongue = cultureOf(world).get(place.cell)?.tongue,
-    family = tongue ?? cradleTongue(ctx.culture),
-    houses = new Map<number, string>();
+    houses = placeHouseNames(world, place);
   return (id, sex, houseKey) => {
     const key = hashString(`${place.town} person ${id}`),
       given = tongue ? tonguePersonName(tongue, key, sex) : personName(ctx.culture, key, sex);
+    return `${given} ${houses(houseKey)}`;
+  };
+}
+/** A place's households' family names, by their key, in their land's tongue (the name its people carry after their own). */
+export function placeHouseNames(world: World, place: Place): (houseKey: number) => string {
+  const family =
+      cultureOf(world).get(place.cell)?.tongue ?? cradleTongue(populationContext(world).culture),
+    houses = new Map<number, string>();
+  return (houseKey) => {
     let house = houses.get(houseKey);
     if (house === undefined) {
       house = tongueName({ ...family, seed: family.seed ^ 0xf00d }, houseKey);
       houses.set(houseKey, house);
     }
-    return `${given} ${house}`;
+    return house;
   };
 }
 
@@ -1140,6 +1155,8 @@ export function peopleSheet(
   most = 60,
   /** The people bar's pins (their pages): those of its people pinned there are pinned here too. */
   pins: readonly string[] = [],
+  /** A name sought, an order, a page, a grouping and a ready narrowing (U5): read here as it is asked, never kept. */
+  ask: PlacePeopleAsk = {},
 ): PlacePeopleSheet {
   const p = place.people,
     grown = lifeOf(world).adulthood,
@@ -1172,13 +1189,126 @@ export function peopleSheet(
     const of = o === OCC.dependent ? (young(i) ? PEOPLE_YOUNG : PEOPLE_OLD) : o;
     if (occ === PEOPLE_PINNED ? pinned[i] : occ === null || o === occ || of === occ) order.push(i);
   }
+  // (Those drafted by name, R9: where any are.)
+  const draftedBy = new Set<number>(),
+    drafts = ordersOf(world, place.town)?.drafted;
+  for (let k = 0; k + 1 < (drafts?.length ?? 0); k += 2) draftedBy.add(drafts![k]!);
+  // The ready narrowings (U5), each read off what the sheet already tells of one: waiting at their work for want of
+  // stuff, hurt or sick (abed, or up with a wound bound), low in mood (as the eye's words call it), no home of their own
+  // (in the square, or sheltering in a building), under arms (drafted by name, or standing to arms by the muster).
+  const isOnly = (what: PeopleOnly, i: number): boolean =>
+    what === "idle"
+      ? p.act[i] === ACT.wait
+      : what === "ill"
+        ? p.health[i] !== 0 || p.ill[i]! > 0
+        : what === "unhappy"
+          ? p.mood[i]! < -15
+          : what === "roofless"
+            ? !placeHoused(place, i)
+            : p.bound[i] === BOUND_ARMS || draftedBy.has(p.id[i]!);
+  const onlyN = PEOPLE_ONLY.map((what) => order.reduce((n, i) => n + (isOnly(what, i) ? 1 : 0), 0));
+  // What it was asked, as it is read: anything else is let be.
+  const q = typeof ask.q === "string" ? ask.q.trim().slice(0, 40) : "",
+    sort: PeopleSort = PEOPLE_SORTS.includes(ask.sort as PeopleSort) ? ask.sort! : "eye",
+    // (Each sort's own way where none is said: the most pressed and the oldest first; A to Z, the lowest mood first.)
+    up =
+      typeof ask.up === "boolean" ? ask.up : sort === "name" || sort === "mood" || sort === "trade",
+    group: PeopleGroup | null = PEOPLE_GROUPS.includes(ask.group as PeopleGroup)
+      ? ask.group!
+      : null,
+    only: PeopleOnly | null = PEOPLE_ONLY.includes(ask.only as PeopleOnly) ? ask.only! : null;
+  let found = only ? order.filter((i) => isOnly(only, i)) : order;
+  // (Names read only where a name is sought or sorted by: a town of four hundred is not named for nothing.)
+  const names = new Map<number, string>(),
+    nameOf = (i: number): string => {
+      let n = names.get(i);
+      if (n === undefined) names.set(i, (n = plainName(who(i).name)));
+      return n;
+    };
+  if (q) {
+    const sought = plainName(q);
+    found = found.filter((i) => nameOf(i).includes(sought));
+  }
+  const tradeKey = (i: number): number => {
+    const o = p.sexOcc[i]! & 15;
+    return o === OCC.dependent ? (young(i) ? PEOPLE_YOUNG : PEOPLE_OLD) : o;
+  };
   // Who wants the manager's eye first: the pinned, then by what is wrong with them, then how long, then how near a need
-  // is to full.
-  const attention = order.map((i) => attentionOf(place, i)),
-    at = new Map(order.map((i, k) => [i, attention[k]!]));
-  order.sort(
-    (a, b) => pinned[b]! - pinned[a]! || at.get(b)!.score - at.get(a)!.score || p.id[a]! - p.id[b]!,
-  );
+  // is to full. Asked otherwise: by name, mood, age or trade, either way, as they were numbered where alike.
+  const at = new Map(found.map((i) => [i, attentionOf(place, i)])),
+    way = up ? 1 : -1,
+    by = (a: number, b: number): number => {
+      if (sort === "eye")
+        return (
+          pinned[b]! - pinned[a]! ||
+          (at.get(a)!.score - at.get(b)!.score) * way ||
+          p.id[a]! - p.id[b]!
+        );
+      const x =
+        sort === "name"
+          ? nameOf(a) < nameOf(b)
+            ? -1
+            : nameOf(a) > nameOf(b)
+              ? 1
+              : 0
+          : sort === "mood"
+            ? p.mood[a]! - p.mood[b]!
+            : sort === "age"
+              ? p.born[b]! - p.born[a]!
+              : tradeKey(a) - tradeKey(b);
+      return x * way || p.id[a]! - p.id[b]!;
+    };
+  // Grouped (U5): by household, by the street front their home is on (the four homes of a block's row side by side,
+  // bridge/town.ts townLots), by trade, or by skill at their trade; the groups in their own order, each sorted within.
+  const houses = group === "house" ? placeHouseNames(world, place) : null,
+    keyOf = (i: number): number => {
+      if (group === "house") return place.houses.key[p.house[i]!]!;
+      if (group === "street")
+        return placeHoused(place, i)
+          ? Math.floor(place.houses.home[p.house[i]!]! / STREET_FRONT)
+          : -1;
+      if (group === "trade") return tradeKey(i);
+      return placeSkill(place, i).level;
+    },
+    groupName = (key: number): string =>
+      group === "house"
+        ? `The ${houses!(key)} household`
+        : group === "street"
+          ? key < 0
+            ? "No home of their own"
+            : `Homes on lots ${key * STREET_FRONT} to ${key * STREET_FRONT + STREET_FRONT - 1}`
+          : group === "trade"
+            ? key === PEOPLE_YOUNG
+              ? "Children"
+              : key === PEOPLE_OLD
+                ? "Grown, of no trade"
+                : `${cap(tradeWords(key, false).replace(/^an? /, ""))}s`
+            : (SKILL_GROUPS[key] ?? "Of no skill told"),
+    keys = group ? new Map(found.map((i) => [i, keyOf(i)])) : null,
+    sizes = new Map<number, number>(),
+    groupOrder = (a: number, b: number): number => {
+      if (group === "house") {
+        const x = houses!(a),
+          y = houses!(b);
+        return x < y ? -1 : x > y ? 1 : a - b;
+      }
+      // (The street fronts by their lots, those with no home last; trades as the occupation column; the most skilled first.)
+      if (group === "street") return (a < 0 ? 1e9 : a) - (b < 0 ? 1e9 : b);
+      return group === "skill" ? b - a : a - b;
+    };
+  if (keys) for (const k of keys.values()) sizes.set(k, (sizes.get(k) ?? 0) + 1);
+  found.sort(keys ? (a, b) => groupOrder(keys.get(a)!, keys.get(b)!) || by(a, b) : by);
+  // (So many a page; the page asked kept within those there are.)
+  const pages = Math.max(1, Math.ceil(found.length / most)),
+    page = Math.min(pages - 1, Math.max(0, Math.floor(Number(ask.page) || 0))),
+    from = page * most,
+    shown = found.slice(from, from + most),
+    groups: { key: number; name: string; n: number }[] = [];
+  if (keys)
+    for (const i of shown) {
+      const k = keys.get(i)!;
+      if (groups.at(-1)?.key !== k) groups.push({ key: k, name: groupName(k), n: sizes.get(k)! });
+    }
   const posts: { lot: number; name: string }[] = [];
   for (let b = 1; b < place.bldgs.lot.length; b++)
     if (!place.bldgs.site[b])
@@ -1189,27 +1319,34 @@ export function peopleSheet(
   return {
     trades,
     children,
-    all: order.length,
+    all: found.length,
     pinned: pinnedN,
     pinsHere: [...here],
     posts,
     homes: placeHomes(world, place, 6),
-    rows: order.slice(0, most).map((i) => {
+    ask: { q, sort, up, page, group, only },
+    from,
+    most,
+    only: onlyN,
+    groups,
+    rows: shown.map((i) => {
       const needs = [0, 1, 2, 3].map((q) => p.needs[i * 4 + q]! / 65535),
-        age = (place.t / DAY - p.born[i]!) / 365;
+        age = (place.t / DAY - p.born[i]!) / 365,
+        attention = at.get(i)!,
+        child = age < grown;
       let top = 0;
       for (let q = 1; q < 3; q++) if (needs[q]! > needs[top]!) top = q;
       return {
         ...who(i),
         occ: p.sexOcc[i]! & 15,
-        trade: tradeWords(p.sexOcc[i]! & 15, age < grown).replace(/^a /, ""),
+        trade: tradeWords(p.sexOcc[i]! & 15, child).replace(/^a /, ""),
         doing: doingWords(place, i, true),
         needs,
         worst: top,
         lack: Math.floor(p.lack[i]! / 144),
         mood: p.mood[i]!,
-        attention: at.get(i)!.words,
-        level: at.get(i)!.level,
+        attention: attention.words,
+        level: attention.level,
         health: p.health[i]!,
         bound:
           p.bound[i] === BOUND_ARMS
@@ -1224,10 +1361,38 @@ export function peopleSheet(
         homeLot: place.houses.home[p.house[i]!]!,
         post: p.bound[i] === 255 ? p.work[i]! : null,
         pinned: pinned[i] === 1,
+        age: Math.floor(age),
+        young: child,
+        drafted: draftedBy.has(p.id[i]!),
+        // (Why a draft by name would not stand them to arms now, as the town's muster reads it: host/place.ts armsCrew.)
+        undraftable: child
+          ? "a child"
+          : p.health[i] === 1 || p.health[i] === 2
+            ? "abed"
+            : p.ill[i]! > 0
+              ? "still mending"
+              : p.bound[i] && p.bound[i] !== BOUND_ARMS && p.bound[i] !== BOUND_SITE
+                ? "held at their work by another order"
+                : null,
+        group: keys ? keys.get(i)! : null,
       };
     }),
   };
 }
+
+/** How many homes stand side by side along one street front: a block's row (bridge/town.ts townLots, BLOCK_LOTS / 2). */
+const STREET_FRONT = 4;
+/** The People sheet's groups by skill at their trade, by its level (rules/life.ts SKILL_WORDS). */
+const SKILL_GROUPS = [
+  "New to their trade",
+  "A hand at their trade",
+  "Able at their trade",
+  "Skilled at their trade",
+  "Masters of their trade",
+];
+/** A name as it is sought (U5): of any case, its marks taken off ("Ásta" is found by "asta"). */
+export const plainName = (name: string): string =>
+  name.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 
 /** The People sheet's narrowing to its young of no trade, and to its grown of no trade (most of them old). */
 export const PEOPLE_YOUNG = 100,
@@ -1579,17 +1744,28 @@ const GRID_SKILLS: readonly number[] = [
 /** How many of a place's people its priorities grid shows at once. */
 export const GRID_ROWS = 48;
 
-/** A place's priorities grid (PlaceWorkSheet.grid): narrowed to a trade where one is said. */
-function prioGrid(world: World, place: Place, occ: number | null): PlaceWorkSheet["grid"] {
+/**
+ * A place's priorities grid (PlaceWorkSheet.grid): narrowed to a trade where one is said, and to a name sought (U5), so
+ * many a page.
+ */
+function prioGrid(
+  world: World,
+  place: Place,
+  occ: number | null,
+  ask: { readonly q?: unknown; readonly page?: unknown } = {},
+): PlaceWorkSheet["grid"] {
   const p = place.people,
     grown = lifeOf(world).adulthood,
     who = placeWho(world, place),
+    q = typeof ask.q === "string" ? ask.q.trim().slice(0, 40) : "",
+    sought = plainName(q),
     list: { i: number; kinds: number[] | null }[] = [];
   for (let i = 0; i < p.n; i++) {
     const o = p.sexOcc[i]! & 15;
     if (!(MANAGED_TRADES as readonly number[]).includes(o)) continue;
     if (occ !== null && o !== occ) continue;
     if ((place.t / DAY - p.born[i]!) / 365 < grown) continue;
+    if (q && !plainName(who(i).name).includes(sought)) continue;
     list.push({ i, kinds: placePrio(world, place, p.id[i]!) });
   }
   // (Those with priorities set first; then by trade, then as they were numbered.)
@@ -1599,11 +1775,18 @@ function prioGrid(world: World, place: Place, occ: number | null): PlaceWorkShee
       (p.sexOcc[a.i]! & 15) - (p.sexOcc[b.i]! & 15) ||
       p.id[a.i]! - p.id[b.i]!,
   );
+  const pages = Math.max(1, Math.ceil(list.length / GRID_ROWS)),
+    page = Math.min(pages - 1, Math.max(0, Math.floor(Number(ask.page) || 0))),
+    from = page * GRID_ROWS;
   return {
     kinds: ["Fields", "Herds", "Crafts", "Hauling", "Building", "Fire watch"],
     skills: GRID_SKILLS.map((k) => SKILL_NAMES[k]!),
     all: list.length,
-    rows: list.slice(0, GRID_ROWS).map(({ i, kinds }) => {
+    q,
+    page,
+    from,
+    most: GRID_ROWS,
+    rows: list.slice(from, from + GRID_ROWS).map(({ i, kinds }) => {
       const o = p.sexOcc[i]! & 15,
         w = who(i);
       return {
@@ -1639,6 +1822,8 @@ export function workSheet(
   place: Place,
   /** The trade its priorities grid is narrowed to (null: all). */
   gridOcc: number | null = null,
+  /** The name its grid is narrowed to, and its page (U5). */
+  gridAsk: { readonly q?: unknown; readonly page?: unknown } = {},
 ): PlaceWorkSheet {
   const p = place.people,
     grown = lifeOf(world).adulthood,
@@ -1712,7 +1897,7 @@ export function workSheet(
     unsettled: place.moves.length / 4 + place.dead.length / 3,
     healer: healerRow(world, place),
     bills: billRows(world, place),
-    grid: prioGrid(world, place, gridOcc),
+    grid: prioGrid(world, place, gridOcc, gridAsk),
   };
 }
 
@@ -2186,14 +2371,22 @@ export function placeQueries(villagePlan: QueryHandler): Readonly<Record<string,
       const a = args as { ref: string; ids?: number[] };
       return placeFrame(world, a.ref, a.ids ?? []);
     },
+    // (Its name sought, order, page, grouping and narrowing as asked, U5: each read by peopleSheet, the rest let be.)
     "place.people": (world, args) => {
       const place = kept(world, args),
-        a = args as { occ?: number | null; pins?: unknown },
+        a = args as PlacePeopleAsk & { occ?: number | null; pins?: unknown },
         pins = Array.isArray(a.pins)
           ? a.pins.filter((x): x is string => typeof x === "string")
           : [];
       return place
-        ? peopleSheet(world, place, typeof a.occ === "number" ? a.occ : null, 60, pins)
+        ? peopleSheet(world, place, typeof a.occ === "number" ? a.occ : null, 60, pins, {
+            q: a.q,
+            sort: a.sort,
+            up: a.up,
+            page: a.page,
+            group: a.group,
+            only: a.only,
+          })
         : null;
     },
     // The people bar's pins kept by the town too (asked 2026-11-26: "people i have pinned from that town should be in the
@@ -2229,8 +2422,11 @@ export function placeQueries(villagePlan: QueryHandler): Readonly<Record<string,
     },
     "place.work": (world, args) => {
       const place = kept(world, args),
-        occ = (args as { occ?: unknown } | null)?.occ;
-      return place ? workSheet(world, place, typeof occ === "number" ? occ : null) : null;
+        a = args as { occ?: unknown; q?: unknown; page?: unknown } | null,
+        occ = a?.occ;
+      return place
+        ? workSheet(world, place, typeof occ === "number" ? occ : null, { q: a?.q, page: a?.page })
+        : null;
     },
     // What befell a town while it was run, told on leaving it (O1: "While you ran…"): from its log since a moment.
     "place.since": (world, args) => {

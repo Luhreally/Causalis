@@ -15,7 +15,12 @@
 // with, with a key to stay with them and one to go on to another; or by its own head, with the sheets as by hand, its
 // head's decisions in the Log, and any of them overruled by an order of your own.
 import {
+  PEOPLE_ONLY,
   PLACE_TRADES,
+  type PeopleGroup,
+  type PeopleOnly,
+  type PeopleSort,
+  type PlacePersonRow,
   type PlaceMode,
   type PlaceDangersSheet,
   type PlaceNotice,
@@ -106,6 +111,119 @@ const TRADE_CHIPS: readonly (readonly [number | null, string])[] = [
   [100, "Children"],
   [101, "Grown, no trade"],
 ];
+/** The People sheet's columns it can be ordered by (U5), in the order its rows show them: words, and each way said. */
+const SORTS: readonly (readonly [PeopleSort, string, string, string])[] = [
+  ["name", "Name", "A to Z", "Z to A"],
+  ["eye", "Urgent", "the least pressed first", "the most pressed first"],
+  ["trade", "Trade", "by trade", "by trade, the other way"],
+  ["mood", "Mood", "the lowest first", "the highest first"],
+  ["age", "Age", "the youngest first", "the oldest first"],
+];
+/** What its rows can be grouped by (U5; null: not grouped). */
+const GROUP_WORDS: readonly (readonly [PeopleGroup | null, string])[] = [
+  [null, "None"],
+  ["house", "Household"],
+  ["street", "Street"],
+  ["trade", "Trade"],
+  ["skill", "Skill"],
+];
+/** Its ready narrowings (U5): a chip's words, and who it shows, said. */
+const ONLY_WORDS: Readonly<Record<PeopleOnly, readonly [string, string]>> = {
+  idle: ["Idle", "waiting at their work with nothing to work with"],
+  ill: ["Sick or hurt", "sick or hurt"],
+  unhappy: ["Unhappy", "low in mood"],
+  roofless: ["No home", "with no home of their own"],
+  arms: ["Under arms", "under arms, drafted or called up"],
+};
+/** A count as a sentence says it (U5): "one", "two" … "ten", then its figure. */
+const numberWords = (n: number): string =>
+  ["no one", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"][n] ??
+  String(n);
+const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
+/**
+ * One order given to many at once (U5): its key's words, what is said of it given ("Drafted 7 of 8"), who of them it is
+ * not given to and why, who take it only later and why; and each one's own order (the command a person's page gives),
+ * or a pin. No rule of its own.
+ */
+type ManyOrder = {
+  readonly key: string;
+  readonly words: string;
+  readonly done: (took: string) => string;
+  readonly skip: (r: PlacePersonRow) => string | null;
+  readonly later?: (r: PlacePersonRow) => string | null;
+  /** What those who take it at once are doing now, where some take it only later. */
+  readonly now?: string;
+  readonly type?: string;
+  readonly args?: (r: PlacePersonRow) => Record<string, unknown>;
+  readonly pin?: boolean;
+};
+const putTo = (key: string, words: string, occ: number | null, to: string): ManyOrder => ({
+  key,
+  words,
+  done: (took) =>
+    occ === null ? `Let ${took} work as they would of themselves` : `Put ${took} to ${to}`,
+  // (A child is put to no trade: a person's page gives them no orders.)
+  skip: (r) => (r.young ? "child-trade" : null),
+  type: "place.assign",
+  args: (r) => ({ person: r.id, trade: occ, post: null }),
+});
+const MANY: readonly ManyOrder[] = [
+  putTo("fields", "Fields", 2, "the fields"),
+  putTo("herds", "Herds", 3, "the herds"),
+  putTo("crafts", "Crafts", 4, "crafts"),
+  putTo("hauling", "Hauling", 5, "hauling"),
+  putTo("free", "Let be", null, ""),
+  {
+    key: "draft",
+    words: "⚔️ Draft",
+    done: (took) => `Drafted ${took}`,
+    skip: (r) => (r.young ? "child-draft" : null),
+    // (Abed, still mending, or held at their work by another order: the draft stands, and takes them once they can go.)
+    later: (r) => (r.undraftable && r.undraftable !== "a child" ? r.undraftable : null),
+    now: "stand to arms now",
+    type: "place.draft",
+    args: (r) => ({ person: r.id, at: -9 }),
+  },
+  {
+    key: "undraft",
+    words: "Stand down",
+    done: (took) => `Stood ${took} down`,
+    skip: (r) => (r.drafted ? null : "not-drafted"),
+    type: "place.draft",
+    args: (r) => ({ person: r.id, at: null }),
+  },
+  {
+    key: "pin",
+    words: "📌 Pin",
+    done: (took) => `Pinned ${took}: each is followed in full`,
+    skip: (r) => (r.pinned ? "pinned" : null),
+    pin: true,
+  },
+  {
+    key: "unpin",
+    words: "Unpin",
+    done: (took) => `Unpinned ${took}`,
+    skip: (r) => (r.pinned ? null : "not-pinned"),
+    pin: false,
+  },
+];
+/** Why some of those picked did not take an order (U5), said of one and of more. */
+const REASONS: Readonly<Record<string, readonly [string, string]>> = {
+  "child-trade": ["is a child, too young for a trade", "are children, too young for a trade"],
+  "child-draft": ["is a child, and was not drafted", "are children, and were not drafted"],
+  abed: ["is abed, and stands to arms once well", "are abed, and stand to arms once well"],
+  "still mending": [
+    "is still mending, and stands to arms once mended",
+    "are still mending, and stand to arms once mended",
+  ],
+  "held at their work by another order": [
+    "is held at their work by another order, and stands to arms once it is let go",
+    "are held at their work by another order, and stand to arms once it is let go",
+  ],
+  "not-drafted": ["was not drafted by name", "were not drafted by name"],
+  pinned: ["was pinned already", "were pinned already"],
+  "not-pinned": ["was not pinned", "were not pinned"],
+};
 /** Its overlays (N5), each with its chip's words and what it shows. */
 const LENSES: readonly (readonly [PlaceOverlayKind, string, string])[] = [
   ["needs", "Needs", "How pressing the needs of those living on each lot are, on average"],
@@ -231,6 +349,34 @@ export class PlaceHud {
   tab: PlaceTab | null = null;
   /** The trade the People sheet is narrowed to (the world's occupation column; null: all). */
   occ: number | null = null;
+  /**
+   * What else the People sheet is asked for (U5): the name sought, the column it is ordered by and which way (null: that
+   * column's own), its page, its grouping and its ready narrowing.
+   */
+  private peopleAsk: {
+    q: string;
+    sort: PeopleSort;
+    up: boolean | null;
+    page: number;
+    group: PeopleGroup | null;
+    only: PeopleOnly | null;
+  } = { q: "", sort: "eye", up: null, page: 0, group: null, only: null };
+  /** Its grouping's choices open; picking many, and those picked (by their number, as last read); what an order to them came to. */
+  private grouping = false;
+  private picking = false;
+  private readonly picked = new Map<number, PlacePersonRow>();
+  private pickSaid = "";
+  private giving = false;
+  private peopleNow: PlacePeopleSheet | null = null;
+  /** Its name box and the key to pick many (kept: a box drawn anew would be taken from under the fingers typing in it). */
+  private readonly peopleFind: HTMLElement;
+  private readonly peopleInput: HTMLInputElement;
+  private readonly pickKey = el("button", "place-order place-pick-key", "Pick many");
+  /** The priorities grid's name box, and the name it is narrowed to and its page (U5). */
+  private readonly gridFind: HTMLElement;
+  private readonly gridInput: HTMLInputElement;
+  gridQ = "";
+  gridPage = 0;
   /** The pinned who are not of the town entered, or are gone: their pages, names and where they are, in words. */
   away: readonly { readonly ref: string; readonly name: string; readonly words: string }[] = [];
   /** A pin let go of: their page (the people bar's) and who they are in the place (null: not of it). */
@@ -247,6 +393,20 @@ export class PlaceHud {
   onAlert: (n: PlaceNotice) => void = () => {};
   /** An order given: the command and what it asks. */
   onOrder: (type: string, args: Record<string, unknown>) => void = () => {};
+  /**
+   * One order given to many (U5): the command, given once for each, one after another, and what each came to (null:
+   * given; else why not).
+   */
+  onOrders: (
+    type: string,
+    each: readonly Record<string, unknown>[],
+  ) => Promise<readonly (string | null)[]> = async (_, each) =>
+    each.map(() => "no town is entered");
+  /** Many pinned or let go of at once (U5), each as a person's page pins them; what each came to (null: done). */
+  onPins: (
+    each: readonly { readonly id: number; readonly ref: string; readonly name: string }[],
+    on: boolean,
+  ) => Promise<readonly (string | null)[]> = async (each) => each.map(() => "no town is entered");
   /** Another way of running the town chosen. */
   onMode: (mode: PlaceMode) => void = () => {};
   /** In a town watched: stay with the one the eye is with, or be led again; and on to another. */
@@ -445,6 +605,39 @@ export class PlaceHud {
     for (const up of ["pointerup", "pointercancel"])
       this.sheetBody.addEventListener(up, () => (this.held = performance.now() + 60));
     this.sheet.hidden = true;
+    // (The People sheet's name box with the key to pick many beside it, and the priorities grid's: U5.)
+    const people = this.findBox("Find by name", (q) => {
+      if (q === this.peopleAsk.q) return;
+      this.peopleAsk.q = q;
+      this.askPeople();
+    });
+    this.peopleFind = people.row;
+    this.peopleInput = people.input;
+    this.peopleFind.classList.add("place-people-find");
+    this.pickKey.setAttribute(
+      "aria-label",
+      "Pick many: tap rows to pick them, then give one order to all of them",
+    );
+    this.pickKey.onclick = () => {
+      this.picking = !this.picking;
+      if (!this.picking) {
+        this.picked.clear();
+        this.pickSaid = "";
+      }
+      this.ordering = null;
+      if (this.peopleNow) this.people(this.peopleNow, true);
+    };
+    this.peopleFind.append(this.pickKey);
+    const grid = this.findBox("Find by name in the grid", (q) => {
+      if (q === this.gridQ) return;
+      this.gridQ = q;
+      this.gridPage = 0;
+      this.drawn = "";
+      this.onTab("work");
+    });
+    this.gridFind = grid.row;
+    this.gridInput = grid.input;
+    this.gridFind.classList.add("place-grid-find");
     const foot = el("nav", "place-foot");
     // (The town's own pages first, U3: before, only a tap on its square's open ground led to them.)
     this.townKey.append(el("span", "place-tab-icon", "🏘️"), el("span", "place-tab-name", "Town"));
@@ -570,6 +763,13 @@ export class PlaceHud {
     this.alertsBox.replaceChildren();
     this.alertsBox.hidden = true;
     this.tell(null);
+    // (A town entered afresh: its People sheet and grid as they first are, no one picked, U5.)
+    this.peopleAsk = { q: "", sort: "eye", up: null, page: 0, group: null, only: null };
+    this.peopleInput.value = this.gridInput.value = this.gridQ = this.pickSaid = "";
+    this.gridPage = 0;
+    this.picking = this.grouping = false;
+    this.picked.clear();
+    this.peopleNow = null;
     document.body.classList.add("placing");
     document.body.classList.toggle("place-watching", this.ran === "watch");
     this.soundWords();
@@ -983,15 +1183,113 @@ export class PlaceHud {
   }
 
   /**
+   * A sheet's body given what it shows: where its name box has a finger typing in it, that box is kept where it is and
+   * what is round it put in again about it (U5), so the box is never taken from under the finger, and the keyboard on a
+   * phone never goes down and up again with the page jumping.
+   */
+  private fill(body: readonly Node[]): void {
+    const typing = document.activeElement,
+      keep =
+        typing instanceof HTMLInputElement && this.sheetBody.contains(typing)
+          ? body.find((n) => n === typing || n.contains(typing))
+          : undefined;
+    if (!keep || keep.parentNode !== this.sheetBody)
+      return void this.sheetBody.replaceChildren(...body);
+    const at = body.indexOf(keep);
+    for (const c of [...this.sheetBody.childNodes]) if (c !== keep) c.remove();
+    (keep as ChildNode).before(...body.slice(0, at));
+    (keep as ChildNode).after(...body.slice(at + 1));
+  }
+  /**
+   * A name box (U5): what is typed in it asked for once the fingers rest a moment, never at every letter. Its keys are
+   * the box's own (the town's Space, 1 to 4 and O are not taken by it), and its text a phone's own size, so a phone does
+   * not zoom the page to it.
+   */
+  private findBox(
+    words: string,
+    asked: (q: string) => void,
+  ): { readonly row: HTMLElement; readonly input: HTMLInputElement } {
+    const row = el("div", "place-find"),
+      input = el("input", "place-find-input");
+    input.type = "search";
+    input.placeholder = words;
+    input.setAttribute("aria-label", words);
+    input.autocomplete = "off";
+    input.spellcheck = false;
+    input.enterKeyHint = "search";
+    let wait = 0;
+    const ask = (): void => {
+      clearTimeout(wait);
+      asked(input.value.trim());
+    };
+    input.addEventListener("input", () => {
+      clearTimeout(wait);
+      wait = window.setTimeout(ask, 250);
+    });
+    input.addEventListener("keydown", (e) => {
+      e.stopPropagation();
+      if (e.key === "Enter") ask();
+      else if (e.key === "Escape") input.blur();
+    });
+    row.append(input);
+    return { row, input };
+  }
+
+  /** What the People sheet is asked for now (U5), for its asking: the name sought, its order, page, grouping, narrowing. */
+  get peopleArgs(): Record<string, unknown> {
+    const a = this.peopleAsk;
+    return {
+      q: a.q,
+      sort: a.sort,
+      ...(a.up === null ? {} : { up: a.up }),
+      page: a.page,
+      group: a.group,
+      only: a.only,
+    };
+  }
+  /** The People sheet asked again from its first page (a name, a narrowing or a grouping changed). */
+  private askPeople(): void {
+    this.peopleAsk.page = 0;
+    this.drawn = "";
+    this.onTab("people");
+  }
+  /** Whether a reading of the People sheet is of what is asked now (one read before a key changed it is let go). */
+  private askedNow(s: PlacePeopleSheet): boolean {
+    const a = s.ask,
+      m = this.peopleAsk;
+    if (
+      a.q !== m.q.trim().slice(0, 40) ||
+      a.sort !== m.sort ||
+      a.group !== m.group ||
+      a.only !== m.only ||
+      (m.up !== null && a.up !== m.up)
+    )
+      return false;
+    // (A page past the last, there being fewer now: the last is the one asked.)
+    if (a.page !== m.page) {
+      if (a.page < m.page && s.from + s.most >= s.all) m.page = a.page;
+      else return false;
+    }
+    return true;
+  }
+
+  /**
    * Its people, the most pressed first. `own`: drawn again by a key of the sheet itself, from the very rows it shows.
    * While someone's order keys are open the list holds still: who is most pressed changes by the second while the clock
    * runs, and a list read again moved the row and its keys from under the finger, or took them off the sheet with
    * the one they were for (in WebKit at a phone's size an order key pressed did nothing six times in fourteen).
+   *
+   * At scale (U5): a name box, the sheet's order by a column (either way, the way on its key), a page of sixty at a time,
+   * groups with their counts, ready narrowings, and picking many to give one order to all of them.
    */
   people(s: PlacePeopleSheet, own = false): void {
-    if (this.tab !== "people" || this.helpOn) return;
-    if (own) this.drawn = JSON.stringify([s, this.occ]);
-    else if ((this.ordering !== null && this.drawn !== "") || this.same([s, this.occ])) return;
+    if (this.tab !== "people" || this.helpOn || !this.askedNow(s)) return;
+    this.peopleNow = s;
+    // (Those picked kept as last read, where they are on this page.)
+    for (const r of s.rows) if (this.picked.has(r.id)) this.picked.set(r.id, r);
+    const what = [s, this.occ, this.picking, [...this.picked.keys()], this.pickSaid, this.giving];
+    if (own) this.drawn = JSON.stringify(what);
+    else if ((this.ordering !== null && this.drawn !== "") || this.same(what)) return;
     let open: HTMLElement | null = null;
     const chips = el("div", "place-chips");
     // (Those pinned first: the people bar's 📌 and those followed by your word, here and, greyed, elsewhere.)
@@ -1003,8 +1301,7 @@ export class PlaceHud {
       b.onclick = () => {
         this.occ = PINNED;
         this.ordering = null;
-        this.drawn = "";
-        this.onTab("people");
+        this.askPeople();
       };
       chips.append(b);
     }
@@ -1023,14 +1320,120 @@ export class PlaceHud {
       b.onclick = () => {
         this.occ = occ;
         this.ordering = null;
-        this.drawn = "";
-        this.onTab("people");
+        this.askPeople();
       };
       chips.append(b);
     }
+    // (The ready narrowings after the trades, U5, each with how many it holds of the trade chosen: those holding none are
+    // not offered. A phone's half of the screen has no row to spare for them alone.)
+    PEOPLE_ONLY.forEach((key, k) => {
+      const n = s.only[k] ?? 0,
+        on = this.peopleAsk.only === key;
+      if (!n && !on) return;
+      const [words, says] = ONLY_WORDS[key],
+        b = el("button", "place-chip place-only-chip", `${words} ${n}`);
+      b.dataset.only = key;
+      b.classList.toggle("on", on);
+      b.setAttribute("aria-pressed", String(on));
+      b.setAttribute("aria-label", `${on ? "Showing only" : "Show only"} those ${says} (${n})`);
+      b.title = b.getAttribute("aria-label")!;
+      b.onclick = () => {
+        this.peopleAsk.only = on ? null : key;
+        this.askPeople();
+      };
+      chips.append(b);
+    });
+    // (The name box's row: kept, with the key that picks many.)
+    this.pickKey.textContent = this.picking ? "Done picking" : "Pick many";
+    this.pickKey.classList.toggle("on", this.picking);
+    this.pickKey.setAttribute("aria-pressed", String(this.picking));
+    // (Its columns' keys over the rows, U5: the one the sheet is ordered by marked, with its way.)
+    const head = el("div", "place-sort-row");
+    head.setAttribute("role", "group");
+    head.setAttribute("aria-label", "Order the people by");
+    for (const [key, words, upWords, downWords] of SORTS) {
+      const on = this.peopleAsk.sort === key,
+        up = on ? s.ask.up : null,
+        b = el(
+          "button",
+          `place-chip place-sort${on ? " on" : ""}`,
+          on ? `${words} ${up ? "▲" : "▼"}` : words,
+        );
+      b.dataset.sort = key;
+      b.setAttribute("aria-sort", on ? (up ? "ascending" : "descending") : "none");
+      b.setAttribute(
+        "aria-label",
+        on
+          ? `Ordered by ${words.toLowerCase()}, ${up ? upWords : downWords}. Tap for ${up ? downWords : upWords}`
+          : `Order by ${words.toLowerCase()}`,
+      );
+      b.title = b.getAttribute("aria-label")!;
+      b.onclick = () => {
+        if (on) this.peopleAsk.up = !s.ask.up;
+        else {
+          this.peopleAsk.sort = key;
+          this.peopleAsk.up = null;
+        }
+        this.askPeople();
+      };
+      head.append(b);
+    }
+    // (Grouped by a key that opens its choices, and the page: where it is among all, and the way to the next.)
+    const pager = this.pager(s.from, s.rows.length, s.all, s.most, "person", "people", (page) => {
+        this.peopleAsk.page = page;
+        this.drawn = "";
+        this.onTab("people");
+      }),
+      groupKey = el(
+        "button",
+        `place-order place-group-key${this.peopleAsk.group ? " on" : ""}`,
+        `Group: ${GROUP_WORDS.find((x) => x[0] === this.peopleAsk.group)![1].toLowerCase()} ${this.grouping ? "▴" : "▾"}`,
+      );
+    groupKey.setAttribute("aria-expanded", String(this.grouping));
+    groupKey.setAttribute("aria-label", "Group the people: by household, street, trade or skill");
+    groupKey.onclick = () => {
+      this.grouping = !this.grouping;
+      this.people(s, true);
+    };
+    pager.prepend(groupKey);
+    const tools: HTMLElement[] = [this.peopleFind, chips, pager];
+    if (this.grouping) {
+      const by = el("div", "place-chips place-group-chips");
+      for (const [key, words] of GROUP_WORDS) {
+        const b = el("button", "place-chip place-group-chip", words);
+        b.dataset.group = key ?? "none";
+        b.classList.toggle("on", this.peopleAsk.group === key);
+        b.onclick = () => {
+          this.peopleAsk.group = key;
+          this.grouping = false;
+          this.askPeople();
+        };
+        by.append(b);
+      }
+      tools.push(by);
+    }
+    tools.push(head);
+    if (this.picking) tools.push(this.pickBar(s));
     const list = el("div", "place-rows");
+    const groups = new Map(s.groups.map((g) => [g.key, g])),
+      orders = !this.picking;
+    let under: number | null = null;
     for (const r of s.rows) {
-      const row = el("button", `place-row place-person-row level${r.level}`),
+      // (A group's head where its rows begin on this page, with how many are in it in all.)
+      if (r.group !== null && r.group !== under) {
+        under = r.group;
+        const g = groups.get(r.group);
+        if (g) {
+          const h = el("div", "place-group-head");
+          h.append(
+            el("span", "place-group-name", g.name),
+            el("span", "place-group-n", `${g.n} ${g.n === 1 ? "person" : "people"}`),
+          );
+          list.append(h);
+        }
+      }
+      const picked = this.picked.has(r.id),
+        row = el("button", `place-row place-person-row level${r.level}`),
         mood = el(
           "span",
           "place-mood-chip",
@@ -1048,26 +1451,51 @@ export class PlaceHud {
         mood,
       );
       row.title = `${r.name}: ${NEEDS.map((w, q) => `${w} ${Math.round((r.needs[q] ?? 0) * 100)}%`).join(", ")}`;
-      row.onclick = () => this.onOpen(r.ref);
+      const one = el(
+        "div",
+        `place-person${this.picking ? " picking" : ""}${picked ? " picked" : ""}`,
+      );
+      one.dataset.ref = r.ref;
+      one.dataset.id = String(r.id);
+      // (Picking: a tap on the row, or on its own key, picks them or lets them go.)
+      if (this.picking) {
+        const pick = captioned(
+            el("button", "place-pick-one"),
+            picked ? "☑" : "☐",
+            picked ? "Picked" : "Pick",
+          ),
+          toggle = () => {
+            if (this.picked.has(r.id)) this.picked.delete(r.id);
+            else this.picked.set(r.id, r);
+            this.people(s, true);
+          };
+        pick.setAttribute("aria-pressed", String(picked));
+        pick.setAttribute("aria-label", `${picked ? "Let go of" : "Pick"} ${r.name}`);
+        pick.onclick = toggle;
+        row.onclick = toggle;
+        row.setAttribute("aria-pressed", String(picked));
+        one.append(pick);
+      } else row.onclick = () => this.onOpen(r.ref);
       if (r.pinned) {
         row.classList.add("pinned");
         row.querySelector(".place-row-name")!.prepend("📌 ");
       }
+      one.append(row);
       // (An order for them by name: the trade they are put to, or let be.)
-      const one = el("div", "place-person"),
-        key = el("button", "place-row-order", "Orders"),
-        words = `Give ${r.name} an order`;
-      key.title = words;
-      key.setAttribute("aria-label", words);
-      key.classList.toggle("on", this.ordering === r.id);
-      key.onclick = () => {
-        this.ordering = this.ordering === r.id ? null : r.id;
-        this.people(s, true);
-      };
-      one.dataset.ref = r.ref;
-      one.append(row, key);
+      if (orders) {
+        const key = el("button", "place-row-order", "Orders"),
+          words = `Give ${r.name} an order`;
+        key.title = words;
+        key.setAttribute("aria-label", words);
+        key.classList.toggle("on", this.ordering === r.id);
+        key.onclick = () => {
+          this.ordering = this.ordering === r.id ? null : r.id;
+          this.people(s, true);
+        };
+        one.append(key);
+      }
       // (A pinned one let go of: off the people bar and no longer followed by word.)
-      if (r.pinned) {
+      if (r.pinned && orders) {
         const off = captioned(el("button", "place-row-order place-row-unpin"), "📌✕", "Unpin"),
           said = `Unpin ${r.name}`;
         off.title = said;
@@ -1075,7 +1503,7 @@ export class PlaceHud {
         off.onclick = () => this.onUnpin(r.ref, r.id);
         one.append(off);
       }
-      if (this.ordering === r.id) {
+      if (orders && this.ordering === r.id) {
         open = one;
         const keys = el("div", "place-person-orders");
         ORDER_TRADES.forEach(([occ, name]) => {
@@ -1129,9 +1557,31 @@ export class PlaceHud {
       }
       list.append(one);
     }
-    const more =
-      s.all > s.rows.length
-        ? [el("p", "place-more", `and ${s.all - s.rows.length} more, who want the eye less`)]
+    // (No one found: said, with the way back to all.)
+    const none: HTMLElement[] = [];
+    if (!s.rows.length) {
+      const a = this.peopleAsk;
+      none.push(
+        el(
+          "p",
+          "place-more place-none",
+          a.q
+            ? `No one here is named "${a.q}"${a.only || this.occ !== null ? " among those shown" : ""}. Clear the name box to see everyone.`
+            : "No one here is of those chosen.",
+        ),
+      );
+    }
+    // (The page's keys again under its rows, where there are more pages than one: the finger is at the foot by then.)
+    const foot =
+      s.all > s.most
+        ? [
+            this.pager(s.from, s.rows.length, s.all, s.most, "person", "people", (page) => {
+              this.peopleAsk.page = page;
+              this.drawn = "";
+              this.onTab("people");
+              this.sheetBody.scrollTop = 0;
+            }),
+          ]
         : [];
     // (One whose keys are open and no longer among the rows read: no keys are open.)
     if (!open) this.ordering = null;
@@ -1159,9 +1609,153 @@ export class PlaceHud {
       }
       away.push(box);
     }
-    this.sheetBody.replaceChildren(chips, list, ...more, ...away);
+    this.fill([...tools, list, ...none, ...foot, ...away]);
     // (The keys just opened brought onto the sheet, where their row stood near its foot.)
     if (own && open) (open as HTMLElement).scrollIntoView({ block: "nearest" });
+  }
+
+  /**
+   * Where a page of a sheet's rows is among all of them, said ("61–120 of 212"), with the keys to the page before and
+   * the one after (U5), each in words; the one there is none of greyed.
+   */
+  private pager(
+    from: number,
+    shown: number,
+    all: number,
+    most: number,
+    one: string,
+    many: string,
+    go: (page: number) => void,
+  ): HTMLElement {
+    const row = el("div", "place-pager"),
+      page = Math.floor(from / most),
+      words =
+        all === 0
+          ? `No ${many} found`
+          : all <= most
+            ? `${all} ${all === 1 ? one : many}`
+            : `${from + 1}–${from + shown} of ${all}`,
+      said = el("span", "place-page-words", words);
+    said.setAttribute("aria-live", "polite");
+    row.append(said);
+    if (all > most) {
+      const back = el("button", "place-order place-page-prev", "‹ Prev"),
+        on = el("button", "place-order place-page-next", "Next ›");
+      back.disabled = page <= 0;
+      on.disabled = from + shown >= all;
+      back.setAttribute("aria-label", `The ${most} before these`);
+      on.setAttribute("aria-label", `The next ${most}`);
+      back.onclick = () => go(page - 1);
+      on.onclick = () => go(page + 1);
+      row.append(back, on);
+    }
+    return row;
+  }
+
+  /**
+   * Picking many (U5): how many are picked, the keys to pick all on this page and to let all go, and one order for all
+   * of them, given as each one's own (the order a person's page gives, once for each), and what came of it in words.
+   */
+  private pickBar(s: PlacePeopleSheet): HTMLElement {
+    const bar = el("div", "place-pick-bar"),
+      top = el("div", "place-pick-top"),
+      n = this.picked.size,
+      count = el("strong", "place-pick-count", `${n} picked`),
+      all = el("button", "place-order place-pick-all", "Pick all on this page"),
+      none = el("button", "place-order place-pick-clear", "Clear");
+    count.setAttribute("aria-live", "polite");
+    all.disabled = !s.rows.length || s.rows.every((r) => this.picked.has(r.id));
+    none.disabled = n === 0;
+    all.onclick = () => {
+      for (const r of s.rows) this.picked.set(r.id, r);
+      this.pickSaid = "";
+      this.people(s, true);
+    };
+    none.onclick = () => {
+      this.picked.clear();
+      this.pickSaid = "";
+      this.people(s, true);
+    };
+    top.append(count, all, none);
+    bar.append(top);
+    if (n > 0) {
+      const keys = el("div", "place-person-orders place-pick-orders");
+      keys.append(el("span", "place-order-label", `One order for all ${n}:`));
+      for (const o of MANY) {
+        const b = el("button", "place-chip place-pick-order", o.words);
+        b.dataset.order = o.key;
+        b.disabled = this.giving;
+        b.setAttribute("aria-label", `${o.words}: all ${n} picked`);
+        b.onclick = () => void this.giveMany(o);
+        keys.append(b);
+      }
+      bar.append(keys);
+    } else
+      bar.append(
+        el("p", "place-more", "Tap rows to pick them; then choose one order for all of them."),
+      );
+    if (this.pickSaid) {
+      const said = el("p", "place-pick-said", this.pickSaid);
+      said.setAttribute("role", "status");
+      bar.append(said);
+    }
+    return bar;
+  }
+
+  /**
+   * One order given to all those picked (U5): to each who can take it, as their own order, one after another; and what
+   * came of it said ("Drafted 7 of 8. One is a child."), from what the sheet tells of each. No rule of its own: a draft,
+   * a trade or a pin is the one a person's page gives.
+   */
+  private async giveMany(o: ManyOrder): Promise<void> {
+    const all = [...this.picked.values()];
+    if (!all.length || this.giving) return;
+    this.giving = true;
+    this.pickSaid = `Giving the order to ${all.length}…`;
+    if (this.peopleNow) this.people(this.peopleNow, true);
+    const skipped = new Map<string, number>(),
+      later = new Map<string, number>(),
+      sent: PlacePersonRow[] = [];
+    for (const r of all) {
+      const why = o.skip(r);
+      if (why) skipped.set(why, (skipped.get(why) ?? 0) + 1);
+      else {
+        sent.push(r);
+        const wait = o.later?.(r);
+        if (wait) later.set(wait, (later.get(wait) ?? 0) + 1);
+      }
+    }
+    let told: readonly (string | null)[] = [];
+    try {
+      told = sent.length
+        ? o.pin !== undefined
+          ? await this.onPins(
+              sent.map((r) => ({ id: r.id, ref: r.ref, name: r.name })),
+              o.pin,
+            )
+          : await this.onOrders(o.type!, sent.map(o.args!))
+        : [];
+    } catch (error) {
+      told = sent.map(() => (error as Error).message);
+    }
+    const failed = new Map<string, number>();
+    told.forEach((x) => x && failed.set(x, (failed.get(x) ?? 0) + 1));
+    const took = sent.length - [...failed.values()].reduce((a, b) => a + b, 0),
+      waiting = [...later.values()].reduce((a, b) => a + b, 0),
+      now = o.now && waiting > 0 && took > waiting ? `; ${took - waiting} ${o.now}` : "",
+      lines = [`${o.done(`${took} of ${all.length}`)}${now}.`],
+      said = (why: string, k: number): string =>
+        `${cap(numberWords(k))} ${REASONS[why]?.[k === 1 ? 0 : 1] ?? why}.`;
+    for (const [why, k] of skipped) lines.push(said(why, k));
+    for (const [why, k] of later) lines.push(said(why, k));
+    for (const [why, k] of failed)
+      lines.push(`${cap(numberWords(k))} ${k === 1 ? "was" : "were"} not given it: ${why}.`);
+    this.pickSaid = lines.join(" ");
+    this.giving = false;
+    if (took > 0) this.lesson("pick");
+    this.drawn = "";
+    if (this.peopleNow) this.people(this.peopleNow, true);
+    this.onTab("people");
   }
 
   /**
@@ -1197,11 +1791,27 @@ export class PlaceHud {
       b.classList.toggle("on", this.gridOcc === occ);
       b.onclick = () => {
         this.gridOcc = occ;
+        this.gridPage = 0;
         this.drawn = "";
         this.onTab("work");
       };
       chips.append(b);
     }
+    // (A page of it at a time, U5: where it is among all of them, and the keys to the page before and the one after.)
+    const pager = this.pager(
+      s.grid.from,
+      s.grid.rows.length,
+      s.grid.all,
+      s.grid.most,
+      "person",
+      "people",
+      (page) => {
+        this.gridPage = page;
+        this.drawn = "";
+        this.onTab("work");
+      },
+    );
+    pager.classList.add("place-grid-pager");
     const box = el("div", "place-grid"),
       table = el("div", "place-grid-rows"),
       top = el("div", "place-grid-row place-grid-head");
@@ -1304,10 +1914,6 @@ export class PlaceHud {
       else if (++tries < 10) requestAnimationFrame(laid);
     };
     requestAnimationFrame(laid);
-    const more =
-      s.grid.all > s.grid.rows.length
-        ? `${s.grid.rows.length} of ${s.grid.all} shown: narrow them by trade above. `
-        : "";
     // (What its two numbers are, in two lines over it, U4: told only under it, past the fold on a phone.)
     const key = el("div", "place-grid-legend");
     key.append(
@@ -1322,13 +1928,15 @@ export class PlaceHud {
       el("h3", "place-sub", "Priorities"),
       head,
       chips,
+      this.gridFind,
+      pager,
       key,
       hint,
       wrap,
       el(
         "p",
         "place-more",
-        `${more}The trade set highest is the one they keep, and its land is told when it changes; a lower one is what they turn to, at the skill their hours at it make, when their own has nothing for them. Building is who a site's crew is made up of first; fire watch, who of those near a fire go to it (– never) and who keep a watch where one is ordered. Skill comes of the hours they have given it. Healing, cooking and hunting are counted as they are done: who tends one of their own abed, who cooks at their hearth, a forager's work. Faint keys are as they are of themselves.`,
+        `The trade set highest is the one they keep, and its land is told when it changes; a lower one is what they turn to, at the skill their hours at it make, when their own has nothing for them. Building is who a site's crew is made up of first; fire watch, who of those near a fire go to it (– never) and who keep a watch where one is ordered. Skill comes of the hours they have given it. Healing, cooking and hunting are counted as they are done: who tends one of their own abed, who cooks at their hearth, a forager's work. Faint keys are as they are of themselves.`,
       ),
     ];
   }
@@ -1672,7 +2280,7 @@ export class PlaceHud {
         body.push(row);
       }
     }
-    this.sheetBody.replaceChildren(...body);
+    this.fill(body);
   }
 
   /** Which of the Dangers sheet's orders have their words open (ⓘ). */
